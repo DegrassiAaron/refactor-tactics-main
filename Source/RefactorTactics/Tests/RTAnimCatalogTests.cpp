@@ -402,30 +402,35 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogAdditiveGestureBindingIsRejectedT
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAnimCatalogAdditiveGestureBindingIsRejectedTest::RunTest(const FString&)
 {
-	const TStrongObjectPtr<UAnimSequence> CastAdditivo = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoCast"), AAT_LocalSpaceBase);
-	const TStrongObjectPtr<UAnimSequence> AttackPieno = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoAttack"), AAT_None);
-	const TStrongObjectPtr<UAnimSequence> HitAdditivo = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoHit"), AAT_LocalSpaceBase);
+	// ⚠️ I nomi delle sequenze non contengono nomi di ruolo: l'asserto sul ruolo non deve poter passare grazie al path.
+	const TStrongObjectPtr<UAnimSequence> PrimoGesto = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoPrimo"), AAT_LocalSpaceBase);
+	const TStrongObjectPtr<UAnimSequence> Pieno = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoPieno"), AAT_None);
+	const TStrongObjectPtr<UAnimSequence> Reazione = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoReazione"), AAT_LocalSpaceBase);
 	const TStrongObjectPtr<UAnimSequence> Inattivo = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoInattivo"), AAT_LocalSpaceBase);
-	const FString PathCast = FSoftObjectPath(CastAdditivo.Get()).ToString();
+	const TStrongObjectPtr<UAnimSequence> SecondoGesto = AnimCatalogSequenzaInMemoria(TEXT("RTCatalogoSecondo"), AAT_LocalSpaceBase);
+	const FString PathPrimo = FSoftObjectPath(PrimoGesto.Get()).ToString();
+	const FString PathSecondo = FSoftObjectPath(SecondoGesto.Get()).ToString();
 
 	FRTAnimCatalog Catalog;
-	Catalog.NextId = 5;
-	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0001"), PathCast, ERTPresentationRole::Cast, true));
+	Catalog.NextId = 6;
+	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0001"), PathPrimo, ERTPresentationRole::Cast, true));
 	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0002"),
-		FSoftObjectPath(AttackPieno.Get()).ToString(), ERTPresentationRole::Attack, true));
+		FSoftObjectPath(Pieno.Get()).ToString(), ERTPresentationRole::Attack, true));
 	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0003"),
-		FSoftObjectPath(HitAdditivo.Get()).ToString(), ERTPresentationRole::Hit, true));
+		FSoftObjectPath(Reazione.Get()).ToString(), ERTPresentationRole::Hit, true));
 	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0004"),
 		FSoftObjectPath(Inattivo.Get()).ToString(), ERTPresentationRole::Attack, false));
+	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0005"), PathSecondo, ERTPresentationRole::Attack, true));
 
 	int32 NonVerificati = -1;
 	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateGestureClips(&Catalog, NonVerificati);
 
 	TestEqual(TEXT("tutte le clip si caricano: nessun gesto resta non verificato"), NonVerificati, 0);
-	TestEqual(TEXT("una riga sola: il Cast attivo additivo"), Errori.Num(), 1);
-	TestTrue(TEXT("🔴 la riga nomina la voce"), AnyLineContains(Errori, TEXT("AV_0001")));
-	TestTrue(TEXT("...il ruolo"), AnyLineContains(Errori, TEXT("Cast")));
-	TestTrue(TEXT("...e la clip"), AnyLineContains(Errori, *PathCast));
+	TestEqual(TEXT("due righe: il Cast e l'Attack attivi additivi"), Errori.Num(), 2);
+	TestTrue(TEXT("🔴 la riga nomina eroe, ruolo e voce del Cast"), AnyLineContains(Errori, TEXT("Hero.Aevik / Cast ('AV_0001')")));
+	TestTrue(TEXT("...e la sua clip"), AnyLineContains(Errori, *PathPrimo));
+	TestTrue(TEXT("🔴 anche un Attack attivo additivo e' rifiutato"), AnyLineContains(Errori, TEXT("Hero.Aevik / Attack ('AV_0005')")));
+	TestTrue(TEXT("...con la sua clip"), AnyLineContains(Errori, *PathSecondo));
 	TestFalse(TEXT("controllo positivo: un Attack pieno passa"), AnyLineContains(Errori, TEXT("AV_0002")));
 	TestFalse(TEXT("una hit-react additiva non e' un gesto"), AnyLineContains(Errori, TEXT("AV_0003")));
 	TestFalse(TEXT("un binding inattivo non si controlla"), AnyLineContains(Errori, TEXT("AV_0004")));
@@ -445,10 +450,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogGestureClipThatDoesNotLoadIsNotRu
 bool FRTAnimCatalogGestureClipThatDoesNotLoadIsNotRunTest::RunTest(const FString&)
 {
 	FRTAnimCatalog Catalog;
-	Catalog.NextId = 4;
+	Catalog.NextId = 5;
 	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0001"), AnimCatalogTestPath(1), ERTPresentationRole::Cast, true));
 	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0002"), AnimCatalogTestPath(2), ERTPresentationRole::Attack, false));
 	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0003"), AnimCatalogTestPath(3), ERTPresentationRole::Hit, true));
+	Catalog.Entries.Add(AnimCatalogVoceConLegame(TEXT("AV_0004"), AnimCatalogTestPath(4), ERTPresentationRole::Attack, true));
 
 	if (!TestNull(TEXT("⛔ premessa: il path sintetico non si carica"),
 			TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(AnimCatalogTestPath(1))).LoadSynchronous()))
@@ -459,7 +465,7 @@ bool FRTAnimCatalogGestureClipThatDoesNotLoadIsNotRunTest::RunTest(const FString
 	int32 NonVerificati = -1;
 	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateGestureClips(&Catalog, NonVerificati);
 	TestEqual(TEXT("nessun errore: una clip che non si carica non si giudica"), Errori.Num(), 0);
-	TestEqual(TEXT("🔴 e il gesto attivo e' contato come NON verificato, non come passato"), NonVerificati, 1);
+	TestEqual(TEXT("🔴 e i due gesti attivi (Cast e Attack) sono contati come NON verificati, non come passati"), NonVerificati, 2);
 	return true;
 }
 

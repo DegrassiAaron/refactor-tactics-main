@@ -8,13 +8,16 @@
 /**
  * Lettura, scrittura, allocazione degli ID e validazione del catalogo delle animazioni.
  *
- * Funzioni pure e deterministiche: nessun Actor, nessun mondo, nessun `DeltaTime`. Testabili headless, come
+ * Funzioni pure e deterministiche — tranne `ValidateGestureClips`, che APRE gli asset (#3596) —: nessun Actor,
+ * nessun mondo, nessun `DeltaTime`. Testabili headless, come
  * `URTIconLibrary` e `URTPresentationBindingLibrary` — e per la stessa ragione: **un contratto rotto si scopre
  * in CI e non a schermo**.
  *
  * ⚠️ **Il validator e' diviso in due meta', e la divisione non e' estetica.** `ValidateCatalog` gira ovunque
  * perche' non tocca il disco; `ValidateReferents` richiede i pack Paragon (`.gitignore:105`, ~48 GB) e su una
  * macchina che non li ha deve dire `NOT RUN`, non restituire un array vuoto che sembra un successo.
+ * ➕ #3596: e una terza, `ValidateGestureClips`, che apre la clip di ogni gesto attivo e rifiuta un'additiva; anche
+ * lei conta come NON verificato cio' che non si carica.
  *
  * 🔴 **IL VERSO DEL FLUSSO, e perche' due dati nominano le stesse clip senza essere in conflitto** (#2442).
  *
