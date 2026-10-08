@@ -192,9 +192,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 
 	// ── DASH ────────────────────────────────────────────────────────────────────────────────────────────
 	//
-	// ⚠️ La voce si mostra anche quando lo scatto **non** si applica, e il livello di certezza e' cio' che
-	// porta la differenza: nasconderla direbbe al giocatore che non ha pianificato uno scatto, mentre lo ha
-	// pianificato e potrebbe non arrivare.
+	// ⚠️ La voce si mostra anche quando lo scatto **non** si applica: nasconderla direbbe al giocatore che non ha
+	// pianificato uno scatto, mentre lo ha pianificato.
+	//
+	// 🔑 **La differenza la porta il ghost, che sta dove sara' l'unita'** ([D-474]). Uno scatto che non si applica
+	// non la porta da nessuna parte, e la voce si comporta come una rotta rifiutata: ghost sulla cella corrente,
+	// facing di adesso, nessun percorso. La cella dello scatto resta nell'intento dell'HUD (`Intent.DashCell`).
+	// ⏱️ *Fino a [D-474] il ghost stava sulla cella dello scatto in ogni caso, e questo commento diceva che la
+	// differenza la portava la certezza*: ma la certezza e' `Uncertain` in entrambi i casi.
 	if (Plan.bDashPlanned)
 	{
 		// 🔴 **La rotta dello scatto la CALCOLA il resolver, e la prima stesura la inventava.**
@@ -203,8 +208,11 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		// percorso ricava anche il facing. Su uno scatto che deve aggirare un ostacolo il ghost disegnava una
 		// retta ATTRAVERSO l'ostacolo e dichiarava un orientamento che l'unita' non avrebbe mai avuto: lo
 		// stesso difetto che la fase Move era stata scritta per evitare, sulla fase accanto.
-		const FRTHexPathResult RottaScatto =
-			URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell);
+		// [D-474]: la rotta si chiede al resolver solo per uno scatto che si applica. Per gli altri resta vuota,
+		// cioe' la rotta rifiutata qui sotto: l'unita' non si sposta e non si gira.
+		const FRTHexPathResult RottaScatto = bScattoEffettivo
+			? URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell)
+			: FRTHexPathResult();
 
 		FRTPhasePreviewEntry Dash;
 		Dash.Phase = ERTResolutionPhase::FastMovement;
@@ -245,11 +253,19 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// La principale di `Control` o di `Attack` risolve qui, fra lo scatto e il Move, ed e' la sola che il
 	// resolver gira verso un bersaglio vivo (`CollectAttackIntents`, [D-020]). Non sposta chi la esegue: il
 	// ghost sta sulla sua origine, che dopo uno scatto e' la cella d'arrivo ([D-464]).
+	//
+	// 🔑 **E il facing che il Move riceve e' quello DOPO il Blast** (#3566). Il resolver gira chi agisce verso il
+	// bersaglio vivo, e un Move che non lo sposta non deriva un altro orientamento: *«chi non si e' mosso non deriva
+	// nessun orientamento»* (`ResolveMovement`). ⏱️ *Fino a #3566 la voce Move senza percorso prendeva il facing
+	// dopo lo scatto*, cioe' di prima del Blast, e mostrava l'unita' girata dove non sarebbe stata.
+	ERTHexDirection FacingPrimaDelMove = FacingDopoScatto;
 	if (bAzioneNelBlast)
 	{
-		Out.Phases.Add(VoceAzionePrincipale(Blast.Origin, FacingDopoScatto,
+		const FRTPhasePreviewEntry Colpo = VoceAzionePrincipale(Blast.Origin, FacingDopoScatto,
 			bScattoEffettivo ? ERTPreviewFacingSource::InheritedFromPreviousPhase : ERTPreviewFacingSource::Authoritative,
-			/*bRuotaVersoIlBersaglio=*/ true));
+			/*bRuotaVersoIlBersaglio=*/ true);
+		Out.Phases.Add(Colpo);
+		FacingPrimaDelMove = Colpo.Facing;
 	}
 
 	// ── MOVE ────────────────────────────────────────────────────────────────────────────────────────────
@@ -268,7 +284,7 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// Dove sara' l'unita' a Move concluso, e come guardera': li' risolve la principale del Cleanup ([D-470]).
 	// Senza un Move resta dove lo scatto l'ha lasciata.
 	FRTCellId CellaDopoIlMove = CellaDopoScatto;
-	ERTHexDirection FacingDopoIlMove = FacingDopoScatto;
+	ERTHexDirection FacingDopoIlMove = FacingPrimaDelMove;
 	ERTPreviewFacingSource FonteDopoIlMove = bScattoEffettivo
 		? ERTPreviewFacingSource::InheritedFromPreviousPhase
 		: ERTPreviewFacingSource::Authoritative;
@@ -316,9 +332,10 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		// ⚠️ Un percorso RIFIUTATO torna vuoto (vedi il contratto di `BuildCompositeHexPath`), e allora la
 		// destinazione e' l'origine: il piano non porta l'unita' da nessuna parte, e dirlo e' l'esito giusto.
 		Move.PreviewDestination = Percorso.Path.Num() > 0 ? Percorso.Path.Last() : CellaDopoScatto;
+		// Senza un percorso vero l'unita' resta com'e' dopo il Blast (#3566): vedi `FacingPrimaDelMove`.
 		Move.Facing = Percorso.Path.Num() >= 2
-			? URTFacingLibrary::FacingFromPath(Percorso.Path, FacingDopoScatto)
-			: FacingDopoScatto;
+			? URTFacingLibrary::FacingFromPath(Percorso.Path, FacingPrimaDelMove)
+			: FacingPrimaDelMove;
 		Move.FacingSource = Percorso.Path.Num() >= 2
 			? ERTPreviewFacingSource::DerivedFromPath
 			: ERTPreviewFacingSource::InheritedFromPreviousPhase;

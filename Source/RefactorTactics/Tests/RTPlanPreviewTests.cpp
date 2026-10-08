@@ -819,4 +819,150 @@ bool FRTPlanPreviewBlastActionsKeepTheirPlaceTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// Il ghost di uno scatto che non si applica ([D-474], #3565)
+// =========================================================================================================
+
+/**
+ * **Uno scatto che non si applica lascia il ghost sulla cella corrente** ([D-474], #3565).
+ *
+ * `bDashResolves` falso vuol dire che il resolver rifiutera' lo scatto per fatti gia' noti in pianificazione
+ * (`ARTUnit::PlannedDashMoves()`, [D-471]). La voce Dash resta, perche' lo scatto e' pianificato; ma il ghost
+ * sta dove sara' l'unita', e la voce si comporta come una rotta rifiutata. ⏱️ *Fino a [D-474] il ghost stava
+ * sulla cella dello scatto in ogni caso.*
+ *
+ * ⚠️ Il CONTROLLO e' lo stesso piano con lo scatto che si applica: arriva, si gira e porta la rotta. Senza, «sta
+ * sulla cella corrente» sarebbe vero anche per una mappa in cui lo scatto non puo' andare da nessuna parte.
+ * ⬜ La certezza della voce non si asserisce: [D-474] la lascia aperta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewDashThatDoesNotApplyTest,
+	"RefactorTactics.Preview.DashThatDoesNotApplyLeavesTheGhostHere",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewDashThatDoesNotApplyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(-2, 0, 0);
+	const FRTCellId CellaScatto(0, 0, 0);
+	const FRTCellId DopoIlMove(0, 2, 0);
+
+	TArray<FRTHexSimUnit> Units;
+	FRTHexSimUnit U(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 8);
+	U.Facing = ERTHexDirection::W;
+	Units.Add(U);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	const auto Piano = [&](bool bSiApplica)
+	{
+		FRTPlanPreviewInput Plan;
+		Plan.UnitId = 0;
+		Plan.bDashPlanned = true;
+		Plan.bDashResolves = bSiApplica;
+		Plan.PlannedDashCell = CellaScatto;
+		Plan.DashActionId = TEXT("Action.Dodge");
+		Plan.PlannedWaypoints = { DopoIlMove };
+		Plan.MoveActionId = TEXT("Action.Move");
+		return URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
+	};
+
+	// CONTROLLO — lo scatto si applica: il ghost arriva alla sua cella, girato dalla rotta.
+	const FRTPlanPreview Applicato = Piano(/*bSiApplica=*/ true);
+	const FRTPhasePreviewEntry* ScattoVero = PhaseOf(Applicato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("controllo: la timeline porta lo scatto che si applica"), ScattoVero)) { return false; }
+	TestTrue(TEXT("controllo: il ghost arriva alla cella dello scatto"), ScattoVero->PreviewDestination == CellaScatto);
+	TestTrue(TEXT("controllo: e la voce porta la rotta"), ScattoVero->PreviewPath.Num() >= 2);
+	TestEqual(TEXT("controllo: e l'unita' si gira verso E"), ScattoVero->Facing, ERTHexDirection::E);
+
+	// IL CUORE — lo scatto non si applica: la voce resta, il ghost sta dove sara' l'unita'.
+	const FRTPlanPreview Negato = Piano(/*bSiApplica=*/ false);
+	const FRTPhasePreviewEntry* Scatto = PhaseOf(Negato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("la voce Dash resta: lo scatto e' pianificato"), Scatto)) { return false; }
+	TestTrue(TEXT("il ghost sta sulla cella corrente"), Scatto->PreviewDestination == Partenza);
+	TestTrue(TEXT("da dove parte"), Scatto->PreviewOrigin == Partenza);
+	TestEqual(TEXT("nessun percorso: la fase non ne percorre uno"), Scatto->PreviewPath.Num(), 0);
+	TestEqual(TEXT("e il facing di adesso: l'unita' non si gira"), Scatto->Facing, ERTHexDirection::W);
+	TestEqual(TEXT("ereditato, come per una rotta rifiutata"), Scatto->FacingSource,
+		ERTPreviewFacingSource::InheritedFromPreviousPhase);
+
+	// E il Move parte da dove l'unita' e' rimasta: lo era gia' prima di [D-474], e qui si guarda che resti cosi'.
+	const FRTPhasePreviewEntry* Move = PhaseOf(Negato, ERTResolutionPhase::NormalMovement);
+	if (TestNotNull(TEXT("la timeline porta il Move"), Move))
+	{
+		TestTrue(TEXT("il Move parte dalla cella corrente"), Move->PreviewOrigin == Partenza);
+	}
+	return true;
+}
+
+// =========================================================================================================
+// Il Move senza percorso tiene il facing del Blast (#3566)
+// =========================================================================================================
+
+/**
+ * **Un Move che non sposta l'unita' le lascia il facing del Blast** (#3566), come il resolver.
+ *
+ * Il Blast gira chi agisce verso un bersaglio vivo (`CollectAttackIntents`, [D-020]); `ResolveMovement` salta chi
+ * non si e' mosso — *«chi non si e' mosso non deriva nessun orientamento»*. ⏱️ *Fino a #3566 la voce Move senza
+ * percorso prendeva il facing di PRIMA del Blast.*
+ *
+ * ⚠️ Il bersaglio sta a SE, fuori dal facing di partenza (W): senza, «girata dal Blast» e «come prima» sarebbero
+ * indistinguibili. Il CONTROLLO e' un Move vero, che il facing lo deriva dal proprio percorso come prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewMoveWithoutAPathKeepsTheBlastFacingTest,
+	"RefactorTactics.Preview.MoveWithoutAPathKeepsTheBlastFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewMoveWithoutAPathKeepsTheBlastFacingTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(-2, 0, 0);
+	const FRTCellId Bersaglio(-2, 2, 0);
+
+	TArray<FRTHexSimUnit> Units;
+	FRTHexSimUnit U(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 8);
+	U.Facing = ERTHexDirection::W;
+	Units.Add(U);
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 1, Bersaglio, /*MoveBudget=*/ 0));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+	const TArray<FRTHexCombatUnit> CombatUnits = { MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Partenza),
+		MakePlanPreviewCombatUnit(1, /*TeamId=*/ 1, Bersaglio) };
+
+	const auto Piano = [&](const FRTCellId& Waypoint)
+	{
+		FRTPlanPreviewInput Plan;
+		Plan.UnitId = 0;
+		Plan.Blast.AttackerId = 0;
+		Plan.Blast.bHasAction = true;
+		Plan.Blast.Shape = ERTAbilityShape::Single;
+		Plan.Blast.RangeCells = 6;
+		Plan.Blast.TargetId = 1;
+		Plan.BlastActionId = TEXT("Action.Strike");
+		Plan.PlannedWaypoints = { Waypoint };
+		Plan.MoveActionId = TEXT("Action.Move");
+		return URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
+	};
+
+	// IL CUORE — un waypoint fuori dalla mappa: il percorso e' rifiutato, e l'unita' non si sposta.
+	const FRTPlanPreview Rifiutato = Piano(FRTCellId(9, 0, 0));
+	const FRTPhasePreviewEntry* Colpo = PhaseOf(Rifiutato, ERTResolutionPhase::Attack);
+	const FRTPhasePreviewEntry* Move = PhaseOf(Rifiutato, ERTResolutionPhase::NormalMovement);
+	if (!TestNotNull(TEXT("la timeline porta il Blast"), Colpo) || !TestNotNull(TEXT("e il Move"), Move))
+	{
+		return false;
+	}
+	TestEqual(TEXT("premessa: il Blast gira l'unita' verso il bersaglio, a SE"), Colpo->Facing, ERTHexDirection::SE);
+	TestEqual(TEXT("premessa: il percorso del Move e' rifiutato"), Move->PreviewPath.Num(), 0);
+	TestEqual(TEXT("il Move senza percorso tiene il facing del Blast"), Move->Facing, ERTHexDirection::SE);
+	TestEqual(TEXT("ereditato dalla fase prima"), Move->FacingSource, ERTPreviewFacingSource::InheritedFromPreviousPhase);
+
+	// CONTROLLO — un Move vero deriva il facing dal proprio percorso, come prima.
+	const FRTPlanPreview Vero = Piano(FRTCellId(0, 0, 0));
+	const FRTPhasePreviewEntry* MoveVero = PhaseOf(Vero, ERTResolutionPhase::NormalMovement);
+	if (TestNotNull(TEXT("controllo: la timeline porta il Move vero"), MoveVero))
+	{
+		TestTrue(TEXT("controllo: il percorso c'e'"), MoveVero->PreviewPath.Num() >= 2);
+		TestEqual(TEXT("controllo: e il facing viene dal percorso, verso E"), MoveVero->Facing, ERTHexDirection::E);
+		TestEqual(TEXT("controllo: derivato dal percorso"), MoveVero->FacingSource,
+			ERTPreviewFacingSource::DerivedFromPath);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

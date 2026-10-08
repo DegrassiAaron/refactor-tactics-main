@@ -549,24 +549,25 @@ Quando l'Editor che tiene il mutex sta in un **altro** clone, i suoi object file
 
 🔴 **E quando la leva è SBAGLIATA: Editor vivo di un'altra sessione.** Lì si **aspetta** (§11), e usare il flag è precisamente l'uso che quel check esiste per impedire. La leva serve quando il mutex è tenuto da un processo che **non lo rilascerà**, non quando è tenuto da qualcuno che sta lavorando.
 
-⚠️ **L'Editor *zombie* è un terzo caso, ed è l'unico che il nome «orfano» descriveva davvero**: un `UnrealEditor.exe` morto male il cui mutex sopravvive. ⌫ *Fino a [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md) qui si distingueva anche un `LiveCodingConsole` orfano*, convinti che tenesse il lock: misurato il 2026-10-07, non lo tiene, e muore da sola con l'ultimo processo del suo gruppo. 🔑 **I gate di `tools/mutation/` riconoscono lo zombie con le ancore qui sotto e si fermano**, invece di attendere mezz'ora: `misura.stato_del_detentore()` guarda `ThreadCount` e `WorkingSetSize`, gli stessi valori di `Threads.Count` e `WorkingSet64` ([`D-472`](docs/decisions/RT_PDR_00_Decision_Log.md)). Non usano la leva: resta un gesto umano.
+⚠️ **L'Editor *zombie* è un terzo caso, ed è l'unico che il nome «orfano» descriveva davvero**: un `UnrealEditor.exe` morto male il cui mutex sopravvive. ⌫ *Fino a [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md) qui si distingueva anche un `LiveCodingConsole` orfano*, convinti che tenesse il lock: misurato il 2026-10-07, non lo tiene, e muore da sola con l'ultimo processo del suo gruppo. 🔑 **I gate di `tools/mutation/` riconoscono lo zombie e si fermano**, invece di attendere mezz'ora ([`D-472`](docs/decisions/RT_PDR_00_Decision_Log.md)). Lo zombie è un processo **uscito** con **un thread solo**: `misura.stato_del_detentore()` guarda `ThreadCount` di `Win32_Process` e se `Get-Process -Id` trova ancora il processo. La memoria non conta ([`D-473`](docs/decisions/RT_PDR_00_Decision_Log.md)). Non usano la leva: resta un gesto umano.
 
-⛔ **Quelli che seguono sono DUE ANCORE, non soglie.** C'è **un** quadro zombie (2026-08-24) e **un** quadro di Editor vivo (2026-09-11): due osservazioni, non una distribuzione. Un valore intermedio — un Editor a metà chiusura, per dire — non è mai stato osservato, quindi questa tabella non lo classifica male: **non può classificarlo**. Chi ne incontra uno è fuori dai dati, e deve saperlo invece di arrotondare all'ancora più vicina.
+⛔ **Quelli che seguono sono ANCORE, non soglie.** Due quadri zombie (2026-08-24 e 2026-10-07) e **un** quadro di Editor vivo (2026-09-11): osservazioni, non una distribuzione. Un valore intermedio — un Editor uscito ma ancora con molti thread, per dire — non è mai stato osservato, quindi questa tabella non lo classifica male: **non può classificarlo**. ⚠️ Lo zombie del 2026-10-07 è un Editor a metà chiusura, ma non è un valore intermedio: ha un thread solo, come quello del 2026-08-24. Chi ne incontra uno è fuori dai dati, e deve saperlo invece di arrotondare all'ancora più vicina.
 
-I tre campi che **discriminano**:
+I campi che **discriminano**:
 
-| Campo | Zombie (2026-08-24) | Editor vivo (2026-09-11) |
-|---|---|---|
-| `Threads.Count` | `1` | `93` |
-| `MainWindowHandle` | `0`, titolo vuoto | non nullo |
-| `WorkingSet64` | ~`0,2 MB` | ~`3,6 GB` |
+| Campo | Zombie (2026-08-24) | Zombie (2026-10-07, pid 56772) | Editor vivo (2026-09-11) |
+|---|---|---|---|
+| `Threads.Count` | `1` | `1` | `93` |
+| `MainWindowHandle` | `0`, titolo vuoto | `0`, titolo vuoto | non nullo |
+| `Get-Process -Id` | non misurato | **non lo trova**, e `HasExited` vale `True` | lo trova: è in esecuzione |
 
-E i due che **non** discriminano, elencati perché altrimenti qualcuno li userà come conferma:
+E quelli che **non** discriminano, elencati perché altrimenti qualcuno li userà come conferma:
 
+- ⌫ `WorkingSet64` **non distingue lo zombie**, e fino a [`D-473`](docs/decisions/RT_PDR_00_Decision_Log.md) stava fra i campi che discriminano: ~`0,2 MB` nello zombie del 2026-08-24, ~`3,6 GB` nell'Editor vivo. Lo zombie del 2026-10-07 aveva un thread e 0,9 GB di working set, sceso da 4,8 GB, con 5,4 GB di commit e 3319 handle aperti, più di un'ora e mezza dopo l'avvio. Uno del 2026-09-02, ucciso durante una seduta PIE, aveva 4,27 GB e teneva il mutex e il lock sul `.dll`. La memoria scende col tempo, e dice solo da quanto il processo è morto;
 - `CPU` **alto è contesto, non criterio**: dice che quel processo *era stato* un Editor vero (`72 h` accumulate nel quadro zombie), non che adesso sia morto;
-- ⛔ `Responding` **è rumore**: valeva `True` nello zombie, e per un processo senza finestra non significa niente. È l'unico dei cinque campi che non conferma nulla, e va letto come se non ci fosse.
+- ⛔ `Responding` **è rumore**: valeva `True` nello zombie, e per un processo senza finestra non significa niente. Non conferma nulla, e va letto come se non ci fosse.
 
-⛔ **Provenienza, perché questa parte non è riverificabile come il resto della sezione**: misurato da `refactor-tactics-dev`, con controprova su Editor vivo; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Da rimisurare, con `-abslog`, la prossima volta che uno zombie ricapita.
+⛔ **Provenienza, perché questa parte non è riverificabile come il resto della sezione**: i quadri del 2026-08-24 e del 2026-09-11 sono stati misurati da `refactor-tactics-dev`, con controprova su Editor vivo; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Il quadro del 2026-10-07 è in [#3564](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3564), con le sonde e le loro risposte.
 
 ⛔ **E non è scritto qui che il flag sia l'*unica* uscita da uno zombie**: nessuno ha mai provato a terminare il processo, quindi è una misura da fare e non un'affermazione da citare. ⚠️ Di conseguenza non c'è nemmeno un ripiego per *«il flag non è bastato»*: scriverne uno nominerebbe la stessa domanda aperta una seconda volta, e la seconda si leggerebbe come una risposta. 🔑 **Quello che si può dire — ed è deduzione dalla struttura dei due casi, non misura — è che lì va rifatta la *diagnosi*, non cambiato il rimedio**: i due rimedi sono opposti, quindi «il flag non ha funzionato» è più probabilmente una classificazione sbagliata che un limite del flag.
 
