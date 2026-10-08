@@ -24,7 +24,7 @@
 > riga FX di `CircularTide` (F4), R8 (il bot), §2.5, e la riconvocazione di `U70` che giudica Aevik su #3595 e Muiren su
 > questa spec nella stessa seduta. Branch: `issue/3593-cura-ad-area`, worktree `rt-wt-sp5-clip`.
 >
-> ✅ **Implementato il 2026-10-08** sul branch `issue/3593-cura-ad-area`, da `834f4ff18`, col piano
+> ✅ **Implementato il 2026-10-08** sul branch `issue/3593-cura-ad-area`, da `1c5f7150a`, col piano
 > [`2026-10-08-cura-ad-area.md`](../plans/2026-10-08-cura-ad-area.md): un commit per task, più il giro di fix della
 > review del Task 2. Il catalogo e il bot `c023228cd` (`Hero.Muiren.CircularTide` deriva da `Action.Heal` con i numeri
 > dell'eroe; il passo 2 dei candidati del bot scarta una cura derivata); il percorso delle cure che impara la forma `Area`
@@ -36,7 +36,7 @@
 > **Gate**, ciascuno sul commit del proprio task, con i log nei report della sessione (non versionati), tutti con
 > `**** TEST COMPLETE`, nessun `Ensure condition failed`: compile `PASS` su ogni commit di codice.
 > `c023228cd`: rosso prima del codice su `TideDerivesFromHeal`, `DerivedActionsDeclareTheirOrigin` e
-> `Bot.DerivedHealIsNotAnAttackCandidate`; poi `RefactorTactics.Heroes` + `RefactorTactics.Bot` `PASS` (87 asserti) ed
+> `Bot.DerivedHealIsNotAnAttackCandidate`; poi `RefactorTactics.Heroes` + `RefactorTactics.Bot` `PASS` (87 test) ed
 > `Actions` + `Fx` + `Scenario` `PASS` (342); le tre mutazioni (derivazione dal core sostituita da `MakeHeroAction`,
 > portata/specchio tolti, scarto del bot tolto) sono cadute ciascuna sui propri asserti e solo su quelli.
 > `11d3b386c` + `e75ce9998`: rosso prima del codice sui tre test di `RTHealAreaTests.cpp`
