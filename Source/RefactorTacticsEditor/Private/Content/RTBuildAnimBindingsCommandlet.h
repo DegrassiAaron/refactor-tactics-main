@@ -67,4 +67,15 @@ public:
 	 */
 	static TMap<FName, FRTHeroPresentationClips> MergeClipsPerHero(
 		const TMap<FName, FRTHeroPresentationClips>& Base, const TMap<FName, FRTHeroPresentationClips>& PerEroe);
+
+	/**
+	 * Le ragioni per NON generare la classe autorata da `Catalog` (#3596). Vuoto = si genera.
+	 *
+	 * 🔑 E' la porta di `Main`, separata perche' un test la possa chiamare: il commandlet legge il catalogo dal suo
+	 * path fisso e scrive un asset, e nessun test lo esegue per intero.
+	 *
+	 * @param OutGestiNonVerificati i binding attivi su un gesto la cui clip non si carica: `Main` li dichiara
+	 *        `NOT RUN`, non li fa passare per verificati.
+	 */
+	static TArray<FString> ValidateForGeneration(const struct FRTAnimCatalog& Catalog, int32& OutGestiNonVerificati);
 };

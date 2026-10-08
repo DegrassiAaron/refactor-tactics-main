@@ -8,13 +8,16 @@
 /**
  * Lettura, scrittura, allocazione degli ID e validazione del catalogo delle animazioni.
  *
- * Funzioni pure e deterministiche: nessun Actor, nessun mondo, nessun `DeltaTime`. Testabili headless, come
+ * Funzioni pure e deterministiche — tranne `ValidateGestureClips`, che APRE gli asset (#3596) —: nessun Actor,
+ * nessun mondo, nessun `DeltaTime`. Testabili headless, come
  * `URTIconLibrary` e `URTPresentationBindingLibrary` — e per la stessa ragione: **un contratto rotto si scopre
  * in CI e non a schermo**.
  *
  * ⚠️ **Il validator e' diviso in due meta', e la divisione non e' estetica.** `ValidateCatalog` gira ovunque
  * perche' non tocca il disco; `ValidateReferents` richiede i pack Paragon (`.gitignore:105`, ~48 GB) e su una
  * macchina che non li ha deve dire `NOT RUN`, non restituire un array vuoto che sembra un successo.
+ * ➕ #3596: e una terza, `ValidateGestureClips`, che apre la clip di ogni gesto attivo e rifiuta un'additiva; anche
+ * lei conta come NON verificato cio' che non si carica.
  *
  * 🔴 **IL VERSO DEL FLUSSO, e perche' due dati nominano le stesse clip senza essere in conflitto** (#2442).
  *
@@ -148,4 +151,19 @@ public:
 	 * **deve** scrivere `NOT RUN` — che non e' `PASS`, mai.
 	 */
 	static TArray<FString> ValidateReferents(const FRTAnimCatalog* Catalog, bool& bOutRan);
+
+	/**
+	 * I binding ATTIVI su un GESTO (`Cast`, `Attack`: `RTRoleWantsAFullBodyClip`) la cui clip e' ADDITIVA (#3596).
+	 * **Vuoto = nessun gesto additivo fra quelli VERIFICATI**: `OutNonVerificati` conta i binding attivi su un gesto la
+	 * cui clip non si carica, e quelli non sono «passati», sono `NOT RUN` — la disciplina di `ValidateReferents`.
+	 *
+	 * 🔴 **Lo stesso predicato del runtime** (`RTClipIsAdditive`, #3590): su un gesto lo slot somma l'additiva
+	 * all'`Idle` e la posa non cambia. Senza questo controllo il commandlet genererebbe un gesto che in partita il
+	 * runtime rifiuterebbe con un `Warning` — l'errore arriverebbe a valle, invece che qui.
+	 * ⛔ Un binding INATTIVO non si controlla: e' materiale d'authoring, e non suona. `Hit` additivo e' giusto
+	 * (`PIE-AS4b`): non e' un gesto.
+	 * ⚠️ **Apre gli asset**: gira nel commandlet e nei test, mai in partita. Ogni riga nomina voce, eroe, ruolo e clip;
+	 * l'ordine e' quello delle voci e dei binding, quindi deterministico.
+	 */
+	static TArray<FString> ValidateGestureClips(const FRTAnimCatalog* Catalog, int32& OutNonVerificati);
 };
