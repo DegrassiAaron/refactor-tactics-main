@@ -166,8 +166,9 @@ Misurata sul disco il **2026-08-13**, cartella
 > spec [`2026-10-07-clip-per-abilita-design.md`](../../superpowers/specs/2026-10-07-clip-per-abilita-design.md)).
 > Un binding può portare `actionId`: la clip vale per quell'abilità su quel ruolo, sopra la clip di ruolo. La
 > risoluzione è `(ActionId, ruolo)` → `(BaseActionId, ruolo)` → `ruolo`, e solo i beat `Cast` e `Attack` conoscono
-> l'azione. Il default C++ porta già una clip per le abilità di ogni kit del roster, scelta dai nomi dei pack
-> (`MakeActionClips` in `URTUnitAnimInstance`): il catalogo la sovrascrive un pool alla volta.
+> l'azione. Il default C++ porta già una clip per le abilità che hanno un beat `Cast` o `Attack` (spec §2.6),
+> scelta dai nomi dei pack (`MakeActionClips` in `URTUnitAnimInstance`); le abilità di fase Environment, le
+> reazioni e `Hero.Muiren.FlowReaction` restano al ruolo. Il catalogo la sovrascrive un pool alla volta.
 >
 > - **`formatVersion` 2.** Un `actionId` esiste solo da v2, e il reader lo rifiuta in un file dichiarato v1. ⚠️ **Ogni
 >   salvataggio da una build nuova produce un file v2, anche senza nessun `actionId`**: le build vecchie lo
@@ -305,20 +306,20 @@ Non per il **wiring degli eventi** — quello non serve davvero, la clip la sceg
 asset versionato sotto `/Game/RT`, ed è così che le clip di locomozione ci arrivano già (misurato sulla name
 table: `Run_Fwd` ×2 in `BP_Unit_Gadget`, `Jog_Fwd` e `Idle_NonCombat` ×2 in `BP_Unit_Wraith`).
 
-Sono **due ragioni diverse** per aprire gli stessi quattro binari, e confonderle costa un gate rosso. Il gesto
+Sono **due ragioni diverse** per aprire gli stessi binari, i `BP_Unit_*`, e confonderle costa un gate rosso. Il gesto
 appartiene a **[#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562)**, che eredita la chiusa #2444.
 
-> ⌫ **Qui stava la misura del 2026-09-05**: `RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` →
-> *«12 clip richieste su 20 senza un riferimento che le porti nel cook»*. Era la misura di quel giorno; il 2026-10-08
+> ⌫ **Qui stava la misura del 2026-09-05**: ~~`RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` →
+> *«12 clip richieste su 20 senza un riferimento che le porti nel cook»*~~. Era la misura di quel giorno; il 2026-10-08
 > lo stesso gate, sulle clip di ruolo, era verde.
 
 📏 **Misurato il 2026-10-08** ([#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563)), con lo stesso gate su due commit del branch
 `issue/3563-clip-per-abilita`:
 
 - **Clip di ruolo: tutte referenziate.** Su `193984837`, prima che il set richiesto includesse le clip per
-  azione, il gate è **verde** (`Result={Success}`, nessun package scoperto): i quattro `BP_Unit_*` versionati
-  portano già il riferimento duro alle clip di ruolo (name table di `BP_Unit_Aevik`: `Cast`, `Death_Fwd`,
-  `Hitreact_Fwd`, `Idle`, `Run_Fwd`).
+  azione, il gate è **verde** (`Result={Success}`, nessun package scoperto): i `BP_Unit_*` versionati
+  (`git ls-files Content | grep BP_Unit`) portano già il riferimento duro alle clip di ruolo (name table di
+  `BP_Unit_Aevik`: `Cast`, `Death_Fwd`, `Hitreact_Fwd`, `Idle`, `Run_Fwd`).
 - **Clip d'azione: nessuna referenziata.** Da `637b0c02a` il set richiesto include anche le clip per **azione**
   del default (`MakeActionClips`), e il gate è **rosso** per quelle sole: ogni package scoperto ha la provenienza
   `Hero.X / Hero.X.Abilità / Ruolo`, nessuno quella di un ruolo. Resta rosso finché i `BP_Unit_*` non le

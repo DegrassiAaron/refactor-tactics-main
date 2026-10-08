@@ -1,9 +1,9 @@
 # La clip per abilità — una chiave `ActionId` sopra il ruolo di presentazione
 
-> **Statuto**: design **accettato in sessione** il 2026-10-07 (quattro decisioni d'autore, §0), **rivisto dal
+> **Statuto**: design **accettato in sessione** il 2026-10-07 (decisioni d'autore D1–D4, §0), **rivisto dal
 > panel** lo stesso giorno in due giri (le modifiche sono incorporate e marcate `➕ rev.` e `➕ rev2.`) e
 > **implementato** in [#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563) sul branch
-> `issue/3563-clip-per-abilita` (blocco ✅ qui sotto), PR in apertura. La voce `PIE-CLIP-ABILITA` resta da
+> `issue/3563-clip-per-abilita` (blocco «Implementato» qui sotto), PR in apertura. La voce `PIE-CLIP-ABILITA` resta da
 > eseguire. È il **terzo di quattro sotto-progetti** della richiesta d'autore
 > *«associare animazioni e FX alle skill e vederle in azione»*: il primo è il banco Ability Lab → PIE
 > ([#3532](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3532)), il secondo il momento
@@ -81,7 +81,7 @@ modello del browser ha `BindToRole`/`MakeActive`/`Unbind` con predicati su `(Her
 Promote/Candidate/Reject, `:200-222`). Il catalogo reale ha cinque voci del pack Gadget, tutte `Unreviewed`, **nessun binding**.
 
 **Il percorso runtime è il default C++.** `ABP_RTUnitAuthored` non è versionato (`Content/RT/Anim` assente da
-`git ls-files Content`, che versiona invece `Content/RT/Core`, `Maps`, `Art`, `Editor` e i quattro `BP_Unit_*`). La
+`git ls-files Content`, che versiona invece `Content/RT/Core`, `Maps`, `Art`, `Editor` e i `BP_Unit_*`). La
 risoluzione legge il CDO di `UnitAnimClass` (`Unit/RTUnit.cpp:723-740`), che resta `URTUnitAnimInstance::StaticClass()`
 (`:146`) finché i `BP_Unit_*` non lo impostano sulla classe autorata: senza quel gesto in Editor sui binari il catalogo
 non suona. ➕ rev. Il gesto non ha più un owner: #2444 è **chiusa** dal 2026-09-05 con il DoD «gate di cook verde» non
@@ -148,7 +148,7 @@ Ordine: `PerAction[ActionId].PerRole[Role].FindActive()` → `PerAction[BaseActi
 al successivo; il risultato nullo finale degrada come oggi (`IsNull`/`LoadSynchronous` a `RTUnit.cpp:746-747`, notifica
 al BP con `nullptr` a `:766-779`). `ActionId`/`BaseActionId` vuoti saltano il proprio livello. `Ruling`: la seconda
 chiave si legge dall'**evento** (`Ev.BaseActionId`), mai derivata a valle (`RTResolvedEvent.h:393-397` lo vieta); con
-`BaseActionId == NAME_None` si passa al ruolo. ➕ rev. Fra le abilità degli eroi solo i quattro attacchi base hanno un
+`BaseActionId == NAME_None` si passa al ruolo. ➕ rev. Fra le abilità degli eroi solo gli attacchi base hanno un
 `BaseActionId` (`MakeHeroBasicAttack`, `Ability/RTHeroCatalogLibrary.cpp:168, 353, 496, 740, 928`): oggi il livello
 generico è raggiungibile da quelli soltanto; vale per ogni abilità che un domani lo dichiarerà.
 
@@ -198,7 +198,8 @@ I due consumatori passano l'azione (D3): `ShowActivation` → `PlayPresentationR
   tolto → cade).
 - `BuildClipsPerHero` nel commandlet: `FindOrAdd` su `PerAction[ActionId].PerRole[Role]` quando `ActionId` non è vuoto,
   altrimenti su `PerRole[Role]` come oggi; `AddVariant` + `MakeActive` invariati. ➕ rev. **Il commandlet oggi
-  SOSTITUISCE l'intera mappa** (`Cdo->ClipsPerHero = PerEroe`, `RTBuildAnimBindingsCommandlet.cpp:163`): con la classe
+  SOSTITUISCE l'intera mappa** (`Cdo->ClipsPerHero = PerEroe` in `Main`, `:163` su `12bd4def4`; ➕ impl. oggi
+  `RTBuildAnimBindingsCommandlet.cpp:202`, la riga `Cdo->ClipsPerHero = URTBuildAnimBindingsCommandlet::MergeClipsPerHero(`): con la classe
   autorata cablata, un eroe senza binding perderebbe tutte le clip. `Ruling`: il commandlet **fonde per pool** — parte
   dal default C++ e, per ogni `(eroe, ruolo)` o `(eroe, azione, ruolo)` presente nel catalogo, sostituisce quel pool;
   eroi e pool senza binding tengono il default. È ciò che D4 chiama «il catalogo sovrascrive il default». Costo se
@@ -222,7 +223,7 @@ I due consumatori passano l'azione (D3): `ShowActivation` → `PlayPresentationR
 
 ### 2.4 Il default C++ (D4)
 
-Il costruttore di `URTUnitAnimInstance` popola `PerAction` per le abilità dei quattro kit con la **mappa giudicata
+Il costruttore di `URTUnitAnimInstance` popola `PerAction` per le abilità dei kit del roster con la **mappa giudicata
 dall'autore** (§2.6), una variante `AV_Roster` attiva per (abilità, beat), con i path dei pack nella forma di `:19`.
 ➕ rev. `MakeClips(Pack, Idle, Move, Attack, Hit, Death)` (`RTUnitAnimInstance.cpp:51-52`) non porta una tabella per
 eroe: nasce un helper `MakeActionClips(Pack, { {ActionId, Role, Clip}, … })` chiamato nel costruttore accanto a
@@ -360,8 +361,11 @@ a un argomento (cade sullo Scudo); (4) `PerAction` saltato nel set richiesto (ca
 
 ### 5.2 Seduta PIE
 
-Voce **`PIE-CLIP-ABILITA`** (⏳): dal banco Ability Lab (#3532), per ciascuna abilità con una clip di default **diversa**
+Voce **`PIE-CLIP-ABILITA`**, da eseguire: dal banco Ability Lab (#3532), per ciascuna abilità con una clip di default **diversa**
 dalla clip di ruolo, il beat di cast mostra **quella** clip e non la `Cast` del pack (binario: la posa è un'altra).
+➕ impl. Lo stesso sul colpo, per le abilità con una clip di default sul beat `Attack` (gli attacchi base,
+`Hero.Aevik.LinearDischarge`, `Hero.Aevik.Overload`, `Hero.Branth.MortarShot`); per `Hero.Branth.Ram` e
+`Hero.Ivrin.PassingBlade` il colpo è l'impatto della carica, e mostra anch'esso la clip d'abilità.
 Criterio per un'abilità senza voce: la `Cast` di prima. Il verdetto a schermo e il giudizio estetico sono dell'autore;
 l'anteprima dell'Anim Browser (#2554) serve a vedere le clip prima di promuoverle.
 
@@ -376,7 +380,7 @@ l'anteprima dell'Anim Browser (#2554) serve a vedere le clip prima di promuoverl
   riferimenti duri non ci sono (#3562).~~ ➕ misurato 2026-10-08. Il gate di cook era verde per le clip di ruolo (su
   `193984837`) ed è rosso per le sole clip d'azione di §2.6 (da `637b0c02a`), finché i `BP_Unit_*` non le
   referenziano (#3562). Il merge porta il rosso su `main`: statuto, R12.
-- Il livello generico `(BaseActionId, Ruolo)` è raggiungibile oggi solo dai quattro attacchi base: le altre abilità
+- Il livello generico `(BaseActionId, Ruolo)` è raggiungibile oggi solo dagli attacchi base degli eroi del roster: le altre abilità
   degli eroi non dichiarano un `BaseActionId`.
 - La mappa di default vive in due righe per voce — `MakeActionClips` e la lista attesa del test — e ogni ritocco a
   schermo le tocca entrambe.
