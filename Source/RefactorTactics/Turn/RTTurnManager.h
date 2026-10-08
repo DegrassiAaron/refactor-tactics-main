@@ -1319,7 +1319,8 @@ public:
 	float AttackShowSeconds = 0.50f;
 
 	/**
-	 * Tempo di volo del tracer di un attacco base (`#2454`): il colpo parte col lancio e il numero compare
+	 * Tempo di volo del tracer di un colpo con profilo FX (`#2454` per gli attacchi base, `#3578` per ogni azione
+	 * la cui forma di default ha un tracer): il colpo parte col lancio e il numero compare
 	 * all'arrivo. ⚠️ Tagliato a `AttackShowSeconds / 2` da `URTPlaybackLibrary::TracerFlightFor`, cosi' il Blast
 	 * non si allunga; con `AttackShowSeconds <= 0` non c'e' volo.
 	 */

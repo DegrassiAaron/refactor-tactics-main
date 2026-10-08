@@ -339,10 +339,12 @@ cieca. Il verdetto è di chi guarda, non di questa spec.
 
 ## 7. Limiti e non-goal
 
-- **Per eroe**: scarica a zigzag, impulsi a tratti, proiettile pieno — sotto-progetto 4 (V2). ⌫ Consegnati da #3578,
-  come cue d'impronta e override, non come tracer.
-- **Area e Cone**, e ogni azione che non sia attacco base. ⌫ Consegnati da #3578, come cue d'impronta e override, non
-  come tracer.
+- **Per eroe**: scarica a zigzag, impulsi a tratti, proiettile pieno — sotto-progetto 4 (V2). ⌫ Da #3578 la scarica a
+  zigzag è un **tracer** (`ERTTracerStyle::Zigzag`, override di `Hero.Aevik.LinearDischarge`); impulsi a tratti e
+  proiettile pieno restano fuori per decisione d'autore (D5 della spec FX: tracer identico sugli attacchi base).
+- **Area e Cone**, e ogni azione che non sia attacco base. ⌫ Da #3578: `Area` e `Cone` hanno cue d'impronta
+  (`AreaPulse`, `ConeSweep`) e nessun tracer; le azioni non base di forma `Single`/`Line` con un `ActionId` hanno il
+  tracer di default della forma, o quello dell'override (R13: il volo dalla forma, il disegno dall'override).
 - **Arco balistico**: [#2825](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2825). Il tracer è
   retto e non significa niente sul gameplay.
 - **Direzione dell'attacco a chi non vede** (CP 13.4): non esiste nel codice, e il tracer non la sostituisce.

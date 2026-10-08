@@ -59,8 +59,11 @@
 > `Determinism.FxFieldsStayOutOfHashes` è un **tripwire** — oggi nessun hash legge `ResolvedTimeline`, e il controllo
 > positivo prova che il gancio agisce. Replay: `RefactorTactics.Replay` `PASS` su `17d83a223`. Privacy: la famiglia
 > `RefactorTactics.Privacy` `PASS`. ⚠️ Ogni log porta due `Condition failed` all'avvio del motore, al fotogramma `[0]`,
-> prima di qualunque test: c'erano già sulla base (`530b3ef38`), nessun `Result={Fail}` li accompagna. `NOT RUN`: la suite
-> intera `RefactorTactics` (la lancia la chiusura, Task 8); la PIE (`PIE-FX-ABILITA`, seduta `U71`); il pacchetto.
+> prima di qualunque test: c'erano già sulla base (`530b3ef38`), nessun `Result={Fail}` li accompagna. ➕ esecuzione (Task 8). **Suite intera**
+> `RefactorTactics` su `f9e9a08dc` (albero con `origin/main` `867a4d0a3` fuso): `Result={Success}` 3042, `Result={Fail}` 1 —
+> il solo `Packaging.RequiredActionClipsAreCooked`, rosso ereditato da `main` (#3563, owner #3562) —, nessun
+> `Ensure condition failed`, con `**** TEST COMPLETE`; i commit successivi toccano solo documenti. `NOT RUN`: la PIE
+> (`PIE-FX-ABILITA`, seduta `U71`); il pacchetto.
 >
 > **Eccezioni dichiarate**, ognuna con la sua ragione: (a) `Playback.TracerStyleFollowsShapeForBasicAttack` è l'unico test
 > esistente riscritto (§5.1); (b) la mutazione (2) è eseguita in forma compilabile (§5.1); (c) `Fx.ConeSweepAxisIsTheAim`
