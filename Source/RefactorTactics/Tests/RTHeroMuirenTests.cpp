@@ -159,8 +159,9 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 	// che sarebbe un'abilita' inerte invece di una cura ad area.
 	TestEqual(TEXT("la cura e' l'unico effetto rimasto"), CircularTide->Def.Effects.Num(), 1);
 
-	// Limite dichiarato, ereditato e ancora valido: `bFriendlyFire` (CP 4.6) decide SE un alleato viene
-	// colpito da un'area, non CON QUALE effetto. Qui si verifica la dichiarazione, non l'applicazione.
+	// `bFriendlyFire` (CP 4.6) decide SE un alleato viene colpito da un'area, non CON QUALE effetto: qui si
+	// verifica la dichiarazione, mentre l'applicazione la verificano i test di `Tests/RTHealAreaTests.cpp`
+	// (#3593). Il limite che resta e' la spinta della variante `Impact` ai nemici nella stessa area (R3).
 	return true;
 }
 

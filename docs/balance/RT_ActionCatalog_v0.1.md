@@ -424,7 +424,7 @@ centro d'area, la stessa di `CircularAoE` · **raggio 1** come lei · conta come
 > **potenza** (12: meno di ogni altra offensiva che infligge danno, `MarkTarget` a parte, che ne dichiara 0
 > perché marchia e basta) e con l'**attesa** (cooldown 3, il più lungo di §3), non con l'avvicinamento.
 > ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`, `Hero.Aevik.Overload` e
-> `Hero.Muiren.CircularTide` restano `Required`.
+> `Hero.Muiren.CircularTide` restano `Required`. ⚠️ Per `CircularTide` la linea di tiro è dichiarata ma il Blast non la ricontrolla sul percorso delle cure, che controlla solo la portata dal centro ([#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598)).
 >
 > 🔑 **E il kit di Branth la porta a 3, non a 4 — una taratura d'eroe, con una misura dietro.** Branth
 > ingaggia a 3 (`ImpactShot`), e con un mortaio da 4 il bot smetteva di chiudere: misurato il 2026-09-10,

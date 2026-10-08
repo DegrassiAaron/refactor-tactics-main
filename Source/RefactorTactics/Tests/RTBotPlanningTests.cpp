@@ -345,25 +345,30 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 }
 
 /**
- * #3593, spec SP5 R8: un'azione che deriva da `Action.Heal` non e' un candidato d'ATTACCO. Il passo 2 dei
- * candidati (`AddCandidates` da fermo) la escludeva solo per caso — `Power` 0 — e il controllo positivo qui
- * sotto mostra che con un `Power` qualunque la pianificherebbe su un nemico.
+ * #3593, spec SP5 R8: un'azione che deriva da `Action.Heal` non e' un candidato d'ATTACCO. Con `Power` 0 non
+ * nasce nessuna candidata (`AttackDamage <= 0`), e il controllo positivo qui sotto mostra che con un `Power`
+ * qualunque la pianificherebbe su un nemico. L'esclusione vale per i DUE passi che generano attacchi: da
+ * fermo e dopo lo scatto — il terzo caso arma lo scatto, perche' un predicato applicato a un passo solo
+ * lascerebbe il secondo senza difesa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDerivedHealIsNotAnAttackCandidateTest,
 	"RefactorTactics.Bot.DerivedHealIsNotAnAttackCandidate",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
 {
-	auto Pianifica = [this](bool bDerivata) -> int32
+	// `bScatto`: il nemico sta a tre celle, raggiungibile da un colpo di portata 1 solo scattando di due, e il
+	// bot ha un'abilita' di mobilita' rapida pronta (indice 2). Senza scatto il nemico e' adiacente.
+	auto Pianifica = [this](bool bDerivata, bool bScatto) -> int32
 	{
+		const FRTCellId CellaNemico = bScatto ? FRTCellId(3, 0, 0) : FRTCellId(1, 0, 0);
 		URTHexMapAsset* M = MakeFlatMap(4);
 		TArray<FRTHexSimUnit> SimUnits;
 		SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 2));
-		SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 2));
+		SimUnits.Add(FRTHexSimUnit(1, CellaNemico, /*budget*/ 2));
 		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 		TArray<FRTBotUnitFacts> Facts;
 		Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));
-		Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(1, 0, 0), /*bBot*/ false));
+		Facts.Add(MakeFacts(1, /*Team*/ 0, CellaNemico, /*bBot*/ false));
 		URTActionData* Cura = NewObject<URTActionData>();
 		Cura->RangeCells = 1;
 		Cura->Power = 40; // controllo positivo: senza la derivazione e' un attacco appetibile
@@ -375,8 +380,20 @@ bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
 		Colpo->Power = 20;
 		Facts[0].Abilities.Add(Colpo);
 		Facts[0].bAbilityUsable.Add(true);
+		if (bScatto)
+		{
+			URTActionData* Scatto = NewObject<URTActionData>(); // indice 2: la mobilita' rapida, senza danno
+			Scatto->RangeCells = 2;
+			Scatto->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+			Scatto->Def.MovementStyle = ERTMovementStyle::LinearDash;
+			Scatto->Def.Slot = ERTActionSlot::Movement;
+			Facts[0].Abilities.Add(Scatto);
+			Facts[0].bAbilityUsable.Add(true);
+			Facts[0].DashAbilityIndex = 2;
+			Facts[0].EffectiveDashRange = 2;
+		}
 		FRTBotWeights Pesi; Pesi.WKill = 100; Pesi.WDamage = 50; Pesi.WApproach = 5;
-		FRTTeamKnowledge Vista; Vista.TeamId = 1; Vista.VisibleCells.Add(FRTCellId(1, 0, 0));
+		FRTTeamKnowledge Vista; Vista.TeamId = 1; Vista.VisibleCells.Add(CellaNemico);
 		TMap<int32, FRTTeamKnowledge> Conoscenza; Conoscenza.Add(1, Vista);
 		TMap<int32, int32> Inattivita; TMap<int32, int32> UltimoRound;
 		const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
@@ -385,8 +402,11 @@ bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
 		TestEqual(TEXT("il nemico adiacente e' il bersaglio in entrambi i casi"), Esito.Decisions[0].PlannedAttackTargetIndex, 1);
 		return Esito.Decisions[0].PlannedAbilityIndex;
 	};
-	TestEqual(TEXT("controllo positivo: non derivata e piu' forte, la pianifica (indice 0)"), Pianifica(false), 0);
-	TestEqual(TEXT("derivata da Action.Heal: pianifica l'ALTRA abilita' (indice 1), non la cura"), Pianifica(true), 1);
+	TestEqual(TEXT("controllo positivo: non derivata e piu' forte, la pianifica (indice 0)"), Pianifica(false, false), 0);
+	TestEqual(TEXT("derivata da Action.Heal: pianifica l'ALTRA abilita' (indice 1), non la cura"), Pianifica(true, false), 1);
+	// Con lo scatto pronto il nemico e' raggiungibile solo dopo lo scatto: e' il passo 4 a generare l'attacco.
+	TestEqual(TEXT("controllo positivo con scatto: non derivata, la pianifica dopo lo scatto (indice 0)"), Pianifica(false, true), 0);
+	TestEqual(TEXT("derivata da Action.Heal, dopo lo scatto: pianifica il colpo (indice 1), non la cura"), Pianifica(true, true), 1);
 	return true;
 }
 

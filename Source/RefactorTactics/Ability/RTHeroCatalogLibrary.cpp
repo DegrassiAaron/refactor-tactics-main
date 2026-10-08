@@ -513,7 +513,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	// Aevik (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
 	// `PressureJet`, che copre meno bersagli.
 	//
-	// Il limite dichiarato di prima resta e non c'entra col cambio. Sul percorso delle cure (#3593) `bFriendlyFire`
+	// Il limite dichiarato di prima — la spinta di `Impact` ai nemici nella stessa area, senza resolver (R3) —
+	// resta e non c'entra col cambio. Sul percorso delle cure (#3593) `bFriendlyFire`
 	// non si legge: la cura raggiunge le compagne del raggio e mai un nemico. Portata 4 e raggio 1: stessi numeri di `Aevik.Overload`.
 	//
 	// #3593: deriva da `Action.Heal` perche' le cure passano da `CollectHealActions`, che raccoglie SOLO le
@@ -632,7 +633,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 		// 🔑 **Perche' questa e non un attacco ad area.** `MistVeil` non e' un'aggressione: `bCountsAsAttack`
 		// resta falso e non dichiara `Damage`, quindi la licenza **non riprezza niente** — nessun numero di
 		// bilanciamento cambia, e non nasce l'AoE che colpisce da dietro un muro senza che nessuno l'abbia
-		// deciso. `Aevik.Overload` e `Muiren.CircularTide` restano `Required`, che e' il default.
+		// deciso. `Aevik.Overload` e `Muiren.CircularTide` restano `Required`, che e' il default. ⚠️ Dichiarata, non ricontrollata nel Blast dal percorso delle cure (#3598).
 		//
 		// ⚠️ **E il concept regge nel verso giusto**: un velo si lancia *per non far vedere*, e pretendere di
 		// vedere il punto in cui lo si posa e' la richiesta piu' strana delle due. Il fumo si alza nel

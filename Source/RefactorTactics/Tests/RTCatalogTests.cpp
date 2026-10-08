@@ -935,7 +935,7 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 	const TMap<FName, FString> Dichiarate = {
 		// Scritte dal motore: il gameplay le produce senza passare da un kit.
 		{ TEXT("Action.Move"),            TEXT("Motore: MakePlanFor la aggiunge quando l'unita' si muove") },
-		{ TEXT("Action.Heal"),            TEXT("Motore: RTTurnManager la scrive come voce di cura") },
+		// Action.Heal: raggiungibile da #3593 via Hero.Muiren.CircularTide (DerivedFromActionId); era «Motore» fino ad allora.
 		{ TEXT("Action.Interrupt"),       TEXT("Motore: raccolta e applicata dal TurnManager") },
 		{ TEXT("Action.ModifyArc"),       TEXT("Motore: scritta dal TurnManager") },
 		// Fuori dalla v0.1 per DECISIONE, non per un portatore che manca. ⛔ Se una voce di QUESTO gruppo

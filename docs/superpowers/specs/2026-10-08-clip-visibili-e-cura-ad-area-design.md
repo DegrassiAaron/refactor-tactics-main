@@ -176,7 +176,7 @@ curato davvero, evento `+N salute`. Con `Shape == Area`:
    bersaglio si leggono **prima** di `ClearPlannedAttack()` (`Turn/RTTurnManager_Blast.cpp:530`), che oggi gira prima del
    controllo di portata e azzererebbe `bAttackTargetsCell`;
 2. la portata si misura **sul centro** (`HexDistance(Unit->Cell, Centro) > RangeCells` → `MakeSupportFallback(OutOfRange)`,
-   come oggi);
+   come oggi; per un'area la voce `OutOfRange` porta `TgtCell` = centro (per `Single` la cella del bersaglio, come oggi));
 3. i **destinatari** sono le unità della squadra di chi cura — chi cura compresa — con `HexDistance(Centro, U->Cell) <=
    AreaRadius`, nell'ordine di `Ctx.Units` (➕ rev. F3: è già l'ordine totale canonico, cella per prima,
    `Turn/RTTurnManager_Blast.cpp:281` e `Turn/RTActionQueueLibrary.cpp:154`; un secondo ordinamento sarebbe una seconda
@@ -334,11 +334,14 @@ che il piano nomina una per una: `Heroes.*`, `Equipment.*` (`MedkitHealsInMatch`
 (`CellTargetAfterADashAimsFromTheDash`, `Tests/RTAimOriginTests.cpp:487-535`), `Icon*`/`Hud*`, `Bot.*`, `Unit.*`,
 `Playback.*`, `Anim.*`, `Packaging.*`, `Scenario.EveryShippedScenarioRuns` (con `ClipMuiren` a 78), `Determinism.*`.
 
-`Ruling R8` (➕ rev. F7, il bot): il passo 2 dei candidati d'attacco (`Bot/RTBotPlanningLibrary.cpp:850-858`) esclude già
-`bSelfTarget` e la mobilità; oggi `CircularTide` vi entra con `Power` 0 e la derivazione non lo cambia. Per non lasciare
-al caso che il bot «attacchi» con una cura, il passo 2 esclude anche le azioni con `DerivedFromActionId == Action.Heal`,
-pinnato da `Bot.DerivedHealIsNotAnAttackCandidate`; l'uso della cura ad area da parte del bot è il follow-up §7. Costo se è
-sbagliato: un bot Muiren che oggi, per caso di punteggio, curava gli alleati accanto a un nemico smette di farlo.
+`Ruling R8` (➕ rev. F7, il bot): i passi dei candidati d'attacco (`Bot/RTBotPlanningLibrary.cpp`, «2) Attacco da FERMO»
+e quello dopo lo scatto) escludono già `bSelfTarget` e la mobilità; con `Power` 0 non nasce nessuna candidata
+(`RTHexBotLibrary.cpp`: `AttackDamage <= 0` → `continue`), quindi `CircularTide` ne era esclusa per costruzione e la
+derivazione non lo cambia. Perché un'azione derivata da `Action.Heal` con un `Power` qualunque non diventi un attacco,
+l'esclusione è esplicita — un unico predicato, `DerivedFromActionId == Action.Heal` — e vale per il passo da fermo e per
+quello dopo lo scatto, pinnato da `Bot.DerivedHealIsNotAnAttackCandidate`; l'uso della cura ad area da parte del bot è il
+follow-up §7. Costo se è sbagliato: nessuno osservabile oggi, perché la cura non era una candidata prima e non lo è dopo;
+l'esclusione è una difesa.
 
 ⌫ #3595: le righe `Anim.AdditiveClipIsNotPlayableAsMontage`, `Playback.AdditiveClipFallsBackToRole`, `Playback.HitRoleKeepsAdditiveClips`,
 `Unit.DeclaredClipsAreNotAdditive` e `Unit.DefaultActionClipsResolveForEveryKitAbility` (mutazioni 12–19) sono coperte
@@ -351,10 +354,10 @@ Test nuovi di **questa** spec, ciascuno visto rosso prima del codice e validato 
 | Test | Asserto | Mutazione che lo fa cadere |
 |---|---|---|
 | `Heroes.Phase.TideDerivesFromHeal` | `DerivedFromActionId == Action.Heal`, `RangeCells == 4`, `Priority == 60`, `Effects == {Heal 18}`, `Area`, raggio 1 | (1) `MakeHeroAction` al posto di `MakeHeroActionFromCore`; (2) `RangeCells` non riscritto (→ 3) |
-| `Heroes.TideHealsAlliesInArea` (fixture come `MedkitHealsInMatch`) | due alleati nel raggio a −40 HP salgono di 18; un alleato fuori raggio e un nemico dentro non cambiano; chi cura, dentro il raggio e a −10, sale di 10 (tetto); **tre** voci `Healed` nell'ordine di `Ctx.Units`; un alleato **morto** nel raggio produce una voce `Fallback/TargetDead` e resta morto; `AbilityActivated` una sola volta con `Shape == Area`; il cooldown è pagato | (3) il filtro «stessa squadra» tolto → il nemico guarisce; (4) `<= AreaRadius` → `<` → l'alleato sul bordo non è curato; (5) il morto filtrato prima di `AddHeal` → la voce `TargetDead` sparisce; (6) `EmitAbilityActivated` con `Single`; (7) `MarkAbilitySpent` saltato → il cooldown non è pagato |
+| `Heroes.TideHealsAlliesInArea` (fixture come `MedkitHealsInMatch`) | due alleati nel raggio a −40 HP salgono di 18; un alleato fuori raggio e un nemico dentro non cambiano; chi cura, dentro il raggio e a −10, sale di 10 (tetto); **tre** voci `Healed` (l'ordine è canonico per costruzione: `RTTurnLogLibrary.cpp` ordina il TurnLog serializzato); un alleato **morto** nel raggio produce una voce `Fallback/TargetDead`; `AbilityActivated` una sola volta con `Shape == Area`; il cooldown è pagato | (3) il filtro «stessa squadra» tolto → il nemico guarisce; (4) `<= AreaRadius` → `<` → l'alleato sul bordo non è curato; (5) il morto filtrato prima di `AddHeal` → la voce `TargetDead` sparisce; (6) `EmitAbilityActivated` con `Single`; (7) `MarkAbilitySpent` saltato → il cooldown non è pagato |
 | `Heroes.TideHealsVariantAmount` | con `ActiveVariantId = …Healing` l'alleato sale di 24 | (8) l'amount letto solo da `Def` |
 | `Heroes.TideOnEmptyAreaStillStarts` | nessuno della squadra nel raggio → una voce `Fallback/NoEffect` con `TgtCell` = centro, nessuna `Healed`, cooldown pagato, `AbilityActivated` emesso | (9) il ramo vuoto tolto → nessuna voce; (10) `TgtCell` lasciato a `SrcCell` |
-| `Bot.DerivedHealIsNotAnAttackCandidate` (R8) | un bot Muiren con un nemico in portata e `CircularTide` pronta non la pianifica come attacco | (11) l'esclusione tolta dal passo 2 |
+| `Bot.DerivedHealIsNotAnAttackCandidate` (R8) | un bot Muiren con un nemico in portata, da fermo e dopo lo scatto, e `CircularTide` pronta non la pianifica come attacco | (11) l'esclusione tolta dal passo da fermo o da quello dopo lo scatto |
 | `Anim.AdditiveClipIsNotPlayableAsMontage` | `NewObject<UAnimSequence>` con `AdditiveAnimType = AAT_LocalSpaceBase` **e** `RefPoseType = ABPT_RefPose` (➕ rev. F1: il costruttore lascia `ABPT_None` e `IsValidAdditive` risponderebbe falso) → `false`; con `AAT_LocalSpaceBase` e `ABPT_None` → `true` (pinna il predicato del motore, non una regola nostra); con `AAT_None` → `true`; `nullptr` → `false` | (12) il predicato restituisce sempre `true`; (13) il predicato riscritto come `AdditiveAnimType != AAT_None` → cade il caso `ABPT_None` |
 | `Playback.AdditiveClipFallsBackToRole` | `ForcedClipForTest` = sequenza additiva valida; `PlayPresentationRole(Cast, LinearDischarge)` **e** `PlayPresentationRole(Attack, LinearDischarge)` (➕ rev. F6: il difetto misurato era sul colpo) → seam vero su entrambi; `CastCuesPlayed` sale di uno (la cue parte lo stesso) | (14) la guardia tolta → il seam resta falso; (15) `RefusesAdditive = (Ruolo == Cast)` → cade il ramo `Attack`; (16) `return` dopo il rifiuto → `CastCuesPlayed` non sale |
 | `Playback.HitRoleKeepsAdditiveClips` | stessa sequenza, `PlayPresentationRole(Hit, …)` → seam **falso** (D3) | (17) `RefusesAdditive` sempre vero |
@@ -387,6 +390,7 @@ con il rigiudizio.
 - La cura ad area non lascia un'impronta sulla mappa: l'`AbilityActivated` con `Area` dà l'anello d'attivazione sulla
   sorgente (profilo FX), i numeri verdi dicono chi è stato curato; l'onda d'area è dei colpi.
 - La `Push 1` di `CircularTide.Impact` non si applica (R3).
+- Le cure non ricontrollano la **linea di tiro** nel Blast (solo la portata dal centro), mentre gli attacchi la ricontrollano dalla cella raggiunta (`Combat/RTHexCombatLibrary.cpp`): un muro alzato in Prep ferma un colpo, non `CircularTide`. Gap preesistente per `Medkit` e `Action.Heal`; `CircularTide` lo eredita passando dalle cure → [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598).
 - La variante `Impact` promette nel suo `Tradeoff` (`RTHeroCatalogLibrary.cpp`, «applica Push 1 ai nemici») e in `RTActionDescriptions.cpp` («cura gli alleati o colpisce») una spinta che R3 non produce: testo da riallineare nel follow-up della spinta curativa, non qui.
 - Il bot non usa la cura ad area (R8): la pianifica nessuno finché il follow-up non le dà un punteggio.
 - `Hit` resta additiva fino a decisione (D3).
