@@ -5125,7 +5125,8 @@ sessions:
     produces: >-
       il verdetto su `PIE-CAST-BEAT`; nessun asset
     artifacts: []
-    unblocked_by: []
+    unblocked_by: [3586]
+    # I criteri (0) e (1) giudicano una clip sulla sorgente, e negli scenari la sorgente e' un cilindro (#3586).
     shares_setup_with: []
     verifies: [PIE-CAST-BEAT]
     issues: [3549]
@@ -5138,6 +5139,10 @@ sessions:
       (la fermata per atto non ha un ingresso). `rt.Debug.PlaybackControls 1` resta utile per `K`/`L`, pausa e
       passo singolo. Il criterio (3) si allestisce col banco Ability Lab di U67, un'abilita' di una sorgente nemica
       non osservata.
+
+      🟡 **Eseguita in parte il 2026-10-08** dall'autore, su `main` = `76cd19685`: (3) ✅ (allestito con
+      `Visual.Combat.TracerHiddenFromUnseenAttacker`), (0) e (1) ⛔ perche' negli scenari le unita' sono cilindri
+      (#3586), (2) `NOT RUN`. Da riconvocare per (0) e (1) quando #3586 atterra.
 
   - id: U70
     title: La clip per abilita' — ogni abilita' suona la sua clip
