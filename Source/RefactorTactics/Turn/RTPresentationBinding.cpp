@@ -499,6 +499,12 @@ const TArray<TPair<FName, FRTAbilityFxProfile>>& URTPresentationBindingLibrary::
 		Riga(TEXT("Hero.Ivrin.Feint"),           URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::None,   F::None));
 		Riga(TEXT("Hero.Ivrin.PhaseGuard"),      URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::None,   F::None));
 		Riga(TEXT("Action.Charge"),              URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		// #3578, Ruling del controller (review del Task 2, stessa logica di `Ram`): i controlli OSTILI a contatto non hanno
+		// proiettile — un proiettile dalla cella adiacente mentirebbe. Forma MISURATA: `FRTActionDef` non porta `Shape`;
+		// l'azione core vive in un `URTActionData` di forma `Single` (il default del campo `Shape`, `Ability/RTActionData.h`).
+		// Il volo resta quello di `Single` (R13); attivazione, impatto e impronta sono quelli del default di `Single`.
+		Riga(TEXT("Action.Push"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Pull"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
 		return R;
 	}();
 	return Righe;

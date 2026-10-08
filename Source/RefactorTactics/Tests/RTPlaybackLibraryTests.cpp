@@ -550,6 +550,13 @@ bool FRTPlaybackTracerFollowsTheProfileTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("🔴 %s idonea al volo"), Id), URTPlaybackLibrary::IsTracerEligible(Carica));
 		TestTrue(FString::Printf(TEXT("%s non disegnata"), Id), URTPlaybackLibrary::TracerStyleFor(Carica, 0) == ERTTracerStyle::None);
 	}
+	// #3578 (review del Task 2): un controllo ostile a contatto vola come `Single` e non si disegna (come `Ram`).
+	FRTResolvedEvent Spinta = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Spinta.ActionId = TEXT("Action.Push");
+	Spinta.BaseActionId = NAME_None;
+	TestTrue(TEXT("Action.Push idonea al volo"), URTPlaybackLibrary::IsTracerEligible(Spinta));
+	TestTrue(TEXT("🔴 Action.Push non disegnata: nessun proiettile da una cella adiacente"),
+		URTPlaybackLibrary::TracerStyleFor(Spinta, 0) == ERTTracerStyle::None);
 	TestTrue(TEXT("controllo: un attacco base resta un proiettile"),
 		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Single), 0) == ERTTracerStyle::Projectile);
 	return true;
@@ -557,7 +564,7 @@ bool FRTPlaybackTracerFollowsTheProfileTest::RunTest(const FString&)
 
 /**
  * D5/R3 come REGOLA: per ogni attacco base del roster (lista = funzione del catalogo, `MakeHeroBasicAttack` scrive
- * `BaseActionId`, `Ability/RTHeroCatalogLibrary.cpp:162-168`) il tracer e' il default della forma e volo e stile sono
+ * `BaseActionId`, `MakeHeroBasicAttack` in `Ability/RTHeroCatalogLibrary.cpp`) il tracer e' il default della forma e volo e stile sono
  * quelli di prima di #3578.
  * ✅ Validato per mutazione (6): un override `Zigzag` su `PressureJet` (righe E copia del test della tabella).
  */
@@ -583,7 +590,7 @@ bool FRTPlaybackBasicAttackTracersEqualShapeDefaultTest::RunTest(const FString&)
 			FRTResolvedEvent Ev = MakeTracerAttackEvent(Forma);
 			Ev.ActionId = Azione->Def.ActionId;
 			Ev.BaseActionId = Base;
-			// Lo stile «di oggi» e' il corpo di `RTPlaybackLibrary.cpp:147` prima di #3578: Line → getto, Single → proiettile.
+			// Lo stile «di oggi» e' il corpo di `URTPlaybackLibrary::TracerStyleFor` prima di #3578: Line → getto, Single → proiettile.
 			const ERTTracerStyle DiOggi = Forma == ERTAbilityShape::Line ? ERTTracerStyle::Jet
 				: (Forma == ERTAbilityShape::Single ? ERTTracerStyle::Projectile : ERTTracerStyle::None);
 			TestTrue(FString::Printf(TEXT("%s: lo stile di prima"), *Id), URTPlaybackLibrary::TracerStyleFor(Ev, 0) == DiOggi);
@@ -599,9 +606,9 @@ bool FRTPlaybackBasicAttackTracersEqualShapeDefaultTest::RunTest(const FString&)
 /**
  * R13 e privacy (F9): il volo — quindi il ritmo — e' funzione della sola forma di default. `Ram` (override senza
  * tracer) vola come `ImpactShot`: un attaccante non visto non rivela col ritardo l'override della sua azione. E' la
- * stessa espressione che `BeginPlayback` usa per `PlaybackBlastFlights` (`RTTurnManager.cpp:7973-7974`).
+ * stessa espressione che `BeginPlayback` usa per `PlaybackBlastFlights` (`RTTurnManager.cpp`, il ciclo sotto «il volo di ogni elemento, deciso dall'idoneita'»).
  * ⚠️ ➕ rev2. Il ritmo e' «stesso volo a parita' di indice nella sequenza», non «lo stesso per ogni squadra»: l'indice
- * dipende dalle attivazioni visibili (`RTTurnManager.cpp:7952-7956`). Qui si prova il VOLO, che non legge chi guarda.
+ * dipende dalle attivazioni visibili (`RTTurnManager.cpp`, il commento «Il ritmo NON e' lo stesso per ogni squadra»). Qui si prova il VOLO, che non legge chi guarda.
  * ✅ Validato per mutazioni (17) e (5).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyFlightDependsOnShapeNotOverrideTest,
@@ -674,7 +681,7 @@ bool FRTPlaybackTracerZigzagGrowsAsAPrefixTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("a α = 1: otto segmenti, nove vertici"), Piena.Num(), 9);
 	TestTrue(TEXT("a α = 1 finisce sull'impatto"), Piena.Num() == 9 && Piena.Last().Equals(A, 0.01f));
-	TestTrue(TEXT("e' davvero spezzata: il primo vertice interno e' scostato di 0.12 s"),
+	TestTrue(TEXT("e' davvero spezzata: il primo vertice interno e' scostato di 0.12·HexSize"),
 		Piena.Num() == 9 && FMath::IsNearlyEqual(FMath::Abs(Piena[1].Y), 0.12f * S, 0.01f));
 
 	TArray<FVector> Getto;

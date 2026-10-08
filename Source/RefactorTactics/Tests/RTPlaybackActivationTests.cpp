@@ -690,6 +690,10 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
  * `From`, `To`, `Style = Projectile` e `Alpha` uguali alle formule di prima di #3578.
  * 🔑 Fixture `CostruisciBeat` col viewer 0 (mondo inizializzato, viewer asserito): il Tiratore e' Branth in (0,0)
  * con `ImpactShot` sul bersaglio in (1,0). L'indice del colpo nella sequenza si legge dopo `LockInAndResolve`.
+ * ⚠️ **Pin di regressione, non coperto dalle mutazioni del set di #3578** ((5), (6), (17), (19), (22), (1): nessuna tocca il
+ * tracer di un attacco base). Lo fanno cadere, in `ARTTurnManager::PushPlaybackTracers`: `T.Style = ERTTracerStyle::Jet` al
+ * posto di `T.Style = Style` («🔴 Style = Projectile»), oppure `TracerAlpha(Elemento + 1, …)` («Alpha = (t − k·A) / F»).
+ * ✅ Validato per mutazione (review del Task 2, M2): `T.Style = ERTTracerStyle::Jet`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBasicAttackTracerIsUnchangedTest,
 	"RefactorTactics.Playback.BasicAttackTracerIsUnchanged",

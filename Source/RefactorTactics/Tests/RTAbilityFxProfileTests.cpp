@@ -13,6 +13,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Perception/RTTeamKnowledge.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -181,6 +182,8 @@ bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 	Attesi.Add(TEXT("Hero.Ivrin.Feint"),           FxP(FxA::Flash, FxT::None,   FxI::None,   FxF::None));
 	Attesi.Add(TEXT("Hero.Ivrin.PhaseGuard"),      FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None));
 	Attesi.Add(TEXT("Action.Charge"),              FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Action.Push"),                FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Action.Pull"),                FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
 
 	TSet<FName> NelRoster;
 	int32 Viste = 0;
@@ -207,6 +210,20 @@ bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 		}
 	}
 	TestTrue(TEXT("⛔ premessa: il roster dichiara azioni"), Viste > 0);
+
+	// #3578 (review del Task 2): anche le azioni CORE che contano come attacco (`bCountsAsAttack`) — lista dal catalogo,
+	// non letterale. `FRTActionDef` non porta una forma: l'azione core vive in un `URTActionData` di forma `Single`.
+	int32 ColpiCore = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		if (!Def.bCountsAsAttack || Def.ActionId.IsNone()) { continue; }
+		++ColpiCore;
+		const FRTAbilityFxProfile* Riga = Attesi.Find(Def.ActionId);
+		const FRTAbilityFxProfile Atteso = Riga ? *Riga : URTPresentationBindingLibrary::DefaultFxProfileFor(ERTAbilityShape::Single);
+		TestEqual(FString::Printf(TEXT("%s (core): il profilo e' quello approvato"), *Def.ActionId.ToString()),
+			FxTesto(URTPresentationBindingLibrary::FxProfileFor(Def.ActionId, Def.BaseActionId, ERTAbilityShape::Single)), FxTesto(Atteso));
+	}
+	TestTrue(TEXT("⛔ premessa: il catalogo core dichiara colpi"), ColpiCore > 0);
 
 	// Il verso opposto: ogni riga VERA ha la gemella qui, e ogni riga `Hero.*` e' un'abilita' del roster.
 	for (const TPair<FName, FRTAbilityFxProfile>& Riga : URTPresentationBindingLibrary::DeclaredFxOverrideRows())
