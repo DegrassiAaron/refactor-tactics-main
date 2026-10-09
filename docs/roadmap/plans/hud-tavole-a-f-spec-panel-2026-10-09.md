@@ -22,7 +22,11 @@
 **Il pacchetto dice bene come l'HUD deve apparire, ma è stato scritto prima di cinque giorni di decisioni.**
 - Dove il mockup diceva **dove** stanno le zone, il canone diceva già altro ([D-456](../../decisions/RT_PDR_00_Decision_Log.md), [D-458](../../decisions/RT_PDR_00_Decision_Log.md)).
 - Due premesse del work order erano false: il pulsante di conferma «assente» e il comando che misura l'ultima voce di registro.
-- Entrano la sorgente di design, sei voci di registro ([D-477](../../decisions/RT_PDR_00_Decision_Log.md)…[D-482](../../decisions/RT_PDR_00_Decision_Log.md)) e l'allineamento di [`progettazione-hud.md`](../../technical/systems/progettazione-hud.md).
+- Entrano:
+  - la sorgente di design;
+  - sei voci di registro ([D-477](../../decisions/RT_PDR_00_Decision_Log.md)…[D-482](../../decisions/RT_PDR_00_Decision_Log.md));
+  - una settima voce, [D-488](../../decisions/RT_PDR_00_Decision_Log.md), nata dal chiarimento dell'autore: **le tavole mostrano la vista strategica**;
+  - l'allineamento di [`progettazione-hud.md`](../../technical/systems/progettazione-hud.md) e di [`spec-tactical-camera.md`](../../technical/systems/spec-tactical-camera.md).
 - Il codice resta fuori, con i suoi seguiti (§9).
 
 ## 2. Audit H1–H16
@@ -120,6 +124,14 @@ La verifica (b) sulle tavole stesse è stata fatta in questa sessione, con un re
 | `DEC-HUD-6` *(nuova, da D-456 punto 9)* Dove va l'obiettivo | In `TopCenter`, nell'header | [D-481](../../decisions/RT_PDR_00_Decision_Log.md) |
 | `DEC-HUD-7` *(nuova)* Colori del testo del mockup | Entrano in §32 | [D-482](../../decisions/RT_PDR_00_Decision_Log.md) |
 | *(dalle tavole)* `Guardia reattiva` in `REAZIONE` | **Vince il codice**: `Action.Overwatch` è `ERTActionSlot::Main` (`RTCatalogLibrary.cpp`) | — |
+| *(dal chiarimento dell'autore)* Che cosa sono le tavole | Mostrano la **vista strategica**. `Tab` porta lo zoom alla soglia di [D-252](../../decisions/RT_PDR_00_Decision_Log.md) e ritorno, al centro la 3D diventa un'isometrica semplificata, l'HUD resta lo stesso. Il ciclo della selezione passa da `Tab` a `N` | [D-488](../../decisions/RT_PDR_00_Decision_Log.md) |
+
+⚠️ **D-488 era un `CONTRACT CONFLICT`, ed è stato portato all'autore prima di scrivere.** La richiesta era «si attiva con Tab». Contro c'erano due fatti:
+- [D-252](../../decisions/RT_PDR_00_Decision_Log.md) lega la vista strategica allo zoom, e nega una modalità rigida;
+- `Tab` era già di `CycleSelectionAction` ([D-421](../../decisions/RT_PDR_00_Decision_Log.md), `RTPlayerController.cpp`).
+
+La risposta concilia le due voci senza superarle: `Tab` muove la distanza, e lo stato resta della distanza.
+La numerazione salta da D-482 a D-488 perché D-483…D-487 li ha presi [#3606](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3606) nel frattempo.
 
 ⚠️ **D-479 è più stretta della domanda del pacchetto, e lo è per una misura.**
 - Il pacchetto chiedeva «un campo per la macrofase», come se mancasse.
@@ -130,9 +142,10 @@ La verifica (b) sulle tavole stesse è stata fatta in questa sessione, con un re
 
 Ho ricavato le tavole dal PDF a 1920×1080 e le ho portate in scala di grigi per la verifica.
 
-🎬 **Nota sulla scena, dell'autore.** La vista isometrica disegnata è il livello **strategico** e non è implementata; a livello tattico la scena è la 3D attuale. L'errore era del prompt di generazione, che diceva «camera isometrica». Non si rifanno le tavole:
-- le zone screen-space non dipendono dalla camera;
-- degli overlay nel mondo valgono significato e forme.
+🎬 **Che cosa mostra la scena — corretto due volte, e la seconda vale.**
+- **La prima lettura** (mia, di questo panel) diceva che la scena isometrica era «illustrativa», perché la vista tattica è la 3D attuale. Quella frase è finita come nota a piè di pagina sulle tavole annotate.
+- **L'autore l'ha precisata subito dopo.** Le tavole sono la **vista strategica**: con `Tab` il centro passa all'isometrica semplificata, e l'HUD resta lo stesso ([D-488](../../decisions/RT_PDR_00_Decision_Log.md)).
+- **La scena è quindi un bersaglio, non un'illustrazione.** Per scelta dell'autore le tavole non si rifanno: la nota superata è dichiarata nel README e in `SPECIFICA-ZONE.md`.
 
 **✅ Che cosa reggono:**
 - tutte e sei rispettano la griglia di D-456;
@@ -147,14 +160,14 @@ Ho ricavato le tavole dal PDF a 1920×1080 e le ho portate in scala di grigi per
 
 | # | Dove | Divergenza | Esito |
 |---|---|---|---|
-| D1 | E, F | `Guardia reattiva` nel chip `REAZIONE`, con `PRINCIPALE` vuoto. Nel catalogo occupa lo slot principale | Vince il codice (§5). `FRTUnitSlotsView` mostrerà `PRINCIPALE Guardia reattiva`, `REAZIONE —` |
+| D1 | E, F | `Guardia reattiva` nel chip `REAZIONE`, con `PRINCIPALE` vuoto. Nel catalogo occupa lo slot principale | Vince il codice (§5). `FRTUnitSlotsView` mostrerà `PRINCIPALE Guardia reattiva`, `REAZIONE —`. ✅ Corretto nella riesportazione |
 | D2 | E | Badge `F`/`H` e descrizioni («Attacca Ivrin», «Non attaccare») sulle opzioni: `FRTReactionWindowOptionView` non ha né tasto né descrizione | Buco **vero**: §47-bis.2 vuole il percorso da tastiera. Seguito T2 |
 | D3 | D, E | Due turni 04 incompatibili: in D Aevik spara Arc Pulse in BLAST, in E ha armato Guardia reattiva in PREP, e sono entrambe principali | Varianti, non una sequenza (§4.3) |
 | D4 | D, E | Il registro mostra azioni di Branth (`Irrigidimento`, `Interagisci → Nodo`) | Corretto **solo** se gli eventi sono visibili alla squadra. Il widget legge la proiezione autorizzata, e la tavola non lo dimostra |
-| D5 | D, E | In Risoluzione l'header perde `/12` | Dettaglio: la seduta mostra `RoundLimit` in entrambe le fasi |
-| D6 | — | Il PDF scaricato da Drive e quello conservato in locale sono **due esportazioni diverse** | Entra quello di Drive, che ha la tavola G |
-| D7 | C | Il costo del conflitto su G7 l'ha scritto il generatore delle tavole, perché la specifica non lo dava: «uno dei due movimenti può non arrivare». **È falso.** Due movimenti normali hanno la stessa priorità, e a parità di priorità si fermano **entrambi** prima della cella (`BlockedContested`, `RTHexSimLibrary.h`) | Corretto nella riesportazione: «nessuno dei due arriva» |
-| D8 | annotate | Anche le definizioni della legenda le ha scritte il generatore. «Già presente nel gioco» per `CURRENT` promette più del vero: il widget e il dato esistono, la resa delle tavole no | Riscritte nella riesportazione, con la voce `DECISA` per ciò che è deciso il 2026-10-09 e non ancora nel codice |
+| D5 | D, E | In Risoluzione l'header perde `/12` | ✅ Corretto nella riesportazione: `TURNO 04 / 12` |
+| D6 | — | Il PDF scaricato da Drive e quello conservato in locale sono **due esportazioni diverse**, ed entrambi **precedono** le correzioni D1, D5, D7 e D8 | Non entra nessun PDF: entrano le PNG della riesportazione, che è l'unica con le correzioni, e la tavola G come PNG |
+| D7 | C | Il costo del conflitto su G7 l'ha scritto il generatore delle tavole, perché la specifica non lo dava: «uno dei due movimenti può non arrivare». **È falso.** Due movimenti normali hanno la stessa priorità, e a parità di priorità si fermano **entrambi** prima della cella (`BlockedContested`, `RTHexSimLibrary.h`) | ✅ Corretto nella riesportazione: «nessuno dei due arriva» |
+| D8 | annotate | Anche le definizioni della legenda le ha scritte il generatore. «Già presente nel gioco» per `CURRENT` promette più del vero: il widget e il dato esistono, la resa delle tavole no | ✅ Riscritte nella riesportazione, con la voce `DECISA` per ciò che è deciso il 2026-10-09 e non ancora nel codice |
 
 ## 7. Che cosa il work order chiedeva e non è stato fatto
 
@@ -172,9 +185,10 @@ Ho ricavato le tavole dal PDF a 1920×1080 e le ho portate in scala di grigi per
 
 | Dove | Che cosa |
 |---|---|
-| [`research/design/hud/hud-screens-2026-10/`](../../research/design/hud/hud-screens-2026-10/) | README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, `immagini/` |
-| [`decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | D-477…D-482 e la nota sui numeri |
-| [`technical/systems/progettazione-hud.md`](../../technical/systems/progettazione-hud.md) | §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
+| [`research/design/hud/hud-screens-2026-10/`](../../research/design/hud/hud-screens-2026-10/) | README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, `immagini/` (le PNG della riesportazione), `sorgente-mockup/` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | D-477…D-482, D-488 e la nota sui numeri |
+| [`technical/systems/progettazione-hud.md`](../../technical/systems/progettazione-hud.md) | §3.2, §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
+| [`technical/systems/spec-tactical-camera.md`](../../technical/systems/spec-tactical-camera.md) | §2, la riga `Tab` → Strategic View al posto di `M`; §5, D-488 |
 | [`skill-bar-2026-10/dati/tokens.json`](../../research/design/hud/skill-bar-2026-10/dati/tokens.json) | La nota *«NON esistono in §32»* cita D-482 |
 | [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md) | Una voce |
 
@@ -192,6 +206,11 @@ Proposti, **non** creati con questo referto: ciascuno diventa una issue quando l
 | T6 | La sede a runtime dei token di §32 (D-482): una sola fonte di stile per i widget | decisione + C++ o asset | #613 |
 | T7 | La barra dei comandi collassata in Risoluzione: riepilogo dei tre slot da `FRTUnitSlotsView` | asset | [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826) |
 | T8 | Le sedute Editor di stile, una per cluster, dopo T6: header e obiettivo · roster e pannello · registro · finestra di reazione · conferma | asset | #613 |
+| T9 | D-488. `Tab` porta lo zoom alla soglia strategica e ritorno; il ciclo della selezione va su `N` **nello stesso commit**. La presentazione isometrica semplificata al centro, sola presentazione | C++ + asset + test | [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) · [#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145) |
+
+⚠️ **Un documento owner è indietro, e T9 lo deve riscrivere.** [`spec-pointer-interaction.md`](../../technical/systems/spec-pointer-interaction.md)
+§6.6 dice ancora *«Nessun ciclo di selezione. `git grep -n "EKeys::Tab"` non stampa nulla»*. Da
+[D-421](../../decisions/RT_PDR_00_Decision_Log.md) il binding esiste (`RTPlayerController.cpp`), e con D-488 cambia di nuovo tasto (`STALE ROADMAP`).
 
 ## 10. Gate di questo passaggio
 

@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-10-09 — Le tavole HUD A–F entrano come sorgente di design, e il registro riceve D-477…D-482
+## 2026-10-09 — Le tavole HUD A–F entrano come sorgente di design, e il registro riceve D-477…D-482 e D-488
 
 **Origine**: il pacchetto «HUD — pacchetto design (2026-10-04)» consegnato su Drive, passato da uno spec panel e
 misurato su `origin/main` = `a6bf857bf`. Referto:
@@ -11,9 +11,10 @@ issue [#3605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3605
 
 | Dove | Che cosa |
 |---|---|
-| [`research/design/hud/hud-screens-2026-10/`](research/design/hud/hud-screens-2026-10/) | **creato** — README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, le tavole A–F pulite e annotate, la verifica in scala di grigi |
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-477** (niente controlli di riproduzione nell'HUD del giocatore), **D-478** (un comandante: niente UI di coordinamento, chip `REAZ.`), **D-479** (l'header mostra la fase riprodotta), **D-480** (avvisi di piano aggregati dal view-model), **D-481** (l'obiettivo in `TopCenter`), **D-482** (testo e fondi di stato in §32) |
-| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle sei voci |
+| [`research/design/hud/hud-screens-2026-10/`](research/design/hud/hud-screens-2026-10/) | **creato** — README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, le tavole A–F pulite e annotate, la verifica in scala di grigi, il sorgente del canvas |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-477** (niente controlli di riproduzione nell'HUD del giocatore), **D-478** (un comandante: niente UI di coordinamento, chip `REAZ.`), **D-479** (l'header mostra la fase riprodotta), **D-480** (avvisi di piano aggregati dal view-model), **D-481** (l'obiettivo in `TopCenter`), **D-482** (testo e fondi di stato in §32), **D-488** (la vista strategica si apre con `Tab`, che porta lo zoom alla soglia di D-252; il ciclo della selezione passa a `N`) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3.2, §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §2: `Tab` → Strategic View al posto di `M`, che da D-457 è `Sneak`; §5: D-488 |
 | [`research/design/hud/skill-bar-2026-10/dati/tokens.json`](research/design/hud/skill-bar-2026-10/dati/tokens.json) | la nota sui colori del testo cita D-482 |
 
 ---

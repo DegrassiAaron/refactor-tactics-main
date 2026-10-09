@@ -105,6 +105,16 @@ Possibili usi:
 
 Non è la camera di gameplay standard.
 
+> 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): la vista strategica si apre con `Tab`.**
+> - **Come si apre.** `Tab` porta lo zoom alla soglia di [D-252](../../decisions/RT_PDR_00_Decision_Log.md) e
+>   ritorno, quindi resta una conseguenza della distanza e non una terza modalità.
+> - **Cosa cambia.** Al centro la 3D tattica diventa un'isometrica semplificata, quella delle tavole A–F di
+>   [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md).
+> - **Cosa non cambia.** **L'HUD è lo stesso nelle due viste**: le zone di §6 valgono per entrambe, e in
+>   Strategic si pianifica.
+>
+> Il «come» sta in [`spec-tactical-camera.md`](spec-tactical-camera.md) §5.
+
 ---
 
 # 4. Architettura visuale dell'interfaccia

@@ -5,7 +5,8 @@
 > [D-456](../../../../decisions/RT_PDR_00_Decision_Log.md).
 > Il canone della disposizione è [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §6
 > con [D-456](../../../../decisions/RT_PDR_00_Decision_Log.md), [D-458](../../../../decisions/RT_PDR_00_Decision_Log.md)
-> e le voci da [D-477](../../../../decisions/RT_PDR_00_Decision_Log.md) a [D-482](../../../../decisions/RT_PDR_00_Decision_Log.md).
+> e le voci da [D-477](../../../../decisions/RT_PDR_00_Decision_Log.md) a [D-482](../../../../decisions/RT_PDR_00_Decision_Log.md), più
+> [D-488](../../../../decisions/RT_PDR_00_Decision_Log.md) per la vista strategica.
 > Lo stile è in §32, §33 e §47-bis. Dove questa pagina diverge dal codice o dal Decision Log,
 > **prevalgono codice e Decision Log**. Lo scenario delle tavole è dimostrativo
 > ([`dati/schermate.json`](dati/schermate.json)).
@@ -21,9 +22,14 @@
 > tavole nuove disegnano. Anche «il pulsante invoca `LockIn`» (Z7) è superato:
 > [D-458](../../../../decisions/RT_PDR_00_Decision_Log.md) dice che `Conferma` è `Invio` e `Annulla` è il Back.
 >
-> 🎬 **La scena delle tavole è illustrativa.** La vista isometrica è il livello **strategico** e non è
-> implementata; a livello tattico la scena è la 3D attuale. Degli overlay nel mondo (Z13, Z15, Z16) valgono
-> **significato e forme**, non la resa.
+> 🎬 **Le tavole mostrano la vista strategica** ([D-488](../../../../decisions/RT_PDR_00_Decision_Log.md)).
+> Con `Tab` la parte centrale passa dalla 3D tattica all'isometrica semplificata, e l'HUD resta identico.
+> - **Le zone screen-space** valgono in entrambe le viste.
+> - **La scena isometrica** è il bersaglio della vista strategica, che oggi esiste come stato e non come vista.
+> - **Nella vista tattica 3D**, degli overlay nel mondo (Z13, Z15, Z16) valgono significato e forme.
+>
+> ⚠️ La nota a piè di pagina delle tavole annotate («Scena illustrativa … non la resa») è superata da questo
+> paragrafo.
 >
 > **Griglia**: 1920×1080, margine di sicurezza 24 px, **centro libero** (§3.1, §47.2). Colori, font e misure:
 > [`../skill-bar-2026-10/dati/tokens.json`](../skill-bar-2026-10/dati/tokens.json).
