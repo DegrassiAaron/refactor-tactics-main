@@ -1,0 +1,33 @@
+{
+  "scenarioId": "Visual.Facing.StepsThenPivots",
+  "tags": ["facing", "movement", "playback", "visual"],
+  "verifies": ["PIE-FACING"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "PIE-FACING (#2167, D-462 punti 2 e 3): in marcia la mesh si gira a ogni passo, e a ogni confine di cella guarda l'ultimo passo compiuto, come la regola `FacingAtMicroStep`; arrivata, si gira SUL POSTO verso il verso dichiarato con un pivot animato, non di scatto. Si guarda con `rt.Debug.PlaybackControls=1` e `rt.Debug.PlaybackStartPaused=1` sulla riga di lancio, avanzando con L un micro-step alla volta.",
+
+  "_nota_geometria": "A1 parte rivolta a E, fa un passo a E e poi due nella direzione (0,+1): il percorso SVOLTA, quindi il primo confine e il secondo chiedono due yaw diversi. Il verso dichiarato e' E, legale col budget di pivot Move 2 di Aevik dopo un ultimo passo che non e' E, e diverso da quell'ultimo passo: senza differenza il pivot finale non si vedrebbe.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [3, -2, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "A1 svolta e chiede di finire girata a E; B1 non si muove.",
+      "requires": ["DeclaredRotation"],
+      "intents": [
+        { "unit": "A1", "move": [[-1, 0, 0], [-1, 1, 0], [-1, 2, 0]], "facing": "E" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 2, 0] },
+    { "type": "UnitFacing", "unit": "A1", "value": "E" },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

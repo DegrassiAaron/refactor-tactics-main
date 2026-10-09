@@ -14,6 +14,7 @@
 // muove cio' che ispeziona produce sessioni di debug che non si possono confrontare fra loro.
 
 #include "CoreMinimal.h"
+#include "Debug/RTContextInspector.h"
 #include "Debug/RTDebugReportLibrary.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -80,7 +81,7 @@ static void RTDebugDumpSnapshotCommand(const TArray<FString>& Args, UWorld* Worl
 	if (!TM) { return; }
 
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units);
+	const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 	LogAll(Ar, URTDebugReportLibrary::DescribeSnapshot(Snapshot));
 }
 
@@ -149,6 +150,23 @@ static void RTDebugDrawIntentCommand(const TArray<FString>& Args, UWorld* World,
 		return;
 	}
 	TArray<AActor*> Actors;
+	// ✅ **Passa dal confine della RACCOLTA di [#1500]: e' la stessa identica sequenza di `ARTHUD::DrawHUD`**
+	// (`UI/RTHUD.cpp:853-854`, `:952`) — `TArray<AActor*>`, nessuna conversione, nessun campo letto, unico
+	// consumatore `BuildAuthoritativeIntents` — e un solo gesto sostitutivo coprirebbe entrambi. Il filtro c'e'
+	// e sta a valle, dentro `URTDebugReportLibrary::DescribeIntents`, che compone da `FilterForTeam`
+	// (`Debug/RTDebugReportLibrary.cpp:38`), la riga che il commento a `:33-35` chiama «il checkpoint intero».
+	//
+	// ⛔ **Non passa invece dal confine dell'OSSERVATORE, e la differenza e' dichiarata, non subita**: qui
+	// l'osservatore e' un ARGOMENTO di console, non `ARTPlayerState::TeamIdOf`. `ObserverTeamFromArgs` fa un
+	// `Atoi` con default `0`, cosi' `rt.Debug.DrawIntent 1` mostra i piani del team 1 **come farebbe il team
+	// 1** — la help string lo dice per esteso (`:457-462`) e classifica il comando come strumento di sviluppo
+	// locale, dove chi lo esegue possiede gia' tutto lo stato.
+	//
+	// ⚠️ **E il comando non e' dietro nessuna guardia di configurazione**: `grep -n "#if\|#endif" su questo file
+	// non risponde nulla, e la registrazione e' una `static FAutoConsoleCommandWithWorldArgsAndOutputDevice` a
+	// scope di file (`:456-463`), quindi entra in ogni configurazione in cui il modulo compila. Non e' scope di
+	// [#1500] chiuderlo — la help string rimanda gia' a M10, dove dovra' essere lato server o non esistere — ma
+	// va detto qui, o un censimento che lo elenca lascia credere che sia gia' delimitato.
 	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
 
 	// 🔴 La stessa costruzione che usa la HUD, e poi lo stesso filtro. Un comando che leggesse i piani
@@ -179,6 +197,121 @@ static void RTDebugDrawIntentCommand(const TArray<FString>& Args, UWorld* World,
 // nomina; il comportamento e' descritto qui e nella help string di ciascuno.
 // ---------------------------------------------------------------------------------------------------
 
+namespace
+{
+	/**
+	 * L'istanza del pannello, una sola per sessione di gioco.
+	 *
+	 * ⚠️ **Debole, non forte.** Un `TStrongObjectPtr` a scope di file terrebbe vivo il widget attraverso
+	 * la fine della PIE e la distruzione del mondo, e la sessione successiva ne troverebbe uno che punta a
+	 * un viewport che non esiste piu'. Con un riferimento debole il puntatore diventa nullo da solo e il
+	 * comando ricostruisce.
+	 */
+	TWeakObjectPtr<URTContextInspectorWidgetBase> GPannelloContesto;
+}
+
+/**
+ * `rt.Debug.ContextInspector [team]` — il contesto dell'esagono sotto il puntatore, a schermo.
+ *
+ * ⛔ **Aggiorna A COMANDO, non a ogni movimento del puntatore**, e la differenza e' dichiarata invece che
+ * subita: seguire il puntatore vuol dire possedere il contratto dell'hover, che e' di
+ * [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614) e
+ * [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705). Qui si LEGGE
+ * `GetHoveredCell()`, non lo si guida. Un ispettore che si agganciasse al puntatore da dentro un comando
+ * di debug sarebbe una seconda sorgente di hover.
+ */
+static void RTDebugContextInspectorCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+{
+	if (!World) { Ar.Log(TEXT("[RT] Nessun mondo attivo.")); return; }
+
+	// 🔴 Gli argomenti si leggono da una funzione PURA, e non con un `if` qui: la prima stesura
+	// trattava `0` come l'interruttore, mentre in ogni altro `rt.Debug.*` il primo argomento e' il TeamId.
+	// Chi scriveva `rt.Debug.ContextInspector 0` intendendo la squadra 0 spegneva il pannello.
+	const FRTContextInspectorRequest Richiesta = URTContextInspectorLibrary::ParseCommandArgs(Args);
+
+	// Si controlla PRIMA di cercare la mappa: spegnere deve funzionare anche in un livello dove il
+	// pannello non potrebbe nascere.
+	if (Richiesta.bOff)
+	{
+		if (URTContextInspectorWidgetBase* Vecchio = GPannelloContesto.Get())
+		{
+			Vecchio->RemoveFromParent();
+		}
+		GPannelloContesto.Reset();
+		Ar.Log(TEXT("[RT] Context Inspector spento."));
+		return;
+	}
+
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(World);
+	const URTHexMapAsset* Map = HexMap ? HexMap->MapAsset : nullptr;
+	if (!Map) { Ar.Log(TEXT("[RT] Nessuna mappa esagonale nel livello.")); return; }
+
+	if (!HexMap->IsHoveredCellValid())
+	{
+		// ⛔ Si DICE, non si mostra un pannello vuoto: una cella non valida e un contesto vuoto si vedono
+		// uguali, e chi legge concluderebbe che su quella cella non e' successo niente.
+		Ar.Log(TEXT("[RT] Nessuna cella sotto il puntatore: passa il mouse sulla board e rilancia."));
+		return;
+	}
+
+	const FRTCellId Hovered = HexMap->GetHoveredCell();
+	const FRTHexCellData* Cella = Map->Cells.FindByPredicate(
+		[&Hovered](const FRTHexCellData& C) { return C.Id == Hovered; });
+	if (!Cella)
+	{
+		Ar.Logf(TEXT("[RT] La cella %s non e' nella mappa."), *Hovered.ToString());
+		return;
+	}
+
+	// L'osservatore e' un ARGOMENTO, come in `rt.Debug.DrawIntent`, e per la stessa ragione dichiarata:
+	// e' uno strumento di sviluppo locale, dove chi lo esegue possiede gia' tutto lo stato. Lo snapshot
+	// nasce PER quell'osservatore, altrimenti `DescribeCell` rifiuterebbe di comporre l'occupante.
+	const int32 ObserverTeamId = Richiesta.ObserverTeamId;
+
+	ARTTurnManager* TM = Cast<ARTTurnManager>(
+		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+	TArray<ARTUnit*> Units;
+	const FRTHexSnapshot Snapshot = TM
+		? TM->MakeCurrentSnapshot(Units, ObserverTeamId)
+		: FRTHexSnapshot();
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
+	// La stessa costruzione che usa la HUD, e poi lo stesso filtro: il confine sta a valle, dentro
+	// `DescribeIntents`, che compone da `FilterForTeam`.
+	const TArray<FRTPlannedIntent> Intents = URTHudViewModel::BuildAuthoritativeIntents(Actors);
+
+	const FRTContextInspectorView Vista = URTContextInspectorLibrary::Compose(
+		ObserverTeamId, *Cella, Snapshot, Intents,
+		TM ? TM->GetTurnLog() : TArray<FRTTurnLogEntry>(),
+		ERTContextView::Technical);
+
+	URTContextInspectorWidgetBase* Pannello = GPannelloContesto.Get();
+	if (!Pannello)
+	{
+		Pannello = CreateWidget<URTContextInspectorWidgetBase>(
+			World, URTContextInspectorWidgetBase::StaticClass());
+		if (!Pannello) { Ar.Log(TEXT("[RT] Non sono riuscito a creare il pannello.")); return; }
+		Pannello->AddToViewport();
+		GPannelloContesto = Pannello;
+	}
+	Pannello->ShowFor(Vista);
+
+	// E le stesse righe anche in console: la seduta si giudica a schermo, ma un referto headless deve
+	// poter dire cosa il pannello AVREBBE mostrato senza che qualcuno lo guardi.
+	//
+	// ⛔ `VisibleLines` e non `AllLines`, ed e' il fix di #3320 applicato anche qui. Con `AllLines` il
+	// referto stampava cio' che era stato COMPOSTO — 17 righe sul caso misurato in `U59` — mentre lo
+	// schermo ne mostrava 12 col marcatore di taglio: il commento qui sopra sarebbe diventato falso
+	// proprio nel caso che #3320 ha creato. ⚠️ E cosi' il marcatore e' osservabile **senza uno
+	// schermo**, che e' l'unico canale con cui il difetto era stato misurato in prima battuta.
+	for (const FString& Riga : URTContextInspectorLibrary::VisibleLines(
+		Vista, URTContextInspectorWidgetBase::MaxRighe))
+	{
+		Ar.Logf(TEXT("[RT]   %s"), *Riga);
+	}
+}
+
 static void RTDebugDrawCoverCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
 {
 	if (!World) { Ar.Log(TEXT("[RT] Nessun mondo attivo.")); return; }
@@ -190,15 +323,18 @@ static void RTDebugDrawCoverCommand(const TArray<FString>& Args, UWorld* World, 
 	ARTTurnManager* TM = Cast<ARTTurnManager>(
 		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = TM ? TM->MakeCurrentSnapshot(Units) : FRTHexSnapshot();
+	const FRTHexSnapshot Snapshot = TM ? TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient) : FRTHexSnapshot();
 
 	int32 Shown = 0;
 	for (const FRTHexCellData& Cell : Map->Cells)
 	{
 		if (Cell.Covers.Num() == 0) { continue; }
-		const int32* Occupant = Snapshot.Occupancy.Find(Cell.Id);
+		// 🔑 Osservatore **onnisciente**, e lo snapshot sopra e' costruito per lo stesso: e' un comando di
+		// console, cioe' una superficie di audit, e chiederlo per nome e' cio' che rende la scelta leggibile.
+		// Prima di #2485 questa riga estraeva l'occupante a mano e `DescribeCell` non poteva sapere da quale
+		// snapshot venisse: passare i due insieme e' cio' che rende l'errore impossibile da esprimere.
 		Ar.Logf(TEXT("[RT]   %s"),
-			*URTDebugReportLibrary::DescribeCell(Cell, Occupant ? *Occupant : INDEX_NONE, Map->Revision));
+			*URTDebugReportLibrary::DescribeCell(RTObserver::Omniscient, Cell, Snapshot));
 		++Shown;
 	}
 	Ar.Logf(TEXT("[RT] Coperture: %d celle su %d ne dichiarano almeno una."), Shown, Map->NumCells());
@@ -389,7 +525,7 @@ static void RTDebugRefusalCommand(const TArray<FString>& Args, UWorld* World, FO
 	if (!TM) { return; }
 
 	TArray<ARTUnit*> Units;
-	TM->MakeCurrentSnapshot(Units);
+	TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// L'osservatore e' la squadra di chi gioca. ⛔ Non un argomento: un comando che accettasse un team
 	// qualunque leggerebbe la conoscenza dell'avversario, che e' il canale che [D-225] chiude.
@@ -461,6 +597,16 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawIntent(
 		 "locale, dove chi lo esegue possiede gia' tutto lo stato. In rete (M10) dovra' essere lato server "
 		 "o non esistere."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawIntentCommand));
+
+static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugContextInspector(
+	TEXT("rt.Debug.ContextInspector"),
+	TEXT("Mostra a schermo il contesto dell'esagono sotto il puntatore, per un osservatore.\n"
+		"  rt.Debug.ContextInspector         la squadra 0, cioe' il default.\n"
+		"  rt.Debug.ContextInspector 1       la squadra 1; -1 per l'osservatore onnisciente.\n"
+		"  rt.Debug.ContextInspector off     spegne. NON `0`: quello e' la squadra 0.\n"
+		"  Aggiorna a comando e non a ogni movimento del puntatore: il contratto dell'hover e' di #1614.\n"
+		"  Le stesse righe finiscono anche qui in console, cosi' una run headless lascia un referto."),
+	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugContextInspectorCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawCover(
 	TEXT("rt.Debug.DrawCover"),

@@ -1,5 +1,8 @@
 #include "Turn/RTPlaybackLibrary.h"
 
+#include "Turn/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
+#include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
+
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
 	const int32 N = Waypoints.Num();
@@ -44,11 +47,439 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 	return FMath::Min(NumAttacks, 1 + FMath::FloorToInt(Elapsed / AttackShowSeconds));
 }
 
-bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints)
+bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
+	int32 NumStructureHits, int32 NumActivations)
 {
-	// Tre ragioni indipendenti, e la terza e' quella nuova: un'impronta senza vittime e' comunque un fatto
-	// avvenuto nel Blast. ⛔ Nessuna somma e nessuna soglia: basta che UNA sia vera.
-	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0;
+	// Le ragioni sono indipendenti (colpi, spinta, impronte, muri, attivazioni); l'ultima e' quella di #3549:
+	// un Blast di sole cure si vede. ⛔ Nessuna
+	// somma e nessuna soglia: basta che UNA sia vera.
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0;
+}
+
+void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+	float DashLength, FVector& OutStart, FVector& OutEnd)
+{
+	const FVector Head = FMath::Lerp(From, To, FMath::Clamp(Alpha, 0.f, 1.f));
+	if (Style == ERTTracerStyle::Jet)
+	{
+		OutStart = From;
+		OutEnd = Head;
+		return;
+	}
+	if (Style == ERTTracerStyle::Projectile)
+	{
+		// La coda non scavalca l'origine: in partenza il dardo e' piu' corto, non sporge dietro chi spara.
+		const FVector Back = From - Head;
+		const float Len = Back.Size();
+		OutStart = Len > KINDA_SMALL_NUMBER ? Head + Back * (FMath::Min(FMath::Max(0.f, DashLength), Len) / Len) : Head;
+		OutEnd = Head;
+		return;
+	}
+	OutStart = Head;
+	OutEnd = Head;
+}
+
+float URTPlaybackLibrary::TracerFlightFor(bool bEligible, float TracerFlightSeconds, float AttackShowSeconds)
+{
+	if (!bEligible || AttackShowSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	return FMath::Clamp(TracerFlightSeconds, 0.f, 0.5f * AttackShowSeconds);
+}
+
+float URTPlaybackLibrary::AttackLaunchSeconds(int32 AttackIndex, float AttackShowSeconds)
+{
+	return AttackIndex * FMath::Max(0.f, AttackShowSeconds);
+}
+
+float URTPlaybackLibrary::AttackBeatSeconds(int32 Beat, float AttackShowSeconds, const TArray<float>& Flights)
+{
+	const int32 Index = Beat / 2;
+	const float Lancio = AttackLaunchSeconds(Index, AttackShowSeconds);
+	if (Beat % 2 == 0)
+	{
+		return Lancio;
+	}
+	return Lancio + (Flights.IsValidIndex(Index) ? FMath::Max(0.f, Flights[Index]) : 0.f);
+}
+
+int32 URTPlaybackLibrary::AttackBeatsDue(float PhaseElapsed, float AttackShowSeconds, const TArray<float>& Flights)
+{
+	const int32 NumBeats = 2 * Flights.Num();
+	if (AttackShowSeconds <= 0.f)
+	{
+		return NumBeats; // nessuno scaglionamento richiesto: come `AttacksToShow`
+	}
+	const float T = FMath::Max(0.f, PhaseElapsed);
+	int32 Due = 0;
+	while (Due < NumBeats && AttackBeatSeconds(Due, AttackShowSeconds, Flights) <= T)
+	{
+		++Due;
+	}
+	return Due;
+}
+
+float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight)
+{
+	if (Flight <= 0.f)
+	{
+		return 1.f;
+	}
+	const float Lancio = AttackLaunchSeconds(AttackIndex, AttackShowSeconds);
+	return FMath::Clamp((PhaseElapsed - Lancio) / Flight, 0.f, 1.f);
+}
+
+bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
+{
+	// #3578 (spec «il profilo FX» §2.2, R12, R13): il VOLO — quindi il ritmo — e' la sola forma di DEFAULT di un'azione
+	// con un id. Non legge l'override ne' chi guarda: un attaccante non visto non rivela col ritardo l'override della
+	// sua azione. ⚠️ ➕ rev2. Il ritmo e' «stesso volo a parita' di indice nella sequenza», e l'indice dipende dalle
+	// attivazioni che chi guarda ha il diritto di vedere (`BuildBlastSequence`, D6 del momento).
+	// ⏱️ *Fino a #3578 l'idoneita' era «attacco base», dichiarata provvisoria (spec del tracer §2.1, condizione 1).*
+	return Ev.Type == ERTResolvedEventType::Attack
+		&& Ev.HitGeometry.bResolved
+		&& !(Ev.ActionId.IsNone() && Ev.BaseActionId.IsNone()) // R12: nessuna azione, nessun volo
+		&& URTPresentationBindingLibrary::DefaultFxProfileFor(Ev.Shape).Tracer != ERTTracerStyle::None;
+}
+
+ERTTracerStyle URTPlaybackLibrary::TracerStyleForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+	const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	if (!IsTracerEligible(Ev)
+		|| !Ev.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId)
+		|| !Ev.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return ERTTracerStyle::None;
+	}
+	// Il DISEGNO: lo stile del profilo. `None` qui = stesso volo, nessun disegno (R13: `Ram`, `PassingBlade`).
+	return URTPresentationBindingLibrary::FxProfileForIn(Overrides, Ev.ActionId, Ev.BaseActionId, Ev.Shape).Tracer;
+}
+
+ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return TracerStyleForIn(URTPresentationBindingLibrary::DeclaredFxOverrides(), Ev, ViewerTeamId);
+}
+
+void URTPlaybackLibrary::TracerPolyline(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+	float HexSize, TArray<FVector>& OutPoints)
+{
+	OutPoints.Reset();
+	if (Style != ERTTracerStyle::Zigzag)
+	{
+		return; // `Projectile` e `Jet` restano su `TracerSegment` (F11)
+	}
+	constexpr int32 Segmenti = 8;
+	const FVector Asse = To - From;
+	const FVector Laterale = FVector::CrossProduct(Asse, FVector::UpVector).GetSafeNormal();
+	const float Scarto = 0.12f * HexSize;
+	auto Vertice = [&](int32 I) -> FVector
+	{
+		if (I <= 0) { return From; }
+		if (I >= Segmenti) { return To; }
+		// 🔑 Il segno dall'INDICE del vertice, mai da `Alpha` (F12): e' cio' che rende la linea un prefisso che cresce.
+		const float Segno = (I % 2 == 1) ? 1.f : -1.f;
+		return From + Asse * (static_cast<float>(I) / Segmenti) + Laterale * (Segno * Scarto);
+	};
+	const float T = FMath::Clamp(Alpha, 0.f, 1.f) * Segmenti;
+	const int32 Interi = FMath::Min(FMath::FloorToInt(T), Segmenti);
+	for (int32 I = 0; I <= Interi; ++I)
+	{
+		OutPoints.Add(Vertice(I));
+	}
+	if (Interi < Segmenti && T - Interi > KINDA_SMALL_NUMBER)
+	{
+		OutPoints.Add(FMath::Lerp(Vertice(Interi), Vertice(Interi + 1), T - Interi));
+	}
+}
+
+float URTPlaybackLibrary::ActivationCueDuration(float ActivationCueSeconds, float AttackShowSeconds)
+{
+	return AttackShowSeconds > 0.f ? FMath::Min(FMath::Max(0.f, ActivationCueSeconds), AttackShowSeconds) : 0.f;
+}
+
+bool URTPlaybackLibrary::ActivationCueFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Ev.Type != ERTResolvedEventType::AbilityActivated
+		|| !Ev.SourceVerdict.AllowsTeam(ViewerTeamId)) // R7: fail-closed anche se la coda e' gia' filtrata
+	{
+		return false;
+	}
+	switch (URTPresentationBindingLibrary::FxProfileFor(Ev.ActionId, Ev.BaseActionId, Ev.Shape).Activation)
+	{
+	case ERTActivationFxStyle::Ring:  OutCue.Kind = ERTPlaybackCueKind::Ring;  break;
+	case ERTActivationFxStyle::Pulse: OutCue.Kind = ERTPlaybackCueKind::Pulse; break;
+	case ERTActivationFxStyle::Flash: OutCue.Kind = ERTPlaybackCueKind::Flash; break;
+	default: return false;
+	}
+	OutCue.At = Ev.Origin;
+	OutCue.Toward = Ev.Origin;
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+void URTPlaybackLibrary::ActivationCuesAt(const TArray<FRTResolvedEvent>& Activations, int32 Shown, float PhaseElapsed,
+	float AttackShowSeconds, float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out)
+{
+	const float Durata = ActivationCueDuration(ActivationCueSeconds, AttackShowSeconds);
+	if (Durata <= 0.f)
+	{
+		return; // `A <= 0`: tutto in un frame, nessuna cue (spec §4)
+	}
+	for (int32 K = 0; K < FMath::Min(Shown, Activations.Num()); ++K)
+	{
+		const float Inizio = AttackLaunchSeconds(K, AttackShowSeconds);
+		if (PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		FRTPlaybackCue Cue;
+		if (ActivationCueFor(Activations[K], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+void URTPlaybackLibrary::BlastActivationCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds,
+	float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out)
+{
+	const float Durata = ActivationCueDuration(ActivationCueSeconds, AttackShowSeconds);
+	if (Durata <= 0.f)
+	{
+		return;
+	}
+	for (int32 K = 0; K < Sequence.Num() && BeatsDone > 2 * K; ++K) // il battito `2k` rivela l'elemento `k`
+	{
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice) || Timeline[Indice].Type != ERTResolvedEventType::AbilityActivated)
+		{
+			continue;
+		}
+		const float Inizio = AttackLaunchSeconds(K, AttackShowSeconds);
+		if (PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		FRTPlaybackCue Cue;
+		if (ActivationCueFor(Timeline[Indice], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+float URTPlaybackLibrary::ImpactCueDuration(float ImpactCueSeconds, float AttackShowSeconds, float Flight)
+{
+	return AttackShowSeconds > 0.f
+		? FMath::Max(0.f, FMath::Min(FMath::Max(0.f, ImpactCueSeconds), AttackShowSeconds - FMath::Max(0.f, Flight)))
+		: 0.f;
+}
+
+bool URTPlaybackLibrary::ImpactCueFor(const FRTResolvedEvent& Atk, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Atk.Type != ERTResolvedEventType::Attack
+		|| !Atk.HitGeometry.bResolved
+		|| !Atk.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return false;
+	}
+	if (URTPresentationBindingLibrary::FxProfileFor(Atk.ActionId, Atk.BaseActionId, Atk.Shape).Impact != ERTImpactFxStyle::Marker)
+	{
+		return false;
+	}
+	OutCue.Kind = ERTPlaybackCueKind::Marker;
+	OutCue.At = Atk.HitGeometry.Impact;
+	OutCue.Toward = Atk.HitGeometry.Impact;
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+bool URTPlaybackLibrary::FootprintCueFor(const FRTResolvedEvent& Footprint, const FRTResolvedEvent& Atk,
+	int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Footprint.Type != ERTResolvedEventType::AttackFootprint || Atk.Type != ERTResolvedEventType::Attack
+		|| !Atk.HitGeometry.bResolved
+		|| !Atk.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return false;
+	}
+	switch (URTPresentationBindingLibrary::FxProfileFor(Atk.ActionId, Atk.BaseActionId, Atk.Shape).Footprint)
+	{
+	case ERTFootprintFxStyle::AreaPulse:
+		OutCue.Kind = ERTPlaybackCueKind::AreaPulse;
+		OutCue.At = Footprint.AimCell;
+		OutCue.Toward = Footprint.AimCell;
+		break;
+	case ERTFootprintFxStyle::ConeSweep:
+		OutCue.Kind = ERTPlaybackCueKind::ConeSweep;
+		OutCue.At = Footprint.Origin;
+		OutCue.Toward = Footprint.AimCell;
+		break;
+	default:
+		return false;
+	}
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+TArray<int32> URTPlaybackLibrary::FootprintFxForSequence(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence)
+{
+	TArray<int32> Out;
+	Out.Init(INDEX_NONE, Sequence.Num());
+	// ⛔ Solo `Find`/`Add`/`Remove`: l'esito non dipende dall'ordine d'iterazione della mappa.
+	TMap<TPair<int32, FName>, int32> Aperte;
+	for (int32 K = 0; K < Sequence.Num(); ++K)
+	{
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice))
+		{
+			continue;
+		}
+		const FRTResolvedEvent& Ev = Timeline[Indice];
+		if (Ev.SourceStableUnitId == 0)
+		{
+			continue; // D-063: un atto non attribuibile non si associa (spec §2.4, degrado)
+		}
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			if (Aperte.Contains(Chiave))
+			{
+				UE_LOG(LogRT, Verbose, TEXT("FootprintFxForSequence: una seconda impronta per (%d, %s) sostituisce la prima (R14)"),
+					Ev.SourceStableUnitId, *Ev.ActionId.ToString());
+			}
+			Aperte.Add(Chiave, Indice);
+		}
+		else if (Ev.Type == ERTResolvedEventType::Attack)
+		{
+			if (const int32* Impronta = Aperte.Find(Chiave))
+			{
+				Out[K] = *Impronta;
+				Aperte.Remove(Chiave); // il PRIMO colpo la consuma: una cue d'impronta per impronta
+			}
+		}
+	}
+	return Out;
+}
+
+void URTPlaybackLibrary::BlastHitCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, const TArray<float>& Flights, const TArray<int32>& FootprintFx,
+	int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId,
+	TArray<FRTPlaybackCue>& Out)
+{
+	for (int32 K = 0; K < Sequence.Num(); ++K)
+	{
+		const int32 BattitoArrivo = 2 * K + 1;
+		if (BeatsDone <= BattitoArrivo)
+		{
+			break; // la sequenza dei battiti e' monotona: dopo il primo non arrivato, nessuno lo e'
+		}
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice) || Timeline[Indice].Type != ERTResolvedEventType::Attack)
+		{
+			continue;
+		}
+		const FRTResolvedEvent& Atk = Timeline[Indice];
+		const float Volo = Flights.IsValidIndex(K) ? Flights[K] : 0.f;
+		const float Durata = ImpactCueDuration(ImpactCueSeconds, AttackShowSeconds, Volo);
+		const float Inizio = AttackBeatSeconds(BattitoArrivo, AttackShowSeconds, Flights);
+		if (Durata <= 0.f || PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		const float Alpha = (PhaseElapsed - Inizio) / Durata;
+		const int32 Impronta = FootprintFx.IsValidIndex(K) ? FootprintFx[K] : INDEX_NONE;
+		FRTPlaybackCue Cue;
+		if (ImpactCueFor(Atk, ViewerTeamId, Alpha, Cue))
+		{
+			Out.Add(Cue);
+		}
+		if (Timeline.IsValidIndex(Impronta) && FootprintCueFor(Timeline[Impronta], Atk, ViewerTeamId, Alpha, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+void URTPlaybackLibrary::CueSegments(ERTPlaybackCueKind Kind, const FVector& At, const FVector& Toward, float HexSize,
+	float Alpha, TArray<FVector>& OutStarts, TArray<FVector>& OutEnds)
+{
+	OutStarts.Reset();
+	OutEnds.Reset();
+	const float A = FMath::Clamp(Alpha, 0.f, 1.f);
+	const float S = HexSize;
+	auto Direzione = [](float Gradi)
+	{
+		const float R = FMath::DegreesToRadians(Gradi);
+		return FVector(FMath::Cos(R), FMath::Sin(R), 0.f);
+	};
+	auto Esagono = [&](float Raggio)
+	{
+		for (int32 I = 0; I < 6; ++I)
+		{
+			OutStarts.Add(At + Direzione(30.f + 60.f * I) * Raggio);
+			OutEnds.Add(At + Direzione(30.f + 60.f * (I + 1)) * Raggio);
+		}
+	};
+	switch (Kind)
+	{
+	case ERTPlaybackCueKind::Ring:
+		Esagono(FMath::Lerp(0.55f, 0.95f, A) * S);
+		break;
+	case ERTPlaybackCueKind::Pulse:
+		Esagono(FMath::Lerp(1.00f, 0.60f, A) * S);
+		Esagono(FMath::Lerp(0.75f, 0.35f, A) * S);
+		break;
+	case ERTPlaybackCueKind::Flash:
+		for (int32 I = 0; I < 6; ++I)
+		{
+			// F21: inclinati di 45° verso l'alto e l'esterno — un raggio verticale, dalla camera tattica, e' un punto.
+			const FVector Fuori = Direzione(30.f + 60.f * I);
+			const FVector Base = At + Fuori * (0.5f * S);
+			OutStarts.Add(Base);
+			OutEnds.Add(Base + (Fuori + FVector::UpVector).GetSafeNormal() * (0.4f * S));
+		}
+		break;
+	case ERTPlaybackCueKind::Marker:
+		for (int32 I = 0; I < 4; ++I)
+		{
+			OutStarts.Add(At);
+			OutEnds.Add(At + Direzione(45.f + 90.f * I) * (FMath::Lerp(0.f, 0.35f, A) * S));
+		}
+		break;
+	case ERTPlaybackCueKind::AreaPulse:
+	{
+		const float R = FMath::Lerp(0.3f, 1.7f, A) * S;
+		Esagono(R);
+		for (int32 I = 0; I < 6; ++I)
+		{
+			OutStarts.Add(At);
+			OutEnds.Add(At + Direzione(30.f + 60.f * I) * R);
+		}
+		break;
+	}
+	case ERTPlaybackCueKind::ConeSweep:
+	{
+		FVector Asse = Toward - At;
+		Asse.Z = 0.f;
+		const float L = Asse.Size();
+		if (L < KINDA_SMALL_NUMBER)
+		{
+			break; // asse degenere: niente da spazzare, nessun errore (spec §4)
+		}
+		const float Base = FMath::RadiansToDegrees(FMath::Atan2(Asse.Y, Asse.X));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base - 60.f) * (0.3f * L));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base + 60.f) * (0.3f * L));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base + FMath::Lerp(-60.f, 60.f, A)) * L);
+		break;
+	}
+	}
 }
 
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
@@ -56,24 +487,38 @@ float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegmen
 {
 	// Una riga: la formula sta in `PhaseTime`, e il totale e' la somma dei suoi due termini. Non c'e' un
 	// secondo calcolo da tenere allineato.
-	return PhaseTime(Phase, MaxMoveSegments, NumAttacks, CellsPerSecond, AttackShowSeconds,
-		PhaseBeatSeconds).Total();
+	// ⚠️ **Gli zeri (muri, impronte, attivazioni) sono dichiarati, nessuno e' una dimenticanza**: questo wrapper non conosce ne i colpi a struttura
+	// (`#2828`), ne le impronte (`#3278`), ne le attivazioni (#3549). Passa `NumActivations = 0` e usa i soli
+	// colpi come sequenza, quindi su un `Blast` la durata restituita e' SOTTOSTIMATA. ⛔ Chi dimensiona il
+	// playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` con le attivazioni e la
+	// lunghezza della sequenza di Blast (#3549).
+	// Questa forma sopravvive per i gate di pacing sulle fasi classiche. ⏱️ *Fino a #3549 diceva «DUE zeri».*
+	return PhaseTime(Phase, MaxMoveSegments, /*NumActivations=*/ 0, /*NumSequenceElements=*/ NumAttacks,
+		CellsPerSecond, AttackShowSeconds, PhaseBeatSeconds).Total();
 }
 
-FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
-	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
+FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumActivations,
+	int32 NumSequenceElements, float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {
 	// Il tempo di movimento e' lo stesso calcolo per tutte le fasi che muovono, Blast compreso: si scrive
 	// una volta sola perche' due copie divergerebbero alla prima modifica di una delle due.
 	const float MoveTime = (CellsPerSecond > 0.f)
 		? (FMath::Max(0, MaxMoveSegments) / CellsPerSecond)
 		: 0.f;
+	// Il tempo delle attivazioni di Prep e Dash (#3549): mostrato, quindi incomprimibile come i colpi.
+	const float ActivationTime = FMath::Max(0, NumActivations) * FMath::Max(0.f, AttackShowSeconds);
 
 	FRTPhaseTime Out;
 
 	switch (Phase)
 	{
 	case ERTMatchPhase::Dash:
+		// Prima le attivazioni, poi le rotte: `RouteAlpha` parte dopo il loro tempo, che e' `Lead`. Uno, letto da chi
+		// dimensiona la fase e da chi anima le rotte: due copie di `N x ASS` divergerebbero alla prima modifica.
+		Out.Lead = ActivationTime;
+		Out.Shown = ActivationTime + MoveTime;
+		break;
+
 	case ERTMatchPhase::Move:
 		// Tutto movimento: non c'e' attesa da togliere, e toglierla sarebbe accelerare i cilindri.
 		Out.Shown = MoveTime;
@@ -81,23 +526,34 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 
 	case ERTMatchPhase::Blast:
 	{
-		// `Max(1, ...)`: un Blast di sola spinta non ha colpi, e una fase che si vede non puo' durare zero.
-		const float AttackTime = FMath::Max(1, NumAttacks) * AttackShowSeconds;
-		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
+		// 🔴 **La SEQUENZA, non il `Max` fra canali** (#3549, D5). I canali paralleli di #2828/#3278 sono
+		// diventati una sequenza per intento, svelata un elemento per volta: la fase dura quanto la sequenza.
+		// `Max(1, ...)`: un Blast di sola spinta si vede e non puo' durare zero.
+		// ⏱️ *Fino a #3549 qui c'era il `Max` fra colpi, muri e impronte, rivelati in parallelo.*
+		const float SequenceTime = FMath::Max(1, NumSequenceElements) * AttackShowSeconds;
+		// `Max` con la spinta e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
 		//
 		// 🔴 **Tutto `Shown`, zero `Slack`, e la prima stesura sbagliava qui.** Metteva in `Slack`
-		// l'eccedenza `AttackTime - MoveTime`, ragionando che fosse tempo «di lettura» e quindi
+		// l'eccedenza `SequenceTime - MoveTime`, ragionando che fosse tempo «di lettura» e quindi
 		// comprimibile. Non lo e': l'ordine di recupero di #1878 autorizza i beat delle fasi che NON
 		// mostrano nulla, e questa mostra i colpi. Comprimerlo faceva due danni — la fase poteva durare
 		// zero e i colpi uscivano tutti in un frame, e la spinta accelerava fino al rate base perche'
 		// `Alpha` la misura su `PhaseDur`.
-		Out.Shown = FMath::Max(AttackTime, MoveTime);
+		Out.Shown = FMath::Max(SequenceTime, MoveTime);
 		break;
 	}
 
+	case ERTMatchPhase::Prep:
+		// Le attivazioni si mostrano; il beat di oggi resta, ed e' l'unica parte che il budget puo' togliere.
+		// `Lead` = tutto il mostrato: in Prep non c'e' altro dopo le attivazioni.
+		Out.Lead = ActivationTime;
+		Out.Shown = ActivationTime;
+		Out.Slack = PhaseBeatSeconds;
+		break;
+
 	default:
-		// Prep, Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa
-		// che il budget puo' togliere.
+		// Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa che il
+		// budget puo' togliere.
 		Out.Slack = PhaseBeatSeconds;
 		break;
 	}
@@ -180,6 +636,69 @@ float URTPlaybackLibrary::AlphaAtMicroStep(int32 StepIndex, int32 StepCount)
 	return FMath::Clamp(static_cast<float>(StepIndex) / static_cast<float>(StepCount), 0.f, 1.f);
 }
 
+float URTPlaybackLibrary::PivotYaw(float FromYaw, float ToYaw, float Progress)
+{
+	// L'arco PIU' CORTO: da 170 a -170 sono venti gradi, non trecentoquaranta.
+	const float Delta = FMath::FindDeltaAngleDegrees(FromYaw, ToYaw);
+	return FRotator::NormalizeAxis(FromYaw + Delta * FMath::Clamp(Progress, 0.f, 1.f));
+}
+
+float URTPlaybackLibrary::StepYawAtAlpha(const TArray<FVector>& World, float Alpha, float EntryYaw, float TurnFraction)
+{
+	const int32 Segmenti = World.Num() - 1;
+	if (Segmenti < 1)
+	{
+		return EntryYaw;
+	}
+
+	// Lo yaw del segmento `I`, o del primo con una direzione andando indietro; `EntryYaw` se nessuno ne ha.
+	const auto YawFinoA = [&World, EntryYaw](int32 I)
+	{
+		for (int32 J = I; J >= 0; --J)
+		{
+			if ((World[J + 1] - World[J]).SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
+			{
+				return DirectionYaw(World[J], World[J + 1]);
+			}
+		}
+		return EntryYaw;
+	};
+
+	const float A = FMath::Clamp(Alpha, 0.f, 1.f);
+	// 🔑 La cella si chiede a `MicroStepAtAlpha`, come fanno velo e rivelazione: su un confine esatto la mesh deve
+	// stare sulla STESSA cella che leggono loro, non su quella prima per un arrotondamento.
+	const int32 K = FMath::Min(MicroStepAtAlpha(A, Segmenti), Segmenti);
+	if (K >= Segmenti)
+	{
+		return YawFinoA(Segmenti - 1);
+	}
+	const float Prima = (K == 0) ? EntryYaw : YawFinoA(K - 1);
+	const float Dopo = YawFinoA(K);
+	const float Frazione = FMath::Clamp(A * Segmenti - K, 0.f, 1.f);
+	const float Giro = (TurnFraction > 0.f) ? FMath::Clamp(Frazione / TurnFraction, 0.f, 1.f) : 1.f;
+	return PivotYaw(Prima, Dopo, Giro);
+}
+
+int32 URTPlaybackLibrary::MicroStepAtAlpha(float Alpha, int32 StepCount)
+{
+	if (StepCount <= 0)
+	{
+		return 0; // nessun segmento: non c'e' un micro-step da contare
+	}
+
+	// ⚠️ **`UE_KINDA_SMALL_NUMBER` si SOMMA, e il verso e' la parte che sbaglia facilmente.** `Alpha`
+	// arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`: senza tolleranza quel
+	// valore cadrebbe appena SOTTO il proprio confine, e il floor lo assegnerebbe al segmento precedente.
+	// ⛔ Sottrarla fa esattamente questo difetto su OGNI confine esatto, non solo su quelli inesatti:
+	// misurato, `NextMicroStepBoundary(0.25f, 4)` restituiva `0.25` invece di `0.5`.
+	//
+	// 🔑 **Per `StepCount`, e non diviso per `1 / StepCount`**: e' l'inversa diretta di `AlphaAtMicroStep`,
+	// e risparmia l'arrotondamento del reciproco. Fino a `#3458` `NextMicroStepBoundary` divideva per il
+	// passo; la differenza fra le due forme sta sotto la tolleranza, e
+	// `Playback.MicroStepAtAlphaLandsOnTheBoundaryAStepStopsAt` la percorre da 1 a 12 segmenti.
+	return FMath::FloorToInt((FMath::Max(0.f, Alpha) + UE_KINDA_SMALL_NUMBER) * static_cast<float>(StepCount));
+}
+
 float URTPlaybackLibrary::NextMicroStepBoundary(float Alpha, int32 StepCount)
 {
 	if (StepCount <= 0)
@@ -187,20 +706,12 @@ float URTPlaybackLibrary::NextMicroStepBoundary(float Alpha, int32 StepCount)
 		return 1.f; // niente da attraversare
 	}
 
-	const float Passo = 1.f / static_cast<float>(StepCount);
-
-	// 🔴 **`FloorToInt(Alpha/Passo) + 1`, e il `+1` e' la regola**: si va al confine SUCCESSIVO anche
-	// quando `Alpha` e' gia' esattamente su uno. Con un arrotondamento «al piu' vicino >=» premere `Step`
-	// due volte su un boundary non farebbe nulla la seconda volta.
-	//
-	// ⚠️ **`UE_KINDA_SMALL_NUMBER` si SOMMA, e il verso e' la parte che sbaglia facilmente.** `Alpha`
-	// arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`: senza tolleranza quel
-	// valore cadrebbe appena SOTTO il proprio confine, il floor lo assegnerebbe al segmento precedente, e
-	// «il prossimo» sarebbe il confine su cui ci si trova gia' — cioe' `Step` non avanzerebbe.
-	// ⛔ Sottrarla fa esattamente questo difetto su OGNI confine esatto, non solo su quelli inesatti:
-	// misurato, `NextMicroStepBoundary(0.25f, 4)` restituiva `0.25` invece di `0.5`.
-	const int32 Corrente = FMath::FloorToInt((FMath::Max(0.f, Alpha) + UE_KINDA_SMALL_NUMBER) / Passo);
-	const int32 Prossimo = FMath::Max(0, Corrente) + 1;
+	// 🔴 **`MicroStepAtAlpha + 1`, e il `+1` e' la regola**: si va al confine SUCCESSIVO anche quando
+	// `Alpha` e' gia' esattamente su uno. Con un arrotondamento «al piu' vicino >=» premere `Step` due volte
+	// su un boundary non farebbe nulla la seconda volta. La tolleranza che fa riconoscere quel confine e'
+	// in `MicroStepAtAlpha`: senza, «il prossimo» sarebbe il confine su cui ci si trova gia', cioe' `Step`
+	// non avanzerebbe.
+	const int32 Prossimo = FMath::Max(0, MicroStepAtAlpha(Alpha, StepCount)) + 1;
 
 	return AlphaAtMicroStep(Prossimo, StepCount);
 }
@@ -219,27 +730,47 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	// ⚠️ `FromIndex` negativo significa «prima dell'inizio»: nessun atto in corso, e il primo evento con
 	// un'azione e' gia' un confine. `Min(FromIndex, Fine - 1)` tiene la scansione dentro l'array anche
 	// quando l'indice arriva oltre la fine, e su timeline vuota il ciclo non parte.
+	//
+	// 🔑 **L'atto in corso e' la COPPIA `(Corrente, SorgenteCorrente)`** (#3549). ⚠️ `SorgenteCorrente = 0`
+	// significa «nessuna sorgente», la sentinella di questo stato — diversa dal default `-1` di `IsActBoundary`, che
+	// vorrebbe dire «sorgente non dichiarata».
+	//
+	// 🔴 **La sorgente si legge solo da un evento che ne porta una** (review della PR #3561): `0` e' «sorgente
+	// sconosciuta» ([D-063]) e non sostituisce quella nota dell'atto. ∴ l'azione e' quella dell'ultimo evento che
+	// ne ha una; la sorgente, quella dell'ultimo evento con QUELLA azione e una sorgente `!= 0`, senza scavalcare un
+	// evento con un'altra azione — l'atto precedente ha la sua sorgente, e prestarla a questo farebbe decidere un
+	// confine a uno `0`. E' la stessa regola con cui `ARTTurnManager::NotePlaybackActShown` aggiorna l'atto
+	// mostrato, scritta in avanti invece che all'indietro.
 	FName Corrente = NAME_None;
+	int32 SorgenteCorrente = 0;
 	for (int32 i = FMath::Min(FromIndex, Fine - 1); i >= 0; --i)
 	{
-		if (!Timeline[i].ActionId.IsNone())
+		const FRTResolvedEvent& Ev = Timeline[i];
+		if (Ev.ActionId.IsNone())
 		{
-			Corrente = Timeline[i].ActionId;
+			continue;
+		}
+		if (Corrente.IsNone())
+		{
+			Corrente = Ev.ActionId;
+		}
+		else if (Ev.ActionId != Corrente)
+		{
+			break; // un altro atto: la sua sorgente non e' quella di questo
+		}
+		if (Ev.SourceStableUnitId != 0)
+		{
+			SorgenteCorrente = Ev.SourceStableUnitId;
 			break;
 		}
 	}
 
 	for (int32 i = FMath::Max(0, FromIndex + 1); i < Fine; ++i)
 	{
-		const FName Azione = Timeline[i].ActionId;
-
-		// ⛔ **`None` non e' mai un confine.** E' un valore legittimo che dice «nessuna azione dietro»:
-		// fermarcisi sarebbe fermarsi su un fatto che nessuno ha compiuto.
-		if (Azione.IsNone())
-		{
-			continue;
-		}
-		if (Azione != Corrente)
+		// 🔑 **La regola NON si riscrive qui**: e' `IsActBoundary`, e da `#3292` ha un solo posto. Questa
+		// funzione e' la sua vista su una timeline — decide COSA sia l'atto in corso (la scansione
+		// all'indietro qui sopra) e delega il resto.
+		if (IsActBoundary(Timeline[i], Corrente, SorgenteCorrente))
 		{
 			return i;
 		}
@@ -248,4 +779,164 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	// Nessun altro atto: la fine della timeline. E' la stessa scelta di `NextMicroStepBoundary`, che oltre
 	// l'ultimo segmento porta a fine fase e non oltre.
 	return Fine;
+}
+
+bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction, int32 CurrentSource)
+{
+	// 🔴 **`StructureHit` senza azione E' un confine, e su nessun altro tipo lo e'** — `#3281`, [D-437].
+	// Su questo tipo `NAME_None` non significa *«nessuna azione dietro»*: significa **«piu' di uno l'ha
+	// fatto»**, perche' il produttore nomina l'azione quando l'autore e' uno e tace solo sull'aggregato.
+	// ⛔ Fermarsi ci sta: un muro che cade qualcuno l'ha fatto cadere, e l'evento porta chi.
+	//
+	// ⛔ **`ArcHit` resta fuori, deliberatamente**: porta `NAME_None` sempre (`#3280`), quindi qui
+	// diventerebbe un confine a ogni arco colpito — e se sia giusto e' una decisione che nessuna issue ha
+	// preso. Chi la prende aggiunga il tipo qui, con la sua ragione.
+	if (Event.ActionId.IsNone())
+	{
+		return Event.Type == ERTResolvedEventType::StructureHit;
+	}
+
+	// ⚠️ **Piu' eventi con la stessa coppia `(sorgente, azione)` sono UN atto**, ed e' la riga che risolve il
+	// caso dell'impronta: impronta e colpi nascono dallo stesso intento, quindi portano la stessa coppia e non
+	// fanno fermare due volte. Stessa ragione per cui un'area su tre bersagli e' un atto solo.
+	//
+	// #3549: la COPPIA. Stessa azione da un'altra unita' e' un altro atto (spec «il momento» §2.4).
+	// `INDEX_NONE` = sorgente non dichiarata (il default per i nodi Blueprint): il criterio storico.
+	//
+	// 🔴 **Una sorgente `0` non decide mai un confine** (review della PR #3561). `0` non e' un'unita' ([D-063]): uno
+	// `StructureHit` o un'impronta possono portarla con l'azione nominata, quando l'autore non e' attribuibile. Il
+	// confronto sulla sorgente si fa quindi solo fra DUE sorgenti note — l'evento con `!= 0`, l'atto in corso con
+	// `> 0` (`0` = «nessuna sorgente ancora», `-1` = il criterio storico). ⏱️ *Fino alla review `0 != S` apriva una
+	// seconda fermata dentro lo stesso intento, il difetto che `#3292` esclude.*
+	return Event.ActionId != CurrentAction
+		|| (Event.SourceStableUnitId != 0 && CurrentSource > 0 && Event.SourceStableUnitId != CurrentSource);
+}
+
+namespace
+{
+	/** Il rango di un tipo DENTRO un atto: attivazione, impronte, muri, colpi (spec §2.4). -1 = non entra. */
+	int32 RTRangoNellAtto(ERTResolvedEventType Type)
+	{
+		switch (Type)
+		{
+		case ERTResolvedEventType::AbilityActivated: return 0;
+		case ERTResolvedEventType::AttackFootprint:  return 1;
+		case ERTResolvedEventType::StructureHit:     return 2;
+		case ERTResolvedEventType::Attack:           return 3;
+		default:                                     return -1; // `ArcHit` compreso: #3293
+		}
+	}
+}
+
+TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId)
+{
+	TArray<FRTBlastSequenceElement> Out;
+
+	// D-355: il prefisso gia' mostrato si riproduce VERBATIM, e i suoi eventi non si ripetono. ⚠️ `TSet` solo
+	// per `Contains`.
+	const int32 Congelati = FMath::Clamp(FrozenPrefix, 0, Previous.Num());
+	TSet<int32> GiaInSequenza;
+	for (int32 i = 0; i < Congelati; ++i)
+	{
+		Out.Add(Previous[i]);
+		GiaInSequenza.Add(Previous[i].TimelineIndex);
+	}
+
+	struct FRTAttoInCostruzione
+	{
+		int32 Source = 0;
+		FName ActionId;
+		TArray<int32> Indici;
+		int32 PrimaApparizione = INDEX_NONE;
+		int32 IndiceAttivazione = INDEX_NONE; // l'attivazione del gruppo, se c'e' — ANCHE nascosta a chi guarda
+		/** La chiave d'ordine fra gli atti (decisione (d)): l'attivazione se c'e' (anche nascosta), altrimenti la prima apparizione. */
+		int32 Chiave() const { return IndiceAttivazione != INDEX_NONE ? IndiceAttivazione : PrimaApparizione; }
+	};
+	// Gli atti nascono nell'ordine di prima apparizione (la scansione va in avanti) e si RIORDINANO poi per
+	// `Chiave()`: uno `StructureHit` emesso prima delle attivazioni non deve trascinare il suo intento davanti a
+	// quelli con `IntentIndex` minore. ⚠️ Le chiavi sono indici di timeline distinti: l'ordine e' totale.
+	//
+	// 🔴 **La scansione copre TUTTA la timeline, prefisso congelato compreso** (Ruling H, #3549): la chiave di un
+	// gruppo si legge dalla sua attivazione ovunque stia. Cercarla solo fra gli eventi non ancora sequenziati
+	// faceva diventare «senza attivazione» il resto di un atto interrotto a meta', con chiave = prima apparizione:
+	// scivolava dietro gli atti successivi senza che la timeline fosse cresciuta, e `Build(T, S, k) != S`. Gli
+	// eventi del prefisso entrano nei gruppi per dare la chiave e NON si riemettono (vedi sotto).
+	TArray<FRTAttoInCostruzione> Atti;
+	// La chiave `(sorgente, azione)` -> l'indice dell'atto in `Atti` (review della PR #3561: prima un
+	// `IndexOfByPredicate` per evento, lineare negli atti). ⛔ **Solo `Find`/`Add`**: nessuna iterazione su questa
+	// mappa decide un ordine — l'ordine degli atti e' quello di `Atti`, poi gli `StableSort` qui sotto.
+	TMap<TPair<int32, FName>, int32> AttoPerChiave;
+
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		const FRTResolvedEvent& Ev = Timeline[i];
+		if (Ev.Phase != ERTMatchPhase::Blast || RTRangoNellAtto(Ev.Type) < 0)
+		{
+			continue;
+		}
+		// D6: un'attivazione che chi guarda non ha il diritto di vedere non ENTRA nella sequenza — tutto o niente.
+		// 🔑 **Ma da' la chiave al suo gruppo** (review della PR #3561): ordinare per il suo indice non rivela nulla —
+		// l'attivazione non si mostra, e impronte e colpi si mostrano comunque. ⏱️ *Prima usciva qui, e il gruppo
+		// prendeva la chiave dalla prima apparizione: con uno `StructureHit` (emesso PRIMA di tutte le attivazioni)
+		// finiva davanti a ogni atto visibile, senza muro in coda. L'ordine degli atti nascosti si ribaltava con la
+		// presenza di un muro.*
+		const bool bAttivazione = (Ev.Type == ERTResolvedEventType::AbilityActivated);
+		const bool bNascosta = bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+
+		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
+		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima
+		// apparizione. Non e' la regola del confine — `IsActBoundary` non lo fa fermare — ma quella dell'ordine.
+		const bool bHaIdentita = !Ev.ActionId.IsNone(); // senza identita' = atto proprio, mai fuso (#3281)
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		const int32* Trovato = bHaIdentita ? AttoPerChiave.Find(Chiave) : nullptr;
+		int32 Atto = Trovato ? *Trovato : INDEX_NONE;
+		if (Atto == INDEX_NONE)
+		{
+			FRTAttoInCostruzione& Nuovo = Atti.AddDefaulted_GetRef();
+			Nuovo.Source = Ev.SourceStableUnitId;
+			Nuovo.ActionId = Ev.ActionId;
+			Nuovo.PrimaApparizione = i;
+			Atto = Atti.Num() - 1;
+			if (bHaIdentita)
+			{
+				AttoPerChiave.Add(Chiave, Atto);
+			}
+		}
+		if (!bNascosta)
+		{
+			Atti[Atto].Indici.Add(i);
+		}
+		if (bAttivazione && Atti[Atto].IndiceAttivazione == INDEX_NONE)
+		{
+			Atti[Atto].IndiceAttivazione = i; // anche la nascosta: la chiave, non un elemento
+		}
+	}
+
+	// Decisione (d): l'ordine fra gli atti e' quello delle loro attivazioni.
+	Atti.StableSort([](const FRTAttoInCostruzione& X, const FRTAttoInCostruzione& Y) { return X.Chiave() < Y.Chiave(); });
+
+	for (FRTAttoInCostruzione& A : Atti)
+	{
+		// Ordine TOTALE (rango, poi indice): nessuna dipendenza dalla stabilita' dell'algoritmo.
+		A.Indici.StableSort([&Timeline](int32 X, int32 Y)
+		{
+			const int32 RX = RTRangoNellAtto(Timeline[X].Type);
+			const int32 RY = RTRangoNellAtto(Timeline[Y].Type);
+			return (RX != RY) ? (RX < RY) : (X < Y);
+		});
+		for (const int32 Indice : A.Indici)
+		{
+			if (GiaInSequenza.Contains(Indice))
+			{
+				continue; // gia' nel prefisso congelato: verbatim sopra, non si ripete
+			}
+			FRTBlastSequenceElement E;
+			E.TimelineIndex = Indice;
+			E.SourceStableUnitId = Timeline[Indice].SourceStableUnitId;
+			E.ActionId = Timeline[Indice].ActionId;
+			Out.Add(E);
+		}
+	}
+	return Out;
 }

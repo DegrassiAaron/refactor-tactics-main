@@ -54,6 +54,7 @@
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: il cronometro del boundary chiude su ENTRAMBE le uscite (#2516)
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -108,7 +109,7 @@ void ARTTurnManager::BeginMovementResolution()
 	GetHexContext(Ctx.Origin, Ctx.HexSize, Ctx.LayerHeight);
 
 	TArray<ARTUnit*> Units;
-	Ctx.Snapshot = MakeCurrentSnapshot(Units);
+	Ctx.Snapshot = MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// Come nel Dash: la fase autoritativa dice cio' che lo snapshot ha registrato (#1970). Una condizione
 	// gia' segnalata in questo turno non si ripete — la deduplica sta in `ReportSnapshotOverlaps`.
@@ -146,6 +147,19 @@ void ARTTurnManager::BeginMovementResolution()
 	// percorso accodato, cosi' gli indici restano gli stessi senza doverlo dichiarare.
 	TArray<TArray<int32>> StepDurations;
 	StepDurations.Reserve(Units.Num());
+
+	// ➕ **La CADENZA, catturata dove la banda si congela** ([D-428]).
+	//
+	// ⛔ **Il resolver non conosce i profili di movimento, e non deve conoscerli**: e' la stessa disciplina
+	// per cui `StepDurations` si calcola qui e viaggia gia' pronta. Da `Ctx.MovementProfiles` escono i due
+	// soli numeri che il calendario legge.
+	//
+	// ⚠️ **Si prendono dal record che `ProfileForPlan` ha gia' restituito**, non rileggendo il catalogo per
+	// id: `FindProfile` ricostruisce l'intero catalogo a ogni chiamata — cinque struct con i loro `FName` —
+	// e farlo una volta per unita', dopo che il record completo era gia' passato di qui, era spreco puro.
+	// Trovato in code review.
+	TArray<FRTMovementCadence> Cadences;
+	Cadences.SetNum(Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -156,8 +170,13 @@ void ARTTurnManager::BeginMovementResolution()
 		// possono divergere.
 		if (IsValid(Unit))
 		{
-			Ctx.MovementProfiles[i] = URTMovementProfileLibrary::ProfileForPlan(
-				URTPlanValidationLibrary::MakePlanFor(Unit)).Id;
+			const FRTMovementProfile Profilo = URTMovementProfileLibrary::ProfileForPlan(
+				URTPlanValidationLibrary::MakePlanFor(Unit));
+			Ctx.MovementProfiles[i] = Profilo.Id;
+			// I due numeri del calendario, dallo STESSO record da cui esce la banda: una sola derivazione,
+			// quindi non possono divergere.
+			Cadences[i].StepsPerTick = Profilo.StepsPerTick;
+			Cadences[i].TickPeriod = Profilo.TickPeriod;
 		}
 
 		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata
@@ -182,6 +201,37 @@ void ARTTurnManager::BeginMovementResolution()
 		// rispettava lo snapshot fresco, quindi qui e' un no-op per costruzione.
 		Path = URTHexSimLibrary::TruncatePathToBudget(Ctx.Snapshot, /*UnitId=*/ i, Path);
 
+		// 🔴 **LA RILEVAZIONE DEL DINIEGO STA FUORI DAL RAMO «NESSUN PERCORSO»** ([D-446], 2026-10-01).
+		// Ci stava dentro, e per cinque settimane e' stato corretto: una destinazione occupata faceva fallire
+		// `FindPathForUnit`, quindi «dichiarata e negata» coincideva con «nessun percorso».
+		//
+		// ⚠️ **[D-446] ha separato le due cose, e lasciandola dentro il difetto di `#79` sarebbe tornato
+		// in forma nuova.** Oggi il percorso verso una cella occupata **esiste** — e' una scommessa — quindi
+		// `Path.Num() >= 2`, il ramo non si apre, `bDeniedByOccupant` resta falso, e la voce finisce con
+		// `TgtCell == SrcCell`: una rotta lunga zero al posto di quella negata. **Misurato**, non previsto:
+		// `HexMove.DeclaredDestinationDeniedByOccupantDeclaresIt` e' andato rosso con *«TgtCell e' la
+		// destinazione richiesta e negata: the two values are not equal»*.
+		//
+		// 🔑 **La domanda non e' cambiata — «aveva dichiarato una destinazione occupata?» — ed e' sempre
+		// stata indipendente dall'esito del pathfinding.** Stava li' dentro per un'implicazione che reggeva,
+		// non per una ragione. Fuori, risponde con lo stesso vocabolario (`ClassifyWaypointCell`) e vale per
+		// tutti e tre i produttori — player, harness e bot — che da [D-446] arrivano qui nello stesso stato.
+		//
+		// Chi decide se la voce PARLA resta il guardiano in coda a `FinalizeHexMovementOutcomes`: qui si
+		// registra un fatto della pianificazione, non un verdetto.
+		if (Unit->bMovePlanRejectedByOccupant)
+		{
+			Ctx.bDeniedByOccupant[i] = true;
+			Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
+		}
+		else if (Unit->HasPlannedNormalMove()
+			&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
+				== ERTHexWaypointReason::Occupied)
+		{
+			Ctx.bDeniedByOccupant[i] = true;
+			Ctx.DeniedDestination[i] = Unit->PlannedCell;
+		}
+
 		if (Path.Num() < 2)
 		{
 			// 🔑 **Il punto UNICO in cui i tre produttori collassano, ed e' per questo che la domanda di #79
@@ -201,19 +251,6 @@ void ARTTurnManager::BeginMovementResolution()
 			// «Aveva dichiarato?» ha gia' una sede unica — `HasPlannedNormalMove()` — e non se ne scrive una
 			// seconda. Il motivo lo classifica `ClassifyWaypointCell`: nessun secondo vocabolario, e budget,
 			// cella bloccata e fuori mappa restano `Stayed` per scope dichiarato della #79.
-			if (Unit->bMovePlanRejectedByOccupant)
-			{
-				Ctx.bDeniedByOccupant[i] = true;
-				Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
-			}
-			else if (Unit->HasPlannedNormalMove()
-				&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
-					== ERTHexWaypointReason::Occupied)
-			{
-				Ctx.bDeniedByOccupant[i] = true;
-				Ctx.DeniedDestination[i] = Unit->PlannedCell;
-			}
-
 			Path = { Unit->Cell }; // fermo
 		}
 		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
@@ -285,8 +322,17 @@ void ARTTurnManager::BeginMovementResolution()
 		if (Units[i]) { Teams[i] = Units[i]->TeamId; }
 	}
 
+	// ➕ **La CADENZA di ciascuna unita', tradotta qui** ([D-428], che chiude `SKB-2`).
+	//
+	// ⛔ **Il resolver non conosce i profili di movimento, e non deve conoscerli**: e' la stessa disciplina
+	// per cui `StepDurations` si calcola qui e viaggia gia' pronta. Il profilo e' visibile solo dove la
+	// banda e' stata congelata — `Ctx.MovementProfiles`, riempito a inizio risoluzione — e da li' escono i
+	// due soli numeri che il calendario legge.
+	//
+	// ⚠️ Chi non ha un profilo risolto prende la cadenza NEUTRA: un dato mancante non concede una velocita'
+	// che nessuno ha dichiarato, e `{1, 1}` e' esattamente il comportamento di prima del calendario.
 	Ctx.State = URTHexSimLibrary::BeginHexMovement(Ctx.Paths, TArray<int32>(),
-		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations, Teams);
+		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations, Teams, Cadences);
 
 	// Le unita' passano nel contesto come riferimenti DEBOLI: fra due micro-step, in prospettiva, passa una
 	// finestra di reazione. Gli indici di `Ctx.State` sono indici di QUESTO array.
@@ -566,8 +612,30 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		Vitals.Add(TargetIdx, FRTTargetVitals(Units[TargetIdx]->Health, Units[TargetIdx]->MaxHealth));
 	}
 
+	// 🔑 **Il cronometro sta STRETTO attorno alla chiamata, e non comprende la costruzione di `Movers`**
+	// (`#2516`). La domanda della DoD e' quanto costa la candidate collection, non quanto costa il
+	// micro-step: allargare le parentesi darebbe un numero piu' grande e di un'altra grandezza.
+	const double InizioRaccolta = FPlatformTime::Seconds();
 	const TArray<FRTOverwatchTrigger> Triggers = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
 		Map, TurnNumber, Watchers, Movers, Vitals, MicroStepIndex);
+	const double RaccoltaMs = (FPlatformTime::Seconds() - InizioRaccolta) * 1000.0;
+
+	// 🔑 **Il conteggio sta al CALL SITE, e `BuildOverwatchTriggers` resta PURA** (`#2516`): e' lo
+	// stesso vincolo che la DoD impone al cronometro, e vale a maggior ragione per un contatore — qui
+	// basta il valore di ritorno, quindi non c'e' nessuna ragione di entrare nella funzione.
+	//
+	// ⚠️ **Un evento e' questa chiamata, cioe' un micro-step.** Zero eventi e un evento con zero
+	// candidati sono due cose diverse, e il sommario le distingue pubblicando il campione accanto ai
+	// percentili.
+	// ⚠️ **Le due registrazioni stanno nella STESSA guardia, e non e' una comodita'.** E' cio' che
+	// rende `CandidatesPerEvent.Num() == CandidateCollectionCpuMs.Num()` un'invariante per costruzione
+	// invece di una coincidenza: due `if (Pacing.IsOpen())` separati potrebbero divergere se qualcuno ne
+	// spostasse uno, e il campione dei percentili sarebbe sbagliato senza che niente lo dica.
+	if (Pacing.IsOpen())
+	{
+		Pacing.Current().CandidatesPerEvent.Add(Triggers.Num());
+		Pacing.Current().CandidateCollectionCpuMs.Add(RaccoltaMs);
+	}
 
 	// --- 3. Per ogni opportunity: finestra, decisione, commit ----------------------------------------------
 	// 🔑 **Appaiare prima, consumare poi** (`#2679` fetta 2). Il ciclo qui sotto non risolve piu' nulla:
@@ -617,6 +685,19 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		Pending.Opportunity = Opportunity;
 		Pending.ArmedIndex = ArmedIndex;
 		Ctx->PendingTriggers.Add(MoveTemp(Pending));
+	}
+
+	// 🔴 **Il boundary si apre QUI, e solo se ha qualcosa da consumare** (`#2516`). La voce nasce a
+	// zero e cresce a ogni giro del pump: e' la forma che `BoundaryCpuMs` richiede per essere una
+	// **durata** attraverso le sospensioni invece del costo della sola apertura.
+	//
+	// ⛔ **`PendingTriggers.Num() > 0` non e' un'ottimizzazione.** Senza, ogni micro-step senza trigger
+	// — la grande maggioranza — aggiungerebbe una voce da ~0, e il `p50` del boundary misurerebbe
+	// soprattutto quanto costa NON avere un boundary. Il conto delle raccolte resta comunque pubblicato:
+	// `CandidateEvents` le conta tutte, e la differenza con `BoundaryEvents` E' il numero di quelle vuote.
+	if (Pacing.IsOpen() && Ctx->PendingTriggers.Num() > 0)
+	{
+		Pacing.Current().BoundaryCpuMs.Add(0.0);
 	}
 
 	return PumpReactionTriggers(Map, Units, State);
@@ -947,6 +1028,32 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 		return ERTMovementAdvanceResult::Advanced;
 	}
 
+	// --- IL CRONOMETRO DEL BOUNDARY (`#2516`) --------------------------------------------------------
+	//
+	// 🔴 **Misura la DURATA del boundary, non il costo della sua apertura** — e lo fa accumulando
+	// **CPU**, giro per giro, saltando le sospensioni. Questa funzione puo' uscire con `Suspended` e
+	// rientrare piu' tardi da `ResumeSuspendedResolution`: fra i due momenti c'e' una **persona**, e un
+	// cronometro da apertura a chiusura la misurerebbe. Il Decision Time umano e' playtest per decisione
+	// della issue, e questo campo non deve diventare un suo surrogato silenzioso.
+	//
+	// 🔑 **`ON_SCOPE_EXIT` e non due righe sulle due uscite**: le uscite oggi sono due, ma la terza
+	// che qualcuno aggiungera' salterebbe un accumulo scritto a mano, e il campione si accorcerebbe
+	// senza che niente diventi rosso. Il guard copre anche le uscite che non esistono ancora.
+	//
+	// ⚠️ **Il predicato si cattura all'INGRESSO.** In coda `PendingTriggers.Reset()` lo azzera, quindi
+	// leggerlo all'uscita direbbe sempre zero. Ed e' lo **stesso** predicato con cui l'appaiamento ha
+	// aperto la voce: accumulare sotto una condizione diversa da quella che apre significa, prima o poi,
+	// sommare in coda alla voce di un boundary PRECEDENTE.
+	const bool bMisuraBoundary = Ctx->PendingTriggers.Num() > 0;
+	const double InizioGiro = FPlatformTime::Seconds();
+	ON_SCOPE_EXIT
+	{
+		if (bMisuraBoundary && Pacing.IsOpen() && Pacing.Current().BoundaryCpuMs.Num() > 0)
+		{
+			Pacing.Current().BoundaryCpuMs.Last() += (FPlatformTime::Seconds() - InizioGiro) * 1000.0;
+		}
+	};
+
 	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
 	{
 		// Copiato e non referenziato: `ApplyReactionDecision` puo' toccare lo stato, e da `#2679` in poi
@@ -1150,6 +1257,19 @@ void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
 		// e' vero, e non si rilegge al playback — dove l'unita' e' ancora raggiungibile e direbbe un'altra
 		// cosa. E' la stessa disciplina con cui `CellVerdicts` e' congelato due righe sopra.
 		Ev.SourceStatusNames = Units[i]->GetActiveStatusNames();
+		// `#3263`: quante celle di `Route` il giocatore ha davvero chiesto. Oltre c'e' l'estensione che il
+		// terreno ha imposto — lo scivolamento su ghiaccio — e senza questo numero i due tratti arrivano
+		// alla presentazione indistinguibili.
+		//
+		// ⚠️ **Si CLAMPA su `Route`, non si copia**: `PlannedLength` misura il percorso **pianificato**,
+		// mentre `Route` e' cio' che l'unita' ha davvero attraversato. Un'unita' fermata a meta' ha un
+		// piano piu' lungo della propria rotta, e un prefisso oltre la fine dell'array sarebbe un indice
+		// fuori dai limiti per chi lo consuma.
+		//
+		// ⚠️ `0` resta «tutto pianificato», la convenzione di `StepDurationsForPath`.
+		Ev.PlannedLength = Ctx->State.Planned.IsValidIndex(i)
+			? FMath::Clamp(Ctx->State.Planned[i].PlannedLength, 0, Route.Num())
+			: 0;
 		ResolvedTimeline.Add(Ev);
 	}
 }
@@ -1240,8 +1360,16 @@ void ARTTurnManager::FinishMovementResolution()
 		// pianificazione parla solo quando il turno non ha nient'altro da dire.
 		// Ramo indipendente e non un `else`: la guardia `Stayed` lo rende gia' disgiunto da quello della
 		// topologia, che chiede `Moved`, e i due si leggono uno per volta invece che come una catena.
-		if (Ctx.bDeniedByOccupant.IsValidIndex(i) && Ctx.bDeniedByOccupant[i]
-			&& Resolved[i].Outcome == ERTMoveOutcome::Stayed)
+		// 🔴 **E oggi l'esito del diniego non e' piu' solo `Stayed`** ([D-446]). Il resolver percorre
+		// il piano, trova l'occupante **sulla destinazione** e scrive `BlockedByUnit` da se': la voce ha gia'
+		// l'esito giusto e le manca la **destinazione**, che `BuildMoveLog` ha riempito con la cella finale.
+		// Si accoglie quel caso, e solo quando non e' stata percorsa nessuna cella — `Amount > 0` vuol dire
+		// che l'unita' si e' mossa davvero, e li' `TgtCell == Final` descrive dove e' arrivata, che e' cio'
+		// che il giocatore ha visto.
+		const bool bEsitoDaDiniego =
+			Resolved[i].Outcome == ERTMoveOutcome::Stayed
+			|| (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit && MoveLog[i].Amount == 0);
+		if (Ctx.bDeniedByOccupant.IsValidIndex(i) && Ctx.bDeniedByOccupant[i] && bEsitoDaDiniego)
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit);
 			// La destinazione RICHIESTA, non `Results[i].Final`: quella e' la cella di partenza, e con essa
@@ -1273,6 +1401,64 @@ void ARTTurnManager::FinishMovementResolution()
 		// esiste piu'.
 		bSlidThisMove[i] = static_cast<ERTMoveOutcome>(MoveLog[i].Outcome) == ERTMoveOutcome::Slid;
 	}
+
+	// ➕ **CHI TI HA FERMATO, LO HAI TROVATO** (`#2793`, [D-371]).
+	//
+	// 🔴 **E' il fratello di [D-380]** — *«chi hai colpito, lo hai trovato»* — e nasce dalla stessa lacuna,
+	// un turno piu' in la'. Da [D-371] l'anteprima non porta piu' i corpi che l'osservatore non conosce:
+	// chi pianifica attraverso una cella che crede vuota e' una condotta LEGITTIMA di informazione parziale,
+	// e il diniego e' il suo esito corretto. Ma senza questa riga il diniego non insegna **niente**, e il
+	// turno dopo il piano e' identico: misurato sulla mappa d'autore come *«0 colpi inflitti in 12 turni»* e
+	// *«piu' lunga sequenza ferma 10 turni»*. Non e' «il bot sbaglia», e' un bot che smette di giocare.
+	//
+	// ⚠️ **Non e' una fuga: e' informazione guadagnata per INTERAZIONE.** Urtare qualcuno al buio lo rivela,
+	// esattamente come colpirlo. Cio' che entra nella memoria e' un contatto sulla cella **dove l'urto e'
+	// avvenuto** — non la posizione corrente di chiunque altro, non la mappa dei nemici.
+	//
+	// ⛔ **Qui non c'e' nessuna REGOLA**, come in `RevealHitTargetsToAttackers`: chi decide *come* un
+	// contatto entra in una memoria e' `URTTeamKnowledgeLibrary::RevealByHit`, pura e testabile. Questa
+	// traduce e basta.
+	{
+		TArray<FRTLastKnownContact> PerSquadra;
+		TArray<int32> SquadraNegata;
+		for (int32 i = 0; i < MoveLog.Num(); ++i)
+		{
+			if (!Ctx.bDeniedByOccupant.IsValidIndex(i) || !Ctx.bDeniedByOccupant[i]) { continue; }
+			if (!Units.IsValidIndex(i) || !IsValid(Units[i])) { continue; }
+
+			// Chi occupava la cella negata, letto dalla fotografia ONNISCIENTE della Resolution: e' l'unico
+			// posto in cui l'identita' del bloccante esiste, e la Resolution ha l'autorita' per leggerla.
+			const int32* IndiceBloccante = Ctx.Snapshot.Occupancy.Find(Ctx.DeniedDestination[i]);
+			if (!IndiceBloccante || !Units.IsValidIndex(*IndiceBloccante)) { continue; }
+			const ARTUnit* Bloccante = Units[*IndiceBloccante];
+			if (!IsValid(Bloccante) || Bloccante->TeamId == Units[i]->TeamId) { continue; } // un compagno non si rivela
+
+			PerSquadra.Add(FRTLastKnownContact(Bloccante->StableUnitId, Ctx.DeniedDestination[i], TurnNumber));
+			SquadraNegata.Add(Units[i]->TeamId);
+		}
+
+		// Si itera `TeamKnowledgeState`, non le rivelazioni: questa memoria entra nello snapshot, e l'ordine
+		// di scrittura dev'essere quello delle squadre (invariante #3).
+		bool bQualcosaRivelato = false;
+		for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+		{
+			TArray<FRTLastKnownContact> Miei;
+			for (int32 k = 0; k < PerSquadra.Num(); ++k)
+			{
+				if (SquadraNegata[k] == Knowledge.TeamId) { Miei.Add(PerSquadra[k]); }
+			}
+			if (Miei.Num() > 0)
+			{
+				Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, Miei, TurnNumber);
+				bQualcosaRivelato = true;
+			}
+		}
+		if (bQualcosaRivelato)
+		{
+			OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
+		}
+	}
+
 	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta
 	// d'ingresso al TurnLog che l'helper deve presidiare quanto la prima.
 	// Una voce per unita', nell'ordine dell'input (vedi `BuildMoveLog`): l'indice E' il legame, e per questo

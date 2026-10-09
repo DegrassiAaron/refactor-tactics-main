@@ -42,6 +42,7 @@
 #include "InputActionValue.h"
 #include "InputModifiers.h"
 #include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h" // TActorIterator: RefusalUnderPointerForArmed cerca le unita' NOTE sulla cella puntata
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: l'anteprima del facing usa la stessa geometria del playback
 
 namespace
@@ -74,8 +75,17 @@ namespace
 		{
 			return false;
 		}
+		// 🔴 **La fotografia della PIANIFICAZIONE si chiede dalla posizione di chi pianifica** ([D-371]).
+		//
+		// Fino al 2026-09-21 qui si chiedeva quella onnisciente, e l'anteprima ne ereditava l'occupazione:
+		// il ventaglio perdeva **esattamente** le celle dei nemici ignoti — 61 celle, 60 con un nascosto,
+		// 59 con due — e il costo del percorso passava da 4 a 5 deviando attorno a un corpo che il
+		// giocatore non poteva vedere. Non «un'anteprima imprecisa»: una lettura di POSIZIONE.
+		//
+		// ⚠️ **Il client continua a NON costruirsi uno stato parallelo** (invariante #5): lo snapshot resta
+		// chiesto all'autorita', che ora lo compone per l'osservatore invece di consegnarlo intero.
 		TArray<ARTUnit*> Units;
-		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units);
+		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units, Unit->TeamId);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
 
@@ -127,6 +137,74 @@ namespace
 	}
 
 	/**
+	 * L'azione armata chiede un BERSAGLIO, e allora in targeting la portata prende il posto del ventaglio (`#3507`).
+	 *
+	 * Il predicato e' quello di `GetPointerContext` — armata, e non mobilita' rapida — piu' un bersaglio da scegliere:
+	 * un supporto su se stessi non ha una portata da mostrare, e uno scatto chiede una destinazione, cioe' il ventaglio.
+	 * ⛔ Una reazione si arma senza bersaglio, e scatta in risoluzione: non ha un punto in cui mirare.
+	 */
+	bool ChiedeUnBersaglio(const URTActionData& Armata)
+	{
+		return !URTCatalogLibrary::IsFastMovement(Armata.Def) && Armata.Def.Slot != ERTActionSlot::Reaction
+			&& URTPointerLibrary::TargetKindForAction(Armata.Def, Armata.bSelfTarget, Armata.Shape)
+				!= ERTPointerTargetKind::None;
+	}
+
+	/**
+	 * ...e quella portata ha celle da mostrare (`#3517`). Ogni congiunto toglie un caso in cui il click rifiuterebbe
+	 * ogni cella dell'area, cioe' la lettura che [D-128] vieta:
+	 *
+	 * - **pronta** — `DR-8`, decisione d'autore del 2026-10-06. Un'azione attiva in ricarica si arma ancora
+	 *   (`SelectAbilityForCurrent`), ma `HandleTargetCell` e il click su un'unita' ne rifiutano ogni bersaglio: la
+	 *   ricarica la dice la riga dello slot, non un'area;
+	 * - **portata positiva** — `AC-10`. Con portata `0` `TargetableRangeCells` restituisce la sola cella del tiratore,
+	 *   e `Action.Wait` contornava di viola l'unita' stessa;
+	 * - **tiratore vivo** — `AC-10`: un'unita' caduta, ancora selezionata a fine playback, non mira.
+	 *
+	 * ⚠️ **Non decide il ventaglio**: quello lo spegne un'azione che chiede un bersaglio con una portata positiva
+	 * (`RefreshPlanningPreview`). Con un'azione in ricarica armata la board non mostra ne' l'uno ne' l'altra, che e'
+	 * cio' che `DR-8` chiede.
+	 */
+	bool MostraLaPortata(const ARTUnit* Unit, int32 Index, const URTActionData& Armata)
+	{
+		return ChiedeUnBersaglio(Armata) && Unit->IsAlive() && Unit->CanUseAbility(Index) && Armata.RangeCells > 0;
+	}
+
+	/**
+	 * La cella da cui si mira l'azione ARMATA, e da cui si misura la portata. 🔑 **Una sola espressione per la portata
+	 * e per il piano attivo** (`DR-5`, `#3517`): se divergessero, la portata starebbe su un piano e il click su un
+	 * altro.
+	 *
+	 * Dipende dalla FASE dell'azione ([D-464], `#3509`): con uno scatto pianificato un `Attack` mira dalla cella
+	 * dello scatto, un `Environment` da quella corrente. ⏱️ *Fino a #3509 era `Unit->Cell`*, e `HandleTargetCell` e il
+	 * click su un'unita' la leggevano da li' per conto proprio: ora chiedono tutti `ARTUnit::AimOriginFor`.
+	 */
+	FRTCellId OrigineDiMira(const ARTUnit* Unit, const URTActionData& Armata)
+	{
+		return Unit->AimOriginFor(Armata.Def.ResolutionPhase);
+	}
+
+	/**
+	 * Perche' `IsWorldReadOnly()` e' vero, detto al giocatore e non al programmatore ([D-468], `#3510`). Un ordine
+	 * rifiutato nomina la CAUSA. Il ramo dell'autobattle prometteva anche «o fase che non accetta ordini», e la fase
+	 * non la guardava: durante il playback l'ordine passava, e la riga che l'avrebbe spiegato non esisteva.
+	 */
+	const TCHAR* PercheIlMondoESoloLettura(ERTPointerContext Context)
+	{
+		switch (Context)
+		{
+		case ERTPointerContext::ResolutionPlayback:
+			return TEXT("il turno si sta risolvendo, e fino alla fine del playback il piano e' in sola lettura");
+		case ERTPointerContext::ReactionWindow:
+			return TEXT("e' aperta una finestra di reazione, e il piano e' in sola lettura");
+		case ERTPointerContext::Modal:
+			return TEXT("una schermata bloccante copre la partita");
+		default:
+			return TEXT("il mondo e' in sola lettura");
+		}
+	}
+
+	/**
 	 * Aggiorna l'anteprima di pianificazione (SOLA PRESENTAZIONE) dallo stato dell'unita' selezionata:
 	 * dove puo' arrivare, da DOVE agira' e quali celle colpirebbe — segnalando gli ALLEATI che finirebbero
 	 * nell'area.
@@ -146,6 +224,7 @@ namespace
 		if (!Unit)
 		{
 			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
+			HexMap->SetPreviewRangeCells(TArray<FRTCellId>());
 			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
 			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
 
@@ -186,7 +265,28 @@ namespace
 				Reachable.Add(R.Cell);
 			}
 		}
-		HexMap->SetPreviewReachableCells(Reachable);
+
+		// 🔑 **In targeting la PORTATA prende il posto del ventaglio** (`#3507`, decisione d'autore del 2026-10-06): con
+		// un'azione a bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare».
+		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dall'origine di mira.
+		//
+		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`). Un'azione in ricarica chiede un
+		// bersaglio — il ventaglio si spegne, `DR-8` — ma non ha celle su cui il click venga accettato. `Action.Wait`
+		// invece ha portata `0`, cioe' nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta, e la
+		// portata che contornava la cella dell'unita' sparisce (referto del 2026-10-06, §13: erano due difetti).
+		bool bMira = false;
+		TArray<FRTCellId> Portata;
+		if (const URTActionData* Armata = Unit->GetAbility(Unit->SelectedAbilityIndex))
+		{
+			bMira = ChiedeUnBersaglio(*Armata) && Armata->RangeCells > 0;
+			if (MostraLaPortata(Unit, Unit->SelectedAbilityIndex, *Armata))
+			{
+				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit, *Armata), Armata->RangeCells,
+					Armata->Def.LineOfSightPolicy);
+			}
+		}
+		HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable);
+		HexMap->SetPreviewRangeCells(Portata);
 
 		// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'
 		// pura e testabile headless: qui si TRADUCE il piano, non si decide.
@@ -197,17 +297,23 @@ namespace
 		// aveva dichiarato coperto («l'area colpita in preview prima del click»).
 		//
 		// 🔴 **E l'origine non e' piu' `Unit->Cell` in ogni caso.** La fase Dash precede il Blast, quindi chi
-		// ha pianificato una carica sparera' da dove sara' arrivato. `PlannedDashApplies()` e' la stessa
-		// domanda che `ResolveDash` si pone.
+		// ha pianificato uno scatto e poi un attacco sparera' da dove sara' arrivato. `PlannedDashMoves()` e' la
+		// stessa domanda che `ResolveDash` si pone, rifiuto dello stato compreso ([D-471]). ⚠️ Da #3509 decide anche
+		// la FASE dell'azione, e la carica ne resta fuori ([D-464], `AimOriginCell`).
 		FRTBlastPreviewPlan PreviewPlan;
 		PreviewPlan.AttackerId = UnitId;
-		PreviewPlan.bDashResolves = Unit->PlannedDashApplies();
+		PreviewPlan.bDashResolves = Unit->PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
 		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
+		PreviewPlan.bDashIsCharge = Unit->PlannedDashIsCharge();
 
 		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
 		if (Ability)
 		{
 			PreviewPlan.bHasAction = true;
+			// [D-464]: l'area colpita parte da dove l'azione MIRA, e quello dipende dalla sua fase. Senza, un
+			// `Environment` pianificato dopo uno scatto veniva anteprimato dalla cella dello scatto, mentre il click
+			// lo giudicava da quella corrente.
+			PreviewPlan.Phase = Ability->Def.ResolutionPhase;
 			PreviewPlan.Shape = Ability->Shape;
 			PreviewPlan.RangeCells = Ability->RangeCells;
 			PreviewPlan.AreaRadius = Ability->AreaRadius;
@@ -286,7 +392,7 @@ namespace
 			// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
 			Timeline.bDashPlanned = Unit->PlannedDashAbility != INDEX_NONE
 				&& !(Unit->PlannedDashCell == Unit->Cell);
-			Timeline.bDashResolves = Unit->PlannedDashApplies();
+			Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
 			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
@@ -321,11 +427,11 @@ namespace
 			{
 				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
 				{
-					const ERTHexTargetReason Motivo = URTCombatLibrary::ClassifyHexTargeting(
-						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
-						Ability->Def.LineOfSightPolicy);
-					Timeline.BlastTargetRefusal =
-						URTCombatLibrary::RefusalForObserver(Motivo, Bersaglio->IsKnownToObserver());
+					// La coppia ha ora un nome, e lo stesso nome lo leggono gli slot di [D-459] (#3483).
+					// [D-464]: dall'origine della fase, come il click. ⏱️ *Fino a #3509 da `Unit->Cell`*.
+					Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
+						Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Bersaglio->Cell, Ability->RangeCells,
+						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
 				}
 			}
 
@@ -364,6 +470,26 @@ const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
 		EKeys::One,  EKeys::Two,   EKeys::Three, EKeys::Four, EKeys::Five,
 		EKeys::Six,  EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
 	return Hotkeys;
+}
+
+const FKey& ARTPlayerController::SneakHotkey()
+{
+	// `M` per «muoversi piano»: non collide con nessun altro `MapKey` di `BuildInputMappings`, e il controllo
+	// che lo prova e' `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero e non questa riga.
+	static const FKey Tasto = EKeys::M;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::DeclarePlanHotkey()
+{
+	static const FKey Tasto = EKeys::Enter;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::UndoKeyboardHotkey()
+{
+	static const FKey Tasto = EKeys::BackSpace;
+	return Tasto;
 }
 
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
@@ -450,9 +576,6 @@ void ARTPlayerController::BuildInputMappings()
 
 	OrbitModifierAction = NewObject<UInputAction>(this, TEXT("IA_OrbitModifier"));
 	OrbitModifierAction->ValueType = EInputActionValueType::Boolean;
-
-	FacingAction = NewObject<UInputAction>(this, TEXT("IA_Facing"));
-	FacingAction->ValueType = EInputActionValueType::Boolean;
 
 	// #1771 — `Alt` arma i gesti camera. Boolean come `OrbitModifierAction`: e' uno stato tenuto, non un
 	// evento.
@@ -599,7 +722,7 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
-	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
+	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	// `TAB` — il ciclo di selezione (`#3145`). Nessun altro `MapKey` lo rivendica, e a verificarlo non e'
@@ -610,7 +733,7 @@ void ARTPlayerController::BuildInputMappings()
 	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
 	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
 	// fanno cose diverse vanno su tasti che non si sfiorano.
-	MappingContext->MapKey(DeclarePlanAction, EKeys::Enter);
+	MappingContext->MapKey(DeclarePlanAction, DeclarePlanHotkey());
 
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
@@ -625,9 +748,8 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(LayerUpAction, EKeys::PageUp);
 	MappingContext->MapKey(LayerDownAction, EKeys::PageDown);
 
-	// Rotazione dichiarata: `T` come *turn*. Misurati i tasti gia' presi — A D E F Q R S V W, Home, Escape,
-	// BackSpace, Spazio, 1-4 e i pulsanti del mouse — `T` e' libero e sta accanto a chi guida la camera.
-	MappingContext->MapKey(FacingAction, EKeys::T);
+	// ⌫ *Qui stava `T`, la rotazione dichiarata a ciclo.* [D-367] la toglie dal gioco: il verso si sceglie col
+	// secondo click sull'esagono finale (`HandleFacingClick`, `#291`).
 
 	// Velocita' di riproduzione, un tasto che CICLA `x1 · x2 · x4` (CP 47.7, #1015).
 	//
@@ -650,7 +772,7 @@ void ARTPlayerController::BuildInputMappings()
 	// sinistra perche' si premono mentre quella mano guida la camera; questo gesto si usa **mentre si
 	// disegna il percorso col mouse**, cioe' con la sinistra ferma. `M` e' libero, e
 	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista.
-	MappingContext->MapKey(SneakAction, EKeys::M);
+	MappingContext->MapKey(SneakAction, SneakHotkey());
 
 	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
 	//
@@ -822,7 +944,6 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
 		EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
-		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 	}
 	else
@@ -839,6 +960,15 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	// per questo che la regola d'interruzione di #1773 ha qui il proprio primo consumatore: `UpdatePeekReturn`
 	// non fa nulla mentre `Alt` e' premuto, cioe' mentre il giocatore sta guidando.
 	UpdatePeekReturn(DeltaTime);
+
+	// [D-367]: col selettore del verso aperto, l'hover gira la mesh verso il lato sotto il cursore ([D-463]).
+	if (bDeclaringFacing || FacingHoverSector.IsSet())
+	{
+		FVector RayOrigin = FVector::ZeroVector;
+		FVector RayDir = FVector::ZeroVector;
+		const bool bHasRay = bDeclaringFacing && DeprojectMousePositionToWorld(RayOrigin, RayDir);
+		UpdateFacingHoverFromRay(bHasRay, RayOrigin, RayDir);
+	}
 
 	// Evidenzia la cella sotto il cursore (solo presentazione: non tocca la logica).
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
@@ -1191,6 +1321,12 @@ void ARTPlayerController::OnDeclarePlan(const FInputActionValue& Value)
 	ToggleTurnPlanDeclared();
 }
 
+bool ARTPlayerController::TogglePlanDeclaration()
+{
+	// La porta del pulsante `Conferma` ([D-458]): nessuna regola qui, e' quella di `Invio`.
+	return ToggleTurnPlanDeclared();
+}
+
 bool ARTPlayerController::ToggleTurnPlanDeclared()
 {
 	if (IsGameplayInputBlocked())
@@ -1198,9 +1334,21 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 		return false;
 	}
 
+	// 🔴 **[D-468] (`#3510`): durante la risoluzione nessun ordine passa, e dichiarare il piano lo e'.** Il
+	// Cleanup che azzera la dichiarazione gira PRIMA del playback (`ConcludeResolution`): un `Invio` premuto
+	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `TAB` la saltava.
+	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
+	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
+		return false;
+	}
+
 	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `TAB`: dichiarare che le mosse
-	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle, o in una fase che non
-	// accetta ordini, non c'e' niente da dichiarare.
+	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle non c'e' niente da
+	// dichiarare. ⏱️ *Fino a `#3510` diceva anche «o in una fase che non accetta ordini»*: questa guardia la fase
+	// non la guarda, e la regola della fase e' quella qui sopra.
 	if (IsPlanningInputInert())
 	{
 		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: input di planning inerte"));
@@ -1561,6 +1709,34 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None, INDEX_NONE);
 	}
 
+	// ➕ **E CON LA FRASE MUORE IL SUO TRATTO, nello stesso punto e per la stessa ragione** (`#3064`).
+	//
+	// 🔴 **Il difetto che chiude, misurato per lettura**: `SetPreviewSightBlock` aveva **un solo** chiamante
+	// di produzione — il ramo di rifiuto in fondo a `HandleClickOnUnit`, dopo sei uscite anticipate — quindi
+	// un click su una cella, o un piano riuscito, non lo raggiungevano mai. Sequenza riproducibile:
+	// bersaglio coperto → tratto acceso; click altrove → «Coperto» sparisce **e il segmento resta**,
+	// indefinitamente, perche' l'actor lo riemette a ogni `Tick`. `RefreshPlanningPreview(World, nullptr)`
+	// spegne ventaglio, area, mira, rotta e timeline, ma non questo canale — e non viene chiamata a ogni
+	// click.
+	//
+	// 🔑 **`ARTHexMapActor::SetPreviewSightBlock` dichiara gia' che «lo fa ogni click che non finisce in
+	// copertura — inclusa la selezione a vuoto»: queste righe sono cio' che rende vera quella frase** invece
+	// di lasciarla una dichiarazione. Un solo punto per due canali significa **una sola durata**, che e'
+	// quanto `#3064` chiede — non due stati di presentazione che si scollano appena il giocatore cambia idea.
+	//
+	// ⚠️ **Qui e non in `RefreshPlanningPreview`**: la durata dichiarata e' *«vive finche' il giocatore non
+	// fa un altro click»*, e un altro click e' **questo punto**, non il sottoinsieme dei click che finiscono
+	// in un piano. ⚠️ Eredita anche il limite della frase: le uscite che precedono questo punto valgono per
+	// entrambi i canali, quindi con una modale aperta nessuno dei due si azzera. E' preferibile a due durate
+	// diverse, ed e' detto invece che scoperto in PIE.
+	//
+	// ⚠️ **Costa una ricerca di actor per click.** `FindInWorld` itera gli actor del mondo; una volta per
+	// click, accanto a un raycast, e' il prezzo di avere una sola durata per i due canali.
+	if (ARTHexMapActor* RefusalHexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		RefusalHexMap->SetPreviewSightBlock(/*bBlocked=*/ false, FRTCellId(), FRTCellId());
+	}
+
 	// 🔴 **Il colpo a vuoto NON esce piu' di qui** (`#3063`). Questo `return` rendeva il click su una cella
 	// MAI OSSERVATA un non-evento: nessun piano, nessun rifiuto, nessuna riga di log. Una cella mai vista non
 	// ha geometria da colpire — il velo le da' scala zero ([D-225]) — quindi il trace fallisce e la cella
@@ -1593,6 +1769,33 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 		SelectedActor = nullptr;
 		SelectedUnit = nullptr;
+	}
+
+	// 🔑 **Il secondo click sull'esagono finale sceglie il verso** ([D-367], [D-462], `#291`), e precede la matrice
+	// delle unita': sopra quell'esagono il pavimento vince sulla mesh, altrimenti un personaggio fermo — o uno che
+	// arriva su una cella occupata — non potrebbe scegliersi il verso.
+	//
+	// ⚠️ **Tranne il secondo click di un doppio click sull'unita' gia' selezionata** (`#1773`, dalla revisione): il
+	// primo click ha aperto il selettore, e questo — sulla stessa unita', entro l'intervallo — e' l'inquadratura, non
+	// una scelta di verso. Si chiude il selettore e si lascia proseguire fino al ramo del doppio click.
+	{
+		const double Adesso = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		const bool bDoppioSullaSelezionata = ClickedUnit && ClickedUnit == SelectedUnit
+			&& LastSelectActor == ClickedUnit && LastSelectTime >= 0.0
+			&& (Adesso - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
+		// ⚠️ **E tranne un click su un'ALTRA unita' comandabile** ([D-463]): col selettore aperto ogni click e' una
+		// direzione, ma cambiare unita' non deve passare da un Back. La selezione chiude il selettore (`SelectUnit`).
+		const bool bAltraUnitaComandabile = ClickedUnit && ClickedUnit != SelectedUnit
+			&& URTCombatLibrary::CanPlayerControlUnitInGroup(ClickedUnit->TeamId, ClickedUnit->ControlGroup,
+				ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+		if (bDoppioSullaSelezionata && bDeclaringFacing && !SelectedUnit->bDeclaresPlannedFacing)
+		{
+			EndFacingDeclaration();
+		}
+		else if (SelectedUnit && !bAltraUnitaComandabile && TryHandleFacingClickUnderCursor(SelectedUnit))
+		{
+			return;
+		}
 	}
 
 	// §5 — la riga di matrice decide, e la decisione e' ESTRAIBILE dal raycast: vedi `DispatchUnitClick`.
@@ -1650,6 +1853,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		const bool bDoubleClick = LastSelectActor == HitActor
 			&& LastSelectTime >= 0.0
 			&& (Now - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
+		// Letto PRIMA di `SelectUnit`, che lo rende vero per chiunque.
+		const bool bGiaSelezionata = HitActor == SelectedActor;
 
 		SelectUnit(HitActor);
 
@@ -1670,6 +1875,17 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		{
 			LastSelectTime = Now;
 			LastSelectActor = HitActor;
+			// [D-462] punto 4: da fermo, un click sulla propria unita' GIA' selezionata apre i sei triangoli.
+			// ⚠️ Non sul doppio click, che resta l'inquadratura di `#1773`.
+			if (bGiaSelezionata)
+			{
+				if (const ARTUnit* Cliccata = Cast<ARTUnit>(HitActor))
+				{
+					// La SUA cella: apre solo da fermo, dove la cella finale e' la propria. In marcia cliccare la
+					// propria unita' non chiude il movimento.
+					TryOpenFacingSelector(Cliccata->Cell);
+				}
+			}
 		}
 		return;
 	}
@@ -1713,6 +1929,9 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	{
 		return;
 	}
+	// `#291`, dalla revisione: il selettore del verso e' dell'unita' che lo ha aperto. Lasciato acceso, la nuova
+	// unita' saltava il primo click.
+	EndFacingDeclaration();
 	IRTSelectable* Selectable = Cast<IRTSelectable>(Actor);
 	if (!Selectable)
 	{
@@ -1891,8 +2110,13 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// `HandleTargetCell` e non passano di qua. Si legge lo stesso perche' il dato e' **uno**: il giorno
 		// in cui un'azione mirata dichiarera' il tiro indiretto, questo sito non sara' quello dimenticato.
 		// ⛔ E non tocca la CONOSCENZA: la guardia `IsKnownToObserver()` qui sotto vale comunque (`#2741`).
+		// 🔴 **[D-464]: da dove l'azione MIRA, non da dove l'unita' sta.** Con uno scatto pianificato un `Attack` parte
+		// dalla cella dello scatto, e la risoluzione colpisce da li' (`CollectHexAttacks`): giudicare dalla cella
+		// corrente accettava bersagli che il resolver manca e ne rifiutava altri che colpira'. ⚠️ La stessa origine
+		// vale per TUTTO cio' che segue — rifiuto, portata efficace, linea di tiro: il tratto rosso parte da li'.
+		const FRTCellId DaDoveMira = SelectedUnit->AimOriginFor(Ability->Def.ResolutionPhase);
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+			TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
 		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
@@ -1921,6 +2145,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
+			SelectedUnit->WaypointsAllaDichiarazione = SelectedUnit->PlannedWaypoints.Num(); // `#3501`
 			// ⛔ **Ritira la dichiarazione OPPOSTA**, e senza questa riga il piano andava altrove (`#2884`):
 			// `bAttackTargetsCell` non lo azzerava nessuno, e il Blast lo legge PRIMA del bersaglio-unita'.
 			// Misurato: chi puntava una cella e poi cambiava idea su un nemico gli faceva `0` danni.
@@ -1957,7 +2182,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				// copia della regola nel canale diagnostico direbbe il vero solo finche' qualcuno non
 				// cambia il catalogo del terreno.
 				const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(
-					TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+					TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells);
 				UE_LOG(LogRT, Log, TEXT("[RT] %s %s"), *ClickedUnit->GetName(),
 					*URTCombatLibrary::OutOfRangeDiagnostic(Ability->RangeCells, EffectiveRange));
 				break;
@@ -2006,9 +2231,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				Hud->SetTargetRefusal(
 					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
 					URTTerrainLibrary::EffectiveTargetingRange(
-						TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells),
-					URTHexVisionLibrary::DescribeLineOfSight(TMap, SelectedUnit->Cell, ClickedUnit->Cell),
-					SelectedUnit->Cell, ClickedUnit->Cell);
+						TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells),
+					URTHexVisionLibrary::DescribeLineOfSight(TMap, DaDoveMira, ClickedUnit->Cell),
+					DaDoveMira, ClickedUnit->Cell);
 			}
 
 			// ── LA LINEA CHE NON PASSA (`#2742`), accanto al messaggio che dice perche' (`#2741`).
@@ -2030,7 +2255,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				if (Reason == ERTHexTargetReason::NoLineOfSight)
 				{
 					const TArray<FRTSightLine> Lines = URTSightLineLibrary::AuthorizedSightLines(
-						TMap, SelectedUnit->Cell,
+						TMap, DaDoveMira,
 						{ FRTObservedTarget(ClickedUnit->Cell, ClickedUnit->IsKnownToObserver()) });
 					if (Lines.Num() > 0 && !Lines[0].IsClear())
 					{
@@ -2041,7 +2266,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				// Chiamata SEMPRE, non solo quando c'e' da accendere: e' cio' che spegne la linea del click
 				// precedente. La stessa durata del messaggio di `#2741` — vive quanto la decisione che l'ha
 				// prodotta, e un altro click e' un'altra decisione.
-				THexMap->SetPreviewSightBlock(bDrawBlocked, SelectedUnit->Cell, BlockedAt);
+				THexMap->SetPreviewSightBlock(bDrawBlocked, DaDoveMira, BlockedAt);
 			}
 		}
 	}
@@ -2203,6 +2428,40 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		}
 	}
 
+	// 🔑 **Il verso chiude il movimento, e l'esagono finale non e' un waypoint** ([D-367], [D-462], `#291`).
+	{
+		const FRTCellId Finale = FacingCellFor(SelectedUnit);
+		if (SelectedUnit->bDeclaresPlannedFacing)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s: movimento chiuso dal verso dichiarato — Back per riaprirlo"),
+				*SelectedUnit->GetName());
+			return;
+		}
+		if (Cell == Finale)
+		{
+			// La cella finale apre la scelta del verso: la propria da fermo ([D-462] punto 4), la destinazione in
+			// marcia ([D-463]). Senza un lato puntato — il centro, o un chiamante senza cursore — non sceglie, e
+			// non duplica il waypoint.
+			// ⏱️ *Fino a [D-463], in marcia, questo click scriveva solo una riga di log*: in PIE il secondo click
+			// cadeva sul segno del waypoint, cioe' al centro, e il verso non si sceglieva mai.
+			TryOpenFacingSelector(Cell);
+			return;
+		}
+		if (Context == ERTPointerContext::Facing)
+		{
+			// 🔑 **Col selettore aperto un'altra cella e' una DIREZIONE** ([D-463]), non un waypoint: il movimento e'
+			// chiuso finche' non si sceglie un verso o un Back non chiude il selettore.
+			// ⏱️ *Fino a [D-463] chiudeva il selettore e continuava come movimento*, ed e' stato il difetto visto in
+			// PIE il 2026-10-06: da fermo il click «sul lato» cadeva sulla cella accanto e diventava un passo.
+			ERTHexDirection Verso = ERTHexDirection::E;
+			if (URTPointerLibrary::FacingSectorTowardCell(Finale, Cell, Verso))
+			{
+				HandleFacingClick(Finale, Verso);
+			}
+			return;
+		}
+	}
+
 	// Stato autorevole per la validazione: lo fornisce il TurnManager, il client non se lo ricostruisce.
 	FRTHexSnapshot Snapshot;
 	int32 UnitId = INDEX_NONE;
@@ -2352,9 +2611,27 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// successivo avrebbe rifiutato.
 	RefreshPlanningPreview(GetWorld(), SelectedUnit);
 	PreviewPlannedFacing(SelectedUnit); // la mesh segue il piano invece di restare girata come prima
+
+	// ⚠️ **Il pacing sta QUI e non in cima alla funzione**, e la posizione è il contenuto della regola:
+	// un waypoint **rifiutato** non è un ordine impartito, è un tentativo respinto, e i suoi sei rami di
+	// uscita passano sopra questa riga. `ERTPlanningInput::Order` è documentato come «abilità **o
+	// destinazione**» (`Turn/RTPacing.h:21`) e fino a `#3400` la metà «destinazione» non era cablata:
+	// `OrderCount` restava 0 su un turno in cui il giocatore aveva dato una destinazione, e nessun test
+	// lo vedeva perché i contatori erano esercitati chiamando `RecordPlanningInput` a mano.
+	//
+	// ⛔ **Non serve un `Click` sul ramo di rifiuto**: `OnSelect` ne registra già uno per OGNI clic prima
+	// di arrivare qui (`:1556`), quindi i tempi sono aggiornati e aggiungerne un altro li raddoppierebbe.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Order);
+	}
+
+	// 🔑 **Il denominatore e' il budget dello SNAPSHOT**, come nel rifiuto di `DescribeWaypointRejection`: e' quello
+	// che il profilo dichiarato o riservato ha gia' applicato. ⏱️ *Fino a `#3501` era `GetEffectiveMoveRange()`, la
+	// portata nuda*, e sotto `Withdraw` la stessa unita' risultava «di 1» nel rifiuto e «1/5» qui.
+	const int32 BudgetDelPiano = Snapshot.Units.IsValidIndex(UnitId) ? Snapshot.Units[UnitId].MoveBudget : 0;
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
-		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
-		SelectedUnit->GetEffectiveMoveRange());
+		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost, BudgetDelPiano);
 }
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
@@ -2431,6 +2708,8 @@ void ARTPlayerController::HandleLockInCommitted()
 	// falso**: `ARTHUD` disegna quella scia su un canale diverso e IN AGGIUNTA, non al posto. La rotta la
 	// spegne il ramo `!Unit` di `RefreshPlanningPreview`, che fino al 2026-09-06 non lo faceva.
 	RefreshPlanningPreview(GetWorld(), nullptr);
+	// Il selettore del verso non sopravvive al commit (`#291`): il turno dopo si apre da capo.
+	EndFacingDeclaration();
 }
 
 void ARTPlayerController::HandlePlaybackFinished()
@@ -2659,6 +2938,49 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 	return Cast<ARTUnit>(SelectedActor);
 }
 
+FString ARTPlayerController::DisarmPlannedAction()
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return FString();
+	}
+
+	// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
+	// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
+	const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
+	Unit->SelectAbility(INDEX_NONE);
+	Unit->PlannedAbilityIndex = INDEX_NONE;
+	Unit->ClearPlannedAttack();
+	// Anche il LATO dichiarato (`#3501`, dalla revisione): `ClearPlannedAttack` non lo tocca, e il resolver e
+	// l'harness lo spengono insieme a `PlannedAbilityIndex`. Senza, dopo un'azione su bordo disarmata il lato
+	// resterebbe scritto nel piano.
+	Unit->bHasPlannedCoverEdge = false;
+	Unit->WaypointsAllaDichiarazione = INDEX_NONE;
+
+	const bool bRestituiti = !TettoDaRilasciare.IsNone()
+		&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
+	if (bRestituiti)
+	{
+		// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
+		// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
+		RebuildPlannedPath();
+	}
+	FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
+	if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
+	{
+		HMD->SetPreviewPath(Unit->PlannedPath);
+	}
+	RefreshPlanningPreview(GetWorld(), Unit);
+	// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG` del chiamante: la
+	// leggera' chi cerca perche' il suo percorso e' tornato.
+	return bRestituiti
+		? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
+			Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
+		: FString();
+}
+
 void ARTPlayerController::ArmKitAbility(int32 KitIndex)
 {
 	// 🔑 **Il TOGGLE e' tutto cio' che questa porta aggiunge**, e va deciso QUI e non dentro
@@ -2709,12 +3031,30 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 **[D-468] (`#3510`): durante la risoluzione il mondo e' in sola lettura anche per la tastiera.** I click
+	// sul mondo escono su `IsWorldReadOnly()` da `#2518`; questa porta — tasti, generiche, slot del dock — no.
+	// Un tasto premuto durante il playback armava, riaccendeva la portata che il commit aveva spento e, per
+	// un'azione su se stessi, scriveva il piano. E la risoluzione consuma il piano e il Cleanup disarma PRIMA del
+	// playback (`LockInAndResolve`, poi `ConcludeResolution`): quell'armo entrava nel turno dopo, un pre-armo che
+	// nessuno aveva deciso.
+	//
+	// ⚠️ Vale anche per il DISARMO, che passa di qui (`ArmKitAbility`): non ha niente da togliere, perche' il
+	// Cleanup ha gia' disarmato, e lasciarlo passare sarebbe un secondo canale con regole proprie.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"),
+			*Richiesta, PercheIlMondoESoloLettura(GetPointerContext()));
+		return;
+	}
+
 	// #971 — secondo dei cinque siti `Order`, e vale per tutti e dieci i tasti abilita' per la stessa
 	// ragione del commento qui sopra.
+	//
+	// ⏱️ *Fino a `#3510` la riga prometteva «autobattle, o fase che non accetta ordini»*, e la fase questa
+	// guardia non la guarda: la promessa la mantiene ora `IsWorldReadOnly()` qui sopra, con la sua causa.
 	if (IsPlanningInputInert())
 	{
-		UE_LOG(LogRT, Display,
-			TEXT("[RT] %s ignorata: input di planning inerte (autobattle, o fase che non accetta ordini)"),
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: input di planning inerte, l'autobattle e' attivo"),
 			*Richiesta);
 		return;
 	}
@@ -2725,6 +3065,11 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: nessuna unita' selezionata"), *Richiesta);
 		return;
 	}
+
+	// 🔴 `#291`, dalla revisione: armare (o disarmare) chiude il selettore del verso. `Facing` precede `Targeting` in
+	// `GetPointerContext`, quindi un selettore rimasto aperto mascherava il bersaglio: il click di mira diventava un
+	// waypoint, e un click su un nemico un'ispezione.
+	EndFacingDeclaration();
 
 	// ⚠️ **Il pacing resta QUI**, e la posizione e' una scelta di insieme e non un residuo del riordino:
 	// registra le pressioni che hanno superato le tre guardie e raggiunto un'unita' — le stesse di prima.
@@ -2741,8 +3086,17 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// -1» e l'uscita vera era muta.
 	if (Index == INDEX_NONE)
 	{
-		Unit->SelectAbility(INDEX_NONE);
-		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata"), *Richiesta, *Unit->GetName());
+		// 🔴 **Il disarmo tocca il PIANO, non solo la selezione** (`#3417`, [D-444]).
+		//
+		// ⏱️ *Fino al 2026-09-30 questo ramo chiamava il solo `SelectAbility(INDEX_NONE)`*, che scrive
+		// `SelectedAbilityIndex` e nient'altro. `PlannedAbilityIndex` restava, quindi `MakePlanFor` continuava
+		// ad aggiungere l'azione al piano e `ReservedProfileForPlan` a rispondere `Withdraw`: chi armava
+		// l'`Overwatch` e ci ripensava camminava a un quarto del raggio per tutto il turno, con lo slot spento.
+		//
+		// ⏱️ *Il corpo stava qui fino a `#3501`*: ora e' `DisarmPlannedAction`, perche' anche il Back disarma.
+		const FString Coda = DisarmPlannedAction();
+		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata%s"),
+			*Richiesta, *Unit->GetName(), *Coda);
 		return;
 	}
 
@@ -2797,10 +3151,47 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// moduli esistevano, ma `PlannedReactionAbility` lo scrivevano **solo i test**.
 	if (bReazione)
 	{
+		RefreshPlanningPreview(GetWorld(), Unit); // `#3507`: la portata dell'azione armata prima si spegne
 		Unit->PlannedReactionAbility = Index;
 		UE_LOG(LogRT, Display, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
 	}
+
+	// 🔑 **L'anteprima si ricalcola DOPO che il piano e' cambiato, non prima** (`#3418`).
+	//
+	// ⏱️ *Fino al 2026-09-30 le due chiamate stavano dentro il ramo della riserva, dodici righe SOPRA la
+	// scrittura del piano.* `RefreshPlanningPreview` disegna il ventaglio verde col tetto che
+	// `PlanningSnapshotFor` legge da `ReservedProfileForPlan(MakePlanFor(Unit))`, e `MakePlanFor` legge
+	// `PlannedAbilityIndex`: a quel punto l'azione appena armata non era ancora nel piano, quindi nessun
+	// tetto entrava nel calcolo e il verde restava quello del budget pieno. Il percorso ciano invece era
+	// **gia' troncato** — le due meta' della stessa anteprima dicevano cose diverse nello stesso fotogramma,
+	// ed e' la divergenza che `#877` aveva chiuso da un altro cammino.
+	//
+	// ⚠️ **Il ritardo valeva un fattore 8 nel caso peggiore**: `Sprint` e' `200` e `Withdraw` `25`
+	// ([D-412], `RTMovementProfileLibrary.cpp:92` e `:113`).
+	//
+	// 🔑 **Perche' una lambda e non una riga in coda alla funzione**: il ramo `bSelfTarget` esce con
+	// `return`, ed e' precisamente il cammino che conta — `Action.Overwatch` e' **l'unica** azione che
+	// riserva lo slot (`RTCatalogLibrary.cpp:1341`, una sola scrittura in produzione) e porta
+	// `bSelfTarget = true`. Un refresh messo solo alla fine salterebbe esattamente il caso per cui questa
+	// correzione esiste.
+	//
+	// ⏱️ *Fino a `#3507` qui c'era «E **non** si aggiorna quando la riserva non c'e'»*: armare un'azione a bersaglio
+	// non cambiava niente a schermo. Ora accende la portata, e l'aggiornamento c'e' anche senza riserva, in fondo.
+	bool bAnteprimaDaAggiornare = false;
+	const auto AggiornaAnteprima = [this, Unit, &bAnteprimaDaAggiornare]()
+	{
+		if (!bAnteprimaDaAggiornare)
+		{
+			return;
+		}
+		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
+		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
+		{
+			HM->SetPreviewPath(Unit->PlannedPath);
+		}
+		RefreshPlanningPreview(GetWorld(), Unit);
+	};
 
 	// 🔴 **Un'azione che RISERVA lo slot movimento TRONCA il piano gia' dichiarato al budget del profilo
 	// riservato** ([D-401], innesco «imposto»; `AC-5` nei due ordini).
@@ -2831,6 +3222,9 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		const int32 Cost = Reserved.ResolveMoveBudget(UnitRange);
 
 		int32 Dropped = 0;
+		// I waypoint com'erano PRIMA del taglio: [D-444] li restituisce al disarmo, e il troncamento li
+		// consuma in posto (`TruncateWaypointsToBudget` prende l'array per riferimento non costante).
+		const TArray<FRTCellId> PrimaDelTaglio = Unit->PlannedWaypoints;
 		if (Unit->PlannedWaypoints.Num() > 0)
 		{
 			FRTHexSnapshot Snapshot;
@@ -2861,14 +3255,14 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		if (Dropped > 0)
 		{
 			Unit->ClearMovePlanRejection();
+			// 🔑 La memoria si chiave sul profilo RISERVATO, non sull'azione: al disarmo si legge la stessa
+			// cosa dal piano, e un innesco non puo' restituire cio' che l'altro aveva tolto ([D-444]).
+			Unit->RicordaTroncamentoDelTetto(Ability->Def.ReservesMovementProfileId, PrimaDelTaglio);
+			CancelDeclaredFacing(Unit, TEXT("la riserva ha troncato il percorso"));
 		}
 
-		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
-		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
-		{
-			HM->SetPreviewPath(Unit->PlannedPath);
-		}
-		RefreshPlanningPreview(GetWorld(), Unit);
+		// L'anteprima NON si ridisegna qui: il piano cambia piu' sotto, e il tetto si legge da quello.
+		bAnteprimaDaAggiornare = true;
 		UE_LOG(LogRT, Display,
 			TEXT("[RT] %s: slot movimento riservato a %s — %d waypoint scartati, ne restano %d (passi %d, asperita' %d)"),
 			*Unit->GetName(), *Ability->Def.ReservesMovementProfileId.ToString(),
@@ -2881,12 +3275,39 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// l'ha gia' verificata la guardia comune qui sopra, ed e' il punto: prima il controllo stava qui, e
 		// il suo ramo negativo usciva lasciando l'azione selezionata sul modello.
 		Unit->PlannedAbilityIndex = Index;
+		Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`: dopo il troncamento della riserva
 		// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
 		Unit->ClearPlannedAttack();
+		// 🔴 **Qui, e non dodici righe sopra**: il piano ora contiene l'azione, quindi il tetto che
+		// `ReservedProfileForPlan` impone entra nel ventaglio verde (`#3418`).
+		AggiornaAnteprima();
 		UE_LOG(LogRT, Display, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
 	}
 
+	// Il piano non cambia su questo cammino — il bersaglio si clicca dopo, e `HandleTargetCell` aggiorna
+	// l'anteprima **dopo** la propria scrittura (`:3725` poi `:3730`). Qui serve solo perche' il
+	// troncamento della riserva ha gia' riscritto `PlannedPath`.
+	//
+	// ⚠️ **Oggi questo caso e' vuoto e lo si dichiara invece di ometterlo**: l'unica azione che riserva lo
+	// slot e' `Action.Overwatch`, che e' `bSelfTarget` e quindi esce sopra. La chiamata sta qui perche' una
+	// seconda azione che riservasse lo slot senza essere self-target troverebbe il ventaglio giusto senza
+	// che nessuno debba ricordarsene.
+	// 🔑 **Un'azione a bersaglio cambia l'anteprima anche senza riserva** (`#3507`): la portata prende il posto del
+	// ventaglio. ⏱️ *Fino a `#3507` qui si aggiornava solo con la riserva*, perche' armare non cambiava niente a schermo.
+	//
+	// 🔴 **E armare porta il piano attivo a quello da cui si mira** (`DR-5`, decisione d'autore del 2026-10-06,
+	// `#3517`). Il click si risolve sul piano attivo: con la portata disegnata sul piano del tiratore e il piano attivo
+	// altrove, ogni cella della portata cliccata diventava la cella di un altro piano, e `HandleTargetCell` la
+	// rifiutava con «su un altro piano». ⚠️ Solo all'armo: se poi il giocatore cambia piano a mano, la portata resta
+	// dov'e' e il click altrove riceve quel rifiuto. Al disarmo il piano attivo non torna a quello di prima: e' la
+	// `Q6` del referto del 2026-10-06, e non e' decisa.
+	if (MostraLaPortata(Unit, Index, *Ability))
+	{
+		SetActiveLayer(OrigineDiMira(Unit, *Ability).Layer);
+	}
+	bAnteprimaDaAggiornare = true;
+	AggiornaAnteprima();
 	UE_LOG(LogRT, Display, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
 }
 
@@ -2985,6 +3406,19 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		return;
 	}
 
+	// Il resto e' il gioco, e sta in `UndoStep`: la stessa porta del pulsante `Annulla` della HUD ([D-458]).
+	UndoStep();
+}
+
+void ARTPlayerController::UndoStep()
+{
+	// Ripetuta perche' questa e' anche una porta: un pulsante cliccato sotto una schermata bloccante non deve
+	// smontare niente, esattamente come il tasto.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// #971 — sessione non presidiata: non c'e' un piano umano da disfare, e `UndoCount` non deve crescere.
 	if (IsPlanningInputInert())
 	{
@@ -3002,8 +3436,9 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	// ⛔ **E non e' un toggle su Spazio**: chi preme due volte per abitudine annullerebbe senza volerlo, cioe'
 	// l'opposto esatto del difetto che il countdown esiste per prevenire.
 	//
-	// ⚠️ Sta DOPO le tre guardie qui sopra, e ognuna serve: una schermata bloccante copre la partita,
-	// `Alt`+destro e' un dolly, e in una sessione non presidiata non c'e' un umano che possa disdire.
+	// ⚠️ Sta DOPO le guardie, e ognuna serve: una schermata bloccante copre la partita, e in una sessione
+	// non presidiata non c'e' un umano che possa disdire. La terza — `Alt`+destro e' un dolly — vive in
+	// `OnUndoWaypoint`, PRIMA di arrivare qui: appartiene al tasto tenuto, e un pulsante non ce l'ha ([D-458]).
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
 		if (TM->IsReadyCountdownActive())
@@ -3054,9 +3489,24 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 
 void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 {
+	// Il gesto. La regola sta in `ToggleSneakDeclaration`, che e' anche la porta del badge della barra ([D-457]).
+	ToggleSneakDeclaration();
+}
+
+void ARTPlayerController::ToggleSneakDeclaration()
+{
 	// Una schermata bloccante copre la partita: questo input non le arriva.
 	if (IsGameplayInputBlocked())
 	{
+		return;
+	}
+
+	// [D-468] (`#3510`): dichiarare `Sneak` e' un ordine, e durante la risoluzione nessun ordine passa. La
+	// dichiarazione non la azzera nessuno — resta finche' non la si ritira ([D-425]) —, quindi un `M` premuto
+	// mentre la risoluzione scorre cambiava il passo del turno dopo, deciso quando il piano era in sola lettura.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
 		return;
 	}
 
@@ -3090,6 +3540,21 @@ void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 	Unit->PlannedMovementProfileId = bWasSneaking
 		? NAME_None
 		: URTMovementProfileLibrary::ProfileSneak;
+
+	// 🔴 **Annullare lo `Sneak` restituisce i waypoint che aveva tolto** (`#3417`, [D-444]), e vale per
+	// questo innesco quanto per la riserva: [D-401] ha reso i due inneschi **una sola regola**, e un
+	// ripristino su uno solo ricreerebbe l'asimmetria che quella decisione ha rimosso.
+	//
+	// ⚠️ **Prima della lambda, non dentro**: il suo primo ramo esce quando `PlannedWaypoints` e' vuoto, che
+	// e' precisamente il caso di un piano troncato **a zero** — quello che ha piu' bisogno di essere
+	// restituito. Restituendo qui, la lambda rivalida il percorso contro il tetto nuovo con le proprie
+	// righe, e non serve una seconda validazione che potrebbe divergere.
+	if (bWasSneaking && Unit->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileSneak))
+	{
+		RebuildPlannedPath();
+		UE_LOG(LogRT, Log, TEXT("[RT] Sneak annullato: restituiti %d waypoint che il tetto aveva tolto."),
+			Unit->PlannedWaypoints.Num());
+	}
 
 	// 🔴 **Da qui in giu' il tetto E' GIA' CAMBIATO, quindi l'anteprima va ridisegnata COMUNQUE.** Il corpo
 	// sta in una lambda e il ridisegno dopo, invece che in fondo a ciascun ramo: cosi' non e' una riga da
@@ -3164,10 +3629,20 @@ void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 	// arrivare invece che da capo. Il perche' del taglio per waypoint interi sta su
 	// `TruncateWaypointsToBudget`.
 	FRTHexPathResult Kept;
+	// Come nel ramo della riserva: il troncamento consuma l'array in posto, quindi la copia va presa prima.
+	const TArray<FRTCellId> PrimaDelTaglio = Unit->PlannedWaypoints;
 	const int32 Dropped =
 		TruncateWaypointsToBudget(Snapshot, UnitId, Unit->PlannedWaypoints, NewSteps, NewCost, Kept);
+	// 🔑 Chiavata su `ProfileSneak` e non su `Ceiling.Id`: cio' che e' reversibile e' il GESTO del
+	// giocatore, e `CeilingProfile` puo' rispondere un altro profilo quando l'unita' e' `Unbalanced`.
+	Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelTaglio);
 	Unit->PlannedPath = Kept.Path;
 	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
+	// Dopo l'assegnazione: l'anteprima della mesh si ricalcola sul percorso gia' troncato (`#291`).
+	if (Dropped > 0)
+	{
+		CancelDeclaredFacing(Unit, TEXT("lo Sneak ha troncato il percorso"));
+	}
 
 	UE_LOG(LogRT, Log,
 		TEXT("[RT] Sneak %s — tetto %s: %d waypoint scartati (%s: %d passi/%d, costo %d/%d), ne restano %d."),
@@ -3222,6 +3697,9 @@ void ARTPlayerController::RebuildPlannedPath()
 		Unit->PlannedPath.Reset();
 		Unit->PlannedCell = Unit->Cell;
 	}
+
+	// [D-367]: qualunque modifica al percorso cancella il verso dichiarato, e il movimento si riapre.
+	CancelDeclaredFacing(Unit, TEXT("il percorso e' cambiato"));
 
 	// #79: il piano e' stato RICOSTRUITO dai waypoint rimasti, quindi il rifiuto registrato apparteneva a un
 	// tentativo che non ne fa piu' parte. Vale per entrambi i rami qui sopra ed e' il motivo per cui sta qui
@@ -3429,13 +3907,92 @@ ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const
 	return URTPointerLibrary::TargetKindForAction(Ability->Def, Ability->bSelfTarget, Ability->Shape);
 }
 
+ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
+{
+	// Le stesse uscite del click, nello stesso ordine: dove il click non mostrerebbe un rifiuto, nemmeno lo
+	// slot lo mostra. Input inerte, nessun targeting, azione non pronta — il click li tace o li dice altrove.
+	if (IsPlanningInputInert() || GetPointerContext() != ERTPointerContext::Targeting)
+	{
+		return ERTTargetRefusal::None;
+	}
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return ERTTargetRefusal::None;
+	}
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	const URTActionData* Ability = Unit->GetAbility(Armed);
+	if (!Ability || !Unit->CanUseAbility(Armed))
+	{
+		return ERTTargetRefusal::None;
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !Map || !HexMap->IsHoveredCellValid())
+	{
+		return ERTTargetRefusal::None;
+	}
+	const FRTCellId Cell = HexMap->GetHoveredCell();
+	if (!Map->ContainsCell(Cell))
+	{
+		return ERTTargetRefusal::None;
+	}
+
+	switch (GetPointerTargetKind())
+	{
+	case ERTPointerTargetKind::Unit:
+	{
+		// Carica e scatto non bersagliano un'unita': il click li manda alla cella o li rifiuta a parole
+		// (`HandleClickOnUnit`), senza un `ERTTargetRefusal`.
+		if (Ability->Def.MovementStyle == ERTMovementStyle::LinearCharge
+			|| URTCatalogLibrary::IsFastMovement(Ability->Def))
+		{
+			return ERTTargetRefusal::None;
+		}
+		// Solo le unita' NOTE: un'ombra sulla cella non accende niente (vedi il docstring). E' la stessa
+		// guardia del click, che su un bersaglio ignoto esce senza dire niente.
+		//
+		// ⚠️ **Il flag si passa VERO anche dopo la guardia, e non `true`**: e' cio' che fa il sito del click,
+		// e per la stessa ragione — `RefusalForKnownTarget` collassa da se' un ignoto su `Nothing`, quindi la
+		// privacy non dipende dalla sola condizione del ciclo (revisione indipendente di #3483).
+		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		{
+			const ARTUnit* Bersaglio = *It;
+			if (!Bersaglio || Bersaglio == Unit || !Bersaglio->IsAlive() || Bersaglio->Cell != Cell
+				|| !Bersaglio->IsKnownToObserver())
+			{
+				continue;
+			}
+			// [D-464]: la stessa origine del click che questo stato anticipa — la fase dell'azione ARMATA.
+			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
+				Bersaglio->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
+		}
+		return ERTTargetRefusal::None;
+	}
+	case ERTPointerTargetKind::Cell:
+		// La porta del click su una cella (`HandleTargetCell`), non la coppia delle unita': una cella non
+		// ha un flag di conoscenza, e il suo rifiuto non guarda chi la occupa (`#2791`).
+		return URTCombatLibrary::DescribeCellTargetRefusal(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
+			Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy).Refusal;
+	case ERTPointerTargetKind::None:
+	case ERTPointerTargetKind::Edge:
+	case ERTPointerTargetKind::Object:
+		break;
+	}
+	return ERTTargetRefusal::None;
+}
+
 ERTPointerBackStep ARTPlayerController::ApplyBack()
 {
 	ARTUnit* Unit = GetSelectedUnit();
 	const int32 Waypoints = Unit ? Unit->PlannedWaypoints.Num() : 0;
 
-	const ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
-		GetPointerContext(), bInspectorPinned, Waypoints, bPhaseFocusPinned);
+	// Non `const`: un Back su un'azione nel piano con waypoint posati DOPO diventa un `Waypoint` (`#3501`).
+	ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
+		GetPointerContext(), bInspectorPinned, Waypoints, bPhaseFocusPinned,
+		/*bHasDeclaredFacing=*/ Unit && Unit->bDeclaresPlannedFacing);
+	bool bDisarmato = false;
 
 	switch (Step)
 	{
@@ -3444,14 +4001,57 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		break;
 
 	case ERTPointerBackStep::Declaration:
+	{
 		// Esce da `Targeting` o da `Facing` e torna al neutro. **Non deseleziona**: uscire da un targeting
 		// non deve costare la selezione, che e' l'errore che costringe a ricliccare la propria unita' dopo
 		// ogni ripensamento.
-		bDeclaringFacing = false;
-		if (Unit)
+		//
+		// ⚠️ Il Facing si legge PRIMA di spegnerlo (`#3501`, dalla revisione): un Back che chiude una rotazione non
+		// tocca il piano, anche se l'azione armata ci sta dentro.
+		const bool bEraFacing = bDeclaringFacing;
+		EndFacingDeclaration();
+		// ⚠️ Chiudere il selettore del verso non tocca l'azione armata (`#291`): fino a qui deselezionava anche quella.
+		if (Unit && !bEraFacing)
 		{
-			Unit->SelectAbility(INDEX_NONE);
+			// 🔴 **Un'azione armata e GIA' nel piano si disarma** (`#3501`, decisione d'autore): il Back disfa
+			// l'ultimo gesto, e per un supporto su se stessi — o per un attacco col bersaglio gia' dichiarato —
+			// l'ultimo gesto ha scritto il piano. ⏱️ *Fino a `#3501` qui c'era il solo `SelectAbility(INDEX_NONE)`*:
+			// lo slot si spegneva, l'azione restava nel piano e con lei il tetto che imponeva ([D-444]).
+			//
+			// ⛔ Un'azione armata ma NON nel piano — un targeting senza bersaglio — esce e basta: un'altra azione
+			// gia' pianificata, che il Back non ha toccato, resta (`BackOnATargetingKeepsThePlannedAction`).
+			const bool bAzioneNelPiano = !bEraFacing && Unit->SelectedAbilityIndex != INDEX_NONE
+				&& Unit->SelectedAbilityIndex == Unit->PlannedAbilityIndex;
+			// 🔑 **Prima i waypoint posati DOPO l'azione** (decisione d'autore, [D-461] punto 3): un supporto su se
+			// stessi resta armato, e il giocatore puo' posare waypoint dopo averlo pianificato. Il Back disfa
+			// l'ultimo gesto, quindi toglie quelli; l'azione si disarma al Back in cui non ne restano. E il piano
+			// torna esattamente a quello che la riserva aveva troncato, quindi [D-444] restituisce ancora.
+			if (bAzioneNelPiano && Unit->WaypointsAllaDichiarazione != INDEX_NONE
+				&& Unit->PlannedWaypoints.Num() > Unit->WaypointsAllaDichiarazione)
+			{
+				Unit->PlannedWaypoints.Pop();
+				RebuildPlannedPath();
+				Step = ERTPointerBackStep::Waypoint;
+			}
+			else if (bAzioneNelPiano)
+			{
+				const FString Coda = DisarmPlannedAction();
+				bDisarmato = true;
+				UE_LOG(LogRT, Display, TEXT("[RT] Back: '%s' disarma l'azione pianificata%s"),
+					*Unit->GetName(), *Coda);
+			}
+			else
+			{
+				Unit->SelectAbility(INDEX_NONE);
+				RefreshPlanningPreview(GetWorld(), Unit); // `#3507`: torna il ventaglio, si spegne la portata
+			}
 		}
+		break;
+	}
+
+	case ERTPointerBackStep::DeclaredFacing:
+		// [D-367], [D-462]: il verso si toglie per primo, e il movimento si riapre.
+		CancelDeclaredFacing(Unit, TEXT("Back"));
 		break;
 
 	case ERTPointerBackStep::Waypoint:
@@ -3504,9 +4104,11 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	{
 		if (ARTTurnManager* TM = PacingTurnManager(this))
 		{
+			// ⚠️ Un Back che DISARMA conta come `Order`, come il secondo click sullo slot che fa la stessa cosa
+			// (`SelectAbilityForCurrent` lo registra prima di disarmare): cambia il piano, non e' un click neutro.
 			TM->RecordPlanningInput(Step == ERTPointerBackStep::Waypoint
 				? ERTPlanningInput::Undo
-				: ERTPlanningInput::Click);
+				: (bDisarmato ? ERTPlanningInput::Order : ERTPlanningInput::Click));
 		}
 	}
 
@@ -3546,10 +4148,18 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 
 	// La legalita' la CHIEDE al servizio autorevole, non la calcola. Nota: si valida la CELLA, non l'unita'
 	// che ci sta sopra — un'area si centra dove si vuole, anche su un varco vuoto.
+	//
+	// ⌫ **Il valore di ritorno non si scarta piu'** (`#3064`): e' l'`ARTHexMapActor` su cui vive il tratto
+	// di tiro interrotto (`#2742`), e cercarlo una seconda volta piu' sotto sarebbe una seconda risposta
+	// alla stessa domanda. La chiamata era gia' qui; cambia solo che qualcuno la ascolta.
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
-	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
 	if (!Map || !Map->ContainsCell(Cell))
 	{
+		// ⚠️ **Questo ramo resta muto a schermo, ed e' dichiarato invece che dimenticato**: `ERTTargetRefusal`
+		// non ha un valore per «fuori mappa», e inventarne uno vuol dire un `case` in `RefusalText`, una riga
+		// nella tabella di `HUD.RefusalTextCoversEveryOutcome` e una frase d'autore — cioe' un'altra issue.
+		// Dal click non e' raggiungibile: `HandleClickOnCell` risolve la cella sulla mappa prima di arrivare.
 		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a cella fuori mappa"));
 		return false;
 	}
@@ -3560,21 +4170,114 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// invece che dato per scontato. Un'abilita' `NotRequired` puo' cosi' centrare una cella non visibile —
 	// granata, mortaio, velo — mentre ogni altra continua a essere rifiutata come prima.
 	//
-	// ⛔ **E il rifiuto NON diventa piu' informativo per questo.** Questa funzione non guarda chi sta sulla
-	// cella: valida `ContainsCell` e la geometria, e basta. Due mondi che differiscono solo per un nemico
-	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso esito e lo stesso log — che e'
-	// l'invariante di `#2791` applicata al targeting, e cio' che `BlindFireIsNotAnEnemyDetector` pinna.
-	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
-	if (Reason != ERTHexTargetReason::Ok)
+	// ⌫ **`ClassifyHexTargeting` non si chiama piu' direttamente da qui** (`#3064`). Al suo posto c'e'
+	// `DescribeCellTargetRefusal`, che lo chiama e restituisce in un colpo solo l'esito MOSTRABILE, la
+	// portata applicata e la geometria della linea. La ragione e' di firma, non di comodita': per parlare al
+	// giocatore serviva tradurre `ERTHexTargetReason` in `ERTTargetRefusal`, e l'unica porta che lo faceva —
+	// `RefusalForObserver` — chiede un flag di conoscenza **di un'unita' bersaglio**, che qui non esiste.
+	//
+	// ⛔ **E il rifiuto NON diventa piu' informativo per questo.** Questa funzione continua a non guardare
+	// chi sta sulla cella, e nemmeno il compositore lo fa: due mondi che differiscono solo per un nemico
+	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso `FRTCellTargetRefusal`, campo per campo.
+	// E' l'invariante di `#2791` applicata al targeting, e cio' che
+	// `BlindFire.CellRefusalIsNotAnEnemyDetector` pinna.
+	//
+	// 🔴 **[D-464]: dall'origine della FASE, non dalla cella corrente.** Con uno scatto pianificato un `Attack` mira
+	// dalla cella dello scatto: e' da li' che la risoluzione colpira'. La stessa `DaDoveMira` sotto, nel tratto rosso.
+	const FRTCellId DaDoveMira = Unit->AimOriginFor(Ability->Def.ResolutionPhase);
+	const FRTCellTargetRefusal Verdetto = URTCombatLibrary::DescribeCellTargetRefusal(
+		Map, DaDoveMira, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+
+	// ── IL CANALE DEL GIOCATORE, che su questo percorso non esisteva (`#3064`).
+	//
+	// 🔴 **Il difetto che chiude**: fino a qui una cella rifiutata produceva una riga di `UE_LOG` e **niente
+	// altro**. Chi gioca non legge l'Output Log: a schermo non cambiava nulla, e un click che non produce
+	// niente e' indistinguibile da un click non registrato. E' il verdetto d'autore che `#2741` cita —
+	// *«non si capisce perche' non parte»* — rimasto aperto per meta'.
+	//
+	// ⚠️ **Chiamata SEMPRE, anche con esito `None`**, e non solo sul ramo di rifiuto: e' cio' che cancella il
+	// messaggio del click precedente quando questo va a segno. La durata dichiarata e' *«vive finche' il
+	// giocatore non fa un altro click»*, e questo E' un altro click — la stessa disciplina dell'azzeramento
+	// in cima a `OnSelect`, di cui questa chiamata e' la meta' che parla.
+	//
+	// 🔑 **E passa `Sight`, `DaDoveMira` e `Cell`**, cioe' la forma a cinque argomenti: con quelli `ARTHUD`
+	// compone da sola il tratto 2D sul Canvas (`ComputeRefusedShotLine`, `#3085`), che porta **gia' montato**
+	// il filtro sulla cella che BLOCCA. Nessuna riga di privacy nuova da scrivere per quel canale.
+	ARTHUD* Hud = Cast<ARTHUD>(GetHUD());
+	if (Hud)
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Cella non bersagliabile (%s, portata %d)"),
-			Reason == ERTHexTargetReason::OutOfRange ? TEXT("fuori portata") : TEXT("bloccata"),
-			Ability->RangeCells);
+		Hud->SetTargetRefusal(Verdetto.Refusal, Verdetto.EffectiveRange, Verdetto.Sight, DaDoveMira, Cell);
+	}
+
+	// ── LA LINEA CHE NON PASSA, anche per un bersaglio a CELLA (`#2742` + `#3085`, DoD 3 di `#3064`).
+	//
+	// 🔴 **Il controller non DECIDE questo tratto, lo ricopia.** Il sito a unita' lo deriva da
+	// `AuthorizedSightLines`, che filtra su `FRTObservedTarget::bKnownToObserver` — la conoscenza del
+	// BERSAGLIO. Per una cella quel flag non ha un valore onesto, e doverne **scegliere** uno sarebbe gia' il
+	// difetto di progetto: il giorno in cui qualcuno lo derivasse dall'occupante, «linea disegnata» contro
+	// «linea assente» diventerebbe un rilevatore di presenze ([D-225]). ∴ qui quella libreria non si chiama
+	// affatto: non c'e' un flag da sbagliare.
+	//
+	// 🔑 **Si chiede invece all'HUD il tratto GIA' filtrato.** `CurrentRefusedShotLine()` applica il gate
+	// sull'OSTACOLO — una cella che blocca e che l'osservatore non ha mai visto non si disegna — con la
+	// conoscenza della PROPRIA squadra, che l'HUD possiede e il controller no.
+	//
+	// ⚠️ **Dopo `SetTargetRefusal`, e l'ordine E' il requisito**: quella scrive lo stato che questa legge.
+	// ⚠️ **Chiamata SEMPRE**, per la stessa ragione della frase: e' cio' che spegne il tratto del click
+	// precedente. Senza HUD non c'e' un osservatore a cui chiedere, e il tratto resta spento (fail-closed).
+	if (HexMap)
+	{
+		const FRTRefusedShotLine Tratto = Hud ? Hud->CurrentRefusedShotLine() : FRTRefusedShotLine();
+		HexMap->SetPreviewSightBlock(Tratto.bShow, Tratto.From, Tratto.BreakAt);
+	}
+
+	if (Verdetto.IsRefused())
+	{
+		// ── Il canale DIAGNOSTICO, il cui pubblico e' chi sviluppa — e fino a `#3064` mentiva due volte.
+		//
+		// 🔴 **(1) Il ternario binario etichettava `OtherLayer` come «bloccata»**, mandando a cercare un muro
+		// chi aveva puntato un altro PIANO: precisamente l'errore per cui [D-393] ha creato
+		// `ERTHexTargetReason::OtherLayer` come valore distinto, commesso nel posto che quell'enum doveva
+		// proteggere.
+		//
+		// 🔴 **(2) Stampava `Ability->RangeCells`, la portata DICHIARATA**, mentre il classificatore confronta
+		// con quella effettiva: con un'abilita' a portata 4 e una cella a distanza 3 col Fumo in mezzo usciva
+		// *«fuori portata, portata 4»*, e chi legge conclude che il classificatore e' rotto — `3 <= 4` — e
+		// cerca un difetto che non c'e'. E' l'inganno che `#2766` aveva gia' tolto dal sito a unita', rimasto
+		// qui perche' nessuno dei due siti sapeva dell'altro.
+		//
+		// 🔑 **Adesso non possono piu' divergere per costruzione**: l'etichetta nasce dallo stesso
+		// `Verdetto.Refusal` che alimenta la frase a schermo — non da una seconda lettura del motivo interno —
+		// e il ramo della distanza riusa `OutOfRangeDiagnostic`, cioe' la coda identica del sito a unita'.
+		FString Diagnosi;
+		switch (Verdetto.Refusal)
+		{
+		case ERTTargetRefusal::Range:
+			Diagnosi = URTCombatLibrary::OutOfRangeDiagnostic(Ability->RangeCells, Verdetto.EffectiveRange);
+			break;
+		case ERTTargetRefusal::Cover:
+			Diagnosi = TEXT("linea di tiro interrotta");
+			break;
+		case ERTTargetRefusal::OtherLayer:
+			Diagnosi = TEXT("su un altro piano: non si tira da qui");
+			break;
+		default:
+			// ⚠️ **Non si nomina una causa che questo percorso non puo' produrre.** `Nothing` e' intercettato
+			// dalla guardia di mappa qui sopra, e `TooClose` non e' producibile perche' nessun sito di click
+			// passa `MinRangeCells` (default `0`). Se un giorno arrivassero, dire MENO e' preferibile a dire
+			// il falso, e un `Warning` e' cio' che fa cercare.
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] Cella (%d,%d,L%d) non bersagliabile: motivo non atteso su questo percorso"),
+				Cell.X, Cell.Y, Cell.Layer);
+			return false;
+		}
+		UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non bersagliabile: %s"),
+			Cell.X, Cell.Y, Cell.Layer, *Diagnosi);
 		return false;
 	}
 
 	Unit->PlannedAbilityIndex = Armed;
+	Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`
 	// Il bersaglio e' la CELLA, e la coppia si scrive in un colpo solo: e' `ARTUnit` a sapere che le due
 	// forme sono esclusive, non i suoi chiamanti (`#2884`).
 	Unit->DeclareAttackOnCell(Cell);
@@ -3629,8 +4332,10 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	// La policy si legge dall'azione anche qui: una struttura di bordo si erige DOVE si arriva, e se un giorno
 	// un'azione dichiarera' di poterlo fare senza vedere il lato, il dato e' gia' quello giusto (`#2870`).
+	// [D-464]: anche qui dall'origine della fase, perche' la regola e' una per chiunque giudichi la mira.
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+		Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Cell, Ability->RangeCells,
+		Ability->Def.LineOfSightPolicy);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo non raggiungibile (portata %d)"), Ability->RangeCells);
@@ -3640,6 +4345,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// Cella E direzione: il resolver di CP 9.5 rifiuta con `CoverRejected` se il piano non dichiara il lato,
 	// e a portata 3 il bordo non si deduce piu' dalla coppia di celle.
 	Unit->PlannedAbilityIndex = Armed;
+	Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`
 	Unit->DeclareAttackOnCell(Cell);
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;
@@ -3671,6 +4377,12 @@ void ARTPlayerController::BeginFacingDeclaration()
 void ARTPlayerController::EndFacingDeclaration()
 {
 	bDeclaringFacing = false;
+	// L'anteprima dell'hover non sopravvive al selettore: la mesh torna al verso che l'unita' avra' davvero.
+	if (FacingHoverSector.IsSet())
+	{
+		FacingHoverSector.Reset();
+		PreviewPlannedFacing(GetSelectedUnit());
+	}
 }
 
 void ARTPlayerController::PreviewPlannedFacing(ARTUnit* Unit) const
@@ -3705,6 +4417,15 @@ void ARTPlayerController::PreviewPlannedFacing(ARTUnit* Unit) const
 		}
 	}
 
+	PreviewFacingToward(Unit, Previsto);
+}
+
+void ARTPlayerController::PreviewFacingToward(ARTUnit* Unit, ERTHexDirection Direction) const
+{
+	if (Unit == nullptr)
+	{
+		return;
+	}
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) == nullptr)
 	{
@@ -3715,66 +4436,53 @@ void ARTPlayerController::PreviewPlannedFacing(ARTUnit* Unit) const
 	// centro del vicino nella direzione voluta. Ricavarlo dall'enum con una tabella sarebbe una seconda
 	// verita' da tenere allineata alla prima.
 	const FVector Here = Unit->WorldForCell(Unit->Cell, Origin, HexSize, LayerH);
-	const FVector There = Unit->WorldForCell(URTHexLibrary::Neighbor(Unit->Cell, Previsto), Origin, HexSize, LayerH);
+	const FVector There = Unit->WorldForCell(URTHexLibrary::Neighbor(Unit->Cell, Direction), Origin, HexSize, LayerH);
 	Unit->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Here, There), 0.f));
 }
 
-void ARTPlayerController::CycleDeclaredFacing()
+void ARTPlayerController::UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir)
 {
-	if (IsGameplayInputBlocked())
+	if (!bDeclaringFacing && !FacingHoverSector.IsSet())
 	{
 		return;
 	}
-
 	ARTUnit* Unit = GetSelectedUnit();
+	TOptional<ERTHexDirection> Sotto;
+	if (Unit && bDeclaringFacing && bHasRay && !IsWorldReadOnly() && !IsPlanningInputInert())
+	{
+		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+		ERTHexDirection Settore = ERTHexDirection::E;
+		if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map)
+			&& URTPointerLibrary::ResolveFacingClick(RayOrigin, RayDir, FacingCellFor(Unit), Origin, HexSize, LayerH,
+				FacingDeadZoneFraction * HexSize, /*bSelectorOpen=*/ true, Settore) == ERTFacingClick::Side
+			&& IsFacingLegalForPlan(Unit, Settore))
+		{
+			Sotto = Settore;
+		}
+	}
+	if (Sotto == FacingHoverSector)
+	{
+		return; // niente da rifare: la mesh e' gia' li'
+	}
+	FacingHoverSector = Sotto;
 	if (!Unit)
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione: nessuna unita' selezionata"));
 		return;
 	}
-
-	// Lo stile e' quello del movimento PIANIFICATO, come in `HandleFacingSector`: chi non si e' mosso ruota
-	// libero, chi ha un percorso a budget ha le tre dell'ultimo passo. E' una previsione, non il verdetto —
-	// il resolver rivalida a fine Move su quel che e' successo davvero.
-	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
-	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
-
-	const TArray<ERTHexDirection> Legal =
-		URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
-	if (Legal.Num() == 0)
+	if (Sotto.IsSet())
 	{
-		return; // nessuna rotazione possibile: non c'e' niente da ciclare
+		PreviewFacingToward(Unit, Sotto.GetValue());
 	}
-
-	// Il punto di partenza e' cio' che vale ORA: la dichiarazione di questo turno se c'e', altrimenti
-	// l'orientamento attuale. Senza, premere il tasto due volte ripartirebbe sempre dalla stessa direzione.
-	const ERTHexDirection Corrente = Unit->bDeclaresPlannedFacing ? Unit->PlannedFacing : Unit->Facing;
-
-	// `LegalFacings` ha ordine STABILE (per valore dell'enum), quindi il ciclo e' ripetibile: la stessa
-	// sequenza di pressioni da' la stessa sequenza di direzioni.
-	const int32 Indice = Legal.IndexOfByKey(Corrente);
-	const ERTHexDirection Prossima = Legal[(Indice == INDEX_NONE) ? 0 : (Indice + 1) % Legal.Num()];
-
-	// Si passa dal comando esistente invece di scrivere `PlannedFacing` a mano: e' li' che vivono la
-	// validazione, il rifiuto e la registrazione dell'input di planning.
-	BeginFacingDeclaration();
-	if (!HandleFacingSector(Prossima))
+	else
 	{
-		// Non dovrebbe accadere: `Prossima` viene da `LegalFacings`. Se accade, le due funzioni non
-		// concordano sullo stile, ed e' un difetto da vedere subito invece che un tasto che non fa nulla.
-		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Rotazione: %d era nell'insieme legale ma e' stata rifiutata"), (int32)Prossima);
-		EndFacingDeclaration();
-		return;
+		PreviewPlannedFacing(Unit);
 	}
-
-	UE_LOG(LogRT, Log, TEXT("[RT] %s dichiara la rotazione a %d (%d legali)"),
-		*Unit->GetName(), (int32)Prossima, Legal.Num());
 }
+
 
 bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 {
-	// #971 — quinto dei cinque siti `Order`. `CycleDeclaredFacing` ci arriva da un tasto e sarebbe gia'
+	// #971 — quinto dei cinque siti `Order`. `HandleFacingClick` ci arriva dal secondo click e sarebbe gia'
 	// coperta a monte; questa funzione e' pubblica e raggiungibile da sola, quindi la guardia sta qui.
 	if (IsPlanningInputInert())
 	{
@@ -3792,18 +4500,7 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 		return false;
 	}
 
-	// Lo stile su cui si misura la legalita' e' quello del movimento PIANIFICATO: chi non si e' mosso ruota
-	// libero (`None`, sei direzioni), chi ha un percorso a budget ha le tre dell'ultimo passo.
-	//
-	// ⚠️ Questa e' una PREVISIONE, non il verdetto. Il resolver rivalida a fine Move su `MovementStyleThisTurn`
-	// e `WalkedThisTurn`, cioe' su quel che e' successo davvero: un percorso puo' essere interrotto, e la
-	// dichiarazione allora cade con `DeclarationRejected`. La UI propone, il servizio decide — §3 dell'owner.
-	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
-	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
-
-	ERTHexDirection Applied = Unit->Facing;
-	const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(
-		Style, Unit->PlannedPath, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
+	const bool bLegal = IsFacingLegalForPlan(Unit, Sector);
 
 	if (!bLegal)
 	{
@@ -3818,6 +4515,7 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 	Unit->PlannedFacing = Sector;
 	Unit->bDeclaresPlannedFacing = true;
 	bDeclaringFacing = false;
+	FacingHoverSector.Reset(); // la mesh va sul verso dichiarato, qui sotto
 
 	// La dichiarazione si vede SUBITO: un tasto che non produce nessun riscontro a schermo e' un tasto
 	// che il giocatore crede rotto.
@@ -3827,6 +4525,245 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 	{
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
 	}
-	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s dichiara rotazione %d"), *Unit->GetName(), (int32)Sector);
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s dichiara rotazione %d — il movimento e' chiuso (Back per riaprirlo)"),
+		*Unit->GetName(), (int32)Sector);
 	return true;
+}
+
+FRTCellId ARTPlayerController::FacingCellFor(const ARTUnit* Unit) const
+{
+	if (!Unit)
+	{
+		return FRTCellId();
+	}
+	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashMoves`, e non il
+	// solo indice: uno scatto sulla propria cella non e' uno scatto, e uno che lo stato nega lascia l'unita' dov'e'
+	// ([D-471]).
+	if (Unit->PlannedDashMoves())
+	{
+		return Unit->PlannedDashCell;
+	}
+	if (Unit->PlannedPath.Num() > 1)
+	{
+		return Unit->PlannedPath.Last();
+	}
+	return Unit->Cell;
+}
+
+void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle,
+	TArray<FRTCellId>& OutPath) const
+{
+	OutStyle = ERTMovementStyle::None;
+	OutPath.Reset();
+	if (!Unit)
+	{
+		return;
+	}
+
+	if (Unit->PlannedDashMoves()) // [D-471]: uno scatto negato dallo stato non muove l'unita'
+	{
+		const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility);
+		if (Scatto)
+		{
+			// 🔑 Lo stile del CATALOGO, come lo legge il resolver (`DashUsed->Def.MovementStyle`).
+			OutStyle = Scatto->Def.MovementStyle;
+			OutPath.Add(Unit->Cell);
+			// La rotta serve per l'ultimo passo. In linea la si cammina lungo una delle sei direzioni; a budget
+			// si prende il percorso piu' breve. Entrambe sono previsioni: il resolver rivalida sulla rotta vera.
+			if (URTMovementActionLibrary::IsLinear(Scatto->Def.MovementStyle))
+			{
+				for (int32 D = 0; D < 6 && OutPath.Num() == 1; ++D)
+				{
+					FRTCellId Passo = Unit->Cell;
+					TArray<FRTCellId> Linea;
+					for (int32 K = 0; K < 32; ++K)
+					{
+						Passo = URTHexLibrary::Neighbor(Passo, static_cast<ERTHexDirection>(D));
+						Linea.Add(Passo);
+						if (Passo == Unit->PlannedDashCell)
+						{
+							OutPath.Append(Linea);
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+				if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) && Map)
+				{
+					const FRTHexPathResult Breve = URTHexPathLibrary::FindPathAvoiding(
+						Map, Unit->Cell, Unit->PlannedDashCell, nullptr, 0);
+					if (Breve.Status == ERTHexPathStatus::Success && Breve.Path.Num() >= 2)
+					{
+						OutPath = Breve.Path;
+					}
+				}
+			}
+			return;
+		}
+	}
+
+	if (Unit->PlannedPath.Num() > 1)
+	{
+		OutStyle = ERTMovementStyle::Budget;
+		OutPath = Unit->PlannedPath;
+	}
+}
+
+bool ARTPlayerController::IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const
+{
+	if (!Unit)
+	{
+		return false;
+	}
+	// Lo stile e la rotta su cui si misura la legalita' sono quelli del movimento PIANIFICATO, letti come li
+	// applica il resolver: uno scatto col proprio stile di catalogo, un percorso a budget, o fermo (sei direzioni).
+	// ⏱️ *Fino a `#291` qui c'era `PlannedPath.Num() > 1 ? Budget : None`*: uno scatto pianificato veniva giudicato
+	// sul budget Move, e il controller accettava versi che il resolver poi rifiutava ([D-367]).
+	//
+	// ⚠️ Questa e' una PREVISIONE, non il verdetto. Il resolver rivalida a fine Move su `MovementStyleThisTurn`
+	// e `WalkedThisTurn`, cioe' su quel che e' successo davvero: un percorso puo' essere interrotto, e la
+	// dichiarazione allora cade con `DeclarationRejected`. La UI propone, il servizio decide — §3 dell'owner.
+	ERTMovementStyle Style = ERTMovementStyle::None;
+	TArray<FRTCellId> Rotta;
+	PlannedMovementForFacing(Unit, Style, Rotta);
+
+	ERTHexDirection Applied = Unit->Facing;
+	return URTFacingLibrary::TryApplyDeclaredFacing(Style, Rotta, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
+}
+
+void ARTPlayerController::CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche)
+{
+	if (!Unit || !Unit->bDeclaresPlannedFacing)
+	{
+		return;
+	}
+	Unit->bDeclaresPlannedFacing = false;
+	PreviewPlannedFacing(Unit);
+	UE_LOG(LogRT, Log, TEXT("[RT] %s: verso dichiarato annullato (%s) — il movimento e' di nuovo aperto"),
+		*Unit->GetName(), Perche);
+}
+
+bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
+{
+	if (IsWorldReadOnly() || IsPlanningInputInert())
+	{
+		return false;
+	}
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	// Solo sulla cella finale: la propria da fermo, la destinazione in marcia ([D-463]).
+	if (!(FacingCellFor(Unit) == ClickedCell))
+	{
+		return false;
+	}
+	// Un bersaglio da scegliere ha la precedenza: il click e' suo.
+	if (GetPointerContext() == ERTPointerContext::Targeting && GetPointerTargetKind() != ERTPointerTargetKind::None)
+	{
+		return false;
+	}
+	BeginFacingDeclaration();
+	UE_LOG(LogRT, Log, TEXT("[RT] %s: scegli il verso — click nella direzione in cui guardare (Back per chiudere)"),
+		*Unit->GetName());
+	return true;
+}
+
+bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector)
+{
+	if (IsWorldReadOnly() || IsPlanningInputInert())
+	{
+		return false;
+	}
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	const FRTCellId Finale = FacingCellFor(Unit);
+	if (!(Cell == Finale))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Verso: (%d,%d,L%d) non e' la cella finale del movimento"),
+			Cell.X, Cell.Y, Cell.Layer);
+		return false;
+	}
+	const bool bDaFermo = Finale == Unit->Cell;
+	if (bDaFermo && !bDeclaringFacing)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Verso: da fermo si sceglie dopo un click sulla propria cella"));
+		return false;
+	}
+
+	const bool bEraAperto = bDeclaringFacing;
+	BeginFacingDeclaration();
+	if (HandleFacingSector(Sector))
+	{
+		return true;
+	}
+	// Illegale: nessuna correzione. Un selettore APERTO resta aperto per un altro lato ([D-463]); un click diretto sul
+	// lato, in marcia, non ne aveva uno, e lasciarlo aperto mangerebbe il click successivo.
+	if (!bEraAperto)
+	{
+		EndFacingDeclaration();
+	}
+	return false;
+}
+
+bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
+{
+	if (!Unit || IsWorldReadOnly() || IsPlanningInputInert())
+	{
+		return false;
+	}
+	const ERTPointerContext Context = GetPointerContext();
+	if (Context == ERTPointerContext::Targeting && GetPointerTargetKind() != ERTPointerTargetKind::None)
+	{
+		return false; // un bersaglio da scegliere ha la precedenza
+	}
+	const FRTCellId Finale = FacingCellFor(Unit);
+	const bool bDaFermo = Finale == Unit->Cell;
+	const bool bSelettoreAperto = Context == ERTPointerContext::Facing;
+	if (bDaFermo && !bSelettoreAperto)
+	{
+		return false; // da fermo il primo click apre il selettore, e lo fa il ramo della selezione
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	if (!HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) || !Map)
+	{
+		return false;
+	}
+	FVector RayOrigin, RayDir;
+	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir) || FMath::IsNearlyZero(RayDir.Z))
+	{
+		return false;
+	}
+
+	// 🔑 **Il PAVIMENTO della cella finale, non la mesh colpita** ([D-367]): un personaggio fermo copre la propria
+	// cella col corpo, e senza questa proiezione non potrebbe scegliersi il verso. La geometria e' della libreria.
+	ERTHexDirection Settore = ERTHexDirection::E;
+	switch (URTPointerLibrary::ResolveFacingClick(RayOrigin, RayDir, Finale, Origin, HexSize, LayerH,
+		FacingDeadZoneFraction * HexSize, bSelettoreAperto, Settore))
+	{
+	case ERTFacingClick::Miss:
+	case ERTFacingClick::OtherCell:
+		return false;
+	case ERTFacingClick::Center:
+		if (!bSelettoreAperto)
+		{
+			// In marcia il secondo click sul centro — il segno del waypoint — apre la scelta ([D-463]).
+			TryOpenFacingSelector(Finale);
+			return true;
+		}
+		UE_LOG(LogRT, Log, TEXT("[RT] Verso: click al centro dell'esagono — clicca nella direzione in cui guardare"));
+		return true; // consumato: il centro non sceglie e non diventa un waypoint
+	case ERTFacingClick::Side:
+		HandleFacingClick(Finale, Settore);
+		return true;
+	}
+	return false;
 }

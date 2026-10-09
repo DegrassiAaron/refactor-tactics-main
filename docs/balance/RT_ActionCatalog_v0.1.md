@@ -115,7 +115,7 @@ Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
 | `Action.Wait` | Attesa | — | Move | 20 | 100 | — | 0 | 0 | — | no |
-| `Action.Move` | Movimento | Movimento | **Move** | 20 | 50 | 5 MP | 0 | — | `Fallback.Stop` | sì |
+| `Action.Move` | Movimento | Movimento | **Move** | 20 | 50 | ×1 del budget | 0 | — | `Fallback.Stop` | sì |
 | `Action.BasicAttack` | Attacco base | Principale | Blast | 40 | 50 | arma | 0 | — | `Fallback.Cancel` | sì |
 | `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | — | `Fallback.Cancel` | no |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | — | `Fallback.Cancel` | no |
@@ -178,8 +178,8 @@ Toglierla dalle fondamentali avrebbe lasciato tre regole appese a un'azione non 
 **Wait** — non si muove e non usa l'azione principale. Può comunque: impostare il facing · preparare una
 reazione · mantenere una stance già attiva · contestare un obiettivo.
 
-**Move** — percorso di celle adiacenti. Budget **5 MP**; cella normale 1 MP, terreno difficile 2 MP, salita via
-rampa 2 MP. Una cella occupata da un'unità solida non è attraversabile. Il percorso **non** viene ricalcolato
+**Move** — percorso di celle adiacenti. Budget **×1**, cioè quello dell'unità ([D-427](../decisions/RT_PDR_00_Decision_Log.md); il roster spedito dichiara `5 · 5 · 4 · 6`); cella normale 1 MP, terreno difficile 2 MP, salita via
+rampa 2 MP. 🔴 **Nessuna unità blocca il transito, e la destinazione occupata si può dichiarare** ([D-445](../decisions/RT_PDR_00_Decision_Log.md), [D-446](../decisions/RT_PDR_00_Decision_Log.md)). *Fino al 2026-10-01 questa riga diceva «una cella occupata da un'unità solida non è attraversabile»*: l'arco scavalca chiunque trovi per strada e si ferma alla prima cella libera, e un piano può nominare una cella occupata — a risoluzione o chi la tiene se n'è andato, o si resta fuori. ⛔ **Ciò che non è cambiato è il terminus**: due unità non finiscono il turno sulla stessa cella ([D-289](../decisions/RT_PDR_00_Decision_Log.md)). Il percorso **non** viene ricalcolato
 globalmente durante la risoluzione: se si blocca, l'unità si ferma nell'ultima cella valida (`Fallback.Stop`, la
 regola standard del vertical slice).
 
@@ -192,8 +192,14 @@ regola standard del vertical slice).
 | Medio raggio | 22 | 4 |
 | Lungo raggio | 20 | 6 |
 
-**Guard** — riduce di **15** il primo danno diretto ricevuto · resiste a una spinta di 1 cella · termina nel
-Cleanup · **non** protegge dagli hazard ambientali già presenti.
+**Guard** — riduce di **15** **ogni** danno diretto ricevuto nell'arco frontale ([D-206]) · resiste a una
+spinta di 1 cella · termina nel Cleanup · **non** protegge dagli hazard ambientali già presenti.
+
+> ⏱️ **Riscritta il 2026-09-20 da [D-408]**, e la riga è stata sbagliata due volte prima: diceva «il **primo**
+> danno diretto ricevuto», che era la regola fino a [D-292] (2026-08-31) — la quale l'aveva resa un **pool** di
+> 15 danni assorbibili senza che questo catalogo se ne accorgesse. D-408 ritira il pool e riporta la Guardia a
+> una riduzione **per colpo**. ⚠️ **E il `15` qui è ora un DEFAULT di catalogo, non la regola**: il valore lo
+> dichiara il personaggio (`URTHeroData::GuardReduction`), ed è la metà della decisione che tocca `BAL-3`.
 
 > In v0.1 «una spinta di 1 cella» significa **ogni** spinta del gioco: il catalogo non ha valori maggiori di 1.
 > È il motivo per cui sulla spinta `Guard` e `Brace` non si distinguono — [D-074](../decisions/RT_PDR_00_Decision_Log.md).
@@ -236,9 +242,9 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
   in Planning insieme a settore e facing. È anche la ragione per cui armare l'Overwatch **esclude il `Dash`**:
   lo slot è già impegnato, non serve una regola apposta;
 - **risolve nello Stage B della `Move`**, cioè **dopo** che tutti gli altri si sono mossi. La priorità spaziale
-  tardiva è parte del prezzo: una cella occupata nel frattempo **non** si libera, il percorso **non** si
-  ricalcola, e il ripiegamento si ferma all'ultima cella valida;
-- **2 MP** è ancorato ad `Action.Reposition` (2 celle, §2.2) — l'unica altra mobilità breve del catalogo —
+  tardiva è parte del prezzo: una cella **lasciata occupata** nel frattempo resta tale, il percorso **non** si
+  ricalcola, e il ripiegamento si ferma all'ultima cella valida. ⚠️ **Il prezzo è più piccolo da [D-445](../decisions/RT_PDR_00_Decision_Log.md)**: ciò che resta occupato blocca solo come **destinazione**, non più come passaggio, quindi arrivare tardi costa un arrivo mancato e non una rotta chiusa;
+- **×0,25** nasce ancorato ad `Action.Reposition` (2 celle, §2.2) — l'unica altra mobilità breve del catalogo — come assoluto `2 MP`, e [D-412](../decisions/RT_PDR_00_Decision_Log.md) lo ha reso una frazione del movimento dell'unità: **1** per tutto il roster spedito. ⚠️ **Sotto un budget di 4 il quarto è ZERO**, cioè un ripiegamento che non ripiega: il caso è pinnato in `RTMovementProfileTests` e se debba avere un minimo di `1` è una domanda di bilanciamento aperta ([D-427](../decisions/RT_PDR_00_Decision_Log.md) punto 4). Il riferimento originario resta
   invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
 
 > **Perché non si chiama `Reposition`.** Quel nome è già di un'azione viva: scatto lineare di 2 celle in
@@ -299,8 +305,8 @@ le mobilità rapide di §2.2, dove è stata fino al 2026-09-18. ⚠️ **Non è 
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
-| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | 8 MP ⚠️ | 0 | 5 | `Fallback.Stop` | sì |
-| `Action.Withdraw` | Ripiegamento | **Movimento** | **Move** | 20 | 50 | 2 MP ⚠️ | 0 | — | `Fallback.Stop` | sì |
+| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | ×2 del budget | 0 | 5 | `Fallback.Stop` | sì |
+| `Action.Withdraw` | Ripiegamento | **Movimento** | **Move** | 20 | 50 | ×0,25 del budget | 0 | — | `Fallback.Stop` | sì |
 
 > 🔄 **La riga di `Action.Sprint` stava in §2.2 fino al 2026-09-18**, dove dichiarava macro-fase `Dash` con
 > una ⚠️ che rimandava a D-116. La migrazione è stata eseguita il 2026-09-12 e la riga è tornata dove la sua
@@ -318,14 +324,17 @@ le mobilità rapide di §2.2, dove è stata fino al 2026-09-18. ⚠️ **Non è 
 > `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
 > `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera.
 >
-> ⚠️ **La ⚠️ sulla cella «Range» dice che quel numero è vivo nel codice e morto nel modello.** `8 MP` è
-> `Action.Sprint.RangeCells`, l'assoluto che il resolver del Dash leggeva. Il budget effettivo è ora un
-> **moltiplicatore** del budget dell'unità — `Sprint` **×2** — da
-> [D-412](../decisions/RT_PDR_00_Decision_Log.md), che nomina proprio queste righe fra gli assoluti che
-> sostituisce. La cella riporta l'assoluto perché è ciò che il C++ dichiara, e il confronto catalogo↔codice
-> misura quello; togliere il numero morto è lavoro di
-> [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198). ⚠️ **Vale per entrambe le
-> righe**: `Withdraw` è **×0,25**, cioè `1` per un eroe da 5, non i `2 MP` che `RangeCells` conserva.
+> ✅ **La colonna «Range» dichiara il MOLTIPLICATORE, non un assoluto, dal 2026-09-18**
+> ([D-427](../decisions/RT_PDR_00_Decision_Log.md), [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198)).
+> ⏱️ *Diceva `8 MP` e `2 MP`, con una ⚠️: erano gli assoluti che `Action.Sprint.RangeCells` e
+> `Action.Withdraw.RangeCells` portavano, superati da [D-412](../decisions/RT_PDR_00_Decision_Log.md) il
+> 2026-09-13 e rimasti come **seconda sede** per cinque giorni.* Oggi quei campi sono `0` nel C++ e il
+> budget si legge in un posto solo: il profilo, che lo ricava dal movimento dell'unità.
+>
+> 🔑 **Il numero effettivo dipende dall'eroe, e questa tabella non può dichiararlo**: `Sprint` ×2 vale
+> **10 · 10 · 8 · 12** sul roster spedito (`5 · 5 · 4 · 6`), `Withdraw` ×0,25 vale **1** per tutti. È la
+> ragione per cui la cella porta il moltiplicatore: un assoluto qui sarebbe vero per un eroe e falso per
+> gli altri tre.
 
 ### 2.2 Mobilità speciali — fase **Dash**
 
@@ -361,7 +370,7 @@ non cambia *che cosa* ha speso.
 >
 > La storia della sua cella «Slot» si legge ora accanto alla riga, in §2.1.
 
-**Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
+**Sprint** — fornisce il **doppio** del budget dell'unità (×2, [D-427](../decisions/RT_PDR_00_Decision_Log.md); `10 · 10 · 8 · 12` sul roster spedito, dove l'assoluto `8` dava lo stesso numero a tutti) · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
@@ -415,7 +424,7 @@ centro d'area, la stessa di `CircularAoE` · **raggio 1** come lei · conta come
 > **potenza** (12: meno di ogni altra offensiva che infligge danno, `MarkTarget` a parte, che ne dichiara 0
 > perché marchia e basta) e con l'**attesa** (cooldown 3, il più lungo di §3), non con l'avvicinamento.
 > ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`, `Hero.Aevik.Overload` e
-> `Hero.Muiren.CircularTide` restano `Required`.
+> `Hero.Muiren.CircularTide` restano `Required`. ⚠️ Per `CircularTide` la linea di tiro è dichiarata ma il Blast non la ricontrolla sul percorso delle cure, che controlla solo la portata dal centro ([#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598)).
 >
 > 🔑 **E il kit di Branth la porta a 3, non a 4 — una taratura d'eroe, con una misura dietro.** Branth
 > ingaggia a 3 (`ImpactShot`), e con un mortaio da 4 il bot smetteva di chiudere: misurato il 2026-09-10,
@@ -458,6 +467,12 @@ appena raggiunta.
 trigger valutato su un punto di passaggio della risoluzione); `Brace`, `Shield` e `Cleanse` sono azioni
 **Principali** che si dichiarano e basta, senza trigger. Stare nella stessa sezione del catalogo non le rende
 lo stesso tipo di cosa.
+
+🔴 **E `Action.Cleanse` — la Principale — non spedisce in v0.1.** Decisa fuori il **2026-08-30**
+da [D-264](../decisions/RT_PDR_00_Decision_Log.md) (`#1403`). La sua riga resta in tabella perché l'azione
+**esiste** nel catalogo core e i suoi numeri restano quelli: descrivono ciò che farebbe, non una capacità
+che un giocatore della v0.1 può usare. ⛔ **`Action.Purge` e il modulo `Reaction.Cleanse` sono un'altra
+cosa e restano in campo** — l'argomento sta sotto **Cleanse**, in fondo a questa sezione, e non si duplica qui.
 
 ⚠️ **E il punto di passaggio non è lo stesso per tutte.** Cinque si valutano dentro il Blast; `Evade` no —
 il suo trigger è la cella che diventa pericolosa, e quella nasce nel **Cleanup**
@@ -571,10 +586,17 @@ movimento volontario** dell'eroe.
 > **fallisce apposta** finché la variante non viene applicata. È anche la ragione per cui la seduta `U20`
 > non riesce a distinguere le due difese — non è presentazione e non sono i numeri.
 >
-> **Ciò che distingue le due sul colpo singolo resta il danno**: `Guard` −15 sul solo primo colpo,
-> `Brace` −10 su ogni colpo — cioè *primo colpo pesante* contro *colpi ripetuti*. Sul colpo singolo senza
-> `Weapon.Impact` `Guard` domina, ed è il trade-off pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
-> `Spec.Brace.BraceWinsOnSecondHit` (12 contro 17 su due colpi).
+> 🔴 **Ciò che distingue le due NON è più la forma, da [D-408] (2026-09-20): è la DIREZIONE.** Entrambe sono
+> ora riduzioni **per colpo** — `Guard` −15, `Brace` −10 — quindi sull'arco frontale `Guard` domina sempre, su
+> un colpo come su molti. Ciò che `Brace` ha e `Guard` no è l'**omnidirezionalità**: la Guardia non copre le
+> spalle ([D-206], `Spec.Facing.BackAttackIgnoresGuard`), il `Brace` sì.
+>
+> ⏱️ *Questa riga diceva: «`Guard` −15 sul solo primo colpo, `Brace` −10 su ogni colpo — cioè primo colpo
+> pesante contro colpi ripetuti … il trade-off pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
+> `Spec.Brace.BraceWinsOnSecondHit` (12 contro 17 su due colpi)».* ⚠️ **Quei due scenari sono ancora verdi ma
+> dicono l'opposto**: su due colpi frontali `DG` esce ora **illesa** e `DB` perde 7 — il `Brace` non vince più
+> sul secondo colpo, e il nome di quel file è diventato storico. 🔑 **È materia di `BAL-1`, che è APERTA**:
+> l'istruttoria è aggiornata in [`decisions/open/bal-1.md`](../decisions/open/bal-1.md).
 >
 > ✅ **Il confine fra le due è DECISO**: [D-121](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12) ha
 > chiuso `BAL-1` scegliendo lo **status quo** — nessuna separazione fra danno e spinta, nessuna magnitudine
@@ -609,6 +631,24 @@ di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nes
 > paga il cooldown ([D-200](../decisions/RT_PDR_00_Decision_Log.md)) e lascia una voce `NoEffect`. L'argomento sta in
 > [D-211](../decisions/RT_PDR_00_Decision_Log.md) e nella riga **78** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), e **non si
 > duplica qui**.
+>
+> 🔴 **E il 2026-08-30 la domanda è stata chiusa: l'attiva esce dalla v0.1**
+> ([D-264](../decisions/RT_PDR_00_Decision_Log.md), `#1403`). Il riquadro qui sopra descrive un **limite** di
+> un'azione che spedisce; `D-264` dice che quell'azione **non spedisce**, e che `PlannedCleansePriority`
+> **non si implementa** per tenerla in vita — il produttore che il riquadro dà per mancante non arriverà,
+> e la lista resta vuota **per decisione**, non in attesa di qualcuno.
+>
+> ⛔ **Il Cleanse REATTIVO resta, ed è il rischio di lettura della decisione**: `Reaction.Cleanse` (base
+> `Action.Purge`) è il modulo di reazione di default di `Hero.Branth`
+> ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e annulla **in arrivo** lo stato di controllo più grave fra quelli che sta
+> ricevendo. ⚠️ **Sono tre, non due**: `URTReactionLibrary::ControlStatusesBySeverity()` restituisce
+> `Stunned` · `Root` · `Slow`, da [D-416](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-14), che ha
+> fatto cadere il vecchio pin `Reaction.ControlStatusesAreTwo`. Lo pinna
+> `RefactorTactics.Equipment.Cleanse.CancelsControl`. ⚠️ **Non** i test `RefactorTactics.Reactions.Cleanse.*`,
+> che a dispetto del nome esercitano l'**attiva** (`AddCoreAbilityInSlot(..., "Action.Cleanse")`).
+>
+> Un Cleanse attivo può tornare **solo** con un ruolo tattico distinto e un contratto esplicito di UI e di
+> produttore — non come ripristino di ciò che è stato tolto.
 
 ---
 

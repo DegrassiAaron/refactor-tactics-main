@@ -142,35 +142,47 @@ bool FRTBasicAttackBandTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardFirstHitOnlyTest,
-	"RefactorTactics.Actions.Guard.FirstHitOnly",
+	"RefactorTactics.Actions.Guard.ReducesEveryFrontalHit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD. La guardia vale sul PRIMO danno diretto: il secondo colpo dello stesso turno
-	// arriva intero. Passa dalla stessa funzione di `Status.Exposed` (CP 4.2), che applica i delta validi una
-	// volta sola per bersaglio — quindi la regola resta ordine-indipendente.
-	TArray<int32> Delta;
-	Delta.Init(0, 2);
-	Delta[1] = -URTCombatLibrary::GuardFirstHitReduction;
+	// ⏱️ **Questo test si chiamava `Actions.Guard.FirstHitOnly` e misurava `ApplyFirstHitDelta`** — cioe' una
+	// funzione che la Guardia non usa **dal 2026-08-31**, quando [D-292] la rese un pool. Il nome e il suo
+	// commento — *«la guardia vale sul PRIMO danno diretto»* — erano falsi da allora, e il test restava verde
+	// perche' esercitava il percorso sbagliato. [D-408] cambia di nuovo il modello, e l'occasione serve a
+	// riallinearlo a cio' che il resolver fa davvero.
+	//
+	// 🔑 **Oggi la Guardia riduce OGNI colpo valido dell'arco frontale**, del valore che il personaggio
+	// dichiara, e passa da `ApplyEligibleHitDelta`.
+	TArray<int32> Riduzione;
+	Riduzione.Init(0, 2);
+	Riduzione[1] = -URTCombatLibrary::GuardFirstHitReduction;   // il default di catalogo
+	const TArray<bool> Eleggibili = { true, true };
 
-	const TArray<FRTAttack> Attacks = { FRTAttack(1, 30), FRTAttack(1, 30) };
-	const TArray<FRTAttack> Guarded = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
+	const TArray<FRTAttack> Colpi = { FRTAttack(1, 30, 0), FRTAttack(1, 30, 2) };
+	const TArray<FRTAttack> Guardati = URTCombatResolver::ApplyEligibleHitDelta(
+		Colpi, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource);
 
-	if (!TestEqual(TEXT("due colpi restano due"), Guarded.Num(), 2)) { return false; }
-	TestEqual(TEXT("il primo colpo e' ridotto di 15"), Guarded[0].Power, 15);
-	TestEqual(TEXT("il secondo arriva intero: la guardia vale una volta"), Guarded[1].Power, 30);
+	if (!TestEqual(TEXT("due colpi restano due"), Guardati.Num(), 2)) { return false; }
+	TestEqual(TEXT("il primo colpo e' ridotto di 15"), Guardati[0].Power, 15);
+	// 🔴 La riga che il nome vecchio negava: **anche il secondo**.
+	TestEqual(TEXT("e anche il secondo: la Guardia non vale una volta sola"), Guardati[1].Power, 15);
 
 	// Un colpo piu' debole della riduzione viene annullato, non trasformato in cura.
-	const TArray<FRTAttack> Small = URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 10) }, Delta);
-	TestEqual(TEXT("un colpo da 10 viene azzerato"), Small[0].Power, 0);
+	const TArray<FRTAttack> Piccolo = URTCombatResolver::ApplyEligibleHitDelta(
+		{ FRTAttack(1, 10, 0) }, Riduzione, { true }, URTCombatLibrary::GuardPerHitSource);
+	TestEqual(TEXT("un colpo da 10 viene azzerato, non curato"), Piccolo[0].Power, 0);
 
-	// Guardia ED esposizione insieme: i due delta si cumulano (+5 -15 = -10), esito prevedibile di aver fatto
-	// entrambe le cose nello stesso turno.
-	TArray<int32> Both;
-	Both.Init(0, 2);
-	Both[1] = URTCombatLibrary::ExposedFirstHitBonus - URTCombatLibrary::GuardFirstHitReduction;
-	const TArray<FRTAttack> Mixed = URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 30) }, Both);
-	TestEqual(TEXT("esposto e in guardia: 30 + 5 - 15"), Mixed[0].Power, 20);
+	// ⚠️ Guardia ED esposizione insieme **non si cumulano piu' in un delta solo**, e non e' una perdita di
+	// copertura: i due passano ora da funzioni diverse — `Status.Exposed` resta un delta di PRIMO colpo
+	// ([D-292] non l'ha toccato), la Guardia e' per-colpo. Si compongono in sequenza, come nel resolver.
+	TArray<int32> Esposto;
+	Esposto.Init(0, 2);
+	Esposto[1] = URTCombatLibrary::ExposedFirstHitBonus;
+	const TArray<FRTAttack> Entrambi = URTCombatResolver::ApplyEligibleHitDelta(
+		URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 30, 0) }, Esposto),
+		Riduzione, { true }, URTCombatLibrary::GuardPerHitSource);
+	TestEqual(TEXT("esposto e in guardia: 30 + 5 - 15"), Entrambi[0].Power, 20);
 
 	// L'azione che lo produce e' dati: Guard dichiara lo stato, non un numero nell'orchestratore.
 	const FRTActionDef Guard = CoreActionDef(TEXT("Action.Guard"));

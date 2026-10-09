@@ -59,6 +59,12 @@ private:
 	 */
 	FReply OnEsegui();
 
+	/**
+	 * Salva la fixture e chiede PIE su `L_DevSandbox` (spec §2). Il modello prepara, il lanciatore lancia:
+	 * qui si riferisce il gesto e si mostra l'esito.
+	 */
+	FReply OnEseguiInPie();
+
 	FText TestoIdentita() const;
 	FText TestoParametri() const;
 	FText TestoEsito() const;
@@ -72,4 +78,7 @@ private:
 
 	/** L'ultimo errore di costruzione o esecuzione, per mostrarlo invece di lasciare il pannello muto. */
 	FString UltimoErrore;
+
+	// ⚠️ Lo stato dell'ultimo lancio in PIE **non e' un campo del widget**: vive in `FRTLabViewModel`
+	// (`LaunchedScenarioId`, `WasLaunchFinished`), che lo azzera a fine PIE e a ogni gesto (#3542).
 };

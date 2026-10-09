@@ -18,11 +18,17 @@ namespace RTScenarioStateDiff
 	REFACTORTACTICS_API TArray<FRTUnitStateDigest> Snapshot(
 		const TMap<FString, TWeakObjectPtr<ARTUnit>>& UnitsById);
 
-	/** Il diff fra due elenchi: campi cambiati, comparse e sparizioni, in ordine di `UnitId`. */
+	/**
+	 * Il diff fra due elenchi: campi cambiati, comparse e sparizioni, in ordine di `UnitId`.
+	 *
+	 * ⚠️ **Vuoto** se in uno dei due elenchi un `UnitId` e' 0 (non assegnato) o ripetuto — `#3474`: si
+	 * accoppia per id, e un id che non identifica nessuno attribuirebbe a un'unita' i campi di un'altra.
+	 */
 	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
 		const TArray<FRTUnitStateDigest>& After);
 }
 #include "Ability/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
+#include "Templates/SubclassOf.h"         // HeroUnitClasses (#3586)
 
 class UWorld;
 class ARTUnit;
@@ -93,8 +99,19 @@ public:
 	 *
 	 * @return false se lo scenario non e' eseguibile — l'esito e' gia' un `Error` con il motivo in
 	 *         `GetResult()`. Non lancia mai: un harness che crasha non sa dire perche'.
+	 *
+	 * @param HeroUnitClasses la classe visiva per `HeroId` (`#3586`): quella con la mesh dell'eroe dove il
+	 *        chiamante la fornisce, il cilindro `ARTUnit` altrimenti — la regola della partita,
+	 *        `RTUnitClassForHero`. 🔑 La fornisce il GameMode, attraverso `FRTScenarioCoordinator`: in PIE uno
+	 *        scenario `Visual.*` deve mostrare le clip sul personaggio. ⛔ L'automation headless passa la mappa
+	 *        vuota e resta sul cilindro, piu' rapido e indipendente da `Content/FabAsset/`, che manca nei
+	 *        worktree. ⚠️ Si usa durante `Start` e non si conserva: un Blueprint ricompilato in PIE non lascia
+	 *        alla sessione un puntatore a una classe vecchia.
+	 *        La classe decide la RESA: nell'ordine canonico delle unita' il nome dell'Actor e' solo l'ultimo
+	 *        spareggio, dopo squadra e cella, e due unita' di scenario non condividono una cella.
 	 */
-	bool Start(UWorld* World, const FRTTestScenario& Scenario);
+	bool Start(UWorld* World, const FRTTestScenario& Scenario,
+		const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses = TMap<FName, TSubclassOf<ARTUnit>>());
 
 	/**
 	 * Avanza di un passo.
@@ -218,6 +235,31 @@ private:
 	/** Azzera i piani, calcola l'hash dello stato e valuta le assertion. */
 	void Finish();
 
+	/**
+	 * Valuta UNA assertion sullo stato del mondo **in questo istante**.
+	 *
+	 * Estratta da `Finish()` quando le assertion hanno smesso di avere un solo momento (`#2867`).
+	 */
+	FRTAssertionResult EvaluateExpectation(const FRTTestExpectation& Exp);
+
+	/** Una macro-fase si e' chiusa: valuta le assertion che dichiarano quel confine. Vedi `#2867`. */
+	void OnResolutionPhaseClosed(ERTMatchPhase Closed);
+
+	/** Scioglie le PROPRIE iscrizioni ai confini. Incondizionata: ognuno scioglie solo la sua. */
+	void UnbindResolutionObservers();
+
+	/** Una voce e' entrata nel TurnLog: valuta le assertion il cui `afterEvent` la seleziona. */
+	void OnResolutionLogEntry(const FRTTurnLogEntry& Entry);
+
+	/** La voce soddisfa il selettore semantico? Confronto per CRITERI dichiarati, mai per posizione. */
+	bool EventMatchesSelector(const FRTScenarioEventSelector& Selector, const FRTTurnLogEntry& Entry) const;
+
+	/** Il confine dichiarato da un'assertion, in parole: `BlastEnded`, `afterEvent(Combat/Hit)`. */
+	static FString DescribeCheckpoint(const FRTTestExpectation& Exp);
+
+	/** Il nome del tipo di assertion, per i referti che non passano da `EvaluateExpectation`. */
+	static FString DescribeExpectationKind(const FRTTestExpectation& Exp);
+
 	EState State = EState::NotStarted;
 	FRTTestScenario Scenario;
 	FRTTestResult Result;
@@ -228,12 +270,17 @@ private:
 	TMap<FString, TWeakObjectPtr<ARTUnit>> UnitsById;
 
 	/**
-	 * Lo stato delle unita' COME ERANO all'avvio, per il diff di `#1630`.
+	 * Lo stato delle unita' COME ERANO prima del primo turno, per il diff di `#1630`.
 	 *
-	 * ⚠️ Si cattura alla fine di `Start()`, quando l'allestimento e' finito e nessun turno e' ancora
-	 * girato: un istante prima le unita' non esistono, uno dopo il primo turno le ha gia' toccate.
+	 * ⚠️ **Si cattura al primo `PlanningLocked`, non in `Start()`** — `#3474`. Il diff accoppia per
+	 * `StableUnitId`, che l'harness assegna solo al lock-in (`EnsureMatchRoster`): fotografato in `Start()`, il
+	 * «prima» portava `0` per tutti e nessuna unita' si accoppiava. Al primo `PlanningLocked` le identita' ci
+	 * sono e nessuna fase ha ancora risolto — il turn manager annuncia quel confine prima di qualunque `Resolve*`.
 	 */
 	TArray<FRTUnitStateDigest> InitialUnitStates;
+
+	/** Se `InitialUnitStates` e' stato catturato. Senza, il diff resta vuoto: non c'e' un «prima» da confrontare. */
+	bool bInitialUnitStatesCaptured = false;
 
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
@@ -323,6 +370,34 @@ private:
 	 */
 	TArray<FRTTurnLogEntry> ScenarioLog;
 
-	/** Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito. */
+	/**
+	 * Gli INDICI di `Scenario.Expect` il cui confine e' gia' passato, con l'assertion gia' valutata.
+	 *
+	 * 🔑 **Serve a distinguere «valutata e caduta» da «mai misurata»**, che sono due referti diversi e che
+	 * senza questo insieme si confonderebbero in un silenzio. A fine scenario `Finish()` scorre cio' che NON
+	 * e' qui dentro e lo dichiara `FAIL` nominando il confine mai raggiunto: un'assertion che non e' stata
+	 * misurata non e' un'assertion passata.
+	 *
+	 * ⚠️ Indici e non puntatori: `Scenario.Expect` non cambia durante una corsa, e un indice sopravvive alla
+	 * copia del referto.
+	 */
+	TSet<int32> FiredCheckpoints;
+
+	/**
+	 * Le iscrizioni ai confini di risoluzione, per poterle sciogliere.
+	 *
+	 * ⛔ **Si sciolgono in `TearDown`, sempre**: la sessione muore prima del `TurnManager`, e un delegate
+	 * ancora agganciato chiamerebbe su un oggetto distrutto — la stessa ragione per cui `UnbindOwnDecider`
+	 * esiste, e lo stesso rigore.
+	 */
+	FDelegateHandle PhaseClosedHandle;
+	FDelegateHandle LogEntryHandle;
+
+	/**
+	 * Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito.
+	 *
+	 * ⚠️ Non conta i passi in cui il playback e' FERMO per chi guarda (`IsPlaybackPaused`) — `#3488`: un
+	 * turno guardato passo per passo non e' un turno appeso.
+	 */
 	int32 ResolveTicks = 0;
 };

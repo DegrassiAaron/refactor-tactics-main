@@ -428,7 +428,7 @@ Baseline **3v3 Standard**:
 
 | Tempo | Cos'è | Ordine di grandezza oggi |
 |---|---|---|
-| **Simulation Time** | Il resolver calcola il round | **0,41 ms/round** misurato (`Perf.TurnResolverMedian`, 2026-08-06) |
+| **Simulation Time** | Il resolver calcola il round | **0,41 ms/round** misurato (`Perf.TurnResolverMedian`, 2026-08-06) ⏬ **Superato da una SERIE datata, il 2026-09-30** ([#3413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3413)): la §4 della DoD porta **4,149** ms (6 run, 2026-08-13/14) · **8,599** (3 run, 2026-09-20) · **11,917** (3 run, 2026-09-30), con `Path` come controllo nelle stesse esecuzioni. 🔴 **E lo `0,41` qui sopra sta DIECI VOLTE sotto il primo gruppo della serie**, a una settimana di distanza. ⛔ **Non l'ho spiegato e non lo cancello**: o il fixture del 2026-08-06 non era quello di oggi, o qualcosa è cambiato in quella settimana. Finché non è misurato, questo numero non è un riferimento per nessuna misura né per nessun budget che lo citi. ⚠️ **E la riga della DoD misura più del resolver**: col playback spento il cronometro include la pianificazione bot del turno successivo, e la sede lo dichiara — vedi la cella della §4. |
 | **Presentation Time** | Il playback riproduce ciò che è già stato deciso | secondi (§9) |
 | **Decision Time** | Attesa reale di un input umano: planning e Fast Reaction | secondi (§7, §8) |
 | **Wall-clock Match Time** | Quanto dura la partita per chi la gioca | minuti (§5) |
@@ -775,7 +775,7 @@ difetto che `#507` ha già pagato una volta su quella stessa riga.
 | Assegnazione all'allestimento | `ARTGameMode::AssignUnitControlGroups()`, in coda ad `AssignSeats()` |
 | Il gruppo della persona | `ARTPlayerState::ControlGroup`, `Arrival / 2` — i posti si assegnano alternati |
 | Il gruppo dell'unità | `ARTUnit::ControlGroup` |
-| I due consumatori | le guardie di comando in `ARTPlayerController::HandleClick` |
+| I consumatori | le guardie di comando di `ARTPlayerController` — `CycleSelection`, `OnSelect` e `DispatchUnitClick`; si rileggono con `git grep -n CanPlayerControlUnitInGroup -- Source/RefactorTactics/Player/`. ⚠️ **Qui c'era `ARTPlayerController::HandleClick`, che non è mai esistito**, e un «due» che il terzo sito avrebbe smentito da solo |
 | Il test | `RefactorTactics.Combat.ControlGroupPartitionsTheTeam` |
 
 ⚠️ **Nella v0.1 la regola non cambia alcun esito**, e questo è il punto delicato: un giocatore per squadra
@@ -789,7 +789,7 @@ quella vecchia** su ogni combinazione di squadre; i default di entrambi i campi 
 decide *chi comanda* un'unità: farlo dipendere dall'ordine di registrazione degli Actor renderebbe la
 partizione diversa a ogni avvio.
 
-**Lavoro tracciato**: E19 · CP 19.3, feature `RT-FEAT-MATCH-FORMAT`. Il consolidamento che ha prodotto questa
+**Lavoro tracciato**: E19 · CP 19.3 ([#1124](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1124), chiusa il 2026-09-02). *(La feature `RT-FEAT-MATCH-FORMAT` che questa riga citava era l'indirizzo del registro uscito con [D-181](../decisions/RT_PDR_00_Decision_Log.md); cade l'indirizzo, non il lavoro.)* Il consolidamento che ha prodotto questa
 sezione è nello [spec panel del 2026-08-17](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §3 F1.
 
 ---

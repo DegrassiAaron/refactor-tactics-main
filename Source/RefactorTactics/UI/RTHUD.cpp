@@ -56,6 +56,16 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
+FVector2D ARTHUD::ComposeIntentLabelPlacement(const FVector2D& HeadScreen, float LabelWidth,
+	float BarWidth, const FVector2D& Viewport)
+{
+	// `IntentLabelAbove` compare due volte in QUESTE tre righe, ed e' la ragione per cui la funzione
+	// esiste: chiedere una banda e risalire di uno scarto diverso e' il difetto di #729 riaperto.
+	const FVector2D Anchor = ClampOverlayAnchor(HeadScreen, FMath::Max(BarWidth, LabelWidth) * 0.5f,
+		/*AboveAnchor=*/ IntentLabelAbove, /*BelowAnchor=*/ 0.f, Viewport, /*Margin=*/ 4.f);
+	return FVector2D(Anchor.X - LabelWidth * 0.5f, Anchor.Y - IntentLabelAbove);
+}
+
 void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange,
 	const FRTLineOfSightResult& Los, const FRTCellId& From, const FRTCellId& To)
 {
@@ -158,6 +168,31 @@ FString ARTHUD::CurrentRefusalText() const
 	return RefusalText(LastRefusal, LastRefusalRange);
 }
 
+FRTRefusedShotLine ARTHUD::CurrentRefusedShotLine() const
+{
+	// ⛔ **FAIL-CLOSED senza `ARTTurnManager`.** Senza di lui non esiste un insieme di celle note ma un
+	// insieme VUOTO, e con un insieme vuoto `ComputeRefusedShotLine` non disegna: e' la risposta giusta, non
+	// un caso degenere. Affermare una geometria che nessuna conoscenza sostiene sarebbe il difetto.
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (TurnManager == nullptr)
+	{
+		return FRTRefusedShotLine();
+	}
+
+	// ⛔ **La conoscenza si legge QUI e per la PROPRIA squadra.** `KnowledgeForTeamPublic` e' un canale non
+	// filtrato — il suo commento avverte che un chiamante potrebbe leggere quella dell'avversario — quindi
+	// l'argomento viene dalla porta unica di [D-242] e non da un parametro che qualcuno, un giorno,
+	// riempirebbe con l'`1`.
+	const FRTTeamKnowledge Conoscenza =
+		TurnManager->KnowledgeForTeamPublic(ARTPlayerState::TeamIdOf(GetOwningPlayerController()));
+	TSet<FRTCellId> Conosciute;
+	Conosciute.Append(Conoscenza.VisibleCells);
+	Conosciute.Append(Conoscenza.ExploredCells); // il ricordo basta: la geometria non si muove
+
+	return ComputeRefusedShotLine(LastRefusal, LastRefusalLos, LastRefusalFrom, LastRefusalTo, Conosciute);
+}
+
 void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 	TSet<FRTCellId>& OutBlockerCells)
 {
@@ -250,8 +285,12 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 		}
 
 		// Le stesse celle che decideranno l'esito: `HexHitCells` e' la funzione del resolver, non una copia.
-		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(
-			Ability->Shape, Attacker->Cell, Target->Cell, Ability->RangeCells, Ability->AreaRadius);
+		//
+		// [D-464]: e partono da dove l'azione MIRA. ⏱️ *Fino a #3509 da `Attacker->Cell`*: con uno scatto e poi una
+		// `Line`, i segni sulle unita' cadevano su una retta diversa da quella che l'area colpita disegnava.
+		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape,
+			Attacker->AimOriginFor(Ability->Def.ResolutionPhase), Target->Cell, Ability->RangeCells,
+			Ability->AreaRadius);
 		OutHitCells.Append(TSet<FRTCellId>(Hit));
 
 		// Fuoco amico solo se l'azione puo' DAVVERO colpire i propri: segnalare un alleato che non subirebbe
@@ -499,6 +538,34 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	return Style;
 }
 
+TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeCountedDashSegments(const FVector2D& A,
+	const FVector2D& B, int32 Spans)
+{
+	TArray<TPair<FVector2D, FVector2D>> Segmenti;
+
+	// ⛔ Nessun tetto come in `ComposeDashSegments`: li' il conteggio nasce da una lunghezza proiettata e
+	// puo' esplodere, qui lo sceglie il chiamante con una costante.
+	//
+	// ⚠️ **La guardia protegge `Reserve`, NON il ciclo** — e la distinzione e' stata verificata, non
+	// supposta: con `Spans == 0` il ciclo non parte comunque (`0 < 0` e' falso), e lo stesso con un
+	// valore negativo. Cio' che romperebbe e' `Reserve((Spans + 1) / 2)`, che con `Spans = -3` chiede
+	// **-1**. Scritta come «altrimenti il ciclo non terminerebbe» sarebbe una giustificazione falsa per
+	// una riga giusta, ed e' il modo in cui una guardia sopravvive a una revisione senza meritarlo.
+	if (Spans <= 0)
+	{
+		return Segmenti;
+	}
+
+	Segmenti.Reserve((Spans + 1) / 2);
+	for (int32 I = 0; I < Spans; I += 2)
+	{
+		Segmenti.Emplace(FMath::Lerp(A, B, static_cast<float>(I) / Spans),
+			FMath::Lerp(A, B, static_cast<float>(I + 1) / Spans));
+	}
+
+	return Segmenti;
+}
+
 TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
 	float DutyCycle, float PeriodPx)
 {
@@ -628,8 +695,17 @@ namespace
 	 * risulta senza voce, quindi non `Live`, quindi spento. E' il verso giusto — in assenza di conoscenza
 	 * non si mostra un avversario — ed e' cio' che `Veil.EnemyWithoutViewIsHidden` misura.
 	 *
-	 * ⚠️ `bAlive` entra fra i soggetti e non filtra: e' `ViewForTeam` a decidere cosa farne, e togliere qui
-	 * i caduti significherebbe prendere quella decisione due volte.
+	 * ⚠️ `bAlive` entra fra i soggetti e non filtra **qui**: e' `ViewForTeam` a decidere cosa farne, e la
+	 * sua guardia `if (!S.bAlive)` **precede** la biforcazione di squadra, quindi vale per entrambe.
+	 *
+	 * ⌫ **Fino al 2026-09-21 questa riga chiudeva con «togliere qui i caduti significherebbe prendere quella
+	 * decisione due volte». La lettera reggeva, il CONTO no** (`#3253`): la decisione e' gia' presa due
+	 * volte, e filtrare anche qui sarebbe la **terza**. Il motivo per non farlo resta, ed e' quello.
+	 *
+	 * 🔴 **E la sede vera non e' nessuna delle due.** Un cadavere lascia lo schermo per
+	 * `ARTUnit::HideForDefeat()`, non per una guardia di conoscenza. Le tre guardie dichiarative, cosa
+	 * governa ciascuna e cosa succede a toglierle stanno in **[D-431]**, che e' la decisione — qui non si
+	 * ripetono, o il commento tornerebbe a essere la sede che [D-431] gli ha appena tolto.
 	 */
 	FRTKnowledgeView UvViewForObserver(const ARTTurnManager* TurnManager,
 		const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
@@ -647,15 +723,37 @@ namespace
 			FRTKnowledgeSubject S;
 			S.StableUnitId = U->StableUnitId;
 			S.TeamId = U->TeamId;
-			S.Cell = U->Cell;
+			// 🔑 **La cella ANIMATA quando ce n'e' una** (`#3458`): durante il playback `U->Cell` e' gia'
+			// la destinazione -- la simulazione ha risolto -- quindi giudicare la visibilita' su quella
+			// risponde alla domanda di fine turno mentre a schermo l'unita' e' ancora a meta' strada.
+			// `AnimatedCellFor` risponde `false` fuori dal playback, e allora vale `U->Cell`.
+			if (!TurnManager->AnimatedCellFor(U, S.Cell))
+			{
+				S.Cell = U->Cell;
+			}
 			S.HeroId = U->HeroId;
 			S.HeroDisplayName = U->HeroDisplayName;
 			S.bAlive = U->IsAlive();
 			Subjects.Add(S);
 		}
 
+		// 🔑 **`PlaybackKnowledgeForTeam` e non `KnowledgeForTeamPublic`** (`#3458`), ed e' lo stesso
+		// cambio che `#2876` aveva fatto per il velo delle CELLE senza estenderlo alle UNITA'. La canonica
+		// non avanza col micro-step: `RefreshTeamKnowledgeForPlanning` ricalcola una LOS fresca dalle
+		// posizioni correnti (`RTTurnManager.cpp:786`) e gira da `PlanBots()`, cioe' alla pianificazione
+		// SUCCESSIVA. ∴ un nemico entrato in vista a meta' percorso diventava `Live` solo al rinfresco, e
+		// tutti insieme comparivano a fine movimento -- che e' il difetto osservato nella seduta `U60`.
+		//
+		// ⚠️ **Nessun ramo `if (sta in playback)`**: `PlaybackKnowledgeForTeam` ripiega **da se'** sulla
+		// canonica fuori dal playback (`RTTurnManager.cpp:6608`). Un ramo qui sarebbe una seconda copia di
+		// quella decisione, e le due divergerebbero.
+		//
+		// ⛔ **E non e' un leak**: la conoscenza chiesta e' quella di `PlayerTeamId` -- la stessa porta per
+		// squadra che il velo usa dal `#2876` -- e il transito avversario e' troncato a monte da [D-223].
+		// Cio' che si mostra resta cio' che la squadra osservatrice sa in quell'istante, che e' piu' stretto
+		// di cio' che mostrava prima, non piu' largo.
 		return URTKnowledgeViewLibrary::ViewForTeam(
-			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
+			TurnManager->PlaybackKnowledgeForTeam(PlayerTeamId), Subjects, PlayerTeamId);
 	}
 }
 
@@ -696,6 +794,22 @@ void ARTHUD::UpdateObserverVeil()
 	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
 	TArray<AActor*> Actors;
+	// ⛔ **Non passa dal confine di [#1500], e non e' un'eccezione tollerata: e' il PRODUTTORE della porta.**
+	// Le unita' grezze servono qui per costruire i `FRTKnowledgeSubject` (`:682-686`) che `ViewForTeam`
+	// (`:691-692`) trasforma nella vista da cui tutto il resto della presentazione legge. Farla passare da
+	// `FRTKnowledgeView` sarebbe circolare: la vista non esiste finche' questa funzione non la fabbrica.
+	//
+	// 🔑 E c'e' una seconda ragione, indipendente e non aggirabile da nessun DTO: questo lettore **SCRIVE**
+	// sugli Actor — `SetKnownToObserver` (`:794`), `UpdateContactGhost` (`:805`), `HideContactGhost` (`:811`),
+	// `GetOverlayWidgetObject` (`:824`). `FRTKnowledgeEntry` porta `StableUnitId`, `TeamId`, `Visibility`,
+	// `Cell`, `HeroId`, `HeroDisplayName` e `ContactTurn` (`Perception/RTKnowledgeView.h:57-104`), e nessun
+	// puntatore ad Actor: anche volendo girare la vista, servirebbe comunque una mappa
+	// `StableUnitId -> ARTUnit*`, cioe' di nuovo questo roster.
+	//
+	// ⚠️ **Il vincolo che resta**: da qui in giu' si lavora sulla VISTA, mai sui campi dell'unita'. Cio' che
+	// questa funzione ha diritto di leggere dagli Actor sono i cinque campi di identita' e la cella che
+	// alimentano il soggetto — non il piano, non la condizione. Un campo in piu' letto qui e' un campo in piu'
+	// che nessun osservatore ha autorizzato.
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Units;
@@ -745,6 +859,10 @@ void ARTHUD::UpdateObserverVeil()
 		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
 		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
 		// decidono da `bIsOwnTeam` prima di guardare `Entry`.
+		//
+		// 🔑 **Ed e' QUESTA riga, non quelle due, a staccare la propria squadra dalla vista** (`#3253`):
+		// con `Entry` forzata a `nullptr` l'argomento regge anche se un domani `ShouldDrawUnitOverlay`
+		// cominciasse a leggere `Entry`. La sede della regola «un morto non si disegna» sta in [D-431].
 		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
 		const FRTKnowledgeEntry* Entry = bIsOwnTeam
 			? nullptr
@@ -813,6 +931,24 @@ void ARTHUD::DrawHUD()
 	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
 	TArray<AActor*> Actors;
+	// ✅ **Passa gia' dal confine di [#1500], ed e' il caso piu' pulito dei quattro.** Questo array non e' un
+	// roster: e' tubatura. `Actors` compare in tutto `DrawHUD` (`:835`-`:1350`) in tre sole righe — la
+	// dichiarazione (`:853`), questa raccolta, e l'unico consumatore a `:952`, `BuildAuthoritativeIntents`. Da
+	// li' in giu' si lavora su `FRTPlannedIntent` e poi su `FRTIntentView`, dopo `FilterForTeam`. Nessun campo
+	// di `ARTUnit` viene letto da questo array: l'unico che la funzione legge e' `Selezionata->Cell` (`:1033`),
+	// e viene da `PC->GetSelectedUnit()` (`:1031`), cioe' da un'altra porta.
+	//
+	// ⚠️ **Se un giorno si vorra' sostituire questa raccolta con un gesto unico** — un
+	// `GatherAuthoritativeIntents(World)` che faccia il giro al posto di qui e di `rt.Debug.DrawIntent`, che e'
+	// la stessa sequenza — deve restituire `FRTPlannedIntent` e **non** `FRTIntentView` gia' filtrata. Il ramo
+	// non presidiato di `ComposeVisibleIntentViews` chiama `FilterForTeam(Intent.TeamId, { Intent })` una
+	// volta per UNITA', e ha bisogno del `TeamId` autorevole di ciascun intento; la stessa funzione spiega
+	// perche' due chiamate sull'insieme intero produrrebbero doppioni. Un confine che consegnasse solo viste
+	// gia' filtrate toglierebbe l'ingresso a quel ramo.
+	//
+	// ⌫ **I numeri di riga che questa nota portava sono stati tolti, non aggiornati.** Indicavano il ramo
+	// dentro `DrawHUD`, e `#2184` lo ha spostato in una funzione: un puntatore a riga invecchia a ogni
+	// modifica del file sopra di se', mentre un nome regge finche' la funzione esiste.
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	// ⚠️ **`ComputePlannedHitMarks` non si chiama piu' QUI** (`#2288`): il suo unico consumatore era il nome
@@ -840,14 +976,12 @@ void ARTHUD::DrawHUD()
 	// della cella, altezza del layer), quindi ogni conversione cella -> schermo di questa HUD nasce da qui.
 	// Unificare i due meccanismi non e' compito di questa riga — ma nominarli entrambi si', perche' chi
 	// cercasse «dove si prende la mappa» seguendo la vecchia frase ne troverebbe uno solo.
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 150.f;
-	float LayerH = 250.f;
-	const URTHexMapAsset* Map = nullptr;
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
-	{
-		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
-	}
+	// I tre ripieghi vivono in `ComposeHexGeometry` (#2184); le locali restano per i venti siti sotto.
+	const FRTHudHexGeometry Geo = ComposeHexGeometry(ARTHexMapActor::FindInWorld(GetWorld()));
+	const FVector Origin = Geo.Origin;
+	const float HexSize = Geo.HexSize;
+	const float LayerH = Geo.LayerH;
+	const URTHexMapAsset* Map = Geo.Map;
 
 	// 🔴 **Il ciclo che disegnava la sovrapposizione dell'unita' e' stato RIMOSSO** (`#2288`, `D-320`):
 	// nome, barra HP, scudo e il marker di stato ora vivono in un `UWidgetComponent` per unita'
@@ -862,7 +996,8 @@ void ARTHUD::DrawHUD()
 	// pannello degli intenti piu' sotto, quindi la funzione e i suoi test **non** vanno via con questo blocco.
 
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	// ⛔ `Geo.bFromWorld` e' una CORREZIONE, e non puo' essere `if (Map)`: vedi `FRTHudHexGeometry`.
+	if (Geo.bFromWorld && TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
 		// Il filtro di conoscenza di [D-223], e **non si decide qui**: la rotta porta gia' un verdetto per
 		// cella, congelato quando e' stata percorsa. Questo ciclo consuma e non costruisce nulla — niente
@@ -919,11 +1054,17 @@ void ARTHUD::DrawHUD()
 		// squadre sono bot: chi guarda non gioca in nessuna delle due, e con l'osservatore di sempre vedrebbe
 		// i piani di una squadra sola — meta' della partita che e' venuto a guardare.
 		//
-		// 🔑 **`FilterForTeam` non si tocca, e viene chiamata DUE VOLTE.** La regola resta quella di sempre —
-		// intenti alleati sempre, avversari solo se `bRevealed` — e ciascuna delle due chiamate e' legittima
-		// presa da sola. Lo spettatore vede tutto perche' ha fatto due domande a cui il filtro risponde di
-		// si', non perche' una guardia si sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un
-		// DATO, e il dato e' `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
+		// 🔑 **`FilterForTeam` non si tocca.** La regola resta quella di sempre — intenti alleati sempre,
+		// avversari solo se `bRevealed` — e ogni chiamata e' legittima presa da sola. Lo spettatore vede
+		// tutto perche' si fanno piu' domande a cui il filtro risponde di si', non perche' una guardia si
+		// sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un DATO, e il dato e'
+		// `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
+		//
+		// ⌫ **Questa riga diceva «chiamata DUE VOLTE», e non e' mai stata vera.** Non descriveva una stesura
+		// precedente, come la prima correzione aveva supposto: `git show b9f53bc1` — `feat(2386)`, che ha
+		// introdotto il ramo non presidiato — aggiunge nello STESSO diff sia quel commento sia il ciclo per
+		// unita', sostituendo un'unica `FilterForTeam(PlayerTeamId, Authoritative)`. Due chiamate non ci sono
+		// mai state, e il commento si contraddiceva col suo stesso ramo. Corretto il 2026-09-24.
 		//
 		// ⛔ **E `ARTPlayerState::TeamIdOf` resta l'UNICA porta** per la domanda «di chi e' la vista?». Un
 		// `bIsSpectator` che `FilterForTeam` onorasse avrebbe aggiunto una seconda risposta a quella domanda,
@@ -933,30 +1074,12 @@ void ARTHUD::DrawHUD()
 		// ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di
 		// entrambe le squadre e' un client che li POSSIEDE, ed e' la stessa avvertenza gia' scritta per
 		// `rt.Debug.DrawIntent`: la' dovra' essere lato server, o non esistere.
-		TArray<FRTIntentView> Views;
-		if (TurnManager->IsUnattendedSession())
-		{
-			// ⚠️ **Una domanda per UNITA', non due per squadra**, e la differenza non e' stilistica: due
-			// `FilterForTeam` sull'insieme intero produrrebbero DOPPIONI. Il filtro concede all'osservatore
-			// gli alleati *e* gli avversari `bRevealed` — lo dice il suo test
-			// `IntentViewSkipsDeadAndKeepsOrder`, dove l'osservatore `0` riceve **tre** viste su due alleate
-			// e un nemico rivelato — quindi un'unita' rivelata comparirebbe in entrambe le risposte e
-			// verrebbe disegnata due volte.
-			//
-			// 🔑 Chiedendo la vista dalla prospettiva della squadra CHE POSSIEDE l'unita', ogni unita'
-			// compare **una volta sola** e nella sua forma piena: e' la vista alleata, quella che porta anche
-			// la reazione e i waypoint, cioe' cio' che uno spettatore autorizzato deve vedere. L'ordine
-			// d'ingresso si conserva, che e' la proprieta' che quel test protegge.
-			Views.Reserve(Authoritative.Num());
-			for (const FRTPlannedIntent& Intent : Authoritative)
-			{
-				Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
-			}
-		}
-		else
-		{
-			Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
-		}
+		//
+		// 🔑 **La prospettiva da cui si chiede e' una decisione, e ora vive dove un test la raggiunge**
+		// (#2184): `ComposeVisibleIntentViews` e' pura, e i suoi due rami — con la reticenza dei doppioni —
+		// sono pinnati da `RefactorTactics.HUD.VisibleIntentViews*`. Qui resta il solo consumo.
+		const TArray<FRTIntentView> Views = ComposeVisibleIntentViews(
+			Authoritative, PlayerTeamId, TurnManager->IsUnattendedSession());
 
 		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
 		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.
@@ -968,8 +1091,9 @@ void ARTHUD::DrawHUD()
 			// togliendo croma a ogni unita' in movimento per un confronto che su quell'elemento non esiste.
 			// Due semantiche sullo stesso canale, e la seconda pagata dalla prima. Qui la certezza parla col
 			// tratteggio, che e' libero.
-			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
-			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty, S.DashPeriodPx))
+			// ⌫ Il ciclo arriva INTATTO dallo stile: il ternario che lo riscriveva era la terza copia di
+			// una regola gia' scritta in `ComposeIntentCertaintyStyle` e in `ComposeDashSegments` (#2184).
+			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, S.DashDutyCycle, S.DashPeriodPx))
 			{
 				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
 			}
@@ -1024,64 +1148,41 @@ void ARTHUD::DrawHUD()
 			{
 				const FString Label = Intento.Label;
 
-				// Stesso vincolo della sovrapposizione dell'unita' (#729): l'ancora nasce dallo stesso offset
-				// world space, quindi soffriva dello stesso difetto — l'intento di un'unita' vicina alla
-				// camera finiva sopra il bordo. Qui il blocco e' una riga sola.
-				float LabelW = 0.f;
-				float LabelH = 0.f;
-				GetTextSize(Label, LabelW, LabelH, nullptr, 0.85f);
-				const FVector2D LabelAnchor = ClampOverlayAnchor(
-					FVector2D(HeadScreen.X, HeadScreen.Y),
-					FMath::Max(BarWidth, LabelW) * 0.5f,
-					/*AboveAnchor=*/ 36.f,
-					/*BelowAnchor=*/ 0.f,
-					FVector2D(Canvas->SizeX, Canvas->SizeY),
-					/*Margin=*/ 4.f);
-
-				DrawText(Label, Color, LabelAnchor.X - LabelW * 0.5f, LabelAnchor.Y - 36.f, nullptr, 0.85f);
+				// Stesso vincolo della sovrapposizione dell'unita' (#729), e per la stessa ragione: l'ancora
+				// nasce dallo stesso offset world space. Dove finisce il testo lo decide adesso
+				// `ComposeIntentLabelPlacement`, che i suoi test interrogano senza montare un HUD.
+				float LabelW = 0.f, LabelH = 0.f;
+				GetTextSize(Label, LabelW, LabelH, nullptr, IntentLabelScale);
+				const FVector2D Dove = ComposeIntentLabelPlacement(
+					FVector2D(HeadScreen.X, HeadScreen.Y), LabelW, BarWidth,
+					FVector2D(Canvas->SizeX, Canvas->SizeY));
+				DrawText(Label, Color, Dove.X, Dove.Y, nullptr, IntentLabelScale);
 			}
 
-			// Percorso pianificato: la rotta composita se la vista la porta, altrimenti lo stesso A* dell'autorita'.
-			if (View.bMoving)
+			// Percorso pianificato: se mostrarlo e con quali celle lo decide `ComposePlannedRoute` (#2184),
+			// che i suoi test interrogano senza montare un HUD. Qui resta il solo tracciamento.
+			const FRTPlannedRoutePresentation Rotta = ComposePlannedRoute(View, Map);
+			if (Rotta.bShow)
 			{
-				const TArray<FRTCellId> PathCells = (View.PlannedPath.Num() >= 2)
-					? View.PlannedPath
-					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
-
-				for (int32 i = 1; i < PathCells.Num(); ++i)
+				for (int32 i = 1; i < Rotta.PathCells.Num(); ++i)
 				{
-					const FVector A = Project(HexCellWorld(PathCells[i - 1], Origin, HexSize, LayerH));
-					const FVector B = Project(HexCellWorld(PathCells[i], Origin, HexSize, LayerH));
+					const FVector A = Project(HexCellWorld(Rotta.PathCells[i - 1], Origin, HexSize, LayerH));
+					const FVector B = Project(HexCellWorld(Rotta.PathCells[i], Origin, HexSize, LayerH));
 					if (A.Z > 0.f && B.Z > 0.f)
 					{
 						DrawIntentLine(FVector2D(A.X, A.Y), FVector2D(B.X, B.Y), Color, Style);
 					}
 				}
-
-				const FVector DestScreen = Project(HexCellWorld(View.PlannedCell, Origin, HexSize, LayerH));
-				if (DestScreen.Z > 0.f)
-				{
-					// 🔴 **La destinazione NON e' graduata, e la prima stesura la graduava — sbagliando due
-					// volte.** Questo blocco vive dentro `if (View.bMoving)`, e `ClassifyPlan` restituisce
-					// `Uncertain` ogni volta che `bMoving`: il livello qui e' **sempre** lo stesso, quindi
-					// attenuare non distingue niente e toglie soltanto leggibilita' — il rettangolo passava da
-					// alpha `0.35` a `0.105`, in permanenza, per ogni unita' in movimento. E' lo stesso
-					// argomento con cui la preview dello scatto e' esentata poche righe piu' sotto, che non era
-					// stato applicato qui. Trovato dalla code review.
-					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f),
-						DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
-				}
 			}
 
-			// Marker sui waypoint cliccati: la vista li porta solo per le unita' proprie.
-			// ⚠️ Non graduati, per la stessa ragione della destinazione: i waypoint appartengono a un piano di
-			// movimento, e un piano di movimento e' `Uncertain` per costruzione.
-			for (const FRTCellId& WP : View.PlannedWaypoints)
+			// QUALI celle prendono un rettangolo, con che mezza-dimensione e con che tinta lo decide
+			// `ComposeIntentMarkers` (#2184) — destinazione prima, waypoint dopo. Qui resta il tracciamento.
+			for (const FRTIntentMarker& M : ComposeIntentMarkers(View, Rotta.bShow, Color))
 			{
-				const FVector WPScreen = Project(HexCellWorld(WP, Origin, HexSize, LayerH));
-				if (WPScreen.Z > 0.f)
+				const FVector S = Project(HexCellWorld(M.Cell, Origin, HexSize, LayerH));
+				if (S.Z > 0.f)
 				{
-					DrawRect(Color, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
+					DrawRect(M.Color, S.X - M.HalfSize, S.Y - M.HalfSize, M.HalfSize * 2.f, M.HalfSize * 2.f);
 				}
 			}
 
@@ -1097,11 +1198,9 @@ void ARTHUD::DrawHUD()
 			// applicarle lo stile la lascerebbe *sempre* allo stesso livello: un simbolo che non varia non
 			// informa, ed e' il difetto esatto per cui `ReactionCertainty` e' uscito dal DTO. Il colore
 			// di FASE distingue gia' lo scatto dal movimento normale, che e' l'informazione che serve qui.
-			if (View.bDashing && Map)
+			// 🔑 Cosa mostrare lo decide `ComposeDashPreview` (#2184); `&& Map` resta, ed e' guardia.
+			if (const FRTDashPreview Scatto = ComposeDashPreview(View, Map); Scatto.bShow && Map)
 			{
-				const TArray<FRTCellId> DPath = URTMovementActionLibrary::IsLinear(View.DashStyle)
-					? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
-					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
 				// **D-234**: la fase `Dash` prende in PRESTITO `#009E73` da D-233. L'overlay tiene un
 				// vocabolario proprio — il colore ci dice l'IDENTITA' di squadra — ma questa riga era gia'
 				// un'eccezione: `DashColor` e' costruito FUORI da ogni ramo su `bOwn`, quindi la linea di
@@ -1116,10 +1215,10 @@ void ARTHUD::DrawHUD()
 				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
 				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
 				const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
-				for (int32 i = 1; i < DPath.Num(); ++i)
+				for (int32 i = 1; i < Scatto.PathCells.Num(); ++i)
 				{
-					const FVector DA = Project(HexCellWorld(DPath[i - 1], Origin, HexSize, LayerH));
-					const FVector DB = Project(HexCellWorld(DPath[i], Origin, HexSize, LayerH));
+					const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
+					const FVector DB = Project(HexCellWorld(Scatto.PathCells[i], Origin, HexSize, LayerH));
 					if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
 				}
 				const FVector DDest = Project(HexCellWorld(View.DashCell, Origin, HexSize, LayerH));
@@ -1212,17 +1311,16 @@ void ARTHUD::DrawHUD()
 		// `#3085` — dove il tiro rifiutato si ferma. Il messaggio di `#2741` dice che la linea e'
 		// interrotta; questi due tratti dicono DA COSA, ed e' il residuo *(c)* che `PIE-HEXPLAY-6` isola.
 		//
-		// ⛔ **La conoscenza si legge QUI e per la PROPRIA squadra.** `KnowledgeForTeamPublic` e' un canale
-		// non filtrato — il suo commento avverte che un chiamante potrebbe leggere la conoscenza
-		// dell'avversario — quindi l'argomento e' `PlayerTeamId` e non un parametro.
+		// ⌫ **Le cinque righe che leggevano la conoscenza stavano qui, e adesso sono
+		// `CurrentRefusedShotLine()`** (`#3064`). Non e' un riordino: il percorso a CELLA deve ottenere lo
+		// STESSO tratto gia' filtrato per accenderlo anche nel mondo, e lasciare la composizione inline
+		// avrebbe voluto dire riscriverla nel controller — cioe' aprire un secondo lettore di un canale non
+		// filtrato ([D-225]). La regola resta UNA, e i due canali ne diventano due RESE invece di due
+		// decisioni che possono divergere — **sul percorso a CELLA**. ⚠️ Sul percorso a unita' restano due
+		// decisioni che possono divergere, perche' quel sito non e' stato migrato e deriva ancora la linea
+		// 3D da `AuthorizedSightLines`: residuo preesistente, fuori scope di `#3064`, issue propria.
 		{
-			const FRTTeamKnowledge Conoscenza = TurnManager->KnowledgeForTeamPublic(PlayerTeamId);
-			TSet<FRTCellId> Conosciute;
-			Conosciute.Append(Conoscenza.VisibleCells);
-			Conosciute.Append(Conoscenza.ExploredCells); // il ricordo basta: la geometria non si muove
-
-			const FRTRefusedShotLine Rifiutata = ComputeRefusedShotLine(
-				LastRefusal, LastRefusalLos, LastRefusalFrom, LastRefusalTo, Conosciute);
+			const FRTRefusedShotLine Rifiutata = CurrentRefusedShotLine();
 
 			if (Rifiutata.bShow)
 			{
@@ -1241,14 +1339,12 @@ void ARTHUD::DrawHUD()
 					// contorno: i due segni parlano dello stesso ostacolo e non devono sembrare due cose.
 					DrawLine(A.X, A.Y, B.X, B.Y, BlockerColor, 2.5f);
 
-					constexpr int32 Tratti = 7; // dispari: il tratteggio inizia e finisce ACCESO
-					const FVector2D Inizio(B.X, B.Y);
-					const FVector2D Fine(C.X, C.Y);
-					for (int32 I = 0; I < Tratti; I += 2)
+					// Quanti tratti e dove cadono lo decide `ComposeCountedDashSegments` (#2184); qui resta
+					// il solo tracciamento, come per il tratteggio a passo di pixel venti righe piu' su.
+					for (const TPair<FVector2D, FVector2D>& T : ComposeCountedDashSegments(
+							FVector2D(B.X, B.Y), FVector2D(C.X, C.Y), BlockedShotDashSpans))
 					{
-						const FVector2D P0 = FMath::Lerp(Inizio, Fine, static_cast<float>(I) / Tratti);
-						const FVector2D P1 = FMath::Lerp(Inizio, Fine, static_cast<float>(I + 1) / Tratti);
-						DrawLine(P0.X, P0.Y, P1.X, P1.Y, BlockerColor, 1.5f);
+						DrawLine(T.Key.X, T.Key.Y, T.Value.X, T.Value.Y, BlockerColor, 1.5f);
 					}
 				}
 			}
@@ -1295,20 +1391,18 @@ void ARTHUD::DrawHUD()
 
 	// Esito, VIA che l'ha determinato e istruzione di riavvio a partita conclusa (CP 10.3). "Vince il team 0"
 	// da solo non distingue un'eliminazione da un punto di vantaggio allo scadere dei round.
+	// 🔑 DOVE cadono le due righe lo decide `ComposeMatchEndPanelPlacement` (#2184), interrogabile senza un HUD.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
 	{
-		const FRTMatchResult Result = TurnManager->GetMatchResult();
-		const FString Headline = ComposeMatchEndHeadline(Result);
-
-		float TW = 0.f, TH = 0.f;
-		GetTextSize(Headline, TW, TH, nullptr, 2.f);
-		DrawText(Headline, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, Canvas->SizeY * 0.4f, nullptr, 2.f);
-
-		const FString Restart = TEXT("premi R per rigiocare");
-		float RW = 0.f, RH = 0.f;
-		GetTextSize(Restart, RW, RH, nullptr, 1.2f);
-		DrawText(Restart, FLinearColor(0.85f, 0.85f, 0.85f, 1.f),
-			(Canvas->SizeX - RW) * 0.5f, Canvas->SizeY * 0.4f + TH + 8.f, nullptr, 1.2f);
+		const FString Headline = ComposeMatchEndHeadline(TurnManager->GetMatchResult());
+		const FString Restart = MatchEndRestartPrompt;
+		float TW = 0.f, TH = 0.f, RW = 0.f, RH = 0.f; // `RH` lo impone la firma: si impila su `TH`
+		GetTextSize(Headline, TW, TH, nullptr, MatchEndHeadlineScale);
+		GetTextSize(Restart, RW, RH, nullptr, MatchEndRestartScale);
+		const FRTMatchEndPanelPlacement Posa = ComposeMatchEndPanelPlacement(
+			FVector2f(Canvas->SizeX, Canvas->SizeY), FVector2f(TW, TH), RW);
+		DrawText(Headline, FLinearColor::White, Posa.Headline.X, Posa.Headline.Y, nullptr, MatchEndHeadlineScale);
+		DrawText(Restart, MatchEndRestartInk, Posa.Restart.X, Posa.Restart.Y, nullptr, MatchEndRestartScale);
 	}
 }
 
@@ -1569,6 +1663,120 @@ FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& Vie
 	return Out;
 }
 
+TArray<FRTIntentView> ARTHUD::ComposeVisibleIntentViews(const TArray<FRTPlannedIntent>& Authoritative,
+	int32 PlayerTeamId, bool bUnattendedSession)
+{
+	if (!bUnattendedSession)
+	{
+		// Una sola domanda, quella di chi gioca. `FilterForTeam` decide cosa ha diritto di sapere, e un
+		// piano avversario non rivelato non torna indietro affatto: e' la differenza fra non ricevere un
+		// dato e riceverlo per poi non disegnarlo, cioe' fra privacy e occultamento grafico.
+		return URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
+	}
+
+	// ⛔ **Una domanda per UNITA', non due per squadra**, e la differenza si misura in doppioni.
+	// `FilterForTeam` concede gli alleati *e* gli avversari `bRevealed`, quindi due domande di squadra
+	// sull'insieme intero farebbero tornare **due volte** ogni unita' rivelata — una come alleata della
+	// propria squadra, una come nemica rivelata dell'altra.
+	//
+	// 🔑 Chiedendo dalla prospettiva di chi possiede l'unita', ogni unita' compare una volta sola e nella
+	// sua forma piena: la vista alleata, che porta anche reazione e waypoint. L'ordine d'ingresso si
+	// conserva perche' si accoda nell'ordine di `Authoritative`.
+	TArray<FRTIntentView> Views;
+	Views.Reserve(Authoritative.Num());
+	for (const FRTPlannedIntent& Intent : Authoritative)
+	{
+		Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
+	}
+	return Views;
+}
+
+TArray<FRTIntentMarker> ARTHUD::ComposeIntentMarkers(const FRTIntentView& View,
+	bool bRouteShown, const FLinearColor& IntentColor)
+{
+	TArray<FRTIntentMarker> Marcatori;
+
+	// ⚠️ La destinazione dipende dal VERDETTO della rotta, non dalla cella: `PlannedCell` resta
+	// valorizzata anche a piano concluso, e letta come presenza disegnerebbe un rettangolo sotto
+	// un'unita' ferma — lo stesso errore che `ComposePlannedRoute` documenta per se'.
+	if (bRouteShown)
+	{
+		// ⛔ Attenuato, ma NON per certezza: qui il livello e' `Uncertain` per costruzione, quindi
+		// graduare non distinguerebbe niente e toglierebbe soltanto leggibilita'.
+		Marcatori.Add({ View.PlannedCell, DestinationMarkerHalfPx,
+			FLinearColor(IntentColor.R, IntentColor.G, IntentColor.B, DestinationMarkerAlpha) });
+	}
+
+	// I waypoint ci sono sempre: la vista li porta solo per le unita' proprie, e a tinta piena.
+	for (const FRTCellId& WP : View.PlannedWaypoints)
+	{
+		Marcatori.Add({ WP, WaypointMarkerHalfPx, IntentColor });
+	}
+
+	return Marcatori;
+}
+
+FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoute(const FRTIntentView& View, const URTHexMapAsset* Map)
+{
+	FRTPlannedRoutePresentation Out;
+
+	// ⛔ **Non `PlannedCell.IsValid()`**: la domanda e' «questo intento e' un movimento normale?», e la
+	// risposta la da' `bMoving`, che il modello deriva da `HasPlannedNormalMove()` — la regola intera.
+	// Letta come presenza del dato, la destinazione coinciderebbe con la cella e il rettangolo finirebbe
+	// sotto l'unita' ferma.
+	Out.bShow = View.bMoving;
+	if (!Out.bShow)
+	{
+		return Out;
+	}
+
+	// Due celle: una rotta di una sola cella e' la sola origine, e chi disegna — che unisce le celle a
+	// coppie partendo da `i = 1` — non ne ricaverebbe nessun segmento. Sotto la soglia si ricalcola.
+	Out.PathCells = (View.PlannedPath.Num() >= 2)
+		? View.PlannedPath
+		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
+
+	return Out;
+}
+
+FRTHudHexGeometry ARTHUD::ComposeHexGeometry(const ARTHexMapActor* HexMap)
+{
+	// I ripieghi sono i default della struct: senza attore si torna li' senza scriverli.
+	FRTHudHexGeometry Out;
+	if (!HexMap)
+	{
+		return Out;
+	}
+
+	// ⚠️ `GetHexContext` rende l'asset ma scrive i tre valori **comunque**, prendendoli dall'attore
+	// quando l'asset manca. `bFromWorld` registra che la geometria e' quella del mondo — cosa che
+	// `Map != nullptr` NON dice, perche' in graybox l'asset e' nullo e la geometria e' buona.
+	Out.bFromWorld = true;
+	Out.Map = HexMap->GetHexContext(Out.Origin, Out.HexSize, Out.LayerH);
+	return Out;
+}
+
+FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHexMapAsset* Map)
+{
+	FRTDashPreview Out;
+
+	// ⛔ **Non `DashCell.IsValid()`**: quella cella resta valorizzata dopo uno scatto eseguito, perche'
+	// il turn manager consuma l'ABILITA' e non la destinazione. Leggerla come presenza disegnerebbe un
+	// rettangolo verde sulla meta dello scatto precedente.
+	Out.bShow = View.bDashing;
+	if (!Out.bShow)
+	{
+		return Out;
+	}
+
+	// La traiettoria come la fase Dash la eseguira' (#142): lineare va dritta, a budget segue il grafo.
+	Out.PathCells = URTMovementActionLibrary::IsLinear(View.DashStyle)
+		? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
+		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
+
+	return Out;
+}
+
 FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)
 {
 	FRTHudTextLine Riga;
@@ -1591,6 +1799,24 @@ FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)
 		: FLinearColor(0.55f, 0.55f, 0.55f, 1.f);
 
 	return Riga;
+}
+
+const FLinearColor ARTHUD::MatchEndRestartInk(0.85f, 0.85f, 0.85f, 1.f);
+
+ARTHUD::FRTMatchEndPanelPlacement ARTHUD::ComposeMatchEndPanelPlacement(const FVector2f& Viewport,
+	const FVector2f& HeadlineSize, float RestartWidth)
+{
+	// 🔑 L'ancora si legge UNA volta: l'istruzione sta sotto l'intestazione per costruzione, non perche'
+	// due `0.4f` scritti in due righe diverse continuino a coincidere.
+	const float AncoraY = Viewport.Y * MatchEndAnchorY;
+
+	// ⚠️ L'associativita' e' quella di prima — `((ancora + altezza) + scarto)` — perche' in `float`
+	// l'ordine degli arrotondamenti si vede, e «stessa formula» non basta: deve essere la stessa catena.
+	FRTMatchEndPanelPlacement Posa;
+	Posa.Headline = FVector2f((Viewport.X - HeadlineSize.X) * MatchEndCentre, AncoraY);
+	Posa.Restart = FVector2f((Viewport.X - RestartWidth) * MatchEndCentre,
+		AncoraY + HeadlineSize.Y + MatchEndLineGapPx);
+	return Posa;
 }
 
 FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)

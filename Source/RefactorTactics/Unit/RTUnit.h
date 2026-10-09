@@ -98,6 +98,23 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 StableUnitId = 0;
 
+	/**
+	 * Di quanto `Status.Guarded` riduce ogni colpo valido dell'arco frontale, per QUESTA unita' ([D-408]).
+	 *
+	 * ⚠️ **Copia per valore di `URTHeroData::GuardReduction`**, come ogni altro dato d'eroe che il resolver
+	 * legge: farlo risalire all'`HeroId` darebbe al combattimento una dipendenza su
+	 * `URTHeroCatalogLibrary` per un numero che l'unita' puo' portarsi. Il default vale quanto quello di
+	 * catalogo, cosi' un'unita' senza eroe si comporta come prima di [D-408].
+	 */
+	// ⛔ `BlueprintReadOnly` come ogni altro dato d'unita' che il resolver legge (`MoveRange`,
+	// `VisionRange`, `PushResistance`, `StableUnitId`). La prima stesura lo aveva `BlueprintReadWrite`:
+	// sarebbe stato un canale per cui un Blueprint — anche di presentazione — muta un numero che
+	// `ARTTurnManager::ResolveCombatPasses` legge per decidere il danno. E' una seconda autorita' su una
+	// regola competitiva (`CLAUDE.md` §5 e §7), e non lascerebbe traccia nel TurnLog. Trovato da una code
+	// review.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 GuardReduction = 15;
+
 	/** Numero massimo di celle percorribili in un turno (distanza di Manhattan). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;
@@ -437,6 +454,79 @@ public:
 	FName PlannedMovementProfileId;
 
 	/**
+	 * I waypoint com'erano **prima** che un tetto li troncasse, e quanti il troncamento ne ha lasciati
+	 * (`#3417`, [D-444]).
+	 *
+	 * 🔑 **Esistono perche' un tetto che si ALZA non restituisce cio' che aveva tolto.** I due inneschi di
+	 * [D-401] troncano il piano al budget nuovo — lo `Sneak` dichiarato e la riserva che l'`Overwatch`
+	 * impone — e fin qui e' giusto. Ma toglierlo e' reversibile e il troncamento no: chi armava, ci
+	 * ripensava e disarmava restava col percorso corto, senza che niente glielo dicesse.
+	 *
+	 * ⚠️ **La memoria e' di UN livello, non una pila, e il limite e' dichiarato.** Sneak dichiarato poi
+	 * `Overwatch` armato producono due troncamenti: il secondo ricorda il piano **gia' sgusciato**, quindi
+	 * disarmare l'`Overwatch` restituisce un percorso che sta nel tetto dello `Sneak` — corretto — ma
+	 * annullare poi lo `Sneak` non restituisce piu' la coda originale. Una pila la restituirebbe; non la si
+	 * costruisce finche' nessuno la chiede, e un ripristino **mai illegale** e' cio' che serve.
+	 *
+	 * 🔴 **`TettoCheHaTroncato` non e' un'etichetta di comodo**: e' cio' che impedisce a un innesco di
+	 * restituire il piano tolto dall'ALTRO. Senza, disarmare l'`Overwatch` rimetterebbe i waypoint che lo
+	 * `Sneak` aveva tolto, mentre lo `Sneak` e' ancora dichiarato — un piano oltre il tetto vigente.
+	 *
+	 * ⛔ **Non sono replicati, come `PlannedWaypoints` e `PlannedMovementProfileId` qui sopra, e non sono
+	 * determinanti**: il resolver non li legge, e non entrano ne' nello snapshot ne' nel TurnLog. Sono
+	 * memoria di editing, e si consumano col piano (`PlaceOnCell`).
+	 */
+	TArray<FRTCellId> WaypointsPrimaDelTetto;
+
+	/** Quanti waypoint il troncamento ha LASCIATO. `INDEX_NONE` = nessuna memoria. */
+	int32 WaypointsTenutiDalTetto = INDEX_NONE;
+
+	/** Quale tetto ha troncato: `MovementProfile.Sneak` o `MovementProfile.Withdraw`. */
+	FName TettoCheHaTroncato;
+
+	/**
+	 * Ricorda che `TettoId` ha troncato il piano, dato com'era **prima**.
+	 *
+	 * ⚠️ **Si chiama DOPO il troncamento**, perche' registra anche quanti waypoint sono rimasti: e' il
+	 * numero che `RipristinaWaypointsDelTetto` confronta per sapere se il giocatore ha toccato il piano nel
+	 * frattempo. Chiamandola prima, quel confronto sarebbe sempre falso.
+	 *
+	 * ⛔ Non fa niente se non e' stato scartato nulla: senza uno scarto non c'e' niente da restituire, e una
+	 * memoria vuota renderebbe il ripristino un no-op indistinguibile da un ripristino avvenuto.
+	 */
+	void RicordaTroncamentoDelTetto(const FName& TettoId, const TArray<FRTCellId>& Prima);
+
+	/**
+	 * Rimette i waypoint che `TettoId` aveva tolto. Risponde **se** li ha rimessi.
+	 *
+	 * 🔑 **Ripristina solo se il piano e' ANCORA esattamente quello che il troncamento ha lasciato.** Se
+	 * dopo il troncamento il giocatore ha annullato un waypoint a mano, restituire il percorso intero
+	 * annullerebbe il suo annullamento; se ne ha aggiunto uno, lo cancellerebbe. Il confronto e'
+	 * sull'uguaglianza esatta e non su <<e' un prefisso>>, che accetterebbe entrambi i casi.
+	 *
+	 * ⚠️ **La memoria si consuma in ogni caso**, anche quando il confronto fallisce: a quel punto e' stantia
+	 * e non potra' mai tornare valida — il piano si e' mosso oltre. Tenerla darebbe un ripristino a sorpresa
+	 * al gesto dopo.
+	 */
+	bool RipristinaWaypointsDelTetto(const FName& TettoId);
+
+	/** Scorda il troncamento senza ripristinare: il piano di cui faceva parte non esiste piu'. */
+	void ScordaTroncamentoDelTetto();
+
+	/**
+	 * Quanti waypoint il piano aveva quando l'azione armata ci e' ENTRATA (`#3501`, [D-461]). `INDEX_NONE` = nessun
+	 * segno.
+	 *
+	 * 🔑 **Serve al Back per disfare l'ultimo gesto.** Un supporto su se stessi resta armato dopo essere entrato nel
+	 * piano, quindi si possono posare waypoint DOPO; il Back toglie prima quelli, e disarma l'azione solo quando non
+	 * ne restano. Lo scrive il controller negli stessi punti in cui scrive `PlannedAbilityIndex`.
+	 *
+	 * ⛔ Memoria di editing, come quella del troncamento qui sopra: non replicata, non letta dal resolver, fuori da
+	 * snapshot e TurnLog.
+	 */
+	int32 WaypointsAllaDichiarazione = INDEX_NONE;
+
+	/**
 	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
 	 * OCCUPATA da un'altra unita' (#79).
 	 *
@@ -754,12 +844,45 @@ public:
 	 * 🔴 **Sta qui perche' ha due consumatori, e la seconda copia sarebbe divergibile.** Oltre al resolver la
 	 * chiede l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast, quindi chi
 	 * carica e poi spara agisce da dove e' arrivato. Finche' la condizione stava solo dentro `ResolveDash`,
-	 * l'anteprima non aveva modo di porre la domanda senza riscriverla.
+	 * l'anteprima non aveva modo di porre la domanda senza riscriverla. ⚠️ Da [D-471] l'anteprima la chiede
+	 * attraverso `PlannedDashMoves()`, che aggiunge il rifiuto dello stato.
 	 *
 	 * ⚠️ **Non promette la cella d'arrivo.** `ResolveDash` risolve la collisione simultanea (CP 4.8) e puo'
 	 * fermare lo scatto prima della destinazione: questa risponde «lo scatto parte», non «lo scatto arriva».
 	 */
 	bool PlannedDashApplies() const;
+
+	/** Vero se lo scatto pianificato e' una carica (`LinearCharge`): la sua `PlannedDashCell` e' il bersaglio ([D-296]). */
+	bool PlannedDashIsCharge() const;
+
+	/**
+	 * Vero se lo STATO dell'unita' nega lo scatto pianificato: `Status.Unbalanced` e una mobilita' rapida non
+	 * lineare ([D-319]). Chi ha perso l'equilibrio non sceglie celle una per una correndo, mentre uno slancio
+	 * lineare gia' deciso puo' ancora compierlo.
+	 *
+	 * 🔑 **Una regola, due lettori** ([D-471]): `ARTTurnManager::ResolveDash` per il suo rifiuto dichiarato nel
+	 * TurnLog, `PlannedDashMoves()` per tutti gli altri. Prima la condizione stava scritta dentro il resolver, e
+	 * l'anteprima non la conosceva.
+	 */
+	bool PlannedDashDeniedByStatus() const;
+
+	/**
+	 * 🔑 **Lo scatto pianificato SPOSTA l'unita'** ([D-471]): `PlannedDashApplies()`, e lo stato non lo nega.
+	 *
+	 * E' la domanda di chi deve sapere dove l'unita' sara' dopo il Dash: l'origine di mira (`AimOriginFor`), le
+	 * anteprime, il verso dichiarato. ⛔ Il resolver non la chiede: chiede `PlannedDashApplies()` e poi
+	 * `PlannedDashDeniedByStatus()`, perche' quel rifiuto ha una voce sua nel TurnLog.
+	 */
+	bool PlannedDashMoves() const;
+
+	/**
+	 * Da dove mira quest'unita' un'azione della fase `Phase`, col piano di scatto che ha adesso ([D-464]).
+	 *
+	 * 🔑 **Compone `URTHexCombatLibrary::AimOriginCell` e basta**: la regola sta li', e qui si leggono solo i suoi
+	 * ingressi dal piano. La chiedono i due click, lo slot (`Invalid` e `Warning`), le anteprime e la portata, e
+	 * devono porre tutti la stessa domanda — e' il difetto che #3509 chiude.
+	 */
+	FRTCellId AimOriginFor(ERTResolutionPhase Phase) const;
 
 	/** Cooldown residuo (turni) di un'abilita'. */
 	int32 GetAbilityCooldown(int32 Index) const;
@@ -1013,9 +1136,12 @@ public:
 	float VisualZOffset = UnitHalfHeight;
 
 	/**
-	 * Se vero, durante il movimento visivo l'unita' si orienta verso la direzione di spostamento (solo yaw).
-	 * Default false = comportamento invariato (il cilindro non ruota). I BP_Unit dei personaggi lo attivano
-	 * cosi' la corsa (es. Jog_Fwd) punta dove vanno. Solo presentazione: non tocca la logica.
+	 * Se vero, ogni `SetVisualLocation` orienta l'unita' verso la direzione di spostamento (solo yaw).
+	 *
+	 * ⌫ *Diceva «i BP_Unit dei personaggi lo attivano», ed era falso: nessuno dei quattro `BP_Unit` lo scrive
+	 * (`#2167`).* Dal `#2167` la posa durante il playback non dipende da questo flag: la decide il TurnManager a ogni
+	 * passo con `URTPlaybackLibrary::StepYawAtAlpha`, uguale alla regola `FacingAtMicroStep` a ogni confine. Resta per
+	 * chi muove un'unita' fuori dal playback.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bFaceMovementDirection = false;
@@ -1206,8 +1332,11 @@ public:
 	 * ⛔ **Degrada in silenzio, sempre**: senza skeletal, senza `AnimInstance`, senza voce nel CDO o con un
 	 * `TSoftObjectPtr` che non risolve, non fa nulla e non rompe niente. La partita si gioca uguale.
 	 * ⚠️ Solo presentazione: non tocca stato logico, TurnLog ne' ordinamento (invariante #1).
+	 * 🔑 **`ActionId`/`BaseActionId` (#3563)**: li passano solo i beat che conoscono l'azione — `Cast` da
+	 * `ShowActivation`, `Attack` da `LaunchPlaybackAttack` (spec D3). Vuoti, la risoluzione e' quella di ruolo.
+	 * ⛔ Non e' una `UFUNCTION`: il default e' lecito, e `Hit`/`Death` restano a un argomento.
 	 */
-	void PlayPresentationRole(ERTPresentationRole Ruolo);
+	void PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId = NAME_None, FName BaseActionId = NAME_None);
 
 	/**
 	 * Il PATH della clip che `PlayPresentationRole` suonerebbe per questo ruolo, senza caricarla.
@@ -1217,7 +1346,8 @@ public:
 	 * giusta non si carica» da «punto alla clip sbagliata». Il path invece c'e' sempre, ed e' cio' che il
 	 * controllo positivo di `SimulationOutcomeIsUnchangedAcrossVariants` puo' asserire.
 	 */
-	TSoftObjectPtr<UAnimSequenceBase> ResolvedClipPathFor(ERTPresentationRole Ruolo) const;
+	TSoftObjectPtr<UAnimSequenceBase> ResolvedClipPathFor(ERTPresentationRole Ruolo,
+		FName ActionId = NAME_None, FName BaseActionId = NAME_None) const;
 
 	/** L'attaccante esegue la presentazione d'attacco (fase Blast), con la clip gia' risolta. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
@@ -1230,6 +1360,71 @@ public:
 	/** L'unita' eliminata esegue la morte, con la clip gia' risolta, prima della rimozione visiva. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
 	void PlayDefeatMontage(UAnimSequenceBase* Resolved);
+
+	/** La sorgente esegue il cast di un'abilita' (`AbilityActivated`, #3549), con la clip gia' risolta. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayCastMontage(UAnimSequenceBase* Resolved);
+
+	/**
+	 * Quante volte `PlayPresentationRole(Cast)` e' stata chiamata su questa unita' — seam di misura (#3549).
+	 *
+	 * ⚠️ **Il contatore cresce solo sotto `WITH_DEV_AUTOMATION_TESTS`** (in `RTUnit.cpp`): fuori dai build di
+	 * test resta `0`. Il campo non e' una `UPROPERTY`, come gli accessori `*ForTest` di `ARTTurnManager`, e
+	 * permette di asserire il MECCANISMO — la cue chiamata — senza un Blueprint.
+	 */
+	int32 CastCuesPlayedForTest() const { return CastCuesPlayed; }
+
+	/**
+	 * Il path che l'ULTIMA `PlayPresentationRole(Ruolo)` ha risolto su questa unita' — seam di misura (#3563).
+	 *
+	 * 🔑 **Per ruolo, non uno slot unico**: la stessa unita' suona `Cast` e poi `Attack` nello stesso turno, e uno
+	 * slot unico mostrerebbe solo l'ultimo. Vuoto se quel ruolo non e' mai stato suonato, o se ha risolto nulla.
+	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
+	 */
+	FSoftObjectPath LastResolvedClipPathForTest(ERTPresentationRole Ruolo) const
+	{
+		const FSoftObjectPath* Path = LastResolvedClipPaths.Find(Ruolo);
+		return Path ? *Path : FSoftObjectPath();
+	}
+
+	/**
+	 * Se l'ULTIMA `PlayPresentationRole(Ruolo)` ha ripiegato sulla clip di RUOLO perche' quella d'azione non si e'
+	 * caricata — seam di misura (#3563, review finale I1) — o perche' era un gesto ADDITIVO (#3590).
+	 *
+	 * 🔑 **Registra la DECISIONE, non l'esito del caricamento**: headless i pack non ci sono e falliscono entrambi i
+	 * caricamenti, ma il tentativo sul ruolo e' cio' che separa un pacchetto che degrada come prima da uno muto.
+	 * Falso se il ruolo non e' mai stato suonato, se la clip d'azione si e' caricata e non e' un gesto additivo, o se
+	 * non c'era una voce d'azione (il path risolto E' gia' quello di ruolo). Il path RISOLTO resta in
+	 * `LastResolvedClipPathForTest`, la clip SUONATA in `LastPlayedClipForTest`.
+	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
+	 */
+	bool LastClipLoadFellBackToRoleForTest(ERTPresentationRole Ruolo) const
+	{
+		const bool* bRipiego = LastClipLoadFellBackToRole.Find(Ruolo);
+		return bRipiego != nullptr && *bRipiego;
+	}
+
+	/**
+	 * La clip che l'ULTIMA `PlayPresentationRole(Ruolo)` ha davvero passato allo slot e al Blueprint — seam (#3590).
+	 *
+	 * 🔑 **Dopo ogni ripiego e ogni rifiuto**: e' cio' che suona, non cio' che si e' risolto
+	 * (`LastResolvedClipPathForTest`) ne' la decisione di ripiegare (`LastClipLoadFellBackToRoleForTest`). `nullptr`
+	 * se il ruolo e' scattato senza clip, o se non e' mai stato suonato.
+	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
+	 */
+	UAnimSequenceBase* LastPlayedClipForTest(ERTPresentationRole Ruolo) const
+	{
+		const TWeakObjectPtr<UAnimSequenceBase>* Clip = LastPlayedClips.Find(Ruolo);
+		return Clip ? Clip->Get() : nullptr;
+	}
+
+private:
+	int32 CastCuesPlayed = 0;
+	TMap<ERTPresentationRole, FSoftObjectPath> LastResolvedClipPaths;
+	TMap<ERTPresentationRole, bool> LastClipLoadFellBackToRole;
+	TMap<ERTPresentationRole, TWeakObjectPtr<UAnimSequenceBase>> LastPlayedClips;
+
+public:
 
 	// IRTSelectable
 	virtual void OnSelected() override;

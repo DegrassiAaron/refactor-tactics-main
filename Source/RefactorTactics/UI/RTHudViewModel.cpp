@@ -12,8 +12,15 @@
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // ProfileForPlan: l'autorita' sul profilo, non un secondo lettore
 #include "Turn/RTPlanValidationLibrary.h"     // MakePlanFor: il piano da cui il profilo si ricava
+#include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
+#include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
+#include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del tooltip (`#3499`)
+#include "Turn/RTTurnLogLibrary.h"        // DescribeInvalidReason: il testo del motivo ha gia' un owner
+#include "Terrain/RTTerrainLibrary.h"     // EffectiveTargetingRange: la portata APPLICATA del rifiuto
+#include "UI/RTHUD.h"                     // RefusalText: il testo del rifiuto ha gia' un owner
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
@@ -342,12 +349,28 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 		return ERTActionSlotState::Empty;
 	}
 
+	// [D-459] **«Non lo potrai fare» batte anche «cosa sto per fare»**: lo slot armato col bersaglio puntato
+	// rifiutato (lettura A), o lo slot colpevole di un piano illegale (lettura B). E' la sola eccezione alla
+	// regola di `ComposeAbilityLine` qui sotto, e la ragione e' che il bianco dell'armata nasconderebbe il
+	// motivo per cui il click non partira'.
+	if ((bArmed && Action.bTargetRefused) || Action.bPlanInvalid)
+	{
+		return ERTActionSlotState::Invalid;
+	}
+
 	// 🔑 **Armata batte tutto il resto, ed e' la regola di `ARTHUD::ComposeAbilityLine`**, non una nuova:
 	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*. Un'ultimate
 	// armata e ancora in ricarica resta riconoscibile come quella scelta; il motivo lo dice il numero.
 	if (bArmed)
 	{
 		return ERTActionSlotState::Selected;
+	}
+
+	// [D-459] Il piano accettato ma DEGRADATO batte il semplice «pianificato»: e' ancora un impegno preso, e
+	// in piu' dice che in risoluzione prendera' il ripiego.
+	if (Action.bPlanDegraded)
+	{
+		return ERTActionSlotState::Warning;
 	}
 
 	// Gia' nel piano: un impegno preso, che sopravvive al fatto che l'armamento sia passato ad altro.
@@ -372,6 +395,159 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 	}
 
 	return ERTActionSlotState::Available;
+}
+
+namespace
+{
+	/** «1 turno» e «2 turni»: il numero e la sua parola, accordati. */
+	FText TooltipCount(int32 N, const FText& One, const FText& Many)
+	{
+		return FText::Format(NSLOCTEXT("RTHud", "TooltipCount", "{0} {1}"), FText::AsNumber(N), N == 1 ? One : Many);
+	}
+
+	FRTActionTooltipLine TooltipLine(const FText& Label, const FText& Value)
+	{
+		FRTActionTooltipLine Line;
+		Line.Label = Label;
+		Line.Value = Value;
+		return Line;
+	}
+}
+
+FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed)
+{
+	FRTActionTooltipView Out;
+	if (Action.ActionId.IsNone())
+	{
+		return Out; // una posizione di kit vuota non ha niente da spiegare
+	}
+	Out.Title = Action.DisplayName.IsEmpty() ? FText::FromName(Action.ActionId) : Action.DisplayName;
+	Out.Description = Action.Description;
+	Out.State = ResolveSlotState(Action, bArmed);
+
+	// ── Le righe: fase, slot, portata, ricarica, danno ──────────────────────────────────────────────────
+	if (Action.PhaseMark != ERTActionPhaseMark::None && !Action.PhaseLabel.IsEmpty())
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipPhase", "Fase"), Action.PhaseLabel));
+	}
+	switch (Action.Slot)
+	{
+	case ERTActionSlot::Main:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipSlot", "Slot"), NSLOCTEXT("RTHud", "TooltipSlotMain", "Principale")));
+		break;
+	case ERTActionSlot::Movement:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipSlot", "Slot"), NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento")));
+		break;
+	case ERTActionSlot::Reaction:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipSlot", "Slot"), NSLOCTEXT("RTHud", "TooltipSlotReaction", "Reazione")));
+		break;
+	case ERTActionSlot::None:
+		break; // un'azione che non occupa slot non ne dichiara uno
+	}
+	// ⛔ **Una riga senza valore non c'e'** (#3419, decisione d'autore del 2026-10-06): un'azione su di se' non ha
+	// una portata da dire, e una ricarica a zero non ha turni. ⏱️ *Fino ad allora dicevano «Su di te» e «Nessuna».*
+	if (!Action.bSelfTarget && Action.RangeCells > 0)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipRange", "Portata"), TooltipCount(Action.RangeCells,
+			NSLOCTEXT("RTHud", "TooltipCell", "cella"), NSLOCTEXT("RTHud", "TooltipCells", "celle"))));
+	}
+	switch (Action.Shape)
+	{
+	case ERTAbilityShape::Area:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipShape", "Forma"), Action.AreaRadius > 0
+			? FText::Format(NSLOCTEXT("RTHud", "TooltipShapeAreaRadius", "Area, raggio {0}"), FText::AsNumber(Action.AreaRadius))
+			: NSLOCTEXT("RTHud", "TooltipShapeArea", "Area")));
+		break;
+	case ERTAbilityShape::Line:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipShape", "Forma"), NSLOCTEXT("RTHud", "TooltipShapeLine", "Linea")));
+		break;
+	case ERTAbilityShape::Cone:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipShape", "Forma"), NSLOCTEXT("RTHud", "TooltipShapeCone", "Cono")));
+		break;
+	case ERTAbilityShape::Single:
+		break; // un colpo puntuale non ha una forma da dire
+	}
+	if (Action.CooldownTurns > 0)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipCooldown", "Ricarica"), TooltipCount(Action.CooldownTurns,
+			NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni"))));
+	}
+	if (Action.Damage > 0)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipDamage", "Danno"), FText::AsNumber(Action.Damage)));
+	}
+
+	// Il compromesso della variante attiva, accanto ai numeri e non al loro posto (#3419). Senza variante non c'e'.
+	if (!Action.VariantTradeoff.IsEmpty())
+	{
+		Out.Variant = Action.VariantName.IsEmpty() ? Action.VariantTradeoff
+			: FText::Format(NSLOCTEXT("RTHud", "TooltipVariant", "{0}: {1}"), Action.VariantName, Action.VariantTradeoff);
+	}
+
+	// ── Il motivo di uno stato spento: uno solo, nell'ordine della definizione tecnica (D005) ────────────
+	if (Action.bPlanInvalid)
+	{
+		Out.Reason = (Action.PlanInvalidReason == ERTActionInvalidReason::None)
+			? NSLOCTEXT("RTHud", "TooltipPlanInvalid", "Piano illegale")
+			: FText::Format(NSLOCTEXT("RTHud", "TooltipPlanInvalidBecause", "Piano illegale: {0}"),
+				FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Action.PlanInvalidReason)));
+	}
+	else if (Action.bPlanDegraded && Action.PlanDegradedRefusal != ERTTargetRefusal::None
+		&& Action.PlanDegradedRefusal != ERTTargetRefusal::Nothing)
+	{
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipDegraded", "{0} — in risoluzione prendera' il ripiego"),
+			FText::FromString(ARTHUD::RefusalText(Action.PlanDegradedRefusal, Action.PlanDegradedRange)));
+	}
+	else if (Action.TurnsRemaining > 0)
+	{
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipCoolingDown", "In ricarica: ancora {0}"),
+			TooltipCount(Action.TurnsRemaining, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni")));
+	}
+	return Out;
+}
+
+bool URTHudViewModel::SameTooltip(const FRTActionTooltipView& A, const FRTActionTooltipView& B)
+{
+	if (A.State != B.State || !A.Title.EqualTo(B.Title) || !A.Description.EqualTo(B.Description)
+		|| !A.Reason.EqualTo(B.Reason) || !A.Variant.EqualTo(B.Variant) || A.Lines.Num() != B.Lines.Num())
+	{
+		return false;
+	}
+	for (int32 I = 0; I < A.Lines.Num(); ++I)
+	{
+		if (!A.Lines[I].Label.EqualTo(B.Lines[I].Label) || !A.Lines[I].Value.EqualTo(B.Lines[I].Value))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+FText URTHudViewModel::ComposeTooltipText(const FRTActionTooltipView& Tooltip)
+{
+	if (!Tooltip.IsValid())
+	{
+		return FText::GetEmpty();
+	}
+	TArray<FString> Righe;
+	Righe.Add(Tooltip.Title.ToString());
+	if (!Tooltip.Description.IsEmpty())
+	{
+		Righe.Add(Tooltip.Description.ToString());
+	}
+	if (!Tooltip.Variant.IsEmpty())
+	{
+		Righe.Add(Tooltip.Variant.ToString());
+	}
+	for (const FRTActionTooltipLine& Line : Tooltip.Lines)
+	{
+		Righe.Add(FString::Printf(TEXT("%s  %s"), *Line.Label.ToString(), *Line.Value.ToString()));
+	}
+	if (!Tooltip.Reason.IsEmpty())
+	{
+		Righe.Add(Tooltip.Reason.ToString());
+	}
+	return FText::FromString(FString::Join(Righe, TEXT("\n")));
 }
 
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)
@@ -406,6 +582,9 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
 			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
 			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
+			//
+			// Stessa ragione per la fase (`#3465`): `PhaseMark` resta `None` e `PhaseLabel` resta VUOTA, non
+			// `—`. Il trattino dice «c'e' un'azione e non si gioca in nessuna fase», che di un vuoto e' falso.
 			Cooldowns.Add(Empty);
 			continue;
 		}
@@ -429,6 +608,18 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			|| (Unit->PlannedReactionAbility == Index)
 			|| (Unit->PlannedDashAbility == Index);
 		View.Slot = Action->Def.Slot;
+
+		// La fase si LEGGE dal catalogo (`#3465`), per la stessa ragione del tasto e delle chiavi icona: il
+		// `Def` completo esiste qui, e lo slot non lo vedra' mai. `Phase` e' la risposta onesta, `PhaseMark`
+		// cio' che lo slot mostra — divergono su reazione e `Wait`, e la regola sta in `PhaseMarkFor`, non
+		// ripetuta qui.
+		View.Phase = URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase);
+		View.PhaseMark = PhaseMarkFor(Action->Def);
+		View.PhaseLabel = PhaseMarkLabel(View.PhaseMark);
+
+		// Il gruppo di lettura si deriva dallo stesso `Def` (`#3468`, D-455), e per la stessa ragione: lo slot
+		// non vede ne' le generiche del catalogo ne' `BaseActionId`.
+		View.Group = GroupFor(Action->Def);
 
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista
 		// dichiara «mai negativo» nel proprio contratto, e un contratto che dipende dal fatto che nessuno
@@ -456,10 +647,327 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// ricarica — quindi oggi risponde come `TurnsRemaining == 0`, per una ragione e non per caso.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
+		// `#3499`: la frase e i numeri del tooltip, dallo stesso dato che lo slot gia' legge. La portata e' lo
+		// specchio che misura il click (`HandleTargetCell`), non il `Def`: se un giorno divergessero, il tooltip
+		// deve dire quella che il giocatore incontrera'. ⚠️ Oggi coincidono in tutto il roster — il mortaio di
+		// Branth, che corregge la portata del core, li scrive entrambi — e il test li separa apposta.
+		View.Description = Action->Description;
+		View.CooldownTurns = FMath::Max(0, Action->Def.CooldownTurns);
+		// #3419: la forma che leggono il click e l'anteprima, e la variante attiva su QUEST'azione. ⚠️ `FindVariant`
+		// e non «la prima variante»: l'id e' dell'unita', e solo l'azione che lo dichiara ne porta il compromesso.
+		View.Shape = Action->Shape;
+		View.AreaRadius = FMath::Max(0, Action->AreaRadius);
+		if (const FRTAbilityVariant* Variante = Action->FindVariant(Unit->ActiveVariantId))
+		{
+			View.VariantName = Variante->DisplayName;
+			View.VariantTradeoff = Variante->Tradeoff;
+		}
+		View.RangeCells = FMath::Max(0, Action->RangeCells);
+		View.bSelfTarget = Action->bSelfTarget || Action->Def.bSelfTarget;
+		for (const FRTActionEffectSpec& Effetto : Action->Def.Effects)
+		{
+			if (Effetto.Effect == ERTActionEffect::Damage)
+			{
+				View.Damage = FMath::Max(0, Effetto.Amount);
+				break;
+			}
+		}
+
 		Cooldowns.Add(View);
 	}
 
+	// --- [D-459] lettura B: il piano dell'unita', letto due volte ---------------------------------------------
+	// ⛔ I chiamanti sono due, ed entrambi restano nella PROPRIA squadra: la dock con `GetSelectedUnit()`, e
+	// `BuildIdleBar` ([D-460]) sulle unita' della squadra di chi guarda, che di questa riga NON copia niente —
+	// il suo elenco positivo dei campi lascia al default ogni stato di piano.
+	//
+	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore non legge l'unita' (D-190): un
+	//    `FRTHexSimUnit` vuoto e' cio' che la firma chiede, non un'approssimazione.
+	const FRTPlanValidation Verdetto =
+		URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(Unit));
+	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
+	{
+		for (FRTAbilityCooldownView& V : Cooldowns)
+		{
+			if (V.ActionId == Verdetto.OffendingActionId)
+			{
+				V.bPlanInvalid = true;
+				V.PlanInvalidReason = Verdetto.Reason; // `#3499`: il perche', per il tooltip
+			}
+		}
+	}
+
+	// 2) **Degradato -> `Warning`** sullo slot della principale pianificata su un'unita': la domanda del click,
+	//    con lo stesso nome (`RefusalForKnownTarget`). Un bersaglio ignoto da' `Nothing` e NON accende niente:
+	//    il Warning su un'ombra direbbe «non lo vedi piu'» in un modo nuovo.
+	//
+	//    🔴 **Da DOVE si colpira', non da dove si sta.** La fase Blast parte dalla cella dello scatto, se lo
+	//    scatto si applica (ordine `Prep -> Dash -> Blast -> Move`). ⏱️ *Fino a #3509 il click giudicava dalla
+	//    cella corrente*, e il Warning nasceva da quella divergenza. Con [D-464] click e Warning chiedono la
+	//    stessa origine per fase (`ARTUnit::AimOriginFor`): il Warning resta per il solo caso che [D-464] (4)
+	//    gli lascia — lo scatto CAMBIATO dopo che il bersaglio era stato dichiarato. In planning nessuno si
+	//    muove, ed e' lo scatto a separare «accettato» da «degradato».
+	if (Cooldowns.IsValidIndex(Unit->PlannedAbilityIndex) && !Unit->bAttackTargetsCell)
+	{
+		const URTActionData* Pianificata = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get();
+		FVector Origine; float Lato; float AltezzaPiano;
+		const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(Unit->GetWorld());
+		const URTHexMapAsset* Mappa = HexMap ? HexMap->GetHexContext(Origine, Lato, AltezzaPiano) : nullptr;
+		if (Pianificata && Bersaglio && Mappa)
+		{
+			// La regola e' `AimOriginCell`: qui se ne chiede la risposta per la fase dell'azione PIANIFICATA.
+			const FRTCellId Da = Unit->AimOriginFor(Pianificata->Def.ResolutionPhase);
+
+			const ERTTargetRefusal Rifiuto = URTCombatLibrary::RefusalForKnownTarget(Mappa, Da,
+				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,
+				Bersaglio->IsKnownToObserver());
+			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
+				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+			// `#3499`: il rifiuto per il tooltip, dalla stessa domanda e solo quando accende lo stato. ⛔ Un ignoto
+			// e' gia' `Nothing`: il tooltip non puo' dire niente che lo stato non dica.
+			if (Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded)
+			{
+				Cooldowns[Unit->PlannedAbilityIndex].PlanDegradedRefusal = Rifiuto;
+				Cooldowns[Unit->PlannedAbilityIndex].PlanDegradedRange = (Rifiuto == ERTTargetRefusal::Range)
+					? URTTerrainLibrary::EffectiveTargetingRange(Mappa, Da, Bersaglio->Cell, Pianificata->RangeCells)
+					: INDEX_NONE;
+			}
+		}
+	}
+
 	return Cooldowns;
+}
+
+ERTActionPhaseMark URTHudViewModel::PhaseMarkFor(const FRTActionDef& Def)
+{
+	// 🔑 **Lo slot PRIMA della fase**, ed e' l'ordine che i due casi decisi il 2026-10-04 richiedono: una
+	// reazione ha una `ResolutionPhase` — quella della sua core — e leggerla per prima direbbe `BLAST` di
+	// qualcosa che non si gioca nel Blast. Lo stesso vale per `Wait`, che risolve in `NormalMovement`.
+	if (Def.Slot == ERTActionSlot::Reaction)
+	{
+		return ERTActionPhaseMark::Reaction;
+	}
+	if (Def.Slot == ERTActionSlot::None)
+	{
+		return ERTActionPhaseMark::None;
+	}
+
+	// Funzione TOTALE sulla macro-fase, come `MapResolutionPhase`: nessun `default`, cosi' una fase aggiunta a
+	// `ERTMatchPhase` senza un segno diventa un avviso di compilazione invece di uno slot muto.
+	switch (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase))
+	{
+	case ERTMatchPhase::Prep:       return ERTActionPhaseMark::Prep;
+	case ERTMatchPhase::Dash:       return ERTActionPhaseMark::Dash;
+	case ERTMatchPhase::Blast:      return ERTActionPhaseMark::Blast;
+	case ERTMatchPhase::Move:       return ERTActionPhaseMark::Move;
+	case ERTMatchPhase::Cleanup:    return ERTActionPhaseMark::Cleanup;
+	case ERTMatchPhase::Planning:   return ERTActionPhaseMark::None; // nessuna azione risolve nel Planning
+	case ERTMatchPhase::MatchEnded: return ERTActionPhaseMark::None;
+	}
+	return ERTActionPhaseMark::None;
+}
+
+FText URTHudViewModel::PhaseMarkLabel(ERTActionPhaseMark Mark)
+{
+	// Le etichette del mockup della skill bar (`docs/research/design/hud/skill-bar-2026-10/`), in maiuscolo
+	// come le stampa la striscia. `REAZ.` e' abbreviata perche' lo slot e' largo un'icona.
+	switch (Mark)
+	{
+	case ERTActionPhaseMark::Prep:     return NSLOCTEXT("RTHud", "PhaseMarkPrep", "PREP");
+	case ERTActionPhaseMark::Dash:     return NSLOCTEXT("RTHud", "PhaseMarkDash", "DASH");
+	case ERTActionPhaseMark::Blast:    return NSLOCTEXT("RTHud", "PhaseMarkBlast", "BLAST");
+	case ERTActionPhaseMark::Move:     return NSLOCTEXT("RTHud", "PhaseMarkMove", "MOVE");
+	case ERTActionPhaseMark::Cleanup:  return NSLOCTEXT("RTHud", "PhaseMarkCleanup", "CLEANUP");
+	case ERTActionPhaseMark::Reaction: return NSLOCTEXT("RTHud", "PhaseMarkReaction", "REAZ.");
+	case ERTActionPhaseMark::None:     return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
+	}
+	return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
+}
+
+ERTActionGroup URTHudViewModel::GroupFor(const FRTActionDef& Def)
+{
+	// 🔑 **Le generiche PRIMA dell'attacco base**: nessuna delle due condizioni oggi ruba un'azione all'altra
+	// — `Action.BasicAttack` non e' fra le generiche che entrano nel kit — ma l'ordine e' quello della regola di
+	// D-455, e scriverlo uguale evita che una lettura del codice ne deduca un'altra.
+	if (URTCatalogLibrary::GetGenericActionIds().Contains(Def.ActionId))
+	{
+		return ERTActionGroup::Common;
+	}
+
+	static const FName BasicAttackId(TEXT("Action.BasicAttack"));
+	if (Def.ActionId == BasicAttackId || Def.BaseActionId == BasicAttackId)
+	{
+		return ERTActionGroup::Base;
+	}
+
+	return ERTActionGroup::Kit;
+}
+
+FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit)
+{
+	FRTMovementReadoutView View;
+	if (!Unit)
+	{
+		return View;
+	}
+
+	const FRTUnitSlotsView Slots = BuildUnitSlots(Unit);
+	View.bAuthorized = Slots.bAuthorized;
+	View.ProfileId = Slots.MovementProfileId;
+	View.Label = MovementReadoutLabel(View.ProfileId);
+	// `PlannedMovementProfileId` porta SOLO la dichiarazione del giocatore (oggi `Sneak`, o vuoto): [D-425].
+	View.bSneakDeclared = Unit->PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
+	View.SneakKeyLabel = ARTPlayerController::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	return View;
+}
+
+FText URTHudViewModel::MovementReadoutLabel(FName ProfileId)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	const FRTMovementProfile Profile = Lib::FindProfile(ProfileId);
+	if (ProfileId.IsNone() || Profile.Id != ProfileId)
+	{
+		return FText::GetEmpty(); // un id che il catalogo non conosce non ha un'etichetta da inventare
+	}
+
+	// Il nome canonico e' l'ultimo segmento dell'id — `MovementProfile.Sprint` -> `Sprint` — cosi' un profilo
+	// nuovo ha gia' un nome invece di un'etichetta vuota.
+	FString Nome = ProfileId.ToString();
+	int32 Punto = INDEX_NONE;
+	if (Nome.FindLastChar(TEXT('.'), Punto))
+	{
+		Nome = Nome.RightChop(Punto + 1);
+	}
+
+	// Chi sta fermo non ha un passo da moltiplicare: il numero mentirebbe su un budget che non si spende.
+	if (ProfileId == Lib::ProfileStill)
+	{
+		return FText::FromString(Nome);
+	}
+
+	// Il moltiplicatore in centesimi, scritto all'italiana: `25` -> `0,25`, `50` -> `0,5`, `200` -> `2`.
+	const int32 Percento = FMath::Max(0, Profile.MoveBudgetPercent);
+	FString Moltiplicatore = FString::FromInt(Percento / 100);
+	const int32 Resto = Percento % 100;
+	if (Resto != 0)
+	{
+		FString Decimali = FString::Printf(TEXT("%02d"), Resto);
+		Decimali.RemoveFromEnd(TEXT("0"));
+		Moltiplicatore += TEXT(",") + Decimali;
+	}
+	return FText::FromString(FString::Printf(TEXT("%s \u00D7%s"), *Nome, *Moltiplicatore));
+}
+
+TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRTAbilityCooldownView>& Actions)
+{
+	// Il rango di lettura di un gruppo. Funzione TOTALE sull'enum, senza `default`: un gruppo aggiunto senza
+	// rango diventa un avviso di compilazione invece di una voce che finisce in coda per caso.
+	auto Rango = [](ERTActionGroup Group) -> int32
+	{
+		switch (Group)
+		{
+		case ERTActionGroup::Common: return 0;
+		case ERTActionGroup::Base:   return 1;
+		case ERTActionGroup::Kit:    return 2;
+		case ERTActionGroup::None:   return 2; // posizione vuota del kit: si legge col Kit, al suo posto
+		}
+		return 2;
+	};
+
+	// ⚠️ **`StableSort` e non `Sort`**: dentro un gruppo tutte le voci hanno lo stesso rango, e senza
+	// stabilita' l'ordine di kit — cioe' quello in cui il giocatore impara i tasti — dipenderebbe
+	// dall'algoritmo. `HudViewModel.ReadingOrderKeepsKitOrderWithinEachGroup` lo pinna.
+	TArray<FRTAbilityCooldownView> Ordinate = Actions;
+	Ordinate.StableSort([&Rango](const FRTAbilityCooldownView& A, const FRTAbilityCooldownView& B)
+	{
+		return Rango(A.Group) < Rango(B.Group);
+	});
+
+	// Il confine si misura sul RANGO, non su `Group`: una posizione vuota (`None`) si legge col Kit, e fra le
+	// due non c'e' un separatore (#3489).
+	for (int32 i = 0; i < Ordinate.Num(); ++i)
+	{
+		Ordinate[i].bGroupBreakBefore = i > 0 && Rango(Ordinate[i].Group) != Rango(Ordinate[i - 1].Group);
+		Ordinate[i].bFirstOfGroup = i == 0 || Ordinate[i].bGroupBreakBefore;
+	}
+	return Ordinate;
+}
+
+TArray<FRTAbilityCooldownView> URTHudViewModel::BuildIdleBar(const TArray<const ARTUnit*>& OwnUnits)
+{
+	TArray<FRTAbilityCooldownView> Comuni;
+	int32 KitPiuLungo = 0;
+	for (const ARTUnit* Unit : OwnUnits)
+	{
+		if (!Unit)
+		{
+			continue;
+		}
+		const TArray<FRTAbilityCooldownView> Righe = OrderForReading(BuildAbilityCooldowns(Unit));
+		int32 Kit = 0;
+		for (const FRTAbilityCooldownView& Riga : Righe)
+		{
+			// Una posizione vuota si legge col Kit, come in `OrderForReading`.
+			Kit += (Riga.Group == ERTActionGroup::Kit || Riga.Group == ERTActionGroup::None) ? 1 : 0;
+		}
+		KitPiuLungo = FMath::Max(KitPiuLungo, Kit);
+
+		// Le Comuni dalla prima unita' dell'elenco: sono le stesse per ogni eroe, e l'elenco arriva gia'
+		// ordinato (`GatherUnitsInWorld`), quindi la fonte non cambia fra due frame.
+		if (Comuni.IsEmpty())
+		{
+			for (const FRTAbilityCooldownView& Riga : Righe)
+			{
+				if (Riga.Group != ERTActionGroup::Common)
+				{
+					continue;
+				}
+				// Elenco POSITIVO dei campi: cio' che non e' qui resta al default, quindi nessun piano,
+				// ricarica o stato di D-459 passa dall'unita' alla struttura.
+				FRTAbilityCooldownView Spenta;
+				Spenta.ActionId = Riga.ActionId;
+				Spenta.IconId = Riga.IconId;
+				Spenta.FallbackIconId = Riga.FallbackIconId;
+				Spenta.DisplayName = Riga.DisplayName;
+				Spenta.HotkeyLabel = Riga.HotkeyLabel;
+				Spenta.Slot = Riga.Slot;
+				Spenta.Phase = Riga.Phase;
+				Spenta.PhaseMark = Riga.PhaseMark;
+				Spenta.PhaseLabel = Riga.PhaseLabel;
+				// `#3499`: i fatti di CATALOGO del tooltip, uguali per chiunque porti l'azione. ⛔ Nessuno stato di
+				// piano: `TotalTurns`, `TurnsRemaining` e i motivi restano al default, come [D-460] chiede.
+				Spenta.Description = Riga.Description;
+				Spenta.RangeCells = Riga.RangeCells;
+				Spenta.bSelfTarget = Riga.bSelfTarget;
+				Spenta.Damage = Riga.Damage;
+				Spenta.CooldownTurns = Riga.CooldownTurns;
+				Spenta.Shape = Riga.Shape;
+				Spenta.AreaRadius = Riga.AreaRadius;
+				Spenta.Group = ERTActionGroup::Common;
+				Spenta.AbilityIndex = IdleSlotIndex;
+				Spenta.bUsableNow = false;
+				Comuni.Add(Spenta);
+			}
+		}
+	}
+
+	TArray<FRTAbilityCooldownView> Struttura = Comuni;
+	if (OwnUnits.ContainsByPredicate([](const ARTUnit* U) { return U != nullptr; }))
+	{
+		FRTAbilityCooldownView Vuoto;
+		Vuoto.AbilityIndex = IdleSlotIndex;
+		Vuoto.Group = ERTActionGroup::Base;
+		Struttura.Add(Vuoto);
+		Vuoto.Group = ERTActionGroup::Kit;
+		for (int32 i = 0; i < KitPiuLungo; ++i)
+		{
+			Struttura.Add(Vuoto);
+		}
+	}
+	// Gia' in ordine: `OrderForReading` scrive i confini dei gruppi, come per una barra con un'unita'.
+	return OrderForReading(Struttura);
 }
 
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)

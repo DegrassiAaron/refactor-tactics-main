@@ -403,13 +403,19 @@ namespace
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardReducesDamageInMatchTest,
-	"RefactorTactics.Actions.Guard.ReducesFirstDirectDamageInMatch",
+	"RefactorTactics.Actions.Guard.ReducesDirectDamageInMatch",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 {
-	// `Action.Guard` end-to-end: si prepara nel Prep, e nel Blast dello stesso turno assorbe fino a 15 dai
-	// colpi dell'arco frontale ([D-292]). Con UN solo colpo sopra la soglia il pool e il vecchio delta di
-	// primo colpo danno lo stesso numero, ed e' il motivo per cui questo test non cambio' con D-292.
+	// `Action.Guard` end-to-end: si prepara nel Prep, e nel Blast dello stesso turno riduce di 15 i colpi
+	// dell'arco frontale ([D-408]).
+	//
+	// ⏱️ **Il nome ha perso «First» il 2026-09-20, e il test non e' cambiato: e' il punto.** Con UN solo
+	// colpo sopra la soglia i tre modelli — delta sul primo colpo, pool di [D-292], riduzione per colpo di
+	// [D-408] — danno lo **stesso** numero, ed e' la ragione per cui questo test non e' mai diventato rosso
+	// pur avendo descritto per due volte una regola che non esisteva piu'. ⚠️ Quello che misura e' il
+	// percorso END-TO-END — Prep, Blast, HP — non la forma della mitigazione: quella la misurano
+	// `Combat.GuardReductionHasNoCeiling` e `Spec.Combat.GuardPoolSpansMultipleHits`.
 	UWorld* World = MakeHexBlastWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
@@ -433,11 +439,11 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	// Il danno pieno lo dichiara l'attacco base di CHI SPARA, non un numero scritto qui: la proprieta' sotto
-	// esame e' «Guard assorbe fino a 15 da un colpo frontale», e deve reggere qualunque eroe schieri il test.
+	// esame e' «Guard toglie 15 a un colpo frontale», e deve reggere qualunque eroe schieri il test.
 	// Prima era `25`, il danno del Ranger legacy, e cambiare unita' faceva cadere il test su un dettaglio
 	// che non stava verificando.
 	const int32 FullHit = Shooter->AttackPower;
-	TestEqual(TEXT("in guardia il primo colpo fa FullHit - 15"), StartHealth - Defender->Health, FullHit - 15);
+	TestEqual(TEXT("in guardia un colpo frontale fa FullHit - 15"), StartHealth - Defender->Health, FullHit - 15);
 
 	// Controprova: senza guardia lo stesso tiro arriva intero.
 	Defender->ApplyCombatState(StartHealth, 0);

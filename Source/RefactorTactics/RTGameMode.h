@@ -21,6 +21,7 @@
 
 class ARTUnit;
 class ARTHexMapActor;
+class ARTTurnManager; // `#3267`: `ApplyPlaybackControlCVars` lo prende, e l'header non lo includeva
 class URTFrontendNavigator;
 class URTKnowledgeVeilPresenter;
 class URTMatchFormatData;
@@ -52,6 +53,13 @@ public:
 	 * `Tests/` la chiamano direttamente per allestire una partita vera senza far correre `BeginPlay`.
 	 */
 	void SetupHexMatch(ARTHexMapActor* HexMap);
+
+	/**
+	 * ⚠️ **Pubblica perche' e' la porta dei test, come `SetupHexMatch`**: il cablaggio fra conduttore e
+	 * GameMode e' esattamente la meta' che le porte finte non possono vedere, ed e' li' che viveva il
+	 * difetto del tick spento. Un metodo privato qui avrebbe lasciato quel difetto senza oracolo.
+	 */
+	void InstallPieSessionPorts();
 
 	/**
 	 * Da dove arriva l'arena su cui si gioca. E' una **scelta**, non una catena di flag: i modi di lanciare una
@@ -311,6 +319,53 @@ public:
 	/** Lo scenario da eseguire: la console variable prevale sulla proprietà, altrimenti vale la proprietà. Vuoto = partita normale. */
 	FString ResolveScenarioToRun() const;
 
+	/** Chi ha vinto la precedenza dello scenario: la proprieta', la riga di comando o la console. */
+	enum class EScenarioEntrySource : uint8 { Property, CommandLine, ConsoleVariable };
+
+	/** L'esito della precedenza, gia' deciso: cosa eseguire, chi ha vinto, e cosa va detto. */
+	struct FScenarioEntryChoice
+	{
+		FString ScenarioId;
+		EScenarioEntrySource Source = EScenarioEntrySource::Property;
+
+		/**
+		 * L'avviso da emettere, vuoto se non c'e' niente da dire.
+		 *
+		 * 🔑 **Il testo lo decide la scelta, non chi la applica**, ed e' la meta' che rende il rifiuto
+		 * silenzioso impossibile: una precedenza che scavalca senza dirlo manda a cercare il difetto nella
+		 * property sbagliata — e' successo davvero, si sceglieva uno scenario nel Details Panel e ne partiva
+		 * un altro. Tenendo la frase qui, un test la puo' leggere senza un mondo e senza una console.
+		 */
+		FString OverrideWarning;
+	};
+
+	/**
+	 * La PRECEDENZA dello scenario, dati i tre valori gia' letti. Pura: nessuna sorgente globale.
+	 *
+	 * 🔑 **Estratta da `ResolveScenarioToRun` per `#2182`**, e il guadagno non e' solo la velocita': i suoi
+	 * test montavano un mondo e mutavano DUE stati globali del processo — `rt.Test.Scenario` e la riga di
+	 * comando — per porre una domanda che non ne ha bisogno. Una console variable dura quanto l'editor e la
+	 * si dimentica accesa; una riga di comando riscritta vale per ogni test successivo. E' esattamente cio'
+	 * che `FRTMatchBootstrapConfig` dichiara come proprio scopo: «un test puo' allestire una partita senza
+	 * toccare lo stato globale del processo».
+	 *
+	 * ⛔ **La precedenza non si e' spostata di sede**, e la riserva e' dichiarata in `RTMatchBootstrapper.h`:
+	 * le tre scale del progetto — scenario, sorgente mappa, autobattle — vivono nello stesso file per
+	 * confrontarsi fra loro, e aprirne una seconda sede sarebbe il difetto. Qui cambia solo **da dove
+	 * arrivano gli ingressi**: prima li leggeva lei dai globali, adesso glieli passa chi la chiama.
+	 */
+	static FScenarioEntryChoice ChooseScenarioEntry(const FString& Property,
+		const FString& FromCommandLine, const FString& FromConsole);
+
+	/**
+	 * Il valore di `-RTScenario=<Id>` in una riga di comando QUALUNQUE, vuoto se il flag non c'e'.
+	 *
+	 * Prende la riga come parametro invece di leggere `FCommandLine::Get()`: e' l'unica differenza, ed e'
+	 * cio' che permette di verificare il parsing su ingressi arbitrari senza riscrivere la riga di comando
+	 * del processo — che dura quanto il processo, e vale per ogni test successivo.
+	 */
+	static FString ReadScenarioFromCommandLine(const TCHAR* CommandLine);
+
 	/**
 	 * La sorgente mappa in vigore: `rt.Map.Source` se impostata e valida, altrimenti la proprieta'.
 	 * Il piu' specifico vince, come per `ResolveScenarioToRun` — e un valore sconosciuto non ripiega in
@@ -451,6 +506,29 @@ public:
 	void OpenClaimedFirstTurn();
 
 	/**
+	 * Accende i controlli di playback secondo le CVar, per QUALUNQUE percorso di avvio — `#3267`.
+	 *
+	 * 🔴 **Esiste perche' `BeginPlay` ha piu' uscite, esattamente come `OpenClaimedFirstTurn`.** Fino a
+	 * `#3267` la lettura delle due CVar viveva **inline** dopo `SetupHexMatch`: il ramo
+	 * `ERTScenarioStart::Started` esce con un `return` cinquanta righe piu' su, quindi
+	 * `rt.Debug.PlaybackControls 1` non aveva alcun effetto in auto-run di scenario — e l'auto-run e'
+	 * precisamente il modo in cui si conducono le sedute di giudizio percettivo.
+	 *
+	 * ⚠️ **Estratta invece che ripetuta.** Lo scope della issue ammetteva tre forme — spostarla prima dello
+	 * `switch`, ripeterla nel ramo, o estrarla: ripeterla avrebbe messo la stessa regola in due posti, e
+	 * uno dei due sarebbe divergito. E' lo stesso argomento con cui `OpenClaimedFirstTurn` tiene la propria
+	 * guardia in un posto solo.
+	 *
+	 * ⛔ **Il ramo `NotLoadable` NON la chiama, ed e' deliberato**: li' non parte nessuna partita e non c'e'
+	 * niente da riprodurre, quindi accendere i comandi annuncerebbe una sessione che non esiste.
+	 *
+	 * Un `TurnManager` nullo non e' un errore: non c'e' nessuno da accendere, e la funzione non fa nulla.
+	 * Pubblica per la stessa ragione della gemella qui sopra — i test allestiscono senza far correre
+	 * `BeginPlay`.
+	 */
+	void ApplyPlaybackControlCVars(ARTTurnManager* TurnManager);
+
+	/**
 	 * Il presenter del velo di questa sessione: quello del `ARTPlayerController` se un client c'e', altrimenti
 	 * uno senza proprietario creato qui.
 	 *
@@ -478,6 +556,31 @@ private:
 	 * questo file non deve piu' nominare.
 	 */
 	FRTScenarioCoordinator ScenarioCoordinator;
+
+	/**
+	 * Installa sul conduttore di seduta (`#3208`) le due porte con cui avvia e smonta uno scenario, e gli
+	 * inoltra `OnScenarioFinished`.
+	 *
+	 * ⛔ **Il conduttore non riceve un puntatore a questo Actor, e non e' pignoleria**: `ScenarioCoordinator`
+	 * e' privato e per valore, ma soprattutto e' una classe concreta — con un puntatore, i casi limite
+	 * della conduzione (scenario non caricabile, sessione in errore, `expect` rosse, interruzione)
+	 * tornerebbero a richiedere un mondo, uno scenario vero e un Editor per essere verificati.
+	 */
+
+	/**
+	 * Monta l'overlay del verdetto quando la seduta ne aspetta uno, e lo smonta quando non serve piu'.
+	 *
+	 * Sta nel `Tick` e non in un delegate perche' il `Tick` di questo Actor e' gia' cio' che fa avanzare
+	 * la sessione: un secondo canale per la stessa transizione sarebbe una seconda verita' sullo stato.
+	 *
+	 * ⛔ Senza `PlayerController` non monta niente e **non e' un errore**: la seduta resta conducibile da
+	 * `rt.Pie.Verdict`, ed e' la ragione per cui il conduttore non dipende dal widget.
+	 */
+	void SyncPieVerdictOverlay();
+
+	/** L'overlay in viewport, o nullo. Non e' uno stato della seduta: e' la sua finestra. */
+	UPROPERTY(Transient)
+	TObjectPtr<class URTPieVerdictOverlay> PieVerdictOverlay = nullptr;
 
 	/**
 	 * Centra la camera sulla mappa dello scenario, al tick successivo.

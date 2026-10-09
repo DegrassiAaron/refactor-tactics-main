@@ -6,6 +6,8 @@
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "RTPlayerController.generated.h"
 
+enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
+
 class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
@@ -254,15 +256,6 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LayerDownAction;
 
-	/**
-	 * 🔴 **Il tasto che mancava a `#291`.** Le regole della rotazione dichiarata erano complete e testate
-	 * dal 2026-08-09 — `TryApplyDeclaredFacing`, `LegalFacings`, il consumo nel TurnManager, il rifiuto
-	 * invece della correzione silenziosa — ma **nessuno le raggiungeva**: `BeginFacingDeclaration` e
-	 * `HandleFacingSector` avevano come unici chiamanti dei test, e non erano `UFUNCTION`. Il giocatore non
-	 * aveva modo di chiedere una rotazione, e a fine percorso l'unita' si girava dove diceva l'ultimo passo.
-	 */
-	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> FacingAction;
 
 	/** Cicla la velocita' di riproduzione `x1 · x2 · x4` (CP 47.7, #1015). */
 	UPROPERTY(Transient)
@@ -666,6 +659,29 @@ public:
 	 */
 	static const TArray<TPair<FName, FKey>>& GenericHotkeys();
 
+	/**
+	 * Il tasto che DICHIARA `Sneak` ([D-425]): l'unico profilo di movimento che si dichiara invece di derivarsi.
+	 *
+	 * 🔑 **Una sede sola, letta da due parti** (`#3470`): `BuildInputMappings` ci lega `IA_DeclareSneak`, e la
+	 * lettura del movimento nella barra lo mostra come badge. Scritto due volte, il giorno in cui qualcuno
+	 * rimappa il gesto la barra continuerebbe a dire `M` per un tasto che non fa piu' niente.
+	 * `PlayerInput.SneakIsMappedOnTheKeyTheBarShows` lo pinna sul contesto di input reale.
+	 */
+	static const FKey& SneakHotkey();
+
+	/**
+	 * Il tasto che DICHIARA il piano dell'unita' selezionata (`Invio`, #3145) — lo stesso gesto che il pulsante
+	 * `Conferma` della HUD inoltra ([D-458]). Una sede sola, letta dalla mappatura e dall'etichetta del pulsante.
+	 */
+	static const FKey& DeclarePlanHotkey();
+
+	/**
+	 * Il tasto da tastiera del Back (`BackSpace`), gemello del tasto destro — lo stesso gesto che il pulsante
+	 * `Annulla` della HUD inoltra ([D-458]). ⚠️ Il destro resta mappato a parte: e' anche il dolly della camera
+	 * con `Alt`, e un pulsante non ha un modificatore da tenere.
+	 */
+	static const FKey& UndoKeyboardHotkey();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
@@ -848,6 +864,21 @@ private:
 	 * kit vuoto annunciava «armata la posizione -1».
 	 */
 	void SelectAbilityForCurrent(int32 Index, ERTAbilityRequestSource Source);
+
+	/**
+	 * Il DISARMO dell'azione dell'unita' SELEZIONATA: la toglie dalla selezione **e dal piano**, rilascia il tetto di
+	 * movimento che il piano
+	 * imponeva e restituisce i waypoint che quel tetto aveva troncato ([D-444]). Restituisce la coda del messaggio
+	 * di log: vuota, o la frase dei waypoint restituiti.
+	 *
+	 * ⚠️ **Nessun parametro, di proposito**: `RebuildPlannedPath` lavora sull'unita' selezionata, e un'unita' passata
+	 * per argomento potrebbe essere un'altra — rilascerebbe il tetto di una e ricostruirebbe il percorso dell'altra.
+	 *
+	 * 🔑 **Una funzione sola per le due porte che disarmano**: il secondo click sullo slot (`#3417`) e il Back
+	 * su un'azione gia' nel piano (`#3501`). Fino a `#3501` il Back chiamava il solo `SelectAbility(INDEX_NONE)`,
+	 * cioe' la riga che [D-444] nomina come difetto, e il tetto `Withdraw` restava dopo «Annulla».
+	 */
+	FString DisarmPlannedAction();
 
 	/** Come si nomina l'origine nella traccia. Frase gia' preposizionata: «dal tasto», «dallo slot del dock». */
 	static const TCHAR* DescribeAbilityRequestSource(ERTAbilityRequestSource Source);
@@ -1079,6 +1110,34 @@ public:
 	void ArmKitAbility(int32 KitIndex);
 
 	/**
+	 * 🔴 **La porta del badge `M` della barra: dichiara o ritira `Sneak`** ([D-457], #3470).
+	 *
+	 * ⛔ **E' il corpo del tasto, non una copia**: `OnToggleSneak` chiama questa, quindi riserva dello slot,
+	 * tetto e waypoint ripristinati restano decisi in un posto solo. Il click e il tasto sono due canali verso
+	 * la STESSA dichiarazione, come slot e tasti numerici per le azioni ([D-397] punto 4).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void ToggleSneakDeclaration();
+
+	/**
+	 * 🔴 **La porta del pulsante `Conferma`: dichiara o ritratta il piano dell'unita' selezionata** ([D-458]).
+	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione.
+	 * ⛔ Non e' il `LockIn` di `Spazio`, che chiude il turno per tutti.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	bool TogglePlanDeclaration();
+
+	/**
+	 * 🔴 **La porta del pulsante `Annulla`: l'INTERO Back del tasto destro** ([D-458]).
+	 *
+	 * Durante il countdown del Ready **ritira il Ready** (#2193), altrimenti smonta **un** livello con
+	 * `ApplyBack()` (§5.5). ⛔ E' il corpo di `OnUndoWaypoint` meno il dolly della camera, che appartiene al
+	 * tasto destro tenuto con `Alt` e non a un pulsante: le due strade non possono divergere sul gioco.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void UndoStep();
+
+	/**
 	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).
 	 *
 	 * 🔑 **E' un INSIEME di contesti, non un valore.** `spec-pointer-interaction.md` §5.3 li elenca insieme
@@ -1098,6 +1157,22 @@ public:
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerTargetKind GetPointerTargetKind() const;
+
+	/**
+	 * Che cosa risponderebbe un click ADESSO, sulla cella sotto il puntatore, con l'azione armata: il rifiuto
+	 * per chi guarda, o `None` (#3483, [D-459] lettura A). Alimenta lo stato `Invalid` dello slot armato.
+	 *
+	 * 🔑 **E' la domanda del click, posta in anticipo — non una regola nuova**: per un'unita'
+	 * `RefusalForKnownTarget`, la stessa coppia del click e dell'anteprima; per una cella la porta di
+	 * `HandleTargetCell`. Dove il click non mostrerebbe un rifiuto, `None`.
+	 *
+	 * ⛔ **Privacy ([D-225])**: per un'azione mirata a un'unita' si considerano SOLO le unita' note
+	 * all'osservatore. Una cella senza unita' note risponde `None`, non `Nothing`: il puntatore su un'ombra non
+	 * deve accendere niente, altrimenti lo slot rosso direbbe «li' c'e' qualcuno». Per un'azione a cella la
+	 * porta e' quella del click su una cella, `DescribeCellTargetRefusal`, che non guarda chi la occupa.
+	 * `Edge` e `Object` hanno regole proprie: `None`.
+	 */
+	ERTTargetRefusal RefusalUnderPointerForArmed() const;
 
 	/**
 	 * `ESC`: apre la pausa se e' chiusa, la chiude se e' aperta.
@@ -1204,14 +1279,30 @@ public:
 	void BeginFacingDeclaration();
 
 	/**
-	 * Cicla il facing dichiarato fra le direzioni **legali** per il movimento pianificato, e lo applica.
+	 * Il SECONDO CLICK sull'esagono finale sceglie il verso ([D-367], [D-462], `#291`): `Cell` deve essere la cella
+	 * finale del movimento pianificato, e `Sector` il lato puntato. Dichiara il verso e **chiude il movimento**:
+	 * da quel momento un click su un'altra cella non aggiunge waypoint, finche' un Back non lo riapre.
 	 *
-	 * ⚠️ **Cicla fra le legali invece di offrirle tutte e sei**: l'insieme dipende dallo stile — tre dopo
-	 * un Move a budget, una sola dopo uno scatto lineare, sei da fermo — e senza l'indicatore a schermo
-	 * (`#613`) un giocatore che potesse chiedere una direzione qualunque riceverebbe un rifiuto muto. Qui
-	 * una direzione illegale non e' proprio raggiungibile, che e' la stessa garanzia ottenuta senza HUD.
+	 * ⚠️ **Da fermo serve il selettore aperto** (`TryOpenFacingSelector`): la propria cella non e' una destinazione,
+	 * e un click su di essa senza il primo gesto sarebbe una selezione, non una scelta di verso.
+	 * ⛔ Un settore illegale per il budget di pivot e' rifiutato, mai corretto ([D-367]).
+	 * @return true se il verso e' stato dichiarato.
 	 */
-	void CycleDeclaredFacing();
+	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector);
+
+	/**
+	 * Apre la scelta del verso se `ClickedCell` e' la cella finale del movimento: la propria da fermo ([D-462] punto
+	 * 4), la destinazione in marcia ([D-463]). Lo chiamano il click sull'unita' gia' selezionata (con la sua cella,
+	 * quindi solo da fermo) e il click sulla cella finale.
+	 *
+	 * 🔑 **Aperta, chiude il movimento**: ogni click e' una direzione finche' non si sceglie un verso o un Back la
+	 * chiude ([D-463]).
+	 * @return true se il selettore e' stato aperto.
+	 */
+	bool TryOpenFacingSelector(const FRTCellId& ClickedCell);
+
+	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
+	FRTCellId FacingCellFor(const ARTUnit* Unit) const;
 
 	/**
 	 * Ruota la MESH verso il facing che l'unita' avra' a fine mossa: la rotazione dichiarata se c'e',
@@ -1228,8 +1319,38 @@ public:
 	 */
 	void PreviewPlannedFacing(ARTUnit* Unit) const;
 
+	/** Ruota la MESH verso `Direction`, dalla geometria della cella. Solo presentazione: non tocca il piano. */
+	void PreviewFacingToward(ARTUnit* Unit, ERTHexDirection Direction) const;
+
+	/**
+	 * L'hover del selettore aperto ([D-367]: *«l'hover ne anticipa il settore e la rotazione visuale senza mutare lo
+	 * stato autorevole»*): la mesh si gira verso il lato **legale** sotto il cursore, e torna al verso pianificato
+	 * quando il cursore esce o il selettore si chiude. ⚠️ Un lato illegale non ruota: non e' interattivo.
+	 *
+	 * Il raggio arriva da fuori perche' il test possa darlo senza un viewport; in partita lo da' `PlayerTick`.
+	 */
+	void UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir);
+
+	/** Il lato su cui il cursore ha girato la mesh, se c'e'. Serve ai test. */
+	TOptional<ERTHexDirection> GetFacingHoverSector() const { return FacingHoverSector; }
+
 	/** Esce da `Facing` senza dichiarare nulla. */
 	void EndFacingDeclaration();
+
+	/** Stile e rotta del movimento pianificato su cui si giudica il verso: come li applichera' il resolver (`#291`). */
+	void PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle, TArray<FRTCellId>& OutPath) const;
+
+	/** Il verso `Sector` e' legale per il movimento pianificato? E' la stessa domanda per il click e per l'hover. */
+	bool IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const;
+
+	/** Cancella il verso dichiarato e riapre il movimento, dicendo perche'. Niente se non c'era un verso. */
+	void CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche);
+
+	/** Il click del giocatore sull'esagono finale, dal cursore: settore, dead-zone, priorita' sulla mesh. */
+	bool TryHandleFacingClickUnderCursor(ARTUnit* Unit);
+
+	/** La dead-zone centrale dell'esagono del verso, in frazione di `HexSize` ([D-367]). */
+	static constexpr float FacingDeadZoneFraction = 0.3f;
 
 	/** Vero mentre si sta dichiarando una rotazione. */
 	bool IsDeclaringFacing() const { return bDeclaringFacing; }
@@ -1251,6 +1372,9 @@ public:
 protected:
 	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
 	bool bDeclaringFacing = false;
+
+	/** Il lato verso cui l'hover ha girato la mesh: vuoto quando la mesh mostra il verso pianificato. */
+	TOptional<ERTHexDirection> FacingHoverSector;
 
 	bool bInspectorPinned = false;
 

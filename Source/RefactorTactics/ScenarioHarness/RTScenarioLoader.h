@@ -84,7 +84,17 @@ public:
 	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso morde come per `decisions`: una build a
 	// `SupportedVersion = 5` non conosce la chiave e la rifiuterebbe come sconosciuta, accusando il FILE
 	// mentre il difetto e' la build. Con la `6` il rifiuto arriva dal gate di versione e nomina la build.
-	static constexpr int32 SupportedVersion = 6;
+	// 6 → 7 con i **checkpoint** (`at`) e il selettore semantico `afterEvent` sulle assertion (`#2867`): una
+	// condizione puo' dichiarare a QUALE confine va verificata, invece che solo a fine turno.
+	//
+	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso che conta morde come per `freeRun` — cioe' nel
+	// modo peggiore. Una build a `SupportedVersion = 6` non conosce `at`, e `expect` fino a `#2867` non aveva
+	// un controllo di chiave sconosciuta: la chiave verrebbe **ignorata in silenzio**, e l'assertion si
+	// valuterebbe a fine turno. Un'assertion che chiede *«dov'era al Blast»* e riceve *«dov'e' a fine
+	// turno»* non esce rossa: esce **verde misurando un'altra cosa**. Con la `7` il rifiuto arriva dal gate
+	// di versione e nomina la build. (Il controllo di chiave sconosciuta su `expect` arriva con la stessa
+	// fetta, ma non protegge le build gia' spedite: quelle hanno solo il gate.)
+	static constexpr int32 SupportedVersion = 7;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.
@@ -162,6 +172,28 @@ public:
 
 	/** Radice degli scenari versionati: `<Progetto>/Scenarios/`. */
 	static FString ScenariosRoot();
+
+	/**
+	 * Radice degli scenari **del Lab**: `<Saved>/RTLab/Scenarios/`. Non versionata (`Saved/` e' in `.gitignore`).
+	 *
+	 * 🔑 La legge `URTScenarioIndex::ScanAll` (quindi `ResolvePath`, `ListIds`, `ListTags`), non `Scan`.
+	 *
+	 * ⚠️ Ordine di risoluzione: (1) l'override di `SetLabScenariosRootOverrideForTest`, se non vuoto;
+	 * (2) **sotto automation** (`GIsAutomationTesting`) la stringa VUOTA — la radice non esiste e nessuno puo'
+	 * crearla o scriverci — cosi' i test che enumerano il corpus vedono la sola radice versionata e un file
+	 * stantio lasciato in `Saved/RTLab` non li rende rossi su una macchina e verdi su un'altra; (3) altrimenti
+	 * la radice vera. Un Editor interattivo e il PIE non sono automation: li' vale (3).
+	 * Chi scrive nella radice (`FRTLabViewModel::PrepareForPie`) rifiuta se e' vuota.
+	 */
+	static FString LabScenariosRoot();
+
+	/**
+	 * Sovrascrive `LabScenariosRoot()` per un test. Stringa vuota = nessun override.
+	 *
+	 * ⚠️ Chi la imposta la azzera con `ON_SCOPE_EXIT`: `Saved/RTLab` e' condiviso con l'Editor e non e'
+	 * un luogo di prova.
+	 */
+	static void SetLabScenariosRootOverrideForTest(const FString& Root);
 
 	/**
 	 * L'enum degli esiti che appartiene a una categoria del TurnLog: `ERTMoveOutcome` se `Move`,

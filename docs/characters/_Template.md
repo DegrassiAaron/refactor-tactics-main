@@ -145,7 +145,7 @@ regole** ma legge male il turno>
 
 ## Governance
 
-- Dataset corrente: `docs/src/data/characters-wiki-data-v0.4.xlsx`.
+- Dataset corrente: [`RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`](data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx).
 - La descrizione editoriale non crea nuovi valori competitivi.
 - I campi mancanti restano mancanti.
 - La Wiki non è una fonte runtime.

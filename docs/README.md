@@ -39,7 +39,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | # | Livello | Documento | Cosa decide |
 |---|---|---|---|
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
-| 2 | **Decisioni** | [`decisions/`](decisions/) — 6 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
+| 2 | **Decisioni** | [`decisions/`](decisions/) — gli ADR numerati + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Codice** | `Source/` | Cosa il gioco fa **davvero**, oggi |
 | 4 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
@@ -108,6 +108,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Durata partita, round, scala mappe | [`gameplay/spec-durata-partita-e-scala-mappe.md`](gameplay/spec-durata-partita-e-scala-mappe.md) (D-010) | ✅ |
 | Pacing del turno misurato | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | ✅ |
 | Privacy dell'intento | invariante #6 + `URTIntentPrivacyLibrary` | ✅ offline |
+| **Intenti condivisi** — i requisiti del piano di squadra in rete | [`technical/systems/spec-intenti-condivisi.md`](technical/systems/spec-intenti-condivisi.md) | ⏳ **post-v0.1**: in 2v2 offline la feature non ha soggetto — `UnitsPerPlayer = 2` su `UnitsPerTeam = 2` |
 | TurnLog, reason code, serializzazione | [`technical/spec-turnlog.md`](technical/architecture/spec-turnlog.md) · [`technical/spec-turnlog-serialize.md`](technical/architecture/spec-turnlog-serialize.md) | ✅ |
 | Replay — cosa è autorevole e chi può calcolare | [`decisions/adr-0009-replay-logico-canonico.md`](decisions/adr-0009-replay-logico-canonico.md) | ⏳ **decisione presa, R1/R3 da implementare** (2026-08-10) · due prodotti: il **Player** riproduce la traccia e non calcola, il **Verifier** ri-simula e non presenta · forma dell'archivio in [D-077](decisions/RT_PDR_00_Decision_Log.md) |
 | HUD e leggibilità | [`technical/progettazione-hud.md`](technical/systems/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/systems/brief-planning-visuale.md) | ⏳ E11 |
@@ -193,30 +194,55 @@ a memoria** — questo file l'ha già sbagliato cinque volte.
 ```
 docs/
 ├── README.md                    ← sei qui: indice e owner dei concetti
+├── CONTEXT_INDEX.md             da dove si parte a leggere, e cosa non è una fonte
 ├── DOC_CONFLICT_MATRIX.md       conflitti fra documenti e loro stato
 ├── OPEN_DECISIONS.md            cosa aspetta una decisione umana
 ├── CHANGELOG_DOCUMENTATION.md   storia della documentazione
+├── superclaude-cheatsheet.md    promemoria dei comandi di seduta: tooling, non regole
 │
 ├── product/     visione, canone, vertical slice
 ├── gameplay/    regole di gioco: turno, azioni, reazioni, percezione, ambiente
-├── technical/   architettura, mappa, pathfinding, TurnLog, UI, test, guide
-│   └── img/     riferimenti visuali
+├── technical/   ⚠️ non è più piatta: la fase 4 di #1165 l'ha divisa **per natura**
+│   ├── architecture/  *com'è fatto*: classi, mappa, pathfinding, TurnLog, pipeline degli asset
+│   ├── systems/       *come si comporta un sottosistema*: hex sim, vision, bot, HUD, privacy
+│   ├── tooling/       *con cosa si lavora*: tactical designer, scenari, test automatici
+│   ├── runbooks/      *cosa si esegue a mano*: verifiche in editor, mandati QA, diagnosi
+│   ├── evidence/      allegati di misura per issue (log, screenshot): provenienza, non regole
+│   └── img/           riferimenti visuali
 ├── balance/     numeri vigenti (cataloghi .md) + workbook di esplorazione
 ├── roadmap/     milestone, release v0.1, DoD, requisiti di lungo periodo
-│   └── plans/   piani di esecuzione consegnati (storico)
+│   └── plans/   piani, referti e triage consegnati — il criterio è il banner, non la data
 ├── decisions/   ADR e Decision Log
+│   └── open/    istruttorie delle voci ancora aperte di `OPEN_DECISIONS.md`
 ├── wiki/        **vuota**: le pagine di gioco vivono nel clone pubblicato (D-076). Resta un puntatore
-├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
-│   └── radar/   gli otto SVG generati da `tools/radar/`: output, non si editano
+├── characters/  pagine personaggio — **un kit per pagina**
+│   ├── v0.1/          il roster giocabile
+│   ├── v0.2/          il roster successivo
+│   ├── candidates/    candidati Paragon: bacino di lavorazione, non roster
+│   ├── data/          manifest e workbook che alimentano le pagine
+│   ├── images/        arte e ritratti delle pagine personaggio
+│   └── radar/         gli SVG generati da `tools/radar/`: output, non si editano
 ├── research/    non normativo: PRD di visione, design, handoff — la ex `src/`, col nome che lo dice
-│   ├── prd/        i quattro PRD tematici + il prompt del pivot esagonale
-│   ├── design/     icone, showcase, griglie stampabili
+│   ├── prd/        i PRD tematici + il prompt del pivot esagonale
+│   ├── design/     icone, showcase, griglie stampabili, `systems-map/`, la cheat sheet della
+│   │               tassonomia skill (`icon/`, con la mappa dei suoi owner)
+│   ├── maps/       render di mappe come materiale di studio
+│   ├── wiki/       sorgenti wiki non pubblicati, incluso `v0.1/roster-legacy/` (#1166)
 │   └── handoff/    prompt e consegne di sessione, non ancora consumati
 ├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
-│   └── icons/      635 file rigenerati da tools/hud-assets/ — ⚠️ produttore sì, oracolo no (#2537)
+│   └── icons/      rigenerate da `tools/hud-assets/` — ⚠️ produttore sì, oracolo no (#2537)
+├── superpowers/ piani e design delle sedute `superpowers`: provenienza, non regole — vedi il suo README
+│   ├── plans/
+│   └── specs/
+├── shared-mcp-kit/  il kit di installazione del ponte MCP condiviso: **strumenti**, non documentazione
 └── archive/     materiale superato
-    ├── src/        i sorgenti già recepiti: design, handoff, audit
-    └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
+    ├── src/                         i sorgenti già recepiti: design, handoff, audit
+    ├── pdr-v0.1/                    il corpus PDR v0.1, consolidato in un Markdown
+    ├── roadmap-plans/               i piani il cui banner li dichiarava già storici
+    ├── gameplay/ · technical/       spec superate da una decisione: griglia quadrata, bot utility
+    ├── session-notes/               note di seduta
+    ├── consolidazione-chat-openai/  il master del giro chat del 2026-08-09 (perimetro di #2606)
+    └── shared-mcp-kit.zip           copia superata di `shared-mcp-kit/` — vedi *I tre binari*
 ```
 
 > ⚠️ Fino al 2026-08-18 questo albero elencava `wiki/game/`, `wiki/meccaniche/` e `wiki/fazioni/` come
@@ -224,6 +250,66 @@ docs/
 > ha spostato la Wiki in un repository separato, e da allora questa sezione descriveva tre cartelle
 > inesistenti. Un albero disegnato a mano non si accorge di un file che sparisce — è lo stesso difetto
 > per cui i conteggi di questa pagina sono diventati generati.
+
+> 🔴 **Rimisurato il 2026-09-20, e l'albero taceva ventisei voci.** La nota qui sopra dichiarava il difetto
+> e non lo ha impedito: è ricapitato nello stesso modo, in scala maggiore. Mancavano cinque file in radice
+> — `CONTEXT_INDEX.md`, `superclaude-cheatsheet.md` e i tre binari —, due cartelle di primo livello
+> (`superpowers/`, `shared-mcp-kit/`) e diciannove di secondo livello, fra cui **tutte e cinque quelle di
+> `technical/`**. ⚠️ Cioè lo split `architecture` / `systems` / `tooling` / `runbooks` / `evidence`: **la
+> fase 4 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)**, che questa
+> pagina governa e non aveva registrato.
+>
+> ⛔ **Un albero disegnato a mano resta disegnato a mano**: quello qui sopra invecchierà come i due
+> precedenti. Cambia solo che ora si falsifica in un comando, senza fidarsi di questa pagina:
+>
+> ```sh
+> git ls-files docs | awk -F/ 'NF>3{print $2"/"$3} NF==3{print $2}' | sort -u
+> ```
+
+### I tre binari, e perché contraddicono l'apertura di questa pagina
+
+Questa pagina si apre dicendo che `docs/` **è interamente in Markdown dal 2026-08-12**
+([D-009](decisions/RT_PDR_00_Decision_Log.md)). ✅ **Dal 2026-09-20 lo è di nuovo**, e la radice porta solo i
+cinque documenti di governance più il promemoria di tooling — `git ls-files docs | awk -F/ 'NF==2'` lo
+elenca. Fino a quel giorno la smentivano tre file che non erano elencati da nessuna parte:
+
+| File | Entrato con | Cosa è |
+|---|---|---|
+| `RefactorTactics_Skill_Taxonomy_CheatSheet_LARGE_v0.1.docx` | `fe4af8bf` · 2026-08-29 | export di prosa: la classe che D-009 fa uscire |
+| `RefactorTactics_Skill_Taxonomy_CheatSheet_LARGE_v0.1.pdf` | `fe4af8bf` · 2026-08-29 | lo stesso in PDF — *reference/export/audit artifact, non owner normativo* |
+| `shared-mcp-kit.zip` | `4fdb01a0` · 2026-09-10 | una seconda copia di [`shared-mcp-kit/`](shared-mcp-kit/), **già divergente** |
+
+**Dove sono adesso, e perché in due posti diversi:**
+
+| File | Ora | Ragione |
+|---|---|---|
+| i due `Skill_Taxonomy_CheatSheet` | [`research/design/icon/`](research/design/icon/tassonomia-skill-cheatsheet.md) | è un sorgente **non consumato**: il referto che sembra il suo ne ha triagiato un altro, e quattro sue etichette non le ha adottate nessun owner. `research/` è *«input non ancora consumato»* |
+| `shared-mcp-kit.zip` | [`archive/`](archive/README.md) | è **superato**, e questa volta si deriva: sottoinsieme stretto della cartella viva, con ogni file condiviso diverso, e nessun consumatore |
+
+⛔ **Lo zip non è un backup: è un duplicato che ha smesso di essere uguale.** Non lo cita nessuno —
+
+```sh
+grep -rn 'shared-mcp-kit\.zip' --include='*.md' --include='*.ps1' --include='*.json' .   # → 0
+```
+
+— contiene nove dei tredici file della cartella viva (mancano `kit-drift-check.ps1`,
+`plugin-refresh-status.ps1`, `ports.template.json`, `session-start-hook.ps1`) e dei nove **tutti e nove
+differiscono** per SHA-256 dal file omonimo sul disco. Nessun gate poteva dirlo:
+[`doc-links.ts`](../tools/radar/doc-links.ts) cammina sui Markdown, e un `.zip` non è un Markdown.
+
+🔑 **Fino al 2026-09-20 questa sezione si fermava a dichiarare**, con questa motivazione: *«superato è
+uno stato che si deriva o non si scrive: la cartella è più avanti dello zip, ma questo non dice se lo zip
+sia la consegna pubblicata o un residuo»*. ✅ **La deriva mancante è arrivata**, e sta in una riga del
+`README` del kit: non nomina lo zip. Un artefatto di consegna che la propria documentazione non cita non è
+una consegna — e sommato al sottoinsieme stretto e alle nove differenze, *superato* si deriva.
+
+⛔ **Cancellare no, e resta fuori discussione**: la regola di questa pagina è che un documento superato non
+si cancella, guadagna un banner e resta come provenienza. Uno `.zip` non può portare un banner, quindi porta
+il proprio percorso: [`archive/`](archive/README.md) è il banner.
+
+⚠️ **Rigenerarlo resta una decisione d'autore**, e nessuno l'ha presa: se il kit va distribuito come
+archivio, il posto giusto è una build, non un file versionato che invecchia in silenzio — che è esattamente
+come questo è invecchiato.
 
 ### Due deviazioni dichiarate
 
@@ -297,7 +383,7 @@ prima di leggerlo: *questa frase vale ancora?* — senza dover interpretare date
 | `DELIVERED PLAN` | Piano di esecuzione già eseguito | No |
 | `HISTORICAL` | Superato, conservato per provenienza | No |
 | `RESEARCH` | Esplorazione, non dato vigente | Non è una fonte: non risolve conflitti |
-| `OPEN` | Aspetta una decisione umana | Vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) |
+| `OPEN` | Aspetta una decisione umana | Vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) come riga di tabella; se il corpo non ci sta, l'istruttoria scorpora in [`decisions/open/`](decisions/open/) e resta `OPEN` finché la voce lo è |
 
 Un documento `AS-BUILT` o `HISTORICAL` che descrive un mondo scomparso **non è un difetto da correggere**:
 riscriverlo falsificherebbe la storia. La correzione va nel documento `CURRENT` che possiede la regola; allo
@@ -431,4 +517,16 @@ mantenerli superava quello di non averli. Il punto da riaprire è **D-182**.
 > [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) registra per i glob degli ID — *una
 > nota che nomina l'insieme con la sua forma lo allarga*. Qui l'esempio si cita a parole, non si ricopia.
 
-Restano **cinque** controlli, e nessuno è Python: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle) e `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — senza `--check`, non scrive mai), piu' la suite `node --test` di `tools/radar/` — **82 test**, e si lancia **da dentro la cartella**. L'elenco che comanda è quello di [`AGENTS.md`](../AGENTS.md): questa riga ne era rimasta indietro di tre controlli fino al 2026-08-26.
+I controlli di `tools/radar/` si chiamano per **nome**, non per numero: `generate.ts` (gli SVG contro i cataloghi), `wiki-alt.ts` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `doc-links.ts` (i percorsi citati dai documenti), `doc-tables.ts` (le righe di tabella che non hanno la larghezza delle sorelle), `doc-coherence.ts` (le cinque asserzioni `A1`–`A5` che eseguono il gate di release **`G14`**: totali del registro PIE, sedute critiche senza convocatore, stato di una voce PIE citato da un corpo di issue diversamente dal registro, verdetti il cui bloccante e' gia' caduto, cardinalita' di `roadmap-v0.1.md` — ⚠️ `G14` si esegue con **due** comandi, questo **e** `doc-links.ts`), `issue-refs.ts`, `scenario-notes.ts`, `decision-ids.ts` (un numero `D-` rivendicato due volte) e `catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — senza `--check`, non scrive mai). Piu' la suite `node --test`, che si lancia **da dentro la cartella**.
+
+🔴 **Questa riga portava due totali volatili, ed erano scaduti entrambi**: diceva «cinque controlli» quando [`AGENTS.md`](../AGENTS.md) ne elencava dodici, e «82 test» quando erano 145. Ammetteva già da sé di essere «rimasta indietro di tre controlli»: un conteggio in prosa invecchia in silenzio e chi legge lo tratta come corrente. Si misurano, non si copiano:
+
+```
+grep -cE '^node tools/radar/' AGENTS.md              # i controlli di radar, che sono quelli elencati qui
+grep -cE '^(node|python) tools/' AGENTS.md          # controlli E prove insieme: un numero piu' grande,
+                                                    # perche' include i due `--autotest`, che AGENTS.md
+                                                    # tiene separati (si lanciano toccando il gate)
+cd tools/radar && node --test 2>&1 | grep '^# tests'  # i test, alla data in cui lo lanci
+```
+
+L'elenco che comanda è quello di [`AGENTS.md`](../AGENTS.md).

@@ -9,6 +9,25 @@
 class URTHexMapAsset;
 
 /**
+ * Chi guarda una fotografia del turno, come **posizione nominata** invece che come convenzione da ricordare.
+ *
+ * ⚠️ **Non e' un tipo nuovo: e' la stessa posizione che l'harness nomina da sempre.**
+ * `RTScenarioKnowledge::OmniscientTeamId` la documenta come *«un valore nominato invece di una convenzione
+ * da ricordare: un `TeamId` valido non lo eguaglia mai, quindi il selettore puo' portarlo come una posizione
+ * qualunque senza un booleano parallelo che dica "questa e' speciale"»*. Qui vive alla portata della
+ * simulazione, che non puo' includere `ScenarioHarness/`.
+ *
+ * 🔴 **`Omniscient` e' `INDEX_NONE` e NON `0`, e la differenza e' un difetto gia' occorso**: `0` e' la
+ * squadra 0, e [D-242]/`#1730` ha centralizzato quattro filtri di privacy che avevano copie divergenti, fra
+ * cui un letterale `PlayerTeamId = 0`. Un osservatore *«non specificato»* che valesse `0` darebbe la vista
+ * della squadra 0 a chiunque dimenticasse di dichiararsi.
+ */
+namespace RTObserver
+{
+	inline constexpr int32 Omniscient = INDEX_NONE;
+}
+
+/**
  * Stato minimo di un'unita' per la simulazione esagonale di un turno. L'identita' e' un INTERO STABILE
  * (UnitId), mai un pointer: e' la stessa disciplina del TurnLog (determinismo/replay).
  */
@@ -20,6 +39,26 @@ struct FRTHexSimUnit
 	/** Identita' stabile dell'unita' nel turno (chiave di occupazione e di risultato). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	int32 UnitId = 0;
+
+	/**
+	 * L'identita' con cui la CONOSCENZA nomina questa unita' — `ARTUnit::StableUnitId`.
+	 *
+	 * 🔴 **Non e' `UnitId`, e confonderli produce un difetto verde nei banchi e rotto in partita.**
+	 * `ARTTurnManager::MakeCurrentSnapshot` lo scrive a chiare lettere: *«le due numerazioni sono diverse
+	 * — questo snapshot scarta i morti, quello del Blast no, ed entrambi si riordinano a ogni movimento»*.
+	 * `UnitId` e' l'INDICE in `Snapshot.Units`; i contatti di `FRTTeamKnowledge` sono chiavati su questo.
+	 *
+	 * ⚠️ **Serve perche' l'occupazione si filtra per osservatore** ([D-371] uscita *(c)*): decidere se un
+	 * corpo entri in `Occupancy` richiede di chiedere alla conoscenza *«conosco QUESTA unita'?»*, e la
+	 * conoscenza risponde solo a questo numero. Un banco che costruisse le unita' a mano con
+	 * `UnitId == StableUnitId` non se ne accorgerebbe: in partita non coincidono mai per caso.
+	 *
+	 * ⛔ **Fuori da ogni hash, come `TeamId` qui sotto e per la stessa ragione**: e' una copia transitoria di
+	 * un dato che esisteva gia' su `ARTUnit`, e `FRTHexSnapshot` *«non va conservata oltre la fase che la
+	 * produce»*.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 StableUnitId = INDEX_NONE;
 
 	/** Posizione autorevole a inizio fase. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
@@ -145,6 +184,73 @@ struct FRTHexReachableCell
 	FRTHexReachableCell(const FRTCellId& InCell, int32 InCost) : Cell(InCell), Cost(InCost), FromCell(InCell) {}
 	FRTHexReachableCell(const FRTCellId& InCell, int32 InCost, const FRTCellId& InFrom)
 		: Cell(InCell), Cost(InCost), FromCell(InFrom) {}
+};
+
+/**
+ * **La cadenza di un profilo nel calendario dei sotto-passi** ([D-428], che chiude `SKB-2`).
+ *
+ * Un tick contiene `FRTMovementResolutionState::SubStepsPerTick` sotto-passi — **derivati dai
+ * partecipanti**, non una costante. Con `k` l'indice di calendario,
+ * `s = k % SubStepsPerTick` e `t = k / SubStepsPerTick`, un'unita' e' eleggibile quando:
+ *
+ * ```text
+ * s = k % SubStepsPerTick,  t = k / SubStepsPerTick
+ * eleggibile  ⇔  s < StepsPerTick  &&  (t % TickPeriod) == 0
+ * ```
+ *
+ * 🔑 **E' una funzione PURA di `(cadenza, indice)`**: nessuno stato per unita', nessun contatore che
+ * dipenda da quando l'unita' entra nella risoluzione, nessuna iterazione di Actor o di `TMap`. E' cio'
+ * che rende l'ordine deterministico senza violare [D-293].
+ *
+ * ⛔ **Un record e non due array paralleli.** I due numeri descrivono UNA regola, e tenerli separati
+ * sarebbe un'occasione di scriverne uno solo — la stessa classe di difetto che `FRTCounterAttack` e
+ * `FRTDisplacementCause` esistono per togliere di mezzo.
+ *
+ * ⚠️ **`StepsPerTick = 0` significa «non avanza mai»**, ed e' rappresentabile ma **nessun profilo lo
+ * dichiara**: l'immobilita' di `MovementProfile.Still` viene dal non avere un percorso, non dalla cadenza.
+ * Darglielo congelava un'unita' che il percorso ce l'ha — `ProfileForPlan` ripiega su `Still` quando il
+ * catalogo non contiene il profilo nominato, e quel ripiego e' permissivo di proposito. Trovato in code
+ * review.
+ */
+struct FRTMovementCadence
+{
+	/**
+	 * In quanti sotto-passi del tick il profilo puo' avanzare. `Sprint` **2**, `Move` **1**.
+	 *
+	 * ⛔ **Il minimo e' `1`, e lo `0` NON e' rappresentabile.** Era ammesso — «non avanza mai» — e produceva
+	 * un difetto: un'unita' con un percorso vero non diventava mai eleggibile, non raggiungeva mai `Done`,
+	 * e usciva col `BlockReason` di default, cioe' *«cella occupata»* per un'unita' che nessuna cella aveva
+	 * bloccato. Teneva inoltre `AnyLive` vero per sempre e impediva a chi la seguiva di fissare il proprio
+	 * motivo. L'immobilita' si esprime **non avendo un percorso**, non con una cadenza nulla.
+	 * Trovato in code review.
+	 */
+	int32 StepsPerTick = 1;
+
+	/** Ogni quanti tick e' eleggibile. `Sneak` **2** (un passo ogni due tick), gli altri **1**. */
+	int32 TickPeriod = 1;
+
+	/**
+	 * Il massimo `StepsPerTick` che la risoluzione accetta.
+	 *
+	 * ⛔ **Sta QUI e non sul profilo di movimento**, perche' il resolver non conosce i profili e non deve
+	 * includerne l'header: e' l'intera ragione per cui `Cadences` porta numeri invece di `FRTMovementProfile`.
+	 * Il gemello di catalogo e' `FRTMovementProfile::MaxStepsPerTick`, e vincola cosa un profilo puo'
+	 * DICHIARARE; questo vincola cosa la risoluzione ONORA. Trovato in code review.
+	 */
+	static constexpr int32 MaxStepsPerTick = 2;
+
+	/**
+	 * Il massimo `TickPeriod` che la risoluzione accetta.
+	 *
+	 * 🔴 **Serve perche' il periodo del calendario e' un minimo comune multiplo**, e senza tetto cresce col
+	 * prodotto dei periodi: quattro unita' con `3, 5, 7, 11` danno `1155`, e il ciclo che aspetta un giro
+	 * completo prima di dichiarare finita la risoluzione ne consumerebbe 2310 — oltre il budget di
+	 * micro-step del chiamante. Con periodi grandi e coprimi il prodotto **trabocca** e il periodo diventa
+	 * negativo, cioe' la risoluzione si dichiara finita al primo sotto-passo inerte e tronca ogni percorso
+	 * a meta'. Il commento che diceva *«i periodi sono pochi e piccoli»* era un'assunzione che niente
+	 * faceva rispettare. Trovato in code review.
+	 */
+	static constexpr int32 MaxTickPeriod = 4;
 };
 
 /**
@@ -316,6 +422,72 @@ struct FRTMovementResolutionState
 	TArray<int32> StepRemaining;
 
 	/**
+	 * **La cadenza di ciascuna unita' nel calendario dei sotto-passi** ([D-428], che chiude `SKB-2`).
+	 *
+	 * ⛔ **Il resolver non conosce i profili di movimento**, e questo array e' il modo di rispettarlo: la
+	 * cadenza si deriva a monte — `ARTTurnManager::ResolveMovement`, dove il profilo e' visibile — e viaggia
+	 * qui gia' tradotta in numeri. E' la stessa disciplina di `StepDurations`, e per la stessa ragione.
+	 *
+	 * Vuoto, piu' corto di `Paths`, o con valori `<= 0` -> **cadenza neutra**, cioe' `{1, 1}`: un passo per
+	 * tick, che e' il comportamento di prima di `SKB-2`. Con l'array vuoto la sequenza di micro-step emessi
+	 * e' identica **per costruzione**.
+	 */
+	TArray<FRTMovementCadence> Cadences;
+
+	/**
+	 * L'indice del **CALENDARIO**: avanza sempre, e decide chi e' eleggibile in questo sotto-passo.
+	 *
+	 * 🔴 **E' distinto da `MicroStepIndex`, e la distinzione e' l'intera ragione per cui il corpus golden
+	 * non si muove.** Il calendario scorre anche sui sotto-passi in cui nessuno puo' avanzare; quelli **non
+	 * si eseguono e non emettono** un micro-step. In una partita in cui tutti hanno cadenza neutra, il
+	 * secondo sotto-passo di ogni tick non si materializza mai, e la sequenza di `MicroStepIndex` — che e'
+	 * cio' che il TurnLog porta — resta quella di sempre.
+	 *
+	 * ⚠️ Se i due contatori tornassero a essere uno solo, ogni voce di movimento del corpus cambierebbe
+	 * `MicroStepIndex` per il solo fatto che il calendario esiste.
+	 */
+	int32 CalendarIndex = 0;
+
+	/**
+	 * **Quanti sotto-passi contiene un tick in QUESTA risoluzione** ([D-428]).
+	 *
+	 * 🔑 **E' derivato dai partecipanti, non una costante**: vale il massimo `StepsPerTick` fra le cadenze
+	 * dichiarate, e almeno `1`. Con soli profili neutri vale **1**, quindi `s` e' sempre `0`, tutti sono
+	 * eleggibili a ogni micro-step e la risoluzione e' identica a prima del calendario — per costruzione.
+	 *
+	 * ⚠️ **Una costante globale sarebbe stata sbagliata, ed e' stato misurato**: fissandolo a `2` il `Move`
+	 * poteva aprire un arco solo nei sotto-passi pari, e il suo percorso costava il doppio dei micro-step
+	 * appena un'altra unita' teneva vivo un sotto-passo dispari.
+	 */
+	int32 SubStepsPerTick = 1;
+
+	/**
+	 * Sotto-passi consecutivi in cui **nessuno** ha progredito ([D-428]).
+	 *
+	 * 🔑 **Serve perche' «nessuno si e' mosso» ha smesso di significare «e' finita».** Con una cadenza non
+	 * neutra esistono sotto-passi legittimamente inerti — quello in cui uno `Sneak` salta il proprio turno —
+	 * e dichiarare finita la risoluzione al primo di essi troncherebbe il movimento a meta'.
+	 *
+	 * ⚠️ **E quei sotto-passi si EMETTONO**, non si saltano: i confini di reazione e
+	 * `FRTTurnLogEntry::MicroStepIndex` sono chiavati sui micro-step emessi, quindi saltarli renderebbe la
+	 * cadenza inosservabile — uno `Sneak` da solo avanzerebbe a ogni micro-step come un `Move`, e l'indice
+	 * d'ingresso in una zona sorvegliata cambierebbe quando un'unita' ESTRANEA finisce il proprio percorso.
+	 * `SKB-2` nominava proprio quell'esito come competitivo. Trovato in code review.
+	 *
+	 * La risoluzione finisce quando questo contatore raggiunge un giro completo di calendario.
+	 */
+	int32 IdleSubSteps = 0;
+
+	/**
+	 * Il periodo del calendario, calcolato **una volta** in `BeginHexMovement`.
+	 *
+	 * ⚠️ E' interamente determinato da `Cadences` e `SubStepsPerTick`, che il ciclo non tocca. Ricalcolarlo
+	 * a ogni micro-step costava una passata su tutte le unita' con un massimo comune divisore ciascuna, per
+	 * riottenere una costante. Trovato in code review.
+	 */
+	int32 CalendarPeriodCached = 1;
+
+	/**
 	 * L'indice, dentro `Paths[i]`, della cella su cui l'ARCO in corso termina — `#3012`, [D-398].
 	 *
 	 * 🔑 **Un arco puo' coprire piu' di una cella**, ed e' cio' che rende l'attraversamento sicuro:
@@ -346,7 +518,21 @@ struct FRTMovementResolutionState
 	/** Risultato in costruzione: `Entered` cresce a ogni microstep, `Outcome` si scrive alla fine. */
 	TArray<FRTHexMoveResult> Results;
 
-	/** Quanti microstep sono stati eseguiti. Diagnostico: nessuna regola lo legge. */
+	/**
+	 * Quanti microstep sono stati **eseguiti**. Diagnostico: nessuna regola lo legge.
+	 *
+	 * 🔴 **E la riga qui sopra E' GIA' FALSA, da prima di [D-428].** `RTReactionOpportunityTypes.h` lo
+	 * dichiara per esteso: *«e' oggi documentato come "diagnostico: nessuna regola lo legge". Entrando qui
+	 * smette di esserlo: diventa parte di un identificatore che finisce nell'hash»*. E
+	 * `ARTTurnManager::AdvanceMovementResolution` lo travasa in `CurrentMicroStepIndex`, che chiava ogni
+	 * confine di reazione e ogni voce di TurnLog — rinumerarlo **rompe il replay**.
+	 *
+	 * ⚠️ **La prima stesura di [D-428] ci aveva aggiunto un «✅ e resta vero», che era falso due volte**:
+	 * la riga non era vera nemmeno prima, e la decisione stessa dichiara al punto (3) che questo campo *«e'
+	 * quello che il TurnLog porta»*. Trovato in code review. Cio' che [D-428] garantisce e' un'altra cosa,
+	 * piu' stretta e utile: il calendario ha un contatore PROPRIO (`CalendarIndex`), quindi **non tocca**
+	 * la numerazione che replay e reazioni leggono.
+	 */
 	int32 MicroStepIndex = 0;
 
 	/** Vero quando l'ultimo microstep non ha mosso nessuno: da qui in poi `Results` non cambia piu'. */
@@ -403,8 +589,29 @@ struct FRTHexSnapshot
 	/** Unita' del turno, ordinate per UnitId (ordine stabile). */
 	TArray<FRTHexSimUnit> Units;
 
-	/** Cella -> UnitId dell'occupante (solo unita' vive). */
+	/**
+	 * Cella -> UnitId dell'occupante (solo unita' vive **che l'osservatore di questa fotografia conosce**).
+	 *
+	 * 🔴 **Da [D-371] questa mappa non e' piu' la verita' del mondo: e' la verita' DI CHI GUARDA.** Con
+	 * `ObserverTeamId == RTObserver::Omniscient` le due coincidono, ed e' la lettura della Resolution.
+	 */
 	TMap<FRTCellId, int32> Occupancy;
+
+	/**
+	 * Chi guarda questa fotografia, come **posizione nominata**: `RTObserver::Omniscient` oppure un `TeamId`.
+	 *
+	 * 🔑 **E' il parametro che [D-371] impone** — *«l'osservatore dev'essere un parametro»* — e la ragione
+	 * per cui non poteva essere un filtro incondizionato dentro `BlockedCellsFor`:
+	 * `ARTTurnManager::ResolveMovement` chiama `FindPathForUnit` nella **Resolution**, dove la validazione
+	 * e' autorevole, e un filtro cieco li' renderebbe **cieco il resolver**.
+	 *
+	 * ⛔ **Non decide `OBS-1`, e non ne inventa la risposta.** Riusa la posizione nominata che esisteva gia'
+	 * (`RTScenarioKnowledge::OmniscientTeamId`, *«un valore nominato invece di una convenzione da
+	 * ricordare»*): se `OBS-1` promuovera' l'osservatore a un tipo proprio, i siti di chiamata **nominano
+	 * gia' la posizione** e la promozione e' meccanica. Inventarne uno qui sarebbe la seconda risposta alla
+	 * stessa domanda, cioe' il debito che [D-242] ha gia' chiuso una volta.
+	 */
+	int32 ObserverTeamId = RTObserver::Omniscient;
 
 	/**
 	 * Le sovrapposizioni fra unita' VIVE trovate costruendo `Occupancy`. Vuoto = snapshot sano (`#1970`).

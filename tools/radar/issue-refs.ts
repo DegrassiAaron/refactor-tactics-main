@@ -39,9 +39,10 @@
  *  La copertura si stampa **sempre**, anche in verde: un gate che non dice quanto ha guardato non e'
  *  distinguibile da uno che non guarda (#576). */
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+import { git } from './git.ts';
+
 
 /** Il repository GitHub da interrogare, quando non arriva da `--repo`. */
 const DEFAULT_REPO = 'DegrassiAaron/refactor-tactics-main';
@@ -96,9 +97,20 @@ const STORICA = [
   /\bD-(178|18[12])\b/,
   /\b(26f6955a|d671df47)\b/, // i due commit di rimozione, citati per esteso dalle note
   /non vive (piu|più)/i,
-  /non esiste (piu|più)?/i,
+  // ⚠️ `\b` e non ` (piu|più)?`: lo spazio era OBBLIGATORIO prima del gruppo opzionale, quindi il
+  // predicato colpiva solo quando la frase CONTINUAVA. `non esiste.` — la grafia piu' naturale, col
+  // punto subito dopo — non lo attivava, e due issue aperte sono finite nel referto per questo.
+  /non esiste\b/i,
   /\b(uscit|ritirat|eliminat|rimoss)\w*/i,
   /non (e|è) citabile/i,
+  // Il CONTROFATTUALE: una riga al condizionale passato descrive un percorso che non si e' preso,
+  // e non chiede a nessuno di crearlo. Senza questa riga il referto affermava il falso su di essa
+  // — dice «ogni riga qui sopra PRESCRIVE un percorso cancellato», e una non lo faceva.
+  //
+  // ⚠️ Raggio misurato PRIMA di allargare, su 34.872 righe di corpi di issue aperte: 42 righe
+  // contengono `avrebbe`, di cui 2 citano anche un percorso, e ZERO sono caselle di DoD. \b
+  // davanti e dietro, perche' `avrebbero` e `avrebbe` sono la stessa forma e `savrebbe` non esiste.
+  /\bavrebbe\b/i,
   /Rimisurato il \d{4}-\d{2}-\d{2}/i,
 ];
 
@@ -185,9 +197,8 @@ export function withParents(paths: Iterable<string>): Set<string> {
   return s;
 }
 
-function git(args: string[]): string {
-  return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-}
+// `git` vive in `./git.ts`: era identico a quello di `decision-ids.ts`, e due copie dello stesso
+// helper divergono in silenzio appena una delle due viene indurita (#1405, stessa forma).
 
 /** Le issue aperte, o `null` se GitHub non e' raggiungibile: il chiamante deve dichiarare NOT RUN. */
 function fetchIssues(repo: string): { number: number; title: string; body: string }[] | null {

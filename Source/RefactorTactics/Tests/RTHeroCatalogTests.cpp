@@ -614,7 +614,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedActionsDeclareOriginTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 {
-	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, dieci da [D-226], **undici** da [D-380].
+	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, dieci da [D-226], **undici** da [D-380], **dodici** da #3593.
 	// Chi aggiunge un eroe che deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la
 	// relazione verificabile, invece di lasciarla vivere nel solo sorgente dove nessun test la vede.
 	//
@@ -635,6 +635,8 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 		{ TEXT("Hero.Ivrin.PhaseGuard"),         TEXT("Action.Shield")       },
 		// `#2890` / [D-380]: la generica del catalogo core che Branth porta nel kit — il tiro indiretto.
 		{ TEXT("Hero.Branth.MortarShot"),         TEXT("Action.Mortar")       },
+		// #3593: la cura ad area passa dalle cure solo se deriva da Action.Heal.
+		{ TEXT("Hero.Muiren.CircularTide"),       TEXT("Action.Heal")         },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
@@ -657,12 +659,12 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 			else
 			{
 				// Il verso opposto conta quanto il primo: un campo messo dappertutto non direbbe piu'
-				// niente. Non ereditano da nessuna azione core, e restano vuote, **otto** abilita':
-				// `LinearDischarge`, `Overload`, `CircularTide`, `Reconfigure`, `FlowReaction`,
+				// niente. Non ereditano da nessuna azione core, e restano vuote, **sette** abilita':
+				// `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`,
 				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
 				// profilo (`BaseActionId`) e non questo.
 				//
-				// Undici derivate + otto proprie + quattro base = **23**: cinque abilita' per Aevik,
+				// Dodici derivate + sette proprie + quattro base = **23**: cinque abilita' per Aevik,
 				// **sei** per Phase e Ivrin, che da [D-226] portano lo scudo proattivo, e **sei** per
 				// Branth, che da [D-380] porta `MortarShot`.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),

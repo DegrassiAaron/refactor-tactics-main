@@ -132,7 +132,8 @@ TArray<ERTHexDirection> URTFacingLibrary::LegalFacings(ERTMovementStyle Style, c
 	}
 
 	// Ordine stabile: per valore dell'enum, cosi' l'insieme non dipende da come e' stato costruito.
-	// `CycleDeclaredFacing` ci si appoggia per essere ripetibile sotto la stessa sequenza di tasti.
+	// ⌫ *`CycleDeclaredFacing` ci si appoggiava; e' uscito dal gioco con D-367 (`#291`).* L'ordine resta stabile
+	// per chi enumera i lati, e i test lo pinnano.
 	Legal.Sort([](const ERTHexDirection& A, const ERTHexDirection& B)
 	{
 		return static_cast<uint8>(A) < static_cast<uint8>(B);

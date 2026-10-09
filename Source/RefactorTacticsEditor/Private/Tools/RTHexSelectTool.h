@@ -63,9 +63,6 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
 	int32 SelectedCount = 0;
 
-	/** [Overlay] Colora le celle per superficie (debug read-only); le bloccate con esagono rosso. */
-	UPROPERTY(EditAnywhere, Category = "Hex|Overlay")
-	bool bShowOverlay = false;
 };
 
 /**
@@ -93,17 +90,6 @@ protected:
 
 	/** ARTHexMapActor bersaglio: quello selezionato, altrimenti l'unico presente nel mondo. */
 	ARTHexMapActor* FindTargetMapActor() const;
-
-	/**
-	 * Disegna UN elemento selezionato secondo cio' che e': la cella come esagono, la copertura e la porta
-	 * sul loro LATO, il muro interno sulla sua giacitura vera.
-	 *
-	 * ⚠️ Ognuno sul proprio bersaglio, e non tutti come esagono: evidenziare la cella mentre e' selezionata
-	 * una copertura mostrerebbe qualcosa di diverso da cio' che `Canc` porterebbe via.
-	 */
-	void DrawSelectedElement(FPrimitiveDrawInterface* PDI, ARTHexMapActor* Actor,
-		const struct FRTMapElementHandle& Handle, const FVector& Origin, float HexSize,
-		float LayerHeight) const;
 
 	bool bHasSelection = false;
 	FVector SelectedWorldCenter = FVector::ZeroVector;

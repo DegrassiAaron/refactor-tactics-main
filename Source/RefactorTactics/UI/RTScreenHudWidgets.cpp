@@ -23,9 +23,14 @@
 #include "UI/RTIconLibrary.h"
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
 #include "Kismet/GameplayStatics.h"
 #include "Components/Image.h" // ApplyResolvedIconTo imposta il brush: serve il tipo completo
 #include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
+#include "Components/Border.h"            // #3489: striscia di fase e bordo di stato
+#include "Components/Button.h"            // #3489: badge e pulsanti collegati per nome
+#include "Components/TextBlock.h"         // #3489: etichette scritte dal C++
+#include "Components/HorizontalBoxSlot.h" // #3489: il separatore dei gruppi e' padding, non un widget
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -126,6 +131,23 @@ TArray<ARTUnit*> URTScreenHudWidgetBase::GatherUnitsInWorld() const
 	}
 
 	TArray<AActor*> Found;
+	// ⛔ **Non puo' passare dal confine di [#1500], e la ragione e' scritta nella porta stessa**:
+	// `FRTKnowledgeView` **rifiuta la condizione per decisione** — «Non porta la CONDIZIONE (HP, scudo). La
+	// squadra conosce l'identita', non lo stato» (`Perception/RTKnowledgeView.h:53-55`) — e i due consumatori
+	// di questo roster hanno bisogno esattamente di HP e scudo: `BuildTeamRoster` (`UI/RTHudViewModel.cpp:465`)
+	// chiama `BuildUnitCard`, che legge `Health`, `MaxHealth` e `Shield` (`:123-125`). La porta non e'
+	// incompleta per distrazione: quel dato lo rifiuta.
+	//
+	// 🔑 **Seconda ragione, indipendente**: `ResolveObserverTeamIds` SCOPRE l'insieme degli osservatori dai
+	// `TeamId` in campo (`UI/RTHudViewModel.cpp:752-760`), deliberatamente, per non fissare un letterale `2` e
+	// rompersi al primo 3v3. Ricavarlo da una vista costruita PER osservatore sarebbe circolare.
+	//
+	// ✅ **E questa funzione e' gia' meta' del confine**, non un difetto da riparare: e' `protected`, non e' una
+	// `UFUNCTION`, e il docstring lo dichiara come regola (`RTScreenHudWidgets.h:176-177`) — «restituisce
+	// `ARTUnit*`, cioe' esattamente la porta da cui un widget potrebbe ricalcolare. La superficie pubblica resta
+	// fatta di VISTE». ⚠️ Il debito che [#1500] nomina e non chiude e' l'altra meta': una porta del roster che
+	// consegni la condizione gia' filtrata, cosi' che `BuildUnitCard` smetta di prendere `const ARTUnit*` in
+	// firma. Finche' non esiste, il filtro vive nel CHIAMANTE e non nella porta.
 	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(World), ARTUnit::StaticClass(), Found);
 
 	Units.Reserve(Found.Num());
@@ -190,6 +212,20 @@ URTReactionWindowViewModel* URTScreenHudWidgetBase::GetReactionWindow() const
 bool URTScreenHudWidgetBase::HasMatchContext() const
 {
 	return TurnManager.IsValid();
+}
+
+void URTScreenHudWidgetBase::SetCommandControllerForTest(ARTPlayerController* InController)
+{
+	CommandControllerForTest = InController;
+}
+
+ARTPlayerController* URTScreenHudWidgetBase::ResolveCommandController() const
+{
+	if (ARTPlayerController* Iniettato = CommandControllerForTest.Get())
+	{
+		return Iniettato;
+	}
+	return Cast<ARTPlayerController>(GetOwningPlayer());
 }
 
 const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
@@ -425,7 +461,198 @@ FText URTSelectedUnitPanelWidget::GetMovementSlotText() const
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 {
-	return URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
+	TArray<FRTAbilityCooldownView> Azioni = URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
+
+	// [D-459] lettura A: il rifiuto sotto il puntatore va sull'azione ARMATA. Lo scrive la dock perche' dipende
+	// dal puntatore, che il ViewModel non conosce; la domanda la pone il controller con la coppia canonica.
+	const int32 Armata = GetArmedActionIndex();
+	if (Azioni.IsValidIndex(Armata))
+	{
+		if (const ARTPlayerController* PC = ResolveCommandController())
+		{
+			const ERTTargetRefusal Rifiuto = PC->RefusalUnderPointerForArmed();
+			Azioni[Armata].bTargetRefused =
+				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+		}
+	}
+	return Azioni;
+}
+
+TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() const
+{
+	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente. Con un'unita' comandata e' la
+	// stessa di `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	// Senza, e' la struttura di [D-460], che `GetActions()` non conosce.
+	if (GetSelectedUnit() == nullptr)
+	{
+		// ➕ [D-460], #3494: senza un'unita' comandata, la STRUTTURA dalle unita' della PROPRIA squadra.
+		// ⛔ Il filtro sta qui e non nel ViewModel perche' e' qui che si sa chi guarda: un avversario
+		// nell'elenco direbbe la lunghezza del suo kit.
+		TArray<const ARTUnit*> Proprie;
+		for (const ARTUnit* Unit : GatherUnitsInWorld())
+		{
+			if (Unit && Unit->TeamId == GetPlayerTeamId())
+			{
+				Proprie.Add(Unit);
+			}
+		}
+		return URTHudViewModel::BuildIdleBar(Proprie);
+	}
+	return URTHudViewModel::OrderForReading(GetActions());
+}
+
+FRTMovementReadoutView URTActionDockWidget::GetMovementReadout() const
+{
+	// `GetSelectedUnit()` e NON `GetSubject()`: la barra comanda, non ispeziona. E' la stessa sorgente di
+	// `GetActions()`, quindi azioni e movimento parlano sempre della stessa unita'.
+	return URTHudViewModel::BuildMovementReadout(GetSelectedUnit());
+}
+
+void URTActionDockWidget::ToggleSneak()
+{
+	// Nessuna regola qui ([D-457]): riserva dello slot, tetto e waypoint li decide il corpo del tasto `M`.
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->ToggleSneakDeclaration();
+	}
+}
+
+// =====================================================================================================
+// Conferma e Annulla
+// =====================================================================================================
+
+void URTPlanCommitWidget::Confirm()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->TogglePlanDeclaration();
+	}
+}
+
+void URTPlanCommitWidget::Undo()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->UndoStep();
+	}
+}
+
+bool URTPlanCommitWidget::HasCommandedUnit() const
+{
+	return GetSelectedUnit() != nullptr;
+}
+
+bool URTPlanCommitWidget::IsPlanDeclared() const
+{
+	const ARTUnit* Unit = GetSelectedUnit();
+	return Unit && Unit->bTurnPlanDeclared;
+}
+
+FText URTPlanCommitWidget::GetConfirmKeyLabel() const
+{
+	return ARTPlayerController::DeclarePlanHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+}
+
+FText URTPlanCommitWidget::GetUndoKeyLabel() const
+{
+	return ARTPlayerController::UndoKeyboardHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+}
+
+void URTPlanCommitWidget::BindNamedButtons()
+{
+	if (ConfirmButton)
+	{
+		ConfirmButton->OnClicked.AddUniqueDynamic(this, &URTPlanCommitWidget::Confirm);
+	}
+	if (UndoButton)
+	{
+		UndoButton->OnClicked.AddUniqueDynamic(this, &URTPlanCommitWidget::Undo);
+	}
+}
+
+void URTPlanCommitWidget::RefreshButtons()
+{
+	const bool bUnita = HasCommandedUnit();
+	if (ConfirmButton)
+	{
+		ConfirmButton->SetIsEnabled(bUnita);
+	}
+	if (ConfirmText)
+	{
+		const FText Verbo = IsPlanDeclared()
+			? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
+			: NSLOCTEXT("RTPlanCommit", "Confirm", "Conferma");
+		ConfirmText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
+			Verbo, GetConfirmKeyLabel()));
+	}
+	if (UndoText)
+	{
+		UndoText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
+			NSLOCTEXT("RTPlanCommit", "Undo", "Annulla"), GetUndoKeyLabel()));
+	}
+}
+
+void URTPlanCommitWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	BindNamedButtons();
+}
+
+void URTPlanCommitWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	RefreshButtons();
+}
+
+void URTActionDockWidget::BindNamedButtons()
+{
+	if (SneakBadge)
+	{
+		SneakBadge->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::ToggleSneak);
+	}
+}
+
+void URTActionDockWidget::RefreshMovementReadout()
+{
+	const FRTMovementReadoutView Vista = GetMovementReadout();
+	const ESlateVisibility Visibilita = Vista.bAuthorized
+		? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed;
+
+	// ⛔ Mai spento: un'unita' di cui non si sa niente non e' «ferma». Senza autorizzazione si CHIUDE tutto,
+	// il contenitore se c'e', altrimenti testo e badge uno per uno.
+	if (MovementReadout)
+	{
+		MovementReadout->SetVisibility(Visibilita);
+	}
+	else
+	{
+		if (MovementReadoutText) { MovementReadoutText->SetVisibility(Visibilita); }
+		if (SneakBadge) { SneakBadge->SetVisibility(Vista.bAuthorized ? ESlateVisibility::Visible : Visibilita); }
+	}
+	if (MovementReadoutText)
+	{
+		MovementReadoutText->SetText(Vista.Label);
+	}
+	if (SneakBadgeText)
+	{
+		SneakBadgeText->SetText(Vista.SneakKeyLabel);
+	}
+	if (SneakBadge)
+	{
+		SneakBadge->SetRenderOpacity(Vista.bSneakDeclared ? 1.f : SneakBadgeIdleOpacity);
+	}
+}
+
+void URTActionDockWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	BindNamedButtons();
+}
+
+void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	RefreshMovementReadout();
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const
@@ -459,7 +686,349 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
 	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
 
+	// `#3499`: il tooltip si compone qui, ma si CONSEGNA solo quando cambia.
+	// 🔴 **Il dock chiama `SetAction` a ogni frame**, dal suo grafo in `Tick`: consegnarlo ogni volta rifaceva
+	// `SetToolTip`, cioe' un `SToolTip` nuovo a ogni frame, e Slate — che apre un tooltip solo se sotto il cursore
+	// resta lo stesso per tutta l'attesa — non lo apriva mai. Visto in PIE il 2026-10-06: «non vedo tooltip».
+	const FRTActionTooltipView Nuovo = URTHudViewModel::BuildActionTooltip(Action, bArmed);
+	if (!URTHudViewModel::SameTooltip(Nuovo, TooltipView))
+	{
+		TooltipView = Nuovo;
+		RefreshTooltip();
+	}
+
+	// Prima dell'evento: il Blueprint che volesse aggiungere qualcosa lo fa sopra cio' che il C++ ha gia' messo.
+	RefreshLook();
 	OnActionChanged();
+}
+
+void URTActionSlotWidget::RefreshTooltip()
+{
+	if (!TooltipView.IsValid())
+	{
+		SetToolTip(nullptr);
+		SetToolTipText(FText::GetEmpty());
+		++TooltipDeliveries;
+		return;
+	}
+	if (TooltipClass)
+	{
+		if (!ActionTooltip || ActionTooltip->GetClass() != TooltipClass.Get())
+		{
+			// Col giocatore proprietario, o col mondo: e' l'idioma UMG di un tooltip. ⛔ Non con lo slot come
+			// proprietario: richiede il suo `WidgetTree`, che uno slot senza Blueprint non ha (`ensure`).
+			if (APlayerController* Proprietario = GetOwningPlayer())
+			{
+				ActionTooltip = CreateWidget<URTActionTooltipWidget>(Proprietario, TooltipClass);
+			}
+			else if (UWorld* Mondo = GetWorld())
+			{
+				ActionTooltip = CreateWidget<URTActionTooltipWidget>(Mondo, TooltipClass);
+			}
+		}
+		if (ActionTooltip)
+		{
+			// Il widget si aggiorna SUL POSTO, e a Slate si consegna una volta sola: cosi' un tooltip gia' aperto
+			// cambia testo senza chiudersi, per esempio quando la ricarica scala di un turno.
+			ActionTooltip->SetView(TooltipView);
+			if (GetToolTip() != ActionTooltip)
+			{
+				SetToolTip(ActionTooltip);
+				++TooltipDeliveries;
+			}
+			return;
+		}
+	}
+	// Il ripiego: senza un widget di tooltip, il testo semplice di UMG. ⚠️ Un widget gia' assegnato si toglie,
+	// altrimenti vincerebbe sul testo e mostrerebbe la vista di prima.
+	SetToolTip(nullptr);
+	SetToolTipText(URTHudViewModel::ComposeTooltipText(TooltipView));
+	++TooltipDeliveries;
+}
+
+void URTActionTooltipWidget::SetView(const FRTActionTooltipView& InView)
+{
+	View = InView;
+	const auto Scrivi = [](UTextBlock* Porta, const FText& Testo, bool bCollassaSeVuoto)
+	{
+		if (!Porta)
+		{
+			return;
+		}
+		Porta->SetText(Testo);
+		if (bCollassaSeVuoto)
+		{
+			Porta->SetVisibility(Testo.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		}
+	};
+	Scrivi(TitleText, View.Title, /*bCollassaSeVuoto=*/ false);
+	// Il compromesso della variante va sotto la frase, nello stesso testo: e' prosa come lei, e un widget senza una porta
+	// sua lo mostra lo stesso (#3419).
+	const FText Frase = View.Variant.IsEmpty() ? View.Description
+		: (View.Description.IsEmpty() ? View.Variant
+			: FText::Format(INVTEXT("{0}\n{1}"), View.Description, View.Variant));
+	Scrivi(DescriptionText, Frase, /*bCollassaSeVuoto=*/ true);
+	Scrivi(LinesText, GetLinesText(), /*bCollassaSeVuoto=*/ true);
+	Scrivi(ReasonText, View.Reason, /*bCollassaSeVuoto=*/ true);
+	OnViewChanged();
+}
+
+FText URTActionTooltipWidget::GetLinesText() const
+{
+	TArray<FString> Righe;
+	for (const FRTActionTooltipLine& Line : View.Lines)
+	{
+		Righe.Add(FString::Printf(TEXT("%s  %s"), *Line.Label.ToString(), *Line.Value.ToString()));
+	}
+	return FText::FromString(FString::Join(Righe, TEXT("\n")));
+}
+
+namespace
+{
+	FLinearColor RTSlotHex(const TCHAR* Hex)
+	{
+		return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
+	}
+}
+
+URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// [D-233] per le macro-fasi, §32 per la reazione. ⛔ `Cleanup` NON ha una voce: ha un'etichetta e non un
+	// colore ([D-232] §1), quindi la striscia si chiude e la fase la dice `PhaseLabelText`.
+	PhaseColors.Add(ERTActionPhaseMark::Prep, RTSlotHex(TEXT("56B4E9")));
+	PhaseColors.Add(ERTActionPhaseMark::Dash, RTSlotHex(TEXT("009E73")));
+	PhaseColors.Add(ERTActionPhaseMark::Blast, RTSlotHex(TEXT("D55E00")));
+	PhaseColors.Add(ERTActionPhaseMark::Move, RTSlotHex(TEXT("0072B2")));
+	PhaseColors.Add(ERTActionPhaseMark::Reaction, RTSlotHex(TEXT("7C5CFF")));
+
+	// `SPECIFICA-VISIVA.md` §3. Selected e Warning condividono l'ambra: li separa il secondo canale.
+	const FLinearColor Neutro = RTSlotHex(TEXT("4A5568"));
+	const FLinearColor Ambra = RTSlotHex(TEXT("FFD456"));
+	// Lo slot vuoto del mockup (`Main.dc.html`, «Difesa caratteristica, non assegnata»): contorno neutro pieno,
+	// fondo trasparente, glifo e testo grigi. Il tratteggio del contorno resta escluso.
+	FrameColors.Add(ERTActionSlotState::Empty, Neutro);
+	FrameColors.Add(ERTActionSlotState::Available, Neutro);
+	FrameColors.Add(ERTActionSlotState::Selected, Ambra);
+	FrameColors.Add(ERTActionSlotState::Planned, Ambra);
+	// #3498 — `sorgente-mockup/Main.dc.html`: la ricarica ha un contorno piu' spento del neutro.
+	FrameColors.Add(ERTActionSlotState::Cooldown, RTSlotHex(TEXT("2E3746")));
+	FrameColors.Add(ERTActionSlotState::Unavailable, RTSlotHex(TEXT("2E3746")));
+	FrameColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("FF4D4D")));
+	FrameColors.Add(ERTActionSlotState::Warning, Ambra);
+
+	const FLinearColor FondoAlto = RTSlotHex(TEXT("212733"));   // BG_Raised
+	const FLinearColor FondoBasso = RTSlotHex(TEXT("151A23"));  // BG_Panel
+	FillColors.Add(ERTActionSlotState::Empty, FLinearColor::Transparent);
+	FillColors.Add(ERTActionSlotState::Available, FondoAlto);
+	FillColors.Add(ERTActionSlotState::Selected, RTSlotHex(TEXT("2B2918")));
+	FillColors.Add(ERTActionSlotState::Planned, FondoAlto);
+	FillColors.Add(ERTActionSlotState::Cooldown, FondoBasso);
+	FillColors.Add(ERTActionSlotState::Unavailable, FondoBasso);
+	FillColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("2A1719")));
+	FillColors.Add(ERTActionSlotState::Warning, FondoAlto);
+
+	for (const ERTActionSlotState Spesso : { ERTActionSlotState::Selected, ERTActionSlotState::Planned,
+		ERTActionSlotState::Invalid, ERTActionSlotState::Warning })
+	{
+		FrameWidths.Add(Spesso, 2.f);
+	}
+	for (const ERTActionSlotState Sottile : { ERTActionSlotState::Empty, ERTActionSlotState::Available,
+		ERTActionSlotState::Cooldown, ERTActionSlotState::Unavailable })
+	{
+		FrameWidths.Add(Sottile, 1.f);
+	}
+
+	const FLinearColor Chiaro = RTSlotHex(TEXT("E6EBF2"));
+	const FLinearColor Spento = RTSlotHex(TEXT("3A4454"));
+	const FLinearColor Grigio = RTSlotHex(TEXT("A9B4C2"));
+	IconTints.Add(ERTActionSlotState::Empty, Grigio);
+	IconTints.Add(ERTActionSlotState::Available, Chiaro);
+	IconTints.Add(ERTActionSlotState::Selected, Ambra);
+	IconTints.Add(ERTActionSlotState::Planned, Chiaro);
+	IconTints.Add(ERTActionSlotState::Cooldown, Spento);
+	IconTints.Add(ERTActionSlotState::Unavailable, Neutro); // `Stati.dc.html`: piu' chiaro della ricarica
+	IconTints.Add(ERTActionSlotState::Invalid, Chiaro);
+	IconTints.Add(ERTActionSlotState::Warning, Chiaro);
+
+	// Il nome si spegne dove lo slot non si puo' usare, e resta chiaro dove e' una scelta — armata o pianificata.
+	const FLinearColor NomeSpento = RTSlotHex(TEXT("6B7684"));
+	for (const ERTActionSlotState Chiara : { ERTActionSlotState::Available, ERTActionSlotState::Selected,
+		ERTActionSlotState::Planned, ERTActionSlotState::Invalid, ERTActionSlotState::Warning })
+	{
+		NameTints.Add(Chiara, Chiaro);
+	}
+	NameTints.Add(ERTActionSlotState::Cooldown, NomeSpento);
+	NameTints.Add(ERTActionSlotState::Unavailable, NomeSpento);
+	NameTints.Add(ERTActionSlotState::Empty, Grigio);
+
+	UnavailableStripColor = Neutro;
+	PhaseLabelColor = Grigio;
+	ReactionLabelColor = RTSlotHex(TEXT("B9A8FF"));
+	SelectedBarColor = Ambra;
+
+	ReactionArmedFill = RTSlotHex(TEXT("221E3A"));
+	ReactionArmedFrame = RTSlotHex(TEXT("7C5CFF"));
+	ReactionArmedIcon = RTSlotHex(TEXT("B9A8FF"));
+}
+
+FText URTActionSlotWidget::GroupHeaderFor(ERTActionGroup Group)
+{
+	switch (Group)
+	{
+	case ERTActionGroup::Common: return NSLOCTEXT("RTActionSlot", "GroupCommon", "COMUNI");
+	case ERTActionGroup::Base:   return NSLOCTEXT("RTActionSlot", "GroupBase", "BASE");
+	case ERTActionGroup::Kit:
+	case ERTActionGroup::None:   // una posizione vuota si legge col Kit (`OrderForReading`)
+		break;
+	}
+	return NSLOCTEXT("RTActionSlot", "GroupKit", "KIT");
+}
+
+FName URTActionSlotWidget::IndicatorNameFor(ERTActionSlotState State)
+{
+	switch (State)
+	{
+	case ERTActionSlotState::Selected:    return TEXT("SelectedBar");
+	case ERTActionSlotState::Planned:     return TEXT("PlannedCorner");
+	case ERTActionSlotState::Cooldown:    return TEXT("CooldownText");
+	case ERTActionSlotState::Unavailable: return TEXT("UnavailableHatch");
+	case ERTActionSlotState::Invalid:     return TEXT("InvalidMark");
+	case ERTActionSlotState::Warning:     return TEXT("WarningMark");
+	case ERTActionSlotState::Empty:
+	case ERTActionSlotState::Available:
+		break;
+	}
+	return NAME_None;
+}
+
+void URTActionSlotWidget::RefreshLook()
+{
+	const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
+
+	if (PhaseStrip)
+	{
+		const FLinearColor* Colore = PhaseColors.Find(Action.PhaseMark);
+		PhaseStrip->SetVisibility(Colore ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (Colore)
+		{
+			// `Stati.dc.html`: indisponibile perde il colore della fase, in ricarica lo tiene attenuato.
+			FLinearColor Striscia = Stato == ERTActionSlotState::Unavailable ? UnavailableStripColor : *Colore;
+			if (Stato == ERTActionSlotState::Cooldown)
+			{
+				Striscia.A *= CooldownStripOpacity;
+			}
+			PhaseStrip->SetBrushColor(Striscia);
+		}
+	}
+	if (PhaseLabelText)
+	{
+		PhaseLabelText->SetText(Action.PhaseLabel);
+		PhaseLabelText->SetColorAndOpacity(FSlateColor(
+			Action.Slot == ERTActionSlot::Reaction ? ReactionLabelColor : PhaseLabelColor));
+		PhaseLabelText->SetVisibility(Action.PhaseLabel.IsEmpty()
+			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+	// 🔑 Una reazione armata ha la propria resa: lo stato e' lo stesso, il colore no (#3498).
+	const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
+	if (StateFrame)
+	{
+		const FLinearColor* Contorno = FrameColors.Find(Stato);
+		if (StateFrame->Background.DrawAs == ESlateBrushDrawType::RoundedBox)
+		{
+			// #3498: il fondo e' il colore del brush, il contorno sta nelle sue OutlineSettings.
+			FSlateBrush Brush = StateFrame->Background;
+			if (Contorno)
+			{
+				Brush.OutlineSettings.Color = FSlateColor(bReazioneArmata ? ReactionArmedFrame : *Contorno);
+			}
+			if (const float* Spessore = FrameWidths.Find(Stato))
+			{
+				Brush.OutlineSettings.Width = *Spessore;
+			}
+			StateFrame->SetBrush(Brush);
+			if (const FLinearColor* Fondo = FillColors.Find(Stato))
+			{
+				StateFrame->SetBrushColor(bReazioneArmata ? ReactionArmedFill : *Fondo);
+			}
+		}
+		else if (Contorno)
+		{
+			// Un `Border` a texture: un colore solo, quello del bordo — la resa di prima di #3498.
+			StateFrame->SetBrushColor(bReazioneArmata ? ReactionArmedFrame : *Contorno);
+		}
+	}
+
+	if (HotkeyText)
+	{
+		HotkeyText->SetText(Action.HotkeyLabel);
+	}
+	if (HotkeyBadge)
+	{
+		HotkeyBadge->SetVisibility(Action.HotkeyLabel.IsEmpty()
+			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+	if (ActionNameText)
+	{
+		ActionNameText->SetText(Action.DisplayName);
+		if (const FLinearColor* Tinta = NameTints.Find(Stato))
+		{
+			ActionNameText->SetColorAndOpacity(FSlateColor(*Tinta));
+		}
+	}
+	if (GroupHeaderText)
+	{
+		GroupHeaderText->SetText(GroupHeaderFor(Action.Group));
+		// `Hidden` e non `Collapsed`: lo spazio resta, e la fila degli slot resta allineata.
+		GroupHeaderText->SetVisibility(Action.bFirstOfGroup
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+	}
+	if (SelectedGlow)
+	{
+		SelectedGlow->SetVisibility(Stato == ERTActionSlotState::Selected && !bReazioneArmata
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (GroupDivider)
+	{
+		GroupDivider->SetVisibility(Action.bGroupBreakBefore
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+
+	// Un indicatore per stato, acceso solo nel proprio. `CooldownText` non e' qui: ha gia' il suo binding.
+	const TPair<ERTActionSlotState, UWidget*> Indicatori[] = {
+		{ ERTActionSlotState::Selected, SelectedBar },
+		{ ERTActionSlotState::Planned, PlannedCorner },
+		{ ERTActionSlotState::Unavailable, UnavailableHatch },
+		{ ERTActionSlotState::Invalid, InvalidMark },
+		{ ERTActionSlotState::Warning, WarningMark },
+	};
+	for (const TPair<ERTActionSlotState, UWidget*>& Voce : Indicatori)
+	{
+		if (Voce.Value)
+		{
+			Voce.Value->SetVisibility(Voce.Key == Stato
+				? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	}
+	// La barra di Selected e' ambra, e viola su una reazione armata (`Main.dc.html`, `isReact`).
+	const FLinearColor Barra = bReazioneArmata ? ReactionArmedFrame : SelectedBarColor;
+	if (UBorder* BarraBordo = Cast<UBorder>(SelectedBar))
+	{
+		BarraBordo->SetBrushColor(Barra);
+	}
+	else if (UImage* BarraImmagine = Cast<UImage>(SelectedBar))
+	{
+		BarraImmagine->SetColorAndOpacity(Barra);
+	}
+
+	// Il separatore dei gruppi e' PADDING: un widget in piu' in `SlotBox` sposterebbe ogni `GetChildAt(i)`.
+	// ⚠️ Si scrive SOLO il lato sinistro: gli altri tre restano quelli del Designer.
+	if (UHorizontalBoxSlot* Posto = Cast<UHorizontalBoxSlot>(Slot))
+	{
+		FMargin Margine = Posto->GetPadding();
+		Margine.Left = Action.bGroupBreakBefore ? GroupGap : ItemGap;
+		Posto->SetPadding(Margine);
+	}
 }
 
 void URTActionSlotWidget::SetArmingControllerForTest(ARTPlayerController* InController)
@@ -490,7 +1059,10 @@ void URTActionSlotWidget::Activate()
 	//
 	// ⚠️ Non e' un controllo di DISPONIBILITA': una posizione di kit vuota porta comunque il proprio indice
 	// (`Cooldowns[i].AbilityIndex == i`, `#2987`) e passa di qui. A rifiutarla e' il core.
-	if (Action.AbilityIndex == INDEX_NONE)
+	//
+	// ➕ **E nessun indice negativo arma niente** ([D-460], #3494): gli slot della struttura della barra senza
+	// unita' portano `URTHudViewModel::IdleSlotIndex`, che non e' una posizione di kit.
+	if (Action.AbilityIndex < 0)
 	{
 		return;
 	}
@@ -524,6 +1096,16 @@ void URTActionSlotWidget::ApplyResolvedIconTo(UImage* Target)
 	// `Resolve Soft Reference`, che e' `Get()`: rende `nullptr` se l'asset non e' gia' in memoria, e a
 	// schermo restava il brush di default. Nessuno caricava la texture, e nessuno se ne accorgeva perche'
 	// la CHIAVE si risolveva: `ResolveIcon` non aveva niente da logare.
+	// #3498: la tinta per stato, PRIMA dell'uscita sulla texture — uno slot senza glifo e' comunque tinto.
+	{
+		const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
+		const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
+		if (const FLinearColor* Tinta = IconTints.Find(Stato))
+		{
+			Target->SetColorAndOpacity(bReazioneArmata ? ReactionArmedIcon : *Tinta);
+		}
+	}
+
 	UTexture2D* Texture = CachedResolvedIcon.Asset.LoadSynchronous();
 
 	if (Texture == nullptr)

@@ -308,8 +308,9 @@ sessions:
       4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
          questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
          perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
-         ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
-         indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
+         ma senza mode attivo e senza `bShowSurfaceOverlay` acceso nel pannello del **mode** (`#921`:
+         stava nel pannello del tool, e cambiando strumento si spegneva), `Focus` e' indistinguibile da
+         `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
 
          > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
          > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
@@ -400,7 +401,23 @@ sessions:
     issues: [449, 450, 451]
     done_when: >-
       i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena
-      soddisfa i tre criteri dei passi 3, 4 e 7
+      soddisfa i tre criteri dei passi 3, 4 e 7.
+      ✅ **ESEGUITA il 2026-09-28** (`main = eb60575e8`). Tutte e tre le parti verificate, una per una:
+      **(1)** i due asset sono tracciati — `git ls-files --error-unmatch` risponde per
+      `L_HexArena.umap` e `DA_HexMap_Arena.uasset`;
+      **(2)** le **sette** voci hanno un **esito reale** — sei ✅ e `PIE-HEX-MODE-H` ❌.
+      🔑 **Il `done_when` chiede «un esito reale», non «verdi», e un ❌ lo e'**: quella voce e'
+      dichiarata non rigiudicabile e aspetta `#996`, che e' strumentazione del Map Editor — escluso
+      dal perimetro di release nel DoD, e la voce non e' nel subset `RELEASE-V01`;
+      **(3)** l'arena soddisfa i tre criteri, misurati sull'**asset autorale** e non sulla fixture:
+      `rt.Arena.Check` su `L_HexArena` (64 celle, spawn `(-4,0,0)` e `(4,0,0)`) da' **quattro `[ok]`**
+      — copertura (3 celle che bloccano la vista, ne servono 2), costo (percorso ottimale 12 su
+      budget 5), rotte (disgiunte 12 e 13, rapporto 1.08 sotto 1.50, esposizione 70% contro 10%) e
+      raggiungibilita' — e chiude con *«I tre criteri sono soddisfatti»*.
+      ⚠️ **La distinzione fixture/asset non e' pedanteria**: `RefactorTactics.Arena.ArenaV01MeetsAll
+      ThreeCriteria` e' verde ma gira sulla **fixture generata**, e un asset editato a mano dopo la
+      generazione divergerebbe senza che nessun test se ne accorga. Qui e' stato misurato l'asset.
+      ➡️ Con questo `U19` **non ha piu' prerequisiti aperti**.
     unblocks: [U13, U19]
     steps: |
       **Costruire una mappa e' il modo di esercitare gli strumenti**: le sette voci qui sopra verificano
@@ -439,7 +456,8 @@ sessions:
          aggira senza rinunciare a nulla non e' una scelta.
       5. Piattaforma di 3–4 celle sul layer 1 (`ActiveLayer=1`), collegata al layer 0 da **una sola**
          transizione, creata col tool **Arch**.
-      6. `bShowOverlay` attivo per rileggere il risultato a colori prima di salvare.
+      6. `bShowSurfaceOverlay` attivo — pannello del **mode**, non del tool (`#921`) — per rileggere il
+         risultato a colori prima di salvare.
       7. **Due rotte distinte** fra gli spawn, con trade-off diverso — una piu' corta ed esposta, una
          piu' lunga e coperta. Senza scelta di percorso il tempo di contatto e' una costante della
          mappa, non una decisione del giocatore, e `PIE-V01-MAPSCALE` (U19) non e' verificabile.
@@ -535,6 +553,12 @@ sessions:
     done_when: le voci hanno esito reale nel registro
     unblocks: [U5, M6.4, M6.5]
     steps: |
+      ✅ **CHIUSA il 2026-09-21 senza aprire l'Editor — le tre voci hanno esito reale e nessuna
+      e' stata prodotta da questa seduta.** Il `done_when` chiede *«le voci hanno esito reale nel
+      registro»*, non che sia `U4` a produrlo. `PIE-HEXPLAY-6` ✅ rigiudicata il 2026-09-12 (#2697,
+      banco `Visual.Map.SightWallIsWalkable`, primo `PASS` d'autore); `-6b` e `-6c` ✅ chiuse il
+      2026-08-30, la seconda in sessione guidata. L'evidenza vive nelle tre celle del registro.
+
       Attacco attraverso una cella che blocca la vista, poi da una cella di lato; ostacolo su un
       **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
       una decisione di design dietro: **guardalo**, non solo verificarlo.
@@ -558,8 +582,18 @@ sessions:
     unblocked_by: [M6.6, M6.7]
     shares_setup_with: [U2, U3, U4, U6, U37]
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
-    issues: []
-    done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
+    issues: [2477]
+    done_when: >-
+      ⛔ **DIFFERITA a `E26` (v0.2) il 2026-09-28: questa è la seduta dei BOT.** Sei delle sette voci
+      che verifica sono sulla qualità del bot — `PIE-HEXPLAY-7` e le cinque `PIE-AI-*` — e l'unica
+      che non lo è, `PIE-HEXPLAY-9`, è già ✅ dal 2026-08-24.
+      Decisione d'autore: *«il comportamento dei bot al momento non mi interessa, mi servono solo per
+      veder funzionare il gioco»*. ➡️ *«il bot **gioca**»* resta v0.1; *«il bot gioca **bene**»* va a
+      `E26`.
+      ⚠️ **Conseguenza da decidere, non risolta qui**: `U19` dichiara `U5` fra i propri
+      `unblocked_by`, e `D-187` lo giustifica con *«il bot gioca bene abbastanza»* — cioè proprio la
+      qualità che esce dalla v0.1. Finché quel legame regge, `U19` aspetta una seduta di v0.2.
+      ⌫ *Testo precedente:* le voci hanno esito reale e i pesi eventualmente modificati sono committati
     unblocks: [U6, U19, M6.6, M6.7]
     steps: |
       Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
@@ -578,7 +612,21 @@ sessions:
     shares_setup_with: [U2, U3, U4, U5, U37]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
-    done_when: le **14** voci del perimetro E2 sono verdi, rilette tutte insieme — il registro ne porta 15, `-11` e' fuori (E21)
+    done_when: >-
+      ✅ **ESEGUITA il 2026-09-28** (`main = d8f254069`): le **13** voci del perimetro E2 sono verdi,
+      rilette **tutte insieme in una passata sola** col metodo canonico — dal fondo della riga al primo
+      campo che porta un'icona, e di quel campo la prima: nessuna diversa da ✅. Le tredici sono
+      `-1 -2 -3 -3b -4 -4b -5 -6 -6b -6c -8 -9 -10`.
+      🔑 Che una rilettura **misurata** valga come «rilette tutte insieme» e' decisione d'autore,
+      presa dopo che la domanda e' stata posta esplicitamente invece di essere assunta.
+      ➡️ Con questo `U6` sblocca **`U16`** e **`U19`**, i due produttori di `G11`.
+      ⏻ **Erano 14 fino al 2026-09-28**: `PIE-HEXPLAY-7` è uscita perché giudica la **qualità del
+      bot** — preferisce il riparo, il kiter tiene la distanza, la mischia chiude — ed è stata
+      differita a `E26` (v0.2) per decisione d'autore.
+      🔑 **La misura che lo sostiene**: `PIE-HEXPLAY-7` **non è nel subset `RELEASE-V01`**, quindi
+      non blocca `G9`. Tenerla qui faceva aspettare il **multilivello e la partita completa** — cioe'
+      il cuore di questa seduta — dietro tre giudizi che la release non chiede.
+      ⚠️ `-11` resta fuori come prima (E21): il registro porta 15 righe della famiglia.
     unblocks: [U16, U19, M6.8]
     steps: |
       Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
@@ -678,7 +726,28 @@ sessions:
       - PIE-V01-PACKAGED
       - PIE-V01-PREPWINDOW
       - PIE-V01-SPECTATOR-ROSTER
-    issues: [959, 1088, 1069, 79, 1296, 2386, 2744]
+      # Convocata il 2026-09-23 dal censimento di #2188, con la forma gia' usata per le due sorelle
+      # qui sopra: condivide l'allestimento e non si spunta insieme alle altre. Questa e' LA partita
+      # che si guarda senza giocarla — l'unico contesto in cui «la risoluzione resta leggibile» e' una
+      # domanda vera, perche' chi guarda non sta anche decidendo. Chi registra la partita di
+      # `PIE-V01-PACKAGED` deve pero' **premere `V`** per questa, e non toccare niente per quella:
+      # due passate, un allestimento.
+      # ✅ Le due precondizioni della voce sono soddisfatte: `CP 47.2` (#955) e `CP 47.7` (#1015) sono
+      # chiuse `COMPLETED` — verificato con `gh issue view` il 2026-09-23.
+      - PIE-V01-PLAYSPEED
+      # Convocata il 2026-09-23 dal censimento di #2188, e sta qui per una ragione che nessun'altra
+      # seduta puo' offrire: chiede una build **packaged** Development, e questa e' l'unica seduta che
+      # ne apre una. ⚠️ **Non e' solo l'allestimento condiviso, e' la PRECONDIZIONE prodotta**: la voce
+      # vuole «almeno una partita gia' registrata», che e' esattamente cio' che il `done_when` qui sotto
+      # produce sul pacchetto. Chi esegue `PIE-V01-PACKAGED` e poi torna al menu ha gia' in mano
+      # l'archivio che questa voce chiede di raggiungere — in un'altra seduta andrebbe ricostruito.
+      # ⛔ **Va guardata DOPO la registrazione, mai prima**: su un archivio vuoto la lista e'
+      # legittimamente vuota e il percorso non si prova fino in fondo.
+      # 🔑 La gemella in PIE — `PIE-V01-REPLAY-VIEWER` — sta in **U57** e NON qui: questa chiede che il
+      # percorso regga *sul pacchetto*, dove le cause di rottura sono altre (asset non cucinati,
+      # percorsi locali). Una voce in due sedute e' una voce che nessuna delle due esegue.
+      - PIE-V01-FRONTEND-REPLAY
+    issues: [959, 1088, 1069, 79, 1296, 2386, 2744, 2326, 2188]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
       ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
@@ -840,8 +909,42 @@ sessions:
     unblocked_by: []
     shares_setup_with: [U8, U9]
     verifies: [PIE-AS2, PIE-FACING, PIE-AS4a]
-    issues: [1719]
-    done_when: i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e le voci hanno esito reale su tutti e quattro gli eroi
+    issues: [1719, 3378]
+    done_when: >-
+      ✅ **CHIUSA il 2026-09-28** (seduta `#3378`, `main = c04f666f0`). Il `done_when` chiedeva due
+      cose e sono soddisfatte entrambe, misurate e non dedotte.
+      (1) I quattro Blueprint sono **tracciati da git**: `git ls-files --error-unmatch` risponde per
+      `BP_Unit_Aevik`, `BP_Unit_Muiren`, `BP_Unit_Branth`, `BP_Unit_Ivrin`; la Skeletal agganciata e'
+      `#1719`, chiusa.
+      (2) ⛔ **NON soddisfatta, e la chiusura del 2026-09-28 era sbagliata su una delle tre voci.**
+      Corretto il 2026-09-29. `verifies` elenca `PIE-AS2`, `PIE-FACING`, `PIE-AS4a`; le prime due
+      dichiaravano ✅ e la terza pure, ma **`PIE-FACING` si ritrattava nel proprio testo** — *«la
+      precondizione di questa voce non e' mai stata vera»*, *«va rieseguita»* dopo `#1793` e `#2167`.
+      Il suo ✅ era il glifo del 2026-08-25, giudicato su un'altra base (la posa **all'arrivo**), e il
+      criterio chiede la rotazione **durante** la corsa.
+      🔴 **L'errore e' di metodo e resta scritto**: ho letto il **glifo** invece della **prosa** della
+      cella, e ho scritto «esito reale» su una voce che il proprio testo rimandava. La lettura canonica
+      del glifo e' corretta e non e' il problema: il problema e' che il glifo non porta la
+      ritrattazione, quindi non basta da solo per dire «esito reale».
+      ✅ **Le altre due reggono e non sono rimesse in discussione**: `PIE-AS2` (chiusa in `#3378`, la
+      seconda meta' «a terra senza fluttuamento») e `PIE-AS4a` (verificata a schermo dall'autore sui
+      quattro eroi il 2026-09-03).
+      ➡️ Questa seduta si chiude quando `PIE-FACING` ha un esito, cioe' dopo
+      [#1793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1793) e
+      [#2167](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2167).
+      ⛔ **Il marcatore e' stato scritto solo dopo aver contato le voci**: `verifies` ne elenca **tre**,
+      e chiudere su `PIE-AS2` soltanto avrebbe timbrato una seduta con due criteri non guardati.
+      ⏻ **La riga che diceva «con questo `U7` esce dai cinque prerequisiti aperti di `U19`» e' stata
+      ritirata il 2026-09-29**: non ne esce, perche' il suo `done_when` non e' soddisfatto.
+      ⚠️ **Ma la SOSTANZA della condizione di `U19` regge**, e va distinta dal marcatore: `U19` chiede
+      *«in campo ci sono personaggi, non cilindri»*, e i personaggi ci sono — la partita del 2026-09-28
+      su `L_HexArena` porta `BP_Unit_Aevik`, `Branth`, `Ivrin`, `Muiren` in campo. Cio' che manca e' la
+      **leggibilita' del facing durante il movimento**, che e' un difetto noto e posseduto
+      ([#2167](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2167)), non l'assenza dei
+      modelli. ∴ `U19` resta eseguibile, e il difetto va dichiarato accanto ai suoi numeri come
+      `D-441` ha fatto per il bot non tarato — non taciuto, e non usato per bloccarla.
+      ⌫ *Testo originale:* i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e
+      le voci hanno esito reale su tutti e quattro gli eroi
     unblocks: [U8, U19]
     steps: |
       **Un Blueprint per eroe, intitolato all'EROE.** La base visuale la fissa **D-037** (tabella
@@ -1001,7 +1104,20 @@ sessions:
     # `COMPLETED` con sei caselle di DoD vuote — fra cui i sei giudizi umani — perche' lo scope si era
     # ristretto ai riferimenti duri e nessuno possedeva piu' il giudizio a schermo.
     issues: [288, 2444, 2448, 2450, 2452, 2521]
-    done_when: PIE-AS4b e PIE-AS4c hanno esito reale sui quattro eroi
+    done_when: >-
+      ✅ **ESEGUITA il 2026-09-28** (`main = f3e6100e5`). Le **due** voci hanno esito reale e sono
+      entrambe ✅ — `PIE-AS4b` (nel Blast: attaccante `Cast`, bersaglio `Hit`, morte `Death`) e
+      `PIE-AS4c`, che conferma `DefeatBeatSeconds = 0,80 s` con una morte vera sotto gli occhi invece
+      del valore scelto al buio da `#2452`.
+      🔑 **E la clausola «sui quattro eroi» e' stata CHIESTA, non assunta**: il log non poteva
+      risponderne — le righe di utility mostrano solo le unita' pianificate dal bot (`Ivrin`,
+      `Branth`), mentre `Aevik` e `Muiren` erano dell'autore e non vi compaiono. La copertura sui
+      quattro e' un verdetto d'autore esplicito, dato dopo la domanda.
+      ⛔ Su una partita 2v2 **normale**: l'harness spawna `ARTUnit::StaticClass()`, cilindri senza
+      Skeletal Mesh, quindi nessuna animazione nemmeno in PIE. Allestimento verificato dal log —
+      `AUTO-RUN` assente, `Board 2v2 esagonale avviata su 331 celle con 4 eroi`, cinque fasi Blast.
+      ➡️ Con questo `U8` **esce dai prerequisiti aperti di `U19`**, dopo `U7` lo stesso giorno:
+      restano `U1`, `U5`, `U6`.
     unblocks: [U9, U19]
     steps: |
       🔴 **Questa seduta non produce piu' NIENTE: giudica.** Dal 2026-09-05 (#2450) i tre ruoli
@@ -1276,38 +1392,99 @@ sessions:
     execution_lane: pie
     produces: numeri di playtest — non difetti
     artifacts: []
-    unblocked_by: [U6, U1, U5, U7, U8]
+    # ⏻ **`U5` RIMOSSA il 2026-09-28, per decisione d'autore.** `D-187` la elencava fra i prerequisiti
+    # con la ragione *«il bot gioca bene abbastanza — i pesi utility ritarati»*, cioe' esattamente la
+    # QUALITA' del bot, uscita dalla v0.1 verso `E26` (v0.2) lo stesso giorno. Tenerla avrebbe fatto
+    # aspettare una misura di ritmo dietro una seduta di un'altra release.
+    # ⚠️ **Supera una parte di `D-187` e va registrato nel Decision Log.** Qui non si rivendica un
+    #    numero `D-nnn`: quei numeri sono una risorsa contesa e valgono al merge, non alla misura.
+    # ⛔ Cio' che NON cambia: `U19` misura ritmo e durata su una partita giocata dal bot, quindi il bot
+    #    deve **giocare**. Cio' che non serve piu' e' che giochi **bene**.
+    unblocked_by: [U6, U1, U7, U8]
     shares_setup_with: []
-    verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
-    issues: [84]
+    verifies:
+      - PIE-V01-MATCHLEN
+      - PIE-V01-READY
+      - PIE-V01-OVERWATCH
+      - PIE-V01-MAPSCALE
+      # Convocata il 2026-09-23 dal censimento di #2188, e non e' una voce di ritmo: e' il CONTROLLO DI
+      # VALIDITA' dei numeri che questa seduta produce. Chiede `bRecordPacing = true` sul `RT Turn
+      # Manager` — cioe' esattamente l'allestimento che i passi qui sotto prescrivono — e verifica che
+      # il controller **alimenti davvero** i contatori. Se non lo fa, il CSV di questa seduta esce con
+      # le righe e senza i gesti, e i numeri sembrano buoni.
+      # 🔴 **Va fatta PRIMA, su un turno solo e in una partita da buttare**, mai durante la partita
+      # misurata: chiede di selezionare due volte, annullare un waypoint e chiudere a mano con Spazio —
+      # gesti che falserebbero sia la durata sia il ritmo che i passi 1-3 stanno cronometrando.
+      - PIE-PACING-1
+    issues: [84, 2188]
     done_when: >-
-      le TRE voci eseguibili hanno un numero registrato, anche fuori target —
+      ✅ **CHIUSA il 2026-09-29** (`main` = `13b376e90`, `L_HexArena`, arena d'autore da **64 celle**,
+      quattro `BP_Unit_*`, `Format.Skirmish2v2`, timer di pianificazione al default). **Partita intera
+      giocata fino alla fine**: 12 round, `Pareggio - allo scadere dei round (12/12, obiettivo 3-3)`,
+      durata **3,2 min**, primo contatto al **round 4**, 17 attacchi `Blast` e 6 avanzamenti d'obiettivo.
+      Le **tre** voci hanno il loro numero: `PIE-V01-MATCHLEN` (12 round, 3,2 min),
+      `PIE-V01-READY` (mediana lock-in **11,1 s** su 12 turni), `PIE-V01-MAPSCALE` (**~3 Move** per
+      attraversare, due rotte 12 e 13 con esposizione 70% e 10%). Il `done_when` non chiede il verde:
+      chiede **un numero registrato, anche fuori target**, e i tre numeri ci sono.
+      ♻️ **Aggiornato in giornata**: `PIE-V01-READY` e' passata a ✅ poco dopo, quando la meta' che le
+      mancava — l'**Unready** durante il countdown — e' stata esercitata a schermo in un turno solo
+      ([#3405](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3405), `main` = `cee1c3ed7`): quattro cicli Ready→Unready, il piano mai
+      ricostruito, e il tempo residuo in calo a ogni giro. `PIE-V01-MATCHLEN` e `PIE-V01-MAPSCALE`
+      restano 🟡 per i motivi scritti nelle loro celle.
+      ✅ **`PIE-PACING-1` non e' rossa**, quindi non invalida le tre misure: e' 🟡 col cablaggio provato.
+      ⚠️ **Tre cose vanno lette ACCANTO ai numeri, non taciute:**
+      (1) 🔴 **La banda non e' stata misurata liberamente**: `RoundLimit 12` e la partita e' finita allo
+      scadere, quindi **13 e 14 erano irraggiungibili per costruzione**. Che la partita chiuda in 10–14
+      e' vero, ma questa corsa non dice se il gioco ci arriverebbe da solo.
+      (2) **Il bot non e' ritarato sulla scala esagonale** (`D-441`): il ritmo misurato e' quello del
+      gioco che si spedisce, non quello di un avversario competente.
+      (3) **Due difetti noti erano in campo**: il facing che non segue il percorso
+      ([#2167](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2167)) e un blocco fra compagne al round 3 (`MOV-12`, risolto ripianificando).
+      Nessuno dei due e' entrato nel giudizio sul ritmo.
+      ✅ **Il giudizio d'autore sulle due domande percettive**: *«il ritmo annoia?»* → **no**; sulle due
+      rotte → *«va bene cosi', e' una mappa di test»* — che e' una qualificazione di scope, riportata
+      come tale e non come un si'.
+      ⏻ *Testo originale:* le TRE voci eseguibili hanno un numero registrato, anche fuori target —
       `PIE-V01-MATCHLEN`, `PIE-V01-READY`, `PIE-V01-MAPSCALE`. `PIE-V01-OVERWATCH` NON entra,
       perche' il passo 4 la rinvia a E14 che non e' fra i prerequisiti, e pretenderla renderebbe
-      questo done_when irraggiungibile (`D-187`)
+      questo done_when irraggiungibile (`D-187`).
+      ➕ **`PIE-PACING-1` NON entra nel done_when, e non e' una dimenticanza**: e' il controllo che
+      rende leggibili quei numeri, non uno di essi. Il suo esito va comunque scritto nel registro —
+      un rosso qui **invalida** le tre misure, e chi lo trova ferma la seduta invece di proseguire
     unblocks: [E12.4]
     steps: |
       **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
       intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro
-      e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+      e la registrazione del pacing armata **prima del primo turno che si chiude**:
+      `rt.Debug.RecordPacing 1` dalla console (#3398). Il CSV finisce in `Saved/RT/`, fuori dal
+      versionamento, quindi va allegato alla voce e non cercato nel repository dopo.
 
-      ⚠️ **I prerequisiti sono CINQUE, e sono quelli di `unblocked_by`** — `U6, U1, U5, U7, U8`
-      (`D-187`). Le due condizioni qui sotto spiegano perche' `U5`, `U7` e `U8` ci sono; **non sono
-      l'elenco**. `U1` produce l'arena che il passo 1 misura — il criterio delle due rotte e' definito
-      in **U1 passo 7** — e `U6` e' la partita intera che questa seduta gioca.
+      ⛔ **NON piazzare un `RT Turn Manager` nel livello per far comparire la spunta `bRecordPacing`.**
+      Sembra la via ovvia — il campo e' `EditAnywhere` — ma l'attore lo spawna il GameMode, e adottarne
+      uno piazzato fa aprire il turno 1 **prima** dell'allestimento: il difetto che `#2102`/`D-314` hanno
+      chiuso, dichiarato dal warning in `RTTurnManager.cpp:97`. Contaminerebbe il primo campione di
+      `MsToLockIn`, cioe' esattamente cio' che questa seduta misura.
 
-      ⚠️ **Non anticiparla** (deciso con l'autore il 2026-08-10). Aspetta **due** condizioni, ed e' il
-      motivo per cui `U5` e `U8` sono fra i suoi prerequisiti:
+      ⚠️ **I prerequisiti sono QUATTRO, e sono quelli di `unblocked_by`** — `U6, U1, U7, U8`.
+      `U1` produce l'arena che il passo 1 misura — il criterio delle due rotte e' definito in **U1 passo
+      7** — e `U6` e' la partita intera che questa seduta gioca.
 
-      1. **Il bot gioca bene abbastanza** — cioe' il bot della v0.1 con i **pesi utility ritarati sulla
-         scala esagonale**, che e' esattamente il prodotto di `U5`. Non serve E26 *Tactical Bot v1*, che
-         e' post-v0.1: il gate e' la taratura, non la nuova architettura.
-      2. **In campo ci sono personaggi, non cilindri** — i modelli di `U7` e le animazioni di `U8`.
+      ⏻ **Erano CINQUE fino al 2026-09-27, e il quinto era `U5`** (`D-187`). Il comportamento dei bot e'
+      uscito dalla v0.1 per decisione d'autore, `U5` e la issue #149 sono andati su **E26 · v0.2**, e con essi e'
+      caduta la prima delle due condizioni che questa seduta aspettava: **`D-441`**. Il resto di `D-187`
+      resta in vigore, incluso `PIE-V01-OVERWATCH` fuori dal `done_when`.
 
-      La ragione e' che questa seduta misura **ritmo e leggibilita' percepiti**, e nessuno dei due si
-      misura su cilindri mossi da un bot non tarato: si otterrebbero numeri veri di una partita che non
-      e' quella che si spedisce. Una misura presa troppo presto e' peggio di una misura assente, perche'
-      finisce nella tabella KPI e sembra un dato.
+      ⚠️ **Il costo si dichiara accanto ai numeri, non si tace.** Questi passi avvertivano che *«una
+      misura presa troppo presto e' peggio di una misura assente»*, e l'avvertimento non era sbagliato:
+      resta vero che il ritmo misurato qui e' quello di una partita guidata da un bot **non ritarato sulla
+      scala esagonale**. Cio' che e' cambiato e' il metro — la v0.1 spedisce quel bot, quindi questi sono
+      i numeri del gioco che si consegna, non un'anticipazione di numeri migliori. 🔑 **Chi legge la
+      banda dei round deve vedere `D-441` accanto**, altrimenti la legge come se la precondizione fosse
+      stata soddisfatta.
+
+      ⛔ **La SECONDA condizione non e' caduta, e non anticiparla resta l'istruzione**: servono
+      **personaggi e non cilindri** — i modelli di `U7` e le animazioni di `U8`, entrambi col marcatore.
+      Riguarda la **leggibilita' percepita**, che nessuna decisione sui bot tocca.
 
       1. **Prima della partita**: conta i Move per attraversare la mappa da spawn a spawn e verifica
          che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`). Il criterio e'
@@ -1338,7 +1515,13 @@ sessions:
     block: 6
     critical: true
     execution_lane: pie
-    produces: numeri reali nella tabella KPI
+    produces: >-
+      i quattro KPI del perimetro 🎯 della §4 con numero, data e metodo — e NON ogni riga
+      della §4, che chiede uno stato motivato e non un numero
+      ([`D-448`](../decisions/RT_PDR_00_Decision_Log.md), che chiude `GATE-2`).
+      ⚠️ Questo campo e il `done_when` qui sotto erano le DUE frasi che `GATE-2` metteva a
+      confronto come se fossero due fonti: sono due campi dello stesso record, e la
+      contraddizione nasceva qui.
     artifacts: []
     unblocked_by: [U6]
     shares_setup_with: []
@@ -1347,9 +1530,42 @@ sessions:
     done_when: i quattro KPI hanno un valore misurato, anche fuori target
     unblocks: [E3.3, M7.3, E12.4]
     steps: |
+      ✅ **ESEGUITA il 2026-09-30 sul candidate `6b50eb49f`** (albero
+      `ccc352da981c961c354bb3be5884d9c7de62e906`). `done_when` soddisfatto: i quattro KPI hanno un
+      valore misurato, e tutti e quattro sono **dentro il target** — `Client FPS` 6,312 ms p99
+      (158,4 fps) · `Path` 0,072 ms · `Preview` 0,091 ms · `Resolver` 9,059 ms/turno. I numeri, il
+      metodo e le riserve stanno nelle righe della §4 del DoD, che ne e' l'owner; `G11` e' passata a
+      ✅ nella stessa tornata.
+      ⚠️ **Il `Resolver` e' circa il doppio della banda precedente `3,8–4,5`**, dentro il target. Il
+      delta non e' stato indagato per decisione dell'autore: quella classe di misura non e' oggetto di
+      lavoro fino alla v1.0, e la domanda appartiene a
+      [#3413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3413).
+      ⛔ **Nessuno dei quattro passi ha richiesto l'Editor**, contro cio' che `execution_lane: pie`
+      dichiara: tre sono test Automation e il quarto e' una cattura sul pacchetto. La corsia resta
+      scritta com'era perche' cambiarla e' una decisione sul registro, non un esito di questa seduta.
+
       Nessuna guida copre questa procedura, quindi i passi stanno qui.
 
-      1. Partita in PIE sull'arena, `stat unit` e `stat game` dalla console → FPS client (target 60).
+      🔑 **Il `done_when` di questa seduta e' GIA' soddisfatto, e non e' un errore di lettura.** La
+      §4 della DoD porta tutti e quattro i KPI con numero, data e metodo — FPS client, path, preview,
+      resolver — misurati fra il 2026-08-11 e il 2026-09-04. ⚠️ **Cio' che manca non e' la prima
+      misura: e' la clausola di [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84),
+      *«sulla build della v0.1»* — cioe' la **rimisura su un candidate dichiarato**, che oggi non
+      esiste. ⛔ **Eseguire questi passi prima del congelamento del candidate produce numeri che
+      andranno rifatti**: il verde che ne uscirebbe risponderebbe a un'altra domanda. Questa seduta
+      viene DOPO il candidate, non prima.
+
+      1. `Client FPS`: **p99 del frame time dal CSV profiler su pacchetto Development**, partita
+         autobattle su `L_HexArena`, `-csvCaptureFrames=4000`, primi 300 frame esclusi perche' sono il
+         caricamento (target 60 fps, cioe' 16,67 ms).
+         🔴 **Questo passo diceva *«partita in PIE, `stat unit` e `stat game` dalla console»*, e il
+         DoD di [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) lo rifiuta**:
+         *«Il numero e' un percentile del frame time — p99 — e non la media mobile di `stat fps`: un
+         `60` medio con p99 a 22 ms passa il gate e fallisce col giocatore»*. La colonna *Metodo di
+         misura* della §4 del DoD prescriveva gia' il CSV; qui era rimasta la forma vecchia.
+         ⚠️ **Conseguenza operativa: questo passo NON richiede l'Editor.** La misura si prende dal
+         pacchetto, headless, e va presa sul pacchetto **ricostruito dal candidate** — non su uno
+         trovato su disco, che sarebbe di un altro commit.
       2. Unreal Insights per path, preview e resolver (target: path mediana < 2 ms, preview < 50 ms,
          resolver < 100 ms/turno).
       3. `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` per replay divergence = 0.
@@ -1494,8 +1710,22 @@ sessions:
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: [U22, U25, U26]
+    unblocks: [U22, U25, U26, U35, U39, U44]
     notes: >-
+      ✅ **CHIUSA il 2026-08-18 — le due voci hanno esito reale e il livello illuminato e'
+      committato.** `PIE-MAPED-LIGHT` e `PIE-MAPED-FRAME` sono ✅ nel registro, entrambe
+      attribuite per nome a questa seduta e a #623; il livello e' in PR #1177, che tocca
+      `L_DevSandbox.umap`. Il `done_when` e' soddisfatto in entrambe le meta', e l'evidenza
+      vive nelle celle del registro e nella PR: qui c'e' il puntatore, non una seconda verita'.
+
+      ⚠️ **Marcata il 2026-09-21 senza aprire l'Editor**, e il ritardo non e' innocuo: sei
+      sedute — `U22 U25 U26 U35 U39 U44` — hanno aspettato per cinque settimane un cancello
+      gia' verde, perche' lo stato di una seduta vive in un marcatore in prosa e questa non
+      lo aveva. E' il difetto che #2240 nomina. ➕ Nello stesso passaggio `unblocks` passa da
+      tre sedute a sei: dichiarava `[U22, U25, U26]` mentre **sei** la citano in
+      `unblocked_by`, e le tre mancanti erano proprio quelle senza allestimento condiviso.
+      ⛔ `shares_setup_with` resta a tre e non va allineato: e' un'altra relazione.
+
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
       questo repository non modifica `.umap` da riga di comando.
@@ -1562,9 +1792,14 @@ sessions:
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
-               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE]
-    issues: [712, 1895]
-    done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
+               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE, PIE-GEO-BORDO]
+    issues: [712, 1895, 2188]
+    done_when: >-
+      ogni voce elencata in `verifies` ha un esito reale, e il .umap resta pulito dopo la seduta.
+      ⏱️ **Diceva «le quattro voci» fino al 2026-09-23**, e ne erano gia' otto: il numerale veniva
+      dalla stesura in cui `verifies` ne portava quattro, ed e' rimasto indietro a ogni aggiunta
+      successiva senza che nessun gate lo rimisurasse. Ora la condizione punta all'elenco
+      ([`AGENTS.md`](../../AGENTS.md) §14), che non puo' scadere da solo
     unblocks: []
     notes: >-
       Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono
@@ -1610,6 +1845,13 @@ sessions:
       era rimasto su `SnapToGrammar` mentre il commit era passato all'aggancio-anchor, quindi su una
       coppia inesprimibile il ghost disegnava un muro che il rilascio non produceva. Ora il tool non
       chiama piu' `SnapToGrammar` in nessun punto: **zero occorrenze**, misurato.
+      ➕ **`PIE-GEO-BORDO` convocata qui il 2026-09-23 dal censimento di #2188**, e non e' una scelta
+      fra sedute possibili: la sua precondizione nel registro e' letteralmente *«come sopra»*, cioe'
+      l'allestimento della voce che la precede — `PIE-GEO-CENTRO`, gia' in questo `verifies`. La voce
+      si dichiara *«la meta' che `PIE-GEO-CENTRO` non copre»* (#1826): un muro dal centro a un **lato**
+      invece che a un altro centro. Stesso mode, stesso tool, stesso `.umap`, stesso gesto —
+      convocarla altrove avrebbe richiesto una seconda apertura per disegnare la meta' complementare
+      di un muro gia' disegnato.
 
   - id: U24
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root
@@ -2058,7 +2300,15 @@ sessions:
     # assegnarle qui allungherebbe un `done_when` altrui su lavoro che non e' suo. Chi apre U28 puo'
     # proporle nello stesso pomeriggio; la regola «una voce che non sta in una seduta non viene eseguita
     # mai» resta scoperta per due voci, e vale la pena saperlo prima di chiudere E46.
-    issues: [938]
+    #
+    # 🔓 **NON sono piu' scoperte, dal 2026-09-23** (#2188), e il paragrafo qui sopra resta scritto
+    # perche' la sua ragione regge ancora: non sono entrate QUI. `-PLAY` e' andata in **U49**, che apre
+    # da `L_Frontend` e preme `PLAY` — il gesto che quella voce giudica e' gia' il suo primo passo;
+    # `-ERROR` in **U57**, che raccoglie i percorsi del frontend gia' costruito e dichiara la seconda
+    # apertura che una configurazione rotta impone. ⚠️ Questo commento era la **previsione esatta** del
+    # difetto che #2188 e' andato a misurare, scritta un mese prima e da nessuno raccolta: il modo in cui
+    # una voce resta fuori da ogni seduta non e' la dimenticanza, e' la dichiarazione che nessuno rilegge.
+    issues: [938, 2188]
     done_when: >-
       i due `.uasset` esistono sotto `/Game/RT/UI/Framework/` **con esattamente i nomi dichiarati in
       `DefaultGame.ini`**; `WBP_RT_MainMenu` eredita da `URTMainMenuWidgetBase` e legge `GetVersionLabel`
@@ -2410,6 +2660,17 @@ sessions:
       utilizzabili dopo.
     unblocks: []
     notes: >-
+      ✅ **ESEGUITA il 2026-08-30, esito OK.** Verdetto d'autore nel commento del 2026-08-30 su #1755
+      (chiusa lo stesso giorno): `TestArena` dà `BLOCKED · CellBlocker` col marcatore sulla cella del
+      muro e `CLEAR` dalla stessa parte; `CoverYard` dà `EdgeBlocker` con le due celle del lato; il
+      pannello dichiara il piano del tiratore e il verdetto cambia fra terra e piattaforma. Qui c'e'
+      il puntatore, non una seconda verita'.
+
+      ⚠️ **Marcata il 2026-09-21, tre settimane dopo l'esecuzione.** `verifies` e' vuoto, quindi lo
+      stato di questa seduta non e' derivabile dal registro: e' il difetto che #2251 ha misurato —
+      *«la seduta esiste, puo' essere passata, e nessuno strumento lo vede»* — e che allora contava
+      `U33` fra le aperte, perche' il verdetto e' arrivato dopo la misura.
+
       🔴 **È il primo tool con HOVER del progetto.** I cinque esistenti sono tutti a click
       (`USingleClickTool` / `UClickDragTool`); questo aggiunge `UMouseHoverBehavior`. Il rischio che
       introduce è dichiarato dal DoD di `#1755` — ⛔ *«nessun Tick; una query LOS su hover può essere
@@ -2461,6 +2722,16 @@ sessions:
       di disegno restano attivi mentre l'anteprima è a schermo.
     unblocks: []
     notes: >-
+      ✅ **ESEGUITA il 2026-08-30, esito OK.** Verdetto d'autore nel commento del 2026-08-30 su #1753
+      (chiusa lo stesso giorno): `AutoBattle.Obstacles` mostra arena e quattro marcatori con celle e
+      orientamenti coincidenti col JSON; `Visual.Map.TwoLayersSameColumn` separa in quota due unita'
+      sulla stessa colonna. ⛔ **E i due criteri negativi sono passati**, che erano quelli che
+      contavano: `L_DevSandbox` non risulta modificata dopo aver guardato piu' scenari, e gli actor
+      dell'anteprima non compaiono nell'outliner. Qui c'e' il puntatore, non una seconda verita'.
+
+      ⚠️ **Marcata il 2026-09-21, tre settimane dopo l'esecuzione**, per la stessa ragione di `U33`:
+      `verifies` e' vuoto e lo stato non e' derivabile dal registro (#2251).
+
       🔴 **L'anteprima è transiente per una ragione che questa seduta deve verificare.** La via corta sarebbe
       assegnare l'arena dello scenario all'`ARTHexMapActor` già posato nel livello: funziona, e sporca
       `L_DevSandbox` a ogni selezione. Un designer che accettasse per distrazione la richiesta di salvataggio
@@ -2832,6 +3103,30 @@ sessions:
       - PIE-ACC-ENVIRONMENT
       - PIE-ACC-MAP
     issues: [231, 233, 1919, 2009]
+    notes: |
+      🟡 **Parzialmente eseguita il 2026-09-22** su `3f0235bb`, banco a cilindri su
+      `L_DevSandbox`, con tre interruzioni per cedere il motore ad altre sessioni.
+      **Undici voci su ventuno hanno un esito reale nel registro**: PIE-VIS-PHASES, PIE-VIS-CHARGE,
+      PIE-VIS-ICE, PIE-VIS-COMBO, PIE-VIS-ROUGH, PIE-VIS-BRACE, PIE-VIS-LEVEL, PIE-VIS-DOOR,
+      PIE-VIS-HIGHCOVER, PIE-VIS-COVER e PIE-VIS-HIGH. ⛔ **Quale esito abbia ciascuna non si
+      legge qui**: lo dice `test-manuali-pie.md`, che ne e' l'unico owner (R-6). La prima stesura
+      di questa nota le ripartiva in «fallite» e «conformi», ed era la stessa copia di stato che
+      una riga di questo file dichiara rimossa il 2026-09-09 per la medesima regola.
+      Piu' due correzioni di cella senza verdetto: la causa dichiarata di PIE-VIS-PUSH era
+      inesatta, e la precondizione di PIE-VIS-BRACE era smentita dal proprio file.
+      ⛔ **Le restanti NON sono state guardate, e non per mancanza di tempo**: il loro criterio
+      chiede, per la maggior parte, di vedere un effetto **nel momento in cui accade**, e gli esiti
+      sono applicati in risoluzione, che gira prima di `BeginPlayback`. Sono PIE-VIS-KO, -COORD,
+      -FALLBACK, -AREAGUARD, -GUARD, -WETFIRE, -SMOKE (meta'), PIE-ACC-ENVIRONMENT,
+      PIE-ACC-GUARDBRACE e PIE-ACC-MAP (composito).
+      🔑 **La regola che le separa**: un criterio che chiede un TOTALE regge, uno che chiede
+      un TEMPO no, e le voci giudicate in questa seduta chiedevano tutte un totale.
+      🔴 Quattro difetti aperti dalla seduta, nessuno trovato da un test: #3261 (l'animazione
+      della spinta non arriva al playback), #3263 (quella dello scivolamento arriva senza
+      marcatura), #3267 (i controlli per fermare la scena non si accendono in auto-run), #3271
+      (il feed dichiara il totale di fase come danno del singolo colpo). Epic delle prime due e
+      di PIE-VIS-COMBO: #2453. Evidenza e referti in PR #3262.
+      ⚠️ L'esito pieno di ogni voce sta in `test-manuali-pie.md`, che ne resta l'unico owner.
     done_when: le ventuno voci di `verifies` hanno esito reale nel registro
     unblocks: []
     steps: |
@@ -2906,7 +3201,20 @@ sessions:
       # giorno in cui qualcuno sposta il primo su un evento.
       - PIE-V01-DOCKTICK
       - PIE-V01-DOCKREBUILD
-    issues: [151, 705, 613, 2826, 2989]
+      # Le due voci OMBRELLO dei due compositi che questa seduta allestisce gia', convocate il
+      # 2026-09-23 dal censimento di #2188. Erano orfane mentre gli `steps` qui sotto le nominavano
+      # — *«le due voci ombrello restano ⏳»* — cioe' la seduta le conosceva e non le chiamava: il
+      # difetto di #2188 nella sua forma piu' netta. `PIE-ACC-PERCEPTION` e' l'ombrello di
+      # `Visual.Perception.Acceptance` e `PIE-ACC-HUD` quello di `Visual.Hud.FirstPlayable`, gli
+      # stessi due scenari che il giro qui sotto carica: costo marginale zero, nessuna apertura in piu'.
+      - PIE-ACC-PERCEPTION
+      - PIE-ACC-HUD
+      # Stessa scena delle cinque `PIE-KNOW*`: la sagoma dell'ultimo contatto e' cio' che resta quando
+      # il velo nasconde. ⚠️ Porta pero' un prerequisito che le sorelle non hanno — una **skeletal**
+      # sotto l'unita' ricordata: su un banco a cilindri non c'e' posa da giudicare e la voce non e'
+      # giudicabile in quella passata. Si dichiara `NOT RUN` con la ragione, non si forza.
+      - PIE-KNOW-POSA
+    issues: [151, 705, 613, 2826, 2989, 2188]
     done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
@@ -2960,6 +3268,14 @@ sessions:
       ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
       benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
       e una voce in due sedute è una voce che nessuna delle due esegue.
+
+      🔓 **E le due voci ombrello ORA SONO CONVOCATE, dal 2026-09-23** (#2188). Il paragrafo qui sopra
+      che le nomina resta scritto perché dice ancora cosa sono e perché restano ⏳; ciò che è cambiato
+      è che erano nominate **in prosa e fuori da `verifies`** — questa seduta le conosceva e non le
+      chiamava. Sono la forma più netta del difetto che #2188 misura, trovata dentro la seduta che
+      quel difetto lo cita già due volte. Si giudicano **alla fine** di ciascuno dei due giri: sono
+      ombrello, quindi la domanda è se la scena nel suo insieme si sia letta, e quella risposta arriva
+      dopo aver guardato le voci di dettaglio, non prima.
 
   - id: U44
     title: Il playback dello scenario si legge — la risoluzione che scorre nel viewport
@@ -3024,11 +3340,15 @@ sessions:
       non contende.
 
   - id: U45
-    title: Le tre voci che il pacchetto con le animazioni ha reso eseguibili
+    # ⏱️ **Il titolo diceva «Le TRE voci…» fino al 2026-09-23**, ed e' stato generalizzato invece che
+    # ricontato entrando `PIE-V01-ARENADOOR` (#2188): un numerale in un titolo invecchia da solo e
+    # nessun gate lo rimisura (`AGENTS.md` §14). La causa di sblocco resta scritta nel `produces` e nel
+    # commento sopra `unblocked_by`, dove e' un fatto datato e non un conteggio.
+    title: Le voci della mappa d'autore che nessuna seduta eseguiva
     block: 6
     critical: false
     execution_lane: pie
-    produces: verdetto su tre voci che nessuna seduta eseguiva
+    produces: verdetto su voci che nessuna seduta eseguiva — sbloccate dal pacchetto con le animazioni
     artifacts: []
     # Il pacchetto Development e' costruibile e gira: misurato il 2026-09-03 (#1663) su `main` —
     # `BUILD SUCCESSFUL`, `Board 2v2 avviata su 64 celle con 4 eroi`, `SkipPackage` 0, `Error:` 0.
@@ -3042,9 +3362,20 @@ sessions:
     # ⚠️ Il conteggio va rifatto con ENTRAMBE le forme di `verifies`: la lista a trattini e quella inline
     # `[A, B, C]`. Contando solo la prima le orfane risultano 75 invece di 36 — meta' delle sedute usa
     # l'inline, e un parser che non la vede manda a scrivere righe che esistono gia'.
-    verifies: [PIE-V01-ARENA, PIE-OBJ-PUNTI, PIE-V01-BOARD]
-    issues: [959]
-    done_when: le tre voci hanno un esito reale nel registro, in un verso o nell'altro
+    verifies:
+      - PIE-V01-ARENA
+      - PIE-OBJ-PUNTI
+      - PIE-V01-BOARD
+      # Convocata il 2026-09-23 dal censimento di #2188, nell'**allestimento A** dei due che i passi
+      # qui sotto tengono distinti: `L_HexArena` con `DA_HexMap_Arena` e `rt.Map.Source = LevelAsset`.
+      # E' la precondizione che la voce chiede parola per parola — la porta sta **nel dato**, posata da
+      # `RTSetCellDoor`, non da un `SM_Graybox_*` messo a mano nel `.umap`, e su una fixture generata
+      # non c'e' nessuna porta d'autore da guardare.
+      # ⚠️ **Non va nel gruppo B con `PIE-V01-BOARD`**: quella chiede quattro superfici che la mappa
+      # d'autore non ha, ed e' la stessa separazione che questi passi dichiarano gia'.
+      - PIE-V01-ARENADOOR
+    issues: [959, 2188]
+    done_when: ogni voce elencata in `verifies` ha un esito reale nel registro, in un verso o nell'altro
     unblocks: []
     steps: |
       **Due allestimenti, e vanno tenuti distinti** — le prime due voci si guardano sulla mappa d'autore,
@@ -3296,9 +3627,22 @@ sessions:
     # che e' lo scivolamento vero.
     unblocked_by: [E8]
     shares_setup_with: []
-    verifies: [PIE-VIS-UNBAL, PIE-VIS-PRONE, PIE-VIS-SLIDESTATE]
-    issues: [2378, 2253]
-    done_when: le tre voci hanno esito reale nel registro
+    verifies:
+      - PIE-VIS-UNBAL
+      - PIE-VIS-PRONE
+      - PIE-VIS-SLIDESTATE
+      # Convocata il 2026-09-23 dal censimento di #2188. La catena di questa seduta e' *«ci si
+      # sbilancia, si cade, si paga per rialzarsi»*: questa e' la spinta guardata da un'altra parte —
+      # non su chi la subisce ma su chi stava **guardando**, e smette. Stesso gesto, stesso banco.
+      # 🔑 **La spinta e' il filo**: `PIE-VIS-UNBAL` chiede se si veda che e' AMPLIFICATA, questa se si
+      # veda che ha SPENTO una reazione armata. Sono due letture dello stesso contraccolpo, e il
+      # commento sopra dichiara gia' che giudicarne un anello per volta fa perdere proprio cio' che si
+      # cerca — che i momenti a schermo si somiglino troppo.
+      # ⛔ **#2367 NON la blocca**, e la voce lo scrive: la issue decide se il comportamento vada
+      # cambiato, questa riporta cosa si vede. Verificata OPEN il 2026-09-23, e resta irrilevante qui.
+      - PIE-VIS-WATCHPUSH
+    issues: [2378, 2253, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
       Tre scenari, nell'ordine in cui il gioco li produce. `Scenario Filter A = animation` nel
@@ -3386,11 +3730,32 @@ sessions:
     shares_setup_with: []
     # ⚠️ Vuoto per una ragione MISURATA, non per default: l'allestimento di questa seduta parte da
     # `L_Frontend`, e nessun'altra seduta lo condivide — le altre aprono direttamente una mappa di partita.
-    verifies: [PIE-V01-SCREENHUD]
-    issues: [613, 2764]
+    verifies:
+      - PIE-V01-SCREENHUD
+      # Convocata il 2026-09-23 dal censimento di #2188, e il gesto e' gia' quello che questa seduta
+      # prescrive: *«Si apre da `L_Frontend` e si preme `PLAY`»*. Quella riga E' il percorso che questa
+      # voce giudica — dal menu alla partita, passando dal loading e **senza** aprire un secondo
+      # percorso d'avvio. Chi esegue `PIE-V01-SCREENHUD` lo attraversa comunque: qui si chiede
+      # soltanto di GUARDARLO invece di attraversarlo per arrivare all'HUD.
+      # ⛔ **Non sta in U28** benche' sia una voce del frontend: U28 e' `execution_lane: asset` e
+      # produce il menu; questa voce chiede che il menu **porti in partita**, che e' l'unica cosa che
+      # U28 per definizione non puo' verificare — e infatti `#938`, la sua issue, e' l'aggancio.
+      - PIE-V01-FRONTEND-PLAY
+      # Stessa apertura e stesso layer §4.1: la card dell'unita' selezionata e' uno dei widget che
+      # `PIE-V01-SCREENHUD` monta, e il difetto che questa voce apre (#1896) si manifesta **alla PRIMA
+      # selezione della sessione** — cioe' in un istante che esiste una volta sola per apertura, e che
+      # chi esegue lo Screen HUD attraversa senza saperlo.
+      # 🔴 **Va guardata PRIMA di selezionare qualsiasi cosa**: l'esperimento discriminante gia' fatto
+      # dice che il warning compare alla prima selezione e tace sulle successive. Una seduta che apre
+      # l'HUD, clicca in giro e poi si ricorda di questa voce l'ha gia' persa.
+      - PIE-HUD-CARD-ZERO
+    issues: [613, 2764, 1896, 938, 2188]
     # #613 e' l'owner del layer e dichiara questa voce come proprio residuo. #2764 la nomina fra le proprie
     # verifiche: il verde headless dei suoi 69 test non dice cosa il Blueprint mostri, e questa seduta si'.
-    done_when: la voce ha esito reale nel registro
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro.
+      ⏱️ **Diceva «la voce» al singolare fino al 2026-09-23**, quando era vero: #2188 ne ha
+      convocate altre due che condividono l'apertura, e la condizione ora punta all'elenco
     unblocks: [E11.7]
     steps: |
       🔴 **Si apre da `L_Frontend` e si preme `PLAY`. Non aprendo una mappa di partita.**
@@ -3502,11 +3867,17 @@ sessions:
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
   - id: U51
-    title: Si mira dove non si vede, e si sa solo chi si è colpito
+    # ⏱️ **Il titolo diceva solo «Si mira dove non si vede, e si sa solo chi si è colpito» fino al
+    # 2026-09-23**, ed era vero finché le voci erano le due del tiro indiretto. Con `PIE-V01-SHIELD-WRAITH`
+    # (#2381) la seduta non è più *di un tema*: è **della formazione d'autore**, che è la precondizione
+    # che la rende un'apertura a sé e l'unica cosa che le sue voci condividono davvero.
+    title: La formazione d'autore — si mira dove non si vede, e l'altro portatore dello scudo
     block: 6
     critical: false
     execution_lane: pie
-    produces: il verdetto umano sul tiro indiretto — che mirare al buio non riveli nulla, e che colpire riveli solo la vittima
+    produces: >-
+      il verdetto umano sulle voci che richiedono una formazione diversa da quella spedita — il tiro
+      indiretto che non rivela, e lo scudo proattivo del portatore che a formazione di default è del bot
     artifacts: []
     # 🔑 **Questa seduta esiste perché due voci PIE sono nate senza nessuna che le convocasse.**
     # Misurato su `origin/main` il 2026-09-10, prima di questo record:
@@ -3529,8 +3900,34 @@ sessions:
     # del giocatore. Va spostato in squadra 0 (`EditAnywhere`, `BotAllyCount` a `0`) e **rimesso a posto
     # dopo**: qualunque altra seduta girata nel frattempo giudicherebbe una partita che non è quella spedita.
     # ⛔ Batchiarla con le sedute di acceptance sarebbe quindi il difetto, non l'economia.
-    verifies: [PIE-V01-BLINDFIRE, PIE-V01-MORTAR]
-    issues: [2791, 2870, 2890]
+    verifies:
+      - PIE-V01-BLINDFIRE
+      - PIE-V01-MORTAR
+      # Convocata il 2026-09-23 da #2381, ed e' la stessa eccezione che il commento qui sopra
+      # argomenta: non condivide l'allestimento, condivide **il gesto di scrivere `Team0Heroes` a
+      # mano** — e l'eroe che le serve, `Hero.Ivrin`, sta nella STESSA squadra 1 di `Hero.Branth`.
+      # Quel commento dice che batchiare questa seduta con le sedute di acceptance sarebbe il difetto;
+      # batchiare con lei una voce che chiede la medesima property e' invece l'unica economia legittima,
+      # e risparmia un secondo ciclo «sposta la formazione / gioca / rimetti a posto».
+      #
+      # 🔑 **Due modi, e chi esegue sceglie col proprio banco davanti**:
+      #   (a) `Team0Heroes = {Hero.Branth, Hero.Ivrin}` in una configurazione sola — gli slot sono due
+      #       e li riempie entrambi; l'avversaria diventa `{Hero.Aevik, Hero.Muiren}`;
+      #   (b) due configurazioni, con Stop/Start PIE fra le due. La *Regola di batching* di questo file
+      #       elenca Stop/Start fra cio' che NON impone una riapertura dell'Editor, quindi (b) resta
+      #       dentro la stessa apertura e costa solo tempo.
+      # ⛔ **(a) non e' dichiarata funzionante**, e' dichiarata possibile: nessuno l'ha provata, e la
+      # squadra avversaria cambia. Se il caso «un avversario che la squadra non conosce» ne risente,
+      # (b) vale sempre. Non si forza (a) per risparmiare un riavvio.
+      #
+      # ⚠️ **L'eroe si scrive `Hero.Ivrin`, NON «Wraith»**: `D-334` ha ritirato quell'identita' e il
+      # ratchet `RTLegacyIdentityRatchetTests.cpp` la tiene a tetto `0, 0`. La cella della voce nel
+      # registro PIE la chiama ancora «Wraith» in prosa — l'ID d'azione che porta e' invece corretto,
+      # `Hero.Ivrin.PhaseGuard` — e chi allestisse cercando quel nome non troverebbe niente.
+      # ⚠️ **Le due CVar della voce valgono come per le sorelle**: `rt.Match.BotAllies` e
+      # `rt.Match.Autobattle` non devono consegnare al bot l'eroe che si e' appena spostato.
+      - PIE-V01-SHIELD-WRAITH
+    issues: [2791, 2870, 2890, 2381]
     # ⛔ **Perché una seduta e non un automation test.** Ciò che questa seduta giudica è per metà un
     # **non-evento** e per metà un **ordine**, e nessuna delle due cose si vede da headless.
     # Il non-evento lo enuncia `PIE-V01-BLINDFIRE` e non si ricopia qui (R-6); ciò che serve sapere per
@@ -3542,10 +3939,17 @@ sessions:
     # ⚠️ Le due voci si giudicano **nella stessa apertura e in quest'ordine**: `MORTAR` fino al lock-in
     # deve essere indistinguibile da `BLINDFIRE`, e un non-evento si giudica solo avendo il caso positivo
     # accanto con cui confrontarlo.
-    done_when: entrambe le voci hanno esito reale nel registro
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro, e `Team0Heroes` e' stato rimesso
+      alla formazione spedita.
+      ⏱️ **Diceva «entrambe le voci» fino al 2026-09-23**, quando erano due: #2381 ne ha convocata una
+      terza che chiede la stessa property, e la condizione ora punta all'elenco (`AGENTS.md` §14).
+      ⚠️ **L'ordine vincolato resta quello delle due originali** — `MORTAR` dopo `BLINDFIRE`, per la
+      ragione scritta sopra: un non-evento si giudica avendo accanto il caso positivo. `SHIELD-WRAITH`
+      non ha un posto nell'ordine e puo' stare prima, in mezzo o dopo
     unblocks: []
     # ⚠️ Vuoto: nessun checkpoint dipende dal tiro indiretto. `RELEASE-V01` non lo dichiara — nessuno lo
-    # ha promesso per la v0.1 — e le due voci PIE non portano quel marcatore.
+    # ha promesso per la v0.1 — e le voci PIE di questa seduta non portano quel marcatore.
     notes: |
       Setup, nell'ordine in cui va fatto:
 
@@ -3586,9 +3990,19 @@ sessions:
     # ⚠️ Vuoto per una ragione precisa: l'allestimento chiede `rt.Map.Fixture VisionSplit` **e** un piano
     # costruito a mano con quattro fasi insieme. Nessuna altra seduta lo ha, e appoggiarsi a una partita
     # normale lascerebbe fuori proprio il caso che rende la voce giudicabile.
-    verifies: [PIE-PREVIEW-GHOST]
-    issues: [172]
-    done_when: la voce ha esito reale nel registro
+    verifies:
+      - PIE-PREVIEW-GHOST
+      # Convocata il 2026-09-23 dal censimento di #2188. L'allestimento che il commento qui sopra
+      # dichiara esclusivo — *«un piano costruito a mano con quattro fasi insieme»* — e' **parola per
+      # parola** la precondizione di questa voce nel registro (*«unita' propria con un piano su piu'
+      # fasi»*), e lo scrubbing delle fasi si guarda su quello stesso piano. Erano due voci sulla
+      # stessa timeline, una convocata e una no.
+      # 🔑 Restano DUE voci e non una fusa: `PREVIEW-GHOST` guarda i ghost **impilati** — quanti sono e
+      # come si distinguono — `V01-GHOSTS` il **movimento fra le fasi**, cioe' se scorrendole si capisca
+      # quale ghost appartenga a quale. Un verde sull'una non implica l'altra.
+      - PIE-V01-GHOSTS
+    issues: [172, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
       🔴 **Le CVar si danno PRIMA del Play, nella console dell'Editor.** Dentro PIE arrivano dopo che il
@@ -3647,6 +4061,20 @@ sessions:
     # una linea che ESISTE e non arriva. In una partita normale un bersaglio non visibile non si punta.
     verifies:
       - PIE-VIS-SIGHTLINE
+      # Convocata il 2026-09-23 dal censimento di #2188, ed e' la stessa domanda un canale piu' in la':
+      # `PIE-VIS-SIGHTLINE` chiede se la linea interrotta si VEDA, questa se la console sappia DIRE cosa
+      # l'ha fermata — «la cella che la ferma» del titolo, nominata invece che guardata.
+      # ⚠️ **Scenario diverso** (`Visual.Map.SightWallIsWalkable` invece di
+      # `Visual.Environment.BlindFireThroughSightWall`) e **non e' un'eccezione alla regola di batching**:
+      # quella dichiara `rt.Test.Scenario <Id>` e il cambio fixture fra le cose che NON impongono una
+      # seconda apertura. Un processo, due scenari, lo stesso muro.
+      # 🔴 **La sua precondizione nel registro ha gia' fatto fallire un tentativo** (2026-09-05): la forma
+      # `-dpcvars=rt.Test.Scenario=` non allesti' niente e la console rispose `libera` su una mappa senza
+      # muro — cioe' correttamente, alla domanda sbagliata. Chi esegue verifichi che lo scenario sia
+      # DAVVERO caricato prima di interrogare.
+      - PIE-DEBUG-LOS
+    issues: [2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
 
   - id: U54
     title: Il dock dice quale abilita', e il feed dice cosa e' successo
@@ -3713,3 +4141,1239 @@ sessions:
       riprende deve soltanto portare un'unita' a morire.
       ⛔ **Un limite dichiarato**: i tre stati del dock non sono stati osservati uno per uno.
       L'esito pieno sta in `test-manuali-pie.md`, che ne resta l'unico owner (R-6).
+
+  # --- Sedute aperte dal censimento di #2188 (2026-09-23) -----------------------
+  #
+  # ⚠️ **Quattro sedute, e nessuna da una voce sola**: il rischio che #2188 nomina per primo e' che le
+  # voci orfane diventino altrettante sedute fantasma, cioe' lo stesso difetto con un altro nome.
+  # Il criterio applicato qui e' quello che la issue prescrive — *«con quali altre voci si allestisce
+  # insieme?»*, non *«dove la metto»* — e una voce che non ha risposto e' andata in `not_schedulable`
+  # con la ragione, non in una seduta propria.
+
+  - id: U55
+    title: I residui del mode Hex Map, e la versione che il salvataggio scrive
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: verdetto sui residui del mode Hex Map e sul gesto d'editor che scrive la versione di formato
+    artifacts: []
+    unblocked_by: [U1]
+    # `U1` produce `DA_HexMap_Arena` e `L_HexArena`, che sono l'oggetto su cui questi gesti si fanno.
+    # Dipendenza dura, non setup condiviso: senza quell'asset non c'e' niente da aprire.
+    shares_setup_with: []
+    verifies:
+      # I residui della famiglia `PIE-HEX-MODE-*`. Le altre sono in `U1`, che le ha gia' eseguite; queste
+      # sono nate dopo (#871, #921, #931) e non sono mai entrate in un `verifies`.
+      # ⛔ **Non sono state aggiunte a `U1`**, ed e' una scelta: quella seduta e' chiusa, il suo
+      # `done_when` nomina le voci che ha guardato, e riaprirlo per voci nate dopo riscriverebbe la
+      # condizione di una seduta conclusa — il contrario di cio' che un `done_when` serve a fare.
+      - PIE-HEX-MODE-P
+      - PIE-HEX-MODE-Q
+      - PIE-HEX-MODE-R
+      # Stessa apertura e stesso asset: e' il gesto con cui una sessione di mode Hex Map **finisce** —
+      # si salva — e la voce chiede che il salvataggio d'editor scriva la versione di formato come la
+      # scrive il codice. Metterla altrove significherebbe riaprire l'Editor sullo stesso asset per
+      # premere Ctrl+S.
+      # 🔴 **VA PER ULTIMA, e su un branch o ripristinando l'asset**: risalvando l'arena si perde il
+      # solo binario pre-meccanismo del repository, che `FMT-2` ha scelto come rivelatore. Eseguirla
+      # prima delle altre le lascerebbe su un asset gia' riscritto.
+      - PIE-FMTVER
+    issues: [871, 921, 931, 687, 2188]
+    done_when: >-
+      ogni voce elencata in `verifies` ha un esito reale nel registro, e l'arena risulta ripristinata —
+      `git status` pulito su `DA_HexMap_Arena`, oppure il branch dichiarato e non mergiato
+    unblocks: []
+
+  - id: U56
+    title: La finestra di reazione, aperta e attraversata
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su cosa si vede quando la risoluzione si ferma a chiedere, e quando riparte
+    artifacts: []
+    unblocked_by: []
+    # 🔓 **Vuoto e MISURATO, ed e' la ragione per cui questa seduta nasce adesso.** Le due voci si
+    # dichiaravano bloccate da #166 (*«nessun percorso di produzione lega `OnReactionWindowOpened`»*),
+    # e quel blocco e' caduto in due tempi: #2723 ha legato il delegate — `URTReactionWindowViewModel::Hook`
+    # fa `BindUObject` e `ARTGameMode::BeginPlay` chiama `HookReactionWindow()` — e #3084 ha MONTATO
+    # `WBP_RT_FastDecision` nel `Canvas Panel` di `WBP_RT_TacticalHUD`, che non e' la stessa cosa:
+    # prima il delegate scattava e a schermo non c'era niente a cui rispondere.
+    # ⚠️ Il registro lo scrive gia' in entrambe le celle, e nessuna seduta le ha raccolte: *«adesso il
+    # pericolo e' che qualcuno NON esegua una voce diventata eseguibile»*. E' il difetto di #2188 nella
+    # sua forma piu' cara — non una voce dimenticata, una voce sbloccata e lasciata dov'era.
+    shares_setup_with: []
+    verifies:
+      # 🔑 **Due voci, un'unica finestra, e vanno guardate nella STESSA apertura**: `RXBRACE` chiede
+      # cosa succede DENTRO la finestra — chi viene spinto sceglie, e il Blast aspetta — `RXPLAYBACK`
+      # cosa succede alla GIUNZIONE, cioe' se il playback riprenda senza salti ne' ripartenze.
+      # Separarle darebbe due verdi che non dicono se la sospensione e la ripresa siano lo stesso gesto.
+      - PIE-V01-RXBRACE
+      - PIE-V01-RXPLAYBACK
+    issues: [2692, 2679, 2723, 166, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
+    unblocks: []
+    notes: >-
+      ⚠️ **L'allestimento non e' banale e va preparato prima di aprire**: serve una partita 2v2 **live**
+      con **Phase** comandata dal giocatore — e' l'unico eroe canonico con `Profile.Sidestep`, quindi
+      l'unico che possa portare il `Brace` — e per `RXPLAYBACK` un'unita' non-bot con `Action.Overwatch`
+      come azione principale, orientata verso una rotta che qualcuno attraversa. Le precondizioni
+      complete stanno nel registro, che ne e' l'owner (R-6).
+      ⛔ **Non si deduce l'esito dai test verdi.** `Reactions.Brace.WindowSuspendsBlast` prova che la
+      finestra si apra, che la fase si fermi e che la ripresa non riapplichi la spinta; nessuno dei tre
+      guarda se a schermo la sospensione si legga come una scelta invece che come un blocco. E il gate
+      headless non puo' arrivarci nemmeno in linea di principio: `Class->Bindings` copre i property
+      binding, **non** il consumo dentro un event graph.
+
+  - id: U57
+    title: Il frontend costruito, percorso per percorso
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      verdetto sui percorsi del frontend che nessuna seduta guardava — il replay raggiunto dal menu, e
+      l'avvio che fallisce
+    artifacts: []
+    unblocked_by: [U28]
+    # `U28` produce il Main Menu e la mappa `L_Frontend`: senza, non c'e' il percorso da attraversare.
+    shares_setup_with: []
+    verifies:
+      # Convocata dal censimento di #2188. ✅ **Il suo prerequisito e' gia' soddisfatto**:
+      # `PIE-REPLAY-ARCHIVE` e' verde nel registro, e la lista ha righe vere da mostrare. Il codice c'e'
+      # da #472 e #2326, entrambe chiuse `COMPLETED` — verificato il 2026-09-23.
+      # ⛔ **Cio' che nessun test headless vede, e per cui questa voce esiste**: `AddToViewport` non
+      # mette nulla in viewport dentro una `UGameInstance` di test, quindi nessuno dei verdi dice che
+      # i widget **disegnino**, ne' che una lista con piu' di una riga si **legga**.
+      - PIE-V01-REPLAY-VIEWER
+      # 🔴 **IMPONE UNA SECONDA APERTURA, e la ragione tecnica e' dichiarata qui** come la regola di
+      # batching di questo file prescrive: la voce chiede un avvio che **fallisce** — uno dei tre esiti
+      # fatali di `ERTStartupOutcome` — e un avvio che **ripiega** su `MapSource=GeneratedTestArena`.
+      # Sono due configurazioni rotte di proposito, e nessuna delle due si produce nel processo che ha
+      # gia' avviato bene. E' il caso (2) della regola: «serve un riavvio pulito».
+      # ⚠️ **Era dichiarata scoperta in U28**, che con ragione non se la prendeva: quella seduta e'
+      # `execution_lane: asset` e il suo `done_when` riguarda i `.uasset` che produce.
+      - PIE-V01-FRONTEND-ERROR
+    issues: [472, 2326, 937, 2188]
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro, e la seconda apertura e' registrata
+      con la configurazione che l'ha imposta
+    unblocks: []
+    notes: >-
+      ⚠️ **Il criterio (c) di `PIE-V01-FRONTEND-ERROR` e' gia' rosso per una causa nota** (#937: il
+      `BACK` del modale e' disegnato e non chiama niente). Chi esegue non lo riscopre — lo **rigiudica**
+      contro lo stato di quella issue il giorno della seduta, e un rosso li' non e' una scoperta.
+      ⛔ **`PIE-V01-FRONTEND-REPLAY` NON sta qui** benche' sia lo stesso percorso: chiede una build
+      **packaged**, e l'unica seduta che ne apre una e' `U23` — che per giunta produce l'archivio che
+      quella voce richiede. Una voce in due sedute e' una voce che nessuna delle due esegue.
+
+  - id: U58
+    title: Il gesto di mira — cosa si vede quando si arma, e cosa resta a terra
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto sulle voci aperte insieme alla loro feature e mai convocate
+    artifacts: []
+    unblocked_by: []
+    # Vuoto e misurato: le feature sono in `main` (#2741, #2742, e per `AttackFootprint` la cue
+    # `AddPlaybackFootprint` e' cablata in `RTPresentationBinding.cpp`), e ciascuna voce nomina i
+    # propri test headless verdi. Cio' che manca e' un occhio.
+    shares_setup_with: [U53]
+    # `U53` guarda la stessa scena da un'altra parte — la linea che NON arriva, su uno scenario in cui
+    # il bersaglio non e' visibile. Qui il bersaglio e' **noto**. Due allestimenti vicini, un'apertura.
+    verifies:
+      # 🔑 **Una precondizione sola per tutte**, ed e' testuale nel registro: partita in PIE su
+      # `L_HexArena`, un'unita' propria selezionata con un'abilita' **armata**. Da li' si guardano tre
+      # momenti consecutivi dello stesso gesto — si mira a qualcosa che il gioco rifiuta, si mira a
+      # qualcosa che la linea non raggiunge, si colpisce e resta un'impronta.
+      # ⚠️ **Sono state aperte INSIEME ALLA FEATURE fra il 2026-09-09 e il 2026-09-10**, deliberatamente
+      # e nel verso giusto, e sono rimaste fuori da ogni seduta: la voce scritta in tempo non serve a
+      # niente se nessuno la convoca.
+      - PIE-V01-REFUSAL
+      - PIE-V01-SIGHTLINE
+      - PIE-V01-FOOTPRINT
+    issues: [2741, 2742, 2454, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
+    unblocks: []
+    notes: >-
+      ⛔ **Nessuna si deduce dai test verdi, e ciascuna lo dichiara**:
+      `Combat.RefusalHidesTheUnknownTarget` pinna l'indistinguibilita' **sul valore**,
+      `Sight.HiddenStatesProduceTheSameLines` lo stesso per le linee,
+      `Playback.BlastPhaseOpensForFootprintOnly` che la fase si apra per una sola impronta. Nessuno di
+      quei test guarda uno schermo, e per due delle voci cio' che va giudicato e' **un'assenza** — un
+      messaggio che non compare, un segmento che non c'e' — che sul valore e' un'uguaglianza e a schermo
+      e' una cosa che si nota o non si nota.
+      ⚠️ **`PIE-V01-SIGHTLINE` e `PIE-VIS-SIGHTLINE` sono due voci diverse** e stanno in due sedute
+      vicine di proposito: quella di `U53` vive su uno scenario in cui il bersaglio **non e' visibile**
+      — il caso che una partita normale non produce, perche' un bersaglio non visibile non si punta —
+      questa su un nemico **noto** dietro la barriera. Fonderle perderebbe uno dei due casi.
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# Voci aperte che NESSUNA seduta convoca, e che non e' una dimenticanza
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+#
+# Aperto il 2026-09-23 da #2188, che misura il difetto per cui esiste: una voce ⏳ fuori da ogni
+# `verifies` **non viene eseguita mai**, e chi apre questo file per decidere cosa fare non la vede.
+#
+# Le uscite legittime sono tre — seduta esistente, seduta nuova, **non schedulabile con la ragione** —
+# e tacere non e' una di esse. Questo blocco e' la terza: nomina le voci che oggi non si possono
+# guardare, e per ciascuna **l'oracolo che lo dice**, cioe' un comando o una issue il cui stato
+# risponde da solo. Non una valutazione, una misura.
+#
+# ⛔ **Non e' una seduta e non ne fa le veci.** Non ha `verifies`, non ha `done_when`, non convoca
+# nessuno. Una voce che entra qui NON e' schedulata: e' dichiarata, che e' un'altra cosa e vale meno.
+# Quando il suo oracolo cade, la voce **esce di qui ed entra in un `verifies`** — e finche' resta,
+# resta col motivo scritto.
+#
+# ⛔ **Non dichiara lo stato di una voce** (R-6): quello e' di `test-manuali-pie.md`, che ne resta
+# l'unico owner. Qui si dice perche' oggi non si puo' guardarla, mai cosa si vedrebbe.
+#
+# 🔑 **Perche' questo blocco vale la pena.** Senza, le voci qui sotto sono indistinguibili da quelle
+# dimenticate: la stessa misura le trova, con lo stesso risultato, e la prossima persona che conta le
+# orfane rifa' da capo l'indagine che questa passata ha fatto. Con, la misura diventa un **invariante**
+# che si rompe rumorosamente:
+#
+#     aperte  -  convocate da una seduta  -  dichiarate qui  =  0
+#
+# Il comando che lo verifica sta in `docs/roadmap/plans/censimento-voci-pie-orfane-2026-09-23.md` §4,
+# insieme al comando canonico con cui si contano le aperte — che NON si reinventa: sta in testa a
+# `test-manuali-pie.md` e classifica sul **PRIMO** marcatore della cella di stato.
+#
+# Campi:
+#   check         l'ID della voce PIE
+#   reason        perche' oggi non si puo' GUARDARE. Mai cosa si vedrebbe
+#   oracle        il comando o la issue il cui stato risponde. Deve essere eseguibile da chi legge
+#   revisit_when  la condizione che la rimette in gioco, scritta come evento e non come data
+
+  - id: U59
+    title: Il Context Inspector si legge, o copre la board
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: il verdetto umano sulla LEGGIBILITA' del pannello di contesto — che si distingua dal fondo,
+      che le righe non si accavallino, e che non copra ciò che si sta guardando
+    artifacts: []
+    # 🔑 **Questa seduta esiste perché il contenuto è già provato e la RESA no.**
+    # Il contesto per osservatore è pinnato headless da quattro test, e tutti portano la propria prova
+    # che sanno fallire:
+    #   RefactorTactics.Debug.ContextViewCarriesNoRawTypes
+    #   RefactorTactics.Debug.ContextViewHasNoAuditOnlyField
+    #   RefactorTactics.Debug.ContextInspectorShowsOnlyThisCell
+    #   RefactorTactics.Debug.ContextInspectorPlacementDoesNotCollide
+    # ⛔ Nessuno di essi dice se il pannello si LEGGA: la Slate di `RebuildWidget` non ha modo di essere
+    # rossa senza uno schermo, ed è la ragione per cui la sola parte che può sbagliare in silenzio — la
+    # posa — è un DATO e non quattro numeri dentro il layout.
+    unblocked_by: []
+    # ⚠️ **Vuoto per una ragione misurata**, come in `U46`, `U49`, `U50` e `U51`: il codice c'è tutto ed è
+    # verde headless (#2485, PR #3298 e #3309). Quello che manca è un occhio.
+    shares_setup_with: []
+    # 🔴 **Vuoto, ma NON perché vada eseguita da sola.** La *Regola di batching* di questo file autorizza
+    # un'apertura nuova solo se cambia una precondizione, e qui non cambia: basta una partita hex avviata.
+    # ⚠️ Anzi, il contrario: ciò che si giudica è **come due pannelli convivono a schermo**, e in
+    # particolare che questo non si sovrapponga a `URTPieVerdictOverlay`, che sta a sinistra centrato
+    # (#3242). Chi la pianifica la metta **accanto a una seduta di verdetto**, non isolata — vederla da
+    # sola proverebbe meno di ciò che serve.
+    verifies: [PIE-DEBUG-CONTEXT]
+    issues: [2485]
+    # ⛔ **Perché una seduta e non un automation test.** Ciò che si giudica è la leggibilità: contrasto,
+    # accavallamento, ingombro. Sono giudizi che un test può solo fingere di dare — `CLAUDE.md` §5, *MCP
+    # esegue, la persona giudica*.
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, quello che ospita il bridge e il `Content` completo.
+    # Misurato il 2026-09-23: `du -sh Content` risponde **59 GB** là e **7,5 MB** nel clone designer, dove
+    # una partita hex non ha gli asset per essere avviata.
+    #
+    # 🔑 **La resa è Slate in C++ e non un `.uasset`**, come `URTPieVerdictOverlay`: non c'è un widget da
+    # aprire nell'Editor — si avvia la partita, si passa il puntatore su una cella e si lancia
+    # `rt.Debug.ContextInspector` **senza argomenti**. Un `WBP_` curato resta possibile, la classe base è
+    # fatta per essere derivata, e apparterrebbe al clone principale.
+    #
+    # ⛔ **Questa riga diceva `rt.Debug.ContextInspector 0`, ed è eseguibile alla rovescia.** Corretta il
+    # 2026-09-23, insieme al suo gemello in `docs/technical/test-manuali-pie.md`. `0` come primo argomento
+    # è il ramo di SPEGNIMENTO — `RTDebugConsole.cpp`, guardia `Args[0] == TEXT("0")`, che ritorna prima
+    # ancora di cercare la mappa. Chi conduceva come scritto leggeva «[RT] Context Inspector spento.» e
+    # concludeva ❌ *«il pannello non compare»*: un rosso falso su un pannello sano. La squadra 0 è il
+    # default di `ObserverTeamFromArgs` quando non c'è nessun argomento.
+    # ⚠️ **Una precisazione che la prima stesura aveva sbagliato, e che conta per chi riprende il
+    # comando**: diceva che «non esiste una grafia leggibile che accenda su 0 passandolo». È falso, e il
+    # controesempio costa una riga. La guardia confronta la **stringa** (`Args[0] == TEXT("0")`, confronto
+    # esatto a meno del case) mentre l'osservatore passa per `Atoi`: quindi `00`, `+0`, `-0` e `000` NON
+    # fanno scattare la guardia e accendono regolarmente sulla squadra 0 — sono grafie numeriche e
+    # leggibilissime dello zero, non «un insieme arbitrario». Il comando da prescrivere resta **nudo**,
+    # ma per una ragione diversa da quella scritta prima: è l'unica forma non ambigua, non l'unica che
+    # funzioni.
+    # Il giro si chiude con: grep -rn "ContextInspector 0" docs/ Source/ → deve restare solo ciò che
+    # parla di SPEGNERE, **più questa riga stessa**, che cita la stringa per definire il criterio. ⚠️ Il
+    # criterio trova sé stesso e non potrà mai rispondere zero: chi lo rilancia deve scartare a mano
+    # questo hit, altrimenti lo legge come un residuo.
+    #
+    # ⚠️ **E il pannello aggiorna A COMANDO, non a ogni movimento del puntatore** (help del comando, e
+    # `ShowFor` è chiamata solo dall'handler). Chi conduce deve rilanciare il comando dopo **ogni**
+    # spostamento del mouse: un pannello che resta fermo mentre il puntatore si sposta è il
+    # comportamento previsto, non un difetto da registrare.
+    notes: >-
+      ✅ **Eseguita fra il 2026-09-23 e il 2026-09-24** su `main` `9938da57b`, nel clone principale, con
+      l'editor ricompilato prima della seduta e i `RefactorTactics.Debug.Context*` più
+      `RefactorTactics.Debug.CellContextHidesEnemyPosition` rilanciati **sul binario appena
+      costruito**: il verde che questo blocco dichiarava era stato misurato su una DLL rilinkata dopo,
+      e non valeva per la resa che si stava per guardare. Erano 5/5 al momento del giudizio e sono
+      6/6 dopo il merge di #3318, che aggiunge `ContextInspectorArgsDoNotCollide` — ⚠️ il numero si
+      rimisura lanciando la suite, non si cita da qui.
+      ⛔ **L'esito, il glifo della voce e la discrepanza col criterio NON si leggono qui**: sono
+      derivati, e R-6 li assegna a `docs/technical/test-manuali-pie.md`, che ne è l'unico owner. Questa
+      nota registra solo la CONDUZIONE. ⚠️ La prima stesura li aveva scritti qui — glifo, criterio
+      atteso citato alla lettera, e perfino lo stato di una seconda voce — cioè esattamente la copia di
+      stato che questo file ha già ritrattato due volte.
+      ⛔ **La precondizione della voce era eseguibile alla rovescia, e l'ho scoperto preparando la
+      seduta, non conducendola.** Registro e note di questa seduta prescrivevano entrambi
+      `rt.Debug.ContextInspector 0`, che era il ramo di SPEGNIMENTO: chi avesse condotto come scritto
+      avrebbe letto «Context Inspector spento» e registrato un rosso su un pannello sano.
+      🔴 **E la chiusura giusta non è la mia.** Mentre la seduta era in corso, #3318 ha riparato il
+      difetto nel **codice**: l'interruttore è ora la parola `off`, `0` è la squadra 0 come in ogni
+      altro `rt.Debug.*`, e il parsing è una funzione pura provata per mutazione — il difetto è
+      diventato rosso senza schermo, che è la ragione per cui era arrivato fin lì. Io avevo corretto la
+      sola prosa, cioè il sintomo. Di quella passata restano due difetti distinti, trovati risalendo la
+      stessa riga: il commento di `RTContextInspectorTests.cpp` che rimandava alla seduta `U55` invece
+      che a questa, e la help del comando — quest'ultima poi riscritta da #3318.
+      ⚠️ **Il giudizio qui registrato è stato dato PRIMA di quel fix**, col comando nudo, che resta
+      valido perché la squadra 0 è il default in entrambe le semantiche. E la resa non è stata toccata:
+      il commit di #3318 è additivo su `RTContextInspector.cpp/.h` e non tocca `RebuildWidget`,
+      `Placement` né `MaxRighe`.
+      🔑 **`shares_setup_with` resta vuoto e la prescrizione di accompagnarla è stata rispettata
+      diversamente**: l'overlay del verdetto è stato portato a schermo come IMPALCATURA, con
+      `rt.Pie.Session PIE-ACC-PERCEPTION` seguito da `rt.Pie.Session.Abort`, che chiude il passo
+      `NOT_RUN` con motivo «seduta interrotta» — il record è `Saved/RTPieSessions/20260923-175248-297`.
+      È la via che soddisfa «non isolata» senza trascinare in questa apertura il giudizio di un'altra
+      voce; quale sia lo stato di quella voce lo dichiara il registro, non questa nota.
+      ⚠️ **DUE aperture dell'Editor, non una, e in due giorni diversi** — la prima stesura diceva «due
+      Play in una apertura» e i record la smentiscono. Il 2026-09-23 su `L_HexArena` con
+      `rt.Match.Autobattle 0` (contrasto, accavallamento, convivenza con l'overlay, tutto dentro la
+      **stessa** sessione PIE senza riavvio); il 2026-09-24 su `L_DevSandbox` con
+      `rt.Test.Scenario Visual.Combat.GuardVsBraceUnderSmallHits` e osservatore onnisciente per il tetto
+      delle righe (`Saved/RTTests/Visual.Combat.GuardVsBraceUnderSmallHits/20260924-085022`). La prima
+      apertura si era fermata a cinque righe credendo di aver misurato dodici.
+      ⛔ **Limite dichiarato: nessun artefatto, e non per un tentativo fallito.** `HighResShot` non
+      compare fra i `Cmd:` di nessuno dei due log — non è stato lanciato — e `artifacts` resta vuoto. I
+      record in `Saved/` sono riesaminabili solo in questo clone, perché `Saved/` è gitignorato.
+      ➕ **Due difetti trovati conducendo**, entrambi con issue propria: #3319 per la posa del pannello
+      contro le zone basse dell'HUD, #3320 per il troncamento che fa cadere la riga `[tecnico]` a
+      pannello pieno.
+
+  - id: U60
+    title: Vertical Slice Labs & Playback, smoke integrato
+    block: 6
+    critical: true
+    execution_lane: pie
+    produces: il verdetto di `G16` — le cinque capability usate NELLO STESSO giro, sulla stessa build
+      candidata, con ogni passo a esito reale
+    artifacts:
+      - docs/technical/evidence/g16/u60-giro-parziale-2026-10-04.log
+    verifies: []
+    issues: [2601]
+    done_when: ogni passo dello smoke flow ha un esito reale, e i passi non eseguiti dichiarano il motivo
+    # 🔴 **Questo record nasce VUOTO e prima dell esecuzione, ed e deliberato.** Lo scrive la meta
+    # headless di `G16`: il criterio del gate chiede che il giro sia *registrato come seduta*, e senza
+    # un contenitore chi conduce dovrebbe prima riderivare i passi dal corpo di #2601.
+    #
+    # 🔑 **`issues: [2601]` NON e una formalita: senza, questa riga rende rosso `G14`.** L asserzione
+    # `A2` di `doc-coherence.ts` fallisce su una seduta `critical: true` che sia INSIEME priva di
+    # `issues:`, non nominata da nessuna issue aperta, e non ancora eseguita (`seduteOrfane`). Le vie
+    # d uscita sono quattro e questa e la piu economica, perche sta nello stesso file.
+    #
+    # ⛔ **Nessun passo e dichiarato verde in anticipo**, ed e la DoD di #2601 a vietarlo: *ogni passo
+    # ha un esito reale*. Finche il giro non e stato fatto, qui non c e nessun verdetto.
+    #
+    # ⚠️ **Sulla stessa build Development candidata di `G9`, `G10`, `G11` e `G13`** — non su una build
+    # propria. Unreal e uno per macchina, e un giro misurato su un binario diverso non attesta la
+    # stessa release candidate (#2601, sezione *Packaged*).
+    steps: |
+      🟡 **GIRO 2, 2026-10-04: i passi 1-2 sono ✅; i tre restanti ancora NOT RUN.**
+      Seconda apertura, log proprio. Dodici turni pianificati e **una partita FINITA** (*<<Pareggio,
+      allo scadere dei round 12/12>>*), due archivi replay di cui uno terminale
+      (`52C6FF9740710C9BAB4DBC843EAF75DD`, `TurnCount 12`, `Outcome 3` = `Draw`) e uno abbandonato
+      (`6CCBC713...`, `Outcome 0` = `InProgress`) — i due illustrano la differenza che il criterio del
+      passo 5 avverte.
+
+      ✅ **Passi 1-2 CHIUSI**: la ability gira (*<<PASS - 1 turno>>*) e il filtro per eroe mostra il
+      kit. ⚠️ Ma con un difetto d'affordance aperto come
+      [#3461](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3461): il campo `Eroe:` ha
+      confronto **esatto**, quindi `Ivrin` svuota la lista in silenzio e serve `Hero.Ivrin`.
+
+      ➕ **Fuori dal giro, seduta `U62` (2026-10-04)**: il passo 1 eseguito sul catalogo **intero**, col
+      filtro vuoto, ha trovato tre difetti che il giro 2 — un'ability del kit di un eroe — non poteva
+      vedere: [#3472](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3472) (una core action
+      che nessuna unita' impugna finiva in `ERROR`), [#3473](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3473)
+      (il readout inventava `catalogo 0 · letto 5`) e [#3474](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3474)
+      (lo `StateDiff` non accoppiava mai le unita'). Corretti in PR #3476 e rieseguiti in Editor sul
+      binario `5f37e0769`: ✅. ⛔ **Non e' un passo del giro**: il criterio vuole i cinque in una sola
+      apertura, e questa era un'altra.
+
+      ⛔ **I passi 3-4-5 restano NOT RUN**: `rt.Debug.ScreenHud` non e' stato eseguito — le occorrenze
+      nel log sono la fotografia automatica al montaggio — e il Replay Viewer non e' stato aperto.
+
+      🔑 **E il giro meccanico e' stato AUTOMATIZZATO**, per decisione d'autore (*<<cose cosi le
+      puoi automatizzare>>*): `tools/seduta/giro-meccanico.ps1` esegue in autobattle sul pacchetto la
+      meta' non percettiva e raccoglie l'evidenza. Prima esecuzione valida: **undici esiti su undici
+      PASS**, e soprattutto il feed **si popola** — `Feed: TurnLog=22 voci, osservatori={0, 1}, righe
+      dopo filtro=5` — che e' la precondizione del passo 4 che due sedute a mano non avevano ottenuto.
+      ⛔ Lo script NON chiude `G16`: i Lab sono Editor-only e i giudizi percettivi restano, e lo
+      dichiara in testa.
+
+      ✅ **L'ANOMALIA E' STATA MISURATA, e la mia prima ipotesi era SBAGLIATA.** Avevo sospettato che il
+      replay registrasse meno turni di quelli giocati, perche' un archivio portava `TurnCount 5` mentre
+      il log contava dodici turni. ⛔ Falso: gli mtime dei suoi file (13:04-13:06) **precedono** le run
+      del pacchetto, e `Board 2v2` compare **3** volte nel log di questa seduta — quell'archivio e' la
+      TERZA partita del giro 2 in Editor, abbandonata al turno 5 alla chiusura. Il suo `TurnCount` dice
+      il vero.
+
+      🔴 **Il difetto vero e' un altro, ed e' piu' grave**:
+      [#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463). Sul **pacchetto** una
+      partita completa — dodici turni, `Partita finita` — non produce **nessun** archivio, e
+      `BeginReplayRecording` esce **in silenzio** su `!bRecordReplay || MatchRules.FormatId.IsNone()`:
+      nessun log, nessun avviso. Il testimone del fallimento per-turno risponde `0`, quindi la
+      registrazione non e' mai partita. In Editor funziona — tre archivi corretti lo stesso giorno — e
+      la differenza fra i due contesti E' il difetto.
+
+      ⚠️ **Conseguenza sul passo 5**: non e' automatizzabile dal pacchetto finche' #3463 e' aperta, e
+      `giro-meccanico.ps1` dichiara `[FAIL]` su quel passo per questa ragione e non per il Viewer.
+
+      🟡 **Parzialmente eseguita il 2026-10-04** — Editor compilato da `ac2568992`, il cui runtime e'
+      identico al candidate `95eddfd37` (0 righe non-commento fuori da `Tests/`). Una sola apertura, con
+      `-abslog`; estratto in `artifacts:`. Motore verificato libero prima del lancio, nessun modale
+      ZenServer, zero `Fatal error` / `Assertion failed` / GPU crash.
+
+      ⛔ **Il giro NON e' completo, e il verdetto di `G16` resta ⏳**: nessun passo e' FALLITO, e tre
+      non sono stati osservati per una precondizione mancante che vale per tutti e tre — **nessun turno
+      risolto**.
+
+      | passo | esito | motivo |
+      |---|---|---|
+      | 1-2 · Ability / Hero Lab | 🟡 **parziale** | il pannello si apre e il catalogo e' letto; **nessuna ability eseguita** nella fixture, che e' la meta' che il `done_when` chiede |
+      | 3 · Presentation | ⏳ `NOT RUN` | l'esito del resolver non esiste finche' non si risolve un turno |
+      | 4 · Turn Log | ⏳ `NOT RUN` | `rt.Debug.ScreenHud` invocato due volte: albero a **17** widget, cinque inquilini `[ok]`, e `Feed: TurnLog=0 voci, righe dopo filtro=0`. Il comando stesso dichiara che *«non e' un difetto finche' una risoluzione non e' avvenuta»* |
+      | 5 · Replay Viewer | ⏳ `NOT RUN` | nessun archivio da riaprire: l'archivio deve essere quello della partita dei passi 3-4 |
+
+      🔑 **Cosa la seduta HA prodotto**, ed e' il suo guadagno: **due difetti** osservati
+      dall'autore e aperti sull'owner, come il gate prescrive —
+      [#3458](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3458) (i nemici che entrano in
+      vista durante il movimento appaiono tutti alla fine) e
+      [#3459](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3459) (l'area colpibile di una
+      skill non si vede, con le due letture da discriminare).
+
+      ✅ **E una conferma che vale per il foglio di conduzione**: le **otto** zone della Screen HUD e il
+      nodo del feed hanno i nomi che il foglio aveva dichiarato NON verificabili da fuori l'Editor —
+      `Zone_MiddleRight` e `WBP_RT_EventLogRight` esistono, e il log li porta.
+
+      ⛔ **`[MANCA] ActionSlot: 0` NON e' un difetto**, e il comando lo documenta da se': fotografa
+      l'albero nell'istante in cui la radice si costruisce, e gli `WBP_RT_ActionSlot` li crea il dock
+      *«quando arrivano le azioni»*. Il testimone che li prenderebbe — i warning `Icona non risolta`
+      firmati `'ActionSlot'` — risponde **0** su questo log, coerente con una seduta in cui nessuna azione
+      e' arrivata al dock.
+
+      ⚠️ **Il giro va RIFATTO per intero, non continuato**: *«nello stesso giro»* ha come testimone una
+      sola apertura con un solo `-abslog`, e due log non lo reggono. La precondizione da portare alla
+      prossima apertura e' una partita con **almeno un turno risolto**.
+      Lo smoke flow e quello di #2601, trascritto qui perche chi conduce non debba riaprirla. Le
+      cinque capability vanno usate NELLO STESSO giro: verdi ciascuna nel proprio checkpoint non
+      soddisfano questo gate.
+
+      1. **Ability Lab** — seleziono una ability reale del catalogo, `Run`, e leggo outcome + TurnLog.
+      2. **Hero Lab** — scelgo un hero reale (`Hero.Aevik` · `Hero.Muiren` · `Hero.Branth` ·
+         `Hero.Ivrin`), scelgo una ability del suo kit, `Run`.
+         ⚠️ I nomi sono quelli di oggi: #2601 scrive ancora `Hero.Gadget`, `Hero.Phase` e
+         `Hero.Wraith`, ritirati da `D-334` e `#2491`.
+         🔑 **Stesso runner di Ability Lab**: due percorsi d esecuzione distinti sono un difetto di
+         questo gate, non una variante accettabile.
+      3. **Presentation** — il risultato del resolver e visibile e leggibile a schermo.
+      4. **Turn Log** — l outcome e spiegabile con dati canonici e reason code strutturati.
+      5. **Replay Viewer** — apro un replay dalla lista, `Play`/`Pause`, `Previous`/`Next Phase`,
+         `Previous`/`Next Turn`, turno e fase correnti visibili, `End`/`Back` funzionante.
+         ⚠️ I controlli di fase enumerano le **cinque fasi osservabili** — `Prep · Dash · Blast ·
+         Move · Cleanup` — non `ERTMatchPhase`: `Planning` e `MatchEnded` non sono mai emesse dal
+         resolver.
+
+      Due error case che #472 gia supporta, e che #2601 lascia aperti:
+      - **archivio parziale**: si apre e si guarda fino a dove arriva, dichiarando che finisce li;
+      - **replay mancante o corrotto**: ognuno dei quattro esiti di `ERTReplayOpenResult` —
+        `Opened`, `ManifestUnreadable`, `TopologyMismatch`, `TraceUnreadable` — produce un messaggio
+        distinto, e una riga il cui archivio e assente lo dice RESTANDO nella lista.
+
+      ⛔ Ogni difetto trovato si apre **sull owner**, mai dentro il gate: Ability Lab #2599, Hero Lab
+      #2600, Presentation `E21` #286 → #288, Turn Log #79 / #1936, Replay Viewer #472.
+      ⚠️ Due owner su cinque hanno la capability ancora *da consegnare* al 2026-09-06 (#2599, #2600):
+      se all esecuzione non ci sono, il passo si dichiara non eseguito col motivo — non si omette.
+      ⌫ **Quella riga e superata, misurato il 2026-10-02**: #2599 e #2600 sono CLOSED/COMPLETED dal
+      2026-09-10, come #288 (Presentation) e #472 (Replay Viewer). Resta scoperta la sola quarta
+      capability, Turn Log proiettato al giocatore: #1936 e OPEN e i suoi tre bloccanti dichiarati
+      — #2964, #3073, #2764 — sono OPEN tutti e tre. ∴ il passo 4 andra ROSSO, ed e una decisione
+      d autore del 2026-10-02 eseguire lo stesso: nessuno ha mai misurato se le altre quattro
+      superfici reggano INSIEME, ed e l unica cosa che questo gate esiste per dire.
+
+      --- COME SI LANCIA, E COME SI TESTIMONIA IL GIRO ---------------------------------------
+
+      Motore libero prima di cominciare:
+        Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'"   # nessuna riga
+
+      Lancio, da clone principale, con l Editor compilato DAL CANDIDATE:
+        & "<engine>\Engine\Binaries\Win64\UnrealEditor.exe" "<repo>\RefactorTactics.uproject" `
+            -LiveCoding=false -abslog=<repo>\Saved\Logs\g16-u60.log
+
+      🔑 **L `-abslog` NON e per te: e il testimone che il giro e stato UNO.** Il criterio chiede
+      "una sola apertura", e una dichiarazione non lo prova — un log solo si. Va citato in
+      `artifacts:` a seduta finita. ⚠️ Virgolettato se il percorso ha spazi: senza, si perde in
+      silenzio e resti senza log.
+      🔑 **`-LiveCoding=false` e cortesia verso chi compila**: un Editor interattivo senza quel flag
+      blocca `Build.bat` su TUTTI i cloni, non solo sul proprio (AGENTS.md §9). ⌫ Fino al 2026-10-07
+      qui c era `-NoLiveCoding`, che l Editor non legge (#3522).
+
+      --- DOVE SI APRONO LE CINQUE SUPERFICI ---------------------------------------------------
+
+      1-2. **Ability Lab e Hero Lab sono UN SOLO pannello**, non due: tab `Ability / Hero Lab`
+           (`RTLab`), registrato come Nomad tab e raggiungibile da **Window > Tools**, oppure dal
+           launcher workspace, che lo dichiara disponibile.
+           ✅ **E questo e gia meta del requisito di #2601**: "Ability Lab e Hero Lab condividono un
+           solo runner, due percorsi d esecuzione distinti sono un difetto di questo gate". Un solo
+           pannello non puo averne due.
+           ⛔ Il tab NON si apre da solo ed e deliberato: `RegisterNomadTabSpawner` e non
+           un estensione di layout, per non mettersi addosso a chi ha aperto l Editor per altro.
+
+      3-4. **Presentation e Turn Log si guardano IN PARTITA**, non in un pannello: sono il risultato
+           del resolver a schermo e la sua spiegabilita. Si osservano durante il PIE del passo 5.
+
+      5.   **Replay Viewer e una schermata del FRONTEND**, non una finestra d Editor: l id e
+           `ReplayViewer`, accanto a `MatchHistory` (`Frontend/RTFrontendScreenIds.cpp`). Il flusso
+           che il sorgente documenta e: Match History -> si SELEZIONA una partita
+           (`URTReplayViewerSubsystem::SelectMatch`) -> si spinge la schermata del viewer.
+           ⚠️ **Quale pulsante, su quale widget, non l ho verificato**: il legame e UMG, non C++.
+           Si vede a schermo — e se non si trova, QUELLA e un osservazione da registrare, non un
+           ostacolo da aggirare.
+
+      🔴 **L archivio che apri al passo 5 deve essere quello prodotto dalla partita dei passi 3-4**,
+      identificato per `MatchId`. Non e una formalita: ci sono gia centinaia di cartelle sotto
+      `Saved/Replays/` e il viewer le elenca tutte, quindi il passo 5 passerebbe su una qualunque e
+      il gate misurerebbe cinque cose scollegate invece che insieme. Se la partita non ne chiude uno
+      riapribile, il passo 5 e ❌ — non ✅ su un archivio preesistente.
+
+      --- IL VERDETTO -------------------------------------------------------------------------
+
+      Il verdetto di `G16` vive nella colonna 4 della sua riga in `v0.1-definition-of-done.md` §3.
+      ✅ solo se tutti e cinque i passi sono ✅; **un passo ❌ rende `G16` 🔴**, con la issue dell
+      owner linkata — mai ⏳. ⏳ significa "giro non eseguito", e non copre "eseguito male".
+      Qui dentro si registra l esito passo per passo, e `artifacts:` prende il log.
+    notes: >-
+      Creata il 2026-10-02 come contenitore, senza esecuzione. Il verdetto di `G16` vive nella sua
+      riga di `v0.1-definition-of-done.md` §3; questa seduta e il luogo in cui il giro si registra.
+
+  - id: U61
+    title: Lo slot della dock dice la fase, e i suoi stati reggono la scala di grigi
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_ActionSlot` con striscia ed etichetta di fase e con le ricette degli stati di
+      `progettazione-hud.md` §7, ciascuna col proprio secondo canale; la prova in scala di grigi committata
+    artifacts:
+      - docs/technical/evidence/hud/u61-stati-slot-scala-di-grigi.png
+    # 🔑 **Una sola prova, ed e' quella che §47-bis.1 chiede**: una cattura degli stati dello slot portata
+    # in scala di grigi, in cui nessuno stato si confonde con un altro. Il riferimento da imitare e' la
+    # riga inferiore di `docs/research/design/hud/skill-bar-2026-10/immagini/08-stati-slot.png`.
+    # `WBP_RT_ActionSlot.uasset` e `WBP_RT_ActionDock.uasset` non sono elencati: sono gia' tracciati, quindi
+    # `git ls-files` direbbe «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nello STESSO merge**, non perche' manchi una dipendenza: la vista
+    # porta `Phase`, `PhaseMark` e `PhaseLabel` da #3465, e questa voce nasce nella sua stessa PR.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga #3465, con l'Editor
+    # **ricompilato** da quel commit prima di aprire la seduta — una DLL di prima non ha i tre campi, e i
+    # pin del Blueprint non comparirebbero.
+    # ⛔ E un commit di `main` che contenga #3489, le porte per nome: senza, i widget si dichiarano e
+    # nessuno li accende.
+    shares_setup_with: [U63, U64]
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
+    # sta nell'editor PRIMA del Play — la prova in scala di grigi sulla cattura degli stati — quindi il
+    # verdetto va nella issue owner e nell'artefatto qui sopra. ⚠️ La issue e' #2826, che possiede la
+    # leggibilita' dello slot e resta aperta: #3465 consegna il DATO e si chiude col proprio merge, quindi un
+    # verdetto scritto li' finirebbe in una issue chiusa.
+    issues: [3465, 2826, 3489]
+    done_when: >-
+      ogni slot della dock porta striscia ed etichetta di fase lette da `Action.PhaseMark` e
+      `Action.PhaseLabel`, gli stati prodotti da `ResolveSlotState` hanno ciascuno il secondo canale della
+      ricetta, e la cattura in scala di grigi e' committata in `artifacts` con nessuno stato confuso
+    # **Riferimenti, tutti in `docs/research/design/hud/skill-bar-2026-10/`** (`PROPOSTA`, non canone):
+    # `SPECIFICA-VISIVA.md` §2 (anatomia, dall'alto al basso dello z-order), §3 (ricette) e §4
+    # (composizione); `dati/tokens.json` per colori e misure; `immagini/01..08.png` come resa attesa.
+    # ⚠️ Le misure di `tokens.json` sono px di design a 1920×1080: in UMG valgono come riferimento, con la
+    # DPI scale del progetto applicata.
+    #
+    # 🔑 **Si cabla PER NOME, non a grafo** (#3489, il disegno di `RTHeroProfileWidget`). Lo slot dichiara
+    # nel Designer i widget coi nomi qui sotto, e il C++ (`URTActionSlotWidget::RefreshLook`, chiamata da
+    # `SetAction`) li accende: visibilita', colore della striscia e del bordo, padding. Il bridge MCP non
+    # scrive il property binding, e un grafo per evento costruito nodo per nodo non si diffa e non si testa.
+    # ⛔ **Nessun grafo nuovo**: forma, texture e posizione sono del Designer, la scelta di quale widget
+    # accendere e' del C++. I nomi, e lo stato che li accende, sono la tabella
+    # `URTActionSlotWidget::IndicatorNameFor`, pinnata da `ScreenHud.EverySlotStateHasItsOwnSecondChannel`.
+    #
+    # 🔴 **Cosa si cabla, e da dove legge**:
+    #   1. **Striscia di fase** (4 px in alto) — un `Border` chiamato **`PhaseStrip`** — ed **etichetta di
+    #      fase** (in alto a destra) — un `TextBlock` chiamato **`PhaseLabelText`**. Li riempie il C++ da
+    #      `Action.PhaseMark` e `Action.PhaseLabel`. ⛔ L'etichetta **non si omette mai**: e' il canale
+    #      che non dipende dal colore (D-232 punto 3).
+    #   2. **Colore della striscia** da `PhaseMark`, scritto dal C++ con la tabella `PhaseColors` dello slot
+    #      (`EditDefaultsOnly`, default qui sotto):
+    #      `Prep #56B4E9 · Dash #009E73 · Blast #D55E00 · Move #0072B2` ([D-233]),
+    #      `Reaction` = `RT_UI_Violet #7C5CFF` (§32: *reaction, special state*), `None` = nessuna striscia.
+    #      ⚠️ **`Cleanup` resta SENZA colore** ([D-232] §1, [D-233], confermato dall'autore il
+    #      2026-10-04): non ha una voce in `PhaseColors`, quindi la striscia si chiude e la fase la dice
+    #      l'etichetta `CLEANUP`. Il mockup usa `#A9B4C2`, che in §32 non esiste. I default sono pinnati
+    #      contro gli HEX della decisione da `ScreenHud.SlotPhaseStripReadsThePhaseMark`.
+    #   3. **Stati di §7** dalla ricetta di `SPECIFICA-VISIVA.md` §3, con lo stato preso da
+    #      `URTHudViewModel::ResolveSlotState(Action, bArmed)` dentro `RefreshLook` — mai ricomposto nel
+    #      grafo (#2988). Il bordo e' un `Border` chiamato **`StateFrame`** (colore da `FrameColors`). Il
+    #      secondo canale e' obbligatorio, e ciascuno e' un widget col suo nome:
+    #      Selected = **`SelectedBar`**, barra 40×4 sotto lo slot · Planned = **`PlannedCorner`**, angolo
+    #      pieno 18 px · Cooldown = `CooldownText`, il numero di turni che c'e' gia' · Unavailable =
+    #      **`UnavailableHatch`**, tratteggio diagonale 135°. Hover e' del widget, non del modello.
+    #      ⚠️ **Selected e Warning condividono l'ambra** (§32 la assegna a entrambi): li separa la forma,
+    #      bordo continuo + barra contro bordo tratteggiato + triangolo.
+    #   4. **Invalid e Warning: ricetta SI', produttore SI'** ([D-459], #3483). `ResolveSlotState` li
+    #      restituisce: `Invalid` quando il gesto sarebbe rifiutato (azione armata col bersaglio puntato
+    #      rifiutato, o colpevole di un piano illegale), `Warning` quando il piano e' accettato ma degradato.
+    #      I widget sono **`InvalidMark`** (la ✕) e **`WarningMark`** (il triangolo). ⌫ *Qui stava
+    #      «produttore NO» (decisione d'autore del 2026-10-04): valeva finche' [D-459] non ha sciolto il
+    #      conflitto fra §7 e il commento di `ERTActionSlotState`.*
+    #
+    # ⛔ **Cosa NON si fa in questa seduta**, ciascuna col motivo:
+    #   - i **separatori di gruppo** Comuni · Base · Kit: sono di `U63`, e non sono widget — il padding lo
+    #     scrive lo slot da `bGroupBreakBefore` (#3489). ⌫ *Qui stava «il campo `Group` non esiste ancora»:
+    #     esiste da #3475.*
+    #   - i **chip** PRINCIPALE · MOVIMENTO · REAZIONE: il dato esiste gia' (`URTSelectedUnitPanelWidget::GetSlots()`)
+    #     e `WBP_RT_SelectedUnitPanel` li mostra. Spostarli sopra la dock e' layout di #613;
+    #   - il **selettore di profilo** a quattro pulsanti: contraddice [D-425], perche' il profilo si deriva
+    #     dalla distanza;
+    #   - lo slot **Difesa caratteristica**: `ERTActionSlot::SignatureDefense` non esiste (#3130);
+    #   - le **icone** del mockup: sono segnaposto, e le vere vengono da `DA_IconCatalog` via `IconId`.
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false`, perche' non blocchi le build degli altri cloni (#3522).
+    notes: |
+      Scritta il 2026-10-04 dal triage del mockup della skill bar
+      (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`).
+      🟡 **Eseguita il 2026-10-05, verdetto percettivo all'autore**, su `main` = `2b9b15d4c`, con l'Editor del
+      clone principale ricompilato da quel commit. L'authoring e' fatto: `WBP_RT_ActionSlot` dichiara i widget
+      per nome (#3489), avvolti in un `SizeBox` 78×96 (`SlotSize`), con l'icona a 28 px, il nome a 11 px su
+      due righe e il numero di ricarica a 26 px; le quattro texture `T_RT_Slot*` (tratteggio, angolo, ✕,
+      triangolo) sono nuove. ⚠️ **Lo stile del `ClickSurface` aveva un padding di 12 px per lato**, il
+      default di `UButton`: azzerato, altrimenti il gap fra gli slot era il triplo di `tokens.json`.
+      La cattura in scala di grigi e' in `artifacts`, ed e' **dal vivo** (PIE su `L_DevSandbox`, Muiren):
+      `Available`, `Selected`, `Planned` e `Invalid` — quest'ultimo con «Marea circolare» armata e il
+      puntatore su una cella oltre la portata. ⛔ **`Cooldown`, `Unavailable` e `Warning` dal vivo:
+      `NOT RUN`**: il Warning chiede un bersaglio nemico noto e uno scatto pianificato, e nella partita i
+      nemici erano velati; la ricarica non e' comparsa dopo il turno, e la ragione e' una questione di
+      gioco fuori da questa seduta. Il presidio strutturale c'e' — `ScreenHud.SlotLightsOnlyTheIndicatorOfItsState`
+      accende un indicatore per stato sul widget — ma la scala di grigi di quei tre non e' stata guardata.
+      ⛔ **Il criterio e' percettivo** («nessuno stato si confonde»): chi ha cablato non lo firma. La lettura
+      di chi ha eseguito e' che i quattro catturati si distinguano — bordo e angolo, bordo e barra, bordo
+      spento, ✕ — ma il verdetto resta all'autore, sull'immagine committata.
+      ⚠️ **Scostamenti dalla ricetta, dichiarati**: la `SelectedBar` sta DENTRO lo slot, al fondo, e non 9 px
+      sotto; il bordo di `Warning` non e' tratteggiato (lo dice il triangolo); l'etichetta di fase sta in alto
+      a destra con 20 px di margine, per lasciare l'angolo ai segni di stato.
+
+  - id: U62
+    title: I residui di U60 in Editor — il Lab sul catalogo intero, il MoveCost frazionario, e quando compare un nemico
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti reali, in Editor, dei residui che `U60` aveva lasciato al run
+      `issue/run-3463-3461-3458-3459-3438`: il filtro per eroe del Lab (#3461), i passi 1-2 di `G16` sul
+      catalogo intero, il troncamento di un `MoveCost` frazionario (#3438) e `PIE-KNOW-RIVELAZIONE` (#3458);
+      e i difetti che l'esecuzione ha trovato, aperti sull'owner invece che corretti in silenzio
+    artifacts:
+      - docs/technical/evidence/u62/u62-estratti-2026-10-05.log
+    verifies: [PIE-KNOW-RIVELAZIONE]
+    issues: [3461, 3438, 3458, 3472, 3473, 3474, 3488]
+    done_when: >-
+      ogni controllo ha un esito reale, dato da un'apertura con il proprio `-abslog`; e ogni difetto trovato
+      e' una issue sull'owner, con la sua misura
+    steps: |
+      ✅ **Eseguita il 2026-10-04 e il 2026-10-05**: sette aperture nel clone principale, ognuna col proprio
+      `-abslog`, sempre con `-NoLiveCoding` e dopo aver verificato che nessun altro processo Unreal fosse in
+      piedi; piu' una partita giocata dall'autore nell'Editor di una demo di un'altra sessione. L'estratto
+      delle righe che testimoniano ogni controllo sta in `artifacts:`; i verdetti percettivi li ha dati
+      l'autore guardando, e sono citati con le sue parole.
+
+      | controllo | apertura · binario | esito |
+      |---|---|---|
+      | #3461 · il filtro per eroe del Lab dice perche' una lista e' vuota | 1-2 · Source `e426c553` | ✅ *«1.si 2.si … 3. ok 4.si 5.si»* |
+      | `G16` passo 2 · Hero Lab | 2 · `473c218fd` | ✅ dal log: tre ability di `Hero.Ivrin` `PASS (1/1)`. ⚠️ Nessun verdetto esplicito dell'autore |
+      | `G16` passo 1 · Ability Lab sul catalogo **intero** | 2 · `473c218fd` | ❌ tre difetti, aperti sull'owner: #3472 (`ERROR … 'CASTER' non possiede l'abilita'` su `Action.Withdraw`), #3473 (`catalogo 0 · letto 5`), #3474 (diff di stato senza `Health` su `Hero.Aevik.LinearDischarge`) |
+      | lo stesso, dopo PR #3476 · A1-A5 | 3 · `5f37e0769` | ✅ *«1. si 2.si 3.si anche ability countdowns»*; dal log `Action.Guard: PASS` e `Health: 90 -> 71` nel diff |
+      | #3438 · un `MoveCost` digitato frazionario | 4 · `6b92d0054` | ✅ riprodotto: `2.7` → `2`, `-2.7` → `-2`, troncamento verso zero. ⚠️ `Revision` dopo la modifica non letta, nessuna cattura |
+      | `PIE-KNOW-RIVELAZIONE` a passo singolo | 4-5 · `6b92d0054` | ⛔ non giudicabile: lo scenario finiva in `ERROR (0/0 assertion, 0 turni)` dieci secondi dopo l'`AUTO-RUN`, anche con `t.MaxFPS=15`. ➥ aperta #3488 |
+      | `PIE-KNOW-RIVELAZIONE` a velocita' normale | 6 · `19904609d` | ✅ *«n1 no, n2 si n3 no»*: compare a meta' percorso, non dalla partenza e non dall'arrivo |
+      | `PIE-KNOW-RIVELAZIONE` a passo singolo, col fix di #3488 | 7 · `befb70c9f` | ✅ contando come primo passo la partenza: compare *«al secondo step»*, cioe' dopo il primo `L`, e sparisce *«al 4-5 passo»*. Vedi sotto: era stato letto come ❌ |
+      | #3488 · uno scenario a playback fermo non muore piu' | 7 · `befb70c9f` | ✅ dal log: fermo per minuti senza `ERROR`, poi `PASS (3/3 assertion, 1 turni)` alle 08:49:32 |
+      | la rivelazione in una **partita vera** | demo · `a1a0e5000` | ✅ tre risoluzioni a ×1: *«si vede appena entra nell'area, svanisce proseguendo»* |
+
+      ⚠️ **Il referto a passo singolo era stato letto come un ❌, ed era un equivoco della domanda.** Avevo
+      chiesto *«B1 compare al primo passo di A1?»*, e la risposta *«no, al secondo»* contava come primo passo
+      la posa di PARTENZA: confermato dall'autore il 2026-10-05. Prima della conferma il «ritardo» era stato
+      inseguito senza Editor, ed e' li' che la seconda fonte lo aveva gia' smentito:
+      `Veil.RevealsAtTheMicroStepThatSeesIt` misura la stessa scena, TurnManager e HUD, e da' la comparsa
+      giusta a ogni fermata. 🔑 **La lezione per chi conduce**: si chiede per tasti premuti — *«dopo il primo
+      `L`»* — mai per «passi» di un'unita', che si contano in due modi.
+
+      🔑 **Cosa ha prodotto la seduta oltre ai verdetti**: cinque difetti trovati eseguendo, nessuno corretto in
+      silenzio — #3472, #3473 e #3474 in PR #3476; #3488 in PR #3493; e un floor in virgola mobile in PR #3496,
+      trovato inseguendo il falso ritardo. Quello e' vero: al confine di uno `Step` assegnava la cella
+      PRECEDENTE a certe velocita' di playback, e al default sul confine 7 dei percorsi da 7 a 11 segmenti.
+
+      ⚠️ **Un effetto collaterale, dichiarato**: nell'apertura 4 `DA_HexMap_Template.uasset` risultava salvato
+      alle 20:42:09 nonostante «Don't Save». Ripristinato da git, hash uguale a `HEAD`; nessun asset e' entrato
+      in un commit.
+
+      ⛔ **Non e' il giro di `G16`**: i passi 1-2 sono stati rifatti in aperture diverse, e il criterio di
+      `U60` vuole i cinque passi in una sola. Qui c'e' l'evidenza che il passo 1 sul catalogo intero ora regge,
+      non il verdetto del gate.
+    notes: >-
+      Numerata dopo `U61`, `U63` e `U64` ma cominciata prima di loro: le sue aperture portano il nome
+      `u62-seduta*` dal 2026-10-04 alle 15:49, e le altre tre hanno saltato il numero.
+
+  - id: U63
+    title: La barra dei comandi occupa la fascia bassa e legge i propri gruppi
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_ActionDock` disposta su tutta `Zone_Bottom` (D-456): le voci partizionate per `Action.Group` —
+      Comuni · Base · Kit, con i separatori fra i gruppi — e all'estremita' destra la lettura del movimento
+      di #3470, in sola lettura; la cattura a 1920×1080 committata
+    artifacts:
+      - docs/technical/evidence/hud/u63-barra-fascia-bassa.png
+    # 🔑 **Una cattura sola, col kit PIU' LUNGO del roster**: Branth o Muiren col loadout di default, tredici
+    # voci (`HudViewModel.ActionSlotCarriesItsGroup`, blocco D, le scrive nel log). E' il caso che ha
+    # motivato la fascia intera; un kit da dieci voci entrerebbe anche nella cella vecchia e non proverebbe
+    # niente. `WBP_RT_ActionDock.uasset` non e' elencato: e' gia' tracciato, quindi `git ls-files` direbbe
+    # «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**, non perche' manchi una dipendenza:
+    # il campo `Group` e' #3468 (PR #3475), la zona unica #3469 (PR #3477), l'ordine di lettura #3478, la
+    # lettura del movimento #3470.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che le contenga TUTTE, con l'Editor
+    # ricompilato da quel commit — una DLL di prima non ha `GetActionsInReadingOrder`, e l'albero di prima
+    # ha ancora le tre celle basse.
+    shares_setup_with: [U61, U64]
+    # Stessa apertura di U61: stessi due Blueprint (`WBP_RT_ActionDock`, `WBP_RT_ActionSlot`), stesso clone.
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
+    # dopo questa seduta il criterio (1) di `PIE-V01-SCREENHUD` — l'ingombro delle zone — va RIGIUDICATO a
+    # schermo, perche' il suo ultimo verde e' sull'albero a otto zone (#3469).
+    issues: [3468, 3469, 3478, 3470, 613, 3489]
+    done_when: >-
+      la dock in `Zone_Bottom` costruisce gli slot da `GetActionsInReadingOrder()` — Comuni, Base, Kit,
+      mai riordinati nel grafo: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori
+      dove `Group` cambia in quella lista; all'estremita' destra la lettura di `GetMovementReadout()`; e
+      l'estremita' destra riservata; la cattura col kit da tredici voci e' committata in `artifacts` e la
+      barra resta dentro la fascia, senza scendere nel centro
+    # **Riferimenti**: `docs/research/design/hud/skill-bar-2026-10/` (`PROPOSTA`) per misure e resa —
+    # `SPECIFICA-VISIVA.md` §4 (composizione), `dati/tokens.json` (slot 78, gap 8, separatore 22, padding
+    # 24) — e D-455/D-456 per le regole.
+    #
+    # 🔴 **Cosa si cabla, e da dove legge**:
+    #   1. **Gli slot si costruiscono da `GetActionsInReadingOrder()`** (#3478), non da `GetActions()`: la
+    #      partizione stabile Comuni → Base → Kit la fa il C++ (`URTHudViewModel::OrderForReading`), e il grafo
+    #      NON la ricompone. ⛔ L'ordine di `GetActions()` resta identita' ([D-397] punto 2), e i suoi gruppi non
+    #      sono contigui — in partita `B KKKKK CCCCC KK` — quindi un separatore messo lungo QUELLA lista sarebbe
+    #      sbagliato. Lungo la lista di lettura invece il gruppo e' contiguo per costruzione: il separatore va
+    #      dove `Group` cambia fra due voci consecutive.
+    #   2. **Separatori** fra i gruppi: **padding, non widget** (#3489). Lo slot legge `bGroupBreakBefore` —
+    #      vero solo nella lista di lettura, dove il gruppo cambia — e scrive sul proprio `HorizontalBoxSlot`
+    #      `GroupGap` (22) o `ItemGap` (8). ⛔ Un widget separatore in `SlotBox` sposterebbe ogni
+    #      `GetChildAt(i)` sulla voce sbagliata. ⌫ *L'intestazione testuale (`COMUNI`, `BASE`, `KIT`) era
+    #      «facoltativa, come testo statico del Blueprint»: da #3498 la porta lo slot (`GroupHeaderText`,
+    #      `bFirstOfGroup`), e si cabla in `U65`.*
+    #   3. **Estremita' destra: la lettura del movimento** (#3470), **per nome** (#3489): un contenitore
+    #      **`MovementReadout`**, un `TextBlock` **`MovementReadoutText`** (`Move ×1`, `Sprint ×2`,
+    #      `Withdraw ×0,25`…), un `Button` **`SneakBadge`** con dentro il `TextBlock` **`SneakBadgeText`**.
+    #      Li riempie `URTActionDockWidget::RefreshMovementReadout` da `GetMovementReadout()`: il badge e'
+    #      acceso (opacita' 1) quando `bSneakDeclared`. ⛔ **Chiusa quando `bAuthorized` e' falso**, mai
+    #      spenta: uno spento direbbe «fermo» di un'unita' di cui non si sa niente. ✅ **Il badge E'
+    #      cliccabile** ([D-457]): il C++ collega il suo `OnClicked` a `ToggleSneak()`, che inoltra al corpo
+    #      del tasto `M`. ⛔ Nessun grafo: riserva dello slot e tetto li decide `ToggleSneakDeclaration`.
+    #      ⚠️ **Dichiarato contro effettivo, da decidere a schermo**: con `Sneak` dichiarato e poi
+    #      l'`Overwatch` armata, il badge resta acceso (`bSneakDeclared`) mentre l'etichetta dice
+    #      `Withdraw ×0,25`, perche' la riserva vince sul tetto ([D-425]). E' coerente — il badge dice cio' che
+    #      si e' premuto, l'etichetta cio' che si spendera' — ma se a schermo si legge come una contraddizione,
+    #      la resa del badge si decide qui (revisione di #3470).
+    #
+    # ⛔ **Cosa NON si fa in questa seduta**: Confirm · Undo in `TopRight` (e' `U64`, stessa apertura); la
+    # Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
+    # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false` (#3522).
+    notes: |
+      Scritta il 2026-10-04 dalla PR di #3469 (referto
+      `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
+      sessione che registra U62 (PR #3466): chi mergia secondo rinumera.
+      ✅ **Eseguita il 2026-10-05** su `main` = `2b9b15d4c`, Editor ricompilato da quel commit. Il nodo
+      `GetActions` del tick e' sostituito da `GetActionsInReadingOrder` con gli stessi quattro consumatori
+      (riletto col DSL); l'albero ha una riga `BarRow` = `SlotBox` + `Spacer` (Fill) + `MovementReadout`.
+      La cattura e' a **1920×1080** (finestra PIE flottante, letta con `PrintWindow`, non dallo schermo):
+      Muiren, tredici voci, la barra dentro la fascia — il suo bordo alto sta a y ≈ 868 ≥ 864 — e i due
+      confini di gruppo visibili come gap piu' largo. ⚠️ **Due test hanno dovuto cambiare, e non per il
+      cablaggio**: `ScreenHud.DockArmsOnlyTheSelectedAction` e `DockSurvivesAHoleInTheKit` confrontavano la
+      POSIZIONE di uno slot nella fila con l'indice di kit, cioe' cio' che [D-397] vieta; con la lista di
+      lettura le due cose divergono. Ora cercano lo slot per `Action.AbilityIndex`.
+      ⛔ **Il rigiudizio del criterio (1) di `PIE-V01-SCREENHUD` resta da fare**: e' percettivo, e la cella
+      stessa registra che chi cabla non lo firma. La cattura e' pronta in `artifacts`.
+
+  - id: U64
+    title: Conferma e Annulla del piano in alto a destra
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_PlanCommit` (parent `URTPlanCommitWidget`) montato nel `Content` di `Zone_TopRight`: `Conferma`
+      e `Annulla` legati alle porte dei tasti, con le etichette dei tasti; il gate dell'albero lo trova per classe
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_PlanCommit.uasset
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**: `URTPlanCommitWidget`,
+    # `TogglePlanDeclaration` e `UndoStep` sono della PR di #3471 dove questa voce nasce. ⛔ Precondizione
+    # ([D-403]): un commit di `main` che li contenga, con l'Editor ricompilato da quel commit.
+    shares_setup_with: [U61, U63]
+    verifies: []
+    issues: [3471, 613, 3489]
+    done_when: >-
+      `Zone_TopRight` ospita un `WBP_RT_PlanCommit`; il click su `Conferma` dichiara o ritratta il piano
+      dell'unita' come `Invio`, quello su `Annulla` smonta il Back come il tasto destro e ritira il Ready
+      durante il countdown; `ScreenHud.EveryZoneOwnerIsMountedByClass` lo trova per classe in un processo fresco
+    # 🔴 **Cosa si cabla** ([D-458]):
+    #   1. `WBP_RT_PlanCommit`, parent `URTPlanCommitWidget`, in `/Game/RT/UI/Match/`.
+    #   2. Due `Button` **per nome** (#3489): **`ConfirmButton`** con dentro il `TextBlock` **`ConfirmText`**, e
+    #      **`UndoButton`** con dentro **`UndoText`**. Il C++ collega i click a `Confirm()` e `Undo()`
+    #      (`BindNamedButtons`, idempotente). ⛔ Nessun grafo: i pulsanti INOLTRANO alle porte dei tasti.
+    #   3. I testi li scrive `RefreshButtons`: «Conferma» o «Ritira» secondo `IsPlanDeclared()`, col tasto di
+    #      `GetConfirmKeyLabel()`; «Annulla» col tasto di `GetUndoKeyLabel()`. Mai scritti a mano.
+    #   4. **Si spegne solo `Conferma`** quando `HasCommandedUnit()` e' falso. ⌫ *Qui stava «entrambi
+    #      spenti»: era sbagliato. `UndoStep` ritira il Ready senza chiedere un'unita', e un `Annulla` spento
+    #      lo renderebbe irraggiungibile dal pulsante (#3489, `ScreenHud.PlanCommitButtonsFollowThePorts` D).*
+    #   5. Montaggio nel `NamedSlot Content` di `Zone_TopRight` con `SetNamedSlotContent`.
+    #   6. 🔴 **Nello STESSO commit dell'asset**: `EveryZoneOwnerIsMountedByClass` riceve la riga
+    #      `{ URTPlanCommitWidget::StaticClass(), TEXT("TopRight"), TEXT("#3471") }`, e
+    #      `guida-screen-hud-umg.md` §3 la riga di `Zone_TopRight`. Prima dell'asset il gate sarebbe rosso.
+    #
+    # ⛔ **Cosa NON si fa**: il `LockIn` di `Spazio` come pulsante — [D-458] lo esclude; lo stato del piano,
+    # il conteggio dei warning e lo stato invalido di §6.8, che restano senza un produttore in questa vista.
+    notes: |
+      Scritta il 2026-10-05 dalla PR di #3471 (decisione d'autore D-458).
+      ✅ **Eseguita il 2026-10-05** su `main` = `2b9b15d4c`: `WBP_RT_PlanCommit` (parent
+      `URTPlanCommitWidget`) con `ConfirmButton`/`ConfirmText` e `UndoButton`/`UndoText`, montato come
+      `WBP_RT_PlanCommitTopRight` nel `Content` di `Zone_TopRight`. `EveryZoneOwnerIsMountedByClass` lo trova
+      per classe in un processo fresco, e `ScreenHud.ActionBarDeclaresTheNamedPorts` ne legge i nomi.
+      In PIE: senza unita' selezionata `Conferma Enter` e' spenta e `Annulla Backspace` accesa; con Muiren
+      selezionata si accende anche `Conferma`. ⛔ **Il click dal vivo sui due pulsanti e' `NOT RUN`**: il
+      collegamento e' del C++ (`BindNamedButtons`) ed e' misurato da
+      `ScreenHud.PlanCommitButtonsFollowThePorts`, non a schermo.
+
+  - id: U65
+    title: La barra dei comandi fedele al mockup — font, slot e pannello
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u65-barra-fedele-al-mockup.md
+    produces: >-
+      Orbitron ed Exo 2 importati in `/Game/RT/UI/Fonts/` dai file statici degli autori, coi testi OFL
+      versionati accanto e la riga in `asset-licenze.md`; `WBP_RT_ActionSlot` restilizzato come il mockup —
+      `StateFrame` a `RoundedBox`, riquadro del tasto, nome separato, intestazione di gruppo, alone di
+      Selected — e il pannello di `WBP_RT_ActionDock`; la cattura accanto al mockup committata
+    artifacts:
+      - Content/RT/UI/Fonts/OFL-Orbitron.txt
+      - Content/RT/UI/Fonts/OFL-Exo2.txt
+      - docs/technical/evidence/hud/u65-barra-accanto-al-mockup.png
+    # 🔑 Elencati solo i file che oggi NON esistono: i due Blueprint sono gia' tracciati, quindi
+    # `git ls-files` direbbe «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**: le porte e le tabelle sono della PR
+    # del C++ di #3498, dove questa voce nasce. ⛔ Precondizione ([D-403]): un commit di `main` che le
+    # contenga, con l'Editor ricompilato da quel commit.
+    shares_setup_with: []
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`**: la verifica e' la cattura accanto al mockup, e il giudizio di somiglianza
+    # e' dell'autore. Ma dopo questa seduta il ➖ di `PIE-V01-SCREENHUD` sugli stati del dock va RIGIUDICATO:
+    # la riga di `GetActionLine` che lo rimediava esce dallo slot (guida §2).
+    issues: [3498, 3499]
+    done_when: >-
+      i cinque Font Face e i due Font compositi esistono in `/Game/RT/UI/Fonts/`, coi file degli autori
+      verificati per sha256 e la riga di `Content/RT/UI/Fonts/` nel registro; i due testi OFL versionati,
+      con la negazione in `.gitignore` che li riammette; `WBP_RT_ActionSlot` dichiara `HotkeyBadge`,
+      `HotkeyText`, `ActionNameText`, `GroupHeaderText`, `SelectedGlow` e `GroupDivider`, e
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` li legge da un processo fresco; `StateFrame` e' un
+      `RoundedBox`; la dock ha il pannello; la cattura a 1920×1080 e' committata accanto al mockup
+    # ⛔ **Cosa NON si fa**: il tooltip, che e' #3499 e chiede una vista C++ che non esiste ancora; il
+    # tratteggio della reazione armata e di Warning; il selettore di profilo ([D-425]); la riga
+    # «PIANIFICAZIONE» e i chip ([D-456] punto 6).
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false` (#3522).
+    notes: |
+      Scritta il 2026-10-05 dalla PR del C++ di #3498, dopo che l'autore aveva detto in PIE: «la grafica
+      ancora e' molto distante dai mockup».
+
+      ✅ **Eseguita il 2026-10-05 e il 2026-10-06**, nel clone principale, con l'Editor ricompilato da un
+      `main` che contiene il C++ di #3498. Asset nel commit `6386b996a`; rilettura e cattura il 2026-10-06.
+      Il giudizio di somiglianza e' dell'autore: «per il momento la barra puo' andare». Nella stessa prova
+      una reazione del kit armata rende lo slot viola. Esito per esteso nella guida, §6.
+      ⚠️ **Diverge dal `done_when` su un punto, e lo si dichiara**: i Font sono **cinque, uno per peso**,
+      non due compositi. E' cio' che produce l'import a lotti, e ogni testo dello slot usa un peso solo.
+      La `Loading Policy` e' `LazyLoad`, non la `Inline` della guida: che il pacchetto porti i font e' `NOT RUN`.
+      ⏳ Resta da rigiudicare il ➖ di `PIE-V01-SCREENHUD` sugli stati del dock (vedi `verifies`).
+
+  - id: U66
+    title: Il tooltip delle skill — WBP_RT_ActionTooltip e lo slot che lo indossa
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_ActionTooltip`, figlio di `URTActionTooltipWidget`, con le quattro porte `TitleText`,
+      `DescriptionText`, `LinesText` e `ReasonText` nello stile della barra — il pannello `RoundedBox` di
+      `BarPanel` e i font Exo 2 — e i default di `WBP_RT_ActionSlot` che lo indicano in `TooltipClass`
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_ActionTooltip.uasset
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ entra nella stessa PR: classe nativa, porte e `TooltipClass` sono di #3499.
+    shares_setup_with: []
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`**: il giudizio sul tooltip a schermo e' dell'autore, ed e' una voce della DoD di #3499.
+    issues: [3499]
+    done_when: >-
+      `WBP_RT_ActionTooltip` esiste e dichiara le quattro porte; i default di `WBP_RT_ActionSlot` lo indicano in
+      `TooltipClass`; `ScreenHud.ActionSlotWearsTheTooltipAsset` li legge da un processo fresco, rosso sugli asset
+      di `main` e verde sui nuovi; il tooltip si vede a schermo all'hover di uno slot
+    notes: |
+      Scritta il 2026-10-06 da `/issue-run 3499`, che l'ha anche eseguita nella stessa corsa.
+
+      ✅ **Eseguita il 2026-10-06**, nel clone principale, con l'Editor ricompilato dal ramo di #3499
+      (`-NoLiveCoding`). Gli asset sono creati via bridge (`UMGToolSet.CreateWidgetBlueprint`, `AddWidget`,
+      `ObjectTools.set_properties` sul CDO dello slot), poi riletti dal disco in un processo fresco.
+      `ScreenHud.ActionSlotWearsTheTooltipAsset` e' stato provato in tre configurazioni: rosso senza il tooltip,
+      rosso con lo slot di `main`, verde con i due asset nuovi.
+      **La verifica a schermo e' dell'autore**, ed e' arrivata in due tempi. Alla prima prova: «non vedo tooltip».
+      Il dock chiama `SetAction` a ogni frame, e ogni chiamata rifaceva `SetToolTip`: Slate non lo apriva mai.
+      Corretto in #3524. Alla seconda prova: «ora si legge il tooltip».
+      ⚠️ **Nessuna cattura versionata.** Il tooltip di Slate apre una finestra sua, che `PrintWindow` sul gioco
+      non vede, e lo schermo era in uso da altre sessioni, quindi non se ne poteva prendere una regione.
+
+  - id: U67
+    title: Il banco Ability Lab → PIE — il pulsante «Esegui in PIE» e il ripristino delle CVar
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-LAB-PIE`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-LAB-PIE]
+    issues: [3532]
+    done_when: >-
+      la voce `PIE-LAB-PIE` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
+    notes: |
+      Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-banco-abilita-in-pie.md`
+      (spec `docs/superpowers/specs/2026-10-07-banco-abilita-in-pie-design.md`), che arrivano in `main` con
+      la PR del branch `docs/banco-abilita-in-pie-spec`, separata da quella di #3532.
+      L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: Editor su una mappa diversa da
+      `L_DevSandbox` che usi il GameMode di progetto, es. `L_HexArena`, pannello Ability Lab, un'abilità con bersaglio, e `rt.Test.Scenario Core.PhaseOrder`
+      digitata PRIMA del clic. Il criterio (4) richiede un Blueprint di prova non versionato con un errore di compilazione, ed è facoltativo.
+
+      ✅ **Eseguita il 2026-10-07** dalla sessione che ha scritto il codice, su richiesta dell'autore, su `main` = `a84e62aae`
+      col bridge MCP a guidare Slate (menu Tools → pannello, console via appunti, catture con `CaptureEditorImage`).
+      Il verdetto, criterio per criterio, è in `test-manuali-pie.md`; il (4) è `NOT RUN`.
+      Ratificata dall'autore il 2026-10-07. I follow-up #3541 e #3542 hanno poi cambiato il meccanismo dei
+      criteri (1) e (3) e aggiunto il (5): la rigiudicazione a schermo la porta #3546, non questa seduta.
+
+  - id: U68
+    title: Il colpo che parte e arriva — il tracer degli attacchi base
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su PIE-V01-TRACER, aperta insieme alla sua feature
+    artifacts: []
+    unblocked_by: []
+    # Vuoto e misurato al merge: la feature e' in `main` con la PR di #2454, e la voce nomina i propri test
+    # headless verdi. Cio' che manca e' un occhio.
+    verifies:
+      - PIE-V01-TRACER
+    issues: [2454]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
+    unblocks: []
+    notes: >-
+      Tre scene su scenari del corpus, una domanda ciascuna. La terza e' la privacy: un tracer che partisse
+      dalla cella di un attaccante non visto la rivelerebbe. Per il tiro alla cieca vedi PIE-V01-BLINDFIRE.
+
+      ✅ **Eseguita il 2026-10-08** dall'autore, su `main` = `c7e365e50`, Editor interattivo su `L_DevSandbox`
+      con gli scenari lanciati da console. Le tre scene sono verdi; il verdetto e la nota fuori dal criterio
+      (l'ordine dei colpi nel Blast, #3582) sono in `test-manuali-pie.md`.
+
+  - id: U69
+    title: Il momento — il beat di cast sulla sorgente (AbilityActivated)
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-CAST-BEAT`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    # I criteri (0) e (1) giudicano una clip sulla sorgente: negli scenari la sorgente era un cilindro fino a #3586.
+    shares_setup_with: []
+    verifies: [PIE-CAST-BEAT]
+    issues: [3549]
+    done_when: >-
+      la voce `PIE-CAST-BEAT` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
+    notes: |
+      Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-momento-ability-activated.md`.
+      L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: `rt.Test.Scenario Visual.Ability.CastBeat`
+      da `L_DevSandbox`. Il criterio (1) giudica tre momenti (cast, lancio, impatto); il (2) e' `NOT RUN` in PIE
+      (la fermata per atto non ha un ingresso). `rt.Debug.PlaybackControls 1` resta utile per `K`/`L`, pausa e
+      passo singolo. Il criterio (3) si allestisce col banco Ability Lab di U67, un'abilita' di una sorgente nemica
+      non osservata.
+
+      🟡 **Eseguita in parte il 2026-10-08** dall'autore, su `main` = `76cd19685`: (3) ✅ (allestito con
+      `Visual.Combat.TracerHiddenFromUnseenAttacker`), (0) e (1) ⛔ perche' negli scenari le unita' sono cilindri
+      (#3586), (2) `NOT RUN`. Da riconvocare per (0) e (1) quando #3586 atterra.
+
+      ✅ **Riconvocata ed eseguita il 2026-10-08** su `main` = `fa4b90001` (#3586 mergiata, Editor ricompilato): (0) e
+      (1) corse dal conduttore con catture di schermo su `Visual.Ability.CastBeat`, verdetti ratificati dall'autore —
+      entrambi ✅. `PIE-CAST-BEAT` ✅, con (2) `NOT RUN` come dichiarato.
+
+  - id: U70
+    title: La clip per abilita' — ogni abilita' suona la sua clip
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-CLIP-ABILITA`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    # Aevik: le sue clip d'azione erano additive, e a schermo non si vedevano, fino a #3590.
+    shares_setup_with: []
+    verifies: [PIE-CLIP-ABILITA]
+    issues: [3563]
+    done_when: >-
+      la voce `PIE-CLIP-ABILITA` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
+    notes: |
+      Scritta il 2026-10-08 dal piano `docs/superpowers/plans/2026-10-07-clip-per-abilita.md`.
+      L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: il banco Ability Lab (#3532), un'abilita'
+      per volta, con il default C++ (il catalogo JSON non arriva al gioco senza #3562). Le clip si possono vedere prima,
+      senza partita, nell'anteprima dell'Anim Browser. Le clip stanno nei pack gitignorati: la seduta gira sul clone
+      principale, dove ci sono.
+
+      🟡 **Eseguita il 2026-10-08** su `main` = `fa4b90001` (#3586 mergiata, Editor ricompilato): scenari da console al
+      posto del banco — `Visual.Ability.CastBeat`, `Visual.Combat.WaterElectricCoordinated`, `Visual.Movement.Charge`,
+      `Visual.Ability.FxProfile`, `Visual.Combat.WaterElectric` — corsi dal conduttore con catture di schermo, verdetti
+      ratificati dall'autore. Muiren, Branth e Ivrin ✅; Aevik ❌ perche' le sue clip d'azione sono additive (#3590:
+      `LinearDischarge` osservato, `Overload` no, stesse clip); senza scena `CircularTide`, `FlowReaction`, il cast di
+      `Ram` e il colpo di `PassingBlade`. Da riconvocare per Aevik quando #3590 atterra.
+      Da riconvocare dopo #3595 (Aevik: clip piene sugli attacchi) e #3593 (Muiren: la cura arriva e al cast è atteso il Pulse):
+      scene 1-3 della spec SP5 §5.2, una seduta sola, Editor ricompilato sul clone principale.
+
+      ✅ **Riconvocata ed eseguita la sera del 2026-10-08, ratificata il 2026-10-09** su `main` = `a6bf857bf` (#3595 e #3593
+      mergiate, Editor ricompilato sul clone principale): `Visual.Combat.WaterElectricCoordinated`,
+      `Visual.Ability.FxProfile`, `Visual.Ability.ClipMuiren`, corse dal conduttore con catture a raffica, verdetti
+      ratificati dall'autore. Aevik ✅ al cast (la `Cast` del pack)
+      e ai colpi (le `_Slow_V1` piene); Muiren `CircularTide` ✅ col `Pulse` sulla sua cella e `R_Ability_Intro`. La cura
+      e' un esito (barra 78, feed «Curata — 18») senza beat sull'unita' curata: #3600; il riassunto del log la chiama
+      «danni»: #3601. `PIE-CLIP-ABILITA` ✅.
+
+  - id: U71
+    title: Il profilo FX per abilita' — attivazione, colpo e onda sulla mappa
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-FX-ABILITA`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-FX-ABILITA]
+    issues: [3578]
+    done_when: >-
+      la voce `PIE-FX-ABILITA` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
+    notes: |
+      Scritta il 2026-10-08 dal piano `docs/superpowers/plans/2026-10-08-profilo-fx-per-abilita.md`.
+      L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: `rt.Test.Scenario` con
+      `Visual.Ability.CastBeat`, `Visual.Combat.WaterElectricCoordinated`, `Visual.Ability.FxProfile`,
+      `Visual.Combat.TracerHiddenFromUnseenAttacker` e `Visual.Movement.Charge`, da `L_DevSandbox` o dal banco
+      Ability Lab (#3532), a velocita' 1x.
+      Le cue sono linee del line batcher: nessun asset, nessuna dipendenza dai pack gitignorati.
+      La scena (0) si confronta col verdetto di `PIE-V01-TRACER` (seduta `U68`), dato su `main` prima di #3578.
+
+      ✅ **Eseguita il 2026-10-08** su `main` = `b786ce65e`: i cinque scenari corsi dal conduttore (sessione Claude)
+      con catture di schermo, i verdetti proposti ratificati dall'autore — `PIE-FX-ABILITA` ✅, (1)–(6) e (8) come
+      atteso, (7) N/A. Due note di taratura (durata dell'onda, X sotto il cilindro) e il rimando a #3261/#3582
+      stanno nella cella del registro.
+
+not_schedulable:
+
+  # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
+  #
+  # Tre voci, due cause diverse, e tenerle separate conta: una aspetta un CAMPO su un evento che
+  # esiste, due aspettano una CUE su un evento che esiste. Fonderle in «manca il playback» e' la
+  # stessa approssimazione che il registro ha gia' ritirato una volta, il 2026-09-22.
+
+  - check: PIE-VIS-PUSH
+    reason: >-
+      L'evento di playback della spinta ESISTE — un `Move` di fase `Blast` emesso da
+      `ApplyForcedDisplacement` — ma nasce senza `CellVerdicts`, e senza quel campo
+      `ObservedPrefixLength` risponde `0` per costruzione e `BuildPlayback` scarta l'anim. A schermo
+      non arriva niente da giudicare. ⚠️ La cella del registro portava fino al 2026-09-22 una causa
+      diversa e inesatta (*«l'effetto non ha un evento di playback»*), ritirata lo stesso giorno:
+      chi legge la vecchia formulazione cerca un valore di enum mancante che non manca.
+    oracle: >-
+      gh issue view 3261 --json state   ·  e la misura che l'ha aperta:
+      grep -rn "\.CellVerdicts\s*=" Source/RefactorTactics --include=*.cpp --exclude-dir=Tests
+      → oggi due sole righe, Dash e Move, nessuna sulla spinta
+    revisit_when: "#3261 chiusa"
+
+  - check: PIE-VIS-DEFLECT
+    reason: >-
+      `ERTResolvedEventType::ReactionResolved` esiste ed e' emesso dove la reazione scatta (#2191,
+      presidiato per mutazione), ma **nessuna cue lo consuma**: `RTPresentationBinding.cpp` lo
+      dichiara `MakePendingPresentation` e nomina come owner #2454. La voce chiede se la parata **si
+      veda**; finche' nessuno la disegna, cio' che si vede e' solo la barra che scende poco — cioe'
+      esattamente il *«attacco debole invece di una difesa riuscita»* che la voce esiste per escludere.
+      ⛔ Non e' «non ancora eseguita»: eseguirla oggi darebbe rosso per una causa gia' nota, e il
+      verdetto non aggiungerebbe informazione.
+    oracle: >-
+      gh issue view 2454 --json state   ·  e la dichiarazione nel codice, che nomina anche le due voci:
+      grep -n "MakePendingPresentation(ERTResolvedEventType::ReactionResolved" -A4
+      Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+    revisit_when: "la cue di `ReactionResolved` nasce (#2454), e il binding smette di essere `Pending`"
+
+  - check: PIE-VIS-INTERPOSE
+    reason: >-
+      Stessa causa di `PIE-VIS-DEFLECT`, e lo stesso codice le nomina entrambe. ⚠️ La sua storia e'
+      pero' diversa di un passo e vale la pena saperlo: fino al 2026-09-04 l'evento non usciva
+      affatto dal ramo dell'interposizione (`RTTurnManager_Blast.cpp`), mentre per la gemella usciva
+      gia'. Chi legge una stesura vecchia della cella trova scritto «l'evento ORA ESISTE» quando per
+      questa voce non era vero.
+    oracle: "come `PIE-VIS-DEFLECT`: gh issue view 2454 --json state"
+    revisit_when: "la cue di `ReactionResolved` nasce (#2454)"
+
+  # ── Il gate della fetta, che non si esegue a pezzi ──────────────────────────────────────────────
+
+  - check: PIE-VSLICE-01
+    reason: >-
+      E' il gate che chiede se la catena visiva della v0.1 regga **insieme**, in packaged, e il suo
+      blockquote dichiara che **non si esegue a pezzi**: meta' dei passi, girati quando meta' della
+      catena esiste, misurano cio' che e' gia' coperto altrove. Delle cinque dipendenze dichiarate
+      **tre sono cadute** — #1712, #1497 (2026-09-02) e #1535 (2026-09-10) — e ne restano due aperte.
+      ⚠️ Il blockquote del registro parla ancora di *«cinque dipendenze aperte»*: e' la formulazione
+      del 2026-08-30 e oggi e' stantia. Quel file ha un owner e la correzione spetta a lui; qui si
+      registra la misura, che vale come rimisura e non come modifica.
+    oracle: >-
+      gh issue view 613 --json state && gh issue view 220 --json state   → entrambe OPEN il 2026-09-23
+      (le altre tre: #1712 CLOSED, #1497 CLOSED, #1535 CLOSED)
+    revisit_when: "#613 e #220 chiuse — allora la voce e' schedulabile e vuole una packaged Development"
+
+  # ── Il codice sotto non esiste: E34 non e' cominciata ───────────────────────────────────────────
+  #
+  # Dieci voci, una causa sola, e la ragione e' la piu' verificabile di tutte: ogni loro precondizione
+  # nel registro nomina un `CP 34.x`, e **nessuno dei `CP 34.x` e' chiuso**. Non sono voci in ritardo:
+  # sono il ciclo docs → checkpoint → PIE tenuto chiuso in anticipo, che e' il motivo per cui esistono.
+  # ⛔ Dieci sedute da una voce ciascuna sarebbero dieci sedute fantasma — il rischio che #2188 nomina.
+  #
+  # Oracolo comune, una riga:
+  #   gh issue list --search "CP 34. in:title" --state all --json number,state
+  #   → 11 checkpoint, tutti OPEN il 2026-09-23; l'epic e' #244, OPEN
+  # ⚠️ Chi rilegge NON conti gli OPEN a memoria: la condizione che libera una voce e' la chiusura del
+  # checkpoint CHE QUELLA VOCE NOMINA, non dell'epic — e sono checkpoint diversi.
+
+  - check: PIE-STATE-01
+    reason: "precondizione `CP 34.6` (#250, rappresentazione dello stato in HUD) + catalogo icone popolato"
+    oracle: "gh issue view 250 --json state → OPEN"
+    revisit_when: "#250 chiusa"
+  - check: PIE-STATE-02
+    reason: "precondizione `CP 34.2` (#246, attivazione, commitment e revert)"
+    oracle: "gh issue view 246 --json state → OPEN"
+    revisit_when: "#246 chiusa"
+  - check: PIE-STATE-03
+    reason: "precondizione `CP 34.5` (#249, Action Ghost dello stato previsto)"
+    oracle: "gh issue view 249 --json state → OPEN"
+    revisit_when: "#249 chiusa"
+  - check: PIE-STATE-04
+    reason: "precondizione `CP 34.2` (#246)"
+    oracle: "gh issue view 246 --json state → OPEN"
+    revisit_when: "#246 chiusa"
+  - check: PIE-STATE-05
+    reason: "precondizione `CP 34.2` (#246)"
+    oracle: "gh issue view 246 --json state → OPEN"
+    revisit_when: "#246 chiusa"
+  - check: PIE-STATE-06
+    reason: "precondizione `CP 34.3` (#247, override delle abilita')"
+    oracle: "gh issue view 247 --json state → OPEN"
+    revisit_when: "#247 chiusa"
+  - check: PIE-STATE-07
+    reason: "precondizione `CP 34.4` (#248, override del movimento)"
+    oracle: "gh issue view 248 --json state → OPEN"
+    revisit_when: "#248 chiusa"
+  - check: PIE-STATE-08
+    reason: "precondizione `CP 34.7` (#251, trigger ambientali) + scenario `State.Gadget.Charged`"
+    oracle: "gh issue view 251 --json state → OPEN"
+    revisit_when: "#251 chiusa"
+  - check: PIE-STATE-09
+    reason: "precondizione `CP 34.8` (#252, integrazione con Fast Reaction) + `E14`"
+    oracle: "gh issue view 252 --json state → OPEN"
+    revisit_when: "#252 chiusa"
+  - check: PIE-STATE-10
+    reason: "precondizione `CP 34.10` (#254, logging e diagnosi)"
+    oracle: "gh issue view 254 --json state → OPEN"
+    revisit_when: "#254 chiusa"
+
+  # ── La rete non esiste in produzione ────────────────────────────────────────────────────────────
+  #
+  # Tre voci, una causa sola, e questa si misura **sul codice** invece che su una issue — il che la
+  # rende l'oracolo piu' solido dei tre tipi presenti in questo blocco.
+  # ⚠️ **Il comando conta, e la formulazione ingenua e' gia' scaduta una volta**: il registro dichiarava
+  # il 2026-09-04 *«`Source/` non contiene una sola `UPROPERTY(Replicated)`»*, e oggi un grep grezzo ne
+  # trova diverse — sono commenti, stringhe, e **una fixture di test** che dichiara davvero una
+  # proprieta' replicata perche' e' l'oracolo della guardia `RTServerOnlyGuard` (#589). Cio' che resta
+  # zero, ed e' cio' che quella frase voleva dire, e' la PRODUZIONE. Il repository lo registra gia' da
+  # se' in `RTPlaybackControlsTests.cpp`.
+
+  - check: PIE-NET-CANARY-PACKAGED
+    reason: >-
+      Chiede `M10.1` + `M10.2` e una build packaged con due squadre. Non c'e' replica in produzione,
+      quindi non c'e' un canale su cui il canary possa trovarsi o non trovarsi. ⛔ Un'esecuzione in PIE
+      varrebbe `NOT RUN` comunque, e la voce lo dichiara: server e client condividono il processo,
+      quindi il canary e' verde anche a replica rotta.
+    oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
+    revisit_when: "`M10.1` e `M10.2` atterrati, cioe' quando quel comando smette di rispondere vuoto"
+  - check: PIE-NET-NO-PAUSE
+    reason: >-
+      Chiede `M10.1` e una finestra di reazione con `AllowedResponses` >= 2 su una sola squadra.
+      Senza rete non esistono due schermi, e cio' che va giudicato e' precisamente che il secondo non
+      mostri una pausa che segua la scelta del primo.
+    oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
+    revisit_when: "`M10.1` atterrato"
+  - check: PIE-NET-LATEJOIN
+    reason: >-
+      Chiede `M10.1` e **un secondo client** che entra a pianificazione iniziata. Non esiste un
+      secondo client.
+    oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
+    revisit_when: "`M10.1` atterrato"
+
+  # ⏱️ **Qui stava `PIE-V01-SHIELD-WRAITH`, dichiarata il 2026-09-23 e rimossa lo stesso giorno.**
+  # Il suo `revisit_when` diceva *«#2381 la convoca — e allora questa riga sparisce invece di
+  # cambiare»*, ed e' quello che e' successo: la voce e' in `U51`, che possiede gia' il gesto di
+  # scrivere `Team0Heroes` a mano. La riga non lascia un segnaposto perche' una voce schedulata non
+  # ha niente da fare in un elenco di voci che non si possono guardare — la storia sta in git e nel
+  # documento del censimento.
+  # 🔴 **E portava due identita' RITIRATE**, ricopiate dalla cella del registro senza verificarle:
+  # «una formazione in cui **Wraith** sia in squadra 0, contro il default `Team0Heroes = [Gadget,
+  # Phase]`». `D-334` ha ritirato `Hero.Wraith` -> `Hero.Ivrin` e `#2491` `Hero.Gadget` ->
+  # `Hero.Aevik`, `Hero.Phase` -> `Hero.Muiren`; il default vero e'
+  # `Team0Heroes = {Hero.Aevik, Hero.Muiren}`. La sostanza reggeva — l'eroe e' ancora in squadra 1,
+  # quindi l'allestimento serve lo stesso — ma il nome da scrivere nel GameMode era sbagliato.

@@ -1,0 +1,69 @@
+# Evidenza — seduta `U60`, giro di `G16`: PARZIALE
+#
+# Estratto dal log di `-abslog` della seduta del 2026-10-04 (3123 righe in originale).
+# Editor compilato da `ac2568992`, runtime identico al candidate `95eddfd37`.
+# Tenute le righe del rapporto `rt.Debug.ScreenHud`, i marcatori di partita e le reti dei crash.
+#
+# ESITO: passi 1-2 PARZIALI (pannello aperto e catalogo letto; nessuna ability eseguita),
+# passi 3-4-5 NOT RUN per precondizione mancante — nessun turno risolto, quindi il TurnLog e
+# vuoto e nessun archivio replay esiste. Nessun passo e FALLITO.
+#
+
+LogCsvProfiler: Display: Metadata set : commandline="" D:/Repositories/refactor-tactics-main/RefactorTactics.uproject -NoLiveCoding -abslog=C:/Users/Utente/AppData/Local/Temp/claude/D--Repositories-refactor-tactics-main/3596b622-58c4-4784-82f8-50052e49d2e2/scratchpad/g16-u60.log""
+LogInit:  CurlRequestOptions (configurable via config and command line):
+LogInit: Build: ++UE5+Release-5.8-CL-56057345
+LogInit: Build Configuration: Development
+LogInit: Command Line: -NoLiveCoding -abslog=C:/Users/Utente/AppData/Local/Temp/claude/D--Repositories-refactor-tactics-main/3596b622-58c4-4784-82f8-50052e49d2e2/scratchpad/g16-u60.log
+[2026.10.04-00.56.21:381][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+[2026.10.04-07.58.21:061][561]LogRT: Display: Screen HUD 4.1 - fotografia AL MONTAGGIO; per l'albero a regime usa 'rt.Debug.ScreenHud'
+[2026.10.04-07.58.21:061][561]LogRT: Display: Screen HUD 4.1 - albero costruito di 'WBP_RT_TacticalHUD_C_0': 15 widget innestati
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'Zone_TopLeft' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'WBP_RT_TeamRosterLeft' (WBP_RT_TeamRoster_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'Zone_TopCenter' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'WBP_RT_TurnHeader' (WBP_RT_TurnHeader_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'Zone_TopRight' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'Zone_MiddleLeft' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'WBP_RT_SelectedUnitPanelLeft' (WBP_RT_SelectedUnitPanel_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'WBP_RT_UnitCard' (WBP_RT_UnitCard_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'Zone_MiddleRight' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:061][561]LogRT: Display:   costruito: 'WBP_RT_EventLogRight' (WBP_RT_EventLog_C)
+[2026.10.04-07.58.21:062][561]LogRT: Display:   costruito: 'Zone_BottomLeft' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:062][561]LogRT: Display:   costruito: 'Zone_BottomCenter' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:062][561]LogRT: Display:   costruito: 'WBP_RT_ActionDockBottom' (WBP_RT_ActionDock_C)
+[2026.10.04-07.58.21:062][561]LogRT: Display:   costruito: 'Zone_BottomRight' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.21:062][561]LogRT: Display:   costruito: 'WBP_RT_FastDecisionCenter' (WBP_RT_FastDecision_C)
+[2026.10.04-07.58.21:062][561]LogRT: Display:   [ok]    TurnHeader: 1
+[2026.10.04-07.58.21:062][561]LogRT: Display:   [ok]    TeamRoster: 1
+[2026.10.04-07.58.21:062][561]LogRT: Display:   [ok]    SelectedUnitPanel: 1
+[2026.10.04-07.58.21:062][561]LogRT: Display:   [ok]    ActionDock: 1
+[2026.10.04-07.58.21:062][561]LogRT: Display:   [MANCA] ActionSlot: 0
+[2026.10.04-07.58.21:062][561]LogRT: Display:   [ok]    EventLog: 1
+[2026.10.04-07.58.21:062][561]LogRT: Display: Screen HUD 4.1 montato: 'WBP_RT_TacticalHUD_C' (z=-100) - modulo compilato il Oct  4 2026 alle 02:54:09
+[2026.10.04-07.58.21:146][561]LogRT: [RT] Board 2v2 esagonale avviata su 331 celle con 4 eroi
+[2026.10.04-07.58.28:297][ 72]Cmd: rt.Debug.ScreenHud
+[2026.10.04-07.58.28:303][ 72]Screen HUD 4.1 - albero costruito di 'WBP_RT_TacticalHUD_C_0': 17 widget innestati
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_TopLeft' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_TeamRosterLeft' (WBP_RT_TeamRoster_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_UnitCard_C_0' (WBP_RT_UnitCard_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_UnitCard_C_1' (WBP_RT_UnitCard_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_TopCenter' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_TurnHeader' (WBP_RT_TurnHeader_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_TopRight' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_MiddleLeft' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_SelectedUnitPanelLeft' (WBP_RT_SelectedUnitPanel_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_UnitCard' (WBP_RT_UnitCard_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_MiddleRight' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_EventLogRight' (WBP_RT_EventLog_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_BottomLeft' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_BottomCenter' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_ActionDockBottom' (WBP_RT_ActionDock_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'Zone_BottomRight' (WBP_RT_HudZone_C)
+[2026.10.04-07.58.28:303][ 72]  costruito: 'WBP_RT_FastDecisionCenter' (WBP_RT_FastDecision_C)
+[2026.10.04-07.58.28:303][ 72]  [ok]    TurnHeader: 1
+[2026.10.04-07.58.28:303][ 72]  [ok]    TeamRoster: 1
+[2026.10.04-07.58.28:303][ 72]  [ok]    SelectedUnitPanel: 1
+[2026.10.04-07.58.28:303][ 72]  [ok]    ActionDock: 1
+[2026.10.04-07.58.28:303][ 72]  [MANCA] ActionSlot: 0
+[2026.10.04-07.58.28:303][ 72]  [ok]    EventLog: 1
+[2026.10.04-07.58.28:303][ 72][RT] Feed: TurnLog=0 voci, osservatori={0}, righe dopo filtro=0, budget=12
+[2026.10.04-07.58.28:303][ 72][RT]   Il TurnLog e' vuoto: nessun turno ancora risolto, oppure e' appena stato azzerato dal commit. Non e' un difetto finche' una risoluzione non e' avvenuta.

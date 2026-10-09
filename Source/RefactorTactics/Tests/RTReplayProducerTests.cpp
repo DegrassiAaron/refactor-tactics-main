@@ -701,9 +701,13 @@ bool GiocaEArchivia(FAutomationTestBase& Test, const TCHAR* Nome, const FRTCellI
 	TM->BeginReplayRecording();
 	Out.MatchId = TM->GetReplayMatchId();
 
-	// 🔴 `BeginReplayRecording` esce in silenzio senza formato o a registrazione spenta. Senza questa riga
+	// 🔴 `BeginReplayRecording` **si rifiuta** senza formato o a registrazione spenta. Senza questa riga
 	// il difetto arriverebbe travestito da «l'archivio non si legge», che manda chi legge dalla parte
 	// sbagliata: il difetto sarebbe che la registrazione non e' mai partita.
+	//
+	// ⌛ Diceva «esce in silenzio» fino al 2026-10-04: dal `#3463` il rifiuto **logga** quale delle due
+	// guardie ha chiuso. ⚠️ Il che non rende questo asserto superfluo -- un `Display` nel log non e' un
+	// esito di test, e questa riga resta l'unica che fa **fallire** l'helper invece di lasciarlo proseguire.
 	if (!Test.TestTrue(*FString::Printf(TEXT("%s: la registrazione e' partita"), Nome), Out.MatchId.IsValid()))
 	{
 		DestroyReplayProducerWorld(World);
@@ -770,6 +774,15 @@ bool ArchivioUtilizzabile(FAutomationTestBase& Test, const TCHAR* Nome, const FR
  * e `ActionId` — ma il suo stesso commento dichiara il confine: *«Il confronto e' fra due tracce. Chi
  * produce la seconda ri-simulando e' il chiamante»*. Nessuno era quel chiamante. E il corpus golden non
  * copre questo: le sue referenze sono file `.rttl` **committati**, non archivi **prodotti da una partita**.
+ *
+ * ⌫ **«Nessuno era quel chiamante» e' vero al passato e falso al presente, corretto il 2026-09-20.**
+ * `RefactorTactics.Replay.Verifier.ArchiveReplaysThroughTheResolver`
+ * (`Tests/RTSimulationDeterminismTests.cpp`, `#2196`, 2026-09-04) apre un archivio su disco, lo rigioca col
+ * resolver e confronta — il suo docstring si apre con *«L'ANELLO CHE MANCAVA»* e chiude la citazione con
+ * *«Da qui in poi qualcuno lo e'»*. 🔴 **La riga resta perche' motiva l'esistenza di QUESTO test**, che e'
+ * un'altra cosa: qui si confrontano **due partite** archiviate, li' si **ri-simula** una traccia sola.
+ * Toglierla farebbe perdere il perche'; lasciarla senza questa nota manda chi legge a riaprire lavoro
+ * finito — ed e' successo: #1805 l'ha citata alla lettera nel proprio corpo come lavoro mancante.
  *
  * Qui l'anello si chiude: due partite allestite identiche, **entrambe registrate**, e gli archivi
  * riconfrontati **da disco** — non dagli array in memoria, che proverebbero che il `TurnManager` ha una

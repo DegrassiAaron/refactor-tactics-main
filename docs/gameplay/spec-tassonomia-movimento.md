@@ -48,7 +48,7 @@ Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sop
 `AUTHOR-MOVE-001` ([D-295](../decisions/RT_PDR_00_Decision_Log.md)) decide che lo **scambio diretto e i cicli
 chiusi bloccano** nel Move *«salvo permesso esplicito»*. Quel permesso è **questa riga**: lo scambio lecito è
 un `Transfer`, `v0.2`/`E39`, e un Transfer non percorre celle intermedie — non passa dalle regole di
-traversal. ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
+traversal. ♻️ **Non e' piu' vero, e in due passaggi.** Il 2026-09-30 [D-443](../decisions/RT_PDR_00_Decision_Log.md) ha concesso lo scambio **fra unita' della stessa squadra** — *«solo gli avversari che si incrociano bloccano il movimento»* — e il **2026-10-01** [D-445](../decisions/RT_PDR_00_Decision_Log.md) ha tolto anche quello: **nessuna unita' blocca il transito di nessun'altra**, scatti compresi. L'arco scavalca chiunque e si ferma alla prima cella libera. ⚠️ **Il vincolo di questa riga resta invece intatto**: non si **finisce** il turno su una cella occupata ([D-289](../decisions/RT_PDR_00_Decision_Log.md)), e l'autore l'ha confermato nella stessa frase — *«non puo' fermarsi su una cella gia' occupata»*. ✅ **E la preoccupazione di questa riga si e' sciolta invece di avverarsi.** Diceva: *«un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner»*. [D-443] aveva creato davvero i due owner — il `Transfer` della v0.2 per lo scambio fra avversari, il Move per quello fra alleati — e [D-445] li ha richiusi in uno: **non c'e' nessun flag di permesso**, perche' non c'e' piu' un permesso da dare. Il Move attraversa e basta; `Transfer` resta l'owner dello scambio **atomico**, che e' un'altra cosa — non percorre celle intermedie. ⏻ *Testo precedente:* ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
 **incondizionata**: un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che
 ne ha già uno. L'implementazione della regola è
 [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922).
@@ -74,7 +74,7 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | sì per `Leap`, che è nella fase Dash | no |
 | micro-step | sì | **policy** | **no** | sì |
 | **durata del passo** (§2.0-ter) | **costo d'ingresso** ([D-381](../decisions/RT_PDR_00_Decision_Log.md)) | **policy** | n/a | **un micro-step per cella** ([D-384](../decisions/RT_PDR_00_Decision_Log.md)) |
-| attraversa le celle intermedie | sì | policy | **no** | sì |
+| attraversa le celle intermedie | sì | **sì** ([D-445](../decisions/RT_PDR_00_Decision_Log.md)) | **no** | sì |
 | usa `MoveBudget` | sì | no | no | **no** |
 | paga il costo del terreno | sì | no | no | **no** (ma vedi §3) |
 | collisioni | sì | policy | solo all'arrivo | sì |
@@ -85,6 +85,35 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | auto-reroute | **mai** | mai | n/a | mai |
 | consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
 | **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
+
+### 2.0-zero La destinazione occupata si dichiara nel movimento a budget, e si rifiuta nella mobilità lineare — [`D-451`](../decisions/RT_PDR_00_Decision_Log.md)
+
+Le due famiglie trattano la **cella d'arrivo occupata** in modo opposto, e prima di `D-451` la
+differenza esisteva solo nel codice. `MOV-15` fu aperta chiedendo se `D-446` coprisse *«anche la
+destinazione dello Sprint»*: la domanda presupponeva che `Action.Sprint` passasse per una funzione
+diversa, e **non è così** — `D-446` lo copre già. Ciò che mancava era questa riga.
+
+| famiglia | azioni | la cella d'arrivo occupata |
+|---|---|---|
+| **movimento a budget** | `Move` · `Sprint` · `Withdraw` | si **dichiara** e si pianifica: è una **scommessa** ([`D-445`](../decisions/RT_PDR_00_Decision_Log.md)). Tutte e tre passano per `URTHexSimLibrary::BuildCompositeHexPath` |
+| **mobilità lineare** | `Dodge` · `Charge` · `Leap` · `Reposition` · `PassingBlade` | si **rifiuta in pianificazione**: il piano non nasce |
+
+🔑 **Il rifiuto è una regola, non un'omissione**, ed è scritto nel codice che lo applica —
+`Source/RefactorTactics/Player/RTPlayerController.cpp:2291-2292`, che cita `CP 4.5` e il test
+`HexSim.DashIsLinear`: *«o si arriva sulla cella **richiesta**, o lo scatto non si pianifica. Niente
+scatto a metà verso una cella che il giocatore non ha scelto»*.
+
+⛔ **Per questo `D-446` non è stata estesa alla mobilità lineare.** Uniformare le due famiglie sarebbe
+costato `CP 4.5` come regola di pianificazione, che è **codice vivo** e non una preferenza: uno scatto
+che si pianifica verso una cella occupata arriverebbe *a metà*, cioè dove il giocatore non ha chiesto.
+
+⚠️ **Il prezzo di questa decisione è l'uniformità, e si paga qui**: due famiglie di movimento con due
+regole di dichiarazione sono una cosa in più da ricordare. È esattamente la ragione per cui la
+distinzione è **scritta** invece di restare nel codice — chi legge la matrice della §2 trova le due
+regole accanto, e non ne deduce una dall'altra.
+
+---
+
 
 ### 2.0 Un micro-step, un arco — la regola che il codice applica e che nessun documento diceva
 
@@ -296,6 +325,113 @@ attraversare una palude **è ancora nella palude**. Chi le troverà senza questa
 * **`MaxGraphTransitionsPerUnitPerMicroStep = 1` resta** ([D-305](../decisions/RT_PDR_00_Decision_Log.md)): un arco può durare più micro-step, un
   micro-step non porta mai due archi.
 
+### 2.0-quater Il calendario dei sotto-passi: quanti micro-step ha un tick, e chi avanza in quale
+
+> ✅ **Aggiunta il 2026-09-20 da [`D-428`](../decisions/RT_PDR_00_Decision_Log.md)**, che chiude `SKB-2` —
+> l'unico punto che la specifica consolidata della skill bar marcava `CRITICO`.
+
+§2.0 dice **quanti archi** attraversa un micro-step: uno.
+Non diceva **quali unità** avanzano in quale micro-step, e senza quella risposta
+[`D-412`](../decisions/RT_PDR_00_Decision_Log.md) restava inapplicabile: dichiarava *«`Sprint` fino a
+2 passi per tick, `Sneak` 1 ogni 2»* e non aveva dove collocare quei numeri.
+
+```text
+un tick = tanti sotto-passi quanti ne chiede il profilo piu' veloce PRESENTE
+          (FRTMovementResolutionState::SubStepsPerTick; almeno 1, al massimo
+           FRTMovementProfile::MaxStepsPerTick = 2)
+
+con k = indice di calendario,  s = k % SubStepsPerTick,  t = k / SubStepsPerTick:
+    eleggibile  ⇔  s < StepsPerTick  &&  (t % TickPeriod) == 0
+```
+
+🔴 **La dimensione del tick e' DERIVATA, non una costante — e la differenza l'ha trovata un rosso.**
+Fissarla a `2` per tutti sembrava innocuo: in una partita di soli profili neutri il secondo sotto-passo non
+si materializza, quindi il corpus non si muove. Ma bastava **un'altra unita'** a tenere vivo un sotto-passo
+dispari, e il `Move` — eleggibile solo nei pari — pagava il doppio dei micro-step per lo stesso
+percorso. `Movement.SameCostSpentArrivesTogether` e `Movement.ShorterMoveArrivesEarlier` sono diventati
+rossi e hanno imposto la derivazione.
+
+∴ con sole cadenze neutre `SubStepsPerTick` vale **1**, `s` e' sempre `0`, tutti sono eleggibili a ogni
+micro-step, e la risoluzione e' quella di sempre **per costruzione**.
+
+| Profilo | `StepsPerTick` | `TickPeriod` | Cadenza |
+|---|---:|---:|---|
+| `Sprint` | 2 | 1 | 2 passi per tick |
+| `Move` | 1 | 1 | 1 passo per tick |
+| `Withdraw` | 1 | 1 | 1 passo per tick — ⚠️ **default dichiarato**, non derivato: la sorgente non gli dà una cadenza |
+| `Sneak` | 1 | 2 | 1 passo ogni 2 tick |
+| `Still` | 1 | 1 | neutra — ⚠️ la sua immobilità viene dal **non avere un percorso**, non dalla cadenza |
+
+⛔ **`MaxGraphTransitionsPerUnitPerMicroStep = 1` non si muove.** Due passi per tick sono due
+**sotto-passi**, mai due archi in uno — ed è la lettura che la sorgente stessa autorizza quando scrive
+*«risolti separatamente»*. I test di §2.0 restano quelli, e restano verdi.
+
+🔑 **L'ordine è deterministico perché l'eleggibilità è una funzione PURA di `(cadenza, indice)`.** Niente
+stato per unità, niente contatori, nessuna iterazione di Actor o di `TMap`, nessun timing di animazione:
+[`D-293`](../decisions/RT_PDR_00_Decision_Log.md) e `CLAUDE.md` §7 restano intatte. Chi entra per primo in
+una zona sorvegliata e chi vince una contesa di cella sono decisi dal calendario, che è esattamente ciò che
+`SKB-2` chiedeva.
+
+⚠️ **Un contatore per unità sarebbe stato la risposta sbagliata**, e vale la pena dire perché: il suo stato
+iniziale dipenderebbe da **quando** quell'unità entra nella risoluzione, cioè dall'ordine di iterazione — che
+è `D-293` rovesciata. La differenza non si vede nell'esito di un test a due unità; si vede a tre.
+
+#### 🔴 I sotto-passi inerti si EMETTONO, e il corpus resta fermo per un'altra ragione
+
+Il calendario ha **due** contatori, e la separazione non è un dettaglio implementativo:
+
+| Contatore | Che cosa fa |
+|---|---|
+| `FRTMovementResolutionState::CalendarIndex` | scorre **sempre**, anche sui sotto-passi vuoti, e decide l'eleggibilità |
+| `FRTMovementResolutionState::MicroStepIndex` | conta i micro-step **emessi** — ed è quello che `FRTTurnLogEntry::MicroStepIndex` porta |
+
+🔴 **Saltare i sotto-passi inerti renderebbe la cadenza inosservabile**, ed è ciò che la
+prima stesura faceva: uno `Sneak` **da solo** avanzerebbe a ogni micro-step emesso, esattamente come un
+`Move`, e il suo indice d'ingresso in una zona sorvegliata cambierebbe quando un'unità **estranea**
+finisce il proprio percorso. Siccome i confini di reazione e `FRTTurnLogEntry::MicroStepIndex` sono chiavati
+sui micro-step **emessi**, è liì che la cadenza deve essere visibile.
+
+✅ **E il corpus resta fermo per costruzione, non per compensazione**: con sole cadenze neutre
+`SubStepsPerTick` vale `1`, ogni unità è eleggibile a ogni sotto-passo, e sotto-passi inerti non ne
+esistono. Lo misura `Movement.NeutralCadenceKeepsTheMicroStepSequence`, che confronta una risoluzione con
+cadenza neutra contro una **senza** `Cadences`.
+
+⚠️ **E «nessuno si è mosso» smette di significare «la risoluzione è finita»**:
+si finisce quando l'inerzia dura un giro completo di calendario, altrimenti il primo sotto-passo che uno
+`Sneak` salta troncherebbe il movimento a metà.
+
+#### Il rapporto con [`D-381`](../decisions/RT_PDR_00_Decision_Log.md), che **resta**
+
+La sorgente d'autore dice *«il terreno aumenta il costo in punti, non rallenta la cadenza»*. `D-381` ha
+deciso il contrario ed **è implementata** (`StepRemaining`, §2.0-ter). Non si supera per inerzia
+([`D-282`](../decisions/RT_PDR_00_Decision_Log.md)), e la sorgente non mostra di averla considerata.
+
+I due si **compongono**, e non si sovrappongono:
+
+```text
+calendario   →  SE questo profilo può tentare un passo adesso
+D-381        →  QUANTO costa il passo, una volta tentato
+```
+
+∴ il calendario è il **tetto** della cadenza; il terreno può solo abbassarla, mai alzarla. Nessuno dei due
+può rendere un'unità più veloce del proprio profilo.
+
+#### Dove vive il dato
+
+⛔ **Il resolver non conosce i profili di movimento, e non deve conoscerli** — è la stessa disciplina per cui
+`StepDurations` si calcola a monte (§2.0-ter). `ARTTurnManager::ResolveMovement` legge
+`Ctx.MovementProfiles`, ne estrae i due numeri e riempie `FRTMovementResolutionState::Cadences`.
+
+Array vuoto, più corto di `Paths`, o con valori assurdi → **cadenza neutra** `{1, 1}`, cioè il comportamento
+di prima di `D-428`, **per costruzione**.
+
+| Test | Che cosa pinna |
+|---|---|
+| `Movement.NeutralCadenceKeepsTheMicroStepSequence` | la cadenza neutra non aggiunge micro-step emessi — è il guardiano del corpus golden |
+| `Movement.SprintTakesTwoSubStepsPerTick` | a parità di percorso, lo `Sprint` arriva prima del `Move` |
+| `Movement.CellContestIsDecidedByCadenceNotIndex` | una contesa di cella ha lo stesso esito invertendo l'ordine di dichiarazione |
+| `Movement.WatchedEntryIsOrderedByCadenceNotIndex` | l'ingresso in una zona sorvegliata è ordinato dalla cadenza, e invariante all'ordine |
+
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
 `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
@@ -336,22 +472,59 @@ significa aggiungere un valore lì, non un `if` nel resolver. *(Il conteggio è 
 questa pagina diceva già «sei valori», questo paragrafo ne elencava cinque, e da D-118 in poi la differenza
 smette di essere un dettaglio.)*
 
-> 🔴 **`LinearPass` attraversa CHI E' FERMO, e da [D-398] non piu' chiunque — 2026-09-11.** È un
-> cambiamento di comportamento di un'abilità **spedita**, non una precisazione, e sta qui perché questa
-> pagina è owner di *«cosa comporta»* un tipo di movimento.
+> ⌫ **CORRETTO il 2026-10-04 — questa riga era FALSA, e la misura la smentisce**
+> ([`D-452`](../decisions/RT_PDR_00_Decision_Log.md)). Diceva *«`LinearPass` non concede più niente, e
+> il 2026-10-01 è rimasto senza consumatore»*. Misurato: ha **sette** usi in codice — non commenti —
+> fra cui l'assegnazione a un'abilità di Ivrin (`RTHeroCatalogLibrary.cpp:977`), ed è il **solo** stile
+> che attraversa l'occupante sulle celle intermedie: `RTMovementActionLibrary.cpp:147-153` popola
+> `PassedThroughUnitIds`, che `RTTurnManager.cpp:4665` consuma. Gli altri stili cadono nel ramo sotto
+> e fanno `break`.
 >
-> Il permesso precedente saltava il controllo di occupancy per l'intero passo, quindi un `LinearPass`
-> attraversava **chiunque** stesse sulla cella — fermo o in movimento. L'attraversamento è ora un **arco
-> solo**, che copre le celle occupate consecutive più la **prima libera**: se quella cella libera non
-> esiste nel percorso, non si attraversa affatto.
+> 🔑 **L'errore veniva dal confondere le DUE FAMIGLIE**, ed è lo stesso che ha prodotto `MOV-15`:
+> [`D-445`](../decisions/RT_PDR_00_Decision_Log.md) tocca il movimento a **budget**, che passa dai
+> micro-step (`RTHexSimLibrary.h:276`, `RTTurnManager_Movement.cpp:259`), mentre la mobilità lineare
+> passa da `ResolveLinearMove` — dove la distinzione è viva. La sua formulazione *«scatti compresi»* si
+> legge come `Sprint`, che è a budget, non come `Dash`. La §2.0-zero di questa pagina scrive la
+> distinzione, e questa riga ne è il controesempio storico.
 >
-> ∴ **ciò che cambia in partita**: un `LinearPass` che prima passava attraverso un'unità **in movimento**
-> ora si ferma davanti — a meno che quella non liberi la cella da sé, nel qual caso passa comunque.
-> L'attraversamento di chi è **fermo** non cambia, ed è il caso d'uso per cui lo stile esiste.
+> ⛔ **Il valore non si ritira**: ritirarlo cambierebbe il gioco — l'abilità di Ivrin smetterebbe di
+> attraversare — e non sarebbe una pulizia. *Testo smentito, conservato:*
 >
-> 🔑 **La restrizione non è un effetto collaterale: è ciò che tiene in piedi la catena del ciclo.**
-> Concedere l'attraversamento anche di chi si muove riapre lo scambio di posizione fra due unità che si
-> attraversano a vicenda — è il caso che `ResolveSwapBlockedEvenWhenPassingThrough` presidia.
+> > 🔴 ~~`LinearPass` non concede più niente, e il 2026-10-01 è rimasto senza consumatore~~ ([D-445](../decisions/RT_PDR_00_Decision_Log.md)).
+> Lo stile attraversava chi è fermo; da [D-445](../decisions/RT_PDR_00_Decision_Log.md) attraversano **tutti**, quindi `LinearPass` e
+> `Linear` producono lo stesso movimento. ⚠️ **Il valore non è stato ritirato**: l'autore ha scelto
+> esplicitamente la portata *«tutti i movimenti, scatti compresi»* **senza** autorizzare il ritiro dello
+> stile, e la domanda è aperta come `MOV-14` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+>
+> ⏻ *Testo precedente, conservato perché la sua catena di ragionamento è stata smontata e vale saperlo:*
+>
+> > 🔴 **`LinearPass` attraversa CHI E' FERMO, e da [D-398] non piu' chiunque — 2026-09-11.** È un
+> > cambiamento di comportamento di un'abilità **spedita**, non una precisazione, e sta qui perché questa
+> > pagina è owner di *«cosa comporta»* un tipo di movimento.
+> >
+> > Il permesso precedente saltava il controllo di occupancy per l'intero passo, quindi un `LinearPass`
+> > attraversava **chiunque** stesse sulla cella — fermo o in movimento. L'attraversamento è ora un **arco
+> > solo**, che copre le celle occupate consecutive più la **prima libera**: se quella cella libera non
+> > esiste nel percorso, non si attraversa affatto.
+> >
+> > ∴ **ciò che cambia in partita**: un `LinearPass` che prima passava attraverso un'unità **in movimento**
+> > ora si ferma davanti — a meno che quella non liberi la cella da sé, nel qual caso passa comunque.
+> >
+> > 🔑 **La restrizione non è un effetto collaterale: è ciò che tiene in piedi la catena del ciclo.**
+> > Concedere l'attraversamento anche di chi si muove riapre lo scambio di posizione fra due unità che si
+> > attraversano a vicenda — è il caso che `ResolveSwapBlockedEvenWhenPassingThrough` presidia.
+>
+> 🔴 **E quella catena è esattamente ciò che [D-445] ha reciso, in tutti e tre gli anelli.** L'arco a una
+> cella libera **resta** — è [D-398] §7c e non è stato toccato: senza una cella libera a valle non si
+> attraversa affatto. Cade invece il resto: chi si muove si attraversa come chi è fermo; lo scambio di
+> posizione è **concesso** e non più un difetto da presidiare; e `ResolveSwapBlockedEvenWhenPassingThrough`
+> non esiste più con quel nome — è `HexSim.ResolveCrossWhilePassingThrough`, e asserisce l'opposto.
+>
+> 🔑 **La riga che reggeva tutto diceva *«riapre lo scambio»* come se fosse una conseguenza indesiderata.**
+> Era una lettura corretta della regola di allora, e vale la pena rileggerla oggi: lo scambio è diventato
+> il comportamento voluto, quindi ciò che era un argomento **contro** l'attraversamento largo è oggi una
+> descrizione di ciò che si è scelto. Non si cancella: una preoccupazione che si rivela essere la feature
+> è il genere di cosa che chi riapre la decisione deve poter vedere.
 >
 > ⚠️ **Chi lo porta nel roster v0.1 è `Hero.Ivrin.PassingBlade`**, ed è l'unica azione spedita che dichiari
 > `LinearPass` (`git grep -n "ERTMovementStyle::LinearPass" -- Source/` per riverificarlo). Il difetto che
@@ -613,3 +786,41 @@ perché il documento sembra più recente.
 | [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | come il budget di movimento convive con gli **altri tre** limiti del turno. Quale slot occupa ciascuna famiglia resta la **§2** di questa pagina |
 | [`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md) | che il profilo scelto cambi **legalità ed efficacia** delle azioni: `AE-2`, chiusa da [D-116](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-12 col modello a **soglia** (`MinStability` contro `Stability`) |
 | *questa pagina* | il confronto **fra le famiglie** di movimento |
+
+### Rinomine del 2026-10-01 — [D-445](../decisions/RT_PDR_00_Decision_Log.md) / [D-446](../decisions/RT_PDR_00_Decision_Log.md)
+
+🔴 **I banchi qui sotto hanno cambiato nome perché il loro nome asseriva la regola ritirata**, e le righe
+che li citano non si riscrivono: una riga di Decision Log registra ciò che una decisione disse *allora*,
+e correggerne i nomi la farebbe mentire su se stessa. Questa tabella è il posto dove un puntatore
+storico si risolve.
+
+⛔ **Non è un elenco di test riscritti, è un elenco di NOMI cambiati.** Molti altri banchi sono stati
+ribaltati tenendo il proprio nome — quelli non compaiono qui, e si trovano da `git log` di questa
+tornata. Chi cerca *«dov'è finito il test che diceva X»* parte da qui; chi cerca *«cosa è cambiato»*
+parte dalle due decisioni.
+
+⚠️ **Il nome C++ della classe segue quello registrato solo dove l'ho spostato di proposito.** Un
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST` porta due identificatori, e il filtro della suite usa il secondo:
+cercare per classe può non trovare nulla anche quando il test esiste.
+
+| Si chiamava | Si chiama |
+|---|---|
+| `HexSim.ResolveSwapBlocked` | `HexSim.ResolveNonLinearSwapHappens` |
+| `HexSim.ResolveClosedCycleBlocked` | `HexSim.ResolveClosedCycleRotates` |
+| `HexSim.ResolveSwapBlockedEvenWhenPassingThrough` | `HexSim.ResolveCrossWhilePassingThrough` |
+| `HexSim.ResolveBlockedByStationary` | `HexSim.ResolveCrossesStationaryButNotOntoIt` |
+| `HexSim.AlliesCrossEachOther` | `HexSim.CrossingIsBlindToTeam` |
+| `HexSim.AlliesInMotionCrossEachOther` | `HexSim.MovingUnitsCrossRegardlessOfTeam` |
+| `HexSim.MixedCycleStillBlocksEveryone` | `HexSim.MixedCycleRotatesLikeAnAlliedOne` |
+| `HexSim.AlliedSwapPassesAndHostileDoesNot` | `HexSim.SwapPassesRegardlessOfTeam` |
+| `HexSim.AllyInTransitIsCrossedUnlikeAStranger` | `HexSim.AnyoneInTransitIsCrossed` |
+| `HexSim.PathAvoidsOccupiedCell` | `HexSim.PathCrossesOccupiedCell` |
+| `HexSim.PathCrossesAlliesButNotOntoThem` | `HexSim.PathCrossesAnyoneAndMayLandOnThem` |
+| `HexSim.ReachableExcludesOccupied` | `HexSim.ReachableIncludesOccupied` |
+| `HexSim.CompositePathRejectsOccupiedCell` | `HexSim.CompositePathAcceptsOccupiedCell` |
+| `Movement.HeadOnStaggeredBlocksAsCycle` | `Movement.HeadOnStaggeredSwapsAnyway` |
+| `HexMove.StalePlanSwapBlocks` | `HexMove.StalePlanSwapHappens` |
+| `PlayerInteraction.ReplanAfterADenialWins` | `PlayerInteraction.AWaypointOnAnOccupantDoesNotDenyTheFinalPlan` |
+| `Scenario.ReachabilityPreviewCarriesTheTeam` | `Scenario.ReachabilityPreviewIsBlindToTheTeam` |
+| `Bot.ReservedRouteBlocksTeammatesOnly` | `Bot.ReservedDestinationBlocksTeammatesOnly` |
+

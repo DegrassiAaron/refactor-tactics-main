@@ -1,5 +1,6 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPacingLibrary.h"
+#include "Turn/RTTurnManagerInternal.h" // `#3261`: BuildRouteObserverTeams, gli stessi osservatori di Dash e Move
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
@@ -460,6 +461,11 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		}
 
 		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
+		// #3549, spec §2.2 punto 1: la purificazione si ATTIVA quando e' SPESA — il gesto, non l'esito. Anche una
+		// Cleanse che non trova lo stato dichiarato (la voce `NoEffect` qui sotto) si attiva: e' lo stesso
+		// `Ruling` della predittiva senza cella. ⛔ Nessuna condizione su `Removed`.
+		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Cleanse->Def.ActionId, Cleanse->Def.BaseActionId,
+			Unit->StableUnitId, Unit->Cell, ERTAbilityShape::Single);
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->ClearPlannedAttack();
 
@@ -515,7 +521,14 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
 		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
+		// ⚠️ Per un'AREA (#3593) il centro puo' essere una CELLA dichiarata, e allora nessuna unita' e' stata scelta;
+		// senza ne' cella ne' unita' dichiarate il ripiego «su se stessi» vale anche qui: il centro e' la cella di chi cura.
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
+		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
+		// Solo l'AREA legge la cella dichiarata: il ramo `Single` resta com'era (bersaglio o se', `AimCell` = la sua cella).
+		const FRTCellId Centro = (bArea && Unit->bAttackTargetsCell) ? Unit->PlannedAttackCell : HealTarget->Cell;
+		const int32 BersaglioStableId = (bArea && !Unit->PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
 		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
 		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
@@ -525,7 +538,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
-		if (URTHexLibrary::HexDistance(Unit->Cell, HealTarget->Cell) > Heal->Def.RangeCells)
+		if (URTHexLibrary::HexDistance(Unit->Cell, Centro) > Heal->Def.RangeCells)
 		{
 			// 🔴 **L'asimmetria INVERSA** ([D-196], `#1412` punto 4): fino a qui questa cura mancata viveva
 			// SOLO nel combat log. Il record autoritativo non la conteneva, quindi un replay non poteva
@@ -543,7 +556,8 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			// (`TargetDead`, [D-197]) e la def senza effetto utile (`NoEffect`) sono ESITI di un'azione
 			// partita, e restano a carico. Un esito si paga; una mira impossibile no.
 			FRTTurnLogEntry CuraMancata = MakeSupportFallback(
-				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
+				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
+			if (bArea) { CuraMancata.TgtCell = Centro; } // l'area non ha un bersaglio-unita': la voce dice DOVE mirava
 			AppendLogEntry(CuraMancata, Unit);
 			// ⛔ **Niente `AddLogEvent`**: `ConcludeTurn` deriva una riga per ogni voce di TurnLog, quindi
 			// tenerla avrebbe creato un duplicato nuovo. La riga derivata porta azione, motivo e celle; il
@@ -555,11 +569,27 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// qualunque cosa vada storta e' un esito. Il cooldown si paga, e resta pagato anche se la
 		// simultaneita' disfa la cura piu' tardi — il bersaglio che cade nello stesso Blast, [D-197].
 		Ctx.MarkAbilitySpent(Unit, HealIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
+		// #3549, spec §2.2 punto 2: la cura si ATTIVA quando e' SPESA, anche se poi non ha effetto (`NoEffect`,
+		// il controllo di `Amount` qui sotto): il gesto, non l'esito. ⛔ Il fuori portata e' uscito con `continue`
+		// sopra e non si paga: non e' un gesto, e non si attiva.
+		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Heal->Def.ActionId, Heal->Def.BaseActionId,
+			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single);
 
+		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
-		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
+		if (const FRTAbilityVariant* Variante = Heal->FindVariant(Unit->ActiveVariantId))
 		{
-			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+			for (const FRTActionEffectSpec& Spec : Variante->Effects)
+			{
+				if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+			}
+		}
+		if (Amount <= 0)
+		{
+			for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
+			{
+				if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+			}
 		}
 		// 🔴 Una cura che non cura **non sparisce in silenzio** (`#1437`). Ci si arriva DOPO l'ANNOTAZIONE
 		// — il cooldown lo scrivera' `SpendStartedAbilities` a fase finita (`#1451`; fino ad allora questa
@@ -586,14 +616,39 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		if (Amount <= 0)
 		{
 			FRTTurnLogEntry CuraVuota = MakeSupportFallback(
-				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
+				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
+			if (bArea) { CuraVuota.TgtCell = Centro; }
 			AppendLogEntry(CuraVuota, Unit);
 			continue;
 		}
 
 		// Chi cura, accanto a da-dove: la cella del curatore non identifica un'unita' ([D-063]), e il TurnLog
 		// deve dire chi ha agito (#405). `AddHeal` tiene allineati i quattro array paralleli.
-		Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell, Heal->Def);
+		if (!bArea)
+		{
+			Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell, Heal->Def);
+			continue;
+		}
+
+		// #3593: ogni compagna nel raggio, chi cura compresa, nell'ordine canonico di `Ctx.Units` (cella per prima,
+		// `GatherBlastUnits`): niente secondo ordinamento. Le morte entrano lo stesso: `ApplyPlannedHeals` scrive
+		// `TargetDead`. I nemici non entrano mai: la cura non e' un colpo, e `bFriendlyFire` qui non si legge.
+		int32 Destinatarie = 0;
+		for (ARTUnit* Compagna : Ctx.Units)
+		{
+			if (!Compagna || Compagna->TeamId != Unit->TeamId) { continue; }
+			if (URTHexLibrary::HexDistance(Centro, Compagna->Cell) > Heal->AreaRadius) { continue; }
+			Ctx.AddHeal(Unit, Compagna, Amount, Unit->Cell, Heal->Def);
+			++Destinatarie;
+		}
+		if (Destinatarie == 0)
+		{
+			// R2 ribaltato (spec SP5): l'azione e' PARTITA — cooldown e attivazione sopra — e non ha trovato nessuno.
+			// `NoEffect`, non `TargetGone`, che in `ApplyPlannedHeals` dice «distrutta fra raccolta e applicazione».
+			FRTTurnLogEntry Vuota = MakeSupportFallback(Unit, nullptr, Heal->Def, ERTActionInvalidReason::NoEffect);
+			Vuota.TgtCell = Centro;
+			AppendLogEntry(Vuota, Unit);
+		}
 	}
 }
 
@@ -702,6 +757,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
 				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
+				// #3549: dopo la validazione di portata — un arco fuori portata e' uscito con `continue` sopra
+				// (`ArcRejected`) e non si attiva.
+				EmitAbilityActivated(Unit, ERTMatchPhase::Blast, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
+					ArcTarget->StableUnitId, ArcTarget->Cell, ERTAbilityShape::Single);
 			}
 			continue;
 		}
@@ -1224,7 +1283,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// definisce efficace come *«nessun Interrupt efficace lo cancella»*, quindi un Interrupt che viene
 	// soltanto degradato resta efficace e continua a togliere ai propri bersagli. Per questo la lettura di
 	// `Stato[]` qui sopra e' invariata: la distinzione nasce **dopo** che l'efficacia e' decisa.
-	TSet<int32> InterruptedIntents;   // cancellati: il colpo sparisce, l'azione e' annullata
+	TSet<int32>& InterruptedIntents = Ctx.InterruptedIntents; // cancellati: il colpo sparisce, l'azione e' annullata
 	TSet<int32> DegradedIntents;      // degradati: il colpo resta, cadono gli effetti oltre il primo
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
 	{
@@ -1829,6 +1888,9 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 	TArray<FRTHexAttackIntent>& Intents = Ctx.Intents;
 	TArray<FRTPendingArcOp>& PendingArcOps = Ctx.PendingArcOps;
 	FRTHexBlastPlan& Plan = Ctx.Plan;
+	// `#3281`: l'identita' dell'azione di un colpo a struttura si risolve da qui, ed e' l'UNICA fonte —
+	// la stessa che il rifiuto di posa e l'impronta usano gia'.
+	const TArray<FRTActionDef>& IntentDefs = Ctx.IntentDefs;
 
 	// STRUTTURE (CP 9.2): il danno raccolto contro le barriere si applica ORA, a colpi risolti — non durante
 	// la raccolta. Chi ha sparato in questo Blast non guadagna la linea perche' il muro e' caduto: la vista e
@@ -1851,6 +1913,52 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = Change.RemainingIntegrity;
+
+		// L'IDENTITA' DELL'AZIONE — `#3281`, [D-437]: **si nomina quando l'autore e' uno, si tace quando
+		// sono due.**
+		//
+		// 🔑 **Non e' una regola inventata qui: e' la trascrizione del precedente della SPINTA.** Con un
+		// autore la voce scrive `Cause->ActionId`; con due, `AppendDisplacementResistedEntry(...,
+		// OpposingForces, nullptr)` e' l'unico dei suoi siti che passa `nullptr` invece della mappa delle
+		// cause — *«quando le cause sono due la voce non ne nomina nessuna»*.
+		//
+		// 🔴 **E chiude un'asimmetria**: ogni ALTRO esito della copertura nomina gia' l'azione —
+		// `CoverRejected`, `CoverCreated`, `CoverMoved`, e perfino `CoverExpired`, che scrive
+		// `Action.CreateCover` pur non avendo un autore. Solo il percorso di **successo** era anonimo. E'
+		// la stessa asimmetria che [D-197] ha dichiarato difetto e chiuso sull'arco.
+		//
+		// ⚠️ **`NAME_None` acquista un significato**, e va saputo da chi legge: non piu' *«nessuno l'ha
+		// fatto»* ma *«piu' di uno l'ha fatto»*. ∴ su `StructureHit` **e'** un confine d'atto, e
+		// `URTPlaybackLibrary::NextActionBoundary` lo dichiara.
+		//
+		// ⛔ **Il difetto che questa regola accetta, dichiarato**: da qui in poi un produttore che
+		// dimentica di popolare l'identita' non perde un confine — ne **inventa** uno. Un `Next Action` che
+		// si ferma su un atto inesistente e' meno leggibile di uno che ne salta uno: e' il prezzo di mettere
+		// il significato nel dato, ed e' il motivo per cui
+		// `Playback.SingleActionStructureHitNamesItsAction` non e' un gate opzionale.
+		//
+		// ⚠️ **Gli indici sono TUTTI quelli che hanno contribuito, e la stessa azione da due intenti resta
+		// UNA risposta**: due unita' che usano entrambe `Action.BasicAttack` sullo stesso bordo la nominano.
+		// ⛔ Non e' un rappresentante scelto: e' l'unanimita', e quando manca si tace.
+		//
+		// 🔑 Stessa forma del rifiuto di posa qualche riga piu' su (`Refusal.IntentIndex` ->
+		// `IntentDefs[...]`): `IntentDefs` e' l'unica fonte dell'identita', qui come li'.
+		{
+			const TArray<int32>& Autori = Change.IntentIndices;
+			bool bUnanime = Autori.Num() > 0 && IntentDefs.IsValidIndex(Autori[0]);
+			for (int32 k = 1; bUnanime && k < Autori.Num(); ++k)
+			{
+				// ⛔ Un indice che non risolve non e' una risposta: si tace, non si indovina.
+				bUnanime = IntentDefs.IsValidIndex(Autori[k])
+					&& IntentDefs[Autori[k]].ActionId == IntentDefs[Autori[0]].ActionId;
+			}
+			if (bUnanime)
+			{
+				Entry.ActionId = IntentDefs[Autori[0]].ActionId;
+				Entry.BaseActionId = IntentDefs[Autori[0]].BaseActionId;
+				Entry.Priority = IntentDefs[Autori[0]].Priority;
+			}
+		}
 		// L'attaccante arriva col risultato: `FRTStructureHit` lo dichiarava gia' — «serve al TurnLog, non al
 		// calcolo» — e ora `FRTCoverDamageResult` lo propaga. Resta un indice fino a qui, quindi lo strato di
 		// mappa non ha mai visto un Actor.
@@ -1902,7 +2010,16 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 			FRTTurnLogEntry Entry;
 			Entry.Phase = ERTMatchPhase::Blast;
 			Entry.Category = ERTLogCategory::Environment;
-			Entry.Outcome = static_cast<uint8>(Change.bBroken
+			// 🔴 **Lo STATO decide l'esito, non `bBroken`** (`#3280`, [D-437]). `MakeChange` pone
+			// `bBroken = Edge.State != Active` e `DamageArc` salta solo i `Destroyed`: ∴ un arco **spento**
+			// che incassa senza cadere ha `bBroken == true`, e questa riga scriveva `BridgeDestroyed` per un
+			// ponte ancora in piedi. ⚠️ Oggi il caso e' irraggiungibile in partita — nessun chiamante di
+			// produzione di `SetArcState` — ma da qui deriva ora un evento di playback, e la bugia sarebbe
+			// arrivata a schermo il giorno in cui qualcuno chiama `SetArcState(Inactive)`.
+			// ⛔ Non e' la regola di raccolta del danno, che resta il non-goal di `#3280`: e' la
+			// classificazione dell'esito, e cambia **solo** il caso che prima mentiva
+			// (`Structures.Bridge.InactiveArcDamagedIsNotDestroyed`).
+			Entry.Outcome = static_cast<uint8>(Change.State == ERTHexArcState::Destroyed
 				? ERTEnvironmentOutcome::BridgeDestroyed : ERTEnvironmentOutcome::BridgeDamaged);
 			Entry.SrcCell = Change.From;
 			Entry.TgtCell = Change.To;
@@ -2103,6 +2220,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	TMap<ARTUnit*, int32>& PullCount = Ctx.PullCount;
 	TMap<ARTUnit*, FRTDisplacementCause>& PushCause = Ctx.PushCause;
 	TMap<ARTUnit*, FRTDisplacementCause>& PullCause = Ctx.PullCause;
+
+	// `#3261`: chi ha il diritto di vedere queste spinte disegnate. Costruiti **una volta per passata** e
+	// **prima** di muovere chiunque, come per Dash e Move: le celle da cui si guarda sono quelle di inizio
+	// fase ([D-223]). ⛔ Rifarlo per unita' renderebbe quadratico un blocco che gira a ogni Blast.
+	const TArray<RTTurnManagerInternal::FRTRouteObserverTeam> PushObserverTeams =
+		RTTurnManagerInternal::BuildRouteObserverTeams(Units);
 
 	// LA CADUTA ([D-319], `#2253`): chi subisce uno spostamento forzato mentre e' `Unbalanced` finisce
 	// `Prone`, e `Unbalanced` si consuma.
@@ -2515,7 +2638,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				{
 					if (BlastAliveUnits.Num() == 0)
 					{
-						MakeCurrentSnapshot(BlastAliveUnits);
+						MakeCurrentSnapshot(BlastAliveUnits, RTObserver::Omniscient);
 					}
 					BraceOpportunity.Key.OwnerId = BlastAliveUnits.IndexOfByKey(T);
 				}
@@ -2762,7 +2885,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					if (Ciglio != nullptr && *Ciglio != Conteso->Cell && !CellaOccupata(*Ciglio))
 					{
 						ApplyForcedDisplacement(Conteso, *Ciglio, KnockFrom[Conteso], PushCause, TEXT("Caduta"),
-							Map, ERTMatchPhase::Blast, *EsitoConteso);
+							Map, PushObserverTeams, ERTMatchPhase::Blast, *EsitoConteso);
 					}
 					ApplyFallEffects(Conteso, /*bMarchia=*/ true, ERTMatchPhase::Blast);
 					if (Ciglio != nullptr) { ImpattoSuPrimario(Conteso, *EsitoConteso, *Ciglio); }
@@ -2777,7 +2900,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
 				bCaduto ? TEXT("Caduta") : (bScartato ? TEXT("Scarto") : TEXT("Spinta")),
-				Map, ERTMatchPhase::Blast, Esito);
+				Map, PushObserverTeams, ERTMatchPhase::Blast, Esito);
 
 			// #2430: gli effetti DOPO lo spostamento, cosi' la voce nomina la cella dove l'unita' e' finita
 			// e non quella da cui e' partita.
@@ -2900,7 +3023,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					if (CiglioC != nullptr && *CiglioC != ContesoP->Cell && !CellaOccupata(*CiglioC))
 					{
 						ApplyForcedDisplacement(ContesoP, *CiglioC, PullToward[ContesoP], PullCause,
-							TEXT("Caduta"), Map, ERTMatchPhase::Blast, *EsitoP);
+							TEXT("Caduta"), Map, PushObserverTeams, ERTMatchPhase::Blast, *EsitoP);
 					}
 					ApplyFallEffects(ContesoP, /*bMarchia=*/ true, ERTMatchPhase::Blast);
 					if (CiglioC != nullptr) { ImpattoSuPrimario(ContesoP, *EsitoP, *CiglioC); }
@@ -2913,7 +3036,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			const ERTMoveOutcome Esito = Trovato != nullptr ? *Trovato : ERTMoveOutcome::Displaced;
 			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause,
-				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, ERTMatchPhase::Blast, Esito);
+				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, PushObserverTeams, ERTMatchPhase::Blast, Esito);
 
 			// #2430: `spec` §3 dice **spostamento forzato**, non «spinta» — una caduta da trazione applica
 			// gli stessi effetti. E' la stessa ragione per cui `PullOverOpenLedgeStartsFall` esiste.

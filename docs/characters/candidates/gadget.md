@@ -107,5 +107,5 @@ Promuovere questo personaggio richiede aggiornamento coordinato di Character Dat
 ## Fonti
 
 - `RefactorTactics_Character_Master_Matrix.md`
-- `docs/src/data/characters-wiki-data-v0.4.xlsx`
+- [`RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`](../data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx)
 - Epic Games — Paragon asset release pages

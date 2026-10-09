@@ -22,6 +22,7 @@
 #include "Ability/RTHeroData.h"
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
+#include "RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -67,6 +68,38 @@ namespace
 		Attaccante->PlannedAbilityIndex = 0;
 		Attaccante->PlannedAttackTarget = Bersaglio;
 		Attaccante->PlannedCell = FRTCellId(2, 3);
+		return TM;
+	}
+
+	/**
+	 * Il turno di prova a DUE atti (`#2454`): Branth colpisce Ivrin, poi Aevik spara su una cella VUOTA.
+	 *
+	 * 🔑 **Esiste per far cadere una fermata `Next Action` nello stesso tick dell'ARRIVO di un colpo.** Con la
+	 * sequenza per intento (#3549) ogni atto si apre con la sua attivazione: il colpo di Branth segue attivazione e
+	 * impronta del proprio atto, quindi il suo arrivo non e' mai un confine. Il confine dopo l'arrivo e'
+	 * l'attivazione dell'atto di Aevik, che esce dopo l'arrivo: un tick lungo che li copra entrambi arriva il
+	 * colpo e si ferma sull'atto dopo, ed e' li' che la consegna del tracer all'uscita della fermata si misura.
+	 * ⚠️ L'ordine degli intenti segue il roster `(cella, id, nome)`: Branth (X = 2) sta a sinistra di Aevik (X = 6).
+	 * Il test che lo usa lo verifica come premessa invece di darlo per scontato.
+	 * ⏱️ *La stesura di `#2454` metteva Aevik per primo: la fermata cadeva sull'ARRIVO di Branth, perche' prima di
+	 * #3549 un colpo dopo l'impronta di un altro atto apriva l'atto proprio.*
+	 */
+	ARTTurnManager* SetUpTwoActTurn(UWorld* World)
+	{
+		SpawnStopPredicateMap(World);
+		ARTUnit* Aevik    = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(6, -2));
+		ARTUnit* Branth   = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Bersaglio = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Aevik || !Branth || !Bersaglio) { return nullptr; }
+
+		Aevik->PlannedAbilityIndex = 0;
+		Aevik->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
+		Aevik->PlannedCell = Aevik->Cell;
+		Branth->PlannedAbilityIndex = 0;
+		Branth->PlannedAttackTarget = Bersaglio;
+		Branth->PlannedCell = Branth->Cell;
+		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}
 
@@ -244,9 +277,9 @@ bool FRTPlaybackPredicateDoesNotSurviveTheTurnTest::RunTest(const FString&)
  * issue lo consuma).
  *
  * ⚠️ Su un turno con un solo atto il confine di azione coincide con quello di fase, e la fermata avviene
- * comunque: il test asserisce che ci si fermi **prima della fine**, non su quale dei due sia scattato.
- * Distinguerli richiederebbe un turno con due azioni diverse nello stesso `Blast`, che il corpus di questo
- * file non costruisce — ed e' dichiarato invece di essere simulato.
+ * comunque: la prima parte del test asserisce che ci si fermi **prima della fine**, non su quale dei due
+ * sia scattato. Distinguerli richiede un turno con due azioni diverse nello stesso `Blast`, e lo costruisce
+ * `SetUpTwoActTurn`: lo usa il blocco in coda, per la fermata che cade nel tick di un ARRIVO.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionStopsBeforeTheEndTest,
 	"RefactorTactics.Playback.NextActionStopsAtTheActionBoundary",
@@ -274,6 +307,76 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 	TestTrue(TEXT("ed e' fermo"), TM->IsPlaybackPaused());
 	TestEqual(TEXT("il predicato si e' consumato"),
 		static_cast<int32>(TM->GetArmedPlaybackStop()), static_cast<int32>(ERTPlaybackStopAt::None));
+
+	// `#2454`: la fermata dopo un ARRIVO non lascia il tracer a mezz'aria accanto al suo numero.
+	//
+	// 🔴 **Non su questo turno, e la ragione e' misurata.** Con UN atto solo la prima fermata cade
+	// sull'attivazione — che apre l'atto e precede impronta e colpo (#3549) — e da li' nessun `Next Action` cade
+	// piu' dopo un arrivo: il colpo e' dello stesso atto, quindi non e' un confine, e la fermata successiva e' il
+	// cambio di fase, dove `EnterPlaybackPhase` azzera anche la traccia dei battiti.
+	//
+	// 🔑 **Con la sequenza per intento l'arrivo di un colpo non e' mai il confine del proprio atto**: lo apre la
+	// sua attivazione. La fermata «dopo l'arrivo» cade allora sull'atto SEGUENTE, e un tick lungo che copra
+	// arrivo e confine e' l'unico in cui la consegna del tracer all'uscita della fermata fa differenza: con tick
+	// corti l'arrivo ha gia' svuotato il canale qualche tick prima. ⏱️ *La stesura di `#2454` cercava la fermata
+	// sull'ARRIVO stesso, a tick corti: prima di #3549 era un confine.* Il turno e' `SetUpTwoActTurn`.
+	{
+		UWorld* World2 = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova a due atti"), World2)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World2); };
+
+		ARTTurnManager* TM2 = SetUpTwoActTurn(World2);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World2);
+		if (!TestTrue(TEXT("turno e mappa a due atti"), TM2 != nullptr && Mappa != nullptr)) { return false; }
+
+		TM2->SetPlaybackControlsEnabled(true);
+		TM2->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ il turno a due atti sta riproducendo qualcosa"), TM2->IsResolving())) { return false; }
+
+		// ⛔ ANTI-VACUITA': nella sequenza il colpo deve essere SEGUITO da un elemento di un altro atto. Se fosse
+		// l'ultimo — Aevik non dopo Branth, o il suo intento non entrato nel Blast — nessun confine cadrebbe dopo
+		// l'arrivo e la fermata qui sotto non esisterebbe.
+		const TArray<FRTResolvedEvent>& Timeline = TM2->ResolvedTimelineForTest();
+		const TArray<int32> Sequenza = TM2->PlaybackBlastSequenceIndicesForTest();
+		int32 PosColpo = INDEX_NONE;
+		for (int32 K = 0; K < Sequenza.Num(); ++K)
+		{
+			if (Timeline[Sequenza[K]].Type == ERTResolvedEventType::Attack) { PosColpo = K; break; }
+		}
+		if (!TestTrue(TEXT("premessa: nella sequenza il colpo e' seguito da un elemento di un altro atto"),
+			PosColpo != INDEX_NONE && Sequenza.IsValidIndex(PosColpo + 1)
+			&& Timeline[Sequenza[PosColpo + 1]].SourceStableUnitId != Timeline[Sequenza[PosColpo]].SourceStableUnitId))
+		{
+			return false;
+		}
+
+		// Tick corti, senza predicato, finche' il colpo e' IN VOLO: lanciato, non arrivato, disegnato.
+		for (int32 I = 0; I < 400 && TM2->IsResolving()
+			&& !(TM2->AttackBeatTraceForTest().Contains(TEXT("L0")) && !TM2->AttackBeatTraceForTest().Contains(TEXT("A0"))); ++I)
+		{
+			TM2->Tick(0.05f);
+		}
+		if (!TestTrue(TEXT("premessa: il colpo e' in volo e la mappa lo disegna"),
+			TM2->IsResolving() && !TM2->AttackBeatTraceForTest().Contains(TEXT("A0")) && Mappa->NumPlaybackTracers() == 1))
+		{
+			return false;
+		}
+
+		// Un tick LUNGO — uno slot intero, `AttackShowSeconds` — copre l'arrivo (mezzo slot al piu' dopo il lancio)
+		// e la rivelazione dell'elemento dopo, che apre l'atto di Aevik ed e' il confine.
+		TM2->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		TM2->Tick(TM2->AttackShowSeconds);
+		if (TM2->IsPlaybackPaused() && TM2->AttackBeatTraceForTest().Contains(TEXT("A0")))
+		{
+			// 🔴 **La mutazione dichiarata**: la consegna dopo il ciclo dei battiti salta il `return` della
+			// fermata, e il tracer resta disegnato dov'era il tick prima — in volo, accanto al suo numero.
+			TestEqual(TEXT("fermo dopo l'arrivo: nessun tracer in volo"), Mappa->NumPlaybackTracers(), 0);
+		}
+		else
+		{
+			AddError(TEXT("premessa: il playback non si e' fermato sull'atto dopo l'arrivo del colpo"));
+		}
+	}
 
 	return true;
 }
@@ -346,6 +449,741 @@ bool FRTPlaybackPredicateDoesNotChangeTheTurnLogTest::RunTest(const FString&)
 		// insensibile alla posizione lascerebbe passare una permutazione.
 		TestEqual(*FString::Printf(TEXT("voce %d identica"), I), ConPredicato[I], SenzaPredicato[I]);
 	}
+
+	return true;
+}
+
+// =========================================================================================================
+// `#3292` — i CANALI del confine d'atto: `Next Action` si fermava solo sui colpi.
+//
+// 🔴 Il difetto aveva tre facce, e tutte e tre vivevano nello stesso tick: due canali non arrivavano al
+// predicato, la regola era scritta due volte (di cui una morta), e l'atto in corso si leggeva da un canale
+// solo.
+// =========================================================================================================
+
+namespace
+{
+	/**
+	 * Un turno in cui **nessun `Attack` esiste**: un muro ALTO incassa, e il colpo non raggiunge nessuno.
+	 *
+	 * 🔑 **E' il caso che discrimina le due cause di `#3281`.** Con un colpo in scena, un `Next Action` che
+	 * si ferma non direbbe **su cosa** si e' fermato: qui di `Attack` non ce n'e' nemmeno uno, quindi una
+	 * fermata puo' essere venuta solo da un altro canale.
+	 *
+	 * Il muro alto sul bordo W di `(1,0)` toglie la linea di tiro (`LineOfSightPolicy::Required`), quindi
+	 * l'intento finisce in `BlockedIntents` — ma il danno alla struttura si raccoglie **prima** di quel
+	 * controllo, e la barriera incassa lo stesso. E' la stessa scena di `Cover.Destruction.LoggedInPlayedTurn`.
+	 */
+	ARTTurnManager* SetUpWallOnlyTurn(UWorld* World)
+	{
+		URTHexMapAsset* Mappa = SpawnStopPredicateMap(World);
+		if (!Mappa) { return nullptr; }
+
+		const FRTCellId Muraglia(1, 0);
+		const FRTHexCellData* Esistente = Mappa->FindCell(Muraglia);
+		if (!Esistente) { return nullptr; }
+		FRTHexCellData ColMuro = *Esistente;
+		ColMuro.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+		Mappa->AddOrUpdateCell(ColMuro);
+		Mappa->SortCells();
+
+		ARTUnit* Sfondatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Dietro     = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Sfondatore || !Dietro) { return nullptr; }
+		if (!Sfondatore->Abilities.IsValidIndex(0) || !Sfondatore->Abilities[0]) { return nullptr; }
+
+		// La capacita' di sfondare si dichiara sull'istanza: e' l'idioma di tutti gli scenari di struttura.
+		Sfondatore->Abilities[0]->Def.Effects.Add(
+			FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
+		Sfondatore->PlannedAbilityIndex = 0;
+		Sfondatore->PlannedAttackTarget = Dietro;
+		return TM;
+	}
+
+	/**
+	 * Un turno in cui l'unico atto e' un'AREA su sole celle VUOTE: zero `Attack`, un'impronta.
+	 *
+	 * 🔑 **E' il caso per cui [D-301] ha creato `AttackFootprint`** — *«il "dopo" perde il caso che
+	 * conta»* — e l'unico che esercita il canale dell'impronta **da solo**. Con un colpo in scena una
+	 * fermata non direbbe da quale canale e' venuta; qui di colpi non ce n'e' nemmeno uno.
+	 *
+	 * ⚠️ **`Hero.Aevik.Overload` e' un'azione di CATALOGO ad area** (raggio 1, portata 3): la forma non e'
+	 * riscritta a mano sull'istanza, quindi il test non misura come il resolver tratta una forma che
+	 * nessuna azione dichiara.
+	 */
+	ARTTurnManager* SetUpEmptyAreaTurn(UWorld* World)
+	{
+		SpawnStopPredicateMap(World);
+		ARTUnit* Lanciatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(2, 2));
+		// ⚠️ Il secondo c'e' per non lasciare il turno senza avversari, ma sta LONTANO dall'area: se fosse
+		// dentro, un `Attack` nascerebbe e il caso non sarebbe piu' quello delle celle vuote.
+		ARTUnit* Lontano = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(9, 9));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Lanciatore || !Lontano) { return nullptr; }
+
+		// L'indice 3 di Aevik e' `Overload` (area, raggio 1). Si cerca per identita' invece che per indice:
+		// un catalogo riordinato renderebbe il test verde su un'azione diversa.
+		int32 Indice = INDEX_NONE;
+		for (int32 I = 0; I < Lanciatore->Abilities.Num(); ++I)
+		{
+			if (Lanciatore->Abilities[I] && Lanciatore->Abilities[I]->Shape == ERTAbilityShape::Area)
+			{
+				Indice = I;
+				break;
+			}
+		}
+		if (Indice == INDEX_NONE) { return nullptr; }
+
+		Lanciatore->PlannedAbilityIndex = Indice;
+		Lanciatore->DeclareAttackOnCell(FRTCellId(4, 2)); // a portata, e intorno non c'e' nessuno
+		Lanciatore->PlannedCell = FRTCellId(2, 2);
+		return TM;
+	}
+
+	/** Quanti eventi di un tipo ci sono nella timeline riprodotta. */
+	int32 CountStopPredicateEvents(const ARTTurnManager* TM, ERTResolvedEventType Type)
+	{
+		int32 N = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == Type) { ++N; }
+		}
+		return N;
+	}
+}
+
+/**
+ * `Next Action` si ferma su un atto che **non ha prodotto nessun `Attack`** — `#3292`.
+ *
+ * 🔴 **E' il difetto per intero, e non dipendeva dall'identita' dell'azione.**
+ * `URTPlaybackLibrary::NextActionBoundary` — la funzione che *dichiara* il confine — non aveva un solo
+ * chiamante non di test: il `Next Action` che il giocatore preme viveva **dentro il ciclo che rivela i
+ * colpi**, e gli altri due canali del `Blast` — impronte e colpi a struttura — erano rivelati da funzioni
+ * proprie, poche righe sopra e nello stesso tick, che non valutavano alcun predicato.
+ *
+ * ⚠️ **L'impronta lo dimostrava senza bisogno di nessuna decisione**: porta gia' un `ActionId` popolato
+ * (`#2857`) e `Next Action` non ci si fermava lo stesso. ∴ non era l'identita' a mancare, era il canale a
+ * non arrivare.
+ *
+ * 🔑 **Il caso non e' raro: e' quello che gli eventi esistono per rendere visibile.** Un muro che cade
+ * senza vittime da' zero `Attack` e un `StructureHit`; un'area su sole celle vuote da' zero `Attack` e
+ * un'impronta — il caso per cui [D-301] ha creato quell'evento. Entrambi sono a schermo: la fase li mostra,
+ * li scagliona, riserva loro il tempo. `Next Action` li attraversava senza vederli.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionStopsOnAnActWithoutAttacksTest,
+	"RefactorTactics.Playback.NextActionStopsOnAnActWithoutAttacks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackNextActionStopsOnAnActWithoutAttacksTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTTurnManager* TM = SetUpWallOnlyTurn(World);
+	if (!TestNotNull(TEXT("turno di prova"), TM)) { return false; }
+
+	TM->SetPlaybackControlsEnabled(true);
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ il turno sta riproducendo qualcosa"), TM->IsResolving())) { return false; }
+
+	// --- ⛔ LE PREMESSE, e sono ciò che rende il gate discriminante -----------------------------------
+	//
+	// Senza la prima, una fermata potrebbe venire da un colpo e il test misurerebbe il canale che
+	// funzionava gia'. Senza la seconda, non ci sarebbe niente su cui fermarsi e il gate sarebbe verde per
+	// assenza.
+	if (!TestEqual(TEXT("⛔ premessa: NESSUN Attack in tutto il turno"),
+		CountStopPredicateEvents(TM, ERTResolvedEventType::Attack), 0))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("⛔ premessa: ma un colpo a struttura c'e'"),
+		CountStopPredicateEvents(TM, ERTResolvedEventType::StructureHit) > 0))
+	{
+		return false;
+	}
+
+	TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+	AdvanceUntilPausedOrDone(TM);
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestTrue(TEXT("🔴 il playback si e' FERMATO su un atto che non ha prodotto nessun colpo"),
+		TM->IsPlaybackPaused());
+	TestTrue(TEXT("e non e' semplicemente arrivato in fondo"), TM->IsResolving());
+	// ⛔ **NEL Blast, non al confine di fase.** `#2855` dichiara che un `Next Action` armato si ferma anche
+	// al cambio di fase — *«un cambio di fase e' sempre anche un cambio d'atto»* — quindi senza questa riga
+	// il gate sarebbe verde anche con il canale del muro ancora invisibile.
+	TestEqual(TEXT("⛔ e si e' fermato NEL Blast: e' il muro, non il confine di fase"),
+		TM->GetPlaybackPhaseName(), FString(TEXT("Blast")));
+	TestEqual(TEXT("il predicato si e' consumato: la fermata e' sua"),
+		static_cast<int32>(TM->GetArmedPlaybackStop()), static_cast<int32>(ERTPlaybackStopAt::None));
+
+	return true;
+}
+
+/**
+ * E si ferma anche quando l'unico canale e' l'**IMPRONTA** — `#3292`.
+ *
+ * 🔴 **E' il caso che dimostra il difetto senza bisogno di nessuna decisione.** `AttackFootprint` porta
+ * gia' un `ActionId` popolato (`#2857`), e `Next Action` **non ci si fermava lo stesso**: ∴ non era
+ * l'identita' a mancare — quella e' la causa di `#3281` — era il canale a non arrivare al predicato.
+ *
+ * 🔑 **Un'area su sole celle vuote non produce nessun `Attack`**, ed e' precisamente il caso per cui
+ * [D-301] ha creato questo evento: *«il "dopo" perde il caso che conta»*. La fase lo mostra, lo scagliona
+ * e gli riserva il tempo; `Next Action` lo attraversava senza vederlo.
+ *
+ * ⚠️ **E il gemello sul muro non lo copre**: li' il canale e' `StructureHit`. Due canali, due gate — o una
+ * mutazione che spegne l'impronta resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionStopsOnAFootprintOnlyActTest,
+	"RefactorTactics.Playback.NextActionStopsOnAFootprintOnlyAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackNextActionStopsOnAFootprintOnlyActTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTTurnManager* TM = SetUpEmptyAreaTurn(World);
+	if (!TestNotNull(TEXT("turno di prova"), TM)) { return false; }
+
+	TM->SetPlaybackControlsEnabled(true);
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ il turno sta riproducendo qualcosa"), TM->IsResolving())) { return false; }
+
+	// --- ⛔ LE PREMESSE: un'impronta, e NESSUN colpo -------------------------------------------------
+	if (!TestEqual(TEXT("⛔ premessa: nessun Attack — l'area ha investito solo celle vuote"),
+		CountStopPredicateEvents(TM, ERTResolvedEventType::Attack), 0))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("⛔ premessa: ma un'impronta c'e'"),
+		CountStopPredicateEvents(TM, ERTResolvedEventType::AttackFootprint) > 0))
+	{
+		return false;
+	}
+	// ⛔ E nemmeno un colpo a struttura: senza questa riga la fermata potrebbe venire dal canale del
+	// gemello, e il gate misurerebbe due volte la stessa cosa.
+	if (!TestEqual(TEXT("⛔ premessa: e nessun colpo a struttura: il canale e' l'impronta e basta"),
+		CountStopPredicateEvents(TM, ERTResolvedEventType::StructureHit), 0))
+	{
+		return false;
+	}
+
+	TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+	AdvanceUntilPausedOrDone(TM);
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestTrue(TEXT("🔴 il playback si e' FERMATO sull'impronta"), TM->IsPlaybackPaused());
+	TestTrue(TEXT("e non e' arrivato in fondo"), TM->IsResolving());
+	TestEqual(TEXT("⛔ e si e' fermato NEL Blast, non al confine di fase"),
+		TM->GetPlaybackPhaseName(), FString(TEXT("Blast")));
+	TestEqual(TEXT("il predicato si e' consumato: la fermata e' sua"),
+		static_cast<int32>(TM->GetArmedPlaybackStop()), static_cast<int32>(ERTPlaybackStopAt::None));
+
+	return true;
+}
+
+/**
+ * E **non** si ferma due volte dentro lo stesso intento — `#3292`.
+ *
+ * 🔑 **E' la meta' che il primo gate non copre, e senza di essa la correzione sarebbe peggio del difetto.**
+ * Un intento aggressivo produce un'**attivazione**, un'**impronta** e i **colpi** che ne derivano: piu' fatti,
+ * un atto solo. Far passare ogni fatto dal predicato senza la regola giusta avrebbe fermato `Next Action` due
+ * volte dentro un colpo solo — cioe' il difetto che `AttackFootprint` documenta gia' (*«una voce per INTENTO,
+ * non per vittima»*). ⏱️ *Fino a #3549 erano canali paralleli del Blast; ora sono elementi di una sequenza.*
+ *
+ * ✅ Non succede, e la ragione sta nel criterio: attivazione, impronta e colpi nascono dallo stesso intento,
+ * quindi portano la **stessa** coppia `(sorgente, azione)`, e `IsActBoundary` legge *«piu' eventi con la stessa
+ * coppia sono UN atto»* (#3549). La premessa sulla sorgente comune e' asserita qui sotto, su un turno vero: le
+ * sorgenti le scrivono tre produttori diversi (l'impronta da `Units[AttackerId]`, il colpo da `Attacker`,
+ * l'attivazione dalla sorgente dell'intento), e una divergenza fermerebbe due volte.
+ *
+ * ⚠️ **E la terza faccia del difetto era proprio qui.** `RequestPlaybackStopAt` congelava l'atto in corso
+ * leggendo `PlaybackAttacks[AttacksShown - 1]` — i soli colpi: dopo una fermata sull'impronta il paragone
+ * tornava a un'azione **precedente**, e il colpo dello stesso intento sembrava aprire un atto nuovo. Il
+ * gate se ne accorge perche' ri-arma il predicato dopo ogni fermata, che e' il modo in cui il comando si
+ * usa davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionDoesNotStopTwiceWithinOneIntentTest,
+	"RefactorTactics.Playback.NextActionDoesNotStopTwiceWithinOneIntent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackNextActionDoesNotStopTwiceWithinOneIntentTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTTurnManager* TM = SetUpTwoPhaseTurn(World);
+	if (!TestNotNull(TEXT("turno di prova"), TM)) { return false; }
+
+	TM->SetPlaybackControlsEnabled(true);
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ il turno sta riproducendo qualcosa"), TM->IsResolving())) { return false; }
+
+	// --- ⛔ LE PREMESSE: un intento solo, e DUE canali che lo raccontano ------------------------------
+	//
+	// Senza la seconda riga il turno avrebbe un canale solo, e «non si ferma due volte» sarebbe vero per
+	// costruzione — il gate verde che non puo' diventare rosso.
+	const int32 Colpi = CountStopPredicateEvents(TM, ERTResolvedEventType::Attack);
+	const int32 Impronte = CountStopPredicateEvents(TM, ERTResolvedEventType::AttackFootprint);
+	if (!TestTrue(TEXT("⛔ premessa: c'e' almeno un colpo"), Colpi > 0)) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: e almeno un'impronta, cioe' DUE canali per lo stesso intento"),
+		Impronte > 0))
+	{
+		return false;
+	}
+
+	// Le identita' d'azione distinte fra colpi e impronte: e' il numero di ATTI che il Blast contiene.
+	TSet<FName> AzioniDistinte;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if ((Ev.Type == ERTResolvedEventType::Attack || Ev.Type == ERTResolvedEventType::AttackFootprint)
+			&& !Ev.ActionId.IsNone())
+		{
+			AzioniDistinte.Add(Ev.ActionId);
+		}
+	}
+	if (!TestEqual(TEXT("⛔ premessa: un atto solo in scena"), AzioniDistinte.Num(), 1)) { return false; }
+
+	// #3549: l'atto ora comincia con la sua ATTIVAZIONE, e resta un atto solo — attivazione, impronta e colpo
+	// portano la stessa coppia (sorgente, azione).
+	const bool bAttivazione = TM->ResolvedTimelineForTest().ContainsByPredicate([&AzioniDistinte](const FRTResolvedEvent& Ev)
+		{ return Ev.Type == ERTResolvedEventType::AbilityActivated && AzioniDistinte.Contains(Ev.ActionId); });
+	if (!TestTrue(TEXT("⛔ premessa: l'intento ha la sua attivazione"), bAttivazione)) { return false; }
+	// ⛔ E l'attivazione e' IN SEQUENZA per chi guarda: senza, la fermata attesa verrebbe da impronta e colpo
+	// soltanto, e la coppia dell'attivazione non sarebbe messa alla prova.
+	if (!TestTrue(TEXT("⛔ premessa: l'attivazione e' nella sequenza di Blast"), TM->PlaybackActivationsQueuedForTest() > 0))
+	{
+		return false;
+	}
+	// Le sorgenti dei tre produttori coincidono su questo turno: una sola sorgente fra i fatti dell'atto.
+	TSet<int32> SorgentiDellAtto;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if ((Ev.Type == ERTResolvedEventType::AbilityActivated || Ev.Type == ERTResolvedEventType::Attack
+				|| Ev.Type == ERTResolvedEventType::AttackFootprint)
+			&& Ev.Phase == ERTMatchPhase::Blast && AzioniDistinte.Contains(Ev.ActionId))
+		{
+			SorgentiDellAtto.Add(Ev.SourceStableUnitId);
+		}
+	}
+	TestEqual(TEXT("🔴 attivazione, impronta e colpo dell'intento portano la STESSA sorgente"), SorgentiDellAtto.Num(), 1);
+
+	// --- Si conta quante volte il playback si ferma, RI-ARMANDO ogni volta ---------------------------
+	//
+	// ⚠️ **Ri-armare e' il modo in cui il comando si usa davvero**, e senza di esso la terza faccia del
+	// difetto — l'atto in corso letto da un canale solo — non si manifesterebbe: si vede alla SECONDA
+	// pressione, non alla prima.
+	// ⚠️ **Si contano SOLO le fermate dentro il `Blast`, e la distinzione non è una comodità.** Un `Next
+	// Action` armato si ferma anche al confine di **fase**, ed è comportamento dichiarato e voluto di
+	// `#2855`: *«un cambio di fase è sempre anche un cambio d'atto — la fase `Move` contiene il solo
+	// `Action.Move`, e nessun atto attraversa due fasi»*. ⛔ Contare quella fermata qui misurerebbe una
+	// regola diversa da quella in esame, e il gate sarebbe rosso su un comportamento corretto — come è
+	// stato alla prima stesura, prima che la misura lo dicesse.
+	int32 FermateNelBlast = 0;
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		if (TM->IsPlaybackPaused())
+		{
+			if (TM->GetPlaybackPhaseName() == TEXT("Blast")) { ++FermateNelBlast; }
+			TM->ResumePlayback();
+			TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		}
+		else if (TM->GetArmedPlaybackStop() == ERTPlaybackStopAt::None)
+		{
+			TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		}
+		TM->Tick(0.05f);
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	//
+	// 🔴 Un atto, **una** fermata. Due significherebbero che impronta e colpo sono stati letti come due
+	// atti — il doppio conteggio che questa correzione deve escludere.
+	TestEqual(TEXT("🔴 un intento solo: dentro il Blast il playback si ferma UNA volta"),
+		FermateNelBlast, AzioniDistinte.Num());
+
+	// --- #3549: due cure CONSECUTIVE da due unita' diverse sono DUE atti --------------------------------
+	//
+	// 🔴 La stessa azione generica (`Action.Heal`) da due sorgenti: con il confine sul solo `ActionId` il
+	// playback si fermerebbe una volta, e `Next Action` salterebbe il secondo curatore.
+	// ✅ Validato per mutazione: `IsActBoundary` sul solo `ActionId` fa cadere questo asserto.
+	{
+		UWorld* World2 = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("secondo mondo"), World2)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World2); };
+		SpawnStopPredicateMap(World2);
+		ARTUnit* C1 = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0));
+		ARTUnit* Ferito = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 0));
+		ARTUnit* C2 = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+		ARTTurnManager* TM2 = World2->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM2 || !C1 || !Ferito || !C2) { return false; }
+		Ferito->Health = FMath::Max(1, Ferito->Health - 30);
+		for (ARTUnit* Curatore : { C1, C2 })
+		{
+			Curatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
+			Curatore->PlannedAttackTarget = Ferito;
+			Curatore->PlannedCell = Curatore->Cell;
+		}
+
+		TM2->SetPlaybackControlsEnabled(true);
+		TM2->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ premessa: il turno delle cure si riproduce"), TM2->IsResolving())) { return false; }
+		// ⛔ Premessa: le DUE attivazioni sono in sequenza per chi guarda, con lo stesso `ActionId` e sorgenti
+		// diverse — e' esattamente la coppia che il confine sul solo `ActionId` confonderebbe.
+		if (!TestEqual(TEXT("⛔ premessa: due attivazioni in coda"), TM2->PlaybackActivationsQueuedForTest(), 2))
+		{
+			return false;
+		}
+		{
+			TSet<FName> AzioniCure;
+			TSet<int32> SorgentiCure;
+			for (const FRTResolvedEvent& Ev : TM2->ResolvedTimelineForTest())
+			{
+				if (Ev.Type == ERTResolvedEventType::AbilityActivated)
+				{
+					AzioniCure.Add(Ev.ActionId);
+					SorgentiCure.Add(Ev.SourceStableUnitId);
+				}
+			}
+			if (!TestEqual(TEXT("⛔ premessa: le attivazioni portano lo STESSO ActionId"), AzioniCure.Num(), 1)
+				|| !TestEqual(TEXT("⛔ premessa: e due sorgenti diverse"), SorgentiCure.Num(), 2))
+			{
+				return false;
+			}
+		}
+
+		int32 FermateCure = 0;
+		for (int32 I = 0; I < 600 && TM2->IsResolving(); ++I)
+		{
+			if (TM2->IsPlaybackPaused())
+			{
+				if (TM2->GetPlaybackPhaseName() == TEXT("Blast")) { ++FermateCure; }
+				TM2->ResumePlayback();
+				TM2->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+			}
+			else if (TM2->GetArmedPlaybackStop() == ERTPlaybackStopAt::None)
+			{
+				TM2->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+			}
+			TM2->Tick(0.05f);
+		}
+		TestEqual(TEXT("🔴 due cure da due unita': DUE fermate"), FermateCure, 2);
+	}
+
+	return true;
+}
+
+/**
+ * L'attivazione e il MURO dello stesso intento sono UN atto — #3549, review del Task 6 (copertura dei siti).
+ *
+ * 🔑 Il muro prende la sorgente da un produttore suo (`Entry.UnitId` della voce del TurnLog, in
+ * `ARTTurnManager::AppendLogEntry`), l'attivazione dall'intento: due strade per lo stesso dato. Se divergessero, `Next Action` si
+ * fermerebbe due volte dentro un intento solo — e passa dal percorso REALE (`RequestPlaybackStopAt` →
+ * `TickPlayback`), non dalla libreria.
+ * ⛔ Premesse: l'attivazione e' nella sequenza di chi guarda, e attivazione e muro portano la stessa coppia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActivationAndWallAreOneActTest,
+	"RefactorTactics.Playback.ActivationAndWallOfOneIntentAreOneAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActivationAndWallAreOneActTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTTurnManager* TM = SetUpWallOnlyTurn(World);
+	if (!TestNotNull(TEXT("turno di prova"), TM)) { return false; }
+
+	TM->SetPlaybackControlsEnabled(true);
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ il turno sta riproducendo qualcosa"), TM->IsResolving())) { return false; }
+
+	const FRTResolvedEvent* Attivazione = TM->ResolvedTimelineForTest().FindByPredicate([](const FRTResolvedEvent& Ev)
+		{ return Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Blast; });
+	const FRTResolvedEvent* Muro = TM->ResolvedTimelineForTest().FindByPredicate([](const FRTResolvedEvent& Ev)
+		{ return Ev.Type == ERTResolvedEventType::StructureHit; });
+	if (!TestNotNull(TEXT("⛔ premessa: l'intento si e' attivato nel Blast"), Attivazione)
+		|| !TestNotNull(TEXT("⛔ premessa: e ha colpito il muro"), Muro))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("⛔ premessa: l'attivazione e' nella sequenza di chi guarda"), TM->PlaybackActivationsQueuedForTest() > 0))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 il muro porta la sorgente dell'attivazione"), Muro->SourceStableUnitId, Attivazione->SourceStableUnitId);
+	TestEqual(TEXT("🔴 e la sua azione"), Muro->ActionId, Attivazione->ActionId);
+
+	int32 FermateNelBlast = 0;
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		if (TM->IsPlaybackPaused())
+		{
+			if (TM->GetPlaybackPhaseName() == TEXT("Blast")) { ++FermateNelBlast; }
+			TM->ResumePlayback();
+			TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		}
+		else if (TM->GetArmedPlaybackStop() == ERTPlaybackStopAt::None)
+		{
+			TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		}
+		TM->Tick(0.05f);
+	}
+	TestEqual(TEXT("🔴 attivazione e muro di un intento: UNA fermata nel Blast"), FermateNelBlast, 1);
+	return true;
+}
+
+/**
+ * `Next Action` si ferma sulle attivazioni di Prep e di Dash — #3549, spec §2.4 (confini d'atto).
+ *
+ * 🔑 Prima di #3549 le due fasi non avevano un canale che passasse dal predicato: `Next Action` le attraversava
+ * fermandosi solo al cambio di fase. Ora i rami Prep e Dash aggiornano l'atto in corso come il Blast.
+ * 🔢 Le fermate attese: Prep e' la PRIMA fase (nessuna fermata d'ingresso) e ha un'attivazione → 1; nel Dash
+ * si entra con una fermata di cambio fase, poi l'attivazione → 2.
+ * ✅ Validato per mutazione: togliere `NotePlaybackActShown` da `RevealPlaybackActivations` porta le fermate a
+ * 0 in Prep e 1 nel Dash.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionStopsOnPrepAndDashTest,
+	"RefactorTactics.Playback.NextActionStopsOnPrepAndDashActivations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackNextActionStopsOnPrepAndDashTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnStopPredicateMap(World);
+
+	ARTUnit* Scudo      = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
+	ARTUnit* Caricatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Bersaglio  = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Scudo || !Caricatore || !Bersaglio) { return false; }
+
+	auto Indice = [](const ARTUnit* U, const TCHAR* Id)
+	{
+		for (int32 i = 0; i < U->NumAbilities(); ++i)
+		{
+			if (U->GetAbility(i) && U->GetAbility(i)->Def.ActionId == FName(Id)) { return i; }
+		}
+		return static_cast<int32>(INDEX_NONE);
+	};
+	Scudo->PlannedAbilityIndex = Indice(Scudo, TEXT("Hero.Muiren.TideGuard"));
+	Scudo->PlannedCell = Scudo->Cell;
+	Caricatore->PlannedDashAbility = Indice(Caricatore, TEXT("Hero.Branth.Ram"));
+	Caricatore->PlannedDashCell = Bersaglio->Cell;
+	Caricatore->PlannedCell = Caricatore->Cell;
+
+	// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, che e' quella delle due sorgenti. Il refresh
+	// e' la precondizione delle attivazioni di Prep e Dash (spec §2.5).
+	TM->RefreshTeamKnowledgeNow();
+	TM->SetPlaybackControlsEnabled(true);
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ il turno si riproduce"), TM->IsResolving())) { return false; }
+
+	int32 FermatePrep = 0, FermateDash = 0;
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		if (TM->IsPlaybackPaused())
+		{
+			if (TM->GetPlaybackPhaseName() == TEXT("Prep")) { ++FermatePrep; }
+			if (TM->GetPlaybackPhaseName() == TEXT("Dash")) { ++FermateDash; }
+			TM->ResumePlayback();
+			TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		}
+		else if (TM->GetArmedPlaybackStop() == ERTPlaybackStopAt::None)
+		{
+			TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		}
+		TM->Tick(0.05f);
+	}
+	TestEqual(TEXT("🔴 Prep: una fermata, sull'attivazione"), FermatePrep, 1);
+	TestEqual(TEXT("🔴 Dash: il cambio di fase e l'attivazione"), FermateDash, 2);
+	return true;
+}
+
+/**
+ * La rete di fine fase di Prep e Dash si ferma con la pausa, e le attivazioni in coda escono alla ripresa — review
+ * della PR #3561, spec §6.
+ *
+ * 🔴 **Il difetto**: `RevealPlaybackActivations` dice `true` quando un `Next Action` si ferma su un confine, ma la rete
+ * proseguiva al passaggio di fase, ed `EnterPlaybackPhase` azzera il contatore: le attivazioni rimaste si perdevano.
+ * 🔑 **La rete e' senza casi per aritmetica**, quindi il test la rende l'unica a rivelare con
+ * `bRevealActivationsOnlyAtPhaseEndForTest` — una fase «accorciata», il caso per cui la rete esiste. Tre attivazioni di
+ * Prep da tre unita': tre atti, quindi tre fermate dentro la Prep, e ogni sorgente suona il proprio cast una volta.
+ * ⛔ **Anti-vacuita'**: il controllo senza `Next Action` mostra che la rete, da sola, rivela tutte e tre.
+ * ✅ Validato per mutazione: togliere il `return` della rete fa cadere le fermate in Prep e il cast delle sorgenti
+ * dopo la prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseEndNetStopsWithThePauseTest,
+	"RefactorTactics.Playback.PhaseEndNetStopsWithThePause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseEndNetStopsWithThePauseTest::RunTest(const FString&)
+{
+	auto GiraLaPrep = [this](bool bNextAction, int32& OutFermatePrep, TArray<int32>& OutCast) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnStopPredicateMap(World);
+
+		ARTUnit* Scudo      = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
+		ARTUnit* Sentinella = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+		ARTUnit* Riparo     = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Scudo || !Sentinella || !Riparo) { return false; }
+
+		for (int32 i = 0; i < Scudo->NumAbilities(); ++i)
+		{
+			if (Scudo->GetAbility(i) && Scudo->GetAbility(i)->Def.ActionId == FName(TEXT("Hero.Muiren.TideGuard")))
+			{
+				Scudo->PlannedAbilityIndex = i;
+			}
+		}
+		Scudo->PlannedCell = Scudo->Cell;
+		Sentinella->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Sentinella, TEXT("Action.Overwatch"));
+		Sentinella->PlannedCell = Sentinella->Cell;
+		Riparo->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Riparo, TEXT("Action.Shield"));
+		Riparo->PlannedCell = Riparo->Cell;
+		if (!TestTrue(TEXT("premessa: Muiren ha TideGuard"), Scudo->PlannedAbilityIndex != INDEX_NONE)) { return false; }
+
+		// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, quella delle tre sorgenti; il refresh e' la
+		// precondizione delle attivazioni di Prep (spec §2.5).
+		TM->RefreshTeamKnowledgeNow();
+		TM->SetPlaybackControlsEnabled(true);
+		TM->bRevealActivationsOnlyAtPhaseEndForTest = true;
+		TM->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ il turno si riproduce"), TM->IsResolving())) { return false; }
+
+		int32 AttivazioniPrep = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Prep) { ++AttivazioniPrep; }
+		}
+		if (!TestEqual(TEXT("⛔ premessa: tre attivazioni di Prep"), AttivazioniPrep, 3)) { return false; }
+
+		OutFermatePrep = 0;
+		for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+		{
+			if (TM->IsPlaybackPaused())
+			{
+				if (TM->GetPlaybackPhaseName() == TEXT("Prep")) { ++OutFermatePrep; }
+				TM->ResumePlayback();
+				if (bNextAction) { TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction); }
+			}
+			else if (bNextAction && TM->GetArmedPlaybackStop() == ERTPlaybackStopAt::None)
+			{
+				TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+			}
+			TM->Tick(0.05f);
+		}
+		OutCast = { Scudo->CastCuesPlayedForTest(), Sentinella->CastCuesPlayedForTest(), Riparo->CastCuesPlayedForTest() };
+		return true;
+	};
+
+	int32 Fermate = 0;
+	TArray<int32> Cast;
+	if (!GiraLaPrep(/*bNextAction*/ false, Fermate, Cast)) { return false; }
+	TestEqual(TEXT("⛔ controllo: senza Next Action la rete, da sola, rivela tutte e tre"), Cast, TArray<int32>({ 1, 1, 1 }));
+	TestEqual(TEXT("e non si ferma"), Fermate, 0);
+
+	if (!GiraLaPrep(/*bNextAction*/ true, Fermate, Cast)) { return false; }
+	TestEqual(TEXT("🔴 con Next Action: tre atti, tre fermate dentro la Prep"), Fermate, 3);
+	TestEqual(TEXT("🔴 e ogni sorgente suona il proprio cast una volta: nessuna attivazione persa al cambio di fase"),
+		Cast, TArray<int32>({ 1, 1, 1 }));
+	return true;
+}
+
+/**
+ * La regola del confine d'atto ha **una sola** implementazione — `#3292`.
+ *
+ * 🔴 **Ne aveva due, e una non era eseguita.** `NextActionBoundary` la conteneva e non aveva un solo
+ * chiamante non di test; il ciclo dei colpi di `TickPlayback` la **riscriveva** inline, ed era l'unico
+ * sito che la valutasse davvero. Il commento accanto alla copia dichiarava *«la regola e' quella di
+ * `NextActionBoundary`, non una seconda»*: vero sull'intenzione, falso sul codice.
+ *
+ * ⚠️ **Questo gate non conta i chiamanti: misura che le due FORME diano la stessa risposta.** Un `grep`
+ * direbbe soltanto che qualcuno chiama qualcosa; qui si verifica che la vista-su-timeline
+ * (`NextActionBoundary`) e il predicato per-evento (`IsActBoundary`) — cioe' cio' che il playback valuta a
+ * ogni fatto rivelato — non possano divergere. Se qualcuno riscrivesse una delle due, questo diventa rosso.
+ *
+ * ⛔ **L'atto corrente lo calcola il test con la scansione all'indietro**, che e' logica di
+ * `NextActionBoundary` e non della regola: replicarla qui e' cio' che rende il confronto possibile senza
+ * chiedere alla funzione di raccontarsi da sola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActBoundaryRuleHasOneImplementationTest,
+	"RefactorTactics.Playback.ActBoundaryRuleHasOneImplementation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActBoundaryRuleHasOneImplementationTest::RunTest(const FString&)
+{
+	auto Evento = [](ERTResolvedEventType Type, const TCHAR* Azione, int32 Sorgente = 0)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Type = Type;
+		Ev.ActionId = (Azione != nullptr) ? FName(Azione) : NAME_None;
+		Ev.SourceStableUnitId = Sorgente;
+		return Ev;
+	};
+
+	// Una timeline che tocca tutti i rami: azione uguale, azione diversa, vuoto su un tipo ordinario, e
+	// vuoto su `StructureHit` — dove il vuoto **e'** un confine ([D-437]).
+	TArray<FRTResolvedEvent> Timeline;
+	Timeline.Add(Evento(ERTResolvedEventType::AttackFootprint, TEXT("Action.A")));
+	Timeline.Add(Evento(ERTResolvedEventType::Attack,          TEXT("Action.A"))); // stesso atto
+	Timeline.Add(Evento(ERTResolvedEventType::Defeated,        nullptr));          // vuoto ordinario
+	Timeline.Add(Evento(ERTResolvedEventType::StructureHit,    nullptr));          // vuoto = aggregato
+	Timeline.Add(Evento(ERTResolvedEventType::Attack,          TEXT("Action.B"))); // atto nuovo
+	Timeline.Add(Evento(ERTResolvedEventType::StructureHit,    TEXT("Action.B"))); // stesso atto
+	Timeline.Add(Evento(ERTResolvedEventType::ArcHit,          nullptr));          // vuoto: NON un confine
+	Timeline.Add(Evento(ERTResolvedEventType::AbilityActivated, TEXT("Action.Heal"), 1)); // atto nuovo
+	Timeline.Add(Evento(ERTResolvedEventType::AbilityActivated, TEXT("Action.Heal"), 2)); // #3549: altra sorgente = confine
+	Timeline.Add(Evento(ERTResolvedEventType::StructureHit,    TEXT("Action.Heal"), 0)); // sorgente 0: NON un confine
+	Timeline.Add(Evento(ERTResolvedEventType::Attack,          TEXT("Action.Heal"), 3)); // l'atto e' ancora di 2: confine
+
+	// ⛔ ANTI-VACUITA': i due rami devono essere entrambi esercitati, o il confronto sarebbe fra due
+	// risposte sempre uguali per costruzione.
+	int32 Confini = 0;
+	int32 NonConfini = 0;
+
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		// L'atto in corso a `i-1`, con la stessa scansione all'indietro di `NextActionBoundary`: l'azione dell'ultimo
+		// evento che ne ha una, la sorgente dell'ultimo con QUELLA azione e una sorgente `!= 0` (review della PR #3561).
+		FName Corrente = NAME_None;
+		int32 SorgenteCorrente = 0;
+		for (int32 k = i - 1; k >= 0; --k)
+		{
+			if (Timeline[k].ActionId.IsNone()) { continue; }
+			if (Corrente.IsNone()) { Corrente = Timeline[k].ActionId; }
+			else if (Timeline[k].ActionId != Corrente) { break; }
+			if (Timeline[k].SourceStableUnitId != 0)
+			{
+				SorgenteCorrente = Timeline[k].SourceStableUnitId;
+				break;
+			}
+		}
+
+		const bool bPredicato = URTPlaybackLibrary::IsActBoundary(Timeline[i], Corrente, SorgenteCorrente);
+		const bool bVista = (URTPlaybackLibrary::NextActionBoundary(Timeline, i - 1) == i);
+		if (bPredicato) { ++Confini; } else { ++NonConfini; }
+
+		TestEqual(*FString::Printf(
+			TEXT("🔴 evento %d: la vista-su-timeline e il predicato per-evento danno la STESSA risposta"), i),
+			bVista, bPredicato);
+	}
+
+	TestTrue(TEXT("⛔ anti-vacuita': almeno un confine e' stato esercitato"), Confini > 0);
+	TestTrue(TEXT("⛔ e almeno un NON-confine"), NonConfini > 0);
+
+	// I due casi che la regola distingue e che nessun altro test di questo file tocca.
+	TestTrue(TEXT("un `StructureHit` senza azione E' un confine ([D-437])"),
+		URTPlaybackLibrary::IsActBoundary(
+			Evento(ERTResolvedEventType::StructureHit, nullptr), FName(TEXT("Action.A"))));
+	TestFalse(TEXT("⛔ ma un `ArcHit` senza azione NO: la sua identita' non e' decisa (#3280)"),
+		URTPlaybackLibrary::IsActBoundary(
+			Evento(ERTResolvedEventType::ArcHit, nullptr), FName(TEXT("Action.A"))));
 
 	return true;
 }

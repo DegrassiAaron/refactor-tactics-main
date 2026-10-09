@@ -222,4 +222,26 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 Surcharge(ERTCellOccupancy Occupancy, const FRTOccupancyThresholds& Thresholds);
+
+	/**
+	 * IL PUNTO E' DENTRO IL POLIGONO? Ray casting classico; `Polygon` e' implicitamente chiuso.
+	 *
+	 * ⏱️ **Fu esposta per le regioni No-Walk, e quelle non la usano piu'** (`#1868`). La diagnosi che motivo'
+	 * l'esposizione era giusta e va riletta, perche' e' diventata la misura del difetto: *«due ray casting
+	 * divergerebbero sul confine, che e' l'unico posto dove un test di appartenenza puo' dare due risposte —
+	 * e un poligono agganciato al reticolo ha i vertici esattamente sui punti notevoli della cella, quindi
+	 * il confine e' il caso normale, non il raro»*.
+	 *
+	 * 🔴 **Ma UNA sola implementazione non bastava: il difetto non era la seconda copia, era questa.** Il
+	 * confronto qui sotto non e' simmetrico nello scambio dei due estremi del lato, quindi sul bordo
+	 * **invertire il verso dell'anello cambia la risposta** — e i centri di cella ci finiscono sopra per
+	 * costruzione. La copertura No-Walk passa ora da `URTGeometryGrammarLibrary::RingContainsPoint`, che
+	 * decide sul reticolo INTERO con una convenzione di bordo dichiarata.
+	 *
+	 * ⚠️ **Resta pubblica e resta usata da `ComputeMask`**, dove il poligono nasce da `ToPolyline` e i suoi
+	 * estremi non sono punti notevoli della cella: li' il bordo non e' il caso normale. Chi le porta un
+	 * poligono i cui vertici stanno sugli anchor si chieda prima se non voglia la versione intera.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool PointInPolygon(const FVector2D& P, const TArray<FVector2D>& Polygon);
 };

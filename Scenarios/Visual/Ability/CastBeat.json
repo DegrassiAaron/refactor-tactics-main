@@ -1,0 +1,29 @@
+{
+  "scenarioId": "Visual.Ability.CastBeat",
+  "tags": ["animation", "ability", "cast", "muiren", "branth"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Il momento del cast (#3549, spec 2026-10-07-momento-ability-activated-design.md). Muiren usa TideGuard, uno scudo di Prep SENZA colpo: prima di #3549 la Prep aveva solo il beat generico, ora la sorgente ha un beat proprio. Branth usa ImpactShot su Muiren: con il tracer di #2454 sono TRE momenti, nell'ordine: cast, lancio, impatto. In v0.1 cast e colpo suonano la stessa clip (D2): si distinguono per momento, non per forma. L'atteso su M1 e' la cella DOPO la spinta: ImpactShot porta Weapon.Impact, che spinge di una cella verso ovest.",
+
+  "units": [
+    { "id": "M1", "hero": "Hero.Muiren", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "M1", "ability": "Hero.Muiren.TideGuard" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "M1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "M1", "cell": [-2, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [ 1, 0, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

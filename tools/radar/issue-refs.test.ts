@@ -56,6 +56,37 @@ test('una riga che racconta la rimozione e storica, una che prescrive no', () =>
   assert.equal(isHistorical('`RT-FEAT-UI-ICON` in `docs/roadmap/feature-registry.yaml`. Lo stato vive li'), false);
 });
 
+test('non esiste a fine frase e storica quanto non esiste piu', () => {
+  // Il pattern chiedeva uno spazio obbligatorio dopo `esiste` — `/non esiste (piu|piu')?/` — quindi
+  // colpiva solo quando la frase CONTINUAVA. La grafia piu' naturale, con il punto subito dopo, non
+  // lo attivava, e due issue aperte sono finite nel referto per questo (#1941, #1993).
+  //
+  // ⚠️ Il test che sembrava coprirlo passava per ALTRE DUE ragioni: era in blockquote e portava
+  // `Rimisurato il`. Tolte quelle due, restava scoperto — ed e' il motivo per cui questo caso ha
+  // bisogno di una riga propria invece di fidarsi di quella.
+  assert.equal(isHistorical('`./scripts/rt-suite.ps1` non esiste.'), true);
+  assert.equal(isHistorical('il registro non esiste'), true);
+  assert.equal(isHistorical('`docs/src/` non esiste piu'), true);
+  // ⛔ E non si allarga a una parola che lo contiene: `esistesse` non e' `esiste`
+  assert.equal(isHistorical('- [ ] se `scripts/x.py` non esistesse andrebbe creato'), false);
+});
+
+test('un CONTROFATTUALE non e una prescrizione, e non va segnalato', () => {
+  // Una riga al condizionale passato descrive un percorso che NON si e preso: non chiede a nessuno
+  // di crearlo. #1993 ne portava una e finiva nel referto, dove la sua presenza diceva il falso
+  // (il referto afferma: "ogni riga qui sopra PRESCRIVE un percorso cancellato").
+  //
+  // ⚠️ Raggio misurato prima di allargare il predicato, su 34.872 righe di corpi di issue
+  // aperte: 42 righe contengono `avrebbe`, di cui 2 citano anche un percorso, e ZERO sono caselle
+  // di DoD. Il pattern non puo quindi silenziare un criterio di chiusura.
+  assert.equal(
+    isHistorical('lo spostamento avrebbe portato `W` sotto `Content/RT/Editor/Scenario/`'),
+    true,
+  );
+  // ⛔ e non si allarga al presente: cio che si prescrive resta segnalato
+  assert.equal(isHistorical('- [ ] sposta `W` sotto `Content/RT/Editor/Scenario/`'), false);
+});
+
 test('anche D-178 rende storica una riga, come D-181 e D-182', () => {
   // La forma corta — la decisione senza il verbo che la descrive — e' quella che il gate non
   // riconosceva: 4 righe di issue aperte la usano e la loro sola copertura era il blockquote.

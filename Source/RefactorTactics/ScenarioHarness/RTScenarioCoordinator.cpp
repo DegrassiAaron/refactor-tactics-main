@@ -9,7 +9,7 @@
 #include "ScenarioHarness/RTTestScenario.h"
 
 ERTScenarioStart FRTScenarioCoordinator::Start(UWorld* World, const FString& ScenarioId,
-	const FString& SourceLabel, float InTurnPauseSeconds)
+	const FString& SourceLabel, float InTurnPauseSeconds, const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses)
 {
 	if (ScenarioId.IsEmpty())
 	{
@@ -49,7 +49,7 @@ ERTScenarioStart FRTScenarioCoordinator::Start(UWorld* World, const FString& Sce
 	// vedeva muoversi erano turni fantasma — misurato in PIE, non supposto.
 	Session = MakeShared<FRTScenarioSession>();
 	Session->TurnPauseSeconds = InTurnPauseSeconds;
-	if (!Session->Start(World, Scenario))
+	if (!Session->Start(World, Scenario, HeroUnitClasses)) // #3586: in PIE i personaggi con la loro mesh
 	{
 		UE_LOG(LogRT, Error, TEXT("[RT-Test] %s -> ERROR: %s"),
 			*ScenarioId, *Session->GetResult().ErrorMessage);
@@ -94,6 +94,38 @@ void FRTScenarioCoordinator::Tick(float DeltaSeconds)
 				*A.Description, *A.Expected, *A.Actual);
 		}
 	}
+
+	// Ultima cosa, e dopo il referto: chi ascolta puo' chiedere un verdetto a chi guarda, e vuole poter
+	// nominare il file che il referto ha appena scritto.
+	//
+	// 🔴 **Si trasmette una COPIA, e non e' prudenza generica.** `Result` e' un riferimento a un membro
+	// della sessione, e il conduttore di seduta reagisce a questo delegate chiamando `TearDown()` — che
+	// rilascia la sessione e distrugge l'oggetto da cui quel riferimento pende. Con il riferimento, il
+	// primo ascoltatore che leggesse `Result` dopo aver smontato leggerebbe memoria liberata: un difetto
+	// che non si manifesta finche' l'unico ascoltatore legge tutto prima, cioe' fino al secondo.
+	const FRTTestResult Trasmesso = Result;
+	OnScenarioFinished.Broadcast(Trasmesso, ReportDir);
+}
+
+FString FRTScenarioCoordinator::SessionErrorMessage() const
+{
+	return Session.IsValid() ? Session->GetResult().ErrorMessage : FString();
+}
+
+void FRTScenarioCoordinator::TearDown()
+{
+	if (!Session.IsValid())
+	{
+		return;
+	}
+
+	Session->TearDown();
+
+	// 🔴 Il `Reset` non e' ridondante: la sbindatura del decisore avviene nel DISTRUTTORE della sessione
+	// — `TearDown()` da solo non basta, e il commento in testa a `RTScenarioSession.h` dice cosa succede
+	// a chi lo dimentica: il secondo scenario trova `IsBound()` vero e le sue `decisions` vengono
+	// ignorate in silenzio.
+	Session.Reset();
 }
 
 bool FRTScenarioCoordinator::IsRunning() const

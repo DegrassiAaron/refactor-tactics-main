@@ -79,6 +79,32 @@ public:
 	/** L'identita' dell'eroe filtrato. `false` senza filtro: non c'e' un eroe da descrivere. */
 	bool GetHeroReadout(FRTHeroLabEntry& OutHero) const;
 
+	/**
+	 * Perche' l'elenco visibile e' come e' -- e in particolare perche' e' **vuoto** (`#3461`).
+	 *
+	 * 🔑 **Esiste perche' `GetHeroReadout` risponde `false` a DUE domande diverse**: «nessun filtro» e
+	 * «un filtro che non matcha nessun eroe». Il pannello le rendeva con la stessa frase, e nel secondo
+	 * caso quella frase -- *«catalogo canonico intero»* -- era il **contrario** di cio' che accadeva:
+	 * `VisibleAbilities()` ha preso il ramo filtrato e ha reso un elenco vuoto.
+	 *
+	 * ⛔ **Sta qui e non nel widget** per la ragione in testa a questo file: Slate non lo misura nessuno.
+	 * La decisione e' del modello, la frase e' del pannello.
+	 */
+	enum class EFilterState : uint8
+	{
+		/** Nessun filtro: l'elenco e' il catalogo canonico intero. */
+		NoFilter,
+		/** Un filtro c'e', ma nessun eroe canonico ha quell'id. L'elenco e' vuoto PER QUESTO. */
+		UnknownHeroId,
+		/** L'eroe esiste e dichiara zero voci di kit proprie: l'elenco e' vuoto, e non e' un difetto. */
+		HeroWithEmptyKit,
+		/** L'eroe esiste e ha un kit: l'elenco lo mostra. */
+		HeroWithKit,
+	};
+
+	/** Lo stato del filtro. `OutHero` e' valorizzato solo negli ultimi due casi. */
+	EFilterState DescribeFilterState(FRTHeroLabEntry& OutHero) const;
+
 	// ── Selezione ───────────────────────────────────────────────────────────────────────────────────
 
 	/**
@@ -115,10 +141,58 @@ public:
 	 */
 	bool Run(UWorld* World, FString& OutError);
 
+	/**
+	 * Prepara la fixture per il PIE: la costruisce, la valida, la **salva** in
+	 * `URTScenarioLoader::LabScenariosRoot()/<ScenarioId>.json` e verifica che `URTScenarioIndex::ResolvePath`
+	 * risolva `ScenarioId` a QUEL file.
+	 *
+	 * ⛔ Fail closed: senza selezione, fixture invalida, radice del Lab non disponibile (sotto automation senza
+	 * override e' vuota) o scrittura fallita → `false`, nessun file nuovo.
+	 * Con un Id ambiguo — lo stesso `scenarioId` dichiarato anche da un altro file — il file viene scritto,
+	 * poi rimosso, e la funzione ritorna `false` col motivo dell'indice: meglio qui che a schermo dal GameMode,
+	 * e un file che avvelena l'Id non resta sul disco.
+	 *
+	 * ⚠️ Non sa nulla di PIE ne' di `GEditor`: l'avvio e' del lanciatore, questo e' il pezzo misurabile.
+	 */
+	bool PrepareForPie(FString& OutScenarioId, FString& OutError);
+
 	const FRTLabRunResult& LastRun() const { return Result; }
 
 	/** Azzera l'esito. Il filtro e la selezione restano: non e' un reset del pannello. */
 	void ClearRun() { Result = FRTLabRunResult(); }
+
+	// ── Ultimo lancio in PIE (#3542) ────────────────────────────────────────────────────────────────
+
+	/**
+	 * L'Id dell'ultimo lancio in PIE, o vuoto. Lo azzerano la selezione (accettata), il filtro (quando
+	 * cambia), una run e la fine del PIE.
+	 *
+	 * 🔑 **La riga di stato mostra una cosa sola: l'ultimo gesto.** Per questo l'Id vive qui e non in un
+	 * campo del widget: un campo del widget non si azzera da solo, e dopo lo stop del PIE il pannello
+	 * continuava a dire «PIE richiesto per X» su un PIE che non c'era piu'. Nel modello e' misurabile,
+	 * nel widget no.
+	 */
+	const FString& LaunchedScenarioId() const { return LaunchedId; }
+
+	/** Registra il lancio riuscito di `Id`: azzera «PIE terminato», che apparteneva al gesto precedente. */
+	void NoteLaunched(const FString& Id);
+
+	/**
+	 * Il PIE e' finito (o non e' mai partito): l'Id si azzera e resta la sola traccia «terminato», con
+	 * `bRestored` = le CVar sono davvero tornate com'erano.
+	 *
+	 * ⛔ **Un ripristino riuscito non scavalca un gesto successivo**: se nel frattempo c'e' stata una run, una
+	 * selezione o un cambio di filtro, l'Id e' gia' vuoto e la fine del PIE non fa nulla — l'ultimo gesto vince.
+	 * ⚠️ **Un ripristino FALLITO si registra sempre**, anche con l'Id vuoto: le CVar sono rimaste sul valore del
+	 * banco, e l'avviso non deve dipendere da cosa l'utente ha cliccato nel frattempo.
+	 */
+	void NoteLaunchFinished(bool bRestored);
+
+	/** `true` dalla fine del PIE fino al gesto successivo (selezione, filtro, run, nuovo lancio). */
+	bool WasLaunchFinished() const { return bLaunchFinishedOnce; }
+
+	/** L'esito del ripristino delle CVar dell'ultimo lancio finito. Significativo solo se `WasLaunchFinished()`. */
+	bool LastLaunchRestored() const { return bLastRestoreOk; }
 
 	/** La spec della fixture, esposta perche' il pannello possa offrire seed e posa. */
 	FRTAbilityLabFixtureSpec& MutableSpec() { return Spec; }
@@ -132,4 +206,16 @@ private:
 	FName SelectedAbility;
 	FRTAbilityLabFixtureSpec Spec;
 	FRTLabRunResult Result;
+
+	/** Vedi `LaunchedScenarioId()`. */
+	FString LaunchedId;
+
+	/** Vedi `WasLaunchFinished()`. */
+	bool bLaunchFinishedOnce = false;
+
+	/** Vedi `LastLaunchRestored()`. */
+	bool bLastRestoreOk = false;
+
+	/** Un gesto dell'utente (selezione, filtro, run) chiude la riga dell'ultimo lancio, in entrambe le forme. */
+	void ClearLaunchStatus();
 };

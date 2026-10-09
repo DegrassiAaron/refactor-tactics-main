@@ -1,0 +1,25 @@
+GrammarId,MappingClass,RuntimeId,Consumer,ReplacementCandidate,Notes
+Glyph.Move,EXACT,UI.Icon.Action.Move,URTActionSlotWidget,T_UI_Icon_Action_Move,Identita' 1:1 con l'azione generica di movimento
+Glyph.Wait,EXACT,UI.Icon.Action.Wait,URTActionSlotWidget,T_UI_Icon_Action_Wait,Identita' 1:1
+Glyph.Guard,EXACT,UI.Icon.Action.Guard,URTActionSlotWidget,T_UI_Icon_Action_Guard,Identita' 1:1
+Glyph.Overwatch,EXACT,UI.Icon.Action.Overwatch,URTActionSlotWidget,T_UI_Icon_Action_Overwatch,Identita' 1:1
+Glyph.Confirmed,EXACT,UI.Icon.Certainty.Confirmed,ClassifyPlan / HUD certainty,T_UI_Icon_Certainty_Confirmed,Identita' 1:1
+Glyph.Predicted,EXACT,UI.Icon.Certainty.Predicted,ClassifyPlan / HUD certainty,T_UI_Icon_Certainty_Predicted,Identita' 1:1
+Glyph.Uncertain,EXACT,UI.Icon.Certainty.Uncertain,ClassifyPlan / HUD certainty,T_UI_Icon_Certainty_Uncertain,Identita' 1:1
+Glyph.Attack,FAMILY_VISUAL_ONLY,NONE — famiglia su 3 chiavi,nessuno diretto,NONE,"Famiglia: Action.BasicAttack / PrecisionAttack / HeavyAttack. Le tre azioni sono selezionabili separatamente, quindi mantengono identita' visuali distinte"
+Glyph.Dash,FAMILY_VISUAL_ONLY,NONE — famiglia su 3 chiavi,nessuno diretto,NONE,"Famiglia: Action.Sprint / Dodge / Reposition. Action.Dash non esiste nel catalogo core; Phase.Dash e' una fase, non un'azione"
+Glyph.Reaction,FAMILY_VISUAL_ONLY,NONE — famiglia su 6 chiavi,nessuno diretto,NONE,"Famiglia: Counter / Deflect / Intercept / Anchor / Purge / Evade, con quattro trigger diversi"
+Glyph.Water,VISUAL_ONLY,NONE,nessuno,NONE,MISSING_SURFACE_RUNTIME_CONSUMER. Status.Wet resta separata: dominio unita' contro superficie. Environment e' categoria protetta
+Glyph.Fire,VISUAL_ONLY,NONE,nessuno,NONE,MISSING_SURFACE_RUNTIME_CONSUMER. Status.Burning resta separata. Environment protetta
+Glyph.Electric,VISUAL_ONLY,NONE,nessuno,NONE,MISSING_SURFACE_RUNTIME_CONSUMER. Status.Electrified resta separata. Environment protetta
+Glyph.Cover,VISUAL_ONLY,NONE,nessuno,NONE,"Environment protetta. Action.CreateCover e' l'azione, non lo stato del terreno"
+Glyph.Height,VISUAL_ONLY,NONE,nessuno,NONE,Environment protetta. Nessun identificatore di quota nel sistema icone
+Glyph.Critical,VISUAL_ONLY,NONE,nessuno,NONE,Warning e' categoria protetta da V01CategoriesPopulated
+Glyph.FriendlyFire,VISUAL_ONLY,NONE,nessuno,NONE,Warning e' categoria protetta da V01CategoriesPopulated
+Glyph.Collision,VISUAL_ONLY,NONE,nessuno,NONE,Warning e' categoria protetta da V01CategoriesPopulated
+Glyph.InsufficientResource,VISUAL_ONLY,NONE,nessuno,NONE,Warning e' categoria protetta da V01CategoriesPopulated
+Glyph.InvalidTarget,VISUAL_ONLY,NONE,nessuno,NONE,Warning e' categoria protetta da V01CategoriesPopulated
+Glyph.UncertainOutcome,VISUAL_ONLY,NONE,nessuno,NONE,Warning e' categoria protetta da V01CategoriesPopulated
+Glyph.Waypoint,RUNTIME_NOT_APPLICABLE,NONE,nessuno,NONE,Nessuna ERTIconCategory descrive un nodo di percorso. Marker non introdotta
+Glyph.Destination,RUNTIME_NOT_APPLICABLE,NONE,nessuno,NONE,Nessuna categoria adatta. Marker non introdotta
+Glyph.LastContact,VISUAL_ONLY,NONE,nessuno,NONE,Information e' categoria protetta. Mappatura documentale Intel -> Information registrata senza creare la chiave

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#080B10; }
+  a { color:#35E0C4; text-decoration:none; }
+  a:hover { color:#7CF0DE; }
+</style>
+</helmet>
+<div style="width:1440px;margin:0 auto;background:#0A0E14;color:#E6EDF4;font-family:'Azeret Mono',monospace;padding:0 0 96px">
+
+  <div style="padding:56px 56px 36px;border-bottom:1px solid #232C38">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px">
+      <div>
+        <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.24em;color:#35E0C4;margin-bottom:18px">STEP 06b · RUNTIME VERIFICATION + PRODUCT MAPPING FREEZE</div>
+        <h1 style="margin:0;font:400 58px/.98 Oswald,sans-serif;letter-spacing:.01em;text-transform:uppercase">L'invariante è al sicuro<br /><span style="color:#56626F">per costruzione, non per cautela</span></h1>
+        <p style="margin:22px 0 0;max-width:780px;font:400 13.5px/1.75 'Azeret Mono',monospace;color:#8D9BAB;text-wrap:pretty">Il mapping è congelato. E un risultato strutturale emerge dal freeze: <span style="color:#E6EDF4">zero delle 61 chiavi richieste appartiene a una categoria protetta</span>. Le 61 vivono interamente in Phase, Action, Status, Certainty e Identity — cinque categorie non protette. Le sette che <span style="color:#7CC7D9">V01CategoriesPopulated</span> asserisce vuote non sono in tensione col set richiesto: popolarle sarebbe un'aggiunta deliberata, non una conseguenza del mapping.</p>
+        <p style="margin:14px 0 0;max-width:780px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#FFC24A;text-wrap:pretty">Base probatoria, valida per ogni numero di questa board: <span style="color:#E6EDF4">derivazione statica dal sorgente, non esecuzione</span>. Non ho un ambiente Unreal, quindi nessuno dei sei test è stato lanciato e la conclusione sulle categorie protette segue dalla lettura del codice come tutto il resto. Nessun valore <span style="color:#E6EDF4">differisce</span> dall'atteso; nessuno è <span style="color:#E6EDF4">verificato</span>.</p>
+      </div>
+      <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;flex-shrink:0;min-width:340px">
+        <div style="background:#1A1216;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:500 11px 'Azeret Mono',monospace;color:#FF4D6D"><span>STATUS</span><span>BLOCKED_ON_VERIFICATION</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>24-GLYPH FREEZE</span><span style="color:#3FD08A">completo</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>RUNTIME VERIFICATION</span><span style="color:#FF4D6D">NOT_EXECUTED</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>COVERAGE</span><span style="color:#FFC24A">0 / 61 · invariata</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>NUOVI RUNTIME ID</span><span style="color:#3FD08A">0 ✓</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>CAT. PROTETTE POPOLATE</span><span style="color:#3FD08A">0 ✓</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>ASSET CANCELLATI</span><span style="color:#3FD08A">0 ✓</span></div>
+        <div style="background:#0F1A16;padding:12px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>CHIAVI IN CAT. PROTETTE</span><span style="color:#3FD08A">0 ✓ strutturale</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DECISION -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">01</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Decisione di prodotto applicata</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:470px">SEMANTIC_MATCH_NEEDS_APPROVAL non è più usata per i sei casi.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 9px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.08em"><div style="padding:10px 12px">GRAMMAR ID</div><div style="padding:10px 8px">NUOVA CLASSE</div><div style="padding:10px 8px">CHIAVI RUNTIME COINVOLTE</div><div style="padding:10px 8px">PERCHÉ NON È 1:1</div></div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Attack</div><div style="padding:9px 8px;color:#7CC7D9">FAMILY_VISUAL_ONLY</div><div style="padding:9px 8px">BasicAttack · PrecisionAttack · HeavyAttack</div><div style="padding:9px 8px">BasicAttack non è l'attacco generico: è <span style="color:#E6EDF4">uno dei tre</span>, quello che prende il danno dall'eroe invece di dichiararlo. Precision (24, cd 1, +1 portata) e Heavy (35 + 35 a struttura, cd 2) sono voci autonome</div></div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Dash</div><div style="padding:9px 8px;color:#7CC7D9">FAMILY_VISUAL_ONLY</div><div style="padding:9px 8px">Sprint · Dodge · Reposition</div><div style="padding:9px 8px">Sprint applica <span style="color:#E6EDF4">Status.Exposed</span> per un turno, cosa che Dodge e Reposition non fanno. Tre comportamenti diversi. E Action.Dash non esiste nel catalogo</div></div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Reaction</div><div style="padding:9px 8px;color:#7CC7D9">FAMILY_VISUAL_ONLY</div><div style="padding:9px 8px">Counter · Deflect · Intercept · Anchor · Purge · Evade</div><div style="padding:9px 8px">Counter ha trigger HitByDirectAttack; le altre cinque ne hanno di diversi. <span style="color:#E6EDF4">Un glifo su sei chiavi non è 1:1</span></div></div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Water</div><div style="padding:9px 8px;color:#96A3B0">VISUAL_ONLY</div><div style="padding:9px 8px;color:#FF8A2B">nessuna · zero chiavi coperte</div><div style="padding:9px 8px">Non è una famiglia: copre <span style="color:#E6EDF4">zero</span> chiavi. Status.Wet è dominio diverso, non variante — vedi sezione 02</div></div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Fire</div><div style="padding:9px 8px;color:#96A3B0">VISUAL_ONLY</div><div style="padding:9px 8px;color:#FF8A2B">nessuna · zero chiavi coperte</div><div style="padding:9px 8px">Stessa condizione</div></div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.5fr 2.4fr 3.3fr;background:#121822;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Electric</div><div style="padding:9px 8px;color:#96A3B0">VISUAL_ONLY</div><div style="padding:9px 8px;color:#FF8A2B">nessuna · zero chiavi coperte</div><div style="padding:9px 8px">Stessa condizione</div></div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:16px 20px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">I tre glifi di famiglia restano <span style="color:#E6EDF4">primitive semantiche senza consumer runtime diretto</span>, come il brief consente. Non sono scarti: sono il vocabolario da cui derivare le varianti quando qualcuno le disegnerà. E i quattro EXACT fra le azioni — Move, Wait, Guard, Overwatch — lo sono per una ragione precisa: <span style="color:#E6EDF4">non hanno varianti nel catalogo</span>. Una chiave, un'azione, un significato.</div>
+  </div>
+
+  <!-- DEVIATION -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#FF8A2B">02</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Deviazione dall'atteso · 7 / 3 / 12 / 2</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:440px">Il brief attendeva 7 / 6 / 11 e autorizza la deviazione.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="background:#131C24;padding:18px;margin-bottom:16px">
+          <svg viewBox="0 0 350 128" style="width:100%;height:auto;display:block">
+            <text x="0" y="11" fill="#56626F" font-size="9" font-family="Azeret Mono, monospace">ATTESO DAL BRIEF</text>
+            <rect x="0" y="18" width="99" height="22" fill="#3FD08A" /><rect x="99" y="18" width="85" height="22" fill="#7CC7D9" /><rect x="184" y="18" width="156" height="22" fill="#3A434E" />
+            <text x="6" y="33" fill="#0A0E14" font-size="9.5" font-family="Azeret Mono, monospace" font-weight="500">7 exact</text>
+            <text x="105" y="33" fill="#0A0E14" font-size="9.5" font-family="Azeret Mono, monospace" font-weight="500">6 family</text>
+            <text x="190" y="33" fill="#E6EDF4" font-size="9.5" font-family="Azeret Mono, monospace">11 visual-only</text>
+            <text x="0" y="62" fill="#56626F" font-size="9" font-family="Azeret Mono, monospace">RISULTATO DAL REPOSITORY</text>
+            <rect x="0" y="69" width="99" height="22" fill="#3FD08A" /><rect x="99" y="69" width="43" height="22" fill="#7CC7D9" /><rect x="142" y="69" width="170" height="22" fill="#3A434E" /><rect x="312" y="69" width="28" height="22" fill="#5A4A2A" />
+            <text x="6" y="84" fill="#0A0E14" font-size="9.5" font-family="Azeret Mono, monospace" font-weight="500">7 exact</text>
+            <text x="104" y="84" fill="#0A0E14" font-size="9.5" font-family="Azeret Mono, monospace" font-weight="500">3 fam</text>
+            <text x="148" y="84" fill="#E6EDF4" font-size="9.5" font-family="Azeret Mono, monospace">12 visual-only</text>
+            <text x="316" y="84" fill="#E6EDF4" font-size="9.5" font-family="Azeret Mono, monospace">2</text>
+            <text x="0" y="112" fill="#8D9BAB" font-size="9" font-family="Azeret Mono, monospace">i 2 in coda: RUNTIME_NOT_APPLICABLE · Waypoint, Destination</text>
+            <text x="0" y="124" fill="#3FD08A" font-size="9" font-family="Azeret Mono, monospace">7 + 3 + 12 + 2 = 24 ✓</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">I due <span style="color:#E6EDF4">RUNTIME_NOT_APPLICABLE</span> sono Waypoint e Destination: nessuna delle dodici ERTIconCategory descrive un nodo di percorso, e Marker non è stata introdotta. Non è "non ancora consumato" — è <span style="color:#E6EDF4">non esprimibile</span> nella tassonomia attuale, che è una condizione diversa e merita una classe propria.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">PERCHÉ WATER / FIRE / ELECTRIC NON SONO FAMIGLIE</div>
+        <div style="display:grid;gap:13px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#7CC7D9">FAMILY_VISUAL_ONLY</span> descrive un glifo che copre <span style="color:#E6EDF4">più chiavi runtime della stessa famiglia</span>. Water, Fire ed Electric non sono in quella condizione: coprono <span style="color:#E6EDF4">zero</span> chiavi.</div>
+          <div>Status.Wet esiste, ma non è una variante di Glyph.Water — è un <span style="color:#E6EDF4">concetto di dominio diverso</span>. La superficie bagnata è una proprietà della cella; lo stato bagnato è una proprietà dell'unità. Compaiono in punti diversi della schermata, cambiano per cause diverse, e in partita possono essere vere indipendentemente: <span style="color:#E6EDF4">un'unità asciutta su una cella allagata, un'unità bagnata su terreno asciutto</span>.</div>
+          <div style="color:#FF8A2B">Chiamarli famiglia implicherebbe che Status.Wet sia una specializzazione di Glyph.Water — cioè esattamente l'aliasing che lo STEP 06 ha rifiutato.</div>
+          <div style="border-top:1px solid #232C38;padding-top:12px">Le superfici <span style="color:#E6EDF4">esistono</span> nel gameplay come <span style="color:#56626F">ERTHexSurface</span>: CreateWater produce acqua raggio 1, Ignite fuoco, Electrify carica. Il concetto è implementato e non ha una chiave icona, perché la categoria che la ospiterebbe è protetta.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROTECTED + VERIFICATION -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">03</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Categorie protette e verifica</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1.35fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4">LE SETTE PROTETTE</div><div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">ZERO SU TUTTA LA RIGA</div></div>
+        <div style="border:1px solid #232C38;margin-bottom:14px">
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 9px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.08em"><div style="padding:9px 12px">CATEGORIA</div><div style="padding:9px 8px;text-align:center">CHIAVI DENTRO</div><div style="padding:9px 8px;text-align:center">CREATE</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Environment</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">MapInteraction</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Information</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Reaction</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Coordination</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Warning</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;background:#121822;font:400 9.5px 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Objective</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div><div style="padding:8px 8px;text-align:center;color:#3FD08A">0</div></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">La mappatura documentale <span style="color:#E6EDF4">Intel → Information</span> resta registrata come equivalenza semantica e <span style="color:#E6EDF4">non</span> implica la creazione di un RuntimeId. Che tutte e sette contengano zero chiavi richieste è il risultato strutturale: l'invariante e il set richiesto <span style="color:#E6EDF4">non si toccano</span>.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4">VERIFICA UNREAL</div><div style="font:500 10px 'Azeret Mono',monospace;color:#FF4D6D">NON ESEGUITA</div></div>
+        <div style="border:1px solid #232C38;margin-bottom:14px">
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 9px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.08em"><div style="padding:9px 10px"></div><div style="padding:9px 8px">RICHIESTO</div><div style="padding:9px 8px">ESISTE IN REPO</div><div style="padding:9px 8px">ESEC.</div></div>
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 10px;color:#56626F">1</div><div style="padding:8px 8px">RequiredIconIds</div><div style="padding:8px 8px;color:#3FD08A">RequiredIdsFollowGameData</div><div style="padding:8px 8px;color:#FF4D6D">NOT_RUN</div></div>
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 10px;color:#56626F">2</div><div style="padding:8px 8px">IconLibrary coverage</div><div style="padding:8px 8px;color:#3FD08A">EveryKeyResolves</div><div style="padding:8px 8px;color:#FF4D6D">NOT_RUN</div></div>
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 10px;color:#56626F">3</div><div style="padding:8px 8px">duplicate Runtime ID</div><div style="padding:8px 8px;color:#3FD08A">DuplicateIdIsValidationError</div><div style="padding:8px 8px;color:#FF4D6D">NOT_RUN</div></div>
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 10px;color:#56626F">4</div><div style="padding:8px 8px">V01CategoriesPopulated</div><div style="padding:8px 8px;color:#3FD08A">presente</div><div style="padding:8px 8px;color:#FF4D6D">NOT_RUN</div></div>
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 10px;color:#56626F">5</div><div style="padding:8px 8px">deterministic required set</div><div style="padding:8px 8px;color:#3FD08A">RequiredIdsFollowGameData</div><div style="padding:8px 8px;color:#FF4D6D">NOT_RUN</div></div>
+          <div style="display:grid;grid-template-columns:24px 1.7fr 2fr 0.85fr;background:#121822;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 10px;color:#56626F">6</div><div style="padding:8px 8px">Action.Dodge presence</div><div style="padding:8px 8px;color:#3FD08A">implicito in #1</div><div style="padding:8px 8px;color:#FF4D6D">NOT_RUN</div></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:14px">Tutti e sei <span style="color:#E6EDF4">esistono già</span> nel repository. Manca l'esecuzione, non la copertura di test.</div>
+        <div style="border:1px solid #232C38">
+          <div style="display:grid;grid-template-columns:1.4fr 1fr 1.5fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 9px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.08em"><div style="padding:9px 12px">VALORE</div><div style="padding:9px 8px">ATTESO</div><div style="padding:9px 8px">STATO QUI</div></div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr 1.5fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">RequiredIconIds count</div><div style="padding:8px 8px">61</div><div style="padding:8px 8px;color:#FFC24A">61 · statico</div></div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr 1.5fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Action.Dodge</div><div style="padding:8px 8px">present</div><div style="padding:8px 8px;color:#FFC24A">present · statico</div></div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr 1.5fr;background:#121822;font:400 9.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:8px 12px">Coverage baseline</div><div style="padding:8px 8px">invariata</div><div style="padding:8px 8px;color:#FFC24A">invariata · 0/61</div></div>
+        </div>
+        <div style="font:400 10.5px/1.65 'Azeret Mono',monospace;color:#56626F;margin-top:12px">Nessuno dei tre <span style="color:#E6EDF4">differisce</span> dall'atteso, quindi la condizione di STOP del brief non è scattata. Ma nessuno dei tre è verificato per esecuzione, che è ciò che il brief chiede. La distinzione è fra <span style="color:#E6EDF4">smentito</span> e <span style="color:#E6EDF4">non verificato</span>: siamo nel secondo caso.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MATRICES + EXIT -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">04</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Matrici e uscita</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">COPERTURA · 61 RIGHE</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:11px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Required</span><span style="color:#E6EDF4">TRUE · 61 / 61</span></div>
+          <div style="background:#0A0E14;padding:11px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Resolved</span><span style="color:#FFC24A">UNVERIFIED · 61 / 61</span></div>
+          <div style="background:#0A0E14;padding:11px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>ProtectedCategory</span><span style="color:#3FD08A">FALSE · 61 / 61</span></div>
+          <div style="background:#0A0E14;padding:11px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>V01ExactReplacementCandidate</span><span style="color:#3FD08A">7 · NONE su 54</span></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#FF8A2B">Il target 61/61 resolved non è raggiunto, e non è raggiungibile qui.</span> Resolved misura se una chiave trova la sua texture nel catalogo; DA_IconCatalog non esiste e nessun asset è importato. Scrivere TRUE sarebbe <span style="color:#E6EDF4">inventare un dato</span> — UNVERIFIED è l'unico valore onesto, e il primo DryRun lo sostituisce con la misura vera.</div>
+      </div>
+      <div style="background:#0A0E14;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.1em;margin-bottom:16px">STEP 06b STATUS</div>
+        <div style="display:grid;gap:7px;font:400 11px/1.5 'Azeret Mono',monospace;color:#8D9BAB">
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>RUNTIME VERIFICATION</span><span style="color:#FF4D6D">NOT_EXECUTED</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding-top:5px"><span>RequiredIconIds count</span><span style="color:#FFC24A">61 · statico</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>Action.Dodge</span><span style="color:#FFC24A">present · statico</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>Coverage</span><span style="color:#FF4D6D">0 / 61</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>CI category invariants</span><span style="color:#FF4D6D">NOT_RUN</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding-top:5px"><span>Nuovi RuntimeId</span><span style="color:#3FD08A">0 ✓</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>Cat. protette popolate</span><span style="color:#3FD08A">0 ✓</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>Asset cancellati</span><span style="color:#3FD08A">0 ✓</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>Chiavi in cat. protette</span><span style="color:#3FD08A">0 ✓</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding-top:5px"><span>24-GLYPH FREEZE</span><span style="color:#3FD08A">COMPLETO</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;color:#56626F"><span style="padding-left:12px">EXACT</span><span>7</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;color:#56626F"><span style="padding-left:12px">FAMILY_VISUAL_ONLY</span><span>3</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;color:#56626F"><span style="padding-left:12px">VISUAL_ONLY</span><span>12</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;color:#56626F"><span style="padding-left:12px">RUNTIME_NOT_APPLICABLE</span><span>2</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid #232C38;margin-top:5px"><span style="color:#FF4D6D">STATUS</span><span style="color:#FF4D6D">BLOCKED_ON_VERIFICATION</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:24px;display:grid;grid-template-columns:1fr 380px;gap:32px;align-items:start">
+      <div>
+        <div style="font:400 12.5px/1.8 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:18px"><span style="color:#FF4D6D">Non è PASS.</span> Quattro dei sette criteri di uscita sono soddisfatti — nessun nuovo RuntimeId, nessuna categoria protetta popolata, nessun asset cancellato, freeze completo. Tre no, e tutti tre per la stessa causa: RequiredIconIds non verificata per esecuzione, copertura a 0/61 invece di 61/61, invarianti CI non eseguite. <span style="color:#E6EDF4">Il freeze però non richiede altro lavoro di design</span>: quello che serve sono tre comandi.</div>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.1em;margin-bottom:12px">TRE COMANDI PER CHIUDERE IN PASS</div>
+        <div style="display:grid;gap:10px;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">1</span> <span style="color:#7CC7D9">RefactorTactics.IconCatalog.*</span> — chiude i criteri 1, 4, 5, 6 e promuove la marcatura di Dodge da statica a eseguita.</div>
+          <div><span style="color:#E6EDF4">2</span> <span style="color:#7CC7D9">RequiredIconIds()</span> nell'Editor — conferma le 61 e in particolare i tag Status.*, che arrivano da UGameplayTagsManager e potrebbero includerne altri da .ini.</div>
+          <div><span style="color:#E6EDF4">3</span> <span style="color:#7CC7D9">RTBuildIconCatalog -DryRun</span> con il set da 123 e prefisso T_UI_Icon_* — sostituisce i 61 UNVERIFIED con la copertura reale.</div>
+        </div>
+      </div>
+      <div style="border:1px solid #FF8A2B;padding:18px 20px">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#FF8A2B;letter-spacing:.14em;margin-bottom:10px">STEP 07 NON PROPOSTO</div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:14px">Il brief dice di proporre <span style="color:#E6EDF4">STEP 07 — Selective Visual Adoption Plan</span> solo in caso di PASS. La sua premessa è che i mapping EXACT siano verificati, e la verifica è esattamente ciò che manca.</div>
+        <div style="font:400 10.5px/1.65 'Azeret Mono',monospace;color:#56626F">Con i tre output sopra, STEP 06b si chiude in PASS <span style="color:#E6EDF4">senza altre decisioni</span> e STEP 07 diventa proponibile sui sette EXACT. Nessuna migrazione dei 24 asset è stata proposta.</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#0A0E14;padding:18px 24px;display:flex;gap:28px;flex-wrap:wrap;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">
+      <div><span style="color:#8D9BAB">Copertura 61:</span> docs/UI/IconLanguage/RT_IconCoverage_61_v0.1.csv</div>
+      <div><span style="color:#8D9BAB">Visuale 24:</span> RT_IconVisual_24_v0.1.csv</div>
+      <div><span style="color:#8D9BAB">Report:</span> RT_IconRuntimeMapping_Freeze_v0.1.md</div>
+    </div>
+  </div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>

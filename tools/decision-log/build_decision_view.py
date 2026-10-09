@@ -26,7 +26,11 @@ ISSUE = f"https://github.com/{REPO}/issues"
 LOG_REL = "docs/decisions/RT_PDR_00_Decision_Log.md"
 LOG_DIR = "docs/decisions"
 
-ROW_RE = re.compile(r"^\|\s*\*{0,2}~{0,2}D-\d{3}")
+# Le decorazioni stanno in ordine tilde-FUORI e grassetto-DENTRO: `| ~~**D-044**~~ |`.
+# 🔴 Corretto il 2026-09-23: l'ordine era invertito e perdeva esattamente `D-044` — la sola voce
+# ritirata, cioè il numero bruciato di proposito, che quindi non compariva nella vista. 427 righe
+# contro le 428 che il registro ha. Stessa forma di `tools/radar/decision-ids.ts`, che la pinna.
+ROW_RE = re.compile(r"^\|\s*(?:~~)?\s*(?:\*\*)?\s*D-\d{3}")
 ID_RE = re.compile(r"D-(\d{3})")
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 ISSUE_RE = re.compile(r"#(\d{2,5})\b")

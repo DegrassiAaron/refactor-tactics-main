@@ -1,0 +1,62 @@
+RuntimeId,RuntimeCategory,GrammarId,VisualStatus,CurrentAsset,ApprovedAsset,Consumer,MappingType,MigrationAction,Notes
+UI.Icon.Phase.Prep,Phase,,NOT_IN_V0_1,RT_UI_Icon_Phase_Prep.svg,RT_UI_Icon_Phase_Prep.svg,HUD phase indicator,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Phase.Dash,Phase,,NOT_IN_V0_1,RT_UI_Icon_Phase_Dash.svg,RT_UI_Icon_Phase_Dash.svg,HUD phase indicator,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Phase.Dash: collide di NOME con Glyph.Dash della v0.1, che e' un'azione. Nessuna relazione semantica"
+UI.Icon.Phase.Blast,Phase,,NOT_IN_V0_1,RT_UI_Icon_Phase_Blast.svg,RT_UI_Icon_Phase_Blast.svg,HUD phase indicator,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Phase.Move,Phase,,NOT_IN_V0_1,RT_UI_Icon_Phase_Move.svg,RT_UI_Icon_Phase_Move.svg,HUD phase indicator,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Sprint,Action,Glyph.Dash,V0_1_CANDIDATE,RT_UI_Icon_Action_Sprint.svg,NEEDS_DECISION,URTActionSlotWidget,SEPARATE_SEMANTIC,NEEDS_DECISION,Candidato di Glyph.Dash. Action.Dash NON esiste nel catalogo core
+UI.Icon.Action.Wait,Action,Glyph.Wait,V0_1_EXACT,RT_UI_Icon_Action_Wait.svg,T_UI_Icon_Action_Wait,URTActionSlotWidget,EXACT,REPLACE_WITH_V0_1,Mapping EXACT confermato. RuntimeId non modificato
+UI.Icon.Action.Move,Action,Glyph.Move,V0_1_EXACT,RT_UI_Icon_Action_Move.svg,T_UI_Icon_Action_Move,URTActionSlotWidget,EXACT,REPLACE_WITH_V0_1,Mapping EXACT confermato. RuntimeId non modificato
+UI.Icon.Action.BasicAttack,Action,Glyph.Attack,V0_1_CANDIDATE,RT_UI_Icon_Action_BasicAttack.svg,NEEDS_DECISION,URTActionSlotWidget,SEPARATE_SEMANTIC,NEEDS_DECISION,Uno di tre attacchi. Glyph.Attack generico: NEEDS_PRODUCT_DECISION su uno-contro-tre
+UI.Icon.Action.Guard,Action,Glyph.Guard,V0_1_EXACT,RT_UI_Icon_Action_Guard.svg,T_UI_Icon_Action_Guard,URTActionSlotWidget,EXACT,REPLACE_WITH_V0_1,Mapping EXACT confermato. RuntimeId non modificato
+UI.Icon.Action.Interact,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Interact.svg,RT_UI_Icon_Action_Interact.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Overwatch,Action,Glyph.Overwatch,V0_1_EXACT,RT_UI_Icon_Action_Overwatch.svg,T_UI_Icon_Action_Overwatch,URTActionSlotWidget,EXACT,REPLACE_WITH_V0_1,Mapping EXACT confermato. RuntimeId non modificato
+UI.Icon.Action.Dodge,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Dodge.svg,RT_UI_Icon_Action_Dodge.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,RISOLVE R6: Catalog.Add incondizionato a RTCatalogLibrary.cpp:1179 — E' richiesta. LEGGIMI.md e' STALE
+UI.Icon.Action.Charge,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Charge.svg,RT_UI_Icon_Action_Charge.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Leap,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Leap.svg,RT_UI_Icon_Action_Leap.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Reposition,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Reposition.svg,RT_UI_Icon_Action_Reposition.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.PrecisionAttack,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_PrecisionAttack.svg,RT_UI_Icon_Action_PrecisionAttack.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,Secondo dei tre attacchi
+UI.Icon.Action.HeavyAttack,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_HeavyAttack.svg,RT_UI_Icon_Action_HeavyAttack.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,Terzo dei tre attacchi
+UI.Icon.Action.LineAttack,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_LineAttack.svg,RT_UI_Icon_Action_LineAttack.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.CircularAoE,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_CircularAoE.svg,RT_UI_Icon_Action_CircularAoE.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.SuppressiveLine,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_SuppressiveLine.svg,RT_UI_Icon_Action_SuppressiveLine.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.MarkTarget,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_MarkTarget.svg,RT_UI_Icon_Action_MarkTarget.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Counter,Action,Glyph.Reaction,V0_1_CANDIDATE,RT_UI_Icon_Action_Counter.svg,NEEDS_DECISION,URTActionSlotWidget,SEPARATE_SEMANTIC,NEEDS_DECISION,Candidato di Glyph.Reaction. Sei azioni Control esprimono la reazione: un glifo non le copre
+UI.Icon.Action.Deflect,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Deflect.svg,RT_UI_Icon_Action_Deflect.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Azione Control, famiglia reazione"
+UI.Icon.Action.Intercept,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Intercept.svg,RT_UI_Icon_Action_Intercept.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Azione Control, famiglia reazione"
+UI.Icon.Action.Anchor,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Anchor.svg,RT_UI_Icon_Action_Anchor.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Azione Control, famiglia reazione"
+UI.Icon.Action.Purge,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Purge.svg,RT_UI_Icon_Action_Purge.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Azione Control, famiglia reazione"
+UI.Icon.Action.Evade,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Evade.svg,RT_UI_Icon_Action_Evade.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Azione Control, famiglia reazione"
+UI.Icon.Action.Brace,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Brace.svg,RT_UI_Icon_Action_Brace.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Shield,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Shield.svg,RT_UI_Icon_Action_Shield.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Cleanse,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Cleanse.svg,RT_UI_Icon_Action_Cleanse.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Push,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Push.svg,RT_UI_Icon_Action_Push.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Pull,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Pull.svg,RT_UI_Icon_Action_Pull.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Root,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Root.svg,RT_UI_Icon_Action_Root.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Slow,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Slow.svg,RT_UI_Icon_Action_Slow.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Interrupt,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Interrupt.svg,RT_UI_Icon_Action_Interrupt.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.Electrify,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Electrify.svg,RT_UI_Icon_Action_Electrify.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,AZIONE di elettrificare. NON e' Glyph.Electric
+UI.Icon.Action.Ignite,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Ignite.svg,RT_UI_Icon_Action_Ignite.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,AZIONE di incendiare. NON e' Glyph.Fire
+UI.Icon.Action.CreateWater,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_CreateWater.svg,RT_UI_Icon_Action_CreateWater.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"AZIONE di creare acqua. NON e' Glyph.Water, che e' lo stato della superficie"
+UI.Icon.Action.ModifyArc,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_ModifyArc.svg,RT_UI_Icon_Action_ModifyArc.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Action.CreateCover,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_CreateCover.svg,RT_UI_Icon_Action_CreateCover.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"AZIONE di creare copertura. NON e' Glyph.Cover, che e' lo stato del terreno"
+UI.Icon.Action.Heal,Action,,NOT_IN_V0_1,RT_UI_Icon_Action_Heal.svg,RT_UI_Icon_Action_Heal.svg,URTActionSlotWidget,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Braced,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Braced.svg,RT_UI_Icon_Status_Braced.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Burning,Status,Glyph.Fire,V0_1_CANDIDATE,RT_UI_Icon_Status_Burning.svg,NEEDS_DECISION,Status tag gameplay,SEPARATE_SEMANTIC,NEEDS_DECISION,Candidato di Glyph.Fire. Dominio UNITA'
+UI.Icon.Status.Electrified,Status,Glyph.Electric,V0_1_CANDIDATE,RT_UI_Icon_Status_Electrified.svg,NEEDS_DECISION,Status tag gameplay,SEPARATE_SEMANTIC,NEEDS_DECISION,Candidato di Glyph.Electric. Dominio UNITA'
+UI.Icon.Status.Exposed,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Exposed.svg,RT_UI_Icon_Status_Exposed.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Guarded,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Guarded.svg,RT_UI_Icon_Status_Guarded.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Marked,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Marked.svg,RT_UI_Icon_Status_Marked.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Obscured,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Obscured.svg,RT_UI_Icon_Status_Obscured.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Reveal,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Reveal.svg,RT_UI_Icon_Status_Reveal.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Root,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Root.svg,RT_UI_Icon_Status_Root.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Slow,Status,,NOT_IN_V0_1,RT_UI_Icon_Status_Slow.svg,RT_UI_Icon_Status_Slow.svg,Status tag gameplay,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,
+UI.Icon.Status.Wet,Status,Glyph.Water,V0_1_CANDIDATE,RT_UI_Icon_Status_Wet.svg,NEEDS_DECISION,Status tag gameplay,SEPARATE_SEMANTIC,NEEDS_DECISION,"Candidato di Glyph.Water. Dominio UNITA', non superficie: vedi tabella split"
+UI.Icon.Certainty.Confirmed,Certainty,Glyph.Confirmed,V0_1_EXACT,RT_UI_Icon_Certainty_Confirmed.svg,T_UI_Icon_Certainty_Confirmed,ClassifyPlan / HUD certainty,EXACT,REPLACE_WITH_V0_1,Mapping EXACT. Eccezione semantica approvata: il ritmo certainty e' dentro il glifo perche' il glifo E' la legenda
+UI.Icon.Certainty.Predicted,Certainty,Glyph.Predicted,V0_1_EXACT,RT_UI_Icon_Certainty_Predicted.svg,T_UI_Icon_Certainty_Predicted,ClassifyPlan / HUD certainty,EXACT,REPLACE_WITH_V0_1,Mapping EXACT. Eccezione semantica approvata: il ritmo certainty e' dentro il glifo perche' il glifo E' la legenda
+UI.Icon.Certainty.Uncertain,Certainty,Glyph.Uncertain,V0_1_EXACT,RT_UI_Icon_Certainty_Uncertain.svg,T_UI_Icon_Certainty_Uncertain,ClassifyPlan / HUD certainty,EXACT,REPLACE_WITH_V0_1,Mapping EXACT. Eccezione semantica approvata: il ritmo certainty e' dentro il glifo perche' il glifo E' la legenda
+UI.Icon.Identity.Gadget,Identity,,NOT_IN_V0_1,RT_UI_Icon_Identity_Gadget.svg,RT_UI_Icon_Identity_Gadget.svg,HUD roster / portrait,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,Prefisso tradotto: Hero.Gadget -> Identity.Gadget
+UI.Icon.Identity.Phase,Identity,,NOT_IN_V0_1,RT_UI_Icon_Identity_Phase.svg,RT_UI_Icon_Identity_Phase.svg,HUD roster / portrait,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,Prefisso tradotto: Hero.Phase -> Identity.Phase
+UI.Icon.Identity.Riktor,Identity,,NOT_IN_V0_1,RT_UI_Icon_Identity_Riktor.svg,RT_UI_Icon_Identity_Riktor.svg,HUD roster / portrait,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,Prefisso tradotto: Hero.Riktor -> Identity.Riktor
+UI.Icon.Identity.Wraith,Identity,,NOT_IN_V0_1,RT_UI_Icon_Identity_Wraith.svg,RT_UI_Icon_Identity_Wraith.svg,HUD roster / portrait,EXISTING_RUNTIME_ONLY,KEEP_CURRENT,Prefisso tradotto: Hero.Wraith -> Identity.Wraith
+UI.Icon.Identity.Ally,Identity,,NOT_IN_V0_1,RT_UI_Icon_Identity_Ally.svg,RT_UI_Icon_Identity_Ally.svg,ARTHUD (View.bIsAlly),EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Relazione di squadra, non personaggio: restano due chiavi anche se il roster cresce"
+UI.Icon.Identity.Enemy,Identity,,NOT_IN_V0_1,RT_UI_Icon_Identity_Enemy.svg,RT_UI_Icon_Identity_Enemy.svg,ARTHUD (View.bIsAlly),EXISTING_RUNTIME_ONLY,KEEP_CURRENT,"Relazione di squadra, non personaggio: restano due chiavi anche se il roster cresce"

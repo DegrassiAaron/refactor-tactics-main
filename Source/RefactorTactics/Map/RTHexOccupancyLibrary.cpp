@@ -122,23 +122,29 @@ namespace
 		return (Exit - Enter) > OverlapEpsilon;
 	}
 
-	/** Ray casting classico. `Polygon` e' implicitamente chiuso. */
-	bool PointInPolygon(const FVector2D& P, const TArray<FVector2D>& Polygon)
+}
+
+bool URTHexOccupancyLibrary::PointInPolygon(const FVector2D& P, const TArray<FVector2D>& Polygon)
+{
+	// Ray casting classico. `Polygon` e' implicitamente chiuso.
+	//
+	// ⌫ **Era file-local in questo `.cpp` fino al 2026-09-25.** L'ha portata fuori `#1868`: la copertura di
+	// una regione No-Walk chiede la stessa domanda, e due implementazioni del ray casting divergono sul
+	// **confine** — l'unico posto dove un test di appartenenza puo' dare due risposte. I due chiamanti
+	// interni non sono cambiati: stanno dentro `ComputeMask`, che e' membro di questa classe.
+	bool bInside = false;
+	const int32 Num = Polygon.Num();
+	for (int32 I = 0, J = Num - 1; I < Num; J = I++)
 	{
-		bool bInside = false;
-		const int32 Num = Polygon.Num();
-		for (int32 I = 0, J = Num - 1; I < Num; J = I++)
+		const FVector2D& Pi = Polygon[I];
+		const FVector2D& Pj = Polygon[J];
+		if (((Pi.Y > P.Y) != (Pj.Y > P.Y))
+			&& (P.X < (Pj.X - Pi.X) * (P.Y - Pi.Y) / (Pj.Y - Pi.Y) + Pi.X))
 		{
-			const FVector2D& Pi = Polygon[I];
-			const FVector2D& Pj = Polygon[J];
-			if (((Pi.Y > P.Y) != (Pj.Y > P.Y))
-				&& (P.X < (Pj.X - Pi.X) * (P.Y - Pi.Y) / (Pj.Y - Pi.Y) + Pi.X))
-			{
-				bInside = !bInside;
-			}
+			bInside = !bInside;
 		}
-		return bInside;
 	}
+	return bInside;
 }
 
 void URTHexOccupancyLibrary::SectorBoundaryPoints(float HexSize, TArray<FVector2D>& OutPoints)

@@ -1,4 +1,5 @@
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapCustomVersion.h"
 // `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
@@ -6,11 +7,17 @@
 #include "Map/RTStructureIdentityLibrary.h"
 // I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
 #include "Map/RTGeometryBake.h"
+#include "Map/RTGeometryGrammar.h"  // le validazioni geometriche delle regioni No-Walk (#1868)
 // Le regole di topologia di `#1832` chiamano le stesse funzioni della cottura invece di rifarle: se questa
 // misurasse la calpestabilita' diversamente da `DeriveStandability`, il validator segnalerebbe celle che il
 // bake considera sane — cioe' due verita' sulla stessa regola.
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
+// L'atterraggio isolato (`#2404`) si misura col vocabolario del bordo di `#2401` e col grafo tattico, e
+// non con una terza lettura della mappa scritta qui: `IsEdgeOpen`/`FindLandingCell` dicono dove si cade,
+// `GraphNeighbors` dice che cosa e' raggiungibile da li'.
+#include "Map/RTHexLedgeLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -628,6 +635,31 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		// ridondante tra celle gia' adiacenti»*: lo stato e' legale e risolto, ed e' ridondante, non illegale.
 		// Correggerlo da soli sarebbe l'auto-fix silenzioso che il Decision Record vieta.
 		//
+		// 🔴 **Il messaggio dichiara la CONSEGUENZA A RUNTIME, e non lo faceva** — [D-437], `#3279`. Diceva
+		// soltanto *«ridondante»*, che chi disegna legge come *«innocuo, un doppione»* — ed e' la lettura
+		// che la decisione smentisce: le due facce hanno integrita' PROPRIA e sono lette da due regole
+		// diverse (`CoverBetween` tiene la piu' alta; `HexCoverDamageReduction` legge quella della propria
+		// cella), quindi **una puo' cadere mentre l'altra regge** e il colpo produce due eventi, due voci di
+		// TurnLog e due segni — a quote diverse se le celle hanno `Height` diversa.
+		//
+		// ⚠️ **Questo e' il posto dove la legge chi disegna**, e va detto quanto vale. ⏱️ Questa riga diceva
+		// che `ValidateMap()` ha *«un solo chiamante non di test — `ARTHexMapActor::ValidateAsset`, un bottone
+		// manuale»*, e dal 2026-09-24 e' **falso**: `#1864` ne ha aggiunto un secondo,
+		// `URTHexMapSummaryLibrary::DescriviValidazione`, che alimenta il readout del mode Hex Map e si rifa'
+		// da solo quando la mappa smette di cambiare — quindi questa segnalazione raggiunge chi disegna
+		// **senza premere niente**, purche' il mode sia aperto.
+		//
+		// ⛔ **Ma il limite non e' sparito, si e' spostato**: quel readout si aggiorna sulla `Revision`
+		// dell'asset, e il Property Editor **non la muove** — `PostEditChangeChainProperty` esce senza
+		// incrementarla per ogni property che non sia `FRTHexCover::Type`. ∴ chi modifica l'asset dal
+		// pannello Details non vede aggiornarsi ne' questo readout ne' gli altri quattro di `#1186`. E
+		// **nessun hook di validazione al salvataggio esiste** (`grep -rn "EditorValidator\|IsDataValid\|
+		// DataValidation" Source/` → 0). Il limite resta, ed e' dichiarato invece che taciuto.
+		//
+		// ⛔ **E non diventa un `Error`**: e' il non-goal di `#1893`, e alzarne la severita' non toglierebbe
+		// il caso dal runtime — toglierebbe solo la sua segnalazione dalla vista, perche' il gate sulle mappe
+		// versionate passa da `ValidateMapDetailed`, che questa regola non la porta.
+		//
 		// La segnalazione esce UNA volta per coppia: la produce solo il lato che `StableLess` mette per
 		// primo — lo stesso ordinamento con cui `SortCells` e `ComputeHash` rendono deterministico il resto.
 		for (const FRTHexCover& Cover : C.Covers)
@@ -645,7 +677,11 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			if (Opposite->CoverOn(URTHexLibrary::OppositeDirection(Cover.Edge)) != ERTHexCoverType::None)
 			{
 				Errors.Add(FString::Printf(
-					TEXT("Warning: copertura ridondante sulla faccia opposta del bordo condiviso %s / %s"),
+					TEXT("Warning: copertura ridondante sulla faccia opposta del bordo condiviso %s / %s. ")
+					TEXT("Le due facce hanno integrita' propria e proteggono un lato ciascuna: un colpo le ")
+					TEXT("scala entrambe, produce DUE eventi e DUE segni sul bordo (a quote diverse se le ")
+					TEXT("celle hanno Height diversa), e una puo' cadere mentre l'altra regge. Se e' voluto, ")
+					TEXT("lascialo; se volevi una barriera sola, dichiarala da un lato solo. [D-437]"),
 					*C.Id.ToString(), *Far.ToString()));
 			}
 		}
@@ -994,10 +1030,12 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		}
 	}
 
-	// LE REGOLE DI TOPOLOGIA DI `#1832`, formattate in coda. Vivono in `ValidateMapDetailed` perche' i test
-	// devono poterle distinguere per **reason code** invece che per il testo del messaggio: un test che
-	// riconosce una regola dalla sua stringa si rompe alla prima riformulazione, e insegna a non toccare i
-	// messaggi — che e' il verso sbagliato in cui far pendere un validator che chi disegna deve leggere.
+	// LE REGOLE TIPIZZATE, formattate in coda. Nate con la topologia per-cella di `#1832`, e da `#1869` non
+	// piu' solo per-cella: `StairSkipsLayer` nasce dal ciclo sulle transizioni. Vivono in
+	// `ValidateMapDetailed` perche' i test devono poterle distinguere per **reason code** invece che per il
+	// testo del messaggio: un test che riconosce una regola dalla sua stringa si rompe alla prima
+	// riformulazione, e insegna a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un
+	// validator che chi disegna deve leggere.
 	{
 		TArray<FRTMapValidationIssue> Topology;
 		ValidateMapDetailed(Topology);
@@ -1071,8 +1109,14 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 		// La stessa catena della cottura — `ToPolyline` -> `ComputeMask` — e non una seconda: se questa
 		// misurasse diversamente da `DeriveStandability`, il validator segnalerebbe celle che il bake
 		// considera sane, o tacerebbe su quelle che marca.
+		//
+		// ⌫ **Fino al 2026-09-25 quella promessa la teneva solo questo commento**, e il predicato aveva due
+		// stesure: nessun test le confrontava. Ora la sede e' UNA — `WhyNotStandable` — e la divergenza
+		// non e' piu' possibile per dimenticanza. Il perche' sta accanto a quella funzione.
 		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
-		const bool bHasPlacement = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+		const ERTStandabilityBlock Blocco = URTGeometryBakeLibrary::WhyNotStandable(this, Cell.Id, Mask,
+			Footprint, HexSize);
+		const bool bHasPlacement = Blocco == ERTStandabilityBlock::None;
 
 		// ---- REGOLA 1 — posa impossibile su una cella che non si dichiara impraticabile.
 		if (!bHasPlacement && !Cell.bBlocksMovement)
@@ -1081,10 +1125,23 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 			Issue.Reason = ERTMapValidationReason::NoLegalPlacement;
 			Issue.Cell = Cell.Id;
 			Issue.bIsError = true;
-			Issue.Message = FString::Printf(
-				TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
-				TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),
-				*Cell.Id.ToString());
+			// 🔑 **Il messaggio nomina la CAUSA, e per questo il predicato torna una ragione e non un
+			// `bool`.** Finche' l'unica causa era la geometria, «la geometria non lascia posa» era vera per
+			// costruzione; con le regioni No-Walk manderebbe chi legge a cercare un muro che non c'e'.
+			Issue.Message = Blocco == ERTStandabilityBlock::NoWalkArea
+				? FString::Printf(
+					TEXT("%s: una regione No-Walk copre la cella, ma la cella non e' marcata ")
+					TEXT("bBlocksMovement. Ricuoci la mappa, oppure sposta la regione."),
+					*Cell.Id.ToString())
+				: Blocco == ERTStandabilityBlock::BoxVolume
+				? FString::Printf(
+					TEXT("%s: un volume a scatola occupa la cella, ma la cella non e' marcata ")
+					TEXT("bBlocksMovement. Ricuoci la mappa, oppure sposta il volume."),
+					*Cell.Id.ToString())
+				: FString::Printf(
+					TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
+					TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),
+					*Cell.Id.ToString());
 			OutIssues.Add(Issue);
 		}
 
@@ -1181,8 +1238,208 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 		}
 	}
 
+	// ---- REGOLA 6 — l'ATTERRAGGIO STATICAMENTE ISOLATO (`#2404`, [D-332], `spec-caduta-e-bordi.md` §7).
+	//
+	// 🔑 **Tre domande gia' scritte altrove, nessuna riscritta qui.** `IsEdgeOpen` dice da dove si cade,
+	// `FindLandingCell` dice dove si finisce (#2401), `GraphNeighbors` dice che cosa e' raggiungibile da li'.
+	// Un quarto criterio scritto in questa funzione sarebbe una seconda verita' sulla stessa mappa, e
+	// andrebbe fuori sincrono alla prima regola di traversata che cambia.
+	//
+	// ⛔ **L'occupazione a runtime resta fuori, e non per pigrizia.** Un'alternativa libera adesso non e' una
+	// promessa che la partita sia tenuta a mantenere, e una occupata adesso non e' un difetto d'authoring.
+	// Il ripiego del §4.3 esiste proprio per il secondo caso, e questa regola non lo sostituisce: dice
+	// soltanto che la mappa non NASCE chiusa.
+	//
+	// ⚠️ **Porta chiusa, copertura alta e arco spento CONTANO come blocco, e la scelta non e' di questa
+	// regola.** `spec-caduta-e-bordi.md` §2 mette *«muro, copertura alta, porta chiusa»* nella stessa riga
+	// **bloccante**, e `URTHexCoverLibrary::BlocksTraversal` si dichiara *«l'UNICA funzione che vista, grafo e
+	// combat interrogano»*; per l'arco spento la sede e' `GraphNeighbors`, dove CP 9.4 scrive che *«le due
+	// celle tornano irraggiungibili l'una dall'altra»*. Ammorbidire qui il criterio — *«la porta si puo'
+	// aprire»* — creerebbe una seconda risposta alla domanda che quelle due sedi gia' possiedono, e sarebbe
+	// la mappa a finire con due verita' su che cosa e' un passaggio.
+	{
+		TSet<FRTCellId> Esaminati;
+		for (const FRTHexCellData& Cell : Cells)
+		{
+			// ⛔ **Da un ciglio su cui nessuno puo' stare non cade nessuno.** `IsEdgeOpen` guarda parapetto e
+			// presenza del vicino, e **non** la calpestabilita' della cella di partenza: un pilastro
+			// `bBlocksMovement` o una cella `Void` hanno sei bordi aperti come una passerella. Senza questa
+			// riga un pilastro di roccia sopra una stanza sigillata diventa un errore d'authoring, e la
+			// stanza non e' raggiungibile da nessuno. La coppia di criteri e' la stessa che il resolver
+			// applica a una cella d'atterraggio.
+			if (Cell.bBlocksMovement || Cell.Surface == ERTHexSurface::Void)
+			{
+				continue;
+			}
+
+			bool bHaBordoAperto = false;
+			for (int32 EdgeIndex = 0; EdgeIndex < 6 && !bHaBordoAperto; ++EdgeIndex)
+			{
+				bHaBordoAperto = URTHexLedgeLibrary::IsEdgeOpen(
+					this, Cell.Id, static_cast<ERTHexDirection>(EdgeIndex));
+			}
+			if (!bHaBordoAperto)
+			{
+				continue; // da qui non si cade: non c'e' nessun atterraggio di cui parlare
+			}
+
+			FRTCellId Atterraggio;
+			if (!URTHexLedgeLibrary::FindLandingCell(this, Cell.Id, Atterraggio))
+			{
+				// ⚠️ **Sotto non c'e' NIENTE, e non e' questo difetto.** E' il quarto caso di `spec` §4 —
+				// `FellWithoutLanding`, chi cade resta sull'ultima cella stabile — che il runtime gestisce
+				// e che una passerella sospesa ha **per costruzione**: e' la sua forma normale, non un
+				// errore, quindi qui non si segnala.
+				continue;
+			}
+
+			// 🔑 **Una segnalazione per ATTERRAGGIO, non per bordo.** I sei bordi della stessa cella portano
+			// allo stesso posto, ed e' il ciclo qui sopra a garantirlo: si esce al primo bordo aperto e
+			// l'atterraggio si calcola una volta.
+			//
+			// ⚠️ **Che cosa guarda davvero questo set**, misurato e non supposto: con `FindLandingCell`
+			// vigente due cigli DISTINTI non condividono mai un atterraggio — stessa colonna significa layer
+			// diversi e quindi massimi diversi, colonne diverse significano `(X, Y)` diversi. `bGiaVisto`
+			// diventa vero solo se `Cells` porta due righe con lo stesso `Id`, che un'altra regola gia'
+			// segnala. Resta perche' l'unicita' e' una proprieta' di `FindLandingCell`, non di questa regola,
+			// e il giorno che quella cambia il doppione non deve arrivare fino all'elenco.
+			// ⚠️ Il `TSet` si INTERROGA e non si itera (invariante n. 3): l'elenco finale lo ordina il `Sort`.
+			bool bGiaVisto = false;
+			Esaminati.Add(Atterraggio, &bGiaVisto);
+			if (bGiaVisto)
+			{
+				continue;
+			}
+
+			// UN'ALTERNATIVA STATICA VALIDA: esiste, e' legalmente occupabile, non e' `Void`, ed e'
+			// topologicamente raggiungibile dall'atterraggio. Le prime due e la quarta sono esattamente cio'
+			// che `GraphNeighbors` gia' filtra — cella presente, non `bBlocksMovement`, bordo attraversabile,
+			// piu' gli archi attivi uscenti; la terza e' la stessa che il resolver applica al §4.2.
+			bool bHaAlternativa = false;
+			for (const TPair<FRTCellId, int32>& Passo : URTHexPathLibrary::GraphNeighbors(this, Atterraggio))
+			{
+				const FRTHexCellData* Vicina = FindCell(Passo.Key);
+				if (Vicina != nullptr && Vicina->Surface != ERTHexSurface::Void)
+				{
+					bHaAlternativa = true;
+					break;
+				}
+			}
+			if (bHaAlternativa)
+			{
+				continue;
+			}
+
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::IsolatedLanding;
+			Issue.Cell = Atterraggio;
+			Issue.bIsError = true;
+			// ⚠️ **Il messaggio dice cio' che e' stato misurato, e non una riga di piu'.** Misurato e':
+			// *«nessun passo esce da questa cella»*. Con zero uscite chi ci atterra e' fermo li' per sempre;
+			// con UNA uscita che porta in una sacca chiusa lo e' altrettanto, e questa regola **non lo vede**
+			// — il criterio e' l'adiacenza nel grafo, come il §4.2 del resolver, non una raggiungibilita'
+			// estesa. Promettere un'analisi di fuga che il predicato non fa sarebbe la parte peggiore: chi
+			// legge smetterebbe di cercare le sacche.
+			Issue.Message = FString::Printf(
+				TEXT("%s: ci si atterra cadendo da un bordo aperto, e da questa cella non esce nessun passo ")
+				TEXT("verso una cella praticabile e non Void. Chi ci arriva resta fermo li', e l'alternativa ")
+				TEXT("del par. 4.2 non esiste per nessuna caduta che finisca qui. Apri un passaggio, oppure ")
+				TEXT("metti un parapetto sul bordo che scarica qui."),
+				*Atterraggio.ToString());
+			OutIssues.Add(Issue);
+		}
+	}
+
+
+	// REGOLA 7 — una SCALA che salta un piano (`#1869`).
+	//
+	// ⚠️ **E' la prima regola di questa funzione che non e' per-cella**: le precedenti nascono tutte dal
+	// ciclo sulle celle, questa dal ciclo sulle transizioni. Sta qui e non fra le righe testuali di `ValidateMap`
+	// per la ragione dichiarata sull'enum: *«una regola NUOVA nasce con il suo codice»* — un test che la
+	// riconoscesse dalla stringa si romperebbe alla prima riformulazione del messaggio. Ed e' anche cio' che
+	// la porta sotto il gate di non-regressione delle mappe versionate, che legge da qui.
+	for (const FRTHexEdge& Arc : Transitions)
+	{
+		if (URTHexArcLibrary::IsTransitionLayerSpanLegal(Arc.From, Arc.To, Arc.Kind))
+		{
+			continue;
+		}
+		FRTMapValidationIssue Issue;
+		Issue.Reason = ERTMapValidationReason::StairSkipsLayer;
+		Issue.Cell = Arc.From; // l'ORIGINE dell'arco, non l'estremo basso: vedi il reason code
+		Issue.bIsError = true;
+		Issue.Message = FString::Printf(
+			TEXT("scala che salta %d layer %s -> %s: in v0.1 una scala collega solo layer adiacenti (MAP-5)"),
+			URTHexArcLibrary::TransitionLayerSpan(Arc.From, Arc.To), *Arc.From.ToString(), *Arc.To.ToString());
+		OutIssues.Add(Issue);
+	}
+
 	// ORDINE CANONICO. Non si eredita da `Cells`, il cui ordine lo decide chi edita l'asset: due asset che
 	// descrivono la stessa mappa con le celle scritte in ordine diverso devono produrre lo stesso elenco.
+	// ---- REGOLE 8 e 9 — le regioni No-Walk degeneri e auto-intersecanti (`#1868`).
+	//
+	// 🔑 **Le due domande sono aritmetica ESATTA su un reticolo intero**, non geometria in virgola mobile:
+	// `URTGeometryGrammarLibrary` le decide senza nessuna tolleranza, perche' i tredici anchor di ogni cella
+	// cadono su punti interi. Qui resta solo la segnalazione.
+	//
+	// ⚠️ **La cella della segnalazione e' quella del PRIMO VERTICE, e non e' la cella «colpevole»**: una
+	// regione non vive in una cella sola. E' un'ancora, scelta perche' `FRTMapValidationIssue` indicizza per
+	// cella e l'ordinamento canonico ne ha bisogno; il nome della regione sta nel messaggio, che e' l'unico
+	// posto in cui oggi possa stare. ⛔ Con due regioni difettose che partono dalla stessa cella, a
+	// distinguerle resta il testo — l'ultimo criterio dell'ordinamento qui sotto.
+	for (const FRTNoWalkArea& Area : NoWalkAreas)
+	{
+		const FRTCellId Ancora = Area.Vertices.Num() > 0 ? Area.Vertices[0].Cell : FRTCellId();
+		const FString Nome = Area.StableId.IsNone()
+			? FString(TEXT("senza nome")) : Area.StableId.ToString();
+
+		int32 PrimoV = INDEX_NONE;
+		int32 SecondoV = INDEX_NONE;
+		if (URTGeometryGrammarLibrary::RingHasCoincidentVertices(Area.Vertices, PrimoV, SecondoV))
+		{
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoWalkAreaDegenerate;
+			Issue.Cell = Ancora;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("Error: la regione No-Walk '%s' ha i vertici %d e %d nello STESSO punto, ")
+				TEXT("anche se i due riferimenti sono diversi: non chiude nulla."),
+				*Nome, PrimoV, SecondoV);
+			OutIssues.Add(Issue);
+		}
+		else if (URTGeometryGrammarLibrary::RingAreaTwice(Area.Vertices) == 0)
+		{
+			// `else if`: due vertici coincidenti ANNULLANO gia' l'area in molti casi, e segnalare due volte
+			// lo stesso disegno farebbe cercare due difetti dove ce n'e' uno. La causa piu' specifica vince.
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoWalkAreaDegenerate;
+			Issue.Cell = Ancora;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("Error: la regione No-Walk '%s' ha area NULLA — %d vertici allineati o troppo pochi: ")
+				TEXT("non chiude nessuna cella."),
+				*Nome, Area.Vertices.Num());
+			OutIssues.Add(Issue);
+		}
+
+		int32 PrimoL = INDEX_NONE;
+		int32 SecondoL = INDEX_NONE;
+		if (URTGeometryGrammarLibrary::RingSelfIntersects(Area.Vertices, PrimoL, SecondoL))
+		{
+			// ⚠️ **NON in `else`**: un anello puo' essere insieme auto-intersecante e ad area nulla, e sono
+			// due difetti da correggere separatamente. Qui l'una non implica l'altra.
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoWalkAreaSelfIntersecting;
+			Issue.Cell = Ancora;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("Error: la regione No-Walk '%s' si attraversa fra il lato %d e il lato %d: ")
+				TEXT("il lobo interno si cancella e la regione chiude meno celle di quante ne mostri."),
+				*Nome, PrimoL, SecondoL);
+			OutIssues.Add(Issue);
+		}
+	}
+
 	OutIssues.Sort([](const FRTMapValidationIssue& A, const FRTMapValidationIssue& B)
 	{
 		if (!(A.Cell == B.Cell))
@@ -1236,6 +1493,64 @@ TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const
 }
 
 #if WITH_EDITOR
+void URTHexMapAsset::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeChainProperty(PropertyChangedEvent);
+
+	// Solo il cambio di TIPO di una copertura riallinea, e non un edit qualunque del pannello. Se scattasse
+	// su ogni notifica, `Integrity` diventerebbe non modificabile a mano — il sintomo opposto, e peggiore.
+	if (PropertyChangedEvent.GetPropertyName()
+		!= GET_MEMBER_NAME_CHECKED(FRTHexCover, Type))
+	{
+		return;
+	}
+
+	// Il pannello dei dettagli dice QUALE entry ha toccato. Quando lo dice si riallinea quella sola; quando
+	// non lo dice — una notifica sintetica, un ricaricamento — si passano in rassegna tutte, ed e' sicuro
+	// perche' `RealignedIntegrity` lascia stare ogni valore che non sia di catalogo.
+	const int32 IndiceCella = PropertyChangedEvent.GetArrayIndex(TEXT("Cells"));
+	const int32 IndiceCopertura = PropertyChangedEvent.GetArrayIndex(TEXT("Covers"));
+
+	auto RiallineaCella = [IndiceCopertura](FRTHexCellData& Cella)
+	{
+		for (int32 i = 0; i < Cella.Covers.Num(); ++i)
+		{
+			if (IndiceCopertura != INDEX_NONE && i != IndiceCopertura)
+			{
+				continue;
+			}
+			FRTHexCover& Cover = Cella.Covers[i];
+			Cover.Integrity = FRTHexCover::RealignedIntegrity(Cover.Integrity, Cover.Type);
+		}
+	};
+
+	if (Cells.IsValidIndex(IndiceCella))
+	{
+		RiallineaCella(Cells[IndiceCella]);
+	}
+	else
+	{
+		for (FRTHexCellData& Cella : Cells)
+		{
+			RiallineaCella(Cella);
+		}
+	}
+
+	// ⚠️ Chi mostra l'asset non fa parte di questa notifica e non saprebbe di dover ridisegnare: stessa
+	// ragione per cui `PostEditUndo` la emette. `OnMapChanged` e' l'UNICO canale con cui un edit del pannello
+	// dell'asset raggiunge `ARTHexMapActor`, che vi iscrive `RebuildAllForAssetChange`.
+	//
+	// 🔴 **Si emette sul cambio di `Type`, NON sull'esito del riallineamento.** Una prima stesura la
+	// condizionava a «almeno una integrita' e' cambiata», e sbagliava soggetto: la geometria disegnata dipende
+	// **solo** dal tipo — `AddEdgePanel(..., Cover.Type == High ? RTCoverHighHeight : RTCoverLowHeight)` — e
+	// `Integrity` non entra in nessuna trasformata. Con quella guardia, portare a `High` una copertura con
+	// integrita' d'autore (`18`, che la regola lascia stare di proposito) non avrebbe ridisegnato nulla: a
+	// schermo sarebbe rimasto un muretto **basso** su un bordo che ora nega vista, passo e proiettili. Due
+	// coperture identiche per geometria si sarebbero comportate in modo diverso per via di un numero che la
+	// geometria non legge.
+	OnMapChanged.Broadcast();
+}
+
 void URTHexMapAsset::PostEditUndo()
 {
 	Super::PostEditUndo();

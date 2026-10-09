@@ -4,6 +4,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Unit/RTUnit.h"
 
+#include <initializer_list>
+
 namespace
 {
 	/**
@@ -38,16 +40,21 @@ namespace
 	}
 
 	/**
-	 * I cinque ruoli di un eroe del roster, ciascuno con la sua clip attiva.
+	 * I ruoli di un eroe del roster, ciascuno con la sua clip attiva.
 	 *
-	 * 🔴 **`Attack` e non `Cast`, ed e' l'errore che non fa rumore** (#2450). La clip che riempie il
-	 * ruolo d'attacco si CHIAMA `Cast` su tutti e quattro i pack, ma `ERTPresentationRole::Cast` e' un
-	 * ruolo DIVERSO e senza consumatore: scriverci dentro la clip darebbe un dato corretto che non suona
-	 * mai, senza errore, senza warning e senza log. Due tassonomie omonime, come `Role` di rete e il ruolo
-	 * di presentazione.
+	 * 🔴 **La clip dei pack che si CHIAMA `Cast` riempie DUE ruoli, e non e' un errore** (#2450, #3549). Sul
+	 * ruolo `Attack` e' il colpo; sul ruolo `Cast` e' il gesto di attivazione di `AbilityActivated`. Sul RUOLO
+	 * cast e colpo suonano la stessa sequenza in due momenti diversi (spec «il momento» D2).
+	 *
+	 * 🔑 **Da #3563 sopra il ruolo ci sono le clip per ABILITA'** (`MakeActionClips`, qui sotto): il ruolo resta
+	 * il RIPIEGO, e una clip diversa per un'abilita' si scrive li', non cambiando questo ruolo.
 	 *
 	 * ⚠️ I nomi si MISURANO: §AS.3b li ha letti sul disco, e **quattro caselle su dodici** fra i tre
 	 * ruoli discreti non si chiamano come ci si aspetta.
+	 *
+	 * ⚠️ **La clip `Hit` e' ADDITIVA in tutti e quattro i pack, ed e' giusto cosi'** (#3590): una hit-react e' un sussulto
+	 * da sommare alla posa corrente, e la seduta `U8` (`PIE-AS4b`) l'ha vista. La regola «niente additive» vale per i
+	 * gesti (`RTRoleWantsAFullBodyClip`), non per le reazioni.
 	 */
 	FRTHeroPresentationClips MakeClips(const TCHAR* Pack, const TCHAR* Idle, const TCHAR* Move,
 		const TCHAR* Attack, const TCHAR* Hit, const TCHAR* Death)
@@ -56,9 +63,42 @@ namespace
 		Clips.PerRole.Add(ERTPresentationRole::Idle, MakeRuolo(Pack, Idle));
 		Clips.PerRole.Add(ERTPresentationRole::Move, MakeRuolo(Pack, Move));
 		Clips.PerRole.Add(ERTPresentationRole::Attack, MakeRuolo(Pack, Attack));
+		// La STESSA clip del ruolo `Attack`: vedi il commento qui sopra.
+		Clips.PerRole.Add(ERTPresentationRole::Cast, MakeRuolo(Pack, Attack));
 		Clips.PerRole.Add(ERTPresentationRole::Hit, MakeRuolo(Pack, Hit));
 		Clips.PerRole.Add(ERTPresentationRole::Death, MakeRuolo(Pack, Death));
 		return Clips;
+	}
+
+	/** Una voce della mappa abilita'→clip: quale azione, su quale beat, con quale clip del pack. */
+	struct FRTVoceClipAzione
+	{
+		const TCHAR* ActionId;
+		ERTPresentationRole Role;
+		const TCHAR* Clip;
+	};
+
+	/**
+	 * Le clip per AZIONE di un eroe del roster (#3563, spec «la clip per abilita'» §2.4, D4).
+	 *
+	 * 🔑 **Una riga per (abilita', beat)**, ciascuna una variante `AV_Roster` gia' attiva — la stessa forma di
+	 * `MakeRuolo`. Solo `Cast` e `Attack` (D3): gli altri ruoli non conoscono l'azione, e una voce li' non suonerebbe.
+	 *
+	 * ⚠️ **La mappa e' un giudizio dell'autore, scelto dai NOMI** (spec §2.6, approvata il 2026-10-07): la seduta
+	 * `PIE-CLIP-ABILITA` puo' cambiarne ogni riga. Chi la cambia cambia anche la seconda copia dichiarata,
+	 * `ClipAtteseDefault` in `Tests/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
+	 * entrare qui (spec §2.6, che porta il comando di misura): i nomi non si deducono.
+	 * 🔴 **E nessuna clip e' additiva** (#3590): un nome che esiste non basta, perche' su un gesto un'additiva suona e
+	 * non si vede. Lo presidia `Unit.DefaultGestureClipsAreNotAdditive`, che legge l'asset dove i pack ci sono.
+	 */
+	TMap<FName, FRTActionPresentationClips> MakeActionClips(const TCHAR* Pack, std::initializer_list<FRTVoceClipAzione> Voci)
+	{
+		TMap<FName, FRTActionPresentationClips> PerAzione;
+		for (const FRTVoceClipAzione& Voce : Voci)
+		{
+			PerAzione.FindOrAdd(FName(Voce.ActionId)).PerRole.Add(Voce.Role, MakeRuolo(Pack, Voce.Clip));
+		}
+		return PerAzione;
 	}
 }
 
@@ -154,14 +194,43 @@ const FRTAnimRoleClips* FRTHeroPresentationClips::FindRole(ERTPresentationRole R
 
 URTUnitAnimInstance::URTUnitAnimInstance()
 {
+	// ⚠️ Il riferimento restituito da `Add` si usa SUBITO: l'`Add` dell'eroe successivo puo' riallocare la mappa.
+	// 🔴 #3590: gli `LMB_Fire_*` nudi di Gadget sono ADDITIVI; le varianti `_Slow_V1` sono piene. Tutti i cast di
+	// Gadget (`Ability_Q*`, `Throw_Ready*`) sono additivi: per i cast di Aevik resta la `Cast` del pack (il ruolo).
 	ClipsPerHero.Add(FName(TEXT("Hero.Aevik")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
-		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
+		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Gadget"), {
+		{ TEXT("Hero.Aevik.ArcPulse"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_A_Slow_V1") },
+		{ TEXT("Hero.Aevik.LinearDischarge"), ERTPresentationRole::Attack, TEXT("LMB_Fire_B_Slow_V1") },
+		{ TEXT("Hero.Aevik.Overload"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_C_Slow_V1") },
+	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Muiren")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));
+		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death"))).PerAction = MakeActionClips(TEXT("Phase"), {
+		{ TEXT("Hero.Muiren.PressureJet"),  ERTPresentationRole::Attack, TEXT("Primary_Attack_A_Medium") },
+		{ TEXT("Hero.Muiren.CircularTide"), ERTPresentationRole::Cast,   TEXT("R_Ability_Intro") },
+		{ TEXT("Hero.Muiren.FluidTrail"),   ERTPresentationRole::Cast,   TEXT("Ability_E") },
+		{ TEXT("Hero.Muiren.TideGuard"),    ERTPresentationRole::Cast,   TEXT("Ability_R_Alt") },
+	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd")));
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Riktor"), {
+		{ TEXT("Hero.Branth.ImpactShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_A_Slow") },
+		{ TEXT("Hero.Branth.KineticPanel"), ERTPresentationRole::Cast,   TEXT("Ability_Lockdown") },
+		{ TEXT("Hero.Branth.Reconfigure"),  ERTPresentationRole::Cast,   TEXT("Ability_Hook_Pull") },
+		// L'impatto di una carica porta l'ActionId dello SCATTO (`Impact.Def = Dash->Def`): Ram ha un beat Attack.
+		{ TEXT("Hero.Branth.Ram"),          ERTPresentationRole::Cast,   TEXT("Ability_Hook_Start") },
+		{ TEXT("Hero.Branth.Ram"),          ERTPresentationRole::Attack, TEXT("Ability_ShockingPunch") },
+		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Cast,   TEXT("Ability_Hook_Cast") },
+		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_B_Slow") },
+	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Ivrin")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward")));
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward"))).PerAction = MakeActionClips(TEXT("Wraith"), {
+		{ TEXT("Hero.Ivrin.PulseShot"),     ERTPresentationRole::Attack, TEXT("Fire_A_Fast_V1") },
+		// Il colpo predittivo non emette un `Attack` (`RTTurnManager.cpp:7133-7136`): solo il beat Cast.
+		{ TEXT("Hero.Ivrin.InterceptShot"), ERTPresentationRole::Cast,   TEXT("Ability_E_Targeting_Start") },
+		{ TEXT("Hero.Ivrin.PassingBlade"),  ERTPresentationRole::Cast,   TEXT("Ability_R_InMotion") },
+		{ TEXT("Hero.Ivrin.PassingBlade"),  ERTPresentationRole::Attack, TEXT("Ability_Q_Fire_Fwd") },
+		{ TEXT("Hero.Ivrin.Feint"),         ERTPresentationRole::Cast,   TEXT("Ability_E") },
+		{ TEXT("Hero.Ivrin.PhaseGuard"),    ERTPresentationRole::Cast,   TEXT("Ability_RMB_Start") },
+	});
 }
 
 TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
@@ -181,9 +250,49 @@ TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
 	return Attiva ? Attiva->Clip : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
 }
 
+TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
+	const FName& ActionId, const FName& BaseActionId) const
+{
+	if (const FRTHeroPresentationClips* Eroe = FindClipsFor(HeroId))
+	{
+		// 🔑 L'ORDINE dei livelli e' la decisione D2: il profilo, poi la generica condivisa fra eroi.
+		for (const FName& Chiave : { ActionId, BaseActionId })
+		{
+			if (Chiave.IsNone())
+			{
+				continue;   // un livello senza chiave si salta: non si indovina
+			}
+			const FRTActionPresentationClips* Azione = Eroe->PerAction.Find(Chiave);
+			if (Azione == nullptr)
+			{
+				continue;
+			}
+			const FRTAnimRoleClips* Pool = Azione->PerRole.Find(Role);
+			const FRTAnimVariant* Attiva = Pool ? Pool->FindActive() : nullptr;
+			if (Attiva != nullptr)
+			{
+				return Attiva->Clip;
+			}
+			// ⚠️ La voce dell'azione c'era ma non per questo ruolo, o senza attiva: si prosegue (Review Focus (a)).
+		}
+	}
+	// Il ripiego e' la clip di ruolo di oggi, con le sue tre uscite a nulla tutte normali.
+	return ActiveClipFor(HeroId, Role);
+}
+
 FAnimInstanceProxy* URTUnitAnimInstance::CreateAnimInstanceProxy()
 {
 	return new FRTUnitAnimProxy(this);
+}
+
+bool RTClipIsAdditive(const UAnimSequenceBase* Clip)
+{
+	return Clip != nullptr && Clip->IsValidAdditive();
+}
+
+bool RTRoleWantsAFullBodyClip(ERTPresentationRole Role)
+{
+	return Role == ERTPresentationRole::Cast || Role == ERTPresentationRole::Attack;
 }
 
 void FRTUnitAnimProxy::Initialize(UAnimInstance* InAnimInstance)
@@ -224,10 +333,10 @@ void FRTUnitAnimProxy::Initialize(UAnimInstance* InAnimInstance)
 		return;
 	}
 
-	// ⚠️ **DUE ruoli, non nove.** `ERTPresentationRole` ne nomina nove perche' servono all'authoring, ma
-	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri sette non hanno ancora
-	// un consumatore a runtime: `Attack`/`Hit`/`Death` passano dai `BlueprintImplementableEvent` di
-	// `ARTUnit`, gli altri quattro da niente.
+	// ⚠️ **DUE ruoli, non tutti.** `ERTPresentationRole` ne nomina di piu' perche' servono all'authoring, ma
+	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri non passano da qui:
+	// `Attack`/`Hit`/`Death`/`Cast` dai `BlueprintImplementableEvent` di `ARTUnit` (`Cast` da #3549),
+	// `Dash`/`Defend`/`Fall` da niente, ancora.
 	//
 	// `ActiveClipFor` copre da solo le tre vie che danno «nessuna clip» — eroe fuori catalogo, ruolo non
 	// popolato, nessuna variante attiva — e nessuna delle tre e' un errore.

@@ -63,24 +63,25 @@ public:
 	bool ApplyUserStatus(const FName& Id, ERTAnimClipStatus NewStatus);
 
 	/**
-	 * Lega la clip a `(eroe, ruolo)`. **Entra sempre INATTIVA**, qualunque sia lo stato del ruolo.
+	 * Lega la clip a `(eroe, ruolo)` — o, con `ActionId`, a `(eroe, ruolo, azione)` (#3563). **Entra sempre
+	 * INATTIVA**, qualunque sia lo stato del pool.
 	 *
 	 * ⛔ Rifiuta se la clip non e' `Promoted`: legare cio' che nessuno ha guardato e' esattamente il
 	 * salto che questo strumento esiste per impedire.
 	 */
-	bool BindToRole(const FName& Id, const FName& HeroId, ERTPresentationRole Role);
+	bool BindToRole(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId = NAME_None);
 
 	/**
-	 * Rende attiva questa clip per `(eroe, ruolo)`, **atomicamente**: qualunque altra attiva per lo
-	 * stesso ruolo torna inattiva nello stesso passo.
+	 * Rende attiva questa clip nel suo pool, **atomicamente**: qualunque altra attiva dello STESSO pool torna
+	 * inattiva nello stesso passo. Un pool di ruolo e uno d'azione dello stesso `(eroe, ruolo)` non si toccano.
 	 */
-	bool MakeActive(const FName& Id, const FName& HeroId, ERTPresentationRole Role);
+	bool MakeActive(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId = NAME_None);
 
 	/**
-	 * Toglie il legame. Se era l'attiva, il ruolo resta **senza attiva** e non si elegge una sostituta:
-	 * la scelta e' dell'autore, e il ripiego e' la posa di riferimento.
+	 * Toglie il legame dal suo pool. Se era l'attiva, il pool resta **senza attiva** e non si elegge una
+	 * sostituta: la scelta e' dell'autore, e il ripiego e' il livello successivo (l'azione → il ruolo).
 	 */
-	bool Unbind(const FName& Id, const FName& HeroId, ERTPresentationRole Role);
+	bool Unbind(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId = NAME_None);
 
 	/** Il pack di un path Paragon (`.../ParagonGadget/...` -> `Aevik`), o vuoto. */
 	static FString PackFromAssetPath(const FString& AssetPath);

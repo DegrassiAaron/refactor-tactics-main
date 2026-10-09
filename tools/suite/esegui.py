@@ -33,6 +33,28 @@ Fa tre cose che l'invocazione a mano non fa:
 3. **Termina l'albero** quando il log dichiara finito e il processo resta vivo oltre la grazia, e lo
    **dichiara nel referto** invece di nasconderlo.
 
+🔑 **Non blocca la build dell'Editor di nessuno, e per due ragioni** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)).
+In UE 5.8.1:
+
+- **non avvia il Live Coding.** Si avvia da solo soltanto in un processo che **non** e' `-unattended`
+  (`FLiveCodingModule::StartupModule` chiede `FApp::IsUnattended()`), salvo `-LiveCoding` esplicito, e
+  la suite lo e'. Misurato il 2026-10-07: nei log scritti dal 2026-09-20 nessuna run `-unattended`
+  contiene «Starting LiveCoding»;
+- **e anche se lo avviasse, il suo lock non e' quello che UBT controlla.** Il mutex prende il nome
+  dall'eseguibile del processo, qui `UnrealEditor-Cmd.exe` (`FLiveCodingModule::StartLiveCoding`);
+  per il target Editor UBT interroga quello di `UnrealEditor.exe` (`HotReload.IsLiveCodingSessionActive`).
+
+⌫ **`-NoLiveCoding` non c'e' piu'** ([`D-469`], [#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536)).
+E' un'opzione di **UBT** (`TargetRules.bWithLiveCoding`: compila il target senza Live Coding), e l'Editor
+non la legge: gli Editor interattivi aperti con quel flag hanno scritto «Starting LiveCoding» lo stesso.
+Stava nella riga perche' i gate di `tools/mutation/` la cercavano per decidere se terminare una console
+orfana ([`D-400`]). `D-469` ha superato quella voce — una console orfana non blocca le build, e nessun
+gate la termina —, e il flag ha perso il suo ultimo lettore.
+Per spegnere il Live Coding in un processo che non e' `-unattended`, la riga che il motore legge e'
+`-LiveCoding=false`: misurato su tre avvii di `UnrealEditor-Cmd` senza `-unattended`. Senza flag e con
+`-NoLiveCoding` il log dice «Starting LiveCoding»; con `-LiveCoding=false` non c'e' nessuna riga
+`LogLiveCoding`.
+
 ⛔ **Non decide se la misura sia VALIDA.** Quel giudizio e' di `misura.verdetto()`, che confronta le
 istantanee dell'albero git prima e dopo e sa dire se il sorgente e' cambiato sotto la run. Qui si
 esegue una suite e si riferisce cosa ha detto; per una verifica di mutazione si usano i gate.
@@ -107,6 +129,8 @@ def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
     # ⚠️ `;Quit`, mai `+Quit` — vedi il docstring di modulo. Su FILE e non su `PIPE`: senza drenare,
     # `PIPE` va in deadlock appena il buffer di sistema si riempie, e una suite intera emette
     # megabyte. Il log vero e' il file `-abslog=`; qui basta non bloccare il figlio.
+    # 🔑 `-unattended` e' anche cio' che tiene spento il Live Coding (#3522). ⌫ `-NoLiveCoding` non c'e'
+    # piu': il motore non lo legge, e i gate che lo cercavano non esistono dopo [D-469] (docstring di modulo).
     scarto = tempfile.TemporaryFile()
     avvio = subprocess.Popen(
         [ENGINE_CMD, UPROJECT,

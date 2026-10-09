@@ -1,15 +1,29 @@
 #include "Turn/RTPacingLibrary.h"
 
-int32 URTPacingLibrary::PercentileNearestRank(const TArray<int32>& SortedValues, int32 Percentile)
+int32 URTPacingLibrary::NearestRankIndex(int32 Num, int32 Percentile)
 {
-	if (SortedValues.Num() == 0)
+	if (Num <= 0)
 	{
-		return 0;
+		return INDEX_NONE;
 	}
 	const int32 P = FMath::Clamp(Percentile, 1, 100);
 	// Rango 1-based = ceil(P/100 * N), su interi per non passare mai da un float.
-	const int32 Rank = FMath::DivideAndRoundUp(P * SortedValues.Num(), 100);
-	return SortedValues[FMath::Clamp(Rank - 1, 0, SortedValues.Num() - 1)];
+	const int32 Rank = FMath::DivideAndRoundUp(P * Num, 100);
+	return FMath::Clamp(Rank - 1, 0, Num - 1);
+}
+
+int32 URTPacingLibrary::PercentileNearestRank(const TArray<int32>& SortedValues, int32 Percentile)
+{
+	const int32 Index = NearestRankIndex(SortedValues.Num(), Percentile);
+	return Index == INDEX_NONE ? 0 : SortedValues[Index];
+}
+
+double URTPacingLibrary::PercentileNearestRankReal(const TArray<double>& SortedValues, int32 Percentile)
+{
+	// 🔑 Stessa riga del gemello intero, e non e' una ripetizione da togliere: la REGOLA sta in
+	// `NearestRankIndex` e qui resta solo la lettura, che e' l'unica cosa che il tipo cambia.
+	const int32 Index = NearestRankIndex(SortedValues.Num(), Percentile);
+	return Index == INDEX_NONE ? 0.0 : SortedValues[Index];
 }
 
 FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample>& Samples, int32 CutoffWindowMs)
@@ -23,6 +37,9 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 
 	TArray<int32> LockIn;
 	TArray<int32> Playback;
+	TArray<int32> Candidati;
+	TArray<double> Raccolta;
+	TArray<double> Boundary;
 	LockIn.Reserve(Samples.Num());
 	Playback.Reserve(Samples.Num());
 
@@ -44,6 +61,18 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 		// misurati — ogni run headless — ha comunque aperto le finestre che ha aperto.
 		Out.TotalReactionWindows += S.ReactionWindowsOpened;
 		Out.TotalReactionOpportunities += S.ReactionOpportunities;
+
+		// Stessa ragione, e stesso posto PRIMA di ogni esclusione: i candidati raccolti sono un fatto
+		// osservato del turno e non dipendono dal cronometro della pianificazione (`#2516`).
+		Candidati.Append(S.CandidatesPerEvent);
+
+		// ⚠️ **Tre `Append` e non uno**, ed e' la forma che tiene i tre budget separati (`#2516`).
+		// Le tre serie hanno lunghezze diverse per costruzione — non ogni raccolta apre un boundary — e
+		// quindi non si possono scorrere insieme ne' sommare elemento per elemento. ⛔ Un
+		// "costo totale del boundary" qui sarebbe una riga sola e un numero falso: la raccolta avviene
+		// PRIMA del boundary, al call site, non dentro di esso.
+		Raccolta.Append(S.CandidateCollectionCpuMs);
+		Boundary.Append(S.BoundaryCpuMs);
 
 		// ⚠️ Un campione NON MISURATO non e' un lock-in rapido: e' l'assenza di una misura, e va tolto da
 		// ogni statistica che risponde «quanto tempo». La sentinella e' negativa apposta, ma escluderla non
@@ -81,6 +110,24 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 	Out.P90MsToLockIn = LockIn.Num() > 0
 		? PercentileNearestRank(LockIn, 90) : FRTPacingSample::Unmeasured;
 	Out.MedianMsPlayback = PercentileNearestRank(Playback, 50);
+
+	// 🔑 **I candidati usano la STESSA funzione dei percentili del lock-in**, non una seconda:
+	// `PercentileNearestRank` e' pubblica e documentata, e due implementazioni divergerebbero al primo
+	// caso limite (`#2516`).
+	Candidati.Sort();
+	Out.CandidateEvents = Candidati.Num();
+	Out.MedianCandidatesPerEvent = PercentileNearestRank(Candidati, 50);
+	Out.P90CandidatesPerEvent = PercentileNearestRank(Candidati, 90);
+
+	// 🔑 I due cronometri passano da `PercentileNearestRankReal`, che chiede l'indice alla STESSA
+	// `NearestRankIndex` del gemello intero: la regola del rango e' una, le letture sono due (`#2516`).
+	Raccolta.Sort();
+	Boundary.Sort();
+	Out.BoundaryEvents = Boundary.Num();
+	Out.MedianCandidateCollectionCpuMs = PercentileNearestRankReal(Raccolta, 50);
+	Out.P90CandidateCollectionCpuMs = PercentileNearestRankReal(Raccolta, 90);
+	Out.MedianBoundaryCpuMs = PercentileNearestRankReal(Boundary, 50);
+	Out.P90BoundaryCpuMs = PercentileNearestRankReal(Boundary, 90);
 	return Out;
 }
 
@@ -241,13 +288,46 @@ FString URTPacingLibrary::CsvHeader()
 	// scritti, e inserirla prima sposterebbe ogni colonna a valle senza che nessun errore lo dica.
 	return TEXT("Turn,AliveT0,AliveT1,ActionsAvailable,MsToFirstInput,SelectionCount,OrderCount,")
 		   TEXT("UndoCount,MsToLockIn,MsSinceLastInput,LockInSource,MsPlayback,PlaybackSkipped,")
-		   TEXT("ReactionWindows,ReactionOpportunities");
+		   TEXT("ReactionWindows,ReactionOpportunities,CandidateEvents,CandidatesTotal,")
+		   TEXT("CollectionCpuUsTotal,BoundaryEvents,BoundaryCpuUsTotal");
 }
 
 FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 {
 	// Tutti %d: nessun float, quindi nessuna virgola decimale da locale che spezzi le colonne.
-	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
+	//
+	// 🔴 **Ed e' il motivo per cui i due cronometri escono in MICROSECONDI qui, pur essendo `double`
+	// millisecondi nel campione** (`#2516`). Non e' una preferenza: `CsvRowMatchesHeader` asserisce che
+	// OGNI colonna sia `IsNumeric() && !Contains(".")`, quindi un `%f` non passerebbe — e con locale
+	// italiano stamperebbe pure una virgola, spezzando la riga. Il nome della colonna porta l'unita'
+	// (`...Us`) perche' chi legge il CSV non veda `Ms` nel codice e `us` nel foglio senza spiegazione.
+	//
+	// ⚠️ **Si somma in `double` e si arrotonda UNA volta**, non si arrotonda ogni voce e poi si somma:
+	// con misure sub-millisecondo il secondo modo perde fino a mezzo microsecondo per evento, e su una
+	// sessione lunga l'errore e' sistematico invece che casuale.
+	// Le due colonne di `#2516` sono in CODA, per la ragione scritta in `CsvHeader`.
+	// 🔑 **Si pubblica il campione E il totale, non la media**: con il solo totale una sessione di un
+	// evento da 10 candidati e una di dieci eventi da 1 sarebbero indistinguibili, e sono due cose diverse.
+	int32 CandidatiTotali = 0;
+	for (int32 N : Sample.CandidatesPerEvent)
+	{
+		CandidatiTotali += N;
+	}
+
+	// ⛔ **Due somme separate, e non si toccano.** Sono i due budget di `#2516` che la DoD vuole mai
+	// sommati: la raccolta avviene al call site e PRECEDE il boundary, non ci sta dentro.
+	double RaccoltaMs = 0.0;
+	for (double Ms : Sample.CandidateCollectionCpuMs)
+	{
+		RaccoltaMs += Ms;
+	}
+	double BoundaryMs = 0.0;
+	for (double Ms : Sample.BoundaryCpuMs)
+	{
+		BoundaryMs += Ms;
+	}
+
+	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
 		Sample.TurnNumber,
 		Sample.UnitsAliveTeam0,
 		Sample.UnitsAliveTeam1,
@@ -262,5 +342,10 @@ FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 		Sample.MsPlayback,
 		Sample.bPlaybackSkipped ? 1 : 0,
 		Sample.ReactionWindowsOpened,
-		Sample.ReactionOpportunities);
+		Sample.ReactionOpportunities,
+		Sample.CandidatesPerEvent.Num(),
+		CandidatiTotali,
+		FMath::RoundToInt(RaccoltaMs * 1000.0),
+		Sample.BoundaryCpuMs.Num(),
+		FMath::RoundToInt(BoundaryMs * 1000.0));
 }

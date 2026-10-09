@@ -38,10 +38,53 @@ namespace
 				? (A.Cell == B.Cell && A.Segment == B.Segment)
 				: (A.StableId == B.StableId);
 
+		case ERTMapElementKind::Transition:
+			// 🔴 **La coppia si confronta NON ORDINATA, e senza questo ramo il difetto era doppio.**
+			// L'asset tiene andata e ritorno come due `FRTHexEdge`, ma per chi guarda sono un arco solo:
+			// `(A,B)` e `(B,A)` devono risultare lo STESSO elemento, o lo stesso arco entrerebbe due volte
+			// in selezione e `EraseSelection` proverebbe a cancellarlo due volte — la seconda su una
+			// mappa da cui e' gia' sparito. E' letteralmente il difetto che `490746018` ha corretto per il
+			// ciclo di Ctrl+click, qui nella sua forma di identita'.
+			//
+			// ⚠️ Prima del 2026-09-23 questo caso **non c'era** e si cadeva su `default: return
+			// false`: due handle identici risultavano diversi, quindi `IsFree` li considerava sempre liberi
+			// e la deduplica non scattava mai. Il `Kind` era dichiarato e nessuno lo produceva, quindi il
+			// difetto non si vedeva — ma sarebbe uscito al primo produttore.
+			return (A.Cell == B.Cell && A.To == B.To)
+				|| (A.Cell == B.To && A.To == B.Cell);
+
 		default:
 			return false;
 		}
 	}
+}
+
+void URTHexSelectionStore::SelectHandle(const FRTMapElementHandle& Handle)
+{
+	Selection.Reset();
+	Selection.Add(Handle);
+
+	// Il ciclo appartiene a un punto e ai suoi candidati: questo handle non viene da li', quindi il ciclo
+	// non ha piu' un soggetto. Lasciarlo armato farebbe «avanzare» il prossimo click su una cella in
+	// un ciclo che riguardava un'altra domanda.
+	bHasCycle = false;
+	CycleIndex = INDEX_NONE;
+}
+
+bool URTHexSelectionStore::AddHandle(const FRTMapElementHandle& Handle)
+{
+	for (const FRTMapElementHandle& Gia : Selection)
+	{
+		if (SameElement(Gia, Handle))
+		{
+			return false;
+		}
+	}
+
+	Selection.Add(Handle);
+	bHasCycle = false;
+	CycleIndex = INDEX_NONE;
+	return true;
 }
 
 bool URTHexSelectionStore::SelectAt(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge)

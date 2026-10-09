@@ -32,7 +32,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotReserveRouteTest,
-	"RefactorTactics.Bot.ReservedRouteBlocksTeammatesOnly",
+	"RefactorTactics.Bot.ReservedDestinationBlocksTeammatesOnly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRTBotReserveRouteTest::RunTest(const FString&)
@@ -46,7 +46,7 @@ bool FRTBotReserveRouteTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(1, CellA, /*budget*/ 5));
 	SimUnits.Add(FRTHexSimUnit(2, CellB, /*budget*/ 5));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena, SimUnits);
 
 	// Una destinazione qualsiasi ma RAGGIUNGIBILE: la rotta dev'essere reale, altrimenti il test verificherebbe
 	// la prenotazione di un percorso vuoto — che è vera per costruzione e non dice niente.
@@ -61,25 +61,39 @@ bool FRTBotReserveRouteTest::RunTest(const FString&)
 	FRTHexSnapshot Reserved = Snapshot;
 	URTHexBotLibrary::ReservePlannedRoute(Reserved, /*UnitId=*/ 1, Dest);
 
-	// --- 1. Ogni cella della rotta risulta occupata, e dall'unità che l'ha prenotata.
-	int32 Missing = 0;
-	int32 WrongOwner = 0;
-	for (const FRTCellId& Cell : Route)
-	{
-		const int32* Owner = Reserved.Occupancy.Find(Cell);
-		if (!Owner) { ++Missing; }
-		else if (*Owner != 1) { ++WrongOwner; }
-	}
-	TestEqual(TEXT("nessuna cella della rotta è rimasta libera"), Missing, 0);
-	TestEqual(TEXT("e nessuna risulta di un'altra unità"), WrongOwner, 0);
-
-	// --- 2. Per la COMPAGNA quelle celle sono occupate: è il punto della prenotazione.
+	// --- 1. La DESTINAZIONE risulta occupata, e dall'unità che l'ha prenotata.
 	//
-	// Si misura sulle celle raggiungibili, che è la funzione da cui il bot genera le candidate: se una cella
-	// prenotata comparisse ancora fra le raggiungibili di `u2`, `BuildCandidates` potrebbe riproporla e la
-	// prenotazione non servirebbe a niente.
-	const TArray<FRTHexReachableCell> ReachableBefore = URTHexSimLibrary::ReachableCells(Snapshot, /*UnitId=*/ 2);
-	const TArray<FRTHexReachableCell> ReachableAfter = URTHexSimLibrary::ReachableCells(Reserved, /*UnitId=*/ 2);
+	// 🔴 **Si prenota la sola destinazione, non piu' la rotta** ([D-445]). La prenotazione del transito
+	// poggiava su un invariante che diceva *«la rotta viene da `FindPathForUnit`, che le celle altrui le
+	// evita»*: [D-445] l'ha ritirato, le rotte si incrociano per progetto, e il guardiano che segnalava la
+	// sovrapposizione ha iniziato a scattare sul caso **normale**.
+	//
+	// 🔑 **La proprieta' che `#1088` chiedeva — due compagne non scelgono la stessa cella — vive dove la
+	// contesa e' rimasta esclusiva: il terminus ([D-289]).** Prenotare il transito non aggiungeva niente a
+	// quella proprieta' nemmeno prima.
+	const int32* Owner = Reserved.Occupancy.Find(Dest);
+	if (!TestNotNull(TEXT("la destinazione risulta occupata"), Owner)) { return false; }
+	TestEqual(TEXT("e dall'unità che l'ha prenotata"), *Owner, 1);
+
+	// ⚠️ **E le celle di TRANSITO restano libere**, che e' la meta' falsificante di questo punto: senza,
+	// «la destinazione e' prenotata» sarebbe vero anche di una prenotazione che prende tutto.
+	int32 TransitoPrenotato = 0;
+	for (int32 I = 1; I < Route.Num() - 1; ++I)
+	{
+		if (Reserved.Occupancy.Find(Route[I])) { ++TransitoPrenotato; }
+	}
+	TestTrue(TEXT("premessa: la rotta ha almeno una cella di transito"), Route.Num() >= 3);
+	TestEqual(TEXT("nessuna cella di TRANSITO è stata prenotata"), TransitoPrenotato, 0);
+
+	// --- 2. Per la COMPAGNA quella cella non è piu' candidata: è il punto della prenotazione.
+	//
+	// 🔴 **Si misura su `CandidateCells`, non piu' su `ReachableCells`** ([D-446]). Il ventaglio include
+	// oggi le celle occupate — la destinazione occupata e' una scommessa dichiarabile — quindi misurare li'
+	// direbbe sempre *«raggiungibile»* e il banco sarebbe verde per cecita'. `CandidateCells` e' il
+	// ventaglio **meno le celle altrui**, ed e' la funzione da cui il bot genera davvero le candidate: se una
+	// cella prenotata comparisse li', `BuildCandidates` potrebbe riproporla e la prenotazione non servirebbe.
+	const TArray<FRTHexReachableCell> ReachableBefore = URTHexBotLibrary::CandidateCells(Snapshot, /*UnitId=*/ 2);
+	const TArray<FRTHexReachableCell> ReachableAfter = URTHexBotLibrary::CandidateCells(Reserved, /*UnitId=*/ 2);
 
 	auto Contains = [](const TArray<FRTHexReachableCell>& Cells, const FRTCellId& Target)
 	{
@@ -87,26 +101,29 @@ bool FRTBotReserveRouteTest::RunTest(const FString&)
 		return false;
 	};
 
-	// ⚠️ Il controllo di non-vacuità: se `u2` non potesse già raggiungere nessuna cella della rotta, «dopo non
-	// le raggiunge» sarebbe vero senza che la prenotazione abbia fatto niente.
-	int32 ReachableOnRouteBefore = 0;
-	int32 ReachableOnRouteAfter = 0;
-	for (int32 I = 1; I < Route.Num(); ++I)     // dalla 1: la cella di partenza di u1 era già occupata
+	// ⚠️ Il controllo di non-vacuità: se `u2` non avesse già la destinazione fra le candidate, «dopo non
+	// ce l'ha» sarebbe vero senza che la prenotazione abbia fatto niente.
+	TestTrue(TEXT("premessa: prima della prenotazione la destinazione era candidata per u2"),
+		Contains(ReachableBefore, Dest));
+	TestFalse(TEXT("dopo la prenotazione non lo è piu'"), Contains(ReachableAfter, Dest));
+
+	// 🔑 **E il TRANSITO resta candidato**, che e' la differenza fra questa decisione e quella di prima:
+	// due compagne possono attraversare le stesse celle, non possono finirvi. Senza questa riga il banco non
+	// distinguerebbe «si prenota la destinazione» da «si prenota tutto».
+	int32 TransitoCandidatoDopo = 0;
+	for (int32 I = 1; I < Route.Num() - 1; ++I)
 	{
-		if (Contains(ReachableBefore, Route[I])) { ++ReachableOnRouteBefore; }
-		if (Contains(ReachableAfter, Route[I])) { ++ReachableOnRouteAfter; }
+		if (Contains(ReachableAfter, Route[I])) { ++TransitoCandidatoDopo; }
 	}
-	AddInfo(FString::Printf(TEXT("celle della rotta raggiungibili da u2: prima %d, dopo %d"),
-		ReachableOnRouteBefore, ReachableOnRouteAfter));
+	AddInfo(FString::Printf(TEXT("celle di transito ancora candidate per u2 dopo la prenotazione: %d su %d"),
+		TransitoCandidatoDopo, Route.Num() - 2));
+	TestEqual(TEXT("le celle di TRANSITO restano candidate per u2"),
+		TransitoCandidatoDopo, Route.Num() - 2);
 
-	TestTrue(TEXT("premessa: prima della prenotazione u2 poteva entrare nella rotta di u1"),
-		ReachableOnRouteBefore > 0);
-	TestEqual(TEXT("dopo la prenotazione, nessuna cella della rotta è raggiungibile da u2"),
-		ReachableOnRouteAfter, 0);
-
-	// --- 3. Ma u1 la sua rotta la percorre ancora: `ReachableCells` non blocca un'unità con se stessa
-	// (`*Occupant != UnitId`), ed è la ragione per cui si prenota con l'id del prenotante e non con un
-	// marcatore generico. Con un id qualsiasi, l'unità si sbarrerebbe la strada da sola.
+	// --- 3. Ma u1 la sua rotta la percorre ancora: `CandidateCells` non blocca un'unità con se stessa
+	// (`*Occupante == UnitId`), ed è la ragione per cui si prenota con l'id del prenotante e non con un
+	// marcatore generico. Con un id qualsiasi, l'unità si sbarrerebbe la strada da sola — e con [D-446] si
+	// sbarrerebbe la **destinazione**, cioè proprio il piano che aveva appena scelto.
 	const TArray<FRTCellId> RouteAfter = URTHexSimLibrary::FindPathForUnit(Reserved, /*UnitId=*/ 1, Dest).Path;
 	TestEqual(TEXT("u1 percorre ancora la propria rotta, invariata"), RouteAfter.Num(), Route.Num());
 
@@ -281,10 +298,40 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 		return M;
 	};
 
-	// --- (1) Pesi FUORI invariante: il presidio deve URLARE ---------------------------------------
+	// --- (1) Pesi DI DEFAULT: il presidio deve TACERE ----------------------------------------------
+	//
+	// 🔴 **Questa meta' va per PRIMA, e fino al 2026-09-20 era seconda — con un commento che prometteva
+	// cio' che l'ordine le toglieva.** Diceva *«se il presidio urlasse, l'errore non atteso farebbe cadere
+	// il test»*: non e' cosi'. `AddExpectedError` non e' scopato al blocco, vive per tutto il `RunTest`, e
+	// `HasMetExpectedMessages` confronta solo il TOTALE delle occorrenze — quindi un urlo emesso qui
+	// verrebbe **assorbito** dall'attesa registrata sopra. Un presidio INVERTITO — che urla quando
+	// l'invariante e' rispettata e tace quando e' violata — passava verde.
+	//
+	// Con la meta' silenziosa per prima non c'e' nessuna attesa viva: un errore e' davvero un errore non
+	// atteso. Trovato in code review su `#149`, che copiava questo test come modello.
 	{
 		UWorld* World = MakeTeamPlanningWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = MakeMap();
+
+		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0), true);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
+
+		TestTrue(TEXT("premessa: i default rispettano l'invariante su questa mappa"),
+			TM->WElevation * 2 < TM->WApproach);
+
+		TM->PlanBotsForTest();
+
+		DestroyTeamPlanningWorld(World);
+	}
+
+	// --- (2) Pesi FUORI invariante: il presidio deve URLARE ---------------------------------------
+	{
+		UWorld* World = MakeTeamPlanningWorld();
+		if (!TestNotNull(TEXT("secondo world"), World)) { return false; }
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = MakeMap();
 
@@ -304,24 +351,76 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 		DestroyTeamPlanningWorld(World);
 	}
 
-	// --- (2) Pesi DI DEFAULT: il presidio deve TACERE ----------------------------------------------
-	// ⚠️ Senza questa meta' il test passerebbe anche con un controllo che urla sempre — e un allarme che
-	// suona a ogni partita e' un allarme che si impara a ignorare.
+	return true;
+}
+
+/**
+ * 🔴 **La SECONDA invariante dei pesi, presidiata come la prima e per lo stesso motivo** (`#149`).
+ *
+ * `RTHexBotLibrary.h` dichiara `WObjectiveFalloff > WApproach` come *«l'invariante che PUO' fallire»*: sotto
+ * quella soglia il gradiente dell'obiettivo si annulla contro quello dell'avvicinamento, un passo che
+ * avvicina l'obiettivo e allontana il nemico vale esattamente zero, il tie-break «a parita' vince la mossa
+ * minima» fa restare, e il bot non va sull'obiettivo **proprio nel caso per cui il termine esiste**.
+ *
+ * ⛔ **A pinnarla c'era SOLO `HexBot.ObjectivePullBeatsClosingOneCell`, che legge il CDO** — e il difetto e'
+ * identico a quello che `#1276` ha chiuso per `WElevation`, descritto nel test qui sopra: un'istanza di
+ * `ARTTurnManager` piazzata nel livello serializza i propri `UPROPERTY` nel `.umap` e vince sui default
+ * C++. Un livello con `WObjectiveFalloff <= WApproach` riapriva l'indifferenza all'obiettivo **mentre quel
+ * test restava verde**.
+ *
+ * ⚠️ **Nessuna mappa su piu' layer, a differenza del gemello**: questa invariante e' un rapporto fra due
+ * pesi e basta — non entra `MaxLayer`, e per questo il presidio a runtime sta FUORI dal ramo che legge la
+ * mappa. Se ci finisse dentro, un `GetHexContext` nullo la renderebbe muta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotObjectiveWeightInvariantTest,
+	"RefactorTactics.Bot.ObjectiveWeightInvariantIsCheckedOnTheLiveInstance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotObjectiveWeightInvariantTest::RunTest(const FString&)
+{
+	auto Allestisci = [this](UWorld*& OutWorld, ARTTurnManager*& OutTM)
 	{
-		UWorld* World = MakeTeamPlanningWorld();
-		if (!TestNotNull(TEXT("secondo world"), World)) { return false; }
-		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
-		MapActor->MapAsset = MakeMap();
+		OutWorld = MakeTeamPlanningWorld();
+		if (!TestNotNull(TEXT("world di prova"), OutWorld)) { return false; }
+		ARTHexMapActor* MapActor = OutWorld->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 
-		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
-		ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0), true);
-		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
+		ARTUnit* Bot = SpawnTeamPlanningUnit(OutWorld, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Foe = SpawnTeamPlanningUnit(OutWorld, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0), true);
+		OutTM = OutWorld->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		return OutTM != nullptr && Bot != nullptr && Foe != nullptr;
+	};
 
-		TestTrue(TEXT("premessa: i default rispettano l'invariante su questa mappa"),
-			TM->WElevation * 2 < TM->WApproach);
+	// --- (1) Pesi DI DEFAULT: il presidio deve TACERE ----------------------------------------------
+	//
+	// 🔴 **Questa meta' viene PRIMA, ed e' l'ordine a darle il suo potere.** `AddExpectedError` non e'
+	// scopato al blocco: vive per tutto il `RunTest`, e `HasMetExpectedMessages` confronta solo il TOTALE
+	// delle occorrenze. Con l'attesa registrata prima, un urlo emesso qui verrebbe **assorbito** invece che
+	// segnalato — e un presidio INVERTITO (che urla quando l'invariante e' rispettata e tace quando e'
+	// violata) passerebbe verde. Mettendola per prima, qui non c'e' nessuna attesa viva: un errore diventa
+	// davvero un errore non atteso, che e' cio' che questo commento promette.
+	{
+		UWorld* World = nullptr; ARTTurnManager* TM = nullptr;
+		if (!Allestisci(World, TM)) { DestroyTeamPlanningWorld(World); return false; }
 
-		// Nessun `AddExpectedError`: se il presidio urlasse, l'errore non atteso farebbe cadere il test.
+		TestTrue(TEXT("premessa: i default rispettano l'invariante"),
+			TM->WObjectiveFalloff > TM->WApproach);
+
+		TM->PlanBotsForTest();
+
+		DestroyTeamPlanningWorld(World);
+	}
+
+	// --- (2) Pesi FUORI invariante: il presidio deve URLARE ----------------------------------------
+	{
+		UWorld* World = nullptr; ARTTurnManager* TM = nullptr;
+		if (!Allestisci(World, TM)) { DestroyTeamPlanningWorld(World); return false; }
+
+		// Pareggiati: e' il caso limite, e l'invariante e' STRETTA — a parita' il termine e' gia' morto.
+		TM->WObjectiveFalloff = TM->WApproach;
+		TestTrue(TEXT("premessa: i due gradienti sono davvero pari"),
+			TM->WObjectiveFalloff <= TM->WApproach);
+
+		AddExpectedError(TEXT("INVARIANTE PESI BOT VIOLATA"), EAutomationExpectedErrorFlags::Contains, 1);
 		TM->PlanBotsForTest();
 
 		DestroyTeamPlanningWorld(World);

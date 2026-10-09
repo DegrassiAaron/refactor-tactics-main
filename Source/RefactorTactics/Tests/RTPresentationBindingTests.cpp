@@ -56,14 +56,19 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	//   4 -> 5   2026-08-31   `AttackFootprint`   ([D-301], #1945)
 	//   5 -> 6   2026-09-04   `ReactionResolved`  (#2191)
 	//   6 -> 7   2026-09-04   `StatusChanged`     (#2245)
-	// Tre volte su tre e' fallita per prima e ha mandato a dichiarare la presentazione del valore nuovo.
+	//   7 -> 8   2026-09-22   `StructureHit`      (#2828)
+	//   8 -> 9   2026-09-24   `ArcHit`            (#3280, [D-437])
+	//   9 -> 10  2026-10-07   `AbilityActivated`  (#3549, il momento: entra CON cue, `PlayCastMontage`)
+	// Quattro volte su quattro e' fallita per prima e ha mandato a dichiarare la presentazione del valore
+	// nuovo — l'ultima compresa: `ArcHit` e' entrato in `DeclaredBindings()` come voce IN ATTESA con owner
+	// `#3293` perche' questa riga ha chiesto conto del nono valore.
 	//
 	// ⚠️ **Il messaggio elencava i valori per nome e si e' scollato dal numero**: diceva *«dichiara cinque
 	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
 	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
 	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
-	TestEqual(TEXT("ERTResolvedEventType dichiara sette valori: l'ultimo aggiunto ha una voce nella tabella?"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 7);
+	TestEqual(TEXT("ERTResolvedEventType dichiara dieci valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 10);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
@@ -475,7 +480,17 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// ⌫ **Erano quattro fino al 2026-09-10.** `AttackFootprint` ha una cue (`#2454`): l'evento entra nel
 	// playback e il cancello della fase Blast conta anche le impronte. ⚠️ Se questa riga risale, qualcuno
 	// ha rimesso in attesa una voce sciolta: si cerchi chi, non si aggiorni il numero.
-	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
+	// ✅ **Invariato all'arrivo di `StructureHit` (`#2828`), ed e' un'osservazione, non un'omissione**: la
+	// voce nasce **con cue** (`AddPlaybackStructureHit`), quindi non entra fra le attese. ⚠️ Se qualcuno la
+	// declassasse a `PendingPresentation` questa riga diventerebbe rossa — che e' esattamente il servizio
+	// che il pin rende.
+	// 🔴 **Rimisurato il 2026-09-24: da tre a QUATTRO, e il motivo e' dichiarato invece che aggiornato
+	// d'ufficio.** `ArcHit` (`#3280`, [D-437]) nasce **in attesa**, all'opposto di `StructureHit`: li' il
+	// segno si posa su un lato fra due esagoni che esistono a schermo, qui a runtime **nessuno disegna gli
+	// archi** — lo misura `#1768`, e inventare una cue su una geometria assente e' cio' che `#2483` vieta.
+	// ⚠️ La riga risale, e questa volta e' corretto: cio' che il pin vieta e' rimettere in attesa una voce
+	// gia' **sciolta**, non dichiarare in attesa una voce che nasce senza cue.
+	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 
 	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
@@ -496,6 +511,138 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
 	TestEqual(TEXT("StatusChanged attende #2456"),
 		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
+	// ✅ `StructureHit` nasce con cue, quindi NON ha un `PendingOwner`. Asserirlo vuoto e' cio' che impedisce
+	// di rimetterla in attesa in silenzio — stessa forma della riga di `AttackFootprint` qui sopra.
+	TestEqual(TEXT("StructureHit non attende nessuno: nasce con cue"),
+		OwnerDi(ERTResolvedEventType::StructureHit), FString());
+	// ✅ `AbilityActivated` nasce con cue (`PlayCastMontage`, #3549): NON e' in attesa, quindi non ha un
+	// `PendingOwner`. Il conteggio delle attese qui sopra resta quello di prima, ed e' la prova che la voce
+	// non e' stata dichiarata in attesa per comodita'.
+	TestEqual(TEXT("AbilityActivated non attende nessuno: nasce con cue"),
+		OwnerDi(ERTResolvedEventType::AbilityActivated), FString());
+	// ⚠️ **L'owner e' una issue che ESISTE e ha una dipendenza dichiarata**: `#3293` possiede la cue
+	// dell'arco ed e' bloccata da `#1768`, che possiede *«un arco si vede in PIE»*. Un owner inventato
+	// sarebbe una promessa che nessuno puo' riscuotere, cioe' il difetto che `PendingOwner` esiste per
+	// impedire.
+	TestEqual(TEXT("ArcHit attende #3293"),
+		OwnerDi(ERTResolvedEventType::ArcHit), FString(TEXT("#3293")));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il colpo alla STRUTTURA ha la sua riga, e il censimento la vede — `#2828`.
+ *
+ * 🔴 **Prima non mancava una cue: mancava la RIGA, e con lei la possibilita' stessa di dichiarare
+ * un'assenza.** `ERTResolvedEventType` non aveva un valore per la struttura, quindi `DeclaredBindings()`
+ * non aveva una voce a cui appendere nulla, quindi `Presentation.AbsenceCensusIsPinned` — il gate che
+ * sorveglia proprio le assenze — **non aveva niente da sorvegliare**. Un muro poteva cadere e la timeline
+ * non lo sapeva, e nessun test poteva accorgersene: un'assenza che nessun censimento vede e' peggio di una
+ * dichiarata, perche' e' invisibile.
+ *
+ * ⚠️ **Questo test non chiede che esista una cue qualsiasi: chiede che sia QUELLA.** Asserire il solo
+ * `Kind == Cues` lascerebbe verde una voce che nomina un effetto mai scritto — la lista di intenzioni che
+ * `#2483` vieta. Il nome asserito qui e' una funzione che il C++ chiama davvero
+ * (`ARTHexMapActor::AddPlaybackStructureHit`, invocata da `ARTTurnManager::AdvanceBlastSequence` — ⏱️ *fino a
+ * #3549 da `RevealPlaybackStructureHits`, poi da `RevealBlastSequence` fino al merge di `#2454`*).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStructureHitHasDeclaredBindingTest,
+	"RefactorTactics.Presentation.StructureHitHasDeclaredBinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationStructureHitHasDeclaredBindingTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Voce = Reale.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::StructureHit;
+	});
+
+	if (!TestNotNull(TEXT("✅ il colpo a struttura ha una riga nella tabella"), Voce))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("e la riga ha una CUE, non un'attesa"), Voce->Kind, ERTPresentationKind::Cues);
+	// ⛔ Il nome, non solo il numero: una cue inventata passerebbe un `Num() > 0` e mentirebbe al gate.
+	TestTrue(TEXT("e la cue e' AddPlaybackStructureHit, che il C++ chiama davvero"),
+		Voce->Cues.Contains(FName(TEXT("AddPlaybackStructureHit"))));
+
+	// 🔑 **La prova che il CENSIMENTO la vede**, che e' il difetto vero della issue: non basta che la voce
+	// esista, deve essere il gate a non avere piu' niente da segnalare su di lei.
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(Reale);
+	for (const FString& M : Mancanti)
+	{
+		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina StructureHit: %s"), *M),
+			M.Contains(TEXT("StructureHit")));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il colpo all'ARCO ha la sua riga, e il censimento la vede — `#3280`, [D-437].
+ *
+ * 🔴 **Gemello del gate sopra, e l'asimmetria fra i due e' il punto.** `StructureHit` nasce **con cue**
+ * perche' un bordo di copertura e' un lato fra due esagoni che esistono a schermo; `ArcHit` nasce **in
+ * attesa** perche' a runtime **nessuno disegna gli archi** — lo possiede e lo misura `#1768`. ⛔ Una cue
+ * inventata su una geometria che non c'e' e' precisamente cio' che `#2483` vieta, e un test che si
+ * accontentasse di `Kind == Cues` la incoraggerebbe.
+ *
+ * ⚠️ **Quindi qui si asserisce il contrario del gemello: che la cue NON ci sia, e che l'attesa sia
+ * dichiarata bene.** Un'attesa senza owner e senza motivo e' una promessa che nessuno puo' riscuotere, ed e'
+ * lo stato da cui questa issue e' nata: prima di `ArcHit` non c'era nemmeno una riga a cui appendere
+ * un'assenza, quindi `AbsenceCensusIsPinned` non aveva niente da sorvegliare.
+ *
+ * ⚠️ **Il giorno in cui `#3293` scrivera' la cue, questo gate diventera' rosso.** E' voluto: chi scioglie
+ * l'attesa deve passare di qui, aggiornare questa riga e quella del censimento — non scoprire mesi dopo che
+ * l'evento era rimasto in attesa di se stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationArcHitHasDeclaredBindingTest,
+	"RefactorTactics.Presentation.ArcHitHasDeclaredBinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationArcHitHasDeclaredBindingTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Voce = Reale.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::ArcHit;
+	});
+
+	if (!TestNotNull(TEXT("✅ il colpo all'arco ha una riga nella tabella"), Voce))
+	{
+		return false;
+	}
+
+	// ⛔ **In ATTESA e non con cue**, all'opposto del gemello: a runtime nessuno disegna gli archi.
+	TestEqual(TEXT("la riga dichiara un'attesa, non una cue"), Voce->Kind,
+		ERTPresentationKind::PendingPresentation);
+	TestTrue(TEXT("⛔ e non nomina nessuna cue: non ce n'e' una da nominare"), Voce->Cues.Num() == 0);
+
+	// 🔑 **L'attesa e' riscuotibile**: ha un owner reale e un motivo. Senza questi due, «in attesa» e' solo
+	// un modo educato di dire «invisibile».
+	TestEqual(TEXT("l'owner e' #3293, che possiede la cue dell'arco"), Voce->PendingOwner,
+		FString(TEXT("#3293")));
+	TestTrue(TEXT("e il motivo e' scritto, non vuoto"),
+		!Voce->Rationale.TrimStartAndEnd().IsEmpty());
+	// ⚠️ **Il motivo nomina il prerequisito**, che e' l'informazione senza la quale `#3293` ripartirebbe da
+	// zero: la cue non si puo' scrivere finche' un arco non si vede.
+	TestTrue(TEXT("e nomina #1768, il prerequisito che blocca la cue"),
+		Voce->Rationale.Contains(TEXT("#1768")));
+
+	// 🔑 **La prova che il CENSIMENTO la vede**, che e' il difetto vero della issue: non basta che la voce
+	// esista, deve essere il gate a non avere piu' niente da segnalare su di lei.
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(Reale);
+	for (const FString& M : Mancanti)
+	{
+		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina ArcHit: %s"), *M),
+			M.Contains(TEXT("ArcHit")));
+	}
 
 	return true;
 }
@@ -624,6 +771,36 @@ bool FRTPresentationReducedBeatsRunTest::RunTest(const FString& Parameters)
 		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow, Root }),
 		ERTGraykitLocomotionStyle::Stealth);
 
+	return true;
+}
+
+/**
+ * D-278 (#3578, spec «il profilo FX» §2.5): le voci `Attack` e `AbilityActivated` dichiarano `SetPlaybackCues`.
+ * ⚠️ Il gate `FindMissingBindings` conta i nomi, non le chiamate: QUALE cue e su QUALE cella lo dicono i test di
+ * `Playback.*` che leggono `GetPlaybackCues()`. `AttackFootprint` NON guadagna la cue: la consegna il colpo.
+ * ✅ Validato per mutazione (P2): `SetPlaybackCues` tolto da `AbilityActivated`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationFxCueIsDeclaredTest,
+	"RefactorTactics.Presentation.FxCueIsDeclaredForAttackAndActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationFxCueIsDeclaredTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Tabella = URTPresentationBindingLibrary::DeclaredBindings();
+	const FName Cue(TEXT("SetPlaybackCues"));
+	for (const ERTResolvedEventType Tipo : { ERTResolvedEventType::Attack, ERTResolvedEventType::AbilityActivated })
+	{
+		const FRTPresentationBinding* Voce = Tabella.FindByPredicate([Tipo](const FRTPresentationBinding& B) { return B.Type == Tipo; });
+		if (!TestNotNull(FString::Printf(TEXT("premessa: la voce %s"), *URTPresentationBindingLibrary::EventTypeName(Tipo)), Voce)) { return false; }
+		TestTrue(FString::Printf(TEXT("🔴 %s dichiara SetPlaybackCues"), *URTPresentationBindingLibrary::EventTypeName(Tipo)),
+			Voce->Cues.Contains(Cue));
+	}
+	const FRTPresentationBinding* Impronta = Tabella.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::AttackFootprint;
+	});
+	TestTrue(TEXT("AttackFootprint non dichiara la cue: la consegna il colpo che la consuma"),
+		Impronta != nullptr && !Impronta->Cues.Contains(Cue));
+	TestEqual(TEXT("e il gate resta senza mancanze"), URTPresentationBindingLibrary::FindMissingBindings(Tabella).Num(), 0);
 	return true;
 }
 

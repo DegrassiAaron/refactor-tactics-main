@@ -934,8 +934,9 @@ bool FRTHazardPlaybackBurningInCleanupTest::RunTest(const FString&)
  * ⚠️ **E' un effetto che l'aggiunta del produttore introduce, e che nessun altro test vedrebbe.** Il ramo
  * finale di `LockInAndResolve` e' `if (bEnablePlayback && ResolvedTimeline.Num() > 0)`: prima di `#2460` un
  * turno cosi' andava a `ConcludeTurn()` **diretto**, adesso passa da `BeginPlayback()`. Misurato innocuo —
- * `PlaybackPhases` si costruisce solo da `MoveAnims` / `PlaybackAttacks` / le spinte / il Prep, e
- * `HazardDamage` non alimenta nessuno dei quattro, quindi la funzione conclude e ritorna.
+ * `PlaybackPhases` si costruisce solo da `MoveAnims` / la sequenza di Blast / le attivazioni di Prep e Dash /
+ * le spinte / il Prep (⏱️ *fino a #3549 `PlaybackAttacks` al posto della sequenza*), e `HazardDamage` non
+ * alimenta nessuno di essi, quindi la funzione conclude e ritorna.
  *
  * 🔑 **Ma innocuo per una coincidenza, ed e' la coincidenza che questo test pinna.** Il giorno in cui
  * `#2455` dara' una durata a questo evento, un turno di solo fuoco comincerebbe ad aspettare senza che

@@ -56,8 +56,10 @@ public:
 	 *
 	 * 🔴 **Esiste perche' chiamare l'overload singolo due volte e' SBAGLIATO, e in due modi.** Una voce
 	 * autorizzata per entrambe le squadre — un KO pubblico — comparirebbe **due volte**; ed e' la stessa
-	 * trappola che `ARTHUD::DrawHUD` documenta gia' per gli intenti (*«due `FilterForTeam` sull'insieme
-	 * intero produrrebbero DOPPIONI»*). In piu' `IndexByUnit` ed `EnvironmentIndex` sono stato **per
+	 * trappola che `ARTHUD::ComposeVisibleIntentViews` documenta gia' per gli intenti (*«due
+	 * `FilterForTeam` sull'insieme intero produrrebbero DOPPIONI»*). ⌫ Quella frase stava in
+	 * `ARTHUD::DrawHUD` fino al 2026-09-24, quando `#2184` ne ha estratto la decisione: il puntatore e'
+	 * aggiornato, la trappola e' la stessa. In piu' `IndexByUnit` ed `EnvironmentIndex` sono stato **per
 	 * proiezione**: due chiamate produrrebbero due raggruppamenti indipendenti, e la dominanza — la regola
 	 * che tiene una riga sola per unita' — si applicherebbe due volte a meta' dei fatti.
 	 *

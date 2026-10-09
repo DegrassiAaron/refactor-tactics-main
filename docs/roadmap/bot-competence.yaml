@@ -1,0 +1,583 @@
+# Competenza del bot — cosa il bot SA GIOCARE, per personaggio e capability
+#
+# Owner della sola domanda che [D-102] pone e che nessun artefatto sapeva rispondere:
+#
+#   > Un risultato bot-contro-bot non e' evidenza di bilanciamento finche' il bot non e' **certificato**
+#   > sulle capability che quel risultato produce.
+#
+# Se una capability decisiva e' `FAIL` o `UNTESTED`, la conclusione ammessa e' *«il bot non sa giocarla»*,
+# **non** *«l'eroe e' debole»*. Un nerf deciso su un bot che non sa usare un'abilita' sembra funzionare — il
+# win rate si muove — e il difetto vero resta coperto proprio dalla correzione. E' il tipo di errore che non
+# lascia tracce, ed e' la ragione per cui questo file esiste (`#543`).
+#
+# Owner documentale della REGOLA: `docs/technical/runbooks/test-e-diagnosi.md` §3-ter. Qui vivono i DATI.
+#
+# ## Cosa NON va scritto qui
+#
+#   win rate, danno per turno, round per partita   sono METRICHE, e questo file dice se si possano leggere.
+#                                                  Scriverle qui accanto farebbe di un dubbio una conferma.
+#   un giudizio senza token                        uno `state` senza `evidence` e' un'opinione con una
+#                                                  casella. L'unico ammesso senza evidenza e' `UNTESTED`,
+#                                                  che dichiara di non averne.
+#   una soglia                                     nessun numero di questo file fa fallire niente. `D-102`
+#                                                  vieta di concludere, non di misurare.
+#   un totale che invecchia                        quante righe PASS, quante capability coperte. Si contano
+#                                                  col comando, non a memoria:
+#                                                    python tools/bot-competence/check.py --check
+#   lo stato di una feature o di una issue         vivono in `roadmap-v0.1.md`, in `roadmap-checkpoint.md` e
+#                                                  su GitHub, che cambiano senza avvisare questo file.
+#
+# ## Il vocabolario delle capability, e perche' NON e' uno degli altri tre
+#
+# Le dieci voci qui sotto vengono dalla provenienza che `#543` dichiara — il handoff del 2026-08-11, §18.1 —
+# e descrivono **cosa il bot sa giocare**. Nel repository esistono altri tre insiemi che si chiamano
+# «capability» e rispondono a domande diverse: scriverne una qui sarebbe un quinto vocabolario.
+#
+#   corpus scenari (`AvailableCapabilities()`)   cosa l'HARNESS sa esprimere. `Cover`, `Reaction`,
+#                                                `Structures`… Un nome uguale al nostro non e' lo stesso.
+#   `CR-*` di `capability-roadmaps.md`           corsie di CONSEGNA, con release e owner.
+#   capability trasversali di `CLAUDE.md` §12    proprieta' del CODICE: chi possiede quale sistema.
+#
+# ## La forma di un'evidenza: un tipo, un oracolo
+#
+#   test:<nome Automation completo>   risolve contro i letterali di `IMPLEMENT_*_AUTOMATION_TEST` sotto
+#                                     `Source/RefactorTactics/Tests/` e `Source/RefactorTacticsEditor/`.
+#                                     ⚠️ Il nome LETTERALE, mai derivato dall'id dell'eroe: i test di
+#                                     `Hero.Muiren` si chiamano ancora `RefactorTactics.Heroes.Phase.*`,
+#                                     e uno schema che derivasse il nome nascerebbe rosso su codice sano.
+#   scenario:<scenarioId>             risolve contro il campo `scenarioId` di `Scenarios/**/*.json`.
+#
+# Due fatti veri sullo stesso stato sono due righe di `evidence`, non una frase piu' lunga.
+#
+# ## `applicable: false` — la domanda che non si pone, separata da quella senza risposta
+#
+# Gli stati restano **quattro**, come `D-102` li fissa. Ma «il bot non sa giocare lo scatto di Aevik» e
+# «Aevik non ha uno scatto» sono due fatti diversi, e confonderli manderebbe la conclusione nel verso
+# sbagliato: un `FAIL` su una capability che il roster non da' a quell'eroe metterebbe in dubbio dei numeri
+# che quella capability non determina. ∴ due assi ortogonali: `state` dice cosa sappiamo dell'EVIDENZA,
+# `applicable: false` dice che la domanda non si pone per il ROSTER, e obbliga a `motivo`.
+#
+# ## ⚠️ Che cosa questa fotografia NON e'
+#
+# 🔴 **Gli stati vengono da lettura statica, e i token verdi non li confermano.** Che i test citati siano
+# verdi e' misurato (`meta.suite`); cio' che NON e' misurato e' il giudizio che li lega a una casella —
+# «questo test esercita QUESTA capability con QUESTO eroe». Quella e' una lettura del corpo del test, e
+# nessun comando la produce. ∴ un token verde dice «il fatto citato regge», mai «lo stato e' quello giusto».
+#
+# Il validator sta un gradino piu' in basso ancora: verifica che i token **risolvano**, non che passino —
+# la distinzione fra «registrato» e «consentito» che `tools/asset-provenance/check.ts` dichiara per se'.
+#
+# ⚠️ **Una riga si contesta cambiando l'EVIDENZA, non il giudizio.** Se pensi che una `PARTIAL` sia una
+# `PASS`, il modo di dimostrarlo e' un token nuovo che risolva; se pensi che una `PASS` sia troppo generosa,
+# il modo e' mostrare che il token non esercita quella capability con quell'eroe.
+
+schema_version: 1
+
+meta:
+  decision: D-102
+  issue: 543
+  owner: docs/technical/runbooks/test-e-diagnosi.md#3-ter
+  fotografia: 2026-09-20
+  base: origin/main b1b54bb2
+  # ⚠️ Non «una suite e' passata», ma: OGNI token `test:` citato qui sotto e' stato eseguito e verde in
+  # quella run. Le due cose non coincidono — un filtro puo' non contenere una famiglia citata, ed e'
+  # precisamente l'errore che questa riga ha corretto: la prima stesura dichiarava una run che lasciava
+  # fuori `Heroes.*` e `Overwatch.*`. Si riverifica cosi':
+  #   filtro = Bot+Heroes+HexBot+HexBotPlay+Match+Overwatch+Scenario+Stress
+  #   poi si confronta l'elenco dei `Path={...}` del log coi token di questo file.
+  suite: 2026-09-20 — 438 test eseguiti, 438 `Result={Success}`; i 43 token `test:` citati qui
+         sotto compaiono tutti nel log con `Result={Success}`, nessuno non eseguito.
+
+# I documenti che pubblicano una metrica prodotta da partite AUTOMATICHE, e che percio' devono portarsi
+# accanto lo stato di competenza che la determina.
+#
+# 🔑 **Questa lista non e' decorativa: il gate la fa valere.** `check.py --check` verifica che ognuno di
+# questi file citi lo schema, ed esce 1 se l'annotazione sparisce. E' cio' che rende *«una conclusione di
+# bilanciamento non e' producibile senza lo stato di competenza accanto»* una proprieta' difesa invece che
+# una buona intenzione — per i documenti che la metrica la pubblicano davvero.
+#
+# ⛔ **Cosa il gate NON puo' fare**: riconoscere una conclusione di bilanciamento NUOVA, scritta in prosa in
+# un documento che non e' in questa lista. Nessun comando legge l'intenzione di una frase. Chi pubblica una
+# metrica bot-contro-bot altrove aggiunge il proprio file qui, e da quel momento il gate lo sorveglia.
+consumers:
+  - docs/roadmap/roadmap-checkpoint.md
+  - docs/roadmap/v0.1-definition-of-done.md
+
+# La prima riga dell'annotazione, cercata DENTRO ogni consumatore.
+#
+# 🔑 **Si cerca questa e non il nome del file**, perche' un documento puo' nominare `bot-competence.yaml`
+# in una nota storica a mille righe dalla metrica: il gate sarebbe verde su un consumatore che pubblica il
+# numero senza la competenza accanto. Chi cambia il testo dell'annotazione cambia anche questa riga, ed e'
+# il momento giusto per accorgersene.
+ancora: "🧭 **Competenza del bot accanto al numero**"
+
+# Le dieci capability, rese OPERATIVE: ciascuna e' una frase falsificabile, non una definizione.
+# Una frase che non si puo' mostrare falsa non puo' produrre un `FAIL`, e uno schema che non sa fallire
+# e' un elenco di buone intenzioni.
+vocabulary:
+  - name: Movement
+    means: >-
+      Il bot produce una destinazione che `ReachableCells` ha gia' filtrato per budget, blocchi, occupanti e
+      archi verticali, e la PRENOTA sullo snapshot condiviso cosi' che il compagno che pianifica dopo non la
+      veda libera; a parita' di punteggio sceglie la mossa minima, e permutare le candidate non cambia l'esito.
+  - name: BasicAttack
+    means: >-
+      Con un nemico CONOSCIUTO entro la gittata efficace, sullo stesso piano e in linea di vista, il bot
+      genera la candidata «resta e spara», la pesa `WDamage * danno` piu' `WKill` se uccide, concentra il
+      fuoco sul bersaglio che muore, e non propone mai un tiro che il gate di targeting rifiuterebbe.
+  - name: Dash
+    means: >-
+      Quando l'eroe ha un'azione `IsFastMovement` pronta, il bot genera le candidate post-scatto, scarta
+      quelle che `IsLinearReachable` rifiuta invece di proporre scatti che il resolver annullerebbe, e spende
+      lo scatto solo quando batte il movimento normale.
+  - name: Defense
+    means: >-
+      Sotto tiro il bot termina il piano dove la copertura riduce davvero il danno, il kiter arretra quando
+      il nemico entra a meta' standoff, e sotto meta' HP usa un'azione che lo rimette in piedi invece di
+      attaccare.
+  - name: Reaction
+    means: >-
+      A ogni turno il bot arma UNA reazione fra quelle pronte, scegliendola per punteggio tattico e
+      ricadendo sul kit solo a parita' esatta; lo fa prima di ogni `continue` della pianificazione.
+  - name: Environment
+    means: >-
+      Il bot legge la superficie o lo stato pericoloso di una cella e ne tiene conto: evita di terminare il
+      piano dove fa male, e sceglie un'azione ambientale quando il terreno la rende piu' redditizia di un
+      colpo diretto.
+  - name: CoreCombo
+    means: >-
+      Il bot mette in fila due azioni la cui seconda vale di piu' per effetto della prima — sbilanciare e poi
+      spingere, bagnare e poi scaricare — invece di valutare ogni azione in isolamento nel turno corrente.
+  - name: MapControl
+    means: >-
+      Il bot termina il piano sopra la cella obiettivo quando puo' prenderla, preferisce l'obiettivo
+      all'avvicinamento dentro il raggio in cui il termine e' acceso, e nega o occupa il terreno erigendo o
+      spostando coperture quando l'eroe sa farlo.
+  - name: Information
+    means: >-
+      Il bot pianifica solo su cio' che la sua SQUADRA conosce — su un contatto incerto usa la cella
+      dell'ultimo contatto, assume la salute integra e non assume la condizione — e senza nessuno da
+      ingaggiare si muove per CAMMINO verso la cella da cui il contatto noto tornerebbe visibile.
+  - name: AdvancedCounter
+    means: >-
+      Il bot anticipa: piazza un'azione predittiva sulla cella in cui il nemico ENTRERA', o arma una guardia
+      reattiva sul corridoio che deve attraversare, invece di sparare dove il nemico e' adesso.
+
+competence:
+
+  # ---------------------------------------------------------------------------------------------------
+  # Hero.Aevik — ⚠️ non compare in NESSUN test d'integrazione del bot (`RTHexBotIntegrationTests.cpp`:
+  # Branth 20, Ivrin 16, Muiren 4, Aevik 0). La sua colonna e' la piu' debole del roster.
+  # ---------------------------------------------------------------------------------------------------
+  - hero: Hero.Aevik
+    capability: Movement
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.Bot.PlanBotsGivesTeammatesDistinctCells
+      - test:RefactorTactics.Stress.NoTeamSizeAssumptionInResolver
+      - test:RefactorTactics.Scenario.FreeRun.ArenaV01ReachesAWinner
+      - scenario:AutoBattle.ArenaV01
+    why: >-
+      ⌫ Era `PASS`, e la code review l'ha falsificata col criterio che questo file scrive di se': un `PASS`
+      vuole un token che diventi ROSSO se il bot che gioca QUESTO eroe non fa quella cosa. Nessuno lo
+      diventa. `PlanBotsGivesTeammatesDistinctCells` asserisce sulla COPPIA — celle distinte, e almeno una
+      delle due che si muove — e resta verde con Aevik immobile e la compagna che si sposta; le celle sono
+      distinte per costruzione, perche' Aevik fermo occupa ancora la propria. `NoTeamSizeAssumptionInResolver`
+      a `PerTeam = 1` mette Aevik bot contro Aevik bot e asserisce PER UNITA', ma che l'unita' compaia nel
+      TurnLog: prova che ha AGITO, non che la destinazione sia legale e prenotata.
+
+  - hero: Hero.Aevik
+    capability: BasicAttack
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.Bot.StalemateProbeAttackCandidateIsGeneratedAndScored
+      - test:RefactorTactics.Match.Autobattle.EngagesOnTheGeneratedTestArena
+      - scenario:Combat.BasicAttack
+    why: >-
+      Nessuna asserzione attribuisce un colpo al bot che gioca Aevik. Il probe monta un contesto CHIMERA —
+      la gittata di `ArcPulse` col danno di `PulseShot` — quindi niente arriva dal catalogo.
+
+  - hero: Hero.Aevik
+    capability: Dash
+    applicable: false
+    motivo: >-
+      Il roster non gli da' nessuna mobilita' rapida: `FindDashAbilityIndex()` torna `INDEX_NONE`, quindi
+      `bDashReady` e' sempre falso e il ramo d'ingresso non esiste per lui. Non e' un difetto del bot.
+    state: UNTESTED
+    evidence: []
+    why: >-
+      La domanda non si pone. Un `FAIL` qui metterebbe in dubbio numeri che lo scatto non determina.
+
+  - hero: Hero.Aevik
+    capability: Defense
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBot.ScoreThreatRespectsCover
+      - test:RefactorTactics.HexBot.PlanUnitSeeksCover
+      - test:RefactorTactics.HexBot.ConsidersExposedRearArc
+    why: >-
+      I gate di minaccia e copertura montano il contesto a mano e senza eroe: coprono un percorso che la
+      pianificazione di Aevik attraversa, ma non lo esercitano con lui. Kiting e auto-cura gli sono preclusi.
+
+  - hero: Hero.Aevik
+    capability: Reaction
+    state: PASS
+    evidence:
+      - test:RefactorTactics.Bot.PlanBotsClearsTheReactionCondition
+      - test:RefactorTactics.Heroes.AevikReactiveCapacitorShieldsAndCounters
+      - scenario:Combat.CounterStrikesBack
+    why: >-
+      Il primo token e' bot piu' eroe di catalogo piu' asserzione: il test esce in errore se il bot non ha
+      armato, quindi il verde dimostra l'arming di una reazione di Aevik.
+
+  - hero: Hero.Aevik
+    capability: Environment
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.Scenario.FreeRun.HazardRunsAreIdentical
+      - scenario:AutoBattle.Hazard
+    why: >-
+      Il bot non ha nessun canale per leggere superficie o pericolo — zero occorrenze in `Bot/` — e Aevik
+      gioca sul campo pericoloso di `AutoBattle.Hazard` senza che nulla lo misuri. Difetto del bot, non suo.
+
+  - hero: Hero.Aevik
+    capability: CoreCombo
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.HexBot.PrefersPushOnUnbalancedTarget
+    why: >-
+      L'unico anello che il punteggio conosce e' il capitalizzo su `Unbalanced`, gated su `bAttackDisplaces`,
+      che si accende solo con `Push` o `Pull` fra gli effetti dichiarati. Nessuna azione di Aevik li porta.
+
+  - hero: Hero.Aevik
+    capability: MapControl
+    state: UNTESTED
+    evidence: []
+    why: >-
+      Nelle configurazioni in cui Aevik gioca da bot il termine obiettivo non si accende affatto:
+      `Ctx.ObjectiveCells` resta vuoto e `ScoreObjectiveTerm` non contribuisce mai.
+
+  - hero: Hero.Aevik
+    capability: Information
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.Bot.PlannerMissingKnowledgeIsNotOmniscience
+      - test:RefactorTactics.Bot.StalemateProbeNoPerceivedEnemyMeansStandStill
+      - test:RefactorTactics.HexBot.EngageBonusFadesWithIdleTurns
+    why: >-
+      Il filtro di conoscenza e' hero-agnostico e Aevik lo attraversa a ogni turno delle partite libere, ma
+      tutta la copertura e' sintetica o su un altro eroe.
+
+  - hero: Hero.Aevik
+    capability: AdvancedCounter
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
+    why: >-
+      Il planner non guarda ne' la fase ne' il targeting predittivo — zero occorrenze di `Predictive` in
+      `Bot/` — e nessuna azione di Aevik lo dichiara.
+
+  # ---------------------------------------------------------------------------------------------------
+  # Hero.Muiren — ⚠️ i suoi test Automation si chiamano ancora `RefactorTactics.Heroes.Phase.*`: e' il
+  # nome LETTERALE, ed e' quello che i token devono portare. Il rename dei nomi di test e' lavoro suo.
+  # ---------------------------------------------------------------------------------------------------
+  - hero: Hero.Muiren
+    capability: Movement
+    state: PASS
+    evidence:
+      - test:RefactorTactics.Bot.Ally.PlansSameIntentFromSameState
+      - test:RefactorTactics.Bot.PlanBotsGivesTeammatesDistinctCells
+    why: >-
+      Un test mostra bot-Muiren produrre un intento e lo asserisce su di LEI, verificando prima che sia
+      davvero sotto il controllo del bot.
+
+  - hero: Hero.Muiren
+    capability: BasicAttack
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBot.ScoreFocusFire
+      - test:RefactorTactics.HexBot.PlanUnitTakesKillingShot
+      - test:RefactorTactics.HexBot.CandidatesCarryShape
+    why: >-
+      Nessun test e nessuno scenario mostra bot-Muiren scegliere `Hero.Muiren.PressureJet`: il macchinario
+      «resta e spara» e' pinnato solo da contesti sintetici.
+
+  - hero: Hero.Muiren
+    capability: Dash
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.DashPlanIsExecutableOnCostlyTerrain
+      - test:RefactorTactics.Heroes.Phase.MatchesCatalog
+    why: >-
+      Il bot e' Muiren e lo scatto che il planner usa e' il suo, preso dal kit e non imposto dal test: il
+      piano risulta eseguibile anche su terreno caro.
+
+  - hero: Hero.Muiren
+    capability: Defense
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.KiterFleesWhenThreatened
+      - test:RefactorTactics.HexBotPlay.DashPlanIsExecutableOnCostlyTerrain
+    why: >-
+      La ritirata del kiter e' esercitata col suo kit e in partita: lo standoff e' DERIVATO dalla gittata
+      invece che dichiarato, quindi il test cade se il kit cambia.
+
+  - hero: Hero.Muiren
+    capability: Reaction
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.Heroes.ReactionsDeclaredOrDeferred
+      - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
+    why: >-
+      Coperta solo nel verso negativo: si asserisce che `Hero.Muiren.FlowReaction` NON occupa lo slot
+      Reazione. Che il bot armi qualcosa per lei non lo dimostra nessuno.
+
+  - hero: Hero.Muiren
+    capability: Environment
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.Heroes.Phase.MatchesCatalog
+    why: >-
+      Doppia irraggiungibilita': `Hero.Muiren.MistVeil` e' l'azione ambientale del kit e non ha effetti di
+      danno, quindi il bot non la propone mai; e il bot non legge comunque il terreno.
+
+  - hero: Hero.Muiren
+    capability: CoreCombo
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBot.PrefersPushOnUnbalancedTarget
+      - test:RefactorTactics.Heroes.Phase.MatchesCatalog
+    why: >-
+      L'unico anello esistente — capitalizzare uno sbilanciamento gia' presente — e' raggiungibile con la sua
+      azione, ma il gate che lo pinna non usa nessun eroe: costruisce due piani a mano.
+
+  - hero: Hero.Muiren
+    capability: MapControl
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBot.ScoreObjectiveTerm
+      - test:RefactorTactics.HexBot.ObjectiveNeverOutweighsAKill
+    why: >-
+      La meta' obiettivi e' coperta hero-agnosticamente — e' un punteggio di DESTINAZIONE, che non dipende
+      dal kit — ma non e' misurata con lei; la meta' «nega il terreno» non esiste nel bot.
+
+  - hero: Hero.Muiren
+    capability: Information
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.Bot.Ally.ReconBaseline
+      - scenario:AutoBattle.OpenField
+    why: >-
+      ⚠️ I due canary della conoscenza la NOMINANO dalla parte sbagliata: Muiren e' l'unita' NASCOSTA, non
+      quella che pianifica. Resta la baseline di ricognizione, che e' una misura e non un oracolo.
+
+  - hero: Hero.Muiren
+    capability: AdvancedCounter
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
+      - test:RefactorTactics.Overwatch.ActionIsInCoreCatalog
+    why: >-
+      Nessuna delle due strade esiste per lei: nessuna sua azione dichiara `PredictiveTargeting`, e
+      `Action.Overwatch` e' `bSelfTarget`, che i cicli di candidate del bot saltano.
+
+  # ---------------------------------------------------------------------------------------------------
+  # Hero.Branth — la colonna meglio coperta: 20 occorrenze nei test d'integrazione del bot.
+  # ---------------------------------------------------------------------------------------------------
+  - hero: Hero.Branth
+    capability: Movement
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.PlansOnlyLegalMoves
+      - test:RefactorTactics.HexBotPlay.PlansPassPlanValidation
+      - test:RefactorTactics.Bot.PlanBotsGivesTeammatesDistinctCells
+    why: >-
+      Il bot esercita Branth col kit di catalogo su tutte e tre le meta' del significato: destinazione
+      filtrata, piano che passa la validazione, celle distinte fra compagne.
+
+  - hero: Hero.Branth
+    capability: BasicAttack
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBotPlay.PlansOnlyLegalMoves
+      - test:RefactorTactics.HexBotPlay.PlanDoesNotBlastDyingAlly
+      - test:RefactorTactics.Match.Autobattle.NobodyParksOnTheAuthoredMap
+    why: >-
+      Manca il cuore: nessun gate asserisce che il bot, con Branth, scelga `ImpactShot` o `MortarShot`. Il
+      controllo di gittata vive dentro un `if (PlannedAttackTarget)` e non cade se l'attacco non nasce.
+
+  - hero: Hero.Branth
+    capability: Dash
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.ChargeItPlannedActuallyLands
+      - test:RefactorTactics.HexBotPlay.DashRespectsThreat
+    why: >-
+      Il gate pieno, con l'azione di catalogo: il bot sceglie da solo una `LinearCharge`, punta la cella
+      occupata dal bersaglio, e l'impatto atterra col danno e la spinta dichiarati.
+
+  - hero: Hero.Branth
+    capability: Defense
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBotPlay.WThreatTuning
+      - test:RefactorTactics.HexBotPlay.DashRespectsThreat
+    why: >-
+      Coperta una meta' su tre: la MINACCIA si', con Branth e col suo kit. La ritirata del kiter non lo
+      riguarda (gittata sotto soglia) e l'auto-cura non esiste nel roster.
+
+  - hero: Hero.Branth
+    capability: Reaction
+    state: PASS
+    evidence:
+      - test:RefactorTactics.Bot.ArmsItsReaction
+      - test:RefactorTactics.HexBotPlay.BotPrefersTheKitReactionAndFallsBackToTheModule
+    why: >-
+      Entrambi i gate usano Branth come bot con la reazione vera del catalogo, e il secondo verifica anche
+      la regola di precedenza fra kit e modulo.
+
+  - hero: Hero.Branth
+    capability: Environment
+    state: UNTESTED
+    evidence: []
+    why: >-
+      Nessuna evidenza in nessun verso, e non e' solo assenza di misura: la condizione d'ingresso non esiste
+      nel codice del bot.
+
+  - hero: Hero.Branth
+    capability: CoreCombo
+    state: UNTESTED
+    evidence: []
+    why: >-
+      L'unico gate del capitalizzo non usa nessun eroe e nessuna azione: costruisce a mano due piani identici
+      tranne il flag. Su Branth non dice niente, ne' in un verso ne' nell'altro.
+
+  - hero: Hero.Branth
+    capability: MapControl
+    state: PARTIAL
+    evidence:
+      - scenario:Spec.Bot.SeeksUncontestedObjective
+    why: >-
+      Lo scenario e' l'oracolo giusto con l'eroe giusto — bot Branth, obiettivo dalla parte opposta al
+      nemico — ma copre la sola meta' «prendi l'obiettivo»: negare il terreno il bot non lo sa fare.
+
+  - hero: Hero.Branth
+    capability: Information
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.HexBotPlay.PlansOnlyLegalMoves
+      - test:RefactorTactics.Match.Autobattle.NobodyParksOnTheAuthoredMap
+    why: >-
+      Coperta la CONDOTTA DI RICERCA con Branth — parte fuori vista e cerca il contatto — non il FILTRO di
+      conoscenza, che resta pinnato altrove e con altri eroi.
+
+  - hero: Hero.Branth
+    capability: AdvancedCounter
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
+    why: >-
+      Il bot non anticipa, e nessuna azione di Branth dichiara targeting predittivo. ⚠️ `MortarShot` dichiara
+      `LineOfSightPolicy::NotRequired` e il bot non la legge: il tiro alla cieca non nasce mai.
+
+  # ---------------------------------------------------------------------------------------------------
+  # Hero.Ivrin — la colonna migliore sulla conoscenza, la peggiore sulla difesa.
+  # ---------------------------------------------------------------------------------------------------
+  - hero: Hero.Ivrin
+    capability: Movement
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.PlansOnlyLegalMoves
+      - test:RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge
+      - test:RefactorTactics.Bot.PlanBotsGivesTeammatesDistinctCells
+    why: >-
+      Il bot e' Ivrin col kit vero del catalogo, e il piano e' asserito su tre proprieta' insieme: si muove,
+      resta legale, e non occupa la cella della compagna.
+
+  - hero: Hero.Ivrin
+    capability: BasicAttack
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.ActsOnLastKnownCell
+      - test:RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
+      - test:RefactorTactics.HexBotPlay.PlansOnlyLegalMoves
+    why: >-
+      Il piu' stretto del roster: bot Ivrin, premessa esplicita che il ricordo cada dentro la sua gittata
+      — che deriva dall'indice zero, cioe' da `PulseShot` — e asserzione sul bersaglio dichiarato.
+
+  - hero: Hero.Ivrin
+    capability: Dash
+    state: UNTESTED
+    evidence: []
+    why: >-
+      Nessun test e nessuno scenario asserisce che il bot Ivrin pianifichi `Hero.Ivrin.PassingBlade`. I tre
+      test dello scatto usano altri eroi, e lo dicono.
+
+  - hero: Hero.Ivrin
+    capability: Defense
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.HexBotPlay.UsesSupportWhenHurt
+      - test:RefactorTactics.HexBotPlay.KiterFleesWhenThreatened
+    why: >-
+      Tre meccanismi difensivi su quattro gli sono preclusi: gittata sotto la soglia del kiter, nessuna cura
+      su di se', nessuna azione difensiva con danno. Resta il solo termine di copertura, hero-agnostico.
+
+  - hero: Hero.Ivrin
+    capability: Reaction
+    state: PARTIAL
+    evidence:
+      - test:RefactorTactics.Heroes.IvrinDeflectionReducesDirectHit
+      - test:RefactorTactics.Bot.ArmsItsReaction
+    why: >-
+      Il ramo e' pienamente raggiungibile e punteggiato per lui — `Deflection` e' uno dei due soli trigger
+      che `ScoreReaction` valuta — ma il gate dell'arming usa Branth, non Ivrin.
+
+  - hero: Hero.Ivrin
+    capability: Environment
+    state: FAIL
+    evidence:
+      - scenario:AutoBattle.Hazard
+      - test:RefactorTactics.Scenario.FreeRun.HazardRunsAreIdentical
+    why: >-
+      L'occasione esiste e viene giocata — Ivrin bot su acqua conduttiva, fuoco, ghiaccio, fumo — ma nulla
+      nel bot puo' leggerla.
+
+  - hero: Hero.Ivrin
+    capability: CoreCombo
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.HexBot.PrefersPushOnUnbalancedTarget
+    why: >-
+      Il capitalizzo su `Unbalanced` scatta solo con `Push` o `Pull` fra gli effetti dichiarati, e nessuna
+      azione di Ivrin li porta.
+
+  - hero: Hero.Ivrin
+    capability: MapControl
+    state: UNTESTED
+    evidence: []
+    why: >-
+      Nessun test e nessuno scenario mette il bot Ivrin su una mappa che porti una cella obiettivo: il
+      termine non contribuisce mai in nessuna run che lo riguardi.
+
+  - hero: Hero.Ivrin
+    capability: Information
+    state: PASS
+    evidence:
+      - test:RefactorTactics.HexBotPlay.PlansOnPartialKnowledge
+      - test:RefactorTactics.HexBotPlay.HiddenEnemyFairness
+      - test:RefactorTactics.HexBotPlay.ActsOnLastKnownCell
+    why: >-
+      La capability meglio coperta del roster, e coperta proprio con lui: in tutti i token il bot e' Ivrin
+      col kit reale, e i quattro rami della classificazione del contatto sono esercitati.
+
+  - hero: Hero.Ivrin
+    capability: AdvancedCounter
+    state: FAIL
+    evidence:
+      - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
+      - scenario:Spec.Predictive.WhiffOnEmptyCell
+    why: >-
+      🔴 E' il caso piu' netto del roster: `Hero.Ivrin.InterceptShot` dichiara `PredictiveTargeting` e
+      `PredictionBoundary`, e il bot la spende come un pugno contro la cella ATTUALE. L'abilita' e'
+      raggiungibile, la sua ragione d'essere no.

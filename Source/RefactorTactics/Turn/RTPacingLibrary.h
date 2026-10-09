@@ -26,6 +26,34 @@ public:
 	static int32 PercentileNearestRank(const TArray<int32>& SortedValues, int32 Percentile);
 
 	/**
+	 * L'INDICE 0-based che il nearest-rank sceglie in un array di `Num` elementi, estratto perche'
+	 * i due accessori tipati non lo riscrivano ciascuno per conto proprio (`#2516`).
+	 *
+	 * 🔑 **La regola e' una sola e vive qui.** Il calcolo del rango non dipende dal tipo dei valori:
+	 * dipende solo da quanti sono. Separarlo e' cio' che permette a `PercentileNearestRank` e a
+	 * `PercentileNearestRankReal` di essere due **firme** della stessa regola invece di due regole che
+	 * si somigliano. ⛔ Il commento accanto alla chiamata nel sommario dice da sempre che due
+	 * implementazioni divergerebbero al primo caso limite; questo e' il modo di non averne due.
+	 *
+	 * `Num <= 0` -> `INDEX_NONE`, che il chiamante deve trattare come *«nessun valore»* e non come
+	 * indice zero.
+	 */
+	static int32 NearestRankIndex(int32 Num, int32 Percentile);
+
+	/**
+	 * Il gemello in virgola mobile di `PercentileNearestRank`, per le misure **sub-millisecondo**
+	 * di `#2516` (`CandidateCollectionCpuMs`, `BoundaryCpuMs`).
+	 *
+	 * ⚠️ **Non e' una seconda implementazione**: entrambi chiedono l'indice a `NearestRankIndex` e si
+	 * limitano a leggere il proprio array. Se un giorno la regola del rango cambia, cambia in un posto.
+	 *
+	 * Array vuoto -> `0.0`. ⛔ Qui lo zero e' ambiguo esattamente come nel gemello intero, e per la
+	 * stessa ragione il sommario pubblica il **campione** accanto al percentile.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pacing")
+	static double PercentileNearestRankReal(const TArray<double>& SortedValues, int32 Percentile);
+
+	/**
 	 * Sommario dei campioni. `CutoffWindowMs` e' la soglia che separa un TAGLIO (timeout con input piu'
 	 * recente della soglia) da un'ATTESA A VUOTO: e' un parametro esplicito e non una costante sepolta,
 	 * perche' e' una decisione di design ritarabile. Array vuoto -> sommario tutto a zero (fail-closed).

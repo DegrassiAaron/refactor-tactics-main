@@ -34,7 +34,7 @@ namespace
 	/** L'unita' sondata: una sola, come nel tool. Il nome e' distinto per file (unity build). */
 	FRTHexSnapshot ProbeYardSnapshot(const URTHexMapAsset* Map, const FRTCellId& Start, int32 Budget)
 	{
-		return URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(0, Start, Budget) });
+		return URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(0, Start, Budget) });
 	}
 }
 

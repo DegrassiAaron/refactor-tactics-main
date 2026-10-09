@@ -16,6 +16,7 @@
 
 #include "Ability/RTActionData.h"
 #include "Bot/RTBotPlanningLibrary.h"
+#include "Combat/RTCombatLibrary.h" // LowCoverDamageReduction: il canale si confronta col catalogo, non con 10
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTHexSimLibrary.h"
 
@@ -41,6 +42,26 @@ namespace RTBotPlanningTestsInternal
 			}
 		}
 		return M;
+	}
+
+	/**
+	 * Una copertura BASSA su un bordo di una cella gia' nella mappa.
+	 *
+	 * Scritta sul dato invece che via `URTHexCoverLibrary::AddCover`, perche' `MakeFlatMap` qui sopra
+	 * riempie `Cells` a mano e non ordina: la via di produzione passa da `FindCell`, che su un array non
+	 * ordinato non e' la stessa cosa. E' lo stesso idioma di `SetBotLowCover` in `RTHexBotTests.cpp`.
+	 */
+	void PosaCoperturaBassa(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	{
+		for (FRTHexCellData& Cella : Map->Cells)
+		{
+			if (Cella.Id == Id)
+			{
+				Cella.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
+					FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+				return;
+			}
+		}
 	}
 
 	/** I fatti di un'unita' senza abilita': il minimo perche' il planner la consideri. */
@@ -80,7 +101,7 @@ bool FRTBotPlanningDecidesWithoutWorldTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 3));
 	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(3, 0, 0), /*budget*/ 3));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 	TArray<FRTBotUnitFacts> Facts;
 	Facts.Add(MakeFacts(0, /*Team*/ 0, FRTCellId(0, 0, 0), /*bBot*/ true));
@@ -112,6 +133,85 @@ bool FRTBotPlanningDecidesWithoutWorldTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 DUE COMPAGNE NON SCELGONO LA STESSA CELLA — `#1088`, e da [D-446] va DIFESO invece che
+ * ereditato.
+ *
+ * 🔑 **La proprieta' arrivava gratis da un rifiuto che non c'e' piu'.** Prima della scommessa,
+ * `FindPathForUnit` rispondeva `NoPath` su una meta occupata, quindi alla seconda compagna quella cella
+ * non si offriva. [D-446] fa riuscire quel percorso, e due bot che seguono lo stesso cammino troncano
+ * alla **stessa** cella.
+ *
+ * 🔴 **E il pezzo che la difende NON e' quello che credevo, l'ha detto la mutazione.** Avevo scritto
+ * qui che a tenerla fosse `CandidateCells` — il ventaglio meno le celle altrui — e rimettendo
+ * `ReachableCells` nei suoi due siti del planner la suite **intera** restava verde, questo banco compreso.
+ * Il pezzo che porta il peso e' il **ritorno all'ultimo passo LIBERO** nel ramo di ricerca: disabilitato
+ * quello, le due scelgono entrambe `(q=0,r=0,L=0)` e il banco va rosso. Le due misure insieme dicono che
+ * `CandidateCells` qui e' ridondante rispetto al ritorno — resta perche' restringe prima, e perche' e'
+ * difeso per conto proprio da `Bot.ReservedDestinationBlocksTeammatesOnly`.
+ *
+ * ⚠️ **Senza questo banco la proprieta' era indifesa, ed e' cosi' che si e' scoperto**: una
+ * mutazione che non uccide nessuno non dice *«il codice e' ridondante»*, dice *«nessuno sta guardando»*.
+ *
+ * ⛔ **Non asserisce QUALE cella scelgano**, come il banco qui sopra: asserisce che siano **due**.
+ * Il contenuto della decisione appartiene allo scorer e ai banchi col mondo; cio' che si pinna qui e' che
+ * la seconda compagna veda la prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPlanningTeammatesPickDistinctCellsTest,
+	"RefactorTactics.Bot.TeammatesDoNotPickTheSameCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPlanningTeammatesPickDistinctCellsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeFlatMap(5);
+
+	// Due bot affiancati e NESSUN avversario: e' il ramo di RICERCA, dove entrambe seguono lo stesso
+	// cammino verso il centro e troncano sulla stessa cella. E' il caso misurato in
+	// `RTBotPlanningLibrary.cpp` — *«entrambe su (q=0,r=0,L=0), il centro»*.
+	TArray<FRTHexSimUnit> SimUnits;
+	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(-3, 0, 0), /*budget*/ 3));
+	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(-4, 1, 0), /*budget*/ 4));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
+
+	TArray<FRTBotUnitFacts> Facts;
+	Facts.Add(MakeFacts(0, /*Team*/ 0, FRTCellId(-3, 0, 0), /*bBot*/ true));
+	Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(-4, 1, 0), /*bBot*/ true));
+
+	FRTBotWeights Pesi;
+	Pesi.WKill = 100;
+	Pesi.WDamage = 10;
+	Pesi.WApproach = 5;
+
+	TMap<int32, FRTTeamKnowledge> Conoscenza;
+	TMap<int32, int32> Inattivita;
+	TMap<int32, int32> UltimoRound;
+
+	const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
+		Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+
+	if (!TestEqual(TEXT("due piani: uno per bot"), Esito.Decisions.Num(), 2)) { return false; }
+	// ➕ **Le due destinazioni finiscono nel referto anche quando il banco e' verde.** Se un giorno
+	// cade, cio' che serve sapere e' **su quale cella** sono finite insieme: un rosso che dice solo
+	// «non sono distinte» manda a rileggere lo scorer, e il colpevole e' quasi sempre il troncamento.
+	for (const FRTBotPlanDecision& D : Esito.Decisions)
+	{
+		AddInfo(FString::Printf(TEXT("u%d sceglie %s"), D.UnitIndex, *D.PlannedCell.ToString()));
+	}
+
+	// 🔑 **La premessa che rende il banco non vacuo: si muovono entrambe.** Due unita' ferme hanno
+	// destinazioni distinte per costruzione, e l'asserzione sotto passerebbe senza misurare niente.
+	const FRTCellId PartenzaA(-3, 0, 0);
+	const FRTCellId PartenzaB(-4, 1, 0);
+	if (!TestTrue(TEXT("premessa: la prima si muove"), Esito.Decisions[0].PlannedCell != PartenzaA)
+		|| !TestTrue(TEXT("premessa: e anche la seconda"), Esito.Decisions[1].PlannedCell != PartenzaB))
+	{
+		return false;
+	}
+
+	TestNotEqual(TEXT("e le due destinazioni sono DISTINTE"),
+		Esito.Decisions[0].PlannedCell, Esito.Decisions[1].PlannedCell);
+	return true;
+}
+
+/**
  * L'audit costa, e si paga solo quando lo si chiede.
  *
  * ⚠️ Era `bRecordReplay` letto dall'orchestratore; ora e' un parametro, e questo test e' l'unico posto in
@@ -126,7 +226,7 @@ bool FRTBotPlanningAuditIsOptInTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 3));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 	TArray<FRTBotUnitFacts> Facts;
 	Facts.Add(MakeFacts(0, /*Team*/ 0, FRTCellId(0, 0, 0), /*bBot*/ true));
@@ -175,7 +275,7 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 2));
 	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 	TArray<FRTBotUnitFacts> Facts;
 	Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));   // il bot NON e' di squadra 0
@@ -240,6 +340,174 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 		TestEqual(TEXT("controllo positivo: vedendolo, il bot LO dichiara bersaglio"),
 			ConVista.Decisions[0].PlannedAttackTargetIndex, 1);
 	}
+
+	return true;
+}
+
+/**
+ * #3593, spec SP5 R8: un'azione che deriva da `Action.Heal` non e' un candidato d'ATTACCO. Con `Power` 0 non
+ * nasce nessuna candidata (`AttackDamage <= 0`), e il controllo positivo qui sotto mostra che con un `Power`
+ * qualunque la pianificherebbe su un nemico. L'esclusione vale per i DUE passi che generano attacchi: da
+ * fermo e dopo lo scatto — il terzo caso arma lo scatto, perche' un predicato applicato a un passo solo
+ * lascerebbe il secondo senza difesa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDerivedHealIsNotAnAttackCandidateTest,
+	"RefactorTactics.Bot.DerivedHealIsNotAnAttackCandidate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
+{
+	// `bScatto`: il nemico sta a tre celle, raggiungibile da un colpo di portata 1 solo scattando di due, e il
+	// bot ha un'abilita' di mobilita' rapida pronta (indice 2). Senza scatto il nemico e' adiacente.
+	auto Pianifica = [this](bool bDerivata, bool bScatto) -> int32
+	{
+		const FRTCellId CellaNemico = bScatto ? FRTCellId(3, 0, 0) : FRTCellId(1, 0, 0);
+		URTHexMapAsset* M = MakeFlatMap(4);
+		TArray<FRTHexSimUnit> SimUnits;
+		SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 2));
+		SimUnits.Add(FRTHexSimUnit(1, CellaNemico, /*budget*/ 2));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
+		TArray<FRTBotUnitFacts> Facts;
+		Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));
+		Facts.Add(MakeFacts(1, /*Team*/ 0, CellaNemico, /*bBot*/ false));
+		URTActionData* Cura = NewObject<URTActionData>();
+		Cura->RangeCells = 1;
+		Cura->Power = 40; // controllo positivo: senza la derivazione e' un attacco appetibile
+		Cura->Def.DerivedFromActionId = bDerivata ? FName(TEXT("Action.Heal")) : NAME_None;
+		Facts[0].Abilities.Add(Cura);            // indice 0
+		Facts[0].bAbilityUsable.Add(true);
+		URTActionData* Colpo = NewObject<URTActionData>(); // indice 1: l'attacco vero, piu' debole della cura
+		Colpo->RangeCells = 1;
+		Colpo->Power = 20;
+		Facts[0].Abilities.Add(Colpo);
+		Facts[0].bAbilityUsable.Add(true);
+		if (bScatto)
+		{
+			URTActionData* Scatto = NewObject<URTActionData>(); // indice 2: la mobilita' rapida, senza danno
+			Scatto->RangeCells = 2;
+			Scatto->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+			Scatto->Def.MovementStyle = ERTMovementStyle::LinearDash;
+			Scatto->Def.Slot = ERTActionSlot::Movement;
+			Facts[0].Abilities.Add(Scatto);
+			Facts[0].bAbilityUsable.Add(true);
+			Facts[0].DashAbilityIndex = 2;
+			Facts[0].EffectiveDashRange = 2;
+		}
+		FRTBotWeights Pesi; Pesi.WKill = 100; Pesi.WDamage = 50; Pesi.WApproach = 5;
+		FRTTeamKnowledge Vista; Vista.TeamId = 1; Vista.VisibleCells.Add(CellaNemico);
+		TMap<int32, FRTTeamKnowledge> Conoscenza; Conoscenza.Add(1, Vista);
+		TMap<int32, int32> Inattivita; TMap<int32, int32> UltimoRound;
+		const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
+			Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+		if (Esito.Decisions.Num() != 1) { return -99; }
+		TestEqual(TEXT("il nemico adiacente e' il bersaglio in entrambi i casi"), Esito.Decisions[0].PlannedAttackTargetIndex, 1);
+		return Esito.Decisions[0].PlannedAbilityIndex;
+	};
+	TestEqual(TEXT("controllo positivo: non derivata e piu' forte, la pianifica (indice 0)"), Pianifica(false, false), 0);
+	TestEqual(TEXT("derivata da Action.Heal: pianifica l'ALTRA abilita' (indice 1), non la cura"), Pianifica(true, false), 1);
+	// Con lo scatto pronto il nemico e' raggiungibile solo dopo lo scatto: e' il passo 4 a generare l'attacco.
+	TestEqual(TEXT("controllo positivo con scatto: non derivata, la pianifica dopo lo scatto (indice 0)"), Pianifica(false, true), 0);
+	TestEqual(TEXT("derivata da Action.Heal, dopo lo scatto: pianifica il colpo (indice 1), non la cura"), Pianifica(true, true), 1);
+	return true;
+}
+
+/**
+ * Il CANALE fra la stima del bot e chi la misura: la pianificazione riporta i punti di copertura che i piani
+ * scelti si aspettano di scavalcare (`#649`).
+ *
+ * 🔴 **Esiste perche' senza di lui il cablaggio puo' staccarsi restando verde, e il referto pubblica allora
+ * una diagnosi FALSA SUL BOT.** Il misuratore
+ * (`Bot.FacingBypassRealizationOnACoveredArena`) somma questo valore e non lo asserisce mai — non puo': il
+ * suo mestiere e' produrre un numero, non difenderne uno. Se la somma di `PlanTurn` o il travaso
+ * nell'orchestratore sparissero, la suite resterebbe verde e il referto stamperebbe *«le coperture c'erano,
+ * ma nessun piano SCELTO ha mai contato un punto da scavalcare»* — cioe' attribuirebbe al bot un silenzio
+ * che e' del canale. E' un quarto zero, diverso dai tre che quel file dichiara di saper distinguere.
+ *
+ * 🔑 **Sta QUI e non nel misuratore perche' `PlanTurn` e' puro**: niente mondo, niente Actor, niente motore.
+ * Il gate che serve e' sul cablaggio, e il cablaggio si vede da qui.
+ *
+ * ⛔ **Non e' una soglia sul comportamento del bot**, che `D-102` vieta di fissare su partite bot-vs-bot: e'
+ * un'uguaglianza fra il valore riportato e la costante del catalogo di combattimento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPlanningCarriesPlannedBypassTest,
+	"RefactorTactics.Bot.PlannerCarriesThePlannedCoverBypass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPlanningCarriesPlannedBypassTest::RunTest(const FString&)
+{
+	// L'allestimento, una volta sola: cambia il solo orientamento del bersaglio fra le due meta'.
+	auto Pianifica = [](ERTHexDirection FacingBersaglio, FRTBotPlanningOutcome& OutEsito)
+	{
+		URTHexMapAsset* M = MakeFlatMap(4);
+		// Il bordo che il colpo attraversa: il bot sta a OVEST del bersaglio, quindi entra dal suo lato W.
+		PosaCoperturaBassa(M, FRTCellId(1, 0, 0), ERTHexDirection::W);
+
+		// Budget ZERO su entrambe: fermi. La geometria del colpo — e quindi il bordo attraversato — non
+		// puo' cambiare per un movimento, che renderebbe il numero atteso una congettura.
+		TArray<FRTHexSimUnit> SimUnits;
+		SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 0));
+		SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 0));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
+
+		TArray<FRTBotUnitFacts> Facts;
+		Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));
+		Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(1, 0, 0), /*bBot*/ false));
+		Facts[1].Facing = FacingBersaglio;
+
+		// Senza un'abilita' d'attacco il bot non dichiara nessun bersaglio e il test sarebbe vacuo: e' la
+		// lezione gia' pagata da `PlannerMissingKnowledgeIsNotOmniscience` qui sopra.
+		URTActionData* Colpo = NewObject<URTActionData>();
+		Colpo->RangeCells = 1;
+		Colpo->Power = 40;
+		Facts[0].Abilities.Add(Colpo);
+		Facts[0].bAbilityUsable.Add(true);
+
+		FRTBotWeights Pesi;
+		Pesi.WKill = 100;
+		Pesi.WDamage = 50;
+		Pesi.WApproach = 5;
+
+		// La squadra del bot VEDE la cella del bersaglio: senza, non lo conosce e non lo attacca.
+		FRTTeamKnowledge Vista;
+		Vista.TeamId = 1;
+		Vista.VisibleCells.Add(FRTCellId(1, 0, 0));
+		TMap<int32, FRTTeamKnowledge> Conoscenza;
+		Conoscenza.Add(1, Vista);
+
+		TMap<int32, int32> Inattivita;
+		TMap<int32, int32> UltimoRound;
+		OutEsito = URTBotPlanningLibrary::PlanTurn(
+			Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+	};
+
+	// --- IL BERSAGLIO VOLTA LE SPALLE: la copertura non lo protegge, e il piano lo conta ----------------
+	FRTBotPlanningOutcome Scoperto;
+	Pianifica(ERTHexDirection::E, Scoperto); // guarda a est, il bot e' a ovest: colpo posteriore
+
+	if (!TestEqual(TEXT("premessa: un piano per il bot"), Scoperto.Decisions.Num(), 1))
+	{
+		return false;
+	}
+	// 🔴 **La premessa che rende leggibile il numero**: se il bot non attaccasse, lo zero dell'altra meta'
+	// non direbbe niente sulla copertura.
+	TestEqual(TEXT("premessa: il bot dichiara il bersaglio"),
+		Scoperto.Decisions[0].PlannedAttackTargetIndex, 1);
+
+	TestEqual(TEXT("la pianificazione riporta i punti che il piano si aspetta di scavalcare"),
+		Scoperto.PlannedCoverBypassedByFacing, URTCombatLibrary::LowCoverDamageReduction);
+
+	// --- LA META' FALSIFICANTE: stessa scena, il bersaglio guarda il bot -------------------------------
+	//
+	// ⛔ Senza di lei passerebbe un canale che riporta la riduzione NOMINALE invece di quella ANNULLATA:
+	// sono lo stesso numero quando la direzione la scavalca, e divergono solo qui.
+	FRTBotPlanningOutcome Coperto;
+	Pianifica(ERTHexDirection::W, Coperto); // guarda il bot: colpo frontale, la copertura tiene
+
+	if (TestEqual(TEXT("controllo positivo: il bot attacca comunque"), Coperto.Decisions.Num(), 1))
+	{
+		TestEqual(TEXT("controllo positivo: e dichiara lo stesso bersaglio"),
+			Coperto.Decisions[0].PlannedAttackTargetIndex, 1);
+	}
+	TestEqual(TEXT("dove la copertura TIENE non c'e' niente di scavalcato da riportare"),
+		Coperto.PlannedCoverBypassedByFacing, 0);
 
 	return true;
 }

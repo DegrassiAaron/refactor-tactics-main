@@ -1,4 +1,5 @@
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTActionDescriptions.h" // `#3499`: la frase d'autore di ogni azione
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
@@ -885,6 +886,35 @@ FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAtta
 	return Modified;
 }
 
+FText URTCatalogLibrary::EquipmentActionDisplayName(const FText& InDisplayName, FName InEquipmentId)
+{
+	// `IsEmptyOrWhitespace` e non `IsEmpty`, per la stessa ragione di `ARTUnit::DisplayLabel`: un nome fatto
+	// di soli spazi a schermo e' indistinguibile da un'etichetta assente, quindi vale come non dichiarato.
+	if (!InDisplayName.IsEmptyOrWhitespace())
+	{
+		return InDisplayName;
+	}
+
+	// ⚠️ Il ripiego NON e' la correzione: e' cio' che si vede se un pezzo nuovo arriva senza nome. Il catalogo
+	// spedito ce l'ha per tutti, e lo pinna `Catalog.EveryEquipmentActionHasADisplayName` — senza quel gate
+	// questa cascata renderebbe il difetto invisibile invece di ripararlo, mostrando `Sprinkler` al posto di
+	// nulla e lasciando che nessuno se ne accorga. Con il gate, mostrare l'ultimo segmento e' la forma meno
+	// peggiore: il giocatore legge una parola invece di un buco, e il rosso lo legge chi scrive il catalogo.
+	if (InEquipmentId.IsNone())
+	{
+		return FText::GetEmpty();
+	}
+	const FString Full = InEquipmentId.ToString();
+	// Gli `EquipmentId` sono namespaced (`Gadget.Sprinkler`): a schermo serve l'ultimo segmento. Se un giorno
+	// un id smettesse di avere il punto, questa resta corretta invece di produrre una stringa vuota.
+	int32 Dot = INDEX_NONE;
+	if (Full.FindLastChar(TEXT('.'), Dot) && Dot >= 0 && Dot + 1 < Full.Len())
+	{
+		return FText::FromString(Full.RightChop(Dot + 1));
+	}
+	return FText::FromString(Full);
+}
+
 URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer)
 {
 	if (Item == nullptr || Item->GrantedActionId.IsNone())
@@ -907,6 +937,33 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	// che e' esattamente il difetto che il campo esiste per chiudere.
 	Action->Def.DerivedFromActionId = Item->GrantedActionId;
 	Action->Def.CooldownTurns = Item->CooldownTurns;
+
+	// 🔴 **Il nome visibile, che questa funzione non scriveva mai** (`#3275`). L'azione arrivava nel dock
+	// con `DisplayName` vuoto e `ARTHUD::ComposeAbilityLine` componeva **`"6. "`**: il giocatore vedeva il
+	// tasto, il punto e la ricarica, e nient'altro. Accadeva in ogni partita di default su meta' roster —
+	// Muiren e Branth ricevono il proprio loadout — e fra le voci mute c'era `Reaction.Cleanse`, che
+	// [D-218] mette li' apposta come unica risposta allo `Status.Slow` dell'attacco base di Branth.
+	//
+	// 🔑 **E' il nome del PEZZO, e non e' una preferenza: e' l'unico che esiste.** Misurato il 2026-09-23:
+	// i dodici pezzi che concedono un'azione nominano **dieci** azioni core distinte (`Anchor`, `Counter`,
+	// `CreateCover`, `CreateSmoke`, `CreateWater`, `Evade`, `Heal`, `HeavyAttack`, `Intercept`, `Purge`) e
+	// **nessuna delle dieci ha un nome leggibile**. L'unica mappa chiavata su `Action.*` e'
+	// `GenericActionDisplayName`, che ne copre cinque: `Wait`, `Guard`, `Brace`, `Overwatch`, `Interact`.
+	//
+	// ⚠️ **E l'altra mappa non e' un secondo posto dove ho guardato**: `HeroActionDisplayName` e' chiavata su
+	// `Hero.<eroe>.<azione>` (`Hero.Aevik.ArcPulse`, ...), quindi **per costruzione** non puo' contenere un
+	// `Action.*` — cercarvi `Action.Purge` da' zero per il vocabolario, non per i fatti. Dirlo cosi' evita
+	// di far passare una ricerca a vuoto per una copertura.
+	//
+	// Quindi il nome dell'azione core non e' un'alternativa piu' povera: **non c'e'**, e una composizione
+	// «pezzo — core» avrebbe la seconda meta' vuota. Renderla possibile vuol dire prima SCRIVERE dieci nomi.
+	//
+	// ⚠️ E coincide con la scelta gia' fatta due righe sopra: `ActionId` diventa quello del pezzo perche' nel
+	// TurnLog si legge il gadget, e `MakeActionIconId` porta `Gadget.Sprinkler` → `UI.Icon.Action.Sprinkler`.
+	// Id, icona e nome seguono tutti e tre il pezzo: farne divergere uno solo sarebbe la scelta da motivare.
+	// ⛔ Il gesto NON e' perduto: `DerivedFromActionId` lo conserva, ed e' la fonte per chi un giorno volesse
+	// mostrarlo — ma mostrarlo richiede prima di **scrivere** quei dieci nomi, che oggi non esistono.
+	Action->DisplayName = EquipmentActionDisplayName(Item->DisplayName, Item->EquipmentId);
 
 	// Gli effetti PROPRI sostituiscono quelli del core (CP 7.3): un modulo di reazione eredita dal core cio'
 	// che lo rende una reazione — fase, priorita', `ReactionTrigger` — ma i numeri sono suoi. `Slot` e
@@ -1056,10 +1113,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 {
 	TArray<FRTActionDef> Catalog;
 
-	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, occupa il SOLO slot movimento [D-028], applica `Status.Exposed`
-	// fino al Cleanup. Per le azioni di mobilita' rapida `RangeCells` e' il BUDGET in punti movimento, non un
-	// numero di celle: su terreno difficile si arriva meno lontano (e' lo stesso budget del movimento normale,
-	// con un'altra quantita').
+	// `Action.Sprint` (catalogo v0.1 §2) — **×2** del budget dell'unita' ([D-412]), occupa il SOLO slot
+	// movimento [D-028], applica `Status.Exposed` fino al Cleanup. Il budget e' in punti movimento e non in
+	// celle: su terreno difficile si arriva meno lontano.
+	//
+	// ⏱️ *Fino al 2026-09-18 questo commento diceva «8 MP» e aggiungeva che «per le azioni di mobilita'
+	// rapida `RangeCells` e' il BUDGET». Entrambe le cose sono finite: il numero e' del profilo ([D-427]) e
+	// lo Sprint non e' una mobilita' rapida da [D-116].*
 	//
 	// Lo svantaggio dello scatto lungo e' `Exposed`, dichiarato come EFFETTO: chi corre allo scoperto incassa
 	// +5 dal primo colpo. Niente di tutto cio' e' scritto nell'orchestratore.
@@ -1069,12 +1129,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// questo codice contraddiceva. Supera [D-068].
 	//
 	// ⚠️ **La migrazione non si fa da sola, e le voci di D-116 non sono separabili**: la fase da sola
-	// produrrebbe l'**upgrade puro** che [D-015] vieta — 8 punti contro 5, nessun cooldown, `Exposed`
+	// produrrebbe l'**upgrade puro** che [D-015] vieta — il doppio del budget contro il budget pieno,
+	// nessun cooldown, `Exposed`
 	// inerte. Gli altri due prezzi che accompagnano questa riga sono `Exposed` a **2** turni (qui sotto) e
 	// il divieto di reazione, che da oggi si valuta **sul piano** e non piu' dentro `ResolveDash`, dove
 	// uno scatto in fase Move non passa piu' (`ARTTurnManager::ValidatePlansAtLockIn`).
 	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::NormalMovement, /*Priority*/ 60,
-		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
+		// 🔑 **`0`, e non `8`: il budget lo possiede il PROFILO** ([D-427]). Valeva `8` per tutti fino al
+		// 2026-09-18; [D-412] lo rende un moltiplicatore del budget dell'unita' (`Sprint` ×2), che sul roster
+		// spedito da' **10 · 10 · 8 · 12** — cioe' un numero diverso per tre eroi su quattro. Tenerlo qui
+		// sarebbe una seconda sede della stessa risposta, e lo era gia': chi leggeva questa e chi leggeva il
+		// profilo ottenevano numeri diversi. ⛔ Nemmeno un valore derivato: sarebbe una terza sede, che
+		// invecchia da sola appena un eroe cambia `MovePoints`.
+		/*Range: il profilo, non qui*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		// `Exposed` **2** turni ([D-116] voce 4): con lo scatto dopo il Blast, un turno solo lo renderebbe
 		// **inerte** — verrebbe applicato quando tutti hanno gia' sparato, e scadrebbe nel Cleanup subito
 		// dopo. Due turni sono cio' che restituisce allo Sprint il prezzo che la migrazione gli toglie.
@@ -1083,18 +1150,17 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava il budget senza che
 	// nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.
 	//
-	// 🔴 **E dal 2026-09-13 i due numeri DIVERGONO, e va detto invece di lasciarlo scoprire.** [D-412] rende
-	// il budget del profilo un **moltiplicatore** (`Sprint` ×2, cioe' 10 per un eroe da 5), mentre
-	// `RangeCells` qui resta l'assoluto `8`.
+	// ✅ **La divergenza che questa nota dichiarava e' chiusa dal 2026-09-18** ([D-427],
+	// [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198)). ⏱️ *Diceva: «dal
+	// 2026-09-13 i due numeri DIVERGONO — [D-412] rende il budget del profilo un moltiplicatore (`Sprint`
+	// ×2, cioe' 10 per un eroe da 5), mentre `RangeCells` qui resta l'assoluto `8`. Va chiusa da chi porta
+	// lo Sprint fuori da `FastMovement` ([#641]/[D-116]): quella e' la migrazione che rende il numero qui
+	// morto».* L'innesco e' scattato il 2026-09-12, e il `RangeCells` di questa voce e' ora `0`: la sede
+	// vecchia non resta vuota, **non esiste**.
 	//
-	// ⛔ **E `RangeCells` NON e' letto solo da `ResolveDash`**, come una prima stesura di questa nota
-	// sosteneva: lo leggono anche `RTActionFallbackLibrary`, `RTBotPlanningLibrary`, `RTActionReadout`,
-	// `RTAbilityLab` e `RTActionQueueLibrary`. ∴ la divergenza non e' confinata al Dash — il bot e la resa
-	// dell'abilita' vedono `8` mentre il resolver del movimento vedra' il moltiplicatore.
-	//
-	// ⚠️ **Va chiusa da chi porta lo Sprint fuori da `FastMovement`** ([#641]/[D-116]): quella e' la
-	// migrazione che rende il numero qui morto, e lasciarne due vivi e' la doppia sede che [D-023] e [D-115]
-	// hanno eliminato altrove. Finche' dura, questa nota e' il posto in cui la divergenza e' dichiarata.
+	// 🔑 **Chi vuole il budget chiede al profilo**, che e' la sede unica: `ProfileForPlan(Plan)` →
+	// `FRTMovementProfile::ResolveMoveBudget(UnitMoveRange)`. Il resolver del movimento
+	// (`RTTurnManager_Movement.cpp`), il validatore del piano e la ViewModel dell'HUD gia' facevano cosi'.
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileSprint;
 
 	// ⛔ **`Action.Sneak` NON entra in questo passaggio, e la ragione e' misurata.** Una voce del catalogo
@@ -1119,7 +1185,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::None, ERTActionSlot::None));
 
-	// `Action.Withdraw` — il RIPIEGAMENTO dichiarato, **2 punti** ([D-070]).
+	// `Action.Withdraw` — il RIPIEGAMENTO dichiarato ([D-070]), **×0,25** del budget dell'unita' ([D-412]:
+	// `1` per tutto il roster spedito). ⏱️ *Diceva «2 punti» fino al 2026-09-18, quando quel numero viveva su
+	// questa riga; ora e' del profilo ([D-427]).*
 	//
 	// 🔴 **Non esisteva come azione fino al 2026-09-13**, e la sua assenza non era neutra: [D-070] riserva
 	// lo slot movimento di chi arma l'`Overwatch` al solo `Withdraw`, quindi senza questa voce quella
@@ -1130,7 +1198,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// ([D-015]), non una mobilita' rapida. `Fallback::Stop` per la stessa ragione del `Move` — chi non
 	// riesce a ripiegare si ferma, non annulla il turno.
 	Catalog.Add(ShippedAction(TEXT("Action.Withdraw"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
-		/*Range (punti)*/ 2, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		// `0` per la stessa ragione dello `Sprint` ([D-427]): il budget e' `ProfileWithdraw` ×0,25, che per un
+		// eroe da 5 vale **1** e non i `2` che questa riga dichiarava.
+		/*Range: il profilo, non qui*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileWithdraw;
 
@@ -1138,11 +1208,16 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// l'unita' e' il resolver dei percorsi, che avanza a micro-step sullo snapshot. Un effetto "MoveTo" qui
 	// duplicherebbe quella decisione in un secondo posto.
 	Catalog.Add(ShippedAction(TEXT("Action.Move"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
-		/*Range (MP)*/ 5, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		// `0` come le altre due a budget ([D-427]): il passo dell'unita' e' `GetEffectiveMoveRange()` per il
+		// profilo `Move` (×1), non questo campo. Dichiarava `5` per tutti mentre il roster vale `5 · 5 · 4 · 6`,
+		// ed era gia' non-autorevole: `RTEnemyTacticalQueryTests` esiste per pinnare che il passo segue
+		// `MovePoints` e non `Action.Move.RangeCells`.
+		/*Range: il profilo, non qui*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
-	// Il profilo neutro (`#653`). ⚠️ **Eredita il budget dall'unita', quindi il `5` qui sopra resta il numero
-	// morto che era**: il movimento normale non lo ha mai letto — prende `ARTUnit::GetEffectiveMoveRange()`
-	// — e questo checkpoint non gli da' improvvisamente voce, perche' lo farebbe per tutti gli eroi insieme.
+	// Il profilo neutro (`#653`). ⚠️ **Eredita il budget dall'unita'**, che e' `ARTUnit::GetEffectiveMoveRange()`.
+	// ⏱️ *Questa riga diceva «quindi il `5` qui sopra resta il numero morto che era»: dal 2026-09-18 quel `5`
+	// non c'e' piu' — `RangeCells` e' `0` per le tre azioni a budget ([D-427]), e il numero morto e' stato
+	// tolto invece che dichiarato.*
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileMove;
 
 	// `Action.BasicAttack` — identita', fase, priorita' e fallback stanno qui; DANNO e PORTATA no, perche'
@@ -1153,9 +1228,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// `Action.Guard` — si prepara nel Prep e vale per il turno: **pool di 15 danni assorbibili** che i colpi
-	// dell'arco frontale consumano finche' dura ([D-292] + [D-206]), resiste a una spinta di 1 cella, scade
-	// nel Cleanup. Non interrompibile (catalogo §1).
+	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
+	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non
+	// interrompibile (catalogo §1). Il valore lo dichiara il personaggio (`URTHeroData::GuardReduction`);
+	// `URTCombatLibrary::GuardFirstHitReduction` ne e' il default di catalogo.
+	//
+	// ⏱️ *E' la SECONDA riscrittura di questa riga. Diceva «pool di 15 danni assorbibili che i colpi
+	// dell'arco frontale consumano finche' dura ([D-292])» dal 2026-09-03 al 2026-09-20, quando [D-408] ha
+	// ritirato il pool per la sola `Guard`.*
 	//
 	// ⏱️ *La riga diceva «-15 al primo danno diretto» fino al 2026-09-03, cioe' la regola che D-292 ha
 	// sostituito il 2026-08-31. Il numero non cambia e il catalogo nemmeno: cambia cosa il numero E', e
@@ -1320,7 +1400,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearLeap));
 
 	// `Reposition` — due celle e nient'altro: nessuno stato, nessuna traversata. E' lo scatto "tattico" che si
-	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro 8 MP piu' Exposed).
+	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro il doppio del
+	// budget piu' `Exposed`).
 	Catalog.Add(ShippedAction(TEXT("Action.Reposition"), ERTResolutionPhase::FastMovement, /*Priority*/ 40,
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
@@ -1967,6 +2048,7 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		// Il NOME arriva dal catalogo di bilanciamento, e senza di esso l'azione entra nel kit muta: il
 		// giocatore che la arma legge `abilita' attiva -> ` e non sa cosa ha armato.
 		Action->DisplayName = GenericActionDisplayName(Id);
+		Action->Description = RTActionDescriptions::For(Id); // `#3499`: la frase, dove nasce il nome
 		Actions.Add(Action);
 	}
 	return Actions;

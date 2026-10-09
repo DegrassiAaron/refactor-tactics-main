@@ -13,6 +13,8 @@
 #include "HAL/IConsoleManager.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "RTConsoleVariableGuardForTest.h"
+#include "Misc/CommandLine.h"  // la terza fonte della banda e' un flag di riga di comando (`#2182`)
+#include "Misc/ScopeExit.h"    // ON_SCOPE_EXIT: la riga di comando e' stato globale e va ripristinata
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -347,6 +349,30 @@ bool FRTAutoRunBannerTest::RunTest(const FString&)
 	TestTrue(TEXT("la banda segue la cvar che prevale"), FromCVar.Contains(TEXT("Movement.Basic")));
 	TestTrue(TEXT("la banda attribuisce la scelta alla cvar"), FromCVar.Contains(TEXT("rt.Test.Scenario")));
 	TestFalse(TEXT("non attribuisce anche al BP_GameMode"), FromCVar.Contains(TEXT("BP_GameMode")));
+
+	// LA TERZA SORGENTE, `-RTScenario=` — arrivata qui da `RTGameModeScenarioEntryTests.cpp` con `#2182`.
+	//
+	// 🔑 **Le tre fonti della banda stanno ora in un posto solo**, che e' dove il confronto e' possibile: due
+	// erano qui e la terza viveva accanto al test della PRECEDENZA, cioe' di un'altra domanda. La precedenza
+	// e' diventata una funzione pura (`ARTGameMode::ChooseScenarioEntry`) e si verifica senza un mondo; il
+	// CABLAGGIO della banda un mondo lo richiede, e questo file ce l'ha gia'.
+	//
+	// ⚠️ La riga di comando e' stato GLOBALE del processo: si ripristina uscendo, o i test successivi della
+	// unity build vedrebbero un flag che non hanno chiesto.
+	{
+		const FString RigaSalvata = FCommandLine::Get();
+		ON_SCOPE_EXIT { FCommandLine::Set(*RigaSalvata); };
+
+		Guard.Set(TEXT(""));
+		GameMode->ScenarioToRun.Reset();
+		FCommandLine::Set(*(RigaSalvata + FString(TEXT(" -RTScenario=Movement.Collision"))));
+
+		const FString DaRigaDiComando = GameMode->GetScenarioBannerText();
+		TestTrue(TEXT("la banda segue il flag di riga di comando"),
+			DaRigaDiComando.Contains(TEXT("Movement.Collision")));
+		TestTrue(TEXT("e attribuisce la scelta al flag"), DaRigaDiComando.Contains(TEXT("-RTScenario=")));
+		TestFalse(TEXT("non attribuisce al BP_GameMode"), DaRigaDiComando.Contains(TEXT("BP_GameMode")));
+	}
 
 	// Nessuna sessione avviata: lo stato e' «in corso», non un esito inventato.
 	TestTrue(TEXT("senza sessione la banda non dichiara un esito"), FromCVar.Contains(TEXT("in corso")));
