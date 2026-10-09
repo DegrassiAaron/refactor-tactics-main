@@ -712,4 +712,53 @@ bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// [D-415] punto (3) — OGNI attacco base d'eroe spara alla cieca, come il core che lo deriva
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **Trovato dalla code review di #3230: il punto (3) era un no-op in partita.** Il catalogo core dichiarava
+ * `Action.BasicAttack` a `LineOfSightPolicy::NotRequired`, ma `MakeHeroBasicAttack` non copiava il campo e i
+ * quattro attacchi base restavano `Required`. Nessun test lo prendeva: `BlindFire.DirectAttackStillRequires
+ * LineOfSight` usa un `FRTActionDef` di default e `CellAttackRequiringSightIsRefusedByABlocker` usa
+ * `CircularTide`, quindi erano verdi in entrambi i mondi.
+ *
+ * ⛔ **Anti-vacuita' in due punti**: il core deve dichiarare davvero `NotRequired` (altrimenti «uguale al core»
+ * sarebbe vero anche con `Required`), e OGNI eroe deve avere almeno un'azione derivata da `Action.BasicAttack`
+ * (altrimenti un roster senza attacchi base passerebbe per assenza).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttacksFireBlindTest,
+	"RefactorTactics.HeroCatalog.EveryBasicAttackFiresBlind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroBasicAttacksFireBlindTest::RunTest(const FString&)
+{
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
+	if (!TestTrue(TEXT("premessa: il core dichiara il tiro alla cieca ([D-415] punto 3)"),
+		Core.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired)) { return false; }
+
+	const TArray<URTHeroData*> Heroes = {
+		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
+		URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeIvrin() };
+
+	int32 HeroesWithABasicAttack = 0;
+	for (const URTHeroData* Hero : Heroes)
+	{
+		if (!TestNotNull(TEXT("eroe costruito"), Hero)) { return false; }
+		bool bHasOne = false;
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			const URTActionData* Action = Ptr.Get();
+			if (!Action || Action->Def.BaseActionId != FName(TEXT("Action.BasicAttack"))) { continue; }
+			bHasOne = true;
+			TestTrue(FString::Printf(TEXT("%s: l'attacco base %s spara alla cieca come il core"),
+				*Hero->HeroId.ToString(), *Action->Def.ActionId.ToString()),
+				Action->Def.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired);
+		}
+		if (bHasOne) { ++HeroesWithABasicAttack; }
+	}
+	TestEqual(TEXT("anti-vacuita': ogni eroe ha un attacco base derivato dal core"),
+		HeroesWithABasicAttack, Heroes.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

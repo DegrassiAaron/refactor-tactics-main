@@ -1588,14 +1588,15 @@ void ARTTurnManager::LockInAndResolve()
 	// e l'impatto della carica fa eccezione dichiarata: nasce **dentro** il Blast, al contatto, e la sua
 	// cella e' quella del contatto — non c'e' un «prima» da congelare.
 	//
-	// ⚠️ L'ordine di `GetAllActorsOfClass` non conta QUI e non serve ordinarlo: ogni unita' scrive solo su
-	// se stessa, leggendo un'altra unita' che questo ciclo non tocca. E' una fotografia, non una risoluzione.
+	// ⚠️ L'ordine della raccolta non conta QUI e non serve ordinarlo: ogni unita' scrive solo su se stessa,
+	// leggendo un'altra unita' che questo ciclo non tocca. E' una fotografia, non una risoluzione. La raccolta
+	// e' `CollectLivingUnits`, la stessa del resto del turno: ⌫ *era una seconda `GetAllActorsOfClass` che
+	// includeva i morti, trovata dalla code review di #3230.*
 	{
-		TArray<AActor*> AimActors;
-		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), AimActors);
-		for (AActor* Actor : AimActors)
+		TArray<ARTUnit*> AimUnits;
+		CollectLivingUnits(AimUnits);
+		for (ARTUnit* PlanningUnit : AimUnits)
 		{
-			ARTUnit* PlanningUnit = Cast<ARTUnit>(Actor);
 			if (!IsValid(PlanningUnit)) { continue; }
 
 			const ARTUnit* AimedAt = PlanningUnit->PlannedAttackTarget;

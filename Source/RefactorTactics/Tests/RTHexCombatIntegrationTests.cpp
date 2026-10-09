@@ -1699,6 +1699,72 @@ bool FRTAimDoesNotFollowTest::RunTest(const FString&)
 }
 
 /**
+ * **Chi spara si gira verso la MIRA congelata, non verso dove il bersaglio e' scattato** ([D-415], [D-020]).
+ *
+ * 🔴 **Trovato dalla code review di #3230**: il riorientamento di D-020 leggeva `Target->Cell` dopo lo scatto,
+ * mentre il colpo partiva verso `PlannedAimCell`. Chi sparava guardava dove il bersaglio era andato e sparava
+ * dove era stato — e il facing decide la copertura direzionale (CP 16.2), quindi non e' cosmesi.
+ *
+ * Stessa scena di `PlannedAimDoesNotFollowTheTarget`, con lo scatto scelto in modo che la direzione verso la
+ * cella viva e quella verso la mira DIFFERISCANO (controllo positivo, misurato con `DirectionTowards`):
+ * il facing finale del tiratore nella scena «scattato» deve essere quello della scena «fermo».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimReorientationFacesTheFrozenAimTest,
+	"RefactorTactics.Combat.Aim.ReorientationFacesTheFrozenAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimReorientationFacesTheFrozenAimTest::RunTest(const FString&)
+{
+	const FRTCellId Tiratore(0, 0);
+	const FRTCellId Mira(3, 0);
+	const FRTCellId Scattato(3, -2); // due celle in linea da (3,0), fuori dall'asse della mira
+
+	// Controllo positivo sulla geometria: le due direzioni devono differire, o il test sarebbe vacuo.
+	ERTHexDirection VersoMira = ERTHexDirection::E;
+	ERTHexDirection VersoScattato = ERTHexDirection::E;
+	if (!TestTrue(TEXT("premessa: esiste una direzione verso la mira"), URTHexLibrary::DirectionTowards(Tiratore, Mira, VersoMira))) { return false; }
+	if (!TestTrue(TEXT("premessa: esiste una direzione verso la cella dello scatto"), URTHexLibrary::DirectionTowards(Tiratore, Scattato, VersoScattato))) { return false; }
+	if (!TestTrue(TEXT("controllo positivo: le due direzioni differiscono"), VersoMira != VersoScattato)) { return false; }
+
+	auto FacingFinale = [this, &Tiratore, &Mira, &Scattato](bool bIlBersaglioSiSposta, ERTHexDirection& OutFacing) -> bool
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Tiratore);
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Mira);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+		Shooter->PlannedAbilityIndex = 0;
+		Shooter->PlannedAttackTarget = Foe;
+		if (bIlBersaglioSiSposta)
+		{
+			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
+			Foe->PlannedDashAbility = Scatto;
+			Foe->PlannedDashCell = Scattato;
+		}
+		RunBlastTurn(TM);
+
+		const bool bPremessa = !bIlBersaglioSiSposta || Foe->Cell == Scattato;
+		OutFacing = Shooter->Facing;
+		DestroyHexBlastWorld(World);
+		return bPremessa;
+	};
+
+	ERTHexDirection Fermo = ERTHexDirection::E;
+	ERTHexDirection Spostato = ERTHexDirection::E;
+	if (!TestTrue(TEXT("scena ferma"), FacingFinale(false, Fermo))) { return false; }
+	if (!TestTrue(TEXT("premessa: il bersaglio e' davvero scattato dove previsto"), FacingFinale(true, Spostato))) { return false; }
+
+	TestTrue(TEXT("fermo: il tiratore guarda la mira (D-020)"), Fermo == VersoMira);
+	TestTrue(TEXT("scattato: il tiratore guarda ancora la mira congelata, non la cella viva ([D-415])"),
+		Spostato == VersoMira);
+	TestTrue(TEXT("e le due scene coincidono nel facing"), Spostato == Fermo);
+	return true;
+}
+
+/**
  * **Il corollario: spostarsi NON basta a salvarsi da un'area** ([D-415]).
  *
  * 🔑 **Regge senza codice nuovo, ed e' la cosa da non rompere.** `CollectHexAttacks` sceglie chi colpire

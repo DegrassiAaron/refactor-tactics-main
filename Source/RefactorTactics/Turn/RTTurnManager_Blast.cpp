@@ -786,6 +786,25 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
 		}
 
+		// [D-415]/[D-419] — LA CELLA DI MIRA E' UNA, e si decide QUI, prima di tutto cio' che la legge: il
+		// riorientamento di D-020 qui sotto, l'istanza piu' in basso, e da li' `ValidateInstance` e il Blast.
+		// Fino al 2026-10-09 il riorientamento guardava `Target->Cell` (la cella viva) e l'istanza la mira
+		// congelata: chi sparava si girava verso dove il bersaglio era andato e sparava dove era stato.
+		//
+		// `ERTActionFallback::AttackTarget` — *«Segue il bersaglio, se ancora valido»* — e' l'opt-in dichiarato
+		// all'aggancio ([D-419]: «un'azione che voglia agganciare lo dichiara»): `Cancel` resta il default del
+		// catalogo, quindi chi non dice niente NON insegue. Aggiungerlo a un'azione e' una scelta di catalogo,
+		// leggibile in diff, e va motivata li'.
+		const bool bAggancia = (Ability->Def.Fallback == ERTActionFallback::AttackTarget);
+		// ⛔ Un bersaglio-unita' senza mira congelata e' un'anomalia, non un caso: il lock-in la fotografa per
+		// ogni unita' viva PRIMA di questo ciclo. Il ripiego sotto resta per non lasciare un'istanza senza cella,
+		// ma l'`ensure` lo rende visibile in suite invece di riaprire l'inseguimento in silenzio.
+		ensureMsgf(bTargetsCell || Target == nullptr || bHasAim || bAggancia,
+			TEXT("[D-415] bersaglio-unita' senza mira congelata al lock-in: unita' %d"), i);
+		const FRTCellId AimCell = bTargetsCell ? PlannedAttackCell
+			: (bAggancia || !bHasAim) ? (Target ? Target->Cell : Unit->Cell)
+			: PlannedAim;
+
 		// ⛔ **Lo stordimento e' gia' stato rifiutato in cima al ciclo**, sopra il ramo `ModifyArc`: una
 		// seconda guardia qui non sarebbe difesa in profondita', sarebbe una seconda regola da tenere
 		// d'accordo con la prima — e scriverebbe due voci di rifiuto per lo stesso turno.
@@ -808,6 +827,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		//
 		// Conta la cella DICHIARATA nel piano, non il primo bersaglio che l'area colpira': l'orientamento e' una
 		// scelta del giocatore, e un'area che prende tre unita' non deve farlo dipendere dall'ordine di calcolo.
+		// E «dichiarata» e' `AimCell`, la mira congelata al lock-in ([D-415]): un bersaglio che e' scattato via
+		// non trascina con se' lo sguardo di chi gli spara dove era — `Combat.Aim.ReorientationFacesTheFrozenAim`.
 		// `Unit->IsAlive()` e non solo il bersaglio: questo ciclo non filtra gli attaccanti morti (chi cade nel
 		// Dash ci arriva col piano ancora addosso) e il loro colpo viene scartato piu' avanti, da
 		// `CollectHexAttacks`, che salta le unita' non vive. Senza il guard un cadavere si girerebbe verso il
@@ -815,7 +836,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)
 		{
 			ERTHexDirection TowardsTarget = Unit->Facing;
-			if (URTHexLibrary::DirectionTowards(Unit->Cell, Target->Cell, TowardsTarget))
+			if (URTHexLibrary::DirectionTowards(Unit->Cell, AimCell, TowardsTarget))
 			{
 				FRTHexSimUnit Attacker(i, Unit->Cell, /*InMoveBudget=*/ 0);
 				Attacker.Facing = Unit->Facing;
@@ -871,10 +892,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ⚠️ **Non e' una scappatoia per rimettere il vecchio default**: `Cancel` resta il default del
 		// catalogo, quindi chi non dice niente NON insegue. Aggiungere `AttackTarget` a un'azione e' una
 		// scelta di catalogo, leggibile in diff, e va motivata li'.
-		const bool bAggancia = (Instance.Def.Fallback == ERTActionFallback::AttackTarget);
-		Instance.TargetCell = bTargetsCell ? PlannedAttackCell
-			: (bAggancia || !bHasAim) ? (Target ? Target->Cell : Unit->Cell)
-			: PlannedAim;
+		Instance.TargetCell = AimCell; // decisa UNA volta, sopra, prima del riorientamento
 		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non `Intents.Num()` (#2970)
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
