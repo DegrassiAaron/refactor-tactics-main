@@ -18,6 +18,26 @@
 
 #include "RTPieVerdictOverlay.generated.h"
 
+/**
+ * DOVE si posa il pannello del verdetto.
+ *
+ * 🔴 E' un dato e non quattro numeri sparsi nel layout, per una ragione misurata: il default —
+ * nessun allineamento, quindi in alto a sinistra — lo posava sopra `URTTeamRosterWidget`, cioe' sopra
+ * i nomi degli eroi, e alla prima seduta reale il prompt era illeggibile (#3242). Un posizionamento
+ * che vive dentro `RebuildWidget` non ha modo di essere verificato senza uno schermo; questo si'.
+ */
+struct FRTPieOverlayPlacement
+{
+	EHorizontalAlignment Horizontal = HAlign_Left;
+	EVerticalAlignment Vertical = VAlign_Center;
+
+	/** Distanza dal bordo sinistro, in pixel di Slate. */
+	float LeftMargin = 24.f;
+
+	/** ⛔ Il tetto esiste perche' il CENTRO resta libero: la board non si copre, per contratto. */
+	float MaxWidth = 420.f;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTPieVerdictOverlay : public UUserWidget
 {
@@ -37,6 +57,15 @@ public:
 
 	/** Il verdetto di un tasto, o `Pending` se quel tasto non ne e' uno. Statica e pura. */
 	static ERTPieVerdict VerdictForKey(const FKey& Key);
+
+	/**
+	 * Il posizionamento che `RebuildWidget` applica — la sola parte del layout che un gate headless puo'
+	 * guardare.
+	 *
+	 * ⚠️ Dice dove il pannello **chiede** di stare, non che a schermo si legga: quella meta' resta di chi
+	 * guarda, ed e' il residuo dichiarato in spec §4.5.
+	 */
+	static FRTPieOverlayPlacement Placement();
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;

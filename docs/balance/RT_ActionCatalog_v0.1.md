@@ -179,7 +179,7 @@ Toglierla dalle fondamentali avrebbe lasciato tre regole appese a un'azione non 
 reazione · mantenere una stance già attiva · contestare un obiettivo.
 
 **Move** — percorso di celle adiacenti. Budget **×1**, cioè quello dell'unità ([D-427](../decisions/RT_PDR_00_Decision_Log.md); il roster spedito dichiara `5 · 5 · 4 · 6`); cella normale 1 MP, terreno difficile 2 MP, salita via
-rampa 2 MP. Una cella occupata da un'unità solida non è attraversabile. Il percorso **non** viene ricalcolato
+rampa 2 MP. 🔴 **Nessuna unità blocca il transito, e la destinazione occupata si può dichiarare** ([D-445](../decisions/RT_PDR_00_Decision_Log.md), [D-446](../decisions/RT_PDR_00_Decision_Log.md)). *Fino al 2026-10-01 questa riga diceva «una cella occupata da un'unità solida non è attraversabile»*: l'arco scavalca chiunque trovi per strada e si ferma alla prima cella libera, e un piano può nominare una cella occupata — a risoluzione o chi la tiene se n'è andato, o si resta fuori. ⛔ **Ciò che non è cambiato è il terminus**: due unità non finiscono il turno sulla stessa cella ([D-289](../decisions/RT_PDR_00_Decision_Log.md)). Il percorso **non** viene ricalcolato
 globalmente durante la risoluzione: se si blocca, l'unità si ferma nell'ultima cella valida (`Fallback.Stop`, la
 regola standard del vertical slice).
 
@@ -242,8 +242,8 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
   in Planning insieme a settore e facing. È anche la ragione per cui armare l'Overwatch **esclude il `Dash`**:
   lo slot è già impegnato, non serve una regola apposta;
 - **risolve nello Stage B della `Move`**, cioè **dopo** che tutti gli altri si sono mossi. La priorità spaziale
-  tardiva è parte del prezzo: una cella occupata nel frattempo **non** si libera, il percorso **non** si
-  ricalcola, e il ripiegamento si ferma all'ultima cella valida;
+  tardiva è parte del prezzo: una cella **lasciata occupata** nel frattempo resta tale, il percorso **non** si
+  ricalcola, e il ripiegamento si ferma all'ultima cella valida. ⚠️ **Il prezzo è più piccolo da [D-445](../decisions/RT_PDR_00_Decision_Log.md)**: ciò che resta occupato blocca solo come **destinazione**, non più come passaggio, quindi arrivare tardi costa un arrivo mancato e non una rotta chiusa;
 - **×0,25** nasce ancorato ad `Action.Reposition` (2 celle, §2.2) — l'unica altra mobilità breve del catalogo — come assoluto `2 MP`, e [D-412](../decisions/RT_PDR_00_Decision_Log.md) lo ha reso una frazione del movimento dell'unità: **1** per tutto il roster spedito. ⚠️ **Sotto un budget di 4 il quarto è ZERO**, cioè un ripiegamento che non ripiega: il caso è pinnato in `RTMovementProfileTests` e se debba avere un minimo di `1` è una domanda di bilanciamento aperta ([D-427](../decisions/RT_PDR_00_Decision_Log.md) punto 4). Il riferimento originario resta
   invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
 
@@ -424,7 +424,7 @@ centro d'area, la stessa di `CircularAoE` · **raggio 1** come lei · conta come
 > **potenza** (12: meno di ogni altra offensiva che infligge danno, `MarkTarget` a parte, che ne dichiara 0
 > perché marchia e basta) e con l'**attesa** (cooldown 3, il più lungo di §3), non con l'avvicinamento.
 > ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`, `Hero.Aevik.Overload` e
-> `Hero.Muiren.CircularTide` restano `Required`.
+> `Hero.Muiren.CircularTide` restano `Required`. ⚠️ Per `CircularTide` la linea di tiro è dichiarata ma il Blast non la ricontrolla sul percorso delle cure, che controlla solo la portata dal centro ([#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598)).
 >
 > 🔑 **E il kit di Branth la porta a 3, non a 4 — una taratura d'eroe, con una misura dietro.** Branth
 > ingaggia a 3 (`ImpactShot`), e con un mortaio da 4 il bot smetteva di chiudere: misurato il 2026-09-10,
@@ -467,6 +467,12 @@ appena raggiunta.
 trigger valutato su un punto di passaggio della risoluzione); `Brace`, `Shield` e `Cleanse` sono azioni
 **Principali** che si dichiarano e basta, senza trigger. Stare nella stessa sezione del catalogo non le rende
 lo stesso tipo di cosa.
+
+🔴 **E `Action.Cleanse` — la Principale — non spedisce in v0.1.** Decisa fuori il **2026-08-30**
+da [D-264](../decisions/RT_PDR_00_Decision_Log.md) (`#1403`). La sua riga resta in tabella perché l'azione
+**esiste** nel catalogo core e i suoi numeri restano quelli: descrivono ciò che farebbe, non una capacità
+che un giocatore della v0.1 può usare. ⛔ **`Action.Purge` e il modulo `Reaction.Cleanse` sono un'altra
+cosa e restano in campo** — l'argomento sta sotto **Cleanse**, in fondo a questa sezione, e non si duplica qui.
 
 ⚠️ **E il punto di passaggio non è lo stesso per tutte.** Cinque si valutano dentro il Blast; `Evade` no —
 il suo trigger è la cella che diventa pericolosa, e quella nasce nel **Cleanup**
@@ -625,6 +631,24 @@ di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nes
 > paga il cooldown ([D-200](../decisions/RT_PDR_00_Decision_Log.md)) e lascia una voce `NoEffect`. L'argomento sta in
 > [D-211](../decisions/RT_PDR_00_Decision_Log.md) e nella riga **78** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), e **non si
 > duplica qui**.
+>
+> 🔴 **E il 2026-08-30 la domanda è stata chiusa: l'attiva esce dalla v0.1**
+> ([D-264](../decisions/RT_PDR_00_Decision_Log.md), `#1403`). Il riquadro qui sopra descrive un **limite** di
+> un'azione che spedisce; `D-264` dice che quell'azione **non spedisce**, e che `PlannedCleansePriority`
+> **non si implementa** per tenerla in vita — il produttore che il riquadro dà per mancante non arriverà,
+> e la lista resta vuota **per decisione**, non in attesa di qualcuno.
+>
+> ⛔ **Il Cleanse REATTIVO resta, ed è il rischio di lettura della decisione**: `Reaction.Cleanse` (base
+> `Action.Purge`) è il modulo di reazione di default di `Hero.Branth`
+> ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e annulla **in arrivo** lo stato di controllo più grave fra quelli che sta
+> ricevendo. ⚠️ **Sono tre, non due**: `URTReactionLibrary::ControlStatusesBySeverity()` restituisce
+> `Stunned` · `Root` · `Slow`, da [D-416](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-14), che ha
+> fatto cadere il vecchio pin `Reaction.ControlStatusesAreTwo`. Lo pinna
+> `RefactorTactics.Equipment.Cleanse.CancelsControl`. ⚠️ **Non** i test `RefactorTactics.Reactions.Cleanse.*`,
+> che a dispetto del nome esercitano l'**attiva** (`AddCoreAbilityInSlot(..., "Action.Cleanse")`).
+>
+> Un Cleanse attivo può tornare **solo** con un ruolo tattico distinto e un contratto esplicito di UI e di
+> produttore — non come ripristino di ciò che è stato tolto.
 
 ---
 

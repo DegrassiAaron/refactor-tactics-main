@@ -114,6 +114,16 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	// segmento che chiude un bordo E' una copertura, e scriverlo qui creerebbe due verita' sullo stesso
 	// muro. Si rifiuta il gesto: correggerlo in silenzio, o scriverlo e lasciar protestare il validator,
 	// sono i due modi che i Non-goal vietano.
+	//
+	// ⚠️ **La domanda si fa a `EdgesTouchedBy`, e NON alla guardia `Offset == 0` che `Bake` applica.**
+	// Le due divergono su un diametro `lato -> lato`, e il 2026-09-24 questo rifiuto era stato allineato a
+	// `Bake` — sbagliando autorita': `URTHexMapAsset::ValidateMap` chiede anch'essa a `EdgesTouchedBy`,
+	// senza guardia, e dichiara quel muro *«chiude 2 bordi: e' una copertura, non un muro interno»*. Un move
+	// allineato al bake avrebbe scritto un asset che il validatore segnala come **errore** — cioe' proprio
+	// *«scriverlo e lasciar protestare il validator»*, che le tre righe qui sopra vietano.
+	//
+	// ⛔ La divergenza e' REALE e ha TRE sedi (bake, validatore, ghost del tool): e' registrata in
+	// `#3326` e va chiusa da una decisione, non scegliendo di nascosto una delle due semantiche.
 	TArray<ERTHexDirection> TouchedEdges;
 	URTGeometryBakeLibrary::EdgesTouchedBy(NewSegment, Map->HexSize, TouchedEdges);
 	if (TouchedEdges.Num() > 0)
@@ -140,13 +150,34 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	}
 
 	// Si scrive solo dopo aver deciso: un'operazione o si applica intera o non lascia traccia.
+	const FRTCellId OldCell = Map->InteriorWalls[Index].Cell;
 	Map->InteriorWalls[Index].Cell = NewCell;
 	Map->InteriorWalls[Index].Segment = NewSegment;
+
+	// 🔑 **La cottura segue il move, ed e' la casella 4 di #1864.** Fino a qui il move scriveva `Cell` e
+	// `Segment` e non ricuoceva niente: la calpestabilita' derivata restava quella di prima, e un gesto solo
+	// produceva DUE segnalazioni di `ValidateMap`, una delle quali un errore —
+	//
+	// ```text
+	// cella d'ORIGINE   perde un muro, ma bMovementBlockGenerated resta acceso  -> REGOLA 4 (warning)
+	// cella d'ARRIVO    guadagna un muro, ma bBlocksMovement resta spento       -> REGOLA 1 (ERRORE)
+	// ```
+	//
+	// ⚠️ **Due celle, non una**, quando il muro cambia cella: il criterio dice *«la sola cella
+	// interessata»* per escludere una passata sull'intera mappa, non per dimenticare quella che il muro
+	// lascia. ⛔ E si ricuoce **solo** questo: coperture e muri sono gia' quelli giusti — `BakeCell` li
+	// butterebbe via per riscriverli, che e' il motivo per cui `RederiveStandability` esiste separata.
+	URTGeometryBakeLibrary::RederiveStandability(Map, NewCell, Map->HexSize);
+	if (!(OldCell == NewCell))
+	{
+		URTGeometryBakeLibrary::RederiveStandability(Map, OldCell, Map->HexSize);
+	}
 
 	return ERTMapEditOutcome::Applied;
 }
 
-ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
+ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle,
+	bool bDryRun)
 {
 	if (Map == nullptr)
 	{
@@ -161,7 +192,18 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		{
 			return ERTMapEditOutcome::RefusedUnresolved;
 		}
-		Map->InteriorWalls.RemoveAt(Index);
+		if (!bDryRun)
+		{
+			// 🔑 **Il difetto era SIMMETRICO a quello del move, e il corpo di #1864 non lo nominava**:
+			// dichiarava la cottura mancante come un problema del solo `MoveInteriorWall`. Togliere
+			// l'ultimo muro che chiudeva una cella la lasciava chiusa per una geometria che non c'era
+			// piu' — lo `StaleGeneratedBlock` della REGOLA 4, cioe' l'orfano che la casella 7 vieta.
+			//
+			// ⚠️ La cella si legge PRIMA della rimozione: dopo, l'indice non nomina piu' quel muro.
+			const FRTCellId Host = Map->InteriorWalls[Index].Cell;
+			Map->InteriorWalls.RemoveAt(Index);
+			URTGeometryBakeLibrary::RederiveStandability(Map, Host, Map->HexSize);
+		}
 		return ERTMapEditOutcome::Applied;
 	}
 
@@ -203,6 +245,13 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 			return ERTMapEditOutcome::RefusedUnresolved;
 		}
 
+		if (bDryRun)
+		{
+			// ⚠️ Si esce PRIMA di scrivere la cella: da qui in giu' c'e' solo mutazione, e la
+			// risposta — `Applied` — e' gia' decisa dal `Removed` letto qui sopra.
+			return ERTMapEditOutcome::Applied;
+		}
+
 		Map->AddOrUpdateCell(Data);
 
 		// 🔴 Lo stesso `C2` della cascata della cella: un binding che nomina una struttura sparita diventa
@@ -225,10 +274,39 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		return ERTMapEditOutcome::Applied;
 	}
 
+	// --- Arco di transizione: chiave naturale `(From, To)`, letta NON ORDINATA ---------------------
+	//
+	// 🔴 **Fino al 2026-09-23 questo ramo era un rifiuto**, con la ragione scritta: *«`Transition`
+	// non ha ancora un gesto che la selezioni»*. Il gesto ora c'e' — `URTHexArchTool` possiede da
+	// sempre il hit-test di viewport che la spec §13.3 gli assegna — e quel rifiuto era l'unica cosa
+	// che mancava perche' l'arco fosse un elemento autorato come gli altri.
+	//
+	// ⚠️ **Si tolgono ENTRAMBE le direzioni.** L'asset tiene andata e ritorno come due `FRTHexEdge`
+	// distinti; per chi guarda sono un arco solo, e lasciarne una meta' produrrebbe un passaggio a senso
+	// unico che nessuno ha chiesto. E' la stessa scelta che `RemoveTransitionData(..., bBothDirections)`
+	// fa da sempre dal lato dell'actor.
+	if (Handle.Kind == ERTMapElementKind::Transition)
+	{
+		const auto Corrisponde = [&Handle](const FRTHexEdge& E)
+		{
+			return (E.From == Handle.Cell && E.To == Handle.To)
+				|| (E.From == Handle.To && E.To == Handle.Cell);
+		};
+
+		if (!Map->Transitions.ContainsByPredicate(Corrisponde))
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+
+		if (!bDryRun)
+		{
+			Map->RemoveTransition(Handle.Cell, Handle.To, /*bBothDirections=*/ true);
+		}
+		return ERTMapEditOutcome::Applied;
+	}
+
 	if (Handle.Kind != ERTMapElementKind::Cell)
 	{
-		// `Transition` non ha ancora un gesto che la selezioni. Un `Applied` a vuoto sarebbe peggio di un
-		// rifiuto: chi chiama crederebbe di aver cancellato qualcosa.
 		return ERTMapEditOutcome::RefusedUnresolved;
 	}
 
@@ -250,6 +328,13 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 	Walls.Sort(Descending);
 	Edges.Sort(Descending);
 	Bindings.Sort(Descending);
+
+	if (bDryRun)
+	{
+		// La cella esiste (verificato sopra) e la cascata e' gia' stata raccolta: l'esito e' deciso, e
+		// tutto cio' che segue e' scrittura.
+		return ERTMapEditOutcome::Applied;
+	}
 
 	for (const int32 Index : Walls)
 	{
@@ -377,4 +462,54 @@ ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellI
 	Map->AddOrUpdateCell(Copia);
 
 	return ERTMapEditOutcome::Applied;
+}
+
+FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
+{
+	// ⛔ **Nessun `default`, ed e' deliberato.** Un ramo generico e' precisamente il difetto che questa
+	// funzione esiste per togliere: fa sembrare coperto un valore che non lo e', e nessuno se ne accorge.
+	//
+	// 🔑 **Misurato, perche' la prima stesura di questo commento diceva il falso.** Sosteneva che un
+	// valore scoperto «accende un warning»: i warning promossi a errore in questa build sono
+	// `4456 4458 4459 4668 4702` — letti nei `.rsp` di `Intermediate/Build` — e `C4061`/`C4062`, che sono
+	// quelli dello `switch` che non copre un enum, **non ci sono**. ∴ il compilatore NON protegge questo
+	// lato, e l'unica protezione e' `DescribeOutcomeNamesEveryRefusal`, che itera l'enum per RIFLESSIONE
+	// proprio per accorgersi di un valore che nessuno ha tradotto.
+	//
+	// ⚠️ Cio' che il compilatore copre davvero e' l'altra meta', e anche quella e' misurata: aggiungere
+	// un `default` rende IRRAGGIUNGIBILE il `return` in coda, e la build cade con `C4702`, che e' fra i
+	// cinque promossi.
+	switch (Outcome)
+	{
+	case ERTMapEditOutcome::Applied:
+		return TEXT("applicata");
+
+	case ERTMapEditOutcome::RefusedUnresolved:
+		return TEXT("l'handle non nomina nessun elemento esistente");
+
+	case ERTMapEditOutcome::RefusedNoSuchCell:
+		return TEXT("la cella di destinazione non esiste: ci finirebbe un orfano");
+
+	case ERTMapEditOutcome::RefusedOutOfGrammar:
+		return TEXT("il segmento non sta nella grammatica a 30 gradi");
+
+	case ERTMapEditOutcome::RefusedWouldCloseEdge:
+		return TEXT("il segmento chiuderebbe almeno un bordo: allora e' una copertura, non un muro interno");
+
+	case ERTMapEditOutcome::RefusedDuplicate:
+		// ⚠️ **Non «identico», e la differenza e' misurata.** I due produttori confrontano cose diverse:
+		// `MoveInteriorWall` chiede `Cell` **e** `Segment` uguali, cioe' davvero lo stesso muro; `AddDoor`
+		// chiede il solo `Esistente.Edge == Edge`, quindi rifiuta anche una porta di STATO diverso su un
+		// bordo gia' occupato. Un testo che dicesse «identico» manderebbe chi legge a cercare una porta
+		// uguale che non c'e'.
+		return TEXT("quel posto e' gia' occupato da un elemento dello stesso tipo");
+
+	case ERTMapEditOutcome::RefusedNoNeighbour:
+		return TEXT("oltre quel bordo non c'e' nessuna cella: l'elemento non negherebbe nessuna adiacenza");
+	}
+
+	// Irraggiungibile finche' lo `switch` copre l'enum: sta qui perche' la funzione deve compilare, non
+	// perche' descriva un caso. Un valore che ci arrivasse sarebbe un errore di programmazione, e il testo
+	// lo dice invece di fingere una ragione.
+	return TEXT("esito non nominato: e' un valore di ERTMapEditOutcome che DescribeOutcome non copre");
 }

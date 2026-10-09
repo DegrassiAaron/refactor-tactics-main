@@ -301,15 +301,49 @@ Non introdurre CI, package manager o nuovi build step senza una decisione esplic
 
 ### Suite Unreal
 
-Con Unreal Editor chiuso, da PowerShell:
+Con Unreal Editor chiuso:
+
+```bash
+python tools/suite/esegui.py RefactorTactics            # tutta
+python tools/suite/esegui.py RefactorTactics.HexSim     # un gruppo
+```
+
+🔑 **Si usa lo strumento e non l'invocazione a mano, e la ragione è nel suo stesso docstring**: `esegui.py`
+*«attende sul LOG, non sull'uscita del processo»*, perché la fine di una suite si legge dai conteggi e un
+processo appeso non esce mai ([#3048](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3048),
+[#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)). Termina l'albero quando il log
+dichiara finito e il processo resta vivo, e lo **dichiara nel referto** invece di nasconderlo.
+
+⚠️ **Un conteggio letto da un log ancora in scrittura non è una misura, ed è il difetto che lo strumento
+toglie.** `grep -c 'Test Completed'` risponde `0` tanto su una run morta quanto su una che sta caricando i
+moduli: le due cose si distinguono **solo** dalla riga di uscita (`**** TEST COMPLETE`), e chi legge lo zero
+prima di quella riga conclude il falso. Chi invoca a mano deve fare da sé questo controllo.
+
+Se devi invocare a mano lo stesso — un filtro che lo strumento non prevede, una diagnosi:
 
 ```powershell
 & "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
     "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
-    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
+    -unattended -nopause -nosplash -nullrhi "-abslog=<scratchpad della sessione>/<nome-parlante>.log"
 ```
 
-Il filtro è il segmento dopo `RunTests`: `RefactorTactics` esegue tutto, `RefactorTactics.Scenario` solo quel gruppo.
+⚠️ **Il Live Coding di una run così lo spegne `-unattended`** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)):
+un processo `-unattended` non lo avvia (`FLiveCodingModule::StartupModule`), salvo un `-LiveCoding` esplicito.
+⌫ *Fino a [#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536) la riga portava anche `-NoLiveCoding`*: in UE 5.8.1 è un'opzione di UBT
+(`TargetRules.bWithLiveCoding`), e l'Editor non la legge. Ci stava perché i gate di `tools/mutation/` la
+cercavano per decidere se terminare una console orfana ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)). [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md) ha superato quella
+voce, e il flag non ha più lettori, nemmeno in `tools/suite/esegui.py`.
+
+⛔ **`-abslog` e non `-log`, e non è una preferenza di percorso.** §11 punto 3 dichiara che è *«l'unica
+dichiarazione di possesso che sopravvive senza script: il processo stesso … se il processo non c'è, la
+dichiarazione non c'è»*. Un `-log=suite.log` relativo produce un processo **non attribuibile**: chi guarda
+le `CommandLine` per decidere se aspettare non sa di chi sia, e il protocollo che ha sostituito il lease
+smette di funzionare per tutti. ⌫ **Questo blocco insegnava `-log=suite.log` fino al 2026-09-25**, cioè
+contraddiceva §11 nella riga che si copia-incolla — e ci sono cascate almeno due sessioni.
+
+🔑 **Il `;` separa i comandi, il `+` separa i filtri** dentro `RunTests`: `RunTests A+B` ne trova due. Un
+`+Quit` renderebbe `Quit` un terzo filtro che non corrisponde a niente, il comando non verrebbe **mai**
+eseguito, e il processo non uscirebbe — mentre i test girano lo stesso, quindi nulla lo segnala.
 
 #### Quali famiglie girare quando tocchi il **resolver del movimento**
 
@@ -470,7 +504,13 @@ or press Ctrl+Alt+F11 if iterating on code in the editor or game
 Result: Failed (OtherCompilationError)
 ```
 
-⚠️ **La distinzione non è fra cloni, è fra Editor interattivo e run headless**: una suite parte con `-NoLiveCoding` e non blocca nessuno; un Editor aperto senza quel flag blocca tutti. ∴ **per una seduta di authoring asset passa `-NoLiveCoding`** — l'MCP non ne ha bisogno, Live Coding serve a ricompilare C++ senza riavviare — e gli altri possono continuare a compilare. Chi trova una build rifiutata così non cerchi il proprio clone: cerchi l'Editor, con
+⚠️ **La distinzione non è fra cloni, è fra Editor interattivo e run headless.** Una suite non blocca nessuno, per due ragioni: parte con `-unattended`, e un processo `-unattended` non avvia il Live Coding (`FLiveCodingModule::StartupModule`), salvo un `-LiveCoding` esplicito; e anche se lo avviasse, il suo mutex prende il nome di `UnrealEditor-Cmd.exe`, mentre UBT, per il target Editor, interroga quello di `UnrealEditor.exe`. Un Editor interattivo invece lo avvia e blocca tutti. ∴ **per una seduta di authoring asset passa `-LiveCoding=false`** — l'MCP non ne ha bisogno, Live Coding serve a ricompilare C++ senza riavviare — e gli altri possono continuare a compilare.
+
+⚠️ **`-LiveCoding=false` spegne l'avvio automatico, non il Live Coding.** Premere *Compile* o `Ctrl+Alt+F11` lo avvia lo stesso, e da lì il lock resta fino alla chiusura dell'Editor (`StopLiveCoding` rilascia il mutex, non lo chiude).
+
+⌫ **Fino al 2026-10-07 qui si prescriveva `-NoLiveCoding`, e non spegneva niente** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)). È un'opzione di **UBT** (`TargetRules.bWithLiveCoding`, che compila il target senza Live Coding), e l'Editor non la legge: nei log scritti dal 2026-09-20, ogni Editor interattivo aperto con quel flag e arrivato all'avvio dei moduli ha scritto *«Starting LiveCoding»*. Chi lo passava per non bloccare gli altri li bloccava lo stesso. La riga che il motore legge è `-LiveCoding=false`, misurato lo stesso giorno su tre avvii di `UnrealEditor-Cmd` senza `-unattended`. Senza flag e con `-NoLiveCoding` il log dice *«Starting LiveCoding»*; con `-LiveCoding=false` non c'è nessuna riga `LogLiveCoding`. ✅ **Misurato su `UnrealEditor.exe` interattivo il 2026-10-07** (seduta `U67`, log della sessione con `-abslog`): avviato con `-LiveCoding=false`, il log non contiene **nessuna** riga `LogLiveCoding` e nessun `LiveCodingConsole` è partito.
+
+Chi trova una build rifiutata così non cerchi il proprio clone: cerchi l'Editor, con
 
 ```powershell
 Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
@@ -480,7 +520,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select Proce
 
 #### E se la build non può aspettare: la leva del builder
 
-`-NoLiveCoding` qui sopra è la leva di chi **apre** l'Editor. Ma chi resta bloccato è chi **compila**, e sull'Editor di un'altra sessione non può fare niente — non può chiuderlo (⛔ qui sopra) e non può passargli un flag a posteriori. La sua leva è `-NoHotReloadFromIDE`, su `Build.bat`:
+`-LiveCoding=false` qui sopra è la leva di chi **apre** l'Editor. Ma chi resta bloccato è chi **compila**, e sull'Editor di un'altra sessione non può fare niente — non può chiuderlo (⛔ qui sopra) e non può passargli un flag a posteriori. La sua leva è `-NoHotReloadFromIDE`, su `Build.bat`:
 
 ```powershell
 & "<engine>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development `
@@ -509,24 +549,25 @@ Quando l'Editor che tiene il mutex sta in un **altro** clone, i suoi object file
 
 🔴 **E quando la leva è SBAGLIATA: Editor vivo di un'altra sessione.** Lì si **aspetta** (§11), e usare il flag è precisamente l'uso che quel check esiste per impedire. La leva serve quando il mutex è tenuto da un processo che **non lo rilascerà**, non quando è tenuto da qualcuno che sta lavorando.
 
-⚠️ **L'Editor *zombie* è un terzo caso, e non è il `LiveCodingConsole` orfano di §11**: sono processi diversi, quindi il `Name` del filtro li distingue già. L'orfano è `LiveCodingConsole.exe` col `ParentProcessId` che non risolve; lo zombie è un `UnrealEditor.exe` morto male il cui mutex sopravvive.
+⚠️ **L'Editor *zombie* è un terzo caso, ed è l'unico che il nome «orfano» descriveva davvero**: un `UnrealEditor.exe` morto male il cui mutex sopravvive. ⌫ *Fino a [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md) qui si distingueva anche un `LiveCodingConsole` orfano*, convinti che tenesse il lock: misurato il 2026-10-07, non lo tiene, e muore da sola con l'ultimo processo del suo gruppo. 🔑 **I gate di `tools/mutation/` riconoscono lo zombie e si fermano**, invece di attendere mezz'ora ([`D-472`](docs/decisions/RT_PDR_00_Decision_Log.md)). Lo zombie è un processo con **un thread solo**, **uscito oppure con al massimo 1 MB**: `misura.stato_del_detentore()` guarda `ThreadCount` e `WorkingSetSize` di `Win32_Process`, e se `Get-Process -Id` trova ancora il processo ([`D-476`](docs/decisions/RT_PDR_00_Decision_Log.md)). Ciascuno dei due rami basta, e decide coi propri dati. Non usano la leva: resta un gesto umano.
 
-⛔ **Quelli che seguono sono DUE ANCORE, non soglie.** C'è **un** quadro zombie (2026-08-24) e **un** quadro di Editor vivo (2026-09-11): due osservazioni, non una distribuzione. Un valore intermedio — un Editor a metà chiusura, per dire — non è mai stato osservato, quindi questa tabella non lo classifica male: **non può classificarlo**. Chi ne incontra uno è fuori dai dati, e deve saperlo invece di arrotondare all'ancora più vicina.
+⛔ **Quelli che seguono sono ANCORE, non soglie.** Due quadri zombie (2026-08-24 e 2026-10-07) e **un** quadro di Editor vivo (2026-09-11): osservazioni, non una distribuzione. Un valore intermedio — un Editor uscito ma ancora con molti thread, per dire — non è mai stato osservato, quindi questa tabella non lo classifica male: **non può classificarlo**. ⚠️ Lo zombie del 2026-10-07 è un Editor a metà chiusura, ma non è un valore intermedio: ha un thread solo, come quello del 2026-08-24. Chi ne incontra uno è fuori dai dati, e deve saperlo invece di arrotondare all'ancora più vicina.
 
-I tre campi che **discriminano**:
+I campi che **discriminano**:
 
-| Campo | Zombie (2026-08-24) | Editor vivo (2026-09-11) |
-|---|---|---|
-| `Threads.Count` | `1` | `93` |
-| `MainWindowHandle` | `0`, titolo vuoto | non nullo |
-| `WorkingSet64` | ~`0,2 MB` | ~`3,6 GB` |
+| Campo | Zombie (2026-08-24) | Zombie (2026-10-07, pid 56772) | Editor vivo (2026-09-11) |
+|---|---|---|---|
+| `Threads.Count` | `1` | `1` | `93` |
+| `MainWindowHandle` | `0`, titolo vuoto | `0`, titolo vuoto | non nullo |
+| `Get-Process -Id` | non misurato | **non lo trova**, e `HasExited` vale `True` | lo trova: è in esecuzione |
 
-E i due che **non** discriminano, elencati perché altrimenti qualcuno li userà come conferma:
+E quelli che **non** discriminano, elencati perché altrimenti qualcuno li userà come conferma:
 
+- ⌫ `WorkingSet64` **da solo non distingue lo zombie**. Fino a [`D-473`](docs/decisions/RT_PDR_00_Decision_Log.md) stava fra i campi che discriminano, e da [`D-476`](docs/decisions/RT_PDR_00_Decision_Log.md) è uno dei due rami: con un thread solo, al massimo 1 MB basta a dire zombie, ma uno zombie può averne GB. I valori misurati: ~`0,2 MB` nello zombie del 2026-08-24, ~`3,6 GB` nell'Editor vivo. Lo zombie del 2026-10-07 aveva un thread e 0,9 GB di working set, sceso da 4,8 GB, con 5,4 GB di commit e 3319 handle aperti, più di un'ora e mezza dopo l'avvio. Uno del 2026-09-02, ucciso durante una seduta PIE, aveva 4,27 GB e teneva il mutex e il lock sul `.dll`. La memoria scende col tempo, e dice solo da quanto il processo è morto;
 - `CPU` **alto è contesto, non criterio**: dice che quel processo *era stato* un Editor vero (`72 h` accumulate nel quadro zombie), non che adesso sia morto;
-- ⛔ `Responding` **è rumore**: valeva `True` nello zombie, e per un processo senza finestra non significa niente. È l'unico dei cinque campi che non conferma nulla, e va letto come se non ci fosse.
+- ⛔ `Responding` **è rumore**: valeva `True` nello zombie, e per un processo senza finestra non significa niente. Non conferma nulla, e va letto come se non ci fosse.
 
-⛔ **Provenienza, perché questa parte non è riverificabile come il resto della sezione**: misurato da `refactor-tactics-dev`, con controprova su Editor vivo; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Da rimisurare, con `-abslog`, la prossima volta che uno zombie ricapita.
+⛔ **Provenienza, perché questa parte non è riverificabile come il resto della sezione**: i quadri del 2026-08-24 e del 2026-09-11 sono stati misurati da `refactor-tactics-dev`, con controprova su Editor vivo; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Il quadro del 2026-10-07 è in [#3564](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3564), con le sonde e le loro risposte.
 
 ⛔ **E non è scritto qui che il flag sia l'*unica* uscita da uno zombie**: nessuno ha mai provato a terminare il processo, quindi è una misura da fare e non un'affermazione da citare. ⚠️ Di conseguenza non c'è nemmeno un ripiego per *«il flag non è bastato»*: scriverne uno nominerebbe la stessa domanda aperta una seconda volta, e la seconda si leggerebbe come una risposta. 🔑 **Quello che si può dire — ed è deduzione dalla struttura dei due casi, non misura — è che lì va rifatta la *diagnosi*, non cambiato il rimedio**: i due rimedi sono opposti, quindi «il flag non ha funzionato» è più probabilmente una classificazione sbagliata che un limite del flag.
 
@@ -542,12 +583,22 @@ node tools/radar/wiki-alt.ts --wiki-root <clone> --check
 node tools/radar/doc-links.ts --check
 node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
+node tools/radar/doc-coherence.ts --check                 # le asserzioni A1-A5 del gate di release G14.
+                                                          # G14 si esegue con DUE comandi: questo e doc-links.ts
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
+node tools/radar/decision-ids.ts --check                  # un numero D- rivendicato due volte,
+                                                          # in albero E fra ref. Legge la rete
+                                                          # (`ls-remote`) per scartare i rami
+                                                          # gia' cancellati; senza, lo dichiara
 node tools/asset-refs/check.ts
 node tools/asset-provenance/check.ts
 node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
+python tools/bot-competence/check.py --check              # lo schema, i suoi `consumers`, il roster,
+                                                          # Scenarios/, o QUALUNQUE rinomina di un nome
+                                                          # Automation citato: e' una lettura offline,
+                                                          # nel dubbio si lancia
 
 cd tools/radar
 node --test
@@ -560,6 +611,21 @@ node --test
 ```
 
 Ogni tool dichiara nel docstring **cosa non copre**.
+
+✅ **Le prove che questi gate sanno fallire** — obbligatorie da [D-188](docs/decisions/RT_PDR_00_Decision_Log.md),
+perche' un gate **nasce verde** e senza una mutazione il suo verde non distingue «ho guardato» da
+«non ho guardato»:
+
+```powershell
+python tools/architettura/misure-strutturali.py --autotest   # coi numeri veri dell'audit di agosto;
+                                                             # quanti casi lo dice il comando
+python tools/bot-competence/check.py --autotest              # le funzioni pure. Quanti casi lo dice lui
+```
+
+⚠️ Si lanciano quando si **tocca il gate**, non a ogni PR: provano la decisione del gate, non l'albero.
+Gli altri controlli di `tools/radar/` hanno la stessa prova nel gemello `.test.ts`, che gira con
+`node --test`, che sta qui sopra.
+
 
 ⛔ `tools/mcp/check.ts` confronta l'endpoint che `.mcp.json` **dichiara** con la porta che i settings
 **configurano**, e nient'altro. Un verde significa **«i due file concordano»**, mai «il ponte risponde»:
@@ -791,13 +857,13 @@ Unreal è **uno** e lo condividono tutti i checkout. Da cui:
 **2 · Prima di prendere: leggi chi c'è, e da dove.**
 
 ```powershell
-Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'LiveCoding%'" |
+Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" |
     Select ProcessId, ParentProcessId, Name, CommandLine
 ```
 
 ⛔ **Un conteggio di processi non serve a niente.** La `CommandLine` porta il `.uproject`, quindi **quale clone**; `UnrealEditor.exe` contro `UnrealEditor-Cmd.exe` dice se è un Editor interattivo o una run headless; e `-abslog` dice **quale sessione**. Sono le tre cose che decidono se aspettare.
 
-⛔ **E `LiveCodingConsole` va nel filtro, perché non contiene `UnrealEditor`.** Tiene lo stesso lock di compilazione — di **tutti** i cloni — e sopravvive all’Editor che lo ha aperto: un filtro sul solo `UnrealEditor%` torna **vuoto** mentre la build resta bloccata su *«Unable to build while Live Coding is active … Exit the editor»*, e non c’è un Editor da chiudere. Per questo serve il `ParentProcessId`: se non risolve a un processo vivo **nello stesso campione**, quel `LiveCodingConsole` è **orfano**. [#2392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392) lo ha misurato; i gate di `tools/mutation/` lo classificano in `misura.classifica_livecoding()`.
+⌫ **`LiveCodingConsole` era nel filtro fino a [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md), e non c'è più.** Si credeva che tenesse lo stesso lock di compilazione e sopravvivesse all'Editor che l'aveva aperta ([#2392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392)). Misurato il 2026-10-07: il lock che UBT interroga è un mutex che ogni `UnrealEditor.exe` crea nel proprio processo, e una console col padre morto non impedisce a nessuna build di passare; muore da sola con l'ultimo processo del suo gruppo. Una build rifiutata con *«Unable to build while Live Coding is active»* ha dietro un `UnrealEditor.exe`, vivo o zombie (§*Build Editor*), ed è quello che il filtro qui sopra trova. `misura.build()` lo nomina quando il rifiuto arriva.
 
 **3 · Quando prendi, rendi il tuo processo leggibile.** Ogni run headless passa `-abslog` dentro la propria directory di scratchpad di sessione:
 
@@ -815,8 +881,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'L
 | misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
 | qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
 | Editor interattivo in **qualunque** clone | build | **aspetta**: Live Coding è chiavato sul percorso dell'**eseguibile** di target, non sul `.uproject` — vedi §*Build Editor*. ⚠️ Diceva *«sul **tuo** clone — tiene il DLL»* fino al 2026-09-16: sbagliava **sede** e **meccanismo**, e contraddiceva §*Build Editor* nello stesso documento |
-| `LiveCodingConsole` col **padre vivo** | build in qualunque clone | **aspetta**: il lock è di chi sta iterando, e chiuderglielo gli costa il lavoro non salvato |
-| `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**: nessuno lo rilascerà, si **termina**. I gate di `tools/mutation/` lo fanno da sé, ma solo quando nessun motore vivo potrebbe usare Live Coding — interattivo no, headless con `-NoLiveCoding` sì ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)) |
+| `LiveCodingConsole`, col padre vivo o orfana | build in qualunque clone | **non decide niente**, e non si termina ([`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md)): non tiene il lock. Se la build è rifiutata, il detentore è un `UnrealEditor.exe` — vivo, ed è la riga dell'Editor interattivo; zombie, ed è §*Build Editor*. ⌫ *Fino al 2026-10-07 qui c'erano due righe*: col padre vivo «aspetta», orfana «si termina» ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)). Entrambe poggiavano sulla stessa premessa falsa |
 | qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
 
 **5 · Se non puoi aspettare, non misurare comunque.** Si dichiara `NOT RUN` con il motivo — *«motore occupato da `<clone>`»* — invece di produrre un verde in finestra sporca. Un `NOT RUN` onesto costa un giro; una misura invalida costa la fiducia in tutte le altre.
@@ -891,6 +956,44 @@ Closes #605
 Le parole riconosciute sono `close`/`closes`/`closed`, `fix`/`fixes`/`fixed`,
 `resolve`/`resolves`/`resolved`. `fix(605)` non e' nessuna di queste: manca il `#`, e la parentesi ne fa
 uno scope.
+
+#### 🔴 **`Chiude #N` NON chiude, e questa lingua e' la nostra**
+
+Le parole qui sopra sono **inglesi e basta**. Un corpo che dice `Chiude #871.` porta un riferimento
+perfettamente leggibile per un umano e **nessuna parola chiave** per GitHub: la issue resta aperta, e il
+merge non lo segnala.
+
+⚠️ **E' la forma di casa, non un caso isolato.** Misurato il 2026-09-21 sulle **60** PR mergiate piu'
+recenti: **25** portano `Chiude #N` e nessuna parola chiave inglese.
+
+```bash
+gh pr list --state merged --limit 60 --json number,body   | python -c "import sys,json,re; d=json.load(sys.stdin); print(sum(1 for p in d if re.search(r'(?i)chiude\s*\**\s*\[?#\d+', p.get('body') or '') and not re.search(r'(?i)(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))\s+#\d+', p.get('body') or '')))"
+```
+
+Quelle issue **si chiudono a mano**, dall'autore, pochi secondi dopo il merge — nella `timeline` si
+riconoscono da `commit_id: null`. Finche' qualcuno lo fa, funziona; **quando salta, non se ne accorge
+nessuno**: e' esattamente cio' che e' successo a
+[#871](https://github.com/DegrassiAaron/refactor-tactics-main/issues/871), rimasta aperta **37 giorni** con
+il lavoro finito su `main`, il commit che diceva `Chiude #871.` e la PR [#930](https://github.com/DegrassiAaron/refactor-tactics-main/pull/930)
+che lo ripeteva in grassetto.
+
+∴ **si scrive la riga inglese, in aggiunta al testo italiano**, e si mette in cima:
+
+```
+Closes #871
+```
+
+⛔ **Questa riga esiste perche' la sua assenza ha prodotto una diagnosi sbagliata, non solo una issue
+aperta.** Chi ha chiuso #871 il 2026-09-21 ha attribuito il difetto alla regola qui sopra — *«il commit
+diceva `fix(editor)` invece di `fixes #871`»* — e l'ha pubblicato in un commit e in un corpo di PR prima che
+una review lo verificasse. La causa vera era un'altra, e la regola citata **non copriva questo caso**: `fix(605)`
+e' uno scope **numerico** scambiato per un riferimento *in assenza di altri riferimenti*; qui il riferimento
+c'era, ed era in italiano.
+
+➕ **Era gia' stato trovato, e mai recepito**: `docs/research/handoff/spec-panel-td-handoff-2026-08-30.md`
+lo raccomanda come `m-05` dal 2026-08-30 — *«Aggiungere a §15: il corpo della PR contiene una riga `Closes #N`
+in inglese, in aggiunta al testo italiano»*. Fra quella raccomandazione e questa riga sono passate tre
+settimane, ed e' la ragione per cui un rilievo di panel che nessuno applica vale quanto non averlo scritto.
 
 **Dove va**: nel **corpo della PR**, in cima. Non nel messaggio di commit.
 

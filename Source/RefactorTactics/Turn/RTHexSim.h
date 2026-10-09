@@ -9,6 +9,25 @@
 class URTHexMapAsset;
 
 /**
+ * Chi guarda una fotografia del turno, come **posizione nominata** invece che come convenzione da ricordare.
+ *
+ * ⚠️ **Non e' un tipo nuovo: e' la stessa posizione che l'harness nomina da sempre.**
+ * `RTScenarioKnowledge::OmniscientTeamId` la documenta come *«un valore nominato invece di una convenzione
+ * da ricordare: un `TeamId` valido non lo eguaglia mai, quindi il selettore puo' portarlo come una posizione
+ * qualunque senza un booleano parallelo che dica "questa e' speciale"»*. Qui vive alla portata della
+ * simulazione, che non puo' includere `ScenarioHarness/`.
+ *
+ * 🔴 **`Omniscient` e' `INDEX_NONE` e NON `0`, e la differenza e' un difetto gia' occorso**: `0` e' la
+ * squadra 0, e [D-242]/`#1730` ha centralizzato quattro filtri di privacy che avevano copie divergenti, fra
+ * cui un letterale `PlayerTeamId = 0`. Un osservatore *«non specificato»* che valesse `0` darebbe la vista
+ * della squadra 0 a chiunque dimenticasse di dichiararsi.
+ */
+namespace RTObserver
+{
+	inline constexpr int32 Omniscient = INDEX_NONE;
+}
+
+/**
  * Stato minimo di un'unita' per la simulazione esagonale di un turno. L'identita' e' un INTERO STABILE
  * (UnitId), mai un pointer: e' la stessa disciplina del TurnLog (determinismo/replay).
  */
@@ -20,6 +39,26 @@ struct FRTHexSimUnit
 	/** Identita' stabile dell'unita' nel turno (chiave di occupazione e di risultato). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	int32 UnitId = 0;
+
+	/**
+	 * L'identita' con cui la CONOSCENZA nomina questa unita' — `ARTUnit::StableUnitId`.
+	 *
+	 * 🔴 **Non e' `UnitId`, e confonderli produce un difetto verde nei banchi e rotto in partita.**
+	 * `ARTTurnManager::MakeCurrentSnapshot` lo scrive a chiare lettere: *«le due numerazioni sono diverse
+	 * — questo snapshot scarta i morti, quello del Blast no, ed entrambi si riordinano a ogni movimento»*.
+	 * `UnitId` e' l'INDICE in `Snapshot.Units`; i contatti di `FRTTeamKnowledge` sono chiavati su questo.
+	 *
+	 * ⚠️ **Serve perche' l'occupazione si filtra per osservatore** ([D-371] uscita *(c)*): decidere se un
+	 * corpo entri in `Occupancy` richiede di chiedere alla conoscenza *«conosco QUESTA unita'?»*, e la
+	 * conoscenza risponde solo a questo numero. Un banco che costruisse le unita' a mano con
+	 * `UnitId == StableUnitId` non se ne accorgerebbe: in partita non coincidono mai per caso.
+	 *
+	 * ⛔ **Fuori da ogni hash, come `TeamId` qui sotto e per la stessa ragione**: e' una copia transitoria di
+	 * un dato che esisteva gia' su `ARTUnit`, e `FRTHexSnapshot` *«non va conservata oltre la fase che la
+	 * produce»*.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 StableUnitId = INDEX_NONE;
 
 	/** Posizione autorevole a inizio fase. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
@@ -550,8 +589,29 @@ struct FRTHexSnapshot
 	/** Unita' del turno, ordinate per UnitId (ordine stabile). */
 	TArray<FRTHexSimUnit> Units;
 
-	/** Cella -> UnitId dell'occupante (solo unita' vive). */
+	/**
+	 * Cella -> UnitId dell'occupante (solo unita' vive **che l'osservatore di questa fotografia conosce**).
+	 *
+	 * 🔴 **Da [D-371] questa mappa non e' piu' la verita' del mondo: e' la verita' DI CHI GUARDA.** Con
+	 * `ObserverTeamId == RTObserver::Omniscient` le due coincidono, ed e' la lettura della Resolution.
+	 */
 	TMap<FRTCellId, int32> Occupancy;
+
+	/**
+	 * Chi guarda questa fotografia, come **posizione nominata**: `RTObserver::Omniscient` oppure un `TeamId`.
+	 *
+	 * 🔑 **E' il parametro che [D-371] impone** — *«l'osservatore dev'essere un parametro»* — e la ragione
+	 * per cui non poteva essere un filtro incondizionato dentro `BlockedCellsFor`:
+	 * `ARTTurnManager::ResolveMovement` chiama `FindPathForUnit` nella **Resolution**, dove la validazione
+	 * e' autorevole, e un filtro cieco li' renderebbe **cieco il resolver**.
+	 *
+	 * ⛔ **Non decide `OBS-1`, e non ne inventa la risposta.** Riusa la posizione nominata che esisteva gia'
+	 * (`RTScenarioKnowledge::OmniscientTeamId`, *«un valore nominato invece di una convenzione da
+	 * ricordare»*): se `OBS-1` promuovera' l'osservatore a un tipo proprio, i siti di chiamata **nominano
+	 * gia' la posizione** e la promozione e' meccanica. Inventarne uno qui sarebbe la seconda risposta alla
+	 * stessa domanda, cioe' il debito che [D-242] ha gia' chiuso una volta.
+	 */
+	int32 ObserverTeamId = RTObserver::Omniscient;
 
 	/**
 	 * Le sovrapposizioni fra unita' VIVE trovate costruendo `Occupancy`. Vuoto = snapshot sano (`#1970`).

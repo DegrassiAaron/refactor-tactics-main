@@ -576,6 +576,21 @@ enum class ERTMoveOutcome : uint8
 	 * (`RTHexSimLibrary.cpp`, filtro `!Moving[j]`); ciclo e scambio vivono fra unita' in MOVIMENTO. I due
 	 * rami sono disgiunti, e un'unita' che sta solo TRANSITANDO per la cella dell'altra chiude comunque il
 	 * ciclo: non si passa attraverso qualcuno che nello stesso istante sta venendo verso di noi.
+	 *
+	 * ⛔ **NESSUNO EMETTE PIU' QUESTO VALORE, ED E' DELIBERATO** — [`D-453`], che chiude `MOV-13`.
+	 * Il produttore non e' stato dimenticato: [`D-445`] lo ha **spento**, perche' *«nessuna unita' blocca
+	 * il transito di nessun'altra, quindi l'appartenenza di squadra degli anelli non cambia nessun esito»*
+	 * — la misura sta in `RTHexSimLibrary.cpp`, nel commento che segue il ciclo. Oggi i soli usi in codice
+	 * sono questa dichiarazione e il ramo che ne compone la stringa (`RTTurnLogLibrary.cpp`).
+	 *
+	 * 🔴 **Non riaccenderlo per far tornare i conti.** Produrlo significherebbe reintrodurre un blocco
+	 * che `D-445` ha abolito, cioe' cambiare una regola **competitiva**: passa per un `D-nnn` che lo
+	 * autorizzi, non per una pulizia. La decisione d'autore del 2026-10-04 e' che *«`D-445` e' corretto»*.
+	 *
+	 * ♻️ **Resta qui, e non si ritira oggi**, perche' l'esito viaggia come `uint8` nel formato
+	 * serializzato: togliere un valore e' un cambiamento di **formato** col suo versioning, e non si paga
+	 * per un valore che non fa danno. ⚠️ Ma e' un **candidato alla rimozione** il giorno in cui quel
+	 * versioning si tocchi per un'altra ragione: pagare quel costo due volte sarebbe lo spreco.
 	 */
 	BlockedByCycle,
 	/**
@@ -952,11 +967,23 @@ struct FRTTurnLogEntry
 	 * lettura del facing nell'istante in cui la fa, subito dopo `IsInFrontalArc`. Quelle voci entrano ora
 	 * nelle tracce reali, e portano `UnitId` del difensore — l'unita' di cui raccontano l'orientamento.
 	 *
-	 * ⚠️ **Copre il ramo della GUARDIA, non ogni lettura del Blast.** Quel ciclo salta le unita' senza
-	 * `Status.Guarded`; la copertura generale legge il facing in `EffectiveCoverReduction`, che e' pura e
-	 * non ha log. ∴ **una traccia senza voci `UsedByBlast` non prova che il facing non sia stato letto** —
-	 * prova che nessun difensore era in Guardia. Chi ne deduca il contrario sbaglia, ed e' il motivo per cui
-	 * questa riga esiste.
+	 * ✅ **E dal 2026-09-05 ne ha un SECONDO: la copertura** (`#2341`). `EffectiveCoverReduction` legge il
+	 * facing su **ogni** colpo riparato, non solo su chi ha lo status, e i due siti che la chiamano
+	 * registrano la lettura: `ResolveCombatPasses` interroga `CoverReadTargetFacing` sui colpi del piano,
+	 * `ApplyReactionDecision` ha l'out-param `bOutFacingWasRead` di `BoundaryCoverReduction`. ⚠️ Il confine
+	 * non si e' mosso: la libreria non ha ricevuto un log, riporta **se** ha guardato e registra il
+	 * chiamante — decisione `(b1)` di `#2341`.
+	 *
+	 * ⚠️ **Una voce per unita', non due.** Guardia e copertura leggono lo stesso facing nello stesso
+	 * istante: i due rami alimentano un solo `TSet` e la scrittura e' una, altrimenti la traccia direbbe due
+	 * volte lo stesso fatto.
+	 *
+	 * ⚠️ **L'assenza resta CONDIZIONALE — la condizione e' solo diventata piu' stretta.** La lettura e' a
+	 * corto circuito (`Reduction > 0 && !IsInFrontalArc(...)`): senza copertura nominale da valutare il
+	 * facing non viene guardato affatto. ∴ **una traccia senza voci `UsedByBlast` non prova che il facing
+	 * non sia stato letto** — prova che nessun difensore era in Guardia **e** che nessun colpo era riparato.
+	 * Chi ne deduca il contrario sbaglia, ed e' il motivo per cui questa riga esiste.
+	 * ⏱️ *Fino a `#2341` la condizione era la sola Guardia, e questa riga lo diceva.*
 	 *
 	 * ⚠️ **Un residuo resta, e non e' lo stesso**: `UsedByOverwatch` nasce ancora da
 	 * `ReadFacingForConsumer` senza chiamanti in gioco.

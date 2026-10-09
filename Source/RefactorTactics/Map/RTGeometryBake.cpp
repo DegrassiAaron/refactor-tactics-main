@@ -60,14 +60,32 @@ namespace RTGeometryBakeInternal
 		}
 
 		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
-		const bool bStandable = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+
+		// 🔑 **La sede unica**: qui e nel validator si chiede alla stessa funzione invece di ricalcolare due
+		// volte la stessa regola. Il perche' — e il difetto silenzioso che evita — stanno accanto a
+		// `WhyNotStandable`.
+		const bool bStandable = URTGeometryBakeLibrary::WhyNotStandable(Map, CellId, Mask, Footprint,
+			HexSize) == ERTStandabilityBlock::None;
 
 		if (!bStandable)
 		{
-			// Nessuna posa legale: il blocco e' DERIVATO, e si marca come tale perche' il prossimo rebake
-			// possa toglierlo se la geometria cambia.
+			// 🔴 **La provenienza d'autore NON si sovrascrive, e questa riga lo faceva.** Il ramo qui sotto
+			// dichiara *«l'autore vince»*, e questo lo contraddiceva a due gesti di distanza: una cella
+			// marcata impraticabile A MANO (`bMovementBlockGenerated == false`) su cui si disegna geometria
+			// bloccante diventava «derivata», e il rebake successivo — tolta la geometria — la **spegneva**.
+			// La decisione di design spariva senza errore e senza segnalazione, perche' REGOLA 4 non ha
+			// nulla da dire su un blocco che nel frattempo e' diventato legittimo.
+			//
+			// ⚠️ **Il difetto era invisibile finche' la cottura la chiamava solo il DISEGNO**: bisognava
+			// disegnare e poi cancellare geometria sulla stessa cella. Da `#1864` la chiamano anche il move
+			// e la cancellazione di un muro, che sono gesti che l'autore si aspetta reversibili — ed e' li'
+			// che la perdita diventa raggiungibile in due mosse.
+			//
+			// L'effetto osservabile non cambia: la cella resta impraticabile. Cambia **di chi e'** il blocco,
+			// e quindi chi ha l'autorita' di toglierlo.
+			const bool bAlreadyAuthored = Cell.bBlocksMovement && !Cell.bMovementBlockGenerated;
 			Cell.bBlocksMovement = true;
-			Cell.bMovementBlockGenerated = true;
+			Cell.bMovementBlockGenerated = !bAlreadyAuthored;
 			return;
 		}
 
@@ -456,6 +474,30 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 	return Generated;
 }
 
+bool URTGeometryBakeLibrary::RederiveStandability(URTHexMapAsset* Map, const FRTCellId& CellId, float HexSize)
+{
+	if (Map == nullptr)
+	{
+		return false;
+	}
+
+	const FRTHexCellData* Existing = Map->FindCell(CellId);
+	if (Existing == nullptr)
+	{
+		// Una cella che non esiste piu' non ha niente da ricuocere. E' l'esito normale per chi cancella una
+		// cella intera: la cascata le porta via i muri, e questa funzione non ha un bersaglio.
+		return false;
+	}
+
+	// ⚠️ Si passa da una COPIA e da `AddOrUpdateCell`, come fa la coda di `Bake`: `FindCell` restituisce un
+	// puntatore dentro l'array delle celle, e scriverci sopra salterebbe la sede che l'asset usa per
+	// registrare la modifica.
+	FRTHexCellData Updated = *Existing;
+	RTGeometryBakeInternal::DeriveStandability(Updated, Map, CellId, HexSize, FRTFootprintProfile());
+	Map->AddOrUpdateCell(Updated);
+	return true;
+}
+
 int32 URTGeometryBakeLibrary::CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId)
 {
 	if (Map == nullptr)
@@ -478,4 +520,70 @@ int32 URTGeometryBakeLibrary::CountGeneratedCovers(const URTHexMapAsset* Map, co
 		}
 	}
 	return Count;
+}
+
+bool URTGeometryBakeLibrary::AreaCoversCell(const FRTNoWalkArea& Area, const FRTCellId& CellId,
+	float HexSize)
+{
+	// Il piano PRIMA della geometria: senza, una regione al piano terra chiuderebbe cio' che le sta sopra.
+	if (Area.Layer != CellId.Layer)
+	{
+		return false;
+	}
+	// ⚠️ **Sotto i tre vertici non c'e' un «dentro».** La guardia sta anche in `RingContainsPoint`, che e'
+	// la sede della regola; qui resta perche' questa funzione ha gia' risposto `false` al layer sbagliato
+	// una riga sopra, e leggerla senza il caso degenere accanto suggerirebbe che i due siano diversi.
+	if (Area.Vertices.Num() < 3)
+	{
+		return false;
+	}
+
+	// 🔴 **IN INTERI, e non e' un'ottimizzazione: e' la correzione di un difetto misurato** (`#1868`).
+	// Fino al 2026-09-25 questa funzione costruiva il poligono in `FVector2D` e chiamava
+	// `URTHexOccupancyLibrary::PointInPolygon`. Quel ray casting **non ha una regola per il bordo**, e il
+	// suo confronto non e' simmetrico nello scambio dei due estremi del lato: **invertire il verso
+	// dell'anello cambiava quali celle la regione chiude.**
+	//
+	// ⛔ Non era un caso di laboratorio. L'idioma No-Walk mette i vertici sui **centri** delle celle, e i
+	// centri di cella cadono sul bordo per costruzione — sul triangolo di prova di questo repository sei
+	// centri ci stanno esattamente sopra, e tre cambiano verdetto invertendo la lista. Da li' il difetto
+	// arrivava fino in fondo: `bBlocksMovement` entra in `ComputeHash`, quindi due mappe identiche
+	// disegnate in versi opposti avevano hash diversi.
+	//
+	// `RingContainsPoint` decide sul reticolo intero, dove il bordo e' un caso **esatto** con una
+	// convenzione dichiarata — il bordo appartiene alla regione — e il verso non conta piu'.
+	//
+	// ⚠️ `HexSize` non serve piu' e resta nella firma: e' l'unita' del reticolo, si semplifica, e toglierlo
+	// cambierebbe i chiamanti per un guadagno che non c'e'.
+	return URTGeometryGrammarLibrary::RingContainsPoint(Area.Vertices,
+		URTGeometryGrammarLibrary::CellCentrePoint(CellId));
+}
+
+ERTStandabilityBlock URTGeometryBakeLibrary::WhyNotStandable(const URTHexMapAsset* Map,
+	const FRTCellId& CellId, const FRTOccupancyMask& Mask, const FRTFootprintProfile& Footprint,
+	float HexSize)
+{
+	// La regione e' un VETO D'AUTORE sopra il calcolo della posa, quindi si guarda per prima: chiude anche
+	// dove la geometria lascerebbe passare.
+	if (Map != nullptr)
+	{
+		for (const FRTNoWalkArea& Area : Map->NoWalkAreas)
+		{
+			if (AreaCoversCell(Area, CellId, HexSize))
+			{
+				return ERTStandabilityBlock::NoWalkArea;
+			}
+		}
+		// Il volume occupa la cella INTERA in v0.1 ([D-440]): sta nella cella, quindi non lascia posa.
+		for (const FRTBoxVolume& Volume : Map->BoxVolumes)
+		{
+			if (Volume.Cell == CellId)
+			{
+				return ERTStandabilityBlock::BoxVolume;
+			}
+		}
+	}
+	return URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint)
+		? ERTStandabilityBlock::None
+		: ERTStandabilityBlock::Geometry;
 }

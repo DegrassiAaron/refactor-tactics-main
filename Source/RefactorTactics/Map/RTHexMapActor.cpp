@@ -4,11 +4,13 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTPlaybackLibrary.h" // #2454: `TracerSegment`, la geometria del tracer — pura, non la riscrive il disegno
 #include "Map/RTArenaCriteriaLibrary.h"
 #include "Map/RTGeometryGrammar.h" // ToPolyline: i muri interni si disegnano dal loro segmento (#712)
 #include "Components/InstancedStaticMeshComponent.h"
 #include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
-#include "DrawDebugHelpers.h" // anteprima di pianificazione (presentazione, non logica)
+#include "DrawDebugHelpers.h" // il solo contorno di DEBUG delle celle (`DrawCellOverlay`): l'anteprima no (#3508)
+#include "Components/LineBatchComponent.h" // #3508: l'anteprima di pianificazione si disegna anche in Shipping
 #include "EngineUtils.h" // TActorIterator
 #include "UObject/ConstructorHelpers.h"
 #include "RefactorTactics.h"
@@ -27,7 +29,6 @@
 #include "Map/RTOverlayPalette.h" // #1941: colore, scala e profondita' di un significato, in una sede sola
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
-#include "Components/LineBatchComponent.h"
 #include "Map/RTHexLabel.h"
 #include "Map/RTHexLabelLibrary.h"
 // Map Check (`CheckForErrors`): le regole di allestimento del livello. Solo Editor — `CheckForErrors`
@@ -49,7 +50,18 @@
  *
  * ⚠️ Le due estremita' del legame stanno **200 righe lontane** l'una dall'altra in tre coppie diverse, ed e'
  * il motivo per cui il disallineamento e' sopravvissuto: qui c'e' una costante, cosi' cambiarne una senza
- * l'altra non e' piu' possibile. Presidiato da `RefactorTactics.HexMapActor.ProceduralMeshSectionsHaveAMaterialSlot`.
+ * l'altra non e' piu' possibile — ed e' l'unica difesa che il legame ha.
+ *
+ * ⌫ **Qui si leggeva *«Presidiato da
+ * `RefactorTactics.HexMapActor.ProceduralMeshSectionsHaveAMaterialSlot`»*, e quel test non esiste:
+ * tolto il 2026-10-03.** `git grep -c <nome> -- Source/` rispondeva **1**, il commento stesso.
+ * 🔴 **E non c'e' un sostituto da citare al suo posto**, misurato: nessun test nomina
+ * `RTProceduralMeshSlotName`, che in produzione compare in **otto** punti di questo file.
+ * `HexMapActor.ProceduralMeshesAreRenderable` verifica una cosa VICINA e non questa — asserisce
+ * *«ha render data con vertici»* — e ripuntare la riga la' avrebbe rimesso un presidio falso
+ * con un nome che esiste, che e' peggio di uno con un nome che non esiste.
+ * ⚠️ Il legame resta difeso dalla sola **costante condivisa** qui sotto: chi la tocca rompe
+ * entrambe le estremita' insieme, ed e' per questo che esiste. Un gate automatico non c'e'.
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
@@ -157,6 +169,21 @@ namespace
 	// quota assoluta non dice nulla; su uno spessore dice quello che si intende.
 	static_assert(RTBoundaryRibbonHeight > (RTLiftPreview - RTCellTopZ) * 4.f,
 		"La ribbon di perimetro deve TORREGGIARE sulla pila dei lift, non infilarcisi dentro (#1942).");
+
+	// Tracer del playback (`#2454`): altezza sopra la cella, lunghezza del dardo in frazioni di `HexSize`,
+	// spessori. ⚠️ Valori di GRAYBOX, tarati in PIE (`PIE-V01-TRACER`): il getto e' piu' spesso del proiettile
+	// perche' le due forme devono separarsi anche in un fotogramma fermo.
+	constexpr float RTTracerHeight = 60.f;
+	constexpr float RTTracerDashFraction = 0.35f;
+	constexpr float RTTracerProjectileThickness = 4.f;
+	constexpr float RTTracerJetThickness = 7.f;
+
+	// Profilo FX (#3578, spec «il profilo FX» §2.1): spessori per tipo e sollevamento sopra la cella. ⚠️ Graybox,
+	// tarati in PIE (`PIE-FX-ABILITA`); le scale vivono in `URTPlaybackLibrary::CueSegments`.
+	constexpr float RTTracerZigzagThickness = 5.f;
+	constexpr float RTCueLift = 6.f;
+	constexpr float RTCueThickness = 3.f;
+	constexpr float RTCueThickThickness = 4.f; // `Flash` e `ConeSweep`
 
 	/**
 	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
@@ -1077,9 +1104,13 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewPathArea.Cells.Num() > 0
 		|| PreviewHitArea.Cells.Num() > 0
 		|| PreviewReachableArea.Cells.Num() > 0
+		|| PreviewRangeArea.Cells.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
+		|| PlaybackStructureHits.Num() > 0
+		|| PlaybackTracers.Num() > 0
+		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0;
 }
@@ -1099,6 +1130,13 @@ void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& Reachable
 {
 	PreviewReachableArea.Cells = ReachableCells;
 	PreviewReachableArea.Meaning = ERTOverlayMeaning::Movement;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPreviewRangeCells(const TArray<FRTCellId>& RangeCells)
+{
+	PreviewRangeArea.Cells = RangeCells;
+	PreviewRangeArea.Meaning = ERTOverlayMeaning::AbilityRange;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1142,6 +1180,49 @@ void ARTHexMapActor::AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCell
 void ARTHexMapActor::ClearPlaybackFootprint()
 {
 	PlaybackFootprintCells.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers)
+{
+	PlaybackTracers = Tracers;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackTracers()
+{
+	PlaybackTracers.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPlaybackCues(const TArray<FRTPlaybackCue>& Cues)
+{
+	PlaybackCues = Cues;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackCues()
+{
+	PlaybackCues.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::AddPlaybackStructureHit(const FRTCellId& Cell, const FRTCellId& Toward, bool bDestroyed)
+{
+	// Si copia e basta, come l'impronta qui sopra: i tre valori arrivano da `FRTResolvedEvent`, che li porta
+	// dal resolver. Nessun ricalcolo del bordo e nessuna interrogazione della mappa — sarebbero la seconda
+	// risposta a una domanda gia' chiusa (invariante #1), ed e' il divieto esplicito di `#2828`.
+	//
+	// ⚠️ `Emplace` e non assegnazione: `un evento -> un segnale`, e due muri colpiti nello stesso Blast
+	// sono due fatti distinti. ⛔ Nessuna deduplicazione, nemmeno sullo stesso bordo: due colpi su una
+	// stessa barriera sono due colpi, e fonderli sarebbe l'aggregazione furba che la v0.1 esclude (`#2453`).
+	PlaybackStructureHits.Emplace(Cell, Toward, bDestroyed);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackStructureHits()
+{
+	PlaybackStructureHits.Reset();
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1245,6 +1326,9 @@ void ARTHexMapActor::DrawCellOverlay() const
 
 void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
 {
+	// Prima della guardia sul componente: la timeline e' un fatto del piano, non dei ghost che la disegnano.
+	LastPlanPreview = Preview;
+
 	if (!PlanGhosts)
 	{
 		return;
@@ -1336,6 +1420,41 @@ FLinearColor ARTHexMapActor::GhostColorForCertainty(ERTIntentCertainty Certainty
 	}
 }
 
+namespace
+{
+	/**
+	 * 🔑 **Una linea dell'anteprima di pianificazione, nel line batcher del MONDO** (`#3508`).
+	 *
+	 * Fino a `#3508` l'anteprima usava `DrawDebugLine`, che in Shipping e' una funzione vuota
+	 * (`UE_ENABLE_DEBUG_DRAWING` vale 0). Misurato sul pacchetto il 2026-10-06: il Development mostrava
+	 * ventaglio, portata e percorso, lo Shipping nessuno dei tre. Il line batcher del mondo esiste in ogni
+	 * build che non sia un server dedicato (`UWorld::UpdateWorldComponents`), e in Shipping scrive sul PDI
+	 * della scena invece che su quello di debug — quindi colore e spessore li conferma solo il pacchetto.
+	 *
+	 * ⚠️ **Le regole sono quelle di `DrawDebugLine`, ricopiate apposta**, perche' in Development l'anteprima
+	 * resti identica: batcher `Foreground` per `SDPG_Foreground` e `World` altrimenti, durata di UN
+	 * fotogramma (`DefaultLifeTime`), niente su un server dedicato.
+	 *
+	 * ⛔ **Non guarda `r.EnableDrawDebugHelpers`**: l'anteprima e' gioco, non debug. Ed e' su quella CVar che
+	 * si appoggia il test che la protegge: spenta, `DrawDebugLine` non disegna — come in Shipping — e queste
+	 * linee si'.
+	 */
+	void DisegnaLineaAnteprima(const UWorld* World, const FVector& Da, const FVector& A, const FColor& Colore,
+		uint8 Profondita, float Spessore)
+	{
+		if (!World || World->GetNetMode() == NM_DedicatedServer)
+		{
+			return;
+		}
+		ULineBatchComponent* Batcher = World->GetLineBatcher(Profondita == SDPG_Foreground
+			? UWorld::ELineBatcherType::Foreground : UWorld::ELineBatcherType::World);
+		if (Batcher)
+		{
+			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
+		}
+	}
+}
+
 void ARTHexMapActor::DrawPlanningPreview() const
 {
 	const UWorld* World = GetWorld();
@@ -1378,8 +1497,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		const uint8 Depth = bThroughUnits ? SDPG_Foreground : SDPG_World;
 		for (int32 I = 0; I < Corners.Num(); ++I)
 		{
-			DrawDebugLine(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color,
-				/*bPersistentLines=*/ false, /*LifeTime=*/ -1.f, Depth, /*Thickness=*/ 3.f);
+			DisegnaLineaAnteprima(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color, Depth, /*Spessore=*/ 3.f);
 		}
 	};
 
@@ -1401,6 +1519,13 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
 	}
 
+	// La portata dell'azione armata (`#3507`): dove posso mirare. In targeting prende il posto del ventaglio, e sta
+	// sotto l'area colpita, che dice chi colpisco.
+	for (const FRTCellId& Cell : PreviewRangeArea.Cells)
+	{
+		DrawMeaning(Cell, ERTOverlayMeaning::AbilityRange);
+	}
+
 	// Traccia del percorso: contorno ciano su ogni cella + segmento fra i centri consecutivi.
 	for (int32 I = 0; I < PreviewPathArea.Cells.Num(); ++I)
 	{
@@ -1411,7 +1536,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 				+ FVector(0, 0, CellLift(PreviewPathArea.Cells[I - 1]) + RTLiftPreview + 1.5f);
 			const FVector B = URTHexLibrary::AxialToWorld(PreviewPathArea.Cells[I], Origin, Size, LayerH)
 				+ FVector(0, 0, CellLift(PreviewPathArea.Cells[I]) + RTLiftPreview + 1.5f);
-			DrawDebugLine(World, A, B, URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace), false, -1.f, 0, 4.f);
+			DisegnaLineaAnteprima(World, A, B, URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace), SDPG_World, 4.f);
 		}
 	}
 
@@ -1444,12 +1569,12 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			{
 				const FVector P0 = FMath::Lerp(A, B, S / static_cast<float>(Segments));
 				const FVector P1 = FMath::Lerp(A, B, (S + 1) / static_cast<float>(Segments));
-				DrawDebugLine(World, P0, P1, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+				DisegnaLineaAnteprima(World, P0, P1, AimColor, SDPG_Foreground, /*Spessore=*/ 3.f);
 			}
 		}
 		else
 		{
-			DrawDebugLine(World, A, B, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+			DisegnaLineaAnteprima(World, A, B, AimColor, SDPG_Foreground, /*Spessore=*/ 3.f);
 		}
 	}
 
@@ -1473,7 +1598,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			+ FVector(0, 0, CellLift(PreviewSightBlockedAt) + RTLiftPreview + 3.f);
 
 		const FColor SightColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision);
-		DrawDebugLine(World, From, Stop, SightColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+		DisegnaLineaAnteprima(World, From, Stop, SightColor, SDPG_Foreground, /*Spessore=*/ 3.f);
 
 		// L'ostacolo si marca sulla cella che ha fermato il raggio: la linea dice DOVE si e' fermata, il
 		// contorno dice SU COSA. E' la stessa coppia — segmento piu' cella — che `#2697` usa per gli
@@ -1505,6 +1630,108 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	for (const FRTCellId& Cell : PlaybackFootprintCells)
 	{
 		DrawMeaning(Cell, ERTOverlayMeaning::Attack);
+	}
+
+	// Colpi alle STRUTTURE gia' risolti, durante il playback (`#2828`).
+	//
+	// 🔑 **Un SEGMENTO sul bordo, non un esagono**: il soggetto e' un lato, e colorare le due facce
+	// direbbe che sono state colpite loro. E' la stessa distinzione — dove finisce il fatto, su cosa cade —
+	// che il blocco della linea di tiro qui sopra fa con segmento piu' contorno.
+	//
+	// ⛔ **Nessun `FColor` letterale e nessun ottavo `ERTOverlayMeaning`**: un colpo a un muro significa
+	// quel che significa un colpo, quindi `Attack`, come l'impronta appena sopra. Un significato nuovo per
+	// una variante di resa e' precisamente il difetto che `#1941` esiste per chiudere.
+	//
+	// ⚠️ **La distinzione caduta/danneggiata sta nello SPESSORE, ed e' graybox di proposito**: il VFX
+	// vero — detriti, crollo — e' `#1848`, v0.2. Qui serve che il CAMBIAMENTO si veda, che e' cio' che
+	// `#2453` isola come mancante nella v0.1: oggi si vede lo stato dopo, non il cambiamento.
+	if (PlaybackStructureHits.Num() > 0)
+	{
+		const FColor StructureColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
+		for (const FRTPlaybackStructureHit& Colpo : PlaybackStructureHits)
+		{
+			// ⚠️ **L'alzata e' quella della cella che PORTA la copertura, per entrambi gli estremi.**
+			// Prenderla da ciascuna delle due inclinerebbe il segno quando le celle hanno altezze diverse, e
+			// lo farebbe sprofondare del tutto sul bordo esterno dell'arena, dove `Toward` non e' nella mappa
+			// e `CellLift` risponde `0`. Il muro appartiene alla faccia che lo dichiara: e' la sua quota.
+			const float Alzata = CellLift(Colpo.Cell) + RTLiftPreview + 3.f;
+			const FVector CentroA = URTHexLibrary::AxialToWorld(Colpo.Cell, Origin, Size, LayerH)
+				+ FVector(0, 0, Alzata);
+			const FVector CentroB = URTHexLibrary::AxialToWorld(Colpo.Toward, Origin, Size, LayerH)
+				+ FVector(0, 0, Alzata);
+
+			// 🔴 **PERPENDICOLARE all'asse fra i due centri, non lungo di esso.** Il bordo condiviso e' il
+			// lato che i due esagoni hanno in comune: sta a meta' strada e giace di traverso. Un segmento
+			// tracciato SULL'asse — anche corto, anche centrato — punta da una cella verso l'altra e si legge
+			// come una traiettoria, che e' un'altra frase.
+			// ⏱️ *La prima stesura faceva esattamente quello, e il commento accanto dichiarava di evitarlo.*
+			//
+			// La mezza lunghezza e' `d / (2√3)` perche' in una griglia esagonale il lato vale `d/√3`, con `d`
+			// la distanza fra centri adiacenti: cosi' il segno copre il lato intero e non lo sborda.
+			const FVector Asse = CentroB - CentroA;
+			const FVector Meta = (CentroA + CentroB) * 0.5f;
+			const FVector MezzoLato = FVector(-Asse.Y, Asse.X, 0.f) * (0.5f / FMath::Sqrt(3.f));
+			DisegnaLineaAnteprima(World, Meta - MezzoLato, Meta + MezzoLato, StructureColor, SDPG_Foreground,
+				Colpo.bDestroyed ? 6.f : 3.f);
+		}
+	}
+
+	// Tracer degli attacchi base IN VOLO, durante il playback (`#2454`).
+	//
+	// 🔑 **Stesso significato di un colpo, quindi stesso colore**: `ERTOverlayMeaning::Attack`, come l'impronta e i
+	// muri qui sopra. ⛔ Nessun `FColor` letterale e nessun significato nuovo (`#1941`): proiettile e getto si
+	// separano per GEOMETRIA, che e' `URTPlaybackLibrary::TracerSegment`.
+	// ⚠️ **Foreground**: il tracer attraversa le unita' come la linea di mira, o sparirebbe dentro chi spara.
+	if (PlaybackTracers.Num() > 0)
+	{
+		const FColor TracerColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
+		for (const FRTPlaybackTracer& T : PlaybackTracers)
+		{
+			const FVector Da = URTHexLibrary::AxialToWorld(T.From, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(T.From) + RTTracerHeight);
+			const FVector A = URTHexLibrary::AxialToWorld(T.To, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(T.To) + RTTracerHeight);
+			if (T.Style == ERTTracerStyle::Zigzag)
+			{
+				// #3578: lo zigzag e' una polilinea pura (`TracerPolyline`), un prefisso che cresce.
+				TArray<FVector> Punti;
+				URTPlaybackLibrary::TracerPolyline(T.Style, Da, A, T.Alpha, Size, Punti);
+				for (int32 P = 1; P < Punti.Num(); ++P)
+				{
+					DisegnaLineaAnteprima(World, Punti[P - 1], Punti[P], TracerColor, SDPG_Foreground, RTTracerZigzagThickness);
+				}
+				continue;
+			}
+			FVector Inizio, Fine;
+			URTPlaybackLibrary::TracerSegment(T.Style, Da, A, T.Alpha, Size * RTTracerDashFraction, Inizio, Fine);
+			DisegnaLineaAnteprima(World, Inizio, Fine, TracerColor, SDPG_Foreground,
+				T.Style == ERTTracerStyle::Jet ? RTTracerJetThickness : RTTracerProjectileThickness);
+		}
+	}
+
+	// Le cue del profilo FX, durante il playback (#3578, spec «il profilo FX» §2.1, §2.4).
+	//
+	// 🔑 **Stesso colore del colpo** (R1): `ERTOverlayMeaning::Attack`, nessun significato nuovo (#1941). Gli stili si
+	// separano per GEOMETRIA (`CueSegments`), mai per colore. ⚠️ Foreground, come il tracer: un anello sotto chi agisce
+	// sparirebbe dentro la sua mesh. ⛔ Nessun `DrawDebug*` (D-467): `DisegnaLineaAnteprima` tace sul server dedicato.
+	if (PlaybackCues.Num() > 0)
+	{
+		const FColor CueColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
+		for (const FRTPlaybackCue& C : PlaybackCues)
+		{
+			const FVector Ancora = URTHexLibrary::AxialToWorld(C.At, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(C.At) + RTCueLift);
+			const FVector Verso = URTHexLibrary::AxialToWorld(C.Toward, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(C.Toward) + RTCueLift);
+			TArray<FVector> Inizi, Fini;
+			URTPlaybackLibrary::CueSegments(C.Kind, Ancora, Verso, Size, C.Alpha, Inizi, Fini);
+			const float Spessore = (C.Kind == ERTPlaybackCueKind::Flash || C.Kind == ERTPlaybackCueKind::ConeSweep)
+				? RTCueThickThickness : RTCueThickness;
+			for (int32 I = 0; I < Inizi.Num(); ++I)
+			{
+				DisegnaLineaAnteprima(World, Inizi[I], Fini[I], CueColor, SDPG_Foreground, Spessore);
+			}
+		}
 	}
 
 	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.
@@ -1876,7 +2103,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// La stessa costante scura del glifo ([D-183]): il bordo appartiene al registro «segno inciso»,
 			// non alla tavolozza delle superfici. Tingerlo col colore del terreno raddoppierebbe il canale
 			// che esiste gia' invece di aggiungerne uno — ed e' esattamente il difetto che #1758 chiude.
-			const FLinearColor BorderColor = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+			const FLinearColor BorderColor = FLinearColor::FromSRGBColor(URTHexLibrary::CellBorderColor());
 			CellBorders->SetCustomDataValue(BorderIndex, 0, BorderColor.R);
 			CellBorders->SetCustomDataValue(BorderIndex, 1, BorderColor.G);
 			CellBorders->SetCustomDataValue(BorderIndex, 2, BorderColor.B,

@@ -18,8 +18,20 @@ REGISTRO = Path("docs/technical/test-manuali-pie.md")
 # accorpa» — `PIE-AS4a`, `PIE-AS4b`, `PIE-BU2b`, `PIE-BU2c`, `PIE-BU3c`, `PIE-HEXPLAY-3b`,
 # `-4b`, `-6b`, `-6c`. Con `[A-Z0-9-]+` la riga non viene troncata: viene SALTATA, perche' il
 # `**` di chiusura non arriva dove il regex lo aspetta. Sono voci che spariscono in silenzio.
-RIGA = re.compile(r"^\|\s*\*\*(PIE-[A-Za-z0-9-]+)\*\*")
-STATI = "✅🟡⏳❌⛔🔴"
+# 🔴 **E il PUNTO ha la stessa storia, scoperto il 2026-10-03 (#3362)**: `PIE-CP1.4` e'
+# l'unico id che lo porta, e spariva per la stessa ragione — 254 righe nel registro, 253 lette.
+# Il punto dentro una classe di caratteri e' letterale e non va escapato; il trattino resta
+# ULTIMO, o diventerebbe un intervallo.
+RIGA = re.compile(r"^\|\s*\*\*(PIE-[A-Za-z0-9.-]+)\*\*")
+# 🔴 **QUATTRO marcatori, non sei, e la differenza produceva stati FALSI** (#3362).
+# `⛔` e `🔴` aprono una NOTA, non dichiarano uno stato: il comando canonico
+# dell'`awk` — `match(s, /✅|🟡|❌|⏳/)` — non li considera, e prendendo il PRIMO
+# carattere della cella che appartenga all'insieme il modulo leggeva la nota al posto del
+# verdetto. Misurato il 2026-10-03: **otto** voci divergevano, e una di esse — `PIE-HEXPLAY-4`
+# — sta nel subset `RELEASE-V01`, quindi il modulo riportava `G9` a **16 su 17** invece di 17.
+# ⛔ Non e' una voce persa: e' uno stato falso su una voce che esiste, ed e' la forma peggiore
+# — una voce che sparisce si nota contando, una che mente no.
+STATI = "✅🟡⏳❌"
 VERDE = "✅"
 SCONOSCIUTO = "?"
 

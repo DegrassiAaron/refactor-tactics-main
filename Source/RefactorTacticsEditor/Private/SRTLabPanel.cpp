@@ -1,5 +1,8 @@
 #include "SRTLabPanel.h"
 
+#include "Ability/RTHeroLab.h"
+#include "RTLabPieLauncher.h"
+
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Widgets/Input/SButton.h"
@@ -83,7 +86,11 @@ TSharedRef<SWidget> SRTLabPanel::CostruisciFiltro()
 	+ SHorizontalBox::Slot().FillWidth(1.f)
 	[
 		SAssignNew(CampoFiltro, SEditableTextBox)
-		.HintText(LOCTEXT("TuttiGliEroi", "vuoto = tutto il catalogo canonico"))
+		// ⚠️ L'hint DICHIARA la forma, e prima non lo faceva (`#3461`): il confronto a valle e' esatto,
+		// quindi `Ivrin` non e' `Hero.Ivrin` e la lista si svuotava senza che nulla lo dicesse. Chi usa il
+		// pannello scrive il nome nudo -- e' la forma che viene in mente -- e il campo non chiedeva altro.
+		.HintText(LOCTEXT("TuttiGliEroi",
+			"vuoto = tutto il catalogo canonico · oppure un HeroId completo, es. Hero.Ivrin"))
 		.OnTextCommitted_Lambda([this](const FText& Testo, ETextCommit::Type)
 		{
 			const FString Grezzo = Testo.ToString().TrimStartAndEnd();
@@ -106,6 +113,15 @@ TSharedRef<SWidget> SRTLabPanel::CostruisciEsecuzione()
 		.ToolTipText(LOCTEXT("EseguiTip",
 			"Costruisce la fixture deterministica e la esegue con il resolver reale."))
 		.OnClicked(this, &SRTLabPanel::OnEsegui)
+	]
+	+ SHorizontalBox::Slot().AutoWidth().Padding(6.f, 0.f, 0.f, 0.f)
+	[
+		SNew(SButton)
+		.Text(LOCTEXT("EseguiInPie", "Esegui in PIE"))
+		.ToolTipText(LOCTEXT("EseguiInPieTip",
+			"Salva la fixture in Saved/RTLab/Scenarios, imposta rt.Test.Scenario e avvia PIE su L_DevSandbox. "
+			"Le CVar tornano com'erano a fine PIE."))
+		.OnClicked(this, &SRTLabPanel::OnEseguiInPie)
 	];
 }
 
@@ -142,6 +158,8 @@ void SRTLabPanel::OnSelezione(FVoce Voce, ESelectInfo::Type)
 
 FReply SRTLabPanel::OnEsegui()
 {
+	// L'Id dell'ultimo lancio PIE non si azzera qui: lo fa `Modello.Run`, perche' la riga di stato mostra
+	// una cosa sola — l'ultimo gesto — e quella regola sta nel modello, dove si misura.
 	UltimoErrore.Reset();
 
 	// Un mondo transitorio, creato e distrutto qui. Il livello aperto nell'editor non viene toccato.
@@ -175,13 +193,87 @@ FReply SRTLabPanel::OnEsegui()
 	return FReply::Handled();
 }
 
+FReply SRTLabPanel::OnEseguiInPie()
+{
+	UltimoErrore.Reset();
+
+	// ⛔ **Prima si chiede se si puo' lanciare, poi si scrive.** `PrepareForPie` salva la fixture su disco: con
+	// PIE gia' in corso il lancio rifiuta comunque, e il file resterebbe per un lancio mai avvenuto.
+	FString Errore;
+	if (!FRTLabPieLauncher::CanLaunch(Errore))
+	{
+		UltimoErrore = Errore;
+		return FReply::Handled();
+	}
+
+	FString Id;
+	if (!Modello.PrepareForPie(Id, Errore))
+	{
+		UltimoErrore = Errore;
+		return FReply::Handled();
+	}
+
+	// Il PIE puo' finire dopo che il pannello e' stato chiuso: il lanciatore tiene la callback, quindi la
+	// si lega **debole**. Il modello e' membro del widget e non sopravvive a lui.
+	const bool bLanciato = FRTLabPieLauncher::Launch(Id, Errore,
+		[Debole = TWeakPtr<SRTLabPanel>(SharedThis(this))](const bool bRipristinato)
+		{
+			if (const TSharedPtr<SRTLabPanel> Pannello = Debole.Pin())
+			{
+				Pannello->Modello.NoteLaunchFinished(bRipristinato);
+				// Una riga «PIE in corso» rimasta da un secondo clic non deve sopravvivere alla fine del PIE.
+				Pannello->UltimoErrore.Reset();
+			}
+		});
+	if (!bLanciato)
+	{
+		UltimoErrore = Errore;
+		return FReply::Handled();
+	}
+
+	Modello.NoteLaunched(Id);
+	return FReply::Handled();
+}
+
 FText SRTLabPanel::TestoIdentita() const
 {
+	// 🔑 **Il perche' lo decide il MODELLO, la frase e' di qui** (`#3461`). Prima questa funzione
+	// chiamava `GetHeroReadout`, che risponde `false` a due domande diverse -- «nessun filtro» e «un filtro
+	// che non matcha» -- e le rendeva con la stessa frase. Nel secondo caso quella frase era il contrario
+	// di cio' che accadeva: l'elenco era vuoto proprio PERCHE' il filtro aveva matchato nulla.
 	FRTHeroLabEntry Eroe;
-	if (!Modello.GetHeroReadout(Eroe))
+	switch (Modello.DescribeFilterState(Eroe))
 	{
+	case FRTLabViewModel::EFilterState::NoFilter:
 		return LOCTEXT("NessunEroe",
 			"Catalogo canonico intero — nessun eroe filtrato. Scrivi un HeroId per vedere un kit.");
+
+	case FRTLabViewModel::EFilterState::UnknownHeroId:
+	{
+		// ⚠️ Gli id si **derivano** da `ListCanonicalHeroes()`, non si scrivono qui: un roster in una
+		// stringa invecchia da solo, e un eroe aggiunto domani lascerebbe questo messaggio a mentire.
+		TArray<FString> Id;
+		for (const FRTHeroLabEntry& Voce : URTHeroLabLibrary::ListCanonicalHeroes())
+		{
+			Id.Add(Voce.HeroId.ToString());
+		}
+		return FText::FromString(FString::Printf(
+			TEXT("Nessun eroe con id \"%s\" — l'elenco a sinistra e' vuoto PER QUESTO, non perche'"
+				" l'eroe non abbia ability proprie.\nGli id canonici sono: %s"),
+			*Modello.GetHeroFilter().ToString(),
+			Id.Num() > 0 ? *FString::Join(Id, TEXT(" · ")) : TEXT("(il catalogo non ne dichiara nessuno)")));
+	}
+
+	case FRTLabViewModel::EFilterState::HeroWithEmptyKit:
+		// ⛔ L'altro modo in cui la lista resta vuota, e senza questo ramo si legge identico al precedente.
+		// `ListHeroKit` esclude le azioni core di proposito: un kit a zero voci e' un fatto del catalogo.
+		return FText::FromString(FString::Printf(
+			TEXT("%s — trovato, ma il suo kit proprio e' VUOTO: l'elenco a sinistra e' vuoto per questo."
+				" Le azioni core non ne fanno parte, per scelta.\nPV %d · MP %d · vista %d"),
+			*Eroe.HeroId.ToString(), Eroe.MaxHealth, Eroe.MovePoints, Eroe.VisionRange));
+
+	case FRTLabViewModel::EFilterState::HeroWithKit:
+		break;
 	}
 
 	return FText::FromString(FString::Printf(
@@ -201,7 +293,23 @@ FText SRTLabPanel::TestoParametri() const
 	}
 
 	TArray<FRTActionParameterView> Parametri;
-	if (Modello.DescribeSelection(Parametri) != ERTActionReadoutResult::Ok)
+	const ERTActionReadoutResult Esito = Modello.DescribeSelection(Parametri);
+
+	// `#3473`: nessuna unita' porta quest'azione col suo id, quindi un valore «letto» non esiste. Si mostra la
+	// sola casa del catalogo e si dice perche' — il «letto» di un oggetto costruito dal Lab sarebbe inventato,
+	// e il suo ⚠ un falso allarme.
+	if (Esito == ERTActionReadoutResult::CatalogOnly)
+	{
+		FString SoloCatalogo = FString::Printf(
+			TEXT("%s — solo catalogo: nessuna unita' la impugna, quindi non c'e' un valore letto"),
+			*Selezionata.ToString());
+		for (const FRTActionParameterView& P : Parametri)
+		{
+			SoloCatalogo += FString::Printf(TEXT("\n  %s: catalogo %d"), *P.ParameterKey.ToString(), P.DeclaredValue);
+		}
+		return FText::FromString(SoloCatalogo);
+	}
+	if (Esito != ERTActionReadoutResult::Ok)
 	{
 		return FText::FromString(FString::Printf(
 			TEXT("%s — il catalogo non la conosce."), *Selezionata.ToString()));
@@ -223,6 +331,25 @@ FText SRTLabPanel::TestoEsito() const
 	if (!UltimoErrore.IsEmpty())
 	{
 		return FText::FromString(FString::Printf(TEXT("⛔ %s"), *UltimoErrore));
+	}
+
+	// Lo stato dell'ultimo lancio e' del modello: si azzera a fine PIE e a ogni gesto successivo.
+	if (Modello.WasLaunchFinished())
+	{
+		// Due frasi distinte: dire «tornate com'erano» dopo un ripristino che non ha preso sarebbe falso.
+		return Modello.LastLaunchRestored()
+			? LOCTEXT("PieTerminato", "PIE terminato: le CVar sono tornate com'erano.")
+			: LOCTEXT("PieTerminatoSenzaRipristino", "PIE terminato: il ripristino di una CVar NON ha preso, vedi il log.");
+	}
+
+	const FString& IdLanciato = Modello.LaunchedScenarioId();
+	if (!IdLanciato.IsEmpty())
+	{
+		// La riga di log la scrive `FRTScenarioCoordinator` e COMINCIA cosi'; seguono turni e pausa.
+		return FText::FromString(FString::Printf(
+			TEXT("PIE richiesto per %s su L_DevSandbox.\nNel log cerca: [RT-Test] AUTO-RUN %s (da: console rt.Test.Scenario)\n"
+				 "A fine PIE le CVar tornano com'erano."),
+			*IdLanciato, *IdLanciato));
 	}
 
 	const FRTLabRunResult& Esito = Modello.LastRun();

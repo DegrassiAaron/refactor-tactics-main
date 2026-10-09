@@ -3,6 +3,7 @@
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
@@ -11,6 +12,12 @@
 #include "BaseGizmos/CombinedTransformGizmo.h"
 #include "InteractiveGizmo.h" // ETransformGizmoSubElements
 #include "Map/RTHexCellData.h" // ERTHexTransitionKind
+#include "Map/RTMapEditLibrary.h"        // DeleteElement: la REGOLA della cancellazione, una sola (#1864)
+#include "Map/RTMapDependencyLibrary.h"  // FRTMapElementHandle
+#include "RTHexSelectionStore.h"         // la selezione condivisa
+#include "Editor.h"                      // GEditor
+#include "ScopedTransaction.h"           // una gesture = un Undo
+#include "Framework/Application/SlateApplication.h" // Ctrl accumula, come in Select
 
 #define LOCTEXT_NAMESPACE "URTHexArchTool"
 
@@ -58,6 +65,37 @@ void URTHexArchTool::OnClicked(const FInputDeviceRay& ClickPos)
 	}
 	if (Properties && Properties->Operation == ERTHexArchOp::Remove)
 	{
+		// 🔑 **Ctrl SELEZIONA l'arco invece di cancellarlo** (#1864, casella 1: «un click seleziona
+		// ... una transizione»). E' lo stesso idioma di `URTHexSelectTool` — Ctrl accumula — e non
+		// tocca il gesto esistente: senza Ctrl, Remove cancella come ha sempre fatto.
+		//
+		// ⚠️ Il hit-test e' quello che questo tool possiede da sempre, ora in
+		// `RTHexEditor::NearestTransition`: la spec §13.3 assegna al tool il test di viewport degli archi,
+		// perche' `ElementsAt` risponde a «che cosa c'e' sotto questo bordo» e un arco non sta su un bordo.
+		const bool bAdditive = FSlateApplication::IsInitialized()
+			&& FSlateApplication::Get().GetModifierKeys().IsControlDown();
+
+		if (bAdditive)
+		{
+			FRTMapElementHandle Handle;
+			float Distanza = 0.f;
+			if (!RTHexEditor::NearestTransition(Actor, ClickPos, Handle, &Distanza))
+			{
+				UE_LOG(LogTemp, Log, TEXT("[HexMode] Nessun arco entro la soglia: niente da selezionare."));
+				return;
+			}
+
+			if (URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr)
+			{
+				const bool bNuovo = Store->AddHandle(Handle);
+				UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco %s (dist %.1f): %s. Selezione: %s."),
+					*Handle.Cell.ToString(), Distanza,
+					bNuovo ? TEXT("selezionato") : TEXT("gia' in selezione"),
+					*URTHexSelectionStore::Describe(Store->GetSelection()));
+			}
+			return;
+		}
+
 		RemoveNearestArch(Actor, ClickPos);
 		return;
 	}
@@ -203,8 +241,22 @@ void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransfo
 	const FVector W = InTransform.GetLocation();
 	const FRTCellId Cell = URTHexLibrary::WorldToCellId(W, Origin, HexSize, LayerH);
 	To = Cell;
-	// Valido solo se distinto da From e se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto).
-	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);
+	// Valido se distinto da From, se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto) e
+	// se la transizione e' LEGALE — l'adiacenza di layer di #1869.
+	//
+	// 🔴 **La legalita' entra QUI perche' senza di essa questo readout mentiva.** `bToValid` e' l'unico
+	// segnale che dice «Commit scrivera'»: e' `VisibleAnywhere` nel pannello, e `Render` ci appende il
+	// marker blu di destinazione e la freccia bianca. Con il solo rifiuto dentro `CommitArch`, chi
+	// trascinava su un piano non adiacente vedeva freccia e marker — cioe' *«si fa»* — e poi premeva
+	// Commit senza che accadesse niente, tranne una riga nell'Output Log che nessuno guarda.
+	//
+	// ⚠️ **E il rifiuto in `CommitArch` NON diventa per questo ridondante**: questo flag si calcola quando
+	// il gizmo si muove, e il `Kind` lo si cambia nel pannello **senza muoverlo**. Trascinare su `L2` con
+	// `Bridge` (legale, freccia accesa) e poi scegliere `Stair` lascia `bToValid` vero e stantio: il gate
+	// al momento della scrittura e' l'unico che vede il `Kind` finale. Sono due momenti, non due copie.
+	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From)
+		&& URTHexArcLibrary::IsTransitionLayerSpanLegal(From, Cell,
+			Properties ? Properties->Kind : ERTHexTransitionKind::Stair);
 	ToWorld = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
 
 	// Ri-snap al centro della cella. Si scrive sul GIZMO, non sul proxy, e non e' una preferenza:
@@ -241,6 +293,27 @@ void URTHexArchTool::CommitArch()
 		return;
 	}
 	const ERTHexTransitionKind Kind = Properties ? Properties->Kind : ERTHexTransitionKind::Stair;
+
+	// ⛔ RIFIUTO AL GESTO (#1869): in v0.1 una scala collega solo layer adiacenti.
+	//
+	// 🔑 E' lo STESSO predicato che `ValidateMapDetailed` applica alla collezione, chiamato qui perche' i due
+	// strati sono due momenti: qui si impedisce di scriverla, la' si segnala quella che c'e' gia' — dentro un asset
+	// di versione precedente, o ricostruito. Uno non sostituisce l'altro.
+	//
+	// ⚠️ Si esce SENZA distruggere il gizmo pendente, come fa il rifiuto qui sopra: il gesto resta aperto e
+	// chi ha mirato il piano sbagliato trascina sul giusto, invece di ricominciare.
+	if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind))
+	{
+		// La diagnosi porta i DUE layer e il salto, non «non valido» (#1869, Debug/Logging). I layer
+		// viaggiano dentro `FRTCellId::ToString`, che stampa gia' `L=%d`: ripeterli sarebbe rumore.
+		UE_LOG(LogTemp, Warning,
+			TEXT("[HexMode] Arco RIFIUTATO: scala da %s a %s: salta %d layer. ")
+			TEXT("In v0.1 una scala collega solo layer adiacenti."),
+			*From.ToString(), *To.ToString(),
+			URTHexArcLibrary::TransitionLayerSpan(From, To));
+		return;
+	}
+
 	const int32 Cost = Properties ? Properties->Cost : 2;
 	const bool bBidir = Properties ? Properties->bBidirectional : true;
 	TargetActor->AddTransitionData(From, To, Cost, Kind, bBidir);
@@ -282,11 +355,30 @@ void URTHexArchTool::RemoveNearestArch(ARTHexMapActor* Actor, const FInputDevice
 
 	if (BestIdx != INDEX_NONE && BestDist <= HexSize * 0.6f)
 	{
-		// Copia From/To PRIMA di rimuovere (RemoveTransitionData muta l'array Transitions).
+		// Copia From/To PRIMA di rimuovere (la rimozione muta l'array `Transitions`).
 		const FRTCellId F = Map->Transitions[BestIdx].From;
 		const FRTCellId T = Map->Transitions[BestIdx].To;
-		Actor->RemoveTransitionData(F, T, /*bBothDirections=*/true);
-		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco rimosso %s -> %s (dist %.1f)."), *F.ToString(), *T.ToString(), BestDist);
+
+		// 🔑 **Si passa da `DeleteElement`, non da `RemoveTransitionData`** (#1864). Il gesto per chi
+		// guarda e' identico — un click in Remove toglie l'arco — ma la REGOLA di che cosa muore
+		// cancellando un elemento autorato ora vive in **un posto solo**, per ogni tipo. Due
+		// implementazioni della stessa regola sono il modo in cui la regola diverge, ed e' il vincolo che
+		// il corpo di #712 dichiarava gia' per il validator e la cottura.
+		//
+		// ⚠️ E la transazione la apre **questo** chiamante: `URTMapEditLibrary` dichiara di non
+		// aprirne (`RTMapEditLibrary.h`), cosi' la cascata resta un solo Ctrl+Z.
+		URTHexMapAsset* Scrivibile = Actor->MapAsset;
+		const FScopedTransaction Transaction(
+			NSLOCTEXT("RTHexArchTool", "RemoveArch", "Cancella un arco di transizione"));
+		Scrivibile->Modify();
+
+		const ERTMapEditOutcome Esito =
+			URTMapEditLibrary::DeleteElement(Scrivibile, FRTMapElementHandle::ForTransition(F, T));
+
+		Actor->RebuildInstances();
+		// ⚠️ La RAGIONE, non il numero: `esito 4` obbliga chi legge ad aprire l'enum e contare (#1864).
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco %s -> %s (dist %.1f): %s."),
+			*F.ToString(), *T.ToString(), BestDist, *URTMapEditLibrary::DescribeOutcome(Esito));
 	}
 	else
 	{
@@ -300,21 +392,33 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
 	if (!PDI) { return; }
 
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+	{
+		// ⌫ **Il parametro `bIncludeTransitions` non esiste piu'** (#1768). Serviva a non vedere doppie le
+		// frecce, perche' questo tool le disegnava anche per conto proprio; ora le disegna **solo**
+		// `DrawTransitions`, una volta, per tutti e sette gli strumenti.
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+	}
+
+	// 🔑 **Le transizioni, con QUALUNQUE strumento attivo e senza dipendere da un toggle** (#1768).
+	// Fuori dal blocco qui sopra di proposito: `bShowSurfaceOverlay` spegne i marcatori di superficie,
+	// che sono una preferenza di chi dipinge — un arco assente dallo schermo e' invece una mappa che
+	// mente per omissione, ed e' il difetto che #1768 chiude.
+	RTHexEditor::DrawTransitions(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+
+	// 🔑 **La selezione condivisa si vede anche da qui** (#1864, casella 2). Senza, lo store era
+	// condiviso per COSTRUZIONE — un `UEditorSubsystem` fuori dai property set — e per NESSUN
+	// consumatore: solo Select lo leggeva e lo disegnava. Un elemento selezionato che sparisce cambiando
+	// strumento e' il difetto di #921 nella sua forma di selezione.
+	RTHexEditor::DrawSharedSelection(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+
 	const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
 
-	// Transizioni esistenti (solo se l'asset e' popolato).
-	if (Actor && Actor->MapAsset)
-	{
-		const FVector Origin = Actor->GetActorLocation();
-		const float HexSize = Actor->MapAsset->HexSize;
-		const float LayerH = Actor->MapAsset->LayerHeight;
-		for (const FRTHexEdge& E : Actor->MapAsset->Transitions)
-		{
-			const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
-			const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
-			RTHexEditor::DrawArrow(PDI, A, B, RTHexEditor::TransitionKindColor(E.Kind));
-		}
-	}
+	// ⌫ **Il ciclo che disegnava qui le transizioni e' stato rimosso** (#1768). Era l'ultimo residuo del
+	// difetto: le frecce di questo tool erano incondizionate, quelle dell'overlay no, e a overlay spento
+	// restava vero che *«un arco si vede solo mentre il tool Arch e' aperto»*. Ora la sede e' una sola —
+	// `DrawTransitions`, chiamata qui sopra come dagli altri sei — e porta anche i due canali per `Kind` e
+	// per `State` che questo ciclo non aveva.
 
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)

@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h" // AimOriginCell: la portata con uno scatto pianificato ([D-464])
 #include "Terrain/RTTerrainLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
@@ -372,6 +373,89 @@ bool FRTCombatTargetReasonTest::RunTest(const FString&)
 }
 
 /**
+ * LA PORTATA E IL VERDETTO DEL CLICK CONCORDANO SU OGNI CELLA - `#3507`.
+ *
+ * 🔑 L'anteprima della portata non deve promettere una cella che il click su una cella (`HandleTargetCell`, cioe'
+ * `DescribeCellTargetRefusal`) rifiuterebbe perche' lontana o su un altro piano. E' in portata se il click non la
+ * rifiuta, o la rifiuta solo per copertura: la portata non e' la vista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetableRangeCellsTest,
+	"RefactorTactics.Combat.TargetableRangeCellsAgreeWithTheClickVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTargetableRangeCellsTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0, 0);
+	constexpr int32 Portata = 3;
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 5);
+
+	// Un muro in portata: la cella dietro resta in portata, perche' a fermarla e' la vista e non la distanza.
+	FRTHexCellData Wall(FRTCellId(1, 0, 0));
+	Wall.bBlocksLineOfSight = true;
+	Map->AddOrUpdateCell(Wall);
+	// Una cella su un secondo piano, sopra una cella in portata: da qui non e' in portata.
+	Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 1, 1)));
+	Map->SortCells();
+
+	const TArray<FRTCellId> Range =
+		URTCombatLibrary::TargetableRangeCells(Map, From, Portata, ERTLineOfSightPolicy::Required);
+	if (!TestTrue(TEXT("premessa: la portata non e' vuota"), Range.Num() > 0))
+	{
+		return false;
+	}
+
+	int32 Coperte = 0;
+	for (const FRTHexCellData& Data : Map->Cells)
+	{
+		const FRTCellTargetRefusal Click = URTCombatLibrary::DescribeCellTargetRefusal(
+			Map, From, Data.Id, Portata, ERTLineOfSightPolicy::Required);
+		const bool bClickInPortata = Click.Refusal == ERTTargetRefusal::None || Click.Refusal == ERTTargetRefusal::Cover;
+		TestEqual(*FString::Printf(TEXT("cella (%d,%d,L%d): portata e click concordano"), Data.Id.X, Data.Id.Y,
+				Data.Id.Layer),
+			Range.Contains(Data.Id), bClickInPortata);
+		if (bClickInPortata && Click.Refusal == ERTTargetRefusal::Cover)
+		{
+			++Coperte;
+		}
+	}
+	TestTrue(TEXT("una cella dietro il muro e' in portata, anche se il click la rifiuta per copertura"), Coperte > 0);
+	TestFalse(TEXT("la cella del secondo piano non e' in portata"), Range.Contains(FRTCellId(0, 1, 1)));
+	TestFalse(TEXT("una cella oltre la portata non c'e'"), Range.Contains(FRTCellId(-(Portata + 1), 0, 0)));
+	TestTrue(TEXT("una al limite si'"), Range.Contains(FRTCellId(-Portata, 0, 0)));
+	TestEqual(TEXT("senza mappa la portata e' vuota"),
+		URTCombatLibrary::TargetableRangeCells(nullptr, From, Portata, ERTLineOfSightPolicy::Required).Num(), 0);
+
+	// ── [D-464] (`#3509`): CON UNO SCATTO PIANIFICATO portata e click partono dalla stessa origine per fase, e
+	// concordano anche da li'. Le due origini attese sono scritte a mano: un `Attack` mira da dove lo scatto arriva,
+	// un `Environment` da dove l'unita' sta.
+	const FRTCellId Scatto(-2, 0, 0);
+	for (const ERTResolutionPhase Fase : { ERTResolutionPhase::Attack, ERTResolutionPhase::Environment })
+	{
+		const FRTCellId Origine = URTHexCombatLibrary::AimOriginCell(Fase, From, /*bDashResolves=*/ true,
+			/*bDashIsCharge=*/ false, Scatto);
+		const FString Nome = UEnum::GetValueAsString(Fase);
+		TestEqual(*FString::Printf(TEXT("%s: l'origine con lo scatto"), *Nome), Origine,
+			Fase == ERTResolutionPhase::Attack ? Scatto : From);
+		const TArray<FRTCellId> DallOrigine =
+			URTCombatLibrary::TargetableRangeCells(Map, Origine, Portata, ERTLineOfSightPolicy::Required);
+		for (const FRTHexCellData& Data : Map->Cells)
+		{
+			const ERTTargetRefusal Rifiuto = URTCombatLibrary::DescribeCellTargetRefusal(
+				Map, Origine, Data.Id, Portata, ERTLineOfSightPolicy::Required).Refusal;
+			TestEqual(*FString::Printf(TEXT("%s, cella (%d,%d,L%d): portata e click concordano"), *Nome, Data.Id.X,
+					Data.Id.Y, Data.Id.Layer),
+				DallOrigine.Contains(Data.Id),
+				Rifiuto == ERTTargetRefusal::None || Rifiuto == ERTTargetRefusal::Cover);
+		}
+	}
+	// E le due portate DIFFERISCONO: senza, la concordanza qui sopra varrebbe anche con un'origine sola.
+	TestTrue(TEXT("dallo scatto la portata arriva dove da qui non arriva"),
+		URTCombatLibrary::TargetableRangeCells(Map, Scatto, Portata, ERTLineOfSightPolicy::Required)
+			.Contains(FRTCellId(-5, 0, 0))
+		&& !Range.Contains(FRTCellId(-5, 0, 0)));
+	return true;
+}
+
+/**
  * `CP 19.3` / `#1124` — il GRUPPO DI CONTROLLO partiziona la squadra.
  *
  * La squadra dice contro chi si combatte; il gruppo dice CHI, fra i giocatori di quella squadra, comanda una
@@ -644,6 +728,81 @@ bool FRTOutOfRangeDiagnosticNamesAppliedLimitTest::RunTest(const FString&)
 		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, /*bNoto=*/ true),
 		ERTTargetRefusal::Range);
 
+	return true;
+}
+
+/**
+ * Ogni motivo del classificatore ha una traduzione DICHIARATA — `#3064`.
+ *
+ * 🔴 **Nasce perche' la garanzia che il commento prometteva non esiste.** Lo `switch` di `RefusalForReason`
+ * non ha `default:`, e il commento diceva che `-Wswitch` avrebbe rotto la build: MSVC emette C4061/C4062,
+ * la build non li alza, e in `ARTHUD::RefusalText` due valori sono entrati a due issue di distanza fino a
+ * far ASSERIRE il gioco (`#3080`). Da `#3064` la tabella e' sul percorso ordinario di OGNI click a cella,
+ * quindi la posta e' piu' alta, non piu' bassa.
+ *
+ * ⛔ **Il confronto viene PRIMA di ogni chiamata**, come in `HUD.RefusalTextCoversEveryOutcome`: un motivo
+ * scoperto ucciderebbe il runner dentro `checkNoEntry()`, e un processo morto non riporta il proprio
+ * fallimento. Qui si fallisce prima di sparare, e il messaggio nomina il valore mancante.
+ *
+ * ⚠️ Si passa il flag di conoscenza a `true` perche' questa e' una prova sulla TABELLA: col flag a
+ * `false` ogni motivo collasserebbe su `Nothing` e il test sarebbe verde per un valore qualsiasi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalCoversEveryReasonTest,
+	"RefactorTactics.Combat.RefusalCoversEveryReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalCoversEveryReasonTest::RunTest(const FString&)
+{
+	// La tabella ATTESA, dichiarata qui e non derivata dal codice sotto prova: una tabella che si
+	// ricalcolasse dall'implementazione sarebbe verde per definizione.
+	struct FAtteso { ERTHexTargetReason Reason; ERTTargetRefusal Refusal; };
+	const TArray<FAtteso> Attesi = {
+		{ ERTHexTargetReason::Ok,            ERTTargetRefusal::None       },
+		{ ERTHexTargetReason::NoMap,         ERTTargetRefusal::Nothing    }, // fail-closed
+		{ ERTHexTargetReason::OutOfRange,    ERTTargetRefusal::Range      },
+		{ ERTHexTargetReason::NoLineOfSight, ERTTargetRefusal::Cover      },
+		{ ERTHexTargetReason::TooClose,      ERTTargetRefusal::TooClose   },
+		{ ERTHexTargetReason::OtherLayer,    ERTTargetRefusal::OtherLayer },
+	};
+
+	const UEnum* Enum = StaticEnum<ERTHexTargetReason>();
+	if (!TestNotNull(TEXT("la reflection conosce ERTHexTargetReason"), Enum)) { return false; }
+
+	// `NumEnums() - 1`: l'ultima voce e' il `_MAX` sintetico che UHT aggiunge, e non e' un motivo.
+	const int32 Valori = Enum->NumEnums() - 1;
+	if (!TestTrue(TEXT("anti-vacuita': la reflection vede almeno un valore"), Valori > 0)) { return false; }
+
+	TArray<FString> NonElencati;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const ERTHexTargetReason R = static_cast<ERTHexTargetReason>(Enum->GetValueByIndex(i));
+		if (!Attesi.ContainsByPredicate([R](const FAtteso& A) { return A.Reason == R; }))
+		{
+			NonElencati.Add(Enum->GetNameStringByIndex(i));
+		}
+	}
+	if (!TestTrue(*FString::Printf(TEXT("ogni motivo ha una traduzione dichiarata; scoperti: [%s]"),
+		*FString::Join(NonElencati, TEXT(", "))), NonElencati.Num() == 0))
+	{
+		return false; // ⛔ non si prosegue: chiamare da qui in poi sarebbe fatale
+	}
+	TestEqual(TEXT("la tabella non porta motivi fantasma"), Attesi.Num(), Valori);
+
+	// --- E ora si chiama, con la certezza che nessun motivo sia scoperto -------------------------------
+	for (const FAtteso& A : Attesi)
+	{
+		const FString Nome = Enum->GetNameStringByValue(static_cast<int64>(A.Reason));
+		TestEqual(*FString::Printf(TEXT("%s si traduce come dichiarato"), *Nome),
+			URTCombatLibrary::RefusalForObserver(A.Reason, /*bTargetKnownToObserver=*/ true), A.Refusal);
+
+		// ⛔ **`Nothing` e' riservato al velo e al fail-closed.** Un motivo che ci finisse per sbaglio
+		// tacerebbe a schermo (`RefusalText` restituisce la stringa vuota) e sembrerebbe privacy: e' il modo
+		// piu' silenzioso in cui questa tabella puo' rompersi.
+		if (A.Reason != ERTHexTargetReason::NoMap)
+		{
+			TestTrue(*FString::Printf(TEXT("%s non collassa sul silenzio del velo"), *Nome),
+				A.Refusal != ERTTargetRefusal::Nothing);
+		}
+	}
 	return true;
 }
 

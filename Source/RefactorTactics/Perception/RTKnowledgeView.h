@@ -132,7 +132,10 @@ struct FRTKnowledgeView
  *
  * Pura e headless: nessun Actor, nessun `UWorld`, nessuno snapshot. E' anche la ragione per cui NON prende
  * `FRTHexSnapshot`: `MakeCurrentSnapshot` fa `GetAllActorsOfClass` e due `Sort`, e il disegno gira a ogni
- * frame; inoltre `FRTHexSimUnit` non porta `TeamId`, quindi non basterebbe.
+ * frame. ⌫ **La seconda ragione che questa riga portava e' SCADUTA**: diceva *«inoltre `FRTHexSimUnit`
+ * non porta `TeamId`, quindi non basterebbe»*, e quel campo esiste — `Turn/RTHexSim.h`, `int32 TeamId`,
+ * dal 2026-09-11 con `#2793`. La prima ragione regge da sola ed e' quella vera; la seconda, lasciata li',
+ * avrebbe insegnato al prossimo autore un fatto falso sulla struct che avrebbe dovuto usare (`#1500`).
  */
 UCLASS()
 class REFACTORTACTICS_API URTKnowledgeViewLibrary : public UBlueprintFunctionLibrary
@@ -140,6 +143,23 @@ class REFACTORTACTICS_API URTKnowledgeViewLibrary : public UBlueprintFunctionLib
 	GENERATED_BODY()
 
 public:
+	/**
+	 * La vista di un osservatore sui soggetti dati.
+	 *
+	 * ⚠️ **Salta i soggetti non vivi, e la regola che glielo impone e' [D-431]** (`#1498`), non il commento
+	 * nel corpo. La regola governa i canali calcolati **in lettura** — velo, modello, sagoma del contatto —
+	 * e **non** il combat log, che da [D-223] porta il verdetto congelato alla scrittura.
+	 *
+	 * 🔴 **Chi tocca quella guardia cambia il VELO, non il log**: in produzione questa funzione ha **un solo**
+	 * chiamante, `UvViewForObserver` dentro `ARTHUD::UpdateObserverVeil`.
+	 * Toglierla per *«far tornare le righe del turno di chi muore»* non restituisce **nessuna** riga: quel
+	 * difetto e' chiuso altrove, da [D-223].
+	 *
+	 * ⚠️ **E oggi non restituirebbe nemmeno un morto sull'overlay**, perche' il ciclo che consuma la vista
+	 * salta gia' i caduti (`if (!Unit || !Unit->IsAlive())`, nella stessa funzione). La guardia e'
+	 * **difesa in profondita'**, non un carico portante — e [D-431] la tiene per questo, non per un
+	 * effetto che non ha.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Knowledge")
 	static FRTKnowledgeView ViewForTeam(const FRTTeamKnowledge& Knowledge,
 		const TArray<FRTKnowledgeSubject>& Subjects, int32 ObserverTeamId);

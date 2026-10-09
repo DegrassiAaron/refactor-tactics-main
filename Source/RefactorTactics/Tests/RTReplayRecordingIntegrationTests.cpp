@@ -379,4 +379,86 @@ bool FRTReplayCostlyTerrainRoundTripTest::RunTest(const FString&)
 }
 
 
+/**
+ * Il rifiuto di `BeginReplayRecording` si DICHIARA, e dice QUALE delle due guardie ha chiuso (`#3463`).
+ *
+ * Nasce da un difetto che si e' rivelato un difetto di MISURA: su un pacchetto una partita completa
+ * sembrava non registrare, e la causa era che `FPaths::ProjectSavedDir()` di un build staged non e' il
+ * `Saved/` del repository -- gli archivi c'erano, nel posto giusto, e chi guardava era nel posto
+ * sbagliato. 🔑 Ma l'istruttoria ha trovato il buco vero: quel `return` era **muto**, quindi fra
+ * «non ha registrato» e «ho guardato male» non c'era modo di distinguere dal log. Ora c'e'.
+ *
+ * ⛔ **FALSIFICAZIONE**: togliere uno dei due `UE_LOG` fa fallire questo test con *«Expected ('Display')
+ * level log message ... but it was found 0 time(s)»*. Senza questa riga la casella «l'uscita non e' piu'
+ * silenziosa» sarebbe un'affermazione invece di un fatto.
+ *
+ * ⚠️ **`AddExpectedMessagePlain` e non `AddExpectedMessage`**: il secondo interpreta il pattern come
+ * **regex** per default, e i messaggi contengono `(` e `)` -- un pattern che non matcherebbe mai, cioe'
+ * un test rosso per la ragione sbagliata.
+ *
+ * ⚠️ **E `Occurrences = 1`, non `-1`**: `-1` vuol dire «ignora», ed e' cosa fanno le due dichiarazioni
+ * in `RTFrontendMainMenuTests` -- quelle **sopprimono** rumore, questa **asserisce**. Un `-1` qui
+ * renderebbe il test verde anche a log cancellato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayRefusalIsDeclaredTest,
+	"RefactorTactics.Replay.Recording.RefusalIsDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayRefusalIsDeclaredTest::RunTest(const FString&)
+{
+	const FString Root = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RecRefusal"));
+	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+
+	UWorld* World = MakeRecWorld();
+	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
+
+	SpawnRecMap(World, /*Radius=*/ 4);
+	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+
+	FRTMatchRules Rules;
+	Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+
+	// ⚠️ Le due dichiarazioni **non sono scopate** al blocco che le segue: vivono per tutto il `RunTest`.
+	// Stanno accanto al loro caso per leggibilita', non perche' il framework le delimiti.
+	AddExpectedMessagePlain(TEXT("il formato non e' risolto"), ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+	AddExpectedMessagePlain(TEXT("bRecordReplay e' false"), ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+
+	// --- guardia 1: nessun formato risolto, registrazione accesa ---
+	ARTTurnManager* SenzaFormato = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("TurnManager senza formato"), SenzaFormato)) { DestroyRecWorld(World); return false; }
+	SenzaFormato->ReplaysRootOverride = Root;
+	SenzaFormato->BeginReplayRecording();
+	TestFalse(TEXT("senza formato: nessun id di registrazione"), SenzaFormato->GetReplayMatchId().IsValid());
+
+	// --- guardia 2: formato risolto, ma registrazione SPENTA ---
+	// 🔑 Il formato c'e' **di proposito**: e' cio' che costringe la seconda guardia a essere quella che
+	// risponde. Senza, i due messaggi sarebbero indistinguibili e `!A || B` tornerebbe a non dire quale.
+	ARTTurnManager* Spenta = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("TurnManager a registrazione spenta"), Spenta)) { DestroyRecWorld(World); return false; }
+	Spenta->ReplaysRootOverride = Root;
+	Spenta->SetMatchRules(Rules);
+	Spenta->bRecordReplay = false;
+	Spenta->BeginReplayRecording();
+	TestFalse(TEXT("a registrazione spenta: nessun id"), Spenta->GetReplayMatchId().IsValid());
+
+	// --- controllo POSITIVO ---
+	// ⛔ Senza questa parte i due `TestFalse` sopra sarebbero verdi anche se `BeginReplayRecording` si
+	// rifiutasse **sempre**, cioe' su una funzione completamente rotta.
+	ARTTurnManager* Buona = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("TurnManager in regola"), Buona)) { DestroyRecWorld(World); return false; }
+	Buona->ReplaysRootOverride = Root;
+	Buona->SetMatchRules(Rules);
+	Buona->BeginReplayRecording();
+	TestTrue(TEXT("controllo positivo: con formato e registrazione accesa l'id esiste"),
+		Buona->GetReplayMatchId().IsValid());
+
+	DestroyRecWorld(World);
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+	return true;
+}
+
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -171,8 +171,10 @@ def _alberi_processi():
         esito = subprocess.run(
             [PWSH, "-NoProfile", "-NonInteractive", "-Command",
              "Get-CimInstance Win32_Process | "
-             "Select-Object ProcessId,ParentProcessId,Name,CommandLine | "
-             "ForEach-Object { '{0};{1};{2};{3}' -f $_.ProcessId,$_.ParentProcessId,$_.Name,"
+             "Select-Object ProcessId,ParentProcessId,Name,ThreadCount,WorkingSetSize,CommandLine | "
+             "ForEach-Object { '{0};{1};{2};{3};{4};{5};{6}' -f $_.ProcessId,$_.ParentProcessId,$_.Name,"
+             "$_.ThreadCount,$_.WorkingSetSize,"
+             "$(if ($_.Name -like 'Unreal*') { [int](-not (Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue)) }),"
              "$(if ($_.Name -like 'Unreal*') { $_.CommandLine }) }"],
             capture_output=True, text=True, errors="replace")
     except OSError:
@@ -185,35 +187,42 @@ def _alberi_processi():
 
 
 def _parse_processi(righe):
-    """PURA. `{'motori': {pid}, 'padre': {pid: ppid}, 'livecoding': {pid: ppid}}`.
+    """PURA. `{'motori': {pid}, 'padre': {pid: ppid}, 'motori_info': {pid: (nome, cmdline, thread, memoria, uscito)}}`.
 
-    🔴 **Separata da `_alberi_processi` perche' i due filtri sono la sostanza, e senza
-    questa firma nessun test li vede**: `classifica_livecoding` riceve il dict GIA' costruito,
-    quindi togliere un filtro da qui non farebbe cadere nessun caso che parte dal dict.
+    Una riga e' `pid;ppid;nome;thread;memoria;uscito;cmdline`. `thread` e `memoria` sono `ThreadCount` e
+    `WorkingSetSize` di `Win32_Process`, gli stessi valori di `Threads.Count` e `WorkingSet64` di `Get-Process`.
+    `uscito` e' `1` se `Get-Process -Id` non trova il processo, `0` se lo trova, vuoto per chi non e' un motore:
+    e' cio' che distingue lo zombie ([D-473]). Una riga di tre campi resta accettata senza info: e' la forma dei
+    casi del self-test che non ne hanno bisogno.
+
+    🔴 **Separata da `_alberi_processi` perche' il filtro e' la sostanza, e senza questa firma
+    nessun test lo vede**: `detentori_live_coding` riceve il dict GIA' costruito, quindi togliere il
+    filtro da qui non farebbe cadere nessun caso che parte dal dict.
     """
-    motori, padre, livecoding, motori_info = set(), {}, {}, {}
+    motori, padre, motori_info = set(), {}, {}
     for riga in righe:
-        # ⚠️ `maxsplit=3`: una `CommandLine` contiene `;`, e rispezzarla la troncherebbe.
-        # Il quarto campo si prende INTERO. Tre campi restano accettati: e' la forma che la query
-        # emetteva prima, e i casi del self-test che non hanno bisogno della CommandLine la usano.
-        campi = riga.strip().split(";", 3)
+        # ⚠️ `maxsplit=6`: una `CommandLine` contiene `;`, e rispezzarla la troncherebbe. Sta per
+        # ULTIMA apposta, e il settimo campo si prende INTERO.
+        campi = riga.strip().split(";", 6)
         if len(campi) < 3 or not campi[0].isdigit():
             continue
         pid, ppid, nome = int(campi[0]), int(campi[1]) if campi[1].isdigit() else 0, campi[2]
-        cmdline = campi[3] if len(campi) > 3 else None
+        thread = int(campi[3]) if len(campi) > 3 and campi[3].isdigit() else None
+        memoria = int(campi[4]) if len(campi) > 4 and campi[4].isdigit() else None
+        # Un campo che non e' `0` ne' `1` non dice niente: e' `None`, e uno zombie non si deduce da un vuoto.
+        uscito = {"1": True, "0": False}.get(campi[5]) if len(campi) > 5 else None
+        cmdline = campi[6] if len(campi) > 6 and campi[6] else None
         padre[pid] = ppid
         if "UnrealEditor" in nome:
             motori.add(pid)
-            # #3044: il NOME dice interattivo contro headless, la `CommandLine` dice
-            # `-NoLiveCoding`. Sono i due dati che `D-400` richiede per poter terminare.
-            motori_info[pid] = (nome, cmdline)
-        # 🔴 #2392: `LiveCodingConsole` NON contiene `UnrealEditor`, e tiene lo stesso lock
-        # di compilazione. Letto QUI, nella stessa passata, perche' due query correlate non
-        # concordano: fra due campioni un processo nasce o muore.
-        if "LiveCoding" in nome:
-            livecoding[pid] = ppid
-    return {"motori": motori, "padre": padre, "livecoding": livecoding,
-            "motori_info": motori_info}
+            # Il NOME dice interattivo contro headless, la `CommandLine` quale clone: e' cio' che
+            # `build()` nomina quando il lock di Live Coding rifiuta la build ([D-469]).
+            motori_info[pid] = (nome, cmdline, thread, memoria, uscito)
+        # ⌫ *Fino a [D-469] qui si raccoglievano anche i `LiveCodingConsole`* (#2392), nella
+        # convinzione che tenessero il lock di compilazione. Misurato il 2026-10-07: non lo tengono.
+        # Il lock e' un mutex che ogni `UnrealEditor.exe` crea nel proprio processo, e la console
+        # muore da sola con l'ultimo processo del suo gruppo.
+    return {"motori": motori, "padre": padre, "motori_info": motori_info}
 
 
 def _discende_da(pid, radici, padre, profondita=24):
@@ -539,7 +548,7 @@ def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None,
     avvio = subprocess.Popen(
         [engine_cmd, uproject,
          "-ExecCmds=Automation RunTests " + filtro + ";Quit",
-         "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoLiveCoding",
+         "-unattended", "-nopause", "-nosplash", "-nullrhi",
          "-log=" + os.path.basename(log_path)],
         stdout=uscita_grezza, stderr=subprocess.STDOUT)
 
@@ -671,92 +680,98 @@ LOCK_LIVE_CODING = "Unable to build while Live Coding is active"
 CONTESA = (LOCK_LIVE_CODING, "waiting for another instance", "mutex")
 
 
-def classifica_livecoding(livecoding, vivi):
-    """PURA. Chi tiene il lock di Live Coding. Torna `(stato, orfani)`.
+def detentori_live_coding(motori):
+    """PURA. Chi puo' tenere il lock che UBT controlla per il target Editor: `[(pid, cmdline)]`.
 
-    `livecoding`: `{pid: ppid}` dei processi `LiveCoding*`, o `None` se l'enumerazione e' fallita.
-    `vivi`: i pid visti nello STESSO campione. `stato`: `sconosciuto` | `assente` | `orfano` |
-    `attivo`. `orfani`: `[(pid, ppid)]` ordinati, vuoto quando lo stato non e' `orfano`.
+    `motori`: `{pid: (nome, cmdline)}` dei processi `UnrealEditor*` vivi nello stesso campione.
 
-    🔴 **`sconosciuto` NON e' `assente`**, per la stessa ragione per cui `processi_motore()`
-    torna `None` invece di `[]`: un'enumerazione fallita che dicesse «nessun LiveCoding» direbbe
-    «non c'e' un orfano» per dire «non lo so».
-
-    🔑 **Un orfano accanto a un attivo vince.** Due cloni, uno ha chiuso l'Editor e l'altro
-    no: il lock dell'orfano resta comunque, e nessuna attesa lo rilascia.
+    🔑 **Solo `UnrealEditor.exe`, vivo o zombie** ([D-469]). Il lock e' il mutex
+    `Global\\LiveCoding_` + il percorso dell'eseguibile (`HotReload.IsLiveCodingSessionActive`), e
+    ogni processo lo crea col nome del PROPRIO eseguibile (`FLiveCodingModule::StartLiveCoding`):
+    un `UnrealEditor-Cmd.exe` non puo' tenere quello dell'Editor. Una `LiveCodingConsole` non lo
+    tiene affatto: misurato il 2026-10-07, con la console orfana viva una build in un altro clone
+    passa il controllo e compila.
     """
-    if livecoding is None:
-        return "sconosciuto", []
-    if not livecoding:
-        return "assente", []
-    orfani = sorted((pid, ppid) for pid, ppid in livecoding.items() if ppid not in vivi)
-    return ("orfano" if orfani else "attivo"), orfani
+    return sorted((pid, info[1]) for pid, info in motori.items()
+                  if info[0].lower() == "unrealeditor.exe")
 
 
-def puo_terminare_orfano(motori):
-    """PURA. `(True, ragione)` se NESSUN motore vivo puo' star usando Live Coding — `D-400`.
+# 🔑 **Lo ZOMBIE e' un processo con un thread solo, USCITO oppure con al massimo 1 MB** ([D-476]): le due forme
+# misurate, unite.
+#
+# - **Uscito** ([D-473]): un `UnrealEditor.exe` la cui terminazione non si e' chiusa. `Get-Process -Id` non lo trova
+#   piu' e `HasExited` vale `True`, ma `Win32_Process` lo elenca, con un thread e gli handle ancora aperti: il mutex
+#   di Live Coding e il lock sul `.dll` fra questi. Puo' tenere GB per piu' di un'ora: il 2026-09-02 uno con 4,27 GB,
+#   il 2026-10-07 il pid 56772 con 0,9 GB di working set e 5,4 GB di commit.
+# - **Al massimo 1 MB** ([D-472]): l'ancora di `AGENTS.md` §*Build Editor* (2026-08-24, ~0,2 MB). Nessuno annoto' se
+#   `Get-Process -Id` la trovasse, e un Editor fermo nella propria chiusura, prima che il codice d'uscita sia scritto,
+#   e' ancora «trovato». ⌫ *Con la sola uscita, fra [D-473] e [D-476], quella forma era «fuori dai dati».*
+#
+# ⚠️ Il prezzo e' quello gia' accettato da [D-472]: un processo appena partito ha un thread e poca memoria. Un thread
+# solo in un processo non uscito con piu' di 1 MB resta «fuori dai dati».
+#
+# L'Editor VIVO resta l'ancora del 2026-09-11 (93 thread, ~3,6 GB), visibile a `Get-Process`: il limite sulla
+# memoria serve solo a dire «vivo» invece di «fuori dai dati», e quella e' una differenza di stampa. Decide solo
+# lo zombie.
+ZOMBIE_THREAD = 1
+ZOMBIE_MEMORIA_MAX = 1024 * 1024            # 1 MB: cinque volte l'ancora del 2026-08-24, e nessun Editor vivo ci sta
+VIVO_MEMORIA_MIN = 1024 * 1024 * 1024       # 1 GB: un terzo dell'ancora dell'Editor vivo
 
-    `motori`: `{pid: (nome, cmdline)}` dei processi `UnrealEditor*` vivi.
 
-    🔑 **Il criterio e' la `CommandLine`, non il nome, e la differenza e' il caso che ha
-    motivato #2392**: il 2026-09-05 era vivo esattamente un motore, un `UnrealEditor-Cmd` di
-    automation lanciato con `-NoLiveCoding`. Un processo che non usa Live Coding non e' una
-    ragione per conservare l'orfano — e leggere «nessun `UnrealEditor*` vivo» alla lettera
-    avrebbe lasciato quel caso irrisolto.
+def stato_del_detentore(thread, memoria, uscito):
+    """PURA. Un detentore del lock: `zombie` | `vivo` | `fuori dai dati`.
 
-    ⛔ **`D-400` NON autorizza a terminare un `LiveCodingConsole` col padre vivo**, in nessun
-    caso: quella e' la seduta di qualcuno. Questa funzione risponde solo alla seconda domanda,
-    su un processo gia' classificato `orfano`.
+    🔑 **Lo zombie e' l'unico stato che cambia cosa fa `build()`**: si ferma, perche' nessuna attesa rilascia un
+    mutex che il processo morto non chiudera'. E' un processo con un thread solo, uscito oppure con al massimo 1 MB
+    ([D-476]).
 
-    ⚠️ Fail-closed due volte: una `CommandLine` illeggibile e una run headless senza il
-    flag valgono entrambe «non posso escluderlo», non «non lo usa».
+    ⛔ **Ogni ramo decide coi propri dati.** L'uscita vale solo se e' nota, e la memoria solo se e' letta: un dato
+    mancante non fa uno zombie, e senza l'altro ramo e' «fuori dai dati». Lo stesso per un thread solo in un
+    processo non uscito con piu' di 1 MB, e per molti thread in uno uscito, che sta chiudendo.
     """
-    for pid, (nome, cmdline) in sorted(motori.items()):
-        if "-Cmd" not in nome:
-            return False, "Editor interattivo vivo: pid %d (%s)" % (pid, nome)
-        if not cmdline:
-            return False, "pid %d: CommandLine illeggibile, non lo posso escludere" % pid
-        if "-nolivecoding" not in cmdline.lower():
-            return False, "pid %d: run headless senza -NoLiveCoding" % pid
-    return True, "nessun motore vivo puo' usare Live Coding"
+    if thread is None:
+        return "fuori dai dati"
+    if thread == ZOMBIE_THREAD and (uscito is True or (memoria is not None and memoria <= ZOMBIE_MEMORIA_MAX)):
+        return "zombie"
+    if uscito is False and thread > ZOMBIE_THREAD and memoria is not None and memoria >= VIVO_MEMORIA_MIN:
+        return "vivo"
+    return "fuori dai dati"
 
 
-def decide_ritentativo(testo, stato, puo_terminare=False):
-    """PURA. Cosa fare di un build fallito: `riprova` | `riprova-al-buio` | `ferma-orfano` |
-    `ferma-compilazione`.
+def decide_sul_lock(motori):
+    """PURA. Sul lock di Live Coding: `(esito, righe)`, con `esito` `ferma-zombie` | `riprova`.
 
-    🔴 **Il caso che questa funzione esiste per distinguere** e' `LOCK_LIVE_CODING` con
-    `stato` `orfano`: prima finiva in `riprova` e costava `tentativi × pausa` — mezz'ora sui
-    valori di default — su un lock che nessuno rilascera', perche' il processo che lo tiene non ha
-    piu' un padre che possa chiuderlo (#2392).
+    `righe` e' `[(pid, stato, cmdline)]` dei detentori, ordinate. `ferma-zombie` solo se ce n'e' almeno uno e
+    TUTTI sono zombie: un Editor vivo accanto a uno zombie e' la seduta di qualcuno, e il lock si libera quando
+    lui chiude. Decisione d'autore del 2026-10-07: ci si ferma e lo si dice, senza la leva automatica.
+    """
+    righe = []
+    for pid, cmdline in detentori_live_coding(motori):
+        info = motori[pid]
+        thread = info[2] if len(info) > 2 else None
+        memoria = info[3] if len(info) > 3 else None
+        uscito = info[4] if len(info) > 4 else None
+        righe.append((pid, stato_del_detentore(thread, memoria, uscito), cmdline))
+    if righe and all(stato == "zombie" for _, stato, _ in righe):
+        return "ferma-zombie", righe
+    return "riprova", righe
 
-    ⚠️ Il mutex e l'altra istanza restano `riprova` anche con Live Coding `assente`: non
-    sono lo stesso guasto, e su quelli l'attesa funziona.
+
+def decide_ritentativo(testo):
+    """PURA. Cosa fare di un build fallito: `riprova` | `ferma-compilazione`.
+
+    La CONTESA si aspetta — il mutex, l'altra istanza, il lock di Live Coding —; un errore di
+    compilazione esce subito, perche' non cambia col tempo.
+
+    ⌫ **Fino a [D-469] gli esiti erano cinque.** Sul lock di Live Coding si classificava il
+    `LiveCodingConsole` (#2392): se era orfano ci si fermava, oppure lo si terminava ([D-400],
+    #3044). La premessa era falsa — una console orfana non tiene il lock —, quindi su quel messaggio
+    si aspetta come su ogni contesa. Chi tiene la macchina cerca l'`UnrealEditor.exe` che `build()`
+    nomina.
     """
     if not any(f in testo for f in CONTESA):
         return "ferma-compilazione"
-    if LOCK_LIVE_CODING not in testo:
-        return "riprova"
-    if stato == "orfano":
-        return "termina-orfano" if puo_terminare else "ferma-orfano"
-    if stato == "sconosciuto":
-        return "riprova-al-buio"
     return "riprova"
-
-
-def stato_livecoding():
-    """Un campione, due risposte: `(stato, orfani, puo_terminare, ragione)`. Impura.
-
-    Un solo `_alberi_processi()`: chi tiene il lock e chi potrebbe usarlo si leggono dallo
-    STESSO istante, altrimenti si decide di terminare sulla base di un motore gia' morto.
-    """
-    alberi = _alberi_processi()
-    if alberi is None:
-        stato, orfani = classifica_livecoding(None, set())
-        return stato, orfani, False, "enumerazione fallita"
-    stato, orfani = classifica_livecoding(alberi["livecoding"], set(alberi["padre"]))
-    ok, ragione = puo_terminare_orfano(alberi["motori_info"])
-    return stato, orfani, ok, ragione
 
 
 def build(tentativi=40, pausa=45, stampa=None):
@@ -771,7 +786,7 @@ def build(tentativi=40, pausa=45, stampa=None):
     mezz'ora — e non stampava niente. Si distingue la CONTESA (un Editor altrui, il mutex:
     si aspetta) dall'errore di compilazione (si esce subito, con la coda del compilatore).
     """
-    terminati = set()
+    nominati = False
     for tentativo in range(tentativi):
         r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
                             "& '" + BUILD_BAT + "' RefactorTacticsEditor Win64 Development "
@@ -780,19 +795,7 @@ def build(tentativi=40, pausa=45, stampa=None):
         testo = (r.stdout or "") + (r.stderr or "")   # UBT manda alcune righe su stderr
         if "Result: Succeeded" in testo:
             return True
-        # Il campione si paga SOLO quando la frase di Live Coding c'e': sul caso comune — una
-        # mutazione scritta a mano che non compila — non si legge nessun processo.
-        # 🔑 E si ricampiona a OGNI tentativo, non una volta: un Editor che muore a
-        # metà attesa lascia dietro il proprio `LiveCodingConsole`, e dal giro dopo quella
-        # che era una contesa legittima è un orfano. Costa un campione per tentativo.
-        stato, orfani, puo_term, ragione = ("assente", [], False, "")
-        if LOCK_LIVE_CODING in testo:
-            stato, orfani, puo_term, ragione = stato_livecoding()
-        # ⛔ Un pid gia' terminato che ricompare NON si ritenta: se il `taskkill` non ha preso,
-        # riprovarlo quaranta volte non cambia esito e nasconde il vero motivo dietro un ciclo.
-        if any(pid in terminati for pid, _ in orfani):
-            puo_term, ragione = False, "gia' terminato una volta, e il lock c'e' ancora"
-        esito = decide_ritentativo(testo, stato, puo_term)
+        esito = decide_ritentativo(testo)
 
         if esito == "ferma-compilazione":
             if stampa:
@@ -801,37 +804,34 @@ def build(tentativi=40, pausa=45, stampa=None):
                 for riga in coda:
                     stampa("     " + riga.strip()[:150])
             return False
-        if esito == "termina-orfano":
-            if stampa:
-                stampa("   lock di Live Coding tenuto da un ORFANO, e %s: lo termino e ritento"
-                       " subito (`D-400`)." % ragione)
-            for pid, ppid in orfani:
-                if stampa:
-                    stampa("     taskkill LiveCodingConsole pid %d (il padre %d non esiste)"
-                           % (pid, ppid))
-                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
-                terminati.add(pid)
-            continue            # il lock e' libero: si ritenta senza aspettare la pausa
-        if esito == "ferma-orfano":
-            if stampa:
-                stampa("   build FERMO: il lock di Live Coding e' tenuto da un processo ORFANO.")
-                for pid, ppid in orfani:
-                    stampa("     LiveCodingConsole pid %d — il processo %d che lo ha aperto"
-                           " non esiste piu'" % (pid, ppid))
-                stampa("   ⛔ Non c'e' un Editor da chiudere, e nessuna attesa lo risolve: il")
-                stampa("   messaggio di Unreal manda a cercare una finestra che non esiste.")
-                stampa("   ⛔ Non lo termino: %s — `D-400` lo vieta finche' un motore vivo"
-                       " potrebbe" % ragione)
-                stampa("   star usando Live Coding. Va terminato a mano (`taskkill /PID %d`)"
-                       " quando quel" % orfani[0][0])
-                stampa("   motore ha finito. Vedi #2392 e #3044.")
-            return False
-        if stampa and tentativo == 0:
-            if esito == "riprova-al-buio":
-                stampa("   motore conteso, ma l'enumerazione dei processi NON ha risposto: non")
-                stampa("   so se il lock sia di un Editor vivo o di un orfano. Ritento comunque.")
+        # 🔑 **Il lock di Live Coding ha un detentore, e si nomina** ([D-469]): un `UnrealEditor.exe`,
+        # vivo o zombie. Si nomina una volta, alla prima comparsa; ma si RICAMPIONA a ogni tentativo, perche'
+        # un Editor che muore male durante l'attesa diventa uno zombie, e da li' l'attesa non serve piu'. Il
+        # campione si paga SOLO qui: sul caso comune, una mutazione che non compila, non si legge niente.
+        if LOCK_LIVE_CODING in testo:
+            alberi = _alberi_processi()
+            if alberi is None:
+                if stampa and not nominati:
+                    stampa("   lock di Live Coding: l'enumerazione dei processi non ha risposto, non so"
+                           " chi lo tiene.")
             else:
-                stampa("   motore conteso, attendo e ritento (fino a %d volte)" % tentativi)
+                esito_lock, detentori = decide_sul_lock(alberi["motori_info"])
+                if stampa and (not nominati or esito_lock == "ferma-zombie"):
+                    if not detentori:
+                        stampa("   lock di Live Coding, ma nessun UnrealEditor.exe vivo: chi lo teneva"
+                               " e' appena uscito, o e' un processo che non vedo.")
+                    for pid, stato, cmdline in detentori:
+                        stampa("   lock di Live Coding tenuto da UnrealEditor.exe pid %d, %s: %s"
+                               % (pid, stato, (cmdline or "CommandLine illeggibile")[:140]))
+                if esito_lock == "ferma-zombie":
+                    if stampa:
+                        stampa("   build FERMO: chi tiene il lock e' uno zombie, e nessuna attesa lo rilascia.")
+                        stampa("   Il rimedio sta in `AGENTS.md` §Build Editor: la leva del builder"
+                               " (`-NoHotReloadFromIDE`) e' un gesto umano, e qui non la uso.")
+                    return False
+            nominati = True
+        if stampa and tentativo == 0:
+            stampa("   motore conteso, attendo e ritento (fino a %d volte)" % tentativi)
         time.sleep(pausa)
     return False
 
@@ -996,101 +996,125 @@ def self_test():
                  any(p.startswith("albero") for p in problemi)
                  and any(p.startswith("motore") for p in problemi), str(len(problemi))))
 
-    # --- #2392: chi tiene il lock di Live Coding, e se lo si deve aspettare --------------------
-    # 🔑 **Il caso che porta il peso e' l'ULTIMO**: con lo stato `assente` — cio' che il filtro
-    # `"UnrealEditor" in nome` produceva su un orfano — la decisione torna `riprova`, cioe' mezz'ora
-    # di ritentativi su un lock che nessuno rilascera'. Se rispondesse `ferma-orfano` in entrambi i
-    # casi, la distinzione non porterebbe niente e questi test sarebbero vacui.
+    # --- [D-469]: il lock di Live Coding e' di un UnrealEditor.exe, e su di lui si aspetta ---------
+    # 🔑 **Il caso che porta il peso e' la console ORFANA**: misurato il 2026-10-07, non tiene il lock.
+    # Fino a [D-469] faceva fermare il gate (#2392) o terminare la console ([D-400]); ora non entra
+    # nemmeno fra i motori, quindi non puo' diventare una causa.
     LC = "Unable to build while Live Coding is active"
 
-    def livecoding(nome, atteso, processi, vivi):
-        stato, orfani = classifica_livecoding(processi, vivi)
-        casi.append((nome, stato == atteso,
-                     "atteso %s, ottenuto %s (orfani: %s)" % (atteso, stato, orfani)))
-
-    livecoding("LiveCoding col padre morto e' ORFANO", "orfano", {9: 7}, {9})
-    livecoding("LiveCoding col padre vivo e' ATTIVO", "attivo", {9: 7}, {7, 9})
-    livecoding("nessun LiveCoding e' ASSENTE", "assente", {}, {7, 9})
-    livecoding("enumerazione fallita e' SCONOSCIUTO, non assente", "sconosciuto", None, set())
-    # Due cloni: uno ha chiuso l'Editor, l'altro no. Il lock resta, quindi vince l'orfano.
-    livecoding("un orfano accanto a un attivo vince", "orfano", {9: 7, 11: 10}, {9, 10, 11})
-
-    _, orfani = classifica_livecoding({9: 7, 11: 10}, {9, 10, 11})
-    casi.append(("l'orfano e' NOMINATO col suo pid e col padre che non c'e'",
-                 orfani == [(9, 7)], str(orfani)))
-
-    def decide(nome, atteso, testo, stato, puo_terminare=False):
-        v = decide_ritentativo(testo, stato, puo_terminare)
+    def decide(nome, atteso, testo):
+        v = decide_ritentativo(testo)
         casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
 
-    decide("Live Coding tenuto da un orfano: NON si ritenta", "ferma-orfano", LC, "orfano")
-    decide("Live Coding tenuto da un Editor vivo: si attende, come prima", "riprova", LC, "attivo")
-    decide("un errore di compilazione esce subito, come prima", "ferma-compilazione",
-           "error C2065: 'bKnowledgeDebug' non dichiarato", "assente")
-    decide("il mutex senza Live Coding si ritenta, come prima", "riprova",
-           "waiting for another instance", "assente")
-    # ⚠️ `sconosciuto` non e' `assente`: si ritenta lo stesso — un'enumerazione fallita non dice che
-    # c'e' un orfano — ma l'esito e' distinto perche' `build()` lo deve DIRE invece di tacerlo.
-    decide("enumerazione fallita: si ritenta, ma non in silenzio", "riprova-al-buio", LC,
-           "sconosciuto")
-    decide("col filtro vecchio lo stato era `assente` e si ritentava: e' il difetto di #2392",
-           "riprova", LC, "assente")
+    decide("Live Coding conteso: si attende, come ogni contesa", "riprova", LC)
+    decide("un errore di compilazione esce subito", "ferma-compilazione",
+           "error C2065: 'bKnowledgeDebug' non dichiarato")
+    decide("il mutex si ritenta", "riprova", "waiting for another instance")
 
-    # 🔴 **E la RACCOLTA va esercitata, non solo la classificazione.** `classifica_livecoding`
-    # riceve il dict gia' costruito: togliere il filtro `"LiveCoding" in nome` da `_parse_processi`
-    # non farebbe cadere nessuno dei casi qui sopra — verificherebbero il proprio scaffolding.
-    # Questa riga e' l'unica che lega la classificazione a CIO' CHE LEGGE la macchina.
-    righe = ["7;496;UnrealEditor.exe", "9;7;LiveCodingConsole.exe", "13;1;explorer.exe"]
-    letto = _parse_processi(righe)
-    casi.append(("la raccolta vede il LiveCodingConsole accanto al motore",
-                 letto["livecoding"] == {9: 7} and letto["motori"] == {7}
-                 and set(letto["padre"]) == {7, 9, 13}, str(letto)))
+    def detentori(nome, atteso, motori):
+        v = detentori_live_coding(motori)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
+
+    detentori("un Editor interattivo puo' tenere il lock", [(7, "UnrealEditor.exe D:/X.uproject")],
+              {7: ("UnrealEditor.exe", "UnrealEditor.exe D:/X.uproject")})
+    detentori("una suite headless no: il suo mutex porta il nome di UnrealEditor-Cmd.exe", [],
+              {4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject -unattended")})
+    detentori("nessun motore, nessun detentore", [], {})
+    detentori("l'Editor accanto a una suite: solo l'Editor", [(7, "UnrealEditor.exe X")],
+              {7: ("UnrealEditor.exe", "UnrealEditor.exe X"),
+               4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe Y")})
+
+    # 🔴 **E la RACCOLTA, non solo la funzione pura**: `detentori_live_coding` riceve il dict gia'
+    # costruito, quindi una console rientrata in `_parse_processi` non farebbe cadere i casi qui sopra.
+    # Questa riga e' quella che lega il fatto del 2026-10-07 a CIO' CHE LEGGE la macchina.
+    orfana = _parse_processi(["9;7;LiveCodingConsole.exe;LiveCodingConsole.exe",
+                              "13;1;explorer.exe;C:/Windows/explorer.exe"])
+    casi.append(("una LiveCodingConsole orfana non e' un motore ne' un detentore",
+                 orfana["motori"] == set() and detentori_live_coding(orfana["motori_info"]) == [],
+                 str(orfana)))
     casi.append(("una riga malformata non entra e non solleva",
-                 _parse_processi(["x;y;z", "", "9;7"])["livecoding"] == {}, "ok"))
+                 _parse_processi(["x;y;z", "", "9;7"])["motori"] == set(), "ok"))
 
-    # --- #3044 / `D-400`: si termina un orfano solo se nessun motore vivo puo' usare Live Coding --
-    # 🔑 **Il caso che porta il peso e' `-NoLiveCoding`**: il 2026-09-05 era vivo esattamente
-    # un motore, un `UnrealEditor-Cmd` di automation lanciato con quel flag. Se lo trattassimo come un
-    # utente di Live Coding, `D-400` non risolverebbe il caso che l'ha motivata — e questi test
-    # passerebbero comunque, perche' nessun altro caso distingue le due letture.
-    def terminabile(nome, atteso, motori):
-        ok, ragione = puo_terminare_orfano(motori)
-        casi.append((nome, ok == atteso,
-                     "atteso %s, ottenuto %s (%s)" % (atteso, ok, ragione)))
-
-    terminabile("nessun motore vivo: l'orfano e' detrito, si termina", True, {})
-    terminabile("una suite con -NoLiveCoding non lo usa: si termina", True,
-                {4242: ("UnrealEditor-Cmd.exe",
-                        "UnrealEditor-Cmd.exe X.uproject -unattended -NoLiveCoding -log=s.log")})
-    terminabile("un Editor interattivo vivo: NON si termina", False,
-                {7: ("UnrealEditor.exe", "UnrealEditor.exe X.uproject")})
-    terminabile("una suite SENZA -NoLiveCoding: non si esclude, NON si termina", False,
-                {4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject -log=s.log")})
-    terminabile("CommandLine illeggibile: fail-closed, NON si termina", False,
-                {4242: ("UnrealEditor-Cmd.exe", None)})
-    terminabile("un Editor interattivo accanto a una suite esente: NON si termina", False,
-                {7: ("UnrealEditor.exe", "UnrealEditor.exe X.uproject"),
-                 4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject -NoLiveCoding")})
-
-    decide("orfano e nessuno che possa usarlo: si TERMINA", "termina-orfano", LC, "orfano", True)
-    decide("orfano ma un motore che puo' usarlo: si esce, non si termina", "ferma-orfano", LC,
-           "orfano", False)
-    decide("`puo_terminare` non cambia nulla quando l'Editor e' VIVO", "riprova", LC, "attivo", True)
-
-    # La raccolta porta nome e CommandLine dei motori, nella stessa passata dei `LiveCoding*`.
+    # La raccolta porta nome, CommandLine, thread, memoria e uscita dei motori: e' cio' che `build()` stampa e
+    # giudica. Per chi non e' un motore il campo dell'uscita e' vuoto, come lo scrive la raccolta.
     pieno = _parse_processi([
-        "7;496;UnrealEditor.exe;UnrealEditor.exe D:/X.uproject",
-        "9;7;LiveCodingConsole.exe;LiveCodingConsole.exe",
-        "13;1;explorer.exe;C:/Windows/explorer.exe"])
-    casi.append(("la raccolta porta nome e CommandLine dei motori",
-                 pieno["motori_info"] == {7: ("UnrealEditor.exe",
-                                              "UnrealEditor.exe D:/X.uproject")},
-                 str(pieno.get("motori_info"))))
-    # ⚠️ Una CommandLine contiene `;`: il quarto campo si prende INTERO, non si rispezza.
-    conpv = _parse_processi(["7;496;UnrealEditor-Cmd.exe;cmd.exe /c a;b;c -NoLiveCoding"])
+        "7;496;UnrealEditor.exe;93;3865470566;0;UnrealEditor.exe D:/X.uproject",
+        "9;7;LiveCodingConsole.exe;12;40000000;;",
+        "13;1;explorer.exe;416;449110016;;"])
+    casi.append(("la raccolta porta nome, CommandLine, thread, memoria e uscita dei motori, e solo dei motori",
+                 pieno["motori_info"] == {7: ("UnrealEditor.exe", "UnrealEditor.exe D:/X.uproject",
+                                              93, 3865470566, False)}
+                 and pieno["motori"] == {7} and set(pieno["padre"]) == {7, 9, 13},
+                 str(pieno)))
+    # ⚠️ Una CommandLine contiene `;`: sta per ULTIMA, e il settimo campo si prende INTERO.
+    conpv = _parse_processi(["7;496;UnrealEditor-Cmd.exe;40;900000000;0;cmd.exe /c a;b;c -unattended"])
     casi.append(("la CommandLine con `;` dentro non viene troncata",
-                 conpv["motori_info"][7][1] == "cmd.exe /c a;b;c -NoLiveCoding",
+                 conpv["motori_info"][7] == ("UnrealEditor-Cmd.exe", "cmd.exe /c a;b;c -unattended",
+                                             40, 900000000, False),
                  str(conpv["motori_info"])))
+    # Il campo dell'uscita: `1` e' uscito, `0` no, e qualunque altra cosa non dice niente.
+    uscite = _parse_processi(["7;1;UnrealEditor.exe;1;900000000;1;A", "8;1;UnrealEditor.exe;1;900000000;x;B"])
+    casi.append(("il campo dell'uscita: `1` e' uscito, un valore illeggibile e' ignoto",
+                 uscite["motori_info"][7][4] is True and uscite["motori_info"][8][4] is None,
+                 str(uscite["motori_info"])))
+
+    # --- #3556, #3564: lo ZOMBIE che tiene il lock si riconosce, e si dice ------------------------------
+    # 🔑 **Lo zombie e' un processo uscito con un thread solo, e la memoria non conta** ([D-473]). I due casi che
+    # portano il peso sono le forme MISURATE: lo zombie del 2026-10-07 con GB di memoria, che per la regola di
+    # [D-472] era «fuori dai dati», e il thread solo in un processo che `Get-Process` trova ancora, che non e' uno
+    # zombie: arrotondarlo farebbe fermare un gate davanti a un Editor che sta partendo.
+    def stato(nome, atteso, thread, memoria, uscito):
+        v = stato_del_detentore(thread, memoria, uscito)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
+
+    stato("l'ancora dello zombie del 2026-08-24: un thread, ~0,2 MB, uscito", "zombie", 1, 200000, True)
+    stato("lo zombie del 2026-10-07: un thread, uscito, con GB di memoria", "zombie", 1, 939524096, True)
+    stato("lo zombie del 2026-09-02: un thread, uscito, con 4,27 GB", "zombie", 1, 4584877260, True)
+    stato("la memoria non serve a dire zombie", "zombie", 1, None, True)
+    # [D-476]: l'ancora del 2026-08-24 non fu misurata con `Get-Process -Id`. Se non era uscita, la memoria basta.
+    stato("l'ancora del 2026-08-24 anche se Get-Process la trova: zombie, per la memoria", "zombie",
+          1, 200000, False)
+    stato("un thread non uscito con GB di memoria: fuori dai dati", "fuori dai dati", 1, 939524096, False)
+    stato("molti thread e memoria minima: fuori dai dati, la memoria vale solo col thread solo", "fuori dai dati",
+          40, 200000, False)
+    stato("l'ancora dell'Editor vivo: 93 thread, ~3,6 GB, visibile", "vivo", 93, 3865470566, False)
+    stato("molti thread in un processo uscito: fuori dai dati, sta chiudendo", "fuori dai dati",
+          40, 3865470566, True)
+    stato("molti thread e poca memoria: fuori dai dati", "fuori dai dati", 40, 50000000, False)
+    stato("un dato mancante non e' uno zombie: il thread", "fuori dai dati", None, 200000, True)
+    stato("uscita ignota ma memoria da zombie: zombie, per la memoria", "zombie", 1, 200000, None)
+    stato("uscita ignota e memoria da Editor: fuori dai dati", "fuori dai dati", 1, 939524096, None)
+    stato("uscita e memoria ignote: fuori dai dati", "fuori dai dati", 1, None, None)
+    stato("e nemmeno un Editor vivo: un'uscita ignota non prova niente", "fuori dai dati", 93, 3865470566, None)
+
+    ZOMBIE = ("UnrealEditor.exe", "UnrealEditor.exe D:/Z.uproject", 1, 200000, True)
+    ZOMBIE_GB = ("UnrealEditor.exe", "UnrealEditor.exe D:/G.uproject", 1, 939524096, True)
+    VIVO = ("UnrealEditor.exe", "UnrealEditor.exe D:/V.uproject", 93, 3865470566, False)
+
+    def lock(nome, atteso, motori):
+        v, righe = decide_sul_lock(motori)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s (%s)" % (atteso, v, righe)))
+
+    lock("solo zombie fra i detentori: ci si ferma", "ferma-zombie", {7: ZOMBIE})
+    lock("uno zombie con GB di memoria ferma come l'altro", "ferma-zombie", {7: ZOMBIE_GB})
+    lock("l'ancora del 2026-08-24, anche non uscita, ferma", "ferma-zombie",
+         {7: ("UnrealEditor.exe", "UnrealEditor.exe D:/A.uproject", 1, 200000, False)})
+    lock("due zombie, uno per forma: ci si ferma", "ferma-zombie", {7: ZOMBIE, 9: ZOMBIE_GB})
+    lock("uno zombie accanto a un Editor vivo: si aspetta, il lock e' anche suo", "riprova",
+         {7: ZOMBIE, 8: VIVO})
+    lock("nessun detentore: si aspetta, non c'e' niente da dire", "riprova", {})
+    lock("una suite headless con un thread solo non e' un detentore", "riprova",
+         {4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject", 1, 200000, True)})
+
+    # 🔴 **Dalla RIGA alla decisione**, non solo dal dict gia' costruito: con i campi scambiati nella raccolta, i
+    # casi qui sopra resterebbero verdi. Sono i soli che legano la regola a CIO' CHE LEGGE la macchina: la riga
+    # dello zombie del 2026-10-07, e la stessa con il processo ancora trovato da `Get-Process`.
+    letto = _parse_processi(["7;496;UnrealEditor.exe;1;939524096;1;UnrealEditor.exe D:/Z.uproject"])
+    casi.append(("una riga di zombie con GB, raccolta e giudicata, ferma il gate",
+                 decide_sul_lock(letto["motori_info"])[0] == "ferma-zombie", str(letto["motori_info"])))
+    trovato = _parse_processi(["7;496;UnrealEditor.exe;1;939524096;0;UnrealEditor.exe D:/Z.uproject"])
+    casi.append(("la stessa riga con il processo trovato da Get-Process non ferma",
+                 decide_sul_lock(trovato["motori_info"])[0] == "riprova", str(trovato["motori_info"])))
 
     # --- #3048: quando la suite e' FINITA, e quando il processo e' APPESO ---------------------
     # 🔑 **Misurato su quattro log veri, due modalita' di invocazione** (`;Quit` dentro

@@ -73,9 +73,10 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Ultimo")
 	bool bLastExisted = false;
 
-	/** [Overlay] Colora le celle per superficie (debug read-only); le bloccate con esagono rosso. */
-	UPROPERTY(EditAnywhere, Category = "Hex|Overlay")
-	bool bShowOverlay = false;
+	// #921: `bShowOverlay` stava QUI, e anche in `URTHexSelectToolProperties`. Due istanze distinte create
+	// ciascuna nel proprio `Setup()`: accenderlo in uno non lo accendeva nell'altro, e cambiando strumento
+	// l'impostazione sembrava «perdersi». Ora e' `URTHexEditorModeSettings::bShowSurfaceOverlay`, uno stato
+	// del mode che i sette `Render` leggono dal context store via `RTHexEditor::ShouldShowSurfaceOverlay`.
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

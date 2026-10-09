@@ -711,6 +711,42 @@ FString URTScenarioLoader::ScenariosRoot()
 	return FPaths::Combine(FPaths::ProjectDir(), TEXT("Scenarios"));
 }
 
+namespace
+{
+	/** L'override di test della radice del Lab. Vuoto = la radice vera. */
+	FString GLabScenariosRootOverride;
+}
+
+FString URTScenarioLoader::LabScenariosRoot()
+{
+	if (!GLabScenariosRootOverride.IsEmpty())
+	{
+		return GLabScenariosRootOverride;
+	}
+
+	// 🔴 **Sotto automation la radice del Lab NON ESISTE: stringa vuota, che nessuno puo' creare ne'
+	// scrivere.** `ListIds`, `ListTags` e `ResolvePath` leggono entrambe le radici, e i test che
+	// enumerano il corpus passano da loro (`DevSandboxLauncher.TagFiltersIntersect`,
+	// `Scenario.EveryShippedScenarioRuns`, i selettori «primo scenario a due squadre»): con la radice
+	// vera, un file che il banco ha lasciato in `Saved/RTLab` renderebbe quei test rossi su QUELLA
+	// macchina sola. Un percorso «assente» ma reale sarebbe invece scrivibile (`PrepareForPie` lo
+	// creerebbe alla prima chiamata): per questo e' vuota. Chi vuole la radice del Lab in un test la
+	// imposta con `SetLabScenariosRootOverrideForTest`, che vince su questo ramo.
+	// `GIsAutomationTesting` e' vero solo mentre un automation test esegue (`AutomationTest.cpp`), mai
+	// in un Editor interattivo o in PIE.
+	if (GIsAutomationTesting)
+	{
+		return FString();
+	}
+
+	return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTLab"), TEXT("Scenarios"));
+}
+
+void URTScenarioLoader::SetLabScenariosRootOverrideForTest(const FString& Root)
+{
+	GLabScenariosRootOverride = Root;
+}
+
 const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
 {
 	// ⚠️ **La mappa non vive piu' qui** (`#1427`, 2026-08-27): la corrispondenza categoria -> enum degli

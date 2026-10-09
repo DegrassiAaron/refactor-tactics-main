@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Algo/Reverse.h"
 #include "Map/RTGeometryBake.h"
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTGeometryGrammar.h"
@@ -1022,6 +1023,476 @@ bool FRTGeometryBakeEdgeWallStillClosesTest::RunTest(const FString&)
 	TestTrue(TEXT("produce una copertura di bordo"), Data && Data->Covers.Num() >= 1);
 	TestEqual(TEXT("e nessun muro interno"), Map->InteriorWalls.Num(), 0);
 
+	return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//  REGIONI NO-WALK (#1868, D-439)
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+namespace
+{
+	/** Una colonna di celle su due piani, piu' la regione che si vuole. `HexSize` fisso e dichiarato. */
+	constexpr float NoWalkHexSize = 100.f;
+
+	URTHexMapAsset* NoWalkMap()
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		M->HexSize = NoWalkHexSize;
+		for (int32 Q = -2; Q <= 2; ++Q)
+		{
+			for (int32 R = -2; R <= 2; ++R)
+			{
+				M->AddOrUpdateCell(FRTHexCellData(FRTCellId(Q, R, 0)));
+				M->AddOrUpdateCell(FRTHexCellData(FRTCellId(Q, R, 1)));
+			}
+		}
+		M->SortCells();
+		return M;
+	}
+
+	/** Un triangolo largo attorno all'origine, sul layer richiesto: i vertici sono CENTRI di cella. */
+	FRTNoWalkArea NoWalkTriangolo(int32 Layer, FName Id = TEXT("Area"))
+	{
+		FRTNoWalkArea Area;
+		Area.Layer = Layer;
+		Area.StableId = Id;
+		for (const FRTCellId& C : { FRTCellId(-2, 2, Layer), FRTCellId(2, 0, Layer), FRTCellId(0, -2, Layer) })
+		{
+			FRTAnchorRef Ref;
+			Ref.Cell = C;
+			Ref.Kind = ERTAnchorKind::Center;
+			Ref.Index = 0;
+			Area.Vertices.Add(Ref);
+		}
+		return Area;
+	}
+}
+
+/**
+ * UNA REGIONE CHIUDE IL PROPRIO PIANO, E SOLO QUELLO (#1868) — il difetto che la code review ha impedito.
+ *
+ * 🔴 **Senza il confronto del layer questa regola sarebbe silenziosamente sbagliata.** `AxialToWorld` mette
+ * il piano interamente nella `Z` — `Wx` e `Wy` dipendono solo da `q` e `r` — quindi il test di
+ * appartenenza 2D **non distingue i piani**: una regione al piano terra chiuderebbe le celle impilate
+ * sopra. ⚠️ Non e' un caso di laboratorio: l'arena committata ha tre celle sul layer 1 sopra celle del
+ * layer 0, e una di quelle e' l'unica destinazione della sua sola transizione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkRespectsLayerTest,
+	"RefactorTactics.GeometryBake.NoWalkAreaClosesItsOwnLayerOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkRespectsLayerTest::RunTest(const FString&)
+{
+	const FRTNoWalkArea Area = NoWalkTriangolo(/*Layer*/ 0);
+
+	// La cella d'origine sta dentro il triangolo su ENTRAMBI i piani, geometricamente: le due differiscono
+	// solo per il layer, che e' esattamente cio' che si sta verificando.
+	TestTrue(TEXT("la cella al piano della regione e' coperta"),
+		URTGeometryBakeLibrary::AreaCoversCell(Area, FRTCellId(0, 0, 0), NoWalkHexSize));
+	TestFalse(TEXT("la cella IMPILATA SOPRA non lo e'"),
+		URTGeometryBakeLibrary::AreaCoversCell(Area, FRTCellId(0, 0, 1), NoWalkHexSize));
+
+	// ⛔ CONTROPROVA: la stessa regione dichiarata sul layer 1 copre quella sopra e non quella sotto.
+	// Senza, una funzione che rispondesse sempre `false` sul layer 1 passerebbe l'asserzione qui sopra.
+	const FRTNoWalkArea Sopra = NoWalkTriangolo(/*Layer*/ 1);
+	TestTrue(TEXT("e una regione dichiarata sul piano di sopra copre quella di sopra"),
+		URTGeometryBakeLibrary::AreaCoversCell(Sopra, FRTCellId(0, 0, 1), NoWalkHexSize));
+	TestFalse(TEXT("e non quella di sotto"),
+		URTGeometryBakeLibrary::AreaCoversCell(Sopra, FRTCellId(0, 0, 0), NoWalkHexSize));
+
+	// Una cella fuori dal triangolo non e' coperta su nessun piano: senza, «copre tutto» passerebbe.
+	TestFalse(TEXT("una cella lontana non e' coperta"),
+		URTGeometryBakeLibrary::AreaCoversCell(Area, FRTCellId(-2, -2, 0), NoWalkHexSize));
+
+	// ⚠️ **Sotto i tre vertici la risposta e' `false`, e questa asserzione pinna la PROPRIETA', non la
+	// guardia.** Misurato con una mutazione: togliendo il controllo esplicito questa riga resta verde,
+	// perche' `PointInPolygon` risponde gia' `false` su meno di tre punti. Vale la pena asserirla lo
+	// stesso — e' il comportamento su cui la copertura fa affidamento — ma non si spacci per la prova di
+	// una guardia che non e' osservabile.
+	FRTNoWalkArea Degenere = Area;
+	Degenere.Vertices.SetNum(2);
+	TestFalse(TEXT("due vertici non sono un poligono"),
+		URTGeometryBakeLibrary::AreaCoversCell(Degenere, FRTCellId(0, 0, 0), NoWalkHexSize));
+	return true;
+}
+
+/**
+ * LA COTTURA CONSULTA LA REGIONE, E UN RIBAKE ESTRANEO NON PERDE IL VETO (#1868, [D-439]).
+ *
+ * 🔑 **E' la proprieta' per cui `D-439` ha scelto di CONSULTARE invece di scrivere.** Un secondo produttore
+ * di `bBlocksMovement` avrebbe dovuto condividere `bMovementBlockGenerated` — che e' **un bit** — col
+ * produttore geometrico, e il ramo che libera la cella avrebbe cancellato il veto della regione al primo
+ * ribake per una ragione estranea. Consultando, il ribake **richiede** la stessa risposta e richiude.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkSurvivesRebakeTest,
+	"RefactorTactics.GeometryBake.NoWalkSurvivesAnUnrelatedRebake",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkSurvivesRebakeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+	const FRTCellId Coperta(0, 0, 0);
+
+	// Prima: nessuna regione, nessuna geometria -> la cella e' calpestabile.
+	TestTrue(TEXT("senza regione la cottura lascia la cella aperta"),
+		URTGeometryBakeLibrary::RederiveStandability(M, Coperta, NoWalkHexSize));
+	TestFalse(TEXT("e infatti non e' bloccata"), M->FindCell(Coperta)->bBlocksMovement);
+
+	M->NoWalkAreas.Add(NoWalkTriangolo(0));
+	TestTrue(TEXT("la cottura gira"), URTGeometryBakeLibrary::RederiveStandability(M, Coperta, NoWalkHexSize));
+	TestTrue(TEXT("e la regione chiude la cella"), M->FindCell(Coperta)->bBlocksMovement);
+	TestTrue(TEXT("come blocco DERIVATO, non d'autore"), M->FindCell(Coperta)->bMovementBlockGenerated);
+
+	// 🔴 IL PUNTO: un secondo ribake, per una ragione che non c'entra con la regione, deve RICHIUDERE.
+	// Con un secondo produttore che scrive, qui il veto sarebbe sparito.
+	TestTrue(TEXT("un ribake estraneo gira"),
+		URTGeometryBakeLibrary::RederiveStandability(M, Coperta, NoWalkHexSize));
+	TestTrue(TEXT("e la cella resta chiusa: il veto non si perde"), M->FindCell(Coperta)->bBlocksMovement);
+
+	// E cancellare la regione la libera DA SE', senza codice di ripristino.
+	M->NoWalkAreas.Reset();
+	TestTrue(TEXT("la cottura gira dopo la cancellazione"),
+		URTGeometryBakeLibrary::RederiveStandability(M, Coperta, NoWalkHexSize));
+	TestFalse(TEXT("e la cella torna calpestabile"), M->FindCell(Coperta)->bBlocksMovement);
+
+	// ⛔ CONTROPROVA sull'autore: un blocco dipinto A MANO non si tocca, nemmeno quando la regione se ne va.
+	FRTHexCellData Autorata = *M->FindCell(FRTCellId(1, 0, 0));
+	Autorata.bBlocksMovement = true;
+	Autorata.bMovementBlockGenerated = false;
+	M->AddOrUpdateCell(Autorata);
+	M->NoWalkAreas.Add(NoWalkTriangolo(0));
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(1, 0, 0), NoWalkHexSize);
+	M->NoWalkAreas.Reset();
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(1, 0, 0), NoWalkHexSize);
+	TestTrue(TEXT("il blocco dell'autore sopravvive alla regione che va e viene"),
+		M->FindCell(FRTCellId(1, 0, 0))->bBlocksMovement);
+	TestFalse(TEXT("e resta d'autore"), M->FindCell(FRTCellId(1, 0, 0))->bMovementBlockGenerated);
+	return true;
+}
+
+/**
+ * IL VALIDATOR E LA COTTURA MISURANO LA STESSA COSA — la sede unica (#1868, [D-439]).
+ *
+ * 🔴 **E' il difetto che la code review ha trovato PRIMA che fosse scritto.** Il predicato aveva due
+ * stesure: `DeriveStandability` per cuocere, `ValidateMapDetailed` per giudicare, tenute insieme solo dal
+ * commento sopra la seconda e da **nessun test**. Aggiungendo la consultazione alla sola cottura, una cella
+ * coperta usciva chiusa e derivata mentre il validator — che guardava la sola geometria — la vedeva sana:
+ * **REGOLA 4** sarebbe scattata su ogni cella coperta dicendo *«Ricuoci la mappa: il prossimo rebake lo
+ * toglierebbe»*, e il rebake invece lo **rimette**. Un avviso falso, con un rimedio che non fa niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkOneSeatTest,
+	"RefactorTactics.GeometryBake.ValidatorAndBakeAgreeOnACoveredCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkOneSeatTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+	const FRTCellId Coperta(0, 0, 0);
+	M->NoWalkAreas.Add(NoWalkTriangolo(0));
+	URTGeometryBakeLibrary::RederiveStandability(M, Coperta, NoWalkHexSize);
+
+	auto ContaSu = [&](ERTMapValidationReason Ragione, const FRTCellId& Cella)
+	{
+		TArray<FRTMapValidationIssue> Issues;
+		M->ValidateMapDetailed(Issues);
+		return Issues.FilterByPredicate([&](const FRTMapValidationIssue& I)
+		{
+			return I.Reason == Ragione && I.Cell == Cella;
+		}).Num();
+	};
+
+	// 🔴 La cella e' chiusa e derivata; con due sedi il validator l'avrebbe dichiarata «stantia».
+	TestTrue(TEXT("l'allestimento e' quello giusto: chiusa e derivata"),
+		M->FindCell(Coperta)->bBlocksMovement && M->FindCell(Coperta)->bMovementBlockGenerated);
+	TestEqual(TEXT("e REGOLA 4 NON scatta: la regione giustifica il blocco"),
+		ContaSu(ERTMapValidationReason::StaleGeneratedBlock, Coperta), 0);
+
+	// ⛔ CONTROPROVA: la stessa REGOLA 4 scatta ancora dove deve — un blocco derivato che NIENTE giustifica.
+	// Senza, una modifica che la spegnesse del tutto passerebbe l'asserzione qui sopra.
+	FRTHexCellData Stantia = *M->FindCell(FRTCellId(-2, -2, 0));
+	Stantia.bBlocksMovement = true;
+	Stantia.bMovementBlockGenerated = true;
+	M->AddOrUpdateCell(Stantia);
+	TestEqual(TEXT("ma scatta su un blocco derivato che nessuna regione e nessuna geometria giustifica"),
+		ContaSu(ERTMapValidationReason::StaleGeneratedBlock, FRTCellId(-2, -2, 0)), 1);
+
+	// ── E REGOLA 1 nomina la CAUSA ────────────────────────────────────────────────────────────────────
+	// Una cella coperta ma NON ancora ricotta: il validator la segnala, e il messaggio deve parlare della
+	// regione, non di una geometria che non c'e'.
+	FRTHexCellData NonCotta = *M->FindCell(FRTCellId(1, 0, 0));
+	NonCotta.bBlocksMovement = false;
+	NonCotta.bMovementBlockGenerated = false;
+	M->AddOrUpdateCell(NonCotta);
+
+	TArray<FRTMapValidationIssue> Issues;
+	M->ValidateMapDetailed(Issues);
+	const FRTMapValidationIssue* Posa = Issues.FindByPredicate([](const FRTMapValidationIssue& I)
+	{
+		return I.Reason == ERTMapValidationReason::NoLegalPlacement && I.Cell == FRTCellId(1, 0, 0);
+	});
+	if (!TestNotNull(TEXT("una cella coperta e non ricotta e' segnalata"), Posa))
+	{
+		return false;
+	}
+	TestTrue(FString::Printf(TEXT("e il messaggio nomina la REGIONE, non la geometria: %s"), *Posa->Message),
+		Posa->Message.Contains(TEXT("regione No-Walk")));
+	TestFalse(TEXT("e non parla di settori da liberare"), Posa->Message.Contains(TEXT("libera un settore")));
+	return true;
+}
+
+/**
+ * UN VOLUME OCCUPA LA CELLA IN CUI STA, ED E' CONSULTATO COME LA REGIONE (#1866, [D-440]).
+ *
+ * 🔑 **Stessa giuntura, terza ragione.** Il volume entra in `WhyNotStandable` accanto alla geometria e alla
+ * regione No-Walk, invece di scrivere `bBlocksMovement`: sarebbe stato un **terzo** produttore su un bit di
+ * provenienza che ne regge uno, e il primo ribake estraneo della cella ne avrebbe cancellato l'effetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoxVolumeOccupiesTest,
+	"RefactorTactics.GeometryBake.BoxVolumeOccupiesItsCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoxVolumeOccupiesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+	const FRTCellId Occupata(0, 0, 0);
+	const FRTCellId Libera(1, 0, 0);
+
+	FRTBoxVolume Volume;
+	Volume.Cell = Occupata;
+	Volume.CoverLevel = ERTHexCoverType::High;
+	Volume.StableId = TEXT("Pilastro");
+	M->BoxVolumes.Add(Volume);
+
+	TestTrue(TEXT("la cottura gira"), URTGeometryBakeLibrary::RederiveStandability(M, Occupata, NoWalkHexSize));
+	TestTrue(TEXT("il volume chiude la cella in cui sta"), M->FindCell(Occupata)->bBlocksMovement);
+	TestTrue(TEXT("come blocco derivato"), M->FindCell(Occupata)->bMovementBlockGenerated);
+
+	// ⛔ CONTROPROVA: la cella accanto non e' toccata. Senza, «chiude tutto» passerebbe.
+	URTGeometryBakeLibrary::RederiveStandability(M, Libera, NoWalkHexSize);
+	TestFalse(TEXT("e non tocca la cella accanto"), M->FindCell(Libera)->bBlocksMovement);
+
+	// ⚠️ **Il volume sta su UNA cella, e il layer fa parte dell'identita' della cella**: la stessa `q,r` su
+	// un altro piano e' un'altra cella, e non e' occupata.
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(0, 0, 1), NoWalkHexSize);
+	TestFalse(TEXT("ne' la cella impilata sopra"), M->FindCell(FRTCellId(0, 0, 1))->bBlocksMovement);
+
+	// Un ribake estraneo RICHIUDE, e cancellare il volume libera da se': e' la proprieta' per cui la
+	// consultazione e' stata scelta al posto della scrittura.
+	TestTrue(TEXT("un ribake estraneo gira"),
+		URTGeometryBakeLibrary::RederiveStandability(M, Occupata, NoWalkHexSize));
+	TestTrue(TEXT("e il volume tiene la cella chiusa"), M->FindCell(Occupata)->bBlocksMovement);
+
+	M->BoxVolumes.Reset();
+	URTGeometryBakeLibrary::RederiveStandability(M, Occupata, NoWalkHexSize);
+	TestFalse(TEXT("tolto il volume, la cella torna calpestabile"), M->FindCell(Occupata)->bBlocksMovement);
+	return true;
+}
+
+/**
+ * LE CINQUE PROPRIETA' SONO DICHIARATE, NON DEDOTTE (#1866) — e tre sono quelle che entrano in `v0.1`.
+ *
+ * 🔑 **`CoverLevel` fuori da `None`/`Low`/`High` non e' rappresentabile, e lo garantisce il TIPO.** E' un'AC
+ * di #1866 soddisfatta riusando `ERTHexCoverType` (`D-271`) invece di dichiarare un enum proprio: un enum
+ * nuovo sarebbe stata una seconda autorita' sul vocabolario della copertura.
+ *
+ * ⚠️ **E la prova che occupazione e copertura sono INDIPENDENTI**: un volume che occupa senza riparare, e
+ * uno che dichiara copertura alta. La issue lo chiede come AC, ed e' una proprieta' del dato, non del
+ * comportamento — ma e' proprio per questo che va asserita: nulla nel codice la impone.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoxVolumePropertiesAreIndependentTest,
+	"RefactorTactics.GeometryBake.BoxVolumePropertiesAreDeclaredNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoxVolumePropertiesAreIndependentTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+
+	// Occupa e NON ripara: il caso che la issue nomina per primo.
+	FRTBoxVolume Nudo;
+	Nudo.Cell = FRTCellId(0, 0, 0);
+	Nudo.CoverLevel = ERTHexCoverType::None;
+	M->BoxVolumes.Add(Nudo);
+
+	// Ripara e dichiara di fermare la vista: le due restano campi distinti.
+	FRTBoxVolume Pieno;
+	Pieno.Cell = FRTCellId(1, 0, 0);
+	Pieno.CoverLevel = ERTHexCoverType::High;
+	Pieno.bBlocksLineOfSight = true;
+	M->BoxVolumes.Add(Pieno);
+
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(0, 0, 0), NoWalkHexSize);
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(1, 0, 0), NoWalkHexSize);
+
+	// 🔑 ENTRAMBI occupano: l'occupazione non dipende dalla copertura.
+	TestTrue(TEXT("il volume senza copertura occupa comunque"),
+		M->FindCell(FRTCellId(0, 0, 0))->bBlocksMovement);
+	TestTrue(TEXT("e quello con copertura alta pure"),
+		M->FindCell(FRTCellId(1, 0, 0))->bBlocksMovement);
+
+	// E i due campi dichiarati restano quelli, attraverso il dato.
+	TestEqual(TEXT("la copertura dichiarata è None dove è stata scritta None"),
+		M->BoxVolumes[0].CoverLevel, ERTHexCoverType::None);
+	TestEqual(TEXT("ed è High dove è stata scritta High"),
+		M->BoxVolumes[1].CoverLevel, ERTHexCoverType::High);
+	TestFalse(TEXT("la LOS non si deduce dalla copertura"), M->BoxVolumes[0].bBlocksLineOfSight);
+	TestTrue(TEXT("e resta quella dichiarata"), M->BoxVolumes[1].bBlocksLineOfSight);
+
+	// ⛔ **DICHIARATO**: `CoverLevel` e `bBlocksLineOfSight` sono dati d'authoring che NESSUNO consuma
+	// ancora. Le loro giunture hanno un nome — la cottura delle coperture per il primo, i molti lettori di
+	// `FRTHexCellData::bBlocksLineOfSight` per il secondo — e questa asserzione pinna il limite invece di
+	// lasciar credere che il volume ripari gia'.
+	const FRTHexCellData* Cella = M->FindCell(FRTCellId(1, 0, 0));
+	TestEqual(TEXT("il volume NON genera ancora una copertura sulla cella"), Cella->Covers.Num(), 0);
+	TestFalse(TEXT("ne' scrive bBlocksLineOfSight: la giuntura non c'e' ancora"),
+		Cella->bBlocksLineOfSight);
+	return true;
+}
+
+
+/**
+ * 🔴 **LA COPERTURA DI UNA REGIONE NON DIPENDE DAL VERSO IN CUI E' STATA DISEGNATA** (#1868).
+ *
+ * ## Il difetto che questo test ha chiuso, e perche' era invisibile
+ *
+ * Fino al 2026-09-25 `AreaCoversCell` costruiva il poligono in `FVector2D` e chiedeva a
+ * `URTHexOccupancyLibrary::PointInPolygon`. Quel ray casting **non ha una regola per il bordo**, e il suo
+ * confronto — `P.X < (Pj.X - Pi.X) * (P.Y - Pi.Y) / (Pj.Y - Pi.Y) + Pi.X` — non e' simmetrico nello
+ * scambio di `Pi` e `Pj`: **invertire il verso dell'anello cambiava la risposta sui punti del bordo.**
+ *
+ * ⛔ **E i punti sul bordo sono l'idioma No-Walk, non un caso limite**: `NoWalkTriangolo` mette i vertici
+ * sui CENTRI delle celle, quindi altri centri di cella ci finiscono sopra per costruzione.
+ *
+ * 🔑 **Da li' il difetto arrivava fino al digest**: `AreaCoversCell` → `WhyNotStandable` →
+ * `DeriveStandability` scrive `bBlocksMovement` → `ComputeHash` lo mescola. Due mappe identiche disegnate
+ * in versi opposti avevano hash diversi — l'invariante di determinismo, rotta da un dettaglio di
+ * arrotondamento.
+ *
+ * ⚠️ **Il test confronta l'INSIEME delle celle coperte, non un singolo esito**: su un singolo punto il
+ * difetto poteva non manifestarsi, ed e' il motivo per cui era sopravvissuto ai tre test No-Walk gia'
+ * verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkWindingTest,
+	"RefactorTactics.GeometryBake.NoWalkCoverageDoesNotDependOnWinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkWindingTest::RunTest(const FString&)
+{
+	const FRTNoWalkArea Diritto = NoWalkTriangolo(/*Layer*/ 0);
+	FRTNoWalkArea Rovescio = Diritto;
+	Algo::Reverse(Rovescio.Vertices);
+
+	auto Coperte = [](const FRTNoWalkArea& Area)
+	{
+		TArray<FString> Fuori;
+		for (int32 Q = -2; Q <= 2; ++Q)
+		{
+			for (int32 R = -2; R <= 2; ++R)
+			{
+				const FRTCellId C(Q, R, 0);
+				if (URTGeometryBakeLibrary::AreaCoversCell(Area, C, NoWalkHexSize))
+				{
+					Fuori.Add(C.ToString());
+				}
+			}
+		}
+		Fuori.Sort();
+		return Fuori;
+	};
+
+	const TArray<FString> A = Coperte(Diritto);
+	const TArray<FString> B = Coperte(Rovescio);
+	AddInfo(FString::Printf(TEXT("diritto: %d celle — %s"), A.Num(), *FString::Join(A, TEXT(" "))));
+	AddInfo(FString::Printf(TEXT("rovescio: %d celle — %s"), B.Num(), *FString::Join(B, TEXT(" "))));
+
+	// ⛔ **ANTI-VACUITA', e qui serve davvero**: due liste VUOTE sarebbero uguali, e il test passerebbe con
+	// una `AreaCoversCell` che non copre mai niente.
+	TestTrue(FString::Printf(TEXT("la regione copre delle celle (%d)"), A.Num()), A.Num() >= 3);
+	TestEqual(TEXT("e il verso dell'anello non cambia QUANTE celle chiude"), B.Num(), A.Num());
+	TestTrue(TEXT("ne' QUALI: gli insiemi coincidono"), A == B);
+
+	// 🔑 **Il bordo appartiene alla regione, e la convenzione e' asserita invece che sottintesa.** Un
+	// vertice del triangolo e' un centro di cella: quella cella e' coperta, da entrambi i versi.
+	const FRTCellId Vertice(2, 0, 0);
+	TestTrue(TEXT("una cella il cui centro E' un vertice e' coperta"),
+		URTGeometryBakeLibrary::AreaCoversCell(Diritto, Vertice, NoWalkHexSize));
+	TestTrue(TEXT("e lo resta a verso invertito"),
+		URTGeometryBakeLibrary::AreaCoversCell(Rovescio, Vertice, NoWalkHexSize));
+	return true;
+}
+
+/**
+ * LE DUE REGOLE GEOMETRICHE ARRIVANO A `ValidateMap` CON IL PROPRIO REASON CODE (#1868).
+ *
+ * 🔑 **Si distinguono per CODICE e non per testo del messaggio**, che e' la dottrina dichiarata in
+ * `RTHexMapAsset.h`: allentare una delle due regole deve far cadere esattamente il suo test.
+ *
+ * ⚠️ **La mappa di prova ha una regione SANA accanto a quelle rotte**, e non e' decorazione: senza, una
+ * regola che segnalasse OGNI regione passerebbe entrambe le meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkValidationTest,
+	"RefactorTactics.HexMapValidation.NoWalkGeometryRulesCarryTheirOwnCode",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkValidationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+
+	// (1) SANA — il controllo negativo.
+	M->NoWalkAreas.Add(NoWalkTriangolo(/*Layer*/ 0, TEXT("Sana")));
+
+	// (2) DEGENERE per area nulla: tre centri allineati.
+	{
+		FRTNoWalkArea Piatta;
+		Piatta.Layer = 0;
+		Piatta.StableId = TEXT("Piatta");
+		for (const FRTCellId& C : { FRTCellId(-2, 0, 0), FRTCellId(0, 0, 0), FRTCellId(2, 0, 0) })
+		{
+			Piatta.Vertices.Add(FRTAnchorRef(C, ERTAnchorKind::Center));
+		}
+		M->NoWalkAreas.Add(Piatta);
+	}
+
+	// (3) AUTO-INTERSECANTE: un quadrilatero con due vertici scambiati.
+	{
+		FRTNoWalkArea Otto;
+		Otto.Layer = 0;
+		Otto.StableId = TEXT("Otto");
+		for (const FRTCellId& C : { FRTCellId(-2, 0, 0), FRTCellId(2, -2, 0), FRTCellId(0, -2, 0),
+			FRTCellId(0, 2, 0) })
+		{
+			Otto.Vertices.Add(FRTAnchorRef(C, ERTAnchorKind::Center));
+		}
+		M->NoWalkAreas.Add(Otto);
+	}
+
+	TArray<FRTMapValidationIssue> Issues;
+	M->ValidateMapDetailed(Issues);
+
+	auto Conta = [&Issues](ERTMapValidationReason R)
+	{
+		return Issues.FilterByPredicate([R](const FRTMapValidationIssue& I) { return I.Reason == R; }).Num();
+	};
+
+	const int32 Degeneri = Conta(ERTMapValidationReason::NoWalkAreaDegenerate);
+	const int32 Incroci = Conta(ERTMapValidationReason::NoWalkAreaSelfIntersecting);
+	for (const FRTMapValidationIssue& I : Issues)
+	{
+		if (I.Reason == ERTMapValidationReason::NoWalkAreaDegenerate
+			|| I.Reason == ERTMapValidationReason::NoWalkAreaSelfIntersecting)
+		{
+			AddInfo(I.Message);
+		}
+	}
+
+	TestEqual(TEXT("una sola regione e' degenere"), Degeneri, 1);
+	TestEqual(TEXT("e una sola si auto-interseca"), Incroci, 1);
+	// ⛔ La regione SANA non produce nessuna delle due: senza questa riga una regola che segnala sempre
+	// passerebbe le due asserzioni sopra.
+	TestEqual(TEXT("e le due segnalazioni sono in tutto due, non una per regione"), Degeneri + Incroci, 2);
+
+	// Entrambe sono ERRORI: una regione che non chiude nulla non e' «legale ma inerte».
+	for (const FRTMapValidationIssue& I : Issues)
+	{
+		if (I.Reason == ERTMapValidationReason::NoWalkAreaDegenerate
+			|| I.Reason == ERTMapValidationReason::NoWalkAreaSelfIntersecting)
+		{
+			TestTrue(TEXT("e sono errori, non avvisi"), I.bIsError);
+		}
+	}
 	return true;
 }
 

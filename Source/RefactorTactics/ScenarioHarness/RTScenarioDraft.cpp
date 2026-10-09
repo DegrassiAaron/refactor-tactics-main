@@ -1330,7 +1330,7 @@ TArray<FRTCellId> FRTScenarioDraft::GetReachableCells(const FString& UnitId, UOb
 		SimUnits.Add(MoveTemp(Sim));
 	}
 
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Map, SimUnits);
 
 	// ⚠️ Qui non c'e' un algoritmo, c'e' una **domanda**. Budget, blocchi, occupanti e archi li ha gia'
 	// applicati il servizio runtime — che e' il punto di `#1116`: nessun secondo pathfinder nell'editor.

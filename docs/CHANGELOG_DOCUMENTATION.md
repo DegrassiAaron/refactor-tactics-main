@@ -2,6 +2,81 @@
 
 ---
 
+## 2026-10-09 — Le tavole HUD A–F entrano come sorgente di design, e il registro riceve D-477…D-482 e D-488
+
+**Origine**: il pacchetto «HUD — pacchetto design (2026-10-04)» consegnato su Drive, passato da uno spec panel e
+misurato su `origin/main` = `a6bf857bf`. Referto:
+[`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md),
+issue [#3605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3605).
+
+| Dove | Che cosa |
+|---|---|
+| [`research/design/hud/hud-screens-2026-10/`](research/design/hud/hud-screens-2026-10/) | **creato** — README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, le tavole A–F pulite e annotate, la verifica in scala di grigi, il sorgente del canvas |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-477** (niente controlli di riproduzione nell'HUD del giocatore), **D-478** (un comandante: niente UI di coordinamento, chip `REAZ.`), **D-479** (l'header mostra la fase riprodotta), **D-480** (avvisi di piano riportati dal view-model; il validatore decide la legalità), **D-481** (l'obiettivo in `TopCenter`), **D-482** (testo e fondi di stato in §32), **D-488** (la vista strategica si apre con `Tab`, che porta lo zoom alla soglia di D-252; il ciclo della selezione passa a `N`) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3.2 (le due frasi superate da D-252 e D-488 barrate), §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.2: `Tab` → Strategic View al posto di `M`, che dichiara `Sneak` (D-456 punto 3); §5: D-488 |
+| [`research/design/hud/skill-bar-2026-10/dati/tokens.json`](research/design/hud/skill-bar-2026-10/dati/tokens.json) | la nota sui colori del testo cita D-482 |
+
+---
+
+## 2026-10-05 — Il foglio di conduzione delle sedute U61 e U63, la barra dei comandi
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md`](technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md) | **creato** — una sola apertura per le due sedute: lo slot (fase, stati, scala di grigi) e la dock (ordine di lettura, separatori come padding, lettura del movimento). Nomi di widget e funzioni letti dal codice e dalla tabella dei nomi dei `.uasset`; ciò che solo l'Editor può dire è dichiarato in §6 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `runbook:` su `U61` e `U63` |
+
+---
+
+## 2026-10-04 (pomeriggio) — La barra dei comandi prende la fascia bassa, e il registro riceve D-454, D-455 e D-456
+
+**Origine**: una decisione d'autore sulla **posa** della barra — *«sostituisce le zone in basso a sinistra, al
+centro e a destra»* — passata da uno spec panel e misurata su `origin/main` = `06b76a716`. Referto:
+[`roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`](roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-454** (`Brace` è il dodicesimo comando), **D-455** (il gruppo si deriva, precisato alla registrazione), **D-456** (la fascia bassa è una zona sola, della barra). D-407 annotata, non riscritta |
+| [`gameplay/spec-barra-comandi.md`](gameplay/spec-barra-comandi.md) | dodici comandi; la riga di `Brace` in §1 e §3 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §6.3, §6.4, §6.6, §6.7 e §6.8 allineate a D-456: timeline in `TopCenter`, Confirm · Undo in `TopRight`, la lettura del movimento all'estremità destra della barra |
+| `Source/RefactorTactics/UI/RTHudViewModel.*` | `ERTActionGroup` e `FRTAbilityCooldownView::Group` — [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468) |
+
+⛔ **`guida-screen-hud-umg.md` §3 NON cambia qui**: descrive l'albero che il `.uasset` contiene, e l'albero
+cambia con [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469), nello stesso commit dell'asset.
+
+---
+
+## 2026-10-04 — Il mockup della skill bar entra come sorgente di design, e la dock impara a dire la fase
+
+**Origine**: un pacchetto di design consegnato dall'autore insieme a un work order, passato da uno spec
+panel e misurato su `origin/main` = `77d253f70`. Referto:
+[`roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`](roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md).
+
+### Che cosa entra
+
+| Dove | Che cosa |
+|---|---|
+| [`research/design/hud/skill-bar-2026-10/`](research/design/hud/skill-bar-2026-10/) | La sorgente di design, `PROPOSTA`: specifica visiva, token, comandi di Aevik, le tavole `immagini/01..08` e sorgente del canvas. Il work order resta fuori ([`AGENTS.md`](../AGENTS.md) §8) |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U61`: lo slot dice la fase, e i suoi stati reggono la scala di grigi |
+| `Source/RefactorTactics/UI/RTHudViewModel.*` | `Phase`, `PhaseMark` e `PhaseLabel` nella vista della dock — [#3465](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3465) |
+
+### 🔴 Il work order chiedeva una cosa già fatta e una contraria al canone
+
+- **Gli slot occupati** — *«l'unica voce scoperta del piano UI-0»* — esistevano già: `FRTUnitSlotsView` e
+  `URTSelectedUnitPanelWidget::GetSlots()`, col caso del nemico ispezionato pinnato. La frase veniva da un
+  piano del 2026-08-12.
+- **Il selettore di profilo a quattro pulsanti** era classificato come `FUTURE`, in attesa di #1410 e
+  #653, che sono invece chiuse. E contraddice `D-425`: il profilo si deriva dalla distanza, non si
+  sceglie fra quattro etichette.
+
+### `D-454` e `D-455`: proposte, e non committate
+
+`D-454` (`Brace` è il dodicesimo comando della barra) e `D-455` (il gruppo di una voce della dock si
+deriva da dati che esistono). Il testo pronto sta nel referto §5. Il numero va rimisurato prima del merge
+che le registra.
+
+---
+
 ## 2026-09-14 — I due punti aperti della skill bar si chiudono, e uno ritira una voce di `D-415`
 
 **Origine**: istruttoria sui punti lasciati aperti dallo spec panel del 2026-09-13 — `SKB-1` e `D-415` con

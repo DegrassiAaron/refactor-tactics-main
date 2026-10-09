@@ -159,8 +159,39 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 	// che sarebbe un'abilita' inerte invece di una cura ad area.
 	TestEqual(TEXT("la cura e' l'unico effetto rimasto"), CircularTide->Def.Effects.Num(), 1);
 
-	// Limite dichiarato, ereditato e ancora valido: `bFriendlyFire` (CP 4.6) decide SE un alleato viene
-	// colpito da un'area, non CON QUALE effetto. Qui si verifica la dichiarazione, non l'applicazione.
+	// `bFriendlyFire` (CP 4.6) decide SE un alleato viene colpito da un'area, non CON QUALE effetto: qui si
+	// verifica la dichiarazione, mentre l'applicazione la verificano i test di `Tests/RTHealAreaTests.cpp`
+	// (#3593). Il limite che resta e' la spinta della variante `Impact` ai nemici nella stessa area (R3).
+	return true;
+}
+
+/**
+ * #3593: la cura passa dal percorso delle cure SOLO se deriva da `Action.Heal` (`IsCoreAction`,
+ * `Turn/RTTurnManager_Blast.cpp`). I numeri restano quelli dell'eroe (spec SP5 §2.1, R1): la derivazione dice
+ * da quale percorso passa, non con quali numeri. `Power` resta 0 — e' il danno letto dal bot, non la cura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseTideDerivesFromHealTest,
+	"RefactorTactics.Heroes.Phase.TideDerivesFromHeal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPhaseTideDerivesFromHealTest::RunTest(const FString&)
+{
+	const URTActionData* Tide = URTHeroCatalogLibrary::MakeMuiren()->Actions[1];
+	if (!TestNotNull(TEXT("CircularTide all'indice 1"), Tide)) { return false; }
+	TestEqual(TEXT("deriva da Action.Heal"), Tide->Def.DerivedFromActionId, FName(TEXT("Action.Heal")));
+	TestEqual(TEXT("portata dell'eroe, non del core"), Tide->Def.RangeCells, 4);
+	TestEqual(TEXT("specchio legacy della portata"), Tide->RangeCells, 4);
+	TestEqual(TEXT("priorita' dell'eroe, non del core"), Tide->Def.Priority, 60);
+	TestEqual(TEXT("un solo effetto"), Tide->Def.Effects.Num(), 1);
+	if (Tide->Def.Effects.Num() == 1)
+	{
+		TestTrue(TEXT("e' una cura"), Tide->Def.Effects[0].Effect == ERTActionEffect::Heal);
+		TestEqual(TEXT("cura 18, non i 20 del core"), Tide->Def.Effects[0].Amount, 18);
+	}
+	TestTrue(TEXT("forma area"), Tide->Shape == ERTAbilityShape::Area);
+	TestEqual(TEXT("raggio 1"), Tide->AreaRadius, 1);
+	TestEqual(TEXT("Power resta 0: non e' danno"), Tide->Power, 0);
+	TestTrue(TEXT("il fallback e' quello del core"), Tide->Def.Fallback == ERTActionFallback::Cancel);
+	TestFalse(TEXT("non e' auto-bersaglio: l'area si mira"), Tide->bSelfTarget);
 	return true;
 }
 

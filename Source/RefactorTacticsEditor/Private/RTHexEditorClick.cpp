@@ -1,4 +1,8 @@
 #include "RTHexEditorClick.h"
+#include "RTHexTransitionGlyph.h"
+#include "RTHexEditorModeSettings.h" // #921: il flag dell'overlay vive nel mode, non nei tool
+#include "ContextObjectStore.h"
+#include "InteractiveToolManager.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
 #include "InputState.h"            // FInputDeviceRay
 #include "Engine/World.h"
@@ -10,6 +14,11 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTMapDependencyLibrary.h" // FRTMapElementHandle (#1864)
+#include "Map/RTMapEditLibrary.h"       // ResolveInteriorWall, per disegnare il muro selezionato
+#include "Map/RTGeometryGrammar.h"      // ToPolyline: la giacitura del muro, derivata dall'authority
+#include "RTHexSelectionStore.h"        // la selezione condivisa che i tool disegnano
+#include "Framework/Application/SlateApplication.h" // IsControlDown: il modificatore del gesto additivo
 #include "Turn/RTMatchSetupLibrary.h"
 #include "RTScenarioPreviewActor.h"  // ARTScenarioPreviewActor::PreviewTag: gli actor d'anteprima non sono "la mappa"
 
@@ -182,6 +191,53 @@ FColor SurfaceColor(ERTHexSurface Surface)
 	return URTHexLibrary::SurfaceColor(Surface);
 }
 
+bool ShouldShowSurfaceOverlay(const UContextObjectStore* Store)
+{
+	if (!Store)
+	{
+		return false;
+	}
+
+	// ⚠️ **Lo store dei tool E' quello in cui il mode pubblica, e non serve nessuna risalita.**
+	// `UEdMode::GetDefaultToolScope()` vale `EToolsContextScope::EdMode`, quindi sia `RegisterTool` sia il
+	// `GetToolManager()` del mode lavorano sul ModeToolsContext: il settings viene messo esattamente nello
+	// store che i sette `Render` interrogano. La risalita all'outer che `FindContext` fa serve al caso
+	// opposto — raggiungere un oggetto pubblicato dal ModeManager, uno scope piu' LARGO — e qui non e' in
+	// gioco. Il commento precedente diceva il contrario, e insegnava un modello sbagliato del ciclo di vita.
+	const URTHexEditorModeSettings* Settings =
+		const_cast<UContextObjectStore*>(Store)->FindContext<URTHexEditorModeSettings>();
+
+	return Settings ? Settings->bShowSurfaceOverlay : false;
+}
+
+bool PublishSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings)
+{
+	// Il `Cast` e' la meta' che conta: e' lo STESSO tipo che `ShouldShowSurfaceOverlay` cerca con
+	// `FindContext`, e scriverlo qui e' cio' che impedisce alle due sedi di divergere.
+	if (!Store || !Cast<URTHexEditorModeSettings>(Settings))
+	{
+		return false;
+	}
+	return Store->AddContextObject(Settings);
+}
+
+void WithdrawSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings)
+{
+	if (Store && Settings)
+	{
+		Store->RemoveContextObject(Settings);
+	}
+}
+
+bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager)
+{
+	if (!ToolManager)
+	{
+		return false;
+	}
+	return ShouldShowSurfaceOverlay(ToolManager->GetContextObjectStore());
+}
+
 void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
 {
 	if (!PDI || !Actor || !Actor->MapAsset) { return; }
@@ -233,18 +289,6 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 	//
 	// Anello ESTERNO (1.0), piu' largo del contorno di superficie: non compete con i marcatori di regola, che
 	// stanno tutti dentro.
-	// Transizioni: l'UNICO modo in cui i layer si collegano. Fuori dal tool Arch non si vedevano, quindi chi
-	// dipingeva con Paint o Fill non sapeva se una zona fosse collegata — e una piattaforma senza arco e'
-	// irraggiungibile senza dirlo. Si disegnano sempre, non solo mentre le si crea.
-	for (const FRTHexEdge& Edge : Map->Transitions)
-	{
-		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
-		const FVector A = URTHexLibrary::AxialToWorld(Edge.From, Origin, HexSize, LayerH);
-		const FVector B = URTHexLibrary::AxialToWorld(Edge.To, Origin, HexSize, LayerH);
-		// Alzate sopra il disco della cella, o la linea sparirebbe dentro la mesh.
-		DrawArrow(PDI, A + FVector(0, 0, 4.0), B + FVector(0, 0, 4.0), TransitionKindColor(Edge.Kind));
-	}
-
 	// Celle che NESSUNO raggiunge: calcolate dall'actor a ogni ricostruzione, non qui — una visita del grafo a
 	// ogni frame sarebbe lavoro ripetuto per un dato che cambia solo quando la mappa cambia.
 	for (const FRTCellId& Cell : Actor->GetUnreachableCells())
@@ -268,4 +312,378 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 		DrawHexMarker(PDI, Center, HexSize * 1.0f, Color);
 	}
 }
+
+bool NearestTransition(const ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos,
+	FRTMapElementHandle& OutHandle, float* OutDistance)
+{
+	const URTHexMapAsset* Map = Actor ? Actor->MapAsset : nullptr;
+	if (!Map || Map->Transitions.Num() == 0)
+	{
+		return false;
+	}
+
+	const FVector Origin = Actor->GetActorLocation();
+	const float HexSize = Map->HexSize;
+	const float LayerH = Map->LayerHeight;
+	const FVector RayO = ClickPos.WorldRay.Origin;
+	const FVector RayD = ClickPos.WorldRay.Direction;
+
+	int32 BestIdx = INDEX_NONE;
+	float BestDist = TNumericLimits<float>::Max();
+	for (int32 I = 0; I < Map->Transitions.Num(); ++I)
+	{
+		const FRTHexEdge& E = Map->Transitions[I];
+		const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
+		const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
+		const float Dist = URTHexLibrary::DistanceRayToSegment(RayO, RayD, A, B);
+		if (Dist < BestDist)
+		{
+			BestDist = Dist;
+			BestIdx = I;
+		}
+	}
+
+	// ⚠️ La soglia e' quella che `URTHexArchTool::RemoveNearestArch` usava da sempre: non un numero nuovo,
+	// lo stesso numero in un posto dove lo possono leggere in due.
+	if (BestIdx == INDEX_NONE || BestDist > HexSize * 0.6f)
+	{
+		return false;
+	}
+
+	OutHandle = FRTMapElementHandle::ForTransition(Map->Transitions[BestIdx].From, Map->Transitions[BestIdx].To);
+	if (OutDistance)
+	{
+		*OutDistance = BestDist;
+	}
+	return true;
+}
+
+void DrawSelectedElement(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor,
+	const FRTMapElementHandle& Handle, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	if (!PDI || !Actor)
+	{
+		return;
+	}
+
+	// Le stesse due costanti che il disegno aveva quando viveva dentro `URTHexSelectTool`: sollevare il
+	// tratto lo tiene sopra la faccia del prisma, e lo spessore lo distingue dal contorno di una cella.
+	const FVector Lift(0.f, 0.f, 4.f);
+	constexpr float Thick = 4.0f;
+
+	switch (Handle.Kind)
+	{
+	case ERTMapElementKind::Cell:
+	{
+		const FVector Centre = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
+		DrawHexMarker(PDI, Centre, HexSize * 0.9f, FColor::Yellow);
+		break;
+	}
+
+	case ERTMapElementKind::Cover:
+	case ERTMapElementKind::Door:
+	{
+		// Il LATO, non la cella: si disegna fra i due vertici piu' vicini al centro del bordo.
+		//
+		// ⚠️ Trovati per distanza invece che per indice: la corrispondenza «bordo N ↔ vertici N e N+1» e' una
+		// convenzione che vive dentro `HexCorners`, e riscriverla qui sarebbe la seconda copia che prima o
+		// poi diverge. Per distanza il risultato e' corretto per costruzione.
+		const FVector Mid = URTHexLibrary::EdgeMidpointWorld(Handle.Cell, Handle.Edge, Origin, HexSize, LayerHeight);
+		const FVector Centre = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
+
+		TArray<FVector> Corners = URTHexLibrary::HexCorners(Centre, HexSize);
+		Corners.Sort([&Mid](const FVector& A, const FVector& B)
+		{
+			return FVector::DistSquaredXY(A, Mid) < FVector::DistSquaredXY(B, Mid);
+		});
+
+		if (Corners.Num() >= 2)
+		{
+			const FColor Colour = (Handle.Kind == ERTMapElementKind::Door) ? FColor::Cyan : FColor::Orange;
+			PDI->DrawLine(Corners[0] + Lift, Corners[1] + Lift, Colour, SDPG_Foreground, Thick);
+		}
+		break;
+	}
+
+	case ERTMapElementKind::InteriorWall:
+	{
+		// La GIACITURA vera del muro, non un simbolo al centro della cella: e' l'unico modo per distinguere
+		// due muri interni sulla stessa cella, che e' precisamente il caso che il ciclo deve saper scorrere.
+		const URTHexMapAsset* Map = Actor->MapAsset;
+		const int32 Index = URTMapEditLibrary::ResolveInteriorWall(Map, Handle);
+		if (Index == INDEX_NONE)
+		{
+			break;
+		}
+
+		const FRTHexInteriorWall& Wall = Map->InteriorWalls[Index];
+		const FVector Centre = URTHexLibrary::AxialToWorld(Wall.Cell, Origin, HexSize, LayerHeight);
+
+		// `ToPolyline` e' il derivato di calcolo del segmento: il float nasce qui, a valle dell'authority.
+		const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize);
+		for (int32 I = 0; I + 1 < Line.Points.Num(); ++I)
+		{
+			const FVector A(Centre.X + Line.Points[I].X, Centre.Y + Line.Points[I].Y, Centre.Z);
+			const FVector B(Centre.X + Line.Points[I + 1].X, Centre.Y + Line.Points[I + 1].Y, Centre.Z);
+			PDI->DrawLine(A + Lift, B + Lift, FColor::Green, SDPG_Foreground, Thick);
+		}
+		break;
+	}
+
+	case ERTMapElementKind::Transition:
+	{
+		// 🔑 **L'arco intero, da centro a centro.** E' l'unica forma che lo dice: un arco non sta su un
+		// bordo e non sta dentro una cella — collega due celle su LAYER diversi, e disegnarne un simbolo
+		// su una delle due nasconderebbe proprio la cosa che lo distingue da tutto il resto.
+		//
+		// ⚠️ Prima del 2026-09-23 questo ramo non c'era e si cadeva su `default: break`: una transizione
+		// selezionata non si sarebbe vista. Il `Kind` era dichiarato, nessuno lo produceva, e il buco
+		// sarebbe uscito al primo produttore.
+		const FVector A = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
+		const FVector B = URTHexLibrary::AxialToWorld(Handle.To, Origin, HexSize, LayerHeight);
+		PDI->DrawLine(A + Lift, B + Lift, FColor::Magenta, SDPG_Foreground, Thick);
+
+		// I due estremi marcati: senza, a picco l'arco si legge come un segmento qualunque fra due punti,
+		// e non si vede QUALI celle collega.
+		DrawHexMarker(PDI, A, HexSize * 0.35f, FColor::Magenta);
+		DrawHexMarker(PDI, B, HexSize * 0.35f, FColor::Magenta);
+		break;
+	}
+
+	default:
+		break;
+	}
+}
+
+/**
+ * Un arco, coi suoi due canali per lato. Statica: la scelta dei canali e' di `RTHexTransition::Describe`,
+ * qui c'e' solo il modo di metterla sullo schermo.
+ */
+static void DrawTransitionGlyph(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B,
+	const RTHexTransition::FGlyph& G)
+{
+	const FVector Delta = B - A;
+	const FVector Dir = Delta.GetSafeNormal();
+	if (Dir.IsNearlyZero()) { return; }
+
+	// ⚠️ **Un arco puo' essere VERTICALE, ed e' il caso normale dell'ascensore**: stessa cella, due layer,
+	// quindi `Dir` coincide con `UpVector` e il prodotto vettoriale degenera a zero. Senza questo salto le
+	// tacche e la barra — cioe' i due canali che questa issue aggiunge — sparirebbero proprio sul tipo che
+	// piu' spesso sale dritto.
+	FVector Side = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+	if (Side.IsNearlyZero())
+	{
+		Side = FVector::CrossProduct(Dir, FVector::ForwardVector).GetSafeNormal();
+	}
+
+	const FColor Tint = G.Tint;
+
+	// IL CORPO. Continuo o tratteggiato: primo canale dello stato.
+	if (G.Stroke == RTHexTransition::EStroke::Solid)
+	{
+		PDI->DrawLine(A, B, Tint, SDPG_Foreground, 2.f);
+	}
+	else
+	{
+		// Undici tratti, sei disegnati: abbastanza fitto da leggersi come «linea», abbastanza rado da non
+		// confondersi con una continua.
+		constexpr int32 Segmenti = 11;
+		for (int32 K = 0; K < Segmenti; K += 2)
+		{
+			const FVector P0 = A + Delta * (static_cast<float>(K) / Segmenti);
+			const FVector P1 = A + Delta * (static_cast<float>(K + 1) / Segmenti);
+			PDI->DrawLine(P0, P1, Tint, SDPG_Foreground, 2.f);
+		}
+	}
+
+	// LA PUNTA: il verso e' un dato, e `From`/`To` non sono intercambiabili.
+	const float H = 18.f;
+	PDI->DrawLine(B, B - Dir * H + Side * (H * 0.5f), Tint, SDPG_Foreground, 2.f);
+	PDI->DrawLine(B, B - Dir * H - Side * (H * 0.5f), Tint, SDPG_Foreground, 2.f);
+
+	// LE TACCHE: secondo canale del tipo, e l'unico che sopravvive alla scala di grigi. Stanno sulla prima
+	// meta' dell'arco, lontano dalla punta, perche' la' non competono con nient'altro.
+	const float Tacca = FMath::Max(6.f, static_cast<float>(Delta.Size()) * 0.05f);
+	for (int32 T = 0; T < G.Ticks; ++T)
+	{
+		const float U = 0.16f + 0.05f * T;
+		const FVector C = A + Delta * U;
+		PDI->DrawLine(C - Side * Tacca, C + Side * Tacca, Tint, SDPG_Foreground, 2.f);
+	}
+
+	// LA BARRA: secondo canale dello stato, e SOLO per `Destroyed`. E' cio' che lo separa da `Inactive`,
+	// che il tratteggio accomuna — entrambi dicono «non si passa», ma uno si riaccende e l'altro no.
+	if (G.bCrossed)
+	{
+		const FVector M = A + Delta * 0.5f;
+		const float R = FMath::Max(10.f, static_cast<float>(Delta.Size()) * 0.07f);
+		const FVector D1 = (Dir + Side).GetSafeNormal() * R;
+		const FVector D2 = (Dir - Side).GetSafeNormal() * R;
+		PDI->DrawLine(M - D1, M + D1, Tint, SDPG_Foreground, 3.f);
+		PDI->DrawLine(M - D2, M + D2, Tint, SDPG_Foreground, 3.f);
+	}
+}
+
+void DrawTransitions(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
+{
+	if (!PDI || !Actor || !Actor->MapAsset) { return; }
+
+	const URTHexMapAsset* Map = Actor->MapAsset;
+	const FVector Origin = Actor->GetActorLocation();
+	const float HexSize = Map->HexSize;
+	const float LayerH = Map->LayerHeight;
+
+	// Coerente con l'overlay e con `RebuildInstances`: in `ActiveOnly` si mostra solo cio' che tocca il
+	// layer attivo. Un arco lo tocca se **uno dei due** estremi ci sta — e' il piano da cui si parte o
+	// quello a cui si arriva, e in entrambi i casi chi lavora deve saperlo.
+	const bool bActiveOnly = (Actor->LayerView == ERTLayerViewMode::ActiveOnly);
+	const int32 ActiveLayer = Actor->ActiveLayer;
+
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
+
+		// ⛔ Nessuna scelta di resa qui dentro: quali canali, con quali valori, lo dice la funzione pura.
+		const RTHexTransition::FGlyph G = RTHexTransition::Describe(Edge);
+
+		// Alzate sopra il disco della cella, o la linea sparirebbe dentro la mesh.
+		const FVector A = URTHexLibrary::AxialToWorld(G.From, Origin, HexSize, LayerH) + FVector(0, 0, 4.0);
+		const FVector B = URTHexLibrary::AxialToWorld(G.To, Origin, HexSize, LayerH) + FVector(0, 0, 4.0);
+		DrawTransitionGlyph(PDI, A, B, G);
+	}
+}
+
+void DrawSharedSelection(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
+{
+	const URTHexSelectionStore* Store =
+		GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr;
+	if (!PDI || !Actor || !Store || Store->GetSelection().Num() == 0)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+
+	for (const FRTMapElementHandle& Handle : Store->GetSelection())
+	{
+		DrawSelectedElement(PDI, Actor, Handle, Origin, HexSize, LayerH);
+	}
+}
 } // namespace RTHexEditor
+
+/**
+ * LA VALIDAZIONE SI RIFA' QUANDO LA MAPPA HA SMESSO DI CAMBIARE, non mentre cambia (#1864, casella 8).
+ *
+ * 🔴 **Il difetto che questa guardia esiste per non introdurre, misurato leggendo il costo.**
+ * `URTHexMapAsset::ValidateMap()` chiama in coda `ValidateMapDetailed`, che **per ogni cella** esegue
+ * `URTHexOccupancyLibrary::ComputeMask`, `HasLegalPlacement` e `EnumerateCoverOptions` — cioe' il lavoro
+ * geometrico della cottura di tutta la mappa. E `RefreshMapReadout` gira da `ModeTick`, **una volta per
+ * fotogramma**.
+ *
+ * ⚠️ La guardia che c'era gia' confronta `Revision`, e basta a chi legge un conteggio: durante un
+ * trascinamento del **pennello** pero' la mappa cambia a *ogni* fotogramma, quindi quella guardia lascia
+ * passare tutto e la validazione girerebbe sessanta volte al secondo su una mappa intera. Un readout che
+ * rallenta il gesto che deve descrivere e' peggio di nessun readout.
+ *
+ * 🔑 **La regola e' «un tick di quiete»**: finche' la revisione si muove non si valida; il primo
+ * fotogramma in cui NON si e' mossa, e c'e' del lavoro in attesa, si valida una volta sola. Durante una
+ * pennellata continua le validazioni sono **zero**, e al rilascio **una**.
+ *
+ * ⛔ **Non e' un timer**, e non usa il tempo: un debounce a millisecondi renderebbe il numero di
+ * validazioni dipendente dal frame rate — cioe' dalla macchina — e questo e' un modulo d'editor dove il
+ * determinismo del comportamento vale piu' della reattivita' di un fotogramma.
+ *
+ * Pura e con lo stato passato per riferimento, cosi' si prova headless senza aprire un `UEdMode`: e' la
+ * stessa scelta con cui `RTHexWorkGrid::BuildPlan` e' verificabile senza un viewport.
+ */
+bool RTHexEditor::ShouldRevalidate(int32 CurrentRevision, int32& InOutLastSeen, bool& InOutPending)
+{
+	if (CurrentRevision != InOutLastSeen)
+	{
+		// La mappa si e' mossa: si registra e si ASPETTA. Validare adesso significherebbe validare a
+		// ogni fotogramma di un trascinamento.
+		InOutLastSeen = CurrentRevision;
+		InOutPending = true;
+		return false;
+	}
+
+	if (InOutPending)
+	{
+		// Un tick di quiete dopo l'ultimo cambiamento: ora si valida, e una volta sola.
+		InOutPending = false;
+		return true;
+	}
+
+	return false;
+}
+
+bool RTHexEditor::GestureIsASelection(ERTAnchorPairRefusal Refusal, const FVector2D& LocalStart,
+	const FVector2D& LocalEnd, float HexSize)
+{
+	// 🔴 **Il gesto non deve essersi MOSSO, e `SameAnchor` da solo non lo garantisce.**
+	// `NearestAnchor` non ha limite di distanza: un trascinamento lungo che resta dalla parte dello stesso
+	// anchor — premi verso il punto medio del lato `E`, tira oltre il bordo — aggancia entrambi gli
+	// estremi a quel punto medio, e `ExplainPair` risponde `SameAnchor` su un gesto che era un disegno.
+	//
+	// ⚠️ La soglia e' in frazione di `HexSize`, cioe' una misura del MONDO: invariante allo zoom, al
+	// contrario dei pixel di schermo di `USingleClickOrDragInputBehavior`. E' la convenzione che questo
+	// modulo usa gia' — `NearestTransition` con `HexSize * 0.6`.
+	const float Soglia = HexSize * 0.05f;
+	if (FVector2D::DistSquared(LocalStart, LocalEnd) > Soglia * Soglia)
+	{
+		return false;
+	}
+
+	// ⛔ **Solo `SameAnchor`, e l'elenco degli esclusi e' il punto.** Gli altri rifiuti dicono che il
+	// gesto ERA un disegno e non e' riuscito — due celle, due layer, una coppia che nessun asse porta —
+	// e in tutti quei casi il ghost aveva gia' detto che il muro non si puo' fare. Cambiare la selezione
+	// al rilascio, li', sarebbe rubare il gesto a chi stava disegnando.
+	//
+	// 🔑 `SameAnchor` e' l'unico che significa «non c'e' lunghezza», cioe' un CLICK — e la doc dell'enum
+	// lo dice con le stesse parole: *«un gesto senza lunghezza non e' un muro»*.
+	return Refusal == ERTAnchorPairRefusal::SameAnchor;
+}
+
+bool RTHexEditor::ApplyClickToSelection(const ARTHexMapActor* Actor, const FRTCellId& Cell,
+	const FVector& ClickedPoint)
+{
+	if (Actor == nullptr)
+	{
+		return false;
+	}
+
+	URTHexMapAsset* Map = Actor->MapAsset;
+	URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr;
+	if (Map == nullptr || Store == nullptr)
+	{
+		return false;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+
+	// ⚠️ Il BORDO mirato, non il centro della cella: e' cio' che permette al ciclo di selezione di
+	// raggiungere una porta o una copertura invece della sola superficie (#1864).
+	const ERTHexDirection Edge =
+		URTHexLibrary::NearestEdgeDirection(Cell, ClickedPoint, Origin, HexSize, LayerH);
+
+	// Ctrl aggiunge invece di sostituire: e' la multi-selezione condivisa che #1864 chiede. Si legge QUI
+	// e non nei tool, cosi' i due non possono avere due convenzioni.
+	const bool bAdditive = FSlateApplication::IsInitialized()
+		&& FSlateApplication::Get().GetModifierKeys().IsControlDown();
+
+	if (bAdditive)
+	{
+		Store->AddAt(Map, Cell, Edge);
+	}
+	else
+	{
+		Store->SelectAt(Map, Cell, Edge);
+	}
+	return true;
+}

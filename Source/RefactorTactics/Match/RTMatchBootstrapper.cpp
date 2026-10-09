@@ -15,6 +15,19 @@
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
+UClass* RTUnitClassForHero(const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses, FName HeroId)
+{
+	const TSubclassOf<ARTUnit>* Configured = HeroUnitClasses.Find(HeroId);
+	UClass* const Classe = (Configured && *Configured) ? Configured->Get() : nullptr;
+	// ⛔ Anche una classe che non si puo' spawnare ricade sul cilindro: astratta, deprecata o rimpiazzata da un
+	// Blueprint ricompilato. `SpawnActorDeferred` la rifiuterebbe, e un'unita' mancante e' peggio di un cilindro.
+	if (Classe == nullptr || Classe->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	{
+		return ARTUnit::StaticClass();
+	}
+	return Classe;
+}
+
 /**
  * I passi dell'allestimento.
  *
@@ -298,9 +311,9 @@ namespace RTMatchBootstrapDetail
 		}
 
 		// Classe visiva per eroe: se assegnata (BP_Unit con skeletal) usala, altrimenti fallback al cilindro C++.
-		// E' il comportamento di ripiego di sempre, ora per HeroId invece che per archetipo.
-		const TSubclassOf<ARTUnit>* Configured = Config.HeroUnitClasses.Find(Hero->HeroId);
-		UClass* UnitClass = (Configured && *Configured) ? Configured->Get() : ARTUnit::StaticClass();
+		// E' il comportamento di ripiego di sempre, ora per HeroId invece che per archetipo — e da `#3586` la
+		// regola e' una funzione sola, condivisa con lo Scenario Harness.
+		UClass* UnitClass = RTUnitClassForHero(Config.HeroUnitClasses, Hero->HeroId);
 
 		// Deferred: team e statistiche PRIMA di BeginPlay, cosi' colore e dati sono corretti al primo frame.
 		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(UnitClass, FTransform::Identity);

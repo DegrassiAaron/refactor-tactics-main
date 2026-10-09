@@ -499,6 +499,23 @@ struct FRTBlastPreviewPlan
 	FRTCellId PlannedDashCell;
 
 	/**
+	 * Vero se lo scatto dichiarato e' una CARICA (`ERTMovementStyle::LinearCharge`): la sua `PlannedDashCell` e' la
+	 * cella del bersaglio, non quella d'arrivo, e `AimOriginCell` non mira da li' ([D-464] punto 5).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bDashIsCharge = false;
+
+	/**
+	 * La fase in cui risolve l'azione pianificata: decide da dove MIRA ([D-464], `AimOriginCell`).
+	 *
+	 * ⚠️ **`Attack` di default, ed e' il contratto di prima**: un piano composto senza fase e' un piano del Blast, e
+	 * mira dalla cella dello scatto come ha sempre fatto. Chi compone dal piano di un'unita' la legge da
+	 * `FRTActionDef::ResolutionPhase`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTResolutionPhase Phase = ERTResolutionPhase::Attack;
+
+	/**
 	 * Vero se il piano dichiara un'azione principale. Distinto da «bersaglio assente»: un'unita' che ha
 	 * pianificato solo uno scatto ha un'ORIGINE da mostrare e nessuna area, e le due cose non si deducono
 	 * l'una dall'altra.
@@ -731,8 +748,40 @@ public:
 	static TArray<FRTAttack> ToAttacks(const FRTHexBlastPlan& Plan);
 
 	/**
-	 * Cella da cui l'unita' agisce nella fase **Blast**: quella dello scatto se lo scatto si applica,
-	 * altrimenti quella corrente.
+	 * 🔑 **La cella da cui MIRA un'azione pianificata, per fase ([D-464]): una regola sola per chiunque giudichi la
+	 * mira** — i due click, `Invalid` e `Warning` dello slot, l'anteprima dell'area colpita, quella del piano e la
+	 * portata viola. Prima giudicavano dalla cella corrente i click, `Invalid`, l'anteprima del piano e la portata,
+	 * mentre area colpita e `Warning` partivano dallo scatto: sulla stessa unita' la portata diceva si', lo slot
+	 * `Warning` e l'anteprima del piano ok.
+	 *
+	 * - `Control` e `Attack` — macro-fase Blast, dopo il Dash: la cella dello scatto, se lo scatto si applica e
+	 *   sposta. E' da li' che `CollectHexAttacks` misura, e da li' che il bot pianifica;
+	 * - `Preparation` — risolve prima del Dash: la cella corrente;
+	 * - `Environment` — la cella corrente **per scelta dichiarata**, non per fase: risolve dopo il Move, ma il
+	 *   resolver non ne ricontrolla la portata, quindi l'origine decide solo quali piani il click accetta;
+	 * - ogni altra fase: la cella corrente. [D-464] non le nomina, e nessuna di loro risolve dopo uno scatto
+	 *   prima del Move.
+	 *
+	 * ⛔ **La carica ne resta fuori** ([D-464] punto 5): con `bDashIsCharge` la mira resta dalla cella corrente. La
+	 * sua `PlannedDashCell` e' la cella del BERSAGLIO — la scrivono il click (`HandleClickOnCell`) e
+	 * `URTBotPlanningLibrary::PlanTurn` —, mentre la carica si ferma sull'adiacente ([D-296]): mirare da li' non
+	 * avrebbe senso. Limite dichiarato in #3509: con una carica pianificata il resolver colpisce dall'adiacente, e
+	 * nessuna di queste domande lo sa.
+	 *
+	 * `bDashResolves` e' l'esito di `ARTUnit::PlannedDashMoves()` ([D-471]), deciso dal chiamante come per
+	 * `FRTBlastPreviewPlan`: qui non si rivaluta.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTCellId AimOriginCell(ERTResolutionPhase Phase, const FRTCellId& CurrentCell, bool bDashResolves,
+		bool bDashIsCharge, const FRTCellId& PlannedDashCell);
+
+	/**
+	 * Cella da cui l'unita' agisce con l'azione del piano: `AimOriginCell` per la fase `Plan.Phase`, che di default e'
+	 * `Attack` — cioe' quella dello scatto se lo scatto si applica, altrimenti quella corrente.
+	 *
+	 * ⏱️ *Fino a #3509 non conosceva la fase*: un'azione `Environment` o `Preparation` pianificata dopo uno scatto
+	 * veniva anteprimata dalla cella dello scatto, mentre il click la giudicava da quella corrente. Ora ne e' il
+	 * chiamante ([D-464] punto 2), non un secondo contratto.
 	 *
 	 * 🔴 **Non e' la posizione di fine turno, e la differenza e' l'ordine delle fasi.** Il ciclo risolve
 	 * `Prep -> Dash -> Blast -> Move` (`ARTTurnManager::ResolveTurn`): il movimento normale arriva DOPO gli

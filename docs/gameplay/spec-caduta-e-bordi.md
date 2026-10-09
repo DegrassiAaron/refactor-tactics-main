@@ -329,6 +329,34 @@ raggiungibile dall'atterraggio — **senza dipendere dall'occupazione a runtime*
 ⚠️ Questa validazione **non** rimuove il fallback del §4.3: muri, bordi e unità creati in partita possono
 chiudere un'area nata valida. Sono due garanzie diverse, in due momenti diversi.
 
+### 7.1 Dove vive, dal 2026-09-21 (#2404)
+
+`URTHexMapAsset::ValidateMapDetailed`, regola 6, reason code `ERTMapValidationReason::IsolatedLanding`.
+Segnala l'**atterraggio**, non il ciglio: è sulla cella di sotto che si apre un passaggio.
+
+Le tre domande sono già scritte altrove, e la regola non ne riscrive nessuna: `IsEdgeOpen` dice da dove si
+cade, `FindLandingCell` dove si finisce ([#2401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2401)),
+`GraphNeighbors` che cosa è raggiungibile da lì — cella presente, non `bBlocksMovement`, bordo attraversabile,
+più gli archi attivi uscenti. Il quarto criterio, *non `Void`*, è lo stesso che il resolver applica al §4.2.
+
+🔑 **Errore e non warning**, a differenza del parapetto su bordo connesso. Quello è un warning perché è
+**inerte** — da lì non si cadeva comunque — e perché una mappa può crescergli attorno restando corretta. Qui
+la segnalazione non è mai vacua: dice che da quella cella, **allo stato autorato**, non esce nessun passo.
+
+⚠️ **Porta chiusa e arco spento contano**, e non lo decide questa regola: il §2 qui sopra mette *«muro,
+copertura alta, porta chiusa»* nella stessa riga **bloccante**, e `CP 9.4` dichiara che un arco spento rende
+le due celle *«irraggiungibili l'una dall'altra»*. Il criterio è *ciò che la mappa autora* — la stessa
+ragione per cui l'occupazione, che non autora nessuno, resta fuori.
+
+⛔ **È adiacenza nel grafo, non raggiungibilità estesa.** Un atterraggio con **una** uscita che porta in una
+sacca chiusa intrappola quanto uno con zero uscite, e questa regola non lo vede: è il §4.2 visto un momento
+prima, non un'analisi di fuga.
+
+⛔ **Sotto non c'è niente non è questo difetto.** È il quarto caso del §4 — `FellWithoutLanding` — che una
+passerella sospesa ha per costruzione: segnalarlo qui renderebbe invalide mappe verticali legittime.
+
+Misurato da `Fall.StaticValidatorRejectsIsolatedLanding` e `Fall.StaticValidatorIgnoresRuntimeOccupancy`.
+
 ---
 
 ## 8. Fuori scope in v0.1

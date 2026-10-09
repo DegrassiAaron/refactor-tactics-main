@@ -34,8 +34,13 @@ struct FRTEnemyTacticalRegions
 	int32 StableUnitId = INDEX_NONE;
 
 	/**
-	 * Dove il soggetto puo' arrivare col movimento normale, ordinate `StableLess`. Include la cella di
+	 * Dove il soggetto puo' arrivare nella fase Move, ordinate `StableLess`. Include la cella di
 	 * partenza, come `URTHexSimLibrary::ReachableCells` da cui provengono.
+	 *
+	 * 🔑 **Il budget e' il PIU' ALTO spendibile in quella fase, non `MovePoints`** (`#3202`). Dal 2026-09-12
+	 * `Action.Sprint` risolve in `NormalMovement` ([D-116]): il suo ×2 ([D-412]) allarga QUESTA regione, non
+	 * quella dello scatto. Passo e scatto occupano lo stesso slot Movimento ([D-028]) — si prende il massimo,
+	 * mai la somma.
 	 *
 	 * ⚠️ E' PORTATA, non minaccia: il ruleset manda `NormalMovement` in `ERTMatchPhase::Move`, che risolve
 	 * DOPO il Blast (`URTCatalogLibrary::MapResolutionPhase`). Arrivarci non abilita nessun attacco in
@@ -58,7 +63,9 @@ struct FRTEnemyTacticalRegions
 	 * `RegionsFor` risponde `false`. Sono due esiti diversi e un test li distingue.
 	 *
 	 * ⚠️ **Include ogni origine di mobilita' rapida, non solo quelle a budget.** Lo Scope di `#2632` nomina
-	 * `ReachableWithBudget`, che copre `Action.Sprint`; le mobilita' rapide LINEARI (`Action.Leap`,
+	 * `ReachableWithBudget` — ⌫ **e lo faceva per `Action.Sprint`, che dal 2026-09-12 non passa piu' di qui**
+	 * ([D-116], misurato da `#3202`): lo Sprint risolve con il passo, e allarga `ReachableCells`. Il ramo a
+	 * budget resta vivo per i kit; le mobilita' rapide LINEARI (`Action.Leap`,
 	 * `Action.Charge`, `Action.Dodge`, `Action.Reposition`) passano da `ResolveLinearMove`, che e' la
 	 * primitiva canonica della linearita' e non un secondo pathfinder. Escluderle renderebbe il DTO
 	 * auto-contraddittorio: `PostDashThreat` irradia dalle loro celle d'arrivo, che sarebbero minaccia

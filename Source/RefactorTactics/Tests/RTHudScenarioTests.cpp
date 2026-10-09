@@ -41,6 +41,12 @@
 #include "Engine/World.h"
 #include "EngineUtils.h" // TActorIterator
 #include "Player/RTPlayerController.h" // il percorso REALE di armamento (#2986)
+#include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h" // DefaultLoadoutFor: il loadout che `SpawnHero` equipaggia
+#include "Ability/RTHeroCatalogLibrary.h" // #3419: il roster spedito, non uno scenario
+#include "Ability/RTHeroData.h"
+#include "Components/TextBlock.h"
+#include "Kismet/GameplayStatics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -95,18 +101,39 @@ namespace
 		return Out;
 	}
 
-	/** Gli indici degli slot accesi. Un `TArray` e non un conteggio: «quale» e' meta' della domanda. */
+	/**
+	 * Gli INDICI DI KIT degli slot accesi, cioe' l'identita' che ciascuno porta in `Action.AbilityIndex`. Un
+	 * `TArray` e non un conteggio: «quale» e' meta' della domanda.
+	 *
+	 * ⌫ **Restituiva la POSIZIONE nella fila**, e i due test qui sotto confrontavano quella con l'indice
+	 * armato. Era vero finche' la dock disponeva gli slot nell'ordine di kit; dalla seduta `U63` li dispone in
+	 * ordine di lettura ([D-455], #3478) e le due cose divergono — in partita l'indice 1 sta in sesta posizione.
+	 * ⛔ La posizione a schermo non e' mai un indice ([D-397] punti 2 e 4): l'identita' e' il campo.
+	 */
 	TArray<int32> ArmedIndices(const TArray<URTActionSlotWidget*>& Slots)
 	{
 		TArray<int32> Out;
-		for (int32 i = 0; i < Slots.Num(); ++i)
+		for (const URTActionSlotWidget* Slot : Slots)
 		{
-			if (Slots[i]->bArmed)
+			if (Slot->bArmed)
 			{
-				Out.Add(i);
+				Out.Add(Slot->Action.AbilityIndex);
 			}
 		}
 		return Out;
+	}
+
+	/** Lo slot che porta l'indice di kit chiesto, ovunque stia nella fila; `nullptr` se nessuno lo porta. */
+	URTActionSlotWidget* SlotForKitIndex(const TArray<URTActionSlotWidget*>& Slots, int32 KitIndex)
+	{
+		for (URTActionSlotWidget* Slot : Slots)
+		{
+			if (Slot->Action.AbilityIndex == KitIndex)
+			{
+				return Slot;
+			}
+		}
+		return nullptr;
 	}
 }
 
@@ -526,12 +553,12 @@ bool FRTHudDockKitHoleTest::RunTest(const FString&)
 		Slots.Num(), PosizioniDiKit);
 
 	// --- B. il riquadro del buco porta la posizione vuota, non l'azione seguente ----------------------
-	if (TestTrue(TEXT("premessa: il riquadro del buco esiste"), Slots.IsValidIndex(Buco)))
+	// ⚠️ Il riquadro si CERCA per indice di kit, non per posizione: la fila e' in ordine di lettura (`U63`).
+	if (const URTActionSlotWidget* RiquadroDelBuco = SlotForKitIndex(Slots, Buco);
+		TestNotNull(TEXT("premessa: un riquadro porta l'indice del buco"), RiquadroDelBuco))
 	{
 		TestTrue(TEXT("B: il riquadro del buco porta una posizione VUOTA"),
-			Slots[Buco]->Action.ActionId.IsNone());
-		TestEqual(TEXT("B: e porta comunque il proprio indice di kit"),
-			Slots[Buco]->Action.AbilityIndex, Buco);
+			RiquadroDelBuco->Action.ActionId.IsNone());
 	}
 
 	// --- C. armando DOPO il buco si accende quel riquadro, non uno slittato ---------------------------
@@ -581,6 +608,82 @@ bool FRTHudDockKitHoleTest::RunTest(const FString&)
 			ArmedIndices(SlotsOf(Dock)).Contains(Buco));
 	}
 
+	return true;
+}
+
+// =====================================================================================================
+// #3419 — la forma dell'impronta, dal roster allo schermo
+// =====================================================================================================
+
+/**
+ * ⛔ **Il tooltip d'abilita' dice la forma, nel dock della partita** (#3419).
+ *
+ * 🔑 E' tutto il percorso della partita: l'unita' allestita come la allestisce `SpawnHero` — la classe
+ * Blueprint dell'eroe, i dati del roster spedito, il loadout di default —, il **grafo** di `WBP_RT_ActionDock`
+ * che a ogni `Tick` passa le righe agli slot, lo slot dell'asset e il testo della porta `LinesText` del suo
+ * tooltip. I test della forma in `RTActionTooltipTests.cpp` costruiscono la riga a mano, e non vedono nessuno di
+ * questi passaggi: togliere la copia di `Shape` in `BuildAbilityCooldowns` non rendeva rosso nessun test di
+ * `HudViewModel.*` e `ScreenHud.*`.
+ *
+ * ⚠️ L'oracolo e' l'azione dell'unita', non una lista d'eroi: un'area nuova nel roster si controlla da sola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDockTooltipShowsTheShapeTest,
+	"RefactorTactics.ScreenHud.DockTooltipShowsTheShapeOfEveryRosterArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTDockTooltipShowsTheShapeTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	UClass* DockClass = LoadClass<URTActionDockWidget>(nullptr, DockBlueprintPath);
+	if (!TestNotNull(TEXT("WBP_RT_ActionDock si carica"), DockClass)) { return false; }
+
+	int32 Aree = 0;
+	int32 Cella = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		// La classe che `ARTGameMode` associa all'eroe (`HeroUnitClasses`): `Hero.Aevik` -> `BP_Unit_Aevik`.
+		const FString Nome = ARTUnit::ShortHeroName(Hero->HeroId, FString());
+		UClass* UnitClass = LoadClass<ARTUnit>(nullptr, *FString::Printf(
+			TEXT("/Game/RT/Characters/%s/Blueprints/BP_Unit_%s.BP_Unit_%s_C"), *Nome, *Nome, *Nome));
+		if (!TestNotNull(*FString::Printf(TEXT("%s: la classe Blueprint dell'eroe"), *Nome), UnitClass)) { continue; }
+		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(UnitClass, FTransform::Identity);
+		if (!TestNotNull(TEXT("unita'"), Unit)) { continue; }
+		Unit->TeamId = 0;
+		Unit->ConfigureFromHeroData(Hero);
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
+		Unit->DispatchBeginPlay();
+		Unit->PlaceOnCell(FRTCellId(Cella++, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+
+		URTActionDockWidget* Dock = CreateWidget<URTActionDockWidget>(World, DockClass);
+		if (!TestNotNull(TEXT("il dock si istanzia"), Dock)) { continue; }
+		Dock->SetSelectedUnitForTest(Unit);
+		Dock->Tick(FGeometry(), 0.f);
+
+		const TArray<URTActionSlotWidget*> Slots = SlotsOf(Dock);
+		TestTrue(*FString::Printf(TEXT("%s: il dock costruisce gli slot"), *Nome), Slots.Num() > 0);
+		for (const URTActionSlotWidget* Slot : Slots)
+		{
+			const URTActionData* A = Slot ? Unit->GetAbility(Slot->Action.AbilityIndex) : nullptr;
+			if (!A || A->Shape != ERTAbilityShape::Area || A->AreaRadius <= 0) { continue; }
+			++Aree;
+			const FString Id = A->Def.ActionId.ToString();
+			const FString Attesa = FString::Printf(TEXT("Forma  Area, raggio %d"), A->AreaRadius);
+			const URTActionTooltipWidget* Tooltip = Cast<URTActionTooltipWidget>(Slot->GetToolTip());
+			if (!TestNotNull(*FString::Printf(TEXT("%s: il tooltip e' il widget dell'asset"), *Id), Tooltip)) { continue; }
+			if (TestNotNull(*FString::Printf(TEXT("%s: la porta delle righe"), *Id), Tooltip->LinesText.Get()))
+			{
+				const FString Letto = Tooltip->LinesText->GetText().ToString().Replace(TEXT("\n"), TEXT(" | "));
+				AddInfo(FString::Printf(TEXT("%s, righe a schermo: %s"), *Id, *Letto));
+				TestTrue(*FString::Printf(TEXT("%s: a schermo c'e' '%s' (letto: '%s')"), *Id, *Attesa, *Letto),
+					Letto.Contains(Attesa));
+			}
+		}
+	}
+	TestTrue(TEXT("premessa: il roster ha almeno un'area con un raggio"), Aree > 0);
 	return true;
 }
 

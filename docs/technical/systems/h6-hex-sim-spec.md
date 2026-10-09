@@ -32,7 +32,7 @@ Fuori da questo slice: il wiring in `ARTTurnManager` (che resta quadrato finché
 | D3 | `FRTHexSnapshot` è uno **struct C++ puro** (non `USTRUCT`), vita = una risoluzione di fase | Contiene un puntatore non-`UPROPERTY` all'asset: renderlo esposto inviterebbe a conservarlo oltre la fase (rischio GC). Le funzioni sono `static` non-`UFUNCTION`, come `URTHexPathLibrary::GraphNeighbors`. |
 | D4 | Identità dell'unità = **`UnitId` intero stabile**, mai un pointer | Determinismo e replay (stesso criterio del TurnLog, che usa la cella di partenza come chiave). |
 | D5 | Il **budget** entra nel pathfinding (`MaxCost` dell'A* già esistente), non nel resolver | Il resolver dei microstep consuma path **già** troncati al budget: una responsabilità per funzione. |
-| D6 | Le celle occupate da **altre** unità sono ostacoli per path e reachable; la cella dell'unità stessa no | Un'unità non blocca sé stessa; il resto è la regola «max 1 unità per cella». |
+| D6 | 🔴 **Nessuna cella occupata è un ostacolo per path o reachable** — [D-445](../../decisions/RT_PDR_00_Decision_Log.md) / [D-446](../../decisions/RT_PDR_00_Decision_Log.md) | *Fino al 2026-10-01 le celle di altre unità erano ostacoli, e la propria no.* Oggi il transito è libero per chiunque e la destinazione occupata è una **scommessa** dichiarabile. La regola «max 1 unità per cella» resta, e vive in **risoluzione** ([D-289](../../decisions/RT_PDR_00_Decision_Log.md)). |
 | D7 | **Duplicazione dichiarata** della logica microstep (quadrata in `RTMovementResolver`, hex in `RTHexSimLibrary`) | Il quadrato è destinato a sparire allo switch: la duplicazione è temporanea per costruzione. I test hex replicano gli scenari quadrati, così una divergenza fallisce invece di passare inosservata. |
 
 ## 3. Architettura
@@ -54,10 +54,10 @@ Fuori da questo slice: il wiring in `ARTTurnManager` (che resta quadrato finché
 | `MakeSnapshot(Map, Units)` | Ordina le unità per `UnitId` (ordine stabile), costruisce `Occupancy` con le sole unità vive (in caso di collisione vince l'`UnitId` minore → deterministico), cattura `ComputeHash()` e `Revision`. |
 | `ValidateSnapshot(Snapshot)` | Errori strutturali: due unità vive sulla stessa cella, unità su cella assente dalla mappa, `UnitId` duplicati, `MoveBudget` negativo. Stessa forma di `URTHexMapAsset::ValidateMap`. |
 | `IsSnapshotStale(Snapshot)` | `true` se l'asset non c'è più o se `ComputeHash()`/`Revision` sono cambiati dopo la cattura (fail-fast sull'invariante «la mappa non cambia durante la risoluzione»). |
-| `IsCellFree(Snapshot, Cell, ForUnitId)` | La cella esiste, non ha `bBlocksMovement` e non è occupata da un'unità **diversa** da `ForUnitId`. |
-| `ReachableCells(Snapshot, UnitId)` | Dijkstra sui costi interi (`URTHexPathLibrary::GraphNeighbors`, archi inclusi) entro il `MoveBudget` dell'unità, saltando le celle occupate da altri. Include sempre la cella di partenza a costo 0. Output ordinato per cella (`StableLess`) → indipendente dall'ordine di `TMap`. |
-| `FindPathForUnit(Snapshot, UnitId, Goal)` | A* con `MaxCost = MoveBudget` che evita le celle occupate da altri; goal occupato → `NoPath`. |
-| `ResolveHexPaths(Paths)` | Microstep sincroni: a ogni passo tutte le unità avanzano di una cella; destinazione contesa (2+) → contendenti fermi da lì; cella di un'unità ferma → bloccata; scambio diretto → consentito. Punto fisso monotono → **indipendente dall'ordine** delle richieste. |
+| `IsCellFree(Snapshot, Cell, ForUnitId)` | La cella esiste, non ha `bBlocksMovement` e non è occupata da un'unità **diversa** da `ForUnitId`. ⚠️ **Non è più il criterio di ciò che si può pianificare** ([D-446](../../decisions/RT_PDR_00_Decision_Log.md)): resta la domanda *«è libera adesso?»*, che il resolver usa, non *«la posso dichiarare?»*. |
+| `ReachableCells(Snapshot, UnitId)` | Dijkstra sui costi interi (`URTHexPathLibrary::GraphNeighbors`, archi inclusi) entro il `MoveBudget` dell'unità. 🔴 **Non salta più le celle occupate, e non le filtra dal risultato** ([D-445](../../decisions/RT_PDR_00_Decision_Log.md) / [D-446](../../decisions/RT_PDR_00_Decision_Log.md)): il ventaglio deve coincidere con ciò che il clic accetta, o l'overlay nasconde celle su cui si può andare. Include sempre la cella di partenza a costo 0. Output ordinato per cella (`StableLess`) → indipendente dall'ordine di `TMap`. |
+| `FindPathForUnit(Snapshot, UnitId, Goal)` | A* con `MaxCost = MoveBudget`. 🔴 **Attraversa le celle occupate, e un goal occupato dà un percorso** ([D-445](../../decisions/RT_PDR_00_Decision_Log.md) / [D-446](../../decisions/RT_PDR_00_Decision_Log.md)): era *«evita le celle occupate da altri; goal occupato → `NoPath`»*. |
+| `ResolveHexPaths(Paths)` | Microstep sincroni: a ogni passo tutte le unità avanzano di una cella; destinazione contesa (2+) → contendenti fermi da lì; **destinazione** di un'unità che resta → bloccata; transito di chiunque → consentito ([D-445](../../decisions/RT_PDR_00_Decision_Log.md)); scambio diretto → consentito **anche con durate di passo diverse** ([D-446](../../decisions/RT_PDR_00_Decision_Log.md)), con chi arriva prima che aspetta. Punto fisso monotono → **indipendente dall'ordine** delle richieste. |
 
 ### 3.3 Estensione minima del pathfinding
 
@@ -76,13 +76,13 @@ esistenti). Motivo: l'occupazione è dinamica e non appartiene all'asset mappa.
 | `ValidateDetectsUnitOffMap` | unità su cella assente → errore |
 | `ReachableRespectsBudget` | budget 2 su costi 1 → esattamente le celle a distanza ≤ 2 |
 | `ReachableRespectsTerrainCost` | cella a `MoveCost` 3 fuori da un budget 2 |
-| `ReachableExcludesOccupied` | cella occupata da un'altra unità né raggiungibile né attraversabile |
+| `ReachableIncludesOccupied` | cella occupata da un'altra unità raggiungibile **e** attraversabile, e la ventata è identica a quella senza occupante |
 | `ReachableUsesTransitions` | arco esplicito entro budget → cella su un altro layer raggiungibile |
 | `PathStopsAtBudget` | goal oltre il budget → `NoPath` |
-| `PathAvoidsOccupiedCell` | devia attorno a un'unità ferma; goal occupato → `NoPath` |
+| `PathCrossesOccupiedCell` | attraversa un'unità ferma al costo della via diretta; goal occupato → un percorso c'è |
 | `ResolveContestedDestination` | due unità verso la stessa cella → entrambe ferme prima, `BlockedContested` |
-| `ResolveSwapBlocked` | scambio diretto A↔B **bloccato**, `BlockedByCycle` — è il ciclo con `n = 2` (#1922) |
-| `ResolveBlockedByStationary` | destinazione di un'unità ferma → `BlockedByUnit` |
+| `ResolveNonLinearSwapHappens` | scambio diretto A↔B **avviene**, `Moved` per entrambe — era bloccato come ciclo `n = 2` (#1922) fino a [D-445](../../decisions/RT_PDR_00_Decision_Log.md) |
+| `ResolveCrossesStationaryButNotOntoIt` | si attraversa un'unità ferma; la sua cella come **destinazione** → `BlockedByUnit` |
 | `ResolveOrderIndependent` | permutazione dell'input → stessi esiti per unità |
 
 ## 5. Definition of Done (raggiunta)

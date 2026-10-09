@@ -11,6 +11,7 @@ import { readCatalogs } from './parse-catalog.ts';
 import { profileAxes } from './profile.ts';
 import { renderRadar, PROFILE_AXES, BALANCE_AXES } from './svg.ts';
 import { balanceAxes } from './balance.ts';
+import { abilityBands, abilityContributions, contributionPerTurn } from './power.ts';
 import { assertKnownEffects } from './vocabulary.ts';
 
 const HERO = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
@@ -38,7 +39,43 @@ const ROLES: Record<string, string> = {
 };
 
 const check = process.argv.includes('--check');
+const abilities = process.argv.includes('--abilities');
 const { heroes, coverage } = readCatalogs(HERO, ACTION, { expectHeroes: 4, expectAbilities: 20 });
+
+/** `--abilities`: il contributo per-abilita' che la rubrica gia' calcolava e non faceva uscire (#2579).
+ *
+ *  🔑 **Stampa e NON scrive**, ed e' la lezione di `D-181`: la vista generata e committata
+ *  (`editormap.shortlist.md`) e' uscita dal repository perche' nessuno la leggeva mentre invecchiava.
+ *  Un file che devi rigenerare per vedere non puo' mentirti sulla propria eta'.
+ *
+ *  ⛔ **Non tocca nessun radar**, quindi `--check` resta verde per costruzione: questa issue espone cio'
+ *  che esisteva gia', non muove un asse. */
+if (abilities) {
+  const tutte = heroes.flatMap((h) => abilityContributions(h).map((c) => [h, c] as const));
+  const bande = new Map(abilityBands(heroes).map((b) => [b.kind, b]));
+
+  console.log('contributo per-abilita all asse `power` — danno per turno, pesato sulla disponibilita');
+  console.log('(la stessa unita di `power_raw`: nessuna scala nuova, nessun punteggio composto — D-154)\n');
+  console.log(
+    `${'abilita'.padEnd(34)} ${'eroe'.padEnd(7)} ${'categoria'.padEnd(13)} ` +
+      `${'dmg'.padStart(4)} ${'cd'.padStart(3)} ${'peso'.padStart(5)} ${'/turno'.padStart(7)}`,
+  );
+  for (const [hero, c] of [...tutte].sort((x, y) => contributionPerTurn(y[1]) - contributionPerTurn(x[1]))) {
+    console.log(
+      `  ${c.id.padEnd(32)} ${hero.name.padEnd(7)} ${c.kind.padEnd(13)} ` +
+        `${String(c.damage).padStart(4)} ${String(c.cooldown).padStart(3)} ` +
+        `${String(c.availability).padStart(5)} ${String(contributionPerTurn(c)).padStart(7)}`,
+    );
+  }
+
+  console.log('\nbande di riferimento per categoria d azione — MISURATE sul roster, non scelte:');
+  for (const b of bande.values()) {
+    console.log(`  ${b.kind.padEnd(13)} [${String(b.min).padStart(5)} .. ${String(b.max).padStart(5)}]  ` +
+      `derivata da ${b.from.length}: ${b.from.join(', ')}`);
+  }
+  console.error(`copertura: ${coverage}`);
+  process.exit(0);
+}
 
 const diverging: string[] = [];
 if (!check && !existsSync(OUT)) mkdirSync(OUT, { recursive: true });

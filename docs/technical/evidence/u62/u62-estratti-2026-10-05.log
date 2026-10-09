@@ -1,0 +1,106 @@
+# Evidenza - seduta `U62`: i residui di `U60` in Editor
+#
+# Estratti dai log `-abslog` delle aperture della seduta, nel clone principale, dal 2026-10-04 al
+# 2026-10-05. Una sezione per apertura, ognuna col proprio log: la riga di comando, gli esiti del Lab e
+# dello Scenario Harness, le due righe delle CVar di playback, e l'uscita.
+#
+# I timestamp DENTRO le righe sono UTC; quelli nelle intestazioni sono ora locale (UTC+2).
+# Tenute anche le reti dei crash (`Fatal error`, `Assertion failed`): dove non compaiono, non ci sono.
+#
+# I verdetti percettivi non stanno nel log: li ha dati l'autore guardando, e sono registrati in
+# `docs/roadmap/editor-sessions.yaml` (`U62`) e in `docs/technical/test-manuali-pie.md`.
+
+## Apertura 1 - 2026-10-04 15:49 - `u62-seduta.log`
+#  HEAD 5105325e2, Source e426c553 - #3461, filtro per eroe del Lab
+  555: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,rt.Match.PlanningSeconds=90,rt.Map.Fixture=VisionSplit -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta.log
+ 2301: [2026.10.04-13.50.25:189][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2493: [2026.10.04-14.05.51:703][755]Cmd: QUIT_EDITOR
+ 2569: [2026.10.04-14.05.56:056][756]LogExit: Exiting.
+
+## Apertura 2 - 2026-10-04 16:09 - `u62-seduta-2.log`
+#  HEAD 473c218fd, Source e426c553 - #3461; passi 1-2 di G16 sul catalogo intero (trovati #3472 #3473 #3474)
+  555: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,rt.Match.PlanningSeconds=90,rt.Map.Fixture=VisionSplit -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta-2.log
+ 2298: [2026.10.04-14.10.03:885][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2489: [2026.10.04-14.11.50:743][490]LogRT: [RT-Test] AbilityLab.Hero.Ivrin.InterceptShot: PASS (1/1 assertion, 1 turni)
+ 2498: [2026.10.04-14.11.59:881][429]LogRT: [RT-Test] AbilityLab.Hero.Ivrin.PassingBlade: PASS (1/1 assertion, 1 turni)
+ 2514: [2026.10.04-14.12.05:053][975]LogRT: [RT-Test] AbilityLab.Hero.Ivrin.PulseShot: PASS (1/1 assertion, 1 turni)
+ 2545: [2026.10.04-14.36.16:003][396]LogRT: [RT-Test] AbilityLab.Hero.Aevik.LinearDischarge: PASS (1/1 assertion, 1 turni)
+ 2643: [2026.10.04-14.38.55:844][960]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2644: [2026.10.04-14.38.55:844][960]LogTemp: Display: [RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo.
+ 2660: [2026.10.04-14.40.08:409][339]LogRT: Error: [RT-Test] AbilityLab.Action.Withdraw: 'CASTER' non possiede l'abilita' 'Action.Withdraw' (turno 1)
+ 2661: [2026.10.04-14.40.08:409][339]LogRT: [RT-Test] AbilityLab.Action.Withdraw: ERROR (0/1 assertion, 0 turni)
+ 2722: [2026.10.04-15.21.55:709][370]Cmd: QUIT_EDITOR
+ 2797: [2026.10.04-15.22.01:612][371]LogExit: Exiting.
+
+## Apertura 3 - 2026-10-04 17:58 - `u62-seduta-3.log`
+#  HEAD 5f37e0769, Source 4504dfd2 - A1-A5: #3472 #3473 #3474 corretti, passo 1 di G16 rieseguito
+  555: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,rt.Match.PlanningSeconds=90,rt.Map.Fixture=VisionSplit -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta-3.log
+ 2298: [2026.10.04-15.58.32:490][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2503: [2026.10.04-16.03.12:467][203]LogRT: [RT-Test] AbilityLab.Action.Guard: PASS (1/1 assertion, 1 turni)
+ 2519: [2026.10.04-16.03.34:898][848]LogRT: [RT-Test] AbilityLab.Hero.Aevik.LinearDischarge: PASS (1/1 assertion, 1 turni)
+ 2533: [2026.10.04-16.05.44:821][523]Cmd: QUIT_EDITOR
+ 2607: [2026.10.04-16.05.47:693][524]LogExit: Exiting.
+
+## Apertura 4 - 2026-10-04 20:20 - `u62-seduta-4.log`
+#  HEAD 6b92d0054, Source b1a23c2db - #3438 MoveCost frazionario; RevealDuringMove a passo singolo (ERROR: trovato #3488)
+  555: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Test.Scenario=Visual.Perception.RevealDuringMove,rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1 -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta-4.log
+ 2291: [2026.10.04-18.20.38:486][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2639: [2026.10.04-18.42.36:789][501]LogRT: Warning: [RT-Test] AUTO-RUN Visual.Perception.RevealDuringMove (da: console rt.Test.Scenario): 1 turni, pausa 1.5s — avanza un passo per frame
+ 2640: [2026.10.04-18.42.36:797][501]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2641: [2026.10.04-18.42.36:797][501]LogTemp: Display: [RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo.
+ 2746: [2026.10.04-18.42.46:257][437]LogRT: Warning: [RT-Test] AUTO-RUN Visual.Perception.RevealDuringMove (da: console rt.Test.Scenario): 1 turni, pausa 1.5s — avanza un passo per frame
+ 2747: [2026.10.04-18.42.46:261][437]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2748: [2026.10.04-18.42.46:261][437]LogTemp: Display: [RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo.
+ 2759: [2026.10.04-18.42.56:580][632]LogRT: Warning: [RT-Test] FINITO Visual.Perception.RevealDuringMove -> ERROR (0/0 assertion, 0 turni) · report: ../../../../../Repositories/refactor-tactics-main/Saved/RTTests/Visual.Perception.RevealDuringMove/20261004-204256
+ 2779: [2026.10.04-18.43.36:022][418]Cmd: QUIT_EDITOR
+ 2857: [2026.10.04-18.43.40:076][419]LogExit: Exiting.
+
+## Apertura 5 - 2026-10-05 02:48 - `u62-seduta-5.log`
+#  HEAD 6b92d0054, Source b1a23c2db - RevealDuringMove a passo singolo con t.MaxFPS=15 (stesso ERROR)
+  552: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Test.Scenario=Visual.Perception.RevealDuringMove,rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,t.MaxFPS=15 -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta-5.log
+ 2309: [2026.10.05-00.50.02:875][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2580: [2026.10.05-00.58.21:666][642]LogRT: Warning: [RT-Test] AUTO-RUN Visual.Perception.RevealDuringMove (da: console rt.Test.Scenario): 1 turni, pausa 1.5s — avanza un passo per frame
+ 2581: [2026.10.05-00.58.21:687][642]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2582: [2026.10.05-00.58.21:687][642]LogTemp: Display: [RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo.
+ 2595: [2026.10.05-00.58.32:768][675]LogRT: Warning: [RT-Test] FINITO Visual.Perception.RevealDuringMove -> ERROR (0/0 assertion, 0 turni) · report: ../../../../../Repositories/refactor-tactics-main/Saved/RTTests/Visual.Perception.RevealDuringMove/20261005-025832
+ 2649: [2026.10.05-01.00.06:527][837]Cmd: QUIT_EDITOR
+ 2725: [2026.10.05-01.00.11:328][838]LogExit: Exiting.
+
+## Apertura 6 - 2026-10-05 07:50 - `u62-seduta-6.log`
+#  HEAD 19904609d, Source 1cb616d9a - PIE-KNOW-RIVELAZIONE a velocita' normale
+  555: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Test.Scenario=Visual.Perception.RevealDuringMove,rt.Debug.PlaybackControls=1 -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta-6.log
+ 2300: [2026.10.05-05.57.18:401][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2570: [2026.10.05-06.13.04:482][903]LogRT: Warning: [RT-Test] AUTO-RUN Visual.Perception.RevealDuringMove (da: console rt.Test.Scenario): 1 turni, pausa 1.5s — avanza un passo per frame
+ 2571: [2026.10.05-06.13.04:501][903]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2589: [2026.10.05-06.13.09:549][472]LogRT: [RT-Test] Visual.Perception.RevealDuringMove: PASS (3/3 assertion, 1 turni)
+ 2590: [2026.10.05-06.13.09:550][472]LogRT: Warning: [RT-Test] FINITO Visual.Perception.RevealDuringMove -> PASS (3/3 assertion, 1 turni) · report: ../../../../../Repositories/refactor-tactics-main/Saved/RTTests/Visual.Perception.RevealDuringMove/20261005-081309
+ 2689: [2026.10.05-06.13.24:909][ 84]LogRT: Warning: [RT-Test] AUTO-RUN Visual.Perception.RevealDuringMove (da: console rt.Test.Scenario): 1 turni, pausa 1.5s — avanza un passo per frame
+ 2690: [2026.10.05-06.13.24:914][ 84]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2706: [2026.10.05-06.13.29:699][645]LogRT: [RT-Test] Visual.Perception.RevealDuringMove: PASS (3/3 assertion, 1 turni)
+ 2707: [2026.10.05-06.13.29:714][645]LogRT: Warning: [RT-Test] FINITO Visual.Perception.RevealDuringMove -> PASS (3/3 assertion, 1 turni) · report: ../../../../../Repositories/refactor-tactics-main/Saved/RTTests/Visual.Perception.RevealDuringMove/20261005-081329
+ 2725: [2026.10.05-06.13.59:693][ 52]Cmd: QUIT_EDITOR
+ 2800: [2026.10.05-06.14.03:468][ 53]LogExit: Exiting.
+
+## Apertura 7 - 2026-10-05 08:30 - `u62-seduta-7.log`
+#  HEAD befb70c9f, Source 12fd65930 - PIE-KNOW-RIVELAZIONE a passo singolo, col fix di #3488
+  555: LogInit: Command Line: -NoLiveCoding -dpcvars=rt.Test.Scenario=Visual.Perception.RevealDuringMove,rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1 -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\29ed225a-243b-4faa-b6c5-1fe3e51fa2a7\scratchpad\u62-seduta-7.log
+ 2296: [2026.10.05-06.31.13:453][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2566: [2026.10.05-06.43.51:742][908]LogRT: Warning: [RT-Test] AUTO-RUN Visual.Perception.RevealDuringMove (da: console rt.Test.Scenario): 1 turni, pausa 1.5s — avanza un passo per frame
+ 2567: [2026.10.05-06.43.51:752][908]LogTemp: Display: [RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step).
+ 2568: [2026.10.05-06.43.51:752][908]LogTemp: Display: [RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo.
+ 2590: [2026.10.05-06.49.32:254][944]LogRT: [RT-Test] Visual.Perception.RevealDuringMove: PASS (3/3 assertion, 1 turni)
+ 2591: [2026.10.05-06.49.32:255][944]LogRT: Warning: [RT-Test] FINITO Visual.Perception.RevealDuringMove -> PASS (3/3 assertion, 1 turni) · report: ../../../../../Repositories/refactor-tactics-main/Saved/RTTests/Visual.Perception.RevealDuringMove/20261005-084932
+ 2609: [2026.10.05-06.49.40:095][459]Cmd: QUIT_EDITOR
+ 2684: [2026.10.05-06.49.45:028][459]LogExit: Exiting.
+
+## Partita vera - 2026-10-05 10:13 - `editor_demo.log`, Editor della sessione 69d3186c
+#  HEAD a1a0e5000 (run + main 406659c60), DLL D8659A5B - la rivelazione in una partita normale, a x1
+  555: LogInit: Command Line: -NoLiveCoding -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\69d3186c-728f-4f73-acd6-edc3ff34e0ca\scratchpad\editor_demo.log
+ 2290: [2026.10.05-08.12.38:678][  0]LogInit: Display: Engine is initialized. Leaving FEngineLoop::Init()
+ 2469: [2026.10.05-08.13.23:241][856]Cmd: rt.Match.PlanningSeconds 3600
+ 2576: [2026.10.05-08.13.40:881][920]PIE: Play in editor total start time 0,365 seconds.
+23868: [2026.10.05-08.38.55:201][350]LogRT: [RT] Risoluzione: 1 fasi, ~3.5s (x1.00, slack x1.00)
+23894: [2026.10.05-08.39.08:790][599]LogRT: [RT] Risoluzione: 1 fasi, ~6.2s (x1.00, slack x1.00)
+23931: [2026.10.05-08.39.47:398][ 38]LogRT: [RT] Risoluzione: 4 fasi, ~4.3s (x1.00, slack x1.00)
+23983: [2026.10.05-08.40.53:403][705]Cmd: QUIT_EDITOR
+24057: [2026.10.05-08.40.57:108][706]LogExit: Exiting.

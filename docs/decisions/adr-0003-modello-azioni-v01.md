@@ -203,6 +203,20 @@ resta generico: le manca un produttore, non una regola.
 > contraddizione fra `Cleanse` e il catalogo terreni: quella promessa di rimozione è ora **più** impossibile,
 > non meno, perché un'etichetta mai applicata non è rimovibile per costruzione.
 
+> 🔴 **Superato il 2026-08-30 — [D-264](RT_PDR_00_Decision_Log.md)**, e la questione chiude nel verso
+> opposto a quello che questa riga lascia aspettare. *«Il meccanismo resta generico: le manca un produttore,
+> non una regola»* era vero, e si legge come una promessa di produttore: `D-264` decide che quel produttore
+> **non si costruisce** e che l'`Action.Cleanse` **attiva esce dalla v0.1**. `PlannedCleansePriority` resta
+> senza produttori **per decisione**, non in attesa di uno.
+>
+> ⛔ **Il Cleanse reattivo non è toccato** — `Reaction.Cleanse`, base `Action.Purge` — ed è il rischio di
+> lettura che `D-264` dichiara esplicitamente.
+>
+> ⚠️ **E il tracker non è più aperto — lo nomina il riquadro [D-315] qui sopra, non il
+> paragrafo superato**:
+> [#1389](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1389) è **chiusa dal 2026-08-27**.
+> Il registro della decisione è `D-264`; la parte ancora aperta è `#1403`, sull'azione irraggiungibile.
+
 Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
 **per costruzione** del trigger, non simulando hazard inesistenti.
 

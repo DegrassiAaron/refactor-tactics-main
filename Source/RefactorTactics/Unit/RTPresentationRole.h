@@ -9,8 +9,8 @@
  * ⚠️ **E' vocabolario, non un elenco di cose che il runtime gia' suona.** Il grafo di
  * `URTUnitAnimInstance` ha DUE sequence player e consuma `Idle` e `Move` e nient'altro. `Attack`, `Hit`
  * e `Death` passano dai tre `BlueprintImplementableEvent` di `ARTUnit` (`PlayAttackMontage`,
- * `PlayHitMontage`, `PlayDefeatMontage`) — vedi #2448; `Cast`, `Dash`, `Defend` e `Fall` non hanno
- * ancora nessun consumatore.
+ * `PlayHitMontage`, `PlayDefeatMontage`) — vedi #2448 — e `Cast` passa da `PlayCastMontage` dal 2026-10-07
+ * (`AbilityActivated`, #3549); `Dash`, `Defend` e `Fall` non hanno ancora nessun consumatore.
  *
  * L'enum li nomina lo stesso perche' servono all'authoring: il pannello di #2443 li elenca, il catalogo
  * ci lega le clip, e l'Action possiede il proprio `PresentationRole`. Il DATO pero' non nasce inerte —

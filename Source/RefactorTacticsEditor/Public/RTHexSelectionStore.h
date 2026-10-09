@@ -11,10 +11,15 @@ class URTHexMapAsset;
 /**
  * LA SELEZIONE, una sola per tutto il mode Hex Map (#1864).
  *
- * 🔴 **Nasce fuori dai `UInteractiveToolPropertySet`, ed e' il punto.** #921 ha misurato il difetto opposto:
- * `bShowOverlay` vive in due `PropertySet` distinti, ciascuno con la propria istanza creata in `Setup()`,
- * quindi accenderlo in Select non lo accende in Paint e cambiando tool l'impostazione «si perde». Uno stato
- * che deve sopravvivere al cambio di strumento non puo' stare dentro lo strumento.
+ * 🔴 **Nasce fuori dai `UInteractiveToolPropertySet`, ed e' il punto.** #921 aveva misurato il difetto
+ * opposto: `bShowOverlay` viveva in due `PropertySet` distinti, ciascuno con la propria istanza creata in
+ * `Setup()`, quindi accenderlo in Select non lo accendeva in Paint e cambiando tool l'impostazione «si
+ * perdeva». Uno stato che deve sopravvivere al cambio di strumento non puo' stare dentro lo strumento.
+ *
+ * ⏱️ **Al passato perche' #921 e' chiusa**: quel flag e' ora `URTHexEditorModeSettings::bShowSurfaceOverlay`,
+ * uno stato del mode che i sette `Render` leggono dal context store. Le due classi hanno scelto due sedi
+ * diverse per la stessa ragione — `UEditorSubsystem` qui, `UEdMode::SettingsClass` la' — e la differenza e'
+ * la persistenza: la selezione **non** va conservata fra sessioni, il flag dell'overlay si'.
  *
  * Un `UEditorSubsystem` sopravvive ai tool e al mode, non e' un Actor e non tocca l'asset: la selezione e'
  * stato d'editor puro e non va serializzata.
@@ -57,6 +62,29 @@ public:
 	const TArray<FRTMapElementHandle>& GetSelection() const { return Selection; }
 
 	/** Svuota la selezione e azzera il ciclo. */
+	/**
+	 * Sostituisce la selezione con UN handle **gia' risolto da chi possiede il hit-test**.
+	 *
+	 * 🔑 **Esiste perche' non tutto passa da `ElementsAt`.** Quella funzione risponde alla domanda
+	 * «che cosa c'e' sotto questo bordo», e un arco di transizione non ci sta: collega due celle su
+	 * layer diversi e non giace su un bordo. La spec §13.3 assegna quel hit-test al **tool**, e
+	 * `URTHexArchTool` lo possiede da sempre — qui entra il suo risultato.
+	 *
+	 * ⚠️ **Azzera il ciclo**, e deve: il ciclo e' legato a un PUNTO e ai suoi candidati, mentre
+	 * questo handle non viene da un punto. Tenerlo in piedi farebbe continuare, al click successivo su una
+	 * cella, un ciclo che appartiene a un'altra domanda.
+	 */
+	void SelectHandle(const FRTMapElementHandle& Handle);
+
+	/**
+	 * Aggiunge un handle gia' risolto senza duplicare. `false` se era gia' in selezione.
+	 *
+	 * ⚠️ La deduplica passa da `SameElement`, che per le transizioni legge la coppia **non
+	 * ordinata**: andata e ritorno sono lo stesso arco, e senza quella regola lo stesso arco entrerebbe due
+	 * volte e la cancellazione proverebbe a toglierlo due volte.
+	 */
+	bool AddHandle(const FRTMapElementHandle& Handle);
+
 	void Clear();
 
 	/**

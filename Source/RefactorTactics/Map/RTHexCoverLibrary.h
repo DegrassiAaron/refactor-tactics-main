@@ -33,6 +33,26 @@ struct FRTStructureHit
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	int32 AttackerId = INDEX_NONE;
 
+	/**
+	 * GLI INTENTI che hanno prodotto questo colpo, in ordine canonico — `#3281`, [D-437].
+	 *
+	 * 🔑 **TUTTI e non il primo, ed e' la differenza con `AttackerId` qui sopra.** Quel campo dichiara di
+	 * portare *«chi ha colpito per primo»*: un **rappresentante**, scelto perche' al TurnLog basta un nome.
+	 * All'identita' dell'AZIONE un rappresentante non basta: nominarne una su un bordo colpito da due
+	 * sarebbe un confine d'atto che racconta meta' della causa.
+	 *
+	 * ⛔ **Serve al TurnLog, non al calcolo**, come `FRTAttackFootprint::IntentIndex` dichiara per se'. Il
+	 * danno lo decide `Amount`; questi indici dicono soltanto **chi lo ha chiesto**.
+	 *
+	 * ⚠️ **Indici e non `FName`, e non e' una comodita'.** `URTHexCombatLibrary` non conosce le
+	 * `FRTActionDef` e `FRTHexAttackIntent` non porta l'identita' dell'azione: farla entrare qui creerebbe
+	 * la **seconda fonte** che [D-098] vieta. La regola *«azioni uguali si nomina, diverse si tace»* si
+	 * applica dove `IntentDefs` e' gia' l'unica fonte — `ApplyEnvironmentChanges`, con la stessa forma che
+	 * il rifiuto di posa usa qualche riga piu' su.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	TArray<int32> IntentIndices;
+
 	FRTStructureHit() = default;
 	FRTStructureHit(const FRTCellId& InFrom, const FRTCellId& InTo, int32 InAmount, int32 InAttackerId)
 		: From(InFrom), To(InTo), Amount(InAmount), AttackerId(InAttackerId) {}
@@ -70,6 +90,16 @@ struct FRTCoverDamageResult
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	int32 AttackerId = INDEX_NONE;
+
+	/**
+	 * Gli intenti che hanno prodotto il colpo, propagati da `FRTStructureHit` — `#3281`, [D-437].
+	 *
+	 * ⚠️ **Le due facce di un bordo ridondante ricevono gli STESSI indici**, ed e' corretto: sono lo stesso
+	 * colpo letto dai due lati (`#3279`), non due colpi. ∴ i due eventi porteranno la **stessa** azione e
+	 * `Next Action` li leggera' come **un** atto — che e' cio' che lega le due decisioni.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	TArray<int32> IntentIndices;
 };
 
 /**

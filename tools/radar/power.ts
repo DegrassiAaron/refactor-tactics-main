@@ -5,11 +5,15 @@ import { availabilityWeight, rate } from './rubric.ts';
 
 /** Ancora assoluta: `raw 100` = «uccide un eroe medio in un turno». Non e' scelta a mano — la salute
  *  del roster e' 90/95/120/90, media 98.75, e `power_raw` e' gia' danno per turno. */
-const POWER_ANCHOR = 100;
+export const POWER_ANCHOR = 100;
 
 /** Denominatore dei pesi interi di `availabilityWeight`, piu' il fattore 10 con cui `power_raw` e'
- *  espresso in "danno per turno". Vedi `rubric.ts`. */
-const WEIGHT_SCALE = 60 * 10;
+ *  espresso in "danno per turno". Vedi `rubric.ts`.
+ *
+ *  ⚠️ **Esportato da #2579** perche' chi legge un contributo per-abilita' deve poterlo riportare sulla
+ *  scala di `power_raw` senza reinventare il denominatore: due copie di `600` in due moduli sono due
+ *  numeri che possono divergere. */
+export const POWER_WEIGHT_SCALE = 60 * 10;
 
 /** Un payoff e' **condizionale** quando non arriva per il solo fatto di usare l'azione. Il catalogo
  *  lo dichiara in due sedi diverse, e la regola e' **una sola** (#557):
@@ -46,15 +50,125 @@ export function guaranteedDamage(ability: AbilityInput): number {
   return isPredictive(ability) ? 0 : ability.damage;
 }
 
+/** Il contributo di UNA abilita' all'asse `power` del proprio eroe (#2579).
+ *
+ *  ⚠️ **`weighted` e' INTERO, e non e' un dettaglio di comodita'.** E' il termine della somma **prima**
+ *  dell'unica divisione, cioe' esattamente cio' che `powerRaw` accumulava e non faceva uscire. Esporre
+ *  invece il contributo gia' diviso — `weighted / POWER_WEIGHT_SCALE` — darebbe una sequenza di float la
+ *  cui somma **non e' garantita** coincidere con `powerRaw`: `D-108` confronta artefatti byte a byte, e
+ *  un residuo di virgola mobile lo renderebbe rosso su una macchina e verde su un'altra. Chi vuole il
+ *  valore sulla scala di `power_raw` divide **una volta**, alla fine, come fa l'eroe. */
+export interface AbilityContribution {
+  /** `Hero.<Eroe>.<Abilita>`, la chiave stabile del catalogo. */
+  id: string;
+  /** La colonna `Tipo`: e' la categoria su cui si costruiscono le bande. */
+  kind: string;
+  /** Il danno che l'azione produce senza chiedere niente — zero se il payoff e' condizionale. */
+  damage: number;
+  cooldown: number;
+  /** `availabilityWeight(cooldown)`, intero per costruzione. */
+  availability: number;
+  /** `damage * 20 * availability`. Intero: e' il termine della somma di `powerRaw`. */
+  weighted: number;
+}
+
+/** I contributi delle abilita' di un eroe, nell'ordine del catalogo.
+ *
+ *  ⛔ **Non e' una seconda derivazione**: `powerRaw` somma questi stessi termini invece di ricalcolarli.
+ *  E' la disciplina che `balance.ts` applica gia' a `control`/`support`/`durability` — *«si riusano i
+ *  valori gia' calcolati invece di riderivarli, o le due viste potrebbero divergere sullo stesso eroe»*. */
+export function abilityContributions(hero: HeroInput): AbilityContribution[] {
+  return hero.abilities.map((a) => {
+    const damage = guaranteedDamage(a);
+    const availability = availabilityWeight(a.cooldown);
+    return {
+      id: a.id,
+      kind: a.kind,
+      damage,
+      cooldown: a.cooldown,
+      availability,
+      weighted: damage * 20 * availability,
+    };
+  });
+}
+
+/** Il contributo di un'abilita' **nella stessa unita' di `power_raw`**: danno per turno, pesato sulla
+ *  disponibilita'. E' la metrica di confronto fra abilita' di eroi diversi (#2579).
+ *
+ *  🔑 **Non e' una scala nuova, ed e' il punto.** `power_raw` e' gia' pubblicato in questa unita' e
+ *  l'ancora resta quella dell'asse: qui si divide per lo stesso denominatore, una volta, esattamente
+ *  come fa `powerRaw`. Chi legge `10` legge *«dieci danni per turno, tenuto conto del cooldown»*, che
+ *  e' la stessa frase che descrive un `power_raw` di 10.
+ *
+ *  ⛔ **E NON si applica `rate` per-abilita'.** `POWER_ANCHOR` vale *«uccide un eroe medio in un
+ *  turno»*: e' tarata sull'**eroe**, e sulla singola abilita' restituisce `1`, `2` o `3` e nient'altro
+ *  — venti abilita' del roster collassano in **tre** valori, cioe' la metrica smette di rispondere
+ *  alla domanda per cui esiste. La misura sta in `power.test.ts`, non in questa frase. */
+export function contributionPerTurn(contribution: AbilityContribution): number {
+  return contribution.weighted / POWER_WEIGHT_SCALE;
+}
+
 /** Danno per turno dell'eroe. Aritmetica intera fino all'ultima divisione (vedi `rubric.ts`). */
 export function powerRaw(hero: HeroInput): number {
-  const scaled = hero.abilities.reduce(
-    (sum, a) => sum + guaranteedDamage(a) * 20 * availabilityWeight(a.cooldown),
-    0,
-  );
-  return scaled / WEIGHT_SCALE;
+  const scaled = abilityContributions(hero).reduce((sum, c) => sum + c.weighted, 0);
+  return scaled / POWER_WEIGHT_SCALE;
 }
 
 export function powerRating(hero: HeroInput): number {
   return rate(powerRaw(hero), POWER_ANCHOR);
+}
+
+/** La banda di riferimento di una **categoria d'azione** — la colonna `Tipo` del catalogo (#2579).
+ *
+ *  🔑 **Non e' un numero scelto: e' un'ancora MISURATA sul roster.** `min` e `max` sono i contributi
+ *  per turno realmente osservati fra le abilita' di quella categoria, e `from` li nomina. Una banda
+ *  che non nomina nessuna abilita' non esiste — e' cio' che #2579 chiede quando dice *«una banda senza
+ *  derivazione non entra»*.
+ *
+ *  ⛔ **Niente mediana, e la ragione e' aritmetica**: la mediana di un numero pari di valori chiede
+ *  una divisione, e questa rubrica tiene tutto intero fino all'ultima (vedi `POWER_WEIGHT_SCALE`).
+ *  L'intervallo osservato risponde alla domanda — *«dove cade questa abilita' fra le sue simili»* —
+ *  senza introdurre una seconda divisione che `D-108` dovrebbe poi confrontare byte a byte.
+ *
+ *  ⚠️ **La banda e' DESCRITTIVA e non entra in nessun rating.** Non passa da `rate`, non tocca
+ *  `powerRating`, e nessun radar pubblicato la consuma: `D-154` vieta un punteggio opaco come gate, e
+ *  una banda che spostasse un asse sarebbe esattamente quello. Serve a leggere, non a giudicare.
+ *
+ *  ⚠️ **E si ricalcola, non si scrive.** Un'ancora misurata sul roster invecchia appena il roster
+ *  cambia; questa funzione la deriva a ogni esecuzione, quindi non esiste un numerale da mantenere
+ *  allineato a mano. */
+export interface AbilityBand {
+  /** La colonna `Tipo`: `attacco base` · `linea` · `AoE` · `cella` · `dash` · `arco` · `charge` ·
+   *  `reazione` · `predittiva` · `controllo`. */
+  kind: string;
+  /** Il contributo per turno piu' basso osservato nella categoria. */
+  min: number;
+  /** Il piu' alto. */
+  max: number;
+  /** Le abilita' che producono la banda: l'ancora misurata, nominata. */
+  from: string[];
+}
+
+/** Le bande del roster, una per categoria d'azione presente, in ordine alfabetico di categoria. */
+export function abilityBands(heroes: HeroInput[]): AbilityBand[] {
+  const perKind = new Map<string, AbilityContribution[]>();
+  for (const hero of heroes) {
+    for (const c of abilityContributions(hero)) {
+      const gruppo = perKind.get(c.kind);
+      if (gruppo) gruppo.push(c);
+      else perKind.set(c.kind, [c]);
+    }
+  }
+
+  return [...perKind.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([kind, contributi]) => {
+      const valori = contributi.map(contributionPerTurn);
+      return {
+        kind,
+        min: Math.min(...valori),
+        max: Math.max(...valori),
+        from: contributi.map((c) => c.id),
+      };
+    });
 }
