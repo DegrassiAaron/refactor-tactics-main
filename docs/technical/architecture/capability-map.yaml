@@ -1674,7 +1674,7 @@ capabilities:
   - id: RT-CAP-ANIMATION-RUNTIME
     name: Animation Runtime & Catalog
     area: presentation
-    status: { implementation: partial, validation: complete, presentation: partial }
+    status: { implementation: partial, validation: complete, presentation: partial }   # presentation: partial dal 2026-10-09 per il cook (#3562), non per la PIE — U70 riconvocata, PIE-CLIP-ABILITA ✅ con PIE-AS4b/c
     owner:
       epic: 286
       spec: docs/technical/runbooks/guida-animazioni-paragon.md
@@ -1688,7 +1688,7 @@ capabilities:
         - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
         - Data/Anim/AnimCatalog.json
         - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
-    issues: { open: [288, 2521, 2545, 2167, 3590], closed: [2443, 2445, 1663, 3563] }
+    issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663, 3563, 3590] }
     consumers: [RT-CAP-CHAR-PRESENTATION]
     dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]
     tests:
