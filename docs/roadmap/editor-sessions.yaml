@@ -5179,6 +5179,14 @@ sessions:
       Da riconvocare dopo #3595 (Aevik: clip piene sugli attacchi) e #3593 (Muiren: la cura arriva e al cast è atteso il Pulse):
       scene 1-3 della spec SP5 §5.2, una seduta sola, Editor ricompilato sul clone principale.
 
+      ✅ **Riconvocata ed eseguita la sera del 2026-10-08, ratificata il 2026-10-09** su `main` = `a6bf857bf` (#3595 e #3593
+      mergiate, Editor ricompilato sul clone principale): `Visual.Combat.WaterElectricCoordinated`,
+      `Visual.Ability.FxProfile`, `Visual.Ability.ClipMuiren`, corse dal conduttore con catture a raffica, verdetti
+      ratificati dall'autore. Aevik ✅ al cast (la `Cast` del pack)
+      e ai colpi (le `_Slow_V1` piene); Muiren `CircularTide` ✅ col `Pulse` sulla sua cella e `R_Ability_Intro`. La cura
+      e' un esito (barra 78, feed «Curata — 18») senza beat sull'unita' curata: #3600; il riassunto del log la chiama
+      «danni»: #3601. `PIE-CLIP-ABILITA` ✅.
+
   - id: U71
     title: Il profilo FX per abilita' — attivazione, colpo e onda sulla mappa
     block: 6

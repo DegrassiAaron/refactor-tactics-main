@@ -1674,7 +1674,7 @@ capabilities:
   - id: RT-CAP-ANIMATION-RUNTIME
     name: Animation Runtime & Catalog
     area: presentation
-    status: { implementation: partial, validation: complete, presentation: partial }
+    status: { implementation: partial, validation: complete, presentation: partial }   # presentation: partial per il cook (#3562), non per la PIE — dal 2026-10-09 PIE-CLIP-ABILITA ✅ (U70 riconvocata) accanto a PIE-AS4b/c ✅
     owner:
       epic: 286
       spec: docs/technical/runbooks/guida-animazioni-paragon.md
@@ -1688,7 +1688,7 @@ capabilities:
         - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
         - Data/Anim/AnimCatalog.json
         - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
-    issues: { open: [288, 2521, 2545, 2167, 3590], closed: [2443, 2445, 1663, 3563] }
+    issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663, 3563, 3590] }
     consumers: [RT-CAP-CHAR-PRESENTATION]
     dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]
     tests:
@@ -1700,7 +1700,7 @@ capabilities:
       - "🔴 FATTO scritto nel codice: `RTPresentationRole.h` dichiara che «il grafo di
          `URTUnitAnimInstance` ha DUE sequence player e consuma `Idle` e `Move` e nient'altro».
          `Attack` e gli altri ruoli sono VOCABOLARIO, non clip che il runtime suona."
-      - "#2521: PIE-AS4b e PIE-AS4c «non hanno mai avuto un esito»."
+      - "#2521: PIE-AS4b e PIE-AS4c «non hanno mai avuto un esito» — era vero fino alla seduta U8 (2026-09-28): oggi sono ✅ nel registro, e #2521 resta aperta per il resto."
       - "⚠️ I pack Paragon vivono in `Content/FabAsset/`, GITIGNORATO: le clip non sono nel
          repository e `TSoftObjectPtr` e' la conseguenza dichiarata."
 
