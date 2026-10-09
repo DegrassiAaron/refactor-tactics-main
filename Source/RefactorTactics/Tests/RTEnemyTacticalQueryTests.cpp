@@ -3,6 +3,8 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTMovementProfile.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexDoorLibrary.h"
@@ -145,8 +147,6 @@ namespace
 	 *
 	 *  🔑 **Cio' che il test misurava del catalogo non si perde**: che il campo sia `0` lo asserisce
 	 *  `RefactorTactics.Catalog.BudgetActionsDeclareNoRange`, per **ogni** azione a budget e non per una. */
-	constexpr int32 FastBudgetActionRange() { return 8; }
-
 	/**
 	 * Una mobilita' rapida **a budget**, dichiarata dal KIT e non presa dal catalogo spedito.
 	 *
@@ -160,18 +160,17 @@ namespace
 	 * `Actions.KitCanDeclareAMobilityThatCostsBothSlots` copre il ramo `MovementAndMain` che nessun dato
 	 * spedito attraversa. Un ramo che nessun test percorre e' un ramo che nessuno difende.
 	 *
-	 * ⚠️ Si parte dal `Def` del catalogo e si cambiano **fase e portata**. ⏱️ *Fino al 2026-09-18 si cambiava
-	 * la sola fase, «cosi' il budget resta quello spedito»: da [D-427] il campo e' `0`, e un'azione a budget
-	 * zero non copre niente. La portata e' ora dichiarata da `FastBudgetActionRange()`, qui sotto.*
+	 * ⚠️ Si parte dal `Def` del catalogo e si cambia la sola FASE. Il budget resta quello del PROFILO che
+	 * l'azione dichiara (`Sprint`, x2 — [D-412]), che e' la sede che la query legge dal 2026-10-09 (`#3202`):
+	 * `RangeCells` resta `0` come [D-427] prescrive, e il test del ramo a budget lo asserisce, perche' e'
+	 * esattamente il valore con cui quel ramo veniva saltato in silenzio. ⏱️ *Fra il 2026-09-18 e il
+	 * 2026-10-09 la fixture dichiarava `RangeCells = 8` per aggirare lo zero: era la seconda sede che
+	 * [D-427] vieta, e copriva il difetto invece di misurarlo.*
 	 */
 	URTActionData* MakeFastBudgetAction()
 	{
 		URTActionData* A = MakeQueryAction(TEXT("Action.Sprint"));
 		A->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
-		A->Def.RangeCells = FastBudgetActionRange();
-		// Il campo specchio non lo legge `DeclaredRange` — che preferisce il `Def` quando l'`ActionId` c'e' —
-		// ma tenerlo d'accordo evita un fixture che dichiara due portate diverse per la stessa azione.
-		A->RangeCells = FastBudgetActionRange();
 		return A;
 	}
 
@@ -846,21 +845,31 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 		TestFalse(TEXT("ne' quello del veloce"), SameCells(RFast.ReachableCells, RDef.ReachableCells));
 	}
 
-	// --- Lo scatto segue il `RangeCells` dichiarato dall'azione -------------------------------------------
+	// --- Lo scatto a budget segue il PROFILO, e un `RangeCells` a zero non lo spegne (#3202) ---------------
 	{
-		// ⏱️ *Veniva da `CatalogBudget("Action.Sprint")`, che da [D-427] vale `0`.* Il budget dello scatto
-		// e' ora del profilo, e questo blocco non misura QUEL numero: misura che la regione osservata segue
-		// il budget dell'azione a budget che l'eroe porta — `MakeFastBudgetAction()`, costruita qui sotto —
-		// quindi il valore va dichiarato dal test, non pescato dal catalogo.
-		const int32 SprintBudget = FastBudgetActionRange();
-		if (!TestTrue(TEXT("l'azione a budget di prova dichiara una portata"), SprintBudget > 0))
+		// ⏱️ *Veniva da `CatalogBudget("Action.Sprint")`, che da [D-427] vale `0`; poi da una portata dichiarata
+		// dalla fixture (`8`), che era la seconda sede vietata.* Il budget dello scatto a budget e' del PROFILO,
+		// come quello del passo: la fixture eredita il profilo di `Action.Sprint`, e il test lo legge dalla
+		// stessa libreria che usa il resolver.
+		const int32 MovePoints = 1;
+		URTHeroData* Hero = FastBudgetHero(MovePoints);
+		const URTActionData* Dash = Hero->Actions.Last().Get();
+		if (!TestTrue(TEXT("premessa: la fixture e' uno scatto a budget con un profilo"),
+			Dash && Dash->Def.MovementStyle == ERTMovementStyle::Budget && !Dash->Def.MovementProfileId.IsNone()))
 		{
 			return false;
 		}
 
-		// Arena piu' larga del budget: il limite che si osserva e' quello dell'azione, non quello del bordo.
+		// ⛔ ANTI-VACUITA' — il secondo caso di #3202: il campo che il ramo leggeva prima vale ZERO. Se la query
+		// tornasse a leggerlo, la regione dello scatto sarebbe vuota e le due asserzioni sotto cadrebbero.
+		TestEqual(TEXT("RangeCells dell'azione a budget e' zero (D-427)"), Dash->Def.RangeCells, 0);
+		const int32 SprintBudget =
+			URTMovementProfileLibrary::FindProfile(Dash->Def.MovementProfileId).ResolveStepBudget(MovePoints);
+		if (!TestTrue(TEXT("il profilo concede piu' del passo, o le due regioni coinciderebbero"),
+			SprintBudget > MovePoints)) { return false; }
+
+		// Arena piu' larga del budget: il limite che si osserva e' quello del profilo, non quello del bordo.
 		URTHexMapAsset* Map = MakeQueryArena(SprintBudget + 1);
-		URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 1);
 
 		FRTKnowledgeView View;
 		View.ObserverTeamId = 0;
@@ -871,7 +880,7 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 			URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, Hero, R))) { return false; }
 
 		// Su arena a costo 1 il budget e' il raggio: l'ultima cella dentro c'e', la prima fuori no.
-		TestTrue(TEXT("lo scatto arriva esattamente al budget del catalogo"),
+		TestTrue(TEXT("lo scatto arriva esattamente al budget del profilo"),
 			Has(R.DashOnlyCells, FRTCellId(SprintBudget, 0)));
 		TestFalse(TEXT("e non oltre"), Has(R.DashOnlyCells, FRTCellId(SprintBudget + 1, 0)));
 	}
@@ -1324,6 +1333,90 @@ bool FRTEnemyQueryCrossesSubjectAlliesTest::RunTest(const FString&)
 		Has(Avversaria.ReachableCells, FRTCellId(2, 0)));
 	TestEqual(TEXT("AC-3: e la regione è esattamente quella con la compagna"),
 		Avversaria.ReachableCells.Num(), Vista.ReachableCells.Num());
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// La regione del PASSO copre lo scatto che risolve nella stessa fase (#3202)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * 🔑 **Il passo non e' `MovePoints`: e' il budget piu' alto che il soggetto puo' spendere nella fase Move.**
+ *
+ * Fino al 2026-09-12 le due cose coincidevano, perche' l'unica azione che allargava la portata era
+ * `Action.Sprint` e lo Sprint risolveva in `Dash` — quindi finiva in `DashOnlyCells`, non nel passo.
+ * [D-116]/[#641] l'ha portata in `NormalMovement`: risolve **con** il passo, e `IsFastMovement` smette di
+ * vederla. Il ramo dello scatto ha ragione a escluderla (lo dichiara `MakeFastBudgetAction` qui sopra), ma
+ * il ramo del passo legge solo `Hero->MovePoints` — e lo Sprint e' uscito da entrambe le regioni.
+ *
+ * ⚠️ **La quantita' viene dal PROFILO, non da `RangeCells`.** [D-412] rende il budget del profilo un
+ * moltiplicatore (`Sprint` ×2) ed e' la sede che il resolver esegue: `ProfileForPlan` ricava il budget di
+ * lì senza rileggere `RangeCells`. L'assoluto `8` che l'azione conserva e' la seconda sede che [#3198]
+ * possiede, e questo test non la sceglie: pinna la sede **eseguita**, e se #3198 la sposta, si aggiorna.
+ *
+ * ⛔ **Anti-vacuita' in due punti**, perche' senza sarebbe verde anche col difetto dentro: i due budget
+ * devono DIFFERIRE (altrimenti «copre lo Sprint» e «copre il passo» sono la stessa asserzione), e le due
+ * regioni devono risultare insiemi diversi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReachCoversTheSprintBudgetTest,
+	"RefactorTactics.Perception.ReachCoversTheSprintBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReachCoversTheSprintBudgetTest::RunTest(const FString&)
+{
+	// --- Le premesse si MISURANO, non si assumono --------------------------------------------------------
+	const FRTActionDef SprintDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
+	if (!TestFalse(TEXT("premessa: Action.Sprint non e' piu' una mobilita' rapida ([D-116])"),
+		URTCatalogLibrary::IsFastMovement(SprintDef))) { return false; }
+	if (!TestTrue(TEXT("premessa: e dichiara un profilo di movimento ([D-412])"),
+		!SprintDef.MovementProfileId.IsNone())) { return false; }
+
+	const int32 MovePoints = 2;
+	const FRTMovementProfile SprintProfile = URTMovementProfileLibrary::FindProfile(SprintDef.MovementProfileId);
+	const int32 SprintBudget = SprintProfile.ResolveStepBudget(MovePoints);
+
+	// ⛔ ANTI-VACUITA' 1: se il profilo non moltiplicasse, ogni assert sotto sarebbe vero per costruzione.
+	if (!TestTrue(TEXT("anti-vacuita': il budget dello scatto supera quello del passo"),
+		SprintBudget > MovePoints)) { return false; }
+
+	URTHexMapAsset* Map = MakeQueryArena(SprintBudget + 2);
+	FRTKnowledgeView View;
+	View.ObserverTeamId = 0;
+	View.Entries.Add(LiveEntry(7, FRTCellId(0, 0), TEXT("Hero.QueryProbe")));
+
+	URTHeroData* Runner = MakeQueryHero(TEXT("Hero.QueryProbe"), MovePoints,
+		{ MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1),
+		  MakeQueryAction(TEXT("Action.Sprint")) });
+	URTHeroData* Walker = MeleeHero(MovePoints);
+
+	FRTEnemyTacticalRegions RRunner;
+	FRTEnemyTacticalRegions RWalker;
+	if (!TestTrue(TEXT("chi puo' scattare risponde"),
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, Runner, RRunner))) { return false; }
+	if (!TestTrue(TEXT("chi cammina soltanto risponde"),
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, Walker, RWalker))) { return false; }
+
+	// --- Il passo di chi NON scatta si ferma ai propri MovePoints ----------------------------------------
+	TestTrue(TEXT("chi cammina arriva ai suoi MovePoints"), Has(RWalker.ReachableCells, FRTCellId(MovePoints, 0)));
+	TestFalse(TEXT("e non oltre"), Has(RWalker.ReachableCells, FRTCellId(MovePoints + 1, 0)));
+
+	// --- Quello di chi scatta arriva al budget del profilo -----------------------------------------------
+	TestTrue(TEXT("chi puo' scattare arriva al budget del proprio profilo"),
+		Has(RRunner.ReachableCells, FRTCellId(SprintBudget, 0)));
+	TestFalse(TEXT("e nemmeno lui oltre: il budget e' quello del profilo, non il RangeCells dell'azione"),
+		Has(RRunner.ReachableCells, FRTCellId(SprintBudget + 1, 0)));
+
+	// ⛔ ANTI-VACUITA' 2: due regioni identiche renderebbero l'assert precedente una tautologia sull'arena.
+	TestFalse(TEXT("anti-vacuita': le due portate non sono lo stesso insieme"),
+		SameCells(RRunner.ReachableCells, RWalker.ReachableCells));
+
+	// --- E resta PORTATA, non minaccia -------------------------------------------------------------------
+	//
+	// Lo Sprint risolve DOPO il Blast: allargare il passo non deve creare ne' una regione di scatto ne' una
+	// minaccia post-scatto, che sono esattamente le due cose che [D-116] gli ha tolto.
+	TestEqual(TEXT("lo scatto in fase Move non popola la regione dello scatto"), RRunner.DashOnlyCells.Num(), 0);
+	TestEqual(TEXT("ne' la minaccia post-scatto"), RRunner.PostDashThreat.Num(), 0);
+	TestTrue(TEXT("e la minaccia immediata resta quella di chi non scatta"),
+		SameCells(RRunner.ImmediateThreat, RWalker.ImmediateThreat));
 	return true;
 }
 
