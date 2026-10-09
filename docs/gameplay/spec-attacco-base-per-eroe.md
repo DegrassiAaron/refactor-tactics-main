@@ -155,8 +155,15 @@ Misurato: **0** occorrenze di una regola «fino alla gittata massima» in `Sourc
 
 **Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede.
 
-**Stato**: `ERTLineOfSightPolicy::Required` è il default (`Source/RefactorTactics/Ability/RTActionDef.h:787`),
-e il tiro indiretto è una **licenza dichiarata** che ogni azione deve chiedere.
+**Stato**: `ERTLineOfSightPolicy::Required` resta il default di `FRTActionDef`, e il tiro indiretto è una
+**licenza dichiarata** che ogni azione deve chiedere. ✅ **L'attacco base la dichiara dal 2026-10-09**
+([#3135](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3135), PR
+[#3230](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3230)): `Action.BasicAttack` del catalogo core
+porta `NotRequired`, e `MakeHeroBasicAttack` **copia** la policy del core nelle quattro azioni d'eroe derivate
+(`BaseActionId == Action.BasicAttack`). Il gate è `RefactorTactics.HeroCatalog.EveryBasicAttackFiresBlind`, con
+anti-vacuità sul core e sul roster. ⌫ *Fra il 2026-09-20 e il 2026-10-09 la PR dichiarava il punto (3) fatto e
+in partita era un no-op: la riga sul core c'era, la copia agli eroi no, e nessun test la prendeva — trovato dalla
+code review di #3230.*
 
 🔴 **È la più cara delle tre, e il prezzo è documentato.**
 [`D-380`](../decisions/RT_PDR_00_Decision_Log.md) ha **pagato** quella licenza per `Action.Mortar`: **12**
