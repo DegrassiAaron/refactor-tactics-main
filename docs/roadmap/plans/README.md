@@ -14,6 +14,15 @@
 > è dichiarato**: lo stato di una feature non ha più un owner unico. Si legge da codice, test e roadmap
 > scritta a mano — che è esattamente ciò che D-181 accetta di pagare.
 
+## Quale vista ordina il lavoro della v0.1
+
+Una sola, per [`D-487`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-09): la **sequenza di chiusura corrente** —
+[`sequenza-chiusura-v01-2026-10-03.md`](sequenza-chiusura-v01-2026-10-03.md), riletta da
+[`sequenza-chiusura-v01-spec-panel-2026-10-09.md`](sequenza-chiusura-v01-spec-panel-2026-10-09.md). [`../roadmap-pia.md`](../roadmap-pia.md) §7
+governa solo l'ordine fra `PIA-0` e `PIA-6`; [`../roadmap-main-v0.1.md`](../roadmap-main-v0.1.md) è `SNAPSHOT`;
+[`../execution-graph.yaml`](../execution-graph.yaml) non ha un lettore ed è un follow-up, non una vista. Dove due di queste
+divergono, vale la sequenza di chiusura — e dove la sequenza e un owner divergono, vale l'owner.
+
 ## Il criterio è il banner, non la data
 
 Ogni file qui porta un **banner di stato** nella prima riga dopo il titolo. È l'unica cosa da guardare.

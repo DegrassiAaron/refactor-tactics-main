@@ -1,6 +1,11 @@
 # RefactorTactics — Roadmap main del focus v0.1
 
-> `CURRENT` · **Creato**: 2026-08-28 · **Tipo**: **vista di esecuzione**, non owner.
+> `SNAPSHOT` · **Creato**: 2026-08-28 · **Tipo**: **vista di esecuzione**, non owner.
+>
+> ⌫ **`CURRENT` fino al 2026-10-09**, poi `SNAPSHOT` per [`D-487`](../decisions/RT_PDR_00_Decision_Log.md): la vista di
+> esecuzione della v0.1 è la sequenza di chiusura corrente ([`plans/sequenza-chiusura-v01-2026-10-03.md`](plans/sequenza-chiusura-v01-2026-10-03.md)
+> con la rilettura del [referto del 2026-10-09](plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md)). Questa pagina resta
+> come mandato ricevuto e verificato alla sua base di misura, e non si aggiorna più.
 >
 > **Cosa è**: la roadmap principale del focus v0.1, nella forma in cui è stata consegnata — tre lane di
 > lavoro (`DIR-A` integrazione · `DIR-B` core · `DIR-C` QA), sei wave ciascuna, un gate finale. Il
