@@ -34,6 +34,7 @@ Un `git diff` non e' una verifica.
 - [ ] Gate documentali: `doc-links --check --with-archive` · `doc-tables --check` · `issue-refs --check`
 - [ ] Se la PR tocca `Scenarios/` o un valore di bilanciamento: `scenario-notes --check` (la prosa di uno scenario contro ciò che il file asserisce)
 - [ ] Se la PR tocca `Turn/RTTurnManager.*`: `python tools/architettura/misure-strutturali.py --check` → nessuna crescita, **oppure** il delta incollato qui con il perché ([E50 #1816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1816) — non è un veto, è «non in silenzio»)
+- [ ] Se la PR tocca `docs/roadmap/bot-competence.yaml`, uno dei suoi `consumers`, `Ability/RTHeroCatalogLibrary.cpp`, `Scenarios/`, oppure **rinomina un nome Automation**: `python tools/bot-competence/check.py --check` (lo stato di competenza del bot regge ancora — [D-102], [#543](https://github.com/DegrassiAaron/refactor-tactics-main/issues/543))
 - [ ] PIE / packaged → NOT RUN, oppure la voce eseguita
 
 ## Owner aggiornati

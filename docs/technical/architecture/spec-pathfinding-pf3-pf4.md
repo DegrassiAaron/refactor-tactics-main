@@ -100,7 +100,7 @@ Misurate, non stimate. Test `RefactorTactics.Perf.PathfindingMedian`:
 | Metrica | Valore |
 |---|---|
 | Mediana di `FindPath` | **0,025 ms** |
-| Mediana del resolver di turno (contesto) | **0,41 ms/turno** (`RefactorTactics.Perf.TurnResolverMedian`) |
+| Mediana del resolver di turno (contesto) | **0,41 ms/turno** (`RefactorTactics.Perf.TurnResolverMedian`) ⏬ **Superato da una SERIE datata, il 2026-09-30** ([#3413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3413)): la §4 della DoD porta **4,149** ms (6 run, 2026-08-13/14) · **8,599** (3 run, 2026-09-20) · **11,917** (3 run, 2026-09-30), con `Path` come controllo nelle stesse esecuzioni. 🔴 **E lo `0,41` qui sopra sta DIECI VOLTE sotto il primo gruppo della serie**, a una settimana di distanza. ⛔ **Non l'ho spiegato e non lo cancello**: o il fixture del 2026-08-06 non era quello di oggi, o qualcosa è cambiato in quella settimana. Finché non è misurato, questo numero non è un riferimento per nessuna misura né per nessun budget che lo citi. ⚠️ **E la riga della DoD misura più del resolver**: col playback spento il cronometro include la pianificazione bot del turno successivo, e la sede lo dichiara — vedi la cella della §4. |
 
 I numeri valgono sulla macchina di sviluppo e sulle mappe correnti: l'hardware target non è definito
 ([`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)), quindi sono **misure**, non garanzie.

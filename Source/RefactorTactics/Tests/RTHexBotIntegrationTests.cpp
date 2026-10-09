@@ -408,7 +408,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 
 	// Il piano del bot deve essere ESEGUIBILE: e' la definizione operativa di "i due strati concordano".
 	TArray<ARTUnit*> Units;
-	FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units);
+	FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 	const int32 BotIdx = Units.IndexOfByKey(Bot);
 	if (!TestTrue(TEXT("il bot e' nello snapshot"), BotIdx != INDEX_NONE))
 	{
@@ -496,6 +496,25 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	TestTrue(TEXT("pianifica l'abilita' che lo rimette in piedi, non una qualunque su di se'"),
 		Planned && Planned->Def.ActionId == FName(TEXT("Test.SelfSupport")));
 	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
+
+	// 🔴 **E il ramo LASCIA TRACCIA** (`#464`). Senza questa asserzione la riga di log non ha nessun gate:
+	// cancellarla dal planner lascia la suite verde, e il ramo torna a essere invisibile — cioe' allo
+	// stato che ha permesso alla regressione di `#2283` di arrivare a quattro test di partita rossi a
+	// cascata invece che a una riga.
+	//
+	// ⚠️ **Si filtra sull'ActionId, non sulla frase.** `Test.SelfSupport` e' l'azione che questo test
+	// costruisce, quindi l'asserzione cade se la riga sparisce o se smette di nominare l'azione scelta —
+	// che e' il suo contenuto informativo — e NON cade per una riformulazione del testo attorno. Una
+	// stringa intera copiata qui sarebbe un secondo posto in cui la frase vive.
+	int32 RigheDelRamo = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("Test.SelfSupport")) && Evento.Contains(*Hurt->GetName()))
+		{
+			++RigheDelRamo;
+		}
+	}
+	TestEqual(TEXT("il ramo difensivo scrive una riga, e una sola"), RigheDelRamo, 1);
 
 	DestroyHexBotWorld(World);
 	return true;
@@ -628,10 +647,20 @@ namespace
  * Vale anche come promessa pubblicata: la pagina Wiki `avversario-bot` dice al giocatore «il bot non vede
  * piu' di te». Senza questo test quella frase e' prosa.
  *
- * Il nemico nascosto e' tenuto LONTANO dal corridoio d'azione (lati opposti, distanza 6 con vista 3), e non
- * perche' sia comodo: l'OCCUPAZIONE resta legittimamente globale — `ReachableCells` e `DashHostiles`
- * modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo stesso
- * vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente.
+ * ⌫ **Qui viveva il principio che [D-371] ha RITIRATO** (2026-09-10): *«l'OCCUPAZIONE resta legittimamente
+ * globale — `ReachableCells` e `DashHostiles` modellano cio' che il resolver fara', non cio' che la squadra
+ * sa, e il giocatore umano ha lo stesso vincolo»*. `BLIND-1` e' chiusa con l'uscita *(c)*, **filtrata
+ * OVUNQUE, bot compreso**: una divergenza dei piani per occupazione ignota non e' legittima, e' il difetto.
+ * Il perche' sta in [D-371], non qui — questo docstring ne era la sede, e smette di esserlo.
+ *
+ * ⚠️ **La premessa resta com'era — nascosto lontano dal corridoio, distanza 6 con vista 3 — ma come LIMITE
+ * DICHIARATO e non piu' come difesa.** Spostarla dentro il corridoio renderebbe questo test ROSSO oggi:
+ * il filtro che [D-371] adotta non e' ancora implementato, e dove viva e' `BLIND-2`, aperta e agganciata a
+ * `OBS-1`. ∴ la premessa si muove **con** quel filtro, non prima.
+ *
+ * 🔑 **E il caso che la premessa esclude NON e' scoperto**: lo misura la sonda
+ * `RefactorTactics.BlindActions.*` (`Tests/RTBlindActionsLeakMeasureTests.cpp`) con zero, uno e due nemici
+ * ignoti sulla stessa cella — ventaglio **61 / 60 / 59**, costo **4 / 5 / 5**.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenEnemyFairnessTest,
 	"RefactorTactics.HexBotPlay.HiddenEnemyFairness",
@@ -670,6 +699,22 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 
 	bool bLeftOk = false;
 	bool bRightOk = false;
+	// ⌫ **Provato a portare la premessa DENTRO il corridoio il 2026-09-21, e la misura lo ha bocciato.**
+	// [D-371] denuncia queste due celle — lati opposti, lontane dal corridoio d'azione — perche' *«un test
+	// che difende una posizione evitando il caso in cui quella posizione conta non e' una difesa»*. Col
+	// filtro di `#2793` in vigore il caso e' finalmente misurabile, e i due nascosti sono stati spostati a
+	// `(4,0)` e `(4,-1)`: distanza 4 contro vista 3, sulla direttrice del movimento. **VERDE — e verde anche
+	// con il filtro MUTATO a spento**, cioe' vacuo. Il motivo e' strutturale e vale la pena scriverlo:
+	//
+	// 🔴 **Cio' che e' abbastanza vicino da deviare una rotta corta e' abbastanza vicino da VEDERSI.** Il
+	// bot a `(0,0)` si ferma sul nemico visto a `(2,0)`; la sua rotta non arriva mai a distanza 4, e un
+	// nascosto piazzato dove la rotta arriva sarebbe dentro la vista. Perche' l'occupazione morda serve una
+	// rotta **piu' lunga della vista** — cioe' l'esplorazione, che questo banco esclude per premessa.
+	//
+	// ✅ **Il caso non e' scoperto: lo misura `RefactorTactics.BlindActions.*`**, dove chi pianifica ha
+	// budget per un ventaglio di raggio 4+ e i nascosti stanno **sulla direttrice diretta** — ventaglio
+	// 61/61/61 e costo 4/4/4 a filtro acceso, e tre canary rossi a filtro mutato. La premessa qui resta
+	// quella, come **limite dichiarato** che rimanda li', e non come difesa di una posizione ritirata.
 	const FRTBotPlanFingerprint Left = PlanWithHiddenAt(FRTCellId(-6, 3), bLeftOk);
 	const FRTBotPlanFingerprint Right = PlanWithHiddenAt(FRTCellId(6, -3), bRightOk);
 
@@ -1098,7 +1143,7 @@ bool FRTBotDecidesWithoutFutureKnowledgeTest::RunTest(const FString&)
  * Si misura su piu' turni e su ENTRAMBE le squadre, perche' i rami del pianificatore si scelgono a seconda
  * della distanza dal nemico: un turno solo esercita il ramo d'apertura e nient'altro.
  *
- * \u26a0\ufe0f Il fallimento e' DIAGNOSTICO, non solo rosso: dice turno, unita', motivo e azione colpevole. Se un
+ * ⚠️ Il fallimento e' DIAGNOSTICO, non solo rosso: dice turno, unita', motivo e azione colpevole. Se un
  * giorno cade, quello che serve sapere e' quale combinazione il bot ha composto — non che «il bot sbaglia».
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPlansAreLegalTest,

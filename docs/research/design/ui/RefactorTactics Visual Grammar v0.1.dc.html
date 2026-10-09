@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#080B10; }
+  a { color:#35E0C4; text-decoration:none; }
+  a:hover { color:#7CF0DE; }
+  @keyframes flow { to { stroke-dashoffset:-20; } }
+  @keyframes breathe { 0%,100% { opacity:.42; } 50% { opacity:.62; } }
+</style>
+</helmet>
+<div style="width:1440px;margin:0 auto;background:#0A0E14;color:#E6EDF4;font-family:'Azeret Mono',monospace;padding:0 0 96px">
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:48px;padding:56px 56px 40px;border-bottom:1px solid #232C38">
+    <div>
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.24em;color:#35E0C4;margin-bottom:18px">REFACTORTACTICS / VISUAL GRAMMAR v0.1</div>
+      <h1 style="margin:0;font:400 68px/.95 Oswald,sans-serif;letter-spacing:.01em;text-transform:uppercase">Grammatica visiva<br /><span style="color:#56626F">tattico 3v3 · turni simultanei</span></h1>
+      <p style="margin:22px 0 0;max-width:720px;font:400 14px/1.7 'Azeret Mono',monospace;color:#8D9BAB;text-wrap:pretty">Fondamenta per design system Figma e widget UMG. Il sistema è costruito attorno a una sola domanda: <span style="color:#E6EDF4">quanto è certa questa informazione?</span> Colore, linea, riempimento, nodo, moto e glifo trasportano quella risposta in modo ridondante, così che nessun canale singolo sia necessario per capirla.</p>
+    </div>
+    <div style="display:grid;gap:10px;font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;text-align:right;flex-shrink:0">
+      <div>TARGET 1920×1080 · 16:9</div>
+      <div>PC · MOUSE + KEYBOARD</div>
+      <div>UE5 UMG · FIGMA-READY</div>
+      <div style="color:#8D9BAB">29.08.2026</div>
+    </div>
+  </div>
+
+  <!-- 01 PRINCIPLES -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">01</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Design principles</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 13px/1.3 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:12px">Il mondo domina</div>
+        <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">La UI tattica non ha superfici opache sopra la mappa: solo linee, nodi e fill a bassa alfa. I pannelli vivono ai bordi. Perché: la lettura della quota e delle coperture avviene sulla geometria 3D, non su una scheda.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 13px/1.3 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:12px">Ridondanza obbligatoria</div>
+        <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Ogni significato viaggia su almeno tre canali (forma + linea + colore, o + moto). Perché: 8% dei giocatori PC ha una deficienza di visione dei colori e la mappa cambia sotto agli overlay.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 13px/1.3 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:12px">Silhouette prima del dettaglio</div>
+        <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Nove sagome primitive coprono l'intera semantica. Perché: a 16 px e in movimento il giocatore legge il contorno, non il tratto interno.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 13px/1.3 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:12px">Il moto è semantico</div>
+        <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Solo tre animazioni esistono: flow direzionale (previsto), respiro (incerto), snap 120 ms (confermato). Nessun'altra animazione è ammessa. Perché: se tutto pulsa, il pulsare non significa più niente.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 13px/1.3 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:12px">Priorità, non completezza</div>
+        <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">P0 sempre · P1 durante l'azione · P2 su hover/focus · P3 tooltip. Perché: 30 s di planning non consentono di filtrare a mano un diagramma completo.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 COLOR -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">02</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Color system</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:560px">5 famiglie, 26 token. Le relazioni usano hue nettamente separati (teal / viola / cremisi); ambiente e feedback riusano gli hue caldi ma <span style="color:#8D9BAB">solo come fill di terreno</span>, mai come icona di unità.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:1px">
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:52px;background:#0A0E14;border:1px solid #232C38;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.bg.canvas</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#0A0E14 · fondo schermate fuori partita, letterbox mappa.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:52px;background:#121822;border:1px solid #232C38;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.bg.panel</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#121822 · barra abilità, roster, timer. Alfa 0.86 sopra la mappa.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:52px;background:#1A222E;border:1px solid #2E3947;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.bg.elevated</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#1A222E · tooltip, callout, slot selezionato. Bordo #2E3947.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:52px;background:linear-gradient(90deg,#0A0E14,rgba(6,9,13,.72));border:1px solid #232C38;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.bg.overlay</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">rgba(6,9,13,.72) · resolution letterbox, pause. Mai durante il planning.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:1px">
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#35E0C4;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.relation.self</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#35E0C4 · unità controllata, suo path e targeting. Unico token con fill pieno sui nodi.</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#FF8A2B;margin-top:8px">Evita: adiacenza con electric su fondo chiaro.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#A97BFF;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.relation.ally</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#A97BFF · intenti alleati, path condivisi, ready. Sempre con nodo-lettera (A/B/C).</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#FF8A2B;margin-top:8px">Evita: usarlo per stati UI neutri.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#FF4D6D;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.relation.enemy</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#FF4D6D · unità nemiche note, ultima posizione vista, minaccia.</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#FF8A2B;margin-top:8px">Evita: sovrapporlo a fire (#FF8A2B) senza tratto nero 1 px.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#96A3B0;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.relation.neutral</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#96A3B0 · props, unità non allineate, geometria di navigazione.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#FFC24A;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.relation.objective</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#FFC24A · obiettivo dinamico, zona di punteggio. Solo su rombo.</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#FF8A2B;margin-top:8px">Evita: come colore di warning testuale.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:1px">
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#3FD08A;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.feedback.success</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#3FD08A · piano bloccato, ready confermato. Coppia sempre con glifo di spunta.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#FFC24A;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.feedback.caution</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#FFC24A · costo alto, esito parzialmente incerto. Livello 2 della scala.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#FF8A2B;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.feedback.warning</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#FF8A2B · rischio su un alleato, collisione probabile. Livello 3 + triangolo.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#FF4D6D;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.feedback.critical</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#FF4D6D · friendly fire certo, morte prevista. Condiviso con enemy: il rischio è sempre "nemico".</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:repeating-linear-gradient(45deg,#6E7A88 0 4px,#3A434E 4px 8px);margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.feedback.invalid</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#6E7A88 + hatch 45° · azione impossibile. L'invalido è desaturato, non rosso: il rosso è minaccia.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#2F6FA8;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.env.water</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#2F6FA8 · fill 22% + linea orizzontale. Bagna: abilita combo elettrica.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#E8F04A;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.env.electric</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#E8F04A · fill 18% + spezzata. Unico giallo-verde del sistema.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#FF8A2B;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.env.fire</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#FF8A2B · fill 24% + pattern a cuspidi verticali.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:repeating-linear-gradient(45deg,#FF8A2B 0 5px,#1A222E 5px 10px);margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.env.hazard</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">hatch #FF8A2B · superficie che danneggia a prescindere dal piano.</div>
+      </div>
+      <div style="background:#121822;padding:20px 22px">
+        <div style="height:44px;background:#DCE6F0;margin-bottom:14px"></div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">color.env.interactable</div>
+        <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">#DCE6F0 · porte, ascensori, leve. Bianco = "puoi agire su questo".</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:1px;background:#232C38;border:1px solid #232C38;border-top:0;margin-top:1px">
+      <div style="background:#121822;padding:18px 22px;flex:1;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Testo.</span> primary #E6EDF4 · secondary #8D9BAB · disabled #56626F. Su mappa il testo ha sempre ombra 0 1 2 rgba(0,0,0,.9), non un pannello.</div>
+      <div style="background:#121822;padding:18px 22px;flex:1;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Test daltonismo.</span> ally/enemy/warning restano separati in deuteranopia perché differiscono in luminanza (68 / 58 / 72) e in forma: viola=linea a nodi-lettera, cremisi=reticolo, arancio=triangolo.</div>
+    </div>
+  </div>
+
+  <!-- 03 SHAPE -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">03</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Shape language</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Nove primitive, mostrate in bianco su nero: la categoria deve essere leggibile dalla sola silhouette. Nessuna forma è riusata per due categorie.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><circle cx="24" cy="24" r="17" fill="none" stroke="#E6EDF4" stroke-width="2.5" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">CERCHIO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Area e posizione. Continuo = presente.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M14 34 L24 14 L34 34" fill="none" stroke="#E6EDF4" stroke-width="2.5" stroke-linejoin="miter" /><path d="M14 42 L24 22 L34 42" fill="none" stroke="#E6EDF4" stroke-width="2.5" opacity=".45" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">CHEVRON</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Movimento e direzione. Impilato = velocità.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M9 17 V9 H17 M31 9 H39 V17 M39 31 V39 H31 M17 39 H9 V31" fill="none" stroke="#E6EDF4" stroke-width="2.5" /><rect x="22" y="22" width="4" height="4" fill="#E6EDF4" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">RETICOLO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Target. Quattro angoli, mai un cerchio con croce.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><rect x="10" y="10" width="28" height="28" fill="none" stroke="#E6EDF4" stroke-width="2.5" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">QUADRATO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Cella e griglia. Il terreno è ortogonale.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M24 8 L40 24 L24 40 L8 24 Z" fill="none" stroke="#E6EDF4" stroke-width="2.5" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">ROMBO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Obiettivo. Ruotato = "conta per il punteggio".</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M24 8 L38 16 V32 L24 40 L10 32 V16 Z" fill="none" stroke="#E6EDF4" stroke-width="2.5" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">ESAGONO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Dispositivo interattivo: porta, ascensore, ponte, leva.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M24 10 L40 37 H8 Z" fill="none" stroke="#E6EDF4" stroke-width="2.5" /><path d="M24 20 V27" stroke="#E6EDF4" stroke-width="2.5" /><rect x="22.7" y="30" width="2.6" height="2.6" fill="#E6EDF4" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">TRIANGOLO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Pericolo e warning. Esclusivo: nient'altro è triangolare.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M12 14 H36 L31 34 H17 Z" fill="none" stroke="#E6EDF4" stroke-width="2.5" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">PIASTRA</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Difesa e copertura. Trapezio, non scudo araldico.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px;text-align:center">
+        <svg viewBox="0 0 48 48" style="width:100%;height:auto;margin-bottom:14px"><path d="M12 32 A14 14 0 0 1 36 32" fill="none" stroke="#E6EDF4" stroke-width="2.5" /><path d="M36 32 L30 27 M36 32 L38 25" stroke="#E6EDF4" stroke-width="2.5" /></svg>
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">ARCO</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Reazione e contrattacco: energia che ritorna al mittente.</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+      <span style="color:#E6EDF4">Logica.</span> Curvo = agente o effetto (cerchio, arco). Angolare ortogonale = mondo costruito (quadrato, esagono, piastra). Ruotato di 45° = valore di gioco (rombo) o allarme (triangolo). Aperto e ripetuto = vettore (chevron, reticolo). Un giocatore che impara tre regole deduce tutto il resto invece di memorizzare quaranta icone.
+    </div>
+  </div>
+
+  <!-- 04 ICON CONSTRUCTION -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">04</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Icon construction</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:340px 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <svg viewBox="0 0 240 240" style="width:100%;height:auto">
+          <rect x="0" y="0" width="240" height="240" fill="#0A0E14" />
+          <g stroke="#232C38" stroke-width="1">
+            <path d="M20 0V240M40 0V240M60 0V240M80 0V240M100 0V240M120 0V240M140 0V240M160 0V240M180 0V240M200 0V240M220 0V240" />
+            <path d="M0 20H240M0 40H240M0 60H240M0 80H240M0 100H240M0 120H240M0 140H240M0 160H240M0 180H240M0 200H240M0 220H240" />
+          </g>
+          <rect x="20" y="20" width="200" height="200" fill="none" stroke="#2E3947" stroke-width="1" stroke-dasharray="4 4" />
+          <path d="M70 160 L120 70 L170 160" fill="none" stroke="#35E0C4" stroke-width="20" stroke-linejoin="miter" />
+          <circle cx="180" cy="180" r="34" fill="#0A0E14" stroke="#0A0E14" stroke-width="10" />
+          <circle cx="180" cy="180" r="28" fill="none" stroke="#FFC24A" stroke-width="14" />
+          <text x="20" y="14" fill="#56626F" font-family="Azeret Mono, monospace" font-size="11">24 × 24 GRID · LIVE AREA 20</text>
+          <text x="132" y="234" fill="#FFC24A" font-family="Azeret Mono, monospace" font-size="11">BADGE 10×10</text>
+        </svg>
+      </div>
+      <div style="background:#121822;padding:24px;display:grid;gap:16px;align-content:start;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div><span style="color:#E6EDF4">Griglia.</span> 24×24 per HUD e barra abilità, 32×32 solo per l'icona di abilità nello slot attivo. Area viva 20×20, padding 2 px intoccabile.</div>
+        <div><span style="color:#E6EDF4">Stroke.</span> 2 px a 24 px, 2.5 px a 32 px, allineato alla griglia intera. Nessun tratto sotto 2 px: a 1080p sparisce sopra il mondo 3D.</div>
+        <div><span style="color:#E6EDF4">Angoli.</span> Ibrido: giunti a spigolo vivo (miter), terminali tagliati netti (butt), raggio 1 px solo sui contenitori. Il tratto è tecnico, non morbido.</div>
+        <div><span style="color:#E6EDF4">Outline vs filled.</span> Outline = default e disponibile. Filled = confermato, attivo o selezionato. Il passaggio outline→filled è l'unico modo per dire "scelto".</div>
+        <div><span style="color:#E6EDF4">Dettaglio.</span> Massimo 4 elementi per icona, minimo 4 px di negative space fra tratti paralleli. Diagonali solo a 45° e 26.5° (1:2), nessun angolo arbitrario.</div>
+        <div><span style="color:#E6EDF4">Sovrapposizioni.</span> Un elemento che passa sopra un altro si stacca con un knockout di 2 px dello sfondo, non con l'opacità.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:18px">SISTEMA DI MODIFICATORI</div>
+        <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:20px">Una icona base + tre slot. Nessuna icona nuova per ogni combinazione: 12 basi × modificatori coprono l'intero gioco.</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center">
+          <div>
+            <div style="background:#0A0E14;border:1px solid #232C38;padding:14px;margin-bottom:8px"><svg viewBox="0 0 24 24" style="width:100%;height:auto"><path d="M6 17 L12 6 L18 17" fill="none" stroke="#35E0C4" stroke-width="2" /></svg></div>
+            <div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">BASE</div>
+          </div>
+          <div>
+            <div style="background:#0A0E14;border:1px solid #232C38;padding:14px;margin-bottom:8px"><svg viewBox="0 0 24 24" style="width:100%;height:auto"><path d="M6 17 L12 6 L18 17" fill="none" stroke="#35E0C4" stroke-width="2" /><circle cx="18" cy="18" r="5" fill="#0A0E14" /><circle cx="18" cy="18" r="4" fill="none" stroke="#3FD08A" stroke-width="2" /></svg></div>
+            <div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">+ STATO</div>
+          </div>
+          <div>
+            <div style="background:#0A0E14;border:1px solid #232C38;padding:14px;margin-bottom:8px"><svg viewBox="0 0 24 24" style="width:100%;height:auto"><path d="M6 17 L12 6 L18 17" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M20 4 L22 9 L17 8 Z" fill="#35E0C4" /></svg></div>
+            <div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">+ DIREZIONE</div>
+          </div>
+          <div>
+            <div style="background:#0A0E14;border:1px solid #232C38;padding:14px;margin-bottom:8px"><svg viewBox="0 0 24 24" style="width:100%;height:auto"><path d="M6 17 L12 6 L18 17" fill="none" stroke="#A97BFF" stroke-width="2" stroke-dasharray="3 2.5" /></svg></div>
+            <div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">+ CERTEZZA</div>
+          </div>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#56626F;margin-top:20px">Slot fissi: stato in basso a destra (10 px, con knockout), direzione in alto a destra (cuspide 6 px), certezza applicata al tratto dell'intera icona. Mai due badge nello stesso quadrante.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 CORE ICONS -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">05</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Core icons</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:560px">40 icone, tutte derivate dalle nove primitive. Mostrate a 24 px nella riga di controllo in alto e a scala 2× nella griglia.</div>
+    </div>
+
+    <div style="border:1px solid #232C38;background:#121822;padding:16px 22px;display:flex;align-items:center;gap:18px;margin-bottom:1px">
+      <div style="font:400 10px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em;flex-shrink:0">TEST 24 PX →</div>
+      <div style="display:flex;gap:14px;align-items:center">
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M6 17 L12 6 L18 17" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M9 18 L9 6 L19 12 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16" fill="none" stroke="#E6EDF4" stroke-width="2" /><rect x="11" y="11" width="2" height="2" fill="#E6EDF4" /></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 4 L20 12 L12 20 L4 12 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5 L20 19 H4 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M12 10v4" stroke="#E6EDF4" stroke-width="2" /></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 6 L19 10 V17 L12 21 L5 17 V10 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#E6EDF4" stroke-width="2" stroke-dasharray="3 3" /></svg>
+      </div>
+      <div style="font:400 11px/1.5 'Azeret Mono',monospace;color:#56626F;margin-left:auto">Ogni sagoma resta distinta senza colore e senza label.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M6 19 L12 8 L18 19" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M6 14 L12 3 L18 14" fill="none" stroke="#35E0C4" stroke-width="2" opacity=".4" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">MOVE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M4 19 L10 8 L16 19" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M10 14 L16 3 L22 14" fill="none" stroke="#35E0C4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">SPRINT / DASH</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M9 20 L9 4 L20 12 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M4 12 H9" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">ATTACK</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16" fill="none" stroke="#E6EDF4" stroke-width="2" /><rect x="10.7" y="10.7" width="2.6" height="2.6" fill="#E6EDF4" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">TARGET</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M3 12 H21" stroke="#E6EDF4" stroke-width="2" /><path d="M15 7 L21 12 L15 17" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M3 8 V16" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">LINE ATTACK</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#E6EDF4" stroke-width="2" /><circle cx="12" cy="12" r="2.4" fill="#E6EDF4" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">CIRCULAR AOE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 20 L4 6 A18 18 0 0 1 20 6 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">CONE AOE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M5 7 H19 L16 18 H8 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">DEFENSE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M5 16 A8 8 0 0 1 19 16" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M19 16 L14 13 M19 16 L20 10" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">COUNTER</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M5 16 A8 8 0 0 1 19 16" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M8 6 L16 18" stroke="#FF8A2B" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">INTERRUPT</div></div>
+
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><rect x="4" y="4" width="16" height="16" fill="none" stroke="#3FD08A" stroke-width="2" /><path d="M8 12 L11 15 L16 9" fill="none" stroke="#3FD08A" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">READY</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><rect x="4" y="4" width="16" height="16" fill="none" stroke="#6E7A88" stroke-width="2" stroke-dasharray="3 3" /><path d="M12 8 V13" stroke="#6E7A88" stroke-width="2" /><rect x="10.8" y="15" width="2.4" height="2.4" fill="#6E7A88" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">NOT READY</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#6E7A88" stroke-width="2" /><path d="M12 12 V6 A6 6 0 0 1 17.2 15 Z" fill="#6E7A88" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">COOLDOWN</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#6E7A88" stroke-width="2" /><path d="M6.5 17.5 L17.5 6.5" stroke="#6E7A88" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">UNAVAILABLE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 6 L20 12 L12 18 L4 12 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /><circle cx="12" cy="12" r="2.4" fill="#E6EDF4" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">VISION</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 6 L20 12 L12 18 L4 12 Z" fill="none" stroke="#6E7A88" stroke-width="2" stroke-dasharray="2.5 3" /><path d="M5 19 L19 5" stroke="#6E7A88" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">HIDDEN</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 6 L20 12 L12 18 L4 12 Z" fill="none" stroke="#FF4D6D" stroke-width="2" /><path d="M12 3 V6 M12 18 V21" stroke="#FF4D6D" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">DETECTED</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M4 16 H20" stroke="#E6EDF4" stroke-width="2" /><path d="M8 12 H16" stroke="#E6EDF4" stroke-width="2" /><path d="M12 4 V9" stroke="#E6EDF4" stroke-width="2" /><path d="M9 7 L12 4 L15 7" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">HIGH GROUND</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M4 8 H20" stroke="#E6EDF4" stroke-width="2" /><path d="M8 12 H16" stroke="#E6EDF4" stroke-width="2" /><path d="M12 15 V20" stroke="#E6EDF4" stroke-width="2" /><path d="M9 17 L12 20 L15 17" fill="none" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">LOW GROUND</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M5 8 H19 L17 16 H7 Z" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M12 16 V20" stroke="#E6EDF4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">COVER</div></div>
+
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 3 L21 12 L12 21 L3 12 Z" fill="none" stroke="#FFC24A" stroke-width="2" /><path d="M12 8 L16 12 L12 16 L8 12 Z" fill="#FFC24A" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">OBJECTIVE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 4 L19 8 V16 L12 20 L5 16 V8 Z" fill="none" stroke="#DCE6F0" stroke-width="2" /><path d="M12 9 V15" stroke="#DCE6F0" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">INTERACT</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M6 4 H15 V20 H6 Z" fill="none" stroke="#DCE6F0" stroke-width="2" /><path d="M15 8 L20 6 V18 L15 16" fill="none" stroke="#DCE6F0" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">DOOR</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><rect x="5" y="4" width="14" height="16" fill="none" stroke="#DCE6F0" stroke-width="2" /><path d="M12 8 L9 11 M12 8 L15 11 M12 8 V16 M9 13 L12 16 L15 13" fill="none" stroke="#DCE6F0" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">ELEVATOR</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M3 9 H21" stroke="#DCE6F0" stroke-width="2" /><path d="M6 9 V16 M12 9 V19 M18 9 V16" stroke="#DCE6F0" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">BRIDGE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M4 20 V12 A8 8 0 0 1 20 12 V20" fill="none" stroke="#DCE6F0" stroke-width="2" /><path d="M9 20 V13 A3 3 0 0 1 15 13 V20" fill="none" stroke="#DCE6F0" stroke-width="2" opacity=".5" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">TUNNEL</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M3 10 Q7 6 12 10 T21 10" fill="none" stroke="#2F6FA8" stroke-width="2" /><path d="M3 16 Q7 12 12 16 T21 16" fill="none" stroke="#2F6FA8" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">WATER</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M13 3 L6 13 H11 L10 21 L18 10 H12 Z" fill="none" stroke="#E8F04A" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">ELECTRICITY</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M5 20 L8 9 L11 15 L14 4 L19 20 Z" fill="none" stroke="#FF8A2B" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">FIRE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#2F6FA8" stroke-width="2" /><path d="M5 14 Q8.5 11 12 14 T19 14" fill="none" stroke="#2F6FA8" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">WET</div></div>
+
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#E8F04A" stroke-width="2" /><path d="M13 6 L8 13 H12 L11 18 L16 11 H12 Z" fill="none" stroke="#E8F04A" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">ELECTRIFIED</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 4 L21 20 H3 Z" fill="none" stroke="#FF8A2B" stroke-width="2" /><path d="M7 20 L12 12 L17 20" fill="none" stroke="#FF8A2B" stroke-width="2" opacity=".55" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">HAZARD</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M3 12 H9 M15 12 H21" stroke="#FF8A2B" stroke-width="2" /><path d="M9 8 L12 12 L9 16 M15 8 L12 12 L15 16" fill="none" stroke="#FF8A2B" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">COLLISION</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M3 12 H14" stroke="#FF4D6D" stroke-width="2" /><path d="M10 8 L14 12 L10 16" fill="none" stroke="#FF4D6D" stroke-width="2" /><path d="M18 5 L18 19" stroke="#A97BFF" stroke-width="2" /><path d="M15 8 L21 8 M15 16 L21 16" stroke="#A97BFF" stroke-width="2" opacity=".5" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">FRIENDLY FIRE</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M12 4 L21 20 H3 Z" fill="none" stroke="#FF8A2B" stroke-width="2" /><path d="M12 10 V14" stroke="#FF8A2B" stroke-width="2" /><rect x="10.8" y="16" width="2.4" height="2.4" fill="#FF8A2B" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">WARNING</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><rect x="4" y="4" width="16" height="16" fill="none" stroke="#6E7A88" stroke-width="2" /><path d="M4 20 L20 4" stroke="#6E7A88" stroke-width="2" /><path d="M4 12 L12 4 M12 20 L20 12" stroke="#6E7A88" stroke-width="1" opacity=".6" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">INVALID</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M8 12 L11 15 L16 9" fill="none" stroke="#35E0C4" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">CONFIRMED</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#A97BFF" stroke-width="2" stroke-dasharray="4 3" /><path d="M12 8 V12 L15 14" fill="none" stroke="#A97BFF" stroke-width="2" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">PREDICTED</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><circle cx="12" cy="12" r="8" fill="none" stroke="#96A3B0" stroke-width="2" stroke-dasharray="1.5 4" /><path d="M9.5 9.5 A2.6 2.6 0 0 1 14.5 10.5 C14.5 12.4 12 12.6 12 14.6" fill="none" stroke="#96A3B0" stroke-width="2" /><rect x="10.9" y="16.4" width="2.2" height="2.2" fill="#96A3B0" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">UNCERTAIN</div></div>
+      <div style="background:#121822;padding:18px 8px;text-align:center"><svg viewBox="0 0 24 24" style="width:44px;height:44px"><rect x="4" y="4" width="16" height="16" fill="none" stroke="#96A3B0" stroke-width="2" /><path d="M9 9 H15 V15 H9 Z" fill="#96A3B0" opacity=".35" /></svg><div style="font:400 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-top:10px">CELL / GROUND</div></div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Nota di famiglia.</span> Le icone d'ambiente sono le uniche curve organiche del set (acqua, fuoco, saetta) e portano già il proprio colore: così restano riconoscibili anche quando appaiono dentro un badge da 10 px sopra una superficie. Tutto il resto è costruito su griglia intera.</div>
+  </div>
+
+  <!-- 06 CERTAINTY -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">06</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Certainty system</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Il cuore del gioco. Sei canali codificano la stessa risposta; nessuno è indispensabile, quindi la lettura sopravvive a qualunque fondo e a qualunque deficienza di colore.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+
+      <div style="background:#121822;padding:26px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M8 12 L11 15 L16 9" fill="none" stroke="#35E0C4" stroke-width="2" /></svg>
+          <div style="font:500 16px/1 Oswald,sans-serif;letter-spacing:.1em;color:#E6EDF4">CONFERMATO</div>
+        </div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:20px;margin-bottom:20px">
+          <svg viewBox="0 0 300 100" style="width:100%;height:auto">
+            <path d="M20 78 L90 78 L90 40 L200 40 L200 22 L268 22" fill="none" stroke="#35E0C4" stroke-width="3" />
+            <circle cx="90" cy="78" r="4" fill="#35E0C4" /><circle cx="90" cy="40" r="4" fill="#35E0C4" /><circle cx="200" cy="40" r="4" fill="#35E0C4" />
+            <rect x="260" y="14" width="16" height="16" fill="#35E0C4" />
+            <circle cx="20" cy="78" r="7" fill="none" stroke="#35E0C4" stroke-width="3" />
+          </svg>
+        </div>
+        <div style="display:grid;gap:9px;font:400 11.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#56626F">colore</span> · relazione a saturazione piena</div>
+          <div><span style="color:#56626F">linea</span> · continua, 3 px sul mondo</div>
+          <div><span style="color:#56626F">opacità</span> · 100%</div>
+          <div><span style="color:#56626F">nodo</span> · pieno, quadrato sulla destinazione</div>
+          <div><span style="color:#56626F">moto</span> · nessuno; snap 120 ms all'ingresso</div>
+          <div><span style="color:#56626F">glifo</span> · spunta in cerchio (solo P1)</div>
+          <div style="color:#E6EDF4;margin-top:6px">Uso: risoluzione già avvenuta, quota reale, cooldown, posizione della propria unità.</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:26px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#A97BFF" stroke-width="2" stroke-dasharray="4 3" /><path d="M12 8 V12 L15 14" fill="none" stroke="#A97BFF" stroke-width="2" /></svg>
+          <div style="font:500 16px/1 Oswald,sans-serif;letter-spacing:.1em;color:#E6EDF4">PREVISTO</div>
+        </div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:20px;margin-bottom:20px">
+          <svg viewBox="0 0 300 100" style="width:100%;height:auto">
+            <path d="M20 78 L90 78 L90 40 L200 40 L200 22 L268 22" fill="none" stroke="#35E0C4" stroke-width="3" stroke-dasharray="9 6" opacity=".78" style="animation:flow 1.4s linear infinite" />
+            <circle cx="90" cy="78" r="4" fill="#0A0E14" stroke="#35E0C4" stroke-width="2" /><circle cx="90" cy="40" r="4" fill="#0A0E14" stroke="#35E0C4" stroke-width="2" /><circle cx="200" cy="40" r="4" fill="#0A0E14" stroke="#35E0C4" stroke-width="2" />
+            <rect x="260" y="14" width="16" height="16" fill="none" stroke="#35E0C4" stroke-width="2.5" stroke-dasharray="5 3" />
+            <circle cx="20" cy="78" r="7" fill="none" stroke="#35E0C4" stroke-width="3" />
+          </svg>
+        </div>
+        <div style="display:grid;gap:9px;font:400 11.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#56626F">colore</span> · relazione al 78% di alfa</div>
+          <div><span style="color:#56626F">linea</span> · tratteggio 9-6, ritmo regolare</div>
+          <div><span style="color:#56626F">opacità</span> · 78%</div>
+          <div><span style="color:#56626F">nodo</span> · cavo, contorno 2 px</div>
+          <div><span style="color:#56626F">moto</span> · flow direzionale 1.4 s, costante</div>
+          <div><span style="color:#56626F">glifo</span> · orologio in cerchio tratteggiato</div>
+          <div style="color:#E6EDF4;margin-top:6px">Uso: proprio piano, intenti alleati, esito calcolato sullo stato noto. Il ritmo regolare del tratteggio è la firma: "il sistema sa contare questo".</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:26px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#96A3B0" stroke-width="2" stroke-dasharray="1.5 4" /><path d="M9.5 9.5 A2.6 2.6 0 0 1 14.5 10.5 C14.5 12.4 12 12.6 12 14.6" fill="none" stroke="#96A3B0" stroke-width="2" /><rect x="10.9" y="16.4" width="2.2" height="2.2" fill="#96A3B0" /></svg>
+          <div style="font:500 16px/1 Oswald,sans-serif;letter-spacing:.1em;color:#E6EDF4">INCERTO</div>
+        </div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:20px;margin-bottom:20px">
+          <svg viewBox="0 0 300 100" style="width:100%;height:auto">
+            <path d="M20 78 L90 78 L90 40 L200 40 L200 22 L268 22" fill="none" stroke="#35E0C4" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="butt" style="animation:breathe 2s ease-in-out infinite" />
+            <circle cx="90" cy="78" r="3.5" fill="none" stroke="#35E0C4" stroke-width="1.5" opacity=".5" /><circle cx="200" cy="40" r="3.5" fill="none" stroke="#35E0C4" stroke-width="1.5" opacity=".5" />
+            <rect x="260" y="14" width="16" height="16" fill="none" stroke="#35E0C4" stroke-width="2" stroke-dasharray="3 6" opacity=".55" />
+            <path d="M287 16 A3 3 0 0 1 292 18 C292 20 289.5 20.4 289.5 22.5" fill="none" stroke="#96A3B0" stroke-width="2" /><rect x="288.6" y="25" width="2" height="2" fill="#96A3B0" />
+            <circle cx="20" cy="78" r="7" fill="none" stroke="#35E0C4" stroke-width="3" />
+          </svg>
+        </div>
+        <div style="display:grid;gap:9px;font:400 11.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#56626F">colore</span> · relazione desaturata verso neutral</div>
+          <div><span style="color:#56626F">linea</span> · segmentata sparsa 2-9 (duty 18%)</div>
+          <div><span style="color:#56626F">opacità</span> · 42–62% in respiro</div>
+          <div><span style="color:#56626F">nodo</span> · anello sottile, spezzato</div>
+          <div><span style="color:#56626F">moto</span> · respiro 2 s, mai scorrimento</div>
+          <div><span style="color:#56626F">glifo</span> · "?" alla fine del segmento incerto</div>
+          <div style="color:#E6EDF4;margin-top:6px">Uso: tratto dopo una possibile collisione, area che potrebbe elettrificarsi, esito soggetto a reazione nemica. Il respiro senza direzione dice "questo non avanza in modo deterministico".</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Regola di transizione.</span> La certezza degrada, non salta: un path è confermato fino al punto di divergenza, previsto dopo, incerto solo dal primo evento non deterministico. Un singolo tracciato può contenere tutti tre gli stati e il punto di rottura è l'informazione più utile della schermata.</div>
+      <div style="background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Perché non solo l'opacità.</span> Sopra acqua chiara o fuoco l'alfa collassa. Il duty cycle del tratteggio (100% / 60% / 18%) resta misurabile a occhio su qualsiasi fondo e si implementa in UMG come un solo parametro di materiale.</div>
+    </div>
+  </div>
+  <!-- 07 MOVEMENT -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">07</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Movement grammar</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Ogni path ha tre strati: halo scuro 5 px (leggibilità su qualunque fondo), tratto 3 px, nodi. Il colore identifica il proprietario, il tratto la certezza, il nodo l'evento.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">PATH SELEZIONATO</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px">
+          <svg viewBox="0 0 260 110" style="width:100%;height:auto">
+            <rect width="260" height="110" fill="#111A22" />
+            <g stroke="#1B2530" stroke-width="1"><path d="M0 28H260M0 56H260M0 84H260M40 0V110M80 0V110M120 0V110M160 0V110M200 0V110M240 0V110" /></g>
+            <path d="M30 84 L120 84 L120 34 L230 34" fill="none" stroke="#05080C" stroke-width="8" opacity=".85" />
+            <path d="M30 84 L120 84 L120 34 L230 34" fill="none" stroke="#35E0C4" stroke-width="3" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+            <circle cx="120" cy="84" r="4" fill="#0A0E14" stroke="#35E0C4" stroke-width="2" />
+            <rect x="222" y="26" width="16" height="16" fill="none" stroke="#35E0C4" stroke-width="2.5" />
+            <circle cx="30" cy="84" r="8" fill="none" stroke="#35E0C4" stroke-width="3" />
+            <text x="196" y="20" fill="#35E0C4" font-family="Azeret Mono, monospace" font-size="9">3 / 4 AP</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Anello pieno = origine. Nodi cavi = svolte. Quadrato = destinazione. Costo in AP ancorato alla destinazione, non a un pannello.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">PATH ALLEATO + COLLISIONE</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px">
+          <svg viewBox="0 0 260 110" style="width:100%;height:auto">
+            <rect width="260" height="110" fill="#111A22" />
+            <g stroke="#1B2530" stroke-width="1"><path d="M0 28H260M0 56H260M0 84H260M40 0V110M80 0V110M120 0V110M160 0V110M200 0V110M240 0V110" /></g>
+            <path d="M30 84 L150 84 L150 34" fill="none" stroke="#05080C" stroke-width="8" opacity=".85" />
+            <path d="M30 84 L150 84 L150 34" fill="none" stroke="#35E0C4" stroke-width="3" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+            <path d="M230 20 L150 60 L110 84" fill="none" stroke="#05080C" stroke-width="7" opacity=".85" />
+            <path d="M230 20 L150 60 L110 84" fill="none" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="6 5" opacity=".8" />
+            <circle cx="230" cy="20" r="7" fill="#0A0E14" stroke="#A97BFF" stroke-width="2" /><text x="227" y="24" fill="#A97BFF" font-family="Azeret Mono, monospace" font-size="9">B</text>
+            <path d="M150 62 L163 84 H137 Z" fill="#0A0E14" stroke="#FF8A2B" stroke-width="2" /><path d="M150 70 v6" stroke="#FF8A2B" stroke-width="2" /><rect x="149" y="79" width="2.4" height="2.4" fill="#FF8A2B" />
+            <path d="M150 34 L150 60" stroke="#35E0C4" stroke-width="3" stroke-dasharray="2 9" opacity=".5" />
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Il path alleato è 2.5 px, più sottile e con nodo-lettera. Nell'incrocio compare il triangolo di collisione e il proprio tratto degrada a incerto <span style="color:#E6EDF4">dopo</span> il punto di contatto.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">DASH · QUOTA · NON VALIDO</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px">
+          <svg viewBox="0 0 260 110" style="width:100%;height:auto">
+            <rect width="260" height="110" fill="#111A22" />
+            <g stroke="#1B2530" stroke-width="1"><path d="M0 28H260M0 56H260M0 84H260M40 0V110M80 0V110M120 0V110M160 0V110M200 0V110M240 0V110" /></g>
+            <path d="M22 90 L92 90" fill="none" stroke="#05080C" stroke-width="8" /><path d="M22 90 L92 90" fill="none" stroke="#35E0C4" stroke-width="5" stroke-dasharray="16 5" /><path d="M92 84 L104 90 L92 96 Z" fill="#35E0C4" />
+            <text x="22" y="78" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">DASH · tratto 5 px</text>
+            <path d="M130 90 L160 90 L160 40 L190 40" fill="none" stroke="#05080C" stroke-width="8" /><path d="M130 90 L160 90 L160 40 L190 40" fill="none" stroke="#35E0C4" stroke-width="3" stroke-dasharray="9 6" />
+            <path d="M160 40 L152 52 H168 Z" fill="#35E0C4" /><text x="166" y="30" fill="#35E0C4" font-family="Azeret Mono, monospace" font-size="9">+1</text>
+            <text x="120" y="26" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">CAMBIO QUOTA</text>
+            <path d="M208 90 L246 90" fill="none" stroke="#6E7A88" stroke-width="3" stroke-dasharray="4 4" /><path d="M240 84 L252 96 M252 84 L240 96" stroke="#6E7A88" stroke-width="2.5" />
+            <text x="200" y="78" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">NON VALIDO</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Il dash non cambia colore: cambia spessore (5 px) e ritmo (tratti lunghi). Il cambio di quota è un cuneo con delta numerico. L'invalido perde il colore di relazione e finisce in croce grigia.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">TRANSIZIONI DI STRUTTURA</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px">
+          <svg viewBox="0 0 260 110" style="width:100%;height:auto">
+            <rect width="260" height="110" fill="#111A22" />
+            <g stroke="#1B2530" stroke-width="1"><path d="M0 28H260M0 56H260M0 84H260M40 0V110M80 0V110M120 0V110M160 0V110M200 0V110M240 0V110" /></g>
+            <g stroke="#35E0C4" stroke-width="3" fill="none">
+              <path d="M14 34 H44" stroke-dasharray="9 6" /><path d="M56 34 H86" stroke-dasharray="9 6" />
+              <path d="M50 26 L57 34 L50 42 L43 34 Z" stroke="#DCE6F0" stroke-width="2" fill="#0A0E14" />
+              <path d="M114 34 H144" stroke-dasharray="9 6" /><path d="M156 34 H186" stroke-dasharray="9 6" />
+            </g>
+            <path d="M150 24 L157 28 v12 l-7 4 -7-4 V28 Z" fill="#0A0E14" stroke="#DCE6F0" stroke-width="2" /><path d="M150 29 v10" stroke="#DCE6F0" stroke-width="2" />
+            <text x="16" y="58" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">PORTA (rombo bianco)</text>
+            <text x="112" y="58" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">ASCENSORE (esagono)</text>
+            <g stroke="#35E0C4" stroke-width="3" fill="none"><path d="M14 88 H40" stroke-dasharray="9 6" /><path d="M40 88 H70" stroke-dasharray="2 9" opacity=".5" /><path d="M70 88 H96" stroke-dasharray="9 6" /></g>
+            <text x="16" y="106" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">TUNNEL: tratto occluso, non nascosto</text>
+            <g stroke="#35E0C4" stroke-width="3" fill="none"><path d="M150 88 H236" stroke-dasharray="9 6" /></g>
+            <path d="M150 80 v16 M172 80 v16 M194 80 v16 M216 80 v16 M236 80 v16" stroke="#DCE6F0" stroke-width="1.5" opacity=".55" />
+            <text x="148" y="106" fill="#56626F" font-family="Azeret Mono, monospace" font-size="9">PONTE: traversine sotto il tratto</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">Le strutture non interrompono il path: lo attraversano con un marker bianco. Il tunnel è l'unica eccezione, dove il tratto passa a segmentato perché la copertura visiva è reale.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 08 TARGETING -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">08</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Targeting grammar</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:620px">Ogni bersaglio ha la stessa anatomia: <span style="color:#8D9BAB">contorno della zona</span> + <span style="color:#8D9BAB">fill 14%</span> + <span style="color:#8D9BAB">ancora d'origine</span> + <span style="color:#8D9BAB">marker per ciascun soggetto colpito</span>. Cambia la geometria, non il vocabolario.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:1px">
+      <div style="background:#121822;padding:20px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:12px;margin-bottom:10px"><svg viewBox="0 0 120 90" style="width:100%;height:auto"><rect width="120" height="90" fill="#111A22" /><path d="M44 30V22h8M68 22h8v8M76 60v8h-8M52 68h-8v-8" fill="none" stroke="#FF4D6D" stroke-width="2.5" /><circle cx="60" cy="45" r="3" fill="#FF4D6D" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">SINGLE TARGET</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Reticolo a quattro angoli sul soggetto.</div></div>
+      <div style="background:#121822;padding:20px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:12px;margin-bottom:10px"><svg viewBox="0 0 120 90" style="width:100%;height:auto"><rect width="120" height="90" fill="#111A22" /><path d="M14 45 H106 V57 H14 Z" fill="#35E0C4" opacity=".14" /><path d="M14 45 H106 V57 H14 Z" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M14 51 H100" stroke="#35E0C4" stroke-width="2" stroke-dasharray="8 5" /><path d="M100 44 L110 51 L100 58 Z" fill="#35E0C4" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">LINE</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Corridoio a larghezza reale + asse di tiro.</div></div>
+      <div style="background:#121822;padding:20px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:12px;margin-bottom:10px"><svg viewBox="0 0 120 90" style="width:100%;height:auto"><rect width="120" height="90" fill="#111A22" /><path d="M18 72 L92 18 A92 92 0 0 1 108 60 Z" fill="#35E0C4" opacity=".14" /><path d="M18 72 L92 18 A92 92 0 0 1 108 60 Z" fill="none" stroke="#35E0C4" stroke-width="2" /><circle cx="18" cy="72" r="5" fill="none" stroke="#35E0C4" stroke-width="2.5" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">CONE</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Vertice sull'unità: l'origine è sempre visibile.</div></div>
+      <div style="background:#121822;padding:20px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:12px;margin-bottom:10px"><svg viewBox="0 0 120 90" style="width:100%;height:auto"><rect width="120" height="90" fill="#111A22" /><ellipse cx="60" cy="46" rx="38" ry="24" fill="#35E0C4" opacity=".14" /><ellipse cx="60" cy="46" rx="38" ry="24" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M60 34 v24 M48 46 h24" stroke="#35E0C4" stroke-width="1.5" opacity=".6" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">CIRCULAR AOE</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Ellisse in prospettiva + croce di centro.</div></div>
+      <div style="background:#121822;padding:20px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:12px;margin-bottom:10px"><svg viewBox="0 0 120 90" style="width:100%;height:auto"><rect width="120" height="90" fill="#111A22" /><path d="M40 56 L60 44 L80 56 L60 68 Z" fill="#35E0C4" opacity=".18" /><path d="M40 56 L60 44 L80 56 L60 68 Z" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M60 36 L52 26 h16 Z" fill="#35E0C4" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">CELL / GROUND</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Cella in proiezione + cuspide di ancoraggio.</div></div>
+      <div style="background:#121822;padding:20px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:12px;margin-bottom:10px"><svg viewBox="0 0 120 90" style="width:100%;height:auto"><rect width="120" height="90" fill="#111A22" /><path d="M20 60 A44 44 0 0 1 100 60" fill="none" stroke="#35E0C4" stroke-width="2" stroke-dasharray="6 4" /><path d="M60 60 L84 34" stroke="#35E0C4" stroke-width="2.5" /><path d="M84 34 L74 36 L82 44 Z" fill="#35E0C4" /><circle cx="60" cy="60" r="5" fill="none" stroke="#35E0C4" stroke-width="2.5" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">DIRECTIONAL</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Arco di rotazione + vettore di spinta.</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:18px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:10px;margin-bottom:10px"><svg viewBox="0 0 110 60" style="width:100%;height:auto"><rect width="110" height="60" fill="#111A22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="#35E0C4" opacity=".14" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="none" stroke="#35E0C4" stroke-width="2" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#3FD08A">VALID</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Contorno continuo, fill 14%.</div></div>
+      <div style="background:#121822;padding:18px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:10px;margin-bottom:10px"><svg viewBox="0 0 110 60" style="width:100%;height:auto"><rect width="110" height="60" fill="#111A22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="#6E7A88" opacity=".12" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="none" stroke="#6E7A88" stroke-width="2" stroke-dasharray="4 4" /><path d="M44 20 L66 40 M66 20 L44 40" stroke="#6E7A88" stroke-width="2" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#6E7A88">INVALID</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Grigio + croce. Nessun rosso: non è una minaccia.</div></div>
+      <div style="background:#121822;padding:18px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:10px;margin-bottom:10px"><svg viewBox="0 0 110 60" style="width:100%;height:auto"><rect width="110" height="60" fill="#111A22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="#35E0C4" opacity=".22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="none" stroke="#35E0C4" stroke-width="3" /><rect x="49" y="24" width="12" height="12" fill="#35E0C4" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4">CONFIRMED</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Tratto 3 px, centro pieno, snap 120 ms.</div></div>
+      <div style="background:#121822;padding:18px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:10px;margin-bottom:10px"><svg viewBox="0 0 110 60" style="width:100%;height:auto"><rect width="110" height="60" fill="#111A22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="#35E0C4" opacity=".1" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="none" stroke="#35E0C4" stroke-width="2" stroke-dasharray="8 5" opacity=".8" style="animation:flow 1.4s linear infinite" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#A97BFF">PREDICTED</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Tratteggio regolare in scorrimento.</div></div>
+      <div style="background:#121822;padding:18px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:10px;margin-bottom:10px"><svg viewBox="0 0 110 60" style="width:100%;height:auto"><rect width="110" height="60" fill="#111A22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="#96A3B0" opacity=".08" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="none" stroke="#35E0C4" stroke-width="2" stroke-dasharray="2 9" style="animation:breathe 2s ease-in-out infinite" /><path d="M85 20 A3 3 0 0 1 90 22 C90 24 87.5 24.4 87.5 26.5" fill="none" stroke="#96A3B0" stroke-width="2" /><rect x="86.6" y="29" width="2" height="2" fill="#96A3B0" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#96A3B0">UNCERTAIN</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Segmentato + "?" al bordo, respiro 2 s.</div></div>
+      <div style="background:#121822;padding:18px 16px"><div style="background:#0A0E14;border:1px solid #232C38;padding:10px;margin-bottom:10px"><svg viewBox="0 0 110 60" style="width:100%;height:auto"><rect width="110" height="60" fill="#111A22" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="#35E0C4" opacity=".12" /><ellipse cx="55" cy="30" rx="34" ry="18" fill="none" stroke="#35E0C4" stroke-width="2" /><path d="M28 30 A27 27 0 0 0 55 48 A34 18 0 0 1 28 30 Z" fill="#FF8A2B" opacity=".3" /><path d="M34 34 A24 24 0 0 0 52 47" fill="none" stroke="#FF8A2B" stroke-width="2.5" /><path d="M40 44 L47 56 H33 Z" fill="#0A0E14" stroke="#FF8A2B" stroke-width="2" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#FF8A2B">ALLY AT RISK</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Solo il settore che tocca l'alleato diventa arancio.</div></div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Le quattro domande.</span> COSA → icona dell'abilità agganciata al cursore (24 px). DOVE → contorno della zona. CHI → un reticolo per ogni soggetto dentro la zona, colorato con la sua relazione. QUANTO È SICURO → tratto della zona. Nessuna delle quattro risposte usa lo stesso canale di un'altra.</div>
+  </div>
+
+  <!-- 09 ENVIRONMENT -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">09</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Environment grammar</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Gli stati del terreno sono <span style="color:#8D9BAB">pattern con direzione propria</span>, non tinte piatte: sopravvivono al fill del targeting che vi si sovrappone.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:20px 18px"><div style="height:64px;background:#111A22;border:1px solid #1B2530;background-image:repeating-linear-gradient(0deg,rgba(47,111,168,.55) 0 1px,transparent 1px 7px);margin-bottom:12px"></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">WATER</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Righe orizzontali 7 px. Direzione: piatta come il liquido.</div></div>
+      <div style="background:#121822;padding:20px 18px"><div style="height:64px;background:#111A22;border:1px solid #1B2530;background-image:repeating-linear-gradient(90deg,rgba(232,240,74,.5) 0 1px,transparent 1px 6px);margin-bottom:12px"></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">ELECTRIC</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Righe verticali 6 px: ortogonale all'acqua, così la combo si legge come griglia.</div></div>
+      <div style="background:#121822;padding:20px 18px"><div style="height:64px;background:#111A22;border:1px solid #1B2530;background-image:repeating-linear-gradient(135deg,rgba(255,138,43,.45) 0 2px,transparent 2px 8px);margin-bottom:12px"></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">FIRE</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Diagonale 135°, tratto 2 px, la più densa: il fuoco è la minaccia più immediata.</div></div>
+      <div style="background:#121822;padding:20px 18px"><div style="height:64px;background:#111A22;border:1px solid #1B2530;background-image:repeating-linear-gradient(45deg,rgba(255,138,43,.4) 0 3px,transparent 3px 10px);margin-bottom:12px"></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">HAZARD</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Diagonale 45°, opposta al fuoco: danno strutturale, non elementale.</div></div>
+      <div style="background:#121822;padding:20px 18px"><div style="height:64px;background:#111A22;border:1px solid #1B2530;background-image:repeating-linear-gradient(0deg,rgba(47,111,168,.5) 0 1px,transparent 1px 7px),repeating-linear-gradient(90deg,rgba(232,240,74,.5) 0 1px,transparent 1px 6px);margin-bottom:12px"></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">WET + ELECTRIC</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">I due pattern si intrecciano in una maglia: la combo è visibile senza un terzo colore.</div></div>
+      <div style="background:#121822;padding:20px 18px"><div style="height:64px;background:#111A22;border:1px solid #DCE6F0;display:flex;align-items:center;justify-content:center;margin-bottom:12px"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 4 L19 8 V16 L12 20 L5 16 V8 Z" fill="none" stroke="#DCE6F0" stroke-width="2" /><path d="M12 9 V15" stroke="#DCE6F0" stroke-width="2" /></svg></div><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4">INTERACTABLE</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Nessun fill: contorno bianco 1 px + esagono. Bianco = agenzia del giocatore.</div></div>
+    </div>
+  </div>
+  <!-- 10 WARNINGS -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">10</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Warning language</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:620px">Cinque livelli, nessun popup. Ogni avviso appare <span style="color:#8D9BAB">a 8 px dalla propria causa</span> nello spazio del mondo; solo CRITICAL duplica il messaggio nella barra abilità.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><div style="width:3px;height:16px;background:#8D9BAB"></div><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">INFO</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F;margin-left:auto">P2 · hover</div></div>
+        <div style="background:#1A222E;border:1px solid #2E3947;padding:10px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="12" cy="12" r="8" fill="none" stroke="#8D9BAB" stroke-width="2" /><path d="M12 11v6" stroke="#8D9BAB" stroke-width="2" /><rect x="10.9" y="6.5" width="2.2" height="2.2" fill="#8D9BAB" /></svg>
+          <div style="font:400 10.5px/1.4 'Azeret Mono',monospace;color:#8D9BAB">Copertura parziale: −25% danno</div>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">Tooltip su hover. Nessun colore d'allarme, nessun moto. Non interrompe niente.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><div style="width:3px;height:16px;background:#FFC24A"></div><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">CAUTION</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F;margin-left:auto">P1 · badge</div></div>
+        <div style="background:#1A222E;border:1px solid #2E3947;padding:10px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="12" cy="12" r="8" fill="none" stroke="#FFC24A" stroke-width="2" stroke-dasharray="2 4" /><path d="M9.5 9.5 A2.6 2.6 0 0 1 14.5 10.5 C14.5 12.4 12 12.6 12 14.6" fill="none" stroke="#FFC24A" stroke-width="2" /><rect x="10.9" y="16.4" width="2.2" height="2.2" fill="#FFC24A" /></svg>
+          <div style="font:400 10.5px/1.4 'Azeret Mono',monospace;color:#FFC24A">Esito parziale: nemico può muoversi</div>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">Badge ambra 10 px sull'elemento. Risorse basse, esito incerto, range al limite.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><div style="width:3px;height:16px;background:#FF8A2B"></div><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">WARNING</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F;margin-left:auto">P0 · callout</div></div>
+        <div style="background:#1A222E;border:1px solid #FF8A2B;padding:10px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M12 4 L21 20 H3 Z" fill="none" stroke="#FF8A2B" stroke-width="2" /><path d="M12 10 V14" stroke="#FF8A2B" stroke-width="2" /><rect x="10.8" y="16" width="2.4" height="2.4" fill="#FF8A2B" /></svg>
+          <div style="font:400 10.5px/1.4 'Azeret Mono',monospace;color:#FF8A2B">Collisione con ALLY B al turno 4</div>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">Triangolo sul punto esatto + callout ancorato. La causa è evidenziata, non descritta.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><div style="width:3px;height:16px;background:#FF4D6D"></div><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">CRITICAL</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F;margin-left:auto">P0 · doppio</div></div>
+        <div style="background:#2A1220;border:1px solid #FF4D6D;padding:10px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M3 12 H14" stroke="#FF4D6D" stroke-width="2" /><path d="M10 8 L14 12 L10 16" fill="none" stroke="#FF4D6D" stroke-width="2" /><path d="M18 5 V19" stroke="#FF4D6D" stroke-width="2" /></svg>
+          <div style="font:400 10.5px/1.4 'Azeret Mono',monospace;color:#FF4D6D">FRIENDLY FIRE certo su ALLY C</div>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">Unico livello che chiede conferma esplicita: il pulsante di lock passa a "CONFIRM ANYWAY".</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px"><div style="width:3px;height:16px;background:#6E7A88"></div><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">INVALID</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F;margin-left:auto">P0 · stato</div></div>
+        <div style="background:#151B23;border:1px solid #3A434E;padding:10px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" style="flex-shrink:0"><rect x="4" y="4" width="16" height="16" fill="none" stroke="#6E7A88" stroke-width="2" /><path d="M4 20 L20 4" stroke="#6E7A88" stroke-width="2" /></svg>
+          <div style="font:400 10.5px/1.4 'Azeret Mono',monospace;color:#6E7A88">Fuori range · 2 celle</div>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">Desaturato + hatch. L'input viene rifiutato: non serve gridare, serve dire quanto manca.</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Perché la scala parte dal grigio.</span> In un tattico competitivo la maggior parte degli avvisi riguarda l'ottimizzazione, non il disastro. Se ogni suggerimento fosse rosso, il friendly fire certo non avrebbe più spazio percettivo dove salire. Max <span style="color:#E6EDF4">un</span> callout WARNING e <span style="color:#E6EDF4">uno</span> CRITICAL visibili contemporaneamente; gli altri collassano in un contatore accanto al timer.</div>
+  </div>
+
+  <!-- 11 TEAM INTENTS -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">11</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Team intents</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:620px">Tre piani sullo stesso schermo restano leggibili grazie alla <span style="color:#8D9BAB">gerarchia di spessore</span>, non a tre colori diversi: gli alleati condividono l'hue viola e si distinguono per nodo-lettera.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">ALL PLANS OVERVIEW · default</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 420 190" style="width:100%;height:auto">
+            <rect width="420" height="190" fill="#111A22" />
+            <g stroke="#1B2530" stroke-width="1"><path d="M0 38H420M0 76H420M0 114H420M0 152H420M60 0V190M120 0V190M180 0V190M240 0V190M300 0V190M360 0V190" /></g>
+            <path d="M40 150 L160 150 L160 76 L300 76" fill="none" stroke="#05080C" stroke-width="8" /><path d="M40 150 L160 150 L160 76 L300 76" fill="none" stroke="#35E0C4" stroke-width="3" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+            <rect x="292" y="68" width="16" height="16" fill="none" stroke="#35E0C4" stroke-width="2.5" />
+            <circle cx="40" cy="150" r="8" fill="none" stroke="#35E0C4" stroke-width="3" />
+            <path d="M380 34 L260 34 L260 114" fill="none" stroke="#05080C" stroke-width="7" /><path d="M380 34 L260 34 L260 114" fill="none" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="6 5" opacity=".8" />
+            <circle cx="260" cy="114" r="6" fill="#0A0E14" stroke="#A97BFF" stroke-width="2" /><text x="257" y="118" fill="#A97BFF" font-size="9" font-family="Azeret Mono, monospace">B</text>
+            <path d="M100 40 L100 110 L200 150" fill="none" stroke="#05080C" stroke-width="7" /><path d="M100 40 L100 110 L200 150" fill="none" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="6 5" opacity=".55" />
+            <circle cx="200" cy="150" r="6" fill="#0A0E14" stroke="#A97BFF" stroke-width="2" opacity=".7" /><text x="197" y="154" fill="#A97BFF" font-size="9" font-family="Azeret Mono, monospace" opacity=".8">C</text>
+            <ellipse cx="330" cy="130" rx="42" ry="22" fill="#A97BFF" opacity=".1" /><ellipse cx="330" cy="130" rx="42" ry="22" fill="none" stroke="#A97BFF" stroke-width="1.5" stroke-dasharray="5 4" opacity=".7" />
+            <text x="300" y="166" fill="#A97BFF" font-size="9" font-family="Azeret Mono, monospace" opacity=".8">B · AOE</text>
+            <rect x="12" y="10" width="10" height="10" fill="none" stroke="#3FD08A" stroke-width="2" /><path d="M14 15 l2 2 l4 -5" fill="none" stroke="#3FD08A" stroke-width="1.6" /><text x="28" y="19" fill="#3FD08A" font-size="9" font-family="Azeret Mono, monospace">B READY</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Proprio piano 3 px opaco · alleati 2.5 px al 80% · alleati non selezionati al 55%. Le label testuali degli alleati appaiono solo su hover.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">SELECTED ALLY · focus</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 280 190" style="width:100%;height:auto">
+            <rect width="280" height="190" fill="#111A22" />
+            <g stroke="#1B2530" stroke-width="1"><path d="M0 38H280M0 76H280M0 114H280M0 152H280M60 0V190M120 0V190M180 0V190M240 0V190" /></g>
+            <path d="M20 150 L120 150 L120 76 L220 76" fill="none" stroke="#35E0C4" stroke-width="2.5" opacity=".22" stroke-dasharray="9 6" />
+            <path d="M250 34 L160 34 L160 120" fill="none" stroke="#05080C" stroke-width="9" /><path d="M250 34 L160 34 L160 120" fill="none" stroke="#A97BFF" stroke-width="3.5" stroke-dasharray="8 5" style="animation:flow 1.4s linear infinite" />
+            <circle cx="160" cy="120" r="8" fill="#0A0E14" stroke="#A97BFF" stroke-width="2.5" /><text x="156" y="124" fill="#A97BFF" font-size="10" font-family="Azeret Mono, monospace">B</text>
+            <rect x="120" y="132" width="86" height="18" fill="#1A222E" stroke="#A97BFF" stroke-width="1" /><text x="127" y="145" fill="#A97BFF" font-size="9" font-family="Azeret Mono, monospace">HOLD + OVERWATCH</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Il piano in focus sale a 3.5 px e riceve la label dell'abilità; tutto il resto scende al 22%, incluso il proprio. Il de-emphasis è la vera funzione del focus.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">GERARCHIA DI DENSITÀ</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38">
+          <div style="background:#0A0E14;padding:12px 14px"><div style="display:flex;justify-content:space-between;font:500 11px 'Azeret Mono',monospace;color:#35E0C4"><span>P0 · sempre</span><span style="color:#56626F">100%</span></div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#8D9BAB;margin-top:5px">Unità, timer, proprio path, ready alleati, CRITICAL/WARNING, obiettivo.</div></div>
+          <div style="background:#0A0E14;padding:12px 14px"><div style="display:flex;justify-content:space-between;font:500 11px 'Azeret Mono',monospace;color:#A97BFF"><span>P1 · in azione</span><span style="color:#56626F">80%</span></div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#8D9BAB;margin-top:5px">Zona di targeting, AoE alleate, costi AP, marker di collisione, pattern d'ambiente.</div></div>
+          <div style="background:#0A0E14;padding:12px 14px"><div style="display:flex;justify-content:space-between;font:500 11px 'Azeret Mono',monospace;color:#FFC24A"><span>P2 · focus/hover</span><span style="color:#56626F">on demand</span></div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#8D9BAB;margin-top:5px">Label alleate, quote numeriche, linee di visibilità, ordine dei nodi di percorso.</div></div>
+          <div style="background:#0A0E14;padding:12px 14px"><div style="display:flex;justify-content:space-between;font:500 11px 'Azeret Mono',monospace;color:#6E7A88"><span>P3 · tooltip</span><span style="color:#56626F">esplicito</span></div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#8D9BAB;margin-top:5px">Formule di danno, modificatori di copertura, regole di reazione, log del turno.</div></div>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Regola operativa: nessuna schermata mostra P2 per più di un soggetto alla volta.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12 COMBINATION MATRIX -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">12</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Combination matrix</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:620px">Il significato finale nasce da cinque assi indipendenti. La stessa icona base cambia senso solo cambiando colore, tratto e badge.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><path d="M16 44 L30 20 L44 44" fill="none" stroke="#A97BFF" stroke-width="3" stroke-dasharray="6 5" /><circle cx="46" cy="46" r="8" fill="#0A0E14" /><circle cx="46" cy="46" r="6.5" fill="none" stroke="#A97BFF" stroke-width="2" stroke-dasharray="3 2.5" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">MOVE + ALLY + PREDICTED</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Chevron viola tratteggiato: intento alleato dichiarato, non ancora risolto.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><path d="M22 50 L22 10 L50 30 Z" fill="#FF4D6D" opacity=".2" /><path d="M22 50 L22 10 L50 30 Z" fill="none" stroke="#FF4D6D" stroke-width="3" /><path d="M10 30 H22" stroke="#FF4D6D" stroke-width="3" /><rect x="42" y="44" width="12" height="12" fill="#FF4D6D" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">ATTACK + ENEMY + CONFIRMED</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Fill pieno + quadrato solido: colpo bloccato su bersaglio noto.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><circle cx="30" cy="30" r="20" fill="#35E0C4" opacity=".12" /><circle cx="30" cy="30" r="20" fill="none" stroke="#35E0C4" stroke-width="2.5" /><path d="M12 38 A20 20 0 0 0 30 50 A20 20 0 0 1 12 38 Z" fill="#FF8A2B" opacity=".35" /><path d="M14 40 A18 18 0 0 0 30 50" fill="none" stroke="#FF8A2B" stroke-width="2.5" /><path d="M18 40 L26 54 H10 Z" fill="#0A0E14" stroke="#FF8A2B" stroke-width="2" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">AOE + ALLY RISK + WARNING</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Solo il settore compromesso cambia colore: la zona resta la propria.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><rect x="8" y="8" width="44" height="44" fill="#111A22" /><rect x="8" y="8" width="44" height="44" fill="none" stroke="#FF4D6D" stroke-width="2.5" /><g stroke="#2F6FA8" stroke-width="1.5"><path d="M8 16H52M8 24H52M8 32H52M8 40H52M8 48H52" /></g><g stroke="#E8F04A" stroke-width="1.5"><path d="M16 8V52M24 8V52M32 8V52M40 8V52M48 8V52" /></g><path d="M32 14 L22 32 h8 l-2 14 L42 28 h-9 Z" fill="#0A0E14" stroke="#E8F04A" stroke-width="2.5" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">WATER + ELECTRIC + DANGER</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Maglia dei due pattern + bordo cremisi: la combo è letale, non solo attiva.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><path d="M8 46 H30" stroke="#35E0C4" stroke-width="3" stroke-dasharray="8 5" /><path d="M30 46 L52 46" stroke="#35E0C4" stroke-width="3" stroke-dasharray="2 8" opacity=".55" /><path d="M30 30 L38 46 H22 Z" fill="#0A0E14" stroke="#FF8A2B" stroke-width="2" /><path d="M30 36 v4" stroke="#FF8A2B" stroke-width="2" /><path d="M46 14 A4 4 0 0 1 53 17 C53 20 49.5 20.6 49.5 24" fill="none" stroke="#96A3B0" stroke-width="2.5" /><rect x="48.2" y="27" width="2.6" height="2.6" fill="#96A3B0" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">MOVE + COLLISION + UNCERTAIN</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Il degrado del tratto localizza esattamente dove il piano smette di essere calcolabile.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><path d="M8 44 L22 20 L36 44" fill="none" stroke="#6E7A88" stroke-width="3" /><path d="M22 34 L36 10 L50 34" fill="none" stroke="#6E7A88" stroke-width="3" /><path d="M12 52 L52 12" stroke="#6E7A88" stroke-width="3" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">DASH + INVALID</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Perde la relazione e passa a grigio: l'azione non esiste, quindi non ha proprietario.</div>
+      </div>
+      <div style="background:#121822;padding:20px 16px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:12px;display:flex;justify-content:center"><svg viewBox="0 0 60 60" style="width:56px;height:56px"><path d="M30 6 L54 30 L30 54 L6 30 Z" fill="#FFC24A" opacity=".12" /><path d="M30 6 L54 30 L30 54 L6 30 Z" fill="none" stroke="#FFC24A" stroke-width="2.5" /><path d="M30 18 L38 23 v10 l-8 5 -8 -5 V23 Z" fill="none" stroke="#DCE6F0" stroke-width="2" /><path d="M30 24 v8" stroke="#DCE6F0" stroke-width="2" /></svg></div>
+        <div style="font:500 10.5px/1.4 'Azeret Mono',monospace;color:#E6EDF4">OBJECTIVE + INTERACTABLE</div>
+        <div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Rombo ambra (valore) che contiene esagono bianco (azione possibile).</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Assi.</span> FORMA = categoria · COLORE = relazione o elemento · TRATTO = certezza · FILL = attivazione · BADGE = eccezione. Un asse non ne sovrascrive un altro: per questo la matrice è componibile in Figma come varianti booleane e in UMG come parametri di un solo widget.</div>
+  </div>
+  <!-- 13 SCENARIOS -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">13</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Scenari di test</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Non sono HUD: servono a verificare che la grammatica regga con tre o quattro informazioni sovrapposte. Riquadri a 1920×1080 scalati.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">A · MOVEMENT</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">3 piani + collisione</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:0">
+          <svg viewBox="0 0 420 280" style="width:100%;height:auto;display:block">
+            <rect width="420" height="280" fill="#131C24" />
+            <path d="M0 0 H420 V96 H0 Z" fill="#18232D" />
+            <g stroke="#1E2A35" stroke-width="1"><path d="M0 48H420M0 96H420M0 144H420M0 192H420M0 240H420M60 0V280M120 0V280M180 0V280M240 0V280M300 0V280M360 0V280" /></g>
+            <path d="M0 96 H420" stroke="#2A3742" stroke-width="2" />
+            <text x="10" y="112" fill="#56626F" font-size="9" font-family="Azeret Mono, monospace">LV 0</text>
+            <text x="10" y="20" fill="#56626F" font-size="9" font-family="Azeret Mono, monospace">LV 1 · +1</text>
+            <rect x="150" y="150" width="60" height="42" fill="#1B2732" stroke="#2A3742" stroke-width="1.5" />
+            <text x="158" y="176" fill="#3D4C59" font-size="9" font-family="Azeret Mono, monospace">COVER</text>
+            <path d="M50 240 L200 240 L200 132 L260 132" fill="none" stroke="#05080C" stroke-width="9" />
+            <path d="M50 240 L200 240 L200 132" fill="none" stroke="#35E0C4" stroke-width="3.5" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+            <path d="M200 132 L260 132" fill="none" stroke="#35E0C4" stroke-width="3.5" stroke-dasharray="2 9" style="animation:breathe 2s ease-in-out infinite" />
+            <circle cx="200" cy="240" r="4.5" fill="#0A0E14" stroke="#35E0C4" stroke-width="2" />
+            <rect x="252" y="124" width="17" height="17" fill="none" stroke="#35E0C4" stroke-width="2" stroke-dasharray="4 4" />
+            <circle cx="50" cy="240" r="9" fill="#0A0E14" stroke="#35E0C4" stroke-width="3.5" /><circle cx="50" cy="240" r="3" fill="#35E0C4" />
+            <text x="212" y="120" fill="#35E0C4" font-size="10" font-family="Azeret Mono, monospace">4 AP</text>
+            <path d="M370 60 L280 60 L280 132 L214 168" fill="none" stroke="#05080C" stroke-width="8" />
+            <path d="M370 60 L280 60 L280 132 L214 168" fill="none" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="6 5" opacity=".85" />
+            <circle cx="370" cy="60" r="8" fill="#0A0E14" stroke="#A97BFF" stroke-width="2.5" /><text x="366" y="64" fill="#A97BFF" font-size="10" font-family="Azeret Mono, monospace">B</text>
+            <circle cx="214" cy="168" r="6" fill="#0A0E14" stroke="#A97BFF" stroke-width="2" />
+            <path d="M90 30 L90 96 L120 240" fill="none" stroke="#05080C" stroke-width="8" />
+            <path d="M90 30 L90 96 L120 240" fill="none" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="6 5" opacity=".5" />
+            <circle cx="90" cy="30" r="8" fill="#0A0E14" stroke="#A97BFF" stroke-width="2.5" opacity=".7" /><text x="86" y="34" fill="#A97BFF" font-size="10" font-family="Azeret Mono, monospace" opacity=".8">C</text>
+            <path d="M200 118 L214 144 H186 Z" fill="#0F1620" stroke="#FF8A2B" stroke-width="2.5" /><path d="M200 127 v7" stroke="#FF8A2B" stroke-width="2.5" /><rect x="198.7" y="137" width="2.6" height="2.6" fill="#FF8A2B" />
+            <rect x="228" y="196" width="150" height="22" fill="#1A222E" stroke="#FF8A2B" stroke-width="1" />
+            <path d="M236 202 L244 214 H228 Z" fill="none" stroke="#FF8A2B" stroke-width="1.6" />
+            <text x="250" y="211" fill="#FF8A2B" font-size="9.5" font-family="Azeret Mono, monospace">COLLISIONE CON B · T4</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Il proprio path è previsto fino alla salita e <span style="color:#E6EDF4">incerto dopo il punto di collisione</span>. Il triangolo marca la cella esatta; il callout arriva a 8 px, non al centro dello schermo. B è in focus (85%), C in overview (50%).</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">B · ATTACK</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">linea + friendly fire</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:0">
+          <svg viewBox="0 0 420 280" style="width:100%;height:auto;display:block">
+            <rect width="420" height="280" fill="#131C24" />
+            <g stroke="#1E2A35" stroke-width="1"><path d="M0 48H420M0 96H420M0 144H420M0 192H420M0 240H420M60 0V280M120 0V280M180 0V280M240 0V280M300 0V280M360 0V280" /></g>
+            <rect x="240" y="60" width="54" height="40" fill="#1B2732" stroke="#2A3742" stroke-width="1.5" /><text x="247" y="84" fill="#3D4C59" font-size="9" font-family="Azeret Mono, monospace">COVER</text>
+            <path d="M56 158 H390 V186 H56 Z" fill="#35E0C4" opacity=".13" />
+            <path d="M56 158 H390 V186 H56 Z" fill="none" stroke="#35E0C4" stroke-width="2.5" />
+            <path d="M56 172 H366" stroke="#35E0C4" stroke-width="2.5" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+            <path d="M366 160 L388 172 L366 184 Z" fill="#35E0C4" />
+            <circle cx="56" cy="172" r="9" fill="#0A0E14" stroke="#35E0C4" stroke-width="3.5" /><circle cx="56" cy="172" r="3" fill="#35E0C4" />
+            <g><path d="M336 148V138h10M368 138h10v10M378 190v10h-10M346 200h-10v-10" fill="none" stroke="#FF4D6D" stroke-width="2.5" /><circle cx="357" cy="169" r="3" fill="#FF4D6D" /></g>
+            <text x="330" y="128" fill="#FF4D6D" font-size="9.5" font-family="Azeret Mono, monospace">ENEMY · 2 HIT</text>
+            <circle cx="212" cy="172" r="9" fill="#0A0E14" stroke="#A97BFF" stroke-width="2.5" /><text x="208" y="176" fill="#A97BFF" font-size="10" font-family="Azeret Mono, monospace">C</text>
+            <rect x="186" y="158" width="52" height="28" fill="#FF4D6D" opacity=".22" />
+            <rect x="186" y="158" width="52" height="28" fill="none" stroke="#FF4D6D" stroke-width="2.5" />
+            <path d="M212 122 L228 150 H196 Z" fill="#0F1620" stroke="#FF4D6D" stroke-width="2.5" /><path d="M212 131 v8" stroke="#FF4D6D" stroke-width="2.5" /><rect x="210.7" y="142" width="2.6" height="2.6" fill="#FF4D6D" />
+            <rect x="120" y="96" width="184" height="22" fill="#2A1220" stroke="#FF4D6D" stroke-width="1" />
+            <text x="130" y="111" fill="#FF4D6D" font-size="9.5" font-family="Azeret Mono, monospace">FRIENDLY FIRE CERTO · ALLY C</text>
+            <rect x="56" y="230" width="120" height="30" fill="#121822" stroke="#FF4D6D" stroke-width="1.5" />
+            <text x="66" y="249" fill="#FF4D6D" font-size="10" font-family="Azeret Mono, monospace">CONFIRM ANYWAY</text>
+            <rect x="186" y="230" width="94" height="30" fill="#121822" stroke="#2E3947" stroke-width="1.5" />
+            <text x="196" y="249" fill="#8D9BAB" font-size="10" font-family="Azeret Mono, monospace">RIPIANIFICA</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">La zona resta teal (è la propria abilità): solo <span style="color:#E6EDF4">il segmento che contiene l'alleato</span> diventa cremisi. Il nemico ha il reticolo, l'alleato il triangolo critico. Il lock cambia etichetta invece di aprire un modale.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><div style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">C · ENV COMBO</div><div style="font:400 10px 'Azeret Mono',monospace;color:#56626F">acqua + elettricità</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:0">
+          <svg viewBox="0 0 420 280" style="width:100%;height:auto;display:block">
+            <defs>
+              <pattern id="rtWater" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 0.5 H8" stroke="#2F6FA8" stroke-width="1.4" opacity=".8" /></pattern>
+              <pattern id="rtElec" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0.5 0 V6" stroke="#E8F04A" stroke-width="1.2" opacity=".75" /></pattern>
+            </defs>
+            <rect width="420" height="280" fill="#131C24" />
+            <g stroke="#1E2A35" stroke-width="1"><path d="M0 48H420M0 96H420M0 144H420M0 192H420M0 240H420M60 0V280M120 0V280M180 0V280M240 0V280M300 0V280M360 0V280" /></g>
+            <path d="M120 110 H360 V250 H120 Z" fill="#1A2A38" />
+            <path d="M120 110 H360 V250 H120 Z" fill="url(#rtWater)" />
+            <path d="M120 110 H360 V250 H120 Z" fill="none" stroke="#2F6FA8" stroke-width="2" />
+            <text x="128" y="128" fill="#4E86B8" font-size="9.5" font-family="Azeret Mono, monospace">WET AREA</text>
+            <ellipse cx="252" cy="182" rx="86" ry="52" fill="url(#rtElec)" opacity=".85" />
+            <ellipse cx="252" cy="182" rx="86" ry="52" fill="none" stroke="#E8F04A" stroke-width="2.5" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+            <ellipse cx="252" cy="182" rx="126" ry="76" fill="#96A3B0" opacity=".05" />
+            <ellipse cx="252" cy="182" rx="126" ry="76" fill="none" stroke="#E8F04A" stroke-width="2" stroke-dasharray="2 9" style="animation:breathe 2s ease-in-out infinite" />
+            <path d="M368 96 A4.5 4.5 0 0 1 376 99 C376 102.5 372 103 372 107" fill="none" stroke="#96A3B0" stroke-width="2.5" /><rect x="370.6" y="110" width="2.8" height="2.8" fill="#96A3B0" />
+            <text x="300" y="126" fill="#96A3B0" font-size="9.5" font-family="Azeret Mono, monospace">PROPAGAZIONE ?</text>
+            <path d="M252 150 L240 176 h9 l-3 20 L266 170 h-10 Z" fill="#131C24" stroke="#E8F04A" stroke-width="2.5" />
+            <circle cx="56" cy="214" r="9" fill="#0A0E14" stroke="#35E0C4" stroke-width="3.5" /><circle cx="56" cy="214" r="3" fill="#35E0C4" />
+            <path d="M65 210 L150 190" stroke="#35E0C4" stroke-width="2.5" stroke-dasharray="8 5" />
+            <g><path d="M172 168V158h10M204 158h10v10M214 210v10h-10M182 220h-10v-10" fill="none" stroke="#FF4D6D" stroke-width="2.5" /><circle cx="193" cy="189" r="3" fill="#FF4D6D" /></g>
+            <circle cx="193" cy="189" r="14" fill="none" stroke="#2F6FA8" stroke-width="2" /><path d="M181 194 Q187 189 193 194 T205 194" fill="none" stroke="#2F6FA8" stroke-width="2" />
+            <circle cx="322" cy="222" r="9" fill="#0A0E14" stroke="#A97BFF" stroke-width="2.5" /><text x="318" y="226" fill="#A97BFF" font-size="10" font-family="Azeret Mono, monospace">B</text>
+            <path d="M322 190 L336 216 H308 Z" fill="#0F1620" stroke="#FFC24A" stroke-width="2.5" /><path d="M322 199 v7" stroke="#FFC24A" stroke-width="2.5" /><rect x="320.7" y="209" width="2.6" height="2.6" fill="#FFC24A" />
+            <rect x="120" y="252" width="230" height="22" fill="#1A222E" stroke="#FFC24A" stroke-width="1" />
+            <text x="130" y="267" fill="#FFC24A" font-size="9.5" font-family="Azeret Mono, monospace">B NELL'AREA INCERTA · ESITO PARZIALE</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Tre livelli in un colpo d'occhio: acqua (righe orizzontali), area elettrificata certa (righe verticali + tratteggio regolare), <span style="color:#E6EDF4">propagazione possibile</span> (contorno segmentato in respiro + "?"). Il nemico bagnato porta il badge WET; B riceve solo un CAUTION ambra perché il rischio è probabilistico.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 14 TOKENS -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">14</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Design tokens</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">54 token, tre livelli di naming (<span style="color:#8D9BAB">categoria.famiglia.ruolo</span>). Nessun token per singolo componente: le varianti vivono in Figma e come parametri UMG.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.9 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:12px">COLOR</div>
+        <div>color.bg.canvas <span style="color:#56626F">#0A0E14</span></div>
+        <div>color.bg.panel <span style="color:#56626F">#121822</span></div>
+        <div>color.bg.elevated <span style="color:#56626F">#1A222E</span></div>
+        <div>color.bg.overlay <span style="color:#56626F">#06090D · 72%</span></div>
+        <div>color.border.subtle <span style="color:#56626F">#232C38</span></div>
+        <div>color.border.strong <span style="color:#56626F">#2E3947</span></div>
+        <div>color.text.primary <span style="color:#56626F">#E6EDF4</span></div>
+        <div>color.text.secondary <span style="color:#56626F">#8D9BAB</span></div>
+        <div>color.text.disabled <span style="color:#56626F">#56626F</span></div>
+        <div style="margin-top:10px">color.relation.self <span style="color:#56626F">#35E0C4</span></div>
+        <div>color.relation.ally <span style="color:#56626F">#A97BFF</span></div>
+        <div>color.relation.enemy <span style="color:#56626F">#FF4D6D</span></div>
+        <div>color.relation.neutral <span style="color:#56626F">#96A3B0</span></div>
+        <div>color.relation.objective <span style="color:#56626F">#FFC24A</span></div>
+      </div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.9 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:12px">STATE · FEEDBACK · ENV</div>
+        <div>color.state.confirmed <span style="color:#56626F">alfa 1.00</span></div>
+        <div>color.state.predicted <span style="color:#56626F">alfa 0.78</span></div>
+        <div>color.state.uncertain <span style="color:#56626F">alfa 0.42–0.62</span></div>
+        <div style="margin-top:10px">color.feedback.success <span style="color:#56626F">#3FD08A</span></div>
+        <div>color.feedback.caution <span style="color:#56626F">#FFC24A</span></div>
+        <div>color.feedback.warning <span style="color:#56626F">#FF8A2B</span></div>
+        <div>color.feedback.critical <span style="color:#56626F">#FF4D6D</span></div>
+        <div>color.feedback.invalid <span style="color:#56626F">#6E7A88</span></div>
+        <div style="margin-top:10px">color.env.water <span style="color:#56626F">#2F6FA8</span></div>
+        <div>color.env.electric <span style="color:#56626F">#E8F04A</span></div>
+        <div>color.env.fire <span style="color:#56626F">#FF8A2B</span></div>
+        <div>color.env.hazard <span style="color:#56626F">#FF8A2B · hatch</span></div>
+        <div>color.env.interactable <span style="color:#56626F">#DCE6F0</span></div>
+      </div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.9 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:12px">STROKE · PATTERN · MOTION</div>
+        <div>stroke.path.confirmed <span style="color:#56626F">3 · solid</span></div>
+        <div>stroke.path.predicted <span style="color:#56626F">3 · 9-6</span></div>
+        <div>stroke.path.uncertain <span style="color:#56626F">3 · 2-9</span></div>
+        <div>stroke.path.ally <span style="color:#56626F">2.5 · 6-5</span></div>
+        <div>stroke.path.dash <span style="color:#56626F">5 · 16-5</span></div>
+        <div>stroke.zone <span style="color:#56626F">2.5</span></div>
+        <div>stroke.icon.sm <span style="color:#56626F">2 @24</span></div>
+        <div>stroke.icon.md <span style="color:#56626F">2.5 @32</span></div>
+        <div>stroke.halo <span style="color:#56626F">+5 · #05080C 85%</span></div>
+        <div style="margin-top:10px">pattern.water <span style="color:#56626F">0° · 7px</span></div>
+        <div>pattern.electric <span style="color:#56626F">90° · 6px</span></div>
+        <div>pattern.fire <span style="color:#56626F">135° · 8px</span></div>
+        <div>pattern.hazard <span style="color:#56626F">45° · 10px</span></div>
+        <div style="margin-top:10px">motion.flow <span style="color:#56626F">1400ms linear ∞</span></div>
+        <div>motion.breathe <span style="color:#56626F">2000ms ease ∞</span></div>
+        <div>motion.snap <span style="color:#56626F">120ms out-quart</span></div>
+      </div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.9 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:12px">FILL · SPACE · TYPE</div>
+        <div>fill.zone.default <span style="color:#56626F">14%</span></div>
+        <div>fill.zone.confirmed <span style="color:#56626F">22%</span></div>
+        <div>fill.zone.uncertain <span style="color:#56626F">6%</span></div>
+        <div>fill.env <span style="color:#56626F">18–24%</span></div>
+        <div style="margin-top:10px">radius.sm <span style="color:#56626F">1px</span></div>
+        <div>radius.md <span style="color:#56626F">2px</span></div>
+        <div>spacing.4 / 8 / 12 / 16 / 24 / 32</div>
+        <div style="margin-top:10px">size.icon.sm <span style="color:#56626F">24</span></div>
+        <div>size.icon.md <span style="color:#56626F">32</span></div>
+        <div>size.badge <span style="color:#56626F">10</span></div>
+        <div>size.node <span style="color:#56626F">8</span></div>
+        <div style="margin-top:10px">type.display <span style="color:#56626F">Oswald 400/500</span></div>
+        <div>type.mono <span style="color:#56626F">Azeret Mono 400/500</span></div>
+        <div>type.hud.label <span style="color:#56626F">mono 12 · .14em</span></div>
+        <div>type.world.value <span style="color:#56626F">mono 14 · shadow</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 15 SUMMARY -->
+  <div style="padding:56px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:28px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">15</div>
+      <h2 style="margin:0;font:400 34px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Riepilogo e nodi aperti</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:26px;font:400 12px/1.8 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">DECISIONI CHIUSE</div>
+        <div><span style="color:#35E0C4">01</span> Palette: 3 hue di relazione nettamente separati (teal / viola / cremisi), caldi riservati a feedback e ambiente, invalido desaturato.</div>
+        <div><span style="color:#35E0C4">02</span> Forme: 9 primitive, una per categoria, riconoscibili in bianco e nero.</div>
+        <div><span style="color:#35E0C4">03</span> Icone: griglia 24, tratto 2, ibrido angolare, outline default / filled attivo, 3 slot di modificatori.</div>
+        <div><span style="color:#35E0C4">04</span> Certezza: duty cycle del tratteggio 100 / 60 / 18% come canale primario, colore e opacità come rinforzo.</div>
+        <div><span style="color:#35E0C4">05</span> Movimento: halo + tratto + nodi; il dash cambia spessore, non colore; la certezza degrada lungo il tracciato.</div>
+        <div><span style="color:#35E0C4">06</span> Targeting: anatomia unica (contorno + fill + ancora + reticoli per soggetto).</div>
+        <div><span style="color:#35E0C4">07</span> Warning: 5 livelli contestuali, ancorati alla causa, max 1 WARNING + 1 CRITICAL a schermo.</div>
+        <div><span style="color:#35E0C4">08</span> Ambiente: pattern direzionali ortogonali fra loro, così le combo si leggono come intreccio.</div>
+        <div><span style="color:#35E0C4">09</span> Intenti: hue unico per gli alleati, distinzione per nodo-lettera e spessore; il focus lavora per sottrazione.</div>
+        <div><span style="color:#35E0C4">10</span> Token: 54, tre livelli, nessuna granularità per componente.</div>
+      </div>
+      <div style="background:#121822;padding:26px;font:400 12px/1.8 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:14px">DA RISOLVERE PRIMA DELLA v0.2</div>
+        <div><span style="color:#FFC24A">·</span> Leggibilità del viola alleato sopra superfici viola/blu della mappa: serve un test su asset reali UE5, non su fondo neutro.</div>
+        <div><span style="color:#FFC24A">·</span> Occlusione: come si comporta un path quando passa dietro geometria di livello superiore (linea tratteggiata sottile? depth fade? outline sempre visibile?).</div>
+        <div><span style="color:#FFC24A">·</span> Resolution phase: la grammatica qui descritta è di planning. La fase di risoluzione 6–12 s ha bisogno di un proprio vocabolario di conferma/smentita.</div>
+        <div><span style="color:#FFC24A">·</span> 3v3 completo: con 6 unità la sovrapposizione di piani va verificata; possibile necessità di un quarto livello di de-emphasis.</div>
+        <div><span style="color:#FFC24A">·</span> Numero massimo di pattern d'ambiente sovrapposti prima che l'intreccio diventi rumore (ipotesi: 2).</div>
+        <div><span style="color:#FFC24A">·</span> Accessibilità: modalità alternativa per protanopia sul cremisi nemico (candidato: aggiunta di doppio contorno, non cambio di hue).</div>
+        <div><span style="color:#FFC24A">·</span> Ultrawide: dove ancorare i callout quando la causa esce dal frame utile.</div>
+        <div><span style="color:#FFC24A">·</span> Sonoro: non trattato. Warning e critical dovrebbero avere una firma audio corrispondente alla scala.</div>
+      </div>
+    </div>
+  </div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>

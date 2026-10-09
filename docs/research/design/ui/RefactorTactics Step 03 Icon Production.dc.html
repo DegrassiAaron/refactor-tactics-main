@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#080B10; }
+  a { color:#35E0C4; text-decoration:none; }
+  a:hover { color:#7CF0DE; }
+</style>
+</helmet>
+<div style="width:1440px;margin:0 auto;background:#0A0E14;color:#E6EDF4;font-family:'Azeret Mono',monospace;padding:0 0 96px">
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <pattern id="pGrid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M0 .5H40M.5 0V40" stroke="#1E2A35" stroke-width="1" /></pattern>
+      <pattern id="pWater" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M1 5 H9" stroke="#2F6FA8" stroke-width="1.6" /></pattern>
+      <pattern id="pElec" width="8" height="8" patternUnits="userSpaceOnUse"><rect x="3" y="3" width="2" height="2" fill="#E8F04A" /></pattern>
+      <pattern id="pFire" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M4.5 2 L7 7 H2 Z" fill="#FF8A2B" /></pattern>
+      <pattern id="pHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 .5H8" stroke="#6E7A88" stroke-width="1.4" /></pattern>
+
+      <symbol id="g01" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M5 20 H12 V9" /><path d="M8 12 L12 8 L16 12" /></g></symbol>
+      <symbol id="g02" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6 V18" /><path d="M18 6 V18" /><rect x="10.6" y="10.6" width="2.8" height="2.8" fill="currentColor" stroke="none" /></g></symbol>
+      <symbol id="g03" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7 H20 L17 18 H7 Z" /><path d="M12 7 V18" /></g></symbol>
+      <symbol id="g04" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19 L14 4 L21 12 Z" /></g><circle cx="17.5" cy="8" r="2.4" fill="currentColor" /></symbol>
+      <symbol id="g04o" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.6"><path d="M3 20 L14 4 L21 13 Z" /></g><circle cx="17.5" cy="8.5" r="3" fill="currentColor" /></symbol>
+      <symbol id="g05" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 H12" /></g><path d="M12 5 L22 12 L12 19 Z" fill="currentColor" /></symbol>
+      <symbol id="g06" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 H9" /><path d="M9 5 L16 12 L9 19" /><path d="M15 5 L22 12 L15 19" /></g></symbol>
+
+      <symbol id="g07" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9 H21" /><path d="M7 9 V19" /><path d="M17 9 V19" /></g></symbol>
+      <symbol id="g08" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19 H12 V11 H21" /><path d="M17 7 L21 11 L17 15" /></g></symbol>
+      <symbol id="g09" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9 Q7.5 4.5 12 9 T21 9" /><path d="M3 16 Q7.5 11.5 12 16 T21 16" /></g></symbol>
+      <symbol id="g10" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M5 21 L9 9 L12 15 L15 3 L19 21 Z" /></g></symbol>
+      <symbol id="g11" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3 L9 10 L15 14 L9 21" /></g></symbol>
+      <symbol id="g12" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17 A9 9 0 0 1 20 12" /><path d="M4 17 L10 16 M4 17 L5 11" /></g></symbol>
+
+      <symbol id="g13" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3 V14" /></g><rect x="10.4" y="17.4" width="3.2" height="3.2" fill="currentColor" /></symbol>
+      <symbol id="g14" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 H22" /><path d="M18 8 L22 12 L18 16" /><path d="M8 17 L12 7" /><path d="M13 17 L17 7" /></g></symbol>
+      <symbol id="g14o" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.6"><path d="M2 12 H21" /><path d="M17 8 L21 12 L17 16" /><path d="M7 17 L11 7" /><path d="M13.5 17 L17.5 7" /></g></symbol>
+      <symbol id="g15" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 H8" /><path d="M16 12 H22" /><path d="M5 7 L10 12 L5 17" /><path d="M19 7 L14 12 L19 17" /></g></symbol>
+      <symbol id="g16" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4 A8 8 0 1 1 4.6 15" /><path d="M4 4 L10 10" /></g></symbol>
+      <symbol id="g17" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" /><path d="M4 20 L20 4" /></g></symbol>
+      <symbol id="g18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 H20 V13" /><path d="M9.5 7.5 A3.4 3.4 0 0 1 16 8.8 C16 11.2 12.6 11.4 12.6 14" /></g><rect x="11.4" y="16.2" width="2.4" height="2.4" fill="currentColor" /></symbol>
+
+      <symbol id="g19" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5" /><path d="M8 12 L11 15 L16.5 9" /></g></symbol>
+      <symbol id="g20" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5" stroke-dasharray="9 6" /><path d="M12 7 V12 L16 14.5" /></g></symbol>
+      <symbol id="g21" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2 7" /><path d="M9.5 9.5 A3.2 3.2 0 0 1 15.6 10.6 C15.6 12.8 12 13 12 15" /></g><rect x="10.8" y="17" width="2.4" height="2.4" fill="currentColor" /></symbol>
+
+      <symbol id="g22" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 H8" /><path d="M16 12 H22" /><circle cx="12" cy="12" r="4" /></g></symbol>
+      <symbol id="g23" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 H8" /></g><rect x="9" y="7" width="11" height="11" fill="currentColor" /></symbol>
+      <symbol id="g24" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2 4"><path d="M4 9 V4 H9" /><path d="M15 4 H20 V9" /><path d="M20 15 V20 H15" /><path d="M9 20 H4 V15" /></g><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.2" /><path d="M12 9.4 V12 L14 13.4" /></g></symbol>
+      <symbol id="g24o" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray="2.4 4.6"><path d="M3 9 V3 H9" /><path d="M15 3 H21 V9" /><path d="M21 15 V21 H15" /><path d="M9 21 H3 V15" /></g><g fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="4" /></g><rect x="11" y="9.6" width="2" height="3.4" fill="currentColor" /></symbol>
+
+      <symbol id="sObs" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L15 10" /></g><circle cx="18" cy="8" r="3" fill="currentColor" /></symbol>
+      <symbol id="sHrd" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5 A9 9 0 0 1 9 19" /><path d="M15 2 A14 14 0 0 1 15 22" /></g></symbol>
+      <symbol id="sInf" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9 H20" /><path d="M4 15 H20" stroke-dasharray="3 3" /><path d="M12 4 V20" /></g></symbol>
+    </defs>
+  </svg>
+
+  <div style="padding:56px 56px 36px;border-bottom:1px solid #232C38">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px">
+      <div>
+        <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.24em;color:#35E0C4;margin-bottom:18px">STEP 03 · FREEZE + FULL v0.1 ICON PRODUCTION</div>
+        <h1 style="margin:0;font:400 58px/.98 Oswald,sans-serif;letter-spacing:.01em;text-transform:uppercase">Grammatica congelata<br /><span style="color:#56626F">24 glifi in produzione</span></h1>
+        <p style="margin:22px 0 0;max-width:740px;font:400 13.5px/1.75 'Azeret Mono',monospace;color:#8D9BAB;text-wrap:pretty">Nessuna primitiva nuova, nessun canale nuovo, nessun namespace nuovo. Le sei icone validate in STEP 02 e 02b entrano nel set senza ridisegno: sono gli ancoraggi da cui derivano le altre diciotto. Ogni anteprima in questo documento è un'istanza dello stesso master, non una copia geometrica.</p>
+      </div>
+      <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;flex-shrink:0;min-width:300px">
+        <div style="background:#132A20;padding:14px 16px;font:500 13px 'Azeret Mono',monospace;color:#3FD08A;letter-spacing:.1em">STATUS · PASS</div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Glifi prodotti</span><span style="color:#E6EDF4">24 / 24</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>OPTICAL_16 richiesti</span><span style="color:#FFC24A">3</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Collision blocker</span><span style="color:#3FD08A">0</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Grammar deviations</span><span style="color:#3FD08A">0</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Deferred a post-v0.1</span><span style="color:#E6EDF4">5</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FREEZE -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">01</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Visual grammar freeze · v0.1</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:480px">Undici canali, un asse ciascuno. Da qui in avanti si ridisegna l'icona, non il sistema.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Glyph silhouette</div>significato semantico</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Container shape</div>ruolo compositivo della skill</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Stroke duty cycle</div>certezza</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Stroke width</div>gerarchia / focus</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Opacity</div>disabled / de-emphasis · nient'altro</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Hue</div>rinforzo contestuale · mai portante</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Node / letter marker</div>identità del piano alleato</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Source glyph</div>provenienza dell'informazione</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Affordance treatment</div>interattività</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">Pattern</div>stato materiale dell'ambiente</div>
+      <div style="background:#121822;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:6px">WorldOverlay.Halo</div>supporto di contrasto · nient'altro</div>
+      <div style="background:#0F1620;padding:18px 20px;font:400 11px/1.6 'Azeret Mono',monospace;color:#56626F"><div style="font:500 11px 'Azeret Mono',monospace;color:#56626F;margin-bottom:6px">Canali liberi</div>moto (solo rinforzo di Predicted) · severity treatment · audio</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">CERTAINTY FREEZE</div>
+        <div style="background:#131C24;padding:16px;margin-bottom:14px">
+          <svg viewBox="0 0 400 118" style="width:100%;height:auto;display:block">
+            <g stroke="#E6EDF4" stroke-width="3" fill="none">
+              <path d="M132 14 H388" /><path d="M132 46 H388" stroke-dasharray="9 6" /><path d="M132 78 H388" stroke-dasharray="2.4 6.2" /><path d="M132 106 H388" stroke-dasharray="1.8 6.4" />
+            </g>
+            <g fill="#8D9BAB" font-size="10" font-family="Azeret Mono, monospace"><text x="6" y="18">Confirmed</text><text x="6" y="50">Predicted</text><text x="6" y="82">HUD.Uncert.</text><text x="6" y="110">World.Uncert.</text></g>
+            <g fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace"><text x="96" y="18">100%</text><text x="102" y="50">58%</text><text x="102" y="82">28%</text><text x="102" y="110">22%</text></g>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Certainty.HUD.Uncertain = 28%</span> · <span style="color:#E6EDF4">Certainty.World.Uncertain = 22%</span>. Lo scope dipende dalla lunghezza del perimetro renderizzato, non dall'elemento. Questi valori non rappresentano Sound, AoE, squadra, warning, priorità o validità. <span style="color:#E6EDF4">Sound = archi aperti · AoE = regione chiusa</span>, a qualunque certezza.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">WORLD HALO</div>
+        <div style="background:#131C24;padding:16px;margin-bottom:14px">
+          <svg viewBox="0 0 340 118" style="width:100%;height:auto;display:block">
+            <rect width="340" height="118" fill="#131C24" /><rect width="340" height="118" fill="url(#pFire)" opacity=".55" />
+            <g stroke="#05080C" stroke-width="7" fill="none" opacity=".85"><path d="M18 58 H180" /></g>
+            <g stroke="#05080C" stroke-width="11" fill="none" opacity=".85"><path d="M18 96 H180" /></g>
+            <g stroke="#DCE6F0" stroke-width="11" fill="none" opacity=".4"><path d="M180 96 H322" /></g>
+            <g stroke="#35E0C4" stroke-width="3" fill="none" stroke-dasharray="9 6"><path d="M18 20 H322" /><path d="M18 58 H322" /><path d="M18 96 H322" /></g>
+            <g fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace"><text x="18" y="14">nessun halo</text><text x="18" y="52">Halo.Standard · +2</text><text x="18" y="90">Halo.Wide · +4 · adattivo</text></g>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Obbligatorio</span> su ogni primitiva world-space. <span style="color:#E6EDF4">Halo.Standard</span> +2 px per badge sotto 20 px; <span style="color:#E6EDF4">Halo.Wide</span> +4 px altrove. Il contrasto si adatta al fondo (scuro su chiaro, chiaro su scuro saturo). Non è glow, non è certezza, non è selezione, non è squadra, non è gravità.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">SLOT GRAMMAR · 1 CORE + MAX 3</div>
+        <div style="background:#131C24;padding:16px;margin-bottom:14px">
+          <svg viewBox="0 0 340 118" style="width:100%;height:auto;display:block">
+            <path d="M40 20 L66 35 V65 L40 80 L14 65 V35 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" />
+            <path d="M104 40 L118 48 V64 L104 72 L90 64 V48 Z" fill="none" stroke="#8D9BAB" stroke-width="2" />
+            <circle cx="158" cy="56" r="14" fill="none" stroke="#8D9BAB" stroke-width="2" />
+            <rect x="196" y="42" width="28" height="28" fill="none" stroke="#8D9BAB" stroke-width="2" />
+            <path d="M262 42 L276 56 L262 70 L248 56 Z" fill="none" stroke="#8D9BAB" stroke-width="2" />
+            <path d="M312 42 L326 70 H298 Z" fill="none" stroke="#8D9BAB" stroke-width="2" />
+            <g fill="#56626F" font-size="9" font-family="Azeret Mono, monospace"><text x="22" y="98">Core</text><text x="84" y="98">Intrinsic</text><text x="140" y="98">Cost</text><text x="188" y="98">External</text><text x="240" y="98">SkillMod</text><text x="286" y="98">Condition</text></g>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Budget assoluto: 1 Core + massimo 3 satelliti visibili, priorità S1 warning → S2 condition → S3 skillmod → S4 external → S5 intrinsic, overflow in "+n". <span style="color:#FFC24A">Step glyph: DEFERRED</span>, non introdotto in v0.1. <span style="color:#E6EDF4">UnitAnchor</span> resta anello in 4 settori, distinto da Cost, AoE e Sound.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">INTEL SOURCE · congelato</div>
+        <div style="display:flex;gap:22px;align-items:center;background:#131C24;padding:16px;margin-bottom:14px">
+          <div style="text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#E6EDF4"><use href="#sObs" /></svg><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Observed</div></div>
+          <div style="text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#E6EDF4"><use href="#sHrd" /></svg><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Heard</div></div>
+          <div style="text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#E6EDF4"><use href="#sInf" /></svg><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">Inferred</div></div>
+          <div style="text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#E6EDF4"><use href="#g24" /></svg><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">LastKnown</div></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Comunicano <span style="color:#E6EDF4">esclusivamente</span> la provenienza. Regola dura: <span style="color:#E6EDF4">la UI non mostra mai informazione più precisa del TeamKnowledge autorizzato</span>. L'assenza di informazione si rappresenta con l'assenza di segno.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">ALLIED PLANS</div>
+        <div style="background:#131C24;padding:16px;margin-bottom:14px">
+          <svg viewBox="0 0 340 118" style="width:100%;height:auto;display:block">
+            <rect width="340" height="118" fill="url(#pGrid)" />
+            <g stroke="#05080C" stroke-width="7" fill="none" opacity=".85"><path d="M20 96 H140 V40" /><path d="M60 20 V70 H190" /><path d="M320 30 H240 V90" /></g>
+            <g stroke="#A97BFF" stroke-width="2.6" fill="none" stroke-dasharray="9 6"><path d="M20 96 H140 V40" /><path d="M60 20 V70 H190" /><path d="M320 30 H240 V90" /></g>
+            <circle cx="140" cy="40" r="9" fill="#0F1620" stroke="#A97BFF" stroke-width="2.4" /><path d="M140 33 V29" stroke="#A97BFF" stroke-width="2.4" />
+            <circle cx="190" cy="70" r="9" fill="#0F1620" stroke="#A97BFF" stroke-width="2.4" /><path d="M186 63 V59 M194 63 V59" stroke="#A97BFF" stroke-width="2.4" />
+            <circle cx="240" cy="90" r="9" fill="#0F1620" stroke="#A97BFF" stroke-width="2.4" /><path d="M235 83 V79 M240 83 V79 M245 83 V79" stroke="#A97BFF" stroke-width="2.4" />
+            <g fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace"><text x="130" y="20">A</text><text x="196" y="92">B</text><text x="250" y="112">C</text></g>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Un solo hue viola, stesso spessore, stessa opacità: l'identità è nel <span style="color:#E6EDF4">conteggio delle tacche</span> sul nodo (1–3) e nella lettera in screen-space. <span style="color:#FFC24A">NEEDS LATER DENSITY TEST</span> per 4+ piani e densità 3v3 completa — non è blocker v0.1.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">ENVIRONMENT PATTERNS</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;background:#131C24;padding:16px;margin-bottom:14px">
+          <div><div style="height:44px;background:#1A2430;background-image:repeating-linear-gradient(0deg,transparent 0 4px,#2F6FA8 4px 5px)"></div><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">dash</div></div>
+          <div><div style="height:44px;background:#1A2430;background-image:radial-gradient(#E8F04A 0 1px,transparent 1.4px);background-size:8px 8px"></div><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">square</div></div>
+          <div><div style="height:44px;background:#1A2430;background-image:radial-gradient(#FF8A2B 0 1.2px,transparent 1.6px);background-size:9px 9px"></div><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">wedge</div></div>
+          <div><div style="height:44px;background:#1A2430;background-image:radial-gradient(#96A3B0 0 2px,transparent 2.4px);background-size:12px 12px"></div><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">disc</div></div>
+          <div><div style="height:44px;background:#1A2430;background-image:radial-gradient(#7FD4E8 0 1px,transparent 1.4px);background-size:11px 11px"></div><div style="font:400 9px 'Azeret Mono',monospace;color:#56626F;margin-top:6px">cross</div></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Griglia proiettata in <span style="color:#E6EDF4">screen-space</span>, codifica per forma del punto e densità, mai per angolo. Water dash · Electric square · Fire wedge · Smoke disc · Ice cross. Nessun nuovo significato assegnato in STEP 03. Massimo due pattern per superficie, offset di mezza cella.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ICON CARDS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">02</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Icon production cards</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Master 24×24, area viva 20×20. Ogni anteprima è un'istanza del master. Nessun glifo contiene container, certezza, opacità, halo, squadra, selezione o numeri.</div>
+    </div>
+
+    <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.18em;margin-bottom:12px">ACTION · 01–06</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:32px">
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">01</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Move</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS · ANCHOR</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g01" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g01" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g01" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g01" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g01" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Spostamento su percorso pianificato con una svolta e un arrivo direzionale.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: polilinea a L + cuspide aperta</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Dash (single vs double cuspide), Waypoint</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">02</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Wait</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g02" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g02" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g02" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g02" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g02" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">L'unità resta nella cella corrente per questo turno, senza azione dichiarata.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: coppia di montanti + nucleo pieno</div>
+          <div>FILL · Hybrid · OPTICAL_16 · NO</div>
+          <div>COLLISION · Cover (montanti su barra vs montanti liberi)</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">03</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Guard</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g03" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g03" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g03" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g03" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g03" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Postura difensiva attiva: l'unità riduce il danno subito in questo turno.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: piastra trapezoidale + nervatura centrale</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Cover · risolto: piastra portata (trapezio) vs muro in pianta</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">04</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Overwatch</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#FFC24A">OPTICAL PASS · ANCHOR</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g04" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g04" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g04" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g04" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#FFC24A"><use href="#g04o" /></svg>
+        </div>
+        <div style="font:400 9.5px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:12px">l'ultima anteprima è OPTICAL_16</div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Area sorvegliata con reazione automatica: l'unità colpisce chi attraversa il settore.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: settore aperto + nodo di trigger sul bordo</div>
+          <div>FILL · Hybrid · OPTICAL_16 · <span style="color:#FFC24A">YES</span> · stroke 2.6, settore più ampio, nodo a 3 u</div>
+          <div>COLLISION · Attack (settore vs vettore), Cone AoE (nodo di trigger assente)</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">05</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Attack</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g05" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g05" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g05" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g05" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g05" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Colpo diretto su un bersaglio dichiarato, risolto in questo turno.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: asta + punta piena</div>
+          <div>FILL · Hybrid · OPTICAL_16 · NO</div>
+          <div>COLLISION · Overwatch, FriendlyFire · risolto: punta piena, nessuna tacca</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">06</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Dash</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g06" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g06" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g06" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g06" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g06" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Movimento rapido in linea, senza svolte e con costo maggiorato.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: asta + doppia cuspide</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Move · risolto: doppia cuspide e nessuna svolta</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.18em;margin-bottom:12px">CONTEXT + ENVIRONMENT + REACTION · 07–12</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:32px">
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">07</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Cover</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g07" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g07" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g07" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g07" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g07" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Geometria del mondo che offre copertura: barriera vista in pianta.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: barra continua + due montanti</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Guard (piastra curva portata), Wait, Bridge</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">08</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Height</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g08" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g08" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g08" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g08" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g08" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Cambio di quota fra due livelli, con la direzione del dislivello.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: gradino a due livelli + cuspide di verso</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Move · risolto: gradino sempre orizzontale, mai verticale</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">09</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Water</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g09" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g09" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g09" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g09" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g09" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Superficie bagnata: conduce elettricità e spegne il fuoco.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: due onde parallele in fase</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Electric · risolto: curve morbide vs spezzata angolare</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">10</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Fire</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g10" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g10" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g10" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g10" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g10" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Superficie in fiamme: danneggia chi la occupa e si propaga.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 1 primitiva: profilo a cuspidi chiuso alla base</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Critical (nessuna base chiusa), Electric</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">11</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Electric</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS · ANCHOR</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g11" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g11" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g11" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g11" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g11" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Carica elettrica sul terreno: si propaga nell'acqua e stordisce.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 1 primitiva: spezzata a quattro vertici, angoli vivi</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Reaction · verificato in STEP 02: angolare vs arco</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">12</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Reaction</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS · ANCHOR</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g12" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g12" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g12" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g12" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g12" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Risposta innescata da un'azione altrui: l'energia torna al mittente.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: arco continuo + cuspide di ritorno</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Electric, Sound arcs · risolto: arco singolo con cuspide</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="padding:0 56px">
+    <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.18em;margin-bottom:12px">WARNING · 13–18</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:32px">
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">13</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Critical</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g13" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g13" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g13" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g13" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g13" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Gravità massima: conseguenza irreversibile se il piano viene confermato.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: asta verticale + nucleo pieno separato</div>
+          <div>FILL · Hybrid · OPTICAL_16 · NO</div>
+          <div>COLLISION · InvalidTarget (nessun contorno chiuso), Wait (asta singola)</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">14</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.FriendlyFire</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#FFC24A">OPTICAL PASS · ANCHOR</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g14" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g14" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g14" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g14" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#FFC24A"><use href="#g14o" /></svg>
+        </div>
+        <div style="font:400 9.5px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:12px">l'ultima anteprima è OPTICAL_16 · stroke 2.6, tacche più separate</div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Questa traiettoria interseca e danneggia un alleato; il colpo prosegue oltre.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: traiettoria continua con cuspide oltre l'intersezione + doppia tacca diagonale (firma alleata)</div>
+          <div>FILL · Outline · OPTICAL_16 · <span style="color:#FFC24A">YES</span> · stessa metafora, nessun cambio di significato</div>
+          <div>COLLISION · Collision, InvalidTarget, Enemy, Slot.Condition · tutti verificati in STEP 02b</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">15</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Collision</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g15" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g15" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g15" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g15" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g15" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Due movimenti contendono la stessa cella: entrambi si fermano.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: due vettori contrapposti + vuoto centrale</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · FriendlyFire · risolto: centro vuoto, nessuna retta continua</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">16</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.InsufficientResource</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g16" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g16" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g16" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g16" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g16" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Risorse insufficienti: l'anello del costo non si chiude.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: anello aperto (famiglia Cost) + tacca del deficit</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Uncertain, Cooldown · risolto: apertura unica, non ritmo</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">17</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.InvalidTarget</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g17" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g17" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g17" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g17" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g17" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">La cella o il soggetto non sono un bersaglio legale per questa abilità.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: cella chiusa + diagonale unica</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Critical, FriendlyFire · risolto: unico glifo con contorno chiuso</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">18</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.UncertainOutcome</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g18" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g18" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g18" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g18" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g18" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">L'azione è legale ma il suo risultato dipende da fattori non noti.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: base a squadra (l'esito) + interrogativo geometrico</div>
+          <div>FILL · Hybrid · OPTICAL_16 · NO</div>
+          <div>COLLISION · Uncertain (21) · risolto: base a squadra vs anello spezzato</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.18em;margin-bottom:12px">CERTAINTY + MARKER · 19–24</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:8px">
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">19</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Confirmed</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g19" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g19" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g19" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g19" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g19" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Informazione certa e autorevole: già risolta o direttamente controllata.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: anello continuo + spunta</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Predicted, Uncertain · separati dal ritmo dell'anello</div>
+          <div style="color:#FFC24A">NOTA · questi tre glifi sono la legenda della certezza: il ritmo del loro anello è il loro significato, non uno stato applicato dall'esterno</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">20</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Predicted</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g20" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g20" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g20" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g20" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g20" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Esito calcolato sul piano della squadra e sullo stato attualmente noto.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: anello 9-6 + lancetta in avanti</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Confirmed, Cooldown · risolto: lancetta, non settore pieno</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">21</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Uncertain</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS · ANCHOR</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g21" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g21" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g21" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g21" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g21" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Stato di certezza: il risultato può cambiare per informazione nascosta o reazione.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: anello spezzato + interrogativo geometrico</div>
+          <div>FILL · Hybrid · OPTICAL_16 · NO · a 16 px l'anello resta contabile grazie al passo 2-7</div>
+          <div>COLLISION · UncertainOutcome, InsufficientResource · verificato in STEP 02</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">22</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Waypoint</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g22" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g22" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g22" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g22" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g22" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Punto intermedio del percorso: il movimento passa e continua.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: nodo cavo + tracciato che entra ed esce</div>
+          <div>FILL · Outline · OPTICAL_16 · NO</div>
+          <div>COLLISION · Destination · risolto: nodo cavo e linea che prosegue</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">23</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.Destination</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#3FD08A">PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g23" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g23" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g23" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g23" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g23" /></svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Cella finale del movimento pianificato: il tracciato termina qui.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: cella piena + tracciato che si arresta</div>
+          <div>FILL · Solid · OPTICAL_16 · NO</div>
+          <div>COLLISION · Waypoint, Slot.ExternalModifier · risolto: pieno vs contorno</div>
+        </div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F">24</span> <span style="font:500 13px 'Azeret Mono',monospace;color:#E6EDF4">Glyph.LastContact</span></div>
+          <div style="font:500 10px 'Azeret Mono',monospace;color:#FFC24A">OPTICAL PASS</div>
+        </div>
+        <div style="background:#131C24;padding:18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <svg viewBox="0 0 24 24" style="width:48px;height:48px;color:#E6EDF4"><use href="#g24" /></svg>
+          <svg viewBox="0 0 24 24" style="width:32px;height:32px;color:#E6EDF4"><use href="#g24" /></svg>
+          <svg viewBox="0 0 24 24" style="width:24px;height:24px;color:#E6EDF4"><use href="#g24" /></svg>
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;color:#E6EDF4"><use href="#g24" /></svg>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#FFC24A"><use href="#g24o" /></svg>
+        </div>
+        <div style="font:400 9.5px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:12px">l'ultima anteprima è OPTICAL_16 · angoli più esterni, lancetta semplificata</div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:10px">Ultimo contatto noto con un'unità nemica, alla posizione in cui è stata acquisita.</div>
+        <div style="display:grid;gap:5px;font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F">
+          <div>CONSTRUCTION · 2 primitive: angoli di reticolo spezzati + quadrante orario</div>
+          <div>FILL · Hybrid · OPTICAL_16 · <span style="color:#FFC24A">YES</span> · a 16 px gli angoli si chiudevano sul quadrante</div>
+          <div>COLLISION · Enemy reticle, IntelSource.LastKnown (stessa famiglia, uso diverso)</div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:16px 20px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:0"><span style="color:#E6EDF4">Nessuna variante ottica creata per default.</span> Solo tre glifi su ventiquattro l'hanno richiesta, e in tutti e tre i casi la metafora resta identica: cambia lo stroke e la separazione fra i motivi, non il significato. Le altre ventuno sopravvivono al downscale diretto del master.</div>
+  </div>
+  <!-- COLLISION PAIRS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">03</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Semantic collision pairs</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Ogni coppia a 24 e 16 px, monocromia, senza container e senza colore. Il discriminante è dichiarato in una riga.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g01" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g01" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g06" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g06" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">MOVE ≠ DASH</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Svolta a L e cuspide singola contro linea retta e doppia cuspide.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g05" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g05" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g04" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#FFC24A"><use href="#g04o" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">ATTACK ≠ OVERWATCH</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Vettore con punta piena contro settore aperto con nodo di trigger.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g03" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g03" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g07" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g07" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">GUARD ≠ COVER</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Piastra trapezoidale portata dall'unità contro barriera del mondo in pianta.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g11" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g11" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g12" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g12" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">ELECTRIC ≠ REACTION</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Spezzata ad angoli vivi contro arco continuo con cuspide di ritorno.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g13" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g13" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g17" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g17" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">CRITICAL ≠ INVALIDTARGET</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Asta libera contro contorno chiuso: l'invalido è l'unico glifo con una cella.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g14" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#FFC24A"><use href="#g14o" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g15" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g15" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">FRIENDLYFIRE ≠ COLLISION</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Retta continua che attraversa contro centro vuoto fra due vettori che si fermano.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g19" /></svg><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g20" /></svg><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g21" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">CONFIRMED ≠ PREDICTED ≠ UNCERTAIN</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Ritmo dell'anello 100 / 58 / 22% più tre marche interne diverse: spunta, lancetta, interrogativo.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g22" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g22" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g23" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g23" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">WAYPOINT ≠ DESTINATION</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Nodo cavo attraversato dalla linea contro cella piena in cui la linea si arresta.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:30px;height:30px;color:#E6EDF4"><use href="#g09" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g09" /></svg><svg viewBox="0 0 24 24" style="width:30px;height:30px;color:#E6EDF4"><use href="#g10" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g10" /></svg><svg viewBox="0 0 24 24" style="width:30px;height:30px;color:#E6EDF4"><use href="#g11" /></svg><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g11" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">WATER ≠ FIRE ≠ ELECTRIC</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Curve in fase, profilo chiuso a cuspidi, spezzata aperta: tre topologie diverse.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px"><svg viewBox="0 0 70 44" style="width:70px;height:44px"><ellipse cx="24" cy="22" rx="20" ry="12" fill="#E6EDF4" opacity=".08" /><ellipse cx="24" cy="22" rx="20" ry="12" fill="none" stroke="#E6EDF4" stroke-width="2" /><path d="M50 34 A16 16 0 0 1 68 26" fill="none" stroke="#E6EDF4" stroke-width="2" stroke-dasharray="1.8 5" /><path d="M54 34 A10 10 0 0 1 66 30" fill="none" stroke="#E6EDF4" stroke-width="2" stroke-dasharray="1.8 5" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">AOE ≠ SOUND</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Regione chiusa con fill subordinato contro archi aperti senza fill. Verificato a ogni certezza in STEP 02b.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g14" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:34px;height:34px;color:#E6EDF4"><use href="#g17" /></svg><div style="width:1px;height:34px;background:#2A3742"></div><svg viewBox="0 0 40 40" style="width:34px;height:34px"><path d="M20 6 L36 34 H4 Z" fill="none" stroke="#8D9BAB" stroke-width="2" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">FF ≠ INVALIDTARGET ≠ CONDITION</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Il triangolo di Slot.Condition è solo un contenitore neutro: non compete con nessun glifo.</div></div>
+      <div style="background:#121822;padding:18px 20px"><div style="background:#131C24;padding:14px;display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:10px"><svg viewBox="0 0 24 24" style="width:30px;height:30px;color:#E6EDF4"><use href="#g14" /></svg><div style="width:1px;height:30px;background:#2A3742"></div><svg viewBox="0 0 24 24" style="width:30px;height:30px"><g fill="none" stroke="#E6EDF4" stroke-width="2"><path d="M4 8V4H8M16 4H20V8M20 16V20H16M8 20H4V16" /></g><rect x="10.8" y="10.8" width="2.4" height="2.4" fill="#E6EDF4" /></svg></div><div style="font:500 10.5px 'Azeret Mono',monospace;color:#3FD08A">FRIENDLYFIRE ≠ ENEMY</div><div style="font:400 10px/1.5 'Azeret Mono',monospace;color:#56626F;margin-top:5px">Il reticolo nemico non contiene nessuna retta continua: quattro angoli separati.</div></div>
+    </div>
+  </div>
+
+  <!-- QA BOARD -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">04</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Full set QA board</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Gli stessi asset in cinque condizioni. Nessuna variante prodotta per la matrice.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+      <div style="border:1px solid #232C38">
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#0A0E14;border-bottom:1px solid #232C38;font:500 9.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.1em"><div style="padding:10px 12px">01–12</div><div style="padding:10px 4px;text-align:center">16 LT</div><div style="padding:10px 4px;text-align:center">16 DK</div><div style="padding:10px 4px;text-align:center">24 LT</div><div style="padding:10px 4px;text-align:center">24 DK</div><div style="padding:10px 4px;text-align:center">32 GR</div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Move</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g01" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g01" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g01" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g01" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g01" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Wait</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g02" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g02" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g02" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g02" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g02" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Guard</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g03" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g03" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g03" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g03" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g03" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#FFC24A">Overwatch*</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g04o" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g04o" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g04" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g04" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g04" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Attack</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g05" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g05" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g05" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g05" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g05" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Dash</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g06" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g06" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g06" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g06" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g06" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Cover</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g07" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g07" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g07" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g07" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g07" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Height</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g08" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g08" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g08" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g08" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g08" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Water</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g09" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g09" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g09" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g09" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g09" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Fire</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g10" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g10" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g10" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g10" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g10" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Electric</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g11" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g11" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g11" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g11" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g11" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.5fr repeat(5,1fr);background:#121822;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Reaction</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g12" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g12" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g12" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g12" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g12" /></svg></div></div>
+      </div>
+      <div style="border:1px solid #232C38">
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#0A0E14;border-bottom:1px solid #232C38;font:500 9.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.1em"><div style="padding:10px 12px">13–24</div><div style="padding:10px 4px;text-align:center">16 LT</div><div style="padding:10px 4px;text-align:center">16 DK</div><div style="padding:10px 4px;text-align:center">24 LT</div><div style="padding:10px 4px;text-align:center">24 DK</div><div style="padding:10px 4px;text-align:center">32 GR</div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Critical</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g13" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g13" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g13" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g13" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g13" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#FFC24A">FriendlyFire*</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g14o" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g14o" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g14" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g14" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g14" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Collision</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g15" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g15" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g15" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g15" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g15" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">InsuffResource</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g16" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g16" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g16" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g16" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g16" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">InvalidTarget</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g17" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g17" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g17" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g17" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g17" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">UncertainOutc.</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g18" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g18" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g18" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g18" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g18" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Confirmed</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g19" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g19" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g19" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g19" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g19" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Predicted</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g20" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g20" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g20" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g20" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g20" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Uncertain</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g21" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g21" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g21" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g21" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g21" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Waypoint</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g22" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g22" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g22" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g22" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g22" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#8D9BAB">Destination</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g23" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g23" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g23" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g23" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g23" /></svg></div></div>
+        <div style="display:grid;grid-template-columns:1.7fr repeat(5,1fr);background:#121822;align-items:center"><div style="padding:8px 12px;font:400 10px 'Azeret Mono',monospace;color:#FFC24A">LastContact*</div><div style="background:#E8ECF0;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#0A0E14"><use href="#g24o" /></svg></div><div style="background:#131C24;padding:7px;text-align:center"><svg viewBox="0 0 24 24" style="width:16px;height:16px;color:#E6EDF4"><use href="#g24o" /></svg></div><div style="background:#E8ECF0;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#0A0E14"><use href="#g24" /></svg></div><div style="background:#131C24;padding:5px;text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g24" /></svg></div><div style="background:#2A2F35;padding:4px;text-align:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;color:#B8BFC6"><use href="#g24" /></svg></div></div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;background:#121822;padding:14px 18px;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F;margin-top:24px"><span style="color:#FFC24A">*</span> nelle colonne 16 px queste tre righe mostrano la variante OPTICAL_16; le colonne 24 e 32 px mostrano il master. Tutte le altre righe usano lo stesso master in tutte e cinque le colonne.</div>
+  </div>
+  <!-- STATE MATRIX -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">05</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">State matrix · il sistema applicato sopra</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Gli stessi ventiquattro asset. Certezza dal bordo del container (HUD 28% per l'incerto), disabled da opacità 30% più hatch. Nessuno stato è dentro il glifo.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#0A0E14;border-bottom:1px solid #232C38;font:500 9.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.1em">
+        <div style="padding:11px 14px">GLYPH</div><div style="padding:11px 4px;text-align:center">NORMAL</div><div style="padding:11px 4px;text-align:center">CONFIRMED</div><div style="padding:11px 4px;text-align:center">PREDICTED</div><div style="padding:11px 4px;text-align:center">UNCERTAIN</div><div style="padding:11px 4px;text-align:center">DISABLED</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Move</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g01" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g01" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g01" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g01" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g01" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Wait</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g02" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g02" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g02" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g02" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g02" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Guard</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g03" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g03" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g03" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g03" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g03" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Overwatch</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g04" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g04" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g04" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g04" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g04" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Attack</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g05" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g05" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g05" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g05" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g05" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Dash</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g06" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g06" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g06" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g06" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g06" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Cover</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g07" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g07" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g07" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g07" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g07" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Height</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g08" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g08" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g08" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g08" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g08" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Water</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g09" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g09" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g09" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g09" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g09" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Fire</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g10" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g10" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g10" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g10" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g10" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Electric</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g11" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g11" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g11" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g11" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g11" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Reaction</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g12" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g12" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g12" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g12" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g12" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Critical</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g13" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g13" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g13" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g13" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g13" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">FriendlyFire</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g14" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g14" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g14" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g14" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g14" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Collision</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g15" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g15" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g15" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g15" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g15" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">InsuffResource</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g16" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g16" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g16" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g16" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g16" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">InvalidTarget</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g17" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g17" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g17" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g17" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g17" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">UncertainOutc.</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g18" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g18" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g18" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g18" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g18" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Confirmed</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g19" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g19" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g19" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g19" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g19" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Predicted</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g20" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g20" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g20" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g20" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g20" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Uncertain</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g21" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g21" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g21" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g21" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g21" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Waypoint</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g22" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g22" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g22" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g22" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g22" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;border-bottom:1px solid #1B2530;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">Destination</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g23" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g23" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g23" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g23" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g23" /></svg></svg></div></div>
+      <div style="display:grid;grid-template-columns:1.4fr repeat(5,1fr);background:#121822;align-items:center;padding:6px 0"><div style="padding:0 14px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB">LastContact</div><div style="text-align:center"><svg viewBox="0 0 24 24" style="width:22px;height:22px;color:#E6EDF4"><use href="#g24" /></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g24" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g24" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="none" stroke="#8D9BAB" stroke-width="1.6" stroke-dasharray="2.4 6.2" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g24" /></svg></svg></div><div style="text-align:center"><svg viewBox="0 0 40 40" style="width:34px;height:34px"><rect x="3" y="3" width="34" height="34" fill="url(#pHatch)" opacity=".5" /><rect x="3" y="3" width="34" height="34" fill="none" stroke="#3A434E" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g24" /></svg></svg></div></div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:16px 20px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#3FD08A">DISABLED ≠ UNCERTAIN verificato su tutte e ventiquattro le righe.</span> L'incerto conserva il tratto pieno del glifo e ha il bordo del container a ritmo 28%; il disabled ha il bordo <span style="color:#E6EDF4">continuo</span>, il glifo desaturato al 30% e l'hatch a 45° nel campo. Nessuno dei due usa il canale dell'altro.</div>
+  </div>
+  <!-- COMPOSITION -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">06</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Composition stress test</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Tre esempi entro il budget. Nessun esempio con più di tre satelliti: oltre il tetto si collassa in "+n".</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">A · SIMPLE · 1 + 1</div>
+        <div style="background:#131C24;padding:18px;display:flex;justify-content:center">
+          <svg viewBox="0 0 150 150" style="width:100%;height:auto;max-width:150px">
+            <path d="M75 22 L116 46 V94 L75 118 L34 94 V46 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" />
+            <svg x="52" y="52" width="46" height="46" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g01" /></svg>
+            <circle cx="34" cy="34" r="13" fill="#131C24" stroke="#8D9BAB" stroke-width="2" /><text x="30" y="38" fill="#8D9BAB" font-size="12" font-family="Azeret Mono, monospace">2</text>
+          </svg>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Core Move + Slot.Cost. Lettura in un colpo d'occhio: cosa faccio, quanto costa.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">B · STANDARD · 1 + 2</div>
+        <div style="background:#131C24;padding:18px;display:flex;justify-content:center">
+          <svg viewBox="0 0 150 150" style="width:100%;height:auto;max-width:150px">
+            <path d="M75 22 L116 46 V94 L75 118 L34 94 V46 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" />
+            <svg x="52" y="52" width="46" height="46" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g04" /></svg>
+            <circle cx="34" cy="34" r="13" fill="#131C24" stroke="#8D9BAB" stroke-width="2" /><text x="30" y="38" fill="#8D9BAB" font-size="12" font-family="Azeret Mono, monospace">3</text>
+            <path d="M40 132 L54 106 H26 Z" fill="#131C24" stroke="#8D9BAB" stroke-width="2" />
+          </svg>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Core Overwatch + Cost + Slot.Condition (triangolo neutro, il trigger esiste). Priorità S2 rispettata.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">C · MAX BUDGET · 1 + 3</div>
+        <div style="background:#131C24;padding:18px;display:flex;justify-content:center">
+          <svg viewBox="0 0 150 150" style="width:100%;height:auto;max-width:150px">
+            <path d="M75 22 L116 46 V94 L75 118 L34 94 V46 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" />
+            <svg x="52" y="52" width="46" height="46" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g11" /></svg>
+            <circle cx="34" cy="34" r="13" fill="#131C24" stroke="#8D9BAB" stroke-width="2" /><text x="30" y="38" fill="#8D9BAB" font-size="12" font-family="Azeret Mono, monospace">4</text>
+            <path d="M116 34 L129 47 L116 60 L103 47 Z" fill="#131C24" stroke="#8D9BAB" stroke-width="2" />
+            <path d="M40 132 L54 106 H26 Z" fill="#131C24" stroke="#FF8A2B" stroke-width="2.2" /><path d="M40 114 v7" stroke="#FF8A2B" stroke-width="2.2" /><rect x="38.9" y="124" width="2.2" height="2.2" fill="#FF8A2B" />
+            <text x="106" y="132" fill="#56626F" font-size="11" font-family="Azeret Mono, monospace">+2</text>
+          </svg>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Core Electric + Cost + SkillModifier + Warning. Due Intrinsic in eccesso collassano in "+2": nessuna riduzione di scala, nessun quinto marker.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">VALUTAZIONE</div>
+        <div style="display:grid;gap:11px;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">Readability.</span> Il core occupa il 65–70% del riquadro in tutti e tre i casi: la gerarchia è dimensionale prima che cromatica.</div>
+          <div><span style="color:#E6EDF4">Hierarchy.</span> La posizione è fissa per ruolo, quindi il giocatore cerca il warning sempre nello stesso angolo, anche quando non c'è.</div>
+          <div><span style="color:#E6EDF4">Semantic separation.</span> Nessun satellite condivide una forma con il core: hexagon grande vs hexagon piccolo è distinto dalla scala e dalla posizione.</div>
+          <div><span style="color:#E6EDF4">Christmas tree.</span> Non si presenta a tre satelliti; l'esempio C è già al limite percepito, che è la ragione per cui il tetto resta tre e non quattro.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENES -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">07</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Gameplay stress board</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Gli stessi asset delle schede, nessuna versione speciale per la scena.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:0.8fr 1fr 1.2fr;gap:1px;background:#232C38;border:1px solid #232C38">
+
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">A · CLEAN</div>
+        <div style="background:#131C24;padding:0">
+          <svg viewBox="0 0 320 260" style="width:100%;height:auto;display:block">
+            <rect width="320" height="260" fill="#131C24" /><rect width="320" height="260" fill="url(#pGrid)" />
+            <g stroke="#05080C" stroke-width="9" fill="none" opacity=".85"><path d="M40 210 H160 V120 H250" /></g>
+            <g stroke="#35E0C4" stroke-width="3.4" fill="none" stroke-dasharray="9 6"><path d="M40 210 H160 V120 H250" /></g>
+            <circle cx="40" cy="210" r="16" fill="none" stroke="#35E0C4" stroke-width="3.4" stroke-dasharray="21 5" /><circle cx="40" cy="210" r="4" fill="#35E0C4" />
+            <svg x="150" y="110" width="20" height="20" viewBox="0 0 24 24" style="color:#35E0C4"><use href="#g22" /></svg>
+            <svg x="240" y="110" width="20" height="20" viewBox="0 0 24 24" style="color:#35E0C4"><use href="#g23" /></svg>
+            <g transform="translate(24,26)">
+              <rect x="0" y="0" width="44" height="44" fill="#0F1620" stroke="#2E3947" stroke-width="1.6" /><svg x="12" y="12" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g01" /></svg>
+              <rect x="52" y="0" width="44" height="44" fill="#0F1620" stroke="#2E3947" stroke-width="1.6" /><svg x="64" y="12" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g05" /></svg>
+              <rect x="104" y="0" width="44" height="44" fill="#0F1620" stroke="#2E3947" stroke-width="1.6" /><svg x="116" y="12" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g03" /></svg>
+              <rect x="156" y="0" width="44" height="44" fill="#0F1620" stroke="#3A434E" stroke-width="1.6" /><rect x="156" y="0" width="44" height="44" fill="url(#pHatch)" opacity=".5" /><svg x="168" y="12" width="20" height="20" viewBox="0 0 24 24" style="color:#6E7A88"><use href="#g06" /></svg>
+              <rect x="208" y="0" width="44" height="44" fill="#0F1620" stroke="#2E3947" stroke-width="1.6" /><svg x="220" y="12" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g04" /></svg>
+            </g>
+            <text x="24" y="88" fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">dock 44 px · glifi 20 px · uno disabled</text>
+          </svg>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Leggibilità pura. Dash disabled con hatch, path previsto, waypoint cavo e destinazione piena distinguibili a 20 px.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">B · STANDARD MATCH</div>
+        <div style="background:#131C24;padding:0">
+          <svg viewBox="0 0 420 260" style="width:100%;height:auto;display:block">
+            <rect width="420" height="260" fill="#131C24" /><rect width="420" height="260" fill="url(#pGrid)" />
+            <rect x="0" y="170" width="200" height="90" fill="url(#pWater)" opacity=".9" />
+            <rect x="300" y="0" width="120" height="110" fill="url(#pFire)" opacity=".75" />
+            <rect x="140" y="120" width="70" height="46" fill="#1B2732" stroke="#2A3742" stroke-width="1.6" />
+            <svg x="160" y="132" width="22" height="22" viewBox="0 0 24 24" style="color:#3D4C59"><use href="#g07" /></svg>
+            <path d="M250 90 H400 V126 H250 Z" fill="#35E0C4" opacity=".12" /><path d="M250 90 H400 V126 H250 Z" fill="none" stroke="#35E0C4" stroke-width="2.4" />
+            <g stroke="#05080C" stroke-width="8" fill="none" opacity=".85"><path d="M40 220 H120 V108 H244" /></g>
+            <g stroke="#35E0C4" stroke-width="3.2" fill="none" stroke-dasharray="9 6"><path d="M40 220 H120 V108 H244" /></g>
+            <circle cx="40" cy="220" r="14" fill="none" stroke="#35E0C4" stroke-width="3.2" stroke-dasharray="19 5" /><circle cx="40" cy="220" r="4" fill="#35E0C4" />
+            <g><path d="M356 96V86h10M388 86h10v10M398 120v10h-10M366 130h-10v-10" fill="none" stroke="#FF4D6D" stroke-width="2.4" /><circle cx="377" cy="108" r="3" fill="#FF4D6D" /></g>
+            <svg x="392" y="70" width="18" height="18" viewBox="0 0 24 24" style="color:#96A3B0"><use href="#sObs" /></svg>
+            <circle cx="300" cy="200" r="14" fill="none" stroke="#A97BFF" stroke-width="2.6" stroke-dasharray="19 5" /><path d="M300 186 V180" stroke="#A97BFF" stroke-width="2.4" />
+            <g stroke="#05080C" stroke-width="7" fill="none" opacity=".85"><path d="M300 200 V150 H360" /></g>
+            <g stroke="#A97BFF" stroke-width="2.6" fill="none" stroke-dasharray="9 6"><path d="M300 200 V150 H360" /></g>
+            <g transform="translate(20,20)">
+              <rect x="0" y="0" width="40" height="40" fill="#0F1620" stroke="#2E3947" stroke-width="1.6" /><svg x="10" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g05" /></svg>
+              <rect x="48" y="0" width="40" height="40" fill="#0F1620" stroke="#2E3947" stroke-width="1.6" stroke-dasharray="7 5" /><svg x="58" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#E6EDF4"><use href="#g10" /></svg>
+              <rect x="96" y="0" width="40" height="40" fill="#0F1620" stroke="#FF8A2B" stroke-width="1.8" /><svg x="106" y="10" width="20" height="20" viewBox="0 0 24 24" style="color:#FF8A2B"><use href="#g13" /></svg>
+            </g>
+          </svg>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Ambiente (acqua dash, fuoco wedge), planning proprio e alleato con tacca singola, zona di targeting, nemico osservato con source glyph, warning critico nel dock.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">C · HEAVY OVERLAP</div>
+        <div style="background:#131C24;padding:0">
+          <svg viewBox="0 0 520 260" style="width:100%;height:auto;display:block">
+            <rect width="520" height="260" fill="#131C24" /><rect width="520" height="260" fill="url(#pGrid)" />
+            <rect x="0" y="150" width="270" height="110" fill="url(#pWater)" opacity=".9" />
+            <rect x="380" y="0" width="140" height="120" fill="url(#pFire)" opacity=".7" />
+            <rect x="120" y="90" width="230" height="120" fill="url(#pElec)" opacity=".9" />
+            <ellipse cx="235" cy="150" rx="112" ry="62" fill="#E8F04A" opacity=".07" /><ellipse cx="235" cy="150" rx="112" ry="62" fill="none" stroke="#E8F04A" stroke-width="2.4" stroke-dasharray="9 6" />
+            <ellipse cx="235" cy="150" rx="150" ry="86" fill="none" stroke="#E8F04A" stroke-width="2.2" stroke-dasharray="1.8 6.4" />
+            <svg x="470" y="176" width="20" height="20" viewBox="0 0 24 24" style="color:#96A3B0"><use href="#g21" /></svg>
+            <g stroke="#05080C" stroke-width="8" fill="none" opacity=".85"><path d="M406 246 A104 104 0 0 1 506 200" /><path d="M424 246 A76 76 0 0 1 496 214" /></g>
+            <g fill="none" stroke="#96A3B0" stroke-width="2.4" stroke-dasharray="1.8 6.4"><path d="M406 246 A104 104 0 0 1 506 200" /><path d="M424 246 A76 76 0 0 1 496 214" /></g>
+            <svg x="398" y="212" width="18" height="18" viewBox="0 0 24 24" style="color:#96A3B0"><use href="#sHrd" /></svg>
+            <path d="M60 60 L146 34 L166 96 Z" fill="#35E0C4" opacity=".1" /><path d="M60 60 L146 34 L166 96 Z" fill="none" stroke="#35E0C4" stroke-width="2.4" />
+            <circle cx="60" cy="60" r="6" fill="none" stroke="#35E0C4" stroke-width="2.4" />
+            <svg x="150" y="26" width="20" height="20" viewBox="0 0 24 24" style="color:#35E0C4"><use href="#g04" /></svg>
+            <g stroke="#05080C" stroke-width="8" fill="none" opacity=".85"><path d="M40 230 H150 V180" /><path d="M100 250 V196 H210" /><path d="M330 240 V190 H250" /></g>
+            <g stroke="#A97BFF" stroke-width="2.6" fill="none" stroke-dasharray="9 6"><path d="M40 230 H150 V180" /><path d="M100 250 V196 H210" /><path d="M330 240 V190 H250" /></g>
+            <circle cx="150" cy="180" r="11" fill="#0F1620" stroke="#A97BFF" stroke-width="2.4" /><path d="M150 171 V166" stroke="#A97BFF" stroke-width="2.4" />
+            <circle cx="210" cy="196" r="11" fill="#0F1620" stroke="#A97BFF" stroke-width="2.4" /><path d="M205 187 V182 M215 187 V182" stroke="#A97BFF" stroke-width="2.4" />
+            <circle cx="250" cy="190" r="11" fill="#0F1620" stroke="#A97BFF" stroke-width="2.4" /><path d="M244 181 V176 M250 181 V176 M256 181 V176" stroke="#A97BFF" stroke-width="2.4" />
+            <g stroke="#05080C" stroke-width="9" fill="none" opacity=".85"><path d="M186 118 H420" /></g>
+            <g stroke="#FF4D6D" stroke-width="3" fill="none"><path d="M186 118 H420" /><path d="M404 106 L420 118 L404 130" /></g>
+            <svg x="240" y="96" width="24" height="24" viewBox="0 0 24 24" style="color:#FF4D6D"><use href="#g14" /></svg>
+            <svg x="322" y="60" width="22" height="22" viewBox="0 0 24 24" style="color:#E8F04A"><use href="#g12" /></svg>
+            <svg x="60" y="120" width="20" height="20" viewBox="0 0 24 24" style="color:#2F6FA8"><use href="#g09" /></svg>
+            <svg x="430" y="30" width="20" height="20" viewBox="0 0 24 24" style="color:#FF8A2B"><use href="#g10" /></svg>
+            <svg x="170" y="212" width="20" height="20" viewBox="0 0 24 24" style="color:#E8F04A"><use href="#g11" /></svg>
+          </svg>
+        </div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Undici informazioni sovrapposte: acqua, fuoco, elettrico, AoE certa e propagazione incerta, archi acustici con source glyph, cono Overwatch, tre piani alleati distinti dalle tacche, traiettoria di friendly fire, reaction, uncertain. <span style="color:#3FD08A">Nessuna collisione osservata</span>: ogni informazione occupa un canale diverso, e l'halo mantiene separate le primitive dai pattern.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCTION SPEC -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">08</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Affinity + export spec</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">STRUTTURA DEL DOCUMENTO</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;font:400 11px/1.9 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:14px">
+          <div>ICON_LIBRARY</div>
+          <div>├── Action <span style="color:#56626F">· 01–06</span></div>
+          <div>├── Environment <span style="color:#56626F">· 07–11</span></div>
+          <div>├── Reaction <span style="color:#56626F">· 12</span></div>
+          <div>├── Warning <span style="color:#56626F">· 13–18</span></div>
+          <div>├── Certainty <span style="color:#56626F">· 19–21</span></div>
+          <div>├── Marker <span style="color:#56626F">· 22–23</span></div>
+          <div>└── Intel <span style="color:#56626F">· 24 + IntelSource</span></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Ogni icona è un simbolo <span style="color:#E6EDF4">SYM_&lt;Name&gt;_24</span> su artboard 24×24 con area viva 20×20 e guide a 2 px. Le tre varianti ottiche esistono come simboli separati <span style="color:#E6EDF4">SYM_&lt;Name&gt;_16_Optical</span>: SYM_Overwatch_16_Optical, SYM_FriendlyFire_16_Optical, SYM_LastContact_16_Optical.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">REGOLE DI LAVORO</div>
+        <div style="display:grid;gap:12px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">Istanze, non copie.</span> Le anteprime 16/20/24/32/48 sono istanze del simbolo, scalate. Il master è l'unico punto di modifica: nessuna geometria duplicata per una dimensione.</div>
+          <div><span style="color:#E6EDF4">Stroke.</span> 2 px allineati alla griglia intera, giunti a spigolo vivo, terminali tagliati netti. <span style="color:#E6EDF4">Scale with object attivo</span> sulle istanze, altrimenti a 48 px il tratto resta sottile.</div>
+          <div><span style="color:#E6EDF4">Espansione.</span> Il master resta con stroke vivo per l'editing; l'export SVG espande i tratti solo nella copia di consegna, mai nella libreria.</div>
+          <div><span style="color:#E6EDF4">Colore.</span> Tutti i tracciati su un unico colore nominale (foreground); il colore finale lo applica UMG. Nessun colore semantico dentro l'asset.</div>
+          <div><span style="color:#E6EDF4">Vietato nell'asset.</span> Testo, numeri, cooldown, halo, certezza, identità di squadra, selezione, container.</div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">EXPORT</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:10px 14px;display:flex;justify-content:space-between;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>SVG master</span><span style="color:#56626F">24×24 · geometry clean</span></div>
+          <div style="background:#0A0E14;padding:10px 14px;display:flex;justify-content:space-between;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>PNG 16</span><span style="color:#56626F">transparent</span></div>
+          <div style="background:#0A0E14;padding:10px 14px;display:flex;justify-content:space-between;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>PNG 20</span><span style="color:#56626F">transparent</span></div>
+          <div style="background:#0A0E14;padding:10px 14px;display:flex;justify-content:space-between;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>PNG 24</span><span style="color:#56626F">transparent</span></div>
+          <div style="background:#0A0E14;padding:10px 14px;display:flex;justify-content:space-between;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>PNG 32</span><span style="color:#56626F">transparent</span></div>
+          <div style="background:#0A0E14;padding:10px 14px;display:flex;justify-content:space-between;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>PNG 48</span><span style="color:#56626F">transparent</span></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">SVG: nessun testo incorporato, nessun contenuto raster, nessuna trasformazione superflua, un solo gruppo per motivo. PNG a numeri interi senza mezzo pixel. Le tre icone con variante ottica esportano <span style="color:#E6EDF4">il PNG 16 dalla variante</span> e tutti gli altri dal master.</div>
+      </div>
+    </div>
+  </div>
+  <!-- FINAL TABLE -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">09</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Full v0.1 icon production status</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:480px">Naming runtime <span style="color:#8D9BAB">T_UI_Icon_&lt;Category&gt;_&lt;Name&gt;</span>. Semantic ID, asset name e display meaning restano concetti distinti.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 9.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.1em">
+        <div style="padding:11px 8px">#</div><div style="padding:11px 10px">ICON · SEMANTIC ID</div><div style="padding:11px 6px">M_24</div><div style="padding:11px 6px">OPT_16</div><div style="padding:11px 10px">SEMANTIC COLLISION</div><div style="padding:11px 8px">QA</div><div style="padding:11px 10px">ASSET NAME · NOTES</div>
+      </div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">01</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Move</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Dash, Waypoint</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Action_Move · anchor STEP 02</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">02</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Wait</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Cover</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Action_Wait</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">03</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Guard</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Cover</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Action_Guard</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">04</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Overwatch</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px;color:#FFC24A">YES</div><div style="padding:10px 10px">clear vs Attack, Cone AoE</div><div style="padding:10px 8px;color:#FFC24A">OPTICAL PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Action_Overwatch · anchor · nodo a 3 u nella variante</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">05</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Attack</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Overwatch, FF</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Action_Attack</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">06</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Dash</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Move</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Action_Dash</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">07</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Cover</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Guard, Bridge</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Environment_Cover</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">08</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Height</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Move</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Environment_Height</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">09</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Water</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Fire, Electric</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Environment_Water</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">10</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Fire</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Critical, Electric</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Environment_Fire</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">11</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Electric</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Reaction, Water</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Environment_Electric · anchor</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">12</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Reaction</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Electric, Sound arcs</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Reaction_Reaction · anchor</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">13</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Critical</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs InvalidTarget, Wait</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Warning_Critical</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">14</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.FriendlyFire</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px;color:#FFC24A">YES</div><div style="padding:10px 10px">clear vs Collision, Invalid, Enemy, Condition</div><div style="padding:10px 8px;color:#FFC24A">OPTICAL PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Warning_FriendlyFire · ridisegnato in STEP 02b</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">15</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Collision</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs FriendlyFire</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Warning_Collision</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">16</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.InsufficientResource</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Uncertain, Cooldown</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Warning_InsufficientResource</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">17</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.InvalidTarget</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Critical, FF</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Warning_InvalidTarget</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">18</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.UncertainOutcome</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Uncertain (21)</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Warning_UncertainOutcome</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">19</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Confirmed</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Predicted, Uncertain</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Certainty_Confirmed</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">20</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Predicted</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Confirmed, Cooldown</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Certainty_Predicted</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">21</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Uncertain</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs UncertainOutcome, InsuffResource</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Certainty_Uncertain · anchor</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">22</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Waypoint</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Destination</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Marker_Waypoint</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;border-bottom:1px solid #1B2530;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">23</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.Destination</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px">NO</div><div style="padding:10px 10px">clear vs Waypoint, ExternalModifier</div><div style="padding:10px 8px;color:#3FD08A">PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Marker_Destination</div></div>
+      <div style="display:grid;grid-template-columns:34px 1.5fr 62px 74px 1.5fr 92px 2fr;background:#121822;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:10px 8px;color:#56626F">24</div><div style="padding:10px 10px;color:#E6EDF4">Glyph.LastContact</div><div style="padding:10px 6px;color:#3FD08A">✓</div><div style="padding:10px 6px;color:#FFC24A">YES</div><div style="padding:10px 10px">clear vs Enemy reticle</div><div style="padding:10px 8px;color:#FFC24A">OPTICAL PASS</div><div style="padding:10px 10px;color:#56626F">T_UI_Icon_Intel_LastContact · lancetta semplificata nella variante</div></div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:16px 20px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#FFC24A">NEEDS CODE MAPPING.</span> I Semantic ID runtime non sono definiti da nessuna parte nella documentazione esistente: la colonna sopra riporta l'ID di grammatica (Glyph.*) e l'asset name di consegna, non un enum di codice. Serve una tabella lato gameplay che leghi <span style="color:#E6EDF4">Glyph.*</span> all'identificatore reale usato dalle skill, e la stessa cosa vale per la mappatura verso i nomi legacy RT_UI_*.</div>
+  </div>
+
+  <!-- EXIT -->
+  <div style="padding:52px 56px 0">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#3FD08A;letter-spacing:.14em;margin-bottom:16px">ACCEPTANCE CRITERIA</div>
+        <div style="display:grid;gap:9px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#3FD08A">✓</span> 24 / 24 leggibili a 24 px</div>
+          <div><span style="color:#3FD08A">✓</span> 21 riconoscibili a 16 px, 3 con OPTICAL_16</div>
+          <div><span style="color:#3FD08A">✓</span> 24 / 24 sopravvivono al grayscale</div>
+          <div><span style="color:#3FD08A">✓</span> 24 / 24 funzionano light e dark</div>
+          <div><span style="color:#3FD08A">✓</span> nessun significato dipende dal colore</div>
+          <div><span style="color:#3FD08A">✓</span> 12 / 12 coppie di collisione separate</div>
+          <div><span style="color:#3FD08A">✓</span> tutti funzionano nei sei container</div>
+          <div><span style="color:#3FD08A">✓</span> budget 1 core + 3 satelliti rispettato</div>
+          <div style="margin-top:8px;color:#3FD08A">0 semantic collision blockers</div>
+          <div style="color:#3FD08A">0 unreadable glyphs</div>
+          <div style="color:#3FD08A">0 channel allocation violations</div>
+          <div style="color:#3FD08A">0 new grammar introduced</div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#3FD08A;letter-spacing:.14em;margin-bottom:16px">GRAMMAR DEVIATIONS</div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:18px"><span style="color:#3FD08A">Lista vuota.</span> Nessuna primitiva nuova, nessun canale nuovo, nessun namespace nuovo, nessuna regola modificata durante la produzione. Le tre varianti ottiche non sono deviazioni: sono previste dalle regole di costruzione e conservano la metafora.</div>
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#FFC24A;letter-spacing:.14em;margin-bottom:14px">ANNOTAZIONI DI PRODUZIONE</div>
+        <div style="display:grid;gap:11px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">Guard / Cover.</span> La coppia più a rischio del set. Risolta assegnando a Guard la piastra portata dall'unità e a Cover la barriera del mondo in pianta, coerente con la regola curvo/agente contro ortogonale/mondo costruito. Da riverificare in playtest, non da ridisegnare ora.</div>
+          <div><span style="color:#E6EDF4">Certainty 19–21.</span> Sono l'unico caso in cui il ritmo dell'anello è dentro il glifo, perché quei tre glifi <span style="color:#E6EDF4">sono</span> la legenda della certezza. Non violano la regola: non sono stati applicati a un altro significato.</div>
+          <div><span style="color:#E6EDF4">Wedge / disc / cross.</span> Il vocabolario dei pattern resta di cinque forme; smoke e ice non hanno ancora un Glyph.* nel set, quindi la loro icona arriverà con l'espansione, non con la v0.1.</div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#FFC24A;letter-spacing:.14em;margin-bottom:16px">DEFERRED TO POST-v0.1</div>
+        <div style="display:grid;gap:13px;font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">D1</span> Densità 3v3 completa: sei unità, sei anchor, warning multipli sullo stesso settore di schermo.</div>
+          <div><span style="color:#E6EDF4">D2</span> Quattro o più piani alleati sovrapposti, incluse destinazioni e AoE coincidenti: il conteggio delle tacche satura oltre il quarto valore.</div>
+          <div><span style="color:#E6EDF4">D3</span> Grammatica audio avanzata: firma sonora per i livelli di severity e per gli stati di certezza.</div>
+          <div><span style="color:#E6EDF4">D4</span> Verifica finale 22% contro 28% su battlefield UE5 pacchettizzato, con TAA e a 1080p / 1440p.</div>
+          <div><span style="color:#E6EDF4">D5</span> Step glyph opzionale per Slot.Condition: si introduce <span style="color:#E6EDF4">solo se</span> i test futuri lo giustificano.</div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:24px;display:grid;grid-template-columns:1fr 340px;gap:32px;align-items:start">
+      <div style="font:400 12.5px/1.8 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#3FD08A">FULL v0.1 ICON PRODUCTION STATUS · PASS.</span> Ventiquattro glifi, tre con variante ottica, zero blocker di collisione, zero deviazioni dalla grammatica congelata. Le sei icone di riferimento entrano nel set senza modifiche, e le altre diciotto derivano dalle stesse primitive: per questo la separazione fra le coppie critiche non è stata negoziata icona per icona, ma è una conseguenza delle regole. La grammatica ha tenuto sotto la pressione della produzione, che era il vero test di STEP 03.</div>
+      <div style="border:1px solid #35E0C4;padding:16px 18px">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.16em;margin-bottom:10px">PRONTO PER LA CONSEGNA</div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Il set può andare in Affinity con la struttura della sezione 08. La v0.2 non è iniziata e non va iniziata: le cinque voci DEFERRED sono test su build reale, non decisioni di grammatica.</div>
+      </div>
+    </div>
+  </div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>

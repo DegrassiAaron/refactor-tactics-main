@@ -170,6 +170,12 @@ bool FRTScenarioDraftRejectsTest::RunTest(const FString&)
 	//     alla nascita renderebbe impossibile crearne uno. Ma non deve nemmeno essere salvabile.
 	Draft.NewScenario(TEXT("Nuovo.Scenario"), 3);
 	TestTrue(TEXT("uno scenario nuovo risulta aperto"), Draft.IsOpen());
+	// 🔑 **Il raggio passato qui e' una DICHIARAZIONE, anche quando coincide col default.** Il writer omette
+	// `mapRadius` quando il file non lo dichiarava e il valore e' quello di default (`#3118`): senza questo
+	// flag, uno scenario creato ad arena GENERATA — dove il campo e' portante — finirebbe su disco senza
+	// dire la propria forma. Si asserisce sul modello perche' qui il file non esiste ancora.
+	TestTrue(TEXT("il raggio passato a NewScenario risulta dichiarato"),
+		Draft.GetScenario().bHasMapRadius);
 	TestEqual(TEXT("ma non e' ancora valido"), Draft.Validate(Error), ERTScenarioAuthoringResult::Invalid);
 	TestFalse(TEXT("e l'errore nomina cosa manca"), Error.IsEmpty());
 
@@ -591,6 +597,60 @@ bool FRTScenarioStateDiffIsOrderedTest::RunTest(const FString&)
 		TestEqual(TEXT("la comparsa e' in ordine, non in coda"), WithNew[0].UnitId, 1);
 		TestEqual(TEXT("ed e' dichiarata come comparsa"),
 			static_cast<int32>(WithNew[0].Presence), static_cast<int32>(ERTUnitDiffPresence::Appeared));
+	}
+
+	return true;
+}
+
+/**
+ * Un diff fra identita' NON ASSEGNATE o DUPLICATE e' vuoto, non sbagliato — `#3474`.
+ *
+ * `Build` accoppia per `UnitId`, che e' `StableUnitId`: vale `0` finche' `EnsureMatchRoster` non lo assegna, e
+ * le identita' assegnate partono da 1 ([D-063]). Con due `0` nel «prima» una mappa per id terrebbe una sola
+ * delle due unita', e il diff attribuirebbe a una i campi dell'altra: e' peggio di nessun diff, perche' si
+ * legge come una misura. E' successo davvero — l'harness fotografava il «prima» prima del lock-in, e il Lab
+ * taceva su un colpo da 19.
+ *
+ * Il controllo positivo in fondo e' la ragione per cui questo test non e' verde su un `Build` che rende
+ * sempre vuoto: con identita' buone il diff c'e', e porta il campo cambiato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStateDiffRefusesAmbiguousIdentitiesTest,
+	"RefactorTactics.Scenario.StateDiffRefusesAmbiguousIdentities",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStateDiffRefusesAmbiguousIdentitiesTest::RunTest(const FString&)
+{
+	auto Make = [](int32 Id, int32 Hp)
+	{
+		FRTUnitStateDigest D;
+		D.UnitId = Id;
+		D.Health = Hp;
+		return D;
+	};
+
+	// Il caso della seduta: il «prima» senza identita', il «dopo» con quelle del lock-in.
+	TestEqual(TEXT("prima {0, 0}, dopo {1, 2}: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(0, 90), Make(0, 90) }, { Make(1, 90), Make(2, 71) }).Num(), 0);
+
+	// Lo zero DA SOLO, senza ripetizioni: e' la clausola che il caso sopra non fissa, perche' `{0, 0}` cade
+	// gia' sul ramo dei duplicati. Senza questi due, togliere `UnitId <= 0` lascerebbe il test verde e il diff
+	// tornerebbe a dire «sparita» e «comparsa» di un'unita' che non si e' mossa (dalla revisione di #3476).
+	TestEqual(TEXT("prima {0}, dopo {1}: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(0, 90) }, { Make(1, 90) }).Num(), 0);
+	TestEqual(TEXT("prima {1}, dopo {0}: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(1, 90) }, { Make(0, 90) }).Num(), 0);
+
+	// Lo stesso difetto senza lo zero: un id ripetuto non identifica nessuno.
+	TestEqual(TEXT("id duplicato nel «prima»: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(3, 90), Make(3, 80) }, { Make(3, 90) }).Num(), 0);
+	TestEqual(TEXT("id duplicato nel «dopo»: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(3, 90) }, { Make(3, 90), Make(3, 71) }).Num(), 0);
+
+	// Controllo positivo: identita' buone, e il colpo si vede.
+	const TArray<FRTUnitStateDiff> Buono = RTScenarioStateDiff::Build(
+		{ Make(1, 90), Make(2, 90) }, { Make(1, 90), Make(2, 71) });
+	if (TestEqual(TEXT("identita' buone: una voce per unita'"), Buono.Num(), 2))
+	{
+		TestEqual(TEXT("la 2 porta il campo cambiato"), Buono[1].Changes.Num(), 1);
 	}
 
 	return true;

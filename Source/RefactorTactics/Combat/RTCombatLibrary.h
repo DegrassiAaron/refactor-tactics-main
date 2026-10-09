@@ -8,6 +8,11 @@
 // il requisito e' una proprieta' dell'azione (`#2870`). La dipendenza e' la stessa che `RTHexCombatLibrary.h`
 // ha gia' su `Ability/RTActionData.h`, e non introduce cicli — `RTActionDef.h` non risale a Combat.
 #include "Ability/RTActionDef.h"
+// `FRTLineOfSightResult` entra qui perche' `FRTCellTargetRefusal` lo PORTA: il rifiuto di una cella e la
+// geometria che lo spiega nascono dallo stesso click e viaggiano insieme (`#3085`). Nessun ciclo, e per la
+// stessa ragione gia' scritta sopra per `RTActionDef.h`: `RTHexVisionLibrary.h` include soltanto
+// `CoreMinimal`, la libreria Blueprint e `Map/RTCellId.h`, e non risale a `Combat/`.
+#include "Map/RTHexVisionLibrary.h"
 #include "RTCombatLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -101,6 +106,58 @@ enum class ERTTargetRefusal : uint8
 };
 
 /**
+ * TUTTO cio' che si puo' dire a chi gioca della CELLA che ha appena bersagliato — `#3064`.
+ *
+ * 🔑 **Esiste per una ragione di FIRMA, non di comodita'.** Per parlare al giocatore il percorso a cella
+ * deve tradurre `ERTHexTargetReason` in `ERTTargetRefusal`, e l'unica porta che lo faceva —
+ * `RefusalForObserver` — chiede un flag di conoscenza **di un'unita' bersaglio**, che su una cella non
+ * esiste. Passarle un `true` letterale avrebbe funzionato ed era il difetto: una dichiarazione permanente,
+ * scritta in un sito di chiamata, che nessuno impone. Qui il flag non c'e' — non perche' valga `true`, ma
+ * perche' **non esiste un parametro** in cui la conoscenza di un'unita' possa entrare. [D-225]
+ *
+ * ⛔ **Porta l'esito PLAYER-FACING e non la classificazione interna, e l'omissione e' il progetto.**
+ * Restituire anche `ERTHexTargetReason` metterebbe in mano al chiamante due verita' sullo stesso click —
+ * una mostrabile e una no — e questo repository sa gia' quale delle due finisce a schermo per sbaglio. Con
+ * un esito solo, la frase e il log **non possono** divergere: e' cosi' che si chiude il difetto per cui il
+ * log del percorso a cella chiamava «bloccata» anche una cella su un altro piano, cioe' esattamente
+ * l'errore che `ERTHexTargetReason::OtherLayer` esiste per non commettere ([D-393]).
+ *
+ * ⚠️ **Nessun campo dipende da un'unita', e non e' prudenza: e' la firma di chi lo produce.**
+ * `ClassifyHexTargeting` riceve due celle e una mappa e lo dichiara come regola; `EffectiveTargetingRange`
+ * legge il catalogo dei terreni lungo `HexLine`; `DescribeLineOfSight` non ha `UWorld`. ∴ due mondi che
+ * differiscono solo per un nemico ignoto sulla cella bersaglio producono questa struttura identica campo
+ * per campo.
+ */
+USTRUCT(BlueprintType)
+struct FRTCellTargetRefusal
+{
+	GENERATED_BODY()
+
+	/** L'esito mostrabile. `None` = nessun rifiuto, il piano puo' nascere. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	ERTTargetRefusal Refusal = ERTTargetRefusal::None;
+
+	/**
+	 * La portata DAVVERO applicata dal classificatore — quella cappata dal terreno, non quella dichiarata
+	 * dall'azione (`#2766`, `#2800`). Si calcola a ogni esito e non solo su `Range`, per la stessa ragione
+	 * per cui il sito a unita' la calcola sempre: un numero aggiornato a tratti e' il numero del click
+	 * precedente, e a schermo nessuno distingue un dato vecchio da uno giusto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 EffectiveRange = INDEX_NONE;
+
+	/** Dove la traiettoria si ferma (`#3085`): `BlockedAt` e' la cella in cui la linea stava entrando. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	FRTLineOfSightResult Sight;
+
+	/**
+	 * ⛔ **`IsRefused()` e non un confronto con `ERTHexTargetReason::Ok`**, ed e' equivalente per
+	 * costruzione: `Ok` e' l'unico motivo che la tabella manda su `None`, e nessun altro ci arriva.
+	 */
+	bool IsRefused() const { return Refusal != ERTTargetRefusal::None; }
+};
+
+/**
  * Da dove viene il danno ([D-224]). Decide se lo scudo BASE partecipa all'assorbimento: il cuscinetto
  * passivo che ogni unita' porta ferma i colpi, non gli hazard. Lo scudo TEMPORANEO assorbe entrambi —
  * quello e' protezione che qualcuno ha speso un'azione per costruire.
@@ -160,26 +217,43 @@ public:
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
 	/**
-	 * `Action.Guard`: **POOL** di 15 danni assorbibili, che i colpi dell'arco FRONTALE consumano finche'
-	 * dura ([D-292] + [D-206]). Non protegge dagli hazard ambientali gia' presenti — quelli non passano dai
-	 * colpi diretti e arrivano con l'epic E8.
+	 * `Action.Guard`: il **DEFAULT DI CATALOGO** della riduzione per colpo ([D-408] + [D-206]). Non
+	 * protegge dagli hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con
+	 * l'epic E8.
+	 *
+	 * 🔴 **Non e' piu' un POOL, e non e' piu' il valore che il resolver legge.** [D-292] l'aveva reso un
+	 * budget di 15 danni assorbibili per il turno; [D-408] (2026-09-20) ritira il pool e riporta la Guardia
+	 * a una riduzione **per colpo**, il cui valore lo dichiara il **personaggio** —
+	 * `URTHeroData::GuardReduction`, copiato su `ARTUnit::GuardReduction`. Questa costante resta come
+	 * **default** di quel campo, cioe' il numero che vale per chi non ne dichiara uno proprio.
+	 *
+	 * ⚠️ **Il `Deflect` invece resta un pool** ([D-309], che `D-408` **non** ritira): il repository ha due
+	 * modelli difensivi, ed e' una conseguenza dichiarata — una reazione e una postura hanno ragioni
+	 * diverse per avere un tetto. Lo pinna `Combat.DeflectStaysAPool`.
 	 *
 	 * 🔴 **Questo commento diceva «riduce di 15 il PRIMO danno diretto ricevuto» fino al 2026-09-03, e
 	 * D-292 l'aveva superato il 2026-08-31.** La differenza non e' di parole: col vecchio delta la riduzione
 	 * che avanzava si PERDEVA, e quanta se ne perdesse dipendeva da quale colpo fosse arrivato prima — un
 	 * bersaglio colpito da 10 e da 30 incassava 30 o 25 a seconda dell'indice dell'attaccante. Il pool
-	 * consuma sempre lo stesso totale, quindi l'esito e' invariante per permutazione **per costruzione**.
+	 * consumava sempre lo stesso totale; la riduzione per colpo di [D-408] non ha un totale da spartire.
+	 * ∴ **l'invarianza per permutazione regge sotto entrambi i modelli, per ragioni opposte**, ed e' la cosa
+	 * che `D-408` prescrive di conservare (`Combat.GuardReductionIsPermutationInvariant`).
 	 *
 	 * ⚠️ **Il NOME resta `GuardFirstHitReduction`, e non e' una svista.** Rinominarlo tocca i chiamanti ed
 	 * e' un refactor, non una correzione di prosa: finche' il nome vive, questo commento e' l'unico posto
 	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
 	 *
-	 * Il valore lo consuma `URTCombatResolver::ApplyAbsorptionPool`, **non** `ApplyFirstHitDelta` — che
-	 * resta la strada di `Status.Exposed` e `Status.Marked`. ⚠️ *Questa riga diceva «`Status.Exposed` e
+	 * Il valore lo legge `URTCombatResolver::ApplyEligibleHitDelta`, **non** `ApplyAbsorptionPool` e **non**
+	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` e `Status.Marked`.
+	 * ⏱️ *Questa riga diceva `ApplyAbsorptionPool` fino al 2026-09-20, ed era la meta' di commento che
+	 * [D-408] aveva lasciato indietro correggendo l'altra: chi la seguiva per trovare il consumatore
+	 * atterrava sul percorso del `Deflect`. Trovato da una code review — ed e' precisamente la deriva che il
+	 * paragrafo qui sotto descrive.* ⚠️ *Questa riga diceva «`Status.Exposed` e
 	 * `Action.Deflect`», ed era vera quando fu scritta: [D-309] ha reso un pool anche il `Deflect` il giorno
 	 * dopo. E' il modo in cui una deriva si allarga — correggendo meta' di una regola.* Esercitato dal corpus con
-	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del pool: sopra i 15 le due
-	 * regole danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse del cambio (`#1919`).
+	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
+	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
+	 * il 2026-09-20, di [D-408].
 	 */
 	static constexpr int32 GuardFirstHitReduction = 15;
 
@@ -289,16 +363,32 @@ public:
 	 * questa lista: un letterale ripetuto e' un refuso che compila.
 	 *
 	 * ⛔ **`ReactionReductionPoolSource` NON nomina un `ActionId`, ed e' deliberato.** Il pool si costruisce
-	 * da `FRTReactionPassResult::DeflectDelta`, che il dispatcher riempie per QUALUNQUE reazione dichiari
+	 * da `FRTReactionPassResult::ReactionReductionByTarget`, che il dispatcher riempie per QUALUNQUE reazione dichiari
 	 * `ERTActionEffect::DamageReduction` — *«Qui non si guarda mai l'`ActionId`: e' cio' che permette a una
 	 * reazione d'eroe di riusare la semantica di `Action.Deflect` con numeri propri»* (`RTTurnManager.cpp`).
 	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Ivrin.Deflection` un'azione che l'unita' non ha
 	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
 	 *
-	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.
+	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: la sua mitigazione e' gated su
+	 * `TAG_Status_Guarded`. ⏱️ *Da [D-408] non e' piu' un pool — la provenienza corrente e'
+	 * `GuardPerHitSource`, e `GuardPoolSource` resta perche' il `Deflect` e le tracce gia' scritte la
+	 * usano.*
 	 */
 	static const FName GuardPoolSource;
 	static const FName ReactionReductionPoolSource;
+
+	/**
+	 * La provenienza della **riduzione per colpo** della Guardia ([D-408]).
+	 *
+	 * ⚠️ **Accanto a `GuardPoolSource` e non al suo posto, e non e' un residuo.** Dal 2026-09-20 la Guardia
+	 * non e' piu' un pool, ma le tracce gia' scritte lo sono: una voce di TurnLog con
+	 * `D-292 · Status.Guarded` resta leggibile e vera per il turno che la produsse. Cancellare la costante
+	 * renderebbe illeggibile il passato per far posto al presente.
+	 *
+	 * 🔑 **E il `Deflect` resta un pool** ([D-309], che `D-408` **non** ritira): `GuardPoolSource` conserva
+	 * un secondo lettore proprio perche' quel modello sopravvive alla Guardia.
+	 */
+	static const FName GuardPerHitSource;
 
 	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
@@ -314,27 +404,39 @@ public:
 	 * `Action.Deflect` (catalogo v0.1 §4): apre un POOL di 20 danni assorbibili sui colpi diretti del
 	 * boundary che ha fatto scattare la reazione.
 	 *
-	 * Passa da `ApplyAbsorptionPool` come la `Guard` ([D-309], che estende al `Deflect` la forma che
-	 * [D-292] aveva dato alla Guardia): cio' che un colpo non consuma **resta** per i successivi, quindi il
-	 * totale assorbito non dipende da quale colpo arriva per primo. ⚠️ La REAZIONE si attiva una volta sola
+	 * Passa da `ApplyAbsorptionPool`, ed e' rimasto **l'unico** a farlo ([D-309] estese al `Deflect` la
+	 * forma che [D-292] aveva dato alla Guardia; [D-408] l'ha poi tolta alla Guardia e non al `Deflect`):
+	 * cio' che un colpo non consuma **resta** per i successivi, quindi il totale assorbito non dipende da
+	 * quale colpo arriva per primo. ⏱️ *Questa riga diceva «come la `Guard`» fino al 2026-09-20, e
+	 * contraddiceva il paragrafo dieci righe piu' giu' che questa stessa voce aveva aggiornato. Trovato da
+	 * una code review.* ⚠️ La REAZIONE si attiva una volta sola
 	 * — e' quello che la distingue dalla `Guard`, che e' uno stato — ma cio' che l'attivazione produce e' un
 	 * budget per l'intero boundary, non uno sconto sul colpo innescante. ⛔ **Mai attraverso boundary diversi**:
 	 * aggregare colpi di boundary differenti distruggerebbe la simultaneita' che il resolver garantisce.
 	 * Se il danno arriva a zero l'attacco resta comunque un colpo AVVENUTO (il clamp e' sul valore, non sulla
 	 * voce): conta per trigger e marchi, come dice il catalogo.
 	 *
-	 * ⚠️ Quando due pool coprono lo stesso colpo, `Deflect` assorbe PRIMA di `Guard` — [D-312], e non e' un
-	 * dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
+	 * ⚠️ Quando entrambe coprono lo stesso colpo, `Deflect` assorbe PRIMA che `Guard` riduca — [D-312], e non
+	 * e' un dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
+	 * ⏱️ *Erano «due pool» fino al 2026-09-20: [D-408] lascia il pool al solo `Deflect`. L'ORDINE non cambia
+	 * — `D-312` non e' toccata — cambia il secondo dei due meccanismi, e quindi il numero che ne esce
+	 * (`Combat.DeflectAbsorbsBeforeGuardReduces`).*
 	 */
 	static constexpr int32 DeflectDamageReduction = 20;
 
 	/**
 	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
 	 *
-	 * A differenza di `Guard`/`Deflect` NON e' un POOL: quelli hanno un budget che si esaurisce
-	 * ([D-292] e [D-309]), questo e' un delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`,
-	 * nessun gate "una volta sola". E' la differenza che rende `Brace` un'azione diversa da una guardia
-	 * piu' forte: contro molti colpi piccoli la `Brace` non finisce, un pool si'.
+	 * A differenza di `Deflect` NON e' un POOL: quello ha un budget che si esaurisce ([D-309]), questo e' un
+	 * delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`, nessun gate "una volta sola".
+	 *
+	 * 🔴 **E dal 2026-09-20 NON e' piu' una differenza rispetto alla `Guard`, che e' la cosa da sapere qui.**
+	 * Questa riga diceva *«a differenza di `Guard`/`Deflect`… contro molti colpi piccoli la `Brace` non
+	 * finisce, un pool si'»*, e con [D-292] era il mestiere del `Brace`. [D-408] ritira il pool della
+	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (15 contro 10).
+	 * ∴ sull'arco frontale la `Guard` domina, e cio' che resta a separarle e' la **direzione** — la Guardia
+	 * copre il davanti ([D-206]), il `Brace` no ha clausola d'arco. ⚠️ **E' una conseguenza di
+	 * bilanciamento, e `BAL-1` e' aperta**: `docs/decisions/open/bal-1.md` la registra.
 	 * ⚠️ *Questa riga diceva «NON passa da `ApplyFirstHitDelta`», il che implicava che `Guard` e `Deflect`
 	 * ci passassero: non e' piu' vero per nessuno dei due. L'argomento — `Brace` vale su tutti i colpi —
 	 * regge lo stesso, ma il termine di paragone e' cambiato.*
@@ -488,6 +590,18 @@ public:
 		int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
+	 * LA PORTATA, cioe' dove posso mirare — `#3507`. Le celle della mappa entro `RangeCells` da `From`, sul suo piano,
+	 * che `ClassifyHexTargeting` non rifiuta per DISTANZA o per PIANO: e' la classificazione che decide il click, quindi
+	 * l'anteprima non puo' promettere una cella che il click rifiuterebbe perche' troppo lontana.
+	 *
+	 * ⛔ **Non e' la linea di vista**: una cella in portata dietro un muro (`NoLineOfSight`) resta in portata, e il
+	 * click la rifiuta per copertura mostrando dove il tiro si ferma (`#3085`). La vista e' un altro significato.
+	 * Senza mappa e' vuota, come il fail-closed della classificazione. L'ordine e' quello di `URTHexLibrary::HexArea`.
+	 */
+	static TArray<FRTCellId> TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From, int32 RangeCells,
+		ERTLineOfSightPolicy Policy);
+
+	/**
 	 * Come `CanTargetHexCell`, ma dice **perche'**: portata prima, poi linea di tiro. Il chiamante logga il
 	 * motivo esatto invece di attribuire ogni rifiuto alla copertura.
 	 *
@@ -533,6 +647,56 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static ERTTargetRefusal RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver);
+
+	/**
+	 * Il rifiuto di un bersaglio PER CHI GUARDA: `ClassifyHexTargeting` poi `RefusalForObserver`, nello stesso
+	 * ordine del sito del click (#3483, [D-459]).
+	 *
+	 * 🔑 **Esiste per dare un nome alla coppia, non per aggiungere una regola.** La coppia compariva gia' scritta
+	 * a mano nell'anteprima del piano (#172), e [D-459] le aggiunge due lettori — lo stato Warning dello slot
+	 * pianificato e lo stato Invalid dello slot armato all'hover. Tre copie della stessa composizione sono tre
+	 * occasioni di divergere; una funzione sola no.
+	 *
+	 * ⛔ **Il filtro di conoscenza non e' facoltativo**: con `bTargetKnownToObserver` falso l'esito collassa su
+	 * `Nothing` ([D-225]), e i chiamanti di [D-459] trattano `Nothing` come «nessuno stato» — uno slot rosso su
+	 * un'ombra sarebbe un rilevatore di presenze.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static ERTTargetRefusal RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver);
+
+	/**
+	 * IL RIFIUTO DI UN BERSAGLIO A **CELLA**, per intero e senza un soggetto da velare — `#3064`.
+	 *
+	 * 🔴 **Il difetto che chiude.** Il percorso a cella (`ARTPlayerController::HandleTargetCell`) rifiutava
+	 * in `UE_LOG` e basta: a schermo non cambiava nulla, e un click che non produce niente e'
+	 * indistinguibile da un click non registrato. Il percorso a unita' aveva due canali — la frase (`#2741`)
+	 * e il tratto interrotto (`#2742`, `#3085`) — e quello a cella nessuno.
+	 *
+	 * 🔑 **Nessun `bTargetKnownToObserver`, ed e' la differenza col gemello qui sopra.** Il velo filtra la
+	 * conoscenza di un BERSAGLIO; il bersaglio qui e' una cella, che il giocatore ha appena cliccato e che
+	 * il classificatore non ha mai messo in relazione con chi ci sta sopra. Un flag in questa firma sarebbe
+	 * un valore da **inventare**, e un valore inventato e' precisamente cio' che un domani qualcuno cabla
+	 * all'occupante «solo per il log». [D-225]
+	 *
+	 * ⛔ **E non nasca una `RefusalForReason(ERTHexTargetReason)` pubblica.** Sarebbe un ingresso SENZA velo
+	 * alla stessa tabella, e un futuro sito di targeting a unita' che la afferrasse sembrerebbe corretto
+	 * senza esserlo — il «secondo contratto di conoscenza» che `RefusalForObserver` e
+	 * `ARTHUD::ComputeBlockerMarks` dichiarano entrambi di voler evitare. La tabella e' una statica privata
+	 * del `.cpp`: qui e' il compilatore a garantire cio' che una convenzione non garantirebbe.
+	 *
+	 * ⚠️ **`MinRangeCells` non e' fra i parametri, e l'omissione e' dichiarata.** Nessun sito di click lo
+	 * passa — ne' quello a unita' ne' questo — quindi `TooClose` non puo' nascere da un click, e un
+	 * parametro che nessuno passa e' un parametro che nessun test copre. Quando `#2950` arrivera' a un
+	 * ingresso del giocatore, ci arrivera' per entrambi i percorsi insieme.
+	 *
+	 * @param Map      la mappa autorevole. Senza, `Nothing`: fail-closed come `ClassifyHexTargeting`.
+	 * @param From     la cella di chi agisce; `To` la cella bersagliata
+	 * @param Policy   `FRTActionDef::LineOfSightPolicy` dell'azione armata ([D-378])
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FRTCellTargetRefusal DescribeCellTargetRefusal(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
 	 * La coda del log diagnostico di un rifiuto per DISTANZA — `#2766`.

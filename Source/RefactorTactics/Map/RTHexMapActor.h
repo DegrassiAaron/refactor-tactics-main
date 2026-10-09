@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
 #include "Map/RTOverlayArea.h" // FRTOverlayArea: le anteprime sono aree semantiche (#1941)
+#include "Map/RTPlaybackTracer.h" // FRTPlaybackTracer: il tracer in volo, in celle (`#2454`)
 #include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
@@ -107,6 +108,30 @@ enum class ERTRebuildFamily : uint8
 	All          = 0xFF
 };
 ENUM_CLASS_FLAGS(ERTRebuildFamily);
+
+/**
+ * Un colpo a una struttura **gia' risolto**, nella forma in cui il playback lo mostra (`#2828`).
+ *
+ * ⚠️ **Non e' `FRTStructureHit` e non e' `FRTCoverDamageResult`**, benche' descriva lo stesso fatto: le
+ * due vivono nella simulazione e portano cio' che serve a DECIDERE — danno raccolto, integrita' residua,
+ * indice dell'attaccante. Questa porta cio' che serve a DISEGNARE, e nient'altro. Tenerne una terza e' piu'
+ * onesto che far entrare una struct di simulazione in un actor di presentazione.
+ */
+struct FRTPlaybackStructureHit
+{
+	/** La cella che porta la copertura. Con `Toward` identifica il bordo. */
+	FRTCellId Cell;
+
+	/** La cella oltre il bordo colpito. */
+	FRTCellId Toward;
+
+	/** Ricevuto, mai dedotto da un'integrita' a zero: [D-175] distingue la caduta dalla scadenza. */
+	bool bDestroyed = false;
+
+	FRTPlaybackStructureHit() = default;
+	FRTPlaybackStructureHit(const FRTCellId& InCell, const FRTCellId& InToward, bool bInDestroyed)
+		: Cell(InCell), Toward(InToward), bDestroyed(bInDestroyed) {}
+};
 
 UCLASS()
 class REFACTORTACTICS_API ARTHexMapActor : public AActor
@@ -735,6 +760,16 @@ public:
 	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells);
 
 	/**
+	 * Le celle entro la portata dell'azione armata, significato `AbilityRange` (vuoto = nessuna anteprima) — `#3507`.
+	 * Vengono da `URTCombatLibrary::TargetableRangeCells`, la stessa classificazione del click: qui non si ricalcola.
+	 */
+	void SetPreviewRangeCells(const TArray<FRTCellId>& RangeCells);
+
+	/** Cio' che l'anteprima disegnera': il ventaglio e la portata. Servono ai test. */
+	const TArray<FRTCellId>& GetPreviewReachableCells() const { return PreviewReachableArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewRangeCells() const { return PreviewRangeArea.Cells; }
+
+	/**
 	 * Origine e mira dell'attacco pianificato: da DOVE parte il colpo e verso cosa. `bValid = false` spegne
 	 * entrambe.
 	 *
@@ -751,17 +786,32 @@ public:
 		bool bOriginPredicted);
 
 	/**
+	 * L'origine che l'anteprima d'attacco sta mostrando, e se e' accesa. Sola lettura: servono a chi verifica che
+	 * area colpita, click e slot partano dalla stessa cella ([D-464], #3509) anche con un'azione `Single`, la cui
+	 * area non si sposta con l'origine e quindi non la rivela.
+	 */
+	const FRTCellId& GetPreviewAttackOrigin() const { return PreviewAttackOrigin; }
+	bool IsPreviewAttackValid() const { return bPreviewAttackValid; }
+
+	/**
 	 * 🔑 **Posa i GHOST della timeline: uno per fase del piano** — `CP 11.5` ([#172]).
 	 *
 	 * Una timeline **vuota li toglie**, ed e' il caso dell'annullamento: chi spegne l'anteprima chiama questa
 	 * con un `FRTPlanPreview` di default, senza un secondo metodo che faccia la stessa cosa con un altro nome.
 	 *
 	 * ⚠️ **Non disegna: POSA.** Le istanze restano dove sono messe, quindi nessun fotogramma successivo paga
-	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue `DrawDebugLine` a ogni `Tick` e per
-	 * questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
+	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue linee a ogni `Tick` (nel line batcher
+	 * del mondo da `#3508`, prima con `DrawDebugLine`) e per questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
 	 * il bisogno di aggiornare invece che rallentandolo.
 	 */
 	void SetPlanPreview(const FRTPlanPreview& Preview);
+
+	/**
+	 * L'ultima timeline ricevuta, com'era, anche dove i ghost non si posano (un mondo senza componente). Sola
+	 * lettura: serve a chi verifica cosa il controller ha chiesto alla timeline — origine e rifiuto del Blast
+	 * ([D-464], #3509) — senza ricostruirlo dai ghost, che di un rifiuto non portano traccia.
+	 */
+	const FRTPlanPreview& GetPlanPreview() const { return LastPlanPreview; }
 
 	/**
 	 * Quanti ghost sono posati, e su quali celle. Per i test e per la diagnostica.
@@ -791,6 +841,28 @@ public:
 	void SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, const FRTCellId& BlockedAt);
 
 	/**
+	 * L'ORACOLO del tratto rifiutato nel mondo — `#2742`, aperto da `#3064`.
+	 *
+	 * 🔑 **Nascono perche' quel canale non aveva UNA sola asserzione automatica**:
+	 * `grep -rn "SetPreviewSightBlock" Source/RefactorTactics/Tests/` non trovava un solo file, e cio' che
+	 * nessun test legge si rompe in silenzio — che e' come il difetto di `#3064` e' arrivato fin qui. Sono i
+	 * gemelli di `NumPreviewHitCells()` e `IsPreviewHitCell()` e hanno lo stesso contratto: leggono lo stato
+	 * REALE che il disegno consuma, non un contatore parallelo che passerebbe anche sbagliando.
+	 *
+	 * ⛔ **Si interroga `HasPreviewSightBlock()`, non `GetPreviewSightBlockedAt().IsValid()`**: `(0,0,0)`
+	 * soddisfa l'invariante cubica ed e' indistinguibile da «nessun blocco». E' la stessa trappola che il
+	 * campo `bHasPreviewSightBlock` documenta per il disegno, e un test che leggesse l'id marcherebbe
+	 * l'origine dell'arena in ogni mondo in cui non c'e' alcun blocco.
+	 */
+	bool HasPreviewSightBlock() const { return bHasPreviewSightBlock; }
+
+	/** L'origine del tratto correntemente mostrato. Ha senso solo con `HasPreviewSightBlock()` vero. */
+	const FRTCellId& GetPreviewSightFrom() const { return PreviewSightFrom; }
+
+	/** Dove il tratto si ferma. Ha senso solo con `HasPreviewSightBlock()` vero. */
+	const FRTCellId& GetPreviewSightBlockedAt() const { return PreviewSightBlockedAt; }
+
+	/**
 	 * L'impronta a terra di un colpo **gia' risolto**, durante il playback — `#2454`, `D-301`.
 	 *
 	 * 🔑 **Canale distinto da quello di pianificazione, e la distinzione e' di CICLO DI VITA.**
@@ -811,12 +883,66 @@ public:
 	/** Spegne il canale di playback. Lo chiama `FinishPlayback`: nessuna impronta sopravvive al turno. */
 	void ClearPlaybackFootprint();
 
+	/**
+	 * Un colpo a una **struttura** gia' risolto, durante il playback — `#2828`.
+	 *
+	 * 🔑 **Il soggetto e' un BORDO**, e per questo prende due celle invece di una: e' la convenzione che
+	 * il dato ha ai due capi (`FRTStructureHit` la dichiara, il TurnLog la scrive in `SrcCell`/`TgtCell`).
+	 *
+	 * ⛔ **Si copia e basta**, come l'impronta qui sopra. I valori arrivano da `FRTResolvedEvent`, che li
+	 * porta dal resolver: questo actor **non** chiama `FirstCoveredEdge`, **non** chiede alla mappa cosa ci
+	 * fosse su quel lato e **non** converte in `ERTHexDirection` con `EdgeDirection`. Ognuna delle tre
+	 * sarebbe la seconda risposta a una domanda gia' chiusa — invariante #1, e il divieto esplicito di
+	 * `#2828`.
+	 *
+	 * ⚠️ **`bDestroyed` si riceve, non si deduce da un'integrita' a zero.** [D-175] distingue la
+	 * distruzione dalla scadenza e dallo spostamento, e dedurla da un numero rifarebbe quella distinzione
+	 * qui, dove non ha un owner.
+	 *
+	 * ⚠️ **Additivo**, come l'impronta: `un evento -> un segnale`, e due muri colpiti nello stesso Blast
+	 * sono due fatti. ⛔ Nessuna deduplicazione, nemmeno sullo stesso bordo colpito due volte.
+	 */
+	void AddPlaybackStructureHit(const FRTCellId& Cell, const FRTCellId& Toward, bool bDestroyed);
+
+	/** Spegne il canale. Lo chiama `FinishPlayback`, accanto a `ClearPlaybackFootprint`. */
+	void ClearPlaybackStructureHits();
+
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitArea.Cells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitArea.Cells.Num(); }
 	int32 NumPreviewReachableCells() const { return PreviewReachableArea.Cells.Num(); }
 	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
 	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
+
+	/**
+	 * I tracer in volo nel fotogramma corrente (`#2454`). Li consegna `ARTTurnManager` a ogni tick del Blast e li
+	 * SOSTITUISCE in blocco: il volo e' funzione dell'orologio del playback, non uno stato che si accumula.
+	 *
+	 * Separato dall'impronta come quella lo e' dall'anteprima: lo spegne `ClearPlaybackTracers`, chiamato a fine
+	 * Blast e da `FinishPlayback`. ⛔ Nessun filtro qui: la conoscenza l'ha gia' applicata chi consegna.
+	 */
+	void SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers);
+
+	/** Spegne il canale. */
+	void ClearPlaybackTracers();
+
+	int32 NumPlaybackTracers() const { return PlaybackTracers.Num(); }
+	const TArray<FRTPlaybackTracer>& GetPlaybackTracers() const { return PlaybackTracers; }
+
+	/**
+	 * Le cue del profilo FX nel fotogramma corrente (#3578, spec «il profilo FX» §2.4, R10): attivazione, `Marker`,
+	 * `AreaPulse`, `ConeSweep`. Le consegna `ARTTurnManager::PushPlaybackCues` e le SOSTITUISCE in blocco, come i
+	 * tracer: sono funzione dell'orologio. Un canale proprio, separato dal tracer, che resta com'e'.
+	 * ⛔ Nessun filtro qui: la conoscenza l'ha gia' applicata chi consegna.
+	 */
+	void SetPlaybackCues(const TArray<FRTPlaybackCue>& Cues);
+
+	/** Spegne il canale. */
+	void ClearPlaybackCues();
+
+	int32 NumPlaybackCues() const { return PlaybackCues.Num(); }
+	/** L'oracolo headless: QUALE cue, su QUALE cella (spec §2.5 — il gate D-278 non vede una cue mai chiamata). */
+	const TArray<FRTPlaybackCue>& GetPlaybackCues() const { return PlaybackCues; }
 
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitArea.Cells.Contains(Cell); }
@@ -826,6 +952,16 @@ public:
 	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachableArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' nell'impronta di playback corrente (test). */
 	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
+
+	/**
+	 * I colpi a struttura correntemente mostrati — oracolo headless di `#2828`.
+	 *
+	 * 🔑 **Restituisce la lista e non un conteggio**, perche' la domanda che il gate deve poter fare e'
+	 * *«quello che e' arrivato qui e' ESATTAMENTE quello che l'evento portava?»*. Con un `Num()` il test
+	 * proverebbe che qualcosa e' arrivato, non **che cosa** — e un consumo che ricalcolasse il bordo
+	 * resterebbe verde.
+	 */
+	const TArray<FRTPlaybackStructureHit>& GetPlaybackStructureHits() const { return PlaybackStructureHits; }
 
 	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
 	FRTCellId GetHoveredCell() const { return HoveredCell; }
@@ -934,6 +1070,8 @@ protected:
 	/** Sottoinsieme di `PreviewHitArea` occupato da alleati: fuoco amico. */
 	FRTOverlayArea PreviewAllyHitArea;
 	FRTOverlayArea PreviewReachableArea;
+	/** La portata dell'azione armata (`#3507`): in targeting prende il posto di `PreviewReachableArea`. */
+	FRTOverlayArea PreviewRangeArea;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
 	/**
@@ -967,6 +1105,18 @@ protected:
 	 * cambia e' chi la spegne.
 	 */
 	TArray<FRTCellId> PlaybackFootprintCells;
+
+	/** I tracer del fotogramma corrente: vedi `SetPlaybackTracers`. */
+	TArray<FRTPlaybackTracer> PlaybackTracers;
+
+	/** #3578: le cue del profilo FX consegnate dal playback. */
+	TArray<FRTPlaybackCue> PlaybackCues;
+
+	/**
+	 * I colpi a struttura mostrati durante il playback (`#2828`). Stesso ciclo di vita dell'impronta: nasce
+	 * col playback, muore a `FinishPlayback`.
+	 */
+	TArray<FRTPlaybackStructureHit> PlaybackStructureHits;
 
 	FRTCellId PreviewAttackOrigin;
 	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */
@@ -1366,6 +1516,9 @@ protected:
 
 	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
 	TArray<FRTCellId> PlanGhostCells;
+
+	/** La timeline ricevuta da `SetPlanPreview`. Vedi `GetPlanPreview`. */
+	FRTPlanPreview LastPlanPreview;
 
 	/** Il colore che rende un livello di certezza. Vedi `SetPlanPreview`. */
 	static FLinearColor GhostColorForCertainty(ERTIntentCertainty Certainty);

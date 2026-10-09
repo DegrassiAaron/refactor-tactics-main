@@ -129,6 +129,27 @@ struct FRTAnimRoleClips
 };
 
 /**
+ * Le clip di UN'azione, per ruolo di presentazione (#3563, spec «la clip per abilita'» §2.1).
+ *
+ * 🔴 **Esiste per lo stesso vincolo di `FRTHeroPresentationClips`**: UHT non ammette contenitori ANNIDATI come
+ * `UPROPERTY`, e `TMap<FName, TMap<ERTPresentationRole, ...>>` non compila.
+ *
+ * ⚠️ **Un pool DISTINTO da quello di ruolo**, e «una sola attiva» vale per pool: una clip di ruolo e una d'azione
+ * attive per lo stesso `(eroe, ruolo)` convivono, e a risolvere vince l'azione (`ActiveClipFor` a quattro
+ * argomenti). L'alternativa — un secondo `ActiveClipVariant` per azione dentro il pool di ruolo — mescolava le
+ * varianti dei due livelli e rendeva «una sola attiva» ambiguo (spec §2.1, alternativa scartata).
+ */
+USTRUCT(BlueprintType)
+struct FRTActionPresentationClips
+{
+	GENERATED_BODY()
+
+	/** Solo i ruoli che qualcuno ha popolato. In v0.1 li consultano solo `Cast` e `Attack` (spec D3). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	TMap<ERTPresentationRole, FRTAnimRoleClips> PerRole;
+};
+
+/**
  * I ruoli di UN eroe.
  *
  * 🔴 **Questa struct esiste per un vincolo del motore, non per stile: UHT non supporta i contenitori
@@ -144,6 +165,16 @@ struct FRTHeroPresentationClips
 	/** Solo i ruoli che qualcuno ha popolato. Un ruolo assente non e' un errore: e' un ruolo assente. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	TMap<ERTPresentationRole, FRTAnimRoleClips> PerRole;
+
+	/**
+	 * Clip per `(ActionId, ruolo)` (#3563). Chiave: l'`ActionId` dell'evento — un profilo `Hero.X.Y` o una generica
+	 * `Action.Z` — mai derivato a valle (`RTResolvedEvent.h:393-397`).
+	 *
+	 * ⚠️ Un'azione assente, un ruolo assente o una variante non attiva sono tutti «non popolato», e la risoluzione
+	 * passa al livello successivo: e' `ActiveClipFor` a quattro argomenti a saperlo, non chi chiama.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	TMap<FName, FRTActionPresentationClips> PerAction;
 
 	/** Le varianti del ruolo, o `nullptr` se nessuno l'ha popolato. */
 	REFACTORTACTICS_API const FRTAnimRoleClips* FindRole(ERTPresentationRole Role) const;
@@ -196,9 +227,42 @@ public:
 	 */
 	TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresentationRole Role) const;
 
+	/**
+	 * La clip attiva di `Role` per `HeroId` quando il beat conosce l'AZIONE (#3563, spec D2): `PerAction[ActionId]`,
+	 * poi `PerAction[BaseActionId]`, poi `PerRole` — l'overload a due argomenti qui sopra.
+	 *
+	 * 🔴 **Ogni livello «non popolato» passa al successivo**: azione assente, ruolo assente dalla voce dell'azione,
+	 * nessuna variante attiva. Una voce d'azione che ha `Cast` ma non `Attack` NON ferma un `Attack`.
+	 * ⛔ **`BaseActionId` vuoto salta il proprio livello**: non si deriva dal profilo (`Ruling` di §2.2).
+	 */
+	TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
+		const FName& ActionId, const FName& BaseActionId) const;
+
 protected:
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
 };
+
+/**
+ * Se `Clip` SUONA come additiva: un delta che lo slot somma alla posa corrente, non una posa intera (#3590).
+ *
+ * 🔑 **Decide il test dell'engine, `IsValidAdditive()`, e non il tipo autorato.** `UAnimSequence` tratta la sequenza
+ * come additiva solo quando e' valida (`AnimSequence.cpp`, `bTreatAnimAsAdditive`), e lo slot decide allo stesso modo
+ * per il montaggio. Un `AdditiveAnimType` senza una posa di riferimento valida suona come posa PIENA: rifiutarla
+ * toglierebbe una clip che si vede. `nullptr` non e' additiva: e' un'altra domanda, e la fa chi chiama.
+ */
+REFACTORTACTICS_API bool RTClipIsAdditive(const UAnimSequenceBase* Clip);
+
+/**
+ * Se il ruolo e' un GESTO che deve SOSTITUIRE la posa: `Cast` e `Attack`, i due beat che conoscono l'azione (D3) (#3590).
+ *
+ * 🔴 **Su un gesto un'additiva non si legge.** Lo slot la somma all'`Idle`: le clip d'azione di Aevik
+ * (`LMB_Fire_*`, `Ability_Q_Target`, `Throw_Ready`) sono il rinculo e la mira di un personaggio gia' in posa di tiro,
+ * e sull'`Idle` la posa non cambiava (seduta `U70`), mentre tracer e numeri arrivavano.
+ * ⛔ **`Hit` NO, ed e' misurato a schermo**: la hit-react e' un sussulto autorato additivo in tutti e quattro i pack,
+ * pensato per sommarsi alla posa corrente, e la seduta `U8` (`PIE-AS4b`, 2026-09-28) l'ha vista sui quattro eroi.
+ * `Death`, `Idle` e `Move` restano fuori: nessuna misura dice che un'additiva li' sia invisibile.
+ */
+REFACTORTACTICS_API bool RTRoleWantsAFullBodyClip(ERTPresentationRole Role);
 
 /**
  * Il grafo vero e proprio: due sequence player, un blend fra loro, uno slot per i montaggi.

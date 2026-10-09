@@ -190,7 +190,112 @@ I simboli: `FRTGeometrySegment` (l'authority), `ERTTacticalAxis`, `ERTGeometryVi
 `URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/RTGeometryGrammar.h`. Lo stato di avanzamento
 vive nel `feature-registry.yaml` e nelle issue, non qui — §1.
 
+#### 3.3.1 I due strati, applicati: una scala collega solo layer adiacenti — `#1869`, `MAP-5`
+
+La regola di verticalità della `v0.1` è la prima istanza completa dei due strati fuori dalla grammatica dei
+segmenti, e si legge come esempio di come si scrive una regola **destinata a cambiare**.
+
+| Strato | Dove | Cosa fa |
+|---|---|---|
+| **Rifiuta** | `URTHexArchTool::CommitArch` | il gesto non scrive l'arco, e il log nomina i **due layer** e il salto — non *«non valido»* |
+| **Segnala** | `URTHexMapAsset::ValidateMapDetailed`, reason code `ERTMapValidationReason::StairSkipsLayer` | una `L0 ↔ L2` già presente — asset di versione precedente, o dato ricostruito — è dichiarata e **non blocca il caricamento** |
+
+Il predicato è **uno solo**, `URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind)`: puro, senza
+mappa, chiamato da entrambi. Due stesure della stessa soglia divergerebbero, e divergerebbero in silenzio.
+
+> 🔴 **È illegale il *salto*, non la coincidenza.** La issue scrive la regola come `|ΔLayer| == 1`, che
+> vieterebbe anche lo span **zero**. Ma `FRTHexEdge::Kind` vale `Stair` per **default**: ogni transizione
+> scritta senza scegliere un tipo *è* una scala, comprese quelle sullo stesso piano. Misurato —
+> `RefactorTactics.Map.Dependency.CellTakesTransitionsCitingIt` costruisce tre archi tutti su `L0` e
+> asserisce zero segnalazioni. ∴ la soglia implementata è `>= 2`, che è ciò che ogni frase in prosa della
+> issue descrive (*«nessuna regola vieta `L0 ↔ L2`»*, *«scala che salta un layer»*).
+
+⚠️ **La regola vincola `Stair` e nessun altro `Kind`**: `Ramp`, `Bridge`, `Tunnel`, `Elevator` e `Jump`
+attraversano qualunque numero di piani. È lo scope della `v0.1`, dichiarato e non dimenticato — ma l'uscita
+anticipata li assorbe in **silenzio**, ed è il motivo per cui la scadenza non è un commento.
+
+> 🔑 **Come si scrive la scadenza di una regola, in questo repository.** Un commento che nomina un evento
+> futuro è *«un `if` senza data»* con più parole: nessun gate lo rilegge, e nessuno lo trova il giorno in cui
+> serve. La forma che regge ha **due** pezzi:
+>
+> 1. la **domanda aperta** nel registro — `MAP-5` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con
+>    innesco *«la prima issue che autora un `Ramp` o un `Elevator` su più di un piano»*;
+> 2. un **innesco meccanico** che non può invecchiare in silenzio — `RefactorTactics.HexMap.StairLayerAdjacencyRule`
+>    pinna la grammatica di `ERTHexTransitionKind` **per nome** e diventa rosso al settimo valore, mandando a
+>    decidere `MAP-5` invece di lasciar estendere per abitudine. È la forma di `Equipment.SplitHasNoConsumerYet`.
+
+⚠️ **E questa è la prima regola che appoggia una validazione su `ERTHexTransitionKind`**, che `RTHexCellData.h`
+documenta come *«informativo: non altera il pathfinding, che usa solo `Cost`»*. Quel campo acquista qui il suo
+primo carico semantico: chi lo legge come decorativo troverà un valore che rifiuta gesti.
+
 ---
+
+#### 3.3.2 Le regioni No-Walk si validano in **aritmetica intera esatta** — `#1868`
+
+Una regione `FRTNoWalkArea` è un anello di `FRTAnchorRef`. Le sue due regole geometriche —
+**degenere** e **auto-intersecante** — non hanno tolleranza, e la ragione è un fatto misurato del
+reticolo, non una scelta di stile.
+
+🔑 **I tredici anchor di ogni cella cadono su punti interi.** In pointy-top le due basi non si mescolano
+— la `X` porta sempre il `√3`, la `Y` non lo porta mai — quindi ogni anchor sta in
+
+```
+( M · HexSize·√3/4 ,  N · HexSize/4 )      con M, N interi
+M = 4q + 2r + dm     N = 6r + dn
+```
+
+e i tredici offset `(dm, dn)` sono `C:(0,0)` · `V₀…V₅: (+2,−2) (+2,+2) (0,+4) (−2,+2) (−2,−2) (0,−4)` ·
+`E₀…E₅: (+2,0) (+1,+3) (−1,+3) (−2,0) (−1,−3) (+1,−3)`.
+
+⇒ area, orientamento e intersezione sono **prodotti di interi**. Misurato il 2026-09-25: il residuo
+dall'intero non supera `8,9·10⁻¹⁶`, la formula del centro è esatta anche a `(50000, −30000)`, la parità
+di `M + N` è invariante, e il minimo `|cross|` non nullo vale esattamente **2** — cioè un'area reale di
+`HexSize²·√3/16`. **Non c'è nessuna zona grigia da tarare.**
+
+⚠️ **Il conto è in `int64`**: `M` e `N` stanno in `int32`, il loro prodotto vettoriale no.
+
+##### «Vertici coincidenti» non è `operator==`
+
+🔴 Un vertice ha fino a **tre** nomi e un punto medio **due** ([`D-288`](../../decisions/RT_PDR_00_Decision_Log.md),
+`GEO-5`): la coincidenza fra anchor è una **relazione**, non un campo. Un anello i cui `FRTAnchorRef` sono
+tutti distinti può quindi avere due vertici nello stesso punto — e la regione che ne nasce non chiude
+nulla, in silenzio. La regola la decide `URTGeometryGrammarLibrary::AnchorPoint`.
+
+➕ La stessa domanda ha già una risposta **combinatoria**, `CanonicalAnchor`
+([`#1893`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1893)). Le due non sono
+unificate — servono a cose diverse: quella dà un rappresentante, questa dà le coordinate — ma il loro
+accordo è **asserito**, non sperato: `RefactorTactics.Anchor.LatticeAndCanonicalAgreeOnSamePoint` le
+confronta su ogni coppia di un intorno.
+
+##### Il bordo appartiene alla regione, ed è una convenzione **dichiarata**
+
+🔴 **La sua assenza era un difetto misurabile, non un dettaglio.** Il ray casting in `FVector2D` non ha una
+regola per un punto esattamente sul bordo, e il suo confronto non è simmetrico nello scambio dei due
+estremi del lato: **invertire il verso dell'anello cambiava quali celle la regione chiude**. E i punti sul
+bordo sono l'idioma normale — un autore traccia il confine lungo una fila di celle, e i centri di cella ci
+finiscono sopra per costruzione.
+
+⛔ Il difetto non si fermava all'editor: `AreaCoversCell` → `WhyNotStandable` → `DeriveStandability` scrive
+`bBlocksMovement`, che entra in `ComputeHash`. **Due mappe identiche disegnate in versi opposti avevano
+hash diversi** — l'invariante di determinismo, rotta da un arrotondamento.
+
+⇒ il bordo **appartiene** alla regione, e la scelta è quella che rende la regola utile: chi traccia il
+confine lungo una fila di celle intende includerle.
+
+##### Le sei validazioni della issue sono **due**, e le altre quattro hanno un perché
+
+| regola | esito | perché |
+|---|---|---|
+| auto-intersecante | ✅ `NoWalkAreaSelfIntersecting` | cambia quali celle la regione chiude: in un anello a otto il lobo interno **si cancella** |
+| degenere | ✅ `NoWalkAreaDegenerate` | area nulla o due vertici coincidenti: non chiude nulla |
+| poligono non chiuso | ❌ non rappresentabile | `FRTNoWalkArea` è un anello a **chiusura implicita**: non esiste uno stato «non chiuso» da rifiutare, e renderlo esprimibile chiederebbe un campo nuovo e un altro bump di formato |
+| sovrapposizione illegale | ❌ fuori da `v0.1` | [`D-439`](../../decisions/RT_PDR_00_Decision_Log.md): le sovrapposizioni **sono legali** |
+| traversata contraddittoria | ❌ senza stato proprio | `URTHexPathLibrary::GraphNeighbors` rifiuta già l'arco la cui destinazione è `bBlocksMovement`: il grafo ha risolto a favore della regione, e il dato è inerte |
+| layer non valido | ⚠️ ambigua | `Layer < 0` è già `ERTGeometryViolation::InvalidLayer`, mentre «layer inesistente» litiga con la griglia di lavoro di [#622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/622), che permette di disegnare dove le celle non ci sono ancora |
+
+⚠️ **Il `Layer` dei vertici non è consultato**: la copertura confronta `FRTNoWalkArea::Layer` con quello
+della cella, e i vertici portano un `FRTCellId` il cui `Layer` nessuno legge. È una terza lettura di
+«layer non valido» che nessuna delle due definizioni sopra copre, e resta aperta.
 
 ### 3.4 Le regole che riguardano **due** segmenti — `D-288`
 
@@ -666,6 +771,14 @@ fuori dalla cella cancellata.
 
 ⚠️ Gli indici restituiti valgono finché l'asset non cambia, e si consumano **dal più alto al più basso**.
 
+🔴 **La regola esiste, ed è applicata da UNA sola delle due vie che cancellano una cella**
+([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), aperta il 2026-09-24).
+`URTMapEditLibrary::DeleteElement` chiede la cascata prima di rimuovere; `URTHexMapAsset::RemoveCell` no —
+toglie la cella e basta — e ci arriva `EraseCellInStroke`, cioè il **pennello in `Erase`**, che per giunta
+cancella in *area*. Finché quella issue è aperta, questa sezione descrive la regola **e** il gesto che non la
+chiama: dichiararlo qui è ciò che impedisce di leggere la tabella qui sopra come una garanzia dell'asset,
+quando è una garanzia di una funzione.
+
 Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
 che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.
 
@@ -707,6 +820,27 @@ RefusedWouldCloseEdge  chiuderebbe un bordo: allora e' una COPERTURA
 RefusedDuplicate       muro identico gia' presente
 ```
 
+🔴 **`RefusedWouldCloseEdge` si chiede a `EdgesTouchedBy`, e su un diametro `lato → lato` questo NON
+concorda con la cottura** ([#3326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3326),
+aperta il 2026-09-24). `#2085` ha stabilito che `Offset == 0` — «passa per il centro» — è una proprietà della
+**giacitura** e non l'esito di una domanda sui bordi, ma ha applicato la regola a **una** delle sue tre sedi:
+
+| sede | come decide | diametro `lato → lato` |
+|---|---|---|
+| `Bake` | `Offset == 0`, poi `EdgesTouchedBy` | **muro interno**, lo scrive in `InteriorWalls` |
+| `ValidateMap` regola 4 | solo `EdgesTouchedBy` | **`Error:` «chiude 2 bordi: è una copertura»** |
+| ghost del tool Geometry | solo `EdgesTouchedBy` | **argento** (= copertura) |
+
+⛔ **Il move resta allineato a `ValidateMap`, e non al bake.** Allinearlo alla cottura è stato tentato e
+**ritirato**: avrebbe fatto passare un segmento che il validatore dichiara *errore*, cioè *«scriverlo e
+lasciar protestare il validator»*, che è precisamente il modo vietato dalle tre righe qui sopra. Fra due
+autorità che divergono, un gesto d'authoring sceglie quella che decide se l'asset è valido — e la divergenza
+si chiude con una decisione, non scegliendone una di nascosto.
+
+⚠️ **Gli assi DISPARI non lo mostrano**: `Deg30`, `Deg90`, `Deg150` puntano ai **vertici**, che `MSE-4`
+esclude, quindi lì le tre sedi concordano. È la ragione per cui il difetto è sopravvissuto — i test di
+cottura e di move usano prevalentemente diametri vertice-vertice.
+
 Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
 quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
 
@@ -715,6 +849,40 @@ quindi ogni muro disegnato prima di v12 è anonimo. L'handle porta allora la chi
 per una regola che `ValidateMap` già applica. Il nome, quando c'è, **vince**: è l'unico che sopravvive al
 move. ⛔ Un nome che non risolve **non** ricade sulla chiave: chi ha chiesto quella struttura vuole quella, e
 restituirne un'altra perché sta nello stesso posto sarebbe un errore silenzioso.
+
+#### 13.2.1 La cottura segue l'operazione, e si ferma alle celle che ha toccato
+
+🔑 **Un'operazione che cambia l'insieme dei muri interni di una cella deve riderivarne la
+calpestabilità**, perché `bBlocksMovement` generato è funzione di quei muri (`DeriveStandability`). Senza,
+un gesto solo lascia due stati che `ValidateMap` segnala, e uno è un **errore**:
+
+| dove | cosa resta | regola |
+|---|---|---|
+| cella d'**origine** | perde un muro, ma `bMovementBlockGenerated` resta acceso | REGOLA 4 `StaleGeneratedBlock` (warning) |
+| cella d'**arrivo** | guadagna un muro, ma `bBlocksMovement` resta spento | REGOLA 1 `NoLegalPlacement` (**errore**) |
+
+⛔ **`BakeCell` non è lo strumento, e usarla sarebbe distruttivo.** Il suo contratto è di *rebake* — «questi
+segmenti sono lo stato generato completo della cella» — e per onorarlo comincia buttando via **tutte** le
+coperture generate e **tutti** i muri interni della cella. Chi le passasse i soli `InteriorWalls`, gli unici
+che un'operazione di authoring ha sottomano, le farebbe cancellare le coperture cotte dal disegno, che
+derivano da segmenti che chiudono bordi e che in `InteriorWalls` per invariante non ci sono.
+
+`URTGeometryBakeLibrary::RederiveStandability` è quindi la **coda** di `BakeCell` senza il suo corpo: rifà il
+volume di una cella e non tocca né coperture né muri. La chiamano `MoveInteriorWall` — su **due** celle
+quando il muro cambia cella, perché *«la sola cella interessata»* esclude una passata sull'intera mappa, non
+la cella che il muro lascia — e il ramo `InteriorWall` di `DeleteElement`, dove il difetto era simmetrico.
+
+⚠️ **Il ramo `Cell` non ricuoce, e non è una dimenticanza**: la cascata gli porta via i muri *di quella
+cella*, che sparisce con essi. Non c'è un bersaglio da riderivare.
+
+🔑 **L'autore vince anche qui.** Un `bBlocksMovement` dipinto a mano (`bMovementBlockGenerated == false`) non
+viene toccato: è la regola che `DeriveStandability` già applica e che REGOLA 4 rispetta non segnalandola.
+Una ricottura agganciata al gesto che la contraddicesse cancellerebbe una scelta di design mentre l'autore ne
+sposta un'altra.
+
+Verifica: `RefactorTactics.Map.Edit.*` — le due metà della ricottura:
+`MoveRebakesOnlyTheCellsItTouched`, con un **testimone** stantio su una cella che il move non tocca e che
+deve **sopravvivere**, e `TheRebakeAfterAMoveLeavesAnAuthoredBlockAlone`, che è il confine.
 
 ### 13.3 Che cosa c'è sotto un punto, e il ciclo di selezione
 
@@ -739,10 +907,16 @@ e non giace su un bordo, quindi «cosa c'è sotto questo bordo» non lo raggiung
 viewport, e appartiene al tool.
 
 🔴 **La selezione vive fuori dai `UInteractiveToolPropertySet`**, ed è il punto: [#921](https://github.com/DegrassiAaron/refactor-tactics-main/issues/921)
-ha misurato il difetto opposto — `bShowOverlay` vive in due property set distinti, quindi accenderlo in
-Select non lo accende in Paint e cambiando strumento si perde. **Uno stato che deve sopravvivere al cambio di
-tool non può stare dentro il tool.** Un `UEditorSubsystem` sopravvive ai tool e al mode, non è un Actor, e
-non tocca l'asset: la selezione è stato d'editor puro e non si serializza.
+aveva misurato il difetto opposto — `bShowOverlay` **viveva** in due property set distinti, quindi
+accenderlo in Select non lo accendeva in Paint e cambiando strumento si perdeva. **Uno stato che deve
+sopravvivere al cambio di tool non può stare dentro il tool.** Un `UEditorSubsystem` sopravvive ai tool e al
+mode, non è un Actor, e non tocca l'asset: la selezione è stato d'editor puro e non si serializza.
+
+⏱️ **Al passato perché #921 è chiusa**, e le due classi hanno scelto **due sedi diverse** per la stessa
+ragione: la selezione sta in un `UEditorSubsystem`, l'overlay in `URTHexEditorModeSettings` dichiarato come
+`UEdMode::SettingsClass` e pubblicato nel context store. A separarle è la **persistenza**: una selezione non
+va conservata fra sessioni, un'impostazione di vista sì — ed è per questo che il flag dell'overlay è
+`config` e la selezione no.
 
 Verifica: `RefactorTactics.Editor.Selection.*` — il ciclo che ricomincia, il reset cliccando altrove, e
 l'aggiunta che accumula senza duplicati.

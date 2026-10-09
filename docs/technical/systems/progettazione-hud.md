@@ -293,7 +293,13 @@ Il roster non deve trasformarsi in tre enormi character card.
 > ⛔ **In sessione presidiata non cambia nulla**: la seconda lista è vuota per costruzione, non per una
 > guardia scritta a parte.
 
-## 6.3 Top right — Objective
+## 6.3 Objective — senza una cella propria
+
+> ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md): `TopRight` ospita `CONFIRM PLAN` ·
+> `UNDO`** (§6.8), che lasciano la fascia bassa alla barra dei comandi. L'Objective perde la cella che questa
+> sezione gli assegnava sulla carta. Era vuota, e il punteggio vive già in `WBP_RT_TurnHeader`, in `TopCenter`.
+> ⛔ **Dove vada il resto di questa lista non è deciso**: è un seguito di
+> [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 
 Compatto ma sempre leggibile.
 
@@ -352,7 +358,12 @@ che dice il TurnLog invece di una cosa simile. È la metà della riga di DoD di 
 progresso «nell'HUD **e** nel TurnLog»: fino a `#75` solo la seconda era vera, e `GetTeamScore` aveva per
 lettori lo Scenario Harness e l'hash di stato, nessun widget.
 
-## 6.4 Lower left — Selected Unit
+## 6.4 Middle left — Selected Unit
+
+> ⌫ *Fino al 2026-10-04 il titolo diceva «Lower left».* Il pannello vive in `MiddleLeft` dal rimontaggio a
+> otto zone del 2026-09-12 ([`guida-screen-hud-umg.md`](../runbooks/guida-screen-hud-umg.md) §3), e con
+> [D-456](../../decisions/RT_PDR_00_Decision_Log.md) la cella in basso a sinistra non esiste più: è parte della
+> fascia della barra dei comandi (§6.7).
 
 Per l'unità selezionata:
 
@@ -384,7 +395,12 @@ Per un alleato può mostrare:
 
 Il dettaglio completo compare solo su hover, click o focus.
 
-## 6.6 Bottom center — Ghost Timeline
+## 6.6 Top center — Ghost Timeline
+
+> ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 5: la timeline sale in `TopCenter`**,
+> accanto a turno, fase e timer che `WBP_RT_TurnHeader` mostra già. ⌫ *Fino a quel giorno questa sezione la
+> collocava in basso al centro, accanto all'Action Dock.* La fascia bassa è ora della barra dei comandi (§6.7).
+> Owner: [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172).
 
 La timeline canonica è:
 
@@ -396,7 +412,24 @@ Non deve mai sembrare:
 
 `Attack → Move → Attack → Dash`
 
-## 6.7 Bottom center — Action Dock
+## 6.7 Bottom — Action Dock, su tutta la fascia
+
+> ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md): la barra dei comandi occupa TUTTA la fascia
+> bassa**, `(0.0, 0.8) → (1.0, 1.0)`. Le celle `BottomLeft`, `BottomCenter` e `BottomRight` diventano una zona
+> sola, `ERTHudZone::Bottom` ([#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469)).
+> Da sinistra a destra:
+>
+> - i **gruppi di lettura** Comuni · Base · Kit, letti dal campo `Group` della vista
+>   ([D-455](../../decisions/RT_PDR_00_Decision_Log.md), [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468))
+>   e mai dedotti dalla posizione;
+> - all'**estremità destra**, una **lettura** del profilo di movimento che il piano ha, da
+>   `FRTUnitSlotsView::MovementProfileId`, col badge del tasto `M` di `Sneak`
+>   ([#3470](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3470)).
+>
+> ⛔ Non è un selettore: il profilo si deriva dalla distanza ([D-425](../../decisions/RT_PDR_00_Decision_Log.md)).
+> `CONFIRM PLAN` · `UNDO` salgono in `TopRight` (§6.8) e la Ghost Timeline in `TopCenter` (§6.6). La riga
+> d'intestazione del mockup del 2026-10-04 non si costruisce: non entra nell'altezza della fascia senza
+> scendere nel centro.
 
 > ⚠️ **2026-08-12 — [D-025](../../decisions/RT_PDR_00_Decision_Log.md): le generiche sono sette, non quattro.**
 > Questa sezione ne elencava `Move · Wait · Guard · Overwatch` e ometteva `BasicAttack`, `Brace` e
@@ -417,7 +450,16 @@ Non deve mai sembrare:
 >   nel kit. Il selettore di profilo è [#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410),
 >   che dipende da [#653](https://github.com/DegrassiAaron/refactor-tactics-main/issues/653) per l'entità.
 >
-> ⛔ Nessun pulsante di movimento nella dock prima di quelle due. 🔑 E l'ordine che `GetActions()` produce è
+> ⛔ Nessun pulsante di movimento nella dock prima di quelle due.
+>
+> ⏱️ **Rimisurato il 2026-10-04: #1410 e #653 sono chiuse, e la premessa del divieto è cambiata.**
+> [D-425](../../decisions/RT_PDR_00_Decision_Log.md) ha sostituito il selettore con un profilo **derivato**:
+> `Withdraw` lo impone la riserva, `Sneak` si dichiara col tasto `M`, `Move` e `Sprint` sono la banda della
+> distanza. Quindi il movimento entra nella dock come **lettura**, non come pulsante
+> ([D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 3). Il divieto di un secondo canale verso `Move`
+> resta intero.
+>
+> 🔑 E l'ordine che `GetActions()` produce è
 > **identità**, non layout: `PlannedAbilityIndex` è un indice in quella lista, e il widget non deve mai
 > dedurre un indice dalla propria posizione — lo riceve in `FRTAbilityCooldownView::AbilityIndex`.
 >
@@ -440,13 +482,18 @@ Le **sette** generiche di D-025, leggibili in quattro corsie:
 
 Le corsie sono un aiuto alla lettura, non quattro economie d'azione.
 
+> ⏱️ **2026-10-04 — la barra legge per GRUPPO, non per corsia.** I gruppi Comuni · Base · Kit di
+> [D-455](../../decisions/RT_PDR_00_Decision_Log.md) arrivano con un campo, `FRTAbilityCooldownView::Group`.
+> Le quattro corsie di questa tabella restano una classificazione delle sole generiche, e nessun campo le porta.
+
 Due avvertenze che il layout non deve tradire:
 
 - **`Sprint` non è «Move più veloce».** Consuma **entrambi** gli slot e **nega la reazione** per il turno
   (`Action.Sprint`, catalogo v0.1 §2). Se sta accanto a `Move` e `Dash` senza distinzione, il giocatore lo
   sceglie credendo di spendere solo il movimento.
-- **`Overwatch` non è ancora nel catalogo generico**: arriva con **E14**. Lo slot va previsto, ma finché
-  l'azione non atterra non deve risultare pianificabile.
+- ~~**`Overwatch` non è ancora nel catalogo generico**: arriva con **E14**. Lo slot va previsto, ma finché
+  l'azione non atterra non deve risultare pianificabile.~~ ⏱️ *Rimisurato il 2026-10-04: è atterrata.*
+  `URTCatalogLibrary::GetGenericActionIds()` la contiene, col tasto `C` di `GenericHotkeys()`.
 
 ### Hero Kit
 
@@ -464,7 +511,17 @@ Il layout non deve far pensare:
 `Ready` **non è un'azione** e non prende uno slot nella dock: è uno stato di coordinamento, e appartiene alla
 famiglia di pulsanti di §6.8 insieme a `CONFIRM PLAN`.
 
-## 6.8 Bottom right
+## 6.8 Top right — Confirm · Undo
+
+> ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 4: questa famiglia sale in `TopRight`.**
+> ⌫ *Fino a quel giorno la sezione si intitolava «Bottom right».* La cella in basso a destra è parte della fascia
+> della barra dei comandi (§6.7). Chiudere il turno è il tasto `Spazio` (`LockIn`), mentre `Invio` dichiara il
+> piano della singola unità (`ToggleTurnPlanDeclared`, #3145): sono due gesti diversi. Owner: [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471).
+>
+> ✅ **2026-10-05 — [D-458](../../decisions/RT_PDR_00_Decision_Log.md): `CONFIRM PLAN` è `Invio`, `UNDO` è
+> l'intero Back del tasto destro**, che durante il countdown ritira il Ready. Il widget è
+> `URTPlanCommitWidget`, che inoltra alle porte dei tasti (`TogglePlanDeclaration`, `UndoStep`); l'asset e il
+> montaggio sono della seduta `U64`. ⛔ Il `LockIn` di `Spazio` non diventa un pulsante.
 
 Azioni principali:
 
@@ -492,6 +549,16 @@ Ogni action slot deve poter rappresentare:
 - Unavailable;
 - Invalid;
 - Warning.
+
+> ✅ **2026-10-05 — [D-459](../../decisions/RT_PDR_00_Decision_Log.md): `Invalid` e `Warning` sono stati dello
+> slot.** `Invalid` = il gesto sarebbe **rifiutato** (l'azione armata col bersaglio puntato rifiutato, o la
+> colpevole di un piano illegale); `Warning` = il piano è **accettato ma degradato** (il bersaglio, allo stato
+> noto, prenderebbe il ripiego dall'origine del Blast). Il rifiuto resta di `ERTTargetRefusal`, e un bersaglio
+> ignoto non accende nessuno dei due. Li restituisce `URTHudViewModel::ResolveSlotState`. Owner: [#3483](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3483).
+>
+> ✅ **2026-10-05 — [D-460](../../decisions/RT_PDR_00_Decision_Log.md): senza un'unità comandata la barra mostra la propria
+> struttura** — le Comuni spente (`Unavailable`), la Base e il Kit come slot vuoti, tanti quanti il kit più lungo della
+> propria squadra. Nessuno slot della struttura arma niente. Owner: [#3494](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3494).
 
 Dalla style guide:
 
@@ -888,8 +955,8 @@ misurasse. Questa tabella è parte della grammatica quanto le liste: chi impleme
 |---|---|---|
 | **etichetta** | c'è un piano | **Confirmed · Predicted · Uncertain** |
 | **linea al bersaglio** | `if (View.bHasTarget)` | **Predicted · Uncertain** |
-| rotta | `if (View.bMoving)` | solo Uncertain |
-| destinazione | `if (View.bMoving)` | solo Uncertain |
+| rotta | `Rotta.bShow` *(c)* | solo Uncertain |
+| destinazione | `Rotta.bShow` *(c)* | solo Uncertain |
 | waypoint | vedi nota *(b)* | quasi sempre Uncertain |
 | preview scatto | `if (View.bDashing)` | solo Uncertain |
 
@@ -910,8 +977,13 @@ Da cui tre conseguenze operative:
   imposta `PlannedAttackCell` e lascia `PlannedAttackTarget` nullo, mentre `ARTHUD` calcola `bHasTarget`
   solo dal target-unità: quel piano è classificato `Confirmed` pur avendo un bersaglio. Oggi si rende come
   un `Guard`, e il DTO non porta la cella bersagliata.
-- *(b)* **I waypoint stanno fuori da `if (bMoving)`**, e il piano può conservarli con la destinazione
-  riportata sulla cella di partenza: possono quindi comparire su un intento *non* incerto.
+- *(b)* **I waypoint stanno fuori dalla condizione della rotta**, e il piano può conservarli con la
+  destinazione riportata sulla cella di partenza: possono quindi comparire su un intento *non* incerto.
+- *(c)* ⌫ **La condizione si chiamava `if (View.bMoving)` e ora è `Rotta.bShow`**, dove `Rotta` viene da
+  `ARTHUD::ComposePlannedRoute` ([#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184)).
+  La regola **non è cambiata** — `bShow` *è* `View.bMoving` — ma la decisione vive ora in una funzione pura
+  con i suoi test (`RefactorTactics.HUD.Route*`), invece che dentro `DrawHUD`, che non ha copertura
+  headless. Una matrice normativa che punta a un `if` scomparso insegna a cercarlo dove non c'è.
 
 Nessuno dei due è chiuso: sono dichiarati qui perché la prossima resa li incontri prima di scrivere, invece
 di scoprirli in review.
@@ -973,6 +1045,16 @@ Può includere:
 - freshness/state.
 
 Default compatto, dettaglio on-demand.
+
+## 17.2 «La UI riceve solo dati autorizzati» e' vero per meta' — [#1500]
+
+⚠️ Le due righe qui sopra — *«La privacy e' architetturale. La UI riceve solo dati autorizzati»* — descrivono la porta, non il mondo. La porta esiste, funziona ed e' `FRTKnowledgeView`; **accanto ha un cancello di servizio spalancato**, e quattro siti di presentazione lo attraversano oggi: `UI/RTHUD.cpp:733`, `UI/RTHUD.cpp:854`, `UI/RTScreenHudWidgets.cpp:129` e `Debug/RTDebugConsole.cpp:152` chiamano `GetAllActorsOfClass(ARTUnit)` e tengono in mano l'attore intero. Un quinto lo fa con un gesto diverso, `TActorIterator<ARTUnit>`: `ARTCameraPawn::FrameOwnTeam` (`Camera/RTCameraPawn.cpp:154-158`). Un `ARTUnit` **non ha un «non c'e'»**: il velo nasconde i COMPONENTI, non l'actor (`Unit/RTUnit.cpp:540`), quindi un'unita' velata resta nel mondo alla sua posizione vera e risponde a chiunque ne tenga il puntatore. Chi raccoglie non ha aggirato un filtro — ha **saltato `ClassifyTarget`**, cioe' la funzione che decide se quel soggetto esista per lui.
+
+La decisione che ne segue non vieta di raccogliere: **dichiara quale risposta un campo dell'unita' ha diritto di dare.** Un campo puo' restare leggibile da un grafo se e solo se l'Actor, rispondendo senza filtro, da' la stessa risposta che l'osservatore riceverebbe da una porta. Per l'**identita'** (`StableUnitId`, `TeamId`, `HeroId`, `HeroDisplayName`) la risposta e' identica: cio' che la porta decide e' se la voce esista, quindi la fuga e' nel SOGGETTO e non nel campo. Per la **cella** no, ed e' il fatto che tutti e cinque i canali hanno perso: su un contatto `Remembered` la porta consegna la cella dell'**ultimo contatto** e *«Mai la posizione vera»* (`Perception/RTKnowledgeView.h:48`), mentre `ARTUnit::Cell` consegna quella attuale. ∴ **`Cell`, `TeamId`, `HeroId` e gli altri fatti che la porta copre non si rileggono dall'attore in un widget: si ricevono da `FRTKnowledgeView`.**
+
+⛔ **Due conseguenze che questa sezione deve dichiarare, perche' un widget scritto bene le incontra comunque.** *(a)* **La condizione non ha porta.** `FRTKnowledgeView` la rifiuta per decisione — *«Non porta la CONDIZIONE (HP, scudo). La squadra conosce l'identita', non lo stato»* (`RTKnowledgeView.h:53-55`) — e `URTHudViewModel::BuildUnitCard` **non e' il sostituto**: e' `BlueprintPure`, prende `const ARTUnit*` in firma e non contiene un solo controllo di conoscenza (`UI/RTHudViewModel.cpp:114-139`). Che gli HP nemici oggi non si vedano dipende dal CHIAMANTE — `ResolveObserverTeamIds` in sessione presidiata restituisce la sola squadra del giocatore (`:743-746`), quindi `GetOpposingRoster` (`UI/RTScreenHudWidgets.cpp:303`) e' vuota — non dalla porta. Finche' non esiste un `BuildUnitCard` che prenda un soggetto gia' filtrato, il roster con HP e scudo e' un debito nominato, non un confine chiuso. *(b)* **Non ogni lettore puo' passare dalla porta, e i motivi sono tre diversi**: `UpdateObserverVeil` **produce** la vista e scrive sugli Actor (`SetKnownToObserver`, `UpdateContactGhost`), cose che nessun DTO puo' consegnare; `GatherUnitsInWorld` scopre l'insieme degli osservatori dai `TeamId` in campo, e ricavarlo da una vista per-osservatore sarebbe circolare; `DrawHUD` e `rt.Debug.DrawIntent` passano gia' dalla porta dell'intento (`BuildAuthoritativeIntents` → `FilterForTeam`) e la loro raccolta e' pura tubatura.
+
+🔑 **La regola operativa per chi aggiunge un widget**: se ti serve un fatto di un'unita' che non e' la tua, chiedilo a `FRTKnowledgeView` (identita' e posizione) o a `FRTIntentView` (piano); se il fatto e' la condizione, la porta va scritta prima — non aggirata. E ⚠️ **il gesto ovvio resta `GetAllActorsOfClass`, che e' anche il gesto sbagliato**: finche' non c'e' un `URTScreenHudWidgetBase` che offra le viste al posto degli attori, la sola difesa e' il gate `RefactorTactics.Unit.BlueprintSurfaceIsCensused`, che risponde alla domanda «il C++ OFFRE la porta?» e non alla domanda «qualcuno l'ha aperta?».
 
 ---
 

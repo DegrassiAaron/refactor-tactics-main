@@ -256,7 +256,7 @@ bool FRTBotStalemateCandidateScoresTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> ProbeUnits;
 	ProbeUnits.Add(FRTHexSimUnit(1, SelfCell, /*budget*/ 5));
 	ProbeUnits.Add(FRTHexSimUnit(2, EnemyCell, /*budget*/ 5));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, ProbeUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena, ProbeUnits);
 
 	// I pesi restano quelli di default, che sono anche quelli che il gioco logga a ogni partita.
 	FRTHexBotContext Ctx;
@@ -364,7 +364,7 @@ bool FRTBotStalemateNoPerceivedEnemyTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> ProbeUnits;
 	ProbeUnits.Add(FRTHexSimUnit(1, SelfCell, /*budget*/ 5));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, ProbeUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena, ProbeUnits);
 
 	// Il contesto che il filtro di percezione produce quando la squadra non vede nessuno e non ricorda
 	// nessuno: nemici **vuoti**. Tutto il resto identico al probe precedente.
@@ -495,7 +495,7 @@ namespace
 		// --- 2. Decisione, unita' per unita', col filtro di percezione di `PlanBots`.
 		TArray<FRTHexSimUnit> SimUnits;
 		for (const FRTProbeUnit& U : Units) { SimUnits.Add(FRTHexSimUnit(U.Id, U.Cell, /*budget*/ 5)); }
-		OutSnapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
+		OutSnapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena, SimUnits);
 
 		TArray<FRTHexBotContext> Contexts;
 		for (const FRTProbeUnit& Self : Units)
@@ -1841,7 +1841,7 @@ bool FRTBotGeneratedArenaClosesNoCycleTest::RunTest(const FString&)
 	{
 		TArray<FRTHexSimUnit> Sonda;
 		Sonda.Add(FRTHexSimUnit(1, Board.Walk[0], RTOrbitNeutralMoveMP));
-		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, Sonda);
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena, Sonda);
 		const TArray<FRTHexReachableCell> Raggiungibili = URTHexSimLibrary::ReachableCells(Snapshot, 1);
 		bool bTrovaSeStessa = false;
 		for (const FRTHexReachableCell& Cella : Raggiungibili)

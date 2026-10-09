@@ -152,6 +152,23 @@ struct REFACTORTACTICS_API FRTPointerTarget
 	bool IsValid() const { return Kind != ERTPointerTargetKind::None; }
 };
 
+/**
+ * Dove cade un click rispetto all'esagono del verso ([D-367], [D-463], `#291`). E' la risposta di
+ * `URTPointerLibrary::ResolveFacingClick`, e il controller decide da qui.
+ */
+UENUM()
+enum class ERTFacingClick : uint8
+{
+	/** Il raggio non scende sul piano della cella finale. */
+	Miss,
+	/** Fuori dall'esagono finale, a selettore chiuso: e' un click di movimento, non del verso. */
+	OtherCell,
+	/** Nella dead-zone centrale: non sceglie un lato. A selettore chiuso, in marcia, lo apre ([D-463]). */
+	Center,
+	/** Un lato, o col selettore aperto una direzione qualunque: il settore e' valido. */
+	Side
+};
+
 /** Cosa ha smontato un `RMB`. Serve ai test: «ha annullato qualcosa» non distingue *quale* livello. */
 UENUM(BlueprintType)
 enum class ERTPointerBackStep : uint8
@@ -164,14 +181,24 @@ enum class ERTPointerBackStep : uint8
 	Modal,
 	/** Chiusura di un inspector pinnato. */
 	Inspector,
-	/** Uscita da `Targeting` o `Facing`: torna a `Planning`. */
+	/**
+	 * Uscita da `Targeting` o `Facing`: torna a `Planning`. ⚠️ Se l'azione armata e' la stessa gia' nel piano, la
+	 * DISARMA — la toglie dal piano e rilascia il tetto di movimento ([D-461], `#3501`) — dopo aver tolto i waypoint
+	 * posati dopo di lei (`ARTPlayerController::ApplyBack`).
+	 */
 	Declaration,
 	/** Rimozione dell'ultimo waypoint. */
 	Waypoint,
 	/** Uscita da `Pathing` senza waypoint: torna a `Planning`. */
 	Pathing,
 	/** `PhaseFocus` torna ad `Auto`. */
-	PhaseFocus
+	PhaseFocus,
+	/**
+	 * Il verso DICHIARATO si cancella e il movimento si riapre ([D-367], [D-462], `#291`). Viene dopo un selettore
+	 * aperto e PRIMA di un targeting: il verso chiude il movimento, e D-367 lo toglie prima dei waypoint.
+	 * In coda all'enum per non spostare i valori degli altri passi.
+	 */
+	DeclaredFacing
 };
 
 UCLASS()
@@ -226,7 +253,40 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	static ERTPointerBackStep ResolveBack(ERTPointerContext Context, bool bInspectorPinned, int32 WaypointCount,
-		bool bPhaseFocusPinned);
+		bool bPhaseFocusPinned, bool bHasDeclaredFacing = false);
+
+	/**
+	 * Il SETTORE dell'esagono puntato dal cursore ([D-367], `#291`): la direzione la cui retta centro→vicino forma
+	 * l'angolo minore con `Offset`, cioe' il cursore meno il centro. `false` nella dead-zone centrale, dove un click
+	 * non sceglie niente.
+	 *
+	 * 🔑 **Deterministica, con la regola sui confini dichiarata**: vince il prodotto scalare maggiore; a pari merito
+	 * vince la direzione di valore minore nell'enum. `DirectionVectors[i]` e' il vettore centro→vicino della
+	 * direzione `i`, preso dalla geometria della mappa e non da una tabella di angoli.
+	 */
+	static bool FacingSectorFromOffset(const FVector2D& Offset, const TArray<FVector2D>& DirectionVectors,
+		float DeadZoneRadius, ERTHexDirection& OutSector);
+
+	/**
+	 * Il click del verso, dal RAGGIO del cursore ([D-367], [D-463], `#291`). Il raggio si proietta sul **pavimento**
+	 * della cella finale, non sulla mesh colpita: un personaggio copre la propria cella col corpo.
+	 *
+	 * - a selettore chiuso conta solo l'esagono finale: un punto fuori e' `OtherCell`, cioe' movimento;
+	 * - 🔑 **col selettore aperto ogni punto e' una direzione** ([D-463]): un click sull'esagono vicino sceglie il
+	 *   lato verso di lui. ⏱️ *Fino a [D-463] usciva come `OtherCell`, e diventava un waypoint*: da fermo il corpo
+	 *   copre quasi tutta la cella, e il click «sul lato» cadeva sulla cella accanto. Misurato in PIE il 2026-10-06.
+	 *
+	 * Pura e senza viewport: la estrae dal controller il follow-up di `#3504`, che la dichiarava non testata.
+	 */
+	static ERTFacingClick ResolveFacingClick(const FVector& RayOrigin, const FVector& RayDir, const FRTCellId& FinalCell,
+		const FVector& MapOrigin, float HexSize, float LayerHeight, float DeadZoneRadius, bool bSelectorOpen,
+		ERTHexDirection& OutSector);
+
+	/**
+	 * Il settore che da `From` guarda verso il centro di `To` ([D-463]). E' il click su una cella, senza un cursore:
+	 * col selettore aperto un'altra cella e' una direzione. `false` se le due celle coincidono sul piano.
+	 */
+	static bool FacingSectorTowardCell(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutSector);
 
 	/**
 	 * §5 — **Che cosa significa un `LMB` su un'unita', dato il contesto**: la riga di matrice, non l'effetto.

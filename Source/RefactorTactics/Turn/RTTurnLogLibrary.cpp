@@ -97,6 +97,39 @@ void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
 	Entries.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B) { return EntryLess(A, B); });
 }
 
+bool URTTurnLogLibrary::IsStructureHit(const FRTTurnLogEntry& Entry)
+{
+	// ⚠️ **`Environment` e non `Combat`**: un muro abbattuto e' un fatto dell'ambiente anche quando a
+	// tirare e' stata un'unita', ed e' la categoria che `ApplyEnvironmentChanges` scrive.
+	if (Entry.Category != ERTLogCategory::Environment)
+	{
+		return false;
+	}
+
+	// ⛔ **I due esiti si elencano, non si deduce un intervallo.** `ERTEnvironmentOutcome` porta anche
+	// `CoverExpired` e `CoverMoved`, che [D-175] tiene distinti da questi due apposta: un `<=` o un `>=`
+	// sull'enum legherebbe il significato all'ORDINE dei valori, e il primo che ne inserisce uno in mezzo
+	// cambierebbe questa risposta senza toccare questa riga.
+	const ERTEnvironmentOutcome Esito = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
+	return Esito == ERTEnvironmentOutcome::CoverDamaged || Esito == ERTEnvironmentOutcome::CoverDestroyed;
+}
+
+bool URTTurnLogLibrary::IsArcHit(const FRTTurnLogEntry& Entry)
+{
+	// ⚠️ **`Environment` come il gemello**: un ponte che crolla e' un fatto dell'ambiente anche quando a
+	// tirare e' stata un'unita', ed e' la categoria che la sezione ARCHI di `ApplyEnvironmentChanges` scrive.
+	if (Entry.Category != ERTLogCategory::Environment)
+	{
+		return false;
+	}
+
+	// ⛔ **I due esiti si elencano, per la stessa ragione del gemello**: un `<=` sull'enum legherebbe il
+	// significato all'ORDINE dei valori, e il primo che ne inserisce uno in mezzo cambierebbe questa
+	// risposta senza toccare questa riga.
+	const ERTEnvironmentOutcome Esito = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
+	return Esito == ERTEnvironmentOutcome::BridgeDamaged || Esito == ERTEnvironmentOutcome::BridgeDestroyed;
+}
+
 bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.Category != ERTLogCategory::Combat || Entry.UnitId == 0)
@@ -758,6 +791,17 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// ⚠️ **Un ramo solo per i tre esiti che erano `FireChosen`, `HoldChosen` e `ResponseChosen`, e la
 		// distinzione si legge dal TOKEN** (`#1118`). Il testo che ne esce e' lo stesso di prima, parola per
 		// parola: cambia da dove viene la discriminante — la risposta invece di un `uint8` che la nominava.
+		//
+		// ✅ **E il token e' classificato `AuditOnly`, eppure qui si stampa: e' corretto** — `#3308`.
+		// [D-276] vincola i campi audit-only verso *«la replica live al nemico, l'export pubblico o la
+		// riproduzione spettatore»*, e questo canale non e' nessuna delle tre: il combat log ha il proprio
+		// confine **per voce** — soggetto piu' verdetto congelato ([D-316]) — quindi un giocatore legge
+		// `ReactionResponse` solo su fatti che era autorizzato a conoscere. La ragione per esteso sta in un
+		// posto solo, sul docstring di `URTReplayPrivacyLibrary::FieldVisibility`.
+		//
+		// ⛔ **E il campo non si puo' svuotare per prudenza**: senza il token la voce cade nel ramo del
+		// vuoto qui sotto e si legge *«tiene il colpo, resta armata»* — il contrario di cio' che e'
+		// accaduto. Una redazione che fa mentire la riga non e' una redazione.
 		case ERTReactionDecisionOutcome::Chosen:
 		{
 			const int32 FireTarget = URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse);

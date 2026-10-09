@@ -76,7 +76,22 @@ public:
 	static TArray<FRTScenarioEntry> Scan(TArray<FString>& OutProblems);
 
 	/**
+	 * Come `Scan`, ma sulle **due** radici: quella versionata e quella del Lab (`URTScenarioLoader::LabScenariosRoot`).
+	 *
+	 * 🔑 E' la funzione delle RICERCHE — `ResolvePath`, `ListIds`, `ListTags` — cioe' del GameMode, della
+	 * console e del Launcher. `Scan` resta a una radice e vale «tutto cio' che e' versionato». I gate che
+	 * enumerano il corpus passano da `ListIds`, quindi da qui: restano misure della sola radice versionata
+	 * perche' sotto automation la radice del Lab e' VUOTA (`LabScenariosRoot`) e viene saltata. Una radice
+	 * vuota o assente non e' un problema ne' una voce.
+	 */
+	static TArray<FRTScenarioEntry> ScanAll(TArray<FString>& OutProblems);
+
+	/**
 	 * Percorso del file che dichiara questo `ScenarioId`, seguendo i redirect se l'ID non risulta più.
+	 *
+	 * 🔑 Tre tentativi, in quest'ordine: l'ID esatto e i redirect (su **entrambe** le radici, versionata e del
+	 * Lab), poi l'abbreviazione per segmenti, che confronta le sole voci **versionate** (#3543): un file del Lab
+	 * non la rende ambigua. Un'abbreviazione non trova quindi uno scenario del Lab: serve il suo Id completo.
 	 *
 	 * Stringa vuota + `OutError` valorizzato quando l'ID non esiste **oppure** quando è ambiguo. Un ID
 	 * dichiarato da due file non fa vincere il primo trovato: sceglierne uno in silenzio significherebbe
@@ -107,6 +122,13 @@ public:
 	static TArray<FString> ListIds(const FString& FilterA, const FString& FilterB);
 
 	/**
+	 * Come `ListIds`, ma sulla sola radice **versionata** (`Scan`, non `ScanAll`): per cio' che finisce in un
+	 * asset o in un file versionato — la tendina di `BP_GameMode`. Un Id del Lab salvato in un `.uasset` non
+	 * risolverebbe su nessun'altra macchina.
+	 */
+	static TArray<FString> ListVersionedIds(const FString& FilterA, const FString& FilterB);
+
+	/**
 	 * Vocabolario dei tag: l'unione di quelli **realmente presenti** nei file, ordinata.
 	 *
 	 * Nessun elenco dichiarato da qualche parte, per la stessa ragione per cui la tendina degli scenari
@@ -115,6 +137,9 @@ public:
 	 * lo rende visibile subito, invece che silenzioso.
 	 */
 	static TArray<FString> ListTags();
+
+	/** Come `ListTags`, ma sulla sola radice **versionata**: vedi `ListVersionedIds`. */
+	static TArray<FString> ListVersionedTags();
 
 	/** Tabella `vecchio ID -> nuovo ID` da `Scenarios/_redirects.json`. File assente = mappa vuota, non un errore. */
 	static TMap<FString, FString> LoadRedirects();
@@ -130,4 +155,14 @@ public:
 	// vede perche' il file compila: se un giorno queste due parole smettono di essere la stessa, e' rotto.
 	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Aevik` e `gadget ` sono lo stesso filtro. */
 	static FString NormalizeTag(const FString& Tag);
+
+private:
+	/** Il corpo comune di `Scan` e `ScanAll`: legge ricorsivamente i `.json` sotto ogni radice data. */
+	static TArray<FRTScenarioEntry> ScanRoots(const TArray<FString>& Roots, TArray<FString>& OutProblems);
+
+	/** Il corpo comune di `ListIds` e `ListVersionedIds`: filtra le voci per i due tag, in ordine alfabetico. */
+	static TArray<FString> IdsFrom(const TArray<FRTScenarioEntry>& Entries, const FString& FilterA, const FString& FilterB);
+
+	/** Il corpo comune di `ListTags` e `ListVersionedTags`: l'unione dei tag delle voci, ordinata. */
+	static TArray<FString> TagsFrom(const TArray<FRTScenarioEntry>& Entries);
 };

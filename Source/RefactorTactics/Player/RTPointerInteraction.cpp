@@ -1,5 +1,24 @@
 #include "Player/RTPointerInteraction.h"
 #include "Unit/RTUnit.h"
+#include "Map/RTHexLibrary.h"
+
+namespace
+{
+	/** I sei vettori centro→vicino di `Cell`, dalla geometria della mappa e non da una tabella di angoli. */
+	TArray<FVector2D> FacingDirectionVectors(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerH)
+	{
+		const FVector Centro = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
+		TArray<FVector2D> Direzioni;
+		Direzioni.Reserve(6);
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const FVector Vicino = URTHexLibrary::AxialToWorld(
+				URTHexLibrary::Neighbor(Cell, static_cast<ERTHexDirection>(D)), Origin, HexSize, LayerH);
+			Direzioni.Add(FVector2D(Vicino - Centro));
+		}
+		return Direzioni;
+	}
+}
 
 ERTPointerTargetKind URTPointerLibrary::TargetKindForAction(const FRTActionDef& Def, bool bSelfTarget,
 	ERTAbilityShape Shape)
@@ -152,7 +171,7 @@ FRTPointerTarget URTPointerLibrary::ResolveTarget(ERTPointerContext Context, ERT
 }
 
 ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, bool bInspectorPinned,
-	int32 WaypointCount, bool bPhaseFocusPinned)
+	int32 WaypointCount, bool bPhaseFocusPinned, bool bHasDeclaredFacing)
 {
 	// L'ordine e' TOTALE, e l'elenco e' quello di §5.5. Scritto come cascata di `return` e non come `switch`
 	// sul contesto perche' la priorita' attraversa i contesti: un inspector pinnato si chiude prima di uscire
@@ -170,7 +189,19 @@ ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, boo
 	{
 		return ERTPointerBackStep::Inspector;
 	}
-	if (Context == ERTPointerContext::Targeting || Context == ERTPointerContext::Facing)
+	// Un selettore di facing APERTO si chiude per primo: non ha ancora scritto niente.
+	if (Context == ERTPointerContext::Facing)
+	{
+		return ERTPointerBackStep::Declaration;
+	}
+	// 🔑 **Il verso dichiarato prima di un targeting e dei waypoint** ([D-367], [D-462]): chiude il movimento, e
+	// il Back lo toglie per primo, riaprendolo.
+	// ⛔ Non durante il playback (§5.3): un piano consegnato non si tocca, anche se il verso e' ancora scritto.
+	if (bHasDeclaredFacing && Context != ERTPointerContext::ResolutionPlayback)
+	{
+		return ERTPointerBackStep::DeclaredFacing;
+	}
+	if (Context == ERTPointerContext::Targeting)
 	{
 		return ERTPointerBackStep::Declaration;
 	}
@@ -186,6 +217,81 @@ ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, boo
 	// ⚠️ Durante `ResolutionPlayback` si arriva qui, ed e' giusto: §5.3 dice `NoOp`. Nessun input cambia un
 	// piano gia' consegnato.
 	return ERTPointerBackStep::None;
+}
+
+bool URTPointerLibrary::FacingSectorFromOffset(const FVector2D& Offset, const TArray<FVector2D>& DirectionVectors,
+	float DeadZoneRadius, ERTHexDirection& OutSector)
+{
+	// Il centro non sceglie: senza la dead-zone un click sulla figura sceglierebbe un lato a caso, deciso da
+	// pochi pixel di differenza.
+	if (Offset.Size() < DeadZoneRadius || Offset.IsNearlyZero())
+	{
+		return false;
+	}
+
+	const FVector2D Verso = Offset.GetSafeNormal();
+	int32 Migliore = INDEX_NONE;
+	double MiglioreDot = -2.0;
+	for (int32 I = 0; I < DirectionVectors.Num() && I < 6; ++I)
+	{
+		const double Dot = FVector2D::DotProduct(Verso, DirectionVectors[I].GetSafeNormal());
+		// ⚠️ Strettamente maggiore, con tolleranza: a pari merito resta la direzione gia' scelta, cioe' quella
+		// di valore minore. E' la regola sui confini, scritta qui e non lasciata all'arrotondamento.
+		if (Dot > MiglioreDot + UE_KINDA_SMALL_NUMBER)
+		{
+			MiglioreDot = Dot;
+			Migliore = I;
+		}
+	}
+	if (Migliore == INDEX_NONE)
+	{
+		return false;
+	}
+	OutSector = static_cast<ERTHexDirection>(Migliore);
+	return true;
+}
+
+ERTFacingClick URTPointerLibrary::ResolveFacingClick(const FVector& RayOrigin, const FVector& RayDir,
+	const FRTCellId& FinalCell, const FVector& MapOrigin, float HexSize, float LayerHeight, float DeadZoneRadius,
+	bool bSelectorOpen, ERTHexDirection& OutSector)
+{
+	if (FMath::IsNearlyZero(RayDir.Z))
+	{
+		return ERTFacingClick::Miss;
+	}
+	const FVector Centro = URTHexLibrary::AxialToWorld(FinalCell, MapOrigin, HexSize, LayerHeight);
+	const double T = (Centro.Z - RayOrigin.Z) / RayDir.Z;
+	if (T <= 0.0)
+	{
+		return ERTFacingClick::Miss;
+	}
+	const FVector Punto = RayOrigin + RayDir * T;
+	if (!bSelectorOpen)
+	{
+		const FRTCellId Sotto = URTHexLibrary::WorldToCellId(FVector(Punto.X, Punto.Y, Centro.Z), MapOrigin, HexSize,
+			LayerHeight);
+		if (!(Sotto == FinalCell))
+		{
+			return ERTFacingClick::OtherCell;
+		}
+	}
+	if (!FacingSectorFromOffset(FVector2D(Punto - Centro),
+		FacingDirectionVectors(FinalCell, MapOrigin, HexSize, LayerHeight), DeadZoneRadius, OutSector))
+	{
+		return ERTFacingClick::Center;
+	}
+	return ERTFacingClick::Side;
+}
+
+bool URTPointerLibrary::FacingSectorTowardCell(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutSector)
+{
+	// Origine e scala non contano: la direzione fra due centri non dipende da nessuna delle due. Il piano neppure, e si
+	// scarta: il verso e' planare ([D-367]).
+	const FVector Origine = FVector::ZeroVector;
+	constexpr float Lato = 100.f;
+	const FVector Da = URTHexLibrary::AxialToWorld(From, Origine, Lato, 0.f);
+	const FVector A = URTHexLibrary::AxialToWorld(To, Origine, Lato, 0.f);
+	return FacingSectorFromOffset(FVector2D(A - Da), FacingDirectionVectors(From, Origine, Lato, 0.f), 0.f, OutSector);
 }
 
 ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,

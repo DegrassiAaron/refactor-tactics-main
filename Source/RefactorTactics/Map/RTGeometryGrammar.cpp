@@ -753,3 +753,220 @@ ERTAnchorPairRefusal URTGeometryGrammarLibrary::ExplainPair(const FRTAnchorRef& 
 
 	return ERTAnchorPairRefusal::None;
 }
+
+namespace
+{
+	/**
+	 * I TREDICI OFFSET, in unita' di reticolo. Sono gli stessi punti di `SectorBoundaryPoints`, letti come
+	 * interi: misurati il 2026-09-25 replicando quella funzione, con residuo massimo `8,9e-16`.
+	 *
+	 * ⚠️ **E' una SECONDA scrittura degli stessi tredici punti, e va detto.** `AnchorLocal` li prende da
+	 * `SectorBoundaryPoints` proprio per non ricalcolare coseni; qui invece stanno come interi, perche' un
+	 * `round()` sul float reintrodurrebbe nella decisione il valore in virgola mobile che questa tabella
+	 * esiste per togliere. Il legame non e' lasciato alla buona volonta': lo pinna
+	 * `RefactorTactics.Anchor.LatticeAgreesWithTheFloatingPointWorld`, che confronta i due su tutti e
+	 * tredici gli anchor di un intorno e cade se uno dei due si muove.
+	 */
+	struct FRTLatticeOffset { int64 M; int64 N; };
+
+	constexpr FRTLatticeOffset RTVertexOffsets[6] =
+	{
+		{ +2, -2 }, { +2, +2 }, { 0, +4 }, { -2, +2 }, { -2, -2 }, { 0, -4 }
+	};
+
+	constexpr FRTLatticeOffset RTEdgeMidOffsets[6] =
+	{
+		{ +2, 0 }, { +1, +3 }, { -1, +3 }, { -2, 0 }, { -1, -3 }, { +1, -3 }
+	};
+
+	/** `(B - A) x (C - A)` in `int64`. Zero significa allineati, e il segno da' il verso. */
+	int64 RTCross(const FRTAnchorLattice& A, const FRTAnchorLattice& B, const FRTAnchorLattice& C)
+	{
+		return (B.M - A.M) * (C.N - A.N) - (B.N - A.N) * (C.M - A.M);
+	}
+
+	/** `P` sta sul segmento `A-B`, sapendo gia' che i tre sono allineati. */
+	bool RTOnSegment(const FRTAnchorLattice& A, const FRTAnchorLattice& B, const FRTAnchorLattice& P)
+	{
+		return FMath::Min(A.M, B.M) <= P.M && P.M <= FMath::Max(A.M, B.M)
+			&& FMath::Min(A.N, B.N) <= P.N && P.N <= FMath::Max(A.N, B.N);
+	}
+
+	/** I due segmenti `A-B` e `C-D` hanno almeno un punto in comune. Interi, nessuna tolleranza. */
+	bool RTSegmentsIntersect(const FRTAnchorLattice& A, const FRTAnchorLattice& B,
+		const FRTAnchorLattice& C, const FRTAnchorLattice& D)
+	{
+		const int64 D1 = RTCross(A, B, C);
+		const int64 D2 = RTCross(A, B, D);
+		const int64 D3 = RTCross(C, D, A);
+		const int64 D4 = RTCross(C, D, B);
+
+		// Il caso generale: i due estremi di ciascuno stanno da parti opposte dell'altro.
+		if (((D1 > 0) != (D2 > 0)) && ((D3 > 0) != (D4 > 0)) && D1 != 0 && D2 != 0 && D3 != 0 && D4 != 0)
+		{
+			return true;
+		}
+		// I casi COLLINEARI e di tocco, che in virgola mobile sarebbero la zona grigia e qui sono esatti.
+		if (D1 == 0 && RTOnSegment(A, B, C)) { return true; }
+		if (D2 == 0 && RTOnSegment(A, B, D)) { return true; }
+		if (D3 == 0 && RTOnSegment(C, D, A)) { return true; }
+		if (D4 == 0 && RTOnSegment(C, D, B)) { return true; }
+		return false;
+	}
+}
+
+FRTAnchorLattice URTGeometryGrammarLibrary::CellCentrePoint(const FRTCellId& Cell)
+{
+	// `Wx = S*sqrt3*(q + r/2)` e `Wy = S*1.5*r`, divisi per `(S*sqrt3/4, S/4)`: il `sqrt(3)` si semplifica
+	// e restano due interi. E' il motivo per cui questo reticolo esiste.
+	// ⚠️ Il conto in `int64` PRIMA di sommare: `4*q` trabocca in `int32` gia' a `q > MAX_int32/4`.
+	const int64 Q = static_cast<int64>(Cell.X);
+	const int64 R = static_cast<int64>(Cell.Y);
+	return FRTAnchorLattice(4 * Q + 2 * R, 6 * R);
+}
+
+FRTAnchorLattice URTGeometryGrammarLibrary::AnchorPoint(const FRTAnchorRef& Ref)
+{
+	const FRTAnchorLattice Centro = CellCentrePoint(Ref.Cell);
+	if (Ref.Kind == ERTAnchorKind::Center)
+	{
+		// Un `Center` con indice sporco resta il centro: la stessa totalita' di `AnchorLocal`.
+		return Centro;
+	}
+	const int32 Index = RTWrapAnchorIndex(Ref.Index);
+	const FRTLatticeOffset& Off = Ref.Kind == ERTAnchorKind::Vertex
+		? RTVertexOffsets[Index] : RTEdgeMidOffsets[Index];
+	return FRTAnchorLattice(Centro.M + Off.M, Centro.N + Off.N);
+}
+
+int64 URTGeometryGrammarLibrary::RingAreaTwice(const TArray<FRTAnchorRef>& Ring)
+{
+	const int32 Num = Ring.Num();
+	if (Num < 3)
+	{
+		// Sotto i tre vertici l'area e' nulla per definizione, e qui la guardia NON e' decorativa: la
+		// formula di Gauss su due punti darebbe comunque zero, ma su ZERO punti il ciclo non girerebbe e
+		// il lettore non saprebbe se lo zero e' un esito o un'assenza.
+		return 0;
+	}
+	int64 Somma = 0;
+	for (int32 I = 0, J = Num - 1; I < Num; J = I++)
+	{
+		const FRTAnchorLattice Pj = AnchorPoint(Ring[J]);
+		const FRTAnchorLattice Pi = AnchorPoint(Ring[I]);
+		Somma += Pj.M * Pi.N - Pi.M * Pj.N;
+	}
+	return Somma;
+}
+
+bool URTGeometryGrammarLibrary::RingHasCoincidentVertices(const TArray<FRTAnchorRef>& Ring,
+	int32& OutFirst, int32& OutSecond)
+{
+	OutFirst = INDEX_NONE;
+	OutSecond = INDEX_NONE;
+	const int32 Num = Ring.Num();
+	// Quadratico, e va bene: un anello d'authoring ha decine di vertici, non migliaia. Una mappa di
+	// hashing costerebbe di piu' in lettura che in tempo risparmiato.
+	for (int32 I = 0; I < Num; ++I)
+	{
+		const FRTAnchorLattice A = AnchorPoint(Ring[I]);
+		for (int32 J = I + 1; J < Num; ++J)
+		{
+			if (A == AnchorPoint(Ring[J]))
+			{
+				OutFirst = I;
+				OutSecond = J;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool URTGeometryGrammarLibrary::RingSelfIntersects(const TArray<FRTAnchorRef>& Ring,
+	int32& OutFirst, int32& OutSecond)
+{
+	OutFirst = INDEX_NONE;
+	OutSecond = INDEX_NONE;
+	const int32 Num = Ring.Num();
+	if (Num < 4)
+	{
+		// Con tre lati ogni coppia e' adiacente: un triangolo non puo' auto-intersecarsi, e dirlo qui evita
+		// che il ciclo sotto lo scopra per assenza di iterazioni.
+		return false;
+	}
+	for (int32 I = 0; I < Num; ++I)
+	{
+		const FRTAnchorLattice A = AnchorPoint(Ring[I]);
+		const FRTAnchorLattice B = AnchorPoint(Ring[(I + 1) % Num]);
+		for (int32 J = I + 1; J < Num; ++J)
+		{
+			// ADIACENTI: condividono un vertice per costruzione, e toccarsi li' non e' un'intersezione.
+			// La coppia `(0, Num-1)` chiude l'anello ed e' adiacente anche lei.
+			if (J == I + 1 || (I == 0 && J == Num - 1))
+			{
+				continue;
+			}
+			const FRTAnchorLattice C = AnchorPoint(Ring[J]);
+			const FRTAnchorLattice D = AnchorPoint(Ring[(J + 1) % Num]);
+			if (RTSegmentsIntersect(A, B, C, D))
+			{
+				OutFirst = I;
+				OutSecond = J;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool URTGeometryGrammarLibrary::RingContainsPoint(const TArray<FRTAnchorRef>& Ring,
+	const FRTAnchorLattice& Point)
+{
+	const int32 Num = Ring.Num();
+	if (Num < 3)
+	{
+		return false;
+	}
+
+	TArray<FRTAnchorLattice> P;
+	P.Reserve(Num);
+	for (const FRTAnchorRef& Ref : Ring)
+	{
+		P.Add(AnchorPoint(Ref));
+	}
+
+	// 🔑 **IL BORDO PRIMA DEL DENTRO, ed e' la meta' che toglie l'ambiguita' di verso.** Un punto sul bordo
+	// e' dentro per convenzione dichiarata, e va deciso QUI: il ray casting sotto non e' simmetrico nello
+	// scambio dei due estremi di un lato, quindi lasciato a lui lo stesso punto cambierebbe risposta
+	// invertendo l'anello.
+	for (int32 I = 0, J = Num - 1; I < Num; J = I++)
+	{
+		if (RTCross(P[J], P[I], Point) == 0 && RTOnSegment(P[J], P[I], Point))
+		{
+			return true;
+		}
+	}
+
+	// Ray casting in INTERI. Il confronto `P.X < intersezione` della versione in virgola mobile diventa
+	// qui un prodotto incrociato, senza divisione: `(Pj.M - Pi.M) * (Point.N - Pi.N) / (Pj.N - Pi.N)`
+	// confrontato con `Point.M - Pi.M` si moltiplica per `(Pj.N - Pi.N)`, e il verso della disuguaglianza
+	// segue il segno di quel fattore.
+	bool bInside = false;
+	for (int32 I = 0, J = Num - 1; I < Num; J = I++)
+	{
+		const FRTAnchorLattice& Pi = P[I];
+		const FRTAnchorLattice& Pj = P[J];
+		if ((Pi.N > Point.N) != (Pj.N > Point.N))
+		{
+			const int64 DeltaN = Pj.N - Pi.N;
+			const int64 Sinistra = (Point.M - Pi.M) * DeltaN;
+			const int64 Destra = (Pj.M - Pi.M) * (Point.N - Pi.N);
+			if ((DeltaN > 0) ? (Sinistra < Destra) : (Sinistra > Destra))
+			{
+				bInside = !bInside;
+			}
+		}
+	}
+	return bInside;
+}

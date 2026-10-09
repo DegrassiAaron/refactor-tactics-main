@@ -362,20 +362,30 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 }
 
 /**
- * T5 di #1922 — la sola via per cui lo scambio e' raggiungibile IN PARTITA: la staleness del piano.
+ * T5 di #1922 — la staleness del piano, che era **la sola** via per cui lo scambio fosse raggiungibile in
+ * partita, e oggi e' una via fra tante.
  *
- * 🔑 **Perche' serve un test d'integrazione e non basta il resolver.** `HexSim.ResolveSwapBlocked` prova la
- * regola passando percorsi costruiti a mano; questo prova che la regola si INNESCA nel gioco. Il §3 della
- * issue misura che nessuna via ordinaria puo' produrre uno scambio — il click esclude le celle occupate
- * (`FindPathAvoiding`), il bot pianifica destinazioni e non waypoint, l'harness valida sullo snapshot — e
- * ne resta **una sola**: un `PlannedPath` scritto quando la cella era libera e risolto quando non lo e' piu'.
+ * 🔴 **Il §3 della issue non regge piu', e il banco misura l'esito opposto** ([D-445], [D-446]).
+ * Quel paragrafo concludeva che nessuna via ordinaria potesse produrre uno scambio — *il click esclude le
+ * celle occupate (`FindPathAvoiding`), il bot pianifica destinazioni e non waypoint, l'harness valida sullo
+ * snapshot* — e che ne restasse **una sola**: un `PlannedPath` scritto quando la cella era libera. La
+ * prima delle tre e' caduta: il click **accetta** una cella occupata, perche' rifiutarla voleva dire sapere
+ * se l'occupante se ne andra'.
+ *
+ * 🔑 **Il banco resta, e misura che la via stantia non sia diventata un caso speciale.** Un piano
+ * scritto prima e risolto dopo deve dare lo stesso esito di uno scritto adesso: se divergessero, la
+ * staleness tornerebbe a essere una via **a parte**, che e' esattamente la condizione che #1922 trattava
+ * come un difetto.
+ *
+ * ⚠️ L'id del test non cambia (`StalePlanSwapBlocks`) ma il nome registrato si': i riferimenti a #1922
+ * puntano al numero della issue, non alla stringa.
  *
  * `RTTurnManager` lo prende **verbatim**, e il commento del file lo dichiara: *«ResolveMovement accetta un
  * PlannedPath gia' pronto SENZA riapplicare l'occupazione fresca»*. Scrivere qui i due percorsi non e' un
  * trucco del test: e' la riproduzione fedele di quella via.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStalePlanSwapTest,
-	"RefactorTactics.HexMove.StalePlanSwapBlocks",
+	"RefactorTactics.HexMove.StalePlanSwapHappens",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
 {
@@ -401,22 +411,25 @@ bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("A non entra nella cella di B"), A->Cell == CellA);
-	TestTrue(TEXT("B non entra nella cella di A"), B->Cell == CellB);
+	// 🔴 **Lo scambio avviene** ([D-445]): erano due `non entra`, e misuravano il blocco.
+	TestTrue(TEXT("A entra nella cella di B"), A->Cell == CellB);
+	TestTrue(TEXT("e B in quella di A"), B->Cell == CellA);
 
-	// L'esito deve essere SPIEGATO, non solo subito: un arresto senza causa nel replay e' il difetto che la
-	// disciplina di `ERTMoveOutcome` esiste per evitare.
+	// L'esito deve essere SPIEGATO, non solo subito: un movimento senza causa nel replay e' il difetto che
+	// la disciplina di `ERTMoveOutcome` esiste per evitare.
 	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
-	int32 Cycles = 0;
+	int32 Mossi = 0;
+	int32 Bloccati = 0;
 	for (const FRTTurnLogEntry& E : Log)
 	{
-		if (E.Category == ERTLogCategory::Move
-			&& E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByCycle))
-		{
-			++Cycles;
-		}
+		if (E.Category != ERTLogCategory::Move) { continue; }
+		if (E.Outcome == static_cast<uint8>(ERTMoveOutcome::Moved)) { ++Mossi; }
+		else { ++Bloccati; }
 	}
-	TestEqual(TEXT("il TurnLog spiega entrambi gli arresti col reason del ciclo"), Cycles, 2);
+	TestEqual(TEXT("il TurnLog registra due movimenti"), Mossi, 2);
+	// 🔑 **E nessun arresto**, che e' la meta' che non si deduce dalla prima: due voci `Moved` sarebbero
+	// compatibili con un log che ne porta anche una bloccata per una terza unita' che qui non esiste.
+	TestEqual(TEXT("e nessun arresto"), Bloccati, 0);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -1151,8 +1164,17 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 6);
 
+	// 🔴 **L'ostacolo sta sulla DESTINAZIONE, non a meta' strada** ([D-445], 2026-10-01). Era su `(2,0)`,
+	// in mezzo al percorso, e fermava: oggi una unita' in transito la si attraversa, e il mover arriverebbe
+	// a `(3,0)` come se niente fosse.
+	//
+	// 🔑 **`Fallback.Stop` non e' stata ritirata: e' stato ritirato uno dei modi di innescarla.** La
+	// regola — *il percorso si chiude e l'unita' si ferma nell'ultima cella valida, senza annullare, senza
+	// aggirare, senza teletrasportare* — vale identica; cio' che la chiude e' il **terminus**, dove [D-289]
+	// ha lasciato la contesa. Questo e' uno dei dieci test vincolanti del catalogo v0.1 §15, e il nome
+	// `Actions.Move.PathBlocked` resta suo.
 	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
 
@@ -1166,9 +1188,12 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("si ferma prima dell'ostacolo, all'ultima cella valida"), Mover->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("si ferma prima dell'ostacolo, all'ultima cella valida"), Mover->Cell == FRTCellId(2, 0));
 	TestTrue(TEXT("il movimento non viene annullato: qualche cella la percorre"), !(Mover->Cell == FRTCellId(0, 0)));
 	TestTrue(TEXT("e non arriva a destinazione aggirando"), !(Mover->Cell == FRTCellId(3, 0)));
+	// ⚠️ **E ha percorso DUE celle, non una**: senza questa riga «si ferma a `(2,0)`» sarebbe vero anche
+	// di un'unita' che non ha mai attraversato `(1,0)` — e l'attraversamento e' il fatto nuovo.
+	TestTrue(TEXT("e ha attraversato la cella intermedia"), Mover->Cell != FRTCellId(1, 0));
 
 	// L'esito e' registrato col suo motivo: e' la forma che `Fallback.Stop` prende nel TurnLog del movimento.
 	int32 Stopped = 0;
@@ -2254,6 +2279,11 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		ARTUnit* Ferma = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), PartenzaFerma);
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		// ⚠️ **La conoscenza va CALCOLATA, o il pianificatore e' cieco** ([D-371]): senza, l'occupazione
+		// filtrata per osservatore non vede nessun avversario, e il diniego che questo banco misura non
+		// avviene. In partita lo fa `ARTGameMode::SetupHexMatch`; qui il `TurnManager` nasce a mano.
+		TM->RefreshTeamKnowledgeNow();
 		if (!TM || !PC || !Negata || !Occupante || !Ferma)
 		{
 			DestroyHexMoveWorld(World);
@@ -2266,9 +2296,23 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		// Il diniego si produce dal controller, che e' il sito reale della pianificazione.
 		PC->SelectActorForTest(Negata);
 		Negata->SelectAbility(INDEX_NONE);
+		// 🔴 **IL DINIEGO SI E' SPOSTATO DALLA PIANIFICAZIONE ALLA RISOLUZIONE** ([D-446]), e questa
+		// premessa e' dove si vede. Diceva *«il waypoint e' stato RIFIUTATO in pianificazione»* e misurava
+		// `PlannedWaypoints.Num() == 0`: oggi il clic si accetta, perche' rifiutarlo avrebbe richiesto di
+		// sapere se l'occupante se ne andra' — cioe' di leggere il suo piano.
+		//
+		// 🔑 **Tutte le asserzioni a valle sono rimaste identiche, ed e' il punto.** Il diniego continua a
+		// esistere, a nominare la destinazione richiesta e a sostituire `Stayed`: cambia **quando** si produce,
+		// non **se**. La distinzione che `#79` esiste per tenere — *«ho provato e me l'hanno negato»* contro
+		// *«non ho provato»* — e' esattamente quella che il banco continua a misurare.
+		//
+		// ⚠️ **E il ramo che la produce ora era gia' scritto, per il bot.** `RTTurnManager_Movement.cpp`
+		// teneva due vie asimmetriche — giocatore e harness portavano uno stato dal momento del rifiuto, il bot
+		// non aveva un rifiuto e la sua destinazione si leggeva da `PlannedCell`. Da oggi i tre produttori
+		// passano tutti dalla seconda.
 		PC->HandleClickOnCell(Occupata);
-		if (!TestEqual(TEXT("premessa: il waypoint e' stato rifiutato in pianificazione"),
-				Negata->PlannedWaypoints.Num(), 0))
+		if (!TestEqual(TEXT("premessa: il waypoint e' stato accettato in pianificazione"),
+				Negata->PlannedWaypoints.Num(), 1))
 		{
 			DestroyHexMoveWorld(World);
 			return false;
@@ -2417,6 +2461,255 @@ bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
 	TestEqual(TEXT("Amount conta le celle percorse, e sono zero"), Trovata.Amount, 0);
 
 	TestEqual(TEXT("l'unita' non si e' mossa di un passo"), Mover->Cell, Partenza);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// `#3263` — IL CONFINE FRA I PASSI VOLUTI E QUELLI IMPOSTI, fino alla presentazione.
+//
+// 🔴 Trovata in seduta PIE guardando lo schermo: lo scivolamento si anima **identico** ai passi voluti —
+// stessa velocita', stessa posa, nessuno stacco. *«Sembra che comincino a scivolare dalla posizione di
+// partenza»*: i tre archi sono indistinguibili, quindi il movimento si legge come uno solo.
+//
+// 🔑 **Il dato esisteva e moriva nel resolver.** `FRTPlannedMovement::PlannedLength` dichiara *«quante celle
+// INIZIALI appartengono al piano del giocatore»*, e le **durate per arco** lo rispettano gia' ([D-384]). Il
+// playback no: nessuna struct di evento lo portava.
+//
+// ⛔ **Questi gate misurano il CANALE, non il segno.** Che cosa la presentazione debba fare della
+// distinzione e' una decisione di grammatica visiva che `#3263` dichiara di non prendere.
+// =========================================================================================================
+
+namespace
+{
+	/** L'evento di playback del movimento di `StableUnitId` nella fase `Move`, se c'e'. */
+	const FRTResolvedEvent* MoveEventFor(const ARTTurnManager* TM, int32 StableUnitId)
+	{
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::Move && Ev.SourceStableUnitId == StableUnitId
+				&& Ev.Phase == ERTMatchPhase::Move)
+			{
+				return &Ev;
+			}
+		}
+		return nullptr;
+	}
+}
+
+/**
+ * L'evento di movimento porta il **prefisso pianificato**, e sul ghiaccio e' piu' corto della rotta —
+ * `#3263`.
+ *
+ * 🔴 **E' il canale che mancava.** `grep -rl PlannedLength Source/` rispondeva con sette file e **nessuno
+ * era di presentazione**: la distinzione fra *«l'ho chiesto io»* e *«l'ha deciso il terreno»* moriva nel
+ * resolver, e i due tratti arrivavano a schermo indistinguibili.
+ *
+ * ⚠️ **Il gate asserisce la DISUGUAGLIANZA, non un numero solo**: `PlannedLength < Path.Num()` e' cio' che
+ * rende il confine osservabile. Un `PlannedLength` uguale alla rotta direbbe *«tutto pianificato»* — vero
+ * per ogni movimento normale, e falso proprio qui.
+ *
+ * 🔑 **La scena e' quella di `Terrain.Ice.SlidesInMatch`**, che gia' pinna l'esito `Slid`: due celle volute
+ * verso `(2,0)` e una terza imposta dal ghiaccio. Riusare la stessa geometria e' cio' che lega questo gate
+ * a un comportamento gia' misurato, invece di costruirne uno per l'occasione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlidePlannedPrefixTest,
+	"RefactorTactics.Playback.IceSlideEventCarriesThePlannedPrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIceSlidePlannedPrefixTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id == FRTCellId(2, 0)) { Data.Surface = ERTHexSurface::Ice; }
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	// Un avversario fermo e lontano: senza, la squadra 1 e' gia' eliminata e il turno non risolve.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	if (!TestTrue(TEXT("⛔ premessa: il budget permette la scivolata (residuo >= 2)"),
+		Mover->GetEffectiveMoveRange() >= 4))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	// ⛔ PREMESSA: l'unita' e' davvero scivolata. Senza, il gate misurerebbe un movimento normale, dove
+	// `PlannedLength` vale l'intera rotta ed e' corretto che sia cosi'.
+	if (!TestTrue(TEXT("⛔ premessa: e' finita UNA cella oltre la destinazione chiesta"),
+		Mover->Cell == FRTCellId(3, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTResolvedEvent* Ev = MoveEventFor(TM, Mover->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: il movimento ha un evento di playback"), Ev))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	//
+	// La rotta e' `(0,0) (1,0) (2,0) (3,0)` — quattro celle, tre archi — e il piano ne copre tre: la
+	// partenza e le due volute. L'ultimo arco e' il ghiaccio.
+	TestEqual(TEXT("⛔ premessa: la rotta ha quattro celle"), Ev->Path.Num(), 4);
+	TestEqual(TEXT("🔴 il prefisso pianificato ne copre TRE: partenza inclusa, scivolata esclusa"),
+		Ev->PlannedLength, 3);
+	TestTrue(TEXT("🔴 ∴ il confine e' osservabile: il piano finisce prima della rotta"),
+		Ev->PlannedLength < Ev->Path.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * E su un movimento **senza** imposizioni il prefisso copre tutta la rotta — `#3263`.
+ *
+ * 🔴 **E' il controllo che impedisce al gate gemello di essere verde per una ragione qualunque.** Un
+ * `PlannedLength` scritto male — sempre `0`, sempre `Path.Num() - 1`, o un indice invece di un conteggio —
+ * renderebbe il confine «osservabile» su **ogni** movimento, e la distinzione non distinguerebbe piu'
+ * niente.
+ *
+ * ⚠️ **`0` significherebbe «tutto pianificato» per convenzione, ma qui si pretende il numero pieno**:
+ * `FinalizeHexMovementOutcomes` completa il campo con la lunghezza reale, e asserire lo zero accetterebbe
+ * anche un produttore che non lo scrive affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlainMovePlannedPrefixTest,
+	"RefactorTactics.Playback.PlainMoveHasNoImposedTail",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlainMovePlannedPrefixTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// La stessa geometria del gemello, **senza ghiaccio**: e' l'unica differenza fra i due scenari, ed e'
+	// cio' che rende il confronto una misura invece di due prove scollegate.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	// ⛔ PREMESSA: e' arrivata ESATTAMENTE dove aveva chiesto — nessuna scivolata.
+	if (!TestTrue(TEXT("⛔ premessa: nessuna imposizione, e' ferma dove voleva"),
+		Mover->Cell == FRTCellId(2, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTResolvedEvent* Ev = MoveEventFor(TM, Mover->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: il movimento ha un evento di playback"), Ev))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestEqual(TEXT("🔴 senza imposizioni il piano copre TUTTA la rotta"),
+		Ev->PlannedLength, Ev->Path.Num());
+	TestFalse(TEXT("⛔ ∴ nessun confine da mostrare: il playback non ha niente da distinguere"),
+		Ev->PlannedLength < Ev->Path.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * E il prefisso non supera mai la rotta, nemmeno quando l'unita' si ferma prima — `#3263`.
+ *
+ * 🔴 **Questo gate e' nato da una mutazione che NON produceva rossi.** Progettando la verifica avevo
+ * previsto che *«popolare `PlannedLength` senza clamp sulla rotta»* non sarebbe stato colto da nessun test,
+ * e la misura l'ha confermato: gli altri due scenari arrivano sempre a destinazione, quindi piano e rotta
+ * coincidono e il clamp non viene mai esercitato.
+ *
+ * 🔑 **Il caso che lo esercita e' un movimento INTERROTTO.** `PlannedLength` misura il percorso
+ * *pianificato*; `Ev.Path` e' cio' che l'unita' ha davvero attraversato. Un'unita' fermata a meta' ha un
+ * piano piu' lungo della propria rotta, e senza clamp l'evento porterebbe un prefisso **oltre la fine
+ * dell'array** — un indice fuori dai limiti per chiunque lo consumi per distinguere i due tratti.
+ *
+ * ⚠️ **Una CONTESA, non un ostacolo fermo**, e la differenza e' misurata: l'A* **aggira** un'unita'
+ * immobile, quindi il piano resterebbe lungo quanto la rotta e il clamp non sarebbe esercitato — provato,
+ * e il gate cadeva sulla propria premessa. Due mobilita' verso la **stessa** cella si risolvono invece a
+ * meta' strada, e chi perde si ferma prima della propria destinazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptedMovePlannedPrefixTest,
+	"RefactorTactics.Playback.PlannedPrefixNeverExceedsTheRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptedMovePlannedPrefixTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 8))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover  = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+	ARTUnit* Rivale = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Rivale) { DestroyHexMoveWorld(World); return false; }
+
+	const FRTCellId Contesa(3, 0);
+	Mover->PlannedCell = Contesa;
+	Rivale->PlannedCell = Contesa; // la stessa cella: una delle due si fermera' prima
+	RunTurn(TM);
+
+	// ⛔ PREMESSA: **una** delle due si e' fermata prima della cella contesa. Senza, piano e rotta
+	// coinciderebbero e il clamp non sarebbe esercitato — lo stato in cui la mutazione non dava rossi.
+	ARTUnit* const Perdente = (Mover->Cell != Contesa) ? Mover : Rivale;
+	if (!TestTrue(TEXT("⛔ premessa: una delle due non e' arrivata sulla cella contesa"),
+		Perdente->Cell != Contesa))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTResolvedEvent* Ev = MoveEventFor(TM, Perdente->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: chi ha perso la contesa ha un evento di playback"), Ev))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestTrue(TEXT("🔴 il prefisso pianificato non supera MAI le celle della rotta"),
+		Ev->PlannedLength <= Ev->Path.Num());
 
 	DestroyHexMoveWorld(World);
 	return true;

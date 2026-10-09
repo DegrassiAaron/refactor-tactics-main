@@ -475,7 +475,7 @@ bool FRTOccupancyReachableTest::RunTest(const FString&)
 
 	auto ReachesNarrow = [&](const URTHexMapAsset* Map)
 	{
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, Units);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 		for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snap, 1))
 		{
 			if (R.Cell == Narrow) { return true; }
@@ -490,7 +490,7 @@ bool FRTOccupancyReachableTest::RunTest(const FString&)
 
 	// Il gemello di controllo: la cella PRIMA resta raggiungibile, cioe' non si e' rotto il movimento in
 	// generale — si e' pagato di piu' solo dove la geometria stringe.
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 	bool bReachesMidpoint = false;
 	for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snap, 1))
 	{
@@ -538,7 +538,7 @@ bool FRTOccupancyMigrationTest::RunTest(const FString&)
 	// Il pin e' su 12 dal 2026-08-31 (#1864, nome stabile del muro interno). Il test resta di v7: quello che
 	// verifica e' che il sovrapprezzo nasca a zero, e continua a valere — il pin serve a far rileggere questo
 	// test a chi bumpa, non a legarlo a un numero.
-	TestEqual(TEXT("la versione corrente e' la 16"), URTHexMapAsset::CurrentFormatVersion, 16);
+	TestEqual(TEXT("la versione corrente e' la 18"), URTHexMapAsset::CurrentFormatVersion, 18);
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion,
 		URTHexMapAsset::CurrentFormatVersion);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 2);

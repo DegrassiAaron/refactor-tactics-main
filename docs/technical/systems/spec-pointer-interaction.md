@@ -333,12 +333,12 @@ Esiti ammessi — l'elenco è **chiuso**:
 | `Cell` | `IdleSelection` | `Inspect` highlight | `NoOp` | `NoOp` |
 | `Cell` | `Planning` / `Pathing` | `Preview` percorso e costo | `Confirm` waypoint · `Blocked(reason)` se irraggiungibile | `Cancel` ultimo waypoint |
 | `Cell` | `Targeting` / `Cell` | `Preview` celle colpite e alleati in area | `Confirm` bersaglio a terra — **anche se occupata** (§4.1) | `Cancel` → torna a `Planning` |
-| `Cell` | `Targeting` / `Unit` | `Inspect` contesto | `NoOp` — l'azione vuole un'unità | `Cancel` |
+| `Cell` | `Targeting` / `Unit` | **senza bersaglio dichiarato** `Inspect` contesto — come annunciare il rifiuto è aperto in [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) · **dichiarato il bersaglio** come `Cell` in `Planning` / `Pathing` ([D-128](../../decisions/RT_PDR_00_Decision_Log.md): l'hover annuncia ciò che il click esegue) | **senza bersaglio dichiarato** `Blocked(reason)` — «l'azione vuole un'unità»: niente waypoint, niente verso, l'azione resta armata · **dichiarato il bersaglio** movimento: il waypoint, e sulla cella finale il selettore del verso ([D-466](../../decisions/RT_PDR_00_Decision_Log.md) punto 3) | `Cancel` |
 | `FriendlyUnit` | `IdleSelection` / `Planning` | `Inspect` | `Select` | `NoOp` |
 | `FriendlyUnit` | `Targeting` / `Unit` | `Preview` con alleato marcato in area | `Confirm` **solo** se l'azione ammette bersagli alleati, altrimenti `Blocked` | `Cancel` |
 | `EnemyUnit` **rilevata** | `IdleSelection` / `Planning` | `Inspect` pubblico | `Inspect` — **non pianifica** ([D-128](../../decisions/RT_PDR_00_Decision_Log.md)) | `Cancel` |
 | `EnemyUnit` **rilevata** | `Targeting` / `Unit` | `Preview` dell'attacco: portata, copertura sul lato, esito atteso | `Confirm` attacco/carica · `Blocked(reason)` se illegale | `Cancel` → `Planning` |
-| `EnemyUnit` **non rilevata** | tutti | `NoOp` — §6.1 | `NoOp` | `NoOp` |
+| `EnemyUnit` **non rilevata** | tutti | `NoOp` — §6.1 | `NoOp` · in `Targeting` / `Unit`, **in entrambi i rami**, come una `Cell` vuota: stesso esito e stessa frase ([D-466](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). Negli altri contesti vedi la nota di §6.1 | `NoOp` |
 | `CoverEdge` | `Planning` / `Targeting` / `Cell` | `Inspect` lato e valore | `NoOp` (non è un bersaglio in questi contesti) | `NoOp` |
 | `CoverEdge` | `Targeting` / `Edge` | `Preview` del bordo dichiarato e della relazione difensiva | `Confirm` cella + direzione | `Cancel` → `Planning` |
 | `FacingSector` | `Facing` | `Preview` del settore: pieno se legale, barrato con reason se no | `Confirm` rotazione dichiarata | `Cancel` → `Planning` |
@@ -370,6 +370,8 @@ mondo, qualunque cosa ci sia sotto.
 | `ResolutionPlayback` | `Inspect` e camera consentiti | `Inspect` — ogni input che cambierebbe il piano è `Blocked(reason)` | `NoOp` |
 | `ReactionWindow` | `Inspect` delle **sole** risposte sanificate dell'opportunity | `Confirm` di una risposta legale; nient'altro è raggiungibile | `Cancel` → equivale a non scegliere, quindi `HOLD` al timeout |
 | `Modal` | `Inspect` | `Confirm` del modale | `Cancel` del modale |
+
+> ➕ **[`D-468`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-07, [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510)): la riga di `ResolutionPlayback` vale anche per la tastiera e per i pulsanti della barra.** Armo e disarmo — tasti, generiche, slot del dock —, `Sneak` e `Invio`/`Conferma` sono `Blocked`, con la causa nel log. Restano `Inspect` il piano attivo (`PageUp`/`PageDown`) e la camera. Il Back era già conforme: qui `ResolveBack` non tocca il piano.
 
 > Durante `ReactionWindow` il targeting normale **non si riapre**: le opzioni sono quelle che
 > l'opportunity dichiara, e sono già sanificate ([ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md)).
@@ -405,11 +407,13 @@ l'elenco è ordinato:
 1. ReactionWindow aperta   -> fallback esplicito, se l'opportunity ne dichiara uno
 2. Modal aperto            -> chiudi il modale
 3. Inspector pinnato       -> chiudi l'inspector
-4. Targeting / Facing      -> annulla la dichiarazione, torna a Planning
-5. Pathing con waypoint    -> rimuovi l'ultimo waypoint
-6. Pathing senza waypoint  -> torna a Planning
-7. PhaseFocus pinnato      -> PhaseFocus = Auto
-8. altrimenti              -> NoOp
+4. Facing (selettore)      -> chiudi il selettore del verso, senza toccare il piano
+5. Verso dichiarato        -> cancella il verso e riapri il movimento (D-367, D-462)
+6. Targeting               -> annulla la dichiarazione, torna a Planning
+7. Pathing con waypoint    -> rimuovi l'ultimo waypoint
+8. Pathing senza waypoint  -> torna a Planning
+9. PhaseFocus pinnato      -> PhaseFocus = Auto
+10. altrimenti             -> NoOp
 ```
 
 Due regole che l'ordine da solo non dice:
@@ -418,13 +422,36 @@ Due regole che l'ordine da solo non dice:
   è l'errore che costringe a ricliccare la propria unità dopo ogni ripensamento.
 - **`RMB` non tocca un piano già in `LockIn`.** Il Back agisce sulla dichiarazione in corso, non su ciò che
   è stato consegnato.
+- **Il verso chiude il movimento** ([D-367](../../decisions/RT_PDR_00_Decision_Log.md), [D-462](../../decisions/RT_PDR_00_Decision_Log.md), [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291)).
+  Il verso si sceglie col **secondo click sull'esagono finale**, sul lato puntato (`HandleFacingClick`); da fermo,
+  un click sulla propria cella apre prima i sei triangoli. Con un verso dichiarato un click su un'altra cella non
+  aggiunge waypoint, e la voce 5 lo toglie per prima. Un click sulla destinazione senza un lato — al centro, sul segno
+  del waypoint — **apre la scelta del verso** e non duplica il waypoint ([D-463](../../decisions/RT_PDR_00_Decision_Log.md)).
+  🔑 **Col selettore aperto ogni click è una direzione**, verso il lato puntato o verso l'esagono cliccato anche fuori
+  dalla cella finale: il movimento resta chiuso finché non si sceglie un verso o la voce 4 non chiude il selettore.
+  Fa eccezione un click su un'altra unità comandabile, che resta una selezione. Un lato illegale lascia aperto il
+  selettore, e l'hover gira la mesh verso il lato legale sotto il cursore senza toccare il piano.
+  Qualunque modifica al percorso — waypoint tolto o restituito,
+  troncamento di una riserva o dello `Sneak` — cancella il verso. ⌫ *Il tasto `T` e il ciclo sono usciti dal gioco.*
+  ⚠️ **L'ordine e' statico, e lo si dichiara**: il verso si toglie prima di un'azione armata anche quando l'azione e'
+  stata armata dopo. Il Back che «disfa l'ultimo gesto» chiederebbe una pila di gesti, che non esiste; e armare chiude
+  il selettore, quindi i due gesti non si sovrappongono.
+- **«Annulla la dichiarazione» vuol dire anche il piano, se la dichiarazione l'ha già scritto**
+  ([D-461](../../decisions/RT_PDR_00_Decision_Log.md), [#3501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3501)).
+  Quando l'azione armata è **la stessa** già nel piano, la voce 6 la disarma: la toglie dalla selezione e dal
+  piano, rilascia il tetto di movimento che imponeva, e restituisce i waypoint troncati ([D-444](../../decisions/RT_PDR_00_Decision_Log.md)). Succede a
+  un supporto su se stessi, che entra nel piano all'armamento, e a un attacco col bersaglio già dichiarato.
+  Se dopo l'azione sono stati posati waypoint, il Back toglie **prima quelli**, uno per volta: disfa l'ultimo
+  gesto, e l'azione si disarma al Back in cui non ne restano.
+  ⛔ Un targeting **senza** bersaglio esce e basta: un'altra azione già pianificata resta. E un Back che chiude un
+  `Facing` non tocca il piano.
 
 `BackSpace` segue lo stesso elenco (è già legato a `UndoAction`, `RTPlayerController.cpp:246-247`). `Esc`
 pure, con la sola eccezione della `ReactionWindow`: lì non chiude, perché non scegliere è già `HOLD`.
 
 ### 5.6 `PhaseFocus` non è un contesto
 
-La voce 7 dell'elenco nomina uno stato che **non** appartiene a §4, e la distinzione conta:
+La voce 9 dell'elenco nomina uno stato che **non** appartiene a §4, e la distinzione conta:
 
 `PhaseFocus ∈ {Auto, Prep, Dash, Blast, Move}` è l'asse dello **scrubbing** — quale fase del proprio piano si
 sta guardando. È ortogonale al contesto del puntatore: si può ispezionare la fase `Blast` mentre si posano
@@ -454,6 +481,19 @@ un Actor nel mondo — e un tooltip su di essa rivelerebbe stato privato.
 non rilevato si comporta come `EmptyWorld`: nessun highlight, nessun tooltip, nessun bersaglio.
 Nessun hover, warning, ghost o Decision Window usa mai intenti avversari privati: i warning si costruiscono
 su stato **pubblico** più intenti della **propria** squadra.
+
+> ⚠️ **`CONTRACT CONFLICT`, registrato il 2026-10-06 con [D-466](../../decisions/RT_PDR_00_Decision_Log.md).**
+> «Si comporta come `EmptyWorld`» non è ciò che fa il codice, e non è ciò che la privacy chiede dove una cella
+> vuota risponde con un esito. Un nemico velato non è pickabile (`ARTUnit::RefreshComponentVisibility` ne spegne
+> la collisione, `RefactorTactics.Veil.HiddenEnemyIsNotPickable`), quindi il click cade sulla cella su cui sta;
+> `RefactorTactics.Pointer.VeiledUnitIsIndistinguishableFromEmptyGround` asserisce la stessa parità sul solo esito
+> del router. D-466 punto 2 decide il **click** in `Targeting` / `Unit`: come la cella vuota, in entrambi i rami.
+> Nella riga `EnemyUnit` non rilevata di §5.1 restano diversi da quelli di una `Cell` l'Hover in ogni contesto,
+> l'RMB fuori da `IdleSelection`, e il click in `Planning` / `Pathing` (`NoOp` contro il waypoint) e in
+> `Targeting` / `Cell` (`NoOp` contro il bersaglio a terra): la lettura che la privacy impone è «come la cella su
+> cui sta», ma la correzione di quelle celle chiede una decisione propria. ⏱️ *Il paragrafo qui sopra descrive il
+> codice del 2026-08-12: oggi `DispatchUnitClick` passa al router anche l'osservazione, e la collisione di
+> un'unità velata è spenta.*
 
 ### 6.2 Il ghost di un alleato è sola lettura
 

@@ -64,11 +64,60 @@ class REFACTORTACTICS_API URTHexSimLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * Congela mappa e unita' a inizio fase: unita' ordinate per UnitId, occupazione delle sole unita' VIVE
-	 * (a parita' di cella vince l'UnitId minore), hash/revisione della mappa catturati. Deterministico:
-	 * l'ordine dell'input non cambia lo snapshot.
+	 * Congela mappa, unita' e conoscenza a inizio fase, **per un osservatore dichiarato**: unita' ordinate
+	 * per UnitId, occupazione delle sole unita' VIVE che quell'osservatore conosce (a parita' di cella vince
+	 * l'UnitId minore), hash/revisione della mappa catturati. Deterministico: l'ordine dell'input non cambia
+	 * lo snapshot.
+	 *
+	 * 🔴 **`ObserverTeamId` NON ha un default, ed e' una scelta.** `BLIND-2` chiede che *«il vecchio ingresso
+	 * diventi difficile da usare per sbaglio, non solo sconsigliato»*: con un default, un chiamante che
+	 * dimentica l'osservatore continua a vedere l'autorevole e nessuno se ne accorge. Senza, ogni sito
+	 * **nomina la propria posizione** — `RTObserver::Omniscient` per la Resolution e per chi ha autorita',
+	 * un `TeamId` per chi pianifica.
+	 *
+	 * ⚠️ **E la conoscenza entra come INGRESSO, non come campo assegnato dopo.** Fino a [D-371] la si
+	 * attaccava allo snapshot gia' costruito, il che rendeva possibile una fotografia a meta': occupazione
+	 * decisa senza sapere chi guardava. Ora le due cose nascono insieme, che e' l'unico modo in cui il
+	 * filtro possa essere parte della costruzione invece che una passata successiva.
 	 */
-	static FRTHexSnapshot MakeSnapshot(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units);
+	static FRTHexSnapshot MakeSnapshot(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units,
+		const TArray<FRTTeamKnowledge>& TeamKnowledge, int32 ObserverTeamId);
+
+	/**
+	 * La fotografia di chi ha AUTORITA': nessun filtro, perche' nessuna squadra possiede questa vista.
+	 *
+	 * 🔑 **E' il default che `BLIND-2` vieta, reso impossibile da dimenticare: sta nel NOME.** Un parametro
+	 * con valore di default lascia che un chiamante distratto veda l'autorevole in silenzio; una funzione
+	 * che si chiama `Omniscient` costringe a scriverlo, e chi legge il sito di chiamata vede quale posizione
+	 * e' stata presa senza aprire questo header.
+	 *
+	 * ⚠️ **Chiamarla dalla PIANIFICAZIONE e' il difetto che [D-371] chiude**: li' serve `MakeSnapshot` con
+	 * il `TeamId` di chi pianifica. Qui stanno la Resolution, il bootstrap, gli strumenti d'autore e i
+	 * banchi che misurano la simulazione invece della privacy.
+	 */
+	static FRTHexSnapshot MakeSnapshotOmniscient(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units)
+	{
+		return MakeSnapshot(Map, Units, /*TeamKnowledge*/ {}, RTObserver::Omniscient);
+	}
+
+	/**
+	 * La stessa fotografia, **vista da un'altra posizione**: unita' e conoscenza identiche, occupazione
+	 * ricostruita per l'osservatore dichiarato.
+	 *
+	 * 🔑 **Serve dove una sola raccolta deve servire piu' osservatori**, e l'unico caso in produzione e' il
+	 * pianificatore dei bot: `PlanTurn` tiene gia' *«uno snapshot per squadra che ha almeno un bot»* perche'
+	 * i compagni si prenotano le celle a vicenda, e da [D-371] quello stesso snapshot deve anche **filtrare**.
+	 *
+	 * ⚠️ **Non e' l'uscita *(c)* che `BLIND-2` esclude.** Quella e' *«costruire la vista non autorizzata e
+	 * poi nasconderla»* — filtrare il RISULTATO di una query. Qui si ricostruisce l'**ingresso** prima che
+	 * qualunque primitiva lo legga: nessun ventaglio, nessun percorso e nessun reason code nasce dalla
+	 * fotografia onnisciente. ⛔ E resta vero soltanto finche' chi la usa non legge **anche** l'originale:
+	 * `BaseSnapshot.Occupancy` letta accanto a questa sarebbe la stessa fuga da un'altra porta.
+	 */
+	static FRTHexSnapshot AsObserver(const FRTHexSnapshot& Snapshot, int32 ObserverTeamId)
+	{
+		return MakeSnapshot(Snapshot.Map, Snapshot.Units, Snapshot.TeamKnowledge, ObserverTeamId);
+	}
 
 	/**
 	 * Errori strutturali dello snapshot (stessa forma di URTHexMapAsset::ValidateMap): due unita' vive sulla
@@ -289,13 +338,19 @@ public:
 	 * terreno (`#2314`). Vuoto, piu' corto di `Paths`, o con `PlannedLength` a `0` -> «tutto pianificato,
 	 * nessuno scivolamento» per le unita' mancanti: con l'array vuoto la classificazione e' quella di sempre.
 	 * Lo compila `ARTTurnManager::ResolveMovement`, che e' il solo punto in cui i due pezzi sono distinguibili.
+	 *
+	 * `Cadences` dichiara, per unita', in quali sotto-passi del tick puo' avanzare ([D-428], che chiude
+	 * `SKB-2`). Vuoto o piu' corto di `Paths` -> **cadenza neutra** per chi manca, cioe' un passo per tick:
+	 * con l'array vuoto la sequenza di micro-step emessi e' identica a prima del calendario. Lo compila
+	 * `ARTTurnManager::ResolveMovement`, dove il profilo di movimento e' visibile e il resolver no.
 	 */
 	static FRTMovementResolutionState BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
 		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
 		const TArray<bool>& bPassThrough = TArray<bool>(),
 		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>(),
 		const TArray<TArray<int32>>& StepDurations = TArray<TArray<int32>>(),
-		const TArray<int32>& Teams = TArray<int32>());
+		const TArray<int32>& Teams = TArray<int32>(),
+		const TArray<FRTMovementCadence>& Cadences = TArray<FRTMovementCadence>());
 
 	/**
 	 * Quanti microstep dura l'ingresso in `Cell` per l'unita' `UnitId` dello snapshot

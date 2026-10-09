@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Algo/Reverse.h"
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
@@ -922,6 +923,262 @@ bool FRTAnchorRefusedPairsAreTheDeclaredOnesTest::RunTest(const FString&)
 	TestEqual(TEXT("coppie rifiutate"), Refused, 24);
 	TestEqual(TEXT("e ogni rifiuto e' quello che GEO-8 dichiara"), Mismatches, 0);
 
+	return true;
+}
+
+
+/**
+ * IL RETICOLO INTERO E IL MONDO IN VIRGOLA MOBILE DICONO LO STESSO PUNTO (#1868).
+ *
+ * 🔴 **E' il test che tiene insieme le DUE scritture degli stessi tredici punti.** `AnchorLocal` li prende
+ * da `SectorBoundaryPoints` — l'unica definizione in `FVector2D` — mentre `AnchorPoint` li ha come interi,
+ * perche' un `round()` sul float rimetterebbe nella decisione il valore che il reticolo esiste per togliere.
+ * Due scritture divergono: questa le confronta su TUTTI e tredici gli anchor di un intorno, e cade se una
+ * delle due si muove.
+ *
+ * ⚠️ **Il confronto e' sulle DIFFERENZE, non sui valori assoluti**: il reticolo non conosce l'origine del
+ * mondo, conosce i passi. Verificare `M * UX == Wx` a meno di un epsilon sarebbe lo stesso test scritto
+ * peggio, perche' l'epsilon tornerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorLatticeAgreesTest,
+	"RefactorTactics.Anchor.LatticeAgreesWithTheFloatingPointWorld",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorLatticeAgreesTest::RunTest(const FString&)
+{
+	const double UX = static_cast<double>(AnchorTestHexSize) * 1.7320508075688772 / 4.0;
+	const double UY = static_cast<double>(AnchorTestHexSize) / 4.0;
+
+	TArray<FRTAnchorRef> Tutti;
+	for (int32 Q = -2; Q <= 2; ++Q)
+	{
+		for (int32 R = -2; R <= 2; ++R)
+		{
+			// ⚠️ `AnchorsOfCell` fa `Reset()`: accumula chi chiama, non lei.
+			TArray<FRTAnchorRef> Della;
+			URTGeometryGrammarLibrary::AnchorsOfCell(FRTCellId(Q, R, 0), Della);
+			Tutti.Append(Della);
+		}
+	}
+	if (!TestTrue(TEXT("l'intorno porta i tredici anchor per cella"), Tutti.Num() == 25 * 13))
+	{
+		return false;
+	}
+
+	int32 Confrontati = 0;
+	double Peggiore = 0.0;
+	for (const FRTAnchorRef& A : Tutti)
+	{
+		const FVector OrigA = URTHexLibrary::AxialToWorld(A.Cell, FVector::ZeroVector,
+			AnchorTestHexSize, 0.f);
+		const FVector2D MondoA = FVector2D(OrigA.X, OrigA.Y)
+			+ URTGeometryGrammarLibrary::AnchorLocal(A, AnchorTestHexSize);
+		const FRTAnchorLattice LatA = URTGeometryGrammarLibrary::AnchorPoint(A);
+
+		for (const FRTAnchorRef& B : Tutti)
+		{
+			const FVector OrigB = URTHexLibrary::AxialToWorld(B.Cell, FVector::ZeroVector,
+				AnchorTestHexSize, 0.f);
+			const FVector2D MondoB = FVector2D(OrigB.X, OrigB.Y)
+				+ URTGeometryGrammarLibrary::AnchorLocal(B, AnchorTestHexSize);
+			const FRTAnchorLattice LatB = URTGeometryGrammarLibrary::AnchorPoint(B);
+
+			const double AttesoX = static_cast<double>(LatB.M - LatA.M) * UX;
+			const double AttesoY = static_cast<double>(LatB.N - LatA.N) * UY;
+			Peggiore = FMath::Max3(Peggiore,
+				FMath::Abs(static_cast<double>(MondoB.X - MondoA.X) - AttesoX),
+				FMath::Abs(static_cast<double>(MondoB.Y - MondoA.Y) - AttesoY));
+			++Confrontati;
+		}
+	}
+	AddInfo(FString::Printf(TEXT("confrontate %d coppie, scarto massimo %.3e"), Confrontati, Peggiore));
+	// La soglia e' larga di dieci ordini rispetto al misurato (~1e-13 a `HexSize = 100`): questo test pinna
+	// che le due scritture dicano LA STESSA COSA, non la precisione di `double`.
+	TestTrue(TEXT("le due scritture concordano su ogni coppia"), Peggiore < 1e-6);
+	TestEqual(TEXT("e sono state confrontate tutte"), Confrontati, Tutti.Num() * Tutti.Num());
+	return true;
+}
+
+/**
+ * DUE NOMI DELLO STESSO PUNTO DANNO LO STESSO PUNTO DEL RETICOLO — e `operator==` no (#1868, [D-288]).
+ *
+ * 🔑 **E' la proprieta' su cui poggia la regola «vertici coincidenti»**, e la ragione per cui quella regola
+ * non poteva essere scritta con `FRTAnchorRef::operator==`: un vertice ha fino a TRE nomi.
+ *
+ * ➕ **E l'accordo con `CanonicalAnchor` e' asserito qui, invece di essere sperato.** Quella funzione
+ * risponde alla stessa domanda per via combinatoria ([D-288], `#1893`); questa per via aritmetica. Due
+ * definizioni di *«stesso punto»* nello stesso modulo sarebbero due sedi — e il test le tiene allineate,
+ * che e' l'unica cosa che impedisce la divergenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorLatticeMatchesCanonicalTest,
+	"RefactorTactics.Anchor.LatticeAndCanonicalAgreeOnSamePoint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorLatticeMatchesCanonicalTest::RunTest(const FString&)
+{
+	TArray<FRTAnchorRef> Tutti;
+	for (int32 Q = -1; Q <= 1; ++Q)
+	{
+		for (int32 R = -1; R <= 1; ++R)
+		{
+			// ⚠️ `AnchorsOfCell` fa `Reset()`: accumula chi chiama, non lei.
+			TArray<FRTAnchorRef> Della;
+			URTGeometryGrammarLibrary::AnchorsOfCell(FRTCellId(Q, R, 0), Della);
+			Tutti.Append(Della);
+		}
+	}
+
+	int32 Coincidenti = 0;
+	int32 Discordi = 0;
+	int32 DiversiPerOperatore = 0;
+	for (int32 I = 0; I < Tutti.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < Tutti.Num(); ++J)
+		{
+			const bool bStessoPunto =
+				URTGeometryGrammarLibrary::AnchorPoint(Tutti[I]) == URTGeometryGrammarLibrary::AnchorPoint(Tutti[J]);
+			const bool bStessoCanonico =
+				URTGeometryGrammarLibrary::CanonicalAnchor(Tutti[I]) == URTGeometryGrammarLibrary::CanonicalAnchor(Tutti[J]);
+			if (bStessoPunto != bStessoCanonico) { ++Discordi; }
+			if (bStessoPunto)
+			{
+				++Coincidenti;
+				if (!(Tutti[I] == Tutti[J])) { ++DiversiPerOperatore; }
+			}
+		}
+	}
+	AddInfo(FString::Printf(TEXT("%d ref, %d coppie coincidenti, %d discordi"),
+		Tutti.Num(), Coincidenti, Discordi));
+
+	TestEqual(TEXT("reticolo e canonico non discordano su nessuna coppia"), Discordi, 0);
+	// ⛔ ANTI-VACUITA': senza questa riga il test passerebbe anche se NESSUNA coppia coincidesse, cioe' se
+	// entrambe le funzioni rispondessero sempre «diversi».
+	TestTrue(FString::Printf(TEXT("e le coppie coincidenti esistono davvero (%d)"), Coincidenti),
+		Coincidenti > 20);
+	// 🔑 Il fatto che la regola esiste per catturare: coincidono TUTTE con riferimenti diversi.
+	TestEqual(TEXT("e ogni coppia coincidente ha riferimenti DIVERSI"), DiversiPerOperatore, Coincidenti);
+	return true;
+}
+
+/**
+ * UN ANELLO CON DUE VERTICI NELLO STESSO PUNTO E' RIFIUTATO, ANCHE SE I RIFERIMENTI SONO DIVERSI (#1868).
+ *
+ * 🔴 **E' il caso NORMALE, non il caso limite.** Un triangolo i cui tre `FRTAnchorRef` sono distinti, ma
+ * due dei quali nominano lo stesso vertice da due celle diverse: `operator==` lo dichiara sano, il
+ * reticolo lo smaschera. Senza questo test la regola potrebbe essere scritta con `operator==` e sembrare
+ * verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRingCoincidentTest,
+	"RefactorTactics.Anchor.RingRejectsCoincidentVerticesNamedTwice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRingCoincidentTest::RunTest(const FString&)
+{
+	// Il vertice `0` di `(0,0)` ha altri due nomi: li chiede a `CanonicalAnchor` invece di ricavarli qui,
+	// perche' un secondo calcolo degli alias divergerebbe dal primo.
+	const FRTAnchorRef V(FRTCellId(0, 0, 0), ERTAnchorKind::Vertex, 0);
+	TArray<FRTAnchorRef> Tutti;
+	for (int32 Q = -1; Q <= 1; ++Q)
+	{
+		for (int32 R = -1; R <= 1; ++R)
+		{
+			// ⚠️ `AnchorsOfCell` fa `Reset()`: accumula chi chiama, non lei.
+			TArray<FRTAnchorRef> Della;
+			URTGeometryGrammarLibrary::AnchorsOfCell(FRTCellId(Q, R, 0), Della);
+			Tutti.Append(Della);
+		}
+	}
+	const FRTAnchorRef* Alias = Tutti.FindByPredicate([&V](const FRTAnchorRef& X)
+	{
+		return !(X == V)
+			&& URTGeometryGrammarLibrary::AnchorPoint(X) == URTGeometryGrammarLibrary::AnchorPoint(V);
+	});
+	if (!TestNotNull(TEXT("il vertice ha un secondo nome"), Alias)) { return false; }
+	AddInfo(FString::Printf(TEXT("%s e %s sono lo stesso punto"), *V.ToString(), *Alias->ToString()));
+
+	int32 A = INDEX_NONE;
+	int32 B = INDEX_NONE;
+	const TArray<FRTAnchorRef> Anello = { V, FRTAnchorRef(FRTCellId(2, 0, 0), ERTAnchorKind::Center), *Alias };
+	TestTrue(TEXT("l'anello con due nomi dello stesso punto e' coincidente"),
+		URTGeometryGrammarLibrary::RingHasCoincidentVertices(Anello, A, B));
+	TestEqual(TEXT("e la coppia trovata e' la prima, in ordine di anello"), A, 0);
+	TestEqual(TEXT("con il secondo indice giusto"), B, 2);
+
+	// ⛔ **LA CONTROPROVA CHE RENDE IL TEST NON VACUO**: `operator==` NON li vede. Senza questa riga il
+	// test passerebbe anche con la regola scritta nel modo sbagliato.
+	TestFalse(TEXT("e operator== NON lo vedrebbe: i riferimenti sono diversi"), Anello[0] == Anello[2]);
+
+	// Un triangolo vero non e' coincidente.
+	int32 C = INDEX_NONE;
+	int32 D = INDEX_NONE;
+	const TArray<FRTAnchorRef> Sano = {
+		FRTAnchorRef(FRTCellId(-2, 2, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(2, 0, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(0, -2, 0), ERTAnchorKind::Center) };
+	TestFalse(TEXT("un triangolo vero non ha vertici coincidenti"),
+		URTGeometryGrammarLibrary::RingHasCoincidentVertices(Sano, C, D));
+	TestTrue(TEXT("e ha area non nulla"), URTGeometryGrammarLibrary::RingAreaTwice(Sano) != 0);
+	return true;
+}
+
+/**
+ * L'AREA E L'AUTO-INTERSEZIONE SONO ESATTE, E IL VERSO NON CAMBIA L'ESITO (#1868).
+ *
+ * ⚠️ **L'area cambia SEGNO invertendo l'anello, e il modulo no**: il segno dichiara il verso ed e'
+ * un'informazione, non un difetto. Cio' che non deve cambiare e' il verdetto «degenere».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRingAreaAndCrossingTest,
+	"RefactorTactics.Anchor.RingAreaAndSelfIntersectionAreExact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRingAreaAndCrossingTest::RunTest(const FString&)
+{
+	const TArray<FRTAnchorRef> Triangolo = {
+		FRTAnchorRef(FRTCellId(-2, 2, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(2, 0, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(0, -2, 0), ERTAnchorKind::Center) };
+	const int64 Area = URTGeometryGrammarLibrary::RingAreaTwice(Triangolo);
+	AddInfo(FString::Printf(TEXT("area doppia del triangolo di prova: %lld"), Area));
+	TestTrue(TEXT("il triangolo ha area non nulla"), Area != 0);
+
+	TArray<FRTAnchorRef> Rovescio = Triangolo;
+	Algo::Reverse(Rovescio);
+	TestEqual(TEXT("invertire l'anello cambia il SEGNO dell'area"),
+		URTGeometryGrammarLibrary::RingAreaTwice(Rovescio), -Area);
+
+	// ⛔ ALLINEATI: tre centri sulla stessa riga hanno area esattamente ZERO, non «quasi zero».
+	const TArray<FRTAnchorRef> Allineati = {
+		FRTAnchorRef(FRTCellId(-2, 0, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(0, 0, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(2, 0, 0), ERTAnchorKind::Center) };
+	TestEqual(TEXT("tre punti allineati danno area ESATTAMENTE zero"),
+		URTGeometryGrammarLibrary::RingAreaTwice(Allineati), static_cast<int64>(0));
+
+	// Un quadrilatero sano non si attraversa; lo stesso con due vertici scambiati diventa un «otto».
+	int32 A = INDEX_NONE;
+	int32 B = INDEX_NONE;
+	const TArray<FRTAnchorRef> Quadrato = {
+		FRTAnchorRef(FRTCellId(-2, 0, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(0, -2, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(2, -2, 0), ERTAnchorKind::Center),
+		FRTAnchorRef(FRTCellId(0, 2, 0), ERTAnchorKind::Center) };
+	TestFalse(TEXT("un quadrilatero sano non si attraversa"),
+		URTGeometryGrammarLibrary::RingSelfIntersects(Quadrato, A, B));
+
+	TArray<FRTAnchorRef> Otto = Quadrato;
+	Otto.Swap(1, 2);
+	TestTrue(TEXT("scambiando due vertici diventa un otto, e si attraversa"),
+		URTGeometryGrammarLibrary::RingSelfIntersects(Otto, A, B));
+	AddInfo(FString::Printf(TEXT("lati che si attraversano: %d e %d"), A, B));
+
+	// 🔑 **IL VERSO NON CAMBIA IL VERDETTO**, che e' la proprieta' per cui l'aritmetica e' intera.
+	TArray<FRTAnchorRef> OttoRovescio = Otto;
+	Algo::Reverse(OttoRovescio);
+	int32 C = INDEX_NONE;
+	int32 D = INDEX_NONE;
+	TestTrue(TEXT("e resta un otto anche percorso al contrario"),
+		URTGeometryGrammarLibrary::RingSelfIntersects(OttoRovescio, C, D));
+
+	// ⛔ **UN TRIANGOLO NON PUO' AUTO-INTERSECARSI**: ogni coppia di lati e' adiacente. Senza questa riga,
+	// una regola che ignorasse l'adiacenza segnalerebbe ogni triangolo del mondo.
+	TestFalse(TEXT("un triangolo non si auto-interseca mai"),
+		URTGeometryGrammarLibrary::RingSelfIntersects(Triangolo, C, D));
 	return true;
 }
 

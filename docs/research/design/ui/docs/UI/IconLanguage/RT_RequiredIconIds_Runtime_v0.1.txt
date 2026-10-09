@@ -1,0 +1,80 @@
+# RT_RequiredIconIds_Runtime_v0.1.txt
+# DERIVAZIONE STATICA dal sorgente, NON esecuzione runtime.
+# Fonte: Source/RefactorTactics/UI/RTIconLibrary.cpp:27-140
+# Repo: DegrassiAaron/refactor-tactics-main@main, albero b1e2544dc945
+# ATTENZIONE: RequiredIconIds() non e' stata eseguita. Vedi STOP-1 nel report.
+#
+# --- Phase (4) — ordine del turno, ERTMatchPhase filtrato alle fasi volontarie
+UI.Icon.Phase.Prep
+UI.Icon.Phase.Dash
+UI.Icon.Phase.Blast
+UI.Icon.Phase.Move
+#
+# --- Action (37) — ordine di GetCoreActionCatalog(), RTCatalogLibrary.cpp:1027+
+UI.Icon.Action.Sprint
+UI.Icon.Action.Wait
+UI.Icon.Action.Move
+UI.Icon.Action.BasicAttack
+UI.Icon.Action.Guard
+UI.Icon.Action.Interact
+UI.Icon.Action.Overwatch
+UI.Icon.Action.Dodge
+UI.Icon.Action.Charge
+UI.Icon.Action.Leap
+UI.Icon.Action.Reposition
+UI.Icon.Action.PrecisionAttack
+UI.Icon.Action.HeavyAttack
+UI.Icon.Action.LineAttack
+UI.Icon.Action.CircularAoE
+UI.Icon.Action.SuppressiveLine
+UI.Icon.Action.MarkTarget
+UI.Icon.Action.Counter
+UI.Icon.Action.Deflect
+UI.Icon.Action.Intercept
+UI.Icon.Action.Anchor
+UI.Icon.Action.Purge
+UI.Icon.Action.Evade
+UI.Icon.Action.Brace
+UI.Icon.Action.Shield
+UI.Icon.Action.Cleanse
+UI.Icon.Action.Push
+UI.Icon.Action.Pull
+UI.Icon.Action.Root
+UI.Icon.Action.Slow
+UI.Icon.Action.Interrupt
+UI.Icon.Action.Electrify
+UI.Icon.Action.Ignite
+UI.Icon.Action.CreateWater
+UI.Icon.Action.ModifyArc
+UI.Icon.Action.CreateCover
+UI.Icon.Action.Heal
+#
+# --- Status (11) — tag sotto Status., ordinati lessicalmente dalla funzione
+UI.Icon.Status.Braced
+UI.Icon.Status.Burning
+UI.Icon.Status.Electrified
+UI.Icon.Status.Exposed
+UI.Icon.Status.Guarded
+UI.Icon.Status.Marked
+UI.Icon.Status.Obscured
+UI.Icon.Status.Reveal
+UI.Icon.Status.Root
+UI.Icon.Status.Slow
+UI.Icon.Status.Wet
+#
+# --- Certainty (3) — livelli disegnabili, scritti a mano in RTIconLibrary.cpp:107
+UI.Icon.Certainty.Confirmed
+UI.Icon.Certainty.Predicted
+UI.Icon.Certainty.Uncertain
+#
+# --- Identity (6) — 4 eroi da GetHeroIds() con prefisso tradotto, + 2 relazioni
+UI.Icon.Identity.Gadget
+UI.Icon.Identity.Phase
+UI.Icon.Identity.Riktor
+UI.Icon.Identity.Wraith
+UI.Icon.Identity.Ally
+UI.Icon.Identity.Enemy
+#
+# COUNT: 61
+# EXPECTED: 61
+# MATCH: YES (derivazione statica)

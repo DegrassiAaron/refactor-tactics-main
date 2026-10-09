@@ -1,0 +1,62 @@
+RuntimeId,CurrentAsset,Required,Resolved,V01ExactReplacementCandidate,ProtectedCategory,Notes
+UI.Icon.Phase.Prep,RT_UI_Icon_Phase_Prep.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Phase.Dash,RT_UI_Icon_Phase_Dash.svg,TRUE,UNVERIFIED,NONE,FALSE,Phase.Dash collide di NOME con Glyph.Dash (azione). Nessuna relazione semantica
+UI.Icon.Phase.Blast,RT_UI_Icon_Phase_Blast.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Phase.Move,RT_UI_Icon_Phase_Move.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Sprint,RT_UI_Icon_Action_Sprint.svg,TRUE,UNVERIFIED,NONE,FALSE,Fast-movement family — Glyph.Dash resta family glyph. Action.Dash non esiste nel catalogo
+UI.Icon.Action.Wait,RT_UI_Icon_Action_Wait.svg,TRUE,UNVERIFIED,T_UI_Icon_Action_Wait,FALSE,
+UI.Icon.Action.Move,RT_UI_Icon_Action_Move.svg,TRUE,UNVERIFIED,T_UI_Icon_Action_Move,FALSE,
+UI.Icon.Action.BasicAttack,RT_UI_Icon_Action_BasicAttack.svg,TRUE,UNVERIFIED,NONE,FALSE,"Attack family — Glyph.Attack resta family glyph, non sostituisce questa chiave"
+UI.Icon.Action.Guard,RT_UI_Icon_Action_Guard.svg,TRUE,UNVERIFIED,T_UI_Icon_Action_Guard,FALSE,
+UI.Icon.Action.Interact,RT_UI_Icon_Action_Interact.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Overwatch,RT_UI_Icon_Action_Overwatch.svg,TRUE,UNVERIFIED,T_UI_Icon_Action_Overwatch,FALSE,
+UI.Icon.Action.Dodge,RT_UI_Icon_Action_Dodge.svg,TRUE,UNVERIFIED,NONE,FALSE,Fast-movement family. RUNTIME_REQUIRED: add incondizionato a RTCatalogLibrary.cpp:1179
+UI.Icon.Action.Charge,RT_UI_Icon_Action_Charge.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Leap,RT_UI_Icon_Action_Leap.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Reposition,RT_UI_Icon_Action_Reposition.svg,TRUE,UNVERIFIED,NONE,FALSE,Fast-movement family — LinearDash 2 celle
+UI.Icon.Action.PrecisionAttack,RT_UI_Icon_Action_PrecisionAttack.svg,TRUE,UNVERIFIED,NONE,FALSE,Attack family — identita' visuale distinta richiesta dalla decisione di prodotto
+UI.Icon.Action.HeavyAttack,RT_UI_Icon_Action_HeavyAttack.svg,TRUE,UNVERIFIED,NONE,FALSE,Attack family — identita' visuale distinta richiesta dalla decisione di prodotto
+UI.Icon.Action.LineAttack,RT_UI_Icon_Action_LineAttack.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.CircularAoE,RT_UI_Icon_Action_CircularAoE.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.SuppressiveLine,RT_UI_Icon_Action_SuppressiveLine.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.MarkTarget,RT_UI_Icon_Action_MarkTarget.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Counter,RT_UI_Icon_Action_Counter.svg,TRUE,UNVERIFIED,NONE,FALSE,Reaction family — Glyph.Reaction resta family glyph su sei azioni Control
+UI.Icon.Action.Deflect,RT_UI_Icon_Action_Deflect.svg,TRUE,UNVERIFIED,NONE,FALSE,Reaction family
+UI.Icon.Action.Intercept,RT_UI_Icon_Action_Intercept.svg,TRUE,UNVERIFIED,NONE,FALSE,Reaction family
+UI.Icon.Action.Anchor,RT_UI_Icon_Action_Anchor.svg,TRUE,UNVERIFIED,NONE,FALSE,Reaction family
+UI.Icon.Action.Purge,RT_UI_Icon_Action_Purge.svg,TRUE,UNVERIFIED,NONE,FALSE,Reaction family
+UI.Icon.Action.Evade,RT_UI_Icon_Action_Evade.svg,TRUE,UNVERIFIED,NONE,FALSE,Reaction family
+UI.Icon.Action.Brace,RT_UI_Icon_Action_Brace.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Shield,RT_UI_Icon_Action_Shield.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Cleanse,RT_UI_Icon_Action_Cleanse.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Push,RT_UI_Icon_Action_Push.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Pull,RT_UI_Icon_Action_Pull.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Root,RT_UI_Icon_Action_Root.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Slow,RT_UI_Icon_Action_Slow.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Interrupt,RT_UI_Icon_Action_Interrupt.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.Electrify,RT_UI_Icon_Action_Electrify.svg,TRUE,UNVERIFIED,NONE,FALSE,"AZIONE, non lo stato della superficie"
+UI.Icon.Action.Ignite,RT_UI_Icon_Action_Ignite.svg,TRUE,UNVERIFIED,NONE,FALSE,"AZIONE, non lo stato della superficie"
+UI.Icon.Action.CreateWater,RT_UI_Icon_Action_CreateWater.svg,TRUE,UNVERIFIED,NONE,FALSE,"AZIONE, non lo stato della superficie"
+UI.Icon.Action.ModifyArc,RT_UI_Icon_Action_ModifyArc.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Action.CreateCover,RT_UI_Icon_Action_CreateCover.svg,TRUE,UNVERIFIED,NONE,FALSE,"AZIONE, non lo stato del terreno. Glyph.Cover resta VISUAL_ONLY"
+UI.Icon.Action.Heal,RT_UI_Icon_Action_Heal.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Braced,RT_UI_Icon_Status_Braced.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Burning,RT_UI_Icon_Status_Burning.svg,TRUE,UNVERIFIED,NONE,FALSE,Dominio UNITA'. Fire surface e' concetto distinto
+UI.Icon.Status.Electrified,RT_UI_Icon_Status_Electrified.svg,TRUE,UNVERIFIED,NONE,FALSE,Dominio UNITA'. Electric surface e' concetto distinto
+UI.Icon.Status.Exposed,RT_UI_Icon_Status_Exposed.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Guarded,RT_UI_Icon_Status_Guarded.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Marked,RT_UI_Icon_Status_Marked.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Obscured,RT_UI_Icon_Status_Obscured.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Reveal,RT_UI_Icon_Status_Reveal.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Root,RT_UI_Icon_Status_Root.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Slow,RT_UI_Icon_Status_Slow.svg,TRUE,UNVERIFIED,NONE,FALSE,
+UI.Icon.Status.Wet,RT_UI_Icon_Status_Wet.svg,TRUE,UNVERIFIED,NONE,FALSE,Dominio UNITA'. Water surface e' concetto distinto senza consumer runtime
+UI.Icon.Certainty.Confirmed,RT_UI_Icon_Certainty_Confirmed.svg,TRUE,UNVERIFIED,T_UI_Icon_Certainty_Confirmed,FALSE,Eccezione semantica approvata: il ritmo certainty e' dentro il glifo perche' il glifo E' la legenda
+UI.Icon.Certainty.Predicted,RT_UI_Icon_Certainty_Predicted.svg,TRUE,UNVERIFIED,T_UI_Icon_Certainty_Predicted,FALSE,Eccezione semantica approvata: il ritmo certainty e' dentro il glifo perche' il glifo E' la legenda
+UI.Icon.Certainty.Uncertain,RT_UI_Icon_Certainty_Uncertain.svg,TRUE,UNVERIFIED,T_UI_Icon_Certainty_Uncertain,FALSE,Eccezione semantica approvata: il ritmo certainty e' dentro il glifo perche' il glifo E' la legenda
+UI.Icon.Identity.Gadget,RT_UI_Icon_Identity_Gadget.svg,TRUE,UNVERIFIED,NONE,FALSE,Prefisso tradotto: Hero.Gadget -> Identity.Gadget
+UI.Icon.Identity.Phase,RT_UI_Icon_Identity_Phase.svg,TRUE,UNVERIFIED,NONE,FALSE,Prefisso tradotto: Hero.Phase -> Identity.Phase
+UI.Icon.Identity.Riktor,RT_UI_Icon_Identity_Riktor.svg,TRUE,UNVERIFIED,NONE,FALSE,Prefisso tradotto: Hero.Riktor -> Identity.Riktor
+UI.Icon.Identity.Wraith,RT_UI_Icon_Identity_Wraith.svg,TRUE,UNVERIFIED,NONE,FALSE,Prefisso tradotto: Hero.Wraith -> Identity.Wraith
+UI.Icon.Identity.Ally,RT_UI_Icon_Identity_Ally.svg,TRUE,UNVERIFIED,NONE,FALSE,"Relazione di squadra, non personaggio"
+UI.Icon.Identity.Enemy,RT_UI_Icon_Identity_Enemy.svg,TRUE,UNVERIFIED,NONE,FALSE,"Relazione di squadra, non personaggio"

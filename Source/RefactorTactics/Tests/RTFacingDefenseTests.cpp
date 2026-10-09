@@ -400,8 +400,8 @@ bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
 /**
  * [D-312] misurata sulla CATENA REALE, che e' l'unica sede in cui l'ordine dei due pool esiste.
  *
- * Perche' serve, benche' `Combat.DeflectPoolAbsorbsBeforeGuardPool` parli gia' dell'ordine: quello chiama
- * `ApplyAbsorptionPool` DIRETTAMENTE, quindi prova che i due ordini divergono ma resta verde qualunque
+ * Perche' serve, benche' `Combat.DeflectAbsorbsBeforeGuardReduces` parli gia' dell'ordine: quello chiama
+ * `ApplyAbsorptionPool` e `ApplyEligibleHitDelta` DIRETTAMENTE, quindi prova che i due ordini divergono ma resta verde qualunque
  * ordine usi `RTTurnManager`. Misurato prima di scrivere questo: invertendo le due chiamate reali,
  * 100 test su 100 restavano verdi. Il buco era esattamente qui.
  *
@@ -484,7 +484,9 @@ bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
 
 // ======================================================================================================
 // `D-302` punto (3): per un'AREA la direzione d'impatto e' centro d'impatto -> bersaglio, non lanciatore
-// -> bersaglio. Il pool `Guard` e' l'unico consumatore in cui la differenza si vede (`#2009`).
+// -> bersaglio. La `Guard` e' l'unica consumatrice in cui la differenza si vede (`#2009`).
+// ⏱️ *Diceva «il pool `Guard`»: [D-408] lo ha ritirato il 2026-09-20 e la Guardia e' ora una riduzione per
+// colpo. [D-302] non e' toccata, e infatti nessuna assertion di questo blocco e' cambiata.*
 // ======================================================================================================
 
 namespace

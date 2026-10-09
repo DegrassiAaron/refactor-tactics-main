@@ -583,13 +583,30 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	TestEqual(TEXT("il secondo arriva intero: il marchio e' consumato"), Marked[1].Power, 20);
 	TestEqual(TEXT("chi non e' marchiato non c'entra"), Marked[2].Power, 20);
 
-	// Marchiato E in guardia: i due delta si cumulano (+6 -15 = -9). Esito prevedibile, non una precedenza
-	// nascosta dell'uno sull'altro.
-	TArray<int32> Both;
-	Both.Init(0, 2);
-	Both[1] = URTCombatLibrary::MarkedFirstHitBonus - URTCombatLibrary::GuardFirstHitReduction;
-	const TArray<FRTAttack> Mixed = URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 20) }, Both);
-	TestEqual(TEXT("marchiato e in guardia: 20 + 6 - 15"), Mixed[0].Power, 11);
+	// Marchiato E in guardia: i due effetti si compongono, e l'esito e' prevedibile invece che una
+	// precedenza nascosta dell'uno sull'altro.
+	//
+	// ⛔ **Sono DUE passaggi, non un delta sommato, e da [D-408] contano anche le maschere.** `Marked` e'
+	// un delta sul PRIMO colpo (`ApplyFirstHitDelta`); la Guardia e' una riduzione su OGNI colpo dell'arco
+	// FRONTALE (`ApplyEligibleHitDelta`). ⏱️ *La prima stesura li sommava in un solo `ApplyFirstHitDelta`
+	// sotto il commento «passa dalla stessa `ApplyFirstHitDelta` di `Exposed` e `Guard`» — falso per la
+	// Guardia dal 2026-08-31 ([D-292]) e doppiamente da [D-408]. Il numero coincideva per un colpo solo e
+	// frontale, che era l'unico caso esercitato: trovato da una code review.*
+	TArray<int32> Marchio;   Marchio.Init(0, 2);   Marchio[1] = URTCombatLibrary::MarkedFirstHitBonus;
+	TArray<int32> Guardia;   Guardia.Init(0, 2);   Guardia[1] = -URTCombatLibrary::GuardFirstHitReduction;
+
+	auto Composto = [&](bool bFrontale)
+	{
+		const TArray<bool> Maschera = { bFrontale };
+		return URTCombatResolver::ApplyEligibleHitDelta(
+			URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 20) }, Marchio),
+			Guardia, Maschera, URTCombatLibrary::GuardPerHitSource)[0].Power;
+	};
+
+	TestEqual(TEXT("marchiato e in guardia, colpo FRONTALE: 20 + 6 - 15"), Composto(true), 11);
+	// 🔑 E il caso che la somma in un delta solo non sapeva esprimere: alle spalle la Guardia non vale, e
+	// il marchio si', quindi il colpo arriva PIU' forte del nominale.
+	TestEqual(TEXT("ma alle spalle la guardia non copre: 20 + 6"), Composto(false), 26);
 
 	// L'azione che lo produce e' DATI: dichiara uno stato, non un numero nell'orchestratore.
 	const FRTActionDef Mark = OffensiveDef(TEXT("Action.MarkTarget"));

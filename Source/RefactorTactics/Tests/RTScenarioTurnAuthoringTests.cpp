@@ -292,7 +292,7 @@ bool FRTScenarioPreviewComesFromTheRuntimeTest::RunTest(const FString&)
 		// ⌫ **Questo specchio COPIAVA l'omissione che doveva prendere** (`#2984`). La costruzione qui
 		// sotto e' scritta a mano accanto a quella della preview, campo per campo: finche' i due lati
 		// dimenticano la stessa cosa, il confronto e' una tautologia su quell'asse. Il caso che lo fa
-		// cadere davvero e' `ReachabilityPreviewCarriesTheTeam`, qui sotto; questa riga tiene lo specchio
+		// cadere davvero e' `ReachabilityPreviewIsBlindToTheTeam`, qui sotto; questa riga tiene lo specchio
 		// fedele al RUNTIME, che la squadra ce l'ha.
 		Sim.TeamId = Unit.TeamId;
 		URTHeroData* const* Found = Roster.FindByPredicate(
@@ -300,7 +300,7 @@ bool FRTScenarioPreviewComesFromTheRuntimeTest::RunTest(const FString&)
 		Sim.MoveBudget = (Found && *Found) ? (*Found)->MovePoints : 0;
 		SimUnits.Add(Sim);
 	}
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Map, SimUnits);
 	const TArray<FRTHexReachableCell> FromRuntime = URTHexSimLibrary::ReachableCells(Snapshot, /*UnitId=*/ 0);
 
 	if (!TestEqual(TEXT("preview e servizio runtime danno lo stesso numero di celle"),
@@ -319,8 +319,13 @@ bool FRTScenarioPreviewComesFromTheRuntimeTest::RunTest(const FString&)
 	TestFalse(TEXT("la cella che blocca il movimento non e' raggiungibile"),
 		FromAuthoring.Contains(FRTCellId(-1, 0, 0)));
 
-	// E nemmeno la cella occupata da B1: le altre unita' contano.
-	TestFalse(TEXT("la cella di un'altra unita' non e' offerta"),
+	// 🔴 **E la cella occupata da B1 INVECE si offre** ([D-446]), ed e' la seconda meta' della prova
+	// che l'anteprima viene dal servizio: non mostra una regola propria, mostra quella corrente. Era un
+	// `TestFalse` — *«le altre unita' contano»* — e contavano davvero, fino al 2026-10-01.
+	//
+	// 🔑 **L'ostacolo di TERRENO qui sopra e' cio' che tiene il banco non vacuo**, e non e' cambiato:
+	// se l'anteprima offrisse tutto, quella riga andrebbe rossa.
+	TestTrue(TEXT("e la cella di un'altra unita' si offre: e' una scommessa"),
 		FromAuthoring.Contains(FRTCellId(2, 0, 0)));
 
 	// Rifiuti della preview.
@@ -1231,7 +1236,7 @@ bool FRTScenarioTurnOrderSurvivesSaveLoadTest::RunTest(const FString&)
  * copia della costruzione puo' renderlo vacuo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewCarriesTheTeamTest,
-	"RefactorTactics.Scenario.ReachabilityPreviewCarriesTheTeam",
+	"RefactorTactics.Scenario.ReachabilityPreviewIsBlindToTheTeam",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioPreviewCarriesTheTeamTest::RunTest(const FString&)
 {
@@ -1277,19 +1282,29 @@ bool FRTScenarioPreviewCarriesTheTeamTest::RunTest(const FString&)
 
 	// 🔑 La riga che porta il peso: oltre la compagna si arriva, perche' la si attraversa.
 	TestTrue(TEXT("la preview offre la cella OLTRE la compagna"), Regione.Contains(FRTCellId(0, 0, 0)));
-	// ⛔ ...ma non ci si ferma sopra ([D-289]).
-	TestFalse(TEXT("e non offre quella della compagna"), Regione.Contains(FRTCellId(-1, 0, 0)));
+	// 🔴 **E la si offre anche come destinazione** ([D-446]): e' una scommessa, non un rifiuto, e
+	// [D-289] continua a valere a **risoluzione** — dove e' sempre stato.
+	TestTrue(TEXT("e offre anche quella della compagna"), Regione.Contains(FRTCellId(-1, 0, 0)));
 
-	// ⚠️ **La meta' falsificante**: la stessa geometria con l'unita' in mezzo di squadra AVVERSA
-	// deve fermare A1. Senza, le due righe sopra passerebbero anche se gli ostacoli fossero spariti del tutto.
+	// 🔴 **La meta' falsificante e' diventata la meta' di CECITA'** ([D-445]). Diceva: *«la stessa
+	// geometria con l'unita' in mezzo di squadra AVVERSA deve fermare A1»*, e misurava che la squadra
+	// cambiasse l'esito. Oggi misura che non lo cambia, ed e' la sola forma che lo puo' dire: un'anteprima
+	// provata su una configurazione sola non distingue «la squadra e' letta e ignorata» da «c'e' una
+	// compagna e basta».
+	//
+	// 🔑 **Cio' che tiene il banco non vacuo e' altrove, e resta**: l'ostacolo di terreno misurato da
+	// `ReachabilityPreviewComesFromTheRuntimeService`. Se gli ostacoli sparissero del tutto, quello
+	// andrebbe rosso.
 	for (FRTScenarioUnit& U : Draft.MutableScenario().Units)
 	{
 		if (U.Id == TEXT("A2")) { U.TeamId = 1; }
 	}
 	const TArray<FRTCellId> Avversaria = Draft.GetReachableCells(TEXT("A1"), GetTransientPackage(), Error);
 	TestTrue(TEXT("la seconda preview risponde"), Error.IsEmpty());
-	TestFalse(TEXT("con un'avversaria in mezzo la cella oltre NON si offre"),
+	TestTrue(TEXT("con un'avversaria in mezzo la cella oltre si offre lo stesso"),
 		Avversaria.Contains(FRTCellId(0, 0, 0)));
+	TestEqual(TEXT("e la regione e' esattamente la stessa: la squadra non la tocca"),
+		Avversaria.Num(), Regione.Num());
 	return true;
 }
 

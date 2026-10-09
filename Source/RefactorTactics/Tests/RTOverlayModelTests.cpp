@@ -120,8 +120,11 @@ bool FRTOverlayPriorityTest::RunTest(const FString&)
 	// L'ordine che `DrawPlanningPreview` descriveva a parole — «dal meno al piu' urgente: 1) dove POSSO
 	// andare 2) dove VADO 3) chi COLPISCO 4) cosa sto indicando» — piu' l'origine dell'attacco, che il
 	// codice disegna PRIMA dell'area e che quel commento non nominava.
+	// `AbilityRange` (#3507) sta fra il ventaglio, che sostituisce in targeting, e la traccia del percorso: e'
+	// contesto, e l'area colpita va disegnata sopra di lei.
 	const TArray<ERTOverlayMeaning> Expected = {
 		ERTOverlayMeaning::Movement,
+		ERTOverlayMeaning::AbilityRange,
 		ERTOverlayMeaning::PathTrace,
 		ERTOverlayMeaning::AttackOriginAim,
 		ERTOverlayMeaning::Attack,

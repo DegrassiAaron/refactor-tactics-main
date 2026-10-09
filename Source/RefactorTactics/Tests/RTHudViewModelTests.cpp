@@ -18,6 +18,9 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Turn/RTTurnManager.h"
+#include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
+#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
+#include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1773,6 +1776,78 @@ bool FRTHudVmSlotStateTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **`Invalid` BATTE ANCHE L'ARMATA, `Warning` BATTE LA PIANIFICATA MA NON L'ARMATA** ([D-459], #3483).
+ *
+ * 🔑 **Le coppie, come nel test qui sopra.** I due stati nuovi entrano in una precedenza che c'era gia', e
+ * il rischio e' lo stesso: corretti da soli, sbagliati quando valgono insieme a un altro.
+ *
+ * ⚠️ **Il caso F e' la meta' che si dimentica**: il rifiuto del puntatore appartiene all'azione ARMATA. Uno
+ * slot non armato che lo portasse — per un errore di indice nella dock — direbbe «non lo potrai fare» di
+ * un'azione che il giocatore non sta usando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSlotStateRefusalTest,
+	"RefactorTactics.HudViewModel.SlotStateRefusalBeatsArmedAndDegradedBeatsPlanned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSlotStateRefusalTest::RunTest(const FString&)
+{
+	FRTAbilityCooldownView Pronta;
+	Pronta.ActionId = TEXT("Action.Guard");
+	Pronta.bUsableNow = true;
+
+	FRTAbilityCooldownView Pianificata = Pronta;
+	Pianificata.bPlanned = true;
+
+	FRTAbilityCooldownView PianificataEInRicarica = Pianificata;
+	PianificataEInRicarica.TurnsRemaining = 2;
+	PianificataEInRicarica.bUsableNow = false;
+
+	// --- E. il rifiuto del puntatore BATTE l'armata ------------------------------------------------------
+	FRTAbilityCooldownView Rifiutata = Pronta;
+	Rifiutata.bTargetRefused = true;
+	TestEqual(TEXT("E: armata col bersaglio rifiutato -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Rifiutata, /*bArmed=*/ true), ERTActionSlotState::Invalid);
+
+	// --- F. ...ma solo se armata --------------------------------------------------------------------------
+	TestEqual(TEXT("F: il rifiuto del puntatore su uno slot non armato non conta"),
+		URTHudViewModel::ResolveSlotState(Rifiutata, /*bArmed=*/ false), ERTActionSlotState::Available);
+
+	// --- G. il piano illegale BATTE pianificata e ricarica, e anche l'armata -----------------------------
+	FRTAbilityCooldownView Illegale = PianificataEInRicarica;
+	Illegale.bPlanInvalid = true;
+	TestEqual(TEXT("G: colpevole di un piano illegale, pianificata e in ricarica -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Illegale, /*bArmed=*/ false), ERTActionSlotState::Invalid);
+	TestEqual(TEXT("G: e anche armata -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Illegale, /*bArmed=*/ true), ERTActionSlotState::Invalid);
+
+	// --- H. il piano degradato BATTE pianificata e ricarica ---------------------------------------------
+	FRTAbilityCooldownView Degradata = PianificataEInRicarica;
+	Degradata.bPlanDegraded = true;
+	TestEqual(TEXT("H: pianificata, in ricarica e degradata -> Warning"),
+		URTHudViewModel::ResolveSlotState(Degradata, /*bArmed=*/ false), ERTActionSlotState::Warning);
+
+	// --- I. ...ma NON l'armata ------------------------------------------------------------------------------
+	TestEqual(TEXT("I: degradata e armata -> Selected"),
+		URTHudViewModel::ResolveSlotState(Degradata, /*bArmed=*/ true), ERTActionSlotState::Selected);
+
+	// --- J. rifiutato BATTE degradato ----------------------------------------------------------------------
+	FRTAbilityCooldownView Entrambe = Degradata;
+	Entrambe.bPlanInvalid = true;
+	TestEqual(TEXT("J: illegale e degradata -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Entrambe, /*bArmed=*/ false), ERTActionSlotState::Invalid);
+
+	// --- K. vuota BATTE ancora tutto -------------------------------------------------------------------------
+	FRTAbilityCooldownView VuotaConTutto;
+	VuotaConTutto.bPlanned = true;
+	VuotaConTutto.bPlanInvalid = true;
+	VuotaConTutto.bPlanDegraded = true;
+	VuotaConTutto.bTargetRefused = true;
+	TestEqual(TEXT("K: una posizione vuota resta vuota con ogni flag acceso"),
+		URTHudViewModel::ResolveSlotState(VuotaConTutto, /*bArmed=*/ true), ERTActionSlotState::Empty);
+
+	return true;
+}
+
+/**
  * 🔴 **`Planned` ARRIVA ALLA VISTA, E LEGGE TUTTI E TRE I CAMPI DEL PIANO** (`#2988`).
  *
  * 🔑 **La reazione e' il caso che rende il test non ovvio.** `PlannedReactionAbility` esiste come campo
@@ -1997,6 +2072,866 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 		const FRTUnitSlotsView Vuota;
 		TestFalse(TEXT("il default non e' autorizzato"), Vuota.bAuthorized);
 		TestTrue(TEXT("e non porta nessun profilo"), Vuota.MovementProfileId.IsNone());
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** La posizione di kit che porta `ActionId`, o `INDEX_NONE`. Letta dal KIT, non dalla vista che si misura. */
+	int32 HudVmKitIndexOf(const ARTUnit* Unit, FName ActionId)
+	{
+		for (int32 i = 0; Unit && i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.ActionId == ActionId) { return i; }
+		}
+		return INDEX_NONE;
+	}
+}
+
+/**
+ * `#3465` — OGNI SLOT DICE IN CHE FASE SI GIOCA, E I DUE CASI CHE LA MACRO-FASE NON RISOLVE HANNO UN SEGNO PROPRIO.
+ *
+ * 🔑 **L'oracolo del segno NON e' `PhaseMarkFor`**: e' una tabella di casi nominati, scritta qui a mano sul kit
+ * reale di Aevik. Chiedere a `PhaseMarkFor` che cosa aspettarsi da `PhaseMarkFor` sarebbe verde per
+ * costruzione. L'unico campo confrontato con una funzione di produzione e' `Phase`, ed e' voluto: il contratto
+ * di quel campo E' «cio' che `MapResolutionPhase` risponde», e il difetto che prende e' una seconda mappa
+ * scritta nella vista.
+ *
+ * ⚠️ **I casi sono quelli che la DoD di #3465 nomina**: Prep (`Action.Guard`), Blast (l'attacco base),
+ * Cleanup (`Hero.Aevik.ConductiveNode`, che eredita `Environment` da `Action.Electrify`) e la reazione — piu'
+ * `Action.Wait`, l'unico che non occupa uno slot, e la posizione vuota, che non ha nemmeno un'azione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionSlotPhaseTest,
+	"RefactorTactics.HudViewModel.ActionSlotCarriesItsPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmActionSlotPhaseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+	// --- A. `Phase` e' la macro-fase che il catalogo dichiara, su OGNI posizione popolata ------------------
+	int32 Popolate = 0;
+	for (int32 i = 0; i < Cds.Num(); ++i)
+	{
+		const URTActionData* Action = Unit->GetAbility(i);
+		if (!Action) { continue; }
+		++Popolate;
+		TestEqual(*FString::Printf(TEXT("A: la posizione %d (%s) porta la macro-fase del proprio Def"),
+				i, *Cds[i].ActionId.ToString()),
+			Cds[i].Phase, URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase));
+	}
+	// Anti-vacuita': senza posizioni popolate il ciclo non asserisce niente ed e' verde lo stesso.
+	if (!TestTrue(TEXT("A: premessa — il kit ha posizioni popolate"), Popolate > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- B. il SEGNO e l'etichetta, caso per caso ------------------------------------------------------------
+	struct FCaso { const TCHAR* ActionId; ERTActionPhaseMark Segno; const TCHAR* Etichetta; };
+	const FCaso Casi[] = {
+		{ TEXT("Action.Guard"),                  ERTActionPhaseMark::Prep,     TEXT("PREP") },
+		{ TEXT("Hero.Aevik.ArcPulse"),           ERTActionPhaseMark::Blast,    TEXT("BLAST") },
+		{ TEXT("Hero.Aevik.ConductiveNode"),     ERTActionPhaseMark::Cleanup,  TEXT("CLEANUP") },
+		// 🔑 la reazione: il suo `Phase` resta quello della core (A lo ha gia' pinnato), il segno no.
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  ERTActionPhaseMark::Reaction, TEXT("REAZ.") },
+		// 🔑 `Wait` non occupa slot: risolve in `NormalMovement`, ma lo slot non dice `MOVE`.
+		{ TEXT("Action.Wait"),                   ERTActionPhaseMark::None,     TEXT("—") },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const int32 Idx = HudVmKitIndexOf(Unit, Caso.ActionId);
+		if (!TestTrue(*FString::Printf(TEXT("B: premessa — %s e' nel kit di Aevik"), Caso.ActionId),
+				Cds.IsValidIndex(Idx)))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("B: %s porta il segno atteso"), Caso.ActionId),
+			Cds[Idx].PhaseMark, Caso.Segno);
+		TestEqual(*FString::Printf(TEXT("B: %s porta l'etichetta attesa"), Caso.ActionId),
+			Cds[Idx].PhaseLabel.ToString(), FString(Caso.Etichetta));
+	}
+
+	// ⚠️ Il caso `Wait` prova qualcosa solo se segno e fase DIVERGONO: e' cio' che rende `Phase` il valore
+	// onesto e `PhaseMark` cio' che si vede. Se la vista copiasse il segno nella fase — o viceversa — B
+	// resterebbe verde sul segno, e questa riga no.
+	{
+		const int32 Idx = HudVmKitIndexOf(Unit, TEXT("Action.Wait"));
+		if (Cds.IsValidIndex(Idx))
+		{
+			TestEqual(TEXT("B: il Phase di Wait resta quello onesto, Move"), Cds[Idx].Phase, ERTMatchPhase::Move);
+		}
+	}
+
+	// --- C. una posizione VUOTA non ha segno ne' etichetta — nemmeno il trattino -------------------------------
+	// Il trattino dice «c'e' un'azione e non si gioca in nessuna fase»: di un vuoto sarebbe falso.
+	if (TestTrue(TEXT("C: premessa — il kit ha almeno due posizioni"), Unit->NumAbilities() >= 2))
+	{
+		Unit->Abilities[1] = nullptr;
+		const TArray<FRTAbilityCooldownView> ConBuco = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("C: premessa — la riga del buco esiste"), ConBuco.IsValidIndex(1)))
+		{
+			TestEqual(TEXT("C: la posizione vuota non porta un segno"), ConBuco[1].PhaseMark, ERTActionPhaseMark::None);
+			TestTrue(TEXT("C: e la sua etichetta e' vuota, non `—`"), ConBuco[1].PhaseLabel.IsEmpty());
+		}
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * `#3465` — LA FASE SI LEGGE DAL CATALOGO, NON DALLA POSIZIONE ([D-397] punto 2).
+ *
+ * 🔴 **Il kit di Aevik da solo non distingue le due ipotesi**: ogni azione sta sempre nella stessa posizione,
+ * quindi una vista che deducesse la fase dall'indice — una tabella «posizione 2 = Cleanup» — sarebbe verde
+ * su `ActionSlotCarriesItsPhase`. Qui il dato si MUOVE, in tre modi che una deduzione non segue:
+ *
+ *  - **A** cambia la `ResolutionPhase` nel dato, alla stessa posizione: il campo deve seguire;
+ *  - **B** scambia due azioni di fase diversa: le fasi devono scambiarsi CON loro, e gli indici restare;
+ *  - **C** cambia lo `Slot` nel dato: il caso reazione e il caso «nessuno slot» si leggono da li', e non
+ *    dall'`ActionId` di `Wait` o di una reazione nota;
+ *  - **D** percorre ogni `ERTResolutionPhase` sulla stessa copia: i rami che il kit reale non raggiunge —
+ *    `Dash`, `Move`, `Snapshot` — hanno un oracolo anche loro.
+ *
+ * ⛔ **Si cambia una COPIA**, mai l'oggetto del roster: `ConfigureFromHeroData` assegna `Abilities =
+ * Hero->Actions`, quindi l'azione e' condivisa con ogni altra unita' e ogni altro test del processo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmPhaseReadNotDeducedTest,
+	"RefactorTactics.HudViewModel.ActionSlotPhaseIsReadNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const int32 ArcIdx   = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ArcPulse"));
+	const int32 NodeIdx  = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ConductiveNode"));
+	const int32 GuardIdx = HudVmKitIndexOf(Unit, TEXT("Action.Guard"));
+	if (!TestTrue(TEXT("premessa: attacco base, Conductive Node e Guardia sono nel kit"),
+			ArcIdx != INDEX_NONE && NodeIdx != INDEX_NONE && GuardIdx != INDEX_NONE))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// La base: le due azioni da scambiare devono avere segni DIVERSI, o lo scambio non proverebbe nulla.
+	{
+		const TArray<FRTAbilityCooldownView> Base = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (!TestNotEqual(TEXT("premessa: attacco base e Conductive Node hanno segni diversi"),
+				Base[ArcIdx].PhaseMark, Base[NodeIdx].PhaseMark))
+		{
+			DestroyHudVmWorld(World);
+			return false;
+		}
+	}
+
+	// --- A. il dato cambia, il campo segue ----------------------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		const ERTResolutionPhase FaseOriginale = Originale->Def.ResolutionPhase;
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ResolutionPhase = ERTResolutionPhase::Preparation;
+		Unit->Abilities[ArcIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("A: con la fase cambiata nel dato, Phase la segue"), Dopo[ArcIdx].Phase, ERTMatchPhase::Prep);
+		TestEqual(TEXT("A: e anche il segno"), Dopo[ArcIdx].PhaseMark, ERTActionPhaseMark::Prep);
+		TestEqual(TEXT("A: e l'etichetta"), Dopo[ArcIdx].PhaseLabel.ToString(), FString(TEXT("PREP")));
+
+		Unit->Abilities[ArcIdx] = Originale;
+		TestEqual(TEXT("A: l'oggetto del roster non e' stato toccato"),
+			Originale->Def.ResolutionPhase, FaseOriginale);
+	}
+
+	// --- B. le azioni si scambiano, le fasi le seguono, gli indici restano ---------------------------------
+	{
+		const TArray<FRTAbilityCooldownView> Prima = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		Unit->Abilities.Swap(ArcIdx, NodeIdx);
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+		TestEqual(TEXT("B: nella posizione dell'attacco base ora c'e' Conductive Node"),
+			Dopo[ArcIdx].ActionId, Prima[NodeIdx].ActionId);
+		TestEqual(TEXT("B: e porta il segno di Conductive Node, non quello della posizione"),
+			Dopo[ArcIdx].PhaseMark, Prima[NodeIdx].PhaseMark);
+		TestEqual(TEXT("B: e viceversa"), Dopo[NodeIdx].PhaseMark, Prima[ArcIdx].PhaseMark);
+		TestEqual(TEXT("B: l'indice resta quello della posizione"), Dopo[ArcIdx].AbilityIndex, ArcIdx);
+
+		Unit->Abilities.Swap(ArcIdx, NodeIdx);
+	}
+
+	// --- C. lo SLOT nel dato decide reazione e «nessuno slot» ------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[GuardIdx];
+
+		URTActionData* ComeReazione = DuplicateObject<URTActionData>(Originale, Unit);
+		ComeReazione->Def.Slot = ERTActionSlot::Reaction;
+		Unit->Abilities[GuardIdx] = ComeReazione;
+		const TArray<FRTAbilityCooldownView> Reazione = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("C: con Slot = Reaction nel dato, il segno e' Reaction"),
+			Reazione[GuardIdx].PhaseMark, ERTActionPhaseMark::Reaction);
+		TestEqual(TEXT("C: e l'etichetta e' REAZ."), Reazione[GuardIdx].PhaseLabel.ToString(), FString(TEXT("REAZ.")));
+		TestEqual(TEXT("C: mentre Phase resta quello onesto della Guardia"),
+			Reazione[GuardIdx].Phase, ERTMatchPhase::Prep);
+
+		URTActionData* SenzaSlot = DuplicateObject<URTActionData>(Originale, Unit);
+		SenzaSlot->Def.Slot = ERTActionSlot::None;
+		Unit->Abilities[GuardIdx] = SenzaSlot;
+		const TArray<FRTAbilityCooldownView> Nessuno = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("C: con Slot = None nel dato, nessun segno"),
+			Nessuno[GuardIdx].PhaseMark, ERTActionPhaseMark::None);
+		TestEqual(TEXT("C: e l'etichetta e' il trattino"), Nessuno[GuardIdx].PhaseLabel.ToString(), FString(TEXT("—")));
+
+		Unit->Abilities[GuardIdx] = Originale;
+	}
+
+	// --- D. OGNI fase di risoluzione ha il proprio segno, anche quelle che il kit di Aevik non porta ----------
+	// 🔴 **Il kit reale non raggiunge tre rami**: nessuna sua azione e' `FastMovement`, `Action.Move` non c'e',
+	// e `Wait` esce prima dello `switch` per `Slot == None`. Senza questo blocco `Dash -> Move`, o un refuso in
+	// `DASH`/`MOVE`, sarebbero sopravvissuti a tutta la suite — lo ha trovato la revisione di #3467.
+	// La tabella e' scritta a mano, come in `ActionSlotCarriesItsPhase`: chiederla a `PhaseMarkFor` sarebbe
+	// verde per costruzione.
+	{
+		struct FRiga { ERTResolutionPhase Fase; ERTActionPhaseMark Segno; const TCHAR* Etichetta; };
+		const FRiga Righe[] = {
+			{ ERTResolutionPhase::Snapshot,       ERTActionPhaseMark::None,    TEXT("—") },
+			{ ERTResolutionPhase::Preparation,    ERTActionPhaseMark::Prep,    TEXT("PREP") },
+			{ ERTResolutionPhase::FastMovement,   ERTActionPhaseMark::Dash,    TEXT("DASH") },
+			{ ERTResolutionPhase::NormalMovement, ERTActionPhaseMark::Move,    TEXT("MOVE") },
+			{ ERTResolutionPhase::Control,        ERTActionPhaseMark::Blast,   TEXT("BLAST") },
+			{ ERTResolutionPhase::Attack,         ERTActionPhaseMark::Blast,   TEXT("BLAST") },
+			{ ERTResolutionPhase::Environment,    ERTActionPhaseMark::Cleanup, TEXT("CLEANUP") },
+			{ ERTResolutionPhase::Cleanup,        ERTActionPhaseMark::Cleanup, TEXT("CLEANUP") },
+		};
+
+		// ⚠️ La tabella copre l'enum INTERO, e lo verifica invece di presumerlo: una fase aggiunta a
+		// `ERTResolutionPhase` senza una riga qui diventa rossa, non un ramo muto. `NumEnums()` conta anche il
+		// `_MAX` che UHT genera, da cui il `- 1`.
+		TestEqual(TEXT("D: premessa — la tabella ha una riga per ogni ERTResolutionPhase"),
+			static_cast<int32>(UE_ARRAY_COUNT(Righe)), StaticEnum<ERTResolutionPhase>()->NumEnums() - 1);
+
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.Slot = ERTActionSlot::Main; // il ramo dello switch: ne' reazione ne' «nessuno slot»
+		Unit->Abilities[ArcIdx] = Copia;
+
+		for (const FRiga& Riga : Righe)
+		{
+			Copia->Def.ResolutionPhase = Riga.Fase;
+			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(Unit);
+			const FString Nome = StaticEnum<ERTResolutionPhase>()->GetNameStringByValue(static_cast<int64>(Riga.Fase));
+			TestEqual(*FString::Printf(TEXT("D: %s porta il segno atteso"), *Nome), Vista[ArcIdx].PhaseMark, Riga.Segno);
+			TestEqual(*FString::Printf(TEXT("D: %s porta l'etichetta attesa"), *Nome),
+				Vista[ArcIdx].PhaseLabel.ToString(), FString(Riga.Etichetta));
+		}
+
+		Unit->Abilities[ArcIdx] = Originale;
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * `#3468` — OGNI VOCE DELLA DOCK DICE A QUALE GRUPPO DI LETTURA APPARTIENE: Comuni · Base · Kit ([D-455]).
+ *
+ * 🔑 **L'oracolo NON e' `GroupFor`**: la tabella del blocco A e' scritta a mano sul kit reale di Aevik, come in
+ * `ActionSlotCarriesItsPhase`. Chiedere a `GroupFor` che cosa aspettarsi da `GroupFor` sarebbe verde per
+ * costruzione.
+ *
+ * ⚠️ **Il blocco C guarda il roster INTERO, letto dal catalogo**, e non un elenco di eroi scritto qui: la
+ * regola della Base regge solo se ogni eroe scrive `BaseActionId` sul proprio attacco base. Oggi lo fanno
+ * tutti passando da `MakeHeroBasicAttack`, e un eroe nuovo che costruisse l'attacco a mano finirebbe con zero
+ * Base — il difetto che una lista fissa non vedrebbe.
+ *
+ * 🔑 **Il blocco D guarda il kit DI PARTITA**, cioe' col loadout di default che `ARTMatchBootstrapper`
+ * equipaggia: l'equipaggiamento e' Kit, e la sequenza dei gruppi per eroe va nel log come misura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionSlotGroupTest,
+	"RefactorTactics.HudViewModel.ActionSlotCarriesItsGroup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+	// --- A. il gruppo, caso per caso, sul kit di Aevik ------------------------------------------------------
+	struct FCaso { const TCHAR* ActionId; ERTActionGroup Gruppo; };
+	const FCaso Casi[] = {
+		{ TEXT("Action.Guard"),                 ERTActionGroup::Common },
+		{ TEXT("Action.Brace"),                 ERTActionGroup::Common },
+		{ TEXT("Action.Overwatch"),             ERTActionGroup::Common },
+		{ TEXT("Action.Interact"),              ERTActionGroup::Common },
+		{ TEXT("Action.Wait"),                  ERTActionGroup::Common },
+		{ TEXT("Hero.Aevik.ArcPulse"),          ERTActionGroup::Base },
+		{ TEXT("Hero.Aevik.LinearDischarge"),   ERTActionGroup::Kit },
+		{ TEXT("Hero.Aevik.ConductiveNode"),    ERTActionGroup::Kit },
+		{ TEXT("Hero.Aevik.Overload"),          ERTActionGroup::Kit },
+		// 🔑 una reazione resta nel Kit: il gruppo e' una corsia di lettura, non lo slot che consuma.
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"), ERTActionGroup::Kit },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const int32 Idx = HudVmKitIndexOf(Unit, Caso.ActionId);
+		if (!TestTrue(*FString::Printf(TEXT("A: premessa — %s e' nel kit di Aevik"), Caso.ActionId),
+				Cds.IsValidIndex(Idx)))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("A: %s porta il gruppo atteso"), Caso.ActionId), Cds[Idx].Group, Caso.Gruppo);
+	}
+
+	// ⚠️ La tabella deve coprire il kit INTERO: una voce che ne restasse fuori non avrebbe un oracolo, e il blocco
+	// A sarebbe verde su di lei qualunque cosa la vista dicesse.
+	TestEqual(TEXT("A: premessa — la tabella ha una riga per ogni posizione del kit di Aevik"),
+		static_cast<int32>(UE_ARRAY_COUNT(Casi)), Unit->NumAbilities());
+
+	// --- B. una posizione VUOTA non ha gruppo -----------------------------------------------------------------
+	if (TestTrue(TEXT("B: premessa — il kit ha almeno due posizioni"), Unit->NumAbilities() >= 2))
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[1];
+		Unit->Abilities[1] = nullptr;
+		const TArray<FRTAbilityCooldownView> ConBuco = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("B: premessa — la riga del buco esiste"), ConBuco.IsValidIndex(1)))
+		{
+			TestEqual(TEXT("B: la posizione vuota non porta un gruppo"), ConBuco[1].Group, ERTActionGroup::None);
+		}
+		Unit->Abilities[1] = Originale;
+	}
+
+	DestroyHudVmWorld(World);
+
+	// --- C. ogni eroe del roster ha ESATTAMENTE una voce Base ---------------------------------------------------
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("C: premessa — il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("C: premessa — eroe del roster"), Hero)) { continue; }
+
+		UWorld* MondoEroe = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("C: world di prova"), MondoEroe)) { continue; }
+
+		const ARTUnit* EroeUnit = SpawnHudVmUnit(MondoEroe, Hero->HeroId, 0);
+		if (TestNotNull(*FString::Printf(TEXT("C: unita' di %s"), *Hero->HeroId.ToString()), EroeUnit))
+		{
+			int32 Basi = 0;
+			int32 Comuni = 0;
+			for (const FRTAbilityCooldownView& V : URTHudViewModel::BuildAbilityCooldowns(EroeUnit))
+			{
+				Basi += (V.Group == ERTActionGroup::Base) ? 1 : 0;
+				Comuni += (V.Group == ERTActionGroup::Common) ? 1 : 0;
+			}
+			TestEqual(*FString::Printf(TEXT("C: %s ha esattamente una voce Base"), *Hero->HeroId.ToString()), Basi, 1);
+			// Le Comuni sono le generiche che il kit accoda a ogni eroe: il conteggio si legge dal catalogo, non
+			// si scrive qui.
+			TestEqual(*FString::Printf(TEXT("C: %s ha tutte le generiche nelle Comuni"), *Hero->HeroId.ToString()),
+				Comuni, URTCatalogLibrary::GetGenericActionIds().Num());
+		}
+
+		DestroyHudVmWorld(MondoEroe);
+	}
+
+	// --- D. il kit DI PARTITA: con il loadout, l'equipaggiamento e' Kit e i gruppi non sono contigui ---------
+	// 🔴 **Trovato dalla revisione di #3468**: `SpawnHudVmUnit` non equipaggia, mentre `ARTMatchBootstrapper`
+	// chiama `EquipLoadout(DefaultLoadoutFor(...))`, che accoda le azioni dei pezzi DOPO le generiche. Senza
+	// questo blocco il test guardava un kit che in partita non esiste, e la regola «separatore dove il gruppo
+	// cambia» — scritta nella prima stesura del commento di `ERTActionGroup` — sarebbe sembrata giusta.
+	int32 ConcesseInTutto = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+
+		UWorld* MondoEroe = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("D: world di prova"), MondoEroe)) { continue; }
+
+		ARTUnit* EroeUnit = SpawnHudVmUnit(MondoEroe, Hero->HeroId, 0);
+		if (TestNotNull(*FString::Printf(TEXT("D: unita' di %s"), *Hero->HeroId.ToString()), EroeUnit))
+		{
+			const int32 PrimaDelLoadout = EroeUnit->NumAbilities();
+			EroeUnit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+
+			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(EroeUnit);
+			int32 Basi = 0;
+			FString Sequenza;
+			for (int32 i = 0; i < Vista.Num(); ++i)
+			{
+				const ERTActionGroup G = Vista[i].Group;
+				Basi += (G == ERTActionGroup::Base) ? 1 : 0;
+				Sequenza += (G == ERTActionGroup::Common) ? TEXT("C")
+					: (G == ERTActionGroup::Base) ? TEXT("B")
+					: (G == ERTActionGroup::Kit) ? TEXT("K") : TEXT("-");
+
+				// Le voci accodate dal loadout sono equipaggiamento: per la regola di D-455 sono Kit.
+				if (i >= PrimaDelLoadout)
+				{
+					++ConcesseInTutto;
+					TestEqual(*FString::Printf(TEXT("D: %s, la voce di equipaggiamento %s e' Kit"),
+							*Hero->HeroId.ToString(), *Vista[i].ActionId.ToString()),
+						G, ERTActionGroup::Kit);
+				}
+			}
+
+			// La variante d'arma SOSTITUISCE l'indice 0 con una copia: la Base deve sopravviverle.
+			TestEqual(*FString::Printf(TEXT("D: %s ha ancora esattamente una Base col loadout"),
+				*Hero->HeroId.ToString()), Basi, 1);
+
+			// Non e' un asserto: e' la misura che D-456 cita per la larghezza della barra, scritta nel log
+			// perche' chi la rilegge non debba ricostruirla dal catalogo.
+			AddInfo(FString::Printf(TEXT("D: %s, kit di partita %d voci: %s"),
+				*Hero->HeroId.ToString(), Vista.Num(), *Sequenza));
+		}
+
+		DestroyHudVmWorld(MondoEroe);
+	}
+
+	// Anti-vacuita': se nessun eroe ricevesse un'azione dal loadout, il blocco D non proverebbe nulla
+	// sull'equipaggiamento — e sarebbe verde lo stesso.
+	TestTrue(TEXT("D: premessa — almeno un loadout di default concede un'azione"), ConcesseInTutto > 0);
+
+	return true;
+}
+
+/**
+ * `#3468` — IL GRUPPO SI LEGGE DAL DATO, NON DALLA POSIZIONE ([D-397] punto 2, [D-455]).
+ *
+ * 🔴 **Il kit di Aevik da solo non distingue le due ipotesi**: l'attacco base sta sempre all'indice 0 e le
+ * generiche sempre in coda, quindi una vista che deducesse il gruppo dalla posizione — «0 = Base, ultime
+ * cinque = Comuni», che era la proposta del pacchetto del mockup — sarebbe verde su `ActionSlotCarriesItsGroup`.
+ * Qui il dato si MUOVE:
+ *
+ *  - **A** scambia l'attacco base con la Guardia: i gruppi seguono le azioni, gli indici restano;
+ *  - **B** toglie `BaseActionId` a una copia dell'attacco base: alla stessa posizione, diventa Kit;
+ *  - **C** lo scrive su una copia di una skill: diventa Base, lontano dall'indice 0;
+ *  - **D** il caso d'identita' della regola: un'azione che E' `Action.BasicAttack`, col `BaseActionId` vuoto
+ *    che [D-033] le da', resta Base. Senza il secondo congiunto di `GroupFor` cadrebbe nel Kit;
+ *  - **E** la precedenza: un'azione generica che fosse anche un profilo dell'attacco base resta Comune. Senza
+ *    questo blocco, scambiare i due `if` di `GroupFor` lasciava verde tutta la suite (revisione di #3468).
+ *
+ * ⛔ **Si cambia una COPIA**, mai l'oggetto: `ConfigureFromHeroData` copia l'array, non le azioni, quindi
+ * l'oggetto appartiene all'`URTHeroData` da cui l'unita' e' stata configurata. ⚠️ Oggi `GetHeroRoster()`
+ * ricostruisce il roster a ogni chiamata, e la copia e' **difensiva**: protegge dal giorno in cui il roster
+ * diventasse una cache condivisa fra unita' e test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmGroupReadNotDeducedTest,
+	"RefactorTactics.HudViewModel.ActionSlotGroupIsReadNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmGroupReadNotDeducedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const int32 ArcIdx    = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ArcPulse"));
+	const int32 LinearIdx = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.LinearDischarge"));
+	const int32 GuardIdx  = HudVmKitIndexOf(Unit, TEXT("Action.Guard"));
+	if (!TestTrue(TEXT("premessa: attacco base, Linear Discharge e Guardia sono nel kit"),
+			ArcIdx != INDEX_NONE && LinearIdx != INDEX_NONE && GuardIdx != INDEX_NONE))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// La base dei confronti: i tre gruppi devono essere DIVERSI, o gli spostamenti non proverebbero nulla.
+	{
+		const TArray<FRTAbilityCooldownView> Base = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		const bool bDistinti = Base[ArcIdx].Group != Base[LinearIdx].Group
+			&& Base[ArcIdx].Group != Base[GuardIdx].Group
+			&& Base[LinearIdx].Group != Base[GuardIdx].Group;
+		if (!TestTrue(TEXT("premessa: attacco base, skill e Guardia stanno in tre gruppi diversi"), bDistinti))
+		{
+			DestroyHudVmWorld(World);
+			return false;
+		}
+	}
+
+	// --- A. le azioni si scambiano, i gruppi le seguono, gli indici restano ---------------------------------
+	{
+		const TArray<FRTAbilityCooldownView> Prima = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		Unit->Abilities.Swap(ArcIdx, GuardIdx);
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+		TestEqual(TEXT("A: nella posizione dell'attacco base ora c'e' la Guardia"),
+			Dopo[ArcIdx].ActionId, Prima[GuardIdx].ActionId);
+		TestEqual(TEXT("A: e porta il gruppo della Guardia, non quello della posizione"),
+			Dopo[ArcIdx].Group, ERTActionGroup::Common);
+		TestEqual(TEXT("A: e l'attacco base, spostato in coda, resta Base"),
+			Dopo[GuardIdx].Group, ERTActionGroup::Base);
+		TestEqual(TEXT("A: l'indice resta quello della posizione"), Dopo[ArcIdx].AbilityIndex, ArcIdx);
+
+		Unit->Abilities.Swap(ArcIdx, GuardIdx);
+	}
+
+	// --- B. il dato cambia alla STESSA posizione: senza BaseActionId l'attacco base diventa Kit -------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		const FName BaseOriginale = Originale->Def.BaseActionId;
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.BaseActionId = NAME_None;
+		Unit->Abilities[ArcIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("B: senza BaseActionId, alla stessa posizione, la voce e' Kit"),
+			Dopo[ArcIdx].Group, ERTActionGroup::Kit);
+
+		Unit->Abilities[ArcIdx] = Originale;
+		TestEqual(TEXT("B: l'oggetto del roster non e' stato toccato"), Originale->Def.BaseActionId, BaseOriginale);
+	}
+
+	// --- C. il dato cambia nell'altra direzione: una skill col BaseActionId dell'attacco base e' Base -------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.BaseActionId = TEXT("Action.BasicAttack");
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("C: con BaseActionId = Action.BasicAttack nel dato, la skill e' Base"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Base);
+		TestNotEqual(TEXT("C: premessa — la skill NON sta all'indice dell'attacco base"), LinearIdx, ArcIdx);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	// --- D. il caso d'identita': un'azione che E' Action.BasicAttack, col BaseActionId vuoto, e' Base --------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ActionId = TEXT("Action.BasicAttack");
+		Copia->Def.BaseActionId = NAME_None;
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("D: l'attacco base nudo, senza BaseActionId, e' Base"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Base);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	// --- E. la precedenza: Comuni PRIMA di Base ----------------------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ActionId = TEXT("Action.Guard");
+		Copia->Def.BaseActionId = TEXT("Action.BasicAttack");
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("E: una generica che e' anche profilo dell'attacco base resta Comune"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Common);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** La sequenza dei gruppi di una lista, una lettera per voce: C, B, K, e `-` per una posizione vuota. */
+	FString HudVmGroupSequence(const TArray<FRTAbilityCooldownView>& Voci)
+	{
+		FString Out;
+		for (const FRTAbilityCooldownView& V : Voci)
+		{
+			Out += (V.Group == ERTActionGroup::Common) ? TEXT("C")
+				: (V.Group == ERTActionGroup::Base) ? TEXT("B")
+				: (V.Group == ERTActionGroup::Kit) ? TEXT("K") : TEXT("-");
+		}
+		return Out;
+	}
+
+	/**
+	 * L'ordine di lettura atteso, calcolato con un ALGORITMO DIVERSO da `OrderForReading`: tre passate filtrate
+	 * sulla lista nell'ordine di kit. Se la funzione di produzione usasse un ordinamento non stabile, o
+	 * sbagliasse il rango di un gruppo, le due risposte divergerebbero.
+	 */
+	TArray<int32> HudVmExpectedReadingIndices(const TArray<FRTAbilityCooldownView>& Voci)
+	{
+		TArray<int32> Out;
+		for (const FRTAbilityCooldownView& V : Voci) { if (V.Group == ERTActionGroup::Common) { Out.Add(V.AbilityIndex); } }
+		for (const FRTAbilityCooldownView& V : Voci) { if (V.Group == ERTActionGroup::Base) { Out.Add(V.AbilityIndex); } }
+		for (const FRTAbilityCooldownView& V : Voci)
+		{
+			if (V.Group == ERTActionGroup::Kit || V.Group == ERTActionGroup::None) { Out.Add(V.AbilityIndex); }
+		}
+		return Out;
+	}
+
+	TArray<int32> HudVmIndices(const TArray<FRTAbilityCooldownView>& Voci)
+	{
+		TArray<int32> Out;
+		for (const FRTAbilityCooldownView& V : Voci) { Out.Add(V.AbilityIndex); }
+		return Out;
+	}
+}
+
+/**
+ * `#3478` — LA BARRA SI LEGGE COMUNI, BASE, KIT, E NESSUNA VOCE PERDE LA PROPRIA IDENTITA' ([D-455] punto 2).
+ *
+ * 🔑 **Due oracoli, e nessuno dei due e' `OrderForReading`**:
+ *  - **A** la sequenza dei gruppi del kit di partita di Branth, scritta a mano — e' quella che la DoD nomina;
+ *  - **B** per OGNI eroe del roster col loadout, l'ordine atteso calcolato con tre passate filtrate invece che
+ *    con un ordinamento: prende una partizione non stabile, che A da solo non vedrebbe.
+ *
+ * ⚠️ **Si prova il METODO della dock, non solo la funzione pura**: `GetActionsInReadingOrder()` e' cio' che il
+ * Blueprint chiama, e una funzione pura verde con un chiamante che legge da un'altra sorgente sarebbe un verde
+ * che non arriva a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmReadingOrderTest,
+	"RefactorTactics.HudViewModel.ReadingOrderKeepsKitOrderWithinEachGroup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmReadingOrderTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("premessa — il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	bool bVistoBranth = false;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+
+		UWorld* World = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { continue; }
+
+		ARTUnit* Unit = SpawnHudVmUnit(World, Hero->HeroId, 0);
+		URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+		if (!TestNotNull(*FString::Printf(TEXT("unita' di %s"), *Hero->HeroId.ToString()), Unit)
+			|| !TestNotNull(TEXT("dock"), Dock))
+		{
+			DestroyHudVmWorld(World);
+			continue;
+		}
+
+		// Il kit DI PARTITA: col loadout che `ARTMatchBootstrapper` equipaggia.
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		Dock->SetSelectedUnitForTest(Unit);
+
+		const TArray<FRTAbilityCooldownView> Lista = Dock->GetActions();
+		const TArray<FRTAbilityCooldownView> Lettura = Dock->GetActionsInReadingOrder();
+		const FString Nome = Hero->HeroId.ToString();
+
+		// --- A. Branth, a mano ----------------------------------------------------------------------------------
+		if (Hero->HeroId == FName(TEXT("Hero.Branth")))
+		{
+			bVistoBranth = true;
+			TestEqual(TEXT("A: la lista di Branth e' quella misurata, coi gruppi NON contigui"),
+				HudVmGroupSequence(Lista), FString(TEXT("BKKKKKCCCCCKK")));
+			TestEqual(TEXT("A: e l'ordine di lettura e' Comuni, Base, Kit"),
+				HudVmGroupSequence(Lettura), FString(TEXT("CCCCCBKKKKKKK")));
+		}
+
+		// --- B. l'ordine atteso con un altro algoritmo ---------------------------------------------------------
+		TestEqual(*FString::Printf(TEXT("B: %s, l'ordine di lettura coincide con le tre passate filtrate"), *Nome),
+			HudVmIndices(Lettura), HudVmExpectedReadingIndices(Lista));
+
+		// --- C. identita': stesse voci, nessuna persa o doppia, nessun campo toccato -----------------------------
+		if (TestEqual(*FString::Printf(TEXT("C: %s, stesse voci in numero"), *Nome), Lettura.Num(), Lista.Num()))
+		{
+			TArray<int32> Ordinati = HudVmIndices(Lettura);
+			Ordinati.Sort();
+			TestEqual(*FString::Printf(TEXT("C: %s, gli indici sono esattamente quelli della lista"), *Nome),
+				Ordinati, HudVmIndices(Lista));
+
+			for (const FRTAbilityCooldownView& V : Lettura)
+			{
+				if (!Lista.IsValidIndex(V.AbilityIndex)) { continue; }
+				const FRTAbilityCooldownView& Originale = Lista[V.AbilityIndex];
+				TestEqual(*FString::Printf(TEXT("C: %s, la voce %d porta la propria azione"), *Nome, V.AbilityIndex),
+					V.ActionId, Originale.ActionId);
+				TestEqual(*FString::Printf(TEXT("C: %s, la voce %d porta il proprio tasto"), *Nome, V.AbilityIndex),
+					V.HotkeyLabel.ToString(), Originale.HotkeyLabel.ToString());
+			}
+		}
+
+		// --- E. il metodo della dock e' la funzione pura sulla stessa sorgente -----------------------------------
+		TestEqual(*FString::Printf(TEXT("E: %s, la dock applica OrderForReading a GetActions()"), *Nome),
+			HudVmIndices(Lettura), HudVmIndices(URTHudViewModel::OrderForReading(Lista)));
+
+		DestroyHudVmWorld(World);
+	}
+	TestTrue(TEXT("A: premessa — Branth e' nel roster"), bVistoBranth);
+
+	// --- D. una posizione VUOTA resta nel Kit, al suo posto relativo ----------------------------------------------
+	{
+		UWorld* World = MakeHudVmWorld();
+		ARTUnit* Unit = World ? SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0) : nullptr;
+		if (TestNotNull(TEXT("D: unita' di Aevik"), Unit)
+			&& TestTrue(TEXT("D: premessa — almeno tre posizioni"), Unit->NumAbilities() >= 3))
+		{
+			Unit->Abilities[2] = nullptr;
+			const TArray<FRTAbilityCooldownView> Lettura =
+				URTHudViewModel::OrderForReading(URTHudViewModel::BuildAbilityCooldowns(Unit));
+			const TArray<int32> Indici = HudVmIndices(Lettura);
+			const int32 Pos1 = Indici.Find(1);
+			const int32 Pos2 = Indici.Find(2);
+			const int32 Pos3 = Indici.Find(3);
+			TestTrue(TEXT("D: il buco (indice 2) sta fra l'indice 1 e il 3, dentro il Kit"),
+				Pos1 != INDEX_NONE && Pos2 == Pos1 + 1 && Pos3 == Pos2 + 1);
+			if (Lettura.IsValidIndex(Pos2))
+			{
+				TestTrue(TEXT("D: ed e' davvero il buco"), Lettura[Pos2].ActionId.IsNone());
+			}
+		}
+		if (World) { DestroyHudVmWorld(World); }
+	}
+
+	return true;
+}
+
+/**
+ * `#3470` — LA BARRA LEGGE IL PROFILO CHE IL PIANO SPENDE, E NON DICE NIENTE DI UN'UNITA' CHE NON SI COMANDA.
+ *
+ * 🔑 **Oracoli che non sono la funzione di produzione**:
+ *  - **A** le etichette di OGNI profilo del catalogo, scritte a mano — e la tabella copre il catalogo intero,
+ *    verificato invece che presunto, come il blocco D di `ActionSlotPhaseIsReadNotDeduced`;
+ *  - **B, C** il profilo della lettura confrontato con `BuildUnitSlots`, che e' l'autorita' gia' provata da
+ *    `SlotsCarryTheMovementProfile`: due strade verso la stessa risposta sarebbero il difetto, una sola no.
+ *
+ * ⚠️ **Si prova il METODO della dock**, `GetMovementReadout()`, cioe' cio' che il Blueprint legera'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmMovementReadoutTest,
+	"RefactorTactics.HudViewModel.MovementReadoutReadsTheProfileOfThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	// --- A. le etichette, a mano, su tutto il catalogo -----------------------------------------------------
+	struct FRiga { FName Profilo; const TCHAR* Etichetta; };
+	const FRiga Righe[] = {
+		{ Lib::ProfileStill,    TEXT("Still") },
+		{ Lib::ProfileMove,     TEXT("Move ×1") },
+		{ Lib::ProfileSprint,   TEXT("Sprint ×2") },
+		{ Lib::ProfileSneak,    TEXT("Sneak ×0,5") },
+		{ Lib::ProfileWithdraw, TEXT("Withdraw ×0,25") },
+	};
+	for (const FRiga& Riga : Righe)
+	{
+		TestEqual(*FString::Printf(TEXT("A: %s porta l'etichetta attesa"), *Riga.Profilo.ToString()),
+			URTHudViewModel::MovementReadoutLabel(Riga.Profilo).ToString(), FString(Riga.Etichetta));
+	}
+	const TArray<FRTMovementProfile> Catalogo = Lib::GetCoreMovementProfileCatalog();
+	TestEqual(TEXT("A: premessa — la tabella ha una riga per ogni profilo del catalogo"),
+		static_cast<int32>(UE_ARRAY_COUNT(Righe)), Catalogo.Num());
+	for (const FRTMovementProfile& P : Catalogo)
+	{
+		bool bNellaTabella = false;
+		for (const FRiga& Riga : Righe) { bNellaTabella |= (Riga.Profilo == P.Id); }
+		TestTrue(*FString::Printf(TEXT("A: %s del catalogo ha una riga nella tabella"), *P.Id.ToString()),
+			bNellaTabella);
+	}
+	TestTrue(TEXT("A: un id vuoto non ha etichetta"), URTHudViewModel::MovementReadoutLabel(NAME_None).IsEmpty());
+	TestTrue(TEXT("A: un id che il catalogo non conosce non ha etichetta"),
+		URTHudViewModel::MovementReadoutLabel(TEXT("MovementProfile.Inesistente")).IsEmpty());
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("dock"), Dock))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+	Dock->SetSelectedUnitForTest(Unit);
+
+	// La lettura deve dire lo STESSO profilo della vista degli slot, e l'etichetta di quel profilo.
+	auto Verifica = [this, Dock, Unit](const TCHAR* Caso, FName Atteso)
+	{
+		const FRTMovementReadoutView L = Dock->GetMovementReadout();
+		TestTrue(*FString::Printf(TEXT("%s: l'unita' comandata e' autorizzata"), Caso), L.bAuthorized);
+		TestEqual(*FString::Printf(TEXT("%s: il profilo e' quello atteso"), Caso), L.ProfileId, Atteso);
+		TestEqual(*FString::Printf(TEXT("%s: ed e' quello degli slot"), Caso),
+			L.ProfileId, URTHudViewModel::BuildUnitSlots(Unit).MovementProfileId);
+		TestEqual(*FString::Printf(TEXT("%s: l'etichetta e' quella del profilo"), Caso),
+			L.Label.ToString(), URTHudViewModel::MovementReadoutLabel(Atteso).ToString());
+		return L;
+	};
+
+	// --- B. la banda derivata e la dichiarazione ---------------------------------------------------------------
+	Verifica(TEXT("B: senza piano"), Lib::ProfileStill);
+
+	Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+	Unit->PlannedCell = FRTCellId(1, 0, 0);
+	Verifica(TEXT("B: un passo"), Lib::ProfileMove);
+	Unit->PlannedWaypoints.Reset();
+
+	const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
+	Unit->PlannedWaypoints.Add(FRTCellId(Oltre, 0, 0));
+	Unit->PlannedCell = FRTCellId(Oltre, 0, 0);
+	const FRTMovementReadoutView Corsa = Verifica(TEXT("B: oltre 1x"), Lib::ProfileSprint);
+	TestFalse(TEXT("B: la corsa non e' dichiarata"), Corsa.bSneakDeclared);
+
+	Unit->PlannedMovementProfileId = Lib::ProfileSneak;
+	const FRTMovementReadoutView Furtiva = Verifica(TEXT("B: Sneak dichiarato"), Lib::ProfileSneak);
+	TestTrue(TEXT("B: e il badge dice che e' dichiarato"), Furtiva.bSneakDeclared);
+	TestEqual(TEXT("B: il badge porta il tasto di SneakHotkey"),
+		Furtiva.SneakKeyLabel.ToString(), FString(TEXT("M")));
+
+	Unit->PlannedMovementProfileId = NAME_None;
+	Unit->PlannedWaypoints.Reset();
+	Unit->PlannedCell = Unit->Cell;
+
+	// --- C. la riserva: Overwatch impone Withdraw ([D-070]) ------------------------------------------------------
+	const int32 OverwatchIdx = HudVmKitIndexOf(Unit, TEXT("Action.Overwatch"));
+	if (TestTrue(TEXT("C: premessa — Overwatch e' nel kit"), OverwatchIdx != INDEX_NONE))
+	{
+		Unit->PlannedAbilityIndex = OverwatchIdx;
+		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+		Unit->PlannedCell = FRTCellId(1, 0, 0);
+		Verifica(TEXT("C: Overwatch armata"), Lib::ProfileWithdraw);
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->PlannedWaypoints.Reset();
+		Unit->PlannedCell = Unit->Cell;
+	}
+
+	// --- D. privacy: un soggetto ISPEZIONATO non da' nessuna lettura ---------------------------------------------
+	{
+		ARTUnit* Nemico = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 1);
+		URTActionDockWidget* Spia = NewObject<URTActionDockWidget>(World);
+		if (TestNotNull(TEXT("D: nemico"), Nemico) && TestNotNull(TEXT("D: dock"), Spia))
+		{
+			// Il nemico ha un piano che si leggerebbe: Sneak dichiarato e un percorso DICHIARATO — waypoint e
+			// cella, come in `SlotsCarryTheMovementProfile`, cosi' una regressione leggerebbe `Sneak` e non
+			// `Still` (osservazione della revisione di #3470).
+			Nemico->PlannedMovementProfileId = Lib::ProfileSneak;
+			Nemico->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+			Nemico->PlannedCell = FRTCellId(1, 0, 0);
+			Spia->SetInspectedUnitForTest(Nemico);
+
+			const FRTMovementReadoutView L = Spia->GetMovementReadout();
+			TestFalse(TEXT("D: il soggetto ispezionato non autorizza la lettura"), L.bAuthorized);
+			TestTrue(TEXT("D: nessun profilo"), L.ProfileId.IsNone());
+			TestTrue(TEXT("D: nessuna etichetta"), L.Label.IsEmpty());
+			TestFalse(TEXT("D: e la dichiarazione del nemico non trapela"), L.bSneakDeclared);
+		}
 	}
 
 	DestroyHudVmWorld(World);

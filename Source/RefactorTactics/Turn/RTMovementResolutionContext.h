@@ -147,6 +147,15 @@ struct FRTMovementResolutionContext
 	 * diventa il costo d'ingresso della cella, il conteggio di un turno non e' piu' la lunghezza del percorso
 	 * ma la somma dei costi, e la giustificazione va misurata sul corpus invece che stimata.
 	 *
+	 * 🔴 **E dal 2026-09-20 la premessa e' caduta del tutto, non solo per le durate** ([D-428]). I
+	 * micro-step emessi di un percorso valgono ormai, alla peggio,
+	 * `celle x durata x SubStepsPerTick x TickPeriod`, piu' un giro di calendario di sotto-passi inerti per
+	 * ogni unita' che non raggiunge `Done`. Uno `Sneak` su terreno a durata 2 con uno `Sprint` vivo spende
+	 * **otto** micro-step emessi per cella: un percorso da 20 celle ne vale 160, che non e' piu' «due
+	 * ordini di grandezza» sotto `256`. La cifra resta un cap anti-blocco e non una taratura, ma chi
+	 * dimensionera' lavoro futuro contro questa riga la trovava sottostimata di circa **otto volte**.
+	 * Trovato in code review.
+	 *
 	 * ⛔ **Non e' un budget di gioco**: e' il cap che impedisce a un difetto del resolver di appendere
 	 * l'Editor invece di far fallire un test. Nessuna regola competitiva lo legge.
 	 */

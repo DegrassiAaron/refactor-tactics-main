@@ -92,7 +92,7 @@ FRTHexSnapshot URTHexProbeTool::MakeProbeSnapshot(const URTHexMapAsset* Map) con
 	// ricostruire il roster a ogni chiamata, e questa funzione viene chiamata per ogni cella sorvolata.
 	const int32 Budget = Properties ? Properties->Budget : 0;
 	FRTHexSimUnit Unit(ProbeUnitId, StartCell, Budget);
-	return URTHexSimLibrary::MakeSnapshot(Map, { Unit });
+	return URTHexSimLibrary::MakeSnapshotOmniscient(Map, { Unit });
 }
 
 void URTHexProbeTool::RebuildReachableSet(const FRTHexSnapshot& Snapshot)
@@ -256,7 +256,22 @@ void URTHexProbeTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
 	if (!RenderAPI) { return; }
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
-	if (!PDI || !bHasStart) { return; }
+	if (!PDI) { return; }
+
+	// #921: PRIMA della guardia `bHasStart`. Il Probe interroga il movimento e non lo cambia, ma disegna —
+	// e l'overlay del mode vale per tutti gli strumenti che disegnano, non per quelli che scrivono.
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, FindTargetMapActor());
+	}
+
+	// 🔑 **Le transizioni, con QUALUNQUE strumento attivo e senza dipendere da un toggle** (#1768).
+	// Fuori dal blocco qui sopra di proposito: `bShowSurfaceOverlay` spegne i marcatori di superficie,
+	// che sono una preferenza di chi dipinge — un arco assente dallo schermo e' invece una mappa che
+	// mente per omissione, ed e' il difetto che #1768 chiude.
+	RTHexEditor::DrawTransitions(PDI, FindTargetMapActor());
+
+	if (!bHasStart) { return; }
 
 	const ARTHexMapActor* Actor = FindTargetMapActor();
 	if (!Actor) { return; }

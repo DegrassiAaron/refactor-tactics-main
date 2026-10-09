@@ -105,14 +105,20 @@ struct FRTContactGhostTarget
  *   ────────────────────  ───────────────────────  ─────────────────────────────
  *   etichetta             `bHasPlan`               Confirmed · Predicted · Uncertain
  *   linea al bersaglio    `if (bHasTarget)`        Predicted · Uncertain
- *   rotta                 `if (bMoving)`           solo Uncertain
- *   destinazione          `if (bMoving)`           solo Uncertain
+ *   rotta                 `Rotta.bShow`            solo Uncertain
+ *   destinazione          `Rotta.bShow`            solo Uncertain
  *   waypoint              movimento                solo Uncertain
  *   preview scatto        `if (bDashing)`          solo Uncertain
  *
  * 🔴 **`Confirmed` non disegna NESSUNA linea**: e' fermo, senza bersaglio e senza scatto, quindi non entra in
  * nessuno dei tre `if`. Gli resta l'etichetta. Ogni stile di linea assegnato a quel livello e' inosservabile —
  * e per due riscritture di questa struct e' rimasto scritto lo stesso, perche' la matrice non c'era.
+ *
+ * ⌫ **La colonna «condizione» diceva `if (bMoving)` per rotta e destinazione**, ed e' rimasta indietro
+ * quando `#2184` ha portato quella decisione in `ComposePlannedRoute`. La condizione **non e' cambiata** —
+ * `Rotta.bShow` **e'** `View.bMoving` — ma il nome del sito si': una matrice normativa che punta a un `if`
+ * che non esiste piu' insegna a cercarlo dove non c'e'. La stessa riga vive in
+ * `docs/technical/systems/progettazione-hud.md` §16, aggiornata insieme a questa.
  *
  * ─── Cosa ne segue, e perche' questa struct e' piu' piccola di quella che sostituisce ───
  *
@@ -152,6 +158,117 @@ struct FRTIntentPresentation
 	FString Label;
 
 	FLinearColor Color = FLinearColor::White;
+};
+
+/**
+ * La rotta pianificata da disegnare: se mostrarla, e quali celle la compongono (#2184).
+ *
+ * 🔴 **`bShow` non e' «esiste una destinazione», ed e' la ragione per cui la decisione esiste.**
+ * Il modello deriva `bMoving` da `ARTUnit::HasPlannedNormalMove()`, cioe'
+ * `PlannedCell != Cell || PlannedPath.Num() > 1`. Quindi `bMoving` falso **implica** destinazione uguale
+ * alla cella e nessuna rotta: senza la decisione, il rettangolo di destinazione verrebbe disegnato
+ * **sulla cella dell'unita' stessa**, cioe' un marcatore di arrivo su ogni unita' ferma in campo.
+ *
+ * ⚠️ La rotta, invece, non si vedrebbe comunque: un percorso da una cella a se stessa e' lungo una cella
+ * e non produce nessun segmento. E' il rettangolo che la decisione protegge, non la linea — misurato
+ * leggendo i due rami, non dedotto dalla forma del codice.
+ */
+struct FRTPlannedRoutePresentation
+{
+	/** Vero se l'intento e' un movimento normale. ⚠️ Non «se esiste una destinazione»: vedi sopra. */
+	bool bShow = false;
+
+	/**
+	 * Le celle da unire, gia' scelte: la rotta composita se la vista ne porta una con almeno un
+	 * **segmento**, altrimenti quella ricalcolata. **Vuoto quando `bShow` e' falso.**
+	 *
+	 * ⚠️ **La soglia e' due celle, non una**: chi disegna unisce le celle a coppie partendo da `i = 1`,
+	 * quindi una rotta di una cella sola — la sola origine — non produce nessun segmento, e senza il
+	 * ricalcolo l'unita' resterebbe senza rotta visibile.
+	 */
+	TArray<FRTCellId> PathCells;
+};
+
+/**
+ * L'anteprima dello SCATTO: se mostrarla, e con quale traiettoria (#2184).
+ *
+ * 🔴 **`bShow` non e' un flag di presenza, e il campo del modello mente sul punto.**
+ * `ARTUnit::PlannedDashCell` si dichiara «valida solo se `PlannedDashAbility` e' impostata», ma nessuno
+ * la azzera: `ARTTurnManager` consuma l'**abilita'** a fine turno (`PlannedDashAbility = INDEX_NONE`) e
+ * lascia la cella dov'e', e il modello la copia **incondizionatamente**. Con `bDashing` falso il payload
+ * resta quindi valorizzato — alla destinazione dello scatto appena eseguito, o a `(0,0,0)` — e senza la
+ * decisione si disegnerebbe un rettangolo verde su quella cella, piu' la linea che ci porta.
+ *
+ * ⌫ La verifica di chiusura del 2026-09-24 aveva classificato `bDashing` **guardia**, sulla fede del
+ * commento del campo. E' la stessa forma di `bMoving`, gia' giudicata decisione: un payload opzionale non
+ * e' leggibile a flag spento, questo lo e' ed e' attivamente sbagliato.
+ */
+/**
+ * La geometria da cui nasce ogni conversione cella → schermo di questa HUD (#2184).
+ *
+ * 🔴 **`Map == nullptr` significa DUE cose, e confonderle e' un difetto muto.**
+ * `ARTHexMapActor::GetHexContext` rende l'asset, ma scrive i tre valori **anche** quando l'asset manca:
+ * li prende dall'attore, che in graybox e' la fonte giusta. Gli stati sono quindi **tre**, non due:
+ *
+ *     nessun attore        -> ripieghi `(0, 150, 250)`: geometria INVENTATA
+ *     attore senza asset   -> geometria VERA, dai campi dell'attore (graybox)
+ *     attore con asset     -> geometria VERA, dall'asset autorevole
+ *
+ * `bFromWorld` separa il primo dagli altri due. Chi volesse turare il buco con un `if (Map)` spegnerebbe
+ * anche il graybox, dove la geometria e' valida — ed e' la ragione per cui questo flag esiste separato.
+ */
+/**
+ * Un rettangolo di marcatore su una cella d'intento: dove, quanto grande, di che colore.
+ *
+ * 🔑 **`HalfSize` e non `Size`, perche' e' la mezza-dimensione a essere usata DUE volte** — una per
+ * l'angolo alto-sinistro e una per il lato — e il rettangolo e' centrato solo finche' le due coincidono.
+ * Erano quattro letterali per marcatore (`12`, `12`, `24`, `24`) e ora sono un numero solo: il lato si
+ * ricava, non si riscrive.
+ */
+struct FRTIntentMarker
+{
+	/** La cella su cui cade il marcatore. */
+	FRTCellId Cell;
+
+	/** Meta' lato, in pixel di schermo. Il lato e' il doppio, per costruzione. */
+	float HalfSize = 0.f;
+
+	/** Tinta gia' risolta, opacita' compresa. */
+	FLinearColor Color = FLinearColor::White;
+};
+
+struct FRTHudHexGeometry
+{
+	/** L'attore mappa esiste: i tre valori vengono dal mondo, non dai ripieghi. */
+	bool bFromWorld = false;
+
+	// ⚠️ I default SONO i ripieghi: senza attore la struct nasce gia' nello stato giusto, e nessun
+	// chiamante deve ricordarsene.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+
+	/** L'asset autorevole. ⚠️ Puo' essere nullo **anche** con `bFromWorld` vero: e' il caso graybox. */
+	const class URTHexMapAsset* Map = nullptr;
+};
+
+struct FRTDashPreview
+{
+	/** Vero se l'unita' ha uno scatto pianificato ADESSO — non «se la cella di scatto e' valorizzata». */
+	bool bShow = false;
+
+	/**
+	 * La traiettoria come la fase Dash la ESEGUIRA' (#142). **Vuota quando `bShow` e' falso.**
+	 *
+	 * 🔑 Una mobilita' **lineare** va dritta e non gira gli angoli; una a budget segue il grafo.
+	 * Disegnare l'A* per uno scatto lineare mostrerebbe un percorso curvo attorno a un ostacolo che in
+	 * realta' lo ferma — e la leggibilita' tattica e' un pilastro, non un dettaglio estetico.
+	 *
+	 * ⚠️ E' l'unico sito di `URTMovementActionLibrary::IsLinear` che decide un **disegno**: gli altri
+	 * stanno nel controller, nei bot e nella query tattica, cioe' dal lato che la regola la esegue. Se le
+	 * due letture divergessero, l'anteprima prometterebbe una traiettoria che la risoluzione non fa.
+	 */
+	TArray<FRTCellId> PathCells;
 };
 
 struct FRTIntentCertaintyStyle
@@ -390,6 +507,37 @@ public:
 	 * sul solo campo non vedrebbe.
 	 */
 	FString CurrentRefusalText() const;
+
+	/**
+	 * Il TRATTO RIFIUTATO che l'osservatore puo' vedere, composto dallo stato corrente — `#3064`.
+	 *
+	 * 🔑 **E' a `ComputeRefusedShotLine` cio' che `CurrentRefusalText()` e' a `RefusalText`**: la statica dice
+	 * la regola, questa la applica allo stato che il giocatore sta gia' guardando. Ed e' la sorgente che il
+	 * disegno usa davvero — `DrawHUD` chiama questa e non ricompone l'insieme per conto suo — perche' un
+	 * accessor parallelo passerebbe anche se il disegno leggesse altro.
+	 *
+	 * 🔴 **Nasce perche' la conoscenza abbia UN lettore, e non due.** `#3064` deve accendere la stessa linea
+	 * troncata anche nel mondo (`ARTHexMapActor::SetPreviewSightBlock`), e chi la accende e'
+	 * `ARTPlayerController`, che non legge la conoscenza di squadra da nessuna parte. Fargliela leggere per
+	 * comporre un `TSet` avrebbe aperto un secondo lettore di un canale non filtrato: il controller chiede
+	 * invece il risultato **gia' deciso**, e non maneggia conoscenza affatto.
+	 *
+	 * ⛔ **E cosi' il tratto 2D del Canvas e la linea 3D nel mondo diventano due RESE di una sola decisione —
+	 * sul percorso a CELLA.** I due canali filtravano per criteri diversi: `ComputeRefusedShotLine` nega la
+	 * rottura su un ostacolo che l'osservatore non ha **mai visto**, mentre il canale del mondo filtrava solo
+	 * la conoscenza del BERSAGLIO (`URTSightLineLibrary::AuthorizedSightLines`) e l'ostacolo non lo guardava.
+	 * Sul percorso a unita' la differenza si vedeva poco — `Cover` arriva solo per un bersaglio gia' noto;
+	 * sul percorso a CELLA sarebbe diventata la regola, perche' li' `Cover` e' qualunque cella dietro un muro.
+	 *
+	 * ⚠️ **Il sito a UNITA' non e' stato migrato, e la divergenza li' resta aperta**: continua a derivare la
+	 * linea 3D da `AuthorizedSightLines`, che filtra il bersaglio e non l'ostacolo. E' un residuo
+	 * PREESISTENTE, dichiarato fuori scope in `#3064` perche' cambierebbe un comportamento oggi visibile e
+	 * vuole una verifica PIE: ha issue propria. Chi legge questo docstring non concluda che sia chiusa.
+	 *
+	 * ⚠️ **Fail-closed senza `ARTTurnManager`**: la conoscenza e' sua, e la sua assenza vale «non disegnare»,
+	 * non «disegna tutto». Stessa scelta di `AuthorizedSightLines` senza mappa.
+	 */
+	FRTRefusedShotLine CurrentRefusedShotLine() const;
 	/**
 	 * Le celle da marcare nel mondo perche' hanno fermato un colpo — `#2697`.
 	 *
@@ -475,6 +623,50 @@ public:
 	 */
 	static FVector2D ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 		float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin);
+
+	/**
+	 * 🔑 **Le due metriche dell'etichetta d'intento, e il motivo per cui hanno un NOME.**
+	 *
+	 * Erano quattro letterali dentro `DrawHUD`, a coppie che **dovevano coincidere per costruzione** e
+	 * che nulla legava (#2184):
+	 *
+	 *     36.f    la banda riservata sopra l'ancora  E  lo scarto con cui il testo viene scritto
+	 *     0.85f   la scala con cui il testo e' MISURATO  E  quella con cui e' DISEGNATO
+	 *
+	 * ⛔ **Se una coppia divergesse il difetto sarebbe muto, e gia' pagato**: con una banda diversa dallo
+	 * scarto l'etichetta esce dal viewport — cioe' torna il difetto di `#729`, che `ClampOverlayAnchor`
+	 * e' stato scritto per chiudere; con due scale diverse `LabelW` misura un testo e ne viene disegnato
+	 * un altro, e il centraggio sbaglia di quanto le due differiscono.
+	 *
+	 * 🔑 **Un nome solo per ogni coppia toglie il modo in cui la divergenza succede davvero**, cioe' per
+	 * distrazione: non c'e' piu' un secondo numero da ricordarsi di aggiornare. ⛔ Non la rende
+	 * *impossibile* — riscrivere un letterale dove c'e' un nome compila ancora, ed e' la mutazione 1 di
+	 * `RTHudIntentLabelPlacementTests.cpp`, che infatti cade. Le due difese sono diverse e servono
+	 * entrambe: il nome copre la svista, il test al bordo copre il gesto deliberato.
+	 */
+	static constexpr float IntentLabelAbove = 36.f;
+	static constexpr float IntentLabelScale = 0.85f;
+
+	/**
+	 * Dove va scritta l'etichetta d'intento: angolo alto-sinistro del testo, gia' vincolato al viewport.
+	 *
+	 * 🔑 **Esiste perche' `IntentLabelAbove` sia nominato UNA volta sola.** Le due occorrenze — la banda
+	 * riservata che si chiede a `ClampOverlayAnchor` e lo scarto con cui il testo risale dall'ancora —
+	 * devono coincidere per costruzione, e finche' stavano in due punti di `DrawHUD` nulla lo imponeva.
+	 * Qui sono tre righe adiacenti che leggono lo stesso nome: la divergenza smette di essere qualcosa
+	 * che si fa per distrazione e diventa qualcosa che si deve scrivere apposta.
+	 *
+	 * ⚠️ **Centra sulla larghezza del TESTO, ma riserva quella del blocco piu' largo.** Sono due mezze
+	 * larghezze diverse e non e' una svista: il vincolo al bordo deve tenere dentro anche la barra
+	 * (`BarWidth`), mentre il centraggio riguarda solo la stringa che si disegna.
+	 *
+	 * @param HeadScreen  proiezione della testa dell'unita', in pixel.
+	 * @param LabelWidth  larghezza del testo, misurata a `IntentLabelScale`.
+	 * @param BarWidth    larghezza della barra sotto l'etichetta: entra solo nel vincolo al bordo.
+	 * @param Viewport    dimensioni del canvas.
+	 */
+	static FVector2D ComposeIntentLabelPlacement(const FVector2D& HeadScreen, float LabelWidth,
+		float BarWidth, const FVector2D& Viewport);
 
 	/**
 	 * Le tre righe della terna movimento / principale / reazione, nell'ordine in cui vanno disegnate.
@@ -575,6 +767,75 @@ public:
 	static FString ComposeMatchEndHeadline(const struct FRTMatchResult& Result);
 
 	/**
+	 * 🔑 **Le metriche del pannello di fine partita, e le TRE coppie che dovevano coincidere.**
+	 *
+	 * Erano letterali dentro `DrawHUD` (#2184), e tre di loro comparivano due volte ciascuna:
+	 *
+	 *     0.4f    l'ancora verticale dell'intestazione  E  quella da cui l'istruzione scende
+	 *     0.5f    la mezzeria su cui si centra l'intestazione  E  quella dell'istruzione
+	 *     2.f     la scala con cui l'intestazione e' MISURATA  E  quella con cui e' DISEGNATA
+	 *     1.2f    lo stesso, per l'istruzione
+	 *
+	 * ⛔ **Una divergenza sarebbe muta e visibile solo a partita finita**: con due ancore diverse le due
+	 * righe si separano di mezzo schermo, con due mezzerie diverse smettono di condividere l'asse e il
+	 * pannello si legge storto. Nessun test le raggiungeva — `RTHudEndAndSlotTests` copre la funzione
+	 * pura che compone il TESTO, mai la posa.
+	 *
+	 * ⚠️ **`MatchEndAnchorY` e `MatchEndCentre` sono protette anche da `ComposeMatchEndPanelPlacement`**,
+	 * che le legge una volta sola; le due scale no — le loro occorrenze sono `GetTextSize` e `DrawText`,
+	 * membri di `AHUD` che vogliono canvas e font, e nessuna domanda headless le interroga. Quelle sono
+	 * protette dal **nome**, non da un test, ed e' lo stesso argomento gia' scritto per `IntentLabelScale`.
+	 */
+	static constexpr float MatchEndAnchorY = 0.4f;
+	static constexpr float MatchEndCentre = 0.5f;
+	static constexpr float MatchEndLineGapPx = 8.f;
+	static constexpr float MatchEndHeadlineScale = 2.f;
+	static constexpr float MatchEndRestartScale = 1.2f;
+
+	/**
+	 * ⚠️ **L'istruzione nomina un tasto che vive altrove.** `ARTPlayerController` lega il riavvio a `R`
+	 * (`MapKey(RestartAction, EKeys::R)`): se quella legatura cambia, questo testo mente e niente lo
+	 * segnala. Il nome non chiude l'accoppiamento — lo rende **visibile**, che e' il massimo ottenibile
+	 * finche' le due sedi restano due.
+	 */
+	static constexpr const TCHAR* MatchEndRestartPrompt = TEXT("premi R per rigiocare");
+
+	/** Il grigio dell'istruzione di riavvio: piu' spenta dell'esito, che e' bianco pieno. */
+	static const FLinearColor MatchEndRestartInk;
+
+	/** Dove cadono le due righe del pannello di fine partita, in pixel di schermo. */
+	struct FRTMatchEndPanelPlacement
+	{
+		/** Angolo alto-sinistro dell'intestazione. */
+		FVector2f Headline = FVector2f::ZeroVector;
+
+		/** Angolo alto-sinistro dell'istruzione di riavvio. */
+		FVector2f Restart = FVector2f::ZeroVector;
+	};
+
+	/**
+	 * Dove vanno le due righe del pannello di fine partita.
+	 *
+	 * 🔑 **L'ancora verticale compare UNA volta**, e l'istruzione sta sotto l'intestazione per
+	 * costruzione — non perche' due letterali scritti in due righe diverse continuino a coincidere.
+	 *
+	 * ⚠️ **In `float`, non in `FVector2D`, e non e' un dettaglio.** `FVector2D` e' a doppia precisione;
+	 * la catena di oggi passa da `Canvas->SizeX` (`int32`), da `GetTextSize` (`float&`) e finisce in
+	 * `DrawText` (`float`), arrotondando a ogni passo. Calcolare in `double` e riconsegnare potrebbe
+	 * differire di un ULP: sarebbe invarianza sperata invece che dimostrata.
+	 *
+	 * ⛔ **Non vincola al viewport, e NON va aggiunto qui.** Con un'intestazione piu' larga del canvas la
+	 * X diventa negativa e il testo esce dal bordo — come oggi. Aggiungere `ClampOverlayAnchor` mentre si
+	 * estrae sarebbe cambiare cio' che si vede, che lo Scope di #2184 vieta. Il caso e' pinnato com'e'.
+	 *
+	 * @param Viewport      dimensioni del canvas, in pixel.
+	 * @param HeadlineSize  larghezza E altezza dell'intestazione, misurate a `MatchEndHeadlineScale`.
+	 * @param RestartWidth  larghezza dell'istruzione, misurata a `MatchEndRestartScale`.
+	 */
+	static FRTMatchEndPanelPlacement ComposeMatchEndPanelPlacement(const FVector2f& Viewport,
+		const FVector2f& HeadlineSize, float RestartWidth);
+
+	/**
 	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
 	 *
 	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
@@ -646,6 +907,49 @@ public:
 	 *                  E' cio' che separa **trattini** (periodo lungo) da **punti** (periodo corto), i due
 	 *                  stili che `progettazione-hud.md` §16 assegna a `Predicted` e `Uncertain`.
 	 */
+	/**
+	 * ⛔ **`DutyCycle` arriva INTATTO da `ComposeIntentCertaintyStyle`, e chi chiama non lo riscrive.**
+	 *
+	 * Fino al 2026-09-24 `DrawHUD` passava `S.bDashedLine ? S.DashDutyCycle : 1.f`: era la **terza** copia
+	 * della regola «linea non tratteggiata ⇒ ciclo pieno», e l'unica delle tre senza test, perche'
+	 * `DrawHUD` non ha copertura headless. Le altre due sono qui — `DutyCycle >= 1.f` rende il segmento
+	 * unico — e nel composer, che nel ramo `Confirmed` scrive `bDashedLine = false` **insieme a**
+	 * `DashDutyCycle = 1.f`.
+	 *
+	 * Verificato sui tre rami del composer e sui default della struct: non esiste uno stato in cui
+	 * `bDashedLine` sia falso e il ciclo valga altro che `1.f`, quindi quel ternario rendeva **sempre**
+	 * `S.DashDutyCycle`. Era inerte, non innocuo: al primo livello con `bDashedLine = false` e ciclo
+	 * minore di uno — cio' che il `default:` del composer e' scritto per accogliere — avrebbe
+	 * sovrascritto in silenzio la statica testata, e nessun test sarebbe caduto (#2184).
+	 */
+	/**
+	 * Il tratteggio a CONTEGGIO FISSO: divide il segmento in `Spans` parti uguali e accende le pari.
+	 *
+	 * ⛔ **Non e' `ComposeDashSegments` con altri argomenti, e l'aritmetica lo dimostra.** Quella divide
+	 * per un periodo in PIXEL, questa per un numero di parti. Chiedendole lo stesso disegno —
+	 * `ComposeDashSegments(A, B, 0.5f, Len * 2.f / 7.f)` — si ottiene `Steps = RoundToInt(3.5) = 4`, e
+	 * con `T1 = (s + 0.5) / 4` l'ultimo tratto finisce a **0,875** invece che sul punto d'arrivo. Sono
+	 * due disegni diversi: unificarle sposterebbe i pixel, che lo Scope di #2184 vieta.
+	 *
+	 * 🔑 **`Spans` dispari fa iniziare E finire acceso**, perche' si accendono gli indici pari e l'ultimo
+	 * indice pari e' `Spans - 1`, che arriva a `Spans / Spans = 1`. Con un conteggio pari il tratteggio
+	 * finirebbe spento, e la linea sembrerebbe interrompersi prima del bersaglio.
+	 *
+	 * @param A      punto di partenza in pixel.
+	 * @param B      punto d'arrivo in pixel.
+	 * @param Spans  in quante parti dividere; `<= 0` rende un elenco vuoto.
+	 */
+	static TArray<TPair<FVector2D, FVector2D>> ComposeCountedDashSegments(const FVector2D& A,
+		const FVector2D& B, int32 Spans);
+
+	/**
+	 * 🔑 **Quanti tratti ha il tiro rifiutato, e perche' e' DISPARI.**
+	 *
+	 * Era un `constexpr` dentro `DrawHUD` (#2184): una politica di disegno che nessun test raggiungeva,
+	 * perche' non sta in un ramo e le enumerazioni di questa issue contano i rami.
+	 */
+	static constexpr int32 BlockedShotDashSpans = 7;
+
 	static TArray<TPair<FVector2D, FVector2D>> ComposeDashSegments(const FVector2D& A, const FVector2D& B,
 		float DutyCycle, float PeriodPx);
 
@@ -691,6 +995,130 @@ public:
 	 */
 	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
 		const FRTIntentCertaintyStyle& Style, bool bIsSelected = false);
+
+	/**
+	 * 🔑 **Da quale prospettiva si chiedono le viste d'intento** — la decisione che decide *quali* piani
+	 * compaiono a schermo (#2184).
+	 *
+	 * Sessione **presidiata** → una sola domanda, quella dell'osservatore che gioca: `FilterForTeam` sceglie
+	 * cosa ha diritto di sapere, e un piano avversario non rivelato **non compare fra le viste**. Non e' un
+	 * occultamento grafico: il dato non arriva proprio (invariante #6).
+	 *
+	 * Sessione **non presidiata** → una domanda **per unita'**, dalla prospettiva della squadra che la
+	 * possiede. Entrambe le squadre sono bot e nessuno gioca, quindi chi guarda e' autorizzato a vedere
+	 * tutto (`#2386`); ma l'autorizzazione non ammorbidisce il filtro — si fanno piu' domande a cui il
+	 * filtro risponde di si'.
+	 *
+	 * ⛔ **La domanda per unita' non e' una domanda per squadra, e la differenza e' una reticenza che si
+	 * misura.** `FilterForTeam` concede all'osservatore gli alleati **e** gli avversari `bRevealed`: due
+	 * domande di squadra su tutto l'insieme farebbero comparire **due volte** ogni unita' rivelata. Chiedendo
+	 * dalla prospettiva del proprietario, ogni unita' compare una volta sola e nella sua forma piena — quella
+	 * alleata, che porta anche reazione e waypoint.
+	 *
+	 * ⚠️ **`FilterForTeam` non si tocca.** Questa funzione decide *chi chiede*, non *cosa l'osservatore ha
+	 * diritto di sapere*: quella risposta resta in `URTIntentPrivacyLibrary`, e `ARTPlayerState::TeamIdOf`
+	 * resta l'unica porta per «di chi e' la vista» ([`D-285`], che le da' quel nome assorbendo
+	 * `ARTHUD::ViewerTeamIdOf`; il debito che ha chiuso — il letterale `PlayerTeamId = 0` che alimentava
+	 * quattro filtri di privacy — e' [`D-242`] punto 5).
+	 *
+	 * ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di entrambe
+	 * le squadre e' un client che li POSSIEDE: la' questa raccolta dovra' essere lato server, o non esistere.
+	 *
+	 * @param Authoritative       i piani autorevoli, nell'ordine in cui il modello li costruisce
+	 * @param PlayerTeamId        la squadra dell'osservatore che gioca; ignorata se `bUnattendedSession`
+	 * @param bUnattendedSession  il dato della sessione, che `RTMatchBootstrapper` scrive da `bAutobattle`
+	 * @return le viste da disegnare, **nell'ordine d'ingresso**
+	 */
+	static TArray<struct FRTIntentView> ComposeVisibleIntentViews(
+		const TArray<struct FRTPlannedIntent>& Authoritative, int32 PlayerTeamId, bool bUnattendedSession);
+
+	/**
+	 * La rotta pianificata: se disegnarla, e con quali celle (#2184).
+	 *
+	 * 🔑 **Le due decisioni stanno insieme perche' la seconda ha senso solo dentro la prima**: non si
+	 * sceglie la sorgente di una rotta che non si disegna.
+	 *
+	 * ⚠️ **`Map` e' un parametro, e questo NON toglie purezza.** `URTHexPathLibrary::FindPath` e' a sua
+	 * volta una statica che prende la mappa come argomento: passarla qui tiene la funzione interrogabile
+	 * senza montare un HUD — un `URTHexMapAsset` si costruisce con
+	 * `URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), N)`, che non vuole nessun mondo.
+	 *
+	 * ⌫ Una prima stesura lasciava il ricalcolo fuori, sostenendo che «una funzione che legge la mappa non
+	 * e' pura», e restituiva due booleani. Era falso — e costava un ternario che restava in `DrawHUD`.
+	 * Corretto in code review.
+	 *
+	 * @param Map  puo' essere nullo: `FindPath` lo gestisce, e il risultato e' una rotta vuota.
+	 */
+	/**
+	 * 🔑 **Quali celle di un intento prendono un rettangolo, e con quale forma.**
+	 *
+	 * Tre regole che stavano dentro `DrawHUD` in mezzo al tracciamento (#2184):
+	 *
+	 *   - la **destinazione** ha un rettangolo solo se la rotta si mostra — non perche' esista una cella,
+	 *     che e' l'errore documentato da `ComposePlannedRoute`: `PlannedCell` resta valorizzata anche a
+	 *     piano concluso;
+	 *   - i **waypoint** ce l'hanno sempre, perche' la vista li porta solo per le unita' proprie;
+	 *   - ⛔ **nessuno dei due e' graduato dalla certezza**, e la prima stesura graduava la destinazione
+	 *     sbagliando due volte: quel blocco vive dentro `bMoving`, e `ClassifyPlan` rende `Uncertain`
+	 *     ogni volta che `bMoving` — il livello sarebbe **sempre** lo stesso, quindi attenuare non
+	 *     distingue niente e toglie leggibilita'. Il rettangolo passava da alpha `0.35` a `0.105`, in
+	 *     permanenza, per ogni unita' in movimento.
+	 *
+	 * ⚠️ **L'ORDINE dell'elenco e' parte del contratto**: destinazione prima, waypoint dopo, perche' e'
+	 * l'ordine in cui venivano disegnati e un rettangolo che passa sopra un altro si vede.
+	 *
+	 * @param View          l'intento da cui leggere destinazione e waypoint.
+	 * @param bRouteShown   il verdetto di `ComposePlannedRoute`: senza, la destinazione non compare.
+	 * @param IntentColor   la tinta dell'intento, gia' risolta da `ComposeIntentPresentation`.
+	 */
+	static TArray<FRTIntentMarker> ComposeIntentMarkers(const struct FRTIntentView& View,
+		bool bRouteShown, const FLinearColor& IntentColor);
+
+	/** Meta' lato del rettangolo di destinazione, in pixel. Il lato e' il doppio. */
+	static constexpr float DestinationMarkerHalfPx = 12.f;
+
+	/** Opacita' del rettangolo di destinazione: attenuato rispetto alla linea, ma NON per certezza. */
+	static constexpr float DestinationMarkerAlpha = 0.35f;
+
+	/** Meta' lato del marcatore di waypoint: piu' piccolo della destinazione, e a tinta piena. */
+	static constexpr float WaypointMarkerHalfPx = 5.f;
+
+	static FRTPlannedRoutePresentation ComposePlannedRoute(const struct FRTIntentView& View,
+		const class URTHexMapAsset* Map);
+
+	/**
+	 * L'anteprima dello scatto: se mostrarla, e con quali celle (#2184).
+	 *
+	 * 🔑 **Stessa forma di `ComposePlannedRoute`, e non e' un caso**: `Map` e' un parametro, e
+	 * `URTHexPathLibrary::FindPath` lo prende a sua volta. La verifica di chiusura aveva escluso questo
+	 * ternario come «scelta geometrica non estraibile» — ma la mossa era gia' stata fatta cinquanta righe
+	 * sopra, e l'esclusione non reggeva.
+	 *
+	 * @param Map  puo' essere nullo: il ramo a budget rende una traiettoria vuota, quello lineare no —
+	 *             `HexLine` non consulta la mappa. Chi disegna tiene comunque la propria guardia.
+	 */
+	static FRTDashPreview ComposeDashPreview(const struct FRTIntentView& View,
+		const class URTHexMapAsset* Map);
+
+	/**
+	 * La geometria della mappa, coi suoi ripieghi e con lo stato che li distingue (#2184).
+	 *
+	 * ⚠️ **I tre ripieghi erano tre letterali dentro `DrawHUD`** — `ZeroVector`, `150.f`, `250.f` — e
+	 * nessuno li misurava, perche' non erano protetti da nessun condizionale e ogni verifica di chiusura
+	 * aveva guardato i **rami**. Sono ora i default della struct, e un test li interroga.
+	 *
+	 * 🔴 **`bFromWorld` ha permesso di chiudere un difetto MUTO, e chi legge il diff deve saperlo: in un
+	 * caso cambia cio' che si vede.** La traccia post-lock leggeva i tre valori **senza controllare
+	 * niente**: senza attore mappa non spariva, si disegnava ai ripieghi — scala inventata, attorno
+	 * all'origine del mondo. Nessun test poteva vederlo, perche' `DrawHUD` non ha copertura headless.
+	 *
+	 * ⛔ **E la guardia non poteva essere `if (Map)`**: in graybox l'asset e' nullo ma la geometria e'
+	 * quella vera dell'attore, e spegnere li' avrebbe tolto la traccia dove funziona. Gli stati sono
+	 * tre; questo flag separa il solo caso rotto.
+	 *
+	 * @param HexMap  puo' essere nullo: la geometria torna ai ripieghi e `bFromWorld` resta falso.
+	 */
+	static FRTHudHexGeometry ComposeHexGeometry(const class ARTHexMapActor* HexMap);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:

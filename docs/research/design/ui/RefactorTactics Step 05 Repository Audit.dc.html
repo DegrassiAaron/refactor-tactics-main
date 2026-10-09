@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#080B10; }
+  a { color:#35E0C4; text-decoration:none; }
+  a:hover { color:#7CF0DE; }
+</style>
+</helmet>
+<div style="width:1440px;margin:0 auto;background:#0A0E14;color:#E6EDF4;font-family:'Azeret Mono',monospace;padding:0 0 96px">
+
+  <div style="padding:56px 56px 36px;border-bottom:1px solid #232C38">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px">
+      <div>
+        <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.24em;color:#35E0C4;margin-bottom:18px">STEP 05 · REPOSITORY AUDIT · READ-ONLY</div>
+        <h1 style="margin:0;font:400 58px/.98 Oswald,sans-serif;letter-spacing:.01em;text-transform:uppercase">Non mancano gli ID<br /><span style="color:#56626F">ne mancano 48 di icone</span></h1>
+        <p style="margin:22px 0 0;max-width:760px;font:400 13.5px/1.75 'Azeret Mono',monospace;color:#8D9BAB;text-wrap:pretty">La premessa dello STEP 04 era sbagliata. Il sistema icone runtime esiste, è completo e testato: <span style="color:#E6EDF4">61 chiavi</span> derivate da dati di gioco reali, un catalogo validato in CI, un resolver che non restituisce mai un esito vuoto. Il problema è di scala e di tassonomia, non di assenza — e la v0.1 visuale copre 7 di quelle 61.</p>
+      </div>
+      <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;flex-shrink:0;min-width:330px">
+        <div style="background:#121822;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>RUNTIME ID TYPE</span><span style="color:#7CC7D9">FName · UI.Icon.</span></div>
+        <div style="background:#121822;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>REQUIRED ICONS</span><span style="color:#E6EDF4">61</span></div>
+        <div style="background:#121822;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>EXACTLY MAPPED</span><span style="color:#3FD08A">7 / 24</span></div>
+        <div style="background:#121822;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>NEEDS APPROVAL</span><span style="color:#FFC24A">6</span></div>
+        <div style="background:#121822;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>REQUIRED NOT IN v0.1</span><span style="color:#FF4D6D">48</span></div>
+        <div style="background:#121822;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>LEGACY ASSETS</span><span style="color:#E6EDF4">188 · 56 orfani</span></div>
+        <div style="background:#1A1216;padding:13px 16px;display:flex;justify-content:space-between;gap:10px;font:400 11px 'Azeret Mono',monospace;color:#8D9BAB"><span>BLOCKERS</span><span style="color:#FF4D6D">4</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RUNTIME MODEL -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">01</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Runtime identifier model</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:480px">Accertato dal codice, non dedotto dai nomi degli asset.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">IL TIPO REALE</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;font:400 11px/1.9 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:14px">
+          <div style="color:#56626F">// RTIconLibrary.cpp:10</div>
+          <div>IconIdPrefix = TEXT(<span style="color:#7CC7D9">"UI.Icon."</span>);</div>
+          <div style="margin-top:10px;color:#56626F">// forma della chiave</div>
+          <div><span style="color:#7CC7D9">UI.Icon.&lt;Categoria&gt;.&lt;Nome&gt;</span></div>
+          <div style="margin-top:10px;color:#56626F">// esempi reali</div>
+          <div>UI.Icon.Action.Move</div>
+          <div>UI.Icon.Status.Wet</div>
+          <div>UI.Icon.Certainty.Confirmed</div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">FName</span>, non FGameplayTag, non enum, non PrimaryAssetId. I Gameplay Tag <span style="color:#E6EDF4">esistono</span> nel progetto ma non sono l'identificatore: sono la <span style="color:#E6EDF4">sorgente</span> da cui alcune chiavi si derivano. Il prefisso tiene separati i due spazi — senza, <span style="color:#56626F">Status.Wet</span> come icona e come tag sarebbero la stessa stringa in un log.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">61 CHIAVI · COMPOSIZIONE</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:10px 13px;display:flex;justify-content:space-between;gap:8px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Phase</span><span><span style="color:#E6EDF4">4</span> <span style="color:#56626F">ERTMatchPhase, filtrata</span></span></div>
+          <div style="background:#0A0E14;padding:10px 13px;display:flex;justify-content:space-between;gap:8px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Action</span><span><span style="color:#E6EDF4">37</span> <span style="color:#56626F">GetCoreActionCatalog</span></span></div>
+          <div style="background:#0A0E14;padding:10px 13px;display:flex;justify-content:space-between;gap:8px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Status</span><span><span style="color:#E6EDF4">11</span> <span style="color:#56626F">tag Status.*</span></span></div>
+          <div style="background:#0A0E14;padding:10px 13px;display:flex;justify-content:space-between;gap:8px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Certainty</span><span><span style="color:#E6EDF4">3</span> <span style="color:#FFC24A">scritta a mano</span></span></div>
+          <div style="background:#0A0E14;padding:10px 13px;display:flex;justify-content:space-between;gap:8px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Identity</span><span><span style="color:#E6EDF4">6</span> <span style="color:#56626F">4 eroi + Ally/Enemy</span></span></div>
+          <div style="background:#131C24;padding:10px 13px;display:flex;justify-content:space-between;gap:8px;font:500 10.5px 'Azeret Mono',monospace;color:#E6EDF4"><span>TOTALE</span><span>61</span></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Non è una lista, è una <span style="color:#E6EDF4">derivazione</span>: aggiungere un'azione al catalogo fa cadere la copertura lo stesso giorno, senza che nessuno tocchi la lista delle icone. È dichiarato come intenzione nel commento della funzione, ed è ciò che rende il test <span style="color:#56626F">EveryKeyResolves</span> non vero per costruzione.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">DUE ESCLUSIONI DELIBERATE</div>
+        <div style="display:grid;gap:14px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">Planning e Cleanup non sono fasi richieste</span>, perché non sono fasi in cui il giocatore agisce. E Reaction non è una quinta fase: metterla fra le fasi la trasformerebbe in una.</div>
+          <div><span style="color:#E6EDF4">Certainty non deriva da ERTIntentCertainty</span> pur esistendo il tipo. L'enum ha quattro valori, la categoria ne pretende tre: <span style="color:#56626F">Unknown = 0</span> significa "mai calcolato" e non ha una resa — un'icona lo farebbe sembrare uno stato previsto invece del difetto a monte che è.</div>
+          <div style="color:#3FD08A">È anche il motivo per cui Certainty combacia 3 su 3 con la v0.1: è l'unica categoria del runtime le cui chiavi sono state scelte col criterio "cosa è disegnabile", lo stesso della v0.1.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CATALOG -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">02</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Icon catalog architecture</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:0">
+        <div style="display:grid;gap:1px;background:#232C38">
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">A · classe</span><span style="color:#7CC7D9">URTIconCatalogData : UPrimaryDataAsset</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">B · key</span><span>FRTIconDef::IconId (FName) + Category</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">C · value</span><span>TSoftObjectPtr&lt;UTexture2D&gt;</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">D · MissingIcon</span><span style="color:#3FD08A">sì, obbligatoria</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">E · validation</span><span style="color:#3FD08A">ValidateIconCatalog · 6 classi di errore</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">F · lookup</span><span>ResolveIcon · scansione lineare</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">G · consumer</span><span>URTActionSlotWidget · ARTHUD</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">H · Blueprint</span><span style="color:#3FD08A">sì, API completa</span></div>
+          <div style="background:#121822;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">I · data-driven</span><span style="color:#3FD08A">sì</span></div>
+          <div style="background:#1A1216;padding:11px 20px;display:grid;grid-template-columns:120px 1fr;gap:12px;font:400 10.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">J · dati reali</span><span style="color:#FF4D6D">NO — DA_IconCatalog non esiste nel repository</span></div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">DUE SCELTE DA NON PERDERE</div>
+        <div style="display:grid;gap:14px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">ResolveIcon non restituisce mai un esito silenziosamente vuoto.</span> Chiave sconosciuta dà il missing-icon con <span style="color:#56626F">bResolved = false</span> più una warning che nomina chiave e consumer. Il chiamante non deve dedurre il fallimento da un puntatore nullo.</div>
+          <div><span style="color:#E6EDF4">È BlueprintCallable e non BlueprintPure, per una ragione precisa.</span> Una funzione pura in un property binding viene valutata a ogni frame: con un catalogo incompleto la diagnostica diventerebbe spam continuo, e la warning smetterebbe di dire dove guardare proprio quando serve.</div>
+          <div><span style="color:#E6EDF4">La categoria dichiarata e il segmento dentro l'ID devono coincidere.</span> Senza quel controllo <span style="color:#56626F">UI.Icon.Status.Wet</span> potrebbe dichiararsi Warning e nessuno se ne accorgerebbe finché un filtro per categoria non restituisce la lista sbagliata.</div>
+          <div style="color:#56626F">Il catalogo si raggiunge risalendo l'albero dei widget, non per riferimento diretto. Fuori dall'HUD non si raggiunge, e un test lo verifica.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 24 MAPPING -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">03</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">24 glyph mapping</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:500px">Nessun ID dedotto dal nome dell'asset. Dove il repository non dice, la riga dice UNKNOWN.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 9px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.08em"><div style="padding:11px 12px">GRAMMAR ID</div><div style="padding:11px 8px">RUNTIME ID</div><div style="padding:11px 6px">TYPE</div><div style="padding:11px 8px">EVIDENCE</div><div style="padding:11px 8px">MAPPING STATUS</div><div style="padding:11px 10px">NOTE</div></div>
+
+      <div style="background:#0F1A16;padding:8px 12px;border-bottom:1px solid #1B2530;font:500 9.5px 'Azeret Mono',monospace;color:#3FD08A;letter-spacing:.1em">EXACT · 7</div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Move</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Action.Move</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1057</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">test ScreenHud verifica MakeIconId(Action.Move)</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Wait</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Action.Wait</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1050</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">azione spedita · NormalMovement</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Guard</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Action.Guard</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1071</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">azione spedita · Preparation</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Overwatch</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Action.Overwatch</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1151</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">l'azione c'è; a E14 resta l'infrastruttura interattiva</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Confirmed</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Certainty.Confirmed</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTIconLibrary.cpp:107</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">lista dei livelli disegnabili, non dei valori del tipo</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Predicted</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Certainty.Predicted</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTIconLibrary.cpp:107</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">—</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Uncertain</div><div style="padding:9px 8px;color:#7CC7D9">UI.Icon.Certainty.Uncertain</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTIconLibrary.cpp:107</div><div style="padding:9px 8px;color:#3FD08A">EXACT</div><div style="padding:9px 10px;color:#56626F">—</div></div>
+
+      <div style="background:#1F1A0E;padding:8px 12px;border-bottom:1px solid #1B2530;font:500 9.5px 'Azeret Mono',monospace;color:#FFC24A;letter-spacing:.1em">SEMANTIC_MATCH_NEEDS_APPROVAL · 6</div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Attack</div><div style="padding:9px 8px;color:#FFC24A">UI.Icon.Action.BasicAttack</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1064</div><div style="padding:9px 8px;color:#FFC24A">NEEDS_APPROVAL</div><div style="padding:9px 10px">Il runtime ha <span style="color:#E6EDF4">tre</span> attacchi con fasi e priorità diverse: Basic, Precision, Heavy. Un glifo generico ne copre uno o tutti tre?</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Dash</div><div style="padding:9px 8px;color:#FFC24A">UI.Icon.Action.Sprint</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1038</div><div style="padding:9px 8px;color:#FFC24A">NEEDS_APPROVAL</div><div style="padding:9px 10px"><span style="color:#FF4D6D">Doppia collisione.</span> Action.Dash non è fra le azioni core spedite, e <span style="color:#7CC7D9">UI.Icon.Phase.Dash</span> esiste come fase del turno. Il candidato è Sprint</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Water</div><div style="padding:9px 8px;color:#FFC24A">UI.Icon.Status.Wet</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTGameplayTags.cpp:9</div><div style="padding:9px 8px;color:#FFC24A">NEEDS_APPROVAL</div><div style="padding:9px 10px">Status.Wet è lo stato di un'<span style="color:#E6EDF4">unità</span>; Glyph.Water quello di una <span style="color:#E6EDF4">superficie</span>. Categoria Environment dichiarata e vuota</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Fire</div><div style="padding:9px 8px;color:#FFC24A">UI.Icon.Status.Burning</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTGameplayTags.cpp:11</div><div style="padding:9px 8px;color:#FFC24A">NEEDS_APPROVAL</div><div style="padding:9px 10px">Stessa distinzione unità / superficie</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Electric</div><div style="padding:9px 8px;color:#FFC24A">UI.Icon.Status.Electrified</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTGameplayTags.cpp:13</div><div style="padding:9px 8px;color:#FFC24A">NEEDS_APPROVAL</div><div style="padding:9px 10px">Esiste anche l'asset RT_UI_Icon_Environment_Electric, che nessuna chiave consuma</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Reaction</div><div style="padding:9px 8px;color:#FFC24A">UI.Icon.Action.Counter</div><div style="padding:9px 6px">FName</div><div style="padding:9px 8px;color:#56626F">RTCatalogLibrary.cpp:1302</div><div style="padding:9px 8px;color:#FFC24A">NEEDS_APPROVAL</div><div style="padding:9px 10px">ERTIconCategory::Reaction è dichiarata e vuota. Il runtime esprime la reazione come <span style="color:#E6EDF4">sei</span> azioni Control: Counter, Deflect, Intercept, Anchor, Purge, Evade</div></div>
+
+      <div style="background:#1A1216;padding:8px 12px;border-bottom:1px solid #1B2530;font:500 9.5px 'Azeret Mono',monospace;color:#FF4D6D;letter-spacing:.1em">MISSING_RUNTIME_ID · 3 &nbsp;·&nbsp; NO_RUNTIME_CONSUMER · 1</div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Height</div><div style="padding:9px 8px;color:#FF4D6D">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#FF4D6D">MISSING_RUNTIME_ID</div><div style="padding:9px 10px">Nessun identificatore di quota nel sistema icone</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Waypoint</div><div style="padding:9px 8px;color:#FF4D6D">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#FF4D6D">MISSING_RUNTIME_ID</div><div style="padding:9px 10px"><span style="color:#FF4D6D">ERTIconCategory non ha una categoria Marker.</span> Il namespace Marker.* della v0.1 non esiste nella tassonomia del codice</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Destination</div><div style="padding:9px 8px;color:#FF4D6D">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#FF4D6D">MISSING_RUNTIME_ID</div><div style="padding:9px 10px">Stessa assenza di categoria</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Cover</div><div style="padding:9px 8px;color:#FF4D6D">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#FF4D6D">NO_RUNTIME_CONSUMER</div><div style="padding:9px 10px">Action.CreateCover esiste ma è <span style="color:#E6EDF4">l'azione di creare copertura</span>, non lo stato del terreno. Asset RT_UI_Icon_Environment_Cover esistente senza chiave</div></div>
+
+      <div style="background:#151A22;padding:8px 12px;border-bottom:1px solid #1B2530;font:500 9.5px 'Azeret Mono',monospace;color:#96A3B0;letter-spacing:.1em">NOT_REQUIRED_BY_CURRENT_BUILD · 7 &nbsp;·&nbsp; categorie dichiarate e non popolate</div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Critical</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px;color:#56626F">ERTIconCategory::Warning dichiarata, zero chiavi richieste</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.FriendlyFire</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px;color:#56626F">categoria Warning non popolata</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.Collision</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px;color:#56626F">categoria Warning non popolata</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.InsufficientResource</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px;color:#56626F">categoria Warning non popolata</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.InvalidTarget</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px;color:#56626F">categoria Warning non popolata</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;border-bottom:1px solid #1B2530;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.UncertainOutcome</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px">categoria Warning non popolata. <span style="color:#E6EDF4">Non confondere con Certainty.Uncertain</span>, che invece è richiesta</div></div>
+      <div style="display:grid;grid-template-columns:1.5fr 1.7fr 0.6fr 1.7fr 1.8fr 3fr;background:#121822;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:9px 12px;color:#E6EDF4">Glyph.LastContact</div><div style="padding:9px 8px;color:#56626F">UNKNOWN</div><div style="padding:9px 6px;color:#56626F">—</div><div style="padding:9px 8px;color:#56626F">—</div><div style="padding:9px 8px;color:#96A3B0">NOT_REQUIRED</div><div style="padding:9px 10px">Il concetto <span style="color:#E6EDF4">esiste</span> come ERTIconCategory::Information — "visibile, sentito, ultima posizione nota". È il namespace IntelSource.* della v0.1a con un altro nome</div></div>
+    </div>
+  </div>
+
+  <!-- GAPS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">04</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Semantic gap analysis</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="background:#131C24;padding:18px;margin-bottom:16px">
+          <svg viewBox="0 0 400 150" style="width:100%;height:auto;display:block">
+            <text x="0" y="12" fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">61 CHIAVI RICHIESTE DAL RUNTIME</text>
+            <rect x="0" y="20" width="400" height="26" fill="#1A2430" />
+            <rect x="0" y="20" width="46" height="26" fill="#3FD08A" />
+            <rect x="46" y="20" width="39" height="26" fill="#FFC24A" />
+            <text x="6" y="38" fill="#0A0E14" font-size="10" font-family="Azeret Mono, monospace" font-weight="500">7</text>
+            <text x="52" y="38" fill="#0A0E14" font-size="10" font-family="Azeret Mono, monospace" font-weight="500">6</text>
+            <text x="240" y="38" fill="#8D9BAB" font-size="10" font-family="Azeret Mono, monospace">48 senza glifo v0.1</text>
+            <text x="0" y="76" fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">24 GLIFI VISUALI v0.1</text>
+            <rect x="0" y="84" width="400" height="26" fill="#1A2430" />
+            <rect x="0" y="84" width="117" height="26" fill="#3FD08A" />
+            <rect x="117" y="84" width="100" height="26" fill="#FFC24A" />
+            <rect x="217" y="84" width="183" height="26" fill="#3A434E" />
+            <text x="6" y="102" fill="#0A0E14" font-size="10" font-family="Azeret Mono, monospace" font-weight="500">7 exact</text>
+            <text x="123" y="102" fill="#0A0E14" font-size="10" font-family="Azeret Mono, monospace" font-weight="500">6 approval</text>
+            <text x="223" y="102" fill="#E6EDF4" font-size="10" font-family="Azeret Mono, monospace">11 non consumati</text>
+            <text x="0" y="138" fill="#FF4D6D" font-size="10.5" font-family="Azeret Mono, monospace">copertura certa: 7 / 61 · 11%</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Le due barre non sono lo stesso insieme visto da due lati: sono <span style="color:#E6EDF4">due insiemi che si sfiorano</span>. La v0.1 ha progettato il linguaggio dei warning, dei marker e dell'intel — tre famiglie che il runtime non chiede ancora — e non ha progettato le 37 azioni che il runtime chiede da subito.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#FF4D6D;letter-spacing:.1em;margin-bottom:14px">RUNTIME_REQUIRED_NOT_IN_VISUAL_V0.1 · 48</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:16px">
+          <div style="background:#0A0E14;padding:14px 16px"><div style="font:500 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:8px">30 AZIONI</div><div style="font:400 9.5px/1.75 'Azeret Mono',monospace;color:#56626F">Interact · Dodge · Charge · Leap · Reposition · PrecisionAttack · HeavyAttack · LineAttack · CircularAoE · SuppressiveLine · MarkTarget · Deflect · Intercept · Anchor · Purge · Evade · Brace · Shield · Cleanse · Push · Pull · Root · Slow · Interrupt · Electrify · Ignite · CreateWater · ModifyArc · CreateCover · Heal</div><div style="font:400 9px/1.6 'Azeret Mono',monospace;color:#3A434E;margin-top:8px">Sprint, Counter e BasicAttack non sono qui: hanno un candidato v0.1 e stanno fra i 6 NEEDS_APPROVAL. 30 + 4 + 8 + 6 = 48.</div></div>
+          <div style="background:#0A0E14;padding:14px 16px">
+            <div style="font:500 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:8px">4 FASI</div><div style="font:400 9.5px/1.75 'Azeret Mono',monospace;color:#56626F;margin-bottom:14px">Prep · Dash · Blast · Move</div>
+            <div style="font:500 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:8px">8 STATI</div><div style="font:400 9.5px/1.75 'Azeret Mono',monospace;color:#56626F;margin-bottom:14px">Root · Slow · Reveal · Exposed · Guarded · Marked · Braced · Obscured</div>
+            <div style="font:500 10px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:8px">6 IDENTITÀ</div><div style="font:400 9.5px/1.75 'Azeret Mono',monospace;color:#56626F">Gadget · Phase · Riktor · Wraith · Ally · Enemy</div>
+          </div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Non le aggiungo al visual set</span>, come il brief prescrive. Ma vale dirlo chiaramente: 48 icone nuove non sono un'estensione della v0.1, sono una v0.2 intera. E il set da 123 SVG che esiste già nel repository le copre tutte.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:20px 22px"><div style="font:500 11px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:10px">DIVERGENZA DI TASSONOMIA</div><div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Le dodici categorie del codice sono Identity, Action, Phase, Environment, MapInteraction, Status, Information, Reaction, Coordination, Certainty, Warning, Objective. La v0.1 usa <span style="color:#FF4D6D">Marker</span>, che non esiste, e <span style="color:#FF4D6D">Intel</span>, che nel codice si chiama <span style="color:#3FD08A">Information</span> e descrive esattamente la stessa cosa: "visibile, sentito, ultima posizione nota, area approssimativa". <span style="color:#E6EDF4">La v0.1 dovrebbe adottare Information, non introdurre Intel.</span></div></div>
+      <div style="background:#121822;padding:20px 22px"><div style="font:500 11px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:10px">UNITÀ CONTRO SUPERFICIE</div><div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Il punto più delicato dei sei candidati. La v0.1 ha progettato Water, Fire ed Electric come <span style="color:#E6EDF4">stati materiali del terreno</span>, con pattern screen-space dedicati; il runtime li conosce come <span style="color:#E6EDF4">stati di un'unità</span> (Status.Wet, Status.Burning, Status.Electrified). Sono due letture della stessa parola, e probabilmente servono <span style="color:#E6EDF4">entrambe</span> le chiavi — non una scelta fra le due.</div></div>
+    </div>
+  </div>
+  <!-- LEGACY -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">05</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Legacy audit</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Non è legacy morto: è un set parallelo, più ampio della v0.1, e mai importato in Unreal.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr 1.1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">DUE GENERAZIONI PARALLELE</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:13px 15px"><div style="display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:5px"><span style="color:#7CC7D9">Content/Icons/Icons/</span><span style="color:#E6EDF4">123 SVG + 604 PNG</span></div><div style="font:400 9.5px/1.5 'Azeret Mono',monospace;color:#56626F">generate_hud_assets.py · 2026-08-26 · deterministico e rigenerabile · <span style="color:#FFC24A">mai importato</span></div></div>
+          <div style="background:#0A0E14;padding:13px 15px"><div style="display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:5px"><span style="color:#7CC7D9">docs/generated/icons/svg/</span><span style="color:#E6EDF4">56 SVG</span></div><div style="font:400 9.5px/1.5 'Azeret Mono',monospace;color:#56626F">build-icon-assets.py · <span style="color:#FF4D6D">generatore uscito dal repository</span> · geometria non riproducibile</div></div>
+          <div style="background:#0A0E14;padding:13px 15px"><div style="display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:5px"><span style="color:#7CC7D9">Content/Icons/Frames/</span><span style="color:#E6EDF4">9 SVG</span></div><div style="font:400 9.5px/1.5 'Azeret Mono',monospace;color:#56626F">cornici e chrome, non icone</div></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Il set da 123 dichiara la propria composizione: 122 icone più MissingIcon, di cui <span style="color:#E6EDF4">61 sono le chiavi richieste</span> e 61 sono le 20 ability del roster più le categorie che il catalogo non dichiara ancora.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">CONFIDENZA VERSO LA v0.1</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:12px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#3FD08A">EXACT</span><span>7</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#FFC24A">LIKELY</span><span>6</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#FF8A2B">WEAK</span><span>2</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;display:flex;justify-content:space-between;gap:10px;font:400 10.5px 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#56626F">NONE</span><span>il resto</span></div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">I due WEAK sono <span style="color:#56626F">Environment_Cover</span> ed <span style="color:#56626F">Environment_Electric</span>: nomi che combaciano con la v0.1, ma nessuna chiave richiesta li consuma. <span style="color:#E6EDF4">Nessun mapping automatico applicato a LIKELY e WEAK</span>, come prescritto.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#FF4D6D;margin-bottom:14px">IL CONFLITTO DI NAMING</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:11px 14px;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="display:flex;justify-content:space-between;gap:8px"><span>file reali</span><span style="color:#FF8A2B">RT_UI_Icon_*</span></div><div style="color:#56626F">stato di fatto</div></div>
+          <div style="background:#0A0E14;padding:11px 14px;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="display:flex;justify-content:space-between;gap:8px"><span>brief-icone-v01.md</span><span style="color:#3FD08A">T_UI_Icon_*</span></div><div style="color:#56626F">autorità nominata da #219</div></div>
+          <div style="background:#0A0E14;padding:11px 14px;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="display:flex;justify-content:space-between;gap:8px"><span>fixture dei test</span><span style="color:#3FD08A">T_UI_Icon_*</span></div><div style="color:#56626F">già in CI</div></div>
+          <div style="background:#0A0E14;padding:11px 14px;font:400 9.5px/1.5 'Azeret Mono',monospace;color:#8D9BAB"><div style="display:flex;justify-content:space-between;gap:8px"><span>progettazione-hud §43</span><span style="color:#FF8A2B">RT_UI_Icon_*</span></div><div style="color:#56626F">documento owner</div></div>
+        </div>
+        <div style="border:1px solid #35E0C4;padding:13px 15px;font:400 10.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#35E0C4">RACCOMANDAZIONE · T_UI_Icon_*</span> per le icone, RT_UI_* per le cornici che sono chrome. Il brief è più recente e più specifico, #219 lo nomina come autorità, e la fixture lo usa già: cambiare direzione vorrebbe dire cambiare anche il test. Costo del rename: <span style="color:#E6EDF4">due righe</span> — una in <span style="color:#56626F">asset_name()</span>, una in <span style="color:#56626F">AssetNameForIcon</span>. Da decidere <span style="color:#E6EDF4">prima dell'import</span>: il commandlet trova la texture derivandone il nome, quindi un prefisso diverso significa reimportare tutto.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSUMERS + RISKS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">06</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Consumers e rischi</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">CHI CHIEDE LE ICONE</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:14px">
+          <div style="background:#0A0E14;padding:12px 15px;font:400 10px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#7CC7D9">URTActionSlotWidget</span> · GetIconId() → MakeIconId(Action.ActionId) → ResolveIcon(…, "ActionSlot") <span style="color:#56626F">· RTScreenHudWidgets.cpp:266,279</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;font:400 10px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#7CC7D9">URTScreenHudWidgetBase</span> · GetIconCatalog() risale l'albero fino a URTTacticalHUDWidget <span style="color:#56626F">· :115–131</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;font:400 10px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#7CC7D9">ARTHUD</span> · colora gli intenti per squadra leggendo View.bIsAlly — consumer di Identity.Ally / Identity.Enemy <span style="color:#56626F">· RTHUD.cpp:285</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;font:400 10px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#7CC7D9">URTHudViewModel</span> · espone MakeIconId come BlueprintPure <span style="color:#56626F">· :190</span></div>
+          <div style="background:#0A0E14;padding:12px 15px;font:400 10px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#7CC7D9">CI</span> · 8 test in RTIconCatalogTests + 2 in RTScreenHudWidgetTests</div>
+        </div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Il catalogo si raggiunge <span style="color:#E6EDF4">risalendo l'albero dei widget</span>, non per riferimento diretto — e fuori dall'HUD non si raggiunge affatto, verificato da un test. Il campo sul figlio si chiama <span style="color:#56626F">ReceivedCatalog</span> e non IconCatalog per una ragione esplicita: il getter Blueprint automatico sarebbe diventato "Get IconCatalog", indistinguibile a occhio da quello della radice.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#FFC24A;margin-bottom:14px">SEI RISCHI</div>
+        <div style="display:grid;gap:11px;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">R1 · tassonomia.</span> Procedere senza allineare Marker e Intel crea una terza convenzione dopo RT_UI_ e T_UI_.</div>
+          <div><span style="color:#E6EDF4">R2 · ambiguità ambientale.</span> Un'unica icona per superficie e unità è una decisione, non un dettaglio.</div>
+          <div><span style="color:#E6EDF4">R3 · copertura 11%.</span> Il set da 123 copre tutte le 61 chiavi. Importare la v0.1 al posto suo <span style="color:#FF4D6D">peggiorerebbe</span> la copertura.</div>
+          <div><span style="color:#E6EDF4">R4 · commandlet mai eseguito.</span> L'intera pipeline di import è codice non compilato. Il primo tentativo reale scoprirà cose che nessun documento anticipa.</div>
+          <div><span style="color:#E6EDF4">R5 · doppia generazione orfana.</span> 56 SVG senza generatore: chi le importasse credendole correnti mescolerebbe due generazioni.</div>
+          <div><span style="color:#E6EDF4">R6 · Action.Dodge.</span> LEGGIMI la elenca fra le <span style="color:#E6EDF4">non</span> richieste, ma RTCatalogLibrary.cpp:1179 la registra come azione spedita. Una delle due fonti è disallineata: si dirime solo eseguendo la funzione.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXIT -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">07</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Step 05 audit status</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#0A0E14;padding:24px">
+        <div style="display:grid;gap:7px;font:400 11px/1.5 'Azeret Mono',monospace;color:#8D9BAB">
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>RUNTIME IDENTIFIER TYPE</span><span style="color:#7CC7D9">FName · "UI.Icon."</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>REQUIRED RUNTIME ICONS</span><span style="color:#E6EDF4">61</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>24 GLYPHS EXACTLY MAPPED</span><span style="color:#3FD08A">7 / 24</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>SEMANTIC MATCH NEEDS APPROVAL</span><span style="color:#FFC24A">6</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>MISSING RUNTIME IDS</span><span style="color:#FF4D6D">3</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>NOT REQUIRED BY CURRENT BUILD</span><span style="color:#96A3B0">7</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>NO RUNTIME CONSUMER</span><span style="color:#96A3B0">1</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>MISSING CATALOG ENTRIES</span><span style="color:#FF4D6D">61 / 61</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>LEGACY ASSETS FOUND</span><span style="color:#E6EDF4">188</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>ORPHAN LEGACY ASSETS</span><span style="color:#FF8A2B">56</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>RUNTIME_REQUIRED_NOT_IN_VISUAL_V01</span><span style="color:#FF4D6D">48</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span>VISUAL_V01_NOT_YET_CONSUMED</span><span style="color:#96A3B0">11</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid #232C38;margin-top:5px"><span style="color:#FF4D6D">BLOCKERS</span><span style="color:#FF4D6D">4</span></div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#FF4D6D;letter-spacing:.1em;margin-bottom:14px">I QUATTRO BLOCKER</div>
+        <div style="display:grid;gap:13px;font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">B1 · prefisso non deciso.</span> Due documenti owner in contrasto. Blocca l'import, non l'export.</div>
+          <div><span style="color:#E6EDF4">B2 · tassonomia divergente.</span> Marker e Intel non esistono in ERTIconCategory. Blocca la scrittura delle chiavi.</div>
+          <div><span style="color:#E6EDF4">B3 · catalogo inesistente.</span> DA_IconCatalog non c'è e il commandlet non è mai stato compilato. Blocca ogni verifica reale della copertura.</div>
+          <div><span style="color:#E6EDF4">B4 · scala.</span> 48 chiavi richieste senza glifo v0.1. Non blocca l'export dei 24, blocca l'idea che la v0.1 sostituisca il set esistente.</div>
+          <div style="color:#FFC24A;padding-top:6px">Nessuno dei quattro si risolve con una decisione di design visuale: sono tutte decisioni di ownership sui dati.</div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:24px;display:grid;grid-template-columns:1fr 360px;gap:32px;align-items:start">
+      <div>
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.1em;margin-bottom:12px">RECOMMENDED CHANGES · proposte, non applicate</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">1</span> Decidere il prefisso prima di qualunque import: <span style="color:#E6EDF4">T_UI_Icon_*</span>. Costo due righe.</div>
+          <div><span style="color:#E6EDF4">2</span> Allineare la v0.1 a ERTIconCategory: Marker → voce in coda all'enum, Intel → <span style="color:#E6EDF4">Information</span>.</div>
+          <div><span style="color:#E6EDF4">3</span> Sciogliere Water/Fire/Electric con due chiavi per concetto: Status.* per l'unità, Environment.* per la superficie.</div>
+          <div><span style="color:#E6EDF4">4</span> Decidere se Glyph.Attack è uno o tre. Il runtime ne ha già tre con fasi e priorità diverse.</div>
+          <div><span style="color:#E6EDF4">5</span> <span style="color:#E6EDF4">Non sostituire</span> il set da 123 con i 24 della v0.1: trattare la v0.1 come la grammatica con cui rivedere il set esistente.</div>
+          <div><span style="color:#E6EDF4">6</span> Verificare Action.Dodge eseguendo RequiredIconIds() — unica fonte che dirime R6.</div>
+          <div style="grid-column:1 / -1"><span style="color:#E6EDF4">7</span> Compilare ed eseguire <span style="color:#56626F">RTBuildIconCatalog -DryRun</span> prima di ogni altra cosa nel dominio Unreal. Finché quel comando non è mai girato, ogni stima sull'import è teorica.</div>
+        </div>
+      </div>
+      <div style="border:1px solid #35E0C4;padding:18px 20px">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.16em;margin-bottom:10px">FERMO QUI</div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-bottom:14px">Nessuna modifica implementata, nessun Runtime ID creato, nessuna voce di catalogo scritta, nessun asset importato o rinominato.</div>
+        <div style="font:400 11px/1.7 'Azeret Mono',monospace;color:#E6EDF4">Proponibile: <span style="color:#35E0C4">STEP 06 — Runtime Mapping Implementation</span>, con precondizione che B1 e B2 siano decisi da chi possiede i documenti in conflitto.</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#0A0E14;padding:18px 24px;display:flex;gap:32px;flex-wrap:wrap;font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F">
+      <div><span style="color:#8D9BAB">Output machine-readable:</span> docs/UI/IconLanguage/RT_IconRuntimeMapping_Audit_v0.1.csv</div>
+      <div><span style="color:#8D9BAB">Report completo:</span> docs/UI/IconLanguage/RT_IconRuntimeMapping_Audit_v0.1.md</div>
+      <div><span style="color:#8D9BAB">Sorgente:</span> DegrassiAaron/refactor-tactics-main@main · albero b1e2544dc945</div>
+    </div>
+  </div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>

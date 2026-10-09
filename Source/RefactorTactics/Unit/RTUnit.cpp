@@ -5,6 +5,8 @@
 #include "Unit/RTGraykitLibrary.h" // #2880: gli anchor dei bracci si risolvono da li', non da numeri qui
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h" // AimOriginCell: l'origine di mira ha una regola sola ([D-464])
+#include "Turn/RTMovementActionLibrary.h" // IsLinear: lo stato nega lo scatto a budget, non quello lineare ([D-471])
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
@@ -718,7 +720,8 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	return GhostFallbackClipFor(Defaults, HeroId);
 }
 
-TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo) const
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo, FName ActionId,
+	FName BaseActionId) const
 {
 	// Stessa porta di `GhostFallbackClipPath`, e per la stessa ragione: il CDO di `UnitAnimClass` e' l'unica
 	// lista dei nomi delle clip. Una seconda lista qui divergerebbe alla prima modifica.
@@ -734,15 +737,70 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRo
 	}
 
 	// 🔑 Risolve SENZA caricare: headless i pack non ci sono, e il PATH e' cio' che un test puo' asserire.
-	return Defaults->ActiveClipFor(HeroId, Ruolo);
+	// Con l'azione (#3563): profilo, poi generica, poi ruolo — l'ordine vive in `ActiveClipFor`, non qui.
+	return Defaults->ActiveClipFor(HeroId, Ruolo, ActionId, BaseActionId);
 }
 
-void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
+void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FName BaseActionId)
 {
 	// ⛔ Ogni uscita anticipata di questa funzione e' un DEGRADO previsto, non un errore: l'unita' resta in
 	// posa di riferimento e la partita si gioca uguale (invariante #1, come D-248 per la locomozione).
-	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo);
-	UAnimSequenceBase* const Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo, ActionId, BaseActionId);
+#if WITH_DEV_AUTOMATION_TESTS
+	LastResolvedClipPaths.Add(Ruolo, Path.ToSoftObjectPath()); // seam: QUALE path, prima di caricare
+#endif
+	UAnimSequenceBase* Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+
+	// 🔴 **Il ripiego sul RUOLO vale anche al CARICAMENTO, non solo nella scelta del path** (review finale I1).
+	// In un pacchetto le clip d'azione non sono cotte — nessun riferimento duro, owner #3562 — e `LoadSynchronous`
+	// torna `nullptr`: senza questo blocco il beat non suonerebbe NIENTE, dove prima di #3563 suonava la clip di
+	// ruolo. Si ritenta col path di SOLO ruolo (l'overload a due argomenti) quando e' diverso da quello risolto:
+	// se e' uguale non c'era una voce d'azione, e ricaricarlo darebbe lo stesso `nullptr`.
+	//
+	// 🔴 **E vale per un GESTO che si carica ma e' ADDITIVO** (#3590): sullo slot si somma all'`Idle` come delta e la
+	// posa non cambia. Nella seduta `U70` le clip d'azione di Aevik suonavano cosi', senza una riga di log. Qui il
+	// ripiego e' un `Warning`, non un `Verbose`: un'additiva su un gesto e' un errore di dati, non un degrado
+	// previsto come la clip non cotta.
+	// ⛔ Solo i gesti (`RTRoleWantsAFullBodyClip`): la hit-react additiva e' una reazione che si somma, e si vede.
+	const bool bGesto = RTRoleWantsAFullBodyClip(Ruolo);
+	const bool bAdditiva = bGesto && RTClipIsAdditive(Sequenza);
+	bool bRipiegoAlRuolo = false;
+	if ((Sequenza == nullptr || bAdditiva) && !Path.IsNull())
+	{
+		// `Path` non nullo implica un CDO valido: e' la stessa porta di `ResolvedClipPathFor`.
+		const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+		const TSoftObjectPtr<UAnimSequenceBase> PathRuolo =
+			Defaults != nullptr ? Defaults->ActiveClipFor(HeroId, Ruolo) : TSoftObjectPtr<UAnimSequenceBase>();
+		if (!PathRuolo.IsNull() && PathRuolo.ToSoftObjectPath() != Path.ToSoftObjectPath())
+		{
+			bRipiegoAlRuolo = true;
+			if (bAdditiva)
+			{
+				UE_LOG(LogRT, Warning, TEXT("[RT] Clip additiva, non suonata (%s): ripiego sulla clip di ruolo (%s)"),
+					*Path.ToSoftObjectPath().ToString(), *PathRuolo.ToSoftObjectPath().ToString());
+			}
+			else
+			{
+				UE_LOG(LogRT, Verbose, TEXT("[RT] Clip d'azione non caricata (%s): ripiego sulla clip di ruolo (%s)"),
+					*Path.ToSoftObjectPath().ToString(), *PathRuolo.ToSoftObjectPath().ToString());
+			}
+			Sequenza = PathRuolo.LoadSynchronous(); // anche questo puo' tornare nullptr: resta un degrado
+		}
+	}
+
+	// ⛔ **Dopo ogni ripiego**: anche la clip di ruolo di un gesto puo' essere additiva, e non c'e' piu' niente su cui
+	// ripiegare. Il ruolo scatta senza clip — il Blueprint riceve `nullptr`, come per una clip che non si carica — e il
+	// log lo dice.
+	if (bGesto && RTClipIsAdditive(Sequenza))
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Clip additiva, non suonata (%s): il ruolo %s scatta senza clip"),
+			*GetPathNameSafe(Sequenza), *UEnum::GetValueAsString(Ruolo));
+		Sequenza = nullptr;
+	}
+#if WITH_DEV_AUTOMATION_TESTS
+	LastClipLoadFellBackToRole.Add(Ruolo, bRipiegoAlRuolo); // seam: la DECISIONE di ripiegare, non il suo esito
+	LastPlayedClips.Add(Ruolo, Sequenza);                     // seam: cio' che SUONA, dopo ogni ripiego (#3590)
+#endif
 
 	if (Sequenza != nullptr)
 	{
@@ -768,9 +826,15 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
 	case ERTPresentationRole::Attack: PlayAttackMontage(Sequenza); break;
 	case ERTPresentationRole::Hit:    PlayHitMontage(Sequenza);    break;
 	case ERTPresentationRole::Death:  PlayDefeatMontage(Sequenza); break;
+	case ERTPresentationRole::Cast:
+#if WITH_DEV_AUTOMATION_TESTS
+		++CastCuesPlayed; // seam di misura: la cue e' stata CHIAMATA, che il BP la implementi o no
+#endif
+		PlayCastMontage(Sequenza);
+		break;
 	default:
-		// Gli altri ruoli non hanno un evento discreto: `Idle` e `Move` li suona il grafo, e i restanti non
-		// hanno ancora un consumatore. Suonare la clip resta corretto; notificare non avrebbe chi ascolta.
+		// `Idle` e `Move` li suona il grafo; `Dash`, `Defend` e `Fall` non hanno ancora un consumatore.
+		// ⏱️ *Fino a #3549 anche `Cast` stava qui: il ruolo esisteva e nessuno lo suonava.*
 		break;
 	}
 }
@@ -1145,6 +1209,60 @@ void ARTUnit::NoteMovePlanRejection(const FRTHexSnapshot& Snapshot, int32 UnitId
 	RejectedMoveDestination = bByOccupant ? RequestedCell : FRTCellId();
 }
 
+void ARTUnit::RicordaTroncamentoDelTetto(const FName& TettoId, const TArray<FRTCellId>& Prima)
+{
+	// ⛔ Niente scartato, niente da ricordare. Il confronto e' sui NUMERI e non su `Prima != PlannedWaypoints`:
+	// il troncamento taglia dalla coda, quindi un piano intatto ha la stessa lunghezza ed e' lo stesso piano.
+	if (Prima.Num() <= PlannedWaypoints.Num())
+	{
+		return;
+	}
+	WaypointsPrimaDelTetto = Prima;
+	WaypointsTenutiDalTetto = PlannedWaypoints.Num();
+	TettoCheHaTroncato = TettoId;
+}
+
+bool ARTUnit::RipristinaWaypointsDelTetto(const FName& TettoId)
+{
+	if (WaypointsTenutiDalTetto == INDEX_NONE || TettoCheHaTroncato != TettoId)
+	{
+		// ⚠️ **La memoria di un ALTRO tetto non si consuma qui.** Disarmare l'`Overwatch` non deve scordare
+		// cio' che lo `Sneak` aveva tolto: quel ripristino spetta a chi annulla lo `Sneak`.
+		return false;
+	}
+
+	// Il piano e' ancora quello che il troncamento ha lasciato? Lunghezza **e** contenuto: la lunghezza da
+	// sola passerebbe su un piano riscritto di pari misura, che e' un piano diverso.
+	bool bIntatto = PlannedWaypoints.Num() == WaypointsTenutiDalTetto;
+	for (int32 i = 0; bIntatto && i < WaypointsTenutiDalTetto; ++i)
+	{
+		// Entrambi gli indici sono guardati SUL POSTO, e non e' ridondanza: la sicurezza di
+		// `PlannedWaypoints[i]` veniva dal solo confronto di lunghezza qui sopra, cioe' da un invariante
+		// NON LOCALE. Un gate di mutazione che tolse quel confronto fece crashare la suite con
+		// `Array index out of bounds: 0 into an array of size 0` invece di renderla rossa: il difetto era
+		// nella guardia, non nella mutazione.
+		bIntatto = WaypointsPrimaDelTetto.IsValidIndex(i) && PlannedWaypoints.IsValidIndex(i)
+			&& WaypointsPrimaDelTetto[i] == PlannedWaypoints[i];
+	}
+
+	const bool bRipristinato = bIntatto;
+	if (bRipristinato)
+	{
+		PlannedWaypoints = WaypointsPrimaDelTetto;
+	}
+	// In ogni caso la memoria si consuma: se il piano e' cambiato non potra' mai tornare valida, e tenerla
+	// darebbe un ripristino a sorpresa al gesto dopo.
+	ScordaTroncamentoDelTetto();
+	return bRipristinato;
+}
+
+void ARTUnit::ScordaTroncamentoDelTetto()
+{
+	WaypointsPrimaDelTetto.Reset();
+	WaypointsTenutiDalTetto = INDEX_NONE;
+	TettoCheHaTroncato = NAME_None;
+}
+
 void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight)
 {
 	Cell = InCell;        // posizione AUTOREVOLE (invariante #2: il FVector sotto e' solo rendering)
@@ -1155,6 +1273,9 @@ void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float 
 	// successivo la destinazione che gli era stata negata in QUESTO. Vale per ogni scrittore di `Cell`, non
 	// solo per la fase Move — spinte e teletrasporti passano di qui e azzerano gia' gli altri campi del piano.
 	ClearMovePlanRejection();
+	// Stessa ragione della riga sopra, e [D-444] lo dice: la memoria del troncamento e' memoria di EDITING
+	// di questo piano. Chi e' stato spostato non porta al turno dopo un percorso da restituire.
+	ScordaTroncamentoDelTetto();
 	SetActorLocation(WorldForCell(InCell, Origin, HexSize, LayerHeight));
 }
 
@@ -1601,6 +1722,8 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	VisionRange = Hero->VisionRange;
 	HearingThreshold = Hero->HearingThreshold;
 	PushResistance = Hero->PushResistance;
+	// [D-408]: il valore della Guardia e' un dato del personaggio, non piu' una costante condivisa.
+	GuardReduction = Hero->GuardReduction;
 	// ADR-0008 §1: senza queste due righe l'unita' resterebbe ai default 1/0 — cioe' applicherebbe ADR-0005
 	// a un eroe che dichiara altro, e sarebbe il difetto di #1605 spostato di un file invece che chiuso.
 	MoveEndPivotMaxSteps = Hero->MoveEndPivotMaxSteps;
@@ -1742,6 +1865,31 @@ bool ARTUnit::PlannedDashApplies() const
 	// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash) e nient'altro (#142).
 	const bool bFastMovement = Dash != nullptr && URTCatalogLibrary::IsFastMovement(Dash->Def);
 	return bFastMovement && CanUseAbility(PlannedDashAbility) && !(PlannedDashCell == Cell);
+}
+
+bool ARTUnit::PlannedDashIsCharge() const
+{
+	const URTActionData* Dash = GetAbility(PlannedDashAbility);
+	return Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+}
+
+bool ARTUnit::PlannedDashDeniedByStatus() const
+{
+	const URTActionData* Dash = GetAbility(PlannedDashAbility);
+	return Dash != nullptr && HasStatus(TAG_Status_Unbalanced)
+		&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
+}
+
+bool ARTUnit::PlannedDashMoves() const
+{
+	return PlannedDashApplies() && !PlannedDashDeniedByStatus();
+}
+
+FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const
+{
+	// [D-471]: uno scatto che lo stato nega non sposta l'origine, e la mira lo sa come il resolver.
+	return URTHexCombatLibrary::AimOriginCell(Phase, Cell, PlannedDashMoves(), PlannedDashIsCharge(),
+		PlannedDashCell);
 }
 
 void ARTUnit::SelectAbility(int32 Index)

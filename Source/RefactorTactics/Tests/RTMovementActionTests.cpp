@@ -315,19 +315,27 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementCatalogTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMovementCatalogTest::RunTest(const FString&)
 {
-	// Ogni mobilita' dichiara IN DATI la macro-fase (ADR-0003 §3) e il modo in cui si sposta. Le cinque
-	// mobilita' speciali risolvono nel Dash; solo `Action.Move` risolve nel Move, dopo il Blast.
+	// Ogni mobilita' dichiara IN DATI la macro-fase (ADR-0003 §3) e il modo in cui si sposta. `Dodge`,
+	// `Charge`, `Leap` e `Reposition` risolvono nel Dash; `Move`, `Sprint` e `Withdraw` nel Move, dopo il
+	// Blast — ed e' la divisione che [D-015] chiama strutturale, non un elenco da contare.
 	struct FExpected { const TCHAR* Id; ERTMatchPhase Macro; ERTMovementStyle Style; int32 Range; int32 Cooldown; };
 	const FExpected Expected[] = {
 		// ⚠️ **`Move` e non `Dash` dal 2026-09-12** ([D-116] voce 1, `#641`): lo Sprint e' un profilo della
 		// famiglia `Move` e risolve dopo il Blast. Lo stile era gia' `Budget` — i due terzi della
 		// migrazione che [D-068] aveva misurato come gia' avvenuti.
-		{ TEXT("Action.Sprint"),     ERTMatchPhase::Move, ERTMovementStyle::Budget,       8, 0 },
+		// ⚠️ `Range` **0** per le azioni a budget: il loro numero e' del profilo ([D-427]), non dell'azione.
+		// Che valga per OGNI azione a quello stile — e non per quelle elencate qui — lo asserisce
+		// `RefactorTactics.Catalog.BudgetActionsDeclareNoRange`, che cicla sul catalogo.
+		{ TEXT("Action.Sprint"),     ERTMatchPhase::Move, ERTMovementStyle::Budget,       0, 0 },
 		{ TEXT("Action.Dodge"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   3, 1 },
 		{ TEXT("Action.Charge"),     ERTMatchPhase::Dash, ERTMovementStyle::LinearCharge, 3, 2 },
 		{ TEXT("Action.Leap"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearLeap,   3, 2 },
 		{ TEXT("Action.Reposition"), ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   2, 1 },
-		{ TEXT("Action.Move"),       ERTMatchPhase::Move, ERTMovementStyle::Budget,       5, 0 },
+		{ TEXT("Action.Move"),       ERTMatchPhase::Move, ERTMovementStyle::Budget,       0, 0 },
+		// 🔴 **`Withdraw` mancava da questa tabella**, e con essa la sua macro-fase, il suo stile e il suo
+		// fallback: la tabella dichiara di coprire «ogni mobilita'» e ne saltava una. Trovato dalla code
+		// review di #3204.
+		{ TEXT("Action.Withdraw"),   ERTMatchPhase::Move, ERTMovementStyle::Budget,       0, 0 },
 	};
 
 	for (const FExpected& E : Expected)

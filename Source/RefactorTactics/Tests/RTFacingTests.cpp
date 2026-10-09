@@ -372,7 +372,7 @@ bool FRTFacingRoundInheritsFinalFacingTest::RunTest(const FString&)
 
 	// Il round dopo comincia dallo snapshot delle unita' come sono rimaste: il facing finale e' quello iniziale
 	// del round successivo, senza nessun passaggio di travaso.
-	const FRTHexSnapshot Next = URTHexSimLibrary::MakeSnapshot(nullptr, { Unit });
+	const FRTHexSnapshot Next = URTHexSimLibrary::MakeSnapshotOmniscient(nullptr, { Unit });
 	TestEqual(TEXT("l'unita' e' nello snapshot"), Next.Units.Num(), 1);
 	if (Next.Units.Num() == 1)
 	{
@@ -383,7 +383,7 @@ bool FRTFacingRoundInheritsFinalFacingTest::RunTest(const FString&)
 	// E non e' un default che coincide per caso: un facing diverso viaggia altrettanto.
 	FRTHexSimUnit Other(2, FRTCellId(3, 0, 0), 5);
 	Other.Facing = ERTHexDirection::NW;
-	const FRTHexSnapshot Two = URTHexSimLibrary::MakeSnapshot(nullptr, { Unit, Other });
+	const FRTHexSnapshot Two = URTHexSimLibrary::MakeSnapshotOmniscient(nullptr, { Unit, Other });
 	TestEqual(TEXT("due unita' nello snapshot"), Two.Units.Num(), 2);
 	if (Two.Units.Num() == 2)
 	{
@@ -577,7 +577,8 @@ bool FRTFacingPivotBudgetLimitsLegalFacingsTest::RunTest(const FString&)
 		TestTrue(TEXT("l'insieme a 3 contiene quello a 2"), Three.Contains(Dir));
 	}
 
-	// Ordine stabile per valore di enum, a ogni ampiezza: `CycleDeclaredFacing` ci si appoggia.
+	// Ordine stabile per valore di enum, a ogni ampiezza. ⌫ *`CycleDeclaredFacing`, che ci si appoggiava, e' uscito
+	// con D-367 (`#291`).*
 	for (int32 I = 1; I < Two.Num(); ++I)
 	{
 		TestTrue(TEXT("ordinate per valore di enum"), static_cast<uint8>(Two[I - 1]) < static_cast<uint8>(Two[I]));

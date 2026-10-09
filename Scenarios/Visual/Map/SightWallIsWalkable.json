@@ -1,6 +1,7 @@
 {
   "scenarioId": "Visual.Map.SightWallIsWalkable",
   "tags": ["map", "vision", "cover", "gadget", "riktor"],
+  "verifies": ["PIE-VIS-SIGHTWALL"],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",

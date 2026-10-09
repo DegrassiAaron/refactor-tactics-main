@@ -117,6 +117,14 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 **Limiti noti del canone corrente**, da non scambiare per bug:
 
 - il **Dash lineare che termina sul ghiaccio non scivola** (lo scivolamento è nel Move normale);
+- 🔴 **`Action.Cleanse` — la Principale — non è fra ciò su cui la showcase può appoggiarsi.** La riga
+  «Reazioni» qui sopra la elenca, e quella misura è del **2026-08-08**: il **2026-08-30**
+  ⚠️ **E quella riga nomina due cose diverse con una parola sola**: la sua colonna «Dove» punta a
+  `Turn/RTReactionLibrary.*`, dove vive il Cleanse **reattivo**; l'attiva si risolve altrove (`ResolveCleanseActions`,
+  `Turn/RTTurnManager_Blast.cpp`). Questo limite parla **solo** della Principale.
+  [D-264](../decisions/RT_PDR_00_Decision_Log.md) l'ha tolta dalla v0.1 (`#1403`), e `PlannedCleansePriority`
+  non avrà un produttore. ⛔ Resta invece il Cleanse **reattivo** — `Reaction.Cleanse`, modulo di default di
+  `Hero.Branth` — che è una cosa diversa e va in campo;
 - `HighGround` esiste come dato e **nessuna regola gli dà un bonus numerico** — è voluto, non una lacuna: la quota vale per geometria ([D-024](../decisions/RT_PDR_00_Decision_Log.md));
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
@@ -137,10 +145,26 @@ Il denominatore è calato con lei: **quattro**, non cinque.)*
 ## 2. La mappa canonica — «Relay Basin»
 
 > ⚠️ **Layout autorato il 2026-08-08, non ereditato.** La specifica che avrebbe dovuto portare l'assegnazione
-> delle celle (`docs/src/showcase/relay-v0.1-scenario-spec.md`) **non esiste nel repository**: forma, spawn e
+> delle celle (~~`docs/src/showcase/relay-v0.1-scenario-spec.md`~~) **non esisteva nel repository**: forma, spawn e
 > obiettivo vengono dall'handoff, la **disposizione dei terreni è stata progettata qui**, su autorizzazione
 > dell'autore. Se la spec originale riemerge, questo layout va confrontato con essa — non sovrascritto in
 > silenzio. Dettaglio in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §3.1.
+>
+> 🔁 **È riemersa — misurato il 2026-09-20, e l'innesco che questa nota dichiara è scattato.** La spec
+> è in [`../research/design/showcase/relay-v0.1-scenario-spec.md`](../research/design/showcase/relay-v0.1-scenario-spec.md),
+> dove l'ha portata la fase 2 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)
+> il **2026-08-19**. ⛔ Non è mai stata cancellata: era sotto `docs/src/showcase/`, e quando quella cartella
+> si è svuotata questa riga ha continuato ad affermarne la **non esistenza** per un mese. Nessun gate poteva
+> dirlo — il percorso vive fra backtick, non in un link, ed è la classe misurata da
+> [#1232](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1232). Ora è un link, quindi il
+> prossimo spostamento diventa rosso.
+>
+> ⚠️ **E porta davvero ciò che questa nota dava per perso**: `Relay (0,0,0)`, spawn Blue `(-4,0,0)`/`(-4,1,0)`
+> e Red `(4,0,0)`/`(4,1,0)`, più terreni, quota e fumo — settanta riferimenti a coordinate in tutto.
+>
+> 🔑 **Il confronto che questa nota prescrive è quindi dovuto, e non è stato fatto qui**: *«questo layout
+> va confrontato con essa — non sovrascritto in silenzio»*. Confrontare due disposizioni di terreno è una
+> decisione di design, non una correzione di puntatori. Resta a chi possiede la showcase.
 
 **45 celle, un solo `Layer = 0`.** Forma per riga, in coordinate assiali `(q, r)`:
 

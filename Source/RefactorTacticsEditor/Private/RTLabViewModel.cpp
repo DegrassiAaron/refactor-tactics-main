@@ -1,6 +1,11 @@
 #include "RTLabViewModel.h"
 
+#include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 
 void FRTLabViewModel::SetHeroFilter(const FName& InHeroId)
 {
@@ -10,6 +15,8 @@ void FRTLabViewModel::SetHeroFilter(const FName& InHeroId)
 	}
 
 	HeroFilter = InHeroId;
+	// Il filtro e' cambiato davvero (il ritorno anticipato sopra lascia l'Id dov'e'): e' un gesto.
+	ClearLaunchStatus();
 
 	// La selezione sopravvive al cambio di filtro **solo** se e' ancora visibile. Senza questa riga il
 	// pannello mostrerebbe il readout di un'ability che non appartiene al kit elencato: numeri veri, che
@@ -40,6 +47,24 @@ bool FRTLabViewModel::GetHeroReadout(FRTHeroLabEntry& OutHero) const
 	return URTHeroLabLibrary::FindHero(HeroFilter, OutHero);
 }
 
+FRTLabViewModel::EFilterState FRTLabViewModel::DescribeFilterState(FRTHeroLabEntry& OutHero) const
+{
+	if (!HasHeroFilter())
+	{
+		return EFilterState::NoFilter;
+	}
+	if (!URTHeroLabLibrary::FindHero(HeroFilter, OutHero))
+	{
+		return EFilterState::UnknownHeroId;
+	}
+	// ⚠️ Il conteggio si chiede a `VisibleAbilities()`, che e' cio' che il selettore mostra davvero --
+	// non a `OutHero.DeclaredAbilityCount`, che e' un campo del catalogo. I due possono divergere, e la
+	// domanda di questa funzione e' **perche' la lista e' vuota**, non quante voci il catalogo dichiari.
+	return VisibleAbilities().Num() == 0
+		? EFilterState::HeroWithEmptyKit
+		: EFilterState::HeroWithKit;
+}
+
 bool FRTLabViewModel::IsVisible(const FName& AbilityId) const
 {
 	if (AbilityId.IsNone())
@@ -67,7 +92,35 @@ bool FRTLabViewModel::SelectAbility(const FName& InAbilityId)
 
 	SelectedAbility = InAbilityId;
 	Result = FRTLabRunResult();
+	ClearLaunchStatus();
 	return true;
+}
+
+void FRTLabViewModel::ClearLaunchStatus()
+{
+	LaunchedId.Reset();
+	bLaunchFinishedOnce = false;
+}
+
+void FRTLabViewModel::NoteLaunched(const FString& Id)
+{
+	LaunchedId = Id;
+	bLaunchFinishedOnce = false;
+}
+
+void FRTLabViewModel::NoteLaunchFinished(bool bRestored)
+{
+	// Senza un lancio in corso nel modello l'ultimo gesto e' un altro (run, selezione, filtro): vince lui —
+	// ma solo per un ripristino riuscito. Un ripristino FALLITO si registra sempre: le CVar sono rimaste sul
+	// valore del banco, e il PIE successivo giocherebbe lo scenario sbagliato; tacerlo perche' l'utente ha
+	// cliccato altro nasconderebbe l'unico segnale.
+	if (LaunchedId.IsEmpty() && bRestored)
+	{
+		return;
+	}
+	LaunchedId.Reset();
+	bLaunchFinishedOnce = true;
+	bLastRestoreOk = bRestored;
 }
 
 ERTActionReadoutResult FRTLabViewModel::DescribeSelection(TArray<FRTActionParameterView>& OutParameters) const
@@ -94,6 +147,8 @@ bool FRTLabViewModel::BuildScenario(FRTTestScenario& OutScenario, FString& OutEr
 bool FRTLabViewModel::Run(UWorld* World, FString& OutError)
 {
 	Result = FRTLabRunResult();
+	// Una run e' un gesto: la riga di stato mostra l'esito di questa, non il lancio PIE di prima.
+	ClearLaunchStatus();
 
 	if (!World)
 	{
@@ -127,5 +182,59 @@ bool FRTLabViewModel::Run(UWorld* World, FString& OutError)
 		return false;
 	}
 
+	return true;
+}
+
+bool FRTLabViewModel::PrepareForPie(FString& OutScenarioId, FString& OutError)
+{
+	OutScenarioId.Reset();
+	OutError.Reset();
+
+	FRTTestScenario Scenario;
+	if (!BuildScenario(Scenario, OutError))
+	{
+		return false;
+	}
+
+	// 🔴 Radice vuota = sotto automation, senza override: non esiste e non si crea. Scrivere comunque
+	// `MakeDirectory("")` + un percorso relativo sporcherebbe la cartella corrente.
+	const FString Root = URTScenarioLoader::LabScenariosRoot();
+	if (Root.IsEmpty())
+	{
+		OutError = TEXT("la radice del Lab non e' disponibile sotto automation senza override: niente da scrivere");
+		return false;
+	}
+	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
+	const FString Percorso = FPaths::ConvertRelativePathToFull(
+		FPaths::Combine(Root, Scenario.ScenarioId + TEXT(".json")));
+
+	// `SaveToFile` valida prima di toccare il disco: una fixture invalida non lascia un file a meta'.
+	if (!URTScenarioLoader::SaveToFile(Scenario, Percorso, OutError))
+	{
+		return false;
+	}
+
+	// 🔑 Lanciabile = l'indice risolve l'Id a QUESTO file. Un doppione altrove rende l'Id ambiguo, e il
+	// GameMode lo rifiuterebbe a schermo senza che il pannello potesse dirlo prima.
+	FString ErroreIndice;
+	const FString Risolto = URTScenarioIndex::ResolvePath(Scenario.ScenarioId, ErroreIndice);
+	if (Risolto.IsEmpty())
+	{
+		// Un file che rende ambiguo un Id avvelenerebbe la console e il GameMode a ogni clic: si toglie.
+		IFileManager::Get().Delete(*Percorso);
+		OutError = FString::Printf(TEXT("fixture scritta in '%s' ma non lanciabile: %s; il file appena scritto e' stato rimosso"),
+			*Percorso, *ErroreIndice);
+		return false;
+	}
+	if (!FPaths::IsSamePath(Risolto, Percorso))
+	{
+		// Stessa ragione del ramo sopra: un file che non e' quello a cui l'Id risolve non deve restare.
+		IFileManager::Get().Delete(*Percorso);
+		OutError = FString::Printf(TEXT("'%s' risolve a '%s', non al file appena scritto '%s'; il file appena scritto e' stato rimosso"),
+			*Scenario.ScenarioId, *Risolto, *Percorso);
+		return false;
+	}
+
+	OutScenarioId = Scenario.ScenarioId;
 	return true;
 }

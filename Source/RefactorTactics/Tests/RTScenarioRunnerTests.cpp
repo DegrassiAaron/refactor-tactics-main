@@ -11,6 +11,7 @@
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Player/RTPlayerController.h"
 #include "Map/RTHexMapActor.h"
+#include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "EngineUtils.h" // TActorIterator: il conteggio di `#2223`
 #include "ScenarioHarness/RTTestReportWriter.h"
@@ -498,20 +499,25 @@ bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
 }
 
 /**
- * `Movement.SwapRejectedByPlanning`: due unita' adiacenti NON si scambiano di posto.
+ * `Movement.SwapRejectedByPlanning`: due unita' adiacenti SI SCAMBIANO di posto.
  *
- * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. La
- * pianificazione rifiuta un percorso verso una cella occupata (`FindPathForUnit`: goal occupato -> NoPath),
- * quindi lo scambio non arriva mai al resolver.
+ * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. Oggi la
+ * pianificazione accetta una destinazione occupata ([D-446]) e il resolver esegue lo scambio ([D-445]).
  *
- * 🔄 **Aggiornato il 2026-08-31 (#1922).** Fino ad allora il resolver lo CONSENTIVA, e le due regole
- * insieme rendevano lo scambio **irraggiungibile dal gioco**: era il tipo di difetto che solo un test
- * d'integrazione puo' mostrare, perche' entrambe le regole guardate da sole erano verdi e sensate. Ora il
- * resolver blocca anche lui (`HexSim.ResolveSwapBlocked`, `BlockedByCycle`), quindi le due regole
- * **concordano** e questo test non fissa piu' uno scarto fra loro.
+ * 🔴 **Aggiornato il 2026-10-01, e la riga che lo prescriveva era scritta QUI.** Diceva: *«se un
+ * giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera' rosso:
+ * e' il segnale che si vuole, non un fastidio da mettere a tacere»*. E' successo, nel modo esatto in cui
+ * era previsto — il planner e' cambiato — e il rosso e' stato letto come segnale.
  *
- * Se un giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera'
- * rosso: e' il segnale che si vuole, non un fastidio da mettere a tacere.
+ * 🔑 **Il test aveva attraversato DUE inversioni, e la prima e' la ragione per cui vale la pena
+ * tenerlo.** Il 2026-08-31 (`#1922`) il resolver consentiva lo scambio e il planner no: le due regole
+ * insieme rendevano lo scambio **irraggiungibile dal gioco**, ed era il tipo di difetto che solo un test
+ * d'integrazione puo' mostrare, perche' entrambe guardate da sole erano verdi e sensate. La risposta di
+ * allora fu far bloccare anche il resolver; [D-445]/[D-446] hanno scelto l'altra, e le due regole
+ * concordano di nuovo — dalla parte opposta.
+ *
+ * ⚠️ **E lo stesso impegno vale ancora, col segno girato**: se un giorno lo scambio dovesse tornare
+ * impossibile, questo test diventera' rosso, e sara' di nuovo il segnale e non il fastidio.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSwapRejectedTest,
 	"RefactorTactics.Scenario.RunnerSwapRejectedByPlanning",
@@ -531,7 +537,7 @@ bool FRTScenarioSwapRejectedTest::RunTest(const FString&)
 		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
 		return false;
 	}
-	TestEqual(TEXT("esito PASS: entrambe restano ferme (comportamento attuale)"),
+	TestEqual(TEXT("esito PASS: le due si scambiano di posto (comportamento attuale)"),
 		Result.OutcomeString(), FString(TEXT("PASS")));
 	return true;
 }
@@ -1984,4 +1990,384 @@ bool FRTScenarioCostlyCorridorTest::RunTest(const FString&)
 // `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
 // namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
 // non vede niente di tutto questo.
+// --- i CONFINI, in esecuzione (`#2867`) ------------------------------------------------------------------
+
+/**
+ * Un checkpoint di fase LEGGE uno stato che il solo stato finale non porta piu'.
+ *
+ * 🔑 **Il test e' un CONFRONTO, non un'asserzione singola**, ed e' l'unico modo di dimostrare che il
+ * checkpoint aggiunge qualcosa: la stessa domanda — dov'e' A1 — posta a due confini deve dare due risposte
+ * diverse. Se un giorno il checkpoint smettesse di leggere il confine e leggesse la fine del turno, le due
+ * risposte coinciderebbero e questo test cadrebbe; un test che guardasse solo `BlastEnded` resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCheckpointReadsPhaseBoundaryTest,
+	"RefactorTactics.Scenario.CheckpointReadsThePhaseBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCheckpointReadsPhaseBoundaryTest::RunTest(const FString&)
+{
+	// A1 colpisce da (-1,0,0) e poi arretra a (-2,0,0). Gli attacchi usano la posizione PRIMA del movimento,
+	// quindi i due confini vedono due celle diverse. Allestimento di `Combat.BasicAttack`, che e' versionato
+	// e verde: l'unica differenza e' il `move`.
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.Checkpoint.BlastThenMove");
+	S.Version = 7;
+	S.MapRadius = 4;
+	{
+		FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0;
+		A.Cell = FRTCellId(-1, 0, 0); S.Units.Add(A);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1;
+		B.Cell = FRTCellId(1, 0, 0); S.Units.Add(B);
+	}
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("A1");
+		I.Ability = TEXT("Hero.Aevik.ArcPulse");
+		I.Target = TEXT("B1");
+		I.Move.Add(FRTCellId(-2, 0, 0));
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+	}
+	{
+		// Al confine del Blast: dove ha colpito.
+		FRTTestExpectation AtBlast;
+		AtBlast.Kind = ERTAssertionKind::UnitAtCell;
+		AtBlast.UnitId = TEXT("A1");
+		AtBlast.Cell = FRTCellId(-1, 0, 0);
+		AtBlast.At = ERTScenarioCheckpoint::BlastEnded;
+		AtBlast.bHasCheckpoint = true;
+		S.Expect.Add(AtBlast);
+
+		// A fine turno: dove e' arrivata. La stessa domanda, l'altra risposta.
+		FRTTestExpectation AtEnd;
+		AtEnd.Kind = ERTAssertionKind::UnitAtCell;
+		AtEnd.UnitId = TEXT("A1");
+		AtEnd.Cell = FRTCellId(-2, 0, 0);
+		S.Expect.Add(AtEnd);
+	}
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("lo scenario passa"), Result.OutcomeString(), FString(TEXT("PASS")));
+	if (!TestEqual(TEXT("due assertion nel referto"), Result.Assertions.Num(), 2)) { return false; }
+
+	// Il referto NOMINA il confine: senza, due assertion identiche a due momenti diversi sarebbero
+	// indistinguibili in un log, e chi legge un rosso non saprebbe quale delle due e' caduta.
+	int32 Nominate = 0;
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		TestTrue(A.Description, A.bPassed);
+		if (A.Description.Contains(TEXT("BlastEnded"))) { ++Nominate; }
+	}
+	TestEqual(TEXT("una sola assertion nomina il confine"), Nominate, 1);
+
+	// 🔴 **La controprova che rende il test non vacuo**: se il checkpoint leggesse la fine del turno invece
+	// del confine, la cella sarebbe (-2,0,0) e la prima assertion cadrebbe. Lo si verifica chiedendo al
+	// confine la cella FINALE e pretendendo un FAIL — una scena in cui il verde sarebbe il difetto.
+	FRTTestScenario Confusa = S;
+	Confusa.ScenarioId = TEXT("Probe.Checkpoint.BlastThenMove.Confusa");
+	Confusa.Expect[0].Cell = FRTCellId(-2, 0, 0); // la cella di FINE turno, chiesta al confine del Blast
+
+	UWorld* World2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), World2)) { return false; }
+	const FRTTestResult Sbagliata = URTScenarioRunner::Run(World2, Confusa);
+	DestroyRunnerWorld(World2);
+
+	TestEqual(TEXT("chiedere la cella finale al confine del Blast FALLISCE"),
+		Sbagliata.OutcomeString(), FString(TEXT("FAIL")));
+
+	return true;
+}
+
+/**
+ * `afterEvent` si aggancia al PRIMO evento che soddisfa il selettore, e un confine mai raggiunto e' un FAIL.
+ *
+ * 🔴 **La seconda meta' e' la piu' importante**: senza, un'assertion che nomina un evento mai avvenuto
+ * sparirebbe dal referto — zero assertion cadute, `PASS`. Un verde per assenza di misura e' l'esito
+ * peggiore, perche' nessuno va a guardarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCheckpointAfterEventTest,
+	"RefactorTactics.Scenario.CheckpointEvaluatesAfterASelectedEvent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCheckpointAfterEventTest::RunTest(const FString&)
+{
+	auto MakeScenario = [](bool bReachable)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bReachable ? TEXT("Probe.AfterEvent.Reached") : TEXT("Probe.AfterEvent.Never");
+		S.Version = 7;
+		S.MapRadius = 4;
+		FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0;
+		A.Cell = FRTCellId(-1, 0, 0); S.Units.Add(A);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1;
+		B.Cell = FRTCellId(1, 0, 0); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("A1");
+		I.Ability = TEXT("Hero.Aevik.ArcPulse");
+		I.Target = TEXT("B1");
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::UnitAlive;
+		E.UnitId = TEXT("B1");
+		E.Value = 1;
+		E.bHasAfterEvent = true;
+		E.AfterEvent.bHasCategory = true;
+		// `Combat` avviene davvero; `Objective` in questa scena non esiste — non c'e' nessuna cella
+		// contendibile — quindi il selettore non sara' mai soddisfatto.
+		E.AfterEvent.Category = bReachable ? ERTLogCategory::Combat : ERTLogCategory::Objective;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Raggiunto = URTScenarioRunner::Run(W1, MakeScenario(true));
+	DestroyRunnerWorld(W1);
+
+	TestEqual(TEXT("l'evento avviene e l'assertion si valuta"), Raggiunto.OutcomeString(), FString(TEXT("PASS")));
+	if (TestEqual(TEXT("una assertion"), Raggiunto.Assertions.Num(), 1))
+	{
+		TestTrue(TEXT("e il referto nomina il selettore"),
+			Raggiunto.Assertions[0].Description.Contains(TEXT("afterEvent")));
+	}
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult MaiRaggiunto = URTScenarioRunner::Run(W2, MakeScenario(false));
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("un confine mai raggiunto e' un FAIL, non un silenzio"),
+		MaiRaggiunto.OutcomeString(), FString(TEXT("FAIL")));
+	if (TestEqual(TEXT("e compare comunque nel referto"), MaiRaggiunto.Assertions.Num(), 1))
+	{
+		TestFalse(TEXT("caduta"), MaiRaggiunto.Assertions[0].bPassed);
+		TestTrue(FString::Printf(TEXT("e dice PERCHE' (era: '%s')"), *MaiRaggiunto.Assertions[0].Actual),
+			MaiRaggiunto.Assertions[0].Actual.Contains(TEXT("nessun evento")));
+	}
+
+	return true;
+}
+
+/**
+ * Un playback FERMO non consuma il tetto di `MaxResolveTicks` — `#3488`.
+ *
+ * `RTGameMode.cpp` promette che il banco non scade: in `Resolving` la sessione aspetta `!IsResolving()`, e un
+ * playback fermo da chi guarda la fa ASPETTARE. Il tetto contava invece ogni passo, anche a playback fermo,
+ * e in PIE uno scenario con `rt.Debug.PlaybackStartPaused` finiva in ERROR dopo circa nove secondi — due
+ * volte nella seduta del 2026-10-04, su `Visual.Perception.RevealDuringMove`.
+ *
+ * Qui il playback parte fermo e ci resta oltre il tetto: la sessione deve aspettare, non chiudersi. Poi lo si
+ * riprende, e lo scenario deve finire come senza pausa. ⚠️ Il controllo che il playback sia stato DAVVERO
+ * fermo e' cio' che rende il test non vacuo: senza, sarebbe verde anche su un mondo in cui `StartPaused` non
+ * attecchisce e la sessione finisce prima del tetto per conto suo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPausedPlaybackDoesNotSpendTheResolveCapTest,
+	"RefactorTactics.Scenario.PausedPlaybackDoesNotSpendTheResolveCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPausedPlaybackDoesNotSpendTheResolveCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+
+	// L'ordine non e' libero: `StartPaused` vale solo con i controlli abilitati.
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	bool bVistoFermo = false;
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		bVistoFermo |= TM->IsPlaybackPaused();
+	}
+	TestTrue(TEXT("il playback e' stato davvero fermo"), bVistoFermo);
+	TestFalse(TEXT("a playback fermo, oltre il tetto, la sessione aspetta invece di chiudersi in ERROR"),
+		Session.IsFinished());
+
+	// Ripreso — a ogni turno, perche' `StartPaused` fa partire fermo OGNI playback — lo scenario si chiude.
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks * 4 && !Session.IsFinished(); ++I)
+	{
+		if (TM->IsPlaybackPaused()) { TM->ResumePlayback(); }
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+	}
+	TestTrue(TEXT("ripreso il playback, lo scenario finisce"), Session.IsFinished());
+	TestTrue(FString::Printf(TEXT("e finisce in PASS (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Pass);
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il tetto RESTA per una risoluzione che non avanza senza che nessuno l'abbia fermata — `#3488`, controllo.
+ *
+ * E' la meta' che il fix non deve togliere: una run non presidiata che si blocca deve ancora FALLIRE, non
+ * girare all'infinito. Qui nessuno fa avanzare il turn manager (`bPumpTurnManager` falso, in un mondo che non
+ * ticca), quindi la risoluzione resta aperta, e il playback NON e' in pausa. Senza questo test, un fix che
+ * togliesse il tetto del tutto sarebbe verde sul test sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStuckResolutionStillHitsTheCapTest,
+	"RefactorTactics.Scenario.StuckResolutionStillHitsTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStuckResolutionStillHitsTheCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("la risoluzione bloccata chiude la sessione"), Session.IsFinished());
+	TestTrue(TEXT("in ERROR"), Session.GetResult().Outcome == ERTTestOutcome::Error);
+	TestTrue(FString::Printf(TEXT("per il tetto (era: '%s')"), *Session.GetResult().ErrorMessage),
+		Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Esente e' lo STATO di pausa, non la POLITICA — `#3488`, dalla revisione di #3493.
+ *
+ * Il fix esenta i passi in cui il playback e' fermo ORA (`IsPlaybackPaused`). Un fix che esentasse invece
+ * ogni sessione in cui i playback partono fermi (`DoesPlaybackStartPaused`) passerebbe entrambi i test
+ * sopra, e toglierebbe il tetto proprio alle sedute: ripreso il playback, una risoluzione che si inceppa
+ * aspetterebbe per sempre. Qui il playback parte fermo, si riprende, e poi nessuno fa avanzare il turn
+ * manager — non e' in pausa, e' bloccato: il tetto deve tornare a contare e chiudere in ERROR.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioResumedStuckPlaybackStillHitsTheCapTest,
+	"RefactorTactics.Scenario.ResumedStuckPlaybackStillHitsTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioResumedStuckPlaybackStillHitsTheCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	// Fermo, oltre il tetto: aspetta.
+	bool bVistoFermo = false;
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		bVistoFermo |= TM->IsPlaybackPaused();
+	}
+	if (!TestTrue(TEXT("il playback e' stato davvero fermo"), bVistoFermo)
+		|| !TestFalse(TEXT("fermo, la sessione aspetta"), Session.IsFinished()))
+	{
+		Session.TearDown();
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// Ripreso, ma nessuno fa avanzare il turn manager: non e' in pausa, e' bloccato.
+	TM->ResumePlayback();
+	TestFalse(TEXT("ripreso, il playback non e' piu' in pausa"), TM->IsPlaybackPaused());
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("il tetto torna a contare e chiude la sessione"), Session.IsFinished());
+	TestTrue(FString::Printf(TEXT("in ERROR per il tetto (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Error
+			&& Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il runner sincrono dice PERCHE' una sessione non finita si e' fermata — `#3488`, dalla revisione di #3493.
+ *
+ * Prima del fix una sessione ferma la chiudeva il tetto del TURNO, con un messaggio. Ora un playback fermo
+ * non lo consuma, e in una run sincrona — la console `rt.Test.Run`, che gira nel mondo PIE con il turn
+ * manager del GameMode e quindi con le CVar del playback — la ferma solo il tetto esterno del runner. L'esito
+ * restava `Error` per default, ma con `ErrorMessage` vuoto: un ERROR muto, che non dice dove guardare.
+ *
+ * Qui il mondo ha gia' un turn manager col playback fermo, e la sessione lo riusa: nessuno lo riprende.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunnerSaysWhyAnUnfinishedSessionStoppedTest,
+	"RefactorTactics.Scenario.RunnerSaysWhyAnUnfinishedSessionStopped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunnerSaysWhyAnUnfinishedSessionStoppedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Il turn manager c'e' gia', e la sessione lo riusa invece di crearne un altro.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyRunnerWorld(World); return false; }
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	TestTrue(TEXT("in ERROR"), Result.Outcome == ERTTestOutcome::Error);
+	TestFalse(TEXT("e il motivo non e' vuoto"), Result.ErrorMessage.IsEmpty());
+	TestTrue(FString::Printf(TEXT("e dice che la sessione non e' finita (era: '%s')"), *Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("non e' finita")));
+
+	DestroyRunnerWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

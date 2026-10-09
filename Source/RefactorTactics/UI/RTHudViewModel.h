@@ -15,6 +15,11 @@
 #include "Player/RTPointerInteraction.h" // ERTPointerContext/ERTPointerTargetKind: il prompt li LEGGE, non li sceglie
 #include "RTHudViewModel.generated.h"
 
+// `#3499`: i motivi del tooltip. I tipi vivono nei loro header, che questo non deve tirarsi dietro: i campi che li
+// portano sono solo C++, e chi li legge include l'header.
+enum class ERTActionInvalidReason : uint8;
+enum class ERTTargetRefusal : uint8;
+
 struct FRTTurnLogEntry;
 
 class AActor;
@@ -314,6 +319,49 @@ struct FRTUnitSlotsView
 };
 
 /**
+ * La LETTURA del movimento all'estremita' destra della barra dei comandi (`#3470`, [D-456] punto 3).
+ *
+ * 🔑 **E' una lettura, non un selettore**: il profilo si deriva dalla distanza e dalla riserva, e si dichiara
+ * soltanto `Sneak` col suo tasto ([D-425]). Il selettore a quattro pulsanti del mockup del 2026-10-04
+ * contraddirebbe quella decisione.
+ *
+ * ⛔ **Privacy**: si costruisce solo per l'unita' COMANDATA. Il default — `bAuthorized == false`, tutto vuoto —
+ * e' la sola risposta che non racconta niente del piano di un'unita' che non si comanda, e chi disegna
+ * nasconde l'indicatore invece di mostrarne uno spento che dica «fermo».
+ */
+USTRUCT(BlueprintType)
+struct FRTMovementReadoutView
+{
+	GENERATED_BODY()
+
+	/**
+	 * Falso senza soggetto: tutto il resto e' allora vuoto.
+	 * ⚠️ **Non garantisce da solo la privacy**: `BuildMovementReadout` autorizza qualunque unita' non nulla,
+	 * come `BuildUnitSlots`. A decidere e' il CHIAMANTE, e la dock passa soltanto l'unita' comandata
+	 * (`GetSelectedUnit()`, mai `GetInspectedUnit()`): e' li' che `MovementReadoutReadsTheProfileOfThePlan`,
+	 * blocco D, pinna il confine (revisione di #3470).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bAuthorized = false;
+
+	/** Il profilo che il piano spende: la stessa autorita' di `FRTUnitSlotsView::MovementProfileId`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName ProfileId;
+
+	/** Nome e moltiplicatore, pronti da legare — `Move ×1`, `Sprint ×2`, `Withdraw ×0,25`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Label;
+
+	/** Il giocatore ha DICHIARATO `Sneak`: il badge del tasto si mostra acceso. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bSneakDeclared = false;
+
+	/** Il tasto che dichiara `Sneak`, da `ARTPlayerController::SneakHotkey()`: mai scritto nel grafo. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText SneakKeyLabel;
+};
+
+/**
  * Uno stato temporaneo da mostrare sopra un'unita': quale, con che icona, per quanto ancora (`#2274`).
  *
  * 🔑 **Porta l'`IconId` e non lascia che sia chi disegna a comporlo.** La chiave si deriva dal tag con
@@ -409,6 +457,85 @@ struct FRTUnitOverlayView
 };
 
 
+/**
+ * Il SEGNO di fase che uno slot della dock porta (`#3465`): la chiave a cui lo slot lega striscia e colore.
+ *
+ * 🔑 **Non e' `ERTMatchPhase`, e la differenza sono due casi decisi in sessione dall'autore il 2026-10-04.**
+ * La macro-fase onesta la porta gia' `FRTAbilityCooldownView::Phase`; questo enum risponde a un'altra domanda —
+ * *che cosa lo slot dice al giocatore* — e su due voci le risposte divergono:
+ *
+ *  - una **reazione** eredita la fase della propria core, ma non si gioca in una fase: si arma, e scatta quando
+ *    il suo trigger lo chiede. `URTIconLibrary::RequiredIconIds` lo dichiara gia' — *«Reaction non e' una
+ *    fase»* — e lo slot dice `REAZ.`;
+ *  - un'azione che **non occupa slot** (`Action.Wait`) risolve in `NormalMovement`, ma non si gioca in nessuna
+ *    fase: lo slot dice `—`.
+ *
+ * ⛔ **Il colore non vive in questo enum.** La palette e' di [D-233] e di `progettazione-hud.md` §32. La mappa
+ * segno -> tinta e' `URTActionSlotWidget::PhaseColors`, `EditDefaultsOnly`, coi valori di [D-233] come default
+ * (`#3489`). ⌫ *Qui stava «la tiene il Blueprint: in C++ sarebbe una seconda copia degli HEX che nessun gate
+ * rilegge».* La copia c'e', e il gate c'e' anche: `ScreenHud.SlotPhaseStripReadsThePhaseMark` confronta i
+ * default con gli HEX letterali della decisione. Cio' che il C++ garantisce resta lo stesso: chi disegna non
+ * RICOMPONE la regola.
+ *
+ * ⚠️ **`Cleanup` ha un valore e NON ha un colore**: [D-232] §1 e [D-233] lo lasciano senza tinta finche' una
+ * reazione non avra' una card, e l'autore lo ha confermato il 2026-10-04. Il segno esiste perche' l'etichetta
+ * `CLEANUP` deve comparire comunque — e' il canale che non dipende dal colore.
+ */
+UENUM(BlueprintType)
+enum class ERTActionPhaseMark : uint8
+{
+	/** Nessun segno: posizione di kit vuota, azione che non occupa slot, o macro-fase in cui non si agisce. */
+	None,
+	Prep,
+	Dash,
+	Blast,
+	Move,
+	/** Ha un'etichetta e non un colore ([D-232], [D-233]). */
+	Cleanup,
+	/** Non e' una fase: l'azione dichiara `Slot == Reaction`. */
+	Reaction
+};
+
+/**
+ * Il GRUPPO di lettura a cui una voce della dock appartiene (`#3468`, [D-455]): Comuni · Base · Kit.
+ *
+ * 🔑 **Si DERIVA da dati che esistono, non si dichiara.** La regola sta in `URTHudViewModel::GroupFor` e
+ * legge il `Def`: le generiche di `URTCatalogLibrary::GetGenericActionIds()`, e l'attacco base come dato
+ * (`BaseActionId`, [D-033]). Un campo di gruppo su `FRTActionDef` metterebbe un dato di presentazione dentro
+ * la definizione di gioco, ed e' la scelta che D-455 scarta.
+ *
+ * ⛔ **Il raggruppamento LEGGE questo campo e non riordina la lista**: l'ordine di `GetActions()` resta
+ * identita' ([D-397] punto 2).
+ *
+ * 🔴 **E i gruppi NON sono contigui nella lista**, quindi chi disegna non puo' mettere un separatore «dove il
+ * gruppo cambia». L'attacco base sta all'indice 0, le generiche sono accodate al kit (`ConfigureFromHeroData`),
+ * e in partita `EquipLoadout` accoda DOPO di loro le azioni dell'equipaggiamento — che sono Kit. L'ordine di
+ * kit e' quindi Base · Kit · Comuni · Kit, mentre la barra legge Comuni · Base · Kit. Chi disegna dispone le
+ * voci con una **partizione stabile per `Group`**, che conserva l'ordine di kit dentro ogni gruppo, e ogni
+ * slot porta il proprio `AbilityIndex` e `HotkeyLabel`: la posizione a schermo non e' mai un indice
+ * ([D-397] punti 2 e 4, [D-455] punto 2). Misurato da `HudViewModel.ActionSlotCarriesItsGroup`, blocco D.
+ *
+ * ⚠️ **Non e' una seconda economia d'azione** (`progettazione-hud.md` §6.7): sono corsie di lettura. Lo slot
+ * del turno che una voce consuma lo dice `Slot`, e i due campi rispondono a domande diverse.
+ */
+UENUM(BlueprintType)
+enum class ERTActionGroup : uint8
+{
+	/** Posizione di kit vuota: non c'e' un'azione da raggruppare. */
+	None,
+	/** Le generiche di D-025 che entrano nel kit, con il loro tasto a lettera. */
+	Common,
+	/**
+	 * L'attacco base dell'eroe: `Action.BasicAttack` o un suo profilo.
+	 *
+	 * ⚠️ **La difesa caratteristica del mockup NON ci entra oggi**: `ERTActionSlot::SignatureDefense` non
+	 * esiste (#3130), e quando esistera' la regola di [D-455] andra' estesa, non si estendera' da sola.
+	 */
+	Base,
+	/** Tutto il resto: le abilita' del kit dell'eroe, reazioni comprese, e le azioni dell'equipaggiamento. */
+	Kit
+};
+
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
 USTRUCT(BlueprintType)
 struct FRTAbilityCooldownView
@@ -466,9 +593,11 @@ struct FRTAbilityCooldownView
 	 * numerico preme — il caso che `GenericHotkeys()` dichiara, *«un eroe con sei azioni porta il kit a
 	 * undici voci contro i dieci tasti numerici»*. Chi disegna mostra il tasto **solo** se c'e'.
 	 *
-	 * ⛔ **Non porta il tasto GENERICO** (`G` `B` `C` `X` `Z`): quale dei due binding mostrare per
-	 * un'universale e' una decisione aperta (`#2990`), e un campo che la anticipasse la deciderebbe di
-	 * fatto.
+	 * ✅ **Porta il tasto GENERICO** (`G` `B` `C` `X` `Z`) per le generiche: [D-397] punto 4 ha deciso che
+	 * un'universale mostra la propria lettera, e `ARTPlayerController::HotkeyLabelFor` risolve
+	 * `GenericHotkeys()` per `ActionId` prima della fila dei numeri.
+	 * ⌫ *Fino al 2026-10-04 questo commento diceva il contrario — «non porta il tasto generico, decisione
+	 * aperta in `#2990`» — dopo che `#2990` era stata chiusa e il codice aveva gia' cambiato risposta.*
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FText HotkeyLabel;
@@ -500,11 +629,157 @@ struct FRTAbilityCooldownView
 	 * raggruppamento di una palette. Le due frasi si contraddicevano dentro lo stesso modulo.
 	 *
 	 * 🔑 **Il campo resta, ed e' il ponte fra la palette e l'economia**: `1..N` sono le voci, `3` sono gli
-	 * slot, e questo dice quale voce ne consuma quale. ⛔ **Se la barra debba mostrarlo e' `#2990`**: e'
-	 * layout, e deciderlo qui lo deciderebbe di fatto.
+	 * slot, e questo dice quale voce ne consuma quale. ⛔ **Se la barra debba mostrarlo e' layout**, e il
+	 * layout e' di `#613` ([D-397], che ha chiuso `#2990`, al punto 2): deciderlo qui lo deciderebbe di fatto.
+	 * E' anche la fonte del caso reazione di `PhaseMark` (`#3465`): nessun flag la duplica.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTActionSlot Slot = ERTActionSlot::None;
+
+	/**
+	 * In quale MACRO-FASE del round questa azione risolve (`#3465`): `URTCatalogLibrary::MapResolutionPhase`
+	 * applicata alla `ResolutionPhase` che il catalogo dichiara.
+	 *
+	 * 🔑 **E' il valore onesto, anche quando lo slot dice altro.** Per una reazione e' la fase della sua core,
+	 * per `Action.Wait` e' `Move`: cio' che lo slot MOSTRA lo dice `PhaseMark`. I due campi restano separati
+	 * perche' rispondono a due domande — *quando risolve* e *che cosa si vede* — e fonderli farebbe mentire
+	 * uno dei due.
+	 *
+	 * ⚠️ `Planning` per una posizione di kit vuota: e' il default dell'enum e la macro-fase in cui nessuna
+	 * azione risolve. Chi riconosce il vuoto guarda `ActionId`, non questo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/** Il segno di fase che lo slot porta, ed e' la chiave del colore: la regola sta su `ERTActionPhaseMark`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionPhaseMark PhaseMark = ERTActionPhaseMark::None;
+
+	/**
+	 * L'etichetta di `PhaseMark` — `PREP`, `BLAST`, `CLEANUP`, `REAZ.`, `—` — composta in C++ (`#3465`).
+	 *
+	 * 🔴 **E' il canale che `progettazione-hud.md` §47-bis.1 rende obbligatorio**: il colore della striscia lo
+	 * RINFORZA e non lo sostituisce ([D-232] punto 3). Uno slot che mostrasse la sola tinta perderebbe la fase
+	 * in scala di grigi — e per `Cleanup` non ci sarebbe nemmeno una tinta da perdere.
+	 *
+	 * ⚠️ **Vuota per una posizione di kit vuota, `—` per un'azione senza slot.** Non sono lo stesso caso: la
+	 * prima non ha un'azione, la seconda ne ha una che non si gioca in nessuna fase.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText PhaseLabel;
+
+	/**
+	 * Il gruppo di lettura della voce (`#3468`): la regola sta su `ERTActionGroup` e in `GroupFor`.
+	 *
+	 * ⚠️ `None` per una posizione di kit vuota, come `PhaseMark`: chi riconosce il vuoto guarda `ActionId`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionGroup Group = ERTActionGroup::None;
+
+	/**
+	 * Questa voce APRE un gruppo di lettura diverso da quello della voce prima (`#3489`, [D-455] punto 2).
+	 *
+	 * ⚠️ **Lo scrive solo `OrderForReading`**, ed e' vero solo in quella lista: lungo `GetActions()` i gruppi
+	 * non sono contigui, e un separatore «dove `Group` cambia» ne metterebbe dove non c'e' un confine. Fuori
+	 * dalla lista di lettura resta `false`. Lo slot lo traduce nel proprio padding (`GroupGap`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bGroupBreakBefore = false;
+
+	/**
+	 * Questa voce e' la PRIMA del proprio gruppo di lettura: porta l'intestazione `COMUNI` · `BASE` · `KIT`
+	 * (`#3498`). Vera per la prima voce della lista e dove `bGroupBreakBefore` e' vero; la scrive solo
+	 * `OrderForReading`, come il confine.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bFirstOfGroup = false;
+
+	/**
+	 * Il piano e' ILLEGALE e quest'azione ne e' la colpevole (`ValidatePlan`, `OffendingActionId`): lettura B
+	 * di [D-459], stato `Invalid`. Il motivo — `SlotOccupied`, `OnCooldown` — resta del validatore.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPlanInvalid = false;
+
+	/**
+	 * L'azione e' pianificata su un bersaglio che, misurato dall'ORIGINE DEL BLAST (`BlastOriginCell`: la cella
+	 * dello scatto, se si applica) e allo stato NOTO all'osservatore, il click rifiuterebbe: in risoluzione
+	 * prenderebbe il ripiego. Lettura B di [D-459], stato `Warning`. ⛔ Un bersaglio ignoto (`Nothing`) non
+	 * accende niente.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPlanDegraded = false;
+
+	/**
+	 * Quest'azione e' ARMATA e la cella sotto il puntatore la rifiuterebbe: lettura A di [D-459], stato
+	 * `Invalid`. ⚠️ **Lo scrive la dock**, non `BuildAbilityCooldowns`: dipende dal puntatore, che il
+	 * ViewModel non conosce. Viene da `ARTPlayerController::RefusalUnderPointerForArmed`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bTargetRefused = false;
+
+	// ── Il tooltip (`#3499`): la frase e i numeri del catalogo, e il motivo di uno stato spento ──────────────
+	// Li scrive `BuildAbilityCooldowns` nello stesso passo in cui scrive gli stati, cosi' il tooltip li compone
+	// senza risalire all'unita' — la stessa porta che questa vista esiste per chiudere.
+
+	/** La frase d'autore (`URTActionData::Description`). Vuota se l'azione non ne ha una. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Description;
+
+	/** La portata in celle, quella che il click misura (`URTActionData::RangeCells`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 RangeCells = 0;
+
+	/** L'azione agisce su chi la usa: la portata non si dice in celle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bSelfTarget = false;
+
+	/** Il danno del primo effetto di danno del catalogo; `0` se l'azione non ne fa. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Damage = 0;
+
+	/**
+	 * La ricarica DI CATALOGO, in turni: la riga «Ricarica» del tooltip.
+	 *
+	 * ⚠️ **Non e' `TotalTurns`, anche se oggi vale lo stesso.** Quello e' il denominatore della carica, e nella
+	 * barra senza unita' resta `0` per [D-460] (`HudViewModel.IdleBarCarriesNothingOfThePlan`); questo e' un fatto
+	 * dell'azione, uguale per chiunque la porti, e la barra senza unita' lo copia.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 CooldownTurns = 0;
+
+	/** La forma dell'impronta, quella che leggono il click e l'anteprima (`URTActionData::Shape`) — #3419. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/** Il raggio dell'area, quando `Shape` e' `Area`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 AreaRadius = 0;
+
+	/**
+	 * La variante ATTIVA su quest'azione (`ARTUnit::ActiveVariantId`), col suo compromesso
+	 * (`FRTAbilityVariant::Tradeoff`, scritto in `RTHeroCatalogLibrary.cpp`) — #3419. Vuoti senza variante.
+	 *
+	 * ⛔ **Non e' `FRTHeroProfileView::Tradeoffs`**, l'omonimo del profilo dell'EROE: quello dice «Fragile se
+	 * accerchiato», questo dice cosa cambia in quest'abilita'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText VariantName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText VariantTradeoff;
+
+	/** Il motivo del validatore quando `bPlanInvalid` e' vero. ⚠️ Solo C++: il tipo resta nel suo header. */
+	ERTActionInvalidReason PlanInvalidReason{};
+
+	/**
+	 * Il rifiuto che accende `bPlanDegraded`, dalla stessa domanda (`RefusalForKnownTarget`). ⛔ Un bersaglio
+	 * ignoto da' `Nothing`, che non accende lo stato e quindi qui non si scrive. ⚠️ Solo C++.
+	 */
+	ERTTargetRefusal PlanDegradedRefusal{};
+
+	/** La portata APPLICATA quando il rifiuto e' `Range`: il testo la mostra sempre (`#2800`). */
+	int32 PlanDegradedRange = INDEX_NONE;
 
 	/** Turni interi che mancano. `0` = ricarica finita. **Mai negativo.** */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
@@ -640,9 +915,20 @@ struct FRTPlayerEventLineView
  *    `BuildAbilityCooldowns` riceve un `ARTUnit*`. ⚠️ Aggiungerlo qui significherebbe cambiare la firma di
  *    tutti i chiamanti per un valore che oggi nessuno disegna: resta **dichiarato mancante**, e l'owner e'
  *    `#2988` stessa quando un widget lo chiedera'.
- *  - **`Invalid` e `Warning`** riguardano il BERSAGLIO, non l'azione, e hanno gia' un owner:
- *    `ERTTargetRefusal` piu' `URTCombatLibrary::RefusalForObserver`. Duplicarli qui creerebbe un secondo
- *    vocabolario per la stessa domanda.
+ *  - ⌫ *Qui stava «**`Invalid` e `Warning`** riguardano il BERSAGLIO, non l'azione»*: era vero del rifiuto, e
+ *    [D-459] (#3483) li ha resi stati DELLO SLOT senza duplicare il rifiuto. Vedi la sezione sotto.
+ *
+ * ## `Invalid` e `Warning` ([D-459]): due letture, nessun secondo vocabolario
+ *
+ *  - **`Invalid` — il gesto sarebbe RIFIUTATO.** Lo slot armato col bersaglio sotto il puntatore rifiutato
+ *    (`bTargetRefused`, lettura A), oppure lo slot che porta l'azione colpevole di un piano illegale
+ *    (`bPlanInvalid`, lettura B).
+ *  - **`Warning` — il piano e' ACCETTATO ma degradato**: l'azione pianificata il cui bersaglio, allo stato
+ *    noto, prenderebbe il ripiego (`bPlanDegraded`).
+ *
+ * 🔑 Il rifiuto resta di `ERTTargetRefusal`: i campi si calcolano con le porte del click — `RefusalForKnownTarget`
+ * per un'unita', `DescribeCellTargetRefusal` per una cella — e lo stato lo LEGGE. ⚠️ **La precedenza**: `Invalid` batte `Selected` e `Planned` — «non lo potrai fare» e'
+ * la prima cosa che uno slot acceso deve dire — e `Warning` batte `Planned`, ma non `Selected`.
  */
 UENUM(BlueprintType)
 enum class ERTActionSlotState : uint8
@@ -663,7 +949,13 @@ enum class ERTActionSlotState : uint8
 	Unavailable,
 
 	/** Pronta. */
-	Available
+	Available,
+
+	/** Il gesto sarebbe RIFIUTATO ([D-459]): bersaglio rifiutato sotto il puntatore, o piano illegale. */
+	Invalid,
+
+	/** Il piano e' accettato ma DEGRADATO ([D-459]): il bersaglio pianificato prenderebbe il ripiego. */
+	Warning
 };
 
 /**
@@ -767,6 +1059,57 @@ struct FRTTargetPromptView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bIsAwaitingTarget = false;
+};
+
+/** Una riga di numeri del tooltip: un'etichetta e il suo valore, gia' scritti (`#3499`). */
+USTRUCT(BlueprintType)
+struct FRTActionTooltipLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Label;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Value;
+};
+
+/**
+ * Il TOOLTIP di uno slot (`#3499`): la frase d'autore, i numeri composti dal gioco e, se lo slot e' spento, il
+ * perche'. Decisione d'autore del 2026-10-05: *«testo d'autore piu' numeri dal gioco»*.
+ *
+ * ⛔ **Sola presentazione**: la compone `URTHudViewModel::BuildActionTooltip` da `FRTAbilityCooldownView`, e non
+ * decide niente — lo stato e' quello di `ResolveSlotState`, i motivi sono quelli che la riga gia' porta.
+ */
+USTRUCT(BlueprintType)
+struct FRTActionTooltipView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Title;
+
+	/** La frase d'autore. Vuota per un'azione che non ne ha: il tooltip resta di soli numeri. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Description;
+
+	/** Fase, slot, portata, ricarica, danno: solo le righe che per quest'azione hanno un valore. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TArray<FRTActionTooltipLine> Lines;
+
+	/** Il perche' di uno stato spento, uno solo; vuoto se non c'e' niente da spiegare. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Reason;
+
+	/** «Variante: compromesso», quando una variante e' attiva su quest'azione (#3419). Vuoto altrimenti. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Variant;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionSlotState State = ERTActionSlotState::Empty;
+
+	/** Una posizione di kit vuota non ha un tooltip. */
+	bool IsValid() const { return !Title.IsEmpty(); }
 };
 
 /**
@@ -982,6 +1325,25 @@ public:
 	static FRTUnitSlotsView BuildUnitSlots(const ARTUnit* Unit);
 
 	/**
+	 * La lettura del movimento dell'unita' COMANDATA (`#3470`). Il profilo viene da `BuildUnitSlots`, cioe' da
+	 * `URTMovementProfileLibrary::ProfileForPlan`: nessuna seconda strada verso la stessa risposta.
+	 *
+	 * ⛔ **Il chiamante passa solo l'unita' comandata** — la dock passa `GetSelectedUnit()`, mai il soggetto
+	 * ispezionato — e con `nullptr` torna il default non autorizzato.
+	 */
+	static FRTMovementReadoutView BuildMovementReadout(const ARTUnit* Unit);
+
+	/**
+	 * Nome e moltiplicatore di un profilo: `Move ×1`, `Sprint ×2`, `Sneak ×0,5`, `Withdraw ×0,25`, e `Still`
+	 * senza moltiplicatore. Vuoto per un id che il catalogo non conosce.
+	 *
+	 * 🔑 **Il moltiplicatore si LEGGE dal catalogo** (`MoveBudgetPercent`, [D-412]) e non si scrive qui: un
+	 * profilo ritarato cambia l'etichetta da se'. ⚠️ **I nomi sono quelli canonici di [D-425]**, come nel
+	 * mockup della barra: e' una scelta di presentazione, e questa e' la sua sede unica.
+	 */
+	static FText MovementReadoutLabel(FName ProfileId);
+
+	/**
 	 * La ricarica di **ogni** azione del kit, nell'ordine del kit (CP 11.1). Unita' nulla da' un elenco vuoto.
 	 *
 	 * I numeri si LEGGONO dal simulatore (`ARTUnit::GetAbilityCooldown`, `CanUseAbility`): il widget non ne
@@ -990,6 +1352,90 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
+
+	/**
+	 * Il segno di fase di un'azione (`#3465`). La precedenza vive qui e in nessun altro posto:
+	 *
+	 * 1. `Slot == Reaction` -> `Reaction`: una reazione non e' una fase;
+	 * 2. `Slot == None` -> `None`: un'azione che non occupa slot non si gioca in nessuna fase;
+	 * 3. altrimenti la macro-fase di `URTCatalogLibrary::MapResolutionPhase`, con `Planning` e `MatchEnded`
+	 *    -> `None`, perche' nessuna delle due ospita un'azione del giocatore.
+	 *
+	 * 🔑 **Legge il `Def`, mai una posizione** ([D-397] punto 2): lo stesso `ActionId` porta lo stesso segno in
+	 * qualunque posizione di kit stia. `HudViewModel.ActionSlotPhaseIsReadNotDeduced` lo prova spostando le
+	 * azioni e cambiando il dato.
+	 */
+	static ERTActionPhaseMark PhaseMarkFor(const FRTActionDef& Def);
+
+	/**
+	 * L'etichetta di un segno: `PREP` … `CLEANUP`, `REAZ.`, e `—` per `None`.
+	 *
+	 * ⚠️ **Non conosce la posizione di kit vuota**, che non ha un'azione e quindi non ha un segno da
+	 * etichettare: quella riga la lascia vuota `BuildAbilityCooldowns`, che e' l'unico a saperlo.
+	 */
+	static FText PhaseMarkLabel(ERTActionPhaseMark Mark);
+
+	/**
+	 * Il gruppo di lettura di un'azione (`#3468`, [D-455]). La precedenza vive qui e in nessun altro posto:
+	 *
+	 * 1. `Common` se l'`ActionId` e' fra `URTCatalogLibrary::GetGenericActionIds()`;
+	 * 2. `Base` se l'azione E' l'attacco base o ne e' un profilo — `ActionId` o `BaseActionId` uguale a
+	 *    `Action.BasicAttack`. ⚠️ Servono entrambi: per [D-033] la generica stessa porta `BaseActionId`
+	 *    vuoto, e con il solo profilo un attacco base nudo cadrebbe nel Kit;
+	 * 3. altrimenti `Kit`.
+	 *
+	 * 🔑 **Legge il `Def`, mai una posizione** ([D-397] punto 2), come `PhaseMarkFor`: lo stesso `ActionId`
+	 * porta lo stesso gruppo in qualunque posizione di kit stia. ⛔ In particolare **non** `AbilityIndex == 0`
+	 * per la Base, che era la proposta del pacchetto del mockup: e' la deduzione dalla posizione che D-455
+	 * scarta. `HudViewModel.ActionSlotGroupIsReadNotDeduced` lo prova spostando le azioni e cambiando il dato.
+	 *
+	 * ⚠️ **Non conosce la posizione vuota**, che non ha un `Def`: quella riga resta `None` in
+	 * `BuildAbilityCooldowns`, che e' l'unico a saperlo.
+	 */
+	static ERTActionGroup GroupFor(const FRTActionDef& Def);
+
+	/**
+	 * Le stesse voci in ORDINE DI LETTURA della barra (`#3478`, [D-455] punto 2): Comuni, poi Base, poi Kit.
+	 *
+	 * 🔑 **Partizione STABILE**: dentro ogni gruppo resta l'ordine di kit. E **ogni voce resta intatta** —
+	 * `AbilityIndex`, `HotkeyLabel`, tutto — perche' la posizione a schermo non e' mai un indice ([D-397]
+	 * punti 2 e 4): chi arma legge l'indice dallo slot, non dalla sua posizione nella barra. L'unico campo
+	 * che scrive e' `bGroupBreakBefore` (`#3489`), che ha senso solo in questa lista.
+	 *
+	 * ⛔ **Non riordina `GetActions()`**, che resta identita': restituisce una COPIA ordinata. Esiste perche'
+	 * i gruppi non sono contigui nella lista — l'equipaggiamento e' accodato dopo le generiche, e in partita
+	 * Branth e Muiren leggono `B KKKKK CCCCC KK` — e un Blueprint che li riordinasse da se' ricomporrebbe una
+	 * regola, cio' che `PhaseMark` (#3465) e' nato per evitare.
+	 *
+	 * ⚠️ **Una posizione vuota (`Group == None`) si legge come Kit**, al suo posto relativo: e' una posizione
+	 * del kit dell'eroe senza azione, e il buco resta visibile dove il tasto lo preme (#2987).
+	 */
+	static TArray<FRTAbilityCooldownView> OrderForReading(const TArray<FRTAbilityCooldownView>& Actions);
+
+	/**
+	 * L'indice che porta uno slot della STRUTTURA della barra ([D-460], #3494): non e' una posizione di kit.
+	 *
+	 * ⚠️ **Non e' `INDEX_NONE`, e di proposito**: il grafo della dock accende lo slot il cui `AbilityIndex` e'
+	 * uguale a `GetArmedActionIndex()`, che senza un'unita' vale proprio `INDEX_NONE`. Con quel valore la
+	 * struttura risulterebbe tutta armata. Uno slot con un indice negativo non arma niente
+	 * (`URTActionSlotWidget::Activate`).
+	 */
+	static constexpr int32 IdleSlotIndex = -2;
+
+	/**
+	 * La barra SENZA un'unita' comandata ([D-460], #3494): la propria struttura invece del vuoto.
+	 *
+	 *  - le **Comuni** come azioni vere ma spente (`bUsableNow` falso -> `Unavailable`): sono le stesse per
+	 *    ogni eroe, quindi mostrarle non dice niente di un'unita' in particolare;
+	 *  - la **Base** come uno slot vuoto;
+	 *  - il **Kit** come slot vuoti, tanti quanti il kit piu' lungo fra `OwnUnits`.
+	 *
+	 * ⛔ **`OwnUnits` sono le unita' della PROPRIA squadra**, e solo quelle: il filtro lo fa il chiamante, e
+	 * un'unita' avversaria nell'elenco renderebbe il numero dei vuoti un'informazione sul suo kit.
+	 * 🔑 **Ogni campo che dipende da un piano resta al default**: delle Comuni si copiano solo identita' e
+	 * presentazione, e nessuno slot porta un indice di kit. Senza unita' nella squadra, la barra resta vuota.
+	 */
+	static TArray<FRTAbilityCooldownView> BuildIdleBar(const TArray<const ARTUnit*>& OwnUnits);
 
 	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).
@@ -1009,6 +1455,39 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static ERTActionSlotState ResolveSlotState(const FRTAbilityCooldownView& Action, bool bArmed);
+
+	/**
+	 * Il TOOLTIP di uno slot (`#3499`), composto dalla riga che lo slot gia' riceve.
+	 *
+	 * - **Le righe** (decisione d'autore del 2026-10-05): fase, slot, portata, forma, ricarica, danno. Una riga
+	 *   senza valore non si scrive (#3419, 2026-10-06): niente «Danno 0», niente portata per un'azione su di se',
+	 *   niente ricarica a zero, niente forma per un colpo puntuale.
+	 * - **Il compromesso** della variante attiva, se c'e' (#3419). ⛔ **Niente costo in Energia**: e' uscita dal
+	 *   gameplay con [D-324].
+	 * - **Il motivo**, uno solo e in quest'ordine: piano illegale (il motivo del validatore), bersaglio degradato
+	 *   (il rifiuto, con la portata applicata), ricarica (i turni che restano).
+	 *
+	 * ⚠️ **Il rifiuto sotto il puntatore non e' un motivo del tooltip.** Mentre il cursore sta sulla barra non
+	 * punta nessuna cella del campo, e `bTargetRefused` direbbe di una cella che il giocatore non sta guardando.
+	 * ⛔ **Privacy**: il motivo del bersaglio degradato e' gia' filtrato da `RefusalForKnownTarget`. Un ignoto da'
+	 * `Nothing`, e qui non arriva niente da dire ([D-225]).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static FRTActionTooltipView BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed);
+
+	/**
+	 * Il tooltip in TESTO SEMPLICE: titolo, frase, una riga per numero, motivo. Lo usa lo slot che non ha ancora
+	 * un widget di tooltip (`URTActionSlotWidget::TooltipClass` vuota), cosi' il tooltip esiste prima della seduta
+	 * che lo disegna.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static FText ComposeTooltipText(const FRTActionTooltipView& Tooltip);
+
+	/**
+	 * Due tooltip dicono la stessa cosa: stesso stato, stesso titolo, stessa frase, stesse righe, stesso motivo.
+	 * Lo slot consegna il tooltip a Slate solo quando questa risponde falso (`#3499`).
+	 */
+	static bool SameTooltip(const FRTActionTooltipView& A, const FRTActionTooltipView& B);
 
 	/**
 	 * Quali stati mostrare sopra un'unita', **in che ordine** e con quale durata residua (`#2274`, `D-320`).

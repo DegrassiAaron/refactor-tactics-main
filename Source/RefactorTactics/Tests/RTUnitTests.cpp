@@ -599,21 +599,23 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 		// li', `ActiveClipFor(Attack)` tornerebbe vuoto e l'unita' resterebbe in posa di riferimento senza
 		// errore, senza warning e senza log — mentre il dato sembrerebbe corretto a chi legge il CDO.
 		//
-		// ⚠️ **`Cast` e' vuoto per DUE ragioni, e solo la prima e' permanente** (#2535):
+		// ⚠️ **Fino a #3549 `Cast` era vuoto per DUE ragioni, e solo la prima era permanente** (#2535):
 		//
 		//  1. la clip che si chiama `Cast` appartiene ad `Attack` — **permanente**, ed e' cio' che questo
-		//     asserto difende;
-		//  2. il ruolo `Cast` non ha ancora un **consumatore** — **temporanea**, e non e' cio' che questo
-		//     asserto difende.
+		//     asserto difende ancora: l'asserto per `Attack` qui sopra cade se la clip finisce SOLO sul ruolo
+		//     `Cast`;
+		//  2. ⏱️ *il ruolo `Cast` non aveva un consumatore* — **scaduta il 2026-10-07**: `AbilityActivated`
+		//     (#3549) lo suona via `PlayCastMontage`, e il roster lo popola con la STESSA clip di `Attack`
+		//     (spec «il momento» D2: cast e colpo si distinguono per momento, non per forma).
 		//
-		// 🔑 Quindi: **il giorno in cui `Cast` acquista un consumatore, questa riga va RIVISTA, non
-		// ereditata.** Chi la trovera' rossa allora leggera' «la clip `Cast` sta in Attack» e pensera' a
-		// una regressione, rimettendo a posto un dato che era giusto — mentre la verita' sara' che
-		// l'invariante e' scaduta. E' la stessa disciplina con cui `RTPresentationBinding.cpp` marca le
-		// proprie assenze *«da RIVEDERE, non da ereditare»* (righe 128 e 149), nata perche' `HazardDamage`
-		// era entrato nell'enum ed era rimasto muto senza che nulla diventasse rosso ([D-278], #1801).
-		// Li' il difetto era un gate che TACE; qui sarebbe un gate che PARLA quando non deve piu'.
-		TestTrue(*FString::Printf(TEXT("%s: il ruolo Cast resta VUOTO (la clip `Cast` sta in Attack)"), *Chi),
+		// 🔑 ∴ l'invariante non e' piu' «`Cast` vuoto» ma «`Cast` uguale ad `Attack`» SUL RUOLO. Una clip diversa
+		// per un'ABILITA' vive in `PerAction` (#3563, spec «la clip per abilita'» §2.6) e non tocca questo asserto;
+		// una clip diversa sul RUOLO `Cast` resta un giudizio umano del catalogo ANIM CORE, e chi la fa cambia
+		// anche questa riga.
+		TestEqual(*FString::Printf(TEXT("%s: in v0.1 il ruolo Cast suona la stessa clip di Attack"), *Chi),
+			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Cast).ToSoftObjectPath().ToString(),
+			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Attack).ToSoftObjectPath().ToString());
+		TestFalse(*FString::Printf(TEXT("%s: e non e' vuoto"), *Chi),
 			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Cast).IsNull());
 	}
 	return true;

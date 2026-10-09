@@ -438,6 +438,16 @@ Get-NetTCPConnection -State Listen | ? { $_.OwningProcess -eq <pid> }
 Invoke-WebRequest http://127.0.0.1:<porta>/mcp
 ```
 
+> 🔑 **Se risponde su `8000`, la causa non è la porta: è che il layer versionato non è in vigore.**
+> `8000` non è un valore che qualcuno abbia scelto — è il **default C++ del plugin**
+> (`ModelContextProtocolSettings.h`: `uint32 ServerPortNumber = 8000`), misurato sul motore installato
+> il 2026-09-20. Un Editor che risponde lì non ha letto
+> `Config/DefaultEditorPerProjectUserSettings.ini`, e correggere la porta a mano nasconderebbe il difetto
+> invece di chiuderlo: tornerebbe al prossimo checkout pulito. Da controllare in quell'ordine: il nome
+> esatto della sezione, che il file stia in `Config/` del progetto, che il plugin sia quello. ⛔ È anche il
+> valore che il backup `.bak-pre-mcp-fix` conserva, e che [#2849](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2849)
+> registrava come «un terzo valore» senza spiegarlo.
+
 ⚠️ **E leggi la `CommandLine` del PID prima di concludere.** È la verifica che distingue *«la porta è
 sbagliata»* da *«sto parlando al clone sbagliato»*, e senza di essa le due diagnosi sono
 indistinguibili — `ff2488f7` la nomina come il passo che ha risolto quel caso.

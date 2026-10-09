@@ -6,8 +6,94 @@
 > Questo documento non introduce una seconda scala di release, non assegna lavoro e non è owner di nessuna
 > feature: è una **vista di navigazione** sopra owner che esistono già.
 
-**Fotografia**: 2026-09-06, misurata su `origin/main` `7c1af4c4` e su GitHub LIVE.
-**Issue indice**: vedi § *Dove vive questa vista su GitHub*.
+**Fotografia**: 2026-09-23, misurata su `origin/main` `3cda8ef5` e su GitHub LIVE (la precedente era il
+2026-09-20 su `f7aa7b32`).
+**Issue indice**: [#2325](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2325) — *[ROADMAP] Capability Roadmaps — vista longitudinale v0.1 → v1.0*. ⌫ **Fino al 2026-09-20 questa riga rimandava a una sezione che non esiste** (*«vedi § Dove vive questa vista su GitHub»*): `grep -c` la trovava una volta sola, cioè il rimando stesso, e il documento non nominava mai la propria issue indice.
+
+> 🔴 **RIMISURATA UNA SECONDA VOLTA lo stesso 2026-09-23, e la certificazione di poche ore prima era
+> gia' scaduta.** Due ancore chiuse nel frattempo e **mute**: **#2579** (`09:11Z`, riga `BAL-METRICS`) e
+> **#2745** (`09:05Z`, riga `H` di §4). La prima l'ha chiusa **la sessione stessa** che aveva appena
+> certificato questo file.
+>
+> ⚠️ **E il controllo di quella certificazione non le avrebbe viste.** Confrontava le citazioni che
+> *portano* una parola di stato con GitHub e trovava zero divergenze — correttamente: il buco non e'
+> nelle annotazioni **sbagliate**, e' in quelle **assenti**. Una convenzione che dice *«le chiuse si
+> annotano, le aperte no»* si rompe dal lato del silenzio, ed e' il lato che nessuno guardava.
+>
+> ⌫ **`#2579` portava anche una descrizione falsa**, e nessun comando puo' accorgersene: diceva
+> *«solo per eroe»*, ed e' chiusa **proprio perche' non lo e' piu'**.
+>
+> ✅ **Da questa passata il controllo e' un GATE, non una fotografia** — `#2325`:
+>
+> ```sh
+> node tools/radar/anchor-state.ts --check     # esce 1 se un'ancora chiusa e' muta
+> ```
+>
+> 🔑 **Falsificato prima di essere creduto**: girato sul documento com'era **prima** di questa passata
+> esce `1` e nomina quelle due righe e **nessun'altra**; sul documento corretto esce `0`. Senza rete
+> stampa `NOT RUN` ed esce `0` — mai un verde offline.
+> ⛔ **Non sostituisce il comando qui sotto**: quello trova le annotazioni *sbagliate*, il gate quelle
+> *assenti*. Sono due difetti, e si trovano in due modi.
+
+> 🔁 **Rimisurata il 2026-09-23 contro GitHub LIVE, con lo stesso comando qui sotto.** Una sola ancora
+> stantia: **#1805**, chiusa `COMPLETED` il **2026-09-21** — cioè **il giorno dopo** la rimisura che questa
+> pagina certificava. Compariva in **tre** punti (la tabella di `CR-REPLAY`, i correlati di `CR-NET`, la
+> riga `F` di §4), tutti e tre senza annotazione, e in una convenzione dove **le chiuse si annotano e le
+> aperte no** un'ancora muta si legge come aperta. Annotati tutti e tre.
+>
+> 🔑 **È la SECONDA volta in tre giorni che questa certificazione scade, ed è la tesi che il documento già
+> enuncia — ora con due misure invece di una.** Il 2026-09-20 durò ventidue minuti (#543); questa è durata
+> tre giorni. ⛔ Non è un errore di chi ha misurato: una fotografia di stato **non è un gate**, e l'unico
+> rimedio durevole resta il comando qui sotto, che va **eseguito**.
+>
+> ✅ **E la convenzione regge, il che è il risultato che vale la pena avere.** Verificate tutte le
+> **76** issue citate: **49** aperte e **27** chiuse; delle citazioni che portano una parola di stato
+> accanto, **zero** divergono da GitHub. Le uniche chiuse senza annotazione erano le tre di #1805 — più
+> i casi in **prosa** che la nota qui sotto dichiara già legittimi (#1754, #472 come riferimento, le note
+> di rimisura che parlano *delle* chiusure). ⚠️ Il metodo conta: la parola di stato si cerca **dopo** la
+> citazione e fino alla successiva, perché un `(chiuse)` a fine elenco copre tutti i numeri che lo
+> precedono — `#1626 · #1627 · #1629 · #1630 (chiuse)` è una riga corretta, e un controllo ingenuo ne
+> segnalerebbe tre su quattro.
+
+> 🔁 **Rimisurata il 2026-09-20 contro GitHub LIVE.** Le ancore stantie erano #2193, **#2556**, #782, #784,
+> #2697, #2578 e #2629 — chiuse nei quattordici giorni dopo la fotografia del 2026-09-06 — più **#1496**,
+> che a quella fotografia era **già** stantia: è chiusa dal **2026-09-02**, quattro giorni prima.
+> ✅ **Nessuna ancora dichiarava aperto ciò che GitHub aveva chiuso, né il contrario.**
+> ⌫ **E questa certificazione è scaduta in ventidue minuti — il che vale più della certificazione
+> stessa.** Era vera quando è stata scritta (`13:50:05Z`); **#543** si è chiusa alle `14:12:37Z`, ed è
+> citata in due punti di questo documento, ora annotati. 🔑 **Non è un errore di chi ha misurato**:
+> è la dimostrazione che una fotografia di stato **non è un gate**, e che l'unico rimedio durevole è il
+> comando qui sotto — che va **eseguito**, non letto.
+>
+> ⌫ **Questa nota è stata corretta il 2026-09-20 in tre punti, ed è istruttiva che ne avesse bisogno.**
+> Diceva *«otto ancore su settantacinque erano stantie»* e poi ne **nominava sette**: mancava #2556, che lo
+> stesso commit annota alla propria riga. Includeva **#1496** fra le chiusure *«dei quattordici giorni»*
+> mentre il documento, poche righe più sotto, la data già al 2026-09-02 — la nota contraddiceva il corpo che
+> certificava. E portava *«su settantacinque»*, un totale che cambia da solo appena il documento cita una
+> issue in più: è successo **in questo stesso commit**, che ne aggiunge una aggiungendo il link all'issue
+> indice. 🔑 Le ancore ora si **nominano** (`AGENTS.md` §14, forma 1): otto nomi non invecchiano.
+>
+> ⚠️ E la formula giusta è *«nessuna **ancora**»*, non *«nessuna riga»*: #1754 è chiusa e compare senza
+> annotazione di stato, ma è citata in **prosa** come riferimento di codice (`RTScenarioKnowledge::OmniscientTeamId`),
+> non come ancora di una vista — non dichiara nulla sul proprio stato.
+>
+> **Si rifà così**, e non serve fidarsi di questa pagina:
+>
+> ```sh
+> # ogni issue citata, col suo stato vero
+> grep -oE '#[0-9]{2,4}' docs/roadmap/capability-roadmaps.md | tr -d '#' | sort -un \
+>   | xargs -I{} gh issue view {} --json number,state,stateReason,closedAt \
+>       --jq '[(.number|tostring), .state, (.stateReason // "-"), (.closedAt[0:10] // "-")] | @tsv'
+> ```
+>
+> 🔑 **E una chiusura `NOT_PLANNED` qui non significa «lavoro annullato».** #782 e #784 sono state
+> chiuse così il 2026-09-10 con la stessa motivazione — *«chiusa come capitolo, non come lavoro»*: un
+> **capitolo di milestone** non è un difetto che si apre e si chiude in un giro, e il suo indice è stato
+> ripiegato nell'epic che lo possiede (**#773**). Il corpo resta leggibile e linkabile.
+>
+> ⚠️ Per una vista di navigazione la distinzione è **il punto**: leggere `CLOSED` e concludere *«fatto»*
+> sbaglia in un verso, leggere `NOT_PLANNED` e concludere *«abbandonato»* sbaglia nell'altro. Il comando
+> qui sopra chiede `stateReason` per questo, e la colonna va guardata.
 
 ---
 
@@ -78,7 +164,7 @@ né TurnLog.
 | indice delle partite | #416 (chiusa) |
 | consumer autobattle | #952 |
 | consumer Tactical Designer | #1625 |
-| confine public/sanitized vs private audit | #1805 |
+| confine public/sanitized vs private audit | #1805 (chiusa il 2026-09-21) |
 | seek per turno e fase | #415 (chiusa) |
 | Player che non ricalcola | #470 (chiusa) |
 | ponte Blueprint | #999 (chiusa) |
@@ -145,9 +231,9 @@ Planning → Ready → countdown annullabile → Commit affidabile → validazio
 
 | Anello | Owner |
 |---|---|
-| Ready / Unready / countdown / soggetto del Ready / quorum | **#2193** |
+| Ready / Unready / countdown / soggetto del Ready / quorum | **#2193** — chiusa `COMPLETED` il 2026-09-09 |
 | coordinamento del bot alleato prima del Ready | #534 (CP 26.4) — **post-v0.1** |
-| protocollo ready/commit in rete | #782 (CP 40.4) — **post-v0.1** |
+| protocollo ready/commit in rete | ~~#782~~ (`CP 40.4`) — chiusa **`NOT_PLANNED`** il 2026-09-10: capitolo **ripiegato nell'epic #773**, non lavoro annullato |
 | Result e ritorno al menu | #940 (CP 46.5) |
 | finestra di reazione e pacing | #166 · #314 · #319 |
 
@@ -175,7 +261,7 @@ I client avversari non ricevono alcun payload di pianificazione privata
 ```
 
 Nessun intento avversario in `GameState`, in `PlayerState`, su Actor `AlwaysRelevant`, né nel log pubblico
-prima del momento autorizzato. Correlate: #759 (privacy temporale) · #1805 (public vs audit) · #1466 · #1496.
+prima del momento autorizzato. Correlate: #759 (privacy temporale) · #1805 (public vs audit, chiusa il 2026-09-21) · #1466 · #1496 (chiusa il 2026-09-02).
 
 ### CR-CONTENT — Character & Ability Pipeline
 
@@ -267,11 +353,11 @@ smesso di essere una lente — ed è motivo di arresto, non un numero da tarare.
 
 | Sotto-vista | Owner |
 |---|---|
-| BAL-DATA — i numeri canonici | [`../balance/`](../balance/) (`D-023`) · gate `tools/radar/catalog-code.ts` · #2578 (le azioni sono scoperte) |
+| BAL-DATA — i numeri canonici | [`../balance/`](../balance/) (`D-023`) · gate `tools/radar/catalog-code.ts` · #2578 (chiusa il 2026-09-18: le azioni sono scoperte) |
 | BAL-VARIANT — la variante sperimentale | #1950 *Skill Workbench* (`TD 0.3`) — dato consegnato · #2577 (manca l'ingresso) |
 | BAL-DIFF — il confronto fra due run | #2576 (`TD 0.4`, dichiarato dall'owner e senza issue fino a oggi) |
-| BAL-METRICS — le metriche derivate | `tools/radar/{rubric,power,precision,profile,balance}.ts` (`D-108`) · #2579 (solo per eroe) |
-| BAL-BATCH — la misura a lotti | **#776** (`E43`) — 🔴 dopo il competence gate `D-102` (#543) |
+| BAL-METRICS — le metriche derivate | `tools/radar/{rubric,power,precision,profile,balance}.ts` (`D-108`) · #2579 (chiusa il 2026-09-23) — ⌫ *diceva «solo per eroe», ed è chiusa proprio perché non lo è più: `abilityContributions` espone il contributo **per abilità** e `powerRaw` somma quello. La riga descriveva il difetto che la issue è andata a togliere* |
+| BAL-BATCH — la misura a lotti | **#776** (`E43`) — 🔴 dopo il competence gate `D-102` (~~#543~~, chiusa `COMPLETED` il 2026-09-20) |
 | BAL-RUNTIME — il runtime d'abilità | consuma **CR-CONTENT** · #774 (`E41`) |
 | BAL-GATE — il gate umano | #403 (`BAL-1`, `U20/PIE-BAL1`) |
 
@@ -318,13 +404,13 @@ Le nove tappe d'esperienza e il loro owner reale — ⚠️ **lettere di questo 
 | Tappa | Outcome | Owner reale | Release |
 |---|---|---|---|
 | `A` watchable | la partita gira e si guarda | #952 (i `CP 47.x` sono chiusi) · **#2744** | v0.1 |
-| `B` readable | capisco *perché* è successo | #1937 → #1936 · #2697 · #2281 · #613 | v0.1 |
-| `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 · #2477 · #326 | v0.1 → v0.2 |
+| `B` readable | capisco *perché* è successo | #1937 → #1936 · #2697 (chiusa il 2026-09-12) · #2281 · #613 | v0.1 |
+| `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 (chiuse il 2026-09-09 e il 2026-09-18) · #2477 · #326 | v0.1 → v0.2 |
 | `D` spectator / camera | guardo da spettatore | **#1769** · #1781 (`CAM-12`) | v0.1 parziale (`D-286`) |
 | `E` match story | so chi sta vincendo, e perché | #2281 · #331 · #332 | v0.1 → v0.4 |
-| `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 | v0.1 → v1.0 |
+| `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 (chiusa) | v0.1 → v1.0 |
 | `G` presentation | comincia a sembrare un gioco | #286 · #217 · #2453 | v0.1 → v0.2 |
-| `H` showcase / video | configuro una demo e la ripeto | **#2745** (discovery) | post-v0.1 |
+| `H` showcase / video | configuro una demo e la ripeto | **#2745** (discovery, chiusa il 2026-09-23) | post-v0.1 |
 | `I` representative match | mostra il gioco futuro, non l'arena | #325 · #221 · #333 · #331 · #332 | post-v0.1 |
 
 ⚠️ **`F` non è a valle delle altre**: cammina in parallelo dalla v0.1 ed è la tappa più avanzata di tutte.
@@ -349,7 +435,7 @@ I contratti sono il posto in cui una capability **consuma** un'altra senza riscr
 | Tactical Designer × Content | Skill Workbench edita varianti, **Scenario Harness** le valuta — non un secondo valutatore |
 | Balance × Tactical Designer | `BAL 0.1` **consuma** `TD 0.3` e `TD 0.4` e non li rivendica: il workbench è l'ingresso, il bilanciamento è la domanda |
 | Balance × Content | i cataloghi Markdown possiedono i numeri (`D-023`); GAS sarà il **runtime** delle abilità, mai l'autorità (#774) |
-| Balance × Bot | un risultato bot-contro-bot **non è ancora** una misura di bilanciamento: `D-102` (#543) precede ogni lotto |
+| Balance × Bot | un risultato bot-contro-bot **non è ancora** una misura di bilanciamento: `D-102` (~~#543~~, chiusa `COMPLETED` il 2026-09-20) precede ogni lotto |
 | Balance × Online | la misura non può vedere l'intento avversario prima della risoluzione — il turno è simultaneo |
 | Tactical Designer × Bot | gli scenari diventano test di competenza e suite di regressione |
 | Presentation × TD / Replay / Playground | **un solo** linguaggio semantico di overlay: selezionato · valido · invalido · previsto · confermato · incerto · copertura · hazard |
@@ -362,7 +448,7 @@ I contratti sono il posto in cui una capability **consuma** un'altra senza riscr
 | Watch × Explainability | l'autorizzazione dell'osservatore è **un dato** (`IsUnattendedSession()`), e vale per il §4.2 come per il §4.1: due filtri divergenti sono il debito che `D-242` ha chiuso |
 | Watch × Camera | l'autobattle è un **consumer** della camera, mai una seconda camera: il Camera Director resta #1781 e non anticipa il core |
 | Watch × Replay | guardare live e ristudiare passano dallo **stesso** playback core (#1881) — nessun secondo viewer, nessun resolver dentro il viewer |
-| Watch × Online | uno spettatore locale che vede entrambe le squadre è ammesso; in rete (#773, `E40`) è un client che **possiede** quei piani — o è lato server, o non esiste (#784) |
+| Watch × Online | uno spettatore locale che vede entrambe le squadre è ammesso; in rete (#773, `E40`) è un client che **possiede** quei piani — o è lato server, o non esiste (~~#784~~ — chiusa `NOT_PLANNED` il 2026-09-10, capitolo in #773; la procedura vive in [`../technical/systems/procedura-canary-anti-leak.md`](../technical/systems/procedura-canary-anti-leak.md)) |
 
 ---
 

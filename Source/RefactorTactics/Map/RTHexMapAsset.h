@@ -96,6 +96,155 @@ struct FRTHexInteriorWall
 		: Cell(InCell), Segment(InSegment) {}
 };
 
+/**
+ * PERCHE' UNA CELLA NON E' CALPESTABILE — la ragione, non solo il verdetto (`#1868`, [D-439]).
+ *
+ * 🔑 **Esiste perche' il messaggio di REGOLA 1 nomina una causa.** Finche' la sola causa era la geometria,
+ * un `bool` bastava e la frase *«la geometria non lascia alcuna posa legale»* era vera per costruzione. Con
+ * le regioni No-Walk quella frase diventa **falsa per meta' dei casi**, e un validator che dice la causa
+ * sbagliata manda chi legge a cercare un muro che non c'e'.
+ */
+UENUM()
+enum class ERTStandabilityBlock : uint8
+{
+	/** Nessun ostacolo: la cella e' calpestabile. */
+	None,
+
+	/** I muri interni non lasciano nessuna regione di posa legale per il footprint. */
+	Geometry,
+
+	/**
+	 * Una regione No-Walk dichiara la cella non calpestabile ([D-439]). E' un **veto d'autore** sopra il
+	 * calcolo della posa, non un suo esito: vince anche dove la geometria lascerebbe passare.
+	 */
+	NoWalkArea,
+
+	/**
+	 * Un volume a scatola occupa la cella ([D-440], `#1866`). In `v0.1` il volume occupa la cella INTERA,
+	 * quindi non lascia nessuna posa: l'ingombro parziale e' la domanda che quella decisione lascia aperta.
+	 *
+	 * 🔑 **Consultato e non cotto, per la stessa ragione della regione**: se il volume scrivesse
+	 * `bBlocksMovement` diventerebbe un terzo produttore su un bit di provenienza che ne regge uno, e il
+	 * primo ribake estraneo della cella ne cancellerebbe l'effetto in silenzio.
+	 */
+	BoxVolume
+};
+
+/**
+ * UNA REGIONE CHE DICHIARA «qui non si sta» (`#1868`).
+ *
+ * 🔑 **I vertici sono ANCHOR, non punti.** E' `D-127` applicato a un poligono: l'autorita' serializzata e'
+ * discreta — una cella, un tipo di anchor, un indice — e i `FVector2D` compaiono solo nel **derivato**, cioe'
+ * quando si chiede quali celle copre. Una lista di `FVector2D` sull'asset sarebbe l'errore di categoria che
+ * quella decisione ha votato via, e la stessa che rende `FRTOccupancyPolyline` inadatta a questo ruolo.
+ *
+ * ⚠️ **Il poligono e' un ANELLO a chiusura implicita**: l'ultimo vertice si congiunge al primo, e non
+ * esiste uno stato «non chiuso». ∴ la validazione *«poligono non chiuso»* che `#1868` elenca **non e'
+ * rappresentabile in questo dato** e non e' provabile headless: vive nel gesto, e ci restera' finche' il
+ * tool non esiste. E' dichiarato qui invece di essere promesso altrove.
+ *
+ * ⛔ **Fuori da `ComputeHash` e da `RTMatchStateHash`, per il criterio che quei due digest applicano a se
+ * stessi** — *ci entra cio' che puo' cambiare un esito*. Nessun consumatore runtime legge la regione: il
+ * suo effetto viaggia attraverso `FRTHexCellData::bBlocksMovement`, che e' gia' in entrambi.
+ */
+USTRUCT(BlueprintType)
+struct FRTNoWalkArea
+{
+	GENERATED_BODY()
+
+	/**
+	 * I vertici, in ordine. ⚠️ **Sotto i tre non e' un poligono**, e la copertura risponde `false` invece di
+	 * interrogare l'appartenenza su una degenerazione — un poligono di due vertici non ha un «dentro».
+	 *
+	 * 🔑 **Due vertici possono essere lo STESSO PUNTO pur essendo `FRTAnchorRef` diversi** ([D-288],
+	 * `GEO-5`): un vertice ha fino a tre nomi, un punto medio due. La regione che ne nasce non chiude nulla,
+	 * ed e' la regola `ERTMapValidationReason::NoWalkAreaDegenerate` — che percio' NON puo' essere scritta
+	 * con `operator==`, ma con `URTGeometryGrammarLibrary::AnchorPoint` sul reticolo intero.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	TArray<FRTAnchorRef> Vertices;
+
+	/**
+	 * Il piano su cui la regione vive. 🔴 **Non e' ridondante con le celle dei vertici, ed e' la correzione
+	 * di un difetto trovato in code review prima di scrivere il codice**: `AxialToWorld` mette il layer
+	 * interamente nella `Z` — `Wx` e `Wy` dipendono solo da `q` e `r` — quindi un test di appartenenza 2D
+	 * **non distingue i piani**, e una regione al piano terra chiuderebbe le celle impilate sopra. Sull'arena
+	 * committata e' raggiungibile: tre celle del layer 1 stanno sopra celle del layer 0.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 Layer = 0;
+
+	/**
+	 * Nome PUBBLICO della regione. ⚠️ **Obbligatorio, a differenza del muro interno**: l'handle di un muro
+	 * regge sul suo `FRTGeometrySegment` quando lo `StableId` manca, mentre la lista di vertici di una
+	 * regione **cambia col vertex-edit**, che e' precisamente l'operazione a cui un handle deve sopravvivere.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FName StableId;
+};
+
+/**
+ * UNA SCATOLA GRIGIA: pilastri, casse, blocchi, massa architettonica (`#1866`, [D-440]).
+ *
+ * 🔑 **Le proprieta' tattiche sono DICHIARATE, non dedotte dalla forma.** E' il non-goal centrale della
+ * issue e il divieto di `D-271` per la copertura: che un volume sia alto non dice se ripara, che sia largo
+ * non dice se occupa. Cinque campi, cinque domande — e qui ce ne sono **tre**, per la ragione scritta sotto.
+ *
+ * ⚠️ **Occupa la cella INTERA, in `v0.1`** ([D-440]). L'ingombro parziale non e' esprimibile senza toccare
+ * il corto circuito del centro in `ComputeMask` — che e' deliberato (`bCoreBlocked`) e ha sette consumatori
+ * — quindi la v0.1 lo lascia fuori con l'innesco nominato nella decisione.
+ *
+ * ⛔ **Fuori da `ComputeHash` e da `RTMatchStateHash`** ([D-440]): un dato di **authoring** che cuoce dentro
+ * campi runtime ne resta fuori, perche' il suo effetto viaggia attraverso `bBlocksMovement` e
+ * `bBlocksLineOfSight`, che sono gia' in entrambi i digest. E' lo stesso criterio di `FRTNoWalkArea`.
+ */
+USTRUCT(BlueprintType)
+struct FRTBoxVolume
+{
+	GENERATED_BODY()
+
+	/** La cella occupata. In `v0.1` il volume sta in una cella sola: `D-440`. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FRTCellId Cell;
+
+	/**
+	 * Il livello di copertura DICHIARATO. `D-271` congela il vocabolario a tre valori, quindi un livello
+	 * fuori da `None`/`Low`/`High` **non e' rappresentabile** — che e' un'AC di `#1866` soddisfatta dal
+	 * tipo, non da una validazione.
+	 *
+	 * ⚠️ **Dichiarato e non ancora cotto**: il volume non genera `FRTHexCover` in questa fetta. La giuntura
+	 * ha un nome — la cottura che oggi scrive le coperture con `bGenerated = true` in `RTGeometryBake.cpp`
+	 * — e un volume che vi entrasse sarebbe un **secondo generatore** accanto alla geometria, che e' la
+	 * forma di difetto che `D-439` ha appena evitato per la calpestabilita'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	ERTHexCoverType CoverLevel = ERTHexCoverType::None;
+
+	/**
+	 * Il volume interrompe la linea di vista e di tiro.
+	 *
+	 * 🔴 **Dichiarato e non ancora cotto, e la ragione e' misurata**: `FRTHexCellData::bBlocksLineOfSight`
+	 * ha **molti** lettori di produzione — il tiro, la vista, i criteri d'arena, l'overlay, i due digest —
+	 * e due di essi vivono in file che questa serie non possiede. ∴ la via della **consultazione**, che per
+	 * la calpestabilita' funziona perche' `WhyNotStandable` e' una sede sola, qui non scala.
+	 *
+	 * ⛔ **E la via della cottura chiede un campo che non esiste**: `bBlocksLineOfSight` **non ha un bit di
+	 * provenienza**, a differenza di `bBlocksMovement` che ha `bMovementBlockGenerated` (`D-131`). Senza,
+	 * un volume che lo scrivesse sarebbe indistinguibile da una scelta d'autore, e cancellarlo non potrebbe
+	 * restituire niente — proprio il difetto che la provenienza esiste per impedire.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	bool bBlocksLineOfSight = false;
+
+	/**
+	 * Nome PUBBLICO del volume, con la disciplina di `FRTHexDoor::StableId` (`E23.3`). `NAME_None` e'
+	 * l'anonimo, ed e' legittimo: a differenza della regione No-Walk, un volume ha una **chiave naturale**
+	 * di riserva — la cella in cui sta — quindi l'handle regge anche senza nome.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FName StableId;
+};
+
 #if WITH_EDITOR
 /** L'asset e' cambiato per una via che i chiamanti non controllano (undo/redo, editing dal suo editor). */
 DECLARE_MULTICAST_DELEGATE(FRTHexMapAssetChanged);
@@ -169,9 +318,11 @@ struct FRTInteractionBinding
  * impara a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un validator che deve
  * essere leggibile da chi disegna.
  *
- * ⚠️ **Copre solo le regole di `#1832`.** Le segnalazioni piu' vecchie di `ValidateMap` — cella duplicata,
- * costo negativo, copertura a integrita' zero, transizione ridondante — restano righe testuali senza
- * codice: darglielo adesso significherebbe classificarne una ventina in una issue che non le possiede.
+ * ⚠️ **Copre le regole di `#1832` e quella di `#2404`, non tutto `ValidateMap`.** Le segnalazioni piu'
+ * vecchie — cella duplicata, costo negativo, copertura a integrita' zero, transizione ridondante — restano
+ * righe testuali senza codice: darglielo significherebbe classificarne una ventina in una issue che non le
+ * possiede. Una regola NUOVA invece nasce con il suo codice, ed e' il motivo per cui `IsolatedLanding` e'
+ * qui invece che in una stringa.
  */
 UENUM()
 enum class ERTMapValidationReason : uint8
@@ -206,7 +357,102 @@ enum class ERTMapValidationReason : uint8
 	 * `ERTGeometryViolation::DuplicateSegment` lo rifiuta **a monte**, ma una collezione ricostruita —
 	 * migrazione, merge, incolla — puo' reintrodurlo.
 	 */
-	DuplicateCoverSource
+	DuplicateCoverSource,
+
+	/**
+	 * REGOLA 6 — l'ATTERRAGGIO di un bordo aperto e' **staticamente isolato** (`#2404`, [D-332],
+	 * `spec-caduta-e-bordi.md` §7): si cade su quella cella, e da li' non e' raggiungibile nessuna
+	 * alternativa statica valida — esistente, legalmente occupabile, non `Void`, topologicamente
+	 * raggiungibile dall'atterraggio.
+	 *
+	 * 🔑 **Errore e non warning, a differenza del parapetto inerte.** Il parapetto su un bordo connesso e' un
+	 * warning perche' non cambia NESSUN esito — da li' non si cadeva comunque, la voce e' inerte — e perche'
+	 * una mappa puo' crescergli attorno restando corretta. Qui la segnalazione non e' mai vacua: dice che da
+	 * quella cella, allo stato **autorato**, non esce nessun passo, e che nessuna caduta che finisca li'
+	 * potra' mai usare l'alternativa del §4.2.
+	 *
+	 * ⚠️ **Non e' «isolamento della geometria contro isolamento di stato», e la distinzione non reggerebbe:**
+	 * porta chiusa e arco spento **contano**, perche' `spec-caduta-e-bordi.md` §2 mette la porta chiusa nella
+	 * riga *bloccante* accanto a muro e copertura alta, e CP 9.4 dichiara che un arco spento rende *«le due
+	 * celle irraggiungibili l'una dall'altra»*. Il criterio e' *cio' che la mappa autora*, che e' anche la
+	 * ragione per cui l'occupazione — autorata da nessuno — resta fuori.
+	 *
+	 * ⛔ **E misura l'adiacenza nel grafo, non una raggiungibilita' estesa**: una cella d'atterraggio con UNA
+	 * uscita che porta in una sacca chiusa intrappola come una con zero uscite, e questa regola non la vede.
+	 * E' il §4.2 del resolver visto un momento prima, non un'analisi di fuga.
+	 *
+	 * ⚠️ **Non rimuove il ripiego del §4.3, e non lo anticipa.** Muri, bordi e unita' creati IN PARTITA
+	 * possono chiudere un'area nata valida: sono due garanzie in due momenti, e questa dice soltanto che la
+	 * mappa non parte gia' chiusa. Per la stessa ragione il verdetto **non guarda l'occupazione a runtime**:
+	 * una cella libera adesso non e' una promessa, e una occupata adesso non e' un difetto d'authoring.
+	 *
+	 * ⛔ **Nessuna correzione automatica.** Il validator segnala; aprire un passaggio o mettere un parapetto
+	 * sul bordo che scarica li' e' una scelta d'autore, e sceglierla qui sarebbe la seconda autorita' che
+	 * `AGENTS.md` §3 vieta.
+	 */
+	IsolatedLanding,
+
+	/**
+	 * REGOLA 7 — una transizione di `Kind == Stair` i cui estremi distano **due o piu' layer** (`#1869`).
+	 * In `v0.1` una scala collega solo piani adiacenti: una `L0 <-> L2` e' un passaggio che il grafo offre e
+	 * che il vocabolario della v0.1 non sa esprimere.
+	 *
+	 * 🔑 **Errore e non warning, e il precedente che lo detta e' il fratello nello stesso ciclo** — `arco con
+	 * integrita' ancora attivo`, il cui commento dice *«il grafo lo offrirebbe»*. E' identica: il grafo offre
+	 * cio' che il contenuto nega. Le due sole `Warning` di `ValidateMap` poggiano entrambe su *«inerte, non
+	 * cambia nessun esito»* — la copertura ridondante e il parapetto su un bordo connesso — e una scala
+	 * percorsa non e' inerte: `URTHexArcLibrary::IsArcTraversable` la offre, il pathfinding la cammina, e
+	 * `bConductsElectricity` le fa risalire l'elettricita'.
+	 *
+	 * ⚠️ **`Cell` porta l'ORIGINE dell'arco** (`From`), che non e' la stessa cosa dell'estremo basso: un
+	 * arco e' direzionale, e in discesa `From` e' la cima. Non c'e' una cella colpevole sola.
+	 *
+	 * 🔴 **Una scala bidirezionale si segnala DUE volte, una per verso, e va saputo prima di interrogare
+	 * per cella.** `AddTransition` scrive i due archi reciproci quando `bBidirectional` — che e' il default
+	 * di entrambe le superfici di authoring — quindi una `L0 <-> L2` autorata normalmente produce due voci,
+	 * ancorate ai due estremi. **Non e' un difetto ed e' deliberato**: ogni arco e' percorribile per conto
+	 * suo, e le altre regole delle transizioni si comportano identicamente (solo la `duplicata` emette una
+	 * volta sola, e ha un commento che lo dichiara perche' e' l'eccezione).
+	 * `RefactorTactics.HexMap.StairSkipIsSignalledOnBothVerses` lo pinna, cosi' chi un giorno volesse una
+	 * voce sola sappia che ne sta togliendo una invece di scoprirlo da un conteggio.
+	 *
+	 * 🔴 **E' la PRIMA regola che appoggia una validazione su `ERTHexTransitionKind`**, che `RTHexCellData.h`
+	 * documenta come *«informativo: non altera il pathfinding, che usa solo Cost»*. Quel campo acquista qui
+	 * il suo primo carico semantico: chi lo legge come decorativo trovera' un valore che rifiuta gesti.
+	 *
+	 * ⛔ **La soglia e' `v0.1` e la sua revisione e' una domanda aperta, non un ricordo**: `MAP-5` in
+	 * `docs/OPEN_DECISIONS.md` — *«una rampa o un ascensore possono saltare un piano, e la scala no?»* — con
+	 * innesco la prima issue che autora un `Ramp` o un `Elevator` su piu' di un piano. Il predicato e
+	 * l'innesco meccanico che lo pinna stanno in `URTHexArcLibrary::IsTransitionLayerSpanLegal`.
+	 */
+	StairSkipsLayer,
+
+	/**
+	 * REGOLA 8 — una regione No-Walk **degenere**: due vertici nello stesso punto, oppure area nulla
+	 * (`#1868`).
+	 *
+	 * 🔑 **«Stesso punto» non e' `FRTAnchorRef::operator==`, ed e' tutta la regola.** Un vertice ha fino a
+	 * **tre** nomi e un punto medio **due** ([D-288], `GEO-5`), quindi un anello i cui riferimenti sono
+	 * tutti distinti puo' avere due vertici sovrapposti. La domanda la decide
+	 * `URTGeometryGrammarLibrary::AnchorPoint` sul reticolo intero: esatta, e senza la soglia che un
+	 * confronto fra `FVector2D` avrebbe richiesto.
+	 *
+	 * ⚠️ **Errore e non avviso.** Una regione degenere non chiude nessuna cella — l'area e' nulla — quindi
+	 * l'autore ha disegnato qualcosa che non fa niente, e crederlo fatto e' peggio che vederselo rifiutare.
+	 */
+	NoWalkAreaDegenerate,
+
+	/**
+	 * REGOLA 9 — una regione No-Walk i cui lati **si attraversano** (`#1868`).
+	 *
+	 * ⚠️ **Non e' un rifiuto estetico: cambia quali celle la regione chiude, in silenzio.** Il ray casting
+	 * conta gli attraversamenti, quindi in un anello a otto il lobo interno si **cancella** — l'autore vede
+	 * due lobi e ne ottiene uno solo, senza nessun segnale.
+	 *
+	 * ⛔ **I lati ADIACENTI non contano**: condividono un vertice per costruzione. Un anello che ripassa su
+	 * se' stesso e' `NoWalkAreaDegenerate`, ed e' la ragione per cui le due regole sono due.
+	 */
+	NoWalkAreaSelfIntersecting
 };
 
 /**
@@ -287,7 +533,7 @@ public:
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 16;
+	static constexpr int32 CurrentFormatVersion = 18;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -354,6 +600,33 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTHexInteriorWall> InteriorWalls;
+
+	/**
+	 * LE REGIONI NO-WALK (`#1868`, [D-439]): «qui non si sta e non si passa», dichiarato come **regione** e
+	 * non ridipinto cella per cella.
+	 *
+	 * 🔑 **Nessuno le cuoce dentro le celle: `DeriveStandability` le CONSULTA**, ed e' il punto della
+	 * decisione. Un secondo produttore di `bBlocksMovement` avrebbe dovuto condividere
+	 * `bMovementBlockGenerated` — che e' **un bit** — col produttore geometrico, e il ramo che libera la
+	 * cella avrebbe cancellato il veto di una regione al primo ribake estraneo, in silenzio. Consultando,
+	 * un ribake **richiude** invece di perdere, e cancellare la regione libera le celle da se' senza
+	 * nessun codice di ripristino.
+	 *
+	 * ⚠️ **Le sovrapposizioni sono LEGALI** ([D-439]): due regioni possono coprire la stessa cella, e
+	 * l'unica AC di `#1868` che parlasse di sovrapposizioni illegali contraddiceva quella che parla di
+	 * celle *«che non hanno altri motivi per essere chiuse»*.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FRTNoWalkArea> NoWalkAreas;
+
+	/**
+	 * I VOLUMI A SCATOLA (`#1866`, [D-440]): pilastri, casse, blocchi.
+	 *
+	 * 🔑 **Consultati, non cotti**, come le regioni No-Walk e per la stessa ragione: un terzo produttore di
+	 * `bBlocksMovement` dovrebbe condividere un bit di provenienza che ne regge uno solo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FRTBoxVolume> BoxVolumes;
 
 	/** Transizioni esplicite (archi verticali/speciali): scale, rampe, ponti, tunnel, ascensori. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
@@ -664,6 +937,22 @@ public:
 
 	/** Invalida la cache e notifica gli osservatori: dopo un undo i dati sono cambiati sotto i piedi a tutti. */
 	virtual void PostEditUndo() override;
+
+	/**
+	 * L'AUTORAGGIO passa di qui, e prima non passava da nessuna parte (#1317, `D-430`).
+	 *
+	 * 🔴 **Il default di `Integrity` derivava dal tipo solo attraverso il costruttore C++.** Chi aggiunge una
+	 * entry `Covers` dal pannello dei dettagli non lo chiama: la struct nasce da `FRTHexCover()` — `Low`/30 —
+	 * e cambiando `Type` in `High` nulla ricalcolava, perche' questa classe non aveva un
+	 * `PostEditChangeProperty`. `ValidateMap` non lo vedeva: la sua guardia e' `Integrity <= 0`, e `30` la
+	 * passa. ∴ sotto `D-186` quella copertura si leggeva **«ridotta»** appena nata.
+	 *
+	 * ⚠️ **Si override la variante CHAIN, non `PostEditChangeProperty`**, ed e' l'unica che funziona qui:
+	 * `Covers` e' un array dentro l'array `Cells`, e la catena e' l'unica via da cui arriva **quale** entry
+	 * l'autore ha toccato. La regola vive in `FRTHexCover::RealignedIntegrity`, che e' pura e provata
+	 * headless: qui si decide solo **quando** applicarla.
+	 */
+	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 
 private:

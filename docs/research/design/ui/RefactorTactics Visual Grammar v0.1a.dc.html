@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#080B10; }
+  a { color:#35E0C4; text-decoration:none; }
+  a:hover { color:#7CF0DE; }
+  @keyframes flow { to { stroke-dashoffset:-20; } }
+</style>
+</helmet>
+<div style="width:1440px;margin:0 auto;background:#0A0E14;color:#E6EDF4;font-family:'Azeret Mono',monospace;padding:0 0 96px">
+
+  <div style="padding:56px 56px 36px;border-bottom:1px solid #232C38">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px">
+      <div>
+        <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.24em;color:#35E0C4;margin-bottom:18px">STEP 01b · V0.1a NORMATIVA · CHANNEL ALLOCATION + NAMESPACE · B1 B2 B3 RISOLTI</div>
+        <h1 style="margin:0;font:400 60px/.98 Oswald,sans-serif;letter-spacing:.01em;text-transform:uppercase">Un asse<br /><span style="color:#56626F">per ogni canale</span></h1>
+        <p style="margin:22px 0 0;max-width:760px;font:400 13.5px/1.75 'Azeret Mono',monospace;color:#8D9BAB;text-wrap:pretty">Questo documento non contiene icone. Contiene le regole che le icone dovranno rispettare. È normativo: dove la v0.1 e questa v0.1a divergono, <span style="color:#E6EDF4">vince la v0.1a</span>. La v0.1 resta come archivio del vocabolario, non come specifica.</p>
+      </div>
+      <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38;flex-shrink:0;min-width:270px">
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Canali normati</span><span style="color:#E6EDF4">10</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Namespace definiti</span><span style="color:#E6EDF4">7</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#3FD08A"><span>Collisioni risolte</span><span>9</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#3FD08A"><span>Blocker residui</span><span>0</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#8D9BAB"><span>Deferred</span><span style="color:#E6EDF4">1</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:400 11.5px 'Azeret Mono',monospace;color:#FFC24A"><span>Da testare in UE5</span><span>5</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHANNEL ALLOCATION MATRIX -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">A</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Channel Allocation Matrix</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Ogni canale porta <span style="color:#8D9BAB">un solo</span> significato principale. Nessun canale può essere richiamato da un secondo asse, nemmeno "come rinforzo", se non nella colonna consentita.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#0A0E14;border-bottom:1px solid #232C38;font:500 10.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em">
+        <div style="padding:12px 16px">CANALE</div><div style="padding:12px 16px">ASSE ESCLUSIVO</div><div style="padding:12px 16px">VALORI AMMESSI</div><div style="padding:12px 16px">VIETATO / CONFLITTO RISOLTO</div><div style="padding:12px 16px;text-align:right">TOKEN</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">GLYPH SILHOUETTE</div>
+        <div style="padding:15px 16px;color:#35E0C4">Significato semantico<br /><span style="color:#56626F">che cosa è l'azione</span></div>
+        <div style="padding:15px 16px">Un glifo per voce del catalogo semantico. Riconoscibile in monocromia, a 16 px, senza contenitore.</div>
+        <div style="padding:15px 16px">Il glifo non cambia mai per stato: <span style="color:#E6EDF4">Attack disabled resta Attack</span>. Vietato produrre varianti di silhouette per Selected / Cooldown / Invalid.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Glyph.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">CONTAINER SHAPE</div>
+        <div style="padding:15px 16px;color:#35E0C4">Ruolo compositivo della skill<br /><span style="color:#56626F">che tipo di fatto è</span></div>
+        <div style="padding:15px 16px">Core (nessun contenitore) · Intrinsic (esagono) · Cost (cerchio) · ExternalModifier (quadrato) · SkillModifier (rombo) · Condition (gradino).</div>
+        <div style="padding:15px 16px">Valido <span style="color:#E6EDF4">solo in screen-space</span>. Nel world overlay le stesse forme hanno semantica spaziale: vedi Shape Namespace Matrix.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Slot.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">STROKE DUTY CYCLE</div>
+        <div style="padding:15px 16px;color:#35E0C4">Certezza<br /><span style="color:#56626F">quanto è sicuro l'esito</span></div>
+        <div style="padding:15px 16px">Tre soli valori: <span style="color:#E6EDF4">100%</span> confermato · <span style="color:#E6EDF4">58%</span> previsto (9-6) · <span style="color:#E6EDF4">22%</span> incerto (2-7). Nessun quarto valore, nessuna interpolazione.</div>
+        <div style="padding:15px 16px">Il tratteggio non codifica più proprietario, tipo di movimento, asse di tiro né invalido. Sotto 24 px la certezza si sposta sul <span style="color:#E6EDF4">bordo del container</span>, mai sul glifo.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Certainty.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">STROKE WIDTH</div>
+        <div style="padding:15px 16px;color:#35E0C4">Gerarchia / focus<br /><span style="color:#56626F">quanto conta ora</span></div>
+        <div style="padding:15px 16px">World: primario 3.5 · secondario 2.5 · terziario 1.5. HUD: 2 px @24, 2.5 px @32. Tre livelli, mai di più.</div>
+        <div style="padding:15px 16px">Vietato usare lo spessore per <span style="color:#E6EDF4">distinguere gli alleati fra loro</span> (era la regola v0.1) e per il tipo di movimento: quello passa al terminale e ai nodi.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Width.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">OPACITY</div>
+        <div style="padding:15px 16px;color:#35E0C4">Disabled / de-emphasis<br /><span style="color:#56626F">solo questo</span></div>
+        <div style="padding:15px 16px">100% attivo · 55% de-emphasized (fuori focus) · 30% disabled. Tre gradini.</div>
+        <div style="padding:15px 16px">Vietata per la certezza (era 100/78/42 in v0.1), per la priorità P0–P3 e per il cooldown. Il cooldown passa al riempimento del ring Cost.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Opacity.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">HUE</div>
+        <div style="padding:15px 16px;color:#35E0C4">Rinforzo contestuale<br /><span style="color:#56626F">mai portante</span></div>
+        <div style="padding:15px 16px">Relazione (self / ally / enemy / neutral / objective) e famiglia di severity. <span style="color:#E6EDF4">Il bianco #E6EDF4 non è un hue semantico</span>: è foreground neutro e massimo contrasto, nient'altro.</div>
+        <div style="padding:15px 16px">Nessun hue per la certezza, per l'urgenza, per l'interattività, per un singolo concetto di gameplay. <span style="color:#E6EDF4">B2 risolto</span>: bianco ≠ urgente, ≠ interattivo, ≠ alleato, ≠ confermato. La semantica sopravvive in monocromia al 100%.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Hue.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">NODE / LETTER MARKER</div>
+        <div style="padding:15px 16px;color:#35E0C4">Identità del piano alleato<br /><span style="color:#56626F">di chi è</span></div>
+        <div style="padding:15px 16px">Hue viola condiviso da tutti gli alleati + marker locale sul nodo: 1–3 tacche sul perimetro in world-space, lettera A/B/C in screen-space e su hover.</div>
+        <div style="padding:15px 16px">Vietato distinguere gli alleati con hue diversi, con spessori diversi o con livelli di opacità diversi.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">TeamPlan.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">PATTERN / FILL</div>
+        <div style="padding:15px 16px;color:#35E0C4">Stato materiale dell'ambiente<br /><span style="color:#56626F">com'è il terreno</span></div>
+        <div style="padding:15px 16px">Griglia di punti a densità e forma variabile, proiettata in screen-space. Un solo pattern per superficie, massimo due sovrapposti.</div>
+        <div style="padding:15px 16px">Vietato usare il pattern per l'invalido (che passa a hatch dedicato del container), per la certezza e per la relazione.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Environment.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">SOURCE GLYPH</div>
+        <div style="padding:15px 16px;color:#35E0C4">Provenienza dell'informazione<br /><span style="color:#56626F">come lo so</span></div>
+        <div style="padding:15px 16px">Quattro glifi minimi (5×5 px di area viva) agganciati al marker Intel: Observed · Heard · Inferred · LastKnown. Un solo glifo per marker.</div>
+        <div style="padding:15px 16px"><span style="color:#E6EDF4">B1 risolto</span>: la provenienza non usa hue, non usa duty cycle, non usa forma del container, non usa opacità. Non appartiene alla composizione Skill: <span style="color:#E6EDF4">non consuma il budget</span>.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">IntelSource.*</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 190px 1fr 1fr 96px;background:#121822;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;color:#E6EDF4">AFFORDANCE TREATMENT</div>
+        <div style="padding:15px 16px;color:#35E0C4">Interattività<br /><span style="color:#56626F">posso agire su questo</span></div>
+        <div style="padding:15px 16px">Contorno di affordance + glifo di interazione + trattamento hover/focus (offset di 2 px del contorno, nessun glow). Tre stati: idle · hover · focus.</div>
+        <div style="padding:15px 16px">Vietato comunicare l'interattività con un hue, incluso il bianco. Vietato il glow permanente. L'urgenza si comunica con Warning.* + severity treatment, non con questo canale.</div>
+        <div style="padding:15px 16px;text-align:right;color:#56626F">Affordance.*</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:16px 20px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Canali residui non assegnati, da tenere liberi.</span> <span style="color:#56626F">MOTO</span> → solo rinforzo di Certainty.Predicted (flow 1400 ms), mai unico portatore: la certezza deve leggersi su fermo immagine. <span style="color:#56626F">SEVERITY TREATMENT</span> → contenitore del warning (bordo, hatch, ancoraggio): rinforzabile con ambra/rosso, mai colore da solo. <span style="color:#56626F">SUONO (audio)</span> → non ancora normato.</div>
+  </div>
+
+  <!-- SHAPE NAMESPACE MATRIX -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">B</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Shape Namespace Matrix</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:560px">La stessa forma può esistere sulle due superfici solo se <span style="color:#8D9BAB">non possono mai apparire nello stesso spazio di lettura</span>. Screen-space è ortogonale, world-space è in proiezione: questa è la regola che rende la coabitazione lecita.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 10.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em">
+        <div style="padding:12px 16px">FORMA</div><div style="padding:12px 16px">SCREEN-SPACE · Slot.*</div><div style="padding:12px 16px">WORLD-SPACE · overlay</div><div style="padding:12px 16px">REGOLA DI DISAMBIGUAZIONE</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><circle cx="15" cy="15" r="11" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Slot.Cost<br /><span style="color:#8D9BAB">costo, cooldown, charges. Cerchio pieno-progressivo, mai tratteggiato.</span></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Area di effetto<br /><span style="color:#8D9BAB">solo come ellisse in proiezione, ancorata al terreno.</span></div>
+        <div style="padding:15px 16px;color:#3FD08A">Quattro geometrie separate e non intercambiabili: cerchio ortogonale a riempimento = <span style="color:#E6EDF4">Slot.Cost</span> (solo HUD) · regione chiusa in proiezione = <span style="color:#E6EDF4">AoE</span> · anello in 4 settori = <span style="color:#E6EDF4">UnitAnchor</span> (approvato, ospita il facing) · archi concentrici aperti = <span style="color:#E6EDF4">Sound</span>, mai un cerchio chiuso. <span style="color:#E6EDF4">B3 risolto</span>.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><path d="M15 4 L25 10 V20 L15 26 L5 20 V10 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Slot.Intrinsic<br /><span style="color:#8D9BAB">proprietà strutturale della skill, max 3.</span></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Dispositivo interattivo<br /><span style="color:#8D9BAB">porta, ascensore, ponte, tunnel, leva — <span style="color:#3FD08A">senza eccezioni</span>.</span></div>
+        <div style="padding:15px 16px;color:#3FD08A">L'esagono è il contenitore obbligatorio di ogni dispositivo interattivo su entrambe le superfici; l'interattività la comunica il <span style="color:#E6EDF4">trattamento di affordance</span> (contorno + hover), non un hue. Il glifo interno dice quale dispositivo: la v0.1 disegnava porta e tunnel come rettangoli, comportamento ora vietato.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><rect x="6" y="6" width="18" height="18" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Slot.ExternalModifier<br /><span style="color:#8D9BAB">modificatore contestuale, max 2.</span></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Cella di griglia, destinazione<br /><span style="color:#8D9BAB">solo in proiezione, sempre a terra.</span></div>
+        <div style="padding:15px 16px;color:#3FD08A">Quadrato ortogonale = modificatore. Quadrilatero deformato dalla prospettiva = cella. Nessun quadrato ortogonale è ammesso nel world overlay.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><path d="M15 4 L26 15 L15 26 L4 15 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Slot.SkillModifier<br /><span style="color:#8D9BAB">modificatore attivo, max 1.</span></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Obiettivo / valore di punteggio<br /><span style="color:#8D9BAB">unico uso: il rombo-porta della v0.1 è abolito.</span></div>
+        <div style="padding:15px 16px;color:#3FD08A">Il rombo nel mondo è <span style="color:#E6EDF4">sempre ambra</span> e sempre ancorato a un obiettivo; nell'HUD è sempre neutro e sempre adiacente al Core. Le transizioni strutturali passano tutte all'esagono.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><path d="M15 5 L26 24 H4 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#E6EDF4">Slot.Condition<br /><span style="color:#8D9BAB">trigger, requisito, "se… allora". Max 1.</span></div>
+        <div style="padding:15px 16px;color:#FF8A2B">Warning.* — pericolo<br /><span style="color:#8D9BAB">hazard, collisione, area minacciata.</span></div>
+        <div style="padding:15px 16px;color:#3FD08A">Namespace separati, quindi coabitazione lecita: <span style="color:#E6EDF4">Slot.Condition resta triangolo</span> in screen-space, adiacente al Core e sempre neutro; <span style="color:#E6EDF4">Warning.FriendlyFire non usa il triangolo come significato principale</span> ma un glifo semantico autonomo (traiettoria che incrocia una sagoma alleata). Il triangolo, quando appare in Warning.*, è solo severity treatment del contenitore.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><path d="M5 22 H14 V13 H25" fill="none" stroke="#E6EDF4" stroke-width="2.4" /><rect x="21.6" y="9.6" width="6.8" height="6.8" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#8D9BAB">DEFERRED — non in uso<br /><span style="color:#56626F">candidato per Slot.Condition.</span></div>
+        <div style="padding:15px 16px;color:#8D9BAB">DEFERRED — non in uso</div>
+        <div style="padding:15px 16px;color:#FFC24A"><span style="color:#E6EDF4">DEFERRED.</span> Il glifo a gradino resta in riserva e si introduce solo se la validazione dimostra una collisione reale fra Slot.Condition (triangolo neutro nello slot) e il severity treatment di Warning.*. Nessun asset da produrre in STEP 02.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:96px 1fr 1fr 1fr;background:#121822;font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:15px 16px;display:flex;align-items:flex-start;justify-content:center"><svg width="28" height="28" viewBox="0 0 30 30"><path d="M8 24 L15 8 L22 24" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:15px 16px;color:#8D9BAB">Non ammesso come slot.</div>
+        <div style="padding:15px 16px;color:#E6EDF4">Vettore: movimento, direzione, facing<br /><span style="color:#8D9BAB">solo world-space e dock d'azione.</span></div>
+        <div style="padding:15px 16px;color:#3FD08A">Il chevron resta esclusivo del movimento. Il facing non usa chevron propri: è un <span style="color:#E6EDF4">settore sull'anello dell'unità</span> (pieno = corrente, vuoto = previsto, tacche = legali).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CERTAINTY -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">C</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Certainty · duty cycle, non opacità</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Tutte le strisce qui sotto sono a <span style="color:#8D9BAB">opacità 100% e hue unico</span>. Se i tre stati si distinguono in queste condizioni, la regola tiene senza aiuti.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">WORLD SCALE · spessore 3.5 px</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 520 160" style="width:100%;height:auto;display:block">
+            <rect width="520" height="160" fill="#131C24" />
+            <g stroke="#E6EDF4" stroke-width="3.5" fill="none">
+              <path d="M120 16 H500" />
+              <path d="M120 52 H500" stroke-dasharray="9 6" style="animation:flow 1.4s linear infinite" />
+              <path d="M120 88 H500" stroke-dasharray="2 7" />
+              <path d="M120 122 H500" stroke-dasharray="2.5 6.5" />
+            </g>
+            <g fill="#8D9BAB" font-size="11" font-family="Azeret Mono, monospace">
+              <text x="12" y="12">CONFIRMED</text><text x="12" y="56">PREDICTED</text><text x="12" y="92">UNCERTAIN</text><text x="12" y="126" fill="#FFC24A">ALT_UNCERT.</text>
+            </g>
+            <g fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">
+              <text x="12" y="26">duty 100%</text><text x="12" y="70">duty 58% · 9-6</text><text x="12" y="106">duty 22% · 2-7</text><text x="12" y="140" fill="#FFC24A">duty 28% · 2.5-6.5</text>
+            </g>
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">Il rapporto fra i tre duty cycle è di circa 1 : 0.6 : 0.22, cioè oltre il fattore 2 fra livelli adiacenti: la soglia sotto cui due ritmi diventano indistinguibili in visione periferica. In UE5 è <span style="color:#E6EDF4">un solo parametro scalare</span> del materiale del tracciato. <span style="color:#FFC24A">Nessun valore è congelato</span>: 22% è candidato, <span style="color:#FFC24A">ALT_UNCERTAIN 28%</span> è il fallback da confrontare al test 16 px, dove il 22% rischia di collassare in 3 punti.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">HUD SCALE · la certezza passa al container</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 340 130" style="width:100%;height:auto;display:block">
+            <rect width="340" height="130" fill="#131C24" />
+            <g fill="none" stroke="#E6EDF4">
+              <rect x="18" y="26" width="40" height="40" stroke-width="2" />
+              <rect x="106" y="26" width="40" height="40" stroke-width="2" stroke-dasharray="9 6" />
+              <rect x="194" y="26" width="40" height="40" stroke-width="2" stroke-dasharray="2 7" />
+              <rect x="278" y="26" width="40" height="40" stroke-width="2" stroke-dasharray="2.5 6.5" stroke="#FFC24A" />
+              <path d="M26 58 L38 38 L50 58" stroke-width="2" /><path d="M114 58 L126 38 L138 58" stroke-width="2" /><path d="M202 58 L214 38 L226 58" stroke-width="2" /><path d="M286 58 L298 38 L310 58" stroke-width="2" />
+            </g>
+            <g fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">
+              <text x="18" y="84">100%</text><text x="106" y="84">58%</text><text x="194" y="84">22%</text><text x="278" y="84" fill="#FFC24A">28% ALT</text>
+              <text x="18" y="100">glifo intatto in tutti i casi</text>
+              <text x="18" y="116">la certezza vive sul bordo del container</text>
+            </g>
+            <text x="18" y="124" fill="#3FD08A" font-size="0" font-family="Azeret Mono, monospace"> </text>
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">Sotto 24 px un duty cycle del 22% su un glifo produce 3 punti e legge come artefatto. Applicandolo al <span style="color:#E6EDF4">bordo del container</span> il perimetro è più lungo, il ritmo resta misurabile e il glifo resta un asset unico — che è esattamente il vincolo G.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUDGET -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">D</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Budget compositivo</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:560px">1 Core + massimo 3 satelliti visibili. Il tetto è sul <span style="color:#8D9BAB">totale</span>, non per forma: i limiti per forma della bozza precedente ammettevano 8 marker, cioè il Christmas tree che vietavano.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">PRIORITÀ DI VISUALIZZAZIONE DEI SATELLITI</div>
+        <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38">
+          <div style="background:#0A0E14;padding:12px 16px;display:flex;gap:14px;align-items:baseline"><span style="font:500 11px 'Azeret Mono',monospace;color:#FF4D6D;min-width:52px">S1</span><span style="font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Warning attivo</span> — se presente occupa sempre un satellite, nessuna eccezione.</span></div>
+          <div style="background:#0A0E14;padding:12px 16px;display:flex;gap:14px;align-items:baseline"><span style="font:500 11px 'Azeret Mono',monospace;color:#FFC24A;min-width:52px">S2</span><span style="font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Slot.Condition</span> — se la skill ha un trigger, il giocatore deve saperlo prima di sceglierla.</span></div>
+          <div style="background:#0A0E14;padding:12px 16px;display:flex;gap:14px;align-items:baseline"><span style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;min-width:52px">S3</span><span style="font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Slot.SkillModifier</span> attivo — cambia l'effetto adesso.</span></div>
+          <div style="background:#0A0E14;padding:12px 16px;display:flex;gap:14px;align-items:baseline"><span style="font:500 11px 'Azeret Mono',monospace;color:#8D9BAB;min-width:52px">S4</span><span style="font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Slot.ExternalModifier</span> — contesto: copertura, quota, materiale.</span></div>
+          <div style="background:#0A0E14;padding:12px 16px;display:flex;gap:14px;align-items:baseline"><span style="font:500 11px 'Azeret Mono',monospace;color:#56626F;min-width:52px">S5+</span><span style="font:400 11.5px/1.6 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Slot.Intrinsic</span> — collassa in un contatore "+n" e si apre solo su hover (P2).</span></div>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">Regola di overflow: oltre il quarto elemento non si rimpicciolisce nulla, si <span style="color:#E6EDF4">collassa in "+n"</span>. Cost, cooldown e charges non contano nel budget: sono valori numerici in posizione fissa, non satelliti semantici.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">SLOT FISSI · posizioni normate</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 320 190" style="width:100%;height:auto;display:block">
+            <rect width="320" height="190" fill="#131C24" />
+            <rect x="96" y="46" width="100" height="100" fill="none" stroke="#2E3947" stroke-width="1" stroke-dasharray="3 3" />
+            <text x="118" y="100" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">CORE 65–70%</text>
+            <text x="126" y="116" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">GLYPH</text>
+            <circle cx="88" cy="38" r="15" fill="none" stroke="#8D9BAB" stroke-width="2" /><text x="60" y="18" fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace">Slot.Cost</text>
+            <path d="M204 24 L218 32 V48 L204 56 L190 48 V32 Z" fill="none" stroke="#8D9BAB" stroke-width="2" /><text x="226" y="38" fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace">Slot.Intrinsic</text>
+            <rect x="190" y="140" width="26" height="26" fill="none" stroke="#8D9BAB" stroke-width="2" /><text x="226" y="158" fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace">Slot.External</text>
+            <path d="M204 96 L216 108 L204 120 L192 108 Z" fill="none" stroke="#8D9BAB" stroke-width="2" /><text x="226" y="112" fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace">Slot.SkillMod</text>
+            <path d="M74 152 H86 V140 H100" fill="none" stroke="#8D9BAB" stroke-width="2" /><rect x="96" y="136" width="8" height="8" fill="none" stroke="#8D9BAB" stroke-width="2" /><text x="14" y="176" fill="#8D9BAB" font-size="9.5" font-family="Azeret Mono, monospace">Slot.Condition</text>
+            <text x="14" y="118" fill="#FF8A2B" font-size="9.5" font-family="Azeret Mono, monospace">Warning</text>
+            <path d="M62 78 L76 102 H48 Z" fill="none" stroke="#FF8A2B" stroke-width="2" />
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">Posizione = ruolo, quindi la lettura è posizionale prima che iconica. Un quadrante ospita <span style="color:#E6EDF4">un solo</span> satellite: se due slot ricadono nello stesso angolo, vince la priorità S1–S5 e l'altro collassa.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLLISIONS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#3FD08A">E</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Collisioni · risoluzione normativa</h2>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 10.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em"><div style="padding:12px 16px">COLLISIONE</div><div style="padding:12px 16px">DECISIONE</div><div style="padding:12px 16px">PERCHÉ QUESTA E NON L'ALTRA</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">Triangle condition<br />≠ Friendly Fire</div><div style="padding:15px 16px">Namespace separati: <span style="color:#E6EDF4">Slot.Condition resta triangolo</span> (screen-space, neutro, posizione fissa). <span style="color:#E6EDF4">Warning.FriendlyFire diventa un glifo semantico autonomo</span>: traiettoria che incrocia una sagoma alleata. Il glifo a gradino è <span style="color:#FFC24A">DEFERRED</span>.</div><div style="padding:15px 16px">Introdurre una forma nuova prima della validazione crea un asset che potrebbe non servire. Con la posizione fissa nello slot e un glifo autonomo per il friendly fire, la collisione è già disinnescata: se la validazione la riporta, il gradino è pronto.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">Circle AoE ≠ Cooldown<br />≠ Unit Anchor ≠ Sound Ring</div><div style="padding:15px 16px">Quattro geometrie distinte: <span style="color:#E6EDF4">regione chiusa in proiezione</span> (AoE) · <span style="color:#E6EDF4">cerchio ortogonale a riempimento</span> (cost/cooldown, solo HUD) · <span style="color:#E6EDF4">anello in 4 settori</span> (unità + facing) · <span style="color:#E6EDF4">archi concentrici aperti</span> (acustico, mai chiusi).</div><div style="padding:15px 16px">Chiuso vs aperto è una differenza topologica, non stilistica: sopravvive a grayscale, alla rimozione del colore e alla scala. L'anello segmentato doveva comunque nascere per ospitare il facing (vincolo P): una decisione, due problemi risolti.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">White urgency<br />≠ White interactive</div><div style="padding:15px 16px">Il bianco perde ogni semantica: <span style="color:#E6EDF4">foreground neutro e massimo contrasto</span>. L'interattività passa al trattamento di affordance, l'urgenza a Warning.* + severity treatment.</div><div style="padding:15px 16px">Il bianco è la risorsa di contrasto più preziosa dell'interfaccia: assegnarla a un concetto la rende inutilizzabile per la leggibilità generale, ed è il tipo di vincolo che si viola per primo sotto pressione di produzione.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">IntelSource ≠ Certainty</div><div style="padding:15px 16px">Namespace autonomo <span style="color:#E6EDF4">IntelSource.*</span> su un canale proprio (source glyph). Non usa hue, duty cycle, container né opacità, e non consuma il budget compositivo.</div><div style="padding:15px 16px">"Come lo so" e "quanto è sicuro l'esito" variano indipendentemente: un'informazione osservata può produrre una previsione incerta, e un'informazione dedotta può dare un esito certo. Due assi indipendenti richiedono due canali.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">Purple ally ≠ Predicted</div><div style="padding:15px 16px">Il viola è <span style="color:#E6EDF4">solo relazione</span>. Certainty.* non ha hue: i tre stati si mostrano in bianco neutro in legenda, badge e documentazione.</div><div style="padding:15px 16px">La relazione è un fatto permanente, la certezza è transitoria e si applica a ogni relazione: un asse che moltiplica non può occupare il canale di un asse che classifica.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">Gray invalid ≠ Uncertain</div><div style="padding:15px 16px">Invalid abbandona il tratteggio: <span style="color:#E6EDF4">hatch 45° del container + croce</span>, opacità 30% (canale disabled). Uncertain conserva l'hue della relazione e il duty cycle 22%.</div><div style="padding:15px 16px">"Non può succedere" e "forse succede" sono opposti: devono stare su canali diversi, non su gradazioni dello stesso. Invalid appartiene alla famiglia disabled, non a quella dell'incertezza.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">Crimson enemy ≠ Friendly Fire</div><div style="padding:15px 16px">Il cremisi resta <span style="color:#E6EDF4">solo relazione nemica</span>. Warning.FriendlyFire = soggetto in <span style="color:#E6EDF4">viola</span> (resta un alleato) + triangolo + container critico; la gravità è nel contenitore, non nel soggetto.</div><div style="padding:15px 16px">Colorare di rosso un alleato mente sulla relazione per esprimere la gravità. La gravità ha già un canale — il contenitore — e la relazione non ne ha un secondo.</div></div>
+      <div style="display:grid;grid-template-columns:230px 1fr 1fr;background:#121822;font:400 11.5px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 16px;color:#E6EDF4">Hex rule ≠ door/tunnel<br />rettangolari</div><div style="padding:15px 16px">Tutti i dispositivi interattivi si disegnano <span style="color:#E6EDF4">dentro l'esagono</span>, con glifo interno differenziante: porta = battente, ascensore = doppia freccia verticale, ponte = traversine, tunnel = arco.</div><div style="padding:15px 16px">La regola era già dichiarata in v0.1 e violata dal suo stesso catalogo. Mantenere la regola e ridisegnare il catalogo è più economico che indebolire la regola: il contenitore comune è ciò che rende quei quattro elementi cliccabili a colpo d'occhio.</div></div>
+    </div>
+  </div>
+
+  <!-- INTEL SOURCE -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#3FD08A">F</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">IntelSource · provenienza dell'informazione</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:500px">Namespace autonomo. Un glifo minimo dentro il marker Intel, sempre nello stesso quadrante, sempre neutro.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:14px;display:flex;justify-content:center">
+          <svg viewBox="0 0 120 90" style="width:100%;height:auto">
+            <rect width="120" height="90" fill="#131C24" />
+            <g fill="none" stroke="#FF4D6D" stroke-width="2.4"><path d="M40 34V26h8M72 26h8v8M80 56v8h-8M48 64h-8v-8" /></g><circle cx="60" cy="45" r="3" fill="#FF4D6D" />
+            <g stroke="#E6EDF4" stroke-width="2" fill="none"><path d="M84 70 L96 78" /><circle cx="98" cy="79" r="3.4" fill="#E6EDF4" stroke="none" /></g>
+          </svg>
+        </div>
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4">IntelSource.Observed</div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F;margin-top:8px">Linea di vista + punto pieno. Informazione osservata direttamente: posizione esatta, identità nota. È l'unico caso in cui il marker può essere una cella singola.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:14px;display:flex;justify-content:center">
+          <svg viewBox="0 0 120 90" style="width:100%;height:auto">
+            <rect width="120" height="90" fill="#131C24" />
+            <g fill="none" stroke="#96A3B0" stroke-width="2.2"><path d="M34 62 A30 30 0 0 1 86 62" stroke-dasharray="2 7" /><path d="M46 62 A18 18 0 0 1 74 62" stroke-dasharray="2 7" /></g>
+            <g stroke="#E6EDF4" stroke-width="2" fill="none"><path d="M92 72 A7 7 0 0 1 92 84" /><path d="M99 68 A12 12 0 0 1 99 88" /></g>
+          </svg>
+        </div>
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4">IntelSource.Heard</div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F;margin-top:8px">Due archi aperti. Informazione acustica: reale ma incompleta. La geometria mostra <span style="color:#8D9BAB">solo la precisione autorizzata</span>, dal settore alla cella.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:14px;display:flex;justify-content:center">
+          <svg viewBox="0 0 120 90" style="width:100%;height:auto">
+            <rect width="120" height="90" fill="#131C24" />
+            <path d="M30 30 H90 V64 H30 Z" fill="#96A3B0" opacity=".07" /><path d="M30 30 H90 V64 H30 Z" fill="none" stroke="#96A3B0" stroke-width="2.2" stroke-dasharray="2 7" />
+            <g stroke="#E6EDF4" stroke-width="2" fill="none"><path d="M88 72 H104" /><path d="M88 80 H104" stroke-dasharray="3 3" /><path d="M96 68 V84" /></g>
+          </svg>
+        </div>
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4">IntelSource.Inferred</div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F;margin-top:8px">Glifo di deduzione (due tratti, uno pieno uno rotto). Posizione o area dedotta: mai una cella singola, sempre un'area con la sua ampiezza reale.</div>
+      </div>
+      <div style="background:#121822;padding:22px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:16px;margin-bottom:14px;display:flex;justify-content:center">
+          <svg viewBox="0 0 120 90" style="width:100%;height:auto">
+            <rect width="120" height="90" fill="#131C24" />
+            <g fill="none" stroke="#96A3B0" stroke-width="2.2" stroke-dasharray="2 7"><path d="M40 34V26h8M72 26h8v8M80 56v8h-8M48 64h-8v-8" /></g>
+            <circle cx="60" cy="45" r="3" fill="none" stroke="#96A3B0" stroke-width="1.6" />
+            <g stroke="#E6EDF4" stroke-width="2" fill="none"><circle cx="97" cy="78" r="7" /><path d="M97 74 V78 L100 80" /></g>
+          </svg>
+        </div>
+        <div style="font:500 11.5px 'Azeret Mono',monospace;color:#E6EDF4">IntelSource.LastKnown</div>
+        <div style="font:400 10.5px/1.6 'Azeret Mono',monospace;color:#56626F;margin-top:8px">Quadrante orario. Ultima informazione valida: il marker resta dove l'informazione è stata acquisita, con il numero di turni trascorsi come valore, non come dissolvenza.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:18px 22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Regola di onestà.</span> La UI legge <span style="color:#E6EDF4">solo</span> lo stato TeamKnowledge autorizzato. Un'Overwatch nemica mai osservata non ha marker, non ha ghost, non ha ipotesi: l'assenza di informazione si rappresenta con l'assenza di segno. Vietato derivare marker da stato server non condiviso.</div>
+      <div style="background:#121822;padding:18px 22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Indipendenza dai canali.</span> IntelSource non tocca hue (che resta relazione), duty cycle (certezza), container (ruolo compositivo) né opacità (focus). Un nemico può essere Observed + Uncertain o Inferred + Confirmed: le due letture non interferiscono. Il glifo occupa 5×5 px di area viva e non entra nel budget Core + 3.</div>
+    </div>
+  </div>
+
+  <!-- AOE VS SOUND -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#3FD08A">G</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">AoE vs Sound · chiuso contro aperto</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Differenza topologica, non cromatica: le due colonne sono disegnate nello stesso grigio, senza hue e senza opacità.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">AoE · regione chiusa</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 480 150" style="width:100%;height:auto;display:block">
+            <rect width="480" height="150" fill="#131C24" />
+            <ellipse cx="96" cy="78" rx="70" ry="42" fill="#E6EDF4" opacity=".08" /><ellipse cx="96" cy="78" rx="70" ry="42" fill="none" stroke="#E6EDF4" stroke-width="2.5" />
+            <ellipse cx="246" cy="78" rx="70" ry="42" fill="#E6EDF4" opacity=".05" /><ellipse cx="246" cy="78" rx="70" ry="42" fill="none" stroke="#E6EDF4" stroke-width="2.5" stroke-dasharray="9 6" />
+            <ellipse cx="396" cy="78" rx="70" ry="42" fill="none" stroke="#E6EDF4" stroke-width="2.5" stroke-dasharray="2 7" />
+            <g fill="#56626F" font-size="10" font-family="Azeret Mono, monospace"><text x="40" y="22">CONFIRMED</text><text x="196" y="22">PREDICTED</text><text x="350" y="22">UNCERTAIN</text><text x="30" y="140">boundary continua · fill subordinato 8%</text></g>
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">La regione è <span style="color:#E6EDF4">sempre chiusa</span>: il perimetro torna su se stesso. Il fill è subordinato (max 8–14%) e serve solo a dire "dentro o fuori". Il duty cycle del bordo porta la certezza, come ogni altro contorno del sistema.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:14px">SOUND · archi concentrici aperti</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 480 150" style="width:100%;height:auto;display:block">
+            <rect width="480" height="150" fill="#131C24" />
+            <g fill="none" stroke="#E6EDF4" stroke-width="2.5">
+              <path d="M40 108 A62 62 0 0 1 152 108" stroke-dasharray="2 7" /><path d="M62 108 A40 40 0 0 1 130 108" stroke-dasharray="2 7" />
+              <path d="M196 108 A62 62 0 0 1 268 66" stroke-dasharray="2 7" /><path d="M212 108 A40 40 0 0 1 258 78" stroke-dasharray="2 7" />
+              <path d="M352 108 A62 62 0 0 1 386 56" stroke-dasharray="2 7" /><path d="M366 108 A40 40 0 0 1 384 72" stroke-dasharray="2 7" />
+              <circle cx="390" cy="48" r="4" fill="#E6EDF4" stroke="none" />
+            </g>
+            <g fill="#56626F" font-size="10" font-family="Azeret Mono, monospace"><text x="34" y="22">L1 settore ampio</text><text x="192" y="22">L2–L3 area ristretta</text><text x="334" y="22">L4–L5 cella + sorgente</text><text x="34" y="140">arco mai chiuso · nessun fill · ampiezza = precisione</text></g>
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">L'arco <span style="color:#E6EDF4">non si chiude mai</span> e non ha fill: per costruzione dice "informazione parziale, direzione nota, estensione ignota". L'apertura angolare codifica i cinque livelli di precisione; il punto pieno appare solo al livello 5, quando la sorgente è identificata.</div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:18px 22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Test grayscale.</span> Nei riquadri sopra non c'è alcun colore: la distinzione regge su chiuso/aperto e su presenza/assenza di fill, cioè su due proprietà binarie leggibili a qualsiasi scala. È il requisito che il doppio cerchio della v0.1 non poteva soddisfare.</div>
+  </div>
+
+  <!-- UNIT ANCHOR -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#3FD08A">H</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">UnitAnchor · anello in 4 settori</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">Approvato. Un solo contenitore per unità: ospita relazione, identità del piano e facing senza introdurre un secondo anello.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 560 160" style="width:100%;height:auto;display:block">
+            <rect width="560" height="160" fill="#131C24" />
+            <g fill="none" stroke="#E6EDF4" stroke-width="4">
+              <path d="M62 46 A34 34 0 0 1 96 80" /><path d="M96 80 A34 34 0 0 1 62 114" /><path d="M62 114 A34 34 0 0 1 28 80" /><path d="M28 80 A34 34 0 0 1 62 46" />
+            </g>
+            <circle cx="62" cy="80" r="5" fill="#E6EDF4" />
+            <text x="20" y="140" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">anello base</text>
+            <g fill="none" stroke="#E6EDF4" stroke-width="4" opacity=".35"><circle cx="196" cy="80" r="34" stroke-dasharray="48 5" /></g>
+            <path d="M196 46 A34 34 0 0 1 230 80" fill="none" stroke="#E6EDF4" stroke-width="6" />
+            <text x="146" y="140" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">facing corrente · pieno</text>
+            <g fill="none" stroke="#E6EDF4" stroke-width="4" opacity=".35"><circle cx="350" cy="80" r="34" stroke-dasharray="48 5" /></g>
+            <path d="M350 114 A34 34 0 0 1 316 80" fill="none" stroke="#E6EDF4" stroke-width="6" stroke-dasharray="9 6" />
+            <text x="296" y="140" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">facing previsto · 9-6</text>
+            <g fill="none" stroke="#E6EDF4" stroke-width="4" opacity=".35"><circle cx="500" cy="80" r="34" stroke-dasharray="48 5" /></g>
+            <g stroke="#E6EDF4" stroke-width="3"><path d="M500 40 V32" /><path d="M528 52 L534 46" /><path d="M472 52 L466 46" /></g>
+            <text x="414" y="140" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">facing legali · tacche</text>
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">Quattro settori separati da tagli di 5°: la segmentazione è sufficiente a distinguere l'anello dal cerchio pieno di Slot.Cost e dalla regione chiusa di un AoE, e fornisce già la griglia su cui poggia il facing. Le direzioni illegali sono <span style="color:#E6EDF4">assenti</span>, non barrate.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">COSA PORTA E COSA NO</div>
+        <div style="display:grid;gap:12px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#3FD08A">✓</span> Relazione dell'unità (hue del tratto).</div>
+          <div><span style="color:#3FD08A">✓</span> Identità del piano alleato: 1–3 tacche sul settore inferiore in world-space, lettera in screen-space.</div>
+          <div><span style="color:#3FD08A">✓</span> Facing: corrente pieno, previsto 9-6, legali come tacche esterne.</div>
+          <div><span style="color:#3FD08A">✓</span> Selezione: raddoppio del tratto del settore frontale, non un secondo anello.</div>
+          <div style="margin-top:6px"><span style="color:#FF4D6D">×</span> Non porta la certezza dell'esito: quella vive sul tracciato e sulle zone.</div>
+          <div><span style="color:#FF4D6D">×</span> Non porta risorse, cooldown o charges: sono di Slot.Cost, solo HUD.</div>
+          <div><span style="color:#FF4D6D">×</span> Non porta warning: il triangolo si ancora alla causa, non all'unità.</div>
+          <div><span style="color:#FF4D6D">×</span> Non si usa per i nemici non osservati: quelli hanno marker Intel, non anchor.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENVIRONMENT PATTERN -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#3FD08A">I</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Pattern d'ambiente stabili in UE5 · approvato</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">L'angolo non è un canale utilizzabile: su superfici inclinate la proiezione lo altera. La codifica passa a <span style="color:#8D9BAB">forma del punto + densità</span>.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">CODIFICA PROPOSTA · griglia screen-space</div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:18px">
+          <svg viewBox="0 0 560 150" style="width:100%;height:auto;display:block">
+            <defs>
+              <pattern id="pW" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M1 5 H9" stroke="#2F6FA8" stroke-width="1.6" /></pattern>
+              <pattern id="pE" width="8" height="8" patternUnits="userSpaceOnUse"><rect x="3" y="3" width="2" height="2" fill="#E8F04A" /></pattern>
+              <pattern id="pF" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M4.5 2 L7 7 H2 Z" fill="#FF8A2B" /></pattern>
+              <pattern id="pS" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="6" cy="6" r="2.4" fill="#96A3B0" /></pattern>
+              <pattern id="pI" width="11" height="11" patternUnits="userSpaceOnUse"><path d="M2 2 L9 9 M9 2 L2 9" stroke="#7FD4E8" stroke-width="1.2" /></pattern>
+            </defs>
+            <rect width="560" height="150" fill="#131C24" />
+            <g stroke="#2A3742" stroke-width="1" fill="none">
+              <rect x="14" y="26" width="96" height="70" fill="url(#pW)" /><rect x="124" y="26" width="96" height="70" fill="url(#pE)" /><rect x="234" y="26" width="96" height="70" fill="url(#pF)" /><rect x="344" y="26" width="96" height="70" fill="url(#pS)" /><rect x="454" y="26" width="92" height="70" fill="url(#pI)" />
+            </g>
+            <g fill="#8D9BAB" font-size="10.5" font-family="Azeret Mono, monospace">
+              <text x="14" y="18">WATER</text><text x="124" y="18">ELECTRIC</text><text x="234" y="18">FIRE</text><text x="344" y="18">SMOKE / STEAM</text><text x="454" y="18">ICE</text>
+            </g>
+            <g fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">
+              <text x="14" y="114">trattino · 10px</text><text x="124" y="114">punto quadro · 8px</text><text x="234" y="114">cuneo · 9px</text><text x="344" y="114">disco morbido · 12px</text><text x="454" y="114">croce · 11px</text>
+              <text x="14" y="132">densità bassa</text><text x="124" y="132">densità alta</text><text x="234" y="132">densità alta</text><text x="344" y="132">densità bassa</text><text x="454" y="132">densità media</text>
+            </g>
+          </svg>
+        </div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB;margin-top:14px">Cinque forme di punto distinguibili in monocromia e invarianti per rotazione — quindi immuni alla deformazione prospettica, che era il difetto fatale della codifica per angolo.</div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:16px">IMPLEMENTAZIONE</div>
+        <div style="display:grid;gap:14px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">Proiezione.</span> Un solo decal/material function con UV in <span style="color:#E6EDF4">screen-space</span> (ScreenPosition / SceneTexelSize), non triplanar world-space: la griglia resta ortogonale alla camera qualunque sia l'inclinazione della superficie, e la densità in pixel resta costante a ogni distanza e a ogni risoluzione.</div>
+          <div><span style="color:#E6EDF4">Combinazioni.</span> Massimo due pattern per superficie. Le due griglie usano lo stesso passo con <span style="color:#E6EDF4">offset di mezza cella</span>: i punti si alternano invece di sovrapporsi, quindi WATER + ELECTRIC legge come scacchiera mista, senza il terzo colore che la v0.1 richiedeva.</div>
+          <div><span style="color:#E6EDF4">Un terzo stato.</span> Con tre stati sulla stessa cella si smette di sommare pattern e si mostra il glifo di <span style="color:#E6EDF4">combo risultante</span> ancorato al centro della cella. Regola dura: tre pattern sovrapposti non sono mai ammessi.</div>
+          <div><span style="color:#E6EDF4">Bordo.</span> Il confine della zona è una linea 1.5 px dell'hue elementale, e usa il duty cycle di Certainty come qualunque altro contorno: un'area che <span style="color:#E6EDF4">potrebbe</span> elettrificarsi ha bordo 22% e pattern al 50% di densità.</div>
+          <div><span style="color:#E6EDF4">Perché non l'hue.</span> Water blu / electric giallo / fire arancio restano come rinforzo, ma la lettura primaria è la forma del punto: così la combo funziona anche sopra fill di targeting, in monocromia e in protanopia.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">J</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Blocker · Fixed · Deferred · Needs UE5 test</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#3FD08A;letter-spacing:.14em;margin-bottom:16px">BLOCKER · 0 residui</div>
+        <div style="display:grid;gap:14px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#3FD08A">B1 FIXED</span> · Provenienza dell'informazione nemica: namespace <span style="color:#E6EDF4">IntelSource.*</span> su canale proprio (source glyph), quattro valori, fuori dal budget compositivo, con regola di onestà sul TeamKnowledge.</div>
+          <div><span style="color:#3FD08A">B2 FIXED</span> · Conflitto del bianco: <span style="color:#E6EDF4">il bianco non ha più semantica</span>. Interattività → Affordance.* (contorno, glifo, hover/focus). Urgenza → Warning.* + severity treatment, con ambra/rosso come rinforzo mai unico.</div>
+          <div><span style="color:#3FD08A">B3 FIXED</span> · Area acustica vs AoE: <span style="color:#E6EDF4">regione chiusa</span> contro <span style="color:#E6EDF4">archi concentrici aperti</span>, distinzione topologica verificata in grayscale e senza colore.</div>
+          <div style="color:#56626F">Nessun blocker apre STEP 02.</div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#3FD08A;letter-spacing:.14em;margin-bottom:16px">FIXED in v0.1a</div>
+        <div style="display:grid;gap:11px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#3FD08A">✓</span> Opacità liberata: solo disabled/de-emphasis (3 gradini).</div>
+          <div><span style="color:#3FD08A">✓</span> Tratteggio ridotto da 7 pattern a 3 valori di certezza.</div>
+          <div><span style="color:#3FD08A">✓</span> Certezza senza hue; legende in bianco neutro.</div>
+          <div><span style="color:#3FD08A">✓</span> Bianco privato di ogni semantica (foreground e contrasto).</div>
+          <div><span style="color:#3FD08A">✓</span> Interattività su Affordance.*, non su hue.</div>
+          <div><span style="color:#3FD08A">✓</span> Warning.FriendlyFire come glifo semantico autonomo.</div>
+          <div><span style="color:#3FD08A">✓</span> Slot.Condition mantenuto a triangolo, namespace separato.</div>
+          <div><span style="color:#3FD08A">✓</span> Quattro usi del cerchio separati per geometria.</div>
+          <div><span style="color:#3FD08A">✓</span> UnitAnchor a 4 settori approvato, ospita il facing.</div>
+          <div><span style="color:#3FD08A">✓</span> Invalid nella famiglia disabled (hatch + croce).</div>
+          <div><span style="color:#3FD08A">✓</span> Friendly fire resta viola: nessun alleato colorato di nemico.</div>
+          <div><span style="color:#3FD08A">✓</span> Esagono obbligatorio per tutti i dispositivi interattivi.</div>
+          <div><span style="color:#3FD08A">✓</span> Identità alleata su hue condiviso + tacche/lettera.</div>
+          <div><span style="color:#3FD08A">✓</span> Pattern d'ambiente per forma del punto, screen-space.</div>
+          <div><span style="color:#3FD08A">✓</span> Budget 1 core + 3 satelliti, priorità S1–S5, overflow "+n".</div>
+          <div><span style="color:#3FD08A">✓</span> Token ritipizzati: Opacity.* e Certainty.* non sono color.*.</div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#8D9BAB;letter-spacing:.14em;margin-bottom:16px">DEFERRED</div>
+        <div style="display:grid;gap:14px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">D1 · Step glyph.</span> Forma alternativa per Slot.Condition, tenuta in riserva. Si introduce <span style="color:#E6EDF4">solo se</span> la validazione dimostra una collisione reale fra il triangolo di Slot.Condition e il severity treatment di Warning.*. Nessun asset in STEP 02.</div>
+          <div><span style="color:#E6EDF4">D2 · Certainty 22%.</span> Valore candidato, non congelato. ALT_UNCERTAIN 28% resta in gara fino al QA a 16 px; la decisione si prende sui sei glifi, non su una striscia.</div>
+          <div><span style="color:#E6EDF4">D3 · Grammatica audio.</span> La firma sonora dei livelli di severity non è normata: fuori scope fino a STEP 03.</div>
+        </div>
+      </div>
+      <div style="background:#121822;padding:24px">
+        <div style="font:500 12px 'Azeret Mono',monospace;color:#FFC24A;letter-spacing:.14em;margin-bottom:16px">NEEDS UE5 TEST</div>
+        <div style="display:grid;gap:13px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">
+          <div><span style="color:#E6EDF4">T1</span> Duty cycle 22% vs 28% su tracciato con camera in movimento: aliasing e flicker a 1080p e 1440p, con e senza TAA.</div>
+          <div><span style="color:#E6EDF4">T2</span> Pattern screen-space su superfici inclinate e in movimento: rischio shimmering, a distanza minima e massima di camera tattica.</div>
+          <div><span style="color:#E6EDF4">T3</span> UnitAnchor a 4 settori: facing leggibile a 100 px di diametro e con due unità adiacenti.</div>
+          <div><span style="color:#E6EDF4">T4</span> Viola alleato su materiali reali (metallo, acqua, rubble): il test su fondo neutro non è concludente.</div>
+          <div><span style="color:#E6EDF4">T5</span> Container di certezza a 16 px in UMG: il tratteggio del bordo non deve essere arrotondato dal layout scaling.</div>
+          <div><span style="color:#E6EDF4">T6</span> Source glyph a 5×5 px di area viva sopra il mondo 3D: verificare che i quattro valori restino distinguibili alla distanza di camera standard.</div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid #232C38;border-top:0;background:#121822;padding:22px;display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:start">
+      <div style="font:400 12.5px/1.8 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#3FD08A">B1 FIXED · B2 FIXED · B3 FIXED.</span> Tutti i canali portano un solo asse, tutti i namespace sono disgiunti, nessuna forma ha due significati nello stesso spazio di lettura e il budget compositivo resta 1 core + 3 satelliti. La matrice è chiusa: <span style="color:#E6EDF4">i glifi possono essere disegnati senza rischio di ridisegno strutturale</span>. Restano tre voci DEFERRED, nessuna delle quali blocca il disegno, e sei test che appartengono all'integrazione, non alla grammatica.</div>
+      <div style="border:1px solid #35E0C4;padding:16px 18px">
+        <div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.16em;margin-bottom:10px">PROPOSTA · STEP 02</div>
+        <div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Six Validation Icons — Move, Attack, Dash, Guard, AoE, Overwatch come Glyph.* puri, testati con i tre container di certezza (+ ALT 28%), i tre livelli di opacità, a 16/20/24/32/48 px, in monocromia e su fondo chiaro e scuro. In un file nuovo, non in questo.</div>
+      </div>
+    </div>
+  </div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>

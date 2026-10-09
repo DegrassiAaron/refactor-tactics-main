@@ -2526,4 +2526,194 @@ bool FRTScenarioLoaderIntentFieldFormTest::RunTest(const FString&)
 	return true;
 }
 
+// --- i CONFINI delle assertion (`#2867`) -----------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderCheckpointTest,
+	"RefactorTactics.Scenario.LoaderReadsAssertionCheckpoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderCheckpointTest::RunTest(const FString&)
+{
+	const TCHAR* Scena = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Checkpoint.LoaderProbe",
+	  "version": 7,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
+	  ],
+	  "expect": [
+	    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0], "at": "BlastEnded" },
+	    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+	    { "type": "UnitHpEquals", "unit": "B1", "value": 100,
+	      "afterEvent": { "category": "Combat", "unit": "A1" } }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(FString::Printf(TEXT("lo scenario coi checkpoint si carica (%s)"), *Error),
+		URTScenarioLoader::LoadFromString(Scena, Scenario, Error)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("tre assertion"), Scenario.Expect.Num(), 3)) { return false; }
+
+	TestTrue(TEXT("la prima dichiara un confine"), Scenario.Expect[0].bHasCheckpoint);
+	TestEqual(TEXT("ed e' BlastEnded"), Scenario.Expect[0].At, ERTScenarioCheckpoint::BlastEnded);
+
+	// 🔑 **`CleanupEnded` e' il default E un confine dichiarabile**: senza il booleano i due casi sarebbero
+	// indistinguibili, ed e' la ragione per cui il campo esiste. Qui la seconda non dichiara niente.
+	TestFalse(TEXT("la seconda non dichiara un confine"), Scenario.Expect[1].bHasCheckpoint);
+	TestEqual(TEXT("e vale il default"), Scenario.Expect[1].At, ERTScenarioCheckpoint::CleanupEnded);
+
+	TestTrue(TEXT("la terza dichiara un afterEvent"), Scenario.Expect[2].bHasAfterEvent);
+	TestTrue(TEXT("col criterio di categoria"), Scenario.Expect[2].AfterEvent.bHasCategory);
+	TestEqual(TEXT("che e' Combat"), Scenario.Expect[2].AfterEvent.Category, ERTLogCategory::Combat);
+	TestEqual(TEXT("e con chi ha agito"), Scenario.Expect[2].AfterEvent.Unit, TEXT("A1"));
+	TestFalse(TEXT("e nessun esito, che infatti non e' dichiarato"), Scenario.Expect[2].AfterEvent.bHasOutcome);
+
+	return true;
+}
+
+/**
+ * ⛔ **Il formato RIFIUTA un ancoraggio di presentazione, non lo scoraggia** — DoD di `#2867`.
+ *
+ * E' l'invariante 6 di `AGENTS.md` resa strutturale: se `at` accettasse stringhe libere, un `"afterFrame"`
+ * verrebbe letto e poi non corrisponderebbe mai a niente, cioe' l'assertion non si valuterebbe MAI e il
+ * referto tacerebbe. Il rifiuto arriva invece a caricamento, e nomina i confini legali.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRejectsPresentationCheckpointTest,
+	"RefactorTactics.Scenario.LoaderRejectsPresentationCheckpoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRejectsPresentationCheckpointTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const FString& ExpectEntry, const TCHAR* MustMention, const TCHAR* What)
+	{
+		const FString Json = FString::Printf(TEXT(
+			"{\"scenarioId\":\"X\",\"version\":7,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[%s]}"), *ExpectEntry);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	// I quattro ancoraggi che l'issue nomina per esteso. Nessuno e' un valore dell'enum, quindi nessuno passa.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"afterFrame"})"),
+		TEXT("checkpoint 'afterFrame' sconosciuto"), TEXT("ancoraggio a un frame"));
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"DeltaTime"})"),
+		TEXT("sconosciuto"), TEXT("ancoraggio a DeltaTime"));
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"OnAnimationEnded"})"),
+		TEXT("sconosciuto"), TEXT("ancoraggio a un callback di animazione"));
+	// ⚠️ **Una fase del GIOCO non e' un confine**: `Blast` e `BlastEnded` sono due vocabolari, e accettare il
+	// primo renderebbe ambiguo se si intenda l'inizio o la fine.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"Blast"})"),
+		TEXT("sconosciuto"), TEXT("nome di fase invece che di confine"));
+
+	// 🔴 **E la chiave sbagliata, che e' il caso peggiore**: fino a `#2867` `expect` non aveva un controllo di
+	// chiave sconosciuta, quindi un refuso veniva IGNORATO e l'assertion si valutava a fine turno — verde,
+	// misurando un altro momento.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"ate":"BlastEnded"})"),
+		TEXT("chiave sconosciuta 'ate'"), TEXT("refuso sulla chiave del confine"));
+
+	// Due risposte alla stessa domanda.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"BlastEnded","afterEvent":{"category":"Combat"}})"),
+		TEXT("non convivono"), TEXT("'at' e 'afterEvent' insieme"));
+
+	// ⛔ Un selettore vuoto sarebbe l'indice posizionale travestito: corrisponderebbe al primo evento
+	// qualunque, cioe' a cio' che il resolver scrive per primo.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"afterEvent":{}})"),
+		TEXT("senza criteri"), TEXT("selettore d'evento vuoto"));
+
+	// L'esito senza categoria non significa niente: lo stesso `uint8` e' un esito diverso per ogni famiglia.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"afterEvent":{"outcome":"Hit"}})"),
+		TEXT("senza 'category'"), TEXT("esito senza categoria"));
+
+	// E l'indice, chiesto per nome: e' la lezione di #2863 e il formato non deve ammetterla al contrario.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"afterEvent":{"category":"Combat","index":3}})"),
+		TEXT("chiave sconosciuta 'index'"), TEXT("indice posizionale dentro afterEvent"));
+
+	// 🔴 **I CINQUE TIPI CHE LEGGONO IL TURNLOG, enumerati uno per uno.**
+	//
+	// Non e' pignoleria: un checkpoint legge lo STATO nell'istante del confine, mentre queste leggono il log
+	// accumulato, che si riempie quando il turno ha finito di risolvere — cioe' DOPO ogni confine di quel
+	// turno. Accettarle darebbe un'assertion valutata su un log a cui manca il turno corrente: verde o rossa
+	// sui turni precedenti, senza che niente lo dica.
+	//
+	// ⚠️ **L'elenco e' qui perche' quello nel loader puo' scadere**: un tipo nuovo che legga il log e non
+	// venga aggiunto a `ReadsTheTurnLog` tornerebbe ad accettare un confine che non sa onorare, e nessun
+	// altro gate se ne accorgerebbe.
+	{
+		const TCHAR* LogKinds[] = {
+			TEXT(R"("type":"LogEventCount","category":"Combat","outcome":"Hit","value":1)"),
+			TEXT(R"("type":"LogEventAmount","category":"Combat","outcome":"Hit","value":1)"),
+			TEXT(R"("type":"LogEventOrder","category":"Combat","outcome":"Hit","thenCategory":"Move","thenOutcome":"Moved")"),
+			TEXT(R"("type":"OriginalTargetEquals","unit":"A")"),
+			TEXT(R"("type":"EffectiveTargetEquals","unit":"A")")
+		};
+		for (const TCHAR* Kind : LogKinds)
+		{
+			Rejects(FString::Printf(TEXT("{%s,\"at\":\"BlastEnded\"}"), Kind),
+				TEXT("non puo' dichiarare 'at' o 'afterEvent'"),
+				TEXT("assertion di log con un confine di fase"));
+			Rejects(FString::Printf(TEXT("{%s,\"afterEvent\":{\"category\":\"Combat\"}}"), Kind),
+				TEXT("non puo' dichiarare 'at' o 'afterEvent'"),
+				TEXT("assertion di log con un afterEvent"));
+		}
+
+		// ✅ E il verso positivo, senza il quale il controllo qui sopra potrebbe passare per la ragione
+		// sbagliata — cioe' perche' quelle assertion sono rifiutate SEMPRE. Le stesse, senza confine, si
+		// caricano.
+		const FString Sana = TEXT(
+			"{\"scenarioId\":\"X\",\"version\":7,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[{\"type\":\"LogEventCount\",\"category\":\"Combat\",\"outcome\":\"Hit\",\"value\":1}]}");
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("la stessa assertion SENZA confine si carica (%s)"), *Error),
+			URTScenarioLoader::LoadFromString(Sana, Scenario, Error));
+	}
+
+	// ✅ Un'assertion di STATO con `afterEvent` invece si carica: e' la strada che il messaggio d'errore
+	// indica, e se non funzionasse il rifiuto qui sopra manderebbe in un vicolo cieco.
+	{
+		const FString Sana = TEXT(
+			"{\"scenarioId\":\"X\",\"version\":7,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[{\"type\":\"UnitAlive\",\"unit\":\"A\",\"value\":true,"
+			"\"afterEvent\":{\"category\":\"Combat\"}}]}");
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("un'assertion di stato con afterEvent si carica (%s)"), *Error),
+			URTScenarioLoader::LoadFromString(Sana, Scenario, Error));
+	}
+
+	// Un'unita' inesistente nel selettore: senza questo rifiuto il confine non passerebbe mai e il referto
+	// accuserebbe il GIOCO per un refuso nel FILE.
+	Rejects(TEXT(R"({"type":"UnitAlive","unit":"A","value":true,"afterEvent":{"category":"Combat","unit":"Fantasma"}})"),
+		TEXT("non e' schierata"), TEXT("unita' inesistente nel selettore"));
+
+	// Il GATE DI VERSIONE: la stessa assertion, su un file che si dichiara `6`.
+	{
+		const FString Json = TEXT(
+			"{\"scenarioId\":\"X\",\"version\":6,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[{\"type\":\"TurnsCompleted\",\"value\":1,\"at\":\"BlastEnded\"}]}");
+		FRTTestScenario Scenario;
+		FString Error;
+		TestFalse(TEXT("un checkpoint su un file 'version: 6' e' rifiutato"),
+			URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la versione (era: '%s')"), *Error),
+			Error.Contains(TEXT("\"version\": 7")));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

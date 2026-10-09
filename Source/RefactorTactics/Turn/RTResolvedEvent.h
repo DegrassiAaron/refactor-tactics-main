@@ -84,7 +84,133 @@ enum class ERTResolvedEventType : uint8
 	 *
 	 * ⚠️ **In CODA, come `AttackFootprint` e `ReactionResolved`**, e per la stessa ragione già scritta sopra.
 	 */
-	StatusChanged
+	StatusChanged,
+
+	/**
+	 * Una **struttura** è stata colpita: danneggiata o abbattuta (`#2828`). `StructureCell`/`StructureToward`
+	 * dicono quale bordo, `EnvironmentOutcome` dice l'esito, `Amount` dice **quanta integrità le resta**.
+	 *
+	 * 🔴 **Il colpo alla struttura non aveva un istante in cui essere mostrato, e nemmeno l'assenza era
+	 * censita.** Ai due capi il dato esisteva già — `FRTStructureHit` nel resolver, `CoverDamaged`/
+	 * `CoverDestroyed` nel TurnLog — e fra i due non c'era niente: nessun valore qui, quindi nessuna riga in
+	 * `DeclaredBindings()` a cui appendere una dichiarazione d'assenza, quindi
+	 * `Presentation.AbsenceCensusIsPinned` non aveva nulla da sorvegliare. Un'assenza che nessun censimento
+	 * vede è peggio di una dichiarata: è invisibile. Senza questo valore il giocatore vedeva *lo stato dopo*
+	 * — la geometria cambiata — e mai il **cambiamento**, che è il difetto che `#2453` isola per la v0.1.
+	 *
+	 * ⚠️ **Non confondere con `FRTStructureHit`, che ha quasi lo stesso nome e non è la stessa cosa.**
+	 * Quella struct è il danno **raccolto** durante la fase, sommato per bordo e non ancora applicato
+	 * (`Amount` = danno inferto); questo evento nasce dal **risultato**, `FRTCoverDamageResult`, dopo che
+	 * `ApplyStructureDamage` ha deciso. ⛔ Chi consuma legga `Amount` come *«quanto ne resta»*, mai come
+	 * *«quanto le è stato tolto»* — è la convenzione del TurnLog, da cui questo campo è copiato, e su
+	 * `Attack` lo stesso campo significa l'opposto.
+	 *
+	 * 🔑 **Il soggetto è un BORDO, non un Actor**, e per questo `TargetStableUnitId` resta `0`: una
+	 * copertura non è un'unità e non ha uno `StableUnitId` da portare. `SourceStableUnitId` è chi ha
+	 * colpito. La coppia di celle è il bordo — la stessa convenzione che il TurnLog usa in `SrcCell`/
+	 * `TgtCell` e che `FRTStructureHit` dichiara, invece di un campo «quale lato».
+	 *
+	 * 🔑 **Emesso dall'unico punto in cui la voce di log viene scritta**, come `StatusChanged` e
+	 * `HazardDamage`: i due canali non possono divergere perché il secondo **deriva** dal primo. ⚠️ Oggi il
+	 * produttore di quelle voci è uno solo (`ApplyEnvironmentChanges`), quindi emettere lì o qui sarebbe
+	 * equivalente — *oggi*. Da `AppendLogEntry` un secondo produttore aggiunto domani è coperto **per
+	 * costruzione**, ed è la sola differenza fra le due posizioni che sopravvive al prossimo che tocca il file.
+	 *
+	 * ⚠️ **In CODA, come i tre valori sopra**, e per la stessa ragione già scritta: è un `uint8` esposto a
+	 * Blueprint, e inserirlo in mezzo rinumererebbe in silenzio ogni default già serializzato.
+	 */
+	StructureHit,
+
+	/**
+	 * Un ARCO ha incassato un colpo: danneggiato o abbattuto (`#3280`, [D-437]).
+	 *
+	 * 🔴 **Un valore PROPRIO e non `StructureHit` condiviso, per tre ragioni indipendenti.**
+	 *
+	 * 1. **Il consumatore cabla `CoverDestroyed`.** Chi decide il tratto del disegno confronta
+	 *    `EnvironmentOutcome == ERTEnvironmentOutcome::CoverDestroyed`: un `BridgeDestroyed` darebbe
+	 *    `false`, e **un ponte crollato verrebbe disegnato col tratto sottile del graffio** — il fatto piu'
+	 *    grave reso come il piu' lieve, senza che nessun gate diventi rosso.
+	 * 2. **La geometria degenera.** La cue di `#2828` e' un segmento sul lato condiviso fra due esagoni
+	 *    adiacenti, ruotando di 90 gradi l'asse fra i centri. Su un arco a colonna — stessi `X,Y`, layer
+	 *    diversi — quel vettore collassa e il segmento ha lunghezza **zero**; su un arco lungo diventa una
+	 *    barra a meta' strada che non e' il lato di niente. ⚠️ E il solo caso in cui la cue sarebbe corretta
+	 *    — arco fra celle gia' adiacenti dello stesso layer — e' proprio quello che `ValidateMap` segnala
+	 *    come ridondante.
+	 * 3. **Il censimento.** Un valore proprio fa acquistare a `DeclaredBindings()` una riga dichiarata in
+	 *    attesa, con il suo `PendingOwner`. Condividere la nasconderebbe.
+	 *
+	 * 🔑 **`ArcHit` e non `BridgeHit`, ed e' deliberato.** `URTHexArcLibrary::DamageArc` non filtra per
+	 * `ERTHexTransitionKind`: gia' oggi il TurnLog scrive `BridgeDamaged` per una scala che incassa. Il
+	 * disallineamento e' preesistente — ⛔ ma il valore nuovo non deve ereditarlo.
+	 *
+	 * ⚠️ **UN evento per VOCE di TurnLog, e non uno per arco.** Un ponte bidirezionale ne produce due,
+	 * perche' `State` e `Integrity` sono per arco **diretto** e `IsArcTraversable` e' direzionale: due versi
+	 * con integrita' diversa — legale, editabile, mai normalizzata — danno esiti **diversi**, cioe' una
+	 * passerella crollata in salita e intatta in discesa. Un evento per arco dovrebbe **scegliere in
+	 * silenzio quale dei due versi racconta il ponte**; un evento per voce non sceglie, porta cio' che il
+	 * TurnLog tiene. ⛔ E non e' «due per ponte»: e' **uno per arco diretto ancora in piedi** — un arco a
+	 * senso unico ne da' uno, e un ponte con un verso gia' caduto pure, perche' `DamageArc` salta i
+	 * `Destroyed`.
+	 *
+	 * ⚠️ **In CODA, come i tre valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint, e
+	 * inserirlo in mezzo rinumererebbe i successivi cambiando in silenzio ogni default gia' serializzato.
+	 */
+	ArcHit,
+
+	/**
+	 * Un intento di abilita' e' stato ACCETTATO dal resolver: «questa unita' sta agendo adesso con questa
+	 * azione» (spec «il momento», #3549). Una voce per INTENTO, in Prep, Dash e Blast.
+	 *
+	 * 🔴 **Un'abilita' senza colpo non aveva un istante.** Cure, purificazioni, archi, interruzioni e ogni
+	 * istanza di Prep non producevano alcun evento: il produttore c'era, mancava il momento — la forma di
+	 * #2505 e #2828.
+	 *
+	 * ⛔ **Niente celle colpite, niente esiti**: quelli restano di `AttackFootprint` e `Attack`. Questo evento
+	 * racconta il GESTO, e si emette anche quando il gesto non tocca nulla (linea di tiro bloccata, fuori
+	 * portata, degradato da [D-300]).
+	 *
+	 * 🔑 `SourceVerdict` porta il verdetto di [D-223] congelato all'emissione: il playback lo filtra con
+	 * `AllowsTeam`, come le righe di log, non con `ObservedPrefixLength` come il `Move` (spec §2.5).
+	 *
+	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
+	 */
+	AbilityActivated
+};
+
+/**
+ * La geometria di un colpo per il tracer del playback (`#2454`, spec `2026-10-07-tracer-attacco-base` §3).
+ * ⚠️ **Solo `Attack`, solo playback**: vive in `ResolvedTimeline`, fuori da `StateHash`, TurnLog e replay.
+ * ⛔ **`RTServerOnly`** perche' porta i verdetti di OGNI squadra: un client ne riceve una proiezione, mai questo tipo.
+ */
+USTRUCT(BlueprintType, meta = (RTServerOnly))
+struct FRTHitGeometry
+{
+	GENERATED_BODY()
+
+	/** ⛔ **L'unico indicatore di presenza**: `FRTCellId()` e' `(0,0,0)`, una cella VALIDA, quindi un estremo
+	 *  mancante non si riconosce dalle celle. Falso = il produttore non ha risolto l'origine o la vittima. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	bool bResolved = false;
+
+	/** L'origine dichiarata del colpo, da `ResolveImpactOrigin` ([D-302] punto 3).
+	 *  ⚠️ **Per un colpo `Area` e' il CENTRO d'impatto, non la cella dell'attaccante** (`Footprint->AimCell`):
+	 *  da #3578 e' il centro dell'`AreaPulse` (spec «il profilo FX» §2.4). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId From;
+
+	/** La cella della vittima nell'istante del colpo, prima di ogni spostamento forzato. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId Impact;
+
+	/** Chi conosceva l'ATTACCANTE in `From` quando il colpo e' partito ([D-223], fatto puntuale).
+	 *  ⚠️ **Salvo per un colpo `Area`**, dove `From` e' il centro d'impatto e questo verdetto riguarda quella
+	 *  cella, non l'attaccante. Da #3578 e' il verdetto dell'`AreaPulse`. */
+	UPROPERTY()
+	FRTKnowledgeVerdict FromVerdict;
+
+	/** Chi conosceva la VITTIMA in `Impact` quando il colpo e' arrivato ([D-223], fatto puntuale). */
+	UPROPERTY()
+	FRTKnowledgeVerdict ImpactVerdict;
 };
 
 /**
@@ -107,8 +233,12 @@ enum class ERTResolvedEventType : uint8
  * far partire un montage. Se l'unita' e' stata distrutta nel frattempo la porta risponde `nullptr`, che
  * e' esattamente cio' che rispondeva `TWeakObjectPtr::Get()` — il comportamento del playback non cambia,
  * cambia dove sta il puntatore.
+ *
+ * ⛔ **`RTServerOnly`** (`#2454`, spec §0.3, P5): con la geometria e i verdetti di ogni squadra l'evento porta
+ * l'informazione COMPLETA. Un client ricevera' una proiezione, mai questo tipo:
+ * `Privacy.ServerOnlyTypesAreNotReplicated` lo misura.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (RTServerOnly))
 struct FRTResolvedEvent
 {
 	GENERATED_BODY()
@@ -173,7 +303,51 @@ struct FRTResolvedEvent
 	UPROPERTY()
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
-	/** Danno/scudo/durata secondo Type. */
+	/**
+	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — solo per `AbilityActivated` (#3549).
+	 *
+	 * 🔴 **Non e' `CellVerdicts`**: un'attivazione non ha rotta ne' celle, e un vettore vuoto letto con
+	 * `ObservedPrefixLength` nasconderebbe ogni attivazione, comprese quelle di chi guarda. Il predicato e'
+	 * quello delle righe di log: `AllowsTeam`, su questo verdetto congelato da `FreezeVerdictFor`.
+	 *
+	 * ⚠️ Vuoto = `NoOne()` = fail-closed. `UPROPERTY()` nudo per la stessa ragione di `CellVerdicts`: un
+	 * verdetto leggibile da Blueprint sarebbe anche un verdetto aggirabile da Blueprint.
+	 */
+	UPROPERTY()
+	FRTKnowledgeVerdict SourceVerdict;
+
+	/**
+	 * Quante celle iniziali di `Path` appartengono al PIANO di chi si muove — `#3263`.
+	 *
+	 * 🔴 **Tutto cio' che sta oltre e' estensione AMBIENTALE**: uno scivolamento su ghiaccio, cioe' un
+	 * tratto che il terreno ha imposto e che il giocatore non ha chiesto. La simulazione lo sa da sempre —
+	 * `FRTPlannedMovement::PlannedLength` lo dichiara con queste parole — e le **durate per arco** lo
+	 * rispettano gia' ([D-384]: *«oltre il prefisso pianificato ogni arco vale un microstep»*). Il playback
+	 * no: il dato moriva nel resolver, e i tre archi si animavano identici.
+	 *
+	 * ⚠️ **`0` significa «tutto pianificato»**, non «niente»: e' la stessa convenzione di
+	 * `URTHexSimLibrary::StepDurationsForPath`, che la usa per ogni chiamante che non tocca i terreni.
+	 * Scegliere qui un default diverso avrebbe creato due letture dello stesso numero.
+	 *
+	 * ⚠️ **E' CLAMPATO a `Path.Num()`**: il piano puo' essere piu' lungo di cio' che l'unita' ha davvero
+	 * attraversato — si e' fermata prima, l'ha bloccata qualcuno — e un prefisso piu' lungo dell'array
+	 * sarebbe un indice fuori dai limiti per chiunque lo consumi.
+	 *
+	 * ⛔ **Questo campo e' il CANALE, non il segno.** Che cosa la presentazione debba FARE della
+	 * distinzione — velocita', posa, un marcatore a terra — e' una decisione di grammatica visiva che
+	 * `#3263` dichiara di non prendere, e che questo campo rende prendibile invece che teorica.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	int32 PlannedLength = 0;
+
+	/**
+	 * Danno/scudo/durata secondo `Type` — ⚠️ **tranne su `StructureHit`, dove e' l'INVERSO.**
+	 *
+	 * ⛔ Li' porta l'**integrita' RESIDUA** della barriera, non il danno inferto: e' la convenzione della
+	 * voce di TurnLog da cui il campo e' copiato. Chi somma questo campo per ottenere «quanto danno ha
+	 * fatto un'unita'» deve escludere `StructureHit`, o accredita a chi ha sparato cio' che il muro ha
+	 * RETTO. La riga sta qui e non solo sul valore d'enum perche' e' qui che la si legge.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 Amount = 0;
 
@@ -221,15 +395,19 @@ struct FRTResolvedEvent
 	 * derivarla qui sarebbe ricalcolare a valle cio' che il catalogo sa gia', ed e' il modo in cui due
 	 * letture della stessa identita' cominciano a divergere.
 	 *
-	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda `ActionId`
-	 * e solo quello: due profili distinti della stessa generica — `Branth.Interposition` e
+	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda la coppia
+	 * (`SourceStableUnitId`, `ActionId`) — da #3549; prima il solo `ActionId` — e mai questo campo: due
+	 * profili distinti della stessa generica — `Branth.Interposition` e
 	 * `Action.Intercept` — sono due atti, ed e' esattamente la distinzione che `RTTurnLog.h` dichiara di
 	 * voler conservare.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FName BaseActionId;
 
-	// --- Solo per `AttackFootprint` ([D-301]). Vuoti/di default per ogni altro `Type`. ---
+	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO);
+	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549), e `Origin` anche per `AbilityActivated` (#3578: la
+	//     cella della sorgente quando agisce, per la cue d'attivazione). Gli altri campi: vuoti/di default per ogni
+	//     altro `Type`. ---
 
 	/**
 	 * Le celle investite, **nell'ordine che `HexHitCells` produce** (`URTHexLibrary::StableLess`).
@@ -249,6 +427,9 @@ struct FRTResolvedEvent
 	/**
 	 * La forma che ha prodotto `HitCells`. Dichiarata e non dedotta: un `Single` resta distinguibile da
 	 * un'`Area` di raggio 0, che a valle sono due disegni diversi con lo stesso numero di celle.
+	 *
+	 * Su un `Attack` porta invece la forma dell'INTENTO che ha prodotto il colpo (`#2454`): `HitCells` li' resta
+	 * vuoto, e la forma dice solo di che tracciato si tratta.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	ERTAbilityShape Shape = ERTAbilityShape::Single;
@@ -259,6 +440,9 @@ struct FRTResolvedEvent
 	 * ⚠️ **Non si deriva dall'Actor.** Al playback l'unita' puo' essersi gia' mossa, e `ARTUnit::Cell`
 	 * risponderebbe con la posizione finale del turno invece che con quella del colpo. E' la stessa
 	 * ragione per cui `FRTBlastPreview` porta un `Origin` proprio.
+	 *
+	 * ➕ #3578: su `AbilityActivated` e' la cella della SORGENTE nell'istante in cui agisce (spec «il profilo FX» §2.3,
+	 * R5), letta dallo stesso soggetto su cui si congela `SourceVerdict`.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId Origin;
@@ -332,6 +516,87 @@ struct FRTResolvedEvent
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	TArray<FName> SourceStatusNames;
+
+	// --- Solo per `StructureHit` (`#2828`). Di default per ogni altro `Type`. ---
+
+	/**
+	 * La cella che **porta** la voce di copertura. Con `StructureToward` identifica il bordo colpito.
+	 *
+	 * ⛔ **Copiata, non ricalcolata**, ed è il divieto che la issue scrive per intero: chi consuma **non
+	 * deve** richiedere alla mappa quale bordo sia stato colpito né ripassare da `FirstCoveredEdge`. La
+	 * coppia arriva da `FRTCoverDamageResult`, che l'ha già decisa. È la stessa disciplina che `HitCells`
+	 * dichiara per l'impronta ([D-301]) e che [D-278] impone all'intero layer.
+	 *
+	 * 🔑 **Due celle e non `(cella, direzione)`**, perché è la convenzione che il dato ha già ai due capi:
+	 * `FRTStructureHit` la dichiara (*«la coppia di celle identifica il bordo senza bisogno di una
+	 * direzione»*) e il TurnLog la scrive così. Convertire qui in `ERTHexDirection` costringerebbe a
+	 * chiamare `EdgeDirection`, cioè a ricalcolare in presentazione ciò che la simulazione sapeva già.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId StructureCell;
+
+	/** La cella **oltre** il bordo colpito. Con `StructureCell` fa il bordo; copiata, come lei. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId StructureToward;
+
+	/**
+	 * PERCHÉ la struttura è cambiata, con la tassonomia che il TurnLog usa già: `CoverDamaged` o
+	 * `CoverDestroyed`.
+	 *
+	 * 🔴 **Un enum e non un `bool bDestroyed`, perché [D-175] distingue TRE cose e un bool ne appiattisce
+	 * due.** La distruzione non è la scadenza (`CoverExpired`) e non è lo spostamento (`CoverMoved`): sono
+	 * tre modi diversi in cui una copertura smette di essere dov'era, e il TurnLog li separa da prima di
+	 * questo evento. Ridurli qui a *«caduta / non caduta»* butterebbe informazione **già registrata** e
+	 * creerebbe la seconda definizione di una tassonomia che ha già un owner — lo stesso argomento con cui
+	 * `StatusOutcome` rifiuta di ridursi ad *«applicato/finito»*.
+	 *
+	 * ⚠️ **Il default è `CoverDamaged` e NON significa «danneggiata»**: significa *«nessuno l'ha
+	 * valorizzato»*, come su ogni altro `Type`. Un enum senza valore neutro non ne ha uno migliore, ed è la
+	 * stessa scomodità che `StatusOutcome` porta col suo `AppliedByAction`.
+	 *
+	 * ⚠️ **Si legge su `StructureHit` e su `ArcHit`, e i valori non si sovrappongono**: le coperture portano
+	 * `CoverDamaged`/`CoverDestroyed`, gli archi `BridgeDamaged`/`BridgeDestroyed` (`#3280`). ⛔ **Il `Type`
+	 * resta l'unica discriminante**: chi consuma legga quello e non indovini la geometria dall'esito — è
+	 * precisamente la confusione che il valore d'evento proprio esiste per rendere impossibile.
+	 *
+	 * ⚠️ **Su `ArcHit` `BridgeDestroyed` significa `ERTHexArcState::Destroyed` e nient'altro.** Il produttore
+	 * lo decide dallo **stato** dell'arco, non da un booleano dedotto (`#3280`): un arco spento che incassa
+	 * senza cadere resta `BridgeDamaged`. ⛔ Lo stato `Inactive` non è rappresentato — `ERTEnvironmentOutcome`
+	 * non ha un valore per «spento», e il TurnLog che lo trasporta è serializzato con un `FormatId`: portarlo
+	 * fin qui è un cambio di formato, non una riga.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	ERTEnvironmentOutcome EnvironmentOutcome = ERTEnvironmentOutcome::CoverDamaged;
+
+	// --- Solo per `ArcHit` (`#3280`, [D-437]). Di default per ogni altro `Type`. ---
+
+	/**
+	 * Il capo **da cui** l'arco parte. Con `ArcTo` identifica l'arco DIRETTO che ha incassato.
+	 *
+	 * 🔑 **Campi propri e non `StructureCell`/`StructureToward`, ed e' la stessa ragione per cui l'evento e'
+	 * proprio.** Quei due dichiarano *«il bordo colpito»*: un lato condiviso fra due esagoni adiacenti, su
+	 * cui la cue di `#2828` e' definita. Un arco non e' un lato — unisce celle che possono non essere
+	 * adiacenti e stare su piani diversi — e un consumatore che leggesse un solo campo non saprebbe piu'
+	 * quale delle due geometrie ha in mano. Condividerli riporterebbe dalla finestra il riuso che [D-437]
+	 * ha buttato dalla porta.
+	 *
+	 * ⛔ **Copiato, non ricalcolato**: la coppia arriva da `FRTArcChange`, che l'ha gia' decisa, e passa dal
+	 * TurnLog senza essere reinterpretata. Chi consuma **non deve** richiedere alla mappa quale arco sia
+	 * stato colpito — e' il divieto che [D-278] impone all'intero layer.
+	 *
+	 * ⚠️ **E' l'arco DIRETTO, non il ponte**: su un ponte bidirezionale i due eventi portano la coppia
+	 * scambiata, e sono due fatti con esiti che possono differire.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId ArcFrom;
+
+	/** Il capo **verso cui** l'arco va. Con `ArcFrom` fa l'arco diretto; copiato, come lui. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId ArcTo;
+
+	/** Solo `Attack` (`#2454`): da dove e verso dove il colpo e' andato, e chi lo sapeva. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTHitGeometry HitGeometry;
 
 	FRTResolvedEvent() = default;
 };

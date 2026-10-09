@@ -889,10 +889,18 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	// Misurato su `main` prima di toccare una riga: la nemica finiva in `(3,0,L0)`, cioe' la sua
 	// destinazione, con `Outcome` di movimento riuscito.
 	//
-	// ➕ La squadra **2** soddisfa entrambi i vincoli per costruzione: non e' alleata della nemica,
-	// quindi blocca; e non e' la squadra che guarda, quindi non le porta vista. ⛔ E non e' una scelta
-	// arbitraria fra le due: e' l'unica che non dipende da quale regola di attraversamento sia in vigore,
-	// che e' precisamente cio' che ha rotto questo banco una volta.
+	// ➕ La squadra **2** soddisfa entrambi i vincoli per costruzione: non e' alleata della nemica, e non
+	// e' la squadra che guarda, quindi non le porta vista.
+	//
+	// 🔴 **E lo stesso banco si e' rotto una SECONDA volta, il 2026-10-01, per la stessa famiglia di
+	// causa.** La riga qui sopra diceva che la squadra 2 *«e' l'unica che non dipende da quale regola di
+	// attraversamento sia in vigore»*, e si e' rivelata ottimista: rispondeva a **chi** blocca, mentre
+	// [D-445] ha cambiato **se** qualcuno blocca. Nessuna squadra ferma piu' un transito, la terza compresa.
+	//
+	// 🔑 **L'invariante che sopravvive a entrambe le rotture e' un'altra, ed e' [D-289]: il TERMINUS.**
+	// Due unita' non finiscono il turno sulla stessa cella, e questo non e' cambiato ne' con `#2984` ne' con
+	// [D-445]. L'ostacolo resta dov'e'; e' la **destinazione** della nemica ad arretrare su di lui, cosi' il
+	// blocco si produce dove la regola vive invece che dove capitava di trovarla.
 	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 2, FRTCellId(4, 0, 0));
 	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
 		|| !TestNotNull(TEXT("unita' mia"), Mia) || !TestNotNull(TEXT("unita' nemica"), Nemica)
@@ -910,12 +918,18 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	Nemica->PlaceOnCell(FRTCellId(5, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 	Mia->VisionRange = 0;
 
-	// Turno 2 — la nemica prova a muoversi e trova la cella occupata. Il percorso si scrive a mano dritto
-	// dentro l'ostacolo: passando per `PlannedCell` l'A* lo aggirerebbe e non ci sarebbe mossa bloccata.
-	// Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
-	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno.
-	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0), FRTCellId(3, 0, 0) };
-	Nemica->PlannedCell = FRTCellId(3, 0, 0);
+	// Turno 2 — la nemica prova a muoversi e trova la DESTINAZIONE occupata. Il percorso si scrive a mano
+	// dritto su di essa: passando per `PlannedCell` l'A* sceglierebbe un'altra meta e non ci sarebbe mossa
+	// bloccata. Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
+	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno — ed e' la ragione
+	// per cui `CellaAttuale` qui sotto resta `(q=5,r=0,L=0)`.
+	//
+	// 🔴 **Il percorso si e' ACCORCIATO di una cella** ([D-445]): era
+	// `{(5,0), (4,0), (3,0)}` con meta `(3,0)`, e la nemica attraversava l'ostacolo su `(4,0)` per arrivare
+	// dove voleva. Misurato prima di toccare una riga: finiva in `(3,0,L0)` con esito di movimento riuscito,
+	// e la premessa 2 cadeva — la stessa diagnosi, parola per parola, che `#2984` aveva prodotto qui.
+	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0) };
+	Nemica->PlannedCell = FRTCellId(4, 0, 0);
 	Muro->PlannedCell = Muro->Cell; // fermo: e' l'ostacolo
 	RTCombatLogFixture::RunTurn(TM);
 
@@ -1209,18 +1223,69 @@ bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
 	// e' gia' distrutto e la vista costruita adesso non avrebbe piu' una voce per lui.
 	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
 
+	// ➕ **LA MISURA che la DoD di `#1498` chiede «presa e non stimata»** — aggiunta il 2026-09-21 con
+	// [D-431]. La domanda e' *«quante righe del turno di un'unita' caduta spariscono»*: la risposta e' la
+	// differenza fra cio' che il log COMPLETO contiene e cio' che l'osservatore riceve.
+	//
+	// 🔴 **Si conta per FORMA, non per NOME, ed e' una correzione da code review.** Una prima stesura cercava
+	// `Mia->GetName()` nelle righe: **misurava la popolazione sbagliata**. Il canale derivato risolve il nome
+	// con `ARTUnit::DisplayLabel` (*«Ivrin»*), non con `GetName()` (*«RTUnit_0»*) — lo dichiara
+	// `Turn/RTTurnLogLibrary.cpp:328` — e la riga del colpo non porta nomi affatto, solo celle. Le uniche che
+	// contengono `GetName()` sono i tre annunci di morte, che portano `FRTLogSubject::World()` e quindi
+	// passano **per chiunque, in qualunque mondo**: il conteggio sarebbe stato su righe **immuni al filtro**,
+	// verde per costruzione, e sarebbe rimasto verde anche sotto la mutazione che dichiara di falsificarlo.
+	//
+	// 🔑 **`danni` e' invece la forma del racconto che il filtro puo' togliere** — la stessa disciplina con
+	// cui il test gemello di questo file riconosce il racconto per forma (`"eliminata"` piu' `"q="`) invece
+	// che per nome.
+	const TArray<FString> Complete = TM->GetRecentEvents();
+	auto ConteggioDanni = [](const TArray<FString>& Righe)
+	{
+		int32 N = 0;
+		for (const FString& L : Righe)
+		{
+			if (L.Contains(TEXT("danni"))) { ++N; }
+		}
+		return N;
+	};
+	const int32 DanniComplete = ConteggioDanni(Complete);
+	const int32 DanniVisibili = ConteggioDanni(Visibili);
+	AddInfo(FString::Printf(
+		TEXT("misura #1498: log completo %d righe (%d di danno), visibili alla squadra 0 %d righe (%d di danno), perse %d"),
+		Complete.Num(), DanniComplete, Visibili.Num(), DanniVisibili, DanniComplete - DanniVisibili));
+
 	bool bAnnuncioMorte = false, bColpoInflitto = false;
 	for (const FString& L : Visibili)
 	{
 		if (L.Contains(TEXT("Eliminata: ")) || L.Contains(TEXT("Morte mostrata"))) { bAnnuncioMorte = true; }
-		// Il racconto del colpo: la riga derivata con l'esito, dove il soggetto e' l'ATTACCANTE — cioe' la
-		// mia unita' caduta. E' precisamente la riga che il filtro in lettura faceva sparire.
+		// Il racconto del colpo: la riga derivata con l'esito. ⌫ **Una prima stesura dichiarava qui che «il
+		// soggetto e' l'ATTACCANTE»: e' un'affermazione che questo test non misura**, e il repository porta
+		// almeno un produttore di riga di danno il cui soggetto e' la **vittima**
+		// (`Turn/RTTurnManager.cpp:3221`). Cio' che il banco prova davvero e' piu' debole e sufficiente: la
+		// riga **e' soggetta al filtro**, perche' sotto la mutazione che rimette il filtro in lettura sparisce.
 		if (L.Contains(TEXT("danni"))) { bColpoInflitto = true; }
 	}
 
 	TestTrue(TEXT("l'annuncio della morte si legge"), bAnnuncioMorte);
 	TestTrue(*FString::Printf(TEXT("e si legge anche il colpo che ha messo a segno prima di cadere (%d righe)"),
 		Visibili.Num()), bColpoInflitto);
+
+	// ⛔ **L'anti-vacuita', senza la quale la riga sotto e' verde per costruzione.** Se il log completo non
+	// contenesse nessuna riga di danno, `0 == 0` passerebbe dicendo «non si perde niente» mentre non c'era
+	// niente da perdere. E' lo stesso errore che `UnseenDeathLeavesOnlyTheAnnouncement` evita col proprio
+	// controllo sul racconto.
+	if (!TestTrue(TEXT("anti-vacuita': il log completo CONTIENE righe di danno, quindi c'e' qualcosa da perdere"),
+		DanniComplete > 0))
+	{
+		RTCombatLogFixture::DestroyWorld(World); return false;
+	}
+
+	// 🔴 **L'asserzione che rende la misura un GATE invece di un referto**: nessuna riga di danno sparisce
+	// fra il log completo e quello che la squadra riceve. E' la forma falsificabile di [D-431] — il giorno in
+	// cui il filtro tornasse in lettura, questa diventa rossa **col numero esatto** di cio' che il giocatore
+	// ha smesso di leggere, invece del solo `bColpoInflitto` che dice «manca» senza dire «quanto».
+	TestEqual(TEXT("nessuna riga di danno sparisce fra il log completo e quello della squadra del caduto"),
+		DanniVisibili, DanniComplete);
 
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
