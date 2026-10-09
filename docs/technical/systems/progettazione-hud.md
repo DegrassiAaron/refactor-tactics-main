@@ -90,7 +90,7 @@ Non collocare al centro:
 
 ## 3.2 Vista strategica separata
 
-La vista top-down prodotta durante le prime esplorazioni è utile, ma va considerata una modalità secondaria:
+La vista top-down prodotta durante le prime esplorazioni è utile, ~~ma va considerata una modalità secondaria~~:
 
 **Strategic Overview / Tactical Overview**
 
@@ -103,9 +103,11 @@ Possibili usi:
 - spettatore;
 - debug.
 
-Non è la camera di gameplay standard.
+~~Non è la camera di gameplay standard.~~
 
-> 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): la vista strategica si apre con `Tab`.**
+> ⌫ *Le due frasi barrate sono superate:* [D-252](../../decisions/RT_PDR_00_Decision_Log.md) *la rende una conseguenza dello zoom e non una modalità, e D-488 la rende la vista isometrica in cui si pianifica.*
+>
+> 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): la vista strategica si aprirà con `Tab`** (⏳ non cablato: oggi `Tab` cicla la selezione).
 > - **Come si apre.** `Tab` porta lo zoom alla soglia di [D-252](../../decisions/RT_PDR_00_Decision_Log.md) e
 >   ritorno, quindi resta una conseguenza della distanza e non una terza modalità.
 > - **Cosa cambia.** Al centro la 3D tattica diventa un'isometrica semplificata, quella delle tavole A–F di
@@ -307,8 +309,9 @@ Il roster non deve trasformarsi in tre enormi character card.
 
 > ⚠️ **2026-10-09 — [D-478](../../decisions/RT_PDR_00_Decision_Log.md): in v0.1 Editing / Ready / Locked non si
 > costruiscono.** Con un solo comandante per squadra non c'è un altro umano da riflettere.
-> *Reaction Armed* diventa un chip `REAZ.`, solo per le unità della propria squadra. Il suo dato non esiste ancora
-> in `FRTUnitCardView`.
+> *Reaction Armed* diventa un chip `REAZ.`, solo per le unità comandate della propria squadra, e conta anche
+> l'`Overwatch`. Il dato **non** va in `FRTUnitCardView`, che per contratto non porta piani: si legge dal piano
+> dell'unità comandata (`FRTUnitSlotsView`).
 
 > 🔑 **In sessione non presidiata le squadre sono due, in due liste** (`#2744`). Quando nessuno comanda —
 > autobattle, `ARTTurnManager::IsUnattendedSession()` — il roster risponde a *«chi sta giocando questa
@@ -933,8 +936,9 @@ Errore o condizione bloccante.
 > 🔑 **2026-10-09 — [D-480](../../decisions/RT_PDR_00_Decision_Log.md): chi produce l'elenco, dove sta, che
 > forma ha.**
 > - **Chi lo produce.** L'elenco di piano lo aggrega `URTHudViewModel` dalle fonti che esistono:
->   `FRTUnitOverlayView::bFriendlyFire` e gli stati `Invalid`/`Warning` dello slot
->   ([D-459](../../decisions/RT_PDR_00_Decision_Log.md)). Il validatore del piano resta l'unico a rifiutare.
+>   Warning è un piano accettato ma degradato: `FRTUnitOverlayView::bFriendlyFire` e lo slot `Warning`. Critical è
+>   ciò che il validatore rifiuta: lo slot `Invalid` ([D-459](../../decisions/RT_PDR_00_Decision_Log.md)). L'avviso
+>   lo riporta, non lo decide.
 > - **Dove sta.** In `MiddleLeft` sopra il pannello dell'unità, con un contatore accanto a `Conferma`; in
 >   Risoluzione si nasconde.
 > - **Che forma ha.** Info è un cerchio «i», Warning un triangolo «!», Critical un ottagono «✕»; il testo dice

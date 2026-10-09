@@ -135,8 +135,8 @@ La numerazione salta da D-482 a D-488 perché D-483…D-487 li ha presi [#3606](
 
 ⚠️ **D-479 è più stretta della domanda del pacchetto, e lo è per una misura.**
 - Il pacchetto chiedeva «un campo per la macrofase», come se mancasse.
-- Il campo c'è, ma è la fase logica: `RunPhaseLoop` la avanza mentre risolve, e la riproduzione mostra gli esiti dopo.
-- Un header costruito su `Phase` avrebbe mostrato BLAST mentre la scena era ancora nel PREP.
+- Il campo c'è, ma è la fase logica. Senza sospensioni `RunPhaseLoop` risolve tutto **prima** del playback e riporta `Phase` a `Planning`: un header costruito su `Phase` avrebbe detto PIANIFICAZIONE per tutta la riproduzione.
+- La fase riprodotta è già esposta, come nome (`GetPlaybackPhaseName()`) e come evento (`OnPhasePlaybackStarted`), e nessun widget la legge. *(Corretto dopo la review indipendente, §11: la prima stesura diceva che la leggeva solo un accessor di test.)*
 
 ## 6. Le tavole del 2026-10-09
 
@@ -166,7 +166,7 @@ Ho ricavato le tavole dal PDF a 1920×1080 e le ho portate in scala di grigi per
 | D4 | D, E | Il registro mostra azioni di Branth (`Irrigidimento`, `Interagisci → Nodo`) | Corretto **solo** se gli eventi sono visibili alla squadra. Il widget legge la proiezione autorizzata, e la tavola non lo dimostra |
 | D5 | D, E | In Risoluzione l'header perde `/12` | ✅ Corretto nella riesportazione: `TURNO 04 / 12` |
 | D6 | — | Il PDF scaricato da Drive e quello conservato in locale sono **due esportazioni diverse**, ed entrambi **precedono** le correzioni D1, D5, D7 e D8 | Non entra nessun PDF: entrano le PNG della riesportazione, che è l'unica con le correzioni, e la tavola G come PNG |
-| D7 | C | Il costo del conflitto su G7 l'ha scritto il generatore delle tavole, perché la specifica non lo dava: «uno dei due movimenti può non arrivare». **È falso.** Due movimenti normali hanno la stessa priorità, e a parità di priorità si fermano **entrambi** prima della cella (`BlockedContested`, `RTHexSimLibrary.h`) | ✅ Corretto nella riesportazione: «nessuno dei due arriva» |
+| D7 | C | Il costo del conflitto su G7 l'ha scritto il generatore delle tavole: «uno dei due movimenti può non arrivare». **L'ho corretto in «nessuno dei due arriva», e la correzione era sbagliata.** La contesa si valuta **per microstep** (`ArrivaOra`, `RTHexSimLibrary.cpp`). Si fermano entrambi (`BlockedContested`) solo se entrano in G7 nello stesso passo; chi arriva prima occupa la cella, e l'altro si ferma (`Movement.EarlyArrivalBlocksALaterPasser`). Con 3 celle contro 6, Aevik arriva e Muiren no | ❌ **Errore della tavola C, introdotto da questo referto.** Dichiarato nel README e in `SPECIFICA-ZONE.md`. La frase giusta: «Aevik arriva prima (3 celle contro 6): Muiren si ferma prima di G7» |
 | D8 | annotate | Anche le definizioni della legenda le ha scritte il generatore. «Già presente nel gioco» per `CURRENT` promette più del vero: il widget e il dato esistono, la resa delle tavole no | ✅ Riscritte nella riesportazione, con la voce `DECISA` per ciò che è deciso il 2026-10-09 e non ancora nel codice |
 
 ## 7. Che cosa il work order chiedeva e non è stato fatto
@@ -188,7 +188,7 @@ Ho ricavato le tavole dal PDF a 1920×1080 e le ho portate in scala di grigi per
 | [`research/design/hud/hud-screens-2026-10/`](../../research/design/hud/hud-screens-2026-10/) | README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, `immagini/` (le PNG della riesportazione), `sorgente-mockup/` |
 | [`decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | D-477…D-482, D-488 e la nota sui numeri |
 | [`technical/systems/progettazione-hud.md`](../../technical/systems/progettazione-hud.md) | §3.2, §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
-| [`technical/systems/spec-tactical-camera.md`](../../technical/systems/spec-tactical-camera.md) | §2, la riga `Tab` → Strategic View al posto di `M`; §5, D-488 |
+| [`technical/systems/spec-tactical-camera.md`](../../technical/systems/spec-tactical-camera.md) | §3.2, la riga `Tab` → Strategic View al posto di `M`; §5, D-488 |
 | [`skill-bar-2026-10/dati/tokens.json`](../../research/design/hud/skill-bar-2026-10/dati/tokens.json) | La nota *«NON esistono in §32»* cita D-482 |
 | [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md) | Una voce |
 
@@ -198,10 +198,10 @@ Proposti, **non** creati con questo referto: ciascuno diventa una issue quando l
 
 | # | Seguito | Tipo | Owner probabile |
 |---|---|---|---|
-| T1 | La fase riprodotta in `FRTMatchHeaderView` (D-479), con un test che la tiene distinta da `Phase` | C++ + test | #613 |
+| T1 | La fase riprodotta in `FRTMatchHeaderView` (D-479), alimentata dalla sorgente di `GetPlaybackPhaseName()` / `OnPhasePlaybackStarted` e non da un'altra, con un test che la tiene distinta da `Phase` | C++ + test | #613 |
 | T2 | Il tasto e la descrizione dell'opzione in `FRTReactionWindowOptionView` (D2) | C++ + test | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
-| T3 | Il dato del chip `REAZ.` in `FRTUnitCardView`, muto per un'avversaria (D-478) | C++ + test di privacy | #613 |
-| T4 | L'aggregato degli avvisi di piano (D-480) | C++ + test | #613 |
+| T3 | Il chip `REAZ.` (D-478): la lettura del piano per ogni alleato comandato, da `FRTUnitSlotsView` e **non** da `FRTUnitCardView`, e il predicato che conta l'`Overwatch`. Muto per un'avversaria | C++ + test di privacy | #613 |
+| T4 | L'elenco degli avvisi di piano (D-480), con l'attribuzione di ogni avviso al piano che lo causa: `bFriendlyFire` dice chi è colpito, non da quale piano | C++ + test | #613 |
 | T5 | Indice e totale dell'evento riprodotto, per la striscia Z11 | C++ + test | [#1881](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1881) |
 | T6 | La sede a runtime dei token di §32 (D-482): una sola fonte di stile per i widget | decisione + C++ o asset | #613 |
 | T7 | La barra dei comandi collassata in Risoluzione: riepilogo dei tre slot da `FRTUnitSlotsView` | asset | [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826) |
@@ -215,3 +215,28 @@ Proposti, **non** creati con questo referto: ciascuno diventa una issue quando l
 ## 10. Gate di questo passaggio
 
 I gate eseguiti, con il loro esito, sono nel corpo della PR di [#3605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3605).
+
+## 11. Dalla review indipendente
+
+Prima del merge un revisore separato ha riletto ogni affermazione sul codice, con lo stesso albero. Ciò che ha
+trovato è stato corretto **in questo referto e nelle voci**, non nascosto. I rilievi che cambiavano il contenuto:
+
+| Rilievo | Dove | Correzione |
+|---|---|---|
+| La fase riprodotta non la legge «solo un accessor di test»: esistono `GetPlaybackPhaseName()` («per la HUD») e `OnPhasePlaybackStarted` | D-479, T1 | La voce le nomina, e il campo si alimenta da lì: Search → Reuse |
+| Senza sospensioni `Phase` torna a `Planning` prima del playback: l'header avrebbe detto PIANIFICAZIONE, non BLAST | D-479 | Il meccanismo è descritto come misurato |
+| La contesa di una cella si valuta per microstep: «si fermano entrambi» vale solo per arrivi simultanei | §6 D7 | La tavola C ha ora un costo sbagliato, dichiarato come errore |
+| `Invalid` è un rifiuto, non un piano «accettato ma degradato» | D-480, §15 | `Invalid` è Critical; Warning è solo ciò che il validatore accetta |
+| `bFriendlyFire` non dice quale piano colpisce | D-480, T4 | L'attribuzione è lavoro dichiarato |
+| `FRTUnitCardView` per contratto non porta piani; il dato è in `FRTUnitSlotsView`; l'`Overwatch` è `Main` | D-478, T3 | Il chip legge il piano, e la voce dice che l'`Overwatch` conta |
+
+Gli altri rilievi erano di precisione, e sono corretti nei rispettivi file:
+- la sezione di `spec-tactical-camera.md` (§3.2, non §2);
+- l'origine del tasto `M` (D-456 punto 3, non D-457);
+- la citazione «cosa · perché · costo», che viene da `SPECIFICA-ZONE.md` e non da §15;
+- un totale in prosa;
+- `Tab` al presente per una cosa non cablata;
+- le frasi di §3.2 superate da D-252 e D-488;
+- l'emendamento di D-421, che ora è dichiarato in entrambe le voci;
+- le affermazioni del corpo di `SPECIFICA-ZONE.md` superate da D-478.
+

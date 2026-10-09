@@ -105,7 +105,7 @@ Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177
 | `PageUp` / `PageDown` | `ActiveLayer` sopra / sotto | ✅ limitato ai layer che la mappa ha |
 | doppio `LMB` | Select + Focus | ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773) |
 | `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida |
-| `Tab` → Strategic View | porta lo zoom oltre la soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md)) | ⏳ non cablato: lo stato esiste, la vista no (§5). ⌫ *Fino al 2026-10-09 questa riga diceva `M`, che da [D-457](../../decisions/RT_PDR_00_Decision_Log.md) dichiara `Sneak`* |
+| `Tab` → Strategic View | porta lo zoom oltre la soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md)) | ⏳ non cablato: lo stato esiste, la vista no (§5). ⌫ *Fino al 2026-10-09 questa riga diceva `M`, che dichiara `Sneak` ([D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 3, [#3470](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3470); il badge è cliccabile da [D-457](../../decisions/RT_PDR_00_Decision_Log.md))* |
 
 > ✅ **`CAM-B` risposta il 2026-08-30: «entrambi».** `MMB` **resta** l'orbita e `Alt`+`LMB` è un secondo
 > modo; il pan resta su `WASD`. La domanda era aperta perché il rebinding avrebbe invalidato
@@ -199,7 +199,7 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 *mostri* in Strategic — separazione verticale dei piani, densità dei marker — è §6 e resta da fare.
 
 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): come si entra e che cosa si vede.**
-- **Come si entra.** `Tab` porta la camera oltre `StrategicEnterThreshold` e, al secondo `Tab`, la riporta alla distanza di partenza. Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
+- **Come si entra** (⏳ non cablato: oggi `Tab` cicla la selezione). `Tab` porta la camera oltre `StrategicEnterThreshold` e, al secondo `Tab`, la riporta alla distanza di partenza. Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
 - **Che cosa si vede.** Al centro, la 3D tattica diventa un'**isometrica semplificata**, quella delle tavole A–F di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md). L'HUD intorno resta lo stesso.
 - **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`.
 - **Che cosa resta aperto.** La proiezione esatta e le soglie si decidono in `L_CameraFeatureLab`.

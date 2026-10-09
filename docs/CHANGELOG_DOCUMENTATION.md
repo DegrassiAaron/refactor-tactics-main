@@ -13,8 +13,8 @@ issue [#3605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3605
 |---|---|
 | [`research/design/hud/hud-screens-2026-10/`](research/design/hud/hud-screens-2026-10/) | **creato** — README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, le tavole A–F pulite e annotate, la verifica in scala di grigi, il sorgente del canvas |
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-477** (niente controlli di riproduzione nell'HUD del giocatore), **D-478** (un comandante: niente UI di coordinamento, chip `REAZ.`), **D-479** (l'header mostra la fase riprodotta), **D-480** (avvisi di piano aggregati dal view-model), **D-481** (l'obiettivo in `TopCenter`), **D-482** (testo e fondi di stato in §32), **D-488** (la vista strategica si apre con `Tab`, che porta lo zoom alla soglia di D-252; il ciclo della selezione passa a `N`) |
-| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3.2, §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
-| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §2: `Tab` → Strategic View al posto di `M`, che da D-457 è `Sneak`; §5: D-488 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3.2 (le due frasi superate da D-252 e D-488 barrate), §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.2: `Tab` → Strategic View al posto di `M`, che dichiara `Sneak` (D-456 punto 3); §5: D-488 |
 | [`research/design/hud/skill-bar-2026-10/dati/tokens.json`](research/design/hud/skill-bar-2026-10/dati/tokens.json) | la nota sui colori del testo cita D-482 |
 
 ---
