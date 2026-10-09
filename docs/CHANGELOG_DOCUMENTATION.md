@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-09 — Le tavole HUD A–F entrano come sorgente di design, e il registro riceve D-477…D-482
+
+**Origine**: il pacchetto «HUD — pacchetto design (2026-10-04)» consegnato su Drive, passato da uno spec panel e
+misurato su `origin/main` = `a6bf857bf`. Referto:
+[`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md),
+issue [#3605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3605).
+
+| Dove | Che cosa |
+|---|---|
+| [`research/design/hud/hud-screens-2026-10/`](research/design/hud/hud-screens-2026-10/) | **creato** — README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, le tavole A–F pulite e annotate, la verifica in scala di grigi |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-477** (niente controlli di riproduzione nell'HUD del giocatore), **D-478** (un comandante: niente UI di coordinamento, chip `REAZ.`), **D-479** (l'header mostra la fase riprodotta), **D-480** (avvisi di piano aggregati dal view-model), **D-481** (l'obiettivo in `TopCenter`), **D-482** (testo e fondi di stato in §32) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle sei voci |
+| [`research/design/hud/skill-bar-2026-10/dati/tokens.json`](research/design/hud/skill-bar-2026-10/dati/tokens.json) | la nota sui colori del testo cita D-482 |
+
+---
+
 ## 2026-10-05 — Il foglio di conduzione delle sedute U61 e U63, la barra dei comandi
 
 | Dove | Che cosa |
