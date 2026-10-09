@@ -147,8 +147,6 @@ namespace
 	 *
 	 *  🔑 **Cio' che il test misurava del catalogo non si perde**: che il campo sia `0` lo asserisce
 	 *  `RefactorTactics.Catalog.BudgetActionsDeclareNoRange`, per **ogni** azione a budget e non per una. */
-	constexpr int32 FastBudgetActionRange() { return 8; }
-
 	/**
 	 * Una mobilita' rapida **a budget**, dichiarata dal KIT e non presa dal catalogo spedito.
 	 *
@@ -162,18 +160,17 @@ namespace
 	 * `Actions.KitCanDeclareAMobilityThatCostsBothSlots` copre il ramo `MovementAndMain` che nessun dato
 	 * spedito attraversa. Un ramo che nessun test percorre e' un ramo che nessuno difende.
 	 *
-	 * ⚠️ Si parte dal `Def` del catalogo e si cambiano **fase e portata**. ⏱️ *Fino al 2026-09-18 si cambiava
-	 * la sola fase, «cosi' il budget resta quello spedito»: da [D-427] il campo e' `0`, e un'azione a budget
-	 * zero non copre niente. La portata e' ora dichiarata da `FastBudgetActionRange()`, qui sotto.*
+	 * ⚠️ Si parte dal `Def` del catalogo e si cambia la sola FASE. Il budget resta quello del PROFILO che
+	 * l'azione dichiara (`Sprint`, x2 — [D-412]), che e' la sede che la query legge dal 2026-10-09 (`#3202`):
+	 * `RangeCells` resta `0` come [D-427] prescrive, e il test del ramo a budget lo asserisce, perche' e'
+	 * esattamente il valore con cui quel ramo veniva saltato in silenzio. ⏱️ *Fra il 2026-09-18 e il
+	 * 2026-10-09 la fixture dichiarava `RangeCells = 8` per aggirare lo zero: era la seconda sede che
+	 * [D-427] vieta, e copriva il difetto invece di misurarlo.*
 	 */
 	URTActionData* MakeFastBudgetAction()
 	{
 		URTActionData* A = MakeQueryAction(TEXT("Action.Sprint"));
 		A->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
-		A->Def.RangeCells = FastBudgetActionRange();
-		// Il campo specchio non lo legge `DeclaredRange` — che preferisce il `Def` quando l'`ActionId` c'e' —
-		// ma tenerlo d'accordo evita un fixture che dichiara due portate diverse per la stessa azione.
-		A->RangeCells = FastBudgetActionRange();
 		return A;
 	}
 
@@ -848,21 +845,31 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 		TestFalse(TEXT("ne' quello del veloce"), SameCells(RFast.ReachableCells, RDef.ReachableCells));
 	}
 
-	// --- Lo scatto segue il `RangeCells` dichiarato dall'azione -------------------------------------------
+	// --- Lo scatto a budget segue il PROFILO, e un `RangeCells` a zero non lo spegne (#3202) ---------------
 	{
-		// ⏱️ *Veniva da `CatalogBudget("Action.Sprint")`, che da [D-427] vale `0`.* Il budget dello scatto
-		// e' ora del profilo, e questo blocco non misura QUEL numero: misura che la regione osservata segue
-		// il budget dell'azione a budget che l'eroe porta — `MakeFastBudgetAction()`, costruita qui sotto —
-		// quindi il valore va dichiarato dal test, non pescato dal catalogo.
-		const int32 SprintBudget = FastBudgetActionRange();
-		if (!TestTrue(TEXT("l'azione a budget di prova dichiara una portata"), SprintBudget > 0))
+		// ⏱️ *Veniva da `CatalogBudget("Action.Sprint")`, che da [D-427] vale `0`; poi da una portata dichiarata
+		// dalla fixture (`8`), che era la seconda sede vietata.* Il budget dello scatto a budget e' del PROFILO,
+		// come quello del passo: la fixture eredita il profilo di `Action.Sprint`, e il test lo legge dalla
+		// stessa libreria che usa il resolver.
+		const int32 MovePoints = 1;
+		URTHeroData* Hero = FastBudgetHero(MovePoints);
+		const URTActionData* Dash = Hero->Actions.Last().Get();
+		if (!TestTrue(TEXT("premessa: la fixture e' uno scatto a budget con un profilo"),
+			Dash && Dash->Def.MovementStyle == ERTMovementStyle::Budget && !Dash->Def.MovementProfileId.IsNone()))
 		{
 			return false;
 		}
 
-		// Arena piu' larga del budget: il limite che si osserva e' quello dell'azione, non quello del bordo.
+		// ⛔ ANTI-VACUITA' — il secondo caso di #3202: il campo che il ramo leggeva prima vale ZERO. Se la query
+		// tornasse a leggerlo, la regione dello scatto sarebbe vuota e le due asserzioni sotto cadrebbero.
+		TestEqual(TEXT("RangeCells dell'azione a budget e' zero (D-427)"), Dash->Def.RangeCells, 0);
+		const int32 SprintBudget =
+			URTMovementProfileLibrary::FindProfile(Dash->Def.MovementProfileId).ResolveStepBudget(MovePoints);
+		if (!TestTrue(TEXT("il profilo concede piu' del passo, o le due regioni coinciderebbero"),
+			SprintBudget > MovePoints)) { return false; }
+
+		// Arena piu' larga del budget: il limite che si osserva e' quello del profilo, non quello del bordo.
 		URTHexMapAsset* Map = MakeQueryArena(SprintBudget + 1);
-		URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 1);
 
 		FRTKnowledgeView View;
 		View.ObserverTeamId = 0;
@@ -873,7 +880,7 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 			URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, Hero, R))) { return false; }
 
 		// Su arena a costo 1 il budget e' il raggio: l'ultima cella dentro c'e', la prima fuori no.
-		TestTrue(TEXT("lo scatto arriva esattamente al budget del catalogo"),
+		TestTrue(TEXT("lo scatto arriva esattamente al budget del profilo"),
 			Has(R.DashOnlyCells, FRTCellId(SprintBudget, 0)));
 		TestFalse(TEXT("e non oltre"), Has(R.DashOnlyCells, FRTCellId(SprintBudget + 1, 0)));
 	}

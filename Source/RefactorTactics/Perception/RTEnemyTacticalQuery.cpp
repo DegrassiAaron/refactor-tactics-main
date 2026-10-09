@@ -242,24 +242,37 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 		// e non avrebbe piu' un attacco da portare all'arrivo.
 		if (URTCatalogLibrary::TakesMainSlot(Action->Def)) { continue; }
 
-		const int32 Declared = DeclaredRange(Action);
-		if (Declared <= 0) { continue; }
-
 		if (Action->Def.MovementStyle == ERTMovementStyle::Budget)
 		{
-			// Scatto a budget: stesso Dijkstra del movimento, altra quantita'.
+			// Scatto a budget: stesso Dijkstra del movimento, altra quantita' — e la quantita' viene dal
+			// PROFILO, come per il passo qui sopra e come fa il resolver (`SimUnit.StepBudget =
+			// Profile.ResolveStepBudget(...)`, [D-378]: anteprima e resolver non divergono).
+			//
+			// 🔴 **Fino al 2026-10-09 leggeva `DeclaredRange(Action)`, cioe' `RangeCells`, e saltava su `<= 0`.**
+			// [D-427] ha portato quel campo a `0` per OGNI azione a stile `Budget`: un kit che dichiari uno scatto
+			// a budget sarebbe uscito da questa regione in silenzio — il secondo caso di `#3202`. Il filtro su
+			// `RangeCells` resta sotto, per le sole mobilita' LINEARI, che la distanza la dichiarano li'.
 			//
 			// ⌫ **Nominava `Action.Sprint`, e dal 2026-09-12 non e' piu' vero** ([D-116]/[#641], misurato da
 			// `#3202`): lo Sprint risolve in `NormalMovement`, quindi `IsFastMovement` lo esclude qui sopra e
 			// il suo budget allarga il PASSO. Nessuna azione del catalogo spedito percorre oggi questo ramo —
 			// resta vivo perche' un kit puo' dichiarare uno scatto a budget, ed e' cio' che copre
 			// `Perception.BudgetComesFromTheCatalogNotAConstant` con un'azione fabbricata.
-			for (const FRTCellId& C : ReachableWithBudget(Map, Entries, SubjectStableUnitId, Declared))
+			// Un profilo assente vale NEUTRO (100%): lo scatto arriva dove arriva il passo, e la regione dello
+			// scatto resta vuota. E' la stessa lettura fail-closed del passo, non un caso speciale.
+			const FRTMovementProfile Profile = URTMovementProfileLibrary::FindProfile(Action->Def.MovementProfileId);
+			const int32 Budget = Profile.ResolveStepBudget(Hero->MovePoints);
+			if (Budget <= 0) { continue; }
+			for (const FRTCellId& C : ReachableWithBudget(Map, Entries, SubjectStableUnitId, Budget))
 			{
 				if (C != Origin) { DashOrigins.Add(C); }
 			}
 			continue;
 		}
+
+		// Le mobilita' LINEARI dichiarano la distanza in `RangeCells`: qui la portata e' dell'azione.
+		const int32 Declared = DeclaredRange(Action);
+		if (Declared <= 0) { continue; }
 
 		if (!URTMovementActionLibrary::IsLinear(Action->Def.MovementStyle)) { continue; }
 
