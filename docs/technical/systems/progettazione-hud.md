@@ -90,7 +90,7 @@ Non collocare al centro:
 
 ## 3.2 Vista strategica separata
 
-La vista top-down prodotta durante le prime esplorazioni è utile, ma va considerata una modalità secondaria:
+La vista top-down prodotta durante le prime esplorazioni è utile, ~~ma va considerata una modalità secondaria~~:
 
 **Strategic Overview / Tactical Overview**
 
@@ -103,7 +103,19 @@ Possibili usi:
 - spettatore;
 - debug.
 
-Non è la camera di gameplay standard.
+~~Non è la camera di gameplay standard.~~
+
+> ⌫ *Le due frasi barrate sono superate:* [D-252](../../decisions/RT_PDR_00_Decision_Log.md) *la rende una conseguenza dello zoom e non una modalità, e D-488 la rende la vista isometrica in cui si pianifica.*
+>
+> 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): la vista strategica si aprirà con `Tab`** (⏳ non cablato: oggi `Tab` cicla la selezione).
+> - **Come si apre.** `Tab` porta lo zoom alla soglia di [D-252](../../decisions/RT_PDR_00_Decision_Log.md) e
+>   ritorno, quindi resta una conseguenza della distanza e non una terza modalità.
+> - **Cosa cambia.** Al centro la 3D tattica diventa un'isometrica semplificata, quella delle tavole A–F di
+>   [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md).
+> - **Cosa non cambia.** **L'HUD è lo stesso nelle due viste**: le zone di §6 valgono per entrambe, e in
+>   Strategic si pianifica.
+>
+> Il «come» sta in [`spec-tactical-camera.md`](spec-tactical-camera.md) §5.
 
 ---
 
@@ -268,6 +280,17 @@ Esempio:
 
 `TURN 04 · PLANNING · 00:21`
 
+> 🔑 **2026-10-09 — [D-479](../../decisions/RT_PDR_00_Decision_Log.md): in Risoluzione l'header mostra la fase
+> riprodotta.** Ha quattro celle fisse `PREP · DASH · BLAST · MOVE`. La cella attiva ha quadrato pieno, bordo e
+> nome; le altre hanno un cerchio e il testo spento.
+> ⚠️ La fase **non** è `FRTMatchHeaderView::Phase`, che è la fase logica e può essere più avanti di ciò che la
+> scena mostra: la cella attiva legge un campo proprio della vista. `Cleanup` non ha cella, perché il playback
+> non lo riproduce mai.
+>
+> **E a destra di turno, fase e timer, l'obiettivo** ([D-481](../../decisions/RT_PDR_00_Decision_Log.md), §6.3).
+> Riferimento visivo: le tavole A–F di
+> [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md).
+
 ## 6.2 Top left — Team roster
 
 Compatto.
@@ -284,6 +307,12 @@ Ogni membro può mostrare:
 
 Il roster non deve trasformarsi in tre enormi character card.
 
+> ⚠️ **2026-10-09 — [D-478](../../decisions/RT_PDR_00_Decision_Log.md): in v0.1 Editing / Ready / Locked non si
+> costruiscono.** Con un solo comandante per squadra non c'è un altro umano da riflettere.
+> *Reaction Armed* diventa un chip `REAZ.`, solo per le unità comandate della propria squadra, e conta anche
+> l'`Overwatch`. Il dato **non** va in `FRTUnitCardView`, che per contratto non porta piani: si legge dal piano
+> dell'unità comandata (`FRTUnitSlotsView`).
+
 > 🔑 **In sessione non presidiata le squadre sono due, in due liste** (`#2744`). Quando nessuno comanda —
 > autobattle, `ARTTurnManager::IsUnattendedSession()` — il roster risponde a *«chi sta giocando questa
 > partita»* invece che a *«chi comando io»*, e mostra anche l'altra squadra. Restano **due liste distinte**:
@@ -298,8 +327,12 @@ Il roster non deve trasformarsi in tre enormi character card.
 > ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md): `TopRight` ospita `CONFIRM PLAN` ·
 > `UNDO`** (§6.8), che lasciano la fascia bassa alla barra dei comandi. L'Objective perde la cella che questa
 > sezione gli assegnava sulla carta. Era vuota, e il punteggio vive già in `WBP_RT_TurnHeader`, in `TopCenter`.
-> ⛔ **Dove vada il resto di questa lista non è deciso**: è un seguito di
-> [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
+> ~~⛔ **Dove vada il resto di questa lista non è deciso**: è un seguito di
+> [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).~~
+> ✅ **Deciso il 2026-10-09 — [D-481](../../decisions/RT_PDR_00_Decision_Log.md):** l'Objective sta in
+> `TopCenter`, nell'header, a destra di turno, fase e timer. Ha nome, punteggio con la soglia e stato
+> (`CONTESO` con un'icona). Nome, stato, countdown e cambio recente non hanno ancora un dato
+> ([#2281](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2281)).
 
 Compatto ma sempre leggibile.
 
@@ -381,6 +414,10 @@ Non è un character sheet RPG.
 
 ## 6.5 Right side — Team Intent
 
+> ⏳ **`FUTURE` dal 2026-10-09 — [D-478](../../decisions/RT_PDR_00_Decision_Log.md).** In v0.1 il giocatore
+> comanda entrambi gli alleati, quindi non c'è un intento altrui da mostrare. La sezione resta come progetto, e
+> nelle tavole A–F il pannello è una linguetta chiusa.
+
 Pannello compatto e collassabile.
 
 Per un alleato può mostrare:
@@ -401,6 +438,10 @@ Il dettaglio completo compare solo su hover, click o focus.
 > accanto a turno, fase e timer che `WBP_RT_TurnHeader` mostra già. ⌫ *Fino a quel giorno questa sezione la
 > collocava in basso al centro, accanto all'Action Dock.* La fascia bassa è ora della barra dei comandi (§6.7).
 > Owner: [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172).
+>
+> 🔑 **2026-10-09 — [D-479](../../decisions/RT_PDR_00_Decision_Log.md) punto 4: la timeline legge il piano, non
+> l'header**, ed è visibile solo in Pianificazione. In Risoluzione al suo posto compare la striscia dell'evento
+> corrente (tavola D di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md)).
 
 La timeline canonica è:
 
@@ -891,6 +932,21 @@ Rischio significativo.
 ## Critical
 
 Errore o condizione bloccante.
+
+> 🔑 **2026-10-09 — [D-480](../../decisions/RT_PDR_00_Decision_Log.md): chi produce l'elenco, dove sta, che
+> forma ha.**
+> - **Chi lo produce.** L'elenco di piano lo riporta `URTHudViewModel` dalle fonti che esistono.
+>   - **Warning** è un piano accettato ma degradato: `FRTUnitOverlayView::bFriendlyFire` e lo slot `Warning`.
+>   - **Critical** è un piano che il validatore rifiuta: lo slot `Invalid` nella lettura del piano illegale
+>     (`bPlanInvalid`, [D-459](../../decisions/RT_PDR_00_Decision_Log.md)).
+>   - Il rifiuto del click sotto il puntatore (`bTargetRefused`) resta della dock e non entra nell'elenco.
+>
+>   L'avviso riporta, non decide.
+> - **Dove sta.** In `MiddleLeft` sopra il pannello dell'unità, con un contatore accanto a `Conferma`; in
+>   Risoluzione si nasconde.
+> - **Che forma ha.** Info è un cerchio «i», Warning un triangolo «!», Critical un ottagono «✕»; il testo dice
+>   cosa · perché · costo.
+> - **Chi non lo vede.** Mai per un'unità ispezionata e non comandata.
 
 Possibili categorie:
 
@@ -1479,6 +1535,23 @@ Colori estratti dalla style guide PNG:
 | `RT_UI_Amber` | `#FFD456` | selected, warning, commitment |
 | `RT_UI_Red` | `#FF4D4D` | critical, invalid, low health |
 | `RT_UI_White` | `#FFFFFF` | testo/icone ad alta priorità |
+
+## Testo e fondi di stato
+
+> Dal 2026-10-09, [D-482](../../decisions/RT_PDR_00_Decision_Log.md). Vengono dai mockup della skill bar e dalle
+> tavole HUD A–F ([`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md)), che li
+> usano tutte. **Dove vivano a runtime non è ancora deciso.**
+
+| Token | Hex | Uso |
+|---|---|---|
+| `RT_UI_Text_Primary` | `#E6EBF2` | testo corrente |
+| `RT_UI_Text_Secondary` | `#A9B4C2` | etichette, testo di supporto |
+| `RT_UI_Text_Disabled` | `#6B7684` | testo e icone spenti |
+| `RT_UI_Frame_Off` | `#2E3746` | bordo spento |
+| `RT_UI_BG_Selected` | `#2B2918` | fondo di uno slot selezionato |
+| `RT_UI_BG_Reaction` | `#221E3A` | fondo di una reazione armata |
+| `RT_UI_BG_Invalid` | `#2A1719` | fondo di uno stato non valido |
+| `RT_UI_BG_ProfileActive` | `#0E2A33` | fondo della lettura del movimento attiva |
 
 Nota: i token semantici possono derivare da questi colori, ma la UI non deve dipendere solo dal colore.
 

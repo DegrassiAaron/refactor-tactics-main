@@ -1,0 +1,315 @@
+{
+  "_statuto": "Misurato su HEAD il 2026-10-04; DA RIMISURARE (PROMPT §2). Classi: CURRENT, PARZIALE, DESIGNED, FUTURE, PROPOSTA.",
+  "zone": [
+    {
+      "id": "Z1",
+      "nome": "Header turno",
+      "pos": "alto-centro",
+      "schermate": "A B C D E F",
+      "classe": "PARZIALE",
+      "widget": "URTTurnHeaderWidget",
+      "view": "FRTMatchHeaderView",
+      "presenti": [
+        "Round",
+        "RoundLimit",
+        "Phase",
+        "PlanningSecondsRemaining",
+        "ReadyCountdownSecondsRemaining",
+        "PrepWindowSecondsRemaining",
+        "SecondsUntilCommit",
+        "bResolving"
+      ],
+      "mancanti": [
+        "macrofase corrente (PREP/DASH/BLAST/MOVE) per le quattro celle"
+      ],
+      "doc": "progettazione-hud §6.1, §8.1",
+      "note": "Le quattro celle sono PROPOSTA: richiedono un campo nella view (DEC-HUD-3). Il colore di fase è il secondo canale: la cella attiva cambia anche forma (quadrato pieno) e ha il nome."
+    },
+    {
+      "id": "Z2",
+      "nome": "Roster squadra",
+      "pos": "alto-sinistra",
+      "schermate": "A B C D E F",
+      "classe": "PARZIALE",
+      "widget": "URTTeamRosterWidget",
+      "view": "FRTUnitCardView",
+      "presenti": [
+        "HeroId",
+        "Health",
+        "MaxHealth",
+        "Shield",
+        "bIsAlly",
+        "bAlive",
+        "HealthFraction"
+      ],
+      "mancanti": [
+        "stato Editing/Ready/Locked",
+        "Reaction Armed",
+        "status essenziali nella carta"
+      ],
+      "doc": "progettazione-hud §6.2",
+      "note": "In sessione non presidiata le squadre sono DUE liste distinte (#2744): non fonderle. Editing/Ready/Locked hanno senso solo con più comandanti (DEC-HUD-2). Il chip REAZ. è proposto, non misurato."
+    },
+    {
+      "id": "Z3",
+      "nome": "Obiettivo",
+      "pos": "alto-destra",
+      "schermate": "A B C D E F",
+      "classe": "PARZIALE",
+      "widget": "(nessuno dedicato misurato)",
+      "view": "FRTMatchHeaderView.Team0Score/Team1Score/ScoreToWin",
+      "presenti": [
+        "Team0Score",
+        "Team1Score",
+        "ScoreToWin"
+      ],
+      "mancanti": [
+        "nome obiettivo",
+        "contestato",
+        "countdown",
+        "cambio recente"
+      ],
+      "doc": "progettazione-hud §6.3",
+      "note": "La doc dichiara il punteggio 'composto, non disegnato' dal 2026-09-07. Rimisurare su HEAD prima di dire che è a schermo. 'Nodo centrale' e 'CONTESO' sono dimostrativi."
+    },
+    {
+      "id": "Z4",
+      "nome": "Unità selezionata",
+      "pos": "basso-sinistra",
+      "schermate": "A B C F",
+      "classe": "PARZIALE",
+      "widget": "URTSelectedUnitPanelWidget",
+      "view": "(da misurare)",
+      "presenti": [
+        "il pannello esiste"
+      ],
+      "mancanti": [
+        "da misurare campo per campo"
+      ],
+      "doc": "progettazione-hud §6.4",
+      "note": "Non è una scheda RPG. Il mockup mostra ritratto, elemento, PV, PM, status: misurare quali ci sono."
+    },
+    {
+      "id": "Z5",
+      "nome": "Action Dock / skill bar",
+      "pos": "basso-centro",
+      "schermate": "A B C F",
+      "classe": "PARZIALE",
+      "widget": "URTActionDockWidget + URTActionSlotWidget",
+      "view": "FRTAbilityCooldownView",
+      "presenti": [
+        "ActionId",
+        "IconId",
+        "DisplayName",
+        "HotkeyLabel",
+        "bPlanned",
+        "Slot",
+        "TurnsRemaining",
+        "TotalTurns",
+        "bUsableNow"
+      ],
+      "mancanti": [
+        "fase per slot",
+        "flag reazione"
+      ],
+      "doc": "progettazione-hud §6.7, §7",
+      "note": "Coperta dal pacchetto skill-bar/ con il suo PROMPT.md. NON si rifà qui."
+    },
+    {
+      "id": "Z6",
+      "nome": "Ghost Timeline",
+      "pos": "sopra la dock",
+      "schermate": "A B C F",
+      "classe": "DESIGNED",
+      "widget": "(nessuno)",
+      "view": "(nessuna)",
+      "presenti": [],
+      "mancanti": [
+        "intera zona"
+      ],
+      "doc": "progettazione-hud §6.6",
+      "note": "Quattro celle fisse PREP—DASH—BLAST—MOVE, mai una coda. Un piano ha al più una voce per macrofase."
+    },
+    {
+      "id": "Z7",
+      "nome": "Conferma / Undo",
+      "pos": "basso-destra",
+      "schermate": "A B C F",
+      "classe": "PARZIALE",
+      "widget": "(nessuno)",
+      "view": "FRTMatchHeaderView.ReadyCountdownSecondsRemaining / SecondsUntilCommit",
+      "presenti": [
+        "LockInAction (Spazio)",
+        "UndoAction",
+        "countdown di Ready annullabile"
+      ],
+      "mancanti": [
+        "pulsante a schermo",
+        "stati del pulsante durante il countdown"
+      ],
+      "doc": "progettazione-hud §6.8",
+      "note": "Il pulsante si lega ai comandi esistenti, non ne crea di nuovi. Mai 'TEAM READY 1/2' finché non è reale. Il mockup mostra solo lo stato di riposo (DEC-HUD-4)."
+    },
+    {
+      "id": "Z8",
+      "nome": "Avvisi",
+      "pos": "sopra il pannello unità + contatore vicino a Conferma",
+      "schermate": "B C",
+      "classe": "PARZIALE",
+      "widget": "URTUnitOverlayWidget (per unità)",
+      "view": "FRTUnitOverlayView.bFriendlyFire",
+      "presenti": [
+        "bFriendlyFire per unità"
+      ],
+      "mancanti": [
+        "elenco/conteggio a livello di piano",
+        "livelli Info/Warning/Critical"
+      ],
+      "doc": "progettazione-hud §15",
+      "note": "Un avviso dice cosa, perché e cosa costa. Il colore ambra non basta: triangolo + testo."
+    },
+    {
+      "id": "Z9",
+      "nome": "Intenti alleati",
+      "pos": "destra",
+      "schermate": "A C",
+      "classe": "FUTURE",
+      "widget": "(nessuno)",
+      "view": "(nessuna)",
+      "presenti": [],
+      "mancanti": [
+        "intera zona"
+      ],
+      "doc": "progettazione-hud §6.5, §17.1",
+      "note": "Richiede più comandanti sulla stessa squadra (DEC-HUD-2). Nessun codice in v0.1. Il dettaglio compare solo su hover/click/focus."
+    },
+    {
+      "id": "Z10",
+      "nome": "Registro eventi + WHY?",
+      "pos": "destra",
+      "schermate": "D E",
+      "classe": "PARZIALE",
+      "widget": "URTPlayerEventLogWidget",
+      "view": "FRTPlayerEventLineView",
+      "presenti": [
+        "Text",
+        "Importance",
+        "PrimaryStableUnitId",
+        "BlockerCell"
+      ],
+      "mancanti": [
+        "WHY? (voci e reason code)"
+      ],
+      "doc": "progettazione-hud §14, §14.1",
+      "note": "Il widget non ricalcola la formula: mostra i dati prodotti dal sistema logico. Il +6 'Bagnato + Elettricità' del mockup è l'esempio di §14.1, non un dato verificato."
+    },
+    {
+      "id": "Z11",
+      "nome": "Evento corrente",
+      "pos": "alto, sotto l'header",
+      "schermate": "D",
+      "classe": "DESIGNED",
+      "widget": "(nessuno misurato)",
+      "view": "(da misurare)",
+      "presenti": [],
+      "mancanti": [
+        "striscia 'Aevik → Arc Pulse → Ivrin · evento 3/5'"
+      ],
+      "doc": "progettazione-hud §13.2",
+      "note": "Il '3/5' richiede il numero totale di eventi del turno: misurare se il proiettore lo espone."
+    },
+    {
+      "id": "Z12",
+      "nome": "Controlli di riproduzione",
+      "pos": "a destra della dock collassata",
+      "schermate": "D E",
+      "classe": "FUTURE",
+      "widget": "(nessuno)",
+      "view": "PlaybackSpeedAction / PlaybackPauseAction",
+      "presenti": [
+        "comando velocità",
+        "comando pausa (inerte senza rt.Debug.PlaybackControls)"
+      ],
+      "mancanti": [
+        "controlli a schermo"
+      ],
+      "doc": "#1879, #1881",
+      "note": "Sono comandi da SPETTATORE con fail-closed nel manager, non comandi del giocatore (DEC-HUD-1). Il mockup li mostra: non implementarli senza decisione."
+    },
+    {
+      "id": "Z13",
+      "nome": "Danno fluttuante",
+      "pos": "in-world, vicino alla barra PV",
+      "schermate": "D",
+      "classe": "CURRENT",
+      "widget": "URTUnitOverlayWidget::PushDamageToken",
+      "view": "FRTDamageTokenView (#2455)",
+      "presenti": [
+        "TargetStableUnitId",
+        "Amount",
+        "produttore in RTUnit.cpp"
+      ],
+      "mancanti": [
+        "verificare il disegno nel Blueprint"
+      ],
+      "doc": "progettazione-hud §4.2.1",
+      "note": "Amount è il danno NOMINALE, non gli HP persi: voluto. Il mockup (-28 con 90→62) coincide solo perché senza scudo/Brace. Mai dedurre il danno dal delta della barra."
+    },
+    {
+      "id": "Z14",
+      "nome": "Reazione rapida",
+      "pos": "basso-centro, sopra la dock",
+      "schermate": "E",
+      "classe": "CURRENT",
+      "widget": "URTFastDecisionWidget + URTFastDecisionOptionWidget",
+      "view": "FRTReactionWindowViewModel",
+      "presenti": [
+        "GetRemainingSeconds()",
+        "Options",
+        "SafeResponse"
+      ],
+      "mancanti": [
+        "layout del mockup (Blueprint)"
+      ],
+      "doc": "progettazione-hud §11.1",
+      "note": "Etichette e scelta sicura vengono da Options/SafeResponse: 'HOLD' non è una costante (con Brace è 'Hold Ground'). Timeout = scelta sicura. Niente contatore 'Opportunity 1/3'."
+    },
+    {
+      "id": "Z15",
+      "nome": "Conoscenza parziale",
+      "pos": "in-world + pannello a destra",
+      "schermate": "F",
+      "classe": "DESIGNED",
+      "widget": "(nessuno nella UI)",
+      "view": "ERTAwareness (Hidden…Uncertain…Detected), ERTTargetKnowledge, FRTNoiseEvent",
+      "presenti": [
+        "stati di consapevolezza e rumore a livello logico"
+      ],
+      "mancanti": [
+        "superficie HUD",
+        "stato 'Last Contact' da misurare"
+      ],
+      "doc": "progettazione-hud §15.1, §22, §26",
+      "note": "La UI riceve solo dati autorizzati: mai disegnare ciò che la squadra non sa. 'Ultimo contatto T3' e il rumore sono dimostrativi."
+    },
+    {
+      "id": "Z16",
+      "nome": "Overlay in-world",
+      "pos": "sopra le unità",
+      "schermate": "A B C D E F",
+      "classe": "CURRENT",
+      "widget": "URTUnitOverlayWidget",
+      "view": "FRTUnitOverlayView",
+      "presenti": [
+        "Card",
+        "bFriendlyFire",
+        "bTargeted"
+      ],
+      "mancanti": [
+        "marker del mockup (anello di selezione, cono di facing)"
+      ],
+      "doc": "progettazione-hud §4.2",
+      "note": "Barre PV, selezione, facing, percorso e cono di reazione nel mockup sono illustrativi: il vero stile sta in §9–§10."
+    }
+  ]
+}

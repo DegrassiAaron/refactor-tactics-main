@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<script src="./doc-page.js"></script>
+<style>body{margin:0;background:#05090C;} a{color:#00E0FF;} a:hover{color:#FFFFFF;} doc-page:not(:defined){visibility:hidden} *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style>
+</helmet>
+<doc-page orientation="landscape" content-width="1920px" content-height="1080px">
+<sc-for list="{{pages}}" as="f" hint-placeholder-count="12">
+  <section class="page" style="background:#080F14">
+    <div id="{{f.id}}" data-screen-label="{{f.label}}" style="position:relative;width:1920px;height:1080px;overflow:hidden;background:#080F14;flex:none;font-family:'Exo 2',sans-serif;color:#E6EBF2">
+      {{f.world}}
+
+      <!-- Z2 Roster -->
+      <div style="position:absolute;left:24px;top:24px;width:356px;height:176px;box-sizing:border-box;padding:10px 14px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:8px;display:flex;flex-direction:column;justify-content:space-around">
+        <sc-for list="{{f.roster}}" as="u" hint-placeholder-count="2">
+        <div style="display:flex;align-items:center;gap:12px;height:68px">
+          <div style="width:48px;height:48px;flex:none;box-sizing:border-box;border-radius:6px;border:1px solid #4A5568;background:repeating-linear-gradient(135deg,#212733 0 5px,#1A2029 5px 10px);display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:16px;color:#A9B4C2">{{u.init}}</div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:9px">
+            <div style="display:flex;align-items:center;gap:8px;height:20px">
+              <span style="width:9px;height:9px;border-radius:50%;background:#00E0FF;flex:none"></span>
+              <span style="font-size:16px;font-weight:700;color:#E6EBF2">{{u.name}}</span>
+              <span style="flex:1"></span>
+              <sc-if value="{{u.reaz}}" hint-placeholder-val="{{false}}">
+                <span style="display:flex;align-items:center;gap:6px;padding:2px 8px;border:1px dashed #7C5CFF;border-radius:4px;background:#221E3A;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2"><span style="width:7px;height:7px;background:#7C5CFF;transform:rotate(45deg)"></span>REAZ.</span>
+              </sc-if>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="flex:1;height:8px;box-sizing:border-box;border-radius:4px;background:#080F14;border:1px solid #2E3746;overflow:hidden"><div style="width:100%;height:100%;background:#00E0FF"></div></div>
+              <span style="font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2;white-space:nowrap">{{u.hp}}</span>
+              <span style="display:flex;align-items:center;gap:5px;font-family:Orbitron;font-weight:500;font-size:12px;color:#A9B4C2"><span style="width:11px;height:13px;border:none;background:#00E0FF;clip-path:polygon(50% 0,100% 16%,100% 56%,50% 100%,0 56%,0 16%)"></span>{{u.sh}}</span>
+            </div>
+          </div>
+        </div>
+        </sc-for>
+      </div>
+
+      <!-- Z1 Header: Pianificazione -->
+      <sc-if value="{{f.planning}}" hint-placeholder-val="{{true}}">
+      <div style="position:absolute;left:424px;top:24px;width:640px;height:56px;box-sizing:border-box;padding:0 20px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:8px;display:flex;align-items:center;gap:16px">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font-family:Orbitron;font-weight:500;font-size:12px;color:#A9B4C2;letter-spacing:.1em">TURNO</span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:22px;color:#FFFFFF">04</span>
+          <span style="font-family:Orbitron;font-weight:500;font-size:14px;color:#A9B4C2">/ 12</span>
+        </div>
+        <div style="width:1px;height:24px;background:#2E3746"></div>
+        <div style="display:flex;align-items:center;gap:8px;font-family:Orbitron;font-weight:700;font-size:14px;letter-spacing:.12em;color:#00E0FF"><span style="width:8px;height:8px;border:2px solid #00E0FF;border-radius:2px"></span>PIANIFICAZIONE</div>
+        <div style="flex:1"></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:16px;height:16px;box-sizing:border-box;border:2px solid #E6EBF2;border-radius:50%;background:linear-gradient(#E6EBF2,#E6EBF2) 6px 2px / 2px 6px no-repeat"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:26px;color:#FFFFFF;letter-spacing:.04em">00:21</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Z1 Header: Risoluzione -->
+      <sc-if value="{{f.resolution}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:424px;top:24px;width:640px;height:56px;box-sizing:border-box;padding:0 10px 0 16px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:8px;display:flex;align-items:center;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:2px;width:122px;flex:none">
+          <span style="font-family:Orbitron;font-weight:700;font-size:13px;color:#FFFFFF;white-space:nowrap">TURNO 04 / 12</span>
+          <span style="font-family:Orbitron;font-weight:500;font-size:11px;color:#A9B4C2;letter-spacing:.06em">RISOLUZIONE</span>
+        </div>
+        <sc-for list="{{f.phases}}" as="p" hint-placeholder-count="4">
+          <div style="{{p.cell}}"><span style="{{p.mark}}"></span><span style="{{p.txt}}">{{p.n}}</span></div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- Z3 Obiettivo -->
+      <div style="position:absolute;left:1076px;top:24px;width:420px;height:56px;box-sizing:border-box;padding:0 16px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:8px;display:flex;align-items:center;gap:12px">
+        <span style="width:18px;height:18px;flex:none;background:#E6EBF2;clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%)"></span>
+        <span style="font-family:Orbitron;font-weight:700;font-size:13px;color:#E6EBF2;letter-spacing:.06em;white-space:nowrap">NODO CENTRALE</span>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span style="font-family:Orbitron;font-weight:700;font-size:22px;color:#FFFFFF">2–1</span>
+          <span style="font-size:12px;color:#A9B4C2;white-space:nowrap">(a 3)</span>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid #FFD456;border-radius:4px;background:#2B2918;font-family:Orbitron;font-weight:700;font-size:11px;color:#FFD456;letter-spacing:.06em"><span style="width:12px;height:12px;box-sizing:border-box;border:2px solid #FFD456;border-radius:50%;background:linear-gradient(90deg,#FFD456 50%,transparent 50%)"></span>CONTESO</div>
+      </div>
+
+      <!-- Z6 Ghost Timeline -->
+      <sc-if value="{{f.planning}}" hint-placeholder-val="{{true}}">
+      <div style="position:absolute;left:424px;top:92px;width:1072px;height:88px;display:flex;gap:28px">
+        <div style="position:absolute;left:0;right:0;top:43px;height:2px;background:#2E3746"></div>
+        <sc-for list="{{f.ghost}}" as="g" hint-placeholder-count="4">
+          <div style="{{g.cell}}">
+            <div style="{{g.strip}}"></div>
+            <div style="display:flex;align-items:center;gap:7px;height:16px">
+              <span style="{{g.sq}}"></span>
+              <span style="font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2;letter-spacing:.08em">{{g.ph}}</span>
+              <span style="flex:1"></span>
+              <sc-if value="{{g.warn}}" hint-placeholder-val="{{false}}">
+                <span style="width:18px;height:16px;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;line-height:14px;color:#080F14">!</span>
+              </sc-if>
+            </div>
+            <sc-if value="{{g.has}}" hint-placeholder-val="{{false}}">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="{{g.icon}}"></span>
+                <span style="font-size:16px;font-weight:700;color:#FFFFFF;white-space:nowrap">{{g.a}}</span>
+              </div>
+              <div style="font-size:12px;color:#A9B4C2;white-space:nowrap">{{g.t}}</div>
+            </sc-if>
+            <sc-if value="{{g.none}}" hint-placeholder-val="{{true}}">
+              <div style="font-family:Orbitron;font-weight:700;font-size:20px;color:#6B7684">—</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- Z11 Evento corrente -->
+      <sc-if value="{{f.resolution}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:424px;top:92px;width:1072px;height:48px;box-sizing:border-box;padding:0 16px 0 10px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:8px;display:flex;align-items:center;gap:14px">
+        <div style="{{f.ev.tag}}"><span style="{{f.ev.sq}}"></span>{{f.ev.phase}}</div>
+        <span style="font-size:17px;font-weight:700;color:#FFFFFF">{{f.ev.actor}}</span>
+        <span style="font-size:17px;color:#A9B4C2">→</span>
+        <span style="font-size:17px;font-weight:600;color:#E6EBF2">{{f.ev.action}}</span>
+        <span style="font-size:17px;color:#A9B4C2">→</span>
+        <span style="font-size:17px;font-weight:700;color:#FFFFFF">{{f.ev.target}}</span>
+        <span style="flex:1"></span>
+        <span style="font-family:Orbitron;font-weight:500;font-size:11px;color:#A9B4C2;letter-spacing:.1em">EVENTO</span>
+        <span style="font-family:Orbitron;font-weight:700;font-size:16px;color:#FFFFFF">{{f.ev.num}}</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <sc-for list="{{f.ev.pips}}" as="pp" hint-placeholder-count="5"><span style="{{pp.st}}"></span></sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Z7 Conferma / Annulla + contatore Z8 -->
+      <sc-if value="{{f.planning}}" hint-placeholder-val="{{true}}">
+        <sc-if value="{{f.warnCount}}" hint-placeholder-val="{{false}}">
+        <div style="position:absolute;left:1556px;top:24px;width:56px;height:52px;box-sizing:border-box;border:1px solid #FFD456;border-radius:8px;background:#2B2918;display:flex;align-items:center;justify-content:center;gap:6px">
+          <span style="width:18px;height:16px;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;line-height:14px;color:#080F14">!</span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFD456">1</span>
+        </div>
+        </sc-if>
+        <div style="position:absolute;left:1620px;top:24px;width:276px;height:52px;box-sizing:border-box;padding:0 10px 0 18px;border:1px solid #00E0FF;border-radius:8px;background:#0E2A33;display:flex;align-items:center;gap:10px">
+          <span style="width:12px;height:12px;background:#00E0FF;clip-path:polygon(0 55%,15% 40%,40% 65%,85% 15%,100% 30%,40% 95%)"></span>
+          <span style="font-size:18px;font-weight:700;color:#FFFFFF">Conferma</span>
+          <span style="flex:1"></span>
+          <span style="padding:3px 7px;border:1px solid #4A5568;border-radius:4px;background:#080F14;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2;letter-spacing:.06em">INVIO</span>
+        </div>
+        <div style="position:absolute;left:1620px;top:88px;width:276px;height:44px;box-sizing:border-box;padding:0 10px 0 18px;border:1px solid #4A5568;border-radius:8px;background:rgba(21,26,35,.92);display:flex;align-items:center;gap:10px">
+          <span style="width:11px;height:11px;background:#A9B4C2;clip-path:polygon(15% 0,50% 35%,85% 0,100% 15%,65% 50%,100% 85%,85% 100%,50% 65%,15% 100%,0 85%,35% 50%,0 15%)"></span>
+          <span style="font-size:15px;font-weight:600;color:#E6EBF2">Annulla</span>
+          <span style="flex:1"></span>
+          <span style="padding:3px 7px;border:1px solid #4A5568;border-radius:4px;background:#080F14;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2;letter-spacing:.06em">BACKSPACE</span>
+        </div>
+      </sc-if>
+
+      <!-- Z8 Elenco avvisi -->
+      <sc-if value="{{f.alert}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:24px;top:392px;width:356px;height:120px;box-sizing:border-box;padding:12px 14px;border:1px dashed #FFD456;border-radius:8px;background:rgba(43,41,24,.94);display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="width:20px;height:18px;flex:none;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:12px;line-height:15px;color:#080F14">!</span>
+          <span style="font-size:16px;font-weight:700;color:#FFFFFF">{{f.alert.what}}</span>
+          <span style="flex:1"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#FFD456;letter-spacing:.08em">WARNING</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:baseline"><span style="width:58px;flex:none;font-family:Orbitron;font-weight:500;font-size:11px;color:#A9B4C2">PERCHÉ</span><span style="font-size:13px;color:#E6EBF2">{{f.alert.why}}</span></div>
+        <div style="display:flex;gap:10px;align-items:baseline"><span style="width:58px;flex:none;font-family:Orbitron;font-weight:500;font-size:11px;color:#A9B4C2">COSTO</span><span style="font-size:13px;color:#E6EBF2">{{f.alert.cost}}</span></div>
+      </div>
+      </sc-if>
+
+      <!-- Z4 Unità selezionata -->
+      <div style="{{f.z4}}">
+        <div style="display:flex;gap:14px;align-items:center">
+          <div style="width:72px;height:72px;flex:none;box-sizing:border-box;border-radius:8px;border:1px solid #4A5568;background:repeating-linear-gradient(135deg,#212733 0 6px,#1A2029 6px 12px);display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-family:monospace;font-size:11px;color:#A9B4C2">ritratto</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:24px;font-weight:700;color:#FFFFFF">Aevik</span>
+            <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:14px;background:#E6EBF2;clip-path:polygon(60% 0,15% 55%,45% 55%,35% 100%,85% 42%,55% 42%)"></span><span style="font-size:13px;color:#A9B4C2">Elettricità</span></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:22px;font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">PV</span>
+          <div style="flex:1;height:10px;box-sizing:border-box;border-radius:5px;background:#080F14;border:1px solid #2E3746;overflow:hidden"><div style="width:100%;height:100%;background:#00E0FF"></div></div>
+          <span style="font-family:Orbitron;font-weight:700;font-size:14px;color:#FFFFFF">90/90</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:22px;font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">PM</span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:14px;color:#FFFFFF">12</span>
+          <span style="width:1px;height:16px;background:#2E3746;margin:0 6px"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">STATUS</span>
+          <span style="padding:2px 8px;border:1px solid #2E3746;border-radius:4px;font-size:12px;color:#A9B4C2">Nessuno</span>
+        </div>
+        <sc-if value="{{f.planning}}" hint-placeholder-val="{{true}}">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{f.chips}}" as="c" hint-placeholder-count="3">
+            <div style="{{c.st}}">
+              <div style="{{c.strip}}"></div>
+              <span style="width:96px;flex:none;font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2;letter-spacing:.04em">{{c.slot}}</span>
+              <span style="{{c.valSt}}">{{c.val}}</span>
+              <sc-if value="{{c.badge}}" hint-placeholder-val="{{false}}">
+                <span style="display:flex;align-items:center;gap:5px;padding:1px 6px;border:1px dashed #7C5CFF;border-radius:4px;background:#221E3A;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2;white-space:nowrap"><span style="width:6px;height:6px;background:#7C5CFF;transform:rotate(45deg)"></span>REAZ.</span>
+              </sc-if>
+              <span style="flex:1"></span>
+              <sc-if value="{{c.warn}}" hint-placeholder-val="{{false}}">
+                <span style="width:18px;height:16px;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;line-height:14px;color:#080F14">!</span>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+
+      <!-- Z5 Barra dei comandi -->
+      <sc-if value="{{f.planning}}" hint-placeholder-val="{{true}}">
+      <div style="position:absolute;left:390px;top:903px;width:1140px;height:138px;box-sizing:border-box;padding:20px 24px 22px 24px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:10px;display:flex;align-items:flex-start;gap:8px">
+        <sc-for list="{{f.bar}}" as="s" hint-placeholder-count="12">
+          <sc-if value="{{s.isDiv}}" hint-placeholder-val="{{false}}">
+            <div style="width:6px;height:96px;flex:none;display:flex;justify-content:center"><div style="width:1px;height:100%;background:#2E3746"></div></div>
+          </sc-if>
+          <sc-if value="{{s.isSlot}}" hint-placeholder-val="{{true}}">
+            <div style="position:relative;width:78px;height:96px;flex:none">
+              <div style="{{s.box}}">
+                <div style="{{s.strip}}"></div>
+                <div style="{{s.icon}}"></div>
+                <sc-if value="{{s.cd}}" hint-placeholder-val="{{false}}">
+                  <div style="position:absolute;left:0;right:0;top:28px;text-align:center;font-family:Orbitron;font-weight:700;font-size:26px;line-height:32px;color:#FFFFFF">{{s.cd}}</div>
+                </sc-if>
+                <sc-if value="{{s.hatch}}" hint-placeholder-val="{{false}}">
+                  <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(169,180,194,.22) 0 2px,transparent 2px 8px)"></div>
+                </sc-if>
+                <div style="{{s.nameSt}}">{{s.n}}</div>
+                <sc-if value="{{s.planned}}" hint-placeholder-val="{{false}}">
+                  <div style="position:absolute;right:0;top:0;width:18px;height:18px;background:#FFD456;clip-path:polygon(0 0,100% 0,100% 100%)"></div>
+                </sc-if>
+                <sc-if value="{{s.warn}}" hint-placeholder-val="{{false}}">
+                  <div style="position:absolute;right:4px;top:7px;width:17px;height:15px;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;line-height:13px;color:#080F14">!</div>
+                </sc-if>
+                <sc-if value="{{s.invalid}}" hint-placeholder-val="{{false}}">
+                  <div style="position:absolute;right:5px;top:5px;font-size:14px;font-weight:700;color:#FF4D4D">✕</div>
+                </sc-if>
+              </div>
+              <div style="position:absolute;left:6px;top:10px;width:18px;height:18px;box-sizing:border-box;border:1px solid #4A5568;border-radius:4px;background:#080F14;display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2">{{s.k}}</div>
+              <div style="{{s.phSt}}">{{s.phL}}</div>
+              <sc-if value="{{s.underSel}}" hint-placeholder-val="{{false}}">
+                <div style="position:absolute;left:19px;top:105px;width:40px;height:4px;border-radius:2px;background:#FFD456"></div>
+              </sc-if>
+              <sc-if value="{{s.underReaz}}" hint-placeholder-val="{{false}}">
+                <div style="position:absolute;left:19px;top:105px;width:40px;height:0;border-top:4px dashed #7C5CFF"></div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </sc-for>
+        <div style="width:6px;height:96px;flex:none;display:flex;justify-content:center"><div style="width:1px;height:100%;background:#2E3746"></div></div>
+        <div style="width:190px;height:96px;flex:none;display:flex;flex-direction:column;justify-content:space-between;padding:6px 0 2px 4px;box-sizing:border-box">
+          <div style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;background:#0072B2;outline:1px solid #A9B4C2"></span><span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2;letter-spacing:.08em">MOVIMENTO</span></div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:16px;font-weight:700;color:#FFFFFF;white-space:nowrap">{{f.move}}</span>
+            <span style="font-size:11px;color:#A9B4C2">{{f.moveSub}}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;align-self:flex-start;padding:3px 9px 3px 3px;border:1px solid #4A5568;border-radius:5px;background:#212733">
+            <span style="width:18px;height:18px;box-sizing:border-box;border:1px solid #4A5568;border-radius:4px;background:#080F14;display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2">M</span>
+            <span style="font-size:12px;font-weight:600;color:#E6EBF2">Sneak</span>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Z5 Riepilogo (Risoluzione) -->
+      <sc-if value="{{f.resolution}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:550px;top:917px;width:820px;height:110px;box-sizing:border-box;padding:20px 24px;background:rgba(21,26,35,.92);border:1px solid #203542;border-radius:10px;display:flex;gap:12px">
+        <sc-for list="{{f.sum}}" as="m" hint-placeholder-count="3">
+          <div style="{{m.st}}">
+            <div style="{{m.strip}}"></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2;letter-spacing:.06em">{{m.slot}}</span>
+              <span style="flex:1"></span>
+              <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">{{m.ph}}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="{{m.valSt}}">{{m.val}}</span>
+              <span style="flex:1"></span>
+              <sc-if value="{{m.live}}" hint-placeholder-val="{{false}}">
+                <span style="padding:2px 6px;border-radius:3px;background:#E6EBF2;font-family:Orbitron;font-weight:700;font-size:11px;color:#080F14;white-space:nowrap">IN CORSO</span>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- Z9 Intenti alleati: linguetta -->
+      <sc-if value="{{f.tab}}" hint-placeholder-val="{{false}}">
+      <div style="{{f.tabSt}}">
+        <span style="width:8px;height:12px;background:#A9B4C2;clip-path:polygon(100% 0,0 50%,100% 100%)"></span>
+        <span style="font-size:14px;font-weight:600;color:#E6EBF2">Intenti alleati</span>
+        <span style="flex:1"></span>
+        <span style="min-width:20px;height:20px;border-radius:10px;background:#212733;border:1px solid #4A5568;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2">1</span>
+      </div>
+      </sc-if>
+
+      <!-- Z9 Intenti alleati: espanso -->
+      <sc-if value="{{f.intent}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:1556px;top:240px;width:340px;height:316px;box-sizing:border-box;padding:14px;background:rgba(21,26,35,.94);border:1px solid #203542;border-radius:8px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2;letter-spacing:.1em">INTENTI ALLEATI</span>
+          <span style="flex:1"></span>
+          <span style="width:8px;height:12px;background:#A9B4C2;clip-path:polygon(0 0,100% 50%,0 100%)"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:44px;height:44px;box-sizing:border-box;border-radius:6px;border:1px solid #4A5568;background:repeating-linear-gradient(135deg,#212733 0 5px,#1A2029 5px 10px);display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:15px;color:#A9B4C2">M</div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:17px;font-weight:700;color:#FFFFFF">Muiren</span>
+            <span style="font-size:12px;color:#A9B4C2">Intento dichiarato · PV 95/95</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="position:relative;display:flex;align-items:center;gap:10px;height:34px;padding:0 10px 0 14px;border:1px solid #2E3746;border-radius:6px;background:#212733;overflow:hidden">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:#56B4E9"></div>
+            <span style="width:44px;font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">PREP</span>
+            <span style="font-size:14px;font-weight:600;color:#E6EBF2">Guardia</span>
+          </div>
+          <div style="position:relative;display:flex;align-items:center;gap:10px;height:34px;padding:0 10px 0 14px;border:1px dashed #FFD456;border-radius:6px;background:#212733;overflow:hidden">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:#0072B2"></div>
+            <span style="width:44px;font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">MOVE</span>
+            <span style="font-size:14px;font-weight:600;color:#E6EBF2">Movimento → G7 · 6 celle</span>
+            <span style="flex:1"></span>
+            <span style="width:18px;height:16px;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;line-height:14px;color:#080F14">!</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px dashed #FFD456;border-radius:6px;background:#2B2918">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:18px;height:16px;background:#FFD456;clip-path:polygon(50% 0,100% 100%,0 100%);display:flex;align-items:flex-end;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;line-height:14px;color:#080F14">!</span>
+            <span style="font-size:14px;font-weight:700;color:#FFFFFF">Conflitto: stessa cella G7</span>
+          </div>
+          <span style="font-size:12px;color:#E6EBF2">Anche Aevik ha pianificato MOVE su G7.</span>
+          <span style="font-size:12px;color:#A9B4C2">Costo: nessuno dei due movimenti arriva su G7.</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Z10 Registro -->
+      <sc-if value="{{f.log}}" hint-placeholder-val="{{false}}">
+      <div style="{{f.logSt}}">
+        <div style="display:flex;align-items:center;gap:8px;height:20px">
+          <span style="font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2;letter-spacing:.1em">REGISTRO</span>
+          <span style="flex:1"></span>
+          <span style="font-family:Orbitron;font-weight:500;font-size:11px;color:#A9B4C2">TURNO 04</span>
+        </div>
+        <sc-for list="{{f.log}}" as="e" hint-placeholder-count="4">
+          <sc-if value="{{e.empty}}" hint-placeholder-val="{{false}}">
+            <div style="display:flex;align-items:center;gap:10px;height:30px;padding:0 10px;border:1px dashed #2E3746;border-radius:6px">
+              <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2">{{e.ph}}</span>
+              <span style="font-size:12px;color:#6B7684">nessun evento</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{e.full}}" hint-placeholder-val="{{true}}">
+            <div style="{{e.rowSt}}">
+              <div style="{{e.strip}}"></div>
+              <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2;letter-spacing:.06em">{{e.ph}}</span>
+                  <span style="font-family:Orbitron;font-weight:500;font-size:11px;color:#A9B4C2">#{{e.n}}</span>
+                  <sc-if value="{{e.reaz}}" hint-placeholder-val="{{false}}">
+                    <span style="padding:0 6px;border:1px dashed #7C5CFF;border-radius:3px;background:#221E3A;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2">REAZ.</span>
+                  </sc-if>
+                </div>
+                <div style="display:flex;gap:6px;align-items:baseline;white-space:nowrap">
+                  <span style="font-size:14px;font-weight:700;color:#FFFFFF">{{e.actor}}</span>
+                  <span style="font-size:13px;color:#E6EBF2">{{e.act}}</span>
+                </div>
+              </div>
+              <div style="{{e.whySt}}">WHY?</div>
+            </div>
+            <sc-if value="{{e.why}}" hint-placeholder-val="{{false}}">
+              <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;margin-top:-2px;border:1px solid #00E0FF;border-radius:6px;background:#080F14">
+                <span style="font-family:Orbitron;font-weight:700;font-size:11px;color:#A9B4C2;letter-spacing:.06em">SCOMPOSIZIONE · EVENTO 3</span>
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#A9B4C2">Base</span><span style="font-family:Orbitron;font-weight:700;color:#E6EBF2">22</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#A9B4C2">Bagnato + Elettricità</span><span style="font-family:Orbitron;font-weight:700;color:#E6EBF2">+6</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#A9B4C2">Copertura</span><span style="font-family:Orbitron;font-weight:700;color:#E6EBF2">0</span></div>
+                <div style="height:1px;background:#2E3746"></div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px;font-weight:700;color:#FFFFFF">Finale</span><span style="font-family:Orbitron;font-weight:700;font-size:18px;color:#FFFFFF">28</span></div>
+                <span style="font-size:11px;color:#A9B4C2">Valori riportati dall'evento, non ricalcolati.</span>
+              </div>
+            </sc-if>
+          </sc-if>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- Z15 Pannello contatti -->
+      <sc-if value="{{f.contacts}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:1556px;top:240px;width:340px;height:242px;box-sizing:border-box;padding:14px;background:rgba(21,26,35,.94);border:1px solid #203542;border-radius:8px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:4px">
+          <span style="font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2;letter-spacing:.1em">CONTATTI</span>
+          <span style="font-size:11px;color:#A9B4C2">Conteggi per categoria · nessuna coordinata</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:34px;padding:0 10px;border:1px solid #2E3746;border-radius:6px;background:#212733">
+          <span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center"><span style="width:12px;height:12px;background:#FF4D4D;transform:rotate(45deg)"></span></span>
+          <span style="font-size:14px;font-weight:600;color:#E6EBF2">Rilevati</span><span style="flex:1"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFFFFF">1</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:34px;padding:0 10px;border:1px solid #2E3746;border-radius:6px;background:#212733">
+          <span style="width:18px;height:18px;box-sizing:border-box;border:2px dashed #E6EBF2;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:11px;color:#E6EBF2">?</span>
+          <span style="font-size:14px;font-weight:600;color:#E6EBF2">Incerti</span><span style="flex:1"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFFFFF">1</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:34px;padding:0 10px;border:1px solid #2E3746;border-radius:6px;background:#212733">
+          <span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#A9B4C2">×</span>
+          <span style="font-size:14px;font-weight:600;color:#E6EBF2">Ultimo contatto</span><span style="flex:1"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFFFFF">1</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:34px;padding:0 10px;border:1px solid #2E3746;border-radius:6px;background:#212733">
+          <span style="width:18px;height:18px;box-sizing:border-box;border:2px solid #A9B4C2;border-radius:50%;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;border-radius:50%;background:#E6EBF2"></span></span>
+          <span style="font-size:14px;font-weight:600;color:#E6EBF2">Rumori</span><span style="flex:1"></span>
+          <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFFFFF">1</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Z14 Reazione rapida -->
+      <sc-if value="{{f.quick}}" hint-placeholder-val="{{false}}">
+      <div style="position:absolute;left:660px;top:440px;width:600px;height:200px;box-sizing:border-box;padding:14px 18px 12px 24px;background:#080F14;border:2px solid #FFFFFF;border-radius:10px;box-shadow:0 0 0 6px rgba(8,15,20,.55),0 24px 60px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:9px;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:6px;background:#7C5CFF"></div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:20px;font-weight:700;color:#FFFFFF">Guardia reattiva — Aevik</span>
+            <span style="font-size:14px;color:#E6EBF2">Ivrin è entrato nell'area controllata</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:4px">
+            <span style="font-family:Orbitron;font-weight:700;font-size:42px;line-height:44px;color:#FFFFFF">2.4</span>
+            <span style="font-family:Orbitron;font-weight:700;font-size:16px;color:#E6EBF2">s</span>
+          </div>
+        </div>
+        <div style="height:6px;border-radius:3px;background:#2E3746;overflow:hidden"><div style="width:60%;height:100%;background:#FFFFFF"></div></div>
+        <div style="display:flex;gap:12px;margin-top:2px">
+          <div style="flex:1;height:52px;box-sizing:border-box;padding:0 12px;border:1px solid #4A5568;border-radius:8px;background:#212733;display:flex;align-items:center;gap:10px">
+            <span style="width:22px;height:22px;box-sizing:border-box;border:1px solid #6B7684;border-radius:4px;background:#080F14;display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2">F</span>
+            <div style="display:flex;flex-direction:column">
+              <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFFFFF">FIRE</span>
+              <span style="font-size:12px;color:#A9B4C2">Attacca Ivrin</span>
+            </div>
+          </div>
+          <div style="flex:1;height:52px;box-sizing:border-box;padding:0 12px;border:2px solid #E6EBF2;border-radius:8px;background:#212733;display:flex;align-items:center;gap:10px">
+            <span style="width:22px;height:22px;box-sizing:border-box;border:1px solid #6B7684;border-radius:4px;background:#080F14;display:flex;align-items:center;justify-content:center;font-family:Orbitron;font-weight:700;font-size:12px;color:#E6EBF2">H</span>
+            <div style="display:flex;flex-direction:column">
+              <span style="font-family:Orbitron;font-weight:700;font-size:17px;color:#FFFFFF">HOLD</span>
+              <span style="font-size:12px;color:#A9B4C2;white-space:nowrap">Non attaccare</span>
+            </div>
+            <span style="flex:1"></span>
+            <span style="display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:4px;background:#E6EBF2;font-family:Orbitron;font-weight:700;font-size:11px;color:#080F14;white-space:nowrap"><span style="width:10px;height:12px;flex:none;background:#080F14;clip-path:polygon(50% 0,100% 16%,100% 56%,50% 100%,0 56%,0 16%)"></span>SCELTA SICURA</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;font-size:12px;color:#E6EBF2">Allo scadere:&nbsp;<span style="font-family:Orbitron;font-weight:700">HOLD</span></div>
+      </div>
+      </sc-if>
+
+      <!-- Annotazioni -->
+      <sc-if value="{{f.annotated}}" hint-placeholder-val="{{false}}">
+        <sc-for list="{{f.notes}}" as="n" hint-placeholder-count="0">
+          <div style="{{n.box}}"></div>
+          <div style="{{n.tag}}"><span style="font-family:Orbitron;font-weight:700">{{n.id}}</span><span>{{n.label}}</span></div>
+        </sc-for>
+        <div style="position:absolute;left:24px;bottom:24px;width:356px;box-sizing:border-box;padding:9px 12px;background:rgba(8,15,20,.96);border:1px solid #FFFFFF;border-radius:6px;display:flex;flex-direction:column;gap:3px;font-size:11px;line-height:14px;color:#E6EBF2">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px"><span style="font-family:Orbitron;font-weight:700;font-size:12px;letter-spacing:.1em">LEGENDA</span><span style="flex:1"></span><span style="width:26px;height:12px;border:1px solid #FFFFFF"></span><span style="color:#A9B4C2">zona · id Z1–Z16</span></div>
+          <div style="display:flex;gap:8px"><span style="width:68px;flex:none;font-family:Orbitron;font-weight:700">CURRENT</span><span>widget e dato esistono nel codice; la resa di queste tavole è da fare</span></div>
+          <div style="display:flex;gap:8px"><span style="width:68px;flex:none;font-family:Orbitron;font-weight:700">PARZIALE</span><span>esiste in parte: mancano dati nella vista</span></div>
+          <div style="display:flex;gap:8px"><span style="width:68px;flex:none;font-family:Orbitron;font-weight:700">DECISA</span><span>decisa il 2026-10-09, non ancora nel codice</span></div>
+          <div style="display:flex;gap:8px"><span style="width:68px;flex:none;font-family:Orbitron;font-weight:700">PROPOSTA</span><span>introdotta da queste tavole, senza decisione</span></div>
+          <div style="display:flex;gap:8px"><span style="width:68px;flex:none;font-family:Orbitron;font-weight:700">DESIGNED</span><span>progettata nei documenti, nessun codice</span></div>
+          <div style="display:flex;gap:8px"><span style="width:68px;flex:none;font-family:Orbitron;font-weight:700">FUTURE</span><span>rinviata oltre la v0.1</span></div>
+        </div>
+        <div style="position:absolute;left:1550px;bottom:24px;width:346px;box-sizing:border-box;padding:10px 12px;background:rgba(8,15,20,.96);border:1px solid #FFFFFF;border-radius:6px;display:flex;flex-direction:column;gap:5px">
+          <span style="font-family:Orbitron;font-weight:700;font-size:12px;color:#FFFFFF">{{f.sheet}}</span>
+          <span style="font-size:11px;line-height:14px;font-style:italic;color:#E6EBF2">«Nomi, cella G7, turno 04, punteggio 2–1 e il +6 sono dimostrativi.»</span>
+          <span style="font-size:11px;line-height:14px;font-style:italic;color:#E6EBF2">«Scena illustrativa: la vista isometrica è il livello strategico, non implementato; a livello tattico la scena è la 3D attuale. Degli overlay nel mondo valgono significato e forme, non la resa.»</span>
+          <sc-if value="{{f.variantNote}}" hint-placeholder-val="{{false}}">
+            <span style="font-size:11px;line-height:14px;font-style:italic;color:#E6EBF2">«D ed E sono due varianti del turno 04, non una sequenza.»</span>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </section>
+</sc-for>
+</doc-page>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;view&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tutte&quot;,&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;D&quot;,&quot;E&quot;,&quot;F&quot;],&quot;default&quot;:&quot;Tutte&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;versione&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Entrambe&quot;,&quot;Pulita&quot;,&quot;Annotata&quot;],&quot;default&quot;:&quot;Entrambe&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const C={deep:'#080F14',panel:'#151A23',raised:'#212733',fd:'#203542',fm:'#4A5568',cyan:'#00E0FF',violet:'#7C5CFF',amber:'#FFD456',red:'#FF4D4D',t1:'#E6EBF2',t2:'#A9B4C2',t3:'#6B7684',off:'#2E3746',selBg:'#2B2918',reaBg:'#221E3A',badBg:'#2A1719',actBg:'#0E2A33'};
+const PH={PREP:'#56B4E9',DASH:'#009E73',BLAST:'#D55E00',MOVE:'#0072B2',REAZ:'#7C5CFF'};
+const TITLES={A:'Pianificazione pulita',B:'Selezione e avviso',C:'Intenti di squadra',D:'Risoluzione',E:'Reazione rapida',F:'Conoscenza parziale'};
+const FILES={A:'A-pianificazione-pulita',B:'B-selezione-e-avviso',C:'C-intenti-di-squadra',D:'D-risoluzione',E:'E-reazione-rapida',F:'F-conoscenza-parziale'};
+const PLAN=['A','B','C','F'];
+const LBL={Z1:'PARZIALE (le quattro celle di fase: DECISE 2026-10-09)',Z2:'PARZIALE (chip REAZ.: DECISO 2026-10-09)',Z3:'PARZIALE (posizione nell’header: DECISA 2026-10-09)',Z4:'PARZIALE',Z5:'CURRENT',Z6:'DESIGNED',Z7:'CURRENT',Z8:'PARZIALE (elenco di piano: DECISO 2026-10-09)',Z9:'FUTURE',Z10:'CURRENT · WHY? FUTURE · eventi nemici solo se visibili alla squadra',Z11:'DESIGNED',Z13:'CURRENT',Z14:'CURRENT · tasto e descrizione delle opzioni: PROPOSTA (dato non ancora nella vista)',Z15:'DESIGNED',Z16:'CURRENT'};
+
+const SH='polygon(50% 0,100% 16%,100% 56%,50% 100%,0 56%,0 16%)';
+const ICON={
+  shield:{background:C.t1,clipPath:SH},
+  shieldDot:{background:'radial-gradient(circle at 50% 44%, #151A23 0 5px, #E6EBF2 5.5px)',clipPath:SH},
+  square:{background:C.t1,clipPath:'polygon(12% 12%,88% 12%,88% 88%,12% 88%)'},
+  ring:{border:'4px solid #E6EBF2',borderRadius:'50%',boxSizing:'border-box'},
+  pause:{background:'linear-gradient(90deg,transparent 0 22%,#E6EBF2 22% 42%,transparent 42% 58%,#E6EBF2 58% 78%,transparent 78%)'},
+  diamond:{background:C.t1,clipPath:'polygon(50% 0,100% 50%,50% 100%,0 50%)'},
+  bar:{background:C.t1,clipPath:'polygon(0 38%,62% 38%,62% 14%,100% 50%,62% 86%,62% 62%,0 62%)'},
+  hex:{background:C.t1,clipPath:'polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%)'},
+  tri:{background:C.t1,clipPath:'polygon(50% 5%,100% 92%,0 92%)'},
+  dring:{background:'radial-gradient(circle, #E6EBF2 0 4px, transparent 4.5px 8px, #E6EBF2 8.5px 12px, transparent 12.5px)'},
+  chev:{background:C.t1,clipPath:'polygon(0 0,35% 0,80% 50%,35% 100%,0 100%,45% 50%)'}
+};
+const CMDS=[
+  {g:0,k:'G',n:'Guardia',ph:'PREP',ic:'shield'},
+  {g:0,k:'B',n:'Irrigidimento',ph:'PREP',ic:'square'},
+  {g:0,k:'C',n:'Guardia reattiva',ph:'PREP',ic:'shieldDot'},
+  {g:0,k:'X',n:'Interagisci',ph:'BLAST',ic:'ring'},
+  {g:0,k:'Z',n:'Attesa',ph:null,ic:'pause'},
+  {g:1,k:'1',n:'Arc Pulse',ph:'BLAST',ic:'diamond'},
+  {g:2,k:'2',n:'Linear Discharge',ph:'BLAST',ic:'bar'},
+  {g:2,k:'3',n:'Conductive Node',ph:'CLEANUP',ic:'hex'},
+  {g:2,k:'4',n:'Overload',ph:'BLAST',ic:'tri'},
+  {g:2,k:'5',n:'Reactive Capacitor',ph:'REAZ',ic:'dring'}
+];
+
+// ---- world geometry
+const W=80,R=W/Math.sqrt(3),SQ=0.6,RH=1.5*R*SQ,OX=480,OY=229;
+const cell=(c,r)=>({x:OX+c*W+((r&1)?W/2:0),y:OY+r*RH});
+const hexPts=(x,y,lift=0)=>[0,1,2,3,4,5].map(i=>{const a=Math.PI/180*(30+60*i);return [x+R*Math.cos(a),y+R*Math.sin(a)*SQ-lift];});
+const pstr=a=>a.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+const wedge=(x,y,ang,half,rad)=>{const pts=[[x,y]];for(let i=0;i<=18;i++){const a=ang-half+2*half*i/18;pts.push([x+Math.cos(a)*rad,y+Math.sin(a)*rad*SQ]);}return pstr(pts);};
+const angTo=(a,b)=>Math.atan2((b.y-a.y)/SQ,b.x-a.x);
+const BLOCKS=[[3,8],[9,10],[8,3],[0,7],[12,8],[6,13],[14,5],[-2,4],[10,13],[16,11],[-3,13],[2,2]];
+
+function world(S,key){
+  const h=React.createElement;let k=0;const K=()=>key+'-'+(k++);
+  const ground=[],items=[],top=[];
+  let d='';
+  for(let r=-7;r<=22;r++)for(let c=-8;c<=20;c++){const p=cell(c,r);d+='M'+hexPts(p.x,p.y).map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join('L')+'Z';}
+  ground.push(h('path',{key:K(),d,fill:'#111821',stroke:C.fd,strokeWidth:1}));
+  const P={Aevik:cell(4,12),Muiren:cell(10,6),Branth:cell(12,4),Ivrin:S==='E'?cell(2,12):cell(1,10)};
+  const units=[
+    {n:'Aevik',side:'a',hp:90,max:90},{n:'Muiren',side:'a',hp:95,max:95},
+    {n:'Branth',side:'e',hp:120,max:120},{n:'Ivrin',side:'e',hp:S==='D'?62:90,max:90,lost:S==='D'?28:0,hidden:S==='F'}
+  ];
+  const plan=PLAN.includes(S);
+  const A=P.Aevik;
+  const hexOutline=(p,stroke,dash,fill)=>h('polygon',{key:K(),points:pstr(hexPts(p.x,p.y)),fill:fill||'none',stroke,strokeWidth:2.5,strokeDasharray:dash});
+  const tri=(x,y,s)=>[h('polygon',{key:K(),points:`${x},${y-s} ${x+s*1.1},${y+s*0.9} ${x-s*1.1},${y+s*0.9}`,fill:C.amber,stroke:C.deep,strokeWidth:2}),h('text',{key:K(),x,y:y+s*0.75,textAnchor:'middle',fontFamily:'Orbitron',fontWeight:700,fontSize:s*1.1,fill:C.deep},'!')];
+  const label=(x,y,t,o={})=>h('text',{key:K(),x,y,textAnchor:o.anchor||'middle',fontFamily:o.font||'Exo 2',fontWeight:o.w||600,fontSize:o.size||12,fill:o.fill||C.t1,stroke:C.deep,strokeWidth:4,paintOrder:'stroke',letterSpacing:o.ls||0},t);
+  // cones & rings on ground
+  if(plan&&S!=='F'){const tgt=S==='B'?P.Branth:P.Ivrin;ground.push(h('polygon',{key:K(),points:wedge(A.x,A.y,angTo(A,tgt),0.5,100),fill:'rgba(230,235,242,.10)',stroke:'rgba(230,235,242,.4)',strokeWidth:1}));}
+  if(S==='D'){ground.push(h('polygon',{key:K(),points:wedge(A.x,A.y,angTo(A,P.Ivrin),0.5,100),fill:'rgba(230,235,242,.08)',stroke:'rgba(230,235,242,.3)',strokeWidth:1}));}
+  if(S==='E'||S==='F'){const ang=S==='E'?angTo(A,P.Ivrin):Math.PI*1.08;ground.push(h('polygon',{key:K(),points:wedge(A.x,A.y,ang,0.62,230),fill:'rgba(124,92,255,.14)',stroke:C.violet,strokeWidth:2.5,strokeDasharray:'10 7'}));
+    top.push(label(A.x-112,A.y+64,'AREA CONTROLLATA',{font:'Orbitron',w:700,size:11,ls:1}));}
+  if(plan){ground.push(h('ellipse',{key:K(),cx:A.x,cy:A.y,rx:40,ry:24,fill:'none',stroke:C.amber,strokeWidth:1.5,strokeDasharray:'5 4'}));ground.push(h('ellipse',{key:K(),cx:A.x,cy:A.y,rx:33,ry:19.8,fill:'rgba(255,212,86,.10)',stroke:C.amber,strokeWidth:3}));}
+  // planned path
+  const G7=cell(5,9);
+  if(['A','B','C'].includes(S)){
+    if(S==='C'){
+      const mp=[[10,6],[9,7],[8,7],[8,8],[7,8],[6,9],[5,9]].map(q=>cell(q[0],q[1]));
+      ground.push(h('polyline',{key:K(),points:pstr(mp.map(p=>[p.x,p.y])),fill:'none',stroke:C.t2,strokeWidth:3,strokeDasharray:'12 8',strokeLinecap:'round'}));
+      top.push(h('circle',{key:K(),cx:mp[1].x,cy:mp[1].y,r:12,fill:C.deep,stroke:C.t2,strokeWidth:2}));
+      top.push(h('text',{key:K(),x:mp[1].x,y:mp[1].y+5,textAnchor:'middle',fontFamily:'Orbitron',fontWeight:700,fontSize:13,fill:C.t1},'6'));
+      top.push(label(mp[2].x+6,mp[2].y+30,'intento Muiren',{size:12,fill:C.t2}));
+      ground.push(hexOutline(G7,C.amber,'8 5','rgba(255,212,86,.12)'));
+    }else ground.push(hexOutline(G7,C.t1,'4 5','rgba(230,235,242,.06)'));
+    const pp=[[4,12],[4,11],[5,10],[5,9]].map(q=>cell(q[0],q[1]));
+    ground.push(h('polyline',{key:K(),points:pstr(pp.map(p=>[p.x,p.y])),fill:'none',stroke:C.t1,strokeWidth:5,strokeDasharray:'0.1 13',strokeLinecap:'round'}));
+    pp.slice(1,3).forEach(p=>ground.push(h('circle',{key:K(),cx:p.x,cy:p.y,r:4,fill:C.t1})));
+    top.push(h('circle',{key:K(),cx:G7.x,cy:G7.y,r:14,fill:C.deep,stroke:'#56B4E9',strokeWidth:2.5}));
+    top.push(h('text',{key:K(),x:G7.x,y:G7.y+5,textAnchor:'middle',fontFamily:'Orbitron',fontWeight:700,fontSize:14,fill:'#FFFFFF'},'3'));
+    if(S==='C'){top.push(...tri(G7.x+34,G7.y-26,11));top.push(label(G7.x,G7.y+40,'G7 · STESSA CELLA — NESSUNO ARRIVA',{font:'Orbitron',w:700,size:12,fill:C.amber}));}
+    else top.push(label(G7.x+34,G7.y+5,'G7',{font:'Orbitron',w:700,size:12,fill:C.t2}));
+  }
+  // partial knowledge
+  if(S==='F'){
+    const area=[[1,10],[0,11],[1,11],[2,10]].map(q=>cell(q[0],q[1]));
+    area.forEach(p=>ground.push(hexOutline(p,'rgba(230,235,242,.45)','4 5','rgba(230,235,242,.07)')));
+    const cx=580,cy=666;
+    ground.push(h('ellipse',{key:K(),cx,cy,rx:112,ry:68,fill:'none',stroke:C.t1,strokeWidth:2,strokeDasharray:'9 7'}));
+    top.push(h('circle',{key:K(),cx,cy,r:17,fill:C.deep,stroke:C.t1,strokeWidth:2,strokeDasharray:'5 4'}));
+    top.push(h('text',{key:K(),x:cx,y:cy+7,textAnchor:'middle',fontFamily:'Orbitron',fontWeight:700,fontSize:19,fill:'#FFFFFF'},'?'));
+    top.push(label(cx,cy-80,'CONTATTO INCERTO',{font:'Orbitron',w:700,size:11,ls:1}));
+    const lc=cell(7,2);
+    items.push({y:lc.y,el:h('g',{key:K(),opacity:.35},[h('ellipse',{key:'a',cx:lc.x,cy:lc.y,rx:13,ry:7.8,fill:C.fm}),h('rect',{key:'b',x:lc.x-13,y:lc.y-44,width:26,height:44,fill:C.fm,stroke:C.t1,strokeDasharray:'3 3'}),h('ellipse',{key:'c',cx:lc.x,cy:lc.y-44,rx:13,ry:7.8,fill:C.t2})])});
+    top.push(h('text',{key:K(),x:lc.x,y:lc.y-14,textAnchor:'middle',fontSize:30,fontWeight:700,fill:C.t1,stroke:C.deep,strokeWidth:4,paintOrder:'stroke'},'×'));
+    top.push(h('rect',{key:K(),x:lc.x+20,y:lc.y-66,width:34,height:20,rx:3,fill:C.deep,stroke:C.t2}));
+    top.push(h('text',{key:K(),x:lc.x+37,y:lc.y-51,textAnchor:'middle',fontFamily:'Orbitron',fontWeight:700,fontSize:12,fill:C.t1},'T3'));
+    top.push(label(lc.x,lc.y+30,'ULTIMO CONTATTO',{font:'Orbitron',w:700,size:11,ls:1,fill:C.t2}));
+    const nz=cell(11,10);
+    [16,32,48].forEach((r,i)=>ground.push(h('ellipse',{key:K(),cx:nz.x,cy:nz.y,rx:r,ry:r*SQ,fill:'none',stroke:C.t1,strokeOpacity:1-i*0.28,strokeWidth:2,strokeDasharray:i?'6 5':null})));
+    ground.push(h('circle',{key:K(),cx:nz.x,cy:nz.y,r:4,fill:C.t1}));
+    top.push(label(nz.x,nz.y+48,'RUMORE',{font:'Orbitron',w:700,size:11,ls:1}));
+  }
+  if(S==='E'){
+    const tr=[cell(1,10),cell(1,11),cell(2,12)];
+    ground.push(h('polyline',{key:K(),points:pstr(tr.map(p=>[p.x,p.y])),fill:'none',stroke:C.t2,strokeWidth:3,strokeDasharray:'0.1 10',strokeLinecap:'round'}));
+    ground.push(h('ellipse',{key:K(),cx:tr[0].x,cy:tr[0].y,rx:20,ry:12,fill:'none',stroke:C.t2,strokeDasharray:'4 4'}));
+  }
+  // blocks
+  BLOCKS.forEach(b=>{const p=cell(b[0],b[1]);const hb=hexPts(p.x,p.y),ht=hexPts(p.x,p.y,24);
+    items.push({y:p.y,el:h('g',{key:K()},[
+      h('polygon',{key:'s1',points:pstr([hb[0],hb[1],ht[1],ht[0]]),fill:'#1A2029',stroke:C.fd}),
+      h('polygon',{key:'s2',points:pstr([hb[1],hb[2],ht[2],ht[1]]),fill:C.raised,stroke:C.fd}),
+      h('polygon',{key:'t',points:pstr(ht),fill:C.off,stroke:C.fm})])});});
+  // units
+  units.forEach(u=>{if(u.hidden)return;const p=P[u.n];const g=[];
+    if(u.side==='a')g.push(h('ellipse',{key:'m',cx:p.x,cy:p.y,rx:24,ry:14.4,fill:'rgba(0,224,255,.14)',stroke:C.cyan,strokeWidth:2.5}));
+    else g.push(h('polygon',{key:'m',points:`${p.x-28},${p.y} ${p.x},${p.y-17} ${p.x+28},${p.y} ${p.x},${p.y+17}`,fill:'rgba(255,77,77,.14)',stroke:C.red,strokeWidth:2.5}));
+    const body=u.side==='a'?'#7A8596':'#5A6576';
+    g.push(h('ellipse',{key:'b0',cx:p.x,cy:p.y,rx:13,ry:7.8,fill:body}));
+    g.push(h('rect',{key:'b1',x:p.x-13,y:p.y-44,width:26,height:44,fill:body}));
+    g.push(h('rect',{key:'b2',x:p.x,y:p.y-44,width:13,height:44,fill:'rgba(8,15,20,.28)'}));
+    g.push(h('ellipse',{key:'b3',cx:p.x,cy:p.y-44,rx:13,ry:7.8,fill:'#B9C2CF'}));
+    items.push({y:p.y,el:h('g',{key:K()},g)});
+    // hp tag
+    const y=p.y-66,x0=p.x-24,bw=52,fill=u.side==='a'?C.cyan:C.red;
+    top.push(u.side==='a'?h('circle',{key:K(),cx:x0-9,cy:y+3,r:5,fill:C.cyan,stroke:C.deep,strokeWidth:1.5}):h('polygon',{key:K(),points:`${x0-15},${y+3} ${x0-9},${y-3} ${x0-3},${y+3} ${x0-9},${y+9}`,fill:C.red,stroke:C.deep,strokeWidth:1.5}));
+    top.push(h('rect',{key:K(),x:x0,y,width:bw,height:6,fill:C.deep,stroke:C.off}));
+    top.push(h('rect',{key:K(),x:x0,y,width:bw*u.hp/u.max,height:6,fill}));
+    if(u.lost)top.push(h('rect',{key:K(),x:x0+bw*u.hp/u.max,y,width:bw*u.lost/u.max,height:6,fill:'rgba(230,235,242,.35)'}));
+    top.push(label(p.x,y-7,`${u.n} · ${u.hp}`,{size:12}));
+  });
+  // lines of fire / targets
+  const chest=p=>({x:p.x,y:p.y-26});
+  const brackets=(p,col)=>{const x1=p.x-30,x2=p.x+30,y1=p.y-58,y2=p.y+16,l=10;return [[x1,y1+l,x1,y1,x1+l,y1],[x2-l,y1,x2,y1,x2,y1+l],[x1,y2-l,x1,y2,x1+l,y2],[x2-l,y2,x2,y2,x2,y2-l]].map(q=>h('polyline',{key:K(),points:`${q[0]},${q[1]} ${q[2]},${q[3]} ${q[4]},${q[5]}`,fill:'none',stroke:col,strokeWidth:3}));};
+  const arrow=(a,b,col,w,dash)=>{const ang=Math.atan2(b.y-a.y,b.x-a.x);const e={x:b.x-Math.cos(ang)*30,y:b.y-Math.sin(ang)*30};const s=12;
+    return [h('line',{key:K(),x1:a.x,y1:a.y,x2:e.x,y2:e.y,stroke:col,strokeWidth:w,strokeDasharray:dash}),
+      h('polygon',{key:K(),points:`${e.x+Math.cos(ang)*s},${e.y+Math.sin(ang)*s} ${e.x+Math.cos(ang+2.4)*s},${e.y+Math.sin(ang+2.4)*s} ${e.x+Math.cos(ang-2.4)*s},${e.y+Math.sin(ang-2.4)*s}`,fill:col})];};
+  if(S==='A'||S==='C'){top.unshift(...arrow(chest(A),chest(P.Ivrin),PH.BLAST,2.5,'8 6'));top.push(...brackets(P.Ivrin,PH.BLAST));}
+  if(S==='B'){top.unshift(...arrow(chest(A),chest(P.Branth),PH.BLAST,3,null));top.push(...brackets(P.Branth,PH.BLAST));top.push(...tri(P.Muiren.x+40,P.Muiren.y-46,12));}
+  if(S==='D'){const a=chest(A),b=chest(P.Ivrin);top.unshift(h('line',{key:K(),x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:PH.BLAST,strokeOpacity:.3,strokeWidth:12,strokeLinecap:'round'}),...arrow(a,b,PH.BLAST,4,null));
+    top.push(h('text',{key:K(),x:P.Ivrin.x+38,y:P.Ivrin.y-57,fontFamily:'Orbitron',fontWeight:700,fontSize:28,fill:'#FFFFFF',stroke:C.deep,strokeWidth:5,paintOrder:'stroke'},'-28'));}
+  items.sort((a,b)=>a.y-b.y);
+  return h('svg',{key,width:1920,height:1080,viewBox:'0 0 1920 1080',style:{position:'absolute',left:0,top:0}},[
+    h('defs',{key:'df'},h('radialGradient',{id:'vg'+key,cx:'50%',cy:'48%',r:'70%'},[h('stop',{key:1,offset:'55%',stopColor:C.deep,stopOpacity:0}),h('stop',{key:2,offset:'100%',stopColor:C.deep,stopOpacity:.85})])),
+    h('rect',{key:'bg',width:1920,height:1080,fill:C.deep}),...ground,...items.map(i=>i.el),
+    h('rect',{key:'vg',width:1920,height:1080,fill:`url(#vg${key})`}),...top]);
+}
+
+function slot(c,state){
+  const col=c.ph==='CLEANUP'?null:c.ph?PH[c.ph]:null;
+  const s={isSlot:true,k:c.k,n:c.n,phL:c.ph==='REAZ'?'REAZ.':c.ph||'—'};
+  const box={position:'absolute',inset:0,boxSizing:'border-box',borderRadius:6,overflow:'hidden',background:C.raised,border:'1px solid '+C.fm};
+  let dim=false;
+  if(state==='sel'){box.background=C.selBg;box.border='2px solid '+C.amber;box.boxShadow='0 0 14px rgba(255,212,86,.3)';s.underSel=true;}
+  if(state==='planned'){box.border='2px solid '+C.amber;s.planned=true;}
+  if(state==='cd'){box.background=C.panel;box.border='1px solid '+C.off;dim=true;s.cd='2';}
+  if(state==='unavail'){dim=true;s.hatch=true;}
+  if(state==='invalid'){box.background=C.badBg;box.border='2px solid '+C.red;s.invalid=true;}
+  if(state==='warnsel'){box.background=C.selBg;box.border='2px dashed '+C.amber;s.warn=true;s.underSel=true;}
+  if(state==='reaz'){box.background=C.reaBg;box.border='2px dashed '+C.violet;s.underReaz=true;}
+  s.box=box;
+  s.strip={position:'absolute',left:0,right:0,top:0,height:4,opacity:state==='cd'?.3:1,background:c.ph==='CLEANUP'?'repeating-linear-gradient(90deg,#A9B4C2 0 4px,transparent 4px 7px)':(col||'transparent')};
+  s.icon=Object.assign({position:'absolute',left:23,top:30,width:28,height:28,opacity:dim?.25:1},ICON[c.ic]);
+  s.nameSt={position:'absolute',left:3,right:3,bottom:7,textAlign:'center',fontSize:11,fontWeight:600,lineHeight:'13px',color:dim?C.t3:C.t1,maxHeight:26,overflow:'hidden'};
+  s.phSt={position:'absolute',top:12,right:(s.planned||s.warn||s.invalid)?24:6,fontFamily:'Orbitron',fontWeight:700,fontSize:8,letterSpacing:0,color:dim?C.t3:C.t2};
+  return s;
+}
+function bar(S){
+  const st={A:{5:'sel',8:'cd'},B:{6:'warnsel',8:'cd'},C:{5:'planned',8:'cd'},F:{2:'planned',8:'cd'}}[S]||{};
+  const out=[];let g=0;
+  CMDS.forEach((c,i)=>{if(c.g!==g){out.push({isDiv:true});g=c.g;}out.push(slot(c,st[i]||'avail'));});
+  return out;
+}
+function ghost(S){
+  const base=[{ph:'PREP'},{ph:'DASH'},{ph:'BLAST'},{ph:'MOVE'}];
+  const a={
+    A:{BLAST:['diamond','Arc Pulse','→ Ivrin'],MOVE:['chev','Move (3)','3 celle → G7']},
+    B:{BLAST:['bar','Linear Discharge','→ Branth · attraversa Muiren',1],MOVE:['chev','Move (3)','3 celle → G7']},
+    C:{BLAST:['diamond','Arc Pulse','→ Ivrin'],MOVE:['chev','Move (3)','3 celle → G7 · conflitto',1]},
+    F:{PREP:['shieldDot','Guardia reattiva','reazione armata · cono a ovest'],MOVE:['chev','Withdraw (riservato)','da Guardia reattiva']}
+  }[S]||{};
+  return base.map(b=>{const v=a[b.ph];const warn=!!(v&&v[3]);
+    return {ph:b.ph,has:!!v,none:!v,warn,a:v&&v[1],t:v&&v[2],
+      icon:v?Object.assign({width:20,height:20,flex:'none'},ICON[v[0]]):{},
+      sq:{width:10,height:10,background:PH[b.ph],flex:'none'},
+      strip:{position:'absolute',left:0,right:0,top:0,height:4,background:PH[b.ph],opacity:v?1:.35},
+      cell:{position:'relative',flex:1,boxSizing:'border-box',padding:'12px 14px 10px',borderRadius:8,overflow:'hidden',background:v?'rgba(33,39,51,.95)':'rgba(21,26,35,.92)',border:warn?'2px dashed '+C.amber:'1px solid '+(v?C.fm:C.fd),display:'flex',flexDirection:'column',gap:6}};});
+}
+function chips(S){
+  const d={A:[['Arc Pulse','BLAST'],['Move · 3 celle','MOVE'],null],C:[['Arc Pulse','BLAST'],['Move · 3 celle','MOVE'],null],
+    B:[['Linear Discharge','BLAST','warn'],['Move · 3 celle','MOVE'],null],F:[['Guardia reattiva','PREP','badge'],['Withdraw (riservato)','MOVE'],null]}[S]||[null,null,null];
+  return ['PRINCIPALE','MOVIMENTO','REAZIONE'].map((slot,i)=>{const v=d[i];const warn=v&&v[2]==='warn',reaz=v&&v[2]==='reaz';
+    return {slot,val:v?v[0]:'—',warn,badge:!!(v&&v[2]==='badge'),
+      valSt:{fontSize:v?14:18,fontWeight:v?600:700,color:v?C.t1:C.t3,whiteSpace:'nowrap'},
+      strip:{position:'absolute',left:0,top:0,bottom:0,width:4,background:v?PH[v[1]]:'transparent'},
+      st:{position:'relative',display:'flex',alignItems:'center',gap:8,height:36,boxSizing:'border-box',padding:'0 10px 0 14px',borderRadius:6,overflow:'hidden',
+        background:reaz?C.reaBg:C.raised,border:warn?'1px dashed '+C.amber:reaz?'1px dashed '+C.violet:'1px solid '+C.off}};});
+}
+function summary(S){
+  const d=S==='D'?[['Arc Pulse','BLAST',1],['Move · 3 celle','MOVE'],null]:[['Guardia reattiva','PREP',1],['Withdraw (riservato)','MOVE'],null];
+  return ['PRINCIPALE','MOVIMENTO','REAZIONE'].map((slot,i)=>{const v=d[i];const live=!!(v&&v[2]);const reaz=v&&v[1]==='REAZ';
+    return {slot,val:v?v[0]:'—',live,ph:v?(reaz?'REAZ.':v[1]):'',
+      valSt:{fontSize:v?16:20,fontWeight:700,color:v?'#FFFFFF':C.t3,whiteSpace:'nowrap'},
+      strip:{position:'absolute',left:0,right:0,top:0,height:4,background:v?PH[v[1]]:'transparent'},
+      st:{position:'relative',flex:1,boxSizing:'border-box',padding:'12px 12px 10px',borderRadius:6,overflow:'hidden',display:'flex',flexDirection:'column',justifyContent:'space-between',
+        background:reaz?C.reaBg:C.raised,border:live?(reaz?'2px dashed '+C.violet:'2px solid '+C.t1):'1px solid '+C.off}};});
+}
+function phases(S){
+  const act=S==='D'?'BLAST':'MOVE';
+  return ['PREP','DASH','BLAST','MOVE'].map(n=>{const on=n===act,col=PH[n];
+    return {n,cell:{flex:1,height:38,boxSizing:'border-box',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:on?'2px solid '+col:'1px solid '+C.off,background:on?col+'33':'transparent'},
+      mark:on?{width:11,height:11,background:col,outline:'1px solid #FFFFFF'}:{width:6,height:6,borderRadius:'50%',border:'1.5px solid '+C.t3},
+      txt:{fontFamily:'Orbitron',fontWeight:on?700:500,fontSize:on?13:12,color:on?'#FFFFFF':C.t3,letterSpacing:'.06em'}};});
+}
+function log(S){
+  const rows=S==='D'
+    ?[['PREP',1,'Muiren','Guardia'],['PREP',2,'Branth','Irrigidimento'],['DASH'],['BLAST',3,'Aevik','Arc Pulse → Ivrin · -28','cur','why']]
+    :[['PREP',1,'Aevik','Guardia reattiva'],['PREP',2,'Muiren','Guardia'],['DASH'],['BLAST',3,'Branth','Interagisci → Nodo'],['MOVE',4,'Ivrin','Move · 2 celle','cur','reaz']];
+  return rows.map(r=>{if(r.length===1)return {empty:true,ph:r[0]};const cur=r[4]==='cur',why=r[5]==='why';
+    return {full:true,ph:r[0],n:r[1],actor:r[2],act:r[3],why,reaz:r[5]==='reaz',
+      strip:{width:4,alignSelf:'stretch',borderRadius:2,background:PH[r[0]],flex:'none'},
+      rowSt:{display:'flex',alignItems:'center',gap:10,minHeight:48,boxSizing:'border-box',padding:'6px 8px 6px 6px',borderRadius:6,background:cur?C.raised:'transparent',border:'1px solid '+(cur?C.fm:'transparent')},
+      whySt:{padding:'3px 7px',borderRadius:4,fontFamily:'Orbitron',fontWeight:700,fontSize:11,color:why?'#FFFFFF':C.t2,border:'1px solid '+(why?C.cyan:C.fm),background:why?C.actBg:'transparent'}};});
+}
+function notes(S){
+  const P=PLAN.includes(S),n=[];
+  const add=(id,x,y,w,hh,tag)=>{const t={position:'absolute',display:'flex',gap:6,alignItems:'center',height:18,padding:'0 6px',boxSizing:'border-box',background:'#FFFFFF',color:C.deep,fontSize:11,fontWeight:600,whiteSpace:'nowrap',borderRadius:2,zIndex:6};
+    if(tag==='belowR'){t.right=1920-(x+w);t.top=y+hh+2;}else if(tag==='above'){t.left=x;t.top=y-20;}else if(tag==='below'){t.left=x;t.top=y+hh+2;}else{t.left=x+4;t.top=y+hh-22;}
+    n.push({id,label:LBL[id],box:{position:'absolute',left:x,top:y,width:w,height:hh,boxSizing:'border-box',border:'1px solid #FFFFFF',boxShadow:'0 0 0 1px rgba(8,15,20,.8)',borderRadius:3,zIndex:5,pointerEvents:'none'},tag:t});};
+  add('Z16',392,224,1136,632,'inside');
+  add('Z2',24,24,356,176,'below');
+  add('Z1',424,24,640,56,'above');
+  add('Z3',1076,24,420,56,'above');
+  if(P)add('Z6',424,92,1072,88,'below');else add('Z11',424,92,1072,48,'below');
+  if(P)add('Z7',1620,24,276,108,'below');
+  if(S==='B'||S==='C'){add('Z8',1556,24,56,52,'above');add('Z8',24,392,356,120,'above');}
+  if(P)add('Z4',24,524,356,316,'below');else add('Z4',24,664,356,176,'below');
+  if(P)add('Z5',390,903,1140,138,'above');else add('Z5',550,917,820,110,'above');
+  if(S==='A'||S==='B')add('Z9',1716,240,180,40,'below');
+  if(S==='F'){add('Z15',1556,240,340,242,'above');add('Z9',1716,494,180,40,'below');
+    add('Z15',462,580,236,168,'below');add('Z15',996,226,120,128,'above');add('Z15',1300,604,120,100,'above');}
+  if(S==='C')add('Z9',1556,240,340,316,'below');
+  if(S==='D'){add('Z10',1556,240,340,420,'belowR');add('Z13',592,560,82,36,'above');}
+  if(S==='E'){add('Z10',1556,240,340,330,'belowR');add('Z14',656,436,608,208,'above');}
+  return n;
+}
+
+const CACHE={};
+function frame(S,annotated){
+  const id=FILES[S]+(annotated?'-annotato':'');
+  if(CACHE[id])return CACHE[id];
+  const plan=PLAN.includes(S);
+  const f={id,label:`${S} ${annotated?'annotata':'pulita'}`,caption:id+'.png',annotated,planning:plan,resolution:!plan,
+    world:world(S,id),variantNote:S==='D'||S==='E',sheet:`${S} — ${TITLES[S]} · versione annotata`,
+    roster:[{init:'A',name:'Aevik',hp:'90/90',sh:'0',reaz:S==='E'||S==='F'},{init:'M',name:'Muiren',hp:'95/95',sh:'12',reaz:false}],
+    z4:{position:'absolute',left:24,top:plan?524:664,width:356,height:plan?316:176,boxSizing:'border-box',padding:16,background:'rgba(21,26,35,.92)',border:'1px solid '+C.fd,borderRadius:8,display:'flex',flexDirection:'column',gap:12},
+    warnCount:S==='B'||S==='C',
+    alert:S==='B'?{what:'Fuoco amico',why:'la linea attraversa Muiren',cost:'Muiren subisce il danno'}:S==='C'?{what:'Stessa cella G7',why:'Muiren intende muoversi su G7',cost:'nessuno dei due arriva: entrambi si fermano prima di G7'}:null,
+    tab:['A','B','F'].includes(S),tabSt:{position:'absolute',left:1716,top:S==='F'?494:240,width:180,height:40,boxSizing:'border-box',padding:'0 10px 0 12px',background:'rgba(21,26,35,.92)',border:'1px solid '+C.fd,borderRadius:8,display:'flex',alignItems:'center',gap:10},
+    intent:S==='C',contacts:S==='F',quick:S==='E',
+    move:S==='F'?'Withdraw (riservato)':'Move · 3 celle',moveSub:S==='F'?'da Guardia reattiva · sola lettura':'profilo del piano · sola lettura',
+    notes:annotated?notes(S):[]};
+  if(plan){f.bar=bar(S);f.ghost=ghost(S);f.chips=chips(S);}
+  else{f.phases=phases(S);f.sum=summary(S);f.log=log(S);
+    f.logSt={position:'absolute',left:1556,top:240,width:340,height:S==='D'?420:330,boxSizing:'border-box',padding:14,background:'rgba(21,26,35,.94)',border:'1px solid '+C.fd,borderRadius:8,display:'flex',flexDirection:'column',gap:6};
+    const ev=S==='D'?{phase:'BLAST',actor:'Aevik',action:'Arc Pulse',target:'Ivrin',n:3}:{phase:'MOVE',actor:'Ivrin',action:'Move',target:'area controllata di Aevik',n:4};
+    f.ev={...ev,num:ev.n+'/5',tag:{display:'flex',alignItems:'center',gap:7,height:28,padding:'0 10px',borderRadius:5,border:'2px solid '+PH[ev.phase],fontFamily:'Orbitron',fontWeight:700,fontSize:12,color:'#FFFFFF',letterSpacing:'.08em'},sq:{width:9,height:9,background:PH[ev.phase]},
+      pips:[1,2,3,4,5].map(i=>({st:i<ev.n?{width:8,height:8,borderRadius:'50%',background:C.t2}:i===ev.n?{width:10,height:10,borderRadius:'50%',background:'#FFFFFF',outline:'2px solid '+PH[ev.phase],outlineOffset:1}:{width:8,height:8,boxSizing:'border-box',borderRadius:'50%',border:'1.5px solid '+C.t3}}))};}
+  return CACHE[id]=f;
+}
+
+class Component extends DCLogic {
+  renderVals(){
+    const view=this.props.view??'Tutte';
+    const ver=this.props.versione??'Entrambe';
+    const list=view==='Tutte'?['A','B','C','D','E','F']:[view];
+    const pages=[];
+    if(ver!=='Annotata')list.forEach(S=>pages.push(frame(S,false)));
+    if(ver!=='Pulita')list.forEach(S=>pages.push(frame(S,true)));
+    return {pages};
+  }
+}
+</script>
+</body>
+</html>
