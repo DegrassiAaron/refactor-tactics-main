@@ -21,6 +21,19 @@ che il criterio nuovo **vieta**. Non riusare quei numeri come baseline.
 |---|---|
 | motore libero | `Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'"` → nessuna riga |
 | nessun crash pregresso da confondere | annota quante cartelle ci sono ora: `(Get-ChildItem "D:\Repositories\refactor-tactics-main\Saved\StagedBuilds\Windows\RefactorTactics\Saved\Crashes").Count` |
+| il runtime di `HEAD` è il candidate | il blocco qui sotto risponde `OK`. Su `DIVERSI` la seduta **non si apre**: è `NOT RUN — candidate superato` finché una decisione non ricongela (referto del 2026-10-09, `D1`) |
+
+```bash
+test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 95eddfd37:Source)" \
+  && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 95eddfd37:Content)" \
+  && echo "OK: il runtime di HEAD e' il candidate" || echo "DIVERSI: NOT RUN, non aprire la seduta"
+```
+
+⛔ **Il pacchetto staged si verifica per contenuto, ma il contenuto prova solo che il binario è quello: non che il
+candidate sia ancora quello da attestare.** Il 2026-10-09 il blocco risponde `DIVERSI` — il fix di
+[#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463) e il lavoro delle sedute `U67`–`U71` sono
+entrati dopo `95eddfd37` — e una seduta condotta lo stesso attesterebbe una build che `main` ha sorpassato. Quando il
+candidate viene ricongelato, lo SHA in questo blocco si aggiorna **insieme** a quello di `#85`.
 
 🔴 **Al 2026-10-03 quelle cartelle sono tre, e sono tutte di misure mie del 2026-10-02** — due da `-nullrhi`
 e una da `-RenderOffScreen`. Servono come **controllo positivo** del passo 6a: contengono un crash vero, su

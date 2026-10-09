@@ -32,8 +32,16 @@ e se lo è compila da lì senza perdere i documenti.
 test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 95eddfd37:Source)" \
   && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 95eddfd37:Content)" \
   && echo "OK: compilare da HEAD = compilare il candidate" \
-  || echo "DIVERSI: fai checkout di 95eddfd37"
+  || echo "DIVERSI: NOT RUN, non aprire la seduta"
 ```
+
+⛔ **Su `DIVERSI` la seduta non si apre, e il checkout del candidate NON è il rimedio.** Fino al 2026-10-09 questa
+riga diceva *«fai checkout di `95eddfd37`»*: oggi risponde `DIVERSI`, e su quel candidate il **passo 5 è rosso per
+costruzione** — il fix di [#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463) (sul pacchetto una
+partita completa non produce nessun archivio) è entrato **dopo** il congelamento. Un giro condotto da `95eddfd37`
+misurerebbe un difetto già corretto; un giro condotto da `HEAD` attesterebbe uno SHA che `#85` non dichiara. Finché
+il candidate non è ricongelato (referto del 2026-10-09, `D1`), l'esito è `NOT RUN — candidate superato`, e si scrive
+nel record di `U60` con questa ragione. Allo SHA nuovo si aggiorna questo blocco **insieme** a `#85`.
 
 ⛔ **Il pacchetto non serve, e non va usato.** Il modulo `RefactorTacticsEditor` è di tipo `Editor`
 (`RefactorTactics.uproject:14`): Ability Lab e Hero Lab **non esistono nel pacchetto**. Il giro si fa in
