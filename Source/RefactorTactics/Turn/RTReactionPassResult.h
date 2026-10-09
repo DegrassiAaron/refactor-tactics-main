@@ -68,8 +68,18 @@ struct FRTCounterAttack
  */
 struct FRTReactionPassResult
 {
-	/** Riduzione del danno per bersaglio dichiarata dalle reazioni attivate: entra nel delta del PRIMO danno. */
-	TArray<int32> DeflectDelta;
+	/**
+	 * Riduzione del danno per bersaglio dichiarata dalle reazioni attivate, indicizzata su `TargetUnitId`.
+	 *
+	 * ⚠️ **Il valore e' NEGATIVO**, e il nome dice `Reduction` e non `Pool` per questo: il chiamante ne
+	 * costruisce il POOL D'ASSORBIMENTO di [D-309] invertendo il segno, e le due cose non coincidono — la
+	 * riga che lo fa (`ARTTurnManager`, `Max(0, -...)`) esiste per insegnare la differenza.
+	 *
+	 * ⛔ **Non nomina un `ActionId`**, come la sua costante-sorgente `URTCombatLibrary::ReactionReductionPoolSource`
+	 * (`#2213`): il dispatcher lo riempie per QUALUNQUE reazione dichiari `ERTActionEffect::DamageReduction`,
+	 * e una reazione d'eroe che riusa la semantica di `Action.Deflect` con numeri propri finisce qui dentro.
+	 */
+	TArray<int32> ReactionReductionByTarget;
 
 	/**
 	 * Colpi di ritorno, accodati ai colpi veri della fase, **in ordine di produzione**.
