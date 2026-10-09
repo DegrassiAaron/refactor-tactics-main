@@ -22,11 +22,12 @@
 > tavole nuove disegnano. Anche «il pulsante invoca `LockIn`» (Z7) è superato:
 > [D-458](../../../../decisions/RT_PDR_00_Decision_Log.md) dice che `Conferma` è `Invio` e `Annulla` è il Back.
 >
-> ⚠️ **E nel corpo sono superate altre tre affermazioni.**
+> ⚠️ **E nel corpo sono superate altre due affermazioni, più una della tavola C.**
 > - «Editing/Ready | Locked» del Roster (§1 e Z2) è `FUTURE` da
 >   [D-478](../../../../decisions/RT_PDR_00_Decision_Log.md), e il bordo tratteggiato passa al chip `REAZ.`.
 > - «Su Drive c'è il PDF» (§2): nessun PDF entra, perché entrambi precedono le correzioni.
-> - Il costo del conflitto su G7 disegnato nella tavola C vale solo per arrivi nello stesso microstep (referto §6 D7).
+> - Fuori dal corpo, nella tavola C: il costo del conflitto su G7 vale solo per arrivi nello stesso microstep
+>   (referto §6 D7).
 >
 > 🎬 **Le tavole mostrano la vista strategica** ([D-488](../../../../decisions/RT_PDR_00_Decision_Log.md)).
 > Con `Tab` la parte centrale passerà dalla 3D tattica all'isometrica semplificata, e l'HUD resta identico.

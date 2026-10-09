@@ -65,7 +65,7 @@ La posizione è quella della griglia di [`guida-screen-hud-umg.md`](../../techni
 | Z5 Barra dei comandi | → skill bar | CURRENT nel C++; resa nelle sedute della skill bar | `Bottom` | [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826) |
 | Z6 Ghost Timeline | DESIGNED, «sopra la dock» | DESIGNED, **in `TopCenter`** | `TopCenter` | [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172) |
 | Z7 Conferma / Annulla | PARZIALE, «basso-destra» | **CURRENT** nel C++, in `TopRight` (H9) | `TopRight` | [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471) |
-| Z8 Avvisi | PARZIALE | PARZIALE: l'aggregato è deciso (D-480), non scritto | `MiddleLeft` + contatore in `TopRight` | seguito T4 |
+| Z8 Avvisi | PARZIALE | PARZIALE: l'elenco è deciso (D-480), non scritto | `MiddleLeft` + contatore in `TopRight` | seguito T4 |
 | Z9 Intenti alleati | FUTURE | FUTURE (D-478) | `MiddleRight`, linguetta chiusa | — |
 | Z10 Registro + WHY? | PARZIALE | CURRENT il registro, FUTURE il WHY? | `MiddleRight` | [#1937](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1937) |
 | Z11 Evento corrente | DESIGNED | DESIGNED: nessun indice né totale d'evento in `UI/*.h` | `TopCenter` | seguito T5 |
@@ -120,7 +120,7 @@ La verifica (b) sulle tavole stesse è stata fatta in questa sessione, con un re
 | `DEC-HUD-2` UI di squadra con un comandante | Z9 ed Editing/Ready/Locked `FUTURE`; il roster ha PV, scudo, `REAZ.` | [D-478](../../decisions/RT_PDR_00_Decision_Log.md) |
 | `DEC-HUD-3` Macrofase nell'header | Quattro celle sulla fase **riprodotta**, in un campo proprio della vista | [D-479](../../decisions/RT_PDR_00_Decision_Log.md) |
 | `DEC-HUD-4` Stati del pulsante | **Già chiusa** da [D-458](../../decisions/RT_PDR_00_Decision_Log.md); le tavole disegnano il riposo e `Ritira` | — |
-| `DEC-HUD-5` Avvisi di piano | Li aggrega il view-model; il validatore resta l'autorità | [D-480](../../decisions/RT_PDR_00_Decision_Log.md) |
+| `DEC-HUD-5` Avvisi di piano | Li riporta il view-model; la legalità la decide il validatore | [D-480](../../decisions/RT_PDR_00_Decision_Log.md) |
 | `DEC-HUD-6` *(nuova, da D-456 punto 9)* Dove va l'obiettivo | In `TopCenter`, nell'header | [D-481](../../decisions/RT_PDR_00_Decision_Log.md) |
 | `DEC-HUD-7` *(nuova)* Colori del testo del mockup | Entrano in §32 | [D-482](../../decisions/RT_PDR_00_Decision_Log.md) |
 | *(dalle tavole)* `Guardia reattiva` in `REAZIONE` | **Vince il codice**: `Action.Overwatch` è `ERTActionSlot::Main` (`RTCatalogLibrary.cpp`) | — |
@@ -218,7 +218,9 @@ I gate eseguiti, con il loro esito, sono nel corpo della PR di [#3605](https://g
 
 ## 11. Dalla review indipendente
 
-Prima del merge un revisore separato ha riletto ogni affermazione sul codice, con lo stesso albero. Ciò che ha
+Prima del merge un revisore separato, con lo stesso albero, ha verificato sul codice le affermazioni delle voci
+D-478, D-479, D-480, D-488, i punti H2, H5, H6, H7, H9 e H11 dell'audit e le divergenze D1, D2 e D7. Non ha
+rifatto H12, H13, H14 né H16. Ha fatto due passate, la seconda sulle correzioni della prima. Ciò che ha
 trovato è stato corretto **in questo referto e nelle voci**, non nascosto. I rilievi che cambiavano il contenuto:
 
 | Rilievo | Dove | Correzione |
@@ -226,7 +228,7 @@ trovato è stato corretto **in questo referto e nelle voci**, non nascosto. I ri
 | La fase riprodotta non la legge «solo un accessor di test»: esistono `GetPlaybackPhaseName()` («per la HUD») e `OnPhasePlaybackStarted` | D-479, T1 | La voce le nomina, e il campo si alimenta da lì: Search → Reuse |
 | Senza sospensioni `Phase` torna a `Planning` prima del playback: l'header avrebbe detto PIANIFICAZIONE, non BLAST | D-479 | Il meccanismo è descritto come misurato |
 | La contesa di una cella si valuta per microstep: «si fermano entrambi» vale solo per arrivi simultanei | §6 D7 | La tavola C ha ora un costo sbagliato, dichiarato come errore |
-| `Invalid` è un rifiuto, non un piano «accettato ma degradato» | D-480, §15 | `Invalid` è Critical; Warning è solo ciò che il validatore accetta |
+| `Invalid` è un rifiuto, non un piano «accettato ma degradato» | D-480, §15 | `Invalid` è Critical, e solo nella lettura del piano illegale: il rifiuto del click resta della dock |
 | `bFriendlyFire` non dice quale piano colpisce | D-480, T4 | L'attribuzione è lavoro dichiarato |
 | `FRTUnitCardView` per contratto non porta piani; il dato è in `FRTUnitSlotsView`; l'`Overwatch` è `Main` | D-478, T3 | Il chip legge il piano, e la voce dice che l'`Overwatch` conta |
 

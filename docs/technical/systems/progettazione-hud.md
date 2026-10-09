@@ -935,10 +935,13 @@ Errore o condizione bloccante.
 
 > 🔑 **2026-10-09 — [D-480](../../decisions/RT_PDR_00_Decision_Log.md): chi produce l'elenco, dove sta, che
 > forma ha.**
-> - **Chi lo produce.** L'elenco di piano lo aggrega `URTHudViewModel` dalle fonti che esistono:
->   Warning è un piano accettato ma degradato: `FRTUnitOverlayView::bFriendlyFire` e lo slot `Warning`. Critical è
->   ciò che il validatore rifiuta: lo slot `Invalid` ([D-459](../../decisions/RT_PDR_00_Decision_Log.md)). L'avviso
->   lo riporta, non lo decide.
+> - **Chi lo produce.** L'elenco di piano lo riporta `URTHudViewModel` dalle fonti che esistono.
+>   - **Warning** è un piano accettato ma degradato: `FRTUnitOverlayView::bFriendlyFire` e lo slot `Warning`.
+>   - **Critical** è un piano che il validatore rifiuta: lo slot `Invalid` nella lettura del piano illegale
+>     (`bPlanInvalid`, [D-459](../../decisions/RT_PDR_00_Decision_Log.md)).
+>   - Il rifiuto del click sotto il puntatore (`bTargetRefused`) resta della dock e non entra nell'elenco.
+>
+>   L'avviso riporta, non decide.
 > - **Dove sta.** In `MiddleLeft` sopra il pannello dell'unità, con un contatore accanto a `Conferma`; in
 >   Risoluzione si nasconde.
 > - **Che forma ha.** Info è un cerchio «i», Warning un triangolo «!», Critical un ottagono «✕»; il testo dice
