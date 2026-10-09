@@ -71,8 +71,12 @@ bool FRTFallbackValidationTest::RunTest(const FString&)
 		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel),
 			MakeFallbackUnits(true, /*TargetTeam*/ 0), Map) == ERTActionInvalidReason::TargetFriendly);
 
+	// [D-415]: la portata si misura sulla MIRA congelata (`Instance.TargetCell`), quindi la cella fuori portata
+	// va dichiarata anche li' — una fixture con la mira a (2,0) e l'unita' a (5,0) descriverebbe un bersaglio
+	// scattato via DOPO il lock-in, che [D-415] non annulla. `Fallback.ValidationJudgesTheFrozenAim` pinna la
+	// differenza fra le due celle.
 	TestTrue(TEXT("bersaglio fuori portata"),
-		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, /*Range*/ 2),
+		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, /*Range*/ 2, FRTCellId(5, 0)),
 			MakeFallbackUnits(true, 1, FRTCellId(5, 0)), Map) == ERTActionInvalidReason::OutOfRange);
 
 	// Indice inesistente: il bersaglio non c'e' piu' nel turno.

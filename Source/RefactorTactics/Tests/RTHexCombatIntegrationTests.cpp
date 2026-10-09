@@ -299,85 +299,119 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastFallbackLoggedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 {
-	// Il caso vero di un turno simultaneo: si punta un bersaglio in pianificazione, e quando l'attacco risolve
-	// il bersaglio se n'e' andato con uno scatto (fase Dash, PRIMA del Blast). Prima di CP 4.3 l'azione
-	// spariva in silenzio; ora applica il fallback dichiarato (`Cancel`) e lo REGISTRA col motivo.
-	UWorld* World = MakeHexBlastWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexBlastMap(World, /*Radius=*/ 9);
-
-	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0)); // Spazzata, portata 3
-	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
-
-	const int32 HealthBefore = Runner->Health;
-	Attacker->PlannedAbilityIndex = 0;
-	Attacker->PlannedAttackTarget = Runner;
-	// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
-	const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
-		? Attacker->Abilities[0]->Def.ActionId : FName();
-
-	// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto: era scritto `7`, che solo lo scatto
-	// da 5 celle del Ranger legacy raggiungeva. La destinazione si deriva, cosi' la premessa del test —
-	// «quando il Blast risolve il bersaglio e' fuori portata» — resta vera con qualunque eroe scappi.
-	const int32 DashIdx = Runner->FindDashAbilityIndex();
-	if (!TestTrue(TEXT("premessa: chi scappa ha uno scatto"), Runner->Abilities.IsValidIndex(DashIdx)))
+	// ⌫ **Fino al 2026-10-09 questo test misurava il fallback su un bersaglio che SCAPPAVA con uno scatto
+	// dopo il lock-in, «quando l'attacco risolve il bersaglio se n'e' andato».** Da [D-415] quella scena non
+	// e' piu' un fallback: la mira si congela al lock-in e il colpo cade dove e' stato puntato, in portata,
+	// senza raggiungere nessuno. Il fallback `Cancel` resta — e resta da registrare col motivo — per il
+	// bersaglio che e' fuori portata GIA' in pianificazione. Le due scene stanno qui una accanto all'altra,
+	// perche' la differenza fra loro e' esattamente la regola.
+	const auto CountFallbacks = [](const ARTTurnManager* TM, const FName& AzioneAttesa,
+		int32& OutFallbacks, int32& OutOutOfRange, int32& OutConIdentita)
 	{
+		OutFallbacks = OutOutOfRange = OutConIdentita = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback) { continue; }
+			++OutFallbacks;
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
+			{
+				++OutOutOfRange;
+			}
+			// ⚠️ L'azione ATTESA, non «una qualsiasi»: `Instance` viene riassegnata all'istanza del FALLBACK
+			// subito dopo che la voce e' stata scritta, quindi leggere l'identita' una riga piu' in basso
+			// nominerebbe il ripiego invece dell'azione fallita — e un test che chiedesse solo «non e' vuoto»
+			// resterebbe verde.
+			if (E.ActionId == AzioneAttesa) { ++OutConIdentita; }
+		}
+	};
+
+	// --- Scena 1: fuori portata in PIANIFICAZIONE -> fallback `Cancel`, registrato col motivo ----------------
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 9);
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0)); // Spazzata, portata 3
+		ARTUnit* Far = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(6, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Far) { DestroyHexBlastWorld(World); return false; }
+
+		TestTrue(TEXT("premessa: il bersaglio e' oltre la portata gia' in pianificazione"),
+			URTHexLibrary::HexDistance(Far->Cell, Attacker->Cell) > Attacker->AttackRange);
+
+		const int32 HealthBefore = Far->Health;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Far;
+		// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
+		const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+			? Attacker->Abilities[0]->Def.ActionId : FName();
+
+		RunBlastTurn(TM);
+
+		TestEqual(TEXT("l'attacco non lo raggiunge"), Far->Health, HealthBefore);
+		int32 Fallbacks, OutOfRangeReasons, ConIdentitaGiusta;
+		CountFallbacks(TM, AzionePianificata, Fallbacks, OutOfRangeReasons, ConIdentitaGiusta);
+		TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
+		TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+		// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
+		// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
+		// unita' nello stesso turno erano indistinguibili.
+		TestEqual(*FString::Printf(TEXT("e la voce nomina l'azione fallita (%s)"), *AzionePianificata.ToString()),
+			ConIdentitaGiusta, 1);
+
+		// E lo dice anche il combat log della HUD, non solo il log autoritativo.
+		bool bInCombatLog = false;
+		for (const FString& Line : TM->GetRecentEvents())
+		{
+			if (Line.Contains(TEXT("annullata")) && Line.Contains(TEXT("fuori portata"))) { bInCombatLog = true; }
+		}
+		TestTrue(TEXT("il combat log lo mostra a chi gioca"), bInCombatLog);
 		DestroyHexBlastWorld(World);
-		return false;
 	}
-	const int32 DashRange = Runner->Abilities[DashIdx] ? Runner->Abilities[DashIdx]->RangeCells : 0;
-	const FRTCellId Escape(2 + DashRange, 0);
-	TestTrue(TEXT("premessa: la fuga porta oltre la portata di chi attacca"),
-		URTHexLibrary::HexDistance(Escape, Attacker->Cell) > Attacker->AttackRange);
 
-	Runner->PlannedDashAbility = DashIdx;
-	Runner->PlannedDashCell = Escape;
-
-	RunBlastTurn(TM);
-
-	TestTrue(TEXT("il bersaglio si e' spostato prima del Blast"), Runner->Cell == Escape);
-	TestEqual(TEXT("l'attacco non lo raggiunge"), Runner->Health, HealthBefore);
-
-	int32 Fallbacks = 0;
-	int32 OutOfRangeReasons = 0;
-	int32 ConIdentitaGiusta = 0;
-	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	// --- Scena 2: in portata al lock-in, SCAPPA nel Dash -> nessun fallback: la mira congelata era buona -----
 	{
-		if (E.Category != ERTLogCategory::Fallback) { continue; }
-		++Fallbacks;
-		if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
-			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
-		{
-			++OutOfRangeReasons;
-		}
-		// ⚠️ L'azione ATTESA, non «una qualsiasi»: `Instance` viene riassegnata all'istanza del FALLBACK
-		// subito dopo che la voce e' stata scritta, quindi leggere l'identita' una riga piu' in basso
-		// nominerebbe il ripiego invece dell'azione fallita — e un test che chiedesse solo «non e' vuoto»
-		// resterebbe verde.
-		if (E.ActionId == AzionePianificata)
-		{
-			++ConIdentitaGiusta;
-		}
-	}
-	TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
-	TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
-	// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
-	// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
-	// unita' nello stesso turno erano indistinguibili.
-	TestEqual(*FString::Printf(TEXT("e la voce nomina l'azione fallita (%s)"), *AzionePianificata.ToString()),
-		ConIdentitaGiusta, 1);
+		UWorld* World = MakeHexBlastWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 9);
 
-	// E lo dice anche il combat log della HUD, non solo il log autoritativo.
-	bool bInCombatLog = false;
-	for (const FString& Line : TM->GetRecentEvents())
-	{
-		if (Line.Contains(TEXT("annullata")) && Line.Contains(TEXT("fuori portata"))) { bInCombatLog = true; }
-	}
-	TestTrue(TEXT("il combat log lo mostra a chi gioca"), bInCombatLog);
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
 
-	DestroyHexBlastWorld(World);
+		const int32 HealthBefore = Runner->Health;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Runner;
+		const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+			? Attacker->Abilities[0]->Def.ActionId : FName();
+
+		// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto, oltre quella di chi attacca.
+		const int32 DashIdx = Runner->FindDashAbilityIndex();
+		if (!TestTrue(TEXT("premessa: chi scappa ha uno scatto"), Runner->Abilities.IsValidIndex(DashIdx)))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+		const int32 DashRange = Runner->Abilities[DashIdx] ? Runner->Abilities[DashIdx]->RangeCells : 0;
+		const FRTCellId Escape(2 + DashRange, 0);
+		TestTrue(TEXT("premessa: la fuga porta oltre la portata di chi attacca"),
+			URTHexLibrary::HexDistance(Escape, Attacker->Cell) > Attacker->AttackRange);
+		Runner->PlannedDashAbility = DashIdx;
+		Runner->PlannedDashCell = Escape;
+
+		RunBlastTurn(TM);
+
+		TestTrue(TEXT("il bersaglio si e' spostato prima del Blast"), Runner->Cell == Escape);
+		TestEqual(TEXT("[D-415] il colpo cade sulla cella mirata: chi e' scappato non viene raggiunto"),
+			Runner->Health, HealthBefore);
+		int32 Fallbacks, OutOfRangeReasons, ConIdentitaGiusta;
+		CountFallbacks(TM, AzionePianificata, Fallbacks, OutOfRangeReasons, ConIdentitaGiusta);
+		TestEqual(TEXT("[D-415] e NON e' un fallback: la mira congelata era in portata, l'azione e' partita"),
+			Fallbacks, 0);
+		DestroyHexBlastWorld(World);
+	}
 	return true;
 }
 

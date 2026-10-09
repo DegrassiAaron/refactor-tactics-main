@@ -799,7 +799,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ⛔ Un bersaglio-unita' senza mira congelata e' un'anomalia, non un caso: il lock-in la fotografa per
 		// ogni unita' viva PRIMA di questo ciclo. Il ripiego sotto resta per non lasciare un'istanza senza cella,
 		// ma l'`ensure` lo rende visibile in suite invece di riaprire l'inseguimento in silenzio.
-		ensureMsgf(bTargetsCell || Target == nullptr || bHasAim || bAggancia,
+		// Un attaccante gia' caduto (Prep o Dash) non ha una mira congelata — `CollectLivingUnits` lo ha escluso
+		// al lock-in — e il suo colpo lo scarta `CollectHexAttacks`: non e' un'anomalia, e non la segnala.
+		ensureMsgf(!Unit->IsAlive() || bTargetsCell || Target == nullptr || bHasAim || bAggancia,
 			TEXT("[D-415] bersaglio-unita' senza mira congelata al lock-in: unita' %d"), i);
 		const FRTCellId AimCell = bTargetsCell ? PlannedAttackCell
 			: (bAggancia || !bHasAim) ? (Target ? Target->Cell : Unit->Cell)
