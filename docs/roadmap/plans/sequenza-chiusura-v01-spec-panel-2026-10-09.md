@@ -133,11 +133,12 @@ sequenza fissava per quel motore non è stato quello seguito.
 | [#3205](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3205) lo Sprint nella proiezione | `OPEN`, `CLEAN`, 2026-09-18 | **938** |
 | [#3203](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3203) il canale della riduzione da reazione | `OPEN`, **`DIRTY`**, 2026-09-18 | **938** |
 
-⚠️ `#3203` è la PR che la sequenza (§9.2) indicava come ciò che rende vero il nome del test citato
-dalla cella `G4`. Oggi `Combat.GuardPoolIsPermutationInvariant` esiste in `Source/` **solo dentro un
-commento** (`Tests/RTCombatResolverTests.cpp:184`); il test che gira è
-`Combat.DeflectPoolIsPermutationInvariant`. La cella `G4` del DoD cita ancora il primo
-(`grep -c GuardPoolIsPermutationInvariant docs/roadmap/v0.1-definition-of-done.md` → **1**).
+⌫ *La prima stesura di questo paragrafo diceva che `#3203` «rende vero il nome del test citato dalla cella `G4`» e che
+la cella «cita ancora» `Combat.GuardPoolIsPermutationInvariant`. **Entrambe le cose sono false**, e lo dice la cella
+stessa letta per intero: il criterio (colonna 3) cita solo `Replay.Verifier.ResimulationIsDeterministic`; il nome
+`GuardPool…` compare nella colonna di stato **come nome storico dichiarato** — *«si chiamava … fino al 2026-09-20»*,
+con `D-408` — e la cella si era già corretta il 2026-10-03. `#3203` rinomina il canale della riduzione da reazione
+(`DeflectDelta`), non quel test. Il rilievo che resta su `#3203` è solo che è `DIRTY` da tre settimane (§7).*
 
 ### 1.6 🟡 La milestone `PIA` tace da un mese
 
@@ -157,16 +158,18 @@ Formato: severità · esperto · difetto · raccomandazione · priorità.
 ### 2.1 🔴 NYGARD — Una premessa che scade senza un trigger scade in silenzio
 
 **Difetto.** La §2.1 della sequenza porta la clausola giusta — *«vale finché il comando risponde `0`»*
-— ma nessun passo operativo la **esegue**. I runbook di `G13`
-([`guida-seduta-g13-candidate.md`](../../technical/runbooks/guida-seduta-g13-candidate.md)) e di `G16`
-([`guida-seduta-g16-u60.md`](../../technical/runbooks/guida-seduta-g16-u60.md)) verificano il binario
-**per contenuto** (l'header a venti colonne), non che il runtime di `HEAD` sia quello del candidate.
-Una seduta condotta oggi seguendo quei fogli attesterebbe `95eddfd37` con un Editor compilato da
-`ae805683a`: il verdetto sarebbe di **un'altra build**, e il foglio non se ne accorgerebbe.
+— ma nessun passo operativo la **esegue**. Il runbook di `G13`
+([`guida-seduta-g13-candidate.md`](../../technical/runbooks/guida-seduta-g13-candidate.md)) verifica il binario
+**per contenuto** (l'header a venti colonne), non che il runtime di `HEAD` sia quello del candidate. Quello di `G16`
+([`guida-seduta-g16-u60.md`](../../technical/runbooks/guida-seduta-g16-u60.md)) **ha** il blocco `rev-parse` nel
+preflight — ⌫ *la prima stesura di questo referto diceva di no, ed era falso (§7)* — ma il suo esito `DIVERSI`
+prescriveva *«fai checkout di `95eddfd37`»*, cioè condurre il giro proprio sul candidate su cui il passo 5 è rosso
+per costruzione (§1.2). Nessuno dei due fogli ha un esito di **arresto**: una seduta condotta oggi attesterebbe
+una build sbagliata in un verso o nell'altro, e il foglio non se ne accorgerebbe.
 
 **Raccomandazione.**
-1. Il blocco `rev-parse` della §2.1 diventa il **passo 0** di entrambi i runbook, con esito `FAIL →
-   fermati`: non si apre l'Editor su un albero che non è il candidate.
+1. Il blocco `rev-parse` della §2.1 entra nel **passo 0** di `G13` e acquisisce in `G16` l'esito di **arresto**:
+   su `DIVERSI` la seduta è `NOT RUN — candidate superato`, non si apre l'Editor e non si fa il checkout.
 2. Il congelamento apre una **finestra dichiarata** nell'owner (`#85`, passo 1, oppure una nota
    sotto la tabella §3 del DoD): *«fra il freeze e l'attestazione nessun merge tocca `Source/` o
    `Content/`, salvo la correzione di un gate rosso, che ricongela e ridata»*. Oggi questa regola
@@ -333,7 +336,8 @@ misura: *«i bot mirano ancora all'unità, non alla cella»*). Se non entra, `#3
 `v0.1` e senza milestone, e nessuno l'ha differita.
 
 **Raccomandazione.** Prima del congelamento, per ciascuna: **merge, chiusura, o differimento con
-`D-nnn`**. `#3203` per prima, perché è l'unica che corregge una cella del DoD (`G4`, §1.5).
+`D-nnn`**. `#3203` per prima, perché è l'unica `DIRTY`, e la sequenza del 3 ottobre misurava il conflitto come *«reale e
+isolato sul Decision Log»*: si risolve in un file.
 `#3230` è la decisione più pesante ed è in §3 come `D3`.
 
 **Priorità**: alta per `#3230`, media per le altre.
@@ -395,14 +399,14 @@ Onda 5  riporto PIA su G-n, #2621 come sezione del bundle, #85 attesta
 |---|---|---|
 | 0.1 | `D1`–`D5` di §3, registrate nel Decision Log | tutto il resto le aspetta |
 | 0.2 | la **finestra di freeze** scritta in `#85` passo 1 (§2.1) | senza, il freeze v2 scade come il v1 |
-| 0.3 | i tre scenari di §2.6 in testa alla sequenza del 3 ottobre, e il blocco `rev-parse` come passo 0 dei due runbook | rende la prossima deriva **visibile** alla prima seduta |
+| 0.3 | i tre scenari di §2.6 in testa alla sequenza del 3 ottobre; il blocco `rev-parse` come passo 0 di `G13` e l'esito di arresto in `G16` | rende la prossima deriva **visibile** alla prima seduta |
 | 0.4 | `#2621` ↔ `#85`: una riga ciascuna che dichiara l'inclusione | toglie la seconda attestazione |
-| 0.5 | igiene di §2.9: milestone di `#3424` e delle nove con label `v0.1`, banner del DoD, cella `G4` col nome vero del test | costo zero, evita la terza rilettura |
+| 0.5 | igiene di §2.9: milestone di `#3424` e delle nove con label `v0.1`, banner del DoD, le righe incrociate fra `#2621` e `#85` | costo zero, evita la terza rilettura |
 
 ### Onda 1 — le PR ferme
 
-`#3203` per prima (corregge il nome che `G4` cita); `#3205` riletta contro `D-425` come la sequenza
-chiedeva; `#3230` secondo `D3`. Esito ammesso per ciascuna: `MERGED`, `CLOSED`, o **differita con
+`#3203` per prima (l'unica in conflitto, isolato sul Decision Log); `#3205` riletta contro `D-425` come la
+sequenza chiedeva; `#3230` secondo `D3`. Esito ammesso per ciascuna: `MERGED`, `CLOSED`, o **differita con
 numero di decisione**. Nessuna resta `OPEN` al freeze.
 
 ### Onda 2 — il codice, prima del freeze
@@ -492,6 +496,21 @@ tutto:
    uno per uno: `D2` è una decisione proprio perché quel lavoro resta da fare.
 5. **Il marcatore di `U16` non è stato riverificato** (§2.9): la riga riporta il rilievo del 3
    ottobre.
-6. **Il referto non ha un avvocato del diavolo.** La sequenza del 3 ottobre ne aveva uno per fronte
-   e ne ha dichiarato tre ipotesi cadute; questo documento è a una stesura sola, e chi lo legge
-   dovrebbe trattarlo di conseguenza.
+6. **Il referto non ha avuto un avvocato del diavolo prima della pubblicazione.** La sequenza del 3 ottobre ne
+   aveva uno per fronte; qui due affermazioni sono cadute **dopo**, rileggendo le fonti per eseguire l'Onda 0, e
+   stanno in §7.
+
+---
+
+## 7. Due affermazioni della prima stesura, cadute il giorno stesso
+
+Trovate eseguendo l'Onda 0 — cioè aprendo i file che il referto citava, invece di citarli dalla memoria della
+lettura precedente. Restano scritte perché il metodo è lo stesso che il referto rimprovera alla sequenza.
+
+| Affermazione | Perché era falsa | Come è stata trovata |
+|---|---|---|
+| 🔴 *«I runbook di `G13` e `G16` non verificano che il runtime di `HEAD` sia il candidate»* (§2.1) | Il preflight di `G16` **ha** il blocco `rev-parse`. Gli manca l'esito di arresto: su `DIVERSI` prescriveva il checkout del candidate, che oggi è il verso sbagliato | aprendo il runbook per inserirvi il passo 0, e trovandolo già lì |
+| 🔴 *«La cella `G4` cita ancora `Combat.GuardPoolIsPermutationInvariant`, e `#3203` lo corregge»* (§1.5, §2.8, §4) | Il `grep -c` → `1` era vero e la conclusione no: la cella lo cita **come nome storico dichiarato**, con `D-408` e la data del rename, e si era già corretta il 2026-10-03. `#3203` rinomina un altro simbolo | leggendo la cella **per intero** invece dei 260 caratteri attorno al match |
+
+🔑 **Il denominatore comune è uno solo**: un `grep` che colpisce non dice *in che ruolo* la stringa compare. Una
+cella del DoD può nominare un test proprio per dire che **non si chiama più così**.
