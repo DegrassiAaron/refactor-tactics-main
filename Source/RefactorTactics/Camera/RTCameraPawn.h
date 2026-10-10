@@ -196,6 +196,18 @@ public:
 	float GetLastTacticalArmLength() const { return LastTacticalArmLength; }
 
 	/**
+	 * `#3631` — la larghezza ortografica che, alla distanza `ArmLength`, inquadra sul piano del pivot quanto la
+	 * prospettica con quel FOV orizzontale. Pura, per i test.
+	 */
+	static float OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees);
+
+	/** Se la camera e' in proiezione ortografica adesso. */
+	bool IsOrthographicNow() const;
+
+	/** Vedi `bStrategicOrthographic`. Il test lo accende senza passare dalla console. */
+	void SetStrategicOrthographicForTest(bool bInOrtho) { bStrategicOrthographic = bInOrtho; }
+
+	/**
 	 * `#1778` — i limiti del pivot che tengono conto del VIEWPORT (`D-251`).
 	 *
 	 * Pura e senza mondo: prende come **parametri** cio' che a runtime verrebbe dal viewport, ed e' la
@@ -447,6 +459,17 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
 	bool bStrategicView = false;
+
+	/**
+	 * `#3631` — la vista strategica in proiezione ortografica. ⛔ **Spenta di default**: la proiezione la sceglie
+	 * l'autore guardando le due versioni (D-488 (5)), e questa e' la leva per mostrargliele, non la scelta. In PIE
+	 * la stessa leva e' `rt.Camera.StrategicOrtho 1`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
+	bool bStrategicOrthographic = false;
+
+	/** Ortografica solo in strategica e solo se la leva e' accesa; altrimenti prospettica. La chiama `UpdateStrategicState`. */
+	void ApplyStrategicProjection();
 
 	/** Vedi `GetLastTacticalArmLength`. La scrive solo `UpdateStrategicState`, a ogni lettura in cui la vista e' tattica. */
 	float LastTacticalArmLength = -1.f;

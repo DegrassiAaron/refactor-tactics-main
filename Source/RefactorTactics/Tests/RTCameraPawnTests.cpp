@@ -9,6 +9,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h" // #3631: ProjectionMode e OrthoWidth della prova ortografica
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -1526,6 +1527,101 @@ bool FRTCameraTabAfterWheelEntryTest::RunTest(const FString&)
 	Cam->ToggleStrategicView();
 	TestFalse(TEXT("Tab esce dalla strategica anche se ci si e' entrati con la rotella"), Cam->IsStrategicView());
 	TestEqual(TEXT("e si ferma alla soglia d'uscita, la distanza tattica piu' vicina"), Arm->TargetArmLength, 1900.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- #3631 · la prova ortografica della vista strategica ----------------------------------------------
+
+/**
+ * La leva e' SPENTA di default: entrando in strategica la camera resta prospettica, cioe' identica a prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicOrthoOffByDefaultTest,
+	"RefactorTactics.Camera.StrategicOrthographicIsOffByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicOrthoOffByDefaultTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->RecenterView();
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("si e' in strategica"), Cam->IsStrategicView());
+	TestFalse(TEXT("e la camera resta prospettica: la leva nasce spenta"), Cam->IsOrthographicNow());
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Con la leva accesa la strategica e' ortografica, la tattica no, e **la larghezza segue il braccio**: sul piano del
+ * pivot inquadra quanto la prospettica, ed e' la stessa mezza larghezza che `ComputeEffectivePivotBounds` usa per i
+ * limiti. Per questo i limiti non hanno bisogno di un ramo ortografico.
+ *
+ * 🔑 L'ultima asserzione lega le due funzioni: se una delle due cambiasse formula — la larghezza da un numero fisso,
+ * o i limiti da un'altra geometria — il quadro ortografico e i limiti del pivot smetterebbero di coincidere, e
+ * cadrebbe questa riga. Verifica di mutazione: `SetOrthoWidth` con un valore fisso fa cadere le asserzioni sulla
+ * larghezza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicOrthoScaleTest,
+	"RefactorTactics.Camera.StrategicOrthographicKeepsTheScaleAtThePivot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicOrthoScaleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	UCameraComponent* View = Cam->FindComponentByClass<UCameraComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm) || !TestNotNull(TEXT("camera component"), View))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->SetStrategicOrthographicForTest(true);
+	Cam->RecenterView();
+
+	TestFalse(TEXT("in tattica resta prospettica anche con la leva accesa"), Cam->IsOrthographicNow());
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("in strategica, con la leva accesa, e' ortografica"), Cam->IsOrthographicNow());
+
+	const float Fov = View->FieldOfView;
+	const float AttesaAllaSoglia = 2.f * 2400.f * FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
+	TestEqual(TEXT("alla soglia la larghezza inquadra sul pivot quanto la prospettica"),
+		View->OrthoWidth, AttesaAllaSoglia, 0.5f);
+
+	Cam->AddZoom(+1.f);
+	const float AttesaDopoLoZoom = 2.f * Arm->TargetArmLength * FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
+	TestEqual(TEXT("e segue il braccio: lo zoom resta la distanza"), View->OrthoWidth, AttesaDopoLoZoom, 0.5f);
+
+	// I limiti del pivot e il quadro ortografico sono la stessa mezza larghezza. A yaw 0 la larghezza del quadro
+	// corre lungo Y, quindi il margine dei limiti su Y e' la mezza larghezza.
+	const FBox2D Area(FVector2D(-100000.f, -100000.f), FVector2D(100000.f, 100000.f));
+	const FBox2D Limiti = ARTCameraPawn::ComputeEffectivePivotBounds(Area, Arm->TargetArmLength,
+		/*Pitch=*/ -60.f, /*Yaw=*/ 0.f, Fov, /*Aspect=*/ 16.f / 9.f, /*AllowedOutside=*/ 0.f);
+	TestEqual(TEXT("i limiti del pivot usano la stessa mezza larghezza del quadro ortografico"),
+		Area.Max.Y - Limiti.Max.Y, View->OrthoWidth * 0.5f, 0.5f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("tornando tattici torna prospettica"), Cam->IsOrthographicNow());
 
 	DestroyCameraWorld(World);
 	return true;

@@ -208,6 +208,8 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 - **Che cosa si vede.** Al centro, la 3D tattica diventa un'**isometrica semplificata**, quella delle tavole A–F di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md). L'HUD intorno resta lo stesso.
 - **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`. ✅ Fatto il 2026-10-10, e pinnato da `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN`.
 - **Che cosa resta aperto.** La proiezione esatta e le soglie si decidono in `L_CameraFeatureLab`.
+  - 🔧 **La leva per scegliere la proiezione c'è dal 2026-10-10** ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)): `bStrategicOrthographic`, oppure `rt.Camera.StrategicOrtho 1` in console, che si applica al prossimo `Tab` o alla prossima tacca di rotella. Nasce **spenta**. Accesa, la vista strategica è ortografica e `OrthoWidth = 2 · TargetArmLength · tan(FOV/2)`: lo zoom resta il braccio (D-252), e al cambio la scala sul pivot non salta.
+  - 🔑 **I limiti del pivot non hanno un ramo ortografico, e non è una dimenticanza.** `ComputeEffectivePivotBounds` modella il quadro come un rettangolo sul piano del pivot con mezza larghezza `Arm · tan(FOV/2)`, cioè proprio l'impronta ortografica. Lo lega `Camera.StrategicOrthographicKeepsTheScaleAtThePivot`.
 
 🔗 La Strategic View ha già una premessa documentale in
 [`progettazione-hud.md`](progettazione-hud.md) §3.2 — *«Strategic Overview / Tactical Overview … non è la
