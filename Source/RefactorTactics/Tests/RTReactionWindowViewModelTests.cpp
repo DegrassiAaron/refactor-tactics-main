@@ -13,6 +13,8 @@
 #include "Turn/RTTurnManager.h"
 #include "UI/RTReactionWindowViewModel.h"
 #include "UI/RTScreenHudWidgets.h" // URTFastDecisionWidget: la meta' UI delle voci 2 · 3 · 4 di CP 14.6
+#include "UI/RTReactionResponseText.h" // nome e frase delle risposte (#3615)
+#include "Ability/RTCatalogLibrary.h"   // BraceExecutableResponses: le risposte offribili si chiedono a chi le produce
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1205,6 +1207,189 @@ bool FRTReactionSlowMotionRestoresTest::RunTest(const FString&)
 
 	Esegui(/*bRispondi=*/ true, TEXT("uscita per RISPOSTA"));
 	Esegui(/*bRispondi=*/ false, TEXT("uscita per SCADENZA"));
+	return true;
+}
+
+/**
+ * 🔑 **IL TASTO DELLA POSIZIONE i SCEGLIE L'OPZIONE i** ([D-491], #3615), e il badge dice quel tasto.
+ *
+ * La finestra si apre durante la risoluzione, quando i tasti del kit sono rifiutati ([D-468]): senza
+ * l'instradamento di `SelectAbilityForCurrent` nessun tasto la raggiunge. La prova non e' «la finestra si e'
+ * chiusa», che direbbe vero anche se il tasto scegliesse sempre la prima opzione: e' il TOKEN che il TurnLog
+ * registra con esito `Chosen`, e si sceglie un'opzione che NON e' la prima.
+ *
+ * ⚠️ Prima, il tasto di una posizione senza opzione: non inoltra niente e la finestra resta quella. E le
+ * LETTERE generiche, con un'unita' selezionata che le ha nel kit: arrivano a `SelectAbilityForCurrent` per la
+ * posizione della generica, e la review di #3615 ha trovato che un instradamento messo la' le faceva scegliere
+ * un'opzione ([D-397] §4 lega la lettera all'`ActionId`). Devono lasciare la finestra com'e', senza warning.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionHotkeyChoosesOptionTest,
+	"RefactorTactics.Reactions.ViewModel.HotkeyChoosesTheOptionInItsPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionHotkeyChoosesOptionTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Finestra = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Finestra))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+
+	TM->LockInAndResolve();
+	const FRTReactionWindowView Vista = PC->GetReactionWindowViewModel()->GetWindow();
+	if (!TestTrue(TEXT("premessa: una finestra dell'Overwatch attende chi guarda"), Vista.bOpen)
+		|| !TestTrue(TEXT("premessa: la finestra offre piu' di una risposta"), Vista.Options.Num() > 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 Scelta = Vista.Options.Num() - 1;  // NON la prima
+	const FString Attesa = Vista.Options[Scelta].Response;
+	if (!TestNotEqual(TEXT("premessa: l'opzione scelta non e' la prima"), Attesa, Vista.Options[0].Response))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1. I BADGE: ogni bottone dice il tasto della propria posizione, e un nome, non il token -------------
+	for (int32 i = 0; i < Vista.Options.Num(); ++i)
+	{
+		const URTFastDecisionOptionWidget* Bottone =
+			Finestra->MakeOptionWidget(URTFastDecisionOptionWidget::StaticClass(), i);
+		if (!TestNotNull(*FString::Printf(TEXT("il bottone %d e' stato costruito"), i), Bottone)) { continue; }
+		TestEqual(*FString::Printf(TEXT("il badge del bottone %d e' il tasto della posizione %d"), i, i),
+			Bottone->GetKeyLabel().ToString(), ARTPlayerController::ReactionOptionKeyLabel(i).ToString());
+		TestFalse(*FString::Printf(TEXT("il bottone %d ha un tasto"), i), Bottone->GetKeyLabel().IsEmpty());
+		TestFalse(*FString::Printf(TEXT("il bottone %d ha una frase"), i), Bottone->GetOptionDescription().IsEmpty());
+		if (URTReactionOpportunityLibrary::FireResponseTarget(Vista.Options[i].Response) != INDEX_NONE)
+		{
+			TestEqual(TEXT("una risposta FIRE si chiama FIRE, non col suo token"),
+				Bottone->GetOptionLabel().ToString(), FString(TEXT("FIRE")));
+		}
+	}
+
+	// --- 2. FAIL-CLOSED: il tasto di una posizione senza opzione non inoltra niente ----------------------------
+	const FString IdAperta = TM->GetOpenReactionWindowId();
+	AddExpectedError(TEXT("FastDecision: opzione .* fuori range"), EAutomationExpectedErrorFlags::Contains, 1);
+	PC->PressKitHotkeyForTest(Vista.Options.Num());
+	TestEqual(TEXT("un tasto senza opzione lascia aperta la stessa finestra"), TM->GetOpenReactionWindowId(), IdAperta);
+
+	// --- 2-bis. LE LETTERE GENERICHE non scelgono un'opzione -------------------------------------------------
+	PC->SelectActorForTest(Watcher);
+	int32 LetterePremute = 0;
+	for (int32 Riga = 0; Riga < ARTPlayerController::GenericHotkeys().Num(); ++Riga)
+	{
+		const FName Generica = ARTPlayerController::GenericHotkeys()[Riga].Key;
+		bool bNelKit = false;
+		for (int32 i = 0; i < Watcher->NumAbilities(); ++i)
+		{
+			bNelKit |= (Watcher->GetAbility(i) && Watcher->GetAbility(i)->Def.ActionId == Generica);
+		}
+		if (!bNelKit) { continue; } // fuori dal kit la lettera non arriva al punto comune: non proverebbe niente
+		PC->PressGenericHotkeyForTest(Riga);
+		++LetterePremute;
+		TestEqual(*FString::Printf(TEXT("la lettera di `%s` lascia aperta la stessa finestra"), *Generica.ToString()),
+			TM->GetOpenReactionWindowId(), IdAperta);
+	}
+	TestTrue(TEXT("premessa: almeno una lettera generica e' nel kit di chi guarda"), LetterePremute > 0);
+
+	// --- 3. LA SCELTA: il tasto della posizione `Scelta` ----------------------------------------------------
+	PC->PressKitHotkeyForTest(Scelta);
+	TestTrue(TEXT("il tasto ha chiuso la finestra a cui rispondeva"), TM->GetOpenReactionWindowId() != IdAperta);
+
+	for (int32 Giri = 0; TM->IsResolutionSuspended() && Giri < 200; ++Giri)
+	{
+		TM->Tick(0.05f);
+	}
+	const FRTTurnLogEntry* Decisione = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.Outcome == static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+	});
+	if (TestNotNull(TEXT("il TurnLog registra una decisione scelta"), (const void*)Decisione))
+	{
+		TestEqual(*FString::Printf(TEXT("e il token e' quello dell'opzione in posizione %d"), Scelta),
+			Decisione->ReactionResponse, Attesa);
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Ogni risposta che una finestra puo' offrire ha un nome e una frase** ([D-491], #3615).
+ *
+ * Le risposte offribili si chiedono a chi le produce, non si elencano qui: `HOLD` e `FIRE:<i>` dalla libreria
+ * delle opportunity, `Hold Ground` e le manovre da `BraceExecutableResponses` per ogni profilo del catalogo.
+ * Una manovra nuova in un profilo, senza una voce in `RTReactionResponseText`, fa fallire questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionResponseTextCoversTest,
+	"RefactorTactics.Reactions.EveryOfferedResponseHasANameAndADescription",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionResponseTextCoversTest::RunTest(const FString&)
+{
+	TArray<FString> Offribili = {
+		URTReactionOpportunityLibrary::HoldResponse(),
+		URTReactionOpportunityLibrary::FireResponse(0),
+		URTReactionOpportunityLibrary::FireResponse(7) };
+	Offribili.Append(URTCatalogLibrary::BraceExecutableResponses(NAME_None));
+	for (const FRTReactionProfileDef& Profilo : URTCatalogLibrary::GetReactionProfileCatalog())
+	{
+		for (const FString& Risposta : URTCatalogLibrary::BraceExecutableResponses(Profilo.ProfileId))
+		{
+			Offribili.AddUnique(Risposta);
+		}
+	}
+
+	for (const FString& Risposta : Offribili)
+	{
+		const FText Nome = RTReactionResponseText::NameFor(Risposta);
+		TestFalse(*FString::Printf(TEXT("`%s` ha una frase"), *Risposta), RTReactionResponseText::DescriptionFor(Risposta).IsEmpty());
+		TestFalse(*FString::Printf(TEXT("`%s` ha un nome"), *Risposta), Nome.IsEmpty());
+		TestFalse(*FString::Printf(TEXT("il nome di `%s` non contiene l'indice del bersaglio"), *Risposta),
+			Nome.ToString().Contains(TEXT(":")));
+	}
+
+	// Una risposta che la tabella non conosce resta leggibile: il bottone mostra il token, non un vuoto.
+	TestEqual(TEXT("una risposta sconosciuta mostra il proprio token"),
+		RTReactionResponseText::NameFor(TEXT("TOKEN_SCONOSCIUTO")).ToString(), FString(TEXT("TOKEN_SCONOSCIUTO")));
+	TestTrue(TEXT("e non inventa una frase"), RTReactionResponseText::DescriptionFor(TEXT("TOKEN_SCONOSCIUTO")).IsEmpty());
+	return true;
+}
+
+/**
+ * **Il tasto di un'opzione e' il tasto del kit nella stessa posizione** ([D-491], #3615): il badge e il tasto
+ * che risponde vengono dalla stessa lista, `AbilityHotkeys()`. Oltre l'ultimo tasto non c'e' badge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionOptionKeyLabelTest,
+	"RefactorTactics.PlayerInput.ReactionOptionKeyIsTheKitKeyOfItsPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionOptionKeyLabelTest::RunTest(const FString&)
+{
+	const TArray<FKey>& Tasti = ARTPlayerController::AbilityHotkeys();
+	if (!TestTrue(TEXT("premessa: il kit ha dei tasti"), Tasti.Num() > 0)) { return false; }
+	for (int32 i = 0; i < Tasti.Num(); ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("l'opzione %d si sceglie col tasto %s"), i, *Tasti[i].ToString()),
+			ARTPlayerController::ReactionOptionKeyLabel(i).ToString(), Tasti[i].GetDisplayName(false).ToString());
+	}
+	TestTrue(TEXT("oltre l'ultimo tasto nessun badge"), ARTPlayerController::ReactionOptionKeyLabel(Tasti.Num()).IsEmpty());
+	TestTrue(TEXT("e nemmeno prima del primo"), ARTPlayerController::ReactionOptionKeyLabel(INDEX_NONE).IsEmpty());
 	return true;
 }
 

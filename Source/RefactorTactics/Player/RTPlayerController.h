@@ -645,6 +645,15 @@ public:
 	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
 
 	/**
+	 * Il tasto che sceglie l'opzione in posizione `OptionIndex` di una finestra di reazione ([D-491], #3615): il
+	 * tasto del kit nella stessa posizione, `AbilityHotkeys()[OptionIndex]`. Vuoto oltre l'ultimo tasto.
+	 *
+	 * 🔑 Viene dalla lista che mappa i tasti, come `HotkeyLabelFor`: il badge e il tasto che risponde non possono
+	 * dire due cose diverse.
+	 */
+	static FText ReactionOptionKeyLabel(int32 OptionIndex);
+
+	/**
 	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
 	 * risolvono per **nome** invece che per posizione.
 	 *
@@ -757,6 +766,17 @@ private:
 	void OnAbility8(const FInputActionValue& Value);
 	void OnAbility9(const FInputActionValue& Value);
 	void OnAbility10(const FInputActionValue& Value);
+	/**
+	 * Il percorso dei soli TASTI NUMERICI del kit ([D-491], #3615): con una finestra di reazione aperta per chi
+	 * guarda sceglie l'opzione della posizione `Index`, altrimenti arma come sempre (`SelectAbilityForCurrent`).
+	 *
+	 * 🔴 **Sta qui e non in `SelectAbilityForCurrent`, ed e' la correzione della review di #3615.** Le lettere
+	 * generiche arrivano anch'esse a `SelectAbilityForCurrent` con origine `Hotkey`, per la POSIZIONE della
+	 * generica nel kit (`SelectAbilityByIdForCurrent`): un instradamento messo la' avrebbe fatto scegliere a `G`
+	 * l'opzione di quella posizione, contro [D-397] §4, che lega la lettera all'`ActionId`. Qui ci arrivano
+	 * soltanto i dieci numeri, quindi ne' le generiche ne' il dock possono raggiungerlo.
+	 */
+	void OnKitHotkey(int32 Index);
 	// Uno per azione generica, e per la stessa ragione dei dieci qui sopra: la bindatura e' l'unico posto da
 	// cui puo' arrivare QUALE azione e' stata premuta. La tabella che li lega ai tasti sta in
 	// `GenericHotkeys()`, e questi handler ne leggono l'`ActionId` invece di ripeterlo.
@@ -971,6 +991,12 @@ public:
 	 * raggiungibile da un clic.
 	 */
 	void HandleClickOnCellForTest(const FRTCellId& Cell) { HandleClickOnCell(Cell); }
+
+	/** Il tasto NUMERICO della posizione `Index`, come lo preme il giocatore: `OnKitHotkey` ([D-491]). Solo test. */
+	void PressKitHotkeyForTest(int32 Index) { OnKitHotkey(Index); }
+
+	/** La lettera generica della riga `Slot` di `GenericHotkeys()`, come la preme il giocatore. Solo test. */
+	void PressGenericHotkeyForTest(int32 Slot) { SelectGenericSlot(Slot); }
 
 	/**
 	 * Arma l'azione in posizione `Index` come farebbe il tasto corrispondente (per i test).

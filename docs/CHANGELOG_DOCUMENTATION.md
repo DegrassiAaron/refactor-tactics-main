@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-10 — La finestra di reazione rapida si sceglie da tastiera, e il registro riceve D-491
+
+**Origine**: il seguito T2 del referto delle tavole A–F, deciso dall'autore in sessione. Issue
+[#3615](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3615).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-491** (l'opzione *i* col tasto del kit della posizione *i*, a finestra aperta; nome e frase generica per ogni risposta) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §11.1: tasto, nome e frase di ogni opzione; §47-bis.2: la tastiera c'è, il controller resta da fare |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T2 di §9 punta a #3615 e D-491 |
+
+---
+
 ## 2026-10-10 — La palette dell'HUD ha una sede a runtime, e il registro riceve D-489
 
 **Origine**: il seguito T6 del referto delle tavole A–F, deciso dall'autore in sessione. Issue

@@ -492,6 +492,13 @@ const FKey& ARTPlayerController::UndoKeyboardHotkey()
 	return Tasto;
 }
 
+FText ARTPlayerController::ReactionOptionKeyLabel(int32 OptionIndex)
+{
+	return AbilityHotkeys().IsValidIndex(OptionIndex)
+		? AbilityHotkeys()[OptionIndex].GetDisplayName(/*bLongDisplayName=*/ false)
+		: FText::GetEmpty();
+}
+
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
 {
 	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
@@ -3323,16 +3330,41 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 // esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
 // `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
 // ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
-void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { SelectAbilityForCurrent(3, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { SelectAbilityForCurrent(4, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { SelectAbilityForCurrent(5, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { SelectAbilityForCurrent(6, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { SelectAbilityForCurrent(7, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { SelectAbilityForCurrent(8, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { SelectAbilityForCurrent(9, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { OnKitHotkey(0); }
+void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { OnKitHotkey(1); }
+void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { OnKitHotkey(2); }
+void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { OnKitHotkey(3); }
+void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { OnKitHotkey(4); }
+void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { OnKitHotkey(5); }
+void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { OnKitHotkey(6); }
+void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { OnKitHotkey(7); }
+void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { OnKitHotkey(8); }
+void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { OnKitHotkey(9); }
+
+void ARTPlayerController::OnKitHotkey(int32 Index)
+{
+	// 🔑 **[D-491] (`#3615`): con una finestra di reazione aperta per chi guarda, il tasto della posizione i SCEGLIE
+	// l'opzione i invece di armare.** Deve precedere la guardia della risoluzione di `SelectAbilityForCurrent`,
+	// perche' la finestra si apre proprio durante la risoluzione e quella guardia la renderebbe irraggiungibile; e
+	// rispetta quella dell'input bloccato, perche' con un menu aperto la finestra deve scadere come vuole [D-351].
+	//
+	// ⛔ Non e' un armo, ed e' per questo che non contraddice [D-468]: il mondo resta in sola lettura, e la risposta
+	// passa da `SubmitReactionResponse`, che ha la propria legalita'. Il tasto non arriva mai al kit: una posizione
+	// senza opzione (il tasto 5 su due opzioni) si dice nel log e si ferma qui.
+	if (!IsGameplayInputBlocked())
+	{
+		URTReactionWindowViewModel* Finestra = GetReactionWindowViewModel();
+		if (Finestra && Finestra->GetWindow().bOpen)
+		{
+			const bool bInoltrata = Finestra->ChooseOption(Index);
+			UE_LOG(LogRT, Display, TEXT("[RT] tasto della posizione %d: %s"), Index, bInoltrata
+				? TEXT("scelta l'opzione della finestra di reazione in quella posizione")
+				: TEXT("nessuna opzione della finestra di reazione in quella posizione"));
+			return;
+		}
+	}
+	SelectAbilityForCurrent(Index, ERTAbilityRequestSource::Hotkey);
+}
 
 // Le generiche: il numero qui e' la riga di `GenericHotkeys()`, non una posizione del kit.
 void ARTPlayerController::OnGeneric1(const FInputActionValue& Value) { SelectGenericSlot(0); }

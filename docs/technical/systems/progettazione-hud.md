@@ -766,7 +766,11 @@ Regole UX:
 - non coprire la scena;
 - timeout = Hold;
 - nessuna anticipazione di futuri trigger;
-- nessun contatore tipo `Opportunity 1/3`.
+- nessun contatore tipo `Opportunity 1/3`;
+- ogni opzione porta il **tasto** della sua posizione (`1`, `2`, `3`…), il **nome** e una **frase**
+  generica, senza il nome del bersaglio ([D-491](../../decisions/RT_PDR_00_Decision_Log.md), [#3615](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3615)).
+  Nome e frase stanno in `RTReactionResponseText`; il nome del bersaglio arriva con la parte «e bersaglio» di
+  [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166).
 
 ## 11.2 Target simultanei
 
@@ -2106,7 +2110,9 @@ Tre secondi sono il budget più severo dell'interfaccia, e ci si decide sotto pr
 - **poche opzioni**, come già dice §11.1;
 - nessun mini-gioco di precisione col mouse: il bersaglio si sceglie da un elenco, non mirando;
 - percorso **tastiera e controller equivalente** a quello del mouse — è già requisito vincolante del Time
-  Bank (§11-bis.2), e qui vale per ogni Decision Window.
+  Bank (§11-bis.2), e qui vale per ogni Decision Window. ✅ **La tastiera c'è da
+  [D-491](../../decisions/RT_PDR_00_Decision_Log.md)**: l'opzione *i* si sceglie con il tasto del kit della
+  posizione *i*, solo mentre la finestra è aperta. Il controller resta da fare.
 
 ## 47-bis.3 Leggibilità e movimento
 
