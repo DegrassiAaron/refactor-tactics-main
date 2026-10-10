@@ -284,7 +284,9 @@ Ognuno binario, ognuno col suo oracolo in §10.
 
 - **AC-1** Le righe E1–E11 ed E13 valgono sul C++ (celle scritte a mano). L'azione con LOS richiesta si sceglie
   leggendo `LineOfSightPolicy == Required` dal `Def` (oggi `ArcPulse`): se entra la PR #3230, che rende cieco
-  l'attacco base, se ne sceglie un'altra invece di vedere AC-1 rosso per una ragione estranea. Con la regola di #3507 (DR-14) le
+  l'attacco base, se ne sceglie un'altra invece di vedere AC-1 rosso per una ragione estranea. ⏱️ *2026-10-10: #3230
+  è entrata **senza** il tiro cieco; l'attacco base mira al buio da #3608 (`D-490`, `BlindAimDirect`), quindi da lì
+  `ArcPulse` non è più `Required`.* Con la regola di #3507 (DR-14) le
   celle `NoLineOfSight` delle colonne «Fuori» di E2, E3, E9, E10 ed E13 passano «Dentro».
 - **AC-2 (F2, click vero)** Per ogni `c ∈ HexArea(O, RangeCells + 1)` sul piano di `O`, `HandleTargetCell(c)` posa
   il piano ⇔ `c ∈ R`. L'anello in più prova il bordo. Con la regola di #3507 (DR-14) l'equivalenza vale sulle celle

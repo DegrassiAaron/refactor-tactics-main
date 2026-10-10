@@ -585,7 +585,11 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		//
 		// ⚠️ Resta **dopo** la portata e prima dell'aggressione, come prima: la licenza toglie la linea, non
 		// l'ordine dei motivi.
-		if (Intent.LineOfSightPolicy == ERTLineOfSightPolicy::Required
+		//
+		// D-490 (#3608): qui conta la TRAIETTORIA, non la licenza di mira. `BlindAimDirect` — l'attacco base — ha
+		// potuto mirare dietro un muro, ma viaggia dritto: il muro lo ferma, come `Required`. Solo
+		// `NotRequired`, il tiro indiretto, passa sopra.
+		if (URTCombatLibrary::TravelsDirect(Intent.LineOfSightPolicy)
 			&& !URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);

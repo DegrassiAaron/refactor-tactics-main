@@ -2112,10 +2112,10 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// copertura un bersaglio che era solo troppo lontano (test
 		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
-		// ⚠️ **La policy si passa anche qui, e per un'azione mirata a un'unita' oggi non cambia niente**: le
-		// azioni `NotRequired` del catalogo hanno `Shape::Area`, quindi `TargetKindForAction` le manda a
-		// `HandleTargetCell` e non passano di qua. Si legge lo stesso perche' il dato e' **uno**: il giorno
-		// in cui un'azione mirata dichiarera' il tiro indiretto, questo sito non sara' quello dimenticato.
+		// ⚠️ **La policy si passa anche qui, e da D-490 (#3608) MORDE**: l'attacco base, mirato a un'unita', porta
+		// `BlindAimDirect`, quindi il click su un nemico CONOSCIUTO dietro un ostacolo ora pianifica — il colpo si
+		// fermera' sull'ostacolo nel Blast. ⌫ *Fino a #3608 qui non cambiava niente: le sole azioni `NotRequired`
+		// del catalogo hanno `Shape::Area` e passano da `HandleTargetCell`.*
 		// ⛔ E non tocca la CONOSCENZA: la guardia `IsKnownToObserver()` qui sotto vale comunque (`#2741`).
 		// 🔴 **[D-464]: da dove l'azione MIRA, non da dove l'unita' sta.** Con uno scatto pianificato un `Attack` parte
 		// dalla cella dello scatto, e la risoluzione colpisce da li' (`CollectHexAttacks`): giudicare dalla cella

@@ -263,7 +263,7 @@ struct FRTHitGeometry
 | Caso | Comportamento |
 |---|---|
 | Attaccante ignoto a chi guarda | niente tracer; `Hit` e numero **all'istante d'arrivo**, uguale per tutti |
-| Tiro alla cieca che colpisce (D-415, PR #3230 aperta) | ➕ rev. **tracer visibile a chi spara**: D-380 gli rivela la vittima prima che il verdetto si congeli (`:5483`). Un tiro alla cieca che non colpisce nessuno non ha `Attack`: resta la sola impronta. ⚠️ Non testabile su `main` finché #3230 non atterra: oggi l'attacco base richiede la linea di tiro |
+| Tiro alla cieca che colpisce (D-415, PR #3230 aperta) | ➕ rev. **tracer visibile a chi spara**: D-380 gli rivela la vittima prima che il verdetto si congeli (`:5483`). Un tiro alla cieca che non colpisce nessuno non ha `Attack`: resta la sola impronta. ⚠️ Non testabile su `main` finché #3230 non atterra: oggi l'attacco base richiede la linea di tiro. ⏱️ *2026-10-10: #3230 è entrata senza il tiro cieco, arrivato con #3608 (`D-490`, `BlindAimDirect`); un tiro alla cieca che **colpisce** è quello nella nebbia senza ostacoli in mezzo — dietro un ostacolo il colpo si ferma sull'ostacolo* |
 | `bResolved = false` (origine non risolvibile, vittima perduta) | niente tracer, `F_eff = 0`: ritmo di oggi |
 | Colpo fermato da un muro alto: solo `StructureHit`, nessun `Attack` | niente tracer, ritmo invariato |
 | `AttackShowSeconds ≤ 0` | `F_eff = 0`: tutti i colpi insieme, come oggi |
@@ -297,7 +297,7 @@ struct FRTHitGeometry
 | `Privacy.TracerRhythmIsTheSameForEveryViewer` | ➕ rev. due squadre con disegni diversi hanno lo stesso volo |
 | `Combat.AttackCarriesHitGeometry` | su un `Line` con due vittime ogni `Attack` porta l'origine di `ResolveImpactOrigin`, la forma dell'intento e la cella **della propria** vittima prima della spinta |
 | `Combat.CoveredHitCarriesHitGeometry` | copertura bassa: colpo ridotto, geometria risolta, proiettile; copertura alta: nessun `Attack`, quindi nessun tracer |
-| `Privacy.UnseenAttackerIsOutOfTheOriginVerdict` | un colpo alle spalle, oltre la consapevolezza ravvicinata: il verdetto dell'origine esclude la squadra colpita. 🔴 **Mutazione**: verdetto `Everyone()` → rosso. ⚠️ Il tiro alla cieca non è su `main` (PR #3230): il suo caso resta di `PIE-V01-BLINDFIRE` |
+| `Privacy.UnseenAttackerIsOutOfTheOriginVerdict` | un colpo alle spalle, oltre la consapevolezza ravvicinata: il verdetto dell'origine esclude la squadra colpita. 🔴 **Mutazione**: verdetto `Everyone()` → rosso. ⚠️ Il tiro alla cieca non è su `main` (PR #3230): il suo caso resta di `PIE-V01-BLINDFIRE`. ⏱️ *2026-10-10: è su `main` da #3608 (`D-490`)* |
 | `Determinism.HitGeometryStaysOutOfHashes` | ➕ rev. con un hook di test che lascia vuota `HitGeometry`, `StateHash` e `HashTurnLog` dello stesso turno sono identici; controllo positivo che il hook agisca |
 | `Playback.HitArrivesAfterTheLaunch` | nel playback vero, l'arrivo cade in un tick successivo al lancio. 🔴 **Mutazione**: volo zero → rosso |
 | `Playback.AttackBeatsStayOrderedInOneTick` | ➕ rev. un tick lungo produce `L0, A0, L1, A1`. 🔴 **Mutazione**: due cicli separati → rosso (l'ordine provato per mutazione è richiesto da #2454, *«Test attesi»*) |

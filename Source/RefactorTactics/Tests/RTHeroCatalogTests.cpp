@@ -725,11 +725,10 @@ bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
  * `BlindFire.DirectAttackStillRequiresLineOfSight` usa un `FRTActionDef` di default e
  * `CellAttackRequiringSightIsRefusedByABlocker` usa `CircularTide`, quindi erano verdi in entrambi i mondi.
  *
- * ⚠️ **Oggi questo gate NON puo' fallire togliendo la copia, e va detto invece che taciuto.** Il punto (3) e'
- * stato scorporato in #3608 e il core e' tornato al default `Required`, che e' anche cio' che un'azione d'eroe
- * ha senza copia: le due meta' coincidono per costruzione. Morde il giorno in cui #3608 cambia il core — cioe'
- * esattamente quando serve. Fino al 2026-10-10 si chiamava `EveryBasicAttackFiresBlind` e la premessa
- * pretendeva `NotRequired`.
+ * ✅ **Morde di nuovo da #3608**: il core porta `BlindAimDirect` (D-490), diverso dal default `Required` che
+ * un'azione d'eroe avrebbe senza copia — la premessa lo pretende, ed e' cio' che rende la riga di confronto
+ * capace di fallire. ⌫ *Fra il 2026-10-10 (scorporo da #3230) e #3608 il core era `Required` e il gate non
+ * poteva fallire, e lo diceva. Fino al 2026-10-10 si chiamava `EveryBasicAttackFiresBlind`.*
  *
  * ⛔ **Anti-vacuita' sul roster**: OGNI eroe deve avere almeno un'azione derivata da `Action.BasicAttack`,
  * altrimenti un roster senza attacchi base passerebbe per assenza.
@@ -741,6 +740,9 @@ bool FRTHeroBasicAttacksTakeTheCorePolicyTest::RunTest(const FString&)
 {
 	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
 	if (!TestEqual(TEXT("premessa: il core esiste"), Core.ActionId, FName(TEXT("Action.BasicAttack")))) { return false; }
+	// Anti-vacuita': il core deve DIFFERIRE dal default, o «uguale al core» sarebbe vero anche senza la copia.
+	if (!TestTrue(TEXT("premessa: il core mira al buio e viaggia dritto (D-490), non e' il default"),
+		Core.LineOfSightPolicy == ERTLineOfSightPolicy::BlindAimDirect)) { return false; }
 
 	const TArray<URTHeroData*> Heroes = {
 		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),

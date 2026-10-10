@@ -166,9 +166,8 @@ namespace
 	{
 		URTActionData* Action = MakeHeroAction(Id, Phase, Priority, Range, Cooldown, Fallback, Effects, Shape);
 		Action->Def.BaseActionId = TEXT("Action.BasicAttack");
-		// La linea di tiro dell'attacco base e' una policy del CORE, e ogni eroe la eredita da li'. Oggi il core
-		// la RICHIEDE: il punto (3) di [D-415] che la cambierebbe e' in #3608, e quando arriva cambia una riga
-		// sola, nel catalogo core.
+		// La linea di tiro dell'attacco base e' una policy del CORE, e ogni eroe la eredita da li': mira al buio,
+		// viaggia dritto (`BlindAimDirect`, [D-415] punto 3 precisato da D-490, #3608).
 		// 🔴 Fino al 2026-10-09 questa riga non c'era: `MakeHeroAction` non copia `LineOfSightPolicy`, e un core
 		// a `NotRequired` restava un no-op in partita — lo ha trovato la code review di #3230. Il gate e'
 		// `HeroCatalog.EveryBasicAttackTakesTheCorePolicy`.
