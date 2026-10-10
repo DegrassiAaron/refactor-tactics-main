@@ -7,6 +7,17 @@
 
 namespace RTUIPaletteTests
 {
+	/** `#RRGGBB`, con sei cifre esadecimali vere: `FColor::FromHex` legge una cifra non valida come 0, senza errore. */
+	bool EUnEsadecimale(const FString& Valore)
+	{
+		if (Valore.Len() != 7 || !Valore.StartsWith(TEXT("#"))) { return false; }
+		for (int32 i = 1; i < Valore.Len(); ++i)
+		{
+			if (!FChar::IsHexDigit(Valore[i])) { return false; }
+		}
+		return true;
+	}
+
 	FString StyleGuidePath()
 	{
 		return FPaths::Combine(FPaths::ProjectDir(), TEXT("docs/technical/systems/progettazione-hud.md"));
@@ -87,7 +98,7 @@ bool FRTUIPaletteMatchesStyleGuideTest::RunTest(const FString&)
 	{
 		TestFalse(*FString::Printf(TEXT("§32 elenca `%s` una volta sola"), *Riga.Key), HexDiToken.Contains(Riga.Key));
 		TestTrue(*FString::Printf(TEXT("§32: `%s` ha un esadecimale `#RRGGBB`, non `%s`"), *Riga.Key, *Riga.Value),
-			Riga.Value.Len() == 7 && Riga.Value.StartsWith(TEXT("#")));
+			EUnEsadecimale(Riga.Value));
 		HexDiToken.Add(Riga.Key, Riga.Value);
 	}
 

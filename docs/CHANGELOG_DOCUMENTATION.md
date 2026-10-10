@@ -9,7 +9,7 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-489** (la palette vive in `URTUIPalette`; i sei colori della barra dei comandi senza token diventano token); rimando in D-482 |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-489** (la palette vive in `URTUIPalette`; `RT_UI_Icon_Cooldown`, `RT_UI_Violet_Light` e i quattro `RT_UI_Phase_*` diventano token); rimando in D-482 |
 | [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32: la tabella «Barra dei comandi e fasi» e la nuova §32.1 «Sede a runtime» |
 | [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | §4.2 e la riga T6 di §9 puntano a #3610 e D-489 |
 

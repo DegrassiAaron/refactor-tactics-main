@@ -1586,6 +1586,9 @@ Ogni token di questa sezione ha un valore in `ERTUIToken`, e il suo colore si le
 - **Questa tabella e la palette in C++ si controllano a vicenda.** `RefactorTactics.UI.Palette.MatchesStyleGuide`
   rilegge le righe `RT_UI_…` di questa sezione. Fallisce se un token dell'enum manca qui, se una riga qui manca
   nell'enum, o se un esadecimale non coincide.
+- **Gli esadecimali scritti nei test dello slot non sono copie da migrare.** `RTActionSlotMockupLookTests` e
+  `RTActionBarNamedPortsTests` li tengono letterali di proposito: sono l'oracolo, indipendente dalla palette, che
+  dice che il passaggio ai token non ha cambiato un pixel.
 - **Un token nuovo si aggiunge in due posti, nello stesso commit**: il valore in coda a `ERTUIToken`, con il suo
   caso in `URTUIPalette::SRGBFor`, e la riga in questa sezione.
 - **Non è la palette degli overlay del mondo.** Quella è `URTOverlayPalette` (#1941). La linea dello scatto
