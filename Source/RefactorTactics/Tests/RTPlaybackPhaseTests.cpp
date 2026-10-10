@@ -502,8 +502,11 @@ bool FRTPlaybackShortRouteArrivesFirstTest::RunTest(const FString&)
  * 🔑 Il caso che il test esiste per prendere e' plausibile: `FRTMatchHeaderView::PlaybackPhase` riempito con
  * `Phase`. Senza sospensioni `RunPhaseLoop` risolve tutte le fasi prima del playback e riporta `Phase` a
  * `Planning`, quindi un header cosi' direbbe PIANIFICAZIONE per tutta la riproduzione, e nessuna cella si
- * accenderebbe. Qui il turno e' vero (scatto + attacco, cioe' Dash e Blast), e la vista si costruisce a ogni
- * tick del playback con `BuildMatchHeader`, come la costruisce l'HUD.
+ * accenderebbe. Qui il turno e' vero (scatto, attacco e una rotta, cioe' Dash, Blast e Move), e la vista si
+ * costruisce a ogni tick del playback con `BuildMatchHeader`, come la costruisce l'HUD.
+ *
+ * ⚠️ **Prep non e' nel turno**: la accende solo un'azione predittiva armata, e la fixture ne farebbe un altro
+ * test. La copre il confronto con `GetPlaybackPhase()` a ogni tick, che vale per qualunque fase riprodotta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchHeaderPlaybackPhaseTest,
 	"RefactorTactics.HudViewModel.MatchHeaderCarriesThePlayedPhase",
@@ -534,6 +537,7 @@ bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
 	Dasher->PlannedDashCell = FRTCellId(3, 2);
 	Dasher->PlannedAbilityIndex = 0;          // attacco base
 	Dasher->PlannedAttackTarget = Target;
+	Target->PlannedCell = FRTCellId(4, 5); // la sua rotta si riproduce in Move, dopo il Blast che la colpisce
 
 	TestEqual(TEXT("prima del turno: nessuna fase riprodotta"),
 		Nome(URTHudViewModel::BuildMatchHeader(TM).PlaybackPhase), Nome(ERTMatchPhase::Planning));
@@ -564,6 +568,7 @@ bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
 	TestEqual(TEXT("il campo non vale mai Cleanup"), Cleanup, 0);
 	TestTrue(TEXT("l'header ha mostrato il Dash"), Mostrate.Contains(ERTMatchPhase::Dash));
 	TestTrue(TEXT("l'header ha mostrato il Blast"), Mostrate.Contains(ERTMatchPhase::Blast));
+	TestTrue(TEXT("l'header ha mostrato il Move"), Mostrate.Contains(ERTMatchPhase::Move));
 	TestTrue(*FString::Printf(TEXT("in %d tick la fase riprodotta e' stata almeno una volta diversa da quella logica"), Tick),
 		DiversaDallaLogica > 0);
 	TestEqual(TEXT("dopo il playback: nessuna fase riprodotta"),
