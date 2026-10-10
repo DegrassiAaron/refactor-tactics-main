@@ -120,6 +120,8 @@ struct FRTBotWeights
 	UPROPERTY() int32 WElevation = 0;
 	UPROPERTY() int32 WEngage = 0;
 	UPROPERTY() int32 WEngageDecay = 0;
+	/** Zero = spenta: vedi `FRTHexBotContext::WPinnedBonusPercent` (#3229). */
+	UPROPERTY() int32 WPinnedBonusPercent = 0;
 	UPROPERTY() int32 WObjective = 0;
 	UPROPERTY() int32 WObjectiveFalloff = 0;
 };
@@ -174,6 +176,22 @@ struct FRTBotPlanDecision
 	 * per la ragione scritta sopra `FRTBotPlanDecision`.
 	 */
 	UPROPERTY() int32 PlannedAttackTargetIndex = INDEX_NONE;
+
+	/**
+	 * **Il bot dichiara la CELLA che conosce, come un giocatore** ([D-415], #3229, forma (1a) della decisione
+	 * d'autore del 2026-10-10). Vero = chi applica il piano passa da `DeclareAttackOnCell(PlannedAttackCell)`;
+	 * `PlannedAttackTargetIndex` resta valorizzato e dice CHI il bot ha scelto (log e audit), non come mira.
+	 *
+	 * 🔑 **Non e' solo igiene.** Il bot pianifica sulla cella che la squadra CONOSCE — su un contatto incerto, il
+	 * ricordo — mentre un bersaglio-unita' si congela al lock-in sulla posizione VERA. Le due possono
+	 * differire: misurato sull'arena generata il 2026-10-10, un attacco nato in portata dal ricordo moriva
+	 * «fuori portata» dalla posizione vera. Dichiarando la cella, il piano e' quello che il bot ha valutato.
+	 *
+	 * ⛔ **Non per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): li' il bersaglio-unita' e'
+	 * il punto dell'azione, e la cella toglierebbe proprio l'aggancio.
+	 */
+	UPROPERTY() bool bAttackTargetsCell = false;
+	UPROPERTY() FRTCellId PlannedAttackCell;
 };
 
 /**

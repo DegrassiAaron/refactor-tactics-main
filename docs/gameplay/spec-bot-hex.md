@@ -47,6 +47,23 @@ Il bersaglio mirato porta gli HP dichiarati dal piano; i nemici presi *in più* 
 contesto. Un'area che prende due nemici vale il doppio di una che ne prende uno, e questo cade fuori
 automaticamente dal conto per cella — non è una regola a parte.
 
+**Il nemico che non può scattare via vale di più** ([#3229](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3229),
+`D-415`): con la mira che non insegue, un colpo su chi scatta nel Dash cade sulla cella che ha lasciato. Su un
+nemico con `EnemyCanEscape` falso i due termini qui sopra valgono `(100 + WPinnedBonusPercent)`%:
+
+```text
+Quota = 100 + WPinnedBonusPercent   se il nemico NON può scattare via, altrimenti 100
+Score += WDamage × AttackDamage × Quota / 100
+Score += WKill × Quota / 100        se AttackDamage >= (HP + scudo) del nemico
+```
+
+`EnemyCanEscape` è **dato pubblico, mai intento**: il kit (ha una mobilità rapida?) è catalogo, la ricarica
+dello scatto è stato osservabile; su un contatto incerto la ricarica non si conosce e si assume che possa.
+⚠️ **È un bonus, non una penalità, e la differenza è misurata**: la prima stesura toglieva valore al colpo su
+chi *può* scattare, e sull'arena generata — dove ogni nemico di una squadra ne ha uno — abbassava ogni attacco
+rispetto al solo movimento: lo stallo passava da 5 a 10 turni. Pinnato da
+`HexBot.ScorePrefersTheTargetThatCannotEscape`.
+
 ### 3b. Collaterale sugli alleati — penalità proporzionale, non veto
 
 Solo se l'attacco dichiara `bFriendlyFire`. Per ogni alleato dentro `HexHitCells`:
@@ -238,6 +255,7 @@ bot non sarebbe fairness. Ciò che CP 13.5 protegge sono le **unità** avversari
 |---|---:|---|
 | `WKill` | 10000 | il kill domina: nessuna somma di altri termini lo raggiunge |
 | `WDamage` | 10 | danno inflitto per punto |
+| `WPinnedBonusPercent` | 400 | quota **in più** di danno e kill su un nemico che non può scattare via (§3a, #3229). Tarato sugli oracoli dell'arena generata: misurato il 2026-10-10, 50 · 100 · 200 rossi (5 turni senza eliminazioni su un limite di 4), 300 · 500 verdi; 400 sta in mezzo alla banda verde. **Zero lo spegne** |
 | `WAllyDamage` | 10 | danno collaterale al compagno, per punto |
 | `WThreat` | 100 | esposizione al tiro nemico, per nemico |
 | `WKiteViolation` | 50 | per cella sotto lo standoff del kiter |
@@ -316,6 +334,7 @@ Questa sezione è la più importante, perché è quella dove la spec e il DoD de
 | **Tiene conto del facing e dell'arco frontale** | ❌ **non ancora**. `ScorePlan` non legge il facing: né il proprio, né quello dei nemici. La minaccia è calcolata su gittata + LOS, senza cono |
 | **Ha una politica di reazione esplicita** | ✅ **vero dal 2026-09-02** ([D-268], [#1802](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1802)). Il bot arma reazioni da [D-220] e da qui le **sceglie col punteggio**: vedi §6.1 |
 | **Validato sotto stress 4v4** | ❌ **non ancora**. La suite lo esercita a 2v2 |
+| **Dichiara la mira che ha valutato** | ✅ **vero dal 2026-10-10** ([#3229](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3229), forma (1a)). Il bot dichiara la **cella** che conosce (`DeclareAttackOnCell`), come un giocatore — su un contatto incerto, il ricordo — e non l'unità: un bersaglio-unità si congelerebbe al lock-in sulla posizione **vera** (`D-415`), che il bot non ha valutato, e un attacco nato in portata dal ricordo moriva «fuori portata». Fa eccezione l'azione che dichiara di agganciare (`ERTActionFallback::AttackTarget`). Pinnato da `HexBotPlay.ActsOnLastKnownCell` |
 
 ### 6.1 La politica di reazione — punteggio, e il kit come spareggio
 
@@ -429,6 +448,7 @@ Sono l'unica prova di ciò che questa spec afferma.
 | Test | Cosa dimostra |
 |---|---|
 | `ScoreFocusFire` | un colpo letale batte uno che non uccide; più danno batte meno danno |
+| `ScorePrefersTheTargetThatCannotEscape` | il colpo su chi non può scattare via vale di più; su chi può, vale **quanto senza il dato** (bonus, non penalità); a zero è spento (#3229) |
 | `ScoreThreatRespectsCover` | un nemico in gittata **con** LOS abbassa il punteggio; con un muro in mezzo no |
 | `ScoreKiterVsMelee` | kiter penalizzato sotto lo standoff, mischia penalizzata dalla distanza |
 | `ScoreElevationBonus` | a parità di tutto vince la quota |
