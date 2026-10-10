@@ -109,6 +109,8 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	if (ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer()))
 	{
 		PlayerTeamId = ARTPlayerState::TeamIdOf(PC);
+		// Il gruppo di controllo dallo stesso controller della squadra (#3618): insieme dicono chi e' comandato.
+		PlayerControlGroup = ARTPlayerState::ControlGroupOf(PC);
 
 		// ⚠️ **Dallo STESSO controller da cui viene la squadra, e non dal primo del mondo** (CP 14.6, `#166`).
 		// La finestra e' una domanda posta a **un** giocatore: risolverla su `GetFirstPlayerController()`
@@ -336,6 +338,34 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetRoster() const
 {
 	return URTHudViewModel::BuildTeamRoster(GatherUnitsInWorld(), GetPlayerTeamId());
+}
+
+bool URTTeamRosterWidget::IsReactionArmed(FName HeroId) const
+{
+	// Senza contesto la squadra e il gruppo sono i default (0, 0), non quelli di chi guarda: nessun chip.
+	if (!HasMatchContext())
+	{
+		return false;
+	}
+
+	for (const ARTUnit* Unit : GatherUnitsInWorld())
+	{
+		if (!Unit || Unit->HeroId != HeroId || !Unit->IsAlive())
+		{
+			continue;
+		}
+		// ⛔ **La barriera PRIMA di costruire**: per un'unita' non comandata il piano non si legge affatto.
+		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup, GetPlayerTeamId(),
+			GetPlayerControlGroup(), Unit->bIsBotControlled))
+		{
+			// `continue` e non `return false` (review di #3618): con lo stesso eroe in due squadre — un mirror —
+			// l'avversaria puo' venire prima nell'ordine, e fermarsi qui spegnerebbe l'alleata. Il piano
+			// dell'avversaria resta non letto: la barriera e' questa riga, non l'uscita.
+			continue;
+		}
+		return URTHudViewModel::BuildUnitSlots(Unit).bReactionArmed;
+	}
+	return false;
 }
 
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const
