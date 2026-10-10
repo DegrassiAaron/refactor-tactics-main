@@ -511,10 +511,16 @@ bool FRTKeyBadgeLabelTableTest::RunTest(const FString&)
 			Reso.Equals(A.Badge, ESearchCase::CaseSensitive));
 	}
 
-	// Il ripiego: il nome dell'engine, in maiuscolo. Una lettera e' gia' maiuscola; un nome lungo no.
-	const FString Ripiego = ARTPlayerController::KeyBadgeLabel(EKeys::LeftShift).ToString();
-	TestTrue(*FString::Printf(TEXT("un tasto fuori tabella e' in maiuscolo (reso: «%s»)"), *Ripiego),
-		!Ripiego.IsEmpty() && Ripiego.Equals(Ripiego.ToUpper(), ESearchCase::CaseSensitive));
+	// Il ripiego: il nome dell'engine, in maiuscolo. La premessa dice che quel nome ha delle minuscole: se un giorno
+	// l'engine lo desse gia' maiuscolo, il controllo non distinguerebbe piu' niente, e lo dice invece di tacere.
+	const FString NomeEngine = EKeys::LeftShift.GetDisplayName(/*bLongDisplayName=*/ false).ToString();
+	if (TestFalse(*FString::Printf(TEXT("premessa: il nome dell'engine ha delle minuscole («%s»)"), *NomeEngine),
+			NomeEngine.Equals(NomeEngine.ToUpper(), ESearchCase::CaseSensitive)))
+	{
+		const FString Ripiego = ARTPlayerController::KeyBadgeLabel(EKeys::LeftShift).ToString();
+		TestTrue(*FString::Printf(TEXT("un tasto fuori tabella e' il nome dell'engine in maiuscolo (reso: «%s»)"), *Ripiego),
+			Ripiego.Equals(NomeEngine.ToUpper(), ESearchCase::CaseSensitive));
+	}
 	return true;
 }
 
