@@ -33,6 +33,7 @@
 #include "Components/Button.h"            // #3489: badge e pulsanti collegati per nome
 #include "Components/TextBlock.h"         // #3489: etichette scritte dal C++
 #include "Components/HorizontalBoxSlot.h" // #3489: il separatore dei gruppi e' padding, non un widget
+#include "Components/ProgressBar.h"       // #3634: la barra del countdown della finestra di reazione
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -1486,6 +1487,63 @@ FText URTFastDecisionWidget::GetPromptText() const
 	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
 }
 
+float URTFastDecisionWidget::GetCountdownFraction() const
+{
+	// Il gate e' l'apertura, come per la visibilita': il residuo puo' toccare lo zero prima che la finestra si
+	// chiuda, e in quel frame la barra vuota e' giusta — una barra che sparisse no.
+	if (!IsWindowOpen())
+	{
+		return -1.f;
+	}
+	const float Durata = GetWindow().WindowSeconds;
+	if (Durata <= 0.f)
+	{
+		return -1.f; // una finestra senza durata non ha una frazione: meglio nessuna barra che una barra piena
+	}
+	return FMath::Clamp(GetRemainingSeconds() / Durata, 0.f, 1.f);
+}
+
+FText URTFastDecisionWidget::GetSafeOutcomeText() const
+{
+	if (!IsWindowOpen())
+	{
+		return FText::GetEmpty();
+	}
+	const FString Sicura = GetWindow().SafeResponse;
+	if (Sicura.IsEmpty())
+	{
+		return FText::GetEmpty();
+	}
+	// Il nome lo da' la tabella delle risposte, la stessa del bottone: «HOLD» qui e «HOLD» sull'opzione
+	// non possono divergere.
+	return FText::Format(NSLOCTEXT("RefactorTactics", "FastDecisionSafeOutcome", "Allo scadere: {0}"),
+		RTReactionResponseText::NameFor(Sicura));
+}
+
+void URTFastDecisionWidget::RefreshLook()
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// La tavola E: fondo profondo, contorno bianco di 2 px, striscia viola delle reazioni.
+	RTPaintFrame(WindowFrame, C(T::BG_Deep), C(T::White), 2.f);
+	if (AccentStrip)
+	{
+		AccentStrip->SetBrushColor(C(T::Violet));
+	}
+	if (CountdownBar)
+	{
+		// Senza finestra la frazione e' negativa; la barra non ha un «meno di vuoto».
+		CountdownBar->SetPercent(FMath::Max(0.f, GetCountdownFraction()));
+		CountdownBar->SetFillColorAndOpacity(C(T::White));
+	}
+	if (SafeOutcomeText)
+	{
+		SafeOutcomeText->SetText(GetSafeOutcomeText());
+		SafeOutcomeText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+}
+
 void URTFastDecisionWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
@@ -1498,6 +1556,7 @@ void URTFastDecisionWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 		// che ricostruisce legge lo stato della finestra NUOVA.
 		OnWindowChanged();
 	}
+	RefreshLook();
 }
 
 bool URTFastDecisionWidget::PollWindowChanged()
@@ -1537,6 +1596,23 @@ void URTFastDecisionOptionWidget::SetOption(URTFastDecisionWidget* InOwner,
 	Option = InOption;
 	OptionIndex = InIndex;
 	bIsSafeChoice = bInIsSafe;
+
+	// La resa della tavola E (#3634): le porte prima dell'evento, perche' il grafo che disegna le trovi gia' scritte.
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	RTPaintFrame(OptionFrame, C(T::BG_Raised), C(bIsSafeChoice ? T::Text_Primary : T::Frame_Mid),
+		bIsSafeChoice ? 2.f : 1.f);
+	if (KeyText)
+	{
+		KeyText->SetText(GetKeyLabel());
+		KeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (DescriptionText)
+	{
+		DescriptionText->SetText(GetOptionDescription());
+		DescriptionText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(SafeChoiceBadge, bIsSafeChoice);
 
 	// ⚠️ Per ULTIMO, come `URTActionSlotWidget::SetAction`: il Blueprint disegna leggendo i campi qui sopra.
 	OnOptionChanged();

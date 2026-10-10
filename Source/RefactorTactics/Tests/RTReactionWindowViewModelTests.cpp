@@ -16,6 +16,10 @@
 #include "UI/RTReactionResponseText.h" // nome e frase delle risposte (#3615)
 #include "Ability/RTCatalogLibrary.h"   // BraceExecutableResponses: le risposte offribili si chiedono a chi le produce
 #include "Unit/RTUnit.h"
+#include "UI/RTUIPalette.h"         // i colori della resa della tavola E (#3634)
+#include "Components/Border.h"
+#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1390,6 +1394,146 @@ bool FRTReactionOptionKeyLabelTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("oltre l'ultimo tasto nessun badge"), ARTPlayerController::ReactionOptionKeyLabel(Tasti.Num()).IsEmpty());
 	TestTrue(TEXT("e nemmeno prima del primo"), ARTPlayerController::ReactionOptionKeyLabel(INDEX_NONE).IsEmpty());
+	return true;
+}
+
+/**
+ * 🔑 **LA FINESTRA COME LA TAVOLA E** (#3634, T8): la barra del countdown, «Allo scadere: …», la cornice e la
+ * striscia; e per ogni opzione il tasto, la frase, la cornice e il chip della scelta sicura.
+ *
+ * ⚠️ **La frazione si misura DOPO che l'orologio e' scorso.** Appena aperta vale circa 1, e un `return 1.f`
+ * passerebbe: il test fa scorrere un secondo della finestra e confronta col residuo autorevole.
+ *
+ * ⚠️ **Le opzioni passano da `SetOption` a mano, e qui e' l'unica via.** `MakeOptionWidget` crea il bottone dalla
+ * classe, e in una run headless la classe C++ non ha l'albero del `.uasset`: le porte resterebbero nulle. La via
+ * di produzione e la scelta di QUALE opzione e' sicura le misura `FastDecisionOptionForwardsItsOwnIndex`; qui si
+ * misura cio' che `SetOption` scrive nelle porte, con la stessa regola (`Response == SafeResponse`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionLookFollowsTheBoardTest,
+	"RefactorTactics.ScreenHud.FastDecisionLookFollowsTheBoard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Finestra = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Finestra))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	const auto Cornice = [World]()
+	{
+		UBorder* B = NewObject<UBorder>(World);
+		FSlateBrush Brush = B->Background;
+		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+		B->SetBrush(Brush);
+		return B;
+	};
+	const auto Contorno = [](const UBorder* B) { return B->Background.OutlineSettings.Color.GetSpecifiedColor(); };
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+
+	Finestra->WindowFrame = Cornice();
+	Finestra->AccentStrip = NewObject<UBorder>(World);
+	Finestra->CountdownBar = NewObject<UProgressBar>(World);
+	Finestra->SafeOutcomeText = NewObject<UTextBlock>(World);
+
+	// --- A. Nessuna finestra: frazione negativa, «Allo scadere» vuoto, barra a zero ------------------------
+	Finestra->RefreshLook();
+	TestTrue(TEXT("A: senza finestra la frazione e' negativa"), Finestra->GetCountdownFraction() < 0.f);
+	TestTrue(TEXT("A: e «Allo scadere» e' vuoto"), Finestra->GetSafeOutcomeText().IsEmpty());
+	TestEqual(TEXT("A: la barra non va sotto lo zero"), Finestra->CountdownBar->GetPercent(), 0.f);
+	TestTrue(TEXT("A: la cornice ha il fondo BG_Deep"), Finestra->WindowFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_Deep)));
+	TestTrue(TEXT("A: e il contorno White"), Contorno(Finestra->WindowFrame).Equals(Colore(ERTUIToken::White)));
+	TestEqual(TEXT("A: di 2 px, come la tavola"), Finestra->WindowFrame->Background.OutlineSettings.Width, 2.f);
+	TestTrue(TEXT("A: la striscia e' Violet"), Finestra->AccentStrip->GetBrushColor().Equals(Colore(ERTUIToken::Violet)));
+
+	// --- B. Una finestra vera, con un secondo gia' passato ---------------------------------------------------
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: una finestra attende"), Finestra->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FRTReactionWindowView Vista = Finestra->GetWindow();
+	if (!TestTrue(TEXT("premessa: la finestra ha una durata"), Vista.WindowSeconds > 1.5f)
+		|| !TestTrue(TEXT("premessa: offre piu' di una risposta"), Vista.Options.Num() > 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	for (int32 Giro = 0; Giro < 20 && Finestra->IsWindowOpen(); ++Giro)
+	{
+		TM->Tick(0.05f);
+	}
+	if (!TestTrue(TEXT("premessa: dopo un secondo la finestra e' ancora aperta"), Finestra->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const float Frazione = Finestra->GetCountdownFraction();
+	TestTrue(TEXT("B: la frazione e' il residuo autorevole sulla durata"),
+		FMath::IsNearlyEqual(Frazione, Finestra->GetRemainingSeconds() / Vista.WindowSeconds, 1e-3f));
+	TestTrue(TEXT("B: e dopo un secondo non e' piu' piena"), Frazione < 0.9f);
+	TestTrue(TEXT("B: ma nemmeno vuota"), Frazione > 0.1f);
+	TestEqual(TEXT("B: allo scadere si applica la scelta sicura, col suo nome (HOLD nell'Overwatch)"),
+		Finestra->GetSafeOutcomeText().ToString(), FString(TEXT("Allo scadere: HOLD")));
+
+	Finestra->RefreshLook();
+	TestTrue(TEXT("B: la barra segue la frazione"), FMath::IsNearlyEqual(Finestra->CountdownBar->GetPercent(), Frazione, 1e-3f));
+	TestTrue(TEXT("B: il riempimento e' White"), Finestra->CountdownBar->GetFillColorAndOpacity().Equals(Colore(ERTUIToken::White)));
+	TestEqual(TEXT("B: la porta dice «Allo scadere»"), Finestra->SafeOutcomeText->GetText().ToString(), FString(TEXT("Allo scadere: HOLD")));
+	TestTrue(TEXT("B: in Text_Primary"), Finestra->SafeOutcomeText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Primary)));
+
+	// --- C. Le opzioni: tasto, frase, cornice, chip della scelta sicura ---------------------------------------
+	int32 Sicure = 0;
+	for (int32 i = 0; i < Vista.Options.Num(); ++i)
+	{
+		URTFastDecisionOptionWidget* Opzione = NewObject<URTFastDecisionOptionWidget>(World);
+		Opzione->OptionFrame = Cornice();
+		Opzione->KeyText = NewObject<UTextBlock>(World);
+		Opzione->DescriptionText = NewObject<UTextBlock>(World);
+		Opzione->SafeChoiceBadge = NewObject<UBorder>(World);
+		const FString& Risposta = Vista.Options[i].Response;
+		const bool bSicura = Risposta == Vista.SafeResponse;
+		Sicure += bSicura ? 1 : 0;
+		Opzione->SetOption(Finestra, Vista.Options[i], i, bSicura);
+
+		const FString Etichetta = FString::Printf(TEXT("C[%d] %s"), i, *Risposta);
+		TestEqual(*(Etichetta + TEXT(": il badge e' il tasto del kit in quella posizione")),
+			Opzione->KeyText->GetText().ToString(), ARTPlayerController::ReactionOptionKeyLabel(i).ToString());
+		TestFalse(*(Etichetta + TEXT(": e non e' vuoto")), Opzione->KeyText->GetText().IsEmpty());
+		TestEqual(*(Etichetta + TEXT(": la frase e' quella della risposta")),
+			Opzione->DescriptionText->GetText().ToString(), RTReactionResponseText::DescriptionFor(Risposta).ToString());
+		TestFalse(*(Etichetta + TEXT(": e non e' vuota")), Opzione->DescriptionText->GetText().IsEmpty());
+		TestTrue(*(Etichetta + TEXT(": la frase e' Text_Secondary")),
+			Opzione->DescriptionText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Secondary)));
+		TestTrue(*(Etichetta + TEXT(": il fondo e' BG_Raised")), Opzione->OptionFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_Raised)));
+		TestEqual(*(Etichetta + TEXT(": il chip c'e' solo sulla scelta sicura")), Visibile(Opzione->SafeChoiceBadge), bSicura);
+		TestTrue(*(Etichetta + TEXT(": il contorno e' Text_Primary sulla sicura, Frame_Mid sulle altre")),
+			Contorno(Opzione->OptionFrame).Equals(Colore(bSicura ? ERTUIToken::Text_Primary : ERTUIToken::Frame_Mid)));
+		TestEqual(*(Etichetta + TEXT(": di 2 px sulla sicura, 1 sulle altre")),
+			Opzione->OptionFrame->Background.OutlineSettings.Width, bSicura ? 2.f : 1.f);
+	}
+	TestEqual(TEXT("C: una sola opzione porta il chip"), Sicure, 1);
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
