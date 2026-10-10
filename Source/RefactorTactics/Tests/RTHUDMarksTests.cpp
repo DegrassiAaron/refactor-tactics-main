@@ -860,4 +860,54 @@ bool FRTBlockerOutlineMatchesTheCellTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **L'ALLEATA IN UN'AREA MIRATA A UNA CELLA VUOTA E' SEGNATA** ([D-492], #3620).
+ *
+ * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`, con una differenza sola: Overload non mira a Branth ma alla
+ * cella dove Branth stava, e Branth e' lontano. Fino a #3620 i segni chiedevano `PlannedAttackTarget`, che un
+ * bersaglio a cella azzera per costruzione: l'area non produceva nessun segno, mentre l'anteprima dell'unita'
+ * selezionata la disegnava con l'alleata dentro. Ora i segni vengono dalla stessa anteprima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDAllyMarkFromCellTargetTest,
+	"RefactorTactics.HUD.AllyInACellTargetedAreaIsMarked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHUDAllyMarkFromCellTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 1, 0, 0));
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 6, 0, 0));
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Aevik->PlannedAbilityIndex = Overload;
+	Aevik->bAttackTargetsCell = true;
+	Aevik->PlannedAttackCell = FRTCellId(2, 0, 0); // una cella vuota: e' la cella, non un'unita', il bersaglio
+
+	TSet<FRTCellId> Hit, Ally;
+	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+
+	const FRTCellId CellaMuiren = Muiren->Cell;
+	const FRTCellId CellaAevik = Aevik->Cell;
+	const FRTCellId CellaBranth = Branth->Cell;
+
+	DestroyMarksWorld(World);
+
+	TestTrue(FString::Printf(TEXT("l'area mirata alla cella e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
+	TestTrue(TEXT("la cella bersagliata e' nella zona"), Hit.Contains(FRTCellId(2, 0, 0)));
+	TestFalse(TEXT("premessa: Branth e' fuori dalla zona"), Hit.Contains(CellaBranth));
+
+	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
+	TestTrue(TEXT("ed e' quella di Muiren"), Ally.Contains(CellaMuiren));
+	TestFalse(TEXT("Aevik non e' marcato"), Ally.Contains(CellaAevik));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
