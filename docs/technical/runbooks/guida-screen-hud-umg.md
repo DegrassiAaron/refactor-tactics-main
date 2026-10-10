@@ -694,6 +694,48 @@ Anche il chip `REAZ.` delle carte si riconta a 5 Hz, mentre i PV seguono a ogni 
 - la reazione, se nomina la sua;
 - altrimenti il movimento. Ci finiscono anche le voci che `MakePlanFor` aggiunge dal core e che lo slot non nomina.
 
+## 7-sexies. Il registro: le porte della tavola D ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637))
+
+Il registro compare **solo in Risoluzione** ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). Le righe le costruisce il C++ da una classe
+nei default, come le carte del roster. Il grafo che oggi le costruisce si toglie nella seduta, insieme al
+riparentamento di `WBP_RT_EventLine`.
+
+### `WBP_RT_EventLog`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `LogRoot` | qualunque widget | `Collapsed` fuori dalla Risoluzione |
+| `LogTurnText` | `TextBlock` | «ROUND 04», accanto a «REGISTRO»: la parola dell'header ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 1) |
+| `LinesBox` | un pannello | una riga per voce di `GetFeed()`, riusate da un tick all'altro |
+
+Nei default, `LineClass` = `WBP_RT_EventLine_C`. Senza `LinesBox` o senza `LineClass` il registro non costruisce
+niente.
+
+### `WBP_RT_EventLine` → `URTPlayerEventLineWidget`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `PhaseStrip` | `Border` | il colore della fase della riga ([D-233](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `PhaseLabelText` | `TextBlock` | «BLAST», la sigla della fase |
+| `SequenceText` | `TextBlock` | «#3» |
+| `ReactionBadge` | qualunque widget | il chip `REAZ.`: solo su una reazione scattata |
+| `LineText` | `TextBlock` | la frase |
+
+🔴 **Il «#n» è la posizione nel feed GIÀ FILTRATO per chi guarda**, non l'indice della voce nel TurnLog. Un indice
+globale lascerebbe buchi dove stanno gli eventi nascosti, e i buchi direbbero quanti sono: lo stesso genere di
+metadato che #2757 vieta per gli slot. Lo misura `Privacy.EventFeedNewFieldsRevealNothingHidden`. Lo stesso log,
+con e senza le voci nascoste, dà a chi guarda le stesse righe, campo per campo, anche con una voce nascosta della
+stessa unità e con una cella d'ambiente nascosta.
+
+⚠️ **Quattro cose da sapere prima della seduta**:
+- le righe si costruiscono solo in Risoluzione, e il feed si rilegge a 5 Hz, subito all'ingresso;
+- la riga d'ambiente aggrega più celle: la sua striscia è la fase della **prima** cella visibile;
+- il feed è già pieno al primo tick di Risoluzione, perché il resolver risolve tutte le fasi prima del playback.
+  Le righe di Blast e Move compaiono quindi prima che il playback le mostri. La riga corrente evidenziata, che
+  risolverebbe la cosa, chiede l'indice dell'evento riprodotto (T5, #1881);
+- ⏳ `DEFERRED`: la riga «nessun evento» per una fase senza eventi, che la tavola disegna tratteggiata. Il C++ costruisce
+  una riga per voce del feed, e una fase vuota non ha voci.
+
 ## 8. Verifica
 
 Quando i Blueprint della §2 esistono e l'HUD è agganciato, esegui **`PIE-V01-SCREENHUD`**

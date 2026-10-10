@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h" // FRTCellId e' un campo per valore: serve la definizione, non basta la forward
+#include "Turn/RTTurnRules.h" // ERTMatchPhase: la fase della voce, per il registro (#3637)
 #include "RTPlayerEvent.generated.h"
 
 /**
@@ -190,4 +191,14 @@ struct FRTPlayerEvent
 
 	/** Vero se l'evento porta un ostacolo nominabile da mostrare. */
 	bool HasBlockerCell() const { return BlockerCell.Layer != INDEX_NONE; }
+
+	/**
+	 * La fase in cui l'evento accade, dalla voce del TurnLog (#3637): la striscia del registro. Per la voce d'ambiente
+	 * aggregata e' quella della prima cella.
+	 *
+	 * ⚠️ **Non dice niente che la riga non dica gia'**: l'evento c'e' solo se chi guarda lo vede, e la sua fase e' quella
+	 * in cui il playback lo mostra.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|PlayerEvent")
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
 };

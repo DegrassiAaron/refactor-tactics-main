@@ -1394,6 +1394,9 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 		// rimetterebbe nel Blueprint la distinzione fra «cella (0,0,0)» e «nessuna cella», che e' proprio
 		// dove `FRTCellId::IsValid()` risponde di si' e marcherebbe l'origine dell'arena.
 		Line.bHasBlocker = Event.HasBlockerCell();
+		Line.Phase = Event.Phase;
+		Line.Sequence = i + 1; // la posizione fra gli eventi GIA' filtrati: nessun buco da cui contare il nascosto
+		Line.bReaction = Event.Type == ERTPlayerEventType::ReactionFired;
 	}
 	return Lines;
 }

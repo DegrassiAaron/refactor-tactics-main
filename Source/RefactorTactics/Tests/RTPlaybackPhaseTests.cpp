@@ -19,6 +19,7 @@
 #include "Turn/RTMatchFormatData.h" // FRTMatchRules: limite e soglia del formato
 #include "Components/Border.h"
 #include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -764,6 +765,124 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 	W->RefreshLook(/*bRecheckObjective=*/ false);
 	TestTrue(TEXT("D: dopo il playback torna il gruppo della Pianificazione"), Visibile(W->PlanningGroup));
 	TestFalse(TEXT("D: e il gruppo della Risoluzione si chiude"), Visibile(W->ResolutionGroup));
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **LA RIGA DEL REGISTRO COME LA TAVOLA D** (#3637, T8): striscia e sigla della fase, «#n», chip `REAZ.`, frase.
+ * ⚠️ Confronti CaseSensitive: `TestEqual` su `FString` ignora le maiuscole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLineLookTest,
+	"RefactorTactics.ScreenHud.EventLineShowsPhaseNumberAndReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventLineLookTest::RunTest(const FString&)
+{
+	URTPlayerEventLineWidget* Riga = NewObject<URTPlayerEventLineWidget>();
+	if (!TestNotNull(TEXT("riga"), Riga)) { return false; }
+	Riga->PhaseStrip = NewObject<UBorder>(Riga);
+	Riga->PhaseLabelText = NewObject<UTextBlock>(Riga);
+	Riga->SequenceText = NewObject<UTextBlock>(Riga);
+	Riga->ReactionBadge = NewObject<UBorder>(Riga);
+	Riga->LineText = NewObject<UTextBlock>(Riga);
+	const auto Uguale = [](const FText& Testo, const TCHAR* Atteso) { return Testo.ToString().Equals(Atteso, ESearchCase::CaseSensitive); };
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+
+	FRTPlayerEventLineView Vista;
+	Vista.Text = FText::FromString(TEXT("Reazione scattata"));
+	Vista.Phase = ERTMatchPhase::Blast;
+	Vista.Sequence = 3;
+	Vista.bReaction = true;
+	Riga->SetLine(Vista);
+	TestTrue(TEXT("la striscia ha il colore del Blast"), Riga->PhaseStrip->GetBrushColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Phase_Blast)));
+	TestTrue(TEXT("la sigla dice BLAST"), Uguale(Riga->PhaseLabelText->GetText(), TEXT("BLAST")));
+	TestTrue(TEXT("in Text_Primary, come la tavola"),
+		Riga->PhaseLabelText->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Primary)));
+	TestTrue(TEXT("il numero in Text_Secondary"),
+		Riga->SequenceText->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
+	TestTrue(TEXT("il numero dice #3"), Uguale(Riga->SequenceText->GetText(), TEXT("#3")));
+	TestTrue(TEXT("una reazione ha il chip"), Visibile(Riga->ReactionBadge));
+	TestTrue(TEXT("e la frase e' quella della vista"), Riga->LineText->GetText().EqualTo(Vista.Text));
+
+	Vista.Phase = ERTMatchPhase::Move;
+	Vista.bReaction = false;
+	Riga->SetLine(Vista);
+	TestTrue(TEXT("una riga del Move ha il suo colore"), Riga->PhaseStrip->GetBrushColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Phase_Move)));
+	TestFalse(TEXT("e senza reazione il chip si chiude"), Visibile(Riga->ReactionBadge));
+	return true;
+}
+
+/**
+ * 🔑 **IL REGISTRO COMPARE SOLO IN RISOLUZIONE, E COSTRUISCE LE RIGHE DALLA CLASSE DEI DEFAULT** (#3637, [D-496]).
+ * Il banco di `MatchHeaderCarriesThePlayedPhase`: un turno vero, riprodotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogLookTest,
+	"RefactorTactics.ScreenHud.EventLogShowsOnlyInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventLogLookTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	SpawnPlaybackMap(World);
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !Dasher || !Target || !Log)
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Log->LogRoot = NewObject<UBorder>(Log);
+	Log->LogTurnText = NewObject<UTextBlock>(Log);
+	UVerticalBox* Righe = NewObject<UVerticalBox>(Log);
+	Log->LinesBox = Righe;
+	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+
+	// --- Pianificazione: il registro non c'e' ([D-496] punto 2) ---------------------------------------------------------
+	Log->RefreshLook();
+	TestFalse(TEXT("in Pianificazione il registro e' chiuso"), Visibile(Log->LogRoot));
+	TestTrue(TEXT("e dice il round come l'header, ROUND"),
+		Log->LogTurnText->GetText().ToString().StartsWith(TEXT("ROUND "), ESearchCase::CaseSensitive));
+
+	// --- Risoluzione: il registro c'e', una riga per voce del feed ------------------------------------------------------
+	const int32 DashIdx = Dasher->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = FRTCellId(3, 2);
+	Dasher->PlannedAbilityIndex = 0;
+	Dasher->PlannedAttackTarget = Target;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving()))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Log->RefreshLook();
+	TestTrue(TEXT("in Risoluzione il registro c'e'"), Visibile(Log->LogRoot));
+	const TArray<FRTPlayerEventLineView> Feed = Log->GetFeed();
+	if (TestTrue(TEXT("premessa: il turno ha delle righe"), Feed.Num() > 0))
+	{
+		TestEqual(TEXT("una riga per voce del feed"), Log->GetLineWidgets().Num(), Feed.Num());
+		TestEqual(TEXT("e tutte nel pannello"), Righe->GetChildrenCount(), Feed.Num());
+		for (int32 i = 0; i < Feed.Num() && i < Log->GetLineWidgets().Num(); ++i)
+		{
+			TestEqual(*FString::Printf(TEXT("la riga %d porta il suo numero"), i), Log->GetLineWidgets()[i]->GetLine().Sequence, Feed[i].Sequence);
+		}
+	}
+
+	// --- Un secondo giro riusa le righe -----------------------------------------------------------------------------------
+	const URTPlayerEventLineWidget* Prima = Log->GetLineWidgets().Num() > 0 ? Log->GetLineWidgets()[0].Get() : nullptr;
+	Log->RefreshLook();
+	TestTrue(TEXT("le righe si riusano"), Prima == nullptr || Log->GetLineWidgets()[0] == Prima);
+	TestEqual(TEXT("e il pannello non raddoppia"), Righe->GetChildrenCount(), Log->GetLineWidgets().Num());
 
 	DestroyPlaybackWorld(World);
 	return true;
