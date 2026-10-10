@@ -674,16 +674,7 @@ namespace
 	}
 }
 
-const TArray<FName>& URTPlanCommitWidget::LookPortNames()
-{
-	static const TArray<FName> Nomi = {
-		TEXT("ConfirmKeyText"), TEXT("UndoKeyText"), TEXT("ConfirmFrame"), TEXT("UndoFrame"), TEXT("ConfirmIcon"),
-		TEXT("CommitRoot"), TEXT("WarningCounter"), TEXT("CriticalCountText"), TEXT("CriticalBadge"),
-		TEXT("WarningCountText"), TEXT("WarningBadge"), TEXT("InfoCountText"), TEXT("InfoBadge") };
-	return Nomi;
-}
-
-void URTPlanCommitWidget::RefreshButtons()
+void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 {
 	using T = ERTUIToken;
 	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
@@ -692,6 +683,12 @@ void URTPlanCommitWidget::RefreshButtons()
 	// alla vista dell'header: questo file non include `RTTurnManager.h` (#1821).
 	const bool bRisoluzione = HasMatchContext() && URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving;
 	RTShowIf(CommitRoot, !bRisoluzione);
+	// Si esce solo se la radice c'e' e ha chiuso il riquadro: senza, i pulsanti restano a schermo e vanno aggiornati.
+	if (bRisoluzione && CommitRoot)
+	{
+		LastWarningCounts = FRTPlanWarningCounts();
+		return; // il riquadro e' chiuso: niente da scrivere, e niente avvisi da contare
+	}
 
 	const bool bUnita = HasCommandedUnit();
 	if (ConfirmButton)
@@ -737,7 +734,11 @@ void URTPlanCommitWidget::RefreshButtons()
 	}
 
 	// Il contatore ([D-494]): un numero per livello, e un livello a zero non occupa posto.
-	const FRTPlanWarningCounts Conteggi = GetPlanWarningCounts();
+	if (bRecountWarnings)
+	{
+		LastWarningCounts = GetPlanWarningCounts();
+	}
+	const FRTPlanWarningCounts& Conteggi = LastWarningCounts;
 	RTShowIf(WarningCounter, Conteggi.Critical + Conteggi.Warning + Conteggi.Info > 0);
 	const auto Livello = [&C](UTextBlock* Testo, UWidget* Badge, int32 N, ERTUIToken Colore)
 	{
@@ -762,7 +763,13 @@ void URTPlanCommitWidget::NativeConstruct()
 void URTPlanCommitWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	RefreshButtons();
+	SecondsSinceWarningRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceWarningRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceWarningRecount = 0.f;
+	}
+	RefreshButtons(bRiconta);
 }
 
 void URTActionDockWidget::BindNamedButtons()

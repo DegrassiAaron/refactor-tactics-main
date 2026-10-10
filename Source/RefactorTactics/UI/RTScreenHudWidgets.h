@@ -669,7 +669,9 @@ public:
 	TObjectPtr<class UTextBlock> UndoText;
 
 	// ------------------------------------------------------------------------------------------------
-	// La resa della tavola (#3633, T8). Tutte opzionali: senza, il widget resta quello di prima.
+	// La resa della tavola (#3633, T8). Tutte opzionali. ⚠️ Anche senza di loro il WBP cambia in due punti: il tasto
+	// si scrive come badge ([D-496], «INVIO»), e `ConfirmText`/`UndoText` prendono i colori della palette. E' voluto:
+	// T8 porta la palette, e due resa diverse per lo stesso widget sarebbero due look da tenere allineati.
 	// ------------------------------------------------------------------------------------------------
 
 	/** Il badge del tasto di `Conferma`. Quando c'e', `ConfirmText` porta il solo verbo e il tasto sta qui. */
@@ -720,9 +722,6 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
 	TObjectPtr<class UWidget> InfoBadge;
 
-	/** Le porte della resa ([D-496], #3633), nell'ordine in cui il gate sull'asset le cerca. */
-	static const TArray<FName>& LookPortNames();
-
 	/**
 	 * Testi e abilitazione. La chiama `NativeTick`; i test la chiamano a mano.
 	 *
@@ -731,7 +730,7 @@ public:
 	 * `Annulla` spento senza selezione toglierebbe al giocatore il ritiro del Ready proprio quando ha
 	 * deselezionato per guardare la mappa.
 	 */
-	void RefreshButtons();
+	void RefreshButtons(bool bRecountWarnings = true);
 
 	/** Collega i click a `Confirm()` e `Undo()`. Idempotente; la chiama `NativeConstruct`. */
 	void BindNamedButtons();
@@ -739,6 +738,15 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	/**
+	 * Il contatore si RICONTA a 5 Hz, non a ogni frame (review di #3633): `GetPlanWarningCounts` rifa' gli avvisi di
+	 * ogni unita' comandata — validatore, righe del kit, anteprima del Blast — e cambia solo quando cambia un piano.
+	 * I testi e i colori restano a ogni frame, perche' costano poco.
+	 */
+	FRTPlanWarningCounts LastWarningCounts;
+	float SecondsSinceWarningRecount = 0.f;
 };
 
 /**
