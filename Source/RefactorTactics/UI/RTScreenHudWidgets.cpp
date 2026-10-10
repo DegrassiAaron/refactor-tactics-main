@@ -452,8 +452,9 @@ FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 
 TArray<FRTPlanWarningView> URTSelectedUnitPanelWidget::GetPlanWarnings() const
 {
-	const ARTTurnManager* TM = GetTurnManager();
-	if (TM && TM->IsResolving())
+	// La risoluzione si chiede alla vista dell'header, non al manager: questo file non include `RTTurnManager.h`, ed e'
+	// la condizione del distacco di #1821 (vedi la testa del file). Trovato da una build fuori dal blob unity (#3622).
+	if (URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving)
 	{
 		return {}; // D-480 punto 1: in Risoluzione l'elenco si nasconde
 	}
@@ -587,8 +588,8 @@ void URTPlanCommitWidget::Undo()
 FRTPlanWarningCounts URTPlanCommitWidget::GetPlanWarningCounts() const
 {
 	FRTPlanWarningCounts Conteggi;
-	const ARTTurnManager* TM = GetTurnManager();
-	if (!TM || TM->IsResolving())
+	// Come in `GetPlanWarnings`: la risoluzione dalla vista dell'header, senza il tipo completo del manager (#1821).
+	if (!GetTurnManager() || URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving)
 	{
 		return Conteggi; // D-480 punto 1: in Risoluzione il piano non si conferma, e il contatore tace
 	}
