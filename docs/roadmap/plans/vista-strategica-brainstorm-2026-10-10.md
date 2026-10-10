@@ -18,9 +18,10 @@
 
 La scena delle tavole A–F **c'è già quasi tutta**:
 - la board è fatta di prismi esagonali;
-- le unità hanno già un segnalino, nascosto dallo skeletal dell'eroe.
+- le unità hanno già anello di squadra ed etichetta, visibili anche sugli eroi;
+- il cilindro segnaposto esiste, ma lo skeletal dell'eroe lo spegne.
 
-La vista strategica quindi è **la stessa scena con un altro aspetto**, non una seconda scena. Cambiano le unità e la camera, la mappa no. Così la privacy si **eredita dal velo** invece di essere riscritta.
+La vista strategica quindi è **la stessa scena con un altro aspetto**, non una seconda scena. Cambiano le unità e la camera, la mappa no. Per le unità che la squadra vede (`Live`), la privacy si **eredita dal velo** invece di essere riscritta. Il ricordo (`Remembered`) segue un altro percorso, descritto in §5.2.
 
 ## 2. Che cosa era già deciso
 
@@ -45,8 +46,9 @@ Misurato su `12d26ba3`.
 | `N` | libero | `BuildInputMappings` |
 | `M` | è Sneak | `SneakHotkey()` |
 | Board | prismi esagonali ISM, una istanza per cella | `ARTHexMapActor` |
-| Segnalino delle unità | cilindro, anello di squadra ed etichetta nome·PV; li nasconde lo skeletal dell'eroe | `ARTUnit::Mesh`, `TeamRing`, `OverlayWidget` |
-| Predicati di visibilità | puri; la scelta del segnalino viene **dopo** `ShouldBeRendered`, cioè dopo il velo | `ShouldShowPlaceholderMesh`, `ShouldShowHeroSkeletal` |
+| Segnalino delle unità | lo skeletal dell'eroe spegne **solo** il cilindro e i bracci, e solo se c'è una posa. Anello di squadra, anello di selezione ed etichetta nome·PV seguono solo `bRender`: in vista tattica sono già accesi | `ARTUnit::Mesh`, `TeamRing`, `SelectionRing`, `OverlayWidget`, `RefreshComponentVisibility` |
+| Predicati di visibilità | statici e puri. `bRender` (`ShouldBeRendered`, cioè il velo) si calcola per primo ed entra come parametro: un flag strategico messo **in AND** non può rivelare un'unità velata | `ShouldShowPlaceholderMesh`, `ShouldShowHeroSkeletal` |
+| Ricordo dell'ultimo contatto | ha `bRender == false`. La sagoma è `ContactGhost`, esclusa per identità dal resto della visibilità e posata da `UpdateContactGhost` | `ARTUnit::ContactGhost` |
 | Overlay di pianificazione | già nel mondo: line batcher, `PlanGhosts`, canvas dell'HUD | `DrawPlanningPreview`, `ARTHUD::DrawHUD` |
 | Proiezione | sempre prospettica; nessun uso dell'ortografica in `Source/` (`git grep -n -i Orthographic -- Source` non trova niente) | `ARTCameraPawn` |
 
@@ -55,7 +57,7 @@ Misurato su `12d26ba3`.
 Registrate come [D-495](../../decisions/RT_PDR_00_Decision_Log.md).
 
 1. **La vista strategica entra in v0.1.** [D-252](../../decisions/RT_PDR_00_Decision_Log.md) la collocava dopo, e l'epic E49 teneva le figlie post-v0.1 finché un playtest non dimostrasse il contrario. Ora serve in pianificazione. Entra **in quattro pezzi** (§6).
-2. **Stessa scena, altro aspetto.** Le unità mostrano il segnalino al posto dello skeletal. Non si costruisce una seconda board, che sarebbe un secondo consumatore del velo da tenere allineato.
+2. **Stessa scena, altro aspetto.** In Strategic lo skeletal si spegne e il cilindro si riaccende; anello ed etichetta ci sono già. Non si costruisce una seconda board: sarebbe un terzo consumatore del velo da tenere allineato, accanto ai due che esistono (`ApplyKnowledgeVeil` per la board, `SetKnownToObserver` per le unità).
 3. **Taglio netto.** Lo scambio avviene nel frame in cui lo stato cambia, senza dissolvenza: l'isteresi impedisce già lo sfarfallio, e una dissolvenza sarebbe uno stato in più.
 4. **La taratura resta fuori.** Soglie e proiezione restano a [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) (`L_CameraFeatureLab`, post-v0.1). In v0.1 le soglie sono quelle provvisorie, dichiarate come tali.
 
@@ -77,17 +79,21 @@ Nasconderle toglierebbe informazione proprio mentre si pianifica. Solo `Structur
 
 ### 5.2 «Contatto incerto» e «Rumore» della tavola F non si possono mostrare
 
-Il modello di conoscenza ha due soli livelli, `Live` e `Remembered` (`ERTKnowledgeVisibility`, `RTKnowledgeView.h`). La propagazione del rumore esiste (`RTAcousticPropagationLibrary`), ma fuori da `Perception/` nessuno la usa: `git grep -lE "FRTNoiseReception|ERTNoiseType" -- Source` trova solo file di `Perception/` e di test.
+Il modello di conoscenza ha due soli livelli, `Live` e `Remembered` (`ERTKnowledgeVisibility`, `RTKnowledgeView.h`). La propagazione del rumore esiste (`RTAcousticPropagationLibrary`), ma fuori da `Perception/` e dai test nessuno la chiama:
+- `git grep -lE "FRTNoiseReception|ERTNoiseType" -- Source` trova solo file di `Perception/` e di test;
+- `git grep -n "URTAcousticPropagationLibrary::" -- Source`, fuori da quelle cartelle, trova solo il commento di `ARTUnit::HearingThreshold`, che è un dato e non una chiamata.
 
 Disegnarli vorrebbe dire **inventare informazione**, e D-488 (4) lo vieta. Il nucleo mostra quindi:
-- `Live` come segnalino;
+- `Live` come segnalino, passando per i predicati, cioè dopo il velo;
 - `Remembered` come segnalino con «×», cioè l'ultimo contatto.
+
+⚠️ Il ricordo **non passa dai predicati del segnalino**: ha `bRender == false`. Il «×» va disegnato con la **stessa sorgente** di `ContactGhost` (`UpdateContactGhost`, cella dell'ultimo contatto). Il nucleo deve dichiarare questa sorgente e coprirla con un **test di privacy suo**: un ricordo in Strategic non deve dire più della sagoma che sostituisce.
 
 Incerto e rumore arrivano quando il canale acustico arriva al giocatore.
 
 ### 5.3 La separazione dei piani non passa dal contesto della mappa
 
-`ARTHexMapActor::GetHexContext` lo legge anche la simulazione: `RTTurnManager_Movement.cpp`, `RTTurnManager_Blast.cpp`, `RTMovementResolutionContext.h` (`git grep -lF GetHexContext -- Source`). Scalarne `LayerHeight` in Strategic cambierebbe la risoluzione.
+`ARTHexMapActor::GetHexContext` lo legge anche la simulazione. Fra i suoi lettori (`git grep -lF GetHexContext -- Source`) ci sono `RTTurnManager_Movement.cpp`, `RTTurnManager_Blast.cpp` e `RTMovementResolutionContext.h`. Gli altri sono HUD, controller, camera, editor e test. Scalarne `LayerHeight` in Strategic cambierebbe la risoluzione.
 
 Serve una quota **solo di presentazione**, e il **picking** deve usarla: da [D-255](../../decisions/RT_PDR_00_Decision_Log.md) la cella cliccata decide che cosa si pianifica.
 
@@ -101,7 +107,7 @@ Serve una quota **solo di presentazione**, e il **picking** deve usarla: da [D-2
 
 | Pezzo | Issue | Che cosa | Dipende da |
 |---|---|---|---|
-| **Nucleo** | [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774), col tasto di [#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145) | evento di cambio stato sul pawn · `Tab` e `N` nello stesso commit · segnalino al posto dello skeletal · `Remembered` con «×» · test del velo · `spec-pointer-interaction.md` §6.6 e `spec-tactical-camera.md` §5 aggiornati | — |
+| **Nucleo** | [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774), col tasto di [#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145) | evento di cambio stato sul pawn · `Tab` e `N` nello stesso commit · cilindro al posto dello skeletal · `Remembered` con «×», dalla sorgente di `ContactGhost` · test del velo e test del ricordo · `spec-pointer-interaction.md` §6.6 e `spec-tactical-camera.md` §5 aggiornati | — |
 | **Inclinazione** | [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) (CAM-05a) | rampa del pitch solo oltre `StrategicExitThreshold`, continua con la distanza, neutra di default · fix di `AddOrbit` | nucleo |
 | **Prova ortografica** | [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) (CAM-05b) | interruttore spento di default · `OrthoWidth` derivata dal braccio · limiti del pivot e picking corretti in ortografica · la scelta resta dell'autore | nucleo |
 | **Separazione dei piani** | [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) (CAM-06a), scorporata da [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775) | quota di presentazione per piano, usata da board, unità, overlay, HUD e picking · nessuna `FRTCellId` e nessun esito cambia | nucleo |
