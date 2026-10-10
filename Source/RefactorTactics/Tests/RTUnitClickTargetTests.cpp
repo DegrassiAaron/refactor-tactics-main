@@ -231,4 +231,52 @@ bool FRTClickTargetExtentIsMeasuredTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3647 — DIAGNOSI: il raggio del click colpisce il `BP_Unit_*` vero, in tattica e in vista strategica?
+ *
+ * Stampa per ogni componente primitivo del Blueprint la collisione e la risposta a `ECC_Visibility`, poi lancia il
+ * trace di `TraceHitsUnit` nelle due presentazioni. Il Blueprint e' tracciato in git; le mesh degli eroi no, quindi in
+ * un worktree la skeletal puo' mancare e il dato utile e' la collisione dei componenti, non la loro forma.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStrategicClickDiagnosisTest,
+	"RefactorTactics.PlayerInput.StrategicClickDiagnosisOnHeroBlueprint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStrategicClickDiagnosisTest::RunTest(const FString&)
+{
+	UClass* BpClass = LoadClass<ARTUnit>(nullptr,
+		TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.BP_Unit_Muiren_C"));
+	if (!TestNotNull(TEXT("BP_Unit_Muiren si carica"), BpClass)) { return false; }
+
+	UWorld* World = RTClickTarget::MakeClickWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>(BpClass);
+	if (!TestNotNull(TEXT("il Blueprint si spawna"), Unit)) { RTClickTarget::DestroyClickWorld(World); return false; }
+
+	auto Censimento = [this, Unit](const TCHAR* Quando)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		Unit->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* P : Prims)
+		{
+			AddInfo(FString::Printf(TEXT("[%s] %s (%s): collisione=%d visibility=%d visibile=%d"),
+				Quando, *P->GetName(), *P->GetClass()->GetName(), static_cast<int32>(P->GetCollisionEnabled()),
+				static_cast<int32>(P->GetCollisionResponseToChannel(ECC_Visibility)), P->GetVisibleFlag() ? 1 : 0));
+		}
+		AActor* Colpito = nullptr;
+		const bool bHit = RTClickTarget::TraceHitsUnit(Unit->GetWorld(), Unit, Colpito);
+		AddInfo(FString::Printf(TEXT("[%s] trace: hit=%d attore=%s"), Quando, bHit ? 1 : 0,
+			Colpito ? *Colpito->GetName() : TEXT("nessuno")));
+		return Colpito == Unit;
+	};
+
+	const bool bTattica = Censimento(TEXT("tattica"));
+	Unit->SetStrategicPresentation(true);
+	const bool bStrategica = Censimento(TEXT("strategica"));
+	TestTrue(TEXT("in tattica il raggio colpisce l'unita'"), bTattica);
+	TestTrue(TEXT("in strategica il raggio colpisce l'unita'"), bStrategica);
+
+	RTClickTarget::DestroyClickWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
