@@ -248,8 +248,16 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 		return Avvisi;
 	}
 
-	// Il nome di un'azione del piano, dal kit: e' il nome che lo slot mostra.
-	const auto NomeDi = [Unit](const FName& ActionId) -> FText
+	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
+
+	// Il nome di un'azione del piano, in cascata, e mai l'id grezzo (review di #3622):
+	//   1. il nome del kit, che e' quello che lo slot mostra;
+	//   2. la voce del MOVIMENTO, che `MakePlanFor` aggiunge dal core e non sta nel kit: l'etichetta dello slot che
+	//      il tooltip gia' usa. E' il caso canonico del conflitto scatto + movimento;
+	//   3. l'ultimo segmento dell'id (`Action.Move` -> `Move`), la stessa cascata di `ARTUnit::DisplayLabel`.
+	// ⛔ Una tabella di nomi per le azioni del core non esiste (`GenericActionDisplayName` ne copre cinque), e
+	// scriverla e' lavoro di contenuto, non di questo avviso.
+	const auto NomeDi = [Unit, &Piano](const FName& ActionId) -> FText
 	{
 		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
 		{
@@ -259,12 +267,20 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				return A->DisplayName;
 			}
 		}
-		return FText::FromName(ActionId);
+		for (const FRTPlannedAction& Voce : Piano)
+		{
+			if (Voce.Def.ActionId == ActionId && URTCatalogLibrary::TakesMovementSlot(Voce.Def))
+			{
+				return NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento");
+			}
+		}
+		FString Id = ActionId.ToString();
+		int32 Punto = INDEX_NONE;
+		return FText::FromString(Id.FindLastChar(TEXT('.'), Punto) ? Id.Mid(Punto + 1) : Id);
 	};
 
 	// --- 1. Critical: il validatore. Lo dice, non lo decide. -------------------------------------------------
-	const FRTPlanValidation Verdetto =
-		URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(Unit));
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Piano);
 	if (!Verdetto.bLegal)
 	{
 		FRTPlanWarningView Critico;
@@ -279,14 +295,22 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId));
 		// ⚠️ Il costo e' cio' che si sa, non una previsione: il lock-in non scarta niente, e cio' che il turno
 		// scarta lo decide il resolver.
-		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo rifiuta: va corretto prima di confermare");
+		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo giudica illegale: correggilo prima di confermare");
 		Avvisi.Add(Critico);
 	}
+
+	// Una voce per AZIONE (review di #3622, §15.1): un'azione che il validatore giudica illegale probabilmente non
+	// verra' eseguita, e dirne anche il ripiego o il fuoco amico accenderebbe tre voci per un problema solo.
+	const auto CopertaDalCritico = [&Verdetto](const FName& ActionId)
+	{
+		return !Verdetto.bLegal && !ActionId.IsNone()
+			&& (ActionId == Verdetto.OffendingActionId || ActionId == Verdetto.HolderActionId);
+	};
 
 	// --- 2. Warning: il bersaglio che in risoluzione prende il ripiego ([D-459]) ------------------------------
 	for (const FRTAbilityCooldownView& Riga : BuildAbilityCooldowns(Unit))
 	{
-		if (!Riga.bPlanDegraded)
+		if (!Riga.bPlanDegraded || CopertaDalCritico(Riga.ActionId))
 		{
 			continue;
 		}
@@ -314,9 +338,9 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				Alleate.Add(ARTUnit::DisplayLabel(Altra->HeroDisplayName, Altra->HeroId, Altra->GetName()));
 			}
 		}
-		if (Alleate.Num() > 0)
+		const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (Alleate.Num() > 0 && !(Principale && CopertaDalCritico(Principale->Def.ActionId)))
 		{
-			const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
 			FRTPlanWarningView FuocoAmico;
 			FuocoAmico.Level = ERTPlanWarningLevel::Warning;
 			FuocoAmico.SourceActionId = Principale ? Principale->Def.ActionId : NAME_None;

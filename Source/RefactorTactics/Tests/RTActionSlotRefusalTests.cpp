@@ -626,11 +626,57 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 	TestEqual(TEXT("3: il Critical viene per primo"), Avvisi.Num() > 0 ? Avvisi[0].Level : ERTPlanWarningLevel::Info,
 		ERTPlanWarningLevel::Critical);
 
+	// --- 3-bis. Una voce per azione: con il bersaglio dietro il muro l'azione illegale non porta anche il ripiego --
+	MoveSlotRefusalUnit(B.Nemico, GSlotRefusalDietroIlMuro);
+	TestEqual(TEXT("3-bis: un'azione illegale con il bersaglio dietro il muro da' una voce sola"),
+		URTHudViewModel::BuildPlanWarnings(B.Mine, Units).Num(), 1);
+	MoveSlotRefusalUnit(B.Nemico, GSlotRefusalInVista);
+
 	// --- 4. Il conteggio per livello -------------------------------------------------------------------------------
 	FRTPlanWarningCounts Conteggi;
 	URTHudViewModel::AddPlanWarningCounts(Avvisi, Conteggi);
 	TestEqual(TEXT("4: un Critical nel conteggio"), Conteggi.Critical, 1);
 	TestEqual(TEXT("4: nessun Info"), Conteggi.Info, 0);
+
+	// --- 5. Il conflitto di slot piu' comune, scatto + movimento: il perche' nomina le due azioni per nome ---------
+	B.Mine->PlannedAbilityIndex = INDEX_NONE;
+	B.Mine->ClearPlannedAttack();
+	int32 Scatto = INDEX_NONE;
+	for (int32 i = 0; i < B.Mine->NumAbilities(); ++i)
+	{
+		const URTActionData* A = B.Mine->GetAbility(i);
+		if (A && URTCatalogLibrary::IsFastMovement(A->Def) && B.Mine->CanUseAbility(i))
+		{
+			Scatto = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: il kit ha uno scatto utilizzabile"), Scatto != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedDashAbility = Scatto;
+	B.Mine->PlannedDashCell = FRTCellId(-1, 1, 0);
+	B.Mine->PlannedWaypoints = { FRTCellId(0, -1, 0) };
+	const FRTPlanValidation Conflitto = URTPlanValidationLibrary::ValidatePlan(
+		FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(B.Mine));
+	if (!TestFalse(TEXT("premessa: scatto + movimento e' illegale"), Conflitto.bLegal)
+		|| !TestFalse(TEXT("premessa: e il validatore nomina le due azioni"), Conflitto.HolderActionId.IsNone()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	const TArray<FRTPlanWarningView> DiConflitto = URTHudViewModel::BuildPlanWarnings(B.Mine, Units);
+	if (TestEqual(TEXT("5: una voce"), DiConflitto.Num(), 1))
+	{
+		const FString Perche = DiConflitto[0].Why.ToString();
+		TestFalse(*FString::Printf(TEXT("5: il perche' non mostra id grezzi (%s)"), *Perche), Perche.Contains(TEXT("Action.")));
+		TestFalse(*FString::Printf(TEXT("5: il cosa non mostra id grezzi (%s)"), *DiConflitto[0].What.ToString()),
+			DiConflitto[0].What.ToString().Contains(TEXT(".")));
+		TestTrue(*FString::Printf(TEXT("5: il perche' nomina lo scatto (%s)"), *Perche),
+			Perche.Contains(B.Mine->GetAbility(Scatto)->DisplayName.ToString()));
+	}
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
