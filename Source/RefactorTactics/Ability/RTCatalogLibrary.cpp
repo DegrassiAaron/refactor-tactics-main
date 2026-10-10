@@ -1947,6 +1947,11 @@ bool URTCatalogLibrary::TakesMainSlot(const FRTActionDef& Action)
 	return Action.Slot == ERTActionSlot::Main || Action.Slot == ERTActionSlot::MovementAndMain;
 }
 
+bool URTCatalogLibrary::ArmsReaction(const FRTActionDef& Action)
+{
+	return Action.Slot == ERTActionSlot::Reaction || Action.ActionId == FName(TEXT("Action.Overwatch"));
+}
+
 TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions)
 {
 	TArray<FString> Errors;

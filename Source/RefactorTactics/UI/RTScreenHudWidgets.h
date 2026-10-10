@@ -152,6 +152,9 @@ public:
 	 */
 	void SetCommandControllerForTest(ARTPlayerController* InController);
 
+	/** Il gruppo di controllo di chi guarda, senza un `PlayerController` (#3618). In gioco viene dal controller. */
+	void SetControlGroupForTest(int32 InControlGroup) { PlayerControlGroup = InControlGroup; }
+
 protected:
 	virtual void NativeConstruct() override;
 
@@ -174,6 +177,13 @@ protected:
 
 	const ARTTurnManager* GetTurnManager() const { return TurnManager.Get(); }
 	int32 GetPlayerTeamId() const { return PlayerTeamId; }
+
+	/**
+	 * Il gruppo di controllo di chi guarda, dallo STESSO controller da cui viene la squadra (#3618). Con la squadra e
+	 * `URTCombatLibrary::CanPlayerControlUnitInGroup` dice quali unita' sono comandate: la squadra da sola direbbe
+	 * comandata anche l'alleata del bot.
+	 */
+	int32 GetPlayerControlGroup() const { return PlayerControlGroup; }
 
 	/**
 	 * Le unita' in campo, in ordine STABILE per `HeroId`.
@@ -263,6 +273,10 @@ private:
 
 	UPROPERTY(Transient)
 	int32 PlayerTeamId = 0;
+
+	/** Vedi `GetPlayerControlGroup`. `0` e' il gruppo di default, lo stesso di `ARTPlayerState` e `ARTUnit`. */
+	UPROPERTY(Transient)
+	int32 PlayerControlGroup = 0;
 
 	/**
 	 * Vedi `SetSelectedUnitForTest`. Nulla in gioco: la selezione vera resta del `PlayerController`.
@@ -405,6 +419,17 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTUnitCardView> GetOpposingRoster() const;
+
+	/**
+	 * Il chip `REAZ.` della card di `HeroId` ([D-478], #3618): vero se l'alleata e' COMANDATA da chi guarda e il suo
+	 * piano arma una reazione (`FRTUnitSlotsView::bReactionArmed`).
+	 *
+	 * 🔴 **Gli slot si costruiscono solo per un'unita' comandata**, con la stessa barriera di
+	 * `URTSelectedUnitPanelWidget::GetSlots()`: per un'avversaria, un'alleata del bot o un altro gruppo di controllo
+	 * `BuildUnitSlots` non viene chiamata, e la risposta e' falso. Il piano non lascia il core (D-478 punto 4).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	bool IsReactionArmed(FName HeroId) const;
 };
 
 /** `WBP_RT_SelectedUnitPanel` — dettaglio di chi si sta comandando: carta, slot occupati. */

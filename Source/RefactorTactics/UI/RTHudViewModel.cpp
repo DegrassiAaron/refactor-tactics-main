@@ -230,6 +230,13 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 		FillSlotFromAbility(Slots.Reaction, *Unit, Unit->PlannedReactionAbility);
 	}
 
+	// [D-478] punto 2 (#3618): la reazione armata e' lo slot `Reaction` occupato da un'azione, oppure una principale
+	// che arma una finestra. La domanda la decide il catalogo, come `TakesMovementSlot` decide gli slot.
+	const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility);
+	const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+	Slots.bReactionArmed = (Reazione && URTCatalogLibrary::ArmsReaction(Reazione->Def))
+		|| (Principale && URTCatalogLibrary::ArmsReaction(Principale->Def));
+
 	return Slots;
 }
 

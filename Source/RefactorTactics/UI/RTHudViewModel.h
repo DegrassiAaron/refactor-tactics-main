@@ -308,6 +308,18 @@ struct FRTUnitSlotsView
 	bool bAuthorized = false;
 
 	/**
+	 * Il piano ARMA UNA REAZIONE ([D-478] punto 2, #3618): lo slot `Reaction` e' occupato da un'azione, oppure la
+	 * principale e' un'azione per cui `URTCatalogLibrary::ArmsReaction` e' vera (l'Overwatch). E' il chip `REAZ.`
+	 * del roster.
+	 *
+	 * ⛔ **Falso quando `bAuthorized` e' falso, e non e' un default qualunque**: dire che un'avversaria ha armato
+	 * una reazione e' un pezzo del suo piano (D-478 punto 4). Come per gli slot, la difesa vera sta a monte:
+	 * `URTTeamRosterWidget::IsReactionArmed` non costruisce gli slot per un'unita' non comandata.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bReactionArmed = false;
+
+	/**
 	 * Il profilo con cui lo slot movimento sara' speso: `MovementProfile.Still` · `.Move` · `.Sprint`
 	 * · `.Withdraw` (`#1410` `AC-1`, [D-015]).
 	 *
