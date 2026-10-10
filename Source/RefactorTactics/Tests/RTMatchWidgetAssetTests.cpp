@@ -1584,6 +1584,20 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("ConfirmText"), UTextBlock::StaticClass() },
 		{ TEXT("UndoButton"), UButton::StaticClass() },
 		{ TEXT("UndoText"), UTextBlock::StaticClass() },
+		// La resa della tavola (#3633, seduta U72): le porte di [D-496] e il contatore di [D-494].
+		{ TEXT("CommitRoot"), UWidget::StaticClass() },
+		{ TEXT("WarningCounter"), UWidget::StaticClass() },
+		{ TEXT("CriticalBadge"), UWidget::StaticClass() },
+		{ TEXT("CriticalCountText"), UTextBlock::StaticClass() },
+		{ TEXT("WarningBadge"), UWidget::StaticClass() },
+		{ TEXT("WarningCountText"), UTextBlock::StaticClass() },
+		{ TEXT("InfoBadge"), UWidget::StaticClass() },
+		{ TEXT("InfoCountText"), UTextBlock::StaticClass() },
+		{ TEXT("ConfirmFrame"), UBorder::StaticClass() },
+		{ TEXT("UndoFrame"), UBorder::StaticClass() },
+		{ TEXT("ConfirmIcon"), UTextBlock::StaticClass() },
+		{ TEXT("ConfirmKeyText"), UTextBlock::StaticClass() },
+		{ TEXT("UndoKeyText"), UTextBlock::StaticClass() },
 	};
 
 	struct FAsset

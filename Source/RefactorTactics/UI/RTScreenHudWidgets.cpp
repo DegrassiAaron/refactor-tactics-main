@@ -710,7 +710,7 @@ void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 	if (ConfirmKeyText)
 	{
 		ConfirmKeyText->SetText(GetConfirmKeyLabel());
-		ConfirmKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+		ConfirmKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
 	}
 	if (UndoText)
 	{
@@ -721,16 +721,16 @@ void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 	if (UndoKeyText)
 	{
 		UndoKeyText->SetText(GetUndoKeyLabel());
-		UndoKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+		UndoKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
 	}
 
-	// La tavola: `Conferma` accesa ha il fondo della lettura attiva e il contorno ciano; spenta torna neutra.
-	RTPaintFrame(ConfirmFrame, C(bUnita ? T::BG_ProfileActive : T::BG_Panel), C(bUnita ? T::Cyan : T::Frame_Off),
-		bUnita ? 2.f : 1.f);
+	// La tavola: `Conferma` accesa ha il fondo della lettura attiva e il contorno ciano; spenta torna neutra. Il
+	// contorno e' di 1 px in entrambi i casi, come nel sorgente della tavola: a distinguerle sono fondo e colore.
+	RTPaintFrame(ConfirmFrame, C(bUnita ? T::BG_ProfileActive : T::BG_Panel), C(bUnita ? T::Cyan : T::Frame_Off), 1.f);
 	RTPaintFrame(UndoFrame, C(T::BG_Panel), C(T::Frame_Mid), 1.f);
 	if (ConfirmIcon)
 	{
-		ConfirmIcon->SetColorAndOpacity(C(bUnita ? T::Cyan : T::Text_Disabled));
+		ConfirmIcon->SetColorAndOpacity(FSlateColor(C(bUnita ? T::Cyan : T::Text_Disabled)));
 	}
 
 	// Il contatore ([D-494]): un numero per livello, e un livello a zero non occupa posto.

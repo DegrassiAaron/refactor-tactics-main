@@ -5215,6 +5215,63 @@ sessions:
       atteso, (7) N/A. Due note di taratura (durata dell'onda, X sotto il cilindro) e il rimando a #3261/#3582
       stanno nella cella del registro.
 
+  - id: U72
+    title: Conferma come la tavola B — cornici, badge dei tasti e contatore per livello in WBP_RT_PlanCommit
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_PlanCommit` con le porte di [D-496] e [D-494]: `CommitRoot`, le cornici `ConfirmFrame` e `UndoFrame`
+      (`RoundedBox`), la spunta `ConfirmIcon`, i badge `ConfirmKeyText` e `UndoKeyText`, e `WarningCounter` con un badge
+      per livello (`CriticalBadge`, `WarningBadge`, `InfoBadge` e i loro `*CountText`)
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_PlanCommit.uasset
+      - docs/technical/evidence/hud/u72-conferma-accanto-alla-tavola.png
+      - docs/technical/evidence/hud/u72-conferma-stati.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' le porte sono gia' su `main` (#3639). Le tre correzioni di resa trovate in seduta entrano con
+    # l'asset, nella stessa PR.
+    shares_setup_with: [U64]
+    verifies: []
+    issues: [3633]
+    done_when: >-
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte nuove in un processo fresco, rosso sull'asset di `main` e
+      verde sul nuovo; a 1920x1080 la zona Z7 e il contatore coincidono con la tavola B, anche in scala di grigi; il
+      riquadro resta durante il countdown del Ready e si chiude in Risoluzione
+    notes: |
+      Scritta ed eseguita il 2026-10-10 da #3633, nel clone principale, con l'Editor ricompilato dal ramo della seduta.
+      Albero e proprieta' via bridge (`UMGToolSet` e `ObjectTools.set_properties`). Le misure vengono dal sorgente della
+      tavola, `RefactorTactics-HUD.dc.html` righe 137–157, e non dal PNG; i font sono i px del mockup x 0,75.
+
+      ✅ **Misurato a 1920x1080**, PIE flottante catturata con `PrintWindow`:
+      - il contorno di `Conferma` cade a x 1619–1895 e y 24–75, contro 1620–1895 e 24–75 della tavola;
+      - i fondi sono `(14,42,51)` e `(21,26,35)`, cioe' `BG_ProfileActive` e `BG_Panel` esatti;
+      - il contatore mostra il Warning di un fuoco amico vero: il Sovraccarico di Aevik su una cella accanto a Muiren,
+        che in risoluzione la colpisce davvero;
+      - il riquadro c'e' alle 17:33:44.4, nel countdown del Ready, e manca alle 17:33:46.7, dentro la Risoluzione che il
+        log data 45.9–47.5.
+      Il controllo positivo del gate: con l'asset di `main` `ActionBarDeclaresTheNamedPorts` e' rosso sulle sole porte
+      nuove.
+
+      🔴 **Tre correzioni trovate solo a schermo**, nessuna visibile a un gate sull'albero:
+      1. **Il fondo delle cornici si moltiplica.** Il C++ dipinge il fondo in `BrushColor`, e Slate lo moltiplica per la
+         tinta del brush. Una cornice con la tinta gia' al colore di fondo esce nera, `(0,0,1)`. Le cornici che dipinge
+         il C++ hanno la tinta bianca; i badge statici portano il colore nella tinta.
+      2. **Due derive del C++ di #3639 rispetto al sorgente della tavola.** Il contorno di `Conferma` accesa e' 1 px, non
+         2. Il testo dei badge dei tasti e' `Text_Primary`, non `Text_Secondary`. Corretti, insieme al test che li
+         fissava.
+      3. **La spunta e' un glifo, non un'immagine.** Il catalogo delle icone non ha spunta ne' croce. La Roboto
+         dell'engine ripiega su `DroidSansFallback`, che ha ✔ ✖ ▲ ◆ ●. Exo 2 e Orbitron non ripiegano e disegnerebbero un
+         quadrato vuoto. Per questo la porta `ConfirmIcon` e' diventata un `UTextBlock`: nessun asset la usava ancora.
+
+      ⏳ **Restano tre scarti minori dalla tavola**, giudicati accettabili:
+      - i badge dei tasti sono di poco piu' piccoli;
+      - il ✔ e' un po' piu' alto;
+      - fra ▲ e il numero c'e' un po' piu' di spazio.
+
+      ⛔ **Il click dal vivo sui pulsanti resta `NOT RUN`**, come in `U64`: lo misura
+      `ScreenHud.PlanCommitButtonsFollowThePorts`.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
