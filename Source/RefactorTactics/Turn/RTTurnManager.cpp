@@ -9458,14 +9458,17 @@ int32 ARTTurnManager::PlaybackAnimCellIndexForTest(const ARTUnit* Unit) const
 	return INDEX_NONE;
 }
 
+ERTMatchPhase ARTTurnManager::GetPlaybackPhase() const
+{
+	return (bIsResolving && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)) ? PlaybackPhases[PlaybackPhaseIdx]
+		: ERTMatchPhase::Planning;
+}
+
 FString ARTTurnManager::GetPlaybackPhaseName() const
 {
-	if (!bIsResolving || !PlaybackPhases.IsValidIndex(PlaybackPhaseIdx))
+	switch (GetPlaybackPhase())
 	{
-		return FString();
-	}
-	switch (PlaybackPhases[PlaybackPhaseIdx])
-	{
+	case ERTMatchPhase::Planning: return FString(); // fuori dal playback: `PlaybackPhases` non contiene `Planning`
 	case ERTMatchPhase::Prep:    return TEXT("Prep");
 	case ERTMatchPhase::Dash:    return TEXT("Dash");
 	case ERTMatchPhase::Blast:   return TEXT("Blast");

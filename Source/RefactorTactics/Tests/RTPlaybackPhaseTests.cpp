@@ -13,6 +13,7 @@
 #include "Map/RTHexCellData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "UI/RTHudViewModel.h" // BuildMatchHeader: la vista dell'header si costruisce come la costruisce l'HUD
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -490,6 +491,83 @@ bool FRTPlaybackShortRouteArrivesFirstTest::RunTest(const FString&)
 		Corta->Cell.ToString(), FRTCellId(2, 0, 0).ToString());
 	TestEqual(TEXT("e la lunga anche"),
 		Lunga->Cell.ToString(), FRTCellId(10, 4, 0).ToString());
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * **L'header porta la fase RIPRODOTTA, non quella logica** ([D-479], #3612).
+ *
+ * 🔑 Il caso che il test esiste per prendere e' plausibile: `FRTMatchHeaderView::PlaybackPhase` riempito con
+ * `Phase`. Senza sospensioni `RunPhaseLoop` risolve tutte le fasi prima del playback e riporta `Phase` a
+ * `Planning`, quindi un header cosi' direbbe PIANIFICAZIONE per tutta la riproduzione, e nessuna cella si
+ * accenderebbe. Qui il turno e' vero (scatto + attacco, cioe' Dash e Blast), e la vista si costruisce a ogni
+ * tick del playback con `BuildMatchHeader`, come la costruisce l'HUD.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchHeaderPlaybackPhaseTest,
+	"RefactorTactics.HudViewModel.MatchHeaderCarriesThePlayedPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
+{
+	const auto Nome = [](const ERTMatchPhase Fase)
+	{
+		return StaticEnum<ERTMatchPhase>()->GetNameStringByValue(static_cast<int64>(Fase));
+	};
+
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	SpawnPlaybackMap(World);
+
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("TurnManager spawnato"), TM) || !Dasher || !Target) { DestroyPlaybackWorld(World); return false; }
+
+	const int32 DashIdx = Dasher->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = FRTCellId(3, 2);
+	Dasher->PlannedAbilityIndex = 0;          // attacco base
+	Dasher->PlannedAttackTarget = Target;
+
+	TestEqual(TEXT("prima del turno: nessuna fase riprodotta"),
+		Nome(URTHudViewModel::BuildMatchHeader(TM).PlaybackPhase), Nome(ERTMatchPhase::Planning));
+
+	TM->LockInAndResolve();
+
+	TSet<ERTMatchPhase> Mostrate;
+	int32 Tick = 0;
+	int32 DiversaDallaSorgente = 0;  // il campo dice altro da `GetPlaybackPhase()`
+	int32 Cleanup = 0;               // `PlaybackPhases` non contiene mai `Cleanup`
+	int32 DiversaDallaLogica = 0;    // la distinzione che D-479 punto 2 misura
+	for (; Tick < 600 && TM->IsResolving(); ++Tick)
+	{
+		const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(TM);
+		Mostrate.Add(Header.PlaybackPhase);
+		DiversaDallaSorgente += (Header.PlaybackPhase != TM->GetPlaybackPhase()) ? 1 : 0;
+		Cleanup += (Header.PlaybackPhase == ERTMatchPhase::Cleanup) ? 1 : 0;
+		DiversaDallaLogica += (Header.PlaybackPhase != Header.Phase) ? 1 : 0;
+		TM->Tick(0.05f);
+	}
+
+	if (!TestFalse(TEXT("premessa: il playback e' finito entro il tetto di tick"), TM->IsResolving()))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("a ogni tick il campo e' la fase che il playback mostra"), DiversaDallaSorgente, 0);
+	TestEqual(TEXT("il campo non vale mai Cleanup"), Cleanup, 0);
+	TestTrue(TEXT("l'header ha mostrato il Dash"), Mostrate.Contains(ERTMatchPhase::Dash));
+	TestTrue(TEXT("l'header ha mostrato il Blast"), Mostrate.Contains(ERTMatchPhase::Blast));
+	TestTrue(*FString::Printf(TEXT("in %d tick la fase riprodotta e' stata almeno una volta diversa da quella logica"), Tick),
+		DiversaDallaLogica > 0);
+	TestEqual(TEXT("dopo il playback: nessuna fase riprodotta"),
+		Nome(URTHudViewModel::BuildMatchHeader(TM).PlaybackPhase), Nome(ERTMatchPhase::Planning));
 
 	DestroyPlaybackWorld(World);
 	return true;

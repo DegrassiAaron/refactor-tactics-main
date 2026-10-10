@@ -657,12 +657,8 @@ public:
 	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
 	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
 
-	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test. */
-	ERTMatchPhase CurrentPlaybackPhaseForTest() const
-	{
-		return (bIsResolving && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)) ? PlaybackPhases[PlaybackPhaseIdx]
-			: ERTMatchPhase::Planning;
-	}
+	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test: e' `GetPlaybackPhase()`. */
+	ERTMatchPhase CurrentPlaybackPhaseForTest() const { return GetPlaybackPhase(); }
 
 	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
@@ -940,9 +936,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	bool IsResolving() const { return bIsResolving; }
 
-	/** Nome leggibile della fase in riproduzione (per la HUD). */
+	/** Nome leggibile della fase in riproduzione (per la HUD). Vuoto fuori dal playback. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FString GetPlaybackPhaseName() const;
+
+	/**
+	 * La fase che il playback **sta mostrando**: `PlaybackPhases[PlaybackPhaseIdx]`. Fuori dal playback vale
+	 * `Planning`, che `PlaybackPhases` non contiene mai (`Prep -> Dash -> Blast -> Move`), quindi non si confonde
+	 * con una fase riprodotta.
+	 *
+	 * ⛔ **Non e' `GetPhase()`.** Quella e' la fase LOGICA: senza sospensioni `RunPhaseLoop` risolve tutte le fasi
+	 * prima che il playback cominci e la riporta a `Planning`, quindi un header che la leggesse direbbe
+	 * PIANIFICAZIONE per tutta la riproduzione ([D-479], #3612).
+	 *
+	 * E' la sola sede di questa lettura: `GetPlaybackPhaseName()` e `CurrentPlaybackPhaseForTest()` la usano.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	ERTMatchPhase GetPlaybackPhase() const;
 
 	/** Avanzamento del playback in [0,1] (0 se non in risoluzione). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
