@@ -22,6 +22,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -275,6 +278,69 @@ bool FRTStrategicClickDiagnosisTest::RunTest(const FString&)
 	TestTrue(TEXT("in tattica il raggio colpisce l'unita'"), bTattica);
 	TestTrue(TEXT("in strategica il raggio colpisce l'unita'"), bStrategica);
 
+	RTClickTarget::DestroyClickWorld(World);
+	return true;
+}
+
+
+/**
+ * #3647 — DIAGNOSI con il raggio INCLINATO della camera strategica, su una board vera.
+ *
+ * La camera strategica sta a 2400 dal pivot con pitch -40: il raggio del click non e' verticale. Si posa il
+ * `BP_Unit_Muiren` su una cella con `PlaceOnCell` e si tirano raggi dalla posizione della camera verso quote diverse
+ * dell'attore. Stampa che cosa colpisce ciascun raggio, e la posa del cilindro (`VisualZOffset`, quota, estensione).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStrategicSlantedRayDiagnosisTest,
+	"RefactorTactics.PlayerInput.StrategicSlantedRayDiagnosis",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStrategicSlantedRayDiagnosisTest::RunTest(const FString&)
+{
+	UClass* BpClass = LoadClass<ARTUnit>(nullptr,
+		TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.BP_Unit_Muiren_C"));
+	if (!TestNotNull(TEXT("BP_Unit_Muiren si carica"), BpClass)) { return false; }
+	UWorld* World = RTClickTarget::MakeClickWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = URTMatchSetupLibrary::MakeTestArena(World);
+	MapActor->RerunConstructionScripts();
+	FVector Origin; float HexSize = 0.f; float LayerH = 0.f;
+	MapActor->GetHexContext(Origin, HexSize, LayerH);
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>(BpClass);
+	if (!TestNotNull(TEXT("il Blueprint si spawna"), Unit)) { RTClickTarget::DestroyClickWorld(World); return false; }
+	Unit->PlaceOnCell(FRTCellId(2, -2, 0), Origin, HexSize, LayerH);
+	Unit->SetStrategicPresentation(true);
+
+	TArray<UStaticMeshComponent*> Mesh;
+	Unit->GetComponents<UStaticMeshComponent>(Mesh);
+	for (const UStaticMeshComponent* M : Mesh)
+	{
+		if (M->GetName() == TEXT("Mesh"))
+		{
+			const FBoxSphereBounds B = M->Bounds;
+			AddInfo(FString::Printf(TEXT("VisualZOffset=%.1f attore Z=%.1f cilindro: centro Z=%.1f, Z da %.1f a %.1f"),
+				Unit->VisualZOffset, Unit->GetActorLocation().Z, B.Origin.Z, B.Origin.Z - B.BoxExtent.Z, B.Origin.Z + B.BoxExtent.Z));
+		}
+	}
+	const FVector Suolo = URTHexLibrary::AxialToWorld(FRTCellId(2, -2, 0), Origin, HexSize, LayerH);
+	AddInfo(FString::Printf(TEXT("cella: AxialToWorld Z=%.1f"), Suolo.Z));
+
+	const FVector Pivot = Unit->GetActorLocation();
+	const FVector Camera = Pivot - FRotator(-40.f, 0.f, 0.f).Vector() * 2400.f;
+	int32 Colpi = 0;
+	for (float Dz = -80.f; Dz <= 160.f; Dz += 20.f)
+	{
+		const FVector Bersaglio = FVector(Pivot.X, Pivot.Y, Suolo.Z + Dz);
+		FHitResult Hit;
+		const bool bHit = World->LineTraceSingleByChannel(Hit, Camera, Camera + (Bersaglio - Camera) * 1.5f, ECC_Visibility);
+		const bool bUnita = bHit && Hit.GetActor() == Unit;
+		Colpi += bUnita ? 1 : 0;
+		AddInfo(FString::Printf(TEXT("raggio verso suolo%+.0f: %s / %s"), Dz,
+			bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("nessuno"),
+			bHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("-")));
+	}
+	AddInfo(FString::Printf(TEXT("raggi che prendono l'unita': %d"), Colpi));
 	RTClickTarget::DestroyClickWorld(World);
 	return true;
 }
