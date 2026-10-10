@@ -692,7 +692,7 @@ public:
 
 	/** La spunta di `Conferma`: tinta `Cyan`, o `Text_Disabled` se spenta.
 	 *
-	 * ⚠️ E' un TESTO, il glifo «✓», non un'immagine: il catalogo delle icone non ha una spunta, e la Roboto dell'engine
+	 * ⚠️ E' un TESTO, il glifo «✔», non un'immagine: il catalogo delle icone non ha una spunta, e la Roboto dell'engine
 	 * ripiega su `DroidSansFallback`, che il glifo ce l'ha. I font del progetto (Exo 2, Orbitron) non ce l'hanno e non
 	 * ripiegano: un `TextBlock` con quei font disegna un quadrato vuoto. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")

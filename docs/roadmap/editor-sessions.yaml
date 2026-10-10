@@ -5262,7 +5262,7 @@ sessions:
          fissava.
       3. **La spunta e' un glifo, non un'immagine.** Il catalogo delle icone non ha spunta ne' croce. La Roboto
          dell'engine ripiega su `DroidSansFallback`, che ha ✔ ✖ ▲ ◆ ●. Exo 2 e Orbitron non ripiegano e disegnerebbero un
-         quadrato vuoto. Per questo `ConfirmIcon` e' diventata un `UTextBlock`, che nessun asset usava ancora.
+         quadrato vuoto. Per questo la porta `ConfirmIcon` e' diventata un `UTextBlock`: nessun asset la usava ancora.
 
       ⏳ **Restano tre scarti minori dalla tavola**, giudicati accettabili:
       - i badge dei tasti sono di poco piu' piccoli;
