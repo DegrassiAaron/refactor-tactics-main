@@ -1034,7 +1034,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		auto DichiaraLaCellaConosciuta = [&](FRTBotPlanDecision& P)
 		{
 			const URTActionData* Azione = Bot.GetAbility(BestAbility);
-			const bool bAggancia = Azione && Azione->Def.Fallback == ERTActionFallback::AttackTarget;
+			const bool bAggancia = Azione && Azione->Def.DeclaresTracking(); // D-493: lo stesso predicato del resolver
 			if (!bAggancia && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
 			{
 				P.bAttackTargetsCell = true;

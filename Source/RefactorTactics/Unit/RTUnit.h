@@ -411,6 +411,28 @@ public:
 	}
 
 	/**
+	 * **La cella su cui il piano mira, come la legge chi RISOLVE** ([D-419], #3609). Una lettura sola per ogni
+	 * lettore del bersaglio — attacchi, cura, `ModifyArc`, azioni ambientali, strutture di bordo — invece di una
+	 * copia della stessa espressione per lettore, che e' come la mira congelata era arrivata a uno solo di loro.
+	 *
+	 * - bersaglio a CELLA: la cella dichiarata;
+	 * - mira congelata al lock-in, e l'azione NON aggancia: la mira congelata — anche se l'attore bersaglio non
+	 *   c'e' piu', cosi' un ripiego `AttackCell` cade dove si era puntato;
+	 * - l'azione DICHIARA di agganciare (`FRTActionDef::DeclaresTracking`), o non c'e' mira congelata: la cella
+	 *   viva del bersaglio;
+	 * - nessun bersaglio: la cella di chi agisce.
+	 *
+	 * ⚠️ **Si legge PRIMA di `ClearPlannedAttack()`**, che spegne tutte e tre le forme.
+	 */
+	FRTCellId ResolutionAimCell(bool bDeclaresTracking) const
+	{
+		if (bAttackTargetsCell) { return PlannedAttackCell; }
+		if (bHasPlannedAim && !bDeclaresTracking) { return PlannedAimCell; }
+		if (PlannedAttackTarget) { return PlannedAttackTarget->Cell; }
+		return Cell;
+	}
+
+	/**
 	 * **La cella su cui l'azione principale mira, congelata al LOCK-IN** ([D-415]).
 	 *
 	 * 🔑 **Esiste perche' la mira non deve INSEGUIRE.** Fino al 2026-09-20 il Blast leggeva
@@ -429,8 +451,9 @@ public:
 	 * ottenerlo, solo da non rompere.
 	 *
 	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
-	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. Oggi la dichiara solo
-	 * `Action.Interrupt`, e il perche' sta accanto alla sua riga di catalogo.
+	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. La dichiarano `Action.Interrupt` e
+	 * `Action.Heal` (D-493), e il perche' sta accanto alla riga di catalogo di ciascuna; chi risolve la legge da
+	 * `ResolutionAimCell`.
 	 *
 	 * 🔒 **NON e' visibile ai Blueprint, ed e' deliberato** (CLAUDE.md §7): e' intento della squadra che lo
 	 * dichiara, letto solo dal resolver. Esposto senza filtro, un grafo di presentazione leggerebbe dove mira

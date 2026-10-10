@@ -3338,7 +3338,10 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// dall'unico ingresso che il giocatore ha. Il difetto non si vedeva perche' gli scenari la
 		// pianificano su un'unita', dove il vecchio ramo funziona.
 		const bool bTargetsCell = Caster->bAttackTargetsCell;
-		const FRTCellId PlannedCell = Caster->PlannedAttackCell;
+		// [D-419] (#3609): la cella su cui l'azione ambientale agisce e' la MIRA CONGELATA al lock-in, letta con la
+		// funzione unica e PRIMA dell'azzeramento qui sotto. Le ambientali risolvono in Cleanup, dopo il Dash E dopo il
+		// Move: leggendo la cella viva inseguivano anche il movimento normale. ⌫ *Fino a #3609 `Target->Cell`.*
+		const FRTCellId Mira = Caster->ResolutionAimCell(Ability->Def.DeclaresTracking());
 		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
 		Caster->ClearPlannedAttack();
 
@@ -3354,7 +3357,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// principale che non parte — ma `ConsumeAbility` non viene chiamato piu' in basso, quindi la ricarica
 		// non paga per un'azione che non e' avvenuta.
 		if (RefuseMainActionIfStunned(Caster, Ability->Def, ERTMatchPhase::Cleanup,
-			bTargetsCell ? PlannedCell : (Target ? Target->Cell : Caster->Cell)))
+			Mira))
 		{
 			continue;
 		}
@@ -3377,7 +3380,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// La cella su cui l'azione ambientale agisce: quella DICHIARATA, o quella di chi e' stato puntato.
 		// Una sola derivazione per entrambi i rami — superficie ed elettricita' — cosi' non nascono due
 		// risposte alla stessa domanda.
-		const FRTCellId AimCell = bTargetsCell ? PlannedCell : Target->Cell;
+		const FRTCellId AimCell = Mira;
 
 		// Azioni che modificano la MAPPA (CP 8.4). Quale superficie creano lo dice l'ActionId, ed e' l'unico
 		// punto in cui questo orchestratore lo guarda: la coppia azione->superficie non e' esprimibile come
@@ -4051,8 +4054,10 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		const bool bHasEdge = Unit->bHasPlannedCoverEdge;
 		const ERTHexDirection Edge = Unit->PlannedCoverEdge;
 		const bool bTargetsCell = Unit->bAttackTargetsCell;
-		const FRTCellId TargetCell = bTargetsCell ? Unit->PlannedAttackCell
-			: (Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell);
+		// [D-419] (#3609): la lettura unica, come ogni altro lettore del bersaglio. Le strutture risolvono in Prep,
+		// prima del Dash, quindi qui la mira congelata e la cella viva coincidono: passarle dalla funzione non cambia
+		// l'esito, toglie una copia dell'espressione.
+		const FRTCellId TargetCell = Unit->ResolutionAimCell(Def.DeclaresTracking());
 		const bool bHasTarget = bTargetsCell || Unit->PlannedAttackTarget != nullptr;
 
 		Unit->PlannedAbilityIndex = INDEX_NONE;
