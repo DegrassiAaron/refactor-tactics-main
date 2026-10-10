@@ -835,7 +835,15 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Dash ci arriva col piano ancora addosso) e il loro colpo viene scartato piu' avanti, da
 		// `CollectHexAttacks`, che salta le unita' non vive. Senza il guard un cadavere si girerebbe verso il
 		// bersaglio e lascerebbe la sua voce nel TurnLog: deterministica, ma rumore che entra nell'hash del replay.
-		if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)
+		//
+		// 🔴 **E vale anche per il bersaglio-CELLA**: D-020 dice «un'azione con bersaglio», e la cella dichiarata
+		// lo e'. ⌫ *Fino al 2026-10-10 il ramo chiedeva un `Target` unita', e un attacco a cella non girava
+		// nessuno — una lacuna nata con le dichiarazioni a cella (#2884), rimasta invisibile finche' a usarle
+		// erano pochi giocatori. Da #3229 i bot dichiarano la cella che conoscono, e senza questa riga avrebbero
+		// smesso di girarsi verso cio' che colpiscono, mentre `ScorePlan` (`ArrivalFacingOf`) li stima girati.*
+		// Pinnato da `Combat.Aim.CellAttackFacesTheDeclaredCell`.
+		const bool bHaUnaMira = bTargetsCell || (Target && Target->IsAlive() && Target != Unit);
+		if (Unit->IsAlive() && bHaUnaMira)
 		{
 			ERTHexDirection TowardsTarget = Unit->Facing;
 			if (URTHexLibrary::DirectionTowards(Unit->Cell, AimCell, TowardsTarget))

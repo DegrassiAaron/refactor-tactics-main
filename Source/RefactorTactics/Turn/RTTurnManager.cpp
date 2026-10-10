@@ -1051,6 +1051,7 @@ void ARTTurnManager::PlanBots()
 	Pesi.WElevation = WElevation;
 	Pesi.WEngage = WEngage;
 	Pesi.WEngageDecay = WEngageDecay;
+	Pesi.WPinnedBonusPercent = WPinnedBonusPercent;
 	Pesi.WObjective = WObjective;
 	Pesi.WObjectiveFalloff = WObjectiveFalloff;
 
@@ -1089,7 +1090,12 @@ void ARTTurnManager::PlanBots()
 		// `ClearPlannedAttack`. Scrivere il campo a mano e' precisamente cio' che l'header di `ARTUnit`
 		// vieta, *«finche' l'esclusivita' e' stata una convenzione invece che una funzione nessuno l'ha
 		// rispettata»*.
-		if (Units.IsValidIndex(Piano.PlannedAttackTargetIndex))
+		// (1a) di #3229: il bot dichiara la CELLA che conosce, come un giocatore; l'unita' resta per chi aggancia.
+		if (Piano.bAttackTargetsCell)
+		{
+			Bot->DeclareAttackOnCell(Piano.PlannedAttackCell);
+		}
+		else if (Units.IsValidIndex(Piano.PlannedAttackTargetIndex))
 		{
 			Bot->DeclareAttackOnUnit(Units[Piano.PlannedAttackTargetIndex]);
 		}

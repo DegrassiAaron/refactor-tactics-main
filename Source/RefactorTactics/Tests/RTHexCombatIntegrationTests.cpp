@@ -1834,6 +1834,51 @@ bool FRTAimReorientationFacesTheFrozenAimTest::RunTest(const FString&)
 }
 
 /**
+ * **Anche un attacco dichiarato su una CELLA gira chi lo usa verso la cella** (D-020, #3229).
+ *
+ * 🔴 **Trovato dalla review indipendente di #3229**: il ramo di D-020 chiedeva un bersaglio-unita', e un
+ * attacco a cella non riorientava nessuno. Da quando i bot dichiarano la cella che conoscono, avrebbero smesso
+ * di girarsi verso cio' che colpiscono — e il facing decide la difesa direzionale (CP 16.2).
+ *
+ * Il tiratore parte girato a `W`, dalla parte opposta della cella: «guarda la cella» non puo' essere vero senza
+ * che il riorientamento agisca (controllo positivo misurato con `DirectionTowards`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellAttackFacesTheDeclaredCellTest,
+	"RefactorTactics.Combat.Aim.CellAttackFacesTheDeclaredCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellAttackFacesTheDeclaredCellTest::RunTest(const FString&)
+{
+	const FRTCellId Tiratore(0, 0);
+	const FRTCellId Cella(3, 0);
+	constexpr ERTHexDirection Partenza = ERTHexDirection::W;
+	ERTHexDirection VersoCella = Partenza;
+	if (!TestTrue(TEXT("premessa: esiste una direzione verso la cella"), URTHexLibrary::DirectionTowards(Tiratore, Cella, VersoCella))
+		|| !TestTrue(TEXT("controllo positivo: si parte da una direzione che non e' quella della cella"), VersoCella != Partenza))
+	{
+		return false;
+	}
+
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Tiratore);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Cella);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	Shooter->Facing = Partenza;
+	Shooter->PlannedAbilityIndex = 0;          // attacco base
+	Shooter->DeclareAttackOnCell(Cella);       // la forma che il bot usa da #3229
+	const int32 Prima = Foe->Health;
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("premessa: il colpo e' partito sulla cella (il nemico che ci sta incassa)"), Foe->Health < Prima);
+	TestTrue(TEXT("🔴 il tiratore guarda la cella dichiarata (D-020)"), Shooter->Facing == VersoCella);
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
  * **Il corollario: spostarsi NON basta a salvarsi da un'area** ([D-415]).
  *
  * 🔑 **Regge senza codice nuovo, ed e' la cosa da non rompere.** `CollectHexAttacks` sceglie chi colpire

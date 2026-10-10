@@ -1500,6 +1500,15 @@ public:
 	int32 WEngageDecay = FRTHexBotContext{}.WEngageDecay;
 
 	/**
+	 * Quota (percento) in piu' del valore di un colpo su un nemico che NON puo' scattare via prima del Blast
+	 * ([D-415], #3229): con la mira che non insegue, e' il bersaglio su cui il colpo arriva davvero. **Zero
+	 * lo spegne** e riporta il bot a scegliere i bersagli come se la mira inseguisse. Vedi
+	 * `FRTHexBotContext::WPinnedBonusPercent` per perche' e' un bonus e non una penalita'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WPinnedBonusPercent = FRTHexBotContext{}.WPinnedBonusPercent;
+
+	/**
 	 * Quanto vale CONTROLLARE la cella obiettivo, cioe' terminare il piano sopra di essa (`#2269`).
 	 *
 	 * E' la categoria `Objective` di `spec-bot-tattico.md` §5, e prima di questa riga il punteggio del bot

@@ -189,12 +189,40 @@ struct FRTHexBotContext
 	 */
 	UPROPERTY() TArray<bool> EnemyUnbalanced;
 
+	/**
+	 * Se ciascun nemico (parallelo a `Enemies`) puo' SCATTARE VIA prima del Blast ([D-415], #3229).
+	 *
+	 * 🔑 **Esiste perche' la mira non insegue piu'.** Un colpo pianificato su chi scatta nel Dash cade sulla
+	 * cella che ha lasciato: per un bersaglio che puo' scattare il colpo vale MENO, e il bot lo deve sapere
+	 * quando sceglie fra due bersagli. Senza, le partite fra bot sull'arena generata non si concludevano piu'.
+	 *
+	 * 🔒 **Solo dato pubblico, mai l'intento** (decisione d'autore del 2026-10-10 su #3229): il KIT (ha una
+	 * mobilita' rapida?) e' catalogo, la ricarica dello scatto e' stato osservabile. Su un contatto INCERTO la
+	 * ricarica non si conosce, e si assume il caso sfavorevole — puo' scattare se il kit lo prevede — come per
+	 * gli HP e la condizione del ricordo: il bot perde occasioni, non ne inventa.
+	 */
+	UPROPERTY() TArray<bool> EnemyCanEscape;
+
 	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
 	UPROPERTY() int32 KiteStandoff = 0;
 
 	// Pesi interi (bilanciabili senza toccare la logica; invariante #4: niente float). Default: il kill domina.
 	UPROPERTY() int32 WKill = 10000;
 	UPROPERTY() int32 WDamage = 10;
+	/**
+	 * Quota (percento) IN PIU' del valore di un colpo su un nemico che NON puo' scattare via (`EnemyCanEscape`
+	 * falso, #3229): danno e kill su di lui valgono `(100 + questa)`%. **Zero la spegne**: `FRTBotWeights`
+	 * nasce a zero, e i test che chiamano il planner coi pesi di default restano identici.
+	 *
+	 * 🔴 **Un BONUS, non una penalita' — misurato.** La prima stesura toglieva valore al colpo su chi PUO'
+	 * scattare: sull'arena generata ogni nemico di una squadra ha una mobilita' rapida, la penalita' non
+	 * distingueva fra bersagli e abbassava il valore di OGNI attacco rispetto al solo movimento — lo stallo e'
+	 * passato da 5 a 10 turni. Il bonus sposta la scelta fra bersagli senza rendere l'attacco meno
+	 * desiderabile del non attaccare. La leva vera e' la RICARICA: chi ha appena scattato non puo' rifarlo.
+	 * ⚠️ Il numero non e' una scelta di design: si misura contro gli oracoli dell'arena generata
+	 * (`Match.Autobattle.EngagesOnTheGeneratedTestArena`, `Bot.StallDefinitionsOnTheGeneratedTestArena`).
+	 */
+	UPROPERTY() int32 WPinnedBonusPercent = 400;
 	/**
 	 * Peso del danno inflitto a un ALLEATO dal collaterale di un'area. Pari a WDamage per default: un punto
 	 * di danno al compagno annulla esattamente un punto di danno al nemico, quindi prendere due nemici e un
