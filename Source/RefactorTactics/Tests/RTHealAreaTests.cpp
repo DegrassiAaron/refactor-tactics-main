@@ -385,7 +385,7 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 
 	const FRTCellId Puntata(2, 0, 0);
 	const FRTCellId Scattata(4, 0, 0);
-	const FRTCellId Accanto(2, -1, 0); // a un passo dalla cella puntata, a due da quella dello scatto
+	const FRTCellId Accanto(2, -1, 0); // a un passo dalla cella puntata, a tre da quella dello scatto
 	ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
 	ARTUnit* Puntato = SpawnHealUnit(World, 0, Puntata, URTHeroCatalogLibrary::MakeAevik());
 	ARTUnit* Vicino = SpawnHealUnit(World, 0, Accanto, URTHeroCatalogLibrary::MakeBranth());
