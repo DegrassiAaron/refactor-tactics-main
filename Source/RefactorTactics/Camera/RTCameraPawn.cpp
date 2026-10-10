@@ -470,6 +470,12 @@ void ARTCameraPawn::ToggleStrategicView()
 	}
 	else
 	{
+		// 🔴 **#3646 — la distanza di partenza si registra QUI, non si eredita.** `LastTacticalArmLength` la scrive
+		// `UpdateStrategicState`, ma non tutti gli scrittori del braccio passano di li': `FrameOwnTeam` apre la
+		// partita a `MatchStartArmLength` scrivendo `TargetArmLength` direttamente. Senza questa riga il primo `Tab`
+		// della partita tornava alla distanza di `BeginPlay` (800) invece che a quella d'avvio (450) — trovato in
+		// PIE (seduta `U73`), invisibile ai test che partivano da `AddZoom`.
+		LastTacticalArmLength = SpringArm->TargetArmLength;
 		ApplyArmLength(Enter);
 	}
 

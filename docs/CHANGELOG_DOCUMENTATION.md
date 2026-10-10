@@ -2,6 +2,81 @@
 
 ---
 
+## 2026-10-11 — Il secondo `Tab` torna alla distanza d'avvio
+
+**Origine**: difetto trovato in PIE (seduta `U73`), issue [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: la distanza di ritorno si registra al momento del salto, perché `FrameOwnTeam` scrive il braccio senza passare da `UpdateStrategicState` |
+
+## 2026-10-10 — La vista strategica dal vivo: seduta `U73`, due voci PIE e due difetti
+
+**Origine**: la seduta PIE del nucleo della vista strategica ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)), su `main` = `60cd52898`.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | nuove `PIE-CAM-STRATEGIC` e `PIE-CAM-STRATEGIC-RICORDO`, entrambe parziali; totali rimisurati con A1 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | seduta `U73`: come è stata condotta, i due difetti ([#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646), [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)) e la tornata scartata |
+
+## 2026-10-10 — Il registro ha le porte della tavola D, e compare solo in Risoluzione
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster registro, parte C++. Issue
+[#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-sexies: il registro, la riga, e perché il «#n» è la posizione nel feed filtrato |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga D4 di §6 |
+
+---
+
+## 2026-10-10 — Roster e pannello hanno le porte della tavola: la carta ha una classe C++
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello, parte C++. Issue
+[#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quinquies: la carta, il roster che la costruisce, i chip e gli avvisi del pannello |
+
+---
+
+## 2026-10-10 — L'header e l'obiettivo hanno le porte delle tavole A e D
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo, parte C++. Issue
+[#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §5: le porte dell'header, delle quattro celle e dell'obiettivo |
+
+---
+
+## 2026-10-10 — La finestra di reazione ha le porte della tavola E
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione, parte C++. Issue
+[#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-bis e §7-ter: le porte della finestra e dell'opzione, e le due letture nuove |
+
+---
+
+## 2026-10-10 — Conferma come la tavola B: la seduta `U72`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster Conferma. Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U72`, eseguita, con le misure e le tre correzioni trovate a schermo |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T8 di §9: Conferma fatta |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | la riga di `Zone_TopRight`; §7-quater, le cornici dipinte dal C++ e i glifi |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u72-conferma-accanto-alla-tavola.png` e `u72-conferma-stati.png` |
+
+---
+
 ## 2026-10-10 — Il nucleo della vista strategica: `Tab` la apre, `N` cicla la selezione, le unità diventano segnalini
 
 **Origine**: il nucleo di [D-495](decisions/RT_PDR_00_Decision_Log.md), issue

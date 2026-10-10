@@ -32,6 +32,10 @@
 #include "Unit/RTUnit.h"
 #include "RTWorldFixtures.h"
 #include "Kismet/GameplayStatics.h"
+#include "UI/RTUIPalette.h"
+#include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
+#include "Tests/RTAbilityFixtures.h" // AddCoreAbility: lo slot di reazione del pannello si prova su un'azione vera (#3636)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -812,6 +816,227 @@ bool FRTPlanCommitHidesInResolutionTest::RunTest(const FString&)
 	}
 	Conferma->RefreshButtons();
 	TestEqual(TEXT("in Risoluzione il riquadro e' chiuso"), Conferma->CommitRoot->GetVisibility(), ESlateVisibility::Collapsed);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **I CHIP E GLI AVVISI DEL PANNELLO SEGUONO IL PIANO DELLA COMANDATA, E TACCIONO PER L'ISPEZIONATA** (#3636, T8,
+ * [D-480]).
+ *
+ * Lo stesso banco di `PlanWarningsFollowTheCommandAndHideInResolution`: un'azione con ricarica pianificata mentre e'
+ * in ricarica da' un Critical che nomina quell'azione.
+ *  1. il chip PRINCIPALE ha il nome dell'azione, la striscia della sua fase e il «!»; gli slot liberi dicono «—»;
+ *  2. l'elenco ha una voce per avviso, con la forma del livello;
+ *  3. un'unita' ispezionata — che un piano ce l'ha — non porta ne' chip ne' avvisi;
+ *  4. in Risoluzione i chip si chiudono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelChipsAndWarningsTest,
+	"RefactorTactics.ScreenHud.PanelChipsAndWarningsFollowThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelChipsAndWarningsTest::RunTest(const FString&)
+{
+	FSlotRefusalBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpSlotRefusalBench(B)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	ARTTurnManager* TM = SlotRefusalTurnManager(B.World);
+	URTSelectedUnitPanelWidget* P = NewObject<URTSelectedUnitPanelWidget>(B.World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("pannello"), P))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	P->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	P->SetSelectedUnitForTest(B.Mine);
+
+	const auto Uguale = [](const FText& Testo, const FString& Atteso) { return Testo.ToString().Equals(Atteso, ESearchCase::CaseSensitive); };
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	const auto Cornice = [P]()
+	{
+		UBorder* B = NewObject<UBorder>(P);
+		FSlateBrush Brush = B->Background;
+		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+		B->SetBrush(Brush);
+		return B;
+	};
+	P->PlanChipsBox = NewObject<UBorder>(P);
+	const auto Porte = [&](TObjectPtr<UBorder>& Frame, TObjectPtr<UBorder>& Strip, TObjectPtr<UTextBlock>& Valore, TObjectPtr<UWidget>& Avviso)
+	{
+		Frame = Cornice();
+		Strip = NewObject<UBorder>(P);
+		Valore = NewObject<UTextBlock>(P);
+		Avviso = NewObject<UBorder>(P);
+	};
+	Porte(P->MainChipFrame, P->MainChipStrip, P->MainChipValueText, P->MainChipAlert);
+	Porte(P->MovementChipFrame, P->MovementChipStrip, P->MovementChipValueText, P->MovementChipAlert);
+	Porte(P->ReactionChipFrame, P->ReactionChipStrip, P->ReactionChipValueText, P->ReactionChipAlert);
+	UVerticalBox* Elenco = NewObject<UVerticalBox>(P);
+	P->PlanWarningsBox = Elenco;
+	P->PlanWarningEntryClass = URTPlanWarningEntryWidget::StaticClass();
+
+	const int32 MiaRicarica = SlotRefusalCooldownAbility(B.Mine);
+	const int32 SuaRicarica = SlotRefusalCooldownAbility(B.Nemico);
+	if (!TestTrue(TEXT("premessa: entrambi i kit hanno una ricarica"), MiaRicarica != INDEX_NONE && SuaRicarica != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedAbilityIndex = MiaRicarica;
+	B.Mine->ConsumeAbility(MiaRicarica);
+	B.Nemico->PlannedAbilityIndex = SuaRicarica;
+	B.Nemico->ConsumeAbility(SuaRicarica);
+	const URTActionData* Azione = B.Mine->GetAbility(MiaRicarica);
+
+	// --- 1. I chip della comandata ------------------------------------------------------------------------------------
+	P->RefreshLook();
+	TestTrue(TEXT("1: i chip della comandata ci sono"), Visibile(P->PlanChipsBox));
+	TestTrue(TEXT("1: PRINCIPALE dice il nome dell'azione"), Uguale(P->MainChipValueText->GetText(), Azione->DisplayName.ToString()));
+	TestTrue(TEXT("1: e ha il «!», perche' un Critical la nomina"), Visibile(P->MainChipAlert));
+	TestTrue(TEXT("1: col contorno Amber"),
+		P->MainChipFrame->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Colore(ERTUIToken::Amber)));
+	const ERTActionPhaseMark Segno = URTHudViewModel::PhaseMarkFor(Azione->Def);
+	TestTrue(TEXT("1: premessa: l'azione ha una fase con un colore"),
+		Segno != ERTActionPhaseMark::None && Segno != ERTActionPhaseMark::Cleanup);
+	const auto ColoreDiFase = [&Colore](ERTActionPhaseMark M)
+	{
+		switch (M)
+		{
+		case ERTActionPhaseMark::Prep:     return Colore(ERTUIToken::Phase_Prep);
+		case ERTActionPhaseMark::Dash:     return Colore(ERTUIToken::Phase_Dash);
+		case ERTActionPhaseMark::Blast:    return Colore(ERTUIToken::Phase_Blast);
+		case ERTActionPhaseMark::Move:     return Colore(ERTUIToken::Phase_Move);
+		case ERTActionPhaseMark::Reaction: return Colore(ERTUIToken::Violet);
+		default:                           return FLinearColor::Transparent;
+		}
+	};
+	TestTrue(TEXT("1: la striscia ha il colore della SUA fase"), P->MainChipStrip->GetBrushColor().Equals(ColoreDiFase(Segno)));
+	TestTrue(TEXT("1: MOVIMENTO, libero, dice «—»"), Uguale(P->MovementChipValueText->GetText(), TEXT("—")));
+	TestFalse(TEXT("1: e non ha il «!»"), Visibile(P->MovementChipAlert));
+	TestEqual(TEXT("1: e la sua striscia e' trasparente"), P->MovementChipStrip->GetBrushColor().A, 0.f);
+	TestTrue(TEXT("1: in Text_Disabled"),
+		P->MovementChipValueText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Disabled)));
+	TestTrue(TEXT("1: REAZIONE, libera, dice «—»"), Uguale(P->ReactionChipValueText->GetText(), TEXT("—")));
+
+	// --- 2. L'elenco degli avvisi --------------------------------------------------------------------------------------
+	const TArray<FRTPlanWarningView> Avvisi = P->GetPlanWarnings();
+	if (!TestTrue(TEXT("2: premessa: la comandata ha un avviso"), Avvisi.Num() > 0))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	TestTrue(TEXT("2: l'elenco c'e'"), Visibile(Elenco));
+	TestEqual(TEXT("2: una voce per avviso"), P->GetWarningEntries().Num(), Avvisi.Num());
+	TestEqual(TEXT("2: e tutte nell'elenco"), Elenco->GetChildrenCount(), Avvisi.Num());
+	if (P->GetWarningEntries().Num() > 0)
+	{
+		URTPlanWarningEntryWidget* Voce = P->GetWarningEntries()[0];
+		TestEqual(TEXT("2: la prima voce e' il primo avviso"), Voce->GetWarning().SourceActionId, Avvisi[0].SourceActionId);
+		TestTrue(TEXT("2: premessa: il primo avviso e' il Critical"), Avvisi[0].Level == ERTPlanWarningLevel::Critical);
+
+		// Le porte della voce, scritte da `SetWarning` (la classe C++ non ha l'albero dell'asset).
+		Voce->EntryFrame = Cornice();
+		Voce->LevelGlyphText = NewObject<UTextBlock>(P);
+		Voce->LevelText = NewObject<UTextBlock>(P);
+		Voce->WhatText = NewObject<UTextBlock>(P);
+		Voce->SetWarning(Avvisi[0]);
+		TestTrue(TEXT("2: un Critical ha la forma del rombo"), Uguale(Voce->LevelGlyphText->GetText(), TEXT("◆")));
+		TestTrue(TEXT("2: e il nome del livello in maiuscolo"), Uguale(Voce->LevelText->GetText(), TEXT("CRITICAL")));
+		TestTrue(TEXT("2: col contorno Red"),
+			Voce->EntryFrame->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Colore(ERTUIToken::Red)));
+		TestTrue(TEXT("2: e il «cosa» dell'avviso"), Voce->WhatText->GetText().EqualTo(Avvisi[0].What));
+
+		// Gli altri due livelli: la forma e il nome cambiano con il livello, non solo il colore.
+		FRTPlanWarningView Altro = Avvisi[0];
+		Altro.Level = ERTPlanWarningLevel::Warning;
+		Voce->SetWarning(Altro);
+		TestTrue(TEXT("2: un Warning ha la forma del triangolo"), Uguale(Voce->LevelGlyphText->GetText(), TEXT("▲")));
+		TestTrue(TEXT("2: e dice WARNING"), Uguale(Voce->LevelText->GetText(), TEXT("WARNING")));
+		TestTrue(TEXT("2: col contorno Amber"),
+			Voce->EntryFrame->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Colore(ERTUIToken::Amber)));
+		Altro.Level = ERTPlanWarningLevel::Info;
+		Voce->SetWarning(Altro);
+		TestTrue(TEXT("2: un Info ha la forma del cerchio"), Uguale(Voce->LevelGlyphText->GetText(), TEXT("●")));
+		TestTrue(TEXT("2: e dice INFO"), Uguale(Voce->LevelText->GetText(), TEXT("INFO")));
+		TestTrue(TEXT("2: col contorno Cyan"),
+			Voce->EntryFrame->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Colore(ERTUIToken::Cyan)));
+	}
+
+	// --- 2b. Un percorso e una reazione: chip occupati, mai l'id grezzo -------------------------------------------------
+	const int32 Contro = RTAbilityFixtures::AddCoreAbility(B.Mine, TEXT("Action.Counter"));
+	if (!TestTrue(TEXT("2b: premessa: la comandata ha il Counter nel kit"), Contro != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedWaypoints.Add(GSlotRefusalInVista);
+	B.Mine->PlannedReactionAbility = Contro;
+	P->RefreshLook();
+	const FRTUnitSlotsView ConPercorso = P->GetSlots();
+	TestTrue(TEXT("2b: premessa: il movimento e' un percorso, senza azione"),
+		ConPercorso.Movement.bOccupied && ConPercorso.Movement.ActionId.IsNone());
+	TestTrue(TEXT("2b: MOVIMENTO descrive il percorso come lo slot del pannello"),
+		Uguale(P->MovementChipValueText->GetText(), ARTHUD::DescribeMovementSlot(ConPercorso).ToString()));
+	TestTrue(TEXT("2b: con la striscia del Move"), P->MovementChipStrip->GetBrushColor().Equals(ColoreDiFase(ERTActionPhaseMark::Move)));
+	const FString Reazione = P->ReactionChipValueText->GetText().ToString();
+	TestFalse(TEXT("2b: REAZIONE occupata non dice «—»"), Reazione.Equals(TEXT("—"), ESearchCase::CaseSensitive));
+	TestFalse(*FString::Printf(TEXT("2b: e non dice l'id grezzo (reso: «%s»)"), *Reazione), Reazione.Contains(TEXT("Action.")));
+	TestTrue(TEXT("2b: con la striscia della reazione"), P->ReactionChipStrip->GetBrushColor().Equals(ColoreDiFase(ERTActionPhaseMark::Reaction)));
+	B.Mine->PlannedWaypoints.Reset();
+	B.Mine->PlannedReactionAbility = INDEX_NONE;
+
+	// --- 3. L'ispezionata: un piano ce l'ha, ma il pannello non ne porta niente ----------------------------------------
+	FRTPlanWarningCounts Sua;
+	URTHudViewModel::AddPlanWarningCounts(URTHudViewModel::BuildPlanWarnings(B.Nemico, { B.Mine, B.Nemico }), Sua);
+	if (!TestEqual(TEXT("3: premessa: il piano dell'avversaria darebbe un Critical"), Sua.Critical, 1))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	P->RefreshLook();
+	if (!TestTrue(TEXT("3: premessa: prima dell'ispezione l'elenco della comandata c'e'"), Visibile(Elenco)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	P->SetSelectedUnitForTest(nullptr);
+	P->SetInspectedUnitForTest(B.Nemico);
+	// Senza riconteggio: l'elenco della comandata di prima non deve restare accanto alla carta dell'ispezionata.
+	P->RefreshLook(/*bRecountWarnings=*/ false);
+	TestTrue(TEXT("3: premessa: il pannello ha un soggetto"), P->HasSubject());
+	TestFalse(TEXT("3: niente chip per l'ispezionata — chiusi, non «—»"), Visibile(P->PlanChipsBox));
+	TestFalse(TEXT("3: niente elenco, SUBITO, senza aspettare il riconteggio"), Visibile(Elenco));
+	TestEqual(TEXT("3: e nessuna voce"), P->GetWarningEntries().Num(), 0);
+
+	// --- 4. In Risoluzione chip ed elenco si chiudono, anche per la comandata ------------------------------------------
+	P->SetInspectedUnitForTest(nullptr);
+	P->SetSelectedUnitForTest(B.Mine);
+	P->RefreshLook();
+	if (!TestTrue(TEXT("4: premessa: in Pianificazione l'elenco della comandata c'e'"), Visibile(Elenco)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->ClearPlannedAttack();
+	B.Mine->PlannedAbilityIndex = GSlotRefusalAttacco;
+	B.Mine->PlannedAttackTarget = B.Nemico;
+	B.Nemico->PlannedAbilityIndex = INDEX_NONE;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("4: premessa: il turno e' in risoluzione"), TM->IsResolving()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedAbilityIndex = MiaRicarica; // la vista diretta vedrebbe un avviso: il pannello deve tacere lo stesso
+	P->RefreshLook(/*bRecountWarnings=*/ false);
+	TestTrue(TEXT("4: premessa: gli slot della comandata restano autorizzati — la causa e' la Risoluzione"), P->GetSlots().bAuthorized);
+	TestFalse(TEXT("4: in Risoluzione i chip si chiudono"), Visibile(P->PlanChipsBox));
+	TestFalse(TEXT("4: e l'elenco, SUBITO"), Visibile(Elenco));
+	TestEqual(TEXT("4: senza voci"), P->GetWarningEntries().Num(), 0);
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

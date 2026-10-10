@@ -15,6 +15,7 @@
 #include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
 #include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
 #include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
+#include "Map/RTHexMapAsset.h"                // HasObjectiveCell: il punteggio ha senso solo con un obiettivo (#3635)
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del tooltip (`#3499`)
@@ -91,6 +92,45 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	return View;
 }
 
+FString URTHudViewModel::ComposePhaseWord(const FRTMatchHeaderView& Header)
+{
+	// Il countdown del Ready e la finestra di preparazione hanno la propria parola: la fase e' ancora Planning,
+	// e i due stati devono distinguersi senza contare i secondi (`#2358`, `#2386`).
+	const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
+	const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
+	switch (Header.Phase)
+	{
+	case ERTMatchPhase::Planning:
+		return bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
+			: bReadyCountdown ? TEXT("Ready")
+			: TEXT("Pianificazione");
+	case ERTMatchPhase::MatchEnded:
+		return TEXT("Fine");
+	default:
+		return TEXT("Risoluzione");
+	}
+}
+
+bool URTHudViewModel::MapDeclaresObjective(const ARTTurnManager* TurnManager)
+{
+	if (!TurnManager)
+	{
+		return false;
+	}
+	// La stessa mappa che il Cleanup valuta: quella dell'attore nel mondo, via `GetHexContext` dell'attore (quello del
+	// manager e' protetto, e ci inoltra).
+	const ARTHexMapActor* Attore = ARTHexMapActor::FindInWorld(TurnManager->GetWorld());
+	if (!Attore)
+	{
+		return false;
+	}
+	FVector Origine;
+	float Lato = 0.f;
+	float Piano = 0.f;
+	const URTHexMapAsset* Mappa = Attore->GetHexContext(Origine, Lato, Piano);
+	return Mappa && Mappa->HasObjectiveCell();
+}
+
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
 	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'
@@ -129,6 +169,7 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	}
 
 	Card.HeroId = Unit->HeroId;
+	Card.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
 	Card.Health = Unit->Health;
 	Card.MaxHealth = Unit->MaxHealth;
 	Card.Shield = Unit->Shield;
@@ -1353,6 +1394,9 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 		// rimetterebbe nel Blueprint la distinzione fra «cella (0,0,0)» e «nessuna cella», che e' proprio
 		// dove `FRTCellId::IsValid()` risponde di si' e marcherebbe l'origine dell'arena.
 		Line.bHasBlocker = Event.HasBlockerCell();
+		Line.Phase = Event.Phase;
+		Line.Sequence = i + 1; // la posizione fra gli eventi GIA' filtrati: nessun buco da cui contare il nascosto
+		Line.bReaction = Event.Type == ERTPlayerEventType::ReactionFired;
 	}
 	return Lines;
 }
@@ -1571,3 +1615,41 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 }
 
 #undef LOCTEXT_NAMESPACE
+
+ERTPlanChip URTHudViewModel::ChipForWarning(const FRTUnitSlotsView& Slots, const FRTPlanWarningView& Warning)
+{
+	if (!Slots.bAuthorized || Warning.SourceActionId.IsNone())
+	{
+		return ERTPlanChip::None;
+	}
+	if (Slots.Main.bOccupied && Warning.SourceActionId == Slots.Main.ActionId)
+	{
+		return ERTPlanChip::Main;
+	}
+	if (Slots.Reaction.bOccupied && Warning.SourceActionId == Slots.Reaction.ActionId)
+	{
+		return ERTPlanChip::Reaction;
+	}
+	return Slots.Movement.bOccupied ? ERTPlanChip::Movement : ERTPlanChip::None;
+}
+
+ERTActionPhaseMark URTHudViewModel::SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot)
+{
+	if (!Unit || !Slot.bOccupied)
+	{
+		return ERTActionPhaseMark::None;
+	}
+	if (Slot.ActionId.IsNone())
+	{
+		return ERTActionPhaseMark::Move; // un percorso: lo slot e' occupato senza un'azione
+	}
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* Azione = Unit->GetAbility(i);
+		if (Azione && Azione->Def.ActionId == Slot.ActionId)
+		{
+			return PhaseMarkFor(Azione->Def);
+		}
+	}
+	return ERTActionPhaseMark::None;
+}

@@ -471,7 +471,7 @@ protected:
 	/** Ortografica solo in strategica e solo se la leva e' accesa; altrimenti prospettica. La chiama `UpdateStrategicState`. */
 	void ApplyStrategicProjection();
 
-	/** Vedi `GetLastTacticalArmLength`. La scrive solo `UpdateStrategicState`, a ogni lettura in cui la vista e' tattica. */
+	/** Vedi `GetLastTacticalArmLength`. La scrivono `UpdateStrategicState`, a ogni lettura in cui la vista e' tattica, e `ToggleStrategicView` subito prima del salto (#3646): non tutti gli scrittori del braccio passano dalla prima. */
 	float LastTacticalArmLength = -1.f;
 
 	/** Le due soglie in ordine, `Exit <= Enter` per costruzione: una sede sola per chi le confronta. */
