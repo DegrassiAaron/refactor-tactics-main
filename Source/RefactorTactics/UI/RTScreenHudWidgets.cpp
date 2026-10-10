@@ -1947,6 +1947,20 @@ void URTTacticalHUDWidget::NativeConstruct()
 
 namespace
 {
+	bool RTSameWarning(const FRTPlanWarningView& A, const FRTPlanWarningView& B)
+	{
+		return A.Level == B.Level && A.SourceActionId == B.SourceActionId && A.What.EqualTo(B.What)
+			&& A.Why.EqualTo(B.Why) && A.Cost.EqualTo(B.Cost);
+	}
+
+	/** L'ultimo segmento di un id, `Action.Counter` -> `Counter`: la cascata di `ARTUnit::DisplayLabel`. */
+	FText RTLastIdSegment(const FName& Id)
+	{
+		const FString Testo = Id.ToString();
+		int32 Punto = INDEX_NONE;
+		return FText::FromString(Testo.FindLastChar(TEXT('.'), Punto) ? Testo.Mid(Punto + 1) : Testo);
+	}
+
 	bool RTSameCard(const FRTUnitCardView& A, const FRTUnitCardView& B)
 	{
 		return A.HeroId == B.HeroId && A.DisplayName.EqualTo(B.DisplayName) && A.Health == B.Health
@@ -2036,7 +2050,9 @@ void URTUnitCardWidget::SetCard(const FRTUnitCardView& InCard, bool bInReactionA
 
 void URTPlanWarningEntryWidget::SetWarning(const FRTPlanWarningView& InWarning)
 {
+	const bool bCambiato = !bHasWarning || !RTSameWarning(Warning, InWarning);
 	Warning = InWarning;
+	bHasWarning = true;
 
 	using T = ERTUIToken;
 	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
@@ -2098,10 +2114,13 @@ void URTPlanWarningEntryWidget::SetWarning(const FRTPlanWarningView& InWarning)
 		CostText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
 	}
 
-	OnWarningChanged();
+	if (bCambiato)
+	{
+		OnWarningChanged();
+	}
 }
 
-void URTTeamRosterWidget::RefreshCards()
+void URTTeamRosterWidget::RefreshCards(bool bRecountReactions)
 {
 	if (!CardsBox || !CardClass)
 	{
@@ -2132,14 +2151,25 @@ void URTTeamRosterWidget::RefreshCards()
 	}
 	for (int32 i = 0; i < Roster.Num(); ++i)
 	{
-		Cards[i]->SetCard(Roster[i], IsReactionArmed(Roster[i].HeroId));
+		const FName Eroe = Roster[i].HeroId;
+		if (bRecountReactions || !ArmedByHero.Contains(Eroe))
+		{
+			ArmedByHero.Add(Eroe, IsReactionArmed(Eroe));
+		}
+		Cards[i]->SetCard(Roster[i], ArmedByHero.FindChecked(Eroe));
 	}
 }
 
 void URTTeamRosterWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	RefreshCards();
+	SecondsSinceReactionRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceReactionRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceReactionRecount = 0.f;
+	}
+	RefreshCards(bRiconta);
 }
 
 void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
@@ -2153,18 +2183,31 @@ void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
 	// ⛔ Chiuso, non «—», per chi non si comanda: tre «—» direbbero «non ha pianificato» (#2757).
 	RTShowIf(PlanChipsBox, Slots.bAuthorized && !bRisoluzione);
 
-	if (bRecountWarnings)
-	{
-		LastWarnings = GetPlanWarnings(); // vuoto in Risoluzione e per un'unita' non comandata
-	}
-
+	// Fuori dal piano della comandata gli avvisi si azzerano SUBITO, non al prossimo riconteggio: in Risoluzione
+	// [D-480] li vuole nascosti, e per un'ispezionata non ci sono. Cambiata la comandata, si riconta subito.
 	const ARTUnit* Comandata = GetSelectedUnit();
-	const auto Chip = [&](const FRTPlannedSlotView& VistaSlot, bool bMovimento, UBorder* Frame, UBorder* Strip,
+	bool bRicontati = false;
+	if (!Slots.bAuthorized || bRisoluzione)
+	{
+		LastWarnings.Reset();
+		LastWarningsSubject.Reset();
+	}
+	else if (bRecountWarnings || LastWarningsSubject.Get() != Comandata)
+	{
+		LastWarnings = GetPlanWarnings();
+		LastWarningsSubject = Comandata;
+		bRicontati = true;
+	}
+	const auto Chip = [&](const FRTPlannedSlotView& VistaSlot, ERTPlanChip Quale, UBorder* Frame, UBorder* Strip,
 		UTextBlock* Valore, UWidget* Avviso)
 	{
+		const bool bMovimento = Quale == ERTPlanChip::Movement;
 		const bool bOccupato = Slots.bAuthorized && VistaSlot.bOccupied;
-		const bool bAvviso = bOccupato && !VistaSlot.ActionId.IsNone()
-			&& LastWarnings.ContainsByPredicate([&VistaSlot](const FRTPlanWarningView& W) { return W.SourceActionId == VistaSlot.ActionId; });
+		// Ogni avviso a un chip solo (`ChipForWarning`): anche quelli sulle voci di movimento che lo slot non nomina.
+		const bool bAvviso = bOccupato && LastWarnings.ContainsByPredicate([&Slots, Quale](const FRTPlanWarningView& W)
+		{
+			return URTHudViewModel::ChipForWarning(Slots, W) == Quale;
+		});
 
 		RTPaintFrame(Frame, C(T::BG_Raised), C(bAvviso ? T::Amber : T::Frame_Off), 1.f);
 		if (Strip)
@@ -2178,17 +2221,19 @@ void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
 			if (bOccupato)
 			{
 				// Un percorso non ha un'azione: lo descrive la stessa riga dello slot movimento del pannello.
+				// Mai l'id grezzo: il nome del kit, la descrizione del percorso, o l'ultimo segmento dell'id.
 				Testo = !VistaSlot.DisplayName.IsEmpty() ? VistaSlot.DisplayName
-					: (bMovimento ? ARTHUD::DescribeMovementSlot(Slots) : FText::FromName(VistaSlot.ActionId));
+					: (bMovimento && VistaSlot.ActionId.IsNone()) ? ARTHUD::DescribeMovementSlot(Slots)
+					: RTLastIdSegment(VistaSlot.ActionId);
 			}
 			Valore->SetText(Testo);
 			Valore->SetColorAndOpacity(FSlateColor(C(bOccupato ? T::Text_Primary : T::Text_Disabled)));
 		}
 		RTShowIf(Avviso, bAvviso);
 	};
-	Chip(Slots.Main, false, MainChipFrame, MainChipStrip, MainChipValueText, MainChipAlert);
-	Chip(Slots.Movement, true, MovementChipFrame, MovementChipStrip, MovementChipValueText, MovementChipAlert);
-	Chip(Slots.Reaction, false, ReactionChipFrame, ReactionChipStrip, ReactionChipValueText, ReactionChipAlert);
+	Chip(Slots.Main, ERTPlanChip::Main, MainChipFrame, MainChipStrip, MainChipValueText, MainChipAlert);
+	Chip(Slots.Movement, ERTPlanChip::Movement, MovementChipFrame, MovementChipStrip, MovementChipValueText, MovementChipAlert);
+	Chip(Slots.Reaction, ERTPlanChip::Reaction, ReactionChipFrame, ReactionChipStrip, ReactionChipValueText, ReactionChipAlert);
 
 	// Gli avvisi: una voce per avviso, dalla classe dei default; le voci che ci sono si riusano.
 	RTShowIf(PlanWarningsBox, LastWarnings.Num() > 0);
@@ -2214,7 +2259,7 @@ void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
 		PlanWarningsBox->AddChild(Voce);
 		WarningEntries.Add(Voce);
 	}
-	if (bRecountWarnings)
+	if (bRicontati)
 	{
 		for (int32 i = 0; i < LastWarnings.Num(); ++i)
 		{

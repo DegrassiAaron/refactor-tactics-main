@@ -1613,6 +1613,23 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 
 #undef LOCTEXT_NAMESPACE
 
+ERTPlanChip URTHudViewModel::ChipForWarning(const FRTUnitSlotsView& Slots, const FRTPlanWarningView& Warning)
+{
+	if (!Slots.bAuthorized || Warning.SourceActionId.IsNone())
+	{
+		return ERTPlanChip::None;
+	}
+	if (Slots.Main.bOccupied && Warning.SourceActionId == Slots.Main.ActionId)
+	{
+		return ERTPlanChip::Main;
+	}
+	if (Slots.Reaction.bOccupied && Warning.SourceActionId == Slots.Reaction.ActionId)
+	{
+		return ERTPlanChip::Reaction;
+	}
+	return Slots.Movement.bOccupied ? ERTPlanChip::Movement : ERTPlanChip::None;
+}
+
 ERTActionPhaseMark URTHudViewModel::SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot)
 {
 	if (!Unit || !Slot.bOccupied)

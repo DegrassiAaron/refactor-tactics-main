@@ -683,7 +683,16 @@ Nei default, `PlanWarningEntryClass` è la classe delle voci, `URTPlanWarningEnt
 - `WhatText`, `WhyText` e `CostText`.
 
 ⚠️ **Gli avvisi si ricontano a 5 Hz**, come il contatore di `Conferma`: `GetPlanWarnings` rifà il validatore e
-l'anteprima del Blast.
+l'anteprima del Blast. Due eccezioni non aspettano il giro:
+- in Risoluzione, o per un'unità ispezionata, l'elenco si svuota subito;
+- se cambia l'unità comandata, si riconta subito.
+
+Anche il chip `REAZ.` delle carte si riconta a 5 Hz, mentre i PV seguono a ogni tick.
+
+🔑 **Ogni avviso accende il «!» di un chip solo** (`URTHudViewModel::ChipForWarning`):
+- la principale, se ne nomina l'azione;
+- la reazione, se nomina la sua;
+- altrimenti il movimento. Ci finiscono anche le voci che `MakePlanFor` aggiunge dal core e che lo slot non nomina.
 
 ## 8. Verifica
 

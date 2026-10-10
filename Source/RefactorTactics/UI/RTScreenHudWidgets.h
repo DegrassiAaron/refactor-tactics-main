@@ -617,6 +617,7 @@ public:
 
 private:
 	FRTPlanWarningView Warning;
+	bool bHasWarning = false;
 };
 
 /**
@@ -687,7 +688,7 @@ public:
 	 * `IsReactionArmed`. Riusa le carte che ci sono: una carta ricostruita a ogni tick perderebbe l'hover.
 	 * La chiama `NativeTick`; i test la chiamano a mano.
 	 */
-	void RefreshCards();
+	void RefreshCards(bool bRecountReactions = true);
 
 	/** Le carte costruite, nell'ordine del roster (per i test). */
 	const TArray<TObjectPtr<URTUnitCardWidget>>& GetCardWidgets() const { return Cards; }
@@ -698,6 +699,13 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URTUnitCardWidget>> Cards;
+
+	/**
+	 * Il chip `REAZ.` per eroe, ricontato a 5 Hz (review di #3636): `IsReactionArmed` rifa' gli slot di ogni unita',
+	 * e i PV della carta si aggiornano a ogni tick senza chiederlo.
+	 */
+	TMap<FName, bool> ArmedByHero;
+	float SecondsSinceReactionRecount = 1.f;
 };
 
 /** `WBP_RT_SelectedUnitPanel` — dettaglio di chi si sta comandando: carta, slot occupati. */
@@ -852,6 +860,9 @@ private:
 
 	TArray<FRTPlanWarningView> LastWarnings;
 	float SecondsSinceWarningRecount = 1.f; // il primo tick conta subito
+
+	/** L'unita' per cui `LastWarnings` e' stato contato: se cambia, si riconta subito invece che al giro dopo. */
+	TWeakObjectPtr<const ARTUnit> LastWarningsSubject;
 };
 
 /** `WBP_RT_ActionDock` — le azioni della selezionata, con stato disponibile / armata / in ricarica. */

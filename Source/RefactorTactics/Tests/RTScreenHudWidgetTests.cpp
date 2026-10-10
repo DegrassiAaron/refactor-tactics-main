@@ -442,6 +442,8 @@ bool FRTScreenHudNoTextureTest::RunTest(const FString&)
 		URTActionSlotWidget::StaticClass(),
 		URTTacticalHUDWidget::StaticClass(),
 		URTFastDecisionWidget::StaticClass(),
+		URTUnitCardWidget::StaticClass(),          // #3636
+		URTPlanWarningEntryWidget::StaticClass(),  // #3636
 	};
 	for (UClass* Class : MustBeCovered)
 	{
@@ -1690,13 +1692,93 @@ bool FRTScreenHudRosterCardsTest::RunTest(const FString&)
 			Carta->IsReactionArmed(), Roster->IsReactionArmed(Voci[i].HeroId));
 		Armate += Carta->IsReactionArmed() ? 1 : 0;
 	}
-	TestEqual(TEXT("una sola carta ha il chip: quella della Guardia"), Armate, 1);
+	TestEqual(TEXT("una sola carta ha il chip"), Armate, 1);
+	// Non circolare: la carta col chip e' proprio quella della Guardia, e quella della Quieta no.
+	for (const URTUnitCardWidget* Carta : Roster->GetCardWidgets())
+	{
+		if (Carta->GetCard().HeroId == FName(TEXT("Guardia")))
+		{
+			TestTrue(TEXT("la carta della Guardia ha il chip"), Carta->IsReactionArmed());
+		}
+		if (Carta->GetCard().HeroId == FName(TEXT("Quieta")))
+		{
+			TestFalse(TEXT("la carta della Quieta no"), Carta->IsReactionArmed());
+		}
+	}
 
 	// --- Un secondo giro riusa le stesse carte ----------------------------------------------------------------------------
 	const URTUnitCardWidget* Prima = Roster->GetCardWidgets()[0];
 	Roster->RefreshCards();
 	TestTrue(TEXT("le carte si riusano: stessa istanza al secondo giro"), Roster->GetCardWidgets()[0] == Prima);
 	TestEqual(TEXT("e il pannello non raddoppia"), Pannello->GetChildrenCount(), Voci.Num());
+
+	// --- Una voce in meno: la carta in eccesso si toglie -------------------------------------------------------------------
+	Quieta->TeamId = 1; // non e' piu' della squadra di chi guarda
+	Roster->RefreshCards();
+	TestEqual(TEXT("una voce in meno, una carta in meno"), Roster->GetCardWidgets().Num(), Voci.Num() - 1);
+	TestEqual(TEXT("e il pannello la toglie"), Pannello->GetChildrenCount(), Voci.Num() - 1);
+
+	// --- Il chip si riconta a 5 Hz, i PV no: senza riconteggio il chip resta, il resto segue -------------------------------
+	Guardia->PlannedAbilityIndex = INDEX_NONE;
+	Guardia->Health = 3;
+	const auto CartaDi = [Roster](const TCHAR* Eroe) -> const URTUnitCardWidget*
+	{
+		for (const URTUnitCardWidget* Carta : Roster->GetCardWidgets())
+		{
+			if (Carta->GetCard().HeroId == FName(Eroe)) { return Carta; }
+		}
+		return nullptr;
+	};
+	Roster->RefreshCards(/*bRecountReactions=*/ false);
+	const URTUnitCardWidget* DellaGuardia = CartaDi(TEXT("Guardia"));
+	if (!TestNotNull(TEXT("premessa: la carta della Guardia c'e'"), DellaGuardia)) { return false; }
+	TestTrue(TEXT("senza riconteggio il chip della Guardia resta quello di prima"), DellaGuardia->IsReactionArmed());
+	TestEqual(TEXT("ma i PV seguono subito"), DellaGuardia->GetCard().Health, 3);
+	Roster->RefreshCards(/*bRecountReactions=*/ true);
+	TestFalse(TEXT("al riconteggio il chip si spegne"), CartaDi(TEXT("Guardia"))->IsReactionArmed());
+	return true;
+}
+
+/**
+ * 🔑 **OGNI AVVISO A UN CHIP SOLO** (#3636, review): la principale se ne nomina l'azione, la reazione se nomina la sua,
+ * altrimenti il movimento — comprese le voci che `MakePlanFor` aggiunge dal core e che lo slot non nomina
+ * (`Action.Move` per un percorso). Funzione pura: le viste si costruiscono a mano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningChipTest,
+	"RefactorTactics.HudViewModel.PlanWarningBelongsToOneChip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanWarningChipTest::RunTest(const FString&)
+{
+	FRTUnitSlotsView Slots;
+	Slots.bAuthorized = true;
+	Slots.Main.bOccupied = true;
+	Slots.Main.ActionId = TEXT("Hero.Aevik.Overload");
+	Slots.Reaction.bOccupied = true;
+	Slots.Reaction.ActionId = TEXT("Action.Counter");
+	Slots.Movement.bOccupied = true; // un percorso: occupato, senza un'azione
+
+	const auto Avviso = [](const TCHAR* Id)
+	{
+		FRTPlanWarningView W;
+		W.SourceActionId = Id ? FName(Id) : NAME_None;
+		return W;
+	};
+	TestTrue(TEXT("l'azione della principale va alla principale"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Aevik.Overload"))) == ERTPlanChip::Main);
+	TestTrue(TEXT("quella della reazione alla reazione"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Counter"))) == ERTPlanChip::Reaction);
+	TestTrue(TEXT("la voce di movimento del core, che lo slot non nomina, al movimento"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Move"))) == ERTPlanChip::Movement);
+	TestTrue(TEXT("un avviso senza azione a nessuno"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(nullptr)) == ERTPlanChip::None);
+
+	Slots.Movement.bOccupied = false;
+	TestTrue(TEXT("senza movimento, un'azione che non e' di nessuno slot a nessuno"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Move"))) == ERTPlanChip::None);
+
+	Slots.bAuthorized = false;
+	TestTrue(TEXT("una vista non autorizzata non assegna niente"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Aevik.Overload"))) == ERTPlanChip::None);
 	return true;
 }
 
