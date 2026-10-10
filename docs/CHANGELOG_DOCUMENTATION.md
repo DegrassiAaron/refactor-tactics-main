@@ -15,6 +15,18 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-421: il test che la ancora ha cambiato nome |
 | [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) e [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | `Tab` è cablato; il nucleo della scena c'è, mancano inclinazione, proiezione e separazione dei piani |
 
+## 2026-10-10 — Le sedute di stile dell'HUD hanno le loro issue, e il registro riceve D-496
+
+**Origine**: il seguito T8 del referto delle tavole A–F; tre decisioni d'autore sulle divergenze fra tavole e codice.
+Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-496** (l'header dice `ROUND`; il registro solo in Risoluzione; i badge dei tasti in italiano) |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T8 di §9 punta alle cinque issue |
+
+---
+
 ## 2026-10-10 — La vista strategica entra in v0.1 in quattro pezzi, e il registro riceve D-495
 
 **Origine**: il seguito T9 del referto delle tavole A–F, in una sessione `/sc:brainstorm` con l'autore. Issue

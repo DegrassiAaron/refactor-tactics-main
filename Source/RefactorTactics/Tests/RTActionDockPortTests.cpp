@@ -470,10 +470,13 @@ bool FRTPlanCommitParityTest::RunTest(const FString&)
 	// D. le etichette vengono dalle sedi dei tasti, e quelle sedi sono i tasti di D-458
 	TestEqual(TEXT("D: il tasto di Conferma e' Invio"), ARTPlayerController::DeclarePlanHotkey(), EKeys::Enter);
 	TestEqual(TEXT("D: il tasto di Annulla e' BackSpace"), ARTPlayerController::UndoKeyboardHotkey(), EKeys::BackSpace);
-	TestEqual(TEXT("D: l'etichetta di Conferma e' quella del suo tasto"), W->GetConfirmKeyLabel().ToString(),
-		EKeys::Enter.GetDisplayName(false).ToString());
-	TestEqual(TEXT("D: l'etichetta di Annulla e' quella del suo tasto"), W->GetUndoKeyLabel().ToString(),
-		EKeys::BackSpace.GetDisplayName(false).ToString());
+	// [D-496] (#3633): l'etichetta e' il nome del BADGE del tasto mappato, in italiano. Fino a #3633 era il nome
+	// dell'engine («Enter»); la sede resta il tasto, e la tabella ne traduce soltanto il nome.
+	TestEqual(TEXT("D: l'etichetta di Conferma e' il badge del suo tasto"), W->GetConfirmKeyLabel().ToString(),
+		ARTPlayerController::KeyBadgeLabel(EKeys::Enter).ToString());
+	TestEqual(TEXT("D: e il badge di Invio dice INVIO"), W->GetConfirmKeyLabel().ToString(), FString(TEXT("INVIO")));
+	TestEqual(TEXT("D: l'etichetta di Annulla e' il badge del suo tasto"), W->GetUndoKeyLabel().ToString(),
+		ARTPlayerController::KeyBadgeLabel(EKeys::BackSpace).ToString());
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

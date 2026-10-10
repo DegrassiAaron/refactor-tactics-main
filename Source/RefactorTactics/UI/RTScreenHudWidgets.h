@@ -668,6 +668,60 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
 	TObjectPtr<class UTextBlock> UndoText;
 
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola (#3633, T8). Tutte opzionali. ⚠️ Anche senza di loro il WBP cambia in due punti: il tasto
+	// si scrive come badge ([D-496], «INVIO»), e `ConfirmText`/`UndoText` prendono i colori della palette. E' voluto:
+	// T8 porta la palette, e due resa diverse per lo stesso widget sarebbero due look da tenere allineati.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il badge del tasto di `Conferma`. Quando c'e', `ConfirmText` porta il solo verbo e il tasto sta qui. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> ConfirmKeyText;
+
+	/** Il badge del tasto di `Annulla`, come `ConfirmKeyText`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> UndoKeyText;
+
+	/** La cornice di `Conferma`: fondo `BG_ProfileActive` e contorno `Cyan` se accesa, `BG_Panel` e `Frame_Off` se spenta. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UBorder> ConfirmFrame;
+
+	/** La cornice di `Annulla`: fondo `BG_Panel`, contorno `Frame_Mid`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UBorder> UndoFrame;
+
+	/** La spunta di `Conferma`: tinta `Cyan`, o `Text_Disabled` se spenta. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UImage> ConfirmIcon;
+
+	/** Tutto il riquadro: `Collapsed` in Risoluzione, quando il piano non si conferma ([D-480] punto 1). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> CommitRoot;
+
+	/** Il contatore degli avvisi ([D-494]): `Collapsed` quando non c'e' nessun avviso. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> WarningCounter;
+
+	/** Un numero per livello, ciascuno col suo badge: ottagono «✕» `Red`, triangolo «!» `Amber`, cerchio «i» `Cyan`.
+	 * Un livello a zero ha il badge `Collapsed`: il contatore mostra solo i livelli che ci sono. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> CriticalCountText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> CriticalBadge;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> WarningCountText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> WarningBadge;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> InfoCountText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> InfoBadge;
+
 	/**
 	 * Testi e abilitazione. La chiama `NativeTick`; i test la chiamano a mano.
 	 *
@@ -676,7 +730,7 @@ public:
 	 * `Annulla` spento senza selezione toglierebbe al giocatore il ritiro del Ready proprio quando ha
 	 * deselezionato per guardare la mappa.
 	 */
-	void RefreshButtons();
+	void RefreshButtons(bool bRecountWarnings = true);
 
 	/** Collega i click a `Confirm()` e `Undo()`. Idempotente; la chiama `NativeConstruct`. */
 	void BindNamedButtons();
@@ -684,6 +738,15 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	/**
+	 * Il contatore si RICONTA a 5 Hz, non a ogni frame (review di #3633): `GetPlanWarningCounts` rifa' gli avvisi di
+	 * ogni unita' comandata — validatore, righe del kit, anteprima del Blast — e cambia solo quando cambia un piano.
+	 * I testi e i colori restano a ogni frame, perche' costano poco.
+	 */
+	FRTPlanWarningCounts LastWarningCounts;
+	float SecondsSinceWarningRecount = 0.f;
 };
 
 /**
