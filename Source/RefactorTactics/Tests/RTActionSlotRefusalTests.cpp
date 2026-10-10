@@ -658,7 +658,8 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 	}
 	B.Mine->PlannedDashAbility = Scatto;
 	B.Mine->PlannedDashCell = FRTCellId(-1, 1, 0);
-	B.Mine->PlannedWaypoints = { FRTCellId(0, -1, 0) };
+	// Il movimento nel piano lo dice `HasPlannedNormalMove()`: la cella pianificata, non i waypoint.
+	B.Mine->PlannedCell = FRTCellId(0, -1, 0);
 	const FRTPlanValidation Conflitto = URTPlanValidationLibrary::ValidatePlan(
 		FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(B.Mine));
 	if (!TestFalse(TEXT("premessa: scatto + movimento e' illegale"), Conflitto.bLegal)
