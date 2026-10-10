@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-10 — La vista strategica entra in v0.1 in quattro pezzi, e il registro riceve D-495
+
+**Origine**: il seguito T9 del referto delle tavole A–F, in una sessione `/sc:brainstorm` con l'autore. Issue
+[#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774), con
+[#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) ·
+[#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) ·
+[#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | nuovo: il brief, con tre correzioni trovate leggendo il codice e i quattro pezzi |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-495** (v0.1, quattro pezzi, stessa scena, taglio netto); rimando in D-252 |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T9 di §9 punta al brief e alle quattro issue |
+
 ## 2026-10-10 — Gli avvisi di piano hanno un elenco e un contatore, e il registro riceve D-494
 
 **Origine**: la seconda metà del seguito T4 del referto delle tavole A–F, decisa dall'autore in sessione. Issue
