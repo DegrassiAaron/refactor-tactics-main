@@ -36,6 +36,8 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	// impedire a un widget di stampare `12`. Qui non c'e' proprio un posto dove scriverlo a mano.
 	View.RoundLimit = TurnManager->GetMatchRules().RoundLimit;
 	View.Phase = TurnManager->GetPhase();
+	// La fase RIPRODOTTA, non quella logica ([D-479]): durante il playback le due divergono.
+	View.PlaybackPhase = TurnManager->GetPlaybackPhase();
 	View.bResolving = TurnManager->IsResolving();
 
 	// Il progresso sull'obiettivo (`CP 10.2`, `#75`). Si legge dal manager, che e' l'unico a saperlo: il

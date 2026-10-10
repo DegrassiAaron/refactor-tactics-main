@@ -51,8 +51,24 @@ struct FRTMatchHeaderView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 RoundLimit = 0;
 
+	/** La fase LOGICA del turno, `ARTTurnManager::GetPhase()`. In Risoluzione l'header mostra `PlaybackPhase`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/**
+	 * La fase che il playback **sta mostrando** ([D-479], #3612): Prep, Dash, Blast o Move, mai `Cleanup`.
+	 * `Planning` fuori dal playback. E' la cella attiva dell'header in Risoluzione.
+	 *
+	 * 🔑 **Due campi, perche' sono due domande.** Senza sospensioni `RunPhaseLoop` risolve tutte le fasi prima
+	 * che il playback cominci e riporta `Phase` a `Planning`: un header su `Phase` direbbe PIANIFICAZIONE per
+	 * tutta la riproduzione. Con una sospensione le due coincidono solo quando il playback raggiunge la fase
+	 * dove la risoluzione si e' fermata.
+	 *
+	 * ⛔ Viene da `ARTTurnManager::GetPlaybackPhase()`, la stessa sorgente di `GetPlaybackPhaseName()`. La vista
+	 * legge il playback, non lo guida.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase PlaybackPhase = ERTMatchPhase::Planning;
 
 	/**
 	 * Secondi che restano al Planning. **Negativo** quando la domanda non si applica — fuori dal Planning,
