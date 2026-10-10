@@ -526,7 +526,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	// #3593: deriva da `Action.Heal` perche' le cure passano da `CollectHealActions`, che raccoglie SOLO le
 	// derivate (`IsCoreAction`): costruita da zero finiva fra gli attacchi, dove un'area non cura nessuno.
 	// I numeri restano dell'eroe (spec SP5 §2.1, R1): si riscrivono dopo la derivazione, elenco chiuso.
-	// `Power` resta 0 — e' il danno letto dal bot — e il fallback resta quello del core.
+	// `Power` resta 0 — e' il danno letto dal bot. Il fallback NO: vedi sotto.
 	URTActionData* CircularTide = MakeHeroActionFromCore(TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal"),
 		/*Cooldown*/ 2, ERTAbilityShape::Area, /*AreaRadius*/ 1);
 	if (!CircularTide)
@@ -538,6 +538,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	CircularTide->RangeCells = 4; // specchio legacy, come `MakeHeroAction` lo scrive (`Def.RangeCells` -> `RangeCells`)
 	CircularTide->Def.Priority = 60;
 	CircularTide->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 18) };
+	// D-492 (#3609): l'AREA non aggancia. Il core `Action.Heal` dichiara l'aggancio (`AttackTarget`) perche' una cura
+	// singola si da' a qualcuno e lo segue; un'area agisce sulle celle attorno alla mira congelata al lock-in, come
+	// ogni altra azione ([D-419]), e l'alleato scattato via ne esce. `MakeHeroActionFromCore` ha copiato il valore
+	// del core: si ridichiara `Cancel`, che come ripiego fa la stessa cosa. Pinnato da
+	// `Heroes.EverySingleHealDeclaresTracking`.
+	CircularTide->Def.Fallback = ERTActionFallback::Cancel;
 	Muiren->Actions.Add(CircularTide); // indice 1: le varianti qui sotto e i test lo indirizzano cosi'
 
 	// Indice 2 — FluidTrail. `Dash 3` e **basta**: la scia d'acqua e' uscita dal kit con #1006. Nessun

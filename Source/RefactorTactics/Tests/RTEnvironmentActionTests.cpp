@@ -3902,4 +3902,140 @@ bool FRTPlaybackRedundantFaceStructureHitsAreOneActTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La cura SINGOLA aggancia l'alleato e lo raggiunge dove e' arrivato** — D-492 (#3609).
+ *
+ * Decisione d'autore: *«aggancia l'unità, come eccezione dichiarata in catalogo. il cura ha un tipo di tiro diverso
+ * da un normale shoot»*. L'alleato parte FUORI portata (4 celle, portata 3) e scatta DENTRO prima del Blast: la cura
+ * che aggancia legge la sua cella viva e lo cura; con la mira congelata avrebbe misurato la cella di partenza e
+ * sarebbe mancata. Esiti opposti nelle due regole, ed e' cio' che rende il test una misura dell'aggancio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionHealTracksTheAllyTest,
+	"RefactorTactics.Actions.Heal.TracksTheAllyItHeals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionHealTracksTheAllyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnEnvUnit(World, 0, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Ally || !TM) { DestroyEnvWorld(World); return false; }
+
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.Heal")));
+	if (!TestTrue(TEXT("premessa: la cura dichiara di agganciare (D-492)"), Def.DeclaresTracking())
+		|| !TestTrue(TEXT("premessa: al lock-in l'alleato e' FUORI portata"),
+			URTHexLibrary::HexDistance(Caster->Cell, Ally->Cell) > Def.RangeCells))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+
+	Ally->Health -= 30;
+	const int32 Prima = Ally->Health;
+	PlanEnvAction(Caster, TEXT("Action.Heal"), Ally);
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Ally, TEXT("Action.Reposition"));
+	Ally->PlannedDashAbility = Scatto;
+	Ally->PlannedDashCell = FRTCellId(2, 0); // dentro la portata
+	RunEnvTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: l'alleato e' davvero scattato dentro la portata"), Ally->Cell, FRTCellId(2, 0)))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+	TestTrue(TEXT("🔴 la cura lo segue e lo raggiunge dove e' arrivato"), Ally->Health > Prima);
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * **`ModifyArc` apre l'arco verso la MIRA congelata** — [D-419] (#3609).
+ *
+ * Il bersaglio e' in portata al lock-in (2 celle, portata 3) e scatta fuori (4 celle) prima del Blast. L'arco e' la
+ * coppia di celle, quindi segue la mira congelata: nasce. Con la cella viva — com'era fino a #3609 — sarebbe stato
+ * rifiutato «fuori portata». Esiti opposti nelle due regole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcFrozenAimTest,
+	"RefactorTactics.Actions.ModifyArc.OpensTowardTheFrozenAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionModifyArcFrozenAimTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.ModifyArc")));
+	const FRTCellId Scattata(4, 0);
+	if (!TestTrue(TEXT("premessa: al lock-in il bersaglio e' in portata"),
+			URTHexLibrary::HexDistance(Caster->Cell, Target->Cell) <= Def.RangeCells)
+		|| !TestTrue(TEXT("premessa: la cella dello scatto e' FUORI portata"),
+			URTHexLibrary::HexDistance(Caster->Cell, Scattata) > Def.RangeCells)
+		|| !TestFalse(TEXT("premessa: ModifyArc non dichiara di agganciare"), Def.DeclaresTracking()))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+
+	const int32 ArcsBefore = MapActor->MapAsset->Transitions.Num();
+	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition"));
+	Target->PlannedDashAbility = Scatto;
+	Target->PlannedDashCell = Scattata;
+	RunEnvTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: il bersaglio e' davvero scattato fuori portata"), Target->Cell, Scattata))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+	// Un arco sono piu' transizioni (misurato: +2), come in `ModifyArc.BumpsChunkRevision`: si conta «di piu'».
+	TestTrue(TEXT("🔴 l'arco e' nato verso la mira congelata, non rifiutato sulla cella dello scatto"),
+		MapActor->MapAsset->Transitions.Num() > ArcsBefore);
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * **L'azione ambientale agisce sulla MIRA congelata, anche se il bersaglio cammina** — [D-419] (#3609).
+ *
+ * Le ambientali risolvono in Cleanup, DOPO il Move: leggendo la cella viva inseguivano anche il movimento normale,
+ * non solo lo scatto. Il bersaglio puntato al lock-in in (2,0) cammina in (3,0): il fuoco nasce in (2,0), e la cella
+ * d'arrivo resta com'era. Con la cella viva — com'era fino a #3609 — sarebbe stato il contrario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIgniteFrozenAimTest,
+	"RefactorTactics.Actions.Ignite.BurnsWhereItWasAimed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionIgniteFrozenAimTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	const FRTCellId Puntata(2, 0);
+	const FRTCellId Arrivo(3, 0);
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	Target->PlannedCell = Arrivo; // movimento NORMALE: risolve nel Move, dopo il Blast e prima del Cleanup
+	RunEnvTurn(TM);
+
+	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+	{
+		const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+		return Data ? Data->Surface : ERTHexSurface::Floor;
+	};
+	if (!TestEqual(TEXT("premessa: il bersaglio ha davvero camminato"), Target->Cell, Arrivo))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+	TestTrue(TEXT("🔴 brucia la cella puntata al lock-in"), SurfaceAt(Puntata) == ERTHexSurface::Fire);
+	TestTrue(TEXT("e non quella dove il bersaglio e' arrivato"), SurfaceAt(Arrivo) != ERTHexSurface::Fire);
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

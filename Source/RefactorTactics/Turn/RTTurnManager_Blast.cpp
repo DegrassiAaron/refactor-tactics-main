@@ -526,8 +526,22 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
 		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
 		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
-		// Solo l'AREA legge la cella dichiarata: il ramo `Single` resta com'era (bersaglio o se', `AimCell` = la sua cella).
-		const FRTCellId Centro = (bArea && Unit->bAttackTargetsCell) ? Unit->PlannedAttackCell : HealTarget->Cell;
+		// [D-419], D-492 (#3609) — il centro e' la lettura UNICA di `ARTUnit::ResolutionAimCell`:
+		// - la cura a bersaglio SINGOLO dichiara di agganciare in catalogo (`Action.Heal`, `Fallback = AttackTarget`):
+		//   la cura non e' un colpo sparato verso una cella, segue l'alleato dove va, e il centro e' la sua cella viva;
+		// - la cura ad AREA non aggancia: agisce sulle celle attorno alla mira congelata al lock-in, come ogni altra
+		//   azione — l'alleato scattato via esce dall'area.
+		// Senza bersaglio dichiarato la funzione restituisce la cella di chi cura: il ripiego «su se stessi».
+		// ⚠️ Il SINGOLO che aggancia legge l'identita' (`HealTarget`, bersaglio o se'), non la funzione: una cura singola
+		// dichiarata su una CELLA cura chi la lancia, ed e' il comportamento di prima (`#3593`) — passare dalla
+		// funzione le darebbe come centro la cella dichiarata mentre l'effetto resta su di se'. Un singolo che NON
+		// agganciasse leggerebbe la mira congelata: il catalogo non ne ha, e `Heroes.EverySingleHealDeclaresTracking`
+		// lo pinna.
+		// ⌫ *Fino a #3609 il centro di un'area centrata su un'unita' era la cella VIVA del bersaglio: la cura ad area
+		// inseguiva, contro D-419.*
+		const bool bAgganciaLaCura = Heal->Def.DeclaresTracking();
+		const FRTCellId Centro = (!bArea && bAgganciaLaCura) ? HealTarget->Cell
+			: Unit->ResolutionAimCell(bAgganciaLaCura);
 		const int32 BersaglioStableId = (bArea && !Unit->PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
 		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
 		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
@@ -719,6 +733,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionModifyArc))
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
+			// [D-419] (#3609): l'arco si apre verso la MIRA CONGELATA al lock-in, non verso dove il bersaglio e'
+			// scattato — la coppia di celle e' la topologia, e una cella non ha un'identita' da seguire. Letta con la
+			// funzione unica, e PRIMA dell'azzeramento qui sotto. ⌫ *Fino a #3609 portata e arco leggevano
+			// `ArcTarget->Cell`, la cella viva.*
+			const FRTCellId ArcAim = Unit->ResolutionAimCell(PlannedNow->Def.DeclaresTracking());
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
@@ -729,7 +748,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				// intenti, due righe sopra — quindi il controllo che ogni altra azione del Blast riceve
 				// gratis va scritto: senza, un'azione che dichiara `Range 3` opera dall'altra parte della
 				// mappa, e non e' un'azione a portata, e' un'azione senza portata.
-				if (URTHexLibrary::HexDistance(Unit->Cell, ArcTarget->Cell) > PlannedNow->Def.RangeCells)
+				if (URTHexLibrary::HexDistance(Unit->Cell, ArcAim) > PlannedNow->Def.RangeCells)
 				{
 					// Il fallback dichiarato a catalogo e' `Cancel`: nessun effetto, ma VISIBILE. Un'azione
 					// che sparisce in silenzio e' indistinguibile da un difetto — la stessa ragione per cui
@@ -743,7 +762,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.BaseActionId = PlannedNow->Def.BaseActionId;
 					ArcRejected.Priority = PlannedNow->Def.Priority;
 					ArcRejected.SrcCell = Unit->Cell;
-					ArcRejected.TgtCell = ArcTarget->Cell;
+					ArcRejected.TgtCell = ArcAim;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
 					// ⌫ **L'eco scritto a mano era «una riga identica a questa», e `#1412` l'ha tolto.** Il
 					// nome che aggiungeva sta ora nella copia derivata da `ConcludeTurn`, perche' la
@@ -756,11 +775,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				}
 
 				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
-				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
+				PendingArcOps.Add({ Unit->Cell, ArcAim, Unit, PlannedNow->Def });
 				// #3549: dopo la validazione di portata — un arco fuori portata e' uscito con `continue` sopra
 				// (`ArcRejected`) e non si attiva.
 				EmitAbilityActivated(Unit, ERTMatchPhase::Blast, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
-					ArcTarget->StableUnitId, ArcTarget->Cell, ERTAbilityShape::Single);
+					ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single);
 			}
 			continue;
 		}
@@ -772,19 +791,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
 		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
 		const bool bTargetsCell = Unit->bAttackTargetsCell;
-		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
-		// [D-415]: anche la mira congelata si copia QUI, per la stessa ragione delle due righe sopra —
-		// `ClearPlannedAttack()` la spegne, e chi la legge sta un centinaio di righe piu' giu'.
-		const bool bHasAim = Unit->bHasPlannedAim;
-		const FRTCellId PlannedAim = Unit->PlannedAimCell;
-		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-
+		const bool bHasAim = Unit->bHasPlannedAim; // per l'`ensure` qui sotto
+		// L'abilita' si legge PRIMA dell'azzeramento: dipende dal solo indice, e la mira dipende da lei (aggancia?).
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
-		if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || !Unit->CanUseAbility(AbilityIndex))
-		{
-			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
-		}
 
 		// [D-415]/[D-419] — LA CELLA DI MIRA E' UNA, e si decide QUI, prima di tutto cio' che la legge: il
 		// riorientamento di D-020 qui sotto, l'istanza piu' in basso, e da li' `ValidateInstance` e il Blast.
@@ -795,7 +804,19 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// all'aggancio ([D-419]: «un'azione che voglia agganciare lo dichiara»): `Cancel` resta il default del
 		// catalogo, quindi chi non dice niente NON insegue. Aggiungerlo a un'azione e' una scelta di catalogo,
 		// leggibile in diff, e va motivata li'.
-		const bool bAggancia = (Ability->Def.Fallback == ERTActionFallback::AttackTarget);
+		//
+		// #3609: la lettura e' `ARTUnit::ResolutionAimCell`, la stessa della cura, di `ModifyArc`, delle ambientali
+		// e delle strutture — e va fatta PRIMA di `ClearPlannedAttack()`, che spegne tutte le forme del piano.
+		const bool bAggancia = Ability && Ability->Def.DeclaresTracking();
+		const FRTCellId AimCell = Unit->ResolutionAimCell(bAggancia);
+		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+
+		if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || !Unit->CanUseAbility(AbilityIndex))
+		{
+			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
+		}
+
 		// ⛔ Un bersaglio-unita' senza mira congelata e' un'anomalia, non un caso: il lock-in la fotografa per
 		// ogni unita' viva PRIMA di questo ciclo. Il ripiego sotto resta per non lasciare un'istanza senza cella,
 		// ma l'`ensure` lo rende visibile in suite invece di riaprire l'inseguimento in silenzio.
@@ -803,9 +824,6 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// al lock-in — e il suo colpo lo scarta `CollectHexAttacks`: non e' un'anomalia, e non la segnala.
 		ensureMsgf(!Unit->IsAlive() || bTargetsCell || Target == nullptr || bHasAim || bAggancia,
 			TEXT("[D-415] bersaglio-unita' senza mira congelata al lock-in: unita' %d"), i);
-		const FRTCellId AimCell = bTargetsCell ? PlannedAttackCell
-			: (bAggancia || !bHasAim) ? (Target ? Target->Cell : Unit->Cell)
-			: PlannedAim;
 
 		// ⛔ **Lo stordimento e' gia' stato rifiutato in cima al ciclo**, sopra il ramo `ModifyArc`: una
 		// seconda guardia qui non sarebbe difesa in profondita', sarebbe una seconda regola da tenere

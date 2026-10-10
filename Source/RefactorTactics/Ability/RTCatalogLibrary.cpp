@@ -1738,7 +1738,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi NON dichiara `ERTInterruptPolicy::None` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
-	// 🔴 **`AttackTarget` e non `Cancel`, ed e' l'unica azione del catalogo a dichiararlo** ([D-415]).
+	// 🔴 **`AttackTarget` e non `Cancel`: dichiara l'aggancio** ([D-415]), come `Action.Heal` (D-492). L'elenco
+	// esatto di chi aggancia lo pinna `Combat.Aim.OnlyDeclaredTrackersFollowTheTarget`.
 	//
 	// 🔑 **Il suo mestiere e' cogliere chi AGISCE, e chi agisce si e' appena mosso.** `Action.Interrupt` sta
 	// in fase `Control` con portata **1**: risolve dopo il Dash, quindi il bersaglio che vuole fermare e'
@@ -1868,9 +1869,17 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve
 	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
 	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.
+	//
+	// 🔑 **La cura AGGANCIA l'alleato** — D-492 (#3609), l'eccezione dichiarata che [D-419] ammette. Decisione
+	// d'autore del 2026-10-10: *«il cura ha un tipo di tiro diverso da un normale shoot»*. Un colpo si spara verso
+	// una cella, e la mira congelata dice dove; una cura a bersaglio singolo si da' a QUALCUNO, e lo segue dove va.
+	// La dichiarazione e' `Fallback = AttackTarget` (`FRTActionDef::DeclaresTracking`): come ripiego fa cio' che
+	// faceva `Cancel`, quindi non cambia chi resta senza cura — gli da' solo la mira viva.
+	// ⚠️ **Vale per la cura SINGOLA**: la cura ad area (`Hero.Muiren.CircularTide`) agisce sulle celle attorno alla
+	// mira congelata e ridichiara `Cancel`, perche' `MakeHeroActionFromCore` copierebbe questo valore.
 	{
 		FRTActionDef Heal = ShippedAction(TEXT("Action.Heal"), ERTResolutionPhase::Attack, /*Priority*/ 70,
-			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::AttackTarget,
 			{ FRTActionEffectSpec(ERTActionEffect::Heal, 20) });
 		Catalog.Add(Heal);
 	}

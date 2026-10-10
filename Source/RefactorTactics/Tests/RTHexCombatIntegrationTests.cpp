@@ -2029,7 +2029,8 @@ bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
 }
 
 /**
- * **L'uscita che [D-415] nomina: chi DICHIARA di agganciare continua a seguire** — e oggi e' una sola.
+ * **L'uscita che [D-415] nomina: chi DICHIARA di agganciare continua a seguire** — e oggi sono `Action.Interrupt`
+ * e `Action.Heal` (D-492, #3609: *«il cura ha un tipo di tiro diverso da un normale shoot»*).
  *
  * 🔑 **La dichiarazione e' `ERTActionFallback::AttackTarget`**, documentata nell'enum come *«Segue il
  * bersaglio, se ancora valido»*. Prima di `D-415` era un valore **morto**: zero azioni lo usavano.
@@ -2039,9 +2040,10 @@ bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
  * bersaglio NON e' valido, quindi non c'e' nessuno da seguire»* — e questo test lo **misura** invece di
  * fidarsi del commento.
  *
- * ⚠️ **Il conteggio a uno e' anti-deriva**: l'aggancio e' precisamente cio' che `D-415` toglie al resto, e
- * un secondo dichiarante va motivato accanto alla sua riga di catalogo. Se questo test diventa rosso,
- * qualcuno l'ha aggiunto: la domanda non e' come farlo tornare verde, e' se quella riga fosse voluta.
+ * ⚠️ **L'elenco esatto dei nomi e' anti-deriva**: l'aggancio e' precisamente cio' che `D-415` toglie al resto,
+ * e ogni dichiarante va motivato accanto alla sua riga di catalogo. Se questo test diventa rosso, qualcuno ne
+ * ha aggiunto uno: la domanda non e' come farlo tornare verde, e' se quella riga fosse voluta. ⌫ *Fino a
+ * #3609 l'elenco era il solo `Action.Interrupt`.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimTrackingIsDeclaredTest,
 	"RefactorTactics.Combat.Aim.OnlyDeclaredTrackersFollowTheTarget",
@@ -2056,13 +2058,14 @@ bool FRTAimTrackingIsDeclaredTest::RunTest(const FString&)
 		if (A.Fallback == ERTActionFallback::AttackTarget) { Agganciano.Add(A.ActionId); }
 	}
 
-	// ⚠️ I NOMI e non il conteggio: un totale direbbe «sono due» senza dire quale sia arrivata.
-	if (!TestEqual(TEXT("una sola azione dichiara di agganciare"), Agganciano.Num(), 1))
+	// ⚠️ I NOMI e non il conteggio: un totale direbbe «sono tre» senza dire quale sia arrivata.
+	Agganciano.Sort(FNameLexicalLess());
+	const TArray<FName> Attesi = { FName(TEXT("Action.Heal")), FName(TEXT("Action.Interrupt")) };
+	if (!TestTrue(TEXT("dichiarano di agganciare esattamente la cura e l'interruzione"), Agganciano == Attesi))
 	{
 		for (const FName& Id : Agganciano) { AddError(FString::Printf(TEXT("dichiara aggancio: %s"), *Id.ToString())); }
 		return false;
 	}
-	TestEqual(TEXT("ed e' `Action.Interrupt`"), Agganciano[0], FName(TEXT("Action.Interrupt")));
 
 	// ⚠️ ANTI-VACUITA' del confronto sopra: se il catalogo fosse vuoto o il campo non fosse letto, il
 	// conteggio a 1 non direbbe niente. `Cancel` resta il default, e la stragrande maggioranza lo porta.
