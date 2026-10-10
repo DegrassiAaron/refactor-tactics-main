@@ -689,9 +689,13 @@ void ARTCameraPawn::AddOrbit(float DeltaYaw, float DeltaPitch)
 	}
 	if (!FMath::IsNearlyZero(DeltaPitch))
 	{
+		// 🔴 **#3630 — l'orbita scrive l'OFFSET, come `AddPitch`.** Fino al 2026-10-10 sommava direttamente su
+		// `CameraPitch`, e il primo zoom la cancellava: `RecomputePitchFromZoom` riscrive il pitch come
+		// derivato + offset, e un'orbita che non stava nell'offset non c'era. Il clamp lo fa il ricalcolo, sull'offset
+		// prima della somma, cioe' contro il windup.
 		const float Signed = bInvertOrbitPitch ? -DeltaPitch : DeltaPitch;
-		CameraPitch = FMath::Clamp(CameraPitch + Signed * FMath::Max(PitchSensitivity, 0.f),
-			MinPitch, MaxPitch);
+		ManualPitchOffset += Signed * FMath::Max(PitchSensitivity, 0.f);
+		RecomputePitchFromZoom();
 	}
 	ApplyArmRotation();
 }
@@ -761,9 +765,31 @@ float ARTCameraPawn::GetPanDistanceScale() const
 	return FMath::Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength;
 }
 
+float ARTCameraPawn::GetStrategicPitchRampAlpha() const
+{
+	if (!SpringArm)
+	{
+		return 0.f;
+	}
+	float Enter = 0.f;
+	float Exit = 0.f;
+	GetOrderedStrategicThresholds(Enter, Exit);
+
+	// Corsa degenere (la soglia d'uscita al fondo o oltre): niente rampa, invece di dividere per zero.
+	const float Range = MaxArmLength - Exit;
+	if (Range <= KINDA_SMALL_NUMBER)
+	{
+		return 0.f;
+	}
+	return FMath::Clamp((SpringArm->TargetArmLength - Exit) / Range, 0.f, 1.f);
+}
+
 void ARTCameraPawn::RecomputePitchFromZoom()
 {
-	const float Derived = FMath::Clamp(DefaultPitch + PitchZoomDelta * GetZoomAlpha(), MinPitch, MaxPitch);
+	// #3630: la rampa strategica si somma alla derivazione dallo zoom, e vale zero dentro la corsa tattica.
+	const float Derived = FMath::Clamp(
+		DefaultPitch + PitchZoomDelta * GetZoomAlpha() + StrategicPitchDelta * GetStrategicPitchRampAlpha(),
+		MinPitch, MaxPitch);
 
 	// 🔴 **L'offset si clampa PRIMA di sommarlo, contro il windup.** Clampare solo il risultato
 	// lascerebbe crescere `ManualPitchOffset` oltre il limite: la vista resterebbe ferma a fondo corsa e

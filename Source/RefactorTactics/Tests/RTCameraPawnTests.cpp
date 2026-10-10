@@ -1571,6 +1571,150 @@ bool FRTCameraTabReturnsToUnreadDistanceTest::RunTest(const FString&)
 	return true;
 }
 
+// --- #3630 · l'inclinazione strategica, e l'orbita che lo zoom non cancella -----------------------------
+
+namespace
+{
+	/** Il pitch a una distanza data, passando dalla porta dello zoom: e' cio' che il giocatore ottiene. */
+	float RTPitchAtArm(ARTCameraPawn* Cam, float Arm)
+	{
+		const float Range = Cam->GetMaxArmLength() - Cam->GetMinArmLength();
+		Cam->SetZoomAlpha(Range > 0.f ? (Arm - Cam->GetMinArmLength()) / Range : 0.f);
+		return Cam->GetCameraPitch();
+	}
+}
+
+/**
+ * Dentro la corsa tattica la rampa strategica **non esiste**: a ogni distanza fino alla soglia d'uscita il pitch e'
+ * identico con la rampa accesa e spenta.
+ *
+ * 🔑 E' la promessa della issue — inclinare la vista strategica senza toccare quella tattica — e la ragione per cui
+ * la rampa non e' `PitchZoomDelta`. Il controllo positivo sta in fondo: oltre la soglia la rampa DEVE muovere il
+ * pitch, altrimenti il primo blocco sarebbe vero anche di una rampa che non fa niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicPitchFlatTest,
+	"RefactorTactics.Camera.StrategicPitchRampIsFlatInTheTacticalRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicPitchFlatTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -40.f);
+	Cam->SetPitchZoomDeltaForTest(0.f);
+
+	for (const float Arm : { 100.f, 450.f, 800.f, 1500.f, 1900.f })
+	{
+		Cam->SetStrategicPitchDeltaForTest(0.f);
+		const float Spenta = RTPitchAtArm(Cam, Arm);
+		Cam->SetStrategicPitchDeltaForTest(-30.f);
+		const float Accesa = RTPitchAtArm(Cam, Arm);
+		TestEqual(*FString::Printf(TEXT("a braccio %.0f il pitch tattico non cambia"), Arm), Accesa, Spenta);
+	}
+
+	// Controllo positivo: a fondo corsa la rampa vale tutta.
+	Cam->SetStrategicPitchDeltaForTest(-30.f);
+	TestEqual(TEXT("a fondo corsa la rampa aggiunge tutto il suo valore"), RTPitchAtArm(Cam, 4000.f), -70.f, 0.01f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Oltre la soglia d'uscita il pitch cambia in modo MONOTONO e CONTINUO con la distanza, e non salta quando lo stato
+ * passa a strategico: la rampa legge la distanza, non `bStrategicView` (D-252).
+ *
+ * Il passo e' di 10 unita' su una corsa di 2100: con una rampa lineare ogni passo muove il pitch di circa
+ * `30 * 10 / 2100`, e un salto al passaggio di `StrategicEnterThreshold` lo supererebbe di ordini di grandezza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicPitchMonotonicTest,
+	"RefactorTactics.Camera.StrategicPitchRampIsMonotonicAndDoesNotJumpAtTheThreshold",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicPitchMonotonicTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -40.f);
+	Cam->SetPitchZoomDeltaForTest(0.f);
+	Cam->SetStrategicPitchDeltaForTest(-30.f);
+
+	const float PassoMassimo = 30.f * 10.f / 2100.f + 0.01f;
+	float Precedente = RTPitchAtArm(Cam, 1900.f);
+	int32 NonMonotoni = 0;
+	int32 Salti = 0;
+	bool bAttraversata = false;
+	for (float Arm = 1910.f; Arm <= 4000.f; Arm += 10.f)
+	{
+		const bool bEra = Cam->IsStrategicView();
+		const float Pitch = RTPitchAtArm(Cam, Arm);
+		bAttraversata |= (!bEra && Cam->IsStrategicView());
+		if (Pitch > Precedente + KINDA_SMALL_NUMBER) { ++NonMonotoni; }
+		if (FMath::Abs(Pitch - Precedente) > PassoMassimo) { ++Salti; }
+		Precedente = Pitch;
+	}
+	TestTrue(TEXT("il percorso attraversa davvero la soglia d'ingresso"), bAttraversata);
+	TestEqual(TEXT("allontanandosi il pitch non torna mai indietro"), NonMonotoni, 0);
+	TestEqual(TEXT("e non salta: nessun passo di 10 unita' lo muove piu' della rampa"), Salti, 0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'inclinazione data con l'orbita sopravvive allo zoom** (#3630).
+ *
+ * Fino al 2026-10-10 `AddOrbit` scriveva `CameraPitch` direttamente, e il primo `AddZoom` la cancellava:
+ * `RecomputePitchFromZoom` riscrive il pitch come derivato + offset. Verifica di mutazione: rimettere la scrittura
+ * diretta deve far cadere la seconda asserzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraOrbitPitchSurvivesZoomTest,
+	"RefactorTactics.Camera.OrbitPitchSurvivesTheNextZoom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraOrbitPitchSurvivesZoomTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -40.f);
+	Cam->SetPitchZoomDeltaForTest(0.f);
+	Cam->SetStrategicPitchDeltaForTest(0.f);
+	Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->RecenterView();
+
+	const float Prima = Cam->GetCameraPitch();
+	Cam->AddOrbit(/*DeltaYaw=*/ 0.f, /*DeltaPitch=*/ -10.f);
+	const float DopoOrbita = Cam->GetCameraPitch();
+	TestNotEqual(TEXT("l'orbita ha inclinato la vista"), DopoOrbita, Prima);
+
+	Cam->AddZoom(+1.f);
+	TestEqual(TEXT("e il primo zoom non la cancella"), Cam->GetCameraPitch(), DopoOrbita);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 // --- #1778 · i limiti che conoscono il viewport ------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEffectiveBoundsTest,

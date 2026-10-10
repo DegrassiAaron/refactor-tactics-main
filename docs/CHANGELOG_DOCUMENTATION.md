@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-11 — La vista strategica s'inclina oltre la soglia d'uscita, e l'orbita non perde il pitch al primo zoom
+
+**Origine**: [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) (CAM-05a), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1: l'orbita scrive l'offset manuale; §5.1: la rampa `StrategicPitchDelta`, a zero dentro la corsa tattica, neutra di default |
+
 ## 2026-10-11 — In vista strategica il segnalino d'un eroe sta in piedi sulla cella, e prende il click
 
 **Origine**: difetto trovato in PIE (seduta `U73`), issue [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647).
