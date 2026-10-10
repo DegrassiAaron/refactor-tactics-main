@@ -67,7 +67,16 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 TargetId = INDEX_NONE;
 
-	/** Cella mirata quando non c'e' un'unita' bersaglio (`TargetId == INDEX_NONE`); ignorata altrimenti. */
+	/**
+	 * **La cella mirata. SEMPRE**, anche quando `TargetId` nomina un'unita' ([D-415]).
+	 *
+	 * ⏱️ *Fino al 2026-09-20 era «ignorata» con un bersaglio-unita', e il resolver leggeva la cella corrente
+	 * di quell'unita': il colpo INSEGUIVA il bersaglio attraverso il movimento dello stesso turno.* Ora la
+	 * mira si fissa al lock-in (`ARTUnit::PlannedAimCell`) e viaggia qui.
+	 *
+	 * ⛔ **Chi costruisce un intento la valorizzi anche con `TargetId` valido**: `FRTCellId()` e' la cella
+	 * `(0,0,0)`, non una sentinella, quindi lasciarla al default significa mirare al centro della mappa.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	FRTCellId TargetCell;
 

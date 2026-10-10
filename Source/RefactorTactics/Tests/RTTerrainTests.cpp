@@ -509,6 +509,8 @@ bool FRTTerrainSmokeLimitsTargetingTest::RunTest(const FString&)
 	FRTHexAttackIntent Intent;
 	Intent.AttackerId = 0;
 	Intent.TargetId = 1;
+	// [D-415]: la mira sta nell'intento, e va dichiarata anche con un bersaglio-unita'.
+	Intent.TargetCell = Target.Cell;
 	Intent.RangeCells = 6; // la portata dichiarata basterebbe, ma la linea attraversa il Fumo a q=2
 	Intent.Power = 10;
 	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
@@ -563,6 +565,8 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	FRTHexAttackIntent Intent;
 	Intent.AttackerId = 0;
 	Intent.TargetId = 1;
+	// [D-415]: la mira sta nell'intento, e va dichiarata anche con un bersaglio-unita'.
+	Intent.TargetCell = Target.Cell;
 	Intent.RangeCells = DeclaredRange;
 	Intent.Power = 10;
 	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
@@ -572,6 +576,10 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	FRTActionInstance Instance;
 	Instance.SourceUnitId = 0;
 	Instance.TargetUnitId = 1;
+	// [D-415]: anche l'istanza porta la mira, e `ValidateInstance` misura la portata li'. ⌫ *Senza questa
+	// riga `TargetCell` restava `(0,0,0)` — la cella dell'attaccante, distanza zero — e il cap del Fumo non
+	// poteva scattare: rosso dal 2026-10-09, quando la validazione e' passata dalla cella viva alla mira.*
+	Instance.TargetCell = TargetCell;
 	Instance.Def.RangeCells = DeclaredRange;
 
 	FRTHexSimUnit BotUnit;

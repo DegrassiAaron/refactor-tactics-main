@@ -1568,6 +1568,47 @@ void ARTTurnManager::LockInAndResolve()
 	// `TurnLog` ne' nello `StateHash`.
 	PlaybackKnowledgeState = TeamKnowledgeState;
 
+	// 🔴 **LA MIRA SI FISSA QUI, e da qui non insegue piu'** ([D-415]).
+	//
+	// 🔑 **Questo e' il lock-in, cioe' l'istante in cui il piano diventa immutabile**: e' l'unico punto in
+	// cui la cella di un bersaglio e' ancora quella su cui chi spara ha DECISO. Fra qui e il Blast la
+	// cambia solo cio' che risolve PRIMA del Blast — `ResolveDash`, le spinte, le reazioni — e fino al
+	// 2026-09-20 il Blast leggeva `PlannedAttackTarget->Cell` dopo quei cambi: il colpo seguiva il bersaglio
+	// dove era scattato, mirando a una posizione che al momento di decidere non esisteva. ⚠️ Il movimento
+	// normale (`ResolveMovement`) risolve DOPO il Blast, e per lui la mira non inseguiva nemmeno prima.
+	//
+	// ⛔ **Non e' un'ottimizzazione della leggibilita': e' cio' che rende una fase simultanea decidibile.**
+	// Chi pianifica non puo' sapere dove l'avversario andra', ed e' giusto; ma non deve nemmeno subire che
+	// la propria mira lo segua li'.
+	//
+	// ✅ **E il bersaglio spostato PUO' comunque essere colpito**, se la sua nuova posizione ricade
+	// nell'area: `CollectHexAttacks` sceglie chi colpire geometricamente, non dall'identita' dichiarata. Il
+	// corollario di `D-415` non chiede codice, chiede di non rompere quello che c'e'.
+	//
+	// ⚠️ Vale per il bersaglio-UNITA'. Il bersaglio-cella e' gia' fisso per costruzione (`PlannedAttackCell`),
+	// e l'impatto della carica fa eccezione dichiarata: nasce **dentro** il Blast, al contatto, e la sua
+	// cella e' quella del contatto — non c'e' un «prima» da congelare.
+	//
+	// ⚠️ L'ordine della raccolta non conta QUI e non serve ordinarlo: ogni unita' scrive solo su se stessa,
+	// leggendo un'altra unita' che questo ciclo non tocca. E' una fotografia, non una risoluzione. La raccolta
+	// e' `CollectLivingUnits`, la stessa del resto del turno: ⌫ *era una seconda `GetAllActorsOfClass` che
+	// includeva i morti, trovata dalla code review di #3230.*
+	{
+		TArray<ARTUnit*> AimUnits;
+		CollectLivingUnits(AimUnits);
+		for (ARTUnit* PlanningUnit : AimUnits)
+		{
+			if (!IsValid(PlanningUnit)) { continue; }
+
+			const ARTUnit* AimedAt = PlanningUnit->PlannedAttackTarget;
+			PlanningUnit->bHasPlannedAim = IsValid(AimedAt) && !PlanningUnit->bAttackTargetsCell;
+			if (PlanningUnit->bHasPlannedAim)
+			{
+				PlanningUnit->PlannedAimCell = AimedAt->Cell;
+			}
+		}
+	}
+
 	// L'identita' di partita si fissa QUI, prima che il turno produca la sua prima voce di TurnLog (#405).
 	// Questo e' il punto comune ai due percorsi: il gioco ci arriva da `StartPlanningTimer`, lo Scenario
 	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
@@ -6747,8 +6788,13 @@ void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
 		// `EmitAbilityActivated`**, una per tutti i siti. ⏱️ *Fino alla review della PR #3561 qui c'era un `continue`
 		// che scansava l'`ensureMsgf` dell'helper; l'helper non ha piu' l'ensure, e una seconda guardia avrebbe reso
 		// la mutazione della prima invisibile a `Turn.LegacyIntentWithoutActionIdDoesNotActivate`.*
+		//
+		// 🔴 **La cella e' `Intent.TargetCell` anche per un bersaglio-unita'** ([D-415], [D-419]): e' la mira
+		// congelata al lock-in, la stessa da cui parte il colpo. ⌫ *Fino alla code review di #3230 qui c'era
+		// `Bersaglio->Cell`, cioe' la cella viva: dopo un Dash l'attivazione dichiarava una mira che il colpo
+		// non usava.* Pinnata da `Combat.Aim.PlannedAimDoesNotFollowTheTarget`.
 		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
-			Bersaglio ? Bersaglio->StableUnitId : 0, Bersaglio ? Bersaglio->Cell : Intent.TargetCell, Intent.Shape);
+			Bersaglio ? Bersaglio->StableUnitId : 0, Intent.TargetCell, Intent.Shape);
 	}
 }
 

@@ -407,7 +407,52 @@ public:
 	{
 		PlannedAttackTarget = nullptr;
 		bAttackTargetsCell = false;
+		bHasPlannedAim = false;   // [D-415]: la mira congelata muore col piano che la conteneva
 	}
+
+	/**
+	 * **La cella su cui l'azione principale mira, congelata al LOCK-IN** ([D-415]).
+	 *
+	 * 🔑 **Esiste perche' la mira non deve INSEGUIRE.** Fino al 2026-09-20 il Blast leggeva
+	 * `PlannedAttackTarget->Cell` al momento di risolvere, cioe' **dopo** il Dash, le spinte e le reazioni
+	 * (il movimento normale risolve dopo il Blast): un bersaglio che scattava veniva seguito, e chi sparava
+	 * colpiva una posizione che al momento di decidere non esisteva.
+	 * In una fase simultanea questo rende illeggibile la scelta — si mira a qualcosa che si muoverà.
+	 *
+	 * ⚠️ **NON e' `PlannedAttackCell`, ed e' deliberato.** Quella e' l'altra META' della scelta esclusiva di
+	 * `#2884`: `bAttackTargetsCell` decide QUALE delle due il resolver legge, e scriverci la mira di un
+	 * bersaglio-unita' renderebbe le due forme indistinguibili proprio nel campo che le separa.
+	 *
+	 * 🔑 **Il corollario di [D-415] regge da solo**: il bersaglio che si e' spostato puo' comunque essere
+	 * colpito, perche' `CollectHexAttacks` sceglie chi colpire **geometricamente** — ogni unita' viva su una
+	 * cella dell'area — e non dall'identita' del bersaglio dichiarato. Non c'e' niente da aggiungere per
+	 * ottenerlo, solo da non rompere.
+	 *
+	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
+	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. Oggi la dichiara solo
+	 * `Action.Interrupt`, e il perche' sta accanto alla sua riga di catalogo.
+	 *
+	 * 🔒 **NON e' visibile ai Blueprint, ed e' deliberato** (CLAUDE.md §7): e' intento della squadra che lo
+	 * dichiara, letto solo dal resolver. Esposto senza filtro, un grafo di presentazione leggerebbe dove mira
+	 * il nemico — e `Unit.BlueprintSurfaceIsCensused` lo avrebbe dovuto censire come debito «da ritirare»,
+	 * come ogni altro campo del piano. ⌫ *Fino alla suite completa del 2026-10-10 era `BlueprintReadOnly`.*
+	 * `Transient`: e' stato del turno, non si salva con l'attore.
+	 */
+	UPROPERTY(Transient)
+	FRTCellId PlannedAimCell;
+
+	/**
+	 * Se `PlannedAimCell` porta una mira valida per QUESTO turno ([D-415]).
+	 *
+	 * ⚠️ **Serve perche' `FRTCellId()` e' una cella LEGITTIMA** — `(0,0,0)` e' il centro di ogni mappa — e un
+	 * flag e' l'unico modo di distinguere «non congelata» da «congelata sull'origine». Senza, un piano
+	 * scritto direttamente (harness, test) mirerebbe al centro invece che dove dice.
+	 *
+	 * 🔒 Fuori dai Blueprint per la stessa ragione di `PlannedAimCell`: che una mira sia stata congelata e'
+	 * gia' informazione di piano.
+	 */
+	UPROPERTY(Transient)
+	bool bHasPlannedAim = false;
 
 	/**
 	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).

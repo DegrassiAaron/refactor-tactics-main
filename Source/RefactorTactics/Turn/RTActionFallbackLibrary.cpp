@@ -43,9 +43,17 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// (qui serve distinguere anche NoMap da OutOfRange con quest'ordine), quindi la regola si chiama diretta —
 	// stessa funzione condivisa, nessuna seconda copia della logica. Con `Map == nullptr` il cap e' un no-op e
 	// l'ordine dei motivi resta quello di prima.
-	const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, Source.Cell, Target.Cell,
+	//
+	// [D-415]/[D-419] — PORTATA E LINEA DI TIRO SI MISURANO SULLA MIRA CONGELATA, `Instance.TargetCell`, non
+	// sulla cella VIVA del bersaglio. 🔴 Fino al 2026-10-09 questa funzione leggeva `Target.Cell` mentre il
+	// Blast sparava su `Intent.TargetCell`: due celle decidevano due meta' dello stesso colpo, e il golden
+	// `Visual.Combat.FallbackTargetMoved` aveva archiviato `OutOfRange` su una cella in portata — trovato
+	// dalla code review di #3230. Quando l'azione dichiara l'aggancio (`ERTActionFallback::AttackTarget`)
+	// `TargetCell` e' gia' la cella viva, scritta da `CollectAttackIntents`: qui non si sceglie, si legge.
+	const FRTCellId& Aim = Instance.TargetCell;
+	const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, Source.Cell, Aim,
 		Instance.Def.RangeCells);
-	if (URTHexLibrary::HexDistance(Source.Cell, Target.Cell) > EffectiveRange)
+	if (URTHexLibrary::HexDistance(Source.Cell, Aim) > EffectiveRange)
 	{
 		return ERTActionInvalidReason::OutOfRange;
 	}
@@ -61,7 +69,7 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// con `None` in cima a questa funzione, e la sua linea di tiro la giudica `CollectHexAttacks`, che e'
 	// l'owner della geometria dei colpi a cella. Passarla comunque non e' ridondanza: e' cio' che tiene il
 	// dato unico se domani un'azione mirata a un'unita' dichiarera' il tiro indiretto.
-	if (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Target.Cell, Instance.Def.RangeCells,
+	if (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Aim, Instance.Def.RangeCells,
 		Instance.Def.LineOfSightPolicy) == ERTHexTargetReason::NoLineOfSight)
 	{
 		return ERTActionInvalidReason::NoLineOfSight;

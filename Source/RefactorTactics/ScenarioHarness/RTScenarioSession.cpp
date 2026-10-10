@@ -1564,8 +1564,10 @@ void FRTScenarioSession::BeginTurn()
 			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
-			U->PlannedAttackTarget = nullptr;
-			U->bAttackTargetsCell = false;
+			// TUTTE le forme del piano d'attacco in una chiamata: unita', cella e mira congelata ([D-415]).
+			// ⌫ *Erano due assegnazioni a mano, e il giorno in cui il piano ha preso un terzo campo
+			// (`bHasPlannedAim`) qui e' rimasto appeso — trovato dalla code review di #3230.*
+			U->ClearPlannedAttack();
 			// E il BORDO dichiarato: senza, un pannello eretto al turno 1 lascerebbe il lato scritto nel piano
 			// e un'azione di struttura del turno 3 lo troverebbe gia' pronto senza averlo chiesto.
 			U->bHasPlannedCoverEdge = false;
@@ -2448,7 +2450,9 @@ void FRTScenarioSession::Finish()
 			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
 			// nei turni successivi senza che lo scenario glielo chieda.
 			U->PlannedAbilityIndex = INDEX_NONE;
-			U->PlannedAttackTarget = nullptr;
+			// Tutte le forme del piano d'attacco, come al reset fra i turni: qui mancava anche
+			// `bAttackTargetsCell`, quindi una mira a CELLA sopravviveva alla fine dello scenario.
+			U->ClearPlannedAttack();
 			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
 			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
 			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.

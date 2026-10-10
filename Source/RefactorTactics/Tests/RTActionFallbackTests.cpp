@@ -71,8 +71,12 @@ bool FRTFallbackValidationTest::RunTest(const FString&)
 		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel),
 			MakeFallbackUnits(true, /*TargetTeam*/ 0), Map) == ERTActionInvalidReason::TargetFriendly);
 
+	// [D-415]: la portata si misura sulla MIRA congelata (`Instance.TargetCell`), quindi la cella fuori portata
+	// va dichiarata anche li' — una fixture con la mira a (2,0) e l'unita' a (5,0) descriverebbe un bersaglio
+	// scattato via DOPO il lock-in, che [D-415] non annulla. `Fallback.ValidationJudgesTheFrozenAim` pinna la
+	// differenza fra le due celle.
 	TestTrue(TEXT("bersaglio fuori portata"),
-		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, /*Range*/ 2),
+		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, /*Range*/ 2, FRTCellId(5, 0)),
 			MakeFallbackUnits(true, 1, FRTCellId(5, 0)), Map) == ERTActionInvalidReason::OutOfRange);
 
 	// Indice inesistente: il bersaglio non c'e' piu' nel turno.
@@ -273,6 +277,56 @@ bool FRTFallbackLogOutcomeTest::RunTest(const FString&)
 	TestTrue(TEXT("la riga dice che l'azione e' annullata"), Text.Contains(TEXT("annullata")));
 	TestTrue(TEXT("e dice perche'"), Text.Contains(TEXT("bersaglio eliminato")));
 	TestTrue(TEXT("con le coordinate assiali di partenza"), Text.Contains(TEXT("q=0")));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// [D-415]/[D-419] — la validazione giudica la cella CONGELATA, non quella viva del bersaglio
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **Trovato dalla code review di #3230**: `ValidateInstance` misurava portata e linea di tiro su
+ * `Target.Cell` — la cella viva — mentre il Blast sparava su `Instance.TargetCell`, la mira congelata. Due
+ * celle decidevano due meta' dello stesso colpo, e il golden `FallbackTargetMoved` aveva archiviato
+ * `OutOfRange` su una cella in portata.
+ *
+ * ⛔ Le due scene sono SPECULARI, ed e' cio' che rende il test non vacuo: nella prima la cella viva e' fuori
+ * portata e la mira dentro (deve passare); nella seconda la cella viva e' dentro e la mira fuori (deve
+ * rifiutare). Un'implementazione che leggesse la cella viva fallirebbe entrambe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallbackValidationJudgesTheFrozenAimTest,
+	"RefactorTactics.Fallback.ValidationJudgesTheFrozenAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallbackValidationJudgesTheFrozenAimTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeFallbackMap(/*Radius*/ 8);
+	const int32 Range = 4;
+	const FRTCellId Dentro(2, 0);
+	const FRTCellId Fuori(7, 0);
+
+	// Controllo positivo: la portata morde davvero su questa mappa, con questa distanza.
+	TestEqual(TEXT("controllo positivo: viva e mira entrambe fuori portata -> OutOfRange"),
+		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, Range, Fuori),
+			MakeFallbackUnits(true, 1, Fuori), Map),
+		ERTActionInvalidReason::OutOfRange);
+
+	// Scena 1: il bersaglio e' SCATTATO fuori portata, ma la mira congelata e' dentro: il colpo parte.
+	TestEqual(TEXT("[D-415] la cella viva fuori portata non annulla una mira congelata in portata"),
+		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, Range, Dentro),
+			MakeFallbackUnits(true, 1, Fuori), Map),
+		ERTActionInvalidReason::None);
+
+	// Scena 2: il bersaglio e' vicino, ma la mira congelata e' fuori portata: si rifiuta la MIRA.
+	TestEqual(TEXT("[D-415] la cella viva in portata non salva una mira congelata fuori portata"),
+		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, Range, Fuori),
+			MakeFallbackUnits(true, 1, Dentro), Map),
+		ERTActionInvalidReason::OutOfRange);
+
+	// E il bersaglio PERSO resta perso: la mira congelata non resuscita un'unita' morta.
+	TestEqual(TEXT("un bersaglio morto e' TargetDead anche con la mira in portata"),
+		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, Range, Dentro),
+			MakeFallbackUnits(/*bTargetAlive*/ false, 1, Dentro), Map),
+		ERTActionInvalidReason::TargetDead);
 	return true;
 }
 
