@@ -335,6 +335,128 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetRoundCounterText() const;
+
+	/**
+	 * Il timer come lo legge un giocatore, `00:21`: quanto manca al COMMIT (`SecondsUntilCommit`), non al Planning
+	 * (#3635). Vuoto quando nessun orologio corre.
+	 *
+	 * ⚠️ **Non-positivo significa «non si applica», e comprende lo zero**, come nella riga di stato del Canvas: la
+	 * vista pubblica `0.f` nel varco di ~350 ms a inizio partita, prima che il timer si armi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetTimerText() const;
+
+	/** `00:21`: secondi arrotondati per eccesso, in minuti e secondi. Vuoto se non positivi. */
+	static FText FormatCommitTimer(float Seconds);
+
+	/** La fase logica in maiuscolo, «PIANIFICAZIONE», «READY»…, da `URTHudViewModel::ComposePhaseWord`. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetPhaseText() const;
+
+	// ------------------------------------------------------------------------------------------------
+	// La resa delle tavole A e D (#3635, T8; [D-479], [D-481], [D-496]). Tutte opzionali, scritte da `RefreshLook`.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il riquadro: fondo `BG_Panel` al 92%, contorno `Frame_Deep` di 1 px (`RoundedBox`, tinta bianca). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> HeaderFrame;
+
+	/** Il numero del round, a due cifre («04»). «—» senza partita. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> RoundValueText;
+
+	/** «/ 12». `Collapsed` quando il formato non dichiara un limite: «/ 0» si leggerebbe come una partita scaduta. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> RoundLimitText;
+
+	/** Cio' che si vede in Pianificazione: segno e parola della fase, timer. `Collapsed` in Risoluzione. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> PlanningGroup;
+
+	/** Cio' che si vede in Risoluzione: le quattro celle della fase riprodotta ([D-479]). `Collapsed` in Pianificazione. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> ResolutionGroup;
+
+	/** La parola della fase logica, `Cyan`, da `GetPhaseText()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> PhaseText;
+
+	/** Il quadrato accanto alla parola: contorno `Cyan`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseMark;
+
+	/** Il timer, da `GetTimerText()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> TimerText;
+
+	/**
+	 * Le quattro celle della Risoluzione, nell'ordine dei fatti: Prep · Dash · Blast · Move. Ognuna ha la cornice
+	 * (`PhaseCell_*`), il segno (`PhaseCellMark_*`) e la sigla (`PhaseCellText_*`, da `PhaseMarkLabel`).
+	 *
+	 * 🔑 **Attiva e' la fase RIPRODOTTA (`PlaybackPhase`), non quella del modello** ([D-479]): il modello corre
+	 * avanti, e l'header deve dire la fase che si vede.
+	 * - **Attiva**: contorno di 2 px e fondo al 20% del colore della fase; segno pieno, quadrato, contorno `White`;
+	 *   sigla `White`.
+	 * - **Spenta**: contorno `Frame_Off` di 1 px, fondo trasparente; segno vuoto, tondo, `Text_Disabled`, piu'
+	 *   piccolo; sigla `Text_Disabled`.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCell_Prep;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCellMark_Prep;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> PhaseCellText_Prep;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCell_Dash;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCellMark_Dash;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> PhaseCellText_Dash;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCell_Blast;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCellMark_Blast;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> PhaseCellText_Blast;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCell_Move;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseCellMark_Move;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> PhaseCellText_Move;
+
+	/**
+	 * L'obiettivo nello stesso riquadro dell'header ([D-481]). `Collapsed` se la mappa non ne dichiara uno: su una
+	 * mappa senza obiettivo «0–0» sarebbe un punteggio inventato (`MapDeclaresObjective`).
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> ObjectiveBox;
+
+	/** «2–1»: squadra 0 – squadra 1, l'ordine della riga di stato e del TurnLog. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> ObjectiveScoreText;
+
+	/** «(a 3)». `Collapsed` quando `ScoreToWin` e' 0: la via per obiettivo e' disattivata, e «a 0» direbbe «vinta». */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> ObjectiveThresholdText;
+
+	/**
+	 * Scrive le porte. La chiama `NativeTick`; i test la chiamano a mano.
+	 *
+	 * @param bRecheckObjective  rileggere dalla mappa se c'e' un obiettivo. `NativeTick` lo fa una volta al
+	 *                           secondo: `MapDeclaresObjective` cerca l'attore della mappa nel mondo.
+	 */
+	void RefreshLook(bool bRecheckObjective = true);
+
+protected:
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	bool bMapDeclaresObjective = false;
+	float SecondsSinceObjectiveCheck = 1.f; // il primo tick rilegge subito
 };
 
 /**

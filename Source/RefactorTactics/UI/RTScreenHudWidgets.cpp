@@ -675,6 +675,155 @@ namespace
 	}
 }
 
+// La resa dell'header (#3635): sta qui e non accanto a `GetRoundCounterText` perche' usa `RTPaintFrame` e
+// `RTShowIf`, definiti nel namespace qui sopra.
+
+FText URTTurnHeaderWidget::GetTimerText() const
+{
+	if (!HasMatchContext())
+	{
+		return FText::GetEmpty();
+	}
+	// Il numero del COMMIT, non del Planning: lo calcola `ComputeSecondsUntilCommit` (il tetto vince sul countdown).
+	return FormatCommitTimer(GetHeader().SecondsUntilCommit);
+}
+
+FText URTTurnHeaderWidget::FormatCommitTimer(float Seconds)
+{
+	if (!(Seconds > 0.f)) // anche NaN: un timer che non si sa leggere non si mostra
+	{
+		return FText::GetEmpty();
+	}
+	const int32 Totale = FMath::CeilToInt(Seconds);
+	return FText::FromString(FString::Printf(TEXT("%02d:%02d"), Totale / 60, Totale % 60));
+}
+
+FText URTTurnHeaderWidget::GetPhaseText() const
+{
+	if (!HasMatchContext())
+	{
+		return FText::GetEmpty();
+	}
+	return FText::FromString(URTHudViewModel::ComposePhaseWord(GetHeader()).ToUpper());
+}
+
+void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	const FRTMatchHeaderView Header = GetHeader();
+	const bool bContesto = HasMatchContext();
+
+	RTPaintFrame(HeaderFrame, C(T::BG_Panel).CopyWithNewOpacity(0.92f), C(T::Frame_Deep), 1.f);
+
+	// Il round: due cifre, e il limite solo se il formato lo dichiara (la regola di `ComposeRoundCounter`).
+	if (RoundValueText)
+	{
+		FNumberFormattingOptions DueCifre;
+		DueCifre.MinimumIntegralDigits = 2;
+		DueCifre.UseGrouping = false;
+		RoundValueText->SetText(bContesto ? FText::AsNumber(Header.Round, &DueCifre) : FText::FromString(TEXT("—")));
+		RoundValueText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+	if (RoundLimitText)
+	{
+		RoundLimitText->SetText(FText::FromString(FString::Printf(TEXT("/ %d"), Header.RoundLimit)));
+		RoundLimitText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(RoundLimitText, bContesto && Header.RoundLimit > 0);
+
+	// Pianificazione o Risoluzione: due gruppi, mai entrambi.
+	RTShowIf(PlanningGroup, !Header.bResolving);
+	RTShowIf(ResolutionGroup, Header.bResolving);
+
+	if (PhaseText)
+	{
+		PhaseText->SetText(GetPhaseText());
+		PhaseText->SetColorAndOpacity(FSlateColor(C(T::Cyan)));
+	}
+	RTPaintFrame(PhaseMark, FLinearColor::Transparent, C(T::Cyan), 2.f);
+	if (TimerText)
+	{
+		TimerText->SetText(GetTimerText());
+		TimerText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+
+	// Le quattro celle: attiva e' la fase RIPRODOTTA ([D-479]). Fuori dalla Risoluzione nessuna e' attiva.
+	struct FCella
+	{
+		ERTMatchPhase Fase;
+		ERTActionPhaseMark Segno;
+		ERTUIToken Colore;
+		UBorder* Cornice;
+		UBorder* Marca;
+		UTextBlock* Sigla;
+	};
+	const FCella Celle[] = {
+		{ ERTMatchPhase::Prep,  ERTActionPhaseMark::Prep,  T::Phase_Prep,  PhaseCell_Prep,  PhaseCellMark_Prep,  PhaseCellText_Prep },
+		{ ERTMatchPhase::Dash,  ERTActionPhaseMark::Dash,  T::Phase_Dash,  PhaseCell_Dash,  PhaseCellMark_Dash,  PhaseCellText_Dash },
+		{ ERTMatchPhase::Blast, ERTActionPhaseMark::Blast, T::Phase_Blast, PhaseCell_Blast, PhaseCellMark_Blast, PhaseCellText_Blast },
+		{ ERTMatchPhase::Move,  ERTActionPhaseMark::Move,  T::Phase_Move,  PhaseCell_Move,  PhaseCellMark_Move,  PhaseCellText_Move },
+	};
+	for (const FCella& Cella : Celle)
+	{
+		const bool bAttiva = Header.bResolving && Header.PlaybackPhase == Cella.Fase;
+		const FLinearColor ColoreFase = C(Cella.Colore);
+		RTPaintFrame(Cella.Cornice, bAttiva ? ColoreFase.CopyWithNewOpacity(0.2f) : FLinearColor::Transparent,
+			bAttiva ? ColoreFase : C(T::Frame_Off), bAttiva ? 2.f : 1.f);
+		if (Cella.Marca)
+		{
+			// Il segno cambia FORMA, non solo colore: pieno e quadrato se attiva, vuoto e tondo se spenta. In scala
+			// di grigi la forma e' cio' che resta.
+			FSlateBrush Pennello = Cella.Marca->Background;
+			Pennello.DrawAs = ESlateBrushDrawType::RoundedBox;
+			Pennello.OutlineSettings.RoundingType = bAttiva ? ESlateBrushRoundingType::FixedRadius : ESlateBrushRoundingType::HalfHeightRadius;
+			Pennello.OutlineSettings.CornerRadii = FVector4(0.f, 0.f, 0.f, 0.f);
+			Pennello.OutlineSettings.Color = FSlateColor(bAttiva ? C(T::White) : C(T::Text_Disabled));
+			Pennello.OutlineSettings.Width = bAttiva ? 1.f : 1.5f;
+			Cella.Marca->SetBrush(Pennello);
+			Cella.Marca->SetBrushColor(bAttiva ? ColoreFase : FLinearColor::Transparent);
+			// Il segno spento e' piu' piccolo (6 px contro 11 nella tavola): una scala, che non sposta il layout.
+			Cella.Marca->SetRenderScale(bAttiva ? FVector2D(1.f, 1.f) : FVector2D(0.55f, 0.55f));
+		}
+		if (Cella.Sigla)
+		{
+			Cella.Sigla->SetText(URTHudViewModel::PhaseMarkLabel(Cella.Segno));
+			Cella.Sigla->SetColorAndOpacity(FSlateColor(bAttiva ? C(T::White) : C(T::Text_Disabled)));
+		}
+	}
+
+	// L'obiettivo ([D-481]): solo se la mappa ne dichiara uno.
+	if (bRecheckObjective)
+	{
+		bMapDeclaresObjective = URTHudViewModel::MapDeclaresObjective(GetTurnManager());
+	}
+	RTShowIf(ObjectiveBox, bContesto && bMapDeclaresObjective);
+	if (ObjectiveScoreText)
+	{
+		ObjectiveScoreText->SetText(FText::FromString(FString::Printf(TEXT("%d\u2013%d"), Header.Team0Score, Header.Team1Score)));
+		ObjectiveScoreText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+	if (ObjectiveThresholdText)
+	{
+		ObjectiveThresholdText->SetText(FText::FromString(FString::Printf(TEXT("(a %d)"), Header.ScoreToWin)));
+		ObjectiveThresholdText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(ObjectiveThresholdText, Header.ScoreToWin > 0);
+}
+
+void URTTurnHeaderWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceObjectiveCheck += InDeltaTime;
+	const bool bRileggi = SecondsSinceObjectiveCheck >= 1.f;
+	if (bRileggi)
+	{
+		SecondsSinceObjectiveCheck = 0.f;
+	}
+	RefreshLook(bRileggi);
+}
+
 void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 {
 	using T = ERTUIToken;

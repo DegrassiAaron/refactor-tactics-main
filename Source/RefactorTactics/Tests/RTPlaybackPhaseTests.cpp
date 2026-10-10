@@ -14,6 +14,11 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "UI/RTHudViewModel.h" // BuildMatchHeader: la vista dell'header si costruisce come la costruisce l'HUD
+#include "UI/RTScreenHudWidgets.h" // URTTurnHeaderWidget: la resa delle tavole A e D (#3635)
+#include "UI/RTUIPalette.h"
+#include "Turn/RTMatchFormatData.h" // FRTMatchRules: limite e soglia del formato
+#include "Components/Border.h"
+#include "Components/TextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -573,6 +578,177 @@ bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
 		DiversaDallaLogica > 0);
 	TestEqual(TEXT("dopo il playback: nessuna fase riprodotta"),
 		Nome(URTHudViewModel::BuildMatchHeader(TM).PlaybackPhase), Nome(ERTMatchPhase::Planning));
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **L'HEADER COME LE TAVOLE A E D** (#3635, T8). Il banco e' quello di `MatchHeaderCarriesThePlayedPhase`: un
+ * turno vero con Dash, Blast e Move, riprodotto tick per tick. Il nome resta `ScreenHud.*` perche' e' il widget a
+ * essere sotto misura.
+ *
+ * Le cinque cose della DoD:
+ *  1. in Risoluzione la cella attiva e' la fase RIPRODOTTA, e le altre sono spente;
+ *  2. in Pianificazione c'e' il gruppo della fase logica, con la parola in maiuscolo;
+ *  3. il timer e' vuoto quando non si applica, e `00:22` quando restano 21,2 s;
+ *  4. il limite del round e' assente senza formato, e «/ 12» con;
+ *  5. l'obiettivo e' assente senza una cella obiettivo, e «2–1 (a 3)» con.
+ *
+ * ⚠️ **I testi si confrontano CaseSensitive**: `TestEqual` su `FString` ignora le maiuscole, e «PIANIFICAZIONE»
+ * contro «Pianificazione» e' proprio cio' che va distinto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnHeaderLookFollowsTheBoardTest,
+	"RefactorTactics.ScreenHud.TurnHeaderLookFollowsTheBoard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
+{
+	const auto Uguale = [](const FText& Testo, const TCHAR* Atteso)
+	{
+		return Testo.ToString().Equals(Atteso, ESearchCase::CaseSensitive);
+	};
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// --- 3a. Il formato del timer, senza mondo ----------------------------------------------------------------------
+	TestTrue(TEXT("3: 21,2 s si leggono 00:22 (per eccesso)"), Uguale(URTTurnHeaderWidget::FormatCommitTimer(21.2f), TEXT("00:22")));
+	TestTrue(TEXT("3: 65 s si leggono 01:05"), Uguale(URTTurnHeaderWidget::FormatCommitTimer(65.f), TEXT("01:05")));
+	TestTrue(TEXT("3: zero non si mostra"), URTTurnHeaderWidget::FormatCommitTimer(0.f).IsEmpty());
+	TestTrue(TEXT("3: un negativo non si mostra"), URTTurnHeaderWidget::FormatCommitTimer(-1.f).IsEmpty());
+
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	URTHexMapAsset* Mappa = SpawnPlaybackMap(World);
+
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTTurnHeaderWidget* W = NewObject<URTTurnHeaderWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager spawnato"), TM) || !Dasher || !Target || !Mappa || !W)
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	const auto Cornice = [W]()
+	{
+		UBorder* B = NewObject<UBorder>(W);
+		FSlateBrush Brush = B->Background;
+		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+		B->SetBrush(Brush);
+		return B;
+	};
+	W->HeaderFrame = Cornice();
+	W->RoundValueText = NewObject<UTextBlock>(W);
+	W->RoundLimitText = NewObject<UTextBlock>(W);
+	W->PlanningGroup = NewObject<UBorder>(W);
+	W->ResolutionGroup = NewObject<UBorder>(W);
+	W->PhaseText = NewObject<UTextBlock>(W);
+	W->PhaseMark = Cornice();
+	W->TimerText = NewObject<UTextBlock>(W);
+	W->ObjectiveBox = NewObject<UBorder>(W);
+	W->ObjectiveScoreText = NewObject<UTextBlock>(W);
+	W->ObjectiveThresholdText = NewObject<UTextBlock>(W);
+	struct FCellaDiProva { ERTMatchPhase Fase; UBorder* Cornice; UBorder* Marca; UTextBlock* Sigla; };
+	TArray<FCellaDiProva> Celle;
+	const auto Cella = [&](ERTMatchPhase Fase, TObjectPtr<UBorder>& C, TObjectPtr<UBorder>& M, TObjectPtr<UTextBlock>& S)
+	{
+		C = Cornice();
+		M = Cornice();
+		S = NewObject<UTextBlock>(W);
+		Celle.Add({ Fase, C.Get(), M.Get(), S.Get() });
+	};
+	Cella(ERTMatchPhase::Prep, W->PhaseCell_Prep, W->PhaseCellMark_Prep, W->PhaseCellText_Prep);
+	Cella(ERTMatchPhase::Dash, W->PhaseCell_Dash, W->PhaseCellMark_Dash, W->PhaseCellText_Dash);
+	Cella(ERTMatchPhase::Blast, W->PhaseCell_Blast, W->PhaseCellMark_Blast, W->PhaseCellText_Blast);
+	Cella(ERTMatchPhase::Move, W->PhaseCell_Move, W->PhaseCellMark_Move, W->PhaseCellText_Move);
+	W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	// --- A. Pianificazione, senza formato e senza obiettivo ------------------------------------------------------------
+	W->RefreshLook();
+	TestTrue(TEXT("2: in Pianificazione c'e' il gruppo della fase logica"), Visibile(W->PlanningGroup));
+	TestFalse(TEXT("2: e non quello della Risoluzione"), Visibile(W->ResolutionGroup));
+	TestTrue(TEXT("2: la parola e' in maiuscolo"), Uguale(W->PhaseText->GetText(), TEXT("PIANIFICAZIONE")));
+	TestTrue(TEXT("2: in Cyan"), W->PhaseText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Cyan)));
+	TestTrue(TEXT("3: senza timer armato il timer e' vuoto"), W->TimerText->GetText().IsEmpty());
+	TestFalse(TEXT("4: senza formato il limite non c'e'"), Visibile(W->RoundLimitText));
+	TestFalse(TEXT("5: senza cella obiettivo l'obiettivo non c'e'"), Visibile(W->ObjectiveBox));
+	TestTrue(TEXT("A: il riquadro ha il contorno Frame_Deep"),
+		W->HeaderFrame->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Colore(ERTUIToken::Frame_Deep)));
+	for (const FCellaDiProva& C : Celle)
+	{
+		TestEqual(TEXT("A: fuori dalla Risoluzione nessuna cella e' attiva"), C.Cornice->Background.OutlineSettings.Width, 1.f);
+	}
+
+	// --- B. Con formato e obiettivo ------------------------------------------------------------------------------------
+	FRTMatchRules Regole = TM->GetMatchRules();
+	Regole.RoundLimit = 12;
+	Regole.ScoreToWin = 3;
+	TM->SetMatchRules(Regole);
+	if (!TestTrue(TEXT("premessa: la mappa ha celle"), Mappa->Cells.Num() > 0))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Mappa->Cells[0].bIsObjective = true;
+	W->RefreshLook(/*bRecheckObjective=*/ true);
+	TestTrue(TEXT("4: col formato il limite c'e'"), Visibile(W->RoundLimitText));
+	TestTrue(TEXT("4: e dice «/ 12»"), Uguale(W->RoundLimitText->GetText(), TEXT("/ 12")));
+	TestTrue(TEXT("5: con la cella obiettivo l'obiettivo c'e'"), Visibile(W->ObjectiveBox));
+	TestTrue(TEXT("5: la soglia c'e' e dice «(a 3)»"),
+		Visibile(W->ObjectiveThresholdText) && Uguale(W->ObjectiveThresholdText->GetText(), TEXT("(a 3)")));
+	TestTrue(TEXT("5: il punteggio e' squadra 0 – squadra 1"),
+		Uguale(W->ObjectiveScoreText->GetText(), *FString::Printf(TEXT("%d–%d"), TM->GetTeamScore(0), TM->GetTeamScore(1))));
+
+	// --- C. Risoluzione: la cella attiva e' la fase RIPRODOTTA -------------------------------------------------------------
+	const int32 DashIdx = Dasher->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = FRTCellId(3, 2);
+	Dasher->PlannedAbilityIndex = 0;
+	Dasher->PlannedAttackTarget = Target;
+	Target->PlannedCell = FRTCellId(4, 5);
+	TM->LockInAndResolve();
+
+	TSet<ERTMatchPhase> Viste;
+	int32 TickRisoluzione = 0;
+	int32 Sbagliate = 0;
+	for (int32 Tick = 0; Tick < 600 && TM->IsResolving(); ++Tick)
+	{
+		W->RefreshLook(/*bRecheckObjective=*/ false);
+		const ERTMatchPhase Riprodotta = URTHudViewModel::BuildMatchHeader(TM).PlaybackPhase;
+		++TickRisoluzione;
+		Viste.Add(Riprodotta);
+		Sbagliate += (!Visibile(W->ResolutionGroup) || Visibile(W->PlanningGroup)) ? 1 : 0;
+		for (const FCellaDiProva& C : Celle)
+		{
+			const bool bAttesa = C.Fase == Riprodotta;
+			const bool bAttiva = C.Cornice->Background.OutlineSettings.Width == 2.f
+				&& C.Sigla->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::White))
+				&& C.Marca->Background.OutlineSettings.RoundingType == ESlateBrushRoundingType::FixedRadius;
+			const bool bSpenta = C.Cornice->Background.OutlineSettings.Width == 1.f
+				&& C.Sigla->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Disabled))
+				&& C.Marca->Background.OutlineSettings.RoundingType == ESlateBrushRoundingType::HalfHeightRadius;
+			Sbagliate += (bAttesa ? !bAttiva : !bSpenta) ? 1 : 0;
+		}
+		TM->Tick(0.05f);
+	}
+	TestFalse(TEXT("premessa: il playback e' finito entro il tetto di tick"), TM->IsResolving());
+	TestTrue(TEXT("premessa: ci sono stati tick di Risoluzione"), TickRisoluzione > 0);
+	TestTrue(TEXT("1: l'header ha acceso il Dash"), Viste.Contains(ERTMatchPhase::Dash));
+	TestTrue(TEXT("1: e il Blast"), Viste.Contains(ERTMatchPhase::Blast));
+	TestTrue(TEXT("1: e il Move"), Viste.Contains(ERTMatchPhase::Move));
+	TestEqual(*FString::Printf(TEXT("1: in %d tick, a ogni tick la sola cella attiva e' la fase riprodotta, e i gruppi sono giusti"),
+		TickRisoluzione), Sbagliate, 0);
+
+	// --- D. Dopo il playback si torna alla Pianificazione ---------------------------------------------------------------
+	W->RefreshLook(/*bRecheckObjective=*/ false);
+	TestTrue(TEXT("D: dopo il playback torna il gruppo della Pianificazione"), Visibile(W->PlanningGroup));
+	TestFalse(TEXT("D: e il gruppo della Risoluzione si chiude"), Visibile(W->ResolutionGroup));
 
 	DestroyPlaybackWorld(World);
 	return true;

@@ -1439,18 +1439,9 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		// che scorre e' il tempo dato a chi guarda per leggere i piani.
 		const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
 
-		const TCHAR* PhaseName = TEXT("");
-		switch (Header.Phase)
-		{
-		case ERTMatchPhase::Planning:
-			PhaseName = bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
-			          : bReadyCountdown ? TEXT("Ready")
-			          : TEXT("Pianificazione");
-			break;
-		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
-		default:                        PhaseName = TEXT("Risoluzione"); break;
-		}
-		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
+		// La parola la decide `ComposePhaseWord` (#3635), la stessa dell'header UMG: una sede sola, non due switch
+		// che possono dissentire. I due flag qui sopra restano per il numero e per il suggerimento dei tasti.
+		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, *URTHudViewModel::ComposePhaseWord(Header));
 
 		// ⚠️ **Non-positivo significa «non si applica», e comprende lo ZERO.** La vista porta un negativo
 		// quando la domanda non si pone — fuori dal Planning, o senza timer nelle run headless che girano con

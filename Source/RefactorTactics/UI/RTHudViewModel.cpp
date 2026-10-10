@@ -15,6 +15,7 @@
 #include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
 #include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
 #include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
+#include "Map/RTHexMapAsset.h"                // HasObjectiveCell: il punteggio ha senso solo con un obiettivo (#3635)
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del tooltip (`#3499`)
@@ -89,6 +90,45 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	View.SecondsUntilCommit = ComputeSecondsUntilCommit(View);
 
 	return View;
+}
+
+FString URTHudViewModel::ComposePhaseWord(const FRTMatchHeaderView& Header)
+{
+	// Il countdown del Ready e la finestra di preparazione hanno la propria parola: la fase e' ancora Planning,
+	// e i due stati devono distinguersi senza contare i secondi (`#2358`, `#2386`).
+	const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
+	const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
+	switch (Header.Phase)
+	{
+	case ERTMatchPhase::Planning:
+		return bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
+			: bReadyCountdown ? TEXT("Ready")
+			: TEXT("Pianificazione");
+	case ERTMatchPhase::MatchEnded:
+		return TEXT("Fine");
+	default:
+		return TEXT("Risoluzione");
+	}
+}
+
+bool URTHudViewModel::MapDeclaresObjective(const ARTTurnManager* TurnManager)
+{
+	if (!TurnManager)
+	{
+		return false;
+	}
+	// La stessa mappa che il Cleanup valuta: quella dell'attore nel mondo, via `GetHexContext` dell'attore (quello del
+	// manager e' protetto, e ci inoltra).
+	const ARTHexMapActor* Attore = ARTHexMapActor::FindInWorld(TurnManager->GetWorld());
+	if (!Attore)
+	{
+		return false;
+	}
+	FVector Origine;
+	float Lato = 0.f;
+	float Piano = 0.f;
+	const URTHexMapAsset* Mappa = Attore->GetHexContext(Origine, Lato, Piano);
+	return Mappa && Mappa->HasObjectiveCell();
 }
 
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)

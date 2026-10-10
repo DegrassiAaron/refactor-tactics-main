@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-10 — L'header e l'obiettivo hanno le porte delle tavole A e D
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo, parte C++. Issue
+[#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §5: le porte dell'header, delle quattro celle e dell'obiettivo |
+
+---
+
 ## 2026-10-10 — La finestra di reazione ha le porte della tavola E
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione, parte C++. Issue
