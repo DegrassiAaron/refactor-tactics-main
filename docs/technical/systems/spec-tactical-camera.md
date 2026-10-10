@@ -85,7 +85,7 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Pan | `W` `A` `S` `D` | `AddPlanarMovement`, **relativo alla vista** |
 | Zoom | rotella | `ZoomTowards` (ancorato al cursore), ripiego al centro fuori mappa |
 | Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°` |
-| Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch) |
+| Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`) |
 | Select | `LMB` | contratto del puntatore ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)) |
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
 | Home | `Home` | `RecenterView` |
@@ -226,7 +226,7 @@ il grep risponde `3` nel solo `RTCameraPawn.cpp`.
 | Consumatore | Deriva dallo zoom? | Come, oggi |
 |---|---|---|
 | velocità di pan | ✅ **dalla sorgente** | `Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength` |
-| pitch | 🟡 **canale aperto, curva piatta** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha()`, con `PitchZoomDelta = 0` di **default**: in partita l'inclinazione è identica a prima, e la curva si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
+| pitch | 🟡 **canale aperto, curve piatte** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha() + StrategicPitchDelta * GetStrategicPitchRampAlpha()`, entrambi i delta a `0` di **default**: in partita l'inclinazione è identica a prima. La seconda rampa ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630)) vale zero fino a `StrategicExitThreshold` e cresce fino a `MaxArmLength`: inclina la vista strategica senza toccare quella tattica (`Camera.StrategicPitchRampIsFlatInTheTacticalRange`). Il valore lo sceglie l'autore in PIE, la curva generale si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
 | FOV | ❌ no | `ViewportHorizontalFov` viene **letto** dalla camera, mai scritto |
 | span dei layer | ❌ non esiste | §6 |
 | alpha della UI tattica | ❌ non esiste | [#1835](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1835) |
