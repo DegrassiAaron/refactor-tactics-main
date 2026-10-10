@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-10 — Le sedute di stile dell'HUD hanno le loro issue, e il registro riceve D-496
+
+**Origine**: il seguito T8 del referto delle tavole A–F; tre decisioni d'autore sulle divergenze fra tavole e codice.
+Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-496** (l'header dice `ROUND`; il registro solo in Risoluzione; i badge dei tasti in italiano) |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T8 di §9 punta alle cinque issue |
+
+---
+
 ## 2026-10-10 — La vista strategica entra in v0.1 in quattro pezzi, e il registro riceve D-495
 
 **Origine**: il seguito T9 del referto delle tavole A–F, in una sessione `/sc:brainstorm` con l'autore. Issue

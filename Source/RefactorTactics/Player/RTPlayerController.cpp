@@ -453,6 +453,27 @@ const FKey& ARTPlayerController::UndoKeyboardHotkey()
 	return Tasto;
 }
 
+FText ARTPlayerController::KeyBadgeLabel(const FKey& Key)
+{
+	// [D-496]: i tasti che un badge dell'HUD mostra per nome. Le cifre e le lettere restano quelle dell'engine.
+	struct FVoce { FKey Tasto; const TCHAR* Nome; };
+	static const FVoce Voci[] = {
+		{ EKeys::Enter,     TEXT("INVIO") },
+		{ EKeys::BackSpace, TEXT("BACKSPACE") },
+		{ EKeys::Escape,    TEXT("ESC") },
+		{ EKeys::SpaceBar,  TEXT("SPAZIO") },
+		{ EKeys::Tab,       TEXT("TAB") },
+	};
+	for (const FVoce& Voce : Voci)
+	{
+		if (Voce.Tasto == Key)
+		{
+			return FText::FromString(Voce.Nome);
+		}
+	}
+	return FText::FromString(Key.GetDisplayName(/*bLongDisplayName=*/ false).ToString().ToUpper());
+}
+
 FText ARTPlayerController::ReactionOptionKeyLabel(int32 OptionIndex)
 {
 	return AbilityHotkeys().IsValidIndex(OptionIndex)

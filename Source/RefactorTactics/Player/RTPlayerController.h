@@ -691,6 +691,15 @@ public:
 	 */
 	static const FKey& UndoKeyboardHotkey();
 
+	/**
+	 * Il nome che un BADGE scrive per un tasto ([D-496], #3633): in italiano per i tasti che l'HUD mostra in un
+	 * badge (`Enter` -> «INVIO», `BackSpace` -> «BACKSPACE»), altrimenti il nome dell'engine in maiuscolo.
+	 *
+	 * 🔑 **Riceve il tasto, non un nome**: il badge legge sempre il tasto vero della mappatura, e questa tabella
+	 * ne traduce soltanto l'etichetta. Un tasto rimappato cambia il badge senza toccare la tabella.
+	 */
+	static FText KeyBadgeLabel(const FKey& Key);
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
