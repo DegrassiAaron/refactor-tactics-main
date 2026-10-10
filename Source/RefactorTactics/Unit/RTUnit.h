@@ -22,6 +22,7 @@ enum class ERTGraykitAnchor : uint8;
 struct FRTGraykitPose;
 class UArrowComponent;
 class USkeletalMeshComponent;
+class UTextRenderComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
@@ -1717,17 +1718,23 @@ public:
 	 * ⚠️ **`bHasPose` e' la terza condizione, aggiunta il 2026-09-05 (#2545).** Una mesh SENZA una clip
 	 * da suonare non e' un corpo: e' una posa di riferimento, cioe' una T-pose — e una T-pose si legge
 	 * come «questa animazione e' rotta» invece che come «nessuno ha legato una clip a questo ruolo».
+	 *
+	 * 🔑 **`bStrategic` e' la quarta condizione, aggiunta il 2026-10-10 (D-495).** Nella vista strategica il
+	 * segnalino e' il cilindro anche sugli eroi: lo skeletal si spegne e il cilindro si riaccende. Entra **in
+	 * AND con `bRender`**, quindi non puo' riaccendere niente che il velo abbia spento — la privacy di
+	 * D-488 (4) si eredita da qui invece di essere riscritta.
 	 */
-	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose);
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose, bool bStrategic = false);
 
 	/**
 	 * Se lo SKELETAL dell'eroe va mostrato: serve che l'unita' si veda **e** che ci sia una posa da
-	 * mostrare.
+	 * mostrare **e** che la vista non sia strategica (D-495).
 	 *
 	 * 🔑 Esiste accanto a `ShouldShowPlaceholderMesh` perche' sono **la stessa decisione**: senza questo,
-	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi.
+	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi. Per la
+	 * stessa ragione prende lo stesso `bStrategic`: in strategica i due corpi si scambiano, non si sommano.
 	 */
-	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose);
+	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose, bool bStrategic = false);
 
 	/**
 	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
@@ -1747,6 +1754,23 @@ public:
 	 * che significa morte ed e' a senso unico per SEMANTICA.
 	 */
 	void SetKnownToObserver(bool bKnown);
+
+	/**
+	 * `D-495` — dichiara se l'osservatore locale guarda dalla vista strategica. **Sola presentazione**: decide
+	 * QUALE corpo si mostra (cilindro o skeletal, segnalino o sagoma del ricordo), mai SE l'unita' si vede —
+	 * quello resta di `SetKnownToObserver` e della vita.
+	 *
+	 * Lo scrive `ARTHUD::UpdateObserverVeil`, che legge `ARTCameraPawn::IsStrategicView` nello stesso giro
+	 * in cui scrive il velo: un produttore, come per `SetKnownToObserver`.
+	 */
+	void SetStrategicPresentation(bool bStrategic, float ViewYawDegrees = 0.f);
+	bool IsStrategicPresentation() const { return bStrategicPresentation; }
+
+	/** Cio' che un test puo' leggere del ricordo senza montare un HUD (D-495). */
+	bool IsContactTokenVisibleForTest() const;
+	FVector GetContactTokenLocationForTest() const;
+	FRotator GetContactTokenMarkRotationForTest() const;
+	bool IsContactGhostVisibleForTest() const;
 
 	/**
 	 * Cio' che l'osservatore locale sa di questa unita', come gliel'ha dichiarato `SetKnownToObserver`.
@@ -2085,6 +2109,41 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<USkeletalMeshComponent> ContactGhost;
+
+	/**
+	 * `D-495` — il ricordo nella vista strategica: un **segnalino** (il cilindro del segnaposto) con una «X»
+	 * sopra, al posto della sagoma. E' l'«ultimo contatto» della tavola F di `hud-screens-2026-10`.
+	 *
+	 * 🔴 **Non passa dal velo dell'unita', e non per svista**: un ricordo ha `bRender == false` per
+	 * costruzione, quindi i predicati del segnaposto lo spegnerebbero. Segue la STESSA sorgente della sagoma —
+	 * `UpdateContactGhost`, con la cella del CONTATTO — e la stessa regola d'eta' (`GhostOpacityForContact`):
+	 * dice dove e quando, come la sagoma, e niente di piu'. Non ha bisogno di una skeletal da copiare, quindi
+	 * vale anche per un'unita' che ha solo il cilindro.
+	 *
+	 * Posizione, rotazione e scala ASSOLUTE come `ContactGhost`: resta sulla cella del ricordo anche se
+	 * l'attore vero si e' spostato altrove. `NoCollision`, nessuna ombra.
+	 */
+	//
+	// ⛔ **Niente `BlueprintReadOnly`, di proposito** (`Unit.BlueprintSurfaceIsCensused`): nessun grafo ne ha
+	// bisogno, e una maniglia in piu' e' una riga in piu' nel censimento della privacy senza un consumatore.
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> ContactToken;
+
+	/**
+	 * La «X» del segnalino del ricordo: testo piatto rivolto in alto, girato con lo yaw della camera.
+	 *
+	 * ⚠️ **Una «X» e' simmetrica per quarti di giro, la camera no**: ruota a passi di 45° (`YawStep`) e
+	 * con l'orbita a qualunque angolo. Fissata al mondo, al primo scatto diventerebbe una «+» (review di #3640).
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
+	TObjectPtr<UTextRenderComponent> ContactTokenMark;
+
+	/** Vedi `SetStrategicPresentation`. Nasce tattica. */
+	UPROPERTY()
+	bool bStrategicPresentation = false;
+
+	/** Lo yaw della camera di chi guarda, consegnato con lo stato strategico: orienta la «X» del ricordo. */
+	float StrategicViewYaw = 0.f;
 
 	/**
 	 * La sovrapposizione sopra la testa — nome, vita, scudo, stati (`#2288`, `D-320`).

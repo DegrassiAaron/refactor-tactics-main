@@ -146,6 +146,158 @@ bool FRTUnitComponentVisibilityIsDerivedTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------
+// D-495 — la vista strategica sceglie QUALE corpo si mostra, mai SE l'unita' si vede.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * I due predicati con lo stato strategico, su tutti i sedici casi.
+ *
+ * 🔴 **La riga che porta il peso e' la prima del ciclo**: con `bRender == false` nessun corpo si accende,
+ * NEANCHE in strategica. E' cio' che rende ereditata la privacy di D-488 (4). Verifica di mutazione:
+ * scrivere `bRender || bStrategic` invece dell'AND riaccende il cilindro di un nemico velato, e quella
+ * riga cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitStrategicPredicatesTest,
+	"RefactorTactics.Unit.StrategicPresentationSwapsTheBodyButNeverRevealsAVeiledUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitStrategicPredicatesTest::RunTest(const FString&)
+{
+	for (int32 Caso = 0; Caso < 16; ++Caso)
+	{
+		const bool bRender    = (Caso & 1) != 0;
+		const bool bHeroMesh  = (Caso & 2) != 0;
+		const bool bPose      = (Caso & 4) != 0;
+		const bool bStrategic = (Caso & 8) != 0;
+
+		const bool bSegnaposto = ARTUnit::ShouldShowPlaceholderMesh(bRender, bHeroMesh, bPose, bStrategic);
+		// Lo skeletal si interroga solo dove esiste, come fa `RefreshComponentVisibility`.
+		const bool bSkeletal = bHeroMesh && ARTUnit::ShouldShowHeroSkeletal(bRender, bPose, bStrategic);
+
+		if (!bRender)
+		{
+			TestFalse(*FString::Printf(TEXT("caso %d: velata, il cilindro resta spento anche in strategica"), Caso),
+				bSegnaposto);
+			TestFalse(*FString::Printf(TEXT("caso %d: velata, lo skeletal resta spento anche in strategica"), Caso),
+				bSkeletal);
+			continue;
+		}
+		TestFalse(*FString::Printf(TEXT("caso %d: mai entrambi accesi"), Caso), bSegnaposto && bSkeletal);
+		if (bStrategic)
+		{
+			TestTrue(*FString::Printf(TEXT("caso %d: in strategica il segnalino e' il cilindro"), Caso), bSegnaposto);
+			TestFalse(*FString::Printf(TEXT("caso %d: in strategica lo skeletal si spegne"), Caso), bSkeletal);
+		}
+		else
+		{
+			// Controllo positivo: fuori dalla strategica i predicati dicono quello che dicevano prima di D-495.
+			TestEqual(*FString::Printf(TEXT("caso %d: in tattica il cilindro non cambia"), Caso),
+				bSegnaposto, ARTUnit::ShouldShowPlaceholderMesh(bRender, bHeroMesh, bPose));
+		}
+	}
+	return true;
+}
+
+/**
+ * Lo stesso invariante sull'unita' vera: un nemico che il velo ha spento non ricompare quando la vista
+ * passa in strategica, e ricompare come cilindro quando il velo lo riaccende.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitStrategicKeepsTheVeilTest,
+	"RefactorTactics.Veil.StrategicViewDoesNotRevealAVeiledUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitStrategicKeepsTheVeilTest::RunTest(const FString&)
+{
+	UWorld* World = UvMakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	UStaticMeshComponent* Placeholder = UvComponentNamed(Unit, TEXT("Mesh"));
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("cilindro segnaposto"), Placeholder))
+	{
+		UvDestroyWorld(World);
+		return false;
+	}
+
+	Unit->SetKnownToObserver(false);
+	Unit->SetStrategicPresentation(true);
+	TestTrue(TEXT("lo stato strategico e' arrivato all'unita'"), Unit->IsStrategicPresentation());
+	TestFalse(TEXT("velata e in strategica: il cilindro resta spento"), Placeholder->GetVisibleFlag());
+	TestFalse(TEXT("velata: non e' cliccabile"), Unit->GetActorEnableCollision());
+
+	// Controllo positivo: il velo che si riapre riaccende il segnalino nello stesso giro.
+	Unit->SetKnownToObserver(true);
+	TestTrue(TEXT("vista e in strategica: il cilindro c'e'"), Placeholder->GetVisibleFlag());
+
+	UvDestroyWorld(World);
+	return true;
+}
+
+/**
+ * Il ricordo in strategica: un segnalino sulla cella del CONTATTO, con la stessa regola d'eta' della sagoma.
+ *
+ * 🔑 **La cella e' quella passata, non quella dell'attore**: l'unita' vera sta altrove, e il segnalino non
+ * deve seguirla. E un contatto scaduto non lascia niente a schermo — un ricordo che non dice piu' della
+ * sagoma che sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitStrategicContactTokenTest,
+	"RefactorTactics.Veil.StrategicRememberedContactIsATokenOnTheContactCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitStrategicContactTokenTest::RunTest(const FString&)
+{
+	UWorld* World = UvMakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	if (!TestNotNull(TEXT("unita'"), Unit)) { UvDestroyWorld(World); return false; }
+
+	// L'unita' vera lontana dalla cella del contatto: un segnalino che seguisse l'attore lo si vedrebbe qui.
+	Unit->SetActorLocation(FVector(5000.f, 5000.f, 0.f));
+	Unit->SetKnownToObserver(false);
+	const FVector Contatto(1200.f, -300.f, 40.f);
+
+	// In tattica il segnalino non c'e'.
+	Unit->UpdateContactGhost(Contatto, /*ContactTurn*/ 3, /*CurrentTurn*/ 3);
+	TestFalse(TEXT("in tattica il ricordo non e' un segnalino"), Unit->IsContactTokenVisibleForTest());
+
+	// In strategica si', sulla cella del contatto e alla quota del segnaposto.
+	Unit->SetStrategicPresentation(true);
+	Unit->UpdateContactGhost(Contatto, 3, 3);
+	TestTrue(TEXT("in strategica il ricordo e' un segnalino"), Unit->IsContactTokenVisibleForTest());
+	TestFalse(TEXT("e la sagoma resta spenta"), Unit->IsContactGhostVisibleForTest());
+	TestEqual(TEXT("sulla cella del contatto, non su quella dell'attore"),
+		Unit->GetContactTokenLocationForTest(), Contatto + FVector(0.f, 0.f, ARTUnit::UnitHalfHeight));
+
+	// La «X» guarda in alto e gira con lo yaw della camera (review di #3640): fissata al mondo, al primo scatto
+	// da 45° diventerebbe una «+». Si asseriscono gli ASSI e non gli angoli, perche' a `Pitch = 90` yaw e
+	// roll di un rotatore riletto si scambiano (gimbal lock) e un confronto sugli angoli mentirebbe.
+	Unit->SetStrategicPresentation(true, /*ViewYawDegrees*/ 45.f);
+	Unit->UpdateContactGhost(Contatto, 3, 3);
+	{
+		const FRotator Mark = Unit->GetContactTokenMarkRotationForTest();
+		const FVector Fronte = Mark.RotateVector(FVector::ForwardVector);
+		const FVector Su     = Mark.RotateVector(FVector::UpVector);
+		TestTrue(TEXT("la «X» guarda in alto"), Fronte.Equals(FVector::UpVector, 1e-3f));
+		const FVector SuAtteso = -FVector(FMath::Cos(FMath::DegreesToRadians(45.f)),
+			FMath::Sin(FMath::DegreesToRadians(45.f)), 0.f);
+		TestTrue(TEXT("e il suo 'su' segue lo yaw della camera"), Su.Equals(SuAtteso, 1e-3f));
+	}
+
+	// Un contatto scaduto spegne il segnalino come spegne la sagoma.
+	Unit->UpdateContactGhost(Contatto, /*ContactTurn*/ 1, /*CurrentTurn*/ 5);
+	TestFalse(TEXT("un contatto scaduto non lascia il segnalino"), Unit->IsContactTokenVisibleForTest());
+
+	// «Niente da ricordare» lo spegne, e tornare in tattica anche.
+	Unit->UpdateContactGhost(Contatto, 3, 3);
+	Unit->HideContactGhost();
+	TestFalse(TEXT("HideContactGhost spegne anche il segnalino"), Unit->IsContactTokenVisibleForTest());
+	Unit->UpdateContactGhost(Contatto, 3, 3);
+	Unit->SetStrategicPresentation(false);
+	TestFalse(TEXT("tornando in tattica il segnalino si spegne"), Unit->IsContactTokenVisibleForTest());
+
+	UvDestroyWorld(World);
+	return true;
+}
+
 /**
  * 🔴 **Riavvistare un nemico non lo seleziona.**
  *

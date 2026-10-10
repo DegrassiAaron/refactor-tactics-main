@@ -30,10 +30,10 @@
 >   (referto §6 D7).
 >
 > 🎬 **Le tavole mostrano la vista strategica** ([D-488](../../../../decisions/RT_PDR_00_Decision_Log.md)).
-> Con `Tab` la parte centrale passerà dalla 3D tattica all'isometrica semplificata, e l'HUD resta identico.
-> ⏳ Non cablato: oggi `Tab` cicla la selezione.
+> Con `Tab` la parte centrale passa dalla 3D tattica all'isometrica semplificata, e l'HUD resta identico.
+> ✅ Cablato il 2026-10-10 ([D-495](../../../../decisions/RT_PDR_00_Decision_Log.md), #1774); il ciclo della selezione è su `N`.
 > - **Le zone screen-space** valgono in entrambe le viste.
-> - **La scena isometrica** è il bersaglio della vista strategica, che oggi esiste come stato e non come vista.
+> - **La scena isometrica** è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10; ⏳ mancano inclinazione, proiezione e separazione dei piani (#3630, #3631, #3632).
 > - **Nella vista tattica 3D**, degli overlay nel mondo (Z13, Z15, Z16) valgono significato e forme.
 >
 > ⚠️ Della nota a piè di pagina delle tavole annotate e del sorgente, «Scena illustrativa … non la resa», sono
