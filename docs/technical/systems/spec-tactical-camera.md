@@ -48,7 +48,7 @@ senza accorgersene.
 ## 2. Stato della camera
 
 La camera è **prospettica quasi-isometrica**, non ortografica: `USpringArmComponent` + `UCameraComponent`,
-nessun `ProjectionMode` impostato. Questo importa più di quanto sembri — `ZoomTowards` documenta che la sua
+e il `ProjectionMode` resta prospettico, salvo la leva della vista strategica (§5, [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)), spenta di default. Questo importa più di quanto sembri — `ZoomTowards` documenta che la sua
 formula è *esatta in ortografica e approssimata in prospettiva*, ed è la ragione per cui la sua tolleranza è
 mezza cella e non zero.
 
