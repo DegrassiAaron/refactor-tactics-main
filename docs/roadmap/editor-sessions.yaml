@@ -5272,6 +5272,36 @@ sessions:
       ⛔ **Il click dal vivo sui pulsanti resta `NOT RUN`**, come in `U64`: lo misura
       `ScreenHud.PlanCommitButtonsFollowThePorts`.
 
+  - id: U73
+    title: La vista strategica dal vivo — Tab, segnalini, N, pianificazione dall'alto e il ricordo con la X
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti su `PIE-CAM-STRATEGIC` e `PIE-CAM-STRATEGIC-RICORDO`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-CAM-STRATEGIC, PIE-CAM-STRATEGIC-RICORDO]
+    issues: [1774, 3646, 3647]
+    done_when: >-
+      le due voci hanno un verdetto nel registro, dato a schermo da una persona dopo il merge del nucleo (#3640)
+    notes: |
+      Scritta ed eseguita il 2026-10-10 da #1774, nel clone principale su `main` = `60cd52898` ricompilato. L'Editor
+      era aperto con `-LiveCoding=false`, e il timer della Pianificazione passava con `-dpcvars=rt.Match.PlanningSeconds=3600`.
+      Lo scenario del ricordo con `-dpcvars=rt.Test.Scenario=Visual.Perception.Acceptance`, da `L_DevSandbox`.
+      Condotta via bridge: Play con `StartPIE`, tasti e click alla finestra solo dopo aver verificato il primo piano,
+      catture con `PrintWindow`. I verdetti visivi li ha dati l'autore sulle catture affiancate.
+
+      🔴 **Due difetti trovati solo dal vivo**, nessuno visibile ai test headless del nucleo:
+      1. il secondo `Tab` torna a 800 e non a 450 (#3646): all'avvio `FrameOwnTeam` scrive il braccio direttamente;
+      2. con un'abilità armata il click sul segnalino di un'unità è letto come cella (#3647).
+
+      ⚠️ **Il ricordo vive circa 2,5 secondi.** `K` non ferma lo scenario: la finestra si coglie con una raffica di
+      catture e il log dei turni. «Il secondo `Tab` riporta la sagoma» resta da eseguire.
+
+      ⚠️ **Una prima tornata non vale**: l'Editor è stato chiuso prima del Play, e le risposte date senza averlo
+      aperto sono state scartate. Il log di quella tornata non ha nessun Play.
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
