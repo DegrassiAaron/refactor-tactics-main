@@ -9,6 +9,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h" // #3631: ProjectionMode e OrthoWidth della prova ortografica
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
