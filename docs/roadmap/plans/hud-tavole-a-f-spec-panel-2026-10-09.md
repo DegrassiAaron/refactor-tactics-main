@@ -198,7 +198,7 @@ Proposti, **non** creati con questo referto: ciascuno diventa una issue quando l
 
 | # | Seguito | Tipo | Owner probabile |
 |---|---|---|---|
-| T1 | La fase riprodotta in `FRTMatchHeaderView` (D-479), alimentata dalla sorgente di `GetPlaybackPhaseName()` / `OnPhasePlaybackStarted` e non da un'altra, con un test che la tiene distinta da `Phase` | C++ + test | #613 |
+| T1 | La fase riprodotta in `FRTMatchHeaderView` (D-479), alimentata dalla sorgente di `GetPlaybackPhaseName()` / `OnPhasePlaybackStarted` e non da un'altra, con un test che la tiene distinta da `Phase`. ✅ **Aperto come [#3612](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3612)** (2026-10-10): `FRTMatchHeaderView::PlaybackPhase` da `ARTTurnManager::GetPlaybackPhase()` | C++ + test | #613 |
 | T2 | Il tasto e la descrizione dell'opzione in `FRTReactionWindowOptionView` (D2) | C++ + test | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
 | T3 | Il chip `REAZ.` (D-478): la lettura del piano per ogni alleato comandato, da `FRTUnitSlotsView` e **non** da `FRTUnitCardView`, e il predicato che conta l'`Overwatch`. Muto per un'avversaria | C++ + test di privacy | #613 |
 | T4 | L'elenco degli avvisi di piano (D-480), con l'attribuzione di ogni avviso al piano che lo causa: `bFriendlyFire` dice chi è colpito, non da quale piano | C++ + test | #613 |
