@@ -1769,6 +1769,8 @@ public:
 	/** Cio' che un test puo' leggere del ricordo senza montare un HUD (D-495). */
 	bool IsContactTokenVisibleForTest() const;
 	FVector GetContactTokenLocationForTest() const;
+	/** I limiti di mondo del cilindro segnaposto, cioe' del bersaglio del click (#3647). */
+	FBox GetPlaceholderWorldBoxForTest() const;
 	FRotator GetContactTokenMarkRotationForTest() const;
 	bool IsContactGhostVisibleForTest() const;
 
@@ -2141,6 +2143,22 @@ protected:
 	/** Vedi `SetStrategicPresentation`. Nasce tattica. */
 	UPROPERTY()
 	bool bStrategicPresentation = false;
+
+	/** L'offset del corpo dell'ultima posa graykit: `SetStrategicPresentation` lo riapplica quando solleva il cilindro. */
+	FVector LastGraykitBodyOffset = FVector::ZeroVector;
+
+	/**
+	 * #3647 — la scala e la quota del cilindro segnaposto nella presentazione corrente.
+	 *
+	 * 🔴 **In strategica il cilindro e' il SEGNALINO, e sta in piedi sulla cella.** Un `BP_Unit_*` d'eroe ha il
+	 * pivot ai piedi (`VisualZOffset = 0`) e un cilindro alto 100 centrato su quel pivot, cioe' per meta' sotto la
+	 * cella: in tattica non si vede (lo copre lo skeletal), ma resta il bersaglio del click. In strategica diventava
+	 * un segnalino tozzo, e il raggio inclinato della camera lontana lo mancava e prendeva la cella dietro (misurato:
+	 * colpito solo fra -20 e +80 sopra il suolo). Qui il cilindro prende la scala del segnaposto NATIVO e si alza di
+	 * `UnitHalfHeight - VisualZOffset`: e' la stessa posa del segnalino del ricordo. In tattica non cambia niente.
+	 */
+	FVector PlaceholderScale() const;
+	FVector PlaceholderLift() const;
 
 	/** Lo yaw della camera di chi guarda, consegnato con lo stato strategico: orienta la «X» del ricordo. */
 	float StrategicViewYaw = 0.f;

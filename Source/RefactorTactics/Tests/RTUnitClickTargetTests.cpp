@@ -235,65 +235,21 @@ bool FRTClickTargetExtentIsMeasuredTest::RunTest(const FString&)
 }
 
 /**
- * #3647 — DIAGNOSI: il raggio del click colpisce il `BP_Unit_*` vero, in tattica e in vista strategica?
+ * 🔴 **#3647 — in vista strategica il segnalino d'un EROE sta in piedi sulla cella e prende il click inclinato.**
  *
- * Stampa per ogni componente primitivo del Blueprint la collisione e la risposta a `ECC_Visibility`, poi lancia il
- * trace di `TraceHitsUnit` nelle due presentazioni. Il Blueprint e' tracciato in git; le mesh degli eroi no, quindi in
- * un worktree la skeletal puo' mancare e il dato utile e' la collisione dei componenti, non la loro forma.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStrategicClickDiagnosisTest,
-	"RefactorTactics.PlayerInput.StrategicClickDiagnosisOnHeroBlueprint",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStrategicClickDiagnosisTest::RunTest(const FString&)
-{
-	UClass* BpClass = LoadClass<ARTUnit>(nullptr,
-		TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.BP_Unit_Muiren_C"));
-	if (!TestNotNull(TEXT("BP_Unit_Muiren si carica"), BpClass)) { return false; }
-
-	UWorld* World = RTClickTarget::MakeClickWorld();
-	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
-	ARTUnit* Unit = World->SpawnActor<ARTUnit>(BpClass);
-	if (!TestNotNull(TEXT("il Blueprint si spawna"), Unit)) { RTClickTarget::DestroyClickWorld(World); return false; }
-
-	auto Censimento = [this, Unit](const TCHAR* Quando)
-	{
-		TArray<UPrimitiveComponent*> Prims;
-		Unit->GetComponents<UPrimitiveComponent>(Prims);
-		for (const UPrimitiveComponent* P : Prims)
-		{
-			AddInfo(FString::Printf(TEXT("[%s] %s (%s): collisione=%d visibility=%d visibile=%d"),
-				Quando, *P->GetName(), *P->GetClass()->GetName(), static_cast<int32>(P->GetCollisionEnabled()),
-				static_cast<int32>(P->GetCollisionResponseToChannel(ECC_Visibility)), P->GetVisibleFlag() ? 1 : 0));
-		}
-		AActor* Colpito = nullptr;
-		const bool bHit = RTClickTarget::TraceHitsUnit(Unit->GetWorld(), Unit, Colpito);
-		AddInfo(FString::Printf(TEXT("[%s] trace: hit=%d attore=%s"), Quando, bHit ? 1 : 0,
-			Colpito ? *Colpito->GetName() : TEXT("nessuno")));
-		return Colpito == Unit;
-	};
-
-	const bool bTattica = Censimento(TEXT("tattica"));
-	Unit->SetStrategicPresentation(true);
-	const bool bStrategica = Censimento(TEXT("strategica"));
-	TestTrue(TEXT("in tattica il raggio colpisce l'unita'"), bTattica);
-	TestTrue(TEXT("in strategica il raggio colpisce l'unita'"), bStrategica);
-
-	RTClickTarget::DestroyClickWorld(World);
-	return true;
-}
-
-
-/**
- * #3647 — DIAGNOSI con il raggio INCLINATO della camera strategica, su una board vera.
+ * Un `BP_Unit_*` d'eroe ha il pivot ai piedi e un cilindro alto 100 centrato li': per meta' sotto la cella. Dalla
+ * camera strategica (2400, pitch -40) il raggio del click lo prendeva solo fra -20 e +80 sopra il suolo, e sopra
+ * passava oltre fino alla cella dietro — misurato con questo stesso Blueprint, nel clone che ha i pack degli eroi.
+ * Trovato in PIE (seduta `U73`): con un'abilita' armata il click sul segnalino di Muiren diventava un waypoint.
  *
- * La camera strategica sta a 2400 dal pivot con pitch -40: il raggio del click non e' verticale. Si posa il
- * `BP_Unit_Muiren` su una cella con `PlaceOnCell` e si tirano raggi dalla posizione della camera verso quote diverse
- * dell'attore. Stampa che cosa colpisce ciascun raggio, e la posa del cilindro (`VisualZOffset`, quota, estensione).
+ * Il Blueprint e' tracciato in git, e la posa del cilindro non dipende dalle mesh gitignorate: il test vale anche
+ * in un worktree. Verifica di mutazione: con `PlaceholderLift` a zero il segnalino non tocca la cella e il raggio
+ * verso +120 passa oltre.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStrategicSlantedRayDiagnosisTest,
-	"RefactorTactics.PlayerInput.StrategicSlantedRayDiagnosis",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStrategicTokenTakesTheSlantedClickTest,
+	"RefactorTactics.PlayerInput.StrategicHeroTokenStandsOnTheCellAndTakesTheClick",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStrategicSlantedRayDiagnosisTest::RunTest(const FString&)
+bool FRTStrategicTokenTakesTheSlantedClickTest::RunTest(const FString&)
 {
 	UClass* BpClass = LoadClass<ARTUnit>(nullptr,
 		TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.BP_Unit_Muiren_C"));
@@ -309,38 +265,36 @@ bool FRTStrategicSlantedRayDiagnosisTest::RunTest(const FString&)
 
 	ARTUnit* Unit = World->SpawnActor<ARTUnit>(BpClass);
 	if (!TestNotNull(TEXT("il Blueprint si spawna"), Unit)) { RTClickTarget::DestroyClickWorld(World); return false; }
-	Unit->PlaceOnCell(FRTCellId(2, -2, 0), Origin, HexSize, LayerH);
-	Unit->SetStrategicPresentation(true);
+	const FRTCellId Cella(2, -2, 0);
+	Unit->PlaceOnCell(Cella, Origin, HexSize, LayerH);
+	const float Suolo = URTHexLibrary::AxialToWorld(Cella, Origin, HexSize, LayerH).Z;
 
-	TArray<UStaticMeshComponent*> Mesh;
-	Unit->GetComponents<UStaticMeshComponent>(Mesh);
-	for (const UStaticMeshComponent* M : Mesh)
-	{
-		if (M->GetName() == TEXT("Mesh"))
-		{
-			const FBoxSphereBounds B = M->Bounds;
-			AddInfo(FString::Printf(TEXT("VisualZOffset=%.1f attore Z=%.1f cilindro: centro Z=%.1f, Z da %.1f a %.1f"),
-				Unit->VisualZOffset, Unit->GetActorLocation().Z, B.Origin.Z, B.Origin.Z - B.BoxExtent.Z, B.Origin.Z + B.BoxExtent.Z));
-		}
-	}
-	const FVector Suolo = URTHexLibrary::AxialToWorld(FRTCellId(2, -2, 0), Origin, HexSize, LayerH);
-	AddInfo(FString::Printf(TEXT("cella: AxialToWorld Z=%.1f"), Suolo.Z));
-
+	// Il raggio della camera strategica verso una quota del segnalino, come lo tira `GetHitResultUnderCursor`.
 	const FVector Pivot = Unit->GetActorLocation();
-	const FVector Camera = Pivot - FRotator(-40.f, 0.f, 0.f).Vector() * 2400.f;
-	int32 Colpi = 0;
-	for (float Dz = -80.f; Dz <= 160.f; Dz += 20.f)
+	const FVector Camera = FVector(Pivot.X, Pivot.Y, Suolo) - FRotator(-40.f, 0.f, 0.f).Vector() * 2400.f;
+	auto Prende = [World, Unit, Camera, Pivot, Suolo](float Quota)
 	{
-		const FVector Bersaglio = FVector(Pivot.X, Pivot.Y, Suolo.Z + Dz);
+		const FVector Bersaglio(Pivot.X, Pivot.Y, Suolo + Quota);
 		FHitResult Hit;
-		const bool bHit = World->LineTraceSingleByChannel(Hit, Camera, Camera + (Bersaglio - Camera) * 1.5f, ECC_Visibility);
-		const bool bUnita = bHit && Hit.GetActor() == Unit;
-		Colpi += bUnita ? 1 : 0;
-		AddInfo(FString::Printf(TEXT("raggio verso suolo%+.0f: %s / %s"), Dz,
-			bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("nessuno"),
-			bHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("-")));
-	}
-	AddInfo(FString::Printf(TEXT("raggi che prendono l'unita': %d"), Colpi));
+		return World->LineTraceSingleByChannel(Hit, Camera, Camera + (Bersaglio - Camera) * 1.5f, ECC_Visibility)
+			&& Hit.GetActor() == Unit;
+	};
+
+	// Controllo positivo: in tattica il cilindro del Blueprint e' quello di sempre, e sopra +100 non c'e'.
+	TestFalse(TEXT("in tattica il raggio verso +120 non prende il cilindro del Blueprint"), Prende(120.f));
+
+	Unit->SetStrategicPresentation(true);
+	const FBox Segnalino = Unit->GetPlaceholderWorldBoxForTest();
+	TestEqual(TEXT("in strategica il segnalino poggia sulla cella"), Segnalino.Min.Z, Suolo, 2.f);
+	TestEqual(TEXT("ed e' alto quanto il segnaposto nativo"), Segnalino.Max.Z - Segnalino.Min.Z,
+		2.f * ARTUnit::UnitHalfHeight, 2.f);
+	TestTrue(TEXT("il raggio verso +120 prende l'unita'"), Prende(120.f));
+	TestTrue(TEXT("e anche quello verso +40"), Prende(40.f));
+
+	// Tornando in tattica il cilindro torna quello del Blueprint: la correzione non tocca la vista 3D.
+	Unit->SetStrategicPresentation(false);
+	TestFalse(TEXT("tornati in tattica, sopra +100 il cilindro non c'e' piu'"), Prende(120.f));
+
 	RTClickTarget::DestroyClickWorld(World);
 	return true;
 }

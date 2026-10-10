@@ -487,6 +487,14 @@ void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 		return; // lo chiama l'HUD a ogni fotogramma: niente churn di stato render
 	}
 	bStrategicPresentation = bStrategic;
+
+	// #3647: il cilindro cambia posa con la presentazione — in piedi sulla cella in strategica, quella del Blueprint
+	// in tattica. La selezione resta (+15%), e l'offset dell'ultima posa graykit si somma.
+	if (Mesh)
+	{
+		Mesh->SetRelativeLocation(LastGraykitBodyOffset + PlaceholderLift());
+		Mesh->SetRelativeScale3D(PlaceholderScale() * (bSelected ? 1.15f : 1.f));
+	}
 	RefreshComponentVisibility();
 
 	// ⚠️ Il ricordo NON si ridisegna qui: sagoma e segnalino li posa solo `UpdateContactGhost`, che conosce la
@@ -512,6 +520,25 @@ bool ARTUnit::IsContactTokenVisibleForTest() const
 FVector ARTUnit::GetContactTokenLocationForTest() const
 {
 	return ContactToken != nullptr ? ContactToken->GetComponentLocation() : FVector::ZeroVector;
+}
+
+FBox ARTUnit::GetPlaceholderWorldBoxForTest() const
+{
+	return Mesh != nullptr ? Mesh->Bounds.GetBox() : FBox(ForceInit);
+}
+
+FVector ARTUnit::PlaceholderScale() const
+{
+	// La scala del segnaposto NATIVO, non quella del Blueprint: e' la stessa del segnalino del ricordo (`ContactToken`),
+	// cosi' in strategica un'unita' vista e un ricordo hanno la stessa sagoma.
+	return bStrategicPresentation ? GetDefault<ARTUnit>()->BaseMeshScale : BaseMeshScale;
+}
+
+FVector ARTUnit::PlaceholderLift() const
+{
+	// Il cilindro ha il pivot al centro: con il pivot dell'attore a `VisualZOffset` sopra la cella, sale della
+	// differenza e poggia sulla cella. Su un'unita' col solo segnaposto (`VisualZOffset = UnitHalfHeight`) vale zero.
+	return bStrategicPresentation ? FVector(0.f, 0.f, UnitHalfHeight - VisualZOffset) : FVector::ZeroVector;
 }
 
 FRotator ARTUnit::GetContactTokenMarkRotationForTest() const
@@ -666,7 +693,11 @@ void ARTUnit::RefreshComponentVisibility()
 	//
 	// 🔑 Il predicato si CHIAMA, non si copia: se #2545 lo cambia, i bracci lo seguono senza una seconda
 	// modifica che qualcuno dimenticherebbe.
-	const bool bShowGraykitLimbs = ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose, bStrategicPresentation);
+	// #3647: in strategica i bracci si spengono. Sono ancorati al pivot dell'attore, che su un eroe sta ai piedi,
+	// mentre il cilindro sale a fare da segnalino: resterebbero a terra accanto a lui. Il segnalino delle tavole
+	// e' un cilindro senza bracci.
+	const bool bShowGraykitLimbs =
+		ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose, bStrategicPresentation) && !bStrategicPresentation;
 	if (LeftArm)
 	{
 		LeftArm->SetVisibility(bShowGraykitLimbs, /*bPropagateToChildren*/ false);
@@ -1449,9 +1480,11 @@ void ARTUnit::ApplyGraykitPose(const FRTGraykitPose& Pose)
 	// corpo deve deformarsi lo stesso.
 	if (Mesh)
 	{
-		Mesh->SetRelativeLocation(Pose.Body.Offset);
+		// #3647: la quota e la scala del segnaposto dipendono dalla presentazione; la posa si somma a quelle.
+		LastGraykitBodyOffset = Pose.Body.Offset;
+		Mesh->SetRelativeLocation(Pose.Body.Offset + PlaceholderLift());
 		Mesh->SetRelativeRotation(Pose.Body.Rotation);
-		Mesh->SetRelativeScale3D(BaseMeshScale * Pose.Body.Scale);
+		Mesh->SetRelativeScale3D(PlaceholderScale() * Pose.Body.Scale);
 	}
 
 	// I bracci partono dal proprio anchor: l'offset della posa si SOMMA alla posizione di riposo invece di
@@ -1507,7 +1540,7 @@ void ARTUnit::OnSelected()
 {
 	if (Mesh)
 	{
-		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // cilindro segnaposto: ingrandisce del 15%
+		Mesh->SetRelativeScale3D(PlaceholderScale() * 1.15f); // cilindro segnaposto: ingrandisce del 15%
 	}
 
 	// La selezione muta il proprio FLAG e chiede una refresh: non tocca componenti. Il riscontro visibile
@@ -1522,7 +1555,7 @@ void ARTUnit::OnDeselected()
 {
 	if (Mesh)
 	{
-		Mesh->SetRelativeScale3D(BaseMeshScale);
+		Mesh->SetRelativeScale3D(PlaceholderScale());
 	}
 	bSelected = false;
 	RefreshComponentVisibility();
