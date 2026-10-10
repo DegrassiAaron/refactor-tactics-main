@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-11 — Il secondo `Tab` torna alla distanza d'avvio
+
+**Origine**: difetto trovato in PIE (seduta `U73`), issue [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: la distanza di ritorno si registra al momento del salto, perché `FrameOwnTeam` scrive il braccio senza passare da `UpdateStrategicState` |
+
 ## 2026-10-10 — La vista strategica dal vivo: seduta `U73`, due voci PIE e due difetti
 
 **Origine**: la seduta PIE del nucleo della vista strategica ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)), su `main` = `60cd52898`.
