@@ -1402,9 +1402,21 @@ public:
 	void SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowOptionView& InOption,
 		int32 InIndex, bool bInIsSafe);
 
-	/** L'etichetta da stampare sul bottone. `FText`, mai la stringa di risposta. */
+	/** L'etichetta da stampare sul bottone: il NOME della risposta (`RTReactionResponseText`). `FText`, mai la stringa di risposta. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetOptionLabel() const;
+
+	/** La frase dell'opzione, generica e senza bersaglio ([D-491]). Vuota per una risposta senza voce. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetOptionDescription() const;
+
+	/**
+	 * Il tasto che sceglie questa opzione: il tasto del kit nella stessa posizione ([D-491]). Viene da
+	 * `ARTPlayerController::ReactionOptionKeyLabel`, cioe' dalla lista che mappa i tasti: il badge non puo' dire
+	 * un tasto diverso da quello che risponde.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetKeyLabel() const;
 
 	/** Il click: inoltra al widget della finestra il proprio indice, e nient'altro. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")

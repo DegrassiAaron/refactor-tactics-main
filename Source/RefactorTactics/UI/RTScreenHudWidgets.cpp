@@ -24,6 +24,7 @@
 #include "UI/RTUIPalette.h" // i colori dello slot vengono dai token di §32 (#3610)
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
+#include "UI/RTReactionResponseText.h"    // nome e frase delle opzioni della finestra (#3615)
 #include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
 #include "Kismet/GameplayStatics.h"
 #include "Components/Image.h" // ApplyResolvedIconTo imposta il brush: serve il tipo completo
@@ -1209,33 +1210,12 @@ float URTFastDecisionWidget::GetRemainingSeconds() const
 
 void URTFastDecisionWidget::ChooseOption(int32 OptionIndex)
 {
-	URTReactionWindowViewModel* ViewModel = GetReactionWindow();
-	if (!ViewModel)
+	// La scelta per indice vive nel view model ([D-491], #3615): ci passa anche il tasto del kit con la finestra
+	// aperta, e il gate — vista riletta, indice fuori range che non inoltra niente — e' uno solo per i due canali.
+	if (URTReactionWindowViewModel* ViewModel = GetReactionWindow())
 	{
-		return;
+		ViewModel->ChooseOption(OptionIndex);
 	}
-
-	// 🔑 **Si rilegge la vista invece di fidarsi di quella con cui il bottone e' stato disegnato.**
-	// `GetWindow()` rende i default appena l'identita' della finestra cambia, quindi un click su un bottone
-	// della finestra PRECEDENTE trova `Options` vuoto e cade nel ramo qui sotto. Senza questa rilettura
-	// l'indice verrebbe risolto su un elenco che il gioco non sta piu' offrendo.
-	const FRTReactionWindowView Window = ViewModel->GetWindow();
-	if (!Window.Options.IsValidIndex(OptionIndex))
-	{
-		// ⚠️ **`Warning` e non `Error`, e non fa nulla.** In una finestra da 3,0 s l'elenco puo' cambiare fra
-		// il disegno e il click: e' un ritardo, non un difetto del chiamante. Ma va **visto**, perche' un
-		// bottone che non risponde e' il sintomo piu' difficile da diagnosticare a schermo.
-		UE_LOG(LogRT, Warning,
-			TEXT("[RT] FastDecision: opzione %d fuori range (%d disponibili) — nessuna risposta inoltrata. "
-				 "La finestra puo' essere cambiata fra il disegno e il click."),
-			OptionIndex, Window.Options.Num());
-		return;
-	}
-
-	// ⛔ **Si spedisce la stringa che il core ha prodotto, e non se ne compone una.** `FIRE:<indice>` e'
-	// un FORMATO con un solo produttore (`URTReactionOpportunityLibrary::FireResponse`); comporlo qui ne
-	// creerebbe un secondo, fuori dai test che presidiano il primo.
-	ViewModel->SubmitResponse(Window.Options[OptionIndex].Response);
 }
 
 int32 URTFastDecisionWidget::GetOptionCount() const
@@ -1404,8 +1384,19 @@ FText URTFastDecisionOptionWidget::GetOptionLabel() const
 	//
 	// ⛔ Nessuna traduzione e nessun abbellimento qui: `Response` e' un vocabolario del core
 	// (`FIRE:<indice>`, `HOLD`, `Hold Ground`, le maneuver del profilo) e mapparlo su nomi leggibili e'
-	// lavoro di contenuto, con una tabella e un owner. Inventarlo qui sarebbe un secondo vocabolario.
-	return FText::FromString(Option.Response);
+	// lavoro di contenuto, con una tabella e un owner. ✅ La tabella e' `RTReactionResponseText` ([D-491],
+	// #3615): qui la si interroga, non la si ripete.
+	return RTReactionResponseText::NameFor(Option.Response);
+}
+
+FText URTFastDecisionOptionWidget::GetOptionDescription() const
+{
+	return RTReactionResponseText::DescriptionFor(Option.Response);
+}
+
+FText URTFastDecisionOptionWidget::GetKeyLabel() const
+{
+	return ARTPlayerController::ReactionOptionKeyLabel(OptionIndex);
 }
 
 void URTFastDecisionOptionWidget::Choose()

@@ -134,6 +134,23 @@ public:
 	void SubmitResponse(const FString& Response);
 
 	/**
+	 * Sceglie l'opzione in posizione `OptionIndex` e ne spedisce la risposta. Vero se ha inoltrato qualcosa.
+	 *
+	 * 🔑 **E' la sola strada per indice, e ne passano due canali**: il bottone del widget
+	 * (`URTFastDecisionWidget::ChooseOption`) e il tasto del kit con la finestra aperta ([D-491], #3615). Stava
+	 * nel widget finche' il bottone era l'unico: con la tastiera ripeterla nel controller sarebbe stata la
+	 * seconda copia dello stesso gate.
+	 *
+	 * 🔑 **Rilegge la vista invece di fidarsi di quella con cui l'opzione e' stata disegnata.** `GetWindow()`
+	 * rende i default appena l'identita' della finestra cambia, quindi un indice della finestra PRECEDENTE trova
+	 * `Options` vuoto e non inoltra niente.
+	 *
+	 * ⛔ Si spedisce la stringa che il core ha prodotto, e non se ne compone una: `FIRE:<indice>` ha un solo
+	 * produttore (`URTReactionOpportunityLibrary::FireResponse`).
+	 */
+	bool ChooseOption(int32 OptionIndex);
+
+	/**
 	 * L'identita' della finestra consegnata, o stringa vuota. **Non e' una `UFUNCTION`, e non e' una
 	 * dimenticanza** (`#166`, CP 14.6).
 	 *

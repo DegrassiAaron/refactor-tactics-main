@@ -492,6 +492,13 @@ const FKey& ARTPlayerController::UndoKeyboardHotkey()
 	return Tasto;
 }
 
+FText ARTPlayerController::ReactionOptionKeyLabel(int32 OptionIndex)
+{
+	return AbilityHotkeys().IsValidIndex(OptionIndex)
+		? AbilityHotkeys()[OptionIndex].GetDisplayName(/*bLongDisplayName=*/ false)
+		: FText::GetEmpty();
+}
+
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
 {
 	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
@@ -3029,6 +3036,27 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	{
 		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: input di gameplay bloccato"), *Richiesta);
 		return;
+	}
+
+	// 🔑 **[D-491] (`#3615`): con una finestra di reazione aperta per chi guarda, il tasto della posizione i SCEGLIE
+	// l'opzione i invece di armare.** Sta PRIMA della guardia della risoluzione qui sotto, perche' la finestra si
+	// apre proprio durante la risoluzione e quella guardia la renderebbe irraggiungibile; e DOPO quella dell'input
+	// bloccato, perche' con un menu aperto la finestra deve scadere come vuole [D-351].
+	//
+	// ⛔ Non e' un armo, ed e' per questo che non contraddice [D-468]: il mondo resta in sola lettura, e la risposta
+	// passa da `SubmitReactionResponse`, che ha la propria legalita'. Il tasto non arriva mai al kit: una posizione
+	// senza opzione (il tasto 5 su due opzioni) si dice nel log e si ferma qui.
+	if (Source == ERTAbilityRequestSource::Hotkey && Index != INDEX_NONE)
+	{
+		URTReactionWindowViewModel* Finestra = GetReactionWindowViewModel();
+		if (Finestra && Finestra->GetWindow().bOpen)
+		{
+			const bool bInoltrata = Finestra->ChooseOption(Index);
+			UE_LOG(LogRT, Display, TEXT("[RT] %s: %s"), *Richiesta, bInoltrata
+				? TEXT("scelta l'opzione della finestra di reazione in quella posizione")
+				: TEXT("nessuna opzione della finestra di reazione in quella posizione"));
+			return;
+		}
 	}
 
 	// 🔴 **[D-468] (`#3510`): durante la risoluzione il mondo e' in sola lettura anche per la tastiera.** I click

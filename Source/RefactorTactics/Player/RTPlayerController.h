@@ -645,6 +645,15 @@ public:
 	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
 
 	/**
+	 * Il tasto che sceglie l'opzione in posizione `OptionIndex` di una finestra di reazione ([D-491], #3615): il
+	 * tasto del kit nella stessa posizione, `AbilityHotkeys()[OptionIndex]`. Vuoto oltre l'ultimo tasto.
+	 *
+	 * 🔑 Viene dalla lista che mappa i tasti, come `HotkeyLabelFor`: il badge e il tasto che risponde non possono
+	 * dire due cose diverse.
+	 */
+	static FText ReactionOptionKeyLabel(int32 OptionIndex);
+
+	/**
 	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
 	 * risolvono per **nome** invece che per posizione.
 	 *
