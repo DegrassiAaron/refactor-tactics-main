@@ -25,6 +25,10 @@
 #include "UObject/UObjectIterator.h" // TObjectIterator: le classi widget si interrogano, non si elencano
 #include "Blueprint/WidgetTree.h"    // l'albero si COSTRUISCE qui: e' l'unico modo di provare la ricorsione
 #include "Components/VerticalBox.h" // un pannello vero: serve per dare a UN widget DUE strade nell'albero
+#include "UI/RTUIPalette.h"
+#include "Components/Border.h"
+#include "Components/TextBlock.h"
+#include "Components/ProgressBar.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1560,6 +1564,139 @@ bool FRTScreenHudRosterReactionChipTest::RunTest(const FString&)
 	// --- 5. Senza contesto nessun chip: i default (squadra 0, gruppo 0) non sono chi guarda ----------------------
 	URTTeamRosterWidget* SenzaContesto = NewObject<URTTeamRosterWidget>(World);
 	TestFalse(TEXT("un roster senza contesto non accende il chip"), SenzaContesto->IsReactionArmed(TEXT("Guardia")));
+	return true;
+}
+
+/**
+ * 🔑 **LA CARTA DICE IL NOME, NON L'ID; IL CHIP SEGUE LA REAZIONE ARMATA** (#3636, T8).
+ *
+ * `WBP_RT_UnitCard` legava `Conv_NameToText(HeroId)`, e a schermo usciva «Hero.Aevik». La vista ora porta il nome di
+ * `ARTUnit::DisplayLabel`, e la carta lo scrive. ⚠️ I testi si confrontano CaseSensitive: `TestEqual` su `FString`
+ * ignora le maiuscole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudUnitCardTest,
+	"RefactorTactics.ScreenHud.UnitCardShowsTheReadableNameAndTheReactionChip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudUnitCardTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTUnit* Mia = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Sua = SpawnRosterUnit(World, 1, TEXT("Hero.Ivrin"));
+	URTUnitCardWidget* Carta = NewObject<URTUnitCardWidget>(World);
+	if (!Mia || !Sua || !TestNotNull(TEXT("carta"), Carta)) { return false; }
+
+	const auto Uguale = [](const FText& Testo, const FString& Atteso) { return Testo.ToString().Equals(Atteso, ESearchCase::CaseSensitive); };
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// --- La vista: il nome leggibile ---------------------------------------------------------------------------------------
+	const FRTUnitCardView Vista = URTHudViewModel::BuildUnitCard(Mia, /*PlayerTeamId=*/ 0);
+	const FString Atteso = ARTUnit::DisplayLabel(Mia->HeroDisplayName, Mia->HeroId, Mia->GetName());
+	TestTrue(TEXT("la vista porta il nome di DisplayLabel"), Uguale(Vista.DisplayName, Atteso));
+	TestFalse(*FString::Printf(TEXT("e non l'id grezzo (reso: «%s»)"), *Vista.DisplayName.ToString()),
+		Vista.DisplayName.ToString().Equals(Mia->HeroId.ToString(), ESearchCase::CaseSensitive));
+
+	// --- La carta: le porte ------------------------------------------------------------------------------------------------
+	Carta->CardFrame = NewObject<UBorder>(World);
+	Carta->TeamDot = NewObject<UBorder>(World);
+	Carta->NameText = NewObject<UTextBlock>(World);
+	Carta->ReactionChip = NewObject<UBorder>(World);
+	Carta->HealthBar = NewObject<UProgressBar>(World);
+	Carta->HealthText = NewObject<UTextBlock>(World);
+	Carta->ShieldText = NewObject<UTextBlock>(World);
+
+	Carta->SetCard(Vista, /*bReactionArmed=*/ true);
+	TestTrue(TEXT("la carta scrive il nome leggibile"), Uguale(Carta->NameText->GetText(), Atteso));
+	TestTrue(TEXT("con la reazione armata il chip REAZ. c'e'"), Visibile(Carta->ReactionChip));
+	TestTrue(TEXT("il pallino di un'alleata e' Cyan"), Carta->TeamDot->GetBrushColor().Equals(Colore(ERTUIToken::Cyan)));
+	TestTrue(TEXT("i PV dicono 10/10"), Uguale(Carta->HealthText->GetText(), TEXT("10/10")));
+	TestEqual(TEXT("e la barra e' piena"), Carta->HealthBar->GetPercent(), 1.f);
+	TestEqual(TEXT("una carta viva e' opaca"), Carta->CardFrame->GetRenderOpacity(), 1.f);
+
+	Carta->SetCard(Vista, /*bReactionArmed=*/ false);
+	TestFalse(TEXT("senza reazione armata il chip si chiude"), Visibile(Carta->ReactionChip));
+
+	Mia->Health = 4;
+	Carta->SetCard(URTHudViewModel::BuildUnitCard(Mia, 0), false);
+	TestTrue(TEXT("i PV seguono la vista: 4/10"), Uguale(Carta->HealthText->GetText(), TEXT("4/10")));
+	TestTrue(TEXT("e la barra e' al 40%"), FMath::IsNearlyEqual(Carta->HealthBar->GetPercent(), 0.4f, 1e-4f));
+
+	Mia->Health = 0;
+	Carta->SetCard(URTHudViewModel::BuildUnitCard(Mia, 0), false);
+	TestTrue(TEXT("una carta caduta si attenua"), Carta->CardFrame->GetRenderOpacity() < 1.f);
+
+	Carta->SetCard(URTHudViewModel::BuildUnitCard(Sua, /*PlayerTeamId=*/ 0), false);
+	TestTrue(TEXT("il pallino di un'avversaria e' Red"), Carta->TeamDot->GetBrushColor().Equals(Colore(ERTUIToken::Red)));
+	return true;
+}
+
+/**
+ * 🔑 **IL ROSTER COSTRUISCE LE CARTE IN C++, DALLA CLASSE DEI DEFAULT** (#3636). Una carta per voce del roster,
+ * nell'ordine del roster, col chip di `IsReactionArmed`; e le carte che ci sono si riusano.
+ *
+ * ⚠️ La classe e' quella C++: in una run headless non c'e' l'albero del `.uasset`, quindi le porte delle carte restano
+ * nulle e qui si misura cio' che il roster consegna, non cio' che la carta disegna (lo misura il test qui sopra).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterCardsTest,
+	"RefactorTactics.ScreenHud.RosterBuildsItsCardsFromTheClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterCardsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Roster->SetControlGroupForTest(0);
+
+	ARTUnit* Guardia = SpawnRosterUnit(World, 0, TEXT("Guardia"));
+	ARTUnit* Quieta = SpawnRosterUnit(World, 0, TEXT("Quieta"));
+	ARTUnit* Nemica = SpawnRosterUnit(World, 1, TEXT("Nemica"));
+	if (!Guardia || !Quieta || !Nemica) { return false; }
+	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Guardia, TEXT("Action.Overwatch"));
+	if (!TestTrue(TEXT("premessa: la Guardia ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
+	Guardia->PlannedAbilityIndex = Overwatch;
+
+	// --- Senza pannello o senza classe: niente --------------------------------------------------------------------------
+	Roster->RefreshCards();
+	TestEqual(TEXT("senza pannello e classe il roster non costruisce carte"), Roster->GetCardWidgets().Num(), 0);
+	UVerticalBox* Pannello = NewObject<UVerticalBox>(Roster);
+	Roster->CardsBox = Pannello;
+	Roster->RefreshCards();
+	TestEqual(TEXT("senza classe nemmeno"), Roster->GetCardWidgets().Num(), 0);
+
+	// --- Con pannello e classe: una carta per voce, nell'ordine del roster --------------------------------------------------
+	Roster->CardClass = URTUnitCardWidget::StaticClass();
+	Roster->RefreshCards();
+	const TArray<FRTUnitCardView> Voci = Roster->GetRoster();
+	if (!TestEqual(TEXT("una carta per voce del roster"), Roster->GetCardWidgets().Num(), Voci.Num())
+		|| !TestEqual(TEXT("e tutte nel pannello"), Pannello->GetChildrenCount(), Voci.Num())
+		|| !TestTrue(TEXT("premessa: il roster ha due voci, le alleate"), Voci.Num() == 2))
+	{
+		return false;
+	}
+	int32 Armate = 0;
+	for (int32 i = 0; i < Voci.Num(); ++i)
+	{
+		const URTUnitCardWidget* Carta = Roster->GetCardWidgets()[i];
+		TestEqual(*FString::Printf(TEXT("la carta %d e' la voce %d"), i, i), Carta->GetCard().HeroId, Voci[i].HeroId);
+		TestEqual(*FString::Printf(TEXT("e il suo chip segue IsReactionArmed (%s)"), *Voci[i].HeroId.ToString()),
+			Carta->IsReactionArmed(), Roster->IsReactionArmed(Voci[i].HeroId));
+		Armate += Carta->IsReactionArmed() ? 1 : 0;
+	}
+	TestEqual(TEXT("una sola carta ha il chip: quella della Guardia"), Armate, 1);
+
+	// --- Un secondo giro riusa le stesse carte ----------------------------------------------------------------------------
+	const URTUnitCardWidget* Prima = Roster->GetCardWidgets()[0];
+	Roster->RefreshCards();
+	TestTrue(TEXT("le carte si riusano: stessa istanza al secondo giro"), Roster->GetCardWidgets()[0] == Prima);
+	TestEqual(TEXT("e il pannello non raddoppia"), Pannello->GetChildrenCount(), Voci.Num());
 	return true;
 }
 

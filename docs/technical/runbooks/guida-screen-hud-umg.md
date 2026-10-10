@@ -637,6 +637,54 @@ scoprono solo a schermo.
   typeface e nessun ripiego: con loro un glifo assente diventa un quadrato vuoto. Le lettere restano in Exo 2 e
   Orbitron.
 
+## 7-quinquies. Roster, carta e pannello: le porte della tavola ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636))
+
+Tre cose cambiano forma, non solo colore:
+- la carta del roster ha una classe C++, `URTUnitCardWidget`;
+- il roster costruisce le carte in C++;
+- il pannello scrive chip e avvisi dalle sue porte.
+
+Il grafo che oggi costruisce le carte **si toglie nella seduta**, insieme al riparentamento di `WBP_RT_UnitCard`.
+
+### `WBP_RT_UnitCard` → `URTUnitCardWidget`
+
+La carta **riceve** la vista (`SetCard`, solo C++) e non va a prenderla. Le porte:
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `CardFrame` | qualunque widget | opacità piena da viva, ridotta da caduta |
+| `TeamDot` | `Border` | `Cyan` per un'alleata, `Red` per un'avversaria |
+| `NameText` | `TextBlock` | il nome leggibile, `FRTUnitCardView::DisplayName`: mai l'id grezzo |
+| `ReactionChip` | qualunque widget | visibile solo con una reazione armata ([D-478](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `HealthBar` · `HealthText` | `ProgressBar` · `TextBlock` | riempimento `Cyan`; «90/90» |
+| `ShieldText` | `TextBlock` | lo scudo, in `Text_Secondary` |
+
+### `WBP_RT_TeamRoster`
+
+`CardsBox` (un pannello) e, nei default, `CardClass` = `WBP_RT_UnitCard_C`, come `TooltipClass` dello slot. Senza
+uno dei due il roster non costruisce niente. Le carte si **riusano** da un tick all'altro.
+
+### `WBP_RT_SelectedUnitPanel`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `PlanChipsBox` | qualunque widget | i tre chip; `Collapsed` per un'unità ispezionata e in Risoluzione. ⛔ Chiuso, non «—»: tre «—» direbbero «non ha pianificato» |
+| `Main`/`Movement`/`ReactionChipFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Raised`; contorno `Frame_Off`, `Amber` se l'azione ha un avviso |
+| `…ChipStrip` | `Border` | il colore della fase dell'azione (`SlotPhaseMark`), trasparente se libero |
+| `…ChipValueText` | `TextBlock` | il nome dell'azione, o «—» in `Text_Disabled` |
+| `…ChipAlert` | qualunque widget | il «!»: visibile solo se un avviso nomina quell'azione |
+| `PlanWarningsBox` | un pannello | le voci degli avvisi; `Collapsed` senza avvisi |
+
+Nei default, `PlanWarningEntryClass` è la classe delle voci, `URTPlanWarningEntryWidget`. Le sue porte sono:
+- `EntryFrame`;
+- `LevelGlyphText`, con la forma del livello in Roboto dell'engine, ◆ ▲ ● (§7-quater);
+- `LevelMarkText`, ✕ ! i;
+- `LevelText`, «CRITICAL», «WARNING», «INFO»;
+- `WhatText`, `WhyText` e `CostText`.
+
+⚠️ **Gli avvisi si ricontano a 5 Hz**, come il contatore di `Conferma`: `GetPlanWarnings` rifà il validatore e
+l'anteprima del Blast.
+
 ## 8. Verifica
 
 Quando i Blueprint della §2 esistono e l'HUD è agganciato, esegui **`PIE-V01-SCREENHUD`**

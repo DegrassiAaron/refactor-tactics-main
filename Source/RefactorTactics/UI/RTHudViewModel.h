@@ -201,6 +201,13 @@ struct FRTUnitCardView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FName HeroId;
 
+	/**
+	 * Il nome da leggere, «Aevik»: `ARTUnit::DisplayLabel` ([D-120]), lo stesso dell'etichetta sopra l'unita'
+	 * (#3636). ⛔ Mai `HeroId`: `WBP_RT_UnitCard` stampava l'id grezzo, «Hero.Aevik».
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText DisplayName;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Health = 0;
 
@@ -1515,6 +1522,15 @@ public:
 	 * azioni e cambiando il dato.
 	 */
 	static ERTActionPhaseMark PhaseMarkFor(const FRTActionDef& Def);
+
+	/**
+	 * Il segno di fase di uno slot pianificato di `Unit` (#3636): quello dell'azione che lo occupa (`PhaseMarkFor`
+	 * sul suo `Def`), `Move` per un percorso senza azione, `None` per uno slot libero o un'azione fuori dal kit.
+	 *
+	 * ⚠️ **Si chiede per un'unita' COMANDATA**, la stessa da cui vengono gli slot: chi ha uno slot autorizzato ha
+	 * gia' il piano, e il segno non gli dice niente di piu'.
+	 */
+	static ERTActionPhaseMark SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot);
 
 	/**
 	 * L'etichetta di un segno: `PREP` … `CLEANUP`, `REAZ.`, e `—` per `None`.

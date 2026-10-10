@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-10 — Roster e pannello hanno le porte della tavola: la carta ha una classe C++
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello, parte C++. Issue
+[#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quinquies: la carta, il roster che la costruisce, i chip e gli avvisi del pannello |
+
+---
+
 ## 2026-10-10 — L'header e l'obiettivo hanno le porte delle tavole A e D
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo, parte C++. Issue
