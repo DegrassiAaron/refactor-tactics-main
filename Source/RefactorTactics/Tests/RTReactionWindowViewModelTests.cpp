@@ -1218,7 +1218,10 @@ bool FRTReactionSlowMotionRestoresTest::RunTest(const FString&)
  * chiusa», che direbbe vero anche se il tasto scegliesse sempre la prima opzione: e' il TOKEN che il TurnLog
  * registra con esito `Chosen`, e si sceglie un'opzione che NON e' la prima.
  *
- * ⚠️ Prima, il tasto di una posizione senza opzione: non inoltra niente e la finestra resta quella.
+ * ⚠️ Prima, il tasto di una posizione senza opzione: non inoltra niente e la finestra resta quella. E le
+ * LETTERE generiche, con un'unita' selezionata che le ha nel kit: arrivano a `SelectAbilityForCurrent` per la
+ * posizione della generica, e la review di #3615 ha trovato che un instradamento messo la' le faceva scegliere
+ * un'opzione ([D-397] §4 lega la lettera all'`ActionId`). Devono lasciare la finestra com'e', senza warning.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionHotkeyChoosesOptionTest,
 	"RefactorTactics.Reactions.ViewModel.HotkeyChoosesTheOptionInItsPosition",
@@ -1283,11 +1286,30 @@ bool FRTReactionHotkeyChoosesOptionTest::RunTest(const FString&)
 	// --- 2. FAIL-CLOSED: il tasto di una posizione senza opzione non inoltra niente ----------------------------
 	const FString IdAperta = TM->GetOpenReactionWindowId();
 	AddExpectedError(TEXT("FastDecision: opzione .* fuori range"), EAutomationExpectedErrorFlags::Contains, 1);
-	PC->SelectAbilityForCurrentForTest(Vista.Options.Num());
+	PC->PressKitHotkeyForTest(Vista.Options.Num());
 	TestEqual(TEXT("un tasto senza opzione lascia aperta la stessa finestra"), TM->GetOpenReactionWindowId(), IdAperta);
 
+	// --- 2-bis. LE LETTERE GENERICHE non scelgono un'opzione -------------------------------------------------
+	PC->SelectActorForTest(Watcher);
+	int32 LetterePremute = 0;
+	for (int32 Riga = 0; Riga < ARTPlayerController::GenericHotkeys().Num(); ++Riga)
+	{
+		const FName Generica = ARTPlayerController::GenericHotkeys()[Riga].Key;
+		bool bNelKit = false;
+		for (int32 i = 0; i < Watcher->NumAbilities(); ++i)
+		{
+			bNelKit |= (Watcher->GetAbility(i) && Watcher->GetAbility(i)->Def.ActionId == Generica);
+		}
+		if (!bNelKit) { continue; } // fuori dal kit la lettera non arriva al punto comune: non proverebbe niente
+		PC->PressGenericHotkeyForTest(Riga);
+		++LetterePremute;
+		TestEqual(*FString::Printf(TEXT("la lettera di `%s` lascia aperta la stessa finestra"), *Generica.ToString()),
+			TM->GetOpenReactionWindowId(), IdAperta);
+	}
+	TestTrue(TEXT("premessa: almeno una lettera generica e' nel kit di chi guarda"), LetterePremute > 0);
+
 	// --- 3. LA SCELTA: il tasto della posizione `Scelta` ----------------------------------------------------
-	PC->SelectAbilityForCurrentForTest(Scelta);
+	PC->PressKitHotkeyForTest(Scelta);
 	TestTrue(TEXT("il tasto ha chiuso la finestra a cui rispondeva"), TM->GetOpenReactionWindowId() != IdAperta);
 
 	for (int32 Giri = 0; TM->IsResolutionSuspended() && Giri < 200; ++Giri)

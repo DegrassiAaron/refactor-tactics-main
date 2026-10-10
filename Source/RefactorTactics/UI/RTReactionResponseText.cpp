@@ -20,7 +20,7 @@ namespace
 		{ TEXT("FIRE"),        TEXT("FIRE"),        TEXT("Spari al bersaglio.") },
 		{ TEXT("HOLD"),        TEXT("HOLD"),        TEXT("Non spari: lasci passare il bersaglio.") },
 		{ TEXT("Hold Ground"), TEXT("HOLD GROUND"), TEXT("Resti nella cella: attutisci i colpi e resisti alla prima spinta.") },
-		{ TEXT("SIDESTEP"),    TEXT("SIDESTEP"),    TEXT("Scarti di lato, fuori dalla linea del colpo.") },
+		{ TEXT("SIDESTEP"),    TEXT("SIDESTEP"),    TEXT("Scarti di una cella, fuori dalla linea della spinta.") },
 	};
 
 	FString KeyFor(const FString& Response)
