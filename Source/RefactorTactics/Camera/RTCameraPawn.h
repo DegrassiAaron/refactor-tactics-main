@@ -335,6 +335,9 @@ public:
 	 */
 	void SetPitchZoomDeltaForTest(float InDelta) { PitchZoomDelta = InDelta; }
 
+	/** Vedi `StrategicPitchDelta`. Il test fissa la rampa: il default e' neutro e non proverebbe niente. */
+	void SetStrategicPitchDeltaForTest(float InDelta) { StrategicPitchDelta = InDelta; }
+
 	/** Inclinazione accumulata dall'input manuale, separata dalla parte derivata dallo zoom. */
 	float GetManualPitchOffset() const { return ManualPitchOffset; }
 	void SetSensitivitiesForTest(float InYaw, float InPitch)
@@ -581,6 +584,25 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "-89.0", ClampMax = "89.0"))
 	float PitchZoomDelta = 0.f;
+
+	/**
+	 * `#3630` — gradi di inclinazione **aggiuntiva** a fondo corsa, che entrano **solo oltre
+	 * `StrategicExitThreshold`**: la vista strategica guarda piu' dall'alto, quella tattica resta com'e'.
+	 *
+	 * 🔑 **Una rampa e non uno scatto.** Il contributo e' zero fino alla soglia d'uscita e cresce linearmente fino
+	 * a `MaxArmLength`: e' una funzione della DISTANZA, non di `bStrategicView`, quindi non salta al cambio di
+	 * stato e non reintroduce la modalita' che D-252 esclude. ⚠️ Non e' `PitchZoomDelta`: quella vale su tutta
+	 * la corsa, e qualunque valore diverso da zero cambierebbe anche la vista tattica alla distanza di default.
+	 *
+	 * ⛔ **Default `0`, cioe' neutro**, per la stessa ragione di `PitchZoomDelta`: il valore — e la forma, fino
+	 * a `MaxArmLength` o fino a `StrategicEnterThreshold` — li sceglie l'autore guardando la vista in PIE.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "-89.0", ClampMax = "89.0"))
+	float StrategicPitchDelta = 0.f;
+
+	/** Quanto della rampa di `StrategicPitchDelta` vale alla distanza corrente: `0` fino a `Exit`, `1` a `MaxArmLength`. */
+	float GetStrategicPitchRampAlpha() const;
 
 	/**
 	 * Quanto l'input manuale ha inclinato la vista **oltre** il valore derivato dallo zoom.

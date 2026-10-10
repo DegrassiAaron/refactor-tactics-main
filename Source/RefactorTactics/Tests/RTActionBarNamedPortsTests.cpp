@@ -542,9 +542,12 @@ bool FRTNamedPortsPlanCommitLookTest::RunTest(const FString&)
 	// --- A. un'unita' comandata con un piano pulito ------------------------------------------------------------
 	W->RefreshButtons();
 	TestEqual(TEXT("A: col badge, il testo di Conferma e' il solo verbo"), W->ConfirmText->GetText().ToString(), FString(TEXT("Conferma")));
-	TestEqual(TEXT("A: il badge di Conferma dice INVIO (D-496)"), W->ConfirmKeyText->GetText().ToString(), FString(TEXT("INVIO")));
+	// ⚠️ CaseSensitive: `TestEqual` su `FString` ignora le maiuscole, e «Invio» passerebbe ([D-496] li vuole maiuscoli).
+	TestTrue(TEXT("A: il badge di Conferma dice INVIO (D-496)"),
+		W->ConfirmKeyText->GetText().ToString().Equals(TEXT("INVIO"), ESearchCase::CaseSensitive));
 	TestEqual(TEXT("A: il testo di Annulla e' il solo verbo"), W->UndoText->GetText().ToString(), FString(TEXT("Annulla")));
-	TestEqual(TEXT("A: il badge di Annulla dice BACKSPACE"), W->UndoKeyText->GetText().ToString(), FString(TEXT("BACKSPACE")));
+	TestTrue(TEXT("A: il badge di Annulla dice BACKSPACE"),
+		W->UndoKeyText->GetText().ToString().Equals(TEXT("BACKSPACE"), ESearchCase::CaseSensitive));
 	TestTrue(TEXT("A: Conferma accesa ha il fondo BG_ProfileActive"), W->ConfirmFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_ProfileActive)));
 	TestTrue(TEXT("A: e il contorno Cyan"), Contorno(W->ConfirmFrame).Equals(Colore(ERTUIToken::Cyan)));
 	TestTrue(TEXT("A: Annulla ha il contorno Frame_Mid"), Contorno(W->UndoFrame).Equals(Colore(ERTUIToken::Frame_Mid)));

@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-10-11 — La prova ortografica della vista strategica: una leva spenta, e lo zoom resta il braccio
+
+**Origine**: [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) (CAM-05b), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: `bStrategicOrthographic` e `rt.Camera.StrategicOrtho`; `OrthoWidth` dal braccio; perché i limiti del pivot non hanno un ramo ortografico |
+
+## 2026-10-11 — La vista strategica s'inclina oltre la soglia d'uscita, e l'orbita non perde il pitch al primo zoom
+
+**Origine**: [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) (CAM-05a), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1: l'orbita scrive l'offset manuale; §5.1: la rampa `StrategicPitchDelta`, a zero dentro la corsa tattica, neutra di default |
+
+## 2026-10-11 — In vista strategica il segnalino d'un eroe sta in piedi sulla cella, e prende il click
+
+**Origine**: difetto trovato in PIE (seduta `U73`), issue [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: il segnalino d'un eroe prende la scala del segnaposto nativo e sale sulla cella; la causa misurata (cilindro del Blueprint per metà sotto la cella, mancato dal raggio inclinato); i bracci graykit si spengono in Strategic |
+
 ## 2026-10-11 — Il secondo `Tab` torna alla distanza d'avvio
 
 **Origine**: difetto trovato in PIE (seduta `U73`), issue [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646).

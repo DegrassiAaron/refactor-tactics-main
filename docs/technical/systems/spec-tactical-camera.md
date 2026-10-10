@@ -85,7 +85,7 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Pan | `W` `A` `S` `D` | `AddPlanarMovement`, **relativo alla vista** |
 | Zoom | rotella | `ZoomTowards` (ancorato al cursore), ripiego al centro fuori mappa |
 | Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°` |
-| Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch) |
+| Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`) |
 | Select | `LMB` | contratto del puntatore ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)) |
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
 | Home | `Home` | `RecenterView` |
@@ -199,8 +199,9 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 ✅ **Il consumatore visivo** (2026-10-10, [D-495](../../decisions/RT_PDR_00_Decision_Log.md)).
 - `ARTHUD::UpdateObserverVeil` legge `IsStrategicView` nello stesso giro in cui scrive il velo, e lo consegna a ogni unità con `ARTUnit::SetStrategicPresentation`.
 - In Strategic lo skeletal dell'eroe si spegne e si riaccende il cilindro segnaposto. Il flag entra **in AND** con `bRender` nei predicati, quindi non riaccende niente che il velo abbia spento (`Unit.StrategicPresentationSwapsTheBodyButNeverRevealsAVeiledUnit`, `Veil.StrategicViewDoesNotRevealAVeiledUnit`).
+  - 🔑 **Il segnalino sta in piedi sulla cella** ([#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)). Un `BP_Unit_*` d'eroe ha il pivot ai piedi e un cilindro alto 100 centrato lì, cioè per metà sotto la cella. In Strategic il cilindro prende la scala del segnaposto nativo e sale di `UnitHalfHeight − VisualZOffset`, come il segnalino del ricordo. Senza, dalla camera lontana il raggio del click lo mancava e prendeva la cella dietro (`PlayerInput.StrategicHeroTokenStandsOnTheCellAndTakesTheClick`). In Strategic i bracci graykit si spengono: sono ancorati ai piedi.
 - Il ricordo diventa un segnalino con «X» (`ContactToken`) sulla cella del contatto, dalla stessa sorgente della sagoma (`Veil.StrategicRememberedContactIsATokenOnTheContactCell`).
-- ⏳ Restano da fare l'inclinazione ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630)), la prova ortografica ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)) e la separazione dei piani (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)).
+- 🔧 L'inclinazione ha il suo canale ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `StrategicPitchDelta`, §5.1), neutro finché l'autore non ne sceglie il valore in PIE. 🔧 La prova ortografica ha la sua leva ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631), sotto), spenta finché l'autore non sceglie la proiezione. ⏳ Resta la separazione dei piani (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)).
 
 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): come si entra e che cosa si vede.**
 - **Come si entra** (✅ cablato il 2026-10-10, `ARTCameraPawn::ToggleStrategicView`). `Tab` porta il braccio a `StrategicEnterThreshold` e, al secondo `Tab`, lo riporta all'ultima distanza tattica. Da [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) quella distanza si registra **al momento del salto**: `FrameOwnTeam` apre la partita scrivendo il braccio senza passare da `UpdateStrategicState`, e il primo `Tab` tornava alla distanza di `BeginPlay` (`Camera.TabReturnsToADistanceWrittenOutsideTheZoomGate`). Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
@@ -228,7 +229,7 @@ il grep risponde `3` nel solo `RTCameraPawn.cpp`.
 | Consumatore | Deriva dallo zoom? | Come, oggi |
 |---|---|---|
 | velocità di pan | ✅ **dalla sorgente** | `Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength` |
-| pitch | 🟡 **canale aperto, curva piatta** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha()`, con `PitchZoomDelta = 0` di **default**: in partita l'inclinazione è identica a prima, e la curva si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
+| pitch | 🟡 **canale aperto, curve piatte** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha() + StrategicPitchDelta * GetStrategicPitchRampAlpha()`, entrambi i delta a `0` di **default**: in partita l'inclinazione è identica a prima. La seconda rampa ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630)) vale zero fino a `StrategicExitThreshold` e cresce fino a `MaxArmLength`: inclina la vista strategica senza toccare quella tattica (`Camera.StrategicPitchRampIsFlatInTheTacticalRange`). Il valore lo sceglie l'autore in PIE, la curva generale si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
 | FOV | ❌ no | `ViewportHorizontalFov` viene **letto** dalla camera, mai scritto |
 | span dei layer | ❌ non esiste | §6 |
 | alpha della UI tattica | ❌ non esiste | [#1835](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1835) |
