@@ -521,7 +521,7 @@ bool FRTNamedPortsPlanCommitLookTest::RunTest(const FString&)
 	W->UndoKeyText = NewObject<UTextBlock>(W);
 	W->ConfirmFrame = Cornice();
 	W->UndoFrame = Cornice();
-	W->ConfirmIcon = NewObject<UImage>(W);
+	W->ConfirmIcon = NewObject<UTextBlock>(W);
 	W->CommitRoot = NewObject<UBorder>(W);
 	W->WarningCounter = NewObject<UBorder>(W);
 	W->CriticalCountText = NewObject<UTextBlock>(W);
@@ -548,10 +548,10 @@ bool FRTNamedPortsPlanCommitLookTest::RunTest(const FString&)
 	TestTrue(TEXT("A: Conferma accesa ha il fondo BG_ProfileActive"), W->ConfirmFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_ProfileActive)));
 	TestTrue(TEXT("A: e il contorno Cyan"), Contorno(W->ConfirmFrame).Equals(Colore(ERTUIToken::Cyan)));
 	TestTrue(TEXT("A: Annulla ha il contorno Frame_Mid"), Contorno(W->UndoFrame).Equals(Colore(ERTUIToken::Frame_Mid)));
-	TestTrue(TEXT("A: la spunta e' Cyan"), W->ConfirmIcon->GetColorAndOpacity().Equals(Colore(ERTUIToken::Cyan)));
-	TestEqual(TEXT("A: il contorno di Conferma accesa e' spesso 2"), W->ConfirmFrame->Background.OutlineSettings.Width, 2.f);
+	TestTrue(TEXT("A: la spunta e' Cyan"), W->ConfirmIcon->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Cyan)));
+	TestEqual(TEXT("A: il contorno di Conferma accesa e' spesso 1, come nel sorgente della tavola"), W->ConfirmFrame->Background.OutlineSettings.Width, 1.f);
 	TestTrue(TEXT("A: il verbo di Conferma e' White"), W->ConfirmText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::White)));
-	TestTrue(TEXT("A: il badge del tasto e' Text_Secondary"), W->ConfirmKeyText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Secondary)));
+	TestTrue(TEXT("A: il badge del tasto e' Text_Primary"), W->ConfirmKeyText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Primary)));
 	TestTrue(TEXT("A: fuori dalla Risoluzione il riquadro c'e'"), NamedPortsIsShown(W->CommitRoot));
 	TestFalse(TEXT("A: senza avvisi il contatore e' chiuso"), NamedPortsIsShown(W->WarningCounter));
 
@@ -587,8 +587,8 @@ bool FRTNamedPortsPlanCommitLookTest::RunTest(const FString&)
 	W->RefreshButtons();
 	TestTrue(TEXT("C: Conferma spenta ha il contorno Frame_Off"), Contorno(W->ConfirmFrame).Equals(Colore(ERTUIToken::Frame_Off)));
 	TestTrue(TEXT("C: e il fondo BG_Panel"), W->ConfirmFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_Panel)));
-	TestTrue(TEXT("C: la spunta e' Text_Disabled"), W->ConfirmIcon->GetColorAndOpacity().Equals(Colore(ERTUIToken::Text_Disabled)));
-	TestEqual(TEXT("C: e il contorno torna spesso 1"), W->ConfirmFrame->Background.OutlineSettings.Width, 1.f);
+	TestTrue(TEXT("C: la spunta e' Text_Disabled"), W->ConfirmIcon->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Disabled)));
+	TestEqual(TEXT("C: e il contorno resta spesso 1"), W->ConfirmFrame->Background.OutlineSettings.Width, 1.f);
 	TestTrue(TEXT("C: il verbo di Conferma e' Text_Disabled"), W->ConfirmText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Disabled)));
 
 	RTWorldFixtures::DestroyWorld(World);
