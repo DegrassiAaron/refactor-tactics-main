@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-10 — La vista strategica dal vivo: seduta `U73`, due voci PIE e due difetti
+
+**Origine**: la seduta PIE del nucleo della vista strategica ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)), su `main` = `60cd52898`.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | nuove `PIE-CAM-STRATEGIC` e `PIE-CAM-STRATEGIC-RICORDO`, entrambe parziali; totali rimisurati con A1 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | seduta `U73`: come è stata condotta, i due difetti ([#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646), [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)) e la tornata scartata |
+
 ## 2026-10-10 — Il registro ha le porte della tavola D, e compare solo in Risoluzione
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster registro, parte C++. Issue
