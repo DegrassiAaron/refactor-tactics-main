@@ -1571,7 +1571,7 @@ bool FRTCameraTabReturnsToUnreadDistanceTest::RunTest(const FString&)
 	return true;
 }
 
-/ --- #3630 · l'inclinazione strategica, e l'orbita che lo zoom non cancella -----------------------------
+// --- #3630 · l'inclinazione strategica, e l'orbita che lo zoom non cancella -----------------------------
 
 namespace
 {
