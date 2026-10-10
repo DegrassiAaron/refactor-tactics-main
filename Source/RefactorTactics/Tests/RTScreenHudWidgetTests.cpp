@@ -1546,6 +1546,20 @@ bool FRTScreenHudRosterReactionChipTest::RunTest(const FString&)
 	}
 
 	TestFalse(TEXT("un HeroId che non e' in campo non accende niente"), Roster->IsReactionArmed(TEXT("Assente")));
+
+	// --- 4. Lo stesso eroe nelle due squadre (un mirror): decide l'alleata, in qualunque ordine --------------------
+	// L'ordinamento del roster per `HeroId` non e' stabile, quindi due coppie con spawn opposto: in almeno una
+	// l'avversaria viene prima. La review di #3618 ha trovato che li' il chip dell'alleata si spegneva.
+	Pianifica(1, TEXT("GemellaA"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	Pianifica(0, TEXT("GemellaA"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	Pianifica(0, TEXT("GemellaB"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	Pianifica(1, TEXT("GemellaB"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	TestTrue(TEXT("mirror, avversaria spawnata prima: l'alleata ha il chip"), Roster->IsReactionArmed(TEXT("GemellaA")));
+	TestTrue(TEXT("mirror, alleata spawnata prima: l'alleata ha il chip"), Roster->IsReactionArmed(TEXT("GemellaB")));
+
+	// --- 5. Senza contesto nessun chip: i default (squadra 0, gruppo 0) non sono chi guarda ----------------------
+	URTTeamRosterWidget* SenzaContesto = NewObject<URTTeamRosterWidget>(World);
+	TestFalse(TEXT("un roster senza contesto non accende il chip"), SenzaContesto->IsReactionArmed(TEXT("Guardia")));
 	return true;
 }
 

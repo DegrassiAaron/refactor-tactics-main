@@ -342,6 +342,12 @@ TArray<FRTUnitCardView> URTTeamRosterWidget::GetRoster() const
 
 bool URTTeamRosterWidget::IsReactionArmed(FName HeroId) const
 {
+	// Senza contesto la squadra e il gruppo sono i default (0, 0), non quelli di chi guarda: nessun chip.
+	if (!HasMatchContext())
+	{
+		return false;
+	}
+
 	for (const ARTUnit* Unit : GatherUnitsInWorld())
 	{
 		if (!Unit || Unit->HeroId != HeroId || !Unit->IsAlive())
@@ -352,7 +358,10 @@ bool URTTeamRosterWidget::IsReactionArmed(FName HeroId) const
 		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup, GetPlayerTeamId(),
 			GetPlayerControlGroup(), Unit->bIsBotControlled))
 		{
-			return false;
+			// `continue` e non `return false` (review di #3618): con lo stesso eroe in due squadre — un mirror —
+			// l'avversaria puo' venire prima nell'ordine, e fermarsi qui spegnerebbe l'alleata. Il piano
+			// dell'avversaria resta non letto: la barriera e' questa riga, non l'uscita.
+			continue;
 		}
 		return URTHudViewModel::BuildUnitSlots(Unit).bReactionArmed;
 	}
