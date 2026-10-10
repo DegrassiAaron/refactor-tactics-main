@@ -1531,6 +1531,46 @@ bool FRTCameraTabAfterWheelEntryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **#3646 — il secondo `Tab` torna alla distanza da cui si e' partiti anche se nessuno l'ha letta.**
+ *
+ * `FrameOwnTeam` apre la partita scrivendo `TargetArmLength` direttamente, senza passare da `UpdateStrategicState`:
+ * qui lo stesso gesto e' la scrittura diretta sul braccio. Trovato in PIE (seduta `U73`): partenza a 450, ritorno a
+ * 800, cioe' alla distanza di `RecenterView`. Verifica di mutazione: togliendo la registrazione in
+ * `ToggleStrategicView` il ritorno va a 800 e l'ultima asserzione cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraTabReturnsToUnreadDistanceTest,
+	"RefactorTactics.Camera.TabReturnsToADistanceWrittenOutsideTheZoomGate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraTabReturnsToUnreadDistanceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->RecenterView(); // l'ultima lettura tattica e' 800
+
+	// Lo scrittore che non passa dalla porta dello zoom, come `FrameOwnTeam` all'avvio.
+	Arm->TargetArmLength = 450.f;
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("il primo Tab apre la strategica"), Cam->IsStrategicView());
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestEqual(TEXT("e alla distanza da cui si era partiti, non a quella dell'ultima lettura"), Arm->TargetArmLength, 450.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 // --- #1778 · i limiti che conoscono il viewport ------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEffectiveBoundsTest,
