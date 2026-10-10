@@ -3998,43 +3998,71 @@ bool FRTActionModifyArcFrozenAimTest::RunTest(const FString&)
 }
 
 /**
- * **L'azione ambientale agisce sulla MIRA congelata, anche se il bersaglio cammina** — [D-419] (#3609).
+ * **L'azione ambientale agisce sulla MIRA congelata, che il bersaglio cammini o scatti** — [D-419] (#3609).
  *
  * Le ambientali risolvono in Cleanup, DOPO il Move: leggendo la cella viva inseguivano anche il movimento normale,
- * non solo lo scatto. Il bersaglio puntato al lock-in in (2,0) cammina in (3,0): il fuoco nasce in (2,0), e la cella
- * d'arrivo resta com'era. Con la cella viva — com'era fino a #3609 — sarebbe stato il contrario.
+ * non solo lo scatto. Il bersaglio puntato al lock-in in (2,0) va in (3,0), una volta camminando (Move) e una
+ * scattando (Dash, prima del Blast): il fuoco nasce in (2,0), e la cella d'arrivo resta com'era. Con la cella viva —
+ * com'era fino a #3609 — sarebbe stato il contrario in entrambi i casi.
+ *
+ * Controllo positivo: a scena ferma il fuoco nasce sotto il bersaglio. Un mondo per caso, perche' la superficie
+ * bruciata di un caso non resti nel successivo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIgniteFrozenAimTest,
 	"RefactorTactics.Actions.Ignite.BurnsWhereItWasAimed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionIgniteFrozenAimTest::RunTest(const FString&)
 {
-	UWorld* World = MakeEnvWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	ARTHexMapActor* MapActor = SpawnEnvMap(World);
-	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
-	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
-
+	enum class EMoto : uint8 { Fermo, Cammina, Scatta };
 	const FRTCellId Puntata(2, 0);
 	const FRTCellId Arrivo(3, 0);
-	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
-	Target->PlannedCell = Arrivo; // movimento NORMALE: risolve nel Move, dopo il Blast e prima del Cleanup
-	RunEnvTurn(TM);
 
-	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+	auto Esegui = [this, &Puntata, &Arrivo](const TCHAR* Caso, EMoto Moto)
 	{
-		const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
-		return Data ? Data->Surface : ERTHexSurface::Floor;
+		UWorld* World = MakeEnvWorld();
+		if (!TestNotNull(FString::Printf(TEXT("%s: world di prova"), Caso), World)) { return; }
+		ARTHexMapActor* MapActor = SpawnEnvMap(World);
+		ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Target = SpawnEnvUnit(World, 1, Puntata);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return; }
+
+		PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+		if (Moto == EMoto::Cammina)
+		{
+			Target->PlannedCell = Arrivo; // movimento NORMALE: risolve nel Move, dopo il Blast e prima del Cleanup
+		}
+		else if (Moto == EMoto::Scatta)
+		{
+			Target->PlannedDashAbility = RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition"));
+			Target->PlannedDashCell = Arrivo; // scatto: risolve PRIMA del Blast
+		}
+		RunEnvTurn(TM);
+
+		auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+		{
+			const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+			return Data ? Data->Surface : ERTHexSurface::Floor;
+		};
+		const FRTCellId Atteso = Moto == EMoto::Fermo ? Puntata : Arrivo;
+		if (!TestEqual(FString::Printf(TEXT("%s: premessa, il bersaglio e' dove il caso lo porta"), Caso),
+			Target->Cell, Atteso))
+		{
+			DestroyEnvWorld(World); return;
+		}
+		TestTrue(FString::Printf(TEXT("%s: 🔴 brucia la cella puntata al lock-in"), Caso),
+			SurfaceAt(Puntata) == ERTHexSurface::Fire);
+		if (Moto != EMoto::Fermo)
+		{
+			TestTrue(FString::Printf(TEXT("%s: e non quella dove il bersaglio e' arrivato"), Caso),
+				SurfaceAt(Arrivo) != ERTHexSurface::Fire);
+		}
+		DestroyEnvWorld(World);
 	};
-	if (!TestEqual(TEXT("premessa: il bersaglio ha davvero camminato"), Target->Cell, Arrivo))
-	{
-		DestroyEnvWorld(World); return false;
-	}
-	TestTrue(TEXT("🔴 brucia la cella puntata al lock-in"), SurfaceAt(Puntata) == ERTHexSurface::Fire);
-	TestTrue(TEXT("e non quella dove il bersaglio e' arrivato"), SurfaceAt(Arrivo) != ERTHexSurface::Fire);
-	DestroyEnvWorld(World);
+
+	Esegui(TEXT("scena ferma (controllo positivo)"), EMoto::Fermo);
+	Esegui(TEXT("il bersaglio cammina"), EMoto::Cammina);
+	Esegui(TEXT("il bersaglio scatta"), EMoto::Scatta);
 	return true;
 }
 
