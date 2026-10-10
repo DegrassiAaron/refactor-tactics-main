@@ -271,6 +271,7 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 			Ev.PrimaryUnitId = INDEX_NONE; // l'ambiente non e' di nessuno
 			Ev.ActionId = Entry.ActionId;
 			Ev.Amount = 1;
+			Ev.Phase = Entry.Phase; // la prima cella dell'ambiente: le successive si contano, non si fasano (#3637)
 			EnvironmentIndex = Out.Num() - 1;
 			continue;
 		}
@@ -301,6 +302,7 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		// restare e' un commento che afferma il contrario del codice accanto.
 		Candidate.ActionId = Entry.ActionId;
 		Candidate.Amount = Entry.Amount;
+		Candidate.Phase = Entry.Phase; // la striscia del registro (#3637)
 
 		// ⛔ **La cella si copia SOLO per `AttackBlocked`, e la guardia e' strutturale** (`#2697`). Copiarla
 		// per ogni voce sembrerebbe innocuo — oggi `SightBlockerCell` e' scritta in un sito solo, per questo
