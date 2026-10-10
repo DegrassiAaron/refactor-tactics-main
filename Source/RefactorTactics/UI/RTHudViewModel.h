@@ -10,6 +10,7 @@
 // FRTDamageTokenView: vive in un header PROPRIO perche' `RTUnit.h` possa includerlo senza tirarsi
 // dietro il view-model — e' incluso quasi ovunque, e ogni dipendenza aggiunta li' si paga in tutto il modulo.
 #include "UI/RTDamageTokenView.h"
+#include "Combat/RTHexCombatLibrary.h" // FRTBlastPreviewPlan: il piano dell'anteprima si traduce qui (#3620)
 // FRTPlayerEvent: la vista del feed ne porta l'importanza per valore, e la composizione consuma il tipo.
 #include "UI/RTPlayerEvent.h"
 #include "Player/RTPointerInteraction.h" // ERTPointerContext/ERTPointerTargetKind: il prompt li LEGGE, non li sceglie
@@ -1351,6 +1352,22 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTUnitSlotsView BuildUnitSlots(const ARTUnit* Unit);
+
+	/**
+	 * Il piano di `Unit` nella forma che `URTHexCombatLibrary::MakeBlastPreview` riceve ([D-492], #3620).
+	 * `UnitId` e i bersagli sono indici in `Units`, gli stessi di `MakeHexCombatUnits(Units)`.
+	 *
+	 * 🔑 **E' la sola traduzione unita' -> anteprima, e ne passano due letture.** L'anteprima dell'unita'
+	 * selezionata nel controller e i segni sulle unita' dell'HUD (`ARTHUD::ComputePlannedHitMarks`). Prima stava
+	 * nel controller, e i segni ricalcolavano l'area per conto proprio: saltavano ogni attacco mirato a una CELLA,
+	 * e l'alleato in un'area su un varco vuoto era segnato dall'anteprima e non dall'overlay.
+	 *
+	 * L'origine non e' `Unit.Cell` in ogni caso: lo scatto pianificato sposta da dove si mira ([D-464], [D-471]).
+	 */
+	static FRTBlastPreviewPlan MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId, const TArray<ARTUnit*>& Units);
+
+	/** Le unita' nella forma che il Blast riceve, con `UnitId` uguale all'indice in `Units`. Vedi `MakeBlastPreviewPlan`. */
+	static TArray<FRTHexCombatUnit> MakeHexCombatUnits(const TArray<ARTUnit*>& Units);
 
 	/**
 	 * La lettura del movimento dell'unita' COMANDATA (`#3470`). Il profilo viene da `BuildUnitSlots`, cioe' da

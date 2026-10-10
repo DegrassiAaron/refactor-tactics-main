@@ -11,6 +11,7 @@
 #include "Perception/RTKnowledgeVeilPresenter.h"
 // #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
 #include "UI/RTReactionWindowViewModel.h"
+#include "UI/RTHudViewModel.h" // MakeBlastPreviewPlan: la traduzione unita' -> anteprima e' una sola (#3620)
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -300,52 +301,10 @@ namespace
 		// ha pianificato uno scatto e poi un attacco sparera' da dove sara' arrivato. `PlannedDashMoves()` e' la
 		// stessa domanda che `ResolveDash` si pone, rifiuto dello stato compreso ([D-471]). ⚠️ Da #3509 decide anche
 		// la FASE dell'azione, e la carica ne resta fuori ([D-464], `AimOriginCell`).
-		FRTBlastPreviewPlan PreviewPlan;
-		PreviewPlan.AttackerId = UnitId;
-		PreviewPlan.bDashResolves = Unit->PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
-		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
-		PreviewPlan.bDashIsCharge = Unit->PlannedDashIsCharge();
-
-		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
-		if (Ability)
-		{
-			PreviewPlan.bHasAction = true;
-			// [D-464]: l'area colpita parte da dove l'azione MIRA, e quello dipende dalla sua fase. Senza, un
-			// `Environment` pianificato dopo uno scatto veniva anteprimato dalla cella dello scatto, mentre il click
-			// lo giudicava da quella corrente.
-			PreviewPlan.Phase = Ability->Def.ResolutionPhase;
-			PreviewPlan.Shape = Ability->Shape;
-			PreviewPlan.RangeCells = Ability->RangeCells;
-			PreviewPlan.AreaRadius = Ability->AreaRadius;
-			// L'avviso di fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento
-			// impossibile insegna a ignorare gli allarmi.
-			PreviewPlan.bFriendlyFire = Ability->Def.bFriendlyFire;
-			if (Unit->bAttackTargetsCell)
-			{
-				PreviewPlan.bTargetsCell = true;
-				PreviewPlan.TargetCell = Unit->PlannedAttackCell;
-			}
-			else
-			{
-				// `Units` contiene le unita' VIVE dello snapshot: un bersaglio caduto semplicemente non c'e',
-				// e `INDEX_NONE` diventa «nessuna area», che e' l'esito giusto.
-				PreviewPlan.TargetId = Units.IndexOfByKey(Unit->PlannedAttackTarget.Get());
-			}
-		}
-
-		// Le unita' nella forma che il Blast riceve, con gli STESSI indici dello snapshot: cosi' l'identita'
-		// dell'attaccante e quella dei bersagli sono le stesse da entrambi i lati.
-		TArray<FRTHexCombatUnit> HexUnits;
-		HexUnits.Reserve(Units.Num());
-		for (int32 i = 0; i < Units.Num(); ++i)
-		{
-			FRTHexCombatUnit HU;
-			HU.UnitId = i;
-			HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
-			HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
-			HU.bAlive = Units[i] && Units[i]->IsAlive();
-			HexUnits.Add(HU);
-		}
+		// La traduzione sta in `URTHudViewModel::MakeBlastPreviewPlan` ([D-492], #3620): la usano anche i segni sulle
+		// unita' dell'HUD, cosi' anteprima e overlay non possono piu' dire due cose diverse sullo stesso piano.
+		const FRTBlastPreviewPlan PreviewPlan = URTHudViewModel::MakeBlastPreviewPlan(*Unit, UnitId, Units);
+		const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
 
 		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
 		HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
