@@ -20,11 +20,11 @@ La skill bar (Z5) ha il proprio pacchetto in [`../skill-bar-2026-10/`](../skill-
 colori, font e misure ([`dati/tokens.json`](../skill-bar-2026-10/dati/tokens.json)).
 
 🎬 **Le tavole mostrano la vista strategica** ([D-488](../../../../decisions/RT_PDR_00_Decision_Log.md)).
-- **Come si apre.** Con `Tab` la parte centrale passerà dalla 3D tattica a questa isometrica semplificata. ⏳ Non è cablato: oggi `Tab` cicla la selezione, e la vista strategica esiste solo come stato.
+- **Come si apre.** Con `Tab` la parte centrale passa dalla 3D tattica a questa isometrica semplificata. ✅ Cablato il 2026-10-10 nel nucleo di [D-495](../../../../decisions/RT_PDR_00_Decision_Log.md) ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)), e il ciclo della selezione è su `N`.
 - **Cosa resta uguale.** L'HUD intorno è identico nelle due viste.
 - **Cosa vale, e per chi.**
   - Delle zone screen-space valgono **posizione, contenuto e stile**, in entrambe le viste.
-  - La scena isometrica è il bersaglio della vista strategica. Non è implementata: oggi esiste lo stato, non la vista.
+  - La scena isometrica è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10: segnalini al posto degli eroi e ricordo con «X». ⏳ Mancano inclinazione, proiezione e separazione dei piani (#3630, #3631, #3632).
   - Nella vista tattica 3D, degli overlay nel mondo valgono significato e forme.
 
 ⚠️ **Due cose delle tavole sono superate, e si è scelto di non rifarle: vale questa pagina.**

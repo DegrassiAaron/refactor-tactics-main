@@ -1436,6 +1436,101 @@ bool FRTCameraStrategicThresholdsAreOrderedTest::RunTest(const FString&)
 	return true;
 }
 
+// --- D-488 / D-495 · `Tab`: una scorciatoia verso la distanza, non una modalita' ----------------------
+
+/**
+ * `Tab` porta il braccio alla soglia d'ingresso, e il secondo `Tab` lo riporta ESATTAMENTE da dove era partito.
+ *
+ * 🔑 **L'uguaglianza esatta del braccio e' l'asserzione che porta il peso.** Un ritorno «tattico ma altrove»
+ * sarebbe verde su `IsStrategicView` e sbagliato per chi gioca, che ritroverebbe la camera a un'altra
+ * distanza. E la soglia raggiunta ESATTAMENTE prova che `Tab` non passa dall'alpha, dove l'arrotondamento
+ * di `Lerp` potrebbe lasciare il braccio un ulp sotto `Enter` e la vista tattica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraTabTogglesStrategicTest,
+	"RefactorTactics.Camera.TabReachesTheStrategicThresholdAndTheSecondTabReturns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraTabTogglesStrategicTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->RecenterView();
+
+	// Partenza tattica a una distanza che NON e' il default: un ritorno a `DefaultArmLength` non basterebbe.
+	Cam->AddZoom(+1.f);
+	const float Start = Arm->TargetArmLength;
+	TestFalse(TEXT("si parte tattici"), Cam->IsStrategicView());
+	TestNotEqual(TEXT("la partenza non e' il default"), Start, 800.f);
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("il primo Tab apre la vista strategica"), Cam->IsStrategicView());
+	TestEqual(TEXT("e porta il braccio esattamente alla soglia d'ingresso"), Arm->TargetArmLength, 2400.f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestEqual(TEXT("ed esattamente alla distanza di partenza"), Arm->TargetArmLength, Start);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * In strategica si entra anche con la rotella: allora l'ultima distanza tattica cade fra le due soglie, e il
+ * secondo `Tab` deve comunque USCIRE.
+ *
+ * 🔴 **E' il caso che D-488 non copre** («riporta alla distanza da cui era partita»), e senza il tetto su
+ * `StrategicExitThreshold` tornare a quella distanza lascerebbe la vista strategica per isteresi: un `Tab`
+ * che non fa niente. Verifica di mutazione: tolto il `Min` con `Exit`, l'asserzione su `IsStrategicView` cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraTabAfterWheelEntryTest,
+	"RefactorTactics.Camera.TabAfterWheelEntryLeavesTheStrategicView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraTabAfterWheelEntryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->RecenterView();
+
+	for (int32 i = 0; i < 40 && !Cam->IsStrategicView(); ++i) { Cam->AddZoom(+1.f); }
+	if (!TestTrue(TEXT("con la rotella si entra in strategica"), Cam->IsStrategicView()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	// Il controllo che rende il caso quello giusto: l'ultima lettura tattica sta FRA le soglie.
+	const float LastTactical = Cam->GetLastTacticalArmLength();
+	TestTrue(TEXT("l'ultima distanza tattica cade fra le due soglie"), LastTactical > 1900.f && LastTactical < 2400.f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("Tab esce dalla strategica anche se ci si e' entrati con la rotella"), Cam->IsStrategicView());
+	TestEqual(TEXT("e si ferma alla soglia d'uscita, la distanza tattica piu' vicina"), Arm->TargetArmLength, 1900.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 // --- #1778 · i limiti che conoscono il viewport ------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEffectiveBoundsTest,

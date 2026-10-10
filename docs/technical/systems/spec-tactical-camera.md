@@ -90,6 +90,7 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
 | Home | `Home` | `RecenterView` |
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
+| Vista strategica | `Tab` | `ToggleStrategicView`: sposta la distanza alla soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md), §5) |
 
 ### 3.2 Binding del modificatore `Alt` — ✅ consegnati
 
@@ -173,7 +174,7 @@ un'unità converte la sua cella invece di leggerne la posizione — è la correz
 Lo zoom è **continuo** ✅ e resta tale. **Non** esistono tre modalità rigide `Close / Tactical / Strategic`:
 una modalità è uno stato in più da mantenere, e la distanza la sta già tenendo `TargetArmLength`.
 
-✅ **Lo stato** esiste dal 2026-08-30 ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)); ⏳ **la vista** no. La Strategic View è una
+✅ **Lo stato** esiste dal 2026-08-30 ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)); ✅ **la vista** dal 2026-10-10, nel nucleo di [D-495](../../decisions/RT_PDR_00_Decision_Log.md). La Strategic View è una
 conseguenza semantica dello zoom, non un'altra camera:
 
 ```text
@@ -195,13 +196,17 @@ loro `meta = (ClampMin)` vincola il Details, non un `Set` da Blueprint: `UpdateS
 con `Max`/`Min`, così chi li inverte ottiene comunque un'isteresi valida invece di uno stato che entra e
 non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 
-⏳ **Nessun consumatore visivo.** Lo stato è leggibile (`IsStrategicView`) e si annuncia nel log; cosa si
-*mostri* in Strategic — separazione verticale dei piani, densità dei marker — è §6 e resta da fare.
+✅ **Il consumatore visivo** (2026-10-10, [D-495](../../decisions/RT_PDR_00_Decision_Log.md)).
+- `ARTHUD::UpdateObserverVeil` legge `IsStrategicView` nello stesso giro in cui scrive il velo, e lo consegna a ogni unità con `ARTUnit::SetStrategicPresentation`.
+- In Strategic lo skeletal dell'eroe si spegne e si riaccende il cilindro segnaposto. Il flag entra **in AND** con `bRender` nei predicati, quindi non riaccende niente che il velo abbia spento (`Unit.StrategicPresentationSwapsTheBodyButNeverRevealsAVeiledUnit`, `Veil.StrategicViewDoesNotRevealAVeiledUnit`).
+- Il ricordo diventa un segnalino con «X» (`ContactToken`) sulla cella del contatto, dalla stessa sorgente della sagoma (`Veil.StrategicRememberedContactIsATokenOnTheContactCell`).
+- ⏳ Restano da fare l'inclinazione ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630)), la prova ortografica ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)) e la separazione dei piani (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)).
 
 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): come si entra e che cosa si vede.**
-- **Come si entra** (⏳ non cablato: oggi `Tab` cicla la selezione). `Tab` porta la camera oltre `StrategicEnterThreshold` e, al secondo `Tab`, la riporta alla distanza di partenza. Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
+- **Come si entra** (✅ cablato il 2026-10-10, `ARTCameraPawn::ToggleStrategicView`). `Tab` porta il braccio a `StrategicEnterThreshold` e, al secondo `Tab`, lo riporta all'ultima distanza tattica. Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
+  - ⚠️ **Il ritorno ha un tetto: mai oltre `StrategicExitThreshold`.** Se si è entrati con la rotella, l'ultima distanza tattica cade fra le due soglie, e tornarci lascerebbe la vista strategica per isteresi. D-488 diceva «la distanza da cui era partita» e non copriva questo caso: la regola sta in `Camera.TabAfterWheelEntryLeavesTheStrategicView`, e il caso base in `Camera.TabReachesTheStrategicThresholdAndTheSecondTabReturns`.
 - **Che cosa si vede.** Al centro, la 3D tattica diventa un'**isometrica semplificata**, quella delle tavole A–F di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md). L'HUD intorno resta lo stesso.
-- **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`.
+- **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`. ✅ Fatto il 2026-10-10, e pinnato da `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN`.
 - **Che cosa resta aperto.** La proiezione esatta e le soglie si decidono in `L_CameraFeatureLab`.
 
 🔗 La Strategic View ha già una premessa documentale in
