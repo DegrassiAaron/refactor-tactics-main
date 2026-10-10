@@ -34,6 +34,7 @@
 #include "Components/TextBlock.h"         // #3489: etichette scritte dal C++
 #include "Components/HorizontalBoxSlot.h" // #3489: il separatore dei gruppi e' padding, non un widget
 #include "Components/ProgressBar.h"       // #3634: la barra del countdown della finestra di reazione
+#include "Components/PanelWidget.h"       // #3636: roster e pannello costruiscono carte e voci dentro un pannello
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -1938,4 +1939,343 @@ void URTTacticalHUDWidget::NativeConstruct()
 	{
 		UE_LOG(LogRT, Display, TEXT("%s"), *Riga);
 	}
+}
+
+// =====================================================================================================
+// La resa delle tavole A, B ed E per roster e pannello (#3636, T8)
+// =====================================================================================================
+
+namespace
+{
+	bool RTSameWarning(const FRTPlanWarningView& A, const FRTPlanWarningView& B)
+	{
+		return A.Level == B.Level && A.SourceActionId == B.SourceActionId && A.What.EqualTo(B.What)
+			&& A.Why.EqualTo(B.Why) && A.Cost.EqualTo(B.Cost);
+	}
+
+	/** L'ultimo segmento di un id, `Action.Counter` -> `Counter`: la cascata di `ARTUnit::DisplayLabel`. */
+	FText RTLastIdSegment(const FName& Id)
+	{
+		const FString Testo = Id.ToString();
+		int32 Punto = INDEX_NONE;
+		return FText::FromString(Testo.FindLastChar(TEXT('.'), Punto) ? Testo.Mid(Punto + 1) : Testo);
+	}
+
+	bool RTSameCard(const FRTUnitCardView& A, const FRTUnitCardView& B)
+	{
+		return A.HeroId == B.HeroId && A.DisplayName.EqualTo(B.DisplayName) && A.Health == B.Health
+			&& A.MaxHealth == B.MaxHealth && A.Shield == B.Shield && A.bIsAlly == B.bIsAlly && A.bAlive == B.bAlive;
+	}
+
+	/** Il colore della striscia per un segno di fase: [D-233] per le macro-fasi, `Violet` per la reazione. */
+	FLinearColor RTPhaseStripColor(ERTActionPhaseMark Mark)
+	{
+		using T = ERTUIToken;
+		switch (Mark)
+		{
+		case ERTActionPhaseMark::Prep:     return URTUIPalette::ColorFor(T::Phase_Prep);
+		case ERTActionPhaseMark::Dash:     return URTUIPalette::ColorFor(T::Phase_Dash);
+		case ERTActionPhaseMark::Blast:    return URTUIPalette::ColorFor(T::Phase_Blast);
+		case ERTActionPhaseMark::Move:     return URTUIPalette::ColorFor(T::Phase_Move);
+		case ERTActionPhaseMark::Reaction: return URTUIPalette::ColorFor(T::Violet);
+		case ERTActionPhaseMark::Cleanup:  // un'etichetta e non un colore ([D-232] §1)
+		case ERTActionPhaseMark::None:     break;
+		}
+		return FLinearColor::Transparent;
+	}
+
+	/** Crea un widget figlio col proprietario giusto, o col mondo in sua assenza (come `MakeOptionWidget`). */
+	template <typename TWidget>
+	TWidget* RTCreateChild(UUserWidget& Parent, TSubclassOf<TWidget> Class)
+	{
+		if (APlayerController* Proprietario = Parent.GetOwningPlayer())
+		{
+			return CreateWidget<TWidget>(Proprietario, Class);
+		}
+		if (UWorld* Mondo = Parent.GetWorld())
+		{
+			return CreateWidget<TWidget>(Mondo, Class);
+		}
+		return nullptr;
+	}
+}
+
+void URTUnitCardWidget::SetCard(const FRTUnitCardView& InCard, bool bInReactionArmed)
+{
+	const bool bCambiata = !bHasCard || bReactionArmed != bInReactionArmed || !RTSameCard(Card, InCard);
+	Card = InCard;
+	bReactionArmed = bInReactionArmed;
+	bHasCard = true;
+
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	if (CardFrame)
+	{
+		CardFrame->SetRenderOpacity(Card.bAlive ? 1.f : 0.45f);
+	}
+	if (TeamDot)
+	{
+		TeamDot->SetBrushColor(C(Card.bIsAlly ? T::Cyan : T::Red));
+	}
+	if (NameText)
+	{
+		NameText->SetText(Card.DisplayName);
+		NameText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	RTShowIf(ReactionChip, bReactionArmed);
+	if (HealthBar)
+	{
+		HealthBar->SetPercent(Card.HealthFraction);
+		HealthBar->SetFillColorAndOpacity(C(T::Cyan));
+	}
+	if (HealthText)
+	{
+		HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), Card.Health, Card.MaxHealth)));
+		HealthText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (ShieldText)
+	{
+		ShieldText->SetText(FText::AsNumber(Card.Shield));
+		ShieldText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+
+	// ⚠️ L'evento solo a carta cambiata: il roster la riscrive a ogni tick, e un grafo che ridisegna a ogni tick
+	// costa senza dire niente di nuovo.
+	if (bCambiata)
+	{
+		OnCardChanged();
+	}
+}
+
+void URTPlanWarningEntryWidget::SetWarning(const FRTPlanWarningView& InWarning)
+{
+	const bool bCambiato = !bHasWarning || !RTSameWarning(Warning, InWarning);
+	Warning = InWarning;
+	bHasWarning = true;
+
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	ERTUIToken Colore = T::Cyan;
+	ERTUIToken Fondo = T::BG_ProfileActive;
+	const TCHAR* Forma = TEXT("\u25CF");    // ●
+	const TCHAR* Segno = TEXT("i");
+	FText Livello = NSLOCTEXT("RTPlanWarning", "LevelInfo", "INFO");
+	switch (Warning.Level)
+	{
+	case ERTPlanWarningLevel::Critical:
+		Colore = T::Red;
+		Fondo = T::BG_Invalid;
+		Forma = TEXT("\u25C6");  // ◆
+		Segno = TEXT("\u2715");  // ✕
+		Livello = NSLOCTEXT("RTPlanWarning", "LevelCritical", "CRITICAL");
+		break;
+	case ERTPlanWarningLevel::Warning:
+		Colore = T::Amber;
+		Fondo = T::BG_Selected;
+		Forma = TEXT("\u25B2");  // ▲
+		Segno = TEXT("!");
+		Livello = NSLOCTEXT("RTPlanWarning", "LevelWarning", "WARNING");
+		break;
+	case ERTPlanWarningLevel::Info:
+		break;
+	}
+
+	RTPaintFrame(EntryFrame, C(Fondo).CopyWithNewOpacity(0.94f), C(Colore), 1.f);
+	if (LevelGlyphText)
+	{
+		LevelGlyphText->SetText(FText::FromString(Forma));
+		LevelGlyphText->SetColorAndOpacity(FSlateColor(C(Colore)));
+	}
+	if (LevelMarkText)
+	{
+		LevelMarkText->SetText(FText::FromString(Segno));
+		LevelMarkText->SetColorAndOpacity(FSlateColor(C(T::BG_Deep)));
+	}
+	if (LevelText)
+	{
+		LevelText->SetText(Livello);
+		LevelText->SetColorAndOpacity(FSlateColor(C(Colore)));
+	}
+	if (WhatText)
+	{
+		WhatText->SetText(Warning.What);
+		WhatText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+	if (WhyText)
+	{
+		WhyText->SetText(Warning.Why);
+		WhyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (CostText)
+	{
+		CostText->SetText(Warning.Cost);
+		CostText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+
+	if (bCambiato)
+	{
+		OnWarningChanged();
+	}
+}
+
+void URTTeamRosterWidget::RefreshCards(bool bRecountReactions)
+{
+	if (!CardsBox || !CardClass)
+	{
+		return; // la seduta non ha ancora dato pannello e classe: il roster di oggi resta al grafo
+	}
+
+	const TArray<FRTUnitCardView> Roster = GetRoster();
+
+	// Si tengono le carte che ci sono: ricostruirle a ogni tick spezzerebbe hover e click, come per i bottoni della
+	// finestra di reazione.
+	while (Cards.Num() > Roster.Num())
+	{
+		if (URTUnitCardWidget* Ultima = Cards.Last())
+		{
+			Ultima->RemoveFromParent();
+		}
+		Cards.Pop();
+	}
+	while (Cards.Num() < Roster.Num())
+	{
+		URTUnitCardWidget* Carta = RTCreateChild<URTUnitCardWidget>(*this, CardClass);
+		if (!Carta)
+		{
+			return;
+		}
+		CardsBox->AddChild(Carta);
+		Cards.Add(Carta);
+	}
+	for (int32 i = 0; i < Roster.Num(); ++i)
+	{
+		const FName Eroe = Roster[i].HeroId;
+		if (bRecountReactions || !ArmedByHero.Contains(Eroe))
+		{
+			ArmedByHero.Add(Eroe, IsReactionArmed(Eroe));
+		}
+		Cards[i]->SetCard(Roster[i], ArmedByHero.FindChecked(Eroe));
+	}
+}
+
+void URTTeamRosterWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceReactionRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceReactionRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceReactionRecount = 0.f;
+	}
+	RefreshCards(bRiconta);
+}
+
+void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	const bool bRisoluzione = HasMatchContext() && URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving;
+	const FRTUnitSlotsView Slots = GetSlots();
+
+	// ⛔ Chiuso, non «—», per chi non si comanda: tre «—» direbbero «non ha pianificato» (#2757).
+	RTShowIf(PlanChipsBox, Slots.bAuthorized && !bRisoluzione);
+
+	// Fuori dal piano della comandata gli avvisi si azzerano SUBITO, non al prossimo riconteggio: in Risoluzione
+	// [D-480] li vuole nascosti, e per un'ispezionata non ci sono. Cambiata la comandata, si riconta subito.
+	const ARTUnit* Comandata = GetSelectedUnit();
+	bool bRicontati = false;
+	if (!Slots.bAuthorized || bRisoluzione)
+	{
+		LastWarnings.Reset();
+		LastWarningsSubject.Reset();
+	}
+	else if (bRecountWarnings || LastWarningsSubject.Get() != Comandata)
+	{
+		LastWarnings = GetPlanWarnings();
+		LastWarningsSubject = Comandata;
+		bRicontati = true;
+	}
+	const auto Chip = [&](const FRTPlannedSlotView& VistaSlot, ERTPlanChip Quale, UBorder* Frame, UBorder* Strip,
+		UTextBlock* Valore, UWidget* Avviso)
+	{
+		const bool bMovimento = Quale == ERTPlanChip::Movement;
+		const bool bOccupato = Slots.bAuthorized && VistaSlot.bOccupied;
+		// Ogni avviso a un chip solo (`ChipForWarning`): anche quelli sulle voci di movimento che lo slot non nomina.
+		const bool bAvviso = bOccupato && LastWarnings.ContainsByPredicate([&Slots, Quale](const FRTPlanWarningView& W)
+		{
+			return URTHudViewModel::ChipForWarning(Slots, W) == Quale;
+		});
+
+		RTPaintFrame(Frame, C(T::BG_Raised), C(bAvviso ? T::Amber : T::Frame_Off), 1.f);
+		if (Strip)
+		{
+			Strip->SetBrushColor(bOccupato ? RTPhaseStripColor(URTHudViewModel::SlotPhaseMark(Comandata, VistaSlot))
+				: FLinearColor::Transparent);
+		}
+		if (Valore)
+		{
+			FText Testo = NSLOCTEXT("RTHud", "ChipEmpty", "\u2014"); // —
+			if (bOccupato)
+			{
+				// Un percorso non ha un'azione: lo descrive la stessa riga dello slot movimento del pannello.
+				// Mai l'id grezzo: il nome del kit, la descrizione del percorso, o l'ultimo segmento dell'id.
+				Testo = !VistaSlot.DisplayName.IsEmpty() ? VistaSlot.DisplayName
+					: (bMovimento && VistaSlot.ActionId.IsNone()) ? ARTHUD::DescribeMovementSlot(Slots)
+					: RTLastIdSegment(VistaSlot.ActionId);
+			}
+			Valore->SetText(Testo);
+			Valore->SetColorAndOpacity(FSlateColor(C(bOccupato ? T::Text_Primary : T::Text_Disabled)));
+		}
+		RTShowIf(Avviso, bAvviso);
+	};
+	Chip(Slots.Main, ERTPlanChip::Main, MainChipFrame, MainChipStrip, MainChipValueText, MainChipAlert);
+	Chip(Slots.Movement, ERTPlanChip::Movement, MovementChipFrame, MovementChipStrip, MovementChipValueText, MovementChipAlert);
+	Chip(Slots.Reaction, ERTPlanChip::Reaction, ReactionChipFrame, ReactionChipStrip, ReactionChipValueText, ReactionChipAlert);
+
+	// Gli avvisi: una voce per avviso, dalla classe dei default; le voci che ci sono si riusano.
+	RTShowIf(PlanWarningsBox, LastWarnings.Num() > 0);
+	if (!PlanWarningsBox || !PlanWarningEntryClass)
+	{
+		return;
+	}
+	while (WarningEntries.Num() > LastWarnings.Num())
+	{
+		if (URTPlanWarningEntryWidget* Ultima = WarningEntries.Last())
+		{
+			Ultima->RemoveFromParent();
+		}
+		WarningEntries.Pop();
+	}
+	while (WarningEntries.Num() < LastWarnings.Num())
+	{
+		URTPlanWarningEntryWidget* Voce = RTCreateChild<URTPlanWarningEntryWidget>(*this, PlanWarningEntryClass);
+		if (!Voce)
+		{
+			return;
+		}
+		PlanWarningsBox->AddChild(Voce);
+		WarningEntries.Add(Voce);
+	}
+	if (bRicontati)
+	{
+		for (int32 i = 0; i < LastWarnings.Num(); ++i)
+		{
+			WarningEntries[i]->SetWarning(LastWarnings[i]);
+		}
+	}
+}
+
+void URTSelectedUnitPanelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceWarningRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceWarningRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceWarningRecount = 0.f;
+	}
+	RefreshLook(bRiconta);
 }

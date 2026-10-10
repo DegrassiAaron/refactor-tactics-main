@@ -338,9 +338,9 @@ bool FRTActionSlotHasIconSurfaceTest::RunTest(const FString&)
 /**
  * Ogni widget di Match che ha una classe base RT la dichiara davvero.
  *
- * ⚠️ **`UnitCard` e' escluso di proposito**: non esiste una `URTUnitCardWidget` in `Source/`, quindi il
- * Blueprint deriva da `UUserWidget` ed e' una scelta, non un difetto. Il test lo dice invece di lasciarlo
- * dedurre da un'assenza — chi aggiungesse quella classe domani troverebbe qui la riga da cambiare.
+ * ⚠️ **`UnitCard` non e' ancora qui, e la classe c'e'**: `URTUnitCardWidget` esiste da #3636, ma l'asset si
+ * riparenta nella seduta di stile. La riga `{ UnitCardPath, TEXT("UnitCard"), URTUnitCardWidget::StaticClass() }`
+ * entra nella stessa PR dell'asset: prima sarebbe rossa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchWidgetsDeriveFromCppBaseTest,
 	"RefactorTactics.ScreenHud.MatchWidgetsDeriveFromCppBase",

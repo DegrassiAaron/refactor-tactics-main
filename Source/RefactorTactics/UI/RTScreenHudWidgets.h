@@ -503,6 +503,124 @@ public:
 };
 
 /**
+ * `WBP_RT_UnitCard` — UNA carta del roster (#3636, T8). Come `URTFastDecisionOptionWidget`, **riceve** la vista e
+ * non va a prenderla: la costruisce e la aggiorna `URTTeamRosterWidget::RefreshCards`.
+ *
+ * ⛔ **`SetCard` non e' una `UFUNCTION`**: il grafo del roster che costruiva le carte da se' si toglie nella seduta,
+ * e una porta Blueprint su `SetCard` ne farebbe rientrare un secondo produttore.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTUnitCardWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/** Riceve la carta e lo stato del chip `REAZ.`. Scrive le porte, e chiama `OnCardChanged` solo se qualcosa cambia. */
+	void SetCard(const FRTUnitCardView& InCard, bool bInReactionArmed);
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTUnitCardView GetCard() const { return Card; }
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	bool IsReactionArmed() const { return bReactionArmed; }
+
+	/** Ridisegna. Qui non c'e' layout. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
+	void OnCardChanged();
+
+	// La resa della tavola (#3636). Tutte opzionali.
+
+	/** Il contenitore della carta: opacita' piena da viva, ridotta da caduta (il roster tiene anche le morte). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> CardFrame;
+
+	/** Il pallino della squadra: `Cyan` per un'alleata, `Red` per un'avversaria. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> TeamDot;
+
+	/** Il nome leggibile (`FRTUnitCardView::DisplayName`), in `Text_Primary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> NameText;
+
+	/** Il chip `REAZ.`: visibile solo se l'unita' ha una reazione armata ([D-478]). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> ReactionChip;
+
+	/** La barra dei PV: riempimento `Cyan` alla frazione di `HealthFraction`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UProgressBar> HealthBar;
+
+	/** «90/90», in `Text_Primary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> HealthText;
+
+	/** Lo scudo, il numero accanto all'icona, in `Text_Secondary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> ShieldText;
+
+private:
+	FRTUnitCardView Card;
+	bool bReactionArmed = false;
+	bool bHasCard = false;
+};
+
+/**
+ * Una voce dell'elenco degli avvisi di piano, sopra il pannello dell'unita' (#3636, [D-480], [D-494]). Riceve la
+ * vista da `URTSelectedUnitPanelWidget::RefreshLook`.
+ *
+ * Il livello ha una FORMA oltre al colore (§15.1): rombo «✕» `Red`, triangolo «!» `Amber`, cerchio «i» `Cyan`, le
+ * stesse del contatore accanto a `Conferma`.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTPlanWarningEntryWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/** Riceve l'avviso, scrive le porte, poi chiama `OnWarningChanged`. */
+	void SetWarning(const FRTPlanWarningView& InWarning);
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTPlanWarningView GetWarning() const { return Warning; }
+
+	/** Ridisegna. Qui non c'e' layout. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
+	void OnWarningChanged();
+
+	/** La cornice: contorno del colore del livello, fondo del suo tono scuro. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> EntryFrame;
+
+	/** La forma del livello (◆ ▲ ●), nel suo colore. ⚠️ Glifo: va con la Roboto dell'engine (guida §7-quater). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> LevelGlyphText;
+
+	/** Il segno dentro la forma (✕ ! i), in `BG_Deep`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> LevelMarkText;
+
+	/** «CRITICAL», «WARNING», «INFO»: il nome del livello, nel suo colore. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> LevelText;
+
+	/** Cosa, in `White`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> WhatText;
+
+	/** Perche', in `Text_Primary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> WhyText;
+
+	/** Costo, in `Text_Primary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> CostText;
+
+private:
+	FRTPlanWarningView Warning;
+	bool bHasWarning = false;
+};
+
+/**
  * `WBP_RT_TeamRoster` — le unita' della PROPRIA squadra, morte comprese; e in autobattle anche le altre.
  *
  * 🔴 **Due liste, mai una fusa** (`#2744`). `FRTUnitCardView` non porta `TeamId`: porta `bIsAlly`, calcolato
@@ -552,6 +670,42 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	bool IsReactionArmed(FName HeroId) const;
+
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola (#3636, T8): le carte le costruisce il C++, non il grafo.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il pannello delle carte della propria squadra. Senza, o senza `CardClass`, il roster non costruisce niente. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UPanelWidget> CardsBox;
+
+	/** La classe delle carte, nei default del WBP come `TooltipClass` dello slot: un percorso di `Content/` scritto in C++ sarebbe un riferimento duro. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TSubclassOf<URTUnitCardWidget> CardClass;
+
+	/**
+	 * Porta le carte di `CardsBox` al roster: una per voce di `GetRoster()`, nell'ordine del roster, col chip di
+	 * `IsReactionArmed`. Riusa le carte che ci sono: una carta ricostruita a ogni tick perderebbe l'hover.
+	 * La chiama `NativeTick`; i test la chiamano a mano.
+	 */
+	void RefreshCards(bool bRecountReactions = true);
+
+	/** Le carte costruite, nell'ordine del roster (per i test). */
+	const TArray<TObjectPtr<URTUnitCardWidget>>& GetCardWidgets() const { return Cards; }
+
+protected:
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<URTUnitCardWidget>> Cards;
+
+	/**
+	 * Il chip `REAZ.` per eroe, ricontato a 5 Hz (review di #3636): `IsReactionArmed` rifa' gli slot di ogni unita',
+	 * e i PV della carta si aggiornano a ogni tick senza chiederlo.
+	 */
+	TMap<FName, bool> ArmedByHero;
+	float SecondsSinceReactionRecount = 1.f;
 };
 
 /** `WBP_RT_SelectedUnitPanel` — dettaglio di chi si sta comandando: carta, slot occupati. */
@@ -625,7 +779,72 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetMovementSlotText() const;
 
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola (#3636, T8; [D-480]). Tutte opzionali, scritte da `RefreshLook`.
+	// ------------------------------------------------------------------------------------------------
+
+	/**
+	 * I tre chip PRINCIPALE · MOVIMENTO · REAZIONE. `Collapsed` quando gli slot non sono autorizzati — un'unita'
+	 * ispezionata — e in Risoluzione, come la tavola.
+	 *
+	 * ⛔ **Chiuso, non «—»**: per un'unita' che non si comanda tre «—» direbbero «non ha pianificato», che e' una
+	 * lettura del suo piano (#2757, `MovementSlotSaysNothingWhenUnauthorized`).
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> PlanChipsBox;
+
+	/**
+	 * Per ogni chip: la cornice (`BG_Raised`, contorno `Frame_Off`, `Amber` se l'azione ha un avviso), la striscia del
+	 * colore di fase (`SlotPhaseMark`), il valore — il nome dell'azione, o «—» per uno slot libero — e il «!» visibile
+	 * solo se un avviso nomina quell'azione (`SourceActionId`).
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> MainChipFrame;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> MainChipStrip;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> MainChipValueText;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> MainChipAlert;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> MovementChipFrame;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> MovementChipStrip;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> MovementChipValueText;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> MovementChipAlert;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> ReactionChipFrame;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> ReactionChipStrip;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> ReactionChipValueText;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> ReactionChipAlert;
+
+	/** Il pannello degli avvisi di piano, sopra il pannello. `Collapsed` senza avvisi. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UPanelWidget> PlanWarningsBox;
+
+	/** La classe delle voci, nei default del WBP come `CardClass` del roster. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TSubclassOf<URTPlanWarningEntryWidget> PlanWarningEntryClass;
+
+	/**
+	 * Scrive chip e avvisi. La chiama `NativeTick`; i test la chiamano a mano.
+	 *
+	 * @param bRecountWarnings  rifare gli avvisi. `NativeTick` lo fa a 5 Hz: `GetPlanWarnings` rifa' il validatore e
+	 *                          l'anteprima del Blast, come il contatore di `Conferma`.
+	 */
+	void RefreshLook(bool bRecountWarnings = true);
+
+	/** Le voci costruite, nell'ordine degli avvisi (per i test). */
+	const TArray<TObjectPtr<URTPlanWarningEntryWidget>>& GetWarningEntries() const { return WarningEntries; }
+
 protected:
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 	/**
 	 * Il soggetto del pannello: l'unita' comandata se c'e', altrimenti quella ispezionata (`#705`).
 	 *
@@ -634,6 +853,16 @@ protected:
 	 * `GetSlots()` non passa da qui, di proposito.
 	 */
 	const ARTUnit* GetSubject() const;
+
+private:
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<URTPlanWarningEntryWidget>> WarningEntries;
+
+	TArray<FRTPlanWarningView> LastWarnings;
+	float SecondsSinceWarningRecount = 1.f; // il primo tick conta subito
+
+	/** L'unita' per cui `LastWarnings` e' stato contato: se cambia, si riconta subito invece che al giro dopo. */
+	TWeakObjectPtr<const ARTUnit> LastWarningsSubject;
 };
 
 /** `WBP_RT_ActionDock` — le azioni della selezionata, con stato disponibile / armata / in ricarica. */

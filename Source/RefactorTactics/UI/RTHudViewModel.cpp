@@ -169,6 +169,7 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	}
 
 	Card.HeroId = Unit->HeroId;
+	Card.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
 	Card.Health = Unit->Health;
 	Card.MaxHealth = Unit->MaxHealth;
 	Card.Shield = Unit->Shield;
@@ -1611,3 +1612,41 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 }
 
 #undef LOCTEXT_NAMESPACE
+
+ERTPlanChip URTHudViewModel::ChipForWarning(const FRTUnitSlotsView& Slots, const FRTPlanWarningView& Warning)
+{
+	if (!Slots.bAuthorized || Warning.SourceActionId.IsNone())
+	{
+		return ERTPlanChip::None;
+	}
+	if (Slots.Main.bOccupied && Warning.SourceActionId == Slots.Main.ActionId)
+	{
+		return ERTPlanChip::Main;
+	}
+	if (Slots.Reaction.bOccupied && Warning.SourceActionId == Slots.Reaction.ActionId)
+	{
+		return ERTPlanChip::Reaction;
+	}
+	return Slots.Movement.bOccupied ? ERTPlanChip::Movement : ERTPlanChip::None;
+}
+
+ERTActionPhaseMark URTHudViewModel::SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot)
+{
+	if (!Unit || !Slot.bOccupied)
+	{
+		return ERTActionPhaseMark::None;
+	}
+	if (Slot.ActionId.IsNone())
+	{
+		return ERTActionPhaseMark::Move; // un percorso: lo slot e' occupato senza un'azione
+	}
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* Azione = Unit->GetAbility(i);
+		if (Azione && Azione->Def.ActionId == Slot.ActionId)
+		{
+			return PhaseMarkFor(Azione->Def);
+		}
+	}
+	return ERTActionPhaseMark::None;
+}
