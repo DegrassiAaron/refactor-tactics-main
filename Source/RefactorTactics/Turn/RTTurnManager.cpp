@@ -1571,10 +1571,11 @@ void ARTTurnManager::LockInAndResolve()
 	// 🔴 **LA MIRA SI FISSA QUI, e da qui non insegue piu'** ([D-415]).
 	//
 	// 🔑 **Questo e' il lock-in, cioe' l'istante in cui il piano diventa immutabile**: e' l'unico punto in
-	// cui la cella di un bersaglio e' ancora quella su cui chi spara ha DECISO. Le fasi che seguono —
-	// `ResolveDash`, `ResolveMovement` — la cambiano, e fino al 2026-09-20 il Blast leggeva
-	// `PlannedAttackTarget->Cell` dopo che l'avevano cambiata: il colpo seguiva il bersaglio dove si era
-	// spostato, mirando a una posizione che al momento di decidere non esisteva.
+	// cui la cella di un bersaglio e' ancora quella su cui chi spara ha DECISO. Fra qui e il Blast la
+	// cambia solo cio' che risolve PRIMA del Blast — `ResolveDash`, le spinte, le reazioni — e fino al
+	// 2026-09-20 il Blast leggeva `PlannedAttackTarget->Cell` dopo quei cambi: il colpo seguiva il bersaglio
+	// dove era scattato, mirando a una posizione che al momento di decidere non esisteva. ⚠️ Il movimento
+	// normale (`ResolveMovement`) risolve DOPO il Blast, e per lui la mira non inseguiva nemmeno prima.
 	//
 	// ⛔ **Non e' un'ottimizzazione della leggibilita': e' cio' che rende una fase simultanea decidibile.**
 	// Chi pianifica non puo' sapere dove l'avversario andra', ed e' giusto; ma non deve nemmeno subire che

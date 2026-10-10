@@ -1786,7 +1786,14 @@ bool FRTAimReorientationFacesTheFrozenAimTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("premessa: esiste una direzione verso la cella dello scatto"), URTHexLibrary::DirectionTowards(Tiratore, Scattato, VersoScattato))) { return false; }
 	if (!TestTrue(TEXT("controllo positivo: le due direzioni differiscono"), VersoMira != VersoScattato)) { return false; }
 
-	auto FacingFinale = [this, &Tiratore, &Mira, &Scattato](bool bIlBersaglioSiSposta, ERTHexDirection& OutFacing) -> bool
+	// 🔴 **E il tiratore PARTE girato altrove**, o «guarda la mira» sarebbe vero senza che D-020 agisca: il
+	// facing di default di `ARTUnit` e' `E`, che e' proprio `VersoMira`. ⌫ *Fino alla review del delta di #3230
+	// (2026-10-10) il test partiva da `E`, e uccideva solo la regressione «si gira verso la cella viva».*
+	constexpr ERTHexDirection Partenza = ERTHexDirection::W;
+	if (!TestTrue(TEXT("controllo positivo: si parte da una direzione che non e' ne' la mira ne' lo scatto"),
+		Partenza != VersoMira && Partenza != VersoScattato)) { return false; }
+
+	auto FacingFinale = [this, &Tiratore, &Mira, &Scattato, Partenza](bool bIlBersaglioSiSposta, ERTHexDirection& OutFacing) -> bool
 	{
 		UWorld* World = MakeHexBlastWorld();
 		if (!World) { return false; }
@@ -1797,6 +1804,7 @@ bool FRTAimReorientationFacesTheFrozenAimTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
+		Shooter->Facing = Partenza;
 		Shooter->PlannedAbilityIndex = 0;
 		Shooter->PlannedAttackTarget = Foe;
 		if (bIlBersaglioSiSposta)

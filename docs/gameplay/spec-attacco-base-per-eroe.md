@@ -177,7 +177,7 @@ trovato dalla code review di #3230. Il 2026-10-09 è stato implementato davvero,
 
 🔴 **È la più cara delle tre, e il prezzo è documentato.**
 [`D-380`](../decisions/RT_PDR_00_Decision_Log.md) ha **pagato** quella licenza per `Action.Mortar`: **12**
-danni invece di 18, ricarica **3** invece di 2. Concederla a quattro attacchi base gratuiti e senza cooldown
+danni invece di 18, ricarica **3** invece di 2. Concederla agli attacchi base, gratuiti e senza cooldown,
 significa che quel prezzo non comprava una capacità, comprava un'**esclusiva**.
 
 ✅ **Risolto il 2026-09-14 da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md): il mortaio NON si

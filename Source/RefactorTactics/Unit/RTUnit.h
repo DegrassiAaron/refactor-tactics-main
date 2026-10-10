@@ -414,8 +414,9 @@ public:
 	 * **La cella su cui l'azione principale mira, congelata al LOCK-IN** ([D-415]).
 	 *
 	 * 🔑 **Esiste perche' la mira non deve INSEGUIRE.** Fino al 2026-09-20 il Blast leggeva
-	 * `PlannedAttackTarget->Cell` al momento di risolvere, cioe' **dopo** il movimento: un bersaglio che si
-	 * spostava veniva seguito, e chi sparava colpiva una posizione che al momento di decidere non esisteva.
+	 * `PlannedAttackTarget->Cell` al momento di risolvere, cioe' **dopo** il Dash, le spinte e le reazioni
+	 * (il movimento normale risolve dopo il Blast): un bersaglio che scattava veniva seguito, e chi sparava
+	 * colpiva una posizione che al momento di decidere non esisteva.
 	 * In una fase simultanea questo rende illeggibile la scelta — si mira a qualcosa che si muoverà.
 	 *
 	 * ⚠️ **NON e' `PlannedAttackCell`, ed e' deliberato.** Quella e' l'altra META' della scelta esclusiva di
