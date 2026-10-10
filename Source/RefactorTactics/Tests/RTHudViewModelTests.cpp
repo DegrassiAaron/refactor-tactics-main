@@ -2974,20 +2974,27 @@ bool FRTEventFeedNewFieldsPrivacyTest::RunTest(const FString&)
 	const FRTTurnLogEntry Visibile2 = Voce(ERTLogCategory::Reaction, 0, 5, 1, ERTMatchPhase::Blast);
 	const FRTTurnLogEntry Nascosta2 = Voce(ERTLogCategory::Reaction, 0, 7, 0, ERTMatchPhase::Prep);
 	const FRTTurnLogEntry Visibile3 = Voce(ERTLogCategory::Combat, Bloccato, 11, 1, ERTMatchPhase::Move);
+	// La dominanza: una voce nascosta della STESSA unita' di una visibile. Se il filtro venisse dopo la dominanza,
+	// potrebbe sostituirla, e la riga direbbe cio' che chi guarda non vede.
+	const FRTTurnLogEntry NascostaStessaUnita = Voce(ERTLogCategory::Combat, Bloccato, 5, 0, ERTMatchPhase::Prep);
+	// L'ambiente si aggrega in una riga sola: una cella nascosta PRIMA di una visibile non deve darle la sua fase.
+	const FRTTurnLogEntry AmbienteNascosto = Voce(ERTLogCategory::Environment, 0, 0, 0, ERTMatchPhase::Prep);
+	const FRTTurnLogEntry AmbienteVisibile = Voce(ERTLogCategory::Environment, 0, 0, 1, ERTMatchPhase::Move);
 
-	const TArray<FRTTurnLogEntry> Intero = { Visibile1, Nascosta1, Visibile2, Nascosta2, Visibile3 };
-	const TArray<FRTTurnLogEntry> SenzaNascoste = { Visibile1, Visibile2, Visibile3 };
+	const TArray<FRTTurnLogEntry> Intero = { Visibile1, Nascosta1, Visibile2, NascostaStessaUnita, Nascosta2,
+		AmbienteNascosto, Visibile3, AmbienteVisibile };
+	const TArray<FRTTurnLogEntry> SenzaNascoste = { Visibile1, Visibile2, Visibile3, AmbienteVisibile };
 
 	// Controllo positivo: le voci nascoste esistono per chi le puo' vedere.
-	if (!TestEqual(TEXT("premessa: la squadra 0 vede le due voci nascoste"),
-			URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 0).Num(), 2))
+	if (!TestTrue(TEXT("premessa: la squadra 0 vede le voci nascoste"),
+			URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 0).Num() >= 3))
 	{
 		return false;
 	}
 
 	const TArray<FRTPlayerEventLineView> Righe = URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 1);
 	const TArray<FRTPlayerEventLineView> Attese = URTHudViewModel::BuildPlayerEventFeed(SenzaNascoste, /*ObserverTeamId*/ 1);
-	if (!TestEqual(TEXT("premessa: la squadra 1 vede tre righe"), Righe.Num(), 3)
+	if (!TestEqual(TEXT("premessa: la squadra 1 vede quattro righe, l'ambiente compreso"), Righe.Num(), 4)
 		|| !TestEqual(TEXT("le voci nascoste non aggiungono righe"), Righe.Num(), Attese.Num()))
 	{
 		return false;
@@ -3007,6 +3014,7 @@ bool FRTEventFeedNewFieldsPrivacyTest::RunTest(const FString&)
 	TestFalse(TEXT("e non e' una reazione"), Righe[0].bReaction);
 	TestTrue(TEXT("la seconda e' una reazione"), Righe[1].bReaction);
 	TestTrue(TEXT("la terza e' del Move"), Righe[2].Phase == ERTMatchPhase::Move);
+	TestTrue(TEXT("l'ambiente ha la fase della cella VISIBILE, non di quella nascosta prima"), Righe[3].Phase == ERTMatchPhase::Move);
 	return true;
 }
 

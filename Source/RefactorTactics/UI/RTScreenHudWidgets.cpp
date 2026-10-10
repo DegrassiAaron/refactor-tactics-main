@@ -2326,7 +2326,7 @@ void URTPlayerEventLineWidget::SetLine(const FRTPlayerEventLineView& InLine)
 	if (PhaseLabelText)
 	{
 		PhaseLabelText->SetText(URTHudViewModel::PhaseMarkLabel(Segno));
-		PhaseLabelText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+		PhaseLabelText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary))); // la sigla #E6EBF2; il «#n» #A9B4C2
 	}
 	if (SequenceText)
 	{
@@ -2346,7 +2346,7 @@ void URTPlayerEventLineWidget::SetLine(const FRTPlayerEventLineView& InLine)
 	}
 }
 
-void URTPlayerEventLogWidget::RefreshLook()
+void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 {
 	const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(GetTurnManager());
 	const bool bRisoluzione = HasMatchContext() && Header.bResolving;
@@ -2362,9 +2362,12 @@ void URTPlayerEventLogWidget::RefreshLook()
 		LogTurnText->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
 	}
 
-	if (!LinesBox || !LineClass)
+	// All'ingresso in Risoluzione il feed si rilegge subito: le righe non aspettano il giro dei 5 Hz.
+	const bool bEntrata = bRisoluzione && !bLastResolving;
+	bLastResolving = bRisoluzione;
+	if (!bRisoluzione || !LinesBox || !LineClass || !(bRereadFeed || bEntrata))
 	{
-		return; // la seduta non ha ancora dato pannello e classe: le righe restano al grafo
+		return; // registro chiuso, pannello o classe non ancora dati dalla seduta, o non e' il giro di rilettura
 	}
 	const TArray<FRTPlayerEventLineView> Feed = GetFeed();
 	while (LineWidgets.Num() > Feed.Num())
@@ -2394,5 +2397,11 @@ void URTPlayerEventLogWidget::RefreshLook()
 void URTPlayerEventLogWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	RefreshLook();
+	SecondsSinceFeedReread += InDeltaTime;
+	const bool bRileggi = SecondsSinceFeedReread >= 0.2f;
+	if (bRileggi)
+	{
+		SecondsSinceFeedReread = 0.f;
+	}
+	RefreshLook(bRileggi);
 }

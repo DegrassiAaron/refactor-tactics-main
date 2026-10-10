@@ -928,7 +928,8 @@ struct FRTPlayerEventLineView
 	 *
 	 * 🔴 **E' la posizione nel feed GIA' FILTRATO per chi guarda, non l'indice della voce nel TurnLog.** Un indice
 	 * globale avrebbe dei buchi dove stanno gli eventi che chi guarda non vede, e i buchi direbbero quanti sono: un
-	 * conteggio di dati privati, vietato da #2757. Le righe tagliate da `MaxFeedLines` tengono il loro numero.
+	 * conteggio di dati privati, lo stesso genere di metadato che #2757 vieta per gli slot. Le righe tagliate da
+	 * `MaxFeedLines` tengono il loro numero.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Sequence = 0;

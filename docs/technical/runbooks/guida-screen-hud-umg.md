@@ -722,9 +722,19 @@ niente.
 | `LineText` | `TextBlock` | la frase |
 
 🔴 **Il «#n» è la posizione nel feed GIÀ FILTRATO per chi guarda**, non l'indice della voce nel TurnLog. Un indice
-globale lascerebbe buchi dove stanno gli eventi nascosti, e i buchi direbbero quanti sono (#2757). Lo misura
-`Privacy.EventFeedNewFieldsRevealNothingHidden`: lo stesso log, con e senza le voci nascoste, dà a chi guarda le
-stesse righe, campo per campo.
+globale lascerebbe buchi dove stanno gli eventi nascosti, e i buchi direbbero quanti sono: lo stesso genere di
+metadato che #2757 vieta per gli slot. Lo misura `Privacy.EventFeedNewFieldsRevealNothingHidden`. Lo stesso log,
+con e senza le voci nascoste, dà a chi guarda le stesse righe, campo per campo, anche con una voce nascosta della
+stessa unità e con una cella d'ambiente nascosta.
+
+⚠️ **Quattro cose da sapere prima della seduta**:
+- le righe si costruiscono solo in Risoluzione, e il feed si rilegge a 5 Hz, subito all'ingresso;
+- la riga d'ambiente aggrega più celle: la sua striscia è la fase della **prima** cella visibile;
+- il feed è già pieno al primo tick di Risoluzione, perché il resolver risolve tutte le fasi prima del playback.
+  Le righe di Blast e Move compaiono quindi prima che il playback le mostri. La riga corrente evidenziata, che
+  risolverebbe la cosa, chiede l'indice dell'evento riprodotto (T5, #1881);
+- ⏳ `DEFERRED`: la riga «nessun evento» per una fase senza eventi, che la tavola disegna tratteggiata. Il C++ costruisce
+  una riga per voce del feed, e una fase vuota non ha voci.
 
 ## 8. Verifica
 

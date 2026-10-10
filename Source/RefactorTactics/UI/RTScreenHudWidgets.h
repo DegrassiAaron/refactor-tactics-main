@@ -569,9 +569,13 @@ public:
 
 	/**
 	 * Scrive radice, round e righe: una per voce di `GetFeed()`, nell'ordine del feed; le righe che ci sono si riusano.
+	 * Le righe si costruiscono solo in Risoluzione: fuori il registro e' chiuso, e il lavoro sarebbe per niente.
 	 * La chiama `NativeTick`; i test la chiamano a mano.
+	 *
+	 * @param bRereadFeed  rileggere il feed. `NativeTick` lo fa a 5 Hz, come gli avvisi del pannello: `GetFeed` copia e
+	 *                     proietta il log del turno. All'ingresso in Risoluzione si rilegge subito.
 	 */
-	void RefreshLook();
+	void RefreshLook(bool bRereadFeed = true);
 
 	/** Le righe costruite, nell'ordine del feed (per i test). */
 	const TArray<TObjectPtr<URTPlayerEventLineWidget>>& GetLineWidgets() const { return LineWidgets; }
@@ -582,6 +586,9 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URTPlayerEventLineWidget>> LineWidgets;
+
+	float SecondsSinceFeedReread = 1.f; // il primo tick rilegge subito
+	bool bLastResolving = false;
 };
 
 /**

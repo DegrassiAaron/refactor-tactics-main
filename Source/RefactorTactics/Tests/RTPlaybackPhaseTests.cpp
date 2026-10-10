@@ -797,6 +797,10 @@ bool FRTEventLineLookTest::RunTest(const FString&)
 	Riga->SetLine(Vista);
 	TestTrue(TEXT("la striscia ha il colore del Blast"), Riga->PhaseStrip->GetBrushColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Phase_Blast)));
 	TestTrue(TEXT("la sigla dice BLAST"), Uguale(Riga->PhaseLabelText->GetText(), TEXT("BLAST")));
+	TestTrue(TEXT("in Text_Primary, come la tavola"),
+		Riga->PhaseLabelText->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Primary)));
+	TestTrue(TEXT("il numero in Text_Secondary"),
+		Riga->SequenceText->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
 	TestTrue(TEXT("il numero dice #3"), Uguale(Riga->SequenceText->GetText(), TEXT("#3")));
 	TestTrue(TEXT("una reazione ha il chip"), Visibile(Riga->ReactionBadge));
 	TestTrue(TEXT("e la frase e' quella della vista"), Riga->LineText->GetText().EqualTo(Vista.Text));
