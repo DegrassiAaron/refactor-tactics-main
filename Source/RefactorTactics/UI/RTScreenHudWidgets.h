@@ -1401,6 +1401,50 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetPromptText() const;
 
+	/**
+	 * Quanto resta della finestra, da 1 (appena aperta) a 0: la barra del countdown della tavola E (#3634).
+	 * Negativo senza finestra, come `GetRemainingSeconds()`.
+	 *
+	 * ⚠️ **E' il residuo AUTOREVOLE diviso per la durata AUTOREVOLE** (`WindowSeconds`), e nessuno dei due si
+	 * conta qui: una barra che scorresse col proprio `DeltaTime` sarebbe un secondo orologio. Il clamp a [0, 1]
+	 * copre l'ultimo tick prima della chiusura, come il clamp di `GetCountdownText`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	float GetCountdownFraction() const;
+
+	/**
+	 * «Allo scadere: HOLD» — cio' che si applica se nessuno risponde, col NOME della `SafeResponse`
+	 * (`RTReactionResponseText`). Vuoto senza finestra.
+	 *
+	 * ⚠️ **Il nome viene da `SafeResponse`, non dalla costante `HOLD`**: nel `Brace` e' «HOLD GROUND».
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetSafeOutcomeText() const;
+
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola E (#3634, T8). Tutte opzionali: senza, la finestra resta quella dei binding.
+	// I tre binding obbligatori (`FastDecisionBindingsAreWiredToTheRightNodes`) restano dove sono.
+	// ------------------------------------------------------------------------------------------------
+
+	/** La cornice della finestra: fondo `BG_Deep`, contorno `White` di 2 px (`RoundedBox`, come la tavola). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UBorder> WindowFrame;
+
+	/** La striscia a sinistra, `Violet`: la finestra e' una reazione, il colore delle reazioni di §32. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UBorder> AccentStrip;
+
+	/** La barra del countdown: riempimento `White` alla frazione di `GetCountdownFraction()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UProgressBar> CountdownBar;
+
+	/** «Allo scadere: …», da `GetSafeOutcomeText()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UTextBlock> SafeOutcomeText;
+
+	/** Scrive le porte della resa. La chiama `NativeTick`; i test la chiamano a mano. */
+	void RefreshLook();
+
 	// -------------------------------------------------------------------------------------------------
 	// LA RICOSTRUZIONE DEI BOTTONI — chi dice QUANDO, e chi disegna COSA
 	// -------------------------------------------------------------------------------------------------
@@ -1527,6 +1571,27 @@ public:
 	/** Il click: inoltra al widget della finestra il proprio indice, e nient'altro. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
 	void Choose();
+
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola E (#3634, T8). Tutte opzionali, scritte da `SetOption` PRIMA di `OnOptionChanged`:
+	// il grafo che disegna trova gia' le porte al loro posto. `LabelText` resta del grafo.
+	// ------------------------------------------------------------------------------------------------
+
+	/** La cornice: fondo `BG_Raised`; contorno `Frame_Mid` di 1 px, `Text_Primary` di 2 px se e' la scelta sicura. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UBorder> OptionFrame;
+
+	/** Il badge del tasto, da `GetKeyLabel()` ([D-491]): `1`, `2`… */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UTextBlock> KeyText;
+
+	/** La frase sotto il nome, da `GetOptionDescription()`, in `Text_Secondary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UTextBlock> DescriptionText;
+
+	/** Il chip «SCELTA SICURA»: visibile solo su `bIsSafeChoice`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UWidget> SafeChoiceBadge;
 
 	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Reaction")

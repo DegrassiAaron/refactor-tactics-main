@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-10 — La finestra di reazione ha le porte della tavola E
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione, parte C++. Issue
+[#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-bis e §7-ter: le porte della finestra e dell'opzione, e le due letture nuove |
+
+---
+
 ## 2026-10-10 — Conferma come la tavola B: la seduta `U72`
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster Conferma. Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).

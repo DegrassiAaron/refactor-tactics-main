@@ -402,6 +402,21 @@ bersaglio**»*, ma l'unico riferimento che il DTO porta è `TargetSnapshotIndex`
 partita in cui qualcuno è già caduto. Mostrare un nome richiede che il **produttore** lo metta nel DTO;
 finché non c'è, non inventarlo nel Designer.
 
+### Le porte della resa della tavola E ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634))
+
+Tutte `BindWidgetOptional`: il C++ le scrive a ogni tick in `RefreshLook`, coi colori di `URTUIPalette`. Senza di
+loro la finestra resta quella dei tre binding qui sopra, che **non si toccano**.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `WindowFrame` | `Border` (`RoundedBox`) | fondo `BG_Deep`, contorno `White` di 2 px. ⚠️ Tinta del brush **bianca**: il fondo è `BrushColor` (§7-quater) |
+| `AccentStrip` | `Border` | `BrushColor` `Violet`: la striscia a sinistra |
+| `CountdownBar` | `ProgressBar` | la frazione di `Get Countdown Fraction`, riempimento `White`. Il fondo della barra (`Frame_Off`) sta nell'asset |
+| `SafeOutcomeText` | `TextBlock` | «Allo scadere: HOLD», da `Get Safe Outcome Text` |
+
+Due letture nuove: **`Get Countdown Fraction`**, il residuo autorevole sulla durata (da 1 a 0, negativo senza
+finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND».
+
 ### Le quattro regole, e perché
 
 **1. 🔴 Un bottone per elemento di `Options`, e il testo viene da `Response`.**
@@ -542,6 +557,18 @@ grafo a decidere tre cose che non deve toccare:
 `Make Option Widget` le tiene tutte e tre in C++, dove sono testate. ⚠️ La **classe** invece arriva dal
 grafo, ed è voluto: un percorso di `Content/` scritto in C++ sarebbe un riferimento duro a un `.uasset`
 dentro il modulo, che nessun altro widget di questo progetto ha.
+
+### Le porte dell'opzione ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634))
+
+Scritte da `SetOption` **prima** di `On Option Changed`, quindi il grafo le trova già al loro posto. `LabelText` resta
+del grafo.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `OptionFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Raised`; contorno `Frame_Mid` di 1 px, `Text_Primary` di 2 px sulla scelta sicura |
+| `KeyText` | `TextBlock` | il tasto ([D-491](../../decisions/RT_PDR_00_Decision_Log.md)): `1`, `2`…, in `Text_Primary` |
+| `DescriptionText` | `TextBlock` | la frase della risposta, in `Text_Secondary` |
+| `SafeChoiceBadge` | qualunque widget | visibile solo sulla scelta sicura: il chip «SCELTA SICURA» |
 
 ### 🔴 Le tre regole che il C++ non può importi
 
