@@ -477,8 +477,11 @@ void ARTUnit::SetKnownToObserver(bool bKnown)
 	RefreshComponentVisibility();
 }
 
-void ARTUnit::SetStrategicPresentation(bool bStrategic)
+void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 {
+	// Lo yaw si scrive SEMPRE, prima della guardia: cambia a ogni scatto di camera anche quando lo stato no,
+	// e la «X» lo rilegge al prossimo `UpdateContactGhost`, che l'HUD chiama nello stesso giro.
+	StrategicViewYaw = ViewYawDegrees;
 	if (bStrategicPresentation == bStrategic)
 	{
 		return; // lo chiama l'HUD a ogni fotogramma: niente churn di stato render
@@ -509,6 +512,11 @@ bool ARTUnit::IsContactTokenVisibleForTest() const
 FVector ARTUnit::GetContactTokenLocationForTest() const
 {
 	return ContactToken != nullptr ? ContactToken->GetComponentLocation() : FVector::ZeroVector;
+}
+
+FRotator ARTUnit::GetContactTokenMarkRotationForTest() const
+{
+	return ContactTokenMark != nullptr ? ContactTokenMark->GetComponentRotation() : FRotator::ZeroRotator;
 }
 
 bool ARTUnit::IsContactGhostVisibleForTest() const
@@ -1008,10 +1016,10 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		}
 		if (ContactTokenMark)
 		{
-			// Piatta e rivolta in alto (`Pitch = 90`), appena sopra la testa del segnalino. Una «X» e'
-			// simmetrica per quarti di giro, quindi lo yaw della camera non la rovescia mai.
+			// Piatta e rivolta in alto (`Pitch = 90`: il testo guarda lungo +X locale), appena sopra la testa
+			// del segnalino, e girata con lo yaw della camera: cosi' resta una «X» a schermo a ogni scatto da 45°.
 			ContactTokenMark->SetWorldLocation(CellCenterWorld + FVector(0.f, 0.f, 2.f * UnitHalfHeight + 2.f));
-			ContactTokenMark->SetWorldRotation(FRotator(90.f, 0.f, 0.f));
+			ContactTokenMark->SetWorldRotation(FRotator(90.f, StrategicViewYaw, 0.f));
 			ContactTokenMark->SetVisibility(true, false);
 		}
 		return;

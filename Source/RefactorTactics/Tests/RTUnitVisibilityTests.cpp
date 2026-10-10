@@ -267,6 +267,21 @@ bool FRTUnitStrategicContactTokenTest::RunTest(const FString&)
 	TestEqual(TEXT("sulla cella del contatto, non su quella dell'attore"),
 		Unit->GetContactTokenLocationForTest(), Contatto + FVector(0.f, 0.f, ARTUnit::UnitHalfHeight));
 
+	// La «X» guarda in alto e gira con lo yaw della camera (review di #3640): fissata al mondo, al primo scatto
+	// da 45° diventerebbe una «+». Si asseriscono gli ASSI e non gli angoli, perche' a `Pitch = 90` yaw e
+	// roll di un rotatore riletto si scambiano (gimbal lock) e un confronto sugli angoli mentirebbe.
+	Unit->SetStrategicPresentation(true, /*ViewYawDegrees*/ 45.f);
+	Unit->UpdateContactGhost(Contatto, 3, 3);
+	{
+		const FRotator Mark = Unit->GetContactTokenMarkRotationForTest();
+		const FVector Fronte = Mark.RotateVector(FVector::ForwardVector);
+		const FVector Su     = Mark.RotateVector(FVector::UpVector);
+		TestTrue(TEXT("la «X» guarda in alto"), Fronte.Equals(FVector::UpVector, 1e-3f));
+		const FVector SuAtteso = -FVector(FMath::Cos(FMath::DegreesToRadians(45.f)),
+			FMath::Sin(FMath::DegreesToRadians(45.f)), 0.f);
+		TestTrue(TEXT("e il suo 'su' segue lo yaw della camera"), Su.Equals(SuAtteso, 1e-3f));
+	}
+
 	// Un contatto scaduto spegne il segnalino come spegne la sagoma.
 	Unit->UpdateContactGhost(Contatto, /*ContactTurn*/ 1, /*CurrentTurn*/ 5);
 	TestFalse(TEXT("un contatto scaduto non lascia il segnalino"), Unit->IsContactTokenVisibleForTest());

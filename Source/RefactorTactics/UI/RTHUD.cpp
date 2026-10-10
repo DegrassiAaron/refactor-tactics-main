@@ -836,6 +836,7 @@ void ARTHUD::UpdateObserverVeil()
 	// forma del ricordo cambino nello stesso fotogramma: una seconda passata li farebbe divergere per un frame.
 	const ARTCameraPawn* ObserverCamera = Cast<ARTCameraPawn>(GetOwningPawn());
 	const bool bStrategicView = ObserverCamera != nullptr && ObserverCamera->IsStrategicView();
+	const float ViewYaw = ObserverCamera != nullptr ? ObserverCamera->GetCameraYaw() : 0.f;
 
 	for (ARTUnit* Unit : Units)
 	{
@@ -845,7 +846,7 @@ void ARTHUD::UpdateObserverVeil()
 		}
 
 		// Prima del velo e della sagoma: entrambi leggono la forma che questa riga sceglie.
-		Unit->SetStrategicPresentation(bStrategicView);
+		Unit->SetStrategicPresentation(bStrategicView, ViewYaw);
 
 		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
 		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la

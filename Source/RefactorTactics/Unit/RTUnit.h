@@ -1763,12 +1763,13 @@ public:
 	 * Lo scrive `ARTHUD::UpdateObserverVeil`, che legge `ARTCameraPawn::IsStrategicView` nello stesso giro
 	 * in cui scrive il velo: un produttore, come per `SetKnownToObserver`.
 	 */
-	void SetStrategicPresentation(bool bStrategic);
+	void SetStrategicPresentation(bool bStrategic, float ViewYawDegrees = 0.f);
 	bool IsStrategicPresentation() const { return bStrategicPresentation; }
 
 	/** Cio' che un test puo' leggere del ricordo senza montare un HUD (D-495). */
 	bool IsContactTokenVisibleForTest() const;
 	FVector GetContactTokenLocationForTest() const;
+	FRotator GetContactTokenMarkRotationForTest() const;
 	bool IsContactGhostVisibleForTest() const;
 
 	/**
@@ -2128,13 +2129,21 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> ContactToken;
 
-	/** La «X» del segnalino del ricordo: testo piatto rivolto in alto, simmetrico per rotazioni di 90° dello yaw. */
+	/**
+	 * La «X» del segnalino del ricordo: testo piatto rivolto in alto, girato con lo yaw della camera.
+	 *
+	 * ⚠️ **Una «X» e' simmetrica per quarti di giro, la camera no**: ruota a passi di 45° (`YawStep`) e
+	 * con l'orbita a qualunque angolo. Fissata al mondo, al primo scatto diventerebbe una «+» (review di #3640).
+	 */
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
 	TObjectPtr<UTextRenderComponent> ContactTokenMark;
 
 	/** Vedi `SetStrategicPresentation`. Nasce tattica. */
 	UPROPERTY()
 	bool bStrategicPresentation = false;
+
+	/** Lo yaw della camera di chi guarda, consegnato con lo stato strategico: orienta la «X» del ricordo. */
+	float StrategicViewYaw = 0.f;
 
 	/**
 	 * La sovrapposizione sopra la testa — nome, vita, scudo, stati (`#2288`, `D-320`).
