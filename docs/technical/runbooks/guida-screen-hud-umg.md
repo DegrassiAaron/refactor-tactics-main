@@ -308,6 +308,25 @@ potrebbe mostrarne una disallineata dalle altre.
 `GetRoundCounterText()` li decide già tutti e tre: **usa quella**, non comporre il testo nel Blueprint. Un
 binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
 
+### Le porte della resa delle tavole A e D ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635))
+
+Tutte `BindWidgetOptional` su `URTTurnHeaderWidget`, scritte a ogni tick da `RefreshLook`; la presenza dell'obiettivo
+si rilegge dalla mappa una volta al secondo. I binding di oggi restano finché la seduta non li sostituisce.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `HeaderFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Panel` al 92%, contorno `Frame_Deep` di 1 px |
+| `RoundValueText` · `RoundLimitText` | `TextBlock` | il round a due cifre; «/ 12», `Collapsed` se il formato non ha limite |
+| `PlanningGroup` · `ResolutionGroup` | qualunque widget | uno solo visibile: il primo in Pianificazione, il secondo in Risoluzione |
+| `PhaseText` · `PhaseMark` | `TextBlock` · `Border` | la fase logica in maiuscolo, in `Cyan`, da `URTHudViewModel::ComposePhaseWord`; il quadrato col contorno `Cyan` |
+| `TimerText` | `TextBlock` | `00:21`, da `SecondsUntilCommit`: il commit, non il Planning. Vuoto se nessun orologio corre |
+| `PhaseCell_*` · `PhaseCellMark_*` · `PhaseCellText_*` | `Border` · `Border` · `TextBlock` | per `Prep`, `Dash`, `Blast`, `Move`: attiva la fase **riprodotta** ([D-479](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `ObjectiveBox` · `ObjectiveScoreText` · `ObjectiveThresholdText` | widget · `TextBlock` · `TextBlock` | solo se la mappa dichiara un obiettivo ([D-481](../../decisions/RT_PDR_00_Decision_Log.md)): «2–1», squadra 0 – squadra 1; «(a 3)», `Collapsed` se la soglia è 0 |
+
+🔑 **La cella attiva cambia FORMA, non solo colore.** Il segno diventa pieno e quadrato con un contorno bianco;
+spento resta vuoto, tondo e più piccolo (una scala di render, che non sposta il layout). In scala di grigi la
+forma è ciò che resta. Il segno lo rende `RoundedBox` il C++ stesso, qualunque cosa dica l'asset.
+
 ---
 
 ## 6. Agganciare l'HUD

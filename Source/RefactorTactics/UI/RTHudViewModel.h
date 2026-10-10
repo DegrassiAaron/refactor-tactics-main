@@ -1385,6 +1385,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static float ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header);
 
+	/**
+	 * La parola della fase LOGICA, in italiano: «Pianificazione», «Ready», «Preparazione» (con «(in pausa)»),
+	 * «Risoluzione», «Fine». Sede unica (#3635): la usano la riga di stato del Canvas e l'header UMG.
+	 *
+	 * 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`, `#2386`): durante il Ready e la finestra
+	 * di preparazione la fase e' ancora `Planning`, e una parola sola direbbe «Pianificazione» mentre il piano sta
+	 * per partire. ⛔ Non nomina la fase RIPRODOTTA: quella e' `PlaybackPhase`, e in Risoluzione l'header la mostra
+	 * nelle celle, non qui.
+	 */
+	static FString ComposePhaseWord(const FRTMatchHeaderView& Header);
+
+	/**
+	 * Vero se la mappa della partita dichiara un obiettivo (`URTHexMapAsset::HasObjectiveCell`). Falso senza
+	 * manager o senza mappa.
+	 *
+	 * 🔴 **I punteggi di `FRTMatchHeaderView` significano qualcosa solo se questa e' vera** (vedi `Team0Score`):
+	 * su una mappa senza obiettivo `0-0` sarebbe un punteggio inventato. Portare la condizione dentro il tipo e'
+	 * #2281; fino ad allora chi mostra il punteggio la chiede qui.
+	 */
+	static bool MapDeclaresObjective(const ARTTurnManager* TurnManager);
+
 
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
