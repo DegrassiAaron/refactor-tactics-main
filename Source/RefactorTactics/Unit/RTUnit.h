@@ -2148,6 +2148,14 @@ protected:
 	FVector LastGraykitBodyOffset = FVector::ZeroVector;
 
 	/**
+	 * La scala del cilindro e la selezione nel momento in cui si e' entrati in strategica. Uscendo si ripristinano,
+	 * cosi' il bersaglio del click in tattica resta quello del Blueprint (review di #3650): un nemico mai selezionato
+	 * non deve uscire da un viaggio in strategica con un cilindro alto 180 invece di 100.
+	 */
+	FVector TacticalMeshScaleAtStrategicEntry = FVector::OneVector;
+	bool bSelectedAtStrategicEntry = false;
+
+	/**
 	 * #3647 — la scala e la quota del cilindro segnaposto nella presentazione corrente.
 	 *
 	 * 🔴 **In strategica il cilindro e' il SEGNALINO, e sta in piedi sulla cella.** Un `BP_Unit_*` d'eroe ha il

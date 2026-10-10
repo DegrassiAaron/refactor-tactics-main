@@ -282,6 +282,7 @@ bool FRTStrategicTokenTakesTheSlantedClickTest::RunTest(const FString&)
 
 	// Controllo positivo: in tattica il cilindro del Blueprint e' quello di sempre, e sopra +100 non c'e'.
 	TestFalse(TEXT("in tattica il raggio verso +120 non prende il cilindro del Blueprint"), Prende(120.f));
+	const FBox Tattico = Unit->GetPlaceholderWorldBoxForTest();
 
 	Unit->SetStrategicPresentation(true);
 	const FBox Segnalino = Unit->GetPlaceholderWorldBoxForTest();
@@ -291,12 +292,12 @@ bool FRTStrategicTokenTakesTheSlantedClickTest::RunTest(const FString&)
 	TestTrue(TEXT("il raggio verso +120 prende l'unita'"), Prende(120.f));
 	TestTrue(TEXT("e anche quello verso +40"), Prende(40.f));
 
-	// Tornando in tattica il cilindro non resta sollevato: torna centrato sul pivot ai piedi.
-	// ⚠️ Non si asserisce la SCALA del Blueprint: tornando prende `BaseMeshScale`, come gia' fa `OnDeselected` alla
-	// prima deselezione — una normalizzazione che esisteva prima di #3647 e che questo test non deve nascondere.
+	// Tornando in tattica il cilindro e' ESATTAMENTE quello di prima — quota e scala — perche' in tattica e' il bersaglio
+	// del click anche se non si vede (review di #3650). E il raggio verso +120 torna a non prenderlo.
 	Unit->SetStrategicPresentation(false);
-	TestTrue(TEXT("tornati in tattica il cilindro non resta sollevato"),
-		Unit->GetPlaceholderWorldBoxForTest().Min.Z < Suolo - 10.f);
+	const FBox Ritorno = Unit->GetPlaceholderWorldBoxForTest();
+	TestTrue(TEXT("tornati in tattica il cilindro e' quello di prima"), Ritorno.Equals(Tattico, 1.f));
+	TestFalse(TEXT("e sopra +100 non c'e' piu'"), Prende(120.f));
 
 	RTClickTarget::DestroyClickWorld(World);
 	return true;

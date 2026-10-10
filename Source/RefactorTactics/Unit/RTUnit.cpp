@@ -492,8 +492,22 @@ void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 	// in tattica. La selezione resta (+15%), e l'offset dell'ultima posa graykit si somma.
 	if (Mesh)
 	{
-		Mesh->SetRelativeLocation(LastGraykitBodyOffset + PlaceholderLift());
-		Mesh->SetRelativeScale3D(PlaceholderScale() * (bSelected ? 1.15f : 1.f));
+		if (bStrategicPresentation)
+		{
+			TacticalMeshScaleAtStrategicEntry = Mesh->GetRelativeScale3D();
+			bSelectedAtStrategicEntry = bSelected;
+			Mesh->SetRelativeLocation(LastGraykitBodyOffset + PlaceholderLift());
+			Mesh->SetRelativeScale3D(PlaceholderScale() * (bSelected ? 1.15f : 1.f));
+		}
+		else
+		{
+			// Si torna alla scala d'ingresso. Se nel frattempo la selezione e' cambiata, quella non vale piu': si fa cio'
+			// che `OnSelected` / `OnDeselected` avrebbero fatto in tattica.
+			Mesh->SetRelativeLocation(LastGraykitBodyOffset);
+			Mesh->SetRelativeScale3D(bSelected == bSelectedAtStrategicEntry
+				? TacticalMeshScaleAtStrategicEntry
+				: BaseMeshScale * (bSelected ? 1.15f : 1.f));
+		}
 	}
 	RefreshComponentVisibility();
 
