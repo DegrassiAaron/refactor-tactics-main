@@ -154,7 +154,8 @@ Misurato: **0** occorrenze di una regola «fino alla gittata massima» in `Sourc
 ### 5.3 Si può sparare verso un esagono non visibile
 
 **Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede — **anche dietro un
-ostacolo** — e il colpo viaggia **dritto**: il primo ostacolo sul percorso lo ferma e lo prende.
+ostacolo** — e il colpo viaggia **dritto**: il primo ostacolo sul percorso lo ferma. L'ostacolo si danneggia solo
+se l'azione dichiara `DamageStructure`, come per ogni azione `Required`, e l'attacco base non lo dichiara.
 [`D-490`](../decisions/RT_PDR_00_Decision_Log.md) precisa così `D-415` (4).
 
 **Stato**: ✅ **implementata da [#3608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3608)**.
@@ -164,7 +165,7 @@ attacco base d'eroe (`BaseActionId == Action.BasicAttack`).
 | Momento | `Required` | **`BlindAimDirect`** (attacco base) | `NotRequired` (mortaio) |
 |---|---|---|---|
 | **Pianificazione** — si può mirare una cella oltre un ostacolo? | no, `NoLineOfSight` | **sì** | sì |
-| **Risoluzione** — un ostacolo sul percorso ferma il colpo? | sì, e lo prende | **sì, e lo prende** | no, passa sopra |
+| **Risoluzione** — un ostacolo sul percorso ferma il colpo? | sì | **sì** | no, passa sopra |
 
 Le due domande hanno un nome ciascuna — `URTCombatLibrary::RequiresSightToAim` e `URTCombatLibrary::TravelsDirect` —
 e chi legge la policy passa da lì. Gate: `RefactorTactics.BlindFire.BasicAttackAimsBehindAWallAndTheWallStopsIt`

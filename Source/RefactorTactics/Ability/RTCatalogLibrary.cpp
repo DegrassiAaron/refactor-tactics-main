@@ -1231,7 +1231,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// 🔴 **L'attacco base MIRA al buio e VIAGGIA dritto** — [D-415] punto (3), precisato da D-490 (#3608).
 	//
 	// Si dichiara il colpo su una cella che non si vede, anche dietro un ostacolo; il colpo parte e il primo
-	// ostacolo sul percorso lo ferma e lo prende, come per ogni azione `Required`.
+	// ostacolo sul percorso lo ferma, come per ogni azione `Required` (e lo danneggia solo se l'azione dichiara
+	// `DamageStructure`: l'attacco base non lo dichiara).
 	//
 	// 🔑 **Perche' NON la licenza del mortaio.** `NotRequired` ([D-380]) toglie anche la TRAIETTORIA: misurato su
 	// `eef73d71a` (branch di #3230), con l'attacco base a `NotRequired` i muri non lo fermavano piu', coperture e

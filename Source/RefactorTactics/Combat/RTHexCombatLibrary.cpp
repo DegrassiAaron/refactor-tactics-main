@@ -587,7 +587,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		// l'ordine dei motivi.
 		//
 		// D-490 (#3608): qui conta la TRAIETTORIA, non la licenza di mira. `BlindAimDirect` — l'attacco base — ha
-		// potuto mirare dietro un muro, ma viaggia dritto: il muro lo ferma e lo prende, come `Required`. Solo
+		// potuto mirare dietro un muro, ma viaggia dritto: il muro lo ferma, come `Required`. Solo
 		// `NotRequired`, il tiro indiretto, passa sopra.
 		if (URTCombatLibrary::TravelsDirect(Intent.LineOfSightPolicy)
 			&& !URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))

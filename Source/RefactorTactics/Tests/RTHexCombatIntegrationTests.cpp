@@ -882,7 +882,8 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
  * - in PIANIFICAZIONE la cella oltre il muro non si rifiuta — mentre un'azione `Required` sulla stessa geometria
  *   si', ed e' il controllo positivo che il muro c'e';
  * - in RISOLUZIONE il colpo, dichiarato sulla CELLA come farebbe chi mira al buio, viaggia dritto: il muro lo
- *   ferma e lo prende, e chi sta dietro resta intatto.
+ *   ferma, il TurnLog dice «nessuna linea di tiro», e chi sta dietro resta intatto. Il muro si danneggia solo
+ *   se l'azione dichiara `DamageStructure`, come per `Required` — l'attacco base spedito non lo dichiara.
  *
  * ⛔ **Il mortaio fa l'opposto**, ed e' la differenza che [D-418] (3) fa pagare: `NotRequired` passa sopra.
  */
@@ -925,18 +926,22 @@ bool FRTBasicAttackBlindAimDirectPathTest::RunTest(const FString&)
 		URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Foe->Cell, Base->RangeCells, Base->Def.LineOfSightPolicy),
 		ERTHexTargetReason::Ok);
 
-	// RISOLUZIONE — la traiettoria. L'abilita' dichiara di poter sfondare, come nel test della copertura, cosi' il
-	// colpo fermato lascia un segno misurabile sul muro.
-	Base->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	// RISOLUZIONE — la traiettoria, con l'attacco base COSI' COME E' SPEDITO. ⌫ *La prima stesura aggiungeva
+	// `DamageStructure` all'azione per vedere il muro danneggiato: misurava la meccanica del muro, non l'attacco
+	// base, che quell'effetto non lo dichiara — trovato dalla review indipendente di #3608. Un ostacolo si
+	// danneggia solo se l'azione lo dichiara, come per `Required`; quel caso e' di `Cover.Destruction.*`.*
 	Shooter->PlannedAbilityIndex = 0;
 	Shooter->DeclareAttackOnCell(Foe->Cell);
 	const int32 HealthBefore = Foe->Health;
+	const int32 IntegritaPrima = FRTHexCover::DefaultIntegrity(ERTHexCoverType::High);
 	RunBlastTurn(TM);
 
 	TestEqual(TEXT("🔴 il muro ha fermato il colpo: chi sta dietro e' intatto (traiettoria diretta)"), Foe->Health, HealthBefore);
+	TestEqual(TEXT("e il TurnLog lo dice: nessuna linea di tiro"),
+		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 1);
 	const FRTHexCellData* After = MapActor->MapAsset->FindCell(Walled);
-	TestTrue(TEXT("e il muro e' stato preso: in piedi, danneggiato"),
-		After && After->Covers.Num() == 1 && After->Covers[0].Integrity < FRTHexCover::DefaultIntegrity(ERTHexCoverType::High));
+	TestTrue(TEXT("il muro resta integro: l'attacco base non dichiara DamageStructure"),
+		After && After->Covers.Num() == 1 && After->Covers[0].Integrity == IntegritaPrima);
 
 	DestroyHexBlastWorld(World);
 	return true;

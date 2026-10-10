@@ -236,7 +236,9 @@ bool FRTBlindFireDirectAttackRequiresLosTest::RunTest(const FString&)
 	// Il DEFAULT del catalogo, non un valore scritto qui: e' cio' che un'azione ottiene senza dichiarare
 	// nulla, ed e' quello che deve restare chiuso.
 	const FRTActionDef Silente;
-	TestTrue(TEXT("un'azione che non dichiara nulla CHIEDE la linea di tiro"), Silente.RequiresLineOfSight());
+	TestTrue(TEXT("un'azione che non dichiara nulla CHIEDE la linea di tiro per mirare"),
+		URTCombatLibrary::RequiresSightToAim(Silente.LineOfSightPolicy));
+	TestTrue(TEXT("e il suo colpo viaggia dritto"), URTCombatLibrary::TravelsDirect(Silente.LineOfSightPolicy));
 
 	TestTrue(TEXT("con il muro sulla linea il bersaglio e' rifiutato"),
 		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, /*RangeCells=*/ 5, Silente.LineOfSightPolicy)

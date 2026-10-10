@@ -228,8 +228,8 @@ enum class ERTLineOfSightPolicy : uint8
 	/**
 	 * **Mira cieca, traiettoria diretta** (D-490, che precisa [D-415] punto 4 e [D-418] punto 3; #3608).
 	 * In PIANIFICAZIONE la linea non si chiede: si puo' dichiarare il colpo su una cella che non si vede, anche
-	 * dietro un ostacolo. In RISOLUZIONE il colpo viaggia DRITTO: il primo ostacolo sul percorso lo ferma e lo
-	 * prende, esattamente come per `Required`.
+	 * dietro un ostacolo. In RISOLUZIONE il colpo viaggia DRITTO: il primo ostacolo sul percorso lo ferma,
+	 * esattamente come per `Required` — e lo danneggia solo se l'azione dichiara `DamageStructure`.
 	 *
 	 * 🔑 **E' cio' che distingue l'attacco base dal mortaio** quando entrambi mirano al buio: il mortaio
 	 * (`NotRequired`) passa SOPRA il muro, l'attacco base ci si ferma contro. Il prezzo di [D-380] compra la
@@ -834,11 +834,10 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
 
-	/**
-	 * La domanda binaria che i tre gate pongono. E' una funzione sola perche' la risposta e' una sola: chi
-	 * deve decidere se rifiutare legge questo, e non ricostruisce il confronto con l'enum a modo proprio.
-	 */
-	bool RequiresLineOfSight() const { return LineOfSightPolicy == ERTLineOfSightPolicy::Required; }
+	// ⌫ *Qui c'era `RequiresLineOfSight()`, «la domanda binaria che i tre gate pongono». Da D-490 (#3608) le
+	// domande sono DUE — mirare (pianificazione) e viaggiare dritto (risoluzione) — e per `BlindAimDirect` hanno
+	// risposte opposte: un booleano solo avrebbe risposto a una delle due spacciandosi per entrambe. Si leggono
+	// `URTCombatLibrary::RequiresSightToAim` e `URTCombatLibrary::TravelsDirect`.*
 
 	/**
 	 * Come l'azione risolve il bersaglio lungo la direzione mirata (`#2929`, [D-386] emendata).
