@@ -156,7 +156,8 @@ public:
 	 * `#1774` — la vista e' **strategica**: conseguenza dello zoom, non una modalita' (`D-252`).
 	 *
 	 * Non c'e' un comando che la accenda e non c'e' uno stato in piu' da mantenere: la distanza la sta gia'
-	 * tenendo `TargetArmLength`, e questa e' la sua lettura semantica.
+	 * tenendo `TargetArmLength`, e questa e' la sua lettura semantica. `Tab` (`ToggleStrategicView`, D-488)
+	 * non la accende: sposta la distanza, e lo stato segue.
 	 */
 	bool IsStrategicView() const { return bStrategicView; }
 
@@ -177,6 +178,22 @@ public:
 		StrategicEnterThreshold = InEnter;
 		StrategicExitThreshold = InExit;
 	}
+
+	/**
+	 * `D-488` — la scorciatoia di `Tab` verso la vista strategica, e ritorno.
+	 *
+	 * 🔑 **Non e' una modalita': sposta la DISTANZA.** Lo stato resta quello che `UpdateStrategicState` legge
+	 * dal braccio (`D-252`), e la rotella ci arriva ancora. Da tattica il braccio va a `StrategicEnterThreshold`;
+	 * da strategica torna all'ultima distanza tattica, **mai oltre `StrategicExitThreshold`**.
+	 *
+	 * ⚠️ **Il tetto sul ritorno non e' una cautela.** In strategica si entra anche con la rotella, e allora
+	 * l'ultima distanza tattica cade fra le due soglie: tornarci lascerebbe la vista strategica per isteresi,
+	 * e il secondo `Tab` non farebbe niente.
+	 */
+	void ToggleStrategicView();
+
+	/** Dove torna il secondo `Tab`: l'ultima distanza a cui la vista era tattica. `< 0` finche' non e' letta. */
+	float GetLastTacticalArmLength() const { return LastTacticalArmLength; }
 
 	/**
 	 * `#1778` — i limiti del pivot che tengono conto del VIEWPORT (`D-251`).
@@ -430,6 +447,19 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
 	bool bStrategicView = false;
+
+	/** Vedi `GetLastTacticalArmLength`. La scrive solo `UpdateStrategicState`, a ogni lettura in cui la vista e' tattica. */
+	float LastTacticalArmLength = -1.f;
+
+	/** Le due soglie in ordine, `Exit <= Enter` per costruzione: una sede sola per chi le confronta. */
+	void GetOrderedStrategicThresholds(float& OutEnter, float& OutExit) const;
+
+	/**
+	 * Scrive il braccio, clampato a `[MinArmLength, MaxArmLength]`, e riallinea cio' che dipende dalla distanza.
+	 * E' la porta comune di `SetZoomAlpha` e `ToggleStrategicView`: passare dall'alpha perderebbe la soglia per
+	 * un errore di arrotondamento, e `Distance >= Enter` e' una disuguaglianza che quell'errore rovescia.
+	 */
+	void ApplyArmLength(float InArmLength);
 
 	// --- #1778 · i limiti che conoscono il viewport ------------------------------------------------
 

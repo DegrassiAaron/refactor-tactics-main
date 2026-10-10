@@ -360,13 +360,9 @@ bool ARTCameraPawn::UpdateStrategicState()
 		return false;
 	}
 
-	// 🔑 **`Exit < Enter` e' imposto QUI, non solo documentato.** I due campi sono `BlueprintReadWrite` e il
-	// loro `meta = (ClampMin)` vincola il Details e non un `Set` da Blueprint: con le soglie invertite una
-	// disuguaglianza scritta a mano avrebbe prodotto uno stato che entra e non esce, o che sfarfalla — lo
-	// stesso genere di difetto che l'isteresi esiste per evitare. Con `Max`/`Min` la coppia e' ordinata per
-	// costruzione, e chi le inverte ottiene comunque un'isteresi valida.
-	const float Enter = FMath::Max(StrategicEnterThreshold, StrategicExitThreshold);
-	const float Exit  = FMath::Min(StrategicEnterThreshold, StrategicExitThreshold);
+	float Enter = 0.f;
+	float Exit = 0.f;
+	GetOrderedStrategicThresholds(Enter, Exit);
 
 	const float Distance = SpringArm->TargetArmLength;
 	const bool bWas = bStrategicView;
@@ -380,16 +376,85 @@ bool ARTCameraPawn::UpdateStrategicState()
 		bStrategicView = false;
 	}
 
+	// Il ritorno del secondo `Tab` (D-488): l'ultima distanza letta da TATTICI, qualunque sia stata la via
+	// d'ingresso. Si scrive dopo la valutazione, cosi' la lettura che entra in strategica non la sovrascrive.
+	if (!bStrategicView)
+	{
+		LastTacticalArmLength = Distance;
+	}
+
 	if (bWas != bStrategicView)
 	{
-		// ⏳ **Non ha ancora un consumatore visivo**, e il log lo dice invece di lasciarlo dedurre: la
-		// presentazione strategica — separazione verticale dei piani, densita' dei marker — e' `#1775`.
-		// Questo e' lo stato, non la vista.
+		// Il consumatore visivo e' `ARTHUD::UpdateObserverVeil`, che a ogni fotogramma legge `IsStrategicView`
+		// e lo consegna alle unita' (`ARTUnit::SetStrategicPresentation`, D-495). Il log resta: dice QUANDO
+		// lo stato e' cambiato, che a schermo si vede ma non si data.
 		UE_LOG(LogRT, Log, TEXT("[RT] Vista %s (arm=%.0f, enter=%.0f, exit=%.0f)"),
 			bStrategicView ? TEXT("STRATEGICA") : TEXT("tattica"), Distance, Enter, Exit);
 		return true;
 	}
 	return false;
+}
+
+void ARTCameraPawn::GetOrderedStrategicThresholds(float& OutEnter, float& OutExit) const
+{
+	// 🔑 **`Exit < Enter` e' imposto QUI, non solo documentato.** I due campi sono `BlueprintReadWrite` e il
+	// loro `meta = (ClampMin)` vincola il Details e non un `Set` da Blueprint: con le soglie invertite una
+	// disuguaglianza scritta a mano avrebbe prodotto uno stato che entra e non esce, o che sfarfalla — lo
+	// stesso genere di difetto che l'isteresi esiste per evitare. Con `Max`/`Min` la coppia e' ordinata per
+	// costruzione, e chi le inverte ottiene comunque un'isteresi valida.
+	OutEnter = FMath::Max(StrategicEnterThreshold, StrategicExitThreshold);
+	OutExit  = FMath::Min(StrategicEnterThreshold, StrategicExitThreshold);
+}
+
+void ARTCameraPawn::ToggleStrategicView()
+{
+	if (!SpringArm)
+	{
+		return;
+	}
+
+	float Enter = 0.f;
+	float Exit = 0.f;
+	GetOrderedStrategicThresholds(Enter, Exit);
+
+	const bool bWas = bStrategicView;
+	if (bStrategicView)
+	{
+		// Mai letta (un pawn nato gia' oltre la soglia): la soglia d'uscita e' la distanza tattica piu' vicina
+		// a quella strategica, cioe' il ritorno che sposta meno la vista.
+		const float Back = (LastTacticalArmLength > 0.f) ? FMath::Min(LastTacticalArmLength, Exit) : Exit;
+		ApplyArmLength(Back);
+	}
+	else
+	{
+		ApplyArmLength(Enter);
+	}
+
+	// ⚠️ Con `StrategicEnterThreshold` oltre `MaxArmLength` il braccio si ferma al limite e lo stato non cambia:
+	// e' una taratura incoerente, e il log lo dice invece di lasciare un tasto che sembra rotto.
+	if (bWas == bStrategicView)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Tab non ha cambiato la vista: arm=%.0f, enter=%.0f, exit=%.0f, limiti [%.0f, %.0f]"),
+			SpringArm->TargetArmLength, Enter, Exit, MinArmLength, MaxArmLength);
+	}
+}
+
+void ARTCameraPawn::ApplyArmLength(float InArmLength)
+{
+	if (!SpringArm)
+	{
+		return;
+	}
+	SpringArm->TargetArmLength = FMath::Clamp(InArmLength, MinArmLength, MaxArmLength);
+
+	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: il pitch prima del pivot, perche'
+	// entra nei limiti. Una scorciatoia qui farebbe divergere le porte dello zoom.
+	RecomputePitchFromZoom();
+	ApplyArmRotation();
+	RefreshViewportMetrics();
+	SetCameraPivot(CameraPivot);
+	UpdateStrategicState();
 }
 
 // --- #1778 · i limiti del pivot che conoscono il viewport (D-251) -----------------------------------
@@ -674,15 +739,7 @@ void ARTCameraPawn::SetZoomAlpha(float InAlpha)
 		return;
 	}
 	const float Clamped = FMath::Clamp(InAlpha, 0.f, 1.f);
-	SpringArm->TargetArmLength = FMath::Lerp(MinArmLength, MaxArmLength, Clamped);
-
-	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: il pitch prima del pivot, perche'
-	// entra nei limiti. Una scorciatoia qui farebbe divergere le due porte dello zoom.
-	RecomputePitchFromZoom();
-	ApplyArmRotation();
-	RefreshViewportMetrics();
-	SetCameraPivot(CameraPivot);
-	UpdateStrategicState();
+	ApplyArmLength(FMath::Lerp(MinArmLength, MaxArmLength, Clamped));
 }
 
 float ARTCameraPawn::GetPanDistanceScale() const

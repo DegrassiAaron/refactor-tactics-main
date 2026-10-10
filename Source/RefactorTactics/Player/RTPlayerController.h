@@ -213,7 +213,8 @@ protected:
 	TObjectPtr<UInputAction> UndoAction;
 
 	/**
-	 * `TAB` — passa alla propria unita' successiva senza toccare il mouse ([#3145]).
+	 * `N` — passa alla propria unita' successiva senza toccare il mouse ([#3145]). Fino al 2026-10-10 era `TAB`,
+	 * che [D-488] ha dato alla vista strategica: cambia il tasto, non la regola di [D-421].
 	 *
 	 * ⚠️ **Non e' una comodita'**: `progettazione-hud.md` §47-bis.2 chiede *percorso tastiera e controller
 	 * equivalente a quello del mouse* per ogni Decision Window, e la selezione dell'unita' e' il **primo**
@@ -221,6 +222,10 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CycleSelectionAction;
+
+	/** `TAB` — la vista strategica e ritorno ([D-488]): sposta la distanza della camera, non cambia modalita'. */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> StrategicViewAction;
 
 	/**
 	 * `Enter` — dichiara (o ritratta) che le mosse dell'unita' selezionata sono decise ([#3145]).
@@ -691,6 +696,16 @@ public:
 	 */
 	static const FKey& UndoKeyboardHotkey();
 
+	/**
+	 * Il tasto della vista strategica (`Tab`, [D-488]) e quello del ciclo della selezione (`N`, [D-421]).
+	 *
+	 * 🔑 **Sono una coppia, e una sede sola li tiene insieme**: D-488 sposta il ciclo da `Tab` a `N` nello
+	 * stesso commit che lega `Tab`, perche' separati, per un commit, `Tab` farebbe due cose oppure nessuna.
+	 * `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN` li pinna sul contesto di input reale.
+	 */
+	static const FKey& StrategicViewHotkey();
+	static const FKey& CycleSelectionHotkey();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
@@ -825,8 +840,11 @@ private:
 
 	void OnRecenter(const FInputActionValue& Value);
 
-	/** `TAB`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
+	/** `N`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
 	void OnCycleSelection(const FInputActionValue& Value);
+
+	/** `TAB`: il gesto. La regola sta in `ARTCameraPawn::ToggleStrategicView`. */
+	void OnToggleStrategicView(const FInputActionValue& Value);
 
 	/** `Enter`: il gesto. La regola sta in `ToggleTurnPlanDeclared`. */
 	void OnDeclarePlan(const FInputActionValue& Value);
@@ -1077,7 +1095,7 @@ public:
 	 */
 	void SelectActorForTest(AActor* Actor) { SelectedActor = Actor; }
 
-	/** `TAB` senza premere `TAB`: la regola e' in `CycleSelection`, il tasto e' solo il suo innesco. */
+	/** `N` senza premere `N`: la regola e' in `CycleSelection`, il tasto e' solo il suo innesco. */
 	bool CycleSelectionForTest() { return CycleSelection(); }
 
 	/** `Enter` senza premere `Enter`. */

@@ -453,6 +453,20 @@ const FKey& ARTPlayerController::UndoKeyboardHotkey()
 	return Tasto;
 }
 
+const FKey& ARTPlayerController::StrategicViewHotkey()
+{
+	static const FKey Tasto = EKeys::Tab;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::CycleSelectionHotkey()
+{
+	// `N` per «next». Libero in `BuildInputMappings` quando D-488 l'ha scelto (misurato su `ae805683a`), e
+	// a tenerlo libero non e' questa riga ma `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero.
+	static const FKey Tasto = EKeys::N;
+	return Tasto;
+}
+
 FText ARTPlayerController::ReactionOptionKeyLabel(int32 OptionIndex)
 {
 	return AbilityHotkeys().IsValidIndex(OptionIndex)
@@ -591,6 +605,9 @@ void ARTPlayerController::BuildInputMappings()
 	CycleSelectionAction = NewObject<UInputAction>(this, TEXT("IA_CycleSelection"));
 	CycleSelectionAction->ValueType = EInputActionValueType::Boolean;
 
+	StrategicViewAction = NewObject<UInputAction>(this, TEXT("IA_ToggleStrategicView"));
+	StrategicViewAction->ValueType = EInputActionValueType::Boolean;
+
 	DeclarePlanAction = NewObject<UInputAction>(this, TEXT("IA_DeclarePlan"));
 	DeclarePlanAction->ValueType = EInputActionValueType::Boolean;
 
@@ -693,10 +710,12 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
-	// `TAB` — il ciclo di selezione (`#3145`). Nessun altro `MapKey` lo rivendica, e a verificarlo non e'
-	// un elenco scritto a mano ma `PlayerInput.HotkeysDoNotCollide`, che interroga il
-	// `UInputMappingContext` REALE: da qui in poi il controllo vede questa riga da se'.
-	MappingContext->MapKey(CycleSelectionAction, EKeys::Tab);
+	// `N` — il ciclo di selezione (`#3145`), e `TAB` — la vista strategica (D-488). Le due righe stanno
+	// insieme perche' D-488 vuole il cambio nello stesso commit: separate, `Tab` farebbe due cose o nessuna.
+	// Nessun altro `MapKey` le rivendica, e a verificarlo non e' un elenco scritto a mano ma
+	// `PlayerInput.HotkeysDoNotCollide`, che interroga il `UInputMappingContext` REALE.
+	MappingContext->MapKey(CycleSelectionAction, CycleSelectionHotkey());
+	MappingContext->MapKey(StrategicViewAction, StrategicViewHotkey());
 
 	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
 	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
@@ -882,6 +901,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(CycleSelectionAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleSelection);
+		EIC->BindAction(StrategicViewAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleStrategicView);
 		EIC->BindAction(DeclarePlanAction, ETriggerEvent::Started, this, &ARTPlayerController::OnDeclarePlan);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 
@@ -1284,6 +1304,16 @@ void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
 	CycleSelection();
 }
 
+void ARTPlayerController::OnToggleStrategicView(const FInputActionValue& Value)
+{
+	// ⛔ Sola presentazione (D-488 (4)): niente `RecordPlanningInput`, niente guardia `IsPlanningInputInert`.
+	// Guardare la mappa dall'alto non e' una decisione di turno, e va permesso anche mentre i bot giocano.
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		Cam->ToggleStrategicView();
+	}
+}
+
 void ARTPlayerController::OnDeclarePlan(const FInputActionValue& Value)
 {
 	ToggleTurnPlanDeclared();
@@ -1304,7 +1334,7 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 
 	// 🔴 **[D-468] (`#3510`): durante la risoluzione nessun ordine passa, e dichiarare il piano lo e'.** Il
 	// Cleanup che azzera la dichiarazione gira PRIMA del playback (`ConcludeResolution`): un `Invio` premuto
-	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `TAB` la saltava.
+	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `N` la saltava.
 	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
 	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
 	if (IsWorldReadOnly())
@@ -1313,7 +1343,7 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 		return false;
 	}
 
-	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `TAB`: dichiarare che le mosse
+	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `N`: dichiarare che le mosse
 	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle non c'e' niente da
 	// dichiarare. ⏱️ *Fino a `#3510` diceva anche «o in una fase che non accetta ordini»*: questa guardia la fase
 	// non la guarda, e la regola della fase e' quella qui sopra.
@@ -1355,7 +1385,7 @@ bool ARTPlayerController::CycleSelection()
 	}
 
 	// ⛔ **Niente guardia `IsPlanningInputInert`, e la differenza e' voluta**: quella ferma gli ORDINI in
-	// autobattle e in una fase che non li accetta. `TAB` non ordina niente — cambia soltanto il soggetto
+	// autobattle e in una fase che non li accetta. `N` non ordina niente — cambia soltanto il soggetto
 	// delle operazioni successive — e guardare la propria squadra mentre i bot giocano e' esattamente cio'
 	// che una sessione non presidiata deve poter fare. Per la stessa ragione non chiama
 	// `RecordPlanningInput`: non e' una decisione di turno.
@@ -1381,7 +1411,7 @@ bool ARTPlayerController::CycleSelection()
 			continue;
 		}
 		// 🔑 **La stessa domanda che fa il CLICK**, e non una riscritta a mano: `HandleClickOnUnit` usa
-		// `CanPlayerControlUnitInGroup`, quindi `TAB` raggiunge esattamente le unita' che il mouse
+		// `CanPlayerControlUnitInGroup`, quindi `N` raggiunge esattamente le unita' che il mouse
 		// raggiunge. E' l'equivalenza che questo tasto esiste per stabilire — una seconda condizione qui
 		// la romperebbe al primo gruppo di controllo.
 		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(
@@ -1390,7 +1420,7 @@ bool ARTPlayerController::CycleSelection()
 			continue;
 		}
 
-		// ➡️ **Chi ha DICHIARATO le proprie mosse esce dal ciclo** ([#3145]): `TAB` porta dove c'e'
+		// ➡️ **Chi ha DICHIARATO le proprie mosse esce dal ciclo** ([#3145]): `N` porta dove c'e'
 		// ancora da decidere, ed e' l'intero motivo per cui il flag e' dichiarato invece che dedotto dai
 		// campi `Planned*` — un'unita' che ha deciso di non fare niente e' conclusa quanto le altre.
 		//
@@ -1408,18 +1438,18 @@ bool ARTPlayerController::CycleSelection()
 	if (Comandabili.Num() == 0)
 	{
 		// 🔴 **I due silenzi non sono lo stesso silenzio.** «Non hai unita'» e «le hai dichiarate
-		// tutte» producono entrambi un `TAB` che non fa niente, e per il giocatore sono situazioni opposte:
+		// tutte» producono entrambi un `N` che non fa niente, e per il giocatore sono situazioni opposte:
 		// nella seconda il turno e' pronto da chiudere. Un log solo per entrambe manderebbe a cercare un
 		// tasto rotto.
 		if (Dichiarate > 0)
 		{
 			UE_LOG(LogRT, Display,
-				TEXT("[RT] TAB: tutte le %d unita' comandabili hanno il piano dichiarato — non resta niente da decidere"),
+				TEXT("[RT] N (ciclo della selezione): tutte le %d unita' comandabili hanno il piano dichiarato — non resta niente da decidere"),
 				Dichiarate);
 		}
 		else
 		{
-			UE_LOG(LogRT, Display, TEXT("[RT] TAB: nessuna unita' comandabile da selezionare"));
+			UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): nessuna unita' comandabile da selezionare"));
 		}
 		return false;
 	}
@@ -1447,7 +1477,7 @@ bool ARTPlayerController::CycleSelection()
 	if (Scelta == Corrente)
 	{
 		// Una sola unita' comandabile: il ciclo torna su se stesso, e non e' un fallimento da tacere.
-		UE_LOG(LogRT, Display, TEXT("[RT] TAB: '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
+		UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
 		return false;
 	}
 
@@ -1456,7 +1486,7 @@ bool ARTPlayerController::CycleSelection()
 	// aggiornata. ⚠️ Nessun campo `Planned*` viene toccato qui, ne' su chi si lascia ne' su chi si prende:
 	// selezionare non e' dichiarare, e lo stato armato dell'unita' lasciata resta il suo.
 	SelectUnit(Scelta, /*bRecordAsPlayerInput=*/ true);
-	UE_LOG(LogRT, Display, TEXT("[RT] TAB: selezionata '%s' (%d di %d comandabili)"),
+	UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): selezionata '%s' (%d di %d comandabili)"),
 		*Scelta->GetName(), Prossimo + 1, Comandabili.Num());
 	return true;
 }

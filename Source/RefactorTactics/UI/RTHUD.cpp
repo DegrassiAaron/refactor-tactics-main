@@ -8,6 +8,7 @@
 #include "Ability/RTMovementProfileLibrary.h" // l'andatura di [D-425]: si legge, non si dichiara
 #include "Player/RTPlayerState.h"
 #include "Player/RTPlayerController.h" // #3115: GetSelectedUnit — quale piano si sta scrivendo adesso
+#include "Camera/RTCameraPawn.h" // D-495: la vista strategica di chi guarda, consegnata alle unita' col velo
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTPlaybackLibrary.h"
@@ -830,12 +831,21 @@ void ARTHUD::UpdateObserverVeil()
 		HexMap->GetHexContext(Origin, HexSize, LayerH);
 	}
 
+	// D-495: la vista strategica di CHI GUARDA, letta una volta per giro come la squadra qui sopra. E' sola
+	// presentazione — sceglie quale corpo si disegna, mai se — e viaggia in questo giro perche' il velo e la
+	// forma del ricordo cambino nello stesso fotogramma: una seconda passata li farebbe divergere per un frame.
+	const ARTCameraPawn* ObserverCamera = Cast<ARTCameraPawn>(GetOwningPawn());
+	const bool bStrategicView = ObserverCamera != nullptr && ObserverCamera->IsStrategicView();
+
 	for (ARTUnit* Unit : Units)
 	{
 		if (!Unit || !Unit->IsAlive())
 		{
 			continue;
 		}
+
+		// Prima del velo e della sagoma: entrambi leggono la forma che questa riga sceglie.
+		Unit->SetStrategicPresentation(bStrategicView);
 
 		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
 		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la

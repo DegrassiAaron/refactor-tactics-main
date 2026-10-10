@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-10 — Il nucleo della vista strategica: `Tab` la apre, `N` cicla la selezione, le unità diventano segnalini
+
+**Origine**: il nucleo di [D-495](decisions/RT_PDR_00_Decision_Log.md), issue
+[#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774), con il tasto di
+[#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1: il binding di `Tab`; §5: la vista esiste, il consumatore è l'HUD, il ritorno di `Tab` ha un tetto su `StrategicExitThreshold` |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §6.6: il punto (1) è superato, e il ciclo è su `N` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-421: il test che la ancora ha cambiato nome |
+| [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) e [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | `Tab` è cablato; il nucleo della scena c'è, mancano inclinazione, proiezione e separazione dei piani |
+
 ## 2026-10-10 — La vista strategica entra in v0.1 in quattro pezzi, e il registro riceve D-495
 
 **Origine**: il seguito T9 del referto delle tavole A–F, in una sessione `/sc:brainstorm` con l'autore. Issue
