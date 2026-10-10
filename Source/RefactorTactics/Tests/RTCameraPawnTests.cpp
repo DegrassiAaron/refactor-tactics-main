@@ -1571,7 +1571,7 @@ bool FRTCameraTabReturnsToUnreadDistanceTest::RunTest(const FString&)
 	return true;
 }
 
-/ --- #3631 · la prova ortografica della vista strategica ----------------------------------------------
+// --- #3631 · la prova ortografica della vista strategica ----------------------------------------------
 
 /**
  * La leva e' SPENTA di default: entrando in strategica la camera resta prospettica, cioe' identica a prima.
