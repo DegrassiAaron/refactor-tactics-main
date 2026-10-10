@@ -9,6 +9,7 @@
 // vede `(-2,0)` e non vede `(1,0)` — le premesse lo chiedono al classificatore invece di darlo per scontato.
 
 #include "Misc/AutomationTest.h"
+#include "Components/Border.h"
 #include "EngineUtils.h" // TActorIterator: il turn manager del banco si trova, non si ricostruisce (#3622)
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // IsFastMovement: lo scatto che sposta l'origine del Blast
@@ -766,6 +767,51 @@ bool FRTPlanWarningsWidgetsTest::RunTest(const FString&)
 	const FRTPlanWarningCounts InRisoluzione = Conferma->GetPlanWarningCounts();
 	TestEqual(TEXT("2: in risoluzione il contatore e' a zero"),
 		InRisoluzione.Critical + InRisoluzione.Warning + InRisoluzione.Info, 0);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * ⛔ **IN RISOLUZIONE IL RIQUADRO DI CONFERMA SI NASCONDE** ([D-480] punto 1, #3633). Lo stesso banco del test degli
+ * avvisi in Risoluzione: un turno vero, che il playback tiene in Risoluzione per qualche tick.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanCommitHidesInResolutionTest,
+	"RefactorTactics.ScreenHud.PlanCommitHidesInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanCommitHidesInResolutionTest::RunTest(const FString&)
+{
+	FSlotRefusalBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpSlotRefusalBench(B)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	ARTTurnManager* TM = SlotRefusalTurnManager(B.World);
+	URTPlanCommitWidget* Conferma = NewObject<URTPlanCommitWidget>(B.World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("conferma"), Conferma))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	Conferma->CommitRoot = NewObject<UBorder>(Conferma);
+	Conferma->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Conferma->SetControlGroupForTest(0);
+
+	Conferma->RefreshButtons();
+	TestTrue(TEXT("in Pianificazione il riquadro c'e'"),
+		Conferma->CommitRoot->GetVisibility() != ESlateVisibility::Collapsed);
+
+	B.Mine->PlannedAbilityIndex = GSlotRefusalAttacco;
+	B.Mine->PlannedAttackTarget = B.Nemico;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	Conferma->RefreshButtons();
+	TestEqual(TEXT("in Risoluzione il riquadro e' chiuso"), Conferma->CommitRoot->GetVisibility(), ESlateVisibility::Collapsed);
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

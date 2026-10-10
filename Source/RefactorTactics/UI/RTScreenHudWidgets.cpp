@@ -620,12 +620,13 @@ bool URTPlanCommitWidget::IsPlanDeclared() const
 
 FText URTPlanCommitWidget::GetConfirmKeyLabel() const
 {
-	return ARTPlayerController::DeclarePlanHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	// [D-496]: il nome del badge, dal tasto vero della mappatura.
+	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::DeclarePlanHotkey());
 }
 
 FText URTPlanCommitWidget::GetUndoKeyLabel() const
 {
-	return ARTPlayerController::UndoKeyboardHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::UndoKeyboardHotkey());
 }
 
 void URTPlanCommitWidget::BindNamedButtons()
@@ -640,26 +641,116 @@ void URTPlanCommitWidget::BindNamedButtons()
 	}
 }
 
+namespace
+{
+	/** Fondo e contorno di una cornice, come lo slot (#3498): con un `RoundedBox` il fondo e' il colore del brush e il
+	 *  contorno sta nelle sue `OutlineSettings`; con un `Border` a texture c'e' un colore solo, quello del bordo. */
+	void RTPaintFrame(UBorder* Frame, const FLinearColor& Fill, const FLinearColor& Outline, float Width)
+	{
+		if (!Frame)
+		{
+			return;
+		}
+		if (Frame->Background.DrawAs == ESlateBrushDrawType::RoundedBox)
+		{
+			FSlateBrush Brush = Frame->Background;
+			Brush.OutlineSettings.Color = FSlateColor(Outline);
+			Brush.OutlineSettings.Width = Width;
+			Frame->SetBrush(Brush);
+			Frame->SetBrushColor(Fill);
+		}
+		else
+		{
+			Frame->SetBrushColor(Outline);
+		}
+	}
+
+	void RTShowIf(UWidget* Widget, bool bShow)
+	{
+		if (Widget)
+		{
+			Widget->SetVisibility(bShow ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+const TArray<FName>& URTPlanCommitWidget::LookPortNames()
+{
+	static const TArray<FName> Nomi = {
+		TEXT("ConfirmKeyText"), TEXT("UndoKeyText"), TEXT("ConfirmFrame"), TEXT("UndoFrame"), TEXT("ConfirmIcon"),
+		TEXT("CommitRoot"), TEXT("WarningCounter"), TEXT("CriticalCountText"), TEXT("CriticalBadge"),
+		TEXT("WarningCountText"), TEXT("WarningBadge"), TEXT("InfoCountText"), TEXT("InfoBadge") };
+	return Nomi;
+}
+
 void URTPlanCommitWidget::RefreshButtons()
 {
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// [D-480] punto 1: in Risoluzione il piano non si conferma, e il riquadro si nasconde. La risoluzione si chiede
+	// alla vista dell'header: questo file non include `RTTurnManager.h` (#1821).
+	const bool bRisoluzione = HasMatchContext() && URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving;
+	RTShowIf(CommitRoot, !bRisoluzione);
+
 	const bool bUnita = HasCommandedUnit();
 	if (ConfirmButton)
 	{
 		ConfirmButton->SetIsEnabled(bUnita);
 	}
+	const FText Verbo = IsPlanDeclared()
+		? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
+		: NSLOCTEXT("RTPlanCommit", "Confirm", "Conferma");
+	const FText VerboAnnulla = NSLOCTEXT("RTPlanCommit", "Undo", "Annulla");
+
+	// Il tasto sta nel suo badge quando il badge c'e'; altrimenti accanto al verbo, come prima della tavola.
 	if (ConfirmText)
 	{
-		const FText Verbo = IsPlanDeclared()
-			? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
-			: NSLOCTEXT("RTPlanCommit", "Confirm", "Conferma");
-		ConfirmText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
-			Verbo, GetConfirmKeyLabel()));
+		ConfirmText->SetText(ConfirmKeyText ? Verbo
+			: FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"), Verbo, GetConfirmKeyLabel()));
+		ConfirmText->SetColorAndOpacity(FSlateColor(C(bUnita ? T::White : T::Text_Disabled)));
+	}
+	if (ConfirmKeyText)
+	{
+		ConfirmKeyText->SetText(GetConfirmKeyLabel());
+		ConfirmKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
 	}
 	if (UndoText)
 	{
-		UndoText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
-			NSLOCTEXT("RTPlanCommit", "Undo", "Annulla"), GetUndoKeyLabel()));
+		UndoText->SetText(UndoKeyText ? VerboAnnulla
+			: FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"), VerboAnnulla, GetUndoKeyLabel()));
+		UndoText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
 	}
+	if (UndoKeyText)
+	{
+		UndoKeyText->SetText(GetUndoKeyLabel());
+		UndoKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+
+	// La tavola: `Conferma` accesa ha il fondo della lettura attiva e il contorno ciano; spenta torna neutra.
+	RTPaintFrame(ConfirmFrame, C(bUnita ? T::BG_ProfileActive : T::BG_Panel), C(bUnita ? T::Cyan : T::Frame_Off),
+		bUnita ? 2.f : 1.f);
+	RTPaintFrame(UndoFrame, C(T::BG_Panel), C(T::Frame_Mid), 1.f);
+	if (ConfirmIcon)
+	{
+		ConfirmIcon->SetColorAndOpacity(C(bUnita ? T::Cyan : T::Text_Disabled));
+	}
+
+	// Il contatore ([D-494]): un numero per livello, e un livello a zero non occupa posto.
+	const FRTPlanWarningCounts Conteggi = GetPlanWarningCounts();
+	RTShowIf(WarningCounter, Conteggi.Critical + Conteggi.Warning + Conteggi.Info > 0);
+	const auto Livello = [&C](UTextBlock* Testo, UWidget* Badge, int32 N, ERTUIToken Colore)
+	{
+		if (Testo)
+		{
+			Testo->SetText(FText::AsNumber(N));
+			Testo->SetColorAndOpacity(FSlateColor(C(Colore)));
+		}
+		RTShowIf(Badge, N > 0);
+	};
+	Livello(CriticalCountText, CriticalBadge, Conteggi.Critical, T::Red);
+	Livello(WarningCountText, WarningBadge, Conteggi.Warning, T::Amber);
+	Livello(InfoCountText, InfoBadge, Conteggi.Info, T::Cyan);
 }
 
 void URTPlanCommitWidget::NativeConstruct()

@@ -7,6 +7,9 @@
 // nello stesso commit delle sedute `U61`, `U63` e `U64`.
 
 #include "Misc/AutomationTest.h"
+#include "UI/RTUIPalette.h" // la resa di Conferma si confronta coi token (#3633)
+#include "Turn/RTTurnManager.h"
+#include "Components/Image.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTMovementProfileLibrary.h"
@@ -473,6 +476,115 @@ bool FRTNamedPortsPlanCommitTest::RunTest(const FString&)
 	W->RefreshButtons();
 	TestFalse(TEXT("D: senza unita' Conferma e' spenta"), W->ConfirmButton->GetIsEnabled());
 	TestTrue(TEXT("D: Annulla resta accesa: il Back non chiede un'unita'"), W->UndoButton->GetIsEnabled());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **CONFERMA COME LA TAVOLA** ([D-496], #3633): il tasto nel suo badge e in italiano, i colori da palette, il
+ * contatore degli avvisi con un numero per livello ([D-494]).
+ *
+ * ⚠️ Le cornici sono `RoundedBox`, come nella tavola: e' li' che fondo e contorno sono due colori. Con un `Border`
+ * a texture il colore e' uno solo, e quel ramo lo copre lo slot (#3498).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNamedPortsPlanCommitLookTest,
+	"RefactorTactics.ScreenHud.PlanCommitLookFollowsTheBoard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNamedPortsPlanCommitLookTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnNamedPortsUnit(World);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTPlanCommitWidget* W = NewObject<URTPlanCommitWidget>(World);
+	if (!Unit || !PC || !TM || !W)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("unita', controller, turn manager e widget esistono"), false);
+	}
+	const auto Cornice = [W]()
+	{
+		UBorder* B = NewObject<UBorder>(W);
+		FSlateBrush Brush = B->Background;
+		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+		B->SetBrush(Brush);
+		return B;
+	};
+	W->ConfirmButton = NewObject<UButton>(W);
+	W->ConfirmText = NewObject<UTextBlock>(W);
+	W->UndoButton = NewObject<UButton>(W);
+	W->UndoText = NewObject<UTextBlock>(W);
+	W->ConfirmKeyText = NewObject<UTextBlock>(W);
+	W->UndoKeyText = NewObject<UTextBlock>(W);
+	W->ConfirmFrame = Cornice();
+	W->UndoFrame = Cornice();
+	W->ConfirmIcon = NewObject<UImage>(W);
+	W->CommitRoot = NewObject<UBorder>(W);
+	W->WarningCounter = NewObject<UBorder>(W);
+	W->CriticalCountText = NewObject<UTextBlock>(W);
+	W->CriticalBadge = NewObject<UBorder>(W);
+	W->WarningCountText = NewObject<UTextBlock>(W);
+	W->WarningBadge = NewObject<UBorder>(W);
+	W->InfoCountText = NewObject<UTextBlock>(W);
+	W->InfoBadge = NewObject<UBorder>(W);
+	W->SetMatchContextForTest(TM, Unit->TeamId);
+	W->SetControlGroupForTest(Unit->ControlGroup);
+	PC->SelectActorForTest(Unit);
+	W->SetCommandControllerForTest(PC);
+	W->SetSelectedUnitForTest(Unit);
+
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	const auto Contorno = [](const UBorder* B) { return B->Background.OutlineSettings.Color.GetSpecifiedColor(); };
+
+	// --- A. un'unita' comandata con un piano pulito ------------------------------------------------------------
+	W->RefreshButtons();
+	TestEqual(TEXT("A: col badge, il testo di Conferma e' il solo verbo"), W->ConfirmText->GetText().ToString(), FString(TEXT("Conferma")));
+	TestEqual(TEXT("A: il badge di Conferma dice INVIO (D-496)"), W->ConfirmKeyText->GetText().ToString(), FString(TEXT("INVIO")));
+	TestEqual(TEXT("A: il testo di Annulla e' il solo verbo"), W->UndoText->GetText().ToString(), FString(TEXT("Annulla")));
+	TestEqual(TEXT("A: il badge di Annulla dice BACKSPACE"), W->UndoKeyText->GetText().ToString(), FString(TEXT("BACKSPACE")));
+	TestTrue(TEXT("A: Conferma accesa ha il fondo BG_ProfileActive"), W->ConfirmFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_ProfileActive)));
+	TestTrue(TEXT("A: e il contorno Cyan"), Contorno(W->ConfirmFrame).Equals(Colore(ERTUIToken::Cyan)));
+	TestTrue(TEXT("A: Annulla ha il contorno Frame_Mid"), Contorno(W->UndoFrame).Equals(Colore(ERTUIToken::Frame_Mid)));
+	TestTrue(TEXT("A: la spunta e' Cyan"), W->ConfirmIcon->GetColorAndOpacity().Equals(Colore(ERTUIToken::Cyan)));
+	TestTrue(TEXT("A: fuori dalla Risoluzione il riquadro c'e'"), NamedPortsIsShown(W->CommitRoot));
+	TestFalse(TEXT("A: senza avvisi il contatore e' chiuso"), NamedPortsIsShown(W->WarningCounter));
+
+	// --- B. un piano illegale: un Critical nel contatore, e solo il suo badge --------------------------------------
+	int32 ConRicarica = INDEX_NONE;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Unit->GetAbility(i);
+		if (A && A->CooldownTurns > 0 && !A->Def.ActionId.IsNone())
+		{
+			ConRicarica = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: il kit ha un'azione con ricarica"), ConRicarica != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Unit->PlannedAbilityIndex = ConRicarica;
+	Unit->ConsumeAbility(ConRicarica);
+	W->RefreshButtons();
+	TestTrue(TEXT("B: con un avviso il contatore si apre"), NamedPortsIsShown(W->WarningCounter));
+	TestTrue(TEXT("B: il badge del Critical si accende"), NamedPortsIsShown(W->CriticalBadge));
+	TestEqual(TEXT("B: e dice 1"), W->CriticalCountText->GetText().ToString(), FString(TEXT("1")));
+	TestTrue(TEXT("B: il numero del Critical e' Red"), W->CriticalCountText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Red)));
+	TestFalse(TEXT("B: il badge del Warning resta chiuso"), NamedPortsIsShown(W->WarningBadge));
+	TestFalse(TEXT("B: e quello dell'Info"), NamedPortsIsShown(W->InfoBadge));
+
+	// --- C. senza un'unita' comandata Conferma si spegne anche nella resa -----------------------------------------
+	PC->SelectActorForTest(nullptr);
+	W->SetSelectedUnitForTest(nullptr);
+	W->RefreshButtons();
+	TestTrue(TEXT("C: Conferma spenta ha il contorno Frame_Off"), Contorno(W->ConfirmFrame).Equals(Colore(ERTUIToken::Frame_Off)));
+	TestTrue(TEXT("C: e il fondo BG_Panel"), W->ConfirmFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_Panel)));
+	TestTrue(TEXT("C: la spunta e' Text_Disabled"), W->ConfirmIcon->GetColorAndOpacity().Equals(Colore(ERTUIToken::Text_Disabled)));
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

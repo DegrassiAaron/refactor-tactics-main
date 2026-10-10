@@ -668,6 +668,61 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
 	TObjectPtr<class UTextBlock> UndoText;
 
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola (#3633, T8). Tutte opzionali: senza, il widget resta quello di prima.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il badge del tasto di `Conferma`. Quando c'e', `ConfirmText` porta il solo verbo e il tasto sta qui. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> ConfirmKeyText;
+
+	/** Il badge del tasto di `Annulla`, come `ConfirmKeyText`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> UndoKeyText;
+
+	/** La cornice di `Conferma`: fondo `BG_ProfileActive` e contorno `Cyan` se accesa, `BG_Panel` e `Frame_Off` se spenta. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UBorder> ConfirmFrame;
+
+	/** La cornice di `Annulla`: fondo `BG_Panel`, contorno `Frame_Mid`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UBorder> UndoFrame;
+
+	/** La spunta di `Conferma`: tinta `Cyan`, o `Text_Disabled` se spenta. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UImage> ConfirmIcon;
+
+	/** Tutto il riquadro: `Collapsed` in Risoluzione, quando il piano non si conferma ([D-480] punto 1). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> CommitRoot;
+
+	/** Il contatore degli avvisi ([D-494]): `Collapsed` quando non c'e' nessun avviso. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> WarningCounter;
+
+	/** Un numero per livello, ciascuno col suo badge: ottagono «✕» `Red`, triangolo «!» `Amber`, cerchio «i» `Cyan`.
+	 * Un livello a zero ha il badge `Collapsed`: il contatore mostra solo i livelli che ci sono. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> CriticalCountText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> CriticalBadge;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> WarningCountText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> WarningBadge;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> InfoCountText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UWidget> InfoBadge;
+
+	/** Le porte della resa ([D-496], #3633), nell'ordine in cui il gate sull'asset le cerca. */
+	static const TArray<FName>& LookPortNames();
+
 	/**
 	 * Testi e abilitazione. La chiama `NativeTick`; i test la chiamano a mano.
 	 *
