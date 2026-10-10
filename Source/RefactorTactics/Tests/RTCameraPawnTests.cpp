@@ -1618,7 +1618,7 @@ bool FRTCameraStrategicOrthoScaleTest::RunTest(const FString&)
 	const FBox2D Limiti = ARTCameraPawn::ComputeEffectivePivotBounds(Area, Arm->TargetArmLength,
 		/*Pitch=*/ -60.f, /*Yaw=*/ 0.f, Fov, /*Aspect=*/ 16.f / 9.f, /*AllowedOutside=*/ 0.f);
 	TestEqual(TEXT("i limiti del pivot usano la stessa mezza larghezza del quadro ortografico"),
-		Area.Max.Y - Limiti.Max.Y, View->OrthoWidth * 0.5f, 0.5f);
+		static_cast<float>(Area.Max.Y - Limiti.Max.Y), View->OrthoWidth * 0.5f, 0.5f);
 
 	Cam->ToggleStrategicView();
 	TestFalse(TEXT("tornando tattici torna prospettica"), Cam->IsOrthographicNow());
