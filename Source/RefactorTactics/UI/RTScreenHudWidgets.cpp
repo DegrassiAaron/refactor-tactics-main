@@ -739,13 +739,14 @@ void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
 
 	if (PhaseText)
 	{
-		PhaseText->SetText(GetPhaseText());
+		// La vista e' gia' in mano: niente seconda `BuildMatchHeader` per tick (review di #3635).
+		PhaseText->SetText(bContesto ? FText::FromString(URTHudViewModel::ComposePhaseWord(Header).ToUpper()) : FText::GetEmpty());
 		PhaseText->SetColorAndOpacity(FSlateColor(C(T::Cyan)));
 	}
 	RTPaintFrame(PhaseMark, FLinearColor::Transparent, C(T::Cyan), 2.f);
 	if (TimerText)
 	{
-		TimerText->SetText(GetTimerText());
+		TimerText->SetText(bContesto ? FormatCommitTimer(Header.SecondsUntilCommit) : FText::GetEmpty());
 		TimerText->SetColorAndOpacity(FSlateColor(C(T::White)));
 	}
 

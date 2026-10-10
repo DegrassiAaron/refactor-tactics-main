@@ -308,12 +308,10 @@ potrebbe mostrarne una disallineata dalle altre.
 `GetRoundCounterText()` li decide già tutti e tre: **usa quella**, non comporre il testo nel Blueprint. Un
 binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
 
----
-
 ### Le porte della resa delle tavole A e D ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635))
 
-Tutte `BindWidgetOptional` su `URTTurnHeaderWidget`, scritte a ogni tick da `RefreshLook`. I binding di oggi restano
-finché la seduta non li sostituisce.
+Tutte `BindWidgetOptional` su `URTTurnHeaderWidget`, scritte a ogni tick da `RefreshLook`; la presenza dell'obiettivo
+si rilegge dalla mappa una volta al secondo. I binding di oggi restano finché la seduta non li sostituisce.
 
 | Porta | Tipo | Che cosa ci scrive il C++ |
 |---|---|---|
@@ -327,7 +325,9 @@ finché la seduta non li sostituisce.
 
 🔑 **La cella attiva cambia FORMA, non solo colore.** Il segno diventa pieno e quadrato con un contorno bianco;
 spento resta vuoto, tondo e più piccolo (una scala di render, che non sposta il layout). In scala di grigi la
-forma è ciò che resta. Il segno va autorato come `RoundedBox`.
+forma è ciò che resta. Il segno lo rende `RoundedBox` il C++ stesso, qualunque cosa dica l'asset.
+
+---
 
 ## 6. Agganciare l'HUD
 

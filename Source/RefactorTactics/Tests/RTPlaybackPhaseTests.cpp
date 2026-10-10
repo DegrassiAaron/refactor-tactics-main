@@ -649,19 +649,19 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 	W->ObjectiveBox = NewObject<UBorder>(W);
 	W->ObjectiveScoreText = NewObject<UTextBlock>(W);
 	W->ObjectiveThresholdText = NewObject<UTextBlock>(W);
-	struct FCellaDiProva { ERTMatchPhase Fase; UBorder* Cornice; UBorder* Marca; UTextBlock* Sigla; };
+	struct FCellaDiProva { ERTMatchPhase Fase; ERTUIToken Colore; UBorder* Cornice; UBorder* Marca; UTextBlock* Sigla; };
 	TArray<FCellaDiProva> Celle;
-	const auto Cella = [&](ERTMatchPhase Fase, TObjectPtr<UBorder>& C, TObjectPtr<UBorder>& M, TObjectPtr<UTextBlock>& S)
+	const auto Cella = [&](ERTMatchPhase Fase, ERTUIToken Token, TObjectPtr<UBorder>& C, TObjectPtr<UBorder>& M, TObjectPtr<UTextBlock>& S)
 	{
 		C = Cornice();
 		M = Cornice();
 		S = NewObject<UTextBlock>(W);
-		Celle.Add({ Fase, C.Get(), M.Get(), S.Get() });
+		Celle.Add({ Fase, Token, C.Get(), M.Get(), S.Get() });
 	};
-	Cella(ERTMatchPhase::Prep, W->PhaseCell_Prep, W->PhaseCellMark_Prep, W->PhaseCellText_Prep);
-	Cella(ERTMatchPhase::Dash, W->PhaseCell_Dash, W->PhaseCellMark_Dash, W->PhaseCellText_Dash);
-	Cella(ERTMatchPhase::Blast, W->PhaseCell_Blast, W->PhaseCellMark_Blast, W->PhaseCellText_Blast);
-	Cella(ERTMatchPhase::Move, W->PhaseCell_Move, W->PhaseCellMark_Move, W->PhaseCellText_Move);
+	Cella(ERTMatchPhase::Prep, ERTUIToken::Phase_Prep, W->PhaseCell_Prep, W->PhaseCellMark_Prep, W->PhaseCellText_Prep);
+	Cella(ERTMatchPhase::Dash, ERTUIToken::Phase_Dash, W->PhaseCell_Dash, W->PhaseCellMark_Dash, W->PhaseCellText_Dash);
+	Cella(ERTMatchPhase::Blast, ERTUIToken::Phase_Blast, W->PhaseCell_Blast, W->PhaseCellMark_Blast, W->PhaseCellText_Blast);
+	Cella(ERTMatchPhase::Move, ERTUIToken::Phase_Move, W->PhaseCell_Move, W->PhaseCellMark_Move, W->PhaseCellText_Move);
 	W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
 
 	// --- A. Pianificazione, senza formato e senza obiettivo ------------------------------------------------------------
@@ -691,14 +691,23 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 		return false;
 	}
 	Mappa->Cells[0].bIsObjective = true;
+	// Un punteggio asimmetrico: con 0–0 uno scambio delle due squadre resterebbe verde (review di #3635).
+	TM->AddTeamScore(0, 2);
+	TM->AddTeamScore(1, 1);
+	// Un timer vero: il widget deve mostrare il commit, `00:30`, e non solo saperlo formattare.
+	TM->SetPlanningSeconds(30.f);
 	W->RefreshLook(/*bRecheckObjective=*/ true);
+	TestTrue(TEXT("3: con un Planning di 30 s armato il timer dice 00:30"), Uguale(W->TimerText->GetText(), TEXT("00:30")));
+	TestTrue(TEXT("3: e il getter dice lo stesso"), Uguale(W->GetTimerText(), TEXT("00:30")));
+	TM->SetPlanningSeconds(0.f);
+	W->RefreshLook(/*bRecheckObjective=*/ false);
+	TestTrue(TEXT("3: disarmato, il timer torna vuoto"), W->TimerText->GetText().IsEmpty());
 	TestTrue(TEXT("4: col formato il limite c'e'"), Visibile(W->RoundLimitText));
 	TestTrue(TEXT("4: e dice «/ 12»"), Uguale(W->RoundLimitText->GetText(), TEXT("/ 12")));
 	TestTrue(TEXT("5: con la cella obiettivo l'obiettivo c'e'"), Visibile(W->ObjectiveBox));
 	TestTrue(TEXT("5: la soglia c'e' e dice «(a 3)»"),
 		Visibile(W->ObjectiveThresholdText) && Uguale(W->ObjectiveThresholdText->GetText(), TEXT("(a 3)")));
-	TestTrue(TEXT("5: il punteggio e' squadra 0 – squadra 1"),
-		Uguale(W->ObjectiveScoreText->GetText(), *FString::Printf(TEXT("%d–%d"), TM->GetTeamScore(0), TM->GetTeamScore(1))));
+	TestTrue(TEXT("5: il punteggio e' squadra 0 – squadra 1, «2–1»"), Uguale(W->ObjectiveScoreText->GetText(), TEXT("2–1")));
 
 	// --- C. Risoluzione: la cella attiva e' la fase RIPRODOTTA -------------------------------------------------------------
 	const int32 DashIdx = Dasher->FindDashAbilityIndex();
@@ -727,10 +736,16 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 		for (const FCellaDiProva& C : Celle)
 		{
 			const bool bAttesa = C.Fase == Riprodotta;
+			const FLinearColor ColoreFase = Colore(C.Colore);
 			const bool bAttiva = C.Cornice->Background.OutlineSettings.Width == 2.f
+				&& C.Cornice->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(ColoreFase)
+				&& C.Cornice->GetBrushColor().Equals(ColoreFase.CopyWithNewOpacity(0.2f))
 				&& C.Sigla->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::White))
+				&& C.Marca->GetBrushColor().Equals(ColoreFase)
 				&& C.Marca->Background.OutlineSettings.RoundingType == ESlateBrushRoundingType::FixedRadius;
 			const bool bSpenta = C.Cornice->Background.OutlineSettings.Width == 1.f
+				&& C.Cornice->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Colore(ERTUIToken::Frame_Off))
+				&& C.Cornice->GetBrushColor().A == 0.f
 				&& C.Sigla->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Disabled))
 				&& C.Marca->Background.OutlineSettings.RoundingType == ESlateBrushRoundingType::HalfHeightRadius;
 			Sbagliate += (bAttesa ? !bAttiva : !bSpenta) ? 1 : 0;
