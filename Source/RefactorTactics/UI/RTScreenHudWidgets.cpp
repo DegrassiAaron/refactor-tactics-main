@@ -450,6 +450,22 @@ FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 	return FRTUnitSlotsView{};
 }
 
+TArray<FRTPlanWarningView> URTSelectedUnitPanelWidget::GetPlanWarnings() const
+{
+	// La risoluzione si chiede alla vista dell'header, non al manager: questo file non include `RTTurnManager.h`, ed e'
+	// la condizione del distacco di #1821 (vedi la testa del file). Trovato da una build fuori dal blob unity (#3622).
+	if (!HasMatchContext() || URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving)
+	{
+		return {}; // senza contesto non c'e' una partita; in Risoluzione l'elenco si nasconde (D-480 punto 1)
+	}
+	// Segue il COMANDO, come `GetSlots()`: per un'unita' ispezionata `BuildPlanWarnings` non viene chiamata.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return URTHudViewModel::BuildPlanWarnings(Commanded, GatherUnitsInWorld());
+	}
+	return {};
+}
+
 FText URTSelectedUnitPanelWidget::GetMovementProfileText() const
 {
 	// Nessuna regola qui: la sede e' `ARTHUD::DescribeMovementProfile`, e questa e' la porta per UMG.
@@ -567,6 +583,28 @@ void URTPlanCommitWidget::Undo()
 	{
 		PC->UndoStep();
 	}
+}
+
+FRTPlanWarningCounts URTPlanCommitWidget::GetPlanWarningCounts() const
+{
+	FRTPlanWarningCounts Conteggi;
+	// Come in `GetPlanWarnings`: la risoluzione dalla vista dell'header, senza il tipo completo del manager (#1821).
+	if (!HasMatchContext() || URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving)
+	{
+		return Conteggi; // D-480 punto 1: in Risoluzione il piano non si conferma, e il contatore tace
+	}
+	const TArray<ARTUnit*> Units = GatherUnitsInWorld();
+	for (const ARTUnit* Unit : Units)
+	{
+		// ⛔ La barriera PRIMA di costruire: per un'unita' non comandata il piano non si legge (D-480 punto 5).
+		if (!Unit || !Unit->IsAlive() || !URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId,
+			Unit->ControlGroup, GetPlayerTeamId(), GetPlayerControlGroup(), Unit->bIsBotControlled))
+		{
+			continue;
+		}
+		URTHudViewModel::AddPlanWarningCounts(URTHudViewModel::BuildPlanWarnings(Unit, Units), Conteggi);
+	}
+	return Conteggi;
 }
 
 bool URTPlanCommitWidget::HasCommandedUnit() const

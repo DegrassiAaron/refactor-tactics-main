@@ -240,6 +240,133 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	return Slots;
 }
 
+TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Unit, const TArray<ARTUnit*>& Units)
+{
+	TArray<FRTPlanWarningView> Avvisi;
+	if (!Unit || !Unit->IsAlive())
+	{
+		return Avvisi;
+	}
+
+	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
+
+	// Il nome di un'azione del piano, in cascata, e mai l'id grezzo (review di #3622):
+	//   1. il nome del kit, che e' quello che lo slot mostra;
+	//   2. la voce del MOVIMENTO, che `MakePlanFor` aggiunge dal core e non sta nel kit: l'etichetta dello slot che
+	//      il tooltip gia' usa. E' il caso canonico del conflitto scatto + movimento;
+	//   3. l'ultimo segmento dell'id (`Action.Move` -> `Move`), la stessa cascata di `ARTUnit::DisplayLabel`.
+	// ⛔ Una tabella di nomi per le azioni del core non esiste (`GenericActionDisplayName` ne copre cinque), e
+	// scriverla e' lavoro di contenuto, non di questo avviso.
+	const auto NomeDi = [Unit, &Piano](const FName& ActionId) -> FText
+	{
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.ActionId == ActionId && !A->DisplayName.IsEmpty())
+			{
+				return A->DisplayName;
+			}
+		}
+		for (const FRTPlannedAction& Voce : Piano)
+		{
+			if (Voce.Def.ActionId == ActionId && URTCatalogLibrary::TakesMovementSlot(Voce.Def))
+			{
+				return NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento");
+			}
+		}
+		FString Id = ActionId.ToString();
+		int32 Punto = INDEX_NONE;
+		return FText::FromString(Id.FindLastChar(TEXT('.'), Punto) ? Id.Mid(Punto + 1) : Id);
+	};
+
+	// --- 1. Critical: il validatore. Lo dice, non lo decide. -------------------------------------------------
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Piano);
+	if (!Verdetto.bLegal)
+	{
+		FRTPlanWarningView Critico;
+		Critico.Level = ERTPlanWarningLevel::Critical;
+		Critico.SourceActionId = Verdetto.OffendingActionId;
+		Critico.What = NomeDi(Verdetto.OffendingActionId);
+		// Le due azioni di un conflitto di slot, come il log di lock-in (`RTTurnManager.cpp`): nominarne una sola
+		// manderebbe a correggere quella sbagliata.
+		Critico.Why = Verdetto.HolderActionId.IsNone()
+			? FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason))
+			: FText::Format(NSLOCTEXT("RTPlanWarning", "SlotConflict", "{0} e {1} occupano lo stesso slot"),
+				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId));
+		// ⚠️ Il costo e' cio' che si sa, non una previsione: il lock-in non scarta niente, e cio' che il turno
+		// scarta lo decide il resolver.
+		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo giudica illegale: correggilo prima di confermare");
+		Avvisi.Add(Critico);
+	}
+
+	// Una voce per AZIONE (review di #3622, §15.1): un'azione che il validatore giudica illegale probabilmente non
+	// verra' eseguita, e dirne anche il ripiego o il fuoco amico accenderebbe tre voci per un problema solo.
+	const auto CopertaDalCritico = [&Verdetto](const FName& ActionId)
+	{
+		return !Verdetto.bLegal && !ActionId.IsNone()
+			&& (ActionId == Verdetto.OffendingActionId || ActionId == Verdetto.HolderActionId);
+	};
+
+	// --- 2. Warning: il bersaglio che in risoluzione prende il ripiego ([D-459]) ------------------------------
+	for (const FRTAbilityCooldownView& Riga : BuildAbilityCooldowns(Unit))
+	{
+		if (!Riga.bPlanDegraded || CopertaDalCritico(Riga.ActionId))
+		{
+			continue;
+		}
+		FRTPlanWarningView Degradato;
+		Degradato.Level = ERTPlanWarningLevel::Warning;
+		Degradato.SourceActionId = Riga.ActionId;
+		Degradato.What = Riga.DisplayName.IsEmpty() ? FText::FromName(Riga.ActionId) : Riga.DisplayName;
+		Degradato.Why = FText::FromString(ARTHUD::RefusalText(Riga.PlanDegradedRefusal, Riga.PlanDegradedRange));
+		Degradato.Cost = NSLOCTEXT("RTPlanWarning", "DegradedCost", "In risoluzione prende il ripiego");
+		Avvisi.Add(Degradato);
+	}
+
+	// --- 3. Warning: il fuoco amico del PROPRIO piano ([D-492], [D-494]) ------------------------------------
+	const int32 Se = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
+	if (Se != INDEX_NONE)
+	{
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(
+			MakeBlastPreviewPlan(*Unit, Se, Units), MakeHexCombatUnits(Units));
+		TArray<FString> Alleate;
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			const ARTUnit* Altra = Units[i];
+			if (i != Se && Altra && Altra->IsAlive() && Altra->TeamId == Unit->TeamId && Blast.AllyCells.Contains(Altra->Cell))
+			{
+				Alleate.Add(ARTUnit::DisplayLabel(Altra->HeroDisplayName, Altra->HeroId, Altra->GetName()));
+			}
+		}
+		const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (Alleate.Num() > 0 && !(Principale && CopertaDalCritico(Principale->Def.ActionId)))
+		{
+			FRTPlanWarningView FuocoAmico;
+			FuocoAmico.Level = ERTPlanWarningLevel::Warning;
+			FuocoAmico.SourceActionId = Principale ? Principale->Def.ActionId : NAME_None;
+			FuocoAmico.What = NomeDi(FuocoAmico.SourceActionId);
+			FuocoAmico.Why = FText::Format(NSLOCTEXT("RTPlanWarning", "FriendlyFireWhy", "Nella zona: {0}"),
+				FText::FromString(FString::Join(Alleate, TEXT(", "))));
+			FuocoAmico.Cost = NSLOCTEXT("RTPlanWarning", "FriendlyFireCost", "Colpisce anche le alleate nella zona");
+			Avvisi.Add(FuocoAmico);
+		}
+	}
+	return Avvisi;
+}
+
+void URTHudViewModel::AddPlanWarningCounts(const TArray<FRTPlanWarningView>& Warnings, FRTPlanWarningCounts& InOut)
+{
+	for (const FRTPlanWarningView& Avviso : Warnings)
+	{
+		switch (Avviso.Level)
+		{
+		case ERTPlanWarningLevel::Critical: ++InOut.Critical; break;
+		case ERTPlanWarningLevel::Warning:  ++InOut.Warning;  break;
+		case ERTPlanWarningLevel::Info:     ++InOut.Info;     break;
+		}
+	}
+}
+
 FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId,
 	const TArray<ARTUnit*>& Units)
 {

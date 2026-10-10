@@ -959,6 +959,18 @@ Errore o condizione bloccante.
 > - **Che forma ha.** Info è un cerchio «i», Warning un triangolo «!», Critical un ottagono «✕»; il testo dice
 >   cosa · perché · costo.
 > - **Chi non lo vede.** Mai per un'unità ispezionata e non comandata.
+>
+> ✅ **Implementato con [#3622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3622) (2026-10-10).**
+> - **Il produttore** è `URTHudViewModel::BuildPlanWarnings`, che riporta tre fonti:
+>   - `ValidatePlan` per il Critical, con il perché che nomina entrambe le azioni di un conflitto di slot;
+>   - `bPlanDegraded` dello slot per il Warning del ripiego;
+>   - l'anteprima per piano ([D-492](../../decisions/RT_PDR_00_Decision_Log.md)) per il Warning di fuoco amico, che
+>     sta nell'elenco dell'**attaccante**.
+> - **I due widget.** L'elenco lo espone `URTSelectedUnitPanelWidget::GetPlanWarnings()`. Il contatore lo espone
+>   `URTPlanCommitWidget::GetPlanWarningCounts()`: un numero per livello, sommato su tutte le unità comandate
+>   ([D-494](../../decisions/RT_PDR_00_Decision_Log.md)). Entrambi tacciono in Risoluzione.
+> - **Info non ha ancora un produttore**: le categorie qui sotto entrano una alla volta, ciascuna con la sua
+>   fonte e il suo test.
 
 Possibili categorie:
 

@@ -910,4 +910,52 @@ bool FRTHUDAllyMarkFromCellTargetTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **L'AVVISO DI FUOCO AMICO STA NELL'ELENCO DELL'ATTACCANTE, NON DELLA VITTIMA** ([D-480] punto 4, [D-494], #3622).
+ *
+ * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`: Overload di Aevik su Branth, con Muiren nella zona. Il segno
+ * sull'unita' sta su Muiren (e' lei che verra' colpita), ma l'avviso di piano sta su Aevik: e' il suo piano che lo
+ * causa, ed e' lui che puo' cambiarlo. Il perche' nomina Muiren.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningFriendlyFireOwnerTest,
+	"RefactorTactics.HudViewModel.FriendlyFireWarningIsTheAttackersNotTheVictims",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 1, 0, 0));
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Aevik->PlannedAbilityIndex = Overload;
+	Aevik->PlannedAttackTarget = Branth;
+
+	const TArray<ARTUnit*> Units = { Aevik, Muiren, Branth };
+	const TArray<FRTPlanWarningView> DiAevik = URTHudViewModel::BuildPlanWarnings(Aevik, Units);
+	const TArray<FRTPlanWarningView> DiMuiren = URTHudViewModel::BuildPlanWarnings(Muiren, Units);
+	const FString NomeMuiren = ARTUnit::DisplayLabel(Muiren->HeroDisplayName, Muiren->HeroId, Muiren->GetName());
+
+	DestroyMarksWorld(World);
+
+	const FRTPlanWarningView* FuocoAmico = DiAevik.FindByPredicate([](const FRTPlanWarningView& A)
+	{
+		return A.Level == ERTPlanWarningLevel::Warning && A.SourceActionId == FName(TEXT("Hero.Aevik.Overload"));
+	});
+	if (TestNotNull(TEXT("l'elenco di Aevik ha l'avviso di fuoco amico di Overload"), FuocoAmico))
+	{
+		TestTrue(*FString::Printf(TEXT("il perche' nomina %s"), *NomeMuiren), FuocoAmico->Why.ToString().Contains(NomeMuiren));
+		TestFalse(TEXT("il costo e' detto"), FuocoAmico->Cost.IsEmpty());
+	}
+	TestEqual(TEXT("l'elenco di Muiren, che non ha un piano, e' vuoto: la vittima non porta l'avviso"), DiMuiren.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

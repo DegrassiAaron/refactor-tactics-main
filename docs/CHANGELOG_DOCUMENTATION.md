@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-10 — Gli avvisi di piano hanno un elenco e un contatore, e il registro riceve D-494
+
+**Origine**: la seconda metà del seguito T4 del referto delle tavole A–F, decisa dall'autore in sessione. Issue
+[#3622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3622).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-494** (il contatore con un numero per livello, sulle unità comandate; il fuoco amico nell'elenco dell'attaccante); rimando in D-480 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §15: il produttore, i due widget, l'Info senza produttore |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T4 di §9 punta a #3622 per la seconda metà |
+
+---
+
 ## 2026-10-10 — Il fuoco amico ha una verità sola, e il registro riceve D-492
 
 **Origine**: la prima metà del seguito T4 del referto delle tavole A–F, decisa dall'autore in sessione. Issue

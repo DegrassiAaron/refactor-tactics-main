@@ -470,6 +470,13 @@ public:
 	FRTUnitSlotsView GetSlots() const;
 
 	/**
+	 * Gli avvisi del piano dell'unita' COMANDATA ([D-480], #3622), sopra il pannello in `MiddleLeft`. Vuoto in
+	 * Risoluzione, e vuoto per un'unita' solo ispezionata: segue il comando, come `GetSlots()`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FRTPlanWarningView> GetPlanWarnings() const;
+
+	/**
 	 * L'ANDATURA dello slot movimento, pronta da legare a un `TextBlock` (`#1410` `AC-1`, [D-425]).
 	 *
 	 * 🔑 **Delega a `ARTHUD::DescribeMovementProfile`, che e' la sede unica.** La stessa stringa la
@@ -634,6 +641,13 @@ public:
 	/** Il tasto da tastiera di `Annulla`, da `ARTPlayerController::UndoKeyboardHotkey()`. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetUndoKeyLabel() const;
+
+	/**
+	 * Il contatore accanto a `Conferma` ([D-494], #3622): un numero per livello, sommato su TUTTE le unita'
+	 * comandate, perche' `Conferma` le chiude tutte. Zero in Risoluzione. Un'unita' non comandata non entra.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTPlanWarningCounts GetPlanWarningCounts() const;
 
 	// ------------------------------------------------------------------------------------------------
 	// I pulsanti, collegati PER NOME (`#3489`). Il Designer li dichiara; il C++ ne collega il click alle porte
