@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-11 — In vista strategica il segnalino d'un eroe sta in piedi sulla cella, e prende il click
+
+**Origine**: difetto trovato in PIE (seduta `U73`), issue [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: il segnalino d'un eroe prende la scala del segnaposto nativo e sale sulla cella; la causa misurata (cilindro del Blueprint per metà sotto la cella, mancato dal raggio inclinato); i bracci graykit si spengono in Strategic |
+
 ## 2026-10-11 — Il secondo `Tab` torna alla distanza d'avvio
 
 **Origine**: difetto trovato in PIE (seduta `U73`), issue [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646).
