@@ -21,6 +21,7 @@
 // bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTUIPalette.h" // i colori dello slot vengono dai token di §32 (#3610)
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
@@ -783,28 +784,25 @@ FText URTActionTooltipWidget::GetLinesText() const
 	return FText::FromString(FString::Join(Righe, TEXT("\n")));
 }
 
-namespace
-{
-	FLinearColor RTSlotHex(const TCHAR* Hex)
-	{
-		return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
-	}
-}
-
 URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	// I colori vengono dai token di §32 ([D-489], #3610), non da esadecimali scritti qui: prima di #3610 questo
+	// costruttore era una copia a mano della palette, e un colore cambiato in §32 non lo raggiungeva.
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
 	// [D-233] per le macro-fasi, §32 per la reazione. ⛔ `Cleanup` NON ha una voce: ha un'etichetta e non un
 	// colore ([D-232] §1), quindi la striscia si chiude e la fase la dice `PhaseLabelText`.
-	PhaseColors.Add(ERTActionPhaseMark::Prep, RTSlotHex(TEXT("56B4E9")));
-	PhaseColors.Add(ERTActionPhaseMark::Dash, RTSlotHex(TEXT("009E73")));
-	PhaseColors.Add(ERTActionPhaseMark::Blast, RTSlotHex(TEXT("D55E00")));
-	PhaseColors.Add(ERTActionPhaseMark::Move, RTSlotHex(TEXT("0072B2")));
-	PhaseColors.Add(ERTActionPhaseMark::Reaction, RTSlotHex(TEXT("7C5CFF")));
+	PhaseColors.Add(ERTActionPhaseMark::Prep, C(T::Phase_Prep));
+	PhaseColors.Add(ERTActionPhaseMark::Dash, C(T::Phase_Dash));
+	PhaseColors.Add(ERTActionPhaseMark::Blast, C(T::Phase_Blast));
+	PhaseColors.Add(ERTActionPhaseMark::Move, C(T::Phase_Move));
+	PhaseColors.Add(ERTActionPhaseMark::Reaction, C(T::Violet));
 
 	// `SPECIFICA-VISIVA.md` §3. Selected e Warning condividono l'ambra: li separa il secondo canale.
-	const FLinearColor Neutro = RTSlotHex(TEXT("4A5568"));
-	const FLinearColor Ambra = RTSlotHex(TEXT("FFD456"));
+	const FLinearColor Neutro = C(T::Frame_Mid);
+	const FLinearColor Ambra = C(T::Amber);
 	// Lo slot vuoto del mockup (`Main.dc.html`, «Difesa caratteristica, non assegnata»): contorno neutro pieno,
 	// fondo trasparente, glifo e testo grigi. Il tratteggio del contorno resta escluso.
 	FrameColors.Add(ERTActionSlotState::Empty, Neutro);
@@ -812,20 +810,20 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 	FrameColors.Add(ERTActionSlotState::Selected, Ambra);
 	FrameColors.Add(ERTActionSlotState::Planned, Ambra);
 	// #3498 — `sorgente-mockup/Main.dc.html`: la ricarica ha un contorno piu' spento del neutro.
-	FrameColors.Add(ERTActionSlotState::Cooldown, RTSlotHex(TEXT("2E3746")));
-	FrameColors.Add(ERTActionSlotState::Unavailable, RTSlotHex(TEXT("2E3746")));
-	FrameColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("FF4D4D")));
+	FrameColors.Add(ERTActionSlotState::Cooldown, C(T::Frame_Off));
+	FrameColors.Add(ERTActionSlotState::Unavailable, C(T::Frame_Off));
+	FrameColors.Add(ERTActionSlotState::Invalid, C(T::Red));
 	FrameColors.Add(ERTActionSlotState::Warning, Ambra);
 
-	const FLinearColor FondoAlto = RTSlotHex(TEXT("212733"));   // BG_Raised
-	const FLinearColor FondoBasso = RTSlotHex(TEXT("151A23"));  // BG_Panel
+	const FLinearColor FondoAlto = C(T::BG_Raised);
+	const FLinearColor FondoBasso = C(T::BG_Panel);
 	FillColors.Add(ERTActionSlotState::Empty, FLinearColor::Transparent);
 	FillColors.Add(ERTActionSlotState::Available, FondoAlto);
-	FillColors.Add(ERTActionSlotState::Selected, RTSlotHex(TEXT("2B2918")));
+	FillColors.Add(ERTActionSlotState::Selected, C(T::BG_Selected));
 	FillColors.Add(ERTActionSlotState::Planned, FondoAlto);
 	FillColors.Add(ERTActionSlotState::Cooldown, FondoBasso);
 	FillColors.Add(ERTActionSlotState::Unavailable, FondoBasso);
-	FillColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("2A1719")));
+	FillColors.Add(ERTActionSlotState::Invalid, C(T::BG_Invalid));
 	FillColors.Add(ERTActionSlotState::Warning, FondoAlto);
 
 	for (const ERTActionSlotState Spesso : { ERTActionSlotState::Selected, ERTActionSlotState::Planned,
@@ -839,9 +837,9 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 		FrameWidths.Add(Sottile, 1.f);
 	}
 
-	const FLinearColor Chiaro = RTSlotHex(TEXT("E6EBF2"));
-	const FLinearColor Spento = RTSlotHex(TEXT("3A4454"));
-	const FLinearColor Grigio = RTSlotHex(TEXT("A9B4C2"));
+	const FLinearColor Chiaro = C(T::Text_Primary);
+	const FLinearColor Spento = C(T::Icon_Cooldown);
+	const FLinearColor Grigio = C(T::Text_Secondary);
 	IconTints.Add(ERTActionSlotState::Empty, Grigio);
 	IconTints.Add(ERTActionSlotState::Available, Chiaro);
 	IconTints.Add(ERTActionSlotState::Selected, Ambra);
@@ -852,7 +850,7 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 	IconTints.Add(ERTActionSlotState::Warning, Chiaro);
 
 	// Il nome si spegne dove lo slot non si puo' usare, e resta chiaro dove e' una scelta — armata o pianificata.
-	const FLinearColor NomeSpento = RTSlotHex(TEXT("6B7684"));
+	const FLinearColor NomeSpento = C(T::Text_Disabled);
 	for (const ERTActionSlotState Chiara : { ERTActionSlotState::Available, ERTActionSlotState::Selected,
 		ERTActionSlotState::Planned, ERTActionSlotState::Invalid, ERTActionSlotState::Warning })
 	{
@@ -864,12 +862,12 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 
 	UnavailableStripColor = Neutro;
 	PhaseLabelColor = Grigio;
-	ReactionLabelColor = RTSlotHex(TEXT("B9A8FF"));
+	ReactionLabelColor = C(T::Violet_Light);
 	SelectedBarColor = Ambra;
 
-	ReactionArmedFill = RTSlotHex(TEXT("221E3A"));
-	ReactionArmedFrame = RTSlotHex(TEXT("7C5CFF"));
-	ReactionArmedIcon = RTSlotHex(TEXT("B9A8FF"));
+	ReactionArmedFill = C(T::BG_Reaction);
+	ReactionArmedFrame = C(T::Violet);
+	ReactionArmedIcon = C(T::Violet_Light);
 }
 
 FText URTActionSlotWidget::GroupHeaderFor(ERTActionGroup Group)
