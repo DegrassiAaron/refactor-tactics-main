@@ -201,6 +201,13 @@ struct FRTUnitCardView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FName HeroId;
 
+	/**
+	 * Il nome da leggere, «Aevik»: `ARTUnit::DisplayLabel` ([D-120]), lo stesso dell'etichetta sopra l'unita'
+	 * (#3636). ⛔ Mai `HeroId`: `WBP_RT_UnitCard` stampava l'id grezzo, «Hero.Aevik».
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText DisplayName;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Health = 0;
 
@@ -911,6 +918,25 @@ struct FRTPlayerEventLineView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bHasBlocker = false;
+
+	/** La fase dell'evento (`FRTPlayerEvent::Phase`): la striscia e la sigla della riga del registro (#3637). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/**
+	 * Il numero della riga, «#3», da 1 (#3637).
+	 *
+	 * 🔴 **E' la posizione nel feed GIA' FILTRATO per chi guarda, non l'indice della voce nel TurnLog.** Un indice
+	 * globale avrebbe dei buchi dove stanno gli eventi che chi guarda non vede, e i buchi direbbero quanti sono: un
+	 * conteggio di dati privati, lo stesso genere di metadato che #2757 vieta per gli slot. Le righe tagliate da
+	 * `MaxFeedLines` tengono il loro numero.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Sequence = 0;
+
+	/** Vero se la riga e' una reazione scattata: il chip `REAZ.` (#3637). La frase lo dice gia'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bReaction = false;
 };
 
 
@@ -1203,6 +1229,15 @@ struct FRTPlanWarningView
 	FName SourceActionId;
 };
 
+/** I tre chip del pannello dell'unita' (#3636). Solo C++: lo usa `ChipForWarning`. */
+enum class ERTPlanChip : uint8
+{
+	None,
+	Main,
+	Movement,
+	Reaction,
+};
+
 /** Il contatore accanto a `Conferma`: un numero per livello, per tutte le unita' comandate ([D-494]). */
 USTRUCT(BlueprintType)
 struct FRTPlanWarningCounts
@@ -1385,6 +1420,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static float ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header);
 
+	/**
+	 * La parola della fase LOGICA, in italiano: «Pianificazione», «Ready», «Preparazione» (con «(in pausa)»),
+	 * «Risoluzione», «Fine». Sede unica (#3635): la usano la riga di stato del Canvas e l'header UMG.
+	 *
+	 * 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`, `#2386`): durante il Ready e la finestra
+	 * di preparazione la fase e' ancora `Planning`, e una parola sola direbbe «Pianificazione» mentre il piano sta
+	 * per partire. ⛔ Non nomina la fase RIPRODOTTA: quella e' `PlaybackPhase`, e in Risoluzione l'header la mostra
+	 * nelle celle, non qui.
+	 */
+	static FString ComposePhaseWord(const FRTMatchHeaderView& Header);
+
+	/**
+	 * Vero se la mappa della partita dichiara un obiettivo (`URTHexMapAsset::HasObjectiveCell`). Falso senza
+	 * manager o senza mappa.
+	 *
+	 * 🔴 **I punteggi di `FRTMatchHeaderView` significano qualcosa solo se questa e' vera** (vedi `Team0Score`):
+	 * su una mappa senza obiettivo `0-0` sarebbe un punteggio inventato. Portare la condizione dentro il tipo e'
+	 * #2281; fino ad allora chi mostra il punteggio la chiede qui.
+	 */
+	static bool MapDeclaresObjective(const ARTTurnManager* TurnManager);
+
 
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
@@ -1494,6 +1550,26 @@ public:
 	 * azioni e cambiando il dato.
 	 */
 	static ERTActionPhaseMark PhaseMarkFor(const FRTActionDef& Def);
+
+	/**
+	 * Il segno di fase di uno slot pianificato di `Unit` (#3636): quello dell'azione che lo occupa (`PhaseMarkFor`
+	 * sul suo `Def`), `Move` per un percorso senza azione, `None` per uno slot libero o un'azione fuori dal kit.
+	 *
+	 * ⚠️ **Si chiede per un'unita' COMANDATA**, la stessa da cui vengono gli slot: chi ha uno slot autorizzato ha
+	 * gia' il piano, e il segno non gli dice niente di piu'.
+	 */
+	static ERTActionPhaseMark SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot);
+
+	/**
+	 * A quale chip del pannello appartiene un avviso (#3636): ogni avviso a uno solo.
+	 *  - **principale** se nomina l'azione della principale;
+	 *  - **reazione** se nomina quella della reazione;
+	 *  - altrimenti **movimento**, se occupato: e' l'unica altra voce del piano, comprese quelle che `MakePlanFor`
+	 *    aggiunge dal core e che lo slot non nomina (`Action.Move` per un percorso, il caso canonico del conflitto
+	 *    scatto + movimento).
+	 * `None` per una vista non autorizzata, o un avviso che non nomina un'azione.
+	 */
+	static ERTPlanChip ChipForWarning(const FRTUnitSlotsView& Slots, const FRTPlanWarningView& Warning);
 
 	/**
 	 * L'etichetta di un segno: `PREP` … `CLEANUP`, `REAZ.`, e `—` per `None`.

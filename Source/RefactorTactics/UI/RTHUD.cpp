@@ -1427,30 +1427,12 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 	else
 	{
-		// 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`). Durante l'attesa la fase e'
-		// ancora `Planning`: una riga che si limitasse a scambiare i secondi direbbe «Pianificazione» mentre
-		// il piano sta per partire, e il criterio chiede che i due stati si distinguano **senza contare i
-		// secondi**.
+		// Il Ready (`#2358`) e la finestra di preparazione (`#2386`): qui decidono il NUMERO e il suggerimento dei
+		// tasti. La PAROLA la decide `ComposePhaseWord` (#3635), la stessa dell'header UMG: una sede sola, non due
+		// switch che possono dissentire.
 		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
-
-		// 🔑 **La finestra di preparazione ha la propria parola, per la stessa ragione del Ready** (`#2386`).
-		// Anche qui la fase e' ancora `Planning`, e anche qui i due stati devono distinguersi **senza contare
-		// i secondi**: in autobattle «Pianificazione» sarebbe falso — i bot hanno gia' pianificato, e cio'
-		// che scorre e' il tempo dato a chi guarda per leggere i piani.
 		const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
-
-		const TCHAR* PhaseName = TEXT("");
-		switch (Header.Phase)
-		{
-		case ERTMatchPhase::Planning:
-			PhaseName = bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
-			          : bReadyCountdown ? TEXT("Ready")
-			          : TEXT("Pianificazione");
-			break;
-		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
-		default:                        PhaseName = TEXT("Risoluzione"); break;
-		}
-		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
+		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, *URTHudViewModel::ComposePhaseWord(Header));
 
 		// ⚠️ **Non-positivo significa «non si applica», e comprende lo ZERO.** La vista porta un negativo
 		// quando la domanda non si pone — fuori dal Planning, o senza timer nelle run headless che girano con

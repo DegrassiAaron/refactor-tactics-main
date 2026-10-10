@@ -338,9 +338,9 @@ bool FRTActionSlotHasIconSurfaceTest::RunTest(const FString&)
 /**
  * Ogni widget di Match che ha una classe base RT la dichiara davvero.
  *
- * ⚠️ **`UnitCard` e' escluso di proposito**: non esiste una `URTUnitCardWidget` in `Source/`, quindi il
- * Blueprint deriva da `UUserWidget` ed e' una scelta, non un difetto. Il test lo dice invece di lasciarlo
- * dedurre da un'assenza — chi aggiungesse quella classe domani troverebbe qui la riga da cambiare.
+ * ⚠️ **`UnitCard` non e' ancora qui, e la classe c'e'**: `URTUnitCardWidget` esiste da #3636, ma l'asset si
+ * riparenta nella seduta di stile. La riga `{ UnitCardPath, TEXT("UnitCard"), URTUnitCardWidget::StaticClass() }`
+ * entra nella stessa PR dell'asset: prima sarebbe rossa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchWidgetsDeriveFromCppBaseTest,
 	"RefactorTactics.ScreenHud.MatchWidgetsDeriveFromCppBase",
@@ -1584,6 +1584,20 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("ConfirmText"), UTextBlock::StaticClass() },
 		{ TEXT("UndoButton"), UButton::StaticClass() },
 		{ TEXT("UndoText"), UTextBlock::StaticClass() },
+		// La resa della tavola (#3633, seduta U72): le porte di [D-496] e il contatore di [D-494].
+		{ TEXT("CommitRoot"), UWidget::StaticClass() },
+		{ TEXT("WarningCounter"), UWidget::StaticClass() },
+		{ TEXT("CriticalBadge"), UWidget::StaticClass() },
+		{ TEXT("CriticalCountText"), UTextBlock::StaticClass() },
+		{ TEXT("WarningBadge"), UWidget::StaticClass() },
+		{ TEXT("WarningCountText"), UTextBlock::StaticClass() },
+		{ TEXT("InfoBadge"), UWidget::StaticClass() },
+		{ TEXT("InfoCountText"), UTextBlock::StaticClass() },
+		{ TEXT("ConfirmFrame"), UBorder::StaticClass() },
+		{ TEXT("UndoFrame"), UBorder::StaticClass() },
+		{ TEXT("ConfirmIcon"), UTextBlock::StaticClass() },
+		{ TEXT("ConfirmKeyText"), UTextBlock::StaticClass() },
+		{ TEXT("UndoKeyText"), UTextBlock::StaticClass() },
 	};
 
 	struct FAsset
