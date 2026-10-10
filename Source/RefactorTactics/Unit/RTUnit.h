@@ -2122,11 +2122,14 @@ protected:
 	 * Posizione, rotazione e scala ASSOLUTE come `ContactGhost`: resta sulla cella del ricordo anche se
 	 * l'attore vero si e' spostato altrove. `NoCollision`, nessuna ombra.
 	 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	//
+	// ⛔ **Niente `BlueprintReadOnly`, di proposito** (`Unit.BlueprintSurfaceIsCensused`): nessun grafo ne ha
+	// bisogno, e una maniglia in piu' e' una riga in piu' nel censimento della privacy senza un consumatore.
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> ContactToken;
 
 	/** La «X» del segnalino del ricordo: testo piatto rivolto in alto, simmetrico per rotazioni di 90° dello yaw. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
 	TObjectPtr<UTextRenderComponent> ContactTokenMark;
 
 	/** Vedi `SetStrategicPresentation`. Nasce tattica. */
