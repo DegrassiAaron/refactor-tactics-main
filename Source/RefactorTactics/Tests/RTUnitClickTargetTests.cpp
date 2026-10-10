@@ -285,8 +285,8 @@ bool FRTStrategicTokenTakesTheSlantedClickTest::RunTest(const FString&)
 
 	Unit->SetStrategicPresentation(true);
 	const FBox Segnalino = Unit->GetPlaceholderWorldBoxForTest();
-	TestEqual(TEXT("in strategica il segnalino poggia sulla cella"), Segnalino.Min.Z, Suolo, 2.f);
-	TestEqual(TEXT("ed e' alto quanto il segnaposto nativo"), Segnalino.Max.Z - Segnalino.Min.Z,
+	TestEqual(TEXT("in strategica il segnalino poggia sulla cella"), static_cast<float>(Segnalino.Min.Z), Suolo, 2.f);
+	TestEqual(TEXT("ed e' alto quanto il segnaposto nativo"), static_cast<float>(Segnalino.Max.Z - Segnalino.Min.Z),
 		2.f * ARTUnit::UnitHalfHeight, 2.f);
 	TestTrue(TEXT("il raggio verso +120 prende l'unita'"), Prende(120.f));
 	TestTrue(TEXT("e anche quello verso +40"), Prende(40.f));
