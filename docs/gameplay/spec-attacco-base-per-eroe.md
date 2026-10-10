@@ -153,27 +153,32 @@ Misurato: **0** occorrenze di una regola «fino alla gittata massima» in `Sourc
 
 ### 5.3 Si può sparare verso un esagono non visibile
 
-**Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede.
+**Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede — **anche dietro un
+ostacolo** — e il colpo viaggia **dritto**: il primo ostacolo sul percorso lo ferma. L'ostacolo si danneggia solo
+se l'azione dichiara `DamageStructure`, come per ogni azione `Required`, e l'attacco base non lo dichiara.
+[`D-490`](../decisions/RT_PDR_00_Decision_Log.md) precisa così `D-415` (4).
 
-**Stato**: ⛔ **decisa e NON implementata — scorporata in
-[#3608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3608) il 2026-10-10**, per decisione
-d'autore. `ERTLineOfSightPolicy::Required` resta il default di `FRTActionDef` e anche di `Action.BasicAttack`.
+**Stato**: ✅ **implementata da [#3608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3608)**.
+`Action.BasicAttack` porta `ERTLineOfSightPolicy::BlindAimDirect`, e `MakeHeroBasicAttack` la **copia** in ogni
+attacco base d'eroe (`BaseActionId == Action.BasicAttack`).
 
-🔑 **Perché la licenza del mortaio non basta.** `NotRequired` ([`D-380`](../decisions/RT_PDR_00_Decision_Log.md))
-non toglie solo la **vista**: toglie la linea, cioè anche la **traiettoria**. Misurato su `eef73d71a` (branch di
-[#3230](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3230)), suite completa: con l'attacco base a
-`NotRequired` i muri non lo fermano più, coperture e strutture sul percorso non vengono più colpite, l'HUD non
-rifiuta più un bersaglio oltre un muro — una famiglia di test rossa, tutta verde rimettendo `Required` su quella
-sola riga. Il testo deciso dice *«mirare»*, non *«attraversare»*, e [`D-418`](../decisions/RT_PDR_00_Decision_Log.md)
-(3) dice che il prezzo del mortaio compra proprio la **traiettoria**. La domanda — mira al buio con traiettoria
-indiretta, o diretta — è in #3608, con l'elenco dei test e cosa asserivano.
+| Momento | `Required` | **`BlindAimDirect`** (attacco base) | `NotRequired` (mortaio) |
+|---|---|---|---|
+| **Pianificazione** — si può mirare una cella oltre un ostacolo? | no, `NoLineOfSight` | **sì** | sì |
+| **Risoluzione** — un ostacolo sul percorso ferma il colpo? | sì | **sì** | no, passa sopra |
 
-✅ **Ciò che resta, e che #3608 trova pronto**: `MakeHeroBasicAttack` **copia** la policy del core in ogni azione
-d'eroe derivata (`BaseActionId == Action.BasicAttack`), quindi il cambio sarà una riga, nel catalogo core. Il
-gate è `RefactorTactics.HeroCatalog.EveryBasicAttackTakesTheCorePolicy`. ⌫ *Fra il 2026-09-20 e il 2026-10-09
-#3230 dichiarava il punto (3) fatto e in partita era un no-op: la riga sul core c'era, la copia agli eroi no —
-trovato dalla code review di #3230. Il 2026-10-09 è stato implementato davvero, e la suite completa del
-2026-10-10 ha mostrato il costo qui sopra.*
+Le due domande hanno un nome ciascuna — `URTCombatLibrary::RequiresSightToAim` e `URTCombatLibrary::TravelsDirect` —
+e chi legge la policy passa da lì. Gate: `RefactorTactics.BlindFire.BasicAttackAimsBehindAWallAndTheWallStopsIt`
+(le due metà, con controllo positivo) e `RefactorTactics.HeroCatalog.EveryBasicAttackTakesTheCorePolicy`.
+
+⚠️ **La nebbia non è la novità.** Con `Required` un attacco mirava già una cella fuori dal raggio visivo quando nessun
+ostacolo è in mezzo: il targeting a cella guarda gittata e geometria, non la visione. Ciò che `BlindAimDirect`
+aggiunge è la cella **dietro un ostacolo**, dove il colpo parte e si ferma sull'ostacolo.
+
+⌫ *La strada fatta.* Fra il 2026-09-20 e il 2026-10-09 #3230 dichiarava il punto fatto e in partita era un no-op (la
+copia agli eroi mancava). Il 2026-10-09 è stato implementato con `NotRequired`, la licenza del mortaio, e la suite
+completa del 2026-10-10 ha mostrato che toglieva anche la **traiettoria**: muri e coperture non fermavano più
+l'attacco base, le strutture sul percorso non venivano colpite. Scorporato in #3608, e lì deciso come sopra.
 
 🔴 **È la più cara delle tre, e il prezzo è documentato.**
 [`D-380`](../decisions/RT_PDR_00_Decision_Log.md) ha **pagato** quella licenza per `Action.Mortar`: **12**

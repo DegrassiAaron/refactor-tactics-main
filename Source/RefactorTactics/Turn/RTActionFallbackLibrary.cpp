@@ -69,8 +69,11 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// con `None` in cima a questa funzione, e la sua linea di tiro la giudica `CollectHexAttacks`, che e'
 	// l'owner della geometria dei colpi a cella. Passarla comunque non e' ridondanza: e' cio' che tiene il
 	// dato unico se domani un'azione mirata a un'unita' dichiarera' il tiro indiretto.
+	//
+	// D-490 (#3608): qui si giudica un colpo che parte, quindi conta la TRAIETTORIA e non la licenza di mira —
+	// `BlindAimDirect` ha mirato al buio, ma il primo ostacolo lo ferma come `Required`.
 	if (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Aim, Instance.Def.RangeCells,
-		Instance.Def.LineOfSightPolicy) == ERTHexTargetReason::NoLineOfSight)
+		URTCombatLibrary::TrajectoryPolicy(Instance.Def.LineOfSightPolicy)) == ERTHexTargetReason::NoLineOfSight)
 	{
 		return ERTActionInvalidReason::NoLineOfSight;
 	}
