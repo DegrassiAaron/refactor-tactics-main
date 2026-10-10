@@ -330,6 +330,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		Ctx.WElevation = Pesi.WElevation;
 		Ctx.WEngage = Pesi.WEngage;
 		Ctx.WEngageDecay = Pesi.WEngageDecay;
+		Ctx.WPinnedBonusPercent = Pesi.WPinnedBonusPercent;
 		Ctx.WObjective = Pesi.WObjective;
 		Ctx.WObjectiveFalloff = Pesi.WObjectiveFalloff;
 
@@ -400,6 +401,11 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// La CONDIZIONE segue la stessa disciplina degli HP: su un contatto incerto non si sa, e non si
 			// indovina ([D-319], `#2253`). Vedi il ramo `CellOnly` sotto.
 			bool bKnownUnbalanced = Other.bUnbalanced;
+			// [D-415], #3229 — puo' SCATTARE VIA prima del Blast? Il KIT (ha una mobilita' rapida) e' catalogo;
+			// la RICARICA dello scatto e' stato osservabile. Nessun intento: non si legge se lo ha pianificato.
+			const bool bKitScatta = Other.DashAbilityIndex != INDEX_NONE;
+			bool bKnownCanEscape = bKitScatta && Other.bAbilityUsable.IsValidIndex(Other.DashAbilityIndex)
+				&& Other.bAbilityUsable[Other.DashAbilityIndex];
 			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other.StableUnitId,
 				Other.TeamId, Other.Cell))
 			{
@@ -429,6 +435,9 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				// su un ricordo manderebbe il bot a capitalizzare su un'unita' che non vede, ed e' la fuga
 				// di conoscenza che il filtro esiste per chiudere. Il bot perde occasioni, non ne inventa.
 				bKnownUnbalanced = false;
+				// E la ricarica dello scatto e' STATO, non identita': su un ricordo non si conosce, e si assume
+				// il caso sfavorevole — puo' scattare, se il kit lo prevede. Stesso verso sicuro (#3229).
+				bKnownCanEscape = bKitScatta;
 				break;
 			}
 
@@ -440,6 +449,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			Ctx.EnemyRanges.Add(EnemyReach);
 			Ctx.EnemyHealth.Add(KnownHealth);
 			Ctx.EnemyUnbalanced.Add(bKnownUnbalanced);
+			Ctx.EnemyCanEscape.Add(bKnownCanEscape);
 			// CP 13.5 — l'ORIENTAMENTO del nemico, che decide se la sua copertura vale (ADR-0005 §4a).
 			//
 			// Si prende quello corrente e non si filtra, ed e' corretto: il facing e' cio' che la mesh mostra,
@@ -1016,6 +1026,22 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// scatto+attacco, attacco da fermo) e nessun altro. E' cio' che [D-313] chiama «la scelta».
 		const FRTBotUnitFacts* Scelto = nullptr;
 
+		// (1a) di #3229 — la mira e' la CELLA che il bot conosce, come quella di un giocatore: la stessa su cui
+		// `BuildCandidates` ha misurato gittata e linea, cioe' il ricordo su un contatto incerto. Un
+		// bersaglio-unita' si congelerebbe sulla posizione VERA ([D-415]), che il bot non ha valutato.
+		// ⛔ Salvo l'azione che DICHIARA di agganciare: li' l'unita' e' il punto dell'azione.
+		// Una funzione e non due copie: i due rami d'attacco qui sotto devono dichiarare la stessa cosa.
+		auto DichiaraLaCellaConosciuta = [&](FRTBotPlanDecision& P)
+		{
+			const URTActionData* Azione = Bot.GetAbility(BestAbility);
+			const bool bAggancia = Azione && Azione->Def.Fallback == ERTActionFallback::AttackTarget;
+			if (!bAggancia && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
+			{
+				P.bAttackTargetsCell = true;
+				P.PlannedAttackCell = Ctx.Enemies[Best.TargetIndex];
+			}
+		};
+
 		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
 		{
 			Scelto = Target;
@@ -1041,6 +1067,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// vale piu' di una riga risparmiata — un secondo produttore che scriva il campo grezzo e' il modo
 			// in cui l'esclusivita' torna a essere una convenzione.
 			Piano.PlannedAttackTargetIndex = Target->Index;
+			DichiaraLaCellaConosciuta(Piano);
 			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d%s"),
@@ -1053,6 +1080,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			Piano.PlannedCell = Best.DestCell;
 			Piano.PlannedAbilityIndex = BestAbility;
 			Piano.PlannedAttackTargetIndex = Target->Index; // come sopra (`#2884`)
+			DichiaraLaCellaConosciuta(Piano);
 			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d%s"),
