@@ -90,7 +90,7 @@ La posizione è quella della griglia di [`guida-screen-hud-umg.md`](../../techni
 ⚠️ **MAJOR.**
 - La palette di §32 vive solo nei `WBP_*`: `grep -rn "00E0FF\|RT_UI_Cyan" Source/ | wc -l` → 0.
 - Rivestire i widget a mano produce tante copie della palette quanti sono i widget.
-- [D-482](../../decisions/RT_PDR_00_Decision_Log.md) aggiunge i token a §32 e dichiara aperta la loro sede a runtime: è il seguito T6, da fare **prima** delle sedute di stile.
+- [D-482](../../decisions/RT_PDR_00_Decision_Log.md) aggiunge i token a §32 e dichiara aperta la loro sede a runtime: è il seguito T6, da fare **prima** delle sedute di stile. → Sciolto da [D-489](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-10, [#3610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3610)).
 
 ### 4.3 ADZIC — gli esempi delle tavole sono coerenti fra loro, salvo uno
 
@@ -203,7 +203,7 @@ Proposti, **non** creati con questo referto: ciascuno diventa una issue quando l
 | T3 | Il chip `REAZ.` (D-478): la lettura del piano per ogni alleato comandato, da `FRTUnitSlotsView` e **non** da `FRTUnitCardView`, e il predicato che conta l'`Overwatch`. Muto per un'avversaria | C++ + test di privacy | #613 |
 | T4 | L'elenco degli avvisi di piano (D-480), con l'attribuzione di ogni avviso al piano che lo causa: `bFriendlyFire` dice chi è colpito, non da quale piano | C++ + test | #613 |
 | T5 | Indice e totale dell'evento riprodotto, per la striscia Z11 | C++ + test | [#1881](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1881) |
-| T6 | La sede a runtime dei token di §32 (D-482): una sola fonte di stile per i widget | decisione + C++ o asset | #613 |
+| T6 | La sede a runtime dei token di §32 (D-482): una sola fonte di stile per i widget. ✅ **Aperto come [#3610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3610)** (2026-10-10): [D-489](../../decisions/RT_PDR_00_Decision_Log.md) la mette in una libreria C++, `URTUIPalette` | decisione + C++ | #613 |
 | T7 | La barra dei comandi collassata in Risoluzione: riepilogo dei tre slot da `FRTUnitSlotsView` | asset | [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826) |
 | T8 | Le sedute Editor di stile, una per cluster, dopo T6: header e obiettivo · roster e pannello · registro · finestra di reazione · conferma | asset | #613 |
 | T9 | D-488. `Tab` porta lo zoom alla soglia strategica e ritorno; il ciclo della selezione va su `N` **nello stesso commit**. La presentazione isometrica semplificata al centro, sola presentazione | C++ + asset + test | [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) · [#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145) |

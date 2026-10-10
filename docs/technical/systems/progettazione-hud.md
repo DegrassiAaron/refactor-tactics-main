@@ -1540,7 +1540,7 @@ Colori estratti dalla style guide PNG:
 
 > Dal 2026-10-09, [D-482](../../decisions/RT_PDR_00_Decision_Log.md). Vengono dai mockup della skill bar e dalle
 > tavole HUD A–F ([`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md)), che li
-> usano tutte. **Dove vivano a runtime non è ancora deciso.**
+> usano tutte. Dove vivono a runtime lo dice [§32.1](#321-sede-a-runtime).
 
 | Token | Hex | Uso |
 |---|---|---|
@@ -1553,7 +1553,47 @@ Colori estratti dalla style guide PNG:
 | `RT_UI_BG_Invalid` | `#2A1719` | fondo di uno stato non valido |
 | `RT_UI_BG_ProfileActive` | `#0E2A33` | fondo della lettura del movimento attiva |
 
+## Barra dei comandi e fasi
+
+> Dal 2026-10-10, [D-489](../../decisions/RT_PDR_00_Decision_Log.md). Sono colori che la barra dei comandi usava già
+> (#3498) e che §32 non aveva. Le quattro fasi sono quelle decise da [D-233](../../decisions/RT_PDR_00_Decision_Log.md):
+> qui diventano token, senza cambiare valore. `Cleanup` resta senza colore ([D-232](../../decisions/RT_PDR_00_Decision_Log.md),
+> `DEC-SB-3` aperta), e la reazione usa `RT_UI_Violet`, perché non è una quinta fase.
+
+| Token | Hex | Uso |
+|---|---|---|
+| `RT_UI_Icon_Cooldown` | `#3A4454` | icona di un'azione in ricarica (`Stati.dc.html`) |
+| `RT_UI_Violet_Light` | `#B9A8FF` | etichetta `REAZ.` e icona di una reazione armata (`Main.dc.html`) |
+| `RT_UI_Phase_Prep` | `#56B4E9` | fase Prep |
+| `RT_UI_Phase_Dash` | `#009E73` | fase Dash |
+| `RT_UI_Phase_Blast` | `#D55E00` | fase Blast |
+| `RT_UI_Phase_Move` | `#0072B2` | fase Move |
+
 Nota: i token semantici possono derivare da questi colori, ma la UI non deve dipendere solo dal colore.
+
+## 32.1 Sede a runtime
+
+> Dal 2026-10-10, [D-489](../../decisions/RT_PDR_00_Decision_Log.md) (#3610).
+
+Ogni token di questa sezione ha un valore in `ERTUIToken`, e il suo colore si legge con
+`URTUIPalette::ColorFor(Token)` ([`RTUIPalette.h`](../../../Source/RefactorTactics/UI/RTUIPalette.h)): un
+`FLinearColor` già decodificato da sRGB, che un Blueprint legge con un nodo puro. Il nome del valore è il token senza
+`RT_UI_`: `Text_Primary` è `RT_UI_Text_Primary`.
+
+- **Un widget non ricopia un colore di questa sezione.** Prende il token. `URTActionSlotWidget` lo fa dal
+  costruttore; i `WBP_*` lo faranno con le sedute di stile. I colori che §32 non ha (il radar, l'overlay delle
+  unità) restano letterali finché una seduta di stile non decide se portarli su un token, perché farlo cambia i pixel.
+- **Questa tabella e la palette in C++ si controllano a vicenda.** `RefactorTactics.UI.Palette.MatchesStyleGuide`
+  rilegge le righe `RT_UI_…` di questa sezione. Fallisce se un token dell'enum manca qui, se una riga qui manca
+  nell'enum, o se un esadecimale non coincide.
+- **Gli esadecimali scritti nei test dello slot non sono copie da migrare.** `RTActionSlotMockupLookTests` e
+  `RTActionBarNamedPortsTests` li tengono letterali di proposito: sono l'oracolo, indipendente dalla palette, che
+  dice che il passaggio ai token non ha cambiato un pixel.
+- **Un token nuovo si aggiunge in due posti, nello stesso commit**: il valore in coda a `ERTUIToken`, con il suo
+  caso in `URTUIPalette::SRGBFor`, e la riga in questa sezione.
+- **Non è la palette degli overlay del mondo.** Quella è `URTOverlayPalette` (#1941). La linea dello scatto
+  nel Canvas (`RTHUD.cpp`, [D-234](../../decisions/RT_PDR_00_Decision_Log.md)) resta un letterale, perché
+  `overlay_colors()` di `tools/hud-assets/color_metrics.py` la rilegge da quella riga.
 
 ---
 
