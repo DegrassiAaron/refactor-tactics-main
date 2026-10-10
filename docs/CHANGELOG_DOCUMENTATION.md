@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-10 — Conferma come la tavola B: la seduta `U72`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster Conferma. Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U72`, eseguita, con le misure e le tre correzioni trovate a schermo |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T8 di §9: Conferma fatta |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | la riga di `Zone_TopRight`; §7-quater, le cornici dipinte dal C++ e i glifi |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u72-conferma-accanto-alla-tavola.png` e `u72-conferma-stati.png` |
+
+---
+
 ## 2026-10-10 — Il nucleo della vista strategica: `Tab` la apre, `N` cicla la selezione, le unità diventano segnalini
 
 **Origine**: il nucleo di [D-495](decisions/RT_PDR_00_Decision_Log.md), issue
