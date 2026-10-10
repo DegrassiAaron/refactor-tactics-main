@@ -1451,6 +1451,8 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 	Finestra->SafeOutcomeText = NewObject<UTextBlock>(World);
 
 	// --- A. Nessuna finestra: frazione negativa, «Allo scadere» vuoto, barra a zero ------------------------
+	// La barra parte a meta': nasce a zero, e senza questo l'asserto sotto passerebbe anche senza `RefreshLook`.
+	Finestra->CountdownBar->SetPercent(0.5f);
 	Finestra->RefreshLook();
 	TestTrue(TEXT("A: senza finestra la frazione e' negativa"), Finestra->GetCountdownFraction() < 0.f);
 	TestTrue(TEXT("A: e «Allo scadere» e' vuoto"), Finestra->GetSafeOutcomeText().IsEmpty());
@@ -1532,8 +1534,50 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 			Opzione->OptionFrame->Background.OutlineSettings.Width, bSicura ? 2.f : 1.f);
 	}
 	TestEqual(TEXT("C: una sola opzione porta il chip"), Sicure, 1);
-
 	RTWorldFixtures::DestroyWorld(World);
+
+	// --- D. Nel `Brace` la scelta sicura e' «Hold Ground»: «Allo scadere» dice il NOME, non la risposta grezza -----
+	// Nell'Overwatch nome e risposta coincidono («HOLD»), e un `SafeResponse` passato senza `NameFor` resterebbe
+	// verde. Qui divergono.
+	UWorld* MondoBrace = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("D: mondo di prova"), MondoBrace)) { return false; }
+	InitVmWorld(MondoBrace);
+	SpawnVmMap(MondoBrace);
+	ARTUnit* Bracer = SpawnVmUnit(MondoBrace, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnVmUnit(MondoBrace, /*TeamId=*/ 1, FRTCellId(1, 0));
+	ARTTurnManager* TMBrace = MondoBrace->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GMBrace = MondoBrace->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PCBrace = RTWorldFixtures::MakePlayerOnTeam(MondoBrace, /*TeamId=*/ 0);
+	URTFastDecisionWidget* FinestraBrace = NewObject<URTFastDecisionWidget>(MondoBrace);
+	if (!TestNotNull(TEXT("D: Bracer"), Bracer) || !TestNotNull(TEXT("D: Pusher"), Pusher)
+		|| !TestNotNull(TEXT("D: TurnManager"), TMBrace) || !TestNotNull(TEXT("D: GameMode"), GMBrace)
+		|| !TestNotNull(TEXT("D: PlayerController"), PCBrace) || !TestNotNull(TEXT("D: widget"), FinestraBrace))
+	{
+		RTWorldFixtures::DestroyWorld(MondoBrace);
+		return false;
+	}
+	ArmBraceScenario(Bracer, Pusher);
+	GMBrace->HookReactionWindow();
+	FinestraBrace->SetReactionWindowForTest(PCBrace->GetReactionWindowViewModel());
+	TMBrace->LockInAndResolve();
+	if (!TestTrue(TEXT("D: premessa: una finestra del `Brace` attende"), FinestraBrace->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(MondoBrace);
+		return false;
+	}
+	const FString SicuraBrace = FinestraBrace->GetWindow().SafeResponse;
+	const FString NomeSicura = RTReactionResponseText::NameFor(SicuraBrace).ToString();
+	// ⚠️ **Confronti CaseSensitive, esplicitamente**: `TestEqual`/`TestNotEqual` su `FString` ignorano le maiuscole,
+	// e «HOLD GROUND» contro «Hold Ground» risulterebbe uguale — cioe' proprio la differenza da misurare.
+	if (!TestFalse(TEXT("D: premessa: qui nome e risposta divergono"), NomeSicura.Equals(SicuraBrace, ESearchCase::CaseSensitive)))
+	{
+		RTWorldFixtures::DestroyWorld(MondoBrace);
+		return false;
+	}
+	TestTrue(TEXT("D: «Allo scadere» dice il nome della scelta sicura, non la risposta grezza"),
+		FinestraBrace->GetSafeOutcomeText().ToString().Equals(FString(TEXT("Allo scadere: ")) + NomeSicura, ESearchCase::CaseSensitive));
+
+	RTWorldFixtures::DestroyWorld(MondoBrace);
 	return true;
 }
 
