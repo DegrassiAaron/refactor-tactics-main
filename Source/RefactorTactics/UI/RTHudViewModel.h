@@ -918,6 +918,24 @@ struct FRTPlayerEventLineView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bHasBlocker = false;
+
+	/** La fase dell'evento (`FRTPlayerEvent::Phase`): la striscia e la sigla della riga del registro (#3637). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/**
+	 * Il numero della riga, «#3», da 1 (#3637).
+	 *
+	 * 🔴 **E' la posizione nel feed GIA' FILTRATO per chi guarda, non l'indice della voce nel TurnLog.** Un indice
+	 * globale avrebbe dei buchi dove stanno gli eventi che chi guarda non vede, e i buchi direbbero quanti sono: un
+	 * conteggio di dati privati, vietato da #2757. Le righe tagliate da `MaxFeedLines` tengono il loro numero.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Sequence = 0;
+
+	/** Vero se la riga e' una reazione scattata: il chip `REAZ.` (#3637). La frase lo dice gia'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bReaction = false;
 };
 
 

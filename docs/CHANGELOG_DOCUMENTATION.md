@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-10 — Il registro ha le porte della tavola D, e compare solo in Risoluzione
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster registro, parte C++. Issue
+[#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-sexies: il registro, la riga, e perché il «#n» è la posizione nel feed filtrato |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga D4 di §6 |
+
+---
+
 ## 2026-10-10 — Roster e pannello hanno le porte della tavola: la carta ha una classe C++
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello, parte C++. Issue

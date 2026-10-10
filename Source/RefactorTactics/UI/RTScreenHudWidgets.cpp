@@ -2279,3 +2279,120 @@ void URTSelectedUnitPanelWidget::NativeTick(const FGeometry& MyGeometry, float I
 	}
 	RefreshLook(bRiconta);
 }
+
+// =====================================================================================================
+// Il registro come la tavola D (#3637, T8)
+// =====================================================================================================
+
+namespace
+{
+	/** Il segno di una fase del turno, per la striscia e la sigla della riga. */
+	ERTActionPhaseMark RTMarkForPhase(ERTMatchPhase Phase)
+	{
+		switch (Phase)
+		{
+		case ERTMatchPhase::Prep:    return ERTActionPhaseMark::Prep;
+		case ERTMatchPhase::Dash:    return ERTActionPhaseMark::Dash;
+		case ERTMatchPhase::Blast:   return ERTActionPhaseMark::Blast;
+		case ERTMatchPhase::Move:    return ERTActionPhaseMark::Move;
+		case ERTMatchPhase::Cleanup: return ERTActionPhaseMark::Cleanup;
+		case ERTMatchPhase::Planning:
+		case ERTMatchPhase::MatchEnded: break;
+		}
+		return ERTActionPhaseMark::None;
+	}
+
+	bool RTSameLine(const FRTPlayerEventLineView& A, const FRTPlayerEventLineView& B)
+	{
+		return A.Text.EqualTo(B.Text) && A.Phase == B.Phase && A.Sequence == B.Sequence && A.bReaction == B.bReaction
+			&& A.Importance == B.Importance;
+	}
+}
+
+void URTPlayerEventLineWidget::SetLine(const FRTPlayerEventLineView& InLine)
+{
+	const bool bCambiata = !bHasLine || !RTSameLine(Line, InLine);
+	Line = InLine;
+	bHasLine = true;
+
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	const ERTActionPhaseMark Segno = RTMarkForPhase(Line.Phase);
+
+	if (PhaseStrip)
+	{
+		PhaseStrip->SetBrushColor(RTPhaseStripColor(Segno));
+	}
+	if (PhaseLabelText)
+	{
+		PhaseLabelText->SetText(URTHudViewModel::PhaseMarkLabel(Segno));
+		PhaseLabelText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	if (SequenceText)
+	{
+		SequenceText->SetText(FText::FromString(FString::Printf(TEXT("#%d"), Line.Sequence)));
+		SequenceText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(ReactionBadge, Line.bReaction);
+	if (LineText)
+	{
+		LineText->SetText(Line.Text);
+		LineText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+
+	if (bCambiata)
+	{
+		OnLineChanged();
+	}
+}
+
+void URTPlayerEventLogWidget::RefreshLook()
+{
+	const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(GetTurnManager());
+	const bool bRisoluzione = HasMatchContext() && Header.bResolving;
+
+	// [D-496] punto 2: solo in Risoluzione. In Pianificazione la colonna destra resta libera.
+	RTShowIf(LogRoot, bRisoluzione);
+	if (LogTurnText)
+	{
+		FNumberFormattingOptions DueCifre;
+		DueCifre.MinimumIntegralDigits = 2;
+		DueCifre.UseGrouping = false;
+		LogTurnText->SetText(FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Header.Round, &DueCifre)));
+		LogTurnText->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
+	}
+
+	if (!LinesBox || !LineClass)
+	{
+		return; // la seduta non ha ancora dato pannello e classe: le righe restano al grafo
+	}
+	const TArray<FRTPlayerEventLineView> Feed = GetFeed();
+	while (LineWidgets.Num() > Feed.Num())
+	{
+		if (URTPlayerEventLineWidget* Ultima = LineWidgets.Last())
+		{
+			Ultima->RemoveFromParent();
+		}
+		LineWidgets.Pop();
+	}
+	while (LineWidgets.Num() < Feed.Num())
+	{
+		URTPlayerEventLineWidget* Riga = RTCreateChild<URTPlayerEventLineWidget>(*this, LineClass);
+		if (!Riga)
+		{
+			return;
+		}
+		LinesBox->AddChild(Riga);
+		LineWidgets.Add(Riga);
+	}
+	for (int32 i = 0; i < Feed.Num(); ++i)
+	{
+		LineWidgets[i]->SetLine(Feed[i]);
+	}
+}
+
+void URTPlayerEventLogWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	RefreshLook();
+}

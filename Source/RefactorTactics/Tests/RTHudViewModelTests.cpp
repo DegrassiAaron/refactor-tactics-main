@@ -2938,4 +2938,76 @@ bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **I CAMPI NUOVI DELLA RIGA NON DICONO NIENTE DI NASCOSTO** (#3637, T8). Fase, numero e reazione sono ricavati
+ * dagli eventi GIA' filtrati per chi guarda.
+ *
+ * 🔑 **La prova e' metamorfica**: lo stesso log, con e senza le voci che chi guarda non vede, deve dare a chi guarda le
+ * stesse righe, campo per campo. Se il numero «#n» fosse l'indice nel TurnLog, le voci nascoste lascerebbero dei
+ * buchi, e i buchi direbbero quante sono (#2757): qui la differenza sarebbe visibile.
+ *
+ * ⚠️ **Il controllo positivo**: le voci nascoste producono righe per chi le puo' vedere. Senza, il test passerebbe
+ * anche con voci che il proiettore scarta per altre ragioni.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventFeedNewFieldsPrivacyTest,
+	"RefactorTactics.Privacy.EventFeedNewFieldsRevealNothingHidden",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventFeedNewFieldsPrivacyTest::RunTest(const FString&)
+{
+	const auto Voce = [](ERTLogCategory Categoria, uint8 Esito, int32 UnitId, int32 Squadra, ERTMatchPhase Fase)
+	{
+		FRTTurnLogEntry E;
+		E.Category = Categoria;
+		E.Outcome = Esito;
+		E.UnitId = UnitId;
+		E.Phase = Fase;
+		E.SrcCell = FRTCellId(-1, 0, 0);
+		E.TgtCell = FRTCellId(1, 0, 0);
+		E.Verdict.AllowTeam(Squadra);
+		return E;
+	};
+	const uint8 Bloccato = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+
+	// Chi guarda e' la squadra 1. Le voci della squadra 0 sola sono nascoste: in mezzo, non in coda.
+	const FRTTurnLogEntry Visibile1 = Voce(ERTLogCategory::Combat, Bloccato, 3, 1, ERTMatchPhase::Blast);
+	const FRTTurnLogEntry Nascosta1 = Voce(ERTLogCategory::Combat, Bloccato, 9, 0, ERTMatchPhase::Blast);
+	const FRTTurnLogEntry Visibile2 = Voce(ERTLogCategory::Reaction, 0, 5, 1, ERTMatchPhase::Blast);
+	const FRTTurnLogEntry Nascosta2 = Voce(ERTLogCategory::Reaction, 0, 7, 0, ERTMatchPhase::Prep);
+	const FRTTurnLogEntry Visibile3 = Voce(ERTLogCategory::Combat, Bloccato, 11, 1, ERTMatchPhase::Move);
+
+	const TArray<FRTTurnLogEntry> Intero = { Visibile1, Nascosta1, Visibile2, Nascosta2, Visibile3 };
+	const TArray<FRTTurnLogEntry> SenzaNascoste = { Visibile1, Visibile2, Visibile3 };
+
+	// Controllo positivo: le voci nascoste esistono per chi le puo' vedere.
+	if (!TestEqual(TEXT("premessa: la squadra 0 vede le due voci nascoste"),
+			URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 0).Num(), 2))
+	{
+		return false;
+	}
+
+	const TArray<FRTPlayerEventLineView> Righe = URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 1);
+	const TArray<FRTPlayerEventLineView> Attese = URTHudViewModel::BuildPlayerEventFeed(SenzaNascoste, /*ObserverTeamId*/ 1);
+	if (!TestEqual(TEXT("premessa: la squadra 1 vede tre righe"), Righe.Num(), 3)
+		|| !TestEqual(TEXT("le voci nascoste non aggiungono righe"), Righe.Num(), Attese.Num()))
+	{
+		return false;
+	}
+	for (int32 i = 0; i < Righe.Num(); ++i)
+	{
+		const FString Etichetta = FString::Printf(TEXT("riga %d"), i);
+		TestEqual(*(Etichetta + TEXT(": il numero e' la posizione nel feed filtrato, senza buchi")), Righe[i].Sequence, i + 1);
+		TestEqual(*(Etichetta + TEXT(": e coincide con quello del log senza le nascoste")), Righe[i].Sequence, Attese[i].Sequence);
+		TestTrue(*(Etichetta + TEXT(": la fase coincide")), Righe[i].Phase == Attese[i].Phase);
+		TestEqual(*(Etichetta + TEXT(": la reazione coincide")), Righe[i].bReaction, Attese[i].bReaction);
+		TestTrue(*(Etichetta + TEXT(": la frase coincide")), Righe[i].Text.EqualTo(Attese[i].Text));
+	}
+
+	// E i campi dicono cio' che devono: la fase della voce, la reazione dove c'e'.
+	TestTrue(TEXT("la prima riga e' del Blast"), Righe[0].Phase == ERTMatchPhase::Blast);
+	TestFalse(TEXT("e non e' una reazione"), Righe[0].bReaction);
+	TestTrue(TEXT("la seconda e' una reazione"), Righe[1].bReaction);
+	TestTrue(TEXT("la terza e' del Move"), Righe[2].Phase == ERTMatchPhase::Move);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

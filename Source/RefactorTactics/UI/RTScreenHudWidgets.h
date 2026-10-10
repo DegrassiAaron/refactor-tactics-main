@@ -460,6 +460,52 @@ private:
 };
 
 /**
+ * `WBP_RT_EventLine` — UNA riga del registro (#3637, T8). Riceve la vista da `URTPlayerEventLogWidget::RefreshLook`.
+ *
+ * ⛔ **`SetLine` non e' una `UFUNCTION`**: il grafo del registro che costruiva le righe si toglie nella seduta.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTPlayerEventLineWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/** Riceve la riga, scrive le porte, e chiama `OnLineChanged` solo se qualcosa cambia. */
+	void SetLine(const FRTPlayerEventLineView& InLine);
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTPlayerEventLineView GetLine() const { return Line; }
+
+	/** Ridisegna. Qui non c'e' layout. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
+	void OnLineChanged();
+
+	/** La striscia del colore della fase ([D-233]); trasparente per una fase senza colore. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UBorder> PhaseStrip;
+
+	/** La sigla della fase, «BLAST», in `Text_Secondary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> PhaseLabelText;
+
+	/** «#3», in `Text_Secondary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> SequenceText;
+
+	/** Il chip `REAZ.`: visibile solo su una reazione scattata. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> ReactionBadge;
+
+	/** La frase, in `Text_Primary`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> LineText;
+
+private:
+	FRTPlayerEventLineView Line;
+	bool bHasLine = false;
+};
+
+/**
  * `WBP_RT_EventLog` — il feed di chi gioca: cosa e' successo nel turno, filtrato per squadra.
  *
  * 🔴 **E' il consumatore che `#2697` ha misurato mancante.** Il canale autorizzato esisteva, era coperto da
@@ -500,6 +546,42 @@ public:
 	 * questo file rivorrebbe l'header che `#2257` ha tolto.
 	 */
 	TArray<FString> DescribeFeedState() const;
+
+	// ------------------------------------------------------------------------------------------------
+	// La resa della tavola D (#3637, T8; [D-496]): il registro compare solo in Risoluzione.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Tutto il registro: `Collapsed` fuori dalla Risoluzione ([D-496] punto 2). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UWidget> LogRoot;
+
+	/** Il round accanto a «REGISTRO»: «ROUND 04», come l'header ([D-496] punto 1). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> LogTurnText;
+
+	/** Il pannello delle righe. Senza, o senza `LineClass`, il registro non costruisce niente. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UPanelWidget> LinesBox;
+
+	/** La classe delle righe, nei default del WBP come `CardClass` del roster. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TSubclassOf<URTPlayerEventLineWidget> LineClass;
+
+	/**
+	 * Scrive radice, round e righe: una per voce di `GetFeed()`, nell'ordine del feed; le righe che ci sono si riusano.
+	 * La chiama `NativeTick`; i test la chiamano a mano.
+	 */
+	void RefreshLook();
+
+	/** Le righe costruite, nell'ordine del feed (per i test). */
+	const TArray<TObjectPtr<URTPlayerEventLineWidget>>& GetLineWidgets() const { return LineWidgets; }
+
+protected:
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<URTPlayerEventLineWidget>> LineWidgets;
 };
 
 /**
