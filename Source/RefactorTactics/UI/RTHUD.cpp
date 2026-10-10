@@ -268,8 +268,14 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 	OutHitCells.Reset();
 	OutAllyHitCells.Reset();
 
-	for (const ARTUnit* Attacker : Units)
+	// 🔑 **[D-492] (#3620): una verita' sola per il fuoco amico.** Le celle vengono da `MakeBlastPreview` sul piano
+	// di ogni attaccante, la stessa funzione dell'anteprima dell'unita' selezionata. Fino a #3620 si ricalcolavano
+	// qui con `HexHitCells` e saltavano ogni attacco mirato a una CELLA, perche' chiedevano `PlannedAttackTarget`:
+	// l'alleato in un'area su un varco vuoto era segnato dall'anteprima e non da questo overlay.
+	const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		const ARTUnit* Attacker = Units[i];
 		// Solo i piani DELLE PROPRIE unita': quelli avversari non si leggono, nemmeno per dedurne una cella
 		// (invariante #6). Non e' prudenza eccessiva — e' la stessa regola per cui l'HUD non disegna gli
 		// intenti nemici, e va rispettata anche dove il risultato sarebbe «solo» un colore.
@@ -277,36 +283,12 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 		{
 			continue;
 		}
-		const URTActionData* Ability = Attacker->GetAbility(Attacker->PlannedAbilityIndex);
-		const ARTUnit* Target = Attacker->PlannedAttackTarget;
-		if (!Ability || !Target || !Target->IsAlive())
-		{
-			continue;
-		}
-
-		// Le stesse celle che decideranno l'esito: `HexHitCells` e' la funzione del resolver, non una copia.
-		//
-		// [D-464]: e partono da dove l'azione MIRA. ⏱️ *Fino a #3509 da `Attacker->Cell`*: con uno scatto e poi una
-		// `Line`, i segni sulle unita' cadevano su una retta diversa da quella che l'area colpita disegnava.
-		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape,
-			Attacker->AimOriginFor(Ability->Def.ResolutionPhase), Target->Cell, Ability->RangeCells,
-			Ability->AreaRadius);
-		OutHitCells.Append(TSet<FRTCellId>(Hit));
-
-		// Fuoco amico solo se l'azione puo' DAVVERO colpire i propri: segnalare un alleato che non subirebbe
-		// nulla insegna a ignorare il segnale.
-		if (!Ability->Def.bFriendlyFire)
-		{
-			continue;
-		}
-		for (const ARTUnit* Other : Units)
-		{
-			if (Other && Other != Attacker && Other->IsAlive() && Other->TeamId == Attacker->TeamId
-				&& Hit.Contains(Other->Cell))
-			{
-				OutAllyHitCells.Add(Other->Cell);
-			}
-		}
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(
+			URTHudViewModel::MakeBlastPreviewPlan(*Attacker, i, Units), HexUnits);
+		OutHitCells.Append(Blast.HitCells);
+		// `AllyCells` e' vuoto se l'azione non puo' colpire i propri: segnalare un alleato che non subirebbe nulla
+		// insegna a ignorare il segnale.
+		OutAllyHitCells.Append(Blast.AllyCells);
 	}
 }
 

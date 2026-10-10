@@ -240,6 +240,60 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	return Slots;
 }
 
+FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId,
+	const TArray<ARTUnit*>& Units)
+{
+	FRTBlastPreviewPlan Plan;
+	Plan.AttackerId = UnitId;
+	Plan.bDashResolves = Unit.PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
+	Plan.PlannedDashCell = Unit.PlannedDashCell;
+	Plan.bDashIsCharge = Unit.PlannedDashIsCharge();
+
+	const URTActionData* Ability = Unit.GetAbility(Unit.PlannedAbilityIndex);
+	if (!Ability)
+	{
+		return Plan; // solo scatto: un'origine da mostrare e nessuna area
+	}
+
+	Plan.bHasAction = true;
+	// [D-464]: l'area parte da dove l'azione MIRA, e quello dipende dalla sua fase.
+	Plan.Phase = Ability->Def.ResolutionPhase;
+	Plan.Shape = Ability->Shape;
+	Plan.RangeCells = Ability->RangeCells;
+	Plan.AreaRadius = Ability->AreaRadius;
+	// Il fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento impossibile insegna
+	// a ignorare gli allarmi.
+	Plan.bFriendlyFire = Ability->Def.bFriendlyFire;
+	if (Unit.bAttackTargetsCell)
+	{
+		Plan.bTargetsCell = true;
+		Plan.TargetCell = Unit.PlannedAttackCell;
+	}
+	else
+	{
+		// Un bersaglio che non e' in `Units` diventa `INDEX_NONE`, cioe' «nessuna area»; uno caduto ha `bAlive`
+		// falso in `MakeHexCombatUnits`, e l'anteprima lo scarta allo stesso modo.
+		Plan.TargetId = Units.IndexOfByKey(Unit.PlannedAttackTarget.Get());
+	}
+	return Plan;
+}
+
+TArray<FRTHexCombatUnit> URTHudViewModel::MakeHexCombatUnits(const TArray<ARTUnit*>& Units)
+{
+	TArray<FRTHexCombatUnit> HexUnits;
+	HexUnits.Reserve(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		FRTHexCombatUnit HU;
+		HU.UnitId = i;
+		HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
+		HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
+		HU.bAlive = Units[i] && Units[i]->IsAlive();
+		HexUnits.Add(HU);
+	}
+	return HexUnits;
+}
+
 FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId,
 	const TSet<FRTCellId>& PlannedHitCells, const TSet<FRTCellId>& PlannedAllyHitCells)
 {

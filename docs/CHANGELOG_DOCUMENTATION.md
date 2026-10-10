@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-10 — Il fuoco amico ha una verità sola, e il registro riceve D-492
+
+**Origine**: la prima metà del seguito T4 del referto delle tavole A–F, decisa dall'autore in sessione. Issue
+[#3620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3620).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-492** (i segni di fuoco amico derivano dall'anteprima per piano, anche sui bersagli-cella) |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T4 di §9 punta a #3620 per la prima metà |
+
+---
+
 ## 2026-10-10 — Il roster sa quando un'alleata comandata ha armato una reazione
 
 **Origine**: il seguito T3 del referto delle tavole A–F. Issue [#3618](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3618).
