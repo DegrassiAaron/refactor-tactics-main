@@ -719,7 +719,7 @@ bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
 /**
  * 🔴 **Trovato dalla code review di #3230: il punto (3) era un no-op in partita.** Il catalogo core dichiarava
  * `Action.BasicAttack` a `LineOfSightPolicy::NotRequired`, ma `MakeHeroBasicAttack` non copiava il campo e i
- * quattro attacchi base restavano `Required`. Nessun test lo prendeva: `BlindFire.DirectAttackStillRequires
+ * gli attacchi base d'eroe restavano tutti `Required`. Nessun test lo prendeva: `BlindFire.DirectAttackStillRequires
  * LineOfSight` usa un `FRTActionDef` di default e `CellAttackRequiringSightIsRefusedByABlocker` usa
  * `CircularTide`, quindi erano verdi in entrambi i mondi.
  *

@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTResolvedEvent.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -1689,8 +1690,13 @@ bool FRTAimDoesNotFollowTest::RunTest(const FString&)
 {
 	// La stessa scena due volte: nella prima il bersaglio resta fermo, nella seconda SCATTA di una cella.
 	// L'unica variabile e' quello scatto.
-	auto DannoSubito = [this](bool bIlBersaglioSiSposta) -> int32
+	//
+	// 🔴 **E l'ATTIVAZIONE dichiara la stessa mira da cui parte il colpo**: `OutMiraAttivata` e' la cella
+	// dell'`AbilityActivated` del tiratore nel Blast. ⌫ *Fino alla code review di #3230 l'evento portava
+	// `Bersaglio->Cell`, la cella viva: dopo lo scatto dichiarava una mira che il colpo non usava.*
+	auto DannoSubito = [this](bool bIlBersaglioSiSposta, FRTCellId& OutMiraAttivata, int32& OutAttivazioni) -> int32
 	{
+		OutAttivazioni = 0;
 		UWorld* World = MakeHexBlastWorld();
 		if (!World) { return -1; }
 		SpawnHexBlastMap(World, /*Radius=*/ 6);
@@ -1714,6 +1720,17 @@ bool FRTAimDoesNotFollowTest::RunTest(const FString&)
 
 		RunBlastTurn(TM);
 
+		// L'identita' stabile si legge DOPO il turno: il roster la assegna al lock-in.
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Blast
+				&& Ev.SourceStableUnitId == Shooter->StableUnitId)
+			{
+				OutMiraAttivata = Ev.AimCell;
+				++OutAttivazioni;
+			}
+		}
+
 		const int32 Danno = Prima - Foe->Health;
 		const bool bSiEMosso = (Foe->Cell != FRTCellId(3, 0));
 		DestroyHexBlastWorld(World);
@@ -1721,14 +1738,24 @@ bool FRTAimDoesNotFollowTest::RunTest(const FString&)
 		return (bIlBersaglioSiSposta && !bSiEMosso) ? -1 : Danno;
 	};
 
-	const int32 Fermo = DannoSubito(/*bIlBersaglioSiSposta=*/ false);
-	const int32 Spostato = DannoSubito(/*bIlBersaglioSiSposta=*/ true);
+	FRTCellId MiraFermo, MiraSpostato;
+	int32 AttivazioniFermo = 0, AttivazioniSpostato = 0;
+	const int32 Fermo = DannoSubito(/*bIlBersaglioSiSposta=*/ false, MiraFermo, AttivazioniFermo);
+	const int32 Spostato = DannoSubito(/*bIlBersaglioSiSposta=*/ true, MiraSpostato, AttivazioniSpostato);
 
 	// CONTROLLO POSITIVO: la scena spara davvero, e il passo di lato e' davvero avvenuto (il `-1`).
 	if (!TestTrue(TEXT("controllo positivo: fermo, il bersaglio incassa"), Fermo > 0)) { return false; }
 	if (!TestTrue(TEXT("premessa: il bersaglio si e' davvero spostato"), Spostato >= 0)) { return false; }
 
 	TestEqual(TEXT("spostandosi non viene seguito: il colpo cade sulla cella mirata"), Spostato, 0);
+
+	// L'attivazione: una sola per scena (il colpo PARTE anche quando va a vuoto), e sulla cella mirata.
+	// Nella scena «fermo» cella viva e mira coincidono, quindi e' il controllo positivo della lettura.
+	TestEqual(TEXT("controllo positivo: fermo, un'attivazione del tiratore nel Blast"), AttivazioniFermo, 1);
+	TestEqual(TEXT("controllo positivo: fermo, l'attivazione mira il bersaglio"), MiraFermo, FRTCellId(3, 0));
+	TestEqual(TEXT("spostato, un'attivazione del tiratore nel Blast"), AttivazioniSpostato, 1);
+	TestEqual(TEXT("🔴 spostato, l'attivazione dichiara la mira congelata, non la cella dello scatto"),
+		MiraSpostato, FRTCellId(3, 0));
 	return true;
 }
 

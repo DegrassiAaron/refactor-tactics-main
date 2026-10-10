@@ -881,8 +881,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
 		// 🔴 **La mira e' quella CONGELATA AL LOCK-IN, non la cella corrente del bersaglio** ([D-415]).
 		// `Target->Cell` qui sarebbe la posizione POST-movimento, e usarla e' il difetto che la decisione
-		// chiude: il colpo inseguiva. Il ripiego su `Target->Cell` copre i piani scritti direttamente
-		// (harness, test) che non passano dal lock-in, e resta il comportamento di prima per loro.
+		// chiude: il colpo inseguiva. Il ripiego su `Target->Cell` NON e' un percorso supportato: il Blast
+		// si raggiunge solo da `RunPhaseLoop`, cioe' da `LockInAndResolve` o dal rientro dopo un `Brace` a
+		// turno gia' congelato — harness e test compresi. Resta perche' un'istanza senza cella sarebbe peggio,
+		// e l'`ensure` sopra la decisione della cella lo rende visibile se qualcuno lo raggiunge.
 		//
 		// ✅ **SALVO per chi DICHIARA di agganciare**, che e' l'uscita che [D-415] nomina per esteso:
 		// *«resta legittimo per le abilita' che dichiarano di agganciare»*. La dichiarazione e'

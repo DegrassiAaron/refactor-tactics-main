@@ -1232,7 +1232,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// 🔑 **E' la voce piu' cara delle tre, e il motivo e' che tocca un prezzo gia' pagato.** [D-380] aveva
 	// concesso il tiro indiretto a `Action.Mortar` **facendolo pagare**: 12 danni invece dei 18 del gemello
-	// `Action.CircularAoE`, ricarica 3 invece di 2. Renderlo comune a quattro attacchi base gratuiti e senza
+	// `Action.CircularAoE`, ricarica 3 invece di 2. Renderlo comune a ogni attacco base, gratuito e senza
 	// ricarica significa che quel prezzo non comprava una capacita': comprava un'**esclusiva**.
 	//
 	// ⛔ **E il mortaio NON si riprezza** ([D-418], che chiude `SKB-5`): a 18 e ricarica 2 eguaglierebbe
