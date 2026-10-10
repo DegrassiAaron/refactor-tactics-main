@@ -305,6 +305,8 @@ namespace
 		// unita' dell'HUD, cosi' anteprima e overlay non possono piu' dire due cose diverse sullo stesso piano.
 		const FRTBlastPreviewPlan PreviewPlan = URTHudViewModel::MakeBlastPreviewPlan(*Unit, UnitId, Units);
 		const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
+		// L'azione principale serve ancora piu' sotto, alla timeline delle fasi: e' la stessa che il piano ha tradotto.
+		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
 
 		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
 		HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
