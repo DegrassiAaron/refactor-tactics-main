@@ -86,6 +86,15 @@ namespace
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		B.Dock = NewObject<URTActionDockWidget>(B.World);
 		if (!B.Mine || !B.Nemico || !B.PC || !B.Dock) { return false; }
+		// 🔴 **Il soggetto e' il RIFIUTO oltre il muro, e serve un attacco che la linea la CHIEDA.** Da D-490 (#3608)
+		// l'attacco base mira al buio (`BlindAimDirect`): oltre il muro non si rifiuta piu', il colpo parte e il muro
+		// lo ferma. Il banco dichiara `Required` sulla PROPRIA copia (`MakeMuiren` crea dati nuovi a ogni chiamata,
+		// il kit spedito non cambia), e `SlotRefusalGeometryHolds` misura che il rifiuto c'e'.
+		// ⌫ *Fino a #3608 i banchi usavano l'attacco base cosi' com'e'.*
+		if (B.Mine->Abilities.IsValidIndex(GSlotRefusalAttacco) && B.Mine->Abilities[GSlotRefusalAttacco])
+		{
+			B.Mine->Abilities[GSlotRefusalAttacco]->Def.LineOfSightPolicy = ERTLineOfSightPolicy::Required;
+		}
 		B.PC->SelectActorForTest(B.Mine);
 		B.Dock->SetCommandControllerForTest(B.PC);
 		B.Dock->SetSelectedUnitForTest(B.Mine);

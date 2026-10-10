@@ -875,6 +875,74 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
 }
 
 /**
+ * **L'attacco base MIRA dietro il muro, e il muro lo FERMA** — D-490, che precisa [D-415] punto 3 e [D-418]
+ * punto 3 (#3608).
+ *
+ * Le due meta' della policy `BlindAimDirect`, sulla stessa scena di `Cover.Destruction.LoggedInPlayedTurn`:
+ * - in PIANIFICAZIONE la cella oltre il muro non si rifiuta — mentre un'azione `Required` sulla stessa geometria
+ *   si', ed e' il controllo positivo che il muro c'e';
+ * - in RISOLUZIONE il colpo, dichiarato sulla CELLA come farebbe chi mira al buio, viaggia dritto: il muro lo
+ *   ferma e lo prende, e chi sta dietro resta intatto.
+ *
+ * ⛔ **Il mortaio fa l'opposto**, ed e' la differenza che [D-418] (3) fa pagare: `NotRequired` passa sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBasicAttackBlindAimDirectPathTest,
+	"RefactorTactics.BlindFire.BasicAttackAimsBehindAWallAndTheWallStopsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBasicAttackBlindAimDirectPathTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Muro alto sul bordo W di (1,0): separa (0,0) da (2,0).
+	const FRTCellId Walled(1, 0);
+	FRTHexCellData WithWall = *MapActor->MapAsset->FindCell(Walled);
+	WithWall.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+	MapActor->MapAsset->AddOrUpdateCell(WithWall);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Base = Shooter->Abilities.IsValidIndex(0) ? Shooter->Abilities[0].Get() : nullptr;
+	if (!TestTrue(TEXT("premessa: l'indice 0 e' l'attacco base, con la policy del catalogo (D-490)"),
+			Base && Base->Def.BaseActionId == FName(TEXT("Action.BasicAttack"))
+			&& Base->Def.LineOfSightPolicy == ERTLineOfSightPolicy::BlindAimDirect))
+	{
+		DestroyHexBlastWorld(World); return false;
+	}
+
+	// PIANIFICAZIONE — la licenza di mira.
+	const URTHexMapAsset* Map = MapActor->MapAsset;
+	TestEqual(TEXT("controllo positivo: un'azione Required oltre il muro e' rifiutata"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Foe->Cell, Base->RangeCells, ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::NoLineOfSight);
+	TestEqual(TEXT("🔴 l'attacco base oltre il muro NON e' rifiutato: mira al buio"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Foe->Cell, Base->RangeCells, Base->Def.LineOfSightPolicy),
+		ERTHexTargetReason::Ok);
+
+	// RISOLUZIONE — la traiettoria. L'abilita' dichiara di poter sfondare, come nel test della copertura, cosi' il
+	// colpo fermato lascia un segno misurabile sul muro.
+	Base->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->DeclareAttackOnCell(Foe->Cell);
+	const int32 HealthBefore = Foe->Health;
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("🔴 il muro ha fermato il colpo: chi sta dietro e' intatto (traiettoria diretta)"), Foe->Health, HealthBefore);
+	const FRTHexCellData* After = MapActor->MapAsset->FindCell(Walled);
+	TestTrue(TEXT("e il muro e' stato preso: in piedi, danneggiato"),
+		After && After->Covers.Num() == 1 && After->Covers[0].Integrity < FRTHexCover::DefaultIntegrity(ERTHexCoverType::High));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
  * Il difetto che CP 9.3 esiste per impedire, e che nessun test puro sul pathfinding puo' trovare: il percorso
  * del Move e' stato validato PRIMA, al momento del click, e `ResolveMovement` lo esegue com'e'. Se una porta si
  * chiude nel Blast — cioe' a meta' turno — un percorso che la attraversava produrrebbe un passo fantasma.

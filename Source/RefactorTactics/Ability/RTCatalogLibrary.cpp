@@ -1228,19 +1228,20 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// ⛔ **La linea di tiro resta RICHIESTA** — il default `Required` — e il punto (3) di [D-415] («l'attacco
-	// base puo' mirare a un esagono che non vede») **non e' implementato qui**: e' in #3608.
+	// 🔴 **L'attacco base MIRA al buio e VIAGGIA dritto** — [D-415] punto (3), precisato da D-490 (#3608).
 	//
-	// 🔑 **Perche' non basta la licenza del mortaio.** `NotRequired` ([D-380]) non toglie solo la VISTA: toglie
-	// la linea, cioe' anche la TRAIETTORIA. Misurato su `eef73d71a` (branch di #3230): con questa riga a
-	// `NotRequired` i muri non fermano piu' l'attacco base, coperture e strutture sul percorso non vengono piu'
-	// colpite, l'HUD non rifiuta un bersaglio oltre un muro — e il testo deciso non lo mostrava, mentre [D-418]
-	// (3) dice che il prezzo del mortaio compra proprio la **traiettoria**. Scorporato il 2026-10-10 per
-	// decisione d'autore; la domanda (mira al buio con traiettoria indiretta, o diretta) e' in #3608.
+	// Si dichiara il colpo su una cella che non si vede, anche dietro un ostacolo; il colpo parte e il primo
+	// ostacolo sul percorso lo ferma e lo prende, come per ogni azione `Required`.
 	//
-	// ⚠️ La derivazione verso gli eroi esiste gia': `MakeHeroBasicAttack` copia questo campo, quindi il giorno
-	// in cui #3608 lo cambia qui cambia per ogni attacco base d'eroe — senza il no-op trovato dalla code
-	// review di #3230.
+	// 🔑 **Perche' NON la licenza del mortaio.** `NotRequired` ([D-380]) toglie anche la TRAIETTORIA: misurato su
+	// `eef73d71a` (branch di #3230), con l'attacco base a `NotRequired` i muri non lo fermavano piu', coperture e
+	// strutture sul percorso non venivano piu' colpite — e [D-418] (3) dice che il prezzo del mortaio compra
+	// proprio la traiettoria. ⌫ *Fra il 2026-10-10 (scorporo da #3230) e #3608 questa riga mancava, e l'attacco
+	// base restava `Required`.*
+	//
+	// ⚠️ La derivazione verso gli eroi e' `MakeHeroBasicAttack`, che copia questo campo: cambia qui, cambia per
+	// ogni attacco base d'eroe. Gate: `HeroCatalog.EveryBasicAttackTakesTheCorePolicy`.
+	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::BlindAimDirect;
 
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
 	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non

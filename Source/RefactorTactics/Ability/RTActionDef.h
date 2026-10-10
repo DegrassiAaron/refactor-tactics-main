@@ -223,7 +223,23 @@ enum class ERTLineOfSightPolicy : uint8
 	 * ⚠️ **Non toglie NIENTE ALTRO**: portata, terreno, forma, fuoco amico e ogni altro vincolo dell'azione
 	 * restano. Cieco non significa illimitato — `BlindFireStillObeysRange` lo pinna.
 	 */
-	NotRequired
+	NotRequired,
+
+	/**
+	 * **Mira cieca, traiettoria diretta** (D-490, che precisa [D-415] punto 4 e [D-418] punto 3; #3608).
+	 * In PIANIFICAZIONE la linea non si chiede: si puo' dichiarare il colpo su una cella che non si vede, anche
+	 * dietro un ostacolo. In RISOLUZIONE il colpo viaggia DRITTO: il primo ostacolo sul percorso lo ferma e lo
+	 * prende, esattamente come per `Required`.
+	 *
+	 * 🔑 **E' cio' che distingue l'attacco base dal mortaio** quando entrambi mirano al buio: il mortaio
+	 * (`NotRequired`) passa SOPRA il muro, l'attacco base ci si ferma contro. Il prezzo di [D-380] compra la
+	 * traiettoria, come dice [D-418] (3).
+	 *
+	 * ⚠️ **In coda, non in mezzo**: i valori serializzati di `Required` (0) e `NotRequired` (1) non cambiano.
+	 * I due momenti li nominano `URTCombatLibrary::RequiresSightToAim` e `URTCombatLibrary::TravelsDirect`:
+	 * chi legge la policy passa da li', e non la confronta a mano.
+	 */
+	BlindAimDirect
 };
 
 /**

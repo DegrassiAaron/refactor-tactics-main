@@ -231,7 +231,11 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 	// l'occupazione per decidere restituirebbe esiti diversi fra un bersaglio vuoto e uno abitato da un
 	// ignoto, e quella differenza sarebbe **essa stessa** il canale ([D-225]) — un rilevatore di presenze
 	// travestito da validazione. `BlindFireIsNotAnEnemyDetector` lo pinna.
-	if (Policy == ERTLineOfSightPolicy::NotRequired)
+	//
+	// D-490 (#3608): la licenza e' di MIRA, quindi vale anche per `BlindAimDirect`. ⚠️ Chi usa questa funzione
+	// per giudicare un colpo GIA' PARTITO — `ValidateInstance` — le passa `TrajectoryPolicy(...)`, perche' li' la
+	// domanda e' la traiettoria, e per l'attacco base la traiettoria e' diretta.
+	if (!RequiresSightToAim(Policy))
 	{
 		return ERTHexTargetReason::Ok;
 	}
