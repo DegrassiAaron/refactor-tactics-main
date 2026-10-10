@@ -9,6 +9,7 @@
 // vede `(-2,0)` e non vede `(1,0)` — le premesse lo chiedono al classificatore invece di darlo per scontato.
 
 #include "Misc/AutomationTest.h"
+#include "EngineUtils.h" // TActorIterator: il turn manager del banco si trova, non si ricostruisce (#3622)
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // IsFastMovement: lo scatto che sposta l'origine del Blast
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -25,6 +26,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTTurnManager.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTHUD.h" // RefusalText: il perche' dell'avviso degradato e' il testo del rifiuto dello slot (#3622)
 #include "UI/RTScreenHudWidgets.h"
 #include "Unit/RTUnit.h"
 #include "RTWorldFixtures.h"
@@ -513,6 +515,210 @@ bool FRTSlotRefusalTooltipPrivacyTest::RunTest(const FString&)
 	TestEqual(TEXT("ignoto: la riga non porta nessun rifiuto"), Ignoto.PlanDegradedRefusal, ERTTargetRefusal::None);
 	TestTrue(TEXT("⛔ e il tooltip non dice niente"),
 		URTHudViewModel::BuildActionTooltip(Ignoto, /*bArmed=*/ false).Reason.IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+namespace
+{
+	/** La prima azione del kit con una ricarica: pianificata e consumata, rende il piano illegale per il validatore. */
+	int32 SlotRefusalCooldownAbility(const ARTUnit* Unit)
+	{
+		for (int32 i = 0; Unit && i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->CooldownTurns > 0 && !A->Def.ActionId.IsNone())
+			{
+				return i;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	ARTTurnManager* SlotRefusalTurnManager(UWorld* World)
+	{
+		for (TActorIterator<ARTTurnManager> It(World); It; ++It)
+		{
+			return *It;
+		}
+		return nullptr;
+	}
+}
+
+/**
+ * 🔑 **GLI AVVISI DI PIANO RIPORTANO LE FONTI CHE ESISTONO** ([D-480], #3622): il validatore per il `Critical`, il
+ * ripiego dello slot per il `Warning`. Lo stesso banco dei test dello slot, cosi' le fonti sono quelle che lo slot
+ * gia' legge: un avviso che le ricalcolasse potrebbe dire altro dallo slot.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningsSourcesTest,
+	"RefactorTactics.HudViewModel.PlanWarningsReportTheValidatorAndTheFallback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
+{
+	FSlotRefusalBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpSlotRefusalBench(B)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	const TArray<ARTUnit*> Units = { B.Mine, B.Nemico };
+
+	const URTActionData* Attacco = B.Mine->GetAbility(GSlotRefusalAttacco);
+	B.PC->ArmKitAbility(GSlotRefusalAttacco);
+	B.PC->HandleClickOnUnitForTest(B.Nemico);
+	if (!TestNotNull(TEXT("premessa: l'attacco esiste"), Attacco)
+		|| !TestTrue(TEXT("premessa: il click ha pianificato l'attacco sul nemico"), B.Mine->PlannedAttackTarget == B.Nemico)
+		|| !SlotRefusalGeometryHolds(*this, B, Attacco))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// --- 1. Un piano pulito non da' avvisi -----------------------------------------------------------------------
+	TestEqual(TEXT("1: un attacco su un bersaglio in vista non da' avvisi"),
+		URTHudViewModel::BuildPlanWarnings(B.Mine, Units).Num(), 0);
+
+	// --- 2. Il bersaglio noto oltre il muro: lo slot dice Warning, e l'avviso lo riporta --------------------------
+	MoveSlotRefusalUnit(B.Nemico, GSlotRefusalDietroIlMuro);
+	{
+		const TArray<FRTPlanWarningView> Avvisi = URTHudViewModel::BuildPlanWarnings(B.Mine, Units);
+		if (TestEqual(TEXT("2: un avviso"), Avvisi.Num(), 1))
+		{
+			TestEqual(TEXT("2: e' un Warning"), Avvisi[0].Level, ERTPlanWarningLevel::Warning);
+			TestEqual(TEXT("2: attribuito all'attacco"), Avvisi[0].SourceActionId, Attacco->Def.ActionId);
+			const FRTAbilityCooldownView Riga = URTHudViewModel::BuildAbilityCooldowns(B.Mine)[GSlotRefusalAttacco];
+			TestTrue(TEXT("2: premessa — lo slot e' degradato"), Riga.bPlanDegraded);
+			TestEqual(TEXT("2: il perche' e' il testo del rifiuto dello slot"), Avvisi[0].Why.ToString(),
+				ARTHUD::RefusalText(Riga.PlanDegradedRefusal, Riga.PlanDegradedRange));
+			TestFalse(TEXT("2: il costo e' detto"), Avvisi[0].Cost.IsEmpty());
+		}
+	}
+	MoveSlotRefusalUnit(B.Nemico, GSlotRefusalInVista);
+
+	// --- 3. Un'azione in ricarica pianificata: il validatore lo rifiuta, ed e' un Critical -------------------------
+	const int32 ConRicarica = SlotRefusalCooldownAbility(B.Mine);
+	if (!TestTrue(TEXT("premessa: il kit ha un'azione con ricarica"), ConRicarica != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedAbilityIndex = ConRicarica;
+	B.Mine->ConsumeAbility(ConRicarica);
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
+		FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(B.Mine));
+	if (!TestFalse(TEXT("premessa: il piano e' illegale"), Verdetto.bLegal))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	const TArray<FRTPlanWarningView> Avvisi = URTHudViewModel::BuildPlanWarnings(B.Mine, Units);
+	const FRTPlanWarningView* Critico = Avvisi.FindByPredicate([](const FRTPlanWarningView& A)
+	{
+		return A.Level == ERTPlanWarningLevel::Critical;
+	});
+	if (TestNotNull(TEXT("3: c'e' un Critical"), Critico))
+	{
+		TestEqual(TEXT("3: attribuito all'azione che il validatore nomina"), Critico->SourceActionId, Verdetto.OffendingActionId);
+		TestFalse(TEXT("3: il perche' e' detto"), Critico->Why.IsEmpty());
+		TestFalse(TEXT("3: il costo e' detto"), Critico->Cost.IsEmpty());
+	}
+	TestEqual(TEXT("3: il Critical viene per primo"), Avvisi.Num() > 0 ? Avvisi[0].Level : ERTPlanWarningLevel::Info,
+		ERTPlanWarningLevel::Critical);
+
+	// --- 4. Il conteggio per livello -------------------------------------------------------------------------------
+	FRTPlanWarningCounts Conteggi;
+	URTHudViewModel::AddPlanWarningCounts(Avvisi, Conteggi);
+	TestEqual(TEXT("4: un Critical nel conteggio"), Conteggi.Critical, 1);
+	TestEqual(TEXT("4: nessun Info"), Conteggi.Info, 0);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * ⛔ **GLI AVVISI SEGUONO IL COMANDO E TACCIONO IN RISOLUZIONE** ([D-480] punti 1 e 5, [D-494], #3622).
+ *
+ * - Il contatore accanto a `Conferma` somma le unita' COMANDATE: un'avversaria con un piano illegale non entra, e
+ *   il test prova che per lei l'avviso esisterebbe.
+ * - In Risoluzione il piano e' gia' stato consumato, quindi un controllo «vuoto» sarebbe vacuo. Il test scrive un
+ *   piano illegale DURANTE la risoluzione: la vista diretta lo vede, i due widget devono tacere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningsWidgetsTest,
+	"RefactorTactics.ScreenHud.PlanWarningsFollowTheCommandAndHideInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanWarningsWidgetsTest::RunTest(const FString&)
+{
+	FSlotRefusalBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpSlotRefusalBench(B)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	ARTTurnManager* TM = SlotRefusalTurnManager(B.World);
+	URTPlanCommitWidget* Conferma = NewObject<URTPlanCommitWidget>(B.World);
+	URTSelectedUnitPanelWidget* Pannello = NewObject<URTSelectedUnitPanelWidget>(B.World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("conferma"), Conferma) || !TestNotNull(TEXT("pannello"), Pannello))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	Conferma->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Conferma->SetControlGroupForTest(0);
+	Pannello->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Pannello->SetSelectedUnitForTest(B.Mine);
+	const TArray<ARTUnit*> Units = { B.Mine, B.Nemico };
+
+	// Due piani illegali, uno per squadra.
+	const int32 MiaRicarica = SlotRefusalCooldownAbility(B.Mine);
+	const int32 SuaRicarica = SlotRefusalCooldownAbility(B.Nemico);
+	if (!TestTrue(TEXT("premessa: entrambi i kit hanno una ricarica"), MiaRicarica != INDEX_NONE && SuaRicarica != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedAbilityIndex = MiaRicarica;
+	B.Mine->ConsumeAbility(MiaRicarica);
+	B.Nemico->PlannedAbilityIndex = SuaRicarica;
+	B.Nemico->ConsumeAbility(SuaRicarica);
+
+	FRTPlanWarningCounts Sua;
+	URTHudViewModel::AddPlanWarningCounts(URTHudViewModel::BuildPlanWarnings(B.Nemico, Units), Sua);
+	if (!TestEqual(TEXT("premessa: il piano dell'avversaria darebbe un Critical"), Sua.Critical, 1))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// --- 1. Il comando ---------------------------------------------------------------------------------------------
+	TestEqual(TEXT("1: il contatore conta il Critical della comandata, non quello dell'avversaria"),
+		Conferma->GetPlanWarningCounts().Critical, 1);
+	TestTrue(TEXT("1: il pannello elenca l'avviso dell'unita' comandata"), Pannello->GetPlanWarnings().Num() > 0);
+
+	// --- 2. La risoluzione -----------------------------------------------------------------------------------------
+	// Un piano che si risolve davvero: l'attacco sul nemico in vista, cosi' il playback dura qualche tick.
+	B.Mine->ClearPlannedAttack();
+	B.Mine->PlannedAbilityIndex = GSlotRefusalAttacco;
+	B.Mine->PlannedAttackTarget = B.Nemico;
+	B.Nemico->PlannedAbilityIndex = INDEX_NONE;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	// Il piano illegale scritto DURANTE la risoluzione: la vista diretta lo vede.
+	B.Mine->PlannedAbilityIndex = MiaRicarica;
+	if (!TestTrue(TEXT("premessa: in risoluzione la vista diretta vede un avviso"),
+			URTHudViewModel::BuildPlanWarnings(B.Mine, Units).Num() > 0))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("2: in risoluzione il pannello non elenca avvisi"), Pannello->GetPlanWarnings().Num(), 0);
+	const FRTPlanWarningCounts InRisoluzione = Conferma->GetPlanWarningCounts();
+	TestEqual(TEXT("2: in risoluzione il contatore e' a zero"),
+		InRisoluzione.Critical + InRisoluzione.Warning + InRisoluzione.Info, 0);
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

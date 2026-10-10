@@ -1157,6 +1157,68 @@ struct FRTActionTooltipView
  * — cioe' esattamente la seconda verita' che questo view model esiste per non far nascere. Stesso motivo per
  * cui sono `BlueprintPure` `URTIntentPrivacyLibrary::FilterForTeam` e `URTIconLibrary::MakeIconId`.
  */
+/**
+ * Il livello di un avviso di piano ([D-480] punto 3): tre livelli, tre forme. Il colore e' il secondo canale
+ * (§47-bis.1): la forma e il testo bastano da soli.
+ */
+UENUM(BlueprintType)
+enum class ERTPlanWarningLevel : uint8
+{
+	/** Cerchio «i». Oggi nessun produttore: si aggiunge una condizione alla volta, col suo test (D-480 punto 6). */
+	Info,
+	/** Triangolo «!»: un piano ACCETTATO ma degradato. */
+	Warning,
+	/** Ottagono «✕»: un piano che il validatore RIFIUTA. L'avviso lo dice, non lo decide. */
+	Critical,
+};
+
+/**
+ * Un avviso di piano ([D-480], #3622): **cosa · perche' · costo**, la terna di Z8.
+ *
+ * 🔑 **Lo produce `URTHudViewModel::BuildPlanWarnings`, che RIPORTA fonti esistenti e non decide niente.** La
+ * legalita' resta del validatore, il ripiego del resolver, il fuoco amico dell'anteprima per piano ([D-492]).
+ *
+ * ⛔ Mai per un'unita' non comandata: e' un pezzo del suo piano (D-480 punto 5).
+ */
+USTRUCT(BlueprintType)
+struct FRTPlanWarningView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTPlanWarningLevel Level = ERTPlanWarningLevel::Info;
+
+	/** Che cosa: il nome dell'azione del piano che causa l'avviso. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText What;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Why;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Cost;
+
+	/** L'azione del piano a cui l'avviso e' ATTRIBUITO ([D-480] punto 4). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName SourceActionId;
+};
+
+/** Il contatore accanto a `Conferma`: un numero per livello, per tutte le unita' comandate ([D-494]). */
+USTRUCT(BlueprintType)
+struct FRTPlanWarningCounts
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Critical = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Warning = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Info = 0;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTHudViewModel : public UBlueprintFunctionLibrary
 {
@@ -1397,6 +1459,27 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
+
+	/**
+	 * Gli avvisi del piano di `Unit` ([D-480], #3622), in ordine: i `Critical`, poi i `Warning`. `Units` sono le
+	 * unita' in campo, da cui l'anteprima del Blast ricava le alleate colpite.
+	 *
+	 * Tre produttori, e ognuno RIPORTA una fonte che esiste:
+	 * - **Critical**: `URTPlanValidationLibrary::ValidatePlan`. Il perche' nomina entrambe le azioni di un conflitto
+	 *   di slot, come il log di lock-in: l'azione che il validatore incontra per seconda non e' sempre quella da
+	 *   correggere;
+	 * - **Warning, degradato**: `FRTAbilityCooldownView::bPlanDegraded` di `BuildAbilityCooldowns`, la stessa
+	 *   domanda che accende lo stato `Warning` dello slot ([D-459]);
+	 * - **Warning, fuoco amico**: `MakeBlastPreview` sul piano di `Unit` ([D-492]). Sta nell'elenco
+	 *   dell'ATTACCANTE, perche' e' il suo piano a causarlo ([D-494]).
+	 *
+	 * ⛔ **Non filtra il comando**: lo fanno i chiamanti, come per `BuildUnitSlots`. Chiamarla per un'unita' non
+	 * comandata consegnerebbe il suo piano.
+	 */
+	static TArray<FRTPlanWarningView> BuildPlanWarnings(const ARTUnit* Unit, const TArray<ARTUnit*>& Units);
+
+	/** Aggiunge a `InOut` gli avvisi di `Warnings`, uno per livello ([D-494]). */
+	static void AddPlanWarningCounts(const TArray<FRTPlanWarningView>& Warnings, FRTPlanWarningCounts& InOut);
 
 	/**
 	 * Il segno di fase di un'azione (`#3465`). La precedenza vive qui e in nessun altro posto:

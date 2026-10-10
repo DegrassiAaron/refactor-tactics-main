@@ -450,6 +450,21 @@ FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 	return FRTUnitSlotsView{};
 }
 
+TArray<FRTPlanWarningView> URTSelectedUnitPanelWidget::GetPlanWarnings() const
+{
+	const ARTTurnManager* TM = GetTurnManager();
+	if (TM && TM->IsResolving())
+	{
+		return {}; // D-480 punto 1: in Risoluzione l'elenco si nasconde
+	}
+	// Segue il COMANDO, come `GetSlots()`: per un'unita' ispezionata `BuildPlanWarnings` non viene chiamata.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return URTHudViewModel::BuildPlanWarnings(Commanded, GatherUnitsInWorld());
+	}
+	return {};
+}
+
 FText URTSelectedUnitPanelWidget::GetMovementProfileText() const
 {
 	// Nessuna regola qui: la sede e' `ARTHUD::DescribeMovementProfile`, e questa e' la porta per UMG.
@@ -567,6 +582,28 @@ void URTPlanCommitWidget::Undo()
 	{
 		PC->UndoStep();
 	}
+}
+
+FRTPlanWarningCounts URTPlanCommitWidget::GetPlanWarningCounts() const
+{
+	FRTPlanWarningCounts Conteggi;
+	const ARTTurnManager* TM = GetTurnManager();
+	if (!TM || TM->IsResolving())
+	{
+		return Conteggi; // D-480 punto 1: in Risoluzione il piano non si conferma, e il contatore tace
+	}
+	const TArray<ARTUnit*> Units = GatherUnitsInWorld();
+	for (const ARTUnit* Unit : Units)
+	{
+		// ⛔ La barriera PRIMA di costruire: per un'unita' non comandata il piano non si legge (D-480 punto 5).
+		if (!Unit || !Unit->IsAlive() || !URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId,
+			Unit->ControlGroup, GetPlayerTeamId(), GetPlayerControlGroup(), Unit->bIsBotControlled))
+		{
+			continue;
+		}
+		URTHudViewModel::AddPlanWarningCounts(URTHudViewModel::BuildPlanWarnings(Unit, Units), Conteggi);
+	}
+	return Conteggi;
 }
 
 bool URTPlanCommitWidget::HasCommandedUnit() const
