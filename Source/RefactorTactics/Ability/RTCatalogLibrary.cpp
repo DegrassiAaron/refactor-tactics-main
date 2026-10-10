@@ -1738,7 +1738,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi NON dichiara `ERTInterruptPolicy::None` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
-	// 🔴 **`AttackTarget` e non `Cancel`: dichiara l'aggancio** ([D-415]), come `Action.Heal` (D-492). L'elenco
+	// 🔴 **`AttackTarget` e non `Cancel`: dichiara l'aggancio** ([D-415]), come `Action.Heal` (D-493). L'elenco
 	// esatto di chi aggancia lo pinna `Combat.Aim.OnlyDeclaredTrackersFollowTheTarget`.
 	//
 	// 🔑 **Il suo mestiere e' cogliere chi AGISCE, e chi agisce si e' appena mosso.** `Action.Interrupt` sta
@@ -1870,7 +1870,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
 	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.
 	//
-	// 🔑 **La cura AGGANCIA l'alleato** — D-492 (#3609), l'eccezione dichiarata che [D-419] ammette. Decisione
+	// 🔑 **La cura AGGANCIA l'alleato** — D-493 (#3609), l'eccezione dichiarata che [D-419] ammette. Decisione
 	// d'autore del 2026-10-10: *«il cura ha un tipo di tiro diverso da un normale shoot»*. Un colpo si spara verso
 	// una cella, e la mira congelata dice dove; una cura a bersaglio singolo si da' a QUALCUNO, e lo segue dove va.
 	// La dichiarazione e' `Fallback = AttackTarget` (`FRTActionDef::DeclaresTracking`): come ripiego fa cio' che

@@ -3903,7 +3903,7 @@ bool FRTPlaybackRedundantFaceStructureHitsAreOneActTest::RunTest(const FString&)
 }
 
 /**
- * **La cura SINGOLA aggancia l'alleato e lo raggiunge dove e' arrivato** — D-492 (#3609).
+ * **La cura SINGOLA aggancia l'alleato e lo raggiunge dove e' arrivato** — D-493 (#3609).
  *
  * Decisione d'autore: *«aggancia l'unità, come eccezione dichiarata in catalogo. il cura ha un tipo di tiro diverso
  * da un normale shoot»*. L'alleato parte FUORI portata (4 celle, portata 3) e scatta DENTRO prima del Blast: la cura
@@ -3924,7 +3924,7 @@ bool FRTActionHealTracksTheAllyTest::RunTest(const FString&)
 	if (!Caster || !Ally || !TM) { DestroyEnvWorld(World); return false; }
 
 	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.Heal")));
-	if (!TestTrue(TEXT("premessa: la cura dichiara di agganciare (D-492)"), Def.DeclaresTracking())
+	if (!TestTrue(TEXT("premessa: la cura dichiara di agganciare (D-493)"), Def.DeclaresTracking())
 		|| !TestTrue(TEXT("premessa: al lock-in l'alleato e' FUORI portata"),
 			URTHexLibrary::HexDistance(Caster->Cell, Ally->Cell) > Def.RangeCells))
 	{

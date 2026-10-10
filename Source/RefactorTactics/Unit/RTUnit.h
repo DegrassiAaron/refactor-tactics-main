@@ -452,7 +452,7 @@ public:
 	 *
 	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
 	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. La dichiarano `Action.Interrupt` e
-	 * `Action.Heal` (D-492), e il perche' sta accanto alla riga di catalogo di ciascuna; chi risolve la legge da
+	 * `Action.Heal` (D-493), e il perche' sta accanto alla riga di catalogo di ciascuna; chi risolve la legge da
 	 * `ResolutionAimCell`.
 	 *
 	 * 🔒 **NON e' visibile ai Blueprint, ed e' deliberato** (CLAUDE.md §7): e' intento della squadra che lo

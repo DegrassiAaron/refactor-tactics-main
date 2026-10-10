@@ -526,7 +526,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
 		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
 		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
-		// [D-419], D-492 (#3609) — il centro e' la lettura UNICA di `ARTUnit::ResolutionAimCell`:
+		// [D-419], D-493 (#3609) — il centro e' la lettura UNICA di `ARTUnit::ResolutionAimCell`:
 		// - la cura a bersaglio SINGOLO dichiara di agganciare in catalogo (`Action.Heal`, `Fallback = AttackTarget`):
 		//   la cura non e' un colpo sparato verso una cella, segue l'alleato dove va, e il centro e' la sua cella viva;
 		// - la cura ad AREA non aggancia: agisce sulle celle attorno alla mira congelata al lock-in, come ogni altra

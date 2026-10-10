@@ -538,7 +538,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	CircularTide->RangeCells = 4; // specchio legacy, come `MakeHeroAction` lo scrive (`Def.RangeCells` -> `RangeCells`)
 	CircularTide->Def.Priority = 60;
 	CircularTide->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 18) };
-	// D-492 (#3609): l'AREA non aggancia. Il core `Action.Heal` dichiara l'aggancio (`AttackTarget`) perche' una cura
+	// D-493 (#3609): l'AREA non aggancia. Il core `Action.Heal` dichiara l'aggancio (`AttackTarget`) perche' una cura
 	// singola si da' a qualcuno e lo segue; un'area agisce sulle celle attorno alla mira congelata al lock-in, come
 	// ogni altra azione ([D-419]), e l'alleato scattato via ne esce. `MakeHeroActionFromCore` ha copiato il valore
 	// del core: si ridichiara `Cancel`, che come ripiego fa la stessa cosa. Pinnato da

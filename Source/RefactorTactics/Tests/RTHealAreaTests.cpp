@@ -310,7 +310,7 @@ bool FRTTideOnEmptyAreaStillStartsTest::RunTest(const FString&)
 }
 
 /**
- * **Ogni cura SINGOLA dichiara di agganciare, e nessuna cura ad AREA lo fa** — D-492 (#3609).
+ * **Ogni cura SINGOLA dichiara di agganciare, e nessuna cura ad AREA lo fa** — D-493 (#3609).
  *
  * La decisione d'autore: *«aggancia l'unità, come eccezione dichiarata in catalogo. il cura ha un tipo di tiro
  * diverso da un normale shoot»*. La dichiarazione e' `Fallback = AttackTarget` (`FRTActionDef::DeclaresTracking`);
@@ -367,7 +367,7 @@ bool FRTEverySingleHealDeclaresTrackingTest::RunTest(const FString&)
 }
 
 /**
- * **La cura ad AREA puntata su un'unita' resta dove e' stata puntata** — [D-419], D-492 (#3609).
+ * **La cura ad AREA puntata su un'unita' resta dove e' stata puntata** — [D-419], D-493 (#3609).
  *
  * L'alleato puntato scatta fuori dal raggio prima del Blast; un secondo alleato sta accanto alla cella dove il primo
  * era al lock-in. Con la mira congelata la Tide cura il secondo e manca il primo; con la mira che insegue — com'era

@@ -2030,7 +2030,7 @@ bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
 
 /**
  * **L'uscita che [D-415] nomina: chi DICHIARA di agganciare continua a seguire** — e oggi sono `Action.Interrupt`
- * e `Action.Heal` (D-492, #3609: *«il cura ha un tipo di tiro diverso da un normale shoot»*).
+ * e `Action.Heal` (D-493, #3609: *«il cura ha un tipo di tiro diverso da un normale shoot»*).
  *
  * 🔑 **La dichiarazione e' `ERTActionFallback::AttackTarget`**, documentata nell'enum come *«Segue il
  * bersaglio, se ancora valido»*. Prima di `D-415` era un valore **morto**: zero azioni lo usavano.
