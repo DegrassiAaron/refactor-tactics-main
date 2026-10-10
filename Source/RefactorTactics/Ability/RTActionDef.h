@@ -611,6 +611,15 @@ struct FRTActionDef
 	ERTActionFallback Fallback = ERTActionFallback::Cancel;
 
 	/**
+	 * **L'azione DICHIARA di agganciare il bersaglio** — l'opt-in di [D-419] alla regola «la mira non insegue».
+	 * La dichiarazione e' `Fallback == AttackTarget` (*«segue il bersaglio, se ancora valido»*): come ripiego fa
+	 * cio' che fa `Cancel`, quindi dichiararla non cambia il ripiego di nessuno, gli da' solo la mira viva.
+	 * Oggi la dichiarano `Action.Interrupt` e `Action.Heal` (D-493, #3609). Chi risolve un bersaglio-unita' la
+	 * legge da qui e passa la risposta a `ARTUnit::ResolutionAimCell`.
+	 */
+	bool DeclaresTracking() const { return Fallback == ERTActionFallback::AttackTarget; }
+
+	/**
 	 * Slot del turno consumato dall'azione. Default `Main`: e' lo slot della maggior parte delle azioni
 	 * (attacchi, scatti, guardia) e coincide con quello delle abilita' gia' spedite.
 	 */

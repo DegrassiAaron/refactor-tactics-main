@@ -20,6 +20,8 @@
 #include "Ability/RTActionData.h"
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
+#include "RTAbilityFixtures.h"
+#include "Ability/RTCatalogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -304,6 +306,105 @@ bool FRTTideOnEmptyAreaStillStartsTest::RunTest(const FString&)
 		TestTrue(TEXT("e il cooldown NON e' pagato: l'azione non e' partita"), Curatrice->CanUseAbility(Idx));
 		TestTrue(TEXT("e nessuna attivazione"), AttivazioneDi(TM, Curatrice) == nullptr);
 	}
+	return true;
+}
+
+/**
+ * **Ogni cura SINGOLA dichiara di agganciare, e nessuna cura ad AREA lo fa** — D-493 (#3609).
+ *
+ * La decisione d'autore: *«aggancia l'unità, come eccezione dichiarata in catalogo. il cura ha un tipo di tiro
+ * diverso da un normale shoot»*. La dichiarazione e' `Fallback = AttackTarget` (`FRTActionDef::DeclaresTracking`);
+ * un'area agisce invece sulle celle attorno alla mira congelata, come ogni azione ([D-419]).
+ *
+ * 🔴 **E' il gate che rende coerente il ramo della cura in `CollectAttackIntents`**: una cura singola che NON
+ * agganciasse misurerebbe la portata sulla mira congelata e curerebbe l'identita' dovunque sia — due meta' dello
+ * stesso gesto decise da due cose diverse. Il catalogo non deve poterla spedire.
+ *
+ * ⛔ Anti-vacuita': devono esistere almeno una cura singola (il core) e almeno una ad area (`CircularTide`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEverySingleHealDeclaresTrackingTest,
+	"RefactorTactics.Heroes.EverySingleHealDeclaresTracking",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEverySingleHealDeclaresTrackingTest::RunTest(const FString&)
+{
+	static const FName HealId(TEXT("Action.Heal"));
+	int32 Singole = 0;
+	int32 AdArea = 0;
+
+	// Il core: `FRTActionDef` non porta una forma, quindi la cura del catalogo e' a bersaglio singolo.
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(HealId);
+	if (!TestEqual(TEXT("premessa: la cura e' a catalogo"), Core.ActionId, HealId)) { return false; }
+	TestTrue(TEXT("la cura del core (singola) dichiara di agganciare"), Core.DeclaresTracking());
+	++Singole;
+
+	const TArray<URTHeroData*> Eroi = {
+		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
+		URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeIvrin() };
+	for (const URTHeroData* Eroe : Eroi)
+	{
+		if (!TestNotNull(TEXT("eroe costruito"), Eroe)) { return false; }
+		for (const TObjectPtr<URTActionData>& Ptr : Eroe->Actions)
+		{
+			const URTActionData* A = Ptr.Get();
+			if (!A || (A->Def.ActionId != HealId && A->Def.DerivedFromActionId != HealId)) { continue; }
+			if (A->Shape == ERTAbilityShape::Area)
+			{
+				++AdArea;
+				TestFalse(FString::Printf(TEXT("%s: la cura ad AREA non aggancia, la sua mira si congela"),
+					*A->Def.ActionId.ToString()), A->Def.DeclaresTracking());
+			}
+			else
+			{
+				++Singole;
+				TestTrue(FString::Printf(TEXT("%s: la cura SINGOLA dichiara di agganciare"),
+					*A->Def.ActionId.ToString()), A->Def.DeclaresTracking());
+			}
+		}
+	}
+	TestTrue(TEXT("anti-vacuita': c'e' almeno una cura singola"), Singole > 0);
+	TestTrue(TEXT("anti-vacuita': c'e' almeno una cura ad area"), AdArea > 0);
+	return true;
+}
+
+/**
+ * **La cura ad AREA puntata su un'unita' resta dove e' stata puntata** — [D-419], D-493 (#3609).
+ *
+ * L'alleato puntato scatta fuori dal raggio prima del Blast; un secondo alleato sta accanto alla cella dove il primo
+ * era al lock-in. Con la mira congelata la Tide cura il secondo e manca il primo; con la mira che insegue — com'era
+ * fino a #3609 — avrebbe fatto il contrario. Le due scene danno esiti OPPOSTI, ed e' cio' che rende il test una misura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTideOnAUnitStaysWhereAimedTest,
+	"RefactorTactics.Heroes.TideOnAUnitStaysWhereItWasAimed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnHealMap(World, 6);
+
+	const FRTCellId Puntata(2, 0, 0);
+	const FRTCellId Scattata(4, 0, 0);
+	const FRTCellId Accanto(2, -1, 0); // a un passo dalla cella puntata, a tre da quella dello scatto
+	ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
+	ARTUnit* Puntato = SpawnHealUnit(World, 0, Puntata, URTHeroCatalogLibrary::MakeAevik());
+	ARTUnit* Vicino = SpawnHealUnit(World, 0, Accanto, URTHeroCatalogLibrary::MakeBranth());
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Curatrice || !Puntato || !Vicino || !TM) { return false; }
+	Puntato->Health -= 40;
+	Vicino->Health -= 40;
+	const int32 PrimaP = Puntato->Health, PrimaV = Vicino->Health;
+
+	const int32 Idx = PianificaTideSuUnita(Curatrice, Puntato);
+	if (!TestTrue(TEXT("premessa: Muiren ha CircularTide"), Idx != INDEX_NONE)) { return false; }
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Puntato, TEXT("Action.Reposition"));
+	Puntato->PlannedDashAbility = Scatto;
+	Puntato->PlannedDashCell = Scattata;
+	RunHealTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: l'alleato puntato e' davvero scattato via"), Puntato->Cell, Scattata)) { return false; }
+	TestEqual(TEXT("🔴 chi sta accanto alla cella puntata e' curato: l'area e' rimasta li'"), Vicino->Health - PrimaV, 18);
+	TestEqual(TEXT("🔴 l'alleato scattato via e' uscito dall'area: niente cura"), Puntato->Health, PrimaP);
 	return true;
 }
 
