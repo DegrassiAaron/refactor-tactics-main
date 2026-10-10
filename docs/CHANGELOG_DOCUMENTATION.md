@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-10 — La palette dell'HUD ha una sede a runtime, e il registro riceve D-489
+
+**Origine**: il seguito T6 del referto delle tavole A–F, deciso dall'autore in sessione. Issue
+[#3610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3610).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-489** (la palette vive in `URTUIPalette`; i sei colori della barra dei comandi senza token diventano token); rimando in D-482 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32: la tabella «Barra dei comandi e fasi» e la nuova §32.1 «Sede a runtime» |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | §4.2 e la riga T6 di §9 puntano a #3610 e D-489 |
+
+---
+
 ## 2026-10-09 — Le tavole HUD A–F entrano come sorgente di design, e il registro riceve D-477…D-482 e D-488
 
 **Origine**: il pacchetto «HUD — pacchetto design (2026-10-04)» consegnato su Drive, passato da uno spec panel e
