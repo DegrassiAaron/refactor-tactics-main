@@ -7,6 +7,7 @@
 
 /** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
+extern TAutoConsoleVariable<int32> CVarRTCameraStrategicOrtho; // #3631: la prova ortografica, da console
 /** Definita nello stesso file: scatto automatico per il confronto fra catture (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDownShot;
 #include "GameFramework/PlayerController.h"
@@ -383,6 +384,9 @@ bool ARTCameraPawn::UpdateStrategicState()
 		LastTacticalArmLength = Distance;
 	}
 
+	// #3631: a ogni lettura e non solo al cambio di stato, perche' in ortografica la larghezza segue il braccio.
+	ApplyStrategicProjection();
+
 	if (bWas != bStrategicView)
 	{
 		// Il consumatore visivo e' `ARTHUD::UpdateObserverVeil`, che a ogni fotogramma legge `IsStrategicView`
@@ -393,6 +397,45 @@ bool ARTCameraPawn::UpdateStrategicState()
 		return true;
 	}
 	return false;
+}
+
+float ARTCameraPawn::OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees)
+{
+	// La larghezza del quadro sul piano del pivot: la stessa mezza larghezza `Arm * tan(FOV/2)` che
+	// `ComputeEffectivePivotBounds` usa per i limiti. Per questo i limiti valgono anche in ortografica senza un
+	// ramo loro: quella funzione modella il quadro come un rettangolo sul piano del pivot, cioe' proprio
+	// l'impronta ortografica.
+	const float HalfFov = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
+	return 2.f * FMath::Max(ArmLength, 0.f) * FMath::Tan(HalfFov);
+}
+
+bool ARTCameraPawn::IsOrthographicNow() const
+{
+	return Camera != nullptr && Camera->ProjectionMode == ECameraProjectionMode::Orthographic;
+}
+
+void ARTCameraPawn::ApplyStrategicProjection()
+{
+	if (!Camera || !SpringArm)
+	{
+		return;
+	}
+	const bool bOrtho = bStrategicView
+		&& (bStrategicOrthographic || CVarRTCameraStrategicOrtho.GetValueOnGameThread() > 0);
+	if (bOrtho)
+	{
+		// 🔑 **Lo zoom resta il braccio** (D-252): la larghezza si DERIVA dalla distanza, cosi' lo stato strategico
+		// continua a leggersi da `TargetArmLength` e al cambio di proiezione la scala sul pivot non salta.
+		Camera->SetOrthoWidth(OrthoWidthForArm(SpringArm->TargetArmLength, Camera->FieldOfView));
+		if (Camera->ProjectionMode != ECameraProjectionMode::Orthographic)
+		{
+			Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);
+		}
+	}
+	else if (Camera->ProjectionMode != ECameraProjectionMode::Perspective)
+	{
+		Camera->SetProjectionMode(ECameraProjectionMode::Perspective);
+	}
 }
 
 void ARTCameraPawn::GetOrderedStrategicThresholds(float& OutEnter, float& OutExit) const

@@ -48,7 +48,7 @@ senza accorgersene.
 ## 2. Stato della camera
 
 La camera è **prospettica quasi-isometrica**, non ortografica: `USpringArmComponent` + `UCameraComponent`,
-nessun `ProjectionMode` impostato. Questo importa più di quanto sembri — `ZoomTowards` documenta che la sua
+e il `ProjectionMode` resta prospettico, salvo la leva della vista strategica (§5, [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)), spenta di default. Questo importa più di quanto sembri — `ZoomTowards` documenta che la sua
 formula è *esatta in ortografica e approssimata in prospettiva*, ed è la ragione per cui la sua tolleranza è
 mezza cella e non zero.
 
@@ -201,7 +201,7 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 - In Strategic lo skeletal dell'eroe si spegne e si riaccende il cilindro segnaposto. Il flag entra **in AND** con `bRender` nei predicati, quindi non riaccende niente che il velo abbia spento (`Unit.StrategicPresentationSwapsTheBodyButNeverRevealsAVeiledUnit`, `Veil.StrategicViewDoesNotRevealAVeiledUnit`).
   - 🔑 **Il segnalino sta in piedi sulla cella** ([#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)). Un `BP_Unit_*` d'eroe ha il pivot ai piedi e un cilindro alto 100 centrato lì, cioè per metà sotto la cella. In Strategic il cilindro prende la scala del segnaposto nativo e sale di `UnitHalfHeight − VisualZOffset`, come il segnalino del ricordo. Senza, dalla camera lontana il raggio del click lo mancava e prendeva la cella dietro (`PlayerInput.StrategicHeroTokenStandsOnTheCellAndTakesTheClick`). In Strategic i bracci graykit si spengono: sono ancorati ai piedi.
 - Il ricordo diventa un segnalino con «X» (`ContactToken`) sulla cella del contatto, dalla stessa sorgente della sagoma (`Veil.StrategicRememberedContactIsATokenOnTheContactCell`).
-- 🔧 L'inclinazione ha il suo canale ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `StrategicPitchDelta`, §5.1), neutro finché l'autore non ne sceglie il valore in PIE. ⏳ Restano la prova ortografica ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)) e la separazione dei piani (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)).
+- 🔧 L'inclinazione ha il suo canale ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `StrategicPitchDelta`, §5.1), neutro finché l'autore non ne sceglie il valore in PIE. 🔧 La prova ortografica ha la sua leva ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631), sotto), spenta finché l'autore non sceglie la proiezione. ⏳ Resta la separazione dei piani (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)).
 
 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): come si entra e che cosa si vede.**
 - **Come si entra** (✅ cablato il 2026-10-10, `ARTCameraPawn::ToggleStrategicView`). `Tab` porta il braccio a `StrategicEnterThreshold` e, al secondo `Tab`, lo riporta all'ultima distanza tattica. Da [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) quella distanza si registra **al momento del salto**: `FrameOwnTeam` apre la partita scrivendo il braccio senza passare da `UpdateStrategicState`, e il primo `Tab` tornava alla distanza di `BeginPlay` (`Camera.TabReturnsToADistanceWrittenOutsideTheZoomGate`). Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
@@ -209,6 +209,8 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 - **Che cosa si vede.** Al centro, la 3D tattica diventa un'**isometrica semplificata**, quella delle tavole A–F di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md). L'HUD intorno resta lo stesso.
 - **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`. ✅ Fatto il 2026-10-10, e pinnato da `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN`.
 - **Che cosa resta aperto.** La proiezione esatta e le soglie si decidono in `L_CameraFeatureLab`.
+  - 🔧 **La leva per scegliere la proiezione c'è dal 2026-10-10** ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)): `bStrategicOrthographic`, oppure `rt.Camera.StrategicOrtho 1` in console, che si applica al prossimo `Tab` o alla prossima tacca di rotella. Nasce **spenta**. Accesa, la vista strategica è ortografica e `OrthoWidth = 2 · TargetArmLength · tan(FOV/2)`: lo zoom resta il braccio (D-252), e al cambio la scala sul pivot non salta.
+  - 🔑 **I limiti del pivot non hanno un ramo ortografico, e non è una dimenticanza.** `ComputeEffectivePivotBounds` modella il quadro come un rettangolo sul piano del pivot con mezza larghezza `Arm · tan(FOV/2)`, cioè proprio l'impronta ortografica. Lo lega `Camera.StrategicOrthographicKeepsTheScaleAtThePivot`.
 
 🔗 La Strategic View ha già una premessa documentale in
 [`progettazione-hud.md`](progettazione-hud.md) §3.2 — *«Strategic Overview / Tactical Overview … non è la
