@@ -430,8 +430,14 @@ public:
 	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
 	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. Oggi la dichiara solo
 	 * `Action.Interrupt`, e il perche' sta accanto alla sua riga di catalogo.
+	 *
+	 * 🔒 **NON e' visibile ai Blueprint, ed e' deliberato** (CLAUDE.md §7): e' intento della squadra che lo
+	 * dichiara, letto solo dal resolver. Esposto senza filtro, un grafo di presentazione leggerebbe dove mira
+	 * il nemico — e `Unit.BlueprintSurfaceIsCensused` lo avrebbe dovuto censire come debito «da ritirare»,
+	 * come ogni altro campo del piano. ⌫ *Fino alla suite completa del 2026-10-10 era `BlueprintReadOnly`.*
+	 * `Transient`: e' stato del turno, non si salva con l'attore.
 	 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Plan")
+	UPROPERTY(Transient)
 	FRTCellId PlannedAimCell;
 
 	/**
@@ -440,8 +446,11 @@ public:
 	 * ⚠️ **Serve perche' `FRTCellId()` e' una cella LEGITTIMA** — `(0,0,0)` e' il centro di ogni mappa — e un
 	 * flag e' l'unico modo di distinguere «non congelata» da «congelata sull'origine». Senza, un piano
 	 * scritto direttamente (harness, test) mirerebbe al centro invece che dove dice.
+	 *
+	 * 🔒 Fuori dai Blueprint per la stessa ragione di `PlannedAimCell`: che una mira sia stata congelata e'
+	 * gia' informazione di piano.
 	 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Plan")
+	UPROPERTY(Transient)
 	bool bHasPlannedAim = false;
 
 	/**

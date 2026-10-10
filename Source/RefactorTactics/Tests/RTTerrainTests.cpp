@@ -576,6 +576,10 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	FRTActionInstance Instance;
 	Instance.SourceUnitId = 0;
 	Instance.TargetUnitId = 1;
+	// [D-415]: anche l'istanza porta la mira, e `ValidateInstance` misura la portata li'. ⌫ *Senza questa
+	// riga `TargetCell` restava `(0,0,0)` — la cella dell'attaccante, distanza zero — e il cap del Fumo non
+	// poteva scattare: rosso dal 2026-10-09, quando la validazione e' passata dalla cella viva alla mira.*
+	Instance.TargetCell = TargetCell;
 	Instance.Def.RangeCells = DeclaredRange;
 
 	FRTHexSimUnit BotUnit;

@@ -166,11 +166,12 @@ namespace
 	{
 		URTActionData* Action = MakeHeroAction(Id, Phase, Priority, Range, Cooldown, Fallback, Effects, Shape);
 		Action->Def.BaseActionId = TEXT("Action.BasicAttack");
-		// [D-415] punto (3): l'attacco base spara verso un esagono non visibile, e la policy e' del CORE.
-		// 🔴 Fino al 2026-10-09 questa riga non c'era, e il punto (3) era un no-op in partita: `MakeHeroAction`
-		// non copia `LineOfSightPolicy`, e ogni attacco base d'eroe restava `Required` mentre il catalogo
-		// core dichiarava `NotRequired` — lo ha trovato la code review di #3230. `HeroCatalog.EveryBasicAttack
-		// FiresBlind` e' il gate che mancava.
+		// La linea di tiro dell'attacco base e' una policy del CORE, e ogni eroe la eredita da li'. Oggi il core
+		// la RICHIEDE: il punto (3) di [D-415] che la cambierebbe e' in #3608, e quando arriva cambia una riga
+		// sola, nel catalogo core.
+		// 🔴 Fino al 2026-10-09 questa riga non c'era: `MakeHeroAction` non copia `LineOfSightPolicy`, e un core
+		// a `NotRequired` restava un no-op in partita — lo ha trovato la code review di #3230. Il gate e'
+		// `HeroCatalog.EveryBasicAttackTakesTheCorePolicy`.
 		Action->Def.LineOfSightPolicy = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack")).LineOfSightPolicy;
 		return Action;
 	}

@@ -71,8 +71,9 @@ namespace
 	/**
 	 * L'indice del MORTAIO nel kit, per `ActionId`.
 	 *
-	 * 🔴 **Cercava «la prima offensiva che non chiede la linea», e dal 2026-09-20 quella e' l'ATTACCO BASE**
-	 * ([D-415] punto 3, che rende comune il tiro indiretto). La scansione avrebbe restituito l'indice 0, e i
+	 * 🔴 **Cercava «la prima offensiva che non chiede la linea», e con [D-415] punto 3 quella diventa l'ATTACCO
+	 * BASE**, che rende comune il tiro indiretto (#3608; misurato su #3230 il 2026-10-09). La scansione avrebbe
+	 * restituito l'indice 0, e i
 	 * test che la usano avrebbero continuato a passare **misurando l'azione sbagliata** — verdi, col nome
 	 * del mortaio nel titolo e l'attacco base sotto le mani.
 	 *
@@ -282,9 +283,9 @@ bool FRTMortarDoesNotOutrangeItsCarrierTest::RunTest(const FString&)
 
 	const URTActionData* Base = Branth->Actions[0];
 
-	// 🔴 **Per `ActionId`, non per «la prima che non chiede la linea»** ([D-415] punto 3). Quella scansione
-	// c'era fino al 2026-09-20 e da allora avrebbe trovato l'**attacco base** — che ora porta anche lui il
-	// tiro indiretto — cioe' `Actions[0]`, lo stesso oggetto di `Base`. Il confronto sotto sarebbe diventato
+	// 🔴 **Per `ActionId`, non per «la prima che non chiede la linea»** ([D-415] punto 3, #3608). Quella
+	// scansione c'era fino al 2026-09-20, e con l'attacco base a tiro indiretto troverebbe l'**attacco base** —
+	// cioe' `Actions[0]`, lo stesso oggetto di `Base`. Il confronto sotto sarebbe diventato
 	// `Base->RangeCells <= Base->RangeCells`: vero sempre, e muto.
 	const URTActionData* Mortar = nullptr;
 	for (const URTActionData* A : Branth->Actions)

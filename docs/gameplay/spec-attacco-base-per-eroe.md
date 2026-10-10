@@ -155,15 +155,25 @@ Misurato: **0** occorrenze di una regola «fino alla gittata massima» in `Sourc
 
 **Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede.
 
-**Stato**: `ERTLineOfSightPolicy::Required` resta il default di `FRTActionDef`, e il tiro indiretto è una
-**licenza dichiarata** che ogni azione deve chiedere. ✅ **L'attacco base la dichiara dal 2026-10-09**
-([#3135](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3135), PR
-[#3230](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3230)): `Action.BasicAttack` del catalogo core
-porta `NotRequired`, e `MakeHeroBasicAttack` **copia** la policy del core in ogni azione d'eroe derivata
-(`BaseActionId == Action.BasicAttack`). Il gate è `RefactorTactics.HeroCatalog.EveryBasicAttackFiresBlind`, con
-anti-vacuità sul core e sul roster. ⌫ *Fra il 2026-09-20 e il 2026-10-09 la PR dichiarava il punto (3) fatto e
-in partita era un no-op: la riga sul core c'era, la copia agli eroi no, e nessun test la prendeva — trovato dalla
-code review di #3230.*
+**Stato**: ⛔ **decisa e NON implementata — scorporata in
+[#3608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3608) il 2026-10-10**, per decisione
+d'autore. `ERTLineOfSightPolicy::Required` resta il default di `FRTActionDef` e anche di `Action.BasicAttack`.
+
+🔑 **Perché la licenza del mortaio non basta.** `NotRequired` ([`D-380`](../decisions/RT_PDR_00_Decision_Log.md))
+non toglie solo la **vista**: toglie la linea, cioè anche la **traiettoria**. Misurato su `eef73d71a` (branch di
+[#3230](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3230)), suite completa: con l'attacco base a
+`NotRequired` i muri non lo fermano più, coperture e strutture sul percorso non vengono più colpite, l'HUD non
+rifiuta più un bersaglio oltre un muro — una famiglia di test rossa, tutta verde rimettendo `Required` su quella
+sola riga. Il testo deciso dice *«mirare»*, non *«attraversare»*, e [`D-418`](../decisions/RT_PDR_00_Decision_Log.md)
+(3) dice che il prezzo del mortaio compra proprio la **traiettoria**. La domanda — mira al buio con traiettoria
+indiretta, o diretta — è in #3608, con l'elenco dei test e cosa asserivano.
+
+✅ **Ciò che resta, e che #3608 trova pronto**: `MakeHeroBasicAttack` **copia** la policy del core in ogni azione
+d'eroe derivata (`BaseActionId == Action.BasicAttack`), quindi il cambio sarà una riga, nel catalogo core. Il
+gate è `RefactorTactics.HeroCatalog.EveryBasicAttackTakesTheCorePolicy`. ⌫ *Fra il 2026-09-20 e il 2026-10-09
+#3230 dichiarava il punto (3) fatto e in partita era un no-op: la riga sul core c'era, la copia agli eroi no —
+trovato dalla code review di #3230. Il 2026-10-09 è stato implementato davvero, e la suite completa del
+2026-10-10 ha mostrato il costo qui sopra.*
 
 🔴 **È la più cara delle tre, e il prezzo è documentato.**
 [`D-380`](../decisions/RT_PDR_00_Decision_Log.md) ha **pagato** quella licenza per `Action.Mortar`: **12**
@@ -177,8 +187,9 @@ mortaio eguaglia `Action.CircularAoE` su tutti e cinque i valori (`Attack` · 65
 **e conserva in più il tiro indiretto**, che quella non dichiara: restituirgli i sei danni produrrebbe
 un'abilità **strettamente superiore** a una che esiste già.
 
-⛔ **E non è a costo zero**: **tre** test di `RTBlindFireOffensiveTests.cpp` identificano il mortaio dalla
-proprietà che questa sezione rende comune. Vanno riscritti **insieme** all'implementazione, non dopo.
+⛔ **E non è a costo zero**: **tre** test di `RTBlindFireOffensiveTests.cpp` identificavano il mortaio dalla
+proprietà che questa sezione rende comune. ✅ Riscritti in #3230: lo identificano per `DerivedFromActionId`, e
+reggono con qualunque risposta dia #3608.
 
 ## 6. La rivelazione dell'attaccante — decisa nella sostanza, **non** nel nome
 

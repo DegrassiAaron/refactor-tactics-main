@@ -713,28 +713,34 @@ bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// [D-415] punto (3) — OGNI attacco base d'eroe spara alla cieca, come il core che lo deriva
+// [D-415] punto (3), #3608 — OGNI attacco base d'eroe porta la linea di tiro del core che lo deriva
 // ---------------------------------------------------------------------------------------------------------
 
 /**
- * 🔴 **Trovato dalla code review di #3230: il punto (3) era un no-op in partita.** Il catalogo core dichiarava
- * `Action.BasicAttack` a `LineOfSightPolicy::NotRequired`, ma `MakeHeroBasicAttack` non copiava il campo e i
- * gli attacchi base d'eroe restavano tutti `Required`. Nessun test lo prendeva: `BlindFire.DirectAttackStillRequires
- * LineOfSight` usa un `FRTActionDef` di default e `CellAttackRequiringSightIsRefusedByABlocker` usa
- * `CircularTide`, quindi erano verdi in entrambi i mondi.
+ * **Ogni attacco base d'eroe porta la linea di tiro del core `Action.BasicAttack`** — la policy e' del core.
  *
- * ⛔ **Anti-vacuita' in due punti**: il core deve dichiarare davvero `NotRequired` (altrimenti «uguale al core»
- * sarebbe vero anche con `Required`), e OGNI eroe deve avere almeno un'azione derivata da `Action.BasicAttack`
- * (altrimenti un roster senza attacchi base passerebbe per assenza).
+ * 🔴 **Trovato dalla code review di #3230**: il catalogo core dichiarava `Action.BasicAttack` a
+ * `LineOfSightPolicy::NotRequired` ([D-415] punto 3), ma `MakeHeroBasicAttack` non copiava il campo e gli
+ * attacchi base d'eroe restavano tutti `Required` — un no-op in partita. Nessun test lo prendeva:
+ * `BlindFire.DirectAttackStillRequiresLineOfSight` usa un `FRTActionDef` di default e
+ * `CellAttackRequiringSightIsRefusedByABlocker` usa `CircularTide`, quindi erano verdi in entrambi i mondi.
+ *
+ * ⚠️ **Oggi questo gate NON puo' fallire togliendo la copia, e va detto invece che taciuto.** Il punto (3) e'
+ * stato scorporato in #3608 e il core e' tornato al default `Required`, che e' anche cio' che un'azione d'eroe
+ * ha senza copia: le due meta' coincidono per costruzione. Morde il giorno in cui #3608 cambia il core — cioe'
+ * esattamente quando serve. Fino al 2026-10-10 si chiamava `EveryBasicAttackFiresBlind` e la premessa
+ * pretendeva `NotRequired`.
+ *
+ * ⛔ **Anti-vacuita' sul roster**: OGNI eroe deve avere almeno un'azione derivata da `Action.BasicAttack`,
+ * altrimenti un roster senza attacchi base passerebbe per assenza.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttacksFireBlindTest,
-	"RefactorTactics.HeroCatalog.EveryBasicAttackFiresBlind",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttacksTakeTheCorePolicyTest,
+	"RefactorTactics.HeroCatalog.EveryBasicAttackTakesTheCorePolicy",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHeroBasicAttacksFireBlindTest::RunTest(const FString&)
+bool FRTHeroBasicAttacksTakeTheCorePolicyTest::RunTest(const FString&)
 {
 	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
-	if (!TestTrue(TEXT("premessa: il core dichiara il tiro alla cieca ([D-415] punto 3)"),
-		Core.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired)) { return false; }
+	if (!TestEqual(TEXT("premessa: il core esiste"), Core.ActionId, FName(TEXT("Action.BasicAttack")))) { return false; }
 
 	const TArray<URTHeroData*> Heroes = {
 		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
@@ -750,9 +756,9 @@ bool FRTHeroBasicAttacksFireBlindTest::RunTest(const FString&)
 			const URTActionData* Action = Ptr.Get();
 			if (!Action || Action->Def.BaseActionId != FName(TEXT("Action.BasicAttack"))) { continue; }
 			bHasOne = true;
-			TestTrue(FString::Printf(TEXT("%s: l'attacco base %s spara alla cieca come il core"),
+			TestTrue(FString::Printf(TEXT("%s: l'attacco base %s porta la linea di tiro del core"),
 				*Hero->HeroId.ToString(), *Action->Def.ActionId.ToString()),
-				Action->Def.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired);
+				Action->Def.LineOfSightPolicy == Core.LineOfSightPolicy);
 		}
 		if (bHasOne) { ++HeroesWithABasicAttack; }
 	}
