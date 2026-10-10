@@ -568,6 +568,20 @@ public:
 	static bool TakesMainSlot(const FRTActionDef& Action);
 
 	/**
+	 * L'azione ARMA UNA REAZIONE ([D-478] punto 2, #3618): occupa lo slot `Reaction`, oppure e' `Action.Overwatch`,
+	 * che occupa la principale e arma una finestra di reazione.
+	 *
+	 * ⚠️ **L'Overwatch si riconosce dall'`ActionId`, come lo riconosce il resolver** (`RTTurnManager.cpp`, nel ramo
+	 * che la arma): e' un'azione GENERICA, e le generiche sono chiuse da D-025. Un campo di catalogo sarebbe stato
+	 * un secondo discriminante per la stessa domanda.
+	 *
+	 * ⛔ **`Brace` no**: apre una finestra di decisione, ma D-478 nomina solo l'Overwatch, e la decisione d'autore del
+	 * 2026-10-10 lo lascia fuori.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static bool ArmsReaction(const FRTActionDef& Action);
+
+	/**
 	 * Gli `ActionId` delle azioni **generiche** che ogni unita' possiede in aggiunta al proprio kit (D-025).
 	 *
 	 * Sono **cinque** delle sette dichiarate, e le due che mancano non mancano davvero: `Move` e `BasicAttack`

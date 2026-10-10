@@ -12,6 +12,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTTurnLog.h" // FRTTurnLogEntry: il feed si prova iniettando una voce nel log
 #include "Unit/RTUnit.h" // ARTUnit: e' una delle classi AUTOREVOLI che nessun widget deve esporre
+#include "Tests/RTAbilityFixtures.h" // AddCoreAbility: il chip REAZ. si prova su piani veri (#3618)
 #include "UI/RTReactionWindowViewModel.h" // idem, ed e' quella che porterebbe `SubmitResponse` nel grafo
 #include "UI/RTHudViewModel.h"           // il feed si prova anche SOTTO il widget: l'insieme vuoto (#2744)
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
@@ -1471,6 +1472,80 @@ bool FRTHudMovementSlotUnauthorizedTest::RunTest(const FString&)
 		ARTHUD::DescribeMovementSlot(Autorizzata).ToString(), FString(TEXT("libero")));
 
 	DestroyHudWidgetWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **IL CHIP `REAZ.` SI ACCENDE SOLO PER UN'ALLEATA COMANDATA CON UNA REAZIONE ARMATA** ([D-478], #3618).
+ *
+ * Due accese: l'Overwatch come principale (arma una finestra pur occupando lo slot `Main`) e un'azione nello slot
+ * `Reaction`. Quattro spente, e per ragioni diverse:
+ * - `Brace` come principale: apre una finestra, ma D-478 nomina solo l'Overwatch (decisione del 2026-10-10);
+ * - un'avversaria, un'alleata del bot, un'alleata di un altro gruppo di controllo: per loro il piano non si legge.
+ *
+ * ⚠️ **Lo spento delle ultime tre non deve venire da un piano vuoto.** Il test lo prova: per ciascuna
+ * `BuildUnitSlots` direbbe vero. Se il roster saltasse il controllo «comandata», si accenderebbero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterReactionChipTest,
+	"RefactorTactics.ScreenHud.RosterReactionChipOnlyForCommandedAllies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterReactionChipTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Roster->SetControlGroupForTest(0);
+
+	// Un'unita' con un'azione pianificata: come principale o nello slot della reazione.
+	const auto Pianifica = [this, World](int32 TeamId, const TCHAR* HeroId, const TCHAR* ActionId, bool bReazione)
+	{
+		ARTUnit* Unit = SpawnRosterUnit(World, TeamId, HeroId);
+		const int32 Indice = Unit ? RTAbilityFixtures::AddCoreAbility(Unit, ActionId) : INDEX_NONE;
+		TestTrue(*FString::Printf(TEXT("premessa: %s ha %s nel kit"), HeroId, ActionId), Indice != INDEX_NONE);
+		if (Unit)
+		{
+			(bReazione ? Unit->PlannedReactionAbility : Unit->PlannedAbilityIndex) = Indice;
+		}
+		return Unit;
+	};
+
+	ARTUnit* Guardia = Pianifica(0, TEXT("Guardia"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	ARTUnit* Contro = Pianifica(0, TEXT("Contro"), TEXT("Action.Counter"), /*bReazione=*/ true);
+	ARTUnit* Saldo = Pianifica(0, TEXT("Saldo"), TEXT("Action.Brace"), /*bReazione=*/ false);
+	ARTUnit* Nemica = Pianifica(1, TEXT("Nemica"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	ARTUnit* DelBot = Pianifica(0, TEXT("DelBot"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	ARTUnit* AltroGruppo = Pianifica(0, TEXT("AltroGruppo"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	if (!Guardia || !Contro || !Saldo || !Nemica || !DelBot || !AltroGruppo) { return false; }
+	DelBot->bIsBotControlled = true;
+	AltroGruppo->ControlGroup = 1;
+
+	// --- 1. Le due accese ------------------------------------------------------------------------------------
+	TestTrue(TEXT("l'Overwatch come principale accende il chip"), Roster->IsReactionArmed(TEXT("Guardia")));
+	TestTrue(TEXT("un'azione nello slot della reazione accende il chip"), Roster->IsReactionArmed(TEXT("Contro")));
+
+	// --- 2. Brace: il piano c'e', e non e' una reazione armata --------------------------------------------------
+	TestFalse(TEXT("Brace come principale non accende il chip"), Roster->IsReactionArmed(TEXT("Saldo")));
+	TestFalse(TEXT("e la vista lo dice anche senza il roster"), URTHudViewModel::BuildUnitSlots(Saldo).bReactionArmed);
+
+	// --- 3. Le tre non comandate: il dato esisterebbe, e il roster non lo legge ----------------------------------
+	for (const ARTUnit* NonComandata : { Nemica, DelBot, AltroGruppo })
+	{
+		const FString Nome = NonComandata->HeroId.ToString();
+		if (!TestTrue(*FString::Printf(TEXT("premessa: il piano di %s arma una reazione"), *Nome),
+				URTHudViewModel::BuildUnitSlots(NonComandata).bReactionArmed))
+		{
+			continue;
+		}
+		TestFalse(*FString::Printf(TEXT("%s non e' comandata: il chip resta spento"), *Nome),
+			Roster->IsReactionArmed(NonComandata->HeroId));
+	}
+
+	TestFalse(TEXT("un HeroId che non e' in campo non accende niente"), Roster->IsReactionArmed(TEXT("Assente")));
 	return true;
 }
 

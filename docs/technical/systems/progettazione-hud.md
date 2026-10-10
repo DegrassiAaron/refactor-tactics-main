@@ -312,6 +312,14 @@ Il roster non deve trasformarsi in tre enormi character card.
 > *Reaction Armed* diventa un chip `REAZ.`, solo per le unità comandate della propria squadra, e conta anche
 > l'`Overwatch`. Il dato **non** va in `FRTUnitCardView`, che per contratto non porta piani: si legge dal piano
 > dell'unità comandata (`FRTUnitSlotsView`).
+>
+> ✅ **Implementato con [#3618](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3618) (2026-10-10).** Il dato è `FRTUnitSlotsView::bReactionArmed`, e la
+> domanda la decide `URTCatalogLibrary::ArmsReaction`: lo slot `Reaction`, oppure l'`Overwatch`. Il `Brace` resta
+> fuori. La card lo chiede a `URTTeamRosterWidget::IsReactionArmed(HeroId)`, che costruisce gli slot solo per
+> un'alleata **comandata**, cioè con la stessa squadra, lo stesso gruppo di controllo e non del bot
+> (`CanPlayerControlUnitInGroup`). ⚠️ Le altre letture della reazione armata contano ancora il solo slot `Reaction`:
+> la timeline, la dock e `FRTIntentView::ReactionName`. Per un'unità con l'Overwatch il roster e la timeline possono
+> dire due cose diverse finché non vengono allineate.
 
 > 🔑 **In sessione non presidiata le squadre sono due, in due liste** (`#2744`). Quando nessuno comanda —
 > autobattle, `ARTTurnManager::IsUnattendedSession()` — il roster risponde a *«chi sta giocando questa

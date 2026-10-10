@@ -109,6 +109,8 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	if (ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer()))
 	{
 		PlayerTeamId = ARTPlayerState::TeamIdOf(PC);
+		// Il gruppo di controllo dallo stesso controller della squadra (#3618): insieme dicono chi e' comandato.
+		PlayerControlGroup = ARTPlayerState::ControlGroupOf(PC);
 
 		// ⚠️ **Dallo STESSO controller da cui viene la squadra, e non dal primo del mondo** (CP 14.6, `#166`).
 		// La finestra e' una domanda posta a **un** giocatore: risolverla su `GetFirstPlayerController()`
@@ -336,6 +338,25 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetRoster() const
 {
 	return URTHudViewModel::BuildTeamRoster(GatherUnitsInWorld(), GetPlayerTeamId());
+}
+
+bool URTTeamRosterWidget::IsReactionArmed(FName HeroId) const
+{
+	for (const ARTUnit* Unit : GatherUnitsInWorld())
+	{
+		if (!Unit || Unit->HeroId != HeroId || !Unit->IsAlive())
+		{
+			continue;
+		}
+		// ⛔ **La barriera PRIMA di costruire**: per un'unita' non comandata il piano non si legge affatto.
+		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup, GetPlayerTeamId(),
+			GetPlayerControlGroup(), Unit->bIsBotControlled))
+		{
+			return false;
+		}
+		return URTHudViewModel::BuildUnitSlots(Unit).bReactionArmed;
+	}
+	return false;
 }
 
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const

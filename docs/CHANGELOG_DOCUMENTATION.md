@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-10 — Il roster sa quando un'alleata comandata ha armato una reazione
+
+**Origine**: il seguito T3 del referto delle tavole A–F. Issue [#3618](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3618).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | il roster: come si legge il chip `REAZ.`, e le letture della reazione armata che restano sul solo slot `Reaction` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | rimando in D-478 all'implementazione |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T3 di §9 punta a #3618 |
+
+---
+
 ## 2026-10-10 — La finestra di reazione rapida si sceglie da tastiera, e il registro riceve D-491
 
 **Origine**: il seguito T2 del referto delle tavole A–F, deciso dall'autore in sessione. Issue
