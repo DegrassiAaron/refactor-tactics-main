@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-11 — La scena si rende fra le fasce dell'HUD: D-497 attuata
+
+**Origine**: [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661). Le tre scelte d'autore prese prima e durante il codice sono annotate su D-497.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-497`: attuata; le fasce in unità Slate, il Context Inspector senza vincolo, la colonna sinistra col suo taglio |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: le fasce del dato, la scena, le zone posate dal C++, i gate nuovi |
+| [`technical/runbooks/guida-debug-bounds-screen-hud.md`](technical/runbooks/guida-debug-bounds-screen-hud.md) | §2: il riquadro libero è la scena; `PanelsLeaveTheSceneFree` |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3: la scena fra le fasce invece del 70–80% |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §2: rettangolo del giocatore, modello di `MaintainYFOV` per il limite del pivot, click fuori scena |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HUD-SCENA` nuova; `PIE-V01-SCREENHUD` e `PIE-DEBUG-CONTEXT` cambiano un criterio |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la scena non è più a tutto schermo |
+
+---
+
 ## 2026-10-11 — I piani rispetto a quello attivo: D-501, e la separazione vale 2
 
 **Origine**: una sessione `/sc:brainstorm` dell'autore e la seduta `U81`. Issue [#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678) · [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) · [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), scorporate da [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775).
