@@ -87,7 +87,7 @@
       "type": "UnitAtCell", "unit": "W1", "cell": [4, 0, 0] },
 
     { "_assertion": "Il colpo ha ferito e non ucciso: la morte a meta' turno cambierebbe le collisioni successive, ed e' una proprieta' diversa da questa.",
-      "type": "UnitAlive", "unit": "M2", "value": 1 },
+      "type": "UnitAlive", "unit": "M2", "value": true },
 
     { "type": "TurnsCompleted", "value": 1 }
   ]

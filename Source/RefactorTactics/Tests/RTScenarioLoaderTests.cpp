@@ -2804,4 +2804,118 @@ bool FRTScenarioLoaderPlayerReactionWindowsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Ogni chiave scalare accetta solo il proprio tipo JSON** (`#3668`).
+ *
+ * Il loader leggeva con i `TryGet*Field` dell'engine, che CONVERTONO e rispondono `true` comunque: `"freeRun": "yes"`
+ * caricava `true`, `"maxTurns": "4O"` caricava 4, un intero scritto `2.5` diventava 3. La disciplina «un tipo
+ * sbagliato non e' un'assenza» era scritta e non applicata.
+ *
+ * La tabella mette un valore del tipo sbagliato a ogni livello del formato — radice, unita', status, cella, intent,
+ * decisione, `requires` del turno, `expect`, elemento d'array — e chiede che il caricamento fallisca nominando la
+ * chiave. ⚠️ Ogni caso cambia UNA cosa rispetto a una base che si carica: e' il controllo positivo in testa, senza il
+ * quale un loader che rifiuta tutto passerebbe la tabella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderScalarTypesTest,
+	"RefactorTactics.Scenario.LoaderRejectsMistypedScalarKeys",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderScalarTypesTest::RunTest(const FString&)
+{
+	// Le quattro parti variabili: chiavi di radice, campi di A1, il contenuto del turno, l'array `expect`.
+	auto Json = [](const TCHAR* Radice, const TCHAR* Unita, const TCHAR* Turno, const TCHAR* Expect)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Tipi"%s, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "cell": [-2, 0, 0]%s },
+		    { "id": "B1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { %s } ],
+		  "expect": [ %s ]
+		}
+		)JSON"), Radice, Unita, Turno, Expect);
+	};
+	const TCHAR* Radice = TEXT(", \"version\": 2");
+	const TCHAR* Unita = TEXT(", \"team\": 0");
+	const TCHAR* Turno = TEXT("\"intents\": []");
+	const TCHAR* Expect = TEXT("{ \"type\": \"TurnsCompleted\", \"value\": 1 }");
+
+	// Il controllo positivo: la base si carica. Senza, un loader che rifiuta tutto passerebbe ogni riga sotto.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(Json(Radice, Unita, Turno, Expect), Scenario, Error);
+		if (!TestTrue(FString::Printf(TEXT("la base si carica (%s)"), *Error), bLoaded))
+		{
+			return false;
+		}
+	}
+
+	struct FCaso
+	{
+		const TCHAR* Cosa;
+		FString Testo;
+		const TCHAR* Chiave;
+	};
+	const TArray<FCaso> Casi = {
+		// radice
+		{ TEXT("freeRun stringa"), Json(TEXT(", \"version\": 4, \"freeRun\": \"yes\""), Unita, Turno, Expect), TEXT("freeRun") },
+		{ TEXT("maxTurns stringa"), Json(TEXT(", \"version\": 4, \"maxTurns\": \"4O\""), Unita, Turno, Expect), TEXT("maxTurns") },
+		{ TEXT("version stringa"), Json(TEXT(", \"version\": \"2\""), Unita, Turno, Expect), TEXT("version") },
+		{ TEXT("seed decimale"), Json(TEXT(", \"version\": 2, \"seed\": 2.5"), Unita, Turno, Expect), TEXT("seed") },
+		{ TEXT("seed null"), Json(TEXT(", \"version\": 2, \"seed\": null"), Unita, Turno, Expect), TEXT("seed") },
+		{ TEXT("expectSameAcrossVariants numero"),
+			Json(TEXT(", \"version\": 2, \"expectSameAcrossVariants\": 1"), Unita, Turno, Expect), TEXT("expectSameAcrossVariants") },
+		{ TEXT("tag numero"), Json(TEXT(", \"version\": 2, \"tags\": [42]"), Unita, Turno, Expect), TEXT("tags") },
+		// cella
+		{ TEXT("blocksMovement stringa"),
+			Json(TEXT(", \"version\": 2, \"cells\": [ { \"cell\": [0, 1, 0], \"blocksMovement\": \"true\" } ]"),
+				Unita, Turno, Expect), TEXT("blocksMovement") },
+		// unita' e status
+		{ TEXT("team stringa"), Json(Radice, TEXT(", \"team\": \"0\""), Turno, Expect), TEXT("team") },
+		{ TEXT("bot numero"), Json(Radice, TEXT(", \"team\": 0, \"bot\": 1"), Turno, Expect), TEXT("bot") },
+		{ TEXT("health decimale"), Json(Radice, TEXT(", \"team\": 0, \"health\": 2.5"), Turno, Expect), TEXT("health") },
+		{ TEXT("turns di uno status stringa"),
+			Json(Radice, TEXT(", \"team\": 0, \"statuses\": [ { \"tag\": \"Status.Prone\", \"turns\": \"2\" } ]"),
+				Turno, Expect), TEXT("turns") },
+		// turno
+		{ TEXT("unit di un intent numero"),
+			Json(Radice, Unita, TEXT("\"intents\": [ { \"unit\": 42, \"move\": [[-1, 0, 0]] } ]"), Expect), TEXT("unit") },
+		{ TEXT("respond di una decisione numero"),
+			Json(Radice, Unita, TEXT("\"intents\": [], \"decisions\": [ { \"unit\": \"A1\", \"respond\": 1 } ]"), Expect),
+			TEXT("respond") },
+		{ TEXT("requires del turno numero"), Json(Radice, Unita, TEXT("\"intents\": [], \"requires\": [1]"), Expect),
+			TEXT("requires") },
+		// expect
+		{ TEXT("value di TurnsCompleted stringa"),
+			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"TurnsCompleted\", \"value\": \"1\" }")), TEXT("value") },
+		{ TEXT("value di UnitAlive stringa"),
+			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"UnitAlive\", \"unit\": \"A1\", \"value\": \"true\" }")),
+			TEXT("value") },
+	};
+
+	for (const FCaso& Caso : Casi)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(Caso.Testo, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Caso.Cosa), bLoaded);
+		// ⚠️ Il messaggio deve NOMINARE la chiave: un rifiuto che parla d'altro manda a cercare nel posto sbagliato.
+		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Caso.Cosa, Caso.Chiave, *Error),
+			Error.Contains(Caso.Chiave));
+	}
+
+	// E un intero scritto con il punto ma senza parte decimale E' un intero: il rigore e' sul tipo, non sulla grafia.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"version\": 2, \"seed\": 3.0"), Unita, Turno, Expect), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("seed 3.0 si carica (%s)"), *Error), bLoaded);
+		TestEqual(TEXT("e vale 3"), Scenario.Seed, 3);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
