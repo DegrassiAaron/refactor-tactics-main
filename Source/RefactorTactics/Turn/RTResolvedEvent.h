@@ -304,7 +304,8 @@ struct FRTResolvedEvent
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
 	/**
-	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — solo per `AbilityActivated` (#3549).
+	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — per `AbilityActivated` (#3549) e, da `#3551`,
+	 * per `AttackFootprint`: chi vedeva l'attaccante nella cella d'origine del colpo ([D-500]).
 	 *
 	 * 🔴 **Non e' `CellVerdicts`**: un'attivazione non ha rotta ne' celle, e un vettore vuoto letto con
 	 * `ObservedPrefixLength` nasconderebbe ogni attivazione, comprese quelle di chi guarda. Il predicato e'
