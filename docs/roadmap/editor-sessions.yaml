@@ -5654,6 +5654,40 @@ sessions:
 
       ⚠️ A 180° la piattaforma di `Visual.Map.MultiLevel` non si vede, né in ortografica né in prospettiva. Il clipping
       e l'occlusion culling sono esclusi con controlli positivi: è #3674.
+  - id: U80
+    title: La rotazione a 60° in iso (D-499) e il clipping ai suoi angoli
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto sulla rotazione di D-499 e sul clipping a 60°, 120°, 240° e 300° in `PIE-CAM-STRATEGIC`; i 120°
+      aggiunti a #3674; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U79]
+    verifies: [PIE-CAM-STRATEGIC]
+    issues: [3662, 3674]
+    done_when: >-
+      la rotazione e il clipping hanno il verdetto dell'autore nel registro, dopo il merge di #3676
+    notes: |
+      Condotta il 2026-10-11 da questa sessione, nel clone principale su `main` = `dfde7e3ed` già compilato, con l'autore
+      presente: la rotazione l'ha giudicata guardando la PIE, il clipping sulle tavole. Tre avvii dell'Editor, con
+      `-LiveCoding=false`, il bridge sulla 8765 e la PIE nel viewport avviata dal bridge; il terzo su `main` =
+      `f274d1ccd`, senza ricompilare, perché il suo albero coincide con quello dei binari (`bcbea04c1`):
+      1. partita su `L_DevSandbox`, `-dpcvars=rt.Match.PlanningSeconds=3600`: `E` in tattica, `Tab`, `E`, `Q` `Q`,
+         trascinamenti con `MMB` in iso, `Tab` di ritorno e un trascinamento in tattica come controllo positivo, con
+         imbardata, inclinazione, stato e braccio letti dal pawn dopo ogni passo;
+      2. `rt.Test.Scenario=Visual.Map.MultiLevel` con `rt.Debug.PlaybackControls=1` e `rt.Debug.PlaybackStartPaused=1`:
+         `Tab` e cinque `E`, una cattura per angolo; a 120° `AutoPlaneShift` a −30000 e poi a +4000 come controllo
+         positivo, rimesso a −4800;
+      3. lo stesso scenario, braccio a fondo corsa (4000, in undici scatti di rotella) e sei angoli. Il pan in avanti
+         lì non sposta il pivot, che resta a x = −650: tutta la mappa sta nel quadro. A braccio 2350 lo stesso pan lo
+         sposta, come controllo positivo.
+
+      🔴 **Trappola nuova**: il primo tentativo di spostare i piani non è arrivato. Il JSON di `set_properties`, scritto
+      in PowerShell con le virgolette interne escapate due volte, non cambiava niente, e la rilettura con
+      `get_properties` tornava vuota. L'ha preso il controllo positivo: a +4000 la board era ancora intera. In una
+      stringa PowerShell fra apici il JSON annidato vuole `\"` una volta sola.
 
 not_schedulable:
 
