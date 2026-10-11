@@ -2261,9 +2261,22 @@ namespace
 	}
 }
 
-/** Con la separazione al default (1) il cambio di vista non tocca niente: nessuna ricostruzione, stesse quote. */
+/**
+ * Il valore dell'autore: la separazione vale 3 (seduta PIE `U78`, #3632). Esiste perche' un default cambiato per
+ * sbaglio non lo direbbe nessun altro test: tutti gli altri dichiarano il valore che misurano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationDefaultTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationDefaultIsTheAuthorsChoice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationDefaultTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("la separazione scelta in PIE"), GetDefault<ARTHexMapActor>()->StrategicLayerSeparation, 3.f);
+	return true;
+}
+
+/** Con la separazione a 1 il cambio di vista non tocca niente: nessuna ricostruzione, stesse quote. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationNeutralTest,
-	"RefactorTactics.HexMapActor.StrategicLayerSeparationIsNeutralByDefault",
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationAtOneIsNeutral",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMapStrategicSeparationNeutralTest::RunTest(const FString&)
 {
@@ -2276,6 +2289,7 @@ bool FRTHexMapStrategicSeparationNeutralTest::RunTest(const FString&)
 	const TArray<float> Prima = RTQuoteCelle(Actor);
 	// Senza una board posata «non ricostruisce» e «stesse quote» passerebbero anche per vacuita'.
 	if (!TestEqual(TEXT("premessa: la board e' posata"), Prima.Num(), 3)) { DestroyMapActorWorld(World); return false; }
+	Actor->SetStrategicLayerSeparationForTest(1.f);
 	TestFalse(TEXT("con la separazione a 1 la vista strategica non ricostruisce"), Actor->SyncStrategicPresentation(true));
 	TestTrue(TEXT("e le quote restano"), RTQuoteUguali(RTQuoteCelle(Actor), Prima));
 	FVector O; float H = 0.f; float L = 0.f;
@@ -2450,6 +2464,7 @@ bool FRTHexMapStrategicSeparationPartialRebuildTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
 
 	// La vista e' strategica con la separazione neutra: niente da ricostruire.
+	Actor->SetStrategicLayerSeparationForTest(1.f);
 	TestFalse(TEXT("premessa: neutra, nessuna ricostruzione"), Actor->SyncStrategicPresentation(true));
 	const TArray<float> Prima = RTQuoteCelle(Actor);
 

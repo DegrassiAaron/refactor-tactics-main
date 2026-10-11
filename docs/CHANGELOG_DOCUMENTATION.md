@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-11 — La seduta `U78`: la vista strategica rigiudicata, e la separazione dei piani vale 3
+
+**Origine**: i verdetti dell'autore sulle catture della seduta `U78`. Issue [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) · [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) · [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC` resta 🟡 con i due difetti chiusi; `PIE-CAM-STRATEGIC-RICORDO` ✅; `PIE-CAM-STRATEGIC-PIANI` 🟡 con il valore 3; totali e nota di rimisura di A1 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U78`, con le cinque trappole dell'Editor pilotato da script |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 3 |
+
+---
+
 ## 2026-10-11 — Uno scenario che apre la finestra di reazione al giocatore
 
 **Origine**: la cattura della finestra di reazione di `U74`, rimasta `NOT RUN` perché la finestra non si apriva a comando. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634). Nell'auto-run di uno scenario non si apriva affatto: il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`. La chiave di scenario `playerReactionWindows` chiude il buco, e `Visual.Reaction.OverwatchWindow` è il banco che la usa.

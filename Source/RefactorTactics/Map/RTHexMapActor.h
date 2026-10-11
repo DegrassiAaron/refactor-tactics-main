@@ -768,17 +768,20 @@ public:
 	bool SyncStrategicPresentation(bool bStrategic, float* OutPreviousLayerHeight = nullptr);
 	bool IsStrategicPresentation() const { return bStrategicPresentation; }
 
-	/** Fissa la separazione (per i test): il default e' neutro e non proverebbe niente. */
+	/** Fissa la separazione (per i test): ogni test dichiara il valore che misura, invece di ereditare il default. */
 	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
 
 	/**
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
-	 * questo fattore, le celle restano dove sono nel modello. ⛔ **Default 1, cioe' neutro**: il valore lo sceglie
-	 * l'autore guardando la vista in PIE, dove la stessa leva e' `rt.Map.StrategicLayerSeparation` (che, se > 0,
-	 * vince su questa proprieta').
+	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
+	 *
+	 * 🔑 **Default 3: l'ha scelto l'autore guardando la vista in PIE** (seduta `U78`, 2026-10-11, #3632), fra 1, 2, 3
+	 * e 4 sulla piattaforma di `Visual.Map.MultiLevel`. La stessa leva in console e' `rt.Map.StrategicLayerSeparation`
+	 * (che, se > 0, vince su questa proprieta'). ⚠️ La scelta e' stata fatta in prospettiva: con l'isometrica di
+	 * [D-498] (#3662) la voce `PIE-CAM-STRATEGIC-PIANI` si rimisura.
 	 */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap", meta = (ClampMin = "1.0", ClampMax = "10.0"))
-	float StrategicLayerSeparation = 1.f;
+	float StrategicLayerSeparation = 3.f;
 
 	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
 	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo

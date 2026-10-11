@@ -5535,6 +5535,47 @@ sessions:
       ✅ **Le catture**, su `L_DevSandbox`, con una raffica su un round con Guardia, Move e la Marea circolare di Muiren.
       Il registro c'e' in Risoluzione, con PREP #1 e BLAST #2 e le loro strisce, e manca in Pianificazione.
 
+  - id: U78
+    title: La vista strategica rigiudicata — Tab dall'avvio, mira dall'alto, il ricordo e la separazione dei piani
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti su `PIE-CAM-STRATEGIC`, `PIE-CAM-STRATEGIC-RICORDO` e `PIE-CAM-STRATEGIC-PIANI`; il valore della
+      separazione dei piani; le catture per le scelte di #3630 e #3631, poi prese da D-498; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U73]
+    verifies: [PIE-CAM-STRATEGIC, PIE-CAM-STRATEGIC-RICORDO, PIE-CAM-STRATEGIC-PIANI]
+    issues: [1774, 3630, 3631, 3632, 3646, 3647]
+    done_when: >-
+      le tre voci hanno un verdetto nel registro, dato dall'autore sulle catture dopo il merge di #3646, #3647 e
+      #3657
+    notes: |
+      Condotta il 2026-10-11 da questa sessione, nel clone principale su `main` = `1c58a69e4` ricompilato, mentre
+      l'autore era lontano dalla macchina; i verdetti li ha dati poi sulle catture affiancate. Tre avvii dell'Editor,
+      con `-LiveCoding=false`, il bridge sulla 8765 e la PIE nel viewport:
+      1. partita su `L_DevSandbox`, `-dpcvars=rt.Match.PlanningSeconds=3600`: ritorno di `Tab`, mira, inclinazione
+         e proiezione;
+      2. `rt.Test.Scenario=Visual.Map.MultiLevel` con `rt.Debug.PlaybackControls=1`, `rt.Debug.PlaybackStartPaused=1`
+         e `rt.Map.StrategicLayerSeparation=3`: la separazione, il click sul piano 1 e `Tab` durante il playback;
+      3. `rt.Test.Scenario=Visual.Perception.Acceptance` con gli stessi controlli: il ricordo, fermo al turno 3.
+
+      Le leve di #3630 (`StrategicPitchDelta`) e #3631 (`bStrategicOrthographic`) si sono scritte sul pawn vivo con
+      `ObjectTools.set_properties`, rileggendo il pitch effettivo: -40/-44,8/-49,5 alla soglia e -40/-60/-80 a fondo
+      corsa per 0/-20/-40, e la tattica sempre a -40. Le scelte le ha poi prese D-498 (dimetrico 2:1, ortografica),
+      in una sessione `/sc:spec-panel`, invece di questa seduta.
+
+      🔴 **Cinque trappole dell'Editor pilotato da script**, tutte silenziose:
+      - un `Alt` premuto da solo attiva la barra dei menu: i tasti dopo hanno aperto il «Tactical Designer»;
+      - `ESC` nella PIE dentro il viewport chiude la PIE;
+      - `set Classe Proprieta' Valore` e' vietato nell'Editor, e l'incolla nella casella della console non e' arrivato;
+      - `set_properties` su un attore vivo chiama `PostEditChangeProperty`: sul pawn della camera il braccio torna
+        a 800, e un ritorno di `Tab` misurato dopo dice 800 senza che sia un difetto;
+      - `rt.Debug.PlaybackStartPaused` non fa niente senza `rt.Debug.PlaybackControls 1`.
+
+      ⚠️ Il click per #3631 in ortografica ai tre punti del viewport non e' stato chiuso: la camera non arriva
+      all'angolo su `L_DevSandbox`. Si rimisura con #3662 sul rettangolo della scena di #3661.
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
