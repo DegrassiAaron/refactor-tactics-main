@@ -733,7 +733,7 @@ public:
 	 * Che cosa riempie lo slot MOVIMENTO, andatura compresa (`#1410` `AC-1`, [D-425]).
 	 *
 	 * 🔑 **E' la sede UNICA, e la sua ragione e' un difetto misurato.** `ComposeSlotLines` la usa per il
-	 * Canvas e `URTSelectedUnitPanelWidget::GetMovementSlotText()` per il widget UMG: prima il pannello
+	 * Canvas e il chip MOVIMENTO del pannello UMG (`URTSelectedUnitPanelWidget::RefreshLook`, dalla seduta `U76`): prima il pannello
 	 * legava `GetSlots()` e mostrava il `DisplayName` grezzo mentre il Canvas componeva la riga, cioe' due
 	 * rese dello stesso fatto che divergevano gia' — e l'andatura avrebbe aggiunto la terza.
 	 *

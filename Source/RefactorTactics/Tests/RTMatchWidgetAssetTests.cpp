@@ -1813,7 +1813,8 @@ bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
  * 🔴 **La seconda meta' e' quella che conta.** I default si scrivono sul CDO del Blueprint, ma il roster e il pannello che
  * si vedono sono le istanze dell'albero del TacticalHUD. Nella seduta, un TacticalHUD caricato PRIMA del cambio di default
  * teneva in memoria `CardClass` nullo, e il roster usciva vuoto. Salvarlo in quello stato avrebbe scritto il nullo come
- * override, per sempre. Un processo fresco lo vede: l'istanza deve risolvere alla stessa classe del CDO.
+ * override, per sempre. Questo test vede l'override SALVATO: in un processo fresco l'istanza deve risolvere alla stessa
+ * classe del CDO. ⚠️ Lo stato solo in memoria non si riproduce qui, e si vede solo a schermo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterAndPanelWearTheirClassesTest,
 	"RefactorTactics.ScreenHud.RosterAndPanelWearTheirClasses",

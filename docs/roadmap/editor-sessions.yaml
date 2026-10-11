@@ -5464,12 +5464,16 @@ sessions:
       - la carta del pannello e' la stessa del roster, quindi il nome resta a 16 px invece di 24;
       - i bordi tratteggiati (avviso, chip `REAZ.`, chip in avviso) sono pieni, perche' un `Border` non tratteggia;
       - «—» resta alla taglia del valore, non piu' grande come nella tavola;
-      - lo scudo e' un rettangolo arrotondato in basso, non la forma a scudo.
+      - lo scudo e' un rettangolo arrotondato in basso, non la forma a scudo;
+      - manca l'etichetta «PV» davanti alla barra, e la carta del pannello ha il pallino di squadra che la tavola non ha
+        (e' la carta del roster);
+      - il chip MOVIMENTO di un percorso dice «percorso», non «Move · 3 celle»: e' il testo di `DescribeMovementSlot`,
+        cioe' del C++.
 
       ✅ **Le catture**, su `L_DevSandbox`:
       - tavola A: Aevik con Guardia e un percorso;
-      - tavola B: la Marea circolare di Muiren su una cella accanto ad Aevik, con l'avviso, il chip col «!» e ▲ 1 su
-        Conferma;
+      - tavola B: la Marea circolare di Muiren su una cella accanto ad Aevik, con l'avviso e il chip col «!». Nella
+        cattura intera c'e' anche ▲ 1 su Conferma, che sta fuori dal ritaglio delle evidenze;
       - tavola E: Aevik con la Guardia reattiva, col chip `REAZ.` nel roster e nella carta del pannello.
 
       🔑 **Seguito possibile, fuori da questa seduta:** con il movimento riservato a `Withdraw` il chip MOVIMENTO dice
