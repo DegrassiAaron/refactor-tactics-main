@@ -144,6 +144,13 @@ la accetta:
    di portata, quindi un arco fuori portata (`Fallback Cancelled`, `:678-700`) **non** si attiva;
 4. **intenti d'attacco** — in `ResolveCombatPasses`, subito dopo `ApplyEnvironmentChanges` e prima del ciclo
    delle impronte (`:5487-5503`), iterando `Ctx.Intents` in ordine di `IntentIndex` con:
+   ➕ **Emendato da [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582)**: l'iterazione segue l'**ordine canonico del Blast** (ADR-0003 §3:
+   priorita' crescente, poi `ActionId`, attaccante e intento — `PrecedeNelBlast`, lo stesso confronto del ciclo del
+   danno), e per ogni intento l'**impronta esce subito dopo la sua attivazione**. Il playback ordina gli atti sulla
+   loro attivazione (decisione (d)) o, se non ne hanno nel Blast, sulla prima apparizione, che e' l'impronta: in
+   ordine d'intento raccontava il Blast per chi era nato prima, e la combo acqua + elettricita' si vedeva al
+   contrario (`U68`). D3 resta: l'attivazione precede impronta e colpi dello stesso intento. Le condizioni qui sotto
+   non cambiano.
    - `IntentAbilityIndex != INDEX_NONE` (esclude gli impatti di carica, già attivati in Dash);
    - ➕ rev. `!Ctx.InterruptedIntents.Contains(k)`: `InterruptedIntents` **sale in `FRTBlastContext`**
      accanto a `DegradedIntents` (`RTBlastContext.h:274`), riempito da `ApplyInterrupts` invece del `TSet`
@@ -164,7 +171,12 @@ la accetta:
 `ResolveCombatPasses` dichiara di rispettare (*«spostare una chiamata cambia il gioco»*). Costo se
 sbagliato: nel playback una cura si vede prima di un attacco anche quando l'attaccante viene prima nel
 roster; è coerente con la risoluzione, e il riordino per unità è un filtro di presentazione aggiungibile
-dopo.
+dopo. ⚠️ **Residuo dichiarato da [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582)**: «coerente con la risoluzione» vale per l'ordine in cui i
+pass si **eseguono**, non per quello in cui i loro effetti si **applicano**. Le cure si applicano dopo il ciclo del
+danno (`ApplyPlannedHeals`) e il catalogo dà al supporto una priorità più alta degli attacchi, ma Cleanse, Heal e
+`ModifyArc` si attivano nel loro pass, prima degli attacchi: una cura si vede prima di un colpo che la risoluzione
+applica prima. Gli attacchi fra loro seguono l'ordine canonico da #3582; le altre sorgenti no:
+[#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683).
 
 ➕ rev. **Dichiarato**: i `StructureHit` di `ApplyEnvironmentChanges` (`:5487`) entrano in timeline **prima**
 delle attivazioni degli intenti d'attacco. Il playback li raggruppa per intento (§2.4), quindi a schermo
@@ -173,7 +185,8 @@ l'ordine è comunque attivazione → impronta → colpi/muri.
 **Esclusi**: ⌫ ➕ impl. *Questa riga diceva «esclusi per costruzione: `Action.Wait` … non passa da questi
 siti», ed era falso* — `IMPLEMENTATION DRIFT` trovato dal Task 3 al primo run verde: `CollectAttackIntents`
 filtra solo `IsFastMovement`, e `Wait` (fallback `Stop`, che produce effetti) arriva fino a `Intents.Add`.
-L'esclusione è quindi **per filtro di fase**, in `EmitAttackIntentActivations`: salta gli intenti il cui
+L'esclusione è quindi **per filtro di fase**, in `EmitAttackIntentActivations` (da #3582 `EmitAttackIntentActivation`,
+un intento per chiamata): salta gli intenti il cui
 `MapResolutionPhase(Def.ResolutionPhase)` è `Move` — `Action.Wait` (risolve in `NormalMovement`,
 `Ability/RTCatalogLibrary.cpp:1184`), `Sprint`, `Withdraw` e il `Move` normale. È il criterio che D1
 nomina. Mutazione dichiarata: filtro disattivato → cade «`Action.Wait` non si attiva». Restano fuori per

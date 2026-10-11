@@ -2700,6 +2700,27 @@ void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 namespace
 {
 	/**
+	 * L'ORDINE CANONICO del Blast (ADR-0003 §3): priorita' crescente, poi `ActionId`, attaccante e intento. Vero se
+	 * l'intento `IntentA` di `AttackerA` precede l'intento `IntentB` di `AttackerB`. Un intento senza `Def` va in fondo.
+	 *
+	 * 🔑 **Esiste come funzione perche' i chiamanti sono DUE e devono restare d'accordo** (`#3582`): il ciclo del danno,
+	 * che spende il marchio in quest'ordine, e l'emissione delle attivazioni e delle impronte, da cui il playback ordina
+	 * gli atti. Con due copie, la combo acqua + elettricita' si risolveva in un ordine e si vedeva nell'altro.
+	 */
+	bool PrecedeNelBlast(const TArray<FRTActionDef>& IntentDefs, int32 IntentA, int32 AttackerA, int32 IntentB,
+		int32 AttackerB)
+	{
+		const int32 PA = IntentDefs.IsValidIndex(IntentA) ? IntentDefs[IntentA].Priority : MAX_int32;
+		const int32 PB = IntentDefs.IsValidIndex(IntentB) ? IntentDefs[IntentB].Priority : MAX_int32;
+		if (PA != PB) { return PA < PB; }
+		const FName IdA = IntentDefs.IsValidIndex(IntentA) ? IntentDefs[IntentA].ActionId : NAME_None;
+		const FName IdB = IntentDefs.IsValidIndex(IntentB) ? IntentDefs[IntentB].ActionId : NAME_None;
+		if (IdA != IdB) { return IdA.LexicalLess(IdB); }
+		if (AttackerA != AttackerB) { return AttackerA < AttackerB; }
+		return IntentA < IntentB;
+	}
+
+	/**
 	 * L'ORIGINE DICHIARATA di un colpo, cioe' la cella da cui il colpo «arriva» per i test direzionali
 	 * ([D-302] punto 3): per un'AREA il centro d'impatto, altrimenti la cella dell'attaccante.
 	 *
@@ -5749,11 +5770,16 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	LogBlockedIntents(Ctx);
 	ApplyEnvironmentChanges(Ctx);
 
-	// #3549: le attivazioni degli intenti d'attacco, PRIMA delle impronte qui sotto e dei colpi del ciclo del
-	// danno: in timeline l'attivazione precede l'impronta e i colpi dello stesso intento (D3). ⚠️ I
-	// `StructureHit` di `ApplyEnvironmentChanges` restano PRIMA: e' dichiarato (spec §2.2), e la sequenza di
-	// playback li raggruppa per intento.
-	EmitAttackIntentActivations(Ctx);
+	// #3549: le attivazioni degli intenti d'attacco precedono le impronte e i colpi del ciclo del danno: in timeline
+	// l'attivazione precede l'impronta e i colpi dello stesso intento (D3). ⚠️ I `StructureHit` di
+	// `ApplyEnvironmentChanges` restano PRIMA: e' dichiarato (spec §2.2), e la sequenza di playback li raggruppa per
+	// intento.
+	// 🔴 **`#3582`: e escono per intento, nell'ORDINE CANONICO del Blast** (`PrecedeNelBlast`, ADR-0003 §3) —
+	// attivazione e poi impronta dello stesso intento, un intento dopo l'altro. Il playback ordina gli atti sulla loro
+	// attivazione e, se non ne hanno nel Blast (l'impatto di una carica, attivato nel Dash), sulla prima apparizione,
+	// che e' l'impronta: cosi' entrambe le chiavi cadono al posto della risoluzione. ⏱️ *Fino a `#3582` uscivano prima
+	// tutte le attivazioni nell'indice d'intento e poi tutte le impronte: la combo acqua + elettricita' si vedeva al
+	// contrario, e l'impatto di una carica — priorita' 35 — sempre per ultimo.*
 
 	// Impronte a terra dei colpi, nella timeline di playback ([D-301]).
 	//
@@ -5768,7 +5794,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ⚠️ L'attaccante si traduce in `StableUnitId` **adesso**, mentre lo snapshot e' ancora quello del
 	// Blast: `FRTResolvedEvent` porta id e non puntatori (`#1800`), e l'indice di snapshot non sopravvive
 	// al turno.
-	for (const FRTAttackFootprint& Footprint : Plan.Footprints)
+	auto EmettiImpronta = [&, this](const FRTAttackFootprint& Footprint)
 	{
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
@@ -5801,6 +5827,33 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(Units[Footprint.AttackerId], Footprint.Origin));
 		}
 		ResolvedTimeline.Add(MoveTemp(Ev));
+	};
+
+	TArray<int32> OrdineIntenti;
+	OrdineIntenti.Reserve(Ctx.Intents.Num());
+	for (int32 k = 0; k < Ctx.Intents.Num(); ++k) { OrdineIntenti.Add(k); }
+	// ⛔ `StableSort` su un confronto TOTALE (l'intento chiude ogni pari): nessuna dipendenza dall'algoritmo.
+	OrdineIntenti.StableSort([&Ctx](int32 A, int32 B)
+	{
+		return PrecedeNelBlast(Ctx.IntentDefs, A, Ctx.Intents[A].AttackerId, B, Ctx.Intents[B].AttackerId);
+	});
+	TSet<int32> ImpronteEmesse;
+	for (const int32 k : OrdineIntenti)
+	{
+		EmitAttackIntentActivation(Ctx, k);
+		for (int32 f = 0; f < Plan.Footprints.Num(); ++f)
+		{
+			if (Plan.Footprints[f].IntentIndex == k)
+			{
+				EmettiImpronta(Plan.Footprints[f]);
+				ImpronteEmesse.Add(f);
+			}
+		}
+	}
+	// Un'impronta senza un intento valido non ha un posto nell'ordine canonico: esce in coda, come prima.
+	for (int32 f = 0; f < Plan.Footprints.Num(); ++f)
+	{
+		if (!ImpronteEmesse.Contains(f)) { EmettiImpronta(Plan.Footprints[f]); }
 	}
 
 	// Intenti NON VALUTABILI (nessuna mappa autorevole): non finiscono nel TurnLog come «nessuna linea di
@@ -5883,16 +5936,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (int32 h = 0; h < Plan.Hits.Num(); ++h) { HitOrder.Add(h); }
 	HitOrder.Sort([&Plan, &IntentDefs](int32 A, int32 B)
 	{
+		// `#3582`: lo stesso confronto da cui escono attivazioni e impronte, quindi l'ordine che il playback racconta.
 		const FRTHexAttackHit& HA = Plan.Hits[A];
 		const FRTHexAttackHit& HB = Plan.Hits[B];
-		const int32 PA = IntentDefs.IsValidIndex(HA.IntentIndex) ? IntentDefs[HA.IntentIndex].Priority : MAX_int32;
-		const int32 PB = IntentDefs.IsValidIndex(HB.IntentIndex) ? IntentDefs[HB.IntentIndex].Priority : MAX_int32;
-		if (PA != PB) { return PA < PB; }
-		const FName IdA = IntentDefs.IsValidIndex(HA.IntentIndex) ? IntentDefs[HA.IntentIndex].ActionId : NAME_None;
-		const FName IdB = IntentDefs.IsValidIndex(HB.IntentIndex) ? IntentDefs[HB.IntentIndex].ActionId : NAME_None;
-		if (IdA != IdB) { return IdA.LexicalLess(IdB); }
-		if (HA.AttackerId != HB.AttackerId) { return HA.AttackerId < HB.AttackerId; }
-		return HA.IntentIndex < HB.IntentIndex; // ordine TOTALE
+		return PrecedeNelBlast(IntentDefs, HA.IntentIndex, HA.AttackerId, HB.IntentIndex, HB.AttackerId);
 	});
 
 	TSet<int32> MarkSpentOn;
@@ -6878,23 +6925,26 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyDisplacements(Ctx);
 }
 
-void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
+void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int32 k)
 {
-	for (int32 k = 0; k < Ctx.Intents.Num(); ++k)
+	if (!Ctx.Intents.IsValidIndex(k))
+	{
+		return;
+	}
 	{
 		if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
 		{
-			continue; // impatto di carica: attivato nel Dash, con lo stesso `Def` dello scatto
+			return; // impatto di carica: attivato nel Dash, con lo stesso `Def` dello scatto
 		}
 		if (Ctx.InterruptedIntents.Contains(k) || !Ctx.IntentDefs.IsValidIndex(k))
 		{
-			continue; // cancellato da un Interrupt efficace: l'azione e' annullata, non attivata
+			return; // cancellato da un Interrupt efficace: l'azione e' annullata, non attivata
 		}
 		const FRTHexAttackIntent& Intent = Ctx.Intents[k];
 		ARTUnit* const Attaccante = Ctx.Units.IsValidIndex(Intent.AttackerId) ? Ctx.Units[Intent.AttackerId] : nullptr;
 		if (Attaccante == nullptr || !Attaccante->IsAlive())
 		{
-			continue; // morto in Prep o nel Dash: la stessa guardia di `ApplyInterrupts` (`IsAlive()` sull'attaccante)
+			return; // morto in Prep o nel Dash: la stessa guardia di `ApplyInterrupts` (`IsAlive()` sull'attaccante)
 		}
 		const ARTUnit* const Bersaglio = (Intent.TargetId != INDEX_NONE && Ctx.Units.IsValidIndex(Intent.TargetId))
 			? Ctx.Units[Intent.TargetId] : nullptr;
@@ -6906,7 +6956,7 @@ void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
 		// del catalogo e' il criterio che la spec stessa nomina («risolve in `NormalMovement`»).
 		if (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Move)
 		{
-			continue;
+			return;
 		}
 		// ⛔ **Un'abilita' legacy non ha un `ActionId`, e non si attiva** (spec D1: «ogni intento CON un
 		// `ActionId`»). `CollectAttackIntents` la ammette di proposito, e `EnsureDefaultAbilities`/`MakeAbility` ne
