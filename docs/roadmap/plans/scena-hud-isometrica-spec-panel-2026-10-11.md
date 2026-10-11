@@ -92,11 +92,13 @@ Due giri di domande. Il secondo nasce dalla review di [#3663](https://github.com
 
 La review delle correzioni ha trovato due misure sbagliate. Correggerle applica il metodo che l'autore ha scelto, senza cambiarlo:
 - **la fascia alta era misurata sulla sola colonna centrale.** La griglia ha un taglio solo per riga, e in `Zone_TopLeft` il roster finisce a y=200: la fascia va al 19%, non al 17%;
-- **il margine di 4 px della griglia non era contato.** La colonna destra va al 19,2%, perché il registro e il badge accanto a `Conferma` cominciano a x=1556. `Conferma` vincola la colonna, al contrario di quanto diceva la prima correzione.
+- **il margine di 4 px della griglia non era contato.** La colonna destra va al 19,2%, perché il registro e il badge degli avvisi accanto a `Conferma` (Z8) cominciano a x=1556. `Conferma` comincia a x=1620 e da sola chiederebbe meno.
 
 La scena passa da ~61%×66% (il 40% dello schermo) a ~61%×64% (il 39%). La cella centrale scartata ne copre il 36%: con le misure corrette le due strade differiscono di circa tre punti. L'autore lo ha saputo dopo la scelta.
 
 Ha trovato anche i due fatti dell'engine del §2: l'estensione verticale si conserva da sé, e l'ortografica di #3631 non è continua con la prospettica.
+
+Una terza review ha confermato i conti e trovato un problema di progetto: **a 16:10 gli inquilini non entrano in colonne a frazione fissa**, perché la scala dell'interfaccia (`ShortestSide`) segue l'altezza. A 1280×800 la colonna sinistra chiede circa 281 px e ne ha 252. Il dato sarà la misura degli inquilini in unità Slate, oppure cambierà la regola di scala: è una scelta d'autore, e sta in #3661.
 
 ## 5. La specifica
 
@@ -115,7 +117,7 @@ Ha trovato anche i due fatti dell'engine del §2: l'estensione verticale si cons
    | Fascia alta | 19% | il roster, in `Zone_TopLeft`, finisce a y=200; header e celle di fase a y=180 |
    | Fascia bassa | 17% | il dock comincia a y=903 |
 
-   La scena diventa circa 61%×64%, il 39% dello schermo. Le misure si riprendono sui widget veri, a più risoluzioni e con la scala dell'interfaccia di UE, e l'autore conferma le frazioni in PIE.
+   La scena diventa circa 61%×64%, il 39% dello schermo. Le misure si riprendono sui widget veri, a più risoluzioni e con la scala dell'interfaccia di UE, e l'autore conferma le frazioni in PIE. ⚠️ Le frazioni valgono a 16:9: a 16:10 le colonne non contengono più i loro inquilini (§4.1), e #3661 sceglie fra unità Slate e regola di scala.
 3. **La 3D si rende solo nel rettangolo**, ricalcolato a ogni cambio di dimensione. Fuori c'è lo sfondo dell'HUD.
 4. **A parità di braccio il rettangolo inquadra la stessa estensione verticale di oggi**, che `MaintainYFOV` conserva da sé. L'orizzontale segue l'aspetto del rettangolo (circa il 5% in meno). Celle e unità appaiono circa 0,64×; soglie e zoom non si ritarano.
 5. **Il limite del pivot usa il rettangolo del giocatore**, con il modello di `MaintainYFOV`: semiasse verticale fisso, orizzontale dall'aspetto. La deproiezione lo segue già; un click fuori dal rettangolo non raggiunge il mondo.
