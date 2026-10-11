@@ -5683,6 +5683,36 @@ sessions:
       3. lo stesso scenario, braccio a fondo corsa (4000, in undici scatti di rotella) e sei angoli. Il pan in avanti
          lì non sposta il pivot, che resta a x = −650: tutta la mappa sta nel quadro. A braccio 2350 lo stesso pan lo
          sposta, come controllo positivo.
+  - id: U81
+    title: La separazione dei piani a 2, su tre piani sovrapposti (D-501)
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      la separazione dei piani scelta dall'autore (2, D-501 (7)); il verdetto rimisurato a 2 di
+      `PIE-CAM-STRATEGIC-PIANI`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U79]
+    verifies: [PIE-CAM-STRATEGIC-PIANI]
+    issues: [3678]
+    done_when: >-
+      la separazione ha il verdetto dell'autore e la voce è rimisurata al valore scelto
+    notes: |
+      Condotta il 2026-10-11 da questa sessione **da un worktree** (`rt-wt-3678`, branch `issue/3678-tre-piani`), non
+      dal clone principale: la fixture `LayerStack` esisteva solo sul branch, e la seduta è di sola lettura. Senza i pack
+      gli eroi sono cilindri, cioè come in strategica. L'autore ha giudicato le tavole affiancate. Due avvii utili, con
+      `-LiveCoding=false`, il bridge sulla 8765 e la PIE nel viewport avviata dal bridge:
+      1. `rt.Test.Scenario=Visual.Map.LayerStack` col default ancora a 3: `Tab`, catture a 0° e a 60°, poi
+         `StrategicLayerSeparation` a 2 sull'attore vivo con `ObjectTools.set_properties` (riletta), due `Tab` e le
+         stesse catture;
+      2. ricompilato col default a 2: `N` per selezionare, `PageUp` per il piano attivo, click su una cella del
+         mezzanino e una della cima, esiti letti dal log.
+
+      🔴 **Trappola nuova: da un worktree il bridge non parte.** `bAutoStartServer=True` sta nel `Saved/` del clone
+      principale, che è gitignorato. Rimedio senza scrivere file: `-ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=True`.
+      ⚠️ Un terzo avvio, su `Visual.Map.MultiLevel`, non è partito: un'altra sessione aveva aperto Unreal per una serie
+      di mutazioni, e lo script si è fermato da solo. Il confronto su due piani non è servito: l'autore ha deciso su tre.
 
       🔴 **Trappola nuova**: il primo tentativo di spostare i piani non è arrivato. Il JSON di `set_properties`, scritto
       in PowerShell con le virgolette interne escapate due volte, non cambiava niente, e la rilettura con

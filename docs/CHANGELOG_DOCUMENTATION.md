@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-11 — I piani rispetto a quello attivo: D-501, e la separazione vale 2
+
+**Origine**: una sessione `/sc:brainstorm` dell'autore e la seduta `U81`. Issue [#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678) · [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) · [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), scorporate da [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501`: i piani sopra traslucidi, quelli sotto desaturati e scuriti, l'attivo con il bordo marcato, le unità piene, l'indicatore nel dock; la separazione vale 2 |
+| [`roadmap/plans/piani-e-piano-attivo-brainstorm-2026-10-11.md`](roadmap/plans/piani-e-piano-attivo-brainstorm-2026-10-11.md) | il brief: che cosa esiste, le scelte dell'autore, le tre issue |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC-PIANI` rimisurata a 2 sui tre piani di `Visual.Map.LayerStack` |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U81`, condotta da un worktree |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | lo scenario `Visual.Map.LayerStack` |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 2 |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione vale 2 |
+
+---
+
 ## 2026-10-11 — La reazione armata: il roster la conta per qualunque slot, le altre letture per lo slot
 
 **Origine**: [#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628), il seguito di #3618.

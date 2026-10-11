@@ -505,7 +505,40 @@ namespace
 		{ TEXT("GrayKitYard"), &URTMatchSetupLibrary::MakeGrayKitYardArena        },
 		{ TEXT("VisionSplit"), &URTMatchSetupLibrary::MakeVisionSplitArena       },
 		{ TEXT("ProbeYard"),   &URTMatchSetupLibrary::MakeProbeYardArena         },
+		{ TEXT("LayerStack"),  &URTMatchSetupLibrary::MakeLayerStackArena        },
 	};
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeLayerStackArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Tre impronte annidate: ognuna sta tutta dentro quella sotto, quindi ogni cella di un piano alto ha una
+	// cella sotto di se'. I centri sono spostati verso lo stesso quadrante perche' i piani bassi restino in
+	// parte scoperti: un piano coperto per intero non mostrerebbe la differenza fra «sotto» e «accanto».
+	struct FPiano { FRTCellId Centro; int32 Raggio; };
+	for (const FPiano& Piano : { FPiano{ FRTCellId(0, 0, 0), 4 }, FPiano{ FRTCellId(1, -1, 1), 2 },
+	                             FPiano{ FRTCellId(2, -2, 2), 1 } })
+	{
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(Piano.Centro, Piano.Raggio))
+		{
+			Draft.Set(FRTHexCellData(Id));
+		}
+	}
+
+	// I piani si collegano solo con archi espliciti, come in `TestArena`. Ancore fuori dall'impronta del piano
+	// sopra: chi sale parte da una cella scoperta.
+	Draft.Link(FRTCellId(1, 2, 0), FRTCellId(1, 1, 1), /*Cost=*/ 2);
+	Draft.Link(FRTCellId(0, -1, 1), FRTCellId(1, -1, 2), /*Cost=*/ 2);
+
+	Draft.CommitTo(Arena);
+	return Arena;
 }
 
 URTHexMapAsset* URTMatchSetupLibrary::MakeProbeYardArena(UObject* Outer)
