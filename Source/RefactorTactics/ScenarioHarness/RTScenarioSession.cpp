@@ -177,6 +177,7 @@ namespace RTScenarioStateDiff
 #include "Unit/RTUnit.h"
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la stessa regola della partita (#3586)
 #include "Player/RTPlayerController.h"
+#include "UI/RTReactionWindowViewModel.h" // `playerReactionWindows`: la finestra al giocatore (#3634)
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -729,6 +730,7 @@ FRTScenarioSession::~FRTScenarioSession()
 {
 	UnbindOwnDecider();
 	UnbindResolutionObservers();
+	UnbindPlayerReactionWindow();
 }
 
 void FRTScenarioSession::UnbindResolutionObservers()
@@ -1141,7 +1143,72 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	// per quell'id. Si cattura al primo `PlanningLocked` (`OnResolutionPhaseClosed`).
 
 	ApplyPreviewSelection();
+	ApplyPlayerReactionWindows();
 	return true;
+}
+
+void FRTScenarioSession::ApplyPlayerReactionWindows()
+{
+	if (!Scenario.bPlayerReactionWindows)
+	{
+		return;
+	}
+
+	ARTTurnManager* TM = TurnManager.Get();
+	UWorld* W = World.Get();
+	// Nessun controller = headless, ed e' lo stesso ramo di `ApplyPreviewSelection`: dove si misura, non gira.
+	// ⛔ E qui conta di piu': legare il delegate dove nessuno disegna aprirebbe finestre che nessuno chiude —
+	// il caso che `ARTGameMode::HookReactionWindow` esclude per nome.
+	ARTPlayerController* PC = W
+		? Cast<ARTPlayerController>(UGameplayStatics::GetActorOfClass(W, ARTPlayerController::StaticClass()))
+		: nullptr;
+	if (!TM || !PC)
+	{
+		return;
+	}
+
+	// ⚠️ **Uno slot gia' occupato non si sovrascrive.** Succede quando una seduta lancia lo scenario sopra una
+	// partita gia' allestita: il GameMode l'ha legato al proprio `BeginPlay`, e la finestra si apre gia'.
+	if (TM->OnReactionWindowOpened.IsBound())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT-Test] %s: la finestra di reazione e' gia' agganciata, non la tocco"),
+			*Scenario.ScenarioId);
+		return;
+	}
+
+	if (URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel())
+	{
+		ViewModel->Hook(TM);
+	}
+
+	// Il testimone si legge dallo slot e non si deduce dalla chiamata: e' il difetto che `ApplyPreviewSelection`
+	// ha gia' pagato una volta, un log di successo stampato dopo una chiamata che non aveva funzionato.
+	bBoundPlayerReactionWindow = TM->OnReactionWindowOpened.IsBound();
+	if (bBoundPlayerReactionWindow)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: le finestre di reazione si aprono al giocatore — rispondi, o ")
+			TEXT("lasciale scadere"), *Scenario.ScenarioId);
+	}
+	else
+	{
+		UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: playerReactionWindows dichiarato, ma la finestra NON si e' ")
+			TEXT("agganciata"), *Scenario.ScenarioId);
+	}
+}
+
+void FRTScenarioSession::UnbindPlayerReactionWindow()
+{
+	if (!bBoundPlayerReactionWindow)
+	{
+		return;
+	}
+	// Stessa ragione di `UnbindOwnDecider`: `SetUp` riusa il turn manager, e uno slot rimasto legato farebbe
+	// aprire al giocatore le finestre dello scenario successivo, che non l'ha chiesto.
+	if (ARTTurnManager* TM = TurnManager.Get())
+	{
+		TM->OnReactionWindowOpened.Unbind();
+	}
+	bBoundPlayerReactionWindow = false;
 }
 
 void FRTScenarioSession::ApplyPreviewSelection()
@@ -2029,6 +2096,7 @@ void FRTScenarioSession::TearDown()
 		// percorso normale (`RunSingle` con `bTearDownAfter=false`) non passa mai di qui.
 		UnbindOwnDecider();
 		UnbindResolutionObservers();
+		UnbindPlayerReactionWindow();
 		TM->Destroy();
 	}
 	TurnManager.Reset();

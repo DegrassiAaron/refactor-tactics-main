@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-10-11 — Uno scenario che apre la finestra di reazione al giocatore
+
+**Origine**: la cattura della finestra di reazione di `U74`, rimasta `NOT RUN` perché la finestra non si apriva a comando. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634). Nell'auto-run di uno scenario non si apriva affatto: il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`. La chiave di scenario `playerReactionWindows` chiude il buco, e `Visual.Reaction.OverwatchWindow` è il banco che la usa.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | §5: cosa fa la chiave, perché non è presentazione pura come `previewUnit`, chi prova la premessa |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | la riga di `Visual.Reaction.OverwatchWindow` nella fascia B |
+
+---
+
 ## 2026-10-11 — Il registro ha la sua seduta: `U77`
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster registro. Issue [#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637). Con questa seduta le sedute di stile di T8 (`U72`, `U74`–`U77`) sono fatte; la cattura della finestra di reazione (`U74`) resta `NOT RUN`.

@@ -404,8 +404,14 @@ bool FRTFreeRunValidationTest::RunTest(const FString&)
 		S.PreviewUnit = TEXT("A1");
 		Rejects(TEXT("previewUnit con freeRun"), S, TEXT("previewUnit con freeRun"));
 	}
+	// E la finestra al giocatore (`#3634`): in free-run ogni unita' e' del bot, e al bot non si apre.
+	{
+		FRTTestScenario S = ConTetto(40);
+		S.bPlayerReactionWindows = true;
+		Rejects(TEXT("playerReactionWindows con freeRun"), S, TEXT("playerReactionWindows con freeRun"));
+	}
 
-	// E il caso valido resta valido: un validator che rifiutasse tutto passerebbe i dieci casi qui sopra.
+	// E il caso valido resta valido: un validator che rifiutasse tutto passerebbe tutti i casi qui sopra.
 	//
 	// ⚠️ `Error` si legge DOPO la chiamata che lo scrive, e in una variabile: leggerlo dentro l'argomento
 	// messaggio della stessa `TestTrue` che invoca `Validate` e' indeterminatamente sequenziato — il messaggio

@@ -24,7 +24,8 @@ class ARTTurnManager;
  * 🔑 **`IsBound()` non e' un dettaglio implementativo: e' il segnale che distingue «umano con UI» da
  * «umano senza UI»**, ed e' cio' che tiene in piedi bot, test e Verifier senza un ramo che li nomini.
  * Legarlo e' precisamente l'atto che accende il comportamento — e per la stessa ragione **non** va legato
- * dove una UI non c'e' (vedi `ARTGameMode::HookReactionWindow`).
+ * dove una UI non c'e' (vedi `ARTGameMode::HookReactionWindow` e, per gli scenari con `playerReactionWindows`,
+ * `FRTScenarioSession::ApplyPlayerReactionWindows`).
  *
  * ## Push per ESISTERE, pull per DISEGNARE
  *
