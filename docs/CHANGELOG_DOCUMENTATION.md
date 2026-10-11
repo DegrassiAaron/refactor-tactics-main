@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-11 — La finestra di reazione si presenta sull'ingresso: emendamento a D-355
+
+**Origine**: [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666), S1 dello spec panel sui seguiti di `U74`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-355`: la finestra si presenta al trattenimento del playback, e la slow-motion di `D-350` rallenta l'avvicinamento (decisione d'autore, lettura (a)) |
+
+---
+
 ## 2026-10-11 — La seduta `U78`: la vista strategica rigiudicata, e la separazione dei piani vale 3
 
 **Origine**: i verdetti dell'autore sulle catture della seduta `U78`. Issue [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) · [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) · [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774).
