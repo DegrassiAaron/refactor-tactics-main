@@ -196,16 +196,20 @@ public:
 	float GetLastTacticalArmLength() const { return LastTacticalArmLength; }
 
 	/**
-	 * `#3631` — la larghezza ortografica che, alla distanza `ArmLength`, inquadra sul piano del pivot quanto la
-	 * prospettica con quel FOV orizzontale. Pura, per i test.
+	 * `#3662` — la `OrthoWidth` che, alla distanza `ArmLength`, inquadra sul piano del pivot quanto la prospettica.
+	 * Pura, per i test.
+	 *
+	 * 🔴 **`OrthoWidth` e' l'estensione VERTICALE, nonostante il nome.** Col vincolo `AspectRatio_MaintainYFOV`
+	 * (`BaseEngine.ini`, il progetto non lo cambia) UE usa `OrthoWidth / 2` come mezza altezza del quadro, e la
+	 * prospettica tiene fisso il semiangolo verticale `atan(tan(FOV/2) / ReferenceAspectRatio)`: il `FOV` della camera
+	 * e' orizzontale **al quadro di riferimento** (`UCameraComponent::AspectRatio`, 16:9). La formula di #3631,
+	 * `2 · Arm · tan(FOV/2)`, usava il FOV orizzontale come verticale e inquadrava 1,78× la prospettica. Lo prova
+	 * `Camera.StrategicOrthographicMatchesThePerspectiveOnTheProjection`, sulla matrice di proiezione.
 	 */
-	static float OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees);
+	static float OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees, float ReferenceAspectRatio);
 
 	/** Se la camera e' in proiezione ortografica adesso. */
 	bool IsOrthographicNow() const;
-
-	/** Vedi `bStrategicOrthographic`. Il test lo accende senza passare dalla console. */
-	void SetStrategicOrthographicForTest(bool bInOrtho) { bStrategicOrthographic = bInOrtho; }
 
 	/**
 	 * `#1778` — i limiti del pivot che tengono conto del VIEWPORT (`D-251`).
@@ -335,9 +339,6 @@ public:
 	 */
 	void SetPitchZoomDeltaForTest(float InDelta) { PitchZoomDelta = InDelta; }
 
-	/** Vedi `StrategicPitchDelta`. Il test fissa la rampa: il default e' neutro e non proverebbe niente. */
-	void SetStrategicPitchDeltaForTest(float InDelta) { StrategicPitchDelta = InDelta; }
-
 	/** Inclinazione accumulata dall'input manuale, separata dalla parte derivata dallo zoom. */
 	float GetManualPitchOffset() const { return ManualPitchOffset; }
 	void SetSensitivitiesForTest(float InYaw, float InPitch)
@@ -464,15 +465,25 @@ protected:
 	bool bStrategicView = false;
 
 	/**
-	 * `#3631` — la vista strategica in proiezione ortografica. ⛔ **Spenta di default**: la proiezione la sceglie
-	 * l'autore guardando le due versioni (D-488 (5)), e questa e' la leva per mostrargliele, non la scelta. In PIE
-	 * la stessa leva e' `rt.Camera.StrategicOrtho 1`.
+	 * `D-498` (#3662) — ortografica finche' lo stato e' strategico, prospettica finche' e' tattico. La chiama
+	 * `UpdateStrategicState` a ogni lettura, perche' in ortografica la larghezza segue il braccio. Non c'e' piu' una
+	 * leva: l'interruttore di #3631 e `rt.Camera.StrategicOrtho` servivano a una scelta che D-498 ha preso.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
-	bool bStrategicOrthographic = false;
-
-	/** Ortografica solo in strategica e solo se la leva e' accesa; altrimenti prospettica. La chiama `UpdateStrategicState`. */
 	void ApplyStrategicProjection();
+
+	/**
+	 * Di quanti bracci il frustum ortografico si sposta INDIETRO rispetto ai piani automatici di UE (`AutoPlaneShift`).
+	 *
+	 * 🔴 **Senza, i piani alti della mappa spariscono nella parte bassa del quadro.** In ortografica il quadro e' alto
+	 * quanto `OrthoWidth` anche all'altezza della camera, e a -30 il suo bordo basso parte quasi dal suolo: la
+	 * geometria piu' alta del pivot, li', sta DIETRO la camera. `FMinimalViewInfo::AutoCalculateOrthoPlanes` mette il
+	 * near a circa `-1,43 · Arm` dal pivot, che copre fino a `0,23 · Arm` di quota: 547 alla soglia d'ingresso, meno
+	 * del piano 1 con la separazione 3 (750). Con lo spostamento di `2` bracci il near scende a circa `-3,43 · Arm`, e
+	 * copre fino a circa `1,23 · Arm` (2334 alla soglia d'uscita). Il far del percorso a 16 bit e' decine di migliaia
+	 * di unita' oltre: spostarlo indietro non toglie niente. Lo prova
+	 * `Camera.StrategicOrthographicPlanesKeepTheMapLayersInView`, sulla matrice di vista e proiezione di UE.
+	 */
+	static constexpr float StrategicOrthoPlaneShiftArms = 2.f;
 
 	/** Vedi `GetLastTacticalArmLength`. La scrivono `UpdateStrategicState`, a ogni lettura in cui la vista e' tattica, e `ToggleStrategicView` subito prima del salto (#3646): non tutti gli scrittori del braccio passano dalla prima. */
 	float LastTacticalArmLength = -1.f;
@@ -586,23 +597,18 @@ protected:
 	float PitchZoomDelta = 0.f;
 
 	/**
-	 * `#3630` — gradi di inclinazione **aggiuntiva** a fondo corsa, che entrano **solo oltre
-	 * `StrategicExitThreshold`**: la vista strategica guarda piu' dall'alto, quella tattica resta com'e'.
+	 * `D-498` (#3662) — l'inclinazione della vista strategica: **fissa**, finche' lo stato e' strategico.
 	 *
-	 * 🔑 **Una rampa e non uno scatto.** Il contributo e' zero fino alla soglia d'uscita e cresce linearmente fino
-	 * a `MaxArmLength`: e' una funzione della DISTANZA, non di `bStrategicView`, quindi non salta al cambio di
-	 * stato e non reintroduce la modalita' che D-252 esclude. ⚠️ Non e' `PitchZoomDelta`: quella vale su tutta
-	 * la corsa, e qualunque valore diverso da zero cambierebbe anche la vista tattica alla distanza di default.
+	 * `-30` e' il dimetrico 2:1 delle tavole A–F: in ortografica gli esagoni appaiono schiacciati a meta'. Scartati
+	 * il vero isometrico (`-35,26`) e un'ortografica all'inclinazione tattica. 🔑 **Vale per STATO, non per distanza**:
+	 * anche fra le due soglie, dove l'isteresi di D-252 tiene la vista strategica, e cambia nel fotogramma in cui
+	 * cambia lo stato (D-495 (4), il taglio netto). L'offset manuale della tattica non si tocca: torna al ritorno.
 	 *
-	 * ⛔ **Default `0`, cioe' neutro**, per la stessa ragione di `PitchZoomDelta`: il valore — e la forma, fino
-	 * a `MaxArmLength` o fino a `StrategicEnterThreshold` — li sceglie l'autore guardando la vista in PIE.
+	 * Sostituisce la rampa di #3630 (`StrategicPitchDelta`): un angolo fisso e una rampa con la distanza non convivono.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
-		meta = (ClampMin = "-89.0", ClampMax = "89.0"))
-	float StrategicPitchDelta = 0.f;
-
-	/** Quanto della rampa di `StrategicPitchDelta` vale alla distanza corrente: `0` fino a `Exit`, `1` a `MaxArmLength`. */
-	float GetStrategicPitchRampAlpha() const;
+		meta = (ClampMin = "-89.0", ClampMax = "0.0"))
+	float StrategicPitch = -30.f;
 
 	/**
 	 * Quanto l'input manuale ha inclinato la vista **oltre** il valore derivato dallo zoom.
@@ -614,6 +620,9 @@ protected:
 	 * Clampato in modo che il risultato resti dentro `[MinPitch, MaxPitch]`: senza, trascinare a fondo
 	 * corsa accumulerebbe un offset che il clamp nasconde, e il primo trascinamento nel verso opposto non
 	 * risponderebbe.
+	 *
+	 * `D-498`: in strategica l'offset **non si usa e non si tocca** — il pitch e' `StrategicPitch`, e l'orbita
+	 * verticale non agisce — cosi' tornando tattici la vista ha l'inclinazione che aveva prima di `Tab`.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
 	float ManualPitchOffset = 0.f;
@@ -696,7 +705,13 @@ protected:
 	/** Scala del pan derivata dalla sorgente unica: quanto terreno copre una unita' di input. */
 	float GetPanDistanceScale() const;
 
-	/** Riallinea `CameraPitch` a `derivato(alpha) + ManualPitchOffset`, clampando entrambi. */
+	/**
+	 * Riallinea `CameraPitch`: in tattica a `derivato(alpha) + ManualPitchOffset`, clampando entrambi; in strategica a
+	 * `StrategicPitch` (D-498), senza toccare l'offset. ⚠️ Legge `bStrategicView`, quindi va chiamata **dopo**
+	 * `UpdateStrategicState`: ogni porta di gioco che scrive il braccio rilegge prima lo stato (`ApplyViewSettings`,
+	 * `ApplyArmLength` — e con lei `FrameOwnTeam`, `SetZoomAlpha`, `ToggleStrategicView` —, `ZoomTowards`, `AddZoom`).
+	 * Fa eccezione la vista di MISURA `ApplyTopDownView`, che scrive braccio e pitch a mano ed e' fuori dal gioco.
+	 */
 	void RecomputePitchFromZoom();
 
 	/**
