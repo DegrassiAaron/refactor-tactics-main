@@ -330,6 +330,10 @@ void ARTTurnManager::PresentPendingReactionWindow()
 	}
 
 	bReactionWindowPresented = true;
+	// Nel log e non nel registro della partita: il giocatore la vede gia' a schermo. Serve a chi giudica una seduta
+	// PIE (`PIE-V01-RXPLAYBACK`), che dal log sa quando la finestra si e' presentata e se il playback era trattenuto.
+	UE_LOG(LogRT, Log, TEXT("[RT] Finestra di reazione presentata: %s (playback trattenuto=%d)"),
+		*GetOpenReactionWindowId(), bPlaybackHeldByWindow ? 1 : 0);
 	OnReactionWindowOpened.ExecuteIfBound(PendingWindowView, PendingWindowOwnerId);
 }
 
