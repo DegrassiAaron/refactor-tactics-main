@@ -760,7 +760,7 @@ void ARTCameraPawn::AddOrbit(float DeltaYaw, float DeltaPitch)
 	{
 		CameraYaw = FRotator::ClampAxis(CameraYaw + DeltaYaw * FMath::Max(YawSensitivity, 0.f));
 	}
-	// D-498: in strategica solo l'orbita orizzontale; la verticale non agisce, come in `AddPitch`.
+	// D-498: in strategica nemmeno l'orbita verticale agisce, come in `AddPitch` (l'orizzontale e' gia' esclusa sopra, D-499).
 	if (!FMath::IsNearlyZero(DeltaPitch) && !bStrategicView)
 	{
 		// 🔴 **#3630 — l'orbita scrive l'OFFSET, come `AddPitch`.** Fino al 2026-10-10 sommava direttamente su

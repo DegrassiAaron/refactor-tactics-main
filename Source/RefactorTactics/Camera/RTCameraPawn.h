@@ -704,7 +704,8 @@ protected:
 	 * esagoni: e' la scelta dell'autore guardando l'isometrica in PIE (seduta `U79`), e in strategica supera la
 	 * ragione di `D-142`, che resta valida in tattica (`YawStep`). Entrando in strategica l'imbardata si allinea al
 	 * multiplo piu' vicino e uscendo torna quella tattica (`TacticalYawBeforeStrategic`); in strategica l'orbita
-	 * orizzontale libera non agisce, come quella verticale.
+	 * orizzontale libera non agisce, come quella verticale. ⚠️ L'allineamento avviene al cambio di stato: un passo
+	 * cambiato da Details mentre si e' gia' in strategica vale dal prossimo ingresso.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "1.0", ClampMax = "180.0"))

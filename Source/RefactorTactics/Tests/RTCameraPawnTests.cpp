@@ -1830,6 +1830,41 @@ bool FRTCameraSnapYawTest::RunTest(const FString&)
 }
 
 /**
+ * `Home` dalla strategica torna a imbardata 0, anche se l'imbardata tattica salvata all'ingresso era un'altra (D-499).
+ *
+ * 🔑 Si ruota in TATTICA prima di entrare, cosi' il valore salvato e' 45 e non 0: senza l'azzeramento in
+ * `RecenterView`, l'uscita dalla strategica che `Home` provoca ripristinerebbe 45. Verifica di mutazione: tolta la riga
+ * `TacticalYawBeforeStrategic = 0.f` da `RecenterView`, l'ultima asserzione cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeFromStrategicYawTest,
+	"RefactorTactics.Camera.HomeFromStrategicResetsTheSavedTacticalYaw",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraHomeFromStrategicYawTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+
+	Cam->AddYaw(+1.f);
+	TestEqual(TEXT("premessa: in tattica l'imbardata e' 45"), Cam->GetCameraYaw(), 45.f, 1e-3f);
+	Cam->ToggleStrategicView();
+	if (!TestTrue(TEXT("Tab apre la strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	TestEqual(TEXT("premessa: entrando si allinea a 60"), Cam->GetCameraYaw(), 60.f, 1e-3f);
+
+	Cam->RecenterView();
+	TestFalse(TEXT("Home riporta alla distanza di default, cioe' in tattica"), Cam->IsStrategicView());
+	TestEqual(TEXT("e l'imbardata e' 0, non la 45 salvata all'ingresso"), Cam->GetCameraYaw(), 0.f, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * Il secondo `Tab` restituisce la tattica INTERA: distanza, pitch, proiezione e imbardata.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSecondTabRestoresTacticalTest,
