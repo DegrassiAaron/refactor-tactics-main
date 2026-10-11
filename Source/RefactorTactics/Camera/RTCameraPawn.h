@@ -212,6 +212,12 @@ public:
 	bool IsOrthographicNow() const;
 
 	/**
+	 * `D-499` — l'imbardata allineata al multiplo di `Step` piu' vicino, normalizzata in `[0, 360)`. Pura, per i test.
+	 * A meta' strada arrotonda per eccesso: 30 con passo 60 va a 60.
+	 */
+	static float SnapYawToStep(float YawDegrees, float Step);
+
+	/**
 	 * `#1778` — i limiti del pivot che tengono conto del VIEWPORT (`D-251`).
 	 *
 	 * Pura e senza mondo: prende come **parametri** cio' che a runtime verrebbe dal viewport, ed e' la
@@ -692,6 +698,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "1.0", ClampMax = "90.0"))
 	float YawStep = 45.f;
+
+	/**
+	 * `D-499` — gradi per passo di rotazione nella vista strategica (iso). **60**, cioe' allineata agli assi degli
+	 * esagoni: e' la scelta dell'autore guardando l'isometrica in PIE (seduta `U79`), e in strategica supera la
+	 * ragione di `D-142`, che resta valida in tattica (`YawStep`). Entrando in strategica l'imbardata si allinea al
+	 * multiplo piu' vicino e uscendo torna quella tattica (`TacticalYawBeforeStrategic`); in strategica l'orbita
+	 * orizzontale libera non agisce, come quella verticale. ⚠️ L'allineamento avviene al cambio di stato: un passo
+	 * cambiato da Details mentre si e' gia' in strategica vale dal prossimo ingresso.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "1.0", ClampMax = "180.0"))
+	float StrategicYawStep = 60.f;
+
+	/** L'imbardata tattica al momento dell'ingresso in strategica: torna quando si esce (`D-499`). */
+	float TacticalYawBeforeStrategic = 0.f;
 
 	/** Applica distanza (clampata tra Min e Max) e inclinazione correnti al braccio. */
 	void ApplyViewSettings();

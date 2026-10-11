@@ -5616,6 +5616,45 @@ sessions:
 
       ⚠️ Il click per #3631 in ortografica ai tre punti del viewport non e' stato chiuso: la camera non arriva
       all'angolo su `L_DevSandbox`. Si rimisura con #3662 sul rettangolo della scena di #3661.
+  - id: U79
+    title: La vista strategica in isometrica — aspetto, scala alla soglia, click, piani e ricordo
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti su `PIE-CAM-STRATEGIC`, `PIE-CAM-STRATEGIC-PIANI` e `PIE-CAM-STRATEGIC-RICORDO` in isometrica; la decisione
+      D-499 (rotazione a 60° in iso); il difetto #3674; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U78]
+    verifies: [PIE-CAM-STRATEGIC, PIE-CAM-STRATEGIC-PIANI, PIE-CAM-STRATEGIC-RICORDO]
+    issues: [1774, 3632, 3662, 3674]
+    done_when: >-
+      le tre voci hanno un verdetto nel registro, dato dall'autore sulle catture dopo il merge di #3671
+    notes: |
+      Condotta il 2026-10-11 da questa sessione, nel clone principale su `main` = `ba80c65c4` ricompilato, con l'autore
+      presente che ha giudicato le tavole affiancate. Tre avvii dell'Editor, con `-LiveCoding=false`, il bridge sulla 8765
+      e la PIE nel viewport avviata dal bridge (`EditorToolset.EditorAppToolset.StartPIE` con `options.playMode`):
+      1. partita su `L_DevSandbox`, `-dpcvars=rt.Match.PlanningSeconds=3600`: aspetto, `MMB`, rotazione, click, scala
+         alla soglia (rotella a scatti di 150, braccio letto con `ObjectTools.get_properties`), ritorno, turno con `Spazio`;
+      2. `rt.Test.Scenario=Visual.Map.MultiLevel` con `rt.Debug.PlaybackControls=1` e `rt.Debug.PlaybackStartPaused=1`:
+         separazione, clipping, click sul piano 1 (al turno 2, ripreso il playback con `K`);
+      3. `rt.Test.Scenario=Visual.Perception.Acceptance` con gli stessi controlli: il ricordo al turno 3.
+
+      L'autore ha rifiutato la rotazione a 45° in iso: ha deciso D-499 (60°, allineamento all'ingresso, niente orbita
+      libera), attuata in #3662.
+
+      🔴 **Trappole nuove, oltre a quelle di `U78`:**
+      - il bridge espone i toolset con nome qualificato (`EditorToolset.EditorAppToolset`,
+        `editor_toolset.toolsets.object.ObjectTools`) e `mcp.py` tronca l'elenco a 6000 caratteri: usare `--out`;
+      - un `mcp.py.session` rimasto da un Editor precedente dà HTTP 404: va cancellato a ogni avvio;
+      - `ESC` nella PIE dentro il viewport chiude la PIE (di nuovo: lo diceva già `U78`);
+      - la rotella a raffica perde scatti: uno alla volta, rileggendo il braccio;
+      - con un'abilità armata il click su una cella è un waypoint: la mira vuole un'unità.
+
+      ⚠️ A 180° la piattaforma di `Visual.Map.MultiLevel` non si vede, né in ortografica né in prospettiva. Il clipping
+      e l'occlusion culling sono esclusi con controlli positivi: è #3674.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
