@@ -1741,7 +1741,8 @@ bool FRTCameraStrategicVerticalOrbitInertTest::RunTest(const FString&)
 
 	const float YawPrima = Cam->GetCameraYaw();
 	Cam->AddOrbit(/*DeltaYaw=*/ 20.f, /*DeltaPitch=*/ 0.f);
-	TestEqual(TEXT("l'orbita orizzontale invece agisce"), Cam->GetCameraYaw(), FRotator::ClampAxis(YawPrima + 20.f), 1e-3f);
+	TestEqual(TEXT("l'orbita orizzontale invece agisce"), Cam->GetCameraYaw(),
+		static_cast<float>(FRotator::ClampAxis(YawPrima + 20.f)), 1e-3f);
 
 	Cam->ToggleStrategicView();
 	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
