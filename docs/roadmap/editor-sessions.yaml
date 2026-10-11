@@ -5367,17 +5367,22 @@ sessions:
         controllata»: e' il testo del C++;
       - le descrizioni sono quelle del catalogo, non «Attacca Ivrin» e «Non attaccare»;
       - i tasti sono `1` e `2`, non `F` e `H` ([D-491]);
+      - il badge sta nella riga dell'etichetta, non centrato in verticale sull'opzione: e' la correzione stessa;
       - il badge non ha lo scudo, «HOLD» in «Allo scadere» non e' in grassetto (e' un testo solo), e il countdown ha
         la virgola decimale.
 
-      ⚠️ **Fuori dal criterio, ma misurato:** la finestra si apre 0,1 s dopo l'inizio della Risoluzione, con l'header
+      ⚠️ **Fuori dal criterio, ma misurato:** la finestra si apre circa 0,1 s dopo l'inizio della Risoluzione (dedotto
+      dal fotogramma e dal countdown: «Risoluzione» alle 06:53:32,797, la finestra a 2,9 s alle 32,997), con l'header
       ancora su PREP e Ivrin ancora nella cella di partenza. L'ingresso si vede solo DOPO la scadenza. La tavola, e
       `PIE-V01-RXPLAYBACK`, vogliono il playback fermo sull'ingresso.
 
       🔑 **Due trappole della cattura.** (1) `StartPIE` ritorna a PIE gia' avviata, e con la pausa di 1,5 s la finestra
       si apre e si chiude prima di una raffica lanciata dopo: la raffica parte prima, in un processo a parte. (2)
-      Fuori fuoco l'Editor gira a circa 3 fps, e la finestra si disegna a scatti: le opzioni arrivavano un secondo
+      Fuori fuoco l'Editor gira a circa 3 fps, e la finestra si disegna a scatti: le opzioni arrivavano circa 0,75 s
       dopo il resto. Con la PIE in primo piano, 59 fps e le opzioni dal primo fotogramma.
+
+      Le raffiche: `r10` (3 fps) e `r13` (59 fps) sono PRIMA della correzione del badge e servono ai tempi; l'«dopo»
+      delle evidenze e' `r14`, l'«prima» e' `r13`.
 
   - id: U75
     title: Header e obiettivo come le tavole A e D — round, fase, timer, celle della fase riprodotta e obiettivo in WBP_RT_TurnHeader
