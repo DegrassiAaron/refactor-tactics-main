@@ -2346,6 +2346,23 @@ namespace RTEstensioneDopoIlBrace
 				M.TM->IsPlaybackHeldByWindow());
 	}
 
+	/**
+	 * Il centro di una cella nel contesto della MAPPA, cioe' dove le anim del playback posano le unita'. ⚠️ Non
+	 * `GetActorLocation` dopo `SpawnDefUnit`: la fixture piazza con un esagono da 100 e la mappa di prova lo ha da
+	 * 150, quindi fuori dall'origine i due punti non coincidono.
+	 */
+	FVector CentroDellaCella(const FMontaggio& M, const ARTUnit* Unit, const FRTCellId& Cella)
+	{
+		FVector Origine = FVector::ZeroVector;
+		float Esagono = 0.f;
+		float Piano = 0.f;
+		if (const ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(M.World))
+		{
+			Mappa->GetHexContext(Origine, Esagono, Piano);
+		}
+		return Unit->WorldForCell(Cella, Origine, Esagono, Piano);
+	}
+
 	void Smonta(FMontaggio& M)
 	{
 		if (M.TM) { M.TM->OnReactionWindowOpened.Unbind(); }
@@ -2378,7 +2395,7 @@ bool FRTBraceSidestepIsAnimatedTest::RunTest(const FString&)
 	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
 
 	const FRTCellId Partenza = M.Bracer->Cell;
-	const FVector P0 = M.Bracer->GetActorLocation();
+	const FVector P0 = RTEstensioneDopoIlBrace::CentroDellaCella(M, M.Bracer, Partenza);
 	M.TM->SubmitReactionResponse(M.TM->GetOpenReactionWindowId(), TEXT("SIDESTEP"));
 	if (!TestTrue(TEXT("⛔ premessa: con SIDESTEP il difensore lascia la cella"), M.Bracer->Cell != Partenza)
 		|| !TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), M.TM->IsResolutionSuspended()))
@@ -2451,7 +2468,9 @@ bool FRTBraceMoveAfterTheWindowStartsFromZeroTest::RunTest(const FString&)
 	Camminatore->PlannedCell = FRTCellId(-3, -1);
 
 	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
-	const FVector Partenza = Camminatore->GetActorLocation();
+	// ⚠️ **La partenza nel contesto della MAPPA** (`CentroDellaCella`): in (-3,0) il punto dove la fixture ha posato
+	// l'Actor dista mezza cella, e la frazione misurata da li' era falsa (misurato: 0,58 a orologio zero).
+	const FVector Partenza = RTEstensioneDopoIlBrace::CentroDellaCella(M, Camminatore, FRTCellId(-3, 0));
 
 	M.TM->ExpireReactionWindow(); // la scelta sicura, `Hold Ground`: nessuno scarto, il Blast non ha altro da mostrare
 	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), M.TM->IsResolutionSuspended()))
