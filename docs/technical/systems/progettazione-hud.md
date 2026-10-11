@@ -72,6 +72,8 @@ La schermata normale deve essere progettata così:
 - **bordi e angoli:** HUD screen-space;
 - **world-space:** path, AoE, facing, ghost, cone, marker, cover e altri overlay contestuali.
 
+> ⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11) emenda la prima voce**: la scena si renderà solo fra le fasce delle zone, strette ai loro inquilini, e misurerà circa 61%×64% (il 39% dello schermo), non il 70–80%. Arrivare al 70% chiederebbe di ridisegnare gli inquilini. In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661).
+
 La griglia esagonale è un modello logico, non lo stile grafico dominante della schermata principale.
 
 ## 3.1 Cosa NON deve occupare permanentemente il centro
