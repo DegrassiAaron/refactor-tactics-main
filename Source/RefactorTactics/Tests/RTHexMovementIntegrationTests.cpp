@@ -2869,7 +2869,8 @@ bool FRTHexMoveStrategicSeparationReposesUnitsTest::RunTest(const FString&)
  *
  * 🔴 **Prima si riposava su `Cell` e si saltava chi aveva un'animazione** (review di #3632): chi era in un'animazione
  * di un'altra fase restava alla quota vecchia fino a fine turno. Verifiche di mutazione: senza il riposo in quota la
- * sentinella resta in basso; senza la cache del playback aggiornata, il movimento finisce alla quota vecchia.
+ * sentinella resta in basso; senza il ricalcolo di `MoveAnims[].World` il fotogramma dopo torna alla quota
+ * vecchia; senza la cache del playback aggiornata, il movimento finisce alla quota vecchia.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationDuringPlaybackTest,
 	"RefactorTactics.HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan",
@@ -2895,16 +2896,19 @@ bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
 	Sentinella->PlannedCell = Sentinella->Cell;
 	Foe->PlannedCell = Foe->Cell;
 
-	// Il turno parte, e si avanza finche' il modello che si muove ha lasciato la sua cella di partenza.
-	const FVector Partenza = Mover->GetActorLocation();
+	// Il turno parte, e si avanza finche' chi si muove e' a META' della salita sulla rampa (1,0,0) -> (2,0,1): la sua
+	// quota sopra il piano terra e' una frazione della quota dei piani, il caso che un arrotondamento al piano sbaglia.
+	const float QuotaTerra = static_cast<float>(DoveLaCellaImpone(Mover, FRTCellId(1, 0, 0), HexMap).Z);
+	auto SopraTerra = [Mover, QuotaTerra]() { return static_cast<float>(Mover->GetActorLocation().Z) - QuotaTerra; };
 	TM->LockInAndResolve();
-	for (int32 I = 0; I < 400 && TM->IsResolving()
-		&& FVector2D(Mover->GetActorLocation()).Equals(FVector2D(Partenza), 1.f); ++I)
+	for (int32 I = 0; I < 2000 && TM->IsResolving() && SopraTerra() < 0.25f * Arena->LayerHeight; ++I)
 	{
-		TM->Tick(0.02f);
+		TM->Tick(0.005f);
 	}
+	const float SalitaPrima = SopraTerra();
 	if (!TestTrue(TEXT("premessa: il playback e' in corso"), TM->IsResolving())
-		|| !TestFalse(TEXT("premessa: il movimento e' cominciato"), FVector2D(Mover->GetActorLocation()).Equals(FVector2D(Partenza), 1.f)))
+		|| !TestTrue(TEXT("premessa: chi si muove e' a meta' salita"),
+			SalitaPrima >= 0.25f * Arena->LayerHeight && SalitaPrima <= 0.75f * Arena->LayerHeight))
 	{
 		DestroyHexMoveWorld(World);
 		return false;
@@ -2923,6 +2927,14 @@ bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
 	TM->RefreshPresentationGeometry(Precedente);
 
 	TestTrue(TEXT("chi si muove non salta in pianta"), FVector2D(Mover->GetActorLocation()).Equals(FVector2D(MoverPrima), 0.5f));
+	// La quota sopra terra e' lineare nella quota dei piani: a meta' salita si triplica, non scatta a un piano intero.
+	const float SalitaDopo = SopraTerra();
+	TestEqual(TEXT("a meta' salita la quota sopra terra si triplica"), SalitaDopo, 3.f * SalitaPrima, 0.5f);
+	// Un fotogramma minimo: `InterpolateAlongPath` riprende dalle posizioni ricalcolate. Senza il ricalcolo di
+	// `MoveAnims[].World` il modello tornerebbe alla quota vecchia, e lo snap di `FinishPlayback` lo nasconderebbe.
+	TM->Tick(0.001f);
+	TestEqual(TEXT("e il fotogramma dopo prosegue da li', senza tornare alla quota vecchia"),
+		SopraTerra(), SalitaDopo, 0.1f * Arena->LayerHeight);
 	TestTrue(TEXT("la sentinella non si sposta in pianta"),
 		FVector2D(Sentinella->GetActorLocation()).Equals(FVector2D(SentinellaPrima), 0.5f));
 	TestEqual(TEXT("e sale di due quote d'asset"),

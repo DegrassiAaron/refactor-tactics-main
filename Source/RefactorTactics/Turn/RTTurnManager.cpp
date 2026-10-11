@@ -6861,12 +6861,16 @@ void ARTTurnManager::RefreshPresentationGeometry(float PreviousLayerHeight)
 		}
 	}
 
-	// 🔴 **Ogni modello SALE o SCENDE, e basta: la pianta non si tocca.** Il piano su cui sta si ricava dalla sua
-	// quota e da quella di prima, non da `Cell`: durante il playback `Cell` e' gia' la cella FINALE, mentre il
-	// modello sta dove il playback lo ha messo — all'inizio di un'animazione di una fase futura, alla fine di una
-	// passata, a meta' di quella in corso. Vale per tutti, anche per i caduti ancora a schermo. Chi si sta animando
-	// ADESSO lo riprende `InterpolateAlongPath` dalle posizioni ricalcolate qui sopra.
+	// 🔴 **Ogni modello SALE o SCENDE, e basta: la pianta non si tocca.** Non si riposa su `Cell`: durante il
+	// playback `Cell` e' gia' la cella FINALE, mentre il modello sta dove il playback lo ha messo — all'inizio di
+	// un'animazione di una fase futura, alla fine di una passata, a meta' di quella in corso. Vale per tutti, anche
+	// per i caduti ancora a schermo.
+	//
+	// La quota sopra il piano terra e' LINEARE nella quota dei piani (`AxialToWorld`: `Layer * LayerHeight`), e lo
+	// resta lungo un'interpolazione fra due celle: scalarla e' esatto per un modello fermo, a meta' salita, in pausa
+	// o in step. Arrotondarla a un piano sbagliava proprio quest'ultimo caso (seconda review di #3632).
 	// `SetActorLocation` e non `PlaceOnCell`: nessuna cella cambia, e nessuna porta che la scriva va attraversata.
+	const float Scala = LayerH / PreviousLayerHeight;
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 	for (AActor* A : Actors)
@@ -6877,11 +6881,8 @@ void ARTTurnManager::RefreshPresentationGeometry(float PreviousLayerHeight)
 			continue;
 		}
 		const FVector Qui = U->GetActorLocation();
-		const int32 Piano = FMath::RoundToInt((Qui.Z - Origin.Z - U->VisualZOffset) / PreviousLayerHeight);
-		if (Piano != 0)
-		{
-			U->SetActorLocation(Qui + FVector(0.f, 0.f, static_cast<float>(Piano) * (LayerH - PreviousLayerHeight)));
-		}
+		const double Terra = Origin.Z + U->VisualZOffset;
+		U->SetActorLocation(FVector(Qui.X, Qui.Y, Terra + (Qui.Z - Terra) * Scala));
 	}
 }
 
