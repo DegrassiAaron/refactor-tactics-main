@@ -319,9 +319,18 @@ Il roster non deve trasformarsi in tre enormi character card.
 > domanda la decide `URTCatalogLibrary::ArmsReaction`: lo slot `Reaction`, oppure l'`Overwatch`. Il `Brace` resta
 > fuori. La card lo chiede a `URTTeamRosterWidget::IsReactionArmed(HeroId)`, che costruisce gli slot solo per
 > un'alleata **comandata**, cioè con la stessa squadra, lo stesso gruppo di controllo e non del bot
-> (`CanPlayerControlUnitInGroup`). ⚠️ Le altre letture della reazione armata contano ancora il solo slot `Reaction`:
-> la timeline, la dock e `FRTIntentView::ReactionName`. Per un'unità con l'Overwatch il roster e la timeline possono
-> dire due cose diverse finché non vengono allineate.
+> (`CanPlayerControlUnitInGroup`). ⚠️ Le altre letture della reazione armata contano il solo slot `Reaction`:
+> la timeline, la dock e `FRTIntentView::ReactionName`.
+>
+> ⚖️ **Decisione d'autore del 2026-10-11 ([#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628)): restano sullo slot, perché la loro domanda è
+> un'altra.** Ognuna lo dice nel codice.
+> - **La timeline** chiede se c'è una voce di Prep per l'azione dello slot `Reaction`. L'Overwatch come principale ha
+>   già la sua voce di Prep: contarlo la disegnerebbe due volte. E il dato `FRTReactionPreview`, che oggi nessuno
+>   disegna, porrebbe la guardia a fine scatto, mentre l'Overwatch si arma da prima dello scatto.
+> - **L'intento** stampa «(reazione: … ?)» accanto al nome dell'azione. Per l'Overwatch il nome uscirebbe due volte.
+> - **La dock** colora lo slot `Reaction`. L'Overwatch occupa lo slot principale.
+>
+> Il chip `REAZ.` resta l'unico canale che dice «reazione armata» per qualunque slot.
 
 > 🔑 **In sessione non presidiata le squadre sono due, in due liste** (`#2744`). Quando nessuno comanda —
 > autobattle, `ARTTurnManager::IsUnattendedSession()` — il roster risponde a *«chi sta giocando questa
