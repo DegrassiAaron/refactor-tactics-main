@@ -1764,36 +1764,43 @@ const URTHexMapAsset* ARTHexMapActor::GetAuthoringHexContext(FVector& OutOrigin,
 	return Map;
 }
 
-float ARTHexMapActor::GetPresentationLayerHeight() const
+float ARTHexMapActor::GetPresentationSeparation() const
 {
-	const float Base = MapAsset ? MapAsset->LayerHeight : LayerHeight;
 	if (!bStrategicPresentation)
 	{
-		return Base;
+		return 1.f;
 	}
 	const float DaConsole = CVarRTMapStrategicLayerSeparation.GetValueOnGameThread();
 	const float Fattore = DaConsole > 0.f ? DaConsole : StrategicLayerSeparation;
-	return Base * FMath::Clamp(Fattore, 1.f, 10.f);
+	return FMath::Clamp(Fattore, 1.f, 10.f);
+}
+
+float ARTHexMapActor::GetPresentationLayerHeight() const
+{
+	return (MapAsset ? MapAsset->LayerHeight : LayerHeight) * GetPresentationSeparation();
 }
 
 float ARTHexMapActor::GetPosedLayerHeight() const
 {
-	return AppliedPresentationLayerHeight > 0.f ? AppliedPresentationLayerHeight : GetPresentationLayerHeight();
+	// La BASE e' quella corrente — asset, o actor se l'asset manca — come prima di #3632: si conserva solo il
+	// fattore con cui la board e' stata posata, cioe' la scelta di presentazione, non una quota che invecchia.
+	const float Fattore = AppliedLayerSeparation > 0.f ? AppliedLayerSeparation : GetPresentationSeparation();
+	return (MapAsset ? MapAsset->LayerHeight : LayerHeight) * Fattore;
 }
 
 bool ARTHexMapActor::SyncStrategicPresentation(bool bStrategic, float* OutPreviousLayerHeight)
 {
 	bStrategicPresentation = bStrategic;
-	if (AppliedPresentationLayerHeight < 0.f)
+	if (AppliedLayerSeparation < 0.f)
 	{
 		// Mai posate: la prima ricostruzione la fara' chi allestisce la board, alla quota che la vista chiede.
 		return false;
 	}
 
 	// Chi posa le unita' le ha posate alla quota dell'ultimo giro; prima del primo, a quella della board.
-	const float Precedente = LastSyncedLayerHeight > 0.f ? LastSyncedLayerHeight : AppliedPresentationLayerHeight;
+	const float Precedente = LastSyncedLayerHeight > 0.f ? LastSyncedLayerHeight : GetPosedLayerHeight();
 
-	if (!FMath::IsNearlyEqual(GetPresentationLayerHeight(), AppliedPresentationLayerHeight))
+	if (!FMath::IsNearlyEqual(GetPresentationSeparation(), AppliedLayerSeparation))
 	{
 		// 🔴 **Il velo che la board MOSTRA, letto prima di ricostruirla.** La ricostruzione riporta ogni istanza
 		// alla scala piena, e la prima scrittura successiva e' uno snap: si riscrive nello stesso fotogramma
@@ -1832,8 +1839,9 @@ bool ARTHexMapActor::SyncStrategicPresentation(bool bStrategic, float* OutPrevio
 		SetPlanPreview(LastPlanPreview);
 	}
 
-	LastSyncedLayerHeight = AppliedPresentationLayerHeight;
-	if (FMath::IsNearlyEqual(Precedente, AppliedPresentationLayerHeight))
+	const float Posata = GetPosedLayerHeight();
+	LastSyncedLayerHeight = Posata;
+	if (FMath::IsNearlyEqual(Precedente, Posata))
 	{
 		return false;
 	}
@@ -2087,11 +2095,11 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	// #3632: la quota POSATA cambia solo con una ricostruzione intera. Una parziale — il velo che insegue una
 	// revisione dell'asset — ripone le sue famiglie alla quota delle altre: scrivendo la quota nuova, lascerebbe
 	// la board mista, e `SyncStrategicPresentation` la crederebbe gia' allineata.
-	if (Families == ERTRebuildFamily::All || AppliedPresentationLayerHeight <= 0.f)
+	if (Families == ERTRebuildFamily::All || AppliedLayerSeparation <= 0.f)
 	{
-		AppliedPresentationLayerHeight = GetPresentationLayerHeight();
+		AppliedLayerSeparation = GetPresentationSeparation();
 	}
-	const float UseLayerH = AppliedPresentationLayerHeight;
+	const float UseLayerH = GetPosedLayerHeight();
 
 	// Filtro layer (H4): `PassesLayerFilter` (sopra) e' l'unica regola, condivisa con
 	// `RebuildCoordinateLabels` — non piu' una lambda locale, per non avere due formule dello stesso filtro.

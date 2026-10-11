@@ -6862,10 +6862,10 @@ void ARTTurnManager::RefreshPresentationGeometry(float PreviousLayerHeight)
 	}
 
 	// 🔴 **Ogni modello SALE o SCENDE, e basta: la pianta non si tocca.** Il piano su cui sta si ricava dalla sua
-	// quota e da quella di prima, non da `Cell`: durante il playback `Cell` e' gia' la cella FINALE, e posarci un
-	// modello che l'osservatore non ha visto muoversi (`Visible < 2`, che di proposito non anima) direbbe dove e'
-	// andato prima del suo momento. Vale per tutti: fermi, in un'animazione di un'altra fase, caduti ancora a
-	// schermo. Chi si sta animando ADESSO lo riprende `InterpolateAlongPath` dalle posizioni ricalcolate qui sopra.
+	// quota e da quella di prima, non da `Cell`: durante il playback `Cell` e' gia' la cella FINALE, mentre il
+	// modello sta dove il playback lo ha messo — all'inizio di un'animazione di una fase futura, alla fine di una
+	// passata, a meta' di quella in corso. Vale per tutti, anche per i caduti ancora a schermo. Chi si sta animando
+	// ADESSO lo riprende `InterpolateAlongPath` dalle posizioni ricalcolate qui sopra.
 	// `SetActorLocation` e non `PlaceOnCell`: nessuna cella cambia, e nessuna porta che la scriva va attraversata.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);

@@ -743,7 +743,10 @@ public:
 	/** Il contesto con la quota VERA dell'asset, per le conversioni autorevoli mondo->cella (#3632). */
 	const URTHexMapAsset* GetAuthoringHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
 
-	/** La quota dei piani che la vista CHIEDE: quella dell'asset, separata in vista strategica (#3632). */
+	/** Il fattore di separazione che la vista CHIEDE: 1 in tattica, `StrategicLayerSeparation` in strategica (#3632). */
+	float GetPresentationSeparation() const;
+
+	/** La quota dei piani che la vista CHIEDE: quella dell'asset per `GetPresentationSeparation()` (#3632). */
 	float GetPresentationLayerHeight() const;
 
 	/**
@@ -1526,14 +1529,15 @@ protected:
 	bool bStrategicPresentation = false;
 
 	/**
-	 * #3632 — la quota con cui le istanze sono POSATE. La scrive solo una ricostruzione intera (o la prima): una
-	 * parziale ripone le sue famiglie a questa quota, cosi' la board non resta mai mista. `-1` finche' non e' posata.
+	 * #3632 — il fattore di separazione con cui le istanze sono POSATE. Lo scrive solo una ricostruzione intera (o la
+	 * prima): una parziale ripone le sue famiglie a questo fattore, cosi' la board non resta mai mista. Si conserva
+	 * il fattore e non la quota: la base (asset o actor) resta quella corrente. `-1` finche' non e' posata.
 	 */
-	float AppliedPresentationLayerHeight = -1.f;
+	float AppliedLayerSeparation = -1.f;
 
 	/**
 	 * #3632 — la quota che `SyncStrategicPresentation` ha visto l'ultima volta, cioe' quella a cui chi posa le unita'
-	 * le ha posate. Distinta da `AppliedPresentationLayerHeight` perche' una ricostruzione intera esterna puo'
+	 * le ha posate. Distinta dalla quota posata perche' una ricostruzione intera esterna puo'
 	 * cambiare la quota posata fra due giri, e le unita' vanno riposate lo stesso. `-1` prima del primo giro.
 	 */
 	float LastSyncedLayerHeight = -1.f;

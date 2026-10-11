@@ -320,9 +320,9 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   - ⚠️ Come ogni ricostruzione, spegne `rt.Debug.Knowledge` e lo scrive nel log: va rilanciato. Non è il velo rotto.
 > - 🔴 **Le unità salgono o scendono, e basta.** Le riposa il `TurnManager`, ricavando il piano dalla quota di
 >   prima: la pianta non si tocca (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
->   - A playback in corso `Cell` è già la cella **finale**. Posarci un modello che l'osservatore non ha visto muoversi
->     lo mostrerebbe a destinazione prima del suo momento, e chi era in un'animazione di un'altra fase resterebbe
->     alla quota vecchia (`HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan`).
+>   - A playback in corso `Cell` è già la cella **finale**, mentre il modello sta dove il playback lo ha messo:
+>     all'inizio di un'animazione di una fase futura, alla fine di una passata. Riposarlo su `Cell` lo farebbe
+>     saltare (`HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan`).
 >
 > ⏳ **Restano gli indicatori sopra/sotto** ([#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775)). Il filtro del velo va attraversato **prima** di
 > decidere cosa disegnare, non dopo.

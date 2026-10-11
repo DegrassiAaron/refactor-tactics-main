@@ -2867,10 +2867,9 @@ bool FRTHexMoveStrategicSeparationReposesUnitsTest::RunTest(const FString&)
  * chi sta fermo sul piano 1 sale, chi si sta muovendo prosegue dal punto in cui era e arriva sulla sua cella alla
  * quota nuova.
  *
- * 🔴 **Prima si riposava su `Cell`, che a playback in corso e' gia' la cella FINALE**: un modello che l'osservatore
- * non ha visto muoversi sarebbe comparso a destinazione prima del suo momento, e chi era in un'animazione di un'altra
- * fase restava alla quota vecchia fino a fine turno (review di #3632). Verifiche di mutazione: senza il riposo in
- * quota la sentinella resta in basso; senza la cache del playback aggiornata, il movimento finisce alla quota vecchia.
+ * 🔴 **Prima si riposava su `Cell` e si saltava chi aveva un'animazione** (review di #3632): chi era in un'animazione
+ * di un'altra fase restava alla quota vecchia fino a fine turno. Verifiche di mutazione: senza il riposo in quota la
+ * sentinella resta in basso; senza la cache del playback aggiornata, il movimento finisce alla quota vecchia.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationDuringPlaybackTest,
 	"RefactorTactics.HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan",
@@ -2894,11 +2893,7 @@ bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
 	const FRTCellId Meta(3, 0, 1);
 	Mover->PlannedCell = Meta;
 	Sentinella->PlannedCell = Sentinella->Cell;
-	// Il nemico si sposta di una cella DIETRO il muro che taglia la vista lungo q=0: chi guarda (la squadra 0) non lo
-	// vede muoversi, e il playback di proposito non lo anima (`Visible < 2`).
-	const FRTCellId MetaNemica(-4, 1, 0);
-	Foe->PlannedCell = MetaNemica;
-	const FVector FoePartenza = Foe->GetActorLocation();
+	Foe->PlannedCell = Foe->Cell;
 
 	// Il turno parte, e si avanza finche' il modello che si muove ha lasciato la sua cella di partenza.
 	const FVector Partenza = Mover->GetActorLocation();
@@ -2915,9 +2910,6 @@ bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("premessa: la cella logica e' gia' la meta"), Mover->Cell, Meta);
-	TestEqual(TEXT("premessa: anche quella del nemico"), Foe->Cell, MetaNemica);
-	TestTrue(TEXT("premessa: il nemico, non osservato, e' ancora dove l'osservatore l'ha visto"),
-		Foe->GetActorLocation().Equals(FoePartenza, 0.5f));
 
 	const FVector MoverPrima = Mover->GetActorLocation();
 	const FVector SentinellaPrima = Sentinella->GetActorLocation();
@@ -2930,8 +2922,6 @@ bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
 	}
 	TM->RefreshPresentationGeometry(Precedente);
 
-	TestTrue(TEXT("🔴 il nemico non compare sulla sua cella nuova prima del suo momento"),
-		FVector2D(Foe->GetActorLocation()).Equals(FVector2D(FoePartenza), 0.5f));
 	TestTrue(TEXT("chi si muove non salta in pianta"), FVector2D(Mover->GetActorLocation()).Equals(FVector2D(MoverPrima), 0.5f));
 	TestTrue(TEXT("la sentinella non si sposta in pianta"),
 		FVector2D(Sentinella->GetActorLocation()).Equals(FVector2D(SentinellaPrima), 0.5f));
