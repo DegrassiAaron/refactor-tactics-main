@@ -11,6 +11,7 @@
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la leva, il contesto di presentazione contro quello d'autore, il velo riapplicato; §5 non la dà più per mancante |
 | [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | §7: dove si sceglie il valore |
 | [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-CAM-STRATEGIC-PIANI`, aperta; totali e nota di rimisura di A1 |
 
 ## 2026-10-11 — La prova ortografica della vista strategica: una leva spenta, e lo zoom resta il braccio
 
