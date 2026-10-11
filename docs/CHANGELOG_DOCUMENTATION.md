@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-11 — Il registro ha la sua seduta: `U77`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster registro. Issue [#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637). Con questa seduta le sedute di stile di T8 (`U72`, `U74`–`U77`) sono fatte; la cattura della finestra di reazione (`U74`) resta `NOT RUN`.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U77`: asset, grafi tolti, gate, catture in Risoluzione e in Pianificazione |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3 e §7-sexies a seduta fatta |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u77-registro-accanto-alla-tavola.png` e `u77-registro-scala-di-grigi.png` |
+
+---
+
 ## 2026-10-11 — Roster, carta, pannello e avvisi hanno la loro seduta: `U76`
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello. Issue [#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636).

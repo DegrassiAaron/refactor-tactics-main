@@ -5479,6 +5479,60 @@ sessions:
       🔑 **Seguito possibile, fuori da questa seduta:** con il movimento riservato a `Withdraw` il chip MOVIMENTO dice
       «—». La tavola F dice «Withdraw (riservato)», ed e' una regola del C++ (`Slots.Movement.bOccupied`), non dell'asset.
 
+  - id: U77
+    title: Il registro come la tavola D — WBP_RT_EventLine riparentata, righe in C++, solo in Risoluzione
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_EventLine` riparentata su `URTPlayerEventLineWidget`, con `PhaseStrip`, `PhaseLabelText`, `SequenceText`,
+      `ReactionBadge` e `LineText`; `WBP_RT_EventLog` con `LogRoot`, `LogTurnText`, `LinesBox` e `LineClass` nei
+      default; nel TacticalHUD il bordo da cantiere spento su `MiddleRight`. I grafi che costruivano e scrivevano le
+      righe sono stati tolti
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_EventLine.uasset
+      - Content/RT/UI/Match/WBP_RT_EventLog.uasset
+      - Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
+      - docs/technical/evidence/hud/u77-registro-accanto-alla-tavola.png
+      - docs/technical/evidence/hud/u77-registro-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3645).
+    shares_setup_with: [U75, U76]
+    verifies: []
+    issues: [3637]
+    done_when: >-
+      `ActionBarDeclaresTheNamedPorts`, `MatchWidgetsDeriveFromCppBase`, `EventLogWearsItsLineClass` e
+      `ZonesWithTheirContentHideTheBlockout` sono verdi in un processo fresco e rossi sugli asset di `main`; a 1920x1080
+      Z10 coincide con la tavola D in Risoluzione, anche in scala di grigi, e in Pianificazione non c'e', salvo gli
+      scarti dichiarati qui sotto
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3637, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 342–372
+      e la funzione `log()`. Il registro dice ROUND e non TURNO ([D-496]).
+
+      ✅ **Asset, grafi e gate.**
+      - `WBP_RT_EventLine` e' riparentata. Via la variabile `Line` e i nodi che ne scrivevano il testo.
+      - Il registro non ha piu' il grafo che costruiva le righe in `FeedBox`. `FeedBox` e' diventato `LinesBox`, e le
+        righe le costruisce `RefreshLook` da `LineClass`.
+      - Gate: le porte dei due asset, la riga `EventLine` in `MatchWidgetsDeriveFromCppBase`, il test nuovo
+        `EventLogWearsItsLineClass`, e `MiddleRight` in `ZonesWithTheirContentHideTheBlockout`. Con questa voce le zone
+        ci sono tutte. Controllo positivo: con gli asset di `main` i quattro sono rossi.
+
+      🔑 **Il TacticalHUD e' stato salvato PRIMA di scrivere `LineClass` sul CDO**, e l'Editor e' stato riaperto prima
+      della PIE. E' la trappola di `U76` (guida §7-quater) evitata nell'ordine, non corretta dopo.
+
+      🔴 **Una correzione trovata solo a schermo:** il riquadro stava a x=1551 e y=236, la tavola lo vuole a 1556 e
+      240. La zona di destra ha uno scarto diverso da quelle di sinistra: padding 18 e 25.
+
+      ⚠️ **Scarti dichiarati**, tutti gia' fuori dal C++:
+      - WHY? e la scomposizione sono FUTURE nella tavola;
+      - la riga «nessun evento» e' `DEFERRED` (guida §7-sexies);
+      - la riga corrente evidenziata chiede l'indice dell'evento riprodotto (T5, #1881);
+      - chi e cosa stanno in un testo solo, `LineText`, non in un nome in grassetto seguito dall'azione.
+
+      ✅ **Le catture**, su `L_DevSandbox`, con una raffica su un round con Guardia, Move e la Marea circolare di Muiren.
+      Il registro c'e' in Risoluzione, con PREP #1 e BLAST #2 e le loro strisce, e manca in Pianificazione.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

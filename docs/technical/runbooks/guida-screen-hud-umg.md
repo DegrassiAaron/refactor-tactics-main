@@ -136,7 +136,7 @@ su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inq
 | `Zone_TopCenter` | (0.2, 0.0) → (0.8, 0.2) | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
 | `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
-| `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
 | `Zone_Bottom` | (0.0, 0.8) → (1.0, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
@@ -735,7 +735,7 @@ Anche il chip `REAZ.` delle carte si riconta a 5 Hz, mentre i PV seguono a ogni 
 ## 7-sexies. Il registro: le porte della tavola D ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637))
 
 Il registro compare **solo in Risoluzione** ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). Le righe le costruisce il C++ da una classe
-nei default, come le carte del roster. Il grafo che oggi le costruisce si toglie nella seduta, insieme al
+nei default, come le carte del roster. Il grafo che le costruiva è stato tolto nella seduta `U77`, insieme al
 riparentamento di `WBP_RT_EventLine`.
 
 ### `WBP_RT_EventLog`

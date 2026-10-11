@@ -66,10 +66,8 @@ namespace
 	// quello che #2697 stava montando. La regola scritta sopra per `FastDecision` — *il path entra QUI
 	// quando l'asset c'e'* — valeva gia' e non era stata applicata.
 	const TCHAR* const EventLogPath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLog.WBP_RT_EventLog_C");
-	// ⚠️ **`WBP_RT_EventLine` NON entra in `Expected[]`**, e non e' una svista: deriva da `UUserWidget`
-	// nudo — misurato leggendo il pacchetto, che non nomina nessuna classe di `RefactorTactics`. E' un
-	// contenitore passivo che il feed riempie, quindi il gate delle classi base non ha niente da chiedergli;
-	// il caricamento e il divieto di texture, si'.
+	// ⌫ *Fino alla seduta `U77` (#3637) `WBP_RT_EventLine` derivava da `UUserWidget` nudo e non entrava in
+	// `Expected[]`. Riparentata su `URTPlayerEventLineWidget`, ora c'e'.*
 	const TCHAR* const EventLinePath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLine.WBP_RT_EventLine_C");
 
 	/**
@@ -372,6 +370,7 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		{ PlanCommitPath,   TEXT("PlanCommit"),        URTPlanCommitWidget::StaticClass() },
 		{ UnitCardPath,     TEXT("UnitCard"),          URTUnitCardWidget::StaticClass() },
 		{ PlanWarningEntryPath, TEXT("PlanWarningEntry"), URTPlanWarningEntryWidget::StaticClass() },
+		{ EventLinePath,    TEXT("EventLine"),         URTPlayerEventLineWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -1531,7 +1530,7 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 /**
  * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489). Dalle
  * sedute T8 ci sono anche `Conferma` (#3633), la finestra di reazione e la sua opzione (#3634), l'header (#3635), e
- * carta, roster, pannello e voce d'avviso (#3636).
+ * carta, roster, pannello e voce d'avviso (#3636), e il registro con la sua riga (#3637).
  *
  * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
  * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non
@@ -1680,6 +1679,20 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("CostText"), UTextBlock::StaticClass() },
 	};
 
+	// Il registro e la sua riga come la tavola D (#3637, seduta U77).
+	const TArray<FPorta> Registro = {
+		{ TEXT("LogRoot"), UWidget::StaticClass() },
+		{ TEXT("LogTurnText"), UTextBlock::StaticClass() },
+		{ TEXT("LinesBox"), UPanelWidget::StaticClass() },
+	};
+	const TArray<FPorta> RigaRegistro = {
+		{ TEXT("PhaseStrip"), UBorder::StaticClass() },
+		{ TEXT("PhaseLabelText"), UTextBlock::StaticClass() },
+		{ TEXT("SequenceText"), UTextBlock::StaticClass() },
+		{ TEXT("ReactionBadge"), UWidget::StaticClass() },
+		{ TEXT("LineText"), UTextBlock::StaticClass() },
+	};
+
 	struct FAsset
 	{
 		const TCHAR* Path;
@@ -1697,6 +1710,8 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TeamRosterPath, TEXT("WBP_RT_TeamRoster"), &Roster },
 		{ SelectedUnitPath, TEXT("WBP_RT_SelectedUnitPanel"), &Pannello },
 		{ PlanWarningEntryPath, TEXT("WBP_RT_PlanWarningEntry"), &VoceAvviso },
+		{ EventLogPath, TEXT("WBP_RT_EventLog"), &Registro },
+		{ EventLinePath, TEXT("WBP_RT_EventLine"), &RigaRegistro },
 	};
 
 	for (const FAsset& A : Asset)
@@ -1785,9 +1800,10 @@ bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
 		return false;
 	}
 
-	// `TopCenter` dalla seduta `U75` (#3635), che l'aveva dimenticata; `TopLeft` e `MiddleLeft` dalla `U76` (#3636).
+	// `TopCenter` dalla seduta `U75` (#3635), che l'aveva dimenticata; `TopLeft` e `MiddleLeft` dalla `U76` (#3636);
+	// `MiddleRight`, il registro, dalla `U77` (#3637). Ora ci sono tutte.
 	const ERTHudZone Arrivate[] = { ERTHudZone::Bottom, ERTHudZone::TopRight, ERTHudZone::TopCenter,
-		ERTHudZone::TopLeft, ERTHudZone::MiddleLeft };
+		ERTHudZone::TopLeft, ERTHudZone::MiddleLeft, ERTHudZone::MiddleRight };
 	for (const ERTHudZone Zona : Arrivate)
 	{
 		const FString Nome = URTHudZoneWidget::ZoneName(Zona);
@@ -1863,6 +1879,47 @@ bool FRTRosterAndPanelWearTheirClassesTest::RunTest(const FString&)
 	});
 	TestEqual(TEXT("2: premessa: il TacticalHUD monta un roster"), Rosters, 1);
 	TestEqual(TEXT("2: premessa: il TacticalHUD monta un pannello"), Pannelli, 1);
+	return true;
+}
+
+/**
+ * 🔑 **IL REGISTRO PORTA LA CLASSE DELLE RIGHE, ANCHE DENTRO `WBP_RT_TacticalHUD`** (#3637, seduta `U77`).
+ *
+ * Il gemello di `RosterAndPanelWearTheirClasses`, per lo stesso motivo: `LineClass` sta sul CDO, ma il registro a
+ * schermo e' l'istanza dell'albero del TacticalHUD, e un override nullo salvato li' lo lascerebbe senza righe. ⚠️ Vede
+ * l'override SALVATO, non uno stato solo in memoria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogWearsItsLineClassTest,
+	"RefactorTactics.ScreenHud.EventLogWearsItsLineClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogWearsItsLineClassTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Riga = RTWidgetAssetTest::LoadWidgetClass(EventLinePath);
+	UWidgetBlueprintGeneratedClass* Registro = RTWidgetAssetTest::LoadWidgetClass(EventLogPath);
+	if (!TestNotNull(TEXT("la riga si carica"), Riga) || !TestNotNull(TEXT("il registro si carica"), Registro))
+	{
+		return false;
+	}
+	TestTrue(TEXT("i default di WBP_RT_EventLog puntano a WBP_RT_EventLine"),
+		Registro->GetDefaultObject<URTPlayerEventLogWidget>()->LineClass.Get() == Riga);
+
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+	int32 Registri = 0;
+	Tree->ForEachWidget([&](UWidget* Widget)
+	{
+		if (const URTPlayerEventLogWidget* L = Cast<URTPlayerEventLogWidget>(Widget))
+		{
+			++Registri;
+			TestTrue(*FString::Printf(TEXT("il registro '%s' del TacticalHUD costruisce WBP_RT_EventLine"), *L->GetName()),
+				L->LineClass.Get() == Riga);
+		}
+	});
+	TestEqual(TEXT("premessa: il TacticalHUD monta un registro"), Registri, 1);
 	return true;
 }
 
