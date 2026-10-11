@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-11 — La finestra di reazione catturata: `U74` a seduta fatta
+
+**Origine**: la cattura rimasta `NOT RUN` della seduta `U74`. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634), banco da [#3660](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3660). Con questa le sedute di stile di T8 (`U72`, `U74`–`U77`) sono fatte tutte.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U74`: la cattura, la correzione del badge, gli scarti, e cio' che e' fuori dal criterio |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-ter: dove sta il badge; §7-quater: i testi veri sono piu' lunghi della tavola |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u74-finestra-accanto-alla-tavola.png` e `u74-finestra-scala-di-grigi.png` |
+
+---
+
 ## 2026-10-11 — Uno scenario che apre la finestra di reazione al giocatore
 
 **Origine**: la cattura della finestra di reazione di `U74`, rimasta `NOT RUN` perché la finestra non si apriva a comando. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634). Nell'auto-run di uno scenario non si apriva affatto: il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`. La chiave di scenario `playerReactionWindows` chiude il buco, e `Visual.Reaction.OverwatchWindow` è il banco che la usa.
