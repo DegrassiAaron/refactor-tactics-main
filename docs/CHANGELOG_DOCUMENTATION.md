@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-11 — La traccia a terra di un `Line`/`Cone` non rivela un attaccante non visto: D-500
+
+**Origine**: [#3551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3551), il limite dichiarato dalla spec del tracer di #2454.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-500`: la traccia di un `Line`/`Cone` non si disegna per chi non vedeva l'attaccante; `Area` e `Single` restano per tutti (decisione d'autore) |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del canale «traccia a terra di un colpo», chiuso |
+| [`superpowers/specs/2026-10-07-tracer-attacco-base-design.md`](superpowers/specs/2026-10-07-tracer-attacco-base-design.md) | il limite «impronta `Line` di un attaccante ignoto» segnato chiuso |
+
+---
+
 ## 2026-10-11 — La finestra di reazione si presenta sull'ingresso: emendamento a D-355
 
 **Origine**: [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666), S1 dello spec panel sui seguiti di `U74`.
