@@ -74,7 +74,11 @@ E, prima delle domande: in strategica il piano 1 sembra **troppo alto** a ×3, q
 - **L'anteprima del percorso e le sagome** (`PlanGhosts`) su un altro piano (#3679): la proposta è di trattarle come le unità, cioè piene.
 - **La numerazione dell'indicatore** (#3680): la proposta è l'ordinale fra i piani che la mappa ha davvero, da 1.
 
-## 7. Fuori da questo lavoro
+## 7. Esito della prova a ×2
+
+Nella seduta `U81` l'autore ha confrontato 3 e 2 in isometrica su `Visual.Map.LayerStack`, a 0° e a 60°: a 3 la cima esce dal quadro, a 2 i tre piani ci stanno. **Ha scelto 2** ([D-500](../../decisions/RT_PDR_00_Decision_Log.md) (7)). A 60° il cilindro di Aevik sparisce sotto il mezzanino e resta la sua etichetta: è il caso che #3679 deve rendere leggibile.
+
+## 8. Fuori da questo lavoro
 
 - La piattaforma che a 120° e a 180° non si vede (#3674): è un difetto di render, non di presentazione dei piani.
 - La scena fra le fasce dell'HUD (#3661).

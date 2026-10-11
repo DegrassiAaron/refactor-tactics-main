@@ -775,13 +775,14 @@ public:
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
 	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
 	 *
-	 * 🔑 **Default 3: l'ha scelto l'autore sulle catture della seduta PIE `U78`** (2026-10-11, #3632), fra 1, 2, 3
-	 * e 4 sulla piattaforma di `Visual.Map.MultiLevel`: la seduta l'ha condotta una sessione, non l'autore dal vivo. La stessa leva in console e' `rt.Map.StrategicLayerSeparation`
-	 * (che, se > 0, vince su questa proprieta'). ⚠️ La scelta e' stata fatta in prospettiva: con l'isometrica di
-	 * [D-498] (#3662) la voce `PIE-CAM-STRATEGIC-PIANI` si rimisura.
+	 * 🔑 **Default 2: l'ha scelto l'autore in isometrica, sulle catture della seduta PIE `U81`** (2026-10-11, #3678,
+	 * [D-500] (7)), confrontando 3 e 2 sui tre piani sovrapposti di `Visual.Map.LayerStack`: a 3 la cima usciva dal
+	 * quadro, a 2 i tre piani ci stanno. Prima valeva 3, scelto in prospettiva nella seduta `U78` (#3632) sui due piani
+	 * di `Visual.Map.MultiLevel`. La stessa leva in console e' `rt.Map.StrategicLayerSeparation` (che, se > 0, vince
+	 * su questa proprieta').
 	 */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap", meta = (ClampMin = "1.0", ClampMax = "10.0"))
-	float StrategicLayerSeparation = 3.f;
+	float StrategicLayerSeparation = 2.f;
 
 	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
 	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo

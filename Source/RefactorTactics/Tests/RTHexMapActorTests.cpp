@@ -2262,15 +2262,16 @@ namespace
 }
 
 /**
- * Il valore dell'autore: la separazione vale 3, scelta sulle catture della seduta PIE `U78` (#3632). Esiste perche' un default cambiato per
- * sbaglio non lo direbbe nessun altro test: tutti gli altri dichiarano il valore che misurano.
+ * Il valore dell'autore: la separazione vale 2, scelta in isometrica sulle catture della seduta PIE `U81` (#3678, D-500), dopo il 3
+ * della seduta `U78` (#3632). Esiste perche' un default cambiato per sbaglio non lo direbbe nessun altro test: tutti gli altri
+ * dichiarano il valore che misurano.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationDefaultTest,
 	"RefactorTactics.HexMapActor.StrategicLayerSeparationDefaultIsTheAuthorsChoice",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMapStrategicSeparationDefaultTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("la separazione scelta dall'autore (U78)"), GetDefault<ARTHexMapActor>()->StrategicLayerSeparation, 3.f);
+	TestEqual(TEXT("la separazione scelta dall'autore (U81)"), GetDefault<ARTHexMapActor>()->StrategicLayerSeparation, 2.f);
 	return true;
 }
 
