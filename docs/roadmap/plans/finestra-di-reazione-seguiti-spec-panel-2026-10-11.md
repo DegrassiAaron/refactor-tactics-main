@@ -78,11 +78,13 @@ micro-step risolto, cioè `bPlaybackHeldByWindow`.
 confine), e la finestra è **presentata** (stato di UI, deciso dal playback). Il delegate e l'orologio si agganciano al
 primo, e invece appartengono al secondo. Servono due eventi e un flag, «presentata»:
 - il resolver sospende come oggi: `OpenWindowOpportunityId`, `PendingOpportunity` e il replay non cambiano;
-- **a ogni sospensione** si decide la presentazione:
-  - se il playback è acceso, la timeline parziale si **estende** fino al confine nuovo, anche nella seconda
-    sospensione dopo una risposta (P16), e la finestra si presenta quando il playback si trattiene: `FinishPlayback`
-    con `IsResolutionSuspended()`;
-  - se il playback non c'è o non può partire (P17), la finestra si presenta subito, come oggi;
+- **a ogni sospensione** si decide la presentazione, secondo **tre** stati del playback:
+  - **spento, o timeline vuota** (P17): la finestra si presenta subito, come oggi;
+  - **non ancora partito e avviabile**: parte il playback parziale, e la finestra si presenta quando si trattiene;
+  - **già in corso o già trattenuto**, come nella seconda sospensione dopo una risposta (P16): la timeline si
+    **estende** fino al confine nuovo, e la finestra si ripresenta al nuovo trattenimento. ⚠️ Non è il caso «non può
+    partire»: `BeginPartialPlayback` qui esce senza fare niente (`bIsResolving` vero), e leggerlo come «spento»
+    presenterebbe la seconda finestra sul primo ingresso, cioè il difetto di P16;
 - `OnReactionWindowOpened` si esegue alla presentazione;
 - `TickReactionWindow` fa scorrere `OpenWindowElapsed` solo a finestra presentata.
 
@@ -142,12 +144,19 @@ issue: è una decisione d'autore, non un dettaglio d'implementazione.
 - **R1.1** La finestra di reazione diventa visibile nel fotogramma in cui il playback parziale si trattiene sul
   confine (`bPlaybackHeldByWindow`), non quando il resolver sospende. Vale per i due siti, l'Overwatch e il `Brace`.
 - **R1.2** A ogni sospensione la timeline parziale si estende fino al confine nuovo, anche dopo una risposta (P16).
-- **R1.3** Se il playback è spento o non può partire (P17), la finestra si presenta alla sospensione, come oggi.
+- **R1.3** La presentazione segue tre stati del playback (§3.2): spento o con la timeline vuota, si presenta alla
+  sospensione; non ancora partito, parte e si presenta al trattenimento; già in corso o trattenuto, si estende e si
+  presenta al nuovo trattenimento. Il ritorno anticipato di `BeginPartialPlayback` non distingue gli ultimi due, e la
+  implementazione deve farlo.
 - **R1.4** Il countdown (`OpenWindowElapsed`) corre solo a finestra presentata, e prima vale zero.
 - **R1.5** Il replay, il Verifier e il bot non cambiano. `RecordedDecisions` precede l'apertura come oggi, e senza
   delegate legato non c'è presentazione.
 - **R1.6** In M10 l'istante di presentazione è un evento del server, calcolato dalla durata del playback parziale.
   Vincolo da scrivere in #759.
+- **R1.7** Con il playback in pausa (`K`, o `rt.Debug.PlaybackStartPaused`), `TickPlayback` esce prima del
+  trattenimento (`Turn/RTTurnManager.cpp:8755`): la presentazione si **rimanda** alla ripresa, e l'orologio non corre.
+  È voluto, ed è fuori dalla partita normale: i comandi di playback vivono dietro `rt.Debug.PlaybackControls`. Non
+  contraddice [D-351], che vieta di fermare un countdown **già visibile**: qui la finestra non c'è ancora.
 
 **DoD**
 - [ ] La decisione di §3.3 è registrata come emendamento a [D-355].
@@ -156,6 +165,7 @@ issue: è una decisione d'autore, non un dettaglio d'implementazione.
 - [ ] Lo stesso test per il `Brace`.
 - [ ] Un test per la **seconda finestra consecutiva**: la timeline arriva al secondo ingresso prima della presentazione.
 - [ ] Un test per il **playback spento**: la finestra si presenta alla sospensione, e il turno si chiude.
+- [ ] Un test per il **playback in pausa**: la presentazione aspetta la ripresa, e `OpenWindowElapsed` resta a zero.
 - [ ] I test che legano il delegate e si aspettano l'apertura subito dopo `LockInAndResolve` pompano il playback fino
       al trattenimento: il playback è acceso per default (P19). Sono in `Tests/RTMovementResumeTests.cpp`,
       `Tests/RTDefensiveReactionTests.cpp` e `Tests/RTReactionWindowViewModelTests.cpp`, e l'elenco esatto si misura
@@ -381,6 +391,10 @@ e P14. Ha trovato cinque difetti, tutti corretti qui:
 - **S2, bassa**: la regola del `Brace` non nominava il predicato, e la firma di `MakeReactionWindowView` deve cambiare.
 - **S3, bassa**: «la sola chiave letta col controllo del tipo» non diceva che il loader lo fa già per alcuni elementi
   di array.
+
+Una seconda passata del verificatore ha confermato chiusi i cinque punti, e ne ha trovati altri due in S1, corretti:
+il terzo stato del playback («già in corso», che `BeginPartialPlayback` tratta come «non parte»), e la pausa del
+giocatore, ora R1.7.
 
 Ciò che il verificatore ha lasciato non verificato l'ho misurato io: P2 è la cattura di `U74`, già riletta dalla
 review di #3664; #3047 e `names.py` sono misurati in §7; P8, P12 e i link alle issue sono letti in questo passaggio.
