@@ -5302,6 +5302,43 @@ sessions:
 
       ⚠️ **Una prima tornata non vale**: l'Editor è stato chiuso prima del Play, e le risposte date senza averlo
       aperto sono state scartate. Il log di quella tornata non ha nessun Play.
+  - id: U74
+    title: La finestra di reazione come la tavola E — cornice, striscia, barra del countdown e opzioni in WBP_RT_FastDecision
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_FastDecision` e `WBP_RT_FastDecisionOption` con le porte di #3634: nella finestra `WindowFrame`,
+      `AccentStrip`, `CountdownBar` e `SafeOutcomeText`; nell'opzione `OptionFrame`, `KeyText`, `DescriptionText` e
+      `SafeChoiceBadge`
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_FastDecision.uasset
+      - Content/RT/UI/Match/WBP_RT_FastDecisionOption.uasset
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3642).
+    shares_setup_with: [U72]
+    verifies: []
+    issues: [3634]
+    done_when: >-
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte nuove in un processo fresco, rosso sugli asset di `main`
+      e verde sui nuovi; `FastDecisionBindingsAreWiredToTheRightNodes` resta verde; a 1920x1080 la finestra coincide
+      con la tavola E, anche in scala di grigi
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3634, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 421–456.
+
+      ✅ **Asset e gate.** I tre binding obbligatori restano agganciati: `WindowRoot`, `PromptText` e `CountdownText`
+      si sono SPOSTATI dentro la cornice, non ricreati. Le cornici dipinte dal C++ hanno la tinta bianca (guida
+      §7-quater). Le opzioni stanno in uno `ScaleBox` che riduce solo se non ci stanno: due da 267 px piu' 6 di margine
+      per lato riempiono i 558 px utili, una terza non sparisce. Controllo positivo del gate: con gli asset di `main`
+      `ActionBarDeclaresTheNamedPorts` e' rosso sulle sole porte nuove.
+
+      ⛔ **La cattura in PIE e' `NOT RUN`, e il motivo e' misurato.** La finestra si apre solo se un nemico CAMMINA
+      nell'area di una guardia armata, durante il Move. Nella partita di `L_DevSandbox` i bot tengono il centro: in due
+      partite e una decina di turni nessuno ci e' entrato camminando. La carica di Branth (`Ram`) e' un Dash, non un
+      Move, e non la apre. Prossimo tentativo: uno scenario Overwatch lanciato con
+      `-dpcvars=rt.Test.Scenario=…` e una raffica di catture, come in `U73`.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
