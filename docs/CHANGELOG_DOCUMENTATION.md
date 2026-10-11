@@ -8,7 +8,10 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-355`: la finestra si presenta al trattenimento del playback, e la slow-motion di `D-350` rallenta l'avvicinamento (decisione d'autore, lettura (a)) |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-355`: la finestra si presenta al trattenimento del playback, e la slow-motion di `D-350` rallenta l'avvicinamento (decisione d'autore, lettura (a)); le tre regole dell'estensione del playback, misurate sul `Brace` |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK` eseguita: entrambi gli istanti tengono, su due banchi dello Scenario Harness |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U56` parzialmente eseguita: resta `PIE-V01-RXBRACE` |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | il banco `Visual.Reaction.OverwatchWindowResume`, con la guardia rivolta a SE |
 
 ---
 
