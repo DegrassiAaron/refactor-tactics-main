@@ -23,7 +23,7 @@
 |---|---|---|---|
 | **S1** | La finestra si apre quando il **resolver** tocca il confine, non quando il **playback** lo ha mostrato. La lettera di [D-355] («durante il playback») è rispettata, perché il playback è partito; la sua ragione no. Il gate che doveva vederlo misura che il playback sia *partito*. La correzione non è uno spostamento di chiamate: va decisa a ogni sospensione, e cambia il significato della slow-motion | `IMPLEMENTATION DRIFT` contro la ragione di una decisione accettata, più una **decisione minima richiesta** (§3.3) | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
 | **S2** | Il titolo neutro «Reazione» è una **guardia voluta**, non una dimenticanza: il DTO porta un indice di snapshot, e risolverlo nel widget nominerebbe l'unità sbagliata. I nomi vanno nel DTO, risolti dove l'indice vale. La privacy regge per l'Overwatch; per il `Brace` serve una regola | la metà mancante di una casella aperta di #166 («UI `FIRE`/`HOLD` con countdown **e bersaglio**») | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
-| **S3** | La disciplina «un tipo sbagliato non è un'assenza» del loader è **nominale** per ogni chiave scalare: l'engine converte in quattro direzioni, e una stringa letta come intero dà sempre `true`. Il corpus non ha nessun valore col tipo sbagliato, quindi la correzione non tocca i dati | difetto di validazione del formato | harness degli scenari |
+| **S3** | La disciplina «un tipo sbagliato non è un'assenza» del loader è **nominale** per ogni chiave scalare: l'engine converte in quattro direzioni, e una stringa letta come intero dà sempre `true`. Il corpus ha quattro valori col tipo sbagliato, tutti `UnitAlive` con `"value": 1`: la correzione li porta a `true`, la forma che il writer scrive già (vedi P15) | difetto di validazione del formato | harness degli scenari |
 
 ---
 
@@ -47,7 +47,7 @@ La ricognizione è fatta qui, una volta. Ogni riga dice come è stata verificata
 | P12 | #166 ha aperta la casella «UI `FIRE`/`HOLD` con countdown **e bersaglio**, alimentata da un DTO sanitizzato» | corpo di #166 | ✅ vera |
 | P13 | L'engine converte, e risponde sempre `true`: stringa→booleano col valore di `ToBool()` (`"yes"` → vero, `"false"` → falso); numero→booleano `!= 0`; stringa→intero con `LexFromString` (`"abc"` → 0); booleano→numero 1/0; numero e booleano→stringa. E un decimale letto come intero si **arrotonda** (`RoundHalfFromZero`: 2,5 → 3) | `Runtime/Json/Public/Dom/JsonValue.h:451-497`, `Private/Dom/JsonValue.cpp:95-107` e `440-492` | ✅ vera |
 | P14 | Nel loader le letture scalari passano da `TryGet*Field`, e i controlli espliciti del tipo sono pochi | `grep -c` su `ScenarioHarness/RTScenarioLoader.cpp`, in questo passaggio: `TryGetBoolField` 8, `TryGetNumberField` 22, `TryGetStringField` 45; `Type != EJson::` / `Type == EJson::` / `HasTypedField` 4 | ✅ misurata |
-| P15 | Nel corpus nessun valore ha il tipo sbagliato | script in §5.3, su ogni `Scenarios/**/*.json`: **zero** | ✅ misurata |
+| P15 | Nel corpus nessun valore ha il tipo sbagliato | script in §5.3, su ogni `Scenarios/**/*.json`: **zero** | ⚠️ **misurata a metà**, corretta da [#3668](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3668): lo script non guardava la chiave polimorfa `value`, e quattro file scrivevano `UnitAlive` con `"value": 1`. Li ha trovati il loader stretto, e sono stati portati a `true`, la forma che il writer scrive già (`RTScenarioWriter.cpp`, `value` booleano) |
 | P16 | Dopo una risposta, una seconda sospensione **non estende** il playback: `ResumeSuspendedResolution` torna ad attendere senza `BeginPlayback`, che gira solo alla conclusione. Il playback resta trattenuto sul **primo** ingresso mentre la seconda finestra chiede di un altro | `Turn/RTTurnManager_Movement.cpp:983-998`; `bPlaybackHeldByWindow` torna falso solo in `BeginPlayback` (`Turn/RTTurnManager.cpp:7938`) | ✅ vera (dalla verifica avversaria) |
 | P17 | Il playback parziale può non partire: `BeginPartialPlayback` non fa niente se il playback è spento o già partito, o se la timeline è vuota | `Turn/RTTurnManager_Movement.cpp:1161` e `:1190`; `Turn/RTTurnManager.cpp:149-151` | ✅ vera (dalla verifica avversaria) |
 | P18 | `Detected` significa identità nota: *«contatto pieno: la squadra vede la cella e chi la occupa»*. `Uncertain` è *«senza identità»* | `Perception/RTPerceptionLibrary.h:18-29` | ✅ vera |
@@ -298,6 +298,9 @@ sono fuori da questa issue: si registrano come seguito.
 - Un loader più severo **rifiuta** file che oggi passano, quindi il rischio è il verso «build nuova, file vecchio».
 - Misurato: nel corpus nessun valore ha il tipo sbagliato (P15), e il writer scrive sempre il tipo giusto. ∴ nessun
   file cambia, e nessun bump di versione: non c'è una semantica nuova da dichiarare.
+  ⌫ *«nessun file cambia» era falso, e lo ha mostrato l'implementazione*: la misura saltava `value`, e quattro
+  `UnitAlive` scrivevano `1`. Il bump resta inutile — `1` e `true` dicono la stessa cosa, e `true` è la forma del
+  writer.
 - Un file fatto a mano fuori dal corpus che contava sulle conversioni riceve un errore che nomina la chiave. È il
   comportamento voluto.
 
@@ -336,15 +339,18 @@ print(len(bad), bad[:10])
 EOF
 ```
 
-In questo passaggio stampa `0 []`. ⚠️ Gli elenchi delle chiavi sono scritti a mano dal loader: la issue li sostituisce
-con quelli dei lettori nuovi.
+In questo passaggio stampa `0 []`. ⌫ *Misura incompleta, vedi P15*: lo script non guarda la chiave polimorfa `value`
+né le chiavi stringa (`hero`, `id`, `previewUnit`, `facing`…), e ha mancato quattro `UnitAlive` con `"value": 1`.
+L'oracolo è il loader stretto di #3668 sul corpus intero (`Scenario.ShippedScenariosAreValid`), non questo script, che
+resta qui come traccia di com'è stata presa la premessa.
 
 ### 5.4 La specifica
 
 - **R3.1** Ogni chiave scalare del formato scenario si legge con un lettore che controlla il tipo JSON del valore. Un
   tipo diverso è un errore che nomina il percorso della chiave.
 - **R3.2** Nessun `TryGet*Field` resta in `RTScenarioLoader.cpp`.
-- **R3.3** Nessun bump di versione e nessun file del corpus modificato (P15).
+- **R3.3** Nessun bump di versione. ⌫ *«e nessun file del corpus modificato»*: quattro `UnitAlive` con `"value": 1`
+  passano a `true`, la forma del writer (P15).
 
 **DoD**
 - [ ] `grep -cE 'TryGet(Bool|Number|String)Field' Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` → 0.

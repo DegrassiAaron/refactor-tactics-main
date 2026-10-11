@@ -245,10 +245,125 @@ namespace
 	}
 
 	/**
+	 * L'esito di una lettura scalare TIPIZZATA (`#3668`): assente, letta, o presente col tipo sbagliato.
+	 *
+	 * 🔴 **Esiste perche' i `TryGet*Field` dell'engine CONVERTONO, e rispondono `true` comunque.** Misurato su UE 5.8
+	 * (`Json/Public/Dom/JsonValue.h:451-497`, `Private/Dom/JsonValue.cpp:95-107` e `440-492`):
+	 * - la stringa diventa booleano col valore di `ToBool()`, e intero con `LexFromString` (`"abc"` → 0, `"4O"` → 4);
+	 * - il numero diventa booleano (`!= 0`) e stringa, e il booleano diventa numero (1/0);
+	 * - un decimale letto come intero si ARROTONDA (2,5 → 3).
+	 *
+	 * Una guardia «c'e'? e' del tipo giusto?» costruita su quelle funzioni era nominale: `"freeRun": "yes"` caricava
+	 * `true`, `"maxTurns": "4O"` caricava 4. Il tipo si chiede al valore, come gia' facevano `ParseCell` e
+	 * `LeggiCampoStringa` qui accanto.
+	 *
+	 * ⚠️ **La misura preventiva sul corpus aveva detto «zero valori col tipo sbagliato», ed era a meta'**: guardava un
+	 * elenco di chiavi scritto a mano, senza la chiave polimorfa `value`. Il loader stretto ne ha trovati quattro al primo
+	 * giro della suite, tutti `UnitAlive` con `"value": 1`, e sono stati portati a `true` — la forma che il writer scrive
+	 * gia'. L'oracolo e' questo loader sul corpus intero (`Scenario.ShippedScenariosAreValid`), non uno script.
+	 *
+	 * ⚠️ **`null` e' un tipo sbagliato, non un'assenza**: chi non vuole un campo lo omette, ed e' cio' che il writer fa.
+	 */
+	enum class ERTCampoScalare : uint8
+	{
+		Assente,
+		Letto,
+		TipoSbagliato
+	};
+
+	ERTCampoScalare LeggiBool(const FJsonObject& Obj, const TCHAR* Chiave, bool& Out)
+	{
+		const TSharedPtr<FJsonValue> Valore = Obj.TryGetField(Chiave);
+		if (!Valore.IsValid()) { return ERTCampoScalare::Assente; }
+		if (Valore->Type != EJson::Boolean) { return ERTCampoScalare::TipoSbagliato; }
+		Out = Valore->AsBool();
+		return ERTCampoScalare::Letto;
+	}
+
+	/** Un numero JSON con valore INTERO e nei limiti di `int32`: `2.0` si', `2.5` e `"2"` no. */
+	ERTCampoScalare LeggiIntero(const FJsonObject& Obj, const TCHAR* Chiave, int32& Out)
+	{
+		const TSharedPtr<FJsonValue> Valore = Obj.TryGetField(Chiave);
+		if (!Valore.IsValid()) { return ERTCampoScalare::Assente; }
+		if (Valore->Type != EJson::Number) { return ERTCampoScalare::TipoSbagliato; }
+		const double Numero = Valore->AsNumber();
+		// ⚠️ Il range PRIMA del cast, come in `ParseCell`: `static_cast<int32>` di un double fuori dai limiti e'
+		// comportamento indefinito.
+		if (Numero != FMath::TruncToDouble(Numero)
+			|| Numero < static_cast<double>(MIN_int32) || Numero > static_cast<double>(MAX_int32))
+		{
+			return ERTCampoScalare::TipoSbagliato;
+		}
+		Out = static_cast<int32>(Numero);
+		return ERTCampoScalare::Letto;
+	}
+
+	ERTCampoScalare LeggiNumero(const FJsonObject& Obj, const TCHAR* Chiave, double& Out)
+	{
+		const TSharedPtr<FJsonValue> Valore = Obj.TryGetField(Chiave);
+		if (!Valore.IsValid()) { return ERTCampoScalare::Assente; }
+		if (Valore->Type != EJson::Number) { return ERTCampoScalare::TipoSbagliato; }
+		Out = Valore->AsNumber();
+		return ERTCampoScalare::Letto;
+	}
+
+	/** Una stringa, anche vuota: chi la vuole piena lo controlla a valle, come prima. */
+	ERTCampoScalare LeggiStringa(const FJsonObject& Obj, const TCHAR* Chiave, FString& Out)
+	{
+		const TSharedPtr<FJsonValue> Valore = Obj.TryGetField(Chiave);
+		if (!Valore.IsValid()) { return ERTCampoScalare::Assente; }
+		if (Valore->Type != EJson::String) { return ERTCampoScalare::TipoSbagliato; }
+		Out = Valore->AsString();
+		return ERTCampoScalare::Letto;
+	}
+
+	/** Un ELEMENTO di array che dev'essere una stringa: `"tags": [42]` non e' il tag `"42"`. */
+	bool ElementoStringa(const TSharedPtr<FJsonValue>& Valore, FString& Out)
+	{
+		if (!Valore.IsValid() || Valore->Type != EJson::String) { return false; }
+		Out = Valore->AsString();
+		return true;
+	}
+
+	/** Il rifiuto di un tipo sbagliato, con il contesto e la chiave. Vero = nessun errore (assente o letto). */
+	bool TipoAccettato(ERTCampoScalare Esito, const TCHAR* Where, const TCHAR* Chiave, const TCHAR* Atteso,
+		FString& OutError)
+	{
+		if (Esito != ERTCampoScalare::TipoSbagliato) { return true; }
+		OutError = FString::Printf(
+			TEXT("%s: %s c'e' ma non e' %s. Un campo presente e malformato non e' un campo assente."),
+			Where, Chiave, Atteso);
+		return false;
+	}
+
+	// Le forme d'uso dei campi OPZIONALI: si leggono se ci sono, e il tipo sbagliato e' un errore.
+	const TCHAR* const AttesoBool = TEXT("un booleano (true o false)");
+	const TCHAR* const AttesoIntero = TEXT("un numero intero");
+	const TCHAR* const AttesoNumero = TEXT("un numero");
+	const TCHAR* const AttesoStringa = TEXT("una stringa");
+
+	bool OpzionaleBool(const FJsonObject& Obj, const TCHAR* Chiave, bool& Out, const TCHAR* Where, FString& OutError)
+	{
+		return TipoAccettato(LeggiBool(Obj, Chiave, Out), Where, Chiave, AttesoBool, OutError);
+	}
+
+	bool OpzionaleIntero(const FJsonObject& Obj, const TCHAR* Chiave, int32& Out, const TCHAR* Where,
+		FString& OutError)
+	{
+		return TipoAccettato(LeggiIntero(Obj, Chiave, Out), Where, Chiave, AttesoIntero, OutError);
+	}
+
+	bool OpzionaleStringa(const FJsonObject& Obj, const TCHAR* Chiave, FString& Out, const TCHAR* Where,
+		FString& OutError)
+	{
+		return TipoAccettato(LeggiStringa(Obj, Chiave, Out), Where, Chiave, AttesoStringa, OutError);
+	}
+
+	/**
 	 * Legge un campo STRINGA distinguendo **assente** da **presente e malformato** (`#2698`).
 	 *
-	 * 🔴 **`TryGetStringField` risponde `false` a entrambi**, e usarlo come guardia di presenza — cioe'
-	 * `if (TryGetStringField(...) && !Vuota)` — fa saltare l'intero blocco in silenzio. `"ability": ""` e
+	 * 🔴 **Il `TryGet*Field` di stringa risponde `false` a entrambi**, e usarlo come guardia di presenza — cioe'
+	 * `if (TryGet*Field(...) && !Vuota)` — fa saltare l'intero blocco in silenzio. `"ability": ""` e
 	 * `"ability": ["Hero.Aevik.ArcPulse"]` caricavano verde senza abilita': l'unita' non la usava, lo
 	 * scenario riportava `PASS`, e nessuno aveva scritto un test su una partita diversa apposta.
 	 *
@@ -272,7 +387,7 @@ namespace
 		{
 			return true;
 		}
-		// 🔴 **Il TIPO, non `TryGetStringField`**, per la stessa ragione misurata in `ParseCell`: quella
+		// 🔴 **Il TIPO, non il `TryGet*Field` di stringa**, per la stessa ragione misurata in `ParseCell`: quella
 		// funzione **converte**, e `"edge": 42` diventava la stringa `"42"`. Il rifiuto arrivava lo stesso —
 		// dalla tabella delle direzioni, con un messaggio che parlava di un bordo sconosciuto invece che di
 		// un campo del tipo sbagliato — e per `ability` o `target`, dove non c'e' una tabella a valle, non
@@ -350,7 +465,9 @@ namespace
 		ERTMatchPhase& OutPhase, bool& bOutHasPhase, FString& OutError)
 	{
 		FString Text;
-		if (!Obj->TryGetStringField(Field, Text))
+		const ERTCampoScalare EsitoFase = LeggiStringa(*Obj, Field, Text);
+		if (!TipoAccettato(EsitoFase, TEXT("expect"), Field, AttesoStringa, OutError)) { return false; }
+		if (EsitoFase == ERTCampoScalare::Assente)
 		{
 			bOutHasPhase = false;
 			return true;
@@ -385,7 +502,9 @@ namespace
 		FString& OutError)
 	{
 		FString Text;
-		if (!Obj->TryGetStringField(Field, Text))
+		const ERTCampoScalare EsitoAzione = LeggiStringa(*Obj, Field, Text);
+		if (!TipoAccettato(EsitoAzione, TEXT("expect"), Field, AttesoStringa, OutError)) { return false; }
+		if (EsitoAzione == ERTCampoScalare::Assente)
 		{
 			OutActionId = NAME_None;
 			return true;
@@ -406,7 +525,12 @@ namespace
 		const TCHAR* OutcomeField, ERTLogCategory& OutCategory, uint8& OutOutcome, FString& OutError)
 	{
 		FString CategoryText;
-		if (!Obj->TryGetStringField(CategoryField, CategoryText))
+		const ERTCampoScalare EsitoCategoria = LeggiStringa(*Obj, CategoryField, CategoryText);
+		if (!TipoAccettato(EsitoCategoria, TEXT("assertion sul TurnLog"), CategoryField, AttesoStringa, OutError))
+		{
+			return false;
+		}
+		if (EsitoCategoria == ERTCampoScalare::Assente)
 		{
 			OutError = FString::Printf(TEXT("assertion sul TurnLog: manca il campo %s"), CategoryField);
 			return false;
@@ -423,7 +547,12 @@ namespace
 		OutCategory = static_cast<ERTLogCategory>(CategoryValue);
 
 		FString OutcomeText;
-		if (!Obj->TryGetStringField(OutcomeField, OutcomeText))
+		const ERTCampoScalare EsitoOutcome = LeggiStringa(*Obj, OutcomeField, OutcomeText);
+		if (!TipoAccettato(EsitoOutcome, TEXT("assertion sul TurnLog"), OutcomeField, AttesoStringa, OutError))
+		{
+			return false;
+		}
+		if (EsitoOutcome == ERTCampoScalare::Assente)
 		{
 			OutError = FString::Printf(TEXT("assertion sul TurnLog: manca il campo %s"), OutcomeField);
 			return false;
@@ -474,7 +603,9 @@ namespace
 		bool& bOutHasAt, FString& OutError)
 	{
 		FString Text;
-		if (!Obj->TryGetStringField(TEXT("at"), Text))
+		const ERTCampoScalare EsitoAt = LeggiStringa(*Obj, TEXT("at"), Text);
+		if (!TipoAccettato(EsitoAt, TEXT("expect"), TEXT("at"), AttesoStringa, OutError)) { return false; }
+		if (EsitoAt == ERTCampoScalare::Assente)
 		{
 			bOutHasAt = false;
 			return true;
@@ -558,7 +689,12 @@ namespace
 		// ⚠️ Gli ENUM restano gli stessi, risolti per riflessione: il vocabolario e' uno solo, e una tabella
 		// locale divergerebbe al primo valore aggiunto. Cambia la obbligatorieta', non il significato.
 		FString CategoryText;
-		if ((*EventObj)->TryGetStringField(TEXT("category"), CategoryText))
+		const ERTCampoScalare EsitoCategoria = LeggiStringa(**EventObj, TEXT("category"), CategoryText);
+		if (!TipoAccettato(EsitoCategoria, TEXT("expect: 'afterEvent'"), TEXT("category"), AttesoStringa, OutError))
+		{
+			return false;
+		}
+		if (EsitoCategoria == ERTCampoScalare::Letto)
 		{
 			const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
 			const int64 CategoryValue =
@@ -575,7 +711,12 @@ namespace
 		}
 
 		FString OutcomeText;
-		if ((*EventObj)->TryGetStringField(TEXT("outcome"), OutcomeText))
+		const ERTCampoScalare EsitoOutcome = LeggiStringa(**EventObj, TEXT("outcome"), OutcomeText);
+		if (!TipoAccettato(EsitoOutcome, TEXT("expect: 'afterEvent'"), TEXT("outcome"), AttesoStringa, OutError))
+		{
+			return false;
+		}
+		if (EsitoOutcome == ERTCampoScalare::Letto)
 		{
 			// ⚠️ **`outcome` senza `category` non significa niente**, e accettarlo darebbe un selettore che
 			// pare stretto e non lo e': l'esito e' un `uint8` il cui vocabolario lo decide la categoria.
@@ -616,7 +757,10 @@ namespace
 		{
 			return false;
 		}
-		(*EventObj)->TryGetStringField(TEXT("unit"), OutSelector.Unit);
+		if (!OpzionaleStringa(**EventObj, TEXT("unit"), OutSelector.Unit, TEXT("expect: 'afterEvent'"), OutError))
+		{
+			return false;
+		}
 
 		if (!OutSelector.IsDeclared())
 		{
@@ -962,13 +1106,16 @@ namespace
 				{
 					return false;
 				}
-				Obj->TryGetBoolField(TEXT("blocksMovement"), Cell.bBlocksMovement);
-				Obj->TryGetBoolField(TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight);
-				Obj->TryGetNumberField(TEXT("moveCost"), Cell.MoveCost);
-				Obj->TryGetNumberField(TEXT("occupancySurcharge"), Cell.OccupancySurcharge);
+				if (!OpzionaleBool(*Obj, TEXT("blocksMovement"), Cell.bBlocksMovement, TEXT("cells"), OutError)
+					|| !OpzionaleBool(*Obj, TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight, TEXT("cells"), OutError)
+					|| !OpzionaleIntero(*Obj, TEXT("moveCost"), Cell.MoveCost, TEXT("cells"), OutError)
+					|| !OpzionaleIntero(*Obj, TEXT("occupancySurcharge"), Cell.OccupancySurcharge, TEXT("cells"), OutError))
+				{
+					return false;
+				}
 				// `objective`: la cella contendibile (`#2269`). Prima di questa riga un obiettivo era
 				// esprimibile solo da una fixture, e l'unica che ne posi uno e' `RelayBasin`.
-				Obj->TryGetBoolField(TEXT("objective"), Cell.bIsObjective);
+				if (!OpzionaleBool(*Obj, TEXT("objective"), Cell.bIsObjective, TEXT("cells"), OutError)) { return false; }
 				CollectNotes(Obj, Cell.Notes);
 				OutScenario.Cells.Add(Cell);
 			}
@@ -1001,7 +1148,7 @@ namespace
 				}
 
 				FString AxisText;
-				Obj->TryGetStringField(TEXT("axis"), AxisText);
+				if (!OpzionaleStringa(*Obj, TEXT("axis"), AxisText, TEXT("interiorWalls"), OutError)) { return false; }
 				const int64 AxisValue = AxisEnum ? AxisEnum->GetValueByNameString(AxisText) : INDEX_NONE;
 				if (AxisValue == INDEX_NONE)
 				{
@@ -1010,16 +1157,21 @@ namespace
 				}
 				Wall.Segment.Axis = static_cast<ERTTacticalAxis>(AxisValue);
 
-				Obj->TryGetNumberField(TEXT("offset"), Wall.Segment.Offset);
-				Obj->TryGetNumberField(TEXT("alongStart"), Wall.Segment.AlongStart);
-				Obj->TryGetNumberField(TEXT("alongEnd"), Wall.Segment.AlongEnd);
+				if (!OpzionaleIntero(*Obj, TEXT("offset"), Wall.Segment.Offset, TEXT("interiorWalls"), OutError)
+					|| !OpzionaleIntero(*Obj, TEXT("alongStart"), Wall.Segment.AlongStart, TEXT("interiorWalls"), OutError)
+					|| !OpzionaleIntero(*Obj, TEXT("alongEnd"), Wall.Segment.AlongEnd, TEXT("interiorWalls"), OutError))
+				{
+					return false;
+				}
 				Wall.Segment.Layer = Wall.Cell.Layer;
-				Obj->TryGetNumberField(TEXT("layer"), Wall.Segment.Layer);
+				if (!OpzionaleIntero(*Obj, TEXT("layer"), Wall.Segment.Layer, TEXT("interiorWalls"), OutError)) { return false; }
 
 				// `type` e' opzionale e vale `High`: un muro interno che non occlude e' il caso raro, e
 				// scriverlo esplicitamente e' meno grave che dimenticarlo e non capire perche' la vista passa.
 				FString TypeText;
-				if (Obj->TryGetStringField(TEXT("type"), TypeText))
+				const ERTCampoScalare EsitoTipo = LeggiStringa(*Obj, TEXT("type"), TypeText);
+				if (!TipoAccettato(EsitoTipo, TEXT("interiorWalls"), TEXT("type"), AttesoStringa, OutError)) { return false; }
+				if (EsitoTipo == ERTCampoScalare::Letto)
 				{
 					const int64 TypeValue = TypeEnum ? TypeEnum->GetValueByNameString(TypeText) : INDEX_NONE;
 					if (TypeValue == INDEX_NONE)
@@ -1031,7 +1183,9 @@ namespace
 				}
 
 				FString StableText;
-				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				const ERTCampoScalare EsitoStable = LeggiStringa(*Obj, TEXT("stableId"), StableText);
+				if (!TipoAccettato(EsitoStable, TEXT("interiorWalls"), TEXT("stableId"), AttesoStringa, OutError)) { return false; }
+				if (EsitoStable == ERTCampoScalare::Letto)
 				{
 					Wall.StableId = FName(*StableText);
 				}
@@ -1074,7 +1228,7 @@ namespace
 				}
 
 				FString EdgeText;
-				Obj->TryGetStringField(TEXT("edge"), EdgeText);
+				if (!OpzionaleStringa(*Obj, TEXT("edge"), EdgeText, TEXT("doors"), OutError)) { return false; }
 				const int64 EdgeValue = DirEnum ? DirEnum->GetValueByNameString(EdgeText) : INDEX_NONE;
 				if (EdgeValue == INDEX_NONE)
 				{
@@ -1086,7 +1240,9 @@ namespace
 				// `Closed` e' il default: una porta che nasce aperta e' il caso raro, e scriverlo esplicitamente
 				// costa meno che dimenticarlo e non capire perche' il varco c'era gia'.
 				FString StateText;
-				if (Obj->TryGetStringField(TEXT("state"), StateText))
+				const ERTCampoScalare EsitoStato = LeggiStringa(*Obj, TEXT("state"), StateText);
+				if (!TipoAccettato(EsitoStato, TEXT("doors"), TEXT("state"), AttesoStringa, OutError)) { return false; }
+				if (EsitoStato == ERTCampoScalare::Letto)
 				{
 					const int64 StateValue = DoorStateEnum ? DoorStateEnum->GetValueByNameString(StateText) : INDEX_NONE;
 					if (StateValue == INDEX_NONE)
@@ -1098,11 +1254,13 @@ namespace
 				}
 
 				int32 DoorId = 0;
-				Obj->TryGetNumberField(TEXT("doorId"), DoorId);
+				if (!OpzionaleIntero(*Obj, TEXT("doorId"), DoorId, TEXT("doors"), OutError)) { return false; }
 				Entry.Door.DoorId = DoorId;
 
 				FString StableText;
-				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				const ERTCampoScalare EsitoStable = LeggiStringa(*Obj, TEXT("stableId"), StableText);
+				if (!TipoAccettato(EsitoStable, TEXT("doors"), TEXT("stableId"), AttesoStringa, OutError)) { return false; }
+				if (EsitoStable == ERTCampoScalare::Letto)
 				{
 					Entry.Door.StableId = FName(*StableText);
 				}
@@ -1121,7 +1279,10 @@ namespace
 
 				FRTInteractionBinding Binding;
 				FString SourceText;
-				Obj->TryGetStringField(TEXT("source"), SourceText);
+				if (!OpzionaleStringa(*Obj, TEXT("source"), SourceText, TEXT("interactionBindings"), OutError))
+				{
+					return false;
+				}
 				if (SourceText.IsEmpty())
 				{
 					OutError = TEXT("interactionBindings: 'source' mancante");
@@ -1139,7 +1300,15 @@ namespace
 				}
 				for (const TSharedPtr<FJsonValue>& T : *TargetsJson)
 				{
-					Binding.TargetIds.Add(FName(*T->AsString()));
+					// `#3668`: `AsString()` su un numero risponde `"42"`, la stessa conversione di `tags: [42]`.
+					FString TargetText;
+					if (!ElementoStringa(T, TargetText))
+					{
+						OutError = FString::Printf(
+							TEXT("interactionBindings: un bersaglio di '%s' non e' una stringa"), *SourceText);
+						return false;
+					}
+					Binding.TargetIds.Add(FName(*TargetText));
 				}
 				OutScenario.InteractionBindings.Add(Binding);
 			}
@@ -1163,11 +1332,13 @@ namespace
 			if (!Obj.IsValid()) { OutError = TEXT("units: voce non valida"); return false; }
 
 			FRTScenarioUnit Unit;
-			Obj->TryGetStringField(TEXT("id"), Unit.Id);
+			if (!OpzionaleStringa(*Obj, TEXT("id"), Unit.Id, TEXT("units"), OutError)) { return false; }
+			// Il contesto dei campi seguenti nomina l'unita': chi legge l'errore sa quale correggere.
+			const FString DoveUnita = FString::Printf(TEXT("unita' '%s'"), *Unit.Id);
 			FString HeroText;
-			Obj->TryGetStringField(TEXT("hero"), HeroText);
+			if (!OpzionaleStringa(*Obj, TEXT("hero"), HeroText, *DoveUnita, OutError)) { return false; }
 			Unit.HeroId = FName(*HeroText);
-			Obj->TryGetNumberField(TEXT("team"), Unit.TeamId);
+			if (!OpzionaleIntero(*Obj, TEXT("team"), Unit.TeamId, *DoveUnita, OutError)) { return false; }
 
 			const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
 			Obj->TryGetArrayField(TEXT("cell"), CellArr);
@@ -1180,7 +1351,9 @@ namespace
 			// e non un ripiego silenzioso su `E` — uno scenario che scrivesse `"North"` otterrebbe altrimenti un
 			// orientamento diverso da quello che ha chiesto, e il suo verde direbbe la cosa sbagliata.
 			FString FacingText;
-			if (Obj->TryGetStringField(TEXT("facing"), FacingText) && !FacingText.IsEmpty())
+			const ERTCampoScalare EsitoFacing = LeggiStringa(*Obj, TEXT("facing"), FacingText);
+			if (!TipoAccettato(EsitoFacing, *DoveUnita, TEXT("facing"), AttesoStringa, OutError)) { return false; }
+			if (EsitoFacing == ERTCampoScalare::Letto && !FacingText.IsEmpty())
 			{
 				if (!ParseDirection(FacingText, Unit.Facing, OutError,
 					*FString::Printf(TEXT("unita' '%s'"), *Unit.Id)))
@@ -1190,21 +1363,17 @@ namespace
 			}
 
 			// `bot` opzionale: assente = unita' guidata dal file, che resta il caso normale.
-			Obj->TryGetBoolField(TEXT("bot"), Unit.bBotControlled);
+			if (!OpzionaleBool(*Obj, TEXT("bot"), Unit.bBotControlled, *DoveUnita, OutError)) { return false; }
 
 			// `health`/`shield` opzionali: assenti = i valori del roster. Il campo si legge solo se PRESENTE, cosi'
 			// il sentinella `-1` resta distinguibile da uno `0` chiesto davvero (vedi `FRTScenarioUnit::Health`).
-			if (Obj->HasField(TEXT("health")))
+			// ⚠️ La lettura tipizzata SCRIVE solo se il campo c'e', quindi la guardia `HasField` di prima non serve
+			// piu' a proteggere il sentinella: assente resta `-1`.
+			if (!OpzionaleIntero(*Obj, TEXT("health"), Unit.Health, *DoveUnita, OutError)
+				|| !OpzionaleIntero(*Obj, TEXT("shield"), Unit.Shield, *DoveUnita, OutError)
+				|| !OpzionaleIntero(*Obj, TEXT("visionRange"), Unit.VisionRange, *DoveUnita, OutError))
 			{
-				Obj->TryGetNumberField(TEXT("health"), Unit.Health);
-			}
-			if (Obj->HasField(TEXT("shield")))
-			{
-				Obj->TryGetNumberField(TEXT("shield"), Unit.Shield);
-			}
-			if (Obj->HasField(TEXT("visionRange")))
-			{
-				Obj->TryGetNumberField(TEXT("visionRange"), Unit.VisionRange);
+				return false;
 			}
 			// `loadout` opzionale (`#602`): assente = il default dell'eroe, quindi gli scenari gia' scritti non
 			// cambiano. Qui si LEGGE soltanto; che i pezzi esistano e che l'insieme sia legale lo verifica la
@@ -1222,7 +1391,7 @@ namespace
 				for (const TSharedPtr<FJsonValue>& Piece : *LoadoutArr)
 				{
 					FString PieceId;
-					if (!Piece->TryGetString(PieceId) || PieceId.IsEmpty())
+					if (!ElementoStringa(Piece, PieceId) || PieceId.IsEmpty())
 					{
 						OutError = FString::Printf(
 							TEXT("unita' '%s': loadout deve essere una lista di EquipmentId"), *Unit.Id);
@@ -1250,7 +1419,7 @@ namespace
 					}
 
 					FString TagText;
-					if (!StatusObj->TryGetStringField(TEXT("tag"), TagText) || TagText.IsEmpty())
+					if (LeggiStringa(*StatusObj, TEXT("tag"), TagText) != ERTCampoScalare::Letto || TagText.IsEmpty())
 					{
 						OutError = FString::Printf(TEXT("unita' '%s': uno status senza 'tag'"), *Unit.Id);
 						return false;
@@ -1271,7 +1440,11 @@ namespace
 					}
 
 					int32 Turns = 1;
-					StatusObj->TryGetNumberField(TEXT("turns"), Turns);
+					if (!OpzionaleIntero(*StatusObj, TEXT("turns"), Turns,
+						*FString::Printf(TEXT("unita' '%s': status '%s'"), *Unit.Id, *TagText), OutError))
+					{
+						return false;
+					}
 					if (Turns <= 0)
 					{
 						OutError = FString::Printf(
@@ -1346,7 +1519,7 @@ namespace
 					for (const TSharedPtr<FJsonValue>& Req : *RequiresJson)
 					{
 						FString Capability;
-						if (!Req->TryGetString(Capability) || Capability.IsEmpty())
+						if (!ElementoStringa(Req, Capability) || Capability.IsEmpty())
 						{
 							OutError = TEXT("requires: ogni voce deve essere il nome di una capability");
 							return false;
@@ -1393,9 +1566,12 @@ namespace
 						}
 
 						FRTScenarioDecision Decision;
-						DecisionObj->TryGetStringField(TEXT("unit"), Decision.Unit);
-						DecisionObj->TryGetStringField(TEXT("respond"), Decision.Respond);
-						DecisionObj->TryGetStringField(TEXT("target"), Decision.Target);
+						if (!OpzionaleStringa(*DecisionObj, TEXT("unit"), Decision.Unit, TEXT("decisions"), OutError)
+							|| !OpzionaleStringa(*DecisionObj, TEXT("respond"), Decision.Respond, TEXT("decisions"), OutError)
+							|| !OpzionaleStringa(*DecisionObj, TEXT("target"), Decision.Target, TEXT("decisions"), OutError))
+						{
+							return false;
+						}
 
 						// `on`: il SELETTORE SEMANTICO della finestra a cui questa risposta risponde.
 						//
@@ -1445,10 +1621,16 @@ namespace
 								return false;
 							}
 
-							(*OnObj)->TryGetStringField(TEXT("reactor"), Decision.On.Reactor);
-							(*OnObj)->TryGetStringField(TEXT("triggerUnit"), Decision.On.TriggerUnit);
 							FString ReactionName;
-							if ((*OnObj)->TryGetStringField(TEXT("reaction"), ReactionName) && !ReactionName.IsEmpty())
+							const ERTCampoScalare EsitoReaction = LeggiStringa(**OnObj, TEXT("reaction"), ReactionName);
+							if (!OpzionaleStringa(**OnObj, TEXT("reactor"), Decision.On.Reactor, TEXT("decisions: 'on'"), OutError)
+								|| !OpzionaleStringa(**OnObj, TEXT("triggerUnit"), Decision.On.TriggerUnit,
+									TEXT("decisions: 'on'"), OutError)
+								|| !TipoAccettato(EsitoReaction, TEXT("decisions: 'on'"), TEXT("reaction"), AttesoStringa, OutError))
+							{
+								return false;
+							}
+							if (EsitoReaction == ERTCampoScalare::Letto && !ReactionName.IsEmpty())
 							{
 								Decision.On.Reaction = FName(*ReactionName);
 							}
@@ -1537,7 +1719,7 @@ namespace
 						if (!IntentObj.IsValid()) { OutError = TEXT("intents: voce non valida"); return false; }
 
 						FRTScenarioIntent Intent;
-						IntentObj->TryGetStringField(TEXT("unit"), Intent.UnitId);
+						if (!OpzionaleStringa(*IntentObj, TEXT("unit"), Intent.UnitId, TEXT("intents"), OutError)) { return false; }
 
 						// Chiavi SCONOSCIUTE: rifiutate, non ignorate (CP 16.1). Prima di questo controllo il loader
 						// leggeva le chiavi note e passava oltre alle altre in silenzio: uno scenario che chiedeva
@@ -1655,9 +1837,15 @@ namespace
 									return false;
 								}
 								Intent.bTargetsCell = true;
-								IntentObj->TryGetStringField(TEXT("target"), Intent.Target); // solo per diagnosticare l'ambiguita'
+								// solo per diagnosticare l'ambiguita'
+								if (!OpzionaleStringa(*IntentObj, TEXT("target"), Intent.Target,
+									*FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId), OutError))
+								{
+									return false;
+								}
 							}
-							else if (!IntentObj->TryGetStringField(TEXT("target"), Intent.Target) || Intent.Target.IsEmpty())
+							else if (LeggiStringa(*IntentObj, TEXT("target"), Intent.Target) != ERTCampoScalare::Letto
+								|| Intent.Target.IsEmpty())
 							{
 								// Un'azione che risolve su CHI LA USA non ha un bersaglio da dichiarare: il
 								// `TurnManager` si bersaglia da solo in fase Prep (`Instance.TargetUnitId = i`), e
@@ -1819,7 +2007,8 @@ namespace
 								return false;
 							}
 							FString ConditionId;
-							if (!(*ConditionObj)->TryGetStringField(TEXT("id"), ConditionId) || ConditionId.IsEmpty())
+							if (LeggiStringa(**ConditionObj, TEXT("id"), ConditionId) != ERTCampoScalare::Letto
+								|| ConditionId.IsEmpty())
 							{
 								OutError = FString::Printf(
 									TEXT("intent di '%s': condition senza 'id'"), *Intent.UnitId);
@@ -1830,7 +2019,13 @@ namespace
 							// significherebbe «soglia 0», cioe' una condizione che non e' mai vera, e lo scenario
 							// direbbe di aver ristretto il fuoco mentre lo ha spento.
 							double ParamNumber = 0.0;
-							if (!(*ConditionObj)->TryGetNumberField(TEXT("param"), ParamNumber))
+							const ERTCampoScalare EsitoParam = LeggiNumero(**ConditionObj, TEXT("param"), ParamNumber);
+							if (!TipoAccettato(EsitoParam, *FString::Printf(TEXT("intent di '%s': condition '%s'"),
+								*Intent.UnitId, *ConditionId), TEXT("param"), AttesoNumero, OutError))
+							{
+								return false;
+							}
+							if (EsitoParam == ERTCampoScalare::Assente)
 							{
 								OutError = FString::Printf(
 									TEXT("intent di '%s': condition '%s' senza 'param'"), *Intent.UnitId, *ConditionId);
@@ -1931,8 +2126,9 @@ namespace
 						// prima si ricaricava. Una guardia che invalida cio' che il writer produce non e' una
 						// guardia: e' una regressione.
 						//
-						// ⚠️ **Il difetto che coprivano resta APERTO e non e' questo**: le guardie esterne
-						// `if (ability non vuota)` e `if (dash non vuota)` usano `TryGetStringField`, quindi un
+						// ⌫ *Il difetto che coprivano non e' questo, ed e' stato chiuso dopo: oggi `ability` e `dash`
+						// passano da `LeggiCampoStringa`. Fino ad allora* le guardie esterne
+						// `if (ability non vuota)` e `if (dash non vuota)` usavano il `TryGet*Field` di stringa, quindi un
 						// `"ability": ""` o `"ability": ["X"]` salta l'intero blocco in silenzio. Il rimedio
 						// giusto e' applicare a QUEI campi la stessa distinzione presente/malformato che questa
 						// passata ha dato ai tre array — non un controllo a valle che indovina chi avrebbe
@@ -1963,13 +2159,13 @@ namespace
 				if (!Obj.IsValid()) { OutError = TEXT("expect: voce non valida"); return false; }
 
 				FString Type;
-				Obj->TryGetStringField(TEXT("type"), Type);
+				if (!OpzionaleStringa(*Obj, TEXT("type"), Type, TEXT("expect"), OutError)) { return false; }
 
 				FRTTestExpectation Exp;
 				if (Type == TEXT("UnitAtCell"))
 				{
 					Exp.Kind = ERTAssertionKind::UnitAtCell;
-					Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
+					if (!OpzionaleStringa(*Obj, TEXT("unit"), Exp.UnitId, TEXT("expect"), OutError)) { return false; }
 					const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
 					Obj->TryGetArrayField(TEXT("cell"), CellArr);
 					if (!ParseCell(CellArr, Exp.Cell, OutError, TEXT("expect UnitAtCell")))
@@ -1980,13 +2176,15 @@ namespace
 				else if (Type == TEXT("TurnsCompleted"))
 				{
 					Exp.Kind = ERTAssertionKind::TurnsCompleted;
-					Obj->TryGetNumberField(TEXT("value"), Exp.Value);
+					if (!OpzionaleIntero(*Obj, TEXT("value"), Exp.Value, TEXT("expect TurnsCompleted"), OutError)) { return false; }
 				}
 				else if (Type == TEXT("UnitHpEquals"))
 				{
 					Exp.Kind = ERTAssertionKind::UnitHpEquals;
-					Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
-					if (!Obj->TryGetNumberField(TEXT("value"), Exp.Value))
+					if (!OpzionaleStringa(*Obj, TEXT("unit"), Exp.UnitId, TEXT("expect"), OutError)) { return false; }
+					const ERTCampoScalare EsitoHp = LeggiIntero(*Obj, TEXT("value"), Exp.Value);
+					if (!TipoAccettato(EsitoHp, TEXT("expect UnitHpEquals"), TEXT("value"), AttesoIntero, OutError)) { return false; }
+					if (EsitoHp == ERTCampoScalare::Assente)
 					{
 						// Senza `value` verificherebbe «HP == 0», cioe' una cosa diversa da quella che chi l'ha
 						// scritta intendeva. Meglio rifiutare che indovinare.
@@ -1997,9 +2195,9 @@ namespace
 				else if (Type == TEXT("UnitAlive"))
 				{
 					Exp.Kind = ERTAssertionKind::UnitAlive;
-					Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
+					if (!OpzionaleStringa(*Obj, TEXT("unit"), Exp.UnitId, TEXT("expect"), OutError)) { return false; }
 					bool bAlive = true;
-					Obj->TryGetBoolField(TEXT("value"), bAlive);
+					if (!OpzionaleBool(*Obj, TEXT("value"), bAlive, TEXT("expect UnitAlive"), OutError)) { return false; }
 					Exp.Value = bAlive ? 1 : 0;
 				}
 				// I due capi di un REDIRECT (#1060). `unit` obbligatorio in entrambe: senza, l'assertion
@@ -2010,7 +2208,7 @@ namespace
 					Exp.Kind = (Type == TEXT("OriginalTargetEquals"))
 						? ERTAssertionKind::OriginalTargetEquals
 						: ERTAssertionKind::EffectiveTargetEquals;
-					if (!Obj->TryGetStringField(TEXT("unit"), Exp.UnitId) || Exp.UnitId.IsEmpty())
+					if (LeggiStringa(*Obj, TEXT("unit"), Exp.UnitId) != ERTCampoScalare::Letto || Exp.UnitId.IsEmpty())
 					{
 						OutError = FString::Printf(TEXT("assertion %s: manca il campo unit"), *Type);
 						return false;
@@ -2019,12 +2217,17 @@ namespace
 				else if (Type == TEXT("UnitFacing"))
 				{
 					Exp.Kind = ERTAssertionKind::UnitFacing;
-					Obj->TryGetStringField(TEXT("unit"), Exp.UnitId);
+					if (!OpzionaleStringa(*Obj, TEXT("unit"), Exp.UnitId, TEXT("expect"), OutError)) { return false; }
 
 					// La direzione si scrive per NOME, non come indice: `3` non dice niente a chi legge lo scenario,
 					// e rinumerare l'enum renderebbe verdi gli scenari sbagliati.
 					FString DirectionText;
-					if (!Obj->TryGetStringField(TEXT("value"), DirectionText))
+					const ERTCampoScalare EsitoDirezione = LeggiStringa(*Obj, TEXT("value"), DirectionText);
+					if (!TipoAccettato(EsitoDirezione, TEXT("expect UnitFacing"), TEXT("value"), AttesoStringa, OutError))
+					{
+						return false;
+					}
+					if (EsitoDirezione == ERTCampoScalare::Assente)
 					{
 						OutError = FString::Printf(TEXT("assertion UnitFacing su '%s': manca il campo value"), *Exp.UnitId);
 						return false;
@@ -2064,7 +2267,7 @@ namespace
 					// un'assenza. Assente del tutto = 1, cioe' «l'evento c'e'»: e' il caso piu' comune e scriverlo
 					// ogni volta sarebbe rumore.
 					int32 Count = 1;
-					Obj->TryGetNumberField(TEXT("value"), Count);
+					if (!OpzionaleIntero(*Obj, TEXT("value"), Count, TEXT("expect LogEventCount"), OutError)) { return false; }
 					if (Count < 0)
 					{
 						OutError = TEXT("assertion LogEventCount: value non puo' essere negativo");
@@ -2119,7 +2322,12 @@ namespace
 					// sensato («l'evento c'e'»), qui non ce n'e' uno — un valore atteso implicito sarebbe un
 					// numero inventato dal parser, e uno scenario passerebbe senza dire cosa si aspettava.
 					int32 Amount = 0;
-					if (!Obj->TryGetNumberField(TEXT("value"), Amount))
+					const ERTCampoScalare EsitoAmount = LeggiIntero(*Obj, TEXT("value"), Amount);
+					if (!TipoAccettato(EsitoAmount, TEXT("expect LogEventAmount"), TEXT("value"), AttesoIntero, OutError))
+					{
+						return false;
+					}
+					if (EsitoAmount == ERTCampoScalare::Assente)
 					{
 						OutError = TEXT("assertion LogEventAmount: manca 'value', il valore atteso di Amount");
 						return false;
@@ -2253,7 +2461,7 @@ namespace
 				if (!Obj.IsValid()) { OutError = TEXT("variants: voce non valida"); return false; }
 
 				FRTScenarioVariant Variant;
-				Obj->TryGetStringField(TEXT("name"), Variant.Name);
+				if (!OpzionaleStringa(*Obj, TEXT("name"), Variant.Name, TEXT("variants"), OutError)) { return false; }
 
 				const TArray<TSharedPtr<FJsonValue>>* VariantUnits = nullptr;
 				if (Obj->TryGetArrayField(TEXT("units"), VariantUnits))
@@ -2264,7 +2472,7 @@ namespace
 						if (!UnitObj.IsValid()) { OutError = TEXT("variants: unita' non valida"); return false; }
 
 						FRTScenarioVariantUnit VariantUnit;
-						UnitObj->TryGetStringField(TEXT("id"), VariantUnit.Id);
+						if (!OpzionaleStringa(*UnitObj, TEXT("id"), VariantUnit.Id, TEXT("variants"), OutError)) { return false; }
 						const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
 						UnitObj->TryGetArrayField(TEXT("cell"), CellArr);
 						if (!ParseCell(CellArr, VariantUnit.Cell, OutError,
@@ -2295,28 +2503,33 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		return false;
 	}
 
-	if (!Root->TryGetStringField(TEXT("scenarioId"), OutScenario.ScenarioId) || OutScenario.ScenarioId.IsEmpty())
+	const ERTCampoScalare EsitoId = LeggiStringa(*Root, TEXT("scenarioId"), OutScenario.ScenarioId);
+	if (!TipoAccettato(EsitoId, TEXT("scenario"), TEXT("scenarioId"), AttesoStringa, OutError)) { return false; }
+	if (EsitoId == ERTCampoScalare::Assente || OutScenario.ScenarioId.IsEmpty())
 	{
 		OutError = TEXT("campo obbligatorio mancante: scenarioId");
 		return false;
 	}
 
-	Root->TryGetNumberField(TEXT("version"), OutScenario.Version);
+	if (!OpzionaleIntero(*Root, TEXT("version"), OutScenario.Version, TEXT("scenario"), OutError)) { return false; }
 	if (OutScenario.Version > SupportedVersion)
 	{
 		OutError = FString::Printf(TEXT("formato versione %d non supportato (massimo %d): aggiorna il loader"),
 			OutScenario.Version, SupportedVersion);
 		return false;
 	}
-	Root->TryGetNumberField(TEXT("seed"), OutScenario.Seed);
+	if (!OpzionaleIntero(*Root, TEXT("seed"), OutScenario.Seed, TEXT("scenario"), OutError)) { return false; }
 	// Solo presentazione: quale unita' selezionare in PIE per far comparire l'anteprima. Headless non fa nulla.
-	Root->TryGetStringField(TEXT("previewUnit"), OutScenario.PreviewUnit);
-	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
+	if (!OpzionaleStringa(*Root, TEXT("previewUnit"), OutScenario.PreviewUnit, TEXT("scenario"), OutError)
+		|| !OpzionaleStringa(*Root, TEXT("fixture"), OutScenario.Fixture, TEXT("scenario"), OutError))
+	{
+		return false;
+	}
 	// La PRESENZA della chiave si registra a parte dal valore: `mapRadius` e' inerte quando c'e' una fixture
 	// — la forma la decide la fixture — e senza questo booleano il writer lo scriveva comunque, materializzando
 	// in un file a fixture una chiave che quel file non aveva mai dichiarato. Vedi `bHasMapRadius`, `#3118`.
 	OutScenario.bHasMapRadius = Root->HasField(TEXT("mapRadius"));
-	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
+	if (!OpzionaleIntero(*Root, TEXT("mapRadius"), OutScenario.MapRadius, TEXT("scenario"), OutError)) { return false; }
 
 	// Le chiavi `_*` della RADICE: la documentazione incorporata che il file porta sullo scenario intero.
 	// Ogni controllo di «chiave sconosciuta» piu' sotto le salta gia'; qui si conservano, perche' saltarle in
@@ -2333,7 +2546,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		for (const TSharedPtr<FJsonValue>& Value : *TagsJson)
 		{
 			FString Tag;
-			if (!Value.IsValid() || !Value->TryGetString(Tag))
+			if (!ElementoStringa(Value, Tag))
 			{
 				OutError = TEXT("tags: ogni voce deve essere una stringa");
 				return false;
@@ -2380,7 +2593,11 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	if (!ParseScenarioExpectations(Root, OutScenario, OutError)) { return false; }
 	if (!ParseScenarioVariants(Root, OutScenario, OutError)) { return false; }
 
-	Root->TryGetBoolField(TEXT("expectSameAcrossVariants"), OutScenario.bExpectSameAcrossVariants);
+	if (!OpzionaleBool(*Root, TEXT("expectSameAcrossVariants"), OutScenario.bExpectSameAcrossVariants,
+		TEXT("scenario"), OutError))
+	{
+		return false;
+	}
 
 	// Free-run (CP 47.4). Nessun default silenzioso su `maxTurns`: la sua assenza resta 0 e `Validate` la
 	// rifiuta con un motivo, invece di far girare la partita sotto un tetto che il file non dichiara.
@@ -2409,20 +2626,20 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	};
 
 	if (!LeggiCampoTipizzato(TEXT("freeRun"),
-		[&] { return Root->TryGetBoolField(TEXT("freeRun"), OutScenario.bFreeRun); },
+		[&] { return LeggiBool(*Root, TEXT("freeRun"), OutScenario.bFreeRun) == ERTCampoScalare::Letto; },
 		TEXT("un booleano"))) { return false; }
 	if (!LeggiCampoTipizzato(TEXT("maxTurns"),
-		[&] { return Root->TryGetNumberField(TEXT("maxTurns"), OutScenario.MaxTurns); },
+		[&] { return LeggiIntero(*Root, TEXT("maxTurns"), OutScenario.MaxTurns) == ERTCampoScalare::Letto; },
 		TEXT("un intero"))) { return false; }
 	if (!LeggiCampoTipizzato(TEXT("repeatCount"),
-		[&] { return Root->TryGetNumberField(TEXT("repeatCount"), OutScenario.RepeatCount); },
+		[&] { return LeggiIntero(*Root, TEXT("repeatCount"), OutScenario.RepeatCount) == ERTCampoScalare::Letto; },
 		TEXT("un intero"))) { return false; }
 
 	// `#3634`: le finestre di reazione al giocatore, in PIE. Un tipo sbagliato e' un errore, non un'assenza: un
 	// valore letto male darebbe una seduta in cui la finestra non compare, e l'unico segnale sarebbe la sua
 	// ASSENZA a schermo.
 	//
-	// 🔴 **Il TIPO si chiede al valore, e `TryGetBoolField` da solo non basta**: converte. Misurato
+	// 🔴 **Il TIPO si chiede al valore, e il `TryGet*Field` da solo non basta**: converte. Misurato
 	// sull'engine (`JsonValue.h`): la stringa risponde `Value.ToBool()` e `true`, quindi `"true"` — e `"yes"` — entrano
 	// come booleani, e un numero fa lo stesso. E' la trappola che `TryGetString` ha gia' su questo file.
 	//
@@ -2432,13 +2649,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	// fa niente) e in PIE senza finestra. Nessun esito si sposta, ed e' la stessa ragione per cui `previewUnit`
 	// non ne ha avuto uno.
 	if (!LeggiCampoTipizzato(TEXT("playerReactionWindows"),
-		[&]
-		{
-			const TSharedPtr<FJsonValue> Valore = Root->TryGetField(TEXT("playerReactionWindows"));
-			if (!Valore.IsValid() || Valore->Type != EJson::Boolean) { return false; }
-			OutScenario.bPlayerReactionWindows = Valore->AsBool();
-			return true;
-		},
+		[&] { return LeggiBool(*Root, TEXT("playerReactionWindows"), OutScenario.bPlayerReactionWindows) == ERTCampoScalare::Letto; },
 		TEXT("un booleano (true o false, non una stringa ne' un numero)"))) { return false; }
 
 	const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
@@ -2450,7 +2661,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		for (const TSharedPtr<FJsonValue>& Value : *RequiresJson)
 		{
 			FString Capability;
-			if (!Value.IsValid() || !Value->TryGetString(Capability) || Capability.IsEmpty())
+			if (!ElementoStringa(Value, Capability) || Capability.IsEmpty())
 			{
 				OutError = TEXT("requires: ogni voce dev'essere il nome non vuoto di una capability");
 				return false;
