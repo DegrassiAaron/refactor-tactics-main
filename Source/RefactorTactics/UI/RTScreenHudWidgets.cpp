@@ -680,13 +680,19 @@ void URTActionDockWidget::EnsureLayerIndicator()
 	{
 		// `AddChild` e non `InsertChildAt`: la seconda non aggiorna uno Slate gia' costruito. Nella riga del dock la
 		// lettura del movimento e' l'ultima, quindi in coda vuol dire accanto a lei.
-		if (UPanelSlot* Posto = Pannello->AddChild(Riga))
+		UPanelSlot* Posto = Pannello->AddChild(Riga);
+		if (Posto == nullptr)
 		{
-			if (UHorizontalBoxSlot* Orizzontale = Cast<UHorizontalBoxSlot>(Posto))
-			{
-				Orizzontale->SetVerticalAlignment(VAlign_Center);
-				Orizzontale->SetPadding(FMargin(22.f, 0.f, 0.f, 0.f)); // il separatore dei gruppi della barra (`GroupGap`)
-			}
+			// Un pannello a figlio singolo gia' occupato (`Border`, `SizeBox`) rifiuta il secondo: lo si dice, e le porte
+			// restano vuote invece di puntare a un indicatore che non sta da nessuna parte (rilievo della review di #3693).
+			UE_LOG(LogRT, Warning, TEXT("[RT] Dock: %s non accetta l'indicatore del piano: non montato"),
+				*Pannello->GetClass()->GetName());
+			return;
+		}
+		if (UHorizontalBoxSlot* Orizzontale = Cast<UHorizontalBoxSlot>(Posto))
+		{
+			Orizzontale->SetVerticalAlignment(VAlign_Center);
+			Orizzontale->SetPadding(FMargin(22.f, 0.f, 0.f, 0.f)); // il separatore dei gruppi della barra (`GroupGap`)
 		}
 	}
 	else
