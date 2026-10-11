@@ -1961,6 +1961,8 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		EdgeFeatureCells.Reset();
 		EdgeFeatureBaseScale.Reset();
 		LastEdgeFeatureVeilState.Reset();
+		// `#3687`: cio' che questa ricostruzione disegna, per sapere a fine turno se e' ancora vero.
+		CollectEdgeLayout(EdgeLayoutAtLastBuild);
 	}
 	if (bDoBorders)
 	{
@@ -2830,6 +2832,41 @@ ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 	return ERTHexSurface::Floor;
 }
 
+void ARTHexMapActor::CollectEdgeLayout(TArray<int32>& Out) const
+{
+	Out.Reset();
+	if (!MapAsset)
+	{
+		return; // il ramo demo non ha bordi d'autore
+	}
+
+	// L'ordine e' quello dell'asset, che e' anche quello in cui `RebuildInstances` posa i pannelli: due
+	// letture dello stesso asset danno la stessa sequenza. Un marcatore di tipo davanti a ogni voce, cosi'
+	// una porta e una copertura con gli stessi numeri non si confondono.
+	for (const FRTHexCellData& C : MapAsset->Cells)
+	{
+		if (C.Covers.Num() == 0 && C.Doors.Num() == 0)
+		{
+			continue;
+		}
+		Out.Append({ 0, C.Id.X, C.Id.Y, C.Id.Layer });
+		for (const FRTHexCover& Cover : C.Covers)
+		{
+			Out.Append({ 1, static_cast<int32>(Cover.Edge), static_cast<int32>(Cover.Type) });
+		}
+		for (const FRTHexDoor& Door : C.Doors)
+		{
+			Out.Append({ 2, static_cast<int32>(Door.Edge), static_cast<int32>(Door.State) });
+		}
+	}
+	// I muri interni non cambiano in partita oggi, ma stanno nella stessa famiglia: lasciarli fuori
+	// renderebbe questo confronto cieco al primo produttore che li toccasse.
+	for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
+	{
+		Out.Append({ 3, Wall.Cell.X, Wall.Cell.Y, Wall.Cell.Layer, static_cast<int32>(Wall.Segment.WallType) });
+	}
+}
+
 int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	const TArray<FRTCellId>& CellsOfInstance, const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
 	TArray<float>* DisplayFactor,
@@ -3494,6 +3531,21 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		{
 			RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs
 				| ERTRebuildFamily::SurfaceVolumes);
+		}
+
+		// 🔴 **E i BORDI, che fino a `#3687` questo blocco non guardava.** Un muro abbattuto nel Blast, una
+		// copertura eretta in Prep, una porta aperta: la simulazione li applica alla copia di lavoro e muove
+		// `Revision`, ma le tre famiglie qui sopra sono quelle della SUPERFICIE. I pannelli restavano quelli
+		// della costruzione fino alla prossima ricostruzione completa, cioe' fino al `Tab`.
+		//
+		// ⚠️ **Solo se i bordi sono cambiati davvero**, non a ogni revisione: una pennellata di superficie
+		// muove `Revision` e non tocca nessun bordo, e ricostruire `EdgeFeatures` per lei riporterebbe il
+		// costo a seguire la mappa invece della modifica (`HexMapActor.EditCostScalesWithTheEditNotTheMap`).
+		TArray<int32> Bordi;
+		CollectEdgeLayout(Bordi);
+		if (Bordi != EdgeLayoutAtLastBuild)
+		{
+			RebuildInstances(ERTRebuildFamily::EdgeFeatures);
 		}
 	}
 
