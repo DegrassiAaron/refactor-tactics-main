@@ -730,8 +730,42 @@ public:
 	 *
 	 * UNICO punto da cui passano le conversioni cella<->mondo: risoluzione, playback e input del giocatore
 	 * devono condividere la stessa scala, altrimenti l'anteprima e l'esito divergono.
+	 *
+	 * 🔑 **#3632 — e' il contesto della PRESENTAZIONE.** In vista strategica la quota dei piani vale
+	 * `GetPresentationLayerHeight()`, cioe' quella dell'asset moltiplicata per `StrategicLayerSeparation`. Puo'
+	 * farlo perche' la simulazione non usa la quota: misurato il 2026-10-11, nessun codice di `Turn/`, `Combat/`,
+	 * `Perception/`, `Pathfinding/` o `Bot/` trasforma celle in posizioni, e i lettori nel `TurnManager` lo usano
+	 * per POSARE i modelli. ⛔ Chi trasforma una posizione di mondo in una cella AUTOREVOLE (lo spawn da marker)
+	 * usa `GetAuthoringHexContext`.
 	 */
 	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	/** Il contesto con la quota VERA dell'asset, per le conversioni autorevoli mondo->cella (#3632). */
+	const URTHexMapAsset* GetAuthoringHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	/** La quota dei piani che la presentazione usa adesso: quella dell'asset, separata in vista strategica. */
+	float GetPresentationLayerHeight() const;
+
+	/**
+	 * #3632 — allinea la board alla vista di chi guarda. Ritorna `true` se la quota di presentazione e' cambiata,
+	 * e in quel caso ha gia' ricostruito le istanze, riapplicato l'ultimo velo nello stesso fotogramma e ripresentato
+	 * i fantasmi del piano: chi posa le UNITA' (il `TurnManager`) deve riposarle. Con la separazione a 1 (default)
+	 * non cambia niente e non ricostruisce niente. Lo chiama l'HUD a ogni fotogramma, come per le unita'.
+	 */
+	bool SyncStrategicPresentation(bool bStrategic);
+	bool IsStrategicPresentation() const { return bStrategicPresentation; }
+
+	/** Fissa la separazione (per i test): il default e' neutro e non proverebbe niente. */
+	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
+
+	/**
+	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
+	 * questo fattore, le celle restano dove sono nel modello. ⛔ **Default 1, cioe' neutro**: il valore lo sceglie
+	 * l'autore guardando la vista in PIE, dove la stessa leva e' `rt.Map.StrategicLayerSeparation` (che, se > 0,
+	 * vince su questa proprieta').
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap", meta = (ClampMin = "1.0", ClampMax = "10.0"))
+	float StrategicLayerSeparation = 1.f;
 
 	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
 	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo
@@ -1477,6 +1511,19 @@ protected:
 	 * lavoro utile e' una frazione minima del totale: si tocca cio' che cambia, e il resto si salta.
 	 */
 	TArray<uint8> LastVeilState;
+
+	/** #3632 — vista strategica di chi guarda, come l'ha dichiarata `SyncStrategicPresentation`. */
+	bool bStrategicPresentation = false;
+
+	/** #3632 — la quota con cui le istanze sono state posate l'ultima volta: un cambio di separazione la ricostruisce. */
+	float AppliedPresentationLayerHeight = -1.f;
+
+	/**
+	 * #3632 — l'ultima conoscenza applicata dal velo. Una ricostruzione delle istanze azzera lo stato del velo, e
+	 * riapplicarla nello stesso fotogramma e' cio' che impedisce a una cella mai vista di comparire anche per un
+	 * frame: la prima scrittura di ogni istanza e' uno snap, non una dissolvenza.
+	 */
+	TOptional<FRTTeamKnowledge> LastAppliedKnowledge;
 	TArray<uint8> LastGlyphVeilState[4];
 
 	/**

@@ -49,14 +49,16 @@ bool ARTSpawnPoint::ResolveCell(const ARTHexMapActor* MapActor, FRTCellId& OutCe
 		return false;
 	}
 
-	// ⚠️ Origine e scala si CHIEDONO a `GetHexContext`, che l'header di `ARTHexMapActor` dichiara «UNICO
-	// punto da cui passano le conversioni cella<->mondo». Rileggere qui `GetActorLocation()` e `HexSize`
-	// separatamente sarebbe una seconda strada verso la stessa geometria, e le due divergerebbero il giorno
-	// in cui l'asset e l'attore non concordano — che e' precisamente il caso che `GetHexContext` arbitra.
+	// ⚠️ Origine e scala si CHIEDONO alla mappa, non si rileggono qui da `GetActorLocation()` e `HexSize`:
+	// sarebbe una seconda strada verso la stessa geometria, e le due divergerebbero il giorno in cui l'asset e
+	// l'attore non concordano — che e' precisamente il caso che la mappa arbitra.
+	//
+	// #3632: e non a `GetHexContext`, che da allora e' il contesto della PRESENTAZIONE e in vista strategica ha la
+	// quota dei piani separata. La cella di partenza e' AUTOREVOLE: quota vera dell'asset, `GetAuthoringHexContext`.
 	FVector GridOrigin = FVector::ZeroVector;
 	float HexSize = 0.f;
 	float LayerHeight = 0.f;
-	const URTHexMapAsset* MapAsset = MapActor->GetHexContext(GridOrigin, HexSize, LayerHeight);
+	const URTHexMapAsset* MapAsset = MapActor->GetAuthoringHexContext(GridOrigin, HexSize, LayerHeight);
 
 	return URTMapTemplateLibrary::ResolveWorldToCell(MapAsset, GridOrigin, HexSize, LayerHeight,
 		GetActorLocation(), OutCell);

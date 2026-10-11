@@ -31,7 +31,8 @@ class URTHexMapAsset;
  * ⛔ **Non esiste un `FRTCellId` editabile su questo attore.** Sarebbe la seconda verita' sullo stesso fatto:
  * un autore trascina il marker nel viewport e la cella scritta a mano resta indietro, oppure edita la cella e
  * il marker resta dov'era — e nessuno dei due casi ha un modo di accorgersene. La cella si CHIEDE, con
- * `ResolveCell`, e passa dallo stesso `GetHexContext` che usano risoluzione, playback e input del giocatore.
+ * `ResolveCell`, e passa da `GetAuthoringHexContext`: la quota VERA dell'asset, non quella della vista strategica
+ * (#3632), perche' la cella di partenza e' autorevole.
  *
  * ∴ spostare il marker cambia la cella, e non c'e' niente da tenere sincronizzato.
  *

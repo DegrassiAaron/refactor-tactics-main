@@ -6829,6 +6829,50 @@ void ARTTurnManager::FinishBlastPhase(FRTBlastContext& Ctx)
 }
 
 
+void ARTTurnManager::RefreshPresentationGeometry()
+{
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, HexSize, LayerH);
+
+	// Le animazioni del playback conservano le CELLE del percorso: le posizioni si ricalcolano da li', e il fotogramma
+	// dopo `InterpolateAlongPath` le segue. `MoveAnims` e' vuoto fuori dal playback (`FinishPlayback` lo svuota).
+	TSet<const ARTUnit*> Animate;
+	if (MoveAnims.Num() > 0)
+	{
+		PBOrigin = Origin;
+		PBCellSize = HexSize;
+		PBLayerHeight = LayerH;
+		for (FRTMoveAnim& A : MoveAnims)
+		{
+			if (!A.Unit)
+			{
+				continue;
+			}
+			Animate.Add(A.Unit);
+			for (int32 I = 0; I < A.Cells.Num() && I < A.World.Num(); ++I)
+			{
+				A.World[I] = A.Unit->WorldForCell(A.Cells[I], Origin, HexSize, LayerH);
+			}
+		}
+	}
+
+	// Le unita' ferme tornano sulla loro cella alla quota nuova. `SetActorLocation` e non `PlaceOnCell`: la cella
+	// non cambia, e non deve passare da nessuna porta che la scriva.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	for (AActor* A : Actors)
+	{
+		ARTUnit* U = Cast<ARTUnit>(A);
+		if (!U || !U->IsAlive() || Animate.Contains(U))
+		{
+			continue;
+		}
+		U->SetActorLocation(U->WorldForCell(U->Cell, Origin, HexSize, LayerH));
+	}
+}
+
 const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
 {
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))

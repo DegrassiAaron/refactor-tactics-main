@@ -120,6 +120,16 @@ TAutoConsoleVariable<int32> CVarRTCameraStrategicOrtho(
 	TEXT("1 = la vista strategica usa la proiezione ortografica (si applica al prossimo Tab o tacca di rotella). 0 = prospettica."),
 	ECVF_Default);
 
+/**
+ * `#3632` — la separazione dei piani nella vista strategica, per sceglierla guardando in PIE. > 0 vince sulla
+ * proprieta' `StrategicLayerSeparation` della mappa; 0 la lascia decidere a lei. Si applica al fotogramma dopo.
+ */
+TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation(
+	TEXT("rt.Map.StrategicLayerSeparation"),
+	0.f,
+	TEXT("Fattore della quota dei piani in vista strategica (1 = nessuna separazione). 0 = usa la proprieta' della mappa."),
+	ECVF_Default);
+
 TAutoConsoleVariable<int32> CVarRTCameraTopDown(
 	TEXT("rt.Camera.TopDown"),
 	0,

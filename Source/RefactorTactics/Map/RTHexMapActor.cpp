@@ -1,4 +1,6 @@
 #include "Map/RTHexMapActor.h"
+#include "HAL/IConsoleManager.h"
+extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: la leva della separazione in PIE
 #include "Map/RTStructuralBodyLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -636,7 +638,7 @@ void ARTHexMapActor::SetKnowledgeDebugEnabled(bool bEnabled, const FRTTeamKnowle
 	const TSet<FRTCellId> Explored(Knowledge.ExploredCells);
 
 	const float UseHexSize = Map->HexSize;
-	const float UseLayerH = Map->LayerHeight;
+	const float UseLayerH = GetPresentationLayerHeight(); // #3632
 
 	// La mesh nasce alta `2 · RTCellPrismRadius`: la scala Z che le da' `Fraction · H` e' quel rapporto.
 	// Scritta cosi' invece che con un letterale, resta vera se una mappa cambia `LayerHeight`.
@@ -700,7 +702,7 @@ void ARTHexMapActor::GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembe
 	// posate — che tiene la promessa del commento qui sopra invece di romperla: se il disegno smettesse di
 	// funzionare, le due famiglie lette calerebbero e il complemento si gonfierebbe, cioe' il difetto si
 	// vedrebbe nei numeri. Un contatore memorizzato all'accensione, no.
-	const float UseLayerH = Map->LayerHeight;
+	const float UseLayerH = GetPresentationLayerHeight(); // #3632
 	if (UseLayerH <= 0.f)
 	{
 		return;
@@ -1749,8 +1751,50 @@ const URTHexMapAsset* ARTHexMapActor::GetHexContext(FVector& OutOrigin, float& O
 	const URTHexMapAsset* Map = MapAsset;
 	OutOrigin = GetActorLocation();
 	OutHexSize = Map ? Map->HexSize : HexSize;
+	OutLayerHeight = GetPresentationLayerHeight(); // #3632: separata in vista strategica, vedi l'header
+	return Map;
+}
+
+const URTHexMapAsset* ARTHexMapActor::GetAuthoringHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
+{
+	const URTHexMapAsset* Map = MapAsset;
+	OutOrigin = GetActorLocation();
+	OutHexSize = Map ? Map->HexSize : HexSize;
 	OutLayerHeight = Map ? Map->LayerHeight : LayerHeight;
 	return Map;
+}
+
+float ARTHexMapActor::GetPresentationLayerHeight() const
+{
+	const float Base = MapAsset ? MapAsset->LayerHeight : LayerHeight;
+	if (!bStrategicPresentation)
+	{
+		return Base;
+	}
+	const float DaConsole = CVarRTMapStrategicLayerSeparation.GetValueOnGameThread();
+	const float Fattore = DaConsole > 0.f ? DaConsole : StrategicLayerSeparation;
+	return Base * FMath::Clamp(Fattore, 1.f, 10.f);
+}
+
+bool ARTHexMapActor::SyncStrategicPresentation(bool bStrategic)
+{
+	bStrategicPresentation = bStrategic;
+	const float Quota = GetPresentationLayerHeight();
+	if (AppliedPresentationLayerHeight < 0.f || FMath::IsNearlyEqual(Quota, AppliedPresentationLayerHeight))
+	{
+		// Mai posate (la prima ricostruzione la fara' chi allestisce la board), oppure niente da cambiare: con la
+		// separazione a 1 il cambio di vista non ricostruisce niente.
+		return false;
+	}
+	RebuildInstances(ERTRebuildFamily::All);
+	// 🔴 Nello stesso fotogramma della ricostruzione, che ha riportato ogni istanza alla scala piena: senza, una
+	// cella mai vista resterebbe disegnata fino al prossimo evento di conoscenza.
+	if (LastAppliedKnowledge.IsSet())
+	{
+		ApplyKnowledgeVeil(LastAppliedKnowledge.GetValue());
+	}
+	SetPlanPreview(LastPlanPreview);
+	return true;
 }
 
 bool ARTHexMapActor::PassesLayerFilter(int32 Layer) const
@@ -1993,7 +2037,8 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
-	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
+	const float UseLayerH = GetPresentationLayerHeight(); // #3632
+	AppliedPresentationLayerHeight = UseLayerH;
 
 	// Filtro layer (H4): `PassesLayerFilter` (sopra) e' l'unica regola, condivisa con
 	// `RebuildCoordinateLabels` — non piu' una lambda locale, per non avere due formule dello stesso filtro.
@@ -2328,7 +2373,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	if (bDoBodies && StructuralBodies && MapAsset != nullptr && CellShape != nullptr)
 	{
 		const FVector ActorOrigin = GetActorLocation();
-		for (const FRTStructuralBody& Body : URTStructuralBodyLibrary::DeriveBodies(MapAsset))
+		for (const FRTStructuralBody& Body : URTStructuralBodyLibrary::DeriveBodies(MapAsset, GetPresentationLayerHeight()))
 		{
 			if (!PassesLayerFilter(Body.Cell.Layer))
 			{
@@ -2868,7 +2913,7 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 	}
 
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
-	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
+	const float UseLayerH = GetPresentationLayerHeight(); // #3632
 	// Un quarto del passo fra due celle: molto sotto la distanza fra due centri vicini — quindi una
 	// permutazione la supera sempre — e molto sopra il rumore di un `float` in spazio mondo.
 	const double Tolleranza = FMath::Max(1.0, static_cast<double>(UseHexSize) * 0.25);
@@ -3089,7 +3134,7 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 	}
 
 	const float UseHexSize = MapAsset->HexSize;
-	const float UseLayerH = MapAsset->LayerHeight;
+	const float UseLayerH = GetPresentationLayerHeight(); // #3632
 
 	TArray<int32> DiscIndices;
 	DiscIndices.Reserve(Ids.Num());
@@ -3280,7 +3325,7 @@ bool ARTHexMapActor::AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& I
 	// ➕ **La posa viene dalla sede condivisa**, la stessa che `RebuildInstances` usa: due siti che posano la
 	// stessa istanza con due copie della formula divergono al primo che ne cambia una, e il confronto di
 	// `IncrementalRepaintEqualsFullRebuild` se ne accorgerebbe solo sui canali che guarda.
-	const FTransform GlyphXf = GlyphTransformForCell(Id, Data->Height, MapAsset->HexSize, MapAsset->LayerHeight);
+	const FTransform GlyphXf = GlyphTransformForCell(Id, Data->Height, MapAsset->HexSize, GetPresentationLayerHeight());
 
 	const int32 GlyphIndex = SurfaceGlyphs[RingIndex]->AddInstance(GlyphXf, /*bWorldSpace=*/ true);
 	GlyphCells[RingIndex].Add(Id);
@@ -3312,6 +3357,11 @@ bool ARTHexMapActor::AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& I
 
 void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 {
+	// #3632: la si conserva per riapplicarla dopo una ricostruzione dovuta al cambio di quota.
+	if (!LastAppliedKnowledge.IsSet() || &LastAppliedKnowledge.GetValue() != &Knowledge)
+	{
+		LastAppliedKnowledge = Knowledge;
+	}
 	// ⚠️ Si azzera SUBITO: su un'uscita anticipata un contatore lasciato al valore precedente dichiarerebbe
 	// lavoro svolto proprio nel caso in cui non se n'e' fatto nessuno, ed e' la misura su cui
 	// `Veil.FullScanCostIsMeasured` asserisce.

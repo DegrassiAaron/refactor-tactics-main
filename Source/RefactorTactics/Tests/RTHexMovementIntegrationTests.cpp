@@ -2715,6 +2715,144 @@ bool FRTInterruptedMovePlannedPrefixTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** L'esito di un turno sull'arena con la piattaforma: chi sale da (1,0,0) a (3,0,1) passando per l'unica rampa. */
+	struct FRTEsitoSalita
+	{
+		FRTCellId Cella;
+		int32 Salute = 0;
+		TArray<FString> Voci;
+		int64 Hash = 0;
+		FVector Posa = FVector::ZeroVector;
+		float QuotaArena = 0.f;
+	};
+
+	/** `Separazione` <= 0: vista tattica; altrimenti vista strategica con quel fattore, accesa PRIMA del turno. */
+	FRTEsitoSalita RTSaliSullaPiattaforma(float Separazione)
+	{
+		FRTEsitoSalita Esito;
+		UWorld* World = MakeHexMoveWorld();
+		if (!World) { return Esito; }
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+		ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+		HexMap->MapAsset = Arena;
+		Esito.QuotaArena = Arena->LayerHeight;
+		if (Separazione > 0.f)
+		{
+			HexMap->SetStrategicLayerSeparationForTest(Separazione);
+			HexMap->SyncStrategicPresentation(true);
+		}
+
+		ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
+		ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (Mover && Foe && TM)
+		{
+			Mover->PlannedCell = FRTCellId(3, 0, 1);
+			Foe->PlannedCell = Foe->Cell;
+			RunTurn(TM);
+			Esito.Cella = Mover->Cell;
+			Esito.Salute = Mover->Health;
+			for (const FRTTurnLogEntry& E : TM->GetTurnLog()) { Esito.Voci.Add(URTTurnLogLibrary::DescribeEntry(E)); }
+			Esito.Hash = TM->GetPendingFinalStateHash();
+			Esito.Posa = Mover->GetActorLocation();
+		}
+		DestroyHexMoveWorld(World);
+		return Esito;
+	}
+}
+
+/**
+ * #3632 — **la separazione dei piani non tocca l'esito.** Lo stesso turno, in un mondo con la vista strategica che
+ * triplica la quota dei piani e in uno senza, finisce sulla stessa cella con la stessa salute, lo stesso TurnLog e lo
+ * stesso hash: la simulazione non legge la quota, ed e' la premessa su cui la feature si regge (misurata nel codice
+ * il 2026-10-11, qui fissata in un test).
+ *
+ * E la posa la segue: nel mondo separato l'unita' sta alla quota del piano 1 moltiplicata, calcolata qui dalla quota
+ * dell'ASSET e non da `GetHexContext` — altrimenti attesa e codice sotto misura leggerebbero la stessa sorgente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationKeepsTheOutcomeTest,
+	"RefactorTactics.HexMove.StrategicLayerSeparationKeepsTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStrategicSeparationKeepsTheOutcomeTest::RunTest(const FString&)
+{
+	const FRTEsitoSalita Tattico = RTSaliSullaPiattaforma(0.f);
+	const FRTEsitoSalita Separato = RTSaliSullaPiattaforma(3.f);
+
+	if (!TestEqual(TEXT("premessa: in tattica sale sulla piattaforma"), Tattico.Cella, FRTCellId(3, 0, 1)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("premessa: il turno ha lasciato voci"), Tattico.Voci.Num() > 0);
+
+	TestEqual(TEXT("con la separazione accesa arriva sulla stessa cella"), Separato.Cella, Tattico.Cella);
+	TestEqual(TEXT("con la stessa salute"), Separato.Salute, Tattico.Salute);
+	TestEqual(TEXT("lo stesso hash di fine turno"), Separato.Hash, Tattico.Hash);
+	if (TestEqual(TEXT("lo stesso numero di voci nel TurnLog"), Separato.Voci.Num(), Tattico.Voci.Num()))
+	{
+		for (int32 I = 0; I < Tattico.Voci.Num(); ++I)
+		{
+			TestEqual(*FString::Printf(TEXT("voce %d identica"), I), Separato.Voci[I], Tattico.Voci[I]);
+		}
+	}
+
+	// La posa: stesso piano orizzontale, quota del piano 1 tripla. Il salto si legge come DIFFERENZA, cosi' l'offset
+	// del corpo sopra la cella (uguale nei due mondi) si elide.
+	TestTrue(TEXT("in pianta l'unita' sta nello stesso punto"), FVector2D(Separato.Posa).Equals(FVector2D(Tattico.Posa), 0.5f));
+	TestEqual(TEXT("in quota sale di due quote d'asset in piu' (piano 1, fattore 3)"),
+		static_cast<float>(Separato.Posa.Z - Tattico.Posa.Z), 2.f * Tattico.QuotaArena, 0.5f);
+	return true;
+}
+
+/**
+ * #3632 — **cambiare vista riposa le unita' ferme.** La quota cambia mentre nessuno si muove (il giocatore preme Tab
+ * in pianificazione): `RefreshPresentationGeometry` le riporta sulla loro cella alla quota nuova, senza toccare la
+ * cella. Verifica di mutazione: senza il riposizionamento, l'unita' sul piano 1 resta alla quota vecchia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationReposesUnitsTest,
+	"RefactorTactics.HexMove.StrategicLayerSeparationReposesStandingUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStrategicSeparationReposesUnitsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	HexMap->MapAsset = Arena;
+	HexMap->RebuildInstances(); // la board posata: senza, il cambio di vista non avrebbe niente da ricostruire
+
+	ARTUnit* Alto = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 1));
+	ARTUnit* Basso = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Alto || !Basso || !TM) { DestroyHexMoveWorld(World); return false; }
+
+	// In tattica, posate come il gioco le posa.
+	TM->RefreshPresentationGeometry();
+	const FVector AltoTattico = Alto->GetActorLocation();
+	const FVector BassoTattico = Basso->GetActorLocation();
+	TestTrue(TEXT("premessa: posata sulla sua cella"), AltoTattico.Equals(DoveLaCellaImpone(Alto, FRTCellId(3, 0, 1), HexMap), 0.5f));
+
+	HexMap->SetStrategicLayerSeparationForTest(3.f);
+	if (!TestTrue(TEXT("la vista strategica cambia la quota"), HexMap->SyncStrategicPresentation(true)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TM->RefreshPresentationGeometry();
+	TestEqual(TEXT("chi sta sul piano 1 sale di due quote d'asset"),
+		static_cast<float>(Alto->GetActorLocation().Z - AltoTattico.Z), 2.f * Arena->LayerHeight, 0.5f);
+	TestTrue(TEXT("chi sta sul piano terra resta dov'era"), Basso->GetActorLocation().Equals(BassoTattico, 0.5f));
+	TestEqual(TEXT("e nessuna cella cambia"), Alto->Cell, FRTCellId(3, 0, 1));
+
+	HexMap->SyncStrategicPresentation(false);
+	TM->RefreshPresentationGeometry();
+	TestTrue(TEXT("tornando tattici torna dov'era"), Alto->GetActorLocation().Equals(AltoTattico, 0.5f));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

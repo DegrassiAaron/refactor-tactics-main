@@ -936,6 +936,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	bool IsResolving() const { return bIsResolving; }
 
+	/**
+	 * #3632 — la quota di presentazione dei piani e' cambiata (vista strategica, `ARTHexMapActor::SyncStrategicPresentation`):
+	 * riposa le unita' sulla loro cella e, se il playback e' in corso, ricalcola dalle celle le posizioni delle
+	 * animazioni e la cache del contesto. Sola presentazione: nessuna cella, nessun esito.
+	 */
+	void RefreshPresentationGeometry();
+
 	/** Nome leggibile della fase in riproduzione (per la HUD). Vuoto fuori dal playback. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FString GetPlaybackPhaseName() const;

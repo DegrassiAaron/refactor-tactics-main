@@ -89,5 +89,5 @@ public:
 	 * nemmeno una il cui spazio disponibile sotto sia gia' esaurito da una cella immediatamente sottostante:
 	 * un corpo di altezza zero non e' un corpo, e disegnarlo produrrebbe facce coincidenti.
 	 */
-	static TArray<FRTStructuralBody> DeriveBodies(const URTHexMapAsset* Map);
+	static TArray<FRTStructuralBody> DeriveBodies(const URTHexMapAsset* Map, float LayerHeightOverride = -1.f);
 };
