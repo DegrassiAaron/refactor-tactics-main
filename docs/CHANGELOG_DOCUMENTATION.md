@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-11 — La reazione armata: il roster la conta per qualunque slot, le altre letture per lo slot
+
+**Origine**: [#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628), il seguito di #3618.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | la nota del roster: timeline, dock e intento restano sullo slot `Reaction`, con il motivo di ciascuna (decisione d'autore) |
+
+---
+
 ## 2026-10-11 — Il Blast si racconta nell'ordine in cui si risolve
 
 **Origine**: [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582), misurato in PIE nella seduta `U68` (`PIE-V01-TRACER`, scena 2).

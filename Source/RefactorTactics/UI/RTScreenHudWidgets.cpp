@@ -1258,6 +1258,9 @@ void URTActionSlotWidget::RefreshLook()
 			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	}
 	// 🔑 Una reazione armata ha la propria resa: lo stato e' lo stesso, il colore no (#3498).
+	// ⚖️ **E' la resa dello SLOT `Reaction`, non `URTCatalogLibrary::ArmsReaction`** (`#3628`, decisione d'autore del
+	// 2026-10-11): l'Overwatch occupa lo slot principale e ha la resa di una principale selezionata. Il viola della
+	// reazione armata per qualunque canale e' il chip `REAZ.` del roster ([D-478]).
 	const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
 	if (StateFrame)
 	{
@@ -1427,6 +1430,7 @@ void URTActionSlotWidget::ApplyResolvedIconTo(UImage* Target)
 	// #3498: la tinta per stato, PRIMA dell'uscita sulla texture — uno slot senza glifo e' comunque tinto.
 	{
 		const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
+		// Lo SLOT `Reaction`, come la cornice qui sopra (`#3628`).
 		const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
 		if (const FLinearColor* Tinta = IconTints.Find(Stato))
 		{

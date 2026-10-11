@@ -1272,6 +1272,10 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
 		Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
 		Intent.TargetCell = Intent.bHasTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell;
+		// ⚖️ **Lo slot `Reaction`, non `URTCatalogLibrary::ArmsReaction`** (`#3628`, decisione d'autore del
+		// 2026-10-11). `ReactionName` finisce nell'etichetta dell'intento come «(reazione: … ?)», e l'Overwatch come
+		// principale e' gia' `ActionName`: contarlo qui stamperebbe lo stesso nome due volte. Il roster, che un nome
+		// d'azione non lo mostra, lo conta ([D-478]).
 		Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
 		Intent.PlannedPath = Unit->PlannedPath;
 		Intent.PlannedWaypoints = Unit->PlannedWaypoints;
