@@ -52,6 +52,10 @@ e il `ProjectionMode` resta prospettico, salvo la leva della vista strategica (�
 formula è *esatta in ortografica e approssimata in prospettiva*, ed è la ragione per cui la sua tolleranza è
 mezza cella e non zero.
 
+> ⚠️ **[D-498](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11): in strategica la proiezione sarà sempre ortografica**, dimetrica 2:1 con pitch −30°, e la leva si ritira. In attuazione in [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662); fino ad allora vale il testo qui sopra.
+>
+> ⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md): le metriche del viewport — limiti del pivot, larghezza ortografica, ancoraggio dello zoom, deproiezione — leggeranno il rettangolo della scena, non il viewport intero.** In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661).
+
 Lo stato canonico è questo:
 
 | Campo | Oggi | Dove |
@@ -209,6 +213,7 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 - **Che cosa si vede.** Al centro, la 3D tattica diventa un'**isometrica semplificata**, quella delle tavole A–F di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md). L'HUD intorno resta lo stesso.
 - **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`. ✅ Fatto il 2026-10-10, e pinnato da `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN`.
 - **Che cosa resta aperto.** La proiezione esatta e le soglie si decidono in `L_CameraFeatureLab`.
+  - ⚠️ **La proiezione e l'inclinazione le ha decise [D-498](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11)**: isometrica dimetrica 2:1, cioè ortografica con pitch fisso a −30°; in strategica `Q`/`E` ruotano a 60° e il pitch manuale non agisce. Le due leve qui sotto e la rampa di §5.1 si ritirano in [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662). Restano aperte le soglie.
   - 🔧 **La leva per scegliere la proiezione c'è dal 2026-10-10** ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631)): `bStrategicOrthographic`, oppure `rt.Camera.StrategicOrtho 1` in console, che si applica al prossimo `Tab` o alla prossima tacca di rotella. Nasce **spenta**. Accesa, la vista strategica è ortografica e `OrthoWidth = 2 · TargetArmLength · tan(FOV/2)`: lo zoom resta il braccio (D-252), e al cambio la scala sul pivot non salta.
   - 🔑 **I limiti del pivot non hanno un ramo ortografico, e non è una dimenticanza.** `ComputeEffectivePivotBounds` modella il quadro come un rettangolo sul piano del pivot con mezza larghezza `Arm · tan(FOV/2)`, cioè proprio l'impronta ortografica. Lo lega `Camera.StrategicOrthographicKeepsTheScaleAtThePivot`.
 
@@ -229,7 +234,7 @@ il grep risponde `3` nel solo `RTCameraPawn.cpp`.
 | Consumatore | Deriva dallo zoom? | Come, oggi |
 |---|---|---|
 | velocità di pan | ✅ **dalla sorgente** | `Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength` |
-| pitch | 🟡 **canale aperto, curve piatte** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha() + StrategicPitchDelta * GetStrategicPitchRampAlpha()`, entrambi i delta a `0` di **default**: in partita l'inclinazione è identica a prima. La seconda rampa ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630)) vale zero fino a `StrategicExitThreshold` e cresce fino a `MaxArmLength`: inclina la vista strategica senza toccare quella tattica (`Camera.StrategicPitchRampIsFlatInTheTacticalRange`). Il valore lo sceglie l'autore in PIE, la curva generale si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
+| pitch | 🟡 **canale aperto, curve piatte** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha() + StrategicPitchDelta * GetStrategicPitchRampAlpha()`, entrambi i delta a `0` di **default**: in partita l'inclinazione è identica a prima. La seconda rampa ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630)) vale zero fino a `StrategicExitThreshold` e cresce fino a `MaxArmLength`: inclina la vista strategica senza toccare quella tattica (`Camera.StrategicPitchRampIsFlatInTheTacticalRange`). Il valore lo sceglie l'autore in PIE, la curva generale si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) ⚠️ Il termine strategico si ritira con [D-498](../../decisions/RT_PDR_00_Decision_Log.md) ([#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)): in strategica il pitch è fisso. |
 | FOV | ❌ no | `ViewportHorizontalFov` viene **letto** dalla camera, mai scritto |
 | span dei layer | ❌ non esiste | §6 |
 | alpha della UI tattica | ❌ non esiste | [#1835](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1835) |

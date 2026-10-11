@@ -123,6 +123,8 @@ un solo `BOTTOM`, e **Selected Unit cambia fascia**.*
              20%            60%               20%
 ```
 
+⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11): la scena non starà più sotto le zone.** La 3D si renderà solo nel rettangolo fra le quattro fasce, e le fasce si stringono ai loro inquilini: la proposta, misurata sulla tavola A, è sinistra 20%, destra 16%, alto 17%, basso 17%. La griglia diventa un dato di runtime, letto dalle zone, dalla scena e dalla camera. In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661); fino ad allora valgono i tagli qui sotto.
+
 🔑 **I tagli a 0.2 e 0.8 non sono una scelta estetica**: il keep-out di `PanelsLeaveTheCenterFree` è il 60%
 centrato (`RTCenterFree::CenterFraction`), quindi il centro libero **è** la cella di mezzo di questa griglia.
 
