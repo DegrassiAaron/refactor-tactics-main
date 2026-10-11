@@ -16,6 +16,7 @@
 #include "Turn/RTMatchSetupLibrary.h" // MakeTestArena: una board con piu' famiglie popolate
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 #include "RTConsoleVariableGuardForTest.h"
+#include "Map/RTSpawnPoint.h" // #3632: lo spawn da marker resta sulla quota vera dell'asset
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2221,6 +2222,254 @@ bool FRTHexMapActorPlaybackCueChannelTest::RunTest(const FString&)
 	Actor->SetPlaybackCues({});
 	TestEqual(TEXT("una consegna vuota e' un canale vuoto"), Actor->NumPlaybackCues(), 0);
 	TestFalse(TEXT("e spegne il Tick, ultimo canale acceso"), Actor->IsActorTickEnabled());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// #3632 — la separazione dei piani nella vista strategica: sola presentazione.
+// ---------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Due celle sul piano terra e una sul piano 1, sopra la prima: abbastanza per misurare la quota. */
+	URTHexMapAsset* RTDuePiani()
+	{
+		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 0)));
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 1)));
+		Asset->SortCells();
+		return Asset;
+	}
+
+	/** Le quote Z delle istanze di `Cells`, ordinate: l'ultima e' il piano 1. */
+	TArray<float> RTQuoteCelle(const ARTHexMapActor* Actor)
+	{
+		TArray<float> Z;
+		for (const FTransform& Xf : InstancesOf(Actor, TEXT("Cells"))) { Z.Add(static_cast<float>(Xf.GetLocation().Z)); }
+		Z.Sort();
+		return Z;
+	}
+
+	bool RTQuoteUguali(const TArray<float>& A, const TArray<float>& B)
+	{
+		if (A.Num() != B.Num()) { return false; }
+		for (int32 I = 0; I < A.Num(); ++I) { if (!FMath::IsNearlyEqual(A[I], B[I], 0.5f)) { return false; } }
+		return true;
+	}
+}
+
+/** Con la separazione al default (1) il cambio di vista non tocca niente: nessuna ricostruzione, stesse quote. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationNeutralTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationIsNeutralByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationNeutralTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const TArray<float> Prima = RTQuoteCelle(Actor);
+	// Senza una board posata «non ricostruisce» e «stesse quote» passerebbero anche per vacuita'.
+	if (!TestEqual(TEXT("premessa: la board e' posata"), Prima.Num(), 3)) { DestroyMapActorWorld(World); return false; }
+	TestFalse(TEXT("con la separazione a 1 la vista strategica non ricostruisce"), Actor->SyncStrategicPresentation(true));
+	TestTrue(TEXT("e le quote restano"), RTQuoteUguali(RTQuoteCelle(Actor), Prima));
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	TestEqual(TEXT("il contesto ha la quota dell'asset"), L, Asset->LayerHeight, 0.01f);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Con la separazione accesa i piani si allontanano A SCHERMO, e tornando tattici tornano dove erano.
+ *
+ * 🔑 La quota d'autore non si muove: `GetAuthoringHexContext` resta quella dell'asset, ed e' quella che decide la
+ * cella quando una posizione di mondo diventa una cella autorevole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationLiftsTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationLiftsOnlyThePresentation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationLiftsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const TArray<float> Tattiche = RTQuoteCelle(Actor);
+	if (!TestEqual(TEXT("tre celle posate"), Tattiche.Num(), 3)) { DestroyMapActorWorld(World); return false; }
+	const float SaltoTattico = Tattiche.Last() - Tattiche[0];
+	TestEqual(TEXT("premessa: in tattica il salto e' la quota dell'asset"), SaltoTattico, Asset->LayerHeight, 0.5f);
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	TestTrue(TEXT("in strategica la quota cambia e la board si ricostruisce"), Actor->SyncStrategicPresentation(true));
+	const TArray<float> Strategiche = RTQuoteCelle(Actor);
+	if (TestEqual(TEXT("sempre tre celle"), Strategiche.Num(), 3))
+	{
+		TestEqual(TEXT("il piano terra resta dov'era"), Strategiche[0], Tattiche[0], 0.5f);
+		TestEqual(TEXT("il piano 1 sale a tre volte la quota"), Strategiche.Last() - Strategiche[0], 3.f * SaltoTattico, 0.5f);
+	}
+
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	TestEqual(TEXT("il contesto di presentazione ha la quota separata"), L, 3.f * Asset->LayerHeight, 0.01f);
+	Actor->GetAuthoringHexContext(O, H, L);
+	TestEqual(TEXT("quello d'autore la quota dell'asset"), L, Asset->LayerHeight, 0.01f);
+
+	TestTrue(TEXT("tornando tattici la board si ricostruisce"), Actor->SyncStrategicPresentation(false));
+	TestTrue(TEXT("e le quote tornano quelle di prima"), RTQuoteUguali(RTQuoteCelle(Actor), Tattiche));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Il velo sopravvive alla ricostruzione.** Ricostruire riporta ogni istanza alla scala piena; senza riapplicare
+ * la conoscenza nello stesso giro, una cella mai vista resterebbe disegnata. Verifica di mutazione: tolta la
+ * riapplicazione in `SyncStrategicPresentation`, le celle nascoste cadono a zero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationKeepsTheVeilTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationKeepsTheVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationKeepsTheVeilTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, RTDuePiani());
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	FRTTeamKnowledge K;
+	K.VisibleCells.Add(FRTCellId(0, 0, 0));
+	K.ExploredCells.Add(FRTCellId(0, 0, 0));
+	K.ExploredCells.Add(FRTCellId(1, 0, 0)); // ricordata; (0,0,1) mai vista
+	Actor->ApplyKnowledgeVeil(K);
+	int32 V0 = 0, E0 = 0, H0 = 0;
+	Actor->GetVeilCounts(V0, E0, H0);
+	TestTrue(TEXT("premessa: c'e' una cella mai vista"), H0 > 0);
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	TestTrue(TEXT("la board si ricostruisce"), Actor->SyncStrategicPresentation(true));
+	int32 V1 = 0, E1 = 0, H1 = 0;
+	Actor->GetVeilCounts(V1, E1, H1);
+	TestEqual(TEXT("le celle mai viste restano nascoste"), H1, H0);
+	TestEqual(TEXT("le ricordate restano ricordate"), E1, E0);
+	TestEqual(TEXT("e quelle viste restano viste"), V1, V0);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Il picking segue la posa: un raggio inclinato verso la cella del piano 1, come la board la POSA, risolve quella
+ * cella col contesto di `GetHexContext`. E' cio' che lega le istanze al contesto: se uno dei due restasse alla quota
+ * vera, il piano d'intersezione sarebbe un altro e il raggio cadrebbe su un'altra colonna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationPickingTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationPickingFollowsThePose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationPickingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, RTDuePiani());
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	Actor->SyncStrategicPresentation(true);
+
+	// Il centro della cella del piano 1 come la board lo POSA, non come lo calcolerebbe il test.
+	FVector Alto(0.f, 0.f, -1.e9f);
+	for (const FTransform& Xf : InstancesOf(Actor, TEXT("Cells"))) { if (Xf.GetLocation().Z > Alto.Z) { Alto = Xf.GetLocation(); } }
+
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	const FVector Dir = FRotator(-40.f, 30.f, 0.f).Vector();
+	const FRTCellId Risolta = URTHexLibrary::ResolveRayToCellOnLayer(Alto - Dir * 2000.f, Dir, O, H, L,
+		/*ActiveLayer=*/ 1, /*bHasValidHit=*/ false, FVector::ZeroVector);
+	TestEqual(TEXT("il raggio verso la cella posata risolve la cella del piano 1"), Risolta, FRTCellId(0, 0, 1));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * ⛔ **Lo spawn da marker resta sulla quota d'autore.** Un marker posato sulla cella (0,0,1) alla quota vera, letto
+ * con la quota separata, cadrebbe sul piano terra: la partita partirebbe con un'unita' sulla cella sbagliata.
+ * Verifica di mutazione: con `GetHexContext` in `ARTSpawnPoint::ResolveCell` il test cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationSpawnTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationLeavesSpawnCellsAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationSpawnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetAuthoringHexContext(O, H, L);
+	ARTSpawnPoint* Marker = World->SpawnActor<ARTSpawnPoint>();
+	if (!TestNotNull(TEXT("marker"), Marker)) { DestroyMapActorWorld(World); return false; }
+	Marker->SetActorLocation(URTHexLibrary::AxialToWorld(FRTCellId(0, 0, 1), O, H, L));
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	TestTrue(TEXT("premessa: la vista strategica separa davvero"), Actor->SyncStrategicPresentation(true));
+	FRTCellId Cella;
+	TestTrue(TEXT("il marker si risolve"), Marker->ResolveCell(Actor, Cella));
+	TestEqual(TEXT("sulla cella del piano 1, anche in vista strategica"), Cella, FRTCellId(0, 0, 1));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Una ricostruzione PARZIALE non sposta la quota posata** (review di #3632). La leva cambia in console mentre la
+ * vista e' gia' strategica, e prima del giro successivo il velo ricostruisce il solo disco per inseguire una revisione
+ * dell'asset. Se quella ricostruzione scrivesse la quota nuova, il disco salirebbe da solo, il resto della board no,
+ * e `SyncStrategicPresentation` la crederebbe gia' allineata: board mista per sempre, e unita' mai riposate.
+ * Verifica di mutazione: con la quota scritta da ogni ricostruzione il giro dopo non ricostruisce e il test cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationPartialRebuildTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationSurvivesAPartialRebuild",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationPartialRebuildTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	// La vista e' strategica con la separazione neutra: niente da ricostruire.
+	TestFalse(TEXT("premessa: neutra, nessuna ricostruzione"), Actor->SyncStrategicPresentation(true));
+	const TArray<float> Prima = RTQuoteCelle(Actor);
+
+	// La leva cambia, e prima del giro dell'HUD il disco si ricostruisce da solo.
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	Actor->RebuildInstances(ERTRebuildFamily::Cells);
+	TestTrue(TEXT("la ricostruzione parziale lascia il disco alla quota posata"), RTQuoteUguali(RTQuoteCelle(Actor), Prima));
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	TestEqual(TEXT("e il contesto dice la quota della board, non quella chiesta"), L, Asset->LayerHeight, 0.01f);
+
+	float Precedente = 0.f;
+	TestTrue(TEXT("il giro dopo ricostruisce tutto e chiede di riposare le unita'"),
+		Actor->SyncStrategicPresentation(true, &Precedente));
+	TestEqual(TEXT("dalla quota a cui erano state posate"), Precedente, Asset->LayerHeight, 0.01f);
+	const TArray<float> Dopo = RTQuoteCelle(Actor);
+	if (TestEqual(TEXT("tre celle"), Dopo.Num(), 3))
+	{
+		TestEqual(TEXT("e il piano 1 e' a tre volte la quota"), Dopo.Last() - Dopo[0], 3.f * Asset->LayerHeight, 0.5f);
+	}
 
 	DestroyMapActorWorld(World);
 	return true;

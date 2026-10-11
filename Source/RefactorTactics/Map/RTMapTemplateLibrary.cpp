@@ -148,7 +148,7 @@ void URTMapTemplateLibrary::CollectFromWorld(const UWorld* World, int32& OutMapA
 	float LayerHeight = 0.f;
 	if (MapActor)
 	{
-		OutMapAsset = MapActor->GetHexContext(GridOrigin, HexSize, LayerHeight);
+		OutMapAsset = MapActor->GetAuthoringHexContext(GridOrigin, HexSize, LayerHeight); // #3632: celle autorevoli
 	}
 
 	for (TActorIterator<ARTSpawnPoint> It(const_cast<UWorld*>(World)); It; ++It)

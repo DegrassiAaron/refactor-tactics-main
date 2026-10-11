@@ -2,6 +2,7 @@
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchStateHash.h" // #3632: il checksum canonico dello stato, a confronto fra due mondi
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
@@ -2710,6 +2711,245 @@ bool FRTInterruptedMovePlannedPrefixTest::RunTest(const FString&)
 	// --- IL FATTO ------------------------------------------------------------------------------------
 	TestTrue(TEXT("🔴 il prefisso pianificato non supera MAI le celle della rotta"),
 		Ev->PlannedLength <= Ev->Path.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** L'esito di un turno sull'arena con la piattaforma: chi sale da (1,0,0) a (3,0,1) passando per l'unica rampa. */
+	struct FRTEsitoSalita
+	{
+		FRTCellId Cella;
+		int32 Salute = 0;
+		TArray<FString> Voci;
+		int64 Hash = 0;
+		FVector Posa = FVector::ZeroVector;
+		float QuotaArena = 0.f;
+	};
+
+	/** `Separazione` <= 0: vista tattica; altrimenti vista strategica con quel fattore, accesa PRIMA del turno. */
+	FRTEsitoSalita RTSaliSullaPiattaforma(float Separazione)
+	{
+		FRTEsitoSalita Esito;
+		UWorld* World = MakeHexMoveWorld();
+		if (!World) { return Esito; }
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+		ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+		HexMap->MapAsset = Arena;
+		Esito.QuotaArena = Arena->LayerHeight;
+		if (Separazione > 0.f)
+		{
+			HexMap->SetStrategicLayerSeparationForTest(Separazione);
+			HexMap->SyncStrategicPresentation(true);
+		}
+
+		ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
+		ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (Mover && Foe && TM)
+		{
+			Mover->PlannedCell = FRTCellId(3, 0, 1);
+			Foe->PlannedCell = Foe->Cell;
+			RunTurn(TM);
+			Esito.Cella = Mover->Cell;
+			Esito.Salute = Mover->Health;
+			for (const FRTTurnLogEntry& E : TM->GetTurnLog()) { Esito.Voci.Add(URTTurnLogLibrary::DescribeEntry(E)); }
+			// Il checksum canonico di D-084, calcolato qui: quello del TurnManager si cattura solo mentre si registra
+			// un replay (`CaptureFinalStateHash`), e in questo mondo resterebbe 0 in entrambi i casi.
+			Esito.Hash = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(Arena,
+				URTMatchStateHashLibrary::BuildUnitDigests({ Mover, Foe }), { TM->GetTeamScore(0), TM->GetTeamScore(1) }));
+			Esito.Posa = Mover->GetActorLocation();
+		}
+		DestroyHexMoveWorld(World);
+		return Esito;
+	}
+}
+
+/**
+ * #3632 — **la separazione dei piani non tocca l'esito.** Lo stesso turno, in un mondo con la vista strategica che
+ * triplica la quota dei piani e in uno senza, finisce sulla stessa cella con la stessa salute, lo stesso TurnLog e lo
+ * stesso hash: la simulazione non legge la quota, ed e' la premessa su cui la feature si regge (misurata nel codice
+ * il 2026-10-11, qui fissata in un test).
+ *
+ * E la posa la segue: nel mondo separato l'unita' sta alla quota del piano 1 moltiplicata, calcolata qui dalla quota
+ * dell'ASSET e non da `GetHexContext` — altrimenti attesa e codice sotto misura leggerebbero la stessa sorgente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationKeepsTheOutcomeTest,
+	"RefactorTactics.HexMove.StrategicLayerSeparationKeepsTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStrategicSeparationKeepsTheOutcomeTest::RunTest(const FString&)
+{
+	const FRTEsitoSalita Tattico = RTSaliSullaPiattaforma(0.f);
+	const FRTEsitoSalita Separato = RTSaliSullaPiattaforma(3.f);
+
+	if (!TestEqual(TEXT("premessa: in tattica sale sulla piattaforma"), Tattico.Cella, FRTCellId(3, 0, 1)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("premessa: il turno ha lasciato voci"), Tattico.Voci.Num() > 0);
+	// Senza, l'uguaglianza degli hash qui sotto passerebbe anche fra due zeri: un hash mai catturato.
+	TestNotEqual(TEXT("premessa: l'hash di fine turno e' stato catturato"), Tattico.Hash, static_cast<int64>(0));
+
+	TestEqual(TEXT("con la separazione accesa arriva sulla stessa cella"), Separato.Cella, Tattico.Cella);
+	TestEqual(TEXT("con la stessa salute"), Separato.Salute, Tattico.Salute);
+	TestEqual(TEXT("lo stesso hash di fine turno"), Separato.Hash, Tattico.Hash);
+	if (TestEqual(TEXT("lo stesso numero di voci nel TurnLog"), Separato.Voci.Num(), Tattico.Voci.Num()))
+	{
+		for (int32 I = 0; I < Tattico.Voci.Num(); ++I)
+		{
+			TestEqual(*FString::Printf(TEXT("voce %d identica"), I), Separato.Voci[I], Tattico.Voci[I]);
+		}
+	}
+
+	// La posa: stesso piano orizzontale, quota del piano 1 tripla. Il salto si legge come DIFFERENZA, cosi' l'offset
+	// del corpo sopra la cella (uguale nei due mondi) si elide.
+	TestTrue(TEXT("in pianta l'unita' sta nello stesso punto"), FVector2D(Separato.Posa).Equals(FVector2D(Tattico.Posa), 0.5f));
+	TestEqual(TEXT("in quota sale di due quote d'asset in piu' (piano 1, fattore 3)"),
+		static_cast<float>(Separato.Posa.Z - Tattico.Posa.Z), 2.f * Tattico.QuotaArena, 0.5f);
+	return true;
+}
+
+/**
+ * #3632 — **cambiare vista riposa le unita' ferme.** La quota cambia mentre nessuno si muove (il giocatore preme Tab
+ * in pianificazione): `RefreshPresentationGeometry` alza chi sta sul piano 1 e lascia dov'e' chi sta a terra, senza
+ * toccare nessuna cella. Verifica di mutazione: senza il riposizionamento, l'unita' sul piano 1 resta alla quota vecchia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationReposesUnitsTest,
+	"RefactorTactics.HexMove.StrategicLayerSeparationReposesStandingUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStrategicSeparationReposesUnitsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	HexMap->MapAsset = Arena;
+	HexMap->RebuildInstances(); // la board posata: senza, il cambio di vista non avrebbe niente da ricostruire
+
+	ARTUnit* Alto = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 1));
+	ARTUnit* Basso = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Alto || !Basso || !TM) { DestroyHexMoveWorld(World); return false; }
+
+	// In tattica, posate alla scala della mappa come il gioco le posa.
+	Alto->SetActorLocation(DoveLaCellaImpone(Alto, Alto->Cell, HexMap));
+	Basso->SetActorLocation(DoveLaCellaImpone(Basso, Basso->Cell, HexMap));
+	const FVector AltoTattico = Alto->GetActorLocation();
+	const FVector BassoTattico = Basso->GetActorLocation();
+
+	HexMap->SetStrategicLayerSeparationForTest(3.f);
+	float Precedente = 0.f;
+	if (!TestTrue(TEXT("la vista strategica cambia la quota"), HexMap->SyncStrategicPresentation(true, &Precedente)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("e dice da quale"), Precedente, Arena->LayerHeight, 0.01f);
+	TM->RefreshPresentationGeometry(Precedente);
+	TestEqual(TEXT("chi sta sul piano 1 sale di due quote d'asset"),
+		static_cast<float>(Alto->GetActorLocation().Z - AltoTattico.Z), 2.f * Arena->LayerHeight, 0.5f);
+	TestTrue(TEXT("in pianta resta dov'era"), FVector2D(Alto->GetActorLocation()).Equals(FVector2D(AltoTattico), 0.5f));
+	TestTrue(TEXT("chi sta sul piano terra resta dov'era"), Basso->GetActorLocation().Equals(BassoTattico, 0.5f));
+	TestEqual(TEXT("e nessuna cella cambia"), Alto->Cell, FRTCellId(3, 0, 1));
+
+	TestTrue(TEXT("tornando tattici la quota cambia di nuovo"), HexMap->SyncStrategicPresentation(false, &Precedente));
+	TM->RefreshPresentationGeometry(Precedente);
+	TestTrue(TEXT("e l'unita' torna dov'era"), Alto->GetActorLocation().Equals(AltoTattico, 0.5f));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * #3632 — **a playback in corso, nessuno salta in pianta.** Il giocatore preme Tab mentre il turno si sta mostrando:
+ * chi sta fermo sul piano 1 sale, chi si sta muovendo prosegue dal punto in cui era e arriva sulla sua cella alla
+ * quota nuova.
+ *
+ * 🔴 **Prima si riposava su `Cell` e si saltava chi aveva un'animazione** (review di #3632): chi era in un'animazione
+ * di un'altra fase restava alla quota vecchia fino a fine turno. Verifiche di mutazione: senza il riposo in quota la
+ * sentinella resta in basso; senza il ricalcolo di `MoveAnims[].World` il fotogramma dopo torna alla quota
+ * vecchia; senza la cache del playback aggiornata, il movimento finisce alla quota vecchia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStrategicSeparationDuringPlaybackTest,
+	"RefactorTactics.HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	HexMap->MapAsset = Arena;
+	HexMap->RebuildInstances();
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
+	ARTUnit* Sentinella = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(2, -1, 1));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Mover || !Sentinella || !Foe || !TM) { DestroyHexMoveWorld(World); return false; }
+	for (ARTUnit* U : { Mover, Sentinella, Foe }) { U->SetActorLocation(DoveLaCellaImpone(U, U->Cell, HexMap)); }
+
+	const FRTCellId Meta(3, 0, 1);
+	Mover->PlannedCell = Meta;
+	Sentinella->PlannedCell = Sentinella->Cell;
+	Foe->PlannedCell = Foe->Cell;
+
+	// Il turno parte, e si avanza finche' chi si muove e' a META' della salita sulla rampa (1,0,0) -> (2,0,1): la sua
+	// quota sopra il piano terra e' una frazione della quota dei piani, il caso che un arrotondamento al piano sbaglia.
+	const float QuotaTerra = static_cast<float>(DoveLaCellaImpone(Mover, FRTCellId(1, 0, 0), HexMap).Z);
+	auto SopraTerra = [Mover, QuotaTerra]() { return static_cast<float>(Mover->GetActorLocation().Z) - QuotaTerra; };
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 2000 && TM->IsResolving() && SopraTerra() < 0.25f * Arena->LayerHeight; ++I)
+	{
+		TM->Tick(0.005f);
+	}
+	const float SalitaPrima = SopraTerra();
+	if (!TestTrue(TEXT("premessa: il playback e' in corso"), TM->IsResolving())
+		|| !TestTrue(TEXT("premessa: chi si muove e' a meta' salita"),
+			SalitaPrima >= 0.25f * Arena->LayerHeight && SalitaPrima <= 0.75f * Arena->LayerHeight))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("premessa: la cella logica e' gia' la meta"), Mover->Cell, Meta);
+
+	const FVector MoverPrima = Mover->GetActorLocation();
+	const FVector SentinellaPrima = Sentinella->GetActorLocation();
+	HexMap->SetStrategicLayerSeparationForTest(3.f);
+	float Precedente = 0.f;
+	if (!TestTrue(TEXT("la vista strategica cambia la quota"), HexMap->SyncStrategicPresentation(true, &Precedente)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TM->RefreshPresentationGeometry(Precedente);
+
+	TestTrue(TEXT("chi si muove non salta in pianta"), FVector2D(Mover->GetActorLocation()).Equals(FVector2D(MoverPrima), 0.5f));
+	// La quota sopra terra e' lineare nella quota dei piani: a meta' salita si triplica, non scatta a un piano intero.
+	const float SalitaDopo = SopraTerra();
+	TestEqual(TEXT("a meta' salita la quota sopra terra si triplica"), SalitaDopo, 3.f * SalitaPrima, 0.5f);
+	// Un fotogramma minimo: `InterpolateAlongPath` riprende dalle posizioni ricalcolate. Senza il ricalcolo di
+	// `MoveAnims[].World` il modello tornerebbe alla quota vecchia, e lo snap di `FinishPlayback` lo nasconderebbe.
+	TM->Tick(0.001f);
+	TestEqual(TEXT("e il fotogramma dopo prosegue da li', senza tornare alla quota vecchia"),
+		SopraTerra(), SalitaDopo, 0.1f * Arena->LayerHeight);
+	TestTrue(TEXT("la sentinella non si sposta in pianta"),
+		FVector2D(Sentinella->GetActorLocation()).Equals(FVector2D(SentinellaPrima), 0.5f));
+	TestEqual(TEXT("e sale di due quote d'asset"),
+		static_cast<float>(Sentinella->GetActorLocation().Z - SentinellaPrima.Z), 2.f * Arena->LayerHeight, 0.5f);
+
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	TestTrue(TEXT("a fine turno chi si e' mosso sta sulla meta alla quota nuova"),
+		Mover->GetActorLocation().Equals(DoveLaCellaImpone(Mover, Meta, HexMap), 0.5f));
+	FVector O; float H = 0.f; float L = 0.f;
+	HexMap->GetAuthoringHexContext(O, H, L);
+	TestEqual(TEXT("cioe' due quote d'asset sopra la sua cella vera"),
+		static_cast<float>(Mover->GetActorLocation().Z - Mover->WorldForCell(Meta, O, H, L).Z), 2.f * L, 0.5f);
 
 	DestroyHexMoveWorld(World);
 	return true;

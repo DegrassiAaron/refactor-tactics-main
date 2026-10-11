@@ -730,8 +730,55 @@ public:
 	 *
 	 * UNICO punto da cui passano le conversioni cella<->mondo: risoluzione, playback e input del giocatore
 	 * devono condividere la stessa scala, altrimenti l'anteprima e l'esito divergono.
+	 *
+	 * 🔑 **#3632 — e' il contesto della PRESENTAZIONE.** La quota dei piani e' quella con cui la board e' posata
+	 * (`GetPosedLayerHeight()`): in vista strategica quella dell'asset moltiplicata per `StrategicLayerSeparation`.
+	 * Puo' farlo perche' la simulazione non usa la quota: misurato il 2026-10-11, nessun codice di `Turn/`,
+	 * `Combat/`, `Perception/`, `Pathfinding/` o `Bot/` trasforma una posizione di mondo in una cella, e quando
+	 * trasforma una cella in una posizione lo fa per POSARE un modello su una cella gia' decisa. ⛔ Chi trasforma
+	 * una posizione di mondo in una cella AUTOREVOLE (lo spawn da marker, i template) usa `GetAuthoringHexContext`.
 	 */
 	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	/** Il contesto con la quota VERA dell'asset, per le conversioni autorevoli mondo->cella (#3632). */
+	const URTHexMapAsset* GetAuthoringHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	/** Il fattore di separazione che la vista CHIEDE: 1 in tattica, `StrategicLayerSeparation` in strategica (#3632). */
+	float GetPresentationSeparation() const;
+
+	/** La quota dei piani che la vista CHIEDE: quella dell'asset per `GetPresentationSeparation()` (#3632). */
+	float GetPresentationLayerHeight() const;
+
+	/**
+	 * La quota con cui la board E' posata (#3632): quella che chi disegna accanto alle istanze deve usare. Cambia
+	 * solo con una ricostruzione intera; prima della prima, e' quella che la vista chiede.
+	 */
+	float GetPosedLayerHeight() const;
+
+	/**
+	 * #3632 — allinea la board alla vista di chi guarda. Lo chiama l'HUD a ogni fotogramma.
+	 *
+	 * Se la quota chiesta differisce da quella posata, ricostruisce le istanze, ridisegna nello stesso fotogramma
+	 * il velo che la board mostrava (riletto dallo stato scritto sul disco, non dalla conoscenza di squadra) e
+	 * ripresenta i fantasmi del piano. Con la separazione a 1 (default) non ricostruisce niente.
+	 *
+	 * Ritorna `true` quando la quota a cui le unita' erano state posate non e' piu' quella della board: chi le posa
+	 * (`ARTTurnManager::RefreshPresentationGeometry`) deve riposarle, e `OutPreviousLayerHeight` dice da quale.
+	 */
+	bool SyncStrategicPresentation(bool bStrategic, float* OutPreviousLayerHeight = nullptr);
+	bool IsStrategicPresentation() const { return bStrategicPresentation; }
+
+	/** Fissa la separazione (per i test): il default e' neutro e non proverebbe niente. */
+	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
+
+	/**
+	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
+	 * questo fattore, le celle restano dove sono nel modello. ⛔ **Default 1, cioe' neutro**: il valore lo sceglie
+	 * l'autore guardando la vista in PIE, dove la stessa leva e' `rt.Map.StrategicLayerSeparation` (che, se > 0,
+	 * vince su questa proprieta').
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap", meta = (ClampMin = "1.0", ClampMax = "10.0"))
+	float StrategicLayerSeparation = 1.f;
 
 	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
 	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo
@@ -1477,6 +1524,23 @@ protected:
 	 * lavoro utile e' una frazione minima del totale: si tocca cio' che cambia, e il resto si salta.
 	 */
 	TArray<uint8> LastVeilState;
+
+	/** #3632 — vista strategica di chi guarda, come l'ha dichiarata `SyncStrategicPresentation`. */
+	bool bStrategicPresentation = false;
+
+	/**
+	 * #3632 — il fattore di separazione con cui le istanze sono POSATE. Lo scrive solo una ricostruzione intera (o la
+	 * prima): una parziale ripone le sue famiglie a questo fattore, cosi' la board non resta mai mista. Si conserva
+	 * il fattore e non la quota: la base (asset o actor) resta quella corrente. `-1` finche' non e' posata.
+	 */
+	float AppliedLayerSeparation = -1.f;
+
+	/**
+	 * #3632 — la quota che `SyncStrategicPresentation` ha visto l'ultima volta, cioe' quella a cui chi posa le unita'
+	 * le ha posate. Distinta dalla quota posata perche' una ricostruzione intera esterna puo'
+	 * cambiare la quota posata fra due giri, e le unita' vanno riposate lo stesso. `-1` prima del primo giro.
+	 */
+	float LastSyncedLayerHeight = -1.f;
 	TArray<uint8> LastGlyphVeilState[4];
 
 	/**

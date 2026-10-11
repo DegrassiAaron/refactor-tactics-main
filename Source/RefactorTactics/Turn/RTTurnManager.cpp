@@ -6829,6 +6829,63 @@ void ARTTurnManager::FinishBlastPhase(FRTBlastContext& Ctx)
 }
 
 
+void ARTTurnManager::RefreshPresentationGeometry(float PreviousLayerHeight)
+{
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, HexSize, LayerH);
+	if (PreviousLayerHeight <= UE_KINDA_SMALL_NUMBER || FMath::IsNearlyEqual(PreviousLayerHeight, LayerH))
+	{
+		return;
+	}
+
+	// La cache del playback la leggono le animazioni e `FinishPlayback`, che a fine turno posa OGNI unita' sulla sua
+	// cella: si aggiorna sempre, anche in un playback senza movimenti. Fuori dal playback la riscrive il prossimo.
+	PBOrigin = Origin;
+	PBCellSize = HexSize;
+	PBLayerHeight = LayerH;
+
+	// Le animazioni conservano le CELLE del percorso: le posizioni si ricalcolano da li', e il fotogramma dopo
+	// `InterpolateAlongPath` le segue.
+	for (FRTMoveAnim& A : MoveAnims)
+	{
+		const ARTUnit* Animata = A.Unit.Get();
+		if (!Animata)
+		{
+			continue;
+		}
+		for (int32 I = 0; I < A.Cells.Num() && I < A.World.Num(); ++I)
+		{
+			A.World[I] = Animata->WorldForCell(A.Cells[I], Origin, HexSize, LayerH);
+		}
+	}
+
+	// 🔴 **Ogni modello SALE o SCENDE, e basta: la pianta non si tocca.** Non si riposa su `Cell`: durante il
+	// playback `Cell` e' gia' la cella FINALE, mentre il modello sta dove il playback lo ha messo — all'inizio di
+	// un'animazione di una fase futura, alla fine di una passata, a meta' di quella in corso. Vale per tutti, anche
+	// per i caduti ancora a schermo.
+	//
+	// La quota sopra il piano terra e' LINEARE nella quota dei piani (`AxialToWorld`: `Layer * LayerHeight`), e lo
+	// resta lungo un'interpolazione fra due celle: scalarla e' esatto per un modello fermo, a meta' salita, in pausa
+	// o in step. Arrotondarla a un piano sbagliava proprio quest'ultimo caso (seconda review di #3632).
+	// `SetActorLocation` e non `PlaceOnCell`: nessuna cella cambia, e nessuna porta che la scriva va attraversata.
+	const float Scala = LayerH / PreviousLayerHeight;
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	for (AActor* A : Actors)
+	{
+		ARTUnit* U = Cast<ARTUnit>(A);
+		if (!U)
+		{
+			continue;
+		}
+		const FVector Qui = U->GetActorLocation();
+		const double Terra = Origin.Z + U->VisualZOffset;
+		U->SetActorLocation(FVector(Qui.X, Qui.Y, Terra + (Qui.Z - Terra) * Scala));
+	}
+}
+
 const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
 {
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))

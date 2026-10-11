@@ -15,8 +15,13 @@ namespace
 	 * Le voci. `FIRE` copre ogni `FIRE:<indice>`: la chiave la ricava `KeyFor`, non un confronto sul prefisso.
 	 * `HOLD` e' `URTReactionOpportunityLibrary::HoldResponse()`; `Hold Ground` e le manovre sono le risposte dei
 	 * profili (`URTCatalogLibrary::BraceExecutableResponses`).
+	 *
+	 * ⚠️ **Il nome e' specifico di proposito** (#3632): in un namespace anonimo vive in tutto il blob unity, e
+	 * si chiamava `Voci`, nome comune per una variabile locale. Quando la ripartizione dei blob ha messo questo
+	 * file accanto a `RTScreenHudWidgets.cpp`, il parametro `Voci` di una lambda lo ha nascosto e la build si e'
+	 * fermata su C4459.
 	 */
-	const FRTResponseText Voci[] = {
+	const FRTResponseText TestiDelleRisposte[] = {
 		{ TEXT("FIRE"),        TEXT("FIRE"),        TEXT("Spari al bersaglio.") },
 		{ TEXT("HOLD"),        TEXT("HOLD"),        TEXT("Non spari: lasci passare il bersaglio.") },
 		{ TEXT("Hold Ground"), TEXT("HOLD GROUND"), TEXT("Resti nella cella: attutisci i colpi e resisti alla prima spinta.") },
@@ -31,7 +36,7 @@ namespace
 	const FRTResponseText* Find(const FString& Response)
 	{
 		const FString Chiave = KeyFor(Response);
-		for (const FRTResponseText& Voce : Voci)
+		for (const FRTResponseText& Voce : TestiDelleRisposte)
 		{
 			if (Chiave == Voce.Key)
 			{

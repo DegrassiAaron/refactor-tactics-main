@@ -936,6 +936,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	bool IsResolving() const { return bIsResolving; }
 
+	/**
+	 * #3632 — la quota di presentazione dei piani e' cambiata da `PreviousLayerHeight` a quella di `GetHexContext`
+	 * (vista strategica, `ARTHexMapActor::SyncStrategicPresentation`). Ogni modello sale o scende del suo piano — la
+	 * pianta non si tocca, anche a playback in corso — e le animazioni e la cache del playback si ricalcolano dalle
+	 * celle. Sola presentazione: nessuna cella, nessun esito.
+	 */
+	void RefreshPresentationGeometry(float PreviousLayerHeight);
+
 	/** Nome leggibile della fase in riproduzione (per la HUD). Vuoto fuori dal playback. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FString GetPlaybackPhaseName() const;

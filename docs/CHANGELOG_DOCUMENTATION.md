@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-11 — La separazione dei piani in vista strategica ha la sua leva
+
+**Origine**: [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) (CAM-06a), l'ultimo dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la leva; il contesto di presentazione contro quello d'autore; la quota posata, che cambia solo con una ricostruzione intera; il velo ridisegnato dallo stato scritto sul disco; le unità riposate solo in quota, anche a playback in corso. §5 non la dà più per mancante |
+| [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | §7: dove si sceglie il valore |
+| [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-CAM-STRATEGIC-PIANI`, aperta; totali e nota di rimisura di A1 |
+
+---
+
 ## 2026-10-11 — Roster e pannello: le due porte che la seduta avrebbe lasciato vuote
 
 **Origine**: la preparazione della seduta di [#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636). Il grafo del roster costruiva anche le carte avversarie, e il pannello alimentava la sua carta da una variabile Blueprint: togliere il grafo e riparentare la carta li avrebbe spenti.

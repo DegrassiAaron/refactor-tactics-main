@@ -16,7 +16,7 @@ float URTStructuralBodyLibrary::FillFraction(ERTHexBodyFill Fill)
 	}
 }
 
-TArray<FRTStructuralBody> URTStructuralBodyLibrary::DeriveBodies(const URTHexMapAsset* Map)
+TArray<FRTStructuralBody> URTStructuralBodyLibrary::DeriveBodies(const URTHexMapAsset* Map, float LayerHeightOverride)
 {
 	TArray<FRTStructuralBody> Bodies;
 	if (Map == nullptr || Map->NumCells() == 0)
@@ -24,7 +24,8 @@ TArray<FRTStructuralBody> URTStructuralBodyLibrary::DeriveBodies(const URTHexMap
 		return Bodies;
 	}
 
-	const float LayerH = Map->LayerHeight;
+	// #3632: la presentazione strategica passa la propria quota; senza, vale quella dell'asset.
+	const float LayerH = LayerHeightOverride > 0.f ? LayerHeightOverride : Map->LayerHeight;
 
 	// La quota del CENTRO di una cella, in spazio mappa: il piano da `Layer`, l'offset d'autore da `Height`.
 	// E' la stessa composizione che `RebuildInstances` applica al rendering (`AxialToWorld` + `Height`),

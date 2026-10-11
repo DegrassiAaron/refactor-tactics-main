@@ -802,7 +802,7 @@ void ARTHUD::UpdateObserverVeil()
 		if (ARTUnit* U = Cast<ARTUnit>(A)) { Units.Add(U); }
 	}
 
-	const ARTTurnManager* TurnManager =
+	ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
 	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
@@ -823,20 +823,27 @@ void ARTHUD::UpdateObserverVeil()
 	// La geometria serve SOLO a posare la sagoma del ricordo. `DrawHUD` la recupera per conto suo per le
 	// sue conversioni cella -> schermo: e' la stessa chiamata fatta due volte, non una seconda regola —
 	// l'origine resta `ARTHexMapActor`, che di geometria resta l'unico owner.
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 150.f;
-	float LayerH = 250.f;
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
-	{
-		HexMap->GetHexContext(Origin, HexSize, LayerH);
-	}
-
 	// D-495: la vista strategica di CHI GUARDA, letta una volta per giro come la squadra qui sopra. E' sola
 	// presentazione — sceglie quale corpo si disegna, mai se — e viaggia in questo giro perche' il velo e la
 	// forma del ricordo cambino nello stesso fotogramma: una seconda passata li farebbe divergere per un frame.
 	const ARTCameraPawn* ObserverCamera = Cast<ARTCameraPawn>(GetOwningPawn());
 	const bool bStrategicView = ObserverCamera != nullptr && ObserverCamera->IsStrategicView();
 	const float ViewYaw = ObserverCamera != nullptr ? ObserverCamera->GetCameraYaw() : 0.f;
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+	if (ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		// #3632: PRIMA di leggere il contesto, perche' la quota dei piani dipende dalla vista. Se e' cambiata, la
+		// mappa ha gia' ricostruito la board e ridisegnato il velo; le unita' le riposa il TurnManager.
+		float QuotaPrecedente = 0.f;
+		if (HexMap->SyncStrategicPresentation(bStrategicView, &QuotaPrecedente) && TurnManager)
+		{
+			TurnManager->RefreshPresentationGeometry(QuotaPrecedente);
+		}
+		HexMap->GetHexContext(Origin, HexSize, LayerH);
+	}
 
 	for (ARTUnit* Unit : Units)
 	{
