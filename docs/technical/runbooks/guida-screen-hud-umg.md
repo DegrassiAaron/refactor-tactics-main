@@ -597,7 +597,7 @@ del grafo.
 | `OptionFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Raised`; contorno `Frame_Mid` di 1 px, `Text_Primary` di 2 px sulla scelta sicura |
 | `KeyText` | `TextBlock` | il tasto ([D-491](../../decisions/RT_PDR_00_Decision_Log.md)): `1`, `2`…, in `Text_Primary` |
 | `DescriptionText` | `TextBlock` | la frase della risposta, in `Text_Secondary` |
-| `SafeChoiceBadge` | qualunque widget | visibile solo sulla scelta sicura: il chip «SCELTA SICURA» |
+| `SafeChoiceBadge` | qualunque widget | visibile solo sulla scelta sicura: il chip «SCELTA SICURA». Sta in `LabelRow`, accanto all'etichetta, e non in una terza colonna (§7-quater) |
 
 ### 🔴 Le tre regole che il C++ non può importi
 
@@ -635,7 +635,7 @@ scritto in `RTMatchWidgetAssetTests.cpp`. Ciò che il grafo fa davvero si guarda
 
 ## 7-quater. Le cornici che dipinge il C++, e i glifi
 
-Regole misurate nelle sedute `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) su `WBP_RT_PlanCommit`, `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) su `WBP_RT_TurnHeader` e `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) su roster e pannello.
+Regole misurate nelle sedute `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) su `WBP_RT_PlanCommit`, `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) su `WBP_RT_TurnHeader`, `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) su roster e pannello, e `U74` ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634)) su `WBP_RT_FastDecisionOption`.
 Nessun gate sull'albero le vede: si scoprono solo a schermo.
 
 - 🔴 **Una cornice che il C++ dipinge ha la tinta del brush BIANCA.** `RTPaintFrame` scrive il fondo in `BrushColor`, e
@@ -664,6 +664,11 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   salvare il contenitore in quello stato**: il nullo diventerebbe un override scritto. Chiudi l'Editor senza salvarlo e
   riaprilo. `RosterAndPanelWearTheirClasses` vede l'override nullo una volta salvato. Lo stato in memoria non si
   riproduce in un processo fresco, e lo si vede solo a schermo.
+- 🔴 **I testi veri sono piu' lunghi di quelli della tavola: si misura con loro** (`U74`). La tavola scrive «Non
+  attaccare»; il catalogo (`RTReactionResponseText.cpp`) scrive «Non spari: lasci passare il bersaglio.», e «Hold
+  Ground» e' piu' lungo ancora. Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
+  Il badge della scelta sicura e' salito nella riga dell'etichetta, la descrizione va a capo, e l'altezza
+  dell'opzione e' un minimo, non un valore fisso.
 
 ## 7-quinquies. Roster, carta e pannello: le porte della tavola ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636))
 
