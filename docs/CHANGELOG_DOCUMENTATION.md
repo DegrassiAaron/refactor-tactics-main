@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-10-11 — Roster e pannello: le due porte che la seduta avrebbe lasciato vuote
+
+**Origine**: la preparazione della seduta di [#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636). Il grafo del roster costruiva anche le carte avversarie, e il pannello alimentava la sua carta da una variabile Blueprint: togliere il grafo e riparentare la carta li avrebbe spenti.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quinquies: `OpposingCardsBox`, `SubjectCard`, e il pallino `Red` delle avversarie |
+
+---
+
 ## 2026-10-11 — Header e obiettivo hanno la loro seduta: `U75`
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo. Issue [#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635).
