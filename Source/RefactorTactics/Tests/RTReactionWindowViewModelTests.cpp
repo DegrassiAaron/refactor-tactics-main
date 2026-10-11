@@ -7,6 +7,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
 #include "RTGameMode.h"
+#include "Tests/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/RTAbilityFixtures.h"
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -179,6 +180,7 @@ bool FRTReactionVmProductionBindingTest::RunTest(const FString&)
 
 	// --- 3. LA PROVA: una finestra si apre DAVVERO --------------------------------------------------
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	TestTrue(TEXT("la resolution si e' sospesa: una finestra attende"), TM->IsResolutionSuspended());
 	TestTrue(TEXT("e il view model la sta tenendo"), ViewModel->IsWindowOpen());
@@ -234,6 +236,7 @@ bool FRTReactionVmNoClientNoBindingTest::RunTest(const FString&)
 	// 🔑 **E il modello sincrono resta identico a se stesso**: nessuna finestra, nessuna sospensione, il
 	// turno si risolve come prima di questa issue.
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	TestFalse(TEXT("nessuna finestra ha sospeso la resolution"), TM->IsResolutionSuspended());
 	TestTrue(TEXT("l'id della finestra aperta e' vuoto: non ne e' mai stata aperta una"),
@@ -292,6 +295,7 @@ bool FRTReactionVmRemainingSecondsTest::RunTest(const FString&)
 		ViewModel->GetRemainingSeconds() < 0.f);
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("una finestra attende"), TM->IsResolutionSuspended()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -365,6 +369,7 @@ bool FRTReactionVmSubmitOverwatchTest::RunTest(const FString&)
 	URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("una finestra dell'Overwatch attende"), ViewModel->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -440,6 +445,7 @@ bool FRTReactionVmSubmitBraceTest::RunTest(const FString&)
 	URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("una finestra del `Brace` attende"), ViewModel->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -510,6 +516,7 @@ bool FRTReactionVmStaleResponseTest::RunTest(const FString&)
 	URTReactionWindowViewModel* Primo = PC->GetReactionWindowViewModel();
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("la finestra A attende"), Primo->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -601,6 +608,7 @@ bool FRTReactionVmBotOwnerTest::RunTest(const FString&)
 	TestTrue(TEXT("il delegate e' legato: un client c'e'"), TM->OnReactionWindowOpened.IsBound());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	TestFalse(TEXT("nessuna finestra ha raggiunto il view model"), ViewModel->IsWindowOpen());
 	TestFalse(TEXT("la resolution non si e' sospesa"), TM->IsResolutionSuspended());
@@ -684,6 +692,7 @@ bool FRTFastDecisionReadsWindowTest::RunTest(const FString&)
 
 	// --- 3. La finestra si apre DAVVERO, e il widget la legge ----------------------------------------
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: la resolution si e' sospesa"), TM->IsResolutionSuspended()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -752,6 +761,7 @@ bool FRTFastDecisionChoosesByIndexTest::RunTest(const FString&)
 	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Widget->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -834,6 +844,7 @@ bool FRTFastDecisionVisibilityFollowsOpennessTest::RunTest(const FString&)
 	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Widget->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -942,6 +953,7 @@ bool FRTFastDecisionWindowChangedTest::RunTest(const FString&)
 	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: la finestra A attende"), Widget->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -1032,6 +1044,7 @@ bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
 	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Finestra->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -1149,6 +1162,7 @@ bool FRTReactionSlowMotionRestoresTest::RunTest(const FString&)
 			FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, 1.f, 1e-3f));
 
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 		if (!TestTrue(*FString::Printf(TEXT("%s: premessa — una finestra attende"), Etichetta),
 				TM->IsResolutionSuspended()))
 		{
@@ -1255,6 +1269,7 @@ bool FRTReactionHotkeyChoosesOptionTest::RunTest(const FString&)
 	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	const FRTReactionWindowView Vista = PC->GetReactionWindowViewModel()->GetWindow();
 	if (!TestTrue(TEXT("premessa: una finestra dell'Overwatch attende chi guarda"), Vista.bOpen)
 		|| !TestTrue(TEXT("premessa: la finestra offre piu' di una risposta"), Vista.Options.Num() > 1))
@@ -1467,6 +1482,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 	GameMode->HookReactionWindow();
 	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Finestra->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -1560,6 +1576,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 	GMBrace->HookReactionWindow();
 	FinestraBrace->SetReactionWindowForTest(PCBrace->GetReactionWindowViewModel());
 	TMBrace->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TMBrace); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("D: premessa: una finestra del `Brace` attende"), FinestraBrace->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(MondoBrace);

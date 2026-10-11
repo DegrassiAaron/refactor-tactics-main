@@ -148,6 +148,9 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	//
 	// ⚠️ E sta **prima** di `TickPlayback` e fuori da `bIsResolving`: la finestra puo' essere aperta senza
 	// che il playback sia mai partito — `BeginPartialPlayback` lo avvia solo se la timeline non e' vuota.
+	// `#3666`: PRIMA dell'orologio, che corre solo a finestra presentata.
+	TickReactionWindowPresentation();
+
 	TickReactionWindow(DeltaSeconds);
 
 	// La slow-motion di [D-350] si allinea DOPO l'orologio: se questo tick ha fatto scadere la finestra, il
@@ -196,6 +199,14 @@ void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
 		return;
 	}
 
+	// 🔑 **L'orologio corre da quando la finestra si VEDE** (`#3666`). Prima di allora il playback sta ancora
+	// mostrando l'avvicinamento: contare quei secondi toglieva al giocatore il tempo per decidere su cio' che
+	// non aveva ancora visto — in `U74` la finestra e' scaduta prima che l'ingresso comparisse a schermo.
+	if (!bReactionWindowPresented)
+	{
+		return;
+	}
+
 	// Quale dei due siti attende. Il `Brace` per primo, come in `SubmitReactionResponse`: il Blast si
 	// risolve prima del movimento, e la sua finestra tiene ferma la fase.
 	float* Elapsed = nullptr;
@@ -231,6 +242,99 @@ void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
 	{
 		ExpireReactionWindow();
 	}
+}
+
+/**
+ * Una finestra si e' sospesa: la vista e' pronta, e la consegna aspetta il playback (`#3666`).
+ *
+ * 🔑 **La regola dei tre stati del playback** (referto dello spec panel sui seguiti di `#3634`, §3.2):
+ * - **spento** (`bEnablePlayback` falso, il caso headless): si presenta SUBITO, come prima di `#3666`. Nessuno
+ *   guarda, e il ramo non ha nessuna ragione di aspettare;
+ * - **gia' in corso, o gia' trattenuto**: e' la seconda finestra dopo una risposta. Il playback va esteso fino al
+ *   confine nuovo, e lo fa `TickReactionWindowPresentation` — non qui, perche' qui siamo dentro il resolver;
+ * - **non ancora partito**: lo avvia chi ha sospeso (`LockInAndResolve` con `BeginPartialPlayback`), e la
+ *   presentazione arriva da `FinishPlayback`. Se non parte — timeline vuota — la fa il prossimo `Tick`.
+ *
+ * ⚠️ `BeginPartialPlayback` esce senza fare niente sia a playback spento sia a playback gia' partito: non
+ * distingue gli ultimi due stati, ed e' il motivo per cui `bPartialPlaybackNeedsExtension` esiste.
+ */
+void ARTTurnManager::SuspendReactionWindowForPresentation(const FRTReactionWindowView& View, int32 OwnerUnitId)
+{
+	PendingWindowView = View;
+	PendingWindowOwnerId = OwnerUnitId;
+	bHasPendingWindowView = true;
+	bReactionWindowPresented = false;
+	bPartialPlaybackNeedsExtension = bIsResolving;
+
+	if (!bEnablePlayback)
+	{
+		PresentPendingReactionWindow();
+	}
+}
+
+void ARTTurnManager::TickReactionWindowPresentation()
+{
+	if (!bHasPendingWindowView || bReactionWindowPresented)
+	{
+		return;
+	}
+
+	// Chiusa prima di essere vista — una risposta scriptata, un test: non c'e' piu' niente da presentare.
+	if (GetOpenReactionWindowId().IsEmpty())
+	{
+		bHasPendingWindowView = false;
+		return;
+	}
+
+	// La seconda finestra: si estende la timeline coi percorsi cresciuti e si riprende il playback dal punto in cui
+	// era, senza ricominciarlo. La presentazione arrivera' da `FinishPlayback`, al nuovo trattenimento.
+	if (bPartialPlaybackNeedsExtension)
+	{
+		bPartialPlaybackNeedsExtension = false;
+		if (bIsResolving)
+		{
+			EmitPartialMoveEvents();
+			BeginPlayback(/*bPreserveClock=*/ true);
+			return;
+		}
+	}
+
+	// Nessun playback in corso: lo si avvia se c'e' qualcosa da mostrare, altrimenti si presenta adesso.
+	if (!bIsResolving)
+	{
+		BeginPartialPlayback();
+	}
+	if (!bIsResolving || bPlaybackHeldByWindow)
+	{
+		PresentPendingReactionWindow();
+	}
+}
+
+void ARTTurnManager::PresentPendingReactionWindow()
+{
+	if (!bHasPendingWindowView || bReactionWindowPresented)
+	{
+		return;
+	}
+	// ⛔ **Non sul confine vecchio**: se il playback deve ancora essere esteso, un trattenimento arrivato adesso e'
+	// quello della finestra precedente. Succede quando una risposta arriva prima della presentazione — un test, uno
+	// script — e la ripresa si risospende con il playback ancora in corsa verso il primo ingresso.
+	if (bPartialPlaybackNeedsExtension)
+	{
+		return;
+	}
+	if (GetOpenReactionWindowId().IsEmpty())
+	{
+		bHasPendingWindowView = false;
+		return;
+	}
+
+	bReactionWindowPresented = true;
+	// Nel log e non nel registro della partita: il giocatore la vede gia' a schermo. Serve a chi giudica una seduta
+	// PIE (`PIE-V01-RXPLAYBACK`), che dal log sa quando la finestra si e' presentata e se il playback era trattenuto.
+	UE_LOG(LogRT, Log, TEXT("[RT] Finestra di reazione presentata: %s (playback trattenuto=%d)"),
+		*GetOpenReactionWindowId(), bPlaybackHeldByWindow ? 1 : 0);
+	OnReactionWindowOpened.ExecuteIfBound(PendingWindowView, PendingWindowOwnerId);
 }
 
 void ARTTurnManager::UpdateReactionSlowMotion()
@@ -7956,6 +8060,38 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
 
+	// 🔑 **`#3666`: estendendo si riprende la fase che si stava MOSTRANDO, cercata per nome.** Al trattenimento
+	// (`FinishPlayback`) l'indice e' gia' oltre l'ultima fase parziale e l'orologio di fase vale ancora la sua
+	// fine: «la fase dell'orologio» e' allora l'ultima mostrata. ⛔ Il clamp sull'indice, che c'era prima, la
+	// sbagliava quando la timeline completa ha una fase IN PIU' — il Move dopo il Blast di un `Brace`: l'indice
+	// vecchio puntava a quella fase nuova, che partiva con l'orologio del Blast e senza `EnterPlaybackPhase`.
+	// Da `#3666` si risponde sempre a playback trattenuto, quindi non e' piu' un caso raro.
+	const bool bFaseDelClockNota = bPreserveClock && PlaybackPhases.Num() > 0;
+	const ERTMatchPhase FaseDelClock = PlaybackPhases.IsValidIndex(ClockPhaseIdx)
+		? PlaybackPhases[ClockPhaseIdx]
+		: (PlaybackPhases.Num() > 0 ? PlaybackPhases.Last() : ERTMatchPhase::Planning);
+	// Chi aveva gia' un'anim nella fase dell'orologio la CONTINUA (la rotta del mover dell'Overwatch si allunga);
+	// chi non l'aveva ne riceve una NUOVA, che comincia adesso (lo scarto del `Brace`).
+	TSet<const ARTUnit*> AnimatiNellaFaseDelClock;
+	// ⚠️ E chi la continua conserva il proprio inizio, se un'estensione PRECEDENTE gliel'aveva dato (review di #3675):
+	// la ricostruzione qui sotto parte da zero, e senza portarlo avanti l'anim tornerebbe sull'orologio della fase e
+	// salterebbe. Succede a un'anim nata in un'estensione e ancora in corsa alla successiva.
+	// 🛡️ **Difensiva, e nessun test la fissa.** Nel Blast gli scarti si applicano dopo il ciclo sui bersagli
+	// (`KTargets`), quindi nascono tutti nell'ultima estensione; nel Move servirebbe una rotta che diventa visibile fra
+	// due finestre. Nessun turno costruibile oggi nei test ci arriva.
+	TMap<const ARTUnit*, float> InizioNellaFaseDelClock;
+	if (bFaseDelClockNota)
+	{
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == FaseDelClock && A.Unit.IsValid())
+			{
+				AnimatiNellaFaseDelClock.Add(A.Unit.Get());
+				if (A.StartElapsed > 0.f) { InizioNellaFaseDelClock.Add(A.Unit.Get(), A.StartElapsed); }
+			}
+		}
+	}
+
 	// Cache della trasformazione della mappa per convertire celle -> mondo durante il playback.
 	// Stessa fonte usata da ResolveMovement: risoluzione e playback non possono divergere di scala.
 	GetHexContext(PBOrigin, PBCellSize, PBLayerHeight);
@@ -7971,7 +8107,13 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackActivationsPrep.Reset();
 	PlaybackActivationsDash.Reset();
 	// `PlaybackBlastSequence` NON si azzera qui: estendendo (D-355) e' il `Previous` della ricostruzione.
-	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
+	// L'annuncio e' per playback: il marcatore non sopravvive al round. ➕ **Ma estendere non e' un playback
+	// nuovo** (`#3666`): la fase ripresa si richiude, e senza il marcatore una morte gia' annunciata alla sua
+	// prima chiusura — prima del trattenimento — ripartirebbe col suo `Death` e un secondo `OnUnitDefeated`.
+	if (!bPreserveClock)
+	{
+		PlaybackDefeatShown.Reset();
+	}
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
 	// di `ARTHUD::DrawHUD` e del velo: una sola risposta a «di che squadra e' questo giocatore» ([D-285]).
@@ -8034,6 +8176,30 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			{
 				Src->SetVisualLocation(Anim.World[0]);
 				StartPositioned.Add(Src);
+			}
+			// `#3666`: estendendo, chi non e' animato nella fase dell'orologio si posa sulla partenza della sua prima
+			// anim ancora da mostrare — quella NUOVA nella fase dell'orologio, che comincia adesso, o una di una fase
+			// dopo. La resolution ha gia' portato l'Actor sulla cella logica: senza, lo si vedrebbe arrivato fino a
+			// quando la sua anim comincia, e poi tornare indietro di colpo (misurato: il Move dopo il `Brace`).
+			// ⛔ Chi e' animato nella fase dell'orologio no: e' gia' dove il playback lo ha portato.
+			if (const float* Inizio = (bFaseDelClockNota && Anim.Phase == FaseDelClock)
+				? InizioNellaFaseDelClock.Find(Src) : nullptr)
+			{
+				Anim.StartElapsed = *Inizio;
+			}
+			if (bFaseDelClockNota && !AnimatiNellaFaseDelClock.Contains(Src))
+			{
+				const bool bNuovaNellaFaseDelClock = (Anim.Phase == FaseDelClock);
+				if (bNuovaNellaFaseDelClock)
+				{
+					Anim.StartElapsed = ClockPhaseElapsed;
+				}
+				// L'enum segue l'ordine canonico delle fasi (`Prep -> Dash -> Blast -> Move`): «dopo» e' un confronto.
+				if ((bNuovaNellaFaseDelClock || Anim.Phase > FaseDelClock) && !StartPositioned.Contains(Src))
+				{
+					Src->SetVisualLocation(Anim.World[0]);
+					StartPositioned.Add(Src);
+				}
 			}
 			MoveAnims.Add(MoveTemp(Anim));
 		}
@@ -8188,9 +8354,11 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// Estendendo si resta nella fase in corso; il clamp copre il caso in cui la timeline completa
 	// abbia meno fasi di quella parziale — non dovrebbe accadere, e un indice fuori range in
 	// `TickPlayback` sarebbe un crash invece di un difetto visibile.
-	PlaybackPhaseIdx = bPreserveClock
-		? FMath::Clamp(ClockPhaseIdx, 0, FMath::Max(0, PlaybackPhases.Num() - 1))
-		: 0;
+	const int32 IdxDellaFaseDelClock = bFaseDelClockNota ? PlaybackPhases.IndexOfByKey(FaseDelClock) : INDEX_NONE;
+	PlaybackPhaseIdx = !bPreserveClock ? 0
+		: (IdxDellaFaseDelClock != INDEX_NONE)
+			? IdxDellaFaseDelClock
+			: FMath::Clamp(ClockPhaseIdx, 0, FMath::Max(0, PlaybackPhases.Num() - 1));
 	bIsResolving = true;
 	SetActorTickEnabled(true);
 	// I secondi di parete si compongono qui, dove servono a chi legge, invece di essere conservati in un
@@ -8208,8 +8376,20 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	if (bPreserveClock)
 	{
 		// `EnterPlaybackPhase` azzera l'orologio di fase e annuncia l'ingresso: estendendo non si entra in
-		// nessuna fase nuova, si continua quella in corso.
+		// nessuna fase nuova, si continua quella in corso. Se non ha piu' niente da mostrare, il prossimo tick la
+		// chiude e la fase dopo entra da `EnterPlaybackPhase`, come in un playback senza finestre (`#3666`).
 		PlaybackPhaseElapsed = ClockPhaseElapsed;
+		// `#3666`: chi riceve un'anim NUOVA nella fase in corso parte adesso, e lo si annuncia come farebbe
+		// `EnterPlaybackPhase` all'ingresso della fase.
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.StartElapsed > 0.f && A.Unit.IsValid() && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)
+				&& A.Phase == PlaybackPhases[PlaybackPhaseIdx])
+			{
+				A.Unit->bIsMovingVisually = true;
+				OnUnitMoveStarted.Broadcast(A.Unit.Get());
+			}
+		}
 		return;
 	}
 
@@ -8862,7 +9042,12 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		AlphaAnim.SetNumUninitialized(MoveAnims.Num());
 		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
 		{
-			AlphaAnim[AnimIdx] = bAlphaPerPercorso
+			// `#3666`: un'anim che un'estensione ha aggiunto alla fase in corso corre alla velocita' di rotta dal
+			// proprio inizio, in ogni fase — Blast compreso, dove l'alpha di fase e' gia' consumato.
+			AlphaAnim[AnimIdx] = (MoveAnims[AnimIdx].StartElapsed > 0.f)
+				? URTPlaybackLibrary::RouteAlpha(MoveAnims[AnimIdx].World.Num() - 1,
+					PlaybackPhaseElapsed - MoveAnims[AnimIdx].StartElapsed, PlaybackCellsPerSecond)
+				: bAlphaPerPercorso
 				? URTPlaybackLibrary::RouteAlpha(MoveAnims[AnimIdx].World.Num() - 1,
 					PlaybackPhaseElapsed - AnticipoAttivazioni, PlaybackCellsPerSecond)
 				: AlphaFase;
@@ -9235,7 +9420,38 @@ void ARTTurnManager::FinishPlayback()
 	// esattamente l'istante in cui il nemico e' entrato nella zona.
 	if (IsResolutionSuspended())
 	{
+		// `#3666` (review di #3675): uno Skip prima del trattenimento salta l'AVVICINAMENTO, e la finestra si presenta
+		// adesso. Chi la riceve deve trovare lo schermo sull'ingresso, non a meta' strada: ogni anim va sul suo ultimo
+		// punto, che e' il confine del tratto parziale. ⛔ `World` e' gia' troncato al prefisso osservato, quindi
+		// l'ultimo punto non rivela niente che il playback non avrebbe mostrato.
+		if (bFinishingBySkip)
+		{
+			for (const FRTMoveAnim& A : MoveAnims)
+			{
+				if (A.Unit.IsValid() && A.World.Num() > 0)
+				{
+					A.Unit->SetVisualLocation(A.World.Last());
+					A.Unit->bIsMovingVisually = false;
+				}
+			}
+			// 🔴 **E l'orologio dove il trattenimento naturale lo lascia**: oltre l'ultima fase parziale, alla fine di
+			// quella fase. Senza, alla risposta `BeginPlayback(true)` ripartiva dall'orologio di meta' avvicinamento, e
+			// il mover tornava indietro a rifare il tratto saltato (seconda review di #3675).
+			if (PlaybackPhases.Num() > 0)
+			{
+				PlaybackPhaseElapsed = DurationForPlaybackPhase(PlaybackPhases.Last());
+				PlaybackPhaseIdx = PlaybackPhases.Num();
+			}
+			// La barra di avanzamento come al trattenimento naturale: in fondo al tratto parziale.
+			PlaybackElapsedTotal = FMath::Max(PlaybackElapsedTotal, PlaybackTotalSeconds);
+			// ⚠️ **Limite dichiarato**: le rivelazioni del tratto saltato — attivazioni, colpi, impronte del Blast — non
+			// escono, come in ogni Skip. Chi salta ha scelto di non guardare, e la finestra resta l'unico punto in cui il
+			// gioco si ferma per lui. Con un `Brace`, quindi, la finestra si presenta senza aver mostrato il colpo che
+			// spinge (seconda review di #3675).
+		}
 		bPlaybackHeldByWindow = true;
+		// `#3666`: e' QUESTO il fotogramma in cui la finestra si presenta, e il suo countdown comincia.
+		PresentPendingReactionWindow();
 		return;
 	}
 
@@ -9475,8 +9691,24 @@ FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) co
 	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi. ⏱️ *Fino a #3549 riceveva i conteggi dei canali
 	// paralleli del Blast; ora le attivazioni di Prep/Dash e la lunghezza della sequenza di Blast.*
-	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, NumAttivazioni, PlaybackBlastSequence.Num(),
+	FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, NumAttivazioni, PlaybackBlastSequence.Num(),
 		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
+
+	// `#3666`: un'anim che un'estensione ha aggiunto a questa fase comincia a `StartElapsed` e corre alla velocita'
+	// di rotta: la fase dura almeno fino al suo arrivo. ⚠️ In `Shown` e non in `Slack`: mostra un movimento, e il
+	// budget non puo' toglierlo (la stessa classificazione di `PhaseTime`).
+	if (PlaybackCellsPerSecond > 0.f)
+	{
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == InPhase && A.StartElapsed > 0.f)
+			{
+				T.Shown = FMath::Max(T.Shown,
+					A.StartElapsed + FMath::Max(0, A.World.Num() - 1) / PlaybackCellsPerSecond);
+			}
+		}
+	}
+	return T;
 }
 
 float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
