@@ -13,6 +13,16 @@
 | [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-CAM-STRATEGIC-PIANI`, aperta; totali e nota di rimisura di A1 |
 
+## 2026-10-11 — La finestra di reazione ha la sua seduta: `U74`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U74`: asset e gate fatti; la cattura in PIE `NOT RUN`, col motivo misurato |
+
+---
+
 ## 2026-10-11 — La prova ortografica della vista strategica: una leva spenta, e lo zoom resta il braccio
 
 **Origine**: [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) (CAM-05b), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).

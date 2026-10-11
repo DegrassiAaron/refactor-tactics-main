@@ -27,6 +27,7 @@
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Components/Border.h"
+#include "Components/ProgressBar.h" // la barra del countdown della finestra di reazione (#3634)
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
@@ -1600,6 +1601,21 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("UndoKeyText"), UTextBlock::StaticClass() },
 	};
 
+	// La finestra di reazione come la tavola E (#3634, seduta U74). I tre binding obbligatori li controlla
+	// `FastDecisionBindingsAreWiredToTheRightNodes`: qui solo le porte della resa.
+	const TArray<FPorta> Finestra = {
+		{ TEXT("WindowFrame"), UBorder::StaticClass() },
+		{ TEXT("AccentStrip"), UBorder::StaticClass() },
+		{ TEXT("CountdownBar"), UProgressBar::StaticClass() },
+		{ TEXT("SafeOutcomeText"), UTextBlock::StaticClass() },
+	};
+	const TArray<FPorta> Opzione = {
+		{ TEXT("OptionFrame"), UBorder::StaticClass() },
+		{ TEXT("KeyText"), UTextBlock::StaticClass() },
+		{ TEXT("DescriptionText"), UTextBlock::StaticClass() },
+		{ TEXT("SafeChoiceBadge"), UWidget::StaticClass() },
+	};
+
 	struct FAsset
 	{
 		const TCHAR* Path;
@@ -1610,6 +1626,8 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ ActionSlotPath, TEXT("WBP_RT_ActionSlot"), &Slot },
 		{ ActionDockPath, TEXT("WBP_RT_ActionDock"), &Dock },
 		{ PlanCommitPath, TEXT("WBP_RT_PlanCommit"), &Commit },
+		{ FastDecisionPath, TEXT("WBP_RT_FastDecision"), &Finestra },
+		{ FastDecisionOptionPath, TEXT("WBP_RT_FastDecisionOption"), &Opzione },
 	};
 
 	for (const FAsset& A : Asset)
