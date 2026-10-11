@@ -9,9 +9,9 @@
 | Dove | Che cosa |
 |---|---|
 | [`roadmap/plans/scena-hud-isometrica-spec-panel-2026-10-11.md`](roadmap/plans/scena-hud-isometrica-spec-panel-2026-10-11.md) | nuovo: il referto del panel, le quattro decisioni e la specifica delle due issue |
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-497** (la scena fra le fasce, fasce strette ai contenuti, una sorgente sola) e **D-498** (dimetrico 2:1, pitch −30°, `Q`/`E` a 60°; via la rampa e l'interruttore ortografico) |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-497** (la scena fra le fasce, fasce strette ai contenuti, una sorgente sola, l'estensione conservata) e **D-498** (dimetrico 2:1, pitch −30°, rotazione di D-142; via la rampa e l'interruttore ortografico) |
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | rimandi in §2, §5 e nella tabella di §5.1 |
-| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: la griglia diventerà un dato e le fasce si stringono |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: la griglia diventerà un dato e le fasce si stringono (20/19/17/17) |
 | [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | proiezione e inclinazione decise; la scena non è più a tutto schermo |
 
 ---
