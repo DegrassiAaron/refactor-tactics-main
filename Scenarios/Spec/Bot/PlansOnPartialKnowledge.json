@@ -32,7 +32,7 @@
 
   "expect": [
     { "type": "UnitHpEquals", "unit": "BAIT", "value": 1 },
-    { "type": "UnitAlive", "unit": "BAIT", "value": 1 },
+    { "type": "UnitAlive", "unit": "BAIT", "value": true },
     { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
     { "type": "TurnsCompleted", "value": 1 }
   ]

@@ -40,7 +40,7 @@
       "type": "LogEventAmount", "category": "Facing", "outcome": "HitCameFromSide", "value": 2 },
 
     { "_assertion": "Nessun esito cambia: B1 incassa e resta in piedi. La voce direzionale e' traccia, non regola — e in particolare NON sposta la copertura ne' la Guard su questa geometria, che sarebbe un buff difensivo netto ([D-126]).",
-      "type": "UnitAlive", "unit": "B1", "value": 1 },
+      "type": "UnitAlive", "unit": "B1", "value": true },
 
     { "type": "UnitFacing", "unit": "B1", "value": "E" },
     { "type": "TurnsCompleted", "value": 1 }
