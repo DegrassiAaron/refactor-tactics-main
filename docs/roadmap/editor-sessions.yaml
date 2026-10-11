@@ -5315,8 +5315,10 @@ sessions:
     artifacts:
       - Content/RT/UI/Match/WBP_RT_FastDecision.uasset
       - Content/RT/UI/Match/WBP_RT_FastDecisionOption.uasset
+      - docs/technical/evidence/hud/u74-finestra-accanto-alla-tavola.png
+      - docs/technical/evidence/hud/u74-finestra-scala-di-grigi.png
     unblocked_by: []
-    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3642).
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3642). La cattura ha chiesto il banco di #3660.
     shares_setup_with: [U72]
     verifies: []
     issues: [3634]
@@ -5334,16 +5336,53 @@ sessions:
       per lato riempiono i 558 px utili, una terza non sparisce. Controllo positivo del gate: con gli asset di `main`
       `ActionBarDeclaresTheNamedPorts` e' rosso sulle sole porte nuove.
 
-      ⛔ **La cattura in PIE e' `NOT RUN`, e il motivo e' misurato.** La finestra ha due siti ([D-355]), e nessuno dei
-      due si apre a comando:
+      ⌫ *Fino al 2026-10-11 la cattura era `NOT RUN`, per il motivo misurato qui sotto.* La finestra ha due siti
+      ([D-355]), e nessuno dei due si apriva a comando:
       - la guardia (Overwatch) la apre solo se un nemico CAMMINA nella sua area, durante il Move. Nella partita di
         `L_DevSandbox` i bot tengono il centro: in due partite e una decina di turni nessuno ci e' entrato
         camminando. La carica di Branth (`Ram`) e' un Dash, non un Move, e non la apre;
       - il `Brace` nel Blast la apre solo se un nemico spinge un'unita' coperta che ha una seconda risposta
         eseguibile. Oggi e' solo `Profile.Sidestep`, di Muiren (`URTCatalogLibrary::BraceExecutableResponses`).
 
-      Prossimo tentativo: uno scenario Overwatch lanciato con `-dpcvars=rt.Test.Scenario=…` e una raffica di
-      catture, come in `U73`.
+      ⌫ *«Prossimo tentativo: uno scenario Overwatch lanciato con `-dpcvars=rt.Test.Scenario=…`».* Da solo non
+      bastava: nell'auto-run la finestra non si apriva MAI, perche' il ramo dello scenario esce dal `BeginPlay` del
+      GameMode prima di `HookReactionWindow`. La chiave `playerReactionWindows` e il banco
+      `Visual.Reaction.OverwatchWindow` sono arrivati con [#3660](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3660).
+
+      ✅ **La cattura, il 2026-10-11, nel clone principale su `main` @ `15ad54d73`.** Editor con
+      `-dpcvars=rt.Test.Scenario=Visual.Reaction.OverwatchWindow,t.MaxFPS=60`, PIE flottante su `L_DevSandbox`,
+      raffica di catture partita PRIMA della PIE. Il log dice `AUTO-RUN Visual.Reaction.OverwatchWindow`, `le finestre
+      di reazione si aprono al giocatore`, la scadenza («la reazione non risponde in tempo, resta armata») e `FINITO
+      … PASS (6/6 assertion)`. La finestra coincide con la tavola E nella cornice, nella striscia, nel countdown con la
+      sua barra, nelle due opzioni con il tasto e nel badge della scelta sicura, anche in scala di grigi.
+
+      🔴 **Una correzione trovata solo a schermo:** il badge «SCELTA SICURA» copriva la descrizione di HOLD. I testi
+      veri (`RTReactionResponseText.cpp`) sono piu' lunghi di quelli della tavola, e la descrizione sbordava sotto il
+      badge della terza colonna. Il badge e' salito nella riga dell'etichetta (`LabelRow`), la descrizione va a capo,
+      e l'opzione e' alta almeno 52 px invece di 52 fissi. I gate `ScreenHud`, `Reactions` e `HUD` sono verdi sull'asset
+      corretto, in un processo fresco.
+
+      ⚠️ **Scarti dichiarati**, tutti fuori dall'asset:
+      - il titolo dice «Reazione», senza «Guardia reattiva — Aevik» e senza la riga «Ivrin e' entrato nell'area
+        controllata»: e' il testo del C++;
+      - le descrizioni sono quelle del catalogo, non «Attacca Ivrin» e «Non attaccare»;
+      - i tasti sono `1` e `2`, non `F` e `H` ([D-491]);
+      - il badge sta nella riga dell'etichetta, non centrato in verticale sull'opzione: e' la correzione stessa;
+      - il badge non ha lo scudo, «HOLD» in «Allo scadere» non e' in grassetto (e' un testo solo), e il countdown ha
+        la virgola decimale.
+
+      ⚠️ **Fuori dal criterio, ma misurato:** la finestra si apre circa 0,1 s dopo l'inizio della Risoluzione (dedotto
+      dal fotogramma e dal countdown: «Risoluzione» alle 06:53:32,797, la finestra a 2,9 s alle 32,997), con l'header
+      ancora su PREP e Ivrin ancora nella cella di partenza. L'ingresso si vede solo DOPO la scadenza. La tavola, e
+      `PIE-V01-RXPLAYBACK`, vogliono il playback fermo sull'ingresso.
+
+      🔑 **Due trappole della cattura.** (1) `StartPIE` ritorna a PIE gia' avviata, e con la pausa di 1,5 s la finestra
+      si apre e si chiude prima di una raffica lanciata dopo: la raffica parte prima, in un processo a parte. (2)
+      Fuori fuoco l'Editor gira a circa 3 fps, e la finestra si disegna a scatti: le opzioni arrivavano circa 0,75 s
+      dopo il resto. Con la PIE in primo piano, 59 fps e le opzioni dal primo fotogramma.
+
+      Le raffiche: `r10` (3 fps) e `r13` (59 fps) sono PRIMA della correzione del badge e servono ai tempi; il «dopo»
+      delle evidenze e' `r14`, il «prima» e' `r13`.
 
   - id: U75
     title: Header e obiettivo come le tavole A e D — round, fase, timer, celle della fase riprodotta e obiettivo in WBP_RT_TurnHeader
