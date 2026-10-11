@@ -12,24 +12,26 @@
 
   "_nota_come_si_lancia": "Da `L_DevSandbox`, console `rt.Test.Scenario Visual.Reaction.OverwatchWindowResume`, poi Play. ⚠️ `t.MaxFPS 60` prima del Play, per la ragione scritta nel banco gemello: il tetto della risoluzione conta FOTOGRAMMI, e qui le finestre sono due. ⚠️ E la finestra dell'Editor IN PRIMO PIANO: fuori fuoco l'Editor gira a circa 3 fps, e una giunzione a 3 fps non si giudica.",
 
-  "_nota_geometria": "A1 sta a (2,-1) e guarda W: la linea della guardia, lunga quanto l'attacco base di Aevik (4, `MakeBasicAttack(4)`), e' (1,-1) (0,-1) (-1,-1) (-2,-1). B1 parte da (-3,0), FUORI dalla linea, entra in (-2,-1) — prima finestra —, prosegue in (-1,-1) — seconda finestra, perche' ogni micro-step dentro la zona e' un confine — ed esce in (-1,0). Il cono di Aevik vede fino a 5 celle a W, quindi B1 e' `Detected` su tutta la rotta. A2 e B2 non agiscono: ci sono perche' roster e pannello abbiano due carte per squadra, come nel banco gemello.",
+  "_nota_geometria": "A1 sta a (2,-1) e guarda SE: la linea della guardia, lunga quanto l'attacco base di Aevik (4, `MakeBasicAttack(4)`) e tagliata dal bordo della mappa, e' (2,0) (2,1) (2,2). B1 parte da (1,1), FUORI dalla linea e a due celle da A1, entra in (2,0) — prima finestra —, prosegue in (2,1) — seconda finestra, perche' ogni micro-step dentro la zona e' un confine — ed esce in (1,2). A2 e B2 non agiscono: ci sono perche' roster e pannello abbiano due carte per squadra, come nel banco gemello.",
 
-  "_nota_assertion": "🔑 **Le `expect` valgono per OGNI risposta, come nel banco gemello.** Headless la decisione esce `NoDecider` e B1 arriva in (-1,0); in PIE con due HOLD (o due scadenze) anche; con un FIRE il colpo tronca il movimento nella cella in cui e' entrata. Una `UnitAtCell` su B1 sarebbe quindi rossa in uno dei modi di eseguire lo stesso file. Restano quelle che nessuna risposta puo' spostare. ⚠️ La PREMESSA — due finestre che si aprono davvero, e scadono — la prova `Scenario.PlayerReactionWindowsOpenToTheController`, che esegue anche questo banco con e senza controller.",
+  "_nota_inquadratura": "🔴 **La linea attraversa lo schermo, e non punta verso la camera: la prima stesura lo faceva, ed era cieca.** Aevik guardava W, la linea era (1,-1)…(-2,-1) e B1 partiva da (-3,0). Con la camera della PIE di `L_DevSandbox` la W scende verso chi guarda: la partenza e il primo ingresso finivano sotto la barra delle azioni, il secondo dietro il pannello della finestra, e in tutto il playback Ivrin non si e' vista una volta (seduta del 2026-10-11, #3666). Verso SE la linea corre in alto, sopra il pannello, e B1 resta in quadro dalla partenza all'uscita.",
+
+  "_nota_assertion": "🔑 **Le `expect` valgono per OGNI risposta, come nel banco gemello.** Headless la decisione esce `NoDecider` e B1 arriva in (1,2); in PIE con due HOLD (o due scadenze) anche; con un FIRE il colpo tronca il movimento nella cella in cui e' entrata. Una `UnitAtCell` su B1 sarebbe quindi rossa in uno dei modi di eseguire lo stesso file. Restano quelle che nessuna risposta puo' spostare. ⚠️ La PREMESSA — due finestre che si aprono davvero, e scadono — la prova `Scenario.PlayerReactionWindowsOpenToTheController`, che esegue anche questo banco con e senza controller.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "W" },
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "SE" },
     { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [ 3,  0, 0] },
-    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [-3,  0, 0] },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 1,  1, 0] },
     { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-2,  2, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — due finestre e due riprese. A1 arma la Guardia reattiva sulla linea che gia' guarda; B1 entra in (-2,-1), prosegue in (-1,-1) ed esce in (-1,0). In PIE il playback si ferma su ciascun ingresso, e a ogni HOLD riprende da li'.",
+      "_turno": "T1 — due finestre e due riprese. A1 arma la Guardia reattiva sulla linea che gia' guarda; B1 entra in (2,0), prosegue in (2,1) ed esce in (1,2). In PIE il playback si ferma su ciascun ingresso, e a ogni HOLD riprende da li'.",
       "requires": ["DecisionBoundary"],
       "intents": [
         { "unit": "A1", "ability": "Action.Overwatch" },
-        { "unit": "B1", "move": [[-2, -1, 0], [-1, -1, 0], [-1, 0, 0]] }
+        { "unit": "B1", "move": [[2, 0, 0], [2, 1, 0], [1, 2, 0]] }
       ]
     }
   ],
