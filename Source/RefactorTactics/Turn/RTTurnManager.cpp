@@ -9442,6 +9442,12 @@ void ARTTurnManager::FinishPlayback()
 				PlaybackPhaseElapsed = DurationForPlaybackPhase(PlaybackPhases.Last());
 				PlaybackPhaseIdx = PlaybackPhases.Num();
 			}
+			// La barra di avanzamento come al trattenimento naturale: in fondo al tratto parziale.
+			PlaybackElapsedTotal = FMath::Max(PlaybackElapsedTotal, PlaybackTotalSeconds);
+			// ⚠️ **Limite dichiarato**: le rivelazioni del tratto saltato — attivazioni, colpi, impronte del Blast — non
+			// escono, come in ogni Skip. Chi salta ha scelto di non guardare, e la finestra resta l'unico punto in cui il
+			// gioco si ferma per lui. Con un `Brace`, quindi, la finestra si presenta senza aver mostrato il colpo che
+			// spinge (seconda review di #3675).
 		}
 		bPlaybackHeldByWindow = true;
 		// `#3666`: e' QUESTO il fotogramma in cui la finestra si presenta, e il suo countdown comincia.

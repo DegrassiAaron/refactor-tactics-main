@@ -783,6 +783,8 @@ bool FRTReactionWindowSkipPosesTheEntryTest::RunTest(const FString&)
 
 	TM->SkipPlayback();
 	TestTrue(TEXT("lo Skip presenta la finestra"), TM->IsReactionWindowPresented());
+	TestTrue(FString::Printf(TEXT("e la barra di avanzamento e' in fondo al tratto parziale (%.2f)"),
+		TM->GetPlaybackProgress01()), TM->GetPlaybackProgress01() > 0.99f);
 	TestTrue(*FString::Printf(TEXT("🔴 e il mover e' posato sull'ingresso (1,0), non a meta' strada: a %.1f cm"),
 		DistanzaAllApertura), DistanzaAllApertura >= 0.f && DistanzaAllApertura < 1.f);
 
