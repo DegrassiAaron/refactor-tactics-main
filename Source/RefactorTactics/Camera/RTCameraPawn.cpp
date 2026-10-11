@@ -4,6 +4,7 @@
 #include "Camera/CameraComponent.h"
 #include "Map/RTHexLibrary.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h" // #3661: il rettangolo del giocatore per l'aspetto del limite del pivot
 
 /** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
@@ -536,7 +537,7 @@ void ARTCameraPawn::ApplyArmLength(float InArmLength)
 
 FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, float ArmLength,
 	float PitchDegrees, float YawDegrees, float HorizontalFovDegrees, float AspectRatio,
-	float AllowedOutsideFraction)
+	float AllowedOutsideFraction, float ReferenceAspectRatio)
 {
 	// Aspect ratio ignoto (headless, o viewport non ancora creato): non c'e' una geometria di schermo su cui
 	// ragionare, e l'area passa intatta. E' il **caso degenere dichiarato** — il clamp per sole celle di
@@ -546,8 +547,15 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 		return AllowedArea;
 	}
 
+	// 🔴 **Il semiasse FISSO e' il verticale, non l'orizzontale** (#3661, D-497 (4)). Con `MaintainYFOV`, default
+	// di `BaseEngine.ini` che il progetto non cambia, `FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle`
+	// prende il FOV come orizzontale all'aspetto della camera (16:9), ne ricava il semiangolo verticale e lo
+	// tiene; l'orizzontale segue il rettangolo. Il modello di prima teneva fisso l'orizzontale e divideva per
+	// l'aspetto: esatto solo a 16:9, e da #3661 la scena non e' piu' 16:9 (circa 1,69 a 1920×1080).
 	const float HalfFovH = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
-	const double HalfWidth = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH);
+	const double AspettoRiferimento = FMath::Max(static_cast<double>(ReferenceAspectRatio), 0.01);
+	const double VerticalHalf = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH) / AspettoRiferimento;
+	const double HalfWidth = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01);
 
 	// L'estensione **lungo la direzione di sguardo** cresce quando la camera si abbassa: a picco il quadro
 	// e' un rettangolo, all'orizzonte si allunga senza limite. E' il caso che rompe il clamp fisso, ed e'
@@ -556,7 +564,6 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 	// `sin` del pitch al denominatore, con un pavimento: a `MaxPitch = 0` la camera guarda l'orizzonte e la
 	// proiezione a terra divergerebbe. Il pavimento non e' una tolleranza numerica — e' la dichiarazione
 	// che oltre una certa inclinazione la nozione di «quanto mondo entra» smette di essere finita.
-	const double VerticalHalf = HalfWidth / FMath::Max(static_cast<double>(AspectRatio), 0.01);
 	const double SinPitch = FMath::Max(FMath::Abs(FMath::Sin(FMath::DegreesToRadians(PitchDegrees))), 0.15);
 	const double HalfDepth = VerticalHalf / SinPitch;
 
@@ -608,8 +615,22 @@ void ARTCameraPawn::RefreshViewportMetrics()
 	{
 		return;
 	}
+	// #3661, D-497 (3): l'aspetto e' quello del RETTANGOLO del giocatore, non del viewport. Da #3661 la scena
+	// si rende fra le fasce dell'HUD (`URTGameViewportClient`), e a 1920×1080 il rettangolo e' circa 1,69,
+	// non 1,78. `Size` e' la frazione che `LayoutPlayers` scrive a ogni fotogramma; senza un giocatore vale
+	// l'intero viewport, come prima.
 	const FIntPoint Size = Client->Viewport->GetSizeXY();
-	ViewportAspectRatio = (Size.Y > 0) ? static_cast<float>(Size.X) / static_cast<float>(Size.Y) : 0.f;
+	FVector2D Frazione(1.0, 1.0);
+	if (const ULocalPlayer* Giocatore = World->GetFirstLocalPlayerFromController())
+	{
+		if (Giocatore->Size.X > 0.0 && Giocatore->Size.Y > 0.0)
+		{
+			Frazione = Giocatore->Size;
+		}
+	}
+	const double Larghezza = static_cast<double>(Size.X) * Frazione.X;
+	const double Altezza = static_cast<double>(Size.Y) * Frazione.Y;
+	ViewportAspectRatio = (Altezza > 0.0) ? static_cast<float>(Larghezza / Altezza) : 0.f;
 }
 
 FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
@@ -656,7 +677,8 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 	// l'area intatta, e questo torna a essere il clamp per sole celle di `#864`.
 	const FBox2D Effective = ComputeEffectivePivotBounds(Allowed,
 		SpringArm ? SpringArm->TargetArmLength : 0.f, CameraPitch, CameraYaw,
-		ViewportHorizontalFov, ViewportAspectRatio, AllowedOutsideFraction);
+		ViewportHorizontalFov, ViewportAspectRatio, AllowedOutsideFraction,
+		Camera ? Camera->AspectRatio : 16.f / 9.f); // #3661: l'aspetto a cui il FOV e' orizzontale
 
 	return FVector(
 		FMath::Clamp(Desired.X, static_cast<double>(Effective.Min.X), static_cast<double>(Effective.Max.X)),

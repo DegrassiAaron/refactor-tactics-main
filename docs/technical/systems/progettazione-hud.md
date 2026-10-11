@@ -68,11 +68,11 @@ La superficie primaria di gioco resta il **mondo 3D isometrico / three-quarter**
 
 La schermata normale deve essere progettata così:
 
-- **70–80% centrale:** viewport 3D libero;
-- **bordi e angoli:** HUD screen-space;
+- **la scena, fra le fasce:** la 3D si rende **solo** nel rettangolo che le fasce dell'HUD lasciano libero, circa 61%×64% a 16:9 (il 39% dello schermo) ([D-497](../../decisions/RT_PDR_00_Decision_Log.md));
+- **le fasce attorno:** HUD screen-space, nessuna sovrapposizione con la scena;
 - **world-space:** path, AoE, facing, ghost, cone, marker, cover e altri overlay contestuali.
 
-> ⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11) emenda la prima voce**: la scena si renderà solo fra le fasce delle zone, strette ai loro inquilini, e misurerà circa 61%×64% (il 39% dello schermo), non il 70–80%. Arrivare al 70% chiederebbe di ridisegnare gli inquilini. In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661).
+> ⌫ *Fino al 2026-10-11 la prima voce era «**70–80% centrale:** viewport 3D libero», con la 3D a tutto schermo sotto l'HUD. [D-497](../../decisions/RT_PDR_00_Decision_Log.md) l'ha emendata e [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661) l'ha attuata: le fasce sono la misura dei loro inquilini in unità Slate (`FRTHudBands`), e arrivare al 70% chiederebbe di ridisegnarli. A 21:9 la scena sale a circa il 45% dello schermo, a 16:10 scende a circa il 36%.
 
 La griglia esagonale è un modello logico, non lo stile grafico dominante della schermata principale.
 

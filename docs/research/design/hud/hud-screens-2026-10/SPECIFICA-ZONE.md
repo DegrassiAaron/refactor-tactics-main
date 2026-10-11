@@ -34,7 +34,7 @@
 > ✅ Cablato il 2026-10-10 ([D-495](../../../../decisions/RT_PDR_00_Decision_Log.md), #1774); il ciclo della selezione è su `N`.
 > - **Le zone screen-space** valgono in entrambe le viste.
 > - **La scena isometrica** è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10. Proiezione e inclinazione le ha decise [D-498](../../../../decisions/RT_PDR_00_Decision_Log.md), e dal 2026-10-11 sono nel codice (#3662): la scena strategica è un'isometrica dimetrica 2:1, ortografica con pitch −30°, e `Q`/`E` ruotano di 60° ([D-499](../../../../decisions/RT_PDR_00_Decision_Log.md)). La separazione dei piani vale 2: l'ha scelta l'autore in isometrica nella seduta `U81` (#3678, [D-501](../../../../decisions/RT_PDR_00_Decision_Log.md) (7)); prima valeva 3, dalla seduta `U78` (#3632).
-> - ⚠️ **La scena non sarà più a tutto schermo** ([D-497](../../../../decisions/RT_PDR_00_Decision_Log.md)): si renderà solo fra le fasce delle zone, e la griglia che continua sotto i pannelli delle tavole è superata. In attuazione in #3661.
+> - ⚠️ **La scena non è più a tutto schermo** ([D-497](../../../../decisions/RT_PDR_00_Decision_Log.md), attuata in #3661): si rende solo fra le fasce delle zone, e la griglia che nelle tavole continua sotto i pannelli è superata. Le fasce sono la misura dei loro inquilini in unità Slate (`FRTHudBands`): 20/19,2/19/17 a 1920×1080, e nella colonna sinistra il roster ha il suo taglio (267), perché con le unità vere non sta nella fascia alta.
 > - **Nella vista tattica 3D**, degli overlay nel mondo (Z13, Z15, Z16) valgono significato e forme.
 >
 > ⚠️ Della nota a piè di pagina delle tavole annotate e del sorgente, «Scena illustrativa … non la resa», sono

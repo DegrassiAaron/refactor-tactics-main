@@ -117,7 +117,7 @@ strumentazione.
 
 ### 1.2 ✅ `ZoneBottom` era disegnata fuori dallo schermo — corretto
 
-`RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree`, alla sua prima esecuzione (2026-09-09), ha misurato
+`RefactorTactics.ScreenHud.PanelsLeaveTheSceneFree`, alla sua prima esecuzione (2026-09-09), ha misurato
 le quattro zone del Canvas radice a 1920×1080:
 
 ```text
@@ -155,20 +155,25 @@ resta libero davvero — ma perché la zona bassa è fuori campo, non perché si
 🔴 **Questa è la modifica che vale di più.** La prima stesura costruiva i righelli e non diceva quanto fosse
 abbastanza: due persone guardano lo stesso fotogramma e passano entrambe legittimamente.
 
-**Il riquadro che nessuna zona può toccare** è il **60% × 60% centrato** della risoluzione di riferimento
-1920×1080:
+**Il riquadro che nessuna zona può toccare è la scena**: il rettangolo fra le fasce dell'HUD, dove la 3D si rende
+([D-497](../../decisions/RT_PDR_00_Decision_Log.md), [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)). A 1920×1080:
 
 ```text
-X 384 .. 1536      Y 216 .. 864       (1152 × 648)
+X 384 .. 1551,36      Y 205,2 .. 896,4       (1167,36 × 691,2)
 ```
 
-Non è un numero sacro: è un numero **scritto**, che si discute in una issue invece che in un playtest.
+Non è un numero sacro: è un numero **scritto**, e sta in un posto solo, `FRTHudBands` in
+`Source/RefactorTactics/UI/RTHudLayout.h`. I test lo leggono di lì (`RTCenterFree::SceneKeepOut`), a quattro
+risoluzioni, senza costanti proprie.
 
-> ⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11): il riquadro diventerà il rettangolo della scena**, fra fasce strette ai loro inquilini (la proposta è 20/19,2/19/17), letto da un dato di runtime invece che da `RTCenterFree::CenterFraction`. In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661).
+⌫ *Fino al 2026-10-11 era il **60% × 60% centrato**, `X 384 .. 1536 · Y 216 .. 864`, una costante dei test
+(`RTCenterFree::CenterFraction`), con la 3D a tutto schermo sotto le zone.*
 
 ### 2.1 La metà geometrica non è più affare del PIE
 
-`RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree` (in
+⌫ *Il gate si chiamava `PanelsLeaveTheCenterFree` fino al 2026-10-11 (#3661).*
+
+`RefactorTactics.ScreenHud.PanelsLeaveTheSceneFree` (in
 `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`) misura le zone del Canvas radice con la stessa
 formula che `SConstraintCanvas::OnArrangeChildren` applica a runtime, e fallisce nominando la zona che
 invade e di quanto.
@@ -185,10 +190,10 @@ un pannello a posto.
 
 | Domanda | Chi risponde |
 |---|---|
-| Bounding box di ciascuna zona | `PanelsLeaveTheCenterFree` |
-| Le zone si sovrappongono? Invadono il centro? | `PanelsLeaveTheCenterFree` |
-| Il layout cambia con debug OFF? | `PanelsLeaveTheCenterFree` (stessi rettangoli prima e dopo) |
-| Una zona si dimensiona sul contenuto (`AutoSize`)? | `PanelsLeaveTheCenterFree` — è un errore |
+| Bounding box di ciascuna zona | `PanelsLeaveTheSceneFree` |
+| Le zone si sovrappongono? Invadono il centro? | `PanelsLeaveTheSceneFree` |
+| Il layout cambia con debug OFF? | `PanelsLeaveTheSceneFree` (stessi rettangoli prima e dopo) |
+| Una zona si dimensiona sul contenuto (`AutoSize`)? | `PanelsLeaveTheSceneFree` — è un errore |
 | Le proporzioni fra pannelli sono sensate? | 👤 PIE |
 | L'informazione è comprensibile? Icone, `—`, placeholder? | 👤 PIE |
 | Le due barre (sopra l'unità / nel roster) sembrano un duplicato? | 👤 PIE |
@@ -212,7 +217,7 @@ anche una label testuale**.
 | BOTTOM | `WBP_RT_ActionDock` | magenta | `BOTTOM / ACTIONS` |
 | CENTER | riferimento in `WBP_RT_TacticalHUD` | bianco / grigio | `CENTER FREE` |
 
-🔑 **Il rettangolo CENTER FREE disegna esattamente la soglia di §2**, `X 384..1536 · Y 216..864` a 1920×1080
+🔑 **Il rettangolo CENTER FREE disegna esattamente la soglia di §2**, la scena, `X 384..1551,36 · Y 205,2..896,4` a 1920×1080 (⌫ *fino al 2026-10-11 `X 384..1536 · Y 216..864`*)
 — non un'approssimazione a occhio. Così smette di essere decorativo e diventa **l'oracolo disegnato**: se
 una zona lo tocca, si vede dove.
 
@@ -288,7 +293,7 @@ bShowDebug == true   ->  HitTestInvisible
 Preferisci `Collapsed` da spento. Se `Collapsed` cambia il layout, **la gerarchia è sbagliata**: si corregge
 la struttura, non si ripiega su `Hidden`.
 
-🔑 **Come si verifica**, invece di dichiararlo: `PanelsLeaveTheCenterFree` con debug OFF e con debug ON deve
+🔑 **Come si verifica**, invece di dichiararlo: `PanelsLeaveTheSceneFree` con debug OFF e con debug ON deve
 riportare **gli stessi rettangoli** per le zone di produzione. È l'unico modo non soggettivo di sostenere
 «nessun cambiamento layout con debug OFF».
 
@@ -332,10 +337,10 @@ L'ordine è vincolante:
 
 1. decorator aggiunti, `bShowDebug` **ancora `false`** → compila → salva;
 2. **screenshot OFF** — nessun bordo, nessuna label, HUD di produzione invariato;
-3. `PanelsLeaveTheCenterFree` → registra i rettangoli;
+3. `PanelsLeaveTheSceneFree` → registra i rettangoli;
 4. accendi `bShowDebug` (uno o più asset, secondo §5) → compila → salva;
 5. **screenshot ON** + gli stati dinamici di §10;
-6. `PanelsLeaveTheCenterFree` → **gli stessi rettangoli** del punto 3;
+6. `PanelsLeaveTheSceneFree` → **gli stessi rettangoli** del punto 3;
 7. 🔴 **rispegni `bShowDebug`** → compila → salva;
 8. `git status --short` e verifica che l'unico delta rimasto siano i decorator, non lo stato acceso;
 9. solo ora commit.
@@ -445,7 +450,7 @@ Voci verificabili da una macchina:
 * [ ] `bShowDebug` torna `false` su tutti gli asset toccati (§8-bis punto 7);
 * [ ] `git status --short` mostra solo gli asset previsti;
 * [ ] Blueprint compile green;
-* [ ] `RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree` verde — e **non si spunta allargando la
+* [ ] `RefactorTactics.ScreenHud.PanelsLeaveTheSceneFree` verde — e **non si spunta allargando la
       soglia**: se un decorator la fa cadere, è il decorator a essere invasivo;
 * [ ] stessi rettangoli con debug ON e OFF;
 * [ ] suite `RefactorTactics.ScreenHud` ≥ baseline di §0.3.
@@ -482,7 +487,7 @@ TOP / LEFT / RIGHT / BOTTOM / CENTER FREE:
 Blueprint compile:
 PIE map e risoluzione effettiva:
 PIE debug OFF / ON:
-PanelsLeaveTheCenterFree:
+PanelsLeaveTheSceneFree:
 Suite ScreenHud (baseline -> dopo):
 bShowDebug rispento e verificato:
 Problemi trovati:

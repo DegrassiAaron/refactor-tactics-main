@@ -5713,6 +5713,37 @@ sessions:
       principale, che è gitignorato. Rimedio senza scrivere file: `-ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=True`.
       ⚠️ Un terzo avvio, su `Visual.Map.MultiLevel`, non è partito: un'altra sessione aveva aperto Unreal per una serie
       di mutazioni, e lo script si è fermato da solo. Il confronto su due piani non è servito: l'autore ha deciso su tre.
+  - id: U82
+    title: La scena fra le fasce dell'HUD (D-497) — rettangolo, risoluzioni e click
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-HUD-SCENA`, giudicato dall'autore sulle catture a 16:9, 16:10 e 21:9; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U81]
+    verifies: [PIE-HUD-SCENA]
+    issues: [3661]
+    done_when: >-
+      la scena fra le fasce ha il verdetto dell'autore nel registro, prima del merge di #3690
+    notes: |
+      Condotta il 2026-10-11 da questa sessione **da un worktree** (`rt-wt-3661`, branch `issue/3661-scena-fra-le-fasce`),
+      perché il codice esisteva solo sul branch; sola lettura, nessun salvataggio. Bridge acceso con
+      `-ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=True`.
+      Tre avvii utili:
+      1. partita su `L_DevSandbox`: la scena si rende fra le fasce. ⚠️ Nel worktree la mappa di quel livello punta a file
+         gitignorati, quindi i click non hanno una mappa su cui risolvere: non sono una misura;
+      2. `rt.Test.Scenario=Visual.Map.LayerStack`: la scena, il click a 13 px dentro il bordo che pianifica, i click
+         sulle fasce e sul roster che non pianificano, la strategica;
+      3. lo stesso scenario in finestra flottante (`PlayMode_InEditorFloating`, misura scritta sul CDO di
+         `LevelEditorPlaySettings` con `ObjectTools.set_properties`) a 1280x800 e 1890x810, catturata con
+         `EditorAppToolset.CaptureEditorImage`, che vede anche le finestre flottanti.
+
+      🔴 **Trovato e corretto in seduta**: un click sulla fascia scriveva `Nessuna mappa esagonale nel livello`, un avviso
+      falso (rilievo della review di #3690). Nel secondo avvio, in mezzo ai passi, il log mostra un lock-in, un
+      armamento «dal tasto» e un `N` che gli script non hanno mandato: una mano sull'Editor. Il click in strategica dopo il
+      lock-in non pianificava per quello, e non e' contato.
 
       🔴 **Trappola nuova**: il primo tentativo di spostare i piani non è arrivato. Il JSON di `set_properties`, scritto
       in PowerShell con le virgolette interne escapate due volte, non cambiava niente, e la rilettura con
