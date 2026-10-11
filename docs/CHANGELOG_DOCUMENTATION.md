@@ -8,7 +8,7 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la leva, il contesto di presentazione contro quello d'autore, il velo riapplicato; §5 non la dà più per mancante |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la leva; il contesto di presentazione contro quello d'autore; la quota posata, che cambia solo con una ricostruzione intera; il velo ridisegnato dallo stato scritto sul disco; le unità riposate solo in quota, anche a playback in corso. §5 non la dà più per mancante |
 | [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | §7: dove si sceglie il valore |
 | [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-CAM-STRATEGIC-PIANI`, aperta; totali e nota di rimisura di A1 |

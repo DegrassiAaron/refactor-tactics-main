@@ -302,6 +302,9 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   *presentazione*: in Strategic la quota dei piani vale quella dell'asset per il fattore. Board, unità, playback,
 >   overlay dell'HUD e picking la leggono dalla stessa porta, quindi restano allineati fra loro
 >   (`HexMapActor.StrategicLayerSeparationPickingFollowsThePose`).
+> - È la quota con cui la board è **posata**, e la cambia solo una ricostruzione intera. Una parziale (il velo che
+>   insegue una revisione dell'asset) ripone le sue famiglie alla stessa quota delle altre, così la board non resta
+>   mai mista (`HexMapActor.StrategicLayerSeparationSurvivesAPartialRebuild`).
 > - Può farlo perché la simulazione non usa la quota. Misurato nel codice il 2026-10-11: i lettori fuori dalla
 >   mappa la usano per posare i modelli su celle già decise. Lo fissa `HexMove.StrategicLayerSeparationKeepsTheOutcome`:
 >   lo stesso turno, con e senza separazione, finisce con la stessa cella, la stessa salute, lo stesso TurnLog e lo
@@ -310,8 +313,16 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   marker e i template. Letto con la quota separata, un marker del piano 1 cadrebbe sul piano terra
 >   (`HexMapActor.StrategicLayerSeparationLeavesSpawnCellsAlone`).
 > - 🔴 **Il velo resta intero.** Cambiare quota ricostruisce la board, e la ricostruzione riporta ogni istanza alla
->   scala piena: la mappa riapplica l'ultimo velo nello stesso fotogramma (`HexMapActor.StrategicLayerSeparationKeepsTheVeil`).
->   Le unità ferme le riposa il `TurnManager` (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
+>   scala piena. Nello stesso fotogramma la mappa ridisegna il velo che mostrava, riletto dallo stato che il velo
+>   stesso aveva scritto sul disco (`HexMapActor.StrategicLayerSeparationKeepsTheVeil`).
+>   - ⛔ Non da una copia della conoscenza di squadra, che l'actor non conserva: è la regola di
+>     [`D-242`](../../decisions/RT_PDR_00_Decision_Log.md) che `RebuildInstances` dichiara per `KnowledgeVolumes`.
+>   - ⚠️ Come ogni ricostruzione, spegne `rt.Debug.Knowledge` e lo scrive nel log: va rilanciato. Non è il velo rotto.
+> - 🔴 **Le unità salgono o scendono, e basta.** Le riposa il `TurnManager`, ricavando il piano dalla quota di
+>   prima: la pianta non si tocca (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
+>   - A playback in corso `Cell` è già la cella **finale**. Posarci un modello che l'osservatore non ha visto muoversi
+>     lo mostrerebbe a destinazione prima del suo momento, e chi era in un'animazione di un'altra fase resterebbe
+>     alla quota vecchia (`HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan`).
 >
 > ⏳ **Restano gli indicatori sopra/sotto** ([#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775)). Il filtro del velo va attraversato **prima** di
 > decidere cosa disegnare, non dopo.
