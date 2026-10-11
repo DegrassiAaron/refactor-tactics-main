@@ -14,6 +14,8 @@ class URTIconCatalogData;
 class URTReactionWindowViewModel;
 class URTFastDecisionOptionWidget;
 class UImage;
+class UWidgetTree;
+struct FRTHudBands;
 
 /**
  * Le classi BASE dei widget dello Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7 / #613).
@@ -2121,11 +2123,35 @@ public:
 	 */
 	static TArray<FString> ComposeMountReport(const UUserWidget* Radice);
 
+	/**
+	 * **Mette le zone e la finestra di reazione dove dice il dato delle fasce** ([D-497], #3661).
+	 *
+	 * Ogni `URTHudZoneWidget` figlio diretto del Canvas radice riceve `RTHudLayout::ZoneLayout`: ancore ai bordi
+	 * e misure in unita' Slate. La finestra di reazione resta ancorata al centro dello schermo e si sposta sul
+	 * centro della scena (`RTHudLayout::SceneCenterOffsetSlate`, D-497 (5)).
+	 *
+	 * 🔑 **Gli anchor salvati nell'asset non contano piu'**: il dato e' l'unica sorgente, e il Designer mostra
+	 * la griglia vecchia finche' qualcuno non risalva l'asset. Lo dice `guida-screen-hud-umg.md` §3.
+	 *
+	 * Statica e senza effetti fuori dall'albero, perche' i test la applichino a un albero caricato senza
+	 * montare un HUD. Ritorna quante zone ha posato.
+	 */
+	static int32 ApplyBandLayout(UWidgetTree* Albero, const FRTHudBands& Fasce);
+
 protected:
 	/**
 	 * Emette `ComposeMountReport` su `LogRT`. **Non e' decorazione**: senza, una partita a cui manca un
 	 * pezzo del §4.1 e una completa producono lo stesso log — nessuno — ed e' la condizione in cui `U49`
 	 * si e' trovata, a giudicare a occhio quale widget mancasse.
+	 *
+	 * Da #3661 posa anche le zone (`ApplyBandLayout`) e chiede al viewport il rettangolo della scena.
 	 */
 	virtual void NativeConstruct() override;
+
+	/** Restituisce il rettangolo della scena: senza l'HUD montato la 3D torna a schermo intero. */
+	virtual void NativeDestruct() override;
+
+private:
+	/** Se questa istanza ha chiesto il rettangolo, e quindi deve restituirlo una volta sola. */
+	bool bSceneInsetRequested = false;
 };

@@ -289,6 +289,26 @@ public:
 	static bool FacingSectorTowardCell(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutSector);
 
 	/**
+	 * **Un punto dello schermo sta nel rettangolo della scena?** ([D-497] (1), #3661). Bordo destro e basso
+	 * esclusi, come `FIntRect::Contains`: il pixel `Max` e' gia' della fascia.
+	 */
+	static bool IsInsideSceneRect(const FVector2D& ScreenPos, const FIntRect& SceneRect);
+
+	/**
+	 * **Il raggio di un punto dello schermo, solo se il punto sta nella scena** ([D-497] (1), #3661).
+	 *
+	 * 🔴 **Il difetto che chiude: la deproiezione di UE non rifiuta un punto fuori dal rettangolo, lo
+	 * ESTRAPOLA.** `UGameplayStatics::DeprojectScreenToWorld` passa il rettangolo di `GetProjectionData` a
+	 * `FSceneView::DeprojectScreenToWorld`, che normalizza il punto nel rettangolo senza controllarlo: un click
+	 * sulla fascia nera accanto al registro diventava un raggio verso il bordo della mappa, e una cella.
+	 *
+	 * Dentro il rettangolo il raggio e' identico a quello di UE: stessa funzione statica, stessi argomenti.
+	 * Pura e senza viewport, per i test: il chiamante passa il rettangolo e l'inversa della view-projection.
+	 */
+	static bool DeprojectInsideSceneRect(const FVector2D& ScreenPos, const FIntRect& SceneRect,
+		const FMatrix& InvViewProjection, FVector& OutOrigin, FVector& OutDirection);
+
+	/**
 	 * §5 — **Che cosa significa un `LMB` su un'unita', dato il contesto**: la riga di matrice, non l'effetto.
 	 *
 	 * 🔴 **`ERTPointerOutcome` esisteva e non aveva NESSUN produttore.** Misurato il 2026-09-11 su

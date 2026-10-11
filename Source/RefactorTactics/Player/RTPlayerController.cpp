@@ -32,6 +32,9 @@
 // navigatore invece di tenerne una copia.
 #include "Frontend/RTFrontendNavigator.h"
 #include "Engine/GameInstance.h"
+#include "Engine/LocalPlayer.h"         // #3661: il rettangolo della scena e la sua view-projection
+#include "Engine/GameViewportClient.h"  // #3661: il viewport del giocatore, per GetProjectionData
+#include "SceneView.h"                  // #3661: FSceneViewProjectionData
 #include "UI/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
 #include "Core/RTTypes.h"
 #include "Core/RTGameplayTags.h" // Unbalanced: [D-319] abbassa il TETTO, e il tetto si mostra qui
@@ -982,7 +985,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		FVector RayOrigin = FVector::ZeroVector;
 		FVector RayDir = FVector::ZeroVector;
-		const bool bHasRay = bDeclaringFacing && DeprojectMousePositionToWorld(RayOrigin, RayDir);
+		const bool bHasRay = bDeclaringFacing && DeprojectCursorInsideScene(RayOrigin, RayDir); // #3661
 		UpdateFacingHoverFromRay(bHasRay, RayOrigin, RayDir);
 	}
 
@@ -1067,6 +1070,54 @@ void ARTPlayerController::AlignActiveLayerToMap()
 	SetActiveLayer(ActiveLayer);
 }
 
+namespace
+{
+	/** Cursore, rettangolo della scena e inversa della view-projection, come li prende UE. */
+	bool RTCursorSceneProjection(const ARTPlayerController& PC, FVector2D& OutPos, FIntRect& OutRect, FMatrix& OutInvViewProj)
+	{
+		const ULocalPlayer* Giocatore = PC.GetLocalPlayer();
+		if (Giocatore == nullptr || Giocatore->ViewportClient == nullptr || Giocatore->ViewportClient->Viewport == nullptr)
+		{
+			return false;
+		}
+		float X = 0.f;
+		float Y = 0.f;
+		if (!PC.GetMousePosition(X, Y))
+		{
+			return false;
+		}
+		FSceneViewProjectionData Dati;
+		if (!Giocatore->GetProjectionData(Giocatore->ViewportClient->Viewport, Dati))
+		{
+			return false;
+		}
+		OutPos = FVector2D(X, Y);
+		OutRect = Dati.GetConstrainedViewRect();
+		OutInvViewProj = Dati.ComputeViewProjectionMatrix().InverseFast();
+		return true;
+	}
+}
+
+bool ARTPlayerController::DeprojectCursorInsideScene(FVector& OutOrigin, FVector& OutDirection) const
+{
+	FVector2D Punto;
+	FIntRect Scena;
+	FMatrix InversaVP;
+	if (!RTCursorSceneProjection(*this, Punto, Scena, InversaVP))
+	{
+		return false;
+	}
+	return URTPointerLibrary::DeprojectInsideSceneRect(Punto, Scena, InversaVP, OutOrigin, OutDirection);
+}
+
+bool ARTPlayerController::IsCursorInsideScene() const
+{
+	FVector2D Punto;
+	FIntRect Scena;
+	FMatrix InversaVP;
+	return RTCursorSceneProjection(*this, Punto, Scena, InversaVP) && URTPointerLibrary::IsInsideSceneRect(Punto, Scena);
+}
+
 bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const
 {
 	bOutHitWasOnAnotherLayer = false;
@@ -1080,9 +1131,9 @@ bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutH
 	// Il raggio serve al RIPIEGO: quando il colpo non vale, la cella si prende dall'intersezione col piano
 	// del layer attivo. Senza il raggio non ci sarebbe nulla da intersecare, e il ripiego non esisterebbe.
 	FVector RayOrigin, RayDir;
-	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir))
+	if (!DeprojectCursorInsideScene(RayOrigin, RayDir))
 	{
-		return false; // nessun viewport (headless): non c'e' un cursore da risolvere
+		return false; // nessun viewport (headless), o il cursore sta su una fascia dell'HUD (#3661)
 	}
 
 	FHitResult Hit;
@@ -1777,7 +1828,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// cliccare, da selezionare o da rifiutare, e saltarli e' cio' che conserva il comportamento di prima nel
 	// caso in cui il raggio colpisce.
 	FHitResult Hit;
-	AActor* HitActor = GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit)
+	// #3661: fuori dalla scena UE estrapolerebbe il raggio, e un click sulla fascia prenderebbe un'unita'.
+	AActor* HitActor = IsCursorInsideScene() && GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit)
 		? Hit.GetActor()
 		: nullptr;
 	ARTUnit* ClickedUnit = Cast<ARTUnit>(HitActor);
@@ -4789,7 +4841,7 @@ bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
 		return false;
 	}
 	FVector RayOrigin, RayDir;
-	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir) || FMath::IsNearlyZero(RayDir.Z))
+	if (!DeprojectCursorInsideScene(RayOrigin, RayDir) || FMath::IsNearlyZero(RayDir.Z)) // #3661
 	{
 		return false;
 	}

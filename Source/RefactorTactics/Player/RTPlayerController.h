@@ -136,6 +136,19 @@ public:
 	bool ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const;
 
 	/**
+	 * **Il raggio del cursore, solo se il cursore sta nella scena** ([D-497] (1), #3661).
+	 *
+	 * Prende il rettangolo e la view-projection da `ULocalPlayer::GetProjectionData`, come fa UE, e li passa a
+	 * `URTPointerLibrary::DeprojectInsideSceneRect`. Dentro la scena il raggio e' quello di
+	 * `DeprojectMousePositionToWorld`; fuori non c'e' raggio, e un click sulla fascia non diventa una cella.
+	 * Chi trasforma il cursore in una cella, in un verso o in un'unita' passa da qui.
+	 */
+	bool DeprojectCursorInsideScene(FVector& OutOrigin, FVector& OutDirection) const;
+
+	/** Il cursore sta nel rettangolo della scena. `false` anche senza viewport (headless). */
+	bool IsCursorInsideScene() const;
+
+	/**
 	 * Costruisce (se serve) e restituisce il mapping context, **per i test**.
 	 *
 	 * 🔴 Esiste perche' `PlayerInput.HotkeysDoNotCollide` non esisteva: un commento di
