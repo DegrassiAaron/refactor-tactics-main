@@ -996,6 +996,11 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		return;
 	}
+	// #3679: il piano attivo arriva alla board come presentazione anche qui, a ogni fotogramma. `SetActiveLayer` lo
+	// manda quando cambia; questa riga copre una board nata o ricostruita dopo, e le leve `rt.Map.Layers.*` cambiate
+	// in console. Se niente e' cambiato non scrive niente.
+	HexMap->SyncActiveLayerPresentation(ActiveLayer);
+
 	// 🔑 **Il layer viene dal PIANO ATTIVO, non dalla quota del colpo** (`D-255`, 2026-08-30).
 	//
 	// Questa riga diceva l'opposto, e lo diceva in chiaro: *«Il layer viene dalla QUOTA del punto colpito:
@@ -1047,6 +1052,12 @@ bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
 	}
 	ActiveLayer = Clamped;
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano attivo: %d (mappa %d..%d)"), ActiveLayer, MinLayer, MaxLayer);
+
+	// #3679: la board lo presenta subito, non al prossimo fotogramma. ⛔ Il suo `ActiveLayer` resta dell'editor (D-255).
+	if (ARTHexMapActor* Board = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		Board->SyncActiveLayerPresentation(ActiveLayer);
+	}
 	return true;
 }
 

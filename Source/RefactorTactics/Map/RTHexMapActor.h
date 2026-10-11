@@ -9,6 +9,7 @@
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
+#include "Map/RTLayerPresentation.h" // FRTLayerPresentationTuning: le leve con cui e' stato scritto il trattamento (#3679)
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -767,6 +768,23 @@ public:
 	 */
 	bool SyncStrategicPresentation(bool bStrategic, float* OutPreviousLayerHeight = nullptr);
 	bool IsStrategicPresentation() const { return bStrategicPresentation; }
+
+	/**
+	 * **#3679 — il piano attivo DI CHI GUARDA, come dato di presentazione** ([D-501]).
+	 *
+	 * Scrive nei canali 3..5 dei custom data di `Cells`, `SurfaceGlyphs` e `CellBorders` il trattamento di ogni piano
+	 * rispetto a `InActiveLayer` (`RTLayerPresentation::Treatment`): i piani sopra traslucidi, quelli sotto spenti, il
+	 * bordo dell'attivo marcato. Lo chiama `ARTPlayerController` quando il piano cambia e a ogni fotogramma; rifa' il
+	 * lavoro solo se il piano o le leve `rt.Map.Layers.*` sono cambiati. Ritorna `true` quando ha scritto.
+	 *
+	 * ⛔ **Non tocca `ActiveLayer`**, che e' lo stato di authoring dell'editor mode: due scrittori su un campo solo sono
+	 * il difetto che D-255 descrive. ⛔ **Non tocca i canali 0..2**, che sono del colore e del velo: una cella mai
+	 * vista resta non disegnata su qualunque piano stia.
+	 */
+	bool SyncActiveLayerPresentation(int32 InActiveLayer);
+
+	/** Il piano che la board presenta come attivo, o `INDEX_NONE` se nessuno gliel'ha ancora detto. */
+	int32 GetPresentedActiveLayer() const { return bLayerPresentationApplied ? PresentedActiveLayer : INDEX_NONE; }
 
 	/** Fissa la separazione (per i test): ogni test dichiara il valore che misura, invece di ereditare il default. */
 	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
@@ -1531,6 +1549,18 @@ protected:
 
 	/** #3632 — vista strategica di chi guarda, come l'ha dichiarata `SyncStrategicPresentation`. */
 	bool bStrategicPresentation = false;
+
+	/** #3679 — il piano attivo di chi guarda, come l'ha dichiarato `SyncActiveLayerPresentation`. */
+	int32 PresentedActiveLayer = 0;
+
+	/** #3679 — vero dopo la prima `SyncActiveLayerPresentation`: prima, la board si vede come senza trattamento. */
+	bool bLayerPresentationApplied = false;
+
+	/** #3679 — le leve con cui il trattamento e' stato scritto: se cambiano in console, si riscrive. */
+	FRTLayerPresentationTuning AppliedLayerTuning;
+
+	/** #3679 — scrive il trattamento di `PresentedActiveLayer` su tutte le famiglie che lo ricevono. */
+	void ApplyLayerPresentation();
 
 	/**
 	 * #3632 — il fattore di separazione con cui le istanze sono POSATE. Lo scrive solo una ricostruzione intera (o la
