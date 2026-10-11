@@ -1570,6 +1570,27 @@ protected:
 	int32 LastRepaintTouched = 0;
 
 	/**
+	 * Cio' che i pannelli di bordo disegnano, letto dall'asset all'ultima ricostruzione di `EdgeFeatures`
+	 * (`#3687`): coperture, porte e muri interni, in forma piatta e confrontabile.
+	 *
+	 * 🔴 **Esiste perche' i bordi cambiano in partita e il riallineamento di fine turno non lo sapeva.**
+	 * `ApplyStructureDamage` abbatte un muro, `AddCover` ne erige uno, `SetDoorState` apre una porta: tutti
+	 * passano da `AddOrUpdateCell` e muovono `Revision`, ma il blocco che segue la revisione dentro
+	 * `ApplyKnowledgeVeil` ricostruiva solo le famiglie della superficie. Il muro abbattuto restava in piedi
+	 * fino al `Tab`, l'unica ricostruzione completa a runtime.
+	 *
+	 * ⚠️ **Una copia esatta e non un hash**: una collisione rimetterebbe in piedi, in silenzio, proprio il
+	 * difetto che questo campo chiude. I bordi sono sparsi, quindi la copia costa poco.
+	 *
+	 * ⛔ **Non e' una cache dei bordi**: `RebuildInstances` continua a leggere dall'asset. Qui c'e' solo la
+	 * risposta a «i bordi sono cambiati?», come `LastSyncedMapRevision` lo e' per la revisione.
+	 */
+	TArray<int32> EdgeLayoutAtLastBuild;
+
+	/** Scrive in `Out` la forma piatta dei bordi dell'asset: vedi `EdgeLayoutAtLastBuild`. */
+	void CollectEdgeLayout(TArray<int32>& Out) const;
+
+	/**
 	 * Il componente dei ghost della timeline (`#172`). Vedi `SetPlanPreview`.
 	 *
 	 * ⚠️ **Non partecipa a `RebuildInstances`**, e non e' la svista che `#2222` aveva trovato sui volumi di
