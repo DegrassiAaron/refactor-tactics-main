@@ -318,8 +318,9 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   - ⛔ Non da una copia della conoscenza di squadra, che l'actor non conserva: è la regola di
 >     [`D-242`](../../decisions/RT_PDR_00_Decision_Log.md) che `RebuildInstances` dichiara per `KnowledgeVolumes`.
 >   - ⚠️ Come ogni ricostruzione, spegne `rt.Debug.Knowledge` e lo scrive nel log: va rilanciato. Non è il velo rotto.
-> - 🔴 **Le unità salgono o scendono, e basta.** Le riposa il `TurnManager`, ricavando il piano dalla quota di
->   prima: la pianta non si tocca (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
+> - 🔴 **Le unità salgono o scendono, e basta.** Le riposa il `TurnManager`, scalando la loro quota sopra il piano
+>   terra: è lineare nella quota dei piani, anche a metà di una salita, e la pianta non si tocca
+>   (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
 >   - A playback in corso `Cell` è già la cella **finale**, mentre il modello sta dove il playback lo ha messo:
 >     all'inizio di un'animazione di una fase futura, alla fine di una passata. Riposarlo su `Cell` lo farebbe
 >     saltare (`HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan`).
