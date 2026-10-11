@@ -386,10 +386,21 @@ TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const
 			continue;
 		}
 
-		// `BuildTeamRoster` filtra per `TeamId ==`: due squadre diverse danno insiemi DISGIUNTI, quindi
-		// `Append` non puo' duplicare. Con un filtro che autorizza per voce — il feed — questa stessa forma
+		// Il filtro e' `TeamId ==`, come in `BuildTeamRoster`: due squadre diverse danno insiemi DISGIUNTI, quindi
+		// le carte non possono duplicarsi. Con un filtro che autorizza per voce — il feed — questa stessa forma
 		// sarebbe sbagliata.
-		Roster.Append(URTHudViewModel::BuildTeamRoster(Units, TeamId));
+		//
+		// 🔴 **La carta si fa dal punto di vista di chi guarda, non della squadra elencata** (#3636). `BuildTeamRoster`
+		// usa il suo secondo argomento sia come filtro sia come `PlayerTeamId`, e da li' viene `bIsAlly`: chiamata
+		// con `TeamId` diceva «alleata» per ogni avversaria, e il pallino della carta usciva `Cyan`. Finche' la
+		// carta non aveva il pallino, l'errore non si vedeva.
+		for (const ARTUnit* Unit : Units)
+		{
+			if (Unit && Unit->TeamId == TeamId)
+			{
+				Roster.Add(URTHudViewModel::BuildUnitCard(Unit, OwnTeamId));
+			}
+		}
 	}
 	return Roster;
 }
@@ -2122,41 +2133,68 @@ void URTPlanWarningEntryWidget::SetWarning(const FRTPlanWarningView& InWarning)
 
 void URTTeamRosterWidget::RefreshCards(bool bRecountReactions)
 {
-	if (!CardsBox || !CardClass)
+	if (!CardClass)
 	{
-		return; // la seduta non ha ancora dato pannello e classe: il roster di oggi resta al grafo
+		return; // la seduta non ha ancora dato la classe: il roster di oggi resta al grafo
 	}
 
-	const TArray<FRTUnitCardView> Roster = GetRoster();
-
-	// Si tengono le carte che ci sono: ricostruirle a ogni tick spezzerebbe hover e click, come per i bottoni della
-	// finestra di reazione.
-	while (Cards.Num() > Roster.Num())
+	// Una carta per voce, nell'ordine dell'elenco. Si tengono le carte che ci sono: ricostruirle a ogni tick
+	// spezzerebbe hover e click, come per i bottoni della finestra di reazione.
+	const auto Allinea = [this](UPanelWidget& Box, TArray<TObjectPtr<URTUnitCardWidget>>& Carte, int32 Voci)
 	{
-		if (URTUnitCardWidget* Ultima = Cards.Last())
+		while (Carte.Num() > Voci)
 		{
-			Ultima->RemoveFromParent();
+			if (URTUnitCardWidget* Ultima = Carte.Last())
+			{
+				Ultima->RemoveFromParent();
+			}
+			Carte.Pop();
 		}
-		Cards.Pop();
-	}
-	while (Cards.Num() < Roster.Num())
+		while (Carte.Num() < Voci)
+		{
+			URTUnitCardWidget* Carta = RTCreateChild<URTUnitCardWidget>(*this, CardClass);
+			if (!Carta)
+			{
+				return false;
+			}
+			Box.AddChild(Carta);
+			Carte.Add(Carta);
+		}
+		return true;
+	};
+
+	if (CardsBox)
 	{
-		URTUnitCardWidget* Carta = RTCreateChild<URTUnitCardWidget>(*this, CardClass);
-		if (!Carta)
+		const TArray<FRTUnitCardView> Roster = GetRoster();
+		if (!Allinea(*CardsBox, Cards, Roster.Num()))
 		{
 			return;
 		}
-		CardsBox->AddChild(Carta);
-		Cards.Add(Carta);
-	}
-	for (int32 i = 0; i < Roster.Num(); ++i)
-	{
-		const FName Eroe = Roster[i].HeroId;
-		if (bRecountReactions || !ArmedByHero.Contains(Eroe))
+		for (int32 i = 0; i < Roster.Num(); ++i)
 		{
-			ArmedByHero.Add(Eroe, IsReactionArmed(Eroe));
+			const FName Eroe = Roster[i].HeroId;
+			if (bRecountReactions || !ArmedByHero.Contains(Eroe))
+			{
+				ArmedByHero.Add(Eroe, IsReactionArmed(Eroe));
+			}
+			Cards[i]->SetCard(Roster[i], ArmedByHero.FindChecked(Eroe));
 		}
-		Cards[i]->SetCard(Roster[i], ArmedByHero.FindChecked(Eroe));
+	}
+
+	// Le altre squadre: vuoto in sessione presidiata, e allora il pannello si svuota (`GetOpposingRoster`, #2744).
+	// Il chip resta spento senza chiedere `IsReactionArmed`: per chi non si comanda la risposta e' falso per
+	// costruzione, e chiederla rifarebbe gli slot per niente.
+	if (OpposingCardsBox)
+	{
+		const TArray<FRTUnitCardView> Altre = GetOpposingRoster();
+		if (!Allinea(*OpposingCardsBox, OpposingCards, Altre.Num()))
+		{
+			return;
+		}
+		for (int32 i = 0; i < Altre.Num(); ++i)
+		{
+			OpposingCards[i]->SetCard(Altre[i], /*bInReactionArmed=*/ false);
+		}
 	}
 }
 
@@ -2179,6 +2217,13 @@ void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
 
 	const bool bRisoluzione = HasMatchContext() && URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving;
 	const FRTUnitSlotsView Slots = GetSlots();
+
+	// La carta del soggetto: nome e PV di chi si comanda o si ispeziona. Il chip dal piano, che per un'ispezionata
+	// non c'e' (`GetSlots()` non ne costruisce gli slot, e `bReactionArmed` resta falso).
+	if (SubjectCard && HasSubject())
+	{
+		SubjectCard->SetCard(GetCard(), Slots.bReactionArmed);
+	}
 
 	// ⛔ Chiuso, non «—», per chi non si comanda: tre «—» direbbero «non ha pianificato» (#2757).
 	RTShowIf(PlanChipsBox, Slots.bAuthorized && !bRisoluzione);

@@ -9,6 +9,7 @@
 // vede `(-2,0)` e non vede `(1,0)` — le premesse lo chiedono al classificatore invece di darlo per scontato.
 
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: il banco si distrugge anche sui return intermedi (#3636)
 #include "Components/Border.h"
 #include "EngineUtils.h" // TActorIterator: il turn manager del banco si trova, non si ricostruisce (#3622)
 #include "Ability/RTActionData.h"
@@ -1041,5 +1042,70 @@ bool FRTPanelChipsAndWarningsTest::RunTest(const FString&)
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
 }
+
+/**
+ * 🔑 **LA CARTA DEL PANNELLO SEGUE IL SOGGETTO, E IL SUO CHIP SOLO IL PIANO DELLA COMANDATA** (#3636).
+ *
+ * 🔴 **Prima la scriveva il grafo del pannello**, nella variabile Blueprint `Card` di un `WBP_RT_UnitCard` senza classe
+ * C++. Riparentata la carta, quella variabile non c'e' piu': senza `SubjectCard` il pannello avrebbe una carta vuota.
+ *
+ * ⚠️ **L'ispezionata ha un Overwatch pianificato**, come la comandata: e' cio' che rende il chip spento una prova
+ * della barriera di `GetSlots()` invece di un'assenza qualunque.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelSubjectCardTest,
+	"RefactorTactics.ScreenHud.PanelCardFollowsTheSubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelSubjectCardTest::RunTest(const FString&)
+{
+	FSlotRefusalBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpSlotRefusalBench(B)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+	ARTTurnManager* TM = SlotRefusalTurnManager(B.World);
+	URTSelectedUnitPanelWidget* P = NewObject<URTSelectedUnitPanelWidget>(B.World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("pannello"), P)) { return false; }
+	P->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	P->SubjectCard = NewObject<URTUnitCardWidget>(P);
+
+	const int32 MiaGuardia = RTAbilityFixtures::AddCoreAbility(B.Mine, TEXT("Action.Overwatch"));
+	const int32 SuaGuardia = RTAbilityFixtures::AddCoreAbility(B.Nemico, TEXT("Action.Overwatch"));
+	if (!TestTrue(TEXT("premessa: entrambe hanno l'Overwatch"), MiaGuardia != INDEX_NONE && SuaGuardia != INDEX_NONE)) { return false; }
+	B.Mine->PlannedAbilityIndex = MiaGuardia;
+	B.Nemico->PlannedAbilityIndex = SuaGuardia;
+
+	// --- 1. Senza soggetto la carta non riceve niente ---------------------------------------------------------------------
+	P->SetSelectedUnitForTest(nullptr);
+	P->SetInspectedUnitForTest(nullptr);
+	P->RefreshLook();
+	TestTrue(TEXT("1: senza soggetto la carta resta vuota"), P->SubjectCard->GetCard().HeroId.IsNone());
+
+	// --- 2. La comandata: la sua carta, col chip del suo piano ---------------------------------------------------------------
+	P->SetSelectedUnitForTest(B.Mine);
+	P->RefreshLook();
+	if (!TestTrue(TEXT("2: premessa: il piano della comandata arma una reazione"), P->GetSlots().bReactionArmed)) { return false; }
+	TestEqual(TEXT("2: la carta e' della comandata"), P->SubjectCard->GetCard().HeroId, B.Mine->HeroId);
+	TestTrue(TEXT("2: col nome leggibile della vista"), P->SubjectCard->GetCard().DisplayName.EqualTo(P->GetCard().DisplayName));
+	TestTrue(TEXT("2: e il chip REAZ."), P->SubjectCard->IsReactionArmed());
+
+	// --- 3. L'ispezionata: la sua carta, senza il chip anche se il suo piano lo armerebbe ---------------------------------------
+	P->SetSelectedUnitForTest(nullptr);
+	P->SetInspectedUnitForTest(B.Nemico);
+	P->RefreshLook();
+	TestEqual(TEXT("3: la carta segue l'ispezionata"), P->SubjectCard->GetCard().HeroId, B.Nemico->HeroId);
+	TestFalse(TEXT("3: ed e' un'avversaria"), P->SubjectCard->GetCard().bIsAlly);
+	TestFalse(TEXT("3: niente chip: il suo piano non lascia il core"), P->SubjectCard->IsReactionArmed());
+
+	// --- 4. Di nuovo la comandata: il chip torna --------------------------------------------------------------------------
+	P->SetInspectedUnitForTest(nullptr);
+	P->SetSelectedUnitForTest(B.Mine);
+	P->RefreshLook();
+	TestEqual(TEXT("4: la carta torna alla comandata"), P->SubjectCard->GetCard().HeroId, B.Mine->HeroId);
+	TestTrue(TEXT("4: col chip"), P->SubjectCard->IsReactionArmed());
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS

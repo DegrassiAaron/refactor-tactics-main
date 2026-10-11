@@ -773,6 +773,17 @@ public:
 	TSubclassOf<URTUnitCardWidget> CardClass;
 
 	/**
+	 * Il pannello delle carte delle ALTRE squadre, da `GetOpposingRoster()`: vuoto in sessione presidiata (#2744), e
+	 * quindi pieno solo in autobattle. Il chip `REAZ.` vi resta spento per costruzione: il piano di chi non si comanda
+	 * non lascia il core ([D-478] punto 4).
+	 *
+	 * ⚠️ Era il secondo ciclo del grafo di `WBP_RT_TeamRoster`, che scriveva in `OpposingBox`: la seduta di #3636 toglie
+	 * il grafo, e senza questa porta le carte avversarie sparirebbero dallo schermo senza che nessun test cadesse.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UPanelWidget> OpposingCardsBox;
+
+	/**
 	 * Porta le carte di `CardsBox` al roster: una per voce di `GetRoster()`, nell'ordine del roster, col chip di
 	 * `IsReactionArmed`. Riusa le carte che ci sono: una carta ricostruita a ogni tick perderebbe l'hover.
 	 * La chiama `NativeTick`; i test la chiamano a mano.
@@ -782,12 +793,18 @@ public:
 	/** Le carte costruite, nell'ordine del roster (per i test). */
 	const TArray<TObjectPtr<URTUnitCardWidget>>& GetCardWidgets() const { return Cards; }
 
+	/** Le carte delle altre squadre, nell'ordine di `GetOpposingRoster()` (per i test). */
+	const TArray<TObjectPtr<URTUnitCardWidget>>& GetOpposingCardWidgets() const { return OpposingCards; }
+
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URTUnitCardWidget>> Cards;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<URTUnitCardWidget>> OpposingCards;
 
 	/**
 	 * Il chip `REAZ.` per eroe, ricontato a 5 Hz (review di #3636): `IsReactionArmed` rifa' gli slot di ogni unita',
@@ -881,6 +898,17 @@ public:
 	 */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UWidget> PlanChipsBox;
+
+	/**
+	 * La carta del soggetto, comandato o ispezionato: nome leggibile, PV e scudo da `GetCard()`. Il chip `REAZ.` viene
+	 * da `FRTUnitSlotsView::bReactionArmed`, che per un'ispezionata e' falso perche' `GetSlots()` non ne costruisce gli
+	 * slot.
+	 *
+	 * ⚠️ Prima la alimentava il grafo del pannello, scrivendo la variabile `Card` di un `WBP_RT_UnitCard` senza classe
+	 * C++. Riparentata la carta su `URTUnitCardWidget` (#3636), quella variabile non c'e' piu': la scrive questa porta.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<URTUnitCardWidget> SubjectCard;
 
 	/**
 	 * Per ogni chip: la cornice (`BG_Raised`, contorno `Frame_Off`, `Amber` se l'azione ha un avviso), la striscia del

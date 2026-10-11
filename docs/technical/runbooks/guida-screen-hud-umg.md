@@ -682,10 +682,20 @@ La carta **riceve** la vista (`SetCard`, solo C++) e non va a prenderla. Le port
 `CardsBox` (un pannello) e, nei default, `CardClass` = `WBP_RT_UnitCard_C`, come `TooltipClass` dello slot. Senza
 uno dei due il roster non costruisce niente. Le carte si **riusano** da un tick all'altro.
 
+`OpposingCardsBox` (un pannello) riceve le carte delle altre squadre, da `GetOpposingRoster()`: vuoto in sessione
+presidiata, pieno solo in autobattle (#2744). Il chip `REAZ.` vi resta spento per costruzione (D-478 punto 4). ⚠️ Era
+il secondo ciclo del grafo, che scriveva in `OpposingBox`: togliendo il grafo senza questa porta, le carte avversarie
+spariscono dall'autobattle senza che nessun test cada.
+
+🔴 **Le carte avversarie hanno il pallino `Red`.** Fino al seguito C++ di #3636 `GetOpposingRoster` le costruiva con
+`BuildTeamRoster(Units, TeamId)`, che usa la squadra elencata anche come punto di vista: ogni avversaria risultava
+«alleata». Il vecchio `WBP_RT_UnitCard` non aveva il pallino, e l'errore non si vedeva.
+
 ### `WBP_RT_SelectedUnitPanel`
 
 | Porta | Tipo | Che cosa ci scrive il C++ |
 |---|---|---|
+| `SubjectCard` | `WBP_RT_UnitCard` (`URTUnitCardWidget`) | la carta del soggetto, comandato o ispezionato, da `GetCard()`; il chip `REAZ.` solo dal piano della comandata. Prima la scriveva il grafo nella variabile Blueprint `Card` |
 | `PlanChipsBox` | qualunque widget | i tre chip; `Collapsed` per un'unità ispezionata e in Risoluzione. ⛔ Chiuso, non «—»: tre «—» direbbero «non ha pianificato» |
 | `Main`/`Movement`/`ReactionChipFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Raised`; contorno `Frame_Off`, `Amber` se l'azione ha un avviso |
 | `…ChipStrip` | `Border` | il colore della fase dell'azione (`SlotPhaseMark`), trasparente se libero |
