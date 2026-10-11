@@ -13,6 +13,20 @@
 | [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-CAM-STRATEGIC-PIANI`, aperta; totali e nota di rimisura di A1 |
 
+---
+
+## 2026-10-11 — Header e obiettivo hanno la loro seduta: `U75`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo. Issue [#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U75`: asset, gate, catture su `L_HexArena`, tre correzioni trovate a schermo |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §5: il round non passa più da un binding; §7-quater: trasparenza del brush, origine delle zone alte, click e glifi |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u75-header-accanto-alle-tavole.png` e `u75-header-scala-di-grigi.png` |
+
+---
+
 ## 2026-10-11 — La finestra di reazione ha la sua seduta: `U74`
 
 **Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634).

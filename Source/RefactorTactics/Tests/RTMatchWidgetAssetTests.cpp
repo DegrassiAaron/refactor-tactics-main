@@ -1525,7 +1525,8 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 }
 
 /**
- * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489).
+ * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489). Dalle
+ * sedute T8 ci sono anche `Conferma` (#3633), la finestra di reazione e la sua opzione (#3634) e l'header (#3635).
  *
  * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
  * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non
@@ -1616,6 +1617,28 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("SafeChoiceBadge"), UWidget::StaticClass() },
 	};
 
+	// L'header e l'obiettivo come le tavole A e D (#3635, seduta U75). Il round non ha piu' un binding di proprieta':
+	// lo scrive `RefreshLook` in queste porte, e `RoundLimitComesFromTheFormat` lo legge da li'.
+	TArray<FPorta> Header = {
+		{ TEXT("HeaderFrame"), UBorder::StaticClass() },
+		{ TEXT("RoundValueText"), UTextBlock::StaticClass() },
+		{ TEXT("RoundLimitText"), UTextBlock::StaticClass() },
+		{ TEXT("PlanningGroup"), UWidget::StaticClass() },
+		{ TEXT("ResolutionGroup"), UWidget::StaticClass() },
+		{ TEXT("PhaseText"), UTextBlock::StaticClass() },
+		{ TEXT("PhaseMark"), UBorder::StaticClass() },
+		{ TEXT("TimerText"), UTextBlock::StaticClass() },
+		{ TEXT("ObjectiveBox"), UWidget::StaticClass() },
+		{ TEXT("ObjectiveScoreText"), UTextBlock::StaticClass() },
+		{ TEXT("ObjectiveThresholdText"), UTextBlock::StaticClass() },
+	};
+	for (const TCHAR* Fase : { TEXT("Prep"), TEXT("Dash"), TEXT("Blast"), TEXT("Move") })
+	{
+		Header.Add({ FName(*FString::Printf(TEXT("PhaseCell_%s"), Fase)), UBorder::StaticClass() });
+		Header.Add({ FName(*FString::Printf(TEXT("PhaseCellMark_%s"), Fase)), UBorder::StaticClass() });
+		Header.Add({ FName(*FString::Printf(TEXT("PhaseCellText_%s"), Fase)), UTextBlock::StaticClass() });
+	}
+
 	struct FAsset
 	{
 		const TCHAR* Path;
@@ -1628,6 +1651,7 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ PlanCommitPath, TEXT("WBP_RT_PlanCommit"), &Commit },
 		{ FastDecisionPath, TEXT("WBP_RT_FastDecision"), &Finestra },
 		{ FastDecisionOptionPath, TEXT("WBP_RT_FastDecisionOption"), &Opzione },
+		{ TurnHeaderPath, TEXT("WBP_RT_TurnHeader"), &Header },
 	};
 
 	for (const FAsset& A : Asset)
