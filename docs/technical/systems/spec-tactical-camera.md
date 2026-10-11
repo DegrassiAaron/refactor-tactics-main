@@ -88,7 +88,7 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 |---|---|---|
 | Pan | `W` `A` `S` `D` | `AddPlanarMovement`, **relativo alla vista** |
 | Zoom | rotella | `ZoomTowards` (ancorato al cursore), ripiego al centro fuori mappa |
-| Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°` |
+| Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°`; in strategica `StrategicYawStep = 60°`, con l'imbardata allineata all'ingresso ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`). In strategica l'orbita non agisce, né la Y ([D-498](../../decisions/RT_PDR_00_Decision_Log.md)) né la X ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Select | `LMB` | contratto del puntatore ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)) |
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
@@ -103,13 +103,13 @@ Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177
 | Gesto | Effetto | Stato |
 |---|---|---|
 | `Alt` + `LMB` **click** | pivot sulla cella valida sotto il cursore | ✅ non tocca la selezione |
-| `Alt` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag |
+| `Alt` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag; in strategica non agisce ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Alt` + `RMB` drag | dolly | ✅ sopprime l'`UndoAction` per tutto il gesto |
 | `Alt` + movimento senza tasti | peek | ✅ limitato, rientra da sé al rilascio |
 | `Alt` + `MMB` drag | precision pan | ✅ `PrecisionPanScale` |
 | `PageUp` / `PageDown` | `ActiveLayer` sopra / sotto | ✅ limitato ai layer che la mappa ha |
 | doppio `LMB` | Select + Focus | ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773) |
-| `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida |
+| `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida; in strategica non agisce ([D-498](../../decisions/RT_PDR_00_Decision_Log.md), [D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Tab` → Strategic View | porta lo zoom oltre la soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md)) | ⏳ non cablato: lo stato esiste, la vista no (§5). ⌫ *Fino al 2026-10-09 questa riga diceva `M`, che dichiara `Sneak` ([D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 3, [#3470](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3470); il badge è cliccabile da [D-457](../../decisions/RT_PDR_00_Decision_Log.md))* |
 
 > ✅ **`CAM-B` risposta il 2026-08-30: «entrambi».** `MMB` **resta** l'orbita e `Alt`+`LMB` è un secondo
