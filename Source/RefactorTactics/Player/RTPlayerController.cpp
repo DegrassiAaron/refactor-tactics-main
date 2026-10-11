@@ -1968,6 +1968,14 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
+	// #3661: un click su una fascia dell'HUD che nessun pannello consuma non e' un click sulla mappa. Senza questa
+	// uscita `ResolveCellUnderCursor` rifiuterebbe il punto e il ramo qui sotto scriverebbe «nessuna mappa
+	// esagonale», mandando chi legge il log a cercare una mappa che c'e' (rilievo della review di #3690).
+	if (!IsCursorInsideScene())
+	{
+		return;
+	}
+
 	// Click sulla mappa: la CELLA si risolve sul **piano attivo** (`D-255`), poi decide HandleClickOnCell —
 	// che e' guidabile dai test senza viewport.
 	{

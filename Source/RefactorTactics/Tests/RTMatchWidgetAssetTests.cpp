@@ -1198,9 +1198,9 @@ bool FRTTheZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 		if (Conteggio[I] == 0)
 		{
 			AddError(FString::Printf(
-				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le zone sono la griglia ")
-				TEXT("20/60/20 meno il centro, con la fascia bassa intera (`guida-screen-hud-umg.md` §3, ")
-				TEXT("D-456): una che manca e' un buco nel layout, non uno spazio libero."), *Nome));
+				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le zone sono le fasce attorno alla ")
+				TEXT("scena, posate da `RTHudLayout::Bands()`, con la fascia bassa intera (`guida-screen-hud-umg.md` ")
+				TEXT("§3, D-456, D-497): una che manca e' un buco nel layout, non uno spazio libero."), *Nome));
 		}
 		else if (Conteggio[I] > 1)
 		{

@@ -33,6 +33,7 @@
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudLayout.h"     // #3661: le fasce in cui gli inquilini devono entrare
 #include "UI/RTHudZoneWidget.h"
+#include "Components/CanvasPanelSlot.h" // #3661: la posa delle zone letta dagli slot
 #include "Tests/RTHudGeometryForTest.h" // #3661: le risoluzioni della DoD
 #include "Unit/RTUnit.h"
 #include "Blueprint/UserWidget.h"
@@ -801,6 +802,46 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 
 		// Costruirlo: `NativeConstruct` posa le zone dal dato e i figli costruiscono i loro pezzi.
 		TSharedRef<SWidget> Radice = Hud->TakeWidget();
+
+		// 🔴 **Il cablaggio: `NativeConstruct` chiama davvero `ApplyBandLayout`** (rilievo della review di #3690).
+		// Gli altri due test posano il dato a mano su una copia dell'albero: senza questo controllo la chiamata
+		// potrebbe sparire, gli anchor a frazioni dell'asset tornerebbero in partita, e tutti resterebbero verdi.
+		// ⚠️ Che `NativeConstruct`/`NativeDestruct` chiedano e restituiscano il rettangolo al viewport client non si
+		// misura qui: in un mondo di prova non c'e' viewport. Resta di PIE (`PIE-HUD-SCENA`).
+		{
+			int32 ZonePosate = 0;
+			int32 FinestrePosate = 0;
+			Hud->WidgetTree->ForEachWidget([&](UWidget* W)
+			{
+				const UCanvasPanelSlot* Slot = W ? Cast<UCanvasPanelSlot>(W->Slot) : nullptr;
+				if (Slot == nullptr || Slot->Parent != Hud->WidgetTree->RootWidget)
+				{
+					return;
+				}
+				const FAnchorData Reale = Slot->GetLayout();
+				if (const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W))
+				{
+					const FAnchorData Atteso = RTHudLayout::ZoneLayout(Zona->ZoneId, F);
+					TestTrue(*FString::Printf(TEXT("%s: la zona %s e' posata dal dato in NativeConstruct"), Scenario,
+						*URTHudZoneWidget::ZoneName(Zona->ZoneId)),
+						Reale.Offsets == Atteso.Offsets
+						&& Reale.Anchors.Minimum.Equals(Atteso.Anchors.Minimum)
+						&& Reale.Anchors.Maximum.Equals(Atteso.Anchors.Maximum));
+					++ZonePosate;
+				}
+				else if (W->IsA<URTFastDecisionWidget>())
+				{
+					const FVector2D Spostamento = RTHudLayout::SceneCenterOffsetSlate(F);
+					TestTrue(*FString::Printf(TEXT("%s: la finestra di reazione e' sul centro della scena"), Scenario),
+						FMath::IsNearlyEqual(Reale.Offsets.Left, static_cast<float>(Spostamento.X), 0.01f)
+						&& FMath::IsNearlyEqual(Reale.Offsets.Top, static_cast<float>(Spostamento.Y), 0.01f));
+					++FinestrePosate;
+				}
+			});
+			TestEqual(*FString::Printf(TEXT("%s: le zone posate sono tutte"), Scenario), ZonePosate,
+				static_cast<int32>(ERTHudZone::Count));
+			TestEqual(*FString::Printf(TEXT("%s: una finestra di reazione posata"), Scenario), FinestrePosate, 1);
+		}
 
 		// Il contesto della partita e la selezione, a TUTTI i widget dell'HUD, poi un giro di aggiornamento.
 		TArray<URTScreenHudWidgetBase*> Widget;
