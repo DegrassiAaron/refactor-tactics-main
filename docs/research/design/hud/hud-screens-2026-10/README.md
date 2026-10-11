@@ -24,7 +24,7 @@ colori, font e misure ([`dati/tokens.json`](../skill-bar-2026-10/dati/tokens.jso
 - **Cosa resta uguale.** L'HUD intorno è identico nelle due viste.
 - **Cosa vale, e per chi.**
   - Delle zone screen-space valgono **posizione, contenuto e stile**, in entrambe le viste.
-  - La scena isometrica è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10: segnalini al posto degli eroi e ricordo con «X». Proiezione e inclinazione le ha decise [D-498](../../../../decisions/RT_PDR_00_Decision_Log.md): isometrica dimetrica 2:1 (#3662). ⏳ Resta il valore della separazione dei piani (#3632). La scena non sarà più a tutto schermo: si renderà solo fra le fasce delle zone ([D-497](../../../../decisions/RT_PDR_00_Decision_Log.md), in attuazione in #3661).
+  - La scena isometrica è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10: segnalini al posto degli eroi e ricordo con «X». Proiezione e inclinazione le ha decise [D-498](../../../../decisions/RT_PDR_00_Decision_Log.md): isometrica dimetrica 2:1 (#3662). La separazione dei piani vale 3 (seduta `U78`, #3632). La scena non sarà più a tutto schermo: si renderà solo fra le fasce delle zone ([D-497](../../../../decisions/RT_PDR_00_Decision_Log.md), in attuazione in #3661).
   - Nella vista tattica 3D, degli overlay nel mondo valgono significato e forme.
 
 ⚠️ **Due cose delle tavole sono superate, e si è scelto di non rifarle: vale questa pagina.**

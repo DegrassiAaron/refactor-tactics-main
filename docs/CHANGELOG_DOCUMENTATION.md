@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-11 — La seduta `U78`: la vista strategica rigiudicata, e la separazione dei piani vale 3
+
+**Origine**: i verdetti dell'autore sulle catture della seduta `U78`. Issue [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) · [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) · [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC` resta 🟡 con i due difetti chiusi; `PIE-CAM-STRATEGIC-RICORDO` ✅; `PIE-CAM-STRATEGIC-PIANI` 🟡 con il valore 3; totali e nota di rimisura di A1 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U78`, con le cinque trappole dell'Editor pilotato da script |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 3 |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione dei piani non è più «da scegliere» |
+
+---
+
 ## 2026-10-11 — La scena esce da sotto l'HUD, e la vista strategica è un'isometrica dimetrica: D-497 e D-498
 
 **Origine**: una sessione `/sc:spec-panel` dell'autore su due modifiche. Issue [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661) · [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662).
