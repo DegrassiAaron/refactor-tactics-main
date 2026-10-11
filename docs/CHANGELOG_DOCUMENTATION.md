@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-11 — La separazione dei piani in vista strategica ha la sua leva
+
+**Origine**: [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) (CAM-06a), l'ultimo dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la leva, il contesto di presentazione contro quello d'autore, il velo riapplicato; §5 non la dà più per mancante |
+| [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | §7: dove si sceglie il valore |
+| [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
+
 ## 2026-10-11 — La prova ortografica della vista strategica: una leva spenta, e lo zoom resta il braccio
 
 **Origine**: [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) (CAM-05b), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).

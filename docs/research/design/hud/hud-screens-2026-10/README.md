@@ -24,7 +24,7 @@ colori, font e misure ([`dati/tokens.json`](../skill-bar-2026-10/dati/tokens.jso
 - **Cosa resta uguale.** L'HUD intorno è identico nelle due viste.
 - **Cosa vale, e per chi.**
   - Delle zone screen-space valgono **posizione, contenuto e stile**, in entrambe le viste.
-  - La scena isometrica è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10: segnalini al posto degli eroi e ricordo con «X». ⏳ Mancano inclinazione, proiezione e separazione dei piani (#3630, #3631, #3632).
+  - La scena isometrica è il bersaglio della vista strategica. Il nucleo c'è dal 2026-10-10: segnalini al posto degli eroi e ricordo con «X». Inclinazione, proiezione e separazione dei piani hanno ciascuna la sua leva, neutra di default; ⏳ i valori li sceglie l'autore in PIE (#3630, #3631, #3632).
   - Nella vista tattica 3D, degli overlay nel mondo valgono significato e forme.
 
 ⚠️ **Due cose delle tavole sono superate, e si è scelto di non rifarle: vale questa pagina.**

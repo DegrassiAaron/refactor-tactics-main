@@ -121,7 +121,7 @@ Serve una quota **solo di presentazione**, e il **picking** deve usarla: da [D-2
   - Da confermare con l'autore nella PR del nucleo.
 - **La forma della rampa d'inclinazione.** Fino a `StrategicEnterThreshold` oppure fino a `MaxArmLength`, e con quale valore: si sceglie in PIE (#3630).
 - **La proiezione.** La sceglie l'autore guardando le due versioni (#3631, D-488 (5)).
-- **Il valore della separazione dei piani.** Si sceglie in PIE (#3632).
+- **Il valore della separazione dei piani.** Si sceglie in PIE (#3632), con `StrategicLayerSeparation` sulla mappa o `rt.Map.StrategicLayerSeparation` in console. La leva c'è dal 2026-10-11 e nasce neutra (spec `spec-tactical-camera.md` §6).
 
 ## 8. Fuori da questo lavoro
 

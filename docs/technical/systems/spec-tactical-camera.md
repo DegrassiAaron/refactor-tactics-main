@@ -201,7 +201,7 @@ non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 - In Strategic lo skeletal dell'eroe si spegne e si riaccende il cilindro segnaposto. Il flag entra **in AND** con `bRender` nei predicati, quindi non riaccende niente che il velo abbia spento (`Unit.StrategicPresentationSwapsTheBodyButNeverRevealsAVeiledUnit`, `Veil.StrategicViewDoesNotRevealAVeiledUnit`).
   - 🔑 **Il segnalino sta in piedi sulla cella** ([#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)). Un `BP_Unit_*` d'eroe ha il pivot ai piedi e un cilindro alto 100 centrato lì, cioè per metà sotto la cella. In Strategic il cilindro prende la scala del segnaposto nativo e sale di `UnitHalfHeight − VisualZOffset`, come il segnalino del ricordo. Senza, dalla camera lontana il raggio del click lo mancava e prendeva la cella dietro (`PlayerInput.StrategicHeroTokenStandsOnTheCellAndTakesTheClick`). In Strategic i bracci graykit si spengono: sono ancorati ai piedi.
 - Il ricordo diventa un segnalino con «X» (`ContactToken`) sulla cella del contatto, dalla stessa sorgente della sagoma (`Veil.StrategicRememberedContactIsATokenOnTheContactCell`).
-- 🔧 L'inclinazione ha il suo canale ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `StrategicPitchDelta`, §5.1), neutro finché l'autore non ne sceglie il valore in PIE. 🔧 La prova ortografica ha la sua leva ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631), sotto), spenta finché l'autore non sceglie la proiezione. ⏳ Resta la separazione dei piani (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)).
+- 🔧 L'inclinazione ha il suo canale ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `StrategicPitchDelta`, §5.1), neutro finché l'autore non ne sceglie il valore in PIE. 🔧 La prova ortografica ha la sua leva ([#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631), sotto), spenta finché l'autore non sceglie la proiezione. 🔧 La separazione dei piani ha la sua leva (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)), neutra finché l'autore non ne sceglie il valore in PIE.
 
 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): come si entra e che cosa si vede.**
 - **Come si entra** (✅ cablato il 2026-10-10, `ARTCameraPawn::ToggleStrategicView`). `Tab` porta il braccio a `StrategicEnterThreshold` e, al secondo `Tab`, lo riporta all'ultima distanza tattica. Da [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) quella distanza si registra **al momento del salto**: `FrameOwnTeam` apre la partita scrivendo il braccio senza passare da `UpdateStrategicState`, e il primo `Tab` tornava alla distanza di `BeginPlay` (`Camera.TabReturnsToADistanceWrittenOutsideTheZoomGate`). Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
@@ -295,8 +295,26 @@ continua a esistere anche lì — non è la vista a definirlo.
 > dall'editor mode. Due scrittori su un campo solo sarebbero un difetto che si manifesta in editor e si
 > diagnostica in partita.
 >
-> ⏳ **Resta da fare la presentazione**: indicatori sopra/sotto e separazione verticale in Strategic. Il
-> filtro del velo va attraversato **prima** di decidere cosa disegnare, non dopo.
+> 🔧 **La separazione verticale in Strategic ha la sua leva dal 2026-10-11** ([#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)):
+> `ARTHexMapActor::StrategicLayerSeparation`, oppure `rt.Map.StrategicLayerSeparation` in console, che se > 0
+> vince sulla proprietà. Nasce **a 1, cioè neutra**: il valore lo sceglie l'autore guardando la vista in PIE.
+> - 🔑 **È la quota del contesto, non un secondo contesto.** `GetHexContext` è da allora il contesto della
+>   *presentazione*: in Strategic la quota dei piani vale quella dell'asset per il fattore. Board, unità, playback,
+>   overlay dell'HUD e picking la leggono dalla stessa porta, quindi restano allineati fra loro
+>   (`HexMapActor.StrategicLayerSeparationPickingFollowsThePose`).
+> - Può farlo perché la simulazione non usa la quota. Misurato nel codice il 2026-10-11: i lettori fuori dalla
+>   mappa la usano per posare i modelli su celle già decise. Lo fissa `HexMove.StrategicLayerSeparationKeepsTheOutcome`:
+>   lo stesso turno, con e senza separazione, finisce con la stessa cella, la stessa salute, lo stesso TurnLog e lo
+>   stesso hash.
+> - ⛔ **Chi trasforma una posizione in una cella autorevole usa `GetAuthoringHexContext`**, cioè lo spawn da
+>   marker e i template. Letto con la quota separata, un marker del piano 1 cadrebbe sul piano terra
+>   (`HexMapActor.StrategicLayerSeparationLeavesSpawnCellsAlone`).
+> - 🔴 **Il velo resta intero.** Cambiare quota ricostruisce la board, e la ricostruzione riporta ogni istanza alla
+>   scala piena: la mappa riapplica l'ultimo velo nello stesso fotogramma (`HexMapActor.StrategicLayerSeparationKeepsTheVeil`).
+>   Le unità ferme le riposa il `TurnManager` (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
+>
+> ⏳ **Restano gli indicatori sopra/sotto** ([#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775)). Il filtro del velo va attraversato **prima** di
+> decidere cosa disegnare, non dopo.
 
 ---
 
