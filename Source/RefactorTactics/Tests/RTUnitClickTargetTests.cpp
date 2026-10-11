@@ -259,7 +259,9 @@ bool FRTStrategicTokenTakesTheSlantedClickTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = URTMatchSetupLibrary::MakeTestArena(World);
-	MapActor->RerunConstructionScripts();
+	// `RebuildInstances`, non `RerunConstructionScripts`: quella esiste solo WITH_EDITOR e il target gioco non compilerebbe
+	// (#3672). Al runtime `OnConstruction` fa esattamente questo.
+	MapActor->RebuildInstances();
 	FVector Origin; float HexSize = 0.f; float LayerH = 0.f;
 	MapActor->GetHexContext(Origin, HexSize, LayerH);
 
