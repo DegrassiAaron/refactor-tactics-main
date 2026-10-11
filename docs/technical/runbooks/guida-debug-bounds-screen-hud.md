@@ -164,6 +164,8 @@ X 384 .. 1536      Y 216 .. 864       (1152 × 648)
 
 Non è un numero sacro: è un numero **scritto**, che si discute in una issue invece che in un playtest.
 
+> ⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11): il riquadro diventerà il rettangolo della scena**, fra fasce strette ai loro inquilini (la proposta è 20/19,2/19/17), letto da un dato di runtime invece che da `RTCenterFree::CenterFraction`. In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661).
+
 ### 2.1 La metà geometrica non è più affare del PIE
 
 `RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree` (in
