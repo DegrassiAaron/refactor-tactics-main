@@ -519,6 +519,15 @@ che è la parte che fa saltare le sedute. Dove un allestimento del genere è pos
 utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 `Scenario.PreviewUnitDoesNotChangeTheOutcome`.
 
+**La finestra di reazione si apre al giocatore solo con `playerReactionWindows`** ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634)). Nell'auto-run
+il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`, quindi senza la chiave una
+guardia di un'unità non-bot esce `NoDecider` e a schermo non compare niente. Con la chiave la sessione aggancia il
+view model del controller che guarda e lo sgancia al teardown; uno slot già legato resta di chi l'ha legato.
+⚠️ **Non è presentazione pura come `previewUnit`**: in PIE risponde il giocatore, e il TurnLog porta `Timeout` o
+`Chosen` dove headless c'è `NoDecider`. Le `expect` di uno scenario che la dichiara devono valere per ogni risposta,
+e la premessa — che la finestra si apra davvero — la prova `Scenario.PlayerReactionWindowsOpenToTheController`. Il
+loader la rifiuta con `decisions` e con `freeRun`. Il primo banco è `Visual.Reaction.OverwatchWindow`.
+
 ---
 
 ## 6. Classe D — dichiarato, non eseguibile

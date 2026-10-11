@@ -232,6 +232,21 @@ private:
 	 */
 	void ApplyPreviewSelection();
 
+	/**
+	 * Con `bPlayerReactionWindows`, aggancia la finestra di reazione al view model del controller che guarda
+	 * (`#3634`): e' cio' che `ARTGameMode::HookReactionWindow` fa in partita, e che l'auto-run non raggiunge.
+	 *
+	 * Senza player controller — headless — non fa nulla. ⛔ E non tocca uno slot gia' occupato: chi l'ha
+	 * legato prima resta il proprietario, e questa sessione non lo sgancera'.
+	 */
+	void ApplyPlayerReactionWindows();
+
+	/** Sgancia la finestra, se e solo se l'ha agganciata questa sessione. Idempotente. */
+	void UnbindPlayerReactionWindow();
+
+	/** Vero se lo slot della finestra e' stato legato da QUESTA sessione: l'unico testimone di chi lo ha. */
+	bool bBoundPlayerReactionWindow = false;
+
 	/** Azzera i piani, calcola l'hash dello stato e valuta le assertion. */
 	void Finish();
 

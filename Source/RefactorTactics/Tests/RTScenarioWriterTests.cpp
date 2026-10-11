@@ -134,6 +134,7 @@ namespace
 		if (L.Version != R.Version) { return Fail(FString::Printf(TEXT("version: %d vs %d"), L.Version, R.Version)); }
 		if (L.Seed != R.Seed) { return Fail(TEXT("seed")); }
 		if (L.PreviewUnit != R.PreviewUnit) { return Fail(TEXT("previewUnit")); }
+		if (L.bPlayerReactionWindows != R.bPlayerReactionWindows) { return Fail(TEXT("playerReactionWindows")); }
 		if (L.Fixture != R.Fixture) { return Fail(TEXT("fixture")); }
 		if (L.MapRadius != R.MapRadius) { return Fail(FString::Printf(TEXT("mapRadius: %d vs %d"), L.MapRadius, R.MapRadius)); }
 		// La PRESENZA della chiave e' dato quanto il valore: un writer che la materializzasse dove il file
@@ -755,6 +756,7 @@ bool FRTScenarioWriterMutationTest::RunTest(const FString&)
 	MutationIsDetected(TEXT("units[1].bot"), [](FRTTestScenario& S) { S.Units[1].bBotControlled = false; });
 	MutationIsDetected(TEXT("tags"), [](FRTTestScenario& S) { S.Tags[0] = TEXT("altro"); });
 	MutationIsDetected(TEXT("scenarioId"), [](FRTTestScenario& S) { S.ScenarioId = TEXT("Altro.Id"); });
+	MutationIsDetected(TEXT("playerReactionWindows"), [](FRTTestScenario& S) { S.bPlayerReactionWindows = !S.bPlayerReactionWindows; });
 	MutationIsDetected(TEXT("mapRadius"), [](FRTTestScenario& S) { S.MapRadius = 7; });
 	MutationIsDetected(TEXT("cells[0].blocksMovement"), [](FRTTestScenario& S) { S.Cells[0].bBlocksMovement = false; });
 	MutationIsDetected(TEXT("cells[0].moveCost"), [](FRTTestScenario& S) { S.Cells[0].MoveCost = 5; });

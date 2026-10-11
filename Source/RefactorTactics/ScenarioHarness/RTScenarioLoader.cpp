@@ -2418,6 +2418,29 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		[&] { return Root->TryGetNumberField(TEXT("repeatCount"), OutScenario.RepeatCount); },
 		TEXT("un intero"))) { return false; }
 
+	// `#3634`: le finestre di reazione al giocatore, in PIE. Un tipo sbagliato e' un errore, non un'assenza: un
+	// valore letto male darebbe una seduta in cui la finestra non compare, e l'unico segnale sarebbe la sua
+	// ASSENZA a schermo.
+	//
+	// 🔴 **Il TIPO si chiede al valore, e `TryGetBoolField` da solo non basta**: converte. Misurato
+	// sull'engine (`JsonValue.h`): la stringa risponde `Value.ToBool()` e `true`, quindi `"true"` — e `"yes"` — entrano
+	// come booleani, e un numero fa lo stesso. E' la trappola che `TryGetString` ha gia' su questo file.
+	//
+	// ⚠️ **Senza bump di versione, ed e' argomentato** come le altre chiavi lo sono state. Il verso che conta e'
+	// «build vecchia, file nuovo»: una build che non la conosce la IGNORA — la radice non ha un controllo di
+	// chiave sconosciuta — e lo scenario gira come prima, headless identico per costruzione (li' il campo non
+	// fa niente) e in PIE senza finestra. Nessun esito si sposta, ed e' la stessa ragione per cui `previewUnit`
+	// non ne ha avuto uno.
+	if (!LeggiCampoTipizzato(TEXT("playerReactionWindows"),
+		[&]
+		{
+			const TSharedPtr<FJsonValue> Valore = Root->TryGetField(TEXT("playerReactionWindows"));
+			if (!Valore.IsValid() || Valore->Type != EJson::Boolean) { return false; }
+			OutScenario.bPlayerReactionWindows = Valore->AsBool();
+			return true;
+		},
+		TEXT("un booleano (true o false, non una stringa ne' un numero)"))) { return false; }
+
 	const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
 	if (!LeggiCampoTipizzato(TEXT("requires"),
 		[&] { return Root->TryGetArrayField(TEXT("requires"), RequiresJson); },
@@ -3133,6 +3156,44 @@ namespace
 		}
 		return true;
 	}
+
+	/**
+	 * `playerReactionWindows` (`#3634`): le due combinazioni in cui il campo c'e' e non puo' fare cio' che dice.
+	 *
+	 * Rifiutate invece che ignorate per la ragione di `previewUnit` con `freeRun`: un campo inerte si
+	 * riconosce solo dall'ASSENZA della finestra a schermo, che e' indistinguibile da una finestra rotta.
+	 */
+	bool ValidateScenarioPlayerReactionWindows(const FRTTestScenario& Scenario, FString& OutError)
+	{
+		if (!Scenario.bPlayerReactionWindows)
+		{
+			return true;
+		}
+
+		// In free-run ogni unita' e' del bot (`ValidateScenarioFreeRun`), e la finestra non si apre al bot: il
+		// punto di sospensione chiede `!bOwnerIsBot` (`RTTurnManager_Movement.cpp`).
+		if (Scenario.bFreeRun)
+		{
+			OutError = TEXT("playerReactionWindows con freeRun: in un free-run ogni unita' e' del bot, e al bot ")
+				TEXT("la finestra non si apre");
+			return false;
+		}
+
+		// 🔴 **Con `decisions` la risposta avrebbe due autori, e vincerebbe quello sbagliato.** Il punto di
+		// sospensione non interroga il decisore scriptato: con la finestra agganciata risponde il giocatore, e
+		// le `decisions` resterebbero non consumate — un ERROR che accusa la risposta scritta, non la chiave.
+		for (int32 T = 0; T < Scenario.Turns.Num(); ++T)
+		{
+			if (Scenario.Turns[T].Decisions.Num() > 0)
+			{
+				OutError = FString::Printf(
+					TEXT("playerReactionWindows con decisions (turno %d): la finestra la chiude il giocatore, e ")
+					TEXT("una risposta scritta non verrebbe mai letta"), T + 1);
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
@@ -3342,6 +3403,7 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 	if (!ValidateScenarioVariants(Scenario, bUsesFixture, SeenIds, OutError)) { return false; }
 	// Dopo le unita' perche' legge `BotIds`, e dopo le varianti perche' una delle sue regole le nomina.
 	if (!ValidateScenarioFreeRun(Scenario, BotIds, OutError)) { return false; }
+	if (!ValidateScenarioPlayerReactionWindows(Scenario, OutError)) { return false; }
 
 	return true;
 }

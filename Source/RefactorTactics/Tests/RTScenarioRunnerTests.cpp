@@ -10,6 +10,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Player/RTPlayerController.h"
+#include "Turn/RTReactionWindowView.h" // la firma dello slot della finestra: `playerReactionWindows` (#3634)
 #include "Map/RTHexMapActor.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -763,6 +764,116 @@ bool FRTScenarioPreviewUnitLightsThePreviewTest::RunTest(const FString&)
 	TestTrue(FString::Printf(TEXT("l'anteprima ha acceso l'area (celle: %d)"), Hit), Hit > 1);
 	// L'ARANCIONE: e' l'informazione per cui questo scenario esiste.
 	TestEqual(TEXT("l'alleata nell'area e' segnalata"), Ally, 1);
+	return true;
+}
+
+/**
+ * `playerReactionWindows` apre la finestra al CONTROLLER, e solo dove c'e' (`#3634`).
+ *
+ * E' la premessa che il banco `Visual.Reaction.OverwatchWindow` non puo' scrivere fra le proprie `expect`:
+ * headless la decisione esce `NoDecider`, in PIE esce `Timeout` o `Chosen`, e un'assertion su uno dei tre sarebbe
+ * rossa negli altri due modi di eseguire lo stesso file. Qui i due modi si eseguono entrambi, con le assertion
+ * aggiunte in memoria, e un controller spawnato e' cio' che distingue l'uno dall'altro — come per `previewUnit`.
+ *
+ * 🔑 **Il caso col controller e' la prova che la finestra si e' davvero APERTA**: `Timeout` lo scrive solo
+ * `ExpireReactionWindow`, cioe' l'orologio di una finestra sospesa. Senza aggancio la stessa guardia esce
+ * `NoDecider`, ed e' il terzo caso: controller presente, chiave tolta — il comportamento di prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPlayerReactionWindowsTest,
+	"RefactorTactics.Scenario.PlayerReactionWindowsOpenToTheController",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPlayerReactionWindowsTest::RunTest(const FString&)
+{
+	FRTTestScenario Banco;
+	if (!LoadShippedScenario(*this, TEXT("Visual.Reaction.OverwatchWindow"), Banco)) { return false; }
+	if (!TestTrue(TEXT("premessa: il banco dichiara playerReactionWindows"), Banco.bPlayerReactionWindows))
+	{
+		return false;
+	}
+
+	// Il banco con le tre assertion che lui non puo' portare: quante decisioni per ciascuno dei tre esiti.
+	auto ConGliEsiti = [](FRTTestScenario S, int32 NoDecider, int32 Timeout)
+	{
+		auto Conta = [&S](ERTReactionDecisionOutcome Esito, int32 Valore)
+		{
+			FRTTestExpectation E;
+			E.Kind = ERTAssertionKind::LogEventCount;
+			E.LogCategory = ERTLogCategory::ReactionDecision;
+			E.LogOutcome = static_cast<uint8>(Esito);
+			E.Value = Valore;
+			S.Expect.Add(E);
+		};
+		Conta(ERTReactionDecisionOutcome::NoDecider, NoDecider);
+		Conta(ERTReactionDecisionOutcome::Timeout, Timeout);
+		Conta(ERTReactionDecisionOutcome::Chosen, 0);
+		return S;
+	};
+
+	auto Esegui = [this](const TCHAR* Caso, const FRTTestScenario& S, bool bConController)
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(FString::Printf(TEXT("%s: world"), Caso), World)) { return; }
+		if (bConController)
+		{
+			TestNotNull(FString::Printf(TEXT("%s: player controller"), Caso), World->SpawnActor<ARTPlayerController>());
+		}
+		const FRTTestResult R = URTScenarioRunner::Run(World, S);
+		DestroyRunnerWorld(World);
+
+		TestEqual(FString::Printf(TEXT("%s: esito (%s%s)"), Caso, *R.ErrorMessage, *R.BlockedReason),
+			R.OutcomeString(), FString(TEXT("PASS")));
+		for (const FRTAssertionResult& A : R.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				AddError(FString::Printf(TEXT("%s: %s — atteso %s, ottenuto %s"), Caso, *A.Description, *A.Expected,
+					*A.Actual));
+			}
+		}
+	};
+
+	Esegui(TEXT("headless, senza controller"), ConGliEsiti(Banco, /*NoDecider=*/ 1, /*Timeout=*/ 0), false);
+	Esegui(TEXT("con il controller: la finestra si apre e scade"), ConGliEsiti(Banco, 0, 1), true);
+	{
+		FRTTestScenario Senza = Banco;
+		Senza.bPlayerReactionWindows = false;
+		Esegui(TEXT("con il controller ma senza la chiave"), ConGliEsiti(Senza, 1, 0), true);
+	}
+
+	// --- lo SLOT: chi lo lega lo sgancia, e uno slot altrui non si tocca -----------------------------------
+	//
+	// ⚠️ Dal distruttore e non da `TearDown`: quello distrugge anche il turn manager, e lo slot da guardare
+	// sparirebbe con lui. Il distruttore sgancia e basta, e il manager resta da interrogare.
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("slot: world"), World)) { return false; }
+		World->SpawnActor<ARTPlayerController>();
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(); // la sessione riusa quello che trova
+		if (!TestNotNull(TEXT("slot: turn manager"), TM)) { DestroyRunnerWorld(World); return false; }
+
+		{
+			FRTScenarioSession Session;
+			if (TestTrue(TEXT("slot: la sessione parte"), Session.Start(World, Banco)))
+			{
+				TestTrue(TEXT("slot: dopo Start la finestra e' agganciata"), TM->OnReactionWindowOpened.IsBound());
+			}
+		}
+		TestFalse(TEXT("slot: la sessione distrutta la sgancia"), TM->OnReactionWindowOpened.IsBound());
+
+		// Uno slot gia' occupato e' di chi l'ha occupato: la sessione non lo sovrascrive e non lo sgancia.
+		bool bChiamatoIlMio = false;
+		TM->OnReactionWindowOpened.BindLambda(
+			[&bChiamatoIlMio](const FRTReactionWindowView&, int32) { bChiamatoIlMio = true; });
+		{
+			FRTScenarioSession Session;
+			Session.Start(World, Banco);
+		}
+		TestTrue(TEXT("slot altrui: dopo la sessione e' ancora legato"), TM->OnReactionWindowOpened.IsBound());
+		TM->OnReactionWindowOpened.ExecuteIfBound(FRTReactionWindowView(), INDEX_NONE);
+		TestTrue(TEXT("slot altrui: ed e' ancora il MIO, non il view model"), bChiamatoIlMio);
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyRunnerWorld(World);
+	}
 	return true;
 }
 
