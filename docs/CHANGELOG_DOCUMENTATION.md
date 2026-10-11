@@ -15,6 +15,9 @@
 | [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | lo scenario `Visual.Map.LayerStack` |
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 2 |
 | [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione vale 2 |
+
+---
+
 ## 2026-10-11 — La reazione armata: il roster la conta per qualunque slot, le altre letture per lo slot
 
 **Origine**: [#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628), il seguito di #3618.
