@@ -5789,6 +5789,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			Ev.ActionId = IntentDefs[Footprint.IntentIndex].ActionId;
 			Ev.BaseActionId = IntentDefs[Footprint.IntentIndex].BaseActionId;
 		}
+		// 🔴 **`#3551`, [D-500]: chi vedeva l'attaccante nella cella d'origine, congelato ADESSO** — il predicato dei fatti
+		// puntuali di [D-223], lo stesso di `FRTHitGeometry::FromVerdict`. La geometria di un `Line` o di un `Cone`
+		// contiene l'origine — la prima cella e' adiacente a chi spara, e la linea punta a lui — quindi il playback non la
+		// disegna per chi non aveva il diritto di saperla (`URTPlaybackLibrary::IsFootprintHiddenFrom`).
+		// ⚠️ Un attaccante non attribuibile ([D-063]) lascia il verdetto vuoto, che si legge fail-closed.
+		if (Units.IsValidIndex(Footprint.AttackerId) && Units[Footprint.AttackerId])
+		{
+			Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(Units[Footprint.AttackerId], Footprint.Origin));
+		}
 		ResolvedTimeline.Add(MoveTemp(Ev));
 	}
 
