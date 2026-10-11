@@ -9,7 +9,7 @@
 | Dove | Che cosa |
 |---|---|
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-500`: la traccia di un `Line`/`Cone` non si disegna per chi non vedeva l'attaccante; `Area` e `Single` restano per tutti (decisione d'autore) |
-| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del canale «traccia a terra di un colpo», chiuso |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del canale «traccia a terra di un colpo», chiuso; e quella dello `StructureHit`, aperta e dichiarata ([#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681)) |
 | [`superpowers/specs/2026-10-07-tracer-attacco-base-design.md`](superpowers/specs/2026-10-07-tracer-attacco-base-design.md) | il limite «impronta `Line` di un attaccante ignoto» segnato chiuso |
 
 ---

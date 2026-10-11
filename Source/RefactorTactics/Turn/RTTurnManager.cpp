@@ -3195,7 +3195,9 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// projection la richiede esplicita).
 		//
 		// Il precedente c'e' ed e' vicino: `AttackFootprint` porta gia' `SourceStableUnitId` sullo stesso
-		// canale e `BeginPlayback` non lo filtra. ⚠️ **Ma non e' lo stesso caso**, e la differenza e' questa
+		// canale e `BeginPlayback` non lo filtra. ⏱️ *Vero fino a `#3551`: da [D-500] la traccia di un `Line`/`Cone` si
+		// filtra sul verdetto dell'origine (`URTPlaybackLibrary::IsFootprintHiddenFrom`). Questo evento resta senza
+		// verdetto, e la revisione qui sotto e' aperta in `#3681`.* ⚠️ **Ma non e' lo stesso caso**, e la differenza e' questa
 		// fetta: l'impronta nasce a `RTHexCombatLibrary.cpp:606`, **dopo** il `continue` che scarta un intento
 		// senza linea di tiro; il danno alla struttura si raccoglie a `:391`, **prima**. ∴ esiste un caso che
 		// l'impronta non produce e questo evento si': **un attaccante invisibile che spara contro un muro alto
@@ -8498,8 +8500,9 @@ bool ARTTurnManager::RevealPlaybackActivations(const TArray<FRTResolvedEvent>& A
 // 🔴 **Il filtro di FASE ora c'e'.** ⏱️ *Fino a #3549 il ramo `StructureHit` di `BeginPlayback` non filtrava
 // `Ev.Phase`, e un secondo produttore in Cleanup avrebbe inventato una fase `Blast`.* `BuildBlastSequence`
 // prende solo `Phase == Blast`: un muro colpito in Cleanup non entra in questa sequenza e non apre la fase.
-// 🔑 **L'unico filtro di privacy di questa sequenza e' sulle ATTIVAZIONI** (D6), ed e' a monte, in
-// `BuildBlastSequence`: qui si mostra tutto cio' che e' in sequenza.
+// 🔑 **I filtri di privacy di questa sequenza sono a monte, in `BuildBlastSequence`**: le ATTIVAZIONI (D6) e, da
+// `#3551`, le tracce di un `Line`/`Cone` il cui attaccante chi guarda non vedeva ([D-500]). Qui si mostra tutto cio'
+// che e' in sequenza — anche lo `StructureHit`, che non porta verdetto (`#3681`).
 bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 {
 	const int32 Target = FMath::Min(BeatsTarget, 2 * PlaybackBlastSequence.Num());
