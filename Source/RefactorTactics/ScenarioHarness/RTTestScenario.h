@@ -1233,6 +1233,31 @@ struct FRTTestScenario
 	FString PreviewUnit;
 
 	/**
+	 * In PIE, le finestre di reazione si aprono **al giocatore** invece di rispondersi da sole (`#3634`).
+	 * Falso = il comportamento di ogni altro scenario, ed e' il caso normale.
+	 *
+	 * Esiste perche' nell'auto-run nessuno lega `ARTTurnManager::OnReactionWindowOpened`: il ramo dello
+	 * scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`, e una guardia di un'unita' non-bot
+	 * esce `NoDecider` senza che la finestra compaia mai a schermo. Con questo campo la sessione aggancia il view
+	 * model del controller che guarda, e la finestra si apre come in partita: countdown, opzioni, scadenza.
+	 *
+	 * ⚠️ **Non e' presentazione pura come `PreviewUnit`**: in PIE la risposta passa al giocatore, quindi il
+	 * TurnLog cambia — `Timeout` o `Chosen` dove headless c'e' `NoDecider`. Headless non c'e' un controller e il
+	 * campo non fa niente; ∴ le `expect` di uno scenario che lo dichiara devono valere per entrambe le risposte.
+	 * Il loader lo rifiuta con `decisions` (chi risponde?) e con `freeRun` (ogni unita' e' del bot, e al bot
+	 * la finestra non si apre).
+	 *
+	 * ⛔ **Privacy: la finestra si apre per OGNI proprietario non-bot, anche della squadra che non guarda.** Il
+	 * delegate riceve la vista del proprietario (`MakeReactionWindowView(…, OwnerTeamId, OwnerTeamId)`), e il view
+	 * model la mostra. In partita non succede — la squadra 1 e' del bot (`RTMatchBootstrapper.cpp`, `TeamId == 1`),
+	 * e al bot la finestra non si apre —
+	 * ma in uno scenario ogni unita' e' non-bot salvo `"bot": true`: uno scenario con questo campo arma reazioni
+	 * solo sulla squadra di chi guarda, o da' al bot quelle dell'altra.
+	 */
+	UPROPERTY()
+	bool bPlayerReactionWindows = false;
+
+	/**
 	 * Seed dichiarato ma **non consumato**: oggi il progetto non ha alcun RNG e il determinismo viene da
 	 * coordinate intere e ordinamenti totali (`HexSim.ReplayDivergenceZero`). Il campo esiste perche' il
 	 * giorno in cui un RNG entrera' nel resolver lo scenario debba gia' saperlo dichiarare — non perche'

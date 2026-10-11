@@ -2716,4 +2716,92 @@ bool FRTScenarioLoaderRejectsPresentationCheckpointTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `playerReactionWindows` (`#3634`): si legge TIPIZZATA, e si rifiuta dove non puo' fare cio' che dice.
+ *
+ * Il campo apre al giocatore le finestre che nell'auto-run si rispondono da sole. Un tipo sbagliato letto come
+ * assenza, o una combinazione con `decisions` accettata, darebbe la stessa cosa: una seduta in cui la finestra
+ * non compare, e un'assenza a schermo che nessuno sa attribuire. Il rifiuto con `freeRun` sta accanto agli altri
+ * del free-run (`RTScenarioFreeRunTests.cpp`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderPlayerReactionWindowsTest,
+	"RefactorTactics.Scenario.LoaderReadsPlayerReactionWindowsTypedAndAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderPlayerReactionWindowsTest::RunTest(const FString&)
+{
+	// `%s` e' la chiave intera, o niente; `%s` il blocco `decisions` del turno, o niente.
+	auto Json = [](const TCHAR* Chiave, const TCHAR* Decisioni)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.PlayerReactionWindows", "version": 2, "mapRadius": 3%s,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": []%s } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Chiave, Decisioni);
+	};
+
+	// Letta, e letta VERA: un test che controllasse solo «il file si carica» passerebbe con un loader che la ignora.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": true"), TEXT("")), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("con la chiave a true si carica (%s)"), *Error), bLoaded);
+		TestTrue(TEXT("e il modello la porta"), Scenario.bPlayerReactionWindows);
+	}
+	// Assente: il comportamento di ogni altro scenario.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(Json(TEXT(""), TEXT("")), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("senza la chiave si carica (%s)"), *Error), bLoaded);
+		TestFalse(TEXT("e il default e' falso"), Scenario.bPlayerReactionWindows);
+	}
+	// Il tipo sbagliato non e' un'assenza, e non e' nemmeno un booleano: `TryGetBoolField` converterebbe entrambi.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": 1"), TEXT("")), Scenario, Error);
+		TestFalse(TEXT("il numero 1 e' rifiutato"), bLoaded);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la chiave (era: '%s')"), *Error),
+			Error.Contains(TEXT("playerReactionWindows")));
+	}
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": \"true\""), TEXT("")), Scenario, Error);
+		TestFalse(TEXT("la stringa \"true\" e' rifiutata"), bLoaded);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la chiave e il tipo (era: '%s')"), *Error),
+			Error.Contains(TEXT("playerReactionWindows")) && Error.Contains(TEXT("booleano")));
+	}
+	// Con `decisions` la risposta avrebbe due autori.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": true"),
+				TEXT(R"(, "decisions": [ { "unit": "A1", "respond": "HOLD" } ])")), Scenario, Error);
+		TestFalse(TEXT("con decisions e' rifiutato"), bLoaded);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina le due chiavi (era: '%s')"), *Error),
+			Error.Contains(TEXT("playerReactionWindows con decisions")));
+	}
+	// ⚠️ E le stesse `decisions` SENZA la chiave restano valide: e' cio' che rende il caso sopra attribuibile
+	// alla combinazione, e non a un blocco `decisions` scritto male.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(""), TEXT(R"(, "decisions": [ { "unit": "A1", "respond": "HOLD" } ])")), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("le stesse decisions senza la chiave si caricano (%s)"), *Error), bLoaded);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

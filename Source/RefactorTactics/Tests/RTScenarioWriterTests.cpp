@@ -134,6 +134,7 @@ namespace
 		if (L.Version != R.Version) { return Fail(FString::Printf(TEXT("version: %d vs %d"), L.Version, R.Version)); }
 		if (L.Seed != R.Seed) { return Fail(TEXT("seed")); }
 		if (L.PreviewUnit != R.PreviewUnit) { return Fail(TEXT("previewUnit")); }
+		if (L.bPlayerReactionWindows != R.bPlayerReactionWindows) { return Fail(TEXT("playerReactionWindows")); }
 		if (L.Fixture != R.Fixture) { return Fail(TEXT("fixture")); }
 		if (L.MapRadius != R.MapRadius) { return Fail(FString::Printf(TEXT("mapRadius: %d vs %d"), L.MapRadius, R.MapRadius)); }
 		// La PRESENZA della chiave e' dato quanto il valore: un writer che la materializzasse dove il file
@@ -718,6 +719,68 @@ bool FRTScenarioWriterRejectsInvalidTest::RunTest(const FString&)
 	return true;
 }
 
+// --- `playerReactionWindows` ---------------------------------------------------------------------------
+
+/**
+ * `playerReactionWindows` (`#3634`) si scrive **solo quando e' vera**.
+ *
+ * Il round-trip non lo vede: un writer che scrivesse `false` in ogni file rileggerebbe lo stesso modello, e ogni
+ * scenario salvato acquisterebbe una chiave che non ha mai dichiarato — il difetto che `mapRadius` ha gia' avuto.
+ * Qui si chiede al TESTO prodotto se la chiave c'e', e di che tipo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWriterPlayerReactionWindowsTest,
+	"RefactorTactics.Scenario.WriterWritesPlayerReactionWindowsOnlyWhenTrue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioWriterPlayerReactionWindowsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario minimo accettato"), URTScenarioLoader::LoadFromString(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Writer.PlayerReactionWindows", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Scenario, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// La chiave nel testo scritto: presente o no, e se presente con il suo tipo.
+	auto Scrivi = [this, &Scenario](bool bValore, TSharedPtr<FJsonObject>& OutRoot)
+	{
+		Scenario.bPlayerReactionWindows = bValore;
+		FString Json, Why;
+		if (!TestTrue(TEXT("scenario serializzato"), URTScenarioLoader::SaveToString(Scenario, Json, Why)))
+		{
+			AddError(Why);
+			return false;
+		}
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+		return TestTrue(TEXT("il testo scritto e' JSON"),
+			FJsonSerializer::Deserialize(Reader, OutRoot) && OutRoot.IsValid());
+	};
+
+	TSharedPtr<FJsonObject> Falso;
+	if (Scrivi(false, Falso))
+	{
+		TestFalse(TEXT("a false la chiave NON si scrive"), Falso->HasField(TEXT("playerReactionWindows")));
+	}
+	TSharedPtr<FJsonObject> Vero;
+	if (Scrivi(true, Vero))
+	{
+		TestTrue(TEXT("a true la chiave si scrive come booleano vero"),
+			Vero->HasTypedField<EJson::Boolean>(TEXT("playerReactionWindows"))
+				&& Vero->GetBoolField(TEXT("playerReactionWindows")));
+	}
+	return true;
+}
+
 // --- verifica di mutazione -----------------------------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWriterMutationTest,
@@ -755,6 +818,7 @@ bool FRTScenarioWriterMutationTest::RunTest(const FString&)
 	MutationIsDetected(TEXT("units[1].bot"), [](FRTTestScenario& S) { S.Units[1].bBotControlled = false; });
 	MutationIsDetected(TEXT("tags"), [](FRTTestScenario& S) { S.Tags[0] = TEXT("altro"); });
 	MutationIsDetected(TEXT("scenarioId"), [](FRTTestScenario& S) { S.ScenarioId = TEXT("Altro.Id"); });
+	MutationIsDetected(TEXT("playerReactionWindows"), [](FRTTestScenario& S) { S.bPlayerReactionWindows = !S.bPlayerReactionWindows; });
 	MutationIsDetected(TEXT("mapRadius"), [](FRTTestScenario& S) { S.MapRadius = 7; });
 	MutationIsDetected(TEXT("cells[0].blocksMovement"), [](FRTTestScenario& S) { S.Cells[0].bBlocksMovement = false; });
 	MutationIsDetected(TEXT("cells[0].moveCost"), [](FRTTestScenario& S) { S.Cells[0].MoveCost = 5; });

@@ -674,6 +674,9 @@ bool URTScenarioLoader::SaveToString(const FRTTestScenario& Scenario, FString& O
 	}
 	if (Scenario.Seed != 0) { Writer->WriteValue(TEXT("seed"), Scenario.Seed); }
 	if (!Scenario.PreviewUnit.IsEmpty()) { Writer->WriteValue(TEXT("previewUnit"), Scenario.PreviewUnit); }
+	// Solo quando e' vera: il default e' il comportamento di ogni altro scenario, e materializzarlo a `false` in
+	// ogni file salvato sarebbe la chiave mai dichiarata che `mapRadius` ha gia' insegnato a non scrivere.
+	if (Scenario.bPlayerReactionWindows) { Writer->WriteValue(TEXT("playerReactionWindows"), true); }
 	if (!Scenario.Fixture.IsEmpty()) { Writer->WriteValue(TEXT("fixture"), Scenario.Fixture); }
 
 	// ⛔ **`mapRadius` NON si scrive sempre, e la riga precedente lo faceva.** Il campo conta solo quando
