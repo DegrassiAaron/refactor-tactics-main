@@ -474,7 +474,8 @@ bool FRTTurnPredictiveWithoutCellActivatesTest::RunTest(const FString&)
  * sono e non si attivano.
  * ⛔ **Controllo positivo**: una cura in piu' produce una quarta attivazione col suo `ActionId`. Senza, «tre»
  * sarebbe vero anche per un produttore che emette un numero fisso.
- * ✅ Validato per mutazione: togliere `EmitAttackIntentActivations(Ctx);` fa cadere il conteggio del Blast.
+ * ✅ Validato per mutazione: togliere `EmitAttackIntentActivation(Ctx, k);` (fino a `#3582` era il ciclo
+ * `EmitAttackIntentActivations(Ctx);`) fa cadere il conteggio del Blast.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnAbilityActivatedOncePerIntentTest,
 	"RefactorTactics.Turn.AbilityActivatedIsEmittedOncePerIntent",
@@ -757,10 +758,10 @@ bool FRTTurnChargeActivatesInDashNotInBlastTest::RunTest(const FString&)
 
 /**
  * Interrotto: nessuna attivazione. Bloccato dalla linea di tiro: SI attiva (`Ruling`: il gesto, non l'esito).
- * Morto prima del Blast: nessuna (guardia `IsAlive()` di `ApplyInterrupts` e di `EmitAttackIntentActivations`). Fuori portata: nessuna,
+ * Morto prima del Blast: nessuna (guardia `IsAlive()` di `ApplyInterrupts` e di `EmitAttackIntentActivation`). Fuori portata: nessuna,
  * perche' `Fallback Cancelled` lo toglie prima che diventi un intento del Blast.
  * ✅ Validato per mutazione: tenere `InterruptedIntents` locale in `ApplyInterrupts` fa cadere il primo ramo;
- * togliere la guardia `IsAlive()` da `EmitAttackIntentActivations` fa cadere il terzo.
+ * togliere la guardia `IsAlive()` da `EmitAttackIntentActivation` fa cadere il terzo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnInterruptedOrDeadDoesNotActivateTest,
 	"RefactorTactics.Turn.InterruptedOrDeadIntentDoesNotActivate",
@@ -917,7 +918,8 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
  * davvero senza `ActionId`; «zero attivazioni» da solo sarebbe vero anche se l'intento non esistesse.
  * ✅ Validato per mutazione: togliere il `return` della guardia `ActionId.IsNone()` in `EmitAbilityActivated`
  * emette l'attivazione con l'azione vuota, e il conteggio cade. ⏱️ *Fino alla review della PR #3561 la mutazione
- * passava dall'`ensureMsgf` dell'helper, e la guardia muta stava in `EmitAttackIntentActivations`.*
+ * passava dall'`ensureMsgf` dell'helper, e la guardia muta stava in `EmitAttackIntentActivations`, oggi
+ * `EmitAttackIntentActivation` (`#3582`).*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLegacyIntentWithoutActionIdTest,
 	"RefactorTactics.Turn.LegacyIntentWithoutActionIdDoesNotActivate",
@@ -1084,6 +1086,119 @@ bool FRTTurnActivationFreezesSourceVerdictTest::RunTest(const FString&)
 			Ev.SourceVerdict.AllowsTeam(SquadraAssente));
 	}
 	TestEqual(TEXT("⛔ anti-vacuita': le due attivazioni, Prep e Blast"), Viste, 2);
+	return true;
+}
+
+
+namespace RTOrdineDelBlast
+{
+	/** La posizione, nella sequenza del Blast di chi guarda, del primo elemento dell'atto (sorgente, azione); -1 se assente. */
+	int32 PrimoElementoDellAtto(const ARTTurnManager* TM, int32 Sorgente, const TCHAR* Azione)
+	{
+		const TArray<FRTResolvedEvent>& T = TM->ResolvedTimelineForTest();
+		const TArray<int32> Sequenza = TM->PlaybackBlastSequenceIndicesForTest();
+		for (int32 Pos = 0; Pos < Sequenza.Num(); ++Pos)
+		{
+			const FRTResolvedEvent& Ev = T[Sequenza[Pos]];
+			if (Ev.SourceStableUnitId == Sorgente && Ev.ActionId == FName(Azione))
+			{
+				return Pos;
+			}
+		}
+		return INDEX_NONE;
+	}
+}
+
+/**
+ * **Il Blast si racconta nell'ordine in cui si risolve** (`#3582`): priorita' crescente, poi `ActionId`, attaccante e
+ * intento — l'ordine canonico dell'ADR-0003 §3, lo stesso del ciclo del danno.
+ *
+ * 🔴 **Il difetto, misurato in PIE (`U68`, `PIE-V01-TRACER` scena 2)**: la sequenza ordinava gli atti per indice
+ * d'intento, cioe' per chi era nato prima. La combo acqua + elettricita' si vedeva al contrario — la scarica (55) gia'
+ * col bonus del bagnato, e il getto (50) che quel bagnato lo produce per ultimo.
+ *
+ * Due parti, perche' gli atti hanno due chiavi diverse in `BuildBlastSequence`:
+ * - **(a) due atti con attivazione nel Blast**: Aevik nasce PRIMA di Muiren, quindi il suo intento ha l'indice minore;
+ * - **(b) un atto senza attivazione nel Blast**: l'impatto della carica di Branth (`Hero.Branth.Ram`, 35) si attiva nel
+ *   Dash, quindi il suo atto prende la chiave dalla prima apparizione — la traccia. Risolve prima del getto (50), e
+ *   prima si deve vedere.
+ * ⛔ Chi guarda e' la squadra 0, quella degli attaccanti: vede tutto, e l'ordine e' l'unica variabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastActsFollowTheResolutionOrderTest,
+	"RefactorTactics.Playback.BlastActsFollowTheResolutionOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
+{
+	// --- (a) la combo: il getto prima della scarica ----------------------------------------------------------------
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo (a)"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World, 8);
+
+		// L'ordine di nascita e' la meta' del montaggio: Aevik per prima, quindi il suo intento ha l'indice minore.
+		ARTUnit* Aevik  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-3, 0));
+		ARTUnit* Muiren = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
+		ARTUnit* Ivrin  = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Aevik || !Muiren || !Ivrin) { return false; }
+		Aevik->PlannedAbilityIndex = IndiceAbilitaAttivazione(Aevik, TEXT("Hero.Aevik.LinearDischarge"));
+		Aevik->PlannedAttackTarget = Ivrin;
+		Aevik->PlannedCell = Aevik->Cell;
+		Muiren->PlannedAbilityIndex = IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet"));
+		Muiren->PlannedAttackTarget = Ivrin;
+		Muiren->PlannedCell = Muiren->Cell;
+		if (!TestTrue(TEXT("⛔ premessa (a): i due kit hanno le azioni"),
+			Aevik->PlannedAbilityIndex != INDEX_NONE && Muiren->PlannedAbilityIndex != INDEX_NONE)) { return false; }
+
+		TM->LockInAndResolve();
+		const int32 Getto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Muiren->StableUnitId, TEXT("Hero.Muiren.PressureJet"));
+		const int32 Scarica = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Aevik->StableUnitId, TEXT("Hero.Aevik.LinearDischarge"));
+		if (!TestTrue(FString::Printf(TEXT("⛔ premessa (a): entrambi gli atti sono nella sequenza (%d, %d)"), Getto, Scarica),
+			Getto != INDEX_NONE && Scarica != INDEX_NONE)) { return false; }
+		TestTrue(*FString::Printf(TEXT("🔴 il getto (50) si vede prima della scarica (55): posizioni %d e %d"), Getto, Scarica),
+			Getto < Scarica);
+	}
+
+	// --- (b) la carica: l'impatto prima del getto ------------------------------------------------------------------
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo (b)"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World, 8);
+
+		ARTUnit* Muiren  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
+		ARTUnit* Branth  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -3));
+		ARTUnit* Ivrin   = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, -3));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Muiren || !Branth || !Ivrin || !Bersaglio) { return false; }
+		Muiren->PlannedAbilityIndex = IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet"));
+		Muiren->PlannedAttackTarget = Ivrin;
+		Muiren->PlannedCell = Muiren->Cell;
+		Branth->PlannedDashAbility = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.Ram"));
+		Branth->PlannedDashCell = Bersaglio->Cell;
+		Branth->PlannedCell = Branth->Cell;
+		if (!TestTrue(TEXT("⛔ premessa (b): i due kit hanno le azioni"),
+			Muiren->PlannedAbilityIndex != INDEX_NONE && Branth->PlannedDashAbility != INDEX_NONE)) { return false; }
+
+		TM->LockInAndResolve();
+		// ⛔ La premessa che la parte poggia: l'impatto della carica ha COLPITO nel Blast (review di #3582). Senza un
+		// colpo, l'atto potrebbe essere la sola impronta, e l'ordine si misurerebbe su un atto che non e' un attacco.
+		bool bImpattoNelBlast = false;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			bImpattoNelBlast |= Ev.Type == ERTResolvedEventType::Attack && Ev.Phase == ERTMatchPhase::Blast
+				&& Ev.SourceStableUnitId == Branth->StableUnitId && Ev.ActionId == FName(TEXT("Hero.Branth.Ram"));
+		}
+		if (!TestTrue(TEXT("⛔ premessa (b): l'impatto della carica ha colpito nel Blast"), bImpattoNelBlast)) { return false; }
+		const int32 Impatto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Branth->StableUnitId, TEXT("Hero.Branth.Ram"));
+		const int32 Getto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Muiren->StableUnitId, TEXT("Hero.Muiren.PressureJet"));
+		if (!TestTrue(FString::Printf(TEXT("⛔ premessa (b): l'impatto e il getto sono nella sequenza (%d, %d)"), Impatto, Getto),
+			Impatto != INDEX_NONE && Getto != INDEX_NONE)) { return false; }
+		TestTrue(*FString::Printf(TEXT("🔴 l'impatto della carica (35) si vede prima del getto (50): posizioni %d e %d"),
+			Impatto, Getto), Impatto < Getto);
+	}
 	return true;
 }
 

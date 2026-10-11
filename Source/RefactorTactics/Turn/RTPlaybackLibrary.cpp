@@ -130,6 +130,13 @@ float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, flo
 	return FMath::Clamp((PhaseElapsed - Lancio) / Flight, 0.f, 1.f);
 }
 
+bool URTPlaybackLibrary::IsFootprintHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return Ev.Type == ERTResolvedEventType::AttackFootprint
+		&& (Ev.Shape == ERTAbilityShape::Line || Ev.Shape == ERTAbilityShape::Cone)
+		&& !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+}
+
 bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
 {
 	// #3578 (spec «il profilo FX» §2.2, R12, R13): il VOLO — quindi il ritmo — e' la sola forma di DEFAULT di un'azione
@@ -877,12 +884,16 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		}
 		// D6: un'attivazione che chi guarda non ha il diritto di vedere non ENTRA nella sequenza — tutto o niente.
 		// 🔑 **Ma da' la chiave al suo gruppo** (review della PR #3561): ordinare per il suo indice non rivela nulla —
-		// l'attivazione non si mostra, e impronte e colpi si mostrano comunque. ⏱️ *Prima usciva qui, e il gruppo
+		// l'attivazione non si mostra, e i colpi si mostrano comunque (la traccia, se chi guarda vedeva l'attaccante: `#3551`). ⏱️ *Prima usciva qui, e il gruppo
 		// prendeva la chiave dalla prima apparizione: con uno `StructureHit` (emesso PRIMA di tutte le attivazioni)
 		// finiva davanti a ogni atto visibile, senza muro in coda. L'ordine degli atti nascosti si ribaltava con la
 		// presenza di un muro.*
 		const bool bAttivazione = (Ev.Type == ERTResolvedEventType::AbilityActivated);
-		const bool bNascosta = bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+		// ➕ `#3551`, [D-500]: e non vi entra la traccia di un `Line`/`Cone` il cui attaccante chi guarda non vedeva — la
+		// sua geometria contiene l'origine. Stessa sorte delle attivazioni nascoste: fuori dalla sequenza, quindi anche
+		// dal suo ritmo, e il gruppo resta quello dei colpi che chi guarda vede arrivare sulle vittime.
+		const bool bNascosta = (bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
+			|| IsFootprintHiddenFrom(Ev, ViewerTeamId);
 
 		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
 		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima

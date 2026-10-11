@@ -506,6 +506,67 @@ bool FRTPrivacyTracerHiddenWhenOriginUnknownTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La traccia a terra di un `Line`/`Cone` non si disegna per chi non vedeva l'attaccante** (`#3551`, [D-500]).
+ *
+ * 🔴 Le celle di un `Line` cominciano accanto a chi spara e la linea punta a lui; l'apice di un `Cone` e' adiacente
+ * all'attaccante. Disegnata per tutti, la traccia ricostruiva la cella di un attaccante che chi guarda non aveva il
+ * diritto di sapere. `Area` e `Single` non contengono l'origine e restano per tutti, come prima.
+ * ✅ Mutazioni: predicato sempre falso → cadono le righe 🔴; restrizione di forma tolta → cadono `Area` e `Single`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyFootprintHiddenWhenOriginUnknownTest,
+	"RefactorTactics.Privacy.FootprintHiddenWhenOriginUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyFootprintHiddenWhenOriginUnknownTest::RunTest(const FString&)
+{
+	// La squadra 0 vedeva l'attaccante nella cella d'origine, la squadra 1 no.
+	auto Traccia = [](ERTAbilityShape Forma)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::AttackFootprint;
+		Ev.Shape = Forma;
+		Ev.SourceStableUnitId = 7;
+		Ev.ActionId = TEXT("Hero.Muiren.PressureJet");
+		Ev.HitCells = { FRTCellId(3, 2), FRTCellId(4, 2), FRTCellId(5, 2) };
+		Ev.SourceVerdict = FRTKnowledgeVerdict::NoOne();
+		Ev.SourceVerdict.AllowTeam(0);
+		return Ev;
+	};
+
+	for (const ERTAbilityShape Forma : { ERTAbilityShape::Line, ERTAbilityShape::Cone })
+	{
+		const FString Nome = UEnum::GetValueAsString(Forma);
+		TestFalse(*FString::Printf(TEXT("%s: chi vedeva l'attaccante vede la traccia"), *Nome),
+			URTPlaybackLibrary::IsFootprintHiddenFrom(Traccia(Forma), 0));
+		TestTrue(*FString::Printf(TEXT("🔴 %s: chi NON vedeva l'attaccante non la vede"), *Nome),
+			URTPlaybackLibrary::IsFootprintHiddenFrom(Traccia(Forma), 1));
+	}
+	for (const ERTAbilityShape Forma : { ERTAbilityShape::Area, ERTAbilityShape::Single })
+	{
+		TestFalse(*FString::Printf(TEXT("%s non contiene l'origine: resta per tutti"), *UEnum::GetValueAsString(Forma)),
+			URTPlaybackLibrary::IsFootprintHiddenFrom(Traccia(Forma), 1));
+	}
+
+	FRTResolvedEvent SenzaVerdetto = Traccia(ERTAbilityShape::Line);
+	SenzaVerdetto.SourceVerdict = FRTKnowledgeVerdict();
+	TestTrue(TEXT("senza verdetto si legge fail-closed: nessuno la vede"),
+		URTPlaybackLibrary::IsFootprintHiddenFrom(SenzaVerdetto, 0));
+
+	FRTResolvedEvent Colpo = Traccia(ERTAbilityShape::Line);
+	Colpo.Type = ERTResolvedEventType::Attack;
+	TestFalse(TEXT("il predicato riguarda solo le tracce: un Attack non e' toccato"),
+		URTPlaybackLibrary::IsFootprintHiddenFrom(Colpo, 1));
+
+	// --- e la sequenza del Blast la lascia fuori per chi non ne ha il diritto --------------------------------------
+	const TArray<FRTResolvedEvent> T = { Traccia(ERTAbilityShape::Line) };
+	TestEqual(TEXT("nella sequenza di chi vedeva l'attaccante la traccia c'e'"),
+		URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0).Num(), 1);
+	TestEqual(TEXT("🔴 in quella di chi non lo vedeva no"),
+		URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 1).Num(), 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest,
 	"RefactorTactics.Privacy.TracerRhythmIsTheSameForEveryViewer",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

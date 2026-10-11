@@ -1890,8 +1890,12 @@ protected:
 	 * ⛔ **Non vede mai i `Fallback Cancelled`** — fuori portata, bersaglio ignoto, bersaglio sparito: per
 	 * loro `CollectAttackIntents` fa `continue` PRIMA di `Intents.Add`, quindi non si attivano. E' la stessa
 	 * regola del `ModifyArc` fuori portata (spec §2.2, §6).
+	 *
+	 * ➕ **Un intento per chiamata, e l'ORDINE lo decide il chiamante** (`#3582`): l'ordine canonico del Blast
+	 * (ADR-0003 §3), con l'impronta dello stesso intento subito dopo. Era un ciclo sugli intenti nel loro indice, e
+	 * il playback, che ordina gli atti sulle attivazioni, raccontava il Blast per chi era nato prima.
 	 */
-	void EmitAttackIntentActivations(const FRTBlastContext& Ctx);
+	void EmitAttackIntentActivation(const FRTBlastContext& Ctx, int32 k);
 
 	/**
 	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il

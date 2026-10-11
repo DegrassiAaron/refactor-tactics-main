@@ -538,6 +538,21 @@ public:
 	static float RouteAlpha(int32 RouteSegments, float PhaseElapsed, float CellsPerSecond);
 
 	/**
+	 * Vero se la traccia a terra `Ev` NON va disegnata per la squadra `ViewerTeamId` — `#3551`, [D-500].
+	 *
+	 * 🔴 **Solo `Line` e `Cone`, e solo per chi non vedeva l'attaccante.** Le loro celle contengono l'origine: la prima
+	 * cella di una linea e' adiacente a chi spara, e la direzione dice da quale lato, quindi la traccia ricostruisce la
+	 * cella di un attaccante che chi guarda non aveva il diritto di sapere. Un'`Area` e' centrata sul bersaglio e un
+	 * `Single` e' la sola cella colpita: non contengono l'origine, e si disegnano per tutti come prima. La regola e'
+	 * quella del tracer (`TracerStyleForIn`): niente, non una traccia accorciata, perche' una linea accorciata punta
+	 * ancora a chi spara.
+	 *
+	 * ⚠️ Il verdetto e' quello congelato in risoluzione (`SourceVerdict`, [D-223]), non la conoscenza al momento del
+	 * disegno; vuoto si legge fail-closed. Falso per ogni evento che non sia `AttackFootprint`.
+	 */
+	static bool IsFootprintHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
 	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
 	 *
 	 * 🔑 **Non e' una granularita' nuova: e' quella che il playback gia' interpola.**

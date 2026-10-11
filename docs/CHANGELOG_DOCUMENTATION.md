@@ -15,6 +15,35 @@
 | [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | lo scenario `Visual.Map.LayerStack` |
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 2 |
 | [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione vale 2 |
+## 2026-10-11 — La reazione armata: il roster la conta per qualunque slot, le altre letture per lo slot
+
+**Origine**: [#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628), il seguito di #3618.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | la nota del roster: timeline, dock e intento restano sullo slot `Reaction`, con il motivo di ciascuna (decisione d'autore) |
+
+---
+
+## 2026-10-11 — Il Blast si racconta nell'ordine in cui si risolve
+
+**Origine**: [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582), misurato in PIE nella seduta `U68` (`PIE-V01-TRACER`, scena 2).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2, intenti d'attacco: si emettono nell'ordine canonico del Blast (ADR-0003 §3), con l'impronta subito dopo la propria attivazione; il `Ruling` sull'ordine fra le sorgenti dichiara il residuo di cure, Cleanse e `ModifyArc` ([#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683)) |
+
+---
+
+## 2026-10-11 — La traccia a terra di un `Line`/`Cone` non rivela un attaccante non visto: D-500
+
+**Origine**: [#3551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3551), il limite dichiarato dalla spec del tracer di #2454.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-500`: la traccia di un `Line`/`Cone` non si disegna per chi non vedeva l'attaccante; `Area` e `Single` restano per tutti (decisione d'autore) |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del canale «traccia a terra di un colpo», chiuso; e quella dello `StructureHit`, aperta e dichiarata ([#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681)) |
+| [`superpowers/specs/2026-10-07-tracer-attacco-base-design.md`](superpowers/specs/2026-10-07-tracer-attacco-base-design.md) | il limite «impronta `Line` di un attaccante ignoto» segnato chiuso |
 
 ---
 
