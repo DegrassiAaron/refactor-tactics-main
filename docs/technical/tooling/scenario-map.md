@@ -526,7 +526,10 @@ view model del controller che guarda e lo sgancia al teardown; uno slot già leg
 ⚠️ **Non è presentazione pura come `previewUnit`**: in PIE risponde il giocatore, e il TurnLog porta `Timeout` o
 `Chosen` dove headless c'è `NoDecider`. Le `expect` di uno scenario che la dichiara devono valere per ogni risposta,
 e la premessa — che la finestra si apra davvero — la prova `Scenario.PlayerReactionWindowsOpenToTheController`. Il
-loader la rifiuta con `decisions` e con `freeRun`. Il primo banco è `Visual.Reaction.OverwatchWindow`.
+loader la rifiuta con `decisions` e con `freeRun`. ⛔ **E la finestra si apre per ogni proprietario non-bot,
+anche avversario**: in partita la squadra avversaria è del bot e il caso non esiste, in uno scenario sì. Uno scenario
+con la chiave arma reazioni solo sulla squadra di chi guarda, o dà al bot quelle dell'altra. Il primo banco è
+`Visual.Reaction.OverwatchWindow`.
 
 ---
 

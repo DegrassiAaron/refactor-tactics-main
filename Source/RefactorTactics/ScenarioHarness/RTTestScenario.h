@@ -1246,6 +1246,12 @@ struct FRTTestScenario
 	 * campo non fa niente; ∴ le `expect` di uno scenario che lo dichiara devono valere per entrambe le risposte.
 	 * Il loader lo rifiuta con `decisions` (chi risponde?) e con `freeRun` (ogni unita' e' del bot, e al bot
 	 * la finestra non si apre).
+	 *
+	 * ⛔ **Privacy: la finestra si apre per OGNI proprietario non-bot, anche della squadra che non guarda.** Il
+	 * delegate riceve la vista del proprietario (`MakeReactionWindowView(…, OwnerTeamId, OwnerTeamId)`), e il view
+	 * model la mostra. In partita non succede — la squadra avversaria e' del bot, e al bot la finestra non si apre —
+	 * ma in uno scenario ogni unita' e' non-bot salvo `"bot": true`: uno scenario con questo campo arma reazioni
+	 * solo sulla squadra di chi guarda, o da' al bot quelle dell'altra.
 	 */
 	UPROPERTY()
 	bool bPlayerReactionWindows = false;
