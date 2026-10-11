@@ -7,7 +7,6 @@
 
 /** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
-extern TAutoConsoleVariable<int32> CVarRTCameraStrategicOrtho; // #3631: la prova ortografica, da console
 /** Definita nello stesso file: scatto automatico per il confronto fra catture (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDownShot;
 #include "GameFramework/PlayerController.h"
@@ -121,6 +120,11 @@ void ARTCameraPawn::ApplyViewSettings()
 	// darebbe una partenza che il primo scroll "corregge" di scatto.
 	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
 
+	// La distanza e' appena cambiata: lo stato strategico e' una **lettura** di quella distanza, e va riletto
+	// qui invece di aspettare il prossimo scroll — altrimenti `Home` da vista strategica lascerebbe lo stato
+	// indietro di un comando. E va riletto **prima del pitch**, che da D-498 dipende dallo stato.
+	UpdateStrategicState();
+
 	// 🔴 **Il pitch corrente si riallinea alla taratura QUI, non nel costruttore.** La prima stesura di
 	// #863 lo faceva nel costruttore, che gira sul CDO: un `DefaultPitch` messo nel Details di un'istanza
 	// in livello — o in un archetipo Blueprint — non sarebbe mai arrivato al runtime, e la partita si
@@ -132,12 +136,7 @@ void ARTCameraPawn::ApplyViewSettings()
 	ManualPitchOffset = 0.f;
 	RecomputePitchFromZoom();
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
-
-	// La distanza e' appena cambiata: lo stato strategico e' una **lettura** di quella distanza, e va
-	// riletto qui invece di aspettare il prossimo scroll — altrimenti `Home` da vista strategica
-	// lascerebbe lo stato indietro di un comando.
 	RefreshViewportMetrics();
-	UpdateStrategicState();
 }
 
 bool ARTCameraPawn::FrameOwnTeam()
@@ -384,11 +383,16 @@ bool ARTCameraPawn::UpdateStrategicState()
 		LastTacticalArmLength = Distance;
 	}
 
-	// #3631: a ogni lettura e non solo al cambio di stato, perche' in ortografica la larghezza segue il braccio.
+	// A ogni lettura e non solo al cambio di stato, perche' in ortografica la larghezza segue il braccio.
 	ApplyStrategicProjection();
 
 	if (bWas != bStrategicView)
 	{
+		// D-498: il pitch e' una funzione dello STATO, e cambia nel fotogramma in cui cambia lo stato (il taglio netto
+		// di D-495 (4)). Le porte del braccio lo ricalcolano gia' dopo questa lettura; qui vale per chi rilegge lo
+		// stato da solo.
+		RecomputePitchFromZoom();
+		ApplyArmRotation();
 		// Il consumatore visivo e' `ARTHUD::UpdateObserverVeil`, che a ogni fotogramma legge `IsStrategicView`
 		// e lo consegna alle unita' (`ARTUnit::SetStrategicPresentation`, D-495). Il log resta: dice QUANDO
 		// lo stato e' cambiato, che a schermo si vede ma non si data.
@@ -399,14 +403,15 @@ bool ARTCameraPawn::UpdateStrategicState()
 	return false;
 }
 
-float ARTCameraPawn::OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees)
+float ARTCameraPawn::OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees, float ReferenceAspectRatio)
 {
-	// La larghezza del quadro sul piano del pivot: la stessa mezza larghezza `Arm * tan(FOV/2)` che
-	// `ComputeEffectivePivotBounds` usa per i limiti. Per questo i limiti valgono anche in ortografica senza un
-	// ramo loro: quella funzione modella il quadro come un rettangolo sul piano del pivot, cioe' proprio
-	// l'impronta ortografica.
+	// L'ALTEZZA del quadro prospettico sul piano del pivot, perche' con `MaintainYFOV` e' quella che `OrthoWidth`
+	// descrive (vedi l'header). Il semiangolo verticale e' quello che UE ricava in `CameraStackTypes.cpp`:
+	// `atan(tan(FOV/2) / AspectRatio)`, quindi la mezza altezza a distanza `Arm` vale `Arm * tan(FOV/2) / AspectRatio`.
+	// ⚠️ Fino a #3662 qui mancava la divisione, e l'ortografica inquadrava 1,78× la prospettica: il test di allora
+	// confrontava questa formula con sé stessa. Quello di oggi misura la matrice di proiezione.
 	const float HalfFov = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
-	return 2.f * FMath::Max(ArmLength, 0.f) * FMath::Tan(HalfFov);
+	return 2.f * FMath::Max(ArmLength, 0.f) * FMath::Tan(HalfFov) / FMath::Max(ReferenceAspectRatio, 0.01f);
 }
 
 bool ARTCameraPawn::IsOrthographicNow() const
@@ -420,13 +425,12 @@ void ARTCameraPawn::ApplyStrategicProjection()
 	{
 		return;
 	}
-	const bool bOrtho = bStrategicView
-		&& (bStrategicOrthographic || CVarRTCameraStrategicOrtho.GetValueOnGameThread() > 0);
-	if (bOrtho)
+	// D-498: la proiezione segue lo STATO, con la sua isteresi — anche fra le due soglie resta quella dello stato.
+	if (bStrategicView)
 	{
 		// 🔑 **Lo zoom resta il braccio** (D-252): la larghezza si DERIVA dalla distanza, cosi' lo stato strategico
 		// continua a leggersi da `TargetArmLength` e al cambio di proiezione la scala sul pivot non salta.
-		Camera->SetOrthoWidth(OrthoWidthForArm(SpringArm->TargetArmLength, Camera->FieldOfView));
+		Camera->SetOrthoWidth(OrthoWidthForArm(SpringArm->TargetArmLength, Camera->FieldOfView, Camera->AspectRatio));
 		if (Camera->ProjectionMode != ECameraProjectionMode::Orthographic)
 		{
 			Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);
@@ -497,13 +501,14 @@ void ARTCameraPawn::ApplyArmLength(float InArmLength)
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(InArmLength, MinArmLength, MaxArmLength);
 
-	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: il pitch prima del pivot, perche'
-	// entra nei limiti. Una scorciatoia qui farebbe divergere le porte dello zoom.
+	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: lo stato prima del pitch, perche' da D-498 il
+	// pitch ne dipende; il pitch prima del pivot, perche' entra nei limiti. Una scorciatoia qui farebbe divergere
+	// le porte dello zoom.
+	UpdateStrategicState();
 	RecomputePitchFromZoom();
 	ApplyArmRotation();
 	RefreshViewportMetrics();
 	SetCameraPivot(CameraPivot);
-	UpdateStrategicState();
 }
 
 // --- #1778 · i limiti del pivot che conoscono il viewport (D-251) -----------------------------------
@@ -663,6 +668,7 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 		return;
 	}
 	SpringArm->TargetArmLength = After;
+	UpdateStrategicState(); // prima del pitch: da D-498 il pitch dipende dallo stato
 
 	// Il pivot si avvicina all'ancora in proporzione a quanto il braccio si e' accorciato: cosi' l'ancora
 	// resta ferma sullo schermo. Solo X/Y — la quota del piano non cambia zoomando (`#887`).
@@ -684,7 +690,6 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	ApplyArmRotation();
 	RefreshViewportMetrics();
 	SetCameraPivot(FVector(Moved.X, Moved.Y, Pivot.Z));
-	UpdateStrategicState();
 }
 
 void ARTCameraPawn::AddYawContinuous(float AxisValue)
@@ -702,7 +707,9 @@ void ARTCameraPawn::AddYawContinuous(float AxisValue)
 
 void ARTCameraPawn::AddPitch(float AxisValue)
 {
-	if (FMath::IsNearlyZero(AxisValue))
+	// D-498: in strategica l'inclinazione e' fissa e l'orbita verticale non agisce. Si esce PRIMA di toccare
+	// l'offset, che e' della tattica e deve ritrovarsi intatto al ritorno.
+	if (FMath::IsNearlyZero(AxisValue) || bStrategicView)
 	{
 		return;
 	}
@@ -730,7 +737,8 @@ void ARTCameraPawn::AddOrbit(float DeltaYaw, float DeltaPitch)
 	{
 		CameraYaw = FRotator::ClampAxis(CameraYaw + DeltaYaw * FMath::Max(YawSensitivity, 0.f));
 	}
-	if (!FMath::IsNearlyZero(DeltaPitch))
+	// D-498: in strategica solo l'orbita orizzontale; la verticale non agisce, come in `AddPitch`.
+	if (!FMath::IsNearlyZero(DeltaPitch) && !bStrategicView)
 	{
 		// 🔴 **#3630 — l'orbita scrive l'OFFSET, come `AddPitch`.** Fino al 2026-10-10 sommava direttamente su
 		// `CameraPitch`, e il primo zoom la cancellava: `RecomputePitchFromZoom` riscrive il pitch come
@@ -750,6 +758,7 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 		return;
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(SpringArm->TargetArmLength + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+	UpdateStrategicState(); // prima del pitch: da D-498 il pitch dipende dallo stato
 	// ⚠️ **Prima di scrivere il pivot**: l'inclinazione e' un ingresso di `ComputeEffectivePivotBounds`
 	// (`D-251`), quindi derivarla dopo il clamp userebbe per i limiti il pitch della distanza precedente.
 	// E' lo stesso ordine che `RecenterView` documenta per yaw e braccio.
@@ -763,7 +772,6 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 	// successivo. `ZoomTowards` non aveva il difetto perche' scrive il pivot per conto suo; questo ramo
 	// toccava solo il braccio.
 	SetCameraPivot(CameraPivot);
-	UpdateStrategicState();
 }
 
 float ARTCameraPawn::GetZoomAlpha() const
@@ -808,31 +816,17 @@ float ARTCameraPawn::GetPanDistanceScale() const
 	return FMath::Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength;
 }
 
-float ARTCameraPawn::GetStrategicPitchRampAlpha() const
-{
-	if (!SpringArm)
-	{
-		return 0.f;
-	}
-	float Enter = 0.f;
-	float Exit = 0.f;
-	GetOrderedStrategicThresholds(Enter, Exit);
-
-	// Corsa degenere (la soglia d'uscita al fondo o oltre): niente rampa, invece di dividere per zero.
-	const float Range = MaxArmLength - Exit;
-	if (Range <= KINDA_SMALL_NUMBER)
-	{
-		return 0.f;
-	}
-	return FMath::Clamp((SpringArm->TargetArmLength - Exit) / Range, 0.f, 1.f);
-}
-
 void ARTCameraPawn::RecomputePitchFromZoom()
 {
-	// #3630: la rampa strategica si somma alla derivazione dallo zoom, e vale zero dentro la corsa tattica.
-	const float Derived = FMath::Clamp(
-		DefaultPitch + PitchZoomDelta * GetZoomAlpha() + StrategicPitchDelta * GetStrategicPitchRampAlpha(),
-		MinPitch, MaxPitch);
+	if (bStrategicView)
+	{
+		// D-498: l'inclinazione e' fissa per tutto lo stato strategico. L'offset manuale non entra e non si clampa
+		// contro un derivato che qui non vale: e' della tattica, e al ritorno deve essere quello di prima.
+		CameraPitch = FMath::Clamp(StrategicPitch, MinPitch, MaxPitch);
+		return;
+	}
+
+	const float Derived = FMath::Clamp(DefaultPitch + PitchZoomDelta * GetZoomAlpha(), MinPitch, MaxPitch);
 
 	// 🔴 **L'offset si clampa PRIMA di sommarlo, contro il windup.** Clampare solo il risultato
 	// lascerebbe crescere `ManualPitchOffset` oltre il limite: la vista resterebbe ferma a fondo corsa e
