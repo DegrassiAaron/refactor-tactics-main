@@ -462,7 +462,7 @@ private:
 /**
  * `WBP_RT_EventLine` — UNA riga del registro (#3637, T8). Riceve la vista da `URTPlayerEventLogWidget::RefreshLook`.
  *
- * ⛔ **`SetLine` non e' una `UFUNCTION`**: il grafo del registro che costruiva le righe si toglie nella seduta.
+ * ⛔ **`SetLine` non e' una `UFUNCTION`**: il grafo del registro che costruiva le righe e' stato tolto nella seduta `U77`.
  */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTPlayerEventLineWidget : public UUserWidget
