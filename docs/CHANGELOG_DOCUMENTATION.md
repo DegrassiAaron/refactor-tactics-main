@@ -18,6 +18,17 @@
 
 ---
 
+## 2026-10-11 — Il muro colpito lo vede chi osservava il muro: D-502
+
+**Origine**: lo spec panel su [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681) e [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683), e la scelta dell'autore su #3681.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: il segno di uno `StructureHit` lo vede la squadra che osservava il muro, e se lo vede uno lo vede tutta la squadra. `D-500` rimanda alla nuova voce |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito passa a «deciso, non attuato» |
+
+---
+
 ## 2026-10-11 — I piani rispetto a quello attivo: D-501, e la separazione vale 2
 
 **Origine**: una sessione `/sc:brainstorm` dell'autore e la seduta `U81`. Issue [#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678) · [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) · [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), scorporate da [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775).
