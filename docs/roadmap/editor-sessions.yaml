@@ -5345,6 +5345,66 @@ sessions:
       Prossimo tentativo: uno scenario Overwatch lanciato con `-dpcvars=rt.Test.Scenario=…` e una raffica di
       catture, come in `U73`.
 
+  - id: U75
+    title: Header e obiettivo come le tavole A e D — round, fase, timer, celle della fase riprodotta e obiettivo in WBP_RT_TurnHeader
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_TurnHeader` con le porte di #3635 (`HeaderFrame`, `RoundValueText`, `RoundLimitText`, `PlanningGroup`,
+      `ResolutionGroup`, `PhaseText`, `PhaseMark`, `TimerText`, le celle `PhaseCell_*` con segni e sigle, `ObjectiveBox`,
+      `ObjectiveScoreText`, `ObjectiveThresholdText`) e senza binding di proprieta'
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_TurnHeader.uasset
+      - docs/technical/evidence/hud/u75-header-accanto-alle-tavole.png
+      - docs/technical/evidence/hud/u75-header-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3643).
+    shares_setup_with: [U72, U74]
+    verifies: []
+    issues: [3635]
+    done_when: >-
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte dell'header; `ScreenHud.RoundLimitComesFromTheFormat`
+      legge il limite dalle porte dell'istanza e non trova binding di proprieta'; entrambi rossi sull'asset di `main`;
+      a 1920x1080 Z1 e Z3 coincidono con le tavole A e D, anche in scala di grigi
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3635, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 46–87 e
+      la funzione `phases()`. Il contatore dice ROUND e non TURNO ([D-496]).
+
+      ✅ **Asset e gate.** I tre testi di prima avevano binding di proprieta': sono stati rimossi, e la rimozione toglie
+      anche i loro binding. Via anche i due grafi `Get_PhaseText_Text` e `Get_TimerText_Text`. Ora scrive tutto
+      `RefreshLook`. Per questo la seconda meta' di `RoundLimitComesFromTheFormat` non cerca piu' il binding di
+      `RoundText`. Legge «/ 12», «/ 7» e l'assenza del limite dalle porte dell'istanza del Blueprint vero, e fallisce
+      su qualunque binding rimasto. Controllo positivo: con l'asset di `main` entrambi i test sono rossi, e
+      `ActionBarDeclaresTheNamedPorts` lo e' sulle sole porte nuove. Una mutazione che anticipa il controllo dei
+      binding li nomina tutti e tre: `RoundText`, `PhaseText` e `TimerText`.
+
+      ⚠️ **Tre scelte di layout, dove la tavola chiede cio' che le porte non danno.**
+      - Il round sta fuori dai due gruppi: le porte sono una coppia sola e si vedono in entrambe le fasi. In Risoluzione
+        resta quindi alla taglia della Pianificazione. «RISOLUZIONE» gli sta accanto, non sotto come nella tavola D, e le
+        celle sono piu' strette.
+      - L'obiettivo non ha l'esagono e dice «OBIETTIVO» al posto del nome. Nessun font dell'engine ha U+2B22, e
+        un'icona passa dal catalogo ([D-031]). Nome e CONTESO restano fuori ([D-481] punto 3).
+      - La sigla di una cella spenta ha il peso e la taglia di quella accesa: il C++ ne cambia solo il colore.
+
+      🔴 **Tre correzioni trovate solo a schermo:**
+      1. **Il riquadro stava 5 px piu' in alto.** L'area di una zona alta parte da y=−1, come in `U72`: per stare a
+         y=24 la radice vuole 25.
+      2. **Il quadrato della fase era invisibile.** Il C++ lo dipinge col fondo trasparente, e con
+         `bUseBrushTransparency` acceso l'alfa 0 spegne anche il contorno. Ora e' spento sulle cornici che il C++
+         dipinge con un fondo trasparente o traslucido.
+      3. **«(a N)» stava 3–4 px sotto la linea di base del punteggio.**
+
+      ✅ **Le catture.** `L_DevSandbox` non dichiara una cella obiettivo: `ObjectiveBox` resta `Collapsed` e l'header si
+      centra. Z1 e Z3 insieme sono catturati su `L_HexArena`. Un round senza azioni non ha playback, quindi la
+      Risoluzione e' presa con una raffica su un round con Guardia e Move: PREP accesa, poi MOVE. Nessuna Blast in quel
+      round, quindi la cella BLAST accesa non e' a schermo. E' lo stesso codice delle altre tre.
+
+      🔑 **Misurato: una radice `Visible` che riempie la zona non mangia i click della mappa.** Un click dentro
+      `TopCenter`, fuori dal riquadro, pianifica il percorso (`Piano: … -> 1 waypoint`): il click non gestito risale
+      al viewport.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

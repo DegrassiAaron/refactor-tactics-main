@@ -395,9 +395,13 @@ bool FRTHudSlotsFromScenarioTest::RunTest(const FString&)
  *
  * Le due meta' contano insieme, e la seconda e' quella che il piano teme davvero:
  *  - la **funzione** decide i tre stati (`—`, `Round N/L`, `Round N`) e li fa seguire al formato;
- *  - il **binding** collega `RoundText.Text` a quella funzione. Senza, la funzione puo' essere perfetta e a
- *    schermo comparire tutt'altro — ed e' esattamente la forma del difetto trovato sul dock allo Step 7.4,
- *    dove il C++ era corretto e il grafo no.
+ *  - il **numero arriva a schermo** dalle porte dell'asset. Senza, la funzione puo' essere perfetta e a schermo
+ *    comparire tutt'altro — ed e' esattamente la forma del difetto trovato sul dock allo Step 7.4, dove il C++
+ *    era corretto e il grafo no.
+ *
+ * ⌫ *Fino alla seduta `U75` ([#3635]) la seconda meta' cercava il binding di proprieta' fra `RoundText.Text` e
+ * `GetRoundCounterText`. La tavola A spezza il contatore in due testi, `RoundValueText` e `RoundLimitText`, che
+ * scrive `RefreshLook`: il binding non c'e' piu', e la meta' legge le porte dell'istanza del Blueprint vero.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRoundLimitFromScenarioTest,
 	"RefactorTactics.ScreenHud.RoundLimitComesFromTheFormat",
@@ -457,24 +461,51 @@ bool FRTHudRoundLimitFromScenarioTest::RunTest(const FString&)
 	TestFalse(*FString::Printf(TEXT("senza limite non compare una barra (letto: '%s')"), *NoLimit),
 		NoLimit.Contains(TEXT("/")));
 
-	// --- meta' 2: e quel testo arriva a schermo -------------------------------------------------------
+	// --- meta' 2: e quel numero arriva a schermo ------------------------------------------------------
+	// Le porte dell'istanza del Blueprint vero: se l'asset non le avesse, `RefreshLook` non scriverebbe niente
+	// e la funzione resterebbe perfetta senza che nulla comparisse.
+	UTextBlock* Valore = Header->RoundValueText;
+	UTextBlock* Limite = Header->RoundLimitText;
+	if (!TestNotNull(TEXT("WBP_RT_TurnHeader ha la porta `RoundValueText`"), Valore)) { return false; }
+	if (!TestNotNull(TEXT("WBP_RT_TurnHeader ha la porta `RoundLimitText`"), Limite)) { return false; }
+
+	const auto Mostrato = [Limite]()
+	{
+		return Limite->GetVisibility() != ESlateVisibility::Collapsed && Limite->GetVisibility() != ESlateVisibility::Hidden;
+	};
+	Rules.FormatId = TEXT("Test.Format.Twelve");
+	Rules.RoundLimit = 12;
+	TM->SetMatchRules(Rules);
+	Header->RefreshLook(/*bRecheckObjective=*/ false);
+	const FString ScrittoDodici = Limite->GetText().ToString();
+	TestTrue(*FString::Printf(TEXT("col formato a 12 la porta dice «/ 12» (letto: '%s')"), *ScrittoDodici),
+		ScrittoDodici.Equals(TEXT("/ 12"), ESearchCase::CaseSensitive) && Mostrato());
+	TestFalse(TEXT("il round a schermo e' un numero, non il «—» di chi non ha contesto"),
+		Valore->GetText().ToString().Equals(TEXT("\u2014"), ESearchCase::CaseSensitive));
+
+	Rules.FormatId = TEXT("Test.Format.Seven");
+	Rules.RoundLimit = 7;
+	TM->SetMatchRules(Rules);
+	Header->RefreshLook(false);
+	const FString ScrittoSette = Limite->GetText().ToString();
+	TestTrue(*FString::Printf(TEXT("cambiato il formato, la porta segue: «/ 7» (letto: '%s')"), *ScrittoSette),
+		ScrittoSette.Equals(TEXT("/ 7"), ESearchCase::CaseSensitive) && Mostrato());
+
+	Rules.FormatId = NAME_None;
+	Rules.RoundLimit = 0;
+	TM->SetMatchRules(Rules);
+	Header->RefreshLook(false);
+	TestFalse(TEXT("senza limite la porta del limite non si vede: «/ 0» sarebbe una partita scaduta"), Mostrato());
+
+	// Il C++ e' la sola sede: un binding di proprieta' rimasto nell'asset sarebbe una seconda fonte dello stesso
+	// testo, e la prossima modifica ne aggiornerebbe una sola.
 	const UWidgetBlueprintGeneratedClass* AsWidgetClass = Cast<UWidgetBlueprintGeneratedClass>(HeaderClass);
 	if (!TestNotNull(TEXT("la classe del Blueprint si legge"), AsWidgetClass)) { return false; }
-
-	bool bRoundTextIsBound = false;
 	for (const FDelegateRuntimeBinding& Binding : AsWidgetClass->Bindings)
 	{
-		if (Binding.ObjectName == TEXT("RoundText")
-			&& Binding.FunctionName == TEXT("GetRoundCounterText"))
-		{
-			bRoundTextIsBound = true;
-			break;
-		}
+		AddError(FString::Printf(TEXT("WBP_RT_TurnHeader ha ancora un binding di proprieta': %s.%s <- %s"),
+			*Binding.ObjectName, *Binding.PropertyName.ToString(), *Binding.FunctionName.ToString()));
 	}
-	TestTrue(
-		TEXT("`RoundText.Text` e' legato a `GetRoundCounterText`: senza il binding la funzione e' perfetta ")
-		TEXT("e a schermo compare altro"),
-		bRoundTextIsBound);
 
 	return true;
 }
