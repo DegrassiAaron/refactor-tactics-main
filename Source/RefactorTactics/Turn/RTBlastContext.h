@@ -277,7 +277,7 @@ struct FRTBlastContext
 	 * Intenti che un Interrupt efficace ha CANCELLATO (`ApplyInterrupts`), l'insieme complementare a
 	 * `DegradedIntents` (#3549).
 	 *
-	 * 🔑 **Vive qui e non nel pass perche' ha un secondo lettore**: `EmitAttackIntentActivations`, che gira
+	 * 🔑 **Vive qui e non nel pass perche' ha un secondo lettore**: `EmitAttackIntentActivation` (`EmitAttackIntentActivations` fino a `#3582`), che gira
 	 * molto piu' tardi. `ApplyInterrupts` toglie gli interrotti da `Plan.Hits`, `Plan.Footprints` e dalle
 	 * porte, NON da `Intents`: senza questo trasporto un intento cancellato si attiverebbe.
 	 * ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente.

@@ -8,7 +8,7 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2, intenti d'attacco: si emettono nell'ordine canonico del Blast (ADR-0003 §3), con l'impronta subito dopo la propria attivazione |
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2, intenti d'attacco: si emettono nell'ordine canonico del Blast (ADR-0003 §3), con l'impronta subito dopo la propria attivazione; il `Ruling` sull'ordine fra le sorgenti dichiara il residuo di cure, Cleanse e `ModifyArc` ([#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683)) |
 
 ---
 

@@ -474,7 +474,8 @@ bool FRTTurnPredictiveWithoutCellActivatesTest::RunTest(const FString&)
  * sono e non si attivano.
  * ⛔ **Controllo positivo**: una cura in piu' produce una quarta attivazione col suo `ActionId`. Senza, «tre»
  * sarebbe vero anche per un produttore che emette un numero fisso.
- * ✅ Validato per mutazione: togliere `EmitAttackIntentActivations(Ctx);` fa cadere il conteggio del Blast.
+ * ✅ Validato per mutazione: togliere `EmitAttackIntentActivation(Ctx, k);` (fino a `#3582` era il ciclo
+ * `EmitAttackIntentActivations(Ctx);`) fa cadere il conteggio del Blast.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnAbilityActivatedOncePerIntentTest,
 	"RefactorTactics.Turn.AbilityActivatedIsEmittedOncePerIntent",
@@ -757,10 +758,10 @@ bool FRTTurnChargeActivatesInDashNotInBlastTest::RunTest(const FString&)
 
 /**
  * Interrotto: nessuna attivazione. Bloccato dalla linea di tiro: SI attiva (`Ruling`: il gesto, non l'esito).
- * Morto prima del Blast: nessuna (guardia `IsAlive()` di `ApplyInterrupts` e di `EmitAttackIntentActivations`). Fuori portata: nessuna,
+ * Morto prima del Blast: nessuna (guardia `IsAlive()` di `ApplyInterrupts` e di `EmitAttackIntentActivation`). Fuori portata: nessuna,
  * perche' `Fallback Cancelled` lo toglie prima che diventi un intento del Blast.
  * ✅ Validato per mutazione: tenere `InterruptedIntents` locale in `ApplyInterrupts` fa cadere il primo ramo;
- * togliere la guardia `IsAlive()` da `EmitAttackIntentActivations` fa cadere il terzo.
+ * togliere la guardia `IsAlive()` da `EmitAttackIntentActivation` fa cadere il terzo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnInterruptedOrDeadDoesNotActivateTest,
 	"RefactorTactics.Turn.InterruptedOrDeadIntentDoesNotActivate",
@@ -917,7 +918,8 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
  * davvero senza `ActionId`; «zero attivazioni» da solo sarebbe vero anche se l'intento non esistesse.
  * ✅ Validato per mutazione: togliere il `return` della guardia `ActionId.IsNone()` in `EmitAbilityActivated`
  * emette l'attivazione con l'azione vuota, e il conteggio cade. ⏱️ *Fino alla review della PR #3561 la mutazione
- * passava dall'`ensureMsgf` dell'helper, e la guardia muta stava in `EmitAttackIntentActivations`.*
+ * passava dall'`ensureMsgf` dell'helper, e la guardia muta stava in `EmitAttackIntentActivations`, oggi
+ * `EmitAttackIntentActivation` (`#3582`).*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLegacyIntentWithoutActionIdTest,
 	"RefactorTactics.Turn.LegacyIntentWithoutActionIdDoesNotActivate",
@@ -1181,6 +1183,15 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 			Muiren->PlannedAbilityIndex != INDEX_NONE && Branth->PlannedDashAbility != INDEX_NONE)) { return false; }
 
 		TM->LockInAndResolve();
+		// ⛔ La premessa che la parte poggia: l'impatto della carica ha COLPITO nel Blast (review di #3582). Senza un
+		// colpo, l'atto potrebbe essere la sola impronta, e l'ordine si misurerebbe su un atto che non e' un attacco.
+		bool bImpattoNelBlast = false;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			bImpattoNelBlast |= Ev.Type == ERTResolvedEventType::Attack && Ev.Phase == ERTMatchPhase::Blast
+				&& Ev.SourceStableUnitId == Branth->StableUnitId && Ev.ActionId == FName(TEXT("Hero.Branth.Ram"));
+		}
+		if (!TestTrue(TEXT("⛔ premessa (b): l'impatto della carica ha colpito nel Blast"), bImpattoNelBlast)) { return false; }
 		const int32 Impatto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Branth->StableUnitId, TEXT("Hero.Branth.Ram"));
 		const int32 Getto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Muiren->StableUnitId, TEXT("Hero.Muiren.PressureJet"));
 		if (!TestTrue(FString::Printf(TEXT("⛔ premessa (b): l'impatto e il getto sono nella sequenza (%d, %d)"), Impatto, Getto),
