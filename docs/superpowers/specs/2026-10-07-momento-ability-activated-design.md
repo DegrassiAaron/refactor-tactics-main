@@ -144,6 +144,13 @@ la accetta:
    di portata, quindi un arco fuori portata (`Fallback Cancelled`, `:678-700`) **non** si attiva;
 4. **intenti d'attacco** — in `ResolveCombatPasses`, subito dopo `ApplyEnvironmentChanges` e prima del ciclo
    delle impronte (`:5487-5503`), iterando `Ctx.Intents` in ordine di `IntentIndex` con:
+   ➕ **Emendato da [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582)**: l'iterazione segue l'**ordine canonico del Blast** (ADR-0003 §3:
+   priorita' crescente, poi `ActionId`, attaccante e intento — `PrecedeNelBlast`, lo stesso confronto del ciclo del
+   danno), e per ogni intento l'**impronta esce subito dopo la sua attivazione**. Il playback ordina gli atti sulla
+   loro attivazione (decisione (d)) o, se non ne hanno nel Blast, sulla prima apparizione, che e' l'impronta: in
+   ordine d'intento raccontava il Blast per chi era nato prima, e la combo acqua + elettricita' si vedeva al
+   contrario (`U68`). D3 resta: l'attivazione precede impronta e colpi dello stesso intento. Le condizioni qui sotto
+   non cambiano.
    - `IntentAbilityIndex != INDEX_NONE` (esclude gli impatti di carica, già attivati in Dash);
    - ➕ rev. `!Ctx.InterruptedIntents.Contains(k)`: `InterruptedIntents` **sale in `FRTBlastContext`**
      accanto a `DegradedIntents` (`RTBlastContext.h:274`), riempito da `ApplyInterrupts` invece del `TSet`
