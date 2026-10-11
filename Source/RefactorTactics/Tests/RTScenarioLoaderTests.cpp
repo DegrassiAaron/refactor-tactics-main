@@ -2815,6 +2815,12 @@ bool FRTScenarioLoaderPlayerReactionWindowsTest::RunTest(const FString&)
  * decisione, `requires` del turno, `expect`, elemento d'array — e chiede che il caricamento fallisca nominando la
  * chiave. ⚠️ Ogni caso cambia UNA cosa rispetto a una base che si carica: e' il controllo positivo in testa, senza il
  * quale un loader che rifiuta tutto passerebbe la tabella.
+ *
+ * 🔴 **I casi che contano sono quelli che il loader di prima ACCETTAVA**, e la prima stesura non li sceglieva cosi'.
+ * Misurato rimettendo le letture che convertono: `"freeRun": "yes"` restava rifiutato, ma perche' diventava un
+ * free-run che falliva altrove, e il messaggio nominava `freeRun` per caso. Un caso rifiutato per un'altra ragione
+ * prova il messaggio, non il lettore. I casi `«accettato prima»` qui sotto muoiono tutti con la mutazione; gli altri
+ * restano come controllo del messaggio.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderScalarTypesTest,
 	"RefactorTactics.Scenario.LoaderRejectsMistypedScalarKeys",
@@ -2860,13 +2866,18 @@ bool FRTScenarioLoaderScalarTypesTest::RunTest(const FString&)
 	};
 	const TArray<FCaso> Casi = {
 		// radice
-		{ TEXT("freeRun stringa"), Json(TEXT(", \"version\": 4, \"freeRun\": \"yes\""), Unita, Turno, Expect), TEXT("freeRun") },
+		{ TEXT("freeRun stringa (accettato prima: \"false\" era falso)"),
+			Json(TEXT(", \"version\": 2, \"freeRun\": \"false\""), Unita, Turno, Expect), TEXT("freeRun") },
+		{ TEXT("repeatCount stringa (accettato prima: \"1\" era 1)"),
+			Json(TEXT(", \"version\": 2, \"repeatCount\": \"1\""), Unita, Turno, Expect), TEXT("repeatCount") },
+		{ TEXT("previewUnit numero (accettato prima: diventava \"42\")"),
+			Json(TEXT(", \"version\": 2, \"previewUnit\": 42"), Unita, Turno, Expect), TEXT("previewUnit") },
 		{ TEXT("maxTurns stringa"), Json(TEXT(", \"version\": 4, \"maxTurns\": \"4O\""), Unita, Turno, Expect), TEXT("maxTurns") },
 		{ TEXT("version stringa"), Json(TEXT(", \"version\": \"2\""), Unita, Turno, Expect), TEXT("version") },
 		{ TEXT("seed decimale"), Json(TEXT(", \"version\": 2, \"seed\": 2.5"), Unita, Turno, Expect), TEXT("seed") },
 		{ TEXT("seed null"), Json(TEXT(", \"version\": 2, \"seed\": null"), Unita, Turno, Expect), TEXT("seed") },
-		{ TEXT("expectSameAcrossVariants numero"),
-			Json(TEXT(", \"version\": 2, \"expectSameAcrossVariants\": 1"), Unita, Turno, Expect), TEXT("expectSameAcrossVariants") },
+		{ TEXT("expectSameAcrossVariants numero (accettato prima: 0 era falso)"),
+			Json(TEXT(", \"version\": 2, \"expectSameAcrossVariants\": 0"), Unita, Turno, Expect), TEXT("expectSameAcrossVariants") },
 		{ TEXT("tag numero"), Json(TEXT(", \"version\": 2, \"tags\": [42]"), Unita, Turno, Expect), TEXT("tags") },
 		// cella
 		{ TEXT("blocksMovement stringa"),
