@@ -654,6 +654,13 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   gestisce risale al viewport: dentro `TopCenter`, fuori dal riquadro, pianifica il percorso.
 - 🔑 **Esagoni no.** Nessun font dell'engine ha U+2B21–U+2B23: lo dice la `cmap` di `Roboto-*` e `DroidSansFallback`.
   Un'icona d'obiettivo passa dal catalogo ([D-031](../../decisions/RT_PDR_00_Decision_Log.md)).
+- 🔑 **I glifi geometrici sono circa 0,6 em.** Per un triangolo di 16–20 px il ▲ vuole 24–27 (in `U72` a 32 per il badge).
+  Il segno («!», «✕», «i») va centrato col glifo nella scatola naturale del glifo. Un `SizeBox` stretto attorno ai due
+  sposta il glifo in basso e il segno ne esce (`U76`).
+- 🔴 **Un default di classe scritto sul CDO non arriva alle istanze già caricate** (`U76`). `CardClass` scritto sul CDO
+  di `WBP_RT_TeamRoster` lasciava nullo il roster dentro il TacticalHUD in memoria, e il roster usciva vuoto. ⛔ **Non
+  salvare il contenitore in quello stato**: il nullo diventerebbe un override scritto. Chiudi l'Editor senza salvarlo e
+  riaprilo. Lo controlla `RosterAndPanelWearTheirClasses`.
 
 ## 7-quinquies. Roster, carta e pannello: le porte della tavola ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636))
 

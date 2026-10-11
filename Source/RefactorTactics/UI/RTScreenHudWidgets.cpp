@@ -2140,9 +2140,9 @@ void URTTeamRosterWidget::RefreshCards(bool bRecountReactions)
 
 	// Una carta per voce, nell'ordine dell'elenco. Si tengono le carte che ci sono: ricostruirle a ogni tick
 	// spezzerebbe hover e click, come per i bottoni della finestra di reazione.
-	const auto Allinea = [this](UPanelWidget& Box, TArray<TObjectPtr<URTUnitCardWidget>>& Carte, int32 Voci)
+	const auto Allinea = [this](UPanelWidget& Box, TArray<TObjectPtr<URTUnitCardWidget>>& Carte, int32 NumVoci)
 	{
-		while (Carte.Num() > Voci)
+		while (Carte.Num() > NumVoci)
 		{
 			if (URTUnitCardWidget* Ultima = Carte.Last())
 			{
@@ -2150,7 +2150,7 @@ void URTTeamRosterWidget::RefreshCards(bool bRecountReactions)
 			}
 			Carte.Pop();
 		}
-		while (Carte.Num() < Voci)
+		while (Carte.Num() < NumVoci)
 		{
 			URTUnitCardWidget* Carta = RTCreateChild<URTUnitCardWidget>(*this, CardClass);
 			if (!Carta)
