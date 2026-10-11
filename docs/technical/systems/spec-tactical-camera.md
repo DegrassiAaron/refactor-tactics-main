@@ -335,8 +335,28 @@ continua a esistere anche lì — non è la vista a definirlo.
 >     all'inizio di un'animazione di una fase futura, alla fine di una passata. Riposarlo su `Cell` lo farebbe
 >     saltare (`HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan`).
 >
-> ⏳ **Restano gli indicatori sopra/sotto** ([#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775)). Il filtro del velo va attraversato **prima** di
-> decidere cosa disegnare, non dopo.
+> ⌫ *Fino al 2026-10-12 qui restavano «gli indicatori sopra/sotto» di [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775). [D-501](../../decisions/RT_PDR_00_Decision_Log.md) li ha superati:
+> gli altri piani non si segnalano, si **mostrano**, trattati rispetto a quello attivo.*
+>
+> 🎨 **I piani rispetto a quello attivo** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679)), in tattica e in strategica. I piani sopra sono traslucidi.
+> I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni e il bordo delle
+> celle marcato. Le unità e i fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
+> - 🔑 **L'ingresso è il piano del controller.** `ARTPlayerController` lo manda alla board con
+>   `ARTHexMapActor::SyncActiveLayerPresentation`, in `SetActiveLayer` e a ogni fotogramma; la board riscrive solo se
+>   il piano, o una leva, è cambiato. ⛔ `ARTHexMapActor::ActiveLayer` resta dell'editor mode.
+> - 🔑 **La tecnica: tre canali per istanza, neutri a zero, applicati da `M_HexCell`** (`RTLayerPresentation.h`). I
+>   canali 0..2 restano il colore e il velo. Nei canali 3..5 ci sono trasparenza (`OpacityMask` a dithering, materiale
+>   `Masked`), desaturazione ed esposizione in stop. Si attenua l'**uscita** del materiale, come chiede D-501 (3) per i
+>   terreni con texture. Il dithering non ordina la traslucenza e lascia profondità e ombre come sono.
+> - 🔴 **Il velo viene prima, per costruzione**: il velo nasconde azzerando la scala, il trattamento scrive solo i suoi
+>   canali, e una cella mai vista resta non disegnata su qualunque piano (`HexMap.LayerTreatmentLeavesTheVeilAlone`).
+> - **Il picking non cambia**: la collisione è quella di prima, e un colpo su un piano traslucido sopra l'attivo si
+>   scarta come ogni colpo fuori dal piano attivo (D-255).
+> - ⚠️ **Le famiglie senza dati per istanza non ricevono il trattamento**: `Relief`, `Blockers`, `StructuralBodies`,
+>   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
+> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,5 per piano),
+>   `rt.Map.Layers.LowerDarkening` (0,35 per piano) e `rt.Map.Layers.ActiveBorderStops` (+6). Negativo vuol dire il
+>   default. ⚠️ **I default sono provvisori**: li ha scelti la PR, di notte, e l'autore li sceglie in PIE.
 
 ---
 
