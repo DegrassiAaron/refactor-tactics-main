@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-11 — La seduta `U79` e D-499: in iso la camera ruota di 60°
+
+**Origine**: i verdetti dell'autore sulle catture della seduta `U79`, e la sua decisione sulla rotazione. Issue [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) · [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-499; annotazioni 🔄 su D-142 e D-498 |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC`, `-PIANI` e `-RICORDO` rigiudicate in isometrica; il criterio della rotazione dice 60° |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U79`, con le sue trappole |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: la rotazione in strategica è a 60° |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | `Q`/`E` a 60° nella scena iso |
+
+---
+
 ## 2026-10-11 — La vista strategica è un'isometrica dimetrica: D-498 nel codice
 
 **Origine**: [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) (CAM-05c), che attua [D-498](decisions/RT_PDR_00_Decision_Log.md): ortografica, pitch −30° per stato, orbita verticale inerte, rotazione a 45°. Si ritirano la rampa di #3630 e la leva di #3631, e `OrthoWidthForArm` smette di inquadrare 1,78× la prospettica.

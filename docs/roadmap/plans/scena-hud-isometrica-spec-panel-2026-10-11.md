@@ -86,7 +86,7 @@ Due giri di domande. Il secondo nasce dalla review di [#3663](https://github.com
 | Che cosa si conserva nel rettangolo | **L'estensione**: si vede la stessa porzione di mondo in verticale, tutto più piccolo | D-497 (4) |
 | La finestra di reazione | **Resta un'esenzione dichiarata** | D-497 (5) |
 | L'angolo dell'isometrica | **Dimetrico 2:1**, pitch −30°, proiezione ortografica | [D-498](../../decisions/RT_PDR_00_Decision_Log.md) (1) |
-| La rotazione in strategica | **45°, come in tattica** (D-142 vale); pitch fisso e orbita verticale inerte | D-498 (4) |
+| La rotazione in strategica | **45°, come in tattica** (D-142 vale); pitch fisso e orbita verticale inerte. 🔄 Dal 2026-10-11 è 60° per [D-499](../../decisions/RT_PDR_00_Decision_Log.md), deciso guardando l'isometrica nella seduta `U79` | D-498 (4) |
 
 ### 4.1 La seconda review
 
