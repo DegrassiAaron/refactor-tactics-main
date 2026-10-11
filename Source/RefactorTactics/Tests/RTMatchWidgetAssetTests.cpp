@@ -29,6 +29,7 @@
 #include "Components/Border.h"
 #include "Components/ProgressBar.h" // la barra del countdown della finestra di reazione (#3634)
 #include "Components/PanelSlot.h"
+#include "Components/PanelWidget.h" // CardsBox, PlanWarningsBox: le porte sono pannelli (#3636)
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudZoneWidget.h"
@@ -48,6 +49,8 @@ namespace
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
 	const TCHAR* const ActionTooltipPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionTooltip.WBP_RT_ActionTooltip_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
+	// La voce di un avviso di piano nel pannello (#3636): entra con l'asset, dalla seduta `U76`.
+	const TCHAR* const PlanWarningEntryPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanWarningEntry.WBP_RT_PlanWarningEntry_C");
 	// Conferma e Annulla in `TopRight` ([D-458], #3471): entra con l'asset, dalla seduta `U64`.
 	const TCHAR* const PlanCommitPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanCommit.WBP_RT_PlanCommit_C");
 	// UNA zona: il contenitore che porta `ZoneId`, il bordo da cantiere e il `NamedSlot Content`.
@@ -339,9 +342,8 @@ bool FRTActionSlotHasIconSurfaceTest::RunTest(const FString&)
 /**
  * Ogni widget di Match che ha una classe base RT la dichiara davvero.
  *
- * ⚠️ **`UnitCard` non e' ancora qui, e la classe c'e'**: `URTUnitCardWidget` esiste da #3636, ma l'asset si
- * riparenta nella seduta di stile. La riga `{ UnitCardPath, TEXT("UnitCard"), URTUnitCardWidget::StaticClass() }`
- * entra nella stessa PR dell'asset: prima sarebbe rossa.
+ * ⌫ *Fino alla seduta `U76` `UnitCard` non era qui: `WBP_RT_UnitCard` derivava da `UUserWidget` nudo. Riparentata su
+ * `URTUnitCardWidget` (#3636), entra insieme alla voce d'avviso nuova.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchWidgetsDeriveFromCppBaseTest,
 	"RefactorTactics.ScreenHud.MatchWidgetsDeriveFromCppBase",
@@ -368,6 +370,8 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		                                               URTFastDecisionOptionWidget::StaticClass() },
 		{ EventLogPath,     TEXT("EventLog"),          URTPlayerEventLogWidget::StaticClass() },
 		{ PlanCommitPath,   TEXT("PlanCommit"),        URTPlanCommitWidget::StaticClass() },
+		{ UnitCardPath,     TEXT("UnitCard"),          URTUnitCardWidget::StaticClass() },
+		{ PlanWarningEntryPath, TEXT("PlanWarningEntry"), URTPlanWarningEntryWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -1526,7 +1530,8 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 
 /**
  * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489). Dalle
- * sedute T8 ci sono anche `Conferma` (#3633), la finestra di reazione e la sua opzione (#3634) e l'header (#3635).
+ * sedute T8 ci sono anche `Conferma` (#3633), la finestra di reazione e la sua opzione (#3634), l'header (#3635), e
+ * carta, roster, pannello e voce d'avviso (#3636).
  *
  * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
  * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non
@@ -1639,6 +1644,42 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		Header.Add({ FName(*FString::Printf(TEXT("PhaseCellText_%s"), Fase)), UTextBlock::StaticClass() });
 	}
 
+	// Carta, roster, pannello e voce d'avviso come la tavola (#3636, seduta U76).
+	const TArray<FPorta> Carta = {
+		{ TEXT("CardFrame"), UWidget::StaticClass() },
+		{ TEXT("TeamDot"), UBorder::StaticClass() },
+		{ TEXT("NameText"), UTextBlock::StaticClass() },
+		{ TEXT("ReactionChip"), UWidget::StaticClass() },
+		{ TEXT("HealthBar"), UProgressBar::StaticClass() },
+		{ TEXT("HealthText"), UTextBlock::StaticClass() },
+		{ TEXT("ShieldText"), UTextBlock::StaticClass() },
+	};
+	const TArray<FPorta> Roster = {
+		{ TEXT("CardsBox"), UPanelWidget::StaticClass() },
+		{ TEXT("OpposingCardsBox"), UPanelWidget::StaticClass() },
+	};
+	TArray<FPorta> Pannello = {
+		{ TEXT("SubjectCard"), URTUnitCardWidget::StaticClass() },
+		{ TEXT("PlanChipsBox"), UWidget::StaticClass() },
+		{ TEXT("PlanWarningsBox"), UPanelWidget::StaticClass() },
+	};
+	for (const TCHAR* Chip : { TEXT("Main"), TEXT("Movement"), TEXT("Reaction") })
+	{
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipFrame"), Chip)), UBorder::StaticClass() });
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipStrip"), Chip)), UBorder::StaticClass() });
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipValueText"), Chip)), UTextBlock::StaticClass() });
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipAlert"), Chip)), UWidget::StaticClass() });
+	}
+	const TArray<FPorta> VoceAvviso = {
+		{ TEXT("EntryFrame"), UBorder::StaticClass() },
+		{ TEXT("LevelGlyphText"), UTextBlock::StaticClass() },
+		{ TEXT("LevelMarkText"), UTextBlock::StaticClass() },
+		{ TEXT("LevelText"), UTextBlock::StaticClass() },
+		{ TEXT("WhatText"), UTextBlock::StaticClass() },
+		{ TEXT("WhyText"), UTextBlock::StaticClass() },
+		{ TEXT("CostText"), UTextBlock::StaticClass() },
+	};
+
 	struct FAsset
 	{
 		const TCHAR* Path;
@@ -1652,6 +1693,10 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ FastDecisionPath, TEXT("WBP_RT_FastDecision"), &Finestra },
 		{ FastDecisionOptionPath, TEXT("WBP_RT_FastDecisionOption"), &Opzione },
 		{ TurnHeaderPath, TEXT("WBP_RT_TurnHeader"), &Header },
+		{ UnitCardPath, TEXT("WBP_RT_UnitCard"), &Carta },
+		{ TeamRosterPath, TEXT("WBP_RT_TeamRoster"), &Roster },
+		{ SelectedUnitPath, TEXT("WBP_RT_SelectedUnitPanel"), &Pannello },
+		{ PlanWarningEntryPath, TEXT("WBP_RT_PlanWarningEntry"), &VoceAvviso },
 	};
 
 	for (const FAsset& A : Asset)
@@ -1740,7 +1785,9 @@ bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
 		return false;
 	}
 
-	const ERTHudZone Arrivate[] = { ERTHudZone::Bottom, ERTHudZone::TopRight };
+	// `TopCenter` dalla seduta `U75` (#3635), che l'aveva dimenticata; `TopLeft` e `MiddleLeft` dalla `U76` (#3636).
+	const ERTHudZone Arrivate[] = { ERTHudZone::Bottom, ERTHudZone::TopRight, ERTHudZone::TopCenter,
+		ERTHudZone::TopLeft, ERTHudZone::MiddleLeft };
 	for (const ERTHudZone Zona : Arrivate)
 	{
 		const FString Nome = URTHudZoneWidget::ZoneName(Zona);
@@ -1757,6 +1804,65 @@ bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
 		});
 		TestEqual(*FString::Printf(TEXT("premessa: l'albero ha una zona %s"), *Nome), Trovate, 1);
 	}
+	return true;
+}
+
+/**
+ * 🔑 **IL ROSTER E IL PANNELLO PORTANO LE CLASSI CHE IL C++ ISTANZIA, ANCHE DENTRO `WBP_RT_TacticalHUD`** (#3636, seduta `U76`).
+ *
+ * 🔴 **La seconda meta' e' quella che conta.** I default si scrivono sul CDO del Blueprint, ma il roster e il pannello che
+ * si vedono sono le istanze dell'albero del TacticalHUD. Nella seduta, un TacticalHUD caricato PRIMA del cambio di default
+ * teneva in memoria `CardClass` nullo, e il roster usciva vuoto. Salvarlo in quello stato avrebbe scritto il nullo come
+ * override, per sempre. Questo test vede l'override SALVATO: in un processo fresco l'istanza deve risolvere alla stessa
+ * classe del CDO. ⚠️ Lo stato solo in memoria non si riproduce qui, e si vede solo a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterAndPanelWearTheirClassesTest,
+	"RefactorTactics.ScreenHud.RosterAndPanelWearTheirClasses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTRosterAndPanelWearTheirClassesTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Carta = RTWidgetAssetTest::LoadWidgetClass(UnitCardPath);
+	UWidgetBlueprintGeneratedClass* Voce = RTWidgetAssetTest::LoadWidgetClass(PlanWarningEntryPath);
+	UWidgetBlueprintGeneratedClass* Roster = RTWidgetAssetTest::LoadWidgetClass(TeamRosterPath);
+	UWidgetBlueprintGeneratedClass* Pannello = RTWidgetAssetTest::LoadWidgetClass(SelectedUnitPath);
+	if (!TestNotNull(TEXT("la carta si carica"), Carta) || !TestNotNull(TEXT("la voce d'avviso si carica"), Voce)
+		|| !TestNotNull(TEXT("il roster si carica"), Roster) || !TestNotNull(TEXT("il pannello si carica"), Pannello))
+	{
+		return false;
+	}
+
+	// --- 1. I default delle due classi -----------------------------------------------------------------------------------
+	TestTrue(TEXT("1: i default di WBP_RT_TeamRoster puntano a WBP_RT_UnitCard"),
+		Roster->GetDefaultObject<URTTeamRosterWidget>()->CardClass.Get() == Carta);
+	TestTrue(TEXT("1: i default di WBP_RT_SelectedUnitPanel puntano a WBP_RT_PlanWarningEntry"),
+		Pannello->GetDefaultObject<URTSelectedUnitPanelWidget>()->PlanWarningEntryClass.Get() == Voce);
+
+	// --- 2. Le istanze dell'albero del TacticalHUD, che sono quelle a schermo ---------------------------------------------------
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+	int32 Rosters = 0;
+	int32 Pannelli = 0;
+	Tree->ForEachWidget([&](UWidget* Widget)
+	{
+		if (const URTTeamRosterWidget* R = Cast<URTTeamRosterWidget>(Widget))
+		{
+			++Rosters;
+			TestTrue(*FString::Printf(TEXT("2: il roster '%s' del TacticalHUD costruisce WBP_RT_UnitCard"), *R->GetName()),
+				R->CardClass.Get() == Carta);
+		}
+		if (const URTSelectedUnitPanelWidget* P = Cast<URTSelectedUnitPanelWidget>(Widget))
+		{
+			++Pannelli;
+			TestTrue(*FString::Printf(TEXT("2: il pannello '%s' del TacticalHUD costruisce WBP_RT_PlanWarningEntry"), *P->GetName()),
+				P->PlanWarningEntryClass.Get() == Voce);
+		}
+	});
+	TestEqual(TEXT("2: premessa: il TacticalHUD monta un roster"), Rosters, 1);
+	TestEqual(TEXT("2: premessa: il TacticalHUD monta un pannello"), Pannelli, 1);
 	return true;
 }
 

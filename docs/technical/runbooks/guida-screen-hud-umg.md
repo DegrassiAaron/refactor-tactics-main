@@ -132,10 +132,10 @@ su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inq
 
 | Zona | Anchors Min → Max | Contiene oggi | Owner del comportamento |
 |---|---|---|---|
-| `Zone_TopLeft` | (0.0, 0.0) → (0.2, 0.2) | `WBP_RT_TeamRosterLeft` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
+| `Zone_TopLeft` | (0.0, 0.0) → (0.2, 0.2) | `WBP_RT_TeamRosterLeft`; la resa della tavola dalla seduta `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
 | `Zone_TopCenter` | (0.2, 0.0) → (0.8, 0.2) | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
-| `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `WBP_RT_UnitCard`) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
+| `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
 | `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
 | `Zone_Bottom` | (0.0, 0.8) → (1.0, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
@@ -633,7 +633,7 @@ scritto in `RTMatchWidgetAssetTests.cpp`. Ciò che il grafo fa davvero si guarda
 
 ## 7-quater. Le cornici che dipinge il C++, e i glifi
 
-Regole misurate nelle sedute `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) su `WBP_RT_PlanCommit` e `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) su `WBP_RT_TurnHeader`.
+Regole misurate nelle sedute `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) su `WBP_RT_PlanCommit`, `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) su `WBP_RT_TurnHeader` e `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) su roster e pannello.
 Nessun gate sull'albero le vede: si scoprono solo a schermo.
 
 - 🔴 **Una cornice che il C++ dipinge ha la tinta del brush BIANCA.** `RTPaintFrame` scrive il fondo in `BrushColor`, e
@@ -654,6 +654,14 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   gestisce risale al viewport: dentro `TopCenter`, fuori dal riquadro, pianifica il percorso.
 - 🔑 **Esagoni no.** Nessun font dell'engine ha U+2B21–U+2B23: lo dice la `cmap` di `Roboto-*` e `DroidSansFallback`.
   Un'icona d'obiettivo passa dal catalogo ([D-031](../../decisions/RT_PDR_00_Decision_Log.md)).
+- 🔑 **I glifi geometrici sono circa 0,6 em.** Per un triangolo di 16–20 px il ▲ vuole 24–27 (in `U72` a 32 per il badge).
+  Il segno («!», «✕», «i») va centrato col glifo nella scatola naturale del glifo. Un `SizeBox` stretto attorno ai due
+  sposta il glifo in basso e il segno ne esce (`U76`).
+- 🔴 **Un default di classe scritto sul CDO non arriva alle istanze già caricate** (`U76`). `CardClass` scritto sul CDO
+  di `WBP_RT_TeamRoster` lasciava nullo il roster dentro il TacticalHUD in memoria, e il roster usciva vuoto. ⛔ **Non
+  salvare il contenitore in quello stato**: il nullo diventerebbe un override scritto. Chiudi l'Editor senza salvarlo e
+  riaprilo. `RosterAndPanelWearTheirClasses` vede l'override nullo una volta salvato. Lo stato in memoria non si
+  riproduce in un processo fresco, e lo si vede solo a schermo.
 
 ## 7-quinquies. Roster, carta e pannello: le porte della tavola ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636))
 
@@ -662,7 +670,7 @@ Tre cose cambiano forma, non solo colore:
 - il roster costruisce le carte in C++;
 - il pannello scrive chip e avvisi dalle sue porte.
 
-Il grafo che oggi costruisce le carte **si toglie nella seduta**, insieme al riparentamento di `WBP_RT_UnitCard`.
+Il grafo che costruiva le carte **è stato tolto nella seduta `U76`**, insieme al riparentamento di `WBP_RT_UnitCard`.
 
 ### `WBP_RT_UnitCard` → `URTUnitCardWidget`
 

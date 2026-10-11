@@ -5405,6 +5405,80 @@ sessions:
       `TopCenter`, fuori dal riquadro, pianifica il percorso (`Piano: … -> 1 waypoint`): il click non gestito risale
       al viewport.
 
+  - id: U76
+    title: Roster, carta, pannello e avvisi come le tavole A, B ed E — WBP_RT_UnitCard riparentata, chip e voci in C++
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_UnitCard` riparentata su `URTUnitCardWidget`; `WBP_RT_TeamRoster` con `CardsBox`, `OpposingCardsBox` e
+      `CardClass`; `WBP_RT_SelectedUnitPanel` con `SubjectCard`, i tre chip, `PlanWarningsBox` e `PlanWarningEntryClass`;
+      il nuovo `WBP_RT_PlanWarningEntry`; nel TacticalHUD il bordo da cantiere spento su `TopLeft`, `TopCenter` e
+      `MiddleLeft`. I grafi che costruivano e scrivevano le carte sono stati tolti
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_UnitCard.uasset
+      - Content/RT/UI/Match/WBP_RT_TeamRoster.uasset
+      - Content/RT/UI/Match/WBP_RT_SelectedUnitPanel.uasset
+      - Content/RT/UI/Match/WBP_RT_PlanWarningEntry.uasset
+      - Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
+      - docs/technical/evidence/hud/u76-roster-e-pannello-accanto-alle-tavole.png
+      - docs/technical/evidence/hud/u76-roster-e-pannello-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3644, #3656).
+    shares_setup_with: [U72, U75]
+    verifies: []
+    issues: [3636]
+    done_when: >-
+      `ActionBarDeclaresTheNamedPorts`, `MatchWidgetsDeriveFromCppBase`, `RosterAndPanelWearTheirClasses` e
+      `ZonesWithTheirContentHideTheBlockout` sono verdi in un processo fresco e rossi sugli asset di `main`; a 1920x1080
+      Z2, Z4 e Z8 coincidono con le tavole A, B ed E, anche in scala di grigi, salvo gli scarti dichiarati qui sotto
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3636, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 22–44
+      (roster), 159–212 (avvisi e pannello) e la funzione `chips()`.
+
+      ✅ **Asset, grafi e gate.**
+      - `WBP_RT_UnitCard` e' riparentata. Via la variabile `Card`, i due grafi `Get_*` e i testi che li usavano.
+      - Il roster non ha piu' i due cicli di `CreateWidget` (alleate e avversarie) ne' la variabile `CardWidgets`. Le
+        carte le costruisce `RefreshCards` da `CardClass`.
+      - Il pannello non ha piu' i tre testi con binding, i loro grafi e il nodo che scriveva la carta a ogni tick.
+        Resta il binding di visibilita' della radice.
+      - Gate: le porte dei quattro asset, le righe `UnitCard` e `PlanWarningEntry` in `MatchWidgetsDeriveFromCppBase`,
+        il test nuovo `RosterAndPanelWearTheirClasses`, e tre zone in piu' in `ZonesWithTheirContentHideTheBlockout`.
+        `TopCenter` era stata dimenticata in `U75`. Controllo positivo: con gli asset di `main` i quattro sono rossi.
+        ⚠️ La meta' «istanza nel TacticalHUD» del test nuovo non e' provata separatamente: sugli asset di `main` e'
+        rosso gia' il CDO.
+
+      🔴 **Quattro correzioni trovate solo a schermo:**
+      1. **Il roster era vuoto.** `CardClass` era stato scritto sul CDO dopo che il TacticalHUD era gia' caricato, e
+         l'istanza in memoria era rimasta nulla. Salvare il TacticalHUD in quello stato avrebbe scritto il nullo come
+         override per sempre: l'Editor e' stato chiuso senza salvarlo, e al riavvio l'istanza ha preso il default.
+         Lo controlla ora `RosterAndPanelWearTheirClasses`.
+      2. **In orizzontale le zone a sinistra cominciano 3 px piu' in la'.** Il padding sinistro e' 17 per stare a x=24.
+      3. **Il fondo del pannello stava a 836**: padding 16 per stare a 840 come la tavola.
+      4. **I triangoli erano piccoli, e il «!» non ci stava.** I glifi geometrici del ripiego sono circa 0,6 em: ▲ a 24
+         nel chip e a 27 nella voce, centrati col segno nella scatola naturale del glifo, come in `U72`.
+
+      ⚠️ **Scarti dichiarati:**
+      - ritratto, elemento, PM e status non ci sono (fuori scope nell'issue);
+      - la carta del pannello e' la stessa del roster, quindi il nome resta a 16 px invece di 24;
+      - i bordi tratteggiati (avviso, chip `REAZ.`, chip in avviso) sono pieni, perche' un `Border` non tratteggia;
+      - «—» resta alla taglia del valore, non piu' grande come nella tavola;
+      - lo scudo e' un rettangolo arrotondato in basso, non la forma a scudo;
+      - manca l'etichetta «PV» davanti alla barra, e la carta del pannello ha il pallino di squadra che la tavola non ha
+        (e' la carta del roster);
+      - il chip MOVIMENTO di un percorso dice «percorso», non «Move · 3 celle»: e' il testo di `DescribeMovementSlot`,
+        cioe' del C++.
+
+      ✅ **Le catture**, su `L_DevSandbox`:
+      - tavola A: Aevik con Guardia e un percorso;
+      - tavola B: la Marea circolare di Muiren su una cella accanto ad Aevik, con l'avviso e il chip col «!». Nella
+        cattura intera c'e' anche ▲ 1 su Conferma, che sta fuori dal ritaglio delle evidenze;
+      - tavola E: Aevik con la Guardia reattiva, col chip `REAZ.` nel roster e nella carta del pannello.
+
+      🔑 **Seguito possibile, fuori da questa seduta:** con il movimento riservato a `Withdraw` il chip MOVIMENTO dice
+      «—». La tavola F dice «Withdraw (riservato)», ed e' una regola del C++ (`Slots.Movement.bOccupied`), non dell'asset.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

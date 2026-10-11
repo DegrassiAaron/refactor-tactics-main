@@ -873,7 +873,8 @@ public:
 	FText GetMovementProfileText() const;
 
 	/**
-	 * Che cosa riempie lo slot MOVIMENTO, pronto da legare al `Text` di `MovementText` (`#1410` `AC-1`).
+	 * Che cosa riempie lo slot MOVIMENTO (`#1410` `AC-1`). ⌫ *Fino alla seduta `U76` (#3636) la legava il `Text` di
+	 * `MovementText`; ora il chip MOVIMENTO lo scrive `RefreshLook` con la stessa `DescribeMovementSlot`.*
 	 *
 	 * 🔑 **Delega a `ARTHUD::DescribeMovementSlot`, che e' la sede unica**: e' la stessa funzione da cui il
 	 * Canvas compone la propria riga. ⏱️ *Fino al 2026-09-17 il binding di `MovementText` leggeva

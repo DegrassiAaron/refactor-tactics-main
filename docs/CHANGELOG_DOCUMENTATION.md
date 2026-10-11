@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-11 — Roster, carta, pannello e avvisi hanno la loro seduta: `U76`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello. Issue [#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U76`: asset, grafi tolti, gate, catture delle tavole A, B ed E, quattro correzioni trovate a schermo |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quater: la taglia dei glifi geometrici, e il default di classe che non arriva alle istanze gia' caricate |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u76-roster-e-pannello-accanto-alle-tavole.png` e `u76-roster-e-pannello-scala-di-grigi.png` |
+
+---
+
 ## 2026-10-11 — La separazione dei piani in vista strategica ha la sua leva
 
 **Origine**: [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) (CAM-06a), l'ultimo dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
