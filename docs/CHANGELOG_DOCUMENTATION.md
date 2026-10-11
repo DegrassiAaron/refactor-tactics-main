@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-10-11 — La vista strategica è un'isometrica dimetrica: D-498 nel codice
+
+**Origine**: [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) (CAM-05c), che attua [D-498](decisions/RT_PDR_00_Decision_Log.md): ortografica, pitch −30° per stato, orbita verticale inerte, rotazione a 45°. Si ritirano la rampa di #3630 e la leva di #3631, e `OrthoWidthForArm` smette di inquadrare 1,78× la prospettica.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §2, §5 e §5.1 al presente: proiezione e pitch per stato, `OrthoWidth` come estensione verticale, i limiti del pivot esatti solo a 16:9 |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC` chiede l'isometrica, la scala continua alla soglia, l'orbita verticale inerte, il click ai bordi e i piani di clipping; il verdetto in prospettiva è da rigiudicare |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la scena isometrica è nel codice |
+
+---
+
 ## 2026-10-11 — La seduta `U78`: la vista strategica rigiudicata, e la separazione dei piani vale 3
 
 **Origine**: i verdetti dell'autore sulle catture della seduta `U78`. Issue [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) · [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) · [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774).

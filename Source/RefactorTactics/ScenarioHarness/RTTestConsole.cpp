@@ -108,19 +108,6 @@ TAutoConsoleVariable<int32> CVarRTCameraTopDownShot(
 	ECVF_Default);
 
 /**
- * `#3631` — la vista strategica in proiezione ORTOGRAFICA, per confrontarla con la prospettica in PIE.
- *
- * 🔑 **Esiste perche' la scelta e' dell'autore (D-488 (5)) e si fa guardando le due proiezioni sulla stessa
- * scena**: `rt.Camera.StrategicOrtho 1` in console, poi `Tab` o una tacca di rotella. Si applica al prossimo
- * cambio di distanza, non nell'istante in cui si scrive. Somma il suo effetto a `bStrategicOrthographic`.
- */
-TAutoConsoleVariable<int32> CVarRTCameraStrategicOrtho(
-	TEXT("rt.Camera.StrategicOrtho"),
-	0,
-	TEXT("1 = la vista strategica usa la proiezione ortografica (si applica al prossimo Tab o tacca di rotella). 0 = prospettica."),
-	ECVF_Default);
-
-/**
  * `#3632` — la separazione dei piani nella vista strategica, per sceglierla guardando in PIE. > 0 vince sulla
  * proprieta' `StrategicLayerSeparation` della mappa; 0 la lascia decidere a lei. Si applica al fotogramma dopo.
  */
