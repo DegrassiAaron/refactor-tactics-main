@@ -574,20 +574,25 @@ namespace RTPresentazioneFinestra
 	}
 
 	/**
-	 * L'ultima cella del percorso del mover che il playback ha da mostrare. Al trattenimento il playback ha mostrato
-	 * tutto il parziale, quindi e' la cella su cui lo schermo si e' fermato. ⚠️ Non la fase del playback: al
-	 * trattenimento le fasi parziali sono esaurite e `GetPlaybackPhaseName` e' vuoto, misurato.
+	 * Quanto la POSA del mover dista dal centro di `Cella`, in piano: zero vuol dire che lo schermo e' fermo li'.
+	 *
+	 * 🔴 **La posa, non la rotta logica** (review di #3675). La prima stesura leggeva l'ultima cella di
+	 * `GetLastMoveRoutes`, che il resolver scrive alla SOSPENSIONE: senza l'estensione del playback la seconda finestra
+	 * si sarebbe presentata col mover fermo sul primo ingresso, e quella cella avrebbe gia' detto il secondo. ⚠️ Non
+	 * la fase del playback nemmeno: al trattenimento le fasi parziali sono esaurite e `GetPlaybackPhaseName` e' vuoto,
+	 * misurato. Il centro si calcola nel contesto della MAPPA, dove le anim posano: la fixture piazza con un altro
+	 * esagono, e fuori dall'origine i due punti non coincidono.
 	 */
-	FRTCellId UltimaCellaMostrata(const ARTTurnManager* TM, const ARTUnit* Mover)
+	float DistanzaDallaCella(UWorld* World, const ARTUnit* Mover, const FRTCellId& Cella)
 	{
-		for (const FRTMoveRoute& Rotta : TM->GetLastMoveRoutes())
+		FVector Origine = FVector::ZeroVector;
+		float Esagono = 0.f;
+		float Piano = 0.f;
+		if (const ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World))
 		{
-			if (Rotta.StableUnitId == Mover->StableUnitId && Rotta.Cells.Num() > 0)
-			{
-				return Rotta.Cells.Last();
-			}
+			Mappa->GetHexContext(Origine, Esagono, Piano);
 		}
-		return FRTCellId(INT32_MAX, INT32_MAX, INT32_MAX);
+		return FVector::Dist2D(Mover->GetActorLocation(), Mover->WorldForCell(Cella, Origine, Esagono, Piano));
 	}
 }
 
@@ -615,18 +620,19 @@ bool FRTReactionWindowPresentsOnTheHoldTest::RunTest(const FString&)
 	ARTTurnManager* TM = M.TM;
 
 	ARTUnit* Mover = M.Mover;
+	UWorld* World = M.World;
 	int32 Presentazioni = 0;
 	bool bTrattenutoAllApertura = false;
-	FRTCellId CellaAllApertura;
+	float DistanzaDallIngresso = -1.f;
 	float ResiduoAllApertura = -1.f;
 	TM->OnReactionWindowOpened.BindLambda(
-		[&Presentazioni, &bTrattenutoAllApertura, &CellaAllApertura, &ResiduoAllApertura, TM, Mover](
+		[&Presentazioni, &bTrattenutoAllApertura, &DistanzaDallIngresso, &ResiduoAllApertura, TM, Mover, World](
 			const FRTReactionWindowView&, int32)
 		{
 			// ⚠️ Letto DENTRO il delegate: e' il fotogramma in cui il giocatore riceve la finestra.
 			++Presentazioni;
 			bTrattenutoAllApertura = TM->IsPlaybackHeldByWindow();
-			CellaAllApertura = RTPresentazioneFinestra::UltimaCellaMostrata(TM, Mover);
+			DistanzaDallIngresso = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(1, 0));
 			ResiduoAllApertura = TM->GetOpenReactionWindowRemainingSeconds();
 		});
 
@@ -658,8 +664,8 @@ bool FRTReactionWindowPresentsOnTheHoldTest::RunTest(const FString&)
 	TestTrue(TEXT("la finestra si presenta pompando il playback"), RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM));
 	TestEqual(TEXT("presentata una volta"), Presentazioni, 1);
 	TestTrue(TEXT("🔴 alla presentazione il playback e' TRATTENUTO: ha mostrato tutto il risolto"), bTrattenutoAllApertura);
-	TestTrue(*FString::Printf(TEXT("🔴 e lo schermo e' fermo sull'ingresso (1,0), non altrove (%s)"),
-		*CellaAllApertura.ToString()), CellaAllApertura == FRTCellId(1, 0));
+	TestTrue(*FString::Printf(TEXT("🔴 e il mover e' posato sull'ingresso (1,0): a %.1f cm dal suo centro"),
+		DistanzaDallIngresso), DistanzaDallIngresso >= 0.f && DistanzaDallIngresso < 1.f);
 	TestEqual(TEXT("e la finestra ha la sua durata intera"), ResiduoAllApertura, TM->GetFastReactionDuration(), 0.001f);
 	TestTrue(TEXT("la timeline porta il movimento percorso"), TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Move) > 0);
 
@@ -679,8 +685,8 @@ bool FRTReactionWindowPresentsOnTheHoldTest::RunTest(const FString&)
  *
  * 🔴 Dopo una risposta la ripresa puo' risospendersi su un ingresso successivo. Il playback era trattenuto sul primo,
  * e fino a `#3666` nessuno lo estendeva: la seconda finestra chiedeva del secondo ingresso con lo schermo fermo al
- * primo. Qui ogni presentazione registra l'indice di cella dell'animazione del mover: il secondo dev'essere oltre il
- * primo, e a ogni presentazione il playback dev'essere trattenuto.
+ * primo. Qui ogni presentazione registra dove il mover e' POSATO: alla seconda dev'essere sul secondo ingresso, e a
+ * ogni presentazione il playback dev'essere trattenuto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSecondPresentsOnTheSecondEntryTest,
 	"RefactorTactics.Reactions.SecondWindowPresentsOnTheSecondEntry",
@@ -692,12 +698,16 @@ bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&
 	ARTTurnManager* TM = M.TM;
 	ARTUnit* Mover = M.Mover;
 
-	TArray<FRTCellId> CelleAllApertura;
+	// Per ogni presentazione: quanto il mover dista dal primo e dal secondo ingresso, nella POSA.
+	TArray<TPair<float, float>> DistanzeAllApertura;
 	TArray<bool> TrattenutoAllApertura;
+	UWorld* World = M.World;
 	TM->OnReactionWindowOpened.BindLambda(
-		[&CelleAllApertura, &TrattenutoAllApertura, TM, Mover](const FRTReactionWindowView&, int32)
+		[&DistanzeAllApertura, &TrattenutoAllApertura, TM, Mover, World](const FRTReactionWindowView&, int32)
 		{
-			CelleAllApertura.Add(RTPresentazioneFinestra::UltimaCellaMostrata(TM, Mover));
+			DistanzeAllApertura.Add(TPair<float, float>(
+				RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(1, 0)),
+				RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(2, 0))));
 			TrattenutoAllApertura.Add(TM->IsPlaybackHeldByWindow());
 		});
 
@@ -709,8 +719,8 @@ bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&
 		TM->SubmitReactionResponse(TM->GetOpenReactionWindowId(), URTReactionOpportunityLibrary::HoldResponse());
 	}
 
-	if (!TestTrue(FString::Printf(TEXT("premessa: le finestre presentate sono almeno due (%d)"), CelleAllApertura.Num()),
-		CelleAllApertura.Num() >= 2))
+	if (!TestTrue(FString::Printf(TEXT("premessa: le finestre presentate sono almeno due (%d)"), DistanzeAllApertura.Num()),
+		DistanzeAllApertura.Num() >= 2))
 	{
 		TM->OnReactionWindowOpened.Unbind();
 		DestroyResumeWorld(M.World);
@@ -720,11 +730,57 @@ bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&
 	{
 		TestTrue(*FString::Printf(TEXT("la finestra %d si presenta a playback trattenuto"), i + 1), TrattenutoAllApertura[i]);
 	}
-	TestTrue(*FString::Printf(TEXT("la prima si presenta sul primo ingresso (1,0) (%s)"), *CelleAllApertura[0].ToString()),
-		CelleAllApertura[0] == FRTCellId(1, 0));
-	TestTrue(*FString::Printf(TEXT("🔴 la seconda si presenta sul SECONDO ingresso (2,0), non sul primo (%s)"),
-		*CelleAllApertura[1].ToString()), CelleAllApertura[1] == FRTCellId(2, 0));
+	TestTrue(*FString::Printf(TEXT("la prima si presenta col mover posato sul primo ingresso (1,0): a %.1f cm"),
+		DistanzeAllApertura[0].Key), DistanzeAllApertura[0].Key < 1.f);
+	TestTrue(*FString::Printf(TEXT("🔴 la seconda col mover posato sul SECONDO ingresso (2,0): a %.1f cm, e a %.1f dal primo"),
+		DistanzeAllApertura[1].Value, DistanzeAllApertura[1].Key), DistanzeAllApertura[1].Value < 1.f);
 	TestFalse(TEXT("risposte tutte date: la resolution e' conclusa"), TM->IsResolutionSuspended());
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(M.World);
+	return true;
+}
+
+/**
+ * **Uno Skip durante l'avvicinamento presenta la finestra con lo schermo sull'ingresso** (`#3666`, review di #3675).
+ *
+ * 🔴 `SkipPlayback` passa da `FinishPlayback`, che a risoluzione sospesa trattiene e presenta SUBITO: le anim restavano
+ * dove l'ultimo tick le aveva lasciate, e la finestra chiedeva dell'ingresso con il mover a meta' strada — proprio cio'
+ * che `#3666` esiste per togliere. Qui due tick di avvicinamento, poi lo Skip.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSkipPosesTheEntryTest,
+	"RefactorTactics.Reactions.SkipBeforeThePresentationPosesTheEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowSkipPosesTheEntryTest::RunTest(const FString&)
+{
+	const RTPresentazioneFinestra::FMontaggio M = RTPresentazioneFinestra::Monta(*this);
+	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
+	ARTTurnManager* TM = M.TM;
+	ARTUnit* Mover = M.Mover;
+	UWorld* World = M.World;
+
+	float DistanzaAllApertura = -1.f;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&DistanzaAllApertura, Mover, World](const FRTReactionWindowView&, int32)
+		{
+			DistanzaAllApertura = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(1, 0));
+		});
+
+	TM->LockInAndResolve();
+	TM->Tick(0.05f);
+	TM->Tick(0.05f);
+	if (!TestTrue(TEXT("⛔ premessa: dopo due tick l'avvicinamento e' in corso, la finestra non e' presentata"),
+		TM->IsResolutionSuspended() && !TM->IsReactionWindowPresented()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(M.World);
+		return false;
+	}
+
+	TM->SkipPlayback();
+	TestTrue(TEXT("lo Skip presenta la finestra"), TM->IsReactionWindowPresented());
+	TestTrue(*FString::Printf(TEXT("🔴 e il mover e' posato sull'ingresso (1,0), non a meta' strada: a %.1f cm"),
+		DistanzaAllApertura), DistanzaAllApertura >= 0.f && DistanzaAllApertura < 1.f);
 
 	TM->OnReactionWindowOpened.Unbind();
 	DestroyResumeWorld(M.World);

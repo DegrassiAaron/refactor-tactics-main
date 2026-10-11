@@ -8073,11 +8073,19 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// Chi aveva gia' un'anim nella fase dell'orologio la CONTINUA (la rotta del mover dell'Overwatch si allunga);
 	// chi non l'aveva ne riceve una NUOVA, che comincia adesso (lo scarto del `Brace`).
 	TSet<const ARTUnit*> AnimatiNellaFaseDelClock;
+	// ⚠️ E chi la continua conserva il proprio inizio, se un'estensione PRECEDENTE gliel'aveva dato (review di #3675):
+	// la ricostruzione qui sotto parte da zero, e senza portarlo avanti l'anim tornerebbe sull'orologio della fase e
+	// salterebbe. Succede a un'anim nata in un'estensione e ancora in corsa alla successiva.
+	TMap<const ARTUnit*, float> InizioNellaFaseDelClock;
 	if (bFaseDelClockNota)
 	{
 		for (const FRTMoveAnim& A : MoveAnims)
 		{
-			if (A.Phase == FaseDelClock && A.Unit.IsValid()) { AnimatiNellaFaseDelClock.Add(A.Unit.Get()); }
+			if (A.Phase == FaseDelClock && A.Unit.IsValid())
+			{
+				AnimatiNellaFaseDelClock.Add(A.Unit.Get());
+				if (A.StartElapsed > 0.f) { InizioNellaFaseDelClock.Add(A.Unit.Get(), A.StartElapsed); }
+			}
 		}
 	}
 
@@ -8171,6 +8179,11 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			// dopo. La resolution ha gia' portato l'Actor sulla cella logica: senza, lo si vedrebbe arrivato fino a
 			// quando la sua anim comincia, e poi tornare indietro di colpo (misurato: il Move dopo il `Brace`).
 			// ⛔ Chi e' animato nella fase dell'orologio no: e' gia' dove il playback lo ha portato.
+			if (const float* Inizio = (bFaseDelClockNota && Anim.Phase == FaseDelClock)
+				? InizioNellaFaseDelClock.Find(Src) : nullptr)
+			{
+				Anim.StartElapsed = *Inizio;
+			}
 			if (bFaseDelClockNota && !AnimatiNellaFaseDelClock.Contains(Src))
 			{
 				const bool bNuovaNellaFaseDelClock = (Anim.Phase == FaseDelClock);
@@ -9404,6 +9417,21 @@ void ARTTurnManager::FinishPlayback()
 	// esattamente l'istante in cui il nemico e' entrato nella zona.
 	if (IsResolutionSuspended())
 	{
+		// `#3666` (review di #3675): uno Skip prima del trattenimento salta l'AVVICINAMENTO, e la finestra si presenta
+		// adesso. Chi la riceve deve trovare lo schermo sull'ingresso, non a meta' strada: ogni anim va sul suo ultimo
+		// punto, che e' il confine del tratto parziale. ⛔ `World` e' gia' troncato al prefisso osservato, quindi
+		// l'ultimo punto non rivela niente che il playback non avrebbe mostrato.
+		if (bFinishingBySkip)
+		{
+			for (const FRTMoveAnim& A : MoveAnims)
+			{
+				if (A.Unit.IsValid() && A.World.Num() > 0)
+				{
+					A.Unit->SetVisualLocation(A.World.Last());
+					A.Unit->bIsMovingVisually = false;
+				}
+			}
+		}
 		bPlaybackHeldByWindow = true;
 		// `#3666`: e' QUESTO il fotogramma in cui la finestra si presenta, e il suo countdown comincia.
 		PresentPendingReactionWindow();
