@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-11 — D-502 completata: le risposte dell'autore alle domande aperte
+
+**Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681), le domande che la prima stesura di `D-502` lasciava aperte.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la squadra di chi spara vede il proprio colpo; conta la fase di risoluzione in cui il colpo avviene; un muro si vede da un lato qualunque ([#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691)); con più autori, le squadre di tutti; ogni vista del fatto — combat log, proiettore degli eventi, replay — segue la stessa regola; le conseguenze per l'attuazione, fra cui l'audit di `D-313` |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito nomina le altre viste; §5.1: un pannello di bordo sta fra due celle |
+
+---
+
 ## 2026-10-11 — La scena si rende fra le fasce dell'HUD: D-497 attuata
 
 **Origine**: [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661). Le tre scelte d'autore prese prima e durante il codice sono annotate su D-497.
