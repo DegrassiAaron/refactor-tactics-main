@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-11 — Spec panel sui tre seguiti della finestra di reazione
+
+**Origine**: i seguiti lasciati dalla cattura di `U74` ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634)): la finestra che si apre prima che il playback mostri l'ingresso, il titolo e le descrizioni della tavola E con la revisione di privacy, e i tipi delle chiavi degli scenari.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/finestra-di-reazione-seguiti-spec-panel-2026-10-11.md`](roadmap/plans/finestra-di-reazione-seguiti-spec-panel-2026-10-11.md) | il referto: premesse verificate, panel, specifica e DoD delle tre issue; S1 classificato come `IMPLEMENTATION DRIFT` contro D-355 |
+
+---
+
 ## 2026-10-11 — La finestra di reazione catturata: `U74` a seduta fatta
 
 **Origine**: la cattura rimasta `NOT RUN` della seduta `U74`. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634), banco da [#3660](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3660). Con questa le sedute di stile di T8 (`U72`, `U74`–`U77`) sono fatte tutte.
