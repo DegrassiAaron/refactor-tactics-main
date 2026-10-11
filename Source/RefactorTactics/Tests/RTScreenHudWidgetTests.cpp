@@ -1740,6 +1740,88 @@ bool FRTScreenHudRosterCardsTest::RunTest(const FString&)
 }
 
 /**
+ * 🔑 **LE CARTE DELLE ALTRE SQUADRE LE COSTRUISCE IL C++, E SOLO FUORI DALLA SESSIONE PRESIDIATA** (#3636, #2744).
+ *
+ * 🔴 **Prima le costruiva il secondo ciclo del grafo di `WBP_RT_TeamRoster`**, e la seduta di #3636 toglie il grafo.
+ * Senza `OpposingCardsBox` le carte avversarie sparivano dall'autobattle senza che niente cadesse: il gemello di
+ * questo test, `RosterSplitsTheTeamsOnlyInAnUnattendedSession`, misura la LISTA, non le carte.
+ *
+ * ⚠️ **Il chip `REAZ.` di un'avversaria resta spento anche col suo piano armato**: il piano di chi non si comanda
+ * non lascia il core (D-478 punto 4). Per questo la nemica qui ha un Overwatch pianificato: senza, il chip spento
+ * sarebbe vero per qualunque ragione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterOpposingCardsTest,
+	"RefactorTactics.ScreenHud.RosterBuildsTheOpposingCardsOnlyInAnUnattendedSession",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterOpposingCardsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	SpawnRosterUnit(World, 0, TEXT("Alfa"));
+	SpawnRosterUnit(World, 0, TEXT("Bravo"));
+	ARTUnit* Charlie = SpawnRosterUnit(World, 1, TEXT("Charlie"));
+	SpawnRosterUnit(World, 1, TEXT("Delta"));
+	if (!Charlie) { return false; }
+	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Charlie, TEXT("Action.Overwatch"));
+	if (!TestTrue(TEXT("premessa: la nemica ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
+	Charlie->PlannedAbilityIndex = Overwatch;
+	// Il suo piano ARMEREBBE il chip, se lo si leggesse: senza questa premessa il chip spento sarebbe vero per caso.
+	if (!TestTrue(TEXT("premessa: il piano della nemica arma una reazione"), URTHudViewModel::BuildUnitSlots(Charlie).bReactionArmed))
+	{
+		return false;
+	}
+
+	UVerticalBox* Proprie = NewObject<UVerticalBox>(Roster);
+	UVerticalBox* Altre = NewObject<UVerticalBox>(Roster);
+	Roster->CardsBox = Proprie;
+	Roster->OpposingCardsBox = Altre;
+	Roster->CardClass = URTUnitCardWidget::StaticClass();
+	const auto Ids = [](const TArray<TObjectPtr<URTUnitCardWidget>>& Carte)
+	{
+		TArray<FString> Out;
+		for (const URTUnitCardWidget* Carta : Carte) { Out.Add(Carta->GetCard().HeroId.ToString()); }
+		return FString::Join(Out, TEXT(","));
+	};
+
+	// --- 1. Presidiata: nessuna carta avversaria, le proprie si' ------------------------------------------------------
+	if (!TestFalse(TEXT("premessa: la sessione e' presidiata"), TM->IsUnattendedSession())) { return false; }
+	Roster->RefreshCards();
+	TestEqual(TEXT("1: le carte proprie ci sono"), Ids(Roster->GetCardWidgets()), FString(TEXT("Alfa,Bravo")));
+	TestEqual(TEXT("1: nessuna carta avversaria"), Roster->GetOpposingCardWidgets().Num(), 0);
+	TestEqual(TEXT("1: e il pannello delle altre e' vuoto"), Altre->GetChildrenCount(), 0);
+
+	// --- 2. Non presidiata: le carte dell'altra squadra, nel loro pannello -----------------------------------------------
+	TM->SetUnattendedSession(true);
+	Roster->RefreshCards();
+	TestEqual(TEXT("2: una carta per voce di GetOpposingRoster, nel suo ordine"),
+		Ids(Roster->GetOpposingCardWidgets()), FString(TEXT("Charlie,Delta")));
+	TestEqual(TEXT("2: tutte nel pannello delle altre"), Altre->GetChildrenCount(), 2);
+	TestEqual(TEXT("2: e nessuna fra le proprie"), Proprie->GetChildrenCount(), 2);
+	for (const URTUnitCardWidget* Carta : Roster->GetOpposingCardWidgets())
+	{
+		TestFalse(*FString::Printf(TEXT("2: '%s' non porta il chip, anche col piano armato"), *Carta->GetCard().HeroId.ToString()),
+			Carta->IsReactionArmed());
+		TestFalse(*FString::Printf(TEXT("2: '%s' e' un'avversaria"), *Carta->GetCard().HeroId.ToString()), Carta->GetCard().bIsAlly);
+	}
+
+	// --- 3. Di nuovo presidiata: le carte avversarie si tolgono, le proprie restano ------------------------------------------
+	TM->SetUnattendedSession(false);
+	Roster->RefreshCards();
+	TestEqual(TEXT("3: le carte avversarie si tolgono"), Roster->GetOpposingCardWidgets().Num(), 0);
+	TestEqual(TEXT("3: anche dal pannello"), Altre->GetChildrenCount(), 0);
+	TestEqual(TEXT("3: le proprie restano"), Ids(Roster->GetCardWidgets()), FString(TEXT("Alfa,Bravo")));
+	return true;
+}
+
+
+/**
  * 🔑 **OGNI AVVISO A UN CHIP SOLO** (#3636, review): la principale se ne nomina l'azione, la reazione se nomina la sua,
  * altrimenti il movimento — comprese le voci che `MakePlanFor` aggiunge dal core e che lo slot non nomina
  * (`Action.Move` per un percorso). Funzione pura: le viste si costruiscono a mano.

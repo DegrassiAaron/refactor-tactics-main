@@ -741,10 +741,11 @@ public:
 	 * presidiata restituisce la sola squadra del giocatore. Il ciclo qui sotto salta quella, e non resta
 	 * niente. ∴ un `if (presidiata)` sarebbe una seconda copia della stessa decisione.
 	 *
-	 * 🔑 **Due chiamate a `BuildTeamRoster` compongono senza doppioni PER COSTRUZIONE**, perche' quel filtro
-	 * e' `TeamId == PlayerTeamId` e gli insiemi di due squadre sono disgiunti. ⛔ Non e' la forma giusta per
-	 * il feed, dove il filtro autorizza per voce e gli insiemi si sovrappongono — vedi
-	 * `URTPlayerEventProjector::Project`.
+	 * 🔑 **Questa lista e `GetRoster()` compongono senza doppioni PER COSTRUZIONE**, perche' entrambe filtrano per
+	 * `TeamId ==` e gli insiemi di due squadre sono disgiunti. ⛔ Non e' la forma giusta per il feed, dove il filtro
+	 * autorizza per voce e gli insiemi si sovrappongono — vedi `URTPlayerEventProjector::Project`.
+	 *
+	 * ⚠️ Le carte sono dal punto di vista di chi guarda: `bIsAlly` e' falso (#3636).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTUnitCardView> GetOpposingRoster() const;
@@ -764,13 +765,24 @@ public:
 	// La resa della tavola (#3636, T8): le carte le costruisce il C++, non il grafo.
 	// ------------------------------------------------------------------------------------------------
 
-	/** Il pannello delle carte della propria squadra. Senza, o senza `CardClass`, il roster non costruisce niente. */
+	/** Il pannello delle carte della propria squadra. Senza `CardClass` il roster non costruisce niente; questo pannello e `OpposingCardsBox` si riempiono indipendentemente. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UPanelWidget> CardsBox;
 
 	/** La classe delle carte, nei default del WBP come `TooltipClass` dello slot: un percorso di `Content/` scritto in C++ sarebbe un riferimento duro. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	TSubclassOf<URTUnitCardWidget> CardClass;
+
+	/**
+	 * Il pannello delle carte delle ALTRE squadre, da `GetOpposingRoster()`: vuoto in sessione presidiata (#2744), e
+	 * quindi pieno solo in autobattle. Il chip `REAZ.` vi resta spento per costruzione: il piano di chi non si comanda
+	 * non lascia il core ([D-478] punto 4).
+	 *
+	 * ⚠️ Era il secondo ciclo del grafo di `WBP_RT_TeamRoster`, che scriveva in `OpposingBox`: la seduta di #3636 toglie
+	 * il grafo, e senza questa porta le carte avversarie sparirebbero dallo schermo senza che nessun test cadesse.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UPanelWidget> OpposingCardsBox;
 
 	/**
 	 * Porta le carte di `CardsBox` al roster: una per voce di `GetRoster()`, nell'ordine del roster, col chip di
@@ -782,12 +794,18 @@ public:
 	/** Le carte costruite, nell'ordine del roster (per i test). */
 	const TArray<TObjectPtr<URTUnitCardWidget>>& GetCardWidgets() const { return Cards; }
 
+	/** Le carte delle altre squadre, nell'ordine di `GetOpposingRoster()` (per i test). */
+	const TArray<TObjectPtr<URTUnitCardWidget>>& GetOpposingCardWidgets() const { return OpposingCards; }
+
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URTUnitCardWidget>> Cards;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<URTUnitCardWidget>> OpposingCards;
 
 	/**
 	 * Il chip `REAZ.` per eroe, ricontato a 5 Hz (review di #3636): `IsReactionArmed` rifa' gli slot di ogni unita',
@@ -881,6 +899,17 @@ public:
 	 */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UWidget> PlanChipsBox;
+
+	/**
+	 * La carta del soggetto, comandato o ispezionato: nome leggibile, PV e scudo da `GetCard()`. Il chip `REAZ.` viene
+	 * da `FRTUnitSlotsView::bReactionArmed`, che per un'ispezionata e' falso perche' `GetSlots()` non ne costruisce gli
+	 * slot.
+	 *
+	 * ⚠️ Prima la alimentava il grafo del pannello, scrivendo la variabile `Card` di un `WBP_RT_UnitCard` senza classe
+	 * C++. Riparentata la carta su `URTUnitCardWidget` (#3636), quella variabile non c'e' piu': la scrive questa porta.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<URTUnitCardWidget> SubjectCard;
 
 	/**
 	 * Per ogni chip: la cornice (`BG_Raised`, contorno `Frame_Off`, `Amber` se l'azione ha un avviso), la striscia del
