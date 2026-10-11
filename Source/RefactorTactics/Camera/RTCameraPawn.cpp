@@ -185,10 +185,9 @@ bool ARTCameraPawn::FrameOwnTeam()
 	}
 
 	FocusOn(URTHexLibrary::CellsCentroidWorld(Cells, Origin, HexSize, LayerHeight));
-	if (SpringArm)
-	{
-		SpringArm->TargetArmLength = FMath::Clamp(MatchStartArmLength, MinArmLength, MaxArmLength);
-	}
+	// Dalla porta comune del braccio, che rilegge lo stato prima di pitch e proiezione e ri-clampa il pivot: con
+	// `MatchStartArmLength` oltre la soglia d'ingresso la partita partirebbe a distanza strategica con la vista tattica.
+	ApplyArmLength(MatchStartArmLength);
 	UE_LOG(LogRT, Log, TEXT("[RT] Camera sulla squadra %d (%d unita', arm=%.0f)"),
 		TeamId, Cells.Num(), SpringArm ? SpringArm->TargetArmLength : -1.f);
 	return true;
@@ -431,6 +430,8 @@ void ARTCameraPawn::ApplyStrategicProjection()
 		// 🔑 **Lo zoom resta il braccio** (D-252): la larghezza si DERIVA dalla distanza, cosi' lo stato strategico
 		// continua a leggersi da `TargetArmLength` e al cambio di proiezione la scala sul pivot non salta.
 		Camera->SetOrthoWidth(OrthoWidthForArm(SpringArm->TargetArmLength, Camera->FieldOfView, Camera->AspectRatio));
+		// I piani automatici di UE restano (servono alla profondita' a 16 bit), ma spostati indietro: vedi l'header.
+		Camera->SetAutoPlaneShift(-StrategicOrthoPlaneShiftArms * SpringArm->TargetArmLength);
 		if (Camera->ProjectionMode != ECameraProjectionMode::Orthographic)
 		{
 			Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);

@@ -471,6 +471,20 @@ protected:
 	 */
 	void ApplyStrategicProjection();
 
+	/**
+	 * Di quanti bracci il frustum ortografico si sposta INDIETRO rispetto ai piani automatici di UE (`AutoPlaneShift`).
+	 *
+	 * 🔴 **Senza, i piani alti della mappa spariscono nella parte bassa del quadro.** In ortografica il quadro e' alto
+	 * quanto `OrthoWidth` anche all'altezza della camera, e a -30 il suo bordo basso parte quasi dal suolo: la
+	 * geometria piu' alta del pivot, li', sta DIETRO la camera. `FMinimalViewInfo::AutoCalculateOrthoPlanes` mette il
+	 * near a circa `-1,43 · Arm` dal pivot, che copre fino a `0,23 · Arm` di quota: 547 alla soglia d'ingresso, meno
+	 * del piano 1 con la separazione 3 (750). Con lo spostamento di `2` bracci il near scende a circa `-3,43 · Arm`, e
+	 * copre fino a circa `1,23 · Arm` (2334 alla soglia d'uscita). Il far del percorso a 16 bit e' decine di migliaia
+	 * di unita' oltre: spostarlo indietro non toglie niente. Lo prova
+	 * `Camera.StrategicOrthographicPlanesKeepTheMapLayersInView`, sulla matrice di vista e proiezione di UE.
+	 */
+	static constexpr float StrategicOrthoPlaneShiftArms = 2.f;
+
 	/** Vedi `GetLastTacticalArmLength`. La scrivono `UpdateStrategicState`, a ogni lettura in cui la vista e' tattica, e `ToggleStrategicView` subito prima del salto (#3646): non tutti gli scrittori del braccio passano dalla prima. */
 	float LastTacticalArmLength = -1.f;
 
@@ -694,7 +708,9 @@ protected:
 	/**
 	 * Riallinea `CameraPitch`: in tattica a `derivato(alpha) + ManualPitchOffset`, clampando entrambi; in strategica a
 	 * `StrategicPitch` (D-498), senza toccare l'offset. ⚠️ Legge `bStrategicView`, quindi va chiamata **dopo**
-	 * `UpdateStrategicState`: ogni porta che scrive il braccio rilegge prima lo stato.
+	 * `UpdateStrategicState`: ogni porta di gioco che scrive il braccio rilegge prima lo stato (`ApplyViewSettings`,
+	 * `ApplyArmLength` — e con lei `FrameOwnTeam`, `SetZoomAlpha`, `ToggleStrategicView` —, `ZoomTowards`, `AddZoom`).
+	 * Fa eccezione la vista di MISURA `ApplyTopDownView`, che scrive braccio e pitch a mano ed e' fuori dal gioco.
 	 */
 	void RecomputePitchFromZoom();
 

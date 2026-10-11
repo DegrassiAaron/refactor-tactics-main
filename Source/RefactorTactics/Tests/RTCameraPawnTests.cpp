@@ -1909,7 +1909,9 @@ bool FRTCameraStrategicOrthoProjectionTest::RunTest(const FString&)
 		const double AltezzaO = 1.0 / O.M[1][1];
 		const double LarghezzaP = DistanzaTattica / P.M[0][0];
 		const double LarghezzaO = 1.0 / O.M[0][0];
-		// La tolleranza assorbe l'unita' di braccio fra i due istanti (1/2400) e niente di piu'.
+		// La tolleranza assorbe l'unita' di braccio fra i due istanti (1/2400) e niente di piu'. La larghezza non e' una
+		// seconda prova: le due matrici la dividono per lo stesso `XAxisMultiplier`, quindi segue l'altezza. Resta come
+		// controllo di coerenza del calcolo.
 		const double Tolleranza = 0.002;
 		const FString Q = FString::Printf(TEXT("%dx%d"), Quadro.Width(), Quadro.Height());
 		TestEqual(*FString::Printf(TEXT("%s: l'ortografica alta quanto la prospettica sul pivot"), *Q),
@@ -1917,6 +1919,161 @@ bool FRTCameraStrategicOrthoProjectionTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: e larga quanto lei"), *Q),
 			LarghezzaO, LarghezzaP * DistanzaStrategica / DistanzaTattica, LarghezzaP * Tolleranza);
 	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+namespace
+{
+	/**
+	 * La matrice vista×proiezione che UE costruirebbe per il render dalla camera ferma alla distanza corrente: la stessa
+	 * strada di `ULocalPlayer::GetProjectionData`, compresi i piani ortografici automatici e la loro correzione.
+	 *
+	 * ⚠️ La camera si mette dove il braccio la porterebbe, invece di leggerne la posizione: il braccio ha il ritardo di
+	 * camera, e nel mondo di prova non ticca. Tutto il resto viene da `GetCameraView`.
+	 */
+	FMatrix RTVistaProiezione(ARTCameraPawn* Cam, UCameraComponent* View, float Arm, const FIntRect& Quadro)
+	{
+		FMinimalViewInfo Info;
+		View->GetCameraView(0.f, Info);
+		Info.Rotation = FRotator(Cam->GetCameraPitch(), Cam->GetCameraYaw(), 0.f);
+		const FVector Bersaglio = Cam->GetActorLocation();
+		Info.Location = Bersaglio - Info.Rotation.Vector() * Arm;
+		Info.SetCameraToViewTarget(Bersaglio);
+
+		FSceneViewProjectionData Dati;
+		Dati.ViewOrigin = Info.Location;
+		Dati.ViewRotationMatrix = FInverseRotationMatrix(Info.Rotation) * FMatrix(
+			FPlane(0, 0, 1, 0),
+			FPlane(1, 0, 0, 0),
+			FPlane(0, 1, 0, 0),
+			FPlane(0, 0, 0, 1));
+		Dati.SetViewRectangle(Quadro);
+		FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(
+			Info, GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint, Quadro, Dati);
+		return Dati.ComputeViewProjectionMatrix();
+	}
+}
+
+/**
+ * 🔴 **In ortografica i piani della mappa restano dentro i piani di clipping** (#3662, review di #3671).
+ *
+ * In ortografica il quadro e' alto `OrthoWidth` anche all'altezza della camera, e a -30 il suo bordo basso parte quasi
+ * dal suolo: la geometria piu' alta del pivot, li', sta dietro la camera. Con i piani automatici di UE il near copriva
+ * fino a circa `0,23 · Arm` di quota, cioe' 547 alla soglia d'ingresso, e il piano 1 con la separazione 3 sta a 750.
+ *
+ * Per ogni distanza strategica che conta — la soglia d'uscita raggiunta dall'alto, quella d'ingresso di `Tab`, il fondo
+ * corsa — e per cinque quote, da due piani sotto il pivot a due sopra, i punti che cadono DENTRO il quadro devono
+ * cadere anche fra i piani (Z in [0, 1], Z rovesciata). Il controllo positivo e' che ogni quota abbia punti nel quadro.
+ * Verifica di mutazione: senza lo spostamento dei piani (`StrategicOrthoPlaneShiftArms`) il test cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicOrthoPlanesTest,
+	"RefactorTactics.Camera.StrategicOrthographicPlanesKeepTheMapLayersInView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicOrthoPlanesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	UCameraComponent* View = Cam->FindComponentByClass<UCameraComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm) || !TestNotNull(TEXT("camera component"), View))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	RTPreparaVistaD498(Cam);
+
+	const FIntRect Quadro(0, 0, 1920, 1080);
+	// Con `LayerHeight` 250 e la separazione 3 di #3632 i piani stanno a 750 l'uno dall'altro.
+	const float Quote[] = { -1500.f, -750.f, 0.f, 750.f, 1500.f };
+
+	struct FCaso { float Arm; const TCHAR* Come; };
+	for (const FCaso& Caso : { FCaso{ 1950.f, TEXT("alla soglia d'uscita, dall'alto") },
+	                           FCaso{ 2400.f, TEXT("alla soglia d'ingresso") },
+	                           FCaso{ 4000.f, TEXT("a fondo corsa") } })
+	{
+		RTBraccioA(Cam, 3000.f); // si entra dall'alto: 1950 e' strategico solo per isteresi
+		RTBraccioA(Cam, Caso.Arm);
+		if (!TestTrue(*FString::Printf(TEXT("%s: la vista e' strategica"), Caso.Come), Cam->IsStrategicView()))
+		{
+			continue;
+		}
+		const float Distanza = Arm->TargetArmLength;
+		const FMatrix M = RTVistaProiezione(Cam, View, Distanza, Quadro);
+		const FVector Pivot = Cam->GetActorLocation();
+		const double Raggio = 3.0 * Distanza; // oltre l'impronta del quadro a terra, su ogni quota
+		for (const float Quota : Quote)
+		{
+			int32 Dentro = 0;
+			int32 Tagliati = 0;
+			for (int32 IX = -40; IX <= 40; ++IX)
+			{
+				for (int32 IY = -40; IY <= 40; ++IY)
+				{
+					const FVector P = Pivot + FVector(Raggio * IX / 40.0, Raggio * IY / 40.0, Quota);
+					const FVector4 C = M.TransformFVector4(FVector4(P, 1.0));
+					if (FMath::Abs(C.X) <= 1.0 && FMath::Abs(C.Y) <= 1.0)
+					{
+						++Dentro;
+						if (C.Z < 0.0 || C.Z > 1.0) { ++Tagliati; }
+					}
+				}
+			}
+			TestTrue(*FString::Printf(TEXT("%s, quota %+.0f: ci sono punti nel quadro"), Caso.Come, Quota), Dentro > 100);
+			TestEqual(*FString::Printf(TEXT("%s, quota %+.0f: nessuno e' tagliato dai piani"), Caso.Come, Quota), Tagliati, 0);
+		}
+	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Le porte del braccio rileggono lo stato PRIMA di clampare il pivot** (#3662, review di #3671).
+ *
+ * I limiti del pivot dipendono dal pitch (`ComputeEffectivePivotBounds`: l'estensione lungo lo sguardo e'
+ * `VerticalHalf / sin(pitch)`), e a -30 sono piu' stretti che a -40. Se `AddZoom` clampasse il pivot col pitch
+ * tattico e rileggesse lo stato solo dopo, attraversando la soglia il pivot resterebbe fuori dai limiti strategici:
+ * ri-clamparlo lo sposterebbe. L'area si allarga col margine, perche' sulla mappa di prova i limiti a questa distanza
+ * collasserebbero al centro con entrambi i pitch. Verifica di mutazione: rimettere `UpdateStrategicState` in fondo ad
+ * `AddZoom` fa cadere l'ultima asserzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraArmGateOrderTest,
+	"RefactorTactics.Camera.ArmGatesReadTheStateBeforeClampingThePivot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraArmGateOrderTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+	Cam->SetViewportMetricsForTest(16.f / 9.f, 90.f);
+	Cam->SetBoundsMarginForTest(40.f);
+
+	// Tattici appena sotto la soglia d'ingresso, col pivot al bordo lungo lo sguardo (+X a yaw 0).
+	RTBraccioA(Cam, 2300.f);
+	if (!TestFalse(TEXT("premessa: si parte tattici"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	Cam->SetCameraPivot(Cam->GetCameraPivot() + FVector(1.0e6, 0.0, 0.0));
+	const double BordoTattico = Cam->GetCameraPivot().X;
+
+	Cam->AddZoom(+1.f);
+	if (!TestTrue(TEXT("uno scatto di rotella entra in strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	const FVector Dopo = Cam->GetCameraPivot();
+	TestTrue(TEXT("premessa: allontanandosi il pivot rientra"), Dopo.X < BordoTattico - 1.0);
+
+	Cam->SetCameraPivot(Dopo);
+	TestEqual(TEXT("e sta gia' nei limiti del pitch strategico: ri-clamparlo non lo sposta"),
+		Cam->GetCameraPivot().X, Dopo.X, 0.5);
 
 	DestroyCameraWorld(World);
 	return true;
