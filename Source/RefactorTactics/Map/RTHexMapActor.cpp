@@ -2849,7 +2849,8 @@ void ARTHexMapActor::CollectEdgeLayout(TArray<int32>& Out) const
 		{
 			continue;
 		}
-		Out.Append({ 0, C.Id.X, C.Id.Y, C.Id.Layer });
+		// L'altezza della cella entra perche' il pannello si posa sulla sua quota (`AddEdgePanel`).
+		Out.Append({ 0, C.Id.X, C.Id.Y, C.Id.Layer, C.Height });
 		for (const FRTHexCover& Cover : C.Covers)
 		{
 			Out.Append({ 1, static_cast<int32>(Cover.Edge), static_cast<int32>(Cover.Type) });
@@ -2860,10 +2861,14 @@ void ARTHexMapActor::CollectEdgeLayout(TArray<int32>& Out) const
 		}
 	}
 	// I muri interni non cambiano in partita oggi, ma stanno nella stessa famiglia: lasciarli fuori
-	// renderebbe questo confronto cieco al primo produttore che li toccasse.
+	// renderebbe questo confronto cieco al primo produttore che li toccasse. Entra tutto cio' che il disegno
+	// legge: il segmento intero (`ToPolyline`), il tipo e la quota della cella.
 	for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
 	{
-		Out.Append({ 3, Wall.Cell.X, Wall.Cell.Y, Wall.Cell.Layer, static_cast<int32>(Wall.Segment.WallType) });
+		const FRTHexCellData* Dati = MapAsset->FindCell(Wall.Cell);
+		Out.Append({ 3, Wall.Cell.X, Wall.Cell.Y, Wall.Cell.Layer, Dati ? Dati->Height : 0,
+			static_cast<int32>(Wall.Segment.WallType), static_cast<int32>(Wall.Segment.Axis), Wall.Segment.Offset,
+			Wall.Segment.AlongStart, Wall.Segment.AlongEnd, Wall.Segment.Layer });
 	}
 }
 
@@ -3538,7 +3543,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		// `Revision`, ma le tre famiglie qui sopra sono quelle della SUPERFICIE. I pannelli restavano quelli
 		// della costruzione fino alla prossima ricostruzione completa, cioe' fino al `Tab`.
 		//
-		// ⚠️ **Solo se i bordi sono cambiati davvero**, non a ogni revisione: una pennellata di superficie
+		// ⚠️ **Solo se cio' che i bordi dichiarano e' cambiato**, non a ogni revisione: una pennellata di superficie
 		// muove `Revision` e non tocca nessun bordo, e ricostruire `EdgeFeatures` per lei riporterebbe il
 		// costo a seguire la mappa invece della modifica (`HexMapActor.EditCostScalesWithTheEditNotTheMap`).
 		TArray<int32> Bordi;

@@ -2616,20 +2616,70 @@ bool FRTHexMapRuntimeEdgeChangeTest::RunTest(const FString&)
 	Actor->ApplyKnowledgeVeil(Tutto);
 	TestEqual(TEXT("a fine turno la copertura creata ha il suo pannello"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 2);
 
-	// 2. La porta si apre: stesso numero di pannelli, altezza diversa.
+	// 2. La porta si apre: stesso numero di pannelli, e il SUO pannello si abbassa.
+	// ⚠️ **Si confronta il pannello della porta, ritrovato per posizione sul piano**, e non il minimo del
+	// gruppo: la copertura bassa appena eretta (22) sta gia' sotto la porta chiusa (70), e un minimo la
+	// prenderebbe per la porta aperta anche se la porta non si fosse mossa. La quota del centro cambia con
+	// l'altezza del pannello, quindi conta il piano.
 	TestTrue(TEXT("premessa: la porta si apre"),
 		URTHexDoorLibrary::SetDoorState(Asset, Cella, Ovest, ERTHexDoorState::Open).Num() > 0);
 	Actor->ApplyKnowledgeVeil(Tutto);
 	const TArray<FTransform> Dopo = InstancesOf(Actor, TEXT("EdgeFeatures"));
-	float ScalaPortaPrima = Prima[0].GetScale3D().Z;
-	float ScalaMinimaDopo = TNumericLimits<float>::Max();
-	for (const FTransform& T : Dopo)
+	const FVector2D PianoPorta(Prima[0].GetLocation());
+	const FTransform* PortaDopo = Dopo.FindByPredicate([&PianoPorta](const FTransform& T)
 	{
-		ScalaMinimaDopo = FMath::Min(ScalaMinimaDopo, T.GetScale3D().Z);
+		return FVector2D(T.GetLocation()).Equals(PianoPorta, 1.0);
+	});
+	if (TestNotNull(TEXT("premessa: il pannello della porta c'e' ancora, sul suo bordo"), PortaDopo))
+	{
+		TestTrue(*FString::Printf(TEXT("a fine turno la porta aperta è bassa: %.3f prima, %.3f dopo"),
+				Prima[0].GetScale3D().Z, PortaDopo->GetScale3D().Z),
+			PortaDopo->GetScale3D().Z < Prima[0].GetScale3D().Z);
 	}
-	TestTrue(*FString::Printf(TEXT("a fine turno la porta aperta è bassa: %.3f prima, %.3f dopo"),
-			ScalaPortaPrima, ScalaMinimaDopo),
-		ScalaMinimaDopo < ScalaPortaPrima);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3687 — una pennellata di SUPERFICIE non ricostruisce i pannelli di bordo.
+ *
+ * Il riallineamento di fine turno ricostruisce `EdgeFeatures` solo se cio' che i bordi dichiarano e' cambiato.
+ * Senza questa guardia ogni revisione — anche una cella che diventa fango — rifarebbe la famiglia, e il costo
+ * tornerebbe a seguire la mappa invece della modifica. 🔑 **Si legge `LastRebuildCreatedInstances`**: il
+ * percorso per cella di una pennellata non passa da `RebuildInstances`, quindi il contatore resta quello della
+ * costruzione; ricostruire i bordi lo riscriverebbe con le sole istanze dei pannelli.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapSurfacePaintKeepsEdgePanelsTest,
+	"RefactorTactics.HexMapActor.SurfacePaintDoesNotRebuildEdgePanels",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapSurfacePaintKeepsEdgePanelsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	FRTCellId Cella, Oltre;
+	URTHexMapAsset* Asset = RTBoardConUnMuro(Cella, Oltre);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const int32 Costruzione = Actor->LastRebuildCreatedInstances();
+	if (!TestTrue(TEXT("premessa: la costruzione ha creato piu' dei soli pannelli"), Costruzione > 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// La pennellata minima, la stessa di `EditCostScalesWithTheEditNotTheMap`: una cella, solo la superficie.
+	FRTHexCellData Dipinta = *Asset->FindCell(Oltre);
+	Dipinta.Surface = Dipinta.Surface == ERTHexSurface::Floor ? ERTHexSurface::Rough : ERTHexSurface::Floor;
+	Asset->AddOrUpdateCell(Dipinta);
+	Actor->ApplyKnowledgeVeil(Tutto);
+
+	TestTrue(TEXT("premessa: la pennellata e' passata dal percorso per cella"), Actor->LastRepaintTouchedInstances() > 0);
+	TestEqual(TEXT("🔴 e i pannelli di bordo non si sono ricostruiti"), Actor->LastRebuildCreatedInstances(), Costruzione);
+	TestEqual(TEXT("il muro e' ancora li'"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 1);
 
 	DestroyMapActorWorld(World);
 	return true;
