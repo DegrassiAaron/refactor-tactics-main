@@ -836,10 +836,11 @@ void ARTHUD::UpdateObserverVeil()
 	if (ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		// #3632: PRIMA di leggere il contesto, perche' la quota dei piani dipende dalla vista. Se e' cambiata, la
-		// mappa ha gia' ricostruito la board e riapplicato il velo; le unita' le riposa il TurnManager.
-		if (HexMap->SyncStrategicPresentation(bStrategicView) && TurnManager)
+		// mappa ha gia' ricostruito la board e ridisegnato il velo; le unita' le riposa il TurnManager.
+		float QuotaPrecedente = 0.f;
+		if (HexMap->SyncStrategicPresentation(bStrategicView, &QuotaPrecedente) && TurnManager)
 		{
-			TurnManager->RefreshPresentationGeometry();
+			TurnManager->RefreshPresentationGeometry(QuotaPrecedente);
 		}
 		HexMap->GetHexContext(Origin, HexSize, LayerH);
 	}

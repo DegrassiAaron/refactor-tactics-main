@@ -6829,48 +6829,59 @@ void ARTTurnManager::FinishBlastPhase(FRTBlastContext& Ctx)
 }
 
 
-void ARTTurnManager::RefreshPresentationGeometry()
+void ARTTurnManager::RefreshPresentationGeometry(float PreviousLayerHeight)
 {
 	FVector Origin = FVector::ZeroVector;
 	float HexSize = 0.f;
 	float LayerH = 0.f;
 	GetHexContext(Origin, HexSize, LayerH);
-
-	// Le animazioni del playback conservano le CELLE del percorso: le posizioni si ricalcolano da li', e il fotogramma
-	// dopo `InterpolateAlongPath` le segue. `MoveAnims` e' vuoto fuori dal playback (`FinishPlayback` lo svuota).
-	TSet<const ARTUnit*> Animate;
-	if (MoveAnims.Num() > 0)
+	if (PreviousLayerHeight <= UE_KINDA_SMALL_NUMBER || FMath::IsNearlyEqual(PreviousLayerHeight, LayerH))
 	{
-		PBOrigin = Origin;
-		PBCellSize = HexSize;
-		PBLayerHeight = LayerH;
-		for (FRTMoveAnim& A : MoveAnims)
+		return;
+	}
+
+	// La cache del playback la leggono le animazioni e `FinishPlayback`, che a fine turno posa OGNI unita' sulla sua
+	// cella: si aggiorna sempre, anche in un playback senza movimenti. Fuori dal playback la riscrive il prossimo.
+	PBOrigin = Origin;
+	PBCellSize = HexSize;
+	PBLayerHeight = LayerH;
+
+	// Le animazioni conservano le CELLE del percorso: le posizioni si ricalcolano da li', e il fotogramma dopo
+	// `InterpolateAlongPath` le segue.
+	for (FRTMoveAnim& A : MoveAnims)
+	{
+		const ARTUnit* Animata = A.Unit.Get();
+		if (!Animata)
 		{
-			const ARTUnit* Animata = A.Unit.Get();
-			if (!Animata)
-			{
-				continue;
-			}
-			Animate.Add(Animata);
-			for (int32 I = 0; I < A.Cells.Num() && I < A.World.Num(); ++I)
-			{
-				A.World[I] = Animata->WorldForCell(A.Cells[I], Origin, HexSize, LayerH);
-			}
+			continue;
+		}
+		for (int32 I = 0; I < A.Cells.Num() && I < A.World.Num(); ++I)
+		{
+			A.World[I] = Animata->WorldForCell(A.Cells[I], Origin, HexSize, LayerH);
 		}
 	}
 
-	// Le unita' ferme tornano sulla loro cella alla quota nuova. `SetActorLocation` e non `PlaceOnCell`: la cella
-	// non cambia, e non deve passare da nessuna porta che la scriva.
+	// 🔴 **Ogni modello SALE o SCENDE, e basta: la pianta non si tocca.** Il piano su cui sta si ricava dalla sua
+	// quota e da quella di prima, non da `Cell`: durante il playback `Cell` e' gia' la cella FINALE, e posarci un
+	// modello che l'osservatore non ha visto muoversi (`Visible < 2`, che di proposito non anima) direbbe dove e'
+	// andato prima del suo momento. Vale per tutti: fermi, in un'animazione di un'altra fase, caduti ancora a
+	// schermo. Chi si sta animando ADESSO lo riprende `InterpolateAlongPath` dalle posizioni ricalcolate qui sopra.
+	// `SetActorLocation` e non `PlaceOnCell`: nessuna cella cambia, e nessuna porta che la scriva va attraversata.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 	for (AActor* A : Actors)
 	{
 		ARTUnit* U = Cast<ARTUnit>(A);
-		if (!U || !U->IsAlive() || Animate.Contains(U))
+		if (!U)
 		{
 			continue;
 		}
-		U->SetActorLocation(U->WorldForCell(U->Cell, Origin, HexSize, LayerH));
+		const FVector Qui = U->GetActorLocation();
+		const int32 Piano = FMath::RoundToInt((Qui.Z - Origin.Z - U->VisualZOffset) / PreviousLayerHeight);
+		if (Piano != 0)
+		{
+			U->SetActorLocation(Qui + FVector(0.f, 0.f, static_cast<float>(Piano) * (LayerH - PreviousLayerHeight)));
+		}
 	}
 }
 
