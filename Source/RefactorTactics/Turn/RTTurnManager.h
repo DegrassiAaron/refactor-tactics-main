@@ -3404,6 +3404,18 @@ private:
 		 * ⚠️ `0` significa «tutto pianificato», la stessa convenzione dell'evento da cui viene.
 		 */
 		int32 PlannedLength = 0;
+
+		/**
+		 * Da quando, sull'orologio della fase, l'anim comincia — `#3666`. `0` per tutte, tranne quelle che
+		 * un'estensione (`BeginPlayback(true)`) aggiunge alla fase che si stava mostrando: per loro e' l'istante
+		 * dell'estensione, e corrono alla velocita' di rotta da li'.
+		 *
+		 * 🔴 **Senza, un'anim nuova si animava sull'orologio di una fase gia' mostrata.** Da `#3666` si risponde
+		 * a una finestra a playback trattenuto, cioe' a fase finita: lo scarto `SIDESTEP` del `Brace` nasceva con
+		 * l'alpha di fase gia' a `1` e scattava a destinazione in un fotogramma (misurato: zero fotogrammi
+		 * intermedi). Prima di `#3666` la risposta arrivava a Blast in corso, e saltava a meta' strada.
+		 */
+		float StartElapsed = 0.f;
 	};
 
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */

@@ -23,6 +23,7 @@
 #include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
 #include "Tests/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/RTAbilityFixtures.h"
+#include "Tests/RTDefeatPresentationProbeForTest.h" // #3666: le morti del Blast annunciate una volta
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2291,6 +2292,249 @@ bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
 			bDuplicato, C.bDuplicatoDichiarato);
 	}
 
+	return true;
+}
+
+
+// =====================================================================================================================
+// `#3666`: il playback ESTESO dopo la finestra del `Brace`. Da `#3666` si risponde a playback trattenuto, cioe' a
+// Blast gia' mostrato per intero: tre cose che prima capitavano solo a una risposta tardiva ora capitano a tutte.
+// =====================================================================================================================
+
+namespace RTEstensioneDopoIlBrace
+{
+	/** Il montaggio di `Reactions.Brace.WindowSuspendsBlast`: un `Brace` con `Profile.Sidestep` spinto da un `Push`. */
+	struct FMontaggio
+	{
+		UWorld* World = nullptr;
+		ARTUnit* Bracer = nullptr;
+		ARTUnit* Pusher = nullptr;
+		ARTTurnManager* TM = nullptr;
+	};
+
+	bool Monta(FAutomationTestBase& Test, FMontaggio& M)
+	{
+		M.World = MakeDefWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), M.World)) { return false; }
+		SpawnDefMap(M.World, /*Radius*/ 8);
+		M.Bracer = SpawnDefUnit(M.World, 0, FRTCellId(0, 0));
+		M.Pusher = SpawnDefUnit(M.World, 1, FRTCellId(1, 0));
+		M.TM = M.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(TEXT("Bracer"), M.Bracer) || !Test.TestNotNull(TEXT("Pusher"), M.Pusher)
+			|| !Test.TestNotNull(TEXT("TM"), M.TM))
+		{
+			return false;
+		}
+		M.Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+		M.Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(M.Bracer, TEXT("Action.Brace"), 3);
+		M.Bracer->PlannedCell = M.Bracer->Cell;
+		M.Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(M.Pusher, TEXT("Action.Push"), 3);
+		M.Pusher->PlannedAttackTarget = M.Bracer;
+		M.Pusher->PlannedCell = M.Pusher->Cell;
+		// Il ramo interattivo vuole un decisore legato (`IsBound()`): qui basta che ci sia.
+		M.TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+		return true;
+	}
+
+	/** Lock-in e pompa fino alla presentazione: la finestra e' davanti al giocatore, il Blast e' gia' mostrato. */
+	bool FinoAllaPresentazione(FAutomationTestBase& Test, FMontaggio& M)
+	{
+		M.TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(M.TM);
+		return Test.TestTrue(TEXT("⛔ premessa: la finestra del Brace e' presentata"), M.TM->IsReactionWindowPresented())
+			&& Test.TestTrue(TEXT("⛔ premessa: e il playback e' trattenuto, col Blast mostrato"),
+				M.TM->IsPlaybackHeldByWindow());
+	}
+
+	void Smonta(FMontaggio& M)
+	{
+		if (M.TM) { M.TM->OnReactionWindowOpened.Unbind(); }
+		DestroyDefWorld(M.World);
+	}
+}
+
+/**
+ * **Lo scarto `SIDESTEP` si vede scorrere, anche se si risponde a Blast gia' mostrato** (`#3666`).
+ *
+ * 🔴 **Il difetto, misurato con una diagnosi sullo stesso montaggio** (tre istanti di risposta, passo 0,05 s):
+ * prima del playback lo scarto scorreva con 27 fotogrammi intermedi; a Blast in corso — la risposta di prima di
+ * `#3666` — saltava al 24 % e scorreva il resto; alla presentazione — la risposta di `#3666` — **zero** fotogrammi
+ * intermedi, a destinazione in un colpo. L'anim nuova nasceva sull'alpha di una fase gia' consumata, e la fase non
+ * durava un istante di piu'.
+ *
+ * ⛔ **Tre asserti, e ognuno coglie un modo diverso di sbagliare**: il primo campione sulla partenza (senza la posa
+ * iniziale la resolution ha gia' portato l'Actor a destinazione, e per un fotogramma si vede l'arrivo), i fotogrammi
+ * intermedi (senza `StartElapsed` sono zero), l'avanzamento senza ritorni (un alpha sbagliato salterebbe avanti e
+ * indietro).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceSidestepIsAnimatedTest,
+	"RefactorTactics.Reactions.Brace.SidestepAnswerIsAnimated",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceSidestepIsAnimatedTest::RunTest(const FString&)
+{
+	RTEstensioneDopoIlBrace::FMontaggio M;
+	ON_SCOPE_EXIT{ RTEstensioneDopoIlBrace::Smonta(M); };
+	if (!RTEstensioneDopoIlBrace::Monta(*this, M)) { return false; }
+	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
+
+	const FRTCellId Partenza = M.Bracer->Cell;
+	const FVector P0 = M.Bracer->GetActorLocation();
+	M.TM->SubmitReactionResponse(M.TM->GetOpenReactionWindowId(), TEXT("SIDESTEP"));
+	if (!TestTrue(TEXT("⛔ premessa: con SIDESTEP il difensore lascia la cella"), M.Bracer->Cell != Partenza)
+		|| !TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), M.TM->IsResolutionSuspended()))
+	{
+		return false;
+	}
+
+	TArray<FVector> Pose;
+	Pose.Add(M.Bracer->GetActorLocation());
+	for (int32 I = 0; I < 400 && M.TM->IsResolving(); ++I)
+	{
+		M.TM->Tick(0.05f);
+		Pose.Add(M.Bracer->GetActorLocation());
+	}
+	const FVector P1 = M.Bracer->GetActorLocation();
+	const float Distanza = FVector::Dist2D(P0, P1);
+	if (!TestTrue(FString::Printf(TEXT("⛔ premessa: lo scarto si vede a fine playback (%.1f cm)"), Distanza),
+		Distanza > 1.f))
+	{
+		return false;
+	}
+
+	TArray<float> Frazioni;
+	int32 Intermedi = 0;
+	for (const FVector& P : Pose)
+	{
+		Frazioni.Add(FVector::Dist2D(P0, P) / Distanza);
+		Intermedi += (Frazioni.Last() > 0.05f && Frazioni.Last() < 0.95f) ? 1 : 0;
+	}
+	AddInfo(FString::Printf(TEXT("scarto: %d fotogrammi intermedi su %d, primo campione %.2f"), Intermedi,
+		Frazioni.Num(), Frazioni[0]));
+
+	TestTrue(FString::Printf(TEXT("🔴 subito dopo la risposta il difensore e' ancora sulla partenza (%.2f)"),
+		Frazioni[0]), Frazioni[0] < 0.05f);
+	TestTrue(FString::Printf(TEXT("🔴 lo scarto SCORRE: fotogrammi intermedi (%d)"), Intermedi), Intermedi >= 3);
+	for (int32 I = 1; I < Frazioni.Num(); ++I)
+	{
+		if (Frazioni[I] < Frazioni[I - 1] - 0.01f)
+		{
+			AddError(FString::Printf(TEXT("lo scarto torna indietro al campione %d (%.2f dopo %.2f)"), I,
+				Frazioni[I], Frazioni[I - 1]));
+			break;
+		}
+	}
+	TestEqual(TEXT("e finisce sulla cella logica"), Frazioni.Last(), 1.f, 0.01f);
+	return true;
+}
+
+/**
+ * **Il Move dopo il Blast del `Brace` comincia dal suo inizio** (`#3666`).
+ *
+ * 🔴 **Il difetto**: estendendo, `BeginPlayback(true)` riportava l'indice di fase dentro la lista nuova con un clamp.
+ * Al trattenimento l'indice e' oltre l'ultima fase PARZIALE — qui il Blast — e nella lista completa quell'indice e' il
+ * Move, che la timeline parziale non aveva: il Move partiva con l'orologio del Blast (circa 1,5 s) e senza
+ * `EnterPlaybackPhase`, e chi si muoveva saltava avanti. Da `#3666` si risponde sempre a playback trattenuto, quindi
+ * succedeva a ogni finestra del `Brace` con qualcuno che si muove dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceMoveAfterTheWindowStartsFromZeroTest,
+	"RefactorTactics.Reactions.Brace.MovePhaseAfterTheWindowStartsFromZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceMoveAfterTheWindowStartsFromZeroTest::RunTest(const FString&)
+{
+	RTEstensioneDopoIlBrace::FMontaggio M;
+	ON_SCOPE_EXIT{ RTEstensioneDopoIlBrace::Smonta(M); };
+	if (!RTEstensioneDopoIlBrace::Monta(*this, M)) { return false; }
+
+	// Chi cammina nel Move, lontano dalla spinta: la timeline parziale non ha Move, quella completa si'.
+	ARTUnit* Camminatore = SpawnDefUnit(M.World, 0, FRTCellId(-3, 0));
+	if (!TestNotNull(TEXT("Camminatore"), Camminatore)) { return false; }
+	Camminatore->PlannedCell = FRTCellId(-3, -1);
+
+	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
+	const FVector Partenza = Camminatore->GetActorLocation();
+
+	M.TM->ExpireReactionWindow(); // la scelta sicura, `Hold Ground`: nessuno scarto, il Blast non ha altro da mostrare
+	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), M.TM->IsResolutionSuspended()))
+	{
+		return false;
+	}
+
+	bool bVistoIlMove = false;
+	float OrologioAlPrimoMove = -1.f;
+	float FrazioneAlPrimoMove = -1.f;
+	FVector Arrivo = FVector::ZeroVector;
+	for (int32 I = 0; I <= 400 && M.TM->IsResolving(); ++I)
+	{
+		if (!bVistoIlMove && M.TM->GetPlaybackPhaseName() == TEXT("Move"))
+		{
+			bVistoIlMove = true;
+			OrologioAlPrimoMove = M.TM->PlaybackPhaseElapsedForTest();
+			FrazioneAlPrimoMove = FVector::Dist2D(Partenza, Camminatore->GetActorLocation());
+		}
+		M.TM->Tick(0.05f);
+	}
+	Arrivo = Camminatore->GetActorLocation();
+	const float Passo = FVector::Dist2D(Partenza, Arrivo);
+	if (!TestTrue(TEXT("⛔ premessa: il playback ha riprodotto il Move dopo la finestra"), bVistoIlMove)
+		|| !TestTrue(FString::Printf(TEXT("⛔ premessa: il camminatore si e' mosso (%.1f cm)"), Passo), Passo > 1.f))
+	{
+		return false;
+	}
+	FrazioneAlPrimoMove /= Passo;
+
+	TestTrue(FString::Printf(TEXT("🔴 il Move entra con l'orologio a zero, non con quello del Blast (%.3f)"),
+		OrologioAlPrimoMove), OrologioAlPrimoMove <= 0.051f);
+	TestTrue(FString::Printf(TEXT("🔴 e il camminatore parte dalla sua cella, non a meta' strada (%.2f)"),
+		FrazioneAlPrimoMove), FrazioneAlPrimoMove < 0.5f);
+	return true;
+}
+
+/**
+ * **Una morte nel Blast si annuncia una volta sola, anche se il Blast si richiude dopo la finestra** (`#3666`).
+ *
+ * 🔴 **Il difetto**: la morte e' fra i fatti del Blast che escono PRIMA della sospensione, quindi si annuncia alla
+ * prima chiusura della fase, prima del trattenimento. Estendendo, `BeginPlayback(true)` azzerava il marcatore
+ * `PlaybackDefeatShown`, e la fase ripresa — che si richiude — la annunciava di nuovo: un secondo `Death` e un
+ * secondo `OnUnitDefeated`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDefeatAnnouncedOnceTest,
+	"RefactorTactics.Reactions.Brace.DefeatInTheBlastIsAnnouncedOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDefeatAnnouncedOnceTest::RunTest(const FString&)
+{
+	RTEstensioneDopoIlBrace::FMontaggio M;
+	ON_SCOPE_EXIT{ RTEstensioneDopoIlBrace::Smonta(M); };
+	if (!RTEstensioneDopoIlBrace::Monta(*this, M)) { return false; }
+
+	// Una morte nello stesso Blast, lontano dalla spinta: l'attacco base del `Carnefice` sulla `Vittima` a 1 HP.
+	ARTUnit* Vittima = SpawnDefUnit(M.World, 0, FRTCellId(0, 3));
+	ARTUnit* Carnefice = SpawnDefUnit(M.World, 1, FRTCellId(2, 3));
+	if (!TestNotNull(TEXT("Vittima"), Vittima) || !TestNotNull(TEXT("Carnefice"), Carnefice)) { return false; }
+	Vittima->Health = 1;
+	Vittima->Shield = 0;
+	Carnefice->PlannedAbilityIndex = 0;
+	Carnefice->PlannedAttackTarget = Vittima;
+
+	URTDefeatPresentationProbeForTest* Sonda = NewObject<URTDefeatPresentationProbeForTest>();
+	M.TM->OnUnitDefeated.AddDynamic(Sonda, &URTDefeatPresentationProbeForTest::OnUnitDefeated);
+
+	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
+	const int32 AnnunciAlTrattenimento = Sonda->Announcements;
+
+	M.TM->ExpireReactionWindow();
+	for (int32 I = 0; I < 400 && M.TM->IsResolving(); ++I)
+	{
+		M.TM->Tick(0.05f);
+	}
+
+	AddInfo(FString::Printf(TEXT("annunci: %d al trattenimento, %d a fine playback (%s)"), AnnunciAlTrattenimento,
+		Sonda->Announcements, *FString::Join(Sonda->AnnouncedNames, TEXT(", "))));
+	if (!TestEqual(TEXT("⛔ premessa: la morte e' annunciata PRIMA del trattenimento — e' un fatto del Blast parziale"),
+		AnnunciAlTrattenimento, 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 e non si riannuncia quando il Blast si richiude dopo la finestra"), Sonda->Announcements, 1);
 	return true;
 }
 

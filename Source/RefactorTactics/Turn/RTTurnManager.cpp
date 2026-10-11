@@ -8060,6 +8060,27 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
 
+	// 🔑 **`#3666`: estendendo si riprende la fase che si stava MOSTRANDO, cercata per nome.** Al trattenimento
+	// (`FinishPlayback`) l'indice e' gia' oltre l'ultima fase parziale e l'orologio di fase vale ancora la sua
+	// fine: «la fase dell'orologio» e' allora l'ultima mostrata. ⛔ Il clamp sull'indice, che c'era prima, la
+	// sbagliava quando la timeline completa ha una fase IN PIU' — il Move dopo il Blast di un `Brace`: l'indice
+	// vecchio puntava a quella fase nuova, che partiva con l'orologio del Blast e senza `EnterPlaybackPhase`.
+	// Da `#3666` si risponde sempre a playback trattenuto, quindi non e' piu' un caso raro.
+	const bool bFaseDelClockNota = bPreserveClock && PlaybackPhases.Num() > 0;
+	const ERTMatchPhase FaseDelClock = PlaybackPhases.IsValidIndex(ClockPhaseIdx)
+		? PlaybackPhases[ClockPhaseIdx]
+		: (PlaybackPhases.Num() > 0 ? PlaybackPhases.Last() : ERTMatchPhase::Planning);
+	// Chi aveva gia' un'anim nella fase dell'orologio la CONTINUA (la rotta del mover dell'Overwatch si allunga);
+	// chi non l'aveva ne riceve una NUOVA, che comincia adesso (lo scarto del `Brace`).
+	TSet<const ARTUnit*> AnimatiNellaFaseDelClock;
+	if (bFaseDelClockNota)
+	{
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == FaseDelClock && A.Unit.IsValid()) { AnimatiNellaFaseDelClock.Add(A.Unit.Get()); }
+		}
+	}
+
 	// Cache della trasformazione della mappa per convertire celle -> mondo durante il playback.
 	// Stessa fonte usata da ResolveMovement: risoluzione e playback non possono divergere di scala.
 	GetHexContext(PBOrigin, PBCellSize, PBLayerHeight);
@@ -8075,7 +8096,13 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackActivationsPrep.Reset();
 	PlaybackActivationsDash.Reset();
 	// `PlaybackBlastSequence` NON si azzera qui: estendendo (D-355) e' il `Previous` della ricostruzione.
-	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
+	// L'annuncio e' per playback: il marcatore non sopravvive al round. ➕ **Ma estendere non e' un playback
+	// nuovo** (`#3666`): la fase ripresa si richiude, e senza il marcatore una morte gia' annunciata alla sua
+	// prima chiusura — prima del trattenimento — ripartirebbe col suo `Death` e un secondo `OnUnitDefeated`.
+	if (!bPreserveClock)
+	{
+		PlaybackDefeatShown.Reset();
+	}
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
 	// di `ARTHUD::DrawHUD` e del velo: una sola risposta a «di che squadra e' questo giocatore» ([D-285]).
@@ -8138,6 +8165,25 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			{
 				Src->SetVisualLocation(Anim.World[0]);
 				StartPositioned.Add(Src);
+			}
+			// `#3666`: estendendo, chi non e' animato nella fase dell'orologio si posa sulla partenza della sua prima
+			// anim ancora da mostrare — quella NUOVA nella fase dell'orologio, che comincia adesso, o una di una fase
+			// dopo. La resolution ha gia' portato l'Actor sulla cella logica: senza, lo si vedrebbe arrivato fino a
+			// quando la sua anim comincia, e poi tornare indietro di colpo (misurato: il Move dopo il `Brace`).
+			// ⛔ Chi e' animato nella fase dell'orologio no: e' gia' dove il playback lo ha portato.
+			if (bFaseDelClockNota && !AnimatiNellaFaseDelClock.Contains(Src))
+			{
+				const bool bNuovaNellaFaseDelClock = (Anim.Phase == FaseDelClock);
+				if (bNuovaNellaFaseDelClock)
+				{
+					Anim.StartElapsed = ClockPhaseElapsed;
+				}
+				// L'enum segue l'ordine canonico delle fasi (`Prep -> Dash -> Blast -> Move`): «dopo» e' un confronto.
+				if ((bNuovaNellaFaseDelClock || Anim.Phase > FaseDelClock) && !StartPositioned.Contains(Src))
+				{
+					Src->SetVisualLocation(Anim.World[0]);
+					StartPositioned.Add(Src);
+				}
 			}
 			MoveAnims.Add(MoveTemp(Anim));
 		}
@@ -8292,9 +8338,11 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// Estendendo si resta nella fase in corso; il clamp copre il caso in cui la timeline completa
 	// abbia meno fasi di quella parziale — non dovrebbe accadere, e un indice fuori range in
 	// `TickPlayback` sarebbe un crash invece di un difetto visibile.
-	PlaybackPhaseIdx = bPreserveClock
-		? FMath::Clamp(ClockPhaseIdx, 0, FMath::Max(0, PlaybackPhases.Num() - 1))
-		: 0;
+	const int32 IdxDellaFaseDelClock = bFaseDelClockNota ? PlaybackPhases.IndexOfByKey(FaseDelClock) : INDEX_NONE;
+	PlaybackPhaseIdx = !bPreserveClock ? 0
+		: (IdxDellaFaseDelClock != INDEX_NONE)
+			? IdxDellaFaseDelClock
+			: FMath::Clamp(ClockPhaseIdx, 0, FMath::Max(0, PlaybackPhases.Num() - 1));
 	bIsResolving = true;
 	SetActorTickEnabled(true);
 	// I secondi di parete si compongono qui, dove servono a chi legge, invece di essere conservati in un
@@ -8312,8 +8360,20 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	if (bPreserveClock)
 	{
 		// `EnterPlaybackPhase` azzera l'orologio di fase e annuncia l'ingresso: estendendo non si entra in
-		// nessuna fase nuova, si continua quella in corso.
+		// nessuna fase nuova, si continua quella in corso. Se non ha piu' niente da mostrare, il prossimo tick la
+		// chiude e la fase dopo entra da `EnterPlaybackPhase`, come in un playback senza finestre (`#3666`).
 		PlaybackPhaseElapsed = ClockPhaseElapsed;
+		// `#3666`: chi riceve un'anim NUOVA nella fase in corso parte adesso, e lo si annuncia come farebbe
+		// `EnterPlaybackPhase` all'ingresso della fase.
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.StartElapsed > 0.f && A.Unit.IsValid() && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)
+				&& A.Phase == PlaybackPhases[PlaybackPhaseIdx])
+			{
+				A.Unit->bIsMovingVisually = true;
+				OnUnitMoveStarted.Broadcast(A.Unit.Get());
+			}
+		}
 		return;
 	}
 
@@ -8966,7 +9026,12 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		AlphaAnim.SetNumUninitialized(MoveAnims.Num());
 		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
 		{
-			AlphaAnim[AnimIdx] = bAlphaPerPercorso
+			// `#3666`: un'anim che un'estensione ha aggiunto alla fase in corso corre alla velocita' di rotta dal
+			// proprio inizio, in ogni fase — Blast compreso, dove l'alpha di fase e' gia' consumato.
+			AlphaAnim[AnimIdx] = (MoveAnims[AnimIdx].StartElapsed > 0.f)
+				? URTPlaybackLibrary::RouteAlpha(MoveAnims[AnimIdx].World.Num() - 1,
+					PlaybackPhaseElapsed - MoveAnims[AnimIdx].StartElapsed, PlaybackCellsPerSecond)
+				: bAlphaPerPercorso
 				? URTPlaybackLibrary::RouteAlpha(MoveAnims[AnimIdx].World.Num() - 1,
 					PlaybackPhaseElapsed - AnticipoAttivazioni, PlaybackCellsPerSecond)
 				: AlphaFase;
@@ -9581,8 +9646,24 @@ FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) co
 	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi. ⏱️ *Fino a #3549 riceveva i conteggi dei canali
 	// paralleli del Blast; ora le attivazioni di Prep/Dash e la lunghezza della sequenza di Blast.*
-	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, NumAttivazioni, PlaybackBlastSequence.Num(),
+	FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, NumAttivazioni, PlaybackBlastSequence.Num(),
 		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
+
+	// `#3666`: un'anim che un'estensione ha aggiunto a questa fase comincia a `StartElapsed` e corre alla velocita'
+	// di rotta: la fase dura almeno fino al suo arrivo. ⚠️ In `Shown` e non in `Slack`: mostra un movimento, e il
+	// budget non puo' toglierlo (la stessa classificazione di `PhaseTime`).
+	if (PlaybackCellsPerSecond > 0.f)
+	{
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == InPhase && A.StartElapsed > 0.f)
+			{
+				T.Shown = FMath::Max(T.Shown,
+					A.StartElapsed + FMath::Max(0, A.World.Num() - 1) / PlaybackCellsPerSecond);
+			}
+		}
+	}
+	return T;
 }
 
 float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
