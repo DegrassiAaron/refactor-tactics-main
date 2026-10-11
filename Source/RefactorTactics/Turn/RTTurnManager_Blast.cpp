@@ -2755,9 +2755,10 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// nessuno che la faccia scadere.
 					SetActorTickEnabled(true);
 
-					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito.
+					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito. Costruito qui e
+					// consegnato quando il playback ha mostrato la spinta (`#3666`), come nell'altro sito.
 					const int32 OwnerTeamId = T->TeamId;
-					OnReactionWindowOpened.Execute(
+					SuspendReactionWindowForPresentation(
 						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId),
 						BraceOpportunity.Key.OwnerId);
 

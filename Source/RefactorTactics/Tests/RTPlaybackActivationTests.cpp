@@ -31,6 +31,7 @@
 #include "Perception/RTTeamKnowledge.h"
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
+#include "RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -314,6 +315,7 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("⛔ premessa: la resolution e' sospesa sulla finestra del Brace"), TM->IsResolutionSuspended())
 		|| !TestEqual(TEXT("⛔ premessa: la sospensione e' la finestra del Brace, aperta una volta"), FinestreAperte, 1))
 	{
@@ -350,8 +352,11 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 		TM->ExpireReactionWindow();
 	}
 	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), TM->IsResolutionSuspended())) { return false; }
-	TM->Tick(0.01f); // l'estensione e' gia' avvenuta; un tick breve non tocca il prefisso, che e' gia' mostrato
-
+	// 🔑 **Si legge SUBITO dopo la ripresa, senza un tick** (`#3666`). L'estensione e' avvenuta dentro la ripresa
+	// (`ConcludeResolution` → `BeginPlayback(true)`). Da `#3666` la finestra si presenta al trattenimento, quindi chi
+	// risponde lo fa a prefisso mostrato per INTERO; se la ripresa non aggiunge niente da mostrare — qui la risposta e'
+	// la scelta sicura, che non sposta nessuno — il tick successivo chiude il playback e svuota la sequenza. Il tick
+	// breve che stava qui misurava un playback ancora in corsa, che a `#3666` non arriva piu'.
 	const TArray<int32> Dopo = TM->PlaybackBlastSequenceIndicesForTest();
 	// La misura che il commento di testa cita: quanto la ripresa ha aggiunto alla timeline e alla sequenza.
 	AddInfo(FString::Printf(TEXT("crescita della sequenza di Blast: %d (prima %d, dopo %d, mostrati %d); crescita della timeline: %d"),
@@ -400,6 +405,7 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
 	TM->SetPlaybackControlsEnabled(true);
 	TM->SetStartPlaybackPaused(true);
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("⛔ premessa: il playback e' fermo all'inizio del Dash"),
 		TM->IsResolving() && TM->IsPlaybackPaused() && TM->GetPlaybackPhaseName() == TEXT("Dash")))
 	{
@@ -483,6 +489,7 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		}
 
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 		// ⚠️ Misurata DOPO la risoluzione, mentre il verdetto dell'attivazione si congela all'emissione, nel Blast:
 		// le due letture coincidono perche' in questo turno nessuno si muove (nessun piano di movimento, nessuna
 		// spinta), e la premessa qui sotto misura che il muro nega ancora la vista a fine turno: un muro non si
@@ -531,6 +538,7 @@ bool FRTPlaybackDashOpensForActivationsOnlyTest::RunTest(const FString&)
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	const bool bMoveDash = TM->ResolvedTimelineForTest().ContainsByPredicate([](const FRTResolvedEvent& E)
 		{ return E.Type == ERTResolvedEventType::Move && E.Phase == ERTMatchPhase::Dash; });
@@ -687,6 +695,7 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 	TM->bRecordAttackBeatsForTest = true;
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	bool bImpattoConLaChiaveDelloScatto = false;
 	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
@@ -848,6 +857,7 @@ bool FRTPlaybackActivationCueAtTheSourceCellTest::RunTest(const FString&)
 		Caricatore->PlannedCell = Caricatore->Cell;
 		TM->RefreshTeamKnowledgeNow();
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 		const FRTResolvedEvent* AttRam = BeatAttivazioneDi(TM, Caricatore);
 		if (!TestTrue(TEXT("⛔ premessa: l'attivazione di Ram e' in timeline, nel Dash"),

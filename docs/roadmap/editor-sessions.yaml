@@ -4223,6 +4223,7 @@ sessions:
       guarda se a schermo la sospensione si legga come una scelta invece che come un blocco. E il gate
       headless non puo' arrivarci nemmeno in linea di principio: `Class->Bindings` copre i property
       binding, **non** il consumo dentro un event graph.
+      🟡 **Parzialmente eseguita il 2026-10-11** (seduta di [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666)): `PIE-V01-RXPLAYBACK` ha esito reale nel registro, sui due banchi dello Scenario Harness invece che in una partita live. `PIE-V01-RXBRACE` resta da giudicare, e il `done_when` con lei. ⚠️ La separazione che il commento di `verifies` sconsiglia c'e' stata, per una ragione misurata: nessuno scenario apre oggi la finestra del `Brace` al giocatore — serve Muiren con `Action.Brace` e una spinta di Branth. Per quella voce il test headless `Reactions.Brace.SidestepAnswerIsAnimated` prova che lo scarto `SIDESTEP` scorre invece di scattare.
 
   - id: U57
     title: Il frontend costruito, percorso per percorso

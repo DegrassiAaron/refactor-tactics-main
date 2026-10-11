@@ -843,6 +843,21 @@ bool FRTScenarioPlayerReactionWindowsTest::RunTest(const FString&)
 		Esegui(TEXT("con il controller ma senza la chiave"), ConGliEsiti(Senza, 1, 0), true);
 	}
 
+	// ➕ **Il banco della ripresa (`#3666`)**: Ivrin entra nella linea due volte, quindi le finestre sono DUE. Col
+	// controller scadono entrambe, e la seconda scade solo se si e' presentata: prima della presentazione il suo
+	// orologio non corre. E' la premessa di cio' che `PIE-V01-RXPLAYBACK` guarda su quel banco.
+	{
+		FRTTestScenario Ripresa;
+		if (LoadShippedScenario(*this, TEXT("Visual.Reaction.OverwatchWindowResume"), Ripresa)
+			&& TestTrue(TEXT("premessa: anche il banco della ripresa dichiara playerReactionWindows"),
+				Ripresa.bPlayerReactionWindows))
+		{
+			Esegui(TEXT("ripresa, headless"), ConGliEsiti(Ripresa, /*NoDecider=*/ 2, /*Timeout=*/ 0), false);
+			Esegui(TEXT("ripresa, con il controller: due finestre si aprono e scadono"),
+				ConGliEsiti(Ripresa, /*NoDecider=*/ 0, /*Timeout=*/ 2), true);
+		}
+	}
+
 	// --- lo SLOT: chi lo lega lo sgancia, e uno slot altrui non si tocca -----------------------------------
 	//
 	// ⚠️ Dal distruttore e non da `TearDown`: quello distrugge anche il turn manager, e lo slot da guardare

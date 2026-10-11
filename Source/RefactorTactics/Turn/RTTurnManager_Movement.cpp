@@ -854,6 +854,11 @@ void ARTTurnManager::CloseReactionWindow(const FString& Response)
 	const FRTPendingReactionTrigger Pending = Ctx->PendingTriggers[Ctx->NextTrigger - 1];
 	Ctx->OpenWindowOpportunityId.Reset();
 	Ctx->OpenWindowElapsed = 0.f;
+	// `#3666`: la finestra che si chiude non e' piu' in attesa di nessuno. Una prossima, se il pompaggio qui sotto
+	// la apre, rimette i suoi flag da se'.
+	bHasPendingWindowView = false;
+	bReactionWindowPresented = false;
+	bPartialPlaybackNeedsExtension = false;
 
 	TArray<ARTUnit*> Units;
 	Units.Reserve(Ctx->Units.Num());
@@ -912,6 +917,10 @@ void ARTTurnManager::CloseBraceWindow(const FString& Response)
 
 	Ctx->Displacement.OpenWindowOpportunityId.Reset();
 	Ctx->Displacement.OpenWindowElapsed = 0.f;
+	// `#3666`: come in `CloseReactionWindow`.
+	bHasPendingWindowView = false;
+	bReactionWindowPresented = false;
+	bPartialPlaybackNeedsExtension = false;
 	Ctx->Displacement.ClosedWindowResponse = Response;
 	Ctx->Displacement.bResumingWithResponse = true;
 
@@ -1105,7 +1114,10 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 
 			// Il DTO e' sanitizzato per la squadra di chi decide: `MakeReactionWindowView` acquista qui il
 			// chiamante di produzione che `RTTurnManager.h:627` dichiarava mancante.
-			OnReactionWindowOpened.Execute(
+			//
+			// 🔑 **Costruito QUI, consegnato DOPO** (`#3666`): la vista legge lo snapshot di questo istante, ma il
+			// giocatore la riceve quando il playback ha mostrato l'ingresso. Vedi `SuspendReactionWindowForPresentation`.
+			SuspendReactionWindowForPresentation(
 				MakeReactionWindowView(Opportunity, OwnerTeamId, OwnerTeamId), Opportunity.Key.OwnerId);
 
 			return ERTMovementAdvanceResult::Suspended;
@@ -1172,6 +1184,25 @@ void ARTTurnManager::BeginPartialPlayback()
 	// arrivare agli spostamenti. Quando un `Brace` sospende, cio' che il giocatore deve aver visto — il
 	// colpo che sta per spingerlo — e' gia' nella timeline. La spinta invece non c'e', e non e' una
 	// lacuna: e' precisamente cio' su cui gli si sta chiedendo di decidere.
+	EmitPartialMoveEvents();
+
+	// ⛔ **La timeline vuota e' lo schermo nero che [D-355] esiste per evitare**, e per questo la
+	// condizione e' sul contenuto e non sul contesto: chiedere una scelta su un turno che non ha ancora
+	// mostrato nulla e' il difetto, qualunque sia la fase che si e' fermata.
+	if (ResolvedTimeline.Num() > 0)
+	{
+		BeginPlayback();
+	}
+}
+
+/**
+ * I `Move` dei percorsi FINORA, a movimento sospeso (`#3666`). Estratta da `BeginPartialPlayback` perche' serve
+ * anche all'estensione: alla seconda finestra dopo una risposta i percorsi sono cresciuti, e il playback deve
+ * poterli mostrare prima che si chieda di nuovo. `EmitMoveEvents` sostituisce, non accoda: chiamarla due volte
+ * nello stesso turno e' il suo uso previsto.
+ */
+void ARTTurnManager::EmitPartialMoveEvents()
+{
 	if (const FRTMovementResolutionContext* Ctx = PendingMovement.Get())
 	{
 		TArray<ARTUnit*> Units;
@@ -1182,14 +1213,6 @@ void ARTTurnManager::BeginPartialPlayback()
 		}
 
 		EmitMoveEvents(Units, Ctx->State.Results);
-	}
-
-	// ⛔ **La timeline vuota e' lo schermo nero che [D-355] esiste per evitare**, e per questo la
-	// condizione e' sul contenuto e non sul contesto: chiedere una scelta su un turno che non ha ancora
-	// mostrato nulla e' il difetto, qualunque sia la fase che si e' fermata.
-	if (ResolvedTimeline.Num() > 0)
-	{
-		BeginPlayback();
 	}
 }
 

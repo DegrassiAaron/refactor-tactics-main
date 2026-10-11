@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Tests/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/RTAbilityFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h" // DeriveOpportunityId: l'identita' della finestra
@@ -85,6 +86,7 @@ namespace
 	void RunResumeTurn(ARTTurnManager* TM)
 	{
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 		{
 			TM->Tick(0.05f);
@@ -320,6 +322,7 @@ bool FRTReactionWindowSuspendsTest::RunTest(const FString&)
 		});
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	// 🔑 **La prova.** Il delegate e' stato invocato: una finestra si e' aperta, con la sua identita', e la
 	// resolution ha smesso di avanzare per aspettarla.
@@ -403,6 +406,7 @@ bool FRTSuspendedPhaseIsTheRealPhaseTest::RunTest(const FString&)
 		[&bApertaAlmenoUna](const FRTReactionWindowView&, int32) { bApertaAlmenoUna = true; });
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	if (!TestTrue(TEXT("una finestra si e' aperta"), bApertaAlmenoUna)
 		|| !TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
@@ -484,6 +488,7 @@ bool FRTReactionWindowFullCycleTest::RunTest(const FString&)
 		});
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	// --- L'ATTESA ---------------------------------------------------------------------------------------
 	const bool bSospesa = TM->IsResolutionSuspended();
@@ -533,109 +538,363 @@ bool FRTReactionWindowFullCycleTest::RunTest(const FString&)
 
 
 /**
- * **Il playback e' gia' in corso quando la finestra si apre** (`#2679` fetta 3, [D-355]).
+ * Il montaggio dei test di `#3666`: un nemico che cammina nella linea di una guardia non-bot.
  *
- * 🔑 **E' la meta' che a `D-355` mancava.** La decisione dice che la finestra si apre *durante* il playback;
- * fino a questa fetta la resolution si fermava PRIMA che `BeginPlayback` fosse mai chiamato, e chi decideva
- * guardava uno schermo che non aveva mostrato il nemico entrare nella zona.
- *
- * ⚠️ **Cio' che l'automation puo' vedere, e cio' che non puo'.** Qui si verifica che il playback sia
- * *partito* (`IsResolving()`) e che la timeline porti gia' il tratto percorso. Che il movimento **si veda**
- * fluido attraverso la giunzione — nessun salto all'indietro, nessuna ripartenza da capo — e' presentazione,
- * e il suo gate e' **PIE**: resta `NOT RUN` e va dichiarato, non dedotto da questo test.
+ * Il watcher sta in (3,0) e guarda a W, quindi la sua linea e' (2,0) (1,0) (0,0) (-1,0); il mover parte da (0,0) e
+ * va in (2,0), cioe' entra due volte in una cella controllata, a due micro-step diversi. Con il tetto di tre domande
+ * per reazione e la risposta HOLD, che non consuma la carica, le finestre sono due.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowPlaybackIsRunningTest,
-	"RefactorTactics.Reactions.WindowOpensWithPlaybackRunning",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTReactionWindowPlaybackIsRunningTest::RunTest(const FString&)
+namespace RTPresentazioneFinestra
 {
-	UWorld* World = MakeResumeWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnResumeMap(World);
-
-	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
-	ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
-		|| !TestNotNull(TEXT("TurnManager"), TM))
+	struct FMontaggio
 	{
-		DestroyResumeWorld(World);
-		return false;
+		UWorld* World = nullptr;
+		ARTUnit* Mover = nullptr;
+		ARTUnit* Watcher = nullptr;
+		ARTTurnManager* TM = nullptr;
+	};
+
+	FMontaggio Monta(FAutomationTestBase& Test)
+	{
+		FMontaggio M;
+		M.World = MakeResumeWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), M.World)) { return M; }
+		SpawnResumeMap(M.World);
+		M.Mover = SpawnResumeUnit(M.World, /*TeamId=*/ 0, FRTCellId(0, 0));
+		M.Watcher = SpawnResumeUnit(M.World, /*TeamId=*/ 1, FRTCellId(3, 0));
+		M.TM = M.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!M.Mover || !M.Watcher || !M.TM) { return M; }
+		M.Watcher->bIsBotControlled = false;
+		M.Watcher->PlannedAbilityIndex =
+			RTAbilityFixtures::AddCoreAbilityInSlot(M.Watcher, TEXT("Action.Overwatch"), 3);
+		M.Watcher->Facing = ERTHexDirection::W;
+		M.Watcher->PlannedCell = M.Watcher->Cell;
+		M.Mover->PlannedCell = FRTCellId(2, 0);
+		return M;
 	}
 
-	Watcher->bIsBotControlled = false;
-	Watcher->PlannedAbilityIndex =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
-	Watcher->Facing = ERTHexDirection::W;
-	Watcher->PlannedCell = Watcher->Cell;
-	Mover->PlannedCell = FRTCellId(2, 0);
-
-	bool bPlaybackRunningAtOpen = false;
-	TM->OnReactionWindowOpened.BindLambda(
-		[&bPlaybackRunningAtOpen, TM](const FRTReactionWindowView&, int32)
+	/**
+	 * Quanto la POSA del mover dista dal centro di `Cella`, in piano: zero vuol dire che lo schermo e' fermo li'.
+	 *
+	 * 🔴 **La posa, non la rotta logica** (review di #3675). La prima stesura leggeva l'ultima cella di
+	 * `GetLastMoveRoutes`, che il resolver scrive alla SOSPENSIONE: senza l'estensione del playback la seconda finestra
+	 * si sarebbe presentata col mover fermo sul primo ingresso, e quella cella avrebbe gia' detto il secondo. ⚠️ Non
+	 * la fase del playback nemmeno: al trattenimento le fasi parziali sono esaurite e `GetPlaybackPhaseName` e' vuoto,
+	 * misurato. Il centro si calcola nel contesto della MAPPA, dove le anim posano: la fixture piazza con un altro
+	 * esagono, e fuori dall'origine i due punti non coincidono.
+	 */
+	float DistanzaDallaCella(UWorld* World, const ARTUnit* Mover, const FRTCellId& Cella)
+	{
+		FVector Origine = FVector::ZeroVector;
+		float Esagono = 0.f;
+		float Piano = 0.f;
+		if (const ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World))
 		{
-			// ⚠️ Letto DENTRO il delegate: dopo, il turno prosegue e la risposta non sarebbe piu' la stessa.
-			bPlaybackRunningAtOpen = TM->IsResolving();
+			Mappa->GetHexContext(Origine, Esagono, Piano);
+		}
+		return FVector::Dist2D(Mover->GetActorLocation(), Mover->WorldForCell(Cella, Origine, Esagono, Piano));
+	}
+}
+
+/**
+ * **La finestra si presenta quando il playback ha mostrato l'ingresso, e il countdown comincia da li'** (`#3666`).
+ *
+ * 🔑 **Sostituisce `Reactions.WindowOpensWithPlaybackRunning`**, che leggeva `IsResolving()` dentro il delegate:
+ * provava che il playback fosse PARTITO, e il delegate arrivava nell'istante in cui partiva. In PIE la finestra si
+ * apriva cosi' su uno schermo fermo alla fase di Prep, con il nemico ancora nella cella di partenza, e scadeva prima
+ * che l'ingresso comparisse (`U74`, raffica `r13`). [D-355] chiede il contrario per la ragione che scrive: non si
+ * chiede `FIRE`/`HOLD` su un movimento che lo schermo non ha mostrato.
+ *
+ * Qui si chiede, dentro il delegate: il playback e' TRATTENUTO, nella fase Move, e la finestra ha la sua durata
+ * intera. E prima della presentazione: la resolution e' sospesa, il delegate non e' arrivato, e l'orologio e' fermo.
+ * ✅ Muore con la forma di prima, il delegate eseguito alla sospensione: la premessa «nessuna presentazione subito
+ * dopo `LockInAndResolve`» cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowPresentsOnTheHoldTest,
+	"RefactorTactics.Reactions.WindowPresentsWhenThePlaybackHoldsOnTheEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowPresentsOnTheHoldTest::RunTest(const FString&)
+{
+	const RTPresentazioneFinestra::FMontaggio M = RTPresentazioneFinestra::Monta(*this);
+	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
+	ARTTurnManager* TM = M.TM;
+
+	ARTUnit* Mover = M.Mover;
+	UWorld* World = M.World;
+	int32 Presentazioni = 0;
+	bool bTrattenutoAllApertura = false;
+	float DistanzaDallIngresso = -1.f;
+	float ResiduoAllApertura = -1.f;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Presentazioni, &bTrattenutoAllApertura, &DistanzaDallIngresso, &ResiduoAllApertura, TM, Mover, World](
+			const FRTReactionWindowView&, int32)
+		{
+			// ⚠️ Letto DENTRO il delegate: e' il fotogramma in cui il giocatore riceve la finestra.
+			++Presentazioni;
+			bTrattenutoAllApertura = TM->IsPlaybackHeldByWindow();
+			DistanzaDallIngresso = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(1, 0));
+			ResiduoAllApertura = TM->GetOpenReactionWindowRemainingSeconds();
 		});
 
 	TM->LockInAndResolve();
 
-	if (!TestTrue(TEXT("la resolution si e' sospesa su una finestra"), TM->IsResolutionSuspended()))
+	// --- prima della presentazione ----------------------------------------------------------------------------
+	if (!TestTrue(TEXT("premessa: la resolution si e' sospesa su una finestra"), TM->IsResolutionSuspended()))
 	{
 		TM->OnReactionWindowOpened.Unbind();
-		DestroyResumeWorld(World);
+		DestroyResumeWorld(M.World);
 		return false;
 	}
+	TestTrue(TEXT("il playback parziale e' partito"), TM->IsResolving());
+	TestEqual(TEXT("🔴 subito dopo il lock-in la finestra NON e' ancora presentata"), Presentazioni, 0);
+	TestFalse(TEXT("e il manager lo dice"), TM->IsReactionWindowPresented());
 
-	// 🔑 Il playback e' partito, e la finestra si e' aperta con quello in corso.
-	TestTrue(TEXT("il playback e' in corso mentre la finestra attende"), TM->IsResolving());
-
-	// Il tratto percorso e' nella timeline: c'e' qualcosa da guardare, non uno schermo fermo.
-	TestTrue(TEXT("la timeline porta gia' il movimento percorso"),
-		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Move) > 0);
-
-	// 🔴 **Il turno NON si conclude mentre la finestra attende**, ed e' il difetto che questo test esiste
-	// per impedire: `FinishPlayback` chiama `ConcludeTurn`, e il playback parziale mostra pochi secondi
-	// mentre la finestra ne dura `FastReactionDuration`. Senza il fermo, il turno si chiudeva sotto chi
-	// stava ancora decidendo. Si ticka ben oltre la durata del tratto mostrato.
-	//
-	// ⚠️ **Ma SOTTO la durata della finestra, e il vincolo e' nuovo** (`#2717`). Questo ciclo faceva 200
-	// tick — **10 secondi** — e asseriva che la finestra fosse ancora aperta. Era vero, e per il motivo
-	// sbagliato: nessuno la faceva scadere, perche' `OpenWindowElapsed` era azzerato in quattro punti e
-	// incrementato in zero. L'asserto codificava il difetto invece di sorvegliare l'intento.
-	//
-	// 🔑 Ora la finestra scade a `FastReactionDuration` (3,0 s di default, ADR-0004 §8), quindi il tempo
-	// da far passare e' quello che serve a esaurire il playback parziale e **non** la finestra: 2 secondi
-	// stanno comodamente in mezzo. Il difetto che il test sorveglia — il turno che si chiude perche' il
-	// PLAYBACK e' finito — resta osservabile esattamente come prima.
-	const float DurataFinestra = TM->GetFastReactionDuration();
-	const int32 TickSottoLaScadenza = FMath::Max(1, FMath::FloorToInt((DurataFinestra * 0.66f) / 0.05f));
-	for (int32 I = 0; I < TickSottoLaScadenza; ++I)
+	// L'orologio non corre mentre il playback mostra l'avvicinamento: tre tick, e il residuo e' la durata intera.
+	for (int32 Tick = 0; Tick < 3 && !TM->IsReactionWindowPresented(); ++Tick)
 	{
 		TM->Tick(0.05f);
 	}
-	TestTrue(TEXT("esaurito il playback parziale ma non la finestra, la resolution attende ancora"),
-		TM->IsResolutionSuspended());
-	TestTrue(TEXT("la finestra e' ancora aperta"), !TM->GetOpenReactionWindowId().IsEmpty());
-
-	// ⛔ **Che la finestra scada da sola NON si misura qui**, ed e' una lezione costata un rosso: questo
-	// scenario arma piu' watcher, quindi le finestre si aprono **in sequenza** e ognuna dura
-	// `FastReactionDuration`. Un asserto «dopo N tick non attende piu'» dipenderebbe da **quante** finestre
-	// si sono aperte, che questo test non controlla. La scadenza autonoma ha il suo test dedicato e
-	// deterministico: `Reactions.Brace.WindowExpiresOnItsOwn`.
-
-	// Chiuse le finestre, la resolution arriva in fondo senza che il playback riparta da zero.
-	int32 Chiusure = 0;
-	while (TM->IsResolutionSuspended() && Chiusure < 16)
+	if (TestFalse(TEXT("premessa: il tratto parziale dura piu' di tre tick"), TM->IsReactionWindowPresented()))
 	{
-		TM->ExpireReactionWindow();
-		++Chiusure;
+		TestEqual(TEXT("🔴 prima della presentazione il countdown e' fermo"),
+			TM->GetOpenReactionWindowRemainingSeconds(), TM->GetFastReactionDuration(), 0.001f);
 	}
-	TestFalse(TEXT("la resolution e' conclusa"), TM->IsResolutionSuspended());
-	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// --- la presentazione --------------------------------------------------------------------------------------
+	TestTrue(TEXT("la finestra si presenta pompando il playback"), RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM));
+	TestEqual(TEXT("presentata una volta"), Presentazioni, 1);
+	TestTrue(TEXT("🔴 alla presentazione il playback e' TRATTENUTO: ha mostrato tutto il risolto"), bTrattenutoAllApertura);
+	TestTrue(*FString::Printf(TEXT("🔴 e il mover e' posato sull'ingresso (1,0): a %.1f cm dal suo centro"),
+		DistanzaDallIngresso), DistanzaDallIngresso >= 0.f && DistanzaDallIngresso < 1.f);
+	TestEqual(TEXT("e la finestra ha la sua durata intera"), ResiduoAllApertura, TM->GetFastReactionDuration(), 0.001f);
+	TestTrue(TEXT("la timeline porta il movimento percorso"), TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Move) > 0);
+
+	// Il turno non si chiude sotto chi decide, e l'orologio ora corre: dopo un secondo ne restano due.
+	TM->Tick(1.f);
+	TestTrue(TEXT("la finestra attende ancora"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il countdown corre da quando si vede"), TM->GetOpenReactionWindowRemainingSeconds(),
+		TM->GetFastReactionDuration() - 1.f, 0.001f);
 
 	TM->OnReactionWindowOpened.Unbind();
-	DestroyResumeWorld(World);
+	DestroyResumeWorld(M.World);
+	return true;
+}
+
+/**
+ * **La seconda finestra si presenta sul SECONDO ingresso, non sul primo** (`#3666`, R1.2).
+ *
+ * 🔴 Dopo una risposta la ripresa puo' risospendersi su un ingresso successivo. Il playback era trattenuto sul primo,
+ * e fino a `#3666` nessuno lo estendeva: la seconda finestra chiedeva del secondo ingresso con lo schermo fermo al
+ * primo. Qui ogni presentazione registra dove il mover e' POSATO: alla seconda dev'essere sul secondo ingresso, e a
+ * ogni presentazione il playback dev'essere trattenuto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSecondPresentsOnTheSecondEntryTest,
+	"RefactorTactics.Reactions.SecondWindowPresentsOnTheSecondEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&)
+{
+	const RTPresentazioneFinestra::FMontaggio M = RTPresentazioneFinestra::Monta(*this);
+	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
+	ARTTurnManager* TM = M.TM;
+	ARTUnit* Mover = M.Mover;
+
+	// Per ogni presentazione: quanto il mover dista dal primo e dal secondo ingresso, nella POSA.
+	TArray<TPair<float, float>> DistanzeAllApertura;
+	TArray<bool> TrattenutoAllApertura;
+	UWorld* World = M.World;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&DistanzeAllApertura, &TrattenutoAllApertura, TM, Mover, World](const FRTReactionWindowView&, int32)
+		{
+			DistanzeAllApertura.Add(TPair<float, float>(
+				RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(1, 0)),
+				RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(2, 0))));
+			TrattenutoAllApertura.Add(TM->IsPlaybackHeldByWindow());
+		});
+
+	TM->LockInAndResolve();
+	// Si risponde HOLD a ogni finestra presentata, che non consuma la carica: la guardia puo' chiedere di nuovo.
+	for (int32 Giro = 0; Giro < 6 && TM->IsResolutionSuspended(); ++Giro)
+	{
+		if (!RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM)) { break; }
+		TM->SubmitReactionResponse(TM->GetOpenReactionWindowId(), URTReactionOpportunityLibrary::HoldResponse());
+	}
+
+	if (!TestTrue(FString::Printf(TEXT("premessa: le finestre presentate sono almeno due (%d)"), DistanzeAllApertura.Num()),
+		DistanzeAllApertura.Num() >= 2))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(M.World);
+		return false;
+	}
+	for (int32 i = 0; i < TrattenutoAllApertura.Num(); ++i)
+	{
+		TestTrue(*FString::Printf(TEXT("la finestra %d si presenta a playback trattenuto"), i + 1), TrattenutoAllApertura[i]);
+	}
+	TestTrue(*FString::Printf(TEXT("la prima si presenta col mover posato sul primo ingresso (1,0): a %.1f cm"),
+		DistanzeAllApertura[0].Key), DistanzeAllApertura[0].Key < 1.f);
+	TestTrue(*FString::Printf(TEXT("🔴 la seconda col mover posato sul SECONDO ingresso (2,0): a %.1f cm, e a %.1f dal primo"),
+		DistanzeAllApertura[1].Value, DistanzeAllApertura[1].Key), DistanzeAllApertura[1].Value < 1.f);
+	TestFalse(TEXT("risposte tutte date: la resolution e' conclusa"), TM->IsResolutionSuspended());
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(M.World);
+	return true;
+}
+
+/**
+ * **Uno Skip durante l'avvicinamento presenta la finestra con lo schermo sull'ingresso** (`#3666`, review di #3675).
+ *
+ * 🔴 `SkipPlayback` passa da `FinishPlayback`, che a risoluzione sospesa trattiene e presenta SUBITO: le anim restavano
+ * dove l'ultimo tick le aveva lasciate, e la finestra chiedeva dell'ingresso con il mover a meta' strada — proprio cio'
+ * che `#3666` esiste per togliere. Qui due tick di avvicinamento, poi lo Skip.
+ *
+ * 🔴 **E dopo la risposta il mover non torna indietro** (seconda review di #3675). Posarlo non bastava: l'orologio
+ * restava a meta' avvicinamento, e alla risposta `BeginPlayback(true)` lo riportava indietro a rifare il tratto
+ * saltato. Dopo HOLD, fino alla finestra successiva, la distanza dal secondo ingresso deve solo scendere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSkipPosesTheEntryTest,
+	"RefactorTactics.Reactions.SkipBeforeThePresentationPosesTheEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowSkipPosesTheEntryTest::RunTest(const FString&)
+{
+	const RTPresentazioneFinestra::FMontaggio M = RTPresentazioneFinestra::Monta(*this);
+	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
+	ARTTurnManager* TM = M.TM;
+	ARTUnit* Mover = M.Mover;
+	UWorld* World = M.World;
+
+	float DistanzaAllApertura = -1.f;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&DistanzaAllApertura, Mover, World](const FRTReactionWindowView&, int32)
+		{
+			DistanzaAllApertura = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(1, 0));
+		});
+
+	TM->LockInAndResolve();
+	TM->Tick(0.05f);
+	TM->Tick(0.05f);
+	if (!TestTrue(TEXT("⛔ premessa: dopo due tick l'avvicinamento e' in corso, la finestra non e' presentata"),
+		TM->IsResolutionSuspended() && !TM->IsReactionWindowPresented()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(M.World);
+		return false;
+	}
+
+	TM->SkipPlayback();
+	TestTrue(TEXT("lo Skip presenta la finestra"), TM->IsReactionWindowPresented());
+	TestTrue(FString::Printf(TEXT("e la barra di avanzamento e' in fondo al tratto parziale (%.2f)"),
+		TM->GetPlaybackProgress01()), TM->GetPlaybackProgress01() > 0.99f);
+	TestTrue(*FString::Printf(TEXT("🔴 e il mover e' posato sull'ingresso (1,0), non a meta' strada: a %.1f cm"),
+		DistanzaAllApertura), DistanzaAllApertura >= 0.f && DistanzaAllApertura < 1.f);
+
+	// --- dopo la risposta: avanti, mai indietro -----------------------------------------------------------------
+	const float FraGliIngressi = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(2, 0));
+	TM->SubmitReactionResponse(TM->GetOpenReactionWindowId(), URTReactionOpportunityLibrary::HoldResponse());
+	float Prima = FraGliIngressi;
+	int32 Campioni = 0;
+	for (int32 I = 0; I < 400 && TM->IsResolving() && !TM->IsReactionWindowPresented(); ++I)
+	{
+		TM->Tick(0.05f);
+		const float Ora = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(2, 0));
+		++Campioni;
+		if (Ora > Prima + 0.5f)
+		{
+			AddError(FString::Printf(TEXT("🔴 dopo la risposta il mover torna indietro al campione %d: dal secondo "
+				"ingresso %.1f cm, prima %.1f"), Campioni, Ora, Prima));
+			break;
+		}
+		Prima = Ora;
+	}
+	TestTrue(FString::Printf(TEXT("⛔ premessa: il playback dopo la risposta e' stato osservato (%d campioni)"), Campioni),
+		Campioni > 0);
+	TestTrue(*FString::Printf(TEXT("e arriva sul secondo ingresso (2,0): a %.1f cm"), Prima), Prima < 1.f);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(M.World);
+	return true;
+}
+
+/**
+ * **Senza playback la finestra si presenta alla sospensione, come prima** (`#3666`, R1.3).
+ *
+ * E' il caso headless: nessuno guarda, e non c'e' un trattenimento da aspettare. Il delegate arriva dentro
+ * `LockInAndResolve`, e la finestra scade da sola: il turno si chiude.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowWithoutPlaybackPresentsAtOnceTest,
+	"RefactorTactics.Reactions.WindowWithoutPlaybackPresentsAtSuspension",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowWithoutPlaybackPresentsAtOnceTest::RunTest(const FString&)
+{
+	const RTPresentazioneFinestra::FMontaggio M = RTPresentazioneFinestra::Monta(*this);
+	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
+	ARTTurnManager* TM = M.TM;
+	TM->bEnablePlayback = false;
+
+	int32 Presentazioni = 0;
+	TM->OnReactionWindowOpened.BindLambda([&Presentazioni](const FRTReactionWindowView&, int32) { ++Presentazioni; });
+
+	TM->LockInAndResolve();
+	TestTrue(TEXT("premessa: la resolution si e' sospesa"), TM->IsResolutionSuspended());
+	TestFalse(TEXT("nessun playback e' partito"), TM->IsResolving());
+	TestEqual(TEXT("🔴 la finestra e' presentata SUBITO, dentro il lock-in"), Presentazioni, 1);
+	TestTrue(TEXT("e il manager lo dice"), TM->IsReactionWindowPresented());
+
+	// Scade da sola, e ogni finestra successiva si presenta subito anch'essa: il turno arriva in fondo.
+	for (int32 Tick = 0; Tick < 400 && TM->IsResolutionSuspended(); ++Tick)
+	{
+		TM->Tick(0.05f);
+	}
+	TestFalse(TEXT("le finestre sono scadute e il turno e' concluso"), TM->IsResolutionSuspended());
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(M.World);
+	return true;
+}
+
+/**
+ * **Con il playback in pausa la presentazione aspetta la ripresa** (`#3666`, R1.7).
+ *
+ * I comandi di playback vivono dietro `rt.Debug.PlaybackControls`: fuori dalla partita normale. In pausa
+ * `TickPlayback` esce prima del trattenimento, quindi la finestra non si presenta e il suo orologio non corre. Non
+ * contraddice [D-351], che vieta di fermare un countdown GIA' visibile: qui la finestra non c'e' ancora.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowWaitsForAPausedPlaybackTest,
+	"RefactorTactics.Reactions.WindowWaitsForAPausedPlayback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowWaitsForAPausedPlaybackTest::RunTest(const FString&)
+{
+	const RTPresentazioneFinestra::FMontaggio M = RTPresentazioneFinestra::Monta(*this);
+	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
+	ARTTurnManager* TM = M.TM;
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	int32 Presentazioni = 0;
+	TM->OnReactionWindowOpened.BindLambda([&Presentazioni](const FRTReactionWindowView&, int32) { ++Presentazioni; });
+
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: sospesa, con il playback fermo"),
+		TM->IsResolutionSuspended() && TM->IsResolving() && TM->IsPlaybackPaused()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(M.World);
+		return false;
+	}
+	for (int32 Tick = 0; Tick < 100; ++Tick)
+	{
+		TM->Tick(0.05f);
+	}
+	TestEqual(TEXT("🔴 in pausa la finestra non si presenta"), Presentazioni, 0);
+	TestEqual(TEXT("e il suo orologio non corre"), TM->GetOpenReactionWindowRemainingSeconds(),
+		TM->GetFastReactionDuration(), 0.001f);
+
+	TM->ResumePlayback();
+	TestTrue(TEXT("alla ripresa si presenta"), RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM));
+	TestEqual(TEXT("una volta"), Presentazioni, 1);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(M.World);
 	return true;
 }
 
@@ -749,6 +1008,7 @@ bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
 		}
 
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 		R.bSospesa = TM->IsResolutionSuspended();
 		R.FinestreChiuse = ChiudiOgniFinestra(TM);
@@ -1030,6 +1290,7 @@ bool FRTMicroStepBudgetSurvivesSuspensionTest::RunTest(const FString&)
 		});
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	// ⛔ ANTI-VACUITA' 1: senza sospensione non c'e' niente da far sopravvivere, e il resto del test
 	// passerebbe misurando una risoluzione lineare.
@@ -1051,6 +1312,9 @@ bool FRTMicroStepBudgetSurvivesSuspensionTest::RunTest(const FString&)
 	{
 		TM->ExpireReactionWindow();
 		++Scadenze;
+		// #3666: la finestra riaperta dalla ripresa si presenta solo quando il playback esteso si trattiene sul
+		// nuovo ingresso. Senza pompare, il delegate che prende il campione non scatterebbe mai.
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
 
 		const int32 Ora = TM->GetMicroStepsSpentInResolution();
 		if (Ora != INDEX_NONE)

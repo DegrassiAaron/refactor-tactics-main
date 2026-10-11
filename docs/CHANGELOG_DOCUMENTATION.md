@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-11 — La finestra di reazione si presenta sull'ingresso: emendamento a D-355
+
+**Origine**: [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666), S1 dello spec panel sui seguiti di `U74`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-355`: la finestra si presenta al trattenimento del playback, e la slow-motion di `D-350` rallenta l'avvicinamento (decisione d'autore, lettura (a)); le tre regole dell'estensione del playback, misurate sul `Brace` |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK` eseguita: entrambi gli istanti tengono, su due banchi dello Scenario Harness |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U56` parzialmente eseguita: resta `PIE-V01-RXBRACE` |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | il banco `Visual.Reaction.OverwatchWindowResume`, con la guardia rivolta a SE |
+
+---
+
 ## 2026-10-11 — La seduta `U79` e D-499: in iso la camera ruota di 60°
 
 **Origine**: i verdetti dell'autore sulle catture della seduta `U79`, e la sua decisione sulla rotazione. Issue [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) · [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674).
