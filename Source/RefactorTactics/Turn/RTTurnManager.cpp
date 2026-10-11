@@ -148,6 +148,9 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	//
 	// ⚠️ E sta **prima** di `TickPlayback` e fuori da `bIsResolving`: la finestra puo' essere aperta senza
 	// che il playback sia mai partito — `BeginPartialPlayback` lo avvia solo se la timeline non e' vuota.
+	// `#3666`: PRIMA dell'orologio, che corre solo a finestra presentata.
+	TickReactionWindowPresentation();
+
 	TickReactionWindow(DeltaSeconds);
 
 	// La slow-motion di [D-350] si allinea DOPO l'orologio: se questo tick ha fatto scadere la finestra, il
@@ -196,6 +199,14 @@ void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
 		return;
 	}
 
+	// 🔑 **L'orologio corre da quando la finestra si VEDE** (`#3666`). Prima di allora il playback sta ancora
+	// mostrando l'avvicinamento: contare quei secondi toglieva al giocatore il tempo per decidere su cio' che
+	// non aveva ancora visto — in `U74` la finestra e' scaduta prima che l'ingresso comparisse a schermo.
+	if (!bReactionWindowPresented)
+	{
+		return;
+	}
+
 	// Quale dei due siti attende. Il `Brace` per primo, come in `SubmitReactionResponse`: il Blast si
 	// risolve prima del movimento, e la sua finestra tiene ferma la fase.
 	float* Elapsed = nullptr;
@@ -231,6 +242,95 @@ void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
 	{
 		ExpireReactionWindow();
 	}
+}
+
+/**
+ * Una finestra si e' sospesa: la vista e' pronta, e la consegna aspetta il playback (`#3666`).
+ *
+ * 🔑 **La regola dei tre stati del playback** (referto dello spec panel sui seguiti di `#3634`, §3.2):
+ * - **spento** (`bEnablePlayback` falso, il caso headless): si presenta SUBITO, come prima di `#3666`. Nessuno
+ *   guarda, e il ramo non ha nessuna ragione di aspettare;
+ * - **gia' in corso, o gia' trattenuto**: e' la seconda finestra dopo una risposta. Il playback va esteso fino al
+ *   confine nuovo, e lo fa `TickReactionWindowPresentation` — non qui, perche' qui siamo dentro il resolver;
+ * - **non ancora partito**: lo avvia chi ha sospeso (`LockInAndResolve` con `BeginPartialPlayback`), e la
+ *   presentazione arriva da `FinishPlayback`. Se non parte — timeline vuota — la fa il prossimo `Tick`.
+ *
+ * ⚠️ `BeginPartialPlayback` esce senza fare niente sia a playback spento sia a playback gia' partito: non
+ * distingue gli ultimi due stati, ed e' il motivo per cui `bPartialPlaybackNeedsExtension` esiste.
+ */
+void ARTTurnManager::SuspendReactionWindowForPresentation(const FRTReactionWindowView& View, int32 OwnerUnitId)
+{
+	PendingWindowView = View;
+	PendingWindowOwnerId = OwnerUnitId;
+	bHasPendingWindowView = true;
+	bReactionWindowPresented = false;
+	bPartialPlaybackNeedsExtension = bIsResolving;
+
+	if (!bEnablePlayback)
+	{
+		PresentPendingReactionWindow();
+	}
+}
+
+void ARTTurnManager::TickReactionWindowPresentation()
+{
+	if (!bHasPendingWindowView || bReactionWindowPresented)
+	{
+		return;
+	}
+
+	// Chiusa prima di essere vista — una risposta scriptata, un test: non c'e' piu' niente da presentare.
+	if (GetOpenReactionWindowId().IsEmpty())
+	{
+		bHasPendingWindowView = false;
+		return;
+	}
+
+	// La seconda finestra: si estende la timeline coi percorsi cresciuti e si riprende il playback dal punto in cui
+	// era, senza ricominciarlo. La presentazione arrivera' da `FinishPlayback`, al nuovo trattenimento.
+	if (bPartialPlaybackNeedsExtension)
+	{
+		bPartialPlaybackNeedsExtension = false;
+		if (bIsResolving)
+		{
+			EmitPartialMoveEvents();
+			BeginPlayback(/*bPreserveClock=*/ true);
+			return;
+		}
+	}
+
+	// Nessun playback in corso: lo si avvia se c'e' qualcosa da mostrare, altrimenti si presenta adesso.
+	if (!bIsResolving)
+	{
+		BeginPartialPlayback();
+	}
+	if (!bIsResolving || bPlaybackHeldByWindow)
+	{
+		PresentPendingReactionWindow();
+	}
+}
+
+void ARTTurnManager::PresentPendingReactionWindow()
+{
+	if (!bHasPendingWindowView || bReactionWindowPresented)
+	{
+		return;
+	}
+	// ⛔ **Non sul confine vecchio**: se il playback deve ancora essere esteso, un trattenimento arrivato adesso e'
+	// quello della finestra precedente. Succede quando una risposta arriva prima della presentazione — un test, uno
+	// script — e la ripresa si risospende con il playback ancora in corsa verso il primo ingresso.
+	if (bPartialPlaybackNeedsExtension)
+	{
+		return;
+	}
+	if (GetOpenReactionWindowId().IsEmpty())
+	{
+		bHasPendingWindowView = false;
+		return;
+	}
+
+	bReactionWindowPresented = true;
+	OnReactionWindowOpened.ExecuteIfBound(PendingWindowView, PendingWindowOwnerId);
 }
 
 void ARTTurnManager::UpdateReactionSlowMotion()
@@ -9236,6 +9336,8 @@ void ARTTurnManager::FinishPlayback()
 	if (IsResolutionSuspended())
 	{
 		bPlaybackHeldByWindow = true;
+		// `#3666`: e' QUESTO il fotogramma in cui la finestra si presenta, e il suo countdown comincia.
+		PresentPendingReactionWindow();
 		return;
 	}
 

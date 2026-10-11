@@ -1715,6 +1715,15 @@ public:
 	 */
 	void TickReactionWindow(float DeltaSeconds);
 
+	/** Una finestra si e' sospesa: prepara la vista e decide quando presentarla (`#3666`). Vedi il .cpp. */
+	void SuspendReactionWindowForPresentation(const FRTReactionWindowView& View, int32 OwnerUnitId);
+
+	/** Porta il playback fino al confine della finestra in attesa, e la presenta quando ci arriva (`#3666`). */
+	void TickReactionWindowPresentation();
+
+	/** Esegue `OnReactionWindowOpened` per la finestra in attesa, se il playback e' sul suo confine (`#3666`). */
+	void PresentPendingReactionWindow();
+
 	void RunPhaseLoop();
 
 	/** La coda della risoluzione: TurnLog, Cleanup, fine partita, playback. Due chiamanti, vedi il .cpp. */
@@ -2014,6 +2023,9 @@ protected:
 	/** Avvia il playback su cio' che e' stato risolto finora, a resolution sospesa. Vedi il .cpp. */
 	void BeginPartialPlayback();
 
+	/** Riemette i `Move` parziali dai risultati finora, a movimento sospeso (`#3666`). Vedi il .cpp. */
+	void EmitPartialMoveEvents();
+
 	/** Emette gli eventi `Move` della timeline dai risultati passati. Vedi il .cpp: serve anche a meta'. */
 	void EmitMoveEvents(const TArray<ARTUnit*>& Units, const TArray<FRTHexMoveResult>& Results);
 
@@ -2067,6 +2079,10 @@ public:
 
 	/**
 	 * Notifica che una finestra di reazione si e' APERTA e che la resolution attende (`#2679` fetta 2).
+	 *
+	 * ➕ **Da `#3666` arriva alla PRESENTAZIONE, non alla sospensione**: quando il playback parziale si trattiene sul
+	 * confine, cioe' quando lo schermo ha mostrato l'ingresso. A playback spento arriva subito, come prima. Vedi
+	 * `IsReactionWindowPresented` e l'emendamento del 2026-10-11 a [D-355].
 	 *
 	 * 🔑 **Legarlo e' cio' che rende la finestra interattiva.** Senza, `AskReactionDecision` resta l'unica
 	 * strada e la resolution non si ferma mai: e' il modo in cui **bot, test e Verifier** conservano il
@@ -2164,6 +2180,24 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetOpenReactionWindowRemainingSeconds() const;
+
+	/**
+	 * Vero se la finestra aperta e' stata PRESENTATA a chi decide (`#3666`).
+	 *
+	 * 🔑 **Sospesa e presentata sono due fatti, e fino a `#3666` avevano un segnale solo.** Il resolver sospende
+	 * quando tocca il confine, dentro `LockInAndResolve`, e il playback parziale parte DOPO: la finestra si apriva
+	 * su uno schermo che non aveva ancora mostrato l'ingresso — misurato in PIE (`U74`, raffica `r13`: header su
+	 * PREP, il nemico nella cella di partenza). [D-355] chiede il contrario, per la ragione che scrive: non si
+	 * chiede FIRE/HOLD su un movimento che lo schermo non ha mostrato. Ora la finestra si presenta quando il
+	 * playback si trattiene sul confine (`FinishPlayback`), e il countdown comincia da li'.
+	 *
+	 * ⚠️ Senza playback — spento, o con niente da mostrare — la presentazione e' immediata, come prima: e' il caso
+	 * headless, dove nessuno guarda.
+	 */
+	bool IsReactionWindowPresented() const { return bReactionWindowPresented; }
+
+	/** Vero se il playback parziale si e' trattenuto su una finestra (`#2679`). Per i test di `#3666`. */
+	bool IsPlaybackHeldByWindow() const { return bPlaybackHeldByWindow; }
 
 	/**
 	 * Arma il manager con le decisioni di reazione GIA' PRESE, lette da una traccia (`#886`).
@@ -3425,6 +3459,24 @@ private:
 	 * farebbe ripartire un playback che non ha nulla da mostrare.
 	 */
 	bool bPlaybackHeldByWindow = false;
+
+	/**
+	 * La finestra sospesa e non ancora presentata (`#3666`): la vista e' costruita ALLA SOSPENSIONE, dove lo
+	 * snapshot e gli indici valgono, e consegnata quando il playback arriva al confine.
+	 */
+	FRTReactionWindowView PendingWindowView;
+	int32 PendingWindowOwnerId = INDEX_NONE;
+	bool bHasPendingWindowView = false;
+
+	/** Vedi `IsReactionWindowPresented`. L'orologio della finestra corre solo quando e' vero. */
+	bool bReactionWindowPresented = false;
+
+	/**
+	 * Il playback era gia' partito quando la finestra si e' sospesa: va ESTESO fino al confine nuovo prima di
+	 * presentarla (`#3666`). E' la seconda finestra dopo una risposta, sullo stesso confine o su un altro: senza,
+	 * il playback resterebbe trattenuto sul PRIMO ingresso mentre la finestra chiede del secondo.
+	 */
+	bool bPartialPlaybackNeedsExtension = false;
 
 	/**
 	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.

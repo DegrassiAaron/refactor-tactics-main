@@ -21,6 +21,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
+#include "Tests/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -98,6 +99,7 @@ namespace
 	void RunDefTurn(ARTTurnManager* TM)
 	{
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 		{
 			TM->Tick(0.05f);
@@ -1008,15 +1010,26 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 	// risponderebbe a una domanda diversa.
 	int32 Aperte = 0;
 	int32 TimelineAllApertura = -1;
+	bool bTrattenutoAllApertura = false;
+	float ResiduoAllApertura = -1.f;
 	TM->OnReactionWindowOpened.BindLambda(
-		[&Aperte, &TimelineAllApertura, TM](const FRTReactionWindowView&, int32)
+		[&Aperte, &TimelineAllApertura, &bTrattenutoAllApertura, &ResiduoAllApertura, TM](
+			const FRTReactionWindowView&, int32)
 		{
 			++Aperte;
 			TimelineAllApertura = TM->ResolvedTimelineCountForTest();
+			bTrattenutoAllApertura = TM->IsPlaybackHeldByWindow();
+			ResiduoAllApertura = TM->GetOpenReactionWindowRemainingSeconds();
 		});
 
 	const FRTCellId Partenza = Bracer->Cell;
 	TM->LockInAndResolve();
+	// 🔑 **`#3666`, il gemello del sito dell'Overwatch**: la finestra si presenta quando il playback ha mostrato il
+	// colpo che sta per spingere, non quando il Blast si sospende. Subito dopo il lock-in non e' ancora arrivata.
+	TestEqual(TEXT("🔴 subito dopo il lock-in la finestra del Brace NON e' ancora presentata"), Aperte, 0);
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+	TestTrue(TEXT("🔴 alla presentazione il playback e' TRATTENUTO: ha mostrato tutto il risolto"), bTrattenutoAllApertura);
+	TestEqual(TEXT("e la finestra ha la sua durata intera"), ResiduoAllApertura, TM->GetFastReactionDuration(), 0.001f);
 
 	// 🔑 **(1) La finestra si e' aperta**, e con essa la scelta che prima non arrivava.
 	TestEqual(TEXT("si e' aperta UNA finestra del Brace"), Aperte, 1);
@@ -1098,6 +1111,7 @@ bool FRTBraceExtendedBlastDoesNotReplayHitsTest::RunTest(const FString&)
 	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
 	TM->SetFastReactionDuration(60.f); // vedi il ciclo qui sotto: la finestra non deve scadere prima dell'arrivo
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: la finestra ha sospeso il Blast"), TM->IsResolutionSuspended()))
 	{
 		TM->OnReactionWindowOpened.Unbind();
@@ -1193,6 +1207,7 @@ bool FRTBraceWindowExpiresOnItsOwnTest::RunTest(const FString&)
 		[&bAperta](const FRTReactionWindowView&, int32) { bAperta = true; });
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	if (!TestTrue(TEXT("la finestra si e' aperta"), bAperta)
 		|| !TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
@@ -1271,6 +1286,7 @@ bool FRTWindowClockIgnoresPauseTest::RunTest(const FString&)
 	TM->SetFastReactionDuration(0.5f);
 	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	if (!TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
 	{
@@ -1343,6 +1359,7 @@ bool FRTAnsweredWindowHasNoLateExpiryTest::RunTest(const FString&)
 	TM->SetFastReactionDuration(0.5f);
 	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	const FString IdFinestra = TM->GetOpenReactionWindowId();
 	if (!TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended())
