@@ -1707,14 +1707,14 @@ bool FRTCameraStrategicFollowsTheStateTest::RunTest(const FString&)
 }
 
 /**
- * In strategica l'orbita verticale non agisce, l'orizzontale si' (D-498 (4)); tornando tattici l'inclinazione e'
- * quella di prima.
+ * In strategica l'orbita non agisce, ne' la verticale (D-498 (4)) ne' l'orizzontale (D-499): in iso si ruota solo a
+ * scatti di 60. Tornando tattici l'inclinazione e' quella di prima.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicVerticalOrbitInertTest,
-	"RefactorTactics.Camera.VerticalOrbitIsInertInStrategicAndTheTacticalTiltReturns",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicFreeOrbitInertTest,
+	"RefactorTactics.Camera.FreeOrbitIsInertInStrategicAndTheTacticalTiltReturns",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTCameraStrategicVerticalOrbitInertTest::RunTest(const FString&)
+bool FRTCameraStrategicFreeOrbitInertTest::RunTest(const FString&)
 {
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
@@ -1741,25 +1741,32 @@ bool FRTCameraStrategicVerticalOrbitInertTest::RunTest(const FString&)
 
 	const float YawPrima = Cam->GetCameraYaw();
 	Cam->AddOrbit(/*DeltaYaw=*/ 20.f, /*DeltaPitch=*/ 0.f);
-	TestEqual(TEXT("l'orbita orizzontale invece agisce"), Cam->GetCameraYaw(),
-		static_cast<float>(FRotator::ClampAxis(YawPrima + 20.f)), 1e-3f);
+	Cam->AddYawContinuous(20.f);
+	TestEqual(TEXT("e nemmeno l'orbita orizzontale libera muove l'imbardata (D-499)"), Cam->GetCameraYaw(), YawPrima, 1e-3f);
 
 	Cam->ToggleStrategicView();
 	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
 	TestEqual(TEXT("con l'inclinazione di prima"), Cam->GetCameraPitch(), Tattico, 1e-3f);
+
+	// Controllo positivo: in tattica la stessa orbita orizzontale agisce.
+	const float YawTattico = Cam->GetCameraYaw();
+	Cam->AddOrbit(/*DeltaYaw=*/ 20.f, /*DeltaPitch=*/ 0.f);
+	TestEqual(TEXT("in tattica l'orbita orizzontale agisce"), Cam->GetCameraYaw(),
+		static_cast<float>(FRotator::ClampAxis(YawTattico + 20.f)), 1e-3f);
 
 	DestroyCameraWorld(World);
 	return true;
 }
 
 /**
- * `Q`/`E` ruotano di 45 gradi in entrambi gli stati, e il cambio di stato non aggancia l'imbardata (D-142, D-498 (4)).
+ * `D-499`: in iso `Q`/`E` ruotano di 60; entrando l'imbardata si allinea al multiplo di 60 piu' vicino, e uscendo torna
+ * quella tattica. In tattica lo scatto resta 45 (D-142).
  *
- * 🔑 L'imbardata di partenza e' 10: non e' multiplo ne' di 45 ne' di 60, quindi un aggancio a qualunque reticolo al
- * passaggio di stato la sposterebbe.
+ * 🔑 Due ingressi: da 10, che si allinea per difetto (0), e da 45, che si allinea per eccesso (60). Un allineamento che
+ * troncasse invece di arrotondare darebbe 0 anche al secondo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicYawStepTest,
-	"RefactorTactics.Camera.YawStepIs45InBothStatesAndTheStateChangeDoesNotSnapIt",
+	"RefactorTactics.Camera.YawSnapsTo60InStrategicAndTheTacticalYawReturns",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRTCameraStrategicYawStepTest::RunTest(const FString&)
@@ -1777,21 +1784,48 @@ bool FRTCameraStrategicYawStepTest::RunTest(const FString&)
 
 	Cam->ToggleStrategicView();
 	if (!TestTrue(TEXT("Tab apre la strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
-	TestEqual(TEXT("entrando l'imbardata non si aggancia"), Cam->GetCameraYaw(), 10.f, 1e-3f);
+	TestEqual(TEXT("entrando da 10 l'imbardata si allinea a 0"), Cam->GetCameraYaw(), 0.f, 1e-3f);
 
 	Cam->AddYaw(+1.f);
-	TestEqual(TEXT("in strategica E ruota di 45 gradi"), Cam->GetCameraYaw(), 55.f, 1e-3f);
+	TestEqual(TEXT("in strategica E ruota di 60 gradi"), Cam->GetCameraYaw(), 60.f, 1e-3f);
 	Cam->AddYaw(-1.f);
-	TestEqual(TEXT("e Q torna indietro di 45"), Cam->GetCameraYaw(), 10.f, 1e-3f);
-	Cam->AddYaw(+1.f);
+	Cam->AddYaw(-1.f);
+	TestEqual(TEXT("e Q torna indietro di 60, anche oltre lo zero"), Cam->GetCameraYaw(), 300.f, 1e-3f);
 
 	Cam->ToggleStrategicView();
 	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
-	TestEqual(TEXT("uscendo l'imbardata resta quella della strategica"), Cam->GetCameraYaw(), 55.f, 1e-3f);
+	TestEqual(TEXT("uscendo torna l'imbardata tattica"), Cam->GetCameraYaw(), 10.f, 1e-3f);
 	Cam->AddYaw(+1.f);
-	TestEqual(TEXT("e in tattica lo scatto resta 45"), Cam->GetCameraYaw(), 100.f, 1e-3f);
+	TestEqual(TEXT("e in tattica lo scatto resta 45 (D-142)"), Cam->GetCameraYaw(), 55.f, 1e-3f);
+
+	// Secondo ingresso, da 45: si allinea per eccesso.
+	Cam->AddYaw(-1.f);
+	Cam->AddYawContinuous(35.f);
+	TestEqual(TEXT("premessa: imbardata a 45"), Cam->GetCameraYaw(), 45.f, 1e-3f);
+	Cam->ToggleStrategicView();
+	TestEqual(TEXT("entrando da 45 l'imbardata si allinea a 60"), Cam->GetCameraYaw(), 60.f, 1e-3f);
+	Cam->ToggleStrategicView();
+	TestEqual(TEXT("e uscendo torna 45"), Cam->GetCameraYaw(), 45.f, 1e-3f);
 
 	DestroyCameraWorld(World);
+	return true;
+}
+
+/** `D-499`: l'allineamento dell'imbardata, come funzione pura. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSnapYawTest,
+	"RefactorTactics.Camera.SnapYawToStepRoundsToTheNearestMultiple",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraSnapYawTest::RunTest(const FString&)
+{
+	struct FCaso { float Da; float Atteso; };
+	for (const FCaso& C : { FCaso{ 0.f, 0.f }, FCaso{ 10.f, 0.f }, FCaso{ 29.f, 0.f }, FCaso{ 30.f, 60.f }, FCaso{ 45.f, 60.f },
+	                        FCaso{ 89.f, 60.f }, FCaso{ 91.f, 120.f }, FCaso{ 330.f, 0.f }, FCaso{ 350.f, 0.f }, FCaso{ -20.f, 0.f },
+	                        FCaso{ -40.f, 300.f } })
+	{
+		TestEqual(*FString::Printf(TEXT("%.0f si allinea a %.0f"), C.Da, C.Atteso),
+			ARTCameraPawn::SnapYawToStep(C.Da, 60.f), C.Atteso, 1e-3f);
+	}
 	return true;
 }
 

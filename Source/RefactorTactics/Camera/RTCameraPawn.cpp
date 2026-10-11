@@ -331,7 +331,9 @@ void ARTCameraPawn::AddYaw(float AxisValue)
 	}
 	// Normalizzata subito: ruotando a lungo nella stessa direzione il valore crescerebbe senza fine, e il
 	// campo in editor diventerebbe illeggibile pur descrivendo la stessa vista.
-	CameraYaw = FRotator::ClampAxis(CameraYaw + FMath::Sign(AxisValue) * YawStep);
+	// D-499: in iso il passo e' quello degli assi degli esagoni (60); in tattica resta D-142 (45).
+	const float Passo = bStrategicView ? StrategicYawStep : YawStep;
+	CameraYaw = FRotator::ClampAxis(CameraYaw + FMath::Sign(AxisValue) * Passo);
 
 	// SOLO la rotazione, non `ApplyViewSettings()`: quella riporta anche il braccio a `DefaultArmLength`, e
 	// ruotare avrebbe annullato lo zoom a ogni pressione. Sono due cose diverse che vivevano nella stessa
@@ -387,6 +389,18 @@ bool ARTCameraPawn::UpdateStrategicState()
 
 	if (bWas != bStrategicView)
 	{
+		// D-499: in iso l'imbardata sta sugli assi degli esagoni. Entrando si allinea al multiplo di 60 piu' vicino e
+		// si ricorda quella tattica; uscendo torna quella, come l'inclinazione (l'offset manuale non si tocca).
+		if (bStrategicView)
+		{
+			TacticalYawBeforeStrategic = CameraYaw;
+			CameraYaw = SnapYawToStep(CameraYaw, StrategicYawStep);
+		}
+		else
+		{
+			CameraYaw = TacticalYawBeforeStrategic;
+		}
+
 		// D-498: il pitch e' una funzione dello STATO, e cambia nel fotogramma in cui cambia lo stato (il taglio netto
 		// di D-495 (4)). Le porte del braccio lo ricalcolano gia' dopo questa lettura; qui vale per chi rilegge lo
 		// stato da solo.
@@ -411,6 +425,12 @@ float ARTCameraPawn::OrthoWidthForArm(float ArmLength, float HorizontalFovDegree
 	// confrontava questa formula con sé stessa. Quello di oggi misura la matrice di proiezione.
 	const float HalfFov = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
 	return 2.f * FMath::Max(ArmLength, 0.f) * FMath::Tan(HalfFov) / FMath::Max(ReferenceAspectRatio, 0.01f);
+}
+
+float ARTCameraPawn::SnapYawToStep(float YawDegrees, float Step)
+{
+	const float Passo = FMath::Max(Step, 1.f);
+	return FRotator::ClampAxis(FMath::RoundToFloat(FRotator::ClampAxis(YawDegrees) / Passo) * Passo);
 }
 
 bool ARTCameraPawn::IsOrthographicNow() const
@@ -695,7 +715,8 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 
 void ARTCameraPawn::AddYawContinuous(float AxisValue)
 {
-	if (FMath::IsNearlyZero(AxisValue))
+	// D-499: in iso si ruota solo a scatti di 60 (`AddYaw`); la rotazione libera lascerebbe la vista fuori dagli assi.
+	if (FMath::IsNearlyZero(AxisValue) || bStrategicView)
 	{
 		return;
 	}
@@ -734,7 +755,8 @@ void ARTCameraPawn::AddOrbit(float DeltaYaw, float DeltaPitch)
 	// I due campi si scrivono qui e la trasformata **una volta sola**: chiamare i due `Add*` in fila
 	// aggiornerebbe il braccio due volte per frame di trascinamento, e la seconda scrittura scarterebbe
 	// il risultato della prima.
-	if (!FMath::IsNearlyZero(DeltaYaw))
+	// D-499: in iso nemmeno l'orbita orizzontale agisce: si ruota solo a scatti di 60 (`AddYaw`).
+	if (!FMath::IsNearlyZero(DeltaYaw) && !bStrategicView)
 	{
 		CameraYaw = FRotator::ClampAxis(CameraYaw + DeltaYaw * FMath::Max(YawSensitivity, 0.f));
 	}
@@ -847,6 +869,9 @@ void ARTCameraPawn::RecenterView()
 	// dopo. Premendo `Home` da zoom massimo su una mappa piccola l'inquadratura superava l'area, il pivot
 	// si inchiodava al centro calcolato con i valori vecchi, e nessuno lo ricalcolava dopo il reset.
 	CameraYaw = 0.f;
+	// D-499: se `Home` arriva dalla strategica, l'uscita riprende l'imbardata tattica salvata: si azzera anche quella,
+	// altrimenti `Home` tornerebbe orientato come prima di `Tab`.
+	TacticalYawBeforeStrategic = 0.f;
 	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 	ApplyViewSettings();
 
