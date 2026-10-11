@@ -1075,12 +1075,12 @@ bool FRTPanelSubjectCardTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("premessa: entrambe hanno l'Overwatch"), MiaGuardia != INDEX_NONE && SuaGuardia != INDEX_NONE)) { return false; }
 	B.Mine->PlannedAbilityIndex = MiaGuardia;
 	B.Nemico->PlannedAbilityIndex = SuaGuardia;
-
-	// --- 1. Senza soggetto la carta non riceve niente ---------------------------------------------------------------------
-	P->SetSelectedUnitForTest(nullptr);
-	P->SetInspectedUnitForTest(nullptr);
-	P->RefreshLook();
-	TestTrue(TEXT("1: senza soggetto la carta resta vuota"), P->SubjectCard->GetCard().HeroId.IsNone());
+	// Il piano dell'avversaria ARMEREBBE il chip, se lo si leggesse: senza questa premessa il chip spento del passo 3
+	// sarebbe vero per caso.
+	if (!TestTrue(TEXT("premessa: il piano dell'avversaria arma una reazione"), URTHudViewModel::BuildUnitSlots(B.Nemico).bReactionArmed))
+	{
+		return false;
+	}
 
 	// --- 2. La comandata: la sua carta, col chip del suo piano ---------------------------------------------------------------
 	P->SetSelectedUnitForTest(B.Mine);
@@ -1104,6 +1104,14 @@ bool FRTPanelSubjectCardTest::RunTest(const FString&)
 	P->RefreshLook();
 	TestEqual(TEXT("4: la carta torna alla comandata"), P->SubjectCard->GetCard().HeroId, B.Mine->HeroId);
 	TestTrue(TEXT("4: col chip"), P->SubjectCard->IsReactionArmed());
+
+	// --- 5. Senza soggetto la carta si svuota: non resta quella di prima ----------------------------------------------------
+	P->SetSelectedUnitForTest(nullptr);
+	P->SetInspectedUnitForTest(nullptr);
+	P->RefreshLook();
+	if (!TestFalse(TEXT("5: premessa: il pannello non ha un soggetto"), P->HasSubject())) { return false; }
+	TestTrue(TEXT("5: la carta si svuota"), P->SubjectCard->GetCard().HeroId.IsNone());
+	TestFalse(TEXT("5: e perde il chip"), P->SubjectCard->IsReactionArmed());
 	return true;
 }
 

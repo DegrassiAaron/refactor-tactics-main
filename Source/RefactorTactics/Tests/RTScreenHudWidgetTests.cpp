@@ -1772,6 +1772,11 @@ bool FRTScreenHudRosterOpposingCardsTest::RunTest(const FString&)
 	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Charlie, TEXT("Action.Overwatch"));
 	if (!TestTrue(TEXT("premessa: la nemica ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
 	Charlie->PlannedAbilityIndex = Overwatch;
+	// Il suo piano ARMEREBBE il chip, se lo si leggesse: senza questa premessa il chip spento sarebbe vero per caso.
+	if (!TestTrue(TEXT("premessa: il piano della nemica arma una reazione"), URTHudViewModel::BuildUnitSlots(Charlie).bReactionArmed))
+	{
+		return false;
+	}
 
 	UVerticalBox* Proprie = NewObject<UVerticalBox>(Roster);
 	UVerticalBox* Altre = NewObject<UVerticalBox>(Roster);

@@ -741,10 +741,11 @@ public:
 	 * presidiata restituisce la sola squadra del giocatore. Il ciclo qui sotto salta quella, e non resta
 	 * niente. ∴ un `if (presidiata)` sarebbe una seconda copia della stessa decisione.
 	 *
-	 * 🔑 **Due chiamate a `BuildTeamRoster` compongono senza doppioni PER COSTRUZIONE**, perche' quel filtro
-	 * e' `TeamId == PlayerTeamId` e gli insiemi di due squadre sono disgiunti. ⛔ Non e' la forma giusta per
-	 * il feed, dove il filtro autorizza per voce e gli insiemi si sovrappongono — vedi
-	 * `URTPlayerEventProjector::Project`.
+	 * 🔑 **Questa lista e `GetRoster()` compongono senza doppioni PER COSTRUZIONE**, perche' entrambe filtrano per
+	 * `TeamId ==` e gli insiemi di due squadre sono disgiunti. ⛔ Non e' la forma giusta per il feed, dove il filtro
+	 * autorizza per voce e gli insiemi si sovrappongono — vedi `URTPlayerEventProjector::Project`.
+	 *
+	 * ⚠️ Le carte sono dal punto di vista di chi guarda: `bIsAlly` e' falso (#3636).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTUnitCardView> GetOpposingRoster() const;
@@ -764,7 +765,7 @@ public:
 	// La resa della tavola (#3636, T8): le carte le costruisce il C++, non il grafo.
 	// ------------------------------------------------------------------------------------------------
 
-	/** Il pannello delle carte della propria squadra. Senza, o senza `CardClass`, il roster non costruisce niente. */
+	/** Il pannello delle carte della propria squadra. Senza `CardClass` il roster non costruisce niente; questo pannello e `OpposingCardsBox` si riempiono indipendentemente. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UPanelWidget> CardsBox;
 

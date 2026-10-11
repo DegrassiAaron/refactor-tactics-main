@@ -680,7 +680,9 @@ La carta **riceve** la vista (`SetCard`, solo C++) e non va a prenderla. Le port
 ### `WBP_RT_TeamRoster`
 
 `CardsBox` (un pannello) e, nei default, `CardClass` = `WBP_RT_UnitCard_C`, come `TooltipClass` dello slot. Senza
-uno dei due il roster non costruisce niente. Le carte si **riusano** da un tick all'altro.
+`CardClass` il roster non costruisce niente; `CardsBox` e `OpposingCardsBox` si riempiono indipendentemente, e vanno
+tenuti distinti, perché un pannello condiviso mescolerebbe l'ordine delle due liste. Le carte si **riusano** da un
+tick all'altro.
 
 `OpposingCardsBox` (un pannello) riceve le carte delle altre squadre, da `GetOpposingRoster()`: vuoto in sessione
 presidiata, pieno solo in autobattle (#2744). Il chip `REAZ.` vi resta spento per costruzione (D-478 punto 4). ⚠️ Era

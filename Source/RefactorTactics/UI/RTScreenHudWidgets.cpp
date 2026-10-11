@@ -2220,7 +2220,9 @@ void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
 
 	// La carta del soggetto: nome e PV di chi si comanda o si ispeziona. Il chip dal piano, che per un'ispezionata
 	// non c'e' (`GetSlots()` non ne costruisce gli slot, e `bReactionArmed` resta falso).
-	if (SubjectCard && HasSubject())
+	// ⚠️ Anche senza soggetto: la carta si svuota invece di restare quella di prima, come faceva il grafo che la
+	// scriveva a ogni tick (review di #3656).
+	if (SubjectCard)
 	{
 		SubjectCard->SetCard(GetCard(), Slots.bReactionArmed);
 	}
