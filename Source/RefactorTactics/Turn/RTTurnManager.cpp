@@ -6846,14 +6846,15 @@ void ARTTurnManager::RefreshPresentationGeometry()
 		PBLayerHeight = LayerH;
 		for (FRTMoveAnim& A : MoveAnims)
 		{
-			if (!A.Unit)
+			const ARTUnit* Animata = A.Unit.Get();
+			if (!Animata)
 			{
 				continue;
 			}
-			Animate.Add(A.Unit);
+			Animate.Add(Animata);
 			for (int32 I = 0; I < A.Cells.Num() && I < A.World.Num(); ++I)
 			{
-				A.World[I] = A.Unit->WorldForCell(A.Cells[I], Origin, HexSize, LayerH);
+				A.World[I] = Animata->WorldForCell(A.Cells[I], Origin, HexSize, LayerH);
 			}
 		}
 	}
