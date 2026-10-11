@@ -1,0 +1,47 @@
+{
+  "scenarioId": "Visual.Reaction.OverwatchWindowResume",
+  "tags": ["visual", "reactions", "overwatch", "hud", "fast-decision", "playback", "aevik", "ivrin", "muiren", "branth"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "playerReactionWindows": true,
+
+  "_nota": "IL BANCO DELLA RIPRESA (#3666). Lo stesso schieramento di `Visual.Reaction.OverwatchWindow`, ma Ivrin percorre TRE celle invece di una: entra nella linea della guardia, ci cammina dentro, ed esce. Due ingressi, due finestre, e dopo ciascuna una risposta HOLD lascia altro movimento da mostrare. E' cio' che nel banco gemello manca: li' l'ingresso e' l'ultima cella, quindi dopo la risposta non resta niente da muovere.",
+
+  "_nota_perche_esiste": "`PIE-V01-RXPLAYBACK` guarda DUE istanti: (1) quando la finestra appare, il playback ha mostrato il nemico entrare e si e' fermato li'; (2) quando si risponde, il movimento riprende da dove si era fermato, senza ripartire da capo. Il banco gemello mostra solo il primo. Questo mostra entrambi, e in piu' la seconda finestra: si presenta quando il playback, esteso dopo la prima risposta, si trattiene sul SECONDO ingresso (`Reactions.SecondWindowPresentsOnTheSecondEntry`, headless).",
+
+  "_nota_come_si_lancia": "Da `L_DevSandbox`, console `rt.Test.Scenario Visual.Reaction.OverwatchWindowResume`, poi Play. ⚠️ `t.MaxFPS 60` prima del Play, per la ragione scritta nel banco gemello: il tetto della risoluzione conta FOTOGRAMMI, e qui le finestre sono due. ⚠️ E la finestra dell'Editor IN PRIMO PIANO: fuori fuoco l'Editor gira a circa 3 fps, e una giunzione a 3 fps non si giudica.",
+
+  "_nota_geometria": "A1 sta a (2,-1) e guarda W: la linea della guardia, lunga quanto l'attacco base di Aevik (4, `MakeBasicAttack(4)`), e' (1,-1) (0,-1) (-1,-1) (-2,-1). B1 parte da (-3,0), FUORI dalla linea, entra in (-2,-1) — prima finestra —, prosegue in (-1,-1) — seconda finestra, perche' ogni micro-step dentro la zona e' un confine — ed esce in (-1,0). Il cono di Aevik vede fino a 5 celle a W, quindi B1 e' `Detected` su tutta la rotta. A2 e B2 non agiscono: ci sono perche' roster e pannello abbiano due carte per squadra, come nel banco gemello.",
+
+  "_nota_assertion": "🔑 **Le `expect` valgono per OGNI risposta, come nel banco gemello.** Headless la decisione esce `NoDecider` e B1 arriva in (-1,0); in PIE con due HOLD (o due scadenze) anche; con un FIRE il colpo tronca il movimento nella cella in cui e' entrata. Una `UnitAtCell` su B1 sarebbe quindi rossa in uno dei modi di eseguire lo stesso file. Restano quelle che nessuna risposta puo' spostare. ⚠️ La PREMESSA — due finestre che si aprono davvero, e scadono — la prova `Scenario.PlayerReactionWindowsOpenToTheController`, che esegue anche questo banco con e senza controller.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "W" },
+    { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [ 3,  0, 0] },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [-3,  0, 0] },
+    { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-2,  2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — due finestre e due riprese. A1 arma la Guardia reattiva sulla linea che gia' guarda; B1 entra in (-2,-1), prosegue in (-1,-1) ed esce in (-1,0). In PIE il playback si ferma su ciascun ingresso, e a ogni HOLD riprende da li'.",
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        { "unit": "A1", "ability": "Action.Overwatch" },
+        { "unit": "B1", "move": [[-2, -1, 0], [-1, -1, 0], [-1, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [2, -1, 0] },
+
+    { "_assertion": "Nessuna decisione senza scelta: una finestra col solo HOLD, o chiusa per una risposta illegale, direbbe che il banco non mostra cio' per cui esiste — due opzioni.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Immediate", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "CollapsedByCondition", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Rejected", "value": 0 },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
