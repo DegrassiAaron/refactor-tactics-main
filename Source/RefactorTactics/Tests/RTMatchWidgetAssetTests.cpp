@@ -1525,7 +1525,8 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 }
 
 /**
- * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489).
+ * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489). Dalle
+ * sedute T8 ci sono anche `Conferma` (#3633), la finestra di reazione e la sua opzione (#3634) e l'header (#3635).
  *
  * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
  * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non

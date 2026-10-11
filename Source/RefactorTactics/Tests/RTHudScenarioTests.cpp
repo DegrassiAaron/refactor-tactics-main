@@ -479,9 +479,12 @@ bool FRTHudRoundLimitFromScenarioTest::RunTest(const FString&)
 	Header->RefreshLook(/*bRecheckObjective=*/ false);
 	const FString ScrittoDodici = Limite->GetText().ToString();
 	TestTrue(*FString::Printf(TEXT("col formato a 12 la porta dice «/ 12» (letto: '%s')"), *ScrittoDodici),
-		ScrittoDodici.Equals(TEXT("/ 12"), ESearchCase::CaseSensitive) && Mostrato());
-	TestFalse(TEXT("il round a schermo e' un numero, non il «—» di chi non ha contesto"),
-		Valore->GetText().ToString().Equals(TEXT("\u2014"), ESearchCase::CaseSensitive));
+		ScrittoDodici.Equals(TEXT("/ 12"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("col formato a 12 la porta del limite si vede"), Mostrato());
+	// Due cifre almeno, come la tavola («04»): un testo di default o vuoto, cioe' una porta mai scritta, cade qui.
+	const FString Round = Valore->GetText().ToString();
+	TestTrue(*FString::Printf(TEXT("il round a schermo e' un numero di due cifre (letto: '%s')"), *Round),
+		Round.Len() >= 2 && Round.IsNumeric());
 
 	Rules.FormatId = TEXT("Test.Format.Seven");
 	Rules.RoundLimit = 7;
@@ -489,7 +492,8 @@ bool FRTHudRoundLimitFromScenarioTest::RunTest(const FString&)
 	Header->RefreshLook(false);
 	const FString ScrittoSette = Limite->GetText().ToString();
 	TestTrue(*FString::Printf(TEXT("cambiato il formato, la porta segue: «/ 7» (letto: '%s')"), *ScrittoSette),
-		ScrittoSette.Equals(TEXT("/ 7"), ESearchCase::CaseSensitive) && Mostrato());
+		ScrittoSette.Equals(TEXT("/ 7"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("col formato a 7 la porta del limite si vede"), Mostrato());
 
 	Rules.FormatId = NAME_None;
 	Rules.RoundLimit = 0;

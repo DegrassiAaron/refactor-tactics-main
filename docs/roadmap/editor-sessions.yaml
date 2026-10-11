@@ -5366,7 +5366,7 @@ sessions:
     done_when: >-
       `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte dell'header; `ScreenHud.RoundLimitComesFromTheFormat`
       legge il limite dalle porte dell'istanza e non trova binding di proprieta'; entrambi rossi sull'asset di `main`;
-      a 1920x1080 Z1 e Z3 coincidono con le tavole A e D, anche in scala di grigi
+      a 1920x1080 Z1 e Z3 coincidono con le tavole A e D, anche in scala di grigi, salvo gli scarti dichiarati qui sotto
     notes: |
       Scritta ed eseguita il 2026-10-11 da #3635, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
       Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 46–87 e

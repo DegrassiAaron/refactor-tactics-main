@@ -297,16 +297,19 @@ potrebbe mostrarne una disallineata dalle altre.
 
 ## 5. I tre stati del contatore di round
 
-`WBP_RT_TurnHeader` deve mostrare **tre** cose diverse, e due si confondono:
+`WBP_RT_TurnHeader` deve mostrare **tre** cose diverse, e due si confondono. Dalla seduta `U75` le decide
+`RefreshLook`, nelle porte `RoundValueText` e `RoundLimitText`; la tabella dice la regola, il testo a schermo è
+quello della tavola A («ROUND 04 / 12»):
 
 | Stato | Testo | Perché |
 |---|---|---|
-| nessun contesto | `—` | un widget costruito prima del `TurnManager`; `Round 0` sembrerebbe un dato |
-| formato con limite | `Round 3/12` | il limite viene dal **formato**, mai da una costante |
-| formato senza limite | `Round 3` | `RoundLimit == 0` = «nessun limite», **non** «su zero» |
+| nessun contesto | `—` in `RoundValueText`, il limite `Collapsed` | un widget costruito prima del `TurnManager`; `Round 0` sembrerebbe un dato |
+| formato con limite | `03` e `/ 12` | il limite viene dal **formato**, mai da una costante |
+| formato senza limite | `03`, il limite `Collapsed` | `RoundLimit == 0` = «nessun limite», **non** «su zero» |
 
-`GetRoundCounterText()` li decide già tutti e tre: **usa quella**, non comporre il testo nel Blueprint. Un
-binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
+Non comporre il testo nel Blueprint: un binding ingenuo stampa `/ 0`, che si legge come una partita già
+scaduta. `GetRoundCounterText()` applica la stessa regola in un testo solo (`Round 3/12`, `Round 3`) per chi lo
+vuole intero, come la riga di stato del Canvas.
 
 ⌫ *Fino alla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) l'asset legava `RoundText` a `GetRoundCounterText`. La tavola A spezza il contatore
 in `RoundValueText` e `RoundLimitText`, che scrive `RefreshLook` con la stessa regola: il limite è `Collapsed` se
@@ -641,9 +644,10 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   typeface di ripiego, e quello ha i glifi. I font del progetto (`F_RT_Exo2_*`, `F_RT_Orbitron_*`) hanno un solo
   typeface e nessun ripiego: con loro un glifo assente diventa un quadrato vuoto. Le lettere restano in Exo 2 e
   Orbitron.
-- 🔴 **Una cornice che il C++ dipinge con un fondo trasparente vuole `bUseBrushTransparency` SPENTO** (`U75`). Acceso,
-  l'alfa del `BrushColor` vale anche per il contorno. Il segno della fase, dipinto con fondo trasparente e contorno
-  `Cyan`, a schermo non c'era. Lo stesso vale per le celle spente e i loro segni.
+- 🔴 **Una cornice che il C++ dipinge con un fondo trasparente o traslucido vuole `bUseBrushTransparency` SPENTO**
+  (`U75`). Acceso, l'alfa del `BrushColor` vale anche per il contorno. Il segno della fase, dipinto con fondo
+  trasparente e contorno `Cyan`, a schermo non c'era; con un fondo al 20% o al 92% il contorno si attenua allo stesso
+  modo. Vale per il segno della fase, per tutte le celle e i loro segni, e per `HeaderFrame`.
 - 🔑 **L'area di una zona alta parte da y=−1.** Per mettere un riquadro alla y della tavola, la radice vuole un pixel
   in più: 25 per stare a 24. Misurato in `U72` e in `U75`.
 - ✅ **Una radice `Visible` che riempie la zona non mangia i click della mappa** (`U75`). Il click che nessun widget
