@@ -339,8 +339,10 @@ print(len(bad), bad[:10])
 EOF
 ```
 
-In questo passaggio stampa `0 []`. ⚠️ Gli elenchi delle chiavi sono scritti a mano dal loader: la issue li sostituisce
-con quelli dei lettori nuovi.
+In questo passaggio stampa `0 []`. ⌫ *Misura incompleta, vedi P15*: lo script non guarda la chiave polimorfa `value`
+né le chiavi stringa (`hero`, `id`, `previewUnit`, `facing`…), e ha mancato quattro `UnitAlive` con `"value": 1`.
+L'oracolo è il loader stretto di #3668 sul corpus intero (`Scenario.ShippedScenariosAreValid`), non questo script, che
+resta qui come traccia di com'è stata presa la premessa.
 
 ### 5.4 La specifica
 

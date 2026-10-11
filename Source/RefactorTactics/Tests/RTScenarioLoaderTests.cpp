@@ -2819,8 +2819,11 @@ bool FRTScenarioLoaderPlayerReactionWindowsTest::RunTest(const FString&)
  * 🔴 **I casi che contano sono quelli che il loader di prima ACCETTAVA**, e la prima stesura non li sceglieva cosi'.
  * Misurato rimettendo le letture che convertono: `"freeRun": "yes"` restava rifiutato, ma perche' diventava un
  * free-run che falliva altrove, e il messaggio nominava `freeRun` per caso. Un caso rifiutato per un'altra ragione
- * prova il messaggio, non il lettore. I casi `«accettato prima»` qui sotto muoiono tutti con la mutazione; gli altri
- * restano come controllo del messaggio.
+ * prova il messaggio, non il lettore.
+ *
+ * 🔑 **Per questo ogni caso chiede il FRAMMENTO ESATTO del rifiuto di tipo** — `"intents: unit c'e'"`, non `"unit"`, che
+ * compare anche dentro «unita'». Un rifiuto arrivato da un altro controllo ha un altro testo, e il caso muore lo stesso:
+ * la review di #3670 ha trovato che una chiave sola nel messaggio lasciava vivi tre casi sotto la mutazione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderScalarTypesTest,
 	"RefactorTactics.Scenario.LoaderRejectsMistypedScalarKeys",
@@ -2862,48 +2865,61 @@ bool FRTScenarioLoaderScalarTypesTest::RunTest(const FString&)
 	{
 		const TCHAR* Cosa;
 		FString Testo;
-		const TCHAR* Chiave;
+		const TCHAR* Frammento;
 	};
 	const TArray<FCaso> Casi = {
 		// radice
 		{ TEXT("freeRun stringa (accettato prima: \"false\" era falso)"),
-			Json(TEXT(", \"version\": 2, \"freeRun\": \"false\""), Unita, Turno, Expect), TEXT("freeRun") },
+			Json(TEXT(", \"version\": 2, \"freeRun\": \"false\""), Unita, Turno, Expect), TEXT("freeRun: il valore") },
 		{ TEXT("repeatCount stringa (accettato prima: \"1\" era 1)"),
-			Json(TEXT(", \"version\": 2, \"repeatCount\": \"1\""), Unita, Turno, Expect), TEXT("repeatCount") },
+			Json(TEXT(", \"version\": 2, \"repeatCount\": \"1\""), Unita, Turno, Expect), TEXT("repeatCount: il valore") },
 		{ TEXT("previewUnit numero (accettato prima: diventava \"42\")"),
-			Json(TEXT(", \"version\": 2, \"previewUnit\": 42"), Unita, Turno, Expect), TEXT("previewUnit") },
-		{ TEXT("maxTurns stringa"), Json(TEXT(", \"version\": 4, \"maxTurns\": \"4O\""), Unita, Turno, Expect), TEXT("maxTurns") },
-		{ TEXT("version stringa"), Json(TEXT(", \"version\": \"2\""), Unita, Turno, Expect), TEXT("version") },
-		{ TEXT("seed decimale"), Json(TEXT(", \"version\": 2, \"seed\": 2.5"), Unita, Turno, Expect), TEXT("seed") },
-		{ TEXT("seed null"), Json(TEXT(", \"version\": 2, \"seed\": null"), Unita, Turno, Expect), TEXT("seed") },
+			Json(TEXT(", \"version\": 2, \"previewUnit\": 42"), Unita, Turno, Expect), TEXT("scenario: previewUnit c'e'") },
+		{ TEXT("maxTurns stringa"), Json(TEXT(", \"version\": 4, \"maxTurns\": \"4O\""), Unita, Turno, Expect),
+			TEXT("maxTurns: il valore") },
+		{ TEXT("version stringa"), Json(TEXT(", \"version\": \"2\""), Unita, Turno, Expect), TEXT("scenario: version c'e'") },
+		{ TEXT("seed decimale"), Json(TEXT(", \"version\": 2, \"seed\": 2.5"), Unita, Turno, Expect), TEXT("scenario: seed c'e'") },
+		{ TEXT("seed null"), Json(TEXT(", \"version\": 2, \"seed\": null"), Unita, Turno, Expect), TEXT("scenario: seed c'e'") },
 		{ TEXT("expectSameAcrossVariants numero (accettato prima: 0 era falso)"),
-			Json(TEXT(", \"version\": 2, \"expectSameAcrossVariants\": 0"), Unita, Turno, Expect), TEXT("expectSameAcrossVariants") },
-		{ TEXT("tag numero"), Json(TEXT(", \"version\": 2, \"tags\": [42]"), Unita, Turno, Expect), TEXT("tags") },
-		// cella
+			Json(TEXT(", \"version\": 2, \"expectSameAcrossVariants\": 0"), Unita, Turno, Expect),
+			TEXT("scenario: expectSameAcrossVariants c'e'") },
+		{ TEXT("tag numero"), Json(TEXT(", \"version\": 2, \"tags\": [42]"), Unita, Turno, Expect),
+			TEXT("tags: ogni voce deve essere una stringa") },
+		// cella e legami
 		{ TEXT("blocksMovement stringa"),
 			Json(TEXT(", \"version\": 2, \"cells\": [ { \"cell\": [0, 1, 0], \"blocksMovement\": \"true\" } ]"),
-				Unita, Turno, Expect), TEXT("blocksMovement") },
+				Unita, Turno, Expect), TEXT("cells: blocksMovement c'e'") },
+		{ TEXT("bersaglio di un legame numero"),
+			Json(TEXT(", \"version\": 2, \"interactionBindings\": [ { \"source\": \"S1\", \"targets\": [42] } ]"),
+				Unita, Turno, Expect), TEXT("interactionBindings: un bersaglio di 'S1' non e' una stringa") },
 		// unita' e status
-		{ TEXT("team stringa"), Json(Radice, TEXT(", \"team\": \"0\""), Turno, Expect), TEXT("team") },
-		{ TEXT("bot numero"), Json(Radice, TEXT(", \"team\": 0, \"bot\": 1"), Turno, Expect), TEXT("bot") },
-		{ TEXT("health decimale"), Json(Radice, TEXT(", \"team\": 0, \"health\": 2.5"), Turno, Expect), TEXT("health") },
+		{ TEXT("team stringa"), Json(Radice, TEXT(", \"team\": \"0\""), Turno, Expect), TEXT("unita' 'A1': team c'e'") },
+		{ TEXT("bot numero"), Json(Radice, TEXT(", \"team\": 0, \"bot\": 1"), Turno, Expect), TEXT("unita' 'A1': bot c'e'") },
+		{ TEXT("health decimale"), Json(Radice, TEXT(", \"team\": 0, \"health\": 2.5"), Turno, Expect),
+			TEXT("unita' 'A1': health c'e'") },
 		{ TEXT("turns di uno status stringa"),
 			Json(Radice, TEXT(", \"team\": 0, \"statuses\": [ { \"tag\": \"Status.Prone\", \"turns\": \"2\" } ]"),
-				Turno, Expect), TEXT("turns") },
+				Turno, Expect), TEXT("status 'Status.Prone': turns c'e'") },
 		// turno
 		{ TEXT("unit di un intent numero"),
-			Json(Radice, Unita, TEXT("\"intents\": [ { \"unit\": 42, \"move\": [[-1, 0, 0]] } ]"), Expect), TEXT("unit") },
+			Json(Radice, Unita, TEXT("\"intents\": [ { \"unit\": 42, \"move\": [[-1, 0, 0]] } ]"), Expect),
+			TEXT("intents: unit c'e'") },
+		{ TEXT("param di una condition stringa"),
+			Json(Radice, Unita, TEXT("\"intents\": [ { \"unit\": \"A1\", \"ability\": \"Action.Overwatch\", ")
+				TEXT("\"condition\": { \"id\": \"TargetHealthAtOrBelowPercent\", \"param\": \"50\" } } ]"), Expect),
+			TEXT("condition 'TargetHealthAtOrBelowPercent': param c'e'") },
 		{ TEXT("respond di una decisione numero"),
 			Json(Radice, Unita, TEXT("\"intents\": [], \"decisions\": [ { \"unit\": \"A1\", \"respond\": 1 } ]"), Expect),
-			TEXT("respond") },
+			TEXT("decisions: respond c'e'") },
 		{ TEXT("requires del turno numero"), Json(Radice, Unita, TEXT("\"intents\": [], \"requires\": [1]"), Expect),
-			TEXT("requires") },
+			TEXT("requires: ogni voce deve essere il nome di una capability") },
 		// expect
 		{ TEXT("value di TurnsCompleted stringa"),
-			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"TurnsCompleted\", \"value\": \"1\" }")), TEXT("value") },
+			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"TurnsCompleted\", \"value\": \"1\" }")),
+			TEXT("expect TurnsCompleted: value c'e'") },
 		{ TEXT("value di UnitAlive stringa"),
 			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"UnitAlive\", \"unit\": \"A1\", \"value\": \"true\" }")),
-			TEXT("value") },
+			TEXT("expect UnitAlive: value c'e'") },
 	};
 
 	for (const FCaso& Caso : Casi)
@@ -2912,9 +2928,10 @@ bool FRTScenarioLoaderScalarTypesTest::RunTest(const FString&)
 		FString Error;
 		const bool bLoaded = URTScenarioLoader::LoadFromString(Caso.Testo, Scenario, Error);
 		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Caso.Cosa), bLoaded);
-		// ⚠️ Il messaggio deve NOMINARE la chiave: un rifiuto che parla d'altro manda a cercare nel posto sbagliato.
-		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Caso.Cosa, Caso.Chiave, *Error),
-			Error.Contains(Caso.Chiave));
+		// ⚠️ Il messaggio dev'essere QUELLO del rifiuto di tipo, con contesto e chiave: un rifiuto arrivato da un altro
+		// controllo prova il messaggio di quel controllo, non il lettore.
+		TestTrue(FString::Printf(TEXT("%s: il motivo e' '%s' (era: '%s')"), Caso.Cosa, Caso.Frammento, *Error),
+			Error.Contains(Caso.Frammento, ESearchCase::CaseSensitive));
 	}
 
 	// E un intero scritto con il punto ma senza parte decimale E' un intero: il rigore e' sul tipo, non sulla grafia.

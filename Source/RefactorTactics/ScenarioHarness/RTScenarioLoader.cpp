@@ -255,8 +255,12 @@ namespace
 	 *
 	 * Una guardia «c'e'? e' del tipo giusto?» costruita su quelle funzioni era nominale: `"freeRun": "yes"` caricava
 	 * `true`, `"maxTurns": "4O"` caricava 4. Il tipo si chiede al valore, come gia' facevano `ParseCell` e
-	 * `LeggiCampoStringa` qui accanto. ✅ Il corpus non aveva un solo valore col tipo sbagliato (misurato il 2026-10-11,
-	 * script nel referto dello spec panel sui seguiti di `#3634`): la regola non tocca nessun file.
+	 * `LeggiCampoStringa` qui accanto.
+	 *
+	 * ⚠️ **La misura preventiva sul corpus aveva detto «zero valori col tipo sbagliato», ed era a meta'**: guardava un
+	 * elenco di chiavi scritto a mano, senza la chiave polimorfa `value`. Il loader stretto ne ha trovati quattro al primo
+	 * giro della suite, tutti `UnitAlive` con `"value": 1`, e sono stati portati a `true` — la forma che il writer scrive
+	 * gia'. L'oracolo e' questo loader sul corpus intero (`Scenario.ShippedScenariosAreValid`), non uno script.
 	 *
 	 * ⚠️ **`null` e' un tipo sbagliato, non un'assenza**: chi non vuole un campo lo omette, ed e' cio' che il writer fa.
 	 */
@@ -1296,7 +1300,15 @@ namespace
 				}
 				for (const TSharedPtr<FJsonValue>& T : *TargetsJson)
 				{
-					Binding.TargetIds.Add(FName(*T->AsString()));
+					// `#3668`: `AsString()` su un numero risponde `"42"`, la stessa conversione di `tags: [42]`.
+					FString TargetText;
+					if (!ElementoStringa(T, TargetText))
+					{
+						OutError = FString::Printf(
+							TEXT("interactionBindings: un bersaglio di '%s' non e' una stringa"), *SourceText);
+						return false;
+					}
+					Binding.TargetIds.Add(FName(*TargetText));
 				}
 				OutScenario.InteractionBindings.Add(Binding);
 			}
