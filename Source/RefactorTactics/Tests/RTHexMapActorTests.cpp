@@ -9,6 +9,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCoverLibrary.h" // #3687: il muro si abbatte e si erige dal produttore vero
+#include "Map/RTHexDoorLibrary.h"  // #3687: e la porta cambia stato dalla sua libreria
 #include "Map/RTMapVisuals.h"          // RTCellPrismRadius: la scala Z del corpo si legge contro la mesh
 #include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
@@ -2486,6 +2488,198 @@ bool FRTHexMapStrategicSeparationPartialRebuildTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("e il piano 1 e' a tre volte la quota"), Dopo.Last() - Dopo[0], 3.f * Asset->LayerHeight, 0.5f);
 	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// #3687 — una copertura o una porta che cambia IN PARTITA si ridisegna a fine turno, senza aspettare il `Tab`.
+// ---------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Una board di raggio 1 con una copertura alta su (0,0) verso est: un solo pannello di bordo. */
+	URTHexMapAsset* RTBoardConUnMuro(FRTCellId& OutCella, FRTCellId& OutOltre)
+	{
+		URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+		OutCella = FRTCellId(0, 0, 0);
+		OutOltre = URTHexLibrary::Neighbor(OutCella, ERTHexDirection::E);
+		URTHexCoverLibrary::AddCover(Asset, OutCella, ERTHexDirection::E, ERTHexCoverType::High, /*Integrity=*/ 30);
+		return Asset;
+	}
+
+	/** Il velo che vede tutto: il percorso runtime di `ApplyKnowledgeVeil`, senza che nulla resti nascosto. */
+	FRTTeamKnowledge RTVeloTutto(const URTHexMapAsset* Asset)
+	{
+		FRTTeamKnowledge Tutto;
+		for (const FRTHexCellData& C : Asset->Cells)
+		{
+			Tutto.VisibleCells.Add(C.Id);
+			Tutto.ExploredCells.Add(C.Id);
+		}
+		return Tutto;
+	}
+}
+
+/**
+ * #3687 — un muro ABBATTUTO in partita sparisce a fine turno, senza aspettare il `Tab`.
+ *
+ * 🔴 **Il difetto, letto nel codice e qui misurato**: i pannelli di bordo li scrive solo
+ * `RebuildInstances` con la famiglia `EdgeFeatures`, e il riallineamento di fine turno — il blocco su
+ * `MapAsset->Revision` dentro `ApplyKnowledgeVeil` — ricostruiva solo `Cells`, `Glyphs` e `SurfaceVolumes`.
+ * La simulazione toglieva il muro dalla copia di lavoro (`ApplyStructureDamage` → `AddOrUpdateCell`), e lo
+ * schermo lo teneva in piedi fino a una ricostruzione completa, cioè fino al cambio di vista.
+ *
+ * 🔑 **Si passa dal produttore vero**, `URTHexCoverLibrary::ApplyStructureDamage`, e dal percorso runtime
+ * vero, `ApplyKnowledgeVeil`: nessuna chiamata a `RebuildInstances` nel test, perché è proprio la chiamata
+ * che a runtime nessuno faceva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapRuntimeCoverDestroyedTest,
+	"RefactorTactics.HexMapActor.DestroyedCoverLeavesTheScreenAtTurnEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapRuntimeCoverDestroyedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	FRTCellId Cella, Oltre;
+	URTHexMapAsset* Asset = RTBoardConUnMuro(Cella, Oltre);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto); // sincronizza la revisione: da qui in poi conta solo ciò che cambia
+	if (!TestEqual(TEXT("premessa: il muro ha il suo pannello"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Il colpo che lo abbatte, dal lato di chi spara: la stessa chiamata di `ApplyEnvironmentChanges`.
+	FRTStructureHit Colpo;
+	Colpo.From = Oltre;
+	Colpo.To = Cella;
+	Colpo.Amount = 999;
+	const TArray<FRTCoverDamageResult> Esiti = URTHexCoverLibrary::ApplyStructureDamage(Asset, { Colpo });
+	if (!TestTrue(TEXT("premessa: il colpo abbatte il muro"), Esiti.Num() > 0 && Esiti[0].bDestroyed))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	Actor->ApplyKnowledgeVeil(Tutto); // il refresh di fine turno
+	TestEqual(TEXT("a fine turno il pannello del muro abbattuto non c'è più"),
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 0);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3687 — una copertura CREATA in partita compare a fine turno, e una porta che cambia stato cambia pannello.
+ *
+ * Sono gli altri due modi in cui un bordo cambia a runtime: `AddCover` (la Prep di `ResolveCoverStructures`)
+ * e `SetDoorState` (le porte). Passano dalla stessa famiglia `EdgeFeatures`, quindi dallo stesso buco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapRuntimeEdgeChangeTest,
+	"RefactorTactics.HexMapActor.CreatedCoverAndDoorStateReachTheScreenAtTurnEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapRuntimeEdgeChangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Una porta chiusa su (0,0) verso ovest, e nessuna copertura.
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+	const FRTCellId Cella(0, 0, 0);
+	const FRTCellId Ovest = URTHexLibrary::Neighbor(Cella, ERTHexDirection::W);
+	{
+		FRTHexCellData Dati = *Asset->FindCell(Cella);
+		Dati.Doors.Add(FRTHexDoor(ERTHexDirection::W, ERTHexDoorState::Closed));
+		Asset->AddOrUpdateCell(Dati);
+	}
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const TArray<FTransform> Prima = InstancesOf(Actor, TEXT("EdgeFeatures"));
+	if (!TestEqual(TEXT("premessa: solo il pannello della porta"), Prima.Num(), 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// 1. Una copertura nuova, come quella che la Prep erige.
+	TestTrue(TEXT("premessa: la copertura si posa"),
+		URTHexCoverLibrary::AddCover(Asset, Cella, ERTHexDirection::E, ERTHexCoverType::Low, /*Integrity=*/ 30));
+	Actor->ApplyKnowledgeVeil(Tutto);
+	TestEqual(TEXT("a fine turno la copertura creata ha il suo pannello"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 2);
+
+	// 2. La porta si apre: stesso numero di pannelli, e il SUO pannello si abbassa.
+	// ⚠️ **Si confronta il pannello della porta, ritrovato per posizione sul piano**, e non il minimo del
+	// gruppo: la copertura bassa appena eretta (22) sta gia' sotto la porta chiusa (70), e un minimo la
+	// prenderebbe per la porta aperta anche se la porta non si fosse mossa. La quota del centro cambia con
+	// l'altezza del pannello, quindi conta il piano.
+	TestTrue(TEXT("premessa: la porta si apre"),
+		URTHexDoorLibrary::SetDoorState(Asset, Cella, Ovest, ERTHexDoorState::Open).Num() > 0);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const TArray<FTransform> Dopo = InstancesOf(Actor, TEXT("EdgeFeatures"));
+	const FVector2D PianoPorta(Prima[0].GetLocation());
+	const FTransform* PortaDopo = Dopo.FindByPredicate([&PianoPorta](const FTransform& T)
+	{
+		return FVector2D(T.GetLocation()).Equals(PianoPorta, 1.0);
+	});
+	if (TestNotNull(TEXT("premessa: il pannello della porta c'e' ancora, sul suo bordo"), PortaDopo))
+	{
+		TestTrue(*FString::Printf(TEXT("a fine turno la porta aperta è bassa: %.3f prima, %.3f dopo"),
+				Prima[0].GetScale3D().Z, PortaDopo->GetScale3D().Z),
+			PortaDopo->GetScale3D().Z < Prima[0].GetScale3D().Z);
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3687 — una pennellata di SUPERFICIE non ricostruisce i pannelli di bordo.
+ *
+ * Il riallineamento di fine turno ricostruisce `EdgeFeatures` solo se cio' che i bordi dichiarano e' cambiato.
+ * Senza questa guardia ogni revisione — anche una cella che diventa fango — rifarebbe la famiglia, e il costo
+ * tornerebbe a seguire la mappa invece della modifica. 🔑 **Si legge `LastRebuildCreatedInstances`**: il
+ * percorso per cella di una pennellata non passa da `RebuildInstances`, quindi il contatore resta quello della
+ * costruzione; ricostruire i bordi lo riscriverebbe con le sole istanze dei pannelli.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapSurfacePaintKeepsEdgePanelsTest,
+	"RefactorTactics.HexMapActor.SurfacePaintDoesNotRebuildEdgePanels",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapSurfacePaintKeepsEdgePanelsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	FRTCellId Cella, Oltre;
+	URTHexMapAsset* Asset = RTBoardConUnMuro(Cella, Oltre);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const int32 Costruzione = Actor->LastRebuildCreatedInstances();
+	if (!TestTrue(TEXT("premessa: la costruzione ha creato piu' dei soli pannelli"), Costruzione > 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// La pennellata minima, la stessa di `EditCostScalesWithTheEditNotTheMap`: una cella, solo la superficie.
+	FRTHexCellData Dipinta = *Asset->FindCell(Oltre);
+	Dipinta.Surface = Dipinta.Surface == ERTHexSurface::Floor ? ERTHexSurface::Rough : ERTHexSurface::Floor;
+	Asset->AddOrUpdateCell(Dipinta);
+	Actor->ApplyKnowledgeVeil(Tutto);
+
+	TestTrue(TEXT("premessa: la pennellata e' passata dal percorso per cella"), Actor->LastRepaintTouchedInstances() > 0);
+	TestEqual(TEXT("🔴 e i pannelli di bordo non si sono ricostruiti"), Actor->LastRebuildCreatedInstances(), Costruzione);
+	TestEqual(TEXT("il muro e' ancora li'"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 1);
 
 	DestroyMapActorWorld(World);
 	return true;
