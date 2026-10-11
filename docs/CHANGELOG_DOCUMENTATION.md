@@ -11,6 +11,7 @@
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC` resta 🟡 con i due difetti chiusi; `PIE-CAM-STRATEGIC-RICORDO` ✅; `PIE-CAM-STRATEGIC-PIANI` 🟡 con il valore 3; totali e nota di rimisura di A1 |
 | [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U78`, con le cinque trappole dell'Editor pilotato da script |
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 3 |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione dei piani non è più «da scegliere» |
 
 ---
 
