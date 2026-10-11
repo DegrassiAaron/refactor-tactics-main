@@ -8076,6 +8076,9 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// ⚠️ E chi la continua conserva il proprio inizio, se un'estensione PRECEDENTE gliel'aveva dato (review di #3675):
 	// la ricostruzione qui sotto parte da zero, e senza portarlo avanti l'anim tornerebbe sull'orologio della fase e
 	// salterebbe. Succede a un'anim nata in un'estensione e ancora in corsa alla successiva.
+	// 🛡️ **Difensiva, e nessun test la fissa.** Nel Blast gli scarti si applicano dopo il ciclo sui bersagli
+	// (`KTargets`), quindi nascono tutti nell'ultima estensione; nel Move servirebbe una rotta che diventa visibile fra
+	// due finestre. Nessun turno costruibile oggi nei test ci arriva.
 	TMap<const ARTUnit*, float> InizioNellaFaseDelClock;
 	if (bFaseDelClockNota)
 	{
@@ -9430,6 +9433,14 @@ void ARTTurnManager::FinishPlayback()
 					A.Unit->SetVisualLocation(A.World.Last());
 					A.Unit->bIsMovingVisually = false;
 				}
+			}
+			// 🔴 **E l'orologio dove il trattenimento naturale lo lascia**: oltre l'ultima fase parziale, alla fine di
+			// quella fase. Senza, alla risposta `BeginPlayback(true)` ripartiva dall'orologio di meta' avvicinamento, e
+			// il mover tornava indietro a rifare il tratto saltato (seconda review di #3675).
+			if (PlaybackPhases.Num() > 0)
+			{
+				PlaybackPhaseElapsed = DurationForPlaybackPhase(PlaybackPhases.Last());
+				PlaybackPhaseIdx = PlaybackPhases.Num();
 			}
 		}
 		bPlaybackHeldByWindow = true;

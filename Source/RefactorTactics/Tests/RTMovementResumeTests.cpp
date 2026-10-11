@@ -747,6 +747,10 @@ bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&
  * 🔴 `SkipPlayback` passa da `FinishPlayback`, che a risoluzione sospesa trattiene e presenta SUBITO: le anim restavano
  * dove l'ultimo tick le aveva lasciate, e la finestra chiedeva dell'ingresso con il mover a meta' strada — proprio cio'
  * che `#3666` esiste per togliere. Qui due tick di avvicinamento, poi lo Skip.
+ *
+ * 🔴 **E dopo la risposta il mover non torna indietro** (seconda review di #3675). Posarlo non bastava: l'orologio
+ * restava a meta' avvicinamento, e alla risposta `BeginPlayback(true)` lo riportava indietro a rifare il tratto
+ * saltato. Dopo HOLD, fino alla finestra successiva, la distanza dal secondo ingresso deve solo scendere.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSkipPosesTheEntryTest,
 	"RefactorTactics.Reactions.SkipBeforeThePresentationPosesTheEntry",
@@ -781,6 +785,28 @@ bool FRTReactionWindowSkipPosesTheEntryTest::RunTest(const FString&)
 	TestTrue(TEXT("lo Skip presenta la finestra"), TM->IsReactionWindowPresented());
 	TestTrue(*FString::Printf(TEXT("🔴 e il mover e' posato sull'ingresso (1,0), non a meta' strada: a %.1f cm"),
 		DistanzaAllApertura), DistanzaAllApertura >= 0.f && DistanzaAllApertura < 1.f);
+
+	// --- dopo la risposta: avanti, mai indietro -----------------------------------------------------------------
+	const float FraGliIngressi = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(2, 0));
+	TM->SubmitReactionResponse(TM->GetOpenReactionWindowId(), URTReactionOpportunityLibrary::HoldResponse());
+	float Prima = FraGliIngressi;
+	int32 Campioni = 0;
+	for (int32 I = 0; I < 400 && TM->IsResolving() && !TM->IsReactionWindowPresented(); ++I)
+	{
+		TM->Tick(0.05f);
+		const float Ora = RTPresentazioneFinestra::DistanzaDallaCella(World, Mover, FRTCellId(2, 0));
+		++Campioni;
+		if (Ora > Prima + 0.5f)
+		{
+			AddError(FString::Printf(TEXT("🔴 dopo la risposta il mover torna indietro al campione %d: dal secondo "
+				"ingresso %.1f cm, prima %.1f"), Campioni, Ora, Prima));
+			break;
+		}
+		Prima = Ora;
+	}
+	TestTrue(FString::Printf(TEXT("⛔ premessa: il playback dopo la risposta e' stato osservato (%d campioni)"), Campioni),
+		Campioni > 0);
+	TestTrue(*FString::Printf(TEXT("e arriva sul secondo ingresso (2,0): a %.1f cm"), Prima), Prima < 1.f);
 
 	TM->OnReactionWindowOpened.Unbind();
 	DestroyResumeWorld(M.World);
