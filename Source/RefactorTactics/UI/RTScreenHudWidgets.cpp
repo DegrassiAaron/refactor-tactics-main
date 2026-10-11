@@ -39,6 +39,7 @@
 #include "UI/RTHudLayout.h"               // #3661: il dato delle fasce (D-497)
 #include "UI/RTHudZoneWidget.h"           // #3661: le zone si riconoscono per classe e ZoneId
 #include "UI/RTGameViewportClient.h"      // #3661: l'HUD montato chiede il rettangolo della scena
+#include "Components/HorizontalBox.h"     // #3680: l'indicatore del piano, costruito dal C++ dentro il dock
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -582,6 +583,145 @@ void URTActionDockWidget::ToggleSneak()
 	}
 }
 
+FRTLayerIndicatorView URTActionDockWidget::GetLayerIndicator() const
+{
+	// Piano attivo e limiti dallo STESSO controller che i tasti comandano: la vista non puo' dire un piano che
+	// `StepActiveLayer` non raggiunge.
+	const ARTPlayerController* PC = ResolveCommandController();
+	int32 Min = 0;
+	int32 Max = 0;
+	const bool bHasRange = PC != nullptr && PC->GetMapLayerRange(Min, Max);
+	return RTLayerIndicator::Build(bHasRange, PC ? PC->GetActiveLayer() : 0, Min, Max);
+}
+
+void URTActionDockWidget::StepLayerUp()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->StepActiveLayer(+1);
+	}
+}
+
+void URTActionDockWidget::StepLayerDown()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->StepActiveLayer(-1);
+	}
+}
+
+void URTActionDockWidget::EnsureLayerIndicator()
+{
+	if (LayerIndicator)
+	{
+		return; // dichiarato dall'asset, o gia' costruito: le porte ci sono
+	}
+	if (WidgetTree == nullptr)
+	{
+		// Un dock creato con `NewObject` e mai inizializzato non ha albero: e' cio' che fa `UUserWidget::Initialize`.
+		WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
+	}
+
+	// Dove posarlo: accanto alla lettura del movimento, nello stesso pannello (la riga `BarRow` di `U63`). Senza
+	// quella porta, alla radice se e' un pannello; un dock senza radice prende l'indicatore come radice.
+	UPanelWidget* Pannello = MovementReadout ? MovementReadout->GetParent() : nullptr;
+	if (Pannello == nullptr)
+	{
+		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	}
+	if (Pannello == nullptr && WidgetTree->RootWidget != nullptr)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Dock: nessun pannello per l'indicatore del piano (la radice e' un %s): non montato"),
+			*WidgetTree->RootWidget->GetClass()->GetName());
+		return;
+	}
+
+	UHorizontalBox* Riga = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("LayerIndicator"));
+	UTextBlock* Testo = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("LayerIndicatorText"));
+	UButton* Su = WidgetTree->ConstructWidget<URTMouseOnlyButton>(URTMouseOnlyButton::StaticClass(), TEXT("LayerUpButton"));
+	UButton* Giu = WidgetTree->ConstructWidget<URTMouseOnlyButton>(URTMouseOnlyButton::StaticClass(), TEXT("LayerDownButton"));
+
+	// Il testo prende il carattere della lettura del movimento, che gli sta accanto: due misure diverse nella stessa
+	// riga si leggerebbero come due gerarchie. Senza quella porta, la Roboto dell'engine, che ha anche ▲ e ▼.
+	FSlateFontInfo Carattere = MovementReadoutText ? MovementReadoutText->GetFont() : Testo->GetFont();
+	if (MovementReadoutText == nullptr)
+	{
+		Carattere.Size = 16;
+	}
+	const FSlateColor Colore(URTUIPalette::ColorFor(ERTUIToken::Text_Primary));
+	Testo->SetFont(Carattere);
+	Testo->SetColorAndOpacity(Colore);
+
+	auto Glifo = [&](UButton* Tasto, const TCHAR* Nome, const TCHAR* Segno)
+	{
+		UTextBlock* Etichetta = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Nome);
+		Etichetta->SetText(FText::FromString(Segno));
+		Etichetta->SetFont(Carattere);
+		Etichetta->SetColorAndOpacity(Colore);
+		Tasto->SetBackgroundColor(URTUIPalette::ColorFor(ERTUIToken::BG_Raised));
+		Tasto->AddChild(Etichetta);
+	};
+	Glifo(Su, TEXT("LayerUpGlyph"), TEXT("▲"));
+	Glifo(Giu, TEXT("LayerDownGlyph"), TEXT("▼"));
+
+	auto Posa = [Riga](UWidget* Figlio, float Sinistra)
+	{
+		if (UHorizontalBoxSlot* Posto = Riga->AddChildToHorizontalBox(Figlio))
+		{
+			Posto->SetVerticalAlignment(VAlign_Center);
+			Posto->SetPadding(FMargin(Sinistra, 0.f, 0.f, 0.f));
+		}
+	};
+	Posa(Testo, 0.f);
+	Posa(Su, 8.f);
+	Posa(Giu, 4.f);
+
+	if (Pannello)
+	{
+		// `AddChild` e non `InsertChildAt`: la seconda non aggiorna uno Slate gia' costruito. Nella riga del dock la
+		// lettura del movimento e' l'ultima, quindi in coda vuol dire accanto a lei.
+		if (UPanelSlot* Posto = Pannello->AddChild(Riga))
+		{
+			if (UHorizontalBoxSlot* Orizzontale = Cast<UHorizontalBoxSlot>(Posto))
+			{
+				Orizzontale->SetVerticalAlignment(VAlign_Center);
+				Orizzontale->SetPadding(FMargin(22.f, 0.f, 0.f, 0.f)); // il separatore dei gruppi della barra (`GroupGap`)
+			}
+		}
+	}
+	else
+	{
+		WidgetTree->RootWidget = Riga;
+	}
+
+	LayerIndicator = Riga;
+	LayerIndicatorText = Testo;
+	LayerUpButton = Su;
+	LayerDownButton = Giu;
+}
+
+void URTActionDockWidget::RefreshLayerIndicator()
+{
+	const FRTLayerIndicatorView Vista = GetLayerIndicator();
+	if (LayerIndicator)
+	{
+		LayerIndicator->SetVisibility(Vista.bVisible ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (LayerIndicatorText)
+	{
+		LayerIndicatorText->SetText(Vista.Label);
+	}
+	// Disattivati ai limiti, non nascosti: il giocatore vede che il piano non sale piu', e non dove era il tasto.
+	if (LayerUpButton)
+	{
+		LayerUpButton->SetIsEnabled(Vista.bCanGoUp);
+	}
+	if (LayerDownButton)
+	{
+		LayerDownButton->SetIsEnabled(Vista.bCanGoDown);
+	}
+}
+
 // =====================================================================================================
 // Conferma e Annulla
 // =====================================================================================================
@@ -945,6 +1085,14 @@ void URTActionDockWidget::BindNamedButtons()
 	{
 		SneakBadge->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::ToggleSneak);
 	}
+	if (LayerUpButton)
+	{
+		LayerUpButton->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::StepLayerUp);
+	}
+	if (LayerDownButton)
+	{
+		LayerDownButton->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::StepLayerDown);
+	}
 }
 
 void URTActionDockWidget::RefreshMovementReadout()
@@ -978,6 +1126,14 @@ void URTActionDockWidget::RefreshMovementReadout()
 	}
 }
 
+void URTActionDockWidget::NativeOnInitialized()
+{
+	Super::NativeOnInitialized();
+	// Qui e non in `NativeConstruct`: l'albero si completa prima che Slate costruisca il dock, quindi l'indicatore
+	// entra nello Slate con il resto, al suo posto (#3680).
+	EnsureLayerIndicator();
+}
+
 void URTActionDockWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -988,6 +1144,7 @@ void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 	RefreshMovementReadout();
+	RefreshLayerIndicator();
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const

@@ -5,6 +5,7 @@
 #include "UI/RTHudViewModel.h"
 #include "UI/RTIconCatalogData.h" // FRTIconResolution e' un valore di ritorno: serve la definizione, non basta la forward
 #include "Turn/RTReactionWindowView.h" // idem per FRTReactionWindowView, reso per valore da `URTFastDecisionWidget`
+#include "UI/RTLayerIndicator.h" // idem per FRTLayerIndicatorView, reso per valore dal dock (#3680)
 #include "RTScreenHudWidgets.generated.h"
 
 class ARTPlayerController;
@@ -1066,10 +1067,59 @@ public:
 	/** Riempie i widget della lettura dalla vista. La chiama `NativeTick`; i test la chiamano a mano. */
 	void RefreshMovementReadout();
 
-	/** Collega il click del badge a `ToggleSneak()`. Idempotente; la chiama `NativeConstruct`. */
+	/** Collega il click del badge a `ToggleSneak()` e quelli di ▲/▼ al cambio di piano. Idempotente; la chiama `NativeConstruct`. */
 	void BindNamedButtons();
 
+	// ------------------------------------------------------------------------------------------------
+	// L'indicatore del piano attivo ([D-501], #3680): «Piano N di M», con ▲ e ▼.
+	//
+	// 🔑 **Le porte hanno un nome come le altre, e il C++ le COSTRUISCE quando l'asset non le dichiara.**
+	// `EnsureLayerIndicator` le posa accanto a `MovementReadout`, nello stesso pannello: l'indicatore sta nel dock,
+	// quindi nella fascia bassa, e `ScreenHud.TenantsFitTheirBands` lo misura col dock. Un `WBP_RT_ActionDock` che un
+	// giorno le dichiarasse nel Designer prenderebbe il proprio aspetto, e il C++ non costruirebbe niente.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il contenitore dell'indicatore: `Collapsed` senza mappa e con un piano solo (#3680, scope 4). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UWidget> LayerIndicator;
+
+	/** «Piano N di M», da `GetLayerIndicator().Label`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UTextBlock> LayerIndicatorText;
+
+	/** ▲: il click chiama `StepLayerUp()`. Disattivato sul piano piu' alto. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UButton> LayerUpButton;
+
+	/** ▼: il click chiama `StepLayerDown()`. Disattivato sul piano piu' basso. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UButton> LayerDownButton;
+
+	/** La vista dal controller che comanda: il suo piano attivo e i limiti della sua mappa. Invisibile senza controller. */
+	FRTLayerIndicatorView GetLayerIndicator() const;
+
+	/**
+	 * ▲ e ▼ **inoltrano a `ARTPlayerController::StepActiveLayer`**, il corpo di `PageUp`/`PageDown`: niente seconda
+	 * strada per cambiare piano, e nessuna regola qui. Senza controller non fanno nulla.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void StepLayerUp();
+
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void StepLayerDown();
+
+	/**
+	 * Costruisce l'indicatore se l'asset non lo dichiara, e lo aggiunge al pannello di `MovementReadout`; senza quella
+	 * porta, alla radice se e' un pannello. Idempotente. La chiama `NativeOnInitialized`, prima che Slate costruisca
+	 * il dock; i test la chiamano a mano.
+	 */
+	void EnsureLayerIndicator();
+
+	/** Riempie l'indicatore dalla vista. La chiama `NativeTick`, quindi segue il piano comunque cambi; i test a mano. */
+	void RefreshLayerIndicator();
+
 protected:
+	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 };
