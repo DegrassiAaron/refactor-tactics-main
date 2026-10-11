@@ -776,7 +776,7 @@ public:
 	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
 	 *
 	 * 🔑 **Default 2: l'ha scelto l'autore in isometrica, sulle catture della seduta PIE `U81`** (2026-10-11, #3678,
-	 * [D-500] (7)), confrontando 3 e 2 sui tre piani sovrapposti di `Visual.Map.LayerStack`: a 3 la cima usciva dal
+	 * [D-501] (7)), confrontando 3 e 2 sui tre piani sovrapposti di `Visual.Map.LayerStack`: a 3 la cima usciva dal
 	 * quadro, a 2 i tre piani ci stanno. Prima valeva 3, scelto in prospettiva nella seduta `U78` (#3632) sui due piani
 	 * di `Visual.Map.MultiLevel`. La stessa leva in console e' `rt.Map.StrategicLayerSeparation` (che, se > 0, vince
 	 * su questa proprieta').

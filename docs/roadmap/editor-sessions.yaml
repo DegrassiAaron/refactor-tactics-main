@@ -5684,12 +5684,12 @@ sessions:
          lì non sposta il pivot, che resta a x = −650: tutta la mappa sta nel quadro. A braccio 2350 lo stesso pan lo
          sposta, come controllo positivo.
   - id: U81
-    title: La separazione dei piani a 2, su tre piani sovrapposti (D-500)
+    title: La separazione dei piani a 2, su tre piani sovrapposti (D-501)
     block: 6
     critical: false
     execution_lane: pie
     produces: >-
-      la separazione dei piani scelta dall'autore (2, D-500 (7)); il verdetto rimisurato a 2 di
+      la separazione dei piani scelta dall'autore (2, D-501 (7)); il verdetto rimisurato a 2 di
       `PIE-CAM-STRATEGIC-PIANI`; nessun asset
     artifacts: []
     unblocked_by: []

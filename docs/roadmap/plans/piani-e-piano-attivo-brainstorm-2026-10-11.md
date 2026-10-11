@@ -6,7 +6,7 @@
 > - **Misurato su** `origin/main` = `83224c205`.
 > - **Oggetto**: come si vedono i piani di una mappa multilivello rispetto al piano attivo del giocatore, e la separazione dei piani in vista strategica.
 > - **Issue**: [#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678) (CAM-06b, scenario e separazione) · [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) (CAM-06c, presentazione dei piani) · [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680) (HUD-PIANO, indicatore nel dock). Scorporate da [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775) (CAM-06).
-> - **Decisione registrata**: [D-500](../../decisions/RT_PDR_00_Decision_Log.md).
+> - **Decisione registrata**: [D-501](../../decisions/RT_PDR_00_Decision_Log.md).
 >
 > Convenzione: niente totali che cambiano da soli. Dove un numero serve, sta accanto al comando che lo produce.
 
@@ -27,7 +27,7 @@ Misurato su `83224c205`, cioè **prima** di #3678: due righe sono cambiate con e
 | Modi di vista dei piani | 🟡 esistono, ma **solo per l'authoring**: `AllLayers`, `ActiveOnly` e `Focus` (gli altri piani a contorno, dall'editor mode) | `ARTHexMapActor::LayerView`, `ARTHexMapActor::ActiveLayer` |
 | Bordo delle celle | ✅ esiste: è la griglia in partita (#1758), con il colore scuro del «segno inciso» (D-183) | `ARTHexMapActor::CellBorders` |
 | Colore della cella | ✅ per istanza: `M_HexCell` legge tre `PerInstanceCustomData`, che porta anche il velo | `ARTHexMapActor::CellMaterial`, `RebuildInstances` |
-| Separazione dei piani in strategica | ✅ `StrategicLayerSeparation = 3`, scelta nella seduta `U78`; in console `rt.Map.StrategicLayerSeparation`. 🔄 Con #3678 vale **2** (seduta `U81`, D-500 (7)) | `ARTHexMapActor` (#3632) |
+| Separazione dei piani in strategica | ✅ `StrategicLayerSeparation = 3`, scelta nella seduta `U78`; in console `rt.Map.StrategicLayerSeparation`. 🔄 Con #3678 vale **2** (seduta `U81`, D-501 (7)) | `ARTHexMapActor` (#3632) |
 | Mappa a tre piani | ❌ nessuna fixture ne ha più di due: `TestArena` ha una piattaforma di quattro celle sul piano 1. 🔄 Con #3678 c'è `LayerStack`, e lo scenario `Visual.Map.LayerStack` | `RTMatchSetupLibrary.cpp`, `GFixtures` |
 
 ⚠️ **Due campi con lo stesso nome.** `ARTHexMapActor::ActiveLayer` è stato di authoring, e lo scrive l'editor mode; il piano attivo del giocatore è `ARTPlayerController::ActiveLayer`. La presentazione legge il secondo. Due scrittori sullo stesso campo sono il difetto che D-255 e #1775 descrivono.
@@ -76,7 +76,7 @@ E, prima delle domande: in strategica il piano 1 sembra **troppo alto** a ×3, q
 
 ## 7. Esito della prova a ×2
 
-Nella seduta `U81` l'autore ha confrontato 3 e 2 in isometrica su `Visual.Map.LayerStack`, a 0° e a 60°: a 3 la cima esce dal quadro, a 2 i tre piani ci stanno. **Ha scelto 2** ([D-500](../../decisions/RT_PDR_00_Decision_Log.md) (7)). A 60° il cilindro di Aevik sparisce sotto il mezzanino e resta la sua etichetta: è il caso che #3679 deve rendere leggibile.
+Nella seduta `U81` l'autore ha confrontato 3 e 2 in isometrica su `Visual.Map.LayerStack`, a 0° e a 60°: a 3 la cima esce dal quadro, a 2 i tre piani ci stanno. **Ha scelto 2** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md) (7)). A 60° il cilindro di Aevik sparisce sotto il mezzanino e resta la sua etichetta: è il caso che #3679 deve rendere leggibile.
 
 ## 8. Fuori da questo lavoro
 

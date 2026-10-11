@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "LayerStack",
 
-  "_nota": "Tre piani SOVRAPPOSTI: un mezzanino (piano 1) sopra il pavimento, una cima (piano 2) sopra il mezzanino. Non verifica una regola di gioco: e' la scena su cui si giudica come si vedono i piani rispetto a quello attivo (#3679, D-500) e la separazione della vista strategica (#3678).",
+  "_nota": "Tre piani SOVRAPPOSTI: un mezzanino (piano 1) sopra il pavimento, una cima (piano 2) sopra il mezzanino. Non verifica una regola di gioco: e' la scena su cui si giudica come si vedono i piani rispetto a quello attivo (#3679, D-501) e la separazione della vista strategica (#3678).",
 
   "_nota_unita": "Un'unita' propria SOTTO ogni piano piu' alto, che e' il caso da rendere leggibile: Aevik sul pavimento sotto il mezzanino, Muiren sul mezzanino sotto la cima, Ivrin in cima. Il nemico sta sul pavimento, scoperto. Nessun turno: la partita resta in pianificazione, e PageUp/PageDown cambiano il piano attivo.",
 

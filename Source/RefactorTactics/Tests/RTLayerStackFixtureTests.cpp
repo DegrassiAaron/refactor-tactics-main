@@ -10,7 +10,7 @@
 
 /**
  * `LayerStack` — la fixture a tre piani su cui si giudica come si vedono i piani rispetto a quello attivo
- * (#3678, D-500), e la separazione della vista strategica.
+ * (#3678, D-501), e la separazione della vista strategica.
  *
  * 🔑 **Tre piani affiancati non servirebbero a niente.** La presentazione di #3679 esiste perche' un piano
  * COPRE quello attivo: una fixture con tre piani che non si sovrappongono darebbe una seduta in cui il

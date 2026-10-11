@@ -292,7 +292,7 @@ public:
 
 	/**
 	 * **`LayerStack` — tre piani sovrapposti, per giudicare in seduta come si vedono rispetto a quello attivo**
-	 * (#3678, D-500).
+	 * (#3678, D-501).
 	 *
 	 * | Piano | Forma | Sta sopra |
 	 * |---|---|---|

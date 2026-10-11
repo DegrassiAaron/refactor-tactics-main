@@ -2262,7 +2262,7 @@ namespace
 }
 
 /**
- * Il valore dell'autore: la separazione vale 2, scelta in isometrica sulle catture della seduta PIE `U81` (#3678, D-500), dopo il 3
+ * Il valore dell'autore: la separazione vale 2, scelta in isometrica sulle catture della seduta PIE `U81` (#3678, D-501), dopo il 3
  * della seduta `U78` (#3632). Esiste perche' un default cambiato per sbaglio non lo direbbe nessun altro test: tutti gli altri
  * dichiarano il valore che misurano.
  */
