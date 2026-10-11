@@ -18,7 +18,7 @@ Il piano attivo del giocatore **esiste ma non si vede**: decide su quale cella r
 
 ## 2. Che cosa esiste
 
-Misurato su `83224c205`.
+Misurato su `83224c205`, cioè **prima** di #3678: due righe sono cambiate con essa, ed è annotato accanto (§7).
 
 | Cosa | Stato | Dove |
 |---|---|---|
@@ -27,8 +27,8 @@ Misurato su `83224c205`.
 | Modi di vista dei piani | 🟡 esistono, ma **solo per l'authoring**: `AllLayers`, `ActiveOnly` e `Focus` (gli altri piani a contorno, dall'editor mode) | `ARTHexMapActor::LayerView`, `ARTHexMapActor::ActiveLayer` |
 | Bordo delle celle | ✅ esiste: è la griglia in partita (#1758), con il colore scuro del «segno inciso» (D-183) | `ARTHexMapActor::CellBorders` |
 | Colore della cella | ✅ per istanza: `M_HexCell` legge tre `PerInstanceCustomData`, che porta anche il velo | `ARTHexMapActor::CellMaterial`, `RebuildInstances` |
-| Separazione dei piani in strategica | ✅ `StrategicLayerSeparation = 3`, scelta nella seduta `U78`; in console `rt.Map.StrategicLayerSeparation` | `ARTHexMapActor` (#3632) |
-| Mappa a tre piani | ❌ nessuna fixture ne ha più di due: `TestArena` ha una piattaforma di quattro celle sul piano 1 | `RTMatchSetupLibrary.cpp`, `GFixtures` |
+| Separazione dei piani in strategica | ✅ `StrategicLayerSeparation = 3`, scelta nella seduta `U78`; in console `rt.Map.StrategicLayerSeparation`. 🔄 Con #3678 vale **2** (seduta `U81`, D-500 (7)) | `ARTHexMapActor` (#3632) |
+| Mappa a tre piani | ❌ nessuna fixture ne ha più di due: `TestArena` ha una piattaforma di quattro celle sul piano 1. 🔄 Con #3678 c'è `LayerStack`, e lo scenario `Visual.Map.LayerStack` | `RTMatchSetupLibrary.cpp`, `GFixtures` |
 
 ⚠️ **Due campi con lo stesso nome.** `ARTHexMapActor::ActiveLayer` è stato di authoring, e lo scrive l'editor mode; il piano attivo del giocatore è `ARTPlayerController::ActiveLayer`. La presentazione legge il secondo. Due scrittori sullo stesso campo sono il difetto che D-255 e #1775 descrivono.
 

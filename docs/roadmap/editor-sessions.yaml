@@ -5695,7 +5695,7 @@ sessions:
     unblocked_by: []
     shares_setup_with: [U79]
     verifies: [PIE-CAM-STRATEGIC-PIANI]
-    issues: [3678, 3679]
+    issues: [3678]
     done_when: >-
       la separazione ha il verdetto dell'autore e la voce è rimisurata al valore scelto
     notes: |
