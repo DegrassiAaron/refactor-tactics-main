@@ -5516,7 +5516,9 @@ sessions:
         righe le costruisce `RefreshLook` da `LineClass`.
       - Gate: le porte dei due asset, la riga `EventLine` in `MatchWidgetsDeriveFromCppBase`, il test nuovo
         `EventLogWearsItsLineClass`, e `MiddleRight` in `ZonesWithTheirContentHideTheBlockout`. Con questa voce le zone
-        ci sono tutte. Controllo positivo: con gli asset di `main` i quattro sono rossi.
+        ci sono tutte. Controllo positivo: con gli asset di `main` i quattro sono rossi. ⚠️ La meta' «istanza nel
+        TacticalHUD» di `EventLogWearsItsLineClass` non e' provata separatamente: sugli asset di `main` e' rosso gia' il
+        CDO, come in `U76`.
 
       🔑 **Il TacticalHUD e' stato salvato PRIMA di scrivere `LineClass` sul CDO**, e l'Editor e' stato riaperto prima
       della PIE. E' la trappola di `U76` (guida §7-quater) evitata nell'ordine, non corretta dopo.
