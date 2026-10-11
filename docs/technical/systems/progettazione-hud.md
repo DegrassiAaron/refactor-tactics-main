@@ -325,8 +325,8 @@ Il roster non deve trasformarsi in tre enormi character card.
 > ⚖️ **Decisione d'autore del 2026-10-11 ([#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628)): restano sullo slot, perché la loro domanda è
 > un'altra.** Ognuna lo dice nel codice.
 > - **La timeline** chiede se c'è una voce di Prep per l'azione dello slot `Reaction`. L'Overwatch come principale ha
->   già la sua voce di Prep: contarlo la disegnerebbe due volte, e l'anteprima della reazione metterebbe la guardia a
->   fine scatto, mentre l'Overwatch si arma da prima dello scatto.
+>   già la sua voce di Prep: contarlo la disegnerebbe due volte. E il dato `FRTReactionPreview`, che oggi nessuno
+>   disegna, porrebbe la guardia a fine scatto, mentre l'Overwatch si arma da prima dello scatto.
 > - **L'intento** stampa «(reazione: … ?)» accanto al nome dell'azione. Per l'Overwatch il nome uscirebbe due volte.
 > - **La dock** colora lo slot `Reaction`. L'Overwatch occupa lo slot principale.
 >

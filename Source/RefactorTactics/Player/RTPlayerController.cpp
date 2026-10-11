@@ -343,8 +343,9 @@ namespace
 			// d'autore del 2026-10-11). Il roster chiede «quest'unita' ha armato qualcosa che aprira' una finestra?» e
 			// conta anche l'Overwatch ([D-478]). Qui si chiede «c'e' una voce di Prep per l'azione dello slot
 			// `Reaction`?». L'Overwatch come principale ha gia' la sua voce di Prep (`bAzioneNelPrep` in
-			// `MakePlanPreview`): contarlo qui la disegnerebbe due volte. E `FRTReactionPreview` metterebbe la guardia a
-			// fine scatto, mentre l'Overwatch si arma da dove l'unita' e' prima dello scatto ([D-470]).
+			// `MakePlanPreview`): contarlo qui la disegnerebbe due volte. E il dato `FRTReactionPreview` — che oggi nessuno
+			// disegna — porrebbe `WatchOrigin` a fine scatto, mentre l'Overwatch si arma da dove l'unita' e' prima dello
+			// scatto ([D-470]).
 			Timeline.bReactionArmed = Unit->PlannedReactionAbility != INDEX_NONE;
 			Timeline.ReactionProfileId = Unit->ReactionProfileId;
 			if (const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility))
