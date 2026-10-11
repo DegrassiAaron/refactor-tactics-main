@@ -331,8 +331,9 @@ public:
 	 * ⚠️ E NON si e' risolto con un `MaxDesiredHeight`: quello limita la dimensione *desiderata* e non
 	 * ritaglia, quindi il fondo nero si sarebbe rimpicciolito lasciando il testo disegnato fuori — un
 	 * gate rettangolare verde mentre lo schermo peggiora.
-	 * 🔑 **Nove e non dieci**, ed e' la tolleranza a un capo-riga: `RTContextInspectorFitsUnderTheKeepOut`
-	 * lo pinna. Con l'osservatore onnisciente la riga `[tecnico]` supera la larghezza utile e va a capo,
+	 * 🔑 **Nove e non dieci**, ed e' la tolleranza a un capo-riga, decisa quando il pannello doveva stare sotto
+	 * il riquadro centrale. Da #3661 il vincolo non c'e' piu' (D-497 (1) esenta gli strumenti di sviluppo), e
+	 * l'autore ha scelto di tenere 9: lo pinna `Debug.ContextInspectorStaysOnScreen`. Con l'osservatore onnisciente la riga `[tecnico]` supera la larghezza utile e va a capo,
 	 * e dieci righe non lascerebbero spazio per quella. Il prezzo e' dichiarato: il marcatore
 	 * `… e altre N righe` mostra un `N` piu' grande.
 	 */

@@ -1,6 +1,7 @@
 #include "Player/RTPointerInteraction.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexLibrary.h"
+#include "SceneView.h" // #3661: FSceneView::DeprojectScreenToWorld, la stessa che usa UE
 
 namespace
 {
@@ -358,4 +359,24 @@ ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, b
 	// il dock delle azioni — leggerebbe di un'avversaria il piano e il kit. L'esito separato esiste perche'
 	// il soggetto ispezionato sia un'altra cosa dal soggetto comandato.
 	return Context == ERTPointerContext::Targeting ? ERTPointerOutcome::Confirm : ERTPointerOutcome::Inspect;
+}
+
+bool URTPointerLibrary::IsInsideSceneRect(const FVector2D& ScreenPos, const FIntRect& SceneRect)
+{
+	return SceneRect.Width() > 0 && SceneRect.Height() > 0
+		&& ScreenPos.X >= SceneRect.Min.X && ScreenPos.X < SceneRect.Max.X
+		&& ScreenPos.Y >= SceneRect.Min.Y && ScreenPos.Y < SceneRect.Max.Y;
+}
+
+bool URTPointerLibrary::DeprojectInsideSceneRect(const FVector2D& ScreenPos, const FIntRect& SceneRect,
+	const FMatrix& InvViewProjection, FVector& OutOrigin, FVector& OutDirection)
+{
+	if (!IsInsideSceneRect(ScreenPos, SceneRect))
+	{
+		OutOrigin = FVector::ZeroVector;
+		OutDirection = FVector::ZeroVector;
+		return false;
+	}
+	FSceneView::DeprojectScreenToWorld(ScreenPos, SceneRect, InvViewProjection, OutOrigin, OutDirection);
+	return true;
 }

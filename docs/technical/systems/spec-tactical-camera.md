@@ -54,7 +54,12 @@ mezza cella e non zero.
 
 > ✅ **[D-498](../../decisions/RT_PDR_00_Decision_Log.md) è attuata dal 2026-10-11 ([#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)): in strategica la proiezione è ortografica**, dimetrica 2:1 con pitch −30°. La leva di [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) si è ritirata. In strategica la formula di `ZoomTowards` è quindi esatta.
 >
-> ⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md): il limite del pivot leggerà il rettangolo della scena, non il viewport intero** (oggi `Viewport->GetSizeXY()`). La deproiezione lo segue già, e un click fuori dal rettangolo sarà scartato. A parità di braccio il rettangolo inquadrerà la stessa estensione verticale di oggi. In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661).
+> ✅ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md), attuata in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661): la camera si rende nel rettangolo della scena, fra le fasce dell'HUD.**
+> - **Chi lo decide**: `URTGameViewportClient::LayoutPlayers` scrive `Origin`/`Size` del giocatore mentre l'HUD tattico è montato. Proiezione, deproiezione e `ProjectWorldLocationToScreen` lo seguono da sé, perché passano da `ULocalPlayer::GetProjectionData`.
+> - **L'estensione verticale non cambia**: con `MaintainYFOV` UE tiene fisso il semiangolo verticale `atan(tan(FOV/2) / AspectRatio)`, quindi a parità di braccio il rettangolo inquadra la stessa altezza di mondo dello schermo intero, e celle e unità appaiono circa 0,64×. Lo misura `Camera.SceneRectKeepsTheVerticalExtentOfTheFullScreen` sulla matrice di proiezione.
+> - **Il limite del pivot** (`ComputeEffectivePivotBounds`, D-251) legge l'aspetto del rettangolo del giocatore (`RefreshViewportMetrics`), non `Viewport->GetSizeXY()`, e usa il modello di `MaintainYFOV`: semiasse verticale fisso, orizzontale che segue l'aspetto. A 16:9 i limiti sono quelli di prima; il difetto che `Camera.EffectivePivotBoundsShrinkWithZoomPitchAndAspect` teneva pinnato («il limite laterale non dipende dall'aspetto») è corretto.
+> - **Un click fuori dal rettangolo non raggiunge il mondo**: la deproiezione di UE lo estrapolerebbe, quindi il controller passa da `DeprojectCursorInsideScene` (`Pointer.ScenePointRaysOnlyInsideTheRect`).
+> - ⚠️ `ViewportAspectRatio` si rinfresca dove si rinfrescava prima (zoom, inquadratura, `BeginPlay`): finché l'HUD non è montato vale lo schermo intero, e il primo zoom lo allinea.
 
 Lo stato canonico è questo:
 

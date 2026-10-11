@@ -95,9 +95,28 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 ## 3. Il layout di `WBP_RT_TacticalHUD`
 
-Le zone stanno sulla griglia 3×3 **meno il centro**, a fasce 20% / 60% / 20% su entrambi gli assi: le tre
-celle alte, le due di mezzo e **la fascia bassa intera**. La cella di mezzo è definita da ciò che **non**
-contiene.
+Le zone stanno su **quattro fasce attorno alla scena**: le tre celle alte, le due di mezzo e **la fascia bassa
+intera**. La scena 3D si rende **solo** nel rettangolo che le fasce lasciano libero ([D-497](../../decisions/RT_PDR_00_Decision_Log.md),
+[#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): fuori c'è l'HUD, e un click lì non raggiunge il mondo.
+
+🔑 **Le fasce sono un dato di runtime, in unità Slate**: `FRTHudBands` in `Source/RefactorTactics/UI/RTHudLayout.h`.
+Sono la misura dei loro inquilini, e a 1920×1080 valgono le frazioni di D-497.
+
+| Fascia | Unità Slate | A 1920×1080 | Chi la misura |
+|---|---|---|---|
+| sinistra (`Left`) | 384 | 20% | roster e scheda finiscono a x=380 |
+| destra (`Right`) | 368,64 | 19,2% | il registro e il badge accanto a `Conferma` cominciano a x=1556 |
+| alta (`Top`) | 205,2 | 19% | testata e `Conferma` |
+| bassa (`Bottom`) | 183,6 | 17% | il dock comincia a y=903 |
+| cella alta della colonna sinistra (`LeftTop`) | 267 | 24,7% | il roster: 259 con tre unità, 201 con due, misurato da `ScreenHud.TenantsFitTheirBands` |
+
+⚠️ **La colonna sinistra ha il suo taglio** (decisione d'autore del 2026-10-11, [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): il roster vero non
+sta nella fascia alta al 19% (201 contro 197 già con le due unità del formato della v0.1), quindi prende la sua
+altezza, e la scheda parte sotto. La colonna è tutta fascia: la scena non cambia.
+
+🔑 **A un'altra risoluzione le fasce restano le stesse in unità Slate**, e la scala dell'interfaccia di UE
+(`ShortestSide`) le porta in pixel: a 1280×800 la sinistra vale circa il 22,2% e la destra il 21,3%, a 2560×1080
+il 15% e il 14,4%. Lo prova `ScreenHud.SceneRectComesFromTheBandsAndTheUiScale`.
 
 ⌫ *Dal 2026-09-12 al 2026-10-04 le zone erano **otto**: anche la fascia bassa aveva tre celle, `BottomLeft`,
 `BottomCenter` e `BottomRight`. [D-456](../../decisions/RT_PDR_00_Decision_Log.md) le ha unite in
@@ -110,37 +129,49 @@ ancorate ai bordi. Non è una rinomina: `MiddleLeft` e `BottomLeft` sono due cel
 un solo `BOTTOM`, e **Selected Unit cambia fascia**.*
 
 ```text
-        0.0        0.2                    0.8        1.0
-   0.0  ┌──────────┬──────────────────────┬──────────┐
-        │ TopLeft  │     TopCenter        │ TopRight │   20%   0 .. 216 px
-   0.2  ├──────────┼──────────────────────┼──────────┤
-        │ Middle   │      ⛔ CENTRO        │  Middle  │
-        │ Left     │      keep-out        │  Right   │   60%   216 .. 864 px
-   0.8  ├──────────┴──────────────────────┴──────────┤
-        │                 Bottom                     │
-        │      (la barra dei comandi, D-456)         │   20%   864 .. 1080 px
-   1.0  └────────────────────────────────────────────┘
-             20%            60%               20%
+   a 1920×1080, in unità Slate (= pixel)
+        0         384                  1551.36      1920
+     0  ┌──────────┬──────────────────────┬──────────┐
+        │ TopLeft  │     TopCenter        │ TopRight │   fascia alta   0 .. 205,2
+        │ (roster) ├──────────────────────┼──────────┤
+   267  ├──────────┤                      │          │
+        │ Middle   │   SCENA 3D           │  Middle  │
+        │ Left     │   (l'unico posto     │  Right   │
+        │ (scheda) │    in cui si rende)  │ (registro│
+ 896,4  ├──────────┴──────────────────────┴──────────┤
+        │                 Bottom                     │   fascia bassa  896,4 .. 1080
+        │      (la barra dei comandi, D-456)         │
+  1080  └────────────────────────────────────────────┘
 ```
 
-⚠️ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11): la scena non starà più sotto le zone.** La 3D si renderà solo nel rettangolo fra le quattro fasce, e le fasce si stringono ai loro inquilini: la proposta, misurata sul sorgente delle tavole con il margine di 4 px, è sinistra 20%, destra 19,2% (il registro e il badge accanto a `Conferma`), alto 19% (il roster), basso 17%, per una scena di circa 61%×64%. La griglia diventa un dato di runtime, letto dalle zone, dalla scena, dalla camera e dai test che oggi ne tengono una copia (`RTCenterFree`, `RTGrigliaZone`). Emenda [D-456](../../decisions/RT_PDR_00_Decision_Log.md) (7). In attuazione in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661); fino ad allora valgono i tagli qui sotto.
+⌫ *Fino al 2026-10-11 la griglia era 20% / 60% / 20% su entrambi gli assi, con la 3D a tutto schermo **sotto** le
+zone e il «centro libero» come riquadro da non coprire (`CenterFraction`). [D-497](../../decisions/RT_PDR_00_Decision_Log.md) ha portato la scena fra le
+fasce ([#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)).*
 
-🔑 **I tagli a 0.2 e 0.8 non sono una scelta estetica**: il keep-out di `PanelsLeaveTheCenterFree` è il 60%
-centrato (`RTCenterFree::CenterFraction`), quindi il centro libero **è** la cella di mezzo di questa griglia.
+Ogni zona è un'istanza di `WBP_RT_HudZone` figlia **diretta** del `Canvas Panel` radice, con `Size To Content`
+**spento**. L'inquilino sta nel suo `NamedSlot Content`.
 
-Ogni zona è un'istanza di `WBP_RT_HudZone` figlia **diretta** del `Canvas Panel` radice, con anchor stirati
-su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inquilino sta nel suo
-`NamedSlot Content`.
+🔴 **Anchor e offset delle zone li scrive il C++, all'avvio dell'HUD**: `URTTacticalHUDWidget::ApplyBandLayout`, da
+`NativeConstruct`, con `RTHudLayout::ZoneLayout`. Le zone d'angolo sono ancorate al loro angolo con una misura fissa
+in unità Slate, quelle di mezzo stirate sull'asse lungo, e ognuna si stacca di 4 dai bordi della sua cella. ⚠️ **Gli
+anchor salvati nell'asset non contano più**: il Designer mostra ancora la griglia a frazioni finché qualcuno non
+risalva l'asset, e una zona trascinata lì torna al suo posto in partita. I test misurano la posa del dato, non
+l'asset (`ScreenHud.ZoneRectanglesMatchTheBands`, `ScreenHud.PanelsLeaveTheSceneFree`).
 
-| Zona | Anchors Min → Max | Contiene oggi | Owner del comportamento |
+🔑 **Chi rende la scena nel rettangolo**: `URTGameViewportClient`, registrato in `Config/DefaultEngine.ini`
+(`GameViewportClientClassName`). Sovrascrive `LayoutPlayers` e scrive `Origin`/`Size` del giocatore **mentre l'HUD
+tattico è montato**; proiezione, deproiezione e `ProjectWorldLocationToScreen` lo seguono da sé, perché passano da
+`ULocalPlayer::GetProjectionData`.
+
+| Zona | Posto (dal dato, in unità Slate) | Contiene oggi | Owner del comportamento |
 |---|---|---|---|
-| `Zone_TopLeft` | (0.0, 0.0) → (0.2, 0.2) | `WBP_RT_TeamRosterLeft`; la resa della tavola dalla seduta `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
-| `Zone_TopCenter` | (0.2, 0.0) → (0.8, 0.2) | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
-| `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
-| `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
-| `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
-| `Zone_Bottom` | (0.0, 0.8) → (1.0, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
-| *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+| `Zone_TopLeft` | angolo in alto a sinistra, `Left` × `LeftTop` | `WBP_RT_TeamRosterLeft`; la resa della tavola dalla seduta `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
+| `Zone_TopCenter` | fra le colonne, alta `Top` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
+| `Zone_TopRight` | angolo in alto a destra, `Right` × `Top` | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
+| `Zone_MiddleLeft` | colonna sinistra, da `LeftTop` alla fascia bassa | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
+| `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `Zone_Bottom` | tutta la larghezza, alta `Bottom` | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
+| *la scena* | il rettangolo fra le fasce | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — la 3D si rende solo qui, con il Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
 🎨 **Il bordo da cantiere si spegne quando il contenuto arriva**, ed è il contratto di `bBlockoutVisible`
 (`RTHudZoneWidget.h`): ogni istanza di `WBP_RT_HudZone` nasce col bordo colorato, e lo si spegne **sull'istanza**
@@ -158,7 +189,7 @@ scritto perché la correzione non si legga come se il difetto non ci fosse mai s
 |---|---|
 | **Anchors** | preset **centro** — `(0.5, 0.5)` → `(0.5, 0.5)` |
 | **Alignment** | `0.5, 0.5` — ⚠️ **senza, al centro finisce l'ANGOLO del widget** |
-| **Position X / Y** | `0, 0` |
+| **Position X / Y** | **scritta dal C++**: `((Left − Right)/2, (Top − Bottom)/2)`, cioè il centro della **scena** e non dello schermo ([D-497](../../decisions/RT_PDR_00_Decision_Log.md) (5)). Costante in unità Slate: circa `(7.7, 10.8)` |
 | **Size** | `600 × 200` |
 | **ZOrder** | `10` — sopra le zone |
 
@@ -168,8 +199,8 @@ menu `Bind` della HUD non lo offre. Il binding vive **dentro** `WBP_RT_FastDecis
 `RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes` lo pinna. L'istanza nella HUD resta
 visibile: è il suo **contenuto** a collassare, ed è quello che si vede a schermo.
 
-⚖️ **L'esenzione dal centro libero è dichiarata, non silenziosa.** `ScreenHud.PanelsLeaveTheCenterFree` la
-concede per **classe** e **solo** per il criterio del centro: `AutoSize` e fuori-viewport restano misurati
+⚖️ **L'esenzione dalla scena libera è dichiarata, non silenziosa.** `ScreenHud.PanelsLeaveTheSceneFree` la
+concede per **classe** e **solo** per il criterio della scena, e verifica che la finestra sia centrata sulla scena: `AutoSize` e fuori-viewport restano misurati
 anche sulla finestra, e una seconda istanza esente è un rosso. La ragione è che `progettazione-hud.md`
 §3.1 vieta ciò che occupa il centro **permanentemente**, mentre §47-bis.2 vuole il countdown al centro e
 non come «animazione periferica».
@@ -180,10 +211,12 @@ apre è una prova di partita, non d'albero — [#3047](https://github.com/Degras
 ✅ **Due gate nuovi guardano questa griglia dal 2026-09-12**, e chiedono cose diverse:
 `RefactorTactics.ScreenHud.TheZonesAreDeclaredExactlyOnce` (⌫ *`TheEightZones…` fino al 2026-10-04*) — c'è una zona per ogni valore di
 `ERTHudZone`, nessuna mancante e nessuna doppia — e
-`RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`, che ricalcola il rettangolo di ogni
-zona con la formula di `SConstraintCanvas::OnArrangeChildren` e lo confronta con la sua cella. Il secondo
-esiste perché `PanelsLeaveTheCenterFree` è un gate **negativo**: dice che nessuna zona invade il centro, e
-passerebbe con tutte le zone schiacciate in un angolo.
+`RefactorTactics.ScreenHud.ZoneRectanglesMatchTheBands` (⌫ *`…ThreeByThreeGrid` fino al 2026-10-11*), che posa
+le zone dal dato su una copia dell'albero, ricalcola il rettangolo di ogni zona con la formula di
+`SConstraintCanvas::OnArrangeChildren` a quattro risoluzioni e lo confronta con la sua cella. Il secondo esiste
+perché `PanelsLeaveTheSceneFree` è un gate **negativo**: dice che nessuna zona invade la scena, e passerebbe con
+tutte le zone schiacciate in un angolo. Il terzo, `ScreenHud.TenantsFitTheirBands`, costruisce l'HUD vero in uno
+scenario e verifica che ogni inquilino entri nella sua cella.
 
 > 🔴 **Per un giorno il diagramma e la colonna «contiene oggi» hanno descritto un albero che il `.uasset`
 > non conteneva, e la ragione va ricordata perché è ripetibile.** `cc5ca967` — il commit che dichiarava

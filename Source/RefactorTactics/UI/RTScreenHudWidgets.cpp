@@ -35,6 +35,10 @@
 #include "Components/HorizontalBoxSlot.h" // #3489: il separatore dei gruppi e' padding, non un widget
 #include "Components/ProgressBar.h"       // #3634: la barra del countdown della finestra di reazione
 #include "Components/PanelWidget.h"       // #3636: roster e pannello costruiscono carte e voci dentro un pannello
+#include "Components/CanvasPanelSlot.h"   // #3661: le zone si posano dal dato delle fasce
+#include "UI/RTHudLayout.h"               // #3661: il dato delle fasce (D-497)
+#include "UI/RTHudZoneWidget.h"           // #3661: le zone si riconoscono per classe e ZoneId
+#include "UI/RTGameViewportClient.h"      // #3661: l'HUD montato chiede il rettangolo della scena
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -1954,6 +1958,68 @@ void URTTacticalHUDWidget::NativeConstruct()
 	{
 		UE_LOG(LogRT, Display, TEXT("%s"), *Riga);
 	}
+
+	// #3661, D-497: le zone dal dato delle fasce, e la 3D solo nel rettangolo che lasciano libero.
+	const int32 Posate = ApplyBandLayout(WidgetTree, RTHudLayout::Bands());
+	URTGameViewportClient* Client = URTGameViewportClient::Get(this);
+	if (Client && !bSceneInsetRequested)
+	{
+		Client->SetSceneInsetRequested(true);
+		bSceneInsetRequested = true;
+	}
+	UE_LOG(LogRT, Display, TEXT("Screen HUD - fasce posate su %d zone; scena fra le fasce: %s"), Posate,
+		Client ? TEXT("si'") : TEXT("no (nessun URTGameViewportClient)"));
+}
+
+void URTTacticalHUDWidget::NativeDestruct()
+{
+	if (bSceneInsetRequested)
+	{
+		if (URTGameViewportClient* Client = URTGameViewportClient::Get(this))
+		{
+			Client->SetSceneInsetRequested(false);
+		}
+		bSceneInsetRequested = false;
+	}
+	Super::NativeDestruct();
+}
+
+int32 URTTacticalHUDWidget::ApplyBandLayout(UWidgetTree* Albero, const FRTHudBands& Fasce)
+{
+	if (Albero == nullptr)
+	{
+		return 0;
+	}
+
+	int32 Posate = 0;
+	Albero->ForEachWidget([Albero, &Fasce, &Posate](UWidget* Widget)
+	{
+		UCanvasPanelSlot* Slot = Widget ? Cast<UCanvasPanelSlot>(Widget->Slot) : nullptr;
+		if (Slot == nullptr || Slot->Parent != Albero->RootWidget)
+		{
+			return; // solo i figli diretti del Canvas radice: il posto degli altri lo decide chi li contiene
+		}
+
+		if (const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget))
+		{
+			Slot->SetAutoSize(false);
+			Slot->SetLayout(RTHudLayout::ZoneLayout(Zona->ZoneId, Fasce));
+			++Posate;
+		}
+		else if (Widget->IsA<URTFastDecisionWidget>())
+		{
+			// Ancorata al centro dello schermo, spostata sul centro della scena. La misura resta quella
+			// dell'asset: per un anchor a punto `Right`/`Bottom` sono la larghezza e l'altezza.
+			FAnchorData Layout = Slot->GetLayout();
+			const FVector2D Spostamento = RTHudLayout::SceneCenterOffsetSlate(Fasce);
+			Layout.Anchors = FAnchors(0.5f, 0.5f);
+			Layout.Alignment = FVector2D(0.5, 0.5);
+			Layout.Offsets.Left = static_cast<float>(Spostamento.X);
+			Layout.Offsets.Top = static_cast<float>(Spostamento.Y);
+			Slot->SetLayout(Layout);
+		}
+	});
+	return Posate;
 }
 
 // =====================================================================================================

@@ -232,10 +232,15 @@ public:
 	 * Se l'area e' piu' piccola dell'inquadratura — mappa piccola, o zoom al massimo — l'intervallo si
 	 * ridurrebbe a un rovescio: in quel caso il pivot si **inchioda al centro** invece di produrre un
 	 * `Clamp` su estremi invertiti, che lo bloccherebbe a un angolo senza che nulla lo dica.
+	 *
+	 * 🔑 **Il modello e' quello di `AspectRatio_MaintainYFOV`** (#3661, D-497 (4)): `HorizontalFovDegrees` e'
+	 * orizzontale all'aspetto di riferimento della camera (`ReferenceAspectRatio`, 16:9), UE tiene FISSO il
+	 * semiangolo verticale `atan(tan(FOV/2) / ReferenceAspectRatio)`, e l'orizzontale segue `AspectRatio`, cioe'
+	 * l'aspetto del rettangolo in cui si rende. A 16:9 coincide col modello di prima.
 	 */
 	static FBox2D ComputeEffectivePivotBounds(const FBox2D& AllowedArea, float ArmLength,
 		float PitchDegrees, float YawDegrees, float HorizontalFovDegrees, float AspectRatio,
-		float AllowedOutsideFraction);
+		float AllowedOutsideFraction, float ReferenceAspectRatio = 16.f / 9.f);
 
 	/**
 	 * Metriche del viewport per il calcolo dei limiti (per i test, e per chi non ha un viewport).

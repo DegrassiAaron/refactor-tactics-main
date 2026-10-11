@@ -12,6 +12,7 @@
 #include "Camera/CameraComponent.h" // ProjectionMode, OrthoWidth e GetCameraView della vista strategica (#3662)
 #include "Engine/LocalPlayer.h"     // il vincolo d'aspetto con cui UE costruisce la proiezione
 #include "SceneView.h"              // FSceneViewProjectionData
+#include "UI/RTHudLayout.h"         // #3661: il rettangolo della scena
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -2186,37 +2187,30 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	TestTrue(TEXT("a yaw 0 il pitch NON tocca l'asse laterale (Y)"),
 		FMath::IsNearlyEqual(Shallow.Max.Y, Steep.Max.Y, 0.5f));
 
-	// Ultrawide. ⚠️ Il messaggio di questa riga ha gia' mentito una volta (diceva «stringe» mentre
-	// l'asserzione verifica il contrario) ed e' stato corretto il 2026-08-30 rileggendo il diff. Ora dice
-	// anche l'asse giusto: a yaw 0 la profondita' vive su **X**.
-	//
-	// Cio' che l'asserzione dice, ed e' geometricamente corretto a FOV **orizzontale** fisso: un ultrawide
-	// ha un FOV verticale minore, quindi vede meno in profondita' e il limite sull'asse di sguardo si
-	// allarga.
-	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
-	TestTrue(TEXT("a FOV orizzontale fisso, 32:9 ALLARGA il limite sull'asse di sguardo (X)"),
-		Wide.Max.X > Far.Max.X);
+	// 🔑 **A 16:9 i limiti restano quelli di prima di #3661**, e lo dicono i numeri, non una disuguaglianza:
+	// semiasse laterale `2000 · tan 45° = 2000`, inset `2000 · 0,65 = 1300`, quindi `Max.Y = 3700`; semiasse
+	// verticale `2000 / 1,778 = 1125`, profondita' `1125 / sin 45° = 1591`, inset `1034`, quindi `Max.X = 3966`.
+	TestEqual(TEXT("a 16:9 il limite laterale e' quello di prima di #3661"), static_cast<float>(Far.Max.Y), 3700.f, 1.f);
+	TestEqual(TEXT("a 16:9 il limite lungo lo sguardo e' quello di prima di #3661"), static_cast<float>(Far.Max.X), 3966.f, 1.f);
 
-	// 🔴 **Questa riga PINNA UN DIFETTO NOTO, non un comportamento voluto — e va letta prima di
-	// «correggerla».**
+	// ⌫ **Qui c'era un DIFETTO PINNATO** (`Wide.Max.Y == Far.Max.Y`): il modello teneva fisso il FOV
+	// orizzontale e il limite laterale non dipendeva dall'aspetto. Il progetto pero' usa `MaintainYFOV`, default
+	// di UE, e `FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle` tiene fisso il semiangolo
+	// VERTICALE `atan(tan(FOV/2) / AspectRatio)`. La correzione e' arrivata con #3661, quando la scena ha smesso
+	// di essere 16:9: e questa riga, com'era annunciato, e' diventata rossa.
 	//
-	// A yaw 0 `ExtentX` vale `HalfWidth`, che non dipende dall'aspect ratio: allargando lo schermo il
-	// limite orizzontale non si muove di un'unita'. E' corretto solo se il FOV **orizzontale** e' davvero
-	// fisso — ma il progetto non imposta `AspectRatioAxisConstraint` (`grep -rn` su `Source/` e `Config/`
-	// non trova nulla), quindi vale il default di UE `AspectRatio_MaintainYFOV`: su schermi larghi resta
-	// fisso il FOV **verticale** e cresce quello orizzontale effettivo, mentre `Camera->FieldOfView` —
-	// che e' cio' che questa funzione riceve — non cambia.
-	//
-	// ∴ su 32:9 l'inset X e' probabilmente **piu' piccolo del dovuto**, cioe' il limite e' piu' permissivo
-	// proprio sul caso che `D-251` esiste per coprire. Non e' stato corretto qui perche' la formula giusta
-	// dipende da quale asse UE consideri «il FOV» sotto quel constraint, e quello si verifica **guardando**
-	// (verifica PIE ultrawide di `#1778`), non deducendo: riscrivere la matematica su una supposizione
-	// produrrebbe numeri diversi con la stessa fiducia.
-	//
-	// ⚠️ Il giorno in cui la formula terra' conto dell'aspect sull'asse X, **questo test diventera' rosso —
-	// ed e' il segnale che la correzione e' arrivata**, non un fallimento da aggirare.
-	TestEqual(TEXT("DIFETTO PINNATO: a yaw 0 il limite LATERALE non dipende dall'aspect ratio"),
-		Wide.Max.Y, Far.Max.Y);
+	// ∴ Con l'aspetto che cresce la profondita' inquadrata non cambia (`Max.X` fermo) e il quadro si allarga di
+	// lato (`Max.Y` si stringe). Con la scena di #3661, piu' stretta di 16:9, succede il contrario sul lato.
+	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
+	TestEqual(TEXT("MaintainYFOV: a 32:9 la profondita' inquadrata (X a yaw 0) e' quella di 16:9"),
+		static_cast<float>(Wide.Max.X), static_cast<float>(Far.Max.X), 0.5f);
+	TestTrue(TEXT("MaintainYFOV: a 32:9 il quadro si allarga di lato, e il limite laterale (Y) si stringe"),
+		Wide.Max.Y < Far.Max.Y - 100.f);
+
+	const float AspettoScena = 1167.36f / 691.2f; // la scena di #3661 a 1920x1080, circa 1,69
+	const FBox2D Scena = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, AspettoScena, Fraction);
+	TestEqual(TEXT("nella scena di #3661 la profondita' inquadrata e' quella di 16:9"), static_cast<float>(Scena.Max.X), static_cast<float>(Far.Max.X), 0.5f);
+	TestTrue(TEXT("e il limite laterale si allarga, perche' il quadro e' piu' stretto"), Scena.Max.Y > Far.Max.Y + 10.f);
 
 	// Yaw 90°: il quadro e' ruotato, e gli assi dell'ingombro si scambiano. Senza questo passaggio i
 	// limiti sarebbero corretti solo con la vista dritta — cioe' proprio dove la rotazione non serve.
@@ -2513,6 +2507,82 @@ bool FRTCameraPitchOffsetSurvivesZoomTest::RunTest(const FString&)
 	Cam->AddPitch(+7.f);
 	Cam->RecenterView();
 	TestEqual(TEXT("Home riazzera l'orbita manuale"), Cam->GetManualPitchOffset(), 0.f, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Nel rettangolo della scena la camera inquadra la stessa ESTENSIONE VERTICALE dello schermo intero** (#3661,
+ * D-497 (4)) — misurato sulla MATRICE DI PROIEZIONE, non su una formula.
+ *
+ * La camera consegna la sua vista (`GetCameraView`) e UE costruisce la matrice come la costruirebbe per il render,
+ * con il vincolo d'aspetto del giocatore locale e due rettangoli: lo schermo intero e la scena fra le fasce. Con
+ * `MaintainYFOV` l'altezza inquadrata sul piano del pivot dev'essere la stessa, e la larghezza seguire l'aspetto:
+ * celle e unita' appaiono circa 0,64x, e soglie e zoom non si ritarano.
+ *
+ * 🔑 **Il vincolo e l'aspetto vengono da UE e dalla camera, non da costanti**: se il progetto cambiasse
+ * `AspectRatioAxisConstraint` o `AspectRatio`, questo test cadrebbe invece di ripetere una garanzia di UE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSceneRectVerticalExtentTest,
+	"RefactorTactics.Camera.SceneRectKeepsTheVerticalExtentOfTheFullScreen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraSceneRectVerticalExtentTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	UCameraComponent* View = Cam->FindComponentByClass<UCameraComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm) || !TestNotNull(TEXT("camera component"), View))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	const float Distanza = Arm->TargetArmLength;
+	FMinimalViewInfo Info;
+	View->GetCameraView(0.f, Info);
+	if (!TestTrue(TEXT("premessa: la vista tattica e' prospettica"), Info.ProjectionMode == ECameraProjectionMode::Perspective))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	const TEnumAsByte<EAspectRatioAxisConstraint> Vincolo = GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint;
+	auto Matrice = [Vincolo, &Info](const FIntRect& Quadro)
+	{
+		FSceneViewProjectionData Dati;
+		Dati.SetViewRectangle(Quadro);
+		FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(Info, Vincolo, Quadro, Dati);
+		return Dati.ProjectionMatrix;
+	};
+
+	const FIntPoint Vp(1920, 1080);
+	const FBox2D R = RTHudLayout::SceneRectPixels(Vp, RTHudLayout::UiScaleFor(Vp), RTHudLayout::Bands());
+	const FIntRect Intero(0, 0, Vp.X, Vp.Y);
+	const FIntRect Scena(FMath::RoundToInt(R.Min.X), FMath::RoundToInt(R.Min.Y), FMath::RoundToInt(R.Max.X), FMath::RoundToInt(R.Max.Y));
+
+	// Mezze estensioni sul piano perpendicolare allo sguardo, alla distanza del pivot: in prospettiva il bordo del quadro
+	// sta a `d / M[1][1]` in altezza e a `d / M[0][0]` in larghezza.
+	const FMatrix ProiezioneIntero = Matrice(Intero);
+	const FMatrix ProiezioneScena = Matrice(Scena);
+	const double AltezzaIntero = Distanza / ProiezioneIntero.M[1][1];
+	const double AltezzaScena = Distanza / ProiezioneScena.M[1][1];
+	const double LarghezzaIntero = Distanza / ProiezioneIntero.M[0][0];
+	const double LarghezzaScena = Distanza / ProiezioneScena.M[0][0];
+	AddInfo(FString::Printf(TEXT("braccio %.0f: schermo intero %.1f x %.1f, scena %dx%d %.1f x %.1f (mezze estensioni)"),
+		Distanza, LarghezzaIntero, AltezzaIntero, Scena.Width(), Scena.Height(), LarghezzaScena, AltezzaScena));
+
+	TestEqual(TEXT("l'altezza inquadrata e' la stessa"), AltezzaScena, AltezzaIntero, AltezzaIntero * 1e-4);
+	const double AspettoScena = static_cast<double>(Scena.Width()) / Scena.Height();
+	const double AspettoIntero = static_cast<double>(Intero.Width()) / Intero.Height();
+	TestEqual(TEXT("e la larghezza segue l'aspetto della scena"), LarghezzaScena / LarghezzaIntero,
+		AspettoScena / AspettoIntero, 1e-3);
+	TestTrue(TEXT("anti-vacuita': la scena non ha l'aspetto dello schermo"), FMath::Abs(AspettoScena - AspettoIntero) > 0.05);
 
 	DestroyCameraWorld(World);
 	return true;
