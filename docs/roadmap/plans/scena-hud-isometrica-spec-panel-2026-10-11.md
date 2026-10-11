@@ -3,7 +3,7 @@
 > `SNAPSHOT` · fotografia del 2026-10-11: vale finché è l'ultima misura del suo oggetto.
 >
 > - **Data**: 2026-10-11.
-> - **Misurato su** `origin/main` = `1c58a69e4`, rimisurato dalla review su `15ad54d73`.
+> - **Misurato su** `origin/main` = `1c58a69e4`, rimisurato dalla prima review su `15ad54d73` e dalla seconda su `11e628c85`.
 > - **Oggetto**: due modifiche chieste dall'autore in una sessione `/sc:spec-panel`. (1) La UI non sta sopra il render della camera: UI e mappa non si sovrappongono. (2) La vista strategica usa una proiezione isometrica.
 > - **Issue**: [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661) (la scena nel rettangolo libero) · [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) (CAM-05c, l'isometrica).
 > - **Decisioni registrate**: [D-497](../../decisions/RT_PDR_00_Decision_Log.md) e [D-498](../../decisions/RT_PDR_00_Decision_Log.md).
@@ -29,11 +29,15 @@
   - `CenterFraction` in `Source/RefactorTactics/Tests/RTHudGeometryForTest.h`, letta da `PanelsLeaveTheCenterFree` e dal test del Context Inspector;
   - `RTGrigliaZone` in `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`, che pilota `ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`;
   - gli anchor di `WBP_RT_TacticalHUD`.
-- **La camera misura il viewport intero**: `ARTCameraPawn::RefreshViewportMetrics` legge `Viewport->GetSizeXY()`. L'aspetto che ne ricava lo usa solo `ComputeEffectivePivotBounds`, cioè il limite del pivot di [D-251](../../decisions/RT_PDR_00_Decision_Log.md). La larghezza ortografica non dipende dall'aspetto: è `OrthoWidthForArm(TargetArmLength, FieldOfView)`.
+- **La camera misura il viewport intero**: `ARTCameraPawn::RefreshViewportMetrics` legge `Viewport->GetSizeXY()`. L'aspetto che ne ricava lo usa solo `ComputeEffectivePivotBounds`, cioè il limite del pivot di [D-251](../../decisions/RT_PDR_00_Decision_Log.md). La larghezza ortografica è `OrthoWidthForArm(TargetArmLength, FieldOfView)` e non riceve l'aspetto; l'estensione resa, sì (sotto).
+- **La deproiezione segue già il rettangolo del giocatore**: `UGameplayStatics::DeprojectScreenToWorld` passa da `ULocalPlayer::GetProjectionData`, che legge `Origin` e `Size`. Lo ha trovato la seconda review.
 - **UE 5.8 sa rendere un giocatore in un rettangolo.** Verificato sugli header dell'engine:
   - `UGameViewportClient::SplitscreenInfo` e `LayoutPlayers` in `Engine/GameViewportClient.h`;
   - `FPerPlayerSplitscreenData` in `Engine/ViewportSplitScreen.h`;
   - `ULocalPlayer::Origin/Size` in `Engine/LocalPlayer.h`.
+- **Il vincolo d'aspetto è `AspectRatio_MaintainYFOV`** (`BaseEngine.ini`; il progetto non lo cambia). Letto su `CameraStackTypes.cpp` dalla seconda review, e riletto:
+  - la prospettica tiene fisso il semiangolo verticale `atan(tan(FOV/2) / 1,78)`, e l'orizzontale segue l'aspetto del quadro. Un rettangolo più piccolo conserva da sé l'estensione verticale;
+  - l'ortografica usa `OrthoWidth` come estensione **verticale**. `OrthoWidthForArm` la calcola col FOV orizzontale, quindi l'ortografica di #3631 inquadra circa 1,78× la prospettica. Il test di #3631 confronta la formula, non la proiezione.
 - **La vista strategica ha due leve consegnate**, nate per una scelta che l'autore doveva fare in PIE: una rampa del pitch con la distanza (`StrategicPitchDelta`, #3630) e un interruttore ortografico (`bStrategicOrthographic`, #3631).
 - **La rotazione ha una decisione sua**: [D-142](../../decisions/RT_PDR_00_Decision_Log.md) tiene lo scatto a 45° perché non divide 60. Allineandosi agli assi degli esagoni, un cilindro copre la cella dietro di sé.
 
@@ -78,11 +82,21 @@ Due giri di domande. Il secondo nasce dalla review di [#3663](https://github.com
 | Domanda | Risposta | Registrata in |
 |---|---|---|
 | Come separare scena e HUD | **Stringere l'HUD**: le fasce si riducono ai loro contenuti e il rettangolo della scena cresce | [D-497](../../decisions/RT_PDR_00_Decision_Log.md) (2) |
-| Quanto stringere | **Sulle misure dei contenuti veri** (~61%×66%), non verso il 70% del canone, che chiederebbe di ridisegnare gli inquilini | D-497 (2) |
-| Che cosa si conserva nel rettangolo | **L'estensione**: si vede la stessa porzione di mondo, tutto più piccolo | D-497 (4) |
+| Quanto stringere | **Sulle misure dei contenuti veri**, non verso il 70% del canone, che chiederebbe di ridisegnare gli inquilini. Allora la proposta era ~61%×66%, il 40% (§4.1) | D-497 (2) |
+| Che cosa si conserva nel rettangolo | **L'estensione**: si vede la stessa porzione di mondo in verticale, tutto più piccolo | D-497 (4) |
 | La finestra di reazione | **Resta un'esenzione dichiarata** | D-497 (5) |
 | L'angolo dell'isometrica | **Dimetrico 2:1**, pitch −30°, proiezione ortografica | [D-498](../../decisions/RT_PDR_00_Decision_Log.md) (1) |
 | La rotazione in strategica | **45°, come in tattica** (D-142 vale); pitch fisso e orbita verticale inerte | D-498 (4) |
+
+### 4.1 La seconda review
+
+La review delle correzioni ha trovato due misure sbagliate. Correggerle applica il metodo che l'autore ha scelto, senza cambiarlo:
+- **la fascia alta era misurata sulla sola colonna centrale.** La griglia ha un taglio solo per riga, e in `Zone_TopLeft` il roster finisce a y=200: la fascia va al 19%, non al 17%;
+- **il margine di 4 px della griglia non era contato.** La colonna destra va al 19,2%, perché il registro e il badge accanto a `Conferma` cominciano a x=1556. `Conferma` vincola la colonna, al contrario di quanto diceva la prima correzione.
+
+La scena passa da ~61%×66% (il 40% dello schermo) a ~61%×64% (il 39%). La cella centrale scartata ne copre il 36%: con le misure corrette le due strade differiscono di circa tre punti. L'autore lo ha saputo dopo la scelta.
+
+Ha trovato anche i due fatti dell'engine del §2: l'estensione verticale si conserva da sé, e l'ortografica di #3631 non è continua con la prospettica.
 
 ## 5. La specifica
 
@@ -92,27 +106,27 @@ Due giri di domande. Il secondo nasce dalla review di [#3663](https://github.com
    - gli anchor delle zone, o un test che li confronta;
    - il rettangolo della scena;
    - i tre lettori di oggi: `PanelsLeaveTheCenterFree`, il test del Context Inspector e `ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`.
-2. **Le fasce si stringono ai loro inquilini.** Proposta, misurata sulle tavole a 1920×1080:
+2. **Le fasce si stringono ai loro inquilini.** Proposta, misurata sul sorgente delle tavole (`sorgente-mockup/RefactorTactics-HUD.dc.html`) a 1920×1080, con il margine di 4 px della griglia:
 
    | Fascia | Frazione proposta | Perché |
    |---|---|---|
-   | Colonna sinistra | 20% | roster e scheda dell'unità della tavola A finiscono a x≈380 |
-   | Colonna destra | 19% | il registro della tavola D comincia a x≈1556; `Conferma` sta nella fascia alta |
-   | Fascia alta | 17% | header e celle di fase finiscono a y≈180 |
-   | Fascia bassa | 17% | il dock comincia a y≈900 |
+   | Colonna sinistra | 20% | roster e scheda dell'unità finiscono a x=380 |
+   | Colonna destra | 19,2% | il registro e il badge accanto a `Conferma` cominciano a x=1556 |
+   | Fascia alta | 19% | il roster, in `Zone_TopLeft`, finisce a y=200; header e celle di fase a y=180 |
+   | Fascia bassa | 17% | il dock comincia a y=903 |
 
-   La scena diventa circa 61%×66%. Le misure si riprendono sui widget veri, a più risoluzioni e con la scala dell'interfaccia di UE, e l'autore conferma le frazioni in PIE.
+   La scena diventa circa 61%×64%, il 39% dello schermo. Le misure si riprendono sui widget veri, a più risoluzioni e con la scala dell'interfaccia di UE, e l'autore conferma le frazioni in PIE.
 3. **La 3D si rende solo nel rettangolo**, ricalcolato a ogni cambio di dimensione. Fuori c'è lo sfondo dell'HUD.
-4. **A parità di braccio il rettangolo inquadra la stessa porzione di mondo di oggi.** Celle e unità appaiono più piccole; soglie e zoom non si ritarano.
-5. **Limite del pivot e deproiezione usano il rettangolo del giocatore.** Un click fuori dal rettangolo non raggiunge il mondo.
+4. **A parità di braccio il rettangolo inquadra la stessa estensione verticale di oggi**, che `MaintainYFOV` conserva da sé. L'orizzontale segue l'aspetto del rettangolo (circa il 5% in meno). Celle e unità appaiono circa 0,64×; soglie e zoom non si ritarano.
+5. **Il limite del pivot usa il rettangolo del giocatore**, con il modello di `MaintainYFOV`: semiasse verticale fisso, orizzontale dall'aspetto. La deproiezione lo segue già; un click fuori dal rettangolo non raggiunge il mondo.
 6. **Esenzione**: `WBP_RT_FastDecision`, ricentrata sul rettangolo.
-7. **Fuori dalla regola**: la UI nel mondo, che è parte della scena, e gli strumenti di sviluppo. Il budget del Context Inspector sotto la nuova fascia bassa si decide in #3661, perché il suo test oggi misura contro il keep-out del 60%.
+7. **Fuori dalla regola**: la UI nel mondo, che è parte della scena, e gli strumenti di sviluppo. Il Context Inspector oggi rispetta il riquadro del 60%, e sotto la fascia bassa al 17% non ci sta più (174 px contro ~160). Se riduce le righe a 7, si sposta o perde la soglia si decide in #3661.
 
 ### 5.2 La vista strategica isometrica — [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)
 
 1. **Finché lo stato è strategico la proiezione è ortografica e il pitch vale −30°**, anche fra le due soglie per l'isteresi di [D-252](../../decisions/RT_PDR_00_Decision_Log.md). Finché è tattico, restano prospettiva e pitch di oggi. Il passaggio è un taglio netto ([D-495](../../decisions/RT_PDR_00_Decision_Log.md) (4)).
 2. **La rampa di #3630 si ritira** dal codice, con i suoi test. Resta la correzione di `AddOrbit`.
-3. **La proiezione ortografica è la regola**: l'interruttore di #3631 esce.
+3. **La proiezione ortografica è la regola**: l'interruttore di #3631 esce. La scala sul pivot va resa continua misurando la proiezione, non la formula: oggi l'ortografica inquadra circa 1,78× la prospettica.
 4. **In strategica l'orbita verticale non agisce**, e al ritorno torna il pitch manuale della tattica. `Q`/`E` e l'orbita orizzontale restano quelle di oggi (D-142).
 5. **La separazione dei piani** ([#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)) resta.
 
@@ -121,8 +135,8 @@ Due giri di domande. Il secondo nasce dalla review di [#3663](https://github.com
 | Issue | Che cosa cambia |
 |---|---|
 | [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) | La sua scelta pendente («l'autore sceglie il valore») è presa da D-498: niente rampa, angolo fisso. Il codice della rampa lo ritira #3662 |
-| [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) | La sua scelta pendente («l'autore vede le due proiezioni») è presa da D-498: ortografica. Il click ai tre punti del viewport si rimisura con #3662, sul rettangolo di #3661 |
-| [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) | Invariata da questo referto |
+| [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) | La sua scelta pendente («l'autore vede le due proiezioni») è presa da D-498: ortografica. Il click ai tre punti del viewport e la scala al cambio di proiezione passano a #3662 |
+| [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) | Invariata da questo referto: il valore della separazione (3) lo registra la seduta `U78` ([#3665](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3665)) |
 
 ## 7. Fuori da questo lavoro
 
