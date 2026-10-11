@@ -292,7 +292,7 @@ public:
 
 	/**
 	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
-	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`.
+	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`, `LayerStack`.
 	 *
 	 * ⚠️ **Completato il 2026-08-31, e ne mancavano tre**: `GrayKitYard`, `VisionSplit` e `ProbeYard` erano
 	 * nel dispatcher e non qui. Il test qui sotto verifica **una direzione sola** — che ogni nome elencato

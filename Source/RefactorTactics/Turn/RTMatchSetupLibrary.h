@@ -291,6 +291,29 @@ public:
 	static URTHexMapAsset* MakeProbeYardArena(UObject* Outer);
 
 	/**
+	 * **`LayerStack` — tre piani sovrapposti, per giudicare in seduta come si vedono rispetto a quello attivo**
+	 * (#3678, D-500).
+	 *
+	 * | Piano | Forma | Sta sopra |
+	 * |---|---|---|
+	 * | 0 | esagono di raggio 4 attorno a `(0,0)` | — |
+	 * | 1 | mezzanino di raggio 2 attorno a `(1,-1)` | celle del piano 0 |
+	 * | 2 | cima di raggio 1 attorno a `(2,-2)` | celle del piano 1 |
+	 *
+	 * 🔑 **Sovrapposti, non affiancati**: ogni cella del piano 1 ha sotto una cella del piano 0, e ogni cella
+	 * del piano 2 una del piano 1. E' la configurazione in cui un piano copre quello attivo, cioe' quella che la
+	 * presentazione dei piani (#3679) deve rendere leggibile. `TestArena` ha due piani soli, e la sua
+	 * piattaforma copre quattro celle.
+	 *
+	 * Due archi espliciti, uno per salto, di costo 2 come quello di `TestArena`: `(1,2,0) -> (1,1,1)` e
+	 * `(0,-1,1) -> (1,-1,2)`. Le ancore stanno fuori dall'impronta del piano sopra, cosi' chi sale parte da una
+	 * cella scoperta.
+	 *
+	 * `Outer` nullo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeLayerStackArena(UObject* Outer);
+
+	/**
 	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa
 	 * tabella che li dispaccia: elencarli qui a mano e' cio' che ha prodotto `#1459`.
 	 *

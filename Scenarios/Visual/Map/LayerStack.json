@@ -1,0 +1,30 @@
+{
+  "scenarioId": "Visual.Map.LayerStack",
+  "tags": ["map", "layer", "multilevel", "viewport", "strategic"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "LayerStack",
+
+  "_nota": "Tre piani SOVRAPPOSTI: un mezzanino (piano 1) sopra il pavimento, una cima (piano 2) sopra il mezzanino. Non verifica una regola di gioco: e' la scena su cui si giudica come si vedono i piani rispetto a quello attivo (#3679, D-500) e la separazione della vista strategica (#3678).",
+
+  "_nota_unita": "Un'unita' propria SOTTO ogni piano piu' alto, che e' il caso da rendere leggibile: Aevik sul pavimento sotto il mezzanino, Muiren sul mezzanino sotto la cima, Ivrin in cima. Il nemico sta sul pavimento, scoperto. Nessun turno: la partita resta in pianificazione, e PageUp/PageDown cambiano il piano attivo.",
+
+  "_nota_fixture": "`LayerStack` (`URTMatchSetupLibrary::MakeLayerStackArena`): pavimento di raggio 4 attorno a (0,0), mezzanino di raggio 2 attorno a (1,-1), cima di raggio 1 attorno a (2,-2). Le salite sono due archi espliciti, (1,2,0) -> (1,1,1) e (0,-1,1) -> (1,-1,2); le misura `RefactorTactics.HexMap.LayerStackLayersAreReachableFromTheGround`.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 1,  0, 0] },
+    { "id": "F2", "hero": "Hero.Muiren", "team": 0, "cell": [ 1, -1, 1] },
+    { "id": "F3", "hero": "Hero.Ivrin",  "team": 0, "cell": [ 3, -3, 2] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-3,  1, 0] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "F1", "cell": [ 1,  0, 0] },
+    { "type": "UnitAtCell", "unit": "F2", "cell": [ 1, -1, 1] },
+    { "type": "UnitAtCell", "unit": "F3", "cell": [ 3, -3, 2] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-3,  1, 0] }
+  ]
+}
