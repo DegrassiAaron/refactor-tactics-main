@@ -8,7 +8,7 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la squadra di chi spara vede il proprio colpo; la conoscenza è quella della fase dell'evento; un muro si vede da un lato qualunque ([#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691)); con più autori, le squadre di tutti; ogni vista del fatto — combat log, proiettore degli eventi, replay — segue la stessa regola; l'audit di `D-313` dovrà ricalcolare un verdetto su due celle |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la squadra di chi spara vede il proprio colpo; conta la fase di risoluzione in cui il colpo avviene; un muro si vede da un lato qualunque ([#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691)); con più autori, le squadre di tutti; ogni vista del fatto — combat log, proiettore degli eventi, replay — segue la stessa regola; le conseguenze per l'attuazione, fra cui l'audit di `D-313` |
 | [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito nomina le altre viste; §5.1: un pannello di bordo sta fra due celle |
 
 ---
