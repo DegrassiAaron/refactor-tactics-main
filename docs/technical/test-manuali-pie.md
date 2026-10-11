@@ -91,7 +91,7 @@
 
 **264 voci**: ✅ **101 verdi** · 🟡 **32 parziali** · ❌ **7 fallite** · ⏳ **124 aperte**.
 
-➕ **Rimisurato il 2026-10-11 (seduta `U78`, la vista strategica rigiudicata): il ricalcolo di `doc-coherence` A1 dava `264 · 100/32/7/125` **prima** di toccare le celle e `264 · 101/32/7/124` **dopo**.** Delta **zero voci**. `PIE-CAM-STRATEGIC-RICORDO` passa da 🟡 a ✅ e `PIE-CAM-STRATEGIC-PIANI` da ⏳ a 🟡. `PIE-CAM-STRATEGIC` resta 🟡, ma **dentro la cella** i due ❌ di #3646 e #3647 diventano ✅: restano non eseguiti il turno chiuso con `Spazio` e il confronto dei nemici. Misurato sul branch `issue/3632-u78-verdetti` da `origin/main` `15ad54d73`.
+➕ **Rimisurato il 2026-10-11 (seduta `U78`, la vista strategica rigiudicata): il ricalcolo di `doc-coherence` A1 dava `264 · 100/32/7/125` **prima** di toccare le celle e `264 · 101/32/7/124` **dopo**.** Delta **zero voci**. `PIE-CAM-STRATEGIC-RICORDO` passa da 🟡 a ✅ e `PIE-CAM-STRATEGIC-PIANI` da ⏳ a 🟡. `PIE-CAM-STRATEGIC` resta 🟡, ma **dentro la cella** i due ❌ di #3646 e #3647 diventano ✅: restano non eseguiti il turno chiuso con `Spazio` e il confronto dei nemici. Misurato sul branch `issue/3632-u78-verdetti` da `origin/main` `15ad54d73`; dopo l'unione di `main` = `11e628c85`, che non tocca il registro, A1 resta verde.
 
 ➕ **Rimisurato il 2026-10-11 ([#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632), la separazione dei piani): il ricalcolo di `doc-coherence` A1 dava `263 · 100/32/7/124` **prima** di toccare il file e `264 · 100/32/7/125` **dopo**.** Delta **una voce, nuova e ⏳** — `PIE-CAM-STRATEGIC-PIANI`: nessuna voce esistente cambia stato. Misurato sul branch `issue/3632-separazione-dei-piani` da `origin/main` `df1ac7c6a` e sull'albero modificato, con lo stesso comando.
 

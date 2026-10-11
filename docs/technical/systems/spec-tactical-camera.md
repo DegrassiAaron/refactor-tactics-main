@@ -297,7 +297,7 @@ continua a esistere anche lì — non è la vista a definirlo.
 >
 > 🔧 **La separazione verticale in Strategic ha la sua leva dal 2026-10-11** ([#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)):
 > `ARTHexMapActor::StrategicLayerSeparation`, oppure `rt.Map.StrategicLayerSeparation` in console, che se > 0
-> vince sulla proprietà. **Vale 3**: l'ha scelto l'autore guardando la vista in PIE (seduta `U78`, 2026-10-11) fra 1, 2, 3 e 4; `1` è neutro.
+> vince sulla proprietà. **Vale 3**: l'ha scelto l'autore fra 1, 2, 3 e 4, sulle catture della seduta PIE `U78` (2026-10-11); `1` è neutro.
 > - 🔑 **È la quota del contesto, non un secondo contesto.** `GetHexContext` è da allora il contesto della
 >   *presentazione*: in Strategic la quota dei piani vale quella dell'asset per il fattore. Board, unità, playback,
 >   overlay dell'HUD e picking la leggono dalla stessa porta, quindi restano allineati fra loro

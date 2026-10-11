@@ -2262,7 +2262,7 @@ namespace
 }
 
 /**
- * Il valore dell'autore: la separazione vale 3 (seduta PIE `U78`, #3632). Esiste perche' un default cambiato per
+ * Il valore dell'autore: la separazione vale 3, scelta sulle catture della seduta PIE `U78` (#3632). Esiste perche' un default cambiato per
  * sbaglio non lo direbbe nessun altro test: tutti gli altri dichiarano il valore che misurano.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationDefaultTest,
@@ -2270,7 +2270,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationDefaultTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMapStrategicSeparationDefaultTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("la separazione scelta in PIE"), GetDefault<ARTHexMapActor>()->StrategicLayerSeparation, 3.f);
+	TestEqual(TEXT("la separazione scelta dall'autore (U78)"), GetDefault<ARTHexMapActor>()->StrategicLayerSeparation, 3.f);
 	return true;
 }
 

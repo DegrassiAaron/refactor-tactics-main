@@ -775,8 +775,8 @@ public:
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
 	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
 	 *
-	 * 🔑 **Default 3: l'ha scelto l'autore guardando la vista in PIE** (seduta `U78`, 2026-10-11, #3632), fra 1, 2, 3
-	 * e 4 sulla piattaforma di `Visual.Map.MultiLevel`. La stessa leva in console e' `rt.Map.StrategicLayerSeparation`
+	 * 🔑 **Default 3: l'ha scelto l'autore sulle catture della seduta PIE `U78`** (2026-10-11, #3632), fra 1, 2, 3
+	 * e 4 sulla piattaforma di `Visual.Map.MultiLevel`: la seduta l'ha condotta una sessione, non l'autore dal vivo. La stessa leva in console e' `rt.Map.StrategicLayerSeparation`
 	 * (che, se > 0, vince su questa proprieta'). ⚠️ La scelta e' stata fatta in prospettiva: con l'isometrica di
 	 * [D-498] (#3662) la voce `PIE-CAM-STRATEGIC-PIANI` si rimisura.
 	 */
