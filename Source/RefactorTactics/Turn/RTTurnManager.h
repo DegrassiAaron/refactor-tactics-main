@@ -2078,6 +2078,10 @@ public:
 	 * le sole tre occorrenze stavano nei test che lo legavano apposta, e in partita il ramo non si prendeva
 	 * mai: `#2679`, `#2692` e `#2717` erano costruite fino al confine della UI e irraggiungibili.
 	 *
+	 * ➕ **Il secondo binder, dal 2026-10-11** (`#3634`): `FRTScenarioSession::ApplyPlayerReactionWindows`, per gli
+	 * scenari che dichiarano `playerReactionWindows` — l'auto-run esce dal `BeginPlay` del GameMode prima di
+	 * `HookReactionWindow`. Stessa condizione: lega solo dove un `ARTPlayerController` esiste.
+	 *
 	 * ⛔ **E il cablaggio non ha un ripiego senza proprietario, deliberatamente**: legarlo in un harness
 	 * headless aprirebbe finestre che nessuno chiude, ed e' il caso che questa stessa riga esiste per
 	 * escludere.

@@ -1249,7 +1249,8 @@ struct FRTTestScenario
 	 *
 	 * ⛔ **Privacy: la finestra si apre per OGNI proprietario non-bot, anche della squadra che non guarda.** Il
 	 * delegate riceve la vista del proprietario (`MakeReactionWindowView(…, OwnerTeamId, OwnerTeamId)`), e il view
-	 * model la mostra. In partita non succede — la squadra avversaria e' del bot, e al bot la finestra non si apre —
+	 * model la mostra. In partita non succede — la squadra 1 e' del bot (`RTMatchBootstrapper.cpp`, `TeamId == 1`),
+	 * e al bot la finestra non si apre —
 	 * ma in uno scenario ogni unita' e' non-bot salvo `"bot": true`: uno scenario con questo campo arma reazioni
 	 * solo sulla squadra di chi guarda, o da' al bot quelle dell'altra.
 	 */

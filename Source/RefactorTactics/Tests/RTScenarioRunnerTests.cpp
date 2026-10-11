@@ -775,9 +775,12 @@ bool FRTScenarioPreviewUnitLightsThePreviewTest::RunTest(const FString&)
  * rossa negli altri due modi di eseguire lo stesso file. Qui i due modi si eseguono entrambi, con le assertion
  * aggiunte in memoria, e un controller spawnato e' cio' che distingue l'uno dall'altro — come per `previewUnit`.
  *
- * 🔑 **Il caso col controller e' la prova che la finestra si e' davvero APERTA**: `Timeout` lo scrive solo
- * `ExpireReactionWindow`, cioe' l'orologio di una finestra sospesa. Senza aggancio la stessa guardia esce
- * `NoDecider`, ed e' il terzo caso: controller presente, chiave tolta — il comportamento di prima.
+ * 🔑 **Il caso col controller e' la prova che la finestra si e' davvero APERTA**: `Timeout` nasce da una risposta
+ * vuota, e le sue strade sono tre — la scadenza (`ExpireReactionWindow`), un `SubmitReactionResponse` vuoto, un
+ * decisore legato che non risponde. Qui le ultime due non esistono: nessuno invia risposte, e il loader vieta
+ * `decisions` con la chiave, quindi `DecisionSource` resta `none`. Resta l'orologio di una finestra sospesa. Senza
+ * aggancio la stessa guardia esce `NoDecider`, ed e' il terzo caso: controller presente, chiave tolta — il
+ * comportamento di prima.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPlayerReactionWindowsTest,
 	"RefactorTactics.Scenario.PlayerReactionWindowsOpenToTheController",

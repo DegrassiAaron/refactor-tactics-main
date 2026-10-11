@@ -79,7 +79,8 @@ public:
 	 * client sono due.
 	 *
 	 * ⚠️ **Non lo aggancia il controller**, per la ragione gia' scritta sopra: il `TurnManager` puo' non
-	 * esistere quando `BeginPlay` corre. L'aggancio e' di `ARTGameMode::HookReactionWindow`.
+	 * esistere quando `BeginPlay` corre. L'aggancio e' di `ARTGameMode::HookReactionWindow` in partita, e di
+	 * `FRTScenarioSession::ApplyPlayerReactionWindows` negli scenari con `playerReactionWindows` (`#3634`).
 	 *
 	 * ⛔ **E l'aggancio NON ha un ripiego senza proprietario**, a differenza del velo: legare il delegate
 	 * dove nessuno disegna e' esattamente cio' che `OnReactionWindowOpened.IsBound()` esiste per escludere.

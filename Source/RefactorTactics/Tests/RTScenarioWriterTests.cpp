@@ -719,6 +719,68 @@ bool FRTScenarioWriterRejectsInvalidTest::RunTest(const FString&)
 	return true;
 }
 
+// --- `playerReactionWindows` ---------------------------------------------------------------------------
+
+/**
+ * `playerReactionWindows` (`#3634`) si scrive **solo quando e' vera**.
+ *
+ * Il round-trip non lo vede: un writer che scrivesse `false` in ogni file rileggerebbe lo stesso modello, e ogni
+ * scenario salvato acquisterebbe una chiave che non ha mai dichiarato — il difetto che `mapRadius` ha gia' avuto.
+ * Qui si chiede al TESTO prodotto se la chiave c'e', e di che tipo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWriterPlayerReactionWindowsTest,
+	"RefactorTactics.Scenario.WriterWritesPlayerReactionWindowsOnlyWhenTrue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioWriterPlayerReactionWindowsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario minimo accettato"), URTScenarioLoader::LoadFromString(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Writer.PlayerReactionWindows", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Scenario, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// La chiave nel testo scritto: presente o no, e se presente con il suo tipo.
+	auto Scrivi = [this, &Scenario](bool bValore, TSharedPtr<FJsonObject>& OutRoot)
+	{
+		Scenario.bPlayerReactionWindows = bValore;
+		FString Json, Why;
+		if (!TestTrue(TEXT("scenario serializzato"), URTScenarioLoader::SaveToString(Scenario, Json, Why)))
+		{
+			AddError(Why);
+			return false;
+		}
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+		return TestTrue(TEXT("il testo scritto e' JSON"),
+			FJsonSerializer::Deserialize(Reader, OutRoot) && OutRoot.IsValid());
+	};
+
+	TSharedPtr<FJsonObject> Falso;
+	if (Scrivi(false, Falso))
+	{
+		TestFalse(TEXT("a false la chiave NON si scrive"), Falso->HasField(TEXT("playerReactionWindows")));
+	}
+	TSharedPtr<FJsonObject> Vero;
+	if (Scrivi(true, Vero))
+	{
+		TestTrue(TEXT("a true la chiave si scrive come booleano vero"),
+			Vero->HasTypedField<EJson::Boolean>(TEXT("playerReactionWindows"))
+				&& Vero->GetBoolField(TEXT("playerReactionWindows")));
+	}
+	return true;
+}
+
 // --- verifica di mutazione -----------------------------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWriterMutationTest,
