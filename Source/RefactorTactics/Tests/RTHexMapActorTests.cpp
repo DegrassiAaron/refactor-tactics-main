@@ -2685,4 +2685,70 @@ bool FRTHexMapSurfacePaintKeepsEdgePanelsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3691, [D-502] (d) — un pannello di bordo si vede da un lato QUALUNQUE del bordo.
+ *
+ * 🔴 **Il difetto**: `AddEdgePanel` mappava l'istanza sulla sola cella che dichiara la copertura, e il velo
+ * la nascondeva se quella cella non era mai stata vista. Chi stava davanti a un muro non lo vedeva, se
+ * dietro non aveva mai guardato.
+ *
+ * 🔑 **Tre casi e non uno**: il lato opposto basta (il difetto), nessuno dei due nasconde (il controllo
+ * positivo: il velo non si e' spento), il lato portante basta ancora (il comportamento di prima non si
+ * perde). Una porta segue la stessa regola, perche' sta sullo stesso bordo e nella stessa famiglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapEdgePanelSeenFromEitherSideTest,
+	"RefactorTactics.HexMapActor.EdgePanelIsSeenFromEitherSide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Una copertura su (0,0) verso est e una porta su (0,0) verso ovest: due pannelli, entrambi portati da (0,0).
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+	const FRTCellId Portante(0, 0, 0);
+	const FRTCellId Est = URTHexLibrary::Neighbor(Portante, ERTHexDirection::E);
+	const FRTCellId Ovest = URTHexLibrary::Neighbor(Portante, ERTHexDirection::W);
+	URTHexCoverLibrary::AddCover(Asset, Portante, ERTHexDirection::E, ERTHexCoverType::High, /*Integrity=*/ 30);
+	{
+		FRTHexCellData Dati = *Asset->FindCell(Portante);
+		Dati.Doors.Add(FRTHexDoor(ERTHexDirection::W, ERTHexDoorState::Closed));
+		Asset->AddOrUpdateCell(Dati);
+	}
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+	if (!TestEqual(TEXT("premessa: due pannelli di bordo"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 2))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	auto PannelliVisibili = [&](const TArray<FRTCellId>& Viste) -> int32
+	{
+		FRTTeamKnowledge K;
+		K.VisibleCells = Viste;
+		K.ExploredCells = Viste;
+		Actor->ApplyKnowledgeVeil(K);
+		int32 N = 0;
+		for (const FTransform& T : InstancesOf(Actor, TEXT("EdgeFeatures")))
+		{
+			N += T.GetScale3D().IsNearlyZero() ? 0 : 1;
+		}
+		return N;
+	};
+
+	// Il difetto: la squadra ha visto solo le celle dall'altra parte dei due bordi.
+	TestEqual(TEXT("visti solo i lati opposti: la copertura e la porta si vedono"),
+		PannelliVisibili({ Est, Ovest }), 2);
+	// Il controllo positivo: senza nessuna delle due celle il velo nasconde ancora.
+	TestEqual(TEXT("nessun lato visto: entrambi nascosti"), PannelliVisibili(TArray<FRTCellId>()), 0);
+	// E il comportamento di prima non si perde: il lato portante basta.
+	TestEqual(TEXT("visto il solo lato portante: entrambi visibili"), PannelliVisibili({ Portante }), 2);
+	// Un lato solo per pannello: la copertura sì, la porta no.
+	TestEqual(TEXT("visto solo il lato est: la sola copertura"), PannelliVisibili({ Est }), 1);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -711,7 +711,7 @@ opaco** ne riempie il volume. Restano visibili la tassellatura e la distanza —
 forma ha la griglia — sparisce *cosa* c'è sopra: colore di superficie, corona incisa dei `SurfaceGlyphs`,
 rilievo del costo, volumi del blocco, pannelli di bordo.
 
-➕ **Un pannello di bordo sta fra due celle, e da [D-502](../../decisions/RT_PDR_00_Decision_Log.md) si nasconde solo se la squadra non ha mai visto nessuna delle due** (risposta d'autore del 2026-10-11): chi sta davanti a un muro lo vede anche se dietro non ha mai guardato, e una volta visto resta nel ricordo come il resto della geometria. Oggi il velo lo lega alla sola cella che porta la copertura: [#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691).
+➕ **Un pannello di bordo sta fra due celle, e da [D-502](../../decisions/RT_PDR_00_Decision_Log.md) si nasconde solo se la squadra non ha mai visto nessuna delle due** (risposta d'autore del 2026-10-11): chi sta davanti a un muro lo vede anche se dietro non ha mai guardato, e una volta visto resta nel ricordo come il resto della geometria. ✅ Attuato da [#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691): `EdgeFeatureOtherCells` porta l'altra cella di ogni pannello, e `VeilInstances` prende il lato piu' visibile dei due (`HexMapActor.EdgePanelIsSeenFromEitherSide`). ⏱️ *Fino a #3691 il velo legava il pannello alla sola cella che porta la copertura.*
 
 > ⚠️ **`FRTKnowledgeView` NON ha un campo `VisibleCells`**, e la prima stesura di questa riga lo leggeva. La
 > struct costruita in Fase A ha `ObserverTeamId` ed `Entries`, nient'altro. Chi implementa la Fase B deve
