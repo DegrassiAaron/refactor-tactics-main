@@ -2,6 +2,7 @@
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchStateHash.h" // #3632: il checksum canonico dello stato, a confronto fra due mondi
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
@@ -2755,7 +2756,10 @@ namespace
 			Esito.Cella = Mover->Cell;
 			Esito.Salute = Mover->Health;
 			for (const FRTTurnLogEntry& E : TM->GetTurnLog()) { Esito.Voci.Add(URTTurnLogLibrary::DescribeEntry(E)); }
-			Esito.Hash = TM->GetPendingFinalStateHash();
+			// Il checksum canonico di D-084, calcolato qui: quello del TurnManager si cattura solo mentre si registra
+			// un replay (`CaptureFinalStateHash`), e in questo mondo resterebbe 0 in entrambi i casi.
+			Esito.Hash = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(Arena,
+				URTMatchStateHashLibrary::BuildUnitDigests({ Mover, Foe }), { TM->GetTeamScore(0), TM->GetTeamScore(1) }));
 			Esito.Posa = Mover->GetActorLocation();
 		}
 		DestroyHexMoveWorld(World);
@@ -2785,6 +2789,8 @@ bool FRTHexMoveStrategicSeparationKeepsTheOutcomeTest::RunTest(const FString&)
 		return false;
 	}
 	TestTrue(TEXT("premessa: il turno ha lasciato voci"), Tattico.Voci.Num() > 0);
+	// Senza, l'uguaglianza degli hash qui sotto passerebbe anche fra due zeri: un hash mai catturato.
+	TestNotEqual(TEXT("premessa: l'hash di fine turno e' stato catturato"), Tattico.Hash, static_cast<int64>(0));
 
 	TestEqual(TEXT("con la separazione accesa arriva sulla stessa cella"), Separato.Cella, Tattico.Cella);
 	TestEqual(TEXT("con la stessa salute"), Separato.Salute, Tattico.Salute);
