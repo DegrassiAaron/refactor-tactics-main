@@ -5302,6 +5302,7 @@ sessions:
 
       ⚠️ **Una prima tornata non vale**: l'Editor è stato chiuso prima del Play, e le risposte date senza averlo
       aperto sono state scartate. Il log di quella tornata non ha nessun Play.
+
   - id: U74
     title: La finestra di reazione come la tavola E — cornice, striscia, barra del countdown e opzioni in WBP_RT_FastDecision
     block: 6
@@ -5333,11 +5334,16 @@ sessions:
       per lato riempiono i 558 px utili, una terza non sparisce. Controllo positivo del gate: con gli asset di `main`
       `ActionBarDeclaresTheNamedPorts` e' rosso sulle sole porte nuove.
 
-      ⛔ **La cattura in PIE e' `NOT RUN`, e il motivo e' misurato.** La finestra si apre solo se un nemico CAMMINA
-      nell'area di una guardia armata, durante il Move. Nella partita di `L_DevSandbox` i bot tengono il centro: in due
-      partite e una decina di turni nessuno ci e' entrato camminando. La carica di Branth (`Ram`) e' un Dash, non un
-      Move, e non la apre. Prossimo tentativo: uno scenario Overwatch lanciato con
-      `-dpcvars=rt.Test.Scenario=…` e una raffica di catture, come in `U73`.
+      ⛔ **La cattura in PIE e' `NOT RUN`, e il motivo e' misurato.** La finestra ha due siti ([D-355]), e nessuno dei
+      due si apre a comando:
+      - la guardia (Overwatch) la apre solo se un nemico CAMMINA nella sua area, durante il Move. Nella partita di
+        `L_DevSandbox` i bot tengono il centro: in due partite e una decina di turni nessuno ci e' entrato
+        camminando. La carica di Branth (`Ram`) e' un Dash, non un Move, e non la apre;
+      - il `Brace` nel Blast la apre solo se un nemico spinge un'unita' coperta che ha una seconda risposta
+        eseguibile. Oggi e' solo `Profile.Sidestep`, di Muiren (`URTCatalogLibrary::BraceExecutableResponses`).
+
+      Prossimo tentativo: uno scenario Overwatch lanciato con `-dpcvars=rt.Test.Scenario=…` e una raffica di
+      catture, come in `U73`.
 
 not_schedulable:
 
