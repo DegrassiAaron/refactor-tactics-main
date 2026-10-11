@@ -5381,8 +5381,8 @@ sessions:
       Fuori fuoco l'Editor gira a circa 3 fps, e la finestra si disegna a scatti: le opzioni arrivavano circa 0,75 s
       dopo il resto. Con la PIE in primo piano, 59 fps e le opzioni dal primo fotogramma.
 
-      Le raffiche: `r10` (3 fps) e `r13` (59 fps) sono PRIMA della correzione del badge e servono ai tempi; l'«dopo»
-      delle evidenze e' `r14`, l'«prima» e' `r13`.
+      Le raffiche: `r10` (3 fps) e `r13` (59 fps) sono PRIMA della correzione del badge e servono ai tempi; il «dopo»
+      delle evidenze e' `r14`, il «prima» e' `r13`.
 
   - id: U75
     title: Header e obiettivo come le tavole A e D — round, fase, timer, celle della fase riprodotta e obiettivo in WBP_RT_TurnHeader
