@@ -33,6 +33,12 @@ pitch -55°), che identifica la squadra indipendentemente dalla mesh (cilindro o
 (invariante #1): non tocca la logica. **Fallback**: senza `M_TeamRing`, l'anello è nascosto e il MID `"Color"` sul
 cilindro resta (comportamento attuale invariato). **Fuori scope**: outline/decal (approcci alternativi scartati), VFX.
 
+> ➕ **2026-10-13 — un'unità ora HA un contorno, e non dice la squadra.** Dice il **piano**: nero sul piano attivo,
+> bianco sopra, viola sotto ([D-508](../../decisions/RT_PDR_00_Decision_Log.md), [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705)). L'outline
+> scartato qui era un outline per la SQUADRA, e resta scartato: la squadra la dice l'anello, il piano il contorno,
+> e i due non si scambiano il canale. L'anello non riceve il contorno. Owner del contorno:
+> [`spec-tactical-camera.md`](spec-tactical-camera.md) §6.
+
 ---
 
 ## 2. Stato attuale (verificato dal codice)
@@ -134,6 +140,7 @@ Slice **di presentazione**: l'unica parte automatizzabile è `TeamColorFor` (1 t
 ## 9. Decisioni
 
 - **D-TEAM-1** — anello a terra (mesh+MID), non outline/decal (semplice, robusto, leggibile dall'alto).
+  ➕ *2026-10-13:* il contorno del modello di #3705 non la contraddice: porta il piano ([D-508](../../decisions/RT_PDR_00_Decision_Log.md)), non la squadra.
 - **D-TEAM-2** — materiale dedicato `M_TeamRing` (unlit/emissive) con soft-ptr + fallback (ring nascosto se assente).
 - **D-TEAM-3** — `TeamColorFor` pura (unico pezzo testabile headless); resto = PIE.
 - **D-TEAM-4** — scala assoluta del ring per non ereditare la deformazione/selezione del cilindro.
