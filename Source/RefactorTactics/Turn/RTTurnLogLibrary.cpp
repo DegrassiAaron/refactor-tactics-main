@@ -1110,9 +1110,24 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		return FString::Printf(TEXT("%s -> %s: %d danni (bonus posizione)%s"),
 			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
 
-	default:
+	case ERTCombatOutcome::Hit:
 		return FString::Printf(TEXT("%s -> %s: %d danni%s"),
 			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
+
+	// 🔴 **Una cura non e' un colpo** (`#3601`). Fino a qui `Healed` cadeva nel `default`, che era il testo del
+	// colpo: la seduta `U70` leggeva *«18 danni (Hero.Muiren.CircularTide)»* per una cura, e la stessa riga
+	// arrivava al giocatore nel combat log, che `ConcludeTurn` deriva da qui. Il feed dell'HUD diceva il
+	// giusto («Curata — 18») perche' ha un suo testo.
+	case ERTCombatOutcome::Healed:
+		return FString::Printf(TEXT("%s -> %s: %d punti vita curati%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
+
+	// ⛔ **Un esito senza descrittore si DICHIARA, non si racconta come un colpo** — la stessa regola che,
+	// qui sopra, vale per le categorie (`#3110`). Un `default` col testo del colpo e' cio' che ha prodotto
+	// `#3601`: un esito aggiunto in coda all'enum ereditava «danni» senza che nessuno lo scegliesse.
+	default:
+		return FString::Printf(TEXT("%s -> %s: esito di combattimento %d senza descrittore%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), static_cast<int32>(Entry.Outcome), *Tail);
 	}
 }
 
