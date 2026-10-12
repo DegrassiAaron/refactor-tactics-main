@@ -1852,7 +1852,8 @@ con una configurazione, lasciando il default dov'è.
 > guardiano è uno.** Le due asserzioni — `TestFalse("il giocatore comanda i suoi")` e
 > `TestTrue("il bot comanda i propri")` — sono **entrambe** dentro `Heroes.SpawnFromData` (righe 151-152);
 > il secondo test del file — `Heroes.DuplicateHeroEntersOnlyOnce`, che fino a `#1069` si chiamava
-> `Heroes.SpawnFailsClosedWithoutData` — non tocca `bIsBotControlled`. Scritta
+> `Heroes.SpawnFailsClosedWithoutData` e che da `#2748` è `Heroes.RepeatedHeroAbortsSetup` — non tocca
+> `bIsBotControlled`. Scritta
 > così, la DoD si poteva soddisfare tenendo verde il test sbagliato.
 >
 > 🔴 **E il prerequisito di E47.4 aveva DUE numeri, in due viste dello stesso commit** — corretto il
