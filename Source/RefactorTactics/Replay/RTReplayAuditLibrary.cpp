@@ -310,9 +310,12 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 			R.Verdict.Mask = static_cast<uint32>(Mask);
 			if (!AuditCellFromJson((*VO)->TryGetField(KAudit_Cell), R.SubjectCell)) { return false; }
 			const TSharedPtr<FJsonObject>* EO = nullptr;
-			if ((*VO)->TryGetObjectField(KAudit_Edge, EO))
+			if ((*VO)->HasField(KAudit_Edge))
 			{
-				// `#3681`: un bordo dichiarato e illeggibile e' un artefatto rotto, non una voce di unita'.
+				// `#3681`: un bordo dichiarato e illeggibile e' un artefatto rotto, non una voce di unita'. ⚠️ Anche
+				// quando `Edge` c'e' col tipo sbagliato: `TryGetObjectField` risponderebbe `false` come per un campo
+				// assente, e il record diventerebbe una voce di unita' invece di un artefatto rifiutato.
+				if (!(*VO)->TryGetObjectField(KAudit_Edge, EO)) { return false; }
 				R.bEdge = true;
 				if (!AuditCellFromJson((*EO)->TryGetField(KAudit_EdgeCell), R.EdgeCell)) { return false; }
 				if (!AuditCellFromJson((*EO)->TryGetField(KAudit_EdgeToward), R.EdgeToward)) { return false; }

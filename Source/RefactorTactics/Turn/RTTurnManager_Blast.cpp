@@ -2065,11 +2065,12 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 
 		ARTUnit* const Autore = Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr;
 		AppendLogEntry(Entry, Autore ? FRTLogSubject::UnitWithVerdict(Autore, VerdettoMuro)
-			: FRTLogSubject::Frozen(0, VerdettoMuro));
+			: FRTLogSubject::Frozen(INDEX_NONE, VerdettoMuro));
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity),
-			FRTLogSubject::Frozen(Autore ? Autore->StableUnitId : 0, VerdettoMuro));
+			// `INDEX_NONE` e non `0` per «nessuna unita'»: e' la sentinella del combat log (`RTTurnLogLibrary.cpp`).
+			FRTLogSubject::Frozen(Autore ? Autore->StableUnitId : INDEX_NONE, VerdettoMuro));
 
 		// Una copertura abbattuta smette di essere anche una copertura TEMPORANEA (CP 9.5). Senza questa
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia

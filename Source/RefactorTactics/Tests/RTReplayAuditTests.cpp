@@ -510,6 +510,16 @@ bool FRTReplayAuditEdgeVerdictTest::RunTest(const FString&)
 	TestTrue(TEXT("e gli autori"), L.AuthorTeamIds.Num() == 1 && L.AuthorTeamIds[0] == 1);
 	TestEqual(TEXT("e riletto non diverge"), URTReplayAuditLibrary::FindVerdictMismatches(Letto).Num(), 0);
 
+	// Un bordo dichiarato e illeggibile e' un artefatto ROTTO, non una voce di unita': fail-closed come il resto del file.
+	const FString Json = URTReplayAuditLibrary::AuditToJson(A);
+	FRTTurnAudit Rotto;
+	TestFalse(TEXT("un «Edge» che non e' un oggetto: l'artefatto si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(
+			Json.Replace(TEXT("\"Edge\""), TEXT("\"Edge\": 5, \"EdgeX\""), ESearchCase::CaseSensitive), Rotto));
+	TestFalse(TEXT("un bordo senza la sua cella: l'artefatto si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(
+			Json.Replace(TEXT("\"EdgeCell\""), TEXT("\"EdgeCellX\""), ESearchCase::CaseSensitive), Rotto));
+
 	return true;
 }
 
