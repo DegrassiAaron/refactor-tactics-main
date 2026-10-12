@@ -132,18 +132,20 @@ se `Resolved[i].Entered.Num() > 0`, il `Move` come oggi. Così in timeline l'att
 dello stesso scatto (D4), e una carica che colpisce senza muoversi si attiva lo stesso. Il secondo ciclo
 (`:4891`) non cambia.
 
-**Blast** — ➕ rev. **quattro sorgenti**, nell'ordine dei pass di `ResolveCombatPasses`, ciascuna nel pass che
-la accetta:
+**Blast** — ➕ rev. **quattro sorgenti**. ⏱️ *Fino a [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683) uscivano nell'ordine dei pass di `ResolveCombatPasses`, ciascuna nel pass che la accetta.* Da #3683 ciascun pass decide **se** si attiva, e Heal e `ModifyArc` accodano l'attivazione (`FRTBlastContext::DeferredActivations`): la emette il ciclo canonico insieme agli intenti d'attacco (vedi il `Ruling` qui sotto). Cleanse resta nel suo pass:
 1. **Cleanse** — in `ResolveCleanseActions` (`RTTurnManager_Blast.cpp:412`), ➕ piano. accanto a
    `Ctx.MarkAbilitySpent` (`:463`), **senza** condizione sullo stato tolto: si attiva quando è **spesa**, il
    gesto e non l'esito (stesso `Ruling` della predittiva senza cella). Una Cleanse che non toglie nessuno
    stato (voce `NoEffect`) **si attiva**;
 2. **Heal** — in `CollectHealActions`, ➕ piano. nel punto in cui la cura viene **spesa**, anche quando non
-   ha effetto (`:587-593`); `ActionId` da `HealDefs[i]`, sorgente `HealActors[i]`;
+   ha effetto (`:587-593`); `ActionId` da `HealDefs[i]`, sorgente `HealActors[i]`. ➕ Da #3683 qui si **accetta**
+   e si congela il verdetto; l'attivazione la emette il ciclo canonico;
 3. **ModifyArc** — nel ramo di intercettazione, dove si fa `PendingArcOps.Add` (`:705`): dopo la validazione
-   di portata, quindi un arco fuori portata (`Fallback Cancelled`, `:678-700`) **non** si attiva;
+   di portata, quindi un arco fuori portata (`Fallback Cancelled`, `:678-700`) **non** si attiva. ➕ Da #3683, come
+   la cura: qui si accetta, e la emette il ciclo canonico;
 4. **intenti d'attacco** — in `ResolveCombatPasses`, subito dopo `ApplyEnvironmentChanges` e prima del ciclo
-   delle impronte (`:5487-5503`), iterando `Ctx.Intents` in ordine di `IntentIndex` con:
+   delle impronte (`:5487-5503`), iterando `Ctx.Intents` in ordine di `IntentIndex` con (➕ da #3683 il ciclo
+   scorre gli atti, cioe' gli intenti **e** le attivazioni rimandate di Heal e `ModifyArc`, con una chiave sola):
    ➕ **Emendato da [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582)**: l'iterazione segue l'**ordine canonico del Blast** (ADR-0003 §3:
    priorita' crescente, poi `ActionId`, attaccante e intento — `PrecedeNelBlast`, lo stesso confronto del ciclo del
    danno), e per ogni intento l'**impronta esce subito dopo la sua attivazione**. Il playback ordina gli atti sulla
@@ -167,16 +169,9 @@ la accetta:
      `ModifyArc` fuori portata: un `Fallback Cancelled` è un rifiuto visibile nel TurnLog, non un gesto.
      Dichiarato in §6.
 
-`Ruling` sull'ordine fra le sorgenti: **l'ordine dei pass**, non l'ordine delle unità — è l'ordine che
-`ResolveCombatPasses` dichiara di rispettare (*«spostare una chiamata cambia il gioco»*). Costo se
-sbagliato: nel playback una cura si vede prima di un attacco anche quando l'attaccante viene prima nel
-roster; è coerente con la risoluzione, e il riordino per unità è un filtro di presentazione aggiungibile
-dopo. ⚠️ **Residuo dichiarato da [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582)**: «coerente con la risoluzione» vale per l'ordine in cui i
-pass si **eseguono**, non per quello in cui i loro effetti si **applicano**. Le cure si applicano dopo il ciclo del
-danno (`ApplyPlannedHeals`) e il catalogo dà al supporto una priorità più alta degli attacchi, ma Cleanse, Heal e
-`ModifyArc` si attivano nel loro pass, prima degli attacchi: una cura si vede prima di un colpo che la risoluzione
-applica prima. Gli attacchi fra loro seguono l'ordine canonico da #3582; le altre sorgenti no:
-[#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683).
+`Ruling` sull'ordine fra le sorgenti, ➕ **rivisto da [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683): l'ordine canonico del Blast**, lo stesso degli intenti d'attacco (ADR-0003: priorità crescente, poi `ActionId`, unità, e un indice che chiude ogni pari). Una chiave sola per tutti gli atti (`ChiavePrecede` in `RTTurnManager.cpp`), di cui `PrecedeNelBlast` è il caso fra due intenti: il ciclo del danno e l'emissione non possono separarsi. Ne segue, sul catalogo di oggi: Cleanse (25), gli attacchi (fino a 65), Heal (70), `ModifyArc` (75). L'impatto di una carica (35), che nel Blast non ha un'attivazione, prende la chiave dalla sua impronta e si vede prima della cura.
+⏱️ *Fino a #3683 il `Ruling` era «l'ordine dei pass», dichiarato «coerente con la risoluzione». Lo era per l'ordine in cui i pass si eseguono, non per quello in cui gli effetti si applicano: una cura si vedeva prima di un colpo che la risoluzione applica prima.*
+⚠️ **Cleanse resta nel suo pass**, e il suo posto è già quello canonico: priorità 25, fase `Control`, toglie lo stato prima di ogni intento. ⚠️ **Il criterio è l'ordine canonico, non l'ordine d'applicazione**: per i punti vita il danno del Blast è simultaneo e le cure vengono dopo; su un colpo sopra priorità 70 i due criteri divergerebbero, ed è la decisione aperta in [#3688](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3688).
 
 ➕ rev. **Dichiarato**: i `StructureHit` di `ApplyEnvironmentChanges` (`:5487`) entrano in timeline **prima**
 delle attivazioni degli intenti d'attacco. Il playback li raggruppa per intento (§2.4), quindi a schermo

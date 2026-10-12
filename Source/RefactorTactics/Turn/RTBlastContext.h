@@ -358,6 +358,43 @@ struct FRTBlastContext
 		SpentAbilityIndex.Add(AbilityIndex);
 	}
 
+	/**
+	 * Un'attivazione di supporto ACCETTATA nel suo pass e rimandata all'ordine canonico del Blast — `#3683`.
+	 *
+	 * 🔴 **Il pass decide SE si attiva, l'ordine canonico decide QUANDO si vede.** Fino a `#3683` Heal e
+	 * `ModifyArc` emettevano la loro `AbilityActivated` nel pass che le accetta, prima di ogni intento
+	 * d'attacco: il playback ordina gli atti sull'indice dell'attivazione, quindi una cura (70) si vedeva
+	 * prima di un colpo (50) che la risoluzione applica prima. Qui restano le condizioni di accettazione
+	 * del pass; l'emissione la fa `ResolveCombatPasses`, insieme agli intenti, con la stessa chiave.
+	 *
+	 * ⛔ **Cleanse non passa di qui**: priorita' 25, fase `Control`, toglie lo stato nel suo pass prima di ogni
+	 * intento. Il suo posto nel racconto e' gia' quello canonico.
+	 */
+	struct FRTDeferredActivation
+	{
+		ARTUnit* Source = nullptr;
+		/** L'indice in `Units`: la stessa chiave di `AttackerId` negli intenti. */
+		int32 UnitIndex = INDEX_NONE;
+		int32 Priority = 0;
+		FName ActionId;
+		FName BaseActionId;
+		int32 TargetStableUnitId = 0;
+		FRTCellId AimCell;
+		ERTAbilityShape Shape = ERTAbilityShape::Single;
+		/**
+		 * Chi poteva vedere la sorgente, congelato QUANDO il pass accetta l'azione, come prima di `#3683`.
+		 *
+		 * ⚠️ Fra l'accodamento e l'emissione passano `RevealHitTargetsToAttackers` e le reazioni. Oggi non
+		 * cambiano questo verdetto — `RevealByHit` scrive solo contatti, e un contatto ricordato non concede
+		 * (`FreezeVerdict` vuole `Allowed`) —, ma il gesto e' dell'istante in cui il pass lo accetta, e non deve
+		 * dipendere da cio' che il Blast fa dopo.
+		 */
+		FRTKnowledgeVerdict SourceVerdict;
+	};
+
+	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. */
+	TArray<FRTDeferredActivation> DeferredActivations;
+
 	// --- Stati applicati dai colpi, a bersagli sopravvissuti --------------------------------------
 	//
 	// Si applicano in fondo alla fase e non al momento del colpo: un'unita' che cade non riceve lo stato, e

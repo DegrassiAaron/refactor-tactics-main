@@ -416,7 +416,8 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 }
 
 void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
-	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape)
+	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
+	const FRTKnowledgeVerdict* FrozenSourceVerdict)
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
@@ -456,7 +457,8 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 	{
 		Ev.Origin = Soggetto.GetFactCell();
 	}
-	Ev.SourceVerdict = FreezeVerdictFor(Soggetto);
+	// `#3683`: un'attivazione rimandata porta il verdetto congelato quando il suo pass l'ha accettata.
+	Ev.SourceVerdict = FrozenSourceVerdict ? *FrozenSourceVerdict : FreezeVerdictFor(Soggetto);
 	// ⛔ Nessun riordino: l'ordine in timeline E' l'ordine di emissione (spec §2.2).
 	ResolvedTimeline.Add(MoveTemp(Ev));
 }
@@ -2707,17 +2709,50 @@ namespace
 	 * che spende il marchio in quest'ordine, e l'emissione delle attivazioni e delle impronte, da cui il playback ordina
 	 * gli atti. Con due copie, la combo acqua + elettricita' si risolveva in un ordine e si vedeva nell'altro.
 	 */
+	struct FRTChiaveDelBlast
+	{
+		int32 Priorita = MAX_int32;
+		FName Azione;
+		int32 Unita = INDEX_NONE;
+		/** `0` un intento d'attacco, `1` un'attivazione di supporto rimandata (`#3683`). */
+		int32 Tipo = 0;
+		int32 Indice = 0;
+	};
+
+	/**
+	 * L'ORDINE CANONICO su una chiave sola — `#3683`. Priorita', `ActionId`, unita', poi tipo e indice, che
+	 * chiudono ogni pari: l'ordine e' totale.
+	 *
+	 * 🔑 **Esiste perche' gli atti del Blast non sono tutti intenti**: una cura o un arco non hanno un indice in
+	 * `Ctx.Intents`, e `PrecedeNelBlast` vuole quello. Scriverne una seconda copia per loro e' il difetto che
+	 * `#3582` ha chiuso per gli attacchi: due copie della stessa regola si separano alla prima modifica.
+	 */
+	bool ChiavePrecede(const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B)
+	{
+		if (A.Priorita != B.Priorita) { return A.Priorita < B.Priorita; }
+		if (A.Azione != B.Azione) { return A.Azione.LexicalLess(B.Azione); }
+		if (A.Unita != B.Unita) { return A.Unita < B.Unita; }
+		if (A.Tipo != B.Tipo) { return A.Tipo < B.Tipo; }
+		return A.Indice < B.Indice;
+	}
+
+	/** La chiave di un intento d'attacco. Un intento senza `Def` va in fondo, come prima. */
+	FRTChiaveDelBlast ChiaveDiIntento(const TArray<FRTActionDef>& IntentDefs, int32 Intent, int32 Attacker)
+	{
+		FRTChiaveDelBlast K;
+		K.Priorita = IntentDefs.IsValidIndex(Intent) ? IntentDefs[Intent].Priority : MAX_int32;
+		K.Azione = IntentDefs.IsValidIndex(Intent) ? IntentDefs[Intent].ActionId : NAME_None;
+		K.Unita = Attacker;
+		K.Tipo = 0;
+		K.Indice = Intent;
+		return K;
+	}
+
+	/** Lo stesso ordine, letto fra due intenti: il ciclo del danno lo usa cosi'. */
 	bool PrecedeNelBlast(const TArray<FRTActionDef>& IntentDefs, int32 IntentA, int32 AttackerA, int32 IntentB,
 		int32 AttackerB)
 	{
-		const int32 PA = IntentDefs.IsValidIndex(IntentA) ? IntentDefs[IntentA].Priority : MAX_int32;
-		const int32 PB = IntentDefs.IsValidIndex(IntentB) ? IntentDefs[IntentB].Priority : MAX_int32;
-		if (PA != PB) { return PA < PB; }
-		const FName IdA = IntentDefs.IsValidIndex(IntentA) ? IntentDefs[IntentA].ActionId : NAME_None;
-		const FName IdB = IntentDefs.IsValidIndex(IntentB) ? IntentDefs[IntentB].ActionId : NAME_None;
-		if (IdA != IdB) { return IdA.LexicalLess(IdB); }
-		if (AttackerA != AttackerB) { return AttackerA < AttackerB; }
-		return IntentA < IntentB;
+		return ChiavePrecede(ChiaveDiIntento(IntentDefs, IntentA, AttackerA), ChiaveDiIntento(IntentDefs, IntentB, AttackerB));
 	}
 
 	/**
@@ -5826,17 +5861,32 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		ResolvedTimeline.Add(MoveTemp(Ev));
 	};
 
-	TArray<int32> OrdineIntenti;
-	OrdineIntenti.Reserve(Ctx.Intents.Num());
-	for (int32 k = 0; k < Ctx.Intents.Num(); ++k) { OrdineIntenti.Add(k); }
-	// ⛔ `StableSort` su un confronto TOTALE (l'intento chiude ogni pari): nessuna dipendenza dall'algoritmo.
-	OrdineIntenti.StableSort([&Ctx](int32 A, int32 B)
+	// ➕ `#3683`: nello stesso ordine escono le attivazioni di supporto rimandate (Heal, `ModifyArc`), che fino a
+	// qui uscivano nel loro pass, prima di ogni attacco. Una chiave sola per tutti (`ChiavePrecede`).
+	TArray<FRTChiaveDelBlast> Atti;
+	Atti.Reserve(Ctx.Intents.Num() + Ctx.DeferredActivations.Num());
+	for (int32 k = 0; k < Ctx.Intents.Num(); ++k)
 	{
-		return PrecedeNelBlast(Ctx.IntentDefs, A, Ctx.Intents[A].AttackerId, B, Ctx.Intents[B].AttackerId);
-	});
+		Atti.Add(ChiaveDiIntento(Ctx.IntentDefs, k, Ctx.Intents[k].AttackerId));
+	}
+	for (int32 d = 0; d < Ctx.DeferredActivations.Num(); ++d)
+	{
+		const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[d];
+		Atti.Add({ R.Priority, R.ActionId, R.UnitIndex, /*Tipo=*/ 1, d });
+	}
+	// ⛔ `StableSort` su un confronto TOTALE (tipo e indice chiudono ogni pari): nessuna dipendenza dall'algoritmo.
+	Atti.StableSort([](const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B) { return ChiavePrecede(A, B); });
 	TSet<int32> ImpronteEmesse;
-	for (const int32 k : OrdineIntenti)
+	for (const FRTChiaveDelBlast& Atto : Atti)
 	{
+		if (Atto.Tipo == 1)
+		{
+			const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[Atto.Indice];
+			EmitAbilityActivated(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
+				R.AimCell, R.Shape, &R.SourceVerdict);
+			continue;
+		}
+		const int32 k = Atto.Indice;
 		EmitAttackIntentActivation(Ctx, k);
 		for (int32 f = 0; f < Plan.Footprints.Num(); ++f)
 		{

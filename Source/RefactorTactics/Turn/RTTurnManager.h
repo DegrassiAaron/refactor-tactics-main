@@ -2658,7 +2658,8 @@ protected:
 	 * ⏱️ *Fino alla review della PR #3561 scriveva un `ensureMsgf`, che lo scatto legacy raggiungeva.*
 	 */
 	void EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
-		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape);
+		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
+		const FRTKnowledgeVerdict* FrozenSourceVerdict = nullptr);
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
