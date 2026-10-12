@@ -428,6 +428,13 @@ numero di decisione**. Nessuna resta `OPEN` al freeze.
    avevano il codice della feature in `main` da settembre. Prima del freeze restano il verdetto di privacy
    di `#2744`, i residui di `#2989` e di `#2988` che `D-507` nomina, e `#2748` come resolver sui roster; i
    verdetti di seduta delle cinque passano all'onda 4, come `#2554`.*
+   ➕ *Entrati in `main` lo stesso giorno, nell'ordine: il verdetto di privacy di `#2744` ([#3713](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3713)),
+   i residui di `#2989` ([#3714](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3714)), quello di `#2988` ([#3715](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3715), issue chiusa) e il resolver sui
+   roster di `#2748` ([#3717](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3717)). Con `#2748` è cambiata una regola esistente: un eroe ripetuto ferma
+   l'allestimento ([`D-507`](../../decisions/RT_PDR_00_Decision_Log.md), punto 5). Restano dichiarati
+   nelle issue, fuori da questo giro: il gate strutturale sul riuso degli slot del dock, da scrivere con
+   la correzione del grafo (`#2989`), e la casella «lo prova un test» di `#2951`, dove oggi c'è una
+   misura. `#2951`, `#2989`, `#2826`, `#2744` e `#2748` restano aperte per i verdetti di seduta.*
 
 🔑 **L'ultimo merge di quest'onda è il candidate v2.** Non si congela prima: ogni commit qui
 invalida ciò che l'Onda 3 misura.
