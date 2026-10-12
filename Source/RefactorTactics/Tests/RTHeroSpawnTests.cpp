@@ -21,6 +21,9 @@
 #include "RTConsoleVariableGuardForTest.h" // le due console variable dei roster tornano com'erano
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
+#include "Misc/OutputDevice.h"
+#include "Misc/OutputDeviceRedirector.h" // GLog->AddOutputDevice: le righe di un avviso, lette una per una
+#include "Misc/ScopeLock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -853,6 +856,42 @@ namespace
 		return FString::Join(Ids, TEXT(","));
 	}
 
+	/**
+	 * Raccoglie le righe di log che contengono `Ago`, finche' vive.
+	 *
+	 * ⚠️ **Esiste perche' `AddExpectedError` non sa dire «zero volte», ne' contare due schemi sulla stessa
+	 * riga.** `FAutomationTestBase::IsExpectedMessage` ritorna al PRIMO schema che corrisponde: uno schema
+	 * generale e uno specifico non si sommano, il secondo resta a zero. E un `Warning` non dichiarato non fa
+	 * fallire un test (`bElevateLogWarningsToErrors` e' falso), quindi un avviso di troppo passerebbe.
+	 * Letto in `Runtime/Core/Private/Misc/AutomationTest.cpp`, non dedotto.
+	 *
+	 * Senza buffer (`CanBeUsedOnMultipleThreads`): un dispositivo bufferizzato riceve le righe del game thread
+	 * in ritardo quando un altro thread ne ha in coda, e l'asserto subito dopo la chiamata leggerebbe zero.
+	 */
+	struct FRTScopedLogLines : public FOutputDevice
+	{
+		explicit FRTScopedLogLines(const TCHAR* InAgo) : Ago(InAgo) { GLog->AddOutputDevice(this); }
+		virtual ~FRTScopedLogLines() override { GLog->RemoveOutputDevice(this); }
+
+		virtual bool CanBeUsedOnAnyThread() const override { return true; }
+		virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
+
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type, const FName&) override
+		{
+			if (V && FCString::Strstr(V, *Ago) != nullptr)
+			{
+				FScopeLock Lock(&Guardia);
+				Righe.Add(V);
+			}
+		}
+
+		TArray<FString> Righe;
+
+	private:
+		FString Ago;
+		FCriticalSection Guardia;
+	};
+
 	/** Il dettaglio del fatale `RosterHeroMissing`, o la stringa vuota se il rapporto non lo porta. */
 	FString MissingHeroDetail(const FRTStartupReport& Report)
 	{
@@ -1130,14 +1169,19 @@ bool FRTRosterRepeatedHeroNamesItsSourceTest::RunTest(const FString&)
 /**
  * Su un livello che porta gia' le proprie unita' un roster chiesto NON viene usato, e il log lo dice.
  *
- * 🔑 **Senza l'avviso il log mente per omissione**: il resolver annuncia «SCAVALCA la proprieta'» e poi
- * l'allestimento ritorna prima di leggere la formazione. Trovato dalla review di `#2748`.
+ * 🔑 **Senza l'avviso la richiesta cade in silenzio**: l'allestimento ritorna prima di leggere la
+ * formazione, e quando il valore differisce dalla proprieta' il resolver ha persino annunciato «SCAVALCA».
+ * Trovato dalla review di `#2748`.
  *
- * ⚠️ **Il conteggio ESATTO fa da controllo negativo.** Quattro allestimenti sullo stesso livello: il primo
- * mette in campo il default; il secondo ritrova le unita' senza che nessuno abbia chiesto un roster, e deve
- * tacere; il terzo e il quarto chiedono un roster per UNA sola squadra — la 0 da console, la 1 da riga di
- * comando. Due occorrenze attese, non «almeno una»: una terza vorrebbe dire che l'avviso parte anche
- * quando nessuno ha chiesto niente, e una sola che lo scavalcamento di una delle due squadre non conta.
+ * ⚠️ **Cinque allestimenti sullo stesso livello, e le righe dell'avviso lette una per una.** Il primo mette
+ * in campo il default; il secondo ritrova le unita' senza che nessuno abbia chiesto un roster, e deve
+ * TACERE — e' il controllo negativo. Il terzo e il quarto chiedono un roster per UNA sola squadra, la 0 da
+ * console e la 1 da riga di comando: l'avviso nomina quella e non l'altra. Il quinto chiede per entrambe
+ * cio' che la proprieta' dice gia': «chiesto» non vuol dire «diverso», e l'avviso parte lo stesso.
+ *
+ * La prima stesura contava le occorrenze con `AddExpectedError(..., 2)` e basta: la seconda review ha fatto
+ * notare che due etichette scambiate sarebbero passate. Lo schema atteso resta, per dichiarare gli avvisi;
+ * a distinguerli e' `FRTScopedLogLines`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterUnusedOnAPopulatedLevelTest,
 	"RefactorTactics.Match.Roster.RequestedRosterOnAPopulatedLevelIsDeclaredUnused",
@@ -1151,7 +1195,8 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
 	if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
 
-	AddExpectedError(TEXT("NON vengono usati"), EAutomationExpectedErrorFlags::Contains, 2);
+	FRTScopedLogLines Avvisi(TEXT("roster chiesto e NON usato"));
+	AddExpectedError(TEXT("roster chiesto e NON usato"), EAutomationExpectedErrorFlags::Contains, 3);
 
 	// 1. Il default entra in campo: da qui il livello «porta le proprie unita'».
 	GameMode->SetupHexMatch(HexMap);
@@ -1165,16 +1210,46 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 
 	// 2. CONTROLLO: nessuno ha chiesto un roster. L'allestimento non interviene e NON avvisa.
 	GameMode->SetupHexMatch(HexMap);
+	TestEqual(TEXT("controllo: nessuno ha chiesto un roster, nessun avviso"), Avvisi.Righe.Num(), 0);
 
 	// 3. Solo la squadra 0, da console.
 	Sorgenti.Team0.Imposta(FString(TEXT("Hero.Branth,Hero.Ivrin")));
 	GameMode->SetupHexMatch(HexMap);
 	Sorgenti.Team0.Imposta(FString());
+	if (TestEqual(TEXT("squadra 0 da console: un avviso"), Avvisi.Righe.Num(), 1))
+	{
+		TestTrue(FString::Printf(TEXT("che nomina la squadra chiesta e la sua sorgente (%s)"), *Avvisi.Righe[0]),
+			Avvisi.Righe[0].Contains(TEXT("squadra 0 da rt.Match.Team0")));
+		TestFalse(FString::Printf(TEXT("e NON la squadra che nessuno ha chiesto (%s)"), *Avvisi.Righe[0]),
+			Avvisi.Righe[0].Contains(TEXT("squadra 1")));
+	}
 
 	// 4. Solo la squadra 1, da riga di comando.
 	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Aevik,Hero.Muiren"));
 	GameMode->SetupHexMatch(HexMap);
 	Sorgenti.ClearArgs();
+	if (TestEqual(TEXT("squadra 1 da riga di comando: un avviso in piu'"), Avvisi.Righe.Num(), 2))
+	{
+		TestTrue(FString::Printf(TEXT("che nomina la squadra chiesta e la sua sorgente (%s)"), *Avvisi.Righe[1]),
+			Avvisi.Righe[1].Contains(TEXT("squadra 1 da -RTTeam1=")));
+		TestFalse(FString::Printf(TEXT("e NON la squadra che nessuno ha chiesto (%s)"), *Avvisi.Righe[1]),
+			Avvisi.Righe[1].Contains(TEXT("squadra 0")));
+	}
+
+	// 5. Entrambe, e con il valore che la proprieta' ha gia': «chiesto», non «diverso». Il resolver qui non
+	//    annuncia nessuno scavalcamento, ma la richiesta non viene onorata lo stesso.
+	Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Aevik,Hero.Muiren"));
+	Sorgenti.Team1.Imposta(FString(TEXT("Hero.Branth,Hero.Ivrin")));
+	GameMode->SetupHexMatch(HexMap);
+	Sorgenti.ClearArgs();
+	Sorgenti.Team1.Imposta(FString());
+	if (TestEqual(TEXT("entrambe, uguali alla proprieta': un avviso in piu'"), Avvisi.Righe.Num(), 3))
+	{
+		TestTrue(FString::Printf(TEXT("che nomina la squadra 0 e la sua sorgente (%s)"), *Avvisi.Righe[2]),
+			Avvisi.Righe[2].Contains(TEXT("squadra 0 da -RTTeam0=")));
+		TestTrue(FString::Printf(TEXT("e la squadra 1 con la sua (%s)"), *Avvisi.Righe[2]),
+			Avvisi.Righe[2].Contains(TEXT("squadra 1 da rt.Match.Team1")));
+	}
 
 	TestEqual(TEXT("in campo restano gli eroi di prima, squadra 0"),
 		HeroIdsInPlay(CollectRosterUnits(World), 0), InCampo0);

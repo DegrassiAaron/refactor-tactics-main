@@ -1060,8 +1060,8 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	Config.Team0HeroesSourceLabel = RTRosterEntry::SourceLabel(0);
 	Config.Team1Heroes            = ResolveTeamHeroes(1);
 	Config.Team1HeroesSourceLabel = RTRosterEntry::SourceLabel(1);
-	Config.bRosterOverridden      = RTRosterEntry::Winner(0) != RTRosterEntry::EWinner::Property
-		|| RTRosterEntry::Winner(1) != RTRosterEntry::EWinner::Property;
+	Config.bTeam0RosterRequested  = RTRosterEntry::Winner(0) != RTRosterEntry::EWinner::Property;
+	Config.bTeam1RosterRequested  = RTRosterEntry::Winner(1) != RTRosterEntry::EWinner::Property;
 	Config.HeroUnitClasses       = HeroUnitClasses;
 	Config.bAutobattle           = ResolveAutobattle();
 	Config.AutobattleSourceLabel = RTAutobattleEntry::SourceLabel();

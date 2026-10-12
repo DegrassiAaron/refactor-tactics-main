@@ -481,14 +481,24 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 				Switched, Existing.Num());
 		}
 
-		// `#2748`, dalla review: il resolver ha gia' annunciato «SCAVALCA la proprieta'», e qui il roster non
-		// viene letto. Un annuncio senza effetto e' la forma piu' silenziosa di sorgente ignorata.
-		if (Config.bRosterOverridden)
+		// `#2748`, dalla review: una sorgente fuori dalla proprieta' ha chiesto un roster, e qui la formazione
+		// non viene letta. Senza questa riga la richiesta cadrebbe in silenzio — e quando il valore differisce
+		// dalla proprieta' il resolver ha persino annunciato «SCAVALCA». Si nominano solo le squadre CHIESTE.
+		TArray<FString> Chiesti;
+		if (Config.bTeam0RosterRequested)
+		{
+			Chiesti.Add(FString::Printf(TEXT("squadra 0 da %s"), *Config.Team0HeroesSourceLabel));
+		}
+		if (Config.bTeam1RosterRequested)
+		{
+			Chiesti.Add(FString::Printf(TEXT("squadra 1 da %s"), *Config.Team1HeroesSourceLabel));
+		}
+		if (Chiesti.Num() > 0)
 		{
 			UE_LOG(LogRT, Warning,
-				TEXT("[RT] Il livello porta gia' le proprie unita': i roster chiesti (squadra 0 da %s, squadra 1 "
-					 "da %s) NON vengono usati. L'allestimento automatico non interviene."),
-				*Config.Team0HeroesSourceLabel, *Config.Team1HeroesSourceLabel);
+				TEXT("[RT] Il livello porta gia' le proprie unita': roster chiesto e NON usato (%s). "
+					 "L'allestimento automatico non interviene."),
+				*FString::Join(Chiesti, TEXT("; ")));
 		}
 		return Outcome;
 	}

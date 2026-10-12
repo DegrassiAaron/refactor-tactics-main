@@ -62,11 +62,18 @@ struct FRTMatchBootstrapConfig
 	FString Team1HeroesSourceLabel;
 
 	/**
-	 * Almeno una delle due formazioni NON viene dalla proprieta' (`#2748`). Serve a un solo ramo: su un
-	 * livello che porta gia' le proprie unita' l'allestimento automatico non interviene, e un roster chiesto
-	 * da console o da riga di comando verrebbe ignorato dopo che il log ha annunciato lo scavalcamento.
+	 * La formazione di QUESTA squadra e' stata chiesta fuori dalla proprieta' — da riga di comando o da
+	 * console (`#2748`). Serve a un solo ramo: su un livello che porta gia' le proprie unita' l'allestimento
+	 * automatico non interviene, e il roster chiesto non verrebbe usato senza che nessuno lo dica.
+	 *
+	 * ⚠️ **«Chiesta», non «diversa dalla proprieta'»**, e la differenza l'ha trovata la seconda review. Una
+	 * sorgente che ripete il valore della proprieta' ha parlato lo stesso — il resolver in quel caso non
+	 * annuncia uno scavalcamento, ma su un livello gia' popolato non viene onorata nemmeno lei: in campo
+	 * restano le unita' del livello, che con la proprieta' non hanno un legame. Una per squadra, perche'
+	 * l'avviso nomina solo chi ha chiesto: nominare l'altra direbbe che qualcuno l'ha chiesta.
 	 */
-	bool bRosterOverridden = false;
+	bool bTeam0RosterRequested = false;
+	bool bTeam1RosterRequested = false;
 
 	/** Classe visiva per `HeroId`. Un eroe assente ricade su `ARTUnit` — il cilindro segnaposto. */
 	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
