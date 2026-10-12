@@ -15,6 +15,12 @@
 #include "Unit/RTUnit.h"
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la classe visiva per eroe (#3586)
 #include "Tests/RTUnitClassProbeForTest.h"
+#include "Turn/RTTurnManager.h"            // GetTurnLog: la traccia del primo turno, oracolo di «stessa partita» (#2748)
+#include "Turn/RTTurnLogLibrary.h"         // SerializeTurnLog: byte e checksum, come il gate di determinismo
+#include "RTWorldFixtures.h"               // PlayOneTurn: un turno giocato senza input
+#include "RTConsoleVariableGuardForTest.h" // le due console variable dei roster tornano com'erano
+#include "HAL/IConsoleManager.h"
+#include "Misc/CommandLine.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -789,6 +795,387 @@ bool FRTUnitClassForHeroTest::RunTest(const FString&)
 	Astratte.Add(FName(TEXT("Hero.Ivrin")), ARTUnitAbstractProbeForTest::StaticClass());
 	TestTrue(TEXT("una classe astratta riceve il cilindro"),
 		RTUnitClassForHero(Astratte, FName(TEXT("Hero.Ivrin"))) == ARTUnit::StaticClass());
+	return true;
+}
+
+// ======================================================================================================
+// `#2748`, [D-507] — il roster ha tre sorgenti: proprieta' < riga di comando < console
+// ======================================================================================================
+
+extern TAutoConsoleVariable<FString> CVarRTTeam0Heroes;
+extern TAutoConsoleVariable<FString> CVarRTTeam1Heroes;
+
+namespace
+{
+	/**
+	 * Console e riga di comando tornano com'erano. Sono stato di PROCESSO: un test che le lasciasse impostate
+	 * cambierebbe il roster di ogni test successivo, e il rosso comparirebbe in un file che non c'entra.
+	 */
+	struct FRTScopedRosterSources
+	{
+		RTTestConsoleVariable::TGuardia<FString> Team0{ *CVarRTTeam0Heroes.AsVariable(), FString() };
+		RTTestConsoleVariable::TGuardia<FString> Team1{ *CVarRTTeam1Heroes.AsVariable(), FString() };
+		FString SavedCommandLine;
+
+		FRTScopedRosterSources() : SavedCommandLine(FCommandLine::Get()) {}
+		~FRTScopedRosterSources() { FCommandLine::Set(*SavedCommandLine); }
+
+		void SetArgs(const TCHAR* Args) { FCommandLine::Set(*(SavedCommandLine + FString(TEXT(" ")) + Args)); }
+		void ClearArgs() { FCommandLine::Set(*SavedCommandLine); }
+	};
+
+	/** `Hero.A,Hero.B` nell'ordine dato; una voce vuota si vede come `<vuota>`. */
+	FString JoinRoster(const TArray<FName>& Roster)
+	{
+		return FString::JoinBy(Roster, TEXT(","), [](const FName& HeroId)
+		{
+			return HeroId.IsNone() ? FString(TEXT("<vuota>")) : HeroId.ToString();
+		});
+	}
+
+	/** Gli eroi di una squadra IN CAMPO, ordinati: si confronta chi c'e', non quanti. */
+	FString HeroIdsInPlay(const TArray<ARTUnit*>& Units, int32 TeamId)
+	{
+		TArray<FString> Ids;
+		for (const ARTUnit* Unit : Units)
+		{
+			if (Unit && Unit->TeamId == TeamId) { Ids.Add(Unit->HeroId.ToString()); }
+		}
+		Ids.Sort();
+		return FString::Join(Ids, TEXT(","));
+	}
+
+	/** Il dettaglio del fatale `RosterHeroMissing`, o la stringa vuota se il rapporto non lo porta. */
+	FString MissingHeroDetail(const FRTStartupReport& Report)
+	{
+		for (const FRTStartupNote& Note : Report.Notes)
+		{
+			if (Note.Outcome == ERTStartupOutcome::RosterHeroMissing) { return Note.Detail; }
+		}
+		return FString();
+	}
+}
+
+/**
+ * LE TRE SORGENTI e il loro ordine: proprieta' < `-RTTeam0=` < `rt.Match.Team0`, una coppia per squadra.
+ *
+ * 🔑 **Il caso che vale il test e' la VIRGOLA.** `FParse::Value` termina il valore su `,` se non glielo si
+ * vieta: una lista da riga di comando arriverebbe troncata alla prima voce, e l'errore a valle parlerebbe di
+ * cardinalita'. Qui si guarda la SECONDA voce.
+ *
+ * ⚠️ **E i casi sbagliati NON ricadono sulla proprieta'**: `-RTTeam0=` senza valore e una virgola in coda
+ * restano cio' che sono — una lista vuota, una voce vuota. Il resolver sceglie chi ha parlato, non se ha
+ * detto il vero; a rifiutare e' il bootstrapper (test qui sotto).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterSourcePrecedenceTest,
+	"RefactorTactics.Match.Roster.SourcePrecedence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterSourcePrecedenceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode)) { DestroyRosterWorld(World); return false; }
+
+	FRTScopedRosterSources Sorgenti;
+	const FString Proprieta0 = JoinRoster(GameMode->Team0Heroes);
+	const FString Proprieta1 = JoinRoster(GameMode->Team1Heroes);
+	if (!TestTrue(TEXT("premessa: le due proprieta' sono formazioni diverse e non vuote"),
+			!Proprieta0.IsEmpty() && !Proprieta1.IsEmpty() && Proprieta0 != Proprieta1))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+
+	// Niente di niente: decide la proprieta'.
+	TestEqual(TEXT("senza flag e senza console decide la proprieta' (squadra 0)"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), Proprieta0);
+	TestEqual(TEXT("senza flag e senza console decide la proprieta' (squadra 1)"),
+		JoinRoster(GameMode->ResolveTeamHeroes(1)), Proprieta1);
+
+	// La riga di comando, con la VIRGOLA: la lista arriva intera.
+	Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Branth,Hero.Ivrin"));
+	TestEqual(TEXT("la lista da riga di comando arriva INTERA, virgola compresa"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), FString(TEXT("Hero.Branth,Hero.Ivrin")));
+	TestEqual(TEXT("e scavalcare la squadra 0 non tocca la squadra 1"),
+		JoinRoster(GameMode->ResolveTeamHeroes(1)), Proprieta1);
+
+	// Con gli spazi vogliono le virgolette, e le voci si rifilano.
+	Sorgenti.SetArgs(TEXT("-RTTeam0=\"Hero.Branth, Hero.Ivrin\""));
+	TestEqual(TEXT("fra virgolette gli spazi attorno alle voci non contano"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), FString(TEXT("Hero.Branth,Hero.Ivrin")));
+
+	// L'altra squadra ha il suo token.
+	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Aevik,Hero.Muiren"));
+	TestEqual(TEXT("-RTTeam1= sceglie la squadra 1"),
+		JoinRoster(GameMode->ResolveTeamHeroes(1)), FString(TEXT("Hero.Aevik,Hero.Muiren")));
+	TestEqual(TEXT("e non tocca la squadra 0"), JoinRoster(GameMode->ResolveTeamHeroes(0)), Proprieta0);
+
+	// Console contro riga di comando: vince la console, che e' l'intento di ADESSO.
+	Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Branth,Hero.Ivrin"));
+	Sorgenti.Team0.Imposta(FString(TEXT("Hero.Ivrin,Hero.Branth")));
+	TestEqual(TEXT("console + flag -> vince la console"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), FString(TEXT("Hero.Ivrin,Hero.Branth")));
+
+	// Tolta la console torna il flag; tolto il flag torna la proprieta': la precedenza non consuma niente.
+	Sorgenti.Team0.Imposta(FString());
+	TestEqual(TEXT("tolta la console, vale di nuovo il flag"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), FString(TEXT("Hero.Branth,Hero.Ivrin")));
+	Sorgenti.ClearArgs();
+	TestEqual(TEXT("tolto il flag, vale di nuovo la proprieta'"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), Proprieta0);
+
+	// ⛔ I casi sbagliati restano sbagliati: non ricadono sulla proprieta'.
+	Sorgenti.SetArgs(TEXT("-RTTeam0="));
+	TestEqual(TEXT("-RTTeam0= senza valore e' una sorgente presente con una lista VUOTA, non la proprieta'"),
+		GameMode->ResolveTeamHeroes(0).Num(), 0);
+	Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Branth,"));
+	TestEqual(TEXT("una virgola in coda lascia una voce vuota: la lista non si accorcia da sola"),
+		JoinRoster(GameMode->ResolveTeamHeroes(0)), FString(TEXT("Hero.Branth,<vuota>")));
+	Sorgenti.ClearArgs();
+
+	TestEqual(TEXT("una squadra che non esiste non ha un roster"), GameMode->ResolveTeamHeroes(2).Num(), 0);
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
+/**
+ * Il roster chiesto dalla console ENTRA IN CAMPO: la catena vera, da `SetupHexMatch` alle unita'.
+ *
+ * 🔑 **Le due squadre si SCAMBIANO gli eroi.** Un roster qualunque diverso dal default basterebbe a vedere
+ * «qualcosa e' cambiato»; lo scambio dice anche che ogni lista e' arrivata alla PROPRIA squadra — due liste
+ * incrociate in `SetupHexMatch` darebbero gli stessi quattro eroi in campo e il test cadrebbe lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterFromConsoleEntersTheFieldTest,
+	"RefactorTactics.Match.Roster.ConsoleRosterEntersTheField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterFromConsoleEntersTheFieldTest::RunTest(const FString&)
+{
+	FRTScopedRosterSources Sorgenti;
+
+	// CONTROLLO: senza sorgenti in campo c'e' il default. Senza, «Branth in squadra 0» sarebbe vero anche se
+	// il default fosse cambiato.
+	FString Default0;
+	{
+		UWorld* World = MakeRosterWorld();
+		if (!TestNotNull(TEXT("mondo di controllo"), World)) { return false; }
+		ARTHexMapActor* HexMap = SpawnRosterMap(World);
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
+		GameMode->SetupHexMatch(HexMap);
+		Default0 = HeroIdsInPlay(CollectRosterUnits(World), 0);
+		DestroyRosterWorld(World);
+	}
+	if (!TestEqual(TEXT("controllo: di default la squadra 0 e' Aevik e Muiren"),
+			Default0, FString(TEXT("Hero.Aevik,Hero.Muiren"))))
+	{
+		return false;
+	}
+
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = SpawnRosterMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
+
+	Sorgenti.Team0.Imposta(FString(TEXT("Hero.Branth,Hero.Ivrin")));
+	Sorgenti.Team1.Imposta(FString(TEXT("Hero.Aevik,Hero.Muiren")));
+	GameMode->SetupHexMatch(HexMap);
+
+	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
+	TestEqual(TEXT("quattro unita' in campo"), Units.Num(), 4);
+	TestEqual(TEXT("la squadra 0 e' quella chiesta dalla console"),
+		HeroIdsInPlay(Units, 0), FString(TEXT("Hero.Branth,Hero.Ivrin")));
+	TestEqual(TEXT("e la squadra 1 pure: ogni lista e' arrivata alla PROPRIA squadra"),
+		HeroIdsInPlay(Units, 1), FString(TEXT("Hero.Aevik,Hero.Muiren")));
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
+/**
+ * Un `HeroId` sconosciuto ferma l'allestimento DA QUALUNQUE SORGENTE, e l'errore dice quale.
+ *
+ * 🔴 **Prima il roster aveva una sorgente sola, e «correggi `Team0Heroes`» era sempre il consiglio giusto.**
+ * Con tre, manderebbe ad aprire un Blueprint chi ha scritto male una riga di comando. Il dettaglio del
+ * fatale porta ora la sorgente — ed e' cio' che questo test misura, tre volte: proprieta', flag, console.
+ *
+ * ⚠️ **Il conteggio resta quello del formato** in tutti e tre i casi (due voci): cosi' la guardia che si
+ * esercita e' quella del NOME, non quella della cardinalita' che sta venti righe sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterUnknownHeroNamesItsSourceTest,
+	"RefactorTactics.Match.Roster.UnknownHeroAbortsAndNamesItsSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterUnknownHeroNamesItsSourceTest::RunTest(const FString&)
+{
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		const TCHAR* Args;       // riga di comando, o nullptr
+		const TCHAR* Console;    // rt.Match.Team0, o nullptr
+		const TCHAR* SorgenteAttesa;
+	};
+	const FCaso Casi[] = {
+		{ TEXT("proprieta'"),      nullptr,                                   nullptr,                           TEXT("Team0Heroes") },
+		{ TEXT("riga di comando"), TEXT("-RTTeam0=Hero.Aevik,Hero.NonEsiste"), nullptr,                           TEXT("-RTTeam0=") },
+		{ TEXT("console"),         nullptr,                                   TEXT("Hero.Aevik,Hero.NonEsiste"), TEXT("rt.Match.Team0") },
+	};
+
+	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, UE_ARRAY_COUNT(Casi));
+
+	for (const FCaso& Caso : Casi)
+	{
+		FRTScopedRosterSources Sorgenti;
+		UWorld* World = MakeRosterWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ARTHexMapActor* HexMap = SpawnRosterMap(World);
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
+
+		if (Caso.Args) { Sorgenti.SetArgs(Caso.Args); }
+		if (Caso.Console) { Sorgenti.Team0.Imposta(FString(Caso.Console)); }
+		if (!Caso.Args && !Caso.Console) { GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.NonEsiste") }; }
+
+		GameMode->SetupHexMatch(HexMap);
+
+		TestEqual(FString::Printf(TEXT("%s: nessuna unita' in campo"), Caso.Nome),
+			CollectRosterUnits(World).Num(), 0);
+		const FRTStartupReport& Report = GameMode->GetStartupReport();
+		TestEqual(FString::Printf(TEXT("%s: l'avvio dichiara il fatale"), Caso.Nome),
+			URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::RosterHeroMissing);
+		const FString Dettaglio = MissingHeroDetail(Report);
+		TestTrue(FString::Printf(TEXT("%s: il dettaglio nomina l'eroe (%s)"), Caso.Nome, *Dettaglio),
+			Dettaglio.Contains(TEXT("Hero.NonEsiste")));
+		TestTrue(FString::Printf(TEXT("%s: e nomina la SORGENTE '%s' (%s)"), Caso.Nome, Caso.SorgenteAttesa, *Dettaglio),
+			Dettaglio.Contains(Caso.SorgenteAttesa));
+
+		DestroyRosterWorld(World);
+	}
+	return true;
+}
+
+/**
+ * Una lista scritta male FERMA l'allestimento: non riparte la partita di default al posto di quella chiesta.
+ *
+ * 🔴 **E' la meta' di [D-507] che un resolver «gentile» romperebbe.** La proprieta' sotto e' valida — Aevik e
+ * Muiren — quindi ignorare una sorgente malformata e ripiegare darebbe una partita che parte e SEMBRA
+ * normale, con gli eroi sbagliati: il difetto piu' difficile da vedere a schermo. Tre forme, tutte con la
+ * proprieta' intatta sotto, e in campo non deve entrare nessuno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterMalformedListAbortsTest,
+	"RefactorTactics.Match.Roster.MalformedListAbortsInsteadOfFallingBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterMalformedListAbortsTest::RunTest(const FString&)
+{
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		const TCHAR* Args;
+		const TCHAR* ErroreAtteso;
+	};
+	const FCaso Casi[] = {
+		{ TEXT("una voce sola, il formato ne schiera due"), TEXT("-RTTeam0=Hero.Aevik"),  TEXT("ne dichiara 1") },
+		{ TEXT("lista vuota"),                              TEXT("-RTTeam0="),            TEXT("ne dichiara 0") },
+		{ TEXT("virgola in coda: una voce vuota"),          TEXT("-RTTeam0=Hero.Aevik,"), TEXT("<voce vuota>") },
+	};
+
+	for (const FCaso& Caso : Casi)
+	{
+		FRTScopedRosterSources Sorgenti;
+		UWorld* World = MakeRosterWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ARTHexMapActor* HexMap = SpawnRosterMap(World);
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
+
+		// La proprieta' sotto e' il default VALIDO: e' cio' su cui un ripiego silenzioso atterrerebbe.
+		Sorgenti.SetArgs(Caso.Args);
+		AddExpectedError(Caso.ErroreAtteso, EAutomationExpectedErrorFlags::Contains, 1);
+		GameMode->SetupHexMatch(HexMap);
+
+		TestEqual(FString::Printf(TEXT("%s: nessuna unita' in campo — nemmeno quelle della proprieta'"), Caso.Nome),
+			CollectRosterUnits(World).Num(), 0);
+
+		DestroyRosterWorld(World);
+	}
+	return true;
+}
+
+/**
+ * A parita' di roster la partita e' LA STESSA da qualunque sorgente arrivi.
+ *
+ * 🔑 **L'oracolo e' il TurnLog serializzato del primo turno, checksum compreso — non la lista in campo**:
+ * due allestimenti con gli stessi eroi ma in ordine diverso avrebbero la stessa lista e partite diverse,
+ * perche' l'ordine decide le celle di partenza. E' lo stesso oracolo del gate di determinismo
+ * dell'autobattle. Il controllo in coda (un roster DIVERSO, traccia diversa) dice che la traccia guarda
+ * davvero chi gioca: senza, due tracce uguali sarebbero vere anche per due partite che il roster non tocca.
+ *
+ * ⚠️ Non `GetPendingFinalStateHash()`: quello si cattura solo mentre un replay registra, e qui vale zero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterSameMatchWhateverTheSourceTest,
+	"RefactorTactics.Match.Roster.SameRosterSameMatchWhateverTheSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterSameMatchWhateverTheSourceTest::RunTest(const FString&)
+{
+	enum class ESorgente : uint8 { Proprieta, Console, RigaDiComando, DefaultDiControllo };
+
+	auto GiocaUnTurno = [this](ESorgente Sorgente, TArray<uint8>& OutTraccia) -> bool
+	{
+		FRTScopedRosterSources Sorgenti;
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World) { return false; }
+		ARTHexMapActor* HexMap = SpawnRosterMap(World, /*Radius=*/ 5);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		if (!HexMap || !TM || !GameMode) { RTWorldFixtures::DestroyWorld(World); return false; }
+		TM->DispatchBeginPlay();
+
+		// Nessuno gioca: i quattro eroi sono dei bot, e un turno si chiude senza input.
+		GameMode->bAutobattle = true;
+		switch (Sorgente)
+		{
+		case ESorgente::Proprieta:
+			GameMode->Team0Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
+			GameMode->Team1Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
+			break;
+		case ESorgente::Console:
+			Sorgenti.Team0.Imposta(FString(TEXT("Hero.Branth,Hero.Ivrin")));
+			Sorgenti.Team1.Imposta(FString(TEXT("Hero.Aevik,Hero.Muiren")));
+			break;
+		case ESorgente::RigaDiComando:
+			Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Branth,Hero.Ivrin -RTTeam1=Hero.Aevik,Hero.Muiren"));
+			break;
+		case ESorgente::DefaultDiControllo:
+			break;
+		}
+
+		GameMode->SetupHexMatch(HexMap);
+		const bool bInCampo = CollectRosterUnits(World).Num() == 4;
+		if (bInCampo)
+		{
+			RTWorldFixtures::PlayOneTurn(TM);
+			OutTraccia = URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex);
+		}
+		RTWorldFixtures::DestroyWorld(World);
+		return bInCampo;
+	};
+
+	TArray<uint8> DaProprieta, DaConsole, DaRigaDiComando, DiControllo;
+	if (!TestTrue(TEXT("premessa: la partita dalla proprieta' si allestisce"), GiocaUnTurno(ESorgente::Proprieta, DaProprieta))
+		|| !TestTrue(TEXT("premessa: la partita dalla console si allestisce"), GiocaUnTurno(ESorgente::Console, DaConsole))
+		|| !TestTrue(TEXT("premessa: la partita dalla riga di comando si allestisce"), GiocaUnTurno(ESorgente::RigaDiComando, DaRigaDiComando))
+		|| !TestTrue(TEXT("premessa: la partita di controllo si allestisce"), GiocaUnTurno(ESorgente::DefaultDiControllo, DiControllo)))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("premessa: il primo turno ha lasciato una traccia"), DaProprieta.Num() > 0)) { return false; }
+	TestTrue(TEXT("stesso roster dalla console -> stessa traccia del primo turno, byte per byte"),
+		DaConsole == DaProprieta);
+	TestTrue(TEXT("stesso roster dalla riga di comando -> stessa traccia"), DaRigaDiComando == DaProprieta);
+	// ⛔ Il controllo che rende vere le due righe qui sopra: un roster diverso da' una partita diversa.
+	TestFalse(TEXT("controllo: il roster di default da' una traccia DIVERSA"), DiControllo == DaProprieta);
 	return true;
 }
 

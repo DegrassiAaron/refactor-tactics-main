@@ -53,6 +53,14 @@ struct FRTMatchBootstrapConfig
 	TArray<FName> Team0Heroes;
 	TArray<FName> Team1Heroes;
 
+	/**
+	 * Chi ha deciso ciascuna formazione (`#2748`): `Team0Heroes di BP_GameMode`, `-RTTeam0=`, `rt.Match.Team0`.
+	 * Lo portano i due errori sulla formazione, cosi' chi legge sa DOVE correggere. Vuota = non dichiarata
+	 * (un chiamante che costruisce la configurazione a mano): l'errore nomina allora la sola proprieta'.
+	 */
+	FString Team0HeroesSourceLabel;
+	FString Team1HeroesSourceLabel;
+
 	/** Classe visiva per `HeroId`. Un eroe assente ricade su `ARTUnit` — il cilindro segnaposto. */
 	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
 

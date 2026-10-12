@@ -147,6 +147,39 @@ TAutoConsoleVariable<float> CVarRTPlanningSeconds(
 	TEXT("Secondi della fase di Planning. Negativo = non impostata: vale la riga di comando, poi la proprieta', poi il TurnManager."),
 	ECVF_Default);
 
+/**
+ * I ROSTER DELLE DUE SQUADRE, fuori dall'Editor (`#2748`, [D-507]).
+ *
+ * 🔴 **Erano la sola voce d'allestimento di una partita senza ingresso fuori dal `.uasset`.** Autobattle,
+ * compagni al bot e ritmo del Planning hanno la scala proprieta' < riga di comando < console; `Team0Heroes` e
+ * `Team1Heroes` no, e cambiare chi gioca voleva dire aprire `BP_GameMode`. `RTShippedGameModeTests.cpp` lo
+ * annotava da se': una seduta che chiede `Hero.Branth` in squadra 0 doveva modificare la proprieta' a mano.
+ *
+ * ⚠️ **La stringa VUOTA e' «non impostata», e qui la sentinella non ruba un valore.** Per
+ * `rt.Match.BotAllies` lo zero e' una richiesta legittima e la sentinella deve essere negativa; un roster
+ * vuoto invece non e' una partita — il formato schiera almeno un'unita' per squadra — quindi «vuota» puo'
+ * voler dire una cosa sola.
+ *
+ * ⛔ **Una sorgente presente DECIDE, anche quando e' sbagliata.** Una voce sconosciuta, una voce vuota o un
+ * numero di voci diverso dal formato non ricadono sulla proprieta': fermano l'allestimento
+ * (`FRTMatchBootstrapper`). E' cio' che [D-507] chiede — un errore esplicito, non la partita di default al
+ * posto di quella chiesta.
+ */
+TAutoConsoleVariable<FString> CVarRTTeam0Heroes(
+	TEXT("rt.Match.Team0"),
+	TEXT(""),
+	TEXT("Roster della squadra 0: HeroId separati da virgola (es. Hero.Branth,Hero.Ivrin). Vuota = non "
+		 "impostata: vale la riga di comando -RTTeam0=, poi la proprieta' del GameMode. Una voce che il "
+		 "catalogo non conosce ferma l'allestimento."),
+	ECVF_Default);
+
+TAutoConsoleVariable<FString> CVarRTTeam1Heroes(
+	TEXT("rt.Match.Team1"),
+	TEXT(""),
+	TEXT("Roster della squadra 1: HeroId separati da virgola. Vuota = non impostata: vale la riga di comando "
+		 "-RTTeam1=, poi la proprieta' del GameMode. Una voce che il catalogo non conosce ferma l'allestimento."),
+	ECVF_Default);
+
 // --- L'INGRESSO DEI CONTROLLI DI PLAYBACK (`#2858`) --------------------------------------------------
 //
 // 🔴 **`#if !UE_BUILD_SHIPPING` sui punti nuovi, nella forma gia' in uso** — `Map/RTKnowledgeDebugConsole.cpp`
@@ -178,6 +211,25 @@ TAutoConsoleVariable<int32> CVarRTPlaybackStartPaused(
 	TEXT("Developer: ogni playback comincia FERMO, cosi' il primo confine osservabile e' il primo. "
 		 "0 = scorre subito, 1 = parte in pausa. Richiede rt.Debug.PlaybackControls 1: senza il comando "
 		 "per riprendere, partire fermi bloccherebbe la partita."),
+	ECVF_Default);
+
+/**
+ * LA VELOCITA' INIZIALE DEL PLAYBACK (`#2748`, [D-507]): la manopola `x1 · x2 · x4` ha un ingresso
+ * d'allestimento, e non solo il tasto a partita avviata.
+ *
+ * ⚠️ **`0` e' «non impostata»**: la velocita' e' positiva per definizione, quindi qui lo zero non ruba un
+ * valore. E vale SOLO in sessione non presidiata, dove il tasto e' sempre vivo: dove una finestra di
+ * reazione puo' aprirsi il tasto e' inerte (`#2733`) e [D-350] riporta comunque la velocita' a `x1`, quindi
+ * una preferenza impostata qui verrebbe scavalcata alla prima finestra senza che nessuno lo dica.
+ *
+ * ⛔ **Sola presentazione**, come la manopola: `StateHash` e TurnLog non la vedono (`#955`).
+ */
+TAutoConsoleVariable<float> CVarRTPlaybackSpeed(
+	TEXT("rt.Debug.PlaybackSpeed"),
+	0.f,
+	TEXT("Developer: velocita' INIZIALE del playback della risoluzione, sulla scala del tasto (1, 2, 4). "
+		 "0 = non impostata: si parte a x1. Vale in sessione non presidiata. Sola presentazione: StateHash e "
+		 "TurnLog non cambiano."),
 	ECVF_Default);
 #endif // !UE_BUILD_SHIPPING
 
@@ -347,6 +399,123 @@ namespace RTBotAlliesEntry
 		case EWinner::Property:        break;
 		}
 		return TEXT("BP_GameMode");
+	}
+}
+
+/**
+ * LE TRE SORGENTI di un roster, con la stessa forma e lo stesso ordine di `RTBotAlliesEntry`:
+ *
+ *     proprieta' del GameMode  <  -RTTeam0= / -RTTeam1=  <  rt.Match.Team0 / rt.Match.Team1
+ *
+ * Una coppia per squadra, e ognuna si risolve per conto proprio: scavalcare la squadra 0 non tocca la 1.
+ */
+namespace RTRosterEntry
+{
+	static bool IsTeam(int32 TeamId) { return TeamId == 0 || TeamId == 1; }
+
+	static const TCHAR* ConsoleName(int32 TeamId)
+	{
+		return TeamId == 0 ? TEXT("rt.Match.Team0") : TEXT("rt.Match.Team1");
+	}
+
+	/** Il token CON il segno `=`: e' cio' che `FParse::Value` cerca. */
+	static const TCHAR* CommandLineToken(int32 TeamId)
+	{
+		return TeamId == 0 ? TEXT("RTTeam0=") : TEXT("RTTeam1=");
+	}
+
+	/**
+	 * `"Hero.A, Hero.B"` -> `{ Hero.A, Hero.B }`.
+	 *
+	 * ⛔ **Non aggiusta niente.** Una voce vuota — una virgola di troppo, due virgole di fila — resta nella
+	 * lista come `NAME_None` invece di sparire: toglierla accorcerebbe la formazione in silenzio, e una lista
+	 * scritta male diventerebbe una partita diversa da quella chiesta. La rifiuta il bootstrapper, nominando
+	 * la sorgente.
+	 *
+	 * ⚠️ **La stringa vuota e' la lista VUOTA, non una lista con una voce vuota.** `ParseIntoArray` senza
+	 * scarto dei vuoti risponde un elemento anche per `""`: `-RTTeam0=` darebbe «ne dichiara 1» dove di voci
+	 * non ce n'e' nessuna. Misurato scrivendo il test, che lo aspettava a zero.
+	 */
+	static TArray<FName> ParseList(const FString& Raw)
+	{
+		if (Raw.TrimStartAndEnd().IsEmpty())
+		{
+			return TArray<FName>();
+		}
+
+		TArray<FString> Parts;
+		Raw.ParseIntoArray(Parts, TEXT(","), /*bCullEmpty=*/ false);
+
+		TArray<FName> Roster;
+		Roster.Reserve(Parts.Num());
+		for (const FString& Part : Parts)
+		{
+			const FString Voce = Part.TrimStartAndEnd();
+			Roster.Add(Voce.IsEmpty() ? FName() : FName(*Voce));
+		}
+		return Roster;
+	}
+
+	/** Cosa chiede la console, se chiede qualcosa. Vuota = non impostata. */
+	static TOptional<TArray<FName>> FromConsole(int32 TeamId)
+	{
+		const FString Raw =
+			(TeamId == 0 ? CVarRTTeam0Heroes : CVarRTTeam1Heroes).GetValueOnGameThread().TrimStartAndEnd();
+		return Raw.IsEmpty() ? TOptional<TArray<FName>>() : TOptional<TArray<FName>>(ParseList(Raw));
+	}
+
+	/**
+	 * Cosa chiede la riga di comando, se chiede qualcosa.
+	 *
+	 * 🔴 **`bShouldStopOnSeparator = false`, e senza la lista arriva TRONCATA.** Il default di `FParse::Value`
+	 * termina il valore su `,` e `)` oltre che sugli spazi (`Misc/Parse.cpp`): `-RTTeam0=Hero.Branth,Hero.Ivrin`
+	 * darebbe il solo `Hero.Branth`, cioe' una formazione di una voce che il controllo sul formato rifiuta con
+	 * un messaggio sulla cardinalita' — vero, e fuorviante: chi legge conterebbe gli eroi invece di guardare
+	 * il separatore.
+	 *
+	 * ⚠️ **`-RTTeam0=` senza valore e' una sorgente PRESENTE**: `FParse::Value` risponde `true` appena trova il
+	 * token, anche con valore vuoto. La lista e' vuota, non ricade sulla proprieta', e la ferma il controllo
+	 * sul formato. La forma con gli spazi vuole le virgolette: `-RTTeam0="Hero.A, Hero.B"`.
+	 */
+	static TOptional<TArray<FName>> FromCommandLine(int32 TeamId)
+	{
+		FString Raw;
+		if (FParse::Value(FCommandLine::Get(), CommandLineToken(TeamId), Raw, /*bShouldStopOnSeparator=*/ false))
+		{
+			return ParseList(Raw.TrimStartAndEnd());
+		}
+		return TOptional<TArray<FName>>();
+	}
+
+	enum class EWinner : uint8 { Property, CommandLine, ConsoleVariable };
+
+	/** Chi vince, in un posto solo — stessa ragione di `RTAutobattleEntry::Winner`. */
+	static EWinner Winner(int32 TeamId)
+	{
+		if (FromConsole(TeamId).IsSet())     { return EWinner::ConsoleVariable; }
+		if (FromCommandLine(TeamId).IsSet()) { return EWinner::CommandLine; }
+		return EWinner::Property;
+	}
+
+	/** L'etichetta della fonte: la porta l'errore del bootstrapper, cosi' chi legge sa DOVE correggere. */
+	static FString SourceLabel(int32 TeamId)
+	{
+		switch (Winner(TeamId))
+		{
+		case EWinner::ConsoleVariable: return ConsoleName(TeamId);
+		case EWinner::CommandLine:     return FString::Printf(TEXT("-%s"), CommandLineToken(TeamId));
+		case EWinner::Property:        break;
+		}
+		return FString::Printf(TEXT("Team%dHeroes di BP_GameMode"), TeamId);
+	}
+
+	/** `{ Hero.A, <vuota> }` per i messaggi. */
+	static FString Describe(const TArray<FName>& Roster)
+	{
+		return FString::Printf(TEXT("{ %s }"), *FString::JoinBy(Roster, TEXT(", "), [](const FName& HeroId)
+		{
+			return HeroId.IsNone() ? FString(TEXT("<vuota>")) : HeroId.ToString();
+		}));
 	}
 }
 
@@ -761,6 +930,33 @@ void ARTGameMode::ApplyPlaybackControlCVars(ARTTurnManager* TurnManager)
 				TEXT("[RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo."));
 		}
 	}
+
+	// `#2748`: la velocita' INIZIALE. Indipendente dai comandi qui sopra — la manopola `x1 · x2 · x4` esiste
+	// anche senza Pause/Step — e con tre uscite dichiarate, perche' un valore ignorato in silenzio e' il
+	// modo in cui «ho impostato x4 e va a x1» costa mezz'ora.
+	const float InitialSpeed = CVarRTPlaybackSpeed.GetValueOnGameThread();
+	if (InitialSpeed > 0.f)
+	{
+		if (!ARTHUD::IsOnViewerPlaybackScale(InitialSpeed))
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] rt.Debug.PlaybackSpeed=%g non e' sulla scala del tasto (1, 2, 4). Ignorata: si parte "
+					 "a x1."),
+				InitialSpeed);
+		}
+		else if (!IsAutobattleInEffect())
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] rt.Debug.PlaybackSpeed=%g ignorata: la sessione e' presidiata, e dove una finestra di "
+					 "reazione puo' aprirsi la velocita' torna comunque a x1 ([D-350]). Vale in autobattle."),
+				InitialSpeed);
+		}
+		else
+		{
+			TurnManager->ViewerPlaybackSpeed = InitialSpeed;
+			UE_LOG(LogTemp, Display, TEXT("[RT] rt.Debug.PlaybackSpeed: il playback parte a x%g."), InitialSpeed);
+		}
+	}
 #endif // !UE_BUILD_SHIPPING
 }
 
@@ -851,8 +1047,13 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	Config.DemoArenaRadius       = ResolveDemoArenaRadius();
 	Config.MatchFormat           = MatchFormat;
 	Config.ShippedFormatId       = ShippedFormatId;
-	Config.Team0Heroes           = Team0Heroes;
-	Config.Team1Heroes           = Team1Heroes;
+	// `#2748`, [D-507]: i roster passano dal resolver come gli altri ingressi. L'etichetta della sorgente
+	// viaggia con la lista, perche' a rifiutarla e' il bootstrapper — che non legge console ne' riga di
+	// comando — e l'errore deve dire DOVE correggere.
+	Config.Team0Heroes            = ResolveTeamHeroes(0);
+	Config.Team0HeroesSourceLabel = RTRosterEntry::SourceLabel(0);
+	Config.Team1Heroes            = ResolveTeamHeroes(1);
+	Config.Team1HeroesSourceLabel = RTRosterEntry::SourceLabel(1);
 	Config.HeroUnitClasses       = HeroUnitClasses;
 	Config.bAutobattle           = ResolveAutobattle();
 	Config.AutobattleSourceLabel = RTAutobattleEntry::SourceLabel();
@@ -1297,6 +1498,46 @@ int32 ARTGameMode::ResolveBotAllies() const
 	}
 
 	return BotAllyCount;
+}
+
+TArray<FName> ARTGameMode::ResolveTeamHeroes(int32 TeamId) const
+{
+	if (!RTRosterEntry::IsTeam(TeamId))
+	{
+		return TArray<FName>();
+	}
+
+	const TArray<FName>& FromProperty = (TeamId == 0) ? Team0Heroes : Team1Heroes;
+
+	const TOptional<TArray<FName>> FromConsole = RTRosterEntry::FromConsole(TeamId);
+	if (FromConsole.IsSet())
+	{
+		if (FromConsole.GetValue() != FromProperty)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La console variable %s=%s SCAVALCA la proprieta' Team%dHeroes=%s del GameMode. Per "
+					 "tornare a usare la proprieta': `%s \"\"`."),
+				RTRosterEntry::ConsoleName(TeamId), *RTRosterEntry::Describe(FromConsole.GetValue()), TeamId,
+				*RTRosterEntry::Describe(FromProperty), RTRosterEntry::ConsoleName(TeamId));
+		}
+		return FromConsole.GetValue();
+	}
+
+	const TOptional<TArray<FName>> FromCmdLine = RTRosterEntry::FromCommandLine(TeamId);
+	if (FromCmdLine.IsSet())
+	{
+		if (FromCmdLine.GetValue() != FromProperty)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La riga di comando -%s%s SCAVALCA la proprieta' Team%dHeroes=%s del GameMode. Per "
+					 "tornare a usare la proprieta': togli il flag."),
+				RTRosterEntry::CommandLineToken(TeamId), *RTRosterEntry::Describe(FromCmdLine.GetValue()), TeamId,
+				*RTRosterEntry::Describe(FromProperty));
+		}
+		return FromCmdLine.GetValue();
+	}
+
+	return FromProperty;
 }
 
 float ARTGameMode::ResolveMatchPlanningSeconds() const

@@ -522,6 +522,14 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 	int32 CellIndex = 0;
 	const TArray<const TArray<FName>*> Formations = { &Config.Team0Heroes, &Config.Team1Heroes };
 
+	// `#2748`: da dove viene ciascuna formazione. Da quando il roster ha tre sorgenti, «correggi
+	// Team0Heroes» manderebbe ad aprire un Blueprint chi ha scritto male una riga di comando.
+	auto SourceOf = [&Config](int32 TeamId) -> FString
+	{
+		const FString& Label = (TeamId == 0) ? Config.Team0HeroesSourceLabel : Config.Team1HeroesSourceLabel;
+		return Label.IsEmpty() ? FString::Printf(TEXT("Team%dHeroes"), TeamId) : Label;
+	};
+
 	// La formazione deve dichiarare tanti eroi quanti il formato ne schiera (CP 19.2). Senza questo controllo
 	// il formato direbbe 4 e il campo ne vedrebbe 2: la partita girerebbe, e il numero dichiarato sarebbe un
 	// dato che nessuno onora — il difetto ricorrente di questo repository.
@@ -531,9 +539,10 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 		{
 			UE_LOG(LogRT, Error,
 				TEXT("[RT] Il formato '%s' schiera %d unita' per squadra, ma la formazione della squadra %d ne "
-					 "dichiara %d. Partita non allestita: allinea Team%dHeroes al formato, o il formato alla "
-					 "formazione."),
-				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(), TeamId);
+					 "dichiara %d. Partita non allestita: la formazione viene da %s — allineala al formato, o il "
+					 "formato alla formazione."),
+				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(),
+				*SourceOf(TeamId));
 			return Outcome;
 		}
 	}
@@ -552,11 +561,15 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 			const URTHeroData* Hero = FindHero(HeroId);
 			if (Hero == nullptr)
 			{
+				// Una voce VUOTA (`#2748`: una virgola di troppo in una lista) si nomina per cio' che e':
+				// «'None' non e' nel catalogo» manderebbe a cercare un eroe che si chiama None.
+				const FString Voce = HeroId.IsNone() ? FString(TEXT("<voce vuota>")) : HeroId.ToString();
 				UE_LOG(LogRT, Error,
-					TEXT("[RT] '%s' non e' nel catalogo eroi: partita non allestita. Correggi Team%dHeroes, "
-						 "o aggiungi l'eroe al catalogo."),
-					*HeroId.ToString(), TeamId);
-				Report.Add(ERTStartupOutcome::RosterHeroMissing, HeroId.ToString());
+					TEXT("[RT] '%s' non e' nel catalogo eroi: partita non allestita. La formazione della squadra "
+						 "%d viene da %s: correggila, o aggiungi l'eroe al catalogo."),
+					*Voce, TeamId, *SourceOf(TeamId));
+				Report.Add(ERTStartupOutcome::RosterHeroMissing,
+					FString::Printf(TEXT("%s (squadra %d, da %s)"), *Voce, TeamId, *SourceOf(TeamId)));
 				return Outcome;
 			}
 			Lineup.Add(Hero);

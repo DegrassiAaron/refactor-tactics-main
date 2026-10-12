@@ -1145,6 +1145,15 @@ public:
 	static float NextViewerPlaybackSpeed(float Current);
 
 	/**
+	 * Se `Speed` e' uno dei valori della scala `x1 · x2 · x4` (`#2748`).
+	 *
+	 * Esiste perche' la scala ha ora un secondo ingresso — `rt.Debug.PlaybackSpeed`, la velocita' INIZIALE — e
+	 * chi lo applica deve porre la stessa domanda del tasto invece di tenere una seconda lista: la tabella
+	 * resta una, in `RTHUD.cpp`.
+	 */
+	static bool IsOnViewerPlaybackScale(float Speed);
+
+	/**
 	 * L'etichetta del controllo: la velocita' con cui la riproduzione scorre.
 	 *
 	 * ⚠️ **Un numero solo, e dal 2026-09-02 e' vero** (`#1878`). Ne mostrava due — `x2 -> x3 (tetto)` —
