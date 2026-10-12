@@ -330,6 +330,20 @@ void ARTUnit::ShowDamageToken(int32 Amount)
 	// che i due non fossero d'accordo nessun test lo direbbe.
 }
 
+void ARTUnit::ShowHealToken(int32 Amount)
+{
+	// [D-505], `#3600`: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e', nessun velo
+	// qui (lo decide `ARTHUD::UpdateObserverVeil` spegnendo l'overlay).
+	LastDamageToken = URTHudViewModel::BuildHealToken(Amount, StableUnitId);
+	if (UUserWidget* Raw = GetOverlayWidgetObject())
+	{
+		if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+		{
+			Overlay->PushDamageToken(LastDamageToken);
+		}
+	}
+}
+
 void ARTUnit::ApplyUnitAnimClass()
 {
 	if (UnitAnimClass == nullptr)

@@ -1787,6 +1787,18 @@ public:
 	static FRTDamageTokenView BuildDamageToken(int32 Amount, int32 TargetStableUnitId);
 
 	/**
+	 * Il token di una CURA ([D-505], `#3600`): `+N` sul curato, e la barra che pulsa se la vita e' salita.
+	 *
+	 * 🔑 **Lo stesso token del colpo, non un secondo canale**: stessa struttura, stesso widget, stesso velo. Cambia
+	 * il segno, e `bIsHeal` dice a chi disegna che e' una cura. A salute piena `Amount` e' zero e l'etichetta lo
+	 * dichiara («0 curati»), senza pulsazione: la barra non ha nulla da raccontare.
+	 *
+	 * @param Amount               i punti vita restituiti davvero (`FRTResolvedEvent::Amount` di un `Healed`).
+	 * @param TargetStableUnitId   chi e' curato. `0` = nessuno ([D-063]).
+	 */
+	static FRTDamageTokenView BuildHealToken(int32 Amount, int32 TargetStableUnitId);
+
+	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.
 	 *
 	 * 🔴 **Il valore di ritorno non si mostra a nessuno cosi' com'e'**: passa da

@@ -23,6 +23,58 @@
 
 ---
 
+## 2026-10-12 — D-506: in v0.1 la vista resta la squadra del giocatore; #2793 chiude
+
+**Origine**: [#2793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2793), le sue due caselle residue, e `OBS-1`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-506`, nuova; `D-484` (1) corretta: `BLIND-2` e `OBS-1` non erano da decidere prima del freeze |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `OBS-1` resta aperta, con la conferma sulla v0.1 e la scadenza prima della rete |
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | §4, onda 2: la stessa correzione |
+
+---
+
+## 2026-10-12 — La sequenza di chiusura della v0.1: il referto del panel, l'Onda 0 e D-483–D-487
+
+**Origine**: le PR [#3603](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3603), [#3604](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3604) e [#3606](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3606), scritte il 2026-10-09 e mergiate il 2026-10-12. I testi portano la data e lo SHA su cui sono stati misurati.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | nuovo: il referto del panel sulla sequenza di chiusura, con gli esiti delle cinque decisioni |
+| [`roadmap/plans/sequenza-chiusura-v01-2026-10-03.md`](roadmap/plans/sequenza-chiusura-v01-2026-10-03.md) | banner di rilettura e §0, i tre scenari che dicono quando la pagina smette di valere |
+| [`roadmap/plans/README.md`](roadmap/plans/README.md) | quale vista ordina il lavoro della v0.1 (`D-487`) |
+| [`roadmap/roadmap-main-v0.1.md`](roadmap/roadmap-main-v0.1.md) | da `CURRENT` a `SNAPSHOT` (`D-487`) |
+| [`roadmap/v0.1-definition-of-done.md`](roadmap/v0.1-definition-of-done.md) | il banner si ridata: la data di un gate si legge nella sua cella |
+| [`technical/runbooks/guida-seduta-g13-candidate.md`](technical/runbooks/guida-seduta-g13-candidate.md) · [`technical/runbooks/guida-seduta-g16-u60.md`](technical/runbooks/guida-seduta-g16-u60.md) | passo 0: su `DIVERSI` la seduta non si apre |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-483`–`D-487`, nuove: le cinque decisioni d'autore del 2026-10-09 |
+
+---
+
+## 2026-10-12 — D-505: la cura ha un momento nel playback
+
+**Origine**: [#3600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3600), decisione d'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-505`, nuova |
+| [`superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md`](superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md) | §6: i «numeri verdi» della cura non esistevano; ora «+N», il colore da decidere |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CLIP-ABILITA`: nota in coda, il momento della cura da osservare |
+
+---
+
+## 2026-10-12 — D-504: nel Blast le cure ricontrollano la linea di tiro
+
+**Origine**: [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598), decisione d'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-504`, nuova |
+| [`superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md`](superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md) | §6: il limite sulla linea di tiro è risolto |
+| [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) | `CircularTide`: «`Required`» torna vero anche nel Blast |
+
+---
+
 ## 2026-10-12 — Un muro si colpisce solo nel Blast: la guardia di D-502
 
 **Origine**: [#3701](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3701), l'avviso della nota di attuazione di D-502.

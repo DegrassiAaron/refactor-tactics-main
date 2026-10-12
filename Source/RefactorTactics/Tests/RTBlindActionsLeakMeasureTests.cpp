@@ -299,6 +299,16 @@ namespace
  * ⚠️ **VERDE PERCHE' IL DIFETTO C'E'.** Diventa rosso quando `#2793` filtra `BlockedCellsFor` per
  * conoscenza, ed e' il segnale che l'asserzione va convertita nel canary `PlanningView(A) == PlanningView(B)`
  * invece di essere cancellata.
+ *
+ * ⏱️ **Rimisurato il 2026-10-12 (`#2793`): questo canary non puo' piu' cadere, e la frase qui sopra e' storia.**
+ * Da [D-445] e [D-446] nessuna unita' e' un ostacolo per la rotta ne' per la destinazione
+ * (`BlockedCellsFor` restituisce sempre l'insieme vuoto): ventaglio, percorso e costo non dipendono
+ * dall'occupazione, col filtro di [D-432] acceso o spento. Misurato spegnendo il filtro alla sorgente, in
+ * `URTHexSimLibrary::MakeSnapshot`: resta VERDE. Non e' un difetto — il canale che misurava non esiste piu' —
+ * ma non e' nemmeno una prova. I canali in cui l'occupazione conta ancora li misurano
+ * `ThreeWorldsAgreeOnTheRefusalSymbol` (il motivo «occupata» sul waypoint) e, per il bot,
+ * `HexBotPlay.ThreeWorldsAgreeOnTheBotPlan` e `HexBotPlay.HiddenBodyOnTheDashCellDoesNotChangeThePlan`:
+ * quei tre, a filtro spento, cadono.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsReachableFanAgreesTest,
 	"RefactorTactics.BlindActions.ThreeWorldsAgreeOnTheReachableFan",
@@ -398,6 +408,16 @@ bool FRTBlindActionsReachableFanAgreesTest::RunTest(const FString&)
  * Il percorso e' il canale piu' esplicito dei due: il ventaglio nasconde una cella, il tracciato **gira
  * intorno** a un ostacolo che il giocatore non ha nessun diritto di conoscere — che e' l'argomento con cui
  * [D-249] aveva vietato il movimento verso l'ignoto.
+ *
+ * ⏱️ **Rimisurato il 2026-10-12 (`#2793`): questo canary non puo' piu' cadere, e la frase qui sopra e' storia.**
+ * Da [D-445] e [D-446] nessuna unita' e' un ostacolo per la rotta ne' per la destinazione
+ * (`BlockedCellsFor` restituisce sempre l'insieme vuoto): ventaglio, percorso e costo non dipendono
+ * dall'occupazione, col filtro di [D-432] acceso o spento. Misurato spegnendo il filtro alla sorgente, in
+ * `URTHexSimLibrary::MakeSnapshot`: resta VERDE. Non e' un difetto — il canale che misurava non esiste piu' —
+ * ma non e' nemmeno una prova. I canali in cui l'occupazione conta ancora li misurano
+ * `ThreeWorldsAgreeOnTheRefusalSymbol` (il motivo «occupata» sul waypoint) e, per il bot,
+ * `HexBotPlay.ThreeWorldsAgreeOnTheBotPlan` e `HexBotPlay.HiddenBodyOnTheDashCellDoesNotChangeThePlan`:
+ * quei tre, a filtro spento, cadono.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsPathAgreesTest,
 	"RefactorTactics.BlindActions.ThreeWorldsAgreeOnThePlannedPath",

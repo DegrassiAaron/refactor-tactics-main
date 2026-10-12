@@ -48,7 +48,22 @@ struct FRTDamageTokenView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bHasDamage = false;
 
-	/** Il testo gia' composto: `-17` quando c'e' danno, l'etichetta del caso zero altrimenti. */
+	/**
+	 * Vero per il token di una CURA ([D-505], `#3600`): lo stesso token, con il segno `+`. Chi disegna puo'
+	 * sceglierne il colore quando §32 ne avra' uno; oggi il segno e' l'unico canale, ed e' sufficiente (`#2453`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bIsHeal = false;
+
+	/**
+	 * Vero quando la barra della vita deve pulsare: la vita e' cambiata, in giu' (danno) o in su (cura).
+	 * 🔑 **Un campo, come `bHasDamage`, e per la stessa ragione**: la regola la decidono i costruttori del token,
+	 * non chi disegna. ⏱️ *Fino a #3600 il widget pulsava su `bHasDamage`, che una cura non puo' avere.*
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPulsesHealthBar = false;
+
+	/** Il testo gia' composto: `-17` quando c'e' danno, `+18` per una cura, l'etichetta del caso zero altrimenti. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FString Label;
 };

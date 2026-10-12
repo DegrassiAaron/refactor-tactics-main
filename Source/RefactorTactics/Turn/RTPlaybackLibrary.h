@@ -216,6 +216,12 @@ public:
 	 * cure o purificazioni non ha colpi, impronte, muri ne' spinta, e senza questo termine le sue attivazioni
 	 * non avrebbero una fase in cui accadere.
 	 *
+	 * 🔴 **E `NumHeals` e' il sesto** ([D-505], `#3600`): una cura il cui gesto chi guarda non ha il diritto di
+	 * vedere (chi cura non e' visto) resta nella sequenza col suo `Healed` se chi guarda conosce il curato
+	 * (`IsHealedHiddenFrom`). Senza questo
+	 * termine quel Blast non avrebbe una fase, e il «+N» sparirebbe. Ha un default, `0`, perche' i chiamanti
+	 * che non conoscono le cure non cambino.
+	 *
 	 * ⛔ **Nessuna somma e nessuna soglia: le ragioni sono INDIPENDENTI**, e basta che una sia vera.
 	 * Sommarle per «misurare quanto succede» aprirebbe la fase sugli stessi casi e chiuderebbe quelli con
 	 * un solo fatto, che sono precisamente quelli per cui i termini sono stati aggiunti.
@@ -225,7 +231,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
-		int32 NumStructureHits, int32 NumActivations);
+		int32 NumStructureHits, int32 NumActivations, int32 NumHeals = 0);
 
 	/**
 	 * Il segmento da disegnare per un tracer (`#2454`). Pura: estremi nel mondo, avanzamento, lunghezza del dardo.
@@ -561,6 +567,14 @@ public:
 	 * Falso per ogni evento che non sia `StructureHit`.
 	 */
 	static bool IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
+	 * Vero se e' una CURA ([D-505], `#3600`) il cui curato chi guarda non conosceva: il suo verdetto, congelato
+	 * all'emissione, non lo ammette. ⛔ Non basta il velo sull'overlay: quello nasconde il «+N», non lo SLOT di
+	 * tempo che l'elemento occupa nella sequenza, e una cura nemica su un nemico non visto aprirebbe o
+	 * allungherebbe il Blast — il buco nel ritmo che la spec del momento vieta.
+	 */
+	static bool IsHealedHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
 
 	/**
 	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
