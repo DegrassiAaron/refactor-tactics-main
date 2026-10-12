@@ -422,7 +422,7 @@ numero di decisione**. Nessuna resta `OPEN` al freeze.
    `righe dopo filtro=5` del giro meccanico;
 3. `#2764` — i cinque compositori senza consumatore, col sesto come precedente;
 4. `#1936` — il tetto, se `D4` = (a);
-5. le `P1` che `D-484` fa entrare — `#2793` per prima, con `BLIND-2` e `OBS-1` da decidere prima del freeze; poi
+5. le `P1` che `D-484` fa entrare — `#2793` per prima, con `BLIND-2` e `OBS-1` da decidere prima del freeze (➕ *corretto il 2026-10-12, [`D-506`](../../decisions/RT_PDR_00_Decision_Log.md): `BLIND-2` era già chiusa, `OBS-1` non blocca la v0.1, e di `#2793` restavano due caselle, ora chiuse*); poi
    `#2951`, `#2988`, `#2989`, `#2826`, `#2744`, `#2748`. `#2297` → `v0.2`; `#2554` e `#3063` nell'onda 4.
 
 🔑 **L'ultimo merge di quest'onda è il candidate v2.** Non si congela prima: ogni commit qui
