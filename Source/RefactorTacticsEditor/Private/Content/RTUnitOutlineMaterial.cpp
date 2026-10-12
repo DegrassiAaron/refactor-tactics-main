@@ -222,8 +222,10 @@ bool RTUnitOutlineMaterial::BuildGraph(UMaterial* Material)
 	}
 
 	UMaterialEditingLibrary::LayoutMaterialExpressions(Material);
+	// `PostEditChange` ricompila il materiale. ⛔ NON `UMaterialEditingLibrary::RecompileMaterial`: quella ricostruisce
+	// anche i dati di streaming delle texture compilando gli shader di debug, e senza un renderer va in crash
+	// (`BuildTextureStreamingData`, misurato sotto `-NullRHI` il 2026-10-12). Questo materiale non ha texture.
 	Material->PostEditChange();
-	UMaterialEditingLibrary::RecompileMaterial(Material);
 	Material->MarkPackageDirty();
 	return true;
 }

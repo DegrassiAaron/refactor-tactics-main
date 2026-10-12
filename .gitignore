@@ -170,6 +170,11 @@ Content/RT/UI/_Generated/
 # sull'emissive auto-illuminato e indipendente dalla luce di scena (#956).
 # Ammesso QUI prima che l'asset esista, per la stessa ragione dichiarata sopra per l'arena e per `M_HexCell`.
 !Content/RT/Core/Grid/M_HexOverlayFill.uasset
+# Il post-process del contorno delle unita' (#3705, D-508): un'unita' dice il suo piano col contorno del modello.
+# **Generato**, non autorato: lo scrive `UnrealEditor-Cmd ... -run=RTBuildUnitOutlineMaterial` dal clone principale
+# (D-229), e `UnitOutline.MaterialMatchesTheRecipe` confronta l'asset con la ricetta. Davanti a un conflitto su
+# questo binario si RIGENERA, non si fonde. L'oracolo resta `git check-ignore -q <file>` -> exit 1.
+!Content/RT/Characters/Shared/Materials/M_UnitLayerOutline.uasset
 # I Blueprint-unita' e gli anim BP del roster v0.1 — sedute U7 e U8. Stessa ragione dell'arena qui
 # sopra: riammessi PRIMA che esistano.
 # ⌫ **Il nome e la cartella seguivano il pack Paragon, e dal 2026-09-10 seguono l'identita' RT.**

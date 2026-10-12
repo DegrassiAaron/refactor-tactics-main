@@ -100,12 +100,12 @@ bool FRTUnitOutlineStencilPureTest::RunTest(const FString&)
 
 	// I tre stencil sono distinti e nessuno e' «nessun contorno»: un'unita' che si vede ha sempre il suo.
 	const uint8 Tutti[] = { StencilActive, StencilAbove, StencilBelow };
-	for (const uint8 A : Tutti)
+	for (int32 I = 0; I < UE_ARRAY_COUNT(Tutti); ++I)
 	{
-		TestTrue(*FString::Printf(TEXT("lo stencil %d non e' «nessun contorno»"), A), A != StencilNone);
-		for (const uint8 B : Tutti)
+		TestTrue(*FString::Printf(TEXT("lo stencil %d non e' «nessun contorno»"), Tutti[I]), Tutti[I] != StencilNone);
+		for (int32 J = I + 1; J < UE_ARRAY_COUNT(Tutti); ++J)
 		{
-			if (&A != &B) { TestTrue(*FString::Printf(TEXT("%d e %d sono distinti"), A, B), A != B); }
+			TestTrue(*FString::Printf(TEXT("gli stencil %d e %d sono distinti"), Tutti[I], Tutti[J]), Tutti[I] != Tutti[J]);
 		}
 	}
 
