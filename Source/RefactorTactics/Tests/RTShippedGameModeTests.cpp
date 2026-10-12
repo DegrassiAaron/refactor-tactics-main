@@ -227,6 +227,8 @@ bool FRTShippedGameModePacingStaysShortTest::RunTest(const FString&)
 	// chiede `Hero.Branth` in squadra 0 e **non esiste una console variable per il roster**, quindi l'unica
 	// strada e' il pannello Details. Senza questa riga, chi dimentica di ripristinare spedisce una partita
 	// diversa da quella dichiarata, e a schermo sembra normale.
+	// ➕ *Dal 2026-10-12 (`#2748`) la console variable ESISTE — `rt.Match.Team0`, e `-RTTeam0=` da riga di
+	// comando — e non tocca il `.uasset`. Questa riga resta per chi usa ancora il pannello Details.*
 	const ARTGameMode* CppCdo = ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>();
 	TestTrue(TEXT("ne' il roster della squadra 0"), Cdo->Team0Heroes == CppCdo->Team0Heroes);
 	TestTrue(TEXT("ne' quello della squadra 1"),    Cdo->Team1Heroes == CppCdo->Team1Heroes);

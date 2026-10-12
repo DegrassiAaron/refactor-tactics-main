@@ -726,6 +726,11 @@ sessions:
       - PIE-V01-PACKAGED
       - PIE-V01-PREPWINDOW
       - PIE-V01-SPECTATOR-ROSTER
+      # Convocata il 2026-10-12 da #2748: stesso allestimento — la modalita' non presidiata sulla mappa
+      # d'autore — e chi registra questa partita ha gia' l'Editor aperto. Ma non si spunta insieme alle
+      # altre: chiede di fermare e rilanciare il Play con un roster diverso scritto in console, e di
+      # azzerare le console variable a fine seduta.
+      - PIE-V01-VIEWER-ROSTER
       # Convocata il 2026-09-23 dal censimento di #2188, con la forma gia' usata per le due sorelle
       # qui sopra: condivide l'allestimento e non si spunta insieme alle altre. Questa e' LA partita
       # che si guarda senza giocarla — l'unico contesto in cui «la risoluzione resta leggibile» e' una

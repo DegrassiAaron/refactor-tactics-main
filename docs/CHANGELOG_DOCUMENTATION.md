@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-12 — #2748: il roster si sceglie fuori dall'Editor
+
+**Origine**: [#2748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2748), nella forma decisa da `D-507`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-507` (5): la mappa dedicata e la velocità iniziale, che erano non decise, lo sono |
+| [`technical/tooling/spec-manifesto-showcase.md`](technical/tooling/spec-manifesto-showcase.md) | §2: la riga dei roster e l'ingresso iniziale della velocità; §3 e §8: tre voci non sono più «da fare» |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-V01-VIEWER-ROSTER`; note in coda a `PIE-V01-MORTAR` e `PIE-V01-SHIELD-WRAITH`: la formazione si imposta da console |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U23` verifica anche la voce nuova |
+
+---
+
 ## 2026-10-12 — #2989: lo slot dichiara la propria unità, e la partita dichiara il proprio modo di input
 
 **Origine**: [#2989](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2989), i residui nominati da `D-507`.
