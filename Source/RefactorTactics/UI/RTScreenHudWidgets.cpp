@@ -1173,6 +1173,11 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	bArmed = bInArmed;
 	ReceivedCatalog = InCatalog;
 
+	// `#2989`: lo slot dichiara per quale unita' e' stato costruito — quella selezionata ORA, mentre il dock
+	// gli assegna l'azione. `Activate()` la confronta con la selezione del momento del click.
+	const ARTPlayerController* Proprietario = ResolveArmingController();
+	BuiltForUnit = Proprietario ? Proprietario->GetSelectedUnit() : nullptr;
+
 	// ⚠️ L'evento va per ULTIMO: e' il Blueprint che disegna, e disegna leggendo i tre campi qui sopra. Se
 	// partisse prima, un'implementazione che chiama `GetResolvedIcon()` leggerebbe il catalogo del turno
 	// PRECEDENTE — un difetto che a schermo somiglia a un ritardo di un frame invece che a un errore.
@@ -1570,6 +1575,22 @@ void URTActionSlotWidget::Activate()
 	// un posto solo, e un click non puo' aggirare un controllo che il tasto rispetta.
 	if (ARTPlayerController* PC = ResolveArmingController())
 	{
+		// 🔴 `#2989` — **uno slot costruito per un'altra unita' non arma, e non disarma.** L'indice che
+		// questo slot porta e' una posizione del kit di `BuiltForUnit`: inoltrato dopo un cambio di
+		// selezione armerebbe sulla nuova unita' un'azione che lo slot non ha mai mostrato, oppure — la
+		// porta fa toggle — spegnerebbe quella che il giocatore aveva appena armato. Al frame dopo il dock
+		// riassegna lo slot, e il click torna a valere.
+		//
+		// ⚠️ **Si dice, non si tace** (`#2986`): «ho cliccato e non e' successo niente» deve avere una riga.
+		const ARTUnit* Selezionata = PC->GetSelectedUnit();
+		if (BuiltForUnit.Get() != Selezionata)
+		{
+			UE_LOG(LogRT, Display,
+				TEXT("[RT] click sullo slot %d ignorato: lo slot era stato costruito per '%s', la selezione e' '%s'"),
+				Action.AbilityIndex, *GetNameSafe(BuiltForUnit.Get()), *GetNameSafe(Selezionata));
+			return;
+		}
+
 		PC->ArmKitAbility(Action.AbilityIndex);
 	}
 }

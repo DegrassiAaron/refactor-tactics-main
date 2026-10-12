@@ -1,0 +1,40 @@
+# Evidenza - il click sul dock arma, in una partita aperta DAL FRONTEND
+#
+# Estratto da `Saved/Logs/RefactorTactics_2.log` del clone principale: una seduta PIE del 2026-10-07,
+# Editor aperto alle 07:06:59 ora locale. I timestamp DENTRO le righe sono UTC (locale = UTC+2).
+# Il log non porta lo SHA: il clone era su `main`, e il suo reflog registra `3b50eaf7f` alle 07:05:26.
+#
+# Cosa prova: con `ARTPlayerController` che non chiama mai `SetInputMode`, un click su uno slot del dock
+# raggiunge `ArmKitAbility` (le righe «dallo slot del dock»), arma, e un secondo click disarma.
+#
+# Cosa NON prova, e va letto prima di citarlo:
+#   1. la partita e' stata aperta dal frontend (`RTFrontendGameMode`, poi `BP_GameMode_C` su `L_HexArena`),
+#      e il frontend chiama `SetInputMode(FInputModeGameAndUI())`. Le impostazioni del viewport possono
+#      arrivare alla partita da li': una partita aperta direttamente sulla mappa non e' misurata qui;
+#   2. nessuna riga «dal tasto» segue un click: che dopo un click sul dock i tasti raggiungano ancora il
+#      controller non e' misurato qui.
+#
+[2026.10.07-05.07.30:722][649]LogLoad: Game class is 'RTFrontendGameMode'
+[2026.10.07-05.07.30:722][649]LogWorld: Bringing World /Game/RT/Maps/Shared/L_Frontend/UEDPIE_0_L_Frontend.L_Frontend up for play (max tick rate 0) at 2026.10.07-07.07.30
+[2026.10.07-05.07.30:745][649]PIE: Play in editor total start time 0,121 seconds.
+[2026.10.07-05.07.32:634][859]LogLoad: Game class is 'BP_GameMode_C'
+[2026.10.07-05.07.32:637][859]LogWorld: Bringing World /Game/RT/Maps/Dev/L_HexArena/UEDPIE_0_L_HexArena.L_HexArena up for play (max tick rate 0) at 2026.10.07-07.07.32
+[2026.10.07-05.07.35:644][ 87]LogRT: [RT] Selezionata: BP_Unit_Aevik_C_0
+[2026.10.07-05.07.49:920][748]LogRT: Display: [RT] richiesta di armare la posizione 3 dallo slot del dock: armata su 'BP_Unit_Aevik_C_0'
+[2026.10.07-05.07.49:920][748]LogRT: Display: [RT] BP_Unit_Aevik_C_0: abilita' attiva -> Sovraccarico
+[2026.10.07-05.07.55:076][262]LogRT: Display: [RT] richiesta di disarmo dallo slot del dock: 'BP_Unit_Aevik_C_0' torna senza azione armata
+[2026.10.07-05.08.01:074][902]LogRT: Display: [RT] richiesta di armare la posizione 3 dallo slot del dock: armata su 'BP_Unit_Aevik_C_0'
+[2026.10.07-05.08.01:074][902]LogRT: Display: [RT] BP_Unit_Aevik_C_0: abilita' attiva -> Sovraccarico
+[2026.10.07-05.08.01:957][993]LogRT: Display: [RT] richiesta di disarmo dallo slot del dock: 'BP_Unit_Aevik_C_0' torna senza azione armata
+[2026.10.07-05.08.02:560][ 53]LogRT: [RT] Timer scaduto -> lock-in automatico
+[2026.10.07-05.08.02:583][ 53]LogRT: [RT] Turno 2 - pianificazione
+[2026.10.07-05.08.03:394][140]LogRT: Display: [RT] richiesta di armare la posizione 2 dallo slot del dock: armata su 'BP_Unit_Aevik_C_0'
+[2026.10.07-05.08.03:394][140]LogRT: Display: [RT] BP_Unit_Aevik_C_0: abilita' attiva -> Nodo conduttivo
+[2026.10.07-05.08.03:912][195]LogRT: Display: [RT] richiesta di disarmo dallo slot del dock: 'BP_Unit_Aevik_C_0' torna senza azione armata
+[2026.10.07-05.08.04:660][272]LogRT: Display: [RT] richiesta di armare la posizione 1 dallo slot del dock: armata su 'BP_Unit_Aevik_C_0'
+[2026.10.07-05.08.04:660][272]LogRT: Display: [RT] BP_Unit_Aevik_C_0: abilita' attiva -> Scarica lineare
+[2026.10.07-05.08.05:522][362]LogRT: Display: [RT] richiesta di disarmo dallo slot del dock: 'BP_Unit_Aevik_C_0' torna senza azione armata
+[2026.10.07-05.08.07:767][590]LogRT: Display: [RT] richiesta di armare la posizione 1 dallo slot del dock: armata su 'BP_Unit_Aevik_C_0'
+[2026.10.07-05.08.07:767][590]LogRT: Display: [RT] BP_Unit_Aevik_C_0: abilita' attiva -> Scarica lineare
+[2026.10.07-05.08.09:441][754]LogRT: [RT] Selezionata: BP_Unit_Muiren_C_0
+[2026.10.07-05.08.14:555][256]LogWorld: BeginTearingDown for /Game/RT/Maps/Dev/L_HexArena/UEDPIE_0_L_HexArena

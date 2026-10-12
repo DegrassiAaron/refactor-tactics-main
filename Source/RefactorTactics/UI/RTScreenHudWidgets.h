@@ -1696,6 +1696,23 @@ public:
 	TWeakObjectPtr<ARTPlayerController> ArmingControllerForTest;
 
 	/**
+	 * L'unita' SELEZIONATA nel momento in cui il dock ha assegnato questa azione allo slot (`#2989`): e'
+	 * cio' che lo slot dichiara come «la propria unita'».
+	 *
+	 * 🔴 **Senza, un click arma su CHI E' SELEZIONATO ADESSO l'indice che lo slot mostrava per un'altra.**
+	 * `Activate()` inoltra `Action.AbilityIndex`, e l'indice e' una posizione di kit: la terza di Aevik e la
+	 * terza di Muiren sono due azioni diverse. Fra `SetAction` e il click la selezione puo' cambiare — con
+	 * `N` anche a mouse premuto — e la porta fa toggle: lo stesso click puo' ARMARE l'azione sbagliata o
+	 * DISARMARE quella giusta.
+	 *
+	 * ⚠️ **Scritto in `SetAction`, letto in `Activate()`, e non e' una `UPROPERTY`**: il grafo non ha niente
+	 * da leggerci, e un puntatore debole non ha bisogno della riflessione per non tenere in vita l'unita'.
+	 * La sorgente e' la stessa selezione che `ArmKitAbility` userebbe, campionata in due momenti: il
+	 * confronto vede il cambio, non nomina un secondo proprietario.
+	 */
+	TWeakObjectPtr<const ARTUnit> BuiltForUnit;
+
+	/**
 	 * Il controller a cui inoltrare: l'iniezione dei test PRIMA, il proprietario poi.
 	 *
 	 * ⚠️ **L'ordine e' lo stesso di `URTScreenHudWidgetBase::GetSelectedUnit()`, e per la stessa ragione
