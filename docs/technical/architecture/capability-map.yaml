@@ -1653,17 +1653,21 @@ capabilities:
         - Source/RefactorTactics/Unit/RTUnit.cpp
         - Source/RefactorTactics/Unit/RTPresentationRole.h
         - Source/RefactorTactics/Unit/RTContactGhostAnimInstance.h
+        - Source/RefactorTactics/Unit/RTUnitLayerOutline.h
+        - Source/RefactorTactics/Unit/RTUnitLayerOutline.cpp
+        - Source/RefactorTacticsEditor/Private/Content/RTBuildUnitOutlineMaterialCommandlet.h
         - Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
         - Content/RT/Characters/Shared/Materials/M_SelectionRing.uasset
         - Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset
-    issues: { open: [286, 1750, 2545, 1095, 2167], closed: [287] }
+        - Content/RT/Characters/Shared/Materials/M_UnitLayerOutline.uasset
+    issues: { open: [286, 1750, 2545, 1095, 2167, 3705], closed: [287] }
     consumers: [RT-CAP-FOG-PRESENTATION, RT-CAP-GRAYKIT-PLAYGROUND]
     dependencies: [RT-CAP-ANIMATION-RUNTIME, RT-CAP-FACING, RT-CAP-TEAM-KNOWLEDGE]
     tests:
-      automation: ["RefactorTactics.Unit.*", "RefactorTactics.UnitIdentity.*", "RefactorTactics.Graybox.*"]
+      automation: ["RefactorTactics.Unit.*", "RefactorTactics.UnitIdentity.*", "RefactorTactics.Graybox.*", "RefactorTactics.UnitOutline.*"]
       scenarios: []
       mutation: []
-    verification: { pie: [PIE-FACING-1], packaged: [G13] }
+    verification: { pie: [PIE-FACING-1, PIE-CAM-CONTORNO-UNITA], packaged: [G13] }
     risks:
       - "#1750: la sagoma dell'ultimo contatto si disegna in POSA DI RIFERIMENTO — «le catene
          di Riktor si stendono sullo schermo»."

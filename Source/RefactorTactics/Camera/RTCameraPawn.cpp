@@ -2,6 +2,7 @@
 #include "RefactorTactics.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Materials/MaterialInstanceDynamic.h" // #3705: il post-process del contorno delle unita'
 #include "Map/RTHexLibrary.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h" // #3661: il rettangolo del giocatore per l'aspetto del limite del pivot
@@ -46,6 +47,81 @@ ARTCameraPawn::ARTCameraPawn()
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
+
+	// #3705: il percorso ha un owner, ed e' lo stesso che il commandlet scrive. Soft: non si carica finche' non serve.
+	UnitLayerOutlineMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(
+		FString::Printf(TEXT("%s.%s"), RTUnitLayerOutline::MaterialPackage, RTUnitLayerOutline::MaterialName)));
+}
+
+bool ARTCameraPawn::SyncUnitLayerOutline(const FRTUnitLayerOutlineTuning& Tuning)
+{
+	if (Camera == nullptr)
+	{
+		return false;
+	}
+
+	if (UnitLayerOutlineDynMaterial == nullptr)
+	{
+		if (bOutlineMaterialResolved)
+		{
+			return false; // gia' tentato, l'asset non c'e': nessun contorno, e nessun caricamento fallito a ogni fotogramma
+		}
+		bOutlineMaterialResolved = true;
+
+		UMaterialInterface* Base = UnitLayerOutlineMaterial.LoadSynchronous();
+		if (Base == nullptr)
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] %s non risolve: le unita' non avranno il contorno del piano (#3705)."),
+				*UnitLayerOutlineMaterial.ToString());
+			return false;
+		}
+		UnitLayerOutlineDynMaterial = UMaterialInstanceDynamic::Create(Base, this);
+		if (UnitLayerOutlineDynMaterial == nullptr)
+		{
+			return false;
+		}
+
+		// I tre colori NON stanno nell'asset: vengono dalla regola dei bordi, in lineare come il materiale li usa.
+		const uint8 Stencils[] = { RTUnitLayerOutline::StencilActive, RTUnitLayerOutline::StencilAbove,
+			RTUnitLayerOutline::StencilBelow };
+		for (const uint8 Stencil : Stencils)
+		{
+			FColor Colore;
+			if (RTUnitLayerOutline::ColorFor(Stencil, Colore))
+			{
+				UnitLayerOutlineDynMaterial->SetVectorParameterValue(RTUnitLayerOutline::ColorParamFor(Stencil),
+					FLinearColor::FromSRGBColor(Colore));
+			}
+		}
+		bOutlineTuningApplied = false;
+	}
+
+	if (bOutlineTuningApplied && AppliedOutlineTuning == Tuning)
+	{
+		return false; // il caso di ogni fotogramma
+	}
+	AppliedOutlineTuning = Tuning;
+	bOutlineTuningApplied = true;
+
+	UnitLayerOutlineDynMaterial->SetScalarParameterValue(RTUnitLayerOutline::ParamThickness, Tuning.ThicknessPx);
+	// `AddBlendable` aggiorna il peso se l'oggetto c'e' gia': spento vuol dire peso zero, e il passaggio non gira.
+	Camera->PostProcessSettings.AddBlendable(UnitLayerOutlineDynMaterial.Get(), Tuning.bEnabled ? 1.f : 0.f);
+	return true;
+}
+
+float ARTCameraPawn::GetUnitLayerOutlineWeightForTest() const
+{
+	if (Camera != nullptr && UnitLayerOutlineDynMaterial != nullptr)
+	{
+		for (const FWeightedBlendable& Voce : Camera->PostProcessSettings.WeightedBlendables.Array)
+		{
+			if (Voce.Object == UnitLayerOutlineDynMaterial)
+			{
+				return Voce.Weight;
+			}
+		}
+	}
+	return -1.f;
 }
 
 void ARTCameraPawn::FocusOn(const FVector& WorldLocation)

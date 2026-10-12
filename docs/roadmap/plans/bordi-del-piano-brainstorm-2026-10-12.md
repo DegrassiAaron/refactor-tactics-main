@@ -79,3 +79,5 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
    ➕ *2026-10-12, sera:* con #3704 su `main` la piattaforma non si distingueva ancora. L'ha chiusa #3674, schiarendo
    i piani sopra.
 2. **#3705** e **#3706**, indipendenti fra loro, dopo #3704.
+   ➕ *2026-10-13:* #3705 è attuata con un post-process su custom depth; il contorno di chi sta sotto il piano
+   attivo passa attraverso la geometria. Aspetta il giudizio dell'autore (`PIE-CAM-CONTORNO-UNITA`).

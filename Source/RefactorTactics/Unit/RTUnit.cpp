@@ -3,6 +3,7 @@
 #include "Turn/RTHexSimLibrary.h" // #79: ClassifyWaypointCell classifica il rifiuto, qui non si decide nulla
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
 #include "Unit/RTGraykitLibrary.h" // #2880: gli anchor dei bracci si risolvono da li', non da numeri qui
+#include "Unit/RTUnitLayerOutline.h" // #3705: lo stencil del contorno che dice il piano
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h" // AimOriginCell: l'origine di mira ha una regola sola ([D-464])
@@ -540,6 +541,35 @@ void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 	}
 }
 
+void ARTUnit::SetLayerOutlineStencil(uint8 InStencil)
+{
+	if (LayerOutlineStencil == InStencil)
+	{
+		return; // lo chiama l'HUD a ogni fotogramma: niente churn di stato render
+	}
+	LayerOutlineStencil = InStencil;
+	RefreshComponentVisibility();
+}
+
+uint8 ARTUnit::GetRenderedOutlineStencilForTest() const
+{
+	int32 Trovato = INDEX_NONE;
+	const UPrimitiveComponent* Corpi[] = { Mesh, LeftArm, RightArm, FindHeroSkeletal() };
+	for (const UPrimitiveComponent* Corpo : Corpi)
+	{
+		if (Corpo == nullptr || !Corpo->GetVisibleFlag() || !Corpo->bRenderCustomDepth)
+		{
+			continue;
+		}
+		if (Trovato != INDEX_NONE && Trovato != Corpo->CustomDepthStencilValue)
+		{
+			return 255; // due corpi mostrati con stencil diversi: non e' il contorno di nessun piano
+		}
+		Trovato = Corpo->CustomDepthStencilValue;
+	}
+	return Trovato == INDEX_NONE ? RTUnitLayerOutline::StencilNone : static_cast<uint8>(Trovato);
+}
+
 bool ARTUnit::IsContactTokenVisibleForTest() const
 {
 	return ContactToken != nullptr && ContactToken->GetVisibleFlag();
@@ -674,6 +704,21 @@ void ARTUnit::RefreshComponentVisibility()
 	// `RTBuildAnimBindings` genera dai binding autorati (#2443).
 	const bool bHasPose = !GhostFallbackClipPath().IsNull();
 
+	// #3705: il contorno che dice il piano segue il CORPO mostrato, riga per riga qui sotto. Un corpo spento esce dal
+	// custom depth anche se lo stato porta uno stencil: e' cio' che fa valere «chi non si vede non ha contorno» senza
+	// contare sul fatto che un componente invisibile non si disegna. Gli anelli, la freccia e il ricordo non lo
+	// ricevono: il contorno e' del modello ([D-508]), e la sagoma dell'ultimo contatto non deve dire una quota.
+	auto ApplicaContorno = [this](UPrimitiveComponent* Corpo, bool bMostrato)
+	{
+		if (Corpo == nullptr)
+		{
+			return;
+		}
+		const bool bConContorno = bMostrato && LayerOutlineStencil != RTUnitLayerOutline::StencilNone;
+		Corpo->SetCustomDepthStencilValue(bConContorno ? LayerOutlineStencil : RTUnitLayerOutline::StencilNone);
+		Corpo->SetRenderCustomDepth(bConContorno);
+	};
+
 	// 🔴 Si nascondono i COMPONENTI, non l'actor. `SetActorHiddenInGame` propaga a tutti i componenti,
 	// sagoma dell'ultimo contatto compresa (Task 6) — che deve vedersi proprio quando l'unita' non si vede.
 	//
@@ -709,6 +754,7 @@ void ARTUnit::RefreshComponentVisibility()
 			Mesh->SetHiddenInGame(false);
 		}
 		Mesh->SetVisibility(bShowPlaceholder, /*bPropagateToChildren*/ false);
+		ApplicaContorno(Mesh, bShowPlaceholder);
 	}
 
 	// 🔴 **I bracci graykit seguono lo STESSO predicato del cilindro** (#2880), e non uno proprio. Sono parte
@@ -734,6 +780,8 @@ void ARTUnit::RefreshComponentVisibility()
 	{
 		RightArm->SetVisibility(bShowGraykitLimbs, /*bPropagateToChildren*/ false);
 	}
+	ApplicaContorno(LeftArm, bShowGraykitLimbs);
+	ApplicaContorno(RightArm, bShowGraykitLimbs);
 
 	// L'anello di squadra esiste solo se `ApplyTeamColor` ha trovato il materiale: senza, il ripiego e' il
 	// colore sul cilindro, e accenderlo mostrerebbe un disco grigio che non dice niente.
@@ -787,7 +835,9 @@ void ARTUnit::RefreshComponentVisibility()
 	{
 		// #2545: si mostra solo se c'e' una posa. Senza, resterebbe a schermo in T-pose SOTTO il cilindro
 		// che il predicato di sopra ha appena acceso — due corpi invece di un segnaposto.
-		HeroSkeletal->SetVisibility(ShouldShowHeroSkeletal(bRender, bHasPose, bStrategicPresentation), false);
+		const bool bShowHero = ShouldShowHeroSkeletal(bRender, bHasPose, bStrategicPresentation);
+		HeroSkeletal->SetVisibility(bShowHero, false);
+		ApplicaContorno(HeroSkeletal, bShowHero);
 	}
 
 	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
