@@ -683,14 +683,17 @@ namespace
  * OVUNQUE, bot compreso**: una divergenza dei piani per occupazione ignota non e' legittima, e' il difetto.
  * Il perche' sta in [D-371], non qui — questo docstring ne era la sede, e smette di esserlo.
  *
- * ⚠️ **La premessa resta com'era — nascosto lontano dal corridoio, distanza 6 con vista 3 — ma come LIMITE
- * DICHIARATO e non piu' come difesa.** Spostarla dentro il corridoio renderebbe questo test ROSSO oggi:
- * il filtro che [D-371] adotta non e' ancora implementato, e dove viva e' `BLIND-2`, aperta e agganciata a
- * `OBS-1`. ∴ la premessa si muove **con** quel filtro, non prima.
+ * ⚠️ **La premessa resta com'era — nascosto lontano dal corridoio, distanza 6 con vista 3 — come LIMITE
+ * DICHIARATO e non come difesa.** Il filtro che [D-371] adotta e' in vigore da [D-432] (`#3260`): a
+ * impedire di portare il nascosto dentro il corridoio non e' piu' il filtro che manca, e' la geometria di
+ * questo banco — la rotta del bot e' piu' corta della sua vista (vedi il record nel corpo del test).
+ * ⏱️ *Fino al 2026-10-12 questo paragrafo diceva che il filtro non era ancora implementato e che `BLIND-2`
+ * era aperta: entrambe le cose erano cadute il 2026-09-21.*
  *
- * 🔑 **E il caso che la premessa esclude NON e' scoperto**: lo misura la sonda
- * `RefactorTactics.BlindActions.*` (`Tests/RTBlindActionsLeakMeasureTests.cpp`) con zero, uno e due nemici
- * ignoti sulla stessa cella — ventaglio **61 / 60 / 59**, costo **4 / 5 / 5**.
+ * 🔑 **E il caso che la premessa esclude NON e' scoperto**: per il bot lo misura
+ * `HexBotPlay.ThreeWorldsAgreeOnTheBotPlan`, qui sotto, con una rotta piu' lunga della vista; per chi
+ * pianifica a mano lo misura `RefactorTactics.BlindActions.*` (`Tests/RTBlindActionsLeakMeasureTests.cpp`),
+ * con zero, uno e due nemici ignoti sulla stessa cella — ventaglio e costo identici nei tre mondi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenEnemyFairnessTest,
 	"RefactorTactics.HexBotPlay.HiddenEnemyFairness",
@@ -761,6 +764,94 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 		|| Left.bHasAttackTarget
 		|| Left.DashAbility != INDEX_NONE;
 	TestTrue(TEXT("premessa: nelle due partite il bot ha davvero pianificato qualcosa"), bDidSomething);
+	return true;
+}
+
+/**
+ * [D-371] (c), `#2793` — **il piano del bot non dipende da chi sta, non visto, sulla sua rotta.**
+ *
+ * 🔑 **E' il caso che `HiddenEnemyFairness` non puo' misurare**, per la ragione scritta li': con un nemico visto
+ * a due celle la rotta del bot e' piu' corta della sua vista, e niente di ignoto puo' starle in mezzo. Qui il bot
+ * non vede nessuno e CERCA: va verso il centro — geometria pubblica, la condotta di
+ * `SeeksContactWithoutKnowledge` — con una rotta piu' lunga della vista. Sulla fila `r = 0` il percorso piu'
+ * corto e' UNICO: un corpo in mezzo costringerebbe un bot che lo conosce ad aggirarlo, e l'aggiramento costa un
+ * passo in piu', quindi a scegliere un'altra cella.
+ *
+ * Tre mondi identici per conoscenza autorizzata — gli stessi due nemici, sempre fuori vista — e diversi solo
+ * per DOVE stanno: lontano dalla rotta (`A`), uno sulla rotta (`B`), due sulla rotta (`C`). E' la forma dei
+ * canary `RefactorTactics.BlindActions.ThreeWorlds*`, portata al livello che quelli non toccano: il
+ * pianificatore dei bot, che costruisce i propri snapshot con `URTHexSimLibrary::AsObserver`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotThreeWorldsAgreeOnThePlanTest,
+	"RefactorTactics.HexBotPlay.ThreeWorldsAgreeOnTheBotPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotThreeWorldsAgreeOnThePlanTest::RunTest(const FString&)
+{
+	const FRTCellId Partenza(5, 0);
+	const FRTCellId SullaRotta1(2, 0); // distanza 3 dal bot
+	const FRTCellId SullaRotta2(1, 0); // distanza 4
+	const FRTCellId Lontano1(-6, 3);
+	const FRTCellId Lontano2(-6, 6);
+	const int32 Vista = 2;             // dichiarata qui: la premessa non dipende dal bilanciamento del roster
+
+	struct FMondo
+	{
+		FRTBotPlanFingerprint Piano;
+		bool bOk = false;
+	};
+	auto Pianifica = [&](const FRTCellId& Nascosto1, const FRTCellId& Nascosto2) -> FMondo
+	{
+		FMondo M;
+		UWorld* World = MakeHexBotWorld();
+		if (!World) { return M; }
+		SpawnHexBotMap(World, /*Radius=*/ 6);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Partenza, /*bBot*/ true);
+		ARTUnit* N1 = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Nascosto1, /*bBot*/ false);
+		ARTUnit* N2 = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), Nascosto2, /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !N1 || !N2) { DestroyHexBotWorld(World); return M; }
+		Bot->VisionRange = Vista;
+		// In OGNI mondo i due nemici sono fuori vista: e' cio' che rende i tre mondi uguali per chi pianifica.
+		if (URTHexLibrary::HexDistance(Bot->Cell, N1->Cell) <= Vista || URTHexLibrary::HexDistance(Bot->Cell, N2->Cell) <= Vista)
+		{
+			DestroyHexBotWorld(World);
+			return M;
+		}
+		TM->PlanBotsForTest();
+		M.Piano = FingerprintOfBotPlan(Bot);
+		DestroyHexBotWorld(World);
+		M.bOk = true;
+		return M;
+	};
+
+	const FMondo A = Pianifica(Lontano1, Lontano2);
+	const FMondo B = Pianifica(SullaRotta1, Lontano2);
+	const FMondo C = Pianifica(SullaRotta1, SullaRotta2);
+	if (!TestTrue(TEXT("premessa: i tre mondi sono allestiti, coi nemici fuori vista"), A.bOk && B.bOk && C.bOk))
+	{
+		return false;
+	}
+	auto Descrivi = [](const FRTBotPlanFingerprint& P)
+	{
+		return FString::Printf(TEXT("cella (%d,%d) scatto %d verso (%d,%d) azione %d"),
+			P.Cell.X, P.Cell.Y, P.DashAbility, P.DashCell.X, P.DashCell.Y, P.AbilityIndex);
+	};
+	AddInfo(FString::Printf(TEXT("A: %s | B: %s | C: %s"), *Descrivi(A.Piano), *Descrivi(B.Piano), *Descrivi(C.Piano)));
+
+	// ⛔ **La premessa che rende il test capace di fallire**: nel mondo senza ostacoli il piano ATTRAVERSA le
+	// celle dove gli altri mondi mettono i nascosti. La meta sta sulla fila, alla prima cella nascosta o oltre:
+	// se il bot scegliesse altrove, un corpo sulla fila non cambierebbe niente e l'uguaglianza sarebbe gratis.
+	const FRTCellId Meta = A.Piano.Cell;
+	if (!TestTrue(*FString::Printf(TEXT("⛔ premessa: la rotta del bot passa dalla cella del nascosto (meta (%d,%d))"), Meta.X, Meta.Y),
+			Meta.Y == 0 && Meta.X <= SullaRotta1.X && Meta.Layer == Partenza.Layer))
+	{
+		return false;
+	}
+
+	TestTrue(*FString::Printf(TEXT("🔴 un nemico ignoto sulla rotta non cambia il piano — A: %s · B: %s"),
+			*Descrivi(A.Piano), *Descrivi(B.Piano)), A.Piano == B.Piano);
+	TestTrue(*FString::Printf(TEXT("🔴 ne' due — A: %s · C: %s"), *Descrivi(A.Piano), *Descrivi(C.Piano)),
+		A.Piano == C.Piano);
 	return true;
 }
 

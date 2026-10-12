@@ -356,6 +356,11 @@ Misurato su `origin/main` `c3151afd`. Issue correlate: #952 · #2744 · #1769 ·
 dichiara `OBS-1` come *out of scope*. Questa voce serve a impedire che un `ObserverMode` entri di
 straforo dentro un lavoro di HUD.
 
+➕ **Confermato dall'autore il 2026-10-12, [`D-506`](decisions/RT_PDR_00_Decision_Log.md)**: per la v0.1 la vista in partita resta
+la squadra del giocatore (`ARTPlayerState::TeamIdOf`) più il ramo della sessione non presidiata; nessuna modalità
+osservatore entra prima del freeze. ⚠️ **`OBS-1` resta APERTA**, con una scadenza: si decide prima di `E40`
+([#773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/773)).
+
 ### ➕ `SHOW-1` e `SHOW-2` — la forma in cui uno showcase si dichiara, dalla discovery #2745 del 2026-09-23
 
 Esito di [#2745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2745), issue di **discovery**.

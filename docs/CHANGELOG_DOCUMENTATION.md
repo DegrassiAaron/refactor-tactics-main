@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-12 — D-506: in v0.1 la vista resta la squadra del giocatore; #2793 chiude
+
+**Origine**: [#2793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2793), le sue due caselle residue, e `OBS-1`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-506`, nuova; `D-484` (1) corretta: `BLIND-2` e `OBS-1` non erano da decidere prima del freeze |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `OBS-1` resta aperta, con la conferma sulla v0.1 e la scadenza prima della rete |
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | §4, onda 2: la stessa correzione |
+
+---
+
 ## 2026-10-12 — La sequenza di chiusura della v0.1: il referto del panel, l'Onda 0 e D-483–D-487
 
 **Origine**: le PR [#3603](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3603), [#3604](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3604) e [#3606](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3606), scritte il 2026-10-09 e mergiate il 2026-10-12. I testi portano la data e lo SHA su cui sono stati misurati.
