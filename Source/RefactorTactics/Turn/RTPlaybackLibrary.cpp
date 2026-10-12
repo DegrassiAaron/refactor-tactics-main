@@ -48,12 +48,13 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 }
 
 bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
-	int32 NumStructureHits, int32 NumActivations)
+	int32 NumStructureHits, int32 NumActivations, int32 NumHeals)
 {
 	// Le ragioni sono indipendenti (colpi, spinta, impronte, muri, attivazioni); l'ultima e' quella di #3549:
 	// un Blast di sole cure si vede. ⛔ Nessuna
 	// somma e nessuna soglia: basta che UNA sia vera.
-	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0;
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0
+		|| NumHeals > 0; // [D-505]: una cura vista sul curato, il cui gesto chi guarda non vede
 }
 
 void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
@@ -835,6 +836,7 @@ namespace
 		case ERTResolvedEventType::AttackFootprint:  return 1;
 		case ERTResolvedEventType::StructureHit:     return 2;
 		case ERTResolvedEventType::Attack:           return 3;
+		case ERTResolvedEventType::Healed:           return 4; // [D-505]: nell'atto della cura, dopo il gesto
 		default:                                     return -1; // `ArcHit` compreso: #3293
 		}
 	}

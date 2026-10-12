@@ -247,7 +247,8 @@ void URTUnitOverlayWidget::PushDamageToken(const FRTDamageTokenView& Token)
 	TokenElapsed = 0.f;
 	bTokenActive = true;
 
-	if (Token.bHasDamage)
+	// #3600: la pulsazione la decide il token (`bPulsesHealthBar`), perche' anche una cura cambia la vita.
+	if (Token.bPulsesHealthBar)
 	{
 		PulseHealthBar();
 	}

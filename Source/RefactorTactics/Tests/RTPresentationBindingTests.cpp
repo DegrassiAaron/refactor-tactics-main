@@ -59,6 +59,7 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	//   7 -> 8   2026-09-22   `StructureHit`      (#2828)
 	//   8 -> 9   2026-09-24   `ArcHit`            (#3280, [D-437])
 	//   9 -> 10  2026-10-07   `AbilityActivated`  (#3549, il momento: entra CON cue, `PlayCastMontage`)
+	//  10 -> 11  2026-10-12   `Healed`            (#3600, [D-505]: entra CON cue, `ShowHealToken`)
 	// Quattro volte su quattro e' fallita per prima e ha mandato a dichiarare la presentazione del valore
 	// nuovo — l'ultima compresa: `ArcHit` e' entrato in `DeclaredBindings()` come voce IN ATTESA con owner
 	// `#3293` perche' questa riga ha chiesto conto del nono valore.
@@ -67,8 +68,8 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
 	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
 	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
-	TestEqual(TEXT("ERTResolvedEventType dichiara dieci valori: l'ultimo aggiunto ha una voce nella tabella?"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 10);
+	TestEqual(TEXT("ERTResolvedEventType dichiara undici valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 11);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.

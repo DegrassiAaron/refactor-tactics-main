@@ -2248,4 +2248,39 @@ bool FRTPrivacyStructureHitHiddenTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-505], `#3600` — **la cura entra nel suo atto, dopo il gesto, e da sola apre la fase.**
+ *
+ * 🔑 **La voce `Healed` sta in TESTA alla timeline**, prima del gesto: in un turno vero arriva dopo
+ * (`ApplyPlannedHeals` gira a danno risolto), ma l'ordine dentro l'atto lo decide il RANGO, non la posizione — ed
+ * e' cio' che questo test misura. La seconda meta' e' il caso che il sesto termine di `BlastPhaseIsActive`
+ * esiste per coprire: il gesto nascosto a chi guarda, il curato visto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackHealedJoinsItsActTest,
+	"RefactorTactics.Playback.HealedJoinsItsActAfterTheGesture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackHealedJoinsItsActTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::Healed,           1, TEXT("Action.Heal")));   // 0  la cura applicata
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B")));             // 1  un colpo, prima
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("B")));             // 2
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal")));   // 3  il gesto della cura
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0);
+	const TArray<int32> Atteso = { 1, 2, 3, 0 };
+	TestEqual(TEXT("🔴 il colpo, poi il gesto della cura e il suo «+N»"), SeqIndici(S), Atteso);
+
+	// Il gesto nascosto a chi guarda: il curato si vede lo stesso, e la fase deve aprirsi per lui.
+	TArray<FRTResolvedEvent> Nascosto;
+	Nascosto.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal"), /*bNascosto*/ true));
+	Nascosto.Add(SeqEvento(ERTResolvedEventType::Healed,           1, TEXT("Action.Heal")));
+	const TArray<FRTBlastSequenceElement> SN = URTPlaybackLibrary::BuildBlastSequence(Nascosto, {}, 0, /*Viewer*/ 0);
+	const TArray<int32> SoloCura = { 1 };
+	TestEqual(TEXT("il gesto nascosto non entra, la cura si'"), SeqIndici(SN), SoloCura);
+	TestTrue(TEXT("🔴 una sola cura apre il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, /*NumActivations*/ 0, /*NumHeals*/ 1));
+	TestFalse(TEXT("e senza nulla resta chiuso"), URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0, 0));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

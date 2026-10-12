@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-12 — D-505: la cura ha un momento nel playback
+
+**Origine**: [#3600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3600), decisione d'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-505`, nuova |
+| [`superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md`](superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md) | §6: i «numeri verdi» della cura non esistevano; ora «+N», il colore da decidere |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CLIP-ABILITA`: nota in coda, il momento della cura da osservare |
+
+---
+
 ## 2026-10-12 — D-504: nel Blast le cure ricontrollano la linea di tiro
 
 **Origine**: [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598), decisione d'autore.

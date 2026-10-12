@@ -505,4 +505,76 @@ bool FRTHealLineOfSightIsCheckedInTheBlastTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-505], `#3600` — **la cura ha un momento sul curato**: un `Healed` per ogni voce `Healed` del TurnLog, e a
+ * playback finito il token del curato dice `+N`.
+ *
+ * 🔑 **Tre forme in un turno**: una cura singola su una ferita, un'area con due ferite e una caduta. La caduta non
+ * produce il momento — non e' stata curata —, le altre si', con l'importo restituito davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealEmitsItsMomentTest,
+	"RefactorTactics.Actions.Heal.EmitsAMomentOnTheHealed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealEmitsItsMomentTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnHealMap(World, 6);
+	// Curatrice singola in (-3,0) su Lontana (-1,0); CircularTide da (3,0) centrata su (2,0): A1 (2,0), A2 (1,0), Morta (2,-1).
+	ARTUnit* Singola = SpawnHealUnit(World, 0, FRTCellId(-3, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
+	ARTUnit* Lontana = SpawnHealUnit(World, 0, FRTCellId(-1, 0, 0), URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Tide = SpawnHealUnit(World, 0, FRTCellId(3, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
+	ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
+	ARTUnit* A2 = SpawnHealUnit(World, 0, FRTCellId(1, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
+	ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(2, -1, 0), URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-5, 3, 0), URTHeroCatalogLibrary::MakeIvrin());
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Singola || !Lontana || !Tide || !A1 || !A2 || !Morta || !Nemico || !TM) { return false; }
+	Lontana->Health -= 40; A1->Health -= 40; A2->Health -= 40; Morta->Health = 0;
+	const int32 PrimaL = Lontana->Health, PrimaA1 = A1->Health, PrimaA2 = A2->Health;
+
+	const int32 Cura = RTAbilityFixtures::AddCoreAbility(Singola, TEXT("Action.Heal"));
+	Singola->PlannedAbilityIndex = Cura;
+	Singola->PlannedCell = Singola->Cell;
+	Singola->DeclareAttackOnUnit(Lontana);
+	if (!TestTrue(TEXT("premessa: CircularTide c'e'"), PianificaTideSuCella(Tide, FRTCellId(2, 0, 0)) != INDEX_NONE)) { return false; }
+
+	RunHealTurn(TM);
+
+	TArray<const FRTResolvedEvent*> Momenti;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if (Ev.Type == ERTResolvedEventType::Healed) { Momenti.Add(&Ev); }
+	}
+	TestEqual(TEXT("🔴 un momento per voce Healed del TurnLog"), Momenti.Num(),
+		ConteggioVoci(TM, ERTLogCategory::Combat, static_cast<uint8>(ERTCombatOutcome::Healed)));
+	auto MomentoDi = [&Momenti](const ARTUnit* U) -> const FRTResolvedEvent*
+	{
+		for (const FRTResolvedEvent* Ev : Momenti) { if (Ev->TargetStableUnitId == U->StableUnitId) { return Ev; } }
+		return nullptr;
+	};
+	if (const FRTResolvedEvent* M = MomentoDi(Lontana); TestNotNull(TEXT("la ferita della cura singola ha il suo momento"), M))
+	{
+		TestEqual(TEXT("chi ha curato"), M->SourceStableUnitId, Singola->StableUnitId);
+		TestEqual(TEXT("quanto, davvero"), M->Amount, Lontana->Health - PrimaL);
+		TestEqual(TEXT("con quale azione"), M->ActionId, FName(TEXT("Action.Heal")));
+		TestTrue(TEXT("nel Blast"), M->Phase == ERTMatchPhase::Blast);
+	}
+	if (const FRTResolvedEvent* M = MomentoDi(A1); TestNotNull(TEXT("A1, nell'area"), M))
+	{
+		TestEqual(TEXT("A1: quanto, davvero"), M->Amount, A1->Health - PrimaA1);
+		TestEqual(TEXT("A1: l'azione della cura ad area"), M->ActionId, FName(TEXT("Hero.Muiren.CircularTide")));
+	}
+	TestNotNull(TEXT("A2, nell'area"), MomentoDi(A2));
+	TestNull(TEXT("⛔ la caduta non e' stata curata: nessun momento"), MomentoDi(Morta));
+
+	// A playback finito il token del curato e' quello della cura.
+	TestEqual(TEXT("🔴 il token della ferita dice «+N»"), Lontana->LastDamageToken.Label,
+		FString::Printf(TEXT("+%d"), Lontana->Health - PrimaL));
+	TestTrue(TEXT("ed e' una cura"), Lontana->LastDamageToken.bIsHeal);
+	TestEqual(TEXT("anche nell'area"), A2->LastDamageToken.Label, FString::Printf(TEXT("+%d"), A2->Health - PrimaA2));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
