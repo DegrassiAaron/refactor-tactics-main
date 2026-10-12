@@ -1573,6 +1573,16 @@ protected:
 	/** #3679 — scrive il trattamento di `PresentedActiveLayer` su tutte le famiglie che lo ricevono. */
 	void ApplyLayerPresentation();
 
+	/** #3704 — la mappa disegnata ha piu' di un piano: lo misura `ApplyLayerPresentation`, sulle istanze. */
+	bool bPresentationMultiLayer = false;
+
+	/**
+	 * #3704 — il colore di base del bordo di una cella ([D-508]): nero sul piano attivo, bianco sopra, viola sotto. Il velo
+	 * lo moltiplica per il suo fattore. Prima che chi guarda dica il suo piano, e su una mappa a un piano, e' il grigio
+	 * scuro di sempre.
+	 */
+	FLinearColor BorderBaseColorFor(const FRTCellId& Cell) const;
+
 	/**
 	 * #3632 — il fattore di separazione con cui le istanze sono POSATE. Lo scrive solo una ricostruzione intera (o la
 	 * prima): una parziale ripone le sue famiglie a questo fattore, cosi' la board non resta mai mista. Si conserva
@@ -1643,6 +1653,17 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap",
 		meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInstancedStaticMeshComponent> PlanGhosts;
+
+	/**
+	 * ➕ **Il contorno dei ghost** ([D-508], #3704): uno per ghost, alla stessa posa, del colore del piano della sua cella
+	 * rispetto a quello attivo. Il riempimento resta il colore della certezza. Nascosto su una mappa a un piano.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap",
+		meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInstancedStaticMeshComponent> PlanGhostBorders;
+
+	/** #3704 — riscrive il colore dei contorni dei ghost dal piano attivo presentato. */
+	void ApplyPlanGhostBorderColors();
 
 	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
 	TArray<FRTCellId> PlanGhostCells;

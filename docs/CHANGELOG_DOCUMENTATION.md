@@ -2,6 +2,27 @@
 
 ---
 
+## 2026-10-12 — Il piano si legge dal bordo: D-508
+
+**Origine**: [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704), dalla seduta `U84` e dal brainstorm che ne è seguito.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | il brief: la regola, a che cosa si applica, che cosa è scartato |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-508` nuova; `D-501` annotata, il bordo «marcato» diventa la regola dei colori |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la regola dei bordi e le leve, coi valori «sotto» scelti |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO` prende i criteri della regola |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO`: entra il **controllo positivo** dell'opacità; si ritira la misura di traslucenza di `U84`, presa con la maschera di `M_HexCell` inerte; esce la leva `ActiveBorderStops`, che non c'è più |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U84`: la seduta riparte dal controllo positivo, l'opacità «sopra» si giudica da capo |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la costante in linea del pin `Opacity Mask`, e chi la guarda |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO`: il giudizio dell'autore sull'asset riparato — opacità «sopra» 0,35 — e il suo rilievo sull'unità coperta dal piano attivo; manca `MultiLevel` |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U84`: lo stesso giudizio; la seduta si chiude su `main` con `MultiLevel` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la regola dei bordi: premessa corretta (i piani sopra non erano traslucidi), opacità «sopra» scelta, e il contorno dell'unità **attraverso il piano attivo** |
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | le stesse tre correzioni nel brief |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: il limite noto dell'unità coperta fino a #3705; l'opacità «sopra» non è più provvisoria |
+
+---
+
 ## 2026-10-12 — D-507: le `P1` di D-484 rimisurate, e la forma dell'AutoBattle Viewer
 
 **Origine**: lo spec panel sulle sei `P1` rimaste dopo [#2793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2793) — #2951, #2988, #2989, #2826, #2744, #2748.

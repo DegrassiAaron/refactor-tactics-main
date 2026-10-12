@@ -339,8 +339,17 @@ continua a esistere anche lì — non è la vista a definirlo.
 > gli altri piani non si segnalano, si **mostrano**, trattati rispetto a quello attivo.*
 >
 > 🎨 **I piani rispetto a quello attivo** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679)), in tattica e in strategica. I piani sopra sono traslucidi.
-> I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni e il bordo delle
-> celle marcato. Le unità e i fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
+> I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni. Le unità e i
+> fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
+>
+> 🎨 **E il piano si legge dal bordo** ([D-508](../../decisions/RT_PDR_00_Decision_Log.md), [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704)): nero sull'attivo, bianco sopra, viola sotto,
+> lo stesso colore a ogni distanza. I bordi delle celle restano **opachi su ogni piano** e non ricevono il
+> trattamento: un piano sopra è un riempimento traslucido con un contorno bianco netto. I fantasmi del piano hanno un
+> contorno del colore del piano, e il riempimento resta la certezza. Su una mappa a un piano i bordi sono quelli di
+> sempre, e i fantasmi non hanno contorno. Unità e volumi seguiranno con [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705) e [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706).
+> ⚠️ **Limite noto fino a #3705**: un'unità che sta sotto il piano attivo, se una cella di quel piano la copre, non
+> si vede, perché il piano attivo è pieno. L'autore ha deciso, in seduta il 2026-10-12, che il contorno del modello
+> si veda **attraverso** il piano.
 > - 🔑 **L'ingresso è il piano del controller.** `ARTPlayerController` lo manda alla board con
 >   `ARTHexMapActor::SyncActiveLayerPresentation`, in `SetActiveLayer` e a ogni fotogramma; la board riscrive solo se
 >   il piano, o una leva, è cambiato. ⛔ `ARTHexMapActor::ActiveLayer` resta dell'editor mode.
@@ -348,15 +357,22 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   canali 0..2 restano il colore e il velo. Nei canali 3..5 ci sono trasparenza (`OpacityMask` a dithering, materiale
 >   `Masked`), desaturazione ed esposizione in stop. Si attenua l'**uscita** del materiale, come chiede D-501 (3) per i
 >   terreni con texture. Il dithering non ordina la traslucenza e lascia profondità e ombre come sono.
+>   ⚠️ **Il pin `Opacity Mask` vuole la costante in linea spenta** (`UseConstant`). Se resta accesa il traduttore
+>   compila la costante e il nodo collegato non viene letto, senza errori: i piani sopra restano opachi coi canali
+>   giusti. È successo da #3679 a #3704, col nodo collegato via bridge. Lo guarda
+>   `HexMap.CellMaterialCompilesTheInputsItHasConnected`; che si **veda** lo dice il controllo positivo di
+>   `PIE-CAM-PIANI-ATTIVO`.
 > - 🔴 **Il velo viene prima, per costruzione**: il velo nasconde azzerando la scala, il trattamento scrive solo i suoi
 >   canali, e una cella mai vista resta non disegnata su qualunque piano (`HexMap.LayerTreatmentLeavesTheVeilAlone`).
 > - **Il picking non cambia**: la collisione è quella di prima, e un colpo su un piano traslucido sopra l'attivo si
 >   scarta come ogni colpo fuori dal piano attivo (D-255).
 > - ⚠️ **Le famiglie senza dati per istanza non ricevono il trattamento**: `Relief`, `Blockers`, `StructuralBodies`,
 >   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
-> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,5 per piano),
->   `rt.Map.Layers.LowerDarkening` (0,35 per piano) e `rt.Map.Layers.ActiveBorderStops` (+6). Negativo vuol dire il
->   default. ⚠️ **I default sono provvisori**: li ha scelti la PR, di notte, e l'autore li sceglie in PIE.
+> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,7 per piano) e
+>   `rt.Map.Layers.LowerDarkening` (0,55 per piano). Negativo vuol dire il default. I due valori «sotto» li ha scelti
+>   l'autore nella seduta `U84`, e lo stesso giorno **l'opacità «sopra»**, sull'asset riparato: prima la maschera era
+>   inerte e nessun valore era stato visto.
+>   ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'è più da #3704: il bordo dell'attivo è nero.*
 
 ---
 

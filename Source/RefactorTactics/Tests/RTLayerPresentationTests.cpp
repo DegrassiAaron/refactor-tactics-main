@@ -1,9 +1,14 @@
 // I piani rispetto a quello attivo (#3679, [D-501]): sopra traslucidi, sotto spenti, il bordo dell'attivo marcato.
 //
 // 🔑 **Questi test misurano i DATI che la board scrive, non cio' che si vede.** Il trattamento sta nei canali 3..5 dei
-// custom data per istanza, e lo applica `M_HexCell`: che il materiale li legga, e che a schermo si capisca quale piano
-// e' attivo, resta della voce PIE di #3679. Qui si misura che i canali giusti arrivino alle istanze giuste, che il
-// controller sia l'ingresso, e che il velo e la collisione non ne sappiano niente.
+// custom data per istanza, e lo applica `M_HexCell`: che a schermo si capisca quale piano e' attivo resta della voce
+// PIE di #3679. Qui si misura che i canali giusti arrivino alle istanze giuste, che il controller sia l'ingresso, e
+// che il velo e la collisione non ne sappiano niente.
+//
+// ⚠️ **«I dati arrivano» non ha mai voluto dire «il materiale li usa»**, e la differenza e' costata un giro intero:
+// da #3679 la maschera di `M_HexCell` era collegata e ignorata (`UseConstant` rimasto acceso sul pin), e ogni test di
+// questo file era verde con i piani sopra opachi. `CellMaterialCompilesTheInputsItHasConnected`, in fondo, chiude
+// quella causa sull'asset; il resto — che si VEDA — lo chiude solo la PIE.
 
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
@@ -14,6 +19,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTLayerPresentation.h"
+#include "Materials/Material.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -78,22 +84,18 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 {
 	const FRTLayerPresentationTuning T;
 
-	TestTrue(TEXT("una mappa a un piano non ha trattamento, nemmeno il bordo"),
+	TestTrue(TEXT("una mappa a un piano non ha trattamento"),
 		RTLayerPresentation::Treatment(0, 0, /*bMultiLayer=*/ false, T).IsNeutral());
 	TestTrue(TEXT("nemmeno su un piano che non e' l'attivo"),
 		RTLayerPresentation::Treatment(1, 0, /*bMultiLayer=*/ false, T).IsNeutral());
 
 	const FRTLayerTreatment Attivo = RTLayerPresentation::Treatment(1, 1, true, T);
-	TestEqual(TEXT("l'attivo e' opaco"), Attivo.Transparency, 0.f);
-	TestEqual(TEXT("l'attivo ha i colori pieni"), Attivo.Desaturation, 0.f);
-	TestEqual(TEXT("l'attivo ha la sua luce"), Attivo.ExposureStops, 0.f);
-	TestEqual(TEXT("e il bordo marcato"), Attivo.BorderExposureStops, T.ActiveBorderStops);
+	TestTrue(TEXT("l'attivo si vede come prima: opaco, colori pieni, la sua luce"), Attivo.IsNeutral());
 
 	const FRTLayerTreatment Sopra = RTLayerPresentation::Treatment(2, 1, true, T);
 	TestTrue(TEXT("sopra e' traslucido"), FMath::IsNearlyEqual(Sopra.Transparency, 1.f - T.UpperOpacity));
 	TestTrue(TEXT("sopra non e' spento: si deve vedere attraverso, non leggerlo come lontano"),
 		Sopra.Desaturation == 0.f && Sopra.ExposureStops == 0.f);
-	TestEqual(TEXT("e il suo bordo non e' marcato"), Sopra.BorderExposureStops, 0.f);
 
 	const FRTLayerTreatment Sotto1 = RTLayerPresentation::Treatment(1, 2, true, T);
 	const FRTLayerTreatment Sotto2 = RTLayerPresentation::Treatment(0, 2, true, T);
@@ -103,7 +105,46 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 		FMath::IsNearlyEqual(Sotto1.ExposureStops, FMath::Log2(1.f - T.LowerDarkeningPerLayer), 1.e-4f));
 	TestTrue(TEXT("due piani sotto: piu' desaturato di uno"), Sotto2.Desaturation > Sotto1.Desaturation);
 	TestTrue(TEXT("due piani sotto: piu' scuro di uno"), Sotto2.ExposureStops < Sotto1.ExposureStops);
-	TestEqual(TEXT("il bordo sotto segue la sua cella"), Sotto1.BorderExposureStops, Sotto1.ExposureStops);
+
+	// #3704: i valori «sotto» li ha scelti l'autore nella seduta U84. Un default cambiato per sbaglio cade qui.
+	TestTrue(TEXT("default sotto: desaturazione 0,7 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDesaturationPerLayer, 0.7f));
+	TestTrue(TEXT("default sotto: scurimento 0,55 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDarkeningPerLayer, 0.55f));
+	// E l'opacita' «sopra» l'ha scelta lo stesso giorno, sull'asset riparato: prima la maschera era inerte (#3704).
+	TestTrue(TEXT("default sopra: opacita' 0,35 (U84, su piani traslucidi)"), FMath::IsNearlyEqual(T.UpperOpacity, 0.35f));
+	return true;
+}
+
+/**
+ * **Il bordo dice il piano: nero l'attivo, bianco sopra, viola sotto** — la funzione pura della DoD di #3704 ([D-508]).
+ *
+ * ⚠️ Il controllo in scala di grigi e' §47-bis.1: il colore non porta il significato da solo, e i tre bordi devono
+ * restare scuro, chiaro e medio anche senza tinta. Un viola troppo scuro o troppo chiaro cadrebbe qui, non in PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLayerBorderColorPureTest,
+	"RefactorTactics.HexMap.BorderColorSaysTheLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTLayerBorderColorPureTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("su una mappa a un piano ogni piano e' l'attivo"),
+		RTLayerPresentation::Relation(3, 0, /*bMultiLayer=*/ false) == ERTLayerRelation::Active);
+	TestTrue(TEXT("il piano attivo"), RTLayerPresentation::Relation(1, 1, true) == ERTLayerRelation::Active);
+	TestTrue(TEXT("un piano sopra"), RTLayerPresentation::Relation(2, 1, true) == ERTLayerRelation::Above);
+	TestTrue(TEXT("due piani sopra: lo stesso"), RTLayerPresentation::Relation(3, 1, true) == ERTLayerRelation::Above);
+	TestTrue(TEXT("un piano sotto"), RTLayerPresentation::Relation(0, 1, true) == ERTLayerRelation::Below);
+
+	const FColor Nero = RTLayerPresentation::BorderColorFor(ERTLayerRelation::Active);
+	const FColor Bianco = RTLayerPresentation::BorderColorFor(ERTLayerRelation::Above);
+	const FColor Viola = RTLayerPresentation::BorderColorFor(ERTLayerRelation::Below);
+	TestTrue(TEXT("l'attivo ha il bordo di sempre"), Nero == URTHexLibrary::CellBorderColor());
+	TestTrue(TEXT("sopra e' bianco"), Bianco == FColor(255, 255, 255));
+	TestTrue(TEXT("sotto e' il viola di §32 (#7C5CFF)"), Viola == FColor(0x7C, 0x5C, 0xFF));
+
+	// Luma sRGB (Rec. 601), cioe' come si legge in scala di grigi.
+	auto Luma = [](const FColor& C) { return 0.299f * C.R + 0.587f * C.G + 0.114f * C.B; };
+	TestTrue(*FString::Printf(TEXT("in grigio: nero %.0f < viola %.0f < bianco %.0f, con almeno 60 fra l'uno e l'altro"),
+		Luma(Nero), Luma(Viola), Luma(Bianco)),
+		Luma(Viola) - Luma(Nero) >= 60.f && Luma(Bianco) - Luma(Viola) >= 60.f);
 	return true;
 }
 
@@ -158,13 +199,31 @@ bool FRTLayerTreatmentFromControllerTest::RunTest(const FString&)
 	TestTrue(TEXT("piano 0, sotto: desaturato"),
 		FMath::IsNearlyEqual(LayerTreatmentChannel(Cells, Su0, Ch + 1), T.LowerDesaturationPerLayer));
 	TestTrue(TEXT("piano 0, sotto: scurito"), LayerTreatmentChannel(Cells, Su0, Ch + 2) < 0.f);
-	TestEqual(TEXT("il bordo del piano attivo e' marcato"), LayerTreatmentChannel(Bordi, Su1, Ch + 2), T.ActiveBorderStops);
-	TestEqual(TEXT("la cella del piano attivo no"), LayerTreatmentChannel(Cells, Su1, Ch + 2), 0.f);
+
+	// #3704: i bordi dicono il piano col colore e restano opachi. La board non e' velata, quindi il fattore e' 1.
+	auto ColoreBordo = [&](int32 Istanza)
+	{
+		return FLinearColor(LayerTreatmentChannel(Bordi, Istanza, 0), LayerTreatmentChannel(Bordi, Istanza, 1),
+			LayerTreatmentChannel(Bordi, Istanza, 2));
+	};
+	auto Atteso = [](ERTLayerRelation R) { return FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(R)); };
+	TestTrue(TEXT("bordo del piano 1, attivo: nero"), ColoreBordo(Su1).Equals(Atteso(ERTLayerRelation::Active), 1.e-4f));
+	TestTrue(TEXT("bordo del piano 2, sopra: bianco"), ColoreBordo(Su2).Equals(Atteso(ERTLayerRelation::Above), 1.e-4f));
+	TestTrue(TEXT("bordo del piano 0, sotto: viola"), ColoreBordo(Su0).Equals(Atteso(ERTLayerRelation::Below), 1.e-4f));
+	for (int32 C = Ch; C < RTLayerPresentation::NumCustomDataFloats; ++C)
+	{
+		TestEqual(*FString::Printf(TEXT("il bordo sopra non ha trattamento: canale %d a zero (opaco)"), C),
+			LayerTreatmentChannel(Bordi, Su2, C), 0.f);
+		TestEqual(*FString::Printf(TEXT("il bordo sotto non ha trattamento: canale %d a zero (tiene il viola)"), C),
+			LayerTreatmentChannel(Bordi, Su0, C), 0.f);
+	}
 
 	// Il cambio successivo sposta il trattamento: sceso al piano 0, il piano 1 e' sopra.
 	TestTrue(TEXT("il controller scende al piano 0"), PC->StepActiveLayer(-1));
 	TestEqual(TEXT("il piano 0 torna pieno"), LayerTreatmentChannel(Cells, Su0, Ch + 1), 0.f);
 	TestTrue(TEXT("e il piano 1 e' traslucido"), LayerTreatmentChannel(Cells, Su1, Ch) > 0.f);
+	TestTrue(TEXT("il bordo del piano 1 diventa bianco"), ColoreBordo(Su1).Equals(Atteso(ERTLayerRelation::Above), 1.e-4f));
+	TestTrue(TEXT("e quello del piano 0 nero"), ColoreBordo(Su0).Equals(Atteso(ERTLayerRelation::Active), 1.e-4f));
 	return true;
 }
 
@@ -224,6 +283,24 @@ bool FRTLayerTreatmentKeepsTheVeilTest::RunTest(const FString&)
 			LayerTreatmentChannel(Cells, Vista, C), Colore[C]);
 	}
 
+	// #3704: anche il BORDO della cella mai vista resta non disegnato, benche' il suo colore dica «sopra». La griglia e'
+	// una per cella e nell'ordine delle celle, quindi l'indice e' lo stesso.
+	UInstancedStaticMeshComponent* Bordi = LayerTreatmentIsm(Board, TEXT("CellBorders"));
+	if (TestNotNull(TEXT("la griglia"), Bordi)
+		&& TestEqual(TEXT("premessa: la griglia e' una per cella"), Bordi->GetInstanceCount(), Cells->GetInstanceCount()))
+	{
+		TestTrue(TEXT("il bordo della cella mai vista resta a scala zero"),
+			Bordi->GetInstanceTransform(Mai, Xf, true) && Xf.GetScale3D().IsNearlyZero());
+		// Controllo positivo: il bordo di una cella vista del piano 1, sopra l'attivo, si disegna ed e' bianco.
+		const int32 Sopra = FirstInstanceOnLayer(Board, 1);
+		const FLinearColor Bianco = FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(ERTLayerRelation::Above));
+		const FLinearColor Letto(LayerTreatmentChannel(Bordi, Sopra, 0), LayerTreatmentChannel(Bordi, Sopra, 1),
+			LayerTreatmentChannel(Bordi, Sopra, 2));
+		TestTrue(TEXT("controllo positivo: il bordo di una cella vista sopra l'attivo e' disegnato"),
+			Bordi->GetInstanceTransform(Sopra, Xf, true) && !Xf.GetScale3D().IsNearlyZero());
+		TestTrue(*FString::Printf(TEXT("ed e' bianco (letto %s)"), *Letto.ToString()), Letto.Equals(Bianco, 1.e-3f));
+	}
+
 	// E nell'altro verso: un velo dopo il trattamento non lo cancella. 🔴 Si guarda una cella che il velo RISCRIVE: una del
 	// piano 1, sopra l'attivo, che passa da osservata a ricordata (rilievo della review). La cella mai vista non serviva: il
 	// velo la salta, quindi qualunque velo avrebbe lasciato i suoi canali dov'erano.
@@ -242,6 +319,18 @@ bool FRTLayerTreatmentKeepsTheVeilTest::RunTest(const FString&)
 	{
 		TestEqual(*FString::Printf(TEXT("il velo riscritto lascia il canale %d del trattamento dov'era"), RTLayerPresentation::FirstChannel + C),
 			LayerTreatmentChannel(Cells, Ricordata, RTLayerPresentation::FirstChannel + C), Trattamento[C]);
+	}
+
+	// #3704: quando il velo riscrive il bordo di quella cella, lo riscrive col colore del suo piano (bianco, sopra), per il
+	// fattore del velo. Con il grigio scuro costante di prima di #3704, il bordo tornerebbe scuro al primo velo.
+	if (Bordi)
+	{
+		const FLinearColor Bianco = FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(ERTLayerRelation::Above));
+		const FLinearColor Scuro = FLinearColor::FromSRGBColor(URTHexLibrary::CellBorderColor());
+		const FLinearColor Letto(LayerTreatmentChannel(Bordi, Ricordata, 0), LayerTreatmentChannel(Bordi, Ricordata, 1),
+			LayerTreatmentChannel(Bordi, Ricordata, 2));
+		TestTrue(*FString::Printf(TEXT("il velo riscrive il bordo col bianco del suo piano, attenuato al piu' fino al ricordo (letto %s)"),
+			*Letto.ToString()), Letto.R >= Bianco.R * ARTHexMapActor::RTVeilExploredFactor - 1.e-3f && Letto.R > Scuro.R * 4.f);
 	}
 	return true;
 }
@@ -340,6 +429,15 @@ bool FRTLayerTreatmentSurvivesRebuildTest::RunTest(const FString&)
 		LayerTreatmentChannel(Cells, Su2, RTLayerPresentation::FirstChannel) > 0.f);
 	TestTrue(TEXT("e il piano 0 ancora desaturato"),
 		LayerTreatmentChannel(Cells, Su0, RTLayerPresentation::FirstChannel + 1) > 0.f);
+
+	// #3704: la ricostruzione riscrive la griglia col grigio di sempre; il bordo del piano 2 deve tornare bianco.
+	if (UInstancedStaticMeshComponent* Bordi = LayerTreatmentIsm(Board, TEXT("CellBorders")))
+	{
+		const FLinearColor Bianco = FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(ERTLayerRelation::Above));
+		TestTrue(TEXT("e il bordo del piano 2 e' ancora bianco"),
+			FLinearColor(LayerTreatmentChannel(Bordi, Su2, 0), LayerTreatmentChannel(Bordi, Su2, 1),
+				LayerTreatmentChannel(Bordi, Su2, 2)).Equals(Bianco, 1.e-4f));
+	}
 	return true;
 }
 
@@ -378,6 +476,89 @@ bool FRTLayerTreatmentSingleLayerTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("nessun canale del trattamento diverso da zero"), Scritti, 0);
+
+	// #3704: i bordi sono quelli di sempre, e i fantasmi non hanno contorno.
+	const FLinearColor Sempre = FLinearColor::FromSRGBColor(URTHexLibrary::CellBorderColor());
+	int32 Diversi = 0;
+	for (int32 I = 0; I < Bordi->GetInstanceCount(); ++I)
+	{
+		const FLinearColor Letto(LayerTreatmentChannel(Bordi, I, 0), LayerTreatmentChannel(Bordi, I, 1), LayerTreatmentChannel(Bordi, I, 2));
+		Diversi += Letto.Equals(Sempre, 1.e-4f) ? 0 : 1;
+	}
+	TestEqual(TEXT("ogni bordo ha il grigio scuro di sempre"), Diversi, 0);
+
+	FRTPlanPreview Piano;
+	FRTPhasePreviewEntry Fase;
+	Fase.PreviewDestination = FRTCellId(1, 0, 0);
+	Fase.Certainty = ERTIntentCertainty::Confirmed;
+	Piano.Phases.Add(Fase);
+	Board->SetPlanPreview(Piano);
+	if (UInstancedStaticMeshComponent* Contorni = LayerTreatmentIsm(Board, TEXT("PlanGhostBorders")))
+	{
+		TestFalse(TEXT("su un piano solo il fantasma non ha contorno, come prima di #3704"), Contorni->IsVisible());
+	}
+	else
+	{
+		AddError(TEXT("il componente dei contorni dei fantasmi non c'e'"));
+	}
+	return true;
+}
+
+/**
+ * **Il contorno di un fantasma dice il piano della sua cella, e il riempimento resta la certezza** (#3704, [D-508]).
+ *
+ * Tre fantasmi su tre piani di `LayerStack`. Il controllo positivo e' il cambio di piano attivo: lo stesso fantasma cambia
+ * contorno, e il suo riempimento no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLayerGhostBordersTest,
+	"RefactorTactics.HexMap.PlanGhostBordersSayTheLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTLayerGhostBordersTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTHexMapActor* Board = SpawnLayerTreatmentBoard(World, URTMatchSetupLibrary::MakeLayerStackArena(World));
+	UInstancedStaticMeshComponent* Fantasmi = Board ? LayerTreatmentIsm(Board, TEXT("PlanGhosts")) : nullptr;
+	UInstancedStaticMeshComponent* Contorni = Board ? LayerTreatmentIsm(Board, TEXT("PlanGhostBorders")) : nullptr;
+	if (!TestNotNull(TEXT("i fantasmi"), Fantasmi) || !TestNotNull(TEXT("i loro contorni"), Contorni)) { return false; }
+
+	// Un fantasma per piano, sulle tre colonne della pila: (0,0) a terra, (1,-1) sul mezzanino, (2,-2) in cima.
+	FRTPlanPreview Piano;
+	const FRTCellId Celle[] = { FRTCellId(0, 0, 0), FRTCellId(1, -1, 1), FRTCellId(2, -2, 2) };
+	for (const FRTCellId& Cella : Celle)
+	{
+		FRTPhasePreviewEntry Fase;
+		Fase.PreviewDestination = Cella;
+		Fase.Certainty = ERTIntentCertainty::Confirmed;
+		Piano.Phases.Add(Fase);
+	}
+	Board->SyncActiveLayerPresentation(1);
+	Board->SetPlanPreview(Piano);
+	if (!TestEqual(TEXT("un contorno per fantasma"), Contorni->GetInstanceCount(), Fantasmi->GetInstanceCount())
+		|| !TestEqual(TEXT("premessa: tre fantasmi"), Fantasmi->GetInstanceCount(), 3))
+	{
+		return false;
+	}
+	TestTrue(TEXT("su piu' piani il contorno si vede"), Contorni->IsVisible());
+
+	auto Colore = [](const UInstancedStaticMeshComponent* C, int32 I)
+	{
+		return FLinearColor(LayerTreatmentChannel(C, I, 0), LayerTreatmentChannel(C, I, 1), LayerTreatmentChannel(C, I, 2));
+	};
+	auto Atteso = [](ERTLayerRelation R) { return FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(R)); };
+	TestTrue(TEXT("fantasma a terra, sotto l'attivo: contorno viola"), Colore(Contorni, 0).Equals(Atteso(ERTLayerRelation::Below), 1.e-4f));
+	TestTrue(TEXT("fantasma sul mezzanino, l'attivo: contorno nero"), Colore(Contorni, 1).Equals(Atteso(ERTLayerRelation::Active), 1.e-4f));
+	TestTrue(TEXT("fantasma in cima, sopra l'attivo: contorno bianco"), Colore(Contorni, 2).Equals(Atteso(ERTLayerRelation::Above), 1.e-4f));
+
+	// Il cambio di piano riscrive i contorni e non tocca i riempimenti.
+	const FLinearColor Riempimento = Colore(Fantasmi, 1);
+	Board->SyncActiveLayerPresentation(0);
+	TestTrue(TEXT("sceso al piano 0, il fantasma del mezzanino ha il contorno bianco"),
+		Colore(Contorni, 1).Equals(Atteso(ERTLayerRelation::Above), 1.e-4f));
+	TestTrue(TEXT("e il suo riempimento e' ancora quello della certezza"), Colore(Fantasmi, 1).Equals(Riempimento, 1.e-6f));
 	return true;
 }
 
@@ -490,5 +671,61 @@ bool FRTLayerTreatmentSparesUnitsTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+#if WITH_EDITOR
+/**
+ * 🔴 **Un ingresso COLLEGATO che il traduttore ignora** (#3704). E' il difetto che ha tenuto opachi i piani sopra
+ * da #3679 in poi, con tutti i test dei canali verdi.
+ *
+ * Ogni ingresso del nodo radice porta due cose: l'espressione collegata e `UseConstant`, la costante in linea che
+ * il Material Editor accende sui pin SCOLLEGATI. `CompileWithDefault` guarda `UseConstant` PER PRIMO: se e' acceso
+ * compila la costante, e l'espressione collegata non viene nemmeno letta. Il Material Editor lo spegne quando si
+ * tira il filo; `UMaterialEditingLibrary::ConnectMaterialProperty` — cioe' `connect_to_output` del bridge — no.
+ * Risultato misurato il 2026-10-12 sul codice generato: `PixelMaterialInputs.OpacityMask = 1.0` con il nodo
+ * `DitherTemporalAA` collegato, quindi nessuno shader di profondita' mascherato e nessun taglio.
+ *
+ * ⚠️ **Qui si misura l'asset, non lo shader**: la suite gira in `-NullRHI` e la mappa degli shader non c'e'. Che a
+ * schermo un piano sopra lasci vedere sotto resta della voce PIE, col suo controllo positivo (a opacita' 0 il
+ * piano sopra SPARISCE): questo test toglie soltanto la causa che la faceva fallire in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellMaterialCompilesItsInputsTest,
+	"RefactorTactics.HexMap.CellMaterialCompilesTheInputsItHasConnected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCellMaterialCompilesItsInputsTest::RunTest(const FString&)
+{
+	UMaterialInterface* Interfaccia = GetDefault<ARTHexMapActor>()->CellMaterial.LoadSynchronous();
+	UMaterial* Materiale = Interfaccia ? Interfaccia->GetMaterial() : nullptr;
+	if (!TestNotNull(TEXT("premessa: il materiale delle celle si carica"), Materiale)) { return false; }
+
+	TestTrue(TEXT("il materiale delle celle e' Masked: e' la maschera che fa vedere sotto un piano sopra"),
+		Materiale->GetBlendMode() == BLEND_Masked);
+
+	int32 Collegati = 0;
+	for (int32 P = 0; P < MP_MAX; ++P)
+	{
+		FMaterialInputDescription Ingresso;
+		if (!Materiale->GetExpressionInputDescription(EMaterialProperty(P), Ingresso)
+			|| Ingresso.Input == nullptr || Ingresso.Input->Expression == nullptr)
+		{
+			continue;
+		}
+		++Collegati;
+		TestFalse(*FString::Printf(TEXT("%s ha un nodo collegato, quindi la costante in linea e' spenta (altrimenti il nodo non si compila)"),
+			*UEnum::GetValueAsString(EMaterialProperty(P))), Ingresso.bUseConstant);
+	}
+
+	// I due ingressi su cui il trattamento dei piani si regge, per nome: senza, il ciclo sopra passerebbe a vuoto.
+	for (const EMaterialProperty Atteso : { MP_EmissiveColor, MP_OpacityMask })
+	{
+		FMaterialInputDescription Ingresso;
+		const bool bCollegato = Materiale->GetExpressionInputDescription(Atteso, Ingresso)
+			&& Ingresso.Input != nullptr && Ingresso.Input->Expression != nullptr;
+		TestTrue(*FString::Printf(TEXT("%s ha un nodo collegato"), *UEnum::GetValueAsString(Atteso)), bCollegato);
+	}
+	TestTrue(TEXT("premessa: il ciclo ha guardato almeno i due ingressi attesi"), Collegati >= 2);
+	return true;
+}
+#endif // WITH_EDITOR
 
 #endif // WITH_DEV_AUTOMATION_TESTS
