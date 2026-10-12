@@ -456,7 +456,11 @@ bool FRTHealLineOfSightIsCheckedInTheBlastTest::RunTest(const FString&)
 			}
 			else
 			{
-				Idx = RTAbilityFixtures::AddCoreAbility(Curatrice, TEXT("Action.Heal"));
+				// ⚠️ **In uno SLOT del kit, non appesa**: `AbilityCooldowns` copre solo gli slot dell'eroe, e su
+				// un'abilita' appesa il cooldown non si scrive mai (`AddCoreAbilityInSlot`). E la ricarica sale a
+				// 2: quella di catalogo (1) si azzera nel Cleanup dello stesso turno, e «pagato» non si vedrebbe.
+				Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Curatrice, TEXT("Action.Heal"), 3);
+				if (Idx != INDEX_NONE) { Curatrice->Abilities[Idx]->CooldownTurns = 2; }
 				Curatrice->PlannedAbilityIndex = Idx;
 				Curatrice->PlannedCell = Curatrice->Cell;
 				Curatrice->DeclareAttackOnUnit(Ferita);

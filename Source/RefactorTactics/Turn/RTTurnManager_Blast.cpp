@@ -597,7 +597,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// politica dell'azione, poi `HasLineOfSight` dalla cella ATTUALE di chi cura — e non una seconda regola:
 		// verso l'alleato agganciato per la cura singola, verso la mira congelata per l'area.
 		// 🔑 **Dopo la spesa, non prima**: per [D-200] la portata e' l'unico modo di fallire noto in pianificazione,
-		// e un muro comparso dopo e' un esito — il cooldown si paga e il gesto si vede. ⚠️ Un ATTACCO fermato dalla
+		// e un muro comparso dopo il lock-in e' un esito — il cooldown si paga e il gesto si vede. ⚠️ Un ATTACCO fermato dalla
 		// linea di tiro invece non paga, perche' il suo criterio e' il colpo prodotto (`MarkAttackerAbilitiesSpent`):
 		// l'asimmetria e' dichiarata in D-504, non risolta.
 		// ⌫ *Fino a #3598 la cura controllava solo la portata, e un muro fermava un colpo ma non una cura.*
