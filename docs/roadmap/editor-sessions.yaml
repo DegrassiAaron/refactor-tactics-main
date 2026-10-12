@@ -5808,6 +5808,12 @@ sessions:
       spariscono — e l'opacità «sopra» si giudica da capo. I valori «sotto» (0,7 e 0,55) e i colori dei bordi
       restano quelli che l'autore ha scelto.
 
+      **2026-10-12, giudizio dell'autore sull'asset riparato** (commit `d70081b44`, `LayerStack`, dal worktree di
+      #3704): «la trasparenza va bene» — l'opacità «sopra» resta 0,35. Rilievo suo: col mezzanino attivo, l'unità
+      che sta sul pavimento sotto il mezzanino non si vede. Non è nascosta, è coperta dal piano attivo, che è pieno:
+      l'autore ha deciso che il contorno del modello si veda attraverso il piano, e lo porta #3705.
+      ⏳ **Manca `MultiLevel` a 120° e a 180°** (#3674): la seduta si chiude su `main`, dopo il merge di #3704.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

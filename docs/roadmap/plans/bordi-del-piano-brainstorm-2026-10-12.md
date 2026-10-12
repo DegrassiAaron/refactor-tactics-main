@@ -23,6 +23,8 @@ Nella seduta `U84` l'autore ha guardato `Visual.Map.LayerStack` dal vivo, con le
 
 L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla board viva, col piano attivo 1: le 19 celle del mezzanino sono piene, le 61 del piano terra attenuate, e le 7 della cima hanno trasparenza 0,8. È la percezione che non regge: un piano sopra traslucido, appoggiato su un piano dello stesso grigio, non si distingue, a nessuna opacità.
 
+> 🔴 **Premessa corretta in #3704, lo stesso giorno.** I dati si aggiornavano, ma **i piani sopra non erano traslucidi affatto**: la maschera di `M_HexCell` era collegata e ignorata (`UseConstant` acceso sul pin `Opacity Mask`). L'autore aveva ragione su tutte e due le frasi: a schermo i piani sopra non cambiavano, e nessuna opacità si è mai vista, né 0,2 né 0,35. La regola dei bordi non dipende da questa premessa: l'autore ha giudicato i colori dei bordi, e poi, sull'asset riparato, l'opacità.
+
 ## 2. La regola
 
 > **Ogni cosa dice a che piano sta col suo bordo.**
@@ -45,7 +47,7 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
 | celle | il bordo della griglia (`CellBorders`), **opaco su ogni piano** | #3704 | un piano sopra diventa un riempimento traslucido con un contorno bianco netto |
 | glifi di superficie | **seguono la cella**: nessun colore proprio | #3704 | il piano lo dice già il bordo della cella |
 | fantasmi del piano | un **contorno** del colore del piano; il riempimento resta il colore della certezza | #3704 | |
-| unità | il **contorno del modello** | #3705 | l'anello resta della squadra; solo le unità che la squadra vede |
+| unità | il **contorno del modello**, che **si vede anche attraverso il piano attivo** quando questo copre l'unità | #3705 | l'anello resta della squadra; solo le unità che la squadra vede. «Attraverso il piano» l'ha deciso l'autore in seduta, il 2026-10-12: col mezzanino attivo, l'unità sul pavimento sotto di esso spariva |
 | muri, coperture, porte | la **tinta del volume** | #3706 | oggi usano il materiale di default delle mesh: serve un materiale con dati per istanza |
 
 ## 4. Scartato, e perché
@@ -67,7 +69,7 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
 |---|---|---|
 | `rt.Map.Layers.LowerDesaturation` | 0,7 per piano | scelta in `U84`; diventa il default con #3704 |
 | `rt.Map.Layers.LowerDarkening` | 0,55 per piano | scelta in `U84`; diventa il default con #3704 |
-| `rt.Map.Layers.UpperOpacity` | da rigiudicare **coi bordi bianchi** | 0,2 era troppo leggero |
+| `rt.Map.Layers.UpperOpacity` | 0,35 | scelta dall'autore il 2026-10-12, **su piani traslucidi** e coi bordi bianchi. Il giudizio di prima («0,2 troppo leggero») era stato dato con la maschera inerte |
 | `rt.Map.Layers.ActiveBorderStops` | superata dalla regola | si toglie con #3704 |
 
 ## 7. Ordine

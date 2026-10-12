@@ -50,8 +50,8 @@ enum class ERTLayerRelation : uint8
  * Le intensita' del trattamento, con le leve `rt.Map.Layers.*` che le sostituiscono in PIE.
  *
  * 🔑 **I valori «sotto» li ha scelti l'autore** nella seduta `U84` (2026-10-12): desaturazione 0,7 e scurimento 0,55
- * per piano. ⚠️ **L'opacita' «sopra» e' ancora provvisoria**: 0,2 era troppo leggero, e si rigiudica coi bordi bianchi
- * di [D-504].
+ * per piano. **L'opacita' «sopra», 0,35, l'ha scelta lo stesso giorno su piani davvero traslucidi**: prima la maschera
+ * di `M_HexCell` era inerte (#3704), i piani sopra erano opachi a ogni valore e 0,2 non era mai stato visto.
  */
 struct REFACTORTACTICS_API FRTLayerPresentationTuning
 {

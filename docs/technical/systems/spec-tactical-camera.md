@@ -347,6 +347,9 @@ continua a esistere anche lì — non è la vista a definirlo.
 > trattamento: un piano sopra è un riempimento traslucido con un contorno bianco netto. I fantasmi del piano hanno un
 > contorno del colore del piano, e il riempimento resta la certezza. Su una mappa a un piano i bordi sono quelli di
 > sempre, e i fantasmi non hanno contorno. Unità e volumi seguiranno con [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705) e [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706).
+> ⚠️ **Limite noto fino a #3705**: un'unità che sta sotto il piano attivo, se una cella di quel piano la copre, non
+> si vede, perché il piano attivo è pieno. L'autore ha deciso, in seduta il 2026-10-12, che il contorno del modello
+> si veda **attraverso** il piano.
 > - 🔑 **L'ingresso è il piano del controller.** `ARTPlayerController` lo manda alla board con
 >   `ARTHexMapActor::SyncActiveLayerPresentation`, in `SetActiveLayer` e a ogni fotogramma; la board riscrive solo se
 >   il piano, o una leva, è cambiato. ⛔ `ARTHexMapActor::ActiveLayer` resta dell'editor mode.
@@ -367,7 +370,8 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
 > - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,7 per piano) e
 >   `rt.Map.Layers.LowerDarkening` (0,55 per piano). Negativo vuol dire il default. I due valori «sotto» li ha scelti
->   l'autore nella seduta `U84`; ⚠️ **l'opacità «sopra» è ancora provvisoria**, e si rigiudica coi bordi bianchi.
+>   l'autore nella seduta `U84`, e lo stesso giorno **l'opacità «sopra»**, sull'asset riparato: prima la maschera era
+>   inerte e nessun valore era stato visto.
 >   ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'è più da #3704: il bordo dell'attivo è nero.*
 
 ---
