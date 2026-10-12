@@ -443,6 +443,10 @@ bool FRTSlotBuiltForAnotherUnitTest::RunTest(const FString&)
 		Prima->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
 
 	// --- C. E NON DISARMA: la porta fa toggle, quindi lo stesso click spegnerebbe cio' che e' armato -----
+	// ⚠️ Si riparte dal NEUTRO, e non per ordine: se B fosse fallito la selezionata sarebbe gia' armata, e la
+	// porta qui sotto la spegnerebbe — la premessa cadrebbe e questo verso non verrebbe mai misurato. Cosi'
+	// una guardia rotta fa cadere B **e** C, ognuno sul proprio asserto.
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 	PC->ArmKitAbility(Riferimento);
 	if (!TestEqual(TEXT("premessa di C: la selezionata e' armata dalla porta"), Seconda->SelectedAbilityIndex, Riferimento))
 	{
