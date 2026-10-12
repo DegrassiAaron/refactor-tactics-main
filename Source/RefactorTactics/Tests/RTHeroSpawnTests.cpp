@@ -214,16 +214,23 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#2748` — un eroe RIPETUTO ferma l'allestimento.
+ *
+ * 🔴 **La regola e' cambiata, e questo test con lei.** Si chiamava `DuplicateHeroEntersOnlyOnce` e asseriva
+ * «tre unita' in campo: la copia non entra»: la copia veniva saltata con un `Warning` e la partita partiva con
+ * un'unita' in meno. Decisione d'autore del 2026-10-12: e' lo stesso difetto che `#1069` ha chiuso per l'eroe
+ * sconosciuto — una partita che parte, sembra normale e non e' quella dichiarata — e riceve lo stesso
+ * trattamento. Prima ancora si chiamava `SpawnFailsClosedWithoutData`, e copriva i due casi insieme.
+ *
+ * ⚠️ **Il conteggio resta quello del formato** (due voci per squadra): cosi' la guardia che si esercita e'
+ * quella della ripetizione, non quella della cardinalita'.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroSpawnDuplicateTest,
-	"RefactorTactics.Heroes.DuplicateHeroEntersOnlyOnce",
+	"RefactorTactics.Heroes.RepeatedHeroAbortsSetup",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 {
-	// ⚠️ **Questo test si chiamava `SpawnFailsClosedWithoutData` e copriva due difetti insieme**: un
-	// `HeroId` inesistente e uno ripetuto. La prima meta' e' uscita con `#1069`, che ha cambiato la regola:
-	// un eroe non risolto non lascia piu' entrare «solo gli eroi validi» — ferma l'allestimento, e ha i suoi
-	// due test (`UnknownHeroInFormationAbortsSetup`, `UnknownHeroIsDeclaredFatal`). Resta la meta' che la
-	// regola non ha toccato, e resta qui perche' nessun altro test la copre.
 	UWorld* World = MakeRosterWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
@@ -240,23 +247,24 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
 	GameMode->Team1Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Ivrin") };
 
+	AddExpectedError(TEXT("e' schierato due volte"), EAutomationExpectedErrorFlags::Contains, 1);
 	GameMode->SetupHexMatch(HexMap);
 
-	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
-	TestEqual(TEXT("tre unita' in campo: la copia non entra"), Units.Num(), 3);
+	// **Zero, non tre.** Tre era la regola di prima: Aevik, Muiren e Ivrin in campo, e una partita 2 contro 1
+	// che a schermo sembrava un 2v2 con un'unita' gia' caduta.
+	TestEqual(TEXT("nessuna unita' in campo"), CollectRosterUnits(World).Num(), 0);
 
-	TSet<FName> InPlay;
-	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
-	TestTrue(TEXT("Aevik, una volta sola"), InPlay.Contains(FName(TEXT("Hero.Aevik"))));
-	TestTrue(TEXT("e Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
-	TestEqual(TEXT("nessun duplicato in campo"), InPlay.Num(), Units.Num());
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+	TestEqual(TEXT("l'avvio dichiara il fatale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::RosterHeroRepeated);
 
-	// Nessuna unita' e' rimasta senza identita': se il fail-closed non funzionasse, qui ci sarebbe un'unita'
-	// con `HeroId` vuoto e i valori di default di `ARTUnit`.
-	for (const ARTUnit* Unit : Units)
+	bool bNomeNelDettaglio = false;
+	for (const FRTStartupNote& Note : Report.Notes)
 	{
-		TestFalse(TEXT("ogni unita' in campo ha un eroe"), Unit->HeroId.IsNone());
+		bNomeNelDettaglio |= (Note.Outcome == ERTStartupOutcome::RosterHeroRepeated
+			&& Note.Detail.Contains(TEXT("Hero.Aevik")) && Note.Detail.Contains(TEXT("squadra 1")));
 	}
+	TestTrue(TEXT("il dettaglio nomina l'eroe e la squadra della seconda voce"), bNomeNelDettaglio);
 
 	DestroyRosterWorld(World);
 	return true;
@@ -1056,6 +1064,129 @@ bool FRTRosterUnknownHeroNamesItsSourceTest::RunTest(const FString&)
 }
 
 /**
+ * Un eroe ripetuto in una lista scritta fuori dall'Editor ferma l'allestimento, e l'errore dice da dove.
+ *
+ * 🔑 **E' il caso che ha fatto cambiare la regola.** Con la proprieta' come sola sorgente, ripetere un eroe
+ * voleva dire scriverlo due volte in un `.uasset`; con la console basta un refuso, o il tentativo — del tutto
+ * naturale — di una partita speculare. Due forme: nella stessa squadra, e fra le due squadre con la seconda
+ * lasciata al default.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterRepeatedHeroNamesItsSourceTest,
+	"RefactorTactics.Match.Roster.RepeatedHeroAbortsAndNamesItsSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterRepeatedHeroNamesItsSourceTest::RunTest(const FString&)
+{
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		const TCHAR* Args;
+		const TCHAR* Console1;        // rt.Match.Team1, o nullptr
+		const TCHAR* EroeAtteso;
+		const TCHAR* SorgenteAttesa;
+	};
+	const FCaso Casi[] = {
+		// Nella stessa squadra, da riga di comando.
+		{ TEXT("stessa squadra"), TEXT("-RTTeam0=Hero.Aevik,Hero.Aevik"), nullptr, TEXT("Hero.Aevik"), TEXT("-RTTeam0=") },
+		// Fra le due: la squadra 0 resta al default (Aevik, Muiren) e la console mette Muiren anche nella 1.
+		{ TEXT("fra le due squadre"), nullptr, TEXT("Hero.Branth,Hero.Muiren"), TEXT("Hero.Muiren"), TEXT("rt.Match.Team1") },
+	};
+
+	AddExpectedError(TEXT("e' schierato due volte"), EAutomationExpectedErrorFlags::Contains, UE_ARRAY_COUNT(Casi));
+
+	for (const FCaso& Caso : Casi)
+	{
+		FRTScopedRosterSources Sorgenti;
+		UWorld* World = MakeRosterWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ARTHexMapActor* HexMap = SpawnRosterMap(World);
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
+
+		if (Caso.Args) { Sorgenti.SetArgs(Caso.Args); }
+		if (Caso.Console1) { Sorgenti.Team1.Imposta(FString(Caso.Console1)); }
+		GameMode->SetupHexMatch(HexMap);
+
+		TestEqual(FString::Printf(TEXT("%s: nessuna unita' in campo"), Caso.Nome),
+			CollectRosterUnits(World).Num(), 0);
+		const FRTStartupReport& Report = GameMode->GetStartupReport();
+		TestEqual(FString::Printf(TEXT("%s: l'avvio dichiara il fatale"), Caso.Nome),
+			URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::RosterHeroRepeated);
+
+		FString Dettaglio;
+		for (const FRTStartupNote& Note : Report.Notes)
+		{
+			if (Note.Outcome == ERTStartupOutcome::RosterHeroRepeated) { Dettaglio = Note.Detail; }
+		}
+		TestTrue(FString::Printf(TEXT("%s: il dettaglio nomina l'eroe ripetuto (%s)"), Caso.Nome, *Dettaglio),
+			Dettaglio.Contains(Caso.EroeAtteso));
+		TestTrue(FString::Printf(TEXT("%s: e la SORGENTE '%s' (%s)"), Caso.Nome, Caso.SorgenteAttesa, *Dettaglio),
+			Dettaglio.Contains(Caso.SorgenteAttesa));
+
+		DestroyRosterWorld(World);
+	}
+	return true;
+}
+
+/**
+ * Su un livello che porta gia' le proprie unita' un roster chiesto NON viene usato, e il log lo dice.
+ *
+ * 🔑 **Senza l'avviso il log mente per omissione**: il resolver annuncia «SCAVALCA la proprieta'» e poi
+ * l'allestimento ritorna prima di leggere la formazione. Trovato dalla review di `#2748`.
+ *
+ * ⚠️ **Il conteggio ESATTO fa da controllo negativo.** Quattro allestimenti sullo stesso livello: il primo
+ * mette in campo il default; il secondo ritrova le unita' senza che nessuno abbia chiesto un roster, e deve
+ * tacere; il terzo e il quarto chiedono un roster per UNA sola squadra — la 0 da console, la 1 da riga di
+ * comando. Due occorrenze attese, non «almeno una»: una terza vorrebbe dire che l'avviso parte anche
+ * quando nessuno ha chiesto niente, e una sola che lo scavalcamento di una delle due squadre non conta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterUnusedOnAPopulatedLevelTest,
+	"RefactorTactics.Match.Roster.RequestedRosterOnAPopulatedLevelIsDeclaredUnused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
+{
+	FRTScopedRosterSources Sorgenti;
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = SpawnRosterMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
+
+	AddExpectedError(TEXT("NON vengono usati"), EAutomationExpectedErrorFlags::Contains, 2);
+
+	// 1. Il default entra in campo: da qui il livello «porta le proprie unita'».
+	GameMode->SetupHexMatch(HexMap);
+	if (!TestEqual(TEXT("premessa: quattro unita' in campo"), CollectRosterUnits(World).Num(), 4))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+	const FString InCampo0 = HeroIdsInPlay(CollectRosterUnits(World), 0);
+	const FString InCampo1 = HeroIdsInPlay(CollectRosterUnits(World), 1);
+
+	// 2. CONTROLLO: nessuno ha chiesto un roster. L'allestimento non interviene e NON avvisa.
+	GameMode->SetupHexMatch(HexMap);
+
+	// 3. Solo la squadra 0, da console.
+	Sorgenti.Team0.Imposta(FString(TEXT("Hero.Branth,Hero.Ivrin")));
+	GameMode->SetupHexMatch(HexMap);
+	Sorgenti.Team0.Imposta(FString());
+
+	// 4. Solo la squadra 1, da riga di comando.
+	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Aevik,Hero.Muiren"));
+	GameMode->SetupHexMatch(HexMap);
+	Sorgenti.ClearArgs();
+
+	TestEqual(TEXT("in campo restano gli eroi di prima, squadra 0"),
+		HeroIdsInPlay(CollectRosterUnits(World), 0), InCampo0);
+	TestEqual(TEXT("in campo restano gli eroi di prima, squadra 1"),
+		HeroIdsInPlay(CollectRosterUnits(World), 1), InCampo1);
+	TestEqual(TEXT("e non ne sono state allestite altre"), CollectRosterUnits(World).Num(), 4);
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
+/**
  * Una lista scritta male FERMA l'allestimento: non riparte la partita di default al posto di quella chiesta.
  *
  * 🔴 **E' la meta' di [D-507] che un resolver «gentile» romperebbe.** La proprieta' sotto e' valida — Aevik e
@@ -1073,11 +1204,15 @@ bool FRTRosterMalformedListAbortsTest::RunTest(const FString&)
 		const TCHAR* Nome;
 		const TCHAR* Args;
 		const TCHAR* ErroreAtteso;
+		ERTStartupOutcome FataleAtteso;
 	};
 	const FCaso Casi[] = {
-		{ TEXT("una voce sola, il formato ne schiera due"), TEXT("-RTTeam0=Hero.Aevik"),  TEXT("ne dichiara 1") },
-		{ TEXT("lista vuota"),                              TEXT("-RTTeam0="),            TEXT("ne dichiara 0") },
-		{ TEXT("virgola in coda: una voce vuota"),          TEXT("-RTTeam0=Hero.Aevik,"), TEXT("<voce vuota>") },
+		{ TEXT("una voce sola, il formato ne schiera due"), TEXT("-RTTeam0=Hero.Aevik"),  TEXT("ne dichiara 1"),
+			ERTStartupOutcome::RosterCountMismatch },
+		{ TEXT("lista vuota"),                              TEXT("-RTTeam0="),            TEXT("ne dichiara 0"),
+			ERTStartupOutcome::RosterCountMismatch },
+		{ TEXT("virgola in coda: una voce vuota"),          TEXT("-RTTeam0=Hero.Aevik,"), TEXT("<voce vuota>"),
+			ERTStartupOutcome::RosterHeroMissing },
 	};
 
 	for (const FCaso& Caso : Casi)
@@ -1096,6 +1231,19 @@ bool FRTRosterMalformedListAbortsTest::RunTest(const FString&)
 
 		TestEqual(FString::Printf(TEXT("%s: nessuna unita' in campo — nemmeno quelle della proprieta'"), Caso.Nome),
 			CollectRosterUnits(World).Num(), 0);
+		// E il rifiuto non e' MUTO: il rapporto d'avvio porta un fatale, quindi un modale. Il ramo della
+		// cardinalita' faceva solo un `Error` nel log — invisibile su un pacchetto. Si asserisce QUALE fatale:
+		// «un fatale qualunque» resterebbe vero anche se i due rami si scambiassero l'esito.
+		const FRTStartupReport& Report = GameMode->GetStartupReport();
+		TestEqual(FString::Printf(TEXT("%s: l'avvio dichiara il fatale del proprio ramo"), Caso.Nome),
+			URTStartupReportLibrary::FindFatal(Report), Caso.FataleAtteso);
+		FString Dettaglio;
+		for (const FRTStartupNote& Note : Report.Notes)
+		{
+			if (Note.Outcome == Caso.FataleAtteso) { Dettaglio = Note.Detail; }
+		}
+		TestTrue(FString::Printf(TEXT("%s: e il dettaglio nomina la sorgente (%s)"), Caso.Nome, *Dettaglio),
+			Dettaglio.Contains(TEXT("-RTTeam0=")));
 
 		DestroyRosterWorld(World);
 	}

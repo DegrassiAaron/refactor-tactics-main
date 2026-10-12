@@ -61,6 +61,13 @@ struct FRTMatchBootstrapConfig
 	FString Team0HeroesSourceLabel;
 	FString Team1HeroesSourceLabel;
 
+	/**
+	 * Almeno una delle due formazioni NON viene dalla proprieta' (`#2748`). Serve a un solo ramo: su un
+	 * livello che porta gia' le proprie unita' l'allestimento automatico non interviene, e un roster chiesto
+	 * da console o da riga di comando verrebbe ignorato dopo che il log ha annunciato lo scavalcamento.
+	 */
+	bool bRosterOverridden = false;
+
 	/** Classe visiva per `HeroId`. Un eroe assente ricade su `ARTUnit` — il cilindro segnaposto. */
 	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
 

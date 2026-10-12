@@ -51,7 +51,10 @@ namespace
 		// aggiunti all'enum e dimenticati qui, la suite e' diventata rossa con «i test conoscono TUTTI i
 		// valori dell'enum: 12, ma era 14». Senza, avrebbe continuato a dire «ogni esito» provandone dodici.
 		ERTStartupOutcome::FrontendLevelUnset,
-		ERTStartupOutcome::FrontendReturnNotConsumed
+		ERTStartupOutcome::FrontendReturnNotConsumed,
+		// I due di `#2748`: la formazione non e' onorabile. Fatali, senza ripiego.
+		ERTStartupOutcome::RosterCountMismatch,
+		ERTStartupOutcome::RosterHeroRepeated
 	};
 }
 
@@ -117,6 +120,11 @@ bool FRTStartupFatalSetTest::RunTest(const FString&)
 	// nel nome di un elenco che cresce mente al primo esito nuovo, e questo e' il primo.
 	TestTrue(TEXT("eroe della formazione fuori catalogo"),
 		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterHeroMissing));
+	// I due di `#2748`: stessa famiglia, stessa ragione — una formazione che nessuno puo' onorare.
+	TestTrue(TEXT("formazione di lunghezza diversa dal formato"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterCountMismatch));
+	TestTrue(TEXT("eroe ripetuto nella formazione"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterHeroRepeated));
 
 	// I ripieghi NON sono fatali: e' la meta' che il DoD originale non vedeva, e che un modale
 	// nasconderebbe dietro un pulsante `BACK` invece di mostrarla in partita.

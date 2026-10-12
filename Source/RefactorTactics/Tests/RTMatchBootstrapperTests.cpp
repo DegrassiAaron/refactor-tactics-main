@@ -399,21 +399,23 @@ bool FRTBootstrapperAppliesAutobattleToUnitsAlreadyInTheLevelTest::RunTest(const
 }
 
 /**
- * Lo stesso eroe schierato due volte entra una volta sola, e la seconda copia non prende una cella.
+ * FAIL-CLOSED sull'eroe RIPETUTO: lo stesso eroe schierato due volte ferma l'allestimento (`#2748`).
  *
  * 🔴 **Il duplicato passa il controllo di allineamento**: due voci contro `UnitsPerTeam = 2` sono il numero
- * giusto, quindi il ramo della formazione non scatta e il difetto arriva fino allo spawn. La guardia sta
- * dentro il ciclo (`Spawned.Contains`) e fa `continue`, non `return`: la partita si allestisce, con
- * un'unita' in meno da un lato.
+ * giusto, quindi il ramo della formazione non scatta. A fermarlo e' la risoluzione delle formazioni, che
+ * tiene l'insieme degli eroi gia' dichiarati fra le DUE squadre.
  *
- * ⚠️ E' un fail-**open** dichiarato, diverso dagli altri rami di questa suite: si sceglie una squadra
- * incompleta invece di nessuna partita. Il test lo pinna com'e', senza giudicarlo — se un giorno la scelta
- * cambiasse in un `return`, questo test cadrebbe e sarebbe la sede giusta per discuterlo.
+ * ⚠️ **Questo test pinnava la regola opposta**, e lo diceva: si chiamava
+ * `BootstrapperIgnoresTheSecondCopyOfAHero`, asseriva «tre unita', non quattro» e dichiarava il fail-open
+ * «senza giudicarlo — se un giorno la scelta cambiasse in un `return`, questo test cadrebbe e sarebbe la
+ * sede giusta per discuterlo». E' stato discusso: decisione d'autore del 2026-10-12, sulla review di
+ * `#2748`. Con i roster da console e da riga di comando un eroe ripetuto e' un refuso, non una scelta in un
+ * `.uasset`, e una partita con un'unita' in meno sembra normale a schermo.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperIgnoresTheSecondCopyOfAHeroTest,
-	"RefactorTactics.Match.BootstrapperIgnoresTheSecondCopyOfAHero",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperFailsClosedOnRepeatedHeroTest,
+	"RefactorTactics.Match.BootstrapperFailsClosedOnRepeatedHero",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBootstrapperIgnoresTheSecondCopyOfAHeroTest::RunTest(const FString&)
+bool FRTBootstrapperFailsClosedOnRepeatedHeroTest::RunTest(const FString&)
 {
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -428,13 +430,35 @@ bool FRTBootstrapperIgnoresTheSecondCopyOfAHeroTest::RunTest(const FString&)
 
 	FRTMatchBootstrapConfig Doppia = RTBootstrapperTestsLocal::MakeConfig();
 	Doppia.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Aevik") }; // due voci, un solo eroe
+	Doppia.Team0HeroesSourceLabel = TEXT("sorgente-di-prova");
+
+	AddExpectedError(TEXT("MapSource=GeneratedDemoArena"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedError(TEXT("e' schierato due volte"), EAutomationExpectedErrorFlags::Contains, 1);
 
 	FRTStartupReport Report;
 	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(HexMap, TM, Doppia, Report);
 
-	TestTrue(TEXT("il duplicato non impedisce l'allestimento"), Outcome.bUnitsSpawned);
-	TestEqual(TEXT("ma le unita' sono tre, non quattro: la seconda copia e' ignorata"),
-		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 3);
+	TestFalse(TEXT("nessuna unita' e' entrata in campo"), Outcome.bUnitsSpawned);
+	// **Zero, non tre.** Tre era la regola di prima; il conteggio esatto e' cio' che distingue «rifiutato»
+	// da «allestito con un'unita' in meno».
+	TestEqual(TEXT("zero unita', non una squadra incompleta"),
+		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 0);
+
+	// La condizione e' nel rapporto, con l'eroe e la sorgente: e' cio' che un widget puo' leggere.
+	FString Dettaglio;
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		if (Note.Outcome == ERTStartupOutcome::RosterHeroRepeated) { Dettaglio = Note.Detail; }
+	}
+	TestTrue(FString::Printf(TEXT("l'eroe ripetuto e' dichiarato nel rapporto d'avvio (%s)"), *Dettaglio),
+		Dettaglio.Contains(TEXT("Hero.Aevik")));
+	TestTrue(FString::Printf(TEXT("e il dettaglio porta la sorgente della formazione (%s)"), *Dettaglio),
+		Dettaglio.Contains(TEXT("sorgente-di-prova")));
+	TestTrue(TEXT("ed e' un fatale, non una degradazione"),
+		URTStartupReportLibrary::IsFatal(URTStartupReportLibrary::FindFatal(Report)));
+
+	// Il formato ERA valido, quindi la modalita' e' stata decisa: come per l'eroe sconosciuto.
+	TestTrue(TEXT("la modalita' era gia' stata decisa: il formato era valido"), Outcome.bModeLatched);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

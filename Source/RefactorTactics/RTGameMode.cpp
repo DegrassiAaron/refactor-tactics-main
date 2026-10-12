@@ -476,6 +476,11 @@ namespace RTRosterEntry
 	 * ⚠️ **`-RTTeam0=` senza valore e' una sorgente PRESENTE**: `FParse::Value` risponde `true` appena trova il
 	 * token, anche con valore vuoto. La lista e' vuota, non ricade sulla proprieta', e la ferma il controllo
 	 * sul formato. La forma con gli spazi vuole le virgolette: `-RTTeam0="Hero.A, Hero.B"`.
+	 *
+	 * ⚠️ **Due forme che finiscono in un errore dal testo sorprendente** (review di `#2748`): `FParse::Value`
+	 * salta gli spazi dopo il token, quindi `-RTTeam0= -game` legge `-game` come voce; e le virgolette non
+	 * chiuse portano con se' il resto della riga. In entrambi i casi l'allestimento si ferma e l'errore
+	 * nomina la sorgente: e' il valore citato a essere strano, non l'esito.
 	 */
 	static TOptional<TArray<FName>> FromCommandLine(int32 TeamId)
 	{
@@ -947,8 +952,9 @@ void ARTGameMode::ApplyPlaybackControlCVars(ARTTurnManager* TurnManager)
 		else if (!IsAutobattleInEffect())
 		{
 			UE_LOG(LogRT, Warning,
-				TEXT("[RT] rt.Debug.PlaybackSpeed=%g ignorata: la sessione e' presidiata, e dove una finestra di "
-					 "reazione puo' aprirsi la velocita' torna comunque a x1 ([D-350]). Vale in autobattle."),
+				TEXT("[RT] rt.Debug.PlaybackSpeed=%g ignorata: vale solo con l'autobattle in vigore. In una "
+					 "partita giocata la velocita' tornerebbe comunque a x1 alla prima finestra di reazione "
+					 "([D-350]); uno scenario ha il proprio ritmo."),
 				InitialSpeed);
 		}
 		else
@@ -1054,6 +1060,8 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	Config.Team0HeroesSourceLabel = RTRosterEntry::SourceLabel(0);
 	Config.Team1Heroes            = ResolveTeamHeroes(1);
 	Config.Team1HeroesSourceLabel = RTRosterEntry::SourceLabel(1);
+	Config.bRosterOverridden      = RTRosterEntry::Winner(0) != RTRosterEntry::EWinner::Property
+		|| RTRosterEntry::Winner(1) != RTRosterEntry::EWinner::Property;
 	Config.HeroUnitClasses       = HeroUnitClasses;
 	Config.bAutobattle           = ResolveAutobattle();
 	Config.AutobattleSourceLabel = RTAutobattleEntry::SourceLabel();

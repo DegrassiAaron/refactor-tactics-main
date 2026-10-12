@@ -480,6 +480,16 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 					 "L'allestimento automatico non interviene, la modalita' si'."),
 				Switched, Existing.Num());
 		}
+
+		// `#2748`, dalla review: il resolver ha gia' annunciato «SCAVALCA la proprieta'», e qui il roster non
+		// viene letto. Un annuncio senza effetto e' la forma piu' silenziosa di sorgente ignorata.
+		if (Config.bRosterOverridden)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] Il livello porta gia' le proprie unita': i roster chiesti (squadra 0 da %s, squadra 1 "
+					 "da %s) NON vengono usati. L'allestimento automatico non interviene."),
+				*Config.Team0HeroesSourceLabel, *Config.Team1HeroesSourceLabel);
+		}
 		return Outcome;
 	}
 
@@ -518,6 +528,8 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 
 	// Un eroe non puo' stare in due posti: la stessa istanza spawnata due volte condividerebbe le azioni
 	// (`Abilities` e' un array di puntatori), e due unita' finirebbero per ricaricare la stessa abilita'.
+	// ➕ `#2748`: la regola si applica PRIMA dello spawn, sulle formazioni risolte, e ferma l'allestimento.
+	// Qui `Spawned` resta solo per contare chi e' entrato in campo.
 	TSet<FName> Spawned;
 	int32 CellIndex = 0;
 	const TArray<const TArray<FName>*> Formations = { &Config.Team0Heroes, &Config.Team1Heroes };
@@ -543,6 +555,11 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 					 "formato alla formazione."),
 				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(),
 				*SourceOf(TeamId));
+			// `#2748`, dalla review: il rifiuto era MUTO per chi non legge il log — nessuna nota, quindi nessun
+			// modale. Su un pacchetto la riga di comando lo rende raggiungibile.
+			Report.Add(ERTStartupOutcome::RosterCountMismatch,
+				FString::Printf(TEXT("squadra %d: %d voci, il formato ne schiera %d (da %s)"), TeamId,
+					Formations[TeamId]->Num(), Rules.UnitsPerTeam, *SourceOf(TeamId)));
 			return Outcome;
 		}
 	}
@@ -553,6 +570,12 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 	// E' lo stesso dato che il controllo del conteggio qui sopra protegge dall'altro lato, e riceve lo
 	// stesso trattamento: `Error` e nessuna unita' spawnata.
 	TArray<TArray<const URTHeroData*>> Lineups;
+
+	// `#2748`, decisione d'autore del 2026-10-12: un eroe RIPETUTO ferma l'allestimento, come uno
+	// sconosciuto. Prima la copia veniva saltata nel ciclo di spawn con un `Warning` e la partita partiva
+	// con un'unita' in meno. Si guarda sull'`HeroId` del CATALOGO, non su quello scritto: e' il dato risolto
+	// quello che non puo' stare in due posti. L'insieme attraversa le DUE squadre.
+	TSet<FName> Dichiarati;
 	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
 	{
 		TArray<const URTHeroData*>& Lineup = Lineups.AddDefaulted_GetRef();
@@ -572,6 +595,18 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 					FString::Printf(TEXT("%s (squadra %d, da %s)"), *Voce, TeamId, *SourceOf(TeamId)));
 				return Outcome;
 			}
+			if (Dichiarati.Contains(Hero->HeroId))
+			{
+				UE_LOG(LogRT, Error,
+					TEXT("[RT] '%s' e' schierato due volte: partita non allestita. Un eroe non puo' stare in due "
+						 "posti. La seconda voce e' nella formazione della squadra %d, che viene da %s: correggila."),
+					*Hero->HeroId.ToString(), TeamId, *SourceOf(TeamId));
+				Report.Add(ERTStartupOutcome::RosterHeroRepeated,
+					FString::Printf(TEXT("%s (squadra %d, da %s)"), *Hero->HeroId.ToString(), TeamId,
+						*SourceOf(TeamId)));
+				return Outcome;
+			}
+			Dichiarati.Add(Hero->HeroId);
 			Lineup.Add(Hero);
 		}
 	}
@@ -617,12 +652,6 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 			if (CellIndex >= Start.Num())
 			{
 				UE_LOG(LogRT, Warning, TEXT("[RT] Celle di partenza insufficienti: %s non entra in campo"),
-					*HeroId.ToString());
-				continue;
-			}
-			if (Spawned.Contains(HeroId))
-			{
-				UE_LOG(LogRT, Warning, TEXT("[RT] %s e' schierato due volte: la seconda copia e' ignorata"),
 					*HeroId.ToString());
 				continue;
 			}
