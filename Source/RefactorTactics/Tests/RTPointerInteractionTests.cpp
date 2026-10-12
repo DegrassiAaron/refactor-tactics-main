@@ -27,6 +27,7 @@
 #include "Map/RTCellId.h"
 #include "Ability/RTCatalogLibrary.h" // IsFastMovement: la premessa «chiede un bersaglio» dei test di #3517
 #include "Combat/RTCombatLibrary.h"   // TargetableRangeCells e ClassifyHexTargeting, chiesti come premesse
+#include "UI/RTHudViewModel.h"       // BuildAbilityCooldowns: cio' che il dock applica alla selezione (#2988)
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -1975,6 +1976,82 @@ bool FRTPointerVeiledUnitTest::RunTest(const FString&)
 		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Planning, true, false, /*bObserved=*/ true),
 		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Planning, false, false, false));
 
+	return true;
+}
+
+/**
+ * `#2988` — LA SELEZIONE NON SOPRAVVIVE ALL'UNITA', e nemmeno l'ispezione.
+ *
+ * 🔴 **Niente azzerava la selezione quando l'unita' selezionata cadeva.** `ARTTurnManager::DestroyDefeatedUnits`
+ * distrugge l'Actor a fine turno, ma `SelectedActor` era un riferimento forte: fino al passaggio del GC
+ * `GetSelectedUnit()` continuava a rispondere con l'attore distrutto. Da li' passano il dock — che ne mostrava il
+ * kit: la casella «un'unita' invalidata non lascia uno slot che indica il suo kit» — i tasti, che la armavano,
+ * e il click, che le pianificava un movimento. `InspectedUnit` aveva lo stesso difetto sul pannello.
+ *
+ * 🔑 **Il passo 1 e' meta' del contratto, non un controllo di contorno**: fra il KO e la distruzione la selezione
+ * RESTA. L'attore c'e' ancora perche' il playback deve ancora mostrarne la caduta, e spegnere la barra appena lo
+ * stato dice «caduta» racconterebbe l'esito prima della scena. Senza quel passo, una correzione che filtrasse su
+ * `IsAlive()` passerebbe questo test e romperebbe la presentazione.
+ *
+ * ⚠️ **Limite dichiarato**: il dock vero arriva alla selezione da `GetOwningPlayer()`, che headless non esiste.
+ * Qui si misura la sorgente — `GetSelectedUnit()` — e la funzione che il dock le applica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionDoesNotSurviveTheUnitTest,
+	"RefactorTactics.PlayerInput.SelectionDoesNotSurviveTheUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionDoesNotSurviveTheUnitTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Other = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0, 0));
+	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Mine || !Other || !Enemy) { DestroyPointerWorld(World); return false; }
+
+	PC->SelectUnit(Mine);
+	const bool bIspezionata = PC->DispatchUnitClickForTest(Enemy, Mine) && PC->GetInspectedUnit() == Enemy;
+	const bool bSelezionata = PC->GetSelectedUnit() == Mine;
+	const int32 SlotPrima = URTHudViewModel::BuildAbilityCooldowns(PC->GetSelectedUnit()).Num();
+	// ⛔ Le tre premesse: senza, «nessuna selezione» e «nessuno slot» sarebbero veri anche per un banco vuoto.
+	if (!TestTrue(TEXT("premessa: la propria unita' e' selezionata"), bSelezionata)
+		|| !TestTrue(TEXT("premessa: l'avversaria e' ispezionata"), bIspezionata)
+		|| !TestTrue(TEXT("premessa: il dock avrebbe un kit da mostrare"), SlotPrima > 0))
+	{
+		DestroyPointerWorld(World);
+		return false;
+	}
+
+	// --- 1. KO, ma l'attore e' ancora in campo: la selezione RESTA ---------------------------------------
+	Mine->Health = 0;
+	TestFalse(TEXT("1: la selezionata e' caduta"), Mine->IsAlive());
+	TestTrue(TEXT("1: fra il KO e la distruzione la selezione resta — il playback deve ancora mostrare la caduta"),
+		PC->GetSelectedUnit() == Mine);
+
+	// --- 2. Distrutta, come fa `DestroyDefeatedUnits` a fine turno: la selezione non le sopravvive --------
+	Mine->Destroy();
+	TestNull(TEXT("2: un'unita' distrutta non e' piu' la selezionata"), (void*)PC->GetSelectedUnit());
+	TestEqual(TEXT("2: e nessuno slot indica il suo kit"),
+		URTHudViewModel::BuildAbilityCooldowns(PC->GetSelectedUnit()).Num(), 0);
+
+	// --- 3. L'ispezione ha lo stesso contratto ------------------------------------------------------------
+	Enemy->Destroy();
+	TestNull(TEXT("3: un'unita' distrutta non resta ispezionata"), (void*)PC->GetInspectedUnit());
+
+	// --- 4. Fumo, non prova: selezionare un'altra unita' dopo la caduta, dalla porta vera -------------------
+	// ⚠️ Questo passo NON distingue il prima dal dopo: anche col riferimento forte `SelectUnit` funzionava,
+	// chiamando `OnDeselected()` sull'attore distrutto senza crollare. Sta qui perche' attraversa il ramo
+	// «selezione precedente nulla», che prima di questa correzione non esisteva dopo una caduta.
+	PC->SelectUnit(Other);
+	TestTrue(TEXT("4: dopo la caduta si seleziona un'altra unita'"), PC->GetSelectedUnit() == Other);
+
+	DestroyPointerWorld(World);
 	return true;
 }
 

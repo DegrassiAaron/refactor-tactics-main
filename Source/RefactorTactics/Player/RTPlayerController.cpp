@@ -1575,7 +1575,7 @@ bool ARTPlayerController::CycleSelection()
 		return A.GetName() < B.GetName();
 	});
 
-	const ARTUnit* Corrente = Cast<ARTUnit>(SelectedActor);
+	const ARTUnit* Corrente = GetSelectedUnit();
 	const int32 IndiceCorrente = Corrente ? Comandabili.IndexOfByKey(const_cast<ARTUnit*>(Corrente)) : INDEX_NONE;
 	// Senza selezione si parte dalla prima; altrimenti dalla successiva, in cerchio.
 	const int32 Prossimo = (IndiceCorrente == INDEX_NONE) ? 0 : (IndiceCorrente + 1) % Comandabili.Num();
@@ -1861,7 +1861,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		? Hit.GetActor()
 		: nullptr;
 	ARTUnit* ClickedUnit = Cast<ARTUnit>(HitActor);
-	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
+	ARTUnit* SelectedUnit = GetSelectedUnit();
 
 	// Guardia di autorita': si pianifica solo per le proprie unita'. Se per qualche via SelectedActor fosse
 	// un'unita' avversaria, la deselezioniamo invece di prenderne il comando.
@@ -1869,7 +1869,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		SelectedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this),
 		SelectedUnit->bIsBotControlled))
 	{
-		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor))
+		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor.Get()))
 		{
 			PreviousSel->OnDeselected();
 		}
@@ -1960,7 +1960,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 			&& LastSelectTime >= 0.0
 			&& (Now - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
 		// Letto PRIMA di `SelectUnit`, che lo rende vero per chiunque.
-		const bool bGiaSelezionata = HitActor == SelectedActor;
+		const bool bGiaSelezionata = HitActor == SelectedActor.Get();
 
 		SelectUnit(HitActor);
 
@@ -2039,7 +2039,7 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// il giocatore, non impostando `SelectedActor` di nascosto. Il primo tentativo passava da
 	// `HandleClickOnUnit`, che NON seleziona — presuppone una selezione e tratta l'argomento come BERSAGLIO —
 	// quindi usciva subito senza fare nulla, e a schermo non compariva niente.
-	if (Actor == SelectedActor)
+	if (Actor == SelectedActor.Get())
 	{
 		return;
 	}
@@ -2052,7 +2052,7 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		return;
 	}
 
-	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
+	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor.Get()))
 	{
 		Previous->OnDeselected();
 	}
@@ -2184,7 +2184,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		return;
 	}
 
-	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
+	ARTUnit* SelectedUnit = GetSelectedUnit();
 	if (!ClickedUnit || !SelectedUnit) { return; }
 
 	{
@@ -3049,7 +3049,14 @@ void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 
 ARTUnit* ARTPlayerController::GetSelectedUnit() const
 {
-	return Cast<ARTUnit>(SelectedActor);
+	// `#2988`: `Get()` di un puntatore debole risponde nullo per un attore distrutto. E' cio' che rende
+	// vera la riga del commento in testa — «nullo se nessuna» — anche quando l'unita' c'era ed e' caduta.
+	return Cast<ARTUnit>(SelectedActor.Get());
+}
+
+ARTUnit* ARTPlayerController::GetInspectedUnit() const
+{
+	return InspectedUnit.Get();
 }
 
 FString ARTPlayerController::DisarmPlannedAction()
