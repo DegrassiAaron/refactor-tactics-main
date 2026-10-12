@@ -381,6 +381,15 @@ struct FRTBlastContext
 		int32 TargetStableUnitId = 0;
 		FRTCellId AimCell;
 		ERTAbilityShape Shape = ERTAbilityShape::Single;
+		/**
+		 * Chi poteva vedere la sorgente, congelato QUANDO il pass accetta l'azione, come prima di `#3683`.
+		 *
+		 * ⚠️ Fra l'accodamento e l'emissione passano `RevealHitTargetsToAttackers` e le reazioni. Oggi non
+		 * cambiano questo verdetto — `RevealByHit` scrive solo contatti, e un contatto ricordato non concede
+		 * (`FreezeVerdict` vuole `Allowed`) —, ma il gesto e' dell'istante in cui il pass lo accetta, e non deve
+		 * dipendere da cio' che il Blast fa dopo.
+		 */
+		FRTKnowledgeVerdict SourceVerdict;
 	};
 
 	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. */

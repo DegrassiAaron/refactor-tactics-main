@@ -416,7 +416,8 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 }
 
 void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
-	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape)
+	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
+	const FRTKnowledgeVerdict* FrozenSourceVerdict)
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
@@ -456,7 +457,8 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 	{
 		Ev.Origin = Soggetto.GetFactCell();
 	}
-	Ev.SourceVerdict = FreezeVerdictFor(Soggetto);
+	// `#3683`: un'attivazione rimandata porta il verdetto congelato quando il suo pass l'ha accettata.
+	Ev.SourceVerdict = FrozenSourceVerdict ? *FrozenSourceVerdict : FreezeVerdictFor(Soggetto);
 	// ⛔ Nessun riordino: l'ordine in timeline E' l'ordine di emissione (spec §2.2).
 	ResolvedTimeline.Add(MoveTemp(Ev));
 }
@@ -5881,7 +5883,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		{
 			const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[Atto.Indice];
 			EmitAbilityActivated(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
-				R.AimCell, R.Shape);
+				R.AimCell, R.Shape, &R.SourceVerdict);
 			continue;
 		}
 		const int32 k = Atto.Indice;

@@ -1279,13 +1279,15 @@ bool FRTPlaybackChargeImpactPrecedesHealTest::RunTest(const FString&)
 		if (PosImpatto == INDEX_NONE && S[k].ActionId == Ram) { PosImpatto = k; }
 		if (PosCura == INDEX_NONE && S[k].ActionId == Heal) { PosCura = k; }
 	}
-	if (PosImpatto != INDEX_NONE && PosCura != INDEX_NONE)
+	// La cura e' della squadra 0, quindi chi guarda la vede sempre: la sua presenza non e' opzionale.
+	if (!TestTrue(TEXT("⛔ la cura e' nella sequenza della sua squadra"), PosCura != INDEX_NONE)) { return false; }
+	if (PosImpatto != INDEX_NONE)
 	{
 		TestTrue(TEXT("e nella sequenza del Blast l'impatto si vede prima della cura"), PosImpatto < PosCura);
 	}
 	else
 	{
-		AddInfo(TEXT("uno dei due atti non e' nella sequenza della squadra 0: vale l'asserzione sulla timeline"));
+		AddInfo(TEXT("l'impatto non e' nella sequenza della squadra 0 (D-500/D6): vale l'asserzione sulla timeline"));
 	}
 	return true;
 }

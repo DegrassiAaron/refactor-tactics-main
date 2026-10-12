@@ -138,11 +138,14 @@ dello stesso scatto (D4), e una carica che colpisce senza muoversi si attiva lo 
    gesto e non l'esito (stesso `Ruling` della predittiva senza cella). Una Cleanse che non toglie nessuno
    stato (voce `NoEffect`) **si attiva**;
 2. **Heal** — in `CollectHealActions`, ➕ piano. nel punto in cui la cura viene **spesa**, anche quando non
-   ha effetto (`:587-593`); `ActionId` da `HealDefs[i]`, sorgente `HealActors[i]`;
+   ha effetto (`:587-593`); `ActionId` da `HealDefs[i]`, sorgente `HealActors[i]`. ➕ Da #3683 qui si **accetta**
+   e si congela il verdetto; l'attivazione la emette il ciclo canonico;
 3. **ModifyArc** — nel ramo di intercettazione, dove si fa `PendingArcOps.Add` (`:705`): dopo la validazione
-   di portata, quindi un arco fuori portata (`Fallback Cancelled`, `:678-700`) **non** si attiva;
+   di portata, quindi un arco fuori portata (`Fallback Cancelled`, `:678-700`) **non** si attiva. ➕ Da #3683, come
+   la cura: qui si accetta, e la emette il ciclo canonico;
 4. **intenti d'attacco** — in `ResolveCombatPasses`, subito dopo `ApplyEnvironmentChanges` e prima del ciclo
-   delle impronte (`:5487-5503`), iterando `Ctx.Intents` in ordine di `IntentIndex` con:
+   delle impronte (`:5487-5503`), iterando `Ctx.Intents` in ordine di `IntentIndex` con (➕ da #3683 il ciclo
+   scorre gli atti, cioe' gli intenti **e** le attivazioni rimandate di Heal e `ModifyArc`, con una chiave sola):
    ➕ **Emendato da [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582)**: l'iterazione segue l'**ordine canonico del Blast** (ADR-0003 §3:
    priorita' crescente, poi `ActionId`, attaccante e intento — `PrecedeNelBlast`, lo stesso confronto del ciclo del
    danno), e per ogni intento l'**impronta esce subito dopo la sua attivazione**. Il playback ordina gli atti sulla

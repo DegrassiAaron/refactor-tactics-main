@@ -589,7 +589,8 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// ➕ `#3683`: si ACCODA, e la emette `ResolveCombatPasses` nell'ordine canonico insieme agli intenti
 		// d'attacco. Il gesto resta quello accettato qui; cambia solo quando lo si vede.
 		Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
-			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single });
+			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single,
+			FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
 
 		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
@@ -784,7 +785,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				// il piano dei colpi e' gia' raccolto: nessun colpo di questo Blast lo vede, e in ordine canonico
 				// (75) si racconta dopo di loro.
 				Ctx.DeferredActivations.Add({ Unit, i, PlannedNow->Def.Priority, PlannedNow->Def.ActionId,
-					PlannedNow->Def.BaseActionId, ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single });
+					PlannedNow->Def.BaseActionId, ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single,
+					FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
 			}
 			continue;
 		}
