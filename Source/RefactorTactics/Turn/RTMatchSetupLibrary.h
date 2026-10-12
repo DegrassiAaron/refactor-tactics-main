@@ -314,6 +314,28 @@ public:
 	static URTHexMapAsset* MakeLayerStackArena(UObject* Outer);
 
 	/**
+	 * `LayerYard` — i tre piani di `LayerStack` con sopra i VOLUMI: e' la scena su cui si giudica la tinta con cui
+	 * muri, coperture, porte e blocchi dicono il loro piano (#3706, [D-508]).
+	 *
+	 * Stesse impronte e stessi archi di `LayerStack`. In piu', su celle che il piano sopra lascia scoperte:
+	 *
+	 * | Che cosa | Famiglia della board | Piani |
+	 * |---|---|---|
+	 * | una cella che blocca passo e vista | `Blockers` | 0, 1, 2 |
+	 * | una copertura alta e una bassa | `EdgeFeatures` | 0, 1, 2 |
+	 * | una porta chiusa | `EdgeFeatures` | 0, 1 |
+	 * | una cella di fumo | `SurfaceVolumes` | 0, 1 |
+	 * | un corpo sotto la superficie | `StructuralBodies` | 1, 2 |
+	 *
+	 * 🔑 **Ogni famiglia sta su almeno due piani**: una famiglia presente su un piano solo non mostrerebbe la
+	 * differenza fra la tinta dell'attivo e quella di un altro piano, che e' cio' che la voce PIE chiede di
+	 * guardare. `LayerStack` resta senza volumi apposta: e' la scena delle sole celle.
+	 *
+	 * `Outer` nullo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeLayerYardArena(UObject* Outer);
+
+	/**
 	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa
 	 * tabella che li dispaccia: elencarli qui a mano e' cio' che ha prodotto `#1459`.
 	 *

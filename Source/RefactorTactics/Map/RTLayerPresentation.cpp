@@ -22,6 +22,16 @@ static TAutoConsoleVariable<float> CVarRTMapLayersLowerDarkening(
 	TEXT("rt.Map.Layers.LowerDarkening"), -1.f,
 	TEXT("Luce persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,55)."), ECVF_Default);
 
+static TAutoConsoleVariable<float> CVarRTMapLayersVolumeTint(
+	TEXT("rt.Map.Layers.VolumeTint"), -1.f,
+	TEXT("Quanto un volume (muro, copertura, porta, blocco) prende il colore del suo piano (0..1). Negativo = default (0,25)."),
+	ECVF_Default);
+
+const TCHAR* const RTLayerPresentation::VolumeMaterialPackage = TEXT("/Game/RT/Core/Grid/M_HexVolume");
+const TCHAR* const RTLayerPresentation::VolumeMaterialName = TEXT("M_HexVolume");
+const FName RTLayerPresentation::VolumeParamOwnColor(TEXT("OwnColor"));
+const FName RTLayerPresentation::VolumeParamRoughness(TEXT("Roughness"));
+
 FRTLayerPresentationTuning FRTLayerPresentationTuning::FromConsole()
 {
 	FRTLayerPresentationTuning T;
@@ -37,6 +47,7 @@ FRTLayerPresentationTuning FRTLayerPresentationTuning::FromConsole()
 	Leva(CVarRTMapLayersUpperExposure, T.UpperExposureStops, RTLayerPresentation::MaxUpperExposureStops);
 	Leva(CVarRTMapLayersLowerDesaturation, T.LowerDesaturationPerLayer, 1.f);
 	Leva(CVarRTMapLayersLowerDarkening, T.LowerDarkeningPerLayer, 0.99f);
+	Leva(CVarRTMapLayersVolumeTint, T.VolumeTintStrength, 1.f);
 	return T;
 }
 
@@ -47,6 +58,26 @@ ERTLayerRelation RTLayerPresentation::Relation(int32 Layer, int32 ActiveLayer, b
 		return ERTLayerRelation::Active;
 	}
 	return Layer > ActiveLayer ? ERTLayerRelation::Above : ERTLayerRelation::Below;
+}
+
+FLinearColor RTLayerPresentation::VolumeOwnColor(bool bEdgePanel)
+{
+	// Tarati sulle catture di prima di #3706 (`Visual.Map.BlockVolumes`, `Visual.Map.GrayKitYard`): vedi l'header.
+	return bEdgePanel ? FLinearColor(0.42f, 0.42f, 0.42f, 1.f) : FLinearColor(0.20f, 0.20f, 0.20f, 1.f);
+}
+
+FRTLayerVolumeTint RTLayerPresentation::VolumeTint(int32 Layer, int32 ActiveLayer, bool bMultiLayer,
+	const FRTLayerPresentationTuning& Tuning)
+{
+	FRTLayerVolumeTint Tint;
+	if (!bMultiLayer)
+	{
+		return Tint; // una mappa a un piano non ha niente da dire: nessuna tinta, come prima di #3706
+	}
+	// Il colore e' quello del bordo: una sede sola per «che colore ha questo piano».
+	Tint.Color = FLinearColor::FromSRGBColor(BorderColorFor(Relation(Layer, ActiveLayer, bMultiLayer)));
+	Tint.Strength = FMath::Clamp(Tuning.VolumeTintStrength, 0.f, 1.f);
+	return Tint;
 }
 
 FRTLayerTreatment RTLayerPresentation::Treatment(int32 Layer, int32 ActiveLayer, bool bMultiLayer,

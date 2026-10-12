@@ -38,6 +38,24 @@ struct REFACTORTACTICS_API FRTLayerTreatment
 	}
 };
 
+/**
+ * **La tinta con cui un VOLUME dice il suo piano** ([D-508], #3706): muri, coperture, porte, blocchi e corpi.
+ *
+ * Il colore e' quello del bordo della relazione (`BorderColorFor`), in lineare; la forza dice quanto il volume lo
+ * prende, e a zero resta del colore suo. Su una mappa a un piano la forza e' zero: nessuna tinta, come prima.
+ *
+ * 🔑 **La tinta si applica DOPO il trattamento**, nel materiale: un volume sotto e' desaturato e scurito, e una tinta
+ * messa prima perderebbe il suo viola insieme al resto. E' la stessa ragione per cui i bordi delle celle non
+ * ricevono il trattamento: il colore DICE la relazione.
+ */
+struct REFACTORTACTICS_API FRTLayerVolumeTint
+{
+	FLinearColor Color = FLinearColor::Black;
+	float Strength = 0.f;
+
+	bool IsNone() const { return Strength == 0.f; }
+};
+
 /** Dove sta un piano rispetto a quello attivo. Su una mappa a un piano, tutto e' `Active`. */
 enum class ERTLayerRelation : uint8
 {
@@ -75,11 +93,20 @@ struct REFACTORTACTICS_API FRTLayerPresentationTuning
 	/** La luce persa per ogni piano di distanza sotto l'attivo, cumulata: 0,55 vuol dire ×0,45, poi ×0,2. */
 	float LowerDarkeningPerLayer = 0.55f;
 
+	/**
+	 * Quanto un volume prende il colore del suo piano ([D-508], #3706): 0 = del colore suo, 1 = tutto tinta.
+	 *
+	 * ⚠️ **Provvisoria, scelta senza l'autore** (PR di #3706): la issue chiede una tinta «leggera» e lascia il valore
+	 * alla PIE. La leva e' `rt.Map.Layers.VolumeTint`.
+	 */
+	float VolumeTintStrength = 0.25f;
+
 	bool operator==(const FRTLayerPresentationTuning& Other) const
 	{
 		return UpperOpacity == Other.UpperOpacity && UpperExposureStops == Other.UpperExposureStops
 			&& LowerDesaturationPerLayer == Other.LowerDesaturationPerLayer
-			&& LowerDarkeningPerLayer == Other.LowerDarkeningPerLayer;
+			&& LowerDarkeningPerLayer == Other.LowerDarkeningPerLayer
+			&& VolumeTintStrength == Other.VolumeTintStrength;
 	}
 
 	/** I default, con le leve in console che li sostituiscono quando sono impostate (>= 0). */
@@ -93,6 +120,49 @@ namespace RTLayerPresentation
 
 	/** I float per istanza delle famiglie che lo ricevono: colore (3) piu' trattamento (3). */
 	inline constexpr int32 NumCustomDataFloats = 6;
+
+	/**
+	 * I float per istanza delle famiglie dei VOLUMI (#3706), e come `M_HexVolume` li legge:
+	 *
+	 *   | canali | che cosa                | 0 vuol dire      |
+	 *   |--------|-------------------------|------------------|
+	 *   | 0..2   | colore della tinta      | (con forza zero) |
+	 *   | 3..5   | il trattamento di D-501 | come le celle    |
+	 *   | 6      | forza della tinta       | nessuna tinta    |
+	 *
+	 * 🔴 Neutra a zero come quella delle celle: un'istanza appena nata e' opaca, del colore suo, senza tinta.
+	 * I canali 3..5 sono GLI STESSI delle celle, cosi' il trattamento si scrive con una sola procedura.
+	 */
+	inline constexpr int32 VolumeNumCustomDataFloats = 7;
+	inline constexpr int32 VolumeTintStrengthChannel = 6;
+
+	/** `M_HexVolume`, costruito dal commandlet `RTBuildHexVolumeMaterial` (`D-229`), e il suo colore proprio. */
+	REFACTORTACTICS_API extern const TCHAR* const VolumeMaterialPackage;
+	REFACTORTACTICS_API extern const TCHAR* const VolumeMaterialName;
+	REFACTORTACTICS_API extern const FName VolumeParamOwnColor;
+	REFACTORTACTICS_API extern const FName VolumeParamRoughness;
+
+	/**
+	 * Il colore PROPRIO di un volume, cioe' cio' che si vede dove la tinta non arriva: in lineare, e neutro.
+	 *
+	 * 🔑 **Due grigi, e non sono una scelta estetica: sono cio' che c'era.** Fino a #3706 queste famiglie avevano il
+	 * materiale della loro mesh — quello di default del motore sui prismi (`Blockers`, `StructuralBodies`,
+	 * `SurfaceVolumes`), quello delle forme base sul cubo dei pannelli (`EdgeFeatures`) — e a schermo erano due grigi
+	 * diversi. I valori sono tarati perche' una mappa a un piano si veda come prima (#3706, scope 3): si misurano
+	 * sulle catture, non si scelgono.
+	 */
+	REFACTORTACTICS_API FLinearColor VolumeOwnColor(bool bEdgePanel);
+
+	/** La ruvidita' del materiale dei volumi: opaco, senza riflessi che una tinta leggera non reggerebbe. */
+	inline constexpr float VolumeRoughness = 0.85f;
+
+	/**
+	 * La tinta di un volume sul piano `Layer`. Pura: e' la funzione della DoD di #3706.
+	 *
+	 * @param bMultiLayer falso su una mappa a un piano: nessuna tinta (#3706, scope 3).
+	 */
+	REFACTORTACTICS_API FRTLayerVolumeTint VolumeTint(int32 Layer, int32 ActiveLayer, bool bMultiLayer,
+		const FRTLayerPresentationTuning& Tuning);
 
 	/** Il tetto dello schiarimento di un piano sopra (#3674): +4 stop e' luce ×16, oltre il bianco per ogni terreno. */
 	inline constexpr float MaxUpperExposureStops = 4.f;

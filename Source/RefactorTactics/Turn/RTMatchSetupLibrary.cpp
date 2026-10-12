@@ -506,6 +506,7 @@ namespace
 		{ TEXT("VisionSplit"), &URTMatchSetupLibrary::MakeVisionSplitArena       },
 		{ TEXT("ProbeYard"),   &URTMatchSetupLibrary::MakeProbeYardArena         },
 		{ TEXT("LayerStack"),  &URTMatchSetupLibrary::MakeLayerStackArena        },
+		{ TEXT("LayerYard"),   &URTMatchSetupLibrary::MakeLayerYardArena         },
 	};
 }
 
@@ -536,6 +537,106 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeLayerStackArena(UObject* Outer)
 	// sopra: chi sale parte da una cella scoperta.
 	Draft.Link(FRTCellId(1, 2, 0), FRTCellId(1, 1, 1), /*Cost=*/ 2);
 	Draft.Link(FRTCellId(0, -1, 1), FRTCellId(1, -1, 2), /*Cost=*/ 2);
+
+	Draft.CommitTo(Arena);
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeLayerYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Le tre impronte e i due archi sono quelli di `LayerStack`, riscritti qui e non ereditati: una fixture si legge
+	// da sola, e `LayerYardSharesTheFootprintOfLayerStack` tiene uguali le due.
+	struct FPiano { FRTCellId Centro; int32 Raggio; };
+	for (const FPiano& Piano : { FPiano{ FRTCellId(0, 0, 0), 4 }, FPiano{ FRTCellId(1, -1, 1), 2 },
+	                             FPiano{ FRTCellId(2, -2, 2), 1 } })
+	{
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(Piano.Centro, Piano.Raggio))
+		{
+			Draft.Set(FRTHexCellData(Id));
+		}
+	}
+	Draft.Link(FRTCellId(1, 2, 0), FRTCellId(1, 1, 1), /*Cost=*/ 2);
+	Draft.Link(FRTCellId(0, -1, 1), FRTCellId(1, -1, 2), /*Cost=*/ 2);
+
+	// ── I blocchi: una cella per piano che nega passo e vista (`Blockers`). Su celle che il piano sopra lascia
+	// scoperte, e lontane dalle ancore delle salite.
+	for (const FRTCellId& Id : { FRTCellId(-2, 2, 0), FRTCellId(0, 1, 1), FRTCellId(2, -3, 2) })
+	{
+		if (const FRTHexCellData* Existing = Draft.Find(Id))
+		{
+			FRTHexCellData Cell = *Existing;
+			Cell.bBlocksMovement = true;
+			Cell.bBlocksLineOfSight = true;
+			Draft.Set(Cell);
+		}
+	}
+
+	// ── Le coperture e le porte (`EdgeFeatures`). La direzione si CHIEDE alla libreria, come in `CoverYard`.
+	struct FLayerYardCover { FRTCellId From; FRTCellId To; ERTHexCoverType Type; };
+	static const FLayerYardCover Covers[] = {
+		{ FRTCellId(-2,  0, 0), FRTCellId(-3,  0, 0), ERTHexCoverType::High },
+		{ FRTCellId(-1,  2, 0), FRTCellId(-2,  3, 0), ERTHexCoverType::Low  },
+		{ FRTCellId( 0,  0, 1), FRTCellId( 1,  0, 1), ERTHexCoverType::High },
+		{ FRTCellId(-1,  0, 1), FRTCellId(-1,  1, 1), ERTHexCoverType::Low  },
+		{ FRTCellId( 2, -2, 2), FRTCellId( 3, -2, 2), ERTHexCoverType::High },
+		{ FRTCellId( 2, -2, 2), FRTCellId( 2, -1, 2), ERTHexCoverType::Low  },
+	};
+	for (const FLayerYardCover& Cover : Covers)
+	{
+		const FRTHexCellData* Cell = Draft.Find(Cover.From);
+		ERTHexDirection Edge;
+		if (Cell && Draft.Find(Cover.To) && URTHexCoverLibrary::EdgeDirection(Cover.From, Cover.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
+			Draft.Set(Updated);
+		}
+	}
+	struct FLayerYardDoor { FRTCellId From; FRTCellId To; };
+	static const FLayerYardDoor Doors[] = {
+		{ FRTCellId(-3, 2, 0), FRTCellId(-4, 2, 0) },
+		{ FRTCellId( 2, 0, 1), FRTCellId( 3, -1, 1) },
+	};
+	for (const FLayerYardDoor& Door : Doors)
+	{
+		const FRTHexCellData* Cell = Draft.Find(Door.From);
+		ERTHexDirection Edge;
+		if (Cell && Draft.Find(Door.To) && URTHexCoverLibrary::EdgeDirection(Door.From, Door.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Doors.Add(FRTHexDoor(Edge, ERTHexDoorState::Closed));
+			Draft.Set(Updated);
+		}
+	}
+
+	// ── Il fumo (`SurfaceVolumes`): la sola superficie che porta un volume (`URTHexLibrary::SurfaceVolumeFor`).
+	for (const FRTCellId& Id : { FRTCellId(-3, 3, 0), FRTCellId(1, 0, 1) })
+	{
+		if (Draft.Find(Id))
+		{
+			Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Smoke));
+		}
+	}
+
+	// ── I corpi (`StructuralBodies`): il volume SOTTO una superficie alta. Un terzo, cosi' sotto resta spazio e il
+	// piano di sotto non viene murato.
+	for (const FRTCellId& Id : { FRTCellId(3, -1, 1), FRTCellId(3, -3, 2) })
+	{
+		if (const FRTHexCellData* Existing = Draft.Find(Id))
+		{
+			FRTHexCellData Cell = *Existing;
+			Cell.BodyFill = ERTHexBodyFill::Third;
+			Draft.Set(Cell);
+		}
+	}
 
 	Draft.CommitTo(Arena);
 	return Arena;
