@@ -109,6 +109,8 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 	// #3704: i valori «sotto» li ha scelti l'autore nella seduta U84. Un default cambiato per sbaglio cade qui.
 	TestTrue(TEXT("default sotto: desaturazione 0,7 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDesaturationPerLayer, 0.7f));
 	TestTrue(TEXT("default sotto: scurimento 0,55 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDarkeningPerLayer, 0.55f));
+	// E l'opacita' «sopra» l'ha scelta lo stesso giorno, sull'asset riparato: prima la maschera era inerte (#3704).
+	TestTrue(TEXT("default sopra: opacita' 0,35 (U84, su piani traslucidi)"), FMath::IsNearlyEqual(T.UpperOpacity, 0.35f));
 	return true;
 }
 
