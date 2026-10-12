@@ -435,6 +435,10 @@ numero di decisione**. Nessuna resta `OPEN` al freeze.
    nelle issue, fuori da questo giro: il gate strutturale sul riuso degli slot del dock, da scrivere con
    la correzione del grafo (`#2989`), e la casella «lo prova un test» di `#2951`, dove oggi c'è una
    misura. `#2951`, `#2989`, `#2826`, `#2744` e `#2748` restano aperte per i verdetti di seduta.*
+   ➕ *Il 2026-10-13 la casella di `#2951` ha il suo test ([#3721](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3721)). La ricognizione che l'ha
+   preceduta ha misurato che la regola del piano di `D-393` vale in pianificazione e non in risoluzione:
+   è la voce `VERT-3` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), e se la risposta è «ogni colpo»
+   tocca `Source/` e il formato del TurnLog, quindi entra prima del freeze.*
 
 🔑 **L'ultimo merge di quest'onda è il candidate v2.** Non si congela prima: ogni commit qui
 invalida ciò che l'Onda 3 misura.

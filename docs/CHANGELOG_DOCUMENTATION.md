@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-13 — `VERT-3`: fin dove vale la regola del piano di `D-393`
+
+**Origine**: la ricognizione per l'ultima casella di [#2951](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2951), chiusa con [#3721](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3721).
+
+| Dove | Che cosa |
+|---|---|
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | voce nuova `VERT-3`: la regola del piano vale per ogni colpo o solo per la mira; con ciò che è misurato, ciò che è letto e ciò che regge |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-393` annotata: `IMPLEMENTATION DRIFT` misurato in risoluzione e nell'interposizione, con il rimando a `VERT-3` |
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | §4, punto 5: la casella di #2951 ha il suo test, e resta `VERT-3` |
+
+---
+
 ## 2026-10-13 — Il piano di un'unità si legge dal contorno del modello
 
 **Origine**: [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705), `D-508`. La tecnica l'ha scelta la PR; il giudizio a schermo è dell'autore.
