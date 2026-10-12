@@ -4,6 +4,7 @@
 #include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
+#include "Player/RTInputMode.h" // il modo di input del gioco: una funzione, due chiamanti (#2989)
 #include "RefactorTactics.h"
 
 ARTFrontendGameMode::ARTFrontendGameMode()
@@ -59,8 +60,9 @@ void ARTFrontendGameMode::ConfigureMenuInput(APlayerController* PlayerController
 	// Il cursore e' la meta' visibile del requisito; l'altra e' che i tasti vadano alla UI e non al mondo.
 	// `GameAndUI` e non `UIOnly`: quest'ultimo richiede un widget su cui mettere il focus, e a `PostLogin`
 	// il menu puo' non essere ancora a schermo — con `UIOnly` senza focus l'input resta nel vuoto.
-	PlayerController->bShowMouseCursor = true;
-	PlayerController->SetInputMode(FInputModeGameAndUI());
+	//
+	// ➕ `#2989`: la chiamata sta in `RTInputMode::ApplyGameAndUI`, ed e' la stessa che fa la partita.
+	RTInputMode::ApplyGameAndUI(*PlayerController);
 }
 
 bool ARTFrontendGameMode::StartFrontendForThisGame()
