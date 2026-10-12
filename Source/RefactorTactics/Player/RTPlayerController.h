@@ -395,10 +395,10 @@ protected:
 	 * ⛔ **Chi lo legge deve sopprimere cio' che non gli spetta.** Questo campo dice *quale* unita' si sta
 	 * guardando, non *quanto* se ne puo' mostrare: il filtro e' di chi disegna, e per il pannello e' `#613`,
 	 * con la regola di `#2757` — carta si', slot mai, **e nemmeno vuoti**.
+	 *
+	 * ➕ `#2988`: debole per la stessa ragione di `SelectedActor`. «Persiste finche' non se ne ispeziona
+	 * un'altra» valeva anche oltre la distruzione dell'unita', e il pannello ne mostrava la carta.
 	 */
-	//
-	// ➕ `#2988`: debole per la stessa ragione di `SelectedActor`. «Persiste finche' non se ne ispeziona
-	// un'altra» valeva anche oltre la distruzione dell'unita', e il pannello ne mostrava la carta.
 	UPROPERTY()
 	TWeakObjectPtr<class ARTUnit> InspectedUnit;
 

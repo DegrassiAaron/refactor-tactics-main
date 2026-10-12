@@ -2044,7 +2044,10 @@ bool FRTSelectionDoesNotSurviveTheUnitTest::RunTest(const FString&)
 	Enemy->Destroy();
 	TestNull(TEXT("3: un'unita' distrutta non resta ispezionata"), (void*)PC->GetInspectedUnit());
 
-	// --- 4. Selezionare un'altra unita' dopo la caduta funziona, dalla porta vera ---------------------------
+	// --- 4. Fumo, non prova: selezionare un'altra unita' dopo la caduta, dalla porta vera -------------------
+	// ⚠️ Questo passo NON distingue il prima dal dopo: anche col riferimento forte `SelectUnit` funzionava,
+	// chiamando `OnDeselected()` sull'attore distrutto senza crollare. Sta qui perche' attraversa il ramo
+	// «selezione precedente nulla», che prima di questa correzione non esisteva dopo una caduta.
 	PC->SelectUnit(Other);
 	TestTrue(TEXT("4: dopo la caduta si seleziona un'altra unita'"), PC->GetSelectedUnit() == Other);
 
