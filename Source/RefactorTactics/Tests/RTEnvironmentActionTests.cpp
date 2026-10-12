@@ -4066,4 +4066,109 @@ bool FRTActionIgniteFrozenAimTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3681, [D-502] — il muro colpito ha UN verdetto, e ogni vista del fatto lo legge.
+ *
+ * 🔴 **Il caso che solo questo evento produce**: un attaccante che chi guarda non vede spara contro un muro alto
+ * e non colpisce nessuno. Non nascono ne' `Attack` ne' `AttackFootprint`, e il bordo colpito resta l'unica
+ * notizia — la fila da cui e' arrivato il colpo. ⏱️ *Fino a #3681 lo stesso fatto aveva tre regole: la voce
+ * di TurnLog col verdetto di chi aveva sparato, l'evento di timeline senza verdetto, la riga del combat log
+ * pubblica.*
+ *
+ * 🔑 **Tre squadre, perche' le domande sono tre**: chi ha sparato (squadra 1, D-502 (b)), chi guarda il muro
+ * senza vedere chi spara (squadra 0, dietro il muro), e chi non vede nessuna delle due celle (squadra 2, a
+ * nove celle con una visione di sei). Con due sole squadre l'arena di prova le farebbe vedere tutto a tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyWallHitOneVerdictTest,
+	"RefactorTactics.Privacy.WallHitHasOneVerdictForEveryView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyWallHitOneVerdictTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World, /*Radius=*/ 10);
+	if (!TestTrue(TEXT("mappa"), MapActor && MapActor->MapAsset)) { DestroyEnvWorld(World); return false; }
+
+	// Il muro alto di `EnvMakeWalledBreachScenario`: sul bordo W di (1,0), chi spara in (0,0).
+	const FRTCellId Portante(1, 0);
+	const FRTCellId Spara(0, 0);
+	FRTHexCellData ColMuro = *MapActor->MapAsset->FindCell(Portante);
+	ColMuro.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+	MapActor->MapAsset->AddOrUpdateCell(ColMuro);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Breacher = SpawnEnvUnit(World, 1, Spara);
+	ARTUnit* Defender = SpawnEnvUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Lontano = SpawnEnvUnit(World, 2, FRTCellId(-9, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestTrue(TEXT("scenario costruito"), Breacher && Defender && Lontano && TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 30));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Defender;
+
+	RunEnvTurn(TM);
+
+	const FRTTurnLogEntry* Voce = nullptr;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (URTTurnLogLibrary::IsStructureHit(E)) { Voce = &E; break; }
+	}
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(TM);
+	if (!TestNotNull(TEXT("⛔ il turno ha registrato il muro colpito"), Voce)
+		|| !TestTrue(TEXT("⛔ e la timeline lo porta"), Eventi.Num() > 0))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Il verdetto della voce, e contro cosa e' stato congelato.
+	const FRTKnowledgeVerdict V = Voce->Verdict;
+	TestTrue(TEXT("il soggetto del verdetto e' il bordo"), Voce->VerdictSubject.bEdge);
+	TestEqual(TEXT("con la cella che porta il muro"), Voce->VerdictSubject.EdgeCell, Portante);
+	TestEqual(TEXT("e quella da cui e' arrivato il colpo"), Voce->VerdictSubject.EdgeToward, Spara);
+	TestTrue(TEXT("e la sola squadra dell'autore"),
+		Voce->VerdictSubject.AuthorTeamIds.Num() == 1 && Voce->VerdictSubject.AuthorTeamIds[0] == 1);
+	TestEqual(TEXT("la voce nomina ancora chi ha sparato: `UnitId` entra nell'hash"), Voce->UnitId,
+		Breacher->StableUnitId);
+
+	TestTrue(TEXT("(b) chi ha sparato vede il proprio colpo"), V.AllowsTeam(1));
+	TestTrue(TEXT("chi guarda il muro lo vede colpire, anche senza vedere chi spara"), V.AllowsTeam(0));
+	TestFalse(TEXT("🔴 chi non vede nessuna delle due celle non lo sa"), V.AllowsTeam(2));
+
+	// Un fatto, un verdetto: ogni vista legge lo stesso.
+	for (const FRTResolvedEvent& Ev : Eventi)
+	{
+		TestTrue(TEXT("l'evento di timeline porta il verdetto della voce"), Ev.SourceVerdict == V);
+	}
+	const TArray<FRTResolvedEvent>& Timeline = TM->ResolvedTimelineForTest();
+	for (const int32 Squadra : { 0, 1, 2 })
+	{
+		bool bRiga = false;
+		for (const FString& Riga : TM->GetRecentEventsForTeam(Squadra))
+		{
+			bRiga |= Riga.Contains(TEXT("Copertura"));
+		}
+		TestEqual(*FString::Printf(TEXT("squadra %d: la riga del combat log segue il verdetto"), Squadra),
+			bRiga, V.AllowsTeam(Squadra));
+
+		bool bSegno = false;
+		for (const FRTBlastSequenceElement& E :
+			URTPlaybackLibrary::BuildBlastSequence(Timeline, TArray<FRTBlastSequenceElement>(), 0, Squadra))
+		{
+			bSegno |= Timeline.IsValidIndex(E.TimelineIndex)
+				&& Timeline[E.TimelineIndex].Type == ERTResolvedEventType::StructureHit;
+		}
+		TestEqual(*FString::Printf(TEXT("squadra %d: il segno entra nella sequenza del Blast solo col verdetto"), Squadra),
+			bSegno, V.AllowsTeam(Squadra));
+	}
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

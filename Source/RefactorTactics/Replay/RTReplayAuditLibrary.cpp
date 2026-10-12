@@ -37,6 +37,10 @@ namespace
 	const TCHAR* KAudit_Cell      = TEXT("Cell");
 	const TCHAR* KAudit_Mask      = TEXT("Mask");
 	const TCHAR* KAudit_Phase     = TEXT("Phase");
+	const TCHAR* KAudit_Edge      = TEXT("Edge");        // #3681: il bordo di un muro colpito
+	const TCHAR* KAudit_EdgeCell  = TEXT("EdgeCell");
+	const TCHAR* KAudit_EdgeToward = TEXT("EdgeToward");
+	const TCHAR* KAudit_Authors   = TEXT("AuthorTeamIds");
 
 	/** Una cella come tre numeri: `[q, r, layer]`. Compatta, e si legge a occhio. */
 	TSharedPtr<FJsonValue> AuditCellToJson(const FRTCellId& Cell)
@@ -193,6 +197,17 @@ FString URTReplayAuditLibrary::AuditToJson(const FRTTurnAudit& Audit)
 		VO->SetNumberField(KAudit_Team, R.SubjectTeamId);
 		VO->SetField(KAudit_Cell, AuditCellToJson(R.SubjectCell));
 		VO->SetNumberField(KAudit_Mask, static_cast<double>(R.Verdict.Mask));
+		if (R.bEdge)
+		{
+			// `#3681`: solo per i bordi, cosi' una voce di unita' resta identica alla versione precedente.
+			const TSharedRef<FJsonObject> EO = MakeShared<FJsonObject>();
+			EO->SetField(KAudit_EdgeCell, AuditCellToJson(R.EdgeCell));
+			EO->SetField(KAudit_EdgeToward, AuditCellToJson(R.EdgeToward));
+			TArray<TSharedPtr<FJsonValue>> Autori;
+			for (const int32 Squadra : R.AuthorTeamIds) { Autori.Add(MakeShared<FJsonValueNumber>(Squadra)); }
+			EO->SetArrayField(KAudit_Authors, Autori);
+			VO->SetObjectField(KAudit_Edge, EO);
+		}
 		Verdicts.Add(MakeShared<FJsonValueObject>(VO));
 	}
 	Root->SetArrayField(KAudit_Verdicts, Verdicts);
@@ -294,6 +309,22 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 			R.SubjectTeamId = static_cast<int32>(Team);
 			R.Verdict.Mask = static_cast<uint32>(Mask);
 			if (!AuditCellFromJson((*VO)->TryGetField(KAudit_Cell), R.SubjectCell)) { return false; }
+			const TSharedPtr<FJsonObject>* EO = nullptr;
+			if ((*VO)->TryGetObjectField(KAudit_Edge, EO))
+			{
+				// `#3681`: un bordo dichiarato e illeggibile e' un artefatto rotto, non una voce di unita'.
+				R.bEdge = true;
+				if (!AuditCellFromJson((*EO)->TryGetField(KAudit_EdgeCell), R.EdgeCell)) { return false; }
+				if (!AuditCellFromJson((*EO)->TryGetField(KAudit_EdgeToward), R.EdgeToward)) { return false; }
+				const TArray<TSharedPtr<FJsonValue>>* Autori = nullptr;
+				if (!(*EO)->TryGetArrayField(KAudit_Authors, Autori)) { return false; }
+				for (const TSharedPtr<FJsonValue>& A : *Autori)
+				{
+					double Squadra = 0.0;
+					if (!A.IsValid() || !A->TryGetNumber(Squadra)) { return false; }
+					R.AuthorTeamIds.Add(static_cast<int32>(Squadra));
+				}
+			}
 			Read.Verdicts.Add(R);
 		}
 	}
@@ -419,6 +450,12 @@ FRTKnowledgeVerdict URTReplayAuditLibrary::RecomputeVerdict(const FRTTurnAudit& 
 
 	// Il predicato di PRODUZIONE, non una copia: confrontare una copia con l'originale non direbbe niente
 	// sul dato registrato, e le due derive si coprirebbero a vicenda.
+	if (Record.bEdge)
+	{
+		// `#3681`, [D-502]: un bordo colpito si ricalcola dal bordo e dagli autori, con la stessa funzione.
+		return URTTeamKnowledgeLibrary::FreezeEdgeVerdict(Reference, Record.AuthorTeamIds, Record.EdgeCell,
+			Record.EdgeToward);
+	}
 	return URTTeamKnowledgeLibrary::FreezeVerdict(Reference, Subject);
 }
 
@@ -438,7 +475,10 @@ TArray<FString> URTReplayAuditLibrary::FindVerdictMismatches(const FRTTurnAudit&
 		//
 		// ✅ E la regola si verifica invece di saltarla: se non c'e' soggetto, il verdetto DEVE essere
 		// `Everyone()`. Il controllo diventa piu' forte, non piu' debole.
-		if (Record.SubjectUnitId == INDEX_NONE)
+		// ➕ `#3681`: **prima** del ramo di mondo. Un muro colpito da piu' autori non ha un'unita' — `SubjectUnitId`
+		// resta `INDEX_NONE` — ma non e' un fatto di mondo: il suo verdetto non e' `Everyone()` per regola, e
+		// pretenderlo segnalerebbe come divergenza proprio cio' che [D-502] ha deciso.
+		if (Record.SubjectUnitId == INDEX_NONE && !Record.bEdge)
 		{
 			if (!(Record.Verdict == FRTKnowledgeVerdict::Everyone()))
 			{

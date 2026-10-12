@@ -854,6 +854,28 @@ struct FRTVerdictSubjectRef
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FRTCellId Cell;
+
+	/**
+	 * Vero se il verdetto e' quello di un BORDO colpito ([D-502], `#3681`), congelato con
+	 * `URTTeamKnowledgeLibrary::FreezeEdgeVerdict` e non con `FreezeVerdict` sull'unita' qui sopra.
+	 *
+	 * 🔴 **Senza, l'audit ricalcolerebbe il verdetto sbagliato**: i tre campi sopra descrivono chi ha sparato,
+	 * e il muro lo vede chi guarda il muro. E un muro colpito da piu' autori non ha un'unita' — `StableUnitId`
+	 * resta `INDEX_NONE` — e verrebbe preso per un fatto di mondo, che per regola e' `Everyone()`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	bool bEdge = false;
+
+	/** Le due celle del bordo, se `bEdge`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId EdgeCell;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId EdgeToward;
+
+	/** Le squadre degli autori, se `bEdge`, ordinate e senza ripetizioni: [D-502] (b) ed (e). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	TArray<int32> AuthorTeamIds;
 };
 
 USTRUCT(BlueprintType)

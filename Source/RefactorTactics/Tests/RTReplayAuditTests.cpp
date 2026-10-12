@@ -441,4 +441,76 @@ bool FRTReplayAuditFairnessTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3681, [D-502] — l'audit di [D-313] ricalcola il verdetto di un BORDO colpito, e lo porta nell'artefatto.
+ *
+ * 🔴 **Due modi in cui l'audit sbagliava senza questo**: ricalcolava il verdetto dall'unita' che aveva sparato
+ * (la regola B scartata), e un muro colpito da piu' autori — senza unita', `SubjectUnitId = INDEX_NONE` — lo
+ * prendeva per un fatto di mondo e pretendeva `Everyone()`. Entrambi accusavano il gioco di un difetto che non
+ * ha.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditEdgeVerdictTest,
+	"RefactorTactics.Replay.Audit.EdgeVerdictRoundTripsAndRecomputes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditEdgeVerdictTest::RunTest(const FString&)
+{
+	const FRTCellId Portante(1, 0, 0);
+	const FRTCellId Oltre(0, 0, 0);
+
+	// La squadra 0 vede la cella che porta il muro; la squadra 1 non vede niente.
+	FRTTeamKnowledge Vede;
+	Vede.TeamId = 0;
+	Vede.TurnNumber = 3;
+	Vede.VisibleCells.Add(Portante);
+	FRTTeamKnowledge Cieca;
+	Cieca.TeamId = 1;
+	Cieca.TurnNumber = 3;
+
+	FRTTurnAudit A;
+	A.MatchId = FGuid(1, 2, 3, 4);
+	A.TurnNumber = 3;
+	A.OrderedHash = 42;
+	A.PlanningKnowledge = { Vede, Cieca };
+	A.BlastKnowledge = { Vede, Cieca };
+
+	// Un muro colpito da due autori: nessuna unita' sola, e la squadra 1 fra gli autori.
+	FRTAuditVerdictRecord R;
+	R.Phase = ERTMatchPhase::Blast;
+	R.SubjectUnitId = INDEX_NONE;
+	R.bEdge = true;
+	R.EdgeCell = Portante;
+	R.EdgeToward = Oltre;
+	R.AuthorTeamIds = { 1 };
+	R.Verdict = URTTeamKnowledgeLibrary::FreezeEdgeVerdict(A.BlastKnowledge, R.AuthorTeamIds, Portante, Oltre);
+	A.Verdicts.Add(R);
+
+	TestTrue(TEXT("premessa: il verdetto concede chi vede il muro e l'autore"),
+		R.Verdict.AllowsTeam(0) && R.Verdict.AllowsTeam(1));
+	TestEqual(TEXT("🔴 un bordo senza unita' non e' un fatto di mondo: nessuna divergenza"),
+		URTReplayAuditLibrary::FindVerdictMismatches(A).Num(), 0);
+
+	FRTTurnAudit Manomesso = A;
+	Manomesso.Verdicts[0].Verdict = FRTKnowledgeVerdict::NoOne();
+	Manomesso.Verdicts[0].Verdict.AllowTeam(1);
+	TestEqual(TEXT("e il controllo resta un controllo: un verdetto manomesso diverge"),
+		URTReplayAuditLibrary::FindVerdictMismatches(Manomesso).Num(), 1);
+
+	// L'artefatto porta il bordo, e un lettore lo ritrova intero.
+	FRTTurnAudit Letto;
+	if (!TestTrue(TEXT("l'artefatto si rilegge"),
+		URTReplayAuditLibrary::AuditFromJson(URTReplayAuditLibrary::AuditToJson(A), Letto)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("un verdetto"), Letto.Verdicts.Num(), 1)) { return false; }
+	const FRTAuditVerdictRecord& L = Letto.Verdicts[0];
+	TestTrue(TEXT("il bordo attraversa il file"), L.bEdge);
+	TestEqual(TEXT("con la cella portante"), L.EdgeCell, Portante);
+	TestEqual(TEXT("e l'altra"), L.EdgeToward, Oltre);
+	TestTrue(TEXT("e gli autori"), L.AuthorTeamIds.Num() == 1 && L.AuthorTeamIds[0] == 1);
+	TestEqual(TEXT("e riletto non diverge"), URTReplayAuditLibrary::FindVerdictMismatches(Letto).Num(), 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -137,6 +137,11 @@ bool URTPlaybackLibrary::IsFootprintHiddenFrom(const FRTResolvedEvent& Ev, int32
 		&& !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
 }
 
+bool URTPlaybackLibrary::IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return Ev.Type == ERTResolvedEventType::StructureHit && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+}
+
 bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
 {
 	// #3578 (spec «il profilo FX» §2.2, R12, R13): il VOLO — quindi il ritmo — e' la sola forma di DEFAULT di un'azione
@@ -892,8 +897,11 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		// ➕ `#3551`, [D-500]: e non vi entra la traccia di un `Line`/`Cone` il cui attaccante chi guarda non vedeva — la
 		// sua geometria contiene l'origine. Stessa sorte delle attivazioni nascoste: fuori dalla sequenza, quindi anche
 		// dal suo ritmo, e il gruppo resta quello dei colpi che chi guarda vede arrivare sulle vittime.
+		// ➕ `#3681`, [D-502]: e non vi entra il segno di un muro che chi guarda non osservava — il bordo dice la
+		// fila da cui e' arrivato il colpo. Come le altre due: fuori dalla sequenza, la chiave resta al gruppo.
 		const bool bNascosta = (bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
-			|| IsFootprintHiddenFrom(Ev, ViewerTeamId);
+			|| IsFootprintHiddenFrom(Ev, ViewerTeamId)
+			|| IsStructureHitHiddenFrom(Ev, ViewerTeamId);
 
 		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
 		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima

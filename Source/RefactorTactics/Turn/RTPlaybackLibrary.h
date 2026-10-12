@@ -553,6 +553,16 @@ public:
 	static bool IsFootprintHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
 
 	/**
+	 * Vero se il segno di un muro colpito `Ev` NON va mostrato alla squadra `ViewerTeamId` — `#3681`, [D-502].
+	 *
+	 * Il bordo dice da dove ha sparato chi ha sparato, e lo vedono solo la squadra di ogni autore e chi
+	 * osservava almeno una delle due celle. Il verdetto lo congela il produttore (`FreezeEdgeVerdict`) e
+	 * viaggia in `SourceVerdict`, che per questo tipo e' il verdetto del FATTO; vuoto si legge fail-closed.
+	 * Falso per ogni evento che non sia `StructureHit`.
+	 */
+	static bool IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
 	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
 	 *
 	 * 🔑 **Non e' una granularita' nuova: e' quella che il playback gia' interpola.**
