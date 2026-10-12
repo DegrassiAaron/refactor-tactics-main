@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-12 — Un muro si colpisce solo nel Blast: la guardia di D-502
+
+**Origine**: [#3701](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3701), l'avviso della nota di attuazione di D-502.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: l'avviso sul Dash rimanda al test che lo guarda |
+
+---
+
 ## 2026-10-12 — Nel racconto del Blast le cure e gli archi vengono dopo tutti i colpi
 
 **Origine**: [#3700](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3700), il residuo di D-503 (4).
