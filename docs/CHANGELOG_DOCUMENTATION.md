@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-12 — La sequenza di chiusura della v0.1: il referto del panel, l'Onda 0 e D-483–D-487
+
+**Origine**: le PR [#3603](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3603), [#3604](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3604) e [#3606](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3606), scritte il 2026-10-09 e mergiate il 2026-10-12. I testi portano la data e lo SHA su cui sono stati misurati.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | nuovo: il referto del panel sulla sequenza di chiusura, con gli esiti delle cinque decisioni |
+| [`roadmap/plans/sequenza-chiusura-v01-2026-10-03.md`](roadmap/plans/sequenza-chiusura-v01-2026-10-03.md) | banner di rilettura e §0, i tre scenari che dicono quando la pagina smette di valere |
+| [`roadmap/plans/README.md`](roadmap/plans/README.md) | quale vista ordina il lavoro della v0.1 (`D-487`) |
+| [`roadmap/roadmap-main-v0.1.md`](roadmap/roadmap-main-v0.1.md) | da `CURRENT` a `SNAPSHOT` (`D-487`) |
+| [`roadmap/v0.1-definition-of-done.md`](roadmap/v0.1-definition-of-done.md) | il banner si ridata: la data di un gate si legge nella sua cella |
+| [`technical/runbooks/guida-seduta-g13-candidate.md`](technical/runbooks/guida-seduta-g13-candidate.md) · [`technical/runbooks/guida-seduta-g16-u60.md`](technical/runbooks/guida-seduta-g16-u60.md) | passo 0: su `DIVERSI` la seduta non si apre |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-483`–`D-487`, nuove: le cinque decisioni d'autore del 2026-10-09 |
+
+---
+
 ## 2026-10-12 — D-505: la cura ha un momento nel playback
 
 **Origine**: [#3600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3600), decisione d'autore.
