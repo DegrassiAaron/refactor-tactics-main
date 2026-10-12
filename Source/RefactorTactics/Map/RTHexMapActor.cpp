@@ -1959,6 +1959,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	if (bDoEdges)
 	{
 		EdgeFeatureCells.Reset();
+		EdgeFeatureOtherCells.Reset();
 		EdgeFeatureBaseScale.Reset();
 		LastEdgeFeatureVeilState.Reset();
 		// `#3687`: cio' che questa ricostruzione disegna, per sapere a fine turno se e' ancora vero.
@@ -2343,6 +2344,8 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 				EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
 				// Una per copertura e una per porta, quindi piu' istanze sulla stessa cella ([D-227]).
 				EdgeFeatureCells.Add(CellIds[I]);
+				// `#3691`: e la cella dall'altra parte del bordo, che il velo guarda insieme alla prima.
+				EdgeFeatureOtherCells.Add(URTHexLibrary::Neighbor(CellIds[I], Edge));
 				EdgeFeatureBaseScale.Add(PanelXf.GetScale3D());
 			};
 
@@ -2417,6 +2420,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// Il SECONDO sito che monta pannelli di bordo: i muri interni. Dimenticarlo qui lascerebbe
 			// disallineati gli indici di TUTTI i pannelli, non solo dei suoi ([D-227]).
 			EdgeFeatureCells.Add(Wall.Cell);
+			EdgeFeatureOtherCells.Add(Wall.Cell); // `#3691`: un muro interno non ha un altro lato
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
 	}
@@ -2876,7 +2880,8 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	const TArray<FRTCellId>& CellsOfInstance, const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
 	TArray<float>* DisplayFactor,
 	const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor)
+	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor,
+	const TArray<FRTCellId>* OtherCellOfInstance)
 {
 	if (!Component || CellsOfInstance.Num() == 0)
 	{
@@ -2917,8 +2922,12 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
 	{
 		const FRTCellId& Cell = CellsOfInstance[I];
-		const bool bVisible = Visible.Contains(Cell);
-		const bool bKnown = bVisible || Explored.Contains(Cell);
+		// `#3691`: per un pannello di bordo conta il lato piu' visibile dei due. ⚠️ Una mappatura parallela
+		// disallineata ricade sulla sola cella mappata, cioe' sul velo di prima: mai piu' visibile di cosi'.
+		const FRTCellId* Altra = (OtherCellOfInstance && OtherCellOfInstance->Num() == CellsOfInstance.Num())
+			? &(*OtherCellOfInstance)[I] : nullptr;
+		const bool bVisible = Visible.Contains(Cell) || (Altra && Visible.Contains(*Altra));
+		const bool bKnown = bVisible || Explored.Contains(Cell) || (Altra && Explored.Contains(*Altra));
 		const uint8 State = bVisible ? RTVeilLit : (bKnown ? RTVeilRemembered : RTVeilHidden);
 		const uint8 Precedente = LastState[I];
 
@@ -3633,8 +3642,9 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		nullptr, Visible, Explored, SenzaColore);
 	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored,
 		SenzaColore);
+	// `#3691`, [D-502] (d): un pannello di bordo si vede da un lato qualunque.
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
-		nullptr, Visible, Explored, SenzaColore);
+		nullptr, Visible, Explored, SenzaColore, &EdgeFeatureOtherCells);
 
 	// 🔴 **La NONA famiglia, che fino a `#2731` non passava di qui** — e non per una riga dimenticata: il
 	// suo sito di `AddInstance` non registrava nessuna cella, quindi non c'era niente da velare. Su una
