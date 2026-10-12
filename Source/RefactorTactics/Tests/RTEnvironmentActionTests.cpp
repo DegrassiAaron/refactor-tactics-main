@@ -26,6 +26,9 @@
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Tests/RTAbilityFixtures.h"
+#include "HAL/FileManager.h" // #3701: il cancello del produttore dei muri colpiti legge i sorgenti
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -4168,6 +4171,202 @@ bool FRTPrivacyWallHitOneVerdictTest::RunTest(const FString&)
 	}
 
 	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `#3701`, [D-502] — **il rilevatore del cancello**: chi chiama `ApplyStructureDamage`, e dentro quale funzione.
+ *
+ * 🔑 **Puro, perche' lo misuri un controllo positivo**: lo sweep di produzione e il testo piantato passano dallo
+ * STESSO rilevatore. Un rilevatore che non vede niente farebbe verde lo sweep per cecita'.
+ *
+ * ⛔ **Riconosce la forma SCRITTA**, come gli altri cancelli che leggono il sorgente (`UI.CombatLogHasOneProducerPerEntry`,
+ * `Pacing.ResolverNeverBranchesOnATime`): un puntatore a funzione o un `#define` che avvolgesse la chiamata
+ * passerebbero.
+ */
+namespace RTStructureHitGuard
+{
+	struct FChiamata
+	{
+		FString File;
+		int32 Riga = 0;
+		/** La funzione che la racchiude: l'ultima firma `Classe::Nome(` a colonna zero sopra la chiamata. */
+		FString Funzione;
+	};
+
+	/** Un commento che nomina la funzione non e' una chiamata. `* ` con lo spazio: una dereferenza non lo scrive. */
+	bool ERigaDiCommento(const FString& Riga)
+	{
+		const FString T = Riga.TrimStart();
+		return T.StartsWith(TEXT("//")) || T.StartsWith(TEXT("/*")) || T.StartsWith(TEXT("*/"))
+			|| T.StartsWith(TEXT("* ")) || T.Equals(TEXT("*"));
+	}
+
+	FString FunzioneCheRacchiude(const TArray<FString>& Righe, int32 Indice)
+	{
+		for (int32 k = Indice; k >= 0; --k)
+		{
+			const FString& R = Righe[k];
+			if (R.IsEmpty() || FChar::IsWhitespace(R[0]) || R.StartsWith(TEXT("#")) || ERigaDiCommento(R)) { continue; }
+			const int32 Aperta = R.Find(TEXT("("), ESearchCase::CaseSensitive);
+			if (Aperta == INDEX_NONE) { continue; }
+			const FString Prima = R.Left(Aperta);
+			const int32 Scope = Prima.Find(TEXT("::"), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			if (Scope == INDEX_NONE) { continue; }
+			return Prima.Mid(Scope + 2);
+		}
+		return FString();
+	}
+
+	/**
+	 * Le chiamate in `Testo`. La dichiarazione e la definizione si riconoscono dalla FORMA — il tipo di ritorno
+	 * nella prima, il primo parametro nella seconda — e si contano a parte: sono l'anti-vacuita' dello sweep.
+	 */
+	void TrovaChiamate(const FString& Testo, const FString& Nome, TArray<FChiamata>& Out, int32& OutDichiarazioni)
+	{
+		TArray<FString> Righe;
+		Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
+		for (int32 i = 0; i < Righe.Num(); ++i)
+		{
+			const FString& Riga = Righe[i];
+			if (ERigaDiCommento(Riga) || !Riga.Contains(TEXT("ApplyStructureDamage("), ESearchCase::CaseSensitive))
+			{
+				continue;
+			}
+			if (Riga.Contains(TEXT("static TArray<FRTCoverDamageResult> ApplyStructureDamage("), ESearchCase::CaseSensitive)
+				|| Riga.Contains(TEXT("URTHexCoverLibrary::ApplyStructureDamage(URTHexMapAsset*"), ESearchCase::CaseSensitive))
+			{
+				++OutDichiarazioni;
+				continue;
+			}
+			Out.Add({ Nome, i + 1, FunzioneCheRacchiude(Righe, i) });
+		}
+	}
+}
+
+/**
+ * `#3701`, [D-502] — **un muro si colpisce solo nel Blast**: `ApplyStructureDamage` ha un solo chiamante di
+ * produzione, `ARTTurnManager::ApplyEnvironmentChanges`.
+ *
+ * 🔑 **Perche' e' un cancello e non un test di comportamento**: il verdetto di un muro colpito si congela con
+ * `FreezeEdgeVerdict` su `TeamKnowledgeState`, e quella conoscenza si rinfresca solo in Pianificazione e
+ * all'inizio del Blast (`RefreshTeamKnowledgeForBlast`). Un produttore nel Dash congelerebbe il verdetto sulle
+ * posizioni d'inizio turno, non su quelle della fase in cui il colpo avviene, come D-502 (6c) chiede — e il
+ * playback mostra gli `StructureHit` solo nel Blast. Oggi quel produttore non esiste, e nessun test di
+ * comportamento potrebbe attraversarlo: questo cade il giorno in cui nasce, e il suo messaggio dice cosa serve.
+ *
+ * Perimetro: il modulo di gioco (`Source/RefactorTactics`) meno i test. L'Editor non risolve partite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructureHitHasOneProducerInTheBlastTest,
+	"RefactorTactics.Structures.HitHasOneProducerInTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructureHitHasOneProducerInTheBlastTest::RunTest(const FString&)
+{
+	using namespace RTStructureHitGuard;
+
+	const FString Radice = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source"), TEXT("RefactorTactics"));
+	TArray<FString> Files;
+	for (const TCHAR* Ext : { TEXT("*.cpp"), TEXT("*.h") })
+	{
+		TArray<FString> Trovati;
+		IFileManager::Get().FindFilesRecursive(Trovati, *Radice, Ext, /*Files=*/ true, /*Dirs=*/ false,
+			/*bClearFileNames=*/ false);
+		Files.Append(Trovati);
+	}
+	// ⛔ Zero file letti vuol dire un percorso sbagliato, non un modulo pulito.
+	if (!TestTrue(*FString::Printf(TEXT("lo sweep ha trovato i sorgenti (%s)"), *Radice), Files.Num() > 0)) { return false; }
+
+	TArray<FChiamata> Chiamate;
+	int32 Dichiarazioni = 0;
+	bool bVistoIlBlast = false;
+	for (FString F : Files)
+	{
+		FPaths::NormalizeFilename(F);
+		if (F.Contains(TEXT("/Tests/"))) { continue; }
+		const FString Nome = FPaths::GetCleanFilename(F);
+		bVistoIlBlast |= Nome == TEXT("RTTurnManager_Blast.cpp");
+		FString Testo;
+		if (!TestTrue(*FString::Printf(TEXT("il sorgente si legge: %s"), *Nome), FFileHelper::LoadFileToString(Testo, *F)))
+		{
+			return false;
+		}
+		TrovaChiamate(Testo, Nome, Chiamate, Dichiarazioni);
+	}
+
+	// ⛔ Anti-vacuita': il file del Blast e' nel perimetro, e il rilevatore vede la funzione dove e' dichiarata.
+	TestTrue(TEXT("il file del Blast e' dentro il perimetro"), bVistoIlBlast);
+	TestEqual(TEXT("il rilevatore vede la dichiarazione e la definizione di ApplyStructureDamage"), Dichiarazioni, 2);
+
+	int32 NelBlast = 0;
+	for (const FChiamata& C : Chiamate)
+	{
+		if (C.File == TEXT("RTTurnManager_Blast.cpp")
+			&& C.Funzione.Equals(TEXT("ApplyEnvironmentChanges"), ESearchCase::CaseSensitive))
+		{
+			++NelBlast;
+			continue;
+		}
+		AddError(FString::Printf(
+			TEXT("%s:%d colpisce un muro dentro `%s`, fuori da `ApplyEnvironmentChanges` del Blast. [D-502] vuole il ")
+			TEXT("verdetto del muro colpito sulla conoscenza della FASE in cui il colpo avviene, e oggi la conoscenza ")
+			TEXT("di squadra si rinfresca solo in Pianificazione e nel Blast. Prima di questo produttore servono: ")
+			TEXT("(1) la conoscenza di squadra rinfrescata per la sua fase; (2) il verdetto congelato con ")
+			TEXT("`FreezeEdgeVerdict`; (3) il segno mostrato nel playback di quella fase (`BuildBlastSequence` prende ")
+			TEXT("solo il Blast). Poi aggiorna questo cancello. Vedi #3701."),
+			*C.File, C.Riga, C.Funzione.IsEmpty() ? TEXT("?") : *C.Funzione));
+	}
+	TestEqual(TEXT("il produttore del Blast c'e', e lo sweep lo vede"), NelBlast, 1);
+	TestEqual(TEXT("nessun altro chiamante di produzione"), Chiamate.Num(), NelBlast);
+	return true;
+}
+
+/**
+ * `#3701` — **il controllo positivo del cancello**. Senza, lo sweep non distingue «un solo produttore» da
+ * «rilevatore cieco».
+ *
+ * Given un testo con un produttore piantato nel Dash, il produttore del Blast, la dichiarazione, la definizione
+ * e tre commenti che nominano la funzione
+ * When lo si passa allo STESSO rilevatore dello sweep
+ * Then trova le due chiamate, nella funzione giusta, e nient'altro
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructureHitGuardSeesAPlantedProducerTest,
+	"RefactorTactics.Structures.HitGuardSeesAPlantedProducer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructureHitGuardSeesAPlantedProducerTest::RunTest(const FString&)
+{
+	using namespace RTStructureHitGuard;
+
+	const FString Testo = FString::Join(TArray<FString>{
+		TEXT("// URTHexCoverLibrary::ApplyStructureDamage(Map, Hits) in un commento di riga"),
+		TEXT("\tstatic TArray<FRTCoverDamageResult> ApplyStructureDamage(URTHexMapAsset* Map,"),
+		TEXT("TArray<FRTCoverDamageResult> URTHexCoverLibrary::ApplyStructureDamage(URTHexMapAsset* Map,"),
+		TEXT("void ARTTurnManager::ResolveDashPhase(FRTDashContext& Ctx)"),
+		TEXT("{"),
+		TEXT("\t/* ApplyStructureDamage(Map, Hits) in un commento di blocco */"),
+		TEXT("\t * ApplyStructureDamage(Map, Hits) nel corpo di un commento"),
+		TEXT("\tURTHexCoverLibrary::ApplyStructureDamage(MutableMap, DashHits);"),
+		TEXT("}"),
+		TEXT("void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)"),
+		TEXT("{"),
+		TEXT("\tfor (const FRTCoverDamageResult& Change :"),
+		TEXT("\t\tURTHexCoverLibrary::ApplyStructureDamage(MutableMap, Plan.StructureHits))"),
+		TEXT("\t{"),
+		TEXT("\t}"),
+		TEXT("}"),
+	}, TEXT("\n"));
+
+	TArray<FChiamata> Chiamate;
+	int32 Dichiarazioni = 0;
+	TrovaChiamate(Testo, TEXT("Piantato.cpp"), Chiamate, Dichiarazioni);
+
+	TestEqual(TEXT("la dichiarazione e la definizione si contano a parte"), Dichiarazioni, 2);
+	if (!TestEqual(TEXT("due chiamate: i commenti non contano"), Chiamate.Num(), 2)) { return false; }
+	// `TestEqual` su `FString` ignora le maiuscole: il nome di una funzione si confronta esatto.
+	TestTrue(*FString::Printf(TEXT("🔴 il produttore piantato e' nel Dash (letto: %s)"), *Chiamate[0].Funzione),
+		Chiamate[0].Funzione.Equals(TEXT("ResolveDashPhase"), ESearchCase::CaseSensitive));
+	TestEqual(TEXT("e alla sua riga"), Chiamate[0].Riga, 8);
+	TestTrue(*FString::Printf(TEXT("il produttore del Blast e' in ApplyEnvironmentChanges (letto: %s)"), *Chiamate[1].Funzione),
+		Chiamate[1].Funzione.Equals(TEXT("ApplyEnvironmentChanges"), ESearchCase::CaseSensitive));
 	return true;
 }
 
