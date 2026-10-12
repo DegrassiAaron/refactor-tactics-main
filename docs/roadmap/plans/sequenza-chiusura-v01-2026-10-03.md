@@ -58,6 +58,28 @@
 
 ---
 
+## 0. Quando questa pagina smette di valere
+
+➕ *Aggiunto il 2026-10-09 dal referto del panel, §2.6: la pagina aveva il comando che la invalida e nessuno scenario che
+dicesse cosa farne.* Chi la apre esegue **prima** il blocco `rev-parse` di §2.1, poi legge. Tre scenari, nella forma
+delle voci PIE:
+
+> **Dato** un candidate congelato `X`, **quando** un merge tocca `Source/` o `Content/` fuori da `Tests/`, **allora**
+> `G1` `G2` `G3` `G4` `G6` `G8` `G10` `G11` `G12` `G13` `G16` tornano `⏳` per l'attestazione, e il candidate va
+> ridichiarato in `#85` prima di qualunque seduta.
+>
+> **Dato** un candidate congelato `X`, **quando** un merge tocca solo `Tests/` o `docs/`, **allora** `G2` e `G14` si
+> ridatano, gli altri no.
+>
+> **Dato** un gate rosso sul candidate, **quando** la correzione entra, **allora** il candidate è il commit della
+> correzione, e il giro ricomincia dal gate rosso — non da capo.
+
+🔴 **Al 2026-10-09 vale il primo scenario.** Il comando 2 di §2.1 non risponde più `0`, e `#3463` cade dopo `95eddfd37`:
+le onde B, C e D di questa pagina sono sospese finché `D1` del
+[referto](sequenza-chiusura-v01-spec-panel-2026-10-09.md) non ricongela.
+
+---
+
 ## 1. Il perimetro è invariato
 
 `G1`–`G14` **più `G16`**. Non è un intervallo: `G15` è ⌫ dal 2026-08-21
