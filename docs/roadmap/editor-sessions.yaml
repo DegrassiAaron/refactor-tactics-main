@@ -5775,6 +5775,11 @@ sessions:
       2. **#3680**: click su ▲, poi `PageDown` e `PageUp`. Nel log ci sono solo tre `Piano attivo: N`, e l'indicatore
          segue ogni passo.
       La resa dell'indicatore non è stata giudicata: resta dell'autore.
+      3. Dalla review di #3693, su `decd32676`: con Aevik selezionata (`N`), due click su ▼ spento non scrivono niente,
+         mentre un click nella scena pianifica. È il controllo positivo che distingue «niente» da «click perso». ⚠️ Il
+         primo tentativo cliccava Aevik senza selezione e non scriveva niente nemmeno lui: non era un controllo.
+         Avvio dell'Editor: prima il modale «Wait for ZenServer?», poi la build di un'altra sessione che teneva il mutex
+         di UBT.
 
 not_schedulable:
 
