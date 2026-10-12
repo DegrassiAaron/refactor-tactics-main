@@ -346,10 +346,37 @@ continua a esistere anche lì — non è la vista a definirlo.
 > lo stesso colore a ogni distanza. I bordi delle celle restano **opachi su ogni piano** e non ricevono il
 > trattamento: un piano sopra è un riempimento traslucido con un contorno bianco netto. I fantasmi del piano hanno un
 > contorno del colore del piano, e il riempimento resta la certezza. Su una mappa a un piano i bordi sono quelli di
-> sempre, e i fantasmi non hanno contorno. Unità e volumi seguiranno con [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705) e [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706).
-> ⚠️ **Limite noto fino a #3705**: un'unità che sta sotto il piano attivo, se una cella di quel piano la copre, non
-> si vede, perché il piano attivo è pieno. L'autore ha deciso, in seduta il 2026-10-12, che il contorno del modello
-> si veda **attraverso** il piano.
+> sempre, e i fantasmi non hanno contorno. I volumi seguiranno con [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706).
+>
+> 🎨 **E il piano di un'unità si legge dal contorno del modello** ([D-508](../../decisions/RT_PDR_00_Decision_Log.md), [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705)), in tattica sul
+> modello e in strategica sul segnalino: nero sul piano attivo, bianco sopra, viola sotto. Su una mappa a un piano
+> è nero per tutti. L'anello della squadra resta com'è: la squadra la dice l'anello, il piano il contorno.
+> ⌫ *Fino a #3705 un'unità sotto il piano attivo, coperta da una sua cella, non si vedeva: il piano attivo è pieno.
+> L'autore ha deciso, in seduta il 2026-10-12, che il contorno del modello si veda* **attraverso** *il piano.*
+> - 🔑 **La tecnica: custom depth con uno stencil per relazione, e un solo post-process** (`RTUnitLayerOutline.h`).
+>   Il corpo mostrato dell'unità si disegna anche nel custom depth con lo stencil della sua relazione, e
+>   `M_UnitLayerOutline`, sulla camera di chi guarda, colora i pixel appena fuori dalla sagoma. Il costo è un
+>   passaggio a schermo intero, qualunque sia il numero di unità. Serve `r.CustomDepth=3` (`DefaultEngine.ini`).
+>   Scartato il guscio invertito per mesh: resta dietro la geometria che copre l'unità.
+> - 🔴 **Attraverso la geometria passa solo il contorno di chi sta SOTTO il piano attivo.** È il caso che l'autore
+>   ha visto: col mezzanino attivo, l'unità sul pavimento sotto di esso. Per le unità del piano attivo e di quelli
+>   sopra il materiale confronta la profondità dell'unità con quella della scena, e il contorno si ferma dove un
+>   muro la copre. Si disegna il solo contorno, non una sagoma piena. ⚠️ Scelte provvisorie, senza l'autore.
+> - ⛔ **Privacy: chi non si vede non ha contorno, e nemmeno una quota.** Lo stencil lo decide l'HUD dalla vista di
+>   chi guarda (`ARTHUD::UnitOutlineStencilForUnit`): per un nemico il piano è quello della sua voce di conoscenza,
+>   mai la cella dell'attore, e un nemico ricordato o senza voce non ne ha. `ARTUnit` lo applica ai soli corpi che
+>   il velo lascia accesi; anelli, freccia e sagoma del ricordo non lo ricevono.
+> - 🔑 **I colori e la relazione non si ridefiniscono**: sono `RTLayerPresentation::BorderColorFor` e `Relation`, e
+>   il piano attivo è quello che la board sta presentando. Unità e celle non possono dirsi piani diversi.
+> - 🔧 **Il materiale è generato**, non autorato ([D-229](../../decisions/RT_PDR_00_Decision_Log.md)): lo scrive
+>   `UnrealEditor-Cmd … -run=RTBuildUnitOutlineMaterial` dal clone principale. È un nodo Custom il cui codice porta
+>   gli stencil del runtime; `UnitOutline.MaterialMatchesTheRecipe` confronta l'asset con la ricetta, e cade se uno
+>   dei due resta indietro. Davanti a un conflitto sul binario si rigenera.
+> - 🔧 **Le leve**: `rt.Unit.LayerOutline` (`0` spegne) e `rt.Unit.LayerOutline.Thickness` (2 pixel a 1080 righe,
+>   scalati con l'altezza del quadro). Negativo vuol dire il default. Le giudica `PIE-CAM-CONTORNO-UNITA`.
+> - ⚠️ **Limiti noti**: il piano di un'unità è quello della sua cella logica, quindi durante il playback di una
+>   salita il contorno può cambiare colore prima che il modello arrivi (non misurato in PIE); il contorno bianco
+>   di un'unità su un piano sopra sta su un velo schiarito ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)), e stacca poco.
 > - 🔑 **L'ingresso è il piano del controller.** `ARTPlayerController` lo manda alla board con
 >   `ARTHexMapActor::SyncActiveLayerPresentation`, in `SetActiveLayer` e a ogni fotogramma; la board riscrive solo se
 >   il piano, o una leva, è cambiato. ⛔ `ARTHexMapActor::ActiveLayer` resta dell'editor mode.

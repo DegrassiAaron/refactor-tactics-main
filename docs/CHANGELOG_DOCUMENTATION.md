@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-10-13 — Il piano di un'unità si legge dal contorno del modello
+
+**Origine**: [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705), `D-508`. La tecnica l'ha scelta la PR; il giudizio a schermo è dell'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-CONTORNO-UNITA`, nuova e aperta; i totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U85`: la seduta che la giudica, dal clone principale |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: il contorno delle unità — tecnica, privacy, che cosa passa attraverso la geometria, leve, limiti |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-508` annotata: la tecnica e le scelte provvisorie della PR |
+| [`technical/tooling/asset-map.md`](technical/tooling/asset-map.md) | `M_UnitLayerOutline`, generato dal commandlet |
+| [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | `Unit/RTUnitLayerOutline` e la ricetta del materiale |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CHAR-PRESENTATION`: i file, i test e la voce PIE del contorno |
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §7: lo stato di #3705 |
+
+---
+
 ## 2026-10-12 — Le `P1` di `D-484`: i lavori headless nominati da `D-507` sono in `main`
 
 **Origine**: chiusura della sequenza approvata con `D-507` — [#3713](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3713), [#3714](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3714), [#3715](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3715), [#3717](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3717).
