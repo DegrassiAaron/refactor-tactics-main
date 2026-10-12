@@ -283,6 +283,15 @@ bool FRTLayerTreatmentGlyphsTest::RunTest(const FString&)
 		return false;
 	}
 
+	// Tutto noto: il riallineamento per cella passa dal blocco di sincronizzazione del velo, che e' l'unico chiamante di
+	// `RepaintCells` (privata), come in `HexMapActor.IncrementalRepaintEqualsFullRebuild`.
+	FRTTeamKnowledge Tutto;
+	for (const FRTHexCellData& C : Asset->Cells)
+	{
+		Tutto.VisibleCells.Add(C.Id);
+		Tutto.ExploredCells.Add(C.Id);
+	}
+	Board->ApplyKnowledgeVeil(Tutto);
 	Board->SyncActiveLayerPresentation(0); // la cima sta due piani sopra
 	TestTrue(TEXT("il glifo della cima e' traslucido"), LayerTreatmentChannel(Anello1, 0, RTLayerPresentation::FirstChannel) > 0.f);
 
@@ -290,9 +299,10 @@ bool FRTLayerTreatmentGlyphsTest::RunTest(const FString&)
 	FRTHexCellData Ghiaccio = *Asset->FindCell(Cima);
 	Ghiaccio.Surface = ERTHexSurface::Ice;
 	Asset->AddOrUpdateCell(Ghiaccio);
-	Asset->SortCells();
-	TestTrue(TEXT("il repaint riesce"), Board->RepaintCells({ Cima }));
-	if (!TestEqual(TEXT("premessa: il glifo e' passato al quarto anello"), Anello4->GetInstanceCount(), 1))
+	Board->ApplyKnowledgeVeil(Tutto);
+	if (!TestTrue(TEXT("premessa: e' passato dal riallineamento per cella, non da una ricostruzione"),
+			Board->LastRepaintTouchedInstances() > 0)
+		|| !TestEqual(TEXT("premessa: il glifo e' passato al quarto anello"), Anello4->GetInstanceCount(), 1))
 	{
 		return false;
 	}
