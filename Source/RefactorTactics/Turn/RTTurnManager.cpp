@@ -2714,14 +2714,22 @@ namespace
 		int32 Priorita = MAX_int32;
 		FName Azione;
 		int32 Unita = INDEX_NONE;
-		/** `0` un intento d'attacco, `1` un'attivazione di supporto rimandata (`#3683`). */
+		/** `0` un intento d'attacco, `1` un'attivazione di supporto rimandata (`#3683`). Da `#3700` si confronta
+		 *  PRIMA della priorita': i supporti si raccontano dopo tutti i colpi. */
 		int32 Tipo = 0;
 		int32 Indice = 0;
 	};
 
 	/**
-	 * L'ORDINE CANONICO su una chiave sola — `#3683`. Priorita', `ActionId`, unita', poi tipo e indice, che
-	 * chiudono ogni pari: l'ordine e' totale.
+	 * L'ORDINE DEL BLAST su una chiave sola — `#3683`, `#3700`. Prima il TIPO dell'atto, poi priorita', `ActionId`,
+	 * unita' e indice, che chiudono ogni pari: l'ordine e' totale.
+	 *
+	 * 🔑 **Il tipo prima della priorita'** (`#3700`, [D-503]): gli intenti d'attacco in ordine canonico, poi le
+	 * attivazioni di supporto rimandate — Heal e `ModifyArc` — in ordine canonico fra loro. Si racconta come si
+	 * applica: la cura arriva dopo il danno simultaneo qualunque sia la sua priorita', e l'arco non lo vede
+	 * nessun colpo di questo Blast. ⏱️ *Fino a `#3700` il tipo veniva dopo la priorita': con un colpo sopra 70
+	 * una cura si sarebbe raccontata prima del colpo che la risoluzione applica prima.* Fra due intenti il
+	 * tipo e' sempre `0`, quindi `PrecedeNelBlast` non cambia.
 	 *
 	 * 🔑 **Esiste perche' gli atti del Blast non sono tutti intenti**: una cura o un arco non hanno un indice in
 	 * `Ctx.Intents`, e `PrecedeNelBlast` vuole quello. Scriverne una seconda copia per loro e' il difetto che
@@ -2729,10 +2737,10 @@ namespace
 	 */
 	bool ChiavePrecede(const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B)
 	{
+		if (A.Tipo != B.Tipo) { return A.Tipo < B.Tipo; }
 		if (A.Priorita != B.Priorita) { return A.Priorita < B.Priorita; }
 		if (A.Azione != B.Azione) { return A.Azione.LexicalLess(B.Azione); }
 		if (A.Unita != B.Unita) { return A.Unita < B.Unita; }
-		if (A.Tipo != B.Tipo) { return A.Tipo < B.Tipo; }
 		return A.Indice < B.Indice;
 	}
 

@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-12 — Nel racconto del Blast le cure e gli archi vengono dopo tutti i colpi
+
+**Origine**: [#3700](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3700), il residuo di D-503 (4).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2: i supporti rimandati in coda agli intenti d'attacco |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-503` (4): il residuo è risolto |
+
+---
+
 ## 2026-10-12 — Una cura non salva da un colpo letale: D-503
 
 **Origine**: [#3688](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3688), la scelta A dell'autore.
