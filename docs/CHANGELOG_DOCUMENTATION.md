@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-12 — L'indicatore del piano attivo nel dock, e lo spec panel della notte
+
+**Origine**: [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), con il referto su #3674, #3680 e #3679.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/piani-hud-notte-spec-panel-2026-10-12.md`](roadmap/plans/piani-hud-notte-spec-panel-2026-10-12.md) | il referto: le scelte provvisorie della notte, l'ordine, ciò che resta all'autore |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501`: la numerazione dell'indicatore, ordinale da 1, scelta provvisoria della PR |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: `Zone_Bottom` porta l'indicatore; §7-septies: le porte, i tasti senza fuoco, i test |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | Z5: l'indicatore, che le tavole non disegnano |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) · [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `PIE-HUD-PIANO` nuova, verde sui criteri del log della seduta `U83`; la seduta misura anche la causa di #3674 |
+
+---
+
 ## 2026-10-11 — D-502 completata: le risposte dell'autore alle domande aperte
 
 **Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681), le domande che la prima stesura di `D-502` lasciava aperte.

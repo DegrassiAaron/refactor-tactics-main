@@ -1506,6 +1506,17 @@ protected:
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
 	TArray<FRTCellId> EdgeFeatureCells;
+	/**
+	 * L'ALTRA cella del bordo di ogni pannello, parallela a `EdgeFeatureCells` (`#3691`, [D-502] punto (d)).
+	 *
+	 * 🔴 **Un pannello di bordo sta fra due celle, e il velo ne guardava una sola**: quella che dichiara la
+	 * copertura o la porta. Chi stava davanti a un muro non lo vedeva, se dietro non aveva mai guardato.
+	 * Da D-502 il pannello si nasconde solo se la squadra non ha mai visto **nessuna** delle due celle.
+	 *
+	 * ⚠️ Per un muro interno, che sta dentro una cella e non su un bordo, l'altra cella e' la cella stessa:
+	 * il velo resta quello di prima.
+	 */
+	TArray<FRTCellId> EdgeFeatureOtherCells;
 	TArray<FVector> EdgeFeatureBaseScale;
 	TArray<uint8> LastEdgeFeatureVeilState;
 
@@ -1761,7 +1772,8 @@ protected:
 	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
 		const TArray<FVector>& BaseScale, TArray<uint8>& LastState, TArray<float>* DisplayFactor,
 		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor,
+		const TArray<FRTCellId>* OtherCellOfInstance = nullptr);
 
 	/**
 	 * 🔴 **Il guardiano che i conteggi non sono** — `#2761`.

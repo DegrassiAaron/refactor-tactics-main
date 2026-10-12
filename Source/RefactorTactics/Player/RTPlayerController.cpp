@@ -1026,7 +1026,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 
 // --- #1775 / #1776 · il piano attivo del giocatore, e il picking che lo rispetta (D-255) --------------
 
-bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
+bool ARTPlayerController::GetMapLayerRange(int32& OutMinLayer, int32& OutMaxLayer) const
 {
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
@@ -1037,12 +1037,23 @@ bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
 
 	// I limiti si MISURANO sulle celle. Assumere `[0, N]` darebbe piani vuoti su una mappa che comincia a
 	// quota 1 o che ha buchi, e l'hover non troverebbe mai niente senza dire perche'.
-	int32 MinLayer = TNumericLimits<int32>::Max();
-	int32 MaxLayer = TNumericLimits<int32>::Lowest();
+	OutMinLayer = TNumericLimits<int32>::Max();
+	OutMaxLayer = TNumericLimits<int32>::Lowest();
 	for (const FRTHexCellData& Cell : Map->Cells)
 	{
-		MinLayer = FMath::Min(MinLayer, Cell.Id.Layer);
-		MaxLayer = FMath::Max(MaxLayer, Cell.Id.Layer);
+		OutMinLayer = FMath::Min(OutMinLayer, Cell.Id.Layer);
+		OutMaxLayer = FMath::Max(OutMaxLayer, Cell.Id.Layer);
+	}
+	return true;
+}
+
+bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
+{
+	int32 MinLayer = 0;
+	int32 MaxLayer = 0;
+	if (!GetMapLayerRange(MinLayer, MaxLayer))
+	{
+		return false;
 	}
 
 	const int32 Clamped = FMath::Clamp(NewLayer, MinLayer, MaxLayer);
