@@ -843,11 +843,20 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 			TestEqual(*FString::Printf(TEXT("%s: una finestra di reazione posata"), Scenario), FinestrePosate, 1);
 		}
 
-		// Il contesto della partita e la selezione, a TUTTI i widget dell'HUD, poi un giro di aggiornamento.
+		// Il contesto della partita e la selezione, a TUTTI i widget dell'HUD, poi un giro di aggiornamento. Il dock
+		// riceve anche un controller: l'indicatore del piano legge da li' piano attivo e limiti della mappa (#3680).
+		ARTPlayerController* Comandante = World->SpawnActor<ARTPlayerController>();
+		URTActionDockWidget* DockDellHud = nullptr;
 		TArray<URTScreenHudWidgetBase*> Widget;
 		RTRaccogliWidgetHud(Hud, Widget);
 		for (URTScreenHudWidgetBase* W : Widget)
 		{
+			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W))
+			{
+				Dock->SetCommandControllerForTest(Comandante);
+				Dock->RefreshLayerIndicator();
+				DockDellHud = Dock;
+			}
 			W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
 			W->SetSelectedUnitForTest(Mia);
 			if (URTTeamRosterWidget* Roster = Cast<URTTeamRosterWidget>(W)) { Roster->RefreshCards(); }
@@ -903,6 +912,37 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 		});
 		// Anti-vacuita': roster, testata, Conferma, scheda e dock hanno contenuto in ogni scenario.
 		TestTrue(*FString::Printf(TEXT("%s: almeno quattro zone misurate (%d)"), Scenario, Misurate), Misurate >= 4);
+
+		// 🔑 **L'indicatore del piano sta nel dock, e il dock nella zona `Bottom`** (#3680): la misura sopra lo
+		// contiene, perche' la zona misura il dock con la sua riga. Compare solo dove la mappa ha piu' di un piano, e
+		// `LayerStack` ne ha tre: li' deve comparire, altrimenti la misura non lo conterrebbe affatto.
+		if (TestNotNull(*FString::Printf(TEXT("%s: l'HUD monta un dock"), Scenario), DockDellHud)
+			&& TestNotNull(*FString::Printf(TEXT("%s: il dock ha l'indicatore del piano"), Scenario), DockDellHud->LayerIndicator.Get()))
+		{
+			const URTHudZoneWidget* ZonaDelDock = nullptr;
+			Hud->WidgetTree->ForEachWidget([&](UWidget* W)
+			{
+				const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W);
+				if (Zona && Zona->GetContentForSlot(TEXT("Content")) == DockDellHud)
+				{
+					ZonaDelDock = Zona;
+				}
+			});
+			TestTrue(*FString::Printf(TEXT("%s: il dock, e con lui l'indicatore, sta nella zona Bottom"), Scenario),
+				ZonaDelDock != nullptr && ZonaDelDock->ZoneId == ERTHudZone::Bottom);
+
+			int32 Min = 0;
+			int32 Max = 0;
+			const bool bPiuPiani = Comandante && Comandante->GetMapLayerRange(Min, Max) && Max > Min;
+			const bool bMostrato = DockDellHud->LayerIndicator->GetVisibility() != ESlateVisibility::Collapsed;
+			TestEqual(*FString::Printf(TEXT("%s: l'indicatore compare se e solo se la mappa ha piu' piani (%d..%d)"),
+				Scenario, Min, Max), bMostrato, bPiuPiani);
+			if (FCString::Strcmp(Scenario, TEXT("Visual.Map.LayerStack")) == 0)
+			{
+				TestTrue(TEXT("LayerStack: tre piani, l'indicatore compare e ha una misura"),
+					bMostrato && DockDellHud->LayerIndicator->GetDesiredSize().X > 1.0);
+			}
+		}
 	}
 	return true;
 }
