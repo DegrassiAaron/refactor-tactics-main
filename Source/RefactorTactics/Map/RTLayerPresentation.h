@@ -6,8 +6,8 @@
  * **Come si vede un piano rispetto a quello attivo** ([D-501], #3679), **e come lo dice il suo bordo** ([D-508], #3704).
  *
  * I piani sopra l'attivo sono traslucidi e schiariti (#3674), quelli sotto desaturati e scuriti di piu' quanto piu'
- * sono lontani, l'attivo ha i colori pieni. Il bordo dice il piano: nero sull'attivo, bianco sopra, viola sotto (`BorderColorFor`). Una mappa
- * a un piano non ha trattamento, e i suoi bordi sono neri come prima.
+ * sono lontani, l'attivo ha i colori pieni. Il bordo dice il piano: nero sull'attivo, bianco sopra, viola sotto
+ * (`BorderColorFor`). Una mappa a un piano non ha trattamento, e i suoi bordi sono neri come prima.
  *
  * 🔑 **Si attenua l'USCITA del materiale, non la si sostituisce** (#3679, scope 3): il trattamento non tocca i
  * canali 0..2 del colore — che sono del velo ([D-227]) e del terreno — ma ne aggiunge tre che `M_HexCell` applica
