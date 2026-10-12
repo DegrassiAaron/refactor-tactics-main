@@ -33,8 +33,9 @@ namespace RTHexVolumeMaterial
 	/**
 	 * Il codice HLSL del nodo Custom che compone il colore.
 	 *
-	 * 🔑 **L'ordine e' la regola**: prima il trattamento di D-501 sul colore proprio (desaturazione, poi luce), poi
-	 * la tinta del piano. Una tinta messa prima perderebbe il suo viola nella desaturazione di un piano sotto.
+	 * 🔑 **L'ordine e' la regola**: la desaturazione di D-501 sul colore proprio, poi la tinta del piano, poi la luce.
+	 * Una tinta messa prima della desaturazione perderebbe il suo viola su un piano sotto; messa dopo la luce
+	 * dominerebbe un corpo scurito e lo renderebbe piu' chiaro di un volume non tinto.
 	 */
 	FString CustomCode();
 

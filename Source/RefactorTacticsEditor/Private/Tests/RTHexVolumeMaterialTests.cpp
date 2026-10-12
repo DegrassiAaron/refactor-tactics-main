@@ -157,11 +157,11 @@ namespace
 }
 
 /**
- * **L'ordine nel codice e' la regola: prima il trattamento, poi la tinta.** Una tinta messa prima della
- * desaturazione perderebbe il suo viola su un piano sotto.
+ * **L'ordine nel codice e' la regola: desaturazione, tinta, luce.** Una tinta messa prima della desaturazione
+ * perderebbe il suo viola su un piano sotto; messa dopo la luce dominerebbe un corpo scurito.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexVolumeRecipeCodeTest,
-	"RefactorTactics.HexVolume.RecipeCodeTintsAfterTheTreatment",
+	"RefactorTactics.HexVolume.RecipeCodeTintsBetweenDesaturationAndLight",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRTHexVolumeRecipeCodeTest::RunTest(const FString&)
@@ -171,10 +171,10 @@ bool FRTHexVolumeRecipeCodeTest::RunTest(const FString&)
 	const int32 Luce = Code.Find(TEXT("exp2(ExposureStops)"), ESearchCase::CaseSensitive);
 	const int32 Tinta = Code.Find(TEXT("Tint.rgb"), ESearchCase::CaseSensitive);
 	TestTrue(TEXT("il codice desatura, schiarisce o scurisce, e tinge"), Desaturazione >= 0 && Luce >= 0 && Tinta >= 0);
-	TestTrue(TEXT("la desaturazione viene prima della luce"), Desaturazione < Luce);
-	TestTrue(TEXT("e la tinta viene DOPO entrambe"), Tinta > Luce && Tinta > Desaturazione);
+	TestTrue(TEXT("la tinta viene DOPO la desaturazione: altrimenti un piano sotto perderebbe il suo viola"), Tinta > Desaturazione);
+	TestTrue(TEXT("e PRIMA della luce: lo scurimento vale per tutto il volume, tinta compresa"), Tinta < Luce);
 	TestTrue(TEXT("la forza della tinta e' l'alfa della sua interpolazione"),
-		Code.Contains(TEXT("lerp(Treated, Tint.rgb, saturate(TintStrength))"), ESearchCase::CaseSensitive));
+		Code.Contains(TEXT("lerp(Body, Tint.rgb, saturate(TintStrength))"), ESearchCase::CaseSensitive));
 	return true;
 }
 

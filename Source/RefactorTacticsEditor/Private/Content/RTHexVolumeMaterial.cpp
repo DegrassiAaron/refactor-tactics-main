@@ -32,12 +32,13 @@ FString RTHexVolumeMaterial::CustomCode()
 {
 	FString Code;
 	Code += TEXT("// Generato da RTHexVolumeMaterial::CustomCode (#3706). Non modificare nell'asset: cambia la ricetta e rilancia il commandlet.\n");
-	Code += TEXT("// 1. Il trattamento di D-501 sul colore proprio: desaturazione, poi luce in stop.\n");
+	Code += TEXT("// 1. La desaturazione di D-501, sul colore proprio.\n");
 	Code += TEXT("float Luma = dot(Own.rgb, float3(0.3, 0.59, 0.11));\n");
-	Code += TEXT("float3 Treated = lerp(Own.rgb, float3(Luma, Luma, Luma), saturate(Desaturation));\n");
-	Code += TEXT("Treated *= exp2(ExposureStops);\n");
-	Code += TEXT("// 2. La tinta del piano, DOPO: e' il colore che dice la relazione, e la desaturazione lo cancellerebbe.\n");
-	Code += TEXT("return saturate(lerp(Treated, Tint.rgb, saturate(TintStrength)));");
+	Code += TEXT("float3 Body = lerp(Own.rgb, float3(Luma, Luma, Luma), saturate(Desaturation));\n");
+	Code += TEXT("// 2. La tinta del piano, DOPO la desaturazione: e' il colore che dice la relazione, e la desaturazione lo cancellerebbe.\n");
+	Code += TEXT("Body = lerp(Body, Tint.rgb, saturate(TintStrength));\n");
+	Code += TEXT("// 3. La luce di D-501, PER ULTIMA: lo scurimento di un piano sotto vale per tutto il volume, tinta compresa.\n");
+	Code += TEXT("return saturate(Body * exp2(ExposureStops));");
 	return Code;
 }
 

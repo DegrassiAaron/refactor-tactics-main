@@ -63,7 +63,11 @@ ERTLayerRelation RTLayerPresentation::Relation(int32 Layer, int32 ActiveLayer, b
 FLinearColor RTLayerPresentation::VolumeOwnColor(bool bEdgePanel)
 {
 	// Tarati sulle catture di prima di #3706 (`Visual.Map.BlockVolumes`, `Visual.Map.GrayKitYard`): vedi l'header.
-	return bEdgePanel ? FLinearColor(0.42f, 0.42f, 0.42f, 1.f) : FLinearColor(0.20f, 0.20f, 0.20f, 1.f);
+	if (bEdgePanel)
+	{
+		return FLinearColor(0.092f, 0.092f, 0.092f, 1.f);
+	}
+	return FLinearColor(0.13f, 0.13f, 0.13f, 1.f);
 }
 
 FRTLayerVolumeTint RTLayerPresentation::VolumeTint(int32 Layer, int32 ActiveLayer, bool bMultiLayer,
