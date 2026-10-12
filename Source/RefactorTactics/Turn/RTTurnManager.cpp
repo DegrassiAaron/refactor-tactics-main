@@ -3212,26 +3212,18 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// un attaccante c'e': ha tirato lui. ⚠️ Ma puo' valere `0` — `AttackerId` arriva `INDEX_NONE` se il
 		// colpo non e' attribuibile, e `AppendLogEntry` scrive `0` quando l'Actor e' nullo: chi consuma lo
 		// legga come «nessuno» ([D-063]) e mai come l'unita' zero.
-		// 🔴 **REVISIONE PRIVACY, e non si chiude con `N/A`** (`CLAUDE.md` §7: ogni modifica alla event
-		// projection la richiede esplicita).
+		// 🔴 **PRIVACY: il verdetto e' quello del fatto, e lo copia — [D-502], `#3681`.** Il bordo colpito dice
+		// da dove ha sparato chi ha sparato: la fila di celle oltre il muro. Lo vedono la squadra di ogni autore
+		// e chi vedeva almeno una delle due celle, e lo decide il produttore (`ApplyEnvironmentChanges`) con
+		// `FreezeEdgeVerdict`. Qui si COPIA `Entry.Verdict`, come gli altri campi: un secondo calcolo darebbe
+		// alla timeline una regola diversa da quella del TurnLog, cioe' due risposte allo stesso fatto.
+		// `URTPlaybackLibrary::BuildBlastSequence` lo filtra con `IsStructureHitHiddenFrom`.
 		//
-		// Il precedente c'e' ed e' vicino: `AttackFootprint` porta gia' `SourceStableUnitId` sullo stesso
-		// canale e `BeginPlayback` non lo filtra. ⏱️ *Vero fino a `#3551`: da [D-500] la traccia di un `Line`/`Cone` si
-		// filtra sul verdetto dell'origine (`URTPlaybackLibrary::IsFootprintHiddenFrom`). Questo evento resta senza
-		// verdetto, e la revisione qui sotto e' aperta in `#3681`.* ⚠️ **Ma non e' lo stesso caso**, e la differenza e' questa
-		// fetta: l'impronta nasce a `RTHexCombatLibrary.cpp:606`, **dopo** il `continue` che scarta un intento
-		// senza linea di tiro; il danno alla struttura si raccoglie a `:391`, **prima**. ∴ esiste un caso che
-		// l'impronta non produce e questo evento si': **un attaccante invisibile che spara contro un muro alto
-		// e non colpisce nessuno**. Li' il suo `StableUnitId` e l'istante esatto del colpo entrano nella
-		// timeline senza che nessun verdetto li accompagni — `Entry.Verdict`, che `AppendLogEntry` congela a
-		// `:2761` proprio per dire chi puo' leggere il fatto, non viene copiato qui.
-		//
-		// ⛔ **NON lo risolvo indovinando un filtro.** La domanda vera — se il CAMBIAMENTO di una geometria
-		// pubblica sia pubblico, e se a non esserlo sia solo il suo AUTORE e il suo ISTANTE — e' una decisione
-		// di boundary, non una riga. Un filtro scritto di corsa su un canale di privacy e' peggio dell'assenza
-		// di filtro, perche' sembra una garanzia. La fetta consegna il momento; la decisione e' dichiarata
-		// nella PR come **REVISIONE RICHIESTA**, non archiviata.
+		// ⏱️ *Fino a #3681 questo evento nasceva senza verdetto e il commento lo dichiarava revisione aperta:
+		// il caso che solo lui produceva era un attaccante invisibile che spara contro un muro e non colpisce
+		// nessuno, e l'impronta, nata dopo il `continue` della linea di tiro, quel caso non l'aveva.*
 		Ev.SourceStableUnitId = Entry.UnitId;
+		Ev.SourceVerdict = Entry.Verdict; // [D-502]: per questo tipo e' il verdetto del FATTO, non della sorgente
 		// ⛔ **`TargetStableUnitId` resta `0` e non e' un buco da riempire**: il bersaglio e' un BORDO, e una
 		// copertura non ha uno `StableUnitId`. E' il punto che `Turn.StructureHitEventCarriesEdgeNotActor`
 		// sorveglia — il giorno in cui qualcuno ci mettesse l'unita' piu' vicina, il fatto smetterebbe di
@@ -4041,6 +4033,11 @@ void ARTTurnManager::RecordTurnToReplay()
 		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
 		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
 		Record.SubjectCell = Entry.VerdictSubject.Cell;
+		// `#3681`: il verdetto di un bordo si ricalcola dal bordo e dagli autori, non dall'unita'.
+		Record.bEdge = Entry.VerdictSubject.bEdge;
+		Record.EdgeCell = Entry.VerdictSubject.EdgeCell;
+		Record.EdgeToward = Entry.VerdictSubject.EdgeToward;
+		Record.AuthorTeamIds = Entry.VerdictSubject.AuthorTeamIds;
 		Record.Verdict = Entry.Verdict;
 		Audit.Verdicts.Add(Record);
 	}
@@ -8540,19 +8537,19 @@ bool ARTTurnManager::RevealPlaybackActivations(const TArray<FRTResolvedEvent>& A
 // La sequenza di Blast (#3549, D5). I commenti dei tre rami di `BeginPlayback` che questa funzione sostituisce,
 // in cio' che hanno di ancora vero:
 //
-// ⛔ **Nessun filtro di conoscenza sull'impronta e sul muro, e non e' una dimenticanza**: l'impronta e' un fatto
-// dell'AZIONE e le sue celle sono terreno, non occupazione — la catena `BlastOriginCell -> HexHitCells` non
-// tocca l'occupazione (`#2791`); il soggetto di uno `StructureHit` e' un BORDO, e un muro che cade non rivela
-// chi ci stava dietro, che resta coperto dal velo. ⚠️ Se un giorno l'impronta portasse un dato dipendente da
-// CHI e' stato colpito, diventerebbe un canale e andrebbe filtrata come il `Move`.
+// ⛔ **Nessun filtro qui, e non e' una dimenticanza**: i filtri sono a monte, in `BuildBlastSequence` (vedi
+// sotto). ⏱️ *Fino a #3681 questa riga giustificava l'assenza di filtro sul muro con «il soggetto e' un BORDO,
+// e un muro che cade non rivela chi ci stava dietro». Era vero per chi stava DIETRO il muro, e falso per chi
+// aveva sparato: il bordo dice la fila da cui e' arrivato il colpo ([D-502]).* ⚠️ Se un giorno l'impronta
+// portasse un dato dipendente da CHI e' stato colpito, diventerebbe un canale e andrebbe filtrata come il `Move`.
 // ⚠️ **Nessun `Src` richiesto per impronte e muri**: il fatto riguarda la mappa e resta vero anche se chi ha
 // sparato e' morto nello stesso Blast. Pretendere l'Actor perderebbe proprio i colpi dei caduti.
 // 🔴 **Il filtro di FASE ora c'e'.** ⏱️ *Fino a #3549 il ramo `StructureHit` di `BeginPlayback` non filtrava
 // `Ev.Phase`, e un secondo produttore in Cleanup avrebbe inventato una fase `Blast`.* `BuildBlastSequence`
 // prende solo `Phase == Blast`: un muro colpito in Cleanup non entra in questa sequenza e non apre la fase.
-// 🔑 **I filtri di privacy di questa sequenza sono a monte, in `BuildBlastSequence`**: le ATTIVAZIONI (D6) e, da
-// `#3551`, le tracce di un `Line`/`Cone` il cui attaccante chi guarda non vedeva ([D-500]). Qui si mostra tutto cio'
-// che e' in sequenza — anche lo `StructureHit`, che non porta verdetto (`#3681`).
+// 🔑 **I filtri di privacy di questa sequenza sono a monte, in `BuildBlastSequence`**: le ATTIVAZIONI (D6); da
+// `#3551`, le tracce di un `Line`/`Cone` il cui attaccante chi guarda non vedeva ([D-500]); da `#3681`, i muri
+// colpiti che chi guarda non osservava ([D-502]). Qui si mostra tutto cio' che e' in sequenza.
 bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 {
 	const int32 Target = FMath::Min(BeatsTarget, 2 * PlaybackBlastSequence.Num());

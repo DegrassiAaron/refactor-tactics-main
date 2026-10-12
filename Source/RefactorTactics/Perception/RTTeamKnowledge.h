@@ -288,6 +288,30 @@ public:
 		const FRTKnowledgeSubject& Subject);
 
 	/**
+	 * Chi puo' sapere che un BORDO e' stato colpito — [D-502], `#3681`.
+	 *
+	 * La squadra di ogni autore, piu' ogni squadra che vede **almeno una** delle due celle del bordo. Se la
+	 * vede un'unita' della squadra la vede tutta la squadra, perche' `VisibleCells` e' gia' l'unione dei suoi
+	 * osservatori.
+	 *
+	 * 🔑 **E' `FreezeVerdict`, non un predicato nuovo**: per ogni cella e ogni autore chiede a `FreezeVerdict`
+	 * chi riconoscerebbe l'autore li', e unisce. La squadra dell'autore passa dal ramo alleato di
+	 * `ClassifyTarget`; le altre dal ramo `Detected`, cioe' dalla cella in `VisibleCells`. ⚠️ Il ramo
+	 * `Uncertain` di un contatto ricordato non concede il bit, come in `FreezeVerdict`: il ricordo di un'unita'
+	 * non e' vedere un muro.
+	 *
+	 * ⛔ **Si calcola sulle istantanee di squadra, e non sugli osservatori di `FreezeRouteCellVerdict`, per una
+	 * ragione sola: l'audit di [D-313].** L'artefatto conserva `PlanningKnowledge` e `BlastKnowledge`, non le
+	 * posizioni degli osservatori, e ricalcola un verdetto chiamando QUESTA funzione: un predicato diverso da
+	 * quello di produzione renderebbe il controllo cieco o bugiardo.
+	 *
+	 * Senza autori (`AuthorTeamIds` vuoto) resta la sola vista delle due celle. Fail-closed come
+	 * `FreezeVerdict`: una squadra assente da `AllKnowledge` non riceve il bit.
+	 */
+	static FRTKnowledgeVerdict FreezeEdgeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
+		const TArray<int32>& AuthorTeamIds, const FRTCellId& CellA, const FRTCellId& CellB);
+
+	/**
 	 * Quante celle iniziali di una rotta l'osservatore ha il diritto di vedere: la regola di troncamento
 	 * di [D-223], in **una** funzione pura.
 	 *

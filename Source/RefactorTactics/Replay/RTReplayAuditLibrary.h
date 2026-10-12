@@ -29,8 +29,17 @@ enum class ERTAuditFormatVersion : uint16
 	 */
 	WithBotDecisions = 2,
 
+	/**
+	 * Piu' il BORDO nei verdetti — `#3681`, [D-502]: le due celle e le squadre degli autori di un muro colpito.
+	 *
+	 * 🔴 **Alzata per la stessa ragione della precedente**: un artefatto `WithBotDecisions` non porta il bordo,
+	 * quindi ricalcolerebbe il verdetto di un muro dall'unita' che ha sparato e accuserebbe il gioco di un
+	 * difetto che non ha — o, con piu' autori, lo prenderebbe per un fatto di mondo.
+	 */
+	WithEdgeVerdicts = 3,
+
 	/** Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia il valore sopra. */
-	Current = WithBotDecisions
+	Current = WithEdgeVerdicts
 };
 
 /**
@@ -69,6 +78,12 @@ struct FRTAuditVerdictRecord
 	UPROPERTY() int32 SubjectTeamId = 0;
 	UPROPERTY() FRTCellId SubjectCell;
 	UPROPERTY() FRTKnowledgeVerdict Verdict;
+
+	/** Vero se il verdetto e' quello di un bordo colpito ([D-502]): si ricalcola con `FreezeEdgeVerdict`. */
+	UPROPERTY() bool bEdge = false;
+	UPROPERTY() FRTCellId EdgeCell;
+	UPROPERTY() FRTCellId EdgeToward;
+	UPROPERTY() TArray<int32> AuthorTeamIds;
 };
 
 /**
