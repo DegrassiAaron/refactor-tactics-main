@@ -5796,7 +5796,11 @@ sessions:
     done_when: >-
       l'autore ha scelto le intensità in PIE e giudicato la voce; #3674 si chiude se la piattaforma si distingue a 120° e 180°
     notes: |
-      ⏳ **Da convocare con l'autore.** Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture dal
+      Condotta il 2026-10-12 con l'autore, in due tempi: dal worktree `rt-wt-3704` (commit `d70081b44`, `LayerStack`)
+      e dal clone principale su `main` = `2e1365e24` (`MultiLevel`). Esito: le intensità sono scelte, la piattaforma
+      NO. Il dettaglio è nei capoversi qui sotto, in ordine di tempo.
+
+      ⌫ *Prima era «da convocare».* Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture dal
       worktree `rt-wt-3679` (commit `a32caee15`, sola lettura), con le intensità di default: `LayerStack` coi tre piani attivi,
       in tattica e in strategica, anche a 60°; `MultiLevel` a 180° e a 120°, coi due piani attivi. Le catture e le misure
       sono nella cella della voce. In seduta: si provano le leve `rt.Map.Layers.*` in console, si sceglie, e i valori
@@ -5812,7 +5816,12 @@ sessions:
       #3704): «la trasparenza va bene» — l'opacità «sopra» resta 0,35. Rilievo suo: col mezzanino attivo, l'unità
       che sta sul pavimento sotto il mezzanino non si vede. Non è nascosta, è coperta dal piano attivo, che è pieno:
       l'autore ha deciso che il contorno del modello si veda attraverso il piano, e lo porta #3705.
-      ⏳ **Manca `MultiLevel` a 120° e a 180°** (#3674): la seduta si chiude su `main`, dopo il merge di #3704.
+      ⌫ *Mancava `MultiLevel` a 120° e a 180° (#3674): la seduta si chiudeva su `main`, dopo il merge di #3704.*
+
+      **2026-10-12, sera, su `main` = `2e1365e24`, `MultiLevel`: «No, si sovrappongono e sembrano sparire.»**
+      Col piano terra attivo la piattaforma è un velo al 35% dello stesso grigio del pavimento, e il suo contorno
+      bianco, sottile, si confonde con la griglia; in strategica quasi non si vede. Con la piattaforma attiva si
+      stacca. `PIE-CAM-PIANI-ATTIVO` è parziale, e #3674 resta aperta: il rimedio si giudica in una seduta nuova.
 
 not_schedulable:
 

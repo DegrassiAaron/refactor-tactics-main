@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-12 — La piattaforma di `MultiLevel` non si distingue: il giudizio dell'autore
+
+**Origine**: [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674), seduta `U84` chiusa su `main` = `2e1365e24`.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO` passa da aperta a parziale: bordi e intensità giudicati, la piattaforma a 120° e a 180° no; i totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U84`: condotta, con l'esito |
+
+---
+
 ## 2026-10-12 — Il piano si legge dal bordo: D-508
 
 **Origine**: [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704), dalla seduta `U84` e dal brainstorm che ne è seguito.
