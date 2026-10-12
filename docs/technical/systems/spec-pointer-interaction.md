@@ -67,7 +67,7 @@ Il contratto parte da ciò che esiste, non da un foglio bianco.
 | La modalità di targeting **non è uno stato del controller**: è `SelectedAbilityIndex` **sull'unità** | `RTPlayerController.cpp:504,606` |
 | Il controller **non conosce la fase**: l'unica lettura è in `OnRestart`, e serve al fine partita | `ARTPlayerController::OnRestart` — `GetPhase() == ERTMatchPhase::MatchEnded` |
 | Il Canvas HUD **non registra alcuna hitbox** (`AddHitBox` non compare in `Source/`) | `RTHUD.cpp` — assenza verificata |
-| `bShowMouseCursor = true`; nessun `SetInputMode` esplicito | `RTPlayerController.cpp:257` |
+| ~~`bShowMouseCursor = true`; nessun `SetInputMode` esplicito~~ — ➕ **dal 2026-10-12 la partita dichiara il proprio modo di input** ([#2989](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2989), decisione d'autore): `GameAndUI`, con la stessa chiamata del frontend. Prima lo ereditava: `FInputModeGameAndUI` scrive sul viewport (`CaptureDuringMouseDown`) e il viewport sopravvive al cambio di mappa, quindi una partita aperta dal frontend e una aperta sulla mappa — default del progetto `CapturePermanently_IncludingInitialMouseDown` — avevano due modi diversi. Misurato: aperta dal frontend, un click sul dock arma ([`evidence/hud/dock-click-dal-frontend-2026-10-07.log`](../evidence/hud/dock-click-dal-frontend-2026-10-07.log)). Non misurato: la partita aperta sulla mappa dopo la dichiarazione, e i tasti dopo un click — li guarda `PIE-V01-DOCKCLICK` | `RTInputMode::ApplyGameAndUI` in `Player/RTInputMode.h` · `ARTPlayerController::BeginPlay` · `ARTFrontendGameMode::ConfigureMenuInput` |
 
 ### 2.1 Due assenze misurate il 2026-08-13, commit `3cec1d57`
 

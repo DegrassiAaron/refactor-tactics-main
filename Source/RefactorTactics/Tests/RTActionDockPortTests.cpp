@@ -353,6 +353,129 @@ bool FRTActionSlotForwardsItsOwnIndexTest::RunTest(const FString&)
 }
 
 /**
+ * `#2989` — UNO SLOT COSTRUITO PER UN'ALTRA UNITA' NON ARMA, E NON DISARMA.
+ *
+ * 🔴 **La selezione puo' cambiare fra `SetAction` e il click.** Lo slot porta una POSIZIONE di kit, e la
+ * stessa posizione su due unita' sono due azioni diverse. Il dock riassegna gli slot a ogni frame, quindi la
+ * finestra e' corta — ma `N` cambia unita' anche a mouse premuto, e un click Slate sono due eventi su due
+ * frame. Senza la guardia in `Activate()` quel click arma sulla nuova unita' cio' che lo slot non ha mai
+ * mostrato, oppure — la porta fa toggle — spegne cio' che il giocatore aveva appena armato.
+ *
+ * 🔑 **Namespace `PlayerInput.*` e non `ScreenHud.*`**: l'oracolo e' il canale d'input, non la forma del
+ * widget. E i quattro passi misurano cose diverse: A dice che lo slot SA armare (senza, B sarebbe vero per un
+ * `Activate()` morto), B e C sono la guardia nei due versi della porta, D dice che la guardia non e' un muro —
+ * riassegnato dal dock, lo slot torna a valere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSlotBuiltForAnotherUnitTest,
+	"RefactorTactics.PlayerInput.SlotBuiltForAnotherUnitDoesNotArm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTSlotBuiltForAnotherUnitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+
+	ARTUnit* Prima = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTUnit* Seconda = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+	if (!Prima || !Seconda || !PC || !Dock)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("le due unita', il controller e il dock esistono"), false);
+	}
+
+	PC->SelectActorForTest(Prima);
+	Dock->SetSelectedUnitForTest(Prima);
+	const TArray<FRTAbilityCooldownView> AzioniPrima = Dock->GetActions();
+
+	// ⚠️ **La posizione di riferimento si CERCA**, come in `ActionSlotForwardsItsOwnIndex`: deve armarsi dalla
+	// porta su ENTRAMBE le unita'. Altrimenti «non arma» sarebbe vero per un rifiuto del core — reazione non
+	// pronta, supporto in ricarica, posizione vuota — e non per la guardia dello slot.
+	int32 Riferimento = INDEX_NONE;
+	for (const FRTAbilityCooldownView& Vista : AzioniPrima)
+	{
+		bool bSuEntrambe = true;
+		for (ARTUnit* Unita : { Prima, Seconda })
+		{
+			PC->SelectActorForTest(Unita);
+			PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+			PC->ArmKitAbility(Vista.AbilityIndex);
+			bSuEntrambe = bSuEntrambe && (Unita->SelectedAbilityIndex == Vista.AbilityIndex);
+			PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+		}
+		if (bSuEntrambe)
+		{
+			Riferimento = Vista.AbilityIndex;
+			break;
+		}
+	}
+	if (!TestNotEqual(
+			TEXT("premessa: una posizione di kit si arma dalla porta su entrambe le unita'"),
+			Riferimento, static_cast<int32>(INDEX_NONE)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FRTAbilityCooldownView* VistaPrima =
+		AzioniPrima.FindByPredicate([Riferimento](const FRTAbilityCooldownView& V) { return V.AbilityIndex == Riferimento; });
+
+	// Lo slot nasce per la PRIMA: e' lei la selezionata mentre il dock gli assegna l'azione.
+	PC->SelectActorForTest(Prima);
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>(World);
+	Slot->SetArmingControllerForTest(PC);
+	Slot->SetAction(*VistaPrima, /*bInArmed=*/ false);
+
+	// --- A. CONTROLLO POSITIVO: per la propria unita' lo slot arma ---------------------------------------
+	Slot->Activate();
+	TestEqual(TEXT("A: lo slot arma l'unita' per cui e' stato costruito"), Prima->SelectedAbilityIndex, Riferimento);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	// --- B. La selezione cambia fra `SetAction` e il click: lo slot NON arma ------------------------------
+	PC->SelectActorForTest(Seconda);
+	Slot->Activate();
+	TestEqual(TEXT("B: un click su uno slot costruito per un'altra unita' NON arma la selezionata"),
+		Seconda->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("B: e non tocca l'unita' per cui era nato"),
+		Prima->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+	// --- C. E NON DISARMA: la porta fa toggle, quindi lo stesso click spegnerebbe cio' che e' armato -----
+	// ⚠️ Si riparte dal NEUTRO, e non per ordine: se B fosse fallito la selezionata sarebbe gia' armata, e la
+	// porta qui sotto la spegnerebbe — la premessa cadrebbe e questo verso non verrebbe mai misurato. Cosi'
+	// una guardia rotta fa cadere B **e** C, ognuno sul proprio asserto.
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	PC->ArmKitAbility(Riferimento);
+	if (!TestEqual(TEXT("premessa di C: la selezionata e' armata dalla porta"), Seconda->SelectedAbilityIndex, Riferimento))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Slot->Activate();
+	TestEqual(TEXT("C: ne' disarma cio' che la selezionata aveva armato"), Seconda->SelectedAbilityIndex, Riferimento);
+
+	// --- D. Il dock riassegna lo slot alla nuova selezione: il click torna a valere -----------------------
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	Dock->SetSelectedUnitForTest(Seconda);
+	const TArray<FRTAbilityCooldownView> AzioniSeconda = Dock->GetActions();
+	const FRTAbilityCooldownView* VistaSeconda =
+		AzioniSeconda.FindByPredicate([Riferimento](const FRTAbilityCooldownView& V) { return V.AbilityIndex == Riferimento; });
+	if (!TestNotNull(TEXT("premessa di D: la seconda unita' ha la stessa posizione di kit"), VistaSeconda))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Slot->SetAction(*VistaSeconda, /*bInArmed=*/ false);
+	Slot->Activate();
+	TestEqual(TEXT("D: riassegnato alla nuova selezione, lo slot arma"), Seconda->SelectedAbilityIndex, Riferimento);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * `#3470` — IL BADGE `M` DELLA BARRA E IL TASTO `M` RAGGIUNGONO LA STESSA DICHIARAZIONE ([D-457]).
  *
  * 🔑 **L'oracolo e' la simmetria con il tasto, non un valore scritto qui**: il click dichiara, il tasto ritira,

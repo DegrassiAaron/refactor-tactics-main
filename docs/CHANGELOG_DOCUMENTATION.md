@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-12 — #2989: lo slot dichiara la propria unità, e la partita dichiara il proprio modo di input
+
+**Origine**: [#2989](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2989), i residui nominati da `D-507`.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §2: la riga «nessun `SetInputMode` esplicito» è superata; cosa è misurato e cosa no |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | note in coda a `PIE-V01-DOCKCLICK`, `PIE-V01-DOCKREBUILD` e `PIE-V01-DOCKTICK`: i marcatori non si muovono |
+| [`technical/evidence/hud/dock-click-dal-frontend-2026-10-07.log`](technical/evidence/hud/dock-click-dal-frontend-2026-10-07.log) | nuovo: l'estratto della seduta PIE in cui il click sul dock arma |
+
+---
+
 ## 2026-10-12 — Il piano si legge dal bordo: D-508
 
 **Origine**: [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704), dalla seduta `U84` e dal brainstorm che ne è seguito.

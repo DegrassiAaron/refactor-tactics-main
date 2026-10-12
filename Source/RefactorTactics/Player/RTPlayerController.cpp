@@ -1,4 +1,5 @@
 ﻿#include "Player/RTPlayerController.h"
+#include "Player/RTInputMode.h" // il modo di input del gioco: una funzione, due chiamanti (#2989)
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
@@ -845,7 +846,12 @@ void ARTPlayerController::BeginPlay()
 
 	// #1775 — il piano attivo parte da quello che la mappa ha davvero, non da `0`.
 	AlignActiveLayerToMap();
-	bShowMouseCursor = true;
+
+	// `#2989` — **il modo di input della partita si DICHIARA, ed e' quello del frontend.** Prima qui c'era il
+	// solo `bShowMouseCursor = true`: la partita girava col modo che la mappa precedente aveva lasciato sul
+	// viewport — `GameAndUI` se si arrivava dal frontend, il default del progetto se si apriva la mappa.
+	// La ragione per esteso, e cosa e' misurato, sta in `RTInputMode.h`.
+	RTInputMode::ApplyGameAndUI(*this);
 
 	BuildInputMappings();
 
