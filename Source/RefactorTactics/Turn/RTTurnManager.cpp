@@ -2395,8 +2395,8 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		if (!HealTarget || !HealTarget->IsAlive())
 		{
 			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
-			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
-			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
+			// Il danno del Blast e' simultaneo e le cure vengono DOPO, qualunque sia la priorita' dei due ([D-503]):
+			// l'alleato puo' morire NELLO STESSO Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
 			// ANNOTATO l'azione come partita, quindi senza questa voce il replay mostrerebbe un curatore con
 			// l'abilita' in ricarica — la scrive `SpendStartedAbilities` a fase finita — e nessuna azione
 			// registrata. ⚠️ Fino a `#1451` questa riga diceva «bruciato `ConsumeAbility`»: era vero quando

@@ -688,8 +688,8 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
 /**
  * **Una cura su chi e' caduto nel frattempo lascia una traccia.**
  *
- * Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire **nello stesso Blast** in
- * cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e ANNOTATO l'azione come
+ * Il danno del Blast e' simultaneo e le cure vengono dopo, qualunque sia la priorita' dei due ([D-503]):
+ * l'alleato puo' morire **nello stesso Blast** in cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e ANNOTATO l'azione come
  * partita (`#1451`: fino ad allora la bruciava sul posto, e questa riga diceva cosi'),
  * quindi prima di `#1447` il replay mostrava un curatore con l'abilita' in ricarica e nessuna azione
  * registrata — la terza faccia dell'asimmetria che [D-196] ha chiuso per `OutOfRange` e `NoEffect`.
@@ -2256,6 +2256,116 @@ bool FRTFallenHealerStillLeavesTheEntryTest::RunTest(const FString&)
 	if (TestNotNull(TEXT("la cura mancata e' nel record autoritativo anche se chi curava e' caduto"), Mancata))
 	{
 		TestEqual(TEXT("e nomina l'azione, non la generica"), Mancata->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * [D-503], `#3688` — **una cura non salva da un colpo letale nello stesso Blast, qualunque sia la priorita'.**
+ *
+ * 🔑 **Il colpo ha priorita' 80, sopra la cura (70)**: e' l'unico caso in cui la regola decisa (A: il danno
+ * simultaneo decide chi cade, poi le cure) si distingue dall'ordine per fasce di ADR-0003 alla lettera (C), che
+ * applicherebbe la cura prima del colpo. Sotto 70 le due regole danno lo stesso esito, e un test li' non
+ * proverebbe niente. L'attacco e' l'attacco base completato da `MakeBasicAttack`, con la priorita' portata a 80
+ * sull'istanza: `HeavyAttack` ha portata 0 nel catalogo, e nessun contenuto la usa per ferire.
+ *
+ * 🔑 **La soglia si costruisce larga, non al filo**: il ferito ha 1 punto vita e la cura lo riporterebbe a
+ * salute piena. Sotto A il colpo lo abbatte prima che la cura arrivi; sotto C (la cura prima) o B (la cura
+ * nella somma) sopravviverebbe con un margine che nessun modificatore di danno colma. ⚠️ `Amount` della voce
+ * di combattimento e' il danno LIMITATO alla salute residua, quindi prova la letalita' e nient'altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealArrivesAfterSimultaneousDamageTest,
+	"RefactorTactics.Actions.Heal.ArrivesAfterTheSimultaneousDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealArrivesAfterSimultaneousDamageTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* Attaccante = SpawnControlUnit(World, 1, FRTCellId(4, 0)); // adiacente al ferito
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("Attaccante"), Attaccante) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
+	const int32 AtkIdx = UseControlAbilityInSlot0(Attaccante, TEXT("Action.BasicAttack"));
+	if (!TestTrue(TEXT("premessa: le due azioni ci sono"), HealIdx != INDEX_NONE && AtkIdx != INDEX_NONE))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	// Il `Def` core di `Action.BasicAttack` ha danno e portata vuoti: li completa `MakeBasicAttack`, come in partita.
+	URTActionData* Colpo0 = Attaccante->Abilities[AtkIdx];
+	Colpo0->Def = URTCatalogLibrary::MakeBasicAttack(/*WeaponRangeCells=*/ 1);
+	Colpo0->Def.Priority = 80; // sopra la cura: e' il caso che separa A da C
+	Colpo0->RangeCells = Colpo0->Def.RangeCells;
+	Colpo0->Power = URTCatalogLibrary::FirstDamage(Colpo0->Def);
+
+	const int32 Danno = Colpo0->Power;
+	const int32 Salute = 1;
+	const int32 Cura = Ferito->MaxHealth - Salute; // la cura lo riporterebbe a salute piena
+	for (FRTActionEffectSpec& Spec : Curatore->Abilities[HealIdx]->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Heal) { Spec.Amount = Cura; }
+	}
+	// Il margine: anche raddoppiato da un modificatore, il colpo non abbatterebbe un'unita' a salute piena.
+	if (!TestTrue(*FString::Printf(TEXT("premessa: il colpo (%d) ferisce, e non abbatte chi e' a salute piena (%d)"),
+			Danno, Ferito->MaxHealth),
+		Danno > 0 && 2 * Danno < Ferito->MaxHealth))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	Ferito->ApplyCombatState(Salute, 0);
+
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+	Attaccante->PlannedAbilityIndex = AtkIdx;
+	Attaccante->PlannedAttackTarget = Ferito;
+	Attaccante->PlannedCell = Attaccante->Cell;
+	const FRTCellId CellaFerito = Ferito->Cell;
+
+	RunControlTurn(TM);
+
+	// La voce di combattimento: il suo `Amount` e' il danno limitato alla salute residua, quindi prova la letalita'.
+	const FRTTurnLogEntry* Colpo = TM->GetTurnLog().FindByPredicate([&CellaFerito](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Combat && E.Phase == ERTMatchPhase::Blast && E.TgtCell == CellaFerito
+			&& E.ActionId == FName(TEXT("Action.BasicAttack"));
+	});
+	if (!TestNotNull(TEXT("premessa: il colpo e' arrivato"), Colpo))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("salute %d, danno registrato (limitato alla salute) %d, potenza %d, cura %d"),
+		Salute, Colpo->Amount, Danno, Cura));
+	if (!TestTrue(TEXT("premessa: il colpo e' letale senza la cura"), Colpo->Amount >= Salute))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	// 🔴 A: il danno simultaneo ha deciso, e la cura ha trovato il bersaglio gia' caduto.
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetDead)
+			&& E.ActionId == FName(TEXT("Action.Heal"));
+	});
+	if (TestNotNull(TEXT("🔴 la cura arriva dopo il danno: trova il bersaglio caduto"), Mancata))
+	{
+		TestEqual(TEXT("e la voce accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
 	}
 
 	DestroyControlWorld(World);
