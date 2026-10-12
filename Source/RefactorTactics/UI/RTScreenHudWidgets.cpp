@@ -1175,6 +1175,13 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 
 	// `#2989`: lo slot dichiara per quale unita' e' stato costruito — quella selezionata ORA, mentre il dock
 	// gli assegna l'azione. `Activate()` la confronta con la selezione del momento del click.
+	//
+	// ⛔ **Vincolo per chi cambia l'innesco del dock** (review di `#2989`): questa e' l'UNICA scrittura di
+	// `BuiltForUnit`, quindi il dock deve richiamare `SetAction` dopo OGNI cambio di selezione. Oggi lo fa
+	// a ogni frame. Un innesco a evento che scattasse solo quando cambia la VISTA non basterebbe: due unita'
+	// con lo stesso kit hanno viste uguali, gli slot non verrebbero riassegnati, e ogni click legittimo
+	// resterebbe rifiutato — con la sola riga di log a dirlo. Lo guardano `PIE-V01-DOCKTICK` e
+	// `PIE-V01-DOCKREBUILD`.
 	const ARTPlayerController* Proprietario = ResolveArmingController();
 	BuiltForUnit = Proprietario ? Proprietario->GetSelectedUnit() : nullptr;
 

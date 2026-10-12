@@ -9,7 +9,7 @@
 | Dove | Che cosa |
 |---|---|
 | [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §2: la riga «nessun `SetInputMode` esplicito» è superata; cosa è misurato e cosa no |
-| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | note in coda a `PIE-V01-DOCKCLICK` e `PIE-V01-DOCKREBUILD`: i marcatori non si muovono |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | note in coda a `PIE-V01-DOCKCLICK`, `PIE-V01-DOCKREBUILD` e `PIE-V01-DOCKTICK`: i marcatori non si muovono |
 | [`technical/evidence/hud/dock-click-dal-frontend-2026-10-07.log`](technical/evidence/hud/dock-click-dal-frontend-2026-10-07.log) | nuovo: l'estratto della seduta PIE in cui il click sul dock arma |
 
 ---
