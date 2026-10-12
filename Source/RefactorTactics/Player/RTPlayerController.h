@@ -119,6 +119,13 @@ public:
 	bool SetActiveLayer(int32 NewLayer);
 
 	/**
+	 * Il piano piu' basso e il piu' alto **che la mappa contiene davvero**, misurati sulle celle. `false` senza mappa
+	 * o senza celle. E' la misura su cui `SetActiveLayer` clampa, e l'indicatore del dock la legge da qui (#3680):
+	 * due conti degli stessi limiti potrebbero dire «Piano 3 di 3» mentre il tasto sale ancora.
+	 */
+	bool GetMapLayerRange(int32& OutMinLayer, int32& OutMaxLayer) const;
+
+	/**
 	 * Porta `ActiveLayer` dentro l'intervallo dei layer che la mappa contiene davvero.
 	 *
 	 * Chiamata in `BeginPlay`: il campo nasce a `0`, e su una mappa che comincia a quota 1 quello sarebbe

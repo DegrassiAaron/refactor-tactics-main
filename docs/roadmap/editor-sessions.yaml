@@ -5749,6 +5749,37 @@ sessions:
       in PowerShell con le virgolette interne escapate due volte, non cambiava niente, e la rilettura con
       `get_properties` tornava vuota. L'ha preso il controllo positivo: a +4000 la board era ancora intera. In una
       stringa PowerShell fra apici il JSON annidato vuole `\"` una volta sola.
+  - id: U83
+    title: L'indicatore del piano nel dock (D-501) — tasti, tastiera, click — e la piattaforma di #3674
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-HUD-PIANO` sui criteri del log, e la causa misurata di #3674; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U82]
+    verifies: [PIE-HUD-PIANO]
+    issues: [3680, 3674]
+    done_when: >-
+      l'indicatore ha il suo verdetto nel registro prima del merge della PR di #3680, e #3674 ha la causa scritta
+    notes: |
+      Condotta il 2026-10-12, di notte, da una sessione senza l'autore, **da un worktree** (`rt-wt-3680`, commit
+      `3588ad1aa` = `main` `f5651e9a5` più il solo indicatore). Sola lettura, nessun salvataggio. Bridge acceso con
+      l'override `-ini` di `U82`. Scenario `rt.Test.Scenario=Visual.Map.MultiLevel`. ⚠️ Il primo avvio dell'Editor in
+      quel worktree ha installato i pacchetti Python dei plugin (torch compreso) per alcuni minuti: finché non finisce, il
+      bridge non risponde e `StartPIE` va in timeout.
+      1. **#3674**: vista strategica a 0°, 120° e 180°, poi `LayerView = ActiveOnly` sull'attore vivo con il piano 1 e
+         con il piano 0. A 180° la piattaforma è disegnata e cade sulla board, grigio su grigio. La causa è la
+         **sovrapposizione** (commento su #3674).
+      2. **#3680**: click su ▲, poi `PageDown` e `PageUp`. Nel log ci sono solo tre `Piano attivo: N`, e l'indicatore
+         segue ogni passo.
+      La resa dell'indicatore non è stata giudicata: resta dell'autore.
+      3. Dalla review di #3693, su `decd32676`: con Aevik selezionata (`N`), due click su ▼ spento non scrivono niente,
+         mentre un click nella scena pianifica. È il controllo positivo che distingue «niente» da «click perso». ⚠️ Il
+         primo tentativo cliccava Aevik senza selezione e non scriveva niente nemmeno lui: non era un controllo.
+         Avvio dell'Editor: prima il modale «Wait for ZenServer?», poi la build di un'altra sessione che teneva il mutex
+         di UBT.
 
 not_schedulable:
 

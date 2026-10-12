@@ -170,7 +170,7 @@ tattico è montato**; proiezione, deproiezione e `ProjectWorldLocationToScreen` 
 | `Zone_TopRight` | angolo in alto a destra, `Right` × `Top` | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
 | `Zone_MiddleLeft` | colonna sinistra, da `LeftTop` alla fascia bassa | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
 | `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
-| `Zone_Bottom` | tutta la larghezza, alta `Bottom` | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
+| `Zone_Bottom` | tutta la larghezza, alta `Bottom` | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md); in coda alla riga del dock, l'indicatore del piano «Piano N di M» con ▲/▼ ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), §7-septies) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *la scena* | il rettangolo fra le fasce | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — la 3D si rende solo qui, con il Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
 🎨 **Il bordo da cantiere si spegne quando il contenuto arriva**, ed è il contratto di `bBlockoutVisible`
@@ -813,6 +813,34 @@ stessa unità e con una cella d'ambiente nascosta.
   risolverebbe la cosa, chiede l'indice dell'evento riprodotto (T5, #1881);
 - ⏳ `DEFERRED`: la riga «nessun evento» per una fase senza eventi, che la tavola disegna tratteggiata. Il C++ costruisce
   una riga per voce del feed, e una fase vuota non ha voci.
+
+## 7-septies. L'indicatore del piano nel dock ([#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680))
+
+«Piano N di M» con ▲ e ▼, in coda alla riga del dock (`BarRow`), accanto alla lettura del movimento
+([D-501](../../decisions/RT_PDR_00_Decision_Log.md)).
+
+🔑 **Il C++ lo costruisce, e l'asset non ne sa niente.** `URTActionDockWidget::EnsureLayerIndicator` gira in
+`NativeOnInitialized`, prima che Slate costruisca il dock, e aggiunge l'indicatore al pannello di `MovementReadout`.
+Se `WBP_RT_ActionDock` un giorno dichiarasse le porte qui sotto nel Designer, il C++ non costruirebbe niente e le
+riempirebbe come quelle della lettura del movimento.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `LayerIndicator` | qualunque widget | `Collapsed` senza mappa e con un piano solo |
+| `LayerIndicatorText` | `TextBlock` | «Piano N di M»: N e M sono ordinali fra i piani che la mappa ha, da 1, non la quota del layer |
+| `LayerUpButton` | `Button` | il click chiama `StepLayerUp()`; disattivato sul piano più alto |
+| `LayerDownButton` | `Button` | il click chiama `StepLayerDown()`; disattivato sul piano più basso |
+
+- ▲ e ▼ **inoltrano a `ARTPlayerController::StepActiveLayer`**, il corpo di `PageUp`/`PageDown`. La vista legge piano
+  attivo e limiti dallo stesso controller (`GetMapLayerRange`), quindi segue anche la tastiera.
+- 🔴 **I tasti non prendono il fuoco della tastiera** (`URTMouseOnlyButton`). Uno `SButton` col fuoco tratta `Spazio`
+  e `Invio` come un click: dopo ▲, il lock-in di `Spazio` avrebbe ripremuto ▲. Se le porte si dichiarano nel Designer,
+  vanno messe con **Is Focusable** spento.
+- Un click sui tasti non arriva al mondo: il dock sta nella fascia bassa, fuori dal rettangolo della scena (§3).
+
+Lo misurano `ScreenHud.LayerIndicatorCountsTheLayersTheMapHas`, `ScreenHud.LayerIndicatorFollowsTheControllerAndItsButtonsStep`,
+`ScreenHud.LayerIndicatorHidesOnASingleLayerMap`, `ScreenHud.DockMountsTheLayerIndicatorBesideTheMovementReadout` e,
+per la fascia, `ScreenHud.TenantsFitTheirBands`.
 
 ## 8. Verifica
 

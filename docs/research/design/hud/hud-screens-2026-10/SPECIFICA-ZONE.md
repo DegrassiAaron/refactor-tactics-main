@@ -93,6 +93,12 @@ La tabella completa, con widget, view, campi presenti e mancanti, è in `dati/zo
 - Con sessione non presidiata, due liste distinte (#2744). In sessione presidiata la seconda è vuota **per costruzione**.
 - Editing = bordo tratteggiato ambra; Ready = bordo pieno ciano; Locked = grigio. Il testo c'è sempre.
 
+### Z5 Dock — l'indicatore del piano
+- Aggiunta del 2026-10-12, successiva alle tavole ([D-501](../../../../decisions/RT_PDR_00_Decision_Log.md), [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680)): in coda alla riga del dock, «Piano N di M» con ▲ e ▼. Le tavole non lo disegnano.
+- N e M contano i piani che la mappa ha, da 1, non la quota. Con un piano solo l'indicatore non c'è.
+- ▲ e ▼ sono `PageUp`/`PageDown`. Ai limiti si spengono, ma non spariscono.
+- Porte e regole: [`guida-screen-hud-umg.md`](../../../../technical/runbooks/guida-screen-hud-umg.md) §7-septies.
+
 ### Z6 Ghost Timeline
 - Quattro celle fisse, mai una coda: non deve poter sembrare «Attack → Move → Attack → Dash».
 - Cella vuota = `—` in grigio. Cella con avviso = bordo tratteggiato ambra.
