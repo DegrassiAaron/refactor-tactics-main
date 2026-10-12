@@ -3,7 +3,7 @@
 > `SNAPSHOT` · fotografia del 2026-10-12: vale finché è l'ultima misura del suo oggetto.
 >
 > - **Statuto**: brief di una sessione `/sc:brainstorm` con l'autore. Le scelte qui sotto sono sue. Diventano
->   [D-504](../../decisions/RT_PDR_00_Decision_Log.md) al merge di [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704).
+>   [D-508](../../decisions/RT_PDR_00_Decision_Log.md) al merge di [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704).
 > - **Viene da**: la seduta PIE `U84` su [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) e [D-501](../../decisions/RT_PDR_00_Decision_Log.md), cioè i piani rispetto a quello attivo.
 > - **Issue**: [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704) per le celle e i fantasmi,
 >   [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705) per le unità,
@@ -74,5 +74,5 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
 
 ## 7. Ordine
 
-1. **#3704**, che porta la regola e D-504. Il suo verdetto PIE chiude #3679 e, se la piattaforma si distingue a 120° e 180°, #3674.
+1. **#3704**, che porta la regola e D-508. Il suo verdetto PIE chiude #3679 e, se la piattaforma si distingue a 120° e 180°, #3674.
 2. **#3705** e **#3706**, indipendenti fra loro, dopo #3704.

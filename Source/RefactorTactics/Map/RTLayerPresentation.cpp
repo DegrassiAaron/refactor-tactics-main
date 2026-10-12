@@ -4,7 +4,7 @@
 #include "UI/RTUIPalette.h" // il bianco e il viola dei bordi sono token di §32 (#3704): una sede sola per il valore
 
 // Le leve di #3679: negative = usa il default. Si applicano al fotogramma dopo (`SyncActiveLayerPresentation`).
-// ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'e' piu' da #3704: il bordo dell'attivo e' nero per D-504, non marcato.*
+// ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'e' piu' da #3704: il bordo dell'attivo e' nero per D-508, non marcato.*
 static TAutoConsoleVariable<float> CVarRTMapLayersUpperOpacity(
 	TEXT("rt.Map.Layers.UpperOpacity"), -1.f,
 	TEXT("Opacita' dei piani sopra quello attivo (0..1). Negativo = default (0,35)."), ECVF_Default);

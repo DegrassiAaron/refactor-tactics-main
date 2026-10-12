@@ -113,7 +113,7 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 }
 
 /**
- * **Il bordo dice il piano: nero l'attivo, bianco sopra, viola sotto** — la funzione pura della DoD di #3704 ([D-504]).
+ * **Il bordo dice il piano: nero l'attivo, bianco sopra, viola sotto** — la funzione pura della DoD di #3704 ([D-508]).
  *
  * ⚠️ Il controllo in scala di grigi e' §47-bis.1: il colore non porta il significato da solo, e i tre bordi devono
  * restare scuro, chiaro e medio anche senza tinta. Un viola troppo scuro o troppo chiaro cadrebbe qui, non in PIE.
@@ -503,7 +503,7 @@ bool FRTLayerTreatmentSingleLayerTest::RunTest(const FString&)
 }
 
 /**
- * **Il contorno di un fantasma dice il piano della sua cella, e il riempimento resta la certezza** (#3704, [D-504]).
+ * **Il contorno di un fantasma dice il piano della sua cella, e il riempimento resta la certezza** (#3704, [D-508]).
  *
  * Tre fantasmi su tre piani di `LayerStack`. Il controllo positivo e' il cambio di piano attivo: lo stesso fantasma cambia
  * contorno, e il suo riempimento no.

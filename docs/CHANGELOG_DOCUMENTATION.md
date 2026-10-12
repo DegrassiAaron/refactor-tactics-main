@@ -2,14 +2,14 @@
 
 ---
 
-## 2026-10-12 — Il piano si legge dal bordo: D-504
+## 2026-10-12 — Il piano si legge dal bordo: D-508
 
 **Origine**: [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704), dalla seduta `U84` e dal brainstorm che ne è seguito.
 
 | Dove | Che cosa |
 |---|---|
 | [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | il brief: la regola, a che cosa si applica, che cosa è scartato |
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-504` nuova; `D-501` annotata, il bordo «marcato» diventa la regola dei colori |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-508` nuova; `D-501` annotata, il bordo «marcato» diventa la regola dei colori |
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la regola dei bordi e le leve, coi valori «sotto» scelti |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO` prende i criteri della regola |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO`: entra il **controllo positivo** dell'opacità; si ritira la misura di traslucenza di `U84`, presa con la maschera di `M_HexCell` inerte; esce la leva `ActiveBorderStops`, che non c'è più |

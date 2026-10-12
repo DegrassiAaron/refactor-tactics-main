@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 
 /**
- * **Come si vede un piano rispetto a quello attivo** ([D-501], #3679), **e come lo dice il suo bordo** ([D-504], #3704).
+ * **Come si vede un piano rispetto a quello attivo** ([D-501], #3679), **e come lo dice il suo bordo** ([D-508], #3704).
  *
  * I piani sopra l'attivo sono traslucidi, quelli sotto desaturati e scuriti di piu' quanto piu' sono lontani, l'attivo
  * ha i colori pieni. Il bordo dice il piano: nero sull'attivo, bianco sopra, viola sotto (`BorderColorFor`). Una mappa
@@ -23,7 +23,7 @@
  *   | 4      | `Desaturation`  | colori pieni    | `Desaturation(Emissive, x)`             |
  *   | 5      | `ExposureStops` | luce invariata  | `Emissive * 2^x`                        |
  *
- * ⛔ **I bordi non ricevono il trattamento** ([D-504]): il loro colore DICE la relazione, e desaturarlo o renderlo
+ * ⛔ **I bordi non ricevono il trattamento** ([D-508]): il loro colore DICE la relazione, e desaturarlo o renderlo
  * traslucido la cancellerebbe. Un piano sopra resta un riempimento traslucido con un contorno bianco netto.
  */
 struct REFACTORTACTICS_API FRTLayerTreatment
@@ -94,7 +94,7 @@ namespace RTLayerPresentation
 		const FRTLayerPresentationTuning& Tuning);
 
 	/**
-	 * **Il colore del bordo che dice il piano** ([D-504]), in sRGB come la palette da cui viene.
+	 * **Il colore del bordo che dice il piano** ([D-508]), in sRGB come la palette da cui viene.
 	 *
 	 *   | relazione | colore                          | in scala di grigi (§47-bis.1) |
 	 *   |-----------|---------------------------------|-------------------------------|

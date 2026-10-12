@@ -1577,7 +1577,7 @@ protected:
 	bool bPresentationMultiLayer = false;
 
 	/**
-	 * #3704 — il colore di base del bordo di una cella ([D-504]): nero sul piano attivo, bianco sopra, viola sotto. Il velo
+	 * #3704 — il colore di base del bordo di una cella ([D-508]): nero sul piano attivo, bianco sopra, viola sotto. Il velo
 	 * lo moltiplica per il suo fattore. Prima che chi guarda dica il suo piano, e su una mappa a un piano, e' il grigio
 	 * scuro di sempre.
 	 */
@@ -1655,7 +1655,7 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> PlanGhosts;
 
 	/**
-	 * ➕ **Il contorno dei ghost** ([D-504], #3704): uno per ghost, alla stessa posa, del colore del piano della sua cella
+	 * ➕ **Il contorno dei ghost** ([D-508], #3704): uno per ghost, alla stessa posa, del colore del piano della sua cella
 	 * rispetto a quello attivo. Il riempimento resta il colore della certezza. Nascosto su una mappa a un piano.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap",

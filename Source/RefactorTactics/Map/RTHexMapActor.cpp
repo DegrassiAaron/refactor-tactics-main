@@ -898,7 +898,7 @@ ARTHexMapActor::ARTHexMapActor()
 	// `M_HexCell` legge i canali 3..5 col default a zero, quindi qui restano pieni.
 	PlanGhosts->NumCustomDataFloats = 3;
 
-	// ➕ **Il contorno dei fantasmi** ([D-504], #3704): il riempimento dice la certezza, il contorno il piano della cella
+	// ➕ **Il contorno dei fantasmi** ([D-508], #3704): il riempimento dice la certezza, il contorno il piano della cella
 	// del fantasma (nero attivo, bianco sopra, viola sotto). E' un componente a se' con la mesh della griglia, perche'
 	// il colore del riempimento e' gia' occupato. Tre float, il colore: nessun trattamento, il contorno resta pieno.
 	PlanGhostBorders = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PlanGhostBorders"));
@@ -1949,10 +1949,10 @@ void ARTHexMapActor::ApplyLayerPresentation()
 	Scrivi(Cells, InstanceCells);
 	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
 	{
-		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring]); // i glifi seguono la cella (D-504)
+		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring]); // i glifi seguono la cella (D-508)
 	}
 
-	// 🔑 **I bordi dicono il piano col COLORE, e non ricevono il trattamento** ([D-504], #3704). I canali 3..5 restano a
+	// 🔑 **I bordi dicono il piano col COLORE, e non ricevono il trattamento** ([D-508], #3704). I canali 3..5 restano a
 	// zero: un bordo sopra e' opaco, cioe' un contorno bianco netto attorno a un riempimento traslucido, e un bordo sotto
 	// tiene il suo viola invece di diventare grigio.
 	//
@@ -3819,7 +3819,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// La griglia segue il disco con lo STESSO fattore, e porta custom data apposta per poterlo fare: se il
 	// bordo restasse a piena luminosita' sul ricordo, una cella NON osservata avrebbe il confine piu' marcato
 	// di una osservata — lo stesso rovesciamento che la corona dei glifi aveva nella prima stesura della spec.
-	// ➕ #3704: il colore di base del bordo dipende dal piano della cella rispetto all'attivo (D-504), quindi si chiede per
+	// ➕ #3704: il colore di base del bordo dipende dal piano della cella rispetto all'attivo (D-508), quindi si chiede per
 	// cella. Su una mappa a un piano, e prima che chi guarda dica il suo piano, e' il grigio scuro di sempre.
 	VeilInstances(CellBorders, BorderCells, BorderBaseScale, LastBorderVeilState, &BorderDisplayFactor,
 		Visible, Explored,

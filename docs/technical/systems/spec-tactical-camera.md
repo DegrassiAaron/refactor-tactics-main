@@ -342,7 +342,7 @@ continua a esistere anche lì — non è la vista a definirlo.
 > I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni. Le unità e i
 > fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
 >
-> 🎨 **E il piano si legge dal bordo** ([D-504](../../decisions/RT_PDR_00_Decision_Log.md), [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704)): nero sull'attivo, bianco sopra, viola sotto,
+> 🎨 **E il piano si legge dal bordo** ([D-508](../../decisions/RT_PDR_00_Decision_Log.md), [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704)): nero sull'attivo, bianco sopra, viola sotto,
 > lo stesso colore a ogni distanza. I bordi delle celle restano **opachi su ogni piano** e non ricevono il
 > trattamento: un piano sopra è un riempimento traslucido con un contorno bianco netto. I fantasmi del piano hanno un
 > contorno del colore del piano, e il riempimento resta la certezza. Su una mappa a un piano i bordi sono quelli di
