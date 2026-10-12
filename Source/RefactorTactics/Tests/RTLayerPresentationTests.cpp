@@ -95,7 +95,30 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 	const FRTLayerTreatment Sopra = RTLayerPresentation::Treatment(2, 1, true, T);
 	TestTrue(TEXT("sopra e' traslucido"), FMath::IsNearlyEqual(Sopra.Transparency, 1.f - T.UpperOpacity));
 	TestTrue(TEXT("sopra non e' spento: si deve vedere attraverso, non leggerlo come lontano"),
-		Sopra.Desaturation == 0.f && Sopra.ExposureStops == 0.f);
+		Sopra.Desaturation == 0.f && Sopra.ExposureStops >= 0.f);
+	TestTrue(TEXT("sopra ha la luce che la taratura gli da'"), FMath::IsNearlyEqual(Sopra.ExposureStops, T.UpperExposureStops));
+
+	// #3674: la leva che schiarisce il velo. Tocca SOLO i piani sopra, non cambia l'opacita', e non scurisce mai.
+	{
+		FRTLayerPresentationTuning Chiaro;
+		Chiaro.UpperExposureStops = 1.5f;
+		const FRTLayerTreatment SopraChiaro = RTLayerPresentation::Treatment(2, 1, true, Chiaro);
+		TestTrue(TEXT("schiarito: il piano sopra prende gli stop della leva"), FMath::IsNearlyEqual(SopraChiaro.ExposureStops, 1.5f));
+		TestTrue(TEXT("schiarito: l'opacita' e' la stessa"), FMath::IsNearlyEqual(SopraChiaro.Transparency, Sopra.Transparency));
+		TestTrue(TEXT("schiarito: l'attivo resta com'e'"), RTLayerPresentation::Treatment(1, 1, true, Chiaro).IsNeutral());
+		TestTrue(TEXT("schiarito: un piano sotto resta com'e'"),
+			FMath::IsNearlyEqual(RTLayerPresentation::Treatment(0, 1, true, Chiaro).ExposureStops,
+				RTLayerPresentation::Treatment(0, 1, true, T).ExposureStops));
+		TestTrue(TEXT("schiarito: una mappa a un piano resta senza trattamento"),
+			RTLayerPresentation::Treatment(1, 0, /*bMultiLayer=*/ false, Chiaro).IsNeutral());
+
+		Chiaro.UpperExposureStops = -2.f;
+		TestEqual(TEXT("una leva negativa non scurisce il piano sopra"),
+			RTLayerPresentation::Treatment(2, 1, true, Chiaro).ExposureStops, 0.f);
+		Chiaro.UpperExposureStops = 99.f;
+		TestEqual(TEXT("e una enorme si ferma al tetto"),
+			RTLayerPresentation::Treatment(2, 1, true, Chiaro).ExposureStops, RTLayerPresentation::MaxUpperExposureStops);
+	}
 
 	const FRTLayerTreatment Sotto1 = RTLayerPresentation::Treatment(1, 2, true, T);
 	const FRTLayerTreatment Sotto2 = RTLayerPresentation::Treatment(0, 2, true, T);

@@ -58,6 +58,14 @@ struct REFACTORTACTICS_API FRTLayerPresentationTuning
 	/** Quanto si vede un piano sopra l'attivo: 1 = pieno, 0 = invisibile. */
 	float UpperOpacity = 0.35f;
 
+	/**
+	 * Quanto si SCHIARISCE un piano sopra l'attivo, in stop: +1 raddoppia la luce. Zero = il colore del terreno com'e'.
+	 *
+	 * ➕ #3674: un velo dello stesso grigio del pavimento che copre non si vede, a nessuna opacita' — 35% di grigio sopra
+	 * 65% di grigio e' grigio. Schiarito, il velo ha un colore suo e la piattaforma torna a leggersi come un piano.
+	 */
+	float UpperExposureStops = 0.f;
+
 	/** La saturazione persa per ogni piano di distanza sotto l'attivo, cumulata: 0,7 vuol dire 70%, poi 91%. */
 	float LowerDesaturationPerLayer = 0.7f;
 
@@ -66,7 +74,8 @@ struct REFACTORTACTICS_API FRTLayerPresentationTuning
 
 	bool operator==(const FRTLayerPresentationTuning& Other) const
 	{
-		return UpperOpacity == Other.UpperOpacity && LowerDesaturationPerLayer == Other.LowerDesaturationPerLayer
+		return UpperOpacity == Other.UpperOpacity && UpperExposureStops == Other.UpperExposureStops
+			&& LowerDesaturationPerLayer == Other.LowerDesaturationPerLayer
 			&& LowerDarkeningPerLayer == Other.LowerDarkeningPerLayer;
 	}
 
@@ -81,6 +90,9 @@ namespace RTLayerPresentation
 
 	/** I float per istanza delle famiglie che lo ricevono: colore (3) piu' trattamento (3). */
 	inline constexpr int32 NumCustomDataFloats = 6;
+
+	/** Il tetto dello schiarimento di un piano sopra (#3674): +4 stop e' luce ×16, oltre il bianco per ogni terreno. */
+	inline constexpr float MaxUpperExposureStops = 4.f;
 
 	/** La relazione di `Layer` con `ActiveLayer`. Su una mappa a un piano risponde sempre `Active`. */
 	REFACTORTACTICS_API ERTLayerRelation Relation(int32 Layer, int32 ActiveLayer, bool bMultiLayer);
