@@ -23,6 +23,18 @@
 
 ---
 
+## 2026-10-12 — D-507: le `P1` di D-484 rimisurate, e la forma dell'AutoBattle Viewer
+
+**Origine**: lo spec panel sulle sei `P1` rimaste dopo [#2793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2793) — #2951, #2988, #2989, #2826, #2744, #2748.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-507`, nuova; `D-484` (1) annotata: per cinque delle sei il codice della feature era in `main` da settembre |
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | §4, onda 2: cosa resta davvero prima del freeze |
+| [`technical/tooling/spec-manifesto-showcase.md`](technical/tooling/spec-manifesto-showcase.md) | §3: i roster non hanno un ingresso fuori dall'Editor; lo costruisce #2748 |
+
+---
+
 ## 2026-10-12 — D-506: in v0.1 la vista resta la squadra del giocatore; #2793 chiude
 
 **Origine**: [#2793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2793), le sue due caselle residue, e `OBS-1`.
