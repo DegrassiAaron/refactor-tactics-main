@@ -2,6 +2,13 @@
 
 > **Stato**: `CURRENT` · **Creato**: 2026-10-03 · **Tipo**: **vista di esecuzione**, non owner.
 >
+> ♻️ **Riletta dal panel il 2026-10-09, su `ae805683a`: la premessa di §2.1 è caduta.** Il comando che
+> questa pagina dichiara decisivo — le righe non-commento di runtime cambiate dal candidate — non risponde più
+> `0`, `#3463` (replay non registrato sul pacchetto) cade **dopo** il candidate, e l'Onda C non si è mossa.
+> Rilievi, decisioni richieste e sequenza corretta in
+> [`sequenza-chiusura-v01-spec-panel-2026-10-09.md`](sequenza-chiusura-v01-spec-panel-2026-10-09.md).
+> Le sezioni qui sotto **non sono state riscritte** e portano la data del 3 ottobre.
+>
 > **Base di misura**: `main` = `768c65f4d`, albero `fd85089c153d41243c46d07d97f9532561b55213`,
 > `git status --porcelain` → **0** righe. Stato delle issue e delle PR letto lato server con `gh`
 > il **2026-10-03**.
