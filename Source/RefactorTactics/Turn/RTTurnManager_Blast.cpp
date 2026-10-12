@@ -591,6 +591,25 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
 			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single,
 			FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
+		// [D-504], `#3598` — **LA LINEA DI TIRO SI RICONTROLLA QUI, con la domanda degli attacchi.** Il piano e'
+		// stato accettato sulla mappa della pianificazione; un muro alzato in Prep, o chi cura che si e' spostato
+		// nel Dash, puo' averla chiusa. E' lo stesso predicato di `CollectHexAttacks` — `TravelsDirect` sulla
+		// politica dell'azione, poi `HasLineOfSight` dalla cella ATTUALE di chi cura — e non una seconda regola:
+		// verso l'alleato agganciato per la cura singola, verso la mira congelata per l'area.
+		// 🔑 **Dopo la spesa, non prima**: per [D-200] la portata e' l'unico modo di fallire noto in pianificazione,
+		// e un muro comparso dopo e' un esito — il cooldown si paga e il gesto si vede. ⚠️ Un ATTACCO fermato dalla
+		// linea di tiro invece non paga, perche' il suo criterio e' il colpo prodotto (`MarkAttackerAbilitiesSpent`):
+		// l'asimmetria e' dichiarata in D-504, non risolta.
+		// ⌫ *Fino a #3598 la cura controllava solo la portata, e un muro fermava un colpo ma non una cura.*
+		if (URTCombatLibrary::TravelsDirect(Heal->Def.LineOfSightPolicy)
+			&& !URTHexVisionLibrary::HasLineOfSight(Ctx.Map, Unit->Cell, Centro))
+		{
+			FRTTurnLogEntry CuraBloccata = MakeSupportFallback(
+				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoLineOfSight);
+			if (bArea) { CuraBloccata.TgtCell = Centro; } // come il fuori portata: la voce dice DOVE mirava
+			AppendLogEntry(CuraBloccata, Unit);
+			continue;
+		}
 
 		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
