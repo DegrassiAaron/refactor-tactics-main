@@ -18,6 +18,7 @@
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
 #include "UI/RTHUD.h"                    // ComposeAbilityLine: l'oracolo dell'uguaglianza, non una seconda riga
 #include "Misc/ScopeExit.h"              // ON_SCOPE_EXIT: il mondo si distrugge anche sui ritorni anticipati
+#include "Kismet/GameplayStatics.h"      // GetActorOfClass: la premessa «nessun manager nel mondo» si asserisce (#2744)
 #include "Components/Image.h"          // il brush dello slot si legge, non si deduce (#3178)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -1172,7 +1173,8 @@ bool FRTScreenHudEmptyObserverSetTest::RunTest(const FString&)
  * 🔴 **Il ramo era dichiarato e non presidiato.** `ResolveObserverTeamIds` lo scrive nel proprio commento — un
  * widget nato prima del manager mostrerebbe altrimenti entrambe le squadre per qualche frame, «un leak temporale
  * invece di un difetto di layout» — ma la misura di privacy del 2026-10-12 l'ha trovato scoperto: invertendo il
- * ramo (senza manager -> la vista piu' LARGA) la suite restava verde. Tutti gli altri test passano un manager.
+ * ramo (senza manager -> la vista piu' LARGA) la suite restava verde. Nessun altro test fa attraversare a
+ * `ResolveObserverTeamIds` il ramo senza manager con unita' di due squadre in campo.
  *
  * 🔑 **Due livelli, perche' il difetto puo' nascere in due posti**: la funzione che decide l'insieme, e il
  * roster che lo consuma. Il controllo positivo in coda dice che la fixture SA produrre una lista avversaria:
@@ -1201,7 +1203,14 @@ bool FRTScreenHudNoManagerNarrowestViewTest::RunTest(const FString&)
 	TestFalse(TEXT("la squadra avversaria NON e' autorizzata"), SenzaManager.Contains(1));
 
 	// ── 2. Il roster che lo consuma: un widget senza manager non ha una lista avversaria.
-	// ⚠️ Nel mondo non esiste ancora nessun `ARTTurnManager`: il widget non ne puo' trovare uno da se'.
+	// ⚠️ Nel mondo non esiste ancora nessun `ARTTurnManager`: il widget non ne puo' trovare uno da se'. E' una
+	// premessa, quindi si asserisce: un refactor della fixture che ne spawnasse uno renderebbe questo passo
+	// un doppione del controllo presidiato, e nessuno lo direbbe.
+	if (!TestNull(TEXT("premessa: nel mondo non esiste ancora nessun TurnManager"),
+			UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass())))
+	{
+		return false;
+	}
 	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
 	if (!TestNotNull(TEXT("widget"), Roster)) { return false; }
 	Roster->SetMatchContextForTest(nullptr, /*PlayerTeamId=*/ 0);
