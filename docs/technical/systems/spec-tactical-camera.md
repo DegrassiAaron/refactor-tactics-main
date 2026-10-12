@@ -338,7 +338,7 @@ continua a esistere anche lì — non è la vista a definirlo.
 > ⌫ *Fino al 2026-10-12 qui restavano «gli indicatori sopra/sotto» di [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775). [D-501](../../decisions/RT_PDR_00_Decision_Log.md) li ha superati:
 > gli altri piani non si segnalano, si **mostrano**, trattati rispetto a quello attivo.*
 >
-> 🎨 **I piani rispetto a quello attivo** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679)), in tattica e in strategica. I piani sopra sono traslucidi.
+> 🎨 **I piani rispetto a quello attivo** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679)), in tattica e in strategica. I piani sopra sono traslucidi e schiariti ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)).
 > I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni. Le unità e i
 > fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
 >
@@ -368,10 +368,20 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   scarta come ogni colpo fuori dal piano attivo (D-255).
 > - ⚠️ **Le famiglie senza dati per istanza non ricevono il trattamento**: `Relief`, `Blockers`, `StructuralBodies`,
 >   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
-> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,7 per piano) e
->   `rt.Map.Layers.LowerDarkening` (0,55 per piano). Negativo vuol dire il default. I due valori «sotto» li ha scelti
->   l'autore nella seduta `U84`, e lo stesso giorno **l'opacità «sopra»**, sull'asset riparato: prima la maschera era
->   inerte e nessun valore era stato visto.
+> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.UpperExposure` (3 stop),
+>   `rt.Map.Layers.LowerDesaturation` (0,7 per piano) e `rt.Map.Layers.LowerDarkening` (0,55 per piano). Negativo
+>   vuol dire il default. I due valori «sotto» li ha scelti l'autore nella seduta `U84`, e lo stesso giorno
+>   **l'opacità «sopra»**, sull'asset riparato: prima la maschera era inerte e nessun valore era stato visto.
+> - 🔆 **I piani sopra sono anche schiariti** ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)). Un velo dello stesso colore del piano che
+>   copre non si vede a nessuna opacità: 35% di grigio sopra 65% di grigio è grigio. Sulla piattaforma di
+>   `Visual.Map.MultiLevel`, a 120° e a 180°, l'autore aveva detto: *«No, si sovrappongono e sembrano sparire»*.
+>   `rt.Map.Layers.UpperExposure` scrive nel canale di esposizione gli stop di cui schiarire; la sera del 2026-10-12
+>   l'autore ha provato 1,5, 4 e 3 e ha scelto **3** (luce ×8): *«impostata a 3 , si distingue»*. Con `0` lo
+>   schiarimento si spegne. Vale per ogni piano sopra, uguale a ogni distanza, e non tocca i bordi.
+>   ⚠️ **Dove i piani sopra coprono il piano attivo, costa.** Su `Visual.Map.LayerStack` a 3 stop i veli sono
+>   bianchi: il contorno bianco di D-508 non si stacca più dal riempimento, e un'unità sotto i veli è più pallida.
+>   L'autore l'ha visto prima del merge e ha deciso: *«tenere 3, in futuro con colori diversi forse dovremmo cambiare, al momento va bene»*.
+>   Il valore va riguardato quando i terreni avranno colori diversi: a ×8 un terreno colorato va verso il bianco.
 >   ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'è più da #3704: il bordo dell'attivo è nero.*
 
 ---
