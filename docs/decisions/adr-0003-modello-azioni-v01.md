@@ -76,6 +76,11 @@ Il modello a 7 fasi del catalogo **non sostituisce** le macro-fasi: i suoi codic
   la regola APNAP di `piano-canonico-mvp.md §5.1`, che già prescriveva
   «velocità → priorità (intera) → tie-break assoluto». Ordine totale:
   `MacroFase → Priority → ActionDefinitionId → SourceUnitId → EventSequence`. Mai l'ordine di una `TMap`.
+  > ➕ **Emendamento 2026-10-12** — [D-503](RT_PDR_00_Decision_Log.md): nel Blast **i punti vita non seguono
+  > quest'ordine**. Il danno è simultaneo — `URTCombatResolver::ResolveAttacks` somma i colpi per bersaglio — e le
+  > cure si applicano dopo, sui sopravvissuti: una cura non salva da un colpo letale nello stesso Blast, qualunque
+  > sia la priorità dei due. La priorità ordina ciò che dipende dall'ordine: il marchio speso, il racconto del
+  > playback.
 - **Budget movimento**: **5 MP**, costo intero per cella (1 normale, 2 difficile, 2 salita via rampa);
   Sprint 8 MP; Dash/Charge/Leap distanza fissa. Sostituisce «4 celle / Dash 3» (canone §6).
 - **Slot per eroe**: 1 movimento + 1 azione principale + 1 reazione + facing finale + fallback dichiarato.
