@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-12 — I piani sopra si schiariscono di 3 stop: la piattaforma di `MultiLevel` si distingue
+
+**Origine**: [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674), seduta `U84`: i due giudizi dell'autore dal worktree `rt-wt-3674`, sui commit `89116b15f` e `a99ef1c2d`.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO`: la piattaforma si distingue con lo schiarimento a 3 stop, e l'autore lo tiene anche su `LayerStack`; la voce resta parziale per i fantasmi del piano, con #3705; entra il controllo positivo dello schiarimento |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U84`: il terzo tempo della seduta, con l'esito |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: i piani sopra sono traslucidi e schiariti; la leva `rt.Map.Layers.UpperExposure`, il suo default e che cosa costa su `LayerStack` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501` annotata: lo schiarimento dei piani sopra, 3 stop |
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §6: la leva dello schiarimento nella tabella; §7: come si è chiusa #3674 |
+
+---
+
 ## 2026-10-12 — La piattaforma di `MultiLevel` non si distingue: il giudizio dell'autore
 
 **Origine**: [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674), seduta `U84` chiusa su `main` = `2e1365e24`.
