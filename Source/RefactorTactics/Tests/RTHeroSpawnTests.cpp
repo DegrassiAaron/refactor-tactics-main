@@ -1182,6 +1182,13 @@ bool FRTRosterRepeatedHeroNamesItsSourceTest::RunTest(const FString&)
  * La prima stesura contava le occorrenze con `AddExpectedError(..., 2)` e basta: la seconda review ha fatto
  * notare che due etichette scambiate sarebbero passate. Lo schema atteso resta, per dichiarare gli avvisi;
  * a distinguerli e' `FRTScopedLogLines`.
+ *
+ * 🔴 **Gli asserti confrontano l'ELENCO fra parentesi, e nella descrizione non citano mai la riga.** La
+ * stesura di mezzo la citava — `"... (%s)", *Avvisi.Righe[0]` — e la verifica di mutazione l'ha trovata
+ * rotta: `AddError` passa il testo dell'errore a `IsExpectedMessage`, la riga citata contiene lo schema
+ * atteso, e l'asserto fallito veniva INGHIOTTITO come errore atteso. Con le etichette scambiate il test
+ * cadeva lo stesso, ma solo sul conteggio («atteso 3, trovato 5») e senza dire cosa non andava; due difetti
+ * insieme — una riga in meno e un asserto inghiottito — avrebbero pareggiato il conto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterUnusedOnAPopulatedLevelTest,
 	"RefactorTactics.Match.Roster.RequestedRosterOnAPopulatedLevelIsDeclaredUnused",
@@ -1197,6 +1204,26 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 
 	FRTScopedLogLines Avvisi(TEXT("roster chiesto e NON usato"));
 	AddExpectedError(TEXT("roster chiesto e NON usato"), EAutomationExpectedErrorFlags::Contains, 3);
+
+	// Cio' che l'avviso ELENCA, fra le sue parentesi. Solo questo entra negli asserti e nelle descrizioni:
+	// la riga intera contiene lo schema atteso, e un errore che la citasse verrebbe inghiottito.
+	auto Elenco = [](const FString& Riga) -> FString
+	{
+		int32 Apre = INDEX_NONE;
+		int32 Chiude = INDEX_NONE;
+		if (Riga.FindChar(TEXT('('), Apre) && Riga.FindLastChar(TEXT(')'), Chiude) && Chiude > Apre)
+		{
+			return Riga.Mid(Apre + 1, Chiude - Apre - 1);
+		}
+		return FString(TEXT("<nessun elenco>"));
+	};
+	auto ElencaEsattamente = [this, &Elenco](const TCHAR* Cosa, const FString& Riga, const TCHAR* Atteso)
+	{
+		const FString Trovato = Elenco(Riga);
+		// `Equals` con le maiuscole: `TestEqual` su `FString` le ignora.
+		TestTrue(FString::Printf(TEXT("%s: l'avviso elenca «%s», era «%s»"), Cosa, Atteso, *Trovato),
+			Trovato.Equals(Atteso, ESearchCase::CaseSensitive));
+	};
 
 	// 1. Il default entra in campo: da qui il livello «porta le proprie unita'».
 	GameMode->SetupHexMatch(HexMap);
@@ -1218,10 +1245,8 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 	Sorgenti.Team0.Imposta(FString());
 	if (TestEqual(TEXT("squadra 0 da console: un avviso"), Avvisi.Righe.Num(), 1))
 	{
-		TestTrue(FString::Printf(TEXT("che nomina la squadra chiesta e la sua sorgente (%s)"), *Avvisi.Righe[0]),
-			Avvisi.Righe[0].Contains(TEXT("squadra 0 da rt.Match.Team0")));
-		TestFalse(FString::Printf(TEXT("e NON la squadra che nessuno ha chiesto (%s)"), *Avvisi.Righe[0]),
-			Avvisi.Righe[0].Contains(TEXT("squadra 1")));
+		// La squadra chiesta con la SUA sorgente, e nient'altro: la 1 non l'ha chiesta nessuno.
+		ElencaEsattamente(TEXT("squadra 0 da console"), Avvisi.Righe[0], TEXT("squadra 0 da rt.Match.Team0"));
 	}
 
 	// 4. Solo la squadra 1, da riga di comando.
@@ -1230,10 +1255,7 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 	Sorgenti.ClearArgs();
 	if (TestEqual(TEXT("squadra 1 da riga di comando: un avviso in piu'"), Avvisi.Righe.Num(), 2))
 	{
-		TestTrue(FString::Printf(TEXT("che nomina la squadra chiesta e la sua sorgente (%s)"), *Avvisi.Righe[1]),
-			Avvisi.Righe[1].Contains(TEXT("squadra 1 da -RTTeam1=")));
-		TestFalse(FString::Printf(TEXT("e NON la squadra che nessuno ha chiesto (%s)"), *Avvisi.Righe[1]),
-			Avvisi.Righe[1].Contains(TEXT("squadra 0")));
+		ElencaEsattamente(TEXT("squadra 1 da riga di comando"), Avvisi.Righe[1], TEXT("squadra 1 da -RTTeam1="));
 	}
 
 	// 5. Entrambe, e con il valore che la proprieta' ha gia': «chiesto», non «diverso». Il resolver qui non
@@ -1245,10 +1267,8 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 	Sorgenti.Team1.Imposta(FString());
 	if (TestEqual(TEXT("entrambe, uguali alla proprieta': un avviso in piu'"), Avvisi.Righe.Num(), 3))
 	{
-		TestTrue(FString::Printf(TEXT("che nomina la squadra 0 e la sua sorgente (%s)"), *Avvisi.Righe[2]),
-			Avvisi.Righe[2].Contains(TEXT("squadra 0 da -RTTeam0=")));
-		TestTrue(FString::Printf(TEXT("e la squadra 1 con la sua (%s)"), *Avvisi.Righe[2]),
-			Avvisi.Righe[2].Contains(TEXT("squadra 1 da rt.Match.Team1")));
+		ElencaEsattamente(TEXT("entrambe, uguali alla proprieta'"), Avvisi.Righe[2],
+			TEXT("squadra 0 da -RTTeam0=; squadra 1 da rt.Match.Team1"));
 	}
 
 	TestEqual(TEXT("in campo restano gli eroi di prima, squadra 0"),
@@ -1317,7 +1337,9 @@ bool FRTRosterMalformedListAbortsTest::RunTest(const FString&)
 		{
 			if (Note.Outcome == Caso.FataleAtteso) { Dettaglio = Note.Detail; }
 		}
-		TestTrue(FString::Printf(TEXT("%s: e il dettaglio nomina la sorgente (%s)"), Caso.Nome, *Dettaglio),
+		// ⚠️ La descrizione NON cita il dettaglio: quello della voce vuota contiene `<voce vuota>`, che e' lo
+		// schema dichiarato atteso qui sopra, e un errore che lo citasse verrebbe inghiottito come atteso.
+		TestTrue(FString::Printf(TEXT("%s: e il dettaglio nomina la sorgente"), Caso.Nome),
 			Dettaglio.Contains(TEXT("-RTTeam0=")));
 
 		DestroyRosterWorld(World);
