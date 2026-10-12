@@ -364,9 +364,21 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PauseAction;
 
-	/** Attore attualmente selezionato (se implementa IRTSelectable). */
+	/**
+	 * Attore attualmente selezionato (se implementa IRTSelectable).
+	 *
+	 * 🔴 **Debole, e non per economia** (`#2988`): la selezione non sopravvive all'unita'. Era un `TObjectPtr`
+	 * forte, e niente lo azzerava quando l'unita' selezionata cadeva: `DestroyDefeatedUnits` distrugge l'Actor
+	 * a fine turno, ma un riferimento forte continua a rispondere con l'attore distrutto finche' il GC non
+	 * passa. Per quel tempo `GetSelectedUnit()` consegnava un'unita' che non c'e' piu' — al dock, che ne
+	 * mostrava il kit; ai tasti, che la armavano; al click, che le pianificava un movimento.
+	 *
+	 * ⚠️ **Fra il KO e la distruzione la selezione RESTA**, ed e' voluto: l'attore c'e' ancora perche' il
+	 * playback deve ancora mostrarne la caduta, e in quel tempo il mondo e' in sola lettura ([D-468]). Spegnere
+	 * la barra appena lo stato dice «caduta» racconterebbe l'esito prima della scena.
+	 */
 	UPROPERTY()
-	TObjectPtr<AActor> SelectedActor;
+	TWeakObjectPtr<AActor> SelectedActor;
 
 	/**
 	 * L'unita' ISPEZIONATA: quella che si sta guardando, non quella che si comanda.
@@ -384,8 +396,11 @@ protected:
 	 * guardando, non *quanto* se ne puo' mostrare: il filtro e' di chi disegna, e per il pannello e' `#613`,
 	 * con la regola di `#2757` — carta si', slot mai, **e nemmeno vuoti**.
 	 */
+	//
+	// ➕ `#2988`: debole per la stessa ragione di `SelectedActor`. «Persiste finche' non se ne ispeziona
+	// un'altra» valeva anche oltre la distruzione dell'unita', e il pannello ne mostrava la carta.
 	UPROPERTY()
-	TObjectPtr<class ARTUnit> InspectedUnit;
+	TWeakObjectPtr<class ARTUnit> InspectedUnit;
 
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
@@ -977,7 +992,7 @@ public:
 	 * puntatore: quella e' la fuga che il campo separato esiste per non aprire.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
-	class ARTUnit* GetInspectedUnit() const { return InspectedUnit; }
+	class ARTUnit* GetInspectedUnit() const;
 
 	/**
 	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.
