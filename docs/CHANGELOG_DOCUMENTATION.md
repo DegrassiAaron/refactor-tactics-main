@@ -12,6 +12,9 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-504` nuova; `D-501` annotata, il bordo «marcato» diventa la regola dei colori |
 | [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la regola dei bordi e le leve, coi valori «sotto» scelti |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO` prende i criteri della regola |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO`: entra il **controllo positivo** dell'opacità; si ritira la misura di traslucenza di `U84`, presa con la maschera di `M_HexCell` inerte; esce la leva `ActiveBorderStops`, che non c'è più |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U84`: la seduta riparte dal controllo positivo, l'opacità «sopra» si giudica da capo |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la costante in linea del pin `Opacity Mask`, e chi la guarda |
 
 ---
 

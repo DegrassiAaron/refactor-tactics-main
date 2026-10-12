@@ -354,6 +354,11 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   canali 0..2 restano il colore e il velo. Nei canali 3..5 ci sono trasparenza (`OpacityMask` a dithering, materiale
 >   `Masked`), desaturazione ed esposizione in stop. Si attenua l'**uscita** del materiale, come chiede D-501 (3) per i
 >   terreni con texture. Il dithering non ordina la traslucenza e lascia profondità e ombre come sono.
+>   ⚠️ **Il pin `Opacity Mask` vuole la costante in linea spenta** (`UseConstant`). Se resta accesa il traduttore
+>   compila la costante e il nodo collegato non viene letto, senza errori: i piani sopra restano opachi coi canali
+>   giusti. È successo da #3679 a #3704, col nodo collegato via bridge. Lo guarda
+>   `HexMap.CellMaterialCompilesTheInputsItHasConnected`; che si **veda** lo dice il controllo positivo di
+>   `PIE-CAM-PIANI-ATTIVO`.
 > - 🔴 **Il velo viene prima, per costruzione**: il velo nasconde azzerando la scala, il trattamento scrive solo i suoi
 >   canali, e una cella mai vista resta non disegnata su qualunque piano (`HexMap.LayerTreatmentLeavesTheVeilAlone`).
 > - **Il picking non cambia**: la collisione è quella di prima, e un colpo su un piano traslucido sopra l'attivo si
