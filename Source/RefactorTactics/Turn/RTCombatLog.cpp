@@ -38,6 +38,14 @@ FRTLogSubject FRTLogSubject::Frozen(int32 InStableUnitId, const FRTKnowledgeVerd
 	return S;
 }
 
+FRTLogSubject FRTLogSubject::UnitWithVerdict(const ARTUnit* InUnit, const FRTKnowledgeVerdict& InVerdict)
+{
+	FRTLogSubject S = Unit(InUnit);
+	S.bFrozen = true;
+	S.FrozenVerdict = InVerdict;
+	return S;
+}
+
 FRTLogSubject FRTLogSubject::World()
 {
 	FRTLogSubject S;

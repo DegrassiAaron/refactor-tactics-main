@@ -2204,4 +2204,48 @@ bool FRTPlaybackUnknownSourceDoesNotOpenAnActTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3681, [D-502] — il segno di un muro colpito non entra nella sequenza del Blast di chi non osservava il muro.
+ *
+ * 🔴 **Il bordo dice da dove ha sparato chi ha sparato**: la fila di celle oltre il muro. E' il canale che
+ * [D-500] lasciava aperto: l'evento nasceva senza verdetto e `BuildBlastSequence` lo teneva per tutti.
+ *
+ * Due livelli, come per la traccia di D-500: il predicato, con il fail-closed sul verdetto vuoto, e la sequenza
+ * che lo usa — un predicato giusto che nessuno chiama non chiude niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyStructureHitHiddenTest,
+	"RefactorTactics.Privacy.StructureHitHiddenFromWhoDidNotSeeTheWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyStructureHitHiddenTest::RunTest(const FString&)
+{
+	// Il muro colpito lo vede la squadra 0 (osservava il bordo), non la squadra 1.
+	FRTResolvedEvent Muro = SeqEvento(ERTResolvedEventType::StructureHit, 7, TEXT("Hero.Ivrin.PulseShot"));
+	Muro.SourceVerdict = FRTKnowledgeVerdict::NoOne();
+	Muro.SourceVerdict.AllowTeam(0);
+
+	TestFalse(TEXT("chi osservava il muro vede il segno"), URTPlaybackLibrary::IsStructureHitHiddenFrom(Muro, 0));
+	TestTrue(TEXT("🔴 chi non lo osservava non lo vede"), URTPlaybackLibrary::IsStructureHitHiddenFrom(Muro, 1));
+
+	FRTResolvedEvent SenzaVerdetto = Muro;
+	SenzaVerdetto.SourceVerdict = FRTKnowledgeVerdict();
+	TestTrue(TEXT("senza verdetto si legge fail-closed: nessuno lo vede"),
+		URTPlaybackLibrary::IsStructureHitHiddenFrom(SenzaVerdetto, 0));
+
+	FRTResolvedEvent Colpo = Muro;
+	Colpo.Type = ERTResolvedEventType::Attack;
+	TestFalse(TEXT("il predicato riguarda solo i muri: un Attack non e' toccato"),
+		URTPlaybackLibrary::IsStructureHitHiddenFrom(Colpo, 1));
+
+	// La sequenza: l'attivazione di chi spara (che nessuno dei due vede) e il muro.
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 7, TEXT("Hero.Ivrin.PulseShot"), /*bNascosto=*/ true));
+	T.Add(Muro);
+	const TArray<int32> Per0 = SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer=*/ 0));
+	const TArray<int32> Per1 = SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer=*/ 1));
+	TestTrue(TEXT("nella sequenza di chi osservava il muro, il segno c'e'"), Per0.Contains(1));
+	TestFalse(TEXT("🔴 in quella di chi non lo osservava, no"), Per1.Contains(1));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

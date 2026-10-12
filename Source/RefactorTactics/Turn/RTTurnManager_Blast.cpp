@@ -586,8 +586,11 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// #3549, spec §2.2 punto 2: la cura si ATTIVA quando e' SPESA, anche se poi non ha effetto (`NoEffect`,
 		// il controllo di `Amount` qui sotto): il gesto, non l'esito. ⛔ Il fuori portata e' uscito con `continue`
 		// sopra e non si paga: non e' un gesto, e non si attiva.
-		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Heal->Def.ActionId, Heal->Def.BaseActionId,
-			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single);
+		// ➕ `#3683`: si ACCODA, e la emette `ResolveCombatPasses` nell'ordine canonico insieme agli intenti
+		// d'attacco. Il gesto resta quello accettato qui; cambia solo quando lo si vede.
+		Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
+			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single,
+			FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
 
 		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
@@ -778,8 +781,12 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				PendingArcOps.Add({ Unit->Cell, ArcAim, Unit, PlannedNow->Def });
 				// #3549: dopo la validazione di portata — un arco fuori portata e' uscito con `continue` sopra
 				// (`ArcRejected`) e non si attiva.
-				EmitAbilityActivated(Unit, ERTMatchPhase::Blast, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
-					ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single);
+				// ➕ `#3683`: accodata come la cura. ⚠️ L'arco cambia la mappa in `ApplyEnvironmentChanges`, ma
+				// il piano dei colpi e' gia' raccolto: nessun colpo di questo Blast lo vede, e in ordine canonico
+				// (75) si racconta dopo di loro.
+				Ctx.DeferredActivations.Add({ Unit, i, PlannedNow->Def.Priority, PlannedNow->Def.ActionId,
+					PlannedNow->Def.BaseActionId, ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single,
+					FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
 			}
 			continue;
 		}
@@ -2032,10 +2039,45 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		// L'attaccante arriva col risultato: `FRTStructureHit` lo dichiarava gia' — «serve al TurnLog, non al
 		// calcolo» — e ora `FRTCoverDamageResult` lo propaga. Resta un indice fino a qui, quindi lo strato di
 		// mappa non ha mai visto un Actor.
-		AppendLogEntry(Entry, Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr);
+		// 🔴 **CHI PUO' SAPERLO — [D-502], `#3681`.** Il muro colpito lo vedono la squadra di ogni autore e ogni
+		// squadra che vede almeno una delle due celle del bordo, nella conoscenza di questa fase
+		// (`TeamKnowledgeState`, rinfrescata per il Blast da `RefreshTeamKnowledgeForBlast`). ⏱️ *Fino a #3681 la
+		// voce prendeva il verdetto di chi aveva sparato — la regola B che D-502 ha scartato —, `World()` con piu'
+		// autori, e la riga del combat log era `World()` sempre: tre regole per lo stesso fatto.*
+		//
+		// 🔑 **Un fatto, un verdetto** (D-502, punto 7): lo stesso valore va alla voce di TurnLog — e da li' alla
+		// riga derivata, al proiettore degli eventi e al replay —, all'evento di timeline che `AppendLogEntry`
+		// ne deriva, e alla riga qui sotto.
+		TArray<int32> SquadreAutori;
+		for (const int32 k : Change.IntentIndices)
+		{
+			if (Intents.IsValidIndex(k) && Units.IsValidIndex(Intents[k].AttackerId) && Units[Intents[k].AttackerId])
+			{
+				SquadreAutori.AddUnique(Units[Intents[k].AttackerId]->TeamId);
+			}
+		}
+		if (SquadreAutori.Num() == 0 && Units.IsValidIndex(Change.AttackerId) && Units[Change.AttackerId])
+		{
+			SquadreAutori.Add(Units[Change.AttackerId]->TeamId); // un produttore che non porta gli intenti
+		}
+		SquadreAutori.Sort();
+		const FRTKnowledgeVerdict VerdettoMuro = URTTeamKnowledgeLibrary::FreezeEdgeVerdict(
+			TeamKnowledgeState, SquadreAutori, Change.Cell, Change.Toward);
+
+		// Il soggetto per l'audit di [D-313]: senza `bEdge` ricalcolerebbe il verdetto di chi ha sparato.
+		Entry.VerdictSubject.bEdge = true;
+		Entry.VerdictSubject.EdgeCell = Change.Cell;
+		Entry.VerdictSubject.EdgeToward = Change.Toward;
+		Entry.VerdictSubject.AuthorTeamIds = SquadreAutori;
+
+		ARTUnit* const Autore = Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr;
+		AppendLogEntry(Entry, Autore ? FRTLogSubject::UnitWithVerdict(Autore, VerdettoMuro)
+			: FRTLogSubject::Frozen(INDEX_NONE, VerdettoMuro));
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
-			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity), FRTLogSubject::World());
+			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity),
+			// `INDEX_NONE` e non `0` per «nessuna unita'»: e' la sentinella del combat log (`RTTurnLogLibrary.cpp`).
+			FRTLogSubject::Frozen(Autore ? Autore->StableUnitId : INDEX_NONE, VerdettoMuro));
 
 		// Una copertura abbattuta smette di essere anche una copertura TEMPORANEA (CP 9.5). Senza questa
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia

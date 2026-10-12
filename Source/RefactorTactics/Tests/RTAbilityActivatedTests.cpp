@@ -560,8 +560,12 @@ bool FRTTurnAbilityActivatedOncePerIntentTest::RunTest(const FString&)
 }
 
 /**
- * Le quattro sorgenti del Blast si attivano nell'ordine dei PASS — Cleanse, Heal, Arc, Attack (spec §2.2).
- * Un `ModifyArc` fuori portata non si attiva: il ramo esce prima di `PendingArcOps.Add`.
+ * Le quattro sorgenti del Blast si attivano nell'ORDINE CANONICO — `#3683`: Cleanse (25), l'attacco (50), Heal
+ * (70), Arc (75). Un `ModifyArc` fuori portata non si attiva: il ramo esce prima di `PendingArcOps.Add`.
+ *
+ * ⏱️ *Fino a `#3683` questo test pinnava l'ordine dei PASS — Cleanse, Heal, Arc, Attack — e la spec §2.2 lo
+ * dichiarava «coerente con la risoluzione». Lo era per l'ordine in cui i pass si eseguono, non per quello in cui
+ * i loro effetti si applicano: la cura si vedeva prima di un colpo che la risoluzione applica prima.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnBlastActivatesAllFourSourcesTest,
 	"RefactorTactics.Turn.BlastActivatesAllFourSources",
@@ -647,9 +651,9 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 
 	TArray<FName> Azioni;
 	if (!GiraIlTurno(/*bArcoInPortata=*/ true, Azioni)) { return false; }
-	const TArray<FName> Attese = { FName(TEXT("Action.Cleanse")), FName(TEXT("Action.Heal")),
-		FName(TEXT("Action.ModifyArc")), FName(TEXT("Hero.Branth.ImpactShot")) };
-	TestEqual(TEXT("🔴 quattro sorgenti, nell'ordine dei pass"), Azioni, Attese);
+	const TArray<FName> Attese = { FName(TEXT("Action.Cleanse")), FName(TEXT("Hero.Branth.ImpactShot")),
+		FName(TEXT("Action.Heal")), FName(TEXT("Action.ModifyArc")) };
+	TestEqual(TEXT("🔴 quattro sorgenti, nell'ordine canonico: Cleanse 25, colpo 50, cura 70, arco 75"), Azioni, Attese);
 
 	if (!GiraIlTurno(/*bArcoInPortata=*/ false, Azioni)) { return false; }
 	TestFalse(TEXT("⛔ un arco fuori portata non si attiva"), Azioni.Contains(FName(TEXT("Action.ModifyArc"))));
@@ -1198,6 +1202,92 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 			Impatto != INDEX_NONE && Getto != INDEX_NONE)) { return false; }
 		TestTrue(*FString::Printf(TEXT("🔴 l'impatto della carica (35) si vede prima del getto (50): posizioni %d e %d"),
 			Impatto, Getto), Impatto < Getto);
+	}
+	return true;
+}
+
+/**
+ * `#3683` — l'impatto di una carica si racconta PRIMA della cura che lo segue.
+ *
+ * 🔴 **Il caso senza attivazione nel Blast**: l'impatto di `Hero.Branth.Ram` (35) si attiva nel Dash, quindi il suo
+ * atto prende la chiave dalla prima apparizione, l'impronta. La cura (70) nasceva in `CollectHealActions`, prima di
+ * ogni impronta: si vedeva prima di un colpo che la risoluzione applica prima. Da `#3683` esce nell'ordine canonico.
+ *
+ * ⚠️ Si misura sulla TIMELINE, dove cambia l'emissione: `BuildBlastSequence` ordina gli atti per indice, e un test
+ * che costruisse la timeline a mano resterebbe verde con l'emissione rimessa nel suo pass.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChargeImpactPrecedesHealTest,
+	"RefactorTactics.Playback.ChargeImpactIsToldBeforeTheHealThatFollowsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChargeImpactPrecedesHealTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnAttivazioneMap(World);
+
+	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
+	ARTUnit* Curatore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, -1));
+	ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bersaglio || !Curatore || !Caricatore) { return false; }
+
+	Caricatore->PlannedDashAbility = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram"));
+	Caricatore->PlannedDashCell = Bersaglio->Cell;
+	Caricatore->PlannedCell = Caricatore->Cell;
+
+	Bersaglio->Health = FMath::Max(1, Bersaglio->Health - 20);
+	Curatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
+	Curatore->PlannedAttackTarget = Bersaglio;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	TM->LockInAndResolve();
+
+	const FName Ram(TEXT("Hero.Branth.Ram"));
+	const FName Heal(TEXT("Action.Heal"));
+	int32 PrimoImpatto = INDEX_NONE;
+	int32 AttivazioneCura = INDEX_NONE;
+	const TArray<FRTResolvedEvent>& T = TM->ResolvedTimelineForTest();
+	for (int32 i = 0; i < T.Num(); ++i)
+	{
+		if (T[i].Phase != ERTMatchPhase::Blast) { continue; }
+		if (PrimoImpatto == INDEX_NONE && T[i].ActionId == Ram
+			&& (T[i].Type == ERTResolvedEventType::AttackFootprint || T[i].Type == ERTResolvedEventType::Attack))
+		{
+			PrimoImpatto = i;
+		}
+		if (AttivazioneCura == INDEX_NONE && T[i].Type == ERTResolvedEventType::AbilityActivated && T[i].ActionId == Heal)
+		{
+			AttivazioneCura = i;
+		}
+	}
+	if (!TestTrue(TEXT("⛔ premessa: l'impatto della carica e' nel Blast"), PrimoImpatto != INDEX_NONE)
+		|| !TestTrue(TEXT("⛔ premessa: la cura si e' attivata"), AttivazioneCura != INDEX_NONE))
+	{
+		return false;
+	}
+	TestTrue(*FString::Printf(TEXT("🔴 l'impatto (35) esce prima della cura (70): impatto %d, cura %d"),
+			PrimoImpatto, AttivazioneCura),
+		PrimoImpatto < AttivazioneCura);
+
+	// E la sequenza di chi guarda la segue, se entrambi gli atti ci sono.
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer=*/ 0);
+	int32 PosImpatto = INDEX_NONE;
+	int32 PosCura = INDEX_NONE;
+	for (int32 k = 0; k < S.Num(); ++k)
+	{
+		if (PosImpatto == INDEX_NONE && S[k].ActionId == Ram) { PosImpatto = k; }
+		if (PosCura == INDEX_NONE && S[k].ActionId == Heal) { PosCura = k; }
+	}
+	// La cura e' della squadra 0, quindi chi guarda la vede sempre: la sua presenza non e' opzionale.
+	if (!TestTrue(TEXT("⛔ la cura e' nella sequenza della sua squadra"), PosCura != INDEX_NONE)) { return false; }
+	if (PosImpatto != INDEX_NONE)
+	{
+		TestTrue(TEXT("e nella sequenza del Blast l'impatto si vede prima della cura"), PosImpatto < PosCura);
+	}
+	else
+	{
+		AddInfo(TEXT("l'impatto non e' nella sequenza della squadra 0 (D-500/D6): vale l'asserzione sulla timeline"));
 	}
 	return true;
 }

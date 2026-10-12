@@ -14,6 +14,27 @@
 
 ---
 
+## 2026-10-12 — Cure e archi si raccontano nell'ordine canonico del Blast
+
+**Origine**: [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2: il `Ruling` sull'ordine fra le sorgenti passa dall'ordine dei pass all'ordine canonico; Cleanse resta nel suo pass |
+
+---
+
+## 2026-10-12 — Il muro colpito ha un verdetto solo: D-502 attuata
+
+**Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito passa a chiusa, con il meccanismo e i test |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la nota di attuazione, e perché il meccanismo non è quello indicato in (6a) |
+
+---
+
 ## 2026-10-12 — L'indicatore del piano attivo nel dock, e lo spec panel della notte
 
 **Origine**: [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), con il referto su #3674, #3680 e #3679.

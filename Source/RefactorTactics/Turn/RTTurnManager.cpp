@@ -416,7 +416,8 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 }
 
 void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
-	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape)
+	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
+	const FRTKnowledgeVerdict* FrozenSourceVerdict)
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
@@ -456,7 +457,8 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 	{
 		Ev.Origin = Soggetto.GetFactCell();
 	}
-	Ev.SourceVerdict = FreezeVerdictFor(Soggetto);
+	// `#3683`: un'attivazione rimandata porta il verdetto congelato quando il suo pass l'ha accettata.
+	Ev.SourceVerdict = FrozenSourceVerdict ? *FrozenSourceVerdict : FreezeVerdictFor(Soggetto);
 	// ⛔ Nessun riordino: l'ordine in timeline E' l'ordine di emissione (spec §2.2).
 	ResolvedTimeline.Add(MoveTemp(Ev));
 }
@@ -2707,17 +2709,50 @@ namespace
 	 * che spende il marchio in quest'ordine, e l'emissione delle attivazioni e delle impronte, da cui il playback ordina
 	 * gli atti. Con due copie, la combo acqua + elettricita' si risolveva in un ordine e si vedeva nell'altro.
 	 */
+	struct FRTChiaveDelBlast
+	{
+		int32 Priorita = MAX_int32;
+		FName Azione;
+		int32 Unita = INDEX_NONE;
+		/** `0` un intento d'attacco, `1` un'attivazione di supporto rimandata (`#3683`). */
+		int32 Tipo = 0;
+		int32 Indice = 0;
+	};
+
+	/**
+	 * L'ORDINE CANONICO su una chiave sola — `#3683`. Priorita', `ActionId`, unita', poi tipo e indice, che
+	 * chiudono ogni pari: l'ordine e' totale.
+	 *
+	 * 🔑 **Esiste perche' gli atti del Blast non sono tutti intenti**: una cura o un arco non hanno un indice in
+	 * `Ctx.Intents`, e `PrecedeNelBlast` vuole quello. Scriverne una seconda copia per loro e' il difetto che
+	 * `#3582` ha chiuso per gli attacchi: due copie della stessa regola si separano alla prima modifica.
+	 */
+	bool ChiavePrecede(const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B)
+	{
+		if (A.Priorita != B.Priorita) { return A.Priorita < B.Priorita; }
+		if (A.Azione != B.Azione) { return A.Azione.LexicalLess(B.Azione); }
+		if (A.Unita != B.Unita) { return A.Unita < B.Unita; }
+		if (A.Tipo != B.Tipo) { return A.Tipo < B.Tipo; }
+		return A.Indice < B.Indice;
+	}
+
+	/** La chiave di un intento d'attacco. Un intento senza `Def` va in fondo, come prima. */
+	FRTChiaveDelBlast ChiaveDiIntento(const TArray<FRTActionDef>& IntentDefs, int32 Intent, int32 Attacker)
+	{
+		FRTChiaveDelBlast K;
+		K.Priorita = IntentDefs.IsValidIndex(Intent) ? IntentDefs[Intent].Priority : MAX_int32;
+		K.Azione = IntentDefs.IsValidIndex(Intent) ? IntentDefs[Intent].ActionId : NAME_None;
+		K.Unita = Attacker;
+		K.Tipo = 0;
+		K.Indice = Intent;
+		return K;
+	}
+
+	/** Lo stesso ordine, letto fra due intenti: il ciclo del danno lo usa cosi'. */
 	bool PrecedeNelBlast(const TArray<FRTActionDef>& IntentDefs, int32 IntentA, int32 AttackerA, int32 IntentB,
 		int32 AttackerB)
 	{
-		const int32 PA = IntentDefs.IsValidIndex(IntentA) ? IntentDefs[IntentA].Priority : MAX_int32;
-		const int32 PB = IntentDefs.IsValidIndex(IntentB) ? IntentDefs[IntentB].Priority : MAX_int32;
-		if (PA != PB) { return PA < PB; }
-		const FName IdA = IntentDefs.IsValidIndex(IntentA) ? IntentDefs[IntentA].ActionId : NAME_None;
-		const FName IdB = IntentDefs.IsValidIndex(IntentB) ? IntentDefs[IntentB].ActionId : NAME_None;
-		if (IdA != IdB) { return IdA.LexicalLess(IdB); }
-		if (AttackerA != AttackerB) { return AttackerA < AttackerB; }
-		return IntentA < IntentB;
+		return ChiavePrecede(ChiaveDiIntento(IntentDefs, IntentA, AttackerA), ChiaveDiIntento(IntentDefs, IntentB, AttackerB));
 	}
 
 	/**
@@ -3212,26 +3247,18 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// un attaccante c'e': ha tirato lui. ⚠️ Ma puo' valere `0` — `AttackerId` arriva `INDEX_NONE` se il
 		// colpo non e' attribuibile, e `AppendLogEntry` scrive `0` quando l'Actor e' nullo: chi consuma lo
 		// legga come «nessuno» ([D-063]) e mai come l'unita' zero.
-		// 🔴 **REVISIONE PRIVACY, e non si chiude con `N/A`** (`CLAUDE.md` §7: ogni modifica alla event
-		// projection la richiede esplicita).
+		// 🔴 **PRIVACY: il verdetto e' quello del fatto, e lo copia — [D-502], `#3681`.** Il bordo colpito dice
+		// da dove ha sparato chi ha sparato: la fila di celle oltre il muro. Lo vedono la squadra di ogni autore
+		// e chi vedeva almeno una delle due celle, e lo decide il produttore (`ApplyEnvironmentChanges`) con
+		// `FreezeEdgeVerdict`. Qui si COPIA `Entry.Verdict`, come gli altri campi: un secondo calcolo darebbe
+		// alla timeline una regola diversa da quella del TurnLog, cioe' due risposte allo stesso fatto.
+		// `URTPlaybackLibrary::BuildBlastSequence` lo filtra con `IsStructureHitHiddenFrom`.
 		//
-		// Il precedente c'e' ed e' vicino: `AttackFootprint` porta gia' `SourceStableUnitId` sullo stesso
-		// canale e `BeginPlayback` non lo filtra. ⏱️ *Vero fino a `#3551`: da [D-500] la traccia di un `Line`/`Cone` si
-		// filtra sul verdetto dell'origine (`URTPlaybackLibrary::IsFootprintHiddenFrom`). Questo evento resta senza
-		// verdetto, e la revisione qui sotto e' aperta in `#3681`.* ⚠️ **Ma non e' lo stesso caso**, e la differenza e' questa
-		// fetta: l'impronta nasce a `RTHexCombatLibrary.cpp:606`, **dopo** il `continue` che scarta un intento
-		// senza linea di tiro; il danno alla struttura si raccoglie a `:391`, **prima**. ∴ esiste un caso che
-		// l'impronta non produce e questo evento si': **un attaccante invisibile che spara contro un muro alto
-		// e non colpisce nessuno**. Li' il suo `StableUnitId` e l'istante esatto del colpo entrano nella
-		// timeline senza che nessun verdetto li accompagni — `Entry.Verdict`, che `AppendLogEntry` congela a
-		// `:2761` proprio per dire chi puo' leggere il fatto, non viene copiato qui.
-		//
-		// ⛔ **NON lo risolvo indovinando un filtro.** La domanda vera — se il CAMBIAMENTO di una geometria
-		// pubblica sia pubblico, e se a non esserlo sia solo il suo AUTORE e il suo ISTANTE — e' una decisione
-		// di boundary, non una riga. Un filtro scritto di corsa su un canale di privacy e' peggio dell'assenza
-		// di filtro, perche' sembra una garanzia. La fetta consegna il momento; la decisione e' dichiarata
-		// nella PR come **REVISIONE RICHIESTA**, non archiviata.
+		// ⏱️ *Fino a #3681 questo evento nasceva senza verdetto e il commento lo dichiarava revisione aperta:
+		// il caso che solo lui produceva era un attaccante invisibile che spara contro un muro e non colpisce
+		// nessuno, e l'impronta, nata dopo il `continue` della linea di tiro, quel caso non l'aveva.*
 		Ev.SourceStableUnitId = Entry.UnitId;
+		Ev.SourceVerdict = Entry.Verdict; // [D-502]: per questo tipo e' il verdetto del FATTO, non della sorgente
 		// ⛔ **`TargetStableUnitId` resta `0` e non e' un buco da riempire**: il bersaglio e' un BORDO, e una
 		// copertura non ha uno `StableUnitId`. E' il punto che `Turn.StructureHitEventCarriesEdgeNotActor`
 		// sorveglia — il giorno in cui qualcuno ci mettesse l'unita' piu' vicina, il fatto smetterebbe di
@@ -4041,6 +4068,11 @@ void ARTTurnManager::RecordTurnToReplay()
 		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
 		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
 		Record.SubjectCell = Entry.VerdictSubject.Cell;
+		// `#3681`: il verdetto di un bordo si ricalcola dal bordo e dagli autori, non dall'unita'.
+		Record.bEdge = Entry.VerdictSubject.bEdge;
+		Record.EdgeCell = Entry.VerdictSubject.EdgeCell;
+		Record.EdgeToward = Entry.VerdictSubject.EdgeToward;
+		Record.AuthorTeamIds = Entry.VerdictSubject.AuthorTeamIds;
 		Record.Verdict = Entry.Verdict;
 		Audit.Verdicts.Add(Record);
 	}
@@ -5829,17 +5861,32 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		ResolvedTimeline.Add(MoveTemp(Ev));
 	};
 
-	TArray<int32> OrdineIntenti;
-	OrdineIntenti.Reserve(Ctx.Intents.Num());
-	for (int32 k = 0; k < Ctx.Intents.Num(); ++k) { OrdineIntenti.Add(k); }
-	// ⛔ `StableSort` su un confronto TOTALE (l'intento chiude ogni pari): nessuna dipendenza dall'algoritmo.
-	OrdineIntenti.StableSort([&Ctx](int32 A, int32 B)
+	// ➕ `#3683`: nello stesso ordine escono le attivazioni di supporto rimandate (Heal, `ModifyArc`), che fino a
+	// qui uscivano nel loro pass, prima di ogni attacco. Una chiave sola per tutti (`ChiavePrecede`).
+	TArray<FRTChiaveDelBlast> Atti;
+	Atti.Reserve(Ctx.Intents.Num() + Ctx.DeferredActivations.Num());
+	for (int32 k = 0; k < Ctx.Intents.Num(); ++k)
 	{
-		return PrecedeNelBlast(Ctx.IntentDefs, A, Ctx.Intents[A].AttackerId, B, Ctx.Intents[B].AttackerId);
-	});
+		Atti.Add(ChiaveDiIntento(Ctx.IntentDefs, k, Ctx.Intents[k].AttackerId));
+	}
+	for (int32 d = 0; d < Ctx.DeferredActivations.Num(); ++d)
+	{
+		const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[d];
+		Atti.Add({ R.Priority, R.ActionId, R.UnitIndex, /*Tipo=*/ 1, d });
+	}
+	// ⛔ `StableSort` su un confronto TOTALE (tipo e indice chiudono ogni pari): nessuna dipendenza dall'algoritmo.
+	Atti.StableSort([](const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B) { return ChiavePrecede(A, B); });
 	TSet<int32> ImpronteEmesse;
-	for (const int32 k : OrdineIntenti)
+	for (const FRTChiaveDelBlast& Atto : Atti)
 	{
+		if (Atto.Tipo == 1)
+		{
+			const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[Atto.Indice];
+			EmitAbilityActivated(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
+				R.AimCell, R.Shape, &R.SourceVerdict);
+			continue;
+		}
+		const int32 k = Atto.Indice;
 		EmitAttackIntentActivation(Ctx, k);
 		for (int32 f = 0; f < Plan.Footprints.Num(); ++f)
 		{
@@ -8540,19 +8587,19 @@ bool ARTTurnManager::RevealPlaybackActivations(const TArray<FRTResolvedEvent>& A
 // La sequenza di Blast (#3549, D5). I commenti dei tre rami di `BeginPlayback` che questa funzione sostituisce,
 // in cio' che hanno di ancora vero:
 //
-// ⛔ **Nessun filtro di conoscenza sull'impronta e sul muro, e non e' una dimenticanza**: l'impronta e' un fatto
-// dell'AZIONE e le sue celle sono terreno, non occupazione — la catena `BlastOriginCell -> HexHitCells` non
-// tocca l'occupazione (`#2791`); il soggetto di uno `StructureHit` e' un BORDO, e un muro che cade non rivela
-// chi ci stava dietro, che resta coperto dal velo. ⚠️ Se un giorno l'impronta portasse un dato dipendente da
-// CHI e' stato colpito, diventerebbe un canale e andrebbe filtrata come il `Move`.
+// ⛔ **Nessun filtro qui, e non e' una dimenticanza**: i filtri sono a monte, in `BuildBlastSequence` (vedi
+// sotto). ⏱️ *Fino a #3681 questa riga giustificava l'assenza di filtro sul muro con «il soggetto e' un BORDO,
+// e un muro che cade non rivela chi ci stava dietro». Era vero per chi stava DIETRO il muro, e falso per chi
+// aveva sparato: il bordo dice la fila da cui e' arrivato il colpo ([D-502]).* ⚠️ Se un giorno l'impronta
+// portasse un dato dipendente da CHI e' stato colpito, diventerebbe un canale e andrebbe filtrata come il `Move`.
 // ⚠️ **Nessun `Src` richiesto per impronte e muri**: il fatto riguarda la mappa e resta vero anche se chi ha
 // sparato e' morto nello stesso Blast. Pretendere l'Actor perderebbe proprio i colpi dei caduti.
 // 🔴 **Il filtro di FASE ora c'e'.** ⏱️ *Fino a #3549 il ramo `StructureHit` di `BeginPlayback` non filtrava
 // `Ev.Phase`, e un secondo produttore in Cleanup avrebbe inventato una fase `Blast`.* `BuildBlastSequence`
 // prende solo `Phase == Blast`: un muro colpito in Cleanup non entra in questa sequenza e non apre la fase.
-// 🔑 **I filtri di privacy di questa sequenza sono a monte, in `BuildBlastSequence`**: le ATTIVAZIONI (D6) e, da
-// `#3551`, le tracce di un `Line`/`Cone` il cui attaccante chi guarda non vedeva ([D-500]). Qui si mostra tutto cio'
-// che e' in sequenza — anche lo `StructureHit`, che non porta verdetto (`#3681`).
+// 🔑 **I filtri di privacy di questa sequenza sono a monte, in `BuildBlastSequence`**: le ATTIVAZIONI (D6); da
+// `#3551`, le tracce di un `Line`/`Cone` il cui attaccante chi guarda non vedeva ([D-500]); da `#3681`, i muri
+// colpiti che chi guarda non osservava ([D-502]). Qui si mostra tutto cio' che e' in sequenza.
 bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 {
 	const int32 Target = FMath::Min(BeatsTarget, 2 * PlaybackBlastSequence.Num());
