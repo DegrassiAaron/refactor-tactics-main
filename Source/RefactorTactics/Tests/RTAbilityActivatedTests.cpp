@@ -1292,4 +1292,64 @@ bool FRTPlaybackChargeImpactPrecedesHealTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#3700`, [D-503] — una cura si racconta dopo un colpo con priorita' PIU' ALTA della sua.
+ *
+ * 🔴 **Il caso che solo una priorita' sopra 70 produce**: la cura si applica dopo il danno simultaneo qualunque sia
+ * la priorita' (D-503), e ora si racconta allo stesso modo. Sotto 70 l'ordine canonico e la coda dei supporti
+ * coincidono, e un test li' non distinguerebbe niente: per questo il colpo porta priorita' 80 sull'istanza.
+ * Il colpo cade su un terzo, non sul ferito: la cura deve partire, e l'ordine non dipende da chi colpisce.
+ * 🔑 **L'ordine della timeline e' il racconto**: il playback del Blast ordina gli atti per indice di attivazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnHealIsToldAfterAHigherPriorityBlowTest,
+	"RefactorTactics.Turn.HealIsToldAfterAHigherPriorityBlow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnAttivazioneMap(World);
+
+	ARTUnit* Colpito = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Ferito = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 2));
+	ARTUnit* Curatore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 2));
+	ARTUnit* Tiratore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Colpito || !Ferito || !Curatore || !Tiratore) { return false; }
+
+	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
+	Curatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	const int32 Colpo = IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Branth.ImpactShot"));
+	if (!TestTrue(TEXT("premessa: il colpo c'e'"), Tiratore->Abilities.IsValidIndex(Colpo))) { return false; }
+	Tiratore->Abilities[Colpo]->Def.Priority = 80; // sopra la cura (70): e' il caso
+	Tiratore->PlannedAbilityIndex = Colpo;
+	Tiratore->PlannedAttackTarget = Colpito;
+	Tiratore->PlannedCell = Tiratore->Cell;
+
+	TM->LockInAndResolve();
+
+	int32 AttivazioneColpo = INDEX_NONE;
+	int32 AttivazioneCura = INDEX_NONE;
+	const TArray<FRTResolvedEvent>& T = TM->ResolvedTimelineForTest();
+	for (int32 i = 0; i < T.Num(); ++i)
+	{
+		if (T[i].Type != ERTResolvedEventType::AbilityActivated || T[i].Phase != ERTMatchPhase::Blast) { continue; }
+		if (AttivazioneColpo == INDEX_NONE && T[i].ActionId == FName(TEXT("Hero.Branth.ImpactShot"))) { AttivazioneColpo = i; }
+		if (AttivazioneCura == INDEX_NONE && T[i].ActionId == FName(TEXT("Action.Heal"))) { AttivazioneCura = i; }
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il colpo si e' attivato nel Blast"), AttivazioneColpo != INDEX_NONE)
+		|| !TestTrue(TEXT("⛔ premessa: la cura si e' attivata"), AttivazioneCura != INDEX_NONE))
+	{
+		return false;
+	}
+	TestTrue(*FString::Printf(TEXT("🔴 il colpo (80) si racconta prima della cura (70): colpo %d, cura %d"),
+			AttivazioneColpo, AttivazioneCura),
+		AttivazioneColpo < AttivazioneCura);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

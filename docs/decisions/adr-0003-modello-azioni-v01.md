@@ -80,7 +80,8 @@ Il modello a 7 fasi del catalogo **non sostituisce** le macro-fasi: i suoi codic
   > quest'ordine**. Il danno è simultaneo — `URTCombatResolver::ResolveAttacks` somma i colpi per bersaglio — e le
   > cure si applicano dopo, sui sopravvissuti: una cura non salva da un colpo letale nello stesso Blast, qualunque
   > sia la priorità dei due. La priorità ordina ciò che dipende dall'ordine: il marchio speso, il racconto del
-  > playback.
+  > playback. ➕ *Da [#3700](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3700) il racconto mette i supporti rimandati — cure e `ModifyArc` — dopo
+  > tutti gli intenti d'attacco: una cura si racconta dopo i colpi, come si applica.*
 - **Budget movimento**: **5 MP**, costo intero per cella (1 normale, 2 difficile, 2 salita via rampa);
   Sprint 8 MP; Dash/Charge/Leap distanza fissa. Sostituisce «4 celle / Dash 3» (canone §6).
 - **Slot per eroe**: 1 movimento + 1 azione principale + 1 reazione + facing finale + fallback dichiarato.
