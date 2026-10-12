@@ -18,6 +18,7 @@
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
 #include "UI/RTHUD.h"                    // ComposeAbilityLine: l'oracolo dell'uguaglianza, non una seconda riga
 #include "Misc/ScopeExit.h"              // ON_SCOPE_EXIT: il mondo si distrugge anche sui ritorni anticipati
+#include "Kismet/GameplayStatics.h"      // GetActorOfClass: la premessa «nessun manager nel mondo» si asserisce (#2744)
 #include "Components/Image.h"          // il brush dello slot si legge, non si deduce (#3178)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -1162,6 +1163,70 @@ bool FRTScreenHudEmptyObserverSetTest::RunTest(const FString&)
 
 	TestFalse(TEXT("e il predicato dice di no anche da solo"),
 		URTPlayerEventProjector::IsAuthorized(Pubblico, TArray<int32>{}));
+
+	return true;
+}
+
+/**
+ * `#2744` — SENZA MANAGER chi guarda e' trattato come in una sessione PRESIDIATA: la vista piu' stretta.
+ *
+ * 🔴 **Il ramo era dichiarato e non presidiato.** `ResolveObserverTeamIds` lo scrive nel proprio commento — un
+ * widget nato prima del manager mostrerebbe altrimenti entrambe le squadre per qualche frame, «un leak temporale
+ * invece di un difetto di layout» — ma la misura di privacy del 2026-10-12 l'ha trovato scoperto: invertendo il
+ * ramo (senza manager -> la vista piu' LARGA) la suite restava verde. Nessun altro test fa attraversare a
+ * `ResolveObserverTeamIds` il ramo senza manager con unita' di due squadre in campo.
+ *
+ * 🔑 **Due livelli, perche' il difetto puo' nascere in due posti**: la funzione che decide l'insieme, e il
+ * roster che lo consuma. Il controllo positivo in coda dice che la fixture SA produrre una lista avversaria:
+ * senza, «nessuna carta avversaria» sarebbe vero anche per un mondo con una squadra sola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudNoManagerNarrowestViewTest,
+	"RefactorTactics.ScreenHud.WithoutAManagerTheObserverSetIsTheNarrowest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudNoManagerNarrowestViewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	TArray<ARTUnit*> Units;
+	Units.Add(SpawnRosterUnit(World, /*TeamId=*/ 0, TEXT("Alfa")));
+	Units.Add(SpawnRosterUnit(World, /*TeamId=*/ 0, TEXT("Bravo")));
+	Units.Add(SpawnRosterUnit(World, /*TeamId=*/ 1, TEXT("Charlie")));
+	Units.Add(SpawnRosterUnit(World, /*TeamId=*/ 1, TEXT("Delta")));
+	if (!TestFalse(TEXT("le quattro unita' esistono"), Units.Contains(nullptr))) { return false; }
+
+	// ── 1. La funzione che decide: senza manager l'insieme e' la sola squadra di chi guarda.
+	const TArray<int32> SenzaManager = URTHudViewModel::ResolveObserverTeamIds(nullptr, /*PlayerTeamId=*/ 0, Units);
+	TestEqual(TEXT("senza manager l'insieme ha una squadra sola"), SenzaManager.Num(), 1);
+	TestTrue(TEXT("ed e' quella di chi guarda"), SenzaManager.Contains(0));
+	TestFalse(TEXT("la squadra avversaria NON e' autorizzata"), SenzaManager.Contains(1));
+
+	// ── 2. Il roster che lo consuma: un widget senza manager non ha una lista avversaria.
+	// ⚠️ Nel mondo non esiste ancora nessun `ARTTurnManager`: il widget non ne puo' trovare uno da se'. E' una
+	// premessa, quindi si asserisce: un refactor della fixture che ne spawnasse uno renderebbe questo passo
+	// un doppione del controllo presidiato, e nessuno lo direbbe.
+	if (!TestNull(TEXT("premessa: nel mondo non esiste ancora nessun TurnManager"),
+			UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass())))
+	{
+		return false;
+	}
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(nullptr, /*PlayerTeamId=*/ 0);
+	TestEqual(TEXT("senza manager il roster e' la propria squadra"),
+		HeroIdsOf(Roster->GetRoster()), FString(TEXT("Alfa,Bravo")));
+	TestEqual(TEXT("senza manager non c'e' NESSUNA carta avversaria"), Roster->GetOpposingRoster().Num(), 0);
+
+	// ── 3. CONTROLLO POSITIVO: la stessa fixture, con un manager non presidiato, la lista avversaria la produce.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("turn manager"), TM)) { return false; }
+	TM->SetUnattendedSession(true);
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	TestEqual(TEXT("controllo: non presidiata, l'altra squadra ha la sua lista"),
+		HeroIdsOf(Roster->GetOpposingRoster()), FString(TEXT("Charlie,Delta")));
+	TestEqual(TEXT("controllo: e l'insieme le porta entrambe"),
+		URTHudViewModel::ResolveObserverTeamIds(TM, /*PlayerTeamId=*/ 0, Units).Num(), 2);
 
 	return true;
 }

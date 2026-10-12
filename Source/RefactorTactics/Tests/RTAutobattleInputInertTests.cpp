@@ -23,6 +23,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTPacing.h"
 #include "Unit/RTUnit.h"
+#include "UI/RTHudViewModel.h" // ResolveObserverTeamIds: chi e' autorizzato a guardare (#2744)
 #include "Ability/RTActionData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -580,6 +581,61 @@ bool FRTAutobattleCameraStaysAliveTest::RunTest(const FString&)
 		B.PC->IsGameplayInputBlocked());
 
 	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+// ======================================================================================================
+// Chi guarda
+// ======================================================================================================
+
+/**
+ * `#2744` — SOLO UN AUTOBATTLE ALLARGA CHI GUARDA, e lo decide il bootstrapper vero.
+ *
+ * 🔴 **Il seam aveva un solo testimone, e non di mestiere.** Lo Screen HUD §4.1 mostra entrambe le squadre
+ * quando `ARTTurnManager::IsUnattendedSession()` e' vero, e a scrivere quel dato e' una riga sola del
+ * bootstrapper (`SetUnattendedSession(Config.bAutobattle)`). La misura di privacy del 2026-10-12 l'ha mutata
+ * in «sempre non presidiata»: cadeva un solo test, per un `TestFalse` di controllo dentro una misura di RITMO.
+ * Un refactor di quel test avrebbe tolto l'ultimo presidio senza che niente lo dicesse.
+ *
+ * 🔑 **Dal dato all'esito, sulla porta vera**: `SetupHexMatch` latcha la modalita', e `ResolveObserverTeamIds`
+ * — la sede unica di «chi e' autorizzato a guardare» — risponde. I due versi stanno nello stesso test: senza
+ * il verso autobattle, «una squadra sola» sarebbe vero anche per un banco con una squadra sola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleOnlyWidensTheObserverSetTest,
+	"RefactorTactics.Match.Autobattle.OnlyAnAutobattleWidensTheObserverSet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleOnlyWidensTheObserverSetTest::RunTest(const FString&)
+{
+	FRTScopedInertSessionState StateGuard;
+
+	for (const bool bAutobattle : { false, true })
+	{
+		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
+		if (!TestTrue(TEXT("banco completo"), B.IsComplete()))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return false;
+		}
+		B.Setup(bAutobattle);
+
+		const TArray<ARTUnit*> Units{ B.Aevik, B.Branth, B.Enemy };
+		const TArray<int32> ChiGuarda =
+			URTHudViewModel::ResolveObserverTeamIds(B.TurnManager, /*PlayerTeamId=*/ 0, Units);
+
+		if (bAutobattle)
+		{
+			TestTrue(TEXT("autobattle: la sessione e' non presidiata"), B.TurnManager->IsUnattendedSession());
+			TestTrue(TEXT("autobattle: fra chi guarda c'e' anche l'altra squadra"), ChiGuarda.Contains(1));
+		}
+		else
+		{
+			TestFalse(TEXT("partita giocata: la sessione e' presidiata"), B.TurnManager->IsUnattendedSession());
+			TestEqual(TEXT("partita giocata: guarda una squadra sola"), ChiGuarda.Num(), 1);
+			TestFalse(TEXT("partita giocata: la squadra avversaria NON e' fra chi guarda"), ChiGuarda.Contains(1));
+		}
+
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
 	return true;
 }
 
