@@ -25,6 +25,12 @@ namespace RTHexVolumeMaterial
 	extern const TCHAR* const DitherInputName;
 
 	/**
+	 * Quante espressioni ha il grafo: il colore proprio, la tinta, i quattro dati per istanza scalari, la ruvidita',
+	 * il nodo Custom, `1 - x` e la funzione del retino. Una in piu' e' un orfano.
+	 */
+	inline constexpr int32 ExpressionCount = 10;
+
+	/**
 	 * Il codice HLSL del nodo Custom che compone il colore.
 	 *
 	 * 🔑 **L'ordine e' la regola**: prima il trattamento di D-501 sul colore proprio (desaturazione, poi luce), poi

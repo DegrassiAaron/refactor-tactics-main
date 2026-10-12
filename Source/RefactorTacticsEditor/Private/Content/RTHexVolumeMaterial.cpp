@@ -1,4 +1,5 @@
 #include "Content/RTHexVolumeMaterial.h"
+#include "Content/RTMaterialRecipe.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "MaterialEditingLibrary.h"
@@ -80,7 +81,8 @@ bool RTHexVolumeMaterial::BuildGraph(UMaterial* Material)
 	}
 
 	// Il grafo si RICOSTRUISCE a ogni esecuzione (`D-229`): un nodo autorato a mano qui andrebbe perso, ed e' voluto.
-	UMaterialEditingLibrary::DeleteAllMaterialExpressions(Material);
+	// ⚠️ Con `ClearGraph` e non con `DeleteAllMaterialExpressions` del motore, che ne lascia indietro la meta'.
+	RTMaterialRecipe::ClearGraph(Material);
 
 	Material->MaterialDomain = MD_Surface;
 	// `Masked` e non traslucido, per la ragione scritta per `M_HexCell` in D-501: il retino non ordina la traslucenza e

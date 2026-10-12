@@ -17,6 +17,7 @@
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "UObject/Package.h"
 
+#include "Content/RTMaterialRecipe.h"
 #include "Content/RTUnitOutlineMaterial.h"
 #include "Unit/RTUnitLayerOutline.h"
 
@@ -46,6 +47,10 @@ namespace
 		Test.TestTrue(*FString::Printf(TEXT("%s: e' un post-process"), Chi), Material->MaterialDomain == MD_PostProcess);
 		Test.TestTrue(*FString::Printf(TEXT("%s: gira dopo il DOF, prima dell'antialiasing temporale"), Chi),
 			Material->BlendableLocation == BL_SceneColorAfterDOF);
+
+		// 🔴 Si contano TUTTE le espressioni: una ricostruzione che lasciasse indietro dei nodi li lascerebbe nel binario.
+		Test.TestEqual(*FString::Printf(TEXT("%s: il grafo ha le espressioni della ricetta, e nessun nodo orfano"), Chi),
+			RTMaterialRecipe::ExpressionCount(Material), RTUnitOutlineMaterial::ExpressionCount);
 
 		int32 Quanti = 0;
 		UMaterialExpressionCustom* Custom = UomFindCustom(Material, Quanti);
@@ -194,9 +199,9 @@ bool FRTUnitOutlineRecipeBuildsTest::RunTest(const FString&)
 
 	// Idempotente: una seconda passata non lascia due nodi Custom.
 	TestTrue(TEXT("la ricetta si puo' rilanciare"), RTUnitOutlineMaterial::BuildGraph(Materiale));
-	int32 Quanti = 0;
-	UomFindCustom(Materiale, Quanti);
-	TestEqual(TEXT("e non raddoppia il grafo"), Quanti, 1);
+	TestEqual(TEXT("e non lascia indietro nessun nodo della passata precedente"),
+		RTMaterialRecipe::ExpressionCount(Materiale), RTUnitOutlineMaterial::ExpressionCount);
+	UomCheckGraph(*this, Materiale, TEXT("seconda passata"));
 	return true;
 }
 

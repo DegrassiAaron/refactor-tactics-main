@@ -18,6 +18,7 @@
 #include "Materials/MaterialFunctionInterface.h"
 #include "UObject/Package.h"
 
+#include "Content/RTMaterialRecipe.h"
 #include "Content/RTHexVolumeMaterial.h"
 #include "Map/RTLayerPresentation.h"
 
@@ -55,6 +56,10 @@ namespace
 			Material->GetBlendMode() == BLEND_Masked);
 		Test.TestTrue(*FString::Printf(TEXT("%s: e' usabile sulle mesh istanziate (senza, il pacchetto disegna il materiale di default)"), Chi),
 			Material->GetUsageByFlag(MATUSAGE_InstancedStaticMeshes));
+
+		// 🔴 Si contano TUTTE le espressioni: una ricostruzione che lasciasse indietro dei nodi li lascerebbe nel binario.
+		Test.TestEqual(*FString::Printf(TEXT("%s: il grafo ha le espressioni della ricetta, e nessun nodo orfano"), Chi),
+			RTMaterialRecipe::ExpressionCount(Material), RTHexVolumeMaterial::ExpressionCount);
 
 		int32 Quanti = 0;
 		UMaterialExpressionCustom* Custom = HvmFindCustom(Material, Quanti);
@@ -186,9 +191,9 @@ bool FRTHexVolumeRecipeBuildsTest::RunTest(const FString&)
 	HvmCheckGraph(*this, Materiale, TEXT("ricetta"));
 
 	TestTrue(TEXT("la ricetta si puo' rilanciare"), RTHexVolumeMaterial::BuildGraph(Materiale));
-	int32 Quanti = 0;
-	HvmFindCustom(Materiale, Quanti);
-	TestEqual(TEXT("e non raddoppia il grafo"), Quanti, 1);
+	TestEqual(TEXT("e non lascia indietro nessun nodo della passata precedente"),
+		RTMaterialRecipe::ExpressionCount(Materiale), RTHexVolumeMaterial::ExpressionCount);
+	HvmCheckGraph(*this, Materiale, TEXT("seconda passata"));
 	return true;
 }
 
