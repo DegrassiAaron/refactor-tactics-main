@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-12 — Cure e archi si raccontano nell'ordine canonico del Blast
+
+**Origine**: [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2: il `Ruling` sull'ordine fra le sorgenti passa dall'ordine dei pass all'ordine canonico; Cleanse resta nel suo pass |
+
+---
+
 ## 2026-10-12 — Il muro colpito ha un verdetto solo: D-502 attuata
 
 **Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681).

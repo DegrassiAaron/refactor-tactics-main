@@ -586,8 +586,10 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// #3549, spec §2.2 punto 2: la cura si ATTIVA quando e' SPESA, anche se poi non ha effetto (`NoEffect`,
 		// il controllo di `Amount` qui sotto): il gesto, non l'esito. ⛔ Il fuori portata e' uscito con `continue`
 		// sopra e non si paga: non e' un gesto, e non si attiva.
-		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Heal->Def.ActionId, Heal->Def.BaseActionId,
-			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single);
+		// ➕ `#3683`: si ACCODA, e la emette `ResolveCombatPasses` nell'ordine canonico insieme agli intenti
+		// d'attacco. Il gesto resta quello accettato qui; cambia solo quando lo si vede.
+		Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
+			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single });
 
 		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
@@ -778,8 +780,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				PendingArcOps.Add({ Unit->Cell, ArcAim, Unit, PlannedNow->Def });
 				// #3549: dopo la validazione di portata — un arco fuori portata e' uscito con `continue` sopra
 				// (`ArcRejected`) e non si attiva.
-				EmitAbilityActivated(Unit, ERTMatchPhase::Blast, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
-					ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single);
+				// ➕ `#3683`: accodata come la cura. ⚠️ L'arco cambia la mappa in `ApplyEnvironmentChanges`, ma
+				// il piano dei colpi e' gia' raccolto: nessun colpo di questo Blast lo vede, e in ordine canonico
+				// (75) si racconta dopo di loro.
+				Ctx.DeferredActivations.Add({ Unit, i, PlannedNow->Def.Priority, PlannedNow->Def.ActionId,
+					PlannedNow->Def.BaseActionId, ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single });
 			}
 			continue;
 		}
