@@ -1,9 +1,14 @@
 // I piani rispetto a quello attivo (#3679, [D-501]): sopra traslucidi, sotto spenti, il bordo dell'attivo marcato.
 //
 // 🔑 **Questi test misurano i DATI che la board scrive, non cio' che si vede.** Il trattamento sta nei canali 3..5 dei
-// custom data per istanza, e lo applica `M_HexCell`: che il materiale li legga, e che a schermo si capisca quale piano
-// e' attivo, resta della voce PIE di #3679. Qui si misura che i canali giusti arrivino alle istanze giuste, che il
-// controller sia l'ingresso, e che il velo e la collisione non ne sappiano niente.
+// custom data per istanza, e lo applica `M_HexCell`: che a schermo si capisca quale piano e' attivo resta della voce
+// PIE di #3679. Qui si misura che i canali giusti arrivino alle istanze giuste, che il controller sia l'ingresso, e
+// che il velo e la collisione non ne sappiano niente.
+//
+// ⚠️ **«I dati arrivano» non ha mai voluto dire «il materiale li usa»**, e la differenza e' costata un giro intero:
+// da #3679 la maschera di `M_HexCell` era collegata e ignorata (`UseConstant` rimasto acceso sul pin), e ogni test di
+// questo file era verde con i piani sopra opachi. `CellMaterialCompilesTheInputsItHasConnected`, in fondo, chiude
+// quella causa sull'asset; il resto — che si VEDA — lo chiude solo la PIE.
 
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
@@ -14,6 +19,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTLayerPresentation.h"
+#include "Materials/Material.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -663,5 +669,61 @@ bool FRTLayerTreatmentSparesUnitsTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+#if WITH_EDITOR
+/**
+ * 🔴 **Un ingresso COLLEGATO che il traduttore ignora** (#3704). E' il difetto che ha tenuto opachi i piani sopra
+ * da #3679 in poi, con tutti i test dei canali verdi.
+ *
+ * Ogni ingresso del nodo radice porta due cose: l'espressione collegata e `UseConstant`, la costante in linea che
+ * il Material Editor accende sui pin SCOLLEGATI. `CompileWithDefault` guarda `UseConstant` PER PRIMO: se e' acceso
+ * compila la costante, e l'espressione collegata non viene nemmeno letta. Il Material Editor lo spegne quando si
+ * tira il filo; `UMaterialEditingLibrary::ConnectMaterialProperty` — cioe' `connect_to_output` del bridge — no.
+ * Risultato misurato il 2026-10-12 sul codice generato: `PixelMaterialInputs.OpacityMask = 1.0` con il nodo
+ * `DitherTemporalAA` collegato, quindi nessuno shader di profondita' mascherato e nessun taglio.
+ *
+ * ⚠️ **Qui si misura l'asset, non lo shader**: la suite gira in `-NullRHI` e la mappa degli shader non c'e'. Che a
+ * schermo un piano sopra lasci vedere sotto resta della voce PIE, col suo controllo positivo (a opacita' 0 il
+ * piano sopra SPARISCE): questo test toglie soltanto la causa che la faceva fallire in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellMaterialCompilesItsInputsTest,
+	"RefactorTactics.HexMap.CellMaterialCompilesTheInputsItHasConnected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCellMaterialCompilesItsInputsTest::RunTest(const FString&)
+{
+	UMaterialInterface* Interfaccia = GetDefault<ARTHexMapActor>()->CellMaterial.LoadSynchronous();
+	UMaterial* Materiale = Interfaccia ? Interfaccia->GetMaterial() : nullptr;
+	if (!TestNotNull(TEXT("premessa: il materiale delle celle si carica"), Materiale)) { return false; }
+
+	TestTrue(TEXT("il materiale delle celle e' Masked: e' la maschera che fa vedere sotto un piano sopra"),
+		Materiale->GetBlendMode() == BLEND_Masked);
+
+	int32 Collegati = 0;
+	for (int32 P = 0; P < MP_MAX; ++P)
+	{
+		FMaterialInputDescription Ingresso;
+		if (!Materiale->GetExpressionInputDescription(EMaterialProperty(P), Ingresso)
+			|| Ingresso.Input == nullptr || Ingresso.Input->Expression == nullptr)
+		{
+			continue;
+		}
+		++Collegati;
+		TestFalse(*FString::Printf(TEXT("%s ha un nodo collegato, quindi la costante in linea e' spenta (altrimenti il nodo non si compila)"),
+			*UEnum::GetValueAsString(EMaterialProperty(P))), Ingresso.bUseConstant);
+	}
+
+	// I due ingressi su cui il trattamento dei piani si regge, per nome: senza, il ciclo sopra passerebbe a vuoto.
+	for (const EMaterialProperty Atteso : { MP_EmissiveColor, MP_OpacityMask })
+	{
+		FMaterialInputDescription Ingresso;
+		const bool bCollegato = Materiale->GetExpressionInputDescription(Atteso, Ingresso)
+			&& Ingresso.Input != nullptr && Ingresso.Input->Expression != nullptr;
+		TestTrue(*FString::Printf(TEXT("%s ha un nodo collegato"), *UEnum::GetValueAsString(Atteso)), bCollegato);
+	}
+	TestTrue(TEXT("premessa: il ciclo ha guardato almeno i due ingressi attesi"), Collegati >= 2);
+	return true;
+}
+#endif // WITH_EDITOR
 
 #endif // WITH_DEV_AUTOMATION_TESTS
