@@ -5840,6 +5840,34 @@ sessions:
       tutti e tre, e ha tenuto 3. #3674 si chiude. `PIE-CAM-PIANI-ATTIVO` resta parziale per i soli fantasmi del
       piano, che si guardano nella seduta di #3705.
 
+  - id: U85
+    title: Il piano di un'unità dal contorno del modello (D-508) — e i fantasmi del piano
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-CAM-CONTORNO-UNITA`, e lo spessore e la resa attraverso il piano scelti dall'autore, da
+      scrivere sui default di `FRTUnitLayerOutlineTuning` e su D-508; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U84]
+    verifies: [PIE-CAM-CONTORNO-UNITA]
+    issues: [3705]
+    done_when: >-
+      l'autore ha giudicato la voce in PIE, dal clone principale; #3705 si chiude col suo verdetto
+    notes: |
+      ⏳ **Da convocare con l'autore.** Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture
+      dal clone principale (commit `fe38e69db`), con le leve al default: `LayerStack` coi tre piani attivi, in
+      tattica e in strategica; il controllo positivo con `rt.Unit.LayerOutline 0`; lo spessore a 4. Le catture e le
+      misure sono nella cella della voce. In seduta: si provano le leve `rt.Unit.LayerOutline*` in console, si
+      sceglie, e i valori scelti diventano i default nel codice.
+
+      ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati, e senza
+      di loro il contorno si giudicherebbe su un cilindro.
+
+      Nella stessa seduta si guardano i fantasmi del piano: è il criterio che tiene parziale
+      `PIE-CAM-PIANI-ATTIVO` (seduta `U84`).
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

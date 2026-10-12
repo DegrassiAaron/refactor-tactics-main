@@ -215,6 +215,7 @@ fossero un dato).
 | ~~`Characters/<Pack>/Animation/AM_<Pack>_{Attack,Hit,Death}.uasset`~~ ×12 | Animazione | ~~**U8**~~ | ⛔ **non più attesi dal 2026-09-05** ([#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450)): i tre ruoli si popolano come **dati** nel CDO di `URTUnitAnimInstance`, non come `.uasset`. `PlaySlotAnimationAsDynamicMontage` (`AnimInstance.h:591`) suona una clip sullo slot che il grafo già espone. *Erano «⏳ assente» dal 2026-08-31, e la loro riga d'allowlist è stata tolta dal `.gitignore` nello stesso commit — come per gli `ABP_*`, una decisione che toglie un asset atteso tocca anche la riga che lo riammetteva* |
 | `Characters/Shared/Materials/M_SelectionRing.uasset` | Condiviso | — | ✅ committato |
 | `Characters/Shared/Materials/M_TeamRing.uasset` | Condiviso | — | ✅ committato |
+| `Characters/Shared/Materials/M_UnitLayerOutline.uasset` | Condiviso | — | ✅ committato · **generato** da `-run=RTBuildUnitOutlineMaterial` ([#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705), [`D-229`](../../decisions/RT_PDR_00_Decision_Log.md)): davanti a un conflitto si rigenera |
 | `Maps/Dev/L_HexArena/L_HexArena.umap` | Mappa | **U1** | ✅ committato |
 | `Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` | Mappa | **U1** | ✅ committato |
 | `Maps/Dev/L_DevSandbox/L_DevSandbox.umap` | Mappa | — | ✅ committato |
