@@ -690,10 +690,12 @@ namespace
  * ⏱️ *Fino al 2026-10-12 questo paragrafo diceva che il filtro non era ancora implementato e che `BLIND-2`
  * era aperta: entrambe le cose erano cadute il 2026-09-21.*
  *
- * 🔑 **E il caso che la premessa esclude NON e' scoperto**: per il bot lo misura
- * `HexBotPlay.ThreeWorldsAgreeOnTheBotPlan`, qui sotto, con una rotta piu' lunga della vista; per chi
- * pianifica a mano lo misura `RefactorTactics.BlindActions.*` (`Tests/RTBlindActionsLeakMeasureTests.cpp`),
- * con zero, uno e due nemici ignoti sulla stessa cella — ventaglio e costo identici nei tre mondi.
+ * 🔑 **E il caso che la premessa esclude NON e' scoperto**: per il bot lo misurano, qui sotto,
+ * `HexBotPlay.ThreeWorldsAgreeOnTheBotPlan` (la cella d'arrivo) e
+ * `HexBotPlay.HiddenBodyOnTheDashCellDoesNotChangeThePlan` (la cella dello scatto); per chi pianifica a mano,
+ * `BlindActions.ThreeWorldsAgreeOnTheRefusalSymbol` (`Tests/RTBlindActionsLeakMeasureTests.cpp`). ⚠️ I canary
+ * del ventaglio e del percorso di quel file non possono piu' cadere da [D-445]/[D-446]: la rotta attraversa
+ * i corpi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenEnemyFairnessTest,
 	"RefactorTactics.HexBotPlay.HiddenEnemyFairness",
@@ -748,6 +750,9 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 	// budget per un ventaglio di raggio 4+ e i nascosti stanno **sulla direttrice diretta** — ventaglio
 	// 61/61/61 e costo 4/4/4 a filtro acceso, e tre canary rossi a filtro mutato. La premessa qui resta
 	// quella, come **limite dichiarato** che rimanda li', e non come difesa di una posizione ritirata.
+	// ⏱️ *Rimisurato il 2026-10-12: «tre canary rossi a filtro mutato» valeva il 2026-09-21. Da [D-445]/[D-446]
+	// a filtro spento cade solo `ThreeWorldsAgreeOnTheRefusalSymbol`; il caso del bot lo coprono i due test
+	// qui sotto.*
 	const FRTBotPlanFingerprint Left = PlanWithHiddenAt(FRTCellId(-6, 3), bLeftOk);
 	const FRTBotPlanFingerprint Right = PlanWithHiddenAt(FRTCellId(6, -3), bRightOk);
 
@@ -885,6 +890,10 @@ bool FRTHexBotThreeWorldsAgreeOnThePlanTest::RunTest(const FString&)
  * nessuno, si legge dove il kiter scatta per fuggire, e nel secondo mondo il nemico ignoto sta proprio li'. La
  * geometria della fuga puo' cambiare col bilanciamento; il test la segue, e le premesse dicono se regge ancora:
  * il bot deve scattare, e la cella dello scatto deve stare oltre la vista.
+ *
+ * ✅ Validato per mutazione: con `BaseFiltrata` onnisciente il bot del secondo mondo rinuncia allo scatto e si
+ * muove altrove, e cade questo test e solo questo. Con lo snapshot di SQUADRA onnisciente questo resta verde e
+ * cade `ThreeWorldsAgreeOnTheBotPlan`: le due sedi del filtro hanno un test ciascuna.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenBodyOnTheDashCellTest,
 	"RefactorTactics.HexBotPlay.HiddenBodyOnTheDashCellDoesNotChangeThePlan",
