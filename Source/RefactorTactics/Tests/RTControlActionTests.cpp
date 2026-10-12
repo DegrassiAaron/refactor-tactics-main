@@ -689,8 +689,7 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
  * **Una cura su chi e' caduto nel frattempo lascia una traccia.**
  *
  * Il danno del Blast e' simultaneo e le cure vengono dopo, qualunque sia la priorita' dei due ([D-503]):
- * l'alleato puo' morire **nello stesso Blast** in
- * cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e ANNOTATO l'azione come
+ * l'alleato puo' morire **nello stesso Blast** in cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e ANNOTATO l'azione come
  * partita (`#1451`: fino ad allora la bruciava sul posto, e questa riga diceva cosi'),
  * quindi prima di `#1447` il replay mostrava un curatore con l'abilita' in ricarica e nessuna azione
  * registrata — la terza faccia dell'asimmetria che [D-196] ha chiuso per `OutOfRange` e `NoEffect`.
@@ -2269,11 +2268,13 @@ bool FRTFallenHealerStillLeavesTheEntryTest::RunTest(const FString&)
  * 🔑 **Il colpo ha priorita' 80, sopra la cura (70)**: e' l'unico caso in cui la regola decisa (A: il danno
  * simultaneo decide chi cade, poi le cure) si distingue dall'ordine per fasce di ADR-0003 alla lettera (C), che
  * applicherebbe la cura prima del colpo. Sotto 70 le due regole danno lo stesso esito, e un test li' non
- * proverebbe niente. L'attacco e' un attacco base con la priorita' portata a 80 sull'istanza: `HeavyAttack` ha
- * portata 0 nel catalogo, e nessun contenuto la usa per ferire.
+ * proverebbe niente. L'attacco e' l'attacco base completato da `MakeBasicAttack`, con la priorita' portata a 80
+ * sull'istanza: `HeavyAttack` ha portata 0 nel catalogo, e nessun contenuto la usa per ferire.
  *
- * 🔴 **La premessa sulla soglia e' asserita, non supposta**: il danno registrato deve essere letale senza la cura
- * e NON letale con la cura applicata prima. Solo cosi' l'esito separa A da C.
+ * 🔑 **La soglia si costruisce larga, non al filo**: il ferito ha 1 punto vita e la cura lo riporterebbe a
+ * salute piena. Sotto A il colpo lo abbatte prima che la cura arrivi; sotto C (la cura prima) o B (la cura
+ * nella somma) sopravviverebbe con un margine che nessun modificatore di danno colma. ⚠️ `Amount` della voce
+ * di combattimento e' il danno LIMITATO alla salute residua, quindi prova la letalita' e nient'altro.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealArrivesAfterSimultaneousDamageTest,
 	"RefactorTactics.Actions.Heal.ArrivesAfterTheSimultaneousDamage",
@@ -2302,32 +2303,29 @@ bool FRTHealArrivesAfterSimultaneousDamageTest::RunTest(const FString&)
 		DestroyControlWorld(World);
 		return false;
 	}
-	Attaccante->Abilities[AtkIdx]->Def.Priority = 80; // sopra la cura: e' il caso che separa A da C
+	// Il `Def` core di `Action.BasicAttack` ha danno e portata vuoti: li completa `MakeBasicAttack`, come in partita.
+	URTActionData* Colpo0 = Attaccante->Abilities[AtkIdx];
+	Colpo0->Def = URTCatalogLibrary::MakeBasicAttack(/*WeaponRangeCells=*/ 1);
+	Colpo0->Def.Priority = 80; // sopra la cura: e' il caso che separa A da C
+	Colpo0->RangeCells = Colpo0->Def.RangeCells;
+	Colpo0->Power = URTCatalogLibrary::FirstDamage(Colpo0->Def);
 
-	int32 Cura = 0;
-	for (const FRTActionEffectSpec& Spec : Curatore->Abilities[HealIdx]->Def.Effects)
+	const int32 Danno = Colpo0->Power;
+	const int32 Salute = 1;
+	const int32 Cura = Ferito->MaxHealth - Salute; // la cura lo riporterebbe a salute piena
+	for (FRTActionEffectSpec& Spec : Curatore->Abilities[HealIdx]->Def.Effects)
 	{
-		if (Spec.Effect == ERTActionEffect::Heal) { Cura = Spec.Amount; }
+		if (Spec.Effect == ERTActionEffect::Heal) { Spec.Amount = Cura; }
 	}
-	int32 Danno = 0;
-	for (const FRTActionEffectSpec& Spec : Attaccante->Abilities[AtkIdx]->Def.Effects)
-	{
-		if (Spec.Effect == ERTActionEffect::Damage) { Danno = Spec.Amount; }
-	}
-	if (!TestTrue(TEXT("premessa: cura e danno dichiarati"), Cura > 0 && Danno > 0))
+	// Il margine: anche raddoppiato da un modificatore, il colpo non abbatterebbe un'unita' a salute piena.
+	if (!TestTrue(*FString::Printf(TEXT("premessa: il colpo (%d) ferisce, e non abbatte chi e' a salute piena (%d)"),
+			Danno, Ferito->MaxHealth),
+		Danno > 0 && 2 * Danno < Ferito->MaxHealth))
 	{
 		DestroyControlWorld(World);
 		return false;
 	}
-
-	// La salute a meta' fra «letale senza cura» e «non letale con la cura prima»: margine contro i modificatori.
-	const int32 Salute = FMath::Max(1, Danno - Cura / 2);
 	Ferito->ApplyCombatState(Salute, 0);
-	if (!TestTrue(TEXT("premessa: la salute massima lascia spazio alla cura"), Salute + Cura <= Ferito->MaxHealth))
-	{
-		DestroyControlWorld(World);
-		return false;
-	}
 
 	Curatore->PlannedAbilityIndex = HealIdx;
 	Curatore->PlannedAttackTarget = Ferito;
@@ -2339,7 +2337,7 @@ bool FRTHealArrivesAfterSimultaneousDamageTest::RunTest(const FString&)
 
 	RunControlTurn(TM);
 
-	// Il danno davvero inflitto, dalla voce di combattimento: e' quello che decide la soglia.
+	// La voce di combattimento: il suo `Amount` e' il danno limitato alla salute residua, quindi prova la letalita'.
 	const FRTTurnLogEntry* Colpo = TM->GetTurnLog().FindByPredicate([&CellaFerito](const FRTTurnLogEntry& E)
 	{
 		return E.Category == ERTLogCategory::Combat && E.Phase == ERTMatchPhase::Blast && E.TgtCell == CellaFerito
@@ -2350,9 +2348,9 @@ bool FRTHealArrivesAfterSimultaneousDamageTest::RunTest(const FString&)
 		DestroyControlWorld(World);
 		return false;
 	}
-	AddInfo(FString::Printf(TEXT("salute %d, danno inflitto %d, cura %d"), Salute, Colpo->Amount, Cura));
-	if (!TestTrue(TEXT("premessa: il colpo e' letale senza la cura"), Colpo->Amount >= Salute)
-		|| !TestTrue(TEXT("premessa: e NON letale se la cura arrivasse prima"), Colpo->Amount < Salute + Cura))
+	AddInfo(FString::Printf(TEXT("salute %d, danno registrato (limitato alla salute) %d, potenza %d, cura %d"),
+		Salute, Colpo->Amount, Danno, Cura));
+	if (!TestTrue(TEXT("premessa: il colpo e' letale senza la cura"), Colpo->Amount >= Salute))
 	{
 		DestroyControlWorld(World);
 		return false;

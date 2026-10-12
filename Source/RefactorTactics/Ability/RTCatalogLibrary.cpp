@@ -1866,8 +1866,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(CreateCover);
 	}
 
-	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve
-	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
+	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70, ma la cura
+	// arriva comunque DOPO il danno simultaneo, qualunque sia la priorita' ([D-503]): il 70 ne ordina solo il
+	// racconto. Cura quindi le ferite di questo turno e non quelle del turno prima.
 	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.
 	//
 	// 🔑 **La cura AGGANCIA l'alleato** — D-493 (#3609), l'eccezione dichiarata che [D-419] ammette. Decisione
