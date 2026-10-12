@@ -16,6 +16,7 @@
 | [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | `Unit/RTUnitLayerOutline` e la ricetta del materiale |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CHAR-PRESENTATION`: i file, i test e la voce PIE del contorno |
 | [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §7: lo stato di #3705 |
+| [`technical/systems/spec-team-identity.md`](technical/systems/spec-team-identity.md) | §1 e §9: il contorno del modello dice il piano, non la squadra; `D-TEAM-1` resta |
 
 ---
 
