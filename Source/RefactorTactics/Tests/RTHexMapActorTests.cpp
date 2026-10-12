@@ -896,7 +896,9 @@ bool FRTHexMapGridOnByDefaultTest::RunTest(const FString&)
 
 	// Il canale colore per istanza: senza, il velo potrebbe solo NASCONDERE il bordo, e ricordo e
 	// osservazione diventerebbero indistinguibili sul confine ([D-227]).
-	TestEqual(TEXT("porta i tre float del colore, come Cells e i glifi"), Grid->NumCustomDataFloats, 3);
+	// ➕ Sei da #3679: i tre del colore e i tre del trattamento dei piani, che marca il bordo del piano attivo.
+	TestEqual(TEXT("porta i float del colore e del trattamento, come Cells e i glifi"), Grid->NumCustomDataFloats,
+		RTLayerPresentation::NumCustomDataFloats);
 
 	// Il raycast di selezione valida il COMPONENTE: un bordo che rubasse i click darebbe una cella valida e
 	// sbagliata, che e' il difetto di #588.

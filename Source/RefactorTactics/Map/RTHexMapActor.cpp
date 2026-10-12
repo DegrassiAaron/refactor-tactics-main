@@ -785,7 +785,9 @@ ARTHexMapActor::ARTHexMapActor()
 	// col materiale di default della mesh engine le celle restano grigie e questi float sono inerti.
 	// Sta qui e non in `RebuildInstances` perche' `AddInstance` alloca i float alla creazione dell'istanza:
 	// impostarlo dopo lascerebbe le istanze gia' aggiunte senza spazio dove scrivere.
-	Cells->NumCustomDataFloats = 3;
+	// ➕ **Sei e non piu' tre, da #3679**: i canali 3..5 sono il trattamento del piano rispetto a quello attivo
+	// (`RTLayerPresentation`), neutro a zero. Glifi e griglia li portano anche loro; i fantasmi del piano no.
+	Cells->NumCustomDataFloats = RTLayerPresentation::NumCustomDataFloats;
 
 	// Segnaposto di COSTRUZIONE, sostituito dal prisma esagonale al primo `RebuildInstances` — che
 	// `OnConstruction` chiama sempre, quindi a schermo questo cilindro non arriva mai.
@@ -871,7 +873,7 @@ ARTHexMapActor::ARTHexMapActor()
 		SurfaceGlyphs[Ring]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		SurfaceGlyphs[Ring]->SetCollisionResponseToAllChannels(ECR_Ignore);
 		SurfaceGlyphs[Ring]->CastShadow = false;
-		SurfaceGlyphs[Ring]->NumCustomDataFloats = 3;
+		SurfaceGlyphs[Ring]->NumCustomDataFloats = RTLayerPresentation::NumCustomDataFloats; // colore + trattamento (#3679)
 	}
 
 	// 🔑 **I GHOST della timeline di pianificazione** (`CP 11.5`, `#172`): uno per fase del piano.
@@ -892,6 +894,8 @@ ARTHexMapActor::ARTHexMapActor()
 	PlanGhosts->CastShadow = false;
 	// Il colore per istanza porta il grado di CERTEZZA, che e' l'informazione che distingue un ghost
 	// confermato da uno previsto: senza custom data servirebbe un componente per livello.
+	// ⚠️ **Tre e non sei** (#3679): i fantasmi del piano non seguono il trattamento dei piani, come le unita'.
+	// `M_HexCell` legge i canali 3..5 col default a zero, quindi qui restano pieni.
 	PlanGhosts->NumCustomDataFloats = 3;
 
 	// I volumi di conoscenza (debug). Stessa disciplina degli altri — nessuna collisione, nessuna ombra — e
@@ -920,7 +924,7 @@ ARTHexMapActor::ARTHexMapActor()
 	CellBorders->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CellBorders->SetCollisionResponseToAllChannels(ECR_Ignore);
 	CellBorders->CastShadow = false;
-	CellBorders->NumCustomDataFloats = 3;
+	CellBorders->NumCustomDataFloats = RTLayerPresentation::NumCustomDataFloats; // colore + trattamento (#3679)
 
 	KnowledgeVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("KnowledgeVolumes"));
 	KnowledgeVolumes->SetupAttachment(Cells);
@@ -1852,6 +1856,67 @@ bool ARTHexMapActor::SyncStrategicPresentation(bool bStrategic, float* OutPrevio
 	return true;
 }
 
+bool ARTHexMapActor::SyncActiveLayerPresentation(int32 InActiveLayer)
+{
+	const FRTLayerPresentationTuning Leve = FRTLayerPresentationTuning::FromConsole();
+	if (bLayerPresentationApplied && PresentedActiveLayer == InActiveLayer && AppliedLayerTuning == Leve)
+	{
+		return false; // il caso di ogni fotogramma: niente da riscrivere
+	}
+	PresentedActiveLayer = InActiveLayer;
+	AppliedLayerTuning = Leve;
+	bLayerPresentationApplied = true;
+	ApplyLayerPresentation();
+	return true;
+}
+
+void ARTHexMapActor::ApplyLayerPresentation()
+{
+	// «A un piano» si misura sulle istanze disegnate, non sull'asset: con `ActiveOnly` l'editor ne disegna uno solo, e
+	// trattarlo rispetto a piani che non si vedono non avrebbe senso.
+	int32 MinLayer = TNumericLimits<int32>::Max();
+	int32 MaxLayer = TNumericLimits<int32>::Lowest();
+	for (const FRTCellId& Cell : InstanceCells)
+	{
+		MinLayer = FMath::Min(MinLayer, Cell.Layer);
+		MaxLayer = FMath::Max(MaxLayer, Cell.Layer);
+	}
+	const bool bMultiLayer = InstanceCells.Num() > 0 && MaxLayer > MinLayer;
+
+	// Una famiglia: per ogni istanza, il trattamento del piano della sua cella. `bBordo` sceglie l'esposizione del
+	// bordo, che sul piano attivo si marca mentre la cella resta piena.
+	auto Scrivi = [this, bMultiLayer](UInstancedStaticMeshComponent* Famiglia, const TArray<FRTCellId>& CelleDelleIstanze, bool bBordo)
+	{
+		if (Famiglia == nullptr || Famiglia->NumCustomDataFloats < RTLayerPresentation::NumCustomDataFloats
+			|| Famiglia->GetInstanceCount() != CelleDelleIstanze.Num())
+		{
+			return; // senza i canali, o con una mappatura stantia: il velo ha la stessa guardia
+		}
+		const int32 Primo = RTLayerPresentation::FirstChannel;
+		for (int32 I = 0; I < CelleDelleIstanze.Num(); ++I)
+		{
+			const FRTLayerTreatment T = RTLayerPresentation::Treatment(CelleDelleIstanze[I].Layer, PresentedActiveLayer,
+				bMultiLayer, AppliedLayerTuning);
+			Famiglia->SetCustomDataValue(I, Primo + 0, T.Transparency, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, Primo + 1, T.Desaturation, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, Primo + 2, bBordo ? T.BorderExposureStops : T.ExposureStops,
+				/*bMarkRenderStateDirty=*/ false);
+		}
+		// Una volta sola per famiglia, come il velo: marcarlo per canale ricostruirebbe il buffer 3N volte.
+		if (CelleDelleIstanze.Num() > 0)
+		{
+			Famiglia->MarkRenderStateDirty();
+		}
+	};
+
+	Scrivi(Cells, InstanceCells, /*bBordo=*/ false);
+	Scrivi(CellBorders, BorderCells, /*bBordo=*/ true);
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring], /*bBordo=*/ false);
+	}
+}
+
 bool ARTHexMapActor::PassesLayerFilter(int32 Layer) const
 {
 	// Filtro layer (H4): solo AllLayers impila i piani; ActiveOnly e Focus tengono le ISTANZE (e le terne
@@ -2499,6 +2564,13 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		}
 	}
 
+	// #3679: le istanze nuove nascono coi canali del trattamento a zero, cioe' neutre. Se chi guarda aveva gia' un piano
+	// attivo, il trattamento si riscrive nello stesso fotogramma: la board non torna piatta per una ricostruzione.
+	if (bLayerPresentationApplied)
+	{
+		ApplyLayerPresentation();
+	}
+
 	// ➕ **La mappatura cella→istanza si e' mossa** (`#2761`): il guardiano di identita' la riverifica al
 	// prossimo velo. Sta FUORI dal blocco diagnostico qui sopra — quello e' guardato da `WITH_EDITOR`, questo
 	// e' il presidio di un invariante e vale ovunque.
@@ -2819,7 +2891,10 @@ bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId
 
 // Il velo MOLTIPLICA l'RGB lineare invece di aggiungere un quarto float: il quarto float richiederebbe di
 // toccare `M_HexCell.uasset` — un binario, human-first, un lavoro per volta — per un risultato che il
-// ricalcolo ottiene gia'. `NumCustomDataFloats` resta **3**.
+// ricalcolo ottiene gia'.
+// ➕ Da #3679 i float sono sei, ma i canali 0..2 restano del velo e del colore: il trattamento dei piani sta nei
+// canali 3..5 (`SyncActiveLayerPresentation`), e il materiale lo applica DOPO di loro. Le due scritture non si
+// toccano, quindi il velo non sa niente del piano attivo e il trattamento niente del velo.
 
 ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 {
@@ -3405,6 +3480,11 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 		{
 			SurfaceGlyphs[Ring]->MarkRenderStateDirty();
 		}
+	}
+	// #3679: un glifo montato qui nasce col trattamento a zero, cioe' pieno anche su un piano traslucido.
+	if (bLayerPresentationApplied)
+	{
+		ApplyLayerPresentation();
 	}
 	return true;
 }

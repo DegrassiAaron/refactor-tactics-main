@@ -5780,6 +5780,27 @@ sessions:
          primo tentativo cliccava Aevik senza selezione e non scriveva niente nemmeno lui: non era un controllo.
          Avvio dell'Editor: prima il modale «Wait for ZenServer?», poi la build di un'altra sessione che teneva il mutex
          di UBT.
+  - id: U84
+    title: I piani rispetto all'attivo (D-501) — le intensità, su tre piani e sulla piattaforma di #3674
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-CAM-PIANI-ATTIVO` e le intensità scelte dall'autore, da scrivere sui default di
+      `FRTLayerPresentationTuning` e su D-501; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U81, U83]
+    verifies: [PIE-CAM-PIANI-ATTIVO]
+    issues: [3679, 3674]
+    done_when: >-
+      l'autore ha scelto le intensità in PIE e giudicato la voce; #3674 si chiude se la piattaforma si distingue a 120° e 180°
+    notes: |
+      ⏳ **Da convocare con l'autore.** Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture dal
+      worktree `rt-wt-3679` (commit `a32caee15`, sola lettura), con le intensità di default: `LayerStack` coi tre piani attivi,
+      in tattica e in strategica, anche a 60°; `MultiLevel` a 180° e a 120°, coi due piani attivi. Le catture e le misure
+      sono nella cella della voce. In seduta: si provano le leve `rt.Map.Layers.*` in console, si sceglie, e i valori
+      scelti diventano i default nel codice.
 
 not_schedulable:
 

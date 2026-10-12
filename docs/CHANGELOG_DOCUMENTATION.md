@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-12 — I piani si mostrano rispetto a quello attivo: D-501 attuata nella board
+
+**Origine**: [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679), che resta aperta per il verdetto dell'autore sulle intensità.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501`: la tecnica (custom data con dithering), intensità provvisorie |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: gli indicatori sopra/sotto sono superati; ingresso, tecnica, velo, picking, leve |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) · [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `PIE-CAM-PIANI-ATTIVO` nuova, aperta, con le catture della seduta `U84` da convocare con l'autore; `PIE-VIS-LEVEL` rimanda a lei |
+
+---
+
 ## 2026-10-12 — Cure e archi si raccontano nell'ordine canonico del Blast
 
 **Origine**: [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683).
