@@ -1,22 +1,21 @@
 #include "Map/RTLayerPresentation.h"
 #include "HAL/IConsoleManager.h"
+#include "Map/RTHexLibrary.h"
+#include "UI/RTUIPalette.h" // il bianco e il viola dei bordi sono token di §32 (#3704): una sede sola per il valore
 
-// Le leve di #3679: negative = usa il default della PR. Si applicano al fotogramma dopo (`SyncActiveLayerPresentation`).
+// Le leve di #3679: negative = usa il default. Si applicano al fotogramma dopo (`SyncActiveLayerPresentation`).
+// ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'e' piu' da #3704: il bordo dell'attivo e' nero per D-504, non marcato.*
 static TAutoConsoleVariable<float> CVarRTMapLayersUpperOpacity(
 	TEXT("rt.Map.Layers.UpperOpacity"), -1.f,
 	TEXT("Opacita' dei piani sopra quello attivo (0..1). Negativo = default (0,35)."), ECVF_Default);
 
 static TAutoConsoleVariable<float> CVarRTMapLayersLowerDesaturation(
 	TEXT("rt.Map.Layers.LowerDesaturation"), -1.f,
-	TEXT("Saturazione persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,5)."), ECVF_Default);
+	TEXT("Saturazione persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,7)."), ECVF_Default);
 
 static TAutoConsoleVariable<float> CVarRTMapLayersLowerDarkening(
 	TEXT("rt.Map.Layers.LowerDarkening"), -1.f,
-	TEXT("Luce persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,35)."), ECVF_Default);
-
-static TAutoConsoleVariable<float> CVarRTMapLayersActiveBorderStops(
-	TEXT("rt.Map.Layers.ActiveBorderStops"), -1.f,
-	TEXT("Esposizione del bordo delle celle del piano attivo, in stop (+6 = x64). Negativo = default (6)."), ECVF_Default);
+	TEXT("Luce persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,55)."), ECVF_Default);
 
 FRTLayerPresentationTuning FRTLayerPresentationTuning::FromConsole()
 {
@@ -32,29 +31,33 @@ FRTLayerPresentationTuning FRTLayerPresentationTuning::FromConsole()
 	Leva(CVarRTMapLayersUpperOpacity, T.UpperOpacity, 1.f);
 	Leva(CVarRTMapLayersLowerDesaturation, T.LowerDesaturationPerLayer, 1.f);
 	Leva(CVarRTMapLayersLowerDarkening, T.LowerDarkeningPerLayer, 0.99f);
-	Leva(CVarRTMapLayersActiveBorderStops, T.ActiveBorderStops, 10.f);
 	return T;
+}
+
+ERTLayerRelation RTLayerPresentation::Relation(int32 Layer, int32 ActiveLayer, bool bMultiLayer)
+{
+	if (!bMultiLayer || Layer == ActiveLayer)
+	{
+		return ERTLayerRelation::Active;
+	}
+	return Layer > ActiveLayer ? ERTLayerRelation::Above : ERTLayerRelation::Below;
 }
 
 FRTLayerTreatment RTLayerPresentation::Treatment(int32 Layer, int32 ActiveLayer, bool bMultiLayer,
 	const FRTLayerPresentationTuning& Tuning)
 {
 	FRTLayerTreatment T;
-	if (!bMultiLayer)
+	switch (Relation(Layer, ActiveLayer, bMultiLayer))
 	{
-		return T; // una mappa a un piano si vede come prima di #3679
-	}
+	case ERTLayerRelation::Active:
+		break; // l'attivo, e ogni piano di una mappa a un piano, si vedono come prima di #3679
 
-	if (Layer == ActiveLayer)
-	{
-		T.BorderExposureStops = Tuning.ActiveBorderStops;
-	}
-	else if (Layer > ActiveLayer)
-	{
+	case ERTLayerRelation::Above:
 		// Sopra: traslucido, colori invariati. Lo stesso per ogni piano sopra: cio' che serve e' vedere ATTRAVERSO.
 		T.Transparency = 1.f - FMath::Clamp(Tuning.UpperOpacity, 0.f, 1.f);
-	}
-	else
+		break;
+
+	case ERTLayerRelation::Below:
 	{
 		// Sotto: piu' lontano, piu' spento. Cumulato, cosi' il secondo piano sotto non e' mai piu' acceso del primo.
 		const int32 Distanza = ActiveLayer - Layer;
@@ -62,11 +65,19 @@ FRTLayerTreatment RTLayerPresentation::Treatment(int32 Layer, int32 ActiveLayer,
 		const float Luce = FMath::Pow(1.f - FMath::Clamp(Tuning.LowerDarkeningPerLayer, 0.f, 0.99f), static_cast<float>(Distanza));
 		T.Desaturation = 1.f - Saturazione;
 		T.ExposureStops = FMath::Log2(Luce);
+		break;
 	}
-	// Il bordo segue il suo piano, come la cella, tranne sull'attivo dove si marca.
-	if (Layer != ActiveLayer)
-	{
-		T.BorderExposureStops = T.ExposureStops;
 	}
 	return T;
+}
+
+FColor RTLayerPresentation::BorderColorFor(ERTLayerRelation InRelation)
+{
+	switch (InRelation)
+	{
+	case ERTLayerRelation::Above: return URTUIPalette::SRGBFor(ERTUIToken::White);
+	case ERTLayerRelation::Below: return URTUIPalette::SRGBFor(ERTUIToken::Violet);
+	case ERTLayerRelation::Active:
+	default:                      return URTHexLibrary::CellBorderColor();
+	}
 }

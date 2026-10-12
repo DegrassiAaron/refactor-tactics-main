@@ -898,6 +898,16 @@ ARTHexMapActor::ARTHexMapActor()
 	// `M_HexCell` legge i canali 3..5 col default a zero, quindi qui restano pieni.
 	PlanGhosts->NumCustomDataFloats = 3;
 
+	// ➕ **Il contorno dei fantasmi** ([D-504], #3704): il riempimento dice la certezza, il contorno il piano della cella
+	// del fantasma (nero attivo, bianco sopra, viola sotto). E' un componente a se' con la mesh della griglia, perche'
+	// il colore del riempimento e' gia' occupato. Tre float, il colore: nessun trattamento, il contorno resta pieno.
+	PlanGhostBorders = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PlanGhostBorders"));
+	PlanGhostBorders->SetupAttachment(Cells);
+	PlanGhostBorders->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PlanGhostBorders->SetCollisionResponseToAllChannels(ECR_Ignore);
+	PlanGhostBorders->CastShadow = false;
+	PlanGhostBorders->NumCustomDataFloats = 3;
+
 	// I volumi di conoscenza (debug). Stessa disciplina degli altri — nessuna collisione, nessuna ombra — e
 	// nascosto per default: si accende da `rt.Debug.Knowledge`, e una board che lo mostrasse all'avvio
 	// rivelerebbe cio' che la squadra non sa a chiunque apra il livello.
@@ -1344,6 +1354,10 @@ void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
 	// cancellato deve togliere i suoi ghost, e `Preview.Phases.Num() == 0` e' precisamente come arriva.
 	PlanGhosts->ClearInstances();
 	PlanGhostCells.Reset();
+	if (PlanGhostBorders)
+	{
+		PlanGhostBorders->ClearInstances(); // #3704: i contorni seguono i fantasmi, uno a uno
+	}
 
 	if (Preview.Phases.Num() == 0)
 	{
@@ -1359,6 +1373,17 @@ void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
 	if (UMaterialInterface* Mat = CellMaterial.LoadSynchronous())
 	{
 		PlanGhosts->SetMaterial(0, Mat);
+		if (PlanGhostBorders)
+		{
+			PlanGhostBorders->SetMaterial(0, Mat);
+		}
+	}
+	if (PlanGhostBorders)
+	{
+		if (UStaticMesh* Anello = GetCellBorderMesh())
+		{
+			PlanGhostBorders->SetStaticMesh(Anello);
+		}
 	}
 
 	FVector Origin = FVector::ZeroVector;
@@ -1407,10 +1432,23 @@ void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
 		PlanGhosts->SetCustomDataValue(Index, 0, Colore.R);
 		PlanGhosts->SetCustomDataValue(Index, 1, Colore.G);
 		PlanGhosts->SetCustomDataValue(Index, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+
+		// #3704: il contorno, alla stessa posa e alla stessa scala del fantasma, un filo sopra. Il colore lo scrive
+		// `ApplyPlanGhostBorderColors` qui sotto, ed e' la stessa funzione che lo riscrive quando cambia il piano attivo.
+		if (PlanGhostBorders)
+		{
+			// La stessa scala planare del fantasma, come la griglia ha la stessa del disco: l'anello esterno della mesh
+			// del bordo sta a 1,0, quindi cade sul perimetro del prisma (vedi `RebuildInstances`, la griglia).
+			FTransform BordoXf = Xf;
+			BordoXf.SetScale3D(FVector(PlanarScale * 0.7f, PlanarScale * 0.7f, 1.f));
+			BordoXf.AddToTranslation(FVector(0.0, 0.0, RTLiftCellBorder));
+			PlanGhostBorders->AddInstance(BordoXf, /*bWorldSpace=*/ true);
+		}
 	}
 
 	// Una volta sola, in coda: la stessa disciplina di `RebuildInstances` e di `VeilInstances`.
 	PlanGhosts->MarkRenderStateDirty();
+	ApplyPlanGhostBorderColors();
 }
 
 FLinearColor ARTHexMapActor::GhostColorForCertainty(ERTIntentCertainty Certainty)
@@ -1882,10 +1920,10 @@ void ARTHexMapActor::ApplyLayerPresentation()
 		MaxLayer = FMath::Max(MaxLayer, Cell.Layer);
 	}
 	const bool bMultiLayer = InstanceCells.Num() > 0 && MaxLayer > MinLayer;
+	bPresentationMultiLayer = bMultiLayer; // lo leggono il velo e i contorni dei fantasmi, via `BorderBaseColorFor`
 
-	// Una famiglia: per ogni istanza, il trattamento del piano della sua cella. `bBordo` sceglie l'esposizione del
-	// bordo, che sul piano attivo si marca mentre la cella resta piena.
-	auto Scrivi = [this, bMultiLayer](UInstancedStaticMeshComponent* Famiglia, const TArray<FRTCellId>& CelleDelleIstanze, bool bBordo)
+	// Una famiglia: per ogni istanza, il trattamento del piano della sua cella.
+	auto Scrivi = [this, bMultiLayer](UInstancedStaticMeshComponent* Famiglia, const TArray<FRTCellId>& CelleDelleIstanze)
 	{
 		if (Famiglia == nullptr || Famiglia->NumCustomDataFloats < RTLayerPresentation::NumCustomDataFloats
 			|| Famiglia->GetInstanceCount() != CelleDelleIstanze.Num())
@@ -1899,8 +1937,7 @@ void ARTHexMapActor::ApplyLayerPresentation()
 				bMultiLayer, AppliedLayerTuning);
 			Famiglia->SetCustomDataValue(I, Primo + 0, T.Transparency, /*bMarkRenderStateDirty=*/ false);
 			Famiglia->SetCustomDataValue(I, Primo + 1, T.Desaturation, /*bMarkRenderStateDirty=*/ false);
-			Famiglia->SetCustomDataValue(I, Primo + 2, bBordo ? T.BorderExposureStops : T.ExposureStops,
-				/*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, Primo + 2, T.ExposureStops, /*bMarkRenderStateDirty=*/ false);
 		}
 		// Una volta sola per famiglia, come il velo: marcarlo per canale ricostruirebbe il buffer 3N volte.
 		if (CelleDelleIstanze.Num() > 0)
@@ -1909,11 +1946,90 @@ void ARTHexMapActor::ApplyLayerPresentation()
 		}
 	};
 
-	Scrivi(Cells, InstanceCells, /*bBordo=*/ false);
-	Scrivi(CellBorders, BorderCells, /*bBordo=*/ true);
+	Scrivi(Cells, InstanceCells);
 	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
 	{
-		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring], /*bBordo=*/ false);
+		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring]); // i glifi seguono la cella (D-504)
+	}
+
+	// 🔑 **I bordi dicono il piano col COLORE, e non ricevono il trattamento** ([D-504], #3704). I canali 3..5 restano a
+	// zero: un bordo sopra e' opaco, cioe' un contorno bianco netto attorno a un riempimento traslucido, e un bordo sotto
+	// tiene il suo viola invece di diventare grigio.
+	//
+	// ⚠️ **Il colore si riscrive col fattore del velo CORRENTE**, letto dagli array che il velo stesso mantiene: un bordo
+	// ricordato resta attenuato, e uno che sta sfumando prosegue dal punto in cui e' (`AdvanceVeilFamily` lo porta avanti
+	// con lo stesso `BorderBaseColorFor`). Un bordo mai visto non si tocca: e' a scala zero, e il velo lo riscrive quando
+	// lo rivela.
+	if (CellBorders && CellBorders->NumCustomDataFloats >= RTLayerPresentation::NumCustomDataFloats
+		&& CellBorders->GetInstanceCount() == BorderCells.Num())
+	{
+		const bool bVelata = LastBorderVeilState.Num() == BorderCells.Num();
+		for (int32 I = 0; I < BorderCells.Num(); ++I)
+		{
+			float Fattore = 1.f; // board mai velata: editor, prove senza percezione
+			if (bVelata)
+			{
+				const uint8 Stato = LastBorderVeilState[I];
+				if (Stato == RTVeilHidden)
+				{
+					continue;
+				}
+				if (Stato == RTVeilLit || Stato == RTVeilRemembered)
+				{
+					const float Target = (Stato == RTVeilLit) ? 1.f : RTVeilExploredFactor;
+					Fattore = (BorderDisplayFactor.IsValidIndex(I) && BorderDisplayFactor[I] >= 0.f) ? BorderDisplayFactor[I] : Target;
+				}
+			}
+			const FLinearColor Colore = BorderBaseColorFor(BorderCells[I]) * Fattore;
+			CellBorders->SetCustomDataValue(I, 0, Colore.R, /*bMarkRenderStateDirty=*/ false);
+			CellBorders->SetCustomDataValue(I, 1, Colore.G, /*bMarkRenderStateDirty=*/ false);
+			CellBorders->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+			for (int32 C = RTLayerPresentation::FirstChannel; C < RTLayerPresentation::NumCustomDataFloats; ++C)
+			{
+				CellBorders->SetCustomDataValue(I, C, 0.f, /*bMarkRenderStateDirty=*/ false);
+			}
+		}
+		if (BorderCells.Num() > 0)
+		{
+			CellBorders->MarkRenderStateDirty();
+		}
+	}
+
+	ApplyPlanGhostBorderColors();
+}
+
+FLinearColor ARTHexMapActor::BorderBaseColorFor(const FRTCellId& Cell) const
+{
+	// Prima che chi guarda dica il suo piano, e su una mappa a un piano, il bordo e' quello di sempre.
+	const ERTLayerRelation Relazione = bLayerPresentationApplied
+		? RTLayerPresentation::Relation(Cell.Layer, PresentedActiveLayer, bPresentationMultiLayer)
+		: ERTLayerRelation::Active;
+	return FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(Relazione));
+}
+
+void ARTHexMapActor::ApplyPlanGhostBorderColors()
+{
+	if (!PlanGhostBorders)
+	{
+		return;
+	}
+	// Su una mappa a un piano, e prima che chi guarda dica il suo piano, i fantasmi si vedono come prima di #3704: senza
+	// contorno. Il contorno serve a dire il piano, e su un piano solo non c'e' niente da dire.
+	PlanGhostBorders->SetVisibility(bLayerPresentationApplied && bPresentationMultiLayer);
+	if (PlanGhostBorders->GetInstanceCount() != PlanGhostCells.Num())
+	{
+		return;
+	}
+	for (int32 I = 0; I < PlanGhostCells.Num(); ++I)
+	{
+		const FLinearColor Colore = BorderBaseColorFor(PlanGhostCells[I]);
+		PlanGhostBorders->SetCustomDataValue(I, 0, Colore.R, /*bMarkRenderStateDirty=*/ false);
+		PlanGhostBorders->SetCustomDataValue(I, 1, Colore.G, /*bMarkRenderStateDirty=*/ false);
+		PlanGhostBorders->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+	}
+	if (PlanGhostCells.Num() > 0)
+	{
+		PlanGhostBorders->MarkRenderStateDirty();
 	}
 }
 
@@ -3703,10 +3819,11 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// La griglia segue il disco con lo STESSO fattore, e porta custom data apposta per poterlo fare: se il
 	// bordo restasse a piena luminosita' sul ricordo, una cella NON osservata avrebbe il confine piu' marcato
 	// di una osservata — lo stesso rovesciamento che la corona dei glifi aveva nella prima stesura della spec.
-	const FLinearColor BorderBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+	// ➕ #3704: il colore di base del bordo dipende dal piano della cella rispetto all'attivo (D-504), quindi si chiede per
+	// cella. Su una mappa a un piano, e prima che chi guarda dica il suo piano, e' il grigio scuro di sempre.
 	VeilInstances(CellBorders, BorderCells, BorderBaseScale, LastBorderVeilState, &BorderDisplayFactor,
 		Visible, Explored,
-		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; });
+		[this](const FRTCellId& Cell, FLinearColor& Out) { Out = BorderBaseColorFor(Cell); return true; });
 
 	// ⛔ `nullptr` invece di un array di fattori: queste tre famiglie non hanno un canale colore per istanza,
 	// quindi non c'e' niente da attenuare — il velo le nasconde e basta, e la scala non si interpola.
@@ -3787,10 +3904,9 @@ void ARTHexMapActor::AdvanceVeilTransition(float DeltaSeconds)
 			[&GlyphBase](const FRTCellId&, FLinearColor& Out) { Out = GlyphBase; return true; });
 	}
 
-	const FLinearColor BorderBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
 	InMovimento += AdvanceVeilFamily(CellBorders, BorderCells, LastBorderVeilState, BorderDisplayFactor,
 		DeltaSeconds,
-		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; });
+		[this](const FRTCellId& Cell, FLinearColor& Out) { Out = BorderBaseColorFor(Cell); return true; }); // #3704
 
 	VeilCellsInTransition = InMovimento;
 }
