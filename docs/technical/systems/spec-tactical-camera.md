@@ -339,8 +339,14 @@ continua a esistere anche lì — non è la vista a definirlo.
 > gli altri piani non si segnalano, si **mostrano**, trattati rispetto a quello attivo.*
 >
 > 🎨 **I piani rispetto a quello attivo** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679)), in tattica e in strategica. I piani sopra sono traslucidi.
-> I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni e il bordo delle
-> celle marcato. Le unità e i fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
+> I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni. Le unità e i
+> fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
+>
+> 🎨 **E il piano si legge dal bordo** ([D-504](../../decisions/RT_PDR_00_Decision_Log.md), [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704)): nero sull'attivo, bianco sopra, viola sotto,
+> lo stesso colore a ogni distanza. I bordi delle celle restano **opachi su ogni piano** e non ricevono il
+> trattamento: un piano sopra è un riempimento traslucido con un contorno bianco netto. I fantasmi del piano hanno un
+> contorno del colore del piano, e il riempimento resta la certezza. Su una mappa a un piano i bordi sono quelli di
+> sempre, e i fantasmi non hanno contorno. Unità e volumi seguiranno con [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705) e [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706).
 > - 🔑 **L'ingresso è il piano del controller.** `ARTPlayerController` lo manda alla board con
 >   `ARTHexMapActor::SyncActiveLayerPresentation`, in `SetActiveLayer` e a ogni fotogramma; la board riscrive solo se
 >   il piano, o una leva, è cambiato. ⛔ `ARTHexMapActor::ActiveLayer` resta dell'editor mode.
@@ -354,9 +360,10 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   scarta come ogni colpo fuori dal piano attivo (D-255).
 > - ⚠️ **Le famiglie senza dati per istanza non ricevono il trattamento**: `Relief`, `Blockers`, `StructuralBodies`,
 >   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
-> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,5 per piano),
->   `rt.Map.Layers.LowerDarkening` (0,35 per piano) e `rt.Map.Layers.ActiveBorderStops` (+6). Negativo vuol dire il
->   default. ⚠️ **I default sono provvisori**: li ha scelti la PR, di notte, e l'autore li sceglie in PIE.
+> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,7 per piano) e
+>   `rt.Map.Layers.LowerDarkening` (0,55 per piano). Negativo vuol dire il default. I due valori «sotto» li ha scelti
+>   l'autore nella seduta `U84`; ⚠️ **l'opacità «sopra» è ancora provvisoria**, e si rigiudica coi bordi bianchi.
+>   ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'è più da #3704: il bordo dell'attivo è nero.*
 
 ---
 

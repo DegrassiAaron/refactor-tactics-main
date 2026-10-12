@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-12 — Il piano si legge dal bordo: D-504
+
+**Origine**: [#3704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3704), dalla seduta `U84` e dal brainstorm che ne è seguito.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | il brief: la regola, a che cosa si applica, che cosa è scartato |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-504` nuova; `D-501` annotata, il bordo «marcato» diventa la regola dei colori |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la regola dei bordi e le leve, coi valori «sotto» scelti |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-PIANI-ATTIVO` prende i criteri della regola |
+
+---
+
 ## 2026-10-12 — Un muro si colpisce solo nel Blast: la guardia di D-502
 
 **Origine**: [#3701](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3701), l'avviso della nota di attuazione di D-502.
