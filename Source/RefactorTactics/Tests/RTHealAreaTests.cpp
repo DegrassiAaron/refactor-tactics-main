@@ -560,6 +560,10 @@ bool FRTHealEmitsItsMomentTest::RunTest(const FString&)
 		TestEqual(TEXT("quanto, davvero"), M->Amount, Lontana->Health - PrimaL);
 		TestEqual(TEXT("con quale azione"), M->ActionId, FName(TEXT("Action.Heal")));
 		TestTrue(TEXT("nel Blast"), M->Phase == ERTMatchPhase::Blast);
+		// Il verdetto del FATTO: la squadra del curato lo conosce, una squadra senza unita' no. ⛔ Un `Everyone()`
+		// passerebbe il primo asserto e cadrebbe sul secondo; un `NoOne()` il contrario.
+		TestTrue(TEXT("🔴 la squadra del curato vede la cura"), M->SourceVerdict.AllowsTeam(Lontana->TeamId));
+		TestFalse(TEXT("una squadra che non conosce il curato no"), M->SourceVerdict.AllowsTeam(5));
 	}
 	if (const FRTResolvedEvent* M = MomentoDi(A1); TestNotNull(TEXT("A1, nell'area"), M))
 	{

@@ -2280,6 +2280,15 @@ bool FRTPlaybackHealedJoinsItsActTest::RunTest(const FString&)
 	TestTrue(TEXT("🔴 una sola cura apre il Blast"),
 		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, /*NumActivations*/ 0, /*NumHeals*/ 1));
 	TestFalse(TEXT("e senza nulla resta chiuso"), URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0, 0));
+
+	// 🔴 **Il caso che la prima stesura perdeva** (review di #3600): gesto nascosto E curato che chi guarda non
+	// conosce. Nessun elemento: senza il filtro la cura occupava uno slot e apriva il Blast, cioe' il ritmo diceva
+	// che una cura nemica era avvenuta. ✅ Validato per mutazione: senza `IsHealedHiddenFrom` questa riga cade.
+	TArray<FRTResolvedEvent> TuttoNascosto;
+	TuttoNascosto.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal"), /*bNascosto*/ true));
+	TuttoNascosto.Add(SeqEvento(ERTResolvedEventType::Healed,           1, TEXT("Action.Heal"), /*bNascosto*/ true));
+	TestEqual(TEXT("🔴 una cura che chi guarda non conosce non entra, e non lascia buchi nel ritmo"),
+		URTPlaybackLibrary::BuildBlastSequence(TuttoNascosto, {}, 0, /*Viewer*/ 0).Num(), 0);
 	return true;
 }
 

@@ -143,6 +143,11 @@ bool URTPlaybackLibrary::IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, in
 	return Ev.Type == ERTResolvedEventType::StructureHit && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
 }
 
+bool URTPlaybackLibrary::IsHealedHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return Ev.Type == ERTResolvedEventType::Healed && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+}
+
 bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
 {
 	// #3578 (spec «il profilo FX» §2.2, R12, R13): il VOLO — quindi il ritmo — e' la sola forma di DEFAULT di un'azione
@@ -903,7 +908,8 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		// fila da cui e' arrivato il colpo. Come le altre due: fuori dalla sequenza, la chiave resta al gruppo.
 		const bool bNascosta = (bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
 			|| IsFootprintHiddenFrom(Ev, ViewerTeamId)
-			|| IsStructureHitHiddenFrom(Ev, ViewerTeamId);
+			|| IsStructureHitHiddenFrom(Ev, ViewerTeamId)
+			|| IsHealedHiddenFrom(Ev, ViewerTeamId); // [D-505]: la cura di un curato che chi guarda non conosce
 
 		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
 		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima

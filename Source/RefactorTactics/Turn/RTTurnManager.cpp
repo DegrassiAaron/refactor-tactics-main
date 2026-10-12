@@ -2485,6 +2485,11 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		Curata.SourceStableUnitId = (Healers.IsValidIndex(h) && Healers[h]) ? Healers[h]->StableUnitId : 0;
 		Curata.TargetStableUnitId = HealTarget->StableUnitId;
 		Curata.Amount = Restored;
+		// 🔴 **CHI PUO' VEDERE IL FATTO, congelato qui** ([D-223]): le squadre che conoscono il CURATO, perche' il
+		// segno sta su di lui. Come lo `StructureHit` (D-502), `SourceVerdict` porta il verdetto del FATTO, non della
+		// sorgente. Senza, una cura nemica su un nemico non visto restava nella sequenza di chi guarda: il token era
+		// velato, ma lo slot di tempo apriva o allungava il Blast — il buco nel ritmo che la spec del momento vieta.
+		Curata.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(HealTarget));
 		if (Defs.IsValidIndex(h))
 		{
 			Curata.ActionId = Defs[h].ActionId;

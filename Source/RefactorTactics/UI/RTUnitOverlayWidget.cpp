@@ -252,9 +252,9 @@ void URTUnitOverlayWidget::PushDamageToken(const FRTDamageTokenView& Token)
 	{
 		PulseHealthBar();
 	}
-	// ⚠️ Nessun `else` che spenga l'enfasi: con `bHasDamage == false` non e' cambiato niente sulla vita, e
-	// un'enfasi direbbe il contrario di cio' che e' successo. Il token compare lo stesso — il colpo e'
-	// avvenuto — ma la barra tace, perche' la barra non ha nulla da raccontare.
+	// ⚠️ Nessun `else` che spenga l'enfasi: con `bPulsesHealthBar == false` non e' cambiato niente sulla vita
+	// (un colpo a zero, una cura a salute piena), e un'enfasi direbbe il contrario di cio' che e' successo. Il
+	// token compare lo stesso — il fatto e' avvenuto — ma la barra tace, perche' non ha nulla da raccontare.
 }
 
 void URTUnitOverlayWidget::PulseHealthBar()

@@ -189,6 +189,10 @@ enum class ERTResolvedEventType : uint8
 	 * (`BuildBlastSequence` raggruppa per sorgente e azione), subito dopo il gesto. Una cura su un caduto o
 	 * senza effetto non la produce: non ha curato nessuno.
 	 *
+	 * 🔑 **`SourceVerdict` qui e' il verdetto del FATTO**, come per `StructureHit`: le squadre che conoscono il
+	 * curato, congelato all'emissione ([D-223]). Chi non lo conosce non riceve l'elemento nella sequenza
+	 * (`URTPlaybackLibrary::IsHealedHiddenFrom`), cosi' una cura nascosta non lascia un buco nel ritmo.
+	 *
 	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
 	 */
 	Healed

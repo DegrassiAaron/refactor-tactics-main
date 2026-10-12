@@ -217,7 +217,8 @@ public:
 	 * non avrebbero una fase in cui accadere.
 	 *
 	 * 🔴 **E `NumHeals` e' il sesto** ([D-505], `#3600`): una cura il cui gesto chi guarda non ha il diritto di
-	 * vedere (chi cura non e' visto) resta nella sequenza col suo `Healed`, se il curato si vede. Senza questo
+	 * vedere (chi cura non e' visto) resta nella sequenza col suo `Healed` se chi guarda conosce il curato
+	 * (`IsHealedHiddenFrom`). Senza questo
 	 * termine quel Blast non avrebbe una fase, e il «+N» sparirebbe. Ha un default, `0`, perche' i chiamanti
 	 * che non conoscono le cure non cambino.
 	 *
@@ -566,6 +567,14 @@ public:
 	 * Falso per ogni evento che non sia `StructureHit`.
 	 */
 	static bool IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
+	 * Vero se e' una CURA ([D-505], `#3600`) il cui curato chi guarda non conosceva: il suo verdetto, congelato
+	 * all'emissione, non lo ammette. ⛔ Non basta il velo sull'overlay: quello nasconde il «+N», non lo SLOT di
+	 * tempo che l'elemento occupa nella sequenza, e una cura nemica su un nemico non visto aprirebbe o
+	 * allungherebbe il Blast — il buco nel ritmo che la spec del momento vieta.
+	 */
+	static bool IsHealedHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
 
 	/**
 	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
