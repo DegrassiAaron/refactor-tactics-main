@@ -362,13 +362,18 @@ Nessuna di queste blocca un gate. Tutte rendono la prossima rilettura più lunga
 `BLOCKED — DECISION REQUIRED`. Ognuna è binaria o quasi, l'istruttoria è sopra, e **nessuna si
 deduce dai documenti**: il repository dice cosa è vero, non cosa deve bastare.
 
+✅ **Tutte e cinque prese il 2026-10-09**, nel brainstorm d'autore che ha seguito questo referto: [`D-483`](../../decisions/RT_PDR_00_Decision_Log.md)–[`D-487`](../../decisions/RT_PDR_00_Decision_Log.md).
+Esiti: `D1` (b) · `D2` (c), coi dieci casi decisi uno per uno — sette entrano, `#2297` differita, `#2554` e `#3063` sola
+verifica · `D3` **sì, prima del freeze**, con `#3229` nella stessa onda · `D4` (a) · `D5` (a). La colonna «Opzioni» resta
+come istruttoria; la colonna «Raccomandazione» è storia.
+
 | ID | Domanda | Opzioni e conseguenze | Raccomandazione del panel |
 |---|---|---|---|
-| **D1** | Su quale SHA si ricongela il candidate? | **(a)** restare su `95eddfd37`: `G16` resta rosso al passo 5 per `#3463` (§1.2), e i verdetti PIE di ottobre sono su un'altra build. **(b)** ricongelare su `main` **dopo** l'Onda C e dopo `D2`/`D3`: si rifanno `G1` `G2` `G12` (una giornata di macchina), `G3`–`G8` `G11` (una run), `G10` `G13` `G16` (tre sedute). | **(b)**. (a) non è un'opzione: un candidate su cui un gate è rosso per costruzione non si attesta |
-| **D2** | Le `P1` non-gate di §2.3 entrano prima del freeze o sono differite? | **(a)** entrano: la data del freeze slitta di quanto costano, e vanno in Onda C. **(b)** differite con un `D-nnn` e la milestone aggiornata, come `D-441` per `U5`. **(c)** caso per caso, ma **scritto**. | **(c)**, con `#2793` esaminata per prima: è un bug di conoscenza, non una feature |
-| **D3** | `D-415` (`#3135`, PR `#3230`) è nella v0.1? | **(a)** sì: merge prima del freeze, golden e corpus ricalcolati, `#3229` nella stessa onda. **(b)** no: `#3135` passa a milestone `v0.2`, la PR resta in bozza o si chiude con un rimando. | nessuna: è una regola di gioco, e il panel non la possiede. Ma **va presa prima del freeze** |
-| **D4** | `#1936` (Turn Log proiettato, passo 4 di `G16`) è nella v0.1? | **(a)** sì: Onda C intera prima del freeze. **(b)** no: la cella `G16` si riscrive a quattro passi con un `D-nnn`, e il giro misura quattro superfici. | **(a)**, perché la milestone lo elenca fra i target (*«Turn Log / player-facing explainability»*) e il gate esiste per misurarlo insieme agli altri |
-| **D5** | Quale vista di esecuzione governa (§2.7)? | **(a)** la sequenza di chiusura, con le altre tre declassate. **(b)** nessuna: si tengono tutte `CURRENT`. | **(a)**; costa una riga nel `README.md` dei piani e un banner |
+| **D1** ✅ [`D-483`](../../decisions/RT_PDR_00_Decision_Log.md) | Su quale SHA si ricongela il candidate? | **(a)** restare su `95eddfd37`: `G16` resta rosso al passo 5 per `#3463` (§1.2), e i verdetti PIE di ottobre sono su un'altra build. **(b)** ricongelare su `main` **dopo** l'Onda C e dopo `D2`/`D3`: si rifanno `G1` `G2` `G12` (una giornata di macchina), `G3`–`G8` `G11` (una run), `G10` `G13` `G16` (tre sedute). | **(b)**. (a) non è un'opzione: un candidate su cui un gate è rosso per costruzione non si attesta |
+| **D2** ✅ [`D-484`](../../decisions/RT_PDR_00_Decision_Log.md) | Le `P1` non-gate di §2.3 entrano prima del freeze o sono differite? | **(a)** entrano: la data del freeze slitta di quanto costano, e vanno in Onda C. **(b)** differite con un `D-nnn` e la milestone aggiornata, come `D-441` per `U5`. **(c)** caso per caso, ma **scritto**. | **(c)**, con `#2793` esaminata per prima: è un bug di conoscenza, non una feature |
+| **D3** ✅ [`D-485`](../../decisions/RT_PDR_00_Decision_Log.md) | `D-415` (`#3135`, PR `#3230`) è nella v0.1? | **(a)** sì: merge prima del freeze, golden e corpus ricalcolati, `#3229` nella stessa onda. **(b)** no: `#3135` passa a milestone `v0.2`, la PR resta in bozza o si chiude con un rimando. | nessuna: è una regola di gioco, e il panel non la possiede. Ma **va presa prima del freeze** |
+| **D4** ✅ [`D-486`](../../decisions/RT_PDR_00_Decision_Log.md) | `#1936` (Turn Log proiettato, passo 4 di `G16`) è nella v0.1? | **(a)** sì: Onda C intera prima del freeze. **(b)** no: la cella `G16` si riscrive a quattro passi con un `D-nnn`, e il giro misura quattro superfici. | **(a)**, perché la milestone lo elenca fra i target (*«Turn Log / player-facing explainability»*) e il gate esiste per misurarlo insieme agli altri |
+| **D5** ✅ [`D-487`](../../decisions/RT_PDR_00_Decision_Log.md) | Quale vista di esecuzione governa (§2.7)? | **(a)** la sequenza di chiusura, con le altre tre declassate. **(b)** nessuna: si tengono tutte `CURRENT`. | **(a)**; costa una riga nel `README.md` dei piani e un banner |
 
 ---
 
@@ -406,7 +411,7 @@ Onda 5  riporto PIA su G-n, #2621 come sezione del bundle, #85 attesta
 ### Onda 1 — le PR ferme
 
 `#3203` per prima (l'unica in conflitto, isolato sul Decision Log); `#3205` riletta contro `D-425` come la
-sequenza chiedeva; `#3230` secondo `D3`. Esito ammesso per ciascuna: `MERGED`, `CLOSED`, o **differita con
+sequenza chiedeva; `#3230` **si fonde** (`D-485`), e `#3229` la segue nella stessa onda. Esito ammesso per ciascuna: `MERGED`, `CLOSED`, o **differita con
 numero di decisione**. Nessuna resta `OPEN` al freeze.
 
 ### Onda 2 — il codice, prima del freeze
@@ -417,7 +422,8 @@ numero di decisione**. Nessuna resta `OPEN` al freeze.
    `righe dopo filtro=5` del giro meccanico;
 3. `#2764` — i cinque compositori senza consumatore, col sesto come precedente;
 4. `#1936` — il tetto, se `D4` = (a);
-5. le `P1` che `D2` fa entrare, `#2793` per prima.
+5. le `P1` che `D-484` fa entrare — `#2793` per prima, con `BLIND-2` e `OBS-1` da decidere prima del freeze; poi
+   `#2951`, `#2988`, `#2989`, `#2826`, `#2744`, `#2748`. `#2297` → `v0.2`; `#2554` e `#3063` nell'onda 4.
 
 🔑 **L'ultimo merge di quest'onda è il candidate v2.** Non si congela prima: ogni commit qui
 invalida ciò che l'Onda 3 misura.
