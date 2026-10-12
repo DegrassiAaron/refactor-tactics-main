@@ -53,6 +53,28 @@ struct FRTMatchBootstrapConfig
 	TArray<FName> Team0Heroes;
 	TArray<FName> Team1Heroes;
 
+	/**
+	 * Chi ha deciso ciascuna formazione (`#2748`): `Team0Heroes di BP_GameMode`, `-RTTeam0=`, `rt.Match.Team0`.
+	 * Lo portano i due errori sulla formazione, cosi' chi legge sa DOVE correggere. Vuota = non dichiarata
+	 * (un chiamante che costruisce la configurazione a mano): l'errore nomina allora la sola proprieta'.
+	 */
+	FString Team0HeroesSourceLabel;
+	FString Team1HeroesSourceLabel;
+
+	/**
+	 * La formazione di QUESTA squadra e' stata chiesta fuori dalla proprieta' — da riga di comando o da
+	 * console (`#2748`). Serve a un solo ramo: su un livello che porta gia' le proprie unita' l'allestimento
+	 * automatico non interviene, e il roster chiesto non verrebbe usato senza che nessuno lo dica.
+	 *
+	 * ⚠️ **«Chiesta», non «diversa dalla proprieta'»**, e la differenza l'ha trovata la seconda review. Una
+	 * sorgente che ripete il valore della proprieta' ha parlato lo stesso — il resolver in quel caso non
+	 * annuncia uno scavalcamento, ma su un livello gia' popolato non viene onorata nemmeno lei: in campo
+	 * restano le unita' del livello, che con la proprieta' non hanno un legame. Una per squadra, perche'
+	 * l'avviso nomina solo chi ha chiesto: nominare l'altra direbbe che qualcuno l'ha chiesta.
+	 */
+	bool bTeam0RosterRequested = false;
+	bool bTeam1RosterRequested = false;
+
 	/** Classe visiva per `HeroId`. Un eroe assente ricade su `ARTUnit` — il cilindro segnaposto. */
 	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
 

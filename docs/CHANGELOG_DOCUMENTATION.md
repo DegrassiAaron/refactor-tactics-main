@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-12 — #2748: il roster si sceglie fuori dall'Editor
+
+**Origine**: [#2748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2748), nella forma decisa da `D-507`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-507` (5): la mappa dedicata e la velocità iniziale, che erano non decise, lo sono; e la terza scelta d'autore, presa sulla review — un eroe ripetuto ferma l'allestimento |
+| [`technical/tooling/spec-manifesto-showcase.md`](technical/tooling/spec-manifesto-showcase.md) | §2: la riga dei roster e l'ingresso iniziale della velocità; §3 e §8: tre voci non sono più «da fare» |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-V01-VIEWER-ROSTER`; note in coda a `PIE-V01-MORTAR` e `PIE-V01-SHIELD-WRAITH`: la formazione si imposta da console |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U23` verifica anche la voce nuova |
+| [`roadmap/v0.1-issue-plan.md`](roadmap/v0.1-issue-plan.md), [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | `Heroes.DuplicateHeroEntersOnlyOnce` è ora `Heroes.RepeatedHeroAbortsSetup`: la regola che fissava è cambiata |
+
+---
+
 ## 2026-10-12 — I piani sopra si schiariscono di 3 stop: la piattaforma di `MultiLevel` si distingue
 
 **Origine**: [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674), seduta `U84`: i due giudizi dell'autore dal worktree `rt-wt-3674`, sui commit `89116b15f` e `a99ef1c2d`.

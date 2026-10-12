@@ -156,7 +156,32 @@ enum class ERTStartupOutcome : uint8
 	 * consumatore e' `ARTGameMode`, non `ARTFrontendGameMode`: sono due mondi diversi, e per un intero
 	 * checkpoint questo lato del confine non aveva nessuno.
 	 */
-	FrontendReturnNotConsumed
+	FrontendReturnNotConsumed,
+
+	/**
+	 * La formazione di una squadra non ha tante voci quante il formato ne schiera (`#2748`): l'allestimento
+	 * si ferma.
+	 *
+	 * ⚠️ **Il rifiuto esisteva gia', ed era MUTO**: un `Error` nel log e un `return`, senza nota nel rapporto.
+	 * Finche' la formazione viveva solo in un `.uasset` lo si incontrava in sviluppo; da quando ha la riga di
+	 * comando lo si puo' scrivere su un pacchetto, dove quel log non lo legge nessuno — campo vuoto e nessun
+	 * modale. Trovato dalla review di `#2748`.
+	 *
+	 * In coda all'enum come ogni esito nuovo: e' `BlueprintType`, e cio' che un asset serializza e' l'indice.
+	 */
+	RosterCountMismatch,
+
+	/**
+	 * Lo stesso eroe compare due volte nelle formazioni, nella stessa squadra o fra le due (`#2748`,
+	 * decisione d'autore del 2026-10-12): l'allestimento si ferma.
+	 *
+	 * 🔴 **Prima la copia veniva saltata con un `Warning`, e la partita partiva con un'unita' in meno** — una
+	 * partita che sembra normale e non e' quella dichiarata. Con la proprieta' come sola sorgente serviva
+	 * scrivere due volte lo stesso nome in un `.uasset`; con la console basta un refuso. E' la stessa regola
+	 * di `RosterHeroMissing` (`#1069`): una formazione che nessuno puo' onorare non e' una partita piu'
+	 * piccola.
+	 */
+	RosterHeroRepeated
 };
 
 /**

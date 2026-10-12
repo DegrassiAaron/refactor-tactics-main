@@ -21,6 +21,9 @@ bool URTStartupReportLibrary::IsFatal(ERTStartupOutcome Outcome)
 	// c'e' dove tornare, e senza consumatore il ritorno non avviene. Nessuno dei due ha un ripiego.
 	case ERTStartupOutcome::FrontendLevelUnset:
 	case ERTStartupOutcome::FrontendReturnNotConsumed:
+	// I due di `#2748`: la formazione non e' onorabile — conteggio sbagliato, o un eroe due volte.
+	case ERTStartupOutcome::RosterCountMismatch:
+	case ERTStartupOutcome::RosterHeroRepeated:
 		return true;
 
 	case ERTStartupOutcome::Ok:
@@ -115,6 +118,13 @@ FText URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome Outcome)
 	case ERTStartupOutcome::FrontendReturnNotConsumed:
 		return LOCTEXT("FrontendReturnNotConsumed",
 			"Il ritorno al menu precedente non e' stato raccolto: lo smontaggio non e' collegato.");
+
+	case ERTStartupOutcome::RosterCountMismatch:
+		return LOCTEXT("RosterCountMismatch",
+			"La formazione non ha tante voci quante il formato ne schiera: partita non allestita.");
+	case ERTStartupOutcome::RosterHeroRepeated:
+		return LOCTEXT("RosterHeroRepeated",
+			"Lo stesso eroe compare due volte nella formazione: partita non allestita.");
 	}
 
 	return FText::GetEmpty();

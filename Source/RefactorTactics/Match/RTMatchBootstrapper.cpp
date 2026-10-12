@@ -480,6 +480,26 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 					 "L'allestimento automatico non interviene, la modalita' si'."),
 				Switched, Existing.Num());
 		}
+
+		// `#2748`, dalla review: una sorgente fuori dalla proprieta' ha chiesto un roster, e qui la formazione
+		// non viene letta. Senza questa riga la richiesta cadrebbe in silenzio — e quando il valore differisce
+		// dalla proprieta' il resolver ha persino annunciato «SCAVALCA». Si nominano solo le squadre CHIESTE.
+		TArray<FString> Chiesti;
+		if (Config.bTeam0RosterRequested)
+		{
+			Chiesti.Add(FString::Printf(TEXT("squadra 0 da %s"), *Config.Team0HeroesSourceLabel));
+		}
+		if (Config.bTeam1RosterRequested)
+		{
+			Chiesti.Add(FString::Printf(TEXT("squadra 1 da %s"), *Config.Team1HeroesSourceLabel));
+		}
+		if (Chiesti.Num() > 0)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] Il livello porta gia' le proprie unita': roster chiesto e NON usato (%s). "
+					 "L'allestimento automatico non interviene."),
+				*FString::Join(Chiesti, TEXT("; ")));
+		}
 		return Outcome;
 	}
 
@@ -518,9 +538,19 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 
 	// Un eroe non puo' stare in due posti: la stessa istanza spawnata due volte condividerebbe le azioni
 	// (`Abilities` e' un array di puntatori), e due unita' finirebbero per ricaricare la stessa abilita'.
+	// ➕ `#2748`: la regola si applica PRIMA dello spawn, sulle formazioni risolte, e ferma l'allestimento.
+	// Qui `Spawned` resta solo per contare chi e' entrato in campo.
 	TSet<FName> Spawned;
 	int32 CellIndex = 0;
 	const TArray<const TArray<FName>*> Formations = { &Config.Team0Heroes, &Config.Team1Heroes };
+
+	// `#2748`: da dove viene ciascuna formazione. Da quando il roster ha tre sorgenti, «correggi
+	// Team0Heroes» manderebbe ad aprire un Blueprint chi ha scritto male una riga di comando.
+	auto SourceOf = [&Config](int32 TeamId) -> FString
+	{
+		const FString& Label = (TeamId == 0) ? Config.Team0HeroesSourceLabel : Config.Team1HeroesSourceLabel;
+		return Label.IsEmpty() ? FString::Printf(TEXT("Team%dHeroes"), TeamId) : Label;
+	};
 
 	// La formazione deve dichiarare tanti eroi quanti il formato ne schiera (CP 19.2). Senza questo controllo
 	// il formato direbbe 4 e il campo ne vedrebbe 2: la partita girerebbe, e il numero dichiarato sarebbe un
@@ -531,9 +561,15 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 		{
 			UE_LOG(LogRT, Error,
 				TEXT("[RT] Il formato '%s' schiera %d unita' per squadra, ma la formazione della squadra %d ne "
-					 "dichiara %d. Partita non allestita: allinea Team%dHeroes al formato, o il formato alla "
-					 "formazione."),
-				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(), TeamId);
+					 "dichiara %d. Partita non allestita: la formazione viene da %s — allineala al formato, o il "
+					 "formato alla formazione."),
+				*Rules.FormatId.ToString(), Rules.UnitsPerTeam, TeamId, Formations[TeamId]->Num(),
+				*SourceOf(TeamId));
+			// `#2748`, dalla review: il rifiuto era MUTO per chi non legge il log — nessuna nota, quindi nessun
+			// modale. Su un pacchetto la riga di comando lo rende raggiungibile.
+			Report.Add(ERTStartupOutcome::RosterCountMismatch,
+				FString::Printf(TEXT("squadra %d: %d voci, il formato ne schiera %d (da %s)"), TeamId,
+					Formations[TeamId]->Num(), Rules.UnitsPerTeam, *SourceOf(TeamId)));
 			return Outcome;
 		}
 	}
@@ -544,6 +580,12 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 	// E' lo stesso dato che il controllo del conteggio qui sopra protegge dall'altro lato, e riceve lo
 	// stesso trattamento: `Error` e nessuna unita' spawnata.
 	TArray<TArray<const URTHeroData*>> Lineups;
+
+	// `#2748`, decisione d'autore del 2026-10-12: un eroe RIPETUTO ferma l'allestimento, come uno
+	// sconosciuto. Prima la copia veniva saltata nel ciclo di spawn con un `Warning` e la partita partiva
+	// con un'unita' in meno. Si guarda sull'`HeroId` del CATALOGO, non su quello scritto: e' il dato risolto
+	// quello che non puo' stare in due posti. L'insieme attraversa le DUE squadre.
+	TSet<FName> Dichiarati;
 	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
 	{
 		TArray<const URTHeroData*>& Lineup = Lineups.AddDefaulted_GetRef();
@@ -552,13 +594,29 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 			const URTHeroData* Hero = FindHero(HeroId);
 			if (Hero == nullptr)
 			{
+				// Una voce VUOTA (`#2748`: una virgola di troppo in una lista) si nomina per cio' che e':
+				// «'None' non e' nel catalogo» manderebbe a cercare un eroe che si chiama None.
+				const FString Voce = HeroId.IsNone() ? FString(TEXT("<voce vuota>")) : HeroId.ToString();
 				UE_LOG(LogRT, Error,
-					TEXT("[RT] '%s' non e' nel catalogo eroi: partita non allestita. Correggi Team%dHeroes, "
-						 "o aggiungi l'eroe al catalogo."),
-					*HeroId.ToString(), TeamId);
-				Report.Add(ERTStartupOutcome::RosterHeroMissing, HeroId.ToString());
+					TEXT("[RT] '%s' non e' nel catalogo eroi: partita non allestita. La formazione della squadra "
+						 "%d viene da %s: correggila, o aggiungi l'eroe al catalogo."),
+					*Voce, TeamId, *SourceOf(TeamId));
+				Report.Add(ERTStartupOutcome::RosterHeroMissing,
+					FString::Printf(TEXT("%s (squadra %d, da %s)"), *Voce, TeamId, *SourceOf(TeamId)));
 				return Outcome;
 			}
+			if (Dichiarati.Contains(Hero->HeroId))
+			{
+				UE_LOG(LogRT, Error,
+					TEXT("[RT] '%s' e' schierato due volte: partita non allestita. Un eroe non puo' stare in due "
+						 "posti. La seconda voce e' nella formazione della squadra %d, che viene da %s: correggila."),
+					*Hero->HeroId.ToString(), TeamId, *SourceOf(TeamId));
+				Report.Add(ERTStartupOutcome::RosterHeroRepeated,
+					FString::Printf(TEXT("%s (squadra %d, da %s)"), *Hero->HeroId.ToString(), TeamId,
+						*SourceOf(TeamId)));
+				return Outcome;
+			}
+			Dichiarati.Add(Hero->HeroId);
 			Lineup.Add(Hero);
 		}
 	}
@@ -604,12 +662,6 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 			if (CellIndex >= Start.Num())
 			{
 				UE_LOG(LogRT, Warning, TEXT("[RT] Celle di partenza insufficienti: %s non entra in campo"),
-					*HeroId.ToString());
-				continue;
-			}
-			if (Spawned.Contains(HeroId))
-			{
-				UE_LOG(LogRT, Warning, TEXT("[RT] %s e' schierato due volte: la seconda copia e' ignorata"),
 					*HeroId.ToString());
 				continue;
 			}

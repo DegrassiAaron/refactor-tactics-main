@@ -631,11 +631,29 @@ FString ARTHUD::ComposeIntentLabel(const FRTIntentView& View, const FRTIntentCer
 	return Label;
 }
 
+namespace
+{
+	// La scala di CP 47.2 (#955). Ordinata crescente: `NextViewerPlaybackSpeed` ne dipende.
+	// ➕ `#2748`: fuori dalla funzione, perche' ora la interrogano in due — il tasto e l'ingresso iniziale.
+	const float GViewerPlaybackScale[] = { 1.f, 2.f, 4.f };
+	const float GViewerPlaybackScaleTol = 1e-3f;
+}
+
+bool ARTHUD::IsOnViewerPlaybackScale(float Speed)
+{
+	for (const float Legal : GViewerPlaybackScale)
+	{
+		if (FMath::IsNearlyEqual(Speed, Legal, GViewerPlaybackScaleTol))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 float ARTHUD::NextViewerPlaybackSpeed(float Current)
 {
-	// La scala di CP 47.2 (#955). Ordinata crescente: la regola qui sotto ne dipende.
-	static const float Scale[] = { 1.f, 2.f, 4.f };
-	const float Tol = 1e-3f;
+	const float Tol = GViewerPlaybackScaleTol;
 
 	// Un valore non positivo vale «non scelto», esattamente come lo tratta `EffectivePlaybackSpeed`:
 	// leggerlo come x1 tiene una sola convenzione fra il modello e il controllo.
@@ -644,14 +662,14 @@ float ARTHUD::NextViewerPlaybackSpeed(float Current)
 	// La piu' piccola legale STRETTAMENTE maggiore. Il giro (`x4 -> x1`) e il rientro da fuori scala
 	// (`x3 -> x4`) sono lo stesso caso, non due rami: sopra il massimo non esiste nessuna legale, e si
 	// torna in testa.
-	for (const float Speed : Scale)
+	for (const float Speed : GViewerPlaybackScale)
 	{
 		if (From < Speed - Tol)
 		{
 			return Speed;
 		}
 	}
-	return Scale[0];
+	return GViewerPlaybackScale[0];
 }
 
 FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed)

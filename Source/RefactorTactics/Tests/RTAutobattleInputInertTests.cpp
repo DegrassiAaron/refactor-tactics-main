@@ -640,6 +640,72 @@ bool FRTAutobattleOnlyWidensTheObserverSetTest::RunTest(const FString&)
 }
 
 // ======================================================================================================
+// La velocita' iniziale del playback
+// ======================================================================================================
+
+#if !UE_BUILD_SHIPPING
+extern TAutoConsoleVariable<float> CVarRTPlaybackSpeed;
+
+/**
+ * `#2748` — `rt.Debug.PlaybackSpeed` imposta la velocita' INIZIALE solo dove il tasto e' vivo, e solo sui
+ * valori della scala.
+ *
+ * 🔑 **Tre uscite, e due sono rifiuti.** Un valore fuori scala (`x3`) non e' una velocita' che `#955` abbia
+ * deciso; e in una partita giocata la velocita' torna comunque a `x1` alla prima finestra di reazione
+ * ([D-350]), quindi accettarla li' sarebbe una preferenza che sparisce senza dirlo. Il test misura il campo
+ * sul TurnManager, dopo il bootstrap vero.
+ *
+ * ⚠️ **Che la velocita' non tocchi la simulazione non si prova qui**: lo prova gia'
+ * `Match.Autobattle.DeterminismIsIndependentOfPlayback`, che gioca la stessa partita a `x1`, `x2` e `x4`
+ * impostando proprio questo campo prima del primo turno. La console variable scrive quel campo e nient'altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleInitialPlaybackSpeedTest,
+	"RefactorTactics.Match.Autobattle.InitialPlaybackSpeedComesFromTheConsoleOnlyWhereTheKnobIsLive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleInitialPlaybackSpeedTest::RunTest(const FString&)
+{
+	FRTScopedInertSessionState StateGuard;
+	RTTestConsoleVariable::TGuardia<float> Velocita{ *CVarRTPlaybackSpeed.AsVariable(), 0.f };
+
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		bool bAutobattle;
+		float Chiesta;
+		float Attesa;
+	};
+	const FCaso Casi[] = {
+		{ TEXT("autobattle, non impostata"),  true,  0.f, 1.f },
+		{ TEXT("autobattle, x4"),             true,  4.f, 4.f },
+		{ TEXT("autobattle, x2"),             true,  2.f, 2.f },
+		{ TEXT("autobattle, x3 fuori scala"), true,  3.f, 1.f },
+		{ TEXT("partita giocata, x4"),        false, 4.f, 1.f },
+	};
+
+	for (const FCaso& Caso : Casi)
+	{
+		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
+		if (!TestTrue(TEXT("banco completo"), B.IsComplete()))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return false;
+		}
+		B.Setup(Caso.bAutobattle);
+		B.TurnManager->ViewerPlaybackSpeed = 1.f;
+		Velocita.Imposta(Caso.Chiesta);
+
+		B.GameMode->ApplyPlaybackControlCVars(B.TurnManager);
+
+		TestEqual(FString::Printf(TEXT("%s: la velocita' sul TurnManager"), Caso.Nome),
+			B.TurnManager->ViewerPlaybackSpeed, Caso.Attesa);
+
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
+	return true;
+}
+#endif // !UE_BUILD_SHIPPING
+
+// ======================================================================================================
 // Il campione di ritmo
 // ======================================================================================================
 

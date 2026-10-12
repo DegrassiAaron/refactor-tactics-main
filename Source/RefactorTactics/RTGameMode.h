@@ -201,6 +201,20 @@ public:
 	int32 ResolveBotAllies() const;
 
 	/**
+	 * Il roster di una squadra (`TeamId` 0 o 1): `rt.Match.Team0`/`rt.Match.Team1` se impostata, altrimenti
+	 * `-RTTeam0=`/`-RTTeam1=`, altrimenti `Team0Heroes`/`Team1Heroes` (`#2748`, [D-507]). Stessa scala di
+	 * `ResolveBotAllies()`, e ogni squadra per conto proprio.
+	 *
+	 * ⛔ **Non valida e non ripiega.** Una sorgente presente decide anche quando porta una voce sconosciuta,
+	 * una voce vuota o il numero sbagliato di voci: a fermare l'allestimento e' `FRTMatchBootstrapper`, che
+	 * lo faceva gia' per la proprieta'. Qui si sceglie CHI ha parlato, non se ha detto il vero.
+	 *
+	 * ⚠️ Con un `TeamId` diverso da 0 e 1 risponde la lista vuota.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	TArray<FName> ResolveTeamHeroes(int32 TeamId) const;
+
+	/**
 	 * Raggio dell'arena di ripiego, risolto fra console variable e proprieta'. Stessa scala e stessa
 	 * sentinella negativa di `ResolveBotAllies()`, senza la sorgente da riga di comando.
 	 *
