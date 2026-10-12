@@ -1766,6 +1766,25 @@ public:
 	void SetStrategicPresentation(bool bStrategic, float ViewYawDegrees = 0.f);
 	bool IsStrategicPresentation() const { return bStrategicPresentation; }
 
+	/**
+	 * `#3705` — dichiara con quale stencil il CORPO di questa unita' entra nel custom depth, cioe' di che colore e' il
+	 * contorno che dice il suo piano ([D-508]). `RTUnitLayerOutline::StencilNone` lo spegne.
+	 *
+	 * 🔑 **Un produttore, come per `SetKnownToObserver`**: lo scrive `ARTHUD::UpdateObserverVeil`, che lo ricava
+	 * dalla VISTA di chi guarda. Qui non si decide niente: il valore e' uno stato, e `RefreshComponentVisibility` lo
+	 * applica ai soli corpi che il velo lascia accesi — un'unita' non vista non entra nel custom depth nemmeno se
+	 * qualcuno le lasciasse uno stencil.
+	 */
+	void SetLayerOutlineStencil(uint8 InStencil);
+	uint8 GetLayerOutlineStencil() const { return LayerOutlineStencil; }
+
+	/**
+	 * Cio' che un test puo' leggere del contorno senza un renderer: lo stencil con cui i corpi MOSTRATI si disegnano
+	 * nel custom depth, o `StencilNone` se nessun corpo ci entra. Se due corpi mostrati portassero stencil diversi
+	 * risponde 255, che non e' di nessuno: il test che lo legge cade.
+	 */
+	uint8 GetRenderedOutlineStencilForTest() const;
+
 	/** Cio' che un test puo' leggere del ricordo senza montare un HUD (D-495). */
 	bool IsContactTokenVisibleForTest() const;
 	FVector GetContactTokenLocationForTest() const;
@@ -2149,6 +2168,9 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
 	TObjectPtr<UTextRenderComponent> ContactTokenMark;
+
+	/** Vedi `SetLayerOutlineStencil`. Non e' una `UPROPERTY`: nessun Blueprint la legge, e non entra nel censimento. */
+	uint8 LayerOutlineStencil = 0;
 
 	/** Vedi `SetStrategicPresentation`. Nasce tattica. */
 	UPROPERTY()

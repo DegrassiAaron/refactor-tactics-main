@@ -3,6 +3,7 @@
 #include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
+#include "Unit/RTUnitLayerOutline.h" // #3705: lo stencil del contorno, deciso qui dalla vista
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTMovementProfileLibrary.h" // l'andatura di [D-425]: si legge, non si dichiara
@@ -305,6 +306,21 @@ bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTe
 	// il personaggio vero dov'e' davvero, piu' la sagoma dove lo si ricordava. Questo predicato e'
 	// COMPLEMENTARE a `ContactGhostTargetForUnit`: o si vede l'unita', o si vede il suo ricordo.
 	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live;
+}
+
+uint8 ARTHUD::UnitOutlineStencilForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam, int32 OwnLayer,
+	int32 ActiveLayer, bool bMultiLayer, bool bEnabled)
+{
+	// Chi non si disegna non ha contorno: una sola regola per «si vede», quella del velo.
+	if (!bEnabled || !ShouldDrawUnitOverlay(Entry, bIsOwnTeam))
+	{
+		return RTUnitLayerOutline::StencilNone;
+	}
+
+	// ⛔ Per un nemico il piano viene dalla voce di conoscenza. `ShouldDrawUnitOverlay` ha appena garantito che la
+	// voce esiste ed e' `Live`, quindi la sua cella e' quella attuale: e' cio' che l'osservatore sa, non cio' che e'.
+	const int32 Layer = bIsOwnTeam ? OwnLayer : Entry->Cell.Layer;
+	return RTUnitLayerOutline::StencilForLayer(Layer, ActiveLayer, bMultiLayer);
 }
 
 TOptional<FRTContactGhostTarget> ARTHUD::ContactGhostTargetForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam)
@@ -851,6 +867,8 @@ void ARTHUD::UpdateObserverVeil()
 	FVector Origin = FVector::ZeroVector;
 	float HexSize = 150.f;
 	float LayerH = 250.f;
+	int32 OutlineActiveLayer = INDEX_NONE;
+	bool bOutlineMultiLayer = false;
 	if (ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		// #3632: PRIMA di leggere il contesto, perche' la quota dei piani dipende dalla vista. Se e' cambiata, la
@@ -861,6 +879,18 @@ void ARTHUD::UpdateObserverVeil()
 			TurnManager->RefreshPresentationGeometry(QuotaPrecedente);
 		}
 		HexMap->GetHexContext(Origin, HexSize, LayerH);
+
+		// #3705: il piano attivo e «a piu' piani» sono quelli che la board sta PRESENTANDO, gli stessi dei bordi delle
+		// celle: unita' e celle non possono dirsi piani diversi nello stesso fotogramma.
+		OutlineActiveLayer = HexMap->GetPresentedActiveLayer();
+		bOutlineMultiLayer = HexMap->IsPresentationMultiLayer();
+	}
+
+	// #3705: le leve del contorno, lette una volta per giro. La camera di chi guarda porta il post-process.
+	const FRTUnitLayerOutlineTuning OutlineTuning = FRTUnitLayerOutlineTuning::FromConsole();
+	if (ARTCameraPawn* OutlineCamera = Cast<ARTCameraPawn>(GetOwningPawn()))
+	{
+		OutlineCamera->SyncUnitLayerOutline(OutlineTuning);
 	}
 
 	for (ARTUnit* Unit : Units)
@@ -890,6 +920,13 @@ void ARTHUD::UpdateObserverVeil()
 		// `RTHUD.h`, testate senza montare un HUD): ricalcolare una qualunque delle due regole inline qui
 		// sarebbe una seconda definizione, e le due potrebbero divergere (review).
 		Unit->SetKnownToObserver(ShouldDrawUnitOverlay(Entry, bIsOwnTeam));
+
+		// #3705: il contorno che dice il piano. Dopo il velo, e con la stessa voce: per un nemico il piano e' quello
+		// che la vista conosce. ⛔ La cella dell'attore si legge SOLO per la propria squadra: di un nemico qui non
+		// entra nemmeno come argomento ignorato.
+		const int32 OwnOutlineLayer = bIsOwnTeam ? Unit->Cell.Layer : 0;
+		Unit->SetLayerOutlineStencil(UnitOutlineStencilForUnit(Entry, bIsOwnTeam, OwnOutlineLayer,
+			OutlineActiveLayer, bOutlineMultiLayer, OutlineTuning.bEnabled));
 
 		// Sagoma dell'ultimo contatto (Task 6b, CP 13.5): SPENTA per default, e accesa SOLO per un
 		// ricordo (`Remembered`) di un nemico. Gira per OGNI unita' viva — anche per quelle che il velo ha

@@ -786,6 +786,12 @@ public:
 	/** Il piano che la board presenta come attivo, o `INDEX_NONE` se nessuno gliel'ha ancora detto. */
 	int32 GetPresentedActiveLayer() const { return bLayerPresentationApplied ? PresentedActiveLayer : INDEX_NONE; }
 
+	/**
+	 * Se la presentazione in corso e' «a piu' piani»: lo e' quando le istanze DISEGNATE stanno su piu' di un piano
+	 * (`ApplyLayerPresentation`). Lo legge il contorno delle unita' (#3705), che deve dire lo stesso piano dei bordi.
+	 */
+	bool IsPresentationMultiLayer() const { return bLayerPresentationApplied && bPresentationMultiLayer; }
+
 	/** Fissa la separazione (per i test): ogni test dichiara il valore che misura, invece di ereditare il default. */
 	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
 

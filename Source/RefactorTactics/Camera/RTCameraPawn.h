@@ -2,10 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Unit/RTUnitLayerOutline.h" // #3705: le leve del contorno, applicate per valore
 #include "RTCameraPawn.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
 
 /**
  * Pawn camera tattica top-down/tre-quarti: braccio inclinato con zoom e pan sul piano.
@@ -160,6 +163,25 @@ public:
 	 * non la accende: sposta la distanza, e lo stato segue.
 	 */
 	bool IsStrategicView() const { return bStrategicView; }
+
+	/**
+	 * `#3705` — il contorno che dice il piano delle unita' ([D-508]) e' un post-process di CHI GUARDA, quindi sta
+	 * sulla sua camera: `M_UnitLayerOutline` legge lo stencil con cui le unita' si disegnano nel custom depth e
+	 * colora i pixel appena fuori dalla sagoma.
+	 *
+	 * La chiama `ARTHUD::UpdateObserverVeil` a ogni giro, nello stesso in cui scrive gli stencil sulle unita'. Alla
+	 * prima chiamata crea l'istanza dinamica, le scrive i tre colori da `RTLayerPresentation::BorderColorFor` — la
+	 * stessa sorgente dei bordi delle celle — e la aggiunge ai blendable della camera. Poi riscrive solo se le leve
+	 * sono cambiate. Ritorna vero quando ha scritto.
+	 *
+	 * ⚠️ **Il materiale e' OPZIONALE**, come quello degli anelli: se l'asset non risolve non c'e' contorno, e la
+	 * partita si gioca uguale. Si prova a caricarlo una volta sola.
+	 */
+	bool SyncUnitLayerOutline(const FRTUnitLayerOutlineTuning& Tuning);
+
+	/** Cio' che un test puo' leggere del post-process: l'istanza, e il peso con cui sta fra i blendable (-1 = assente). */
+	UMaterialInstanceDynamic* GetUnitLayerOutlineMaterialForTest() const { return UnitLayerOutlineDynMaterial; }
+	float GetUnitLayerOutlineWeightForTest() const;
 
 	/**
 	 * Rilegge lo stato strategico dalla distanza corrente, **con isteresi**.
@@ -538,6 +560,18 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
 	TObjectPtr<UCameraComponent> Camera;
+
+	/** Vedi `SyncUnitLayerOutline`. Il percorso e' quello che il commandlet `RTBuildUnitOutlineMaterial` scrive. */
+	UPROPERTY(EditDefaultsOnly, Category = "RefactorTactics|Camera")
+	TSoftObjectPtr<UMaterialInterface> UnitLayerOutlineMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> UnitLayerOutlineDynMaterial;
+
+	/** Le ultime leve applicate, e se il caricamento del materiale e' gia' stato tentato. */
+	FRTUnitLayerOutlineTuning AppliedOutlineTuning;
+	bool bOutlineTuningApplied = false;
+	bool bOutlineMaterialResolved = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float PanSpeed = 25.f;

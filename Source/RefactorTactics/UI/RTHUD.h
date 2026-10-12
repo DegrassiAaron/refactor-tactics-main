@@ -580,6 +580,20 @@ public:
 	static bool ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam);
 
 	/**
+	 * Lo stencil del contorno che dice il piano di un'unita' ([D-508], #3705), per QUESTO osservatore.
+	 *
+	 * Statica e PURA come `ShouldDrawUnitOverlay`, che consuma: chi non si disegna non ha contorno.
+	 *
+	 * ⛔ **Per un nemico il piano e' quello della VISTA (`Entry->Cell`), mai quello dell'attore.** Per questo la
+	 * funzione non riceve l'unita': `OwnLayer` e' il piano della cella di un'unita' PROPRIA, e per un nemico non
+	 * viene letto. Un contorno ricavato dalla cella vera direbbe la quota di chi l'osservatore non vede.
+	 *
+	 * @param bEnabled la leva `rt.Unit.LayerOutline`: spenta, nessuna unita' entra nel custom depth.
+	 */
+	static uint8 UnitOutlineStencilForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam, int32 OwnLayer,
+		int32 ActiveLayer, bool bMultiLayer, bool bEnabled);
+
+	/**
 	 * Dove e quando disegnare la sagoma dell'ultimo contatto per un'unita' (Task 6b/CP 13.5), o nessun
 	 * valore se non c'e' nulla da mostrare — spegnere e' la risposta di default.
 	 *
