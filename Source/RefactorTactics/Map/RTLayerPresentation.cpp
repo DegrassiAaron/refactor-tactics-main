@@ -11,7 +11,7 @@ static TAutoConsoleVariable<float> CVarRTMapLayersUpperOpacity(
 
 static TAutoConsoleVariable<float> CVarRTMapLayersUpperExposure(
 	TEXT("rt.Map.Layers.UpperExposure"), -1.f,
-	TEXT("Di quanti stop si schiarisce un piano sopra quello attivo (0..4, +1 = luce doppia). Negativo = default (0)."),
+	TEXT("Di quanti stop si schiarisce un piano sopra quello attivo (0..4, +1 = luce doppia; 0 = spento). Negativo = default (3)."),
 	ECVF_Default);
 
 static TAutoConsoleVariable<float> CVarRTMapLayersLowerDesaturation(
@@ -61,7 +61,7 @@ FRTLayerTreatment RTLayerPresentation::Treatment(int32 Layer, int32 ActiveLayer,
 	case ERTLayerRelation::Above:
 		// Sopra: traslucido. Lo stesso per ogni piano sopra: cio' che serve e' vedere ATTRAVERSO.
 		T.Transparency = 1.f - FMath::Clamp(Tuning.UpperOpacity, 0.f, 1.f);
-		// #3674: e schiarito, se la leva lo chiede. Mai scurito: «sopra» non deve leggersi come «lontano», che e' di «sotto».
+		// #3674: e schiarito. Mai scurito: «sopra» non deve leggersi come «lontano», che e' di «sotto».
 		T.ExposureStops = FMath::Clamp(Tuning.UpperExposureStops, 0.f, MaxUpperExposureStops);
 		break;
 
