@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-12 — Il muro colpito ha un verdetto solo: D-502 attuata
+
+**Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito passa a chiusa, con il meccanismo e i test |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la nota di attuazione, e perché il meccanismo non è quello indicato in (6a) |
+
+---
+
 ## 2026-10-11 — D-502 completata: le risposte dell'autore alle domande aperte
 
 **Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681), le domande che la prima stesura di `D-502` lasciava aperte.
