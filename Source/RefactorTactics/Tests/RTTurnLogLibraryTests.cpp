@@ -687,7 +687,8 @@ bool FRTTurnLogDerivedLineNamesSubjectTest::RunTest(const FString&)
  *
  * 🔑 **Tre asserti, tre difetti diversi**: la cura dice cosa e' (il suo ramo), il colpo vero resta un colpo (il
  * gemello che non deve muoversi), e un esito che nessun ramo conosce si dichiara invece di ereditare «danni» —
- * e' quel `default` ad aver prodotto il difetto, e senza il terzo asserto tornerebbe col prossimo esito in coda.
+ * e' quel `default` ad aver prodotto il difetto. Il ciclo riflesso in coda chiude il resto: ogni esito
+ * dell'enum ha il suo ramo, quindi il prossimo aggiunto in coda senza ramo fa diventare rosso il test.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogHealIsNotNarratedAsDamageTest,
 	"RefactorTactics.TurnLog.HealIsNotNarratedAsDamage",
@@ -715,6 +716,21 @@ bool FRTTurnLogHealIsNotNarratedAsDamageTest::RunTest(const FString&)
 	const FString TestoIgnoto = URTTurnLogLibrary::DescribeEntry(Ignoto);
 	TestFalse(*FString::Printf(TEXT("un esito ignoto non e' un colpo: «%s»"), *TestoIgnoto), TestoIgnoto.Contains(TEXT("danni")));
 	TestTrue(TEXT("e dice di non avere un descrittore"), TestoIgnoto.Contains(TEXT("senza descrittore")));
+
+	// 🔑 **L'esaustivita' si RIFLETTE, non si elenca a mano** — come per gli esiti d'obiettivo qui sopra. Un
+	// esito aggiunto domani in coda a `ERTCombatOutcome` finisce qui da solo: senza un ramo cadrebbe nel
+	// `default`, che ora lo dichiara invece di chiamarlo «danni», e questo ciclo lo fa diventare rosso.
+	const UEnum* Enum = StaticEnum<ERTCombatOutcome>();
+	if (!TestNotNull(TEXT("l'enum degli esiti di combattimento e' riflesso"), Enum)) { return false; }
+	const int32 Valori = Enum->NumEnums() - 1; // `NumEnums()` include il `_MAX` sintetico di UHT
+	TestTrue(TEXT("l'enum ha dei valori da coprire"), Valori > 0);
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const FRTTurnLogEntry Voce = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(Enum->GetValueByIndex(i)), Da, A, 18);
+		TestFalse(FString::Printf(TEXT("%s ha il suo descrittore"), *Enum->GetNameStringByIndex(i)),
+			URTTurnLogLibrary::DescribeEntry(Voce).Contains(TEXT("senza descrittore")));
+	}
 	return true;
 }
 
