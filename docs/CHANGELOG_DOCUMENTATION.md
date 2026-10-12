@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-12 — Le `P1` di `D-484`: i lavori headless nominati da `D-507` sono in `main`
+
+**Origine**: chiusura della sequenza approvata con `D-507` — [#3713](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3713), [#3714](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3714), [#3715](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3715), [#3717](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3717).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | §4, punto 5: ciò che la voce dava per «restano prima del freeze» è entrato; cosa resta dichiarato nelle issue, e quali restano aperte per i soli verdetti di seduta |
+
+---
+
 ## 2026-10-12 — #2748: il roster si sceglie fuori dall'Editor
 
 **Origine**: [#2748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2748), nella forma decisa da `D-507`.
