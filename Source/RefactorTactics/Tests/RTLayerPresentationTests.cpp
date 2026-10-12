@@ -312,6 +312,18 @@ bool FRTLayerTreatmentKeepsTheVeilTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("il velo riscritto lascia il canale %d del trattamento dov'era"), RTLayerPresentation::FirstChannel + C),
 			LayerTreatmentChannel(Cells, Ricordata, RTLayerPresentation::FirstChannel + C), Trattamento[C]);
 	}
+
+	// #3704: quando il velo riscrive il bordo di quella cella, lo riscrive col colore del suo piano (bianco, sopra), per il
+	// fattore del velo. Con il grigio scuro costante di prima di #3704, il bordo tornerebbe scuro al primo velo.
+	if (Bordi)
+	{
+		const FLinearColor Bianco = FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(ERTLayerRelation::Above));
+		const FLinearColor Scuro = FLinearColor::FromSRGBColor(URTHexLibrary::CellBorderColor());
+		const FLinearColor Letto(LayerTreatmentChannel(Bordi, Ricordata, 0), LayerTreatmentChannel(Bordi, Ricordata, 1),
+			LayerTreatmentChannel(Bordi, Ricordata, 2));
+		TestTrue(*FString::Printf(TEXT("il velo riscrive il bordo col bianco del suo piano, attenuato al piu' fino al ricordo (letto %s)"),
+			*Letto.ToString()), Letto.R >= Bianco.R * ARTHexMapActor::RTVeilExploredFactor - 1.e-3f && Letto.R > Scuro.R * 4.f);
+	}
 	return true;
 }
 
