@@ -22,6 +22,8 @@
 #include "RTWorldFixtures.h"
 #include "RTAbilityFixtures.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Map/RTHexCoverLibrary.h"  // #3598: il muro alzato dopo il piano
+#include "Map/RTHexVisionLibrary.h" // #3598: la premessa «il muro chiude la linea»
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -405,6 +407,101 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("premessa: l'alleato puntato e' davvero scattato via"), Puntato->Cell, Scattata)) { return false; }
 	TestEqual(TEXT("🔴 chi sta accanto alla cella puntata e' curato: l'area e' rimasta li'"), Vicino->Health - PrimaV, 18);
 	TestEqual(TEXT("🔴 l'alleato scattato via e' uscito dall'area: niente cura"), Puntato->Health, PrimaP);
+	return true;
+}
+
+/**
+ * [D-504], `#3598` — **nel Blast le cure ricontrollano la linea di tiro, come gli attacchi.**
+ *
+ * 🔑 **Il muro si posa DOPO che il piano e' scritto**, cioe' dove un muro alzato in Prep sta in partita: i piani di
+ * questi test non passano dalla validazione della pianificazione, quindi l'unico controllo che la cura incontra e'
+ * quello del Blast — che e' cio' che il test misura. Ogni caso ha il suo gemello senza muro: senza, «non curata»
+ * non distinguerebbe un muro che ferma da una cura che non parte per un'altra ragione.
+ *
+ * Due forme, perche' il centro si legge in due modi: la cura SINGOLA verso l'alleato agganciato, l'AREA verso la
+ * mira congelata. La cura bloccata e' spesa ([D-200]): cooldown pagato e gesto emesso, voce `NoLineOfSight`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealLineOfSightIsCheckedInTheBlastTest,
+	"RefactorTactics.Actions.Heal.LineOfSightIsCheckedInTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealLineOfSightIsCheckedInTheBlastTest::RunTest(const FString&)
+{
+	// Chi cura in (0,0), l'alleata ferita in (2,0); il muro alto sta sul bordo fra (1,0) e (2,0).
+	const FRTCellId CellaCura(0, 0, 0);
+	const FRTCellId CellaFerita(2, 0, 0);
+
+	for (const bool bArea : { false, true })
+	{
+		for (const bool bMuro : { true, false })
+		{
+			const FString Caso = FString::Printf(TEXT("%s, %s"), bArea ? TEXT("area") : TEXT("singola"),
+				bMuro ? TEXT("muro") : TEXT("senza muro"));
+			UWorld* World = RTWorldFixtures::MakeWorld();
+			if (!TestNotNull(*FString::Printf(TEXT("mondo di prova (%s)"), *Caso), World)) { return false; }
+			ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+			SpawnHealMap(World, 6);
+			ARTUnit* Curatrice = SpawnHealUnit(World, 0, CellaCura, URTHeroCatalogLibrary::MakeMuiren());
+			ARTUnit* Ferita = SpawnHealUnit(World, 0, CellaFerita, URTHeroCatalogLibrary::MakeAevik());
+			ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-4, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
+			ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+			ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(World);
+			if (!Curatrice || !Ferita || !Nemico || !TM || !MapActor || !MapActor->MapAsset) { return false; }
+			Ferita->Health -= 40;
+			const int32 Prima = Ferita->Health;
+
+			int32 Idx = INDEX_NONE;
+			if (bArea)
+			{
+				Idx = PianificaTideSuCella(Curatrice, CellaFerita);
+			}
+			else
+			{
+				// ⚠️ **In uno SLOT del kit, non appesa**: `AbilityCooldowns` copre solo gli slot dell'eroe, e su
+				// un'abilita' appesa il cooldown non si scrive mai (`AddCoreAbilityInSlot`). E la ricarica sale a
+				// 2: quella di catalogo (1) si azzera nel Cleanup dello stesso turno, e «pagato» non si vedrebbe.
+				Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Curatrice, TEXT("Action.Heal"), 3);
+				if (Idx != INDEX_NONE) { Curatrice->Abilities[Idx]->CooldownTurns = 2; }
+				Curatrice->PlannedAbilityIndex = Idx;
+				Curatrice->PlannedCell = Curatrice->Cell;
+				Curatrice->DeclareAttackOnUnit(Ferita);
+			}
+			if (!TestTrue(*FString::Printf(TEXT("premessa: la cura c'e' (%s)"), *Caso), Idx != INDEX_NONE)) { return false; }
+			if (!TestTrue(*FString::Printf(TEXT("premessa: la cura dichiara la linea di tiro (%s)"), *Caso),
+					Curatrice->GetAbility(Idx)->Def.LineOfSightPolicy == ERTLineOfSightPolicy::Required))
+			{
+				return false;
+			}
+
+			if (bMuro)
+			{
+				URTHexCoverLibrary::AddCover(MapActor->MapAsset, CellaFerita, ERTHexDirection::W, ERTHexCoverType::High, 30);
+				if (!TestFalse(TEXT("⛔ premessa: il muro chiude la linea"),
+						URTHexVisionLibrary::HasLineOfSight(MapActor->MapAsset, CellaCura, CellaFerita)))
+				{
+					return false;
+				}
+			}
+
+			RunHealTurn(TM);
+
+			const int32 Bloccate = ConteggioFallback(TM, ERTActionInvalidReason::NoLineOfSight);
+			if (bMuro)
+			{
+				TestEqual(*FString::Printf(TEXT("🔴 il muro ferma la cura (%s)"), *Caso), Ferita->Health, Prima);
+				TestEqual(*FString::Printf(TEXT("e lascia una voce NoLineOfSight (%s)"), *Caso), Bloccate, 1);
+				TestEqual(*FString::Printf(TEXT("nessuna voce Healed (%s)"), *Caso),
+					ConteggioVoci(TM, ERTLogCategory::Combat, static_cast<uint8>(ERTCombatOutcome::Healed)), 0);
+			}
+			else
+			{
+				TestTrue(*FString::Printf(TEXT("senza muro la cura arriva (%s)"), *Caso), Ferita->Health > Prima);
+				TestEqual(*FString::Printf(TEXT("e non c'e' nessuna voce NoLineOfSight (%s)"), *Caso), Bloccate, 0);
+			}
+			// Spesa in entrambi i casi ([D-200]): il gesto si vede e il cooldown si paga.
+			TestNotNull(*FString::Printf(TEXT("il gesto si emette (%s)"), *Caso), AttivazioneDi(TM, Curatrice));
+			TestFalse(*FString::Printf(TEXT("il cooldown e' pagato (%s)"), *Caso), Curatrice->CanUseAbility(Idx));
+		}
+	}
 	return true;
 }
 

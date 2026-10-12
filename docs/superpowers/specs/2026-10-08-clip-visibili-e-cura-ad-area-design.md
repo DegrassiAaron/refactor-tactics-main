@@ -390,7 +390,7 @@ con il rigiudizio.
 - La cura ad area non lascia un'impronta sulla mappa: l'`AbilityActivated` con `Area` dà l'anello d'attivazione sulla
   sorgente (profilo FX), i numeri verdi dicono chi è stato curato; l'onda d'area è dei colpi.
 - La `Push 1` di `CircularTide.Impact` non si applica (R3).
-- Le cure non ricontrollano la **linea di tiro** nel Blast (solo la portata dal centro), mentre gli attacchi la ricontrollano dalla cella raggiunta (`Combat/RTHexCombatLibrary.cpp`): un muro alzato in Prep ferma un colpo, non `CircularTide`. Gap preesistente per `Medkit` e `Action.Heal`; `CircularTide` lo eredita passando dalle cure → [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598).
+- Le cure non ricontrollano la **linea di tiro** nel Blast (solo la portata dal centro), mentre gli attacchi la ricontrollano dalla cella raggiunta (`Combat/RTHexCombatLibrary.cpp`): un muro alzato in Prep ferma un colpo, non `CircularTide`. Gap preesistente per `Medkit` e `Action.Heal`; `CircularTide` lo eredita passando dalle cure → [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598). ➕ *Risolto il 2026-10-12 da [D-504](../../decisions/RT_PDR_00_Decision_Log.md): le cure ricontrollano la linea di tiro nel Blast con il predicato degli attacchi.*
 - La variante `Impact` promette nel suo `Tradeoff` (`RTHeroCatalogLibrary.cpp`, «applica Push 1 ai nemici») e in `RTActionDescriptions.cpp` («cura gli alleati o colpisce») una spinta che R3 non produce: testo da riallineare nel follow-up della spinta curativa, non qui.
 - Il bot non usa la cura ad area (R8): la pianifica nessuno finché il follow-up non le dà un punteggio.
 - `Hit` resta additiva fino a decisione (D3).

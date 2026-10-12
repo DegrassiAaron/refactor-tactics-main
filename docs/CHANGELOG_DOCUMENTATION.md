@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-12 — D-504: nel Blast le cure ricontrollano la linea di tiro
+
+**Origine**: [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598), decisione d'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-504`, nuova |
+| [`superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md`](superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md) | §6: il limite sulla linea di tiro è risolto |
+| [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) | `CircularTide`: «`Required`» torna vero anche nel Blast |
+
+---
+
 ## 2026-10-12 — Un muro si colpisce solo nel Blast: la guardia di D-502
 
 **Origine**: [#3701](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3701), l'avviso della nota di attuazione di D-502.
