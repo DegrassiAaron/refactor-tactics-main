@@ -678,4 +678,44 @@ bool FRTTurnLogDerivedLineNamesSubjectTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una cura non si racconta come un colpo** (`#3601`).
+ *
+ * 🔴 `Healed` cadeva nel `default` dello switch di combattimento, che stampava il testo del colpo: *«18 danni
+ * (Hero.Muiren.CircularTide)»* per una cura, nel log della seduta `U70` e nel combat log del giocatore, che
+ * `ConcludeTurn` deriva da `DescribeEntry`.
+ *
+ * 🔑 **Tre asserti, tre difetti diversi**: la cura dice cosa e' (il suo ramo), il colpo vero resta un colpo (il
+ * gemello che non deve muoversi), e un esito che nessun ramo conosce si dichiara invece di ereditare «danni» —
+ * e' quel `default` ad aver prodotto il difetto, e senza il terzo asserto tornerebbe col prossimo esito in coda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogHealIsNotNarratedAsDamageTest,
+	"RefactorTactics.TurnLog.HealIsNotNarratedAsDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogHealIsNotNarratedAsDamageTest::RunTest(const FString&)
+{
+	const FRTCellId Da(0, 0, 0);
+	const FRTCellId A(2, 0, 0);
+
+	FRTTurnLogEntry Cura = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Healed), Da, A, /*Amount*/ 18);
+	Cura.ActionId = FName(TEXT("Hero.Muiren.CircularTide"));
+	const FString TestoCura = URTTurnLogLibrary::DescribeEntry(Cura);
+	TestFalse(*FString::Printf(TEXT("🔴 una cura non infligge danni: «%s»"), *TestoCura), TestoCura.Contains(TEXT("danni")));
+	TestTrue(*FString::Printf(TEXT("e dice che cura, e quanto: «%s»"), *TestoCura),
+		TestoCura.Contains(TEXT("18 punti vita curati")));
+
+	// Il gemello che NON deve muoversi: stesso importo, esito `Hit`.
+	FRTTurnLogEntry Colpo = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), Da, A, /*Amount*/ 18);
+	TestTrue(TEXT("un colpo vero resta un colpo"), URTTurnLogLibrary::DescribeEntry(Colpo).Contains(TEXT("18 danni")));
+
+	// Un esito che nessun ramo conosce: si dichiara, non eredita il testo del colpo.
+	FRTTurnLogEntry Ignoto = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat, /*Outcome*/ 200, Da, A, 18);
+	const FString TestoIgnoto = URTTurnLogLibrary::DescribeEntry(Ignoto);
+	TestFalse(*FString::Printf(TEXT("un esito ignoto non e' un colpo: «%s»"), *TestoIgnoto), TestoIgnoto.Contains(TEXT("danni")));
+	TestTrue(TEXT("e dice di non avere un descrittore"), TestoIgnoto.Contains(TEXT("senza descrittore")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
