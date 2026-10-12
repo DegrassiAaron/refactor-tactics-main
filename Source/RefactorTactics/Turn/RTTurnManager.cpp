@@ -2475,6 +2475,27 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		// L'attore e' chi CURA, non chi viene curato: la voce dice chi ha agito ([D-063]).
 		AppendLogEntry(Entry, Healers.IsValidIndex(h) ? Healers[h] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored), FRTLogSubject::Unit(HealTarget));
+
+		// [D-505], `#3600` — **IL MOMENTO DELLA CURA, accanto alla sua voce.** Una per `Healed`, con la stessa
+		// azione e lo stesso importo: il playback la mette nell'atto della cura, dopo il gesto, e la mostra sul
+		// curato. ⛔ Fuori da `StateHash`, TurnLog e replay, come ogni voce della timeline.
+		FRTResolvedEvent Curata;
+		Curata.Type = ERTResolvedEventType::Healed;
+		Curata.Phase = ERTMatchPhase::Blast;
+		Curata.SourceStableUnitId = (Healers.IsValidIndex(h) && Healers[h]) ? Healers[h]->StableUnitId : 0;
+		Curata.TargetStableUnitId = HealTarget->StableUnitId;
+		Curata.Amount = Restored;
+		// 🔴 **CHI PUO' VEDERE IL FATTO, congelato qui** ([D-223]): le squadre che conoscono il CURATO, perche' il
+		// segno sta su di lui. Come lo `StructureHit` (D-502), `SourceVerdict` porta il verdetto del FATTO, non della
+		// sorgente. Senza, una cura nemica su un nemico non visto restava nella sequenza di chi guarda: il token era
+		// velato, ma lo slot di tempo apriva o allungava il Blast — il buco nel ritmo che la spec del momento vieta.
+		Curata.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(HealTarget));
+		if (Defs.IsValidIndex(h))
+		{
+			Curata.ActionId = Defs[h].ActionId;
+			Curata.BaseActionId = Defs[h].BaseActionId;
+		}
+		ResolvedTimeline.Add(Curata);
 	}
 }
 
@@ -8368,7 +8389,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// quindi gli stessi voli.
 	// #3578: l'idoneita' e' la forma di DEFAULT di un'azione con un id (R12, R13, `IsTracerEligible`): un override che
 	// toglie il disegno (`Ram`, `PassingBlade`) non toglie il volo, e un colpo non base con forma `Single`/`Line` ora vola.
-	int32 NumColpi = 0, NumImpronte = 0, NumMuri = 0, NumAttivazioniBlast = 0;
+	int32 NumColpi = 0, NumImpronte = 0, NumMuri = 0, NumAttivazioniBlast = 0, NumCure = 0;
 	PlaybackBlastFlights.Reset(PlaybackBlastSequence.Num());
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
 	{
@@ -8379,6 +8400,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		case ERTResolvedEventType::AttackFootprint:  ++NumImpronte; break;
 		case ERTResolvedEventType::StructureHit:     ++NumMuri; break;
 		case ERTResolvedEventType::AbilityActivated: ++NumAttivazioniBlast; break;
+		case ERTResolvedEventType::Healed:           ++NumCure; break;
 		default: break;
 		}
 		PlaybackBlastFlights.Add(URTPlaybackLibrary::TracerFlightFor(
@@ -8406,7 +8428,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// un istante in cui disegnare (`#2454`). Lo stesso vale per i muri (`#2828`) e, da #3549, per le
 	// attivazioni. La decisione sta in una funzione pura perche' cambia la DURATA di un turno, ed e' cio'
 	// che i test di pacing sorvegliano. I conteggi sono quelli della SEQUENZA, cioe' di cio' che chi guarda vedra'.
-	if (URTPlaybackLibrary::BlastPhaseIsActive(NumColpi, bHasBlastMove, NumImpronte, NumMuri, NumAttivazioniBlast))
+	if (URTPlaybackLibrary::BlastPhaseIsActive(NumColpi, bHasBlastMove, NumImpronte, NumMuri, NumAttivazioniBlast, NumCure))
 	{
 		PlaybackPhases.Add(ERTMatchPhase::Blast);
 	}
@@ -8679,6 +8701,15 @@ bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 			{
 				MapActor->AddPlaybackStructureHit(Ev.StructureCell, Ev.StructureToward,
 					Ev.EnvironmentOutcome == ERTEnvironmentOutcome::CoverDestroyed);
+			}
+			break;
+		case ERTResolvedEventType::Healed:
+			// [D-505], `#3600`: il «+N» e la barra che pulsa sul CURATO, alla rivelazione — una cura non vola.
+			// ⛔ Nessun controllo di velo qui: chi vede il curato lo decide `ARTHUD::UpdateObserverVeil`
+			// sull'overlay, come per il token del colpo (`ARTUnit::ShowDamageToken`).
+			if (ARTUnit* const Curato = UnitByStableId(Ev.TargetStableUnitId))
+			{
+				Curato->ShowHealToken(Ev.Amount);
 			}
 			break;
 		case ERTResolvedEventType::Attack:

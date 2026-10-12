@@ -3018,4 +3018,33 @@ bool FRTEventFeedNewFieldsPrivacyTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-505], `#3600` — **il token di una cura**: `+N`, la barra che pulsa, e nessun danno.
+ *
+ * 🔑 Il gemello del colpo sta accanto: stesso importo, segno opposto, e la pulsazione per entrambi. Senza, un
+ * token di cura che uscisse `-18` o che non pulsasse passerebbe inosservato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudHealTokenTest,
+	"RefactorTactics.HudViewModel.HealTokenSaysPlusAndPulses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudHealTokenTest::RunTest(const FString&)
+{
+	const FRTDamageTokenView Cura = URTHudViewModel::BuildHealToken(18, /*Target*/ 3);
+	TestEqual(TEXT("🔴 la cura dice «+18»"), Cura.Label, FString(TEXT("+18")));
+	TestTrue(TEXT("con il segno, non la sola cifra"), Cura.Label.StartsWith(TEXT("+")));
+	TestTrue(TEXT("e' una cura"), Cura.bIsHeal);
+	TestFalse(TEXT("non e' un danno"), Cura.bHasDamage);
+	TestTrue(TEXT("la barra pulsa"), Cura.bPulsesHealthBar);
+	TestEqual(TEXT("sul curato"), Cura.TargetStableUnitId, 3);
+
+	const FRTDamageTokenView Piena = URTHudViewModel::BuildHealToken(0, 3);
+	TestEqual(TEXT("a salute piena lo zero si dichiara"), Piena.Label, FString(TEXT("0 curati")));
+	TestFalse(TEXT("e la barra non pulsa"), Piena.bPulsesHealthBar);
+
+	const FRTDamageTokenView Colpo = URTHudViewModel::BuildDamageToken(18, 3);
+	TestTrue(TEXT("il colpo pulsa ancora"), Colpo.bPulsesHealthBar);
+	TestFalse(TEXT("e non e' una cura"), Colpo.bIsHeal);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

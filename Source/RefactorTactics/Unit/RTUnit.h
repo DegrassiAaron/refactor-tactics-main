@@ -1978,6 +1978,16 @@ public:
 	void ShowDamageToken(int32 Amount);
 
 	/**
+	 * Mostra sopra questa unita' il token di una CURA appena rivelata dal playback ([D-505], `#3600`): `+N`, e la
+	 * barra che pulsa. Gemella di `ShowDamageToken`, con la sua stessa forma e lo stesso campo
+	 * (`LastDamageToken`): il token e' uno, danno o cura. ⚠️ **Un'unita' colpita e curata nello stesso Blast
+	 * mostra prima il «-N» e poi il «+N», che lo sostituisce**: e' il limite «un evento, un token» gia' dichiarato
+	 * per i colpi (`URTUnitOverlayWidget::PushDamageToken`), e da [#3700] la cura si racconta dopo i colpi.
+	 * ⛔ Non applica niente: la cura e' gia' applicata.
+	 */
+	void ShowHealToken(int32 Amount);
+
+	/**
 	 * L'ultimo token composto per questa unita', **di sola presentazione**.
 	 *
 	 * 🔑 **Esiste per rendere il cablaggio osservabile senza rendering.** `URTUnitOverlayWidget` e' un

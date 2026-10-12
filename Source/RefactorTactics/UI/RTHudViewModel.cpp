@@ -1231,6 +1231,7 @@ FRTDamageTokenView URTHudViewModel::BuildDamageToken(int32 Amount, int32 TargetS
 	// sopra la testa di chi ha appena incassato: una cifra plausibile e falsa. Il ramo dello zero e' il
 	// posto giusto dove farlo cadere, perche' dice «nessuna quantita' da mostrare» senza inventarne una.
 	View.bHasDamage = (Amount > 0);
+	View.bPulsesHealthBar = View.bHasDamage; // #3600: la barra pulsa se la vita e' cambiata
 
 	if (View.bHasDamage)
 	{
@@ -1247,6 +1248,22 @@ FRTDamageTokenView URTHudViewModel::BuildDamageToken(int32 Amount, int32 TargetS
 		View.Label = TEXT("0 danni");
 	}
 
+	return View;
+}
+
+FRTDamageTokenView URTHudViewModel::BuildHealToken(int32 Amount, int32 TargetStableUnitId)
+{
+	FRTDamageTokenView View;
+	View.TargetStableUnitId = TargetStableUnitId;
+	View.Amount = Amount;
+	View.bIsHeal = true;
+	// ⛔ Una cura non e' un danno: `bHasDamage` resta falso, e chi lo legge per contare i colpi non conta questa.
+	View.bHasDamage = false;
+	View.bPulsesHealthBar = (Amount > 0);
+	// Il segno fa parte del canale, come il `-` del colpo (`#2453`): una cifra nuda si leggerebbe come un danno
+	// tanto quanto come una cura. A salute piena la cura restituisce zero, e lo zero si DICHIARA con una parola,
+	// come il «0 danni» del colpo: un «+0» si leggerebbe come una quantita'.
+	View.Label = (Amount > 0) ? FString::Printf(TEXT("+%d"), Amount) : FString(TEXT("0 curati"));
 	return View;
 }
 

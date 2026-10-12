@@ -275,6 +275,13 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AbilityActivated,
 		{ FName(TEXT("PlayCastMontage")), FName(TEXT("SetPlaybackCues")) }));
 
+	// [D-505], `#3600` — LA CURA SUL CURATO: «+N» e la barra che pulsa, alla rivelazione dell'elemento. Le cue
+	// sono C++ dalla A alla Z come quelle del colpo: `ARTUnit::ShowHealToken` compone il token con
+	// `URTHudViewModel::BuildHealToken`, e la pulsazione la decide il token. ⚠️ Il COLORE del «+N» e' quello
+	// del token del colpo finche' §32 non ne sceglie uno: a distinguerli oggi e' il segno ([D-505], `#2453`).
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Healed,
+		{ FName(TEXT("ShowHealToken")), FName(TEXT("PulseHealthBar")) }));
+
 	return Out;
 }
 

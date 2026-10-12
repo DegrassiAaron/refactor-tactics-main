@@ -101,7 +101,8 @@ public:
 	 * mostra continua ad arrivare da `SetOverlayView`: questa chiamata aggiunge il **cambiamento**, sopra il
 	 * canale che mostra lo **stato**.
 	 *
-	 * ⚠️ **La barra pulsa solo se c'e' danno.** Con `bHasDamage == false` non e' cambiato niente, e
+	 * ⚠️ **La barra pulsa solo se la vita e' cambiata** — `bPulsesHealthBar`, che il token porta: un colpo con
+	 * danno, una cura che ha restituito qualcosa ([D-505]). Con il caso zero non e' cambiato niente, e
 	 * un'enfasi direbbe il contrario di cio' che e' successo.
 	 */
 	void PushDamageToken(const FRTDamageTokenView& Token);
