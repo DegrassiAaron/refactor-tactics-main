@@ -263,21 +263,23 @@ bool FRTLayerTreatmentGlyphsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 
-	// La cima ha un anello (fumo): e' l'unico glifo della mappa, quindi la sua istanza e' la sola del primo anello.
+	// La cima ha due anelli (rilievo): e' l'unico glifo della mappa, quindi la sua istanza e' la sola del secondo anello.
+	// ⚠️ Non il fumo: e' l'unica superficie con un volume, e `RepaintCells` rifiuta i cambi che muovono il volume, quindi il
+	// velo ricostruirebbe invece di riallineare, e questo test non eserciterebbe il percorso per cella.
 	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeLayerStackArena(World);
 	const FRTCellId Cima(2, -2, 2);
 	const FRTHexCellData* Dato = Asset ? Asset->FindCell(Cima) : nullptr;
 	if (!TestNotNull(TEXT("premessa: la cima esiste"), Dato)) { return false; }
-	FRTHexCellData Fumo = *Dato;
-	Fumo.Surface = ERTHexSurface::Smoke;
-	Asset->AddOrUpdateCell(Fumo);
+	FRTHexCellData Rilievo = *Dato;
+	Rilievo.Surface = ERTHexSurface::HighGround;
+	Asset->AddOrUpdateCell(Rilievo);
 	Asset->SortCells();
 
 	ARTHexMapActor* Board = SpawnLayerTreatmentBoard(World, Asset);
-	UInstancedStaticMeshComponent* Anello1 = Board ? LayerTreatmentIsm(Board, TEXT("SurfaceGlyph1")) : nullptr;
+	UInstancedStaticMeshComponent* Anello1 = Board ? LayerTreatmentIsm(Board, TEXT("SurfaceGlyph2")) : nullptr;
 	UInstancedStaticMeshComponent* Anello4 = Board ? LayerTreatmentIsm(Board, TEXT("SurfaceGlyph4")) : nullptr;
-	if (!TestNotNull(TEXT("il primo anello"), Anello1) || !TestNotNull(TEXT("il quarto anello"), Anello4)) { return false; }
-	if (!TestEqual(TEXT("premessa: un solo glifo a un anello, quello della cima"), Anello1->GetInstanceCount(), 1)
+	if (!TestNotNull(TEXT("il secondo anello"), Anello1) || !TestNotNull(TEXT("il quarto anello"), Anello4)) { return false; }
+	if (!TestEqual(TEXT("premessa: un solo glifo a due anelli, quello della cima"), Anello1->GetInstanceCount(), 1)
 		|| !TestEqual(TEXT("premessa: nessun glifo a quattro anelli"), Anello4->GetInstanceCount(), 0))
 	{
 		return false;
