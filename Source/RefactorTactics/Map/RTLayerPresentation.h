@@ -5,9 +5,9 @@
 /**
  * **Come si vede un piano rispetto a quello attivo** ([D-501], #3679), **e come lo dice il suo bordo** ([D-508], #3704).
  *
- * I piani sopra l'attivo sono traslucidi, quelli sotto desaturati e scuriti di piu' quanto piu' sono lontani, l'attivo
- * ha i colori pieni. Il bordo dice il piano: nero sull'attivo, bianco sopra, viola sotto (`BorderColorFor`). Una mappa
- * a un piano non ha trattamento, e i suoi bordi sono neri come prima.
+ * I piani sopra l'attivo sono traslucidi e schiariti (#3674), quelli sotto desaturati e scuriti di piu' quanto piu'
+ * sono lontani, l'attivo ha i colori pieni. Il bordo dice il piano: nero sull'attivo, bianco sopra, viola sotto
+ * (`BorderColorFor`). Una mappa a un piano non ha trattamento, e i suoi bordi sono neri come prima.
  *
  * 🔑 **Si attenua l'USCITA del materiale, non la si sostituisce** (#3679, scope 3): il trattamento non tocca i
  * canali 0..2 del colore — che sono del velo ([D-227]) e del terreno — ma ne aggiunge tre che `M_HexCell` applica
@@ -52,11 +52,22 @@ enum class ERTLayerRelation : uint8
  * 🔑 **I valori «sotto» li ha scelti l'autore** nella seduta `U84` (2026-10-12): desaturazione 0,7 e scurimento 0,55
  * per piano. **L'opacita' «sopra», 0,35, l'ha scelta lo stesso giorno su piani davvero traslucidi**: prima la maschera
  * di `M_HexCell` era inerte (#3704), i piani sopra erano opachi a ogni valore e 0,2 non era mai stato visto.
+ * **Lo schiarimento «sopra», 3 stop, l'ha scelto la sera stessa** su `Visual.Map.MultiLevel` (#3674), dopo aver
+ * provato 1,5 e 4. A zero il suo giudizio era stato: «No, si sovrappongono e sembrano sparire».
  */
 struct REFACTORTACTICS_API FRTLayerPresentationTuning
 {
 	/** Quanto si vede un piano sopra l'attivo: 1 = pieno, 0 = invisibile. */
 	float UpperOpacity = 0.35f;
+
+	/**
+	 * Quanto si SCHIARISCE un piano sopra l'attivo, in stop: +1 raddoppia la luce. Zero = il colore del terreno com'e'.
+	 *
+	 * ➕ #3674: un velo dello stesso grigio del pavimento che copre non si vede, a nessuna opacita' — 35% di grigio sopra
+	 * 65% di grigio e' grigio. Schiarito, il velo ha un colore suo e la piattaforma torna a leggersi come un piano.
+	 * A 3 stop la luce e' ×8: il grigio del terreno va verso il bianco, ed e' quello che lo stacca dal pavimento.
+	 */
+	float UpperExposureStops = 3.f;
 
 	/** La saturazione persa per ogni piano di distanza sotto l'attivo, cumulata: 0,7 vuol dire 70%, poi 91%. */
 	float LowerDesaturationPerLayer = 0.7f;
@@ -66,7 +77,8 @@ struct REFACTORTACTICS_API FRTLayerPresentationTuning
 
 	bool operator==(const FRTLayerPresentationTuning& Other) const
 	{
-		return UpperOpacity == Other.UpperOpacity && LowerDesaturationPerLayer == Other.LowerDesaturationPerLayer
+		return UpperOpacity == Other.UpperOpacity && UpperExposureStops == Other.UpperExposureStops
+			&& LowerDesaturationPerLayer == Other.LowerDesaturationPerLayer
 			&& LowerDarkeningPerLayer == Other.LowerDarkeningPerLayer;
 	}
 
@@ -81,6 +93,9 @@ namespace RTLayerPresentation
 
 	/** I float per istanza delle famiglie che lo ricevono: colore (3) piu' trattamento (3). */
 	inline constexpr int32 NumCustomDataFloats = 6;
+
+	/** Il tetto dello schiarimento di un piano sopra (#3674): +4 stop e' luce ×16, oltre il bianco per ogni terreno. */
+	inline constexpr float MaxUpperExposureStops = 4.f;
 
 	/** La relazione di `Layer` con `ActiveLayer`. Su una mappa a un piano risponde sempre `Active`. */
 	REFACTORTACTICS_API ERTLayerRelation Relation(int32 Layer, int32 ActiveLayer, bool bMultiLayer);

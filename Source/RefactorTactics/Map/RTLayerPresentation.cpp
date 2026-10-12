@@ -9,6 +9,11 @@ static TAutoConsoleVariable<float> CVarRTMapLayersUpperOpacity(
 	TEXT("rt.Map.Layers.UpperOpacity"), -1.f,
 	TEXT("Opacita' dei piani sopra quello attivo (0..1). Negativo = default (0,35)."), ECVF_Default);
 
+static TAutoConsoleVariable<float> CVarRTMapLayersUpperExposure(
+	TEXT("rt.Map.Layers.UpperExposure"), -1.f,
+	TEXT("Di quanti stop si schiarisce un piano sopra quello attivo (0..4, +1 = luce doppia; 0 = spento). Negativo = default (3)."),
+	ECVF_Default);
+
 static TAutoConsoleVariable<float> CVarRTMapLayersLowerDesaturation(
 	TEXT("rt.Map.Layers.LowerDesaturation"), -1.f,
 	TEXT("Saturazione persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,7)."), ECVF_Default);
@@ -29,6 +34,7 @@ FRTLayerPresentationTuning FRTLayerPresentationTuning::FromConsole()
 		}
 	};
 	Leva(CVarRTMapLayersUpperOpacity, T.UpperOpacity, 1.f);
+	Leva(CVarRTMapLayersUpperExposure, T.UpperExposureStops, RTLayerPresentation::MaxUpperExposureStops);
 	Leva(CVarRTMapLayersLowerDesaturation, T.LowerDesaturationPerLayer, 1.f);
 	Leva(CVarRTMapLayersLowerDarkening, T.LowerDarkeningPerLayer, 0.99f);
 	return T;
@@ -53,8 +59,10 @@ FRTLayerTreatment RTLayerPresentation::Treatment(int32 Layer, int32 ActiveLayer,
 		break; // l'attivo, e ogni piano di una mappa a un piano, si vedono come prima di #3679
 
 	case ERTLayerRelation::Above:
-		// Sopra: traslucido, colori invariati. Lo stesso per ogni piano sopra: cio' che serve e' vedere ATTRAVERSO.
+		// Sopra: traslucido. Lo stesso per ogni piano sopra: cio' che serve e' vedere ATTRAVERSO.
 		T.Transparency = 1.f - FMath::Clamp(Tuning.UpperOpacity, 0.f, 1.f);
+		// #3674: e schiarito. Mai scurito: «sopra» non deve leggersi come «lontano», che e' di «sotto».
+		T.ExposureStops = FMath::Clamp(Tuning.UpperExposureStops, 0.f, MaxUpperExposureStops);
 		break;
 
 	case ERTLayerRelation::Below:

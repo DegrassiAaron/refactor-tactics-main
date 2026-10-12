@@ -95,7 +95,31 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 	const FRTLayerTreatment Sopra = RTLayerPresentation::Treatment(2, 1, true, T);
 	TestTrue(TEXT("sopra e' traslucido"), FMath::IsNearlyEqual(Sopra.Transparency, 1.f - T.UpperOpacity));
 	TestTrue(TEXT("sopra non e' spento: si deve vedere attraverso, non leggerlo come lontano"),
-		Sopra.Desaturation == 0.f && Sopra.ExposureStops == 0.f);
+		Sopra.Desaturation == 0.f && Sopra.ExposureStops >= 0.f);
+	TestTrue(TEXT("sopra ha la luce che la taratura gli da'"), FMath::IsNearlyEqual(Sopra.ExposureStops, T.UpperExposureStops));
+
+	// #3674: lo schiarimento del velo, con un valore DIVERSO dal default: una `Treatment` che ignorasse la taratura cade qui.
+	// Tocca SOLO i piani sopra, non cambia l'opacita', e non scurisce mai.
+	{
+		FRTLayerPresentationTuning Chiaro;
+		Chiaro.UpperExposureStops = 1.5f;
+		const FRTLayerTreatment SopraChiaro = RTLayerPresentation::Treatment(2, 1, true, Chiaro);
+		TestTrue(TEXT("schiarito: il piano sopra prende gli stop della leva"), FMath::IsNearlyEqual(SopraChiaro.ExposureStops, 1.5f));
+		TestTrue(TEXT("schiarito: l'opacita' e' la stessa"), FMath::IsNearlyEqual(SopraChiaro.Transparency, Sopra.Transparency));
+		TestTrue(TEXT("schiarito: l'attivo resta com'e'"), RTLayerPresentation::Treatment(1, 1, true, Chiaro).IsNeutral());
+		TestTrue(TEXT("schiarito: un piano sotto resta com'e'"),
+			FMath::IsNearlyEqual(RTLayerPresentation::Treatment(0, 1, true, Chiaro).ExposureStops,
+				RTLayerPresentation::Treatment(0, 1, true, T).ExposureStops));
+		TestTrue(TEXT("schiarito: una mappa a un piano resta senza trattamento"),
+			RTLayerPresentation::Treatment(1, 0, /*bMultiLayer=*/ false, Chiaro).IsNeutral());
+
+		Chiaro.UpperExposureStops = -2.f;
+		TestEqual(TEXT("una leva negativa non scurisce il piano sopra"),
+			RTLayerPresentation::Treatment(2, 1, true, Chiaro).ExposureStops, 0.f);
+		Chiaro.UpperExposureStops = 99.f;
+		TestEqual(TEXT("e una enorme si ferma al tetto"),
+			RTLayerPresentation::Treatment(2, 1, true, Chiaro).ExposureStops, RTLayerPresentation::MaxUpperExposureStops);
+	}
 
 	const FRTLayerTreatment Sotto1 = RTLayerPresentation::Treatment(1, 2, true, T);
 	const FRTLayerTreatment Sotto2 = RTLayerPresentation::Treatment(0, 2, true, T);
@@ -111,6 +135,9 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 	TestTrue(TEXT("default sotto: scurimento 0,55 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDarkeningPerLayer, 0.55f));
 	// E l'opacita' «sopra» l'ha scelta lo stesso giorno, sull'asset riparato: prima la maschera era inerte (#3704).
 	TestTrue(TEXT("default sopra: opacita' 0,35 (U84, su piani traslucidi)"), FMath::IsNearlyEqual(T.UpperOpacity, 0.35f));
+	// #3674: e lo schiarimento «sopra» la sera stessa, su `MultiLevel`. A zero la piattaforma non si distingueva.
+	TestTrue(TEXT("default sopra: schiarimento 3 stop (U84, #3674)"), FMath::IsNearlyEqual(T.UpperExposureStops, 3.f));
+	TestTrue(TEXT("e il default sta sotto il tetto della leva"), T.UpperExposureStops < RTLayerPresentation::MaxUpperExposureStops);
 	return true;
 }
 
@@ -194,7 +221,11 @@ bool FRTLayerTreatmentFromControllerTest::RunTest(const FString&)
 	const FRTLayerPresentationTuning T;
 	TestTrue(TEXT("piano 2, sopra: traslucido"),
 		FMath::IsNearlyEqual(LayerTreatmentChannel(Cells, Su2, Ch), 1.f - T.UpperOpacity));
+	TestTrue(TEXT("piano 2, sopra: schiarito degli stop della taratura (#3674)"),
+		T.UpperExposureStops > 0.f && FMath::IsNearlyEqual(LayerTreatmentChannel(Cells, Su2, Ch + 2), T.UpperExposureStops));
 	TestEqual(TEXT("piano 1, attivo: opaco"), LayerTreatmentChannel(Cells, Su1, Ch), 0.f);
+	TestEqual(TEXT("piano 1, attivo: la sua luce (#3674: lo schiarimento e' solo di chi sta sopra)"),
+		LayerTreatmentChannel(Cells, Su1, Ch + 2), 0.f);
 	TestEqual(TEXT("piano 1, attivo: colori pieni"), LayerTreatmentChannel(Cells, Su1, Ch + 1), 0.f);
 	TestTrue(TEXT("piano 0, sotto: desaturato"),
 		FMath::IsNearlyEqual(LayerTreatmentChannel(Cells, Su0, Ch + 1), T.LowerDesaturationPerLayer));
@@ -222,6 +253,9 @@ bool FRTLayerTreatmentFromControllerTest::RunTest(const FString&)
 	TestTrue(TEXT("il controller scende al piano 0"), PC->StepActiveLayer(-1));
 	TestEqual(TEXT("il piano 0 torna pieno"), LayerTreatmentChannel(Cells, Su0, Ch + 1), 0.f);
 	TestTrue(TEXT("e il piano 1 e' traslucido"), LayerTreatmentChannel(Cells, Su1, Ch) > 0.f);
+	TestTrue(TEXT("e schiarito, ora che sta sopra (#3674)"),
+		FMath::IsNearlyEqual(LayerTreatmentChannel(Cells, Su1, Ch + 2), T.UpperExposureStops));
+	TestEqual(TEXT("mentre il piano 0, tornato attivo, riprende la sua luce"), LayerTreatmentChannel(Cells, Su0, Ch + 2), 0.f);
 	TestTrue(TEXT("il bordo del piano 1 diventa bianco"), ColoreBordo(Su1).Equals(Atteso(ERTLayerRelation::Above), 1.e-4f));
 	TestTrue(TEXT("e quello del piano 0 nero"), ColoreBordo(Su0).Equals(Atteso(ERTLayerRelation::Active), 1.e-4f));
 	return true;

@@ -71,8 +71,11 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
 | `rt.Map.Layers.LowerDarkening` | 0,55 per piano | scelta in `U84`; diventa il default con #3704 |
 | `rt.Map.Layers.UpperOpacity` | 0,35 | scelta dall'autore il 2026-10-12, **su piani traslucidi** e coi bordi bianchi. Il giudizio di prima («0,2 troppo leggero») era stato dato con la maschera inerte |
 | `rt.Map.Layers.ActiveBorderStops` | superata dalla regola | si toglie con #3704 |
+| `rt.Map.Layers.UpperExposure` | 3 stop | ➕ aggiunta da #3674, dopo questo brief: i piani sopra sono anche schiariti. Scelta dall'autore la sera del 2026-10-12 su `Visual.Map.MultiLevel`, dopo aver provato 1,5 e 4, e tenuta dopo aver visto `Visual.Map.LayerStack` |
 
 ## 7. Ordine
 
 1. **#3704**, che porta la regola e D-508. Il suo verdetto PIE chiude #3679 e, se la piattaforma si distingue a 120° e 180°, #3674.
+   ➕ *2026-10-12, sera:* con #3704 su `main` la piattaforma non si distingueva ancora. L'ha chiusa #3674, schiarendo
+   i piani sopra.
 2. **#3705** e **#3706**, indipendenti fra loro, dopo #3704.
