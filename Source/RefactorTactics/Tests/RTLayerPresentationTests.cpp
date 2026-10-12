@@ -224,11 +224,80 @@ bool FRTLayerTreatmentKeepsTheVeilTest::RunTest(const FString&)
 			LayerTreatmentChannel(Cells, Vista, C), Colore[C]);
 	}
 
-	// E nell'altro verso: un velo dopo il trattamento non lo cancella.
+	// E nell'altro verso: un velo dopo il trattamento non lo cancella. 🔴 Si guarda una cella che il velo RISCRIVE: una del
+	// piano 1, sopra l'attivo, che passa da osservata a ricordata (rilievo della review). La cella mai vista non serviva: il
+	// velo la salta, quindi qualunque velo avrebbe lasciato i suoi canali dov'erano.
+	const int32 Ricordata = FirstInstanceOnLayer(Board, 1);
+	if (!TestTrue(TEXT("premessa: c'e' una cella sul piano 1"), Ricordata != INDEX_NONE)) { return false; }
+	float Trattamento[3];
+	for (int32 C = 0; C < 3; ++C)
+	{
+		Trattamento[C] = LayerTreatmentChannel(Cells, Ricordata, RTLayerPresentation::FirstChannel + C);
+	}
+	TestTrue(TEXT("premessa: il piano 1 sta sopra l'attivo, quindi e' traslucido"), Trattamento[0] > 0.f);
 	Conosce.VisibleCells.Reset();
 	Board->ApplyKnowledgeVeil(Conosce);
-	TestTrue(TEXT("un velo riscritto lascia il trattamento dov'era"),
-		LayerTreatmentChannel(Cells, Mai, RTLayerPresentation::FirstChannel) > 0.f);
+	TestTrue(TEXT("premessa: il secondo velo ha toccato delle istanze"), Board->GetLastVeilTouchedCells() > 0);
+	for (int32 C = 0; C < 3; ++C)
+	{
+		TestEqual(*FString::Printf(TEXT("il velo riscritto lascia il canale %d del trattamento dov'era"), RTLayerPresentation::FirstChannel + C),
+			LayerTreatmentChannel(Cells, Ricordata, RTLayerPresentation::FirstChannel + C), Trattamento[C]);
+	}
+	return true;
+}
+
+/**
+ * **I glifi ricevono il trattamento, anche quando un cambio di terreno li rimonta in partita** (#3679, rilievo della review).
+ *
+ * 🔴 `RepaintCells` toglie e rimette i glifi senza una ricostruzione, e un glifo appena montato nasce coi canali a zero,
+ * cioe' pieno. Senza la riscrittura in coda a `RepaintCells`, il glifo nuovo di una cella su un piano traslucido resterebbe
+ * opaco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLayerTreatmentGlyphsTest,
+	"RefactorTactics.HexMap.GlyphsTakeTheLayerTreatmentAlsoAfterARepaint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTLayerTreatmentGlyphsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	// La cima ha un anello (fumo): e' l'unico glifo della mappa, quindi la sua istanza e' la sola del primo anello.
+	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeLayerStackArena(World);
+	const FRTCellId Cima(2, -2, 2);
+	const FRTHexCellData* Dato = Asset ? Asset->FindCell(Cima) : nullptr;
+	if (!TestNotNull(TEXT("premessa: la cima esiste"), Dato)) { return false; }
+	FRTHexCellData Fumo = *Dato;
+	Fumo.Surface = ERTHexSurface::Smoke;
+	Asset->AddOrUpdateCell(Fumo);
+	Asset->SortCells();
+
+	ARTHexMapActor* Board = SpawnLayerTreatmentBoard(World, Asset);
+	UInstancedStaticMeshComponent* Anello1 = Board ? LayerTreatmentIsm(Board, TEXT("SurfaceGlyph1")) : nullptr;
+	UInstancedStaticMeshComponent* Anello4 = Board ? LayerTreatmentIsm(Board, TEXT("SurfaceGlyph4")) : nullptr;
+	if (!TestNotNull(TEXT("il primo anello"), Anello1) || !TestNotNull(TEXT("il quarto anello"), Anello4)) { return false; }
+	if (!TestEqual(TEXT("premessa: un solo glifo a un anello, quello della cima"), Anello1->GetInstanceCount(), 1)
+		|| !TestEqual(TEXT("premessa: nessun glifo a quattro anelli"), Anello4->GetInstanceCount(), 0))
+	{
+		return false;
+	}
+
+	Board->SyncActiveLayerPresentation(0); // la cima sta due piani sopra
+	TestTrue(TEXT("il glifo della cima e' traslucido"), LayerTreatmentChannel(Anello1, 0, RTLayerPresentation::FirstChannel) > 0.f);
+
+	// Il terreno cambia in partita: ghiaccio, quattro anelli. Il glifo passa al quarto anello senza ricostruzione.
+	FRTHexCellData Ghiaccio = *Asset->FindCell(Cima);
+	Ghiaccio.Surface = ERTHexSurface::Ice;
+	Asset->AddOrUpdateCell(Ghiaccio);
+	Asset->SortCells();
+	TestTrue(TEXT("il repaint riesce"), Board->RepaintCells({ Cima }));
+	if (!TestEqual(TEXT("premessa: il glifo e' passato al quarto anello"), Anello4->GetInstanceCount(), 1))
+	{
+		return false;
+	}
+	TestTrue(TEXT("il glifo rimontato e' traslucido come la sua cella"),
+		LayerTreatmentChannel(Anello4, 0, RTLayerPresentation::FirstChannel) > 0.f);
 	return true;
 }
 
