@@ -1191,7 +1191,9 @@ nel produttore: leggi il motivo nel log (`BlockedIntents`, portata, LOS) e corre
 perché in un commento. ⛔ Non indebolire l'asserzione.
 
 ⚠️ **Il tiro alla cieca non è testato qui, e non per dimenticanza**: su `main` l'attacco base richiede ancora la
-linea di tiro, e il tiro verso un esagono non visibile arriva con la PR #3230 (D-415), aperta. Il caso — chi colpisce
+linea di tiro, e il tiro verso un esagono non visibile arriva con la PR #3230 (D-415), aperta. ⏱️ *2026-10-10:
+#3230 è entrata **senza** il tiro cieco, che è arrivato con #3608 (`D-490`, `BlindAimDirect`: si mira anche dietro
+un ostacolo, e il colpo vi si ferma).* Il caso — chi colpisce
 alla cieca vede il proprio tracer perché `RevealHitTargetsToAttackers` precede il verdetto — resta della seduta
 `PIE-V01-BLINDFIRE` e di un test da scrivere quando quella PR atterra.
 

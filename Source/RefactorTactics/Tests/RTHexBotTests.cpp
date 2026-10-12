@@ -281,6 +281,53 @@ bool FRTHexBotFocusFireTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Il bersaglio che non puo' scattare via vale di piu'** — (1b) di #3229, [D-415].
+ *
+ * Con la mira che non insegue, un colpo su chi scatta nel Dash cade sulla cella che ha lasciato: a parita' di
+ * colpo, il bot deve preferire chi non puo' sottrarsi (kit senza mobilita' rapida, o scatto in ricarica).
+ *
+ * 🔴 **E deve essere un BONUS, non una penalita', ed e' la riga che lo pinna.** La prima stesura toglieva
+ * valore al colpo su chi PUO' scattare: sull'arena generata ogni nemico di una squadra ne ha uno, il termine
+ * non distingueva fra bersagli e rendeva l'attacco meno desiderabile del non attaccare — lo stallo e' passato
+ * da 5 a 10 turni. Qui: il colpo su chi puo' scappare vale ESATTAMENTE quanto senza il dato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPinnedTargetTest,
+	"RefactorTactics.HexBot.ScorePrefersTheTargetThatCannotEscape",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPinnedTargetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Enemy(3, 0);
+	const FRTHexBotPlan Colpo = MakePlan(Origin, true, 20, 100);
+
+	FRTHexBotContext SenzaDato = MakeCtx(Origin, Enemy, /*range*/ 0, /*hp*/ 100);
+	if (!TestTrue(TEXT("premessa: il bonus del contesto di default e' acceso"), SenzaDato.WPinnedBonusPercent > 0)) { return false; }
+	FRTHexBotContext Scappa = SenzaDato;
+	Scappa.EnemyCanEscape.Add(true);
+	FRTHexBotContext Inchiodato = SenzaDato;
+	Inchiodato.EnemyCanEscape.Add(false);
+	FRTHexBotContext InchiodatoSpento = Inchiodato;
+	InchiodatoSpento.WPinnedBonusPercent = 0;
+
+	const int32 NonAttacca = URTHexBotLibrary::ScorePlan(M, MakePlan(Origin), Scappa);
+	const int32 SuChiScappa = URTHexBotLibrary::ScorePlan(M, Colpo, Scappa);
+	const int32 SuChiNonScappa = URTHexBotLibrary::ScorePlan(M, Colpo, Inchiodato);
+	const int32 SenzaInformazione = URTHexBotLibrary::ScorePlan(M, Colpo, SenzaDato);
+	const int32 Spento = URTHexBotLibrary::ScorePlan(M, Colpo, InchiodatoSpento);
+
+	AddInfo(FString::Printf(TEXT("non attacca %d · su chi scappa %d · su chi non scappa %d · senza dato %d · spento %d"),
+		NonAttacca, SuChiScappa, SuChiNonScappa, SenzaInformazione, Spento));
+
+	TestTrue(TEXT("il colpo su chi non puo' scappare vale di piu'"), SuChiNonScappa > SuChiScappa);
+	TestEqual(TEXT("🔴 il colpo su chi puo' scappare vale quanto senza il dato: un bonus, non una penalita'"),
+		SuChiScappa, SenzaInformazione);
+	TestTrue(TEXT("e attaccare chi puo' scappare batte ancora il non attaccare"), SuChiScappa > NonAttacca);
+	TestEqual(TEXT("a zero il termine e' spento"), Spento, SenzaInformazione);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotCoverTest,
 	"RefactorTactics.HexBot.ScoreThreatRespectsCover",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

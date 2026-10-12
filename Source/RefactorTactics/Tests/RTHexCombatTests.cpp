@@ -42,12 +42,23 @@ namespace
 		return U;
 	}
 
-	FRTHexAttackIntent CombatIntent(int32 AttackerId, int32 TargetId, ERTAbilityShape Shape,
+	FRTHexAttackIntent CombatIntent(const TArray<FRTHexCombatUnit>& Units,
+		int32 AttackerId, int32 TargetId, ERTAbilityShape Shape,
 		int32 RangeCells, int32 Power, int32 AreaRadius = 0)
 	{
 		FRTHexAttackIntent I;
 		I.AttackerId = AttackerId;
 		I.TargetId = TargetId;
+		// 🔑 **LA MIRA VA NELL'INTENTO** ([D-415]). Da qui l'helper fa per i test cio' che
+		// `ARTTurnManager::LockInAndResolve` fa in partita: congela la cella su cui si mira. Prima
+		// `TargetCell` era «ignorata» con un bersaglio-unita' e il resolver leggeva la cella corrente —
+		// cioe' inseguiva.
+		//
+		// ⚠️ **Passa le UNITA' e non la cella**, cosi' l'indice del bersaglio non e' scritto due volte: un
+		// intento che mira a `Units[2]` e dichiara `TargetId = 1` sarebbe una fixture che mente, e nessun
+		// gate la prenderebbe.
+		if (Units.IsValidIndex(TargetId)) { I.TargetCell = Units[TargetId].Cell; }
+
 		I.Shape = Shape;
 		I.RangeCells = RangeCells;
 		I.AreaRadius = AreaRadius;
@@ -61,6 +72,22 @@ namespace
 	}
 
 	/** Vero se il piano contiene un colpo Attacker -> Target. */
+	/**
+	 * Come sopra, ma la mira si dichiara come CELLA ([D-415]).
+	 *
+	 * 🔑 **Serve dove l'intento nasce PRIMA delle unita'**: i test che confrontano due orientamenti
+	 * costruiscono l'intento una volta e le unita' una volta per passata, dentro un lambda. Li' non c'e' un
+	 * array da cui congelare, e la cella e' comunque un dato del test — la stessa che l'unita' ricevera'.
+	 */
+	FRTHexAttackIntent CombatIntent(const FRTCellId& AimCell, int32 AttackerId, int32 TargetId,
+		ERTAbilityShape Shape, int32 RangeCells, int32 Power, int32 AreaRadius = 0)
+	{
+		FRTHexAttackIntent I = CombatIntent(TArray<FRTHexCombatUnit>{}, AttackerId, TargetId, Shape,
+			RangeCells, Power, AreaRadius);
+		I.TargetCell = AimCell;
+		return I;
+	}
+
 	bool PlanHits(const FRTHexBlastPlan& Plan, int32 AttackerId, int32 TargetId)
 	{
 		for (const FRTHexAttackHit& Hit : Plan.Hits)
@@ -89,7 +116,7 @@ bool FRTHexCombatShapeSingleTest::RunTest(const FString&)
 	Units.Add(CombatUnit(2, 1, FRTCellId(3, 0)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -114,7 +141,7 @@ bool FRTHexCombatShapeAreaTest::RunTest(const FString&)
 	Units.Add(CombatUnit(3, 1, FRTCellId(4, 0)));                                   // distante 2: illeso
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -140,7 +167,7 @@ bool FRTHexCombatShapeLineTest::RunTest(const FString&)
 	Units.Add(CombatUnit(3, 1, FRTCellId(2, 1)));  // fuori linea: illeso
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Line, 5, 25));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Line, 5, 25));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -169,7 +196,7 @@ bool FRTHexCombatShapeConeTest::RunTest(const FString&)
 	Units.Add(CombatUnit(3, 1, URTHexLibrary::Neighbor(From, ERTHexDirection::W))); // dietro l'attaccante
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Cone, 2, 15));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Cone, 2, 15));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -195,7 +222,7 @@ bool FRTHexCombatNonAttackProducesNoHitTest::RunTest(const FString&)
 	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
 	Units.Add(CombatUnit(1, 1, FRTCellId(1, 0)));
 
-	FRTHexAttackIntent Silenziosa = CombatIntent(0, 1, ERTAbilityShape::Single, /*Range*/ 1, /*Power*/ 0);
+	FRTHexAttackIntent Silenziosa = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 1, /*Power*/ 0);
 	Silenziosa.bCountsAsAttack = false;
 
 	// ANTI-VACUITA': lo STESSO intento, dichiarato aggressione, deve produrre il colpo. Senza questa meta'
@@ -230,7 +257,7 @@ bool FRTHexCombatOutOfRangeTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(5, 0)));  // distanza 5
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Single, /*Range*/ 3, 30));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 3, 30));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -252,7 +279,7 @@ bool FRTHexCombatBlockedLineOfSightTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -273,7 +300,7 @@ bool FRTHexCombatNoMapFailClosedTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(1, 0)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, nullptr);
 
@@ -293,7 +320,13 @@ bool FRTHexCombatNoMapFailClosedTest::RunTest(const FString&)
 	TArray<FRTHexCombatUnit> Far;
 	Far.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
 	Far.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
-	const FRTHexBlastPlan Blocked = URTHexCombatLibrary::CollectHexAttacks(Far, Intents, Map);
+	// ⚠️ **La mira va rifatta sulla scena NUOVA** ([D-415]): `Intents` e' stato costruito sopra contro un
+	// altro array, dove il bersaglio stava altrove, e da quando la mira viaggia nell'intento riusarlo tale e
+	// quale punterebbe la cella della scena precedente. E' il difetto che il congelamento rende visibile —
+	// prima il resolver rileggeva la cella corrente e la differenza spariva.
+	TArray<FRTHexAttackIntent> IntentiFar = Intents;
+	IntentiFar[0].TargetCell = Far[1].Cell;
+	const FRTHexBlastPlan Blocked = URTHexCombatLibrary::CollectHexAttacks(Far, IntentiFar, Map);
 	TestEqual(TEXT("muro: e' un blocco della linea di tiro"), Blocked.BlockedIntents.Num(), 1);
 	TestEqual(TEXT("muro: nulla di 'non valutabile'"), Blocked.UnverifiableIntents.Num(), 0);
 	return true;
@@ -314,7 +347,7 @@ bool FRTHexCombatFriendlyFireTest::RunTest(const FString&)
 	Units.Add(CombatUnit(3, 1, URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::SE), /*bAlive*/ false)); // morto
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -337,7 +370,7 @@ bool FRTHexCombatDeadAttackerTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -471,10 +504,10 @@ bool FRTHexCombatPermutationTest::RunTest(const FString&)
 	Units.Add(CombatUnit(3, 1, FRTCellId(2, 1)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 2, ERTAbilityShape::Single, 5, 60));
-	Intents.Add(CombatIntent(1, 2, ERTAbilityShape::Single, 5, 60)); // focus-fire letale su 2
-	Intents.Add(CombatIntent(2, 0, ERTAbilityShape::Single, 5, 40)); // il morente colpisce comunque
-	Intents.Add(CombatIntent(3, 1, ERTAbilityShape::Area, 5, 30, 1));
+	Intents.Add(CombatIntent(Units, 0, 2, ERTAbilityShape::Single, 5, 60));
+	Intents.Add(CombatIntent(Units, 1, 2, ERTAbilityShape::Single, 5, 60)); // focus-fire letale su 2
+	Intents.Add(CombatIntent(Units, 2, 0, ERTAbilityShape::Single, 5, 40)); // il morente colpisce comunque
+	Intents.Add(CombatIntent(Units, 3, 1, ERTAbilityShape::Area, 5, 30, 1));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -570,7 +603,7 @@ bool FRTFootprintCarriesResolvedCellsTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -611,7 +644,7 @@ bool FRTFootprintOnEmptyCellsTest::RunTest(const FString&)
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
 
-	FRTHexAttackIntent SullaCellaVuota = CombatIntent(0, INDEX_NONE, ERTAbilityShape::Area, 5, 20, 1);
+	FRTHexAttackIntent SullaCellaVuota = CombatIntent(Units, 0, INDEX_NONE, ERTAbilityShape::Area, 5, 20, 1);
 	SullaCellaVuota.TargetCell = FRTCellId(2, 0); // nessuna unita' ci sta sopra
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { SullaCellaVuota }, Map);
@@ -646,7 +679,7 @@ bool FRTFootprintOnePerIntentTest::RunTest(const FString&)
 	Units.Add(CombatUnit(2, 1, URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::NE)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -673,9 +706,9 @@ bool FRTFootprintShapeIsDeclaredTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
 
 	const FRTHexBlastPlan Singolo = URTHexCombatLibrary::CollectHexAttacks(
-		Units, { CombatIntent(0, 1, ERTAbilityShape::Single, 5, 20) }, Map);
+		Units, { CombatIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 20) }, Map);
 	const FRTHexBlastPlan AreaZero = URTHexCombatLibrary::CollectHexAttacks(
-		Units, { CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 0) }, Map);
+		Units, { CombatIntent(Units, 0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 0) }, Map);
 
 	if (Singolo.Footprints.Num() == 1 && AreaZero.Footprints.Num() == 1)
 	{
@@ -709,8 +742,8 @@ bool FRTFootprintChannelIsOrderedTest::RunTest(const FString&)
 	Units.Add(CombatUnit(3, 1, FRTCellId(3, 0)));
 
 	TArray<FRTHexAttackIntent> Ordinati;
-	Ordinati.Add(CombatIntent(0, 2, ERTAbilityShape::Single, 5, 10));
-	Ordinati.Add(CombatIntent(1, 3, ERTAbilityShape::Single, 5, 10));
+	Ordinati.Add(CombatIntent(Units, 0, 2, ERTAbilityShape::Single, 5, 10));
+	Ordinati.Add(CombatIntent(Units, 1, 3, ERTAbilityShape::Single, 5, 10));
 
 	const FRTHexBlastPlan Piano = URTHexCombatLibrary::CollectHexAttacks(Units, Ordinati, Map);
 
@@ -772,7 +805,9 @@ bool FRTHexAreaFootprintIgnoresOccupancyTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeCombatMap(5);
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, /*Range*/ 4, /*Power*/ 15));
+	// La mira come cella: le due scene (`Pochi`, `Molti`) nascono sotto, e il bersaglio sta in (2,0) in
+	// entrambe — e' precisamente cio' che rende confrontabili le loro impronte.
+	Intents.Add(CombatIntent(FRTCellId(2, 0), 0, 1, ERTAbilityShape::Area, /*Range*/ 4, /*Power*/ 15));
 	Intents[0].AreaRadius = 2;
 
 	// Senza il terzo: attaccante e bersaglio, e basta.
@@ -831,7 +866,7 @@ bool FRTHexAreaFootprintCrossesWallsTest::RunTest(const FString&)
 	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, /*Range*/ 4, /*Power*/ 15));
+	Intents.Add(CombatIntent(Units, 0, 1, ERTAbilityShape::Area, /*Range*/ 4, /*Power*/ 15));
 	Intents[0].AreaRadius = 2;
 
 	const TArray<FRTCellId> Impronta = FootprintCellsOf(

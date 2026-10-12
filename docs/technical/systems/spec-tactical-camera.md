@@ -47,10 +47,19 @@ senza accorgersene.
 
 ## 2. Stato della camera
 
-La camera è **prospettica quasi-isometrica**, non ortografica: `USpringArmComponent` + `UCameraComponent`,
-nessun `ProjectionMode` impostato. Questo importa più di quanto sembri — `ZoomTowards` documenta che la sua
+In tattica la camera è **prospettica quasi-isometrica**: `USpringArmComponent` + `UCameraComponent`,
+e il `ProjectionMode` è prospettico in tattica e ortografico in strategica (§5, [D-498](../../decisions/RT_PDR_00_Decision_Log.md)). Questo importa più di quanto sembri — `ZoomTowards` documenta che la sua
 formula è *esatta in ortografica e approssimata in prospettiva*, ed è la ragione per cui la sua tolleranza è
 mezza cella e non zero.
+
+> ✅ **[D-498](../../decisions/RT_PDR_00_Decision_Log.md) è attuata dal 2026-10-11 ([#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)): in strategica la proiezione è ortografica**, dimetrica 2:1 con pitch −30°. La leva di [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) si è ritirata. In strategica la formula di `ZoomTowards` è quindi esatta.
+>
+> ✅ **[D-497](../../decisions/RT_PDR_00_Decision_Log.md), attuata in [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661): la camera si rende nel rettangolo della scena, fra le fasce dell'HUD.**
+> - **Chi lo decide**: `URTGameViewportClient::LayoutPlayers` scrive `Origin`/`Size` del giocatore mentre l'HUD tattico è montato. Proiezione, deproiezione e `ProjectWorldLocationToScreen` lo seguono da sé, perché passano da `ULocalPlayer::GetProjectionData`.
+> - **L'estensione verticale non cambia**: con `MaintainYFOV` UE tiene fisso il semiangolo verticale `atan(tan(FOV/2) / AspectRatio)`, quindi a parità di braccio il rettangolo inquadra la stessa altezza di mondo dello schermo intero, e celle e unità appaiono circa 0,64×. Lo misura `Camera.SceneRectKeepsTheVerticalExtentOfTheFullScreen` sulla matrice di proiezione.
+> - **Il limite del pivot** (`ComputeEffectivePivotBounds`, D-251) legge l'aspetto del rettangolo del giocatore (`RefreshViewportMetrics`), non `Viewport->GetSizeXY()`, e usa il modello di `MaintainYFOV`: semiasse verticale fisso, orizzontale che segue l'aspetto. A 16:9 i limiti sono quelli di prima; il difetto che `Camera.EffectivePivotBoundsShrinkWithZoomPitchAndAspect` teneva pinnato («il limite laterale non dipende dall'aspetto») è corretto.
+> - **Un click fuori dal rettangolo non raggiunge il mondo**: la deproiezione di UE lo estrapolerebbe, quindi il controller passa da `DeprojectCursorInsideScene` (`Pointer.ScenePointRaysOnlyInsideTheRect`).
+> - ⚠️ `ViewportAspectRatio` si rinfresca dove si rinfrescava prima (zoom, inquadratura, `BeginPlay`): finché l'HUD non è montato vale lo schermo intero, e il primo zoom lo allinea.
 
 Lo stato canonico è questo:
 
@@ -84,12 +93,13 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 |---|---|---|
 | Pan | `W` `A` `S` `D` | `AddPlanarMovement`, **relativo alla vista** |
 | Zoom | rotella | `ZoomTowards` (ancorato al cursore), ripiego al centro fuori mappa |
-| Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°` |
-| Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch) |
+| Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°`; in strategica `StrategicYawStep = 60°`, con l'imbardata allineata all'ingresso ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`). In strategica l'orbita non agisce, né la Y ([D-498](../../decisions/RT_PDR_00_Decision_Log.md)) né la X ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Select | `LMB` | contratto del puntatore ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)) |
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
 | Home | `Home` | `RecenterView` |
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
+| Vista strategica | `Tab` | `ToggleStrategicView`: sposta la distanza alla soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md), §5) |
 
 ### 3.2 Binding del modificatore `Alt` — ✅ consegnati
 
@@ -98,14 +108,14 @@ Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177
 | Gesto | Effetto | Stato |
 |---|---|---|
 | `Alt` + `LMB` **click** | pivot sulla cella valida sotto il cursore | ✅ non tocca la selezione |
-| `Alt` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag |
+| `Alt` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag; in strategica non agisce ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Alt` + `RMB` drag | dolly | ✅ sopprime l'`UndoAction` per tutto il gesto |
 | `Alt` + movimento senza tasti | peek | ✅ limitato, rientra da sé al rilascio |
 | `Alt` + `MMB` drag | precision pan | ✅ `PrecisionPanScale` |
 | `PageUp` / `PageDown` | `ActiveLayer` sopra / sotto | ✅ limitato ai layer che la mappa ha |
 | doppio `LMB` | Select + Focus | ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773) |
-| `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida |
-| `M` → Strategic Overview | — | ⏳ non cablato: lo stato esiste, la vista no (§5) |
+| `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida; in strategica non agisce ([D-498](../../decisions/RT_PDR_00_Decision_Log.md), [D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Tab` → Strategic View | porta lo zoom oltre la soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md)) | ⏳ non cablato: lo stato esiste, la vista no (§5). ⌫ *Fino al 2026-10-09 questa riga diceva `M`, che dichiara `Sneak` ([D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 3, [#3470](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3470); il badge è cliccabile da [D-457](../../decisions/RT_PDR_00_Decision_Log.md))* |
 
 > ✅ **`CAM-B` risposta il 2026-08-30: «entrambi».** `MMB` **resta** l'orbita e `Alt`+`LMB` è un secondo
 > modo; il pan resta su `WASD`. La domanda era aperta perché il rebinding avrebbe invalidato
@@ -173,7 +183,7 @@ un'unità converte la sua cella invece di leggerne la posizione — è la correz
 Lo zoom è **continuo** ✅ e resta tale. **Non** esistono tre modalità rigide `Close / Tactical / Strategic`:
 una modalità è uno stato in più da mantenere, e la distanza la sta già tenendo `TargetArmLength`.
 
-✅ **Lo stato** esiste dal 2026-08-30 ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)); ⏳ **la vista** no. La Strategic View è una
+✅ **Lo stato** esiste dal 2026-08-30 ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)); ✅ **la vista** dal 2026-10-10, nel nucleo di [D-495](../../decisions/RT_PDR_00_Decision_Log.md). La Strategic View è una
 conseguenza semantica dello zoom, non un'altra camera:
 
 ```text
@@ -195,8 +205,22 @@ loro `meta = (ClampMin)` vincola il Details, non un `Set` da Blueprint: `UpdateS
 con `Max`/`Min`, così chi li inverte ottiene comunque un'isteresi valida invece di uno stato che entra e
 non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
 
-⏳ **Nessun consumatore visivo.** Lo stato è leggibile (`IsStrategicView`) e si annuncia nel log; cosa si
-*mostri* in Strategic — separazione verticale dei piani, densità dei marker — è §6 e resta da fare.
+✅ **Il consumatore visivo** (2026-10-10, [D-495](../../decisions/RT_PDR_00_Decision_Log.md)).
+- `ARTHUD::UpdateObserverVeil` legge `IsStrategicView` nello stesso giro in cui scrive il velo, e lo consegna a ogni unità con `ARTUnit::SetStrategicPresentation`.
+- In Strategic lo skeletal dell'eroe si spegne e si riaccende il cilindro segnaposto. Il flag entra **in AND** con `bRender` nei predicati, quindi non riaccende niente che il velo abbia spento (`Unit.StrategicPresentationSwapsTheBodyButNeverRevealsAVeiledUnit`, `Veil.StrategicViewDoesNotRevealAVeiledUnit`).
+  - 🔑 **Il segnalino sta in piedi sulla cella** ([#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)). Un `BP_Unit_*` d'eroe ha il pivot ai piedi e un cilindro alto 100 centrato lì, cioè per metà sotto la cella. In Strategic il cilindro prende la scala del segnaposto nativo e sale di `UnitHalfHeight − VisualZOffset`, come il segnalino del ricordo. Senza, dalla camera lontana il raggio del click lo mancava e prendeva la cella dietro (`PlayerInput.StrategicHeroTokenStandsOnTheCellAndTakesTheClick`). In Strategic i bracci graykit si spengono: sono ancorati ai piedi.
+- Il ricordo diventa un segnalino con «X» (`ContactToken`) sulla cella del contatto, dalla stessa sorgente della sagoma (`Veil.StrategicRememberedContactIsATokenOnTheContactCell`).
+- ✅ **Inclinazione e proiezione sono quelle di [D-498](../../decisions/RT_PDR_00_Decision_Log.md)** dal 2026-10-11 ([#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)): ortografica, pitch fisso a `StrategicPitch` (−30°), per stato (sotto). La rampa di [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) e la leva di [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) si sono ritirate. 🔧 La separazione dei piani ha la sua leva (§6, [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)), e vale 3 dalla seduta `U78`.
+
+🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): come si entra e che cosa si vede.**
+- **Come si entra** (✅ cablato il 2026-10-10, `ARTCameraPawn::ToggleStrategicView`). `Tab` porta il braccio a `StrategicEnterThreshold` e, al secondo `Tab`, lo riporta all'ultima distanza tattica. Da [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) quella distanza si registra **al momento del salto**: `FrameOwnTeam` apre la partita scrivendo il braccio senza passare da `UpdateStrategicState`, e il primo `Tab` tornava alla distanza di `BeginPlay` (`Camera.TabReturnsToADistanceWrittenOutsideTheZoomGate`). Lo stato resta derivato dalla distanza, quindi questa sezione non cambia: `Tab` è una scorciatoia, non una modalità.
+  - ⚠️ **Il ritorno ha un tetto: mai oltre `StrategicExitThreshold`.** Se si è entrati con la rotella, l'ultima distanza tattica cade fra le due soglie, e tornarci lascerebbe la vista strategica per isteresi. D-488 diceva «la distanza da cui era partita» e non copriva questo caso: la regola sta in `Camera.TabAfterWheelEntryLeavesTheStrategicView`, e il caso base in `Camera.TabReachesTheStrategicThresholdAndTheSecondTabReturns`.
+- **Che cosa si vede.** Al centro, la 3D tattica diventa un'**isometrica semplificata**, quella delle tavole A–F di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md). L'HUD intorno resta lo stesso.
+- **Che cosa sposta.** Il ciclo della selezione di [D-421](../../decisions/RT_PDR_00_Decision_Log.md) passa da `Tab` a `N`, nello stesso commit che lega `Tab`. ✅ Fatto il 2026-10-10, e pinnato da `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN`.
+- **Che cosa resta aperto.** La proiezione esatta e le soglie si decidono in `L_CameraFeatureLab`.
+  - ✅ **La proiezione e l'inclinazione le ha decise [D-498](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-11), attuata in [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)**: isometrica dimetrica 2:1, cioè ortografica con pitch fisso a −30° (`StrategicPitch`). Vale **per stato**: anche fra le due soglie, dove l'isteresi tiene la strategica, e dal fotogramma in cui lo stato cambia (`Camera.StrategicPitchAndProjectionFollowTheStateInBothHysteresisDirections`). Per questo ogni porta di gioco del braccio rilegge lo stato **prima** del pitch e del clamp del pivot, `FrameOwnTeam` compresa (`Camera.ArmGatesReadTheStateBeforeClampingThePivot`); fa eccezione la vista di misura `ApplyTopDownView`. In strategica l'orbita verticale non agisce, e l'offset manuale della tattica torna al ritorno (`Camera.FreeOrbitIsInertInStrategicAndTheTacticalTiltReturns`, `Camera.SecondTabRestoresTheWholeTacticalView`). La rotazione in strategica è a **60°** per [D-499](../../decisions/RT_PDR_00_Decision_Log.md), deciso dall'autore nella seduta `U79`: entrando l'imbardata si allinea al multiplo di 60° più vicino e uscendo torna quella tattica, e in iso l'orbita orizzontale libera non agisce (`Camera.YawSnapsTo60InStrategicAndTheTacticalYawReturns`, `Camera.SnapYawToStepRoundsToTheNearestMultiple`). In tattica resta [D-142](../../decisions/RT_PDR_00_Decision_Log.md), a 45°. Restano aperte le soglie.
+  - 🔑 **`OrthoWidth` è l'estensione VERTICALE.** Col vincolo `AspectRatio_MaintainYFOV`, il default di `BaseEngine.ini`, UE usa `OrthoWidth / 2` come mezza altezza del quadro, e la prospettica tiene fisso il semiangolo verticale `atan(tan(FOV/2) / AspectRatio)`. Quindi `OrthoWidthForArm = 2 · Arm · tan(FOV/2) / AspectRatio`, con l'`AspectRatio` di riferimento della camera (16:9): al cambio di proiezione la scala sul pivot non salta, a ogni aspetto, e lo zoom resta il braccio (D-252). Lo prova `Camera.StrategicOrthographicMatchesThePerspectiveOnTheProjection` sulla matrice di proiezione che UE costruisce per il render, a 16:9, 21:9 e 16:10. ⚠️ La formula di [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) non divideva per l'aspetto e inquadrava 1,78× la prospettica; il suo test confrontava la formula con sé stessa (seconda review di [#3663](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3663)). 🔴 **I piani di clipping automatici di UE si spostano indietro di due bracci** (`StrategicOrthoPlaneShiftArms`): in ortografica il bordo basso del quadro parte quasi dal suolo, e senza lo spostamento la geometria più alta del pivot di circa `0,23 · Arm` spariva lì (547 alla soglia d'ingresso, contro i 750 del piano 1). Lo prova `Camera.StrategicOrthographicPlanesKeepTheMapLayersInView` sulla matrice di vista e proiezione di UE (review di [#3671](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3671)).
+  - 🔑 **I limiti del pivot non hanno un ramo ortografico.** Con la correzione di [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) l'impronta ortografica sul piano del pivot coincide con quella prospettica, e `ComputeEffectivePivotBounds` modella quel rettangolo. ⚠️ Il modello è esatto solo a 16:9: con `MaintainYFOV` il semiasse fisso è il verticale (`Arm · tan(FOV/2) / 1,78`) e l'orizzontale segue l'aspetto. Si corregge quando il limite passa al rettangolo della scena ([#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)).
 
 🔗 La Strategic View ha già una premessa documentale in
 [`progettazione-hud.md`](progettazione-hud.md) §3.2 — *«Strategic Overview / Tactical Overview … non è la
@@ -215,7 +239,7 @@ il grep risponde `3` nel solo `RTCameraPawn.cpp`.
 | Consumatore | Deriva dallo zoom? | Come, oggi |
 |---|---|---|
 | velocità di pan | ✅ **dalla sorgente** | `Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength` |
-| pitch | 🟡 **canale aperto, curva piatta** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha()`, con `PitchZoomDelta = 0` di **default**: in partita l'inclinazione è identica a prima, e la curva si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
+| pitch | 🟡 **canale aperto, curva piatta** | In tattica `DefaultPitch + PitchZoomDelta * GetZoomAlpha()`, con `PitchZoomDelta` a `0` di **default**: in partita l'inclinazione tattica è identica a prima, e la curva si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780). In strategica il pitch è fisso a `StrategicPitch` (−30°, [D-498](../../decisions/RT_PDR_00_Decision_Log.md), [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662)), e la rampa di [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) si è ritirata. |
 | FOV | ❌ no | `ViewportHorizontalFov` viene **letto** dalla camera, mai scritto |
 | span dei layer | ❌ non esiste | §6 |
 | alpha della UI tattica | ❌ non esiste | [#1835](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1835) |
@@ -281,8 +305,58 @@ continua a esistere anche lì — non è la vista a definirlo.
 > dall'editor mode. Due scrittori su un campo solo sarebbero un difetto che si manifesta in editor e si
 > diagnostica in partita.
 >
-> ⏳ **Resta da fare la presentazione**: indicatori sopra/sotto e separazione verticale in Strategic. Il
-> filtro del velo va attraversato **prima** di decidere cosa disegnare, non dopo.
+> 🔧 **La separazione verticale in Strategic ha la sua leva dal 2026-10-11** ([#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632)):
+> `ARTHexMapActor::StrategicLayerSeparation`, oppure `rt.Map.StrategicLayerSeparation` in console, che se > 0
+> vince sulla proprietà. **Vale 2** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md) (7)): l'ha scelto l'autore in isometrica, sulle catture della seduta PIE `U81` (2026-10-11, [#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678)), sui tre piani sovrapposti di `Visual.Map.LayerStack`. Prima valeva 3, scelto in prospettiva nella seduta `U78` sui due piani di `Visual.Map.MultiLevel`. `1` è neutro.
+> - 🔑 **È la quota del contesto, non un secondo contesto.** `GetHexContext` è da allora il contesto della
+>   *presentazione*: in Strategic la quota dei piani vale quella dell'asset per il fattore. Board, unità, playback,
+>   overlay dell'HUD e picking la leggono dalla stessa porta, quindi restano allineati fra loro
+>   (`HexMapActor.StrategicLayerSeparationPickingFollowsThePose`).
+> - È la quota con cui la board è **posata**, e la cambia solo una ricostruzione intera. Una parziale (il velo che
+>   insegue una revisione dell'asset) ripone le sue famiglie alla stessa quota delle altre, così la board non resta
+>   mai mista (`HexMapActor.StrategicLayerSeparationSurvivesAPartialRebuild`).
+> - Può farlo perché la simulazione non usa la quota. Misurato nel codice il 2026-10-11: i lettori fuori dalla
+>   mappa la usano per posare i modelli su celle già decise. Lo fissa `HexMove.StrategicLayerSeparationKeepsTheOutcome`:
+>   lo stesso turno, con e senza separazione, finisce con la stessa cella, la stessa salute, lo stesso TurnLog e lo
+>   stesso hash.
+> - ⛔ **Chi trasforma una posizione in una cella autorevole usa `GetAuthoringHexContext`**, cioè lo spawn da
+>   marker e i template. Letto con la quota separata, un marker del piano 1 cadrebbe sul piano terra
+>   (`HexMapActor.StrategicLayerSeparationLeavesSpawnCellsAlone`).
+> - 🔴 **Il velo resta intero.** Cambiare quota ricostruisce la board, e la ricostruzione riporta ogni istanza alla
+>   scala piena. Nello stesso fotogramma la mappa ridisegna il velo che mostrava, riletto dallo stato che il velo
+>   stesso aveva scritto sul disco (`HexMapActor.StrategicLayerSeparationKeepsTheVeil`).
+>   - ⛔ Non da una copia della conoscenza di squadra, che l'actor non conserva: è la regola di
+>     [`D-242`](../../decisions/RT_PDR_00_Decision_Log.md) che `RebuildInstances` dichiara per `KnowledgeVolumes`.
+>   - ⚠️ Come ogni ricostruzione, spegne `rt.Debug.Knowledge` e lo scrive nel log: va rilanciato. Non è il velo rotto.
+> - 🔴 **Le unità salgono o scendono, e basta.** Le riposa il `TurnManager`, scalando la loro quota sopra il piano
+>   terra: è lineare nella quota dei piani, anche a metà di una salita, e la pianta non si tocca
+>   (`HexMove.StrategicLayerSeparationReposesStandingUnits`).
+>   - A playback in corso `Cell` è già la cella **finale**, mentre il modello sta dove il playback lo ha messo:
+>     all'inizio di un'animazione di una fase futura, alla fine di una passata. Riposarlo su `Cell` lo farebbe
+>     saltare (`HexMove.StrategicLayerSeparationDuringPlaybackKeepsThePlan`).
+>
+> ⌫ *Fino al 2026-10-12 qui restavano «gli indicatori sopra/sotto» di [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775). [D-501](../../decisions/RT_PDR_00_Decision_Log.md) li ha superati:
+> gli altri piani non si segnalano, si **mostrano**, trattati rispetto a quello attivo.*
+>
+> 🎨 **I piani rispetto a quello attivo** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679)), in tattica e in strategica. I piani sopra sono traslucidi.
+> I piani sotto sono desaturati e scuriti, di più quanto più sono lontani. L'attivo ha i colori pieni e il bordo delle
+> celle marcato. Le unità e i fantasmi del piano restano pieni. Una mappa a un piano si vede come prima.
+> - 🔑 **L'ingresso è il piano del controller.** `ARTPlayerController` lo manda alla board con
+>   `ARTHexMapActor::SyncActiveLayerPresentation`, in `SetActiveLayer` e a ogni fotogramma; la board riscrive solo se
+>   il piano, o una leva, è cambiato. ⛔ `ARTHexMapActor::ActiveLayer` resta dell'editor mode.
+> - 🔑 **La tecnica: tre canali per istanza, neutri a zero, applicati da `M_HexCell`** (`RTLayerPresentation.h`). I
+>   canali 0..2 restano il colore e il velo. Nei canali 3..5 ci sono trasparenza (`OpacityMask` a dithering, materiale
+>   `Masked`), desaturazione ed esposizione in stop. Si attenua l'**uscita** del materiale, come chiede D-501 (3) per i
+>   terreni con texture. Il dithering non ordina la traslucenza e lascia profondità e ombre come sono.
+> - 🔴 **Il velo viene prima, per costruzione**: il velo nasconde azzerando la scala, il trattamento scrive solo i suoi
+>   canali, e una cella mai vista resta non disegnata su qualunque piano (`HexMap.LayerTreatmentLeavesTheVeilAlone`).
+> - **Il picking non cambia**: la collisione è quella di prima, e un colpo su un piano traslucido sopra l'attivo si
+>   scarta come ogni colpo fuori dal piano attivo (D-255).
+> - ⚠️ **Le famiglie senza dati per istanza non ricevono il trattamento**: `Relief`, `Blockers`, `StructuralBodies`,
+>   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
+> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.LowerDesaturation` (0,5 per piano),
+>   `rt.Map.Layers.LowerDarkening` (0,35 per piano) e `rt.Map.Layers.ActiveBorderStops` (+6). Negativo vuol dire il
+>   default. ⚠️ **I default sono provvisori**: li ha scelti la PR, di notte, e l'autore li sceglie in PIE.
 
 ---
 

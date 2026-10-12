@@ -304,7 +304,8 @@ bool FRTContextInspectorPlacementTest::RunTest(const FString&)
 	//
 	// ⛔ **E l'allargamento NON e' la direzione verso il centro**, come una prima stesura di questo
 	// commento diceva: il pannello e' `VAlign_Bottom`, quindi vive sotto il keep-out centrale
-	// (`RTCenterFree::CenterKeepOut`, Y 216..864 a 1920x1080) finche' la sua ALTEZZA resta contenuta.
+	// (fino al 2026-10-11 il 60% centrato, Y 216..864 a 1920x1080; da #3661 non ha piu' vincolo, vedi
+	// `Debug.ContextInspectorStaysOnScreen`) finche' la sua ALTEZZA resta contenuta.
 	// A portarlo nel centro sarebbe l'altezza, e `FRTContextInspectorPlacement` non ha nessun tetto
 	// d'altezza: resta da decidere in #3319.
 	TestTrue(TEXT("e il tetto non cresce senza che qualcuno lo decida"), Posa.MaxWidth <= 460.f);
@@ -653,28 +654,24 @@ namespace
 }
 
 /**
- * **Il pannello resta sotto il keep-out centrale** — il ⛔ che `PIE-DEBUG-CONTEXT` dichiara dal
- * 2026-09-24, reso misurabile invece che alluso.
+ * **Il pannello resta dentro lo schermo, e il suo tetto resta 9 righe** (#3661, D-497 (1)).
  *
- * 🔴 **Il criterio precedente era inosservabile, e questo rischiava di esserlo uguale.** *«Non deve
- * coprire la board»* e' stato ritirato perche' non rispettabile senza cambiare la posa (#3319); il suo
- * sostituto — *«non deve invadere il centro»* — sarebbe stato la stessa cosa finche' «il centro» non
- * aveva un referente e l'altezza non era un dato. Ora il referente e' `RTCenterFree::CenterKeepOut()` e
- * l'altezza si calcola da `FRTContextInspectorPlacement`.
+ * ⌫ **Fino al 2026-10-11 era `ContextInspectorFitsUnderTheKeepOut`**: il pannello doveva stare sotto il
+ * riquadro centrale del 60% (`RTCenterFree::CenterKeepOut`), ed e' quel vincolo che porto' `MaxRighe` da 12
+ * a 9. Con D-497 il riquadro non esiste piu' — la scena sta fra le fasce dell'HUD — e la fascia bassa al 17%
+ * non lo conterrebbe: 174 px, 189 con un capo-riga, contro un budget di circa 160.
  *
- * ⛔ **E il pannello NON ci stava.** Con `MaxRighe = 12` l'altezza era `219 px` contro un budget di
- * `192`: dentro il keep-out **sempre**, perche' i dodici slot esistono anche a pannello quasi vuoto.
- * Il tetto e' sceso a **9**, e questo test e' la ragione per cui non puo' risalire in silenzio.
+ * 🔑 **L'autore ha scelto che il Context Inspector perda il vincolo** (#3661, 2026-10-11): D-497 (1) esenta
+ * gli strumenti di sviluppo, quindi il pannello resta a 9 righe e, quando e' aperto, puo' coprire il bordo
+ * basso della scena. Scartate le 7 righe, che avrebbero tolto contesto con un margine di 0,6 px.
  *
- * 🔑 **Un capo-riga di tolleranza, e non e' teorico**: con l'osservatore onnisciente la riga
- * `[tecnico]` supera la larghezza utile e va a capo. Dieci righe sarebbero entrate senza margine e
- * sarebbero uscite al primo `rt.Debug.ContextInspector -1` — cioe' proprio l'argomento con cui la
- * seduta `U59` ha riempito il pannello.
+ * Restano due cose misurabili: il pannello, nel caso peggiore che i dati consentono, sta dentro lo schermo
+ * di riferimento; e il tetto non cambia in silenzio, perche' la scelta di oggi e' stata fatta su quel 9.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorFitsUnderTheKeepOutTest,
-	"RefactorTactics.Debug.ContextInspectorFitsUnderTheKeepOut",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorStaysOnScreenTest,
+	"RefactorTactics.Debug.ContextInspectorStaysOnScreen",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTContextInspectorFitsUnderTheKeepOutTest::RunTest(const FString&)
+bool FRTContextInspectorStaysOnScreenTest::RunTest(const FString&)
 {
 	URTContextInspectorWidgetBase* Pannello = NewObject<URTContextInspectorWidgetBase>();
 	if (!TestNotNull(TEXT("il pannello si costruisce"), Pannello)) { return false; }
@@ -685,38 +682,25 @@ bool FRTContextInspectorFitsUnderTheKeepOutTest::RunTest(const FString&)
 	TestEqual(TEXT("il font e' quello su cui l'altezza di riga e' stata derivata"),
 		Stile.Font.Size, PuntiFontAttesi);
 
-	// —— Il budget: dal bordo inferiore del keep-out al fondo del pannello.
-	const RTCenterFree::FRect KeepOut = RTCenterFree::CenterKeepOut();
-	const float Budget = (RTCenterFree::RefHeight - KeepOut.Bottom) - Posa.Margin;
-	// Anti-vacuita': con un budget nullo o negativo ogni `<=` qui sotto sarebbe una domanda diversa.
-	if (!TestTrue(TEXT("il keep-out lascia una fascia bassa"), Budget > 0.f)) { return false; }
+	// —— Il tetto della scelta d'autore.
+	TestEqual(TEXT("il tetto di righe resta quello scelto con #3661"), URTContextInspectorWidgetBase::MaxRighe, 9);
 
-	const float Altezza = AltezzaPannello(Posa, URTContextInspectorWidgetBase::MaxRighe, 0);
-	TestTrue(*FString::Printf(TEXT("il pannello (%.0f px) sta nella fascia sotto il keep-out (%.0f px)"),
-		Altezza, Budget), Altezza <= Budget);
-
-	// ⛔ E con UN capo-riga: e' la tolleranza che ha deciso 9 invece di 10, e senza questo asserto
-	// qualcuno potrebbe risalire a 10 restando verde.
-	const float ConCapoRiga = AltezzaPannello(Posa, URTContextInspectorWidgetBase::MaxRighe, 1);
-	TestTrue(*FString::Printf(TEXT("e ci sta anche con un capo-riga (%.0f px)"), ConCapoRiga),
-		ConCapoRiga <= Budget);
-
-	// —— Il RETTANGOLO, che e' cio' che #3319 chiedeva: non un enum di allineamento.
+	// —— Il rettangolo nel caso peggiore: tutte le righe, e un capo-riga.
+	const float Altezza = AltezzaPannello(Posa, URTContextInspectorWidgetBase::MaxRighe, 1);
 	const RTCenterFree::FRect Rett{
 		RTCenterFree::RefWidth - Posa.Margin - Posa.MaxWidth,
 		RTCenterFree::RefHeight - Posa.Margin - Altezza,
 		RTCenterFree::RefWidth - Posa.Margin,
 		RTCenterFree::RefHeight - Posa.Margin };
+	AddInfo(FString::Printf(TEXT("pannello nel caso peggiore: %s"), *RTCenterFree::Descrivi(Rett)));
 
-	TestFalse(*FString::Printf(TEXT("il pannello %s non tocca il keep-out %s"),
-		*RTCenterFree::Descrivi(Rett), *RTCenterFree::Descrivi(KeepOut)),
-		RTCenterFree::SiToccano(Rett, KeepOut));
+	TestTrue(*FString::Printf(TEXT("il pannello %s sta dentro lo schermo %.0fx%.0f"),
+		*RTCenterFree::Descrivi(Rett), RTCenterFree::RefWidth, RTCenterFree::RefHeight),
+		Rett.Left >= 0.f && Rett.Top >= 0.f
+		&& Rett.Right <= RTCenterFree::RefWidth && Rett.Bottom <= RTCenterFree::RefHeight);
 
-	// ⚠️ **Limite dichiarato, e va letto insieme al verde qui sopra**: `MaxWidth` e `MaxDesiredWidth`
-	// sono tetti sulla dimensione DESIDERATA, e nessuno ritaglia. Questo rettangolo e' quindi il caso
-	// peggiore che i dati consentono, non la resa. Un contenuto che eccedesse i tetti uscirebbe dal
-	// bordo senza che questo test lo veda: quella meta' resta di PIE.
-
+	// ⚠️ **Limite dichiarato**: `MaxWidth` e `MaxDesiredWidth` sono tetti sulla dimensione DESIDERATA, e
+	// nessuno ritaglia. Questo rettangolo e' il caso peggiore che i dati consentono, non la resa.
 	return true;
 }
 

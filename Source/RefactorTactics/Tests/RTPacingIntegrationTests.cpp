@@ -12,6 +12,9 @@
 #include "Engine/Engine.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTActionData.h"
+#include "Combat/RTOffensiveActionLibrary.h"
+#include "Map/RTHexLibrary.h"
 #include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -335,16 +338,114 @@ bool FRTPacingCandidateEventsAreWiredTest::RunTest(const FString&)
 		DestroyHexPacingWorld(World); return false;
 	}
 
+	// 🔴 **Il PRIMO turno attraversa la linea per costruzione** (#3229). Fino al 2026-10-10 il boundary si
+	// apriva quando un movimento NATO DAGLI SCONTRI fra bot finiva nella linea di un guardiano — misurato: al
+	// turno 5, su una partita qualsiasi. Con la mira che non insegue ([D-415]) la partita prende un'altra
+	// strada, i bot restano a sparare da fermi e nessuno attraversa piu' una linea: il test diventava rosso per
+	// ASSENZA dello scenario, cioe' misurava il bilanciamento dei bot invece del cablaggio del cronometro.
+	//
+	// 🔑 Qui la linea si calcola con la STESSA funzione del resolver (`MakeSuppressiveZone`, dalla cella del
+	// guardiano verso il suo facing per la portata dell'arma), il guardiano guarda verso A e sta fermo, e A1
+	// cammina su una cella della linea. Dal secondo turno decidono di nuovo i bot, come prima.
+	const URTHexMapAsset* Mappa = nullptr;
+	if (const ARTHexMapActor* MapActor = Cast<ARTHexMapActor>(
+			UGameplayStatics::GetActorOfClass(World, ARTHexMapActor::StaticClass())))
+	{
+		Mappa = MapActor->MapAsset;
+	}
+	int32 PortataGuardiano = 0;
+	for (int32 i = 0; i < B1->NumAbilities(); ++i)
+	{
+		const URTActionData* A = B1->GetAbility(i);
+		if (A && A->Def.BaseActionId == FName(TEXT("Action.BasicAttack"))) { PortataGuardiano = FMath::Max(1, A->Def.RangeCells); break; }
+	}
+	const FRTSuppressiveZone Linea = URTOffensiveActionLibrary::MakeSuppressiveZone(Mappa, /*Owner*/ 2, B1->TeamId,
+		B1->Cell, URTHexLibrary::Neighbor(B1->Cell, ERTHexDirection::W), PortataGuardiano, /*Damage*/ 1);
+	FRTCellId Attraversata;
+	bool bAttraversabile = false;
+	for (const FRTCellId& Cella : Linea.Cells)
+	{
+		if (URTHexLibrary::HexDistance(A1->Cell, Cella) <= A1->GetEffectiveMoveRange()
+			&& (!bAttraversabile || URTHexLibrary::HexDistance(A1->Cell, Cella) < URTHexLibrary::HexDistance(A1->Cell, Attraversata)))
+		{
+			Attraversata = Cella;
+			bAttraversabile = true;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: una cella della linea del guardiano e' alla portata di movimento di A1"),
+			Mappa != nullptr && bAttraversabile))
+	{
+		DestroyHexPacingWorld(World); return false;
+	}
+	const FRTCellId PartenzaA1 = A1->Cell;
+
 	int32 Giocati = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Giocati < 8)
 	{
 		TM->PlanBotsForTest();
 		B1->PlannedAbilityIndex = IdxReazione;
 		B2->PlannedAbilityIndex = IdxReazione;
+		if (Giocati == 0)
+		{
+			for (ARTUnit* Guardiano : { B1, B2 })
+			{
+				Guardiano->Facing = ERTHexDirection::W;     // verso A: la linea nasce dal facing al Prep
+				Guardiano->bDeclaresPlannedFacing = false;
+				Guardiano->PlannedCell = Guardiano->Cell;   // fermo: la linea resta dov'e' stata calcolata
+				Guardiano->PlannedPath.Reset();
+				Guardiano->PlannedWaypoints.Reset();
+				Guardiano->PlannedDashAbility = INDEX_NONE;
+			}
+			A1->PlannedAbilityIndex = INDEX_NONE;           // solo movimento: niente attacco ne' scatto
+			A1->ClearPlannedAttack();
+			A1->PlannedDashAbility = INDEX_NONE;
+			A1->PlannedCell = Attraversata;
+			A1->PlannedPath.Reset();
+			A1->PlannedWaypoints.Reset();
+		}
+		// E la SECONDA raccolta, per la stessa ragione: la raccolta gira solo dentro il movimento NORMALE (il
+		// Dash non passa dai guardiani), e dopo il primo contatto i bot restano a sparare o scattano. Al turno 2
+		// A2 fa un passo normale su una cella libera accanto: la raccolta si ripete per costruzione.
+		FRTCellId PassoA2;
+		bool bPassoA2 = false;
+		if (Giocati == 1 && A2->IsAlive() && Mappa)
+		{
+			TArray<AActor*> Tutte;
+			UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Tutte);
+			for (int32 d = 0; d < 6 && !bPassoA2; ++d)
+			{
+				const FRTCellId Vicina = URTHexLibrary::Neighbor(A2->Cell, static_cast<ERTHexDirection>(d));
+				bool bLibera = Mappa->ContainsCell(Vicina);
+				for (const AActor* Attore : Tutte)
+				{
+					const ARTUnit* U = Cast<ARTUnit>(Attore);
+					if (U && U->IsAlive() && U->Cell == Vicina) { bLibera = false; }
+				}
+				if (bLibera) { PassoA2 = Vicina; bPassoA2 = true; }
+			}
+			if (bPassoA2)
+			{
+				A2->PlannedAbilityIndex = INDEX_NONE;
+				A2->ClearPlannedAttack();
+				A2->PlannedDashAbility = INDEX_NONE;
+				A2->PlannedCell = PassoA2;
+				A2->PlannedPath.Reset();
+				A2->PlannedWaypoints.Reset();
+			}
+		}
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 		{
 			TM->Tick(0.05f);
+		}
+		if (Giocati == 0)
+		{
+			// Controllo positivo del turno scritto a mano: A1 si e' mosso (fino alla linea, o fermato su di essa).
+			TestTrue(TEXT("premessa: al primo turno A1 si e' mosso verso la linea"), A1->Cell != PartenzaA1);
+		}
+		if (Giocati == 1)
+		{
+			TestTrue(TEXT("premessa: al secondo turno A2 ha fatto il suo passo normale"), bPassoA2 && A2->Cell == PassoA2);
 		}
 		++Giocati;
 	}

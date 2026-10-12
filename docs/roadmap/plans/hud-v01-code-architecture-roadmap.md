@@ -110,7 +110,7 @@ dal codice) e resta `DEFER`: allargare il catalogo prima che la v0.1 lo chieda �
 | **Stato live** | `DONE` nel codice |
 | **Intent** | il giocatore capisce round, fase, timer, la propria squadra, l'unità selezionata e cosa può ancora fare |
 | **Producer** | `URTHudViewModel` (`UBlueprintFunctionLibrary`) su `ARTTurnManager` / `ARTUnit` |
-| **Contract** | `FRTMatchHeaderView` (round, `RoundLimit`, `Phase`, `PlanningSecondsRemaining`, `ReadyCountdownSecondsRemaining`, `SecondsUntilCommit`, `bResolving`, punteggi) · `FRTUnitCardView` (HP/MaxHP/Shield/`bIsAlly`/`bAlive`) · `FRTUnitSlotsView{Movement, Main, Reaction}` · `FRTAbilityCooldownView` (slot, turni, `ChargeFraction`, `bUsableNow`) · `FRTStatusBadgeView` · `FRTUnitOverlayView` |
+| **Contract** | `FRTMatchHeaderView` (round, `RoundLimit`, `Phase`, `PlaybackPhase` ([D-479](../../decisions/RT_PDR_00_Decision_Log.md), #3612), `PlanningSecondsRemaining`, `ReadyCountdownSecondsRemaining`, `SecondsUntilCommit`, `bResolving`, punteggi) · `FRTUnitCardView` (HP/MaxHP/Shield/`bIsAlly`/`bAlive`) · `FRTUnitSlotsView{Movement, Main, Reaction}` · `FRTAbilityCooldownView` (slot, turni, `ChargeFraction`, `bUsableNow`) · `FRTStatusBadgeView` · `FRTUnitOverlayView` |
 | **Consumer** | `URTScreenHudWidgetBase` e le sei sottoclassi · `ARTHUD` (Canvas §4.2) · `URTUnitOverlayWidget` |
 | **Dependencies** | *hard*: `ARTTurnManager`. *sequencing*: C3 |
 | **Implementation minimum** | raggiunto. La regola dei **due orologi** vive in `ComputeSecondsUntilCommit` — una sede sola — e `ARTHUD::ComposeMatchStatusLine` la consuma invece di riscriverla (PR #2424) |

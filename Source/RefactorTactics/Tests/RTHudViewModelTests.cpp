@@ -2938,4 +2938,113 @@ bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **I CAMPI NUOVI DELLA RIGA NON DICONO NIENTE DI NASCOSTO** (#3637, T8). Fase, numero e reazione sono ricavati
+ * dagli eventi GIA' filtrati per chi guarda.
+ *
+ * 🔑 **La prova e' metamorfica**: lo stesso log, con e senza le voci che chi guarda non vede, deve dare a chi guarda le
+ * stesse righe, campo per campo. Se il numero «#n» fosse l'indice nel TurnLog, le voci nascoste lascerebbero dei
+ * buchi, e i buchi direbbero quante sono (#2757): qui la differenza sarebbe visibile.
+ *
+ * ⚠️ **Il controllo positivo**: le voci nascoste producono righe per chi le puo' vedere. Senza, il test passerebbe
+ * anche con voci che il proiettore scarta per altre ragioni.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventFeedNewFieldsPrivacyTest,
+	"RefactorTactics.Privacy.EventFeedNewFieldsRevealNothingHidden",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventFeedNewFieldsPrivacyTest::RunTest(const FString&)
+{
+	const auto Voce = [](ERTLogCategory Categoria, uint8 Esito, int32 UnitId, int32 Squadra, ERTMatchPhase Fase)
+	{
+		FRTTurnLogEntry E;
+		E.Category = Categoria;
+		E.Outcome = Esito;
+		E.UnitId = UnitId;
+		E.Phase = Fase;
+		E.SrcCell = FRTCellId(-1, 0, 0);
+		E.TgtCell = FRTCellId(1, 0, 0);
+		E.Verdict.AllowTeam(Squadra);
+		return E;
+	};
+	const uint8 Bloccato = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+
+	// Chi guarda e' la squadra 1. Le voci della squadra 0 sola sono nascoste: in mezzo, non in coda.
+	const FRTTurnLogEntry Visibile1 = Voce(ERTLogCategory::Combat, Bloccato, 3, 1, ERTMatchPhase::Blast);
+	const FRTTurnLogEntry Nascosta1 = Voce(ERTLogCategory::Combat, Bloccato, 9, 0, ERTMatchPhase::Blast);
+	const FRTTurnLogEntry Visibile2 = Voce(ERTLogCategory::Reaction, 0, 5, 1, ERTMatchPhase::Blast);
+	const FRTTurnLogEntry Nascosta2 = Voce(ERTLogCategory::Reaction, 0, 7, 0, ERTMatchPhase::Prep);
+	const FRTTurnLogEntry Visibile3 = Voce(ERTLogCategory::Combat, Bloccato, 11, 1, ERTMatchPhase::Move);
+	// La dominanza: una voce nascosta della STESSA unita' di una visibile. Se il filtro venisse dopo la dominanza,
+	// potrebbe sostituirla, e la riga direbbe cio' che chi guarda non vede.
+	const FRTTurnLogEntry NascostaStessaUnita = Voce(ERTLogCategory::Combat, Bloccato, 5, 0, ERTMatchPhase::Prep);
+	// L'ambiente si aggrega in una riga sola: una cella nascosta PRIMA di una visibile non deve darle la sua fase.
+	const FRTTurnLogEntry AmbienteNascosto = Voce(ERTLogCategory::Environment, 0, 0, 0, ERTMatchPhase::Prep);
+	const FRTTurnLogEntry AmbienteVisibile = Voce(ERTLogCategory::Environment, 0, 0, 1, ERTMatchPhase::Move);
+
+	const TArray<FRTTurnLogEntry> Intero = { Visibile1, Nascosta1, Visibile2, NascostaStessaUnita, Nascosta2,
+		AmbienteNascosto, Visibile3, AmbienteVisibile };
+	const TArray<FRTTurnLogEntry> SenzaNascoste = { Visibile1, Visibile2, Visibile3, AmbienteVisibile };
+
+	// Controllo positivo: le voci nascoste esistono per chi le puo' vedere.
+	if (!TestTrue(TEXT("premessa: la squadra 0 vede le voci nascoste"),
+			URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 0).Num() >= 3))
+	{
+		return false;
+	}
+
+	const TArray<FRTPlayerEventLineView> Righe = URTHudViewModel::BuildPlayerEventFeed(Intero, /*ObserverTeamId*/ 1);
+	const TArray<FRTPlayerEventLineView> Attese = URTHudViewModel::BuildPlayerEventFeed(SenzaNascoste, /*ObserverTeamId*/ 1);
+	if (!TestEqual(TEXT("premessa: la squadra 1 vede quattro righe, l'ambiente compreso"), Righe.Num(), 4)
+		|| !TestEqual(TEXT("le voci nascoste non aggiungono righe"), Righe.Num(), Attese.Num()))
+	{
+		return false;
+	}
+	for (int32 i = 0; i < Righe.Num(); ++i)
+	{
+		const FString Etichetta = FString::Printf(TEXT("riga %d"), i);
+		TestEqual(*(Etichetta + TEXT(": il numero e' la posizione nel feed filtrato, senza buchi")), Righe[i].Sequence, i + 1);
+		TestEqual(*(Etichetta + TEXT(": e coincide con quello del log senza le nascoste")), Righe[i].Sequence, Attese[i].Sequence);
+		TestTrue(*(Etichetta + TEXT(": la fase coincide")), Righe[i].Phase == Attese[i].Phase);
+		TestEqual(*(Etichetta + TEXT(": la reazione coincide")), Righe[i].bReaction, Attese[i].bReaction);
+		TestTrue(*(Etichetta + TEXT(": la frase coincide")), Righe[i].Text.EqualTo(Attese[i].Text));
+	}
+
+	// E i campi dicono cio' che devono: la fase della voce, la reazione dove c'e'.
+	TestTrue(TEXT("la prima riga e' del Blast"), Righe[0].Phase == ERTMatchPhase::Blast);
+	TestFalse(TEXT("e non e' una reazione"), Righe[0].bReaction);
+	TestTrue(TEXT("la seconda e' una reazione"), Righe[1].bReaction);
+	TestTrue(TEXT("la terza e' del Move"), Righe[2].Phase == ERTMatchPhase::Move);
+	TestTrue(TEXT("l'ambiente ha la fase della cella VISIBILE, non di quella nascosta prima"), Righe[3].Phase == ERTMatchPhase::Move);
+	return true;
+}
+
+/**
+ * [D-505], `#3600` — **il token di una cura**: `+N`, la barra che pulsa, e nessun danno.
+ *
+ * 🔑 Il gemello del colpo sta accanto: stesso importo, segno opposto, e la pulsazione per entrambi. Senza, un
+ * token di cura che uscisse `-18` o che non pulsasse passerebbe inosservato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudHealTokenTest,
+	"RefactorTactics.HudViewModel.HealTokenSaysPlusAndPulses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudHealTokenTest::RunTest(const FString&)
+{
+	const FRTDamageTokenView Cura = URTHudViewModel::BuildHealToken(18, /*Target*/ 3);
+	TestEqual(TEXT("🔴 la cura dice «+18»"), Cura.Label, FString(TEXT("+18")));
+	TestTrue(TEXT("con il segno, non la sola cifra"), Cura.Label.StartsWith(TEXT("+")));
+	TestTrue(TEXT("e' una cura"), Cura.bIsHeal);
+	TestFalse(TEXT("non e' un danno"), Cura.bHasDamage);
+	TestTrue(TEXT("la barra pulsa"), Cura.bPulsesHealthBar);
+	TestEqual(TEXT("sul curato"), Cura.TargetStableUnitId, 3);
+
+	const FRTDamageTokenView Piena = URTHudViewModel::BuildHealToken(0, 3);
+	TestEqual(TEXT("a salute piena lo zero si dichiara"), Piena.Label, FString(TEXT("0 curati")));
+	TestFalse(TEXT("e la barra non pulsa"), Piena.bPulsesHealthBar);
+
+	const FRTDamageTokenView Colpo = URTHudViewModel::BuildDamageToken(18, 3);
+	TestTrue(TEXT("il colpo pulsa ancora"), Colpo.bPulsesHealthBar);
+	TestFalse(TEXT("e non e' una cura"), Colpo.bIsHeal);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

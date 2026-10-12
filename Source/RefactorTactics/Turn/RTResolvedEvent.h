@@ -174,7 +174,28 @@ enum class ERTResolvedEventType : uint8
 	 *
 	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
 	 */
-	AbilityActivated
+	AbilityActivated,
+
+	/**
+	 * Una cura APPLICATA ([D-505], `#3600`): chi ha curato (`SourceStableUnitId`), chi e' stato curato
+	 * (`TargetStableUnitId`) e quanto (`Amount`, i punti vita RESTITUITI davvero — a salute piena vale zero).
+	 *
+	 * 🔴 **Il momento non esisteva.** La cura aveva il suo esito (la barra, il feed «Curata — N») e il gesto di
+	 * chi la lancia (`AbilityActivated`), ma nulla sull'unita' curata: la seduta `U70` ha visto Muiren fare il
+	 * gesto e Aevik restare ferma, con la barra gia' salita prima del playback.
+	 *
+	 * 🔑 **Una voce per `Healed` del TurnLog**, emessa da `ApplyPlannedHeals` — l'unico punto in cui una cura
+	 * si applica, con due chiamanti. Porta l'`ActionId` della cura, quindi nel playback entra nell'ATTO della cura
+	 * (`BuildBlastSequence` raggruppa per sorgente e azione), subito dopo il gesto. Una cura su un caduto o
+	 * senza effetto non la produce: non ha curato nessuno.
+	 *
+	 * 🔑 **`SourceVerdict` qui e' il verdetto del FATTO**, come per `StructureHit`: le squadre che conoscono il
+	 * curato, congelato all'emissione ([D-223]). Chi non lo conosce non riceve l'elemento nella sequenza
+	 * (`URTPlaybackLibrary::IsHealedHiddenFrom`), cosi' una cura nascosta non lascia un buco nel ritmo.
+	 *
+	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
+	 */
+	Healed
 };
 
 /**
@@ -304,7 +325,8 @@ struct FRTResolvedEvent
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
 	/**
-	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — solo per `AbilityActivated` (#3549).
+	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — per `AbilityActivated` (#3549) e, da `#3551`,
+	 * per `AttackFootprint`: chi vedeva l'attaccante nella cella d'origine del colpo ([D-500]).
 	 *
 	 * 🔴 **Non e' `CellVerdicts`**: un'attivazione non ha rotta ne' celle, e un vettore vuoto letto con
 	 * `ObservedPrefixLength` nasconderebbe ogni attivazione, comprese quelle di chi guarda. Il predicato e'

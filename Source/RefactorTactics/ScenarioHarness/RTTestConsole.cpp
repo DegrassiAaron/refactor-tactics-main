@@ -107,6 +107,16 @@ TAutoConsoleVariable<int32> CVarRTCameraTopDownShot(
 	TEXT("Secondi dopo i quali scattare un HighResShot della vista a picco. 0 = nessuno scatto."),
 	ECVF_Default);
 
+/**
+ * `#3632` — la separazione dei piani nella vista strategica, per sceglierla guardando in PIE. > 0 vince sulla
+ * proprieta' `StrategicLayerSeparation` della mappa; 0 la lascia decidere a lei. Si applica al fotogramma dopo.
+ */
+TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation(
+	TEXT("rt.Map.StrategicLayerSeparation"),
+	0.f,
+	TEXT("Fattore della quota dei piani in vista strategica (1 = nessuna separazione). 0 = usa la proprieta' della mappa."),
+	ECVF_Default);
+
 TAutoConsoleVariable<int32> CVarRTCameraTopDown(
 	TEXT("rt.Camera.TopDown"),
 	0,
@@ -121,7 +131,7 @@ TAutoConsoleVariable<FString> CVarRTMapFixture(
 	// non ha un ramo nel dispatcher (`#1459`). Lo tiene allineato
 	// `RefactorTactics.HexMap.EveryListedFixtureNameBuilds`, che legge QUESTO help e lo confronta con
 	// l'autorita'.
-	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, BlockYard, GrayKitYard, VisionSplit, ProbeYard). "
+	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, BlockYard, GrayKitYard, VisionSplit, ProbeYard, LayerStack). "
 		 "Vince su rt.Map.Source. Vuoto = nessun effetto."),
 	ECVF_Default);
 

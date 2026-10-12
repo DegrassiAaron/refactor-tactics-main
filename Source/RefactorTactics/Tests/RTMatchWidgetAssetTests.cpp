@@ -27,7 +27,9 @@
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Components/Border.h"
+#include "Components/ProgressBar.h" // la barra del countdown della finestra di reazione (#3634)
 #include "Components/PanelSlot.h"
+#include "Components/PanelWidget.h" // CardsBox, PlanWarningsBox: le porte sono pannelli (#3636)
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudZoneWidget.h"
@@ -47,6 +49,8 @@ namespace
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
 	const TCHAR* const ActionTooltipPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionTooltip.WBP_RT_ActionTooltip_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
+	// La voce di un avviso di piano nel pannello (#3636): entra con l'asset, dalla seduta `U76`.
+	const TCHAR* const PlanWarningEntryPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanWarningEntry.WBP_RT_PlanWarningEntry_C");
 	// Conferma e Annulla in `TopRight` ([D-458], #3471): entra con l'asset, dalla seduta `U64`.
 	const TCHAR* const PlanCommitPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanCommit.WBP_RT_PlanCommit_C");
 	// UNA zona: il contenitore che porta `ZoneId`, il bordo da cantiere e il `NamedSlot Content`.
@@ -62,10 +66,8 @@ namespace
 	// quello che #2697 stava montando. La regola scritta sopra per `FastDecision` — *il path entra QUI
 	// quando l'asset c'e'* — valeva gia' e non era stata applicata.
 	const TCHAR* const EventLogPath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLog.WBP_RT_EventLog_C");
-	// ⚠️ **`WBP_RT_EventLine` NON entra in `Expected[]`**, e non e' una svista: deriva da `UUserWidget`
-	// nudo — misurato leggendo il pacchetto, che non nomina nessuna classe di `RefactorTactics`. E' un
-	// contenitore passivo che il feed riempie, quindi il gate delle classi base non ha niente da chiedergli;
-	// il caricamento e il divieto di texture, si'.
+	// ⌫ *Fino alla seduta `U77` (#3637) `WBP_RT_EventLine` derivava da `UUserWidget` nudo e non entrava in
+	// `Expected[]`. Riparentata su `URTPlayerEventLineWidget`, ora c'e'.*
 	const TCHAR* const EventLinePath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLine.WBP_RT_EventLine_C");
 
 	/**
@@ -338,9 +340,8 @@ bool FRTActionSlotHasIconSurfaceTest::RunTest(const FString&)
 /**
  * Ogni widget di Match che ha una classe base RT la dichiara davvero.
  *
- * ⚠️ **`UnitCard` e' escluso di proposito**: non esiste una `URTUnitCardWidget` in `Source/`, quindi il
- * Blueprint deriva da `UUserWidget` ed e' una scelta, non un difetto. Il test lo dice invece di lasciarlo
- * dedurre da un'assenza — chi aggiungesse quella classe domani troverebbe qui la riga da cambiare.
+ * ⌫ *Fino alla seduta `U76` `UnitCard` non era qui: `WBP_RT_UnitCard` derivava da `UUserWidget` nudo. Riparentata su
+ * `URTUnitCardWidget` (#3636), entra insieme alla voce d'avviso nuova.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchWidgetsDeriveFromCppBaseTest,
 	"RefactorTactics.ScreenHud.MatchWidgetsDeriveFromCppBase",
@@ -367,6 +368,9 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		                                               URTFastDecisionOptionWidget::StaticClass() },
 		{ EventLogPath,     TEXT("EventLog"),          URTPlayerEventLogWidget::StaticClass() },
 		{ PlanCommitPath,   TEXT("PlanCommit"),        URTPlanCommitWidget::StaticClass() },
+		{ UnitCardPath,     TEXT("UnitCard"),          URTUnitCardWidget::StaticClass() },
+		{ PlanWarningEntryPath, TEXT("PlanWarningEntry"), URTPlanWarningEntryWidget::StaticClass() },
+		{ EventLinePath,    TEXT("EventLine"),         URTPlayerEventLineWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -577,10 +581,8 @@ bool FRTFastDecisionBindingsWiredTest::RunTest(const FString&)
  * affidata all'occhio **pur essendo calcolabile**, ed e' anche l'unica meta' che regredisce in silenzio
  * quando qualcuno trascina una zona nel Designer.
  *
- * 🔑 **La soglia e' dichiarata qui e non altrove**: il riquadro centrale e' il **60% x 60% centrato** della
- * risoluzione di riferimento 1920x1080, cioe' `X 384..1536` e `Y 216..864`. Non e' un numero sacro — e' un
- * numero **scritto**, che si discute in una issue invece che in un playtest. Se la release lo vuole
- * diverso si cambia `CenterFraction`, e il gate resta ripetibile.
+ * 🔑 **Il riquadro e' la scena, e viene dal dato** (#3661, D-497): `RTHudLayout::Bands()`, le fasce in unita'
+ * Slate. ⌫ *Fino al 2026-10-11 era il 60% x 60% centrato, `CenterFraction`, una costante dei test.*
  *
  * ⚠️ **L'oracolo e' l'archetipo dell'albero, non un fotogramma renderizzato**: le zone si misurano da
  * `UCanvasPanelSlot` con la stessa formula che `SConstraintCanvas::OnArrangeChildren` applica a runtime.
@@ -590,7 +592,7 @@ bool FRTFastDecisionBindingsWiredTest::RunTest(const FString&)
 namespace RTCenterFree
 {
 	// ⌫ **La meta' PURA di questo namespace e' uscita di qui il 2026-09-24** — costanti, `FRect`,
-	// `CenterKeepOut`, `Intersezione`, `SiToccano`, `Descrivi` — e vive in
+	// `CenterKeepOut` (da #3661 `SceneKeepOut`), `Intersezione`, `SiToccano`, `Descrivi` — e vive in
 	// `Tests/RTHudGeometryForTest.h`. La ragione e' #3319: il Context Inspector ha bisogno dello stesso
 	// keep-out e non e' una zona dell'HUD, e due copie dello stesso numero divergono in silenzio.
 	// 🔑 Cio' che RESTA qui dipende da UMG — `RettangoloDellaZona` legge un `FAnchorData` — e un header
@@ -607,12 +609,12 @@ namespace RTCenterFree
 	 * Leggerli come un rettangolo produce un oracolo che sbaglia proprio sulle zone ancorate a destra e in
 	 * basso — quelle che invadono il centro nel modo piu' comune.
 	 */
-	FRect RettangoloDellaZona(const FAnchorData& Layout)
+	FRect RettangoloDellaZona(const FAnchorData& Layout, float Larghezza = RefWidth, float Altezza = RefHeight)
 	{
-		const float AncoraSinistra = static_cast<float>(Layout.Anchors.Minimum.X) * RefWidth;
-		const float AncoraDestra = static_cast<float>(Layout.Anchors.Maximum.X) * RefWidth;
-		const float AncoraAlto = static_cast<float>(Layout.Anchors.Minimum.Y) * RefHeight;
-		const float AncoraBasso = static_cast<float>(Layout.Anchors.Maximum.Y) * RefHeight;
+		const float AncoraSinistra = static_cast<float>(Layout.Anchors.Minimum.X) * Larghezza;
+		const float AncoraDestra = static_cast<float>(Layout.Anchors.Maximum.X) * Larghezza;
+		const float AncoraAlto = static_cast<float>(Layout.Anchors.Minimum.Y) * Altezza;
+		const float AncoraBasso = static_cast<float>(Layout.Anchors.Maximum.Y) * Altezza;
 
 		const bool bStiracchiatoX = Layout.Anchors.Minimum.X != Layout.Anchors.Maximum.X;
 		const bool bStiracchiatoY = Layout.Anchors.Minimum.Y != Layout.Anchors.Maximum.Y;
@@ -626,9 +628,9 @@ namespace RTCenterFree
 		}
 		else
 		{
-			const float Larghezza = Layout.Offsets.Right;
-			R.Left = AncoraSinistra + Layout.Offsets.Left - static_cast<float>(Layout.Alignment.X) * Larghezza;
-			R.Right = R.Left + Larghezza;
+			const float LarghezzaZona = Layout.Offsets.Right;
+			R.Left = AncoraSinistra + Layout.Offsets.Left - static_cast<float>(Layout.Alignment.X) * LarghezzaZona;
+			R.Right = R.Left + LarghezzaZona;
 		}
 
 		if (bStiracchiatoY)
@@ -638,9 +640,9 @@ namespace RTCenterFree
 		}
 		else
 		{
-			const float Altezza = Layout.Offsets.Bottom;
-			R.Top = AncoraAlto + Layout.Offsets.Top - static_cast<float>(Layout.Alignment.Y) * Altezza;
-			R.Bottom = R.Top + Altezza;
+			const float AltezzaZona = Layout.Offsets.Bottom;
+			R.Top = AncoraAlto + Layout.Offsets.Top - static_cast<float>(Layout.Alignment.Y) * AltezzaZona;
+			R.Bottom = R.Top + AltezzaZona;
 		}
 
 		return R;
@@ -648,151 +650,119 @@ namespace RTCenterFree
 
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelsLeaveTheCenterFreeTest,
-	"RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelsLeaveTheSceneFreeTest,
+	"RefactorTactics.ScreenHud.PanelsLeaveTheSceneFree",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
+bool FRTPanelsLeaveTheSceneFreeTest::RunTest(const FString&)
 {
-	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+	const UWidgetTree* Originale = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
 		TEXT("WBP_RT_TacticalHUD"));
-	if (Tree == nullptr)
+	if (Originale == nullptr)
 	{
 		return false;
 	}
 
-	// 🔑 La radice DEVE essere un Canvas: `guida-screen-hud-umg.md` §3 lo prescrive perche' una `Vertical
-	// Box` a schermo pieno «non lascia un centro davvero libero». Se la radice cambia, questo gate non ha
-	// piu' niente da misurare — e deve dirlo, non passare.
-	const UCanvasPanel* Radice = Cast<UCanvasPanel>(Tree->RootWidget);
-	if (!TestNotNull(
-		TEXT("la radice di WBP_RT_TacticalHUD e' un Canvas Panel (guida-screen-hud-umg.md §3)"),
-		Radice))
+	// 🔑 La radice DEVE essere un Canvas: `guida-screen-hud-umg.md` §3 lo prescrive, e le zone si posano come
+	// slot di un Canvas. Se la radice cambia, questo gate non ha piu' niente da misurare — e deve dirlo.
+	if (!TestNotNull(TEXT("la radice di WBP_RT_TacticalHUD e' un Canvas Panel (guida-screen-hud-umg.md §3)"),
+		Cast<UCanvasPanel>(Originale->RootWidget)))
 	{
 		return false;
 	}
 
-	const RTCenterFree::FRect Centro = RTCenterFree::CenterKeepOut();
-	AddInfo(FString::Printf(TEXT("=== centro da lasciare libero a %.0fx%.0f: %s ==="),
-		RTCenterFree::RefWidth, RTCenterFree::RefHeight, *RTCenterFree::Descrivi(Centro)));
+	// 🔑 **Le zone si posano dal dato, come in partita** (`URTTacticalHUDWidget::ApplyBandLayout`, #3661): gli
+	// anchor salvati nell'asset non contano piu'. ⚠️ Su una COPIA: l'albero caricato e' quello dell'asset, e
+	// gli altri test di questo file lo leggono com'e' salvato.
+	UWidgetTree* Tree = DuplicateObject<UWidgetTree>(const_cast<UWidgetTree*>(Originale), GetTransientPackage());
+	const UCanvasPanel* Radice = Tree ? Cast<UCanvasPanel>(Tree->RootWidget) : nullptr;
+	if (!TestNotNull(TEXT("la copia dell'albero ha la sua radice"), Radice))
+	{
+		return false;
+	}
+	const int32 Posate = URTTacticalHUDWidget::ApplyBandLayout(Tree, RTHudLayout::Bands());
+	TestTrue(*FString::Printf(TEXT("ApplyBandLayout posa delle zone (%d)"), Posate), Posate > 0);
 
-	// Le geometrie sono float: mezzo pixel di tolleranza evita che un arrotondamento diventi un difetto.
+	// Le geometrie sono float: mezzo punto di tolleranza evita che un arrotondamento diventi un difetto.
 	constexpr float Tolleranza = 0.5f;
 
-	int32 ZoneMisurate = 0;
-	int32 FinestreEsentate = 0;
-
-	Tree->ForEachWidget([this, &Centro, &ZoneMisurate, &FinestreEsentate, Radice, Tolleranza](UWidget* Widget)
+	for (const RTHudRisoluzioni::FRisoluzione& Ris : RTHudRisoluzioni::Tutte())
 	{
-		if (!Widget)
+		const FVector2D Schermo = RTHudRisoluzioni::InSlate(Ris);
+		const RTCenterFree::FRect Scena = RTCenterFree::SceneKeepOut(Schermo.X, Schermo.Y);
+		AddInfo(FString::Printf(TEXT("=== %s: schermo %.0fx%.0f in unita' Slate, scena %s ==="),
+			Ris.Nome, Schermo.X, Schermo.Y, *RTCenterFree::Descrivi(Scena)));
+
+		int32 ZoneMisurate = 0;
+		int32 FinestreEsentate = 0;
+
+		Tree->ForEachWidget([this, &Ris, &Schermo, &Scena, &ZoneMisurate, &FinestreEsentate, Radice, Tolleranza](UWidget* Widget)
 		{
-			return;
-		}
+			const UCanvasPanelSlot* Slot = Widget ? Cast<UCanvasPanelSlot>(Widget->Slot) : nullptr;
+			if (!Slot || Slot->Parent != Radice)
+			{
+				return; // non e' un figlio di primo livello: il suo posto lo decide chi lo contiene
+			}
 
-		const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot);
-		if (!Slot || Slot->Parent != Radice)
-		{
-			return; // non e' una zona di primo livello: il suo posto lo decide la zona che lo contiene
-		}
+			const FAnchorData Layout = Slot->GetLayout();
 
-		const FAnchorData Layout = Slot->GetLayout();
+			// ⚠️ **`AutoSize` rende la zona non misurabile, e non e' un limite del test: e' il difetto.** Una
+			// zona che si dimensiona sul contenuto puo' invadere la scena quando il contenuto cresce.
+			if (Slot->GetAutoSize() && !Widget->IsA(URTFastDecisionWidget::StaticClass()))
+			{
+				AddError(FString::Printf(
+					TEXT("`%s` e' AutoSize: la sua dimensione dipende dal contenuto, quindi la scena libera non ")
+					TEXT("e' garantita dal layout."), *Widget->GetName()));
+				return;
+			}
 
-		// ⚠️ **`AutoSize` rende la zona non misurabile QUI, e non e' un limite del test: e' il difetto.**
-		// Una zona che si dimensiona sul contenuto puo' invadere il centro quando il contenuto cresce — un
-		// roster con piu' unita', un nome piu' lungo — e nessun numero nell'asset la trattiene. Il centro
-		// libero smette di essere una proprieta' del layout e diventa una coincidenza dei dati.
-		if (Slot->GetAutoSize())
-		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` e' AutoSize: la sua dimensione dipende dal contenuto, quindi il centro ")
-				TEXT("libero non e' garantito dal layout. Dalle una dimensione esplicita nel Canvas."),
-				*Widget->GetName()));
-			return;
-		}
+			const RTCenterFree::FRect Zona = RTCenterFree::RettangoloDellaZona(Layout,
+				static_cast<float>(Schermo.X), static_cast<float>(Schermo.Y));
+			++ZoneMisurate;
+			AddInfo(FString::Printf(TEXT("  %-22s -> %s"), *Widget->GetName(), *RTCenterFree::Descrivi(Zona)));
 
-		const RTCenterFree::FRect Zona = RTCenterFree::RettangoloDellaZona(Layout);
-		++ZoneMisurate;
+			// ⚖️ **La finestra di reazione e' l'UNICA esenzione** (D-497 (5), `#166`): sta sopra la scena finche'
+			// la finestra e' aperta, ma CENTRATA SULLA SCENA, non sullo schermo.
+			if (Widget->IsA(URTFastDecisionWidget::StaticClass()))
+			{
+				++FinestreEsentate;
+				const float CentroX = (Zona.Left + Zona.Right) * 0.5f;
+				const float CentroY = (Zona.Top + Zona.Bottom) * 0.5f;
+				const float ScenaX = (Scena.Left + Scena.Right) * 0.5f;
+				const float ScenaY = (Scena.Top + Scena.Bottom) * 0.5f;
+				TestTrue(*FString::Printf(
+					TEXT("%s: il centro della finestra di reazione (%.1f, %.1f) e' il centro della scena (%.1f, %.1f)"),
+					Ris.Nome, CentroX, CentroY, ScenaX, ScenaY),
+					FMath::IsNearlyEqual(CentroX, ScenaX, 1.f) && FMath::IsNearlyEqual(CentroY, ScenaY, 1.f));
+				return;
+			}
 
-		AddInfo(FString::Printf(
-			TEXT("  %-22s %-24s anchors=(%.2f,%.2f)-(%.2f,%.2f) align=(%.2f,%.2f)  ->  %s"),
-			*Widget->GetName(), *Widget->GetClass()->GetName(),
-			Layout.Anchors.Minimum.X, Layout.Anchors.Minimum.Y,
-			Layout.Anchors.Maximum.X, Layout.Anchors.Maximum.Y,
-			Layout.Alignment.X, Layout.Alignment.Y,
-			*RTCenterFree::Descrivi(Zona)));
+			// 🔴 **Una zona FUORI dallo schermo non invade la scena — e senza questo controllo passerebbe.**
+			if (Zona.Left < -Tolleranza || Zona.Top < -Tolleranza
+				|| Zona.Right > Schermo.X + Tolleranza || Zona.Bottom > Schermo.Y + Tolleranza)
+			{
+				AddError(FString::Printf(TEXT("%s: la zona `%s` cade fuori dallo schermo: %s contro %.0fx%.0f."),
+					Ris.Nome, *Widget->GetName(), *RTCenterFree::Descrivi(Zona), Schermo.X, Schermo.Y));
+			}
 
-		// 🔴 **Una zona FUORI dallo schermo non invade il centro — e senza questo controllo passerebbe.**
-		// E' il difetto che questo test ha trovato alla prima esecuzione: `ZoneBottom` risultava
-		// `Y 1080..1280`, cioe' duecento pixel sotto il bordo inferiore, perche' con anchor in basso e
-		// `Alignment.Y = 0` l'origine resta sul bordo invece di risalire dell'altezza. Il criterio del
-		// centro libero da solo la dichiarava a posto: il centro lo lascia libero **non esistendo**.
-		if (Zona.Left < -Tolleranza || Zona.Top < -Tolleranza
-			|| Zona.Right > RTCenterFree::RefWidth + Tolleranza
-			|| Zona.Bottom > RTCenterFree::RefHeight + Tolleranza)
-		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` cade fuori dallo schermo di riferimento: %s contro %.0fx%.0f. ")
-				TEXT("Una zona fuori viewport non si vede in partita, e non invade il centro solo perche' ")
-				TEXT("non c'e'. Se e' ancorata a un bordo, l'Alignment deve riportarla dentro."),
-				*Widget->GetName(),
-				*RTCenterFree::Descrivi(Zona),
-				RTCenterFree::RefWidth, RTCenterFree::RefHeight));
-		}
+			if (RTCenterFree::SiToccano(Zona, Scena))
+			{
+				AddError(FString::Printf(
+					TEXT("%s: la zona `%s` invade la scena: occupa %s del rettangolo %s. La 3D si rende solo li' ")
+					TEXT("(D-497 (1)), e un pannello dentro la coprirebbe."),
+					Ris.Nome, *Widget->GetName(),
+					*RTCenterFree::Descrivi(RTCenterFree::Intersezione(Zona, Scena)),
+					*RTCenterFree::Descrivi(Scena)));
+			}
+		});
 
-		// ⚖️ **La finestra di reazione e' l'UNICA esenzione dal centro libero** (`#166`, CP 14.6).
-		//
-		// 🔑 **La regola che il centro libero difende parla di PERMANENZA, non di presenza.**
-		// `progettazione-hud.md` §3.1 si intitola *«cosa NON deve occupare PERMANENTEMENTE il centro»*, ed
-		// elenca pannelli, minimappe e liste: cose che ci stanno sempre. La finestra di reazione non e' fra
-		// quelle — la sua `Visibility` segue l'APERTURA (`GetWindowVisibility` su `WindowRoot`, che
-		// `FastDecisionBindingsAreWiredToTheRightNodes` pinna), quindi il centro resta sgombro tranne nei
-		// secondi in cui la decisione e' l'unica cosa che conta. E §47-bis.2 la vuole proprio li': il
-		// countdown «**sempre visibile**, non un'animazione periferica».
-		//
-		// ⚠️ **L'esenzione e' per CLASSE e SOLO per il centro.** `AutoSize` e fuori-viewport restano
-		// misurati anche su di lei — sopra, e prima di questo `return`. Cio' che si concede e' l'invasione
-		// del riquadro, non il diritto di non essere misurabile: un pannello statico qualunque al centro
-		// resta un rosso, e una SECONDA finestra esente pure (il controllo e' in fondo alla funzione).
-		if (Widget->IsA(URTFastDecisionWidget::StaticClass()))
-		{
-			++FinestreEsentate;
-			AddInfo(FString::Printf(
-				TEXT("  ^ `%s` e' la finestra di reazione: esente dal centro libero (#166), perche' la sua ")
-				TEXT("visibilita' segue l'apertura e non e' un pannello permanente."),
-				*Widget->GetName()));
-			return;
-		}
-
-		if (RTCenterFree::SiToccano(Zona, Centro))
-		{
-			const RTCenterFree::FRect Invasione = RTCenterFree::Intersezione(Zona, Centro);
-			AddError(FString::Printf(
-				TEXT("la zona `%s` invade il centro tattico: occupa %s del riquadro %s. ")
-				TEXT("Il layer §4.2 (`ARTHUD::DrawHUD`) disegna li' path, AoE e fuoco amico — ")
-				TEXT("un pannello al centro glieli copre (guida-screen-hud-umg.md §3)."),
-				*Widget->GetName(),
-				*RTCenterFree::Descrivi(Invasione),
-				*RTCenterFree::Descrivi(Centro)));
-		}
-	});
-
-	// Senza questa riga il test sarebbe verde su un albero senza zone — cioe' misurando zero, che e' il
-	// modo in cui un gate diventa decorativo. Questo file lo ha gia' imparato una volta, piu' su.
-	// ⚠️ **Le esenzioni si SOTTRAGGONO.** Un albero che contenesse solo la finestra di reazione non ha
-	// misurato nessuna zona, e senza la sottrazione questo controllo — che esiste apposta contro il verde
-	// su zero — lo dichiarerebbe a posto.
-	TestTrue(
-		*FString::Printf(TEXT("il Canvas radice dichiara delle zone da misurare (ne ha %d, oltre a %d esenti)"),
-			ZoneMisurate - FinestreEsentate, FinestreEsentate),
-		ZoneMisurate - FinestreEsentate > 0);
-
-	// ⛔ **UNA finestra di reazione, non «almeno una».** Due istanze si sovrappongono al centro leggendo
-	// lo stesso view model, ed e' lo stesso difetto che `TheHudMountsTheFeedThatExplainsTheTurn` ha gia'
-	// dovuto correggere in code review: il contatore c'era e il test guardava solo lo zero.
-	TestTrue(
-		*FString::Printf(TEXT("al piu' UNA finestra di reazione e' esente dal centro libero (ne ha %d)"),
-			FinestreEsentate),
-		FinestreEsentate <= 1);
+		// ⚠️ **Le esenzioni si SOTTRAGGONO**: un albero con la sola finestra di reazione non misura niente.
+		TestTrue(*FString::Printf(TEXT("%s: il Canvas radice ha delle zone da misurare (%d, oltre a %d esenti)"),
+			Ris.Nome, ZoneMisurate - FinestreEsentate, FinestreEsentate), ZoneMisurate - FinestreEsentate > 0);
+		// ⛔ **UNA finestra di reazione, non «almeno una»**: due istanze si sovrapporrebbero leggendo lo stesso view model.
+		TestTrue(*FString::Printf(TEXT("%s: al piu' UNA finestra di reazione (ne ha %d)"), Ris.Nome, FinestreEsentate),
+			FinestreEsentate <= 1);
+	}
 
 	return true;
 }
@@ -884,7 +854,7 @@ bool FRTHudMountsTheFeedTest::RunTest(const FString&)
 	}
 
 	// Senza questa riga il test sarebbe verde su un albero vuoto — lo stesso modo in cui
-	// `PanelsLeaveTheCenterFree` sarebbe diventato decorativo, e che quel test ha gia' imparato a evitare.
+	// `PanelsLeaveTheSceneFree` sarebbe diventato decorativo, e che quel test ha gia' imparato a evitare.
 	TestTrue(
 		*FString::Printf(TEXT("l'albero della HUD ospita dei widget-blueprint (ne ha %d)"), Inquilini.Num()),
 		Inquilini.Num() > 0);
@@ -1228,9 +1198,9 @@ bool FRTTheZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 		if (Conteggio[I] == 0)
 		{
 			AddError(FString::Printf(
-				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le zone sono la griglia ")
-				TEXT("20/60/20 meno il centro, con la fascia bassa intera (`guida-screen-hud-umg.md` §3, ")
-				TEXT("D-456): una che manca e' un buco nel layout, non uno spazio libero."), *Nome));
+				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le zone sono le fasce attorno alla ")
+				TEXT("scena, posate da `RTHudLayout::Bands()`, con la fascia bassa intera (`guida-screen-hud-umg.md` ")
+				TEXT("§3, D-456, D-497): una che manca e' un buco nel layout, non uno spazio libero."), *Nome));
 		}
 		else if (Conteggio[I] > 1)
 		{
@@ -1243,7 +1213,7 @@ bool FRTTheZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 
 	// 🔴 **Senza questa riga il test sarebbe verde su un albero SENZA zone** — cioe' misurando zero, il modo
 	// in cui un gate diventa decorativo. Questo file lo ha gia' imparato una volta, in
-	// `PanelsLeaveTheCenterFree`.
+	// `PanelsLeaveTheSceneFree`.
 	const int32 Totale = Algo::Accumulate(Conteggio, 0) + FuoriEnum;
 	TestTrue(
 		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Totale),
@@ -1256,40 +1226,32 @@ bool FRTTheZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 // Le zone: stanno dove devono
 // =====================================================================================================
 //
-// 🔑 **`PanelsLeaveTheCenterFree` e' un gate NEGATIVO**: dice che nessuna zona invade il centro, e
-// passerebbe con tutte le zone schiacciate in un angolo. Questo dice dove sono.
+// 🔑 **`PanelsLeaveTheSceneFree` e' un gate NEGATIVO**: dice che nessuna zona invade la scena, e passerebbe con
+// tutte le zone schiacciate in un angolo. Questo dice dove sono.
 //
-// La griglia e' 20% / 60% / 20% su entrambi gli assi, e non e' una scelta: il keep-out del centro e'
-// `RTCenterFree::CenterFraction` = 0.6 centrato, quindi i tagli cadono a 0.2 e 0.8.
+// 🔑 **I tagli della griglia vengono dal dato delle fasce** (#3661, D-497): a sinistra `Left`, a destra
+// `Right`, in alto `Top`, in basso `Bottom`, in unita' Slate. ⌫ *Fino al 2026-10-11 erano frazioni fisse,
+// 0,2 e 0,8, e una zona doveva avere anchor stirati per scalare; ora una zona d'angolo e' un punto
+// dell'angolo piu' una misura, e la scala dell'interfaccia la porta a ogni risoluzione.*
 
 namespace RTGrigliaZone
 {
-	/** I tagli della griglia, in frazione di schermo. */
-	constexpr float TaglioBasso = 0.2f;
-	constexpr float TaglioAlto = 0.8f;
+	/** Il distacco di ogni zona dai bordi della sua fascia: e' quello del dato. */
+	constexpr float Margine = RTHudLayout::ZoneMargin;
 
-	/** Gli offset uniformi di ogni zona: distacco visivo, e margine dal keep-out. */
-	constexpr float Margine = 4.f;
-
-	/** La cella attesa di una zona, in frazione di schermo: `Min` e `Max` degli anchor. */
-	void CellaAttesa(ERTHudZone Zona, FVector2D& Min, FVector2D& Max)
+	/**
+	 * La cella attesa di una zona, in unita' Slate, per uno schermo `Schermo`: l'ORACOLO, scritto qui con i tagli
+	 * della griglia e non preso da `RTHudLayout::ZoneLayout`, che e' cio' che si misura.
+	 */
+	RTCenterFree::FRect CellaAttesa(ERTHudZone Zona, const FVector2D& Schermo, const FRTHudBands& Fasce)
 	{
 		const int32 I = static_cast<int32>(Zona);
 
-		// Colonna: 0 = sinistra, 1 = centro, 2 = destra. Riga: 0 = alto, 1 = mezzo, 2 = basso.
-		// L'ordine dell'enum salta la cella centrale, quindi la mappa e' esplicita invece che calcolata.
-		//
-		// 🔑 **Una zona copre un INTERVALLO di colonne, da `ColonnaDa` a `ColonnaA` comprese** ([D-456],
-		// #3469): `Bottom` va da 0 a 2, cioe' tutta la fascia. ⌫ *Fino al 2026-10-04 la mappa era a colonna
-		// singola, e la fascia bassa erano tre celle.* Le zone di una cella sola hanno `Da == A`.
+		// Colonna: 0 = sinistra, 1 = centro, 2 = destra. Riga: 0 = alto, 1 = mezzo, 2 = basso. `Bottom` copre
+		// tutte e tre le colonne ([D-456], #3469).
 		static const int32 ColonnaDa[] = { 0, 1, 2,  0, 2,  0 };
 		static const int32 ColonnaA[]  = { 0, 1, 2,  0, 2,  2 };
 		static const int32 Righe[]     = { 0, 0, 0,  1, 1,  2 };
-
-		// ⚠️ Il trigger realistico non e' il Designer — `ZoneId` e' un `UENUM` e non lascia scegliere fuori
-		// range — ma la CRESCITA dell'enum: un valore nuovo allarga da solo `Conteggio` in
-		// `TheZonesAreDeclaredExactlyOnce` (dimensionato su `ERTHudZone::Count`), mentre queste mappe, a
-		// dimensione fissa, resterebbero indietro. Lo static_assert lo ferma in compilazione.
 		static_assert(UE_ARRAY_COUNT(ColonnaDa) == static_cast<int32>(ERTHudZone::Count),
 			"`ColonnaDa` deve avere una voce per ogni zona: se l'enum cambia, va aggiornata insieme.");
 		static_assert(UE_ARRAY_COUNT(ColonnaA) == static_cast<int32>(ERTHudZone::Count),
@@ -1297,139 +1259,102 @@ namespace RTGrigliaZone
 		static_assert(UE_ARRAY_COUNT(Righe) == static_cast<int32>(ERTHudZone::Count),
 			"`Righe` deve avere una voce per ogni zona: se l'enum cambia, va aggiornata insieme.");
 
-		static const float Bordi[] = { 0.f, TaglioBasso, TaglioAlto, 1.f };
-
-		// Guardia gemella, a runtime: l'indice arriva da un `ZoneId` letto dall'asset, non dal
-		// compilatore, quindi puo' essere fuori range anche quando le mappe sono dimensionate bene. Uscire
-		// con una cella fuori dalla griglia [0,1] la rende un mismatch rumoroso nel confronto del
-		// chiamante, invece di una lettura fuori array.
 		if (I < 0 || I >= UE_ARRAY_COUNT(ColonnaDa))
 		{
-			Min = FVector2D(-1.0, -1.0);
-			Max = FVector2D(-1.0, -1.0);
-			return;
+			return RTCenterFree::FRect{ -1.f, -1.f, -1.f, -1.f }; // un mismatch rumoroso, non una lettura fuori array
 		}
 
-		Min.X = Bordi[ColonnaDa[I]];
-		Max.X = Bordi[ColonnaA[I] + 1];
-		Min.Y = Bordi[Righe[I]];
-		Max.Y = Bordi[Righe[I] + 1];
+		// 🔑 La colonna sinistra ha il suo taglio (`LeftTop`, #3661): una zona che sta SOLO nella colonna 0 lo usa
+		// al posto della fascia alta. `Bottom`, che attraversa tutte le colonne, no.
+		const bool bSoloSinistra = ColonnaDa[I] == 0 && ColonnaA[I] == 0;
+		const float BordiX[] = { 0.f, Fasce.Left, static_cast<float>(Schermo.X) - Fasce.Right, static_cast<float>(Schermo.X) };
+		const float BordiY[] = { 0.f, bSoloSinistra ? Fasce.LeftTop : Fasce.Top,
+			static_cast<float>(Schermo.Y) - Fasce.Bottom, static_cast<float>(Schermo.Y) };
+		return RTCenterFree::FRect{
+			BordiX[ColonnaDa[I]] + Margine,
+			BordiY[Righe[I]] + Margine,
+			BordiX[ColonnaA[I] + 1] - Margine,
+			BordiY[Righe[I] + 1] - Margine };
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTZoneRectanglesMatchTheThreeByThreeGridTest,
-	"RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTZoneRectanglesMatchTheBandsTest,
+	"RefactorTactics.ScreenHud.ZoneRectanglesMatchTheBands",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
+bool FRTZoneRectanglesMatchTheBandsTest::RunTest(const FString&)
 {
-	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+	const UWidgetTree* Originale = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
 		TEXT("WBP_RT_TacticalHUD"));
-	if (Tree == nullptr)
+	if (Originale == nullptr)
 	{
 		return false;
 	}
 
-	// Un pixel di tolleranza: le geometrie sono float, e un arrotondamento non e' un difetto di layout.
+	// Su una COPIA, posata come in partita: e' cio' che rende gli anchor delle zone «coincidenti col dato».
+	UWidgetTree* Tree = DuplicateObject<UWidgetTree>(const_cast<UWidgetTree*>(Originale), GetTransientPackage());
+	if (!TestNotNull(TEXT("la copia dell'albero"), Tree))
+	{
+		return false;
+	}
+	URTTacticalHUDWidget::ApplyBandLayout(Tree, RTHudLayout::Bands());
+
+	// Un'unita' di tolleranza: le geometrie sono float, e un arrotondamento non e' un difetto di layout.
 	constexpr float Tolleranza = 1.f;
 
-	int32 Misurate = 0;
-
-	Tree->ForEachWidget([this, Tree, &Misurate, Tolleranza](UWidget* Widget)
+	for (const RTHudRisoluzioni::FRisoluzione& Ris : RTHudRisoluzioni::Tutte())
 	{
-		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
-		if (!Zona)
+		const FVector2D Schermo = RTHudRisoluzioni::InSlate(Ris);
+		int32 Misurate = 0;
+		TArray<ERTHudZone> Viste;
+
+		Tree->ForEachWidget([this, Tree, &Ris, &Schermo, &Misurate, &Viste, Tolleranza](UWidget* Widget)
 		{
-			return;
-		}
+			const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
+			if (!Zona)
+			{
+				return;
+			}
 
-		const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot);
-		if (!Slot)
+			const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot);
+			if (!Slot || Slot->Parent != Tree->RootWidget)
+			{
+				// ⚠️ Figlia DIRETTA del Canvas radice: annidata in un altro contenitore, la sua posizione reale
+				// dipenderebbe anche da quello, e ne' questo gate ne' `ApplyBandLayout` lo vedono.
+				AddError(FString::Printf(TEXT("la zona `%s` non e' figlia diretta del Canvas radice"), *Widget->GetName()));
+				return;
+			}
+
+			const RTCenterFree::FRect Atteso = RTGrigliaZone::CellaAttesa(Zona->ZoneId, Schermo, RTHudLayout::Bands());
+			const RTCenterFree::FRect Reale = RTCenterFree::RettangoloDellaZona(Slot->GetLayout(),
+				static_cast<float>(Schermo.X), static_cast<float>(Schermo.Y));
+			++Misurate;
+			Viste.Add(Zona->ZoneId);
+
+			AddInfo(FString::Printf(TEXT("  %s %-14s atteso %s   reale %s"), Ris.Nome,
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId), *RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+
+			const bool bCombacia =
+				FMath::IsNearlyEqual(Reale.Left, Atteso.Left, Tolleranza)
+				&& FMath::IsNearlyEqual(Reale.Top, Atteso.Top, Tolleranza)
+				&& FMath::IsNearlyEqual(Reale.Right, Atteso.Right, Tolleranza)
+				&& FMath::IsNearlyEqual(Reale.Bottom, Atteso.Bottom, Tolleranza);
+			if (!bCombacia)
+			{
+				AddError(FString::Printf(TEXT("%s: la zona `%s` non occupa la sua cella delle fasce: atteso %s, reale %s."),
+					Ris.Nome, *URTHudZoneWidget::ZoneName(Zona->ZoneId),
+					*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+			}
+		});
+
+		TestTrue(*FString::Printf(TEXT("%s: l'albero contiene delle zone da misurare (%d)"), Ris.Nome, Misurate), Misurate > 0);
+		for (int32 I = 0; I < static_cast<int32>(ERTHudZone::Count); ++I)
 		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` non e' in un `Canvas Panel`: la sua geometria non e' dichiarata dal ")
-				TEXT("layout, e il centro libero smette di essere una proprieta' verificabile."),
-				*Widget->GetName()));
-			return;
+			TestEqual(*FString::Printf(TEXT("%s: la zona %s compare una volta"), Ris.Nome,
+				*URTHudZoneWidget::ZoneName(static_cast<ERTHudZone>(I))),
+				Viste.FilterByPredicate([I](ERTHudZone Z) { return static_cast<int32>(Z) == I; }).Num(), 1);
 		}
-
-		// ⚠️ Figlia DIRETTA del Canvas radice, non solo dentro un `UCanvasPanelSlot` qualunque: una zona
-		// annidata in un secondo Canvas avrebbe un anchor frazionario identico — combacerebbe con la
-		// griglia qui sotto — ma la sua posizione reale a schermo dipenderebbe anche dal Canvas che la
-		// contiene, cosa che ne' questo gate ne' `PanelsLeaveTheCenterFree` (che guarda solo i figli di
-		// primo livello) misurano.
-		if (Slot->Parent != Tree->RootWidget)
-		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` non e' figlia diretta del Canvas radice (sta dentro `%s`): la sua ")
-				TEXT("posizione reale dipende anche da quel contenitore, e ne' questo gate ne' ")
-				TEXT("`PanelsLeaveTheCenterFree` la misurano."),
-				*Widget->GetName(),
-				Slot->Parent ? *Slot->Parent->GetName() : TEXT("<nessuno>")));
-			return;
-		}
-
-		FVector2D Min, Max;
-		RTGrigliaZone::CellaAttesa(Zona->ZoneId, Min, Max);
-
-		const RTCenterFree::FRect Atteso{
-			static_cast<float>(Min.X) * RTCenterFree::RefWidth + RTGrigliaZone::Margine,
-			static_cast<float>(Min.Y) * RTCenterFree::RefHeight + RTGrigliaZone::Margine,
-			static_cast<float>(Max.X) * RTCenterFree::RefWidth - RTGrigliaZone::Margine,
-			static_cast<float>(Max.Y) * RTCenterFree::RefHeight - RTGrigliaZone::Margine };
-
-		const FAnchorData Layout = Slot->GetLayout();
-		const RTCenterFree::FRect Reale = RTCenterFree::RettangoloDellaZona(Layout);
-		++Misurate;
-
-		AddInfo(FString::Printf(TEXT("  %-14s atteso %s   reale %s"),
-			*URTHudZoneWidget::ZoneName(Zona->ZoneId),
-			*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
-
-		// ⚠️ **Il confronto sul rettangolo finale (`bCombacia`, sotto) puo' combaciare per caso anche con
-		// anchor a punto**: un anchor a punto con offset ritagliati a mano puo' produrre lo stesso
-		// rettangolo A QUESTA risoluzione e poi non scalare a un'altra — il difetto che §3.1 della spec
-		// dichiara. Questi due controlli guardano l'anchor stesso, non il suo effetto su un solo caso.
-		if (Layout.Anchors.Minimum.X == Layout.Anchors.Maximum.X)
-		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` ha anchor A PUNTO sull'asse X (Min.X == Max.X == %.2f): il rettangolo ")
-				TEXT("dipende dall'Alignment invece di scalare con la risoluzione — il difetto che porto' ")
-				TEXT("`ZoneBottom` a `Y 1080..1280`, fuori schermo."),
-				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
-				static_cast<float>(Layout.Anchors.Minimum.X)));
-		}
-
-		if (Layout.Anchors.Minimum.Y == Layout.Anchors.Maximum.Y)
-		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` ha anchor A PUNTO sull'asse Y (Min.Y == Max.Y == %.2f): stesso difetto ")
-				TEXT("dell'asse X, sull'altro asse."),
-				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
-				static_cast<float>(Layout.Anchors.Minimum.Y)));
-		}
-
-		const bool bCombacia =
-			FMath::IsNearlyEqual(Reale.Left, Atteso.Left, Tolleranza)
-			&& FMath::IsNearlyEqual(Reale.Top, Atteso.Top, Tolleranza)
-			&& FMath::IsNearlyEqual(Reale.Right, Atteso.Right, Tolleranza)
-			&& FMath::IsNearlyEqual(Reale.Bottom, Atteso.Bottom, Tolleranza);
-
-		if (!bCombacia)
-		{
-			AddError(FString::Printf(
-				TEXT("la zona `%s` non occupa la sua cella della griglia 20/60/20: atteso %s, reale %s. ")
-				TEXT("Gli anchor devono essere STIRATI su entrambi gli assi — con anchor a punto il ")
-				TEXT("rettangolo dipende dall'Alignment, ed e' il difetto che porto' `ZoneBottom` a ")
-				TEXT("`Y 1080..1280`, fuori schermo."),
-				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
-				*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
-		}
-	});
-
-	TestTrue(
-		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Misurate),
-		Misurate > 0);
+	}
 
 	return true;
 }
@@ -1524,7 +1449,9 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 }
 
 /**
- * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489).
+ * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489). Dalle
+ * sedute T8 ci sono anche `Conferma` (#3633), la finestra di reazione e la sua opzione (#3634), l'header (#3635), e
+ * carta, roster, pannello e voce d'avviso (#3636), e il registro con la sua riga (#3637).
  *
  * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
  * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non
@@ -1584,6 +1511,107 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("ConfirmText"), UTextBlock::StaticClass() },
 		{ TEXT("UndoButton"), UButton::StaticClass() },
 		{ TEXT("UndoText"), UTextBlock::StaticClass() },
+		// La resa della tavola (#3633, seduta U72): le porte di [D-496] e il contatore di [D-494].
+		{ TEXT("CommitRoot"), UWidget::StaticClass() },
+		{ TEXT("WarningCounter"), UWidget::StaticClass() },
+		{ TEXT("CriticalBadge"), UWidget::StaticClass() },
+		{ TEXT("CriticalCountText"), UTextBlock::StaticClass() },
+		{ TEXT("WarningBadge"), UWidget::StaticClass() },
+		{ TEXT("WarningCountText"), UTextBlock::StaticClass() },
+		{ TEXT("InfoBadge"), UWidget::StaticClass() },
+		{ TEXT("InfoCountText"), UTextBlock::StaticClass() },
+		{ TEXT("ConfirmFrame"), UBorder::StaticClass() },
+		{ TEXT("UndoFrame"), UBorder::StaticClass() },
+		{ TEXT("ConfirmIcon"), UTextBlock::StaticClass() },
+		{ TEXT("ConfirmKeyText"), UTextBlock::StaticClass() },
+		{ TEXT("UndoKeyText"), UTextBlock::StaticClass() },
+	};
+
+	// La finestra di reazione come la tavola E (#3634, seduta U74). I tre binding obbligatori li controlla
+	// `FastDecisionBindingsAreWiredToTheRightNodes`: qui solo le porte della resa.
+	const TArray<FPorta> Finestra = {
+		{ TEXT("WindowFrame"), UBorder::StaticClass() },
+		{ TEXT("AccentStrip"), UBorder::StaticClass() },
+		{ TEXT("CountdownBar"), UProgressBar::StaticClass() },
+		{ TEXT("SafeOutcomeText"), UTextBlock::StaticClass() },
+	};
+	const TArray<FPorta> Opzione = {
+		{ TEXT("OptionFrame"), UBorder::StaticClass() },
+		{ TEXT("KeyText"), UTextBlock::StaticClass() },
+		{ TEXT("DescriptionText"), UTextBlock::StaticClass() },
+		{ TEXT("SafeChoiceBadge"), UWidget::StaticClass() },
+	};
+
+	// L'header e l'obiettivo come le tavole A e D (#3635, seduta U75). Il round non ha piu' un binding di proprieta':
+	// lo scrive `RefreshLook` in queste porte, e `RoundLimitComesFromTheFormat` lo legge da li'.
+	TArray<FPorta> Header = {
+		{ TEXT("HeaderFrame"), UBorder::StaticClass() },
+		{ TEXT("RoundValueText"), UTextBlock::StaticClass() },
+		{ TEXT("RoundLimitText"), UTextBlock::StaticClass() },
+		{ TEXT("PlanningGroup"), UWidget::StaticClass() },
+		{ TEXT("ResolutionGroup"), UWidget::StaticClass() },
+		{ TEXT("PhaseText"), UTextBlock::StaticClass() },
+		{ TEXT("PhaseMark"), UBorder::StaticClass() },
+		{ TEXT("TimerText"), UTextBlock::StaticClass() },
+		{ TEXT("ObjectiveBox"), UWidget::StaticClass() },
+		{ TEXT("ObjectiveScoreText"), UTextBlock::StaticClass() },
+		{ TEXT("ObjectiveThresholdText"), UTextBlock::StaticClass() },
+	};
+	for (const TCHAR* Fase : { TEXT("Prep"), TEXT("Dash"), TEXT("Blast"), TEXT("Move") })
+	{
+		Header.Add({ FName(*FString::Printf(TEXT("PhaseCell_%s"), Fase)), UBorder::StaticClass() });
+		Header.Add({ FName(*FString::Printf(TEXT("PhaseCellMark_%s"), Fase)), UBorder::StaticClass() });
+		Header.Add({ FName(*FString::Printf(TEXT("PhaseCellText_%s"), Fase)), UTextBlock::StaticClass() });
+	}
+
+	// Carta, roster, pannello e voce d'avviso come la tavola (#3636, seduta U76).
+	const TArray<FPorta> Carta = {
+		{ TEXT("CardFrame"), UWidget::StaticClass() },
+		{ TEXT("TeamDot"), UBorder::StaticClass() },
+		{ TEXT("NameText"), UTextBlock::StaticClass() },
+		{ TEXT("ReactionChip"), UWidget::StaticClass() },
+		{ TEXT("HealthBar"), UProgressBar::StaticClass() },
+		{ TEXT("HealthText"), UTextBlock::StaticClass() },
+		{ TEXT("ShieldText"), UTextBlock::StaticClass() },
+	};
+	const TArray<FPorta> Roster = {
+		{ TEXT("CardsBox"), UPanelWidget::StaticClass() },
+		{ TEXT("OpposingCardsBox"), UPanelWidget::StaticClass() },
+	};
+	TArray<FPorta> Pannello = {
+		{ TEXT("SubjectCard"), URTUnitCardWidget::StaticClass() },
+		{ TEXT("PlanChipsBox"), UWidget::StaticClass() },
+		{ TEXT("PlanWarningsBox"), UPanelWidget::StaticClass() },
+	};
+	for (const TCHAR* Chip : { TEXT("Main"), TEXT("Movement"), TEXT("Reaction") })
+	{
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipFrame"), Chip)), UBorder::StaticClass() });
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipStrip"), Chip)), UBorder::StaticClass() });
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipValueText"), Chip)), UTextBlock::StaticClass() });
+		Pannello.Add({ FName(*FString::Printf(TEXT("%sChipAlert"), Chip)), UWidget::StaticClass() });
+	}
+	const TArray<FPorta> VoceAvviso = {
+		{ TEXT("EntryFrame"), UBorder::StaticClass() },
+		{ TEXT("LevelGlyphText"), UTextBlock::StaticClass() },
+		{ TEXT("LevelMarkText"), UTextBlock::StaticClass() },
+		{ TEXT("LevelText"), UTextBlock::StaticClass() },
+		{ TEXT("WhatText"), UTextBlock::StaticClass() },
+		{ TEXT("WhyText"), UTextBlock::StaticClass() },
+		{ TEXT("CostText"), UTextBlock::StaticClass() },
+	};
+
+	// Il registro e la sua riga come la tavola D (#3637, seduta U77).
+	const TArray<FPorta> Registro = {
+		{ TEXT("LogRoot"), UWidget::StaticClass() },
+		{ TEXT("LogTurnText"), UTextBlock::StaticClass() },
+		{ TEXT("LinesBox"), UPanelWidget::StaticClass() },
+	};
+	const TArray<FPorta> RigaRegistro = {
+		{ TEXT("PhaseStrip"), UBorder::StaticClass() },
+		{ TEXT("PhaseLabelText"), UTextBlock::StaticClass() },
+		{ TEXT("SequenceText"), UTextBlock::StaticClass() },
+		{ TEXT("ReactionBadge"), UWidget::StaticClass() },
+		{ TEXT("LineText"), UTextBlock::StaticClass() },
 	};
 
 	struct FAsset
@@ -1596,6 +1624,15 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ ActionSlotPath, TEXT("WBP_RT_ActionSlot"), &Slot },
 		{ ActionDockPath, TEXT("WBP_RT_ActionDock"), &Dock },
 		{ PlanCommitPath, TEXT("WBP_RT_PlanCommit"), &Commit },
+		{ FastDecisionPath, TEXT("WBP_RT_FastDecision"), &Finestra },
+		{ FastDecisionOptionPath, TEXT("WBP_RT_FastDecisionOption"), &Opzione },
+		{ TurnHeaderPath, TEXT("WBP_RT_TurnHeader"), &Header },
+		{ UnitCardPath, TEXT("WBP_RT_UnitCard"), &Carta },
+		{ TeamRosterPath, TEXT("WBP_RT_TeamRoster"), &Roster },
+		{ SelectedUnitPath, TEXT("WBP_RT_SelectedUnitPanel"), &Pannello },
+		{ PlanWarningEntryPath, TEXT("WBP_RT_PlanWarningEntry"), &VoceAvviso },
+		{ EventLogPath, TEXT("WBP_RT_EventLog"), &Registro },
+		{ EventLinePath, TEXT("WBP_RT_EventLine"), &RigaRegistro },
 	};
 
 	for (const FAsset& A : Asset)
@@ -1684,7 +1721,10 @@ bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
 		return false;
 	}
 
-	const ERTHudZone Arrivate[] = { ERTHudZone::Bottom, ERTHudZone::TopRight };
+	// `TopCenter` dalla seduta `U75` (#3635), che l'aveva dimenticata; `TopLeft` e `MiddleLeft` dalla `U76` (#3636);
+	// `MiddleRight`, il registro, dalla `U77` (#3637). Ora ci sono tutte.
+	const ERTHudZone Arrivate[] = { ERTHudZone::Bottom, ERTHudZone::TopRight, ERTHudZone::TopCenter,
+		ERTHudZone::TopLeft, ERTHudZone::MiddleLeft, ERTHudZone::MiddleRight };
 	for (const ERTHudZone Zona : Arrivate)
 	{
 		const FString Nome = URTHudZoneWidget::ZoneName(Zona);
@@ -1701,6 +1741,106 @@ bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
 		});
 		TestEqual(*FString::Printf(TEXT("premessa: l'albero ha una zona %s"), *Nome), Trovate, 1);
 	}
+	return true;
+}
+
+/**
+ * 🔑 **IL ROSTER E IL PANNELLO PORTANO LE CLASSI CHE IL C++ ISTANZIA, ANCHE DENTRO `WBP_RT_TacticalHUD`** (#3636, seduta `U76`).
+ *
+ * 🔴 **La seconda meta' e' quella che conta.** I default si scrivono sul CDO del Blueprint, ma il roster e il pannello che
+ * si vedono sono le istanze dell'albero del TacticalHUD. Nella seduta, un TacticalHUD caricato PRIMA del cambio di default
+ * teneva in memoria `CardClass` nullo, e il roster usciva vuoto. Salvarlo in quello stato avrebbe scritto il nullo come
+ * override, per sempre. Questo test vede l'override SALVATO: in un processo fresco l'istanza deve risolvere alla stessa
+ * classe del CDO. ⚠️ Lo stato solo in memoria non si riproduce qui, e si vede solo a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterAndPanelWearTheirClassesTest,
+	"RefactorTactics.ScreenHud.RosterAndPanelWearTheirClasses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTRosterAndPanelWearTheirClassesTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Carta = RTWidgetAssetTest::LoadWidgetClass(UnitCardPath);
+	UWidgetBlueprintGeneratedClass* Voce = RTWidgetAssetTest::LoadWidgetClass(PlanWarningEntryPath);
+	UWidgetBlueprintGeneratedClass* Roster = RTWidgetAssetTest::LoadWidgetClass(TeamRosterPath);
+	UWidgetBlueprintGeneratedClass* Pannello = RTWidgetAssetTest::LoadWidgetClass(SelectedUnitPath);
+	if (!TestNotNull(TEXT("la carta si carica"), Carta) || !TestNotNull(TEXT("la voce d'avviso si carica"), Voce)
+		|| !TestNotNull(TEXT("il roster si carica"), Roster) || !TestNotNull(TEXT("il pannello si carica"), Pannello))
+	{
+		return false;
+	}
+
+	// --- 1. I default delle due classi -----------------------------------------------------------------------------------
+	TestTrue(TEXT("1: i default di WBP_RT_TeamRoster puntano a WBP_RT_UnitCard"),
+		Roster->GetDefaultObject<URTTeamRosterWidget>()->CardClass.Get() == Carta);
+	TestTrue(TEXT("1: i default di WBP_RT_SelectedUnitPanel puntano a WBP_RT_PlanWarningEntry"),
+		Pannello->GetDefaultObject<URTSelectedUnitPanelWidget>()->PlanWarningEntryClass.Get() == Voce);
+
+	// --- 2. Le istanze dell'albero del TacticalHUD, che sono quelle a schermo ---------------------------------------------------
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+	int32 Rosters = 0;
+	int32 Pannelli = 0;
+	Tree->ForEachWidget([&](UWidget* Widget)
+	{
+		if (const URTTeamRosterWidget* R = Cast<URTTeamRosterWidget>(Widget))
+		{
+			++Rosters;
+			TestTrue(*FString::Printf(TEXT("2: il roster '%s' del TacticalHUD costruisce WBP_RT_UnitCard"), *R->GetName()),
+				R->CardClass.Get() == Carta);
+		}
+		if (const URTSelectedUnitPanelWidget* P = Cast<URTSelectedUnitPanelWidget>(Widget))
+		{
+			++Pannelli;
+			TestTrue(*FString::Printf(TEXT("2: il pannello '%s' del TacticalHUD costruisce WBP_RT_PlanWarningEntry"), *P->GetName()),
+				P->PlanWarningEntryClass.Get() == Voce);
+		}
+	});
+	TestEqual(TEXT("2: premessa: il TacticalHUD monta un roster"), Rosters, 1);
+	TestEqual(TEXT("2: premessa: il TacticalHUD monta un pannello"), Pannelli, 1);
+	return true;
+}
+
+/**
+ * 🔑 **IL REGISTRO PORTA LA CLASSE DELLE RIGHE, ANCHE DENTRO `WBP_RT_TacticalHUD`** (#3637, seduta `U77`).
+ *
+ * Il gemello di `RosterAndPanelWearTheirClasses`, per lo stesso motivo: `LineClass` sta sul CDO, ma il registro a
+ * schermo e' l'istanza dell'albero del TacticalHUD, e un override nullo salvato li' lo lascerebbe senza righe. ⚠️ Vede
+ * l'override SALVATO, non uno stato solo in memoria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogWearsItsLineClassTest,
+	"RefactorTactics.ScreenHud.EventLogWearsItsLineClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogWearsItsLineClassTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Riga = RTWidgetAssetTest::LoadWidgetClass(EventLinePath);
+	UWidgetBlueprintGeneratedClass* Registro = RTWidgetAssetTest::LoadWidgetClass(EventLogPath);
+	if (!TestNotNull(TEXT("la riga si carica"), Riga) || !TestNotNull(TEXT("il registro si carica"), Registro))
+	{
+		return false;
+	}
+	TestTrue(TEXT("i default di WBP_RT_EventLog puntano a WBP_RT_EventLine"),
+		Registro->GetDefaultObject<URTPlayerEventLogWidget>()->LineClass.Get() == Riga);
+
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+	int32 Registri = 0;
+	Tree->ForEachWidget([&](UWidget* Widget)
+	{
+		if (const URTPlayerEventLogWidget* L = Cast<URTPlayerEventLogWidget>(Widget))
+		{
+			++Registri;
+			TestTrue(*FString::Printf(TEXT("il registro '%s' del TacticalHUD costruisce WBP_RT_EventLine"), *L->GetName()),
+				L->LineClass.Get() == Riga);
+		}
+	});
+	TestEqual(TEXT("premessa: il TacticalHUD monta un registro"), Registri, 1);
 	return true;
 }
 

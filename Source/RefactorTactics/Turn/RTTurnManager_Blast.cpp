@@ -526,8 +526,22 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
 		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
 		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
-		// Solo l'AREA legge la cella dichiarata: il ramo `Single` resta com'era (bersaglio o se', `AimCell` = la sua cella).
-		const FRTCellId Centro = (bArea && Unit->bAttackTargetsCell) ? Unit->PlannedAttackCell : HealTarget->Cell;
+		// [D-419], D-493 (#3609) — il centro e' la lettura UNICA di `ARTUnit::ResolutionAimCell`:
+		// - la cura a bersaglio SINGOLO dichiara di agganciare in catalogo (`Action.Heal`, `Fallback = AttackTarget`):
+		//   la cura non e' un colpo sparato verso una cella, segue l'alleato dove va, e il centro e' la sua cella viva;
+		// - la cura ad AREA non aggancia: agisce sulle celle attorno alla mira congelata al lock-in, come ogni altra
+		//   azione — l'alleato scattato via esce dall'area.
+		// Senza bersaglio dichiarato la funzione restituisce la cella di chi cura: il ripiego «su se stessi».
+		// ⚠️ Il SINGOLO che aggancia legge l'identita' (`HealTarget`, bersaglio o se'), non la funzione: una cura singola
+		// dichiarata su una CELLA cura chi la lancia, ed e' il comportamento di prima (`#3593`) — passare dalla
+		// funzione le darebbe come centro la cella dichiarata mentre l'effetto resta su di se'. Un singolo che NON
+		// agganciasse leggerebbe la mira congelata: il catalogo non ne ha, e `Heroes.EverySingleHealDeclaresTracking`
+		// lo pinna.
+		// ⌫ *Fino a #3609 il centro di un'area centrata su un'unita' era la cella VIVA del bersaglio: la cura ad area
+		// inseguiva, contro D-419.*
+		const bool bAgganciaLaCura = Heal->Def.DeclaresTracking();
+		const FRTCellId Centro = (!bArea && bAgganciaLaCura) ? HealTarget->Cell
+			: Unit->ResolutionAimCell(bAgganciaLaCura);
 		const int32 BersaglioStableId = (bArea && !Unit->PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
 		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
 		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
@@ -572,8 +586,30 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// #3549, spec §2.2 punto 2: la cura si ATTIVA quando e' SPESA, anche se poi non ha effetto (`NoEffect`,
 		// il controllo di `Amount` qui sotto): il gesto, non l'esito. ⛔ Il fuori portata e' uscito con `continue`
 		// sopra e non si paga: non e' un gesto, e non si attiva.
-		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Heal->Def.ActionId, Heal->Def.BaseActionId,
-			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single);
+		// ➕ `#3683`: si ACCODA, e la emette `ResolveCombatPasses` nell'ordine canonico insieme agli intenti
+		// d'attacco. Il gesto resta quello accettato qui; cambia solo quando lo si vede.
+		Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
+			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single,
+			FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
+		// [D-504], `#3598` — **LA LINEA DI TIRO SI RICONTROLLA QUI, con la domanda degli attacchi.** Il piano e'
+		// stato accettato sulla mappa della pianificazione; un muro alzato in Prep, o chi cura che si e' spostato
+		// nel Dash, puo' averla chiusa. E' lo stesso predicato di `CollectHexAttacks` — `TravelsDirect` sulla
+		// politica dell'azione, poi `HasLineOfSight` dalla cella ATTUALE di chi cura — e non una seconda regola:
+		// verso l'alleato agganciato per la cura singola, verso la mira congelata per l'area.
+		// 🔑 **Dopo la spesa, non prima**: per [D-200] la portata e' l'unico modo di fallire noto in pianificazione,
+		// e un muro comparso dopo il lock-in e' un esito — il cooldown si paga e il gesto si vede. ⚠️ Un ATTACCO fermato dalla
+		// linea di tiro invece non paga, perche' il suo criterio e' il colpo prodotto (`MarkAttackerAbilitiesSpent`):
+		// l'asimmetria e' dichiarata in D-504, non risolta.
+		// ⌫ *Fino a #3598 la cura controllava solo la portata, e un muro fermava un colpo ma non una cura.*
+		if (URTCombatLibrary::TravelsDirect(Heal->Def.LineOfSightPolicy)
+			&& !URTHexVisionLibrary::HasLineOfSight(Ctx.Map, Unit->Cell, Centro))
+		{
+			FRTTurnLogEntry CuraBloccata = MakeSupportFallback(
+				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoLineOfSight);
+			if (bArea) { CuraBloccata.TgtCell = Centro; } // come il fuori portata: la voce dice DOVE mirava
+			AppendLogEntry(CuraBloccata, Unit);
+			continue;
+		}
 
 		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
@@ -719,6 +755,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionModifyArc))
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
+			// [D-419] (#3609): l'arco si apre verso la MIRA CONGELATA al lock-in, non verso dove il bersaglio e'
+			// scattato — la coppia di celle e' la topologia, e una cella non ha un'identita' da seguire. Letta con la
+			// funzione unica, e PRIMA dell'azzeramento qui sotto. ⌫ *Fino a #3609 portata e arco leggevano
+			// `ArcTarget->Cell`, la cella viva.*
+			const FRTCellId ArcAim = Unit->ResolutionAimCell(PlannedNow->Def.DeclaresTracking());
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
@@ -729,7 +770,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				// intenti, due righe sopra — quindi il controllo che ogni altra azione del Blast riceve
 				// gratis va scritto: senza, un'azione che dichiara `Range 3` opera dall'altra parte della
 				// mappa, e non e' un'azione a portata, e' un'azione senza portata.
-				if (URTHexLibrary::HexDistance(Unit->Cell, ArcTarget->Cell) > PlannedNow->Def.RangeCells)
+				if (URTHexLibrary::HexDistance(Unit->Cell, ArcAim) > PlannedNow->Def.RangeCells)
 				{
 					// Il fallback dichiarato a catalogo e' `Cancel`: nessun effetto, ma VISIBILE. Un'azione
 					// che sparisce in silenzio e' indistinguibile da un difetto — la stessa ragione per cui
@@ -743,7 +784,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.BaseActionId = PlannedNow->Def.BaseActionId;
 					ArcRejected.Priority = PlannedNow->Def.Priority;
 					ArcRejected.SrcCell = Unit->Cell;
-					ArcRejected.TgtCell = ArcTarget->Cell;
+					ArcRejected.TgtCell = ArcAim;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
 					// ⌫ **L'eco scritto a mano era «una riga identica a questa», e `#1412` l'ha tolto.** Il
 					// nome che aggiungeva sta ora nella copia derivata da `ConcludeTurn`, perche' la
@@ -756,11 +797,15 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				}
 
 				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
-				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
+				PendingArcOps.Add({ Unit->Cell, ArcAim, Unit, PlannedNow->Def });
 				// #3549: dopo la validazione di portata — un arco fuori portata e' uscito con `continue` sopra
 				// (`ArcRejected`) e non si attiva.
-				EmitAbilityActivated(Unit, ERTMatchPhase::Blast, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
-					ArcTarget->StableUnitId, ArcTarget->Cell, ERTAbilityShape::Single);
+				// ➕ `#3683`: accodata come la cura. ⚠️ L'arco cambia la mappa in `ApplyEnvironmentChanges`, ma
+				// il piano dei colpi e' gia' raccolto: nessun colpo di questo Blast lo vede, e in ordine canonico
+				// (75) si racconta dopo di loro.
+				Ctx.DeferredActivations.Add({ Unit, i, PlannedNow->Def.Priority, PlannedNow->Def.ActionId,
+					PlannedNow->Def.BaseActionId, ArcTarget->StableUnitId, ArcAim, ERTAbilityShape::Single,
+					FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
 			}
 			continue;
 		}
@@ -772,15 +817,39 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
 		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
 		const bool bTargetsCell = Unit->bAttackTargetsCell;
-		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
+		const bool bHasAim = Unit->bHasPlannedAim; // per l'`ensure` qui sotto
+		// L'abilita' si legge PRIMA dell'azzeramento: dipende dal solo indice, e la mira dipende da lei (aggancia?).
+		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
+
+		// [D-415]/[D-419] — LA CELLA DI MIRA E' UNA, e si decide QUI, prima di tutto cio' che la legge: il
+		// riorientamento di D-020 qui sotto, l'istanza piu' in basso, e da li' `ValidateInstance` e il Blast.
+		// Fino al 2026-10-09 il riorientamento guardava `Target->Cell` (la cella viva) e l'istanza la mira
+		// congelata: chi sparava si girava verso dove il bersaglio era andato e sparava dove era stato.
+		//
+		// `ERTActionFallback::AttackTarget` — *«Segue il bersaglio, se ancora valido»* — e' l'opt-in dichiarato
+		// all'aggancio ([D-419]: «un'azione che voglia agganciare lo dichiara»): `Cancel` resta il default del
+		// catalogo, quindi chi non dice niente NON insegue. Aggiungerlo a un'azione e' una scelta di catalogo,
+		// leggibile in diff, e va motivata li'.
+		//
+		// #3609: la lettura e' `ARTUnit::ResolutionAimCell`, la stessa della cura, di `ModifyArc`, delle ambientali
+		// e delle strutture — e va fatta PRIMA di `ClearPlannedAttack()`, che spegne tutte le forme del piano.
+		const bool bAggancia = Ability && Ability->Def.DeclaresTracking();
+		const FRTCellId AimCell = Unit->ResolutionAimCell(bAggancia);
 		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
-		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
 		if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || !Unit->CanUseAbility(AbilityIndex))
 		{
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
 		}
+
+		// ⛔ Un bersaglio-unita' senza mira congelata e' un'anomalia, non un caso: il lock-in la fotografa per
+		// ogni unita' viva PRIMA di questo ciclo. Il ripiego sotto resta per non lasciare un'istanza senza cella,
+		// ma l'`ensure` lo rende visibile in suite invece di riaprire l'inseguimento in silenzio.
+		// Un attaccante gia' caduto (Prep o Dash) non ha una mira congelata — `CollectLivingUnits` lo ha escluso
+		// al lock-in — e il suo colpo lo scarta `CollectHexAttacks`: non e' un'anomalia, e non la segnala.
+		ensureMsgf(!Unit->IsAlive() || bTargetsCell || Target == nullptr || bHasAim || bAggancia,
+			TEXT("[D-415] bersaglio-unita' senza mira congelata al lock-in: unita' %d"), i);
 
 		// ⛔ **Lo stordimento e' gia' stato rifiutato in cima al ciclo**, sopra il ramo `ModifyArc`: una
 		// seconda guardia qui non sarebbe difesa in profondita', sarebbe una seconda regola da tenere
@@ -804,14 +873,24 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		//
 		// Conta la cella DICHIARATA nel piano, non il primo bersaglio che l'area colpira': l'orientamento e' una
 		// scelta del giocatore, e un'area che prende tre unita' non deve farlo dipendere dall'ordine di calcolo.
+		// E «dichiarata» e' `AimCell`, la mira congelata al lock-in ([D-415]): un bersaglio che e' scattato via
+		// non trascina con se' lo sguardo di chi gli spara dove era — `Combat.Aim.ReorientationFacesTheFrozenAim`.
 		// `Unit->IsAlive()` e non solo il bersaglio: questo ciclo non filtra gli attaccanti morti (chi cade nel
 		// Dash ci arriva col piano ancora addosso) e il loro colpo viene scartato piu' avanti, da
 		// `CollectHexAttacks`, che salta le unita' non vive. Senza il guard un cadavere si girerebbe verso il
 		// bersaglio e lascerebbe la sua voce nel TurnLog: deterministica, ma rumore che entra nell'hash del replay.
-		if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)
+		//
+		// 🔴 **E vale anche per il bersaglio-CELLA**: D-020 dice «un'azione con bersaglio», e la cella dichiarata
+		// lo e'. ⌫ *Fino al 2026-10-10 il ramo chiedeva un `Target` unita', e un attacco a cella non girava
+		// nessuno — una lacuna nata con le dichiarazioni a cella (#2884), rimasta invisibile finche' a usarle
+		// erano pochi giocatori. Da #3229 i bot dichiarano la cella che conoscono, e senza questa riga avrebbero
+		// smesso di girarsi verso cio' che colpiscono, mentre `ScorePlan` (`ArrivalFacingOf`) li stima girati.*
+		// Pinnato da `Combat.Aim.CellAttackFacesTheDeclaredCell`.
+		const bool bHaUnaMira = bTargetsCell || (Target && Target->IsAlive() && Target != Unit);
+		if (Unit->IsAlive() && bHaUnaMira)
 		{
 			ERTHexDirection TowardsTarget = Unit->Facing;
-			if (URTHexLibrary::DirectionTowards(Unit->Cell, Target->Cell, TowardsTarget))
+			if (URTHexLibrary::DirectionTowards(Unit->Cell, AimCell, TowardsTarget))
 			{
 				FRTHexSimUnit Attacker(i, Unit->Cell, /*InMoveBudget=*/ 0);
 				Attacker.Facing = Unit->Facing;
@@ -852,7 +931,24 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ⚠️ Le due copie vengono da CIMA AL CICLO, dove il piano e' stato consumato: leggerle qui dall'unita'
 		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+		// 🔴 **La mira e' quella CONGELATA AL LOCK-IN, non la cella corrente del bersaglio** ([D-415]).
+		// `Target->Cell` qui sarebbe la posizione POST-movimento, e usarla e' il difetto che la decisione
+		// chiude: il colpo inseguiva. Il ripiego su `Target->Cell` NON e' un percorso supportato: il Blast
+		// si raggiunge solo da `RunPhaseLoop`, cioe' da `LockInAndResolve` o dal rientro dopo un `Brace` a
+		// turno gia' congelato — harness e test compresi. Resta perche' un'istanza senza cella sarebbe peggio,
+		// e l'`ensure` sopra la decisione della cella lo rende visibile se qualcuno lo raggiunge.
+		//
+		// ✅ **SALVO per chi DICHIARA di agganciare**, che e' l'uscita che [D-415] nomina per esteso:
+		// *«resta legittimo per le abilita' che dichiarano di agganciare»*. La dichiarazione e'
+		// `ERTActionFallback::AttackTarget` — *«Segue il bersaglio, se ancora valido»* — e prima di questa
+		// voce era un valore **morto** dell'enum: zero azioni lo usavano, e come fallback fa gia'
+		// esattamente cio' che fa `Cancel` (`RTActionFallbackLibrary.cpp`, ramo `AttackTarget`). Dichiararlo
+		// non cambia quindi il comportamento di ripiego di nessuno: gli da' solo la mira.
+		//
+		// ⚠️ **Non e' una scappatoia per rimettere il vecchio default**: `Cancel` resta il default del
+		// catalogo, quindi chi non dice niente NON insegue. Aggiungere `AttackTarget` a un'azione e' una
+		// scelta di catalogo, leggibile in diff, e va motivata li'.
+		Instance.TargetCell = AimCell; // decisa UNA volta, sopra, prima del riorientamento
 		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non `Intents.Num()` (#2970)
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
@@ -1962,10 +2058,45 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		// L'attaccante arriva col risultato: `FRTStructureHit` lo dichiarava gia' — «serve al TurnLog, non al
 		// calcolo» — e ora `FRTCoverDamageResult` lo propaga. Resta un indice fino a qui, quindi lo strato di
 		// mappa non ha mai visto un Actor.
-		AppendLogEntry(Entry, Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr);
+		// 🔴 **CHI PUO' SAPERLO — [D-502], `#3681`.** Il muro colpito lo vedono la squadra di ogni autore e ogni
+		// squadra che vede almeno una delle due celle del bordo, nella conoscenza di questa fase
+		// (`TeamKnowledgeState`, rinfrescata per il Blast da `RefreshTeamKnowledgeForBlast`). ⏱️ *Fino a #3681 la
+		// voce prendeva il verdetto di chi aveva sparato — la regola B che D-502 ha scartato —, `World()` con piu'
+		// autori, e la riga del combat log era `World()` sempre: tre regole per lo stesso fatto.*
+		//
+		// 🔑 **Un fatto, un verdetto** (D-502, punto 7): lo stesso valore va alla voce di TurnLog — e da li' alla
+		// riga derivata, al proiettore degli eventi e al replay —, all'evento di timeline che `AppendLogEntry`
+		// ne deriva, e alla riga qui sotto.
+		TArray<int32> SquadreAutori;
+		for (const int32 k : Change.IntentIndices)
+		{
+			if (Intents.IsValidIndex(k) && Units.IsValidIndex(Intents[k].AttackerId) && Units[Intents[k].AttackerId])
+			{
+				SquadreAutori.AddUnique(Units[Intents[k].AttackerId]->TeamId);
+			}
+		}
+		if (SquadreAutori.Num() == 0 && Units.IsValidIndex(Change.AttackerId) && Units[Change.AttackerId])
+		{
+			SquadreAutori.Add(Units[Change.AttackerId]->TeamId); // un produttore che non porta gli intenti
+		}
+		SquadreAutori.Sort();
+		const FRTKnowledgeVerdict VerdettoMuro = URTTeamKnowledgeLibrary::FreezeEdgeVerdict(
+			TeamKnowledgeState, SquadreAutori, Change.Cell, Change.Toward);
+
+		// Il soggetto per l'audit di [D-313]: senza `bEdge` ricalcolerebbe il verdetto di chi ha sparato.
+		Entry.VerdictSubject.bEdge = true;
+		Entry.VerdictSubject.EdgeCell = Change.Cell;
+		Entry.VerdictSubject.EdgeToward = Change.Toward;
+		Entry.VerdictSubject.AuthorTeamIds = SquadreAutori;
+
+		ARTUnit* const Autore = Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr;
+		AppendLogEntry(Entry, Autore ? FRTLogSubject::UnitWithVerdict(Autore, VerdettoMuro)
+			: FRTLogSubject::Frozen(INDEX_NONE, VerdettoMuro));
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
-			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity), FRTLogSubject::World());
+			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity),
+			// `INDEX_NONE` e non `0` per «nessuna unita'»: e' la sentinella del combat log (`RTTurnLogLibrary.cpp`).
+			FRTLogSubject::Frozen(Autore ? Autore->StableUnitId : INDEX_NONE, VerdettoMuro));
 
 		// Una copertura abbattuta smette di essere anche una copertura TEMPORANEA (CP 9.5). Senza questa
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
@@ -2389,7 +2520,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	//
 	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (il `Deflect` come POOL
 	// d'assorbimento — [D-309] —, i contrattacchi negli attacchi), e riusarla farebbe ripartire
-	// `DeflectDelta` da zero.
+	// `ReactionReductionByTarget` da zero.
 	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
 	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
 	// dichiara solo `CancelDisplacement`).
@@ -2685,9 +2816,10 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// nessuno che la faccia scadere.
 					SetActorTickEnabled(true);
 
-					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito.
+					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito. Costruito qui e
+					// consegnato quando il playback ha mostrato la spinta (`#3666`), come nell'altro sito.
 					const int32 OwnerTeamId = T->TeamId;
-					OnReactionWindowOpened.Execute(
+					SuspendReactionWindowForPresentation(
 						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId),
 						BraceOpportunity.Key.OwnerId);
 

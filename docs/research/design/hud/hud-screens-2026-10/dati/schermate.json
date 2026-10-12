@@ -1,0 +1,53 @@
+{
+  "_statuto": "Scenario DIMOSTRATIVO: nessun valore è un dato di gioco salvo dove indicato.",
+  "partita": {
+    "formato": "2v2",
+    "alleati": [
+      "Aevik (PV 90, PM 12)",
+      "Muiren (PV 95)"
+    ],
+    "nemici": [
+      "Branth (PV 120)",
+      "Ivrin (PV 90)"
+    ],
+    "nota": "PV massimi da RTHeroCatalogLibrary.cpp; posizioni, turno 04, punteggio 2–1 a 3, nome 'Nodo centrale' e cella G7 sono inventati."
+  },
+  "schermate": [
+    {
+      "id": "A",
+      "file": "A-pianificazione-pulita",
+      "mostra": "Aevik pianifica Arc Pulse su Ivrin e Move ×1 per 3 celle",
+      "coerenza": "BLAST precede MOVE: l'attacco parte dalla posizione attuale; Ivrin entro gittata 4"
+    },
+    {
+      "id": "B",
+      "file": "B-selezione-e-avviso",
+      "mostra": "Linear Discharge verso Branth passa su Muiren: avviso fuoco amico",
+      "coerenza": "avviso ripetuto in slot, timeline e contatore"
+    },
+    {
+      "id": "C",
+      "file": "C-intenti-di-squadra",
+      "mostra": "Intento di Muiren espanso; conflitto 'stessa cella G7'",
+      "coerenza": "FUTURE: richiede più comandanti"
+    },
+    {
+      "id": "D",
+      "file": "D-risoluzione",
+      "mostra": "Fase BLAST, evento 3/5, -28 su Ivrin, WHY? aperto (22 + 6 + 0 = 28)",
+      "coerenza": "il +6 è l'esempio di §14.1; reazione Acqua+Elettricità non verificata"
+    },
+    {
+      "id": "E",
+      "file": "E-reazione-rapida",
+      "mostra": "Guardia reattiva di Aevik: Ivrin entra nell'area, 2.4 s, FIRE/HOLD",
+      "coerenza": "Aevik ha pianificato Guardia reattiva, quindi movimento riservato a Withdraw (D-070)"
+    },
+    {
+      "id": "F",
+      "file": "F-conoscenza-parziale",
+      "mostra": "Contatto incerto, ultimo contatto (T3), rumore; Aevik in Guardia reattiva",
+      "coerenza": "stessa riserva di movimento di E"
+    }
+  ]
+}

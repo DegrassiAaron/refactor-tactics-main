@@ -2017,7 +2017,9 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 // --- #3145 · `TAB`: il percorso tastiera della selezione ----------------------------------------------
 
 /**
- * `TAB` cicla le proprie unita' in ordine STABILE, e non dichiara niente.
+ * Il ciclo della selezione (`N` da D-488, prima `TAB`) visita le proprie unita' in ordine STABILE, e non
+ * dichiara niente. Il nome del test era `TabCyclesOwnUnitsInStableOrder` fino al 2026-10-10: il tasto e'
+ * cambiato, la regola no, e il test interroga la regola (`CycleSelectionForTest`), non il tasto.
  *
  * 🔴 **L'asserzione che porta il peso e' la seconda**: due cicli completi sullo stesso stato danno la
  * stessa sequenza. Un ciclo che seguisse l'ordine di `GetAllActorsOfClass` potrebbe darne due diverse, e
@@ -2028,7 +2030,7 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
  * porta uno stato di dichiarazione conclusa, e il lock-in e' del turno. Sta scritto su `CycleSelection`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCycleSelectionTest,
-	"RefactorTactics.PlayerInput.TabCyclesOwnUnitsInStableOrder",
+	"RefactorTactics.PlayerInput.SelectionCycleVisitsOwnUnitsInStableOrder",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCycleSelectionTest::RunTest(const FString&)
 {
@@ -3406,6 +3408,64 @@ bool FRTPlayerInputSneakKeyTest::RunTest(const FString&)
 			// L'etichetta che la barra stampa, scritta a mano: il controllo positivo dell'uguaglianza sopra.
 			TestEqual(TEXT("l'etichetta del tasto e' M"),
 				ARTPlayerController::SneakHotkey().GetDisplayName(false).ToString(), FString(TEXT("M")));
+		}
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
+}
+
+/**
+ * D-488 (3) — `TAB` apre la vista strategica e il ciclo della selezione e' su `N`, **sul contesto reale**.
+ *
+ * 🔴 **Le due meta' si asseriscono insieme perche' D-488 le vuole nello stesso commit.** Un `Tab` che restasse
+ * anche sul ciclo farebbe due cose (lo prenderebbe `HotkeysDoNotCollide`); un ciclo spostato senza la vista
+ * lascerebbe `Tab` muto, e quello solo questo test lo vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputStrategicViewKeyTest,
+	"RefactorTactics.PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputStrategicViewKeyTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	bool bOk = TestNotNull(TEXT("controller"), PC);
+	if (bOk)
+	{
+		const UInputMappingContext* Imc = PC->BuildAndGetMappingContextForTest();
+		bOk = TestNotNull(TEXT("mapping context costruito"), Imc);
+		if (bOk)
+		{
+			TArray<FKey> TastiDellaVista;
+			TArray<FKey> TastiDelCiclo;
+			for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+			{
+				if (!M.Action) { continue; }
+				if (M.Action->GetName() == TEXT("IA_ToggleStrategicView")) { TastiDellaVista.Add(M.Key); }
+				if (M.Action->GetName() == TEXT("IA_CycleSelection"))      { TastiDelCiclo.Add(M.Key); }
+			}
+
+			TestEqual(TEXT("IA_ToggleStrategicView ha esattamente un tasto"), TastiDellaVista.Num(), 1);
+			TestEqual(TEXT("IA_CycleSelection ha esattamente un tasto"), TastiDelCiclo.Num(), 1);
+			if (TastiDellaVista.Num() == 1)
+			{
+				TestEqual(TEXT("la vista strategica e' su StrategicViewHotkey()"),
+					TastiDellaVista[0], ARTPlayerController::StrategicViewHotkey());
+			}
+			if (TastiDelCiclo.Num() == 1)
+			{
+				TestEqual(TEXT("il ciclo e' su CycleSelectionHotkey()"),
+					TastiDelCiclo[0], ARTPlayerController::CycleSelectionHotkey());
+			}
+			// I tasti scritti a mano: il controllo positivo delle due uguaglianze sopra, che da sole
+			// resterebbero vere anche se le due sedi si scambiassero i tasti.
+			TestEqual(TEXT("la vista strategica e' su Tab"), ARTPlayerController::StrategicViewHotkey(), EKeys::Tab);
+			TestEqual(TEXT("il ciclo della selezione e' su N"), ARTPlayerController::CycleSelectionHotkey(), EKeys::N);
 		}
 	}
 

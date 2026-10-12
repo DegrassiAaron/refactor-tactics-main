@@ -9,6 +9,10 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h" // ProjectionMode, OrthoWidth e GetCameraView della vista strategica (#3662)
+#include "Engine/LocalPlayer.h"     // il vincolo d'aspetto con cui UE costruisce la proiezione
+#include "SceneView.h"              // FSceneViewProjectionData
+#include "UI/RTHudLayout.h"         // #3661: il rettangolo della scena
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -1436,6 +1440,715 @@ bool FRTCameraStrategicThresholdsAreOrderedTest::RunTest(const FString&)
 	return true;
 }
 
+// --- D-488 / D-495 · `Tab`: una scorciatoia verso la distanza, non una modalita' ----------------------
+
+/**
+ * `Tab` porta il braccio alla soglia d'ingresso, e il secondo `Tab` lo riporta ESATTAMENTE da dove era partito.
+ *
+ * 🔑 **L'uguaglianza esatta del braccio e' l'asserzione che porta il peso.** Un ritorno «tattico ma altrove»
+ * sarebbe verde su `IsStrategicView` e sbagliato per chi gioca, che ritroverebbe la camera a un'altra
+ * distanza. E la soglia raggiunta ESATTAMENTE prova che `Tab` non passa dall'alpha, dove l'arrotondamento
+ * di `Lerp` potrebbe lasciare il braccio un ulp sotto `Enter` e la vista tattica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraTabTogglesStrategicTest,
+	"RefactorTactics.Camera.TabReachesTheStrategicThresholdAndTheSecondTabReturns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraTabTogglesStrategicTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->RecenterView();
+
+	// Partenza tattica a una distanza che NON e' il default: un ritorno a `DefaultArmLength` non basterebbe.
+	Cam->AddZoom(+1.f);
+	const float Start = Arm->TargetArmLength;
+	TestFalse(TEXT("si parte tattici"), Cam->IsStrategicView());
+	TestNotEqual(TEXT("la partenza non e' il default"), Start, 800.f);
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("il primo Tab apre la vista strategica"), Cam->IsStrategicView());
+	TestEqual(TEXT("e porta il braccio esattamente alla soglia d'ingresso"), Arm->TargetArmLength, 2400.f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestEqual(TEXT("ed esattamente alla distanza di partenza"), Arm->TargetArmLength, Start);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * In strategica si entra anche con la rotella: allora l'ultima distanza tattica cade fra le due soglie, e il
+ * secondo `Tab` deve comunque USCIRE.
+ *
+ * 🔴 **E' il caso che D-488 non copre** («riporta alla distanza da cui era partita»), e senza il tetto su
+ * `StrategicExitThreshold` tornare a quella distanza lascerebbe la vista strategica per isteresi: un `Tab`
+ * che non fa niente. Verifica di mutazione: tolto il `Min` con `Exit`, l'asserzione su `IsStrategicView` cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraTabAfterWheelEntryTest,
+	"RefactorTactics.Camera.TabAfterWheelEntryLeavesTheStrategicView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraTabAfterWheelEntryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->RecenterView();
+
+	for (int32 i = 0; i < 40 && !Cam->IsStrategicView(); ++i) { Cam->AddZoom(+1.f); }
+	if (!TestTrue(TEXT("con la rotella si entra in strategica"), Cam->IsStrategicView()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	// Il controllo che rende il caso quello giusto: l'ultima lettura tattica sta FRA le soglie.
+	const float LastTactical = Cam->GetLastTacticalArmLength();
+	TestTrue(TEXT("l'ultima distanza tattica cade fra le due soglie"), LastTactical > 1900.f && LastTactical < 2400.f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("Tab esce dalla strategica anche se ci si e' entrati con la rotella"), Cam->IsStrategicView());
+	TestEqual(TEXT("e si ferma alla soglia d'uscita, la distanza tattica piu' vicina"), Arm->TargetArmLength, 1900.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **#3646 — il secondo `Tab` torna alla distanza da cui si e' partiti anche se nessuno l'ha letta.**
+ *
+ * `FrameOwnTeam` apre la partita scrivendo `TargetArmLength` direttamente, senza passare da `UpdateStrategicState`:
+ * qui lo stesso gesto e' la scrittura diretta sul braccio. Trovato in PIE (seduta `U73`): partenza a 450, ritorno a
+ * 800, cioe' alla distanza di `RecenterView`. Verifica di mutazione: togliendo la registrazione in
+ * `ToggleStrategicView` il ritorno va a 800 e l'ultima asserzione cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraTabReturnsToUnreadDistanceTest,
+	"RefactorTactics.Camera.TabReturnsToADistanceWrittenOutsideTheZoomGate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraTabReturnsToUnreadDistanceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->RecenterView(); // l'ultima lettura tattica e' 800
+
+	// Lo scrittore che non passa dalla porta dello zoom, come `FrameOwnTeam` all'avvio.
+	Arm->TargetArmLength = 450.f;
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("il primo Tab apre la strategica"), Cam->IsStrategicView());
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestEqual(TEXT("e alla distanza da cui si era partiti, non a quella dell'ultima lettura"), Arm->TargetArmLength, 450.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- #3630 · l'orbita che lo zoom non cancella ------------------------------------------------------------------
+
+/**
+ * 🔴 **L'inclinazione data con l'orbita sopravvive allo zoom** (#3630).
+ *
+ * Fino al 2026-10-10 `AddOrbit` scriveva `CameraPitch` direttamente, e il primo `AddZoom` la cancellava:
+ * `RecomputePitchFromZoom` riscrive il pitch come derivato + offset. Verifica di mutazione: rimettere la scrittura
+ * diretta deve far cadere la seconda asserzione. La rampa strategica della stessa issue si e' ritirata con D-498
+ * (#3662); questa correzione resta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraOrbitPitchSurvivesZoomTest,
+	"RefactorTactics.Camera.OrbitPitchSurvivesTheNextZoom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraOrbitPitchSurvivesZoomTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -40.f);
+	Cam->SetPitchZoomDeltaForTest(0.f);
+	Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
+	Cam->SetZoomStepForTest(150.f);
+	Cam->RecenterView();
+
+	const float Prima = Cam->GetCameraPitch();
+	Cam->AddOrbit(/*DeltaYaw=*/ 0.f, /*DeltaPitch=*/ -10.f);
+	const float DopoOrbita = Cam->GetCameraPitch();
+	TestNotEqual(TEXT("l'orbita ha inclinato la vista"), DopoOrbita, Prima);
+
+	Cam->AddZoom(+1.f);
+	TestEqual(TEXT("e il primo zoom non la cancella"), Cam->GetCameraPitch(), DopoOrbita);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- D-498 (#3662) · la vista strategica isometrica dimetrica: ortografica, pitch fisso, orbita verticale inerte ---
+
+namespace
+{
+	/**
+	 * Le tarature che questi test fissano, perche' ognuna e' un ingresso di cio' che misurano: soglie 2400/1900, braccio
+	 * 800 in [100, 4000], passo di zoom 150, pitch tattico -40 senza curva di zoom, sensibilita' 1. La vista parte
+	 * tattica, a yaw 0. `StrategicPitch` resta il default della classe: e' il valore di D-498, e i test lo pinnano.
+	 */
+	void RTPreparaVistaD498(ARTCameraPawn* Cam)
+	{
+		Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+		Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+		Cam->SetZoomStepForTest(150.f);
+		Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -40.f);
+		Cam->SetPitchZoomDeltaForTest(0.f);
+		Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
+		Cam->RecenterView();
+	}
+
+	/** Porta il braccio a una distanza passando dalla porta dello zoom: e' cio' che il giocatore ottiene. */
+	void RTBraccioA(ARTCameraPawn* Cam, float Arm)
+	{
+		const float Range = Cam->GetMaxArmLength() - Cam->GetMinArmLength();
+		Cam->SetZoomAlpha(Range > 0.f ? (Arm - Cam->GetMinArmLength()) / Range : 0.f);
+	}
+}
+
+/**
+ * Pitch e proiezione seguono lo **stato**, con la sua isteresi, nei due versi (D-498 (2)).
+ *
+ * 🔑 **La distanza 2100 compare due volte, ed e' il caso che porta il peso.** Fra le soglie lo stato dipende da dove
+ * si viene: dal basso e' tattico, dall'alto strategico. Una regola letta dalla DISTANZA — come la rampa di #3630 —
+ * darebbe lo stesso pitch le due volte; una letta dallo STATO li separa. E l'offset manuale, che la strategica non
+ * deve toccare, si ritrova intatto alla fine.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicFollowsTheStateTest,
+	"RefactorTactics.Camera.StrategicPitchAndProjectionFollowTheStateInBothHysteresisDirections",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicFollowsTheStateTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+
+	// Un'inclinazione manuale in tattica: deve attraversare tutto il giro senza perdersi.
+	Cam->AddPitch(+5.f);
+	const float Tattico = Cam->GetCameraPitch();
+	TestEqual(TEXT("premessa: l'input ha inclinato la tattica"), Tattico, -35.f, 1e-3f);
+
+	// Fra le soglie, ENTRANDOCI DAL BASSO: la vista resta tattica, e con lei pitch e proiezione.
+	RTBraccioA(Cam, 2100.f);
+	TestFalse(TEXT("fra le soglie, dal basso, la vista e' tattica"), Cam->IsStrategicView());
+	TestFalse(TEXT("e prospettica"), Cam->IsOrthographicNow());
+	TestEqual(TEXT("con il pitch tattico"), Cam->GetCameraPitch(), Tattico, 1e-3f);
+
+	// Oltre la soglia d'ingresso: nella STESSA chiamata che cambia lo stato cambiano pitch e proiezione (D-495 (4)).
+	RTBraccioA(Cam, 3000.f);
+	TestTrue(TEXT("oltre la soglia la vista e' strategica"), Cam->IsStrategicView());
+	TestTrue(TEXT("ortografica"), Cam->IsOrthographicNow());
+	TestEqual(TEXT("e a -30 gradi, il dimetrico 2:1 di D-498"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+
+	// Fra le soglie, ENTRANDOCI DALL'ALTO: l'isteresi tiene la strategica, e con lei pitch e proiezione.
+	RTBraccioA(Cam, 2100.f);
+	TestTrue(TEXT("fra le soglie, dall'alto, la vista resta strategica"), Cam->IsStrategicView());
+	TestTrue(TEXT("e resta ortografica"), Cam->IsOrthographicNow());
+	TestEqual(TEXT("a -30 gradi: il pitch segue lo stato, non la distanza"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+
+	// Sotto la soglia d'uscita: tattica, prospettica, con l'inclinazione di prima.
+	RTBraccioA(Cam, 1500.f);
+	TestFalse(TEXT("sotto la soglia d'uscita si torna tattici"), Cam->IsStrategicView());
+	TestFalse(TEXT("e prospettici"), Cam->IsOrthographicNow());
+	TestEqual(TEXT("con l'inclinazione di prima"), Cam->GetCameraPitch(), Tattico, 1e-3f);
+	TestEqual(TEXT("perche' l'offset manuale non si e' mosso"), Cam->GetManualPitchOffset(), 5.f, 1e-3f);
+
+	// La rotella: lo scatto che attraversa la soglia porta gia' il pitch strategico, non quello del fotogramma prima.
+	RTBraccioA(Cam, 2300.f);
+	Cam->AddZoom(+1.f);
+	TestTrue(TEXT("uno scatto di rotella oltre la soglia entra in strategica"), Cam->IsStrategicView());
+	TestEqual(TEXT("e nello stesso scatto il pitch e' -30"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * In strategica l'orbita non agisce, ne' la verticale (D-498 (4)) ne' l'orizzontale (D-499): in iso si ruota solo a
+ * scatti di 60. Tornando tattici l'inclinazione e' quella di prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicFreeOrbitInertTest,
+	"RefactorTactics.Camera.FreeOrbitIsInertInStrategicAndTheTacticalTiltReturns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicFreeOrbitInertTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+
+	Cam->AddOrbit(/*DeltaYaw=*/ 0.f, /*DeltaPitch=*/ -10.f);
+	const float Tattico = Cam->GetCameraPitch();
+	const float Offset = Cam->GetManualPitchOffset();
+	TestNotEqual(TEXT("premessa: l'orbita ha inclinato la tattica"), Tattico, -40.f);
+
+	Cam->ToggleStrategicView();
+	if (!TestTrue(TEXT("Tab apre la strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	TestEqual(TEXT("a -30 gradi"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+
+	Cam->AddOrbit(/*DeltaYaw=*/ 0.f, /*DeltaPitch=*/ +15.f);
+	Cam->AddPitch(+15.f);
+	TestEqual(TEXT("in strategica ne' l'orbita ne' l'inclinazione da tastiera muovono il pitch"),
+		Cam->GetCameraPitch(), -30.f, 1e-3f);
+	TestEqual(TEXT("e non toccano l'offset della tattica"), Cam->GetManualPitchOffset(), Offset, 1e-3f);
+
+	const float YawPrima = Cam->GetCameraYaw();
+	Cam->AddOrbit(/*DeltaYaw=*/ 20.f, /*DeltaPitch=*/ 0.f);
+	Cam->AddYawContinuous(20.f);
+	TestEqual(TEXT("e nemmeno l'orbita orizzontale libera muove l'imbardata (D-499)"), Cam->GetCameraYaw(), YawPrima, 1e-3f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestEqual(TEXT("con l'inclinazione di prima"), Cam->GetCameraPitch(), Tattico, 1e-3f);
+
+	// Controllo positivo: in tattica la stessa orbita orizzontale agisce.
+	const float YawTattico = Cam->GetCameraYaw();
+	Cam->AddOrbit(/*DeltaYaw=*/ 20.f, /*DeltaPitch=*/ 0.f);
+	TestEqual(TEXT("in tattica l'orbita orizzontale agisce"), Cam->GetCameraYaw(),
+		static_cast<float>(FRotator::ClampAxis(YawTattico + 20.f)), 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * `D-499`: in iso `Q`/`E` ruotano di 60; entrando l'imbardata si allinea al multiplo di 60 piu' vicino, e uscendo torna
+ * quella tattica. In tattica lo scatto resta 45 (D-142).
+ *
+ * 🔑 Due ingressi: da 10, che si allinea per difetto (0), e da 45, che si allinea per eccesso (60). Un allineamento che
+ * troncasse invece di arrotondare darebbe 0 anche al secondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicYawStepTest,
+	"RefactorTactics.Camera.YawSnapsTo60InStrategicAndTheTacticalYawReturns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicYawStepTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+
+	Cam->AddYawContinuous(10.f);
+	TestEqual(TEXT("premessa: imbardata a 10"), Cam->GetCameraYaw(), 10.f, 1e-3f);
+
+	Cam->ToggleStrategicView();
+	if (!TestTrue(TEXT("Tab apre la strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	TestEqual(TEXT("entrando da 10 l'imbardata si allinea a 0"), Cam->GetCameraYaw(), 0.f, 1e-3f);
+
+	Cam->AddYaw(+1.f);
+	TestEqual(TEXT("in strategica E ruota di 60 gradi"), Cam->GetCameraYaw(), 60.f, 1e-3f);
+	Cam->AddYaw(-1.f);
+	Cam->AddYaw(-1.f);
+	TestEqual(TEXT("e Q torna indietro di 60, anche oltre lo zero"), Cam->GetCameraYaw(), 300.f, 1e-3f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestEqual(TEXT("uscendo torna l'imbardata tattica"), Cam->GetCameraYaw(), 10.f, 1e-3f);
+	Cam->AddYaw(+1.f);
+	TestEqual(TEXT("e in tattica lo scatto resta 45 (D-142)"), Cam->GetCameraYaw(), 55.f, 1e-3f);
+
+	// Secondo ingresso, da 45: si allinea per eccesso.
+	Cam->AddYaw(-1.f);
+	Cam->AddYawContinuous(35.f);
+	TestEqual(TEXT("premessa: imbardata a 45"), Cam->GetCameraYaw(), 45.f, 1e-3f);
+	Cam->ToggleStrategicView();
+	TestEqual(TEXT("entrando da 45 l'imbardata si allinea a 60"), Cam->GetCameraYaw(), 60.f, 1e-3f);
+	Cam->ToggleStrategicView();
+	TestEqual(TEXT("e uscendo torna 45"), Cam->GetCameraYaw(), 45.f, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/** `D-499`: l'allineamento dell'imbardata, come funzione pura. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSnapYawTest,
+	"RefactorTactics.Camera.SnapYawToStepRoundsToTheNearestMultiple",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraSnapYawTest::RunTest(const FString&)
+{
+	struct FCaso { float Da; float Atteso; };
+	for (const FCaso& C : { FCaso{ 0.f, 0.f }, FCaso{ 10.f, 0.f }, FCaso{ 29.f, 0.f }, FCaso{ 30.f, 60.f }, FCaso{ 45.f, 60.f },
+	                        FCaso{ 89.f, 60.f }, FCaso{ 91.f, 120.f }, FCaso{ 330.f, 0.f }, FCaso{ 350.f, 0.f }, FCaso{ -20.f, 0.f },
+	                        FCaso{ -40.f, 300.f } })
+	{
+		TestEqual(*FString::Printf(TEXT("%.0f si allinea a %.0f"), C.Da, C.Atteso),
+			ARTCameraPawn::SnapYawToStep(C.Da, 60.f), C.Atteso, 1e-3f);
+	}
+	return true;
+}
+
+/**
+ * `Home` dalla strategica torna a imbardata 0, anche se l'imbardata tattica salvata all'ingresso era un'altra (D-499).
+ *
+ * 🔑 Si ruota in TATTICA prima di entrare, cosi' il valore salvato e' 45 e non 0: senza l'azzeramento in
+ * `RecenterView`, l'uscita dalla strategica che `Home` provoca ripristinerebbe 45. Verifica di mutazione: tolta la riga
+ * `TacticalYawBeforeStrategic = 0.f` da `RecenterView`, l'ultima asserzione cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeFromStrategicYawTest,
+	"RefactorTactics.Camera.HomeFromStrategicResetsTheSavedTacticalYaw",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraHomeFromStrategicYawTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+
+	Cam->AddYaw(+1.f);
+	TestEqual(TEXT("premessa: in tattica l'imbardata e' 45"), Cam->GetCameraYaw(), 45.f, 1e-3f);
+	Cam->ToggleStrategicView();
+	if (!TestTrue(TEXT("Tab apre la strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	TestEqual(TEXT("premessa: entrando si allinea a 60"), Cam->GetCameraYaw(), 60.f, 1e-3f);
+
+	Cam->RecenterView();
+	TestFalse(TEXT("Home riporta alla distanza di default, cioe' in tattica"), Cam->IsStrategicView());
+	TestEqual(TEXT("e l'imbardata e' 0, non la 45 salvata all'ingresso"), Cam->GetCameraYaw(), 0.f, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Il secondo `Tab` restituisce la tattica INTERA: distanza, pitch, proiezione e imbardata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSecondTabRestoresTacticalTest,
+	"RefactorTactics.Camera.SecondTabRestoresTheWholeTacticalView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraSecondTabRestoresTacticalTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+
+	// Una tattica che non e' quella di default su nessuno dei quattro assi.
+	Cam->AddZoom(+1.f);
+	Cam->AddPitch(+5.f);
+	Cam->AddYawContinuous(10.f);
+	const float Braccio = Arm->TargetArmLength;
+	const float Pitch = Cam->GetCameraPitch();
+	const float Yaw = Cam->GetCameraYaw();
+	TestFalse(TEXT("premessa: si parte prospettici"), Cam->IsOrthographicNow());
+
+	Cam->ToggleStrategicView();
+	TestTrue(TEXT("in strategica la camera e' ortografica"), Cam->IsOrthographicNow());
+	TestEqual(TEXT("e a -30 gradi"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+
+	Cam->ToggleStrategicView();
+	TestFalse(TEXT("il secondo Tab torna tattici"), Cam->IsStrategicView());
+	TestFalse(TEXT("prospettici"), Cam->IsOrthographicNow());
+	TestEqual(TEXT("alla stessa distanza"), Arm->TargetArmLength, Braccio);
+	TestEqual(TEXT("con lo stesso pitch"), Cam->GetCameraPitch(), Pitch, 1e-3f);
+	TestEqual(TEXT("e la stessa imbardata"), Cam->GetCameraYaw(), Yaw, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Al cambio di proiezione la scala sul pivot non salta — misurato sulla MATRICE DI PROIEZIONE** (#3662).
+ *
+ * Il test che c'era prima (`StrategicOrthographicKeepsTheScaleAtThePivot`, #3631) confrontava `OrthoWidth` con la
+ * formula che la calcolava, ed era verde mentre a schermo l'ortografica inquadrava 1,78× la prospettica: con il
+ * vincolo `MaintainYFOV` `OrthoWidth` e' l'estensione VERTICALE. Qui la camera consegna la sua vista
+ * (`GetCameraView`) nell'ultimo istante tattico e nel primo strategico, e UE costruisce la matrice come la
+ * costruirebbe per il render, con il vincolo d'aspetto del giocatore locale.
+ *
+ * 🔑 **Il vincolo viene dal default di `ULocalPlayer`, non da una costante**: se il progetto lo cambiasse, o cambiasse
+ * `AspectRatio` della camera, questo test cadrebbe invece di confermare una garanzia di UE. Tre quadri, perche' con
+ * `MaintainYFOV` l'uguaglianza deve valere a ogni aspetto e non solo a 16:9. Verifica di mutazione: senza la
+ * divisione per l'aspetto in `OrthoWidthForArm` il rapporto torna 1,78 e le asserzioni cadono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicOrthoProjectionTest,
+	"RefactorTactics.Camera.StrategicOrthographicMatchesThePerspectiveOnTheProjection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicOrthoProjectionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	UCameraComponent* View = Cam->FindComponentByClass<UCameraComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm) || !TestNotNull(TEXT("camera component"), View))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	RTPreparaVistaD498(Cam);
+
+	// L'ultimo istante tattico: un'unita' sotto la soglia d'ingresso.
+	RTBraccioA(Cam, 2399.f);
+	if (!TestFalse(TEXT("premessa: sotto la soglia si e' tattici"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	const float DistanzaTattica = Arm->TargetArmLength;
+	FMinimalViewInfo Prospettica;
+	View->GetCameraView(0.f, Prospettica);
+
+	// Il primo istante strategico: `Tab` porta il braccio ESATTAMENTE alla soglia.
+	Cam->ToggleStrategicView();
+	if (!TestTrue(TEXT("premessa: Tab apre la strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	const float DistanzaStrategica = Arm->TargetArmLength;
+	FMinimalViewInfo Ortografica;
+	View->GetCameraView(0.f, Ortografica);
+	TestTrue(TEXT("premessa: la vista tattica e' prospettica"), Prospettica.ProjectionMode == ECameraProjectionMode::Perspective);
+	TestTrue(TEXT("premessa: quella strategica ortografica"), Ortografica.ProjectionMode == ECameraProjectionMode::Orthographic);
+
+	const TEnumAsByte<EAspectRatioAxisConstraint> Vincolo = GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint;
+	auto Matrice = [Vincolo](FMinimalViewInfo Info, const FIntRect& Quadro)
+	{
+		FSceneViewProjectionData Dati;
+		Dati.SetViewRectangle(Quadro);
+		FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(Info, Vincolo, Quadro, Dati);
+		return Dati.ProjectionMatrix;
+	};
+
+	for (const FIntRect& Quadro : { FIntRect(0, 0, 1920, 1080), FIntRect(0, 0, 2560, 1080), FIntRect(0, 0, 1280, 800) })
+	{
+		const FMatrix P = Matrice(Prospettica, Quadro);
+		const FMatrix O = Matrice(Ortografica, Quadro);
+		// Mezze estensioni sul piano perpendicolare allo sguardo, alla distanza del pivot. In prospettiva un punto a
+		// profondita' `d` va in `x * M[0][0] / d`, quindi il bordo del quadro sta a `d / M[0][0]`; in ortografica a
+		// `1 / M[0][0]`. Lo stesso su Y con `M[1][1]`.
+		const double AltezzaP = DistanzaTattica / P.M[1][1];
+		const double AltezzaO = 1.0 / O.M[1][1];
+		const double LarghezzaP = DistanzaTattica / P.M[0][0];
+		const double LarghezzaO = 1.0 / O.M[0][0];
+		// La tolleranza assorbe l'unita' di braccio fra i due istanti (1/2400) e niente di piu'. La larghezza non e' una
+		// seconda prova: le due matrici la dividono per lo stesso `XAxisMultiplier`, quindi segue l'altezza. Resta come
+		// controllo di coerenza del calcolo.
+		const double Tolleranza = 0.002;
+		const FString Q = FString::Printf(TEXT("%dx%d"), Quadro.Width(), Quadro.Height());
+		TestEqual(*FString::Printf(TEXT("%s: l'ortografica alta quanto la prospettica sul pivot"), *Q),
+			AltezzaO, AltezzaP * DistanzaStrategica / DistanzaTattica, AltezzaP * Tolleranza);
+		TestEqual(*FString::Printf(TEXT("%s: e larga quanto lei"), *Q),
+			LarghezzaO, LarghezzaP * DistanzaStrategica / DistanzaTattica, LarghezzaP * Tolleranza);
+	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+namespace
+{
+	/**
+	 * La matrice vista×proiezione che UE costruirebbe per il render dalla camera ferma alla distanza corrente: la stessa
+	 * strada di `ULocalPlayer::GetProjectionData`, compresi i piani ortografici automatici e la loro correzione.
+	 *
+	 * ⚠️ La camera si mette dove il braccio la porterebbe, invece di leggerne la posizione: il braccio ha il ritardo di
+	 * camera, e nel mondo di prova non ticca. Tutto il resto viene da `GetCameraView`.
+	 */
+	FMatrix RTVistaProiezione(ARTCameraPawn* Cam, UCameraComponent* View, float Arm, const FIntRect& Quadro)
+	{
+		FMinimalViewInfo Info;
+		View->GetCameraView(0.f, Info);
+		Info.Rotation = FRotator(Cam->GetCameraPitch(), Cam->GetCameraYaw(), 0.f);
+		const FVector Bersaglio = Cam->GetActorLocation();
+		Info.Location = Bersaglio - Info.Rotation.Vector() * Arm;
+		Info.SetCameraToViewTarget(Bersaglio);
+
+		FSceneViewProjectionData Dati;
+		Dati.ViewOrigin = Info.Location;
+		Dati.ViewRotationMatrix = FInverseRotationMatrix(Info.Rotation) * FMatrix(
+			FPlane(0, 0, 1, 0),
+			FPlane(1, 0, 0, 0),
+			FPlane(0, 1, 0, 0),
+			FPlane(0, 0, 0, 1));
+		Dati.SetViewRectangle(Quadro);
+		FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(
+			Info, GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint, Quadro, Dati);
+		return Dati.ComputeViewProjectionMatrix();
+	}
+}
+
+/**
+ * 🔴 **In ortografica i piani della mappa restano dentro i piani di clipping** (#3662, review di #3671).
+ *
+ * In ortografica il quadro e' alto `OrthoWidth` anche all'altezza della camera, e a -30 il suo bordo basso parte quasi
+ * dal suolo: la geometria piu' alta del pivot, li', sta dietro la camera. Con i piani automatici di UE il near copriva
+ * fino a circa `0,23 · Arm` di quota, cioe' 547 alla soglia d'ingresso, e il piano 1 con la separazione 3 sta a 750.
+ *
+ * Per ogni distanza strategica che conta — la soglia d'uscita raggiunta dall'alto, quella d'ingresso di `Tab`, il fondo
+ * corsa — e per cinque quote, da due piani sotto il pivot a due sopra, i punti che cadono DENTRO il quadro devono
+ * cadere anche fra i piani (Z in [0, 1], Z rovesciata). Il controllo positivo e' che ogni quota abbia punti nel quadro.
+ * Verifica di mutazione: senza lo spostamento dei piani (`StrategicOrthoPlaneShiftArms`) il test cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicOrthoPlanesTest,
+	"RefactorTactics.Camera.StrategicOrthographicPlanesKeepTheMapLayersInView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicOrthoPlanesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	UCameraComponent* View = Cam->FindComponentByClass<UCameraComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm) || !TestNotNull(TEXT("camera component"), View))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	RTPreparaVistaD498(Cam);
+
+	const FIntRect Quadro(0, 0, 1920, 1080);
+	// Con `LayerHeight` 250 e la separazione 3 di #3632 i piani stanno a 750 l'uno dall'altro.
+	const float Quote[] = { -1500.f, -750.f, 0.f, 750.f, 1500.f };
+
+	struct FCaso { float Arm; const TCHAR* Come; };
+	for (const FCaso& Caso : { FCaso{ 1950.f, TEXT("alla soglia d'uscita, dall'alto") },
+	                           FCaso{ 2400.f, TEXT("alla soglia d'ingresso") },
+	                           FCaso{ 4000.f, TEXT("a fondo corsa") } })
+	{
+		RTBraccioA(Cam, 3000.f); // si entra dall'alto: 1950 e' strategico solo per isteresi
+		RTBraccioA(Cam, Caso.Arm);
+		if (!TestTrue(*FString::Printf(TEXT("%s: la vista e' strategica"), Caso.Come), Cam->IsStrategicView()))
+		{
+			continue;
+		}
+		const float Distanza = Arm->TargetArmLength;
+		const FMatrix M = RTVistaProiezione(Cam, View, Distanza, Quadro);
+		const FVector Pivot = Cam->GetActorLocation();
+		const double Raggio = 3.0 * Distanza; // oltre l'impronta del quadro a terra, su ogni quota
+		for (const float Quota : Quote)
+		{
+			int32 Dentro = 0;
+			int32 Tagliati = 0;
+			for (int32 IX = -40; IX <= 40; ++IX)
+			{
+				for (int32 IY = -40; IY <= 40; ++IY)
+				{
+					const FVector P = Pivot + FVector(Raggio * IX / 40.0, Raggio * IY / 40.0, Quota);
+					const FVector4 C = M.TransformFVector4(FVector4(P, 1.0));
+					if (FMath::Abs(C.X) <= 1.0 && FMath::Abs(C.Y) <= 1.0)
+					{
+						++Dentro;
+						if (C.Z < 0.0 || C.Z > 1.0) { ++Tagliati; }
+					}
+				}
+			}
+			TestTrue(*FString::Printf(TEXT("%s, quota %+.0f: ci sono punti nel quadro"), Caso.Come, Quota), Dentro > 100);
+			TestEqual(*FString::Printf(TEXT("%s, quota %+.0f: nessuno e' tagliato dai piani"), Caso.Come, Quota), Tagliati, 0);
+		}
+	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Le porte del braccio rileggono lo stato PRIMA di clampare il pivot** (#3662, review di #3671).
+ *
+ * I limiti del pivot dipendono dal pitch (`ComputeEffectivePivotBounds`: l'estensione lungo lo sguardo e'
+ * `VerticalHalf / sin(pitch)`), e a -30 sono piu' stretti che a -40. Se `AddZoom` clampasse il pivot col pitch
+ * tattico e rileggesse lo stato solo dopo, attraversando la soglia il pivot resterebbe fuori dai limiti strategici:
+ * ri-clamparlo lo sposterebbe. L'area si allarga col margine, perche' sulla mappa di prova i limiti a questa distanza
+ * collasserebbero al centro con entrambi i pitch. Verifica di mutazione: rimettere `UpdateStrategicState` in fondo ad
+ * `AddZoom` fa cadere l'ultima asserzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraArmGateOrderTest,
+	"RefactorTactics.Camera.ArmGatesReadTheStateBeforeClampingThePivot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraArmGateOrderTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+	Cam->SetViewportMetricsForTest(16.f / 9.f, 90.f);
+	Cam->SetBoundsMarginForTest(40.f);
+
+	// Tattici appena sotto la soglia d'ingresso, col pivot al bordo lungo lo sguardo (+X a yaw 0).
+	RTBraccioA(Cam, 2300.f);
+	if (!TestFalse(TEXT("premessa: si parte tattici"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	Cam->SetCameraPivot(Cam->GetCameraPivot() + FVector(1.0e6, 0.0, 0.0));
+	const double BordoTattico = Cam->GetCameraPivot().X;
+
+	Cam->AddZoom(+1.f);
+	if (!TestTrue(TEXT("uno scatto di rotella entra in strategica"), Cam->IsStrategicView())) { DestroyCameraWorld(World); return false; }
+	const FVector Dopo = Cam->GetCameraPivot();
+	TestTrue(TEXT("premessa: allontanandosi il pivot rientra"), Dopo.X < BordoTattico - 1.0);
+
+	Cam->SetCameraPivot(Dopo);
+	TestEqual(TEXT("e sta gia' nei limiti del pitch strategico: ri-clamparlo non lo sposta"),
+		Cam->GetCameraPivot().X, Dopo.X, 0.5);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 // --- #1778 · i limiti che conoscono il viewport ------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEffectiveBoundsTest,
@@ -1474,37 +2187,30 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	TestTrue(TEXT("a yaw 0 il pitch NON tocca l'asse laterale (Y)"),
 		FMath::IsNearlyEqual(Shallow.Max.Y, Steep.Max.Y, 0.5f));
 
-	// Ultrawide. ⚠️ Il messaggio di questa riga ha gia' mentito una volta (diceva «stringe» mentre
-	// l'asserzione verifica il contrario) ed e' stato corretto il 2026-08-30 rileggendo il diff. Ora dice
-	// anche l'asse giusto: a yaw 0 la profondita' vive su **X**.
-	//
-	// Cio' che l'asserzione dice, ed e' geometricamente corretto a FOV **orizzontale** fisso: un ultrawide
-	// ha un FOV verticale minore, quindi vede meno in profondita' e il limite sull'asse di sguardo si
-	// allarga.
-	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
-	TestTrue(TEXT("a FOV orizzontale fisso, 32:9 ALLARGA il limite sull'asse di sguardo (X)"),
-		Wide.Max.X > Far.Max.X);
+	// 🔑 **A 16:9 i limiti restano quelli di prima di #3661**, e lo dicono i numeri, non una disuguaglianza:
+	// semiasse laterale `2000 · tan 45° = 2000`, inset `2000 · 0,65 = 1300`, quindi `Max.Y = 3700`; semiasse
+	// verticale `2000 / 1,778 = 1125`, profondita' `1125 / sin 45° = 1591`, inset `1034`, quindi `Max.X = 3966`.
+	TestEqual(TEXT("a 16:9 il limite laterale e' quello di prima di #3661"), static_cast<float>(Far.Max.Y), 3700.f, 1.f);
+	TestEqual(TEXT("a 16:9 il limite lungo lo sguardo e' quello di prima di #3661"), static_cast<float>(Far.Max.X), 3966.f, 1.f);
 
-	// 🔴 **Questa riga PINNA UN DIFETTO NOTO, non un comportamento voluto — e va letta prima di
-	// «correggerla».**
+	// ⌫ **Qui c'era un DIFETTO PINNATO** (`Wide.Max.Y == Far.Max.Y`): il modello teneva fisso il FOV
+	// orizzontale e il limite laterale non dipendeva dall'aspetto. Il progetto pero' usa `MaintainYFOV`, default
+	// di UE, e `FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle` tiene fisso il semiangolo
+	// VERTICALE `atan(tan(FOV/2) / AspectRatio)`. La correzione e' arrivata con #3661, quando la scena ha smesso
+	// di essere 16:9: e questa riga, com'era annunciato, e' diventata rossa.
 	//
-	// A yaw 0 `ExtentX` vale `HalfWidth`, che non dipende dall'aspect ratio: allargando lo schermo il
-	// limite orizzontale non si muove di un'unita'. E' corretto solo se il FOV **orizzontale** e' davvero
-	// fisso — ma il progetto non imposta `AspectRatioAxisConstraint` (`grep -rn` su `Source/` e `Config/`
-	// non trova nulla), quindi vale il default di UE `AspectRatio_MaintainYFOV`: su schermi larghi resta
-	// fisso il FOV **verticale** e cresce quello orizzontale effettivo, mentre `Camera->FieldOfView` —
-	// che e' cio' che questa funzione riceve — non cambia.
-	//
-	// ∴ su 32:9 l'inset X e' probabilmente **piu' piccolo del dovuto**, cioe' il limite e' piu' permissivo
-	// proprio sul caso che `D-251` esiste per coprire. Non e' stato corretto qui perche' la formula giusta
-	// dipende da quale asse UE consideri «il FOV» sotto quel constraint, e quello si verifica **guardando**
-	// (verifica PIE ultrawide di `#1778`), non deducendo: riscrivere la matematica su una supposizione
-	// produrrebbe numeri diversi con la stessa fiducia.
-	//
-	// ⚠️ Il giorno in cui la formula terra' conto dell'aspect sull'asse X, **questo test diventera' rosso —
-	// ed e' il segnale che la correzione e' arrivata**, non un fallimento da aggirare.
-	TestEqual(TEXT("DIFETTO PINNATO: a yaw 0 il limite LATERALE non dipende dall'aspect ratio"),
-		Wide.Max.Y, Far.Max.Y);
+	// ∴ Con l'aspetto che cresce la profondita' inquadrata non cambia (`Max.X` fermo) e il quadro si allarga di
+	// lato (`Max.Y` si stringe). Con la scena di #3661, piu' stretta di 16:9, succede il contrario sul lato.
+	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
+	TestEqual(TEXT("MaintainYFOV: a 32:9 la profondita' inquadrata (X a yaw 0) e' quella di 16:9"),
+		static_cast<float>(Wide.Max.X), static_cast<float>(Far.Max.X), 0.5f);
+	TestTrue(TEXT("MaintainYFOV: a 32:9 il quadro si allarga di lato, e il limite laterale (Y) si stringe"),
+		Wide.Max.Y < Far.Max.Y - 100.f);
+
+	const float AspettoScena = 1167.36f / 691.2f; // la scena di #3661 a 1920x1080, circa 1,69
+	const FBox2D Scena = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, AspettoScena, Fraction);
+	TestEqual(TEXT("nella scena di #3661 la profondita' inquadrata e' quella di 16:9"), static_cast<float>(Scena.Max.X), static_cast<float>(Far.Max.X), 0.5f);
+	TestTrue(TEXT("e il limite laterale si allarga, perche' il quadro e' piu' stretto"), Scena.Max.Y > Far.Max.Y + 10.f);
 
 	// Yaw 90°: il quadro e' ruotato, e gli assi dell'ingombro si scambiano. Senza questo passaggio i
 	// limiti sarebbero corretti solo con la vista dritta — cioe' proprio dove la rotazione non serve.
@@ -1767,6 +2473,9 @@ bool FRTCameraPitchOffsetSurvivesZoomTest::RunTest(const FString&)
 	// riga la derivazione sarebbe una costante e ogni asserzione qui sotto passerebbe anche su
 	// un'implementazione che ignora del tutto lo zoom.
 	Cam->SetPitchZoomDeltaForTest(-20.f);
+	// D-498: oltre la soglia d'ingresso il pitch e' fisso. Il soggetto qui e' la derivazione TATTICA, quindi la
+	// strategica si porta oltre il fondo corsa invece di lasciarla decidere il valore a `SetZoomAlpha(1)`.
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 1.0e6f, /*Exit=*/ 1.0e6f - 500.f);
 
 	Cam->SetZoomAlpha(0.f);
 	TestEqual(TEXT("a zoom minimo il pitch e' quello di default"), Cam->GetCameraPitch(), -40.f, 1e-3f);
@@ -1798,6 +2507,82 @@ bool FRTCameraPitchOffsetSurvivesZoomTest::RunTest(const FString&)
 	Cam->AddPitch(+7.f);
 	Cam->RecenterView();
 	TestEqual(TEXT("Home riazzera l'orbita manuale"), Cam->GetManualPitchOffset(), 0.f, 1e-3f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Nel rettangolo della scena la camera inquadra la stessa ESTENSIONE VERTICALE dello schermo intero** (#3661,
+ * D-497 (4)) — misurato sulla MATRICE DI PROIEZIONE, non su una formula.
+ *
+ * La camera consegna la sua vista (`GetCameraView`) e UE costruisce la matrice come la costruirebbe per il render,
+ * con il vincolo d'aspetto del giocatore locale e due rettangoli: lo schermo intero e la scena fra le fasce. Con
+ * `MaintainYFOV` l'altezza inquadrata sul piano del pivot dev'essere la stessa, e la larghezza seguire l'aspetto:
+ * celle e unita' appaiono circa 0,64x, e soglie e zoom non si ritarano.
+ *
+ * 🔑 **Il vincolo e l'aspetto vengono da UE e dalla camera, non da costanti**: se il progetto cambiasse
+ * `AspectRatioAxisConstraint` o `AspectRatio`, questo test cadrebbe invece di ripetere una garanzia di UE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSceneRectVerticalExtentTest,
+	"RefactorTactics.Camera.SceneRectKeepsTheVerticalExtentOfTheFullScreen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraSceneRectVerticalExtentTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	UCameraComponent* View = Cam->FindComponentByClass<UCameraComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm) || !TestNotNull(TEXT("camera component"), View))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	const float Distanza = Arm->TargetArmLength;
+	FMinimalViewInfo Info;
+	View->GetCameraView(0.f, Info);
+	if (!TestTrue(TEXT("premessa: la vista tattica e' prospettica"), Info.ProjectionMode == ECameraProjectionMode::Perspective))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	const TEnumAsByte<EAspectRatioAxisConstraint> Vincolo = GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint;
+	auto Matrice = [Vincolo, &Info](const FIntRect& Quadro)
+	{
+		FSceneViewProjectionData Dati;
+		Dati.SetViewRectangle(Quadro);
+		FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(Info, Vincolo, Quadro, Dati);
+		return Dati.ProjectionMatrix;
+	};
+
+	const FIntPoint Vp(1920, 1080);
+	const FBox2D R = RTHudLayout::SceneRectPixels(Vp, RTHudLayout::UiScaleFor(Vp), RTHudLayout::Bands());
+	const FIntRect Intero(0, 0, Vp.X, Vp.Y);
+	const FIntRect Scena(FMath::RoundToInt(R.Min.X), FMath::RoundToInt(R.Min.Y), FMath::RoundToInt(R.Max.X), FMath::RoundToInt(R.Max.Y));
+
+	// Mezze estensioni sul piano perpendicolare allo sguardo, alla distanza del pivot: in prospettiva il bordo del quadro
+	// sta a `d / M[1][1]` in altezza e a `d / M[0][0]` in larghezza.
+	const FMatrix ProiezioneIntero = Matrice(Intero);
+	const FMatrix ProiezioneScena = Matrice(Scena);
+	const double AltezzaIntero = Distanza / ProiezioneIntero.M[1][1];
+	const double AltezzaScena = Distanza / ProiezioneScena.M[1][1];
+	const double LarghezzaIntero = Distanza / ProiezioneIntero.M[0][0];
+	const double LarghezzaScena = Distanza / ProiezioneScena.M[0][0];
+	AddInfo(FString::Printf(TEXT("braccio %.0f: schermo intero %.1f x %.1f, scena %dx%d %.1f x %.1f (mezze estensioni)"),
+		Distanza, LarghezzaIntero, AltezzaIntero, Scena.Width(), Scena.Height(), LarghezzaScena, AltezzaScena));
+
+	TestEqual(TEXT("l'altezza inquadrata e' la stessa"), AltezzaScena, AltezzaIntero, AltezzaIntero * 1e-4);
+	const double AspettoScena = static_cast<double>(Scena.Width()) / Scena.Height();
+	const double AspettoIntero = static_cast<double>(Intero.Width()) / Intero.Height();
+	TestEqual(TEXT("e la larghezza segue l'aspetto della scena"), LarghezzaScena / LarghezzaIntero,
+		AspettoScena / AspettoIntero, 1e-3);
+	TestTrue(TEXT("anti-vacuita': la scena non ha l'aspetto dello schermo"), FMath::Abs(AspettoScena - AspettoIntero) > 0.05);
 
 	DestroyCameraWorld(World);
 	return true;

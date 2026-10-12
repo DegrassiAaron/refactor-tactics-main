@@ -903,4 +903,55 @@ bool FRTKnowledgeEntryFieldsAreClassifiedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3681, [D-502] — chi puo' sapere che un BORDO e' stato colpito: la squadra di ogni autore, piu' chi vede
+ * almeno una delle due celle.
+ *
+ * 🔑 **Il predicato e' `FreezeVerdict`, chiesto per cella e per autore**, e il test lo pinna dall'esterno: una
+ * squadra che ha solo ESPLORATO le celle, o che ricorda un contatto proprio li', non riceve il bit. Il ricordo
+ * di un'unita' non e' vedere un muro, ed esplorare non e' guardare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeEdgeVerdictTest,
+	"RefactorTactics.Knowledge.EdgeVerdictIsAuthorsPlusWhoSeesEitherCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeEdgeVerdictTest::RunTest(const FString&)
+{
+	const FRTCellId A(1, 0, 0);
+	const FRTCellId B(0, 0, 0);
+
+	FRTTeamKnowledge VedeA = KvKnowledge({});
+	VedeA.TeamId = 0;
+	VedeA.VisibleCells.Add(A);
+
+	FRTTeamKnowledge Cieca = KvKnowledge({});
+	Cieca.TeamId = 1;
+
+	FRTTeamKnowledge VedeB = KvKnowledge({});
+	VedeB.TeamId = 2;
+	VedeB.VisibleCells.Add(B);
+
+	// Ha esplorato entrambe le celle e ricorda un contatto proprio in A, ma non vede niente adesso.
+	FRTTeamKnowledge Ricorda = KvKnowledge({ FRTLastKnownContact(7, A, 5) });
+	Ricorda.TeamId = 3;
+	Ricorda.ExploredCells = { A, B };
+
+	const TArray<FRTTeamKnowledge> Tutte = { VedeA, Cieca, VedeB, Ricorda };
+
+	const FRTKnowledgeVerdict ConAutore = URTTeamKnowledgeLibrary::FreezeEdgeVerdict(Tutte, { 1 }, A, B);
+	TestTrue(TEXT("chi vede la prima cella lo sa"), ConAutore.AllowsTeam(0));
+	TestTrue(TEXT("(b) la squadra di chi ha sparato lo sa, anche senza vedere il muro"), ConAutore.AllowsTeam(1));
+	TestTrue(TEXT("(d) chi vede solo l'altra cella lo sa: basta un lato"), ConAutore.AllowsTeam(2));
+	TestFalse(TEXT("🔴 esplorare non e' guardare, e un contatto ricordato non e' il muro"), ConAutore.AllowsTeam(3));
+	TestFalse(TEXT("una squadra assente dalla lista non lo sa"), ConAutore.AllowsTeam(4));
+
+	const FRTKnowledgeVerdict SenzaAutori = URTTeamKnowledgeLibrary::FreezeEdgeVerdict(Tutte, {}, A, B);
+	TestFalse(TEXT("senza autori resta la sola vista: la squadra cieca non lo sa"), SenzaAutori.AllowsTeam(1));
+	TestTrue(TEXT("e chi vede le celle si'"), SenzaAutori.AllowsTeam(0) && SenzaAutori.AllowsTeam(2));
+
+	const FRTKnowledgeVerdict DueAutori = URTTeamKnowledgeLibrary::FreezeEdgeVerdict(Tutte, { 1, 3 }, A, B);
+	TestTrue(TEXT("(e) con piu' autori lo sa la squadra di ciascuno"), DueAutori.AllowsTeam(1) && DueAutori.AllowsTeam(3));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

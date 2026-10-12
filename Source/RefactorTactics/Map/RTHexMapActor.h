@@ -9,6 +9,7 @@
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
+#include "Map/RTLayerPresentation.h" // FRTLayerPresentationTuning: le leve con cui e' stato scritto il trattamento (#3679)
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -292,7 +293,7 @@ public:
 
 	/**
 	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
-	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`.
+	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`, `LayerStack`.
 	 *
 	 * ⚠️ **Completato il 2026-08-31, e ne mancavano tre**: `GrayKitYard`, `VisionSplit` e `ProbeYard` erano
 	 * nel dispatcher e non qui. Il test qui sotto verifica **una direzione sola** — che ogni nome elencato
@@ -730,8 +731,76 @@ public:
 	 *
 	 * UNICO punto da cui passano le conversioni cella<->mondo: risoluzione, playback e input del giocatore
 	 * devono condividere la stessa scala, altrimenti l'anteprima e l'esito divergono.
+	 *
+	 * 🔑 **#3632 — e' il contesto della PRESENTAZIONE.** La quota dei piani e' quella con cui la board e' posata
+	 * (`GetPosedLayerHeight()`): in vista strategica quella dell'asset moltiplicata per `StrategicLayerSeparation`.
+	 * Puo' farlo perche' la simulazione non usa la quota: misurato il 2026-10-11, nessun codice di `Turn/`,
+	 * `Combat/`, `Perception/`, `Pathfinding/` o `Bot/` trasforma una posizione di mondo in una cella, e quando
+	 * trasforma una cella in una posizione lo fa per POSARE un modello su una cella gia' decisa. ⛔ Chi trasforma
+	 * una posizione di mondo in una cella AUTOREVOLE (lo spawn da marker, i template) usa `GetAuthoringHexContext`.
 	 */
 	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	/** Il contesto con la quota VERA dell'asset, per le conversioni autorevoli mondo->cella (#3632). */
+	const URTHexMapAsset* GetAuthoringHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+
+	/** Il fattore di separazione che la vista CHIEDE: 1 in tattica, `StrategicLayerSeparation` in strategica (#3632). */
+	float GetPresentationSeparation() const;
+
+	/** La quota dei piani che la vista CHIEDE: quella dell'asset per `GetPresentationSeparation()` (#3632). */
+	float GetPresentationLayerHeight() const;
+
+	/**
+	 * La quota con cui la board E' posata (#3632): quella che chi disegna accanto alle istanze deve usare. Cambia
+	 * solo con una ricostruzione intera; prima della prima, e' quella che la vista chiede.
+	 */
+	float GetPosedLayerHeight() const;
+
+	/**
+	 * #3632 — allinea la board alla vista di chi guarda. Lo chiama l'HUD a ogni fotogramma.
+	 *
+	 * Se la quota chiesta differisce da quella posata, ricostruisce le istanze, ridisegna nello stesso fotogramma
+	 * il velo che la board mostrava (riletto dallo stato scritto sul disco, non dalla conoscenza di squadra) e
+	 * ripresenta i fantasmi del piano. Con la separazione a 1 (default) non ricostruisce niente.
+	 *
+	 * Ritorna `true` quando la quota a cui le unita' erano state posate non e' piu' quella della board: chi le posa
+	 * (`ARTTurnManager::RefreshPresentationGeometry`) deve riposarle, e `OutPreviousLayerHeight` dice da quale.
+	 */
+	bool SyncStrategicPresentation(bool bStrategic, float* OutPreviousLayerHeight = nullptr);
+	bool IsStrategicPresentation() const { return bStrategicPresentation; }
+
+	/**
+	 * **#3679 — il piano attivo DI CHI GUARDA, come dato di presentazione** ([D-501]).
+	 *
+	 * Scrive nei canali 3..5 dei custom data di `Cells`, `SurfaceGlyphs` e `CellBorders` il trattamento di ogni piano
+	 * rispetto a `InActiveLayer` (`RTLayerPresentation::Treatment`): i piani sopra traslucidi, quelli sotto spenti, il
+	 * bordo dell'attivo marcato. Lo chiama `ARTPlayerController` quando il piano cambia e a ogni fotogramma; rifa' il
+	 * lavoro solo se il piano o le leve `rt.Map.Layers.*` sono cambiati. Ritorna `true` quando ha scritto.
+	 *
+	 * ⛔ **Non tocca `ActiveLayer`**, che e' lo stato di authoring dell'editor mode: due scrittori su un campo solo sono
+	 * il difetto che D-255 descrive. ⛔ **Non tocca i canali 0..2**, che sono del colore e del velo: una cella mai
+	 * vista resta non disegnata su qualunque piano stia.
+	 */
+	bool SyncActiveLayerPresentation(int32 InActiveLayer);
+
+	/** Il piano che la board presenta come attivo, o `INDEX_NONE` se nessuno gliel'ha ancora detto. */
+	int32 GetPresentedActiveLayer() const { return bLayerPresentationApplied ? PresentedActiveLayer : INDEX_NONE; }
+
+	/** Fissa la separazione (per i test): ogni test dichiara il valore che misura, invece di ereditare il default. */
+	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
+
+	/**
+	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
+	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
+	 *
+	 * 🔑 **Default 2: l'ha scelto l'autore in isometrica, sulle catture della seduta PIE `U81`** (2026-10-11, #3678,
+	 * [D-501] (7)), confrontando 3 e 2 sui tre piani sovrapposti di `Visual.Map.LayerStack`: a 3 la cima usciva dal
+	 * quadro, a 2 i tre piani ci stanno. Prima valeva 3, scelto in prospettiva nella seduta `U78` (#3632) sui due piani
+	 * di `Visual.Map.MultiLevel`. La stessa leva in console e' `rt.Map.StrategicLayerSeparation` (che, se > 0, vince
+	 * su questa proprieta').
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap", meta = (ClampMin = "1.0", ClampMax = "10.0"))
+	float StrategicLayerSeparation = 2.f;
 
 	// --- Anteprima di pianificazione (SOLA PRESENTAZIONE) -------------------------------------------------
 	// Invariante #1: questi metodi non decidono nulla. Ricevono cio' che il simulatore ha gia' deciso e lo
@@ -1437,6 +1506,17 @@ protected:
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
 	TArray<FRTCellId> EdgeFeatureCells;
+	/**
+	 * L'ALTRA cella del bordo di ogni pannello, parallela a `EdgeFeatureCells` (`#3691`, [D-502] punto (d)).
+	 *
+	 * 🔴 **Un pannello di bordo sta fra due celle, e il velo ne guardava una sola**: quella che dichiara la
+	 * copertura o la porta. Chi stava davanti a un muro non lo vedeva, se dietro non aveva mai guardato.
+	 * Da D-502 il pannello si nasconde solo se la squadra non ha mai visto **nessuna** delle due celle.
+	 *
+	 * ⚠️ Per un muro interno, che sta dentro una cella e non su un bordo, l'altra cella e' la cella stessa:
+	 * il velo resta quello di prima.
+	 */
+	TArray<FRTCellId> EdgeFeatureOtherCells;
 	TArray<FVector> EdgeFeatureBaseScale;
 	TArray<uint8> LastEdgeFeatureVeilState;
 
@@ -1477,6 +1557,35 @@ protected:
 	 * lavoro utile e' una frazione minima del totale: si tocca cio' che cambia, e il resto si salta.
 	 */
 	TArray<uint8> LastVeilState;
+
+	/** #3632 — vista strategica di chi guarda, come l'ha dichiarata `SyncStrategicPresentation`. */
+	bool bStrategicPresentation = false;
+
+	/** #3679 — il piano attivo di chi guarda, come l'ha dichiarato `SyncActiveLayerPresentation`. */
+	int32 PresentedActiveLayer = 0;
+
+	/** #3679 — vero dopo la prima `SyncActiveLayerPresentation`: prima, la board si vede come senza trattamento. */
+	bool bLayerPresentationApplied = false;
+
+	/** #3679 — le leve con cui il trattamento e' stato scritto: se cambiano in console, si riscrive. */
+	FRTLayerPresentationTuning AppliedLayerTuning;
+
+	/** #3679 — scrive il trattamento di `PresentedActiveLayer` su tutte le famiglie che lo ricevono. */
+	void ApplyLayerPresentation();
+
+	/**
+	 * #3632 — il fattore di separazione con cui le istanze sono POSATE. Lo scrive solo una ricostruzione intera (o la
+	 * prima): una parziale ripone le sue famiglie a questo fattore, cosi' la board non resta mai mista. Si conserva
+	 * il fattore e non la quota: la base (asset o actor) resta quella corrente. `-1` finche' non e' posata.
+	 */
+	float AppliedLayerSeparation = -1.f;
+
+	/**
+	 * #3632 — la quota che `SyncStrategicPresentation` ha visto l'ultima volta, cioe' quella a cui chi posa le unita'
+	 * le ha posate. Distinta dalla quota posata perche' una ricostruzione intera esterna puo'
+	 * cambiare la quota posata fra due giri, e le unita' vanno riposate lo stesso. `-1` prima del primo giro.
+	 */
+	float LastSyncedLayerHeight = -1.f;
 	TArray<uint8> LastGlyphVeilState[4];
 
 	/**
@@ -1500,6 +1609,27 @@ protected:
 
 	/** Vedi `LastRepaintTouchedInstances()`. Contatore di evento, azzerato a ogni `RepaintCells`. */
 	int32 LastRepaintTouched = 0;
+
+	/**
+	 * Cio' che i pannelli di bordo disegnano, letto dall'asset all'ultima ricostruzione di `EdgeFeatures`
+	 * (`#3687`): coperture, porte e muri interni, in forma piatta e confrontabile.
+	 *
+	 * 🔴 **Esiste perche' i bordi cambiano in partita e il riallineamento di fine turno non lo sapeva.**
+	 * `ApplyStructureDamage` abbatte un muro, `AddCover` ne erige uno, `SetDoorState` apre una porta: tutti
+	 * passano da `AddOrUpdateCell` e muovono `Revision`, ma il blocco che segue la revisione dentro
+	 * `ApplyKnowledgeVeil` ricostruiva solo le famiglie della superficie. Il muro abbattuto restava in piedi
+	 * fino al `Tab`, l'unica ricostruzione completa a runtime.
+	 *
+	 * ⚠️ **Una copia esatta e non un hash**: una collisione rimetterebbe in piedi, in silenzio, proprio il
+	 * difetto che questo campo chiude. I bordi sono sparsi, quindi la copia costa poco.
+	 *
+	 * ⛔ **Non e' una cache dei bordi**: `RebuildInstances` continua a leggere dall'asset. Qui c'e' solo la
+	 * risposta a «i bordi sono cambiati?», come `LastSyncedMapRevision` lo e' per la revisione.
+	 */
+	TArray<int32> EdgeLayoutAtLastBuild;
+
+	/** Scrive in `Out` la forma piatta dei bordi dell'asset: vedi `EdgeLayoutAtLastBuild`. */
+	void CollectEdgeLayout(TArray<int32>& Out) const;
 
 	/**
 	 * Il componente dei ghost della timeline (`#172`). Vedi `SetPlanPreview`.
@@ -1642,7 +1772,8 @@ protected:
 	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
 		const TArray<FVector>& BaseScale, TArray<uint8>& LastState, TArray<float>* DisplayFactor,
 		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor,
+		const TArray<FRTCellId>* OtherCellOfInstance = nullptr);
 
 	/**
 	 * 🔴 **Il guardiano che i conteggi non sono** — `#2761`.

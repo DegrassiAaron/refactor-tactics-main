@@ -21,8 +21,10 @@
 // bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTUIPalette.h" // i colori dello slot vengono dai token di §32 (#3610)
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
+#include "UI/RTReactionResponseText.h"    // nome e frase delle opzioni della finestra (#3615)
 #include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
 #include "Kismet/GameplayStatics.h"
 #include "Components/Image.h" // ApplyResolvedIconTo imposta il brush: serve il tipo completo
@@ -31,6 +33,13 @@
 #include "Components/Button.h"            // #3489: badge e pulsanti collegati per nome
 #include "Components/TextBlock.h"         // #3489: etichette scritte dal C++
 #include "Components/HorizontalBoxSlot.h" // #3489: il separatore dei gruppi e' padding, non un widget
+#include "Components/ProgressBar.h"       // #3634: la barra del countdown della finestra di reazione
+#include "Components/PanelWidget.h"       // #3636: roster e pannello costruiscono carte e voci dentro un pannello
+#include "Components/CanvasPanelSlot.h"   // #3661: le zone si posano dal dato delle fasce
+#include "UI/RTHudLayout.h"               // #3661: il dato delle fasce (D-497)
+#include "UI/RTHudZoneWidget.h"           // #3661: le zone si riconoscono per classe e ZoneId
+#include "UI/RTGameViewportClient.h"      // #3661: l'HUD montato chiede il rettangolo della scena
+#include "Components/HorizontalBox.h"     // #3680: l'indicatore del piano, costruito dal C++ dentro il dock
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -107,6 +116,8 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	if (ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer()))
 	{
 		PlayerTeamId = ARTPlayerState::TeamIdOf(PC);
+		// Il gruppo di controllo dallo stesso controller della squadra (#3618): insieme dicono chi e' comandato.
+		PlayerControlGroup = ARTPlayerState::ControlGroupOf(PC);
 
 		// ⚠️ **Dallo STESSO controller da cui viene la squadra, e non dal primo del mondo** (CP 14.6, `#166`).
 		// La finestra e' una domanda posta a **un** giocatore: risolverla su `GetFirstPlayerController()`
@@ -336,6 +347,34 @@ TArray<FRTUnitCardView> URTTeamRosterWidget::GetRoster() const
 	return URTHudViewModel::BuildTeamRoster(GatherUnitsInWorld(), GetPlayerTeamId());
 }
 
+bool URTTeamRosterWidget::IsReactionArmed(FName HeroId) const
+{
+	// Senza contesto la squadra e il gruppo sono i default (0, 0), non quelli di chi guarda: nessun chip.
+	if (!HasMatchContext())
+	{
+		return false;
+	}
+
+	for (const ARTUnit* Unit : GatherUnitsInWorld())
+	{
+		if (!Unit || Unit->HeroId != HeroId || !Unit->IsAlive())
+		{
+			continue;
+		}
+		// ⛔ **La barriera PRIMA di costruire**: per un'unita' non comandata il piano non si legge affatto.
+		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup, GetPlayerTeamId(),
+			GetPlayerControlGroup(), Unit->bIsBotControlled))
+		{
+			// `continue` e non `return false` (review di #3618): con lo stesso eroe in due squadre — un mirror —
+			// l'avversaria puo' venire prima nell'ordine, e fermarsi qui spegnerebbe l'alleata. Il piano
+			// dell'avversaria resta non letto: la barriera e' questa riga, non l'uscita.
+			continue;
+		}
+		return URTHudViewModel::BuildUnitSlots(Unit).bReactionArmed;
+	}
+	return false;
+}
+
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const
 {
 	const TArray<ARTUnit*> Units = GatherUnitsInWorld();
@@ -352,10 +391,21 @@ TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const
 			continue;
 		}
 
-		// `BuildTeamRoster` filtra per `TeamId ==`: due squadre diverse danno insiemi DISGIUNTI, quindi
-		// `Append` non puo' duplicare. Con un filtro che autorizza per voce — il feed — questa stessa forma
+		// Il filtro e' `TeamId ==`, come in `BuildTeamRoster`: due squadre diverse danno insiemi DISGIUNTI, quindi
+		// le carte non possono duplicarsi. Con un filtro che autorizza per voce — il feed — questa stessa forma
 		// sarebbe sbagliata.
-		Roster.Append(URTHudViewModel::BuildTeamRoster(Units, TeamId));
+		//
+		// 🔴 **La carta si fa dal punto di vista di chi guarda, non della squadra elencata** (#3636). `BuildTeamRoster`
+		// usa il suo secondo argomento sia come filtro sia come `PlayerTeamId`, e da li' viene `bIsAlly`: chiamata
+		// con `TeamId` diceva «alleata» per ogni avversaria, e il pallino della carta usciva `Cyan`. Finche' la
+		// carta non aveva il pallino, l'errore non si vedeva.
+		for (const ARTUnit* Unit : Units)
+		{
+			if (Unit && Unit->TeamId == TeamId)
+			{
+				Roster.Add(URTHudViewModel::BuildUnitCard(Unit, OwnTeamId));
+			}
+		}
 	}
 	return Roster;
 }
@@ -416,6 +466,22 @@ FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 		return URTHudViewModel::BuildUnitSlots(Commanded);
 	}
 	return FRTUnitSlotsView{};
+}
+
+TArray<FRTPlanWarningView> URTSelectedUnitPanelWidget::GetPlanWarnings() const
+{
+	// La risoluzione si chiede alla vista dell'header, non al manager: questo file non include `RTTurnManager.h`, ed e'
+	// la condizione del distacco di #1821 (vedi la testa del file). Trovato da una build fuori dal blob unity (#3622).
+	if (!HasMatchContext() || URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving)
+	{
+		return {}; // senza contesto non c'e' una partita; in Risoluzione l'elenco si nasconde (D-480 punto 1)
+	}
+	// Segue il COMANDO, come `GetSlots()`: per un'unita' ispezionata `BuildPlanWarnings` non viene chiamata.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return URTHudViewModel::BuildPlanWarnings(Commanded, GatherUnitsInWorld());
+	}
+	return {};
 }
 
 FText URTSelectedUnitPanelWidget::GetMovementProfileText() const
@@ -517,6 +583,151 @@ void URTActionDockWidget::ToggleSneak()
 	}
 }
 
+FRTLayerIndicatorView URTActionDockWidget::GetLayerIndicator() const
+{
+	// Piano attivo e limiti dallo STESSO controller che i tasti comandano: la vista non puo' dire un piano che
+	// `StepActiveLayer` non raggiunge.
+	const ARTPlayerController* PC = ResolveCommandController();
+	int32 Min = 0;
+	int32 Max = 0;
+	const bool bHasRange = PC != nullptr && PC->GetMapLayerRange(Min, Max);
+	return RTLayerIndicator::Build(bHasRange, PC ? PC->GetActiveLayer() : 0, Min, Max);
+}
+
+void URTActionDockWidget::StepLayerUp()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->StepActiveLayer(+1);
+	}
+}
+
+void URTActionDockWidget::StepLayerDown()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->StepActiveLayer(-1);
+	}
+}
+
+void URTActionDockWidget::EnsureLayerIndicator()
+{
+	if (LayerIndicator)
+	{
+		return; // dichiarato dall'asset, o gia' costruito: le porte ci sono
+	}
+	if (WidgetTree == nullptr)
+	{
+		// Un dock creato con `NewObject` e mai inizializzato non ha albero: e' cio' che fa `UUserWidget::Initialize`.
+		WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
+	}
+
+	// Dove posarlo: accanto alla lettura del movimento, nello stesso pannello (la riga `BarRow` di `U63`). Senza
+	// quella porta, alla radice se e' un pannello; un dock senza radice prende l'indicatore come radice.
+	UPanelWidget* Pannello = MovementReadout ? MovementReadout->GetParent() : nullptr;
+	if (Pannello == nullptr)
+	{
+		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	}
+	if (Pannello == nullptr && WidgetTree->RootWidget != nullptr)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Dock: nessun pannello per l'indicatore del piano (la radice e' un %s): non montato"),
+			*WidgetTree->RootWidget->GetClass()->GetName());
+		return;
+	}
+
+	UHorizontalBox* Riga = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("LayerIndicator"));
+	UTextBlock* Testo = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("LayerIndicatorText"));
+	UButton* Su = WidgetTree->ConstructWidget<URTMouseOnlyButton>(URTMouseOnlyButton::StaticClass(), TEXT("LayerUpButton"));
+	UButton* Giu = WidgetTree->ConstructWidget<URTMouseOnlyButton>(URTMouseOnlyButton::StaticClass(), TEXT("LayerDownButton"));
+
+	// Il testo prende il carattere della lettura del movimento, che gli sta accanto: due misure diverse nella stessa
+	// riga si leggerebbero come due gerarchie. Senza quella porta, la Roboto dell'engine, che ha anche ▲ e ▼.
+	FSlateFontInfo Carattere = MovementReadoutText ? MovementReadoutText->GetFont() : Testo->GetFont();
+	if (MovementReadoutText == nullptr)
+	{
+		Carattere.Size = 16;
+	}
+	const FSlateColor Colore(URTUIPalette::ColorFor(ERTUIToken::Text_Primary));
+	Testo->SetFont(Carattere);
+	Testo->SetColorAndOpacity(Colore);
+
+	auto Glifo = [&](UButton* Tasto, const TCHAR* Nome, const TCHAR* Segno)
+	{
+		UTextBlock* Etichetta = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Nome);
+		Etichetta->SetText(FText::FromString(Segno));
+		Etichetta->SetFont(Carattere);
+		Etichetta->SetColorAndOpacity(Colore);
+		Tasto->SetBackgroundColor(URTUIPalette::ColorFor(ERTUIToken::BG_Raised));
+		Tasto->AddChild(Etichetta);
+	};
+	Glifo(Su, TEXT("LayerUpGlyph"), TEXT("▲"));
+	Glifo(Giu, TEXT("LayerDownGlyph"), TEXT("▼"));
+
+	auto Posa = [Riga](UWidget* Figlio, float Sinistra)
+	{
+		if (UHorizontalBoxSlot* Posto = Riga->AddChildToHorizontalBox(Figlio))
+		{
+			Posto->SetVerticalAlignment(VAlign_Center);
+			Posto->SetPadding(FMargin(Sinistra, 0.f, 0.f, 0.f));
+		}
+	};
+	Posa(Testo, 0.f);
+	Posa(Su, 8.f);
+	Posa(Giu, 4.f);
+
+	if (Pannello)
+	{
+		// `AddChild` e non `InsertChildAt`: la seconda non aggiorna uno Slate gia' costruito. Nella riga del dock la
+		// lettura del movimento e' l'ultima, quindi in coda vuol dire accanto a lei.
+		UPanelSlot* Posto = Pannello->AddChild(Riga);
+		if (Posto == nullptr)
+		{
+			// Un pannello a figlio singolo gia' occupato (`Border`, `SizeBox`) rifiuta il secondo: lo si dice, e le porte
+			// restano vuote invece di puntare a un indicatore che non sta da nessuna parte (rilievo della review di #3693).
+			UE_LOG(LogRT, Warning, TEXT("[RT] Dock: %s non accetta l'indicatore del piano: non montato"),
+				*Pannello->GetClass()->GetName());
+			return;
+		}
+		if (UHorizontalBoxSlot* Orizzontale = Cast<UHorizontalBoxSlot>(Posto))
+		{
+			Orizzontale->SetVerticalAlignment(VAlign_Center);
+			Orizzontale->SetPadding(FMargin(22.f, 0.f, 0.f, 0.f)); // il separatore dei gruppi della barra (`GroupGap`)
+		}
+	}
+	else
+	{
+		WidgetTree->RootWidget = Riga;
+	}
+
+	LayerIndicator = Riga;
+	LayerIndicatorText = Testo;
+	LayerUpButton = Su;
+	LayerDownButton = Giu;
+}
+
+void URTActionDockWidget::RefreshLayerIndicator()
+{
+	const FRTLayerIndicatorView Vista = GetLayerIndicator();
+	if (LayerIndicator)
+	{
+		LayerIndicator->SetVisibility(Vista.bVisible ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (LayerIndicatorText)
+	{
+		LayerIndicatorText->SetText(Vista.Label);
+	}
+	// Disattivati ai limiti, non nascosti: il giocatore vede che il piano non sale piu', e non dove era il tasto.
+	if (LayerUpButton)
+	{
+		LayerUpButton->SetIsEnabled(Vista.bCanGoUp);
+	}
+	if (LayerDownButton)
+	{
+		LayerDownButton->SetIsEnabled(Vista.bCanGoDown);
+	}
+}
+
 // =====================================================================================================
 // Conferma e Annulla
 // =====================================================================================================
@@ -537,6 +748,28 @@ void URTPlanCommitWidget::Undo()
 	}
 }
 
+FRTPlanWarningCounts URTPlanCommitWidget::GetPlanWarningCounts() const
+{
+	FRTPlanWarningCounts Conteggi;
+	// Come in `GetPlanWarnings`: la risoluzione dalla vista dell'header, senza il tipo completo del manager (#1821).
+	if (!HasMatchContext() || URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving)
+	{
+		return Conteggi; // D-480 punto 1: in Risoluzione il piano non si conferma, e il contatore tace
+	}
+	const TArray<ARTUnit*> Units = GatherUnitsInWorld();
+	for (const ARTUnit* Unit : Units)
+	{
+		// ⛔ La barriera PRIMA di costruire: per un'unita' non comandata il piano non si legge (D-480 punto 5).
+		if (!Unit || !Unit->IsAlive() || !URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId,
+			Unit->ControlGroup, GetPlayerTeamId(), GetPlayerControlGroup(), Unit->bIsBotControlled))
+		{
+			continue;
+		}
+		URTHudViewModel::AddPlanWarningCounts(URTHudViewModel::BuildPlanWarnings(Unit, Units), Conteggi);
+	}
+	return Conteggi;
+}
+
 bool URTPlanCommitWidget::HasCommandedUnit() const
 {
 	return GetSelectedUnit() != nullptr;
@@ -550,12 +783,13 @@ bool URTPlanCommitWidget::IsPlanDeclared() const
 
 FText URTPlanCommitWidget::GetConfirmKeyLabel() const
 {
-	return ARTPlayerController::DeclarePlanHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	// [D-496]: il nome del badge, dal tasto vero della mappatura.
+	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::DeclarePlanHotkey());
 }
 
 FText URTPlanCommitWidget::GetUndoKeyLabel() const
 {
-	return ARTPlayerController::UndoKeyboardHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::UndoKeyboardHotkey());
 }
 
 void URTPlanCommitWidget::BindNamedButtons()
@@ -570,26 +804,267 @@ void URTPlanCommitWidget::BindNamedButtons()
 	}
 }
 
-void URTPlanCommitWidget::RefreshButtons()
+namespace
 {
+	/** Fondo e contorno di una cornice, come lo slot (#3498): con un `RoundedBox` il fondo e' il colore del brush e il
+	 *  contorno sta nelle sue `OutlineSettings`; con un `Border` a texture c'e' un colore solo, quello del bordo. */
+	void RTPaintFrame(UBorder* Frame, const FLinearColor& Fill, const FLinearColor& Outline, float Width)
+	{
+		if (!Frame)
+		{
+			return;
+		}
+		if (Frame->Background.DrawAs == ESlateBrushDrawType::RoundedBox)
+		{
+			FSlateBrush Brush = Frame->Background;
+			Brush.OutlineSettings.Color = FSlateColor(Outline);
+			Brush.OutlineSettings.Width = Width;
+			Frame->SetBrush(Brush);
+			Frame->SetBrushColor(Fill);
+		}
+		else
+		{
+			Frame->SetBrushColor(Outline);
+		}
+	}
+
+	void RTShowIf(UWidget* Widget, bool bShow)
+	{
+		if (Widget)
+		{
+			Widget->SetVisibility(bShow ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+// La resa dell'header (#3635): sta qui e non accanto a `GetRoundCounterText` perche' usa `RTPaintFrame` e
+// `RTShowIf`, definiti nel namespace qui sopra.
+
+FText URTTurnHeaderWidget::GetTimerText() const
+{
+	if (!HasMatchContext())
+	{
+		return FText::GetEmpty();
+	}
+	// Il numero del COMMIT, non del Planning: lo calcola `ComputeSecondsUntilCommit` (il tetto vince sul countdown).
+	return FormatCommitTimer(GetHeader().SecondsUntilCommit);
+}
+
+FText URTTurnHeaderWidget::FormatCommitTimer(float Seconds)
+{
+	if (!(Seconds > 0.f)) // anche NaN: un timer che non si sa leggere non si mostra
+	{
+		return FText::GetEmpty();
+	}
+	const int32 Totale = FMath::CeilToInt(Seconds);
+	return FText::FromString(FString::Printf(TEXT("%02d:%02d"), Totale / 60, Totale % 60));
+}
+
+FText URTTurnHeaderWidget::GetPhaseText() const
+{
+	if (!HasMatchContext())
+	{
+		return FText::GetEmpty();
+	}
+	return FText::FromString(URTHudViewModel::ComposePhaseWord(GetHeader()).ToUpper());
+}
+
+void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	const FRTMatchHeaderView Header = GetHeader();
+	const bool bContesto = HasMatchContext();
+
+	RTPaintFrame(HeaderFrame, C(T::BG_Panel).CopyWithNewOpacity(0.92f), C(T::Frame_Deep), 1.f);
+
+	// Il round: due cifre, e il limite solo se il formato lo dichiara (la regola di `ComposeRoundCounter`).
+	if (RoundValueText)
+	{
+		FNumberFormattingOptions DueCifre;
+		DueCifre.MinimumIntegralDigits = 2;
+		DueCifre.UseGrouping = false;
+		RoundValueText->SetText(bContesto ? FText::AsNumber(Header.Round, &DueCifre) : FText::FromString(TEXT("—")));
+		RoundValueText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+	if (RoundLimitText)
+	{
+		RoundLimitText->SetText(FText::FromString(FString::Printf(TEXT("/ %d"), Header.RoundLimit)));
+		RoundLimitText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(RoundLimitText, bContesto && Header.RoundLimit > 0);
+
+	// Pianificazione o Risoluzione: due gruppi, mai entrambi.
+	RTShowIf(PlanningGroup, !Header.bResolving);
+	RTShowIf(ResolutionGroup, Header.bResolving);
+
+	if (PhaseText)
+	{
+		// La vista e' gia' in mano: niente seconda `BuildMatchHeader` per tick (review di #3635).
+		PhaseText->SetText(bContesto ? FText::FromString(URTHudViewModel::ComposePhaseWord(Header).ToUpper()) : FText::GetEmpty());
+		PhaseText->SetColorAndOpacity(FSlateColor(C(T::Cyan)));
+	}
+	RTPaintFrame(PhaseMark, FLinearColor::Transparent, C(T::Cyan), 2.f);
+	if (TimerText)
+	{
+		TimerText->SetText(bContesto ? FormatCommitTimer(Header.SecondsUntilCommit) : FText::GetEmpty());
+		TimerText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+
+	// Le quattro celle: attiva e' la fase RIPRODOTTA ([D-479]). Fuori dalla Risoluzione nessuna e' attiva.
+	struct FCella
+	{
+		ERTMatchPhase Fase;
+		ERTActionPhaseMark Segno;
+		ERTUIToken Colore;
+		UBorder* Cornice;
+		UBorder* Marca;
+		UTextBlock* Sigla;
+	};
+	const FCella Celle[] = {
+		{ ERTMatchPhase::Prep,  ERTActionPhaseMark::Prep,  T::Phase_Prep,  PhaseCell_Prep,  PhaseCellMark_Prep,  PhaseCellText_Prep },
+		{ ERTMatchPhase::Dash,  ERTActionPhaseMark::Dash,  T::Phase_Dash,  PhaseCell_Dash,  PhaseCellMark_Dash,  PhaseCellText_Dash },
+		{ ERTMatchPhase::Blast, ERTActionPhaseMark::Blast, T::Phase_Blast, PhaseCell_Blast, PhaseCellMark_Blast, PhaseCellText_Blast },
+		{ ERTMatchPhase::Move,  ERTActionPhaseMark::Move,  T::Phase_Move,  PhaseCell_Move,  PhaseCellMark_Move,  PhaseCellText_Move },
+	};
+	for (const FCella& Cella : Celle)
+	{
+		const bool bAttiva = Header.bResolving && Header.PlaybackPhase == Cella.Fase;
+		const FLinearColor ColoreFase = C(Cella.Colore);
+		RTPaintFrame(Cella.Cornice, bAttiva ? ColoreFase.CopyWithNewOpacity(0.2f) : FLinearColor::Transparent,
+			bAttiva ? ColoreFase : C(T::Frame_Off), bAttiva ? 2.f : 1.f);
+		if (Cella.Marca)
+		{
+			// Il segno cambia FORMA, non solo colore: pieno e quadrato se attiva, vuoto e tondo se spenta. In scala
+			// di grigi la forma e' cio' che resta.
+			FSlateBrush Pennello = Cella.Marca->Background;
+			Pennello.DrawAs = ESlateBrushDrawType::RoundedBox;
+			Pennello.OutlineSettings.RoundingType = bAttiva ? ESlateBrushRoundingType::FixedRadius : ESlateBrushRoundingType::HalfHeightRadius;
+			Pennello.OutlineSettings.CornerRadii = FVector4(0.f, 0.f, 0.f, 0.f);
+			Pennello.OutlineSettings.Color = FSlateColor(bAttiva ? C(T::White) : C(T::Text_Disabled));
+			Pennello.OutlineSettings.Width = bAttiva ? 1.f : 1.5f;
+			Cella.Marca->SetBrush(Pennello);
+			Cella.Marca->SetBrushColor(bAttiva ? ColoreFase : FLinearColor::Transparent);
+			// Il segno spento e' piu' piccolo (6 px contro 11 nella tavola): una scala, che non sposta il layout.
+			Cella.Marca->SetRenderScale(bAttiva ? FVector2D(1.f, 1.f) : FVector2D(0.55f, 0.55f));
+		}
+		if (Cella.Sigla)
+		{
+			Cella.Sigla->SetText(URTHudViewModel::PhaseMarkLabel(Cella.Segno));
+			Cella.Sigla->SetColorAndOpacity(FSlateColor(bAttiva ? C(T::White) : C(T::Text_Disabled)));
+		}
+	}
+
+	// L'obiettivo ([D-481]): solo se la mappa ne dichiara uno.
+	if (bRecheckObjective)
+	{
+		bMapDeclaresObjective = URTHudViewModel::MapDeclaresObjective(GetTurnManager());
+	}
+	RTShowIf(ObjectiveBox, bContesto && bMapDeclaresObjective);
+	if (ObjectiveScoreText)
+	{
+		ObjectiveScoreText->SetText(FText::FromString(FString::Printf(TEXT("%d\u2013%d"), Header.Team0Score, Header.Team1Score)));
+		ObjectiveScoreText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+	if (ObjectiveThresholdText)
+	{
+		ObjectiveThresholdText->SetText(FText::FromString(FString::Printf(TEXT("(a %d)"), Header.ScoreToWin)));
+		ObjectiveThresholdText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(ObjectiveThresholdText, Header.ScoreToWin > 0);
+}
+
+void URTTurnHeaderWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceObjectiveCheck += InDeltaTime;
+	const bool bRileggi = SecondsSinceObjectiveCheck >= 1.f;
+	if (bRileggi)
+	{
+		SecondsSinceObjectiveCheck = 0.f;
+	}
+	RefreshLook(bRileggi);
+}
+
+void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// [D-480] punto 1: in Risoluzione il piano non si conferma, e il riquadro si nasconde. La risoluzione si chiede
+	// alla vista dell'header: questo file non include `RTTurnManager.h` (#1821).
+	const bool bRisoluzione = HasMatchContext() && URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving;
+	RTShowIf(CommitRoot, !bRisoluzione);
+	// Si esce solo se la radice c'e' e ha chiuso il riquadro: senza, i pulsanti restano a schermo e vanno aggiornati.
+	if (bRisoluzione && CommitRoot)
+	{
+		LastWarningCounts = FRTPlanWarningCounts();
+		return; // il riquadro e' chiuso: niente da scrivere, e niente avvisi da contare
+	}
+
 	const bool bUnita = HasCommandedUnit();
 	if (ConfirmButton)
 	{
 		ConfirmButton->SetIsEnabled(bUnita);
 	}
+	const FText Verbo = IsPlanDeclared()
+		? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
+		: NSLOCTEXT("RTPlanCommit", "Confirm", "Conferma");
+	const FText VerboAnnulla = NSLOCTEXT("RTPlanCommit", "Undo", "Annulla");
+
+	// Il tasto sta nel suo badge quando il badge c'e'; altrimenti accanto al verbo, come prima della tavola.
 	if (ConfirmText)
 	{
-		const FText Verbo = IsPlanDeclared()
-			? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
-			: NSLOCTEXT("RTPlanCommit", "Confirm", "Conferma");
-		ConfirmText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
-			Verbo, GetConfirmKeyLabel()));
+		ConfirmText->SetText(ConfirmKeyText ? Verbo
+			: FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"), Verbo, GetConfirmKeyLabel()));
+		ConfirmText->SetColorAndOpacity(FSlateColor(C(bUnita ? T::White : T::Text_Disabled)));
+	}
+	if (ConfirmKeyText)
+	{
+		ConfirmKeyText->SetText(GetConfirmKeyLabel());
+		ConfirmKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
 	}
 	if (UndoText)
 	{
-		UndoText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
-			NSLOCTEXT("RTPlanCommit", "Undo", "Annulla"), GetUndoKeyLabel()));
+		UndoText->SetText(UndoKeyText ? VerboAnnulla
+			: FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"), VerboAnnulla, GetUndoKeyLabel()));
+		UndoText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
 	}
+	if (UndoKeyText)
+	{
+		UndoKeyText->SetText(GetUndoKeyLabel());
+		UndoKeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+
+	// La tavola: `Conferma` accesa ha il fondo della lettura attiva e il contorno ciano; spenta torna neutra. Il
+	// contorno e' di 1 px in entrambi i casi, come nel sorgente della tavola: a distinguerle sono fondo e colore.
+	RTPaintFrame(ConfirmFrame, C(bUnita ? T::BG_ProfileActive : T::BG_Panel), C(bUnita ? T::Cyan : T::Frame_Off), 1.f);
+	RTPaintFrame(UndoFrame, C(T::BG_Panel), C(T::Frame_Mid), 1.f);
+	if (ConfirmIcon)
+	{
+		ConfirmIcon->SetColorAndOpacity(FSlateColor(C(bUnita ? T::Cyan : T::Text_Disabled)));
+	}
+
+	// Il contatore ([D-494]): un numero per livello, e un livello a zero non occupa posto.
+	if (bRecountWarnings)
+	{
+		LastWarningCounts = GetPlanWarningCounts();
+	}
+	const FRTPlanWarningCounts& Conteggi = LastWarningCounts;
+	RTShowIf(WarningCounter, Conteggi.Critical + Conteggi.Warning + Conteggi.Info > 0);
+	const auto Livello = [&C](UTextBlock* Testo, UWidget* Badge, int32 N, ERTUIToken Colore)
+	{
+		if (Testo)
+		{
+			Testo->SetText(FText::AsNumber(N));
+			Testo->SetColorAndOpacity(FSlateColor(C(Colore)));
+		}
+		RTShowIf(Badge, N > 0);
+	};
+	Livello(CriticalCountText, CriticalBadge, Conteggi.Critical, T::Red);
+	Livello(WarningCountText, WarningBadge, Conteggi.Warning, T::Amber);
+	Livello(InfoCountText, InfoBadge, Conteggi.Info, T::Cyan);
 }
 
 void URTPlanCommitWidget::NativeConstruct()
@@ -601,7 +1076,13 @@ void URTPlanCommitWidget::NativeConstruct()
 void URTPlanCommitWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	RefreshButtons();
+	SecondsSinceWarningRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceWarningRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceWarningRecount = 0.f;
+	}
+	RefreshButtons(bRiconta);
 }
 
 void URTActionDockWidget::BindNamedButtons()
@@ -609,6 +1090,14 @@ void URTActionDockWidget::BindNamedButtons()
 	if (SneakBadge)
 	{
 		SneakBadge->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::ToggleSneak);
+	}
+	if (LayerUpButton)
+	{
+		LayerUpButton->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::StepLayerUp);
+	}
+	if (LayerDownButton)
+	{
+		LayerDownButton->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::StepLayerDown);
 	}
 }
 
@@ -643,6 +1132,14 @@ void URTActionDockWidget::RefreshMovementReadout()
 	}
 }
 
+void URTActionDockWidget::NativeOnInitialized()
+{
+	Super::NativeOnInitialized();
+	// Qui e non in `NativeConstruct`: l'albero si completa prima che Slate costruisca il dock, quindi l'indicatore
+	// entra nello Slate con il resto, al suo posto (#3680).
+	EnsureLayerIndicator();
+}
+
 void URTActionDockWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -653,6 +1150,7 @@ void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 	RefreshMovementReadout();
+	RefreshLayerIndicator();
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const
@@ -783,28 +1281,25 @@ FText URTActionTooltipWidget::GetLinesText() const
 	return FText::FromString(FString::Join(Righe, TEXT("\n")));
 }
 
-namespace
-{
-	FLinearColor RTSlotHex(const TCHAR* Hex)
-	{
-		return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
-	}
-}
-
 URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	// I colori vengono dai token di §32 ([D-489], #3610), non da esadecimali scritti qui: prima di #3610 questo
+	// costruttore era una copia a mano della palette, e un colore cambiato in §32 non lo raggiungeva.
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
 	// [D-233] per le macro-fasi, §32 per la reazione. ⛔ `Cleanup` NON ha una voce: ha un'etichetta e non un
 	// colore ([D-232] §1), quindi la striscia si chiude e la fase la dice `PhaseLabelText`.
-	PhaseColors.Add(ERTActionPhaseMark::Prep, RTSlotHex(TEXT("56B4E9")));
-	PhaseColors.Add(ERTActionPhaseMark::Dash, RTSlotHex(TEXT("009E73")));
-	PhaseColors.Add(ERTActionPhaseMark::Blast, RTSlotHex(TEXT("D55E00")));
-	PhaseColors.Add(ERTActionPhaseMark::Move, RTSlotHex(TEXT("0072B2")));
-	PhaseColors.Add(ERTActionPhaseMark::Reaction, RTSlotHex(TEXT("7C5CFF")));
+	PhaseColors.Add(ERTActionPhaseMark::Prep, C(T::Phase_Prep));
+	PhaseColors.Add(ERTActionPhaseMark::Dash, C(T::Phase_Dash));
+	PhaseColors.Add(ERTActionPhaseMark::Blast, C(T::Phase_Blast));
+	PhaseColors.Add(ERTActionPhaseMark::Move, C(T::Phase_Move));
+	PhaseColors.Add(ERTActionPhaseMark::Reaction, C(T::Violet));
 
 	// `SPECIFICA-VISIVA.md` §3. Selected e Warning condividono l'ambra: li separa il secondo canale.
-	const FLinearColor Neutro = RTSlotHex(TEXT("4A5568"));
-	const FLinearColor Ambra = RTSlotHex(TEXT("FFD456"));
+	const FLinearColor Neutro = C(T::Frame_Mid);
+	const FLinearColor Ambra = C(T::Amber);
 	// Lo slot vuoto del mockup (`Main.dc.html`, «Difesa caratteristica, non assegnata»): contorno neutro pieno,
 	// fondo trasparente, glifo e testo grigi. Il tratteggio del contorno resta escluso.
 	FrameColors.Add(ERTActionSlotState::Empty, Neutro);
@@ -812,20 +1307,20 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 	FrameColors.Add(ERTActionSlotState::Selected, Ambra);
 	FrameColors.Add(ERTActionSlotState::Planned, Ambra);
 	// #3498 — `sorgente-mockup/Main.dc.html`: la ricarica ha un contorno piu' spento del neutro.
-	FrameColors.Add(ERTActionSlotState::Cooldown, RTSlotHex(TEXT("2E3746")));
-	FrameColors.Add(ERTActionSlotState::Unavailable, RTSlotHex(TEXT("2E3746")));
-	FrameColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("FF4D4D")));
+	FrameColors.Add(ERTActionSlotState::Cooldown, C(T::Frame_Off));
+	FrameColors.Add(ERTActionSlotState::Unavailable, C(T::Frame_Off));
+	FrameColors.Add(ERTActionSlotState::Invalid, C(T::Red));
 	FrameColors.Add(ERTActionSlotState::Warning, Ambra);
 
-	const FLinearColor FondoAlto = RTSlotHex(TEXT("212733"));   // BG_Raised
-	const FLinearColor FondoBasso = RTSlotHex(TEXT("151A23"));  // BG_Panel
+	const FLinearColor FondoAlto = C(T::BG_Raised);
+	const FLinearColor FondoBasso = C(T::BG_Panel);
 	FillColors.Add(ERTActionSlotState::Empty, FLinearColor::Transparent);
 	FillColors.Add(ERTActionSlotState::Available, FondoAlto);
-	FillColors.Add(ERTActionSlotState::Selected, RTSlotHex(TEXT("2B2918")));
+	FillColors.Add(ERTActionSlotState::Selected, C(T::BG_Selected));
 	FillColors.Add(ERTActionSlotState::Planned, FondoAlto);
 	FillColors.Add(ERTActionSlotState::Cooldown, FondoBasso);
 	FillColors.Add(ERTActionSlotState::Unavailable, FondoBasso);
-	FillColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("2A1719")));
+	FillColors.Add(ERTActionSlotState::Invalid, C(T::BG_Invalid));
 	FillColors.Add(ERTActionSlotState::Warning, FondoAlto);
 
 	for (const ERTActionSlotState Spesso : { ERTActionSlotState::Selected, ERTActionSlotState::Planned,
@@ -839,9 +1334,9 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 		FrameWidths.Add(Sottile, 1.f);
 	}
 
-	const FLinearColor Chiaro = RTSlotHex(TEXT("E6EBF2"));
-	const FLinearColor Spento = RTSlotHex(TEXT("3A4454"));
-	const FLinearColor Grigio = RTSlotHex(TEXT("A9B4C2"));
+	const FLinearColor Chiaro = C(T::Text_Primary);
+	const FLinearColor Spento = C(T::Icon_Cooldown);
+	const FLinearColor Grigio = C(T::Text_Secondary);
 	IconTints.Add(ERTActionSlotState::Empty, Grigio);
 	IconTints.Add(ERTActionSlotState::Available, Chiaro);
 	IconTints.Add(ERTActionSlotState::Selected, Ambra);
@@ -852,7 +1347,7 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 	IconTints.Add(ERTActionSlotState::Warning, Chiaro);
 
 	// Il nome si spegne dove lo slot non si puo' usare, e resta chiaro dove e' una scelta — armata o pianificata.
-	const FLinearColor NomeSpento = RTSlotHex(TEXT("6B7684"));
+	const FLinearColor NomeSpento = C(T::Text_Disabled);
 	for (const ERTActionSlotState Chiara : { ERTActionSlotState::Available, ERTActionSlotState::Selected,
 		ERTActionSlotState::Planned, ERTActionSlotState::Invalid, ERTActionSlotState::Warning })
 	{
@@ -864,12 +1359,12 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 
 	UnavailableStripColor = Neutro;
 	PhaseLabelColor = Grigio;
-	ReactionLabelColor = RTSlotHex(TEXT("B9A8FF"));
+	ReactionLabelColor = C(T::Violet_Light);
 	SelectedBarColor = Ambra;
 
-	ReactionArmedFill = RTSlotHex(TEXT("221E3A"));
-	ReactionArmedFrame = RTSlotHex(TEXT("7C5CFF"));
-	ReactionArmedIcon = RTSlotHex(TEXT("B9A8FF"));
+	ReactionArmedFill = C(T::BG_Reaction);
+	ReactionArmedFrame = C(T::Violet);
+	ReactionArmedIcon = C(T::Violet_Light);
 }
 
 FText URTActionSlotWidget::GroupHeaderFor(ERTActionGroup Group)
@@ -930,6 +1425,9 @@ void URTActionSlotWidget::RefreshLook()
 			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	}
 	// 🔑 Una reazione armata ha la propria resa: lo stato e' lo stesso, il colore no (#3498).
+	// ⚖️ **E' la resa dello SLOT `Reaction`, non `URTCatalogLibrary::ArmsReaction`** (`#3628`, decisione d'autore del
+	// 2026-10-11): l'Overwatch occupa lo slot principale e ha la resa di una principale selezionata. Il viola della
+	// reazione armata per qualunque canale e' il chip `REAZ.` del roster ([D-478]).
 	const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
 	if (StateFrame)
 	{
@@ -1099,6 +1597,7 @@ void URTActionSlotWidget::ApplyResolvedIconTo(UImage* Target)
 	// #3498: la tinta per stato, PRIMA dell'uscita sulla texture — uno slot senza glifo e' comunque tinto.
 	{
 		const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
+		// Lo SLOT `Reaction`, come la cornice qui sopra (`#3628`).
 		const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
 		if (const FLinearColor* Tinta = IconTints.Find(Stato))
 		{
@@ -1211,33 +1710,12 @@ float URTFastDecisionWidget::GetRemainingSeconds() const
 
 void URTFastDecisionWidget::ChooseOption(int32 OptionIndex)
 {
-	URTReactionWindowViewModel* ViewModel = GetReactionWindow();
-	if (!ViewModel)
+	// La scelta per indice vive nel view model ([D-491], #3615): ci passa anche il tasto del kit con la finestra
+	// aperta, e il gate — vista riletta, indice fuori range che non inoltra niente — e' uno solo per i due canali.
+	if (URTReactionWindowViewModel* ViewModel = GetReactionWindow())
 	{
-		return;
+		ViewModel->ChooseOption(OptionIndex);
 	}
-
-	// 🔑 **Si rilegge la vista invece di fidarsi di quella con cui il bottone e' stato disegnato.**
-	// `GetWindow()` rende i default appena l'identita' della finestra cambia, quindi un click su un bottone
-	// della finestra PRECEDENTE trova `Options` vuoto e cade nel ramo qui sotto. Senza questa rilettura
-	// l'indice verrebbe risolto su un elenco che il gioco non sta piu' offrendo.
-	const FRTReactionWindowView Window = ViewModel->GetWindow();
-	if (!Window.Options.IsValidIndex(OptionIndex))
-	{
-		// ⚠️ **`Warning` e non `Error`, e non fa nulla.** In una finestra da 3,0 s l'elenco puo' cambiare fra
-		// il disegno e il click: e' un ritardo, non un difetto del chiamante. Ma va **visto**, perche' un
-		// bottone che non risponde e' il sintomo piu' difficile da diagnosticare a schermo.
-		UE_LOG(LogRT, Warning,
-			TEXT("[RT] FastDecision: opzione %d fuori range (%d disponibili) — nessuna risposta inoltrata. "
-				 "La finestra puo' essere cambiata fra il disegno e il click."),
-			OptionIndex, Window.Options.Num());
-		return;
-	}
-
-	// ⛔ **Si spedisce la stringa che il core ha prodotto, e non se ne compone una.** `FIRE:<indice>` e'
-	// un FORMATO con un solo produttore (`URTReactionOpportunityLibrary::FireResponse`); comporlo qui ne
-	// creerebbe un secondo, fuori dai test che presidiano il primo.
-	ViewModel->SubmitResponse(Window.Options[OptionIndex].Response);
 }
 
 int32 URTFastDecisionWidget::GetOptionCount() const
@@ -1342,6 +1820,63 @@ FText URTFastDecisionWidget::GetPromptText() const
 	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
 }
 
+float URTFastDecisionWidget::GetCountdownFraction() const
+{
+	// Il gate e' l'apertura, come per la visibilita': il residuo puo' toccare lo zero prima che la finestra si
+	// chiuda, e in quel frame la barra vuota e' giusta — una barra che sparisse no.
+	if (!IsWindowOpen())
+	{
+		return -1.f;
+	}
+	const float Durata = GetWindow().WindowSeconds;
+	if (Durata <= 0.f)
+	{
+		return -1.f; // una finestra senza durata non ha una frazione: meglio nessuna barra che una barra piena
+	}
+	return FMath::Clamp(GetRemainingSeconds() / Durata, 0.f, 1.f);
+}
+
+FText URTFastDecisionWidget::GetSafeOutcomeText() const
+{
+	if (!IsWindowOpen())
+	{
+		return FText::GetEmpty();
+	}
+	const FString Sicura = GetWindow().SafeResponse;
+	if (Sicura.IsEmpty())
+	{
+		return FText::GetEmpty();
+	}
+	// Il nome lo da' la tabella delle risposte, la stessa del bottone: «HOLD» qui e «HOLD» sull'opzione
+	// non possono divergere.
+	return FText::Format(NSLOCTEXT("RefactorTactics", "FastDecisionSafeOutcome", "Allo scadere: {0}"),
+		RTReactionResponseText::NameFor(Sicura));
+}
+
+void URTFastDecisionWidget::RefreshLook()
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// La tavola E: fondo profondo, contorno bianco di 2 px, striscia viola delle reazioni.
+	RTPaintFrame(WindowFrame, C(T::BG_Deep), C(T::White), 2.f);
+	if (AccentStrip)
+	{
+		AccentStrip->SetBrushColor(C(T::Violet));
+	}
+	if (CountdownBar)
+	{
+		// Senza finestra la frazione e' negativa; la barra non ha un «meno di vuoto».
+		CountdownBar->SetPercent(FMath::Max(0.f, GetCountdownFraction()));
+		CountdownBar->SetFillColorAndOpacity(C(T::White));
+	}
+	if (SafeOutcomeText)
+	{
+		SafeOutcomeText->SetText(GetSafeOutcomeText());
+		SafeOutcomeText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+}
+
 void URTFastDecisionWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
@@ -1354,6 +1889,7 @@ void URTFastDecisionWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 		// che ricostruisce legge lo stato della finestra NUOVA.
 		OnWindowChanged();
 	}
+	RefreshLook();
 }
 
 bool URTFastDecisionWidget::PollWindowChanged()
@@ -1394,6 +1930,23 @@ void URTFastDecisionOptionWidget::SetOption(URTFastDecisionWidget* InOwner,
 	OptionIndex = InIndex;
 	bIsSafeChoice = bInIsSafe;
 
+	// La resa della tavola E (#3634): le porte prima dell'evento, perche' il grafo che disegna le trovi gia' scritte.
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	RTPaintFrame(OptionFrame, C(T::BG_Raised), C(bIsSafeChoice ? T::Text_Primary : T::Frame_Mid),
+		bIsSafeChoice ? 2.f : 1.f);
+	if (KeyText)
+	{
+		KeyText->SetText(GetKeyLabel());
+		KeyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (DescriptionText)
+	{
+		DescriptionText->SetText(GetOptionDescription());
+		DescriptionText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(SafeChoiceBadge, bIsSafeChoice);
+
 	// ⚠️ Per ULTIMO, come `URTActionSlotWidget::SetAction`: il Blueprint disegna leggendo i campi qui sopra.
 	OnOptionChanged();
 }
@@ -1406,8 +1959,19 @@ FText URTFastDecisionOptionWidget::GetOptionLabel() const
 	//
 	// ⛔ Nessuna traduzione e nessun abbellimento qui: `Response` e' un vocabolario del core
 	// (`FIRE:<indice>`, `HOLD`, `Hold Ground`, le maneuver del profilo) e mapparlo su nomi leggibili e'
-	// lavoro di contenuto, con una tabella e un owner. Inventarlo qui sarebbe un secondo vocabolario.
-	return FText::FromString(Option.Response);
+	// lavoro di contenuto, con una tabella e un owner. ✅ La tabella e' `RTReactionResponseText` ([D-491],
+	// #3615): qui la si interroga, non la si ripete.
+	return RTReactionResponseText::NameFor(Option.Response);
+}
+
+FText URTFastDecisionOptionWidget::GetOptionDescription() const
+{
+	return RTReactionResponseText::DescriptionFor(Option.Response);
+}
+
+FText URTFastDecisionOptionWidget::GetKeyLabel() const
+{
+	return ARTPlayerController::ReactionOptionKeyLabel(OptionIndex);
 }
 
 void URTFastDecisionOptionWidget::Choose()
@@ -1557,4 +2121,567 @@ void URTTacticalHUDWidget::NativeConstruct()
 	{
 		UE_LOG(LogRT, Display, TEXT("%s"), *Riga);
 	}
+
+	// #3661, D-497: le zone dal dato delle fasce, e la 3D solo nel rettangolo che lasciano libero.
+	const int32 Posate = ApplyBandLayout(WidgetTree, RTHudLayout::Bands());
+	URTGameViewportClient* Client = URTGameViewportClient::Get(this);
+	if (Client && !bSceneInsetRequested)
+	{
+		Client->SetSceneInsetRequested(true);
+		bSceneInsetRequested = true;
+	}
+	UE_LOG(LogRT, Display, TEXT("Screen HUD - fasce posate su %d zone; scena fra le fasce: %s"), Posate,
+		Client ? TEXT("si'") : TEXT("no (nessun URTGameViewportClient)"));
+}
+
+void URTTacticalHUDWidget::NativeDestruct()
+{
+	if (bSceneInsetRequested)
+	{
+		if (URTGameViewportClient* Client = URTGameViewportClient::Get(this))
+		{
+			Client->SetSceneInsetRequested(false);
+		}
+		bSceneInsetRequested = false;
+	}
+	Super::NativeDestruct();
+}
+
+int32 URTTacticalHUDWidget::ApplyBandLayout(UWidgetTree* Albero, const FRTHudBands& Fasce)
+{
+	if (Albero == nullptr)
+	{
+		return 0;
+	}
+
+	int32 Posate = 0;
+	Albero->ForEachWidget([Albero, &Fasce, &Posate](UWidget* Widget)
+	{
+		UCanvasPanelSlot* Slot = Widget ? Cast<UCanvasPanelSlot>(Widget->Slot) : nullptr;
+		if (Slot == nullptr || Slot->Parent != Albero->RootWidget)
+		{
+			return; // solo i figli diretti del Canvas radice: il posto degli altri lo decide chi li contiene
+		}
+
+		if (const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget))
+		{
+			Slot->SetAutoSize(false);
+			Slot->SetLayout(RTHudLayout::ZoneLayout(Zona->ZoneId, Fasce));
+			++Posate;
+		}
+		else if (Widget->IsA<URTFastDecisionWidget>())
+		{
+			// Ancorata al centro dello schermo, spostata sul centro della scena. La misura resta quella
+			// dell'asset: per un anchor a punto `Right`/`Bottom` sono la larghezza e l'altezza.
+			FAnchorData Layout = Slot->GetLayout();
+			const FVector2D Spostamento = RTHudLayout::SceneCenterOffsetSlate(Fasce);
+			Layout.Anchors = FAnchors(0.5f, 0.5f);
+			Layout.Alignment = FVector2D(0.5, 0.5);
+			Layout.Offsets.Left = static_cast<float>(Spostamento.X);
+			Layout.Offsets.Top = static_cast<float>(Spostamento.Y);
+			Slot->SetLayout(Layout);
+		}
+	});
+	return Posate;
+}
+
+// =====================================================================================================
+// La resa delle tavole A, B ed E per roster e pannello (#3636, T8)
+// =====================================================================================================
+
+namespace
+{
+	bool RTSameWarning(const FRTPlanWarningView& A, const FRTPlanWarningView& B)
+	{
+		return A.Level == B.Level && A.SourceActionId == B.SourceActionId && A.What.EqualTo(B.What)
+			&& A.Why.EqualTo(B.Why) && A.Cost.EqualTo(B.Cost);
+	}
+
+	/** L'ultimo segmento di un id, `Action.Counter` -> `Counter`: la cascata di `ARTUnit::DisplayLabel`. */
+	FText RTLastIdSegment(const FName& Id)
+	{
+		const FString Testo = Id.ToString();
+		int32 Punto = INDEX_NONE;
+		return FText::FromString(Testo.FindLastChar(TEXT('.'), Punto) ? Testo.Mid(Punto + 1) : Testo);
+	}
+
+	bool RTSameCard(const FRTUnitCardView& A, const FRTUnitCardView& B)
+	{
+		return A.HeroId == B.HeroId && A.DisplayName.EqualTo(B.DisplayName) && A.Health == B.Health
+			&& A.MaxHealth == B.MaxHealth && A.Shield == B.Shield && A.bIsAlly == B.bIsAlly && A.bAlive == B.bAlive;
+	}
+
+	/** Il colore della striscia per un segno di fase: [D-233] per le macro-fasi, `Violet` per la reazione. */
+	FLinearColor RTPhaseStripColor(ERTActionPhaseMark Mark)
+	{
+		using T = ERTUIToken;
+		switch (Mark)
+		{
+		case ERTActionPhaseMark::Prep:     return URTUIPalette::ColorFor(T::Phase_Prep);
+		case ERTActionPhaseMark::Dash:     return URTUIPalette::ColorFor(T::Phase_Dash);
+		case ERTActionPhaseMark::Blast:    return URTUIPalette::ColorFor(T::Phase_Blast);
+		case ERTActionPhaseMark::Move:     return URTUIPalette::ColorFor(T::Phase_Move);
+		case ERTActionPhaseMark::Reaction: return URTUIPalette::ColorFor(T::Violet);
+		case ERTActionPhaseMark::Cleanup:  // un'etichetta e non un colore ([D-232] §1)
+		case ERTActionPhaseMark::None:     break;
+		}
+		return FLinearColor::Transparent;
+	}
+
+	/** Crea un widget figlio col proprietario giusto, o col mondo in sua assenza (come `MakeOptionWidget`). */
+	template <typename TWidget>
+	TWidget* RTCreateChild(UUserWidget& Parent, TSubclassOf<TWidget> Class)
+	{
+		if (APlayerController* Proprietario = Parent.GetOwningPlayer())
+		{
+			return CreateWidget<TWidget>(Proprietario, Class);
+		}
+		if (UWorld* Mondo = Parent.GetWorld())
+		{
+			return CreateWidget<TWidget>(Mondo, Class);
+		}
+		return nullptr;
+	}
+}
+
+void URTUnitCardWidget::SetCard(const FRTUnitCardView& InCard, bool bInReactionArmed)
+{
+	const bool bCambiata = !bHasCard || bReactionArmed != bInReactionArmed || !RTSameCard(Card, InCard);
+	Card = InCard;
+	bReactionArmed = bInReactionArmed;
+	bHasCard = true;
+
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	if (CardFrame)
+	{
+		CardFrame->SetRenderOpacity(Card.bAlive ? 1.f : 0.45f);
+	}
+	if (TeamDot)
+	{
+		TeamDot->SetBrushColor(C(Card.bIsAlly ? T::Cyan : T::Red));
+	}
+	if (NameText)
+	{
+		NameText->SetText(Card.DisplayName);
+		NameText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	RTShowIf(ReactionChip, bReactionArmed);
+	if (HealthBar)
+	{
+		HealthBar->SetPercent(Card.HealthFraction);
+		HealthBar->SetFillColorAndOpacity(C(T::Cyan));
+	}
+	if (HealthText)
+	{
+		HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), Card.Health, Card.MaxHealth)));
+		HealthText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (ShieldText)
+	{
+		ShieldText->SetText(FText::AsNumber(Card.Shield));
+		ShieldText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+
+	// ⚠️ L'evento solo a carta cambiata: il roster la riscrive a ogni tick, e un grafo che ridisegna a ogni tick
+	// costa senza dire niente di nuovo.
+	if (bCambiata)
+	{
+		OnCardChanged();
+	}
+}
+
+void URTPlanWarningEntryWidget::SetWarning(const FRTPlanWarningView& InWarning)
+{
+	const bool bCambiato = !bHasWarning || !RTSameWarning(Warning, InWarning);
+	Warning = InWarning;
+	bHasWarning = true;
+
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	ERTUIToken Colore = T::Cyan;
+	ERTUIToken Fondo = T::BG_ProfileActive;
+	const TCHAR* Forma = TEXT("\u25CF");    // ●
+	const TCHAR* Segno = TEXT("i");
+	FText Livello = NSLOCTEXT("RTPlanWarning", "LevelInfo", "INFO");
+	switch (Warning.Level)
+	{
+	case ERTPlanWarningLevel::Critical:
+		Colore = T::Red;
+		Fondo = T::BG_Invalid;
+		Forma = TEXT("\u25C6");  // ◆
+		Segno = TEXT("\u2715");  // ✕
+		Livello = NSLOCTEXT("RTPlanWarning", "LevelCritical", "CRITICAL");
+		break;
+	case ERTPlanWarningLevel::Warning:
+		Colore = T::Amber;
+		Fondo = T::BG_Selected;
+		Forma = TEXT("\u25B2");  // ▲
+		Segno = TEXT("!");
+		Livello = NSLOCTEXT("RTPlanWarning", "LevelWarning", "WARNING");
+		break;
+	case ERTPlanWarningLevel::Info:
+		break;
+	}
+
+	RTPaintFrame(EntryFrame, C(Fondo).CopyWithNewOpacity(0.94f), C(Colore), 1.f);
+	if (LevelGlyphText)
+	{
+		LevelGlyphText->SetText(FText::FromString(Forma));
+		LevelGlyphText->SetColorAndOpacity(FSlateColor(C(Colore)));
+	}
+	if (LevelMarkText)
+	{
+		LevelMarkText->SetText(FText::FromString(Segno));
+		LevelMarkText->SetColorAndOpacity(FSlateColor(C(T::BG_Deep)));
+	}
+	if (LevelText)
+	{
+		LevelText->SetText(Livello);
+		LevelText->SetColorAndOpacity(FSlateColor(C(Colore)));
+	}
+	if (WhatText)
+	{
+		WhatText->SetText(Warning.What);
+		WhatText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+	if (WhyText)
+	{
+		WhyText->SetText(Warning.Why);
+		WhyText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (CostText)
+	{
+		CostText->SetText(Warning.Cost);
+		CostText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+
+	if (bCambiato)
+	{
+		OnWarningChanged();
+	}
+}
+
+void URTTeamRosterWidget::RefreshCards(bool bRecountReactions)
+{
+	if (!CardClass)
+	{
+		return; // la seduta non ha ancora dato la classe: il roster di oggi resta al grafo
+	}
+
+	// Una carta per voce, nell'ordine dell'elenco. Si tengono le carte che ci sono: ricostruirle a ogni tick
+	// spezzerebbe hover e click, come per i bottoni della finestra di reazione.
+	const auto Allinea = [this](UPanelWidget& Box, TArray<TObjectPtr<URTUnitCardWidget>>& Carte, int32 NumVoci)
+	{
+		while (Carte.Num() > NumVoci)
+		{
+			if (URTUnitCardWidget* Ultima = Carte.Last())
+			{
+				Ultima->RemoveFromParent();
+			}
+			Carte.Pop();
+		}
+		while (Carte.Num() < NumVoci)
+		{
+			URTUnitCardWidget* Carta = RTCreateChild<URTUnitCardWidget>(*this, CardClass);
+			if (!Carta)
+			{
+				return false;
+			}
+			Box.AddChild(Carta);
+			Carte.Add(Carta);
+		}
+		return true;
+	};
+
+	if (CardsBox)
+	{
+		const TArray<FRTUnitCardView> Roster = GetRoster();
+		if (!Allinea(*CardsBox, Cards, Roster.Num()))
+		{
+			return;
+		}
+		for (int32 i = 0; i < Roster.Num(); ++i)
+		{
+			const FName Eroe = Roster[i].HeroId;
+			if (bRecountReactions || !ArmedByHero.Contains(Eroe))
+			{
+				ArmedByHero.Add(Eroe, IsReactionArmed(Eroe));
+			}
+			Cards[i]->SetCard(Roster[i], ArmedByHero.FindChecked(Eroe));
+		}
+	}
+
+	// Le altre squadre: vuoto in sessione presidiata, e allora il pannello si svuota (`GetOpposingRoster`, #2744).
+	// Il chip resta spento senza chiedere `IsReactionArmed`: per chi non si comanda la risposta e' falso per
+	// costruzione, e chiederla rifarebbe gli slot per niente.
+	if (OpposingCardsBox)
+	{
+		const TArray<FRTUnitCardView> Altre = GetOpposingRoster();
+		if (!Allinea(*OpposingCardsBox, OpposingCards, Altre.Num()))
+		{
+			return;
+		}
+		for (int32 i = 0; i < Altre.Num(); ++i)
+		{
+			OpposingCards[i]->SetCard(Altre[i], /*bInReactionArmed=*/ false);
+		}
+	}
+}
+
+void URTTeamRosterWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceReactionRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceReactionRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceReactionRecount = 0.f;
+	}
+	RefreshCards(bRiconta);
+}
+
+void URTSelectedUnitPanelWidget::RefreshLook(bool bRecountWarnings)
+{
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	const bool bRisoluzione = HasMatchContext() && URTHudViewModel::BuildMatchHeader(GetTurnManager()).bResolving;
+	const FRTUnitSlotsView Slots = GetSlots();
+
+	// La carta del soggetto: nome e PV di chi si comanda o si ispeziona. Il chip dal piano, che per un'ispezionata
+	// non c'e' (`GetSlots()` non ne costruisce gli slot, e `bReactionArmed` resta falso).
+	// ⚠️ Anche senza soggetto: la carta si svuota invece di restare quella di prima, come faceva il grafo che la
+	// scriveva a ogni tick (review di #3656).
+	if (SubjectCard)
+	{
+		SubjectCard->SetCard(GetCard(), Slots.bReactionArmed);
+	}
+
+	// ⛔ Chiuso, non «—», per chi non si comanda: tre «—» direbbero «non ha pianificato» (#2757).
+	RTShowIf(PlanChipsBox, Slots.bAuthorized && !bRisoluzione);
+
+	// Fuori dal piano della comandata gli avvisi si azzerano SUBITO, non al prossimo riconteggio: in Risoluzione
+	// [D-480] li vuole nascosti, e per un'ispezionata non ci sono. Cambiata la comandata, si riconta subito.
+	const ARTUnit* Comandata = GetSelectedUnit();
+	bool bRicontati = false;
+	if (!Slots.bAuthorized || bRisoluzione)
+	{
+		LastWarnings.Reset();
+		LastWarningsSubject.Reset();
+	}
+	else if (bRecountWarnings || LastWarningsSubject.Get() != Comandata)
+	{
+		LastWarnings = GetPlanWarnings();
+		LastWarningsSubject = Comandata;
+		bRicontati = true;
+	}
+	const auto Chip = [&](const FRTPlannedSlotView& VistaSlot, ERTPlanChip Quale, UBorder* Frame, UBorder* Strip,
+		UTextBlock* Valore, UWidget* Avviso)
+	{
+		const bool bMovimento = Quale == ERTPlanChip::Movement;
+		const bool bOccupato = Slots.bAuthorized && VistaSlot.bOccupied;
+		// Ogni avviso a un chip solo (`ChipForWarning`): anche quelli sulle voci di movimento che lo slot non nomina.
+		const bool bAvviso = bOccupato && LastWarnings.ContainsByPredicate([&Slots, Quale](const FRTPlanWarningView& W)
+		{
+			return URTHudViewModel::ChipForWarning(Slots, W) == Quale;
+		});
+
+		RTPaintFrame(Frame, C(T::BG_Raised), C(bAvviso ? T::Amber : T::Frame_Off), 1.f);
+		if (Strip)
+		{
+			Strip->SetBrushColor(bOccupato ? RTPhaseStripColor(URTHudViewModel::SlotPhaseMark(Comandata, VistaSlot))
+				: FLinearColor::Transparent);
+		}
+		if (Valore)
+		{
+			FText Testo = NSLOCTEXT("RTHud", "ChipEmpty", "\u2014"); // —
+			if (bOccupato)
+			{
+				// Un percorso non ha un'azione: lo descrive la stessa riga dello slot movimento del pannello.
+				// Mai l'id grezzo: il nome del kit, la descrizione del percorso, o l'ultimo segmento dell'id.
+				Testo = !VistaSlot.DisplayName.IsEmpty() ? VistaSlot.DisplayName
+					: (bMovimento && VistaSlot.ActionId.IsNone()) ? ARTHUD::DescribeMovementSlot(Slots)
+					: RTLastIdSegment(VistaSlot.ActionId);
+			}
+			Valore->SetText(Testo);
+			Valore->SetColorAndOpacity(FSlateColor(C(bOccupato ? T::Text_Primary : T::Text_Disabled)));
+		}
+		RTShowIf(Avviso, bAvviso);
+	};
+	Chip(Slots.Main, ERTPlanChip::Main, MainChipFrame, MainChipStrip, MainChipValueText, MainChipAlert);
+	Chip(Slots.Movement, ERTPlanChip::Movement, MovementChipFrame, MovementChipStrip, MovementChipValueText, MovementChipAlert);
+	Chip(Slots.Reaction, ERTPlanChip::Reaction, ReactionChipFrame, ReactionChipStrip, ReactionChipValueText, ReactionChipAlert);
+
+	// Gli avvisi: una voce per avviso, dalla classe dei default; le voci che ci sono si riusano.
+	RTShowIf(PlanWarningsBox, LastWarnings.Num() > 0);
+	if (!PlanWarningsBox || !PlanWarningEntryClass)
+	{
+		return;
+	}
+	while (WarningEntries.Num() > LastWarnings.Num())
+	{
+		if (URTPlanWarningEntryWidget* Ultima = WarningEntries.Last())
+		{
+			Ultima->RemoveFromParent();
+		}
+		WarningEntries.Pop();
+	}
+	while (WarningEntries.Num() < LastWarnings.Num())
+	{
+		URTPlanWarningEntryWidget* Voce = RTCreateChild<URTPlanWarningEntryWidget>(*this, PlanWarningEntryClass);
+		if (!Voce)
+		{
+			return;
+		}
+		PlanWarningsBox->AddChild(Voce);
+		WarningEntries.Add(Voce);
+	}
+	if (bRicontati)
+	{
+		for (int32 i = 0; i < LastWarnings.Num(); ++i)
+		{
+			WarningEntries[i]->SetWarning(LastWarnings[i]);
+		}
+	}
+}
+
+void URTSelectedUnitPanelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceWarningRecount += InDeltaTime;
+	const bool bRiconta = SecondsSinceWarningRecount >= 0.2f;
+	if (bRiconta)
+	{
+		SecondsSinceWarningRecount = 0.f;
+	}
+	RefreshLook(bRiconta);
+}
+
+// =====================================================================================================
+// Il registro come la tavola D (#3637, T8)
+// =====================================================================================================
+
+namespace
+{
+	/** Il segno di una fase del turno, per la striscia e la sigla della riga. */
+	ERTActionPhaseMark RTMarkForPhase(ERTMatchPhase Phase)
+	{
+		switch (Phase)
+		{
+		case ERTMatchPhase::Prep:    return ERTActionPhaseMark::Prep;
+		case ERTMatchPhase::Dash:    return ERTActionPhaseMark::Dash;
+		case ERTMatchPhase::Blast:   return ERTActionPhaseMark::Blast;
+		case ERTMatchPhase::Move:    return ERTActionPhaseMark::Move;
+		case ERTMatchPhase::Cleanup: return ERTActionPhaseMark::Cleanup;
+		case ERTMatchPhase::Planning:
+		case ERTMatchPhase::MatchEnded: break;
+		}
+		return ERTActionPhaseMark::None;
+	}
+
+	bool RTSameLine(const FRTPlayerEventLineView& A, const FRTPlayerEventLineView& B)
+	{
+		return A.Text.EqualTo(B.Text) && A.Phase == B.Phase && A.Sequence == B.Sequence && A.bReaction == B.bReaction
+			&& A.Importance == B.Importance;
+	}
+}
+
+void URTPlayerEventLineWidget::SetLine(const FRTPlayerEventLineView& InLine)
+{
+	const bool bCambiata = !bHasLine || !RTSameLine(Line, InLine);
+	Line = InLine;
+	bHasLine = true;
+
+	using T = ERTUIToken;
+	const auto C = [](const ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	const ERTActionPhaseMark Segno = RTMarkForPhase(Line.Phase);
+
+	if (PhaseStrip)
+	{
+		PhaseStrip->SetBrushColor(RTPhaseStripColor(Segno));
+	}
+	if (PhaseLabelText)
+	{
+		PhaseLabelText->SetText(URTHudViewModel::PhaseMarkLabel(Segno));
+		PhaseLabelText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary))); // la sigla #E6EBF2; il «#n» #A9B4C2
+	}
+	if (SequenceText)
+	{
+		SequenceText->SetText(FText::FromString(FString::Printf(TEXT("#%d"), Line.Sequence)));
+		SequenceText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+	}
+	RTShowIf(ReactionBadge, Line.bReaction);
+	if (LineText)
+	{
+		LineText->SetText(Line.Text);
+		LineText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+
+	if (bCambiata)
+	{
+		OnLineChanged();
+	}
+}
+
+void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
+{
+	const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(GetTurnManager());
+	const bool bRisoluzione = HasMatchContext() && Header.bResolving;
+
+	// [D-496] punto 2: solo in Risoluzione. In Pianificazione la colonna destra resta libera.
+	RTShowIf(LogRoot, bRisoluzione);
+	if (LogTurnText)
+	{
+		FNumberFormattingOptions DueCifre;
+		DueCifre.MinimumIntegralDigits = 2;
+		DueCifre.UseGrouping = false;
+		LogTurnText->SetText(FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Header.Round, &DueCifre)));
+		LogTurnText->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
+	}
+
+	// All'ingresso in Risoluzione il feed si rilegge subito: le righe non aspettano il giro dei 5 Hz.
+	const bool bEntrata = bRisoluzione && !bLastResolving;
+	bLastResolving = bRisoluzione;
+	if (!bRisoluzione || !LinesBox || !LineClass || !(bRereadFeed || bEntrata))
+	{
+		return; // registro chiuso, pannello o classe non ancora dati dalla seduta, o non e' il giro di rilettura
+	}
+	const TArray<FRTPlayerEventLineView> Feed = GetFeed();
+	while (LineWidgets.Num() > Feed.Num())
+	{
+		if (URTPlayerEventLineWidget* Ultima = LineWidgets.Last())
+		{
+			Ultima->RemoveFromParent();
+		}
+		LineWidgets.Pop();
+	}
+	while (LineWidgets.Num() < Feed.Num())
+	{
+		URTPlayerEventLineWidget* Riga = RTCreateChild<URTPlayerEventLineWidget>(*this, LineClass);
+		if (!Riga)
+		{
+			return;
+		}
+		LinesBox->AddChild(Riga);
+		LineWidgets.Add(Riga);
+	}
+	for (int32 i = 0; i < Feed.Num(); ++i)
+	{
+		LineWidgets[i]->SetLine(Feed[i]);
+	}
+}
+
+void URTPlayerEventLogWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	SecondsSinceFeedReread += InDeltaTime;
+	const bool bRileggi = SecondsSinceFeedReread >= 0.2f;
+	if (bRileggi)
+	{
+		SecondsSinceFeedReread = 0.f;
+	}
+	RefreshLook(bRileggi);
 }

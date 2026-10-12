@@ -1,4 +1,6 @@
 #include "Map/RTHexMapActor.h"
+#include "HAL/IConsoleManager.h"
+extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: la leva della separazione in PIE
 #include "Map/RTStructuralBodyLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -636,7 +638,7 @@ void ARTHexMapActor::SetKnowledgeDebugEnabled(bool bEnabled, const FRTTeamKnowle
 	const TSet<FRTCellId> Explored(Knowledge.ExploredCells);
 
 	const float UseHexSize = Map->HexSize;
-	const float UseLayerH = Map->LayerHeight;
+	const float UseLayerH = GetPosedLayerHeight(); // #3632
 
 	// La mesh nasce alta `2 · RTCellPrismRadius`: la scala Z che le da' `Fraction · H` e' quel rapporto.
 	// Scritta cosi' invece che con un letterale, resta vera se una mappa cambia `LayerHeight`.
@@ -700,7 +702,7 @@ void ARTHexMapActor::GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembe
 	// posate — che tiene la promessa del commento qui sopra invece di romperla: se il disegno smettesse di
 	// funzionare, le due famiglie lette calerebbero e il complemento si gonfierebbe, cioe' il difetto si
 	// vedrebbe nei numeri. Un contatore memorizzato all'accensione, no.
-	const float UseLayerH = Map->LayerHeight;
+	const float UseLayerH = GetPosedLayerHeight(); // #3632
 	if (UseLayerH <= 0.f)
 	{
 		return;
@@ -783,7 +785,9 @@ ARTHexMapActor::ARTHexMapActor()
 	// col materiale di default della mesh engine le celle restano grigie e questi float sono inerti.
 	// Sta qui e non in `RebuildInstances` perche' `AddInstance` alloca i float alla creazione dell'istanza:
 	// impostarlo dopo lascerebbe le istanze gia' aggiunte senza spazio dove scrivere.
-	Cells->NumCustomDataFloats = 3;
+	// ➕ **Sei e non piu' tre, da #3679**: i canali 3..5 sono il trattamento del piano rispetto a quello attivo
+	// (`RTLayerPresentation`), neutro a zero. Glifi e griglia li portano anche loro; i fantasmi del piano no.
+	Cells->NumCustomDataFloats = RTLayerPresentation::NumCustomDataFloats;
 
 	// Segnaposto di COSTRUZIONE, sostituito dal prisma esagonale al primo `RebuildInstances` — che
 	// `OnConstruction` chiama sempre, quindi a schermo questo cilindro non arriva mai.
@@ -869,7 +873,7 @@ ARTHexMapActor::ARTHexMapActor()
 		SurfaceGlyphs[Ring]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		SurfaceGlyphs[Ring]->SetCollisionResponseToAllChannels(ECR_Ignore);
 		SurfaceGlyphs[Ring]->CastShadow = false;
-		SurfaceGlyphs[Ring]->NumCustomDataFloats = 3;
+		SurfaceGlyphs[Ring]->NumCustomDataFloats = RTLayerPresentation::NumCustomDataFloats; // colore + trattamento (#3679)
 	}
 
 	// 🔑 **I GHOST della timeline di pianificazione** (`CP 11.5`, `#172`): uno per fase del piano.
@@ -890,6 +894,8 @@ ARTHexMapActor::ARTHexMapActor()
 	PlanGhosts->CastShadow = false;
 	// Il colore per istanza porta il grado di CERTEZZA, che e' l'informazione che distingue un ghost
 	// confermato da uno previsto: senza custom data servirebbe un componente per livello.
+	// ⚠️ **Tre e non sei** (#3679): i fantasmi del piano non seguono il trattamento dei piani, come le unita'.
+	// `M_HexCell` legge i canali 3..5 col default a zero, quindi qui restano pieni.
 	PlanGhosts->NumCustomDataFloats = 3;
 
 	// I volumi di conoscenza (debug). Stessa disciplina degli altri — nessuna collisione, nessuna ombra — e
@@ -918,7 +924,7 @@ ARTHexMapActor::ARTHexMapActor()
 	CellBorders->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	CellBorders->SetCollisionResponseToAllChannels(ECR_Ignore);
 	CellBorders->CastShadow = false;
-	CellBorders->NumCustomDataFloats = 3;
+	CellBorders->NumCustomDataFloats = RTLayerPresentation::NumCustomDataFloats; // colore + trattamento (#3679)
 
 	KnowledgeVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("KnowledgeVolumes"));
 	KnowledgeVolumes->SetupAttachment(Cells);
@@ -1749,8 +1755,166 @@ const URTHexMapAsset* ARTHexMapActor::GetHexContext(FVector& OutOrigin, float& O
 	const URTHexMapAsset* Map = MapAsset;
 	OutOrigin = GetActorLocation();
 	OutHexSize = Map ? Map->HexSize : HexSize;
+	OutLayerHeight = GetPosedLayerHeight(); // #3632: la quota della board POSATA, separata in vista strategica
+	return Map;
+}
+
+const URTHexMapAsset* ARTHexMapActor::GetAuthoringHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const
+{
+	const URTHexMapAsset* Map = MapAsset;
+	OutOrigin = GetActorLocation();
+	OutHexSize = Map ? Map->HexSize : HexSize;
 	OutLayerHeight = Map ? Map->LayerHeight : LayerHeight;
 	return Map;
+}
+
+float ARTHexMapActor::GetPresentationSeparation() const
+{
+	if (!bStrategicPresentation)
+	{
+		return 1.f;
+	}
+	const float DaConsole = CVarRTMapStrategicLayerSeparation.GetValueOnGameThread();
+	const float Fattore = DaConsole > 0.f ? DaConsole : StrategicLayerSeparation;
+	return FMath::Clamp(Fattore, 1.f, 10.f);
+}
+
+float ARTHexMapActor::GetPresentationLayerHeight() const
+{
+	return (MapAsset ? MapAsset->LayerHeight : LayerHeight) * GetPresentationSeparation();
+}
+
+float ARTHexMapActor::GetPosedLayerHeight() const
+{
+	// La BASE e' quella corrente — asset, o actor se l'asset manca — come prima di #3632: si conserva solo il
+	// fattore con cui la board e' stata posata, cioe' la scelta di presentazione, non una quota che invecchia.
+	const float Fattore = AppliedLayerSeparation > 0.f ? AppliedLayerSeparation : GetPresentationSeparation();
+	return (MapAsset ? MapAsset->LayerHeight : LayerHeight) * Fattore;
+}
+
+bool ARTHexMapActor::SyncStrategicPresentation(bool bStrategic, float* OutPreviousLayerHeight)
+{
+	bStrategicPresentation = bStrategic;
+	if (AppliedLayerSeparation < 0.f)
+	{
+		// Mai posate: la prima ricostruzione la fara' chi allestisce la board, alla quota che la vista chiede.
+		return false;
+	}
+
+	// Chi posa le unita' le ha posate alla quota dell'ultimo giro; prima del primo, a quella della board.
+	const float Precedente = LastSyncedLayerHeight > 0.f ? LastSyncedLayerHeight : GetPosedLayerHeight();
+
+	if (!FMath::IsNearlyEqual(GetPresentationSeparation(), AppliedLayerSeparation))
+	{
+		// 🔴 **Il velo che la board MOSTRA, letto prima di ricostruirla.** La ricostruzione riporta ogni istanza
+		// alla scala piena, e la prima scrittura successiva e' uno snap: si riscrive nello stesso fotogramma
+		// lo stato che il velo stesso aveva scritto sul disco, cella per cella, e nessuna cella mai vista
+		// compare nemmeno per un frame.
+		//
+		// ⛔ **Non dalla conoscenza di squadra**, che questo actor non conserva: e' la regola di `D-242` che
+		// `RebuildInstances` dichiara per `KnowledgeVolumes`. Qui si rilegge cio' che e' gia' a schermo — due
+		// insiemi di celle, nessun contatto e nessun intento — e lo si ridisegna.
+		FRTTeamKnowledge Disegnata;
+		bool bVelata = false;
+		for (int32 I = 0; I < InstanceCells.Num() && I < LastVeilState.Num(); ++I)
+		{
+			const uint8 Stato = LastVeilState[I];
+			if (Stato == RTVeilUnwritten)
+			{
+				continue;
+			}
+			bVelata = true;
+			if (Stato == RTVeilLit)
+			{
+				Disegnata.VisibleCells.Add(InstanceCells[I]);
+			}
+			if (Stato == RTVeilLit || Stato == RTVeilRemembered)
+			{
+				Disegnata.ExploredCells.Add(InstanceCells[I]);
+			}
+		}
+
+		RebuildInstances(ERTRebuildFamily::All);
+		// Una board mai velata (editor, prove senza percezione) resta com'e': un velo vuoto la nasconderebbe tutta.
+		if (bVelata)
+		{
+			ApplyKnowledgeVeil(Disegnata);
+		}
+		SetPlanPreview(LastPlanPreview);
+	}
+
+	const float Posata = GetPosedLayerHeight();
+	LastSyncedLayerHeight = Posata;
+	if (FMath::IsNearlyEqual(Precedente, Posata))
+	{
+		return false;
+	}
+	if (OutPreviousLayerHeight)
+	{
+		*OutPreviousLayerHeight = Precedente;
+	}
+	return true;
+}
+
+bool ARTHexMapActor::SyncActiveLayerPresentation(int32 InActiveLayer)
+{
+	const FRTLayerPresentationTuning Leve = FRTLayerPresentationTuning::FromConsole();
+	if (bLayerPresentationApplied && PresentedActiveLayer == InActiveLayer && AppliedLayerTuning == Leve)
+	{
+		return false; // il caso di ogni fotogramma: niente da riscrivere
+	}
+	PresentedActiveLayer = InActiveLayer;
+	AppliedLayerTuning = Leve;
+	bLayerPresentationApplied = true;
+	ApplyLayerPresentation();
+	return true;
+}
+
+void ARTHexMapActor::ApplyLayerPresentation()
+{
+	// «A un piano» si misura sulle istanze disegnate, non sull'asset: con `ActiveOnly` l'editor ne disegna uno solo, e
+	// trattarlo rispetto a piani che non si vedono non avrebbe senso.
+	int32 MinLayer = TNumericLimits<int32>::Max();
+	int32 MaxLayer = TNumericLimits<int32>::Lowest();
+	for (const FRTCellId& Cell : InstanceCells)
+	{
+		MinLayer = FMath::Min(MinLayer, Cell.Layer);
+		MaxLayer = FMath::Max(MaxLayer, Cell.Layer);
+	}
+	const bool bMultiLayer = InstanceCells.Num() > 0 && MaxLayer > MinLayer;
+
+	// Una famiglia: per ogni istanza, il trattamento del piano della sua cella. `bBordo` sceglie l'esposizione del
+	// bordo, che sul piano attivo si marca mentre la cella resta piena.
+	auto Scrivi = [this, bMultiLayer](UInstancedStaticMeshComponent* Famiglia, const TArray<FRTCellId>& CelleDelleIstanze, bool bBordo)
+	{
+		if (Famiglia == nullptr || Famiglia->NumCustomDataFloats < RTLayerPresentation::NumCustomDataFloats
+			|| Famiglia->GetInstanceCount() != CelleDelleIstanze.Num())
+		{
+			return; // senza i canali, o con una mappatura stantia: il velo ha la stessa guardia
+		}
+		const int32 Primo = RTLayerPresentation::FirstChannel;
+		for (int32 I = 0; I < CelleDelleIstanze.Num(); ++I)
+		{
+			const FRTLayerTreatment T = RTLayerPresentation::Treatment(CelleDelleIstanze[I].Layer, PresentedActiveLayer,
+				bMultiLayer, AppliedLayerTuning);
+			Famiglia->SetCustomDataValue(I, Primo + 0, T.Transparency, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, Primo + 1, T.Desaturation, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, Primo + 2, bBordo ? T.BorderExposureStops : T.ExposureStops,
+				/*bMarkRenderStateDirty=*/ false);
+		}
+		// Una volta sola per famiglia, come il velo: marcarlo per canale ricostruirebbe il buffer 3N volte.
+		if (CelleDelleIstanze.Num() > 0)
+		{
+			Famiglia->MarkRenderStateDirty();
+		}
+	};
+
+	Scrivi(Cells, InstanceCells, /*bBordo=*/ false);
+	Scrivi(CellBorders, BorderCells, /*bBordo=*/ true);
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring], /*bBordo=*/ false);
+	}
 }
 
 bool ARTHexMapActor::PassesLayerFilter(int32 Layer) const
@@ -1860,8 +2024,11 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	if (bDoEdges)
 	{
 		EdgeFeatureCells.Reset();
+		EdgeFeatureOtherCells.Reset();
 		EdgeFeatureBaseScale.Reset();
 		LastEdgeFeatureVeilState.Reset();
+		// `#3687`: cio' che questa ricostruzione disegna, per sapere a fine turno se e' ancora vero.
+		CollectEdgeLayout(EdgeLayoutAtLastBuild);
 	}
 	if (bDoBorders)
 	{
@@ -1993,7 +2160,14 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
-	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
+	// #3632: la quota POSATA cambia solo con una ricostruzione intera. Una parziale — il velo che insegue una
+	// revisione dell'asset — ripone le sue famiglie alla quota delle altre: scrivendo la quota nuova, lascerebbe
+	// la board mista, e `SyncStrategicPresentation` la crederebbe gia' allineata.
+	if (Families == ERTRebuildFamily::All || AppliedLayerSeparation <= 0.f)
+	{
+		AppliedLayerSeparation = GetPresentationSeparation();
+	}
+	const float UseLayerH = GetPosedLayerHeight();
 
 	// Filtro layer (H4): `PassesLayerFilter` (sopra) e' l'unica regola, condivisa con
 	// `RebuildCoordinateLabels` — non piu' una lambda locale, per non avere due formule dello stesso filtro.
@@ -2235,6 +2409,8 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 				EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
 				// Una per copertura e una per porta, quindi piu' istanze sulla stessa cella ([D-227]).
 				EdgeFeatureCells.Add(CellIds[I]);
+				// `#3691`: e la cella dall'altra parte del bordo, che il velo guarda insieme alla prima.
+				EdgeFeatureOtherCells.Add(URTHexLibrary::Neighbor(CellIds[I], Edge));
 				EdgeFeatureBaseScale.Add(PanelXf.GetScale3D());
 			};
 
@@ -2309,6 +2485,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// Il SECONDO sito che monta pannelli di bordo: i muri interni. Dimenticarlo qui lascerebbe
 			// disallineati gli indici di TUTTI i pannelli, non solo dei suoi ([D-227]).
 			EdgeFeatureCells.Add(Wall.Cell);
+			EdgeFeatureOtherCells.Add(Wall.Cell); // `#3691`: un muro interno non ha un altro lato
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
 	}
@@ -2328,7 +2505,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	if (bDoBodies && StructuralBodies && MapAsset != nullptr && CellShape != nullptr)
 	{
 		const FVector ActorOrigin = GetActorLocation();
-		for (const FRTStructuralBody& Body : URTStructuralBodyLibrary::DeriveBodies(MapAsset))
+		for (const FRTStructuralBody& Body : URTStructuralBodyLibrary::DeriveBodies(MapAsset, GetPosedLayerHeight()))
 		{
 			if (!PassesLayerFilter(Body.Cell.Layer))
 			{
@@ -2385,6 +2562,13 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		{
 			for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring) { LastRebuildCreated += Conta(SurfaceGlyphs[Ring]); }
 		}
+	}
+
+	// #3679: le istanze nuove nascono coi canali del trattamento a zero, cioe' neutre. Se chi guarda aveva gia' un piano
+	// attivo, il trattamento si riscrive nello stesso fotogramma: la board non torna piatta per una ricostruzione.
+	if (bLayerPresentationApplied)
+	{
+		ApplyLayerPresentation();
 	}
 
 	// ➕ **La mappatura cella→istanza si e' mossa** (`#2761`): il guardiano di identita' la riverifica al
@@ -2707,7 +2891,10 @@ bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId
 
 // Il velo MOLTIPLICA l'RGB lineare invece di aggiungere un quarto float: il quarto float richiederebbe di
 // toccare `M_HexCell.uasset` — un binario, human-first, un lavoro per volta — per un risultato che il
-// ricalcolo ottiene gia'. `NumCustomDataFloats` resta **3**.
+// ricalcolo ottiene gia'.
+// ➕ Da #3679 i float sono sei, ma i canali 0..2 restano del velo e del colore: il trattamento dei piani sta nei
+// canali 3..5 (`SyncActiveLayerPresentation`), e il materiale lo applica DOPO di loro. Le due scritture non si
+// toccano, quindi il velo non sa niente del piano attivo e il trattamento niente del velo.
 
 ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 {
@@ -2724,11 +2911,52 @@ ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 	return ERTHexSurface::Floor;
 }
 
+void ARTHexMapActor::CollectEdgeLayout(TArray<int32>& Out) const
+{
+	Out.Reset();
+	if (!MapAsset)
+	{
+		return; // il ramo demo non ha bordi d'autore
+	}
+
+	// L'ordine e' quello dell'asset, che e' anche quello in cui `RebuildInstances` posa i pannelli: due
+	// letture dello stesso asset danno la stessa sequenza. Un marcatore di tipo davanti a ogni voce, cosi'
+	// una porta e una copertura con gli stessi numeri non si confondono.
+	for (const FRTHexCellData& C : MapAsset->Cells)
+	{
+		if (C.Covers.Num() == 0 && C.Doors.Num() == 0)
+		{
+			continue;
+		}
+		// L'altezza della cella entra perche' il pannello si posa sulla sua quota (`AddEdgePanel`).
+		Out.Append({ 0, C.Id.X, C.Id.Y, C.Id.Layer, C.Height });
+		for (const FRTHexCover& Cover : C.Covers)
+		{
+			Out.Append({ 1, static_cast<int32>(Cover.Edge), static_cast<int32>(Cover.Type) });
+		}
+		for (const FRTHexDoor& Door : C.Doors)
+		{
+			Out.Append({ 2, static_cast<int32>(Door.Edge), static_cast<int32>(Door.State) });
+		}
+	}
+	// I muri interni non cambiano in partita oggi, ma stanno nella stessa famiglia: lasciarli fuori
+	// renderebbe questo confronto cieco al primo produttore che li toccasse. Entra tutto cio' che il disegno
+	// legge: il segmento intero (`ToPolyline`), il tipo e la quota della cella.
+	for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
+	{
+		const FRTHexCellData* Dati = MapAsset->FindCell(Wall.Cell);
+		Out.Append({ 3, Wall.Cell.X, Wall.Cell.Y, Wall.Cell.Layer, Dati ? Dati->Height : 0,
+			static_cast<int32>(Wall.Segment.WallType), static_cast<int32>(Wall.Segment.Axis), Wall.Segment.Offset,
+			Wall.Segment.AlongStart, Wall.Segment.AlongEnd, Wall.Segment.Layer });
+	}
+}
+
 int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	const TArray<FRTCellId>& CellsOfInstance, const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
 	TArray<float>* DisplayFactor,
 	const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor)
+	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor,
+	const TArray<FRTCellId>* OtherCellOfInstance)
 {
 	if (!Component || CellsOfInstance.Num() == 0)
 	{
@@ -2769,8 +2997,12 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
 	{
 		const FRTCellId& Cell = CellsOfInstance[I];
-		const bool bVisible = Visible.Contains(Cell);
-		const bool bKnown = bVisible || Explored.Contains(Cell);
+		// `#3691`: per un pannello di bordo conta il lato piu' visibile dei due. ⚠️ Una mappatura parallela
+		// disallineata ricade sulla sola cella mappata, cioe' sul velo di prima: mai piu' visibile di cosi'.
+		const FRTCellId* Altra = (OtherCellOfInstance && OtherCellOfInstance->Num() == CellsOfInstance.Num())
+			? &(*OtherCellOfInstance)[I] : nullptr;
+		const bool bVisible = Visible.Contains(Cell) || (Altra && Visible.Contains(*Altra));
+		const bool bKnown = bVisible || Explored.Contains(Cell) || (Altra && Explored.Contains(*Altra));
 		const uint8 State = bVisible ? RTVeilLit : (bKnown ? RTVeilRemembered : RTVeilHidden);
 		const uint8 Precedente = LastState[I];
 
@@ -2868,7 +3100,7 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 	}
 
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
-	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
+	const float UseLayerH = GetPosedLayerHeight(); // #3632
 	// Un quarto del passo fra due celle: molto sotto la distanza fra due centri vicini — quindi una
 	// permutazione la supera sempre — e molto sopra il rumore di un `float` in spazio mondo.
 	const double Tolleranza = FMath::Max(1.0, static_cast<double>(UseHexSize) * 0.25);
@@ -3089,7 +3321,7 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 	}
 
 	const float UseHexSize = MapAsset->HexSize;
-	const float UseLayerH = MapAsset->LayerHeight;
+	const float UseLayerH = GetPosedLayerHeight(); // #3632
 
 	TArray<int32> DiscIndices;
 	DiscIndices.Reserve(Ids.Num());
@@ -3249,6 +3481,11 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 			SurfaceGlyphs[Ring]->MarkRenderStateDirty();
 		}
 	}
+	// #3679: un glifo montato qui nasce col trattamento a zero, cioe' pieno anche su un piano traslucido.
+	if (bLayerPresentationApplied)
+	{
+		ApplyLayerPresentation();
+	}
 	return true;
 }
 
@@ -3280,7 +3517,7 @@ bool ARTHexMapActor::AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& I
 	// ➕ **La posa viene dalla sede condivisa**, la stessa che `RebuildInstances` usa: due siti che posano la
 	// stessa istanza con due copie della formula divergono al primo che ne cambia una, e il confronto di
 	// `IncrementalRepaintEqualsFullRebuild` se ne accorgerebbe solo sui canali che guarda.
-	const FTransform GlyphXf = GlyphTransformForCell(Id, Data->Height, MapAsset->HexSize, MapAsset->LayerHeight);
+	const FTransform GlyphXf = GlyphTransformForCell(Id, Data->Height, MapAsset->HexSize, GetPosedLayerHeight());
 
 	const int32 GlyphIndex = SurfaceGlyphs[RingIndex]->AddInstance(GlyphXf, /*bWorldSpace=*/ true);
 	GlyphCells[RingIndex].Add(Id);
@@ -3389,6 +3626,21 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 			RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs
 				| ERTRebuildFamily::SurfaceVolumes);
 		}
+
+		// 🔴 **E i BORDI, che fino a `#3687` questo blocco non guardava.** Un muro abbattuto nel Blast, una
+		// copertura eretta in Prep, una porta aperta: la simulazione li applica alla copia di lavoro e muove
+		// `Revision`, ma le tre famiglie qui sopra sono quelle della SUPERFICIE. I pannelli restavano quelli
+		// della costruzione fino alla prossima ricostruzione completa, cioe' fino al `Tab`.
+		//
+		// ⚠️ **Solo se cio' che i bordi dichiarano e' cambiato**, non a ogni revisione: una pennellata di superficie
+		// muove `Revision` e non tocca nessun bordo, e ricostruire `EdgeFeatures` per lei riporterebbe il
+		// costo a seguire la mappa invece della modifica (`HexMapActor.EditCostScalesWithTheEditNotTheMap`).
+		TArray<int32> Bordi;
+		CollectEdgeLayout(Bordi);
+		if (Bordi != EdgeLayoutAtLastBuild)
+		{
+			RebuildInstances(ERTRebuildFamily::EdgeFeatures);
+		}
 	}
 
 	// Appartenenza puntuale, ripetuta una volta per istanza: `TSet` e non `TArray::Contains`, che su 7 651
@@ -3470,8 +3722,9 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		nullptr, Visible, Explored, SenzaColore);
 	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored,
 		SenzaColore);
+	// `#3691`, [D-502] (d): un pannello di bordo si vede da un lato qualunque.
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
-		nullptr, Visible, Explored, SenzaColore);
+		nullptr, Visible, Explored, SenzaColore, &EdgeFeatureOtherCells);
 
 	// 🔴 **La NONA famiglia, che fino a `#2731` non passava di qui** — e non per una riga dimenticata: il
 	// suo sito di `AddInstance` non registrava nessuna cella, quindi non c'era niente da velare. Su una

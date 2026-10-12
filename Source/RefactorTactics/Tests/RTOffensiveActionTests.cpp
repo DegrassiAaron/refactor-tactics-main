@@ -449,6 +449,9 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 	FRTHexAttackIntent Intent;
 	Intent.AttackerId = 0;
 	Intent.TargetId = 1;
+	// [D-415]: la mira sta nell'intento. Qui e' il CENTRO dell'area, ed e' il dato che decide chi ci finisce
+	// dentro — l'identita' del bersaglio serve solo all'ingaggio.
+	Intent.TargetCell = Units[1].Cell;
 	Intent.Shape = ERTAbilityShape::Area;
 	Intent.AreaRadius = 1;
 	Intent.RangeCells = Def.RangeCells;
@@ -481,6 +484,7 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 	// intento da scartare in silenzio.
 	FRTHexAttackIntent OnAlly = Intent;
 	OnAlly.TargetId = 2;
+	OnAlly.TargetCell = Units[2].Cell;   // ⚠️ centrare sull'alleato vuol dire spostare anche la MIRA
 	const FRTHexBlastPlan AllyPlan = URTHexCombatLibrary::CollectHexAttacks(Units, { OnAlly }, Map);
 	TestTrue(TEXT("centrata sull'alleato, esplode lo stesso"), AllyPlan.Hits.Num() >= 1);
 	return true;

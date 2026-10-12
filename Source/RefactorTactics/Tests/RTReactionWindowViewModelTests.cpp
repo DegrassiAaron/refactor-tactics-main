@@ -7,13 +7,20 @@
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
 #include "RTGameMode.h"
+#include "Tests/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/RTAbilityFixtures.h"
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "UI/RTReactionWindowViewModel.h"
 #include "UI/RTScreenHudWidgets.h" // URTFastDecisionWidget: la meta' UI delle voci 2 · 3 · 4 di CP 14.6
+#include "UI/RTReactionResponseText.h" // nome e frase delle risposte (#3615)
+#include "Ability/RTCatalogLibrary.h"   // BraceExecutableResponses: le risposte offribili si chiedono a chi le produce
 #include "Unit/RTUnit.h"
+#include "UI/RTUIPalette.h"         // i colori della resa della tavola E (#3634)
+#include "Components/Border.h"
+#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -173,6 +180,7 @@ bool FRTReactionVmProductionBindingTest::RunTest(const FString&)
 
 	// --- 3. LA PROVA: una finestra si apre DAVVERO --------------------------------------------------
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	TestTrue(TEXT("la resolution si e' sospesa: una finestra attende"), TM->IsResolutionSuspended());
 	TestTrue(TEXT("e il view model la sta tenendo"), ViewModel->IsWindowOpen());
@@ -228,6 +236,7 @@ bool FRTReactionVmNoClientNoBindingTest::RunTest(const FString&)
 	// 🔑 **E il modello sincrono resta identico a se stesso**: nessuna finestra, nessuna sospensione, il
 	// turno si risolve come prima di questa issue.
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	TestFalse(TEXT("nessuna finestra ha sospeso la resolution"), TM->IsResolutionSuspended());
 	TestTrue(TEXT("l'id della finestra aperta e' vuoto: non ne e' mai stata aperta una"),
@@ -286,6 +295,7 @@ bool FRTReactionVmRemainingSecondsTest::RunTest(const FString&)
 		ViewModel->GetRemainingSeconds() < 0.f);
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("una finestra attende"), TM->IsResolutionSuspended()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -359,6 +369,7 @@ bool FRTReactionVmSubmitOverwatchTest::RunTest(const FString&)
 	URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("una finestra dell'Overwatch attende"), ViewModel->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -434,6 +445,7 @@ bool FRTReactionVmSubmitBraceTest::RunTest(const FString&)
 	URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("una finestra del `Brace` attende"), ViewModel->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -504,6 +516,7 @@ bool FRTReactionVmStaleResponseTest::RunTest(const FString&)
 	URTReactionWindowViewModel* Primo = PC->GetReactionWindowViewModel();
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("la finestra A attende"), Primo->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -595,6 +608,7 @@ bool FRTReactionVmBotOwnerTest::RunTest(const FString&)
 	TestTrue(TEXT("il delegate e' legato: un client c'e'"), TM->OnReactionWindowOpened.IsBound());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 
 	TestFalse(TEXT("nessuna finestra ha raggiunto il view model"), ViewModel->IsWindowOpen());
 	TestFalse(TEXT("la resolution non si e' sospesa"), TM->IsResolutionSuspended());
@@ -678,6 +692,7 @@ bool FRTFastDecisionReadsWindowTest::RunTest(const FString&)
 
 	// --- 3. La finestra si apre DAVVERO, e il widget la legge ----------------------------------------
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: la resolution si e' sospesa"), TM->IsResolutionSuspended()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -746,6 +761,7 @@ bool FRTFastDecisionChoosesByIndexTest::RunTest(const FString&)
 	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Widget->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -828,6 +844,7 @@ bool FRTFastDecisionVisibilityFollowsOpennessTest::RunTest(const FString&)
 	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Widget->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -936,6 +953,7 @@ bool FRTFastDecisionWindowChangedTest::RunTest(const FString&)
 	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: la finestra A attende"), Widget->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -1026,6 +1044,7 @@ bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
 	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
 
 	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 	if (!TestTrue(TEXT("premessa: una finestra attende"), Finestra->IsWindowOpen()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -1143,6 +1162,7 @@ bool FRTReactionSlowMotionRestoresTest::RunTest(const FString&)
 			FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, 1.f, 1e-3f));
 
 		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
 		if (!TestTrue(*FString::Printf(TEXT("%s: premessa — una finestra attende"), Etichetta),
 				TM->IsResolutionSuspended()))
 		{
@@ -1205,6 +1225,376 @@ bool FRTReactionSlowMotionRestoresTest::RunTest(const FString&)
 
 	Esegui(/*bRispondi=*/ true, TEXT("uscita per RISPOSTA"));
 	Esegui(/*bRispondi=*/ false, TEXT("uscita per SCADENZA"));
+	return true;
+}
+
+/**
+ * 🔑 **IL TASTO DELLA POSIZIONE i SCEGLIE L'OPZIONE i** ([D-491], #3615), e il badge dice quel tasto.
+ *
+ * La finestra si apre durante la risoluzione, quando i tasti del kit sono rifiutati ([D-468]): senza
+ * l'instradamento di `SelectAbilityForCurrent` nessun tasto la raggiunge. La prova non e' «la finestra si e'
+ * chiusa», che direbbe vero anche se il tasto scegliesse sempre la prima opzione: e' il TOKEN che il TurnLog
+ * registra con esito `Chosen`, e si sceglie un'opzione che NON e' la prima.
+ *
+ * ⚠️ Prima, il tasto di una posizione senza opzione: non inoltra niente e la finestra resta quella. E le
+ * LETTERE generiche, con un'unita' selezionata che le ha nel kit: arrivano a `SelectAbilityForCurrent` per la
+ * posizione della generica, e la review di #3615 ha trovato che un instradamento messo la' le faceva scegliere
+ * un'opzione ([D-397] §4 lega la lettera all'`ActionId`). Devono lasciare la finestra com'e', senza warning.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionHotkeyChoosesOptionTest,
+	"RefactorTactics.Reactions.ViewModel.HotkeyChoosesTheOptionInItsPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionHotkeyChoosesOptionTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Finestra = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Finestra))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+	const FRTReactionWindowView Vista = PC->GetReactionWindowViewModel()->GetWindow();
+	if (!TestTrue(TEXT("premessa: una finestra dell'Overwatch attende chi guarda"), Vista.bOpen)
+		|| !TestTrue(TEXT("premessa: la finestra offre piu' di una risposta"), Vista.Options.Num() > 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 Scelta = Vista.Options.Num() - 1;  // NON la prima
+	const FString Attesa = Vista.Options[Scelta].Response;
+	if (!TestNotEqual(TEXT("premessa: l'opzione scelta non e' la prima"), Attesa, Vista.Options[0].Response))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1. I BADGE: ogni bottone dice il tasto della propria posizione, e un nome, non il token -------------
+	for (int32 i = 0; i < Vista.Options.Num(); ++i)
+	{
+		const URTFastDecisionOptionWidget* Bottone =
+			Finestra->MakeOptionWidget(URTFastDecisionOptionWidget::StaticClass(), i);
+		if (!TestNotNull(*FString::Printf(TEXT("il bottone %d e' stato costruito"), i), Bottone)) { continue; }
+		TestEqual(*FString::Printf(TEXT("il badge del bottone %d e' il tasto della posizione %d"), i, i),
+			Bottone->GetKeyLabel().ToString(), ARTPlayerController::ReactionOptionKeyLabel(i).ToString());
+		TestFalse(*FString::Printf(TEXT("il bottone %d ha un tasto"), i), Bottone->GetKeyLabel().IsEmpty());
+		TestFalse(*FString::Printf(TEXT("il bottone %d ha una frase"), i), Bottone->GetOptionDescription().IsEmpty());
+		if (URTReactionOpportunityLibrary::FireResponseTarget(Vista.Options[i].Response) != INDEX_NONE)
+		{
+			TestEqual(TEXT("una risposta FIRE si chiama FIRE, non col suo token"),
+				Bottone->GetOptionLabel().ToString(), FString(TEXT("FIRE")));
+		}
+	}
+
+	// --- 2. FAIL-CLOSED: il tasto di una posizione senza opzione non inoltra niente ----------------------------
+	const FString IdAperta = TM->GetOpenReactionWindowId();
+	AddExpectedError(TEXT("FastDecision: opzione .* fuori range"), EAutomationExpectedErrorFlags::Contains, 1);
+	PC->PressKitHotkeyForTest(Vista.Options.Num());
+	TestEqual(TEXT("un tasto senza opzione lascia aperta la stessa finestra"), TM->GetOpenReactionWindowId(), IdAperta);
+
+	// --- 2-bis. LE LETTERE GENERICHE non scelgono un'opzione -------------------------------------------------
+	PC->SelectActorForTest(Watcher);
+	int32 LetterePremute = 0;
+	for (int32 Riga = 0; Riga < ARTPlayerController::GenericHotkeys().Num(); ++Riga)
+	{
+		const FName Generica = ARTPlayerController::GenericHotkeys()[Riga].Key;
+		bool bNelKit = false;
+		for (int32 i = 0; i < Watcher->NumAbilities(); ++i)
+		{
+			bNelKit |= (Watcher->GetAbility(i) && Watcher->GetAbility(i)->Def.ActionId == Generica);
+		}
+		if (!bNelKit) { continue; } // fuori dal kit la lettera non arriva al punto comune: non proverebbe niente
+		PC->PressGenericHotkeyForTest(Riga);
+		++LetterePremute;
+		TestEqual(*FString::Printf(TEXT("la lettera di `%s` lascia aperta la stessa finestra"), *Generica.ToString()),
+			TM->GetOpenReactionWindowId(), IdAperta);
+	}
+	TestTrue(TEXT("premessa: almeno una lettera generica e' nel kit di chi guarda"), LetterePremute > 0);
+
+	// --- 3. LA SCELTA: il tasto della posizione `Scelta` ----------------------------------------------------
+	PC->PressKitHotkeyForTest(Scelta);
+	TestTrue(TEXT("il tasto ha chiuso la finestra a cui rispondeva"), TM->GetOpenReactionWindowId() != IdAperta);
+
+	for (int32 Giri = 0; TM->IsResolutionSuspended() && Giri < 200; ++Giri)
+	{
+		TM->Tick(0.05f);
+	}
+	const FRTTurnLogEntry* Decisione = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.Outcome == static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+	});
+	if (TestNotNull(TEXT("il TurnLog registra una decisione scelta"), (const void*)Decisione))
+	{
+		TestEqual(*FString::Printf(TEXT("e il token e' quello dell'opzione in posizione %d"), Scelta),
+			Decisione->ReactionResponse, Attesa);
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Ogni risposta che una finestra puo' offrire ha un nome e una frase** ([D-491], #3615).
+ *
+ * Le risposte offribili si chiedono a chi le produce, non si elencano qui: `HOLD` e `FIRE:<i>` dalla libreria
+ * delle opportunity, `Hold Ground` e le manovre da `BraceExecutableResponses` per ogni profilo del catalogo.
+ * Una manovra nuova in un profilo, senza una voce in `RTReactionResponseText`, fa fallire questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionResponseTextCoversTest,
+	"RefactorTactics.Reactions.EveryOfferedResponseHasANameAndADescription",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionResponseTextCoversTest::RunTest(const FString&)
+{
+	TArray<FString> Offribili = {
+		URTReactionOpportunityLibrary::HoldResponse(),
+		URTReactionOpportunityLibrary::FireResponse(0),
+		URTReactionOpportunityLibrary::FireResponse(7) };
+	Offribili.Append(URTCatalogLibrary::BraceExecutableResponses(NAME_None));
+	for (const FRTReactionProfileDef& Profilo : URTCatalogLibrary::GetReactionProfileCatalog())
+	{
+		for (const FString& Risposta : URTCatalogLibrary::BraceExecutableResponses(Profilo.ProfileId))
+		{
+			Offribili.AddUnique(Risposta);
+		}
+	}
+
+	for (const FString& Risposta : Offribili)
+	{
+		const FText Nome = RTReactionResponseText::NameFor(Risposta);
+		TestFalse(*FString::Printf(TEXT("`%s` ha una frase"), *Risposta), RTReactionResponseText::DescriptionFor(Risposta).IsEmpty());
+		TestFalse(*FString::Printf(TEXT("`%s` ha un nome"), *Risposta), Nome.IsEmpty());
+		TestFalse(*FString::Printf(TEXT("il nome di `%s` non contiene l'indice del bersaglio"), *Risposta),
+			Nome.ToString().Contains(TEXT(":")));
+	}
+
+	// Una risposta che la tabella non conosce resta leggibile: il bottone mostra il token, non un vuoto.
+	TestEqual(TEXT("una risposta sconosciuta mostra il proprio token"),
+		RTReactionResponseText::NameFor(TEXT("TOKEN_SCONOSCIUTO")).ToString(), FString(TEXT("TOKEN_SCONOSCIUTO")));
+	TestTrue(TEXT("e non inventa una frase"), RTReactionResponseText::DescriptionFor(TEXT("TOKEN_SCONOSCIUTO")).IsEmpty());
+	return true;
+}
+
+/**
+ * **Il tasto di un'opzione e' il tasto del kit nella stessa posizione** ([D-491], #3615): il badge e il tasto
+ * che risponde vengono dalla stessa lista, `AbilityHotkeys()`. Oltre l'ultimo tasto non c'e' badge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionOptionKeyLabelTest,
+	"RefactorTactics.PlayerInput.ReactionOptionKeyIsTheKitKeyOfItsPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionOptionKeyLabelTest::RunTest(const FString&)
+{
+	const TArray<FKey>& Tasti = ARTPlayerController::AbilityHotkeys();
+	if (!TestTrue(TEXT("premessa: il kit ha dei tasti"), Tasti.Num() > 0)) { return false; }
+	for (int32 i = 0; i < Tasti.Num(); ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("l'opzione %d si sceglie col tasto %s"), i, *Tasti[i].ToString()),
+			ARTPlayerController::ReactionOptionKeyLabel(i).ToString(), Tasti[i].GetDisplayName(false).ToString());
+	}
+	TestTrue(TEXT("oltre l'ultimo tasto nessun badge"), ARTPlayerController::ReactionOptionKeyLabel(Tasti.Num()).IsEmpty());
+	TestTrue(TEXT("e nemmeno prima del primo"), ARTPlayerController::ReactionOptionKeyLabel(INDEX_NONE).IsEmpty());
+	return true;
+}
+
+/**
+ * 🔑 **LA FINESTRA COME LA TAVOLA E** (#3634, T8): la barra del countdown, «Allo scadere: …», la cornice e la
+ * striscia; e per ogni opzione il tasto, la frase, la cornice e il chip della scelta sicura.
+ *
+ * ⚠️ **La frazione si misura DOPO che l'orologio e' scorso.** Appena aperta vale circa 1, e un `return 1.f`
+ * passerebbe: il test fa scorrere un secondo della finestra e confronta col residuo autorevole.
+ *
+ * ⚠️ **Le opzioni passano da `SetOption` a mano, e qui e' l'unica via.** `MakeOptionWidget` crea il bottone dalla
+ * classe, e in una run headless la classe C++ non ha l'albero del `.uasset`: le porte resterebbero nulle. La via
+ * di produzione e la scelta di QUALE opzione e' sicura le misura `FastDecisionOptionForwardsItsOwnIndex`; qui si
+ * misura cio' che `SetOption` scrive nelle porte, con la stessa regola (`Response == SafeResponse`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionLookFollowsTheBoardTest,
+	"RefactorTactics.ScreenHud.FastDecisionLookFollowsTheBoard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Finestra = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Finestra))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+	const auto Cornice = [World]()
+	{
+		UBorder* B = NewObject<UBorder>(World);
+		FSlateBrush Brush = B->Background;
+		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+		B->SetBrush(Brush);
+		return B;
+	};
+	const auto Contorno = [](const UBorder* B) { return B->Background.OutlineSettings.Color.GetSpecifiedColor(); };
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+
+	Finestra->WindowFrame = Cornice();
+	Finestra->AccentStrip = NewObject<UBorder>(World);
+	Finestra->CountdownBar = NewObject<UProgressBar>(World);
+	Finestra->SafeOutcomeText = NewObject<UTextBlock>(World);
+
+	// --- A. Nessuna finestra: frazione negativa, «Allo scadere» vuoto, barra a zero ------------------------
+	// La barra parte a meta': nasce a zero, e senza questo l'asserto sotto passerebbe anche senza `RefreshLook`.
+	Finestra->CountdownBar->SetPercent(0.5f);
+	Finestra->RefreshLook();
+	TestTrue(TEXT("A: senza finestra la frazione e' negativa"), Finestra->GetCountdownFraction() < 0.f);
+	TestTrue(TEXT("A: e «Allo scadere» e' vuoto"), Finestra->GetSafeOutcomeText().IsEmpty());
+	TestEqual(TEXT("A: la barra non va sotto lo zero"), Finestra->CountdownBar->GetPercent(), 0.f);
+	TestTrue(TEXT("A: la cornice ha il fondo BG_Deep"), Finestra->WindowFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_Deep)));
+	TestTrue(TEXT("A: e il contorno White"), Contorno(Finestra->WindowFrame).Equals(Colore(ERTUIToken::White)));
+	TestEqual(TEXT("A: di 2 px, come la tavola"), Finestra->WindowFrame->Background.OutlineSettings.Width, 2.f);
+	TestTrue(TEXT("A: la striscia e' Violet"), Finestra->AccentStrip->GetBrushColor().Equals(Colore(ERTUIToken::Violet)));
+
+	// --- B. Una finestra vera, con un secondo gia' passato ---------------------------------------------------
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+	if (!TestTrue(TEXT("premessa: una finestra attende"), Finestra->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FRTReactionWindowView Vista = Finestra->GetWindow();
+	if (!TestTrue(TEXT("premessa: la finestra ha una durata"), Vista.WindowSeconds > 1.5f)
+		|| !TestTrue(TEXT("premessa: offre piu' di una risposta"), Vista.Options.Num() > 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	for (int32 Giro = 0; Giro < 20 && Finestra->IsWindowOpen(); ++Giro)
+	{
+		TM->Tick(0.05f);
+	}
+	if (!TestTrue(TEXT("premessa: dopo un secondo la finestra e' ancora aperta"), Finestra->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const float Frazione = Finestra->GetCountdownFraction();
+	TestTrue(TEXT("B: la frazione e' il residuo autorevole sulla durata"),
+		FMath::IsNearlyEqual(Frazione, Finestra->GetRemainingSeconds() / Vista.WindowSeconds, 1e-3f));
+	TestTrue(TEXT("B: e dopo un secondo non e' piu' piena"), Frazione < 0.9f);
+	TestTrue(TEXT("B: ma nemmeno vuota"), Frazione > 0.1f);
+	TestEqual(TEXT("B: allo scadere si applica la scelta sicura, col suo nome (HOLD nell'Overwatch)"),
+		Finestra->GetSafeOutcomeText().ToString(), FString(TEXT("Allo scadere: HOLD")));
+
+	Finestra->RefreshLook();
+	TestTrue(TEXT("B: la barra segue la frazione"), FMath::IsNearlyEqual(Finestra->CountdownBar->GetPercent(), Frazione, 1e-3f));
+	TestTrue(TEXT("B: il riempimento e' White"), Finestra->CountdownBar->GetFillColorAndOpacity().Equals(Colore(ERTUIToken::White)));
+	TestEqual(TEXT("B: la porta dice «Allo scadere»"), Finestra->SafeOutcomeText->GetText().ToString(), FString(TEXT("Allo scadere: HOLD")));
+	TestTrue(TEXT("B: in Text_Primary"), Finestra->SafeOutcomeText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Primary)));
+
+	// --- C. Le opzioni: tasto, frase, cornice, chip della scelta sicura ---------------------------------------
+	int32 Sicure = 0;
+	for (int32 i = 0; i < Vista.Options.Num(); ++i)
+	{
+		URTFastDecisionOptionWidget* Opzione = NewObject<URTFastDecisionOptionWidget>(World);
+		Opzione->OptionFrame = Cornice();
+		Opzione->KeyText = NewObject<UTextBlock>(World);
+		Opzione->DescriptionText = NewObject<UTextBlock>(World);
+		Opzione->SafeChoiceBadge = NewObject<UBorder>(World);
+		const FString& Risposta = Vista.Options[i].Response;
+		const bool bSicura = Risposta == Vista.SafeResponse;
+		Sicure += bSicura ? 1 : 0;
+		Opzione->SetOption(Finestra, Vista.Options[i], i, bSicura);
+
+		const FString Etichetta = FString::Printf(TEXT("C[%d] %s"), i, *Risposta);
+		TestEqual(*(Etichetta + TEXT(": il badge e' il tasto del kit in quella posizione")),
+			Opzione->KeyText->GetText().ToString(), ARTPlayerController::ReactionOptionKeyLabel(i).ToString());
+		TestFalse(*(Etichetta + TEXT(": e non e' vuoto")), Opzione->KeyText->GetText().IsEmpty());
+		TestEqual(*(Etichetta + TEXT(": la frase e' quella della risposta")),
+			Opzione->DescriptionText->GetText().ToString(), RTReactionResponseText::DescriptionFor(Risposta).ToString());
+		TestFalse(*(Etichetta + TEXT(": e non e' vuota")), Opzione->DescriptionText->GetText().IsEmpty());
+		TestTrue(*(Etichetta + TEXT(": la frase e' Text_Secondary")),
+			Opzione->DescriptionText->GetColorAndOpacity().GetSpecifiedColor().Equals(Colore(ERTUIToken::Text_Secondary)));
+		TestTrue(*(Etichetta + TEXT(": il fondo e' BG_Raised")), Opzione->OptionFrame->GetBrushColor().Equals(Colore(ERTUIToken::BG_Raised)));
+		TestEqual(*(Etichetta + TEXT(": il chip c'e' solo sulla scelta sicura")), Visibile(Opzione->SafeChoiceBadge), bSicura);
+		TestTrue(*(Etichetta + TEXT(": il contorno e' Text_Primary sulla sicura, Frame_Mid sulle altre")),
+			Contorno(Opzione->OptionFrame).Equals(Colore(bSicura ? ERTUIToken::Text_Primary : ERTUIToken::Frame_Mid)));
+		TestEqual(*(Etichetta + TEXT(": di 2 px sulla sicura, 1 sulle altre")),
+			Opzione->OptionFrame->Background.OutlineSettings.Width, bSicura ? 2.f : 1.f);
+	}
+	TestEqual(TEXT("C: una sola opzione porta il chip"), Sicure, 1);
+	RTWorldFixtures::DestroyWorld(World);
+
+	// --- D. Nel `Brace` la scelta sicura e' «Hold Ground»: «Allo scadere» dice il NOME, non la risposta grezza -----
+	// Nell'Overwatch nome e risposta coincidono («HOLD»), e un `SafeResponse` passato senza `NameFor` resterebbe
+	// verde. Qui divergono.
+	UWorld* MondoBrace = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("D: mondo di prova"), MondoBrace)) { return false; }
+	InitVmWorld(MondoBrace);
+	SpawnVmMap(MondoBrace);
+	ARTUnit* Bracer = SpawnVmUnit(MondoBrace, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnVmUnit(MondoBrace, /*TeamId=*/ 1, FRTCellId(1, 0));
+	ARTTurnManager* TMBrace = MondoBrace->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GMBrace = MondoBrace->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PCBrace = RTWorldFixtures::MakePlayerOnTeam(MondoBrace, /*TeamId=*/ 0);
+	URTFastDecisionWidget* FinestraBrace = NewObject<URTFastDecisionWidget>(MondoBrace);
+	if (!TestNotNull(TEXT("D: Bracer"), Bracer) || !TestNotNull(TEXT("D: Pusher"), Pusher)
+		|| !TestNotNull(TEXT("D: TurnManager"), TMBrace) || !TestNotNull(TEXT("D: GameMode"), GMBrace)
+		|| !TestNotNull(TEXT("D: PlayerController"), PCBrace) || !TestNotNull(TEXT("D: widget"), FinestraBrace))
+	{
+		RTWorldFixtures::DestroyWorld(MondoBrace);
+		return false;
+	}
+	ArmBraceScenario(Bracer, Pusher);
+	GMBrace->HookReactionWindow();
+	FinestraBrace->SetReactionWindowForTest(PCBrace->GetReactionWindowViewModel());
+	TMBrace->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TMBrace); // #3666: la finestra si presenta al trattenimento
+	if (!TestTrue(TEXT("D: premessa: una finestra del `Brace` attende"), FinestraBrace->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(MondoBrace);
+		return false;
+	}
+	const FString SicuraBrace = FinestraBrace->GetWindow().SafeResponse;
+	const FString NomeSicura = RTReactionResponseText::NameFor(SicuraBrace).ToString();
+	// ⚠️ **Confronti CaseSensitive, esplicitamente**: `TestEqual`/`TestNotEqual` su `FString` ignorano le maiuscole,
+	// e «HOLD GROUND» contro «Hold Ground» risulterebbe uguale — cioe' proprio la differenza da misurare.
+	if (!TestFalse(TEXT("D: premessa: qui nome e risposta divergono"), NomeSicura.Equals(SicuraBrace, ESearchCase::CaseSensitive)))
+	{
+		RTWorldFixtures::DestroyWorld(MondoBrace);
+		return false;
+	}
+	TestTrue(TEXT("D: «Allo scadere» dice il nome della scelta sicura, non la risposta grezza"),
+		FinestraBrace->GetSafeOutcomeText().ToString().Equals(FString(TEXT("Allo scadere: ")) + NomeSicura, ESearchCase::CaseSensitive));
+
+	RTWorldFixtures::DestroyWorld(MondoBrace);
 	return true;
 }
 

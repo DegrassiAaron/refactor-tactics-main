@@ -80,11 +80,13 @@ bool FRTBoardCellsHaveCustomDataTest::RunTest(const FString&)
 	// ⚠️ Prima dei valori: lo SPAZIO dove scriverli. `AddInstance` alloca i float alla creazione
 	// dell'istanza, e un `NumCustomDataFloats` a zero renderebbe ogni `SetCustomDataValue` un no-op
 	// silenzioso — il difetto si presenterebbe come «tutti zero» senza che nessuna riga abbia sbagliato.
-	TestEqual(TEXT("tre float per istanza, come il materiale si aspetta"),
-		Cells->NumCustomDataFloats, 3);
+	// ➕ Sei da #3679: i tre del colore, che questo test misura, piu' i tre del trattamento dei piani.
+	const int32 Stride = RTLayerPresentation::NumCustomDataFloats;
+	TestEqual(TEXT("sei float per istanza: colore e trattamento dei piani, come il materiale si aspetta"),
+		Cells->NumCustomDataFloats, Stride);
 
 	const TArray<float>& Data = Cells->PerInstanceSMCustomData;
-	if (!TestEqual(TEXT("un float per istanza per canale"), Data.Num(), Instances * 3))
+	if (!TestEqual(TEXT("un float per istanza per canale"), Data.Num(), Instances * Stride))
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return false;

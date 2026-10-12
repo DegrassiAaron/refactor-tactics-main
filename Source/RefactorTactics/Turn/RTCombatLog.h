@@ -54,6 +54,15 @@ struct FRTLogSubject
 	 */
 	static FRTLogSubject Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict);
 
+	/**
+	 * L'unita' che ha prodotto il fatto, con un verdetto congelato da chi la chiama (`#3681`).
+	 *
+	 * 🔑 **Serve quando chi puo' leggere il fatto non e' chi conosce l'unita'**: il muro colpito di [D-502] lo
+	 * vede chi guarda il muro, non chi vede chi ha sparato. `Frozen` portava il verdetto ma non l'Actor, e
+	 * `AppendLogEntry` ricava dall'Actor `UnitId` — che entra nell'hash — e il soggetto per l'audit.
+	 */
+	static FRTLogSubject UnitWithVerdict(const ARTUnit* InUnit, const FRTKnowledgeVerdict& InVerdict);
+
 	/** Un fatto che riguarda tutti: nessun soggetto da conoscere, nessuna ragione per nasconderlo. */
 	static FRTLogSubject World();
 

@@ -26,6 +26,9 @@
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Tests/RTAbilityFixtures.h"
+#include "HAL/FileManager.h" // #3701: il cancello del produttore dei muri colpiti legge i sorgenti
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -3899,6 +3902,471 @@ bool FRTPlaybackRedundantFaceStructureHitsAreOneActTest::RunTest(const FString&)
 	}
 
 	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * **La cura SINGOLA aggancia l'alleato e lo raggiunge dove e' arrivato** — D-493 (#3609).
+ *
+ * Decisione d'autore: *«aggancia l'unità, come eccezione dichiarata in catalogo. il cura ha un tipo di tiro diverso
+ * da un normale shoot»*. L'alleato parte FUORI portata (4 celle, portata 3) e scatta DENTRO prima del Blast: la cura
+ * che aggancia legge la sua cella viva e lo cura; con la mira congelata avrebbe misurato la cella di partenza e
+ * sarebbe mancata. Esiti opposti nelle due regole, ed e' cio' che rende il test una misura dell'aggancio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionHealTracksTheAllyTest,
+	"RefactorTactics.Actions.Heal.TracksTheAllyItHeals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionHealTracksTheAllyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnEnvUnit(World, 0, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Ally || !TM) { DestroyEnvWorld(World); return false; }
+
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.Heal")));
+	if (!TestTrue(TEXT("premessa: la cura dichiara di agganciare (D-493)"), Def.DeclaresTracking())
+		|| !TestTrue(TEXT("premessa: al lock-in l'alleato e' FUORI portata"),
+			URTHexLibrary::HexDistance(Caster->Cell, Ally->Cell) > Def.RangeCells))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+
+	Ally->Health -= 30;
+	const int32 Prima = Ally->Health;
+	PlanEnvAction(Caster, TEXT("Action.Heal"), Ally);
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Ally, TEXT("Action.Reposition"));
+	Ally->PlannedDashAbility = Scatto;
+	Ally->PlannedDashCell = FRTCellId(2, 0); // dentro la portata
+	RunEnvTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: l'alleato e' davvero scattato dentro la portata"), Ally->Cell, FRTCellId(2, 0)))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+	TestTrue(TEXT("🔴 la cura lo segue e lo raggiunge dove e' arrivato"), Ally->Health > Prima);
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * **`ModifyArc` apre l'arco verso la MIRA congelata** — [D-419] (#3609).
+ *
+ * Il bersaglio e' in portata al lock-in (2 celle, portata 3) e scatta fuori (4 celle) prima del Blast. L'arco e' la
+ * coppia di celle, quindi segue la mira congelata: nasce. Con la cella viva — com'era fino a #3609 — sarebbe stato
+ * rifiutato «fuori portata». Esiti opposti nelle due regole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcFrozenAimTest,
+	"RefactorTactics.Actions.ModifyArc.OpensTowardTheFrozenAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionModifyArcFrozenAimTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.ModifyArc")));
+	const FRTCellId Scattata(4, 0);
+	if (!TestTrue(TEXT("premessa: al lock-in il bersaglio e' in portata"),
+			URTHexLibrary::HexDistance(Caster->Cell, Target->Cell) <= Def.RangeCells)
+		|| !TestTrue(TEXT("premessa: la cella dello scatto e' FUORI portata"),
+			URTHexLibrary::HexDistance(Caster->Cell, Scattata) > Def.RangeCells)
+		|| !TestFalse(TEXT("premessa: ModifyArc non dichiara di agganciare"), Def.DeclaresTracking()))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+
+	const int32 ArcsBefore = MapActor->MapAsset->Transitions.Num();
+	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition"));
+	Target->PlannedDashAbility = Scatto;
+	Target->PlannedDashCell = Scattata;
+	RunEnvTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: il bersaglio e' davvero scattato fuori portata"), Target->Cell, Scattata))
+	{
+		DestroyEnvWorld(World); return false;
+	}
+	// Un arco sono piu' transizioni (misurato: +2), come in `ModifyArc.BumpsChunkRevision`: si conta «di piu'».
+	TestTrue(TEXT("🔴 l'arco e' nato verso la mira congelata, non rifiutato sulla cella dello scatto"),
+		MapActor->MapAsset->Transitions.Num() > ArcsBefore);
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * **L'azione ambientale agisce sulla MIRA congelata, che il bersaglio cammini o scatti** — [D-419] (#3609).
+ *
+ * Le ambientali risolvono in Cleanup, DOPO il Move: leggendo la cella viva inseguivano anche il movimento normale,
+ * non solo lo scatto. Il bersaglio puntato al lock-in in (2,0) va in (3,0), una volta camminando (Move) e una
+ * scattando (Dash, prima del Blast): il fuoco nasce in (2,0), e la cella d'arrivo resta com'era. Con la cella viva —
+ * com'era fino a #3609 — sarebbe stato il contrario in entrambi i casi.
+ *
+ * Controllo positivo: a scena ferma il fuoco nasce sotto il bersaglio. Un mondo per caso, perche' la superficie
+ * bruciata di un caso non resti nel successivo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIgniteFrozenAimTest,
+	"RefactorTactics.Actions.Ignite.BurnsWhereItWasAimed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionIgniteFrozenAimTest::RunTest(const FString&)
+{
+	enum class EMoto : uint8 { Fermo, Cammina, Scatta };
+	const FRTCellId Puntata(2, 0);
+	const FRTCellId Arrivo(3, 0);
+
+	auto Esegui = [this, &Puntata, &Arrivo](const TCHAR* Caso, EMoto Moto)
+	{
+		UWorld* World = MakeEnvWorld();
+		if (!TestNotNull(FString::Printf(TEXT("%s: world di prova"), Caso), World)) { return; }
+		ARTHexMapActor* MapActor = SpawnEnvMap(World);
+		ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Target = SpawnEnvUnit(World, 1, Puntata);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return; }
+
+		PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+		if (Moto == EMoto::Cammina)
+		{
+			Target->PlannedCell = Arrivo; // movimento NORMALE: risolve nel Move, dopo il Blast e prima del Cleanup
+		}
+		else if (Moto == EMoto::Scatta)
+		{
+			Target->PlannedDashAbility = RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition"));
+			Target->PlannedDashCell = Arrivo; // scatto: risolve PRIMA del Blast
+		}
+		RunEnvTurn(TM);
+
+		auto SurfaceAt = [MapActor](const FRTCellId& Cell)
+		{
+			const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(Cell) : nullptr;
+			return Data ? Data->Surface : ERTHexSurface::Floor;
+		};
+		const FRTCellId Atteso = Moto == EMoto::Fermo ? Puntata : Arrivo;
+		if (!TestEqual(FString::Printf(TEXT("%s: premessa, il bersaglio e' dove il caso lo porta"), Caso),
+			Target->Cell, Atteso))
+		{
+			DestroyEnvWorld(World); return;
+		}
+		TestTrue(FString::Printf(TEXT("%s: 🔴 brucia la cella puntata al lock-in"), Caso),
+			SurfaceAt(Puntata) == ERTHexSurface::Fire);
+		if (Moto != EMoto::Fermo)
+		{
+			TestTrue(FString::Printf(TEXT("%s: e non quella dove il bersaglio e' arrivato"), Caso),
+				SurfaceAt(Arrivo) != ERTHexSurface::Fire);
+		}
+		DestroyEnvWorld(World);
+	};
+
+	Esegui(TEXT("scena ferma (controllo positivo)"), EMoto::Fermo);
+	Esegui(TEXT("il bersaglio cammina"), EMoto::Cammina);
+	Esegui(TEXT("il bersaglio scatta"), EMoto::Scatta);
+	return true;
+}
+
+/**
+ * #3681, [D-502] — il muro colpito ha UN verdetto, e ogni vista del fatto lo legge.
+ *
+ * 🔴 **Il caso che solo questo evento produce**: un attaccante che chi guarda non vede spara contro un muro alto
+ * e non colpisce nessuno. Non nascono ne' `Attack` ne' `AttackFootprint`, e il bordo colpito resta l'unica
+ * notizia — la fila da cui e' arrivato il colpo. ⏱️ *Fino a #3681 lo stesso fatto aveva tre regole: la voce
+ * di TurnLog col verdetto di chi aveva sparato, l'evento di timeline senza verdetto, la riga del combat log
+ * pubblica.*
+ *
+ * 🔑 **Tre squadre, perche' le domande sono tre**: chi ha sparato (squadra 1, D-502 (b)), chi guarda il muro
+ * senza vedere chi spara (squadra 0, dietro il muro), e chi non vede nessuna delle due celle (squadra 2, a
+ * nove celle con una visione di sei). Con due sole squadre l'arena di prova le farebbe vedere tutto a tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyWallHitOneVerdictTest,
+	"RefactorTactics.Privacy.WallHitHasOneVerdictForEveryView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyWallHitOneVerdictTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World, /*Radius=*/ 10);
+	if (!TestTrue(TEXT("mappa"), MapActor && MapActor->MapAsset)) { DestroyEnvWorld(World); return false; }
+
+	// Il muro alto di `EnvMakeWalledBreachScenario`: sul bordo W di (1,0), chi spara in (0,0).
+	const FRTCellId Portante(1, 0);
+	const FRTCellId Spara(0, 0);
+	FRTHexCellData ColMuro = *MapActor->MapAsset->FindCell(Portante);
+	ColMuro.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+	MapActor->MapAsset->AddOrUpdateCell(ColMuro);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Breacher = SpawnEnvUnit(World, 1, Spara);
+	ARTUnit* Defender = SpawnEnvUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Lontano = SpawnEnvUnit(World, 2, FRTCellId(-9, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestTrue(TEXT("scenario costruito"), Breacher && Defender && Lontano && TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 30));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Defender;
+
+	RunEnvTurn(TM);
+
+	const FRTTurnLogEntry* Voce = nullptr;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (URTTurnLogLibrary::IsStructureHit(E)) { Voce = &E; break; }
+	}
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(TM);
+	if (!TestNotNull(TEXT("⛔ il turno ha registrato il muro colpito"), Voce)
+		|| !TestTrue(TEXT("⛔ e la timeline lo porta"), Eventi.Num() > 0))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// Il verdetto della voce, e contro cosa e' stato congelato.
+	const FRTKnowledgeVerdict V = Voce->Verdict;
+	TestTrue(TEXT("il soggetto del verdetto e' il bordo"), Voce->VerdictSubject.bEdge);
+	TestEqual(TEXT("con la cella che porta il muro"), Voce->VerdictSubject.EdgeCell, Portante);
+	TestEqual(TEXT("e quella da cui e' arrivato il colpo"), Voce->VerdictSubject.EdgeToward, Spara);
+	TestTrue(TEXT("e la sola squadra dell'autore"),
+		Voce->VerdictSubject.AuthorTeamIds.Num() == 1 && Voce->VerdictSubject.AuthorTeamIds[0] == 1);
+	TestEqual(TEXT("la voce nomina ancora chi ha sparato: `UnitId` entra nell'hash"), Voce->UnitId,
+		Breacher->StableUnitId);
+
+	TestTrue(TEXT("(b) chi ha sparato vede il proprio colpo"), V.AllowsTeam(1));
+	TestTrue(TEXT("chi guarda il muro lo vede colpire, anche senza vedere chi spara"), V.AllowsTeam(0));
+	TestFalse(TEXT("🔴 chi non vede nessuna delle due celle non lo sa"), V.AllowsTeam(2));
+
+	// Un fatto, un verdetto: ogni vista legge lo stesso.
+	for (const FRTResolvedEvent& Ev : Eventi)
+	{
+		TestTrue(TEXT("l'evento di timeline porta il verdetto della voce"), Ev.SourceVerdict == V);
+	}
+	const TArray<FRTResolvedEvent>& Timeline = TM->ResolvedTimelineForTest();
+	for (const int32 Squadra : { 0, 1, 2 })
+	{
+		bool bRiga = false;
+		for (const FString& Riga : TM->GetRecentEventsForTeam(Squadra))
+		{
+			bRiga |= Riga.Contains(TEXT("Copertura"));
+		}
+		TestEqual(*FString::Printf(TEXT("squadra %d: la riga del combat log segue il verdetto"), Squadra),
+			bRiga, V.AllowsTeam(Squadra));
+
+		bool bSegno = false;
+		for (const FRTBlastSequenceElement& E :
+			URTPlaybackLibrary::BuildBlastSequence(Timeline, TArray<FRTBlastSequenceElement>(), 0, Squadra))
+		{
+			bSegno |= Timeline.IsValidIndex(E.TimelineIndex)
+				&& Timeline[E.TimelineIndex].Type == ERTResolvedEventType::StructureHit;
+		}
+		TestEqual(*FString::Printf(TEXT("squadra %d: il segno entra nella sequenza del Blast solo col verdetto"), Squadra),
+			bSegno, V.AllowsTeam(Squadra));
+	}
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `#3701`, [D-502] — **il rilevatore del cancello**: chi chiama `ApplyStructureDamage`, e dentro quale funzione.
+ *
+ * 🔑 **Puro, perche' lo misuri un controllo positivo**: lo sweep di produzione e il testo piantato passano dallo
+ * STESSO rilevatore. Un rilevatore che non vede niente farebbe verde lo sweep per cecita'.
+ *
+ * ⛔ **Riconosce la forma SCRITTA**, come gli altri cancelli che leggono il sorgente (`UI.CombatLogHasOneProducerPerEntry`,
+ * `Pacing.ResolverNeverBranchesOnATime`): un puntatore a funzione o un `#define` che avvolgesse la chiamata
+ * passerebbero.
+ */
+namespace RTStructureHitGuard
+{
+	struct FChiamata
+	{
+		FString File;
+		int32 Riga = 0;
+		/** La funzione che la racchiude: l'ultima firma `Classe::Nome(` a colonna zero sopra la chiamata. */
+		FString Funzione;
+	};
+
+	/** Un commento che nomina la funzione non e' una chiamata. `* ` con lo spazio: una dereferenza non lo scrive. */
+	bool ERigaDiCommento(const FString& Riga)
+	{
+		const FString T = Riga.TrimStart();
+		return T.StartsWith(TEXT("//")) || T.StartsWith(TEXT("/*")) || T.StartsWith(TEXT("*/"))
+			|| T.StartsWith(TEXT("* ")) || T.Equals(TEXT("*"));
+	}
+
+	FString FunzioneCheRacchiude(const TArray<FString>& Righe, int32 Indice)
+	{
+		for (int32 k = Indice; k >= 0; --k)
+		{
+			const FString& R = Righe[k];
+			if (R.IsEmpty() || FChar::IsWhitespace(R[0]) || R.StartsWith(TEXT("#")) || ERigaDiCommento(R)) { continue; }
+			const int32 Aperta = R.Find(TEXT("("), ESearchCase::CaseSensitive);
+			if (Aperta == INDEX_NONE) { continue; }
+			const FString Prima = R.Left(Aperta);
+			const int32 Scope = Prima.Find(TEXT("::"), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			if (Scope == INDEX_NONE) { continue; }
+			return Prima.Mid(Scope + 2);
+		}
+		return FString();
+	}
+
+	/**
+	 * Le chiamate in `Testo`. La dichiarazione e la definizione si riconoscono dalla FORMA — il tipo di ritorno
+	 * nella prima, il primo parametro nella seconda — e si contano a parte: sono l'anti-vacuita' dello sweep.
+	 */
+	void TrovaChiamate(const FString& Testo, const FString& Nome, TArray<FChiamata>& Out, int32& OutDichiarazioni)
+	{
+		TArray<FString> Righe;
+		Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
+		for (int32 i = 0; i < Righe.Num(); ++i)
+		{
+			const FString& Riga = Righe[i];
+			if (ERigaDiCommento(Riga) || !Riga.Contains(TEXT("ApplyStructureDamage("), ESearchCase::CaseSensitive))
+			{
+				continue;
+			}
+			if (Riga.Contains(TEXT("static TArray<FRTCoverDamageResult> ApplyStructureDamage("), ESearchCase::CaseSensitive)
+				|| Riga.Contains(TEXT("URTHexCoverLibrary::ApplyStructureDamage(URTHexMapAsset*"), ESearchCase::CaseSensitive))
+			{
+				++OutDichiarazioni;
+				continue;
+			}
+			Out.Add({ Nome, i + 1, FunzioneCheRacchiude(Righe, i) });
+		}
+	}
+}
+
+/**
+ * `#3701`, [D-502] — **un muro si colpisce solo nel Blast**: `ApplyStructureDamage` ha un solo chiamante di
+ * produzione, `ARTTurnManager::ApplyEnvironmentChanges`.
+ *
+ * 🔑 **Perche' e' un cancello e non un test di comportamento**: il verdetto di un muro colpito si congela con
+ * `FreezeEdgeVerdict` su `TeamKnowledgeState`, e quella conoscenza si rinfresca solo in Pianificazione e
+ * all'inizio del Blast (`RefreshTeamKnowledgeForBlast`). Un produttore nel Dash congelerebbe il verdetto sulle
+ * posizioni d'inizio turno, non su quelle della fase in cui il colpo avviene, come D-502 (6c) chiede — e il
+ * playback mostra gli `StructureHit` solo nel Blast. Oggi quel produttore non esiste, e nessun test di
+ * comportamento potrebbe attraversarlo: questo cade il giorno in cui nasce, e il suo messaggio dice cosa serve.
+ *
+ * Perimetro: il modulo di gioco (`Source/RefactorTactics`) meno i test. L'Editor non risolve partite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructureHitHasOneProducerInTheBlastTest,
+	"RefactorTactics.Structures.HitHasOneProducerInTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructureHitHasOneProducerInTheBlastTest::RunTest(const FString&)
+{
+	using namespace RTStructureHitGuard;
+
+	const FString Radice = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source"), TEXT("RefactorTactics"));
+	TArray<FString> Files;
+	for (const TCHAR* Ext : { TEXT("*.cpp"), TEXT("*.h") })
+	{
+		TArray<FString> Trovati;
+		IFileManager::Get().FindFilesRecursive(Trovati, *Radice, Ext, /*Files=*/ true, /*Dirs=*/ false,
+			/*bClearFileNames=*/ false);
+		Files.Append(Trovati);
+	}
+	// ⛔ Zero file letti vuol dire un percorso sbagliato, non un modulo pulito.
+	if (!TestTrue(*FString::Printf(TEXT("lo sweep ha trovato i sorgenti (%s)"), *Radice), Files.Num() > 0)) { return false; }
+
+	TArray<FChiamata> Chiamate;
+	int32 Dichiarazioni = 0;
+	bool bVistoIlBlast = false;
+	for (FString F : Files)
+	{
+		FPaths::NormalizeFilename(F);
+		if (F.Contains(TEXT("/Tests/"))) { continue; }
+		const FString Nome = FPaths::GetCleanFilename(F);
+		bVistoIlBlast |= Nome == TEXT("RTTurnManager_Blast.cpp");
+		FString Testo;
+		if (!TestTrue(*FString::Printf(TEXT("il sorgente si legge: %s"), *Nome), FFileHelper::LoadFileToString(Testo, *F)))
+		{
+			return false;
+		}
+		TrovaChiamate(Testo, Nome, Chiamate, Dichiarazioni);
+	}
+
+	// ⛔ Anti-vacuita': il file del Blast e' nel perimetro, e il rilevatore vede la funzione dove e' dichiarata.
+	TestTrue(TEXT("il file del Blast e' dentro il perimetro"), bVistoIlBlast);
+	TestEqual(TEXT("il rilevatore vede la dichiarazione e la definizione di ApplyStructureDamage"), Dichiarazioni, 2);
+
+	int32 NelBlast = 0;
+	for (const FChiamata& C : Chiamate)
+	{
+		if (C.File == TEXT("RTTurnManager_Blast.cpp")
+			&& C.Funzione.Equals(TEXT("ApplyEnvironmentChanges"), ESearchCase::CaseSensitive))
+		{
+			++NelBlast;
+			continue;
+		}
+		AddError(FString::Printf(
+			TEXT("%s:%d colpisce un muro dentro `%s`, fuori da `ApplyEnvironmentChanges` del Blast. [D-502] vuole il ")
+			TEXT("verdetto del muro colpito sulla conoscenza della FASE in cui il colpo avviene, e oggi la conoscenza ")
+			TEXT("di squadra si rinfresca solo in Pianificazione e nel Blast. Prima di questo produttore servono: ")
+			TEXT("(1) la conoscenza di squadra rinfrescata per la sua fase; (2) il verdetto congelato con ")
+			TEXT("`FreezeEdgeVerdict`; (3) il segno mostrato nel playback di quella fase (`BuildBlastSequence` prende ")
+			TEXT("solo il Blast). Poi aggiorna questo cancello. Vedi #3701."),
+			*C.File, C.Riga, C.Funzione.IsEmpty() ? TEXT("?") : *C.Funzione));
+	}
+	TestEqual(TEXT("il produttore del Blast c'e', e lo sweep lo vede"), NelBlast, 1);
+	TestEqual(TEXT("nessun altro chiamante di produzione"), Chiamate.Num(), NelBlast);
+	return true;
+}
+
+/**
+ * `#3701` — **il controllo positivo del cancello**. Senza, lo sweep non distingue «un solo produttore» da
+ * «rilevatore cieco».
+ *
+ * Given un testo con un produttore piantato nel Dash, il produttore del Blast, la dichiarazione, la definizione
+ * e tre commenti che nominano la funzione
+ * When lo si passa allo STESSO rilevatore dello sweep
+ * Then trova le due chiamate, nella funzione giusta, e nient'altro
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructureHitGuardSeesAPlantedProducerTest,
+	"RefactorTactics.Structures.HitGuardSeesAPlantedProducer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructureHitGuardSeesAPlantedProducerTest::RunTest(const FString&)
+{
+	using namespace RTStructureHitGuard;
+
+	const FString Testo = FString::Join(TArray<FString>{
+		TEXT("// URTHexCoverLibrary::ApplyStructureDamage(Map, Hits) in un commento di riga"),
+		TEXT("\tstatic TArray<FRTCoverDamageResult> ApplyStructureDamage(URTHexMapAsset* Map,"),
+		TEXT("TArray<FRTCoverDamageResult> URTHexCoverLibrary::ApplyStructureDamage(URTHexMapAsset* Map,"),
+		TEXT("void ARTTurnManager::ResolveDashPhase(FRTDashContext& Ctx)"),
+		TEXT("{"),
+		TEXT("\t/* ApplyStructureDamage(Map, Hits) in un commento di blocco */"),
+		TEXT("\t * ApplyStructureDamage(Map, Hits) nel corpo di un commento"),
+		TEXT("\tURTHexCoverLibrary::ApplyStructureDamage(MutableMap, DashHits);"),
+		TEXT("}"),
+		TEXT("void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)"),
+		TEXT("{"),
+		TEXT("\tfor (const FRTCoverDamageResult& Change :"),
+		TEXT("\t\tURTHexCoverLibrary::ApplyStructureDamage(MutableMap, Plan.StructureHits))"),
+		TEXT("\t{"),
+		TEXT("\t}"),
+		TEXT("}"),
+	}, TEXT("\n"));
+
+	TArray<FChiamata> Chiamate;
+	int32 Dichiarazioni = 0;
+	TrovaChiamate(Testo, TEXT("Piantato.cpp"), Chiamate, Dichiarazioni);
+
+	TestEqual(TEXT("la dichiarazione e la definizione si contano a parte"), Dichiarazioni, 2);
+	if (!TestEqual(TEXT("due chiamate: i commenti non contano"), Chiamate.Num(), 2)) { return false; }
+	// `TestEqual` su `FString` ignora le maiuscole: il nome di una funzione si confronta esatto.
+	TestTrue(*FString::Printf(TEXT("🔴 il produttore piantato e' nel Dash (letto: %s)"), *Chiamate[0].Funzione),
+		Chiamate[0].Funzione.Equals(TEXT("ResolveDashPhase"), ESearchCase::CaseSensitive));
+	TestEqual(TEXT("e alla sua riga"), Chiamate[0].Riga, 8);
+	TestTrue(*FString::Printf(TEXT("il produttore del Blast e' in ApplyEnvironmentChanges (letto: %s)"), *Chiamate[1].Funzione),
+		Chiamate[1].Funzione.Equals(TEXT("ApplyEnvironmentChanges"), ESearchCase::CaseSensitive));
 	return true;
 }
 

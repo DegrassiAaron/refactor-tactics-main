@@ -4223,6 +4223,7 @@ sessions:
       guarda se a schermo la sospensione si legga come una scelta invece che come un blocco. E il gate
       headless non puo' arrivarci nemmeno in linea di principio: `Class->Bindings` copre i property
       binding, **non** il consumo dentro un event graph.
+      🟡 **Parzialmente eseguita il 2026-10-11** (seduta di [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666)): `PIE-V01-RXPLAYBACK` ha esito reale nel registro, sui due banchi dello Scenario Harness invece che in una partita live. `PIE-V01-RXBRACE` resta da giudicare, e il `done_when` con lei. ⚠️ La separazione che il commento di `verifies` sconsiglia c'e' stata, per una ragione misurata: nessuno scenario apre oggi la finestra del `Brace` al giocatore — serve Muiren con `Action.Brace` e una spinta di Branth. Per quella voce il test headless `Reactions.Brace.SidestepAnswerIsAnimated` prova che lo scarto `SIDESTEP` scorre invece di scattare.
 
   - id: U57
     title: Il frontend costruito, percorso per percorso
@@ -5214,6 +5215,592 @@ sessions:
       con catture di schermo, i verdetti proposti ratificati dall'autore — `PIE-FX-ABILITA` ✅, (1)–(6) e (8) come
       atteso, (7) N/A. Due note di taratura (durata dell'onda, X sotto il cilindro) e il rimando a #3261/#3582
       stanno nella cella del registro.
+
+  - id: U72
+    title: Conferma come la tavola B — cornici, badge dei tasti e contatore per livello in WBP_RT_PlanCommit
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_PlanCommit` con le porte di [D-496] e [D-494]: `CommitRoot`, le cornici `ConfirmFrame` e `UndoFrame`
+      (`RoundedBox`), la spunta `ConfirmIcon`, i badge `ConfirmKeyText` e `UndoKeyText`, e `WarningCounter` con un badge
+      per livello (`CriticalBadge`, `WarningBadge`, `InfoBadge` e i loro `*CountText`)
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_PlanCommit.uasset
+      - docs/technical/evidence/hud/u72-conferma-accanto-alla-tavola.png
+      - docs/technical/evidence/hud/u72-conferma-stati.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' le porte sono gia' su `main` (#3639). Le tre correzioni di resa trovate in seduta entrano con
+    # l'asset, nella stessa PR.
+    shares_setup_with: [U64]
+    verifies: []
+    issues: [3633]
+    done_when: >-
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte nuove in un processo fresco, rosso sull'asset di `main` e
+      verde sul nuovo; a 1920x1080 la zona Z7 e il contatore coincidono con la tavola B, anche in scala di grigi; il
+      riquadro resta durante il countdown del Ready e si chiude in Risoluzione
+    notes: |
+      Scritta ed eseguita il 2026-10-10 da #3633, nel clone principale, con l'Editor ricompilato dal ramo della seduta.
+      Albero e proprieta' via bridge (`UMGToolSet` e `ObjectTools.set_properties`). Le misure vengono dal sorgente della
+      tavola, `RefactorTactics-HUD.dc.html` righe 137–157, e non dal PNG; i font sono i px del mockup x 0,75.
+
+      ✅ **Misurato a 1920x1080**, PIE flottante catturata con `PrintWindow`:
+      - il contorno di `Conferma` cade a x 1619–1895 e y 24–75, contro 1620–1895 e 24–75 della tavola;
+      - i fondi sono `(14,42,51)` e `(21,26,35)`, cioe' `BG_ProfileActive` e `BG_Panel` esatti;
+      - il contatore mostra il Warning di un fuoco amico vero: il Sovraccarico di Aevik su una cella accanto a Muiren,
+        che in risoluzione la colpisce davvero;
+      - il riquadro c'e' alle 17:33:44.4, nel countdown del Ready, e manca alle 17:33:46.7, dentro la Risoluzione che il
+        log data 45.9–47.5.
+      Il controllo positivo del gate: con l'asset di `main` `ActionBarDeclaresTheNamedPorts` e' rosso sulle sole porte
+      nuove.
+
+      🔴 **Tre correzioni trovate solo a schermo**, nessuna visibile a un gate sull'albero:
+      1. **Il fondo delle cornici si moltiplica.** Il C++ dipinge il fondo in `BrushColor`, e Slate lo moltiplica per la
+         tinta del brush. Una cornice con la tinta gia' al colore di fondo esce nera, `(0,0,1)`. Le cornici che dipinge
+         il C++ hanno la tinta bianca; i badge statici portano il colore nella tinta.
+      2. **Due derive del C++ di #3639 rispetto al sorgente della tavola.** Il contorno di `Conferma` accesa e' 1 px, non
+         2. Il testo dei badge dei tasti e' `Text_Primary`, non `Text_Secondary`. Corretti, insieme al test che li
+         fissava.
+      3. **La spunta e' un glifo, non un'immagine.** Il catalogo delle icone non ha spunta ne' croce. La Roboto
+         dell'engine ripiega su `DroidSansFallback`, che ha ✔ ✖ ▲ ◆ ●. Exo 2 e Orbitron non ripiegano e disegnerebbero un
+         quadrato vuoto. Per questo la porta `ConfirmIcon` e' diventata un `UTextBlock`: nessun asset la usava ancora.
+
+      ⏳ **Restano tre scarti minori dalla tavola**, giudicati accettabili:
+      - i badge dei tasti sono di poco piu' piccoli;
+      - il ✔ e' un po' piu' alto;
+      - fra ▲ e il numero c'e' un po' piu' di spazio.
+
+      ⛔ **Il click dal vivo sui pulsanti resta `NOT RUN`**, come in `U64`: lo misura
+      `ScreenHud.PlanCommitButtonsFollowThePorts`.
+
+  - id: U73
+    title: La vista strategica dal vivo — Tab, segnalini, N, pianificazione dall'alto e il ricordo con la X
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti su `PIE-CAM-STRATEGIC` e `PIE-CAM-STRATEGIC-RICORDO`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-CAM-STRATEGIC, PIE-CAM-STRATEGIC-RICORDO]
+    issues: [1774, 3646, 3647]
+    done_when: >-
+      le due voci hanno un verdetto nel registro, dato a schermo da una persona dopo il merge del nucleo (#3640)
+    notes: |
+      Scritta ed eseguita il 2026-10-10 da #1774, nel clone principale su `main` = `60cd52898` ricompilato. L'Editor
+      era aperto con `-LiveCoding=false`, e il timer della Pianificazione passava con `-dpcvars=rt.Match.PlanningSeconds=3600`.
+      Lo scenario del ricordo con `-dpcvars=rt.Test.Scenario=Visual.Perception.Acceptance`, da `L_DevSandbox`.
+      Condotta via bridge: Play con `StartPIE`, tasti e click alla finestra solo dopo aver verificato il primo piano,
+      catture con `PrintWindow`. I verdetti visivi li ha dati l'autore sulle catture affiancate.
+
+      🔴 **Due difetti trovati solo dal vivo**, nessuno visibile ai test headless del nucleo:
+      1. il secondo `Tab` torna a 800 e non a 450 (#3646): all'avvio `FrameOwnTeam` scrive il braccio direttamente;
+      2. con un'abilità armata il click sul segnalino di un'unità è letto come cella (#3647).
+
+      ⚠️ **Il ricordo vive circa 2,5 secondi.** `K` non ferma lo scenario: la finestra si coglie con una raffica di
+      catture e il log dei turni. «Il secondo `Tab` riporta la sagoma» resta da eseguire.
+
+      ⚠️ **Una prima tornata non vale**: l'Editor è stato chiuso prima del Play, e le risposte date senza averlo
+      aperto sono state scartate. Il log di quella tornata non ha nessun Play.
+
+  - id: U74
+    title: La finestra di reazione come la tavola E — cornice, striscia, barra del countdown e opzioni in WBP_RT_FastDecision
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_FastDecision` e `WBP_RT_FastDecisionOption` con le porte di #3634: nella finestra `WindowFrame`,
+      `AccentStrip`, `CountdownBar` e `SafeOutcomeText`; nell'opzione `OptionFrame`, `KeyText`, `DescriptionText` e
+      `SafeChoiceBadge`
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_FastDecision.uasset
+      - Content/RT/UI/Match/WBP_RT_FastDecisionOption.uasset
+      - docs/technical/evidence/hud/u74-finestra-accanto-alla-tavola.png
+      - docs/technical/evidence/hud/u74-finestra-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3642). La cattura ha chiesto il banco di #3660.
+    shares_setup_with: [U72]
+    verifies: []
+    issues: [3634]
+    done_when: >-
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte nuove in un processo fresco, rosso sugli asset di `main`
+      e verde sui nuovi; `FastDecisionBindingsAreWiredToTheRightNodes` resta verde; a 1920x1080 la finestra coincide
+      con la tavola E, anche in scala di grigi
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3634, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 421–456.
+
+      ✅ **Asset e gate.** I tre binding obbligatori restano agganciati: `WindowRoot`, `PromptText` e `CountdownText`
+      si sono SPOSTATI dentro la cornice, non ricreati. Le cornici dipinte dal C++ hanno la tinta bianca (guida
+      §7-quater). Le opzioni stanno in uno `ScaleBox` che riduce solo se non ci stanno: due da 267 px piu' 6 di margine
+      per lato riempiono i 558 px utili, una terza non sparisce. Controllo positivo del gate: con gli asset di `main`
+      `ActionBarDeclaresTheNamedPorts` e' rosso sulle sole porte nuove.
+
+      ⌫ *Fino al 2026-10-11 la cattura era `NOT RUN`, per il motivo misurato qui sotto.* La finestra ha due siti
+      ([D-355]), e nessuno dei due si apriva a comando:
+      - la guardia (Overwatch) la apre solo se un nemico CAMMINA nella sua area, durante il Move. Nella partita di
+        `L_DevSandbox` i bot tengono il centro: in due partite e una decina di turni nessuno ci e' entrato
+        camminando. La carica di Branth (`Ram`) e' un Dash, non un Move, e non la apre;
+      - il `Brace` nel Blast la apre solo se un nemico spinge un'unita' coperta che ha una seconda risposta
+        eseguibile. Oggi e' solo `Profile.Sidestep`, di Muiren (`URTCatalogLibrary::BraceExecutableResponses`).
+
+      ⌫ *«Prossimo tentativo: uno scenario Overwatch lanciato con `-dpcvars=rt.Test.Scenario=…`».* Da solo non
+      bastava: nell'auto-run la finestra non si apriva MAI, perche' il ramo dello scenario esce dal `BeginPlay` del
+      GameMode prima di `HookReactionWindow`. La chiave `playerReactionWindows` e il banco
+      `Visual.Reaction.OverwatchWindow` sono arrivati con [#3660](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3660).
+
+      ✅ **La cattura, il 2026-10-11, nel clone principale su `main` @ `15ad54d73`.** Editor con
+      `-dpcvars=rt.Test.Scenario=Visual.Reaction.OverwatchWindow,t.MaxFPS=60`, PIE flottante su `L_DevSandbox`,
+      raffica di catture partita PRIMA della PIE. Il log dice `AUTO-RUN Visual.Reaction.OverwatchWindow`, `le finestre
+      di reazione si aprono al giocatore`, la scadenza («la reazione non risponde in tempo, resta armata») e `FINITO
+      … PASS (6/6 assertion)`. La finestra coincide con la tavola E nella cornice, nella striscia, nel countdown con la
+      sua barra, nelle due opzioni con il tasto e nel badge della scelta sicura, anche in scala di grigi.
+
+      🔴 **Una correzione trovata solo a schermo:** il badge «SCELTA SICURA» copriva la descrizione di HOLD. I testi
+      veri (`RTReactionResponseText.cpp`) sono piu' lunghi di quelli della tavola, e la descrizione sbordava sotto il
+      badge della terza colonna. Il badge e' salito nella riga dell'etichetta (`LabelRow`), la descrizione va a capo,
+      e l'opzione e' alta almeno 52 px invece di 52 fissi. I gate `ScreenHud`, `Reactions` e `HUD` sono verdi sull'asset
+      corretto, in un processo fresco.
+
+      ⚠️ **Scarti dichiarati**, tutti fuori dall'asset:
+      - il titolo dice «Reazione», senza «Guardia reattiva — Aevik» e senza la riga «Ivrin e' entrato nell'area
+        controllata»: e' il testo del C++;
+      - le descrizioni sono quelle del catalogo, non «Attacca Ivrin» e «Non attaccare»;
+      - i tasti sono `1` e `2`, non `F` e `H` ([D-491]);
+      - il badge sta nella riga dell'etichetta, non centrato in verticale sull'opzione: e' la correzione stessa;
+      - il badge non ha lo scudo, «HOLD» in «Allo scadere» non e' in grassetto (e' un testo solo), e il countdown ha
+        la virgola decimale.
+
+      ⚠️ **Fuori dal criterio, ma misurato:** la finestra si apre circa 0,1 s dopo l'inizio della Risoluzione (dedotto
+      dal fotogramma e dal countdown: «Risoluzione» alle 06:53:32,797, la finestra a 2,9 s alle 32,997), con l'header
+      ancora su PREP e Ivrin ancora nella cella di partenza. L'ingresso si vede solo DOPO la scadenza. La tavola, e
+      `PIE-V01-RXPLAYBACK`, vogliono il playback fermo sull'ingresso.
+
+      🔑 **Due trappole della cattura.** (1) `StartPIE` ritorna a PIE gia' avviata, e con la pausa di 1,5 s la finestra
+      si apre e si chiude prima di una raffica lanciata dopo: la raffica parte prima, in un processo a parte. (2)
+      Fuori fuoco l'Editor gira a circa 3 fps, e la finestra si disegna a scatti: le opzioni arrivavano circa 0,75 s
+      dopo il resto. Con la PIE in primo piano, 59 fps e le opzioni dal primo fotogramma.
+
+      Le raffiche: `r10` (3 fps) e `r13` (59 fps) sono PRIMA della correzione del badge e servono ai tempi; il «dopo»
+      delle evidenze e' `r14`, il «prima» e' `r13`.
+
+  - id: U75
+    title: Header e obiettivo come le tavole A e D — round, fase, timer, celle della fase riprodotta e obiettivo in WBP_RT_TurnHeader
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_TurnHeader` con le porte di #3635 (`HeaderFrame`, `RoundValueText`, `RoundLimitText`, `PlanningGroup`,
+      `ResolutionGroup`, `PhaseText`, `PhaseMark`, `TimerText`, le celle `PhaseCell_*` con segni e sigle, `ObjectiveBox`,
+      `ObjectiveScoreText`, `ObjectiveThresholdText`) e senza binding di proprieta'
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_TurnHeader.uasset
+      - docs/technical/evidence/hud/u75-header-accanto-alle-tavole.png
+      - docs/technical/evidence/hud/u75-header-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3643).
+    shares_setup_with: [U72, U74]
+    verifies: []
+    issues: [3635]
+    done_when: >-
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` trova le porte dell'header; `ScreenHud.RoundLimitComesFromTheFormat`
+      legge il limite dalle porte dell'istanza e non trova binding di proprieta'; entrambi rossi sull'asset di `main`;
+      a 1920x1080 Z1 e Z3 coincidono con le tavole A e D, anche in scala di grigi, salvo gli scarti dichiarati qui sotto
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3635, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 46–87 e
+      la funzione `phases()`. Il contatore dice ROUND e non TURNO ([D-496]).
+
+      ✅ **Asset e gate.** I tre testi di prima avevano binding di proprieta': sono stati rimossi, e la rimozione toglie
+      anche i loro binding. Via anche i due grafi `Get_PhaseText_Text` e `Get_TimerText_Text`. Ora scrive tutto
+      `RefreshLook`. Per questo la seconda meta' di `RoundLimitComesFromTheFormat` non cerca piu' il binding di
+      `RoundText`. Legge «/ 12», «/ 7» e l'assenza del limite dalle porte dell'istanza del Blueprint vero, e fallisce
+      su qualunque binding rimasto. Controllo positivo: con l'asset di `main` entrambi i test sono rossi, e
+      `ActionBarDeclaresTheNamedPorts` lo e' sulle sole porte nuove. Una mutazione che anticipa il controllo dei
+      binding li nomina tutti e tre: `RoundText`, `PhaseText` e `TimerText`.
+
+      ⚠️ **Tre scelte di layout, dove la tavola chiede cio' che le porte non danno.**
+      - Il round sta fuori dai due gruppi: le porte sono una coppia sola e si vedono in entrambe le fasi. In Risoluzione
+        resta quindi alla taglia della Pianificazione. «RISOLUZIONE» gli sta accanto, non sotto come nella tavola D, e le
+        celle sono piu' strette.
+      - L'obiettivo non ha l'esagono e dice «OBIETTIVO» al posto del nome. Nessun font dell'engine ha U+2B22, e
+        un'icona passa dal catalogo ([D-031]). Nome e CONTESO restano fuori ([D-481] punto 3).
+      - La sigla di una cella spenta ha il peso e la taglia di quella accesa: il C++ ne cambia solo il colore.
+
+      🔴 **Tre correzioni trovate solo a schermo:**
+      1. **Il riquadro stava 5 px piu' in alto.** L'area di una zona alta parte da y=−1, come in `U72`: per stare a
+         y=24 la radice vuole 25.
+      2. **Il quadrato della fase era invisibile.** Il C++ lo dipinge col fondo trasparente, e con
+         `bUseBrushTransparency` acceso l'alfa 0 spegne anche il contorno. Ora e' spento sulle cornici che il C++
+         dipinge con un fondo trasparente o traslucido.
+      3. **«(a N)» stava 3–4 px sotto la linea di base del punteggio.**
+
+      ✅ **Le catture.** `L_DevSandbox` non dichiara una cella obiettivo: `ObjectiveBox` resta `Collapsed` e l'header si
+      centra. Z1 e Z3 insieme sono catturati su `L_HexArena`. Un round senza azioni non ha playback, quindi la
+      Risoluzione e' presa con una raffica su un round con Guardia e Move: PREP accesa, poi MOVE. Nessuna Blast in quel
+      round, quindi la cella BLAST accesa non e' a schermo. E' lo stesso codice delle altre tre.
+
+      🔑 **Misurato: una radice `Visible` che riempie la zona non mangia i click della mappa.** Un click dentro
+      `TopCenter`, fuori dal riquadro, pianifica il percorso (`Piano: … -> 1 waypoint`): il click non gestito risale
+      al viewport.
+
+  - id: U76
+    title: Roster, carta, pannello e avvisi come le tavole A, B ed E — WBP_RT_UnitCard riparentata, chip e voci in C++
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_UnitCard` riparentata su `URTUnitCardWidget`; `WBP_RT_TeamRoster` con `CardsBox`, `OpposingCardsBox` e
+      `CardClass`; `WBP_RT_SelectedUnitPanel` con `SubjectCard`, i tre chip, `PlanWarningsBox` e `PlanWarningEntryClass`;
+      il nuovo `WBP_RT_PlanWarningEntry`; nel TacticalHUD il bordo da cantiere spento su `TopLeft`, `TopCenter` e
+      `MiddleLeft`. I grafi che costruivano e scrivevano le carte sono stati tolti
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_UnitCard.uasset
+      - Content/RT/UI/Match/WBP_RT_TeamRoster.uasset
+      - Content/RT/UI/Match/WBP_RT_SelectedUnitPanel.uasset
+      - Content/RT/UI/Match/WBP_RT_PlanWarningEntry.uasset
+      - Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
+      - docs/technical/evidence/hud/u76-roster-e-pannello-accanto-alle-tavole.png
+      - docs/technical/evidence/hud/u76-roster-e-pannello-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3644, #3656).
+    shares_setup_with: [U72, U75]
+    verifies: []
+    issues: [3636]
+    done_when: >-
+      `ActionBarDeclaresTheNamedPorts`, `MatchWidgetsDeriveFromCppBase`, `RosterAndPanelWearTheirClasses` e
+      `ZonesWithTheirContentHideTheBlockout` sono verdi in un processo fresco e rossi sugli asset di `main`; a 1920x1080
+      Z2, Z4 e Z8 coincidono con le tavole A, B ed E, anche in scala di grigi, salvo gli scarti dichiarati qui sotto
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3636, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 22–44
+      (roster), 159–212 (avvisi e pannello) e la funzione `chips()`.
+
+      ✅ **Asset, grafi e gate.**
+      - `WBP_RT_UnitCard` e' riparentata. Via la variabile `Card`, i due grafi `Get_*` e i testi che li usavano.
+      - Il roster non ha piu' i due cicli di `CreateWidget` (alleate e avversarie) ne' la variabile `CardWidgets`. Le
+        carte le costruisce `RefreshCards` da `CardClass`.
+      - Il pannello non ha piu' i tre testi con binding, i loro grafi e il nodo che scriveva la carta a ogni tick.
+        Resta il binding di visibilita' della radice.
+      - Gate: le porte dei quattro asset, le righe `UnitCard` e `PlanWarningEntry` in `MatchWidgetsDeriveFromCppBase`,
+        il test nuovo `RosterAndPanelWearTheirClasses`, e tre zone in piu' in `ZonesWithTheirContentHideTheBlockout`.
+        `TopCenter` era stata dimenticata in `U75`. Controllo positivo: con gli asset di `main` i quattro sono rossi.
+        ⚠️ La meta' «istanza nel TacticalHUD» del test nuovo non e' provata separatamente: sugli asset di `main` e'
+        rosso gia' il CDO.
+
+      🔴 **Quattro correzioni trovate solo a schermo:**
+      1. **Il roster era vuoto.** `CardClass` era stato scritto sul CDO dopo che il TacticalHUD era gia' caricato, e
+         l'istanza in memoria era rimasta nulla. Salvare il TacticalHUD in quello stato avrebbe scritto il nullo come
+         override per sempre: l'Editor e' stato chiuso senza salvarlo, e al riavvio l'istanza ha preso il default.
+         Lo controlla ora `RosterAndPanelWearTheirClasses`.
+      2. **In orizzontale le zone a sinistra cominciano 3 px piu' in la'.** Il padding sinistro e' 17 per stare a x=24.
+      3. **Il fondo del pannello stava a 836**: padding 16 per stare a 840 come la tavola.
+      4. **I triangoli erano piccoli, e il «!» non ci stava.** I glifi geometrici del ripiego sono circa 0,6 em: ▲ a 24
+         nel chip e a 27 nella voce, centrati col segno nella scatola naturale del glifo, come in `U72`.
+
+      ⚠️ **Scarti dichiarati:**
+      - ritratto, elemento, PM e status non ci sono (fuori scope nell'issue);
+      - la carta del pannello e' la stessa del roster, quindi il nome resta a 16 px invece di 24;
+      - i bordi tratteggiati (avviso, chip `REAZ.`, chip in avviso) sono pieni, perche' un `Border` non tratteggia;
+      - «—» resta alla taglia del valore, non piu' grande come nella tavola;
+      - lo scudo e' un rettangolo arrotondato in basso, non la forma a scudo;
+      - manca l'etichetta «PV» davanti alla barra, e la carta del pannello ha il pallino di squadra che la tavola non ha
+        (e' la carta del roster);
+      - il chip MOVIMENTO di un percorso dice «percorso», non «Move · 3 celle»: e' il testo di `DescribeMovementSlot`,
+        cioe' del C++.
+
+      ✅ **Le catture**, su `L_DevSandbox`:
+      - tavola A: Aevik con Guardia e un percorso;
+      - tavola B: la Marea circolare di Muiren su una cella accanto ad Aevik, con l'avviso e il chip col «!». Nella
+        cattura intera c'e' anche ▲ 1 su Conferma, che sta fuori dal ritaglio delle evidenze;
+      - tavola E: Aevik con la Guardia reattiva, col chip `REAZ.` nel roster e nella carta del pannello.
+
+      🔑 **Seguito possibile, fuori da questa seduta:** con il movimento riservato a `Withdraw` il chip MOVIMENTO dice
+      «—». La tavola F dice «Withdraw (riservato)», ed e' una regola del C++ (`Slots.Movement.bOccupied`), non dell'asset.
+
+  - id: U77
+    title: Il registro come la tavola D — WBP_RT_EventLine riparentata, righe in C++, solo in Risoluzione
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_EventLine` riparentata su `URTPlayerEventLineWidget`, con `PhaseStrip`, `PhaseLabelText`, `SequenceText`,
+      `ReactionBadge` e `LineText`; `WBP_RT_EventLog` con `LogRoot`, `LogTurnText`, `LinesBox` e `LineClass` nei
+      default; nel TacticalHUD il bordo da cantiere spento su `MiddleRight`. I grafi che costruivano e scrivevano le
+      righe sono stati tolti
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_EventLine.uasset
+      - Content/RT/UI/Match/WBP_RT_EventLog.uasset
+      - Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
+      - docs/technical/evidence/hud/u77-registro-accanto-alla-tavola.png
+      - docs/technical/evidence/hud/u77-registro-scala-di-grigi.png
+    unblocked_by: []
+    # ⚠️ Vuoto perche' il C++ delle porte e' gia' su `main` (#3645).
+    shares_setup_with: [U75, U76]
+    verifies: []
+    issues: [3637]
+    done_when: >-
+      `ActionBarDeclaresTheNamedPorts`, `MatchWidgetsDeriveFromCppBase`, `EventLogWearsItsLineClass` e
+      `ZonesWithTheirContentHideTheBlockout` sono verdi in un processo fresco e rossi sugli asset di `main`; a 1920x1080
+      Z10 coincide con la tavola D in Risoluzione, anche in scala di grigi, e in Pianificazione non c'e', salvo gli
+      scarti dichiarati qui sotto
+    notes: |
+      Scritta ed eseguita il 2026-10-11 da #3637, nel clone principale, con l'Editor aperto con `-LiveCoding=false`.
+      Albero e proprieta' via bridge; le misure dal sorgente della tavola, `RefactorTactics-HUD.dc.html` righe 342–372
+      e la funzione `log()`. Il registro dice ROUND e non TURNO ([D-496]).
+
+      ✅ **Asset, grafi e gate.**
+      - `WBP_RT_EventLine` e' riparentata. Via la variabile `Line` e i nodi che ne scrivevano il testo.
+      - Il registro non ha piu' il grafo che costruiva le righe in `FeedBox`. `FeedBox` e' diventato `LinesBox`, e le
+        righe le costruisce `RefreshLook` da `LineClass`.
+      - Gate: le porte dei due asset, la riga `EventLine` in `MatchWidgetsDeriveFromCppBase`, il test nuovo
+        `EventLogWearsItsLineClass`, e `MiddleRight` in `ZonesWithTheirContentHideTheBlockout`. Con questa voce le zone
+        ci sono tutte. Controllo positivo: con gli asset di `main` i quattro sono rossi. ⚠️ La meta' «istanza nel
+        TacticalHUD» di `EventLogWearsItsLineClass` non e' provata separatamente: sugli asset di `main` e' rosso gia' il
+        CDO, come in `U76`.
+
+      🔑 **Il TacticalHUD e' stato salvato PRIMA di scrivere `LineClass` sul CDO**, e l'Editor e' stato riaperto prima
+      della PIE. E' la trappola di `U76` (guida §7-quater) evitata nell'ordine, non corretta dopo.
+
+      🔴 **Una correzione trovata solo a schermo:** il riquadro stava a x=1551 e y=236, la tavola lo vuole a 1556 e
+      240. La zona di destra ha uno scarto diverso da quelle di sinistra: padding 18 e 25.
+
+      ⚠️ **Scarti dichiarati**, tutti gia' fuori dal C++:
+      - WHY? e la scomposizione sono FUTURE nella tavola;
+      - la riga «nessun evento» e' `DEFERRED` (guida §7-sexies);
+      - la riga corrente evidenziata chiede l'indice dell'evento riprodotto (T5, #1881);
+      - chi e cosa stanno in un testo solo, `LineText`, non in un nome in grassetto seguito dall'azione.
+
+      ✅ **Le catture**, su `L_DevSandbox`, con una raffica su un round con Guardia, Move e la Marea circolare di Muiren.
+      Il registro c'e' in Risoluzione, con PREP #1 e BLAST #2 e le loro strisce, e manca in Pianificazione.
+
+  - id: U78
+    title: La vista strategica rigiudicata — Tab dall'avvio, mira dall'alto, il ricordo e la separazione dei piani
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti su `PIE-CAM-STRATEGIC`, `PIE-CAM-STRATEGIC-RICORDO` e `PIE-CAM-STRATEGIC-PIANI`; il valore della
+      separazione dei piani; le catture per le scelte di #3630 e #3631, poi prese da D-498; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U73]
+    verifies: [PIE-CAM-STRATEGIC, PIE-CAM-STRATEGIC-RICORDO, PIE-CAM-STRATEGIC-PIANI]
+    issues: [1774, 3630, 3631, 3632, 3646, 3647]
+    done_when: >-
+      le tre voci hanno un verdetto nel registro, dato dall'autore sulle catture dopo il merge di #3646, #3647 e
+      #3657
+    notes: |
+      Condotta il 2026-10-11 da questa sessione, nel clone principale su `main` = `1c58a69e4` ricompilato, mentre
+      l'autore era lontano dalla macchina; i verdetti li ha dati poi sulle catture affiancate. Tre avvii dell'Editor,
+      con `-LiveCoding=false`, il bridge sulla 8765 e la PIE nel viewport:
+      1. partita su `L_DevSandbox`, `-dpcvars=rt.Match.PlanningSeconds=3600`: ritorno di `Tab`, mira, inclinazione
+         e proiezione;
+      2. `rt.Test.Scenario=Visual.Map.MultiLevel` con `rt.Debug.PlaybackControls=1`, `rt.Debug.PlaybackStartPaused=1`
+         e `rt.Map.StrategicLayerSeparation=3`: la separazione, il click sul piano 1 e `Tab` durante il playback;
+      3. `rt.Test.Scenario=Visual.Perception.Acceptance` con gli stessi controlli: il ricordo, fermo al turno 3.
+
+      Le leve di #3630 (`StrategicPitchDelta`) e #3631 (`bStrategicOrthographic`) si sono scritte sul pawn vivo con
+      `ObjectTools.set_properties`, rileggendo il pitch effettivo: -40/-44,8/-49,5 alla soglia e -40/-60/-80 a fondo
+      corsa per 0/-20/-40, e la tattica sempre a -40. Le scelte le ha poi prese D-498 (dimetrico 2:1, ortografica),
+      in una sessione `/sc:spec-panel`, invece di questa seduta.
+
+      🔴 **Cinque trappole dell'Editor pilotato da script**, tutte silenziose:
+      - un `Alt` premuto da solo attiva la barra dei menu: i tasti dopo hanno aperto il «Tactical Designer»;
+      - `ESC` nella PIE dentro il viewport chiude la PIE;
+      - `set Classe Proprieta' Valore` e' vietato nell'Editor, e l'incolla nella casella della console non e' arrivato;
+      - `set_properties` su un attore vivo chiama `PostEditChangeProperty`: sul pawn della camera il braccio torna
+        a 800, e un ritorno di `Tab` misurato dopo dice 800 senza che sia un difetto;
+      - `rt.Debug.PlaybackStartPaused` non fa niente senza `rt.Debug.PlaybackControls 1`.
+
+      ⚠️ Il click per #3631 in ortografica ai tre punti del viewport non e' stato chiuso: la camera non arriva
+      all'angolo su `L_DevSandbox`. Si rimisura con #3662 sul rettangolo della scena di #3661.
+  - id: U79
+    title: La vista strategica in isometrica — aspetto, scala alla soglia, click, piani e ricordo
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti su `PIE-CAM-STRATEGIC`, `PIE-CAM-STRATEGIC-PIANI` e `PIE-CAM-STRATEGIC-RICORDO` in isometrica; la decisione
+      D-499 (rotazione a 60° in iso); il difetto #3674; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U78]
+    verifies: [PIE-CAM-STRATEGIC, PIE-CAM-STRATEGIC-PIANI, PIE-CAM-STRATEGIC-RICORDO]
+    issues: [1774, 3632, 3662, 3674]
+    done_when: >-
+      le tre voci hanno un verdetto nel registro, dato dall'autore sulle catture dopo il merge di #3671
+    notes: |
+      Condotta il 2026-10-11 da questa sessione, nel clone principale su `main` = `ba80c65c4` ricompilato, con l'autore
+      presente che ha giudicato le tavole affiancate. Tre avvii dell'Editor, con `-LiveCoding=false`, il bridge sulla 8765
+      e la PIE nel viewport avviata dal bridge (`EditorToolset.EditorAppToolset.StartPIE` con `options.playMode`):
+      1. partita su `L_DevSandbox`, `-dpcvars=rt.Match.PlanningSeconds=3600`: aspetto, `MMB`, rotazione, click, scala
+         alla soglia (rotella a scatti di 150, braccio letto con `ObjectTools.get_properties`), ritorno, turno con `Spazio`;
+      2. `rt.Test.Scenario=Visual.Map.MultiLevel` con `rt.Debug.PlaybackControls=1` e `rt.Debug.PlaybackStartPaused=1`:
+         separazione, clipping, click sul piano 1 (al turno 2, ripreso il playback con `K`);
+      3. `rt.Test.Scenario=Visual.Perception.Acceptance` con gli stessi controlli: il ricordo al turno 3.
+
+      L'autore ha rifiutato la rotazione a 45° in iso: ha deciso D-499 (60°, allineamento all'ingresso, niente orbita
+      libera), attuata in #3662.
+
+      🔴 **Trappole nuove, oltre a quelle di `U78`:**
+      - il bridge espone i toolset con nome qualificato (`EditorToolset.EditorAppToolset`,
+        `editor_toolset.toolsets.object.ObjectTools`) e `mcp.py` tronca l'elenco a 6000 caratteri: usare `--out`;
+      - un `mcp.py.session` rimasto da un Editor precedente dà HTTP 404: va cancellato a ogni avvio;
+      - `ESC` nella PIE dentro il viewport chiude la PIE (di nuovo: lo diceva già `U78`);
+      - la rotella a raffica perde scatti: uno alla volta, rileggendo il braccio;
+      - con un'abilità armata il click su una cella è un waypoint: la mira vuole un'unità.
+
+      ⚠️ A 180° la piattaforma di `Visual.Map.MultiLevel` non si vede, né in ortografica né in prospettiva. Il clipping
+      e l'occlusion culling sono esclusi con controlli positivi: è #3674.
+  - id: U80
+    title: La rotazione a 60° in iso (D-499) e il clipping ai suoi angoli
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto sulla rotazione di D-499 e sul clipping a 60°, 120°, 240° e 300° in `PIE-CAM-STRATEGIC`; i 120°
+      aggiunti a #3674; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U79]
+    verifies: [PIE-CAM-STRATEGIC]
+    issues: [3662, 3674]
+    done_when: >-
+      la rotazione e il clipping hanno il verdetto dell'autore nel registro, dopo il merge di #3676
+    notes: |
+      Condotta il 2026-10-11 da questa sessione, nel clone principale su `main` = `dfde7e3ed` già compilato, con l'autore
+      presente: la rotazione l'ha giudicata guardando la PIE, il clipping sulle tavole. Tre avvii dell'Editor, con
+      `-LiveCoding=false`, il bridge sulla 8765 e la PIE nel viewport avviata dal bridge; il terzo su `main` =
+      `f274d1ccd`, senza ricompilare, perché il suo albero coincide con quello dei binari (`bcbea04c1`):
+      1. partita su `L_DevSandbox`, `-dpcvars=rt.Match.PlanningSeconds=3600`: `E` in tattica, `Tab`, `E`, `Q` `Q`,
+         trascinamenti con `MMB` in iso, `Tab` di ritorno e un trascinamento in tattica come controllo positivo, con
+         imbardata, inclinazione, stato e braccio letti dal pawn dopo ogni passo;
+      2. `rt.Test.Scenario=Visual.Map.MultiLevel` con `rt.Debug.PlaybackControls=1` e `rt.Debug.PlaybackStartPaused=1`:
+         `Tab` e cinque `E`, una cattura per angolo; a 120° `AutoPlaneShift` a −30000 e poi a +4000 come controllo
+         positivo, rimesso a −4800;
+      3. lo stesso scenario, braccio a fondo corsa (4000, in undici scatti di rotella) e sei angoli. Il pan in avanti
+         lì non sposta il pivot, che resta a x = −650: tutta la mappa sta nel quadro. A braccio 2350 lo stesso pan lo
+         sposta, come controllo positivo.
+  - id: U81
+    title: La separazione dei piani a 2, su tre piani sovrapposti (D-501)
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      la separazione dei piani scelta dall'autore (2, D-501 (7)); il verdetto rimisurato a 2 di
+      `PIE-CAM-STRATEGIC-PIANI`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U79]
+    verifies: [PIE-CAM-STRATEGIC-PIANI]
+    issues: [3678]
+    done_when: >-
+      la separazione ha il verdetto dell'autore e la voce è rimisurata al valore scelto
+    notes: |
+      Condotta il 2026-10-11 da questa sessione **da un worktree** (`rt-wt-3678`, branch `issue/3678-tre-piani`), non
+      dal clone principale: la fixture `LayerStack` esisteva solo sul branch, e la seduta è di sola lettura. Senza i pack
+      gli eroi sono cilindri, cioè come in strategica. L'autore ha giudicato le tavole affiancate. Due avvii utili, con
+      `-LiveCoding=false`, il bridge sulla 8765 e la PIE nel viewport avviata dal bridge:
+      1. `rt.Test.Scenario=Visual.Map.LayerStack` col default ancora a 3: `Tab`, catture a 0° e a 60°, poi
+         `StrategicLayerSeparation` a 2 sull'attore vivo con `ObjectTools.set_properties` (riletta), due `Tab` e le
+         stesse catture;
+      2. ricompilato col default a 2: `N` per selezionare, `PageUp` per il piano attivo, click su una cella del
+         mezzanino e una della cima, esiti letti dal log.
+
+      🔴 **Trappola nuova: da un worktree il bridge non parte.** `bAutoStartServer=True` sta nel `Saved/` del clone
+      principale, che è gitignorato. Rimedio senza scrivere file: `-ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=True`.
+      ⚠️ Un terzo avvio, su `Visual.Map.MultiLevel`, non è partito: un'altra sessione aveva aperto Unreal per una serie
+      di mutazioni, e lo script si è fermato da solo. Il confronto su due piani non è servito: l'autore ha deciso su tre.
+  - id: U82
+    title: La scena fra le fasce dell'HUD (D-497) — rettangolo, risoluzioni e click
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-HUD-SCENA`, giudicato dall'autore sulle catture a 16:9, 16:10 e 21:9; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U81]
+    verifies: [PIE-HUD-SCENA]
+    issues: [3661]
+    done_when: >-
+      la scena fra le fasce ha il verdetto dell'autore nel registro, prima del merge di #3690
+    notes: |
+      Condotta il 2026-10-11 da questa sessione **da un worktree** (`rt-wt-3661`, branch `issue/3661-scena-fra-le-fasce`),
+      perché il codice esisteva solo sul branch; sola lettura, nessun salvataggio. Bridge acceso con
+      `-ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=True`.
+      Tre avvii utili:
+      1. partita su `L_DevSandbox`: la scena si rende fra le fasce. ⚠️ Nel worktree la mappa di quel livello punta a file
+         gitignorati, quindi i click non hanno una mappa su cui risolvere: non sono una misura;
+      2. `rt.Test.Scenario=Visual.Map.LayerStack`: la scena, il click a 13 px dentro il bordo che pianifica, i click
+         sulle fasce e sul roster che non pianificano, la strategica;
+      3. lo stesso scenario in finestra flottante (`PlayMode_InEditorFloating`, misura scritta sul CDO di
+         `LevelEditorPlaySettings` con `ObjectTools.set_properties`) a 1280x800 e 1890x810, catturata con
+         `EditorAppToolset.CaptureEditorImage`, che vede anche le finestre flottanti.
+
+      🔴 **Trovato e corretto in seduta**: un click sulla fascia scriveva `Nessuna mappa esagonale nel livello`, un avviso
+      falso (rilievo della review di #3690). Nel secondo avvio, in mezzo ai passi, il log mostra un lock-in, un
+      armamento «dal tasto» e un `N` che gli script non hanno mandato: una mano sull'Editor. Il click in strategica dopo il
+      lock-in non pianificava per quello, e non e' contato.
+
+      🔴 **Trappola nuova**: il primo tentativo di spostare i piani non è arrivato. Il JSON di `set_properties`, scritto
+      in PowerShell con le virgolette interne escapate due volte, non cambiava niente, e la rilettura con
+      `get_properties` tornava vuota. L'ha preso il controllo positivo: a +4000 la board era ancora intera. In una
+      stringa PowerShell fra apici il JSON annidato vuole `\"` una volta sola.
+  - id: U83
+    title: L'indicatore del piano nel dock (D-501) — tasti, tastiera, click — e la piattaforma di #3674
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-HUD-PIANO` sui criteri del log, e la causa misurata di #3674; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U82]
+    verifies: [PIE-HUD-PIANO]
+    issues: [3680, 3674]
+    done_when: >-
+      l'indicatore ha il suo verdetto nel registro prima del merge della PR di #3680, e #3674 ha la causa scritta
+    notes: |
+      Condotta il 2026-10-12, di notte, da una sessione senza l'autore, **da un worktree** (`rt-wt-3680`, commit
+      `3588ad1aa` = `main` `f5651e9a5` più il solo indicatore). Sola lettura, nessun salvataggio. Bridge acceso con
+      l'override `-ini` di `U82`. Scenario `rt.Test.Scenario=Visual.Map.MultiLevel`. ⚠️ Il primo avvio dell'Editor in
+      quel worktree ha installato i pacchetti Python dei plugin (torch compreso) per alcuni minuti: finché non finisce, il
+      bridge non risponde e `StartPIE` va in timeout.
+      1. **#3674**: vista strategica a 0°, 120° e 180°, poi `LayerView = ActiveOnly` sull'attore vivo con il piano 1 e
+         con il piano 0. A 180° la piattaforma è disegnata e cade sulla board, grigio su grigio. La causa è la
+         **sovrapposizione** (commento su #3674).
+      2. **#3680**: click su ▲, poi `PageDown` e `PageUp`. Nel log ci sono solo tre `Piano attivo: N`, e l'indicatore
+         segue ogni passo.
+      La resa dell'indicatore non è stata giudicata: resta dell'autore.
+      3. Dalla review di #3693, su `decd32676`: con Aevik selezionata (`N`), due click su ▼ spento non scrivono niente,
+         mentre un click nella scena pianifica. È il controllo positivo che distingue «niente» da «click perso». ⚠️ Il
+         primo tentativo cliccava Aevik senza selezione e non scriveva niente nemmeno lui: non era un controllo.
+         Avvio dell'Editor: prima il modale «Wait for ZenServer?», poi la build di un'altra sessione che teneva il mutex
+         di UBT.
+  - id: U84
+    title: I piani rispetto all'attivo (D-501) — le intensità, su tre piani e sulla piattaforma di #3674
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-CAM-PIANI-ATTIVO` e le intensità scelte dall'autore, da scrivere sui default di
+      `FRTLayerPresentationTuning` e su D-501; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U81, U83]
+    verifies: [PIE-CAM-PIANI-ATTIVO]
+    issues: [3679, 3674]
+    done_when: >-
+      l'autore ha scelto le intensità in PIE e giudicato la voce; #3674 si chiude se la piattaforma si distingue a 120° e 180°
+    notes: |
+      ⏳ **Da convocare con l'autore.** Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture dal
+      worktree `rt-wt-3679` (commit `a32caee15`, sola lettura), con le intensità di default: `LayerStack` coi tre piani attivi,
+      in tattica e in strategica, anche a 60°; `MultiLevel` a 180° e a 120°, coi due piani attivi. Le catture e le misure
+      sono nella cella della voce. In seduta: si provano le leve `rt.Map.Layers.*` in console, si sceglie, e i valori
+      scelti diventano i default nel codice.
 
 not_schedulable:
 

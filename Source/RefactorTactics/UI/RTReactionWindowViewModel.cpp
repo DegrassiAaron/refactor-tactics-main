@@ -1,6 +1,7 @@
 #include "UI/RTReactionWindowViewModel.h"
 
 #include "Turn/RTTurnManager.h"
+#include "RefactorTactics.h" // LogRT: un indice fuori range si dice, non si tace
 
 void URTReactionWindowViewModel::Hook(ARTTurnManager* InTurnManager)
 {
@@ -95,4 +96,24 @@ void URTReactionWindowViewModel::SubmitResponse(const FString& Response)
 	// dell'identita' del manager fin dentro il canale umano: se questa risposta arriva dopo che la sua
 	// finestra e' scaduta, `SubmitReactionResponse` la ignora invece di chiudere quella successiva.
 	TM->SubmitReactionResponse(WindowOpportunityId, Response);
+}
+
+bool URTReactionWindowViewModel::ChooseOption(int32 OptionIndex)
+{
+	const FRTReactionWindowView Vista = GetWindow();
+	if (!Vista.Options.IsValidIndex(OptionIndex))
+	{
+		// ⚠️ **`Warning` e non `Error`, e non fa nulla.** In una finestra da 3,0 s l'elenco puo' cambiare fra il
+		// disegno e la scelta: e' un ritardo, non un difetto del chiamante. Ma va **visto**, perche' un bottone o un
+		// tasto che non risponde e' il sintomo piu' difficile da diagnosticare a schermo. Il testo resta quello del
+		// widget, da cui la regola viene: i test lo attendono per nome.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] FastDecision: opzione %d fuori range (%d disponibili) - nessuna risposta inoltrata. "
+				 "La finestra puo' essere cambiata fra il disegno e la scelta."),
+			OptionIndex, Vista.Options.Num());
+		return false;
+	}
+
+	SubmitResponse(Vista.Options[OptionIndex].Response);
+	return true;
 }

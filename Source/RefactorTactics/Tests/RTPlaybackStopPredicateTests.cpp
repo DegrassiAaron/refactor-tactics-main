@@ -20,6 +20,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTActionData.h" // #3582: l'azione di Aevik si cerca per `ActionId`
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
 #include "RTAbilityFixtures.h"
@@ -79,8 +80,12 @@ namespace
 	 * impronta del proprio atto, quindi il suo arrivo non e' mai un confine. Il confine dopo l'arrivo e'
 	 * l'attivazione dell'atto di Aevik, che esce dopo l'arrivo: un tick lungo che li copra entrambi arriva il
 	 * colpo e si ferma sull'atto dopo, ed e' li' che la consegna del tracer all'uscita della fermata si misura.
-	 * ⚠️ L'ordine degli intenti segue il roster `(cella, id, nome)`: Branth (X = 2) sta a sinistra di Aevik (X = 6).
-	 * Il test che lo usa lo verifica come premessa invece di darlo per scontato.
+	 * ⚠️ **L'ordine degli atti e' quello canonico del Blast** (`#3582`, ADR-0003 §3): priorita' crescente, poi `ActionId`.
+	 * Aevik spara `LinearDischarge` (55) e Branth `ImpactShot` (50), quindi l'atto di Branth viene prima per una
+	 * ragione dichiarata. Il test che lo usa lo verifica come premessa invece di darlo per scontato.
+	 * ⏱️ *Fino a `#3582` l'ordine era quello degli intenti, cioe' del roster `(cella, id, nome)`: Branth (X = 2) stava a
+	 * sinistra di Aevik (X = 6), e Aevik sparava l'attacco base. Con l'ordine canonico l'attacco base di Aevik
+	 * (`ArcPulse`, 50 come `ImpactShot`) passava davanti per `ActionId`, e il colpo di Branth restava l'ultimo.*
 	 * ⏱️ *La stesura di `#2454` metteva Aevik per primo: la fermata cadeva sull'ARRIVO di Branth, perche' prima di
 	 * #3549 un colpo dopo l'impronta di un altro atto apriva l'atto proprio.*
 	 */
@@ -93,7 +98,12 @@ namespace
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Aevik || !Branth || !Bersaglio) { return nullptr; }
 
-		Aevik->PlannedAbilityIndex = 0;
+		Aevik->PlannedAbilityIndex = INDEX_NONE;
+		for (int32 i = 0; i < Aevik->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Aevik->GetAbility(i);
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Aevik.LinearDischarge"))) { Aevik->PlannedAbilityIndex = i; }
+		}
 		Aevik->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
 		Aevik->PlannedCell = Aevik->Cell;
 		Branth->PlannedAbilityIndex = 0;
@@ -334,8 +344,8 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("⛔ il turno a due atti sta riproducendo qualcosa"), TM2->IsResolving())) { return false; }
 
 		// ⛔ ANTI-VACUITA': nella sequenza il colpo deve essere SEGUITO da un elemento di un altro atto. Se fosse
-		// l'ultimo — Aevik non dopo Branth, o il suo intento non entrato nel Blast — nessun confine cadrebbe dopo
-		// l'arrivo e la fermata qui sotto non esisterebbe.
+		// l'ultimo — Aevik non dopo Branth (per priorita', `#3582`), o il suo intento non entrato nel Blast — nessun
+		// confine cadrebbe dopo l'arrivo e la fermata qui sotto non esisterebbe.
 		const TArray<FRTResolvedEvent>& Timeline = TM2->ResolvedTimelineForTest();
 		const TArray<int32> Sequenza = TM2->PlaybackBlastSequenceIndicesForTest();
 		int32 PosColpo = INDEX_NONE;

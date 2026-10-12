@@ -11,6 +11,7 @@
 #include "Perception/RTKnowledgeVeilPresenter.h"
 // #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
 #include "UI/RTReactionWindowViewModel.h"
+#include "UI/RTHudViewModel.h" // MakeBlastPreviewPlan: la traduzione unita' -> anteprima e' una sola (#3620)
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -31,6 +32,9 @@
 // navigatore invece di tenerne una copia.
 #include "Frontend/RTFrontendNavigator.h"
 #include "Engine/GameInstance.h"
+#include "Engine/LocalPlayer.h"         // #3661: il rettangolo della scena e la sua view-projection
+#include "Engine/GameViewportClient.h"  // #3661: il viewport del giocatore, per GetProjectionData
+#include "SceneView.h"                  // #3661: FSceneViewProjectionData
 #include "UI/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
 #include "Core/RTTypes.h"
 #include "Core/RTGameplayTags.h" // Unbalanced: [D-319] abbassa il TETTO, e il tetto si mostra qui
@@ -300,52 +304,12 @@ namespace
 		// ha pianificato uno scatto e poi un attacco sparera' da dove sara' arrivato. `PlannedDashMoves()` e' la
 		// stessa domanda che `ResolveDash` si pone, rifiuto dello stato compreso ([D-471]). ⚠️ Da #3509 decide anche
 		// la FASE dell'azione, e la carica ne resta fuori ([D-464], `AimOriginCell`).
-		FRTBlastPreviewPlan PreviewPlan;
-		PreviewPlan.AttackerId = UnitId;
-		PreviewPlan.bDashResolves = Unit->PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
-		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
-		PreviewPlan.bDashIsCharge = Unit->PlannedDashIsCharge();
-
+		// La traduzione sta in `URTHudViewModel::MakeBlastPreviewPlan` ([D-492], #3620): la usano anche i segni sulle
+		// unita' dell'HUD, cosi' anteprima e overlay non possono piu' dire due cose diverse sullo stesso piano.
+		const FRTBlastPreviewPlan PreviewPlan = URTHudViewModel::MakeBlastPreviewPlan(*Unit, UnitId, Units);
+		const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
+		// L'azione principale serve ancora piu' sotto, alla timeline delle fasi: e' la stessa che il piano ha tradotto.
 		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
-		if (Ability)
-		{
-			PreviewPlan.bHasAction = true;
-			// [D-464]: l'area colpita parte da dove l'azione MIRA, e quello dipende dalla sua fase. Senza, un
-			// `Environment` pianificato dopo uno scatto veniva anteprimato dalla cella dello scatto, mentre il click
-			// lo giudicava da quella corrente.
-			PreviewPlan.Phase = Ability->Def.ResolutionPhase;
-			PreviewPlan.Shape = Ability->Shape;
-			PreviewPlan.RangeCells = Ability->RangeCells;
-			PreviewPlan.AreaRadius = Ability->AreaRadius;
-			// L'avviso di fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento
-			// impossibile insegna a ignorare gli allarmi.
-			PreviewPlan.bFriendlyFire = Ability->Def.bFriendlyFire;
-			if (Unit->bAttackTargetsCell)
-			{
-				PreviewPlan.bTargetsCell = true;
-				PreviewPlan.TargetCell = Unit->PlannedAttackCell;
-			}
-			else
-			{
-				// `Units` contiene le unita' VIVE dello snapshot: un bersaglio caduto semplicemente non c'e',
-				// e `INDEX_NONE` diventa «nessuna area», che e' l'esito giusto.
-				PreviewPlan.TargetId = Units.IndexOfByKey(Unit->PlannedAttackTarget.Get());
-			}
-		}
-
-		// Le unita' nella forma che il Blast riceve, con gli STESSI indici dello snapshot: cosi' l'identita'
-		// dell'attaccante e quella dei bersagli sono le stesse da entrambi i lati.
-		TArray<FRTHexCombatUnit> HexUnits;
-		HexUnits.Reserve(Units.Num());
-		for (int32 i = 0; i < Units.Num(); ++i)
-		{
-			FRTHexCombatUnit HU;
-			HU.UnitId = i;
-			HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
-			HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
-			HU.bAlive = Units[i] && Units[i]->IsAlive();
-			HexUnits.Add(HU);
-		}
 
 		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
 		HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
@@ -378,6 +342,13 @@ namespace
 			// **entrambi** i versi: un eroe con un profilo configurato risultava armato ogni turno anche senza
 			// aver pianificato niente, e chi arma sul profilo base (`NAME_None`) spariva dalla timeline. Lo
 			// slot per-turno e' quello che `ClearReactionPlan` azzera.
+			// ⚖️ **E non `URTCatalogLibrary::ArmsReaction`, perche' la domanda e' un'altra** (`#3628`, decisione
+			// d'autore del 2026-10-11). Il roster chiede «quest'unita' ha armato qualcosa che aprira' una finestra?» e
+			// conta anche l'Overwatch ([D-478]). Qui si chiede «c'e' una voce di Prep per l'azione dello slot
+			// `Reaction`?». L'Overwatch come principale ha gia' la sua voce di Prep (`bAzioneNelPrep` in
+			// `MakePlanPreview`): contarlo qui la disegnerebbe due volte. E il dato `FRTReactionPreview` — che oggi nessuno
+			// disegna — porrebbe `WatchOrigin` a fine scatto, mentre l'Overwatch si arma da dove l'unita' e' prima dello
+			// scatto ([D-470]).
 			Timeline.bReactionArmed = Unit->PlannedReactionAbility != INDEX_NONE;
 			Timeline.ReactionProfileId = Unit->ReactionProfileId;
 			if (const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility))
@@ -490,6 +461,48 @@ const FKey& ARTPlayerController::UndoKeyboardHotkey()
 {
 	static const FKey Tasto = EKeys::BackSpace;
 	return Tasto;
+}
+
+const FKey& ARTPlayerController::StrategicViewHotkey()
+{
+	static const FKey Tasto = EKeys::Tab;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::CycleSelectionHotkey()
+{
+	// `N` per «next». Libero in `BuildInputMappings` quando D-488 l'ha scelto (misurato su `ae805683a`), e
+	// a tenerlo libero non e' questa riga ma `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero.
+	static const FKey Tasto = EKeys::N;
+	return Tasto;
+}
+
+FText ARTPlayerController::KeyBadgeLabel(const FKey& Key)
+{
+	// [D-496]: i tasti che un badge dell'HUD mostra per nome. Le cifre e le lettere restano quelle dell'engine.
+	struct FVoce { FKey Tasto; const TCHAR* Nome; };
+	static const FVoce Voci[] = {
+		{ EKeys::Enter,     TEXT("INVIO") },
+		{ EKeys::BackSpace, TEXT("BACKSPACE") },
+		{ EKeys::Escape,    TEXT("ESC") },
+		{ EKeys::SpaceBar,  TEXT("SPAZIO") },
+		{ EKeys::Tab,       TEXT("TAB") },
+	};
+	for (const FVoce& Voce : Voci)
+	{
+		if (Voce.Tasto == Key)
+		{
+			return FText::FromString(Voce.Nome);
+		}
+	}
+	return FText::FromString(Key.GetDisplayName(/*bLongDisplayName=*/ false).ToString().ToUpper());
+}
+
+FText ARTPlayerController::ReactionOptionKeyLabel(int32 OptionIndex)
+{
+	return AbilityHotkeys().IsValidIndex(OptionIndex)
+		? AbilityHotkeys()[OptionIndex].GetDisplayName(/*bLongDisplayName=*/ false)
+		: FText::GetEmpty();
 }
 
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
@@ -623,6 +636,9 @@ void ARTPlayerController::BuildInputMappings()
 	CycleSelectionAction = NewObject<UInputAction>(this, TEXT("IA_CycleSelection"));
 	CycleSelectionAction->ValueType = EInputActionValueType::Boolean;
 
+	StrategicViewAction = NewObject<UInputAction>(this, TEXT("IA_ToggleStrategicView"));
+	StrategicViewAction->ValueType = EInputActionValueType::Boolean;
+
 	DeclarePlanAction = NewObject<UInputAction>(this, TEXT("IA_DeclarePlan"));
 	DeclarePlanAction->ValueType = EInputActionValueType::Boolean;
 
@@ -725,10 +741,12 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
-	// `TAB` — il ciclo di selezione (`#3145`). Nessun altro `MapKey` lo rivendica, e a verificarlo non e'
-	// un elenco scritto a mano ma `PlayerInput.HotkeysDoNotCollide`, che interroga il
-	// `UInputMappingContext` REALE: da qui in poi il controllo vede questa riga da se'.
-	MappingContext->MapKey(CycleSelectionAction, EKeys::Tab);
+	// `N` — il ciclo di selezione (`#3145`), e `TAB` — la vista strategica (D-488). Le due righe stanno
+	// insieme perche' D-488 vuole il cambio nello stesso commit: separate, `Tab` farebbe due cose o nessuna.
+	// Nessun altro `MapKey` le rivendica, e a verificarlo non e' un elenco scritto a mano ma
+	// `PlayerInput.HotkeysDoNotCollide`, che interroga il `UInputMappingContext` REALE.
+	MappingContext->MapKey(CycleSelectionAction, CycleSelectionHotkey());
+	MappingContext->MapKey(StrategicViewAction, StrategicViewHotkey());
 
 	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
 	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
@@ -914,6 +932,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(CycleSelectionAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleSelection);
+		EIC->BindAction(StrategicViewAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleStrategicView);
 		EIC->BindAction(DeclarePlanAction, ETriggerEvent::Started, this, &ARTPlayerController::OnDeclarePlan);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 
@@ -966,7 +985,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		FVector RayOrigin = FVector::ZeroVector;
 		FVector RayDir = FVector::ZeroVector;
-		const bool bHasRay = bDeclaringFacing && DeprojectMousePositionToWorld(RayOrigin, RayDir);
+		const bool bHasRay = bDeclaringFacing && DeprojectCursorInsideScene(RayOrigin, RayDir); // #3661
 		UpdateFacingHoverFromRay(bHasRay, RayOrigin, RayDir);
 	}
 
@@ -977,6 +996,11 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		return;
 	}
+	// #3679: il piano attivo arriva alla board come presentazione anche qui, a ogni fotogramma. `SetActiveLayer` lo
+	// manda quando cambia; questa riga copre una board nata o ricostruita dopo, e le leve `rt.Map.Layers.*` cambiate
+	// in console. Se niente e' cambiato non scrive niente.
+	HexMap->SyncActiveLayerPresentation(ActiveLayer);
+
 	// 🔑 **Il layer viene dal PIANO ATTIVO, non dalla quota del colpo** (`D-255`, 2026-08-30).
 	//
 	// Questa riga diceva l'opposto, e lo diceva in chiaro: *«Il layer viene dalla QUOTA del punto colpito:
@@ -1002,7 +1026,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 
 // --- #1775 / #1776 · il piano attivo del giocatore, e il picking che lo rispetta (D-255) --------------
 
-bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
+bool ARTPlayerController::GetMapLayerRange(int32& OutMinLayer, int32& OutMaxLayer) const
 {
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
@@ -1013,12 +1037,23 @@ bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
 
 	// I limiti si MISURANO sulle celle. Assumere `[0, N]` darebbe piani vuoti su una mappa che comincia a
 	// quota 1 o che ha buchi, e l'hover non troverebbe mai niente senza dire perche'.
-	int32 MinLayer = TNumericLimits<int32>::Max();
-	int32 MaxLayer = TNumericLimits<int32>::Lowest();
+	OutMinLayer = TNumericLimits<int32>::Max();
+	OutMaxLayer = TNumericLimits<int32>::Lowest();
 	for (const FRTHexCellData& Cell : Map->Cells)
 	{
-		MinLayer = FMath::Min(MinLayer, Cell.Id.Layer);
-		MaxLayer = FMath::Max(MaxLayer, Cell.Id.Layer);
+		OutMinLayer = FMath::Min(OutMinLayer, Cell.Id.Layer);
+		OutMaxLayer = FMath::Max(OutMaxLayer, Cell.Id.Layer);
+	}
+	return true;
+}
+
+bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
+{
+	int32 MinLayer = 0;
+	int32 MaxLayer = 0;
+	if (!GetMapLayerRange(MinLayer, MaxLayer))
+	{
+		return false;
 	}
 
 	const int32 Clamped = FMath::Clamp(NewLayer, MinLayer, MaxLayer);
@@ -1028,6 +1063,12 @@ bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
 	}
 	ActiveLayer = Clamped;
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano attivo: %d (mappa %d..%d)"), ActiveLayer, MinLayer, MaxLayer);
+
+	// #3679: la board lo presenta subito, non al prossimo fotogramma. ⛔ Il suo `ActiveLayer` resta dell'editor (D-255).
+	if (ARTHexMapActor* Board = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		Board->SyncActiveLayerPresentation(ActiveLayer);
+	}
 	return true;
 }
 
@@ -1051,6 +1092,54 @@ void ARTPlayerController::AlignActiveLayerToMap()
 	SetActiveLayer(ActiveLayer);
 }
 
+namespace
+{
+	/** Cursore, rettangolo della scena e inversa della view-projection, come li prende UE. */
+	bool RTCursorSceneProjection(const ARTPlayerController& PC, FVector2D& OutPos, FIntRect& OutRect, FMatrix& OutInvViewProj)
+	{
+		const ULocalPlayer* Giocatore = PC.GetLocalPlayer();
+		if (Giocatore == nullptr || Giocatore->ViewportClient == nullptr || Giocatore->ViewportClient->Viewport == nullptr)
+		{
+			return false;
+		}
+		float X = 0.f;
+		float Y = 0.f;
+		if (!PC.GetMousePosition(X, Y))
+		{
+			return false;
+		}
+		FSceneViewProjectionData Dati;
+		if (!Giocatore->GetProjectionData(Giocatore->ViewportClient->Viewport, Dati))
+		{
+			return false;
+		}
+		OutPos = FVector2D(X, Y);
+		OutRect = Dati.GetConstrainedViewRect();
+		OutInvViewProj = Dati.ComputeViewProjectionMatrix().InverseFast();
+		return true;
+	}
+}
+
+bool ARTPlayerController::DeprojectCursorInsideScene(FVector& OutOrigin, FVector& OutDirection) const
+{
+	FVector2D Punto;
+	FIntRect Scena;
+	FMatrix InversaVP;
+	if (!RTCursorSceneProjection(*this, Punto, Scena, InversaVP))
+	{
+		return false;
+	}
+	return URTPointerLibrary::DeprojectInsideSceneRect(Punto, Scena, InversaVP, OutOrigin, OutDirection);
+}
+
+bool ARTPlayerController::IsCursorInsideScene() const
+{
+	FVector2D Punto;
+	FIntRect Scena;
+	FMatrix InversaVP;
+	return RTCursorSceneProjection(*this, Punto, Scena, InversaVP) && URTPointerLibrary::IsInsideSceneRect(Punto, Scena);
+}
+
 bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const
 {
 	bOutHitWasOnAnotherLayer = false;
@@ -1064,9 +1153,9 @@ bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutH
 	// Il raggio serve al RIPIEGO: quando il colpo non vale, la cella si prende dall'intersezione col piano
 	// del layer attivo. Senza il raggio non ci sarebbe nulla da intersecare, e il ripiego non esisterebbe.
 	FVector RayOrigin, RayDir;
-	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir))
+	if (!DeprojectCursorInsideScene(RayOrigin, RayDir))
 	{
-		return false; // nessun viewport (headless): non c'e' un cursore da risolvere
+		return false; // nessun viewport (headless), o il cursore sta su una fascia dell'HUD (#3661)
 	}
 
 	FHitResult Hit;
@@ -1316,6 +1405,16 @@ void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
 	CycleSelection();
 }
 
+void ARTPlayerController::OnToggleStrategicView(const FInputActionValue& Value)
+{
+	// ⛔ Sola presentazione (D-488 (4)): niente `RecordPlanningInput`, niente guardia `IsPlanningInputInert`.
+	// Guardare la mappa dall'alto non e' una decisione di turno, e va permesso anche mentre i bot giocano.
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		Cam->ToggleStrategicView();
+	}
+}
+
 void ARTPlayerController::OnDeclarePlan(const FInputActionValue& Value)
 {
 	ToggleTurnPlanDeclared();
@@ -1336,7 +1435,7 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 
 	// 🔴 **[D-468] (`#3510`): durante la risoluzione nessun ordine passa, e dichiarare il piano lo e'.** Il
 	// Cleanup che azzera la dichiarazione gira PRIMA del playback (`ConcludeResolution`): un `Invio` premuto
-	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `TAB` la saltava.
+	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `N` la saltava.
 	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
 	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
 	if (IsWorldReadOnly())
@@ -1345,7 +1444,7 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 		return false;
 	}
 
-	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `TAB`: dichiarare che le mosse
+	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `N`: dichiarare che le mosse
 	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle non c'e' niente da
 	// dichiarare. ⏱️ *Fino a `#3510` diceva anche «o in una fase che non accetta ordini»*: questa guardia la fase
 	// non la guarda, e la regola della fase e' quella qui sopra.
@@ -1387,7 +1486,7 @@ bool ARTPlayerController::CycleSelection()
 	}
 
 	// ⛔ **Niente guardia `IsPlanningInputInert`, e la differenza e' voluta**: quella ferma gli ORDINI in
-	// autobattle e in una fase che non li accetta. `TAB` non ordina niente — cambia soltanto il soggetto
+	// autobattle e in una fase che non li accetta. `N` non ordina niente — cambia soltanto il soggetto
 	// delle operazioni successive — e guardare la propria squadra mentre i bot giocano e' esattamente cio'
 	// che una sessione non presidiata deve poter fare. Per la stessa ragione non chiama
 	// `RecordPlanningInput`: non e' una decisione di turno.
@@ -1413,7 +1512,7 @@ bool ARTPlayerController::CycleSelection()
 			continue;
 		}
 		// 🔑 **La stessa domanda che fa il CLICK**, e non una riscritta a mano: `HandleClickOnUnit` usa
-		// `CanPlayerControlUnitInGroup`, quindi `TAB` raggiunge esattamente le unita' che il mouse
+		// `CanPlayerControlUnitInGroup`, quindi `N` raggiunge esattamente le unita' che il mouse
 		// raggiunge. E' l'equivalenza che questo tasto esiste per stabilire — una seconda condizione qui
 		// la romperebbe al primo gruppo di controllo.
 		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(
@@ -1422,7 +1521,7 @@ bool ARTPlayerController::CycleSelection()
 			continue;
 		}
 
-		// ➡️ **Chi ha DICHIARATO le proprie mosse esce dal ciclo** ([#3145]): `TAB` porta dove c'e'
+		// ➡️ **Chi ha DICHIARATO le proprie mosse esce dal ciclo** ([#3145]): `N` porta dove c'e'
 		// ancora da decidere, ed e' l'intero motivo per cui il flag e' dichiarato invece che dedotto dai
 		// campi `Planned*` — un'unita' che ha deciso di non fare niente e' conclusa quanto le altre.
 		//
@@ -1440,18 +1539,18 @@ bool ARTPlayerController::CycleSelection()
 	if (Comandabili.Num() == 0)
 	{
 		// 🔴 **I due silenzi non sono lo stesso silenzio.** «Non hai unita'» e «le hai dichiarate
-		// tutte» producono entrambi un `TAB` che non fa niente, e per il giocatore sono situazioni opposte:
+		// tutte» producono entrambi un `N` che non fa niente, e per il giocatore sono situazioni opposte:
 		// nella seconda il turno e' pronto da chiudere. Un log solo per entrambe manderebbe a cercare un
 		// tasto rotto.
 		if (Dichiarate > 0)
 		{
 			UE_LOG(LogRT, Display,
-				TEXT("[RT] TAB: tutte le %d unita' comandabili hanno il piano dichiarato — non resta niente da decidere"),
+				TEXT("[RT] N (ciclo della selezione): tutte le %d unita' comandabili hanno il piano dichiarato — non resta niente da decidere"),
 				Dichiarate);
 		}
 		else
 		{
-			UE_LOG(LogRT, Display, TEXT("[RT] TAB: nessuna unita' comandabile da selezionare"));
+			UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): nessuna unita' comandabile da selezionare"));
 		}
 		return false;
 	}
@@ -1479,7 +1578,7 @@ bool ARTPlayerController::CycleSelection()
 	if (Scelta == Corrente)
 	{
 		// Una sola unita' comandabile: il ciclo torna su se stesso, e non e' un fallimento da tacere.
-		UE_LOG(LogRT, Display, TEXT("[RT] TAB: '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
+		UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
 		return false;
 	}
 
@@ -1488,7 +1587,7 @@ bool ARTPlayerController::CycleSelection()
 	// aggiornata. ⚠️ Nessun campo `Planned*` viene toccato qui, ne' su chi si lascia ne' su chi si prende:
 	// selezionare non e' dichiarare, e lo stato armato dell'unita' lasciata resta il suo.
 	SelectUnit(Scelta, /*bRecordAsPlayerInput=*/ true);
-	UE_LOG(LogRT, Display, TEXT("[RT] TAB: selezionata '%s' (%d di %d comandabili)"),
+	UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): selezionata '%s' (%d di %d comandabili)"),
 		*Scelta->GetName(), Prossimo + 1, Comandabili.Num());
 	return true;
 }
@@ -1751,7 +1850,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// cliccare, da selezionare o da rifiutare, e saltarli e' cio' che conserva il comportamento di prima nel
 	// caso in cui il raggio colpisce.
 	FHitResult Hit;
-	AActor* HitActor = GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit)
+	// #3661: fuori dalla scena UE estrapolerebbe il raggio, e un click sulla fascia prenderebbe un'unita'.
+	AActor* HitActor = IsCursorInsideScene() && GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit)
 		? Hit.GetActor()
 		: nullptr;
 	ARTUnit* ClickedUnit = Cast<ARTUnit>(HitActor);
@@ -1887,6 +1987,14 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 				}
 			}
 		}
+		return;
+	}
+
+	// #3661: un click su una fascia dell'HUD che nessun pannello consuma non e' un click sulla mappa. Senza questa
+	// uscita `ResolveCellUnderCursor` rifiuterebbe il punto e il ramo qui sotto scriverebbe «nessuna mappa
+	// esagonale», mandando chi legge il log a cercare una mappa che c'e' (rilievo della review di #3690).
+	if (!IsCursorInsideScene())
+	{
 		return;
 	}
 
@@ -2105,10 +2213,10 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// copertura un bersaglio che era solo troppo lontano (test
 		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
-		// ⚠️ **La policy si passa anche qui, e per un'azione mirata a un'unita' oggi non cambia niente**: le
-		// azioni `NotRequired` del catalogo hanno `Shape::Area`, quindi `TargetKindForAction` le manda a
-		// `HandleTargetCell` e non passano di qua. Si legge lo stesso perche' il dato e' **uno**: il giorno
-		// in cui un'azione mirata dichiarera' il tiro indiretto, questo sito non sara' quello dimenticato.
+		// ⚠️ **La policy si passa anche qui, e da D-490 (#3608) MORDE**: l'attacco base, mirato a un'unita', porta
+		// `BlindAimDirect`, quindi il click su un nemico CONOSCIUTO dietro un ostacolo ora pianifica — il colpo si
+		// fermera' sull'ostacolo nel Blast. ⌫ *Fino a #3608 qui non cambiava niente: le sole azioni `NotRequired`
+		// del catalogo hanno `Shape::Area` e passano da `HandleTargetCell`.*
 		// ⛔ E non tocca la CONOSCENZA: la guardia `IsKnownToObserver()` qui sotto vale comunque (`#2741`).
 		// 🔴 **[D-464]: da dove l'azione MIRA, non da dove l'unita' sta.** Con uno scatto pianificato un `Attack` parte
 		// dalla cella dello scatto, e la risoluzione colpisce da li' (`CollectHexAttacks`): giudicare dalla cella
@@ -3323,16 +3431,41 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 // esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
 // `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
 // ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
-void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { SelectAbilityForCurrent(3, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { SelectAbilityForCurrent(4, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { SelectAbilityForCurrent(5, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { SelectAbilityForCurrent(6, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { SelectAbilityForCurrent(7, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { SelectAbilityForCurrent(8, ERTAbilityRequestSource::Hotkey); }
-void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { SelectAbilityForCurrent(9, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { OnKitHotkey(0); }
+void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { OnKitHotkey(1); }
+void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { OnKitHotkey(2); }
+void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { OnKitHotkey(3); }
+void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { OnKitHotkey(4); }
+void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { OnKitHotkey(5); }
+void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { OnKitHotkey(6); }
+void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { OnKitHotkey(7); }
+void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { OnKitHotkey(8); }
+void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { OnKitHotkey(9); }
+
+void ARTPlayerController::OnKitHotkey(int32 Index)
+{
+	// 🔑 **[D-491] (`#3615`): con una finestra di reazione aperta per chi guarda, il tasto della posizione i SCEGLIE
+	// l'opzione i invece di armare.** Deve precedere la guardia della risoluzione di `SelectAbilityForCurrent`,
+	// perche' la finestra si apre proprio durante la risoluzione e quella guardia la renderebbe irraggiungibile; e
+	// rispetta quella dell'input bloccato, perche' con un menu aperto la finestra deve scadere come vuole [D-351].
+	//
+	// ⛔ Non e' un armo, ed e' per questo che non contraddice [D-468]: il mondo resta in sola lettura, e la risposta
+	// passa da `SubmitReactionResponse`, che ha la propria legalita'. Il tasto non arriva mai al kit: una posizione
+	// senza opzione (il tasto 5 su due opzioni) si dice nel log e si ferma qui.
+	if (!IsGameplayInputBlocked())
+	{
+		URTReactionWindowViewModel* Finestra = GetReactionWindowViewModel();
+		if (Finestra && Finestra->GetWindow().bOpen)
+		{
+			const bool bInoltrata = Finestra->ChooseOption(Index);
+			UE_LOG(LogRT, Display, TEXT("[RT] tasto della posizione %d: %s"), Index, bInoltrata
+				? TEXT("scelta l'opzione della finestra di reazione in quella posizione")
+				: TEXT("nessuna opzione della finestra di reazione in quella posizione"));
+			return;
+		}
+	}
+	SelectAbilityForCurrent(Index, ERTAbilityRequestSource::Hotkey);
+}
 
 // Le generiche: il numero qui e' la riga di `GenericHotkeys()`, non una posizione del kit.
 void ARTPlayerController::OnGeneric1(const FInputActionValue& Value) { SelectGenericSlot(0); }
@@ -4738,7 +4871,7 @@ bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
 		return false;
 	}
 	FVector RayOrigin, RayDir;
-	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir) || FMath::IsNearlyZero(RayDir.Z))
+	if (!DeprojectCursorInsideScene(RayOrigin, RayDir) || FMath::IsNearlyZero(RayDir.Z)) // #3661
 	{
 		return false;
 	}

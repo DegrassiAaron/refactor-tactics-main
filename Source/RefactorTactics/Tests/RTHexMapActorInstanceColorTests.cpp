@@ -93,12 +93,14 @@ bool FRTHexMapActorInstanceColorTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("tre float per istanza (RGB)"), ISM->NumCustomDataFloats, 3);
+	// ➕ Sei da #3679: RGB nei canali 0..2, che qui si misurano, e il trattamento dei piani nei 3..5.
+	const int32 Passo = RTLayerPresentation::NumCustomDataFloats;
+	TestEqual(TEXT("sei float per istanza (RGB e trattamento dei piani)"), ISM->NumCustomDataFloats, Passo);
 	TestEqual(TEXT("un'istanza per cella"), ISM->GetInstanceCount(), Expected.Num());
-	TestEqual(TEXT("i custom data sono 3 per istanza"),
-		ISM->PerInstanceSMCustomData.Num(), Expected.Num() * 3);
+	TestEqual(TEXT("i custom data sono sei per istanza"),
+		ISM->PerInstanceSMCustomData.Num(), Expected.Num() * Passo);
 
-	if (ISM->PerInstanceSMCustomData.Num() != Expected.Num() * 3)
+	if (ISM->PerInstanceSMCustomData.Num() != Expected.Num() * Passo)
 	{
 		DestroyInstanceColorWorld(World);
 		return false;
@@ -111,9 +113,9 @@ bool FRTHexMapActorInstanceColorTest::RunTest(const FString&)
 		// Un `/255.f` al posto di `FromSRGBColor` passerebbe un test scritto sullo stesso errore, quindi
 		// l'atteso si costruisce dalla tavolozza + la conversione dichiarata, non dai numeri.
 		const FLinearColor Want = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Expected[I]));
-		const float R = ISM->PerInstanceSMCustomData[I * 3 + 0];
-		const float G = ISM->PerInstanceSMCustomData[I * 3 + 1];
-		const float B = ISM->PerInstanceSMCustomData[I * 3 + 2];
+		const float R = ISM->PerInstanceSMCustomData[I * Passo + 0];
+		const float G = ISM->PerInstanceSMCustomData[I * Passo + 1];
+		const float B = ISM->PerInstanceSMCustomData[I * Passo + 2];
 
 		const FString Where = FString::Printf(TEXT("istanza %d"), I);
 		TestNearlyEqual(*(Where + TEXT(" R")), R, Want.R, KINDA_SMALL_NUMBER);
@@ -124,7 +126,7 @@ bool FRTHexMapActorInstanceColorTest::RunTest(const FString&)
 	// Due superfici diverse devono produrre due colori diversi *sulle istanze*: senza questo, un bug che
 	// scrivesse sempre la prima cella passerebbe i confronti qui sopra solo se la tavolozza fosse piatta.
 	const float FirstR = ISM->PerInstanceSMCustomData[0];
-	const float SecondR = ISM->PerInstanceSMCustomData[3];
+	const float SecondR = ISM->PerInstanceSMCustomData[Passo];
 	TestNotEqual(TEXT("Floor e Rough non finiscono con lo stesso rosso"), FirstR, SecondR);
 
 	DestroyInstanceColorWorld(World);

@@ -68,9 +68,11 @@ La superficie primaria di gioco resta il **mondo 3D isometrico / three-quarter**
 
 La schermata normale deve essere progettata così:
 
-- **70–80% centrale:** viewport 3D libero;
-- **bordi e angoli:** HUD screen-space;
+- **la scena, fra le fasce:** la 3D si rende **solo** nel rettangolo che le fasce dell'HUD lasciano libero, circa 61%×64% a 16:9 (il 39% dello schermo) ([D-497](../../decisions/RT_PDR_00_Decision_Log.md));
+- **le fasce attorno:** HUD screen-space, nessuna sovrapposizione con la scena;
 - **world-space:** path, AoE, facing, ghost, cone, marker, cover e altri overlay contestuali.
+
+> ⌫ *Fino al 2026-10-11 la prima voce era «**70–80% centrale:** viewport 3D libero», con la 3D a tutto schermo sotto l'HUD. [D-497](../../decisions/RT_PDR_00_Decision_Log.md) l'ha emendata e [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661) l'ha attuata: le fasce sono la misura dei loro inquilini in unità Slate (`FRTHudBands`), e arrivare al 70% chiederebbe di ridisegnarli. A 21:9 la scena sale a circa il 45% dello schermo, a 16:10 scende a circa il 36%.
 
 La griglia esagonale è un modello logico, non lo stile grafico dominante della schermata principale.
 
@@ -90,7 +92,7 @@ Non collocare al centro:
 
 ## 3.2 Vista strategica separata
 
-La vista top-down prodotta durante le prime esplorazioni è utile, ma va considerata una modalità secondaria:
+La vista top-down prodotta durante le prime esplorazioni è utile, ~~ma va considerata una modalità secondaria~~:
 
 **Strategic Overview / Tactical Overview**
 
@@ -103,7 +105,19 @@ Possibili usi:
 - spettatore;
 - debug.
 
-Non è la camera di gameplay standard.
+~~Non è la camera di gameplay standard.~~
+
+> ⌫ *Le due frasi barrate sono superate:* [D-252](../../decisions/RT_PDR_00_Decision_Log.md) *la rende una conseguenza dello zoom e non una modalità, e D-488 la rende la vista isometrica in cui si pianifica.*
+>
+> 🔑 **2026-10-09 — [D-488](../../decisions/RT_PDR_00_Decision_Log.md): la vista strategica si aprirà con `Tab`** (⏳ non cablato: oggi `Tab` cicla la selezione).
+> - **Come si apre.** `Tab` porta lo zoom alla soglia di [D-252](../../decisions/RT_PDR_00_Decision_Log.md) e
+>   ritorno, quindi resta una conseguenza della distanza e non una terza modalità.
+> - **Cosa cambia.** Al centro la 3D tattica diventa un'isometrica semplificata, quella delle tavole A–F di
+>   [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md).
+> - **Cosa non cambia.** **L'HUD è lo stesso nelle due viste**: le zone di §6 valgono per entrambe, e in
+>   Strategic si pianifica.
+>
+> Il «come» sta in [`spec-tactical-camera.md`](spec-tactical-camera.md) §5.
 
 ---
 
@@ -268,6 +282,17 @@ Esempio:
 
 `TURN 04 · PLANNING · 00:21`
 
+> 🔑 **2026-10-09 — [D-479](../../decisions/RT_PDR_00_Decision_Log.md): in Risoluzione l'header mostra la fase
+> riprodotta.** Ha quattro celle fisse `PREP · DASH · BLAST · MOVE`. La cella attiva ha quadrato pieno, bordo e
+> nome; le altre hanno un cerchio e il testo spento.
+> ⚠️ La fase **non** è `FRTMatchHeaderView::Phase`, che è la fase logica e può essere più avanti di ciò che la
+> scena mostra: la cella attiva legge un campo proprio della vista. `Cleanup` non ha cella, perché il playback
+> non lo riproduce mai.
+>
+> **E a destra di turno, fase e timer, l'obiettivo** ([D-481](../../decisions/RT_PDR_00_Decision_Log.md), §6.3).
+> Riferimento visivo: le tavole A–F di
+> [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md).
+
 ## 6.2 Top left — Team roster
 
 Compatto.
@@ -284,6 +309,29 @@ Ogni membro può mostrare:
 
 Il roster non deve trasformarsi in tre enormi character card.
 
+> ⚠️ **2026-10-09 — [D-478](../../decisions/RT_PDR_00_Decision_Log.md): in v0.1 Editing / Ready / Locked non si
+> costruiscono.** Con un solo comandante per squadra non c'è un altro umano da riflettere.
+> *Reaction Armed* diventa un chip `REAZ.`, solo per le unità comandate della propria squadra, e conta anche
+> l'`Overwatch`. Il dato **non** va in `FRTUnitCardView`, che per contratto non porta piani: si legge dal piano
+> dell'unità comandata (`FRTUnitSlotsView`).
+>
+> ✅ **Implementato con [#3618](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3618) (2026-10-10).** Il dato è `FRTUnitSlotsView::bReactionArmed`, e la
+> domanda la decide `URTCatalogLibrary::ArmsReaction`: lo slot `Reaction`, oppure l'`Overwatch`. Il `Brace` resta
+> fuori. La card lo chiede a `URTTeamRosterWidget::IsReactionArmed(HeroId)`, che costruisce gli slot solo per
+> un'alleata **comandata**, cioè con la stessa squadra, lo stesso gruppo di controllo e non del bot
+> (`CanPlayerControlUnitInGroup`). ⚠️ Le altre letture della reazione armata contano il solo slot `Reaction`:
+> la timeline, la dock e `FRTIntentView::ReactionName`.
+>
+> ⚖️ **Decisione d'autore del 2026-10-11 ([#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628)): restano sullo slot, perché la loro domanda è
+> un'altra.** Ognuna lo dice nel codice.
+> - **La timeline** chiede se c'è una voce di Prep per l'azione dello slot `Reaction`. L'Overwatch come principale ha
+>   già la sua voce di Prep: contarlo la disegnerebbe due volte. E il dato `FRTReactionPreview`, che oggi nessuno
+>   disegna, porrebbe la guardia a fine scatto, mentre l'Overwatch si arma da prima dello scatto.
+> - **L'intento** stampa «(reazione: … ?)» accanto al nome dell'azione. Per l'Overwatch il nome uscirebbe due volte.
+> - **La dock** colora lo slot `Reaction`. L'Overwatch occupa lo slot principale.
+>
+> Il chip `REAZ.` resta l'unico canale che dice «reazione armata» per qualunque slot.
+
 > 🔑 **In sessione non presidiata le squadre sono due, in due liste** (`#2744`). Quando nessuno comanda —
 > autobattle, `ARTTurnManager::IsUnattendedSession()` — il roster risponde a *«chi sta giocando questa
 > partita»* invece che a *«chi comando io»*, e mostra anche l'altra squadra. Restano **due liste distinte**:
@@ -298,8 +346,12 @@ Il roster non deve trasformarsi in tre enormi character card.
 > ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md): `TopRight` ospita `CONFIRM PLAN` ·
 > `UNDO`** (§6.8), che lasciano la fascia bassa alla barra dei comandi. L'Objective perde la cella che questa
 > sezione gli assegnava sulla carta. Era vuota, e il punteggio vive già in `WBP_RT_TurnHeader`, in `TopCenter`.
-> ⛔ **Dove vada il resto di questa lista non è deciso**: è un seguito di
-> [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
+> ~~⛔ **Dove vada il resto di questa lista non è deciso**: è un seguito di
+> [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).~~
+> ✅ **Deciso il 2026-10-09 — [D-481](../../decisions/RT_PDR_00_Decision_Log.md):** l'Objective sta in
+> `TopCenter`, nell'header, a destra di turno, fase e timer. Ha nome, punteggio con la soglia e stato
+> (`CONTESO` con un'icona). Nome, stato, countdown e cambio recente non hanno ancora un dato
+> ([#2281](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2281)).
 
 Compatto ma sempre leggibile.
 
@@ -381,6 +433,10 @@ Non è un character sheet RPG.
 
 ## 6.5 Right side — Team Intent
 
+> ⏳ **`FUTURE` dal 2026-10-09 — [D-478](../../decisions/RT_PDR_00_Decision_Log.md).** In v0.1 il giocatore
+> comanda entrambi gli alleati, quindi non c'è un intento altrui da mostrare. La sezione resta come progetto, e
+> nelle tavole A–F il pannello è una linguetta chiusa.
+
 Pannello compatto e collassabile.
 
 Per un alleato può mostrare:
@@ -401,6 +457,10 @@ Il dettaglio completo compare solo su hover, click o focus.
 > accanto a turno, fase e timer che `WBP_RT_TurnHeader` mostra già. ⌫ *Fino a quel giorno questa sezione la
 > collocava in basso al centro, accanto all'Action Dock.* La fascia bassa è ora della barra dei comandi (§6.7).
 > Owner: [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172).
+>
+> 🔑 **2026-10-09 — [D-479](../../decisions/RT_PDR_00_Decision_Log.md) punto 4: la timeline legge il piano, non
+> l'header**, ed è visibile solo in Pianificazione. In Risoluzione al suo posto compare la striscia dell'evento
+> corrente (tavola D di [`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md)).
 
 La timeline canonica è:
 
@@ -725,7 +785,11 @@ Regole UX:
 - non coprire la scena;
 - timeout = Hold;
 - nessuna anticipazione di futuri trigger;
-- nessun contatore tipo `Opportunity 1/3`.
+- nessun contatore tipo `Opportunity 1/3`;
+- ogni opzione porta il **tasto** della sua posizione (`1`, `2`, `3`…), il **nome** e una **frase**
+  generica, senza il nome del bersaglio ([D-491](../../decisions/RT_PDR_00_Decision_Log.md), [#3615](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3615)).
+  Nome e frase stanno in `RTReactionResponseText`; il nome del bersaglio arriva con la parte «e bersaglio» di
+  [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166).
 
 ## 11.2 Target simultanei
 
@@ -891,6 +955,33 @@ Rischio significativo.
 ## Critical
 
 Errore o condizione bloccante.
+
+> 🔑 **2026-10-09 — [D-480](../../decisions/RT_PDR_00_Decision_Log.md): chi produce l'elenco, dove sta, che
+> forma ha.**
+> - **Chi lo produce.** L'elenco di piano lo riporta `URTHudViewModel` dalle fonti che esistono.
+>   - **Warning** è un piano accettato ma degradato: `FRTUnitOverlayView::bFriendlyFire` e lo slot `Warning`.
+>   - **Critical** è un piano che il validatore rifiuta: lo slot `Invalid` nella lettura del piano illegale
+>     (`bPlanInvalid`, [D-459](../../decisions/RT_PDR_00_Decision_Log.md)).
+>   - Il rifiuto del click sotto il puntatore (`bTargetRefused`) resta della dock e non entra nell'elenco.
+>
+>   L'avviso riporta, non decide.
+> - **Dove sta.** In `MiddleLeft` sopra il pannello dell'unità, con un contatore accanto a `Conferma`; in
+>   Risoluzione si nasconde.
+> - **Che forma ha.** Info è un cerchio «i», Warning un triangolo «!», Critical un ottagono «✕»; il testo dice
+>   cosa · perché · costo.
+> - **Chi non lo vede.** Mai per un'unità ispezionata e non comandata.
+>
+> ✅ **Implementato con [#3622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3622) (2026-10-10).**
+> - **Il produttore** è `URTHudViewModel::BuildPlanWarnings`, che riporta tre fonti:
+>   - `ValidatePlan` per il Critical, con il perché che nomina entrambe le azioni di un conflitto di slot;
+>   - `bPlanDegraded` dello slot per il Warning del ripiego;
+>   - l'anteprima per piano ([D-492](../../decisions/RT_PDR_00_Decision_Log.md)) per il Warning di fuoco amico, che
+>     sta nell'elenco dell'**attaccante**.
+> - **I due widget.** L'elenco lo espone `URTSelectedUnitPanelWidget::GetPlanWarnings()`. Il contatore lo espone
+>   `URTPlanCommitWidget::GetPlanWarningCounts()`: un numero per livello, sommato su tutte le unità comandate
+>   ([D-494](../../decisions/RT_PDR_00_Decision_Log.md)). Entrambi tacciono in Risoluzione.
+> - **Info non ha ancora un produttore**: le categorie qui sotto entrano una alla volta, ciascuna con la sua
+>   fonte e il suo test.
 
 Possibili categorie:
 
@@ -1480,7 +1571,64 @@ Colori estratti dalla style guide PNG:
 | `RT_UI_Red` | `#FF4D4D` | critical, invalid, low health |
 | `RT_UI_White` | `#FFFFFF` | testo/icone ad alta priorità |
 
+## Testo e fondi di stato
+
+> Dal 2026-10-09, [D-482](../../decisions/RT_PDR_00_Decision_Log.md). Vengono dai mockup della skill bar e dalle
+> tavole HUD A–F ([`hud-screens-2026-10`](../../research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md)), che li
+> usano tutte. Dove vivono a runtime lo dice [§32.1](#321-sede-a-runtime).
+
+| Token | Hex | Uso |
+|---|---|---|
+| `RT_UI_Text_Primary` | `#E6EBF2` | testo corrente |
+| `RT_UI_Text_Secondary` | `#A9B4C2` | etichette, testo di supporto |
+| `RT_UI_Text_Disabled` | `#6B7684` | testo e icone spenti |
+| `RT_UI_Frame_Off` | `#2E3746` | bordo spento |
+| `RT_UI_BG_Selected` | `#2B2918` | fondo di uno slot selezionato |
+| `RT_UI_BG_Reaction` | `#221E3A` | fondo di una reazione armata |
+| `RT_UI_BG_Invalid` | `#2A1719` | fondo di uno stato non valido |
+| `RT_UI_BG_ProfileActive` | `#0E2A33` | fondo della lettura del movimento attiva |
+
+## Barra dei comandi e fasi
+
+> Dal 2026-10-10, [D-489](../../decisions/RT_PDR_00_Decision_Log.md). Sono colori che la barra dei comandi usava già
+> (#3498) e che §32 non aveva. Le quattro fasi sono quelle decise da [D-233](../../decisions/RT_PDR_00_Decision_Log.md):
+> qui diventano token, senza cambiare valore. `Cleanup` resta senza colore ([D-232](../../decisions/RT_PDR_00_Decision_Log.md),
+> `DEC-SB-3` aperta), e la reazione usa `RT_UI_Violet`, perché non è una quinta fase.
+
+| Token | Hex | Uso |
+|---|---|---|
+| `RT_UI_Icon_Cooldown` | `#3A4454` | icona di un'azione in ricarica (`Stati.dc.html`) |
+| `RT_UI_Violet_Light` | `#B9A8FF` | etichetta `REAZ.` e icona di una reazione armata (`Main.dc.html`) |
+| `RT_UI_Phase_Prep` | `#56B4E9` | fase Prep |
+| `RT_UI_Phase_Dash` | `#009E73` | fase Dash |
+| `RT_UI_Phase_Blast` | `#D55E00` | fase Blast |
+| `RT_UI_Phase_Move` | `#0072B2` | fase Move |
+
 Nota: i token semantici possono derivare da questi colori, ma la UI non deve dipendere solo dal colore.
+
+## 32.1 Sede a runtime
+
+> Dal 2026-10-10, [D-489](../../decisions/RT_PDR_00_Decision_Log.md) (#3610).
+
+Ogni token di questa sezione ha un valore in `ERTUIToken`, e il suo colore si legge con
+`URTUIPalette::ColorFor(Token)` ([`RTUIPalette.h`](../../../Source/RefactorTactics/UI/RTUIPalette.h)): un
+`FLinearColor` già decodificato da sRGB, che un Blueprint legge con un nodo puro. Il nome del valore è il token senza
+`RT_UI_`: `Text_Primary` è `RT_UI_Text_Primary`.
+
+- **Un widget non ricopia un colore di questa sezione.** Prende il token. `URTActionSlotWidget` lo fa dal
+  costruttore; i `WBP_*` lo faranno con le sedute di stile. I colori che §32 non ha (il radar, l'overlay delle
+  unità) restano letterali finché una seduta di stile non decide se portarli su un token, perché farlo cambia i pixel.
+- **Questa tabella e la palette in C++ si controllano a vicenda.** `RefactorTactics.UI.Palette.MatchesStyleGuide`
+  rilegge le righe `RT_UI_…` di questa sezione. Fallisce se un token dell'enum manca qui, se una riga qui manca
+  nell'enum, o se un esadecimale non coincide.
+- **Gli esadecimali scritti nei test dello slot non sono copie da migrare.** `RTActionSlotMockupLookTests` e
+  `RTActionBarNamedPortsTests` li tengono letterali di proposito: sono l'oracolo, indipendente dalla palette, che
+  dice che il passaggio ai token non ha cambiato un pixel.
+- **Un token nuovo si aggiunge in due posti, nello stesso commit**: il valore in coda a `ERTUIToken`, con il suo
+  caso in `URTUIPalette::SRGBFor`, e la riga in questa sezione.
+- **Non è la palette degli overlay del mondo.** Quella è `URTOverlayPalette` (#1941). La linea dello scatto
+  nel Canvas (`RTHUD.cpp`, [D-234](../../decisions/RT_PDR_00_Decision_Log.md)) resta un letterale, perché
+  `overlay_colors()` di `tools/hud-assets/color_metrics.py` la rilegge da quella riga.
 
 ---
 
@@ -1993,7 +2141,9 @@ Tre secondi sono il budget più severo dell'interfaccia, e ci si decide sotto pr
 - **poche opzioni**, come già dice §11.1;
 - nessun mini-gioco di precisione col mouse: il bersaglio si sceglie da un elenco, non mirando;
 - percorso **tastiera e controller equivalente** a quello del mouse — è già requisito vincolante del Time
-  Bank (§11-bis.2), e qui vale per ogni Decision Window.
+  Bank (§11-bis.2), e qui vale per ogni Decision Window. ✅ **La tastiera c'è da
+  [D-491](../../decisions/RT_PDR_00_Decision_Log.md)**: l'opzione *i* si sceglie con il tasto del kit della
+  posizione *i*, solo mentre la finestra è aperta. Il controller resta da fare.
 
 ## 47-bis.3 Leggibilità e movimento
 

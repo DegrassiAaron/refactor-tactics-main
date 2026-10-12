@@ -1228,6 +1228,22 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
+	// 🔴 **L'attacco base MIRA al buio e VIAGGIA dritto** — [D-415] punto (3), precisato da D-490 (#3608).
+	//
+	// Si dichiara il colpo su una cella che non si vede, anche dietro un ostacolo; il colpo parte e il primo
+	// ostacolo sul percorso lo ferma, come per ogni azione `Required` (e lo danneggia solo se l'azione dichiara
+	// `DamageStructure`: l'attacco base non lo dichiara).
+	//
+	// 🔑 **Perche' NON la licenza del mortaio.** `NotRequired` ([D-380]) toglie anche la TRAIETTORIA: misurato su
+	// `eef73d71a` (branch di #3230), con l'attacco base a `NotRequired` i muri non lo fermavano piu', coperture e
+	// strutture sul percorso non venivano piu' colpite — e [D-418] (3) dice che il prezzo del mortaio compra
+	// proprio la traiettoria. ⌫ *Fra il 2026-10-10 (scorporo da #3230) e #3608 questa riga mancava, e l'attacco
+	// base restava `Required`.*
+	//
+	// ⚠️ La derivazione verso gli eroi e' `MakeHeroBasicAttack`, che copia questo campo: cambia qui, cambia per
+	// ogni attacco base d'eroe. Gate: `HeroCatalog.EveryBasicAttackTakesTheCorePolicy`.
+	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::BlindAimDirect;
+
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
 	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non
 	// interrompibile (catalogo §1). Il valore lo dichiara il personaggio (`URTHeroData::GuardReduction`);
@@ -1488,6 +1504,12 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-380]
+	// ⏱️ **Questa riga e' oggi ancora un'esclusiva, e [D-415] punto 3 la renderebbe comune** all'attacco base:
+	// e' in #3608, scorporato da #3230 il 2026-10-10 perche' `NotRequired` toglie anche la traiettoria.
+	// ⛔ **I numeri del mortaio restano comunque** ([D-418]): cio' che il suo prezzo compra sono
+	// **area, gittata e traiettoria** — il gemello `Action.CircularAoE` non ha nessuna delle tre insieme — e
+	// non il permesso di sparare al buio. `MortarPaysAPriceAgainstItsLineOfSightTwin` misura quel prezzo
+	// contro il gemello e resta verde: e' una relazione fra due voci, non una costante.
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
@@ -1716,8 +1738,25 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi NON dichiara `ERTInterruptPolicy::None` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
+	// 🔴 **`AttackTarget` e non `Cancel`: dichiara l'aggancio** ([D-415]), come `Action.Heal` (D-493). L'elenco
+	// esatto di chi aggancia lo pinna `Combat.Aim.OnlyDeclaredTrackersFollowTheTarget`.
+	//
+	// 🔑 **Il suo mestiere e' cogliere chi AGISCE, e chi agisce si e' appena mosso.** `Action.Interrupt` sta
+	// in fase `Control` con portata **1**: risolve dopo il Dash, quindi il bersaglio che vuole fermare e'
+	// tipicamente arrivato li' in questo stesso turno. Congelarle la mira al lock-in la farebbe puntare la
+	// cella di partenza e mancare per costruzione — misurato: senza questa riga
+	// `Actions.Charge.ImpactSurvivesInterrupt` diventa rosso, perche' l'interruzione non raggiunge piu' il
+	// caricatore e la vittima viene spinta.
+	//
+	// ⚠️ **La dichiarazione NON cambia il ripiego**: il ramo `AttackTarget` di `URTActionFallbackLibrary`
+	// annulla esattamente come `Cancel` — *«qui il bersaglio NON e' valido, quindi non c'e' nessuno da
+	// seguire»* — e la mappa degli esiti manda entrambi su `ERTFallbackOutcome::Cancelled`. Cio' che cambia
+	// e' solo dove si mira finche' il bersaglio **e'** valido.
+	//
+	// ⛔ **E non e' un precedente da estendere per comodita'.** `Cancel` resta il default: un'azione che
+	// aggancia va motivata come questa, perche' l'aggancio e' precisamente cio' che [D-415] toglie al resto.
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
-		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::AttackTarget, {}));
 	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// --- Azioni AMBIENTALI (catalogo §6) -----------------------------------------------------------------
@@ -1827,12 +1866,21 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(CreateCover);
 	}
 
-	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70: risolve
-	// DOPO gli attacchi (50-65), quindi cura le ferite di questo turno e non quelle del turno prima.
+	// `Heal` — cura 20, portata 3, e **puo' bersagliare se stessi** (catalogo azioni §6). Priorita' 70, ma la cura
+	// arriva comunque DOPO il danno simultaneo, qualunque sia la priorita' ([D-503]): il 70 ne ordina solo il
+	// racconto. Cura quindi le ferite di questo turno e non quelle del turno prima.
 	// A differenza delle ambientali risolve nel **Blast**: e' un'azione di supporto, non una modifica del campo.
+	//
+	// 🔑 **La cura AGGANCIA l'alleato** — D-493 (#3609), l'eccezione dichiarata che [D-419] ammette. Decisione
+	// d'autore del 2026-10-10: *«il cura ha un tipo di tiro diverso da un normale shoot»*. Un colpo si spara verso
+	// una cella, e la mira congelata dice dove; una cura a bersaglio singolo si da' a QUALCUNO, e lo segue dove va.
+	// La dichiarazione e' `Fallback = AttackTarget` (`FRTActionDef::DeclaresTracking`): come ripiego fa cio' che
+	// faceva `Cancel`, quindi non cambia chi resta senza cura — gli da' solo la mira viva.
+	// ⚠️ **Vale per la cura SINGOLA**: la cura ad area (`Hero.Muiren.CircularTide`) agisce sulle celle attorno alla
+	// mira congelata e ridichiara `Cancel`, perche' `MakeHeroActionFromCore` copierebbe questo valore.
 	{
 		FRTActionDef Heal = ShippedAction(TEXT("Action.Heal"), ERTResolutionPhase::Attack, /*Priority*/ 70,
-			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Cancel,
+			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::AttackTarget,
 			{ FRTActionEffectSpec(ERTActionEffect::Heal, 20) });
 		Catalog.Add(Heal);
 	}
@@ -1898,6 +1946,11 @@ bool URTCatalogLibrary::TakesMovementSlot(const FRTActionDef& Action)
 bool URTCatalogLibrary::TakesMainSlot(const FRTActionDef& Action)
 {
 	return Action.Slot == ERTActionSlot::Main || Action.Slot == ERTActionSlot::MovementAndMain;
+}
+
+bool URTCatalogLibrary::ArmsReaction(const FRTActionDef& Action)
+{
+	return Action.Slot == ERTActionSlot::Reaction || Action.ActionId == FName(TEXT("Action.Overwatch"));
 }
 
 TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions)

@@ -2,6 +2,583 @@
 
 ---
 
+## 2026-10-12 — D-505: la cura ha un momento nel playback
+
+**Origine**: [#3600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3600), decisione d'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-505`, nuova |
+| [`superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md`](superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md) | §6: i «numeri verdi» della cura non esistevano; ora «+N», il colore da decidere |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CLIP-ABILITA`: nota in coda, il momento della cura da osservare |
+
+---
+
+## 2026-10-12 — D-504: nel Blast le cure ricontrollano la linea di tiro
+
+**Origine**: [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598), decisione d'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-504`, nuova |
+| [`superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md`](superpowers/specs/2026-10-08-clip-visibili-e-cura-ad-area-design.md) | §6: il limite sulla linea di tiro è risolto |
+| [`balance/RT_ActionCatalog_v0.1.md`](balance/RT_ActionCatalog_v0.1.md) | `CircularTide`: «`Required`» torna vero anche nel Blast |
+
+---
+
+## 2026-10-12 — Un muro si colpisce solo nel Blast: la guardia di D-502
+
+**Origine**: [#3701](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3701), l'avviso della nota di attuazione di D-502.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: l'avviso sul Dash rimanda al test che lo guarda |
+
+---
+
+## 2026-10-12 — Nel racconto del Blast le cure e gli archi vengono dopo tutti i colpi
+
+**Origine**: [#3700](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3700), il residuo di D-503 (4).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2: i supporti rimandati in coda agli intenti d'attacco |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-503` (4): il residuo è risolto |
+
+---
+
+## 2026-10-12 — Una cura non salva da un colpo letale: D-503
+
+**Origine**: [#3688](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3688), la scelta A dell'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-503`: il danno del Blast è simultaneo, le cure vengono dopo, qualunque sia la priorità |
+| [`decisions/adr-0003-modello-azioni-v01.md`](decisions/adr-0003-modello-azioni-v01.md) | §2: l'emendamento che toglie i punti vita dall'ordine per priorità |
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2: #3688 non è più aperta |
+
+---
+
+## 2026-10-12 — I piani si mostrano rispetto a quello attivo: D-501 attuata nella board
+
+**Origine**: [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679), che resta aperta per il verdetto dell'autore sulle intensità.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501`: la tecnica (custom data con dithering), intensità provvisorie |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: gli indicatori sopra/sotto sono superati; ingresso, tecnica, velo, picking, leve |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) · [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `PIE-CAM-PIANI-ATTIVO` nuova, aperta, con le catture della seduta `U84` da convocare con l'autore; `PIE-VIS-LEVEL` rimanda a lei |
+
+---
+
+## 2026-10-12 — Cure e archi si raccontano nell'ordine canonico del Blast
+
+**Origine**: [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2: il `Ruling` sull'ordine fra le sorgenti passa dall'ordine dei pass all'ordine canonico; Cleanse resta nel suo pass |
+
+---
+
+## 2026-10-12 — Il muro colpito ha un verdetto solo: D-502 attuata
+
+**Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito passa a chiusa, con il meccanismo e i test |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la nota di attuazione, e perché il meccanismo non è quello indicato in (6a) |
+
+---
+
+## 2026-10-12 — L'indicatore del piano attivo nel dock, e lo spec panel della notte
+
+**Origine**: [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), con il referto su #3674, #3680 e #3679.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/piani-hud-notte-spec-panel-2026-10-12.md`](roadmap/plans/piani-hud-notte-spec-panel-2026-10-12.md) | il referto: le scelte provvisorie della notte, l'ordine, ciò che resta all'autore |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501`: la numerazione dell'indicatore, ordinale da 1, scelta provvisoria della PR |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: `Zone_Bottom` porta l'indicatore; §7-septies: le porte, i tasti senza fuoco, i test |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | Z5: l'indicatore, che le tavole non disegnano |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) · [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `PIE-HUD-PIANO` nuova, verde sui criteri del log della seduta `U83`; la seduta misura anche la causa di #3674 |
+
+---
+
+## 2026-10-11 — D-502 completata: le risposte dell'autore alle domande aperte
+
+**Origine**: [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681), le domande che la prima stesura di `D-502` lasciava aperte.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: la squadra di chi spara vede il proprio colpo; conta la fase di risoluzione in cui il colpo avviene; un muro si vede da un lato qualunque ([#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691)); con più autori, le squadre di tutti; ogni vista del fatto — combat log, proiettore degli eventi, replay — segue la stessa regola; le conseguenze per l'attuazione, fra cui l'audit di `D-313` |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito nomina le altre viste; §5.1: un pannello di bordo sta fra due celle |
+
+---
+
+## 2026-10-11 — La scena si rende fra le fasce dell'HUD: D-497 attuata
+
+**Origine**: [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661). Le tre scelte d'autore prese prima e durante il codice sono annotate su D-497.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-497`: attuata; le fasce in unità Slate, il Context Inspector senza vincolo, la colonna sinistra col suo taglio |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: le fasce del dato, la scena, le zone posate dal C++, i gate nuovi |
+| [`technical/runbooks/guida-debug-bounds-screen-hud.md`](technical/runbooks/guida-debug-bounds-screen-hud.md) | §2: il riquadro libero è la scena; `PanelsLeaveTheSceneFree` |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3: la scena fra le fasce invece del 70–80% |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §2: rettangolo del giocatore, modello di `MaintainYFOV` per il limite del pivot, click fuori scena |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HUD-SCENA` nuova; `PIE-V01-SCREENHUD` e `PIE-DEBUG-CONTEXT` cambiano un criterio |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la scena non è più a tutto schermo |
+
+---
+
+## 2026-10-11 — Il muro colpito lo vede chi osservava il muro: D-502
+
+**Origine**: lo spec panel su [#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681) e [#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683), e la scelta dell'autore su #3681.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-502`: il segno di uno `StructureHit` lo vede la squadra che osservava il muro, e se lo vede uno lo vede tutta la squadra. `D-500` rimanda alla nuova voce |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del muro colpito passa a «deciso, non attuato» |
+
+---
+
+## 2026-10-11 — I piani rispetto a quello attivo: D-501, e la separazione vale 2
+
+**Origine**: una sessione `/sc:brainstorm` dell'autore e la seduta `U81`. Issue [#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678) · [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) · [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), scorporate da [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501`: i piani sopra traslucidi, quelli sotto desaturati e scuriti, l'attivo con il bordo marcato, le unità piene, l'indicatore nel dock; la separazione vale 2 |
+| [`roadmap/plans/piani-e-piano-attivo-brainstorm-2026-10-11.md`](roadmap/plans/piani-e-piano-attivo-brainstorm-2026-10-11.md) | il brief: che cosa esiste, le scelte dell'autore, le tre issue |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC-PIANI` rimisurata a 2 sui tre piani di `Visual.Map.LayerStack` |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U81`, condotta da un worktree |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | lo scenario `Visual.Map.LayerStack` |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 2 |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione vale 2 |
+
+---
+
+## 2026-10-11 — La reazione armata: il roster la conta per qualunque slot, le altre letture per lo slot
+
+**Origine**: [#3628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3628), il seguito di #3618.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | la nota del roster: timeline, dock e intento restano sullo slot `Reaction`, con il motivo di ciascuna (decisione d'autore) |
+
+---
+
+## 2026-10-11 — Il Blast si racconta nell'ordine in cui si risolve
+
+**Origine**: [#3582](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3582), misurato in PIE nella seduta `U68` (`PIE-V01-TRACER`, scena 2).
+
+| Dove | Che cosa |
+|---|---|
+| [`superpowers/specs/2026-10-07-momento-ability-activated-design.md`](superpowers/specs/2026-10-07-momento-ability-activated-design.md) | §2.2, intenti d'attacco: si emettono nell'ordine canonico del Blast (ADR-0003 §3), con l'impronta subito dopo la propria attivazione; il `Ruling` sull'ordine fra le sorgenti dichiara il residuo di cure, Cleanse e `ModifyArc` ([#3683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3683)) |
+
+---
+
+## 2026-10-11 — La traccia a terra di un `Line`/`Cone` non rivela un attaccante non visto: D-500
+
+**Origine**: [#3551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3551), il limite dichiarato dalla spec del tracer di #2454.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-500`: la traccia di un `Line`/`Cone` non si disegna per chi non vedeva l'attaccante; `Area` e `Single` restano per tutti (decisione d'autore) |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.3: la riga del canale «traccia a terra di un colpo», chiuso; e quella dello `StructureHit`, aperta e dichiarata ([#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681)) |
+| [`superpowers/specs/2026-10-07-tracer-attacco-base-design.md`](superpowers/specs/2026-10-07-tracer-attacco-base-design.md) | il limite «impronta `Line` di un attaccante ignoto» segnato chiuso |
+
+---
+
+## 2026-10-11 — La finestra di reazione si presenta sull'ingresso: emendamento a D-355
+
+**Origine**: [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666), S1 dello spec panel sui seguiti di `U74`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-355`: la finestra si presenta al trattenimento del playback, e la slow-motion di `D-350` rallenta l'avvicinamento (decisione d'autore, lettura (a)); le tre regole dell'estensione del playback, misurate sul `Brace` |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK` eseguita: entrambi gli istanti tengono, su due banchi dello Scenario Harness |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U56` parzialmente eseguita: resta `PIE-V01-RXBRACE` |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | il banco `Visual.Reaction.OverwatchWindowResume`, con la guardia rivolta a SE |
+
+---
+
+## 2026-10-11 — La seduta `U79` e D-499: in iso la camera ruota di 60°
+
+**Origine**: i verdetti dell'autore sulle catture della seduta `U79`, e la sua decisione sulla rotazione. Issue [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) · [#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-499; annotazioni 🔄 su D-142 e D-498 |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC`, `-PIANI` e `-RICORDO` rigiudicate in isometrica; il criterio della rotazione dice 60° |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U79`, con le sue trappole |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: la rotazione in strategica è a 60° |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | `Q`/`E` a 60° nella scena iso |
+
+---
+
+## 2026-10-11 — La vista strategica è un'isometrica dimetrica: D-498 nel codice
+
+**Origine**: [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662) (CAM-05c), che attua [D-498](decisions/RT_PDR_00_Decision_Log.md): ortografica, pitch −30° per stato, orbita verticale inerte, rotazione a 45°. Si ritirano la rampa di #3630 e la leva di #3631, e `OrthoWidthForArm` smette di inquadrare 1,78× la prospettica.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §2, §5 e §5.1 al presente: proiezione e pitch per stato, `OrthoWidth` come estensione verticale, i limiti del pivot esatti solo a 16:9 |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC` chiede l'isometrica, la scala continua alla soglia, l'orbita verticale inerte, il click ai bordi e i piani di clipping; il verdetto in prospettiva è da rigiudicare |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la scena isometrica è nel codice |
+
+---
+
+## 2026-10-11 — La seduta `U78`: la vista strategica rigiudicata, e la separazione dei piani vale 3
+
+**Origine**: i verdetti dell'autore sulle catture della seduta `U78`. Issue [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) · [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646) · [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647) · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-STRATEGIC` resta 🟡 con i due difetti chiusi; `PIE-CAM-STRATEGIC-RICORDO` ✅; `PIE-CAM-STRATEGIC-PIANI` 🟡 con il valore 3; totali e nota di rimisura di A1 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U78`, con le cinque trappole dell'Editor pilotato da script |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la separazione vale 3 |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | la separazione dei piani non è più «da scegliere» |
+
+---
+
+## 2026-10-11 — La scena esce da sotto l'HUD, e la vista strategica è un'isometrica dimetrica: D-497 e D-498
+
+**Origine**: una sessione `/sc:spec-panel` dell'autore su due modifiche. Issue [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661) · [#3662](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3662).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/scena-hud-isometrica-spec-panel-2026-10-11.md`](roadmap/plans/scena-hud-isometrica-spec-panel-2026-10-11.md) | nuovo: il referto del panel, le quattro decisioni e la specifica delle due issue |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-497** (la scena fra le fasce, fasce strette ai contenuti, una sorgente sola, l'estensione verticale conservata) e **D-498** (dimetrico 2:1, pitch −30°, rotazione di D-142; via la rampa e l'interruttore ortografico) |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | rimandi in §2, §5 e nella tabella di §5.1 |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3: la griglia diventerà un dato e le fasce si stringono (20/19,2/19/17) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) · [`technical/runbooks/guida-debug-bounds-screen-hud.md`](technical/runbooks/guida-debug-bounds-screen-hud.md) | §3 e §2: il 70–80% e il riquadro del 60% emendati da D-497 |
+| [`research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) · [`README.md`](research/design/hud/hud-screens-2026-10/README.md) | proiezione e inclinazione decise; la scena non è più a tutto schermo |
+
+---
+
+## 2026-10-11 — Spec panel sui tre seguiti della finestra di reazione
+
+**Origine**: i seguiti lasciati dalla cattura di `U74` ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634)): la finestra che si apre prima che il playback mostri l'ingresso, il titolo e le descrizioni della tavola E con la revisione di privacy, e i tipi delle chiavi degli scenari.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/finestra-di-reazione-seguiti-spec-panel-2026-10-11.md`](roadmap/plans/finestra-di-reazione-seguiti-spec-panel-2026-10-11.md) | il referto: premesse verificate, panel, specifica e DoD delle tre issue; S1 classificato come `IMPLEMENTATION DRIFT` contro D-355 |
+
+---
+
+## 2026-10-11 — La finestra di reazione catturata: `U74` a seduta fatta
+
+**Origine**: la cattura rimasta `NOT RUN` della seduta `U74`. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634), banco da [#3660](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3660). Con questa le sedute di stile di T8 (`U72`, `U74`–`U77`) sono fatte tutte.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U74`: la cattura, la correzione del badge, gli scarti, e cio' che e' fuori dal criterio |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-ter: dove sta il badge; §7-quater: i testi veri sono piu' lunghi della tavola |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u74-finestra-accanto-alla-tavola.png` e `u74-finestra-scala-di-grigi.png` |
+
+---
+
+## 2026-10-11 — Uno scenario che apre la finestra di reazione al giocatore
+
+**Origine**: la cattura della finestra di reazione di `U74`, rimasta `NOT RUN` perché la finestra non si apriva a comando. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634). Nell'auto-run di uno scenario non si apriva affatto: il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`. La chiave di scenario `playerReactionWindows` chiude il buco, e `Visual.Reaction.OverwatchWindow` è il banco che la usa.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | §5: cosa fa la chiave, perché non è presentazione pura come `previewUnit`, chi prova la premessa |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | la riga di `Visual.Reaction.OverwatchWindow` nella fascia B |
+
+---
+
+## 2026-10-11 — Il registro ha la sua seduta: `U77`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster registro. Issue [#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637). Con questa seduta le sedute di stile di T8 (`U72`, `U74`–`U77`) sono fatte; la cattura della finestra di reazione (`U74`) resta `NOT RUN`.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U77`: asset, grafi tolti, gate, catture in Risoluzione e in Pianificazione |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §3 e §7-sexies a seduta fatta |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u77-registro-accanto-alla-tavola.png` e `u77-registro-scala-di-grigi.png` |
+
+---
+
+## 2026-10-11 — Roster, carta, pannello e avvisi hanno la loro seduta: `U76`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello. Issue [#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U76`: asset, grafi tolti, gate, catture delle tavole A, B ed E, quattro correzioni trovate a schermo |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quater: la taglia dei glifi geometrici, e il default di classe che non arriva alle istanze gia' caricate |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u76-roster-e-pannello-accanto-alle-tavole.png` e `u76-roster-e-pannello-scala-di-grigi.png` |
+
+---
+
+## 2026-10-11 — La separazione dei piani in vista strategica ha la sua leva
+
+**Origine**: [#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632) (CAM-06a), l'ultimo dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la leva; il contesto di presentazione contro quello d'autore; la quota posata, che cambia solo con una ricostruzione intera; il velo ridisegnato dallo stato scritto sul disco; le unità riposate solo in quota, anche a playback in corso. §5 non la dà più per mancante |
+| [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | §7: dove si sceglie il valore |
+| [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) · [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | le tre leve ci sono; mancano i valori |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | voce nuova `PIE-CAM-STRATEGIC-PIANI`, aperta; totali e nota di rimisura di A1 |
+
+---
+
+## 2026-10-11 — Roster e pannello: le due porte che la seduta avrebbe lasciato vuote
+
+**Origine**: la preparazione della seduta di [#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636). Il grafo del roster costruiva anche le carte avversarie, e il pannello alimentava la sua carta da una variabile Blueprint: togliere il grafo e riparentare la carta li avrebbe spenti.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quinquies: `OpposingCardsBox`, `SubjectCard`, e il pallino `Red` delle avversarie |
+
+---
+
+## 2026-10-11 — Header e obiettivo hanno la loro seduta: `U75`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo. Issue [#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U75`: asset, gate, catture su `L_HexArena`, tre correzioni trovate a schermo |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §5: il round non passa più da un binding; §7-quater: trasparenza del brush, origine delle zone alte, click e glifi |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u75-header-accanto-alle-tavole.png` e `u75-header-scala-di-grigi.png` |
+
+---
+
+## 2026-10-11 — La finestra di reazione ha la sua seduta: `U74`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione. Issue [#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U74`: asset e gate fatti; la cattura in PIE `NOT RUN`, col motivo misurato |
+
+---
+
+## 2026-10-11 — La prova ortografica della vista strategica: una leva spenta, e lo zoom resta il braccio
+
+**Origine**: [#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) (CAM-05b), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: `bStrategicOrthographic` e `rt.Camera.StrategicOrtho`; `OrthoWidth` dal braccio; perché i limiti del pivot non hanno un ramo ortografico |
+
+## 2026-10-11 — La vista strategica s'inclina oltre la soglia d'uscita, e l'orbita non perde il pitch al primo zoom
+
+**Origine**: [#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) (CAM-05a), uno dei quattro pezzi di [D-495](decisions/RT_PDR_00_Decision_Log.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1: l'orbita scrive l'offset manuale; §5.1: la rampa `StrategicPitchDelta`, a zero dentro la corsa tattica, neutra di default |
+
+## 2026-10-11 — In vista strategica il segnalino d'un eroe sta in piedi sulla cella, e prende il click
+
+**Origine**: difetto trovato in PIE (seduta `U73`), issue [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: il segnalino d'un eroe prende la scala del segnaposto nativo e sale sulla cella; la causa misurata (cilindro del Blueprint per metà sotto la cella, mancato dal raggio inclinato); i bracci graykit si spengono in Strategic |
+
+## 2026-10-11 — Il secondo `Tab` torna alla distanza d'avvio
+
+**Origine**: difetto trovato in PIE (seduta `U73`), issue [#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §5: la distanza di ritorno si registra al momento del salto, perché `FrameOwnTeam` scrive il braccio senza passare da `UpdateStrategicState` |
+
+## 2026-10-10 — La vista strategica dal vivo: seduta `U73`, due voci PIE e due difetti
+
+**Origine**: la seduta PIE del nucleo della vista strategica ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)), su `main` = `60cd52898`.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | nuove `PIE-CAM-STRATEGIC` e `PIE-CAM-STRATEGIC-RICORDO`, entrambe parziali; totali rimisurati con A1 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | seduta `U73`: come è stata condotta, i due difetti ([#3646](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3646), [#3647](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3647)) e la tornata scartata |
+
+## 2026-10-10 — Il registro ha le porte della tavola D, e compare solo in Risoluzione
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster registro, parte C++. Issue
+[#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-sexies: il registro, la riga, e perché il «#n» è la posizione nel feed filtrato |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga D4 di §6 |
+
+---
+
+## 2026-10-10 — Roster e pannello hanno le porte della tavola: la carta ha una classe C++
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster roster e pannello, parte C++. Issue
+[#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-quinquies: la carta, il roster che la costruisce, i chip e gli avvisi del pannello |
+
+---
+
+## 2026-10-10 — L'header e l'obiettivo hanno le porte delle tavole A e D
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster header e obiettivo, parte C++. Issue
+[#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §5: le porte dell'header, delle quattro celle e dell'obiettivo |
+
+---
+
+## 2026-10-10 — La finestra di reazione ha le porte della tavola E
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster finestra di reazione, parte C++. Issue
+[#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-bis e §7-ter: le porte della finestra e dell'opzione, e le due letture nuove |
+
+---
+
+## 2026-10-10 — Conferma come la tavola B: la seduta `U72`
+
+**Origine**: il seguito T8 del referto delle tavole A–F, cluster Conferma. Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U72`, eseguita, con le misure e le tre correzioni trovate a schermo |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T8 di §9: Conferma fatta |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | la riga di `Zone_TopRight`; §7-quater, le cornici dipinte dal C++ e i glifi |
+| [`technical/evidence/hud/`](technical/evidence/hud/) | `u72-conferma-accanto-alla-tavola.png` e `u72-conferma-stati.png` |
+
+---
+
+## 2026-10-10 — Il nucleo della vista strategica: `Tab` la apre, `N` cicla la selezione, le unità diventano segnalini
+
+**Origine**: il nucleo di [D-495](decisions/RT_PDR_00_Decision_Log.md), issue
+[#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774), con il tasto di
+[#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1: il binding di `Tab`; §5: la vista esiste, il consumatore è l'HUD, il ritorno di `Tab` ha un tetto su `StrategicExitThreshold` |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §6.6: il punto (1) è superato, e il ciclo è su `N` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-421: il test che la ancora ha cambiato nome |
+| [`research/design/hud/hud-screens-2026-10/README.md`](research/design/hud/hud-screens-2026-10/README.md) e [`SPECIFICA-ZONE.md`](research/design/hud/hud-screens-2026-10/SPECIFICA-ZONE.md) | `Tab` è cablato; il nucleo della scena c'è, mancano inclinazione, proiezione e separazione dei piani |
+
+## 2026-10-10 — Le sedute di stile dell'HUD hanno le loro issue, e il registro riceve D-496
+
+**Origine**: il seguito T8 del referto delle tavole A–F; tre decisioni d'autore sulle divergenze fra tavole e codice.
+Issue [#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-496** (l'header dice `ROUND`; il registro solo in Risoluzione; i badge dei tasti in italiano) |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T8 di §9 punta alle cinque issue |
+
+---
+
+## 2026-10-10 — La vista strategica entra in v0.1 in quattro pezzi, e il registro riceve D-495
+
+**Origine**: il seguito T9 del referto delle tavole A–F, in una sessione `/sc:brainstorm` con l'autore. Issue
+[#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774), con
+[#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630) ·
+[#3631](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3631) ·
+[#3632](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3632).
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/vista-strategica-brainstorm-2026-10-10.md`](roadmap/plans/vista-strategica-brainstorm-2026-10-10.md) | nuovo: il brief, con tre correzioni trovate leggendo il codice e i quattro pezzi |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-495** (v0.1, quattro pezzi, stessa scena, taglio netto); rimando in D-252 |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T9 di §9 punta al brief e alle quattro issue |
+
+## 2026-10-10 — Gli avvisi di piano hanno un elenco e un contatore, e il registro riceve D-494
+
+**Origine**: la seconda metà del seguito T4 del referto delle tavole A–F, decisa dall'autore in sessione. Issue
+[#3622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3622).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-494** (il contatore con un numero per livello, sulle unità comandate; il fuoco amico nell'elenco dell'attaccante); rimando in D-480 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §15: il produttore, i due widget, l'Info senza produttore |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T4 di §9 punta a #3622 per la seconda metà |
+
+---
+
+## 2026-10-10 — Il fuoco amico ha una verità sola, e il registro riceve D-492
+
+**Origine**: la prima metà del seguito T4 del referto delle tavole A–F, decisa dall'autore in sessione. Issue
+[#3620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3620).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-492** (i segni di fuoco amico derivano dall'anteprima per piano, anche sui bersagli-cella) |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T4 di §9 punta a #3620 per la prima metà |
+
+---
+
+## 2026-10-10 — Il roster sa quando un'alleata comandata ha armato una reazione
+
+**Origine**: il seguito T3 del referto delle tavole A–F. Issue [#3618](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3618).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | il roster: come si legge il chip `REAZ.`, e le letture della reazione armata che restano sul solo slot `Reaction` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | rimando in D-478 all'implementazione |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T3 di §9 punta a #3618 |
+
+---
+
+## 2026-10-10 — La finestra di reazione rapida si sceglie da tastiera, e il registro riceve D-491
+
+**Origine**: il seguito T2 del referto delle tavole A–F, deciso dall'autore in sessione. Issue
+[#3615](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3615).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-491** (l'opzione *i* col tasto del kit della posizione *i*, a finestra aperta; nome e frase generica per ogni risposta) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §11.1: tasto, nome e frase di ogni opzione; §47-bis.2: la tastiera c'è, il controller resta da fare |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | la riga T2 di §9 punta a #3615 e D-491 |
+
+---
+
+## 2026-10-10 — La palette dell'HUD ha una sede a runtime, e il registro riceve D-489
+
+**Origine**: il seguito T6 del referto delle tavole A–F, deciso dall'autore in sessione. Issue
+[#3610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3610).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-489** (la palette vive in `URTUIPalette`; `RT_UI_Icon_Cooldown`, `RT_UI_Violet_Light` e i quattro `RT_UI_Phase_*` diventano token); rimando in D-482 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32: la tabella «Barra dei comandi e fasi» e la nuova §32.1 «Sede a runtime» |
+| [`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md) | §4.2 e la riga T6 di §9 puntano a #3610 e D-489 |
+
+---
+
+## 2026-10-09 — Le tavole HUD A–F entrano come sorgente di design, e il registro riceve D-477…D-482 e D-488
+
+**Origine**: il pacchetto «HUD — pacchetto design (2026-10-04)» consegnato su Drive, passato da uno spec panel e
+misurato su `origin/main` = `a6bf857bf`. Referto:
+[`roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md`](roadmap/plans/hud-tavole-a-f-spec-panel-2026-10-09.md),
+issue [#3605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3605).
+
+| Dove | Che cosa |
+|---|---|
+| [`research/design/hud/hud-screens-2026-10/`](research/design/hud/hud-screens-2026-10/) | **creato** — README, `SPECIFICA-ZONE.md` con l'intestazione di statuto, `dati/`, le tavole A–F pulite e annotate, la verifica in scala di grigi, il sorgente del canvas |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-477** (niente controlli di riproduzione nell'HUD del giocatore), **D-478** (un comandante: niente UI di coordinamento, chip `REAZ.`), **D-479** (l'header mostra la fase riprodotta), **D-480** (avvisi di piano riportati dal view-model; il validatore decide la legalità), **D-481** (l'obiettivo in `TopCenter`), **D-482** (testo e fondi di stato in §32), **D-488** (la vista strategica si apre con `Tab`, che porta lo zoom alla soglia di D-252; il ciclo della selezione passa a `N`) |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §3.2 (le due frasi superate da D-252 e D-488 barrate), §6.1, §6.2, §6.3, §6.5, §6.6, §15 e §32 allineate alle voci |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.2: `Tab` → Strategic View al posto di `M`, che dichiara `Sneak` (D-456 punto 3); §5: D-488 |
+| [`research/design/hud/skill-bar-2026-10/dati/tokens.json`](research/design/hud/skill-bar-2026-10/dati/tokens.json) | la nota sui colori del testo cita D-482 |
+
+---
+
 ## 2026-10-05 — Il foglio di conduzione delle sedute U61 e U63, la barra dei comandi
 
 | Dove | Che cosa |

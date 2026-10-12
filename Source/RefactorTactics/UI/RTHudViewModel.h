@@ -10,6 +10,7 @@
 // FRTDamageTokenView: vive in un header PROPRIO perche' `RTUnit.h` possa includerlo senza tirarsi
 // dietro il view-model — e' incluso quasi ovunque, e ogni dipendenza aggiunta li' si paga in tutto il modulo.
 #include "UI/RTDamageTokenView.h"
+#include "Combat/RTHexCombatLibrary.h" // FRTBlastPreviewPlan: il piano dell'anteprima si traduce qui (#3620)
 // FRTPlayerEvent: la vista del feed ne porta l'importanza per valore, e la composizione consuma il tipo.
 #include "UI/RTPlayerEvent.h"
 #include "Player/RTPointerInteraction.h" // ERTPointerContext/ERTPointerTargetKind: il prompt li LEGGE, non li sceglie
@@ -51,8 +52,24 @@ struct FRTMatchHeaderView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 RoundLimit = 0;
 
+	/** La fase LOGICA del turno, `ARTTurnManager::GetPhase()`. In Risoluzione l'header mostra `PlaybackPhase`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/**
+	 * La fase che il playback **sta mostrando** ([D-479], #3612): Prep, Dash, Blast o Move, mai `Cleanup`.
+	 * `Planning` fuori dal playback. E' la cella attiva dell'header in Risoluzione.
+	 *
+	 * 🔑 **Due campi, perche' sono due domande.** Senza sospensioni `RunPhaseLoop` risolve tutte le fasi prima
+	 * che il playback cominci e riporta `Phase` a `Planning`: un header su `Phase` direbbe PIANIFICAZIONE per
+	 * tutta la riproduzione. Con una sospensione le due coincidono solo quando il playback raggiunge la fase
+	 * dove la risoluzione si e' fermata.
+	 *
+	 * ⛔ Viene da `ARTTurnManager::GetPlaybackPhase()`, la stessa sorgente di `GetPlaybackPhaseName()`. La vista
+	 * legge il playback, non lo guida.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase PlaybackPhase = ERTMatchPhase::Planning;
 
 	/**
 	 * Secondi che restano al Planning. **Negativo** quando la domanda non si applica — fuori dal Planning,
@@ -184,6 +201,13 @@ struct FRTUnitCardView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FName HeroId;
 
+	/**
+	 * Il nome da leggere, «Aevik»: `ARTUnit::DisplayLabel` ([D-120]), lo stesso dell'etichetta sopra l'unita'
+	 * (#3636). ⛔ Mai `HeroId`: `WBP_RT_UnitCard` stampava l'id grezzo, «Hero.Aevik».
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText DisplayName;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Health = 0;
 
@@ -290,6 +314,18 @@ struct FRTUnitSlotsView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bAuthorized = false;
+
+	/**
+	 * Il piano ARMA UNA REAZIONE ([D-478] punto 2, #3618): lo slot `Reaction` e' occupato da un'azione, oppure la
+	 * principale e' un'azione per cui `URTCatalogLibrary::ArmsReaction` e' vera (l'Overwatch). E' il chip `REAZ.`
+	 * del roster.
+	 *
+	 * ⛔ **Falso quando `bAuthorized` e' falso, e non e' un default qualunque**: dire che un'avversaria ha armato
+	 * una reazione e' un pezzo del suo piano (D-478 punto 4). Come per gli slot, la difesa vera sta a monte:
+	 * `URTTeamRosterWidget::IsReactionArmed` non costruisce gli slot per un'unita' non comandata.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bReactionArmed = false;
 
 	/**
 	 * Il profilo con cui lo slot movimento sara' speso: `MovementProfile.Still` · `.Move` · `.Sprint`
@@ -882,6 +918,25 @@ struct FRTPlayerEventLineView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bHasBlocker = false;
+
+	/** La fase dell'evento (`FRTPlayerEvent::Phase`): la striscia e la sigla della riga del registro (#3637). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/**
+	 * Il numero della riga, «#3», da 1 (#3637).
+	 *
+	 * 🔴 **E' la posizione nel feed GIA' FILTRATO per chi guarda, non l'indice della voce nel TurnLog.** Un indice
+	 * globale avrebbe dei buchi dove stanno gli eventi che chi guarda non vede, e i buchi direbbero quanti sono: un
+	 * conteggio di dati privati, lo stesso genere di metadato che #2757 vieta per gli slot. Le righe tagliate da
+	 * `MaxFeedLines` tengono il loro numero.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Sequence = 0;
+
+	/** Vero se la riga e' una reazione scattata: il chip `REAZ.` (#3637). La frase lo dice gia'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bReaction = false;
 };
 
 
@@ -1128,6 +1183,77 @@ struct FRTActionTooltipView
  * — cioe' esattamente la seconda verita' che questo view model esiste per non far nascere. Stesso motivo per
  * cui sono `BlueprintPure` `URTIntentPrivacyLibrary::FilterForTeam` e `URTIconLibrary::MakeIconId`.
  */
+/**
+ * Il livello di un avviso di piano ([D-480] punto 3): tre livelli, tre forme. Il colore e' il secondo canale
+ * (§47-bis.1): la forma e il testo bastano da soli.
+ */
+UENUM(BlueprintType)
+enum class ERTPlanWarningLevel : uint8
+{
+	/** Cerchio «i». Oggi nessun produttore: si aggiunge una condizione alla volta, col suo test (D-480 punto 6). */
+	Info,
+	/** Triangolo «!»: un piano ACCETTATO ma degradato. */
+	Warning,
+	/** Ottagono «✕»: un piano che il validatore RIFIUTA. L'avviso lo dice, non lo decide. */
+	Critical,
+};
+
+/**
+ * Un avviso di piano ([D-480], #3622): **cosa · perche' · costo**, la terna di Z8.
+ *
+ * 🔑 **Lo produce `URTHudViewModel::BuildPlanWarnings`, che RIPORTA fonti esistenti e non decide niente.** La
+ * legalita' resta del validatore, il ripiego del resolver, il fuoco amico dell'anteprima per piano ([D-492]).
+ *
+ * ⛔ Mai per un'unita' non comandata: e' un pezzo del suo piano (D-480 punto 5).
+ */
+USTRUCT(BlueprintType)
+struct FRTPlanWarningView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTPlanWarningLevel Level = ERTPlanWarningLevel::Info;
+
+	/** Che cosa: il nome dell'azione del piano che causa l'avviso. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText What;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Why;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Cost;
+
+	/** L'azione del piano a cui l'avviso e' ATTRIBUITO ([D-480] punto 4). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName SourceActionId;
+};
+
+/** I tre chip del pannello dell'unita' (#3636). Solo C++: lo usa `ChipForWarning`. */
+enum class ERTPlanChip : uint8
+{
+	None,
+	Main,
+	Movement,
+	Reaction,
+};
+
+/** Il contatore accanto a `Conferma`: un numero per livello, per tutte le unita' comandate ([D-494]). */
+USTRUCT(BlueprintType)
+struct FRTPlanWarningCounts
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Critical = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Warning = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Info = 0;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTHudViewModel : public UBlueprintFunctionLibrary
 {
@@ -1294,6 +1420,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static float ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header);
 
+	/**
+	 * La parola della fase LOGICA, in italiano: «Pianificazione», «Ready», «Preparazione» (con «(in pausa)»),
+	 * «Risoluzione», «Fine». Sede unica (#3635): la usano la riga di stato del Canvas e l'header UMG.
+	 *
+	 * 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`, `#2386`): durante il Ready e la finestra
+	 * di preparazione la fase e' ancora `Planning`, e una parola sola direbbe «Pianificazione» mentre il piano sta
+	 * per partire. ⛔ Non nomina la fase RIPRODOTTA: quella e' `PlaybackPhase`, e in Risoluzione l'header la mostra
+	 * nelle celle, non qui.
+	 */
+	static FString ComposePhaseWord(const FRTMatchHeaderView& Header);
+
+	/**
+	 * Vero se la mappa della partita dichiara un obiettivo (`URTHexMapAsset::HasObjectiveCell`). Falso senza
+	 * manager o senza mappa.
+	 *
+	 * 🔴 **I punteggi di `FRTMatchHeaderView` significano qualcosa solo se questa e' vera** (vedi `Team0Score`):
+	 * su una mappa senza obiettivo `0-0` sarebbe un punteggio inventato. Portare la condizione dentro il tipo e'
+	 * #2281; fino ad allora chi mostra il punteggio la chiede qui.
+	 */
+	static bool MapDeclaresObjective(const ARTTurnManager* TurnManager);
+
 
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
@@ -1325,6 +1472,22 @@ public:
 	static FRTUnitSlotsView BuildUnitSlots(const ARTUnit* Unit);
 
 	/**
+	 * Il piano di `Unit` nella forma che `URTHexCombatLibrary::MakeBlastPreview` riceve ([D-492], #3620).
+	 * `UnitId` e i bersagli sono indici in `Units`, gli stessi di `MakeHexCombatUnits(Units)`.
+	 *
+	 * 🔑 **E' la sola traduzione unita' -> anteprima, e ne passano due letture.** L'anteprima dell'unita'
+	 * selezionata nel controller e i segni sulle unita' dell'HUD (`ARTHUD::ComputePlannedHitMarks`). Prima stava
+	 * nel controller, e i segni ricalcolavano l'area per conto proprio: saltavano ogni attacco mirato a una CELLA,
+	 * e l'alleato in un'area su un varco vuoto era segnato dall'anteprima e non dall'overlay.
+	 *
+	 * L'origine non e' `Unit.Cell` in ogni caso: lo scatto pianificato sposta da dove si mira ([D-464], [D-471]).
+	 */
+	static FRTBlastPreviewPlan MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId, const TArray<ARTUnit*>& Units);
+
+	/** Le unita' nella forma che il Blast riceve, con `UnitId` uguale all'indice in `Units`. Vedi `MakeBlastPreviewPlan`. */
+	static TArray<FRTHexCombatUnit> MakeHexCombatUnits(const TArray<ARTUnit*>& Units);
+
+	/**
 	 * La lettura del movimento dell'unita' COMANDATA (`#3470`). Il profilo viene da `BuildUnitSlots`, cioe' da
 	 * `URTMovementProfileLibrary::ProfileForPlan`: nessuna seconda strada verso la stessa risposta.
 	 *
@@ -1354,6 +1517,27 @@ public:
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
 
 	/**
+	 * Gli avvisi del piano di `Unit` ([D-480], #3622), in ordine: i `Critical`, poi i `Warning`. `Units` sono le
+	 * unita' in campo, da cui l'anteprima del Blast ricava le alleate colpite.
+	 *
+	 * Tre produttori, e ognuno RIPORTA una fonte che esiste:
+	 * - **Critical**: `URTPlanValidationLibrary::ValidatePlan`. Il perche' nomina entrambe le azioni di un conflitto
+	 *   di slot, come il log di lock-in: l'azione che il validatore incontra per seconda non e' sempre quella da
+	 *   correggere;
+	 * - **Warning, degradato**: `FRTAbilityCooldownView::bPlanDegraded` di `BuildAbilityCooldowns`, la stessa
+	 *   domanda che accende lo stato `Warning` dello slot ([D-459]);
+	 * - **Warning, fuoco amico**: `MakeBlastPreview` sul piano di `Unit` ([D-492]). Sta nell'elenco
+	 *   dell'ATTACCANTE, perche' e' il suo piano a causarlo ([D-494]).
+	 *
+	 * ⛔ **Non filtra il comando**: lo fanno i chiamanti, come per `BuildUnitSlots`. Chiamarla per un'unita' non
+	 * comandata consegnerebbe il suo piano.
+	 */
+	static TArray<FRTPlanWarningView> BuildPlanWarnings(const ARTUnit* Unit, const TArray<ARTUnit*>& Units);
+
+	/** Aggiunge a `InOut` gli avvisi di `Warnings`, uno per livello ([D-494]). */
+	static void AddPlanWarningCounts(const TArray<FRTPlanWarningView>& Warnings, FRTPlanWarningCounts& InOut);
+
+	/**
 	 * Il segno di fase di un'azione (`#3465`). La precedenza vive qui e in nessun altro posto:
 	 *
 	 * 1. `Slot == Reaction` -> `Reaction`: una reazione non e' una fase;
@@ -1366,6 +1550,26 @@ public:
 	 * azioni e cambiando il dato.
 	 */
 	static ERTActionPhaseMark PhaseMarkFor(const FRTActionDef& Def);
+
+	/**
+	 * Il segno di fase di uno slot pianificato di `Unit` (#3636): quello dell'azione che lo occupa (`PhaseMarkFor`
+	 * sul suo `Def`), `Move` per un percorso senza azione, `None` per uno slot libero o un'azione fuori dal kit.
+	 *
+	 * ⚠️ **Si chiede per un'unita' COMANDATA**, la stessa da cui vengono gli slot: chi ha uno slot autorizzato ha
+	 * gia' il piano, e il segno non gli dice niente di piu'.
+	 */
+	static ERTActionPhaseMark SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot);
+
+	/**
+	 * A quale chip del pannello appartiene un avviso (#3636): ogni avviso a uno solo.
+	 *  - **principale** se nomina l'azione della principale;
+	 *  - **reazione** se nomina quella della reazione;
+	 *  - altrimenti **movimento**, se occupato: e' l'unica altra voce del piano, comprese quelle che `MakePlanFor`
+	 *    aggiunge dal core e che lo slot non nomina (`Action.Move` per un percorso, il caso canonico del conflitto
+	 *    scatto + movimento).
+	 * `None` per una vista non autorizzata, o un avviso che non nomina un'azione.
+	 */
+	static ERTPlanChip ChipForWarning(const FRTUnitSlotsView& Slots, const FRTPlanWarningView& Warning);
 
 	/**
 	 * L'etichetta di un segno: `PREP` … `CLEANUP`, `REAZ.`, e `—` per `None`.
@@ -1581,6 +1785,18 @@ public:
 	 * @param TargetStableUnitId   chi subisce. `0` = nessuno ([D-063]), e il token non nomina nessuno.
 	 */
 	static FRTDamageTokenView BuildDamageToken(int32 Amount, int32 TargetStableUnitId);
+
+	/**
+	 * Il token di una CURA ([D-505], `#3600`): `+N` sul curato, e la barra che pulsa se la vita e' salita.
+	 *
+	 * 🔑 **Lo stesso token del colpo, non un secondo canale**: stessa struttura, stesso widget, stesso velo. Cambia
+	 * il segno, e `bIsHeal` dice a chi disegna che e' una cura. A salute piena `Amount` e' zero e l'etichetta lo
+	 * dichiara («0 curati»), senza pulsazione: la barra non ha nulla da raccontare.
+	 *
+	 * @param Amount               i punti vita restituiti davvero (`FRTResolvedEvent::Amount` di un `Healed`).
+	 * @param TargetStableUnitId   chi e' curato. `0` = nessuno ([D-063]).
+	 */
+	static FRTDamageTokenView BuildHealToken(int32 Amount, int32 TargetStableUnitId);
 
 	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.

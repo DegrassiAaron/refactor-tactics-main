@@ -303,6 +303,12 @@ bool FRTAimOriginAttackAfterDashTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
+	// 🔴 **Il soggetto e' il RIFIUTO dallo scatto, e serve un attacco che la linea la CHIEDA.** Da D-490 (#3608)
+	// l'attacco base mira al buio — `BlindAimDirect`: oltre il muro non si rifiuta piu', il colpo parte e il muro
+	// lo ferma. Il banco dichiara quindi `Required` sulla PROPRIA copia di `PressureJet` (`MakeMuiren` crea dati
+	// nuovi a ogni chiamata, il kit spedito non cambia): e' l'unica differenza, e la premessa sotto la misura.
+	// ⌫ *Fino a #3608 il test usava l'attacco base cosi' com'e'.*
+	B.Mine->Abilities[B.Getto]->Def.LineOfSightPolicy = ERTLineOfSightPolicy::Required;
 	const URTActionData* Getto = B.Mine->GetAbility(B.Getto);
 
 	// PREMESSE — la fase, la portata del loadout, e l'INVERSIONE dalla cella corrente. Senza quest'ultima un verde

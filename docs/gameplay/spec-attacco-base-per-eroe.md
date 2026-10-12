@@ -7,9 +7,10 @@
 > arriva dalla specifica consolidata della skill bar del 2026-09-13, consumata dallo spec panel in
 > [`../roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md`](../roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md).
 >
-> ⚠️ **Questa pagina descrive due stati diversi, e li tiene separati.** §1–§4 sono **in vigore**: il codice
-> le esegue. §5 è **decisa e non implementata** — nessuna riga di codice la esprime oggi, e il repository fa
-> tuttora il contrario. Chi legge §5 come descrizione del comportamento corrente la legge male.
+> ⚠️ **Questa pagina descriveva due stati diversi.** §1–§4 sono **in vigore**: il codice le esegue. §5 è
+> nata **decisa e non implementata**. ✅ **Dal 2026-10-10 le sue voci vive sono implementate**: §5.2 da
+> [#3230](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3230) e [#3609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3609), §5.3 da [#3608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3608). Resta senza
+> codice il solo corollario sullo spostamento forzato, in coda alla §5.2, e lo dice lì.
 >
 > 🔁 **Aggiornata il 2026-09-14, dopo l'istruttoria sui punti aperti.** Delle tre voci di
 > [`D-415`](../decisions/RT_PDR_00_Decision_Log.md), la §5.1 è stata **ritirata**
@@ -23,7 +24,9 @@
 > [`D-415`](../decisions/RT_PDR_00_Decision_Log.md) (§5) ·
 > [`D-417`](../decisions/RT_PDR_00_Decision_Log.md) (§5.1 ritirata) ·
 > [`D-418`](../decisions/RT_PDR_00_Decision_Log.md) (§5.3) ·
-> [`D-419`](../decisions/RT_PDR_00_Decision_Log.md) (§5.2).
+> [`D-419`](../decisions/RT_PDR_00_Decision_Log.md) (§5.2) ·
+> [`D-490`](../decisions/RT_PDR_00_Decision_Log.md) (§5.3) ·
+> [`D-493`](../decisions/RT_PDR_00_Decision_Log.md) (§5.2, la cura che aggancia).
 > **Issue**: [#315](https://github.com/DegrassiAaron/refactor-tactics-main/issues/315).
 
 ## Perché esiste
@@ -80,14 +83,15 @@ il rifiuto è incondizionato e non consulta `bFriendlyFire`. Misurato: **0** occ
 `bAllowsAllyTarget`, `AllyTargetable`, `bCanTargetAllies` in `Source/`. È una lacuna dichiarata, non un
 divieto: il primo kit che ne abbia bisogno la apre.
 
-## 5. 🔴 Deciso e NON implementato — [`D-415`](../decisions/RT_PDR_00_Decision_Log.md)
+## 5. Deciso da [`D-415`](../decisions/RT_PDR_00_Decision_Log.md) — ✅ implementato, salvo un corollario
 
-⛔ **Il codice fa oggi il contrario di quelle che restano**, e nessuna delle righe qui sotto descrive il
-comportamento corrente.
+⏱️ *Fino al 2026-10-10 il titolo diceva «Deciso e NON implementato», e qui si leggeva «il codice fa oggi il
+contrario di quelle che restano».* ✅ **Non è più vero**: la §5.2 è implementata da #3230 e #3609, la §5.3 da
+#3608. Resta senza codice il corollario sullo spostamento forzato, in coda alla §5.2.
 
 ✅ **Le due code che `D-415` apriva sono chiuse**: `SKB-4` da [`D-417`](../decisions/RT_PDR_00_Decision_Log.md)
 (la §5.1 si ritira) e `SKB-5` da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md) (il mortaio non si
-riprezza). Restano **due** voci da implementare, non tre.
+riprezza). Restavano **due** voci da implementare, non tre, e ora lo sono entrambe.
 
 ### 5.1 ~~L'attacco base non dipende dall'equipaggiamento~~ — ✅ **RITIRATA il 2026-09-14**
 
@@ -119,7 +123,20 @@ seguito**. Può ancora subire un impatto se la nuova posizione ricade nella trai
 — e questo è **già vero** oggi.
 
 🔁 **Precisata il 2026-09-14 da [`D-419`](../decisions/RT_PDR_00_Decision_Log.md): è una regola UNIVERSALE**,
-non una proprietà dichiarata per azione. Un'azione che voglia agganciare lo dichiara, e oggi nessuna lo fa.
+non una proprietà dichiarata per azione. Un'azione che voglia agganciare lo dichiara. Oggi lo fanno
+`Action.Interrupt` e la cura singola `Action.Heal` ([`D-493`](../decisions/RT_PDR_00_Decision_Log.md)), e il
+perché di ciascuna sta accanto alla sua riga di catalogo.
+
+**Stato**: ✅ **implementata.** Per gli attacchi da [#3230](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3230) ([#3135](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3135)). Per ogni
+altra azione che risolve un bersaglio-unità da [#3609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3609): cura ad area, `ModifyArc`, azioni
+ambientali e strutture di bordo. La cella la dà una lettura sola, `ARTUnit::ResolutionAimCell`, e
+`FRTActionDef::DeclaresTracking` dice chi aggancia. ⚠️ Le azioni ambientali risolvono in Cleanup, dopo il Move:
+prima di #3609 inseguivano anche il movimento normale, non solo lo scatto.
+
+Gate: `RefactorTactics.Combat.Aim.PlannedAimDoesNotFollowTheTarget` (gli attacchi),
+`RefactorTactics.Combat.Aim.OnlyDeclaredTrackersFollowTheTarget` (l'elenco esatto di chi aggancia),
+`RefactorTactics.Actions.Ignite.BurnsWhereItWasAimed` (Move e Dash), `RefactorTactics.Actions.ModifyArc.OpensTowardTheFrozenAim`,
+`RefactorTactics.Heroes.TideOnAUnitStaysWhereItWasAimed`, `RefactorTactics.Actions.Heal.TracksTheAllyItHeals`.
 
 ⏱️ *Questa sezione diceva «oggi insegue, e per una riga sola: `RTHexCombatLibrary.cpp:352`».* 🔴 **La misura
 dice altro, ed è la correzione che conta.** Il Blast **precede** il Move (`RTTurnRules.cpp:7-12`),
@@ -153,14 +170,36 @@ Misurato: **0** occorrenze di una regola «fino alla gittata massima» in `Sourc
 
 ### 5.3 Si può sparare verso un esagono non visibile
 
-**Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede.
+**Regola decisa**: l'attacco base può mirare a un esagono che l'attaccante non vede — **anche dietro un
+ostacolo** — e il colpo viaggia **dritto**: il primo ostacolo sul percorso lo ferma. L'ostacolo si danneggia solo
+se l'azione dichiara `DamageStructure`, come per ogni azione `Required`, e l'attacco base non lo dichiara.
+[`D-490`](../decisions/RT_PDR_00_Decision_Log.md) precisa così `D-415` (4).
 
-**Stato**: `ERTLineOfSightPolicy::Required` è il default (`Source/RefactorTactics/Ability/RTActionDef.h:787`),
-e il tiro indiretto è una **licenza dichiarata** che ogni azione deve chiedere.
+**Stato**: ✅ **implementata da [#3608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3608)**.
+`Action.BasicAttack` porta `ERTLineOfSightPolicy::BlindAimDirect`, e `MakeHeroBasicAttack` la **copia** in ogni
+attacco base d'eroe (`BaseActionId == Action.BasicAttack`).
+
+| Momento | `Required` | **`BlindAimDirect`** (attacco base) | `NotRequired` (mortaio) |
+|---|---|---|---|
+| **Pianificazione** — si può mirare una cella oltre un ostacolo? | no, `NoLineOfSight` | **sì** | sì |
+| **Risoluzione** — un ostacolo sul percorso ferma il colpo? | sì | **sì** | no, passa sopra |
+
+Le due domande hanno un nome ciascuna — `URTCombatLibrary::RequiresSightToAim` e `URTCombatLibrary::TravelsDirect` —
+e chi legge la policy passa da lì. Gate: `RefactorTactics.BlindFire.BasicAttackAimsBehindAWallAndTheWallStopsIt`
+(le due metà, con controllo positivo) e `RefactorTactics.HeroCatalog.EveryBasicAttackTakesTheCorePolicy`.
+
+⚠️ **La nebbia non è la novità.** Con `Required` un attacco mirava già una cella fuori dal raggio visivo quando nessun
+ostacolo è in mezzo: il targeting a cella guarda gittata e geometria, non la visione. Ciò che `BlindAimDirect`
+aggiunge è la cella **dietro un ostacolo**, dove il colpo parte e si ferma sull'ostacolo.
+
+⌫ *La strada fatta.* Fra il 2026-09-20 e il 2026-10-09 #3230 dichiarava il punto fatto e in partita era un no-op (la
+copia agli eroi mancava). Il 2026-10-09 è stato implementato con `NotRequired`, la licenza del mortaio, e la suite
+completa del 2026-10-10 ha mostrato che toglieva anche la **traiettoria**: muri e coperture non fermavano più
+l'attacco base, le strutture sul percorso non venivano colpite. Scorporato in #3608, e lì deciso come sopra.
 
 🔴 **È la più cara delle tre, e il prezzo è documentato.**
 [`D-380`](../decisions/RT_PDR_00_Decision_Log.md) ha **pagato** quella licenza per `Action.Mortar`: **12**
-danni invece di 18, ricarica **3** invece di 2. Concederla a quattro attacchi base gratuiti e senza cooldown
+danni invece di 18, ricarica **3** invece di 2. Concederla agli attacchi base, gratuiti e senza cooldown,
 significa che quel prezzo non comprava una capacità, comprava un'**esclusiva**.
 
 ✅ **Risolto il 2026-09-14 da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md): il mortaio NON si
@@ -170,8 +209,9 @@ mortaio eguaglia `Action.CircularAoE` su tutti e cinque i valori (`Attack` · 65
 **e conserva in più il tiro indiretto**, che quella non dichiara: restituirgli i sei danni produrrebbe
 un'abilità **strettamente superiore** a una che esiste già.
 
-⛔ **E non è a costo zero**: **tre** test di `RTBlindFireOffensiveTests.cpp` identificano il mortaio dalla
-proprietà che questa sezione rende comune. Vanno riscritti **insieme** all'implementazione, non dopo.
+⛔ **E non è a costo zero**: **tre** test di `RTBlindFireOffensiveTests.cpp` identificavano il mortaio dalla
+proprietà che questa sezione rende comune. ✅ Riscritti in #3230: lo identificano per `DerivedFromActionId`, e
+reggono con qualunque risposta dia #3608.
 
 ## 6. La rivelazione dell'attaccante — decisa nella sostanza, **non** nel nome
 

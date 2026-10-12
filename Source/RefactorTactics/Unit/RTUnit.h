@@ -22,6 +22,7 @@ enum class ERTGraykitAnchor : uint8;
 struct FRTGraykitPose;
 class UArrowComponent;
 class USkeletalMeshComponent;
+class UTextRenderComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
@@ -407,7 +408,75 @@ public:
 	{
 		PlannedAttackTarget = nullptr;
 		bAttackTargetsCell = false;
+		bHasPlannedAim = false;   // [D-415]: la mira congelata muore col piano che la conteneva
 	}
+
+	/**
+	 * **La cella su cui il piano mira, come la legge chi RISOLVE** ([D-419], #3609). Una lettura sola per ogni
+	 * lettore del bersaglio — attacchi, cura, `ModifyArc`, azioni ambientali, strutture di bordo — invece di una
+	 * copia della stessa espressione per lettore, che e' come la mira congelata era arrivata a uno solo di loro.
+	 *
+	 * - bersaglio a CELLA: la cella dichiarata;
+	 * - mira congelata al lock-in, e l'azione NON aggancia: la mira congelata — anche se l'attore bersaglio non
+	 *   c'e' piu', cosi' un ripiego `AttackCell` cade dove si era puntato;
+	 * - l'azione DICHIARA di agganciare (`FRTActionDef::DeclaresTracking`), o non c'e' mira congelata: la cella
+	 *   viva del bersaglio;
+	 * - nessun bersaglio: la cella di chi agisce.
+	 *
+	 * ⚠️ **Si legge PRIMA di `ClearPlannedAttack()`**, che spegne tutte e tre le forme.
+	 */
+	FRTCellId ResolutionAimCell(bool bDeclaresTracking) const
+	{
+		if (bAttackTargetsCell) { return PlannedAttackCell; }
+		if (bHasPlannedAim && !bDeclaresTracking) { return PlannedAimCell; }
+		if (PlannedAttackTarget) { return PlannedAttackTarget->Cell; }
+		return Cell;
+	}
+
+	/**
+	 * **La cella su cui l'azione principale mira, congelata al LOCK-IN** ([D-415]).
+	 *
+	 * 🔑 **Esiste perche' la mira non deve INSEGUIRE.** Fino al 2026-09-20 il Blast leggeva
+	 * `PlannedAttackTarget->Cell` al momento di risolvere, cioe' **dopo** il Dash, le spinte e le reazioni
+	 * (il movimento normale risolve dopo il Blast): un bersaglio che scattava veniva seguito, e chi sparava
+	 * colpiva una posizione che al momento di decidere non esisteva.
+	 * In una fase simultanea questo rende illeggibile la scelta — si mira a qualcosa che si muoverà.
+	 *
+	 * ⚠️ **NON e' `PlannedAttackCell`, ed e' deliberato.** Quella e' l'altra META' della scelta esclusiva di
+	 * `#2884`: `bAttackTargetsCell` decide QUALE delle due il resolver legge, e scriverci la mira di un
+	 * bersaglio-unita' renderebbe le due forme indistinguibili proprio nel campo che le separa.
+	 *
+	 * 🔑 **Il corollario di [D-415] regge da solo**: il bersaglio che si e' spostato puo' comunque essere
+	 * colpito, perche' `CollectHexAttacks` sceglie chi colpire **geometricamente** — ogni unita' viva su una
+	 * cella dell'area — e non dall'identita' del bersaglio dichiarato. Non c'e' niente da aggiungere per
+	 * ottenerlo, solo da non rompere.
+	 *
+	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
+	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. La dichiarano `Action.Interrupt` e
+	 * `Action.Heal` (D-493), e il perche' sta accanto alla riga di catalogo di ciascuna; chi risolve la legge da
+	 * `ResolutionAimCell`.
+	 *
+	 * 🔒 **NON e' visibile ai Blueprint, ed e' deliberato** (CLAUDE.md §7): e' intento della squadra che lo
+	 * dichiara, letto solo dal resolver. Esposto senza filtro, un grafo di presentazione leggerebbe dove mira
+	 * il nemico — e `Unit.BlueprintSurfaceIsCensused` lo avrebbe dovuto censire come debito «da ritirare»,
+	 * come ogni altro campo del piano. ⌫ *Fino alla suite completa del 2026-10-10 era `BlueprintReadOnly`.*
+	 * `Transient`: e' stato del turno, non si salva con l'attore.
+	 */
+	UPROPERTY(Transient)
+	FRTCellId PlannedAimCell;
+
+	/**
+	 * Se `PlannedAimCell` porta una mira valida per QUESTO turno ([D-415]).
+	 *
+	 * ⚠️ **Serve perche' `FRTCellId()` e' una cella LEGITTIMA** — `(0,0,0)` e' il centro di ogni mappa — e un
+	 * flag e' l'unico modo di distinguere «non congelata» da «congelata sull'origine». Senza, un piano
+	 * scritto direttamente (harness, test) mirerebbe al centro invece che dove dice.
+	 *
+	 * 🔒 Fuori dai Blueprint per la stessa ragione di `PlannedAimCell`: che una mira sia stata congelata e'
+	 * gia' informazione di piano.
+	 */
+	UPROPERTY(Transient)
+	bool bHasPlannedAim = false;
 
 	/**
 	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
@@ -1649,17 +1718,23 @@ public:
 	 * ⚠️ **`bHasPose` e' la terza condizione, aggiunta il 2026-09-05 (#2545).** Una mesh SENZA una clip
 	 * da suonare non e' un corpo: e' una posa di riferimento, cioe' una T-pose — e una T-pose si legge
 	 * come «questa animazione e' rotta» invece che come «nessuno ha legato una clip a questo ruolo».
+	 *
+	 * 🔑 **`bStrategic` e' la quarta condizione, aggiunta il 2026-10-10 (D-495).** Nella vista strategica il
+	 * segnalino e' il cilindro anche sugli eroi: lo skeletal si spegne e il cilindro si riaccende. Entra **in
+	 * AND con `bRender`**, quindi non puo' riaccendere niente che il velo abbia spento — la privacy di
+	 * D-488 (4) si eredita da qui invece di essere riscritta.
 	 */
-	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose);
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose, bool bStrategic = false);
 
 	/**
 	 * Se lo SKELETAL dell'eroe va mostrato: serve che l'unita' si veda **e** che ci sia una posa da
-	 * mostrare.
+	 * mostrare **e** che la vista non sia strategica (D-495).
 	 *
 	 * 🔑 Esiste accanto a `ShouldShowPlaceholderMesh` perche' sono **la stessa decisione**: senza questo,
-	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi.
+	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi. Per la
+	 * stessa ragione prende lo stesso `bStrategic`: in strategica i due corpi si scambiano, non si sommano.
 	 */
-	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose);
+	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose, bool bStrategic = false);
 
 	/**
 	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
@@ -1679,6 +1754,25 @@ public:
 	 * che significa morte ed e' a senso unico per SEMANTICA.
 	 */
 	void SetKnownToObserver(bool bKnown);
+
+	/**
+	 * `D-495` — dichiara se l'osservatore locale guarda dalla vista strategica. **Sola presentazione**: decide
+	 * QUALE corpo si mostra (cilindro o skeletal, segnalino o sagoma del ricordo), mai SE l'unita' si vede —
+	 * quello resta di `SetKnownToObserver` e della vita.
+	 *
+	 * Lo scrive `ARTHUD::UpdateObserverVeil`, che legge `ARTCameraPawn::IsStrategicView` nello stesso giro
+	 * in cui scrive il velo: un produttore, come per `SetKnownToObserver`.
+	 */
+	void SetStrategicPresentation(bool bStrategic, float ViewYawDegrees = 0.f);
+	bool IsStrategicPresentation() const { return bStrategicPresentation; }
+
+	/** Cio' che un test puo' leggere del ricordo senza montare un HUD (D-495). */
+	bool IsContactTokenVisibleForTest() const;
+	FVector GetContactTokenLocationForTest() const;
+	/** I limiti di mondo del cilindro segnaposto, cioe' del bersaglio del click (#3647). */
+	FBox GetPlaceholderWorldBoxForTest() const;
+	FRotator GetContactTokenMarkRotationForTest() const;
+	bool IsContactGhostVisibleForTest() const;
 
 	/**
 	 * Cio' che l'osservatore locale sa di questa unita', come gliel'ha dichiarato `SetKnownToObserver`.
@@ -1884,6 +1978,16 @@ public:
 	void ShowDamageToken(int32 Amount);
 
 	/**
+	 * Mostra sopra questa unita' il token di una CURA appena rivelata dal playback ([D-505], `#3600`): `+N`, e la
+	 * barra che pulsa. Gemella di `ShowDamageToken`, con la sua stessa forma e lo stesso campo
+	 * (`LastDamageToken`): il token e' uno, danno o cura. ⚠️ **Un'unita' colpita e curata nello stesso Blast
+	 * mostra prima il «-N» e poi il «+N», che lo sostituisce**: e' il limite «un evento, un token» gia' dichiarato
+	 * per i colpi (`URTUnitOverlayWidget::PushDamageToken`), e da [#3700] la cura si racconta dopo i colpi.
+	 * ⛔ Non applica niente: la cura e' gia' applicata.
+	 */
+	void ShowHealToken(int32 Amount);
+
+	/**
 	 * L'ultimo token composto per questa unita', **di sola presentazione**.
 	 *
 	 * 🔑 **Esiste per rendere il cablaggio osservabile senza rendering.** `URTUnitOverlayWidget` e' un
@@ -2017,6 +2121,65 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<USkeletalMeshComponent> ContactGhost;
+
+	/**
+	 * `D-495` — il ricordo nella vista strategica: un **segnalino** (il cilindro del segnaposto) con una «X»
+	 * sopra, al posto della sagoma. E' l'«ultimo contatto» della tavola F di `hud-screens-2026-10`.
+	 *
+	 * 🔴 **Non passa dal velo dell'unita', e non per svista**: un ricordo ha `bRender == false` per
+	 * costruzione, quindi i predicati del segnaposto lo spegnerebbero. Segue la STESSA sorgente della sagoma —
+	 * `UpdateContactGhost`, con la cella del CONTATTO — e la stessa regola d'eta' (`GhostOpacityForContact`):
+	 * dice dove e quando, come la sagoma, e niente di piu'. Non ha bisogno di una skeletal da copiare, quindi
+	 * vale anche per un'unita' che ha solo il cilindro.
+	 *
+	 * Posizione, rotazione e scala ASSOLUTE come `ContactGhost`: resta sulla cella del ricordo anche se
+	 * l'attore vero si e' spostato altrove. `NoCollision`, nessuna ombra.
+	 */
+	//
+	// ⛔ **Niente `BlueprintReadOnly`, di proposito** (`Unit.BlueprintSurfaceIsCensused`): nessun grafo ne ha
+	// bisogno, e una maniglia in piu' e' una riga in piu' nel censimento della privacy senza un consumatore.
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> ContactToken;
+
+	/**
+	 * La «X» del segnalino del ricordo: testo piatto rivolto in alto, girato con lo yaw della camera.
+	 *
+	 * ⚠️ **Una «X» e' simmetrica per quarti di giro, la camera no**: ruota a passi di 45° (`YawStep`) e
+	 * con l'orbita a qualunque angolo. Fissata al mondo, al primo scatto diventerebbe una «+» (review di #3640).
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|Unit")
+	TObjectPtr<UTextRenderComponent> ContactTokenMark;
+
+	/** Vedi `SetStrategicPresentation`. Nasce tattica. */
+	UPROPERTY()
+	bool bStrategicPresentation = false;
+
+	/** L'offset del corpo dell'ultima posa graykit: `SetStrategicPresentation` lo riapplica quando solleva il cilindro. */
+	FVector LastGraykitBodyOffset = FVector::ZeroVector;
+
+	/**
+	 * La scala del cilindro e la selezione nel momento in cui si e' entrati in strategica. Uscendo si ripristinano,
+	 * cosi' il bersaglio del click in tattica resta quello del Blueprint (review di #3650): un nemico mai selezionato
+	 * non deve uscire da un viaggio in strategica con un cilindro alto 180 invece di 100.
+	 */
+	FVector TacticalMeshScaleAtStrategicEntry = FVector::OneVector;
+	bool bSelectedAtStrategicEntry = false;
+
+	/**
+	 * #3647 — la scala e la quota del cilindro segnaposto nella presentazione corrente.
+	 *
+	 * 🔴 **In strategica il cilindro e' il SEGNALINO, e sta in piedi sulla cella.** Un `BP_Unit_*` d'eroe ha il
+	 * pivot ai piedi (`VisualZOffset = 0`) e un cilindro alto 100 centrato su quel pivot, cioe' per meta' sotto la
+	 * cella: in tattica non si vede (lo copre lo skeletal), ma resta il bersaglio del click. In strategica diventava
+	 * un segnalino tozzo, e il raggio inclinato della camera lontana lo mancava e prendeva la cella dietro (misurato:
+	 * colpito solo fra -20 e +80 sopra il suolo). Qui il cilindro prende la scala del segnaposto NATIVO e si alza di
+	 * `UnitHalfHeight - VisualZOffset`: e' la stessa posa del segnalino del ricordo. In tattica non cambia niente.
+	 */
+	FVector PlaceholderScale() const;
+	FVector PlaceholderLift() const;
+
+	/** Lo yaw della camera di chi guarda, consegnato con lo stato strategico: orienta la «X» del ricordo. */
+	float StrategicViewYaw = 0.f;
 
 	/**
 	 * La sovrapposizione sopra la testa — nome, vita, scudo, stati (`#2288`, `D-320`).

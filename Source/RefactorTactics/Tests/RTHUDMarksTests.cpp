@@ -860,4 +860,102 @@ bool FRTBlockerOutlineMatchesTheCellTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **L'ALLEATA IN UN'AREA MIRATA A UNA CELLA VUOTA E' SEGNATA** ([D-492], #3620).
+ *
+ * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`, con una differenza sola: Overload non mira a Branth ma alla
+ * cella dove Branth stava, e Branth e' lontano. Fino a #3620 i segni chiedevano `PlannedAttackTarget`, che un
+ * bersaglio a cella azzera per costruzione: l'area non produceva nessun segno, mentre l'anteprima dell'unita'
+ * selezionata la disegnava con l'alleata dentro. Ora i segni vengono dalla stessa anteprima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDAllyMarkFromCellTargetTest,
+	"RefactorTactics.HUD.AllyInACellTargetedAreaIsMarked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHUDAllyMarkFromCellTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 1, 0, 0));
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 6, 0, 0));
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Aevik->PlannedAbilityIndex = Overload;
+	Aevik->bAttackTargetsCell = true;
+	Aevik->PlannedAttackCell = FRTCellId(2, 0, 0); // una cella vuota: e' la cella, non un'unita', il bersaglio
+
+	TSet<FRTCellId> Hit, Ally;
+	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+
+	const FRTCellId CellaMuiren = Muiren->Cell;
+	const FRTCellId CellaAevik = Aevik->Cell;
+	const FRTCellId CellaBranth = Branth->Cell;
+
+	DestroyMarksWorld(World);
+
+	TestTrue(FString::Printf(TEXT("l'area mirata alla cella e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
+	TestTrue(TEXT("la cella bersagliata e' nella zona"), Hit.Contains(FRTCellId(2, 0, 0)));
+	TestFalse(TEXT("premessa: Branth e' fuori dalla zona"), Hit.Contains(CellaBranth));
+
+	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
+	TestTrue(TEXT("ed e' quella di Muiren"), Ally.Contains(CellaMuiren));
+	TestFalse(TEXT("Aevik non e' marcato"), Ally.Contains(CellaAevik));
+	return true;
+}
+
+/**
+ * 🔑 **L'AVVISO DI FUOCO AMICO STA NELL'ELENCO DELL'ATTACCANTE, NON DELLA VITTIMA** ([D-480] punto 4, [D-494], #3622).
+ *
+ * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`: Overload di Aevik su Branth, con Muiren nella zona. Il segno
+ * sull'unita' sta su Muiren (e' lei che verra' colpita), ma l'avviso di piano sta su Aevik: e' il suo piano che lo
+ * causa, ed e' lui che puo' cambiarlo. Il perche' nomina Muiren.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningFriendlyFireOwnerTest,
+	"RefactorTactics.HudViewModel.FriendlyFireWarningIsTheAttackersNotTheVictims",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 1, 0, 0));
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Aevik->PlannedAbilityIndex = Overload;
+	Aevik->PlannedAttackTarget = Branth;
+
+	const TArray<ARTUnit*> Units = { Aevik, Muiren, Branth };
+	const TArray<FRTPlanWarningView> DiAevik = URTHudViewModel::BuildPlanWarnings(Aevik, Units);
+	const TArray<FRTPlanWarningView> DiMuiren = URTHudViewModel::BuildPlanWarnings(Muiren, Units);
+	const FString NomeMuiren = ARTUnit::DisplayLabel(Muiren->HeroDisplayName, Muiren->HeroId, Muiren->GetName());
+
+	DestroyMarksWorld(World);
+
+	const FRTPlanWarningView* FuocoAmico = DiAevik.FindByPredicate([](const FRTPlanWarningView& A)
+	{
+		return A.Level == ERTPlanWarningLevel::Warning && A.SourceActionId == FName(TEXT("Hero.Aevik.Overload"));
+	});
+	if (TestNotNull(TEXT("l'elenco di Aevik ha l'avviso di fuoco amico di Overload"), FuocoAmico))
+	{
+		TestTrue(*FString::Printf(TEXT("il perche' nomina %s"), *NomeMuiren), FuocoAmico->Why.ToString().Contains(NomeMuiren));
+		TestFalse(TEXT("il costo e' detto"), FuocoAmico->Cost.IsEmpty());
+	}
+	TestEqual(TEXT("l'elenco di Muiren, che non ha un piano, e' vuoto: la vittima non porta l'avviso"), DiMuiren.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,0 +1,51 @@
+{
+  "scenarioId": "Visual.Reaction.OverwatchWindow",
+  "tags": ["visual", "reactions", "overwatch", "hud", "fast-decision", "aevik", "ivrin", "muiren", "branth"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "playerReactionWindows": true,
+
+  "_nota": "IL BANCO DELLA FINESTRA DI REAZIONE (#3634). Aevik ha armato la Guardia reattiva verso W; Ivrin, nemica, fa un passo dentro la sua area. In PIE la finestra si apre AL GIOCATORE, come in partita: titolo, countdown da 3 s, FIRE e HOLD, «Allo scadere: HOLD». E' la scena della tavola E (`docs/research/design/hud/hud-screens-2026-10/immagini/E-reazione-rapida.png`): stessi quattro eroi, stessi ruoli.",
+
+  "_nota_perche_esiste": "Nella partita normale la finestra non si apre a comando: serve che un nemico ENTRI CAMMINANDO nell'area di una guardia, e i bot non lo fanno quando serve. E nell'auto-run non si apriva affatto: il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`, quindi la guardia di un'unita' non-bot usciva `NoDecider` senza mostrare niente. `playerReactionWindows` e' la chiave che chiude quel buco, ed e' questo file il suo primo consumatore.",
+
+  "_nota_come_si_lancia": "Da `L_DevSandbox`, console `rt.Test.Scenario Visual.Reaction.OverwatchWindow`, poi Play; nel log `[RT-Test] AUTO-RUN Visual.Reaction.OverwatchWindow` e `le finestre di reazione si aprono al giocatore`. ⚠️ `t.MaxFPS 60` prima del Play: il tetto della risoluzione (`URTScenarioRunner::MaxResolveTicks`) conta FOTOGRAMMI, la finestra ne occupa tre secondi, e a un frame rate alto il turno puo' finire in ERROR prima di aver finito di risolvere.",
+
+  "_nota_geometria": "La zona della guardia e' una LINEA nella direzione del facing, lunga quanto l'attacco base (`Spec.Overwatch.HoldThenFire`, `_nota_geometria`). A1 sta a (2,-1) e guarda W, quindi la prima cella della linea e' (1,-1) — vale per qualunque portata. B1 parte da (0,0), FUORI dalla linea, e fa UN passo in (1,-1): un ingresso, una finestra. Il facing sta sull'unita' e non sull'intent, per la ragione di `_nota_facing_di_piazzamento` di quello stesso file. A2 e B2 non agiscono: ci sono perche' roster e pannello abbiano due carte per squadra, come la tavola.",
+
+  "_nota_assertion": "🔑 **Le `expect` valgono per OGNI risposta, ed e' voluto.** Headless non c'e' un controller: la finestra non si aggancia e la decisione esce `NoDecider`. In PIE risponde il giocatore — `Timeout` se la lascia scadere, `Chosen` se preme un tasto. Un'assertion su uno di quei tre esiti sarebbe rossa negli altri due modi di eseguire lo stesso file. Restano quelle che nessuna risposta puo' spostare: B1 finisce in (1,-1) sia con HOLD sia con FIRE (il FIRE tronca il movimento proprio nella cella in cui e' entrata, che e' l'ultima), e nessuna decisione esce col solo HOLD o rifiutata. ⚠️ La PREMESSA — che la finestra si apra davvero con due risposte — la prova `Scenario.PlayerReactionWindowsOpenToTheController`, che lo esegue con e senza controller: qui da sola non si potrebbe scrivere.",
+
+  "_nota_voci_pie": "Il banco serve anche a `PIE-V01-OVERWATCH` e `PIE-V01-RXPLAYBACK`, che chiedono una guardia di un'unita' non-bot e un nemico che ci entra. Non le dichiara in `verifies`: chi lo usa per giudicarle lo scrive nella loro precondizione. ➕ Per `PIE-V01-RXPLAYBACK` basta solo a meta': qui l'ingresso e' l'ULTIMA cella di B1, quindi dopo la risposta non resta movimento da riprendere. L'istante (2) di quella voce si guarda su `Visual.Reaction.OverwatchWindowResume` (#3666).",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "W" },
+    { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [ 3,  0, 0] },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 0,  0, 0] },
+    { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-2,  2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — la finestra. A1 arma la Guardia reattiva sulla linea che gia' guarda; B1 entra in (1,-1). In PIE il playback si ferma sul suo ingresso e la finestra resta aperta tre secondi.",
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        { "unit": "A1", "ability": "Action.Overwatch" },
+        { "unit": "B1", "move": [[1, -1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "B1 e' entrata nell'area: con HOLD si ferma li' perche' era l'ultima cella, con FIRE perche' il colpo tronca il movimento nella cella raggiunta.",
+      "type": "UnitAtCell", "unit": "B1", "cell": [1, -1, 0] },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [2, -1, 0] },
+
+    { "_assertion": "Nessuna decisione senza scelta: una finestra col solo HOLD, o chiusa per una risposta illegale, direbbe che il banco non mostra cio' per cui esiste — due opzioni.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Immediate", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "CollapsedByCondition", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Rejected", "value": 0 },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

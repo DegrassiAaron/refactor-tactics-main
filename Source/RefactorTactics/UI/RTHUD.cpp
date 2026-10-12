@@ -8,6 +8,7 @@
 #include "Ability/RTMovementProfileLibrary.h" // l'andatura di [D-425]: si legge, non si dichiara
 #include "Player/RTPlayerState.h"
 #include "Player/RTPlayerController.h" // #3115: GetSelectedUnit — quale piano si sta scrivendo adesso
+#include "Camera/RTCameraPawn.h" // D-495: la vista strategica di chi guarda, consegnata alle unita' col velo
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTPlaybackLibrary.h"
@@ -268,8 +269,14 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 	OutHitCells.Reset();
 	OutAllyHitCells.Reset();
 
-	for (const ARTUnit* Attacker : Units)
+	// 🔑 **[D-492] (#3620): una verita' sola per il fuoco amico.** Le celle vengono da `MakeBlastPreview` sul piano
+	// di ogni attaccante, la stessa funzione dell'anteprima dell'unita' selezionata. Fino a #3620 si ricalcolavano
+	// qui con `HexHitCells` e saltavano ogni attacco mirato a una CELLA, perche' chiedevano `PlannedAttackTarget`:
+	// l'alleato in un'area su un varco vuoto era segnato dall'anteprima e non da questo overlay.
+	const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		const ARTUnit* Attacker = Units[i];
 		// Solo i piani DELLE PROPRIE unita': quelli avversari non si leggono, nemmeno per dedurne una cella
 		// (invariante #6). Non e' prudenza eccessiva — e' la stessa regola per cui l'HUD non disegna gli
 		// intenti nemici, e va rispettata anche dove il risultato sarebbe «solo» un colore.
@@ -277,36 +284,12 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 		{
 			continue;
 		}
-		const URTActionData* Ability = Attacker->GetAbility(Attacker->PlannedAbilityIndex);
-		const ARTUnit* Target = Attacker->PlannedAttackTarget;
-		if (!Ability || !Target || !Target->IsAlive())
-		{
-			continue;
-		}
-
-		// Le stesse celle che decideranno l'esito: `HexHitCells` e' la funzione del resolver, non una copia.
-		//
-		// [D-464]: e partono da dove l'azione MIRA. ⏱️ *Fino a #3509 da `Attacker->Cell`*: con uno scatto e poi una
-		// `Line`, i segni sulle unita' cadevano su una retta diversa da quella che l'area colpita disegnava.
-		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape,
-			Attacker->AimOriginFor(Ability->Def.ResolutionPhase), Target->Cell, Ability->RangeCells,
-			Ability->AreaRadius);
-		OutHitCells.Append(TSet<FRTCellId>(Hit));
-
-		// Fuoco amico solo se l'azione puo' DAVVERO colpire i propri: segnalare un alleato che non subirebbe
-		// nulla insegna a ignorare il segnale.
-		if (!Ability->Def.bFriendlyFire)
-		{
-			continue;
-		}
-		for (const ARTUnit* Other : Units)
-		{
-			if (Other && Other != Attacker && Other->IsAlive() && Other->TeamId == Attacker->TeamId
-				&& Hit.Contains(Other->Cell))
-			{
-				OutAllyHitCells.Add(Other->Cell);
-			}
-		}
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(
+			URTHudViewModel::MakeBlastPreviewPlan(*Attacker, i, Units), HexUnits);
+		OutHitCells.Append(Blast.HitCells);
+		// `AllyCells` e' vuoto se l'azione non puo' colpire i propri: segnalare un alleato che non subirebbe nulla
+		// insegna a ignorare il segnale.
+		OutAllyHitCells.Append(Blast.AllyCells);
 	}
 }
 
@@ -819,7 +802,7 @@ void ARTHUD::UpdateObserverVeil()
 		if (ARTUnit* U = Cast<ARTUnit>(A)) { Units.Add(U); }
 	}
 
-	const ARTTurnManager* TurnManager =
+	ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
 	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
@@ -840,11 +823,25 @@ void ARTHUD::UpdateObserverVeil()
 	// La geometria serve SOLO a posare la sagoma del ricordo. `DrawHUD` la recupera per conto suo per le
 	// sue conversioni cella -> schermo: e' la stessa chiamata fatta due volte, non una seconda regola —
 	// l'origine resta `ARTHexMapActor`, che di geometria resta l'unico owner.
+	// D-495: la vista strategica di CHI GUARDA, letta una volta per giro come la squadra qui sopra. E' sola
+	// presentazione — sceglie quale corpo si disegna, mai se — e viaggia in questo giro perche' il velo e la
+	// forma del ricordo cambino nello stesso fotogramma: una seconda passata li farebbe divergere per un frame.
+	const ARTCameraPawn* ObserverCamera = Cast<ARTCameraPawn>(GetOwningPawn());
+	const bool bStrategicView = ObserverCamera != nullptr && ObserverCamera->IsStrategicView();
+	const float ViewYaw = ObserverCamera != nullptr ? ObserverCamera->GetCameraYaw() : 0.f;
+
 	FVector Origin = FVector::ZeroVector;
 	float HexSize = 150.f;
 	float LayerH = 250.f;
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	if (ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
+		// #3632: PRIMA di leggere il contesto, perche' la quota dei piani dipende dalla vista. Se e' cambiata, la
+		// mappa ha gia' ricostruito la board e ridisegnato il velo; le unita' le riposa il TurnManager.
+		float QuotaPrecedente = 0.f;
+		if (HexMap->SyncStrategicPresentation(bStrategicView, &QuotaPrecedente) && TurnManager)
+		{
+			TurnManager->RefreshPresentationGeometry(QuotaPrecedente);
+		}
 		HexMap->GetHexContext(Origin, HexSize, LayerH);
 	}
 
@@ -854,6 +851,9 @@ void ARTHUD::UpdateObserverVeil()
 		{
 			continue;
 		}
+
+		// Prima del velo e della sagoma: entrambi leggono la forma che questa riga sceglie.
+		Unit->SetStrategicPresentation(bStrategicView, ViewYaw);
 
 		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
 		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
@@ -1434,30 +1434,12 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 	else
 	{
-		// 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`). Durante l'attesa la fase e'
-		// ancora `Planning`: una riga che si limitasse a scambiare i secondi direbbe «Pianificazione» mentre
-		// il piano sta per partire, e il criterio chiede che i due stati si distinguano **senza contare i
-		// secondi**.
+		// Il Ready (`#2358`) e la finestra di preparazione (`#2386`): qui decidono il NUMERO e il suggerimento dei
+		// tasti. La PAROLA la decide `ComposePhaseWord` (#3635), la stessa dell'header UMG: una sede sola, non due
+		// switch che possono dissentire.
 		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
-
-		// 🔑 **La finestra di preparazione ha la propria parola, per la stessa ragione del Ready** (`#2386`).
-		// Anche qui la fase e' ancora `Planning`, e anche qui i due stati devono distinguersi **senza contare
-		// i secondi**: in autobattle «Pianificazione» sarebbe falso — i bot hanno gia' pianificato, e cio'
-		// che scorre e' il tempo dato a chi guarda per leggere i piani.
 		const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
-
-		const TCHAR* PhaseName = TEXT("");
-		switch (Header.Phase)
-		{
-		case ERTMatchPhase::Planning:
-			PhaseName = bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
-			          : bReadyCountdown ? TEXT("Ready")
-			          : TEXT("Pianificazione");
-			break;
-		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
-		default:                        PhaseName = TEXT("Risoluzione"); break;
-		}
-		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
+		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, *URTHudViewModel::ComposePhaseWord(Header));
 
 		// ⚠️ **Non-positivo significa «non si applica», e comprende lo ZERO.** La vista porta un negativo
 		// quando la domanda non si pone — fuori dal Planning, o senza timer nelle run headless che girano con

@@ -79,7 +79,8 @@ public:
 	 * client sono due.
 	 *
 	 * ⚠️ **Non lo aggancia il controller**, per la ragione gia' scritta sopra: il `TurnManager` puo' non
-	 * esistere quando `BeginPlay` corre. L'aggancio e' di `ARTGameMode::HookReactionWindow`.
+	 * esistere quando `BeginPlay` corre. L'aggancio e' di `ARTGameMode::HookReactionWindow` in partita, e di
+	 * `FRTScenarioSession::ApplyPlayerReactionWindows` negli scenari con `playerReactionWindows` (`#3634`).
 	 *
 	 * ⛔ **E l'aggancio NON ha un ripiego senza proprietario**, a differenza del velo: legare il delegate
 	 * dove nessuno disegna e' esattamente cio' che `OnReactionWindowOpened.IsBound()` esiste per escludere.
@@ -118,6 +119,13 @@ public:
 	bool SetActiveLayer(int32 NewLayer);
 
 	/**
+	 * Il piano piu' basso e il piu' alto **che la mappa contiene davvero**, misurati sulle celle. `false` senza mappa
+	 * o senza celle. E' la misura su cui `SetActiveLayer` clampa, e l'indicatore del dock la legge da qui (#3680):
+	 * due conti degli stessi limiti potrebbero dire «Piano 3 di 3» mentre il tasto sale ancora.
+	 */
+	bool GetMapLayerRange(int32& OutMinLayer, int32& OutMaxLayer) const;
+
+	/**
 	 * Porta `ActiveLayer` dentro l'intervallo dei layer che la mappa contiene davvero.
 	 *
 	 * Chiamata in `BeginPlay`: il campo nasce a `0`, e su una mappa che comincia a quota 1 quello sarebbe
@@ -133,6 +141,19 @@ public:
 	 * su una mesh visibile non ha selezionato quella cella.
 	 */
 	bool ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const;
+
+	/**
+	 * **Il raggio del cursore, solo se il cursore sta nella scena** ([D-497] (1), #3661).
+	 *
+	 * Prende il rettangolo e la view-projection da `ULocalPlayer::GetProjectionData`, come fa UE, e li passa a
+	 * `URTPointerLibrary::DeprojectInsideSceneRect`. Dentro la scena il raggio e' quello di
+	 * `DeprojectMousePositionToWorld`; fuori non c'e' raggio, e un click sulla fascia non diventa una cella.
+	 * Chi trasforma il cursore in una cella, in un verso o in un'unita' passa da qui.
+	 */
+	bool DeprojectCursorInsideScene(FVector& OutOrigin, FVector& OutDirection) const;
+
+	/** Il cursore sta nel rettangolo della scena. `false` anche senza viewport (headless). */
+	bool IsCursorInsideScene() const;
 
 	/**
 	 * Costruisce (se serve) e restituisce il mapping context, **per i test**.
@@ -213,7 +234,8 @@ protected:
 	TObjectPtr<UInputAction> UndoAction;
 
 	/**
-	 * `TAB` — passa alla propria unita' successiva senza toccare il mouse ([#3145]).
+	 * `N` — passa alla propria unita' successiva senza toccare il mouse ([#3145]). Fino al 2026-10-10 era `TAB`,
+	 * che [D-488] ha dato alla vista strategica: cambia il tasto, non la regola di [D-421].
 	 *
 	 * ⚠️ **Non e' una comodita'**: `progettazione-hud.md` §47-bis.2 chiede *percorso tastiera e controller
 	 * equivalente a quello del mouse* per ogni Decision Window, e la selezione dell'unita' e' il **primo**
@@ -221,6 +243,10 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CycleSelectionAction;
+
+	/** `TAB` — la vista strategica e ritorno ([D-488]): sposta la distanza della camera, non cambia modalita'. */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> StrategicViewAction;
 
 	/**
 	 * `Enter` — dichiara (o ritratta) che le mosse dell'unita' selezionata sono decise ([#3145]).
@@ -645,6 +671,15 @@ public:
 	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
 
 	/**
+	 * Il tasto che sceglie l'opzione in posizione `OptionIndex` di una finestra di reazione ([D-491], #3615): il
+	 * tasto del kit nella stessa posizione, `AbilityHotkeys()[OptionIndex]`. Vuoto oltre l'ultimo tasto.
+	 *
+	 * 🔑 Viene dalla lista che mappa i tasti, come `HotkeyLabelFor`: il badge e il tasto che risponde non possono
+	 * dire due cose diverse.
+	 */
+	static FText ReactionOptionKeyLabel(int32 OptionIndex);
+
+	/**
 	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
 	 * risolvono per **nome** invece che per posizione.
 	 *
@@ -681,6 +716,25 @@ public:
 	 * con `Alt`, e un pulsante non ha un modificatore da tenere.
 	 */
 	static const FKey& UndoKeyboardHotkey();
+
+	/**
+	 * Il tasto della vista strategica (`Tab`, [D-488]) e quello del ciclo della selezione (`N`, [D-421]).
+	 *
+	 * 🔑 **Sono una coppia, e una sede sola li tiene insieme**: D-488 sposta il ciclo da `Tab` a `N` nello
+	 * stesso commit che lega `Tab`, perche' separati, per un commit, `Tab` farebbe due cose oppure nessuna.
+	 * `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN` li pinna sul contesto di input reale.
+	 */
+	static const FKey& StrategicViewHotkey();
+	static const FKey& CycleSelectionHotkey();
+
+	/**
+	 * Il nome che un BADGE scrive per un tasto ([D-496], #3633): in italiano per i tasti che l'HUD mostra in un
+	 * badge (`Enter` -> «INVIO», `BackSpace` -> «BACKSPACE»), altrimenti il nome dell'engine in maiuscolo.
+	 *
+	 * 🔑 **Riceve il tasto, non un nome**: il badge legge sempre il tasto vero della mappatura, e questa tabella
+	 * ne traduce soltanto l'etichetta. Un tasto rimappato cambia il badge senza toccare la tabella.
+	 */
+	static FText KeyBadgeLabel(const FKey& Key);
 
 private:
 	void OnSelect(const FInputActionValue& Value);
@@ -757,6 +811,17 @@ private:
 	void OnAbility8(const FInputActionValue& Value);
 	void OnAbility9(const FInputActionValue& Value);
 	void OnAbility10(const FInputActionValue& Value);
+	/**
+	 * Il percorso dei soli TASTI NUMERICI del kit ([D-491], #3615): con una finestra di reazione aperta per chi
+	 * guarda sceglie l'opzione della posizione `Index`, altrimenti arma come sempre (`SelectAbilityForCurrent`).
+	 *
+	 * 🔴 **Sta qui e non in `SelectAbilityForCurrent`, ed e' la correzione della review di #3615.** Le lettere
+	 * generiche arrivano anch'esse a `SelectAbilityForCurrent` con origine `Hotkey`, per la POSIZIONE della
+	 * generica nel kit (`SelectAbilityByIdForCurrent`): un instradamento messo la' avrebbe fatto scegliere a `G`
+	 * l'opzione di quella posizione, contro [D-397] §4, che lega la lettera all'`ActionId`. Qui ci arrivano
+	 * soltanto i dieci numeri, quindi ne' le generiche ne' il dock possono raggiungerlo.
+	 */
+	void OnKitHotkey(int32 Index);
 	// Uno per azione generica, e per la stessa ragione dei dieci qui sopra: la bindatura e' l'unico posto da
 	// cui puo' arrivare QUALE azione e' stata premuta. La tabella che li lega ai tasti sta in
 	// `GenericHotkeys()`, e questi handler ne leggono l'`ActionId` invece di ripeterlo.
@@ -805,8 +870,11 @@ private:
 
 	void OnRecenter(const FInputActionValue& Value);
 
-	/** `TAB`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
+	/** `N`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
 	void OnCycleSelection(const FInputActionValue& Value);
+
+	/** `TAB`: il gesto. La regola sta in `ARTCameraPawn::ToggleStrategicView`. */
+	void OnToggleStrategicView(const FInputActionValue& Value);
 
 	/** `Enter`: il gesto. La regola sta in `ToggleTurnPlanDeclared`. */
 	void OnDeclarePlan(const FInputActionValue& Value);
@@ -972,6 +1040,12 @@ public:
 	 */
 	void HandleClickOnCellForTest(const FRTCellId& Cell) { HandleClickOnCell(Cell); }
 
+	/** Il tasto NUMERICO della posizione `Index`, come lo preme il giocatore: `OnKitHotkey` ([D-491]). Solo test. */
+	void PressKitHotkeyForTest(int32 Index) { OnKitHotkey(Index); }
+
+	/** La lettera generica della riga `Slot` di `GenericHotkeys()`, come la preme il giocatore. Solo test. */
+	void PressGenericHotkeyForTest(int32 Slot) { SelectGenericSlot(Slot); }
+
 	/**
 	 * Arma l'azione in posizione `Index` come farebbe il tasto corrispondente (per i test).
 	 *
@@ -1051,7 +1125,7 @@ public:
 	 */
 	void SelectActorForTest(AActor* Actor) { SelectedActor = Actor; }
 
-	/** `TAB` senza premere `TAB`: la regola e' in `CycleSelection`, il tasto e' solo il suo innesco. */
+	/** `N` senza premere `N`: la regola e' in `CycleSelection`, il tasto e' solo il suo innesco. */
 	bool CycleSelectionForTest() { return CycleSelection(); }
 
 	/** `Enter` senza premere `Enter`. */

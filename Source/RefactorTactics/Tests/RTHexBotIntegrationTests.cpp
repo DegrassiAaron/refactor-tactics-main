@@ -68,6 +68,22 @@ namespace
 		U->PlannedCell = Cell;
 		return U;
 	}
+
+	/**
+	 * La MIRA dichiarata dal bot, in qualunque delle due forme: cella (`bAttackTargetsCell`, la forma (1a) di
+	 * #3229, quella di oggi) o unita' (chi aggancia). `false` = nessun attacco dichiarato.
+	 *
+	 * 🔴 **Esiste perche' i test che leggevano solo `PlannedAttackTarget` sarebbero passati A VUOTO** dal giorno
+	 * in cui il bot ha cominciato a dichiarare la cella: `if (Bot->PlannedAttackTarget)` salta in silenzio il
+	 * blocco che controlla portata e nemico, e il test resta verde senza misurare niente.
+	 */
+	bool DeclaredAim(const ARTUnit* Bot, FRTCellId& OutAim)
+	{
+		if (!Bot) { return false; }
+		if (Bot->bAttackTargetsCell) { OutAim = Bot->PlannedAttackCell; return true; }
+		if (Bot->PlannedAttackTarget) { OutAim = Bot->PlannedAttackTarget->Cell; return true; }
+		return false;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotLegalMovesTest,
@@ -105,9 +121,10 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 	// e' ora pinnato da `SeeksContactWithoutKnowledge`, che lo verifica per quello che e'.
 	for (ARTUnit* Bot : Bots)
 	{
+		FRTCellId Ignorata;
 		const bool bActs = !(Bot->PlannedCell == Bot->Cell)
 			|| Bot->PlannedDashAbility != INDEX_NONE
-			|| Bot->PlannedAttackTarget != nullptr;
+			|| DeclaredAim(Bot, Ignorata);
 		TestTrue(TEXT("il bot pianifica qualcosa invece di restare immobile"), bActs);
 	}
 
@@ -128,15 +145,26 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 				Dash && URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell) <= Bot->GetEffectiveDashRange(Dash->RangeCells));
 		}
 
-		if (Bot->PlannedAttackTarget)
+		FRTCellId Mira;
+		if (DeclaredAim(Bot, Mira))
 		{
-			TestTrue(TEXT("il bersaglio e' un nemico"), Bot->PlannedAttackTarget->TeamId != Bot->TeamId);
+			// La mira e' su un NEMICO: su un'unita' dichiarata lo si legge da lei, su una cella dichiarata da chi
+			// la occupa — qui i nemici sono visti, quindi la cella conosciuta e' quella vera.
+			bool bSuUnNemico = Bot->PlannedAttackTarget && Bot->PlannedAttackTarget->TeamId != Bot->TeamId;
+			TArray<AActor*> Tutte;
+			UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Tutte);
+			for (const AActor* A : Tutte)
+			{
+				const ARTUnit* U = Cast<ARTUnit>(A);
+				if (Bot->bAttackTargetsCell && U && U->TeamId != Bot->TeamId && U->Cell == Mira) { bSuUnNemico = true; }
+			}
+			TestTrue(TEXT("il bersaglio e' un nemico"), bSuUnNemico);
 			// L'attacco parte dalla cella in cui il bot si trovera' nel Blast: quella attuale, o quella
 			// post-scatto se ha pianificato uno scatto (il Dash precede il Blast).
 			const FRTCellId FiringCell = Bot->PlannedDashAbility != INDEX_NONE ? Bot->PlannedDashCell : Bot->Cell;
 			const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
 			TestTrue(TEXT("il bersaglio e' entro la portata dalla cella di tiro"),
-				Ability && URTHexLibrary::HexDistance(FiringCell, Bot->PlannedAttackTarget->Cell) <= Ability->RangeCells);
+				Ability && URTHexLibrary::HexDistance(FiringCell, Mira) <= Ability->RangeCells);
 		}
 	}
 
@@ -234,7 +262,8 @@ namespace
 	TArray<FRTCellId> PlannedHitCells(ARTUnit* Bot)
 	{
 		TArray<FRTCellId> Out;
-		if (!Bot || !Bot->PlannedAttackTarget || Bot->PlannedAbilityIndex == INDEX_NONE)
+		FRTCellId Mira;
+		if (!DeclaredAim(Bot, Mira) || Bot->PlannedAbilityIndex == INDEX_NONE)
 		{
 			return Out;
 		}
@@ -244,7 +273,7 @@ namespace
 			return Out;
 		}
 		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->PlannedCell,
-			Bot->PlannedAttackTarget->Cell, Ability->RangeCells, Ability->AreaRadius);
+			Mira, Ability->RangeCells, Ability->AreaRadius);
 	}
 }
 
@@ -310,8 +339,9 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 			&& Bot->Abilities.IsValidIndex(Bot->PlannedDashAbility)
 			&& Bot->Abilities[Bot->PlannedDashAbility]
 			&& Bot->Abilities[Bot->PlannedDashAbility]->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+		FRTCellId Mira;
 		TestTrue(TEXT("con il compagno fuori mira il bot offende davvero (attacco o carica)"),
-			Bot->PlannedAttackTarget.Get() != nullptr || bChargesTarget);
+			DeclaredAim(Bot, Mira) || bChargesTarget);
 
 		DestroyHexBotWorld(World);
 	}
@@ -903,8 +933,13 @@ bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
 	// SECONDA osservazione: qui `ClassifyTarget` restituisce `CellOnly`, che nessun altro test raggiunge.
 	TM->PlanBotsForTest();
 
-	TestTrue(TEXT("il bot agisce sul contatto ricordato invece di ignorarlo"),
-		Bot->PlannedAttackTarget == Foe);
+	// (1a) di #3229: il bot dichiara la CELLA, come un giocatore — e la cella e' il RICORDO. ⌫ *Fino al
+	// 2026-10-10 dichiarava l'unita' (`PlannedAttackTarget == Foe`), e dal lock-in di [D-415] la mira si
+	// sarebbe congelata sulla posizione VERA, fuori portata: il piano nato in portata dal ricordo moriva
+	// «fuori portata». Misurato sull'arena generata, e il motivo per cui (1a) non e' solo igiene.*
+	TestTrue(TEXT("il bot agisce sul contatto ricordato invece di ignorarlo: dichiara un attacco a cella"),
+		Bot->bAttackTargetsCell);
+	TestEqual(TEXT("e la cella e' il RICORDO, non la posizione vera"), Bot->PlannedAttackCell, Remembered);
 
 	// E non lo insegue dove si trova davvero: se lo facesse, si muoverebbe verso la cella vera.
 	TestTrue(TEXT("e non si avvicina alla posizione vera, che non conosce"),

@@ -85,6 +85,28 @@ namespace
 		return TM;
 	}
 
+	/**
+	 * Lo stesso colpo alle spalle, ma con una `Line`: Muiren e `PressureJet` (portata 5), la cui traccia comincia
+	 * accanto a chi spara (`#3551`). Stessa geometria di `SetUpAlleSpalleTurn`, stessa ragione: a 3 celle, alle
+	 * spalle, la vittima non vede l'attaccante.
+	 */
+	ARTTurnManager* SetUpAlleSpalleLineaTurn(UWorld* World, int32 TeamMuiren)
+	{
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+		ARTUnit* Muiren = SpawnBattitoUnit(World, TeamMuiren, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(2, 2));
+		ARTUnit* Ivrin = SpawnBattitoUnit(World, 1 - TeamMuiren, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(5, 2));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Muiren || !Ivrin) { return nullptr; }
+		Muiren->Facing = ERTHexDirection::E;
+		Ivrin->Facing = ERTHexDirection::E;
+		Muiren->PlannedAbilityIndex = 0; // Hero.Muiren.PressureJet, Line, portata 5
+		Muiren->PlannedAttackTarget = Ivrin;
+		Muiren->PlannedCell = Muiren->Cell;
+		TM->bRecordAttackBeatsForTest = true;
+		return TM;
+	}
+
 	/** Tick piccoli finche' il playback e' nel Blast; falso se la risoluzione finisce prima. */
 	bool TickUntilBlast(ARTTurnManager* TM)
 	{
@@ -389,6 +411,58 @@ bool FRTPrivacyUnseenAttackerTracerTest::RunTest(const FString&)
 		else
 		{
 			TestTrue(TEXT("controllo positivo: chi spara vede il tracer dello stesso colpo"), TickConTracer > 0);
+		}
+	}
+	return true;
+}
+
+/**
+ * **La traccia a terra di un `Line` non arriva a chi non vedeva l'attaccante** (`#3551`, [D-500]).
+ *
+ * 🔴 La traccia di `PressureJet` comincia nella cella accanto a chi spara e punta a lui: disegnata alla vittima di un
+ * colpo alle spalle, le diceva da dove era partito. Il filtro e' in `BuildBlastSequence`, su un verdetto congelato in
+ * risoluzione; la mappa disegna tutto cio' che riceve, quindi qui si misura cio' che le arriva, su ogni tick.
+ * ⚠️ **Il controllo positivo regge il test**: lo stesso colpo, con le squadre nell'altro verso, deve disegnare la traccia
+ * a chi spara — senza, zero celle sarebbe vero anche per una traccia mai emessa, o per un verdetto mai congelato.
+ * ⛔ Lo spettatore del mondo di prova e' la squadra 0 (`TeamIdOf(nullptr)`): sono le squadre a scambiarsi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyUnseenAttackerFootprintTest,
+	"RefactorTactics.Privacy.UnseenAttackerFootprintIsNotDrawn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyUnseenAttackerFootprintTest::RunTest(const FString&)
+{
+	for (const bool bSpettatoreEColpito : { false, true })
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		ARTTurnManager* TM = SetUpAlleSpalleLineaTurn(World, /*TeamMuiren=*/ bSpettatoreEColpito ? 1 : 0);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+
+		TM->LockInAndResolve();
+		bool bArrivato = false;
+		int32 MassimoCelle = 0;
+		for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.02f);
+			bArrivato |= TM->AttackBeatTraceForTest().Contains(TEXT("A0"));
+			MassimoCelle = FMath::Max(MassimoCelle, Mappa->NumPlaybackFootprintCells());
+		}
+		if (!TestTrue(bSpettatoreEColpito
+				? TEXT("premessa (colpito): il colpo alle spalle e' arrivato")
+				: TEXT("premessa (controllo): il colpo e' arrivato"), bArrivato)) { return false; }
+
+		if (bSpettatoreEColpito)
+		{
+			TestEqual(TEXT("🔴 la vittima non vedeva l'attaccante: nessuna cella della traccia, su nessun tick"),
+				MassimoCelle, 0);
+		}
+		else
+		{
+			TestTrue(*FString::Printf(TEXT("controllo positivo: chi spara vede la traccia dello stesso colpo (%d celle)"),
+				MassimoCelle), MassimoCelle > 0);
 		}
 	}
 	return true;

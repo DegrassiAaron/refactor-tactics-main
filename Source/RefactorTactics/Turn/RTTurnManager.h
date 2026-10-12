@@ -657,12 +657,8 @@ public:
 	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
 	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
 
-	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test. */
-	ERTMatchPhase CurrentPlaybackPhaseForTest() const
-	{
-		return (bIsResolving && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)) ? PlaybackPhases[PlaybackPhaseIdx]
-			: ERTMatchPhase::Planning;
-	}
+	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test: e' `GetPlaybackPhase()`. */
+	ERTMatchPhase CurrentPlaybackPhaseForTest() const { return GetPlaybackPhase(); }
 
 	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
@@ -940,9 +936,31 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	bool IsResolving() const { return bIsResolving; }
 
-	/** Nome leggibile della fase in riproduzione (per la HUD). */
+	/**
+	 * #3632 — la quota di presentazione dei piani e' cambiata da `PreviousLayerHeight` a quella di `GetHexContext`
+	 * (vista strategica, `ARTHexMapActor::SyncStrategicPresentation`). Ogni modello sale o scende del suo piano — la
+	 * pianta non si tocca, anche a playback in corso — e le animazioni e la cache del playback si ricalcolano dalle
+	 * celle. Sola presentazione: nessuna cella, nessun esito.
+	 */
+	void RefreshPresentationGeometry(float PreviousLayerHeight);
+
+	/** Nome leggibile della fase in riproduzione (per la HUD). Vuoto fuori dal playback. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FString GetPlaybackPhaseName() const;
+
+	/**
+	 * La fase che il playback **sta mostrando**: `PlaybackPhases[PlaybackPhaseIdx]`. Fuori dal playback vale
+	 * `Planning`, che `PlaybackPhases` non contiene mai (`Prep -> Dash -> Blast -> Move`), quindi non si confonde
+	 * con una fase riprodotta.
+	 *
+	 * ⛔ **Non e' `GetPhase()`.** Quella e' la fase LOGICA: senza sospensioni `RunPhaseLoop` risolve tutte le fasi
+	 * prima che il playback cominci e la riporta a `Planning`, quindi un header che la leggesse direbbe
+	 * PIANIFICAZIONE per tutta la riproduzione ([D-479], #3612).
+	 *
+	 * E' la sola sede di questa lettura: `GetPlaybackPhaseName()` e `CurrentPlaybackPhaseForTest()` la usano.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	ERTMatchPhase GetPlaybackPhase() const;
 
 	/** Avanzamento del playback in [0,1] (0 se non in risoluzione). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
@@ -1500,6 +1518,15 @@ public:
 	int32 WEngageDecay = FRTHexBotContext{}.WEngageDecay;
 
 	/**
+	 * Quota (percento) in piu' del valore di un colpo su un nemico che NON puo' scattare via prima del Blast
+	 * ([D-415], #3229): con la mira che non insegue, e' il bersaglio su cui il colpo arriva davvero. **Zero
+	 * lo spegne** e riporta il bot a scegliere i bersagli come se la mira inseguisse. Vedi
+	 * `FRTHexBotContext::WPinnedBonusPercent` per perche' e' un bonus e non una penalita'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WPinnedBonusPercent = FRTHexBotContext{}.WPinnedBonusPercent;
+
+	/**
 	 * Quanto vale CONTROLLARE la cella obiettivo, cioe' terminare il piano sopra di essa (`#2269`).
 	 *
 	 * E' la categoria `Objective` di `spec-bot-tattico.md` §5, e prima di questa riga il punteggio del bot
@@ -1688,6 +1715,15 @@ public:
 	 */
 	void TickReactionWindow(float DeltaSeconds);
 
+	/** Una finestra si e' sospesa: prepara la vista e decide quando presentarla (`#3666`). Vedi il .cpp. */
+	void SuspendReactionWindowForPresentation(const FRTReactionWindowView& View, int32 OwnerUnitId);
+
+	/** Porta il playback fino al confine della finestra in attesa, e la presenta quando ci arriva (`#3666`). */
+	void TickReactionWindowPresentation();
+
+	/** Esegue `OnReactionWindowOpened` per la finestra in attesa, se il playback e' sul suo confine (`#3666`). */
+	void PresentPendingReactionWindow();
+
 	void RunPhaseLoop();
 
 	/** La coda della risoluzione: TurnLog, Cleanup, fine partita, playback. Due chiamanti, vedi il .cpp. */
@@ -1854,8 +1890,12 @@ protected:
 	 * ⛔ **Non vede mai i `Fallback Cancelled`** — fuori portata, bersaglio ignoto, bersaglio sparito: per
 	 * loro `CollectAttackIntents` fa `continue` PRIMA di `Intents.Add`, quindi non si attivano. E' la stessa
 	 * regola del `ModifyArc` fuori portata (spec §2.2, §6).
+	 *
+	 * ➕ **Un intento per chiamata, e l'ORDINE lo decide il chiamante** (`#3582`): l'ordine canonico del Blast
+	 * (ADR-0003 §3), con l'impronta dello stesso intento subito dopo. Era un ciclo sugli intenti nel loro indice, e
+	 * il playback, che ordina gli atti sulle attivazioni, raccontava il Blast per chi era nato prima.
 	 */
-	void EmitAttackIntentActivations(const FRTBlastContext& Ctx);
+	void EmitAttackIntentActivation(const FRTBlastContext& Ctx, int32 k);
 
 	/**
 	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il
@@ -1987,6 +2027,9 @@ protected:
 	/** Avvia il playback su cio' che e' stato risolto finora, a resolution sospesa. Vedi il .cpp. */
 	void BeginPartialPlayback();
 
+	/** Riemette i `Move` parziali dai risultati finora, a movimento sospeso (`#3666`). Vedi il .cpp. */
+	void EmitPartialMoveEvents();
+
 	/** Emette gli eventi `Move` della timeline dai risultati passati. Vedi il .cpp: serve anche a meta'. */
 	void EmitMoveEvents(const TArray<ARTUnit*>& Units, const TArray<FRTHexMoveResult>& Results);
 
@@ -2041,6 +2084,10 @@ public:
 	/**
 	 * Notifica che una finestra di reazione si e' APERTA e che la resolution attende (`#2679` fetta 2).
 	 *
+	 * ➕ **Da `#3666` arriva alla PRESENTAZIONE, non alla sospensione**: quando il playback parziale si trattiene sul
+	 * confine, cioe' quando lo schermo ha mostrato l'ingresso. A playback spento arriva subito, come prima. Vedi
+	 * `IsReactionWindowPresented` e l'emendamento del 2026-10-11 a [D-355].
+	 *
 	 * 🔑 **Legarlo e' cio' che rende la finestra interattiva.** Senza, `AskReactionDecision` resta l'unica
 	 * strada e la resolution non si ferma mai: e' il modo in cui **bot, test e Verifier** conservano il
 	 * modello sincrono per intero, senza un ramo che li distingua. Non e' una configurazione da ricordarsi
@@ -2050,6 +2097,10 @@ public:
 	 * da `ARTGameMode::HookReactionWindow` **solo quando un `ARTPlayerController` esiste**. Prima di allora
 	 * le sole tre occorrenze stavano nei test che lo legavano apposta, e in partita il ramo non si prendeva
 	 * mai: `#2679`, `#2692` e `#2717` erano costruite fino al confine della UI e irraggiungibili.
+	 *
+	 * ➕ **Il secondo binder, dal 2026-10-11** (`#3634`): `FRTScenarioSession::ApplyPlayerReactionWindows`, per gli
+	 * scenari che dichiarano `playerReactionWindows` — l'auto-run esce dal `BeginPlay` del GameMode prima di
+	 * `HookReactionWindow`. Stessa condizione: lega solo dove un `ARTPlayerController` esiste.
 	 *
 	 * ⛔ **E il cablaggio non ha un ripiego senza proprietario, deliberatamente**: legarlo in un harness
 	 * headless aprirebbe finestre che nessuno chiude, ed e' il caso che questa stessa riga esiste per
@@ -2133,6 +2184,24 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetOpenReactionWindowRemainingSeconds() const;
+
+	/**
+	 * Vero se la finestra aperta e' stata PRESENTATA a chi decide (`#3666`).
+	 *
+	 * 🔑 **Sospesa e presentata sono due fatti, e fino a `#3666` avevano un segnale solo.** Il resolver sospende
+	 * quando tocca il confine, dentro `LockInAndResolve`, e il playback parziale parte DOPO: la finestra si apriva
+	 * su uno schermo che non aveva ancora mostrato l'ingresso — misurato in PIE (`U74`, raffica `r13`: header su
+	 * PREP, il nemico nella cella di partenza). [D-355] chiede il contrario, per la ragione che scrive: non si
+	 * chiede FIRE/HOLD su un movimento che lo schermo non ha mostrato. Ora la finestra si presenta quando il
+	 * playback si trattiene sul confine (`FinishPlayback`), e il countdown comincia da li'.
+	 *
+	 * ⚠️ Senza playback — spento, o con niente da mostrare — la presentazione e' immediata, come prima: e' il caso
+	 * headless, dove nessuno guarda.
+	 */
+	bool IsReactionWindowPresented() const { return bReactionWindowPresented; }
+
+	/** Vero se il playback parziale si e' trattenuto su una finestra (`#2679`). Per i test di `#3666`. */
+	bool IsPlaybackHeldByWindow() const { return bPlaybackHeldByWindow; }
 
 	/**
 	 * Arma il manager con le decisioni di reazione GIA' PRESE, lette da una traccia (`#886`).
@@ -2589,7 +2658,8 @@ protected:
 	 * ⏱️ *Fino alla review della PR #3561 scriveva un `ensureMsgf`, che lo scatto legacy raggiungeva.*
 	 */
 	void EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
-		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape);
+		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
+		const FRTKnowledgeVerdict* FrozenSourceVerdict = nullptr);
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
@@ -3339,6 +3409,18 @@ private:
 		 * ⚠️ `0` significa «tutto pianificato», la stessa convenzione dell'evento da cui viene.
 		 */
 		int32 PlannedLength = 0;
+
+		/**
+		 * Da quando, sull'orologio della fase, l'anim comincia — `#3666`. `0` per tutte, tranne quelle che
+		 * un'estensione (`BeginPlayback(true)`) aggiunge alla fase che si stava mostrando: per loro e' l'istante
+		 * dell'estensione, e corrono alla velocita' di rotta da li'.
+		 *
+		 * 🔴 **Senza, un'anim nuova si animava sull'orologio di una fase gia' mostrata.** Da `#3666` si risponde
+		 * a una finestra a playback trattenuto, cioe' a fase finita: lo scarto `SIDESTEP` del `Brace` nasceva con
+		 * l'alpha di fase gia' a `1` e scattava a destinazione in un fotogramma (misurato: zero fotogrammi
+		 * intermedi). Prima di `#3666` la risposta arrivava a Blast in corso, e saltava a meta' strada.
+		 */
+		float StartElapsed = 0.f;
 	};
 
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */
@@ -3394,6 +3476,24 @@ private:
 	 * farebbe ripartire un playback che non ha nulla da mostrare.
 	 */
 	bool bPlaybackHeldByWindow = false;
+
+	/**
+	 * La finestra sospesa e non ancora presentata (`#3666`): la vista e' costruita ALLA SOSPENSIONE, dove lo
+	 * snapshot e gli indici valgono, e consegnata quando il playback arriva al confine.
+	 */
+	FRTReactionWindowView PendingWindowView;
+	int32 PendingWindowOwnerId = INDEX_NONE;
+	bool bHasPendingWindowView = false;
+
+	/** Vedi `IsReactionWindowPresented`. L'orologio della finestra corre solo quando e' vero. */
+	bool bReactionWindowPresented = false;
+
+	/**
+	 * Il playback era gia' partito quando la finestra si e' sospesa: va ESTESO fino al confine nuovo prima di
+	 * presentarla (`#3666`). E' la seconda finestra dopo una risposta, sullo stesso confine o su un altro: senza,
+	 * il playback resterebbe trattenuto sul PRIMO ingresso mentre la finestra chiede del secondo.
+	 */
+	bool bPartialPlaybackNeedsExtension = false;
 
 	/**
 	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.

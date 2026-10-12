@@ -363,7 +363,7 @@ public:
 	 * questa lista: un letterale ripetuto e' un refuso che compila.
 	 *
 	 * ⛔ **`ReactionReductionPoolSource` NON nomina un `ActionId`, ed e' deliberato.** Il pool si costruisce
-	 * da `FRTReactionPassResult::DeflectDelta`, che il dispatcher riempie per QUALUNQUE reazione dichiari
+	 * da `FRTReactionPassResult::ReactionReductionByTarget`, che il dispatcher riempie per QUALUNQUE reazione dichiari
 	 * `ERTActionEffect::DamageReduction` — *«Qui non si guarda mai l'`ActionId`: e' cio' che permette a una
 	 * reazione d'eroe di riusare la semantica di `Action.Deflect` con numeri propri»* (`RTTurnManager.cpp`).
 	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Ivrin.Deflection` un'azione che l'unita' non ha
@@ -626,6 +626,34 @@ public:
 	 */
 	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
 		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
+
+	/**
+	 * **La licenza di MIRA** (D-490, #3608): in PIANIFICAZIONE questa policy chiede la linea di tiro? Solo
+	 * `Required`. `NotRequired` (il mortaio) e `BlindAimDirect` (l'attacco base) mirano anche dove non si vede.
+	 * E' la domanda che `ClassifyHexTargeting` pone quando un giocatore, l'HUD o un test scelgono un bersaglio.
+	 */
+	static bool RequiresSightToAim(ERTLineOfSightPolicy Policy) { return Policy == ERTLineOfSightPolicy::Required; }
+
+	/**
+	 * **La TRAIETTORIA** (D-490, #3608): in RISOLUZIONE un ostacolo sul percorso ferma il colpo? Si', salvo
+	 * `NotRequired` — il tiro indiretto passa sopra. `BlindAimDirect` mira al buio ma viaggia dritto, quindi qui
+	 * si comporta come `Required`: e' la domanda di `ValidateInstance` e di `CollectHexAttacks`.
+	 *
+	 * ⛔ **Le due domande non vanno fuse**: una policy che mira al buio e viaggia dritta e' proprio quella per
+	 * cui le risposte divergono, e un solo booleano la renderebbe o rifiutata in pianificazione o capace di
+	 * attraversare i muri — le due letture che D-490 scarta.
+	 */
+	static bool TravelsDirect(ERTLineOfSightPolicy Policy) { return Policy != ERTLineOfSightPolicy::NotRequired; }
+
+	/**
+	 * La policy con cui una classificazione di RISOLUZIONE deve interrogare `ClassifyHexTargeting`: `Required`
+	 * se la traiettoria e' diretta, `NotRequired` se passa sopra. Serve a chi riusa il classificatore di
+	 * pianificazione per giudicare un colpo gia' partito.
+	 */
+	static ERTLineOfSightPolicy TrajectoryPolicy(ERTLineOfSightPolicy Policy)
+	{
+		return TravelsDirect(Policy) ? ERTLineOfSightPolicy::Required : ERTLineOfSightPolicy::NotRequired;
+	}
 
 	/**
 	 * Traduce la classificazione INTERNA in cio' che il giocatore puo' sapere — `#2741`.

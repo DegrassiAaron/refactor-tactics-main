@@ -712,4 +712,61 @@ bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// [D-415] punto (3), #3608 — OGNI attacco base d'eroe porta la linea di tiro del core che lo deriva
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **Ogni attacco base d'eroe porta la linea di tiro del core `Action.BasicAttack`** — la policy e' del core.
+ *
+ * 🔴 **Trovato dalla code review di #3230**: il catalogo core dichiarava `Action.BasicAttack` a
+ * `LineOfSightPolicy::NotRequired` ([D-415] punto 3), ma `MakeHeroBasicAttack` non copiava il campo e gli
+ * attacchi base d'eroe restavano tutti `Required` — un no-op in partita. Nessun test lo prendeva:
+ * `BlindFire.DirectAttackStillRequiresLineOfSight` usa un `FRTActionDef` di default e
+ * `CellAttackRequiringSightIsRefusedByABlocker` usa `CircularTide`, quindi erano verdi in entrambi i mondi.
+ *
+ * ✅ **Morde di nuovo da #3608**: il core porta `BlindAimDirect` (D-490), diverso dal default `Required` che
+ * un'azione d'eroe avrebbe senza copia — la premessa lo pretende, ed e' cio' che rende la riga di confronto
+ * capace di fallire. ⌫ *Fra il 2026-10-10 (scorporo da #3230) e #3608 il core era `Required` e il gate non
+ * poteva fallire, e lo diceva. Fino al 2026-10-10 si chiamava `EveryBasicAttackFiresBlind`.*
+ *
+ * ⛔ **Anti-vacuita' sul roster**: OGNI eroe deve avere almeno un'azione derivata da `Action.BasicAttack`,
+ * altrimenti un roster senza attacchi base passerebbe per assenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttacksTakeTheCorePolicyTest,
+	"RefactorTactics.HeroCatalog.EveryBasicAttackTakesTheCorePolicy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroBasicAttacksTakeTheCorePolicyTest::RunTest(const FString&)
+{
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
+	if (!TestEqual(TEXT("premessa: il core esiste"), Core.ActionId, FName(TEXT("Action.BasicAttack")))) { return false; }
+	// Anti-vacuita': il core deve DIFFERIRE dal default, o «uguale al core» sarebbe vero anche senza la copia.
+	if (!TestTrue(TEXT("premessa: il core mira al buio e viaggia dritto (D-490), non e' il default"),
+		Core.LineOfSightPolicy == ERTLineOfSightPolicy::BlindAimDirect)) { return false; }
+
+	const TArray<URTHeroData*> Heroes = {
+		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
+		URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeIvrin() };
+
+	int32 HeroesWithABasicAttack = 0;
+	for (const URTHeroData* Hero : Heroes)
+	{
+		if (!TestNotNull(TEXT("eroe costruito"), Hero)) { return false; }
+		bool bHasOne = false;
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			const URTActionData* Action = Ptr.Get();
+			if (!Action || Action->Def.BaseActionId != FName(TEXT("Action.BasicAttack"))) { continue; }
+			bHasOne = true;
+			TestTrue(FString::Printf(TEXT("%s: l'attacco base %s porta la linea di tiro del core"),
+				*Hero->HeroId.ToString(), *Action->Def.ActionId.ToString()),
+				Action->Def.LineOfSightPolicy == Core.LineOfSightPolicy);
+		}
+		if (bHasOne) { ++HeroesWithABasicAttack; }
+	}
+	TestEqual(TEXT("anti-vacuita': ogni eroe ha un attacco base derivato dal core"),
+		HeroesWithABasicAttack, Heroes.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -302,7 +302,7 @@ alleata «solo la propria squadra» non significherebbe niente.
 |---|---|
 | `RosterShowsOnlyOwnTeamAndKeepsTheFallen` | il roster elenca le due alleate e **nessuna** avversaria, e tiene in lista chi è a zero HP |
 | `SlotsAreReadNotDeduced` | i tre slot si leggono uno per uno: un percorso occupa MOVEMENT e **lascia MAIN libero** |
-| `RoundLimitComesFromTheFormat` | il contatore segue il formato — 12, poi 7, poi nessun limite — **e** `RoundText.Text` è legato a `GetRoundCounterText` |
+| `RoundLimitComesFromTheFormat` | il contatore segue il formato — 12, poi 7, poi nessun limite — **e** `RoundText.Text` è legato a `GetRoundCounterText`. ⌫ *Dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) il binding non c'è più: il test legge il limite dalle porte `RoundLimitText` e `RoundValueText`* |
 
 **`RefactorTactics.ScreenHud` passa da 9 a 13 test**, tutti `Success`, run `VALIDA`.
 
@@ -957,6 +957,9 @@ git commit -m "feat(hud): il contenitore dello Screen HUD, con il centro libero"
 - [x] **Step 3.3 — Il contatore di round: usa la funzione, non comporre il testo**
 
 Su `RoundText` → pannello **Details** → `Content → Text` → **Bind → GetRoundCounterText**.
+
+⌫ *Superato dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)): `RoundText` e il binding non ci sono più. Il contatore sta nelle
+porte `RoundValueText` e `RoundLimitText`, che scrive `RefreshLook` (guida dello Screen HUD, §5).*
 
 🔴 **Collega direttamente quella funzione.** Non comporre il testo nel Blueprint da `Round` e `RoundLimit`:
 sono tre stati diversi e due si confondono.

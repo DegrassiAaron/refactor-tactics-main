@@ -18,6 +18,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/ArrowComponent.h"
+#include "Components/TextRenderComponent.h" // D-495: la «X» del segnalino del ricordo
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
@@ -236,6 +237,35 @@ ARTUnit::ARTUnit()
 	ContactGhost->SetUsingAbsoluteLocation(true);
 	ContactGhost->SetUsingAbsoluteRotation(true);
 	ContactGhost->SetVisibility(false); // niente finche' non c'e' un ricordo da mostrare (UpdateContactGhost)
+
+	// D-495: il ricordo nella vista strategica. Le stesse tre assolute della sagoma, piu' la scala: e' un
+	// segnalino della forma del segnaposto, e la scala di un attore non deve allargarlo.
+	ContactToken = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ContactToken"));
+	ContactToken->SetupAttachment(SceneRoot);
+	ContactToken->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ContactToken->SetCastShadow(false);
+	ContactToken->SetUsingAbsoluteLocation(true);
+	ContactToken->SetUsingAbsoluteRotation(true);
+	ContactToken->SetUsingAbsoluteScale(true);
+	if (CylinderMesh.Succeeded())
+	{
+		ContactToken->SetStaticMesh(CylinderMesh.Object);
+	}
+	ContactToken->SetRelativeScale3D(BaseMeshScale);
+	ContactToken->SetVisibility(false);
+
+	ContactTokenMark = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ContactTokenMark"));
+	ContactTokenMark->SetupAttachment(SceneRoot);
+	ContactTokenMark->SetUsingAbsoluteLocation(true);
+	ContactTokenMark->SetUsingAbsoluteRotation(true);
+	ContactTokenMark->SetUsingAbsoluteScale(true);
+	ContactTokenMark->SetCastShadow(false);
+	ContactTokenMark->SetHorizontalAlignment(EHTA_Center);
+	ContactTokenMark->SetVerticalAlignment(EVRTA_TextCenter);
+	ContactTokenMark->SetWorldSize(90.f);
+	ContactTokenMark->SetText(FText::FromString(TEXT("X")));
+	ContactTokenMark->SetTextRenderColor(FColor(235, 80, 80));
+	ContactTokenMark->SetVisibility(false);
 }
 
 void ARTUnit::BeginPlay()
@@ -298,6 +328,20 @@ void ARTUnit::ShowDamageToken(int32 Amount)
 	// `ARTHUD::UpdateObserverVeil`, che spegne l'intero `OverlayWidget` (`RefreshComponentVisibility`): un
 	// secondo giudizio in questo punto sarebbe la divergenza che `#2246` ha appena tolto, e la prima volta
 	// che i due non fossero d'accordo nessun test lo direbbe.
+}
+
+void ARTUnit::ShowHealToken(int32 Amount)
+{
+	// [D-505], `#3600`: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e', nessun velo
+	// qui (lo decide `ARTHUD::UpdateObserverVeil` spegnendo l'overlay).
+	LastDamageToken = URTHudViewModel::BuildHealToken(Amount, StableUnitId);
+	if (UUserWidget* Raw = GetOverlayWidgetObject())
+	{
+		if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+		{
+			Overlay->PushDamageToken(LastDamageToken);
+		}
+	}
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -447,7 +491,95 @@ void ARTUnit::SetKnownToObserver(bool bKnown)
 	RefreshComponentVisibility();
 }
 
-bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose)
+void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
+{
+	// Lo yaw si scrive SEMPRE, prima della guardia: cambia a ogni scatto di camera anche quando lo stato no,
+	// e la «X» lo rilegge al prossimo `UpdateContactGhost`, che l'HUD chiama nello stesso giro.
+	StrategicViewYaw = ViewYawDegrees;
+	if (bStrategicPresentation == bStrategic)
+	{
+		return; // lo chiama l'HUD a ogni fotogramma: niente churn di stato render
+	}
+	bStrategicPresentation = bStrategic;
+
+	// #3647: il cilindro cambia posa con la presentazione — in piedi sulla cella in strategica, quella del Blueprint
+	// in tattica. La selezione resta (+15%), e l'offset dell'ultima posa graykit si somma.
+	if (Mesh)
+	{
+		if (bStrategicPresentation)
+		{
+			TacticalMeshScaleAtStrategicEntry = Mesh->GetRelativeScale3D();
+			bSelectedAtStrategicEntry = bSelected;
+			Mesh->SetRelativeLocation(LastGraykitBodyOffset + PlaceholderLift());
+			Mesh->SetRelativeScale3D(PlaceholderScale() * (bSelected ? 1.15f : 1.f));
+		}
+		else
+		{
+			// Si torna alla scala d'ingresso. Se nel frattempo la selezione e' cambiata, quella non vale piu': si fa cio'
+			// che `OnSelected` / `OnDeselected` avrebbero fatto in tattica.
+			Mesh->SetRelativeLocation(LastGraykitBodyOffset);
+			Mesh->SetRelativeScale3D(bSelected == bSelectedAtStrategicEntry
+				? TacticalMeshScaleAtStrategicEntry
+				: BaseMeshScale * (bSelected ? 1.15f : 1.f));
+		}
+	}
+	RefreshComponentVisibility();
+
+	// ⚠️ Il ricordo NON si ridisegna qui: sagoma e segnalino li posa solo `UpdateContactGhost`, che conosce la
+	// cella del contatto. L'HUD lo chiama nello stesso giro, subito dopo, quindi lo scambio cade nello stesso
+	// fotogramma (D-495, taglio netto). Qui si spegne soltanto la forma che la vista nuova non usa, perche'
+	// un ricordo che l'HUD smettesse di aggiornare non resti acceso nella forma sbagliata.
+	if (bStrategicPresentation)
+	{
+		if (ContactGhost) { ContactGhost->SetVisibility(false, false); }
+	}
+	else
+	{
+		if (ContactToken)     { ContactToken->SetVisibility(false, false); }
+		if (ContactTokenMark) { ContactTokenMark->SetVisibility(false, false); }
+	}
+}
+
+bool ARTUnit::IsContactTokenVisibleForTest() const
+{
+	return ContactToken != nullptr && ContactToken->GetVisibleFlag();
+}
+
+FVector ARTUnit::GetContactTokenLocationForTest() const
+{
+	return ContactToken != nullptr ? ContactToken->GetComponentLocation() : FVector::ZeroVector;
+}
+
+FBox ARTUnit::GetPlaceholderWorldBoxForTest() const
+{
+	return Mesh != nullptr ? Mesh->Bounds.GetBox() : FBox(ForceInit);
+}
+
+FVector ARTUnit::PlaceholderScale() const
+{
+	// La scala del segnaposto NATIVO, non quella del Blueprint: e' la stessa del segnalino del ricordo (`ContactToken`),
+	// cosi' in strategica un'unita' vista e un ricordo hanno la stessa sagoma.
+	return bStrategicPresentation ? GetDefault<ARTUnit>()->BaseMeshScale : BaseMeshScale;
+}
+
+FVector ARTUnit::PlaceholderLift() const
+{
+	// Il cilindro ha il pivot al centro: con il pivot dell'attore a `VisualZOffset` sopra la cella, sale della
+	// differenza e poggia sulla cella. Su un'unita' col solo segnaposto (`VisualZOffset = UnitHalfHeight`) vale zero.
+	return bStrategicPresentation ? FVector(0.f, 0.f, UnitHalfHeight - VisualZOffset) : FVector::ZeroVector;
+}
+
+FRotator ARTUnit::GetContactTokenMarkRotationForTest() const
+{
+	return ContactTokenMark != nullptr ? ContactTokenMark->GetComponentRotation() : FRotator::ZeroRotator;
+}
+
+bool ARTUnit::IsContactGhostVisibleForTest() const
+{
+	return ContactGhost != nullptr && ContactGhost->GetVisibleFlag();
+}
+
+bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose, bool bStrategic)
 {
 	// 🔴 **Due condizioni diverse che fino al 2026-09-05 coincidevano per caso** (#2545).
 	//
@@ -460,17 +592,20 @@ bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bH
 	//
 	// Coincidevano perche' il roster ha sempre avuto le clip nel default C++. Da #2441 `ActiveClipVariant`
 	// puo' valere `NAME_None`, e rimuovere la variante attiva e' un'operazione **prevista**.
-	return bRender && !(bHasHeroMesh && bHasPose);
+	//
+	// D-495: nella vista strategica il segnalino e' il cilindro anche sugli eroi. `bRender` resta il primo
+	// termine dell'AND, cioe' il velo vince sempre: lo stato strategico sceglie QUALE corpo, mai SE.
+	return bRender && (bStrategic || !(bHasHeroMesh && bHasPose));
 }
 
-bool ARTUnit::ShouldShowHeroSkeletal(bool bRender, bool bHasPose)
+bool ARTUnit::ShouldShowHeroSkeletal(bool bRender, bool bHasPose, bool bStrategic)
 {
 	// L'altra meta' della stessa decisione, e va scritta accanto: senza, il cilindro comparirebbe SOPRA la
 	// T-pose invece che al suo posto, e si vedrebbero entrambi.
 	//
 	// ⚠️ Non serve `bHasHeroMesh`: questo predicato lo chiama solo chi ha gia' trovato lo skeletal, e
 	// aggiungerlo darebbe un terzo argomento sempre vero — un ingresso che nessun test puo' falsificare.
-	return bRender && bHasPose;
+	return bRender && bHasPose && !bStrategic;
 }
 
 bool ARTUnit::ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial)
@@ -561,7 +696,19 @@ void ARTUnit::RefreshComponentVisibility()
 		// e' vero e il cilindro va nascosto comunque — le due forme coincidono per VERSO. Su un'unita'
 		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
 		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
-		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose), /*bPropagateToChildren*/ false);
+		//
+		// 🔴 **D-495 rende reale il caso che qui sopra «oggi non esiste».** In strategica il predicato chiede il
+		// cilindro anche sugli EROI, cioe' proprio dove un `BP_Unit_*` puo' averlo spento con `bHiddenInGame`. Si
+		// toglie il flag quando il predicato chiede di mostrarlo, come la riga sopra prescriveva: senza, il
+		// segnalino resterebbe invisibile su ogni eroe che lo nasconde in quel modo, e la vista strategica
+		// mostrerebbe anelli senza corpo. Nascondere resta di `SetVisibility`, quindi il velo non cambia strada.
+		const bool bShowPlaceholder =
+			ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose, bStrategicPresentation);
+		if (bShowPlaceholder)
+		{
+			Mesh->SetHiddenInGame(false);
+		}
+		Mesh->SetVisibility(bShowPlaceholder, /*bPropagateToChildren*/ false);
 	}
 
 	// 🔴 **I bracci graykit seguono lo STESSO predicato del cilindro** (#2880), e non uno proprio. Sono parte
@@ -574,7 +721,11 @@ void ARTUnit::RefreshComponentVisibility()
 	//
 	// 🔑 Il predicato si CHIAMA, non si copia: se #2545 lo cambia, i bracci lo seguono senza una seconda
 	// modifica che qualcuno dimenticherebbe.
-	const bool bShowGraykitLimbs = ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose);
+	// #3647: in strategica i bracci si spengono. Sono ancorati al pivot dell'attore, che su un eroe sta ai piedi,
+	// mentre il cilindro sale a fare da segnalino: resterebbero a terra accanto a lui. Il segnalino delle tavole
+	// e' un cilindro senza bracci.
+	const bool bShowGraykitLimbs =
+		ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose, bStrategicPresentation) && !bStrategicPresentation;
 	if (LeftArm)
 	{
 		LeftArm->SetVisibility(bShowGraykitLimbs, /*bPropagateToChildren*/ false);
@@ -636,7 +787,7 @@ void ARTUnit::RefreshComponentVisibility()
 	{
 		// #2545: si mostra solo se c'e' una posa. Senza, resterebbe a schermo in T-pose SOTTO il cilindro
 		// che il predicato di sopra ha appena acceso — due corpi invece di un segnaposto.
-		HeroSkeletal->SetVisibility(ShouldShowHeroSkeletal(bRender, bHasPose), false);
+		HeroSkeletal->SetVisibility(ShouldShowHeroSkeletal(bRender, bHasPose, bStrategicPresentation), false);
 	}
 
 	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
@@ -885,6 +1036,15 @@ void ARTUnit::HideContactGhost()
 	{
 		ContactGhost->SetVisibility(false, false);
 	}
+	// D-495: «niente da ricordare» vale per entrambe le forme del ricordo, non per quella della vista corrente.
+	if (ContactToken)
+	{
+		ContactToken->SetVisibility(false, false);
+	}
+	if (ContactTokenMark)
+	{
+		ContactTokenMark->SetVisibility(false, false);
+	}
 }
 
 void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn)
@@ -900,6 +1060,31 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		HideContactGhost();
 		return;
 	}
+
+	// 🔑 **D-495 — nella vista strategica il ricordo e' un segnalino, non una sagoma.** Stessa cella, stessa
+	// regola d'eta' qui sopra: cambia la forma, non cio' che il ricordo dice. E non serve una skeletal da
+	// copiare, quindi il ramo sta PRIMA del ripiego che la cerca.
+	if (bStrategicPresentation)
+	{
+		ContactGhost->SetVisibility(false, false);
+		if (ContactToken)
+		{
+			// Il pivot del cilindro e' al centro: la stessa quota che `WorldForCell` da' al segnaposto vivo.
+			ContactToken->SetWorldLocation(CellCenterWorld + FVector(0.f, 0.f, UnitHalfHeight));
+			ContactToken->SetVisibility(true, false);
+		}
+		if (ContactTokenMark)
+		{
+			// Piatta e rivolta in alto (`Pitch = 90`: il testo guarda lungo +X locale), appena sopra la testa
+			// del segnalino, e girata con lo yaw della camera: cosi' resta una «X» a schermo a ogni scatto da 45°.
+			ContactTokenMark->SetWorldLocation(CellCenterWorld + FVector(0.f, 0.f, 2.f * UnitHalfHeight + 2.f));
+			ContactTokenMark->SetWorldRotation(FRotator(90.f, StrategicViewYaw, 0.f));
+			ContactTokenMark->SetVisibility(true, false);
+		}
+		return;
+	}
+	if (ContactToken)     { ContactToken->SetVisibility(false, false); }
+	if (ContactTokenMark) { ContactTokenMark->SetVisibility(false, false); }
 
 	// La mesh arriva dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
 	// cilindro segnaposto (#287) non ha nulla da copiare, e la sagoma resta nascosta invece di mostrare
@@ -1323,9 +1508,11 @@ void ARTUnit::ApplyGraykitPose(const FRTGraykitPose& Pose)
 	// corpo deve deformarsi lo stesso.
 	if (Mesh)
 	{
-		Mesh->SetRelativeLocation(Pose.Body.Offset);
+		// #3647: la quota e la scala del segnaposto dipendono dalla presentazione; la posa si somma a quelle.
+		LastGraykitBodyOffset = Pose.Body.Offset;
+		Mesh->SetRelativeLocation(Pose.Body.Offset + PlaceholderLift());
 		Mesh->SetRelativeRotation(Pose.Body.Rotation);
-		Mesh->SetRelativeScale3D(BaseMeshScale * Pose.Body.Scale);
+		Mesh->SetRelativeScale3D(PlaceholderScale() * Pose.Body.Scale);
 	}
 
 	// I bracci partono dal proprio anchor: l'offset della posa si SOMMA alla posizione di riposo invece di
@@ -1381,7 +1568,7 @@ void ARTUnit::OnSelected()
 {
 	if (Mesh)
 	{
-		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // cilindro segnaposto: ingrandisce del 15%
+		Mesh->SetRelativeScale3D(PlaceholderScale() * 1.15f); // cilindro segnaposto: ingrandisce del 15%
 	}
 
 	// La selezione muta il proprio FLAG e chiede una refresh: non tocca componenti. Il riscontro visibile
@@ -1396,7 +1583,7 @@ void ARTUnit::OnDeselected()
 {
 	if (Mesh)
 	{
-		Mesh->SetRelativeScale3D(BaseMeshScale);
+		Mesh->SetRelativeScale3D(PlaceholderScale());
 	}
 	bSelected = false;
 	RefreshComponentVisibility();

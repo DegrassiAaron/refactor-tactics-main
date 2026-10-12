@@ -22,6 +22,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -226,6 +229,77 @@ bool FRTClickTargetExtentIsMeasuredTest::RunTest(const FString&)
 	// — e un ingombro nullo si leggerebbe come «misurato», non come «non c'e' niente da cliccare».
 	TestTrue(TEXT("l'ingombro orizzontale non e' nullo"), B.BoxExtent.X > 1.f && B.BoxExtent.Y > 1.f);
 	TestTrue(TEXT("l'ingombro verticale non e' nullo"), B.BoxExtent.Z > 1.f);
+
+	RTClickTarget::DestroyClickWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **#3647 — in vista strategica il segnalino d'un EROE sta in piedi sulla cella e prende il click inclinato.**
+ *
+ * Un `BP_Unit_*` d'eroe ha il pivot ai piedi e un cilindro alto 100 centrato li': per meta' sotto la cella. Dalla
+ * camera strategica (2400, pitch -40) il raggio del click lo prendeva solo fra -20 e +80 sopra il suolo, e sopra
+ * passava oltre fino alla cella dietro — misurato con questo stesso Blueprint, nel clone che ha i pack degli eroi.
+ * Trovato in PIE (seduta `U73`): con un'abilita' armata il click sul segnalino di Muiren diventava un waypoint.
+ *
+ * Il Blueprint e' tracciato in git, e la posa del cilindro non dipende dalle mesh gitignorate: il test vale anche
+ * in un worktree. Verifica di mutazione: con `PlaceholderLift` a zero il segnalino non tocca la cella e il raggio
+ * verso +120 passa oltre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStrategicTokenTakesTheSlantedClickTest,
+	"RefactorTactics.PlayerInput.StrategicHeroTokenStandsOnTheCellAndTakesTheClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStrategicTokenTakesTheSlantedClickTest::RunTest(const FString&)
+{
+	UClass* BpClass = LoadClass<ARTUnit>(nullptr,
+		TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.BP_Unit_Muiren_C"));
+	if (!TestNotNull(TEXT("BP_Unit_Muiren si carica"), BpClass)) { return false; }
+	UWorld* World = RTClickTarget::MakeClickWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = URTMatchSetupLibrary::MakeTestArena(World);
+	// `RebuildInstances`, non `RerunConstructionScripts`: quella esiste solo WITH_EDITOR e il target gioco non compilerebbe
+	// (#3672). Al runtime `OnConstruction` fa esattamente questo.
+	MapActor->RebuildInstances();
+	FVector Origin; float HexSize = 0.f; float LayerH = 0.f;
+	MapActor->GetHexContext(Origin, HexSize, LayerH);
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>(BpClass);
+	if (!TestNotNull(TEXT("il Blueprint si spawna"), Unit)) { RTClickTarget::DestroyClickWorld(World); return false; }
+	const FRTCellId Cella(2, -2, 0);
+	Unit->PlaceOnCell(Cella, Origin, HexSize, LayerH);
+	const float Suolo = URTHexLibrary::AxialToWorld(Cella, Origin, HexSize, LayerH).Z;
+
+	// Il raggio della camera strategica verso una quota del segnalino, come lo tira `GetHitResultUnderCursor`.
+	const FVector Pivot = Unit->GetActorLocation();
+	const FVector Camera = FVector(Pivot.X, Pivot.Y, Suolo) - FRotator(-40.f, 0.f, 0.f).Vector() * 2400.f;
+	auto Prende = [World, Unit, Camera, Pivot, Suolo](float Quota)
+	{
+		const FVector Bersaglio(Pivot.X, Pivot.Y, Suolo + Quota);
+		FHitResult Hit;
+		return World->LineTraceSingleByChannel(Hit, Camera, Camera + (Bersaglio - Camera) * 1.5f, ECC_Visibility)
+			&& Hit.GetActor() == Unit;
+	};
+
+	// Controllo positivo: in tattica il cilindro del Blueprint e' quello di sempre, e sopra +100 non c'e'.
+	TestFalse(TEXT("in tattica il raggio verso +120 non prende il cilindro del Blueprint"), Prende(120.f));
+	const FBox Tattico = Unit->GetPlaceholderWorldBoxForTest();
+
+	Unit->SetStrategicPresentation(true);
+	const FBox Segnalino = Unit->GetPlaceholderWorldBoxForTest();
+	TestEqual(TEXT("in strategica il segnalino poggia sulla cella"), static_cast<float>(Segnalino.Min.Z), Suolo, 2.f);
+	TestEqual(TEXT("ed e' alto quanto il segnaposto nativo"), static_cast<float>(Segnalino.Max.Z - Segnalino.Min.Z),
+		2.f * ARTUnit::UnitHalfHeight, 2.f);
+	TestTrue(TEXT("il raggio verso +120 prende l'unita'"), Prende(120.f));
+	TestTrue(TEXT("e anche quello verso +40"), Prende(40.f));
+
+	// Tornando in tattica il cilindro e' ESATTAMENTE quello di prima — quota e scala — perche' in tattica e' il bersaglio
+	// del click anche se non si vede (review di #3650). E il raggio verso +120 torna a non prenderlo.
+	Unit->SetStrategicPresentation(false);
+	const FBox Ritorno = Unit->GetPlaceholderWorldBoxForTest();
+	TestTrue(TEXT("tornati in tattica il cilindro e' quello di prima"), Ritorno.Equals(Tattico, 1.f));
+	TestFalse(TEXT("e sopra +100 non c'e' piu'"), Prende(120.f));
 
 	RTClickTarget::DestroyClickWorld(World);
 	return true;

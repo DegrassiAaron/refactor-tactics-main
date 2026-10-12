@@ -311,13 +311,20 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		const TArray<FRTCellId> HitCells = URTHexCombatLibrary::HexHitCells(
 			Plan.Shape, Plan.DestCell, AimCell, Plan.RangeCells, Plan.AreaRadius);
 
+		// [D-415], #3229: chi puo' SCATTARE VIA prima del Blast lascia la cella che la mira congelata colpira'.
+		// Il colpo su chi NON puo' vale `(100 + WPinnedBonusPercent)`%, danno e kill insieme: e' cio' che fa
+		// preferire il bersaglio che non puo' sottrarsi, senza togliere niente agli altri. Senza dato sul nemico
+		// (`EnemyCanEscape` corto) non c'e' bonus: si assume che possa. Interi: invariante #4.
+		const int32 QuotaSeInchiodato = 100 + FMath::Max(0, Context.WPinnedBonusPercent);
 		for (int32 I = 0; I < Context.Enemies.Num(); ++I)
 		{
 			if (!HitCells.Contains(Context.Enemies[I]))
 			{
 				continue;
 			}
-			Score += Context.WDamage * Plan.AttackDamage;
+			const bool bInchiodato = Context.EnemyCanEscape.IsValidIndex(I) && !Context.EnemyCanEscape[I];
+			const int32 Quota = bInchiodato ? QuotaSeInchiodato : 100;
+			Score += Context.WDamage * Plan.AttackDamage * Quota / 100;
 
 			// Il bersaglio mirato porta gli HP dichiarati dal piano (contratto gia' in uso); i nemici presi
 			// "in piu'" dall'area li leggono dal contesto.
@@ -326,7 +333,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 				: (Context.EnemyHealth.IsValidIndex(I) ? Context.EnemyHealth[I] : MAX_int32);
 			if (Plan.AttackDamage >= Health)
 			{
-				Score += Context.WKill;
+				Score += Context.WKill * Quota / 100;
 			}
 
 			// ABBATTERE: uno spostamento su un bersaglio gia' `Status.Unbalanced` lo fa cadere `Prone`

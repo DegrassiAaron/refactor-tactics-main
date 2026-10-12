@@ -60,7 +60,7 @@
     { "_assertion": "Il watcher non si e' mosso: la sua cella e' anche l'origine da cui il lato e' stato calcolato.",
       "type": "UnitAtCell", "unit": "V1", "cell": [2, -1, 0] },
 
-    { "type": "UnitAlive", "unit": "P1", "value": 1 },
+    { "type": "UnitAlive", "unit": "P1", "value": true },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

@@ -568,6 +568,12 @@ avrebbe creato una seconda fonte di verità accanto a due che lo dicevano già.
 
 Misurato il **2026-09-15** su `main` @ `b0d7de96`, da uno spec panel sull'atto del giocatore.
 
+> 🔄 **2026-10-10 — il punto (1) qui sotto è superato, e resta scritto come misura di allora.**
+> - Il ciclo esiste dal 2026-09-15 ([D-421](../../decisions/RT_PDR_00_Decision_Log.md), `ARTPlayerController::CycleSelection`). Lo ancora `PlayerInput.SelectionCycleVisitsOwnUnitsInStableOrder`, che fino al 2026-10-10 si chiamava `TabCyclesOwnUnitsInStableOrder`.
+> - Dal 2026-10-10 il tasto è **`N`**, perché `Tab` apre la vista strategica ([D-488](../../decisions/RT_PDR_00_Decision_Log.md) (3), [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)). Le due sedi sono `ARTPlayerController::CycleSelectionHotkey` e `StrategicViewHotkey`, pinnate sul contesto reale da `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN`.
+> - Dove sotto si legge `TAB` come tasto del ciclo, oggi vale `N`.
+> - Resta aperto il punto (2), l'arco `Targeting → Pathing`, con il resto di [#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145).
+
 **(1) Nessun ciclo di selezione.** `git grep -n "EKeys::Tab" -- Source/` non stampa nulla: la sola via per
 cambiare unità è cliccarla nel mondo (`SelectAction`) o nel roster HUD (§5.2). ⚠️ **Non è una comodità
 mancante**: [`progettazione-hud.md`](progettazione-hud.md) §47-bis.2 chiede *percorso tastiera e controller

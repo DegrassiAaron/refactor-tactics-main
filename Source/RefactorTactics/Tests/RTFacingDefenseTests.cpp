@@ -59,16 +59,41 @@ namespace
 		return U;
 	}
 
-	FRTHexAttackIntent ArcIntent(int32 AttackerId, int32 TargetId, int32 Power)
+	FRTHexAttackIntent ArcIntent(const TArray<FRTHexCombatUnit>& Units,
+		int32 AttackerId, int32 TargetId, int32 Power)
 	{
 		FRTHexAttackIntent I;
 		I.AttackerId = AttackerId;
 		I.TargetId = TargetId;
+		// 🔑 **LA MIRA VA NELL'INTENTO** ([D-415]). Da qui l'helper fa per i test cio' che
+		// `ARTTurnManager::LockInAndResolve` fa in partita: congela la cella su cui si mira. Prima
+		// `TargetCell` era «ignorata» con un bersaglio-unita' e il resolver leggeva la cella corrente —
+		// cioe' inseguiva.
+		//
+		// ⚠️ **Passa le UNITA' e non la cella**, cosi' l'indice del bersaglio non e' scritto due volte: un
+		// intento che mira a `Units[2]` e dichiara `TargetId = 1` sarebbe una fixture che mente, e nessun
+		// gate la prenderebbe.
+		if (Units.IsValidIndex(TargetId)) { I.TargetCell = Units[TargetId].Cell; }
+
 		I.Shape = ERTAbilityShape::Single;
 		I.RangeCells = 5;
 		I.AreaRadius = 0;
 		I.Power = Power;
 		I.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
+		return I;
+	}
+
+	/**
+	 * Come sopra, ma la mira si dichiara come CELLA ([D-415]).
+	 *
+	 * 🔑 **Serve dove l'intento nasce PRIMA delle unita'**: i test che confrontano due orientamenti
+	 * costruiscono l'intento una volta e le unita' una volta per passata, dentro un lambda. Li' non c'e' un
+	 * array da cui congelare, e la cella e' comunque un dato del test — la stessa che l'unita' ricevera'.
+	 */
+	FRTHexAttackIntent ArcIntent(const FRTCellId& AimCell, int32 AttackerId, int32 TargetId, int32 Power)
+	{
+		FRTHexAttackIntent I = ArcIntent(TArray<FRTHexCombatUnit>{}, AttackerId, TargetId, Power);
+		I.TargetCell = AimCell;
 		return I;
 	}
 
@@ -151,7 +176,7 @@ bool FRTCombatBackAttackIgnoresCoverTest::RunTest(const FString&)
 	// Attaccante a ovest, bersaglio in (2,0) con copertura bassa sul bordo W: il riparo e' interposto.
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(0, 1, 30));
+	Intents.Add(ArcIntent(Defender, 0, 1, 30));
 
 	// Difensore che GUARDA l'attaccante: la copertura vale.
 	{
@@ -222,7 +247,7 @@ bool FRTCombatFlankAttackKeepsCoverTest::RunTest(const FString&)
 	Units.Add(ArcUnit(1, 1, FRTCellId(2, 0, 0), ERTHexDirection::SW));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(0, 1, 30));
+	Intents.Add(ArcIntent(Units, 0, 1, 30));
 
 	URTHexMapAsset* Map = MakeArcMap(3);
 	SetArcLowCover(Map, FRTCellId(2, 0, 0), ERTHexDirection::W);
@@ -246,7 +271,7 @@ bool FRTCombatShieldWorksFromAnyDirectionTest::RunTest(const FString&)
 	// qualcuno estendesse la penalita' direzionale oltre copertura e `Guard`, questo test cadrebbe.
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(0, 1, 30));
+	Intents.Add(ArcIntent(Defender, 0, 1, 30));
 
 	int32 FrontPower = -1;
 	int32 RearPower = -1;
@@ -295,7 +320,7 @@ bool FRTCombatHitCarriesBypassedCoverTest::RunTest(const FString&)
 {
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(0, 1, 30));
+	Intents.Add(ArcIntent(Defender, 0, 1, 30));
 
 	auto BypassedOn = [](const FRTHexBlastPlan& Plan, int32 TargetId) -> int32
 	{

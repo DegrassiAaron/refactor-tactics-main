@@ -15,6 +15,7 @@
 #include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
 #include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
 #include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
+#include "Map/RTHexMapAsset.h"                // HasObjectiveCell: il punteggio ha senso solo con un obiettivo (#3635)
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del tooltip (`#3499`)
@@ -36,6 +37,8 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	// impedire a un widget di stampare `12`. Qui non c'e' proprio un posto dove scriverlo a mano.
 	View.RoundLimit = TurnManager->GetMatchRules().RoundLimit;
 	View.Phase = TurnManager->GetPhase();
+	// La fase RIPRODOTTA, non quella logica ([D-479]): durante il playback le due divergono.
+	View.PlaybackPhase = TurnManager->GetPlaybackPhase();
 	View.bResolving = TurnManager->IsResolving();
 
 	// Il progresso sull'obiettivo (`CP 10.2`, `#75`). Si legge dal manager, che e' l'unico a saperlo: il
@@ -89,6 +92,45 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	return View;
 }
 
+FString URTHudViewModel::ComposePhaseWord(const FRTMatchHeaderView& Header)
+{
+	// Il countdown del Ready e la finestra di preparazione hanno la propria parola: la fase e' ancora Planning,
+	// e i due stati devono distinguersi senza contare i secondi (`#2358`, `#2386`).
+	const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
+	const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
+	switch (Header.Phase)
+	{
+	case ERTMatchPhase::Planning:
+		return bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
+			: bReadyCountdown ? TEXT("Ready")
+			: TEXT("Pianificazione");
+	case ERTMatchPhase::MatchEnded:
+		return TEXT("Fine");
+	default:
+		return TEXT("Risoluzione");
+	}
+}
+
+bool URTHudViewModel::MapDeclaresObjective(const ARTTurnManager* TurnManager)
+{
+	if (!TurnManager)
+	{
+		return false;
+	}
+	// La stessa mappa che il Cleanup valuta: quella dell'attore nel mondo, via `GetHexContext` dell'attore (quello del
+	// manager e' protetto, e ci inoltra).
+	const ARTHexMapActor* Attore = ARTHexMapActor::FindInWorld(TurnManager->GetWorld());
+	if (!Attore)
+	{
+		return false;
+	}
+	FVector Origine;
+	float Lato = 0.f;
+	float Piano = 0.f;
+	const URTHexMapAsset* Mappa = Attore->GetHexContext(Origine, Lato, Piano);
+	return Mappa && Mappa->HasObjectiveCell();
+}
+
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
 	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'
@@ -127,6 +169,7 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	}
 
 	Card.HeroId = Unit->HeroId;
+	Card.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
 	Card.Health = Unit->Health;
 	Card.MaxHealth = Unit->MaxHealth;
 	Card.Shield = Unit->Shield;
@@ -228,7 +271,195 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 		FillSlotFromAbility(Slots.Reaction, *Unit, Unit->PlannedReactionAbility);
 	}
 
+	// [D-478] punto 2 (#3618): la reazione armata e' lo slot `Reaction` occupato da un'azione, oppure una principale
+	// che arma una finestra. La domanda la decide il catalogo, come `TakesMovementSlot` decide gli slot.
+	const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility);
+	const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+	Slots.bReactionArmed = (Reazione && URTCatalogLibrary::ArmsReaction(Reazione->Def))
+		|| (Principale && URTCatalogLibrary::ArmsReaction(Principale->Def));
+
 	return Slots;
+}
+
+TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Unit, const TArray<ARTUnit*>& Units)
+{
+	TArray<FRTPlanWarningView> Avvisi;
+	if (!Unit || !Unit->IsAlive())
+	{
+		return Avvisi;
+	}
+
+	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
+
+	// Il nome di un'azione del piano, in cascata, e mai l'id grezzo (review di #3622):
+	//   1. il nome del kit, che e' quello che lo slot mostra;
+	//   2. la voce del MOVIMENTO, che `MakePlanFor` aggiunge dal core e non sta nel kit: l'etichetta dello slot che
+	//      il tooltip gia' usa. E' il caso canonico del conflitto scatto + movimento;
+	//   3. l'ultimo segmento dell'id (`Action.Move` -> `Move`), la stessa cascata di `ARTUnit::DisplayLabel`.
+	// ⛔ Una tabella di nomi per le azioni del core non esiste (`GenericActionDisplayName` ne copre cinque), e
+	// scriverla e' lavoro di contenuto, non di questo avviso.
+	const auto NomeDi = [Unit, &Piano](const FName& ActionId) -> FText
+	{
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.ActionId == ActionId && !A->DisplayName.IsEmpty())
+			{
+				return A->DisplayName;
+			}
+		}
+		for (const FRTPlannedAction& Voce : Piano)
+		{
+			if (Voce.Def.ActionId == ActionId && URTCatalogLibrary::TakesMovementSlot(Voce.Def))
+			{
+				return NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento");
+			}
+		}
+		FString Id = ActionId.ToString();
+		int32 Punto = INDEX_NONE;
+		return FText::FromString(Id.FindLastChar(TEXT('.'), Punto) ? Id.Mid(Punto + 1) : Id);
+	};
+
+	// --- 1. Critical: il validatore. Lo dice, non lo decide. -------------------------------------------------
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Piano);
+	if (!Verdetto.bLegal)
+	{
+		FRTPlanWarningView Critico;
+		Critico.Level = ERTPlanWarningLevel::Critical;
+		Critico.SourceActionId = Verdetto.OffendingActionId;
+		Critico.What = NomeDi(Verdetto.OffendingActionId);
+		// Le due azioni di un conflitto di slot, come il log di lock-in (`RTTurnManager.cpp`): nominarne una sola
+		// manderebbe a correggere quella sbagliata.
+		Critico.Why = Verdetto.HolderActionId.IsNone()
+			? FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason))
+			: FText::Format(NSLOCTEXT("RTPlanWarning", "SlotConflict", "{0} e {1} occupano lo stesso slot"),
+				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId));
+		// ⚠️ Il costo e' cio' che si sa, non una previsione: il lock-in non scarta niente, e cio' che il turno
+		// scarta lo decide il resolver.
+		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo giudica illegale: correggilo prima di confermare");
+		Avvisi.Add(Critico);
+	}
+
+	// Una voce per AZIONE (review di #3622, §15.1): un'azione che il validatore giudica illegale probabilmente non
+	// verra' eseguita, e dirne anche il ripiego o il fuoco amico accenderebbe tre voci per un problema solo.
+	const auto CopertaDalCritico = [&Verdetto](const FName& ActionId)
+	{
+		return !Verdetto.bLegal && !ActionId.IsNone()
+			&& (ActionId == Verdetto.OffendingActionId || ActionId == Verdetto.HolderActionId);
+	};
+
+	// --- 2. Warning: il bersaglio che in risoluzione prende il ripiego ([D-459]) ------------------------------
+	for (const FRTAbilityCooldownView& Riga : BuildAbilityCooldowns(Unit))
+	{
+		if (!Riga.bPlanDegraded || CopertaDalCritico(Riga.ActionId))
+		{
+			continue;
+		}
+		FRTPlanWarningView Degradato;
+		Degradato.Level = ERTPlanWarningLevel::Warning;
+		Degradato.SourceActionId = Riga.ActionId;
+		Degradato.What = Riga.DisplayName.IsEmpty() ? FText::FromName(Riga.ActionId) : Riga.DisplayName;
+		Degradato.Why = FText::FromString(ARTHUD::RefusalText(Riga.PlanDegradedRefusal, Riga.PlanDegradedRange));
+		Degradato.Cost = NSLOCTEXT("RTPlanWarning", "DegradedCost", "In risoluzione prende il ripiego");
+		Avvisi.Add(Degradato);
+	}
+
+	// --- 3. Warning: il fuoco amico del PROPRIO piano ([D-492], [D-494]) ------------------------------------
+	const int32 Se = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
+	if (Se != INDEX_NONE)
+	{
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(
+			MakeBlastPreviewPlan(*Unit, Se, Units), MakeHexCombatUnits(Units));
+		TArray<FString> Alleate;
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			const ARTUnit* Altra = Units[i];
+			if (i != Se && Altra && Altra->IsAlive() && Altra->TeamId == Unit->TeamId && Blast.AllyCells.Contains(Altra->Cell))
+			{
+				Alleate.Add(ARTUnit::DisplayLabel(Altra->HeroDisplayName, Altra->HeroId, Altra->GetName()));
+			}
+		}
+		const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (Alleate.Num() > 0 && !(Principale && CopertaDalCritico(Principale->Def.ActionId)))
+		{
+			FRTPlanWarningView FuocoAmico;
+			FuocoAmico.Level = ERTPlanWarningLevel::Warning;
+			FuocoAmico.SourceActionId = Principale ? Principale->Def.ActionId : NAME_None;
+			FuocoAmico.What = NomeDi(FuocoAmico.SourceActionId);
+			FuocoAmico.Why = FText::Format(NSLOCTEXT("RTPlanWarning", "FriendlyFireWhy", "Nella zona: {0}"),
+				FText::FromString(FString::Join(Alleate, TEXT(", "))));
+			FuocoAmico.Cost = NSLOCTEXT("RTPlanWarning", "FriendlyFireCost", "Colpisce anche le alleate nella zona");
+			Avvisi.Add(FuocoAmico);
+		}
+	}
+	return Avvisi;
+}
+
+void URTHudViewModel::AddPlanWarningCounts(const TArray<FRTPlanWarningView>& Warnings, FRTPlanWarningCounts& InOut)
+{
+	for (const FRTPlanWarningView& Avviso : Warnings)
+	{
+		switch (Avviso.Level)
+		{
+		case ERTPlanWarningLevel::Critical: ++InOut.Critical; break;
+		case ERTPlanWarningLevel::Warning:  ++InOut.Warning;  break;
+		case ERTPlanWarningLevel::Info:     ++InOut.Info;     break;
+		}
+	}
+}
+
+FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId,
+	const TArray<ARTUnit*>& Units)
+{
+	FRTBlastPreviewPlan Plan;
+	Plan.AttackerId = UnitId;
+	Plan.bDashResolves = Unit.PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
+	Plan.PlannedDashCell = Unit.PlannedDashCell;
+	Plan.bDashIsCharge = Unit.PlannedDashIsCharge();
+
+	const URTActionData* Ability = Unit.GetAbility(Unit.PlannedAbilityIndex);
+	if (!Ability)
+	{
+		return Plan; // solo scatto: un'origine da mostrare e nessuna area
+	}
+
+	Plan.bHasAction = true;
+	// [D-464]: l'area parte da dove l'azione MIRA, e quello dipende dalla sua fase.
+	Plan.Phase = Ability->Def.ResolutionPhase;
+	Plan.Shape = Ability->Shape;
+	Plan.RangeCells = Ability->RangeCells;
+	Plan.AreaRadius = Ability->AreaRadius;
+	// Il fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento impossibile insegna
+	// a ignorare gli allarmi.
+	Plan.bFriendlyFire = Ability->Def.bFriendlyFire;
+	if (Unit.bAttackTargetsCell)
+	{
+		Plan.bTargetsCell = true;
+		Plan.TargetCell = Unit.PlannedAttackCell;
+	}
+	else
+	{
+		// Un bersaglio che non e' in `Units` diventa `INDEX_NONE`, cioe' «nessuna area»; uno caduto ha `bAlive`
+		// falso in `MakeHexCombatUnits`, e l'anteprima lo scarta allo stesso modo.
+		Plan.TargetId = Units.IndexOfByKey(Unit.PlannedAttackTarget.Get());
+	}
+	return Plan;
+}
+
+TArray<FRTHexCombatUnit> URTHudViewModel::MakeHexCombatUnits(const TArray<ARTUnit*>& Units)
+{
+	TArray<FRTHexCombatUnit> HexUnits;
+	HexUnits.Reserve(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		FRTHexCombatUnit HU;
+		HU.UnitId = i;
+		HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
+		HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
+		HU.bAlive = Units[i] && Units[i]->IsAlive();
+		HexUnits.Add(HU);
+	}
+	return HexUnits;
 }
 
 FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId,
@@ -1000,6 +1231,7 @@ FRTDamageTokenView URTHudViewModel::BuildDamageToken(int32 Amount, int32 TargetS
 	// sopra la testa di chi ha appena incassato: una cifra plausibile e falsa. Il ramo dello zero e' il
 	// posto giusto dove farlo cadere, perche' dice «nessuna quantita' da mostrare» senza inventarne una.
 	View.bHasDamage = (Amount > 0);
+	View.bPulsesHealthBar = View.bHasDamage; // #3600: la barra pulsa se la vita e' cambiata
 
 	if (View.bHasDamage)
 	{
@@ -1016,6 +1248,22 @@ FRTDamageTokenView URTHudViewModel::BuildDamageToken(int32 Amount, int32 TargetS
 		View.Label = TEXT("0 danni");
 	}
 
+	return View;
+}
+
+FRTDamageTokenView URTHudViewModel::BuildHealToken(int32 Amount, int32 TargetStableUnitId)
+{
+	FRTDamageTokenView View;
+	View.TargetStableUnitId = TargetStableUnitId;
+	View.Amount = Amount;
+	View.bIsHeal = true;
+	// ⛔ Una cura non e' un danno: `bHasDamage` resta falso, e chi lo legge per contare i colpi non conta questa.
+	View.bHasDamage = false;
+	View.bPulsesHealthBar = (Amount > 0);
+	// Il segno fa parte del canale, come il `-` del colpo (`#2453`): una cifra nuda si leggerebbe come un danno
+	// tanto quanto come una cura. A salute piena la cura restituisce zero, e lo zero si DICHIARA con una parola,
+	// come il «0 danni» del colpo: un «+0» si leggerebbe come una quantita'.
+	View.Label = (Amount > 0) ? FString::Printf(TEXT("+%d"), Amount) : FString(TEXT("0 curati"));
 	return View;
 }
 
@@ -1041,6 +1289,10 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
 		Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
 		Intent.TargetCell = Intent.bHasTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell;
+		// ⚖️ **Lo slot `Reaction`, non `URTCatalogLibrary::ArmsReaction`** (`#3628`, decisione d'autore del
+		// 2026-10-11). `ReactionName` finisce nell'etichetta dell'intento come «(reazione: … ?)», e l'Overwatch come
+		// principale e' gia' `ActionName`: contarlo qui stamperebbe lo stesso nome due volte. Il roster, che un nome
+		// d'azione non lo mostra, lo conta ([D-478]).
 		Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
 		Intent.PlannedPath = Unit->PlannedPath;
 		Intent.PlannedWaypoints = Unit->PlannedWaypoints;
@@ -1163,6 +1415,9 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 		// rimetterebbe nel Blueprint la distinzione fra «cella (0,0,0)» e «nessuna cella», che e' proprio
 		// dove `FRTCellId::IsValid()` risponde di si' e marcherebbe l'origine dell'arena.
 		Line.bHasBlocker = Event.HasBlockerCell();
+		Line.Phase = Event.Phase;
+		Line.Sequence = i + 1; // la posizione fra gli eventi GIA' filtrati: nessun buco da cui contare il nascosto
+		Line.bReaction = Event.Type == ERTPlayerEventType::ReactionFired;
 	}
 	return Lines;
 }
@@ -1381,3 +1636,41 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 }
 
 #undef LOCTEXT_NAMESPACE
+
+ERTPlanChip URTHudViewModel::ChipForWarning(const FRTUnitSlotsView& Slots, const FRTPlanWarningView& Warning)
+{
+	if (!Slots.bAuthorized || Warning.SourceActionId.IsNone())
+	{
+		return ERTPlanChip::None;
+	}
+	if (Slots.Main.bOccupied && Warning.SourceActionId == Slots.Main.ActionId)
+	{
+		return ERTPlanChip::Main;
+	}
+	if (Slots.Reaction.bOccupied && Warning.SourceActionId == Slots.Reaction.ActionId)
+	{
+		return ERTPlanChip::Reaction;
+	}
+	return Slots.Movement.bOccupied ? ERTPlanChip::Movement : ERTPlanChip::None;
+}
+
+ERTActionPhaseMark URTHudViewModel::SlotPhaseMark(const ARTUnit* Unit, const FRTPlannedSlotView& Slot)
+{
+	if (!Unit || !Slot.bOccupied)
+	{
+		return ERTActionPhaseMark::None;
+	}
+	if (Slot.ActionId.IsNone())
+	{
+		return ERTActionPhaseMark::Move; // un percorso: lo slot e' occupato senza un'azione
+	}
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* Azione = Unit->GetAbility(i);
+		if (Azione && Azione->Def.ActionId == Slot.ActionId)
+		{
+			return PhaseMarkFor(Azione->Def);
+		}
+	}
+	return ERTActionPhaseMark::None;
+}

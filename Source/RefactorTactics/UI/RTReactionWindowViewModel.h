@@ -24,7 +24,8 @@ class ARTTurnManager;
  * 🔑 **`IsBound()` non e' un dettaglio implementativo: e' il segnale che distingue «umano con UI» da
  * «umano senza UI»**, ed e' cio' che tiene in piedi bot, test e Verifier senza un ramo che li nomini.
  * Legarlo e' precisamente l'atto che accende il comportamento — e per la stessa ragione **non** va legato
- * dove una UI non c'e' (vedi `ARTGameMode::HookReactionWindow`).
+ * dove una UI non c'e' (vedi `ARTGameMode::HookReactionWindow` e, per gli scenari con `playerReactionWindows`,
+ * `FRTScenarioSession::ApplyPlayerReactionWindows`).
  *
  * ## Push per ESISTERE, pull per DISEGNARE
  *
@@ -132,6 +133,23 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
 	void SubmitResponse(const FString& Response);
+
+	/**
+	 * Sceglie l'opzione in posizione `OptionIndex` e ne spedisce la risposta. Vero se ha inoltrato qualcosa.
+	 *
+	 * 🔑 **E' la sola strada per indice, e ne passano due canali**: il bottone del widget
+	 * (`URTFastDecisionWidget::ChooseOption`) e il tasto del kit con la finestra aperta ([D-491], #3615). Stava
+	 * nel widget finche' il bottone era l'unico: con la tastiera ripeterla nel controller sarebbe stata la
+	 * seconda copia dello stesso gate.
+	 *
+	 * 🔑 **Rilegge la vista invece di fidarsi di quella con cui l'opzione e' stata disegnata.** `GetWindow()`
+	 * rende i default appena l'identita' della finestra cambia, quindi un indice della finestra PRECEDENTE trova
+	 * `Options` vuoto e non inoltra niente.
+	 *
+	 * ⛔ Si spedisce la stringa che il core ha prodotto, e non se ne compone una: `FIRE:<indice>` ha un solo
+	 * produttore (`URTReactionOpportunityLibrary::FireResponse`).
+	 */
+	bool ChooseOption(int32 OptionIndex);
 
 	/**
 	 * L'identita' della finestra consegnata, o stringa vuota. **Non e' una `UFUNCTION`, e non e' una

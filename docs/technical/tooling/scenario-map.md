@@ -331,6 +331,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | `Visual.Map.BlockVolumes` | **BlockYard** | `PIE-HEX-VIZ-BLOCCHI` ⚠️ *senza prefisso `PIE-VIS-`, come `PIE-PC-GYM`* | i **tre** casi in fila — solo-movimento, entrambi, solo-vista — con `entrambi` in mezzo perché il confronto si fa col vicino |
 | `Visual.Map.SightWallIsWalkable` | mapRadius | `PIE-VIS-SIGHTWALL` | la cella che nega il tiro **e si attraversa**: porta la lastra **senza** la colonna, ed è l'unico banco in cui la lastra si giudica da sola |
 | `Visual.Map.TwoLayersSameColumn` | TestArena | `PIE-VIS-TWOLAYERS` | due unità sulla **stessa colonna**, piani diversi: si vedono **entrambe**, e a quote diverse |
+| `Visual.Map.LayerStack` | **LayerStack** | `PIE-CAM-STRATEGIC-PIANI` ([#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678)), poi la voce di [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) | tre piani **sovrapposti**, con un'unità propria **sotto** ogni piano più alto: la separazione in strategica, e quale piano è attivo |
 | `Visual.Movement.Charge` | r4 | `PIE-VIS-CHARGE` | la carica si legge diversa dal passo |
 | `Visual.Movement.RoughRefusesCharge` | RelayLite | `PIE-VIS-ROUGH` | un rifiuto è **muto**: non deve accadere niente |
 | `Visual.Reaction.Deflection` | r4 | `PIE-VIS-DEFLECT` | 22 diventano 2 — una difesa, non un attacco debole |
@@ -518,6 +519,18 @@ al campo `previewUnit`. Non la rende automatica — l'oracolo resta l'occhio —
 che è la parte che fa saltare le sedute. Dove un allestimento del genere è possibile e non c'è, è lavoro
 utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 `Scenario.PreviewUnitDoesNotChangeTheOutcome`.
+
+**La finestra di reazione si apre al giocatore solo con `playerReactionWindows`** ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634)). Nell'auto-run
+il ramo dello scenario esce dal `BeginPlay` del GameMode prima di `HookReactionWindow`, quindi senza la chiave una
+guardia di un'unità non-bot esce `NoDecider` e a schermo non compare niente. Con la chiave la sessione aggancia il
+view model del controller che guarda e lo sgancia al teardown; uno slot già legato resta di chi l'ha legato.
+⚠️ **Non è presentazione pura come `previewUnit`**: in PIE risponde il giocatore, e il TurnLog porta `Timeout` o
+`Chosen` dove headless c'è `NoDecider`. Le `expect` di uno scenario che la dichiara devono valere per ogni risposta,
+e la premessa — che la finestra si apra davvero — la prova `Scenario.PlayerReactionWindowsOpenToTheController`. Il
+loader la rifiuta con `decisions` e con `freeRun`. ⛔ **E la finestra si apre per ogni proprietario non-bot,
+anche avversario**: in partita la squadra avversaria è del bot e il caso non esiste, in uno scenario sì. Uno scenario
+con la chiave arma reazioni solo sulla squadra di chi guarda, o dà al bot quelle dell'altra. Il primo banco è
+`Visual.Reaction.OverwatchWindow`.
 
 ---
 

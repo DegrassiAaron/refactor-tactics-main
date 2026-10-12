@@ -27,7 +27,7 @@ e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
 | Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` + `Content/RT/UI/DA_IconCatalog.uasset` | 🟡 esiste, **indietro di una chiave** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)); il consumo dai widget è [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) |
 | Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
-| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono e sono montati** — vedi §2 e §3. `WBP_RT_EventLog` ha radice, contenitore e grafo (#2784, `a7c189f9`) ed è montato dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) — in `Zone_MiddleRight` dal rimontaggio del 2026-09-12, `ZoneRight` prima |
+| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono e sono montati** — vedi §2 e §3. `WBP_RT_EventLog` ha `LogRoot`, `LinesBox` e `LineClass` dalla seduta `U77`, e le righe le costruisce `RefreshLook` (prima un grafo, da #2784 `a7c189f9`); è montato dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) — in `Zone_MiddleRight` dal rimontaggio del 2026-09-12, `ZoneRight` prima |
 
 > 🔁 **Corretto il 2026-09-09.** Due righe di questa tabella descrivevano come futuro ciò che è già in
 > `main`, misurato su `a897de28`. **(1)** *«Catalogo icone — il `.uasset` no»*: `Content/RT/UI/DA_IconCatalog.uasset`
@@ -95,9 +95,28 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 ## 3. Il layout di `WBP_RT_TacticalHUD`
 
-Le zone stanno sulla griglia 3×3 **meno il centro**, a fasce 20% / 60% / 20% su entrambi gli assi: le tre
-celle alte, le due di mezzo e **la fascia bassa intera**. La cella di mezzo è definita da ciò che **non**
-contiene.
+Le zone stanno su **quattro fasce attorno alla scena**: le tre celle alte, le due di mezzo e **la fascia bassa
+intera**. La scena 3D si rende **solo** nel rettangolo che le fasce lasciano libero ([D-497](../../decisions/RT_PDR_00_Decision_Log.md),
+[#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): fuori c'è l'HUD, e un click lì non raggiunge il mondo.
+
+🔑 **Le fasce sono un dato di runtime, in unità Slate**: `FRTHudBands` in `Source/RefactorTactics/UI/RTHudLayout.h`.
+Sono la misura dei loro inquilini, e a 1920×1080 valgono le frazioni di D-497.
+
+| Fascia | Unità Slate | A 1920×1080 | Chi la misura |
+|---|---|---|---|
+| sinistra (`Left`) | 384 | 20% | roster e scheda finiscono a x=380 |
+| destra (`Right`) | 368,64 | 19,2% | il registro e il badge accanto a `Conferma` cominciano a x=1556 |
+| alta (`Top`) | 205,2 | 19% | testata e `Conferma` |
+| bassa (`Bottom`) | 183,6 | 17% | il dock comincia a y=903 |
+| cella alta della colonna sinistra (`LeftTop`) | 267 | 24,7% | il roster: 259 con tre unità, 201 con due, misurato da `ScreenHud.TenantsFitTheirBands` |
+
+⚠️ **La colonna sinistra ha il suo taglio** (decisione d'autore del 2026-10-11, [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): il roster vero non
+sta nella fascia alta al 19% (201 contro 197 già con le due unità del formato della v0.1), quindi prende la sua
+altezza, e la scheda parte sotto. La colonna è tutta fascia: la scena non cambia.
+
+🔑 **A un'altra risoluzione le fasce restano le stesse in unità Slate**, e la scala dell'interfaccia di UE
+(`ShortestSide`) le porta in pixel: a 1280×800 la sinistra vale circa il 22,2% e la destra il 21,3%, a 2560×1080
+il 15% e il 14,4%. Lo prova `ScreenHud.SceneRectComesFromTheBandsAndTheUiScale`.
 
 ⌫ *Dal 2026-09-12 al 2026-10-04 le zone erano **otto**: anche la fascia bassa aveva tre celle, `BottomLeft`,
 `BottomCenter` e `BottomRight`. [D-456](../../decisions/RT_PDR_00_Decision_Log.md) le ha unite in
@@ -110,35 +129,49 @@ ancorate ai bordi. Non è una rinomina: `MiddleLeft` e `BottomLeft` sono due cel
 un solo `BOTTOM`, e **Selected Unit cambia fascia**.*
 
 ```text
-        0.0        0.2                    0.8        1.0
-   0.0  ┌──────────┬──────────────────────┬──────────┐
-        │ TopLeft  │     TopCenter        │ TopRight │   20%   0 .. 216 px
-   0.2  ├──────────┼──────────────────────┼──────────┤
-        │ Middle   │      ⛔ CENTRO        │  Middle  │
-        │ Left     │      keep-out        │  Right   │   60%   216 .. 864 px
-   0.8  ├──────────┴──────────────────────┴──────────┤
-        │                 Bottom                     │
-        │      (la barra dei comandi, D-456)         │   20%   864 .. 1080 px
-   1.0  └────────────────────────────────────────────┘
-             20%            60%               20%
+   a 1920×1080, in unità Slate (= pixel)
+        0         384                  1551.36      1920
+     0  ┌──────────┬──────────────────────┬──────────┐
+        │ TopLeft  │     TopCenter        │ TopRight │   fascia alta   0 .. 205,2
+        │ (roster) ├──────────────────────┼──────────┤
+   267  ├──────────┤                      │          │
+        │ Middle   │   SCENA 3D           │  Middle  │
+        │ Left     │   (l'unico posto     │  Right   │
+        │ (scheda) │    in cui si rende)  │ (registro│
+ 896,4  ├──────────┴──────────────────────┴──────────┤
+        │                 Bottom                     │   fascia bassa  896,4 .. 1080
+        │      (la barra dei comandi, D-456)         │
+  1080  └────────────────────────────────────────────┘
 ```
 
-🔑 **I tagli a 0.2 e 0.8 non sono una scelta estetica**: il keep-out di `PanelsLeaveTheCenterFree` è il 60%
-centrato (`RTCenterFree::CenterFraction`), quindi il centro libero **è** la cella di mezzo di questa griglia.
+⌫ *Fino al 2026-10-11 la griglia era 20% / 60% / 20% su entrambi gli assi, con la 3D a tutto schermo **sotto** le
+zone e il «centro libero» come riquadro da non coprire (`CenterFraction`). [D-497](../../decisions/RT_PDR_00_Decision_Log.md) ha portato la scena fra le
+fasce ([#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)).*
 
-Ogni zona è un'istanza di `WBP_RT_HudZone` figlia **diretta** del `Canvas Panel` radice, con anchor stirati
-su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inquilino sta nel suo
-`NamedSlot Content`.
+Ogni zona è un'istanza di `WBP_RT_HudZone` figlia **diretta** del `Canvas Panel` radice, con `Size To Content`
+**spento**. L'inquilino sta nel suo `NamedSlot Content`.
 
-| Zona | Anchors Min → Max | Contiene oggi | Owner del comportamento |
+🔴 **Anchor e offset delle zone li scrive il C++, all'avvio dell'HUD**: `URTTacticalHUDWidget::ApplyBandLayout`, da
+`NativeConstruct`, con `RTHudLayout::ZoneLayout`. Le zone d'angolo sono ancorate al loro angolo con una misura fissa
+in unità Slate, quelle di mezzo stirate sull'asse lungo, e ognuna si stacca di 4 dai bordi della sua cella. ⚠️ **Gli
+anchor salvati nell'asset non contano più**: il Designer mostra ancora la griglia a frazioni finché qualcuno non
+risalva l'asset, e una zona trascinata lì torna al suo posto in partita. I test misurano la posa del dato, non
+l'asset (`ScreenHud.ZoneRectanglesMatchTheBands`, `ScreenHud.PanelsLeaveTheSceneFree`).
+
+🔑 **Chi rende la scena nel rettangolo**: `URTGameViewportClient`, registrato in `Config/DefaultEngine.ini`
+(`GameViewportClientClassName`). Sovrascrive `LayoutPlayers` e scrive `Origin`/`Size` del giocatore **mentre l'HUD
+tattico è montato**; proiezione, deproiezione e `ProjectWorldLocationToScreen` lo seguono da sé, perché passano da
+`ULocalPlayer::GetProjectionData`.
+
+| Zona | Posto (dal dato, in unità Slate) | Contiene oggi | Owner del comportamento |
 |---|---|---|---|
-| `Zone_TopLeft` | (0.0, 0.0) → (0.2, 0.2) | `WBP_RT_TeamRosterLeft` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
-| `Zone_TopCenter` | (0.2, 0.0) → (0.8, 0.2) | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
-| `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64` | `progettazione-hud.md` §6.8 |
-| `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `WBP_RT_UnitCard`) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
-| `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
-| `Zone_Bottom` | (0.0, 0.8) → (1.0, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
-| *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+| `Zone_TopLeft` | angolo in alto a sinistra, `Left` × `LeftTop` | `WBP_RT_TeamRosterLeft`; la resa della tavola dalla seduta `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
+| `Zone_TopCenter` | fra le colonne, alta `Top` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
+| `Zone_TopRight` | angolo in alto a destra, `Right` × `Top` | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
+| `Zone_MiddleLeft` | colonna sinistra, da `LeftTop` alla fascia bassa | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
+| `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `Zone_Bottom` | tutta la larghezza, alta `Bottom` | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md); in coda alla riga del dock, l'indicatore del piano «Piano N di M» con ▲/▼ ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), §7-septies) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
+| *la scena* | il rettangolo fra le fasce | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — la 3D si rende solo qui, con il Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
 🎨 **Il bordo da cantiere si spegne quando il contenuto arriva**, ed è il contratto di `bBlockoutVisible`
 (`RTHudZoneWidget.h`): ogni istanza di `WBP_RT_HudZone` nasce col bordo colorato, e lo si spegne **sull'istanza**
@@ -156,7 +189,7 @@ scritto perché la correzione non si legga come se il difetto non ci fosse mai s
 |---|---|
 | **Anchors** | preset **centro** — `(0.5, 0.5)` → `(0.5, 0.5)` |
 | **Alignment** | `0.5, 0.5` — ⚠️ **senza, al centro finisce l'ANGOLO del widget** |
-| **Position X / Y** | `0, 0` |
+| **Position X / Y** | **scritta dal C++**: `((Left − Right)/2, (Top − Bottom)/2)`, cioè il centro della **scena** e non dello schermo ([D-497](../../decisions/RT_PDR_00_Decision_Log.md) (5)). Costante in unità Slate: circa `(7.7, 10.8)` |
 | **Size** | `600 × 200` |
 | **ZOrder** | `10` — sopra le zone |
 
@@ -166,8 +199,8 @@ menu `Bind` della HUD non lo offre. Il binding vive **dentro** `WBP_RT_FastDecis
 `RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes` lo pinna. L'istanza nella HUD resta
 visibile: è il suo **contenuto** a collassare, ed è quello che si vede a schermo.
 
-⚖️ **L'esenzione dal centro libero è dichiarata, non silenziosa.** `ScreenHud.PanelsLeaveTheCenterFree` la
-concede per **classe** e **solo** per il criterio del centro: `AutoSize` e fuori-viewport restano misurati
+⚖️ **L'esenzione dalla scena libera è dichiarata, non silenziosa.** `ScreenHud.PanelsLeaveTheSceneFree` la
+concede per **classe** e **solo** per il criterio della scena, e verifica che la finestra sia centrata sulla scena: `AutoSize` e fuori-viewport restano misurati
 anche sulla finestra, e una seconda istanza esente è un rosso. La ragione è che `progettazione-hud.md`
 §3.1 vieta ciò che occupa il centro **permanentemente**, mentre §47-bis.2 vuole il countdown al centro e
 non come «animazione periferica».
@@ -178,10 +211,12 @@ apre è una prova di partita, non d'albero — [#3047](https://github.com/Degras
 ✅ **Due gate nuovi guardano questa griglia dal 2026-09-12**, e chiedono cose diverse:
 `RefactorTactics.ScreenHud.TheZonesAreDeclaredExactlyOnce` (⌫ *`TheEightZones…` fino al 2026-10-04*) — c'è una zona per ogni valore di
 `ERTHudZone`, nessuna mancante e nessuna doppia — e
-`RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`, che ricalcola il rettangolo di ogni
-zona con la formula di `SConstraintCanvas::OnArrangeChildren` e lo confronta con la sua cella. Il secondo
-esiste perché `PanelsLeaveTheCenterFree` è un gate **negativo**: dice che nessuna zona invade il centro, e
-passerebbe con tutte le zone schiacciate in un angolo.
+`RefactorTactics.ScreenHud.ZoneRectanglesMatchTheBands` (⌫ *`…ThreeByThreeGrid` fino al 2026-10-11*), che posa
+le zone dal dato su una copia dell'albero, ricalcola il rettangolo di ogni zona con la formula di
+`SConstraintCanvas::OnArrangeChildren` a quattro risoluzioni e lo confronta con la sua cella. Il secondo esiste
+perché `PanelsLeaveTheSceneFree` è un gate **negativo**: dice che nessuna zona invade la scena, e passerebbe con
+tutte le zone schiacciate in un angolo. Il terzo, `ScreenHud.TenantsFitTheirBands`, costruisce l'HUD vero in uno
+scenario e verifica che ogni inquilino entri nella sua cella.
 
 > 🔴 **Per un giorno il diagramma e la colonna «contiene oggi» hanno descritto un albero che il `.uasset`
 > non conteneva, e la ragione va ricordata perché è ripetibile.** `cc5ca967` — il commit che dichiarava
@@ -297,16 +332,43 @@ potrebbe mostrarne una disallineata dalle altre.
 
 ## 5. I tre stati del contatore di round
 
-`WBP_RT_TurnHeader` deve mostrare **tre** cose diverse, e due si confondono:
+`WBP_RT_TurnHeader` deve mostrare **tre** cose diverse, e due si confondono. Dalla seduta `U75` le decide
+`RefreshLook`, nelle porte `RoundValueText` e `RoundLimitText`; la tabella dice la regola, il testo a schermo è
+quello della tavola A («ROUND 04 / 12»):
 
 | Stato | Testo | Perché |
 |---|---|---|
-| nessun contesto | `—` | un widget costruito prima del `TurnManager`; `Round 0` sembrerebbe un dato |
-| formato con limite | `Round 3/12` | il limite viene dal **formato**, mai da una costante |
-| formato senza limite | `Round 3` | `RoundLimit == 0` = «nessun limite», **non** «su zero» |
+| nessun contesto | `—` in `RoundValueText`, il limite `Collapsed` | un widget costruito prima del `TurnManager`; `Round 0` sembrerebbe un dato |
+| formato con limite | `03` e `/ 12` | il limite viene dal **formato**, mai da una costante |
+| formato senza limite | `03`, il limite `Collapsed` | `RoundLimit == 0` = «nessun limite», **non** «su zero» |
 
-`GetRoundCounterText()` li decide già tutti e tre: **usa quella**, non comporre il testo nel Blueprint. Un
-binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
+Non comporre il testo nel Blueprint: un binding ingenuo stampa `/ 0`, che si legge come una partita già
+scaduta. `GetRoundCounterText()` applica la stessa regola in un testo solo (`Round 3/12`, `Round 3`) per chi lo
+vuole intero, come la riga di stato del Canvas.
+
+⌫ *Fino alla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) l'asset legava `RoundText` a `GetRoundCounterText`. La tavola A spezza il contatore
+in `RoundValueText` e `RoundLimitText`, che scrive `RefreshLook` con la stessa regola: il limite è `Collapsed` se
+`RoundLimit` è 0. `GetRoundCounterText` resta per chi vuole il contatore in un testo solo.*
+
+### Le porte della resa delle tavole A e D ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635))
+
+Tutte `BindWidgetOptional` su `URTTurnHeaderWidget`, scritte a ogni tick da `RefreshLook`; la presenza dell'obiettivo
+si rilegge dalla mappa una volta al secondo. La seduta `U75` ha tolto i binding di proprietà di prima, e
+`RoundLimitComesFromTheFormat` cade se ne torna uno: sarebbe una seconda fonte dello stesso testo.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `HeaderFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Panel` al 92%, contorno `Frame_Deep` di 1 px |
+| `RoundValueText` · `RoundLimitText` | `TextBlock` | il round a due cifre; «/ 12», `Collapsed` se il formato non ha limite |
+| `PlanningGroup` · `ResolutionGroup` | qualunque widget | uno solo visibile: il primo in Pianificazione, il secondo in Risoluzione |
+| `PhaseText` · `PhaseMark` | `TextBlock` · `Border` | la fase logica in maiuscolo, in `Cyan`, da `URTHudViewModel::ComposePhaseWord`; il quadrato col contorno `Cyan` |
+| `TimerText` | `TextBlock` | `00:21`, da `SecondsUntilCommit`: il commit, non il Planning. Vuoto se nessun orologio corre |
+| `PhaseCell_*` · `PhaseCellMark_*` · `PhaseCellText_*` | `Border` · `Border` · `TextBlock` | per `Prep`, `Dash`, `Blast`, `Move`: attiva la fase **riprodotta** ([D-479](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `ObjectiveBox` · `ObjectiveScoreText` · `ObjectiveThresholdText` | widget · `TextBlock` · `TextBlock` | solo se la mappa dichiara un obiettivo ([D-481](../../decisions/RT_PDR_00_Decision_Log.md)): «2–1», squadra 0 – squadra 1; «(a 3)», `Collapsed` se la soglia è 0 |
+
+🔑 **La cella attiva cambia FORMA, non solo colore.** Il segno diventa pieno e quadrato con un contorno bianco;
+spento resta vuoto, tondo e più piccolo (una scala di render, che non sposta il layout). In scala di grigi la
+forma è ciò che resta. Il segno lo rende `RoundedBox` il C++ stesso, qualunque cosa dica l'asset.
 
 ---
 
@@ -401,6 +463,21 @@ bersaglio**»*, ma l'unico riferimento che il DTO porta è `TargetSnapshotIndex`
 `MakeCurrentSnapshot`, che scarta i morti. Risolverlo su un roster nominerebbe **l'unità sbagliata** in ogni
 partita in cui qualcuno è già caduto. Mostrare un nome richiede che il **produttore** lo metta nel DTO;
 finché non c'è, non inventarlo nel Designer.
+
+### Le porte della resa della tavola E ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634))
+
+Tutte `BindWidgetOptional`: il C++ le scrive a ogni tick in `RefreshLook`, coi colori di `URTUIPalette`. Senza di
+loro la finestra resta quella dei tre binding qui sopra, che **non si toccano**.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `WindowFrame` | `Border` (`RoundedBox`) | fondo `BG_Deep`, contorno `White` di 2 px. ⚠️ Tinta del brush **bianca**: il fondo è `BrushColor` (§7-quater) |
+| `AccentStrip` | `Border` | `BrushColor` `Violet`: la striscia a sinistra |
+| `CountdownBar` | `ProgressBar` | la frazione di `Get Countdown Fraction`, riempimento `White`. Il fondo della barra (`Frame_Off`) sta nell'asset |
+| `SafeOutcomeText` | `TextBlock` | «Allo scadere: HOLD», da `Get Safe Outcome Text` |
+
+Due letture nuove: **`Get Countdown Fraction`**, il residuo autorevole sulla durata (da 1 a 0, negativo senza
+finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND».
 
 ### Le quattro regole, e perché
 
@@ -543,6 +620,18 @@ grafo a decidere tre cose che non deve toccare:
 grafo, ed è voluto: un percorso di `Content/` scritto in C++ sarebbe un riferimento duro a un `.uasset`
 dentro il modulo, che nessun altro widget di questo progetto ha.
 
+### Le porte dell'opzione ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634))
+
+Scritte da `SetOption` **prima** di `On Option Changed`, quindi il grafo le trova già al loro posto. `LabelText` resta
+del grafo.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `OptionFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Raised`; contorno `Frame_Mid` di 1 px, `Text_Primary` di 2 px sulla scelta sicura |
+| `KeyText` | `TextBlock` | il tasto ([D-491](../../decisions/RT_PDR_00_Decision_Log.md)): `1`, `2`…, in `Text_Primary` |
+| `DescriptionText` | `TextBlock` | la frase della risposta, in `Text_Secondary` |
+| `SafeChoiceBadge` | qualunque widget | visibile solo sulla scelta sicura: il chip «SCELTA SICURA». Sta in `LabelRow`, accanto all'etichetta, e non in una terza colonna (§7-quater) |
+
 ### 🔴 Le tre regole che il C++ non può importi
 
 **1. Ricostruisci SOLO su `On Window Changed`, mai su `Tick`.**
@@ -576,6 +665,182 @@ consumo dentro un event graph — è l'errore che `ActionDockConsumesArmedIndex`
 scritto in `RTMatchWidgetAssetTests.cpp`. Ciò che il grafo fa davvero si guarda in **`PIE-V01-OVERWATCH`**.
 
 ---
+
+## 7-quater. Le cornici che dipinge il C++, e i glifi
+
+Regole misurate nelle sedute `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) su `WBP_RT_PlanCommit`, `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) su `WBP_RT_TurnHeader`, `U76` ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636)) su roster e pannello, e `U74` ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634)) su `WBP_RT_FastDecisionOption`.
+Nessun gate sull'albero le vede: si scoprono solo a schermo.
+
+- 🔴 **Una cornice che il C++ dipinge ha la tinta del brush BIANCA.** `RTPaintFrame` scrive il fondo in `BrushColor`, e
+  Slate lo moltiplica per `Background.TintColor`. Se nell'asset la tinta e' gia' il colore di fondo, il fondo esce
+  quasi nero (misurato `(0,0,1)` al posto di `BG_Panel`). Le cornici che il C++ non tocca, come i badge statici,
+  portano invece il colore nella tinta.
+- 🔑 **I glifi (✔ ✖ ▲ ◆ ●) vogliono la Roboto dell'engine.** `/Engine/EngineFonts/Roboto` ha `DroidSansFallback` come
+  typeface di ripiego, e quello ha i glifi. I font del progetto (`F_RT_Exo2_*`, `F_RT_Orbitron_*`) hanno un solo
+  typeface e nessun ripiego: con loro un glifo assente diventa un quadrato vuoto. Le lettere restano in Exo 2 e
+  Orbitron.
+- 🔴 **Una cornice che il C++ dipinge con un fondo trasparente o traslucido vuole `bUseBrushTransparency` SPENTO**
+  (`U75`). Acceso, l'alfa del `BrushColor` vale anche per il contorno. Il segno della fase, dipinto con fondo
+  trasparente e contorno `Cyan`, a schermo non c'era; con un fondo al 20% o al 92% il contorno si attenua allo stesso
+  modo. Vale per il segno della fase, per tutte le celle e i loro segni, e per `HeaderFrame`.
+- 🔑 **L'area di una zona alta parte da y=−1.** Per mettere un riquadro alla y della tavola, la radice vuole un pixel
+  in più: 25 per stare a 24. Misurato in `U72` e in `U75`.
+- ✅ **Una radice `Visible` che riempie la zona non mangia i click della mappa** (`U75`). Il click che nessun widget
+  gestisce risale al viewport: dentro `TopCenter`, fuori dal riquadro, pianifica il percorso.
+- 🔑 **Esagoni no.** Nessun font dell'engine ha U+2B21–U+2B23: lo dice la `cmap` di `Roboto-*` e `DroidSansFallback`.
+  Un'icona d'obiettivo passa dal catalogo ([D-031](../../decisions/RT_PDR_00_Decision_Log.md)).
+- 🔑 **I glifi geometrici sono circa 0,6 em.** Per un triangolo di 16–20 px il ▲ vuole 24–27 (in `U72` a 32 per il badge).
+  Il segno («!», «✕», «i») va centrato col glifo nella scatola naturale del glifo. Un `SizeBox` stretto attorno ai due
+  sposta il glifo in basso e il segno ne esce (`U76`).
+- 🔴 **Un default di classe scritto sul CDO non arriva alle istanze già caricate** (`U76`). `CardClass` scritto sul CDO
+  di `WBP_RT_TeamRoster` lasciava nullo il roster dentro il TacticalHUD in memoria, e il roster usciva vuoto. ⛔ **Non
+  salvare il contenitore in quello stato**: il nullo diventerebbe un override scritto. Chiudi l'Editor senza salvarlo e
+  riaprilo. `RosterAndPanelWearTheirClasses` vede l'override nullo una volta salvato. Lo stato in memoria non si
+  riproduce in un processo fresco, e lo si vede solo a schermo.
+- 🔴 **I testi veri sono piu' lunghi di quelli della tavola: si misura con loro** (`U74`). La tavola scrive «Non
+  attaccare»; il catalogo (`RTReactionResponseText.cpp`) scrive «Non spari: lasci passare il bersaglio.», e «Hold
+  Ground» e' piu' lungo ancora. Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
+  Il badge della scelta sicura e' salito nella riga dell'etichetta, la descrizione va a capo, e l'altezza
+  dell'opzione e' un minimo, non un valore fisso.
+
+## 7-quinquies. Roster, carta e pannello: le porte della tavola ([#3636](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3636))
+
+Tre cose cambiano forma, non solo colore:
+- la carta del roster ha una classe C++, `URTUnitCardWidget`;
+- il roster costruisce le carte in C++;
+- il pannello scrive chip e avvisi dalle sue porte.
+
+Il grafo che costruiva le carte **è stato tolto nella seduta `U76`**, insieme al riparentamento di `WBP_RT_UnitCard`.
+
+### `WBP_RT_UnitCard` → `URTUnitCardWidget`
+
+La carta **riceve** la vista (`SetCard`, solo C++) e non va a prenderla. Le porte:
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `CardFrame` | qualunque widget | opacità piena da viva, ridotta da caduta |
+| `TeamDot` | `Border` | `Cyan` per un'alleata, `Red` per un'avversaria |
+| `NameText` | `TextBlock` | il nome leggibile, `FRTUnitCardView::DisplayName`: mai l'id grezzo |
+| `ReactionChip` | qualunque widget | visibile solo con una reazione armata ([D-478](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `HealthBar` · `HealthText` | `ProgressBar` · `TextBlock` | riempimento `Cyan`; «90/90» |
+| `ShieldText` | `TextBlock` | lo scudo, in `Text_Secondary` |
+
+### `WBP_RT_TeamRoster`
+
+`CardsBox` (un pannello) e, nei default, `CardClass` = `WBP_RT_UnitCard_C`, come `TooltipClass` dello slot. Senza
+`CardClass` il roster non costruisce niente; `CardsBox` e `OpposingCardsBox` si riempiono indipendentemente, e vanno
+tenuti distinti, perché un pannello condiviso mescolerebbe l'ordine delle due liste. Le carte si **riusano** da un
+tick all'altro.
+
+`OpposingCardsBox` (un pannello) riceve le carte delle altre squadre, da `GetOpposingRoster()`: vuoto in sessione
+presidiata, pieno solo in autobattle (#2744). Il chip `REAZ.` vi resta spento per costruzione (D-478 punto 4). ⚠️ Era
+il secondo ciclo del grafo, che scriveva in `OpposingBox`: togliendo il grafo senza questa porta, le carte avversarie
+spariscono dall'autobattle senza che nessun test cada.
+
+🔴 **Le carte avversarie hanno il pallino `Red`.** Fino al seguito C++ di #3636 `GetOpposingRoster` le costruiva con
+`BuildTeamRoster(Units, TeamId)`, che usa la squadra elencata anche come punto di vista: ogni avversaria risultava
+«alleata». Il vecchio `WBP_RT_UnitCard` non aveva il pallino, e l'errore non si vedeva.
+
+### `WBP_RT_SelectedUnitPanel`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `SubjectCard` | `WBP_RT_UnitCard` (`URTUnitCardWidget`) | la carta del soggetto, comandato o ispezionato, da `GetCard()`; il chip `REAZ.` solo dal piano della comandata. Prima la scriveva il grafo nella variabile Blueprint `Card` |
+| `PlanChipsBox` | qualunque widget | i tre chip; `Collapsed` per un'unità ispezionata e in Risoluzione. ⛔ Chiuso, non «—»: tre «—» direbbero «non ha pianificato» |
+| `Main`/`Movement`/`ReactionChipFrame` | `Border` (`RoundedBox`, tinta bianca) | fondo `BG_Raised`; contorno `Frame_Off`, `Amber` se l'azione ha un avviso |
+| `…ChipStrip` | `Border` | il colore della fase dell'azione (`SlotPhaseMark`), trasparente se libero |
+| `…ChipValueText` | `TextBlock` | il nome dell'azione, o «—» in `Text_Disabled` |
+| `…ChipAlert` | qualunque widget | il «!»: visibile solo se un avviso nomina quell'azione |
+| `PlanWarningsBox` | un pannello | le voci degli avvisi; `Collapsed` senza avvisi |
+
+Nei default, `PlanWarningEntryClass` è la classe delle voci, `URTPlanWarningEntryWidget`. Le sue porte sono:
+- `EntryFrame`;
+- `LevelGlyphText`, con la forma del livello in Roboto dell'engine, ◆ ▲ ● (§7-quater);
+- `LevelMarkText`, ✕ ! i;
+- `LevelText`, «CRITICAL», «WARNING», «INFO»;
+- `WhatText`, `WhyText` e `CostText`.
+
+⚠️ **Gli avvisi si ricontano a 5 Hz**, come il contatore di `Conferma`: `GetPlanWarnings` rifà il validatore e
+l'anteprima del Blast. Due eccezioni non aspettano il giro:
+- in Risoluzione, o per un'unità ispezionata, l'elenco si svuota subito;
+- se cambia l'unità comandata, si riconta subito.
+
+Anche il chip `REAZ.` delle carte si riconta a 5 Hz, mentre i PV seguono a ogni tick.
+
+🔑 **Ogni avviso accende il «!» di un chip solo** (`URTHudViewModel::ChipForWarning`):
+- la principale, se ne nomina l'azione;
+- la reazione, se nomina la sua;
+- altrimenti il movimento. Ci finiscono anche le voci che `MakePlanFor` aggiunge dal core e che lo slot non nomina.
+
+## 7-sexies. Il registro: le porte della tavola D ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637))
+
+Il registro compare **solo in Risoluzione** ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). Le righe le costruisce il C++ da una classe
+nei default, come le carte del roster. Il grafo che le costruiva è stato tolto nella seduta `U77`, insieme al
+riparentamento di `WBP_RT_EventLine`.
+
+### `WBP_RT_EventLog`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `LogRoot` | qualunque widget | `Collapsed` fuori dalla Risoluzione |
+| `LogTurnText` | `TextBlock` | «ROUND 04», accanto a «REGISTRO»: la parola dell'header ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 1) |
+| `LinesBox` | un pannello | una riga per voce di `GetFeed()`, riusate da un tick all'altro |
+
+Nei default, `LineClass` = `WBP_RT_EventLine_C`. Senza `LinesBox` o senza `LineClass` il registro non costruisce
+niente.
+
+### `WBP_RT_EventLine` → `URTPlayerEventLineWidget`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `PhaseStrip` | `Border` | il colore della fase della riga ([D-233](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `PhaseLabelText` | `TextBlock` | «BLAST», la sigla della fase |
+| `SequenceText` | `TextBlock` | «#3» |
+| `ReactionBadge` | qualunque widget | il chip `REAZ.`: solo su una reazione scattata |
+| `LineText` | `TextBlock` | la frase |
+
+🔴 **Il «#n» è la posizione nel feed GIÀ FILTRATO per chi guarda**, non l'indice della voce nel TurnLog. Un indice
+globale lascerebbe buchi dove stanno gli eventi nascosti, e i buchi direbbero quanti sono: lo stesso genere di
+metadato che #2757 vieta per gli slot. Lo misura `Privacy.EventFeedNewFieldsRevealNothingHidden`. Lo stesso log,
+con e senza le voci nascoste, dà a chi guarda le stesse righe, campo per campo, anche con una voce nascosta della
+stessa unità e con una cella d'ambiente nascosta.
+
+⚠️ **Quattro cose da sapere prima della seduta**:
+- le righe si costruiscono solo in Risoluzione, e il feed si rilegge a 5 Hz, subito all'ingresso;
+- la riga d'ambiente aggrega più celle: la sua striscia è la fase della **prima** cella visibile;
+- il feed è già pieno al primo tick di Risoluzione, perché il resolver risolve tutte le fasi prima del playback.
+  Le righe di Blast e Move compaiono quindi prima che il playback le mostri. La riga corrente evidenziata, che
+  risolverebbe la cosa, chiede l'indice dell'evento riprodotto (T5, #1881);
+- ⏳ `DEFERRED`: la riga «nessun evento» per una fase senza eventi, che la tavola disegna tratteggiata. Il C++ costruisce
+  una riga per voce del feed, e una fase vuota non ha voci.
+
+## 7-septies. L'indicatore del piano nel dock ([#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680))
+
+«Piano N di M» con ▲ e ▼, in coda alla riga del dock (`BarRow`), accanto alla lettura del movimento
+([D-501](../../decisions/RT_PDR_00_Decision_Log.md)).
+
+🔑 **Il C++ lo costruisce, e l'asset non ne sa niente.** `URTActionDockWidget::EnsureLayerIndicator` gira in
+`NativeOnInitialized`, prima che Slate costruisca il dock, e aggiunge l'indicatore al pannello di `MovementReadout`.
+Se `WBP_RT_ActionDock` un giorno dichiarasse le porte qui sotto nel Designer, il C++ non costruirebbe niente e le
+riempirebbe come quelle della lettura del movimento.
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `LayerIndicator` | qualunque widget | `Collapsed` senza mappa e con un piano solo |
+| `LayerIndicatorText` | `TextBlock` | «Piano N di M»: N e M sono ordinali fra i piani che la mappa ha, da 1, non la quota del layer |
+| `LayerUpButton` | `Button` | il click chiama `StepLayerUp()`; disattivato sul piano più alto |
+| `LayerDownButton` | `Button` | il click chiama `StepLayerDown()`; disattivato sul piano più basso |
+
+- ▲ e ▼ **inoltrano a `ARTPlayerController::StepActiveLayer`**, il corpo di `PageUp`/`PageDown`. La vista legge piano
+  attivo e limiti dallo stesso controller (`GetMapLayerRange`), quindi segue anche la tastiera.
+- 🔴 **I tasti non prendono il fuoco della tastiera** (`URTMouseOnlyButton`). Uno `SButton` col fuoco tratta `Spazio`
+  e `Invio` come un click: dopo ▲, il lock-in di `Spazio` avrebbe ripremuto ▲. Se le porte si dichiarano nel Designer,
+  vanno messe con **Is Focusable** spento.
+- Un click sui tasti non arriva al mondo: il dock sta nella fascia bassa, fuori dal rettangolo della scena (§3).
+
+Lo misurano `ScreenHud.LayerIndicatorCountsTheLayersTheMapHas`, `ScreenHud.LayerIndicatorFollowsTheControllerAndItsButtonsStep`,
+`ScreenHud.LayerIndicatorHidesOnASingleLayerMap`, `ScreenHud.DockMountsTheLayerIndicatorBesideTheMovementReadout` e,
+per la fascia, `ScreenHud.TenantsFitTheirBands`.
 
 ## 8. Verifica
 

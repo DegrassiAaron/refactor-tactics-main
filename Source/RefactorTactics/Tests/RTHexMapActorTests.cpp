@@ -9,6 +9,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCoverLibrary.h" // #3687: il muro si abbatte e si erige dal produttore vero
+#include "Map/RTHexDoorLibrary.h"  // #3687: e la porta cambia stato dalla sua libreria
 #include "Map/RTMapVisuals.h"          // RTCellPrismRadius: la scala Z del corpo si legge contro la mesh
 #include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
@@ -16,6 +18,7 @@
 #include "Turn/RTMatchSetupLibrary.h" // MakeTestArena: una board con piu' famiglie popolate
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 #include "RTConsoleVariableGuardForTest.h"
+#include "Map/RTSpawnPoint.h" // #3632: lo spawn da marker resta sulla quota vera dell'asset
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -893,7 +896,9 @@ bool FRTHexMapGridOnByDefaultTest::RunTest(const FString&)
 
 	// Il canale colore per istanza: senza, il velo potrebbe solo NASCONDERE il bordo, e ricordo e
 	// osservazione diventerebbero indistinguibili sul confine ([D-227]).
-	TestEqual(TEXT("porta i tre float del colore, come Cells e i glifi"), Grid->NumCustomDataFloats, 3);
+	// ➕ Sei da #3679: i tre del colore e i tre del trattamento dei piani, che marca il bordo del piano attivo.
+	TestEqual(TEXT("porta i float del colore e del trattamento, come Cells e i glifi"), Grid->NumCustomDataFloats,
+		RTLayerPresentation::NumCustomDataFloats);
 
 	// Il raycast di selezione valida il COMPONENTE: un bordo che rubasse i click darebbe una cella valida e
 	// sbagliata, che e' il difetto di #588.
@@ -2221,6 +2226,577 @@ bool FRTHexMapActorPlaybackCueChannelTest::RunTest(const FString&)
 	Actor->SetPlaybackCues({});
 	TestEqual(TEXT("una consegna vuota e' un canale vuoto"), Actor->NumPlaybackCues(), 0);
 	TestFalse(TEXT("e spegne il Tick, ultimo canale acceso"), Actor->IsActorTickEnabled());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// #3632 — la separazione dei piani nella vista strategica: sola presentazione.
+// ---------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Due celle sul piano terra e una sul piano 1, sopra la prima: abbastanza per misurare la quota. */
+	URTHexMapAsset* RTDuePiani()
+	{
+		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 0)));
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 1)));
+		Asset->SortCells();
+		return Asset;
+	}
+
+	/** Le quote Z delle istanze di `Cells`, ordinate: l'ultima e' il piano 1. */
+	TArray<float> RTQuoteCelle(const ARTHexMapActor* Actor)
+	{
+		TArray<float> Z;
+		for (const FTransform& Xf : InstancesOf(Actor, TEXT("Cells"))) { Z.Add(static_cast<float>(Xf.GetLocation().Z)); }
+		Z.Sort();
+		return Z;
+	}
+
+	bool RTQuoteUguali(const TArray<float>& A, const TArray<float>& B)
+	{
+		if (A.Num() != B.Num()) { return false; }
+		for (int32 I = 0; I < A.Num(); ++I) { if (!FMath::IsNearlyEqual(A[I], B[I], 0.5f)) { return false; } }
+		return true;
+	}
+}
+
+/**
+ * Il valore dell'autore: la separazione vale 2, scelta in isometrica sulle catture della seduta PIE `U81` (#3678, D-501), dopo il 3
+ * della seduta `U78` (#3632). Esiste perche' un default cambiato per sbaglio non lo direbbe nessun altro test: tutti gli altri
+ * dichiarano il valore che misurano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationDefaultTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationDefaultIsTheAuthorsChoice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationDefaultTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("la separazione scelta dall'autore (U81)"), GetDefault<ARTHexMapActor>()->StrategicLayerSeparation, 2.f);
+	return true;
+}
+
+/** Con la separazione a 1 il cambio di vista non tocca niente: nessuna ricostruzione, stesse quote. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationNeutralTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationAtOneIsNeutral",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationNeutralTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const TArray<float> Prima = RTQuoteCelle(Actor);
+	// Senza una board posata «non ricostruisce» e «stesse quote» passerebbero anche per vacuita'.
+	if (!TestEqual(TEXT("premessa: la board e' posata"), Prima.Num(), 3)) { DestroyMapActorWorld(World); return false; }
+	Actor->SetStrategicLayerSeparationForTest(1.f);
+	TestFalse(TEXT("con la separazione a 1 la vista strategica non ricostruisce"), Actor->SyncStrategicPresentation(true));
+	TestTrue(TEXT("e le quote restano"), RTQuoteUguali(RTQuoteCelle(Actor), Prima));
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	TestEqual(TEXT("il contesto ha la quota dell'asset"), L, Asset->LayerHeight, 0.01f);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Con la separazione accesa i piani si allontanano A SCHERMO, e tornando tattici tornano dove erano.
+ *
+ * 🔑 La quota d'autore non si muove: `GetAuthoringHexContext` resta quella dell'asset, ed e' quella che decide la
+ * cella quando una posizione di mondo diventa una cella autorevole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationLiftsTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationLiftsOnlyThePresentation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationLiftsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const TArray<float> Tattiche = RTQuoteCelle(Actor);
+	if (!TestEqual(TEXT("tre celle posate"), Tattiche.Num(), 3)) { DestroyMapActorWorld(World); return false; }
+	const float SaltoTattico = Tattiche.Last() - Tattiche[0];
+	TestEqual(TEXT("premessa: in tattica il salto e' la quota dell'asset"), SaltoTattico, Asset->LayerHeight, 0.5f);
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	TestTrue(TEXT("in strategica la quota cambia e la board si ricostruisce"), Actor->SyncStrategicPresentation(true));
+	const TArray<float> Strategiche = RTQuoteCelle(Actor);
+	if (TestEqual(TEXT("sempre tre celle"), Strategiche.Num(), 3))
+	{
+		TestEqual(TEXT("il piano terra resta dov'era"), Strategiche[0], Tattiche[0], 0.5f);
+		TestEqual(TEXT("il piano 1 sale a tre volte la quota"), Strategiche.Last() - Strategiche[0], 3.f * SaltoTattico, 0.5f);
+	}
+
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	TestEqual(TEXT("il contesto di presentazione ha la quota separata"), L, 3.f * Asset->LayerHeight, 0.01f);
+	Actor->GetAuthoringHexContext(O, H, L);
+	TestEqual(TEXT("quello d'autore la quota dell'asset"), L, Asset->LayerHeight, 0.01f);
+
+	TestTrue(TEXT("tornando tattici la board si ricostruisce"), Actor->SyncStrategicPresentation(false));
+	TestTrue(TEXT("e le quote tornano quelle di prima"), RTQuoteUguali(RTQuoteCelle(Actor), Tattiche));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Il velo sopravvive alla ricostruzione.** Ricostruire riporta ogni istanza alla scala piena; senza riapplicare
+ * la conoscenza nello stesso giro, una cella mai vista resterebbe disegnata. Verifica di mutazione: tolta la
+ * riapplicazione in `SyncStrategicPresentation`, le celle nascoste cadono a zero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationKeepsTheVeilTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationKeepsTheVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationKeepsTheVeilTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, RTDuePiani());
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	FRTTeamKnowledge K;
+	K.VisibleCells.Add(FRTCellId(0, 0, 0));
+	K.ExploredCells.Add(FRTCellId(0, 0, 0));
+	K.ExploredCells.Add(FRTCellId(1, 0, 0)); // ricordata; (0,0,1) mai vista
+	Actor->ApplyKnowledgeVeil(K);
+	int32 V0 = 0, E0 = 0, H0 = 0;
+	Actor->GetVeilCounts(V0, E0, H0);
+	TestTrue(TEXT("premessa: c'e' una cella mai vista"), H0 > 0);
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	TestTrue(TEXT("la board si ricostruisce"), Actor->SyncStrategicPresentation(true));
+	int32 V1 = 0, E1 = 0, H1 = 0;
+	Actor->GetVeilCounts(V1, E1, H1);
+	TestEqual(TEXT("le celle mai viste restano nascoste"), H1, H0);
+	TestEqual(TEXT("le ricordate restano ricordate"), E1, E0);
+	TestEqual(TEXT("e quelle viste restano viste"), V1, V0);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * Il picking segue la posa: un raggio inclinato verso la cella del piano 1, come la board la POSA, risolve quella
+ * cella col contesto di `GetHexContext`. E' cio' che lega le istanze al contesto: se uno dei due restasse alla quota
+ * vera, il piano d'intersezione sarebbe un altro e il raggio cadrebbe su un'altra colonna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationPickingTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationPickingFollowsThePose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationPickingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, RTDuePiani());
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	Actor->SyncStrategicPresentation(true);
+
+	// Il centro della cella del piano 1 come la board lo POSA, non come lo calcolerebbe il test.
+	FVector Alto(0.f, 0.f, -1.e9f);
+	for (const FTransform& Xf : InstancesOf(Actor, TEXT("Cells"))) { if (Xf.GetLocation().Z > Alto.Z) { Alto = Xf.GetLocation(); } }
+
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	const FVector Dir = FRotator(-40.f, 30.f, 0.f).Vector();
+	const FRTCellId Risolta = URTHexLibrary::ResolveRayToCellOnLayer(Alto - Dir * 2000.f, Dir, O, H, L,
+		/*ActiveLayer=*/ 1, /*bHasValidHit=*/ false, FVector::ZeroVector);
+	TestEqual(TEXT("il raggio verso la cella posata risolve la cella del piano 1"), Risolta, FRTCellId(0, 0, 1));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * ⛔ **Lo spawn da marker resta sulla quota d'autore.** Un marker posato sulla cella (0,0,1) alla quota vera, letto
+ * con la quota separata, cadrebbe sul piano terra: la partita partirebbe con un'unita' sulla cella sbagliata.
+ * Verifica di mutazione: con `GetHexContext` in `ARTSpawnPoint::ResolveCell` il test cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationSpawnTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationLeavesSpawnCellsAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationSpawnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetAuthoringHexContext(O, H, L);
+	ARTSpawnPoint* Marker = World->SpawnActor<ARTSpawnPoint>();
+	if (!TestNotNull(TEXT("marker"), Marker)) { DestroyMapActorWorld(World); return false; }
+	Marker->SetActorLocation(URTHexLibrary::AxialToWorld(FRTCellId(0, 0, 1), O, H, L));
+
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	TestTrue(TEXT("premessa: la vista strategica separa davvero"), Actor->SyncStrategicPresentation(true));
+	FRTCellId Cella;
+	TestTrue(TEXT("il marker si risolve"), Marker->ResolveCell(Actor, Cella));
+	TestEqual(TEXT("sulla cella del piano 1, anche in vista strategica"), Cella, FRTCellId(0, 0, 1));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Una ricostruzione PARZIALE non sposta la quota posata** (review di #3632). La leva cambia in console mentre la
+ * vista e' gia' strategica, e prima del giro successivo il velo ricostruisce il solo disco per inseguire una revisione
+ * dell'asset. Se quella ricostruzione scrivesse la quota nuova, il disco salirebbe da solo, il resto della board no,
+ * e `SyncStrategicPresentation` la crederebbe gia' allineata: board mista per sempre, e unita' mai riposate.
+ * Verifica di mutazione: con la quota scritta da ogni ricostruzione il giro dopo non ricostruisce e il test cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapStrategicSeparationPartialRebuildTest,
+	"RefactorTactics.HexMapActor.StrategicLayerSeparationSurvivesAPartialRebuild",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapStrategicSeparationPartialRebuildTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = RTDuePiani();
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	// La vista e' strategica con la separazione neutra: niente da ricostruire.
+	Actor->SetStrategicLayerSeparationForTest(1.f);
+	TestFalse(TEXT("premessa: neutra, nessuna ricostruzione"), Actor->SyncStrategicPresentation(true));
+	const TArray<float> Prima = RTQuoteCelle(Actor);
+
+	// La leva cambia, e prima del giro dell'HUD il disco si ricostruisce da solo.
+	Actor->SetStrategicLayerSeparationForTest(3.f);
+	Actor->RebuildInstances(ERTRebuildFamily::Cells);
+	TestTrue(TEXT("la ricostruzione parziale lascia il disco alla quota posata"), RTQuoteUguali(RTQuoteCelle(Actor), Prima));
+	FVector O; float H = 0.f; float L = 0.f;
+	Actor->GetHexContext(O, H, L);
+	TestEqual(TEXT("e il contesto dice la quota della board, non quella chiesta"), L, Asset->LayerHeight, 0.01f);
+
+	float Precedente = 0.f;
+	TestTrue(TEXT("il giro dopo ricostruisce tutto e chiede di riposare le unita'"),
+		Actor->SyncStrategicPresentation(true, &Precedente));
+	TestEqual(TEXT("dalla quota a cui erano state posate"), Precedente, Asset->LayerHeight, 0.01f);
+	const TArray<float> Dopo = RTQuoteCelle(Actor);
+	if (TestEqual(TEXT("tre celle"), Dopo.Num(), 3))
+	{
+		TestEqual(TEXT("e il piano 1 e' a tre volte la quota"), Dopo.Last() - Dopo[0], 3.f * Asset->LayerHeight, 0.5f);
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// #3687 — una copertura o una porta che cambia IN PARTITA si ridisegna a fine turno, senza aspettare il `Tab`.
+// ---------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Una board di raggio 1 con una copertura alta su (0,0) verso est: un solo pannello di bordo. */
+	URTHexMapAsset* RTBoardConUnMuro(FRTCellId& OutCella, FRTCellId& OutOltre)
+	{
+		URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+		OutCella = FRTCellId(0, 0, 0);
+		OutOltre = URTHexLibrary::Neighbor(OutCella, ERTHexDirection::E);
+		URTHexCoverLibrary::AddCover(Asset, OutCella, ERTHexDirection::E, ERTHexCoverType::High, /*Integrity=*/ 30);
+		return Asset;
+	}
+
+	/** Il velo che vede tutto: il percorso runtime di `ApplyKnowledgeVeil`, senza che nulla resti nascosto. */
+	FRTTeamKnowledge RTVeloTutto(const URTHexMapAsset* Asset)
+	{
+		FRTTeamKnowledge Tutto;
+		for (const FRTHexCellData& C : Asset->Cells)
+		{
+			Tutto.VisibleCells.Add(C.Id);
+			Tutto.ExploredCells.Add(C.Id);
+		}
+		return Tutto;
+	}
+}
+
+/**
+ * #3687 — un muro ABBATTUTO in partita sparisce a fine turno, senza aspettare il `Tab`.
+ *
+ * 🔴 **Il difetto, letto nel codice e qui misurato**: i pannelli di bordo li scrive solo
+ * `RebuildInstances` con la famiglia `EdgeFeatures`, e il riallineamento di fine turno — il blocco su
+ * `MapAsset->Revision` dentro `ApplyKnowledgeVeil` — ricostruiva solo `Cells`, `Glyphs` e `SurfaceVolumes`.
+ * La simulazione toglieva il muro dalla copia di lavoro (`ApplyStructureDamage` → `AddOrUpdateCell`), e lo
+ * schermo lo teneva in piedi fino a una ricostruzione completa, cioè fino al cambio di vista.
+ *
+ * 🔑 **Si passa dal produttore vero**, `URTHexCoverLibrary::ApplyStructureDamage`, e dal percorso runtime
+ * vero, `ApplyKnowledgeVeil`: nessuna chiamata a `RebuildInstances` nel test, perché è proprio la chiamata
+ * che a runtime nessuno faceva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapRuntimeCoverDestroyedTest,
+	"RefactorTactics.HexMapActor.DestroyedCoverLeavesTheScreenAtTurnEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapRuntimeCoverDestroyedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	FRTCellId Cella, Oltre;
+	URTHexMapAsset* Asset = RTBoardConUnMuro(Cella, Oltre);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto); // sincronizza la revisione: da qui in poi conta solo ciò che cambia
+	if (!TestEqual(TEXT("premessa: il muro ha il suo pannello"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Il colpo che lo abbatte, dal lato di chi spara: la stessa chiamata di `ApplyEnvironmentChanges`.
+	FRTStructureHit Colpo;
+	Colpo.From = Oltre;
+	Colpo.To = Cella;
+	Colpo.Amount = 999;
+	const TArray<FRTCoverDamageResult> Esiti = URTHexCoverLibrary::ApplyStructureDamage(Asset, { Colpo });
+	if (!TestTrue(TEXT("premessa: il colpo abbatte il muro"), Esiti.Num() > 0 && Esiti[0].bDestroyed))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	Actor->ApplyKnowledgeVeil(Tutto); // il refresh di fine turno
+	TestEqual(TEXT("a fine turno il pannello del muro abbattuto non c'è più"),
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 0);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3687 — una copertura CREATA in partita compare a fine turno, e una porta che cambia stato cambia pannello.
+ *
+ * Sono gli altri due modi in cui un bordo cambia a runtime: `AddCover` (la Prep di `ResolveCoverStructures`)
+ * e `SetDoorState` (le porte). Passano dalla stessa famiglia `EdgeFeatures`, quindi dallo stesso buco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapRuntimeEdgeChangeTest,
+	"RefactorTactics.HexMapActor.CreatedCoverAndDoorStateReachTheScreenAtTurnEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapRuntimeEdgeChangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Una porta chiusa su (0,0) verso ovest, e nessuna copertura.
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+	const FRTCellId Cella(0, 0, 0);
+	const FRTCellId Ovest = URTHexLibrary::Neighbor(Cella, ERTHexDirection::W);
+	{
+		FRTHexCellData Dati = *Asset->FindCell(Cella);
+		Dati.Doors.Add(FRTHexDoor(ERTHexDirection::W, ERTHexDoorState::Closed));
+		Asset->AddOrUpdateCell(Dati);
+	}
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const TArray<FTransform> Prima = InstancesOf(Actor, TEXT("EdgeFeatures"));
+	if (!TestEqual(TEXT("premessa: solo il pannello della porta"), Prima.Num(), 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// 1. Una copertura nuova, come quella che la Prep erige.
+	TestTrue(TEXT("premessa: la copertura si posa"),
+		URTHexCoverLibrary::AddCover(Asset, Cella, ERTHexDirection::E, ERTHexCoverType::Low, /*Integrity=*/ 30));
+	Actor->ApplyKnowledgeVeil(Tutto);
+	TestEqual(TEXT("a fine turno la copertura creata ha il suo pannello"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 2);
+
+	// 2. La porta si apre: stesso numero di pannelli, e il SUO pannello si abbassa.
+	// ⚠️ **Si confronta il pannello della porta, ritrovato per posizione sul piano**, e non il minimo del
+	// gruppo: la copertura bassa appena eretta (22) sta gia' sotto la porta chiusa (70), e un minimo la
+	// prenderebbe per la porta aperta anche se la porta non si fosse mossa. La quota del centro cambia con
+	// l'altezza del pannello, quindi conta il piano.
+	TestTrue(TEXT("premessa: la porta si apre"),
+		URTHexDoorLibrary::SetDoorState(Asset, Cella, Ovest, ERTHexDoorState::Open).Num() > 0);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const TArray<FTransform> Dopo = InstancesOf(Actor, TEXT("EdgeFeatures"));
+	const FVector2D PianoPorta(Prima[0].GetLocation());
+	const FTransform* PortaDopo = Dopo.FindByPredicate([&PianoPorta](const FTransform& T)
+	{
+		return FVector2D(T.GetLocation()).Equals(PianoPorta, 1.0);
+	});
+	if (TestNotNull(TEXT("premessa: il pannello della porta c'e' ancora, sul suo bordo"), PortaDopo))
+	{
+		TestTrue(*FString::Printf(TEXT("a fine turno la porta aperta è bassa: %.3f prima, %.3f dopo"),
+				Prima[0].GetScale3D().Z, PortaDopo->GetScale3D().Z),
+			PortaDopo->GetScale3D().Z < Prima[0].GetScale3D().Z);
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3687 — una pennellata di SUPERFICIE non ricostruisce i pannelli di bordo.
+ *
+ * Il riallineamento di fine turno ricostruisce `EdgeFeatures` solo se cio' che i bordi dichiarano e' cambiato.
+ * Senza questa guardia ogni revisione — anche una cella che diventa fango — rifarebbe la famiglia, e il costo
+ * tornerebbe a seguire la mappa invece della modifica. 🔑 **Si legge `LastRebuildCreatedInstances`**: il
+ * percorso per cella di una pennellata non passa da `RebuildInstances`, quindi il contatore resta quello della
+ * costruzione; ricostruire i bordi lo riscriverebbe con le sole istanze dei pannelli.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapSurfacePaintKeepsEdgePanelsTest,
+	"RefactorTactics.HexMapActor.SurfacePaintDoesNotRebuildEdgePanels",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapSurfacePaintKeepsEdgePanelsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	FRTCellId Cella, Oltre;
+	URTHexMapAsset* Asset = RTBoardConUnMuro(Cella, Oltre);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTTeamKnowledge Tutto = RTVeloTutto(Asset);
+	Actor->ApplyKnowledgeVeil(Tutto);
+	const int32 Costruzione = Actor->LastRebuildCreatedInstances();
+	if (!TestTrue(TEXT("premessa: la costruzione ha creato piu' dei soli pannelli"), Costruzione > 1))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// La pennellata minima, la stessa di `EditCostScalesWithTheEditNotTheMap`: una cella, solo la superficie.
+	FRTHexCellData Dipinta = *Asset->FindCell(Oltre);
+	Dipinta.Surface = Dipinta.Surface == ERTHexSurface::Floor ? ERTHexSurface::Rough : ERTHexSurface::Floor;
+	Asset->AddOrUpdateCell(Dipinta);
+	Actor->ApplyKnowledgeVeil(Tutto);
+
+	TestTrue(TEXT("premessa: la pennellata e' passata dal percorso per cella"), Actor->LastRepaintTouchedInstances() > 0);
+	TestEqual(TEXT("🔴 e i pannelli di bordo non si sono ricostruiti"), Actor->LastRebuildCreatedInstances(), Costruzione);
+	TestEqual(TEXT("il muro e' ancora li'"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 1);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3691, [D-502] (d) — un pannello di bordo si vede da un lato QUALUNQUE del bordo.
+ *
+ * 🔴 **Il difetto**: `AddEdgePanel` mappava l'istanza sulla sola cella che dichiara la copertura, e il velo
+ * la nascondeva se quella cella non era mai stata vista. Chi stava davanti a un muro non lo vedeva, se
+ * dietro non aveva mai guardato.
+ *
+ * 🔑 **Piu' casi e non uno**: il lato opposto basta (il difetto), nessuno dei due nasconde (il controllo
+ * positivo: il velo non si e' spento), il lato portante basta ancora (il comportamento di prima non si
+ * perde), un lato vale per il SUO pannello e non per tutti, e un lato soltanto ricordato basta come uno
+ * visto (il pannello e' geometria, e resta nel ricordo). Una porta segue la stessa regola, perche' sta
+ * sullo stesso bordo e nella stessa famiglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapEdgePanelSeenFromEitherSideTest,
+	"RefactorTactics.HexMapActor.EdgePanelIsSeenFromEitherSide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Una copertura su (0,0) verso est e una porta su (0,0) verso ovest: due pannelli, entrambi portati da (0,0).
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+	const FRTCellId Portante(0, 0, 0);
+	const FRTCellId Est = URTHexLibrary::Neighbor(Portante, ERTHexDirection::E);
+	const FRTCellId Ovest = URTHexLibrary::Neighbor(Portante, ERTHexDirection::W);
+	URTHexCoverLibrary::AddCover(Asset, Portante, ERTHexDirection::E, ERTHexCoverType::High, /*Integrity=*/ 30);
+	{
+		FRTHexCellData Dati = *Asset->FindCell(Portante);
+		Dati.Doors.Add(FRTHexDoor(ERTHexDirection::W, ERTHexDoorState::Closed));
+		Asset->AddOrUpdateCell(Dati);
+	}
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+	if (!TestEqual(TEXT("premessa: due pannelli di bordo"), MapActorIsmCount(Actor, TEXT("EdgeFeatures")), 2))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// `Ricordate` sono celle esplorate e non viste ora: il caso reale di chi ha attraversato la cella davanti al
+	// muro e poi se n'e' andato.
+	auto PannelliVisibili = [&](const TArray<FRTCellId>& Viste, const TArray<FRTCellId>& Ricordate = {}) -> int32
+	{
+		FRTTeamKnowledge K;
+		K.VisibleCells = Viste;
+		K.ExploredCells = Viste;
+		K.ExploredCells.Append(Ricordate);
+		Actor->ApplyKnowledgeVeil(K);
+		int32 N = 0;
+		for (const FTransform& T : InstancesOf(Actor, TEXT("EdgeFeatures")))
+		{
+			N += T.GetScale3D().IsNearlyZero() ? 0 : 1;
+		}
+		return N;
+	};
+
+	// Il difetto: la squadra ha visto solo le celle dall'altra parte dei due bordi.
+	TestEqual(TEXT("visti solo i lati opposti: la copertura e la porta si vedono"),
+		PannelliVisibili({ Est, Ovest }), 2);
+	// Il controllo positivo: senza nessuna delle due celle il velo nasconde ancora.
+	TestEqual(TEXT("nessun lato visto: entrambi nascosti"), PannelliVisibili(TArray<FRTCellId>()), 0);
+	// E il comportamento di prima non si perde: il lato portante basta.
+	TestEqual(TEXT("visto il solo lato portante: entrambi visibili"), PannelliVisibili({ Portante }), 2);
+	// Un lato solo per pannello: la copertura sì, la porta no.
+	TestEqual(TEXT("visto solo il lato est: la sola copertura"), PannelliVisibili({ Est }), 1);
+	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati.
+	TestEqual(TEXT("lati opposti solo ricordati: entrambi visibili, come geometria ricordata"),
+		PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 2);
+	TestEqual(TEXT("il solo lato est ricordato: la sola copertura"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 1);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * #3691 — un pannello sul bordo ESTERNO della mappa: l'altra cella non esiste, e il velo segue la sola cella che
+ * lo porta. Funziona per costruzione — una cella fuori mappa non entra mai nella conoscenza —, e il test lo
+ * pinna perche' e' il caso in cui `Neighbor` restituisce una cella che nessuno disegna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapEdgePanelOnTheBorderTest,
+	"RefactorTactics.HexMapActor.EdgePanelOnTheMapBorderFollowsItsOwnCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapEdgePanelOnTheBorderTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1);
+	const FRTCellId Bordo(1, 0, 0);
+	const FRTCellId Fuori = URTHexLibrary::Neighbor(Bordo, ERTHexDirection::E);
+	if (!TestNull(TEXT("premessa: oltre il bordo est non c'e' una cella"), Asset->FindCell(Fuori)))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+	URTHexCoverLibrary::AddCover(Asset, Bordo, ERTHexDirection::E, ERTHexCoverType::High, /*Integrity=*/ 30);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	auto Scala = [&](const TArray<FRTCellId>& Viste) -> bool
+	{
+		FRTTeamKnowledge K;
+		K.VisibleCells = Viste;
+		K.ExploredCells = Viste;
+		Actor->ApplyKnowledgeVeil(K);
+		const TArray<FTransform> P = InstancesOf(Actor, TEXT("EdgeFeatures"));
+		return P.Num() == 1 && !P[0].GetScale3D().IsNearlyZero();
+	};
+	TestFalse(TEXT("nessuna cella vista: il pannello sul bordo e' nascosto"), Scala(TArray<FRTCellId>()));
+	TestTrue(TEXT("la cella che lo porta vista: il pannello si vede"), Scala({ Bordo }));
 
 	DestroyMapActorWorld(World);
 	return true;

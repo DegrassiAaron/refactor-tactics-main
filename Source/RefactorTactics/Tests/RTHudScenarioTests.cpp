@@ -31,6 +31,10 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "UI/RTHudLayout.h"     // #3661: le fasce in cui gli inquilini devono entrare
+#include "UI/RTHudZoneWidget.h"
+#include "Components/CanvasPanelSlot.h" // #3661: la posa delle zone letta dagli slot
+#include "Tests/RTHudGeometryForTest.h" // #3661: le risoluzioni della DoD
 #include "Unit/RTUnit.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
@@ -395,9 +399,13 @@ bool FRTHudSlotsFromScenarioTest::RunTest(const FString&)
  *
  * Le due meta' contano insieme, e la seconda e' quella che il piano teme davvero:
  *  - la **funzione** decide i tre stati (`—`, `Round N/L`, `Round N`) e li fa seguire al formato;
- *  - il **binding** collega `RoundText.Text` a quella funzione. Senza, la funzione puo' essere perfetta e a
- *    schermo comparire tutt'altro — ed e' esattamente la forma del difetto trovato sul dock allo Step 7.4,
- *    dove il C++ era corretto e il grafo no.
+ *  - il **numero arriva a schermo** dalle porte dell'asset. Senza, la funzione puo' essere perfetta e a schermo
+ *    comparire tutt'altro — ed e' esattamente la forma del difetto trovato sul dock allo Step 7.4, dove il C++
+ *    era corretto e il grafo no.
+ *
+ * ⌫ *Fino alla seduta `U75` ([#3635]) la seconda meta' cercava il binding di proprieta' fra `RoundText.Text` e
+ * `GetRoundCounterText`. La tavola A spezza il contatore in due testi, `RoundValueText` e `RoundLimitText`, che
+ * scrive `RefreshLook`: il binding non c'e' piu', e la meta' legge le porte dell'istanza del Blueprint vero.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRoundLimitFromScenarioTest,
 	"RefactorTactics.ScreenHud.RoundLimitComesFromTheFormat",
@@ -457,24 +465,55 @@ bool FRTHudRoundLimitFromScenarioTest::RunTest(const FString&)
 	TestFalse(*FString::Printf(TEXT("senza limite non compare una barra (letto: '%s')"), *NoLimit),
 		NoLimit.Contains(TEXT("/")));
 
-	// --- meta' 2: e quel testo arriva a schermo -------------------------------------------------------
+	// --- meta' 2: e quel numero arriva a schermo ------------------------------------------------------
+	// Le porte dell'istanza del Blueprint vero: se l'asset non le avesse, `RefreshLook` non scriverebbe niente
+	// e la funzione resterebbe perfetta senza che nulla comparisse.
+	UTextBlock* Valore = Header->RoundValueText;
+	UTextBlock* Limite = Header->RoundLimitText;
+	if (!TestNotNull(TEXT("WBP_RT_TurnHeader ha la porta `RoundValueText`"), Valore)) { return false; }
+	if (!TestNotNull(TEXT("WBP_RT_TurnHeader ha la porta `RoundLimitText`"), Limite)) { return false; }
+
+	const auto Mostrato = [Limite]()
+	{
+		return Limite->GetVisibility() != ESlateVisibility::Collapsed && Limite->GetVisibility() != ESlateVisibility::Hidden;
+	};
+	Rules.FormatId = TEXT("Test.Format.Twelve");
+	Rules.RoundLimit = 12;
+	TM->SetMatchRules(Rules);
+	Header->RefreshLook(/*bRecheckObjective=*/ false);
+	const FString ScrittoDodici = Limite->GetText().ToString();
+	TestTrue(*FString::Printf(TEXT("col formato a 12 la porta dice «/ 12» (letto: '%s')"), *ScrittoDodici),
+		ScrittoDodici.Equals(TEXT("/ 12"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("col formato a 12 la porta del limite si vede"), Mostrato());
+	// Due cifre almeno, come la tavola («04»): un testo di default o vuoto, cioe' una porta mai scritta, cade qui.
+	const FString Round = Valore->GetText().ToString();
+	TestTrue(*FString::Printf(TEXT("il round a schermo e' un numero di due cifre (letto: '%s')"), *Round),
+		Round.Len() >= 2 && Round.IsNumeric());
+
+	Rules.FormatId = TEXT("Test.Format.Seven");
+	Rules.RoundLimit = 7;
+	TM->SetMatchRules(Rules);
+	Header->RefreshLook(false);
+	const FString ScrittoSette = Limite->GetText().ToString();
+	TestTrue(*FString::Printf(TEXT("cambiato il formato, la porta segue: «/ 7» (letto: '%s')"), *ScrittoSette),
+		ScrittoSette.Equals(TEXT("/ 7"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("col formato a 7 la porta del limite si vede"), Mostrato());
+
+	Rules.FormatId = NAME_None;
+	Rules.RoundLimit = 0;
+	TM->SetMatchRules(Rules);
+	Header->RefreshLook(false);
+	TestFalse(TEXT("senza limite la porta del limite non si vede: «/ 0» sarebbe una partita scaduta"), Mostrato());
+
+	// Il C++ e' la sola sede: un binding di proprieta' rimasto nell'asset sarebbe una seconda fonte dello stesso
+	// testo, e la prossima modifica ne aggiornerebbe una sola.
 	const UWidgetBlueprintGeneratedClass* AsWidgetClass = Cast<UWidgetBlueprintGeneratedClass>(HeaderClass);
 	if (!TestNotNull(TEXT("la classe del Blueprint si legge"), AsWidgetClass)) { return false; }
-
-	bool bRoundTextIsBound = false;
 	for (const FDelegateRuntimeBinding& Binding : AsWidgetClass->Bindings)
 	{
-		if (Binding.ObjectName == TEXT("RoundText")
-			&& Binding.FunctionName == TEXT("GetRoundCounterText"))
-		{
-			bRoundTextIsBound = true;
-			break;
-		}
+		AddError(FString::Printf(TEXT("WBP_RT_TurnHeader ha ancora un binding di proprieta': %s.%s <- %s"),
+			*Binding.ObjectName, *Binding.PropertyName.ToString(), *Binding.FunctionName.ToString()));
 	}
-	TestTrue(
-		TEXT("`RoundText.Text` e' legato a `GetRoundCounterText`: senza il binding la funzione e' perfetta ")
-		TEXT("e a schermo compare altro"),
-		bRoundTextIsBound);
 
 	return true;
 }
@@ -684,6 +723,227 @@ bool FRTDockTooltipShowsTheShapeTest::RunTest(const FString&)
 		}
 	}
 	TestTrue(TEXT("premessa: il roster ha almeno un'area con un raggio"), Aree > 0);
+	return true;
+}
+
+namespace
+{
+	/** Tutti i widget dello Screen HUD sotto `Radice`, scendendo DENTRO i `UUserWidget` innestati. */
+	void RTRaccogliWidgetHud(UUserWidget* Radice, TArray<URTScreenHudWidgetBase*>& Out, int32 Profondita = 0)
+	{
+		if (Radice == nullptr || Radice->WidgetTree == nullptr || Profondita > 8)
+		{
+			return;
+		}
+		Radice->WidgetTree->ForEachWidget([&Out, Profondita](UWidget* W)
+		{
+			if (UUserWidget* Innestato = Cast<UUserWidget>(W))
+			{
+				if (URTScreenHudWidgetBase* Hud = Cast<URTScreenHudWidgetBase>(Innestato))
+				{
+					Out.AddUnique(Hud);
+				}
+				RTRaccogliWidgetHud(Innestato, Out, Profondita + 1);
+			}
+		});
+	}
+}
+
+/**
+ * 🔴 **Gli inquilini entrano nelle loro fasce, a ogni risoluzione di #3661** (D-497 (2)).
+ *
+ * 🔑 **Esiste perche' il test sul rettangolo da solo non puo' fallire**: moltiplica frazioni per dimensioni. Qui
+ * l'HUD tattico VERO si costruisce in uno scenario, gli si da' il contesto della partita e una selezione, e Slate
+ * calcola la misura desiderata di ogni zona — cornice e inquilino — in unita' Slate. La si confronta con lo spazio
+ * che il dato le assegna alle quattro risoluzioni: a 16:10 lo schermo in unita' Slate e' piu' stretto (1728).
+ *
+ * 🔴 **Ha gia' trovato un difetto alla prima esecuzione**: il roster con tre unita' chiede 259 di altezza, e la
+ * fascia alta al 19% gliene lasciava 197. L'autore ha scelto che la colonna sinistra abbia il suo taglio
+ * (`FRTHudBands::LeftTop`). Due scenari: due unita' proprie (il formato della v0.1) e tre (la sandbox).
+ *
+ * ⚠️ **Limiti dichiarati.** E' la misura del contenuto che lo scenario produce, non del caso peggiore: il registro
+ * vuoto ha misura zero e non si misura. E gli slot delle azioni del dock li costruisce il grafo Blueprint al tick,
+ * che headless senza paint non gira: la misura del dock qui e' quella della sua cornice. In PIE (`U79`) il dock
+ * occupa circa 1020x110 unita', contro le 1720 della fascia bassa a 16:10. Restano di PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudTenantsFitTheirBandsTest,
+	"RefactorTactics.ScreenHud.TenantsFitTheirBands",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
+{
+	UClass* HudClass = LoadClass<URTTacticalHUDWidget>(nullptr,
+		TEXT("/Game/RT/UI/Match/WBP_RT_TacticalHUD.WBP_RT_TacticalHUD_C"));
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), HudClass)) { return false; }
+
+	const FRTHudBands& F = RTHudLayout::Bands();
+	const float M = RTHudLayout::ZoneMargin;
+
+	for (const TCHAR* Scenario : { TEXT("Spec.Hud.MatchWithTwoAllies"), TEXT("Visual.Map.LayerStack") })
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		FString ReportDir;
+		const FRTTestResult Result = URTScenarioRunner::RunById(World, Scenario, ReportDir);
+		if (!TestEqual(*FString::Printf(TEXT("lo scenario %s gira"), Scenario),
+			static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
+		{
+			AddError(FString::Printf(TEXT("esito scenario: %s"), *Result.ErrorMessage));
+			return false;
+		}
+		ARTTurnManager* TM = FirstTurnManager(World);
+		ARTUnit* Mia = RTWorldFixtures::FirstUnitOfTeam(World, 0);
+		if (!TestNotNull(TEXT("il turn manager"), TM) || !TestNotNull(TEXT("un'unita' del team 0"), Mia)) { return false; }
+
+		URTTacticalHUDWidget* Hud = CreateWidget<URTTacticalHUDWidget>(World, HudClass);
+		if (!TestNotNull(TEXT("l'HUD si istanzia"), Hud)) { return false; }
+
+		// Costruirlo: `NativeConstruct` posa le zone dal dato e i figli costruiscono i loro pezzi.
+		TSharedRef<SWidget> Radice = Hud->TakeWidget();
+
+		// 🔴 **Il cablaggio: `NativeConstruct` chiama davvero `ApplyBandLayout`** (rilievo della review di #3690).
+		// Gli altri due test posano il dato a mano su una copia dell'albero: senza questo controllo la chiamata
+		// potrebbe sparire, gli anchor a frazioni dell'asset tornerebbero in partita, e tutti resterebbero verdi.
+		// ⚠️ Che `NativeConstruct`/`NativeDestruct` chiedano e restituiscano il rettangolo al viewport client non si
+		// misura qui: in un mondo di prova non c'e' viewport. Resta di PIE (`PIE-HUD-SCENA`).
+		{
+			int32 ZonePosate = 0;
+			int32 FinestrePosate = 0;
+			Hud->WidgetTree->ForEachWidget([&](UWidget* W)
+			{
+				const UCanvasPanelSlot* Slot = W ? Cast<UCanvasPanelSlot>(W->Slot) : nullptr;
+				if (Slot == nullptr || Slot->Parent != Hud->WidgetTree->RootWidget)
+				{
+					return;
+				}
+				const FAnchorData Reale = Slot->GetLayout();
+				if (const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W))
+				{
+					const FAnchorData Atteso = RTHudLayout::ZoneLayout(Zona->ZoneId, F);
+					TestTrue(*FString::Printf(TEXT("%s: la zona %s e' posata dal dato in NativeConstruct"), Scenario,
+						*URTHudZoneWidget::ZoneName(Zona->ZoneId)),
+						Reale.Offsets == Atteso.Offsets
+						&& Reale.Anchors.Minimum.Equals(Atteso.Anchors.Minimum)
+						&& Reale.Anchors.Maximum.Equals(Atteso.Anchors.Maximum));
+					++ZonePosate;
+				}
+				else if (W->IsA<URTFastDecisionWidget>())
+				{
+					const FVector2D Spostamento = RTHudLayout::SceneCenterOffsetSlate(F);
+					TestTrue(*FString::Printf(TEXT("%s: la finestra di reazione e' sul centro della scena"), Scenario),
+						FMath::IsNearlyEqual(Reale.Offsets.Left, static_cast<float>(Spostamento.X), 0.01f)
+						&& FMath::IsNearlyEqual(Reale.Offsets.Top, static_cast<float>(Spostamento.Y), 0.01f));
+					++FinestrePosate;
+				}
+			});
+			TestEqual(*FString::Printf(TEXT("%s: le zone posate sono tutte"), Scenario), ZonePosate,
+				static_cast<int32>(ERTHudZone::Count));
+			TestEqual(*FString::Printf(TEXT("%s: una finestra di reazione posata"), Scenario), FinestrePosate, 1);
+		}
+
+		// Il contesto della partita e la selezione, a TUTTI i widget dell'HUD, poi un giro di aggiornamento. Il dock
+		// riceve anche un controller: l'indicatore del piano legge da li' piano attivo e limiti della mappa (#3680).
+		ARTPlayerController* Comandante = World->SpawnActor<ARTPlayerController>();
+		URTActionDockWidget* DockDellHud = nullptr;
+		TArray<URTScreenHudWidgetBase*> Widget;
+		RTRaccogliWidgetHud(Hud, Widget);
+		for (URTScreenHudWidgetBase* W : Widget)
+		{
+			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W))
+			{
+				Dock->SetCommandControllerForTest(Comandante);
+				Dock->RefreshLayerIndicator();
+				DockDellHud = Dock;
+			}
+			W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+			W->SetSelectedUnitForTest(Mia);
+			if (URTTeamRosterWidget* Roster = Cast<URTTeamRosterWidget>(W)) { Roster->RefreshCards(); }
+			if (URTSelectedUnitPanelWidget* Pannello = Cast<URTSelectedUnitPanelWidget>(W)) { Pannello->RefreshLook(); }
+			if (URTTurnHeaderWidget* Testata = Cast<URTTurnHeaderWidget>(W)) { Testata->RefreshLook(); }
+			if (URTPlayerEventLogWidget* Registro = Cast<URTPlayerEventLogWidget>(W)) { Registro->RefreshLook(); }
+			if (URTPlanCommitWidget* Conferma = Cast<URTPlanCommitWidget>(W)) { Conferma->RefreshButtons(); }
+			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W)) { Dock->RefreshMovementReadout(); }
+		}
+
+		Radice->SlatePrepass(1.f); // la misura desiderata in unita' Slate
+
+		int32 Misurate = 0;
+		Hud->WidgetTree->ForEachWidget([&](UWidget* W)
+		{
+			const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W);
+			if (Zona == nullptr)
+			{
+				return;
+			}
+			const FVector2D Misura = Zona->GetDesiredSize();
+			const UWidget* Inquilino = Zona->GetContentForSlot(TEXT("Content"));
+			AddInfo(FString::Printf(TEXT("%s: %-14s inquilino %-30s misura desiderata %.0fx%.0f"), Scenario,
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				Inquilino ? *Inquilino->GetClass()->GetName() : TEXT("<nessuno>"), Misura.X, Misura.Y));
+			if (Inquilino == nullptr || Misura.X <= 1.0 || Misura.Y <= 1.0)
+			{
+				return; // vuota, o collassata in questo scenario (il registro senza eventi): niente da misurare
+			}
+			++Misurate;
+
+			for (const RTHudRisoluzioni::FRisoluzione& Ris : RTHudRisoluzioni::Tutte())
+			{
+				const FVector2D S = RTHudRisoluzioni::InSlate(Ris);
+				const float CentroX = static_cast<float>(S.X) - F.Left - F.Right;
+				const float CentroY = static_cast<float>(S.Y) - F.Top - F.Bottom;
+				FVector2D Spazio;
+				switch (Zona->ZoneId)
+				{
+				case ERTHudZone::TopLeft:     Spazio = FVector2D(F.Left, F.LeftTop); break;
+				case ERTHudZone::TopCenter:   Spazio = FVector2D(CentroX, F.Top); break;
+				case ERTHudZone::TopRight:    Spazio = FVector2D(F.Right, F.Top); break;
+				case ERTHudZone::MiddleLeft:  Spazio = FVector2D(F.Left, static_cast<float>(S.Y) - F.LeftTop - F.Bottom); break;
+				case ERTHudZone::MiddleRight: Spazio = FVector2D(F.Right, CentroY); break;
+				case ERTHudZone::Bottom:      Spazio = FVector2D(S.X, F.Bottom); break;
+				default:                      Spazio = FVector2D::ZeroVector; break;
+				}
+				Spazio -= FVector2D(2.f * M, 2.f * M);
+				TestTrue(*FString::Printf(TEXT("%s, %s, %s: la zona chiede %.0fx%.0f e ha %.0fx%.0f"),
+					Scenario, Ris.Nome, *URTHudZoneWidget::ZoneName(Zona->ZoneId), Misura.X, Misura.Y, Spazio.X, Spazio.Y),
+					Misura.X <= Spazio.X + 0.5 && Misura.Y <= Spazio.Y + 0.5);
+			}
+		});
+		// Anti-vacuita': roster, testata, Conferma, scheda e dock hanno contenuto in ogni scenario.
+		TestTrue(*FString::Printf(TEXT("%s: almeno quattro zone misurate (%d)"), Scenario, Misurate), Misurate >= 4);
+
+		// 🔑 **L'indicatore del piano sta nel dock, e il dock nella zona `Bottom`** (#3680): la misura sopra lo
+		// contiene, perche' la zona misura il dock con la sua riga. Compare solo dove la mappa ha piu' di un piano, e
+		// `LayerStack` ne ha tre: li' deve comparire, altrimenti la misura non lo conterrebbe affatto.
+		if (TestNotNull(*FString::Printf(TEXT("%s: l'HUD monta un dock"), Scenario), DockDellHud)
+			&& TestNotNull(*FString::Printf(TEXT("%s: il dock ha l'indicatore del piano"), Scenario), DockDellHud->LayerIndicator.Get()))
+		{
+			const URTHudZoneWidget* ZonaDelDock = nullptr;
+			Hud->WidgetTree->ForEachWidget([&](UWidget* W)
+			{
+				const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W);
+				if (Zona && Zona->GetContentForSlot(TEXT("Content")) == DockDellHud)
+				{
+					ZonaDelDock = Zona;
+				}
+			});
+			TestTrue(*FString::Printf(TEXT("%s: il dock, e con lui l'indicatore, sta nella zona Bottom"), Scenario),
+				ZonaDelDock != nullptr && ZonaDelDock->ZoneId == ERTHudZone::Bottom);
+
+			int32 Min = 0;
+			int32 Max = 0;
+			const bool bPiuPiani = Comandante && Comandante->GetMapLayerRange(Min, Max) && Max > Min;
+			const bool bMostrato = DockDellHud->LayerIndicator->GetVisibility() != ESlateVisibility::Collapsed;
+			TestEqual(*FString::Printf(TEXT("%s: l'indicatore compare se e solo se la mappa ha piu' piani (%d..%d)"),
+				Scenario, Min, Max), bMostrato, bPiuPiani);
+			if (FCString::Strcmp(Scenario, TEXT("Visual.Map.LayerStack")) == 0)
+			{
+				TestTrue(TEXT("LayerStack: tre piani, l'indicatore compare e ha una misura"),
+					bMostrato && DockDellHud->LayerIndicator->GetDesiredSize().X > 1.0);
+			}
+		}
+	}
 	return true;
 }
 

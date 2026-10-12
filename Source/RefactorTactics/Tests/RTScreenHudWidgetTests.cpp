@@ -12,6 +12,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTTurnLog.h" // FRTTurnLogEntry: il feed si prova iniettando una voce nel log
 #include "Unit/RTUnit.h" // ARTUnit: e' una delle classi AUTOREVOLI che nessun widget deve esporre
+#include "Tests/RTAbilityFixtures.h" // AddCoreAbility: il chip REAZ. si prova su piani veri (#3618)
 #include "UI/RTReactionWindowViewModel.h" // idem, ed e' quella che porterebbe `SubmitResponse` nel grafo
 #include "UI/RTHudViewModel.h"           // il feed si prova anche SOTTO il widget: l'insieme vuoto (#2744)
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
@@ -24,6 +25,10 @@
 #include "UObject/UObjectIterator.h" // TObjectIterator: le classi widget si interrogano, non si elencano
 #include "Blueprint/WidgetTree.h"    // l'albero si COSTRUISCE qui: e' l'unico modo di provare la ricorsione
 #include "Components/VerticalBox.h" // un pannello vero: serve per dare a UN widget DUE strade nell'albero
+#include "UI/RTUIPalette.h"
+#include "Components/Border.h"
+#include "Components/TextBlock.h"
+#include "Components/ProgressBar.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -437,6 +442,8 @@ bool FRTScreenHudNoTextureTest::RunTest(const FString&)
 		URTActionSlotWidget::StaticClass(),
 		URTTacticalHUDWidget::StaticClass(),
 		URTFastDecisionWidget::StaticClass(),
+		URTUnitCardWidget::StaticClass(),          // #3636
+		URTPlanWarningEntryWidget::StaticClass(),  // #3636
 	};
 	for (UClass* Class : MustBeCovered)
 	{
@@ -1471,6 +1478,389 @@ bool FRTHudMovementSlotUnauthorizedTest::RunTest(const FString&)
 		ARTHUD::DescribeMovementSlot(Autorizzata).ToString(), FString(TEXT("libero")));
 
 	DestroyHudWidgetWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **IL CHIP `REAZ.` SI ACCENDE SOLO PER UN'ALLEATA COMANDATA CON UNA REAZIONE ARMATA** ([D-478], #3618).
+ *
+ * Due accese: l'Overwatch come principale (arma una finestra pur occupando lo slot `Main`) e un'azione nello slot
+ * `Reaction`. Quattro spente, e per ragioni diverse:
+ * - `Brace` come principale: apre una finestra, ma D-478 nomina solo l'Overwatch (decisione del 2026-10-10);
+ * - un'avversaria, un'alleata del bot, un'alleata di un altro gruppo di controllo: per loro il piano non si legge.
+ *
+ * ⚠️ **Lo spento delle ultime tre non deve venire da un piano vuoto.** Il test lo prova: per ciascuna
+ * `BuildUnitSlots` direbbe vero. Se il roster saltasse il controllo «comandata», si accenderebbero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterReactionChipTest,
+	"RefactorTactics.ScreenHud.RosterReactionChipOnlyForCommandedAllies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterReactionChipTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Roster->SetControlGroupForTest(0);
+
+	// Un'unita' con un'azione pianificata: come principale o nello slot della reazione.
+	const auto Pianifica = [this, World](int32 TeamId, const TCHAR* HeroId, const TCHAR* ActionId, bool bReazione)
+	{
+		ARTUnit* Unit = SpawnRosterUnit(World, TeamId, HeroId);
+		const int32 Indice = Unit ? RTAbilityFixtures::AddCoreAbility(Unit, ActionId) : INDEX_NONE;
+		TestTrue(*FString::Printf(TEXT("premessa: %s ha %s nel kit"), HeroId, ActionId), Indice != INDEX_NONE);
+		if (Unit)
+		{
+			(bReazione ? Unit->PlannedReactionAbility : Unit->PlannedAbilityIndex) = Indice;
+		}
+		return Unit;
+	};
+
+	ARTUnit* Guardia = Pianifica(0, TEXT("Guardia"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	ARTUnit* Contro = Pianifica(0, TEXT("Contro"), TEXT("Action.Counter"), /*bReazione=*/ true);
+	ARTUnit* Saldo = Pianifica(0, TEXT("Saldo"), TEXT("Action.Brace"), /*bReazione=*/ false);
+	ARTUnit* Nemica = Pianifica(1, TEXT("Nemica"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	ARTUnit* DelBot = Pianifica(0, TEXT("DelBot"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	ARTUnit* AltroGruppo = Pianifica(0, TEXT("AltroGruppo"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	if (!Guardia || !Contro || !Saldo || !Nemica || !DelBot || !AltroGruppo) { return false; }
+	DelBot->bIsBotControlled = true;
+	AltroGruppo->ControlGroup = 1;
+
+	// --- 1. Le due accese ------------------------------------------------------------------------------------
+	TestTrue(TEXT("l'Overwatch come principale accende il chip"), Roster->IsReactionArmed(TEXT("Guardia")));
+	TestTrue(TEXT("un'azione nello slot della reazione accende il chip"), Roster->IsReactionArmed(TEXT("Contro")));
+
+	// --- 2. Brace: il piano c'e', e non e' una reazione armata --------------------------------------------------
+	TestFalse(TEXT("Brace come principale non accende il chip"), Roster->IsReactionArmed(TEXT("Saldo")));
+	TestFalse(TEXT("e la vista lo dice anche senza il roster"), URTHudViewModel::BuildUnitSlots(Saldo).bReactionArmed);
+
+	// --- 3. Le tre non comandate: il dato esisterebbe, e il roster non lo legge ----------------------------------
+	for (const ARTUnit* NonComandata : { Nemica, DelBot, AltroGruppo })
+	{
+		const FString Nome = NonComandata->HeroId.ToString();
+		if (!TestTrue(*FString::Printf(TEXT("premessa: il piano di %s arma una reazione"), *Nome),
+				URTHudViewModel::BuildUnitSlots(NonComandata).bReactionArmed))
+		{
+			continue;
+		}
+		TestFalse(*FString::Printf(TEXT("%s non e' comandata: il chip resta spento"), *Nome),
+			Roster->IsReactionArmed(NonComandata->HeroId));
+	}
+
+	TestFalse(TEXT("un HeroId che non e' in campo non accende niente"), Roster->IsReactionArmed(TEXT("Assente")));
+
+	// --- 4. Lo stesso eroe nelle due squadre (un mirror): decide l'alleata, in qualunque ordine --------------------
+	// L'ordinamento del roster per `HeroId` non e' stabile, quindi due coppie con spawn opposto: in almeno una
+	// l'avversaria viene prima. La review di #3618 ha trovato che li' il chip dell'alleata si spegneva.
+	Pianifica(1, TEXT("GemellaA"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	Pianifica(0, TEXT("GemellaA"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	Pianifica(0, TEXT("GemellaB"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	Pianifica(1, TEXT("GemellaB"), TEXT("Action.Overwatch"), /*bReazione=*/ false);
+	TestTrue(TEXT("mirror, avversaria spawnata prima: l'alleata ha il chip"), Roster->IsReactionArmed(TEXT("GemellaA")));
+	TestTrue(TEXT("mirror, alleata spawnata prima: l'alleata ha il chip"), Roster->IsReactionArmed(TEXT("GemellaB")));
+
+	// --- 5. Senza contesto nessun chip: i default (squadra 0, gruppo 0) non sono chi guarda ----------------------
+	URTTeamRosterWidget* SenzaContesto = NewObject<URTTeamRosterWidget>(World);
+	TestFalse(TEXT("un roster senza contesto non accende il chip"), SenzaContesto->IsReactionArmed(TEXT("Guardia")));
+	return true;
+}
+
+/**
+ * 🔑 **LA CARTA DICE IL NOME, NON L'ID; IL CHIP SEGUE LA REAZIONE ARMATA** (#3636, T8).
+ *
+ * `WBP_RT_UnitCard` legava `Conv_NameToText(HeroId)`, e a schermo usciva «Hero.Aevik». La vista ora porta il nome di
+ * `ARTUnit::DisplayLabel`, e la carta lo scrive. ⚠️ I testi si confrontano CaseSensitive: `TestEqual` su `FString`
+ * ignora le maiuscole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudUnitCardTest,
+	"RefactorTactics.ScreenHud.UnitCardShowsTheReadableNameAndTheReactionChip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudUnitCardTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTUnit* Mia = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Sua = SpawnRosterUnit(World, 1, TEXT("Hero.Ivrin"));
+	URTUnitCardWidget* Carta = NewObject<URTUnitCardWidget>(World);
+	if (!Mia || !Sua || !TestNotNull(TEXT("carta"), Carta)) { return false; }
+
+	const auto Uguale = [](const FText& Testo, const FString& Atteso) { return Testo.ToString().Equals(Atteso, ESearchCase::CaseSensitive); };
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Colore = [](ERTUIToken Token) { return URTUIPalette::ColorFor(Token); };
+
+	// --- La vista: il nome leggibile ---------------------------------------------------------------------------------------
+	const FRTUnitCardView Vista = URTHudViewModel::BuildUnitCard(Mia, /*PlayerTeamId=*/ 0);
+	const FString Atteso = ARTUnit::DisplayLabel(Mia->HeroDisplayName, Mia->HeroId, Mia->GetName());
+	TestTrue(TEXT("la vista porta il nome di DisplayLabel"), Uguale(Vista.DisplayName, Atteso));
+	TestFalse(*FString::Printf(TEXT("e non l'id grezzo (reso: «%s»)"), *Vista.DisplayName.ToString()),
+		Vista.DisplayName.ToString().Equals(Mia->HeroId.ToString(), ESearchCase::CaseSensitive));
+
+	// --- La carta: le porte ------------------------------------------------------------------------------------------------
+	Carta->CardFrame = NewObject<UBorder>(World);
+	Carta->TeamDot = NewObject<UBorder>(World);
+	Carta->NameText = NewObject<UTextBlock>(World);
+	Carta->ReactionChip = NewObject<UBorder>(World);
+	Carta->HealthBar = NewObject<UProgressBar>(World);
+	Carta->HealthText = NewObject<UTextBlock>(World);
+	Carta->ShieldText = NewObject<UTextBlock>(World);
+
+	Carta->SetCard(Vista, /*bReactionArmed=*/ true);
+	TestTrue(TEXT("la carta scrive il nome leggibile"), Uguale(Carta->NameText->GetText(), Atteso));
+	TestTrue(TEXT("con la reazione armata il chip REAZ. c'e'"), Visibile(Carta->ReactionChip));
+	TestTrue(TEXT("il pallino di un'alleata e' Cyan"), Carta->TeamDot->GetBrushColor().Equals(Colore(ERTUIToken::Cyan)));
+	TestTrue(TEXT("i PV dicono 10/10"), Uguale(Carta->HealthText->GetText(), TEXT("10/10")));
+	TestEqual(TEXT("e la barra e' piena"), Carta->HealthBar->GetPercent(), 1.f);
+	TestEqual(TEXT("una carta viva e' opaca"), Carta->CardFrame->GetRenderOpacity(), 1.f);
+
+	Carta->SetCard(Vista, /*bReactionArmed=*/ false);
+	TestFalse(TEXT("senza reazione armata il chip si chiude"), Visibile(Carta->ReactionChip));
+
+	Mia->Health = 4;
+	Carta->SetCard(URTHudViewModel::BuildUnitCard(Mia, 0), false);
+	TestTrue(TEXT("i PV seguono la vista: 4/10"), Uguale(Carta->HealthText->GetText(), TEXT("4/10")));
+	TestTrue(TEXT("e la barra e' al 40%"), FMath::IsNearlyEqual(Carta->HealthBar->GetPercent(), 0.4f, 1e-4f));
+
+	Mia->Health = 0;
+	Carta->SetCard(URTHudViewModel::BuildUnitCard(Mia, 0), false);
+	TestTrue(TEXT("una carta caduta si attenua"), Carta->CardFrame->GetRenderOpacity() < 1.f);
+
+	Carta->SetCard(URTHudViewModel::BuildUnitCard(Sua, /*PlayerTeamId=*/ 0), false);
+	TestTrue(TEXT("il pallino di un'avversaria e' Red"), Carta->TeamDot->GetBrushColor().Equals(Colore(ERTUIToken::Red)));
+	return true;
+}
+
+/**
+ * 🔑 **IL ROSTER COSTRUISCE LE CARTE IN C++, DALLA CLASSE DEI DEFAULT** (#3636). Una carta per voce del roster,
+ * nell'ordine del roster, col chip di `IsReactionArmed`; e le carte che ci sono si riusano.
+ *
+ * ⚠️ La classe e' quella C++: in una run headless non c'e' l'albero del `.uasset`, quindi le porte delle carte restano
+ * nulle e qui si misura cio' che il roster consegna, non cio' che la carta disegna (lo misura il test qui sopra).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterCardsTest,
+	"RefactorTactics.ScreenHud.RosterBuildsItsCardsFromTheClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterCardsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Roster->SetControlGroupForTest(0);
+
+	ARTUnit* Guardia = SpawnRosterUnit(World, 0, TEXT("Guardia"));
+	ARTUnit* Quieta = SpawnRosterUnit(World, 0, TEXT("Quieta"));
+	ARTUnit* Nemica = SpawnRosterUnit(World, 1, TEXT("Nemica"));
+	if (!Guardia || !Quieta || !Nemica) { return false; }
+	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Guardia, TEXT("Action.Overwatch"));
+	if (!TestTrue(TEXT("premessa: la Guardia ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
+	Guardia->PlannedAbilityIndex = Overwatch;
+
+	// --- Senza pannello o senza classe: niente --------------------------------------------------------------------------
+	Roster->RefreshCards();
+	TestEqual(TEXT("senza pannello e classe il roster non costruisce carte"), Roster->GetCardWidgets().Num(), 0);
+	UVerticalBox* Pannello = NewObject<UVerticalBox>(Roster);
+	Roster->CardsBox = Pannello;
+	Roster->RefreshCards();
+	TestEqual(TEXT("senza classe nemmeno"), Roster->GetCardWidgets().Num(), 0);
+
+	// --- Con pannello e classe: una carta per voce, nell'ordine del roster --------------------------------------------------
+	Roster->CardClass = URTUnitCardWidget::StaticClass();
+	Roster->RefreshCards();
+	const TArray<FRTUnitCardView> Voci = Roster->GetRoster();
+	if (!TestEqual(TEXT("una carta per voce del roster"), Roster->GetCardWidgets().Num(), Voci.Num())
+		|| !TestEqual(TEXT("e tutte nel pannello"), Pannello->GetChildrenCount(), Voci.Num())
+		|| !TestTrue(TEXT("premessa: il roster ha due voci, le alleate"), Voci.Num() == 2))
+	{
+		return false;
+	}
+	int32 Armate = 0;
+	for (int32 i = 0; i < Voci.Num(); ++i)
+	{
+		const URTUnitCardWidget* Carta = Roster->GetCardWidgets()[i];
+		TestEqual(*FString::Printf(TEXT("la carta %d e' la voce %d"), i, i), Carta->GetCard().HeroId, Voci[i].HeroId);
+		TestEqual(*FString::Printf(TEXT("e il suo chip segue IsReactionArmed (%s)"), *Voci[i].HeroId.ToString()),
+			Carta->IsReactionArmed(), Roster->IsReactionArmed(Voci[i].HeroId));
+		Armate += Carta->IsReactionArmed() ? 1 : 0;
+	}
+	TestEqual(TEXT("una sola carta ha il chip"), Armate, 1);
+	// Non circolare: la carta col chip e' proprio quella della Guardia, e quella della Quieta no.
+	for (const URTUnitCardWidget* Carta : Roster->GetCardWidgets())
+	{
+		if (Carta->GetCard().HeroId == FName(TEXT("Guardia")))
+		{
+			TestTrue(TEXT("la carta della Guardia ha il chip"), Carta->IsReactionArmed());
+		}
+		if (Carta->GetCard().HeroId == FName(TEXT("Quieta")))
+		{
+			TestFalse(TEXT("la carta della Quieta no"), Carta->IsReactionArmed());
+		}
+	}
+
+	// --- Un secondo giro riusa le stesse carte ----------------------------------------------------------------------------
+	const URTUnitCardWidget* Prima = Roster->GetCardWidgets()[0];
+	Roster->RefreshCards();
+	TestTrue(TEXT("le carte si riusano: stessa istanza al secondo giro"), Roster->GetCardWidgets()[0] == Prima);
+	TestEqual(TEXT("e il pannello non raddoppia"), Pannello->GetChildrenCount(), Voci.Num());
+
+	// --- Una voce in meno: la carta in eccesso si toglie -------------------------------------------------------------------
+	Quieta->TeamId = 1; // non e' piu' della squadra di chi guarda
+	Roster->RefreshCards();
+	TestEqual(TEXT("una voce in meno, una carta in meno"), Roster->GetCardWidgets().Num(), Voci.Num() - 1);
+	TestEqual(TEXT("e il pannello la toglie"), Pannello->GetChildrenCount(), Voci.Num() - 1);
+
+	// --- Il chip si riconta a 5 Hz, i PV no: senza riconteggio il chip resta, il resto segue -------------------------------
+	Guardia->PlannedAbilityIndex = INDEX_NONE;
+	Guardia->Health = 3;
+	const auto CartaDi = [Roster](const TCHAR* Eroe) -> const URTUnitCardWidget*
+	{
+		for (const URTUnitCardWidget* Carta : Roster->GetCardWidgets())
+		{
+			if (Carta->GetCard().HeroId == FName(Eroe)) { return Carta; }
+		}
+		return nullptr;
+	};
+	Roster->RefreshCards(/*bRecountReactions=*/ false);
+	const URTUnitCardWidget* DellaGuardia = CartaDi(TEXT("Guardia"));
+	if (!TestNotNull(TEXT("premessa: la carta della Guardia c'e'"), DellaGuardia)) { return false; }
+	TestTrue(TEXT("senza riconteggio il chip della Guardia resta quello di prima"), DellaGuardia->IsReactionArmed());
+	TestEqual(TEXT("ma i PV seguono subito"), DellaGuardia->GetCard().Health, 3);
+	Roster->RefreshCards(/*bRecountReactions=*/ true);
+	TestFalse(TEXT("al riconteggio il chip si spegne"), CartaDi(TEXT("Guardia"))->IsReactionArmed());
+	return true;
+}
+
+/**
+ * 🔑 **LE CARTE DELLE ALTRE SQUADRE LE COSTRUISCE IL C++, E SOLO FUORI DALLA SESSIONE PRESIDIATA** (#3636, #2744).
+ *
+ * 🔴 **Prima le costruiva il secondo ciclo del grafo di `WBP_RT_TeamRoster`**, e la seduta di #3636 toglie il grafo.
+ * Senza `OpposingCardsBox` le carte avversarie sparivano dall'autobattle senza che niente cadesse: il gemello di
+ * questo test, `RosterSplitsTheTeamsOnlyInAnUnattendedSession`, misura la LISTA, non le carte.
+ *
+ * ⚠️ **Il chip `REAZ.` di un'avversaria resta spento anche col suo piano armato**: il piano di chi non si comanda
+ * non lascia il core (D-478 punto 4). Per questo la nemica qui ha un Overwatch pianificato: senza, il chip spento
+ * sarebbe vero per qualunque ragione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterOpposingCardsTest,
+	"RefactorTactics.ScreenHud.RosterBuildsTheOpposingCardsOnlyInAnUnattendedSession",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterOpposingCardsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	SpawnRosterUnit(World, 0, TEXT("Alfa"));
+	SpawnRosterUnit(World, 0, TEXT("Bravo"));
+	ARTUnit* Charlie = SpawnRosterUnit(World, 1, TEXT("Charlie"));
+	SpawnRosterUnit(World, 1, TEXT("Delta"));
+	if (!Charlie) { return false; }
+	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Charlie, TEXT("Action.Overwatch"));
+	if (!TestTrue(TEXT("premessa: la nemica ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
+	Charlie->PlannedAbilityIndex = Overwatch;
+	// Il suo piano ARMEREBBE il chip, se lo si leggesse: senza questa premessa il chip spento sarebbe vero per caso.
+	if (!TestTrue(TEXT("premessa: il piano della nemica arma una reazione"), URTHudViewModel::BuildUnitSlots(Charlie).bReactionArmed))
+	{
+		return false;
+	}
+
+	UVerticalBox* Proprie = NewObject<UVerticalBox>(Roster);
+	UVerticalBox* Altre = NewObject<UVerticalBox>(Roster);
+	Roster->CardsBox = Proprie;
+	Roster->OpposingCardsBox = Altre;
+	Roster->CardClass = URTUnitCardWidget::StaticClass();
+	const auto Ids = [](const TArray<TObjectPtr<URTUnitCardWidget>>& Carte)
+	{
+		TArray<FString> Out;
+		for (const URTUnitCardWidget* Carta : Carte) { Out.Add(Carta->GetCard().HeroId.ToString()); }
+		return FString::Join(Out, TEXT(","));
+	};
+
+	// --- 1. Presidiata: nessuna carta avversaria, le proprie si' ------------------------------------------------------
+	if (!TestFalse(TEXT("premessa: la sessione e' presidiata"), TM->IsUnattendedSession())) { return false; }
+	Roster->RefreshCards();
+	TestEqual(TEXT("1: le carte proprie ci sono"), Ids(Roster->GetCardWidgets()), FString(TEXT("Alfa,Bravo")));
+	TestEqual(TEXT("1: nessuna carta avversaria"), Roster->GetOpposingCardWidgets().Num(), 0);
+	TestEqual(TEXT("1: e il pannello delle altre e' vuoto"), Altre->GetChildrenCount(), 0);
+
+	// --- 2. Non presidiata: le carte dell'altra squadra, nel loro pannello -----------------------------------------------
+	TM->SetUnattendedSession(true);
+	Roster->RefreshCards();
+	TestEqual(TEXT("2: una carta per voce di GetOpposingRoster, nel suo ordine"),
+		Ids(Roster->GetOpposingCardWidgets()), FString(TEXT("Charlie,Delta")));
+	TestEqual(TEXT("2: tutte nel pannello delle altre"), Altre->GetChildrenCount(), 2);
+	TestEqual(TEXT("2: e nessuna fra le proprie"), Proprie->GetChildrenCount(), 2);
+	for (const URTUnitCardWidget* Carta : Roster->GetOpposingCardWidgets())
+	{
+		TestFalse(*FString::Printf(TEXT("2: '%s' non porta il chip, anche col piano armato"), *Carta->GetCard().HeroId.ToString()),
+			Carta->IsReactionArmed());
+		TestFalse(*FString::Printf(TEXT("2: '%s' e' un'avversaria"), *Carta->GetCard().HeroId.ToString()), Carta->GetCard().bIsAlly);
+	}
+
+	// --- 3. Di nuovo presidiata: le carte avversarie si tolgono, le proprie restano ------------------------------------------
+	TM->SetUnattendedSession(false);
+	Roster->RefreshCards();
+	TestEqual(TEXT("3: le carte avversarie si tolgono"), Roster->GetOpposingCardWidgets().Num(), 0);
+	TestEqual(TEXT("3: anche dal pannello"), Altre->GetChildrenCount(), 0);
+	TestEqual(TEXT("3: le proprie restano"), Ids(Roster->GetCardWidgets()), FString(TEXT("Alfa,Bravo")));
+	return true;
+}
+
+
+/**
+ * 🔑 **OGNI AVVISO A UN CHIP SOLO** (#3636, review): la principale se ne nomina l'azione, la reazione se nomina la sua,
+ * altrimenti il movimento — comprese le voci che `MakePlanFor` aggiunge dal core e che lo slot non nomina
+ * (`Action.Move` per un percorso). Funzione pura: le viste si costruiscono a mano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningChipTest,
+	"RefactorTactics.HudViewModel.PlanWarningBelongsToOneChip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanWarningChipTest::RunTest(const FString&)
+{
+	FRTUnitSlotsView Slots;
+	Slots.bAuthorized = true;
+	Slots.Main.bOccupied = true;
+	Slots.Main.ActionId = TEXT("Hero.Aevik.Overload");
+	Slots.Reaction.bOccupied = true;
+	Slots.Reaction.ActionId = TEXT("Action.Counter");
+	Slots.Movement.bOccupied = true; // un percorso: occupato, senza un'azione
+
+	const auto Avviso = [](const TCHAR* Id)
+	{
+		FRTPlanWarningView W;
+		W.SourceActionId = Id ? FName(Id) : NAME_None;
+		return W;
+	};
+	TestTrue(TEXT("l'azione della principale va alla principale"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Aevik.Overload"))) == ERTPlanChip::Main);
+	TestTrue(TEXT("quella della reazione alla reazione"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Counter"))) == ERTPlanChip::Reaction);
+	TestTrue(TEXT("la voce di movimento del core, che lo slot non nomina, al movimento"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Move"))) == ERTPlanChip::Movement);
+	TestTrue(TEXT("un avviso senza azione a nessuno"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(nullptr)) == ERTPlanChip::None);
+
+	Slots.Movement.bOccupied = false;
+	TestTrue(TEXT("senza movimento, un'azione che non e' di nessuno slot a nessuno"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Move"))) == ERTPlanChip::None);
+
+	Slots.bAuthorized = false;
+	TestTrue(TEXT("una vista non autorizzata non assegna niente"),
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Aevik.Overload"))) == ERTPlanChip::None);
 	return true;
 }
 

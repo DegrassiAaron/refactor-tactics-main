@@ -506,6 +506,67 @@ bool FRTPrivacyTracerHiddenWhenOriginUnknownTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La traccia a terra di un `Line`/`Cone` non si disegna per chi non vedeva l'attaccante** (`#3551`, [D-500]).
+ *
+ * 🔴 Le celle di un `Line` cominciano accanto a chi spara e la linea punta a lui; l'apice di un `Cone` e' adiacente
+ * all'attaccante. Disegnata per tutti, la traccia ricostruiva la cella di un attaccante che chi guarda non aveva il
+ * diritto di sapere. `Area` e `Single` non contengono l'origine e restano per tutti, come prima.
+ * ✅ Mutazioni: predicato sempre falso → cadono le righe 🔴; restrizione di forma tolta → cadono `Area` e `Single`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyFootprintHiddenWhenOriginUnknownTest,
+	"RefactorTactics.Privacy.FootprintHiddenWhenOriginUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyFootprintHiddenWhenOriginUnknownTest::RunTest(const FString&)
+{
+	// La squadra 0 vedeva l'attaccante nella cella d'origine, la squadra 1 no.
+	auto Traccia = [](ERTAbilityShape Forma)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::AttackFootprint;
+		Ev.Shape = Forma;
+		Ev.SourceStableUnitId = 7;
+		Ev.ActionId = TEXT("Hero.Muiren.PressureJet");
+		Ev.HitCells = { FRTCellId(3, 2), FRTCellId(4, 2), FRTCellId(5, 2) };
+		Ev.SourceVerdict = FRTKnowledgeVerdict::NoOne();
+		Ev.SourceVerdict.AllowTeam(0);
+		return Ev;
+	};
+
+	for (const ERTAbilityShape Forma : { ERTAbilityShape::Line, ERTAbilityShape::Cone })
+	{
+		const FString Nome = UEnum::GetValueAsString(Forma);
+		TestFalse(*FString::Printf(TEXT("%s: chi vedeva l'attaccante vede la traccia"), *Nome),
+			URTPlaybackLibrary::IsFootprintHiddenFrom(Traccia(Forma), 0));
+		TestTrue(*FString::Printf(TEXT("🔴 %s: chi NON vedeva l'attaccante non la vede"), *Nome),
+			URTPlaybackLibrary::IsFootprintHiddenFrom(Traccia(Forma), 1));
+	}
+	for (const ERTAbilityShape Forma : { ERTAbilityShape::Area, ERTAbilityShape::Single })
+	{
+		TestFalse(*FString::Printf(TEXT("%s non contiene l'origine: resta per tutti"), *UEnum::GetValueAsString(Forma)),
+			URTPlaybackLibrary::IsFootprintHiddenFrom(Traccia(Forma), 1));
+	}
+
+	FRTResolvedEvent SenzaVerdetto = Traccia(ERTAbilityShape::Line);
+	SenzaVerdetto.SourceVerdict = FRTKnowledgeVerdict();
+	TestTrue(TEXT("senza verdetto si legge fail-closed: nessuno la vede"),
+		URTPlaybackLibrary::IsFootprintHiddenFrom(SenzaVerdetto, 0));
+
+	FRTResolvedEvent Colpo = Traccia(ERTAbilityShape::Line);
+	Colpo.Type = ERTResolvedEventType::Attack;
+	TestFalse(TEXT("il predicato riguarda solo le tracce: un Attack non e' toccato"),
+		URTPlaybackLibrary::IsFootprintHiddenFrom(Colpo, 1));
+
+	// --- e la sequenza del Blast la lascia fuori per chi non ne ha il diritto --------------------------------------
+	const TArray<FRTResolvedEvent> T = { Traccia(ERTAbilityShape::Line) };
+	TestEqual(TEXT("nella sequenza di chi vedeva l'attaccante la traccia c'e'"),
+		URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0).Num(), 1);
+	TestEqual(TEXT("🔴 in quella di chi non lo vedeva no"),
+		URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 1).Num(), 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest,
 	"RefactorTactics.Privacy.TracerRhythmIsTheSameForEveryViewer",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -2140,6 +2201,94 @@ bool FRTPlaybackUnknownSourceDoesNotOpenAnActTest::RunTest(const FString&)
 	Altro[2].SourceStableUnitId = Tu;
 	TestEqual(TEXT("🔴 NextActionBoundary: dopo Muro(0) l'atto e' ancora di S, quindi Attack(T) lo chiude"),
 		URTPlaybackLibrary::NextActionBoundary(Altro, 1), 2);
+	return true;
+}
+
+/**
+ * #3681, [D-502] — il segno di un muro colpito non entra nella sequenza del Blast di chi non osservava il muro.
+ *
+ * 🔴 **Il bordo dice da dove ha sparato chi ha sparato**: la fila di celle oltre il muro. E' il canale che
+ * [D-500] lasciava aperto: l'evento nasceva senza verdetto e `BuildBlastSequence` lo teneva per tutti.
+ *
+ * Due livelli, come per la traccia di D-500: il predicato, con il fail-closed sul verdetto vuoto, e la sequenza
+ * che lo usa — un predicato giusto che nessuno chiama non chiude niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyStructureHitHiddenTest,
+	"RefactorTactics.Privacy.StructureHitHiddenFromWhoDidNotSeeTheWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyStructureHitHiddenTest::RunTest(const FString&)
+{
+	// Il muro colpito lo vede la squadra 0 (osservava il bordo), non la squadra 1.
+	FRTResolvedEvent Muro = SeqEvento(ERTResolvedEventType::StructureHit, 7, TEXT("Hero.Ivrin.PulseShot"));
+	Muro.SourceVerdict = FRTKnowledgeVerdict::NoOne();
+	Muro.SourceVerdict.AllowTeam(0);
+
+	TestFalse(TEXT("chi osservava il muro vede il segno"), URTPlaybackLibrary::IsStructureHitHiddenFrom(Muro, 0));
+	TestTrue(TEXT("🔴 chi non lo osservava non lo vede"), URTPlaybackLibrary::IsStructureHitHiddenFrom(Muro, 1));
+
+	FRTResolvedEvent SenzaVerdetto = Muro;
+	SenzaVerdetto.SourceVerdict = FRTKnowledgeVerdict();
+	TestTrue(TEXT("senza verdetto si legge fail-closed: nessuno lo vede"),
+		URTPlaybackLibrary::IsStructureHitHiddenFrom(SenzaVerdetto, 0));
+
+	FRTResolvedEvent Colpo = Muro;
+	Colpo.Type = ERTResolvedEventType::Attack;
+	TestFalse(TEXT("il predicato riguarda solo i muri: un Attack non e' toccato"),
+		URTPlaybackLibrary::IsStructureHitHiddenFrom(Colpo, 1));
+
+	// La sequenza: l'attivazione di chi spara (che nessuno dei due vede) e il muro.
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 7, TEXT("Hero.Ivrin.PulseShot"), /*bNascosto=*/ true));
+	T.Add(Muro);
+	const TArray<int32> Per0 = SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer=*/ 0));
+	const TArray<int32> Per1 = SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer=*/ 1));
+	TestTrue(TEXT("nella sequenza di chi osservava il muro, il segno c'e'"), Per0.Contains(1));
+	TestFalse(TEXT("🔴 in quella di chi non lo osservava, no"), Per1.Contains(1));
+
+	return true;
+}
+
+/**
+ * [D-505], `#3600` — **la cura entra nel suo atto, dopo il gesto, e da sola apre la fase.**
+ *
+ * 🔑 **La voce `Healed` sta in TESTA alla timeline**, prima del gesto: in un turno vero arriva dopo
+ * (`ApplyPlannedHeals` gira a danno risolto), ma l'ordine dentro l'atto lo decide il RANGO, non la posizione — ed
+ * e' cio' che questo test misura. La seconda meta' e' il caso che il sesto termine di `BlastPhaseIsActive`
+ * esiste per coprire: il gesto nascosto a chi guarda, il curato visto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackHealedJoinsItsActTest,
+	"RefactorTactics.Playback.HealedJoinsItsActAfterTheGesture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackHealedJoinsItsActTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::Healed,           1, TEXT("Action.Heal")));   // 0  la cura applicata
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B")));             // 1  un colpo, prima
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("B")));             // 2
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal")));   // 3  il gesto della cura
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0);
+	const TArray<int32> Atteso = { 1, 2, 3, 0 };
+	TestEqual(TEXT("🔴 il colpo, poi il gesto della cura e il suo «+N»"), SeqIndici(S), Atteso);
+
+	// Il gesto nascosto a chi guarda: il curato si vede lo stesso, e la fase deve aprirsi per lui.
+	TArray<FRTResolvedEvent> Nascosto;
+	Nascosto.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal"), /*bNascosto*/ true));
+	Nascosto.Add(SeqEvento(ERTResolvedEventType::Healed,           1, TEXT("Action.Heal")));
+	const TArray<FRTBlastSequenceElement> SN = URTPlaybackLibrary::BuildBlastSequence(Nascosto, {}, 0, /*Viewer*/ 0);
+	const TArray<int32> SoloCura = { 1 };
+	TestEqual(TEXT("il gesto nascosto non entra, la cura si'"), SeqIndici(SN), SoloCura);
+	TestTrue(TEXT("🔴 una sola cura apre il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, /*NumActivations*/ 0, /*NumHeals*/ 1));
+	TestFalse(TEXT("e senza nulla resta chiuso"), URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0, 0));
+
+	// 🔴 **Il caso che la prima stesura perdeva** (review di #3600): gesto nascosto E curato che chi guarda non
+	// conosce. Nessun elemento: senza il filtro la cura occupava uno slot e apriva il Blast, cioe' il ritmo diceva
+	// che una cura nemica era avvenuta. ✅ Validato per mutazione: senza `IsHealedHiddenFrom` questa riga cade.
+	TArray<FRTResolvedEvent> TuttoNascosto;
+	TuttoNascosto.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal"), /*bNascosto*/ true));
+	TuttoNascosto.Add(SeqEvento(ERTResolvedEventType::Healed,           1, TEXT("Action.Heal"), /*bNascosto*/ true));
+	TestEqual(TEXT("🔴 una cura che chi guarda non conosce non entra, e non lascia buchi nel ritmo"),
+		URTPlaybackLibrary::BuildBlastSequence(TuttoNascosto, {}, 0, /*Viewer*/ 0).Num(), 0);
 	return true;
 }
 

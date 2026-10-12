@@ -216,6 +216,12 @@ public:
 	 * cure o purificazioni non ha colpi, impronte, muri ne' spinta, e senza questo termine le sue attivazioni
 	 * non avrebbero una fase in cui accadere.
 	 *
+	 * 🔴 **E `NumHeals` e' il sesto** ([D-505], `#3600`): una cura il cui gesto chi guarda non ha il diritto di
+	 * vedere (chi cura non e' visto) resta nella sequenza col suo `Healed` se chi guarda conosce il curato
+	 * (`IsHealedHiddenFrom`). Senza questo
+	 * termine quel Blast non avrebbe una fase, e il «+N» sparirebbe. Ha un default, `0`, perche' i chiamanti
+	 * che non conoscono le cure non cambino.
+	 *
 	 * ⛔ **Nessuna somma e nessuna soglia: le ragioni sono INDIPENDENTI**, e basta che una sia vera.
 	 * Sommarle per «misurare quanto succede» aprirebbe la fase sugli stessi casi e chiuderebbe quelli con
 	 * un solo fatto, che sono precisamente quelli per cui i termini sono stati aggiunti.
@@ -225,7 +231,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
-		int32 NumStructureHits, int32 NumActivations);
+		int32 NumStructureHits, int32 NumActivations, int32 NumHeals = 0);
 
 	/**
 	 * Il segmento da disegnare per un tracer (`#2454`). Pura: estremi nel mondo, avanzamento, lunghezza del dardo.
@@ -536,6 +542,39 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float RouteAlpha(int32 RouteSegments, float PhaseElapsed, float CellsPerSecond);
+
+	/**
+	 * Vero se la traccia a terra `Ev` NON va disegnata per la squadra `ViewerTeamId` — `#3551`, [D-500].
+	 *
+	 * 🔴 **Solo `Line` e `Cone`, e solo per chi non vedeva l'attaccante.** Le loro celle contengono l'origine: la prima
+	 * cella di una linea e' adiacente a chi spara, e la direzione dice da quale lato, quindi la traccia ricostruisce la
+	 * cella di un attaccante che chi guarda non aveva il diritto di sapere. Un'`Area` e' centrata sul bersaglio e un
+	 * `Single` e' la sola cella colpita: non contengono l'origine, e si disegnano per tutti come prima. La regola e'
+	 * quella del tracer (`TracerStyleForIn`): niente, non una traccia accorciata, perche' una linea accorciata punta
+	 * ancora a chi spara.
+	 *
+	 * ⚠️ Il verdetto e' quello congelato in risoluzione (`SourceVerdict`, [D-223]), non la conoscenza al momento del
+	 * disegno; vuoto si legge fail-closed. Falso per ogni evento che non sia `AttackFootprint`.
+	 */
+	static bool IsFootprintHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
+	 * Vero se il segno di un muro colpito `Ev` NON va mostrato alla squadra `ViewerTeamId` — `#3681`, [D-502].
+	 *
+	 * Il bordo dice da dove ha sparato chi ha sparato, e lo vedono solo la squadra di ogni autore e chi
+	 * osservava almeno una delle due celle. Il verdetto lo congela il produttore (`FreezeEdgeVerdict`) e
+	 * viaggia in `SourceVerdict`, che per questo tipo e' il verdetto del FATTO; vuoto si legge fail-closed.
+	 * Falso per ogni evento che non sia `StructureHit`.
+	 */
+	static bool IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
+	 * Vero se e' una CURA ([D-505], `#3600`) il cui curato chi guarda non conosceva: il suo verdetto, congelato
+	 * all'emissione, non lo ammette. ⛔ Non basta il velo sull'overlay: quello nasconde il «+N», non lo SLOT di
+	 * tempo che l'elemento occupa nella sequenza, e una cura nemica su un nemico non visto aprirebbe o
+	 * allungherebbe il Blast — il buco nel ritmo che la spec del momento vieta.
+	 */
+	static bool IsHealedHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
 
 	/**
 	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).

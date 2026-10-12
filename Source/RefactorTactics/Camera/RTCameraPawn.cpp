@@ -4,6 +4,7 @@
 #include "Camera/CameraComponent.h"
 #include "Map/RTHexLibrary.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h" // #3661: il rettangolo del giocatore per l'aspetto del limite del pivot
 
 /** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
@@ -120,6 +121,11 @@ void ARTCameraPawn::ApplyViewSettings()
 	// darebbe una partenza che il primo scroll "corregge" di scatto.
 	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
 
+	// La distanza e' appena cambiata: lo stato strategico e' una **lettura** di quella distanza, e va riletto
+	// qui invece di aspettare il prossimo scroll — altrimenti `Home` da vista strategica lascerebbe lo stato
+	// indietro di un comando. E va riletto **prima del pitch**, che da D-498 dipende dallo stato.
+	UpdateStrategicState();
+
 	// 🔴 **Il pitch corrente si riallinea alla taratura QUI, non nel costruttore.** La prima stesura di
 	// #863 lo faceva nel costruttore, che gira sul CDO: un `DefaultPitch` messo nel Details di un'istanza
 	// in livello — o in un archetipo Blueprint — non sarebbe mai arrivato al runtime, e la partita si
@@ -131,12 +137,7 @@ void ARTCameraPawn::ApplyViewSettings()
 	ManualPitchOffset = 0.f;
 	RecomputePitchFromZoom();
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
-
-	// La distanza e' appena cambiata: lo stato strategico e' una **lettura** di quella distanza, e va
-	// riletto qui invece di aspettare il prossimo scroll — altrimenti `Home` da vista strategica
-	// lascerebbe lo stato indietro di un comando.
 	RefreshViewportMetrics();
-	UpdateStrategicState();
 }
 
 bool ARTCameraPawn::FrameOwnTeam()
@@ -185,10 +186,9 @@ bool ARTCameraPawn::FrameOwnTeam()
 	}
 
 	FocusOn(URTHexLibrary::CellsCentroidWorld(Cells, Origin, HexSize, LayerHeight));
-	if (SpringArm)
-	{
-		SpringArm->TargetArmLength = FMath::Clamp(MatchStartArmLength, MinArmLength, MaxArmLength);
-	}
+	// Dalla porta comune del braccio, che rilegge lo stato prima di pitch e proiezione e ri-clampa il pivot: con
+	// `MatchStartArmLength` oltre la soglia d'ingresso la partita partirebbe a distanza strategica con la vista tattica.
+	ApplyArmLength(MatchStartArmLength);
 	UE_LOG(LogRT, Log, TEXT("[RT] Camera sulla squadra %d (%d unita', arm=%.0f)"),
 		TeamId, Cells.Num(), SpringArm ? SpringArm->TargetArmLength : -1.f);
 	return true;
@@ -332,7 +332,9 @@ void ARTCameraPawn::AddYaw(float AxisValue)
 	}
 	// Normalizzata subito: ruotando a lungo nella stessa direzione il valore crescerebbe senza fine, e il
 	// campo in editor diventerebbe illeggibile pur descrivendo la stessa vista.
-	CameraYaw = FRotator::ClampAxis(CameraYaw + FMath::Sign(AxisValue) * YawStep);
+	// D-499: in iso il passo e' quello degli assi degli esagoni (60); in tattica resta D-142 (45).
+	const float Passo = bStrategicView ? StrategicYawStep : YawStep;
+	CameraYaw = FRotator::ClampAxis(CameraYaw + FMath::Sign(AxisValue) * Passo);
 
 	// SOLO la rotazione, non `ApplyViewSettings()`: quella riporta anche il braccio a `DefaultArmLength`, e
 	// ruotare avrebbe annullato lo zoom a ogni pressione. Sono due cose diverse che vivevano nella stessa
@@ -360,13 +362,9 @@ bool ARTCameraPawn::UpdateStrategicState()
 		return false;
 	}
 
-	// 🔑 **`Exit < Enter` e' imposto QUI, non solo documentato.** I due campi sono `BlueprintReadWrite` e il
-	// loro `meta = (ClampMin)` vincola il Details e non un `Set` da Blueprint: con le soglie invertite una
-	// disuguaglianza scritta a mano avrebbe prodotto uno stato che entra e non esce, o che sfarfalla — lo
-	// stesso genere di difetto che l'isteresi esiste per evitare. Con `Max`/`Min` la coppia e' ordinata per
-	// costruzione, e chi le inverte ottiene comunque un'isteresi valida.
-	const float Enter = FMath::Max(StrategicEnterThreshold, StrategicExitThreshold);
-	const float Exit  = FMath::Min(StrategicEnterThreshold, StrategicExitThreshold);
+	float Enter = 0.f;
+	float Exit = 0.f;
+	GetOrderedStrategicThresholds(Enter, Exit);
 
 	const float Distance = SpringArm->TargetArmLength;
 	const bool bWas = bStrategicView;
@@ -380,11 +378,38 @@ bool ARTCameraPawn::UpdateStrategicState()
 		bStrategicView = false;
 	}
 
+	// Il ritorno del secondo `Tab` (D-488): l'ultima distanza letta da TATTICI, qualunque sia stata la via
+	// d'ingresso. Si scrive dopo la valutazione, cosi' la lettura che entra in strategica non la sovrascrive.
+	if (!bStrategicView)
+	{
+		LastTacticalArmLength = Distance;
+	}
+
+	// A ogni lettura e non solo al cambio di stato, perche' in ortografica la larghezza segue il braccio.
+	ApplyStrategicProjection();
+
 	if (bWas != bStrategicView)
 	{
-		// ⏳ **Non ha ancora un consumatore visivo**, e il log lo dice invece di lasciarlo dedurre: la
-		// presentazione strategica — separazione verticale dei piani, densita' dei marker — e' `#1775`.
-		// Questo e' lo stato, non la vista.
+		// D-499: in iso l'imbardata sta sugli assi degli esagoni. Entrando si allinea al multiplo di 60 piu' vicino e
+		// si ricorda quella tattica; uscendo torna quella, come l'inclinazione (l'offset manuale non si tocca).
+		if (bStrategicView)
+		{
+			TacticalYawBeforeStrategic = CameraYaw;
+			CameraYaw = SnapYawToStep(CameraYaw, StrategicYawStep);
+		}
+		else
+		{
+			CameraYaw = TacticalYawBeforeStrategic;
+		}
+
+		// D-498: il pitch e' una funzione dello STATO, e cambia nel fotogramma in cui cambia lo stato (il taglio netto
+		// di D-495 (4)). Le porte del braccio lo ricalcolano gia' dopo questa lettura; qui vale per chi rilegge lo
+		// stato da solo.
+		RecomputePitchFromZoom();
+		ApplyArmRotation();
+		// Il consumatore visivo e' `ARTHUD::UpdateObserverVeil`, che a ogni fotogramma legge `IsStrategicView`
+		// e lo consegna alle unita' (`ARTUnit::SetStrategicPresentation`, D-495). Il log resta: dice QUANDO
+		// lo stato e' cambiato, che a schermo si vede ma non si data.
 		UE_LOG(LogRT, Log, TEXT("[RT] Vista %s (arm=%.0f, enter=%.0f, exit=%.0f)"),
 			bStrategicView ? TEXT("STRATEGICA") : TEXT("tattica"), Distance, Enter, Exit);
 		return true;
@@ -392,11 +417,127 @@ bool ARTCameraPawn::UpdateStrategicState()
 	return false;
 }
 
+float ARTCameraPawn::OrthoWidthForArm(float ArmLength, float HorizontalFovDegrees, float ReferenceAspectRatio)
+{
+	// L'ALTEZZA del quadro prospettico sul piano del pivot, perche' con `MaintainYFOV` e' quella che `OrthoWidth`
+	// descrive (vedi l'header). Il semiangolo verticale e' quello che UE ricava in `CameraStackTypes.cpp`:
+	// `atan(tan(FOV/2) / AspectRatio)`, quindi la mezza altezza a distanza `Arm` vale `Arm * tan(FOV/2) / AspectRatio`.
+	// ⚠️ Fino a #3662 qui mancava la divisione, e l'ortografica inquadrava 1,78× la prospettica: il test di allora
+	// confrontava questa formula con sé stessa. Quello di oggi misura la matrice di proiezione.
+	const float HalfFov = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
+	return 2.f * FMath::Max(ArmLength, 0.f) * FMath::Tan(HalfFov) / FMath::Max(ReferenceAspectRatio, 0.01f);
+}
+
+float ARTCameraPawn::SnapYawToStep(float YawDegrees, float Step)
+{
+	const float Passo = FMath::Max(Step, 1.f);
+	return FRotator::ClampAxis(FMath::RoundToFloat(FRotator::ClampAxis(YawDegrees) / Passo) * Passo);
+}
+
+bool ARTCameraPawn::IsOrthographicNow() const
+{
+	return Camera != nullptr && Camera->ProjectionMode == ECameraProjectionMode::Orthographic;
+}
+
+void ARTCameraPawn::ApplyStrategicProjection()
+{
+	if (!Camera || !SpringArm)
+	{
+		return;
+	}
+	// D-498: la proiezione segue lo STATO, con la sua isteresi — anche fra le due soglie resta quella dello stato.
+	if (bStrategicView)
+	{
+		// 🔑 **Lo zoom resta il braccio** (D-252): la larghezza si DERIVA dalla distanza, cosi' lo stato strategico
+		// continua a leggersi da `TargetArmLength` e al cambio di proiezione la scala sul pivot non salta.
+		Camera->SetOrthoWidth(OrthoWidthForArm(SpringArm->TargetArmLength, Camera->FieldOfView, Camera->AspectRatio));
+		// I piani automatici di UE restano (servono alla profondita' a 16 bit), ma spostati indietro: vedi l'header.
+		Camera->SetAutoPlaneShift(-StrategicOrthoPlaneShiftArms * SpringArm->TargetArmLength);
+		if (Camera->ProjectionMode != ECameraProjectionMode::Orthographic)
+		{
+			Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);
+		}
+	}
+	else if (Camera->ProjectionMode != ECameraProjectionMode::Perspective)
+	{
+		Camera->SetProjectionMode(ECameraProjectionMode::Perspective);
+	}
+}
+
+void ARTCameraPawn::GetOrderedStrategicThresholds(float& OutEnter, float& OutExit) const
+{
+	// 🔑 **`Exit < Enter` e' imposto QUI, non solo documentato.** I due campi sono `BlueprintReadWrite` e il
+	// loro `meta = (ClampMin)` vincola il Details e non un `Set` da Blueprint: con le soglie invertite una
+	// disuguaglianza scritta a mano avrebbe prodotto uno stato che entra e non esce, o che sfarfalla — lo
+	// stesso genere di difetto che l'isteresi esiste per evitare. Con `Max`/`Min` la coppia e' ordinata per
+	// costruzione, e chi le inverte ottiene comunque un'isteresi valida.
+	OutEnter = FMath::Max(StrategicEnterThreshold, StrategicExitThreshold);
+	OutExit  = FMath::Min(StrategicEnterThreshold, StrategicExitThreshold);
+}
+
+void ARTCameraPawn::ToggleStrategicView()
+{
+	if (!SpringArm)
+	{
+		return;
+	}
+
+	float Enter = 0.f;
+	float Exit = 0.f;
+	GetOrderedStrategicThresholds(Enter, Exit);
+
+	const bool bWas = bStrategicView;
+	if (bStrategicView)
+	{
+		// Mai letta (un pawn nato gia' oltre la soglia): la soglia d'uscita e' la distanza tattica piu' vicina
+		// a quella strategica, cioe' il ritorno che sposta meno la vista.
+		const float Back = (LastTacticalArmLength > 0.f) ? FMath::Min(LastTacticalArmLength, Exit) : Exit;
+		ApplyArmLength(Back);
+	}
+	else
+	{
+		// 🔴 **#3646 — la distanza di partenza si registra QUI, non si eredita.** `LastTacticalArmLength` la scrive
+		// `UpdateStrategicState`, ma non tutti gli scrittori del braccio passano di li': `FrameOwnTeam` apre la
+		// partita a `MatchStartArmLength` scrivendo `TargetArmLength` direttamente. Senza questa riga il primo `Tab`
+		// della partita tornava alla distanza di `BeginPlay` (800) invece che a quella d'avvio (450) — trovato in
+		// PIE (seduta `U73`), invisibile ai test che partivano da `AddZoom`.
+		LastTacticalArmLength = SpringArm->TargetArmLength;
+		ApplyArmLength(Enter);
+	}
+
+	// ⚠️ Con `StrategicEnterThreshold` oltre `MaxArmLength` il braccio si ferma al limite e lo stato non cambia:
+	// e' una taratura incoerente, e il log lo dice invece di lasciare un tasto che sembra rotto.
+	if (bWas == bStrategicView)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Tab non ha cambiato la vista: arm=%.0f, enter=%.0f, exit=%.0f, limiti [%.0f, %.0f]"),
+			SpringArm->TargetArmLength, Enter, Exit, MinArmLength, MaxArmLength);
+	}
+}
+
+void ARTCameraPawn::ApplyArmLength(float InArmLength)
+{
+	if (!SpringArm)
+	{
+		return;
+	}
+	SpringArm->TargetArmLength = FMath::Clamp(InArmLength, MinArmLength, MaxArmLength);
+
+	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: lo stato prima del pitch, perche' da D-498 il
+	// pitch ne dipende; il pitch prima del pivot, perche' entra nei limiti. Una scorciatoia qui farebbe divergere
+	// le porte dello zoom.
+	UpdateStrategicState();
+	RecomputePitchFromZoom();
+	ApplyArmRotation();
+	RefreshViewportMetrics();
+	SetCameraPivot(CameraPivot);
+}
+
 // --- #1778 · i limiti del pivot che conoscono il viewport (D-251) -----------------------------------
 
 FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, float ArmLength,
 	float PitchDegrees, float YawDegrees, float HorizontalFovDegrees, float AspectRatio,
-	float AllowedOutsideFraction)
+	float AllowedOutsideFraction, float ReferenceAspectRatio)
 {
 	// Aspect ratio ignoto (headless, o viewport non ancora creato): non c'e' una geometria di schermo su cui
 	// ragionare, e l'area passa intatta. E' il **caso degenere dichiarato** — il clamp per sole celle di
@@ -406,8 +547,15 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 		return AllowedArea;
 	}
 
+	// 🔴 **Il semiasse FISSO e' il verticale, non l'orizzontale** (#3661, D-497 (4)). Con `MaintainYFOV`, default
+	// di `BaseEngine.ini` che il progetto non cambia, `FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle`
+	// prende il FOV come orizzontale all'aspetto della camera (16:9), ne ricava il semiangolo verticale e lo
+	// tiene; l'orizzontale segue il rettangolo. Il modello di prima teneva fisso l'orizzontale e divideva per
+	// l'aspetto: esatto solo a 16:9, e da #3661 la scena non e' piu' 16:9 (circa 1,69 a 1920×1080).
 	const float HalfFovH = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
-	const double HalfWidth = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH);
+	const double AspettoRiferimento = FMath::Max(static_cast<double>(ReferenceAspectRatio), 0.01);
+	const double VerticalHalf = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH) / AspettoRiferimento;
+	const double HalfWidth = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01);
 
 	// L'estensione **lungo la direzione di sguardo** cresce quando la camera si abbassa: a picco il quadro
 	// e' un rettangolo, all'orizzonte si allunga senza limite. E' il caso che rompe il clamp fisso, ed e'
@@ -416,7 +564,6 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 	// `sin` del pitch al denominatore, con un pavimento: a `MaxPitch = 0` la camera guarda l'orizzonte e la
 	// proiezione a terra divergerebbe. Il pavimento non e' una tolleranza numerica — e' la dichiarazione
 	// che oltre una certa inclinazione la nozione di «quanto mondo entra» smette di essere finita.
-	const double VerticalHalf = HalfWidth / FMath::Max(static_cast<double>(AspectRatio), 0.01);
 	const double SinPitch = FMath::Max(FMath::Abs(FMath::Sin(FMath::DegreesToRadians(PitchDegrees))), 0.15);
 	const double HalfDepth = VerticalHalf / SinPitch;
 
@@ -468,8 +615,22 @@ void ARTCameraPawn::RefreshViewportMetrics()
 	{
 		return;
 	}
+	// #3661, D-497 (3): l'aspetto e' quello del RETTANGOLO del giocatore, non del viewport. Da #3661 la scena
+	// si rende fra le fasce dell'HUD (`URTGameViewportClient`), e a 1920×1080 il rettangolo e' circa 1,69,
+	// non 1,78. `Size` e' la frazione che `LayoutPlayers` scrive a ogni fotogramma; senza un giocatore vale
+	// l'intero viewport, come prima.
 	const FIntPoint Size = Client->Viewport->GetSizeXY();
-	ViewportAspectRatio = (Size.Y > 0) ? static_cast<float>(Size.X) / static_cast<float>(Size.Y) : 0.f;
+	FVector2D Frazione(1.0, 1.0);
+	if (const ULocalPlayer* Giocatore = World->GetFirstLocalPlayerFromController())
+	{
+		if (Giocatore->Size.X > 0.0 && Giocatore->Size.Y > 0.0)
+		{
+			Frazione = Giocatore->Size;
+		}
+	}
+	const double Larghezza = static_cast<double>(Size.X) * Frazione.X;
+	const double Altezza = static_cast<double>(Size.Y) * Frazione.Y;
+	ViewportAspectRatio = (Altezza > 0.0) ? static_cast<float>(Larghezza / Altezza) : 0.f;
 }
 
 FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
@@ -516,7 +677,8 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 	// l'area intatta, e questo torna a essere il clamp per sole celle di `#864`.
 	const FBox2D Effective = ComputeEffectivePivotBounds(Allowed,
 		SpringArm ? SpringArm->TargetArmLength : 0.f, CameraPitch, CameraYaw,
-		ViewportHorizontalFov, ViewportAspectRatio, AllowedOutsideFraction);
+		ViewportHorizontalFov, ViewportAspectRatio, AllowedOutsideFraction,
+		Camera ? Camera->AspectRatio : 16.f / 9.f); // #3661: l'aspetto a cui il FOV e' orizzontale
 
 	return FVector(
 		FMath::Clamp(Desired.X, static_cast<double>(Effective.Min.X), static_cast<double>(Effective.Max.X)),
@@ -549,6 +711,7 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 		return;
 	}
 	SpringArm->TargetArmLength = After;
+	UpdateStrategicState(); // prima del pitch: da D-498 il pitch dipende dallo stato
 
 	// Il pivot si avvicina all'ancora in proporzione a quanto il braccio si e' accorciato: cosi' l'ancora
 	// resta ferma sullo schermo. Solo X/Y — la quota del piano non cambia zoomando (`#887`).
@@ -570,12 +733,12 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	ApplyArmRotation();
 	RefreshViewportMetrics();
 	SetCameraPivot(FVector(Moved.X, Moved.Y, Pivot.Z));
-	UpdateStrategicState();
 }
 
 void ARTCameraPawn::AddYawContinuous(float AxisValue)
 {
-	if (FMath::IsNearlyZero(AxisValue))
+	// D-499: in iso si ruota solo a scatti di 60 (`AddYaw`); la rotazione libera lascerebbe la vista fuori dagli assi.
+	if (FMath::IsNearlyZero(AxisValue) || bStrategicView)
 	{
 		return;
 	}
@@ -588,7 +751,9 @@ void ARTCameraPawn::AddYawContinuous(float AxisValue)
 
 void ARTCameraPawn::AddPitch(float AxisValue)
 {
-	if (FMath::IsNearlyZero(AxisValue))
+	// D-498: in strategica l'inclinazione e' fissa e l'orbita verticale non agisce. Si esce PRIMA di toccare
+	// l'offset, che e' della tattica e deve ritrovarsi intatto al ritorno.
+	if (FMath::IsNearlyZero(AxisValue) || bStrategicView)
 	{
 		return;
 	}
@@ -612,15 +777,21 @@ void ARTCameraPawn::AddOrbit(float DeltaYaw, float DeltaPitch)
 	// I due campi si scrivono qui e la trasformata **una volta sola**: chiamare i due `Add*` in fila
 	// aggiornerebbe il braccio due volte per frame di trascinamento, e la seconda scrittura scarterebbe
 	// il risultato della prima.
-	if (!FMath::IsNearlyZero(DeltaYaw))
+	// D-499: in iso nemmeno l'orbita orizzontale agisce: si ruota solo a scatti di 60 (`AddYaw`).
+	if (!FMath::IsNearlyZero(DeltaYaw) && !bStrategicView)
 	{
 		CameraYaw = FRotator::ClampAxis(CameraYaw + DeltaYaw * FMath::Max(YawSensitivity, 0.f));
 	}
-	if (!FMath::IsNearlyZero(DeltaPitch))
+	// D-498: in strategica nemmeno l'orbita verticale agisce, come in `AddPitch` (l'orizzontale e' gia' esclusa sopra, D-499).
+	if (!FMath::IsNearlyZero(DeltaPitch) && !bStrategicView)
 	{
+		// 🔴 **#3630 — l'orbita scrive l'OFFSET, come `AddPitch`.** Fino al 2026-10-10 sommava direttamente su
+		// `CameraPitch`, e il primo zoom la cancellava: `RecomputePitchFromZoom` riscrive il pitch come
+		// derivato + offset, e un'orbita che non stava nell'offset non c'era. Il clamp lo fa il ricalcolo, sull'offset
+		// prima della somma, cioe' contro il windup.
 		const float Signed = bInvertOrbitPitch ? -DeltaPitch : DeltaPitch;
-		CameraPitch = FMath::Clamp(CameraPitch + Signed * FMath::Max(PitchSensitivity, 0.f),
-			MinPitch, MaxPitch);
+		ManualPitchOffset += Signed * FMath::Max(PitchSensitivity, 0.f);
+		RecomputePitchFromZoom();
 	}
 	ApplyArmRotation();
 }
@@ -632,6 +803,7 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 		return;
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(SpringArm->TargetArmLength + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+	UpdateStrategicState(); // prima del pitch: da D-498 il pitch dipende dallo stato
 	// ⚠️ **Prima di scrivere il pivot**: l'inclinazione e' un ingresso di `ComputeEffectivePivotBounds`
 	// (`D-251`), quindi derivarla dopo il clamp userebbe per i limiti il pitch della distanza precedente.
 	// E' lo stesso ordine che `RecenterView` documenta per yaw e braccio.
@@ -645,7 +817,6 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 	// successivo. `ZoomTowards` non aveva il difetto perche' scrive il pivot per conto suo; questo ramo
 	// toccava solo il braccio.
 	SetCameraPivot(CameraPivot);
-	UpdateStrategicState();
 }
 
 float ARTCameraPawn::GetZoomAlpha() const
@@ -674,15 +845,7 @@ void ARTCameraPawn::SetZoomAlpha(float InAlpha)
 		return;
 	}
 	const float Clamped = FMath::Clamp(InAlpha, 0.f, 1.f);
-	SpringArm->TargetArmLength = FMath::Lerp(MinArmLength, MaxArmLength, Clamped);
-
-	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: il pitch prima del pivot, perche'
-	// entra nei limiti. Una scorciatoia qui farebbe divergere le due porte dello zoom.
-	RecomputePitchFromZoom();
-	ApplyArmRotation();
-	RefreshViewportMetrics();
-	SetCameraPivot(CameraPivot);
-	UpdateStrategicState();
+	ApplyArmLength(FMath::Lerp(MinArmLength, MaxArmLength, Clamped));
 }
 
 float ARTCameraPawn::GetPanDistanceScale() const
@@ -700,6 +863,14 @@ float ARTCameraPawn::GetPanDistanceScale() const
 
 void ARTCameraPawn::RecomputePitchFromZoom()
 {
+	if (bStrategicView)
+	{
+		// D-498: l'inclinazione e' fissa per tutto lo stato strategico. L'offset manuale non entra e non si clampa
+		// contro un derivato che qui non vale: e' della tattica, e al ritorno deve essere quello di prima.
+		CameraPitch = FMath::Clamp(StrategicPitch, MinPitch, MaxPitch);
+		return;
+	}
+
 	const float Derived = FMath::Clamp(DefaultPitch + PitchZoomDelta * GetZoomAlpha(), MinPitch, MaxPitch);
 
 	// 🔴 **L'offset si clampa PRIMA di sommarlo, contro il windup.** Clampare solo il risultato
@@ -720,6 +891,9 @@ void ARTCameraPawn::RecenterView()
 	// dopo. Premendo `Home` da zoom massimo su una mappa piccola l'inquadratura superava l'area, il pivot
 	// si inchiodava al centro calcolato con i valori vecchi, e nessuno lo ricalcolava dopo il reset.
 	CameraYaw = 0.f;
+	// D-499: se `Home` arriva dalla strategica, l'uscita riprende l'imbardata tattica salvata: si azzera anche quella,
+	// altrimenti `Home` tornerebbe orientato come prima di `Tab`.
+	TacticalYawBeforeStrategic = 0.f;
 	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 	ApplyViewSettings();
 

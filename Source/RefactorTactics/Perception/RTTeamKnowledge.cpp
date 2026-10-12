@@ -230,6 +230,29 @@ FRTKnowledgeVerdict URTTeamKnowledgeLibrary::FreezeVerdict(const TArray<FRTTeamK
 	return Verdict;
 }
 
+FRTKnowledgeVerdict URTTeamKnowledgeLibrary::FreezeEdgeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
+	const TArray<int32>& AuthorTeamIds, const FRTCellId& CellA, const FRTCellId& CellB)
+{
+	FRTKnowledgeVerdict Verdict;
+
+	// Un soggetto per autore — la sua squadra passa dal ramo alleato di `ClassifyTarget` — e uno senza
+	// squadra, che riceve solo la vista delle celle: e' il caso del colpo che nessuno firma (D-437).
+	TArray<int32> Squadre = AuthorTeamIds;
+	Squadre.Add(INDEX_NONE);
+	for (const int32 Squadra : Squadre)
+	{
+		for (const FRTCellId& Cella : { CellA, CellB })
+		{
+			FRTKnowledgeSubject Soggetto;
+			Soggetto.StableUnitId = INDEX_NONE; // nessun contatto da ricordare: conta la cella
+			Soggetto.TeamId = Squadra;
+			Soggetto.Cell = Cella;
+			Verdict.Mask |= FreezeVerdict(AllKnowledge, Soggetto).Mask;
+		}
+	}
+	return Verdict;
+}
+
 int32 URTTeamKnowledgeLibrary::ObservedPrefixLength(const TArray<FRTCellId>& Cells,
 	const TArray<FRTKnowledgeVerdict>& CellVerdicts, int32 ObserverTeamId)
 {

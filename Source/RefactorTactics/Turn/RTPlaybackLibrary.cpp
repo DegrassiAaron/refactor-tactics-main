@@ -48,12 +48,13 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 }
 
 bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
-	int32 NumStructureHits, int32 NumActivations)
+	int32 NumStructureHits, int32 NumActivations, int32 NumHeals)
 {
 	// Le ragioni sono indipendenti (colpi, spinta, impronte, muri, attivazioni); l'ultima e' quella di #3549:
 	// un Blast di sole cure si vede. ⛔ Nessuna
 	// somma e nessuna soglia: basta che UNA sia vera.
-	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0;
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0
+		|| NumHeals > 0; // [D-505]: una cura vista sul curato, il cui gesto chi guarda non vede
 }
 
 void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
@@ -128,6 +129,23 @@ float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, flo
 	}
 	const float Lancio = AttackLaunchSeconds(AttackIndex, AttackShowSeconds);
 	return FMath::Clamp((PhaseElapsed - Lancio) / Flight, 0.f, 1.f);
+}
+
+bool URTPlaybackLibrary::IsFootprintHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return Ev.Type == ERTResolvedEventType::AttackFootprint
+		&& (Ev.Shape == ERTAbilityShape::Line || Ev.Shape == ERTAbilityShape::Cone)
+		&& !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+}
+
+bool URTPlaybackLibrary::IsStructureHitHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return Ev.Type == ERTResolvedEventType::StructureHit && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+}
+
+bool URTPlaybackLibrary::IsHealedHiddenFrom(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return Ev.Type == ERTResolvedEventType::Healed && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
 }
 
 bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
@@ -823,6 +841,7 @@ namespace
 		case ERTResolvedEventType::AttackFootprint:  return 1;
 		case ERTResolvedEventType::StructureHit:     return 2;
 		case ERTResolvedEventType::Attack:           return 3;
+		case ERTResolvedEventType::Healed:           return 4; // [D-505]: nell'atto della cura, dopo il gesto
 		default:                                     return -1; // `ArcHit` compreso: #3293
 		}
 	}
@@ -877,12 +896,20 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		}
 		// D6: un'attivazione che chi guarda non ha il diritto di vedere non ENTRA nella sequenza — tutto o niente.
 		// 🔑 **Ma da' la chiave al suo gruppo** (review della PR #3561): ordinare per il suo indice non rivela nulla —
-		// l'attivazione non si mostra, e impronte e colpi si mostrano comunque. ⏱️ *Prima usciva qui, e il gruppo
+		// l'attivazione non si mostra, e i colpi si mostrano comunque (la traccia, se chi guarda vedeva l'attaccante: `#3551`). ⏱️ *Prima usciva qui, e il gruppo
 		// prendeva la chiave dalla prima apparizione: con uno `StructureHit` (emesso PRIMA di tutte le attivazioni)
 		// finiva davanti a ogni atto visibile, senza muro in coda. L'ordine degli atti nascosti si ribaltava con la
 		// presenza di un muro.*
 		const bool bAttivazione = (Ev.Type == ERTResolvedEventType::AbilityActivated);
-		const bool bNascosta = bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
+		// ➕ `#3551`, [D-500]: e non vi entra la traccia di un `Line`/`Cone` il cui attaccante chi guarda non vedeva — la
+		// sua geometria contiene l'origine. Stessa sorte delle attivazioni nascoste: fuori dalla sequenza, quindi anche
+		// dal suo ritmo, e il gruppo resta quello dei colpi che chi guarda vede arrivare sulle vittime.
+		// ➕ `#3681`, [D-502]: e non vi entra il segno di un muro che chi guarda non osservava — il bordo dice la
+		// fila da cui e' arrivato il colpo. Come le altre due: fuori dalla sequenza, la chiave resta al gruppo.
+		const bool bNascosta = (bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
+			|| IsFootprintHiddenFrom(Ev, ViewerTeamId)
+			|| IsStructureHitHiddenFrom(Ev, ViewerTeamId)
+			|| IsHealedHiddenFrom(Ev, ViewerTeamId); // [D-505]: la cura di un curato che chi guarda non conosce
 
 		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
 		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima
