@@ -236,12 +236,19 @@ class ITreCriteri(unittest.TestCase):
 class IlRefertoDistingueIDueRossi(unittest.TestCase):
     """`main()` su un albero finto: il codice d'uscita dice SE ha fallito la lettura o un criterio."""
 
-    def esegui(self, rthud_cpp, argv: list[str]) -> tuple[int, str, str]:
+    def esegui(self, rthud_cpp, argv: list[str], documenti: bool = True) -> tuple[int, str, str]:
         with tempfile.TemporaryDirectory() as tmp:
             if rthud_cpp is not None:
                 file = pathlib.Path(tmp) / "Source" / "RefactorTactics" / "UI" / "RTHUD.cpp"
                 file.parent.mkdir(parents=True)
                 file.write_text(rthud_cpp, encoding="utf-8")
+            if documenti:
+                # I due documenti owner della palette, copiati dall'albero vero: il referto li legge
+                # (`#3627`), e qui non sono cio' che si sta provando.
+                for relativo in (cm.HUD_STYLE_DOC, cm.SEMANTIC_DOC):
+                    copia = pathlib.Path(tmp) / relativo
+                    copia.parent.mkdir(parents=True, exist_ok=True)
+                    copia.write_bytes((cm.REPO_ROOT / relativo).read_bytes())
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 code = cm.main(argv, repo_root=pathlib.Path(tmp))
@@ -296,6 +303,97 @@ class IlRefertoDistingueIDueRossi(unittest.TestCase):
         code, out, _ = self.esegui(self.VIOLATA, ["--json"])
         self.assertEqual(code, cm.EXIT_CRITERIA_FAILED)
         self.assertTrue(json.loads(out)["criteri_non_rispettati"])
+
+    def test_i_documenti_owner_che_mancano_sono_una_lettura_fallita(self):
+        # La terza meta' del referto (`#3627`): senza i due documenti il confronto delle tabelle non si puo'
+        # fare, e non e' un criterio violato. Le altre due meta' si stampano lo stesso.
+        code, out, err = self.esegui(rthud(), [], documenti=False)
+        self.assertEqual(code, cm.EXIT_READ_FAILED)
+        self.assertIn("LETTURA FALLITA", err)
+        self.assertIn("NON LETTE", out)
+        self.assertIn("identita' fra loro", out)
+
+    def test_json_porta_l_esito_delle_tabelle(self):
+        code, out, _ = self.esegui(rthud(), ["--json"])
+        self.assertEqual(code, cm.EXIT_OK)
+        self.assertEqual(json.loads(out)["tabelle"], {"divergenze": []})
+
+
+class LeTabelleSonoCopieDeiDocumenti(unittest.TestCase):
+    """`check_palette_owners` e i suoi due mattoni (#3627): le tabelle del generatore contro i loro owner."""
+
+    UI_DOC = ("## 32. Palette\n\n| Token | HEX | Uso |\n|---|---|---|\n"
+              "| `RT_UI_Cyan` | `#00E0FF` | focus |\n| `RT_UI_Text_Disabled` | `#6B7684` | testo spento |\n"
+              "| `RT_UI_Phase_Dash` | `#009E73` | fase Dash |\n")
+    SEM_DOC = ("| Famiglia | Token | HEX | Uso |\n|---|---|---|---|\n"
+               "| Movement | `RT_Sem_Movement` | `#009E73` | Move |\n"
+               "| Disabled | `RT_Sem_Disabled` | `#6B7280` | esaurito |\n")
+
+    def albero(self, tmp: str, ui: str, sem: str) -> pathlib.Path:
+        root = pathlib.Path(tmp)
+        for relativo, testo in ((cm.HUD_STYLE_DOC, ui), (cm.SEMANTIC_DOC, sem)):
+            file = root / relativo
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(testo, encoding="utf-8")
+        return root
+
+    def errori(self, fasi: dict, chrome: dict, semantic: dict, ui: str | None = None, sem: str | None = None):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.albero(tmp, self.UI_DOC if ui is None else ui, self.SEM_DOC if sem is None else sem)
+            return cm.check_palette_owners(fasi, chrome, semantic, root)
+
+    def test_copie_fedeli(self):
+        self.assertEqual(self.errori({"Dash": "#009E73"}, {"Cyan": "#00E0FF", "Text_Disabled": "#6B7684"},
+                                     {"Movement": "#009E73", "Disabled": "#6B7280"}), [])
+
+    def test_le_maiuscole_dell_esadecimale_non_contano(self):
+        self.assertEqual(self.errori({}, {"Cyan": "#00e0ff"}, {}), [])
+
+    def test_i_due_grigi_restano_due_token(self):
+        # Il caso da cui la issue e' nata: stessa parola, due vocabolari. Ciascuno coincide col PROPRIO
+        # documento, e nessuno dei due e' una copia divergente dell'altro.
+        self.assertEqual(self.errori({}, {"Text_Disabled": "#6B7684"}, {"Disabled": "#6B7280"}), [])
+        # Allineare il grigio semantico a quello del testo, invece, e' una divergenza dal suo owner.
+        errori = self.errori({}, {}, {"Disabled": "#6B7684"})
+        self.assertTrue(any("RT_Sem_Disabled" in e and "divergono" in e for e in errori), errori)
+
+    def test_un_valore_cambiato_solo_nella_copia(self):
+        errori = self.errori({}, {"Cyan": "#00E0FE"}, {})
+        self.assertEqual(len(errori), 1)
+        self.assertIn("RT_UI_Cyan", errori[0])
+        self.assertIn("divergono", errori[0])
+
+    def test_un_colore_che_il_documento_non_dichiara(self):
+        errori = self.errori({}, {"Magenta": "#FF33E6"}, {})
+        self.assertEqual(len(errori), 1)
+        self.assertIn("non ha il token `RT_UI_Magenta`", errori[0])
+
+    def test_le_fasi_si_cercano_col_loro_prefisso(self):
+        self.assertEqual(self.errori({"Dash": "#009E73"}, {}, {}), [])
+        errori = self.errori({"Dash": "#009E74"}, {}, {})
+        self.assertTrue(any("RT_UI_Phase_Dash" in e for e in errori), errori)
+
+    def test_un_token_del_documento_senza_copia_non_e_un_errore(self):
+        # Il verso e' uno solo: §32 dichiara molti token che le icone non usano.
+        self.assertEqual(self.errori({}, {}, {}), [])
+
+    def test_una_tabella_che_ha_cambiato_forma_non_si_legge(self):
+        with self.assertRaises(RuntimeError) as caught:
+            self.errori({}, {"Cyan": "#00E0FF"}, {}, ui="## 32. Palette\n\nLa tabella e' stata tolta.\n")
+        self.assertIn("nessun token letto", str(caught.exception))
+
+    def test_un_token_dichiarato_due_volte_con_due_valori(self):
+        doppio = self.UI_DOC + "| `RT_UI_Cyan` | `#00E0FE` | focus, di nuovo |\n"
+        with self.assertRaises(RuntimeError) as caught:
+            self.errori({}, {"Cyan": "#00E0FF"}, {}, ui=doppio)
+        self.assertIn("due volte", str(caught.exception))
+
+    def test_le_tabelle_vere_coincidono_coi_documenti_veri(self):
+        # Il test che lega le copie agli owner sull'albero vero: cade quando qualcuno ritocca una tabella
+        # del generatore o un documento, e non l'altro.
+        sys.path.insert(0, HERE)
+        import generate_hud_assets as g  # noqa: PLC0415
+        self.assertEqual(cm.check_palette_owners(g.PHASE_INK, g.CHROME, g.SEMANTIC), [])
 
 
 class IlSorgenteVeroSiLegge(unittest.TestCase):

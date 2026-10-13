@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-13 — Le tabelle di colore del generatore sono copie controllate, e i due grigi restano due token
+
+**Origine**: [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627), con la decisione d'autore `P4` del referto dello stesso giorno. Il generatore degli asset copia la palette da due documenti, e nessuno confrontava le copie. La divergenza che la issue dichiarava su `Disabled` non c'era: sono due token di due vocabolari.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32, un punto in più sotto la tabella: il generatore copia i token che le icone usano, e il gate `T10` li confronta; il token del testo spento non è il grigio semantico delle icone |
+| [`research/design/icon/visual-language/02-color-system.md`](research/design/icon/visual-language/02-color-system.md) | sotto la tabella semantica: la copia nel generatore è controllata da `T10`; `RT_Sem_Disabled` non è `RT_UI_Text_Disabled` |
+| [`technical/runbooks/guida-catalogo-icone.md`](technical/runbooks/guida-catalogo-icone.md) | la riga d'esempio dei gate porta `T10` |
+
+---
+
 ## 2026-10-13 — Il referto dei colori dell'overlay torna a girare, e ha un comando che lo lancia
 
 **Origine**: [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626). `tools/hud-assets/color_metrics.py` leggeva una riga di `UI/RTHUD.cpp` nella forma che aveva prima del 2026-09-04: da allora usciva con un errore esplicito, e nessun comando lo lanciava.

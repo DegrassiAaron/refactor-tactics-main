@@ -51,6 +51,16 @@ tritanopia — non perché sia gradevole.
 | Defense | `RT_Sem_Defense` | `#56B4E9` | `Guard`, `Brace`, `Shield`, `Cover` |
 | Disabled | `RT_Sem_Disabled` | `#6B7280` | non disponibile, esaurito |
 
+> ⚠️ **Il generatore degli asset copia questa tabella, e la copia è controllata.** `SEMANTIC` in
+> `tools/hud-assets/generate_hud_assets.py` porta gli stessi valori, e il gate `T10` li confronta per nome
+> ([#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627)): chi ritocca un valore qui lo
+> ritocca anche là, o il generatore esce rosso.
+>
+> ⛔ **`RT_Sem_Disabled` non è `RT_UI_Text_Disabled`.** Il primo è la tinta semantica di un'icona che dice
+> «non disponibile»; il secondo è il testo spento del chrome dell'HUD, in
+> [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §32, e vale `#6B7684`. Stessa
+> parola, due token: non sono due copie da riallineare (decisione d'autore del 2026-10-13).
+
 Elementi con colore proprio, indipendente dalla squadra:
 
 | Elemento | HEX |

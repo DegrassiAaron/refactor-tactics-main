@@ -37,7 +37,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from action_axes import action_axes, hero_ability_axes, surfaces_created
-from color_metrics import check_overlay, check_palette, inks_by_owner, overlay_colors
+from color_metrics import (check_overlay, check_palette, check_palette_owners, inks_by_owner,
+                           overlay_colors)
 
 try:
     import cairosvg
@@ -56,6 +57,10 @@ except (ImportError, OSError):  # pragma: no cover - dipendenza opzionale, e la 
 # --------------------------------------------------------------------------------------------------
 # Chrome: `progettazione-hud.md` §32. Semantica: `02-color-system.md` §2 (base Okabe-Ito).
 # Nessun valore inventato qui: se un colore serve e non c'e', si aggiunge prima al documento owner.
+#
+# 🔑 **Queste tabelle sono COPIE, e da `#3627` il gate `T10` le confronta coi loro documenti, per nome**:
+# `CHROME` e `PHASE_INK` coi token `RT_UI_*` di §32, `SEMANTIC` coi token `RT_Sem_*` di `02-color-system.md`.
+# Una voce senza token, o con un valore diverso, e' un `T10` rosso.
 
 CHROME = {
     "BG_Deep": "#080F14",
@@ -68,6 +73,9 @@ CHROME = {
     "Amber": "#FFD456",
     "Red": "#FF4D4D",
     "White": "#FFFFFF",
+    # Il testo e le icone SPENTI dell'HUD ([D-482]). E' lo stato «spento» che `T9` misura contro le fasi.
+    # ⚠️ Non e' `SEMANTIC["Disabled"]`: stessa parola, altro vocabolario, altro valore.
+    "Text_Disabled": "#6B7684",
 }
 
 SEMANTIC = {
@@ -78,6 +86,9 @@ SEMANTIC = {
     "Reaction": "#CC79A7",
     "Electric": "#F0E442",
     "Defense": "#56B4E9",
+    # `RT_Sem_Disabled`: la tinta SEMANTICA di un'icona che dice «non disponibile, esaurito».
+    # ⛔ **Non e' una copia di `RT_UI_Text_Disabled` (`#6B7684`), e non va allineata a quello** (`#3627`,
+    # decisione d'autore del 2026-10-13): sono due token di due vocabolari, con due documenti owner.
     "Disabled": "#6B7280",
 }
 
@@ -2651,7 +2662,8 @@ def check_alphabet_gates(entries: list) -> list[str]:
     # palette. Sono due domande diverse: un set in cui due fasi collassano in tritanopia supererebbe
     # T8 senza un errore, perche' ogni icona porterebbe correttamente un colore indistinguibile.
     hud_states = {k: CHROME[k] for k in ("Cyan", "Violet", "Amber", "Red")}
-    hud_states["Disabled"] = SEMANTIC["Disabled"]
+    # Lo stato spento e' il token di §32 che l'HUD disegna, non il grigio semantico delle icone (`#3627`).
+    hud_states["Disabled"] = CHROME["Text_Disabled"]
     errors += [f"T9: {e}" for e in check_palette(
         PHASE_INK, hud_states, {k: CHROME[k] for k in ("BG_Panel", "BG_Raised")})]
 
@@ -2673,6 +2685,14 @@ def check_alphabet_gates(entries: list) -> list[str]:
     else:
         errors += [f"T9: {e}" for e in check_overlay(
             overlay_identity, overlay_phase, inks_by_owner(PHASE_INK, CHROME, SEMANTIC), PHASE_INK)]
+
+    # T10 — le tabelle di colore di questo file sono le stesse dei documenti che ne sono owner (`#3627`).
+    # `T8` e `T9` giudicano i colori che trovano QUI: se una copia e' gia' diversa dal documento, giudicano
+    # il colore sbagliato e lo trovano in ordine. Questo e' il gate che lega la copia alla fonte.
+    try:
+        errors += [f"T10: {e}" for e in check_palette_owners(PHASE_INK, CHROME, SEMANTIC, REPO_ROOT)]
+    except (RuntimeError, OSError, UnicodeDecodeError) as error:
+        errors.append(f"T10: i documenti owner della palette non si leggono — {type(error).__name__}: {error}")
 
     if cairosvg is None:
         errors.append("T1/T3: non misurabili senza cairosvg")
@@ -2903,7 +2923,8 @@ def main() -> int:
             emit(f"   {e}")
     else:
         emit("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
-              "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile")
+              "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile · "
+              "T10 tabelle = documenti owner")
         for key, why in ALPHABET_EXEMPT.items():
             emit(f"   ⏱️  deroga dichiarata: {key} — {why}")
     if missing:
