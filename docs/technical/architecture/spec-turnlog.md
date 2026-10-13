@@ -512,6 +512,13 @@ no, il resto sì», e `Cancelled` qui va letto così.
 che ha fatto perdere il bersaglio, e questa per il colpo sulla cella che non parte. È la stessa coppia di un
 ripiego fermato da un muro.
 
+⚠️ **La conoscenza viene prima del piano.** Un bersaglio-unità che la squadra non conosce lascia
+`TargetUnknown` anche quando sta su un altro piano, come prima di `D-509`: dire «su un altro piano» di
+un'unità ignota direbbe dove sta. Pinnato da `Combat.Aim.UnknownTargetOnAnotherLayerStaysUnknown`.
+
+⚠️ **Un'azione interrotta che mirava a un altro piano lascia il solo `Interrupted`**: esce dal canale del piano
+come dai rifiuti delle porte. Pinnato da `Combat.Aim.InterruptedAimAcrossLayersLeavesOneReason`.
+
 ⚠️ **L'interposizione che non scatta per il piano non produce questo motivo**: lascia `Reaction`/`NotTriggered`,
 la stessa voce di quando l'alleato è troppo lontano. Quell'esito non porta un motivo.
 
