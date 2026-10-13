@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Camera/RTCameraExposure.h" // #3723: l'esposizione fissa, applicata per valore
 #include "Unit/RTUnitLayerOutline.h" // #3705: le leve del contorno, applicate per valore
 #include "RTCameraPawn.generated.h"
 
@@ -182,6 +183,18 @@ public:
 	/** Cio' che un test puo' leggere del post-process: l'istanza, e il peso con cui sta fra i blendable (-1 = assente). */
 	UMaterialInstanceDynamic* GetUnitLayerOutlineMaterialForTest() const { return UnitLayerOutlineDynMaterial; }
 	float GetUnitLayerOutlineWeightForTest() const;
+
+	/**
+	 * `#3723` — l'esposizione della camera di gioco e' FISSA ([D-501]): vedi `RTCameraExposure`.
+	 *
+	 * Il costruttore scrive i default sul post-process della camera, cosi' valgono anche senza un HUD che la
+	 * segua. `ARTHUD::UpdateObserverVeil` la chiama a ogni giro con le leve `rt.Camera.FixedExposure*`: riscrive
+	 * solo se sono cambiate, e ritorna vero quando ha scritto.
+	 */
+	bool SyncExposure(const FRTCameraExposureTuning& Tuning);
+
+	/** Il componente camera, per i test che leggono cio' che il post-process chiede al motore. */
+	const UCameraComponent* GetCameraForTest() const { return Camera; }
 
 	/**
 	 * Rilegge lo stato strategico dalla distanza corrente, **con isteresi**.
@@ -572,6 +585,9 @@ protected:
 	FRTUnitLayerOutlineTuning AppliedOutlineTuning;
 	bool bOutlineTuningApplied = false;
 	bool bOutlineMaterialResolved = false;
+
+	/** Le ultime leve dell'esposizione applicate (#3723). Nasce coi default, che il costruttore ha gia' scritto. */
+	FRTCameraExposureTuning AppliedExposureTuning;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float PanSpeed = 25.f;

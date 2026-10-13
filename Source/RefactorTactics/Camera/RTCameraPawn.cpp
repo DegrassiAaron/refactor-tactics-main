@@ -48,6 +48,9 @@ ARTCameraPawn::ARTCameraPawn()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 
+	// #3723: l'esposizione nasce fissa, coi default. Le leve arrivano dopo, da `SyncExposure`.
+	RTCameraExposure::Apply(AppliedExposureTuning, Camera->PostProcessSettings);
+
 	// #3705: il percorso ha un owner, ed e' lo stesso che il commandlet scrive. Soft: non si carica finche' non serve.
 	UnitLayerOutlineMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(
 		FString::Printf(TEXT("%s.%s"), RTUnitLayerOutline::MaterialPackage, RTUnitLayerOutline::MaterialName)));
@@ -106,6 +109,17 @@ bool ARTCameraPawn::SyncUnitLayerOutline(const FRTUnitLayerOutlineTuning& Tuning
 	UnitLayerOutlineDynMaterial->SetScalarParameterValue(RTUnitLayerOutline::ParamThickness, Tuning.ThicknessPx);
 	// `AddBlendable` aggiorna il peso se l'oggetto c'e' gia': spento vuol dire peso zero, e il passaggio non gira.
 	Camera->PostProcessSettings.AddBlendable(UnitLayerOutlineDynMaterial.Get(), Tuning.bEnabled ? 1.f : 0.f);
+	return true;
+}
+
+bool ARTCameraPawn::SyncExposure(const FRTCameraExposureTuning& Tuning)
+{
+	if (Camera == nullptr || AppliedExposureTuning == Tuning)
+	{
+		return false; // il caso di ogni fotogramma
+	}
+	AppliedExposureTuning = Tuning;
+	RTCameraExposure::Apply(Tuning, Camera->PostProcessSettings);
 	return true;
 }
 
