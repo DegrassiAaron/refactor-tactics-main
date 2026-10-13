@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-10-13 — Chi sta sopra la testa di un nemico non lo vede
+
+**Origine**: [#3741](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3741), decisione d'autore `D-510`. Due unità sulla stessa colonna e su piani diversi non hanno contatto visivo. La vista fra piani, fuori dalla colonna, resta com'è, e la linea di vista non cambia: la regola sta nel contatto della percezione, perché nella linea faceva arretrare il filtro dei bot.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-510`: la regola con le parole dell'autore, le due letture della PR e la misura che ha deciso dove metterla |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | la condizione nuova del contatto |
+| [`technical/systems/h6-4-hex-vision-spec.md`](technical/systems/h6-4-hex-vision-spec.md) | la linea di vista fra celle impilate resta libera, e perché |
+| [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | una riga nella tabella dei casi di contatto |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce nuova `PIE-VIS-COLONNA`, aperta; una nota in coda a `PIE-VIS-TWOLAYERS`; i totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U88`, da convocare |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md), [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | `Visual.Map.StackedColumn`, nuovo; `Visual.Map.TwoLayersSameColumn` con due alleate |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-PERCEPTION`: #3741, la famiglia `Vision`, lo scenario e la voce |
+
+---
+
 ## 2026-10-13 — Le quattro voci visive riguardate a esposizione fissa
 
 **Origine**: [#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723), seduta `U87`. Quattro voci PIE erano state giudicate con l'adattamento del motore acceso, su scene dove l'esposizione fissa ha cambiato il quadro. L'autore le ha riguardate su tre tavole e due filmati: nessun verdetto cambia.

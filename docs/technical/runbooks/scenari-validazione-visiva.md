@@ -237,7 +237,8 @@ fare, lo scenario non lo sa dire. Vedi §8.2.
 | `Visual.Map.HighCoverBlocks` | **CoverYard** | la barriera **alta** nega vista *e* passo in un turno solo: il colpo non parte e il percorso gira | scritto |
 | `Visual.Map.MultiLevel` | TestArena | la salita attraverso l'unica transizione: i layer non hanno adiacenza implicita | scritto |
 | `Visual.Map.SightWallIsWalkable` | TestArena | il banco di `PIE-HEXPLAY-6`: la colonna `q=0` blocca la **vista** ma non il **passo**, e la domanda è una sola — *il muro si vede?* La doppia natura è ciò che un giocatore non può dedurre da solo | scritto |
-| `Visual.Map.TwoLayersSameColumn` | TestArena | due unità sulla **stessa colonna** e su piani diversi: l'unica configurazione in cui un viewport che perde il layer si smaschera. Non verifica una regola — costruisce la scena che rende visibile un difetto di presentazione | scritto |
+| `Visual.Map.TwoLayersSameColumn` | TestArena | due unità sulla **stessa colonna** e su piani diversi: l'unica configurazione in cui un viewport che perde il layer si smaschera. Non verifica una regola — costruisce la scena che rende visibile un difetto di presentazione. ➕ Le due unità sono alleate da #3741 | scritto |
+| `Visual.Map.StackedColumn` | TestArena | due **nemici** sulla stessa colonna, più un terzo accanto che fa da controllo: chi sta sopra la testa di un nemico non lo vede ([D-510](../../decisions/RT_PDR_00_Decision_Log.md), #3741). La regola la misurano i test; la scena la fa guardare | scritto |
 | `Combat.BlockedByWall` *(esiste)* | r4 | il muro ferma la **vista**, non il passaggio | già nel corpus |
 | `Visual.Water.Wet` | RelayLite | *niente*: `Wet` non emette nulla, si vede solo il terreno che c'era già | **MUTO** — non scritto |
 | `Visual.Conductive.Network` | RelayLite | *niente*: la rete conduttiva è un dato senza evento e senza consumatore | **MUTO** — non scritto |

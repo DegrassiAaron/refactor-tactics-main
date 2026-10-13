@@ -825,14 +825,14 @@ capabilities:
         - Source/RefactorTactics/Perception/RTAcousticPropagationLibrary.h
         - Source/RefactorTactics/Perception/RTNoiseTypes.h
         - Source/RefactorTactics/Perception/RTKnowledgeView.h
-    issues: { open: [327, 2795, 824], closed: [] }
+    issues: { open: [327, 2795, 824, 3741], closed: [] }
     consumers: [RT-CAP-BOT-FAIRNESS, RT-CAP-FOG-PRESENTATION, RT-CAP-TEAM-KNOWLEDGE]
     dependencies: [RT-CAP-LOS, RT-CAP-MAP-TOPOLOGY]
     tests:
-      automation: ["RefactorTactics.Perception.*", "RefactorTactics.Noise.*", "RefactorTactics.Knowledge.*", "RefactorTactics.Visibility.*"]
-      scenarios: [Scenarios/Spec/Bot/PlansOnPartialKnowledge.json]
+      automation: ["RefactorTactics.Perception.*", "RefactorTactics.Noise.*", "RefactorTactics.Knowledge.*", "RefactorTactics.Visibility.*", "RefactorTactics.Vision.*"]
+      scenarios: [Scenarios/Spec/Bot/PlansOnPartialKnowledge.json, Scenarios/Visual/Map/StackedColumn.json]
       mutation: []
-    verification: { pie: [], packaged: [] }
+    verification: { pie: [PIE-VIS-COLONNA], packaged: [] }
 
   - id: RT-CAP-TEAM-KNOWLEDGE
     name: Team Knowledge & Memory

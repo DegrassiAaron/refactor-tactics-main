@@ -11,9 +11,11 @@
 
   "_nota_fixture": "`TestArena` e' la sola fixture con una piattaforma sul layer 1 — celle (2,-1,1), (2,0,1), (3,-1,1), (3,0,1). Le due celle usate qui esistono entrambe nell'arena, quindi il controllo d'appartenenza introdotto da #1796 le accetta: e' la prova che quella regola distingue «layer che l'arena non ha» da «layer diverso da zero».",
 
+  "_nota_squadra": "Le due unita' sono ALLEATE da #3741. Fino ad allora B1 era della squadra 1, e il giocatore la vedeva perche' la linea di vista nella stessa colonna era sempre libera. Con `D-510` due unita' impilate non si vedono: da nemiche, a schermo ne resterebbe una, e questa scena smetterebbe di mostrare cio' per cui esiste. L'autore ha scelto di tenerla come prova di leggibilita' del viewport, con due alleate; la regola nuova ha la sua scena, `Visual.Map.StackedColumn`.",
+
   "units": [
     { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 1] }
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [2, 0, 1] }
   ],
 
   "turns": [],
