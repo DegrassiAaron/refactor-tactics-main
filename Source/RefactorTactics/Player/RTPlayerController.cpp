@@ -2609,6 +2609,25 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			return;
 		}
 
+		// 🔑 **Una destinazione di SCATTO e' un ordine, come un waypoint** (`#3400`). `ERTPlanningInput::Order`
+		// e' «abilita' **o destinazione**» (`Turn/RTPacing.h`), e i due rami qui sotto uscivano con `return`
+		// prima dell'unica chiamata della funzione, che sta in coda al ramo del waypoint: una cella d'arrivo
+		// dichiarata con uno scatto non contava.
+		//
+		// ⚠️ **Si chiama DOPO l'accettazione, mai prima**: e' la stessa regola del waypoint. I rami di rifiuto
+		// qui sotto — non allineata, terreno, fuori budget — sono tentativi respinti, e un tentativo respinto
+		// non e' un ordine. Per questo e' una chiamata in due punti e non una in cima al blocco.
+		//
+		// Il contatore misura GESTI accettati, non lunghezza del piano: lo scatto ne produce due, l'arm (che
+		// `SelectAbilityForCurrent` registra gia') e questa destinazione, come un'abilita' col suo bersaglio.
+		const auto RegistraLaDestinazioneDiScatto = [this]()
+		{
+			if (ARTTurnManager* TM = PacingTurnManager(this))
+			{
+				TM->RecordPlanningInput(ERTPlanningInput::Order);
+			}
+		};
+
 		if (URTMovementActionLibrary::IsLinear(SelAb->Def.MovementStyle))
 		{
 			// Mobilita' LINEARE: la si valida con lo STESSO codice che la eseguira'. Con l'A* il giocatore
@@ -2657,10 +2676,17 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto") : TEXT(""));
+			RegistraLaDestinazioneDiScatto();
 			return;
 		}
 
-		// Mobilita' a BUDGET (`Action.Sprint`): risolve col pathfinding, quindi si valida col pathfinding.
+		// Mobilita' a BUDGET: risolve col pathfinding, quindi si valida col pathfinding.
+		//
+		// ⚠️ **Nessuna azione spedita arriva qui oggi** (misurato il 2026-10-13, `#3400`). Il ramo era nato per
+		// `Action.Sprint`, che ora risolve nel movimento normale; e le azioni di movimento rapido del catalogo
+		// dichiarano tutte uno stile lineare — `grep -n "ERTResolutionPhase::FastMovement" Ability/*.cpp`. Lo
+		// raggiunge una mobilita' rapida con uno stile NON lineare, e
+		// `PlayerInput.DashDestinationCountsAsAnOrder` ne monta una per provarlo.
 		const TSet<FRTCellId> Occupied = [&Snapshot, UnitId]()
 		{
 			TSet<FRTCellId> Set;
@@ -2682,6 +2708,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		SelectedUnit->PlannedDashCell = Cell;
 		UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d) costo %d"),
 			*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer, DashPath.TotalCost);
+		RegistraLaDestinazioneDiScatto();
 		return;
 	}
 
@@ -2732,6 +2759,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// destinazione**» (`Turn/RTPacing.h:21`) e fino a `#3400` la metà «destinazione» non era cablata:
 	// `OrderCount` restava 0 su un turno in cui il giocatore aveva dato una destinazione, e nessun test
 	// lo vedeva perché i contatori erano esercitati chiamando `RecordPlanningInput` a mano.
+	// Le destinazioni di SCATTO hanno la stessa chiamata più sopra, nei loro due rami: escono con `return`
+	// prima di arrivare qui.
 	//
 	// ⛔ **Non serve un `Click` sul ramo di rifiuto**: `OnSelect` ne registra già uno per OGNI clic prima
 	// di arrivare qui (`:1556`), quindi i tempi sono aggiornati e aggiungerne un altro li raddoppierebbe.

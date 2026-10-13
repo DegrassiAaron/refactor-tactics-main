@@ -2697,6 +2697,156 @@ bool FRTMovementDestinationIsAnOrderTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UNA DESTINAZIONE DI SCATTO E' UN ORDINE; UNO SCATTO RIFIUTATO NO — la seconda meta' di `#3400`.
+ *
+ * 🔴 **Il difetto.** `HandleClickOnCell` ha una sola chiamata a `RecordPlanningInput(Order)`, in coda al ramo
+ * del waypoint. I due rami della mobilita' rapida — lineare e a budget — scrivevano `PlannedDashCell` e
+ * uscivano con `return` prima di arrivarci: una cella d'arrivo dichiarata con uno scatto non contava.
+ *
+ * 🔑 **Il contatore misura GESTI accettati, non lunghezza del piano** (`Turn/RTPacing.h`: «abilita' **o**
+ * destinazione»). Lo scatto ne produce due: l'arm, che `SelectAbilityForCurrent` registra gia', e la
+ * destinazione. Per questo qui l'arm passa dal controller e non da `ARTUnit::SelectAbility`: il numero atteso e'
+ * quello che il giocatore produce davvero. ⚠️ Ne segue che un turno di solo scatto contava gia' UNO prima della
+ * correzione, non zero — e i casi di rifiuto qui sotto lo fissano.
+ *
+ * ⚠️ **Sono DUE chiamate in due rami, e ciascuna ha il proprio caso accettato.** Con un caso solo, una delle due
+ * resterebbe senza un test che cada quando viene tolta. E ciascun ramo ha il proprio caso RIFIUTATO: con la sola
+ * asserzione sull'accettato, una chiamata spostata in cima al blocco dello scatto passerebbe — e conterebbe
+ * come ordine ogni cella non allineata o fuori budget.
+ *
+ * ⚠️ **Il ramo a budget si raggiunge con un'azione SINTETICA.** Nessuna azione spedita ci arriva oggi: tutte le
+ * mobilita' rapide del catalogo dichiarano uno stile lineare, e `Action.Sprint`, per cui il ramo era nato,
+ * risolve nel movimento normale. La prova lo esercita lo stesso, perche' la chiamata c'e' e deve stare al
+ * posto giusto il giorno in cui un'azione ci arrivera'.
+ *
+ * Il terzo caso accettato e' la CARICA puntata sul nemico (`#145`): passa da `HandleClickOnUnit`, che inoltra
+ * alla stessa funzione, ed e' il gesto con cui un giocatore usa davvero il ramo lineare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashDestinationIsAnOrderTest,
+	"RefactorTactics.PlayerInput.DashDestinationCountsAsAnOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
+{
+	enum class ECaso : uint8 { Lineare, Budget, CaricaSulNemico };
+
+	// Il campione si legge solo a turno chiuso, quindi ogni caso vuole il proprio mondo.
+	auto OrdiniDopoArmEClick = [this](ECaso Caso, const FRTCellId& Bersaglio, int32& OutOrdini,
+		bool& bOutPianificato) -> bool
+	{
+		UWorld* World = MakeInteractionWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = Arena;
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		// Senza, il campione non si apre mai: vedi `MovementDestinationCountsAsAnOrder` qui sopra.
+		if (TM) { TM->DispatchBeginPlay(); }
+
+		// La carica vuole Branth e un nemico in linea; gli altri due casi, Ivrin e un nemico lontano.
+		const bool bCarica = (Caso == ECaso::CaricaSulNemico);
+		ARTUnit* Unit = bCarica
+			? SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0))
+			: SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
+		ARTUnit* Nemico = bCarica
+			? SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 0))
+			: SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-2, 2, 0));
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit)
+			|| !TestNotNull(TEXT("nemico"), Nemico) || !TM)
+		{
+			DestroyInteractionWorld(World); return false;
+		}
+
+		int32 Idx = INDEX_NONE;
+		if (Caso == ECaso::Budget)
+		{
+			// Una mobilita' rapida il cui stile NON e' lineare: i dati sono quelli di `Action.Dodge`, con il
+			// solo stile cambiato. E' cio' che porta il click nel ramo del pathfinding.
+			URTActionData* Sintetica = NewObject<URTActionData>(Unit);
+			Sintetica->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
+			Sintetica->Def.MovementStyle = ERTMovementStyle::Budget;
+			Sintetica->RangeCells = Sintetica->Def.RangeCells;
+			Unit->Abilities.Add(Sintetica);
+			Idx = Unit->Abilities.Num() - 1;
+		}
+		else
+		{
+			Idx = Unit->FindDashAbilityIndex();
+		}
+
+		const URTActionData* Scatto = Unit->GetAbility(Idx);
+		if (!TestNotNull(TEXT("premessa: l'unita' ha la mobilita' rapida del caso"), (void*)Scatto)
+			|| !TestTrue(TEXT("premessa: e' una mobilita' rapida"), URTCatalogLibrary::IsFastMovement(Scatto->Def))
+			|| !TestTrue(TEXT("premessa: lo stile e' quello del ramo che si vuole esercitare"),
+				URTMovementActionLibrary::IsLinear(Scatto->Def.MovementStyle) == (Caso != ECaso::Budget))
+			|| (bCarica && !TestTrue(TEXT("premessa: la mobilita' di Branth e' una carica"),
+				Scatto->Def.MovementStyle == ERTMovementStyle::LinearCharge)))
+		{
+			DestroyInteractionWorld(World); return false;
+		}
+
+		PC->SelectActorForTest(Unit);
+		PC->SelectAbilityForCurrentForTest(Idx); // l'arm VERO: registra il proprio ordine
+		if (bCarica)
+		{
+			PC->HandleClickOnUnitForTest(Nemico);
+		}
+		else
+		{
+			PC->HandleClickOnCell(Bersaglio);
+		}
+		bOutPianificato = (Unit->PlannedDashAbility == Idx)
+			&& (Unit->PlannedDashCell == (bCarica ? Nemico->Cell : Bersaglio));
+
+		RTWorldFixtures::PlayOneTurn(TM);
+		if (!TestTrue(TEXT("un campione chiuso"), TM->GetPacingSamples().Num() >= 1))
+		{
+			DestroyInteractionWorld(World); return false;
+		}
+		OutOrdini = TM->GetPacingSamples()[0].OrderCount;
+		DestroyInteractionWorld(World);
+		return true;
+	};
+
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		ECaso Caso;
+		FRTCellId Bersaglio;
+		bool bAccettato;
+	};
+	const FCaso Casi[] = {
+		// (2,-2) + 2 * direzione (-1,+1): in linea, libera, in portata.
+		{ TEXT("lineare, cella allineata"),        ECaso::Lineare,         FRTCellId(0, 0, 0),  true },
+		// Libera e a due passi sul grafo, ma su nessuna delle sei direzioni.
+		{ TEXT("lineare, cella non allineata"),    ECaso::Lineare,         FRTCellId(3, -4, 0), false },
+		{ TEXT("a budget, cella vicina"),          ECaso::Budget,          FRTCellId(3, -2, 0), true },
+		// La cella bloccata della mappa di prova: nessun percorso la raggiunge.
+		{ TEXT("a budget, cella bloccata"),        ECaso::Budget,          FRTCellId(2, 1, 0),  false },
+		{ TEXT("carica, click sul nemico"),        ECaso::CaricaSulNemico, FRTCellId(3, 0, 0),  true },
+	};
+
+	for (const FCaso& C : Casi)
+	{
+		int32 Ordini = -1;
+		bool bPianificato = false;
+		if (!OrdiniDopoArmEClick(C.Caso, C.Bersaglio, Ordini, bPianificato)) { return false; }
+
+		// Il controllo positivo dell'allestimento: senza, un conteggio fermo non distingue «la chiamata manca»
+		// da «lo scatto non e' stato accettato».
+		TestTrue(*FString::Printf(TEXT("%s: lo scatto e' stato %s (allestimento valido)"),
+			C.Nome, C.bAccettato ? TEXT("ACCETTATO") : TEXT("RIFIUTATO")), bPianificato == C.bAccettato);
+		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.bAccettato
+			? TEXT("l'arm e la destinazione valgono DUE ordini")
+			: TEXT("resta il solo ordine dell'arm: un tentativo respinto non conta")),
+			Ordini, C.bAccettato ? 2 : 1);
+	}
+
+	return true;
+}
+
 
 /**
  * ARMARE UN'AZIONE CHE RISERVA LO SLOT RESTRINGE IL VENTAGLIO **SUBITO** — `#3418`.

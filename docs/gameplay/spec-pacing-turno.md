@@ -121,7 +121,7 @@ Definizioni che non devono restare a interpretazione:
 |---|---|
 | `ActionsAvailable` | Somma delle azioni selezionabili dalle unità **vive della squadra del giocatore**, escluse quelle in cooldown |
 | `SelectionCount` | Quante volte il giocatore ha selezionato un'unità nel turno |
-| `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno |
+| `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno. Conta **gesti accettati**, non lunghezza del piano: l'arm di un'abilità, il suo bersaglio, un waypoint, la destinazione di uno scatto. Un tentativo respinto — cella bloccata, fuori budget, non allineata — non conta. ∴ tre waypoint valgono tre, e uno scatto vale due: l'arm e la destinazione ([#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400)) |
 | `MsToFirstInput` | Se il turno si chiude **senza alcun input**, vale `MsToLockIn` |
 | `ReactionWindowsOpened` | Finestre di reazione che hanno **occupato** la squadra misurata nel turno, derivate dal TurnLog (`ERTLogCategory::ReactionDecision`). ⚠️ **Non** tutte le voci: `HoldImmediate` e `HoldCollapsedByCondition` sono commit immediati, e `HoldNoDecider` è la finestra che nessuno ha aspettato — l'unità umana senza UI, cioè ogni finestra del giocatore finché CP 14.6 non consegna l'interfaccia. Il tetto di attesa è `finestre × FastReactionDuration` (`URTPacingLibrary::ReactionDecisionSecondsUpperBound`) e vale se ognuna arriva a scadenza |
 | `MsSinceLastInput` | Se non c'è stato **nessun** input, vale `MsToLockIn` — quindi un turno passato inerte finisce fra gli `IdleTimeouts`, che è la classificazione corretta |

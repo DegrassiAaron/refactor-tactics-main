@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-13 — Una destinazione di scatto è un ordine
+
+**Origine**: [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400). I due rami dello scatto uscivano prima dell'unica chiamata che registra un ordine di pacing: una cella d'arrivo dichiarata con uno scatto non contava.
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | §5, riga di `OrderCount`: conta gesti accettati e non lunghezza del piano; che cosa è un gesto, e perché uno scatto vale due |
+
+---
+
 ## 2026-10-13 — Spec panel sulla serie «ciò che il giocatore legge»
 
 **Origine**: la serie di sei issue della v0.1 proposta il 2026-10-13 — [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), [#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629), [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626) e [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627). Le premesse sono state rilette sul sorgente prima di lavorarle; niente è stato eseguito col motore.
