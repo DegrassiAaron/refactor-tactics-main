@@ -312,6 +312,10 @@ public:
 	 * Il PIANO di un bersaglio a CELLA: `OtherLayer` se la cella mirata sta su un `Layer` diverso da quello
 	 * di chi agisce, altrimenti `None` ([D-509], `#2951`).
 	 *
+	 * ⚠️ **`None` anche quando chi agisce non c'e' o e' gia' caduto**, qualunque sia il piano: quel colpo lo
+	 * scarta la raccolta, in silenzio, e una voce di rifiuto per un cadavere sarebbe rumore nel replay.
+	 * `ValidateInstance` fa lo stesso per questo motivo — e solo per questo: gli altri li dichiarava gia'.
+	 *
 	 * 🔑 **Perche' una funzione a parte.** `ValidateInstance` risponde `None` a ogni istanza senza
 	 * bersaglio-unita', e non puo' fare altrimenti: da li' passano anche il movimento e il supporto su se
 	 * stessi, che una cella mirata non ce l'hanno — e `(0,0,0)`, il default di `TargetCell`, e' una cella

@@ -88,7 +88,12 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// verdetto del classificatore non diventi «valido» il giorno in cui quei controlli si spostano.
 	case ERTHexTargetReason::NoMap:         return ERTActionInvalidReason::NoMap;
 	case ERTHexTargetReason::OutOfRange:    return ERTActionInvalidReason::OutOfRange;
-	case ERTHexTargetReason::OtherLayer:    return ERTActionInvalidReason::OtherLayer;
+	// Chi e' gia' caduto non dichiara questo motivo, come in `ValidateCellAim` qui sotto e per la stessa
+	// ragione: il suo colpo lo scarta la raccolta, in silenzio, e un cadavere che lascia una voce e' rumore
+	// nell'hash del replay. ⚠️ Vale per il SOLO motivo nuovo: gli altri di questa funzione un attaccante
+	// caduto li dichiarava gia', e toglierli cambierebbe tracce che esistono — e' un'altra decisione.
+	case ERTHexTargetReason::OtherLayer:
+		return Source.bAlive ? ERTActionInvalidReason::OtherLayer : ERTActionInvalidReason::None;
 	case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
 	// La distanza MINIMA non si rivaluta in risoluzione: il parametro non viene passato, quindi il
 	// classificatore non puo' rispondere cosi'. Non e' una regola decisa qui — e' lo stato di `#2950`.

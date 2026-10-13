@@ -7530,8 +7530,9 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		// esattamente cio' che questa issue ha dichiarato di non voler fare.
 		//
 		// La coerenza interna della voce vale piu' della cella «piu' giusta» scelta d'iniziativa: quale sia
-		// l'istante del tiratore al boundary predittivo lo decide `#2148`, e quel giorno le quattro letture
-		// si muovono insieme.
+		// l'istante del tiratore al boundary predittivo lo decide `#2148`, e quel giorno le letture di
+		// `Shooter->Cell` in questa funzione si muovono insieme. ⌫ *Qui stava scritto «le quattro letture»:
+		// il numero era gia' diverso da quello del commento piu' sotto, e [D-509] ne ha aggiunte due.*
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Move;
 		Entry.Category = ERTLogCategory::Predictive;
@@ -7552,8 +7553,11 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// non esiste un micro-step a cui riferirsi: quel ciclo e' gia' chiuso, e *«dove sta il tiratore
 			// quando il colpo parte»* e' una decisione di REGOLA che ne' ADR-0004 ne' ADR-0005 hanno preso.
 			// Correggerla d'iniziativa qui sarebbe inventare la regola insieme alla correzione. Dichiarata e
-			// tracciata in `#2148`, che porta anche le tre letture da cambiare **insieme** il giorno in cui
+			// tracciata in `#2148`, che porta anche le letture da cambiare **insieme** il giorno in cui
 			// la decisione arriva: questa copertura, l'origine di `HitCameFromSide` e `Entry.SrcCell`.
+			// ➕ [D-509] ne ha aggiunte due in cima alla funzione — il piano del tiratore e la cella della
+			// voce di rifiuto — e una implicita c'era gia': `AppendLogEntry` congela il verdetto sulla cella
+			// dell'attore. Sono segnate su `#2148`.
 			// Fuori dal ciclo dei micro-step: qui `Shooter->Facing` e `Victim->Facing` SONO l'orientamento
 			// vigente, e ADR-0008 §2 non tocca questo sito. Il facing e' esplicito perche' la firma lo chiede,
 			// non perche' cambi.

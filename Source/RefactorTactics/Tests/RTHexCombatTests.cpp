@@ -1322,6 +1322,18 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 		TestEqual(TEXT("controllo: lo stesso attaccante, vivo, viene rifiutato per piano"),
 			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, 6), Units, Map),
 			ERTActionInvalidReason::OtherLayer);
+
+		// E lo stesso sul bersaglio-UNITA': i due modi di dichiarare la mira non devono rispondere diverso.
+		// La prima stesura metteva la guardia in una funzione sola, e l'ha trovato la seconda review.
+		Units[0].bAlive = false;
+		TestEqual(TEXT("attaccante caduto, bersaglio-unita' su un altro piano: ValidateInstance non dichiara il piano"),
+			URTActionFallbackLibrary::ValidateInstance(Istanza(FRTCellId(2, 0, 1), 1, 6), Units, Map),
+			ERTActionInvalidReason::None);
+		// ⚠️ Solo il piano: un attaccante caduto con un bersaglio FUORI PORTATA dichiarava gia' il suo motivo,
+		// e continua a farlo. Questo asserto pinna il confine della guardia, non un comportamento desiderato.
+		TestEqual(TEXT("…mentre il fuori portata lo dichiara come prima: la guardia e' del solo motivo nuovo"),
+			URTActionFallbackLibrary::ValidateInstance(Istanza(FRTCellId(2, 0, 1), 1, /*Portata*/ 1), Units, Map),
+			ERTActionInvalidReason::OutOfRange);
 	}
 
 	// IL RIPIEGO: un'area che dichiara `AttackCell` NON ripiega sulla cella quando il difetto e' il piano. La
