@@ -2,7 +2,8 @@
 
 > **Statuto**: design **proposto** il 2026-10-13, da una sessione di brainstorming con l'autore. Le decisioni d'autore
 > prese in sessione sono in §0 (`S1`–`S8`); le tre sezioni del disegno sono state approvate in sessione una per volta.
-> **In attesa della rilettura dell'autore su questo file**: fino ad allora non esiste un piano di implementazione.
+> Lo stesso giorno l'autore ha chiesto revisione, piano e implementazione (*«review spec, scrivi piano, review piano,
+> implementa piano»*): ogni fetta ha il proprio piano.
 > È la **prima di quattro fette** della richiesta d'autore *«dobbiamo aumentare il livello informativo di un giocatore,
 > quante informazioni può vedere col mouse? click e altre funzioni del mouse su target (alleato, nemico, oggetto,
 > terreno, …)»*. Le altre tre stanno in §10.
@@ -36,8 +37,11 @@
 > **Fetta `F1` implementata** in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744), col piano
 > [`2026-10-13-glossario-stati-superfici-ripari.md`](../plans/2026-10-13-glossario-stati-superfici-ripari.md): la
 > tabella `RTGlossary`, il documento [`RT_Glossary_v0.1.md`](../../balance/RT_Glossary_v0.1.md), il radar e i test
-> `RefactorTactics.UI.Glossary*`. I testi restano da accettare dall'autore. Le fette `F2`–`F6` non hanno ancora
-> una issue.
+> `RefactorTactics.UI.Glossary*`. I testi restano da accettare dall'autore.
+>
+> **Le altre fette hanno ciascuna la propria issue**, aperte il 2026-10-13 dopo il merge di `F1`: sono nella tabella
+> di §9.1. Le due voci del Decision Log che `F2` aspetta sono scritte:
+> [D-512](../../decisions/RT_PDR_00_Decision_Log.md) e [D-513](../../decisions/RT_PDR_00_Decision_Log.md) (§9.3).
 
 ---
 
@@ -503,11 +507,11 @@ il primo copre F1.
 | | Fetta | Dipende da |
 |---|---|---|
 | **F1** | **Glossario**: testi d'autore per stati, superfici e ripari, col gate di completezza. Nessuna UI. Implementata in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744) | — |
-| **F2** | **Sguardo**: risolutore, compositore, targa che si apre, etichetta di cella | F1; ➕ rev2. le voci 2 e 5 di §9.3 scritte nel Decision Log |
-| **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede | F2 |
-| **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click | F3 per il fuoco; il solo cambio di tasto è indipendente |
-| **F5** | **Aree del fuoco e hover su skill**: arbitro, area di movimento, portata | F3, [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511) |
-| **F6** | **Ricariche dedotte** | F3 |
+| **F2** | **Sguardo**: risolutore, compositore, targa che si apre, etichetta di cella. Issue: [#3747](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3747) | F1; ➕ rev2. le voci 2 e 5 di §9.3 scritte nel Decision Log: sono [D-512](../../decisions/RT_PDR_00_Decision_Log.md) e [D-513](../../decisions/RT_PDR_00_Decision_Log.md) |
+| **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede. Issue: [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748) | F2 |
+| **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click. Issue: [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749) | F3 per il fuoco; il solo cambio di tasto è indipendente |
+| **F5** | **Aree del fuoco e hover su skill**: arbitro, area di movimento, portata. Issue: [#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750) | F3, [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511) |
+| **F6** | **Ricariche dedotte**. Issue: [#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751) | F3 |
 
 ### 9.2 Vicini
 
@@ -523,6 +527,10 @@ il primo copre F1.
 ### 9.3 Decisioni da scrivere nel Decision Log
 
 Testo proposto. **Il numero si assegna al merge**, dopo `git fetch` e il controllo dei ref remoti.
+
+**Scritte**: la voce 2 è [D-512](../../decisions/RT_PDR_00_Decision_Log.md), la voce 5 è
+[D-513](../../decisions/RT_PDR_00_Decision_Log.md). Sono le due che `F2` aspetta; fa fede il testo del registro,
+non quello qui sotto. Le voci 1, 3 e 4 si scrivono con le loro fette: `F3`, `F4`, `F5`.
 
 1. **Di un nemico osservato sono pubblici il kit dell'eroe e l'equipaggiamento; le ricariche si leggono solo come
    deduzione dagli eventi autorizzati.** Il piano, gli slot del turno, l'azione armata e le ricariche reali restano
