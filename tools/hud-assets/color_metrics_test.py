@@ -624,6 +624,22 @@ class IlGeneratoreChiamaIControlli(unittest.TestCase):
                 errori = self.errori(tabella, {chiave: g.PHASE_INK["Move"]})
                 self.assertTrue(any(e.startswith("T9: ") and f"STATO `{stato}`" in e for e in errori), errori)
 
+    def test_un_documento_owner_che_non_si_legge_e_un_pal_rosso(self):
+        # Un albero finto con `RTHUD.cpp` e §32 in ordine, e senza il documento semantico: il generatore
+        # non deve restare verde perche' meta' del confronto non si e' potuta fare.
+        fedele_ui, _ = documenti_fedeli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            for relativo, testo in (("Source/RefactorTactics/UI/RTHUD.cpp", rthud()), (cm.HUD_STYLE_DOC, fedele_ui)):
+                file = root / relativo
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(testo, encoding="utf-8")
+            with mock.patch.object(g, "REPO_ROOT", root):
+                errori = g.check_colour_gates()
+        self.assertEqual(len(errori), 1, errori)
+        self.assertTrue(errori[0].startswith("PAL: un documento owner della palette non si legge"), errori)
+        self.assertIn("02-color-system.md", errori[0])
+
     def test_il_gate_dell_alfabeto_li_chiama(self):
         # `check_alphabet_gates` e' la porta che il generatore attraversa davvero. Senza voci non rasterizza
         # niente, e i gate di colore non dipendono dalle voci: il `PAL` rosso deve arrivare da li'.
