@@ -939,18 +939,22 @@ public:
 	 *
 	 * Che cosa risolve:
 	 * - `ReactorName`: l'unita' di `Key.OwnerId`;
-	 * - `ReactionName`: il `DisplayName` della voce del SUO kit con id `Key.ReactionDefId`. La stessa fonte
-	 *   che la vista degli intenti usa per il proprio campo omonimo; se il kit non la nomina resta vuoto;
+	 * - `ReactionName`: come il SUO kit chiama `Key.ReactionDefId` (`ARTUnit::KitDisplayNameFor`). La stessa
+	 *   fonte che la vista degli intenti usa per il proprio campo omonimo; se il kit non la nomina resta vuoto;
 	 * - `TargetNames`: il bersaglio di ogni `FIRE:<i>`;
-	 * - `TriggerNames`: quegli stessi bersagli. Nell'Overwatch chi fa scattare la finestra E' cio' a cui si
-	 *   puo' sparare, e il trigger esiste solo per un'unita' `Detected` e in linea di vista: il nome e' gia'
-	 *   noto a chi riceve la vista. ⚠️ Per il `Brace` questo elenco esce vuoto — non ci sono `FIRE` — e chi
-	 *   spinge lo aggiunge il sito, con `URTReactionWindowLibrary::AddTriggerIfDetected`.
+	 * - `TriggerNames`: le unita' di `TriggerUnitIds`, nell'ordine dato.
+	 *
+	 * 🔑 **`TriggerUnitIds` e `TriggerKind` li passa chi apre la finestra, perche' e' lui a saperli.** Per
+	 * l'Overwatch sono chi e' entrato nella zona a quel passo (`FRTOverwatchTrigger::TargetUnitIds`): non
+	 * coincidono coi bersagli dei `FIRE` quando una condizione dichiarata ne esclude alcuni. ⚠️ Chi li passa
+	 * garantisce che la squadra di chi decide li rilevi. Chi spinge un `Brace` NON passa di qui: lo aggiunge
+	 * il sito con `URTReactionWindowLibrary::AddTriggerIfDetected`, che chiede la rilevazione.
 	 *
 	 * Statica e senza stato: si prova senza montare una partita.
 	 */
 	static FRTReactionWindowNames MakeReactionWindowNames(const FRTReactionOpportunity& Opportunity,
-		TConstArrayView<ARTUnit*> SnapshotUnits);
+		TConstArrayView<ARTUnit*> SnapshotUnits, ERTReactionTriggerKind TriggerKind,
+		TConstArrayView<int32> TriggerUnitIds = TConstArrayView<int32>());
 
 	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")

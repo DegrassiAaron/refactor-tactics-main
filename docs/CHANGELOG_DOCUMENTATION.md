@@ -8,9 +8,9 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-491`, annotazione in coda: la parte che il punto (5) lasciava aperta è arrivata; la tabella resta generica, il nome sta nella vista; la frase di `HOLD` è «Non attaccare» |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-491`, annotazione in coda: la parte che il punto (5) lasciava aperta è arrivata; la tabella non cambia una riga, il nome sta nella vista, e le frasi della tavola E sono per opzione |
 | [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §11.1: la frase di un `FIRE` nomina il bersaglio; un punto nuovo su titolo e sottotitolo, con la regola di rilevazione e il `TextBlock` che manca |
-| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | la nota di `U74` sui testi lunghi: le frasi di `FIRE` e `HOLD` sono cambiate, la regola resta |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-bis: `Get Prompt Text` rende il titolo coi nomi, `Get Window` porta i campi nuovi, la porta `SubtitleText` e `Get Subtitle Text` entrano nella tabella con ciò che manca nell'asset. §7-quater, la nota di `U74` sui testi lunghi: le frasi di un'opzione `FIRE` o `HOLD` sono cambiate, la regola resta |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK` e `PIE-V01-RXBRACE`, note in coda alle celle: i testi nuovi, e il sottotitolo che non si vede ancora. Verdetti invariati, voci non rigiudicate |
 
 ---

@@ -869,6 +869,16 @@ public:
 	URTActionData* GetAbility(int32 Index) const;
 
 	/**
+	 * Il nome con cui il KIT di questa unita' chiama l'azione `ActionId`: la prima voce con quell'id e un nome
+	 * leggibile. Vuoto se il kit non ha quell'azione, o non la nomina.
+	 *
+	 * Sta qui, in un posto solo, perche' la stessa ricerca era scritta dove serviva: la finestra di reazione
+	 * la usa per il proprio titolo (`#3667`). «Leggibile» esclude un nome di soli spazi, che a schermo e'
+	 * indistinguibile da un nome assente — la stessa scelta di `DisplayLabel`.
+	 */
+	FText KitDisplayNameFor(const FName& ActionId) const;
+
+	/**
 	 * Indice della prima azione di mobilita' RAPIDA (fase Dash del catalogo), o INDEX_NONE se l'unita' non ne
 	 * ha. Il gate e' lo stesso di `ARTTurnManager::ResolveDash`: se qui e li' rispondessero in modo diverso, il
 	 * bot pianificherebbe scatti che il resolver rifiuta — o non ne pianificherebbe affatto (#142).

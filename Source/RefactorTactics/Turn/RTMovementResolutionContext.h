@@ -23,6 +23,15 @@ struct FRTPendingReactionTrigger
 
 	/** L'armamento da cui nasce, indice in `ARTTurnManager::ArmedOverwatches`. */
 	int32 ArmedIndex = INDEX_NONE;
+
+	/**
+	 * Chi e' entrato nella zona a quel passo: `FRTOverwatchTrigger::TargetUnitIds`, copiato (`#3667`).
+	 *
+	 * Viaggia col trigger per la stessa ragione di `ArmedIndex`: fra l'appaiamento e il consumo puo' passare
+	 * una finestra, e chi apre la successiva deve poter dire CHI l'ha fatta scattare. Le risposte non bastano:
+	 * una condizione dichiarata ne toglie, e chi e' entrato resta entrato.
+	 */
+	TArray<int32> TriggerUnitIds;
 };
 
 /**

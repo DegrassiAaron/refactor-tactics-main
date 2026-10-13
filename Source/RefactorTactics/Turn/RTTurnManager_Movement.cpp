@@ -684,6 +684,7 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		FRTPendingReactionTrigger Pending;
 		Pending.Opportunity = Opportunity;
 		Pending.ArmedIndex = ArmedIndex;
+		Pending.TriggerUnitIds = Trigger.TargetUnitIds; // chi e' entrato: non si ricostruisce dalle risposte (`#3667`)
 		Ctx->PendingTriggers.Add(MoveTemp(Pending));
 	}
 
@@ -1123,7 +1124,8 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 			// fra i due momenti non cambia il titolo, e nessun widget risolve un indice.
 			SuspendReactionWindowForPresentation(
 				MakeReactionWindowView(Opportunity, OwnerTeamId, OwnerTeamId,
-					MakeReactionWindowNames(Opportunity, Units)),
+					MakeReactionWindowNames(Opportunity, Units, ERTReactionTriggerKind::EnteredControlledArea,
+						Pending.TriggerUnitIds)),
 				Opportunity.Key.OwnerId);
 
 			return ERTMovementAdvanceResult::Suspended;

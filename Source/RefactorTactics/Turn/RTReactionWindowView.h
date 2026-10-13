@@ -6,6 +6,27 @@
 #include "RTReactionWindowView.generated.h"
 
 /**
+ * Che cosa ha aperto una finestra di reazione, detto da chi la apre (`#3667`).
+ *
+ * 🔑 **Lo scrive il PRODUTTORE, e la presentazione lo legge.** Il sottotitolo cambia frase a seconda di cio'
+ * che e' successo — qualcuno e' entrato nell'area controllata, qualcuno ti spinge — e chi apre la finestra lo
+ * sa. La prima stesura lo deduceva nel testo dall'id della reazione (`Action.Overwatch`, `Action.Brace`): una
+ * terza copia di quegli id, che una reazione nuova avrebbe lasciato senza frase in silenzio.
+ *
+ * Non e' informazione futura: dice che cosa e' APPENA successo a chi decide.
+ */
+UENUM(BlueprintType)
+enum class ERTReactionTriggerKind : uint8
+{
+	/** Nessuna specie dichiarata: la finestra non ha un sottotitolo. E' il default, e cio' che riceve un avversario. */
+	None,
+	/** Una o piu' unita' sono entrate nell'area che chi decide controlla (Overwatch). */
+	EnteredControlledArea,
+	/** Chi decide sta per essere spinto (`Brace`). */
+	Pushed
+};
+
+/**
  * Una risposta legale dentro una finestra: la stringa ESATTA da rimandare al core, e il bersaglio quando ne
  * ha uno.
  *
@@ -84,8 +105,14 @@ struct FRTReactionWindowNames
 	 * vero per costruzione: il trigger esiste solo per un'unita' `Detected` e in linea di vista. Per il
 	 * `Brace` no — chi spinge puo' farlo da una cella che la squadra non vede — e il nome passa da
 	 * `URTReactionWindowLibrary::AddTriggerIfDetected`, che e' l'unico punto in cui la regola e' scritta.
+	 *
+	 * ⚠️ **Non e' l'elenco dei bersagli.** Una condizione dichiarata riduce le risposte `FIRE`, non chi e'
+	 * entrato: con «solo sotto meta' vita», due unita' entrano e a una sola si puo' sparare.
 	 */
 	TArray<FText> TriggerNames;
+
+	/** Che cosa ha aperto la finestra. Lo scrive il sito che la apre. */
+	ERTReactionTriggerKind TriggerKind = ERTReactionTriggerKind::None;
 
 	/** Il nome di ogni bersaglio di un `FIRE:<i>`, per indice di snapshot. Si legge per chiave, non si itera. */
 	TMap<int32, FText> TargetNames;
@@ -180,6 +207,14 @@ struct FRTReactionWindowView
 	//
 	// ⚠️ **Non sono informazione futura**, ed e' la ragione per cui `OpportunityLeaksNoFuture` li ammette:
 	// nominano la reazione e l'unita' di chi decide, che sono sue, e le unita' che la sua squadra rileva gia'.
+	//
+	// 🔴 **Tutto questo vale se la vista arriva alla squadra di chi decide, e oggi non lo verifica nessuno alla
+	// CONSEGNA.** I due siti la costruiscono per la squadra del proprietario e la spediscono a un delegate
+	// single-cast, legato al view model del giocatore locale. Che quel giocatore sia della stessa squadra lo
+	// garantisce il solo `!bOwnerIsBot`, che in v0.1 — un umano, due unita' ([D-155]) — coincide col gate di
+	// squadra. Il giorno in cui un processo ospita unita' umane di due squadre, questa vista arriverebbe
+	// all'avversario: prima di `#3667` portava l'esistenza della finestra e le risposte, ora anche i nomi.
+	// La riga da rileggere quel giorno sta nell'intestazione di `URTReactionWindowViewModel`.
 
 	/** Il nome della reazione, dal kit di chi decide: «Guardia reattiva». Vuoto se il kit non la nomina. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
@@ -198,6 +233,13 @@ struct FRTReactionWindowView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	TArray<FText> TriggerNames;
+
+	/**
+	 * Che cosa ha aperto la finestra: e' cio' che sceglie la frase del sottotitolo. `None` quando la finestra
+	 * non e' aperta, o quando chi la apre non lo ha dichiarato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	ERTReactionTriggerKind TriggerKind = ERTReactionTriggerKind::None;
 };
 
 /**

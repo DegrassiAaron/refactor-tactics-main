@@ -2070,6 +2070,18 @@ private:
 	 * domanda precedente.
 	 */
 	FString LastWindowId;
+
+	/**
+	 * Titolo e sottotitolo della finestra `TextsWindowId`, composti una volta (`#3667`).
+	 *
+	 * `mutable` perche' li riempiono due getter `const`, che un binding chiama a ogni fotogramma: la
+	 * composizione avviene al primo che arriva dopo un cambio di finestra, e gli altri leggono. Non e' stato
+	 * di gioco: e' la forma gia' scritta di cio' che la vista porta.
+	 */
+	void RefreshWindowTexts() const;
+	mutable FString TextsWindowId;
+	mutable FText CachedTitle;
+	mutable FText CachedSubtitle;
 };
 
 /**

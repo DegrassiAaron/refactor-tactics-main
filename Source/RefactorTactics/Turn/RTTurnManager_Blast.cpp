@@ -2888,31 +2888,32 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 					// 🔑 **I nomi, risolti qui** (`#3667`). `BlastAliveUnits` e' lo spazio in cui vive
 					// `Key.OwnerId`: lo ha costruito il ramo qui sopra, proprio perche' una finestra si apre.
-					FRTReactionWindowNames NomiDellaFinestra = MakeReactionWindowNames(BraceOpportunity, BlastAliveUnits);
+					FRTReactionWindowNames NomiDellaFinestra = MakeReactionWindowNames(
+						BraceOpportunity, BlastAliveUnits, ERTReactionTriggerKind::Pushed);
 
 					// 🔴 **Chi spinge si nomina solo se la squadra di chi decide lo RILEVA** (R2.2). Una
 					// spinta non e' soggetta alla rilevazione: puo' arrivare da una cella che la squadra non
 					// vede, e dare un nome a quell'unita' direbbe al giocatore CHI c'e' in un punto che non
 					// conosce. Senza nome il sottotitolo e' «Un nemico ti spinge».
 					//
-					// La cella e' quella da cui la spinta e' stata registrata (`KnockFrom`), e l'unita' si
-					// ritrova sulla fotografia del Blast (`HexUnits`), che e' parallela a `Units`: a questo
-					// punto del ciclo un attore puo' essere gia' stato spostato da una spinta precedente, e
-					// cercarlo per `Cell` troverebbe la cella di dopo. Gli osservatori sono quelli di inizio
-					// passata ([D-223]), gli stessi con cui si decide chi vede queste spinte disegnate.
-					if (const FRTCellId* CellaDiChiSpinge = KnockFrom.Find(T))
+					// 🔑 **Chi spinge si LEGGE, non si cerca.** `KnockAttackerId` lo registra dove il colpo
+					// viene accumulato. La prima stesura lo ricavava dalla cella di `KnockFrom`, scorrendo
+					// `Units`: ma `Units` tiene i caduti con la loro ultima cella, e un'unita' viva puo' stare
+					// dove un'altra e' caduta. La scansione trovava il cadavere — un compagno caduto li'
+					// sarebbe stato nominato come chi spinge, senza nemmeno chiedere la rilevazione.
+					//
+					// La cella e' quella della fotografia del Blast (`HexUnits`), non quella dell'attore: a
+					// questo punto del ciclo chi spinge puo' essere gia' stato spostato da una spinta precedente.
+					// Gli osservatori sono quelli di inizio passata ([D-223]), gli stessi con cui si decide chi
+					// vede queste spinte disegnate.
+					if (const int32* IndiceDiChiSpinge = Ctx.KnockAttackerId.Find(T))
 					{
-						const ARTUnit* UnitaCheSpinge = nullptr;
-						for (int32 IndiceUnita = 0; IndiceUnita < Units.Num() && IndiceUnita < Ctx.HexUnits.Num(); ++IndiceUnita)
+						const ARTUnit* UnitaCheSpinge =
+							Units.IsValidIndex(*IndiceDiChiSpinge) ? Units[*IndiceDiChiSpinge] : nullptr;
+						if (IsValid(UnitaCheSpinge) && Ctx.HexUnits.IsValidIndex(*IndiceDiChiSpinge))
 						{
-							if (Ctx.HexUnits[IndiceUnita].Cell == *CellaDiChiSpinge && IsValid(Units[IndiceUnita]) && Units[IndiceUnita] != T)
-							{
-								UnitaCheSpinge = Units[IndiceUnita];
-								break;
-							}
-						}
-						if (UnitaCheSpinge)
-						{
+							const FRTCellId CellaDiChiSpinge = Ctx.HexUnits[*IndiceDiChiSpinge].Cell;
+
 							// Un compagno e' noto alla propria squadra per definizione: la rilevazione e' una
 							// domanda sugli AVVERSARI, e i coni di vista non la decidono per i propri.
 							ERTAwareness RilevazioneDellaSquadra = ERTAwareness::Detected;
@@ -2923,13 +2924,15 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 								{
 									if (SquadraDiChiDecide.TeamId == OwnerTeamId)
 									{
-										RilevazioneDellaSquadra = URTPerceptionLibrary::TeamAwarenessOfCell(Map, SquadraDiChiDecide.Observers, *CellaDiChiSpinge);
+										RilevazioneDellaSquadra = URTPerceptionLibrary::TeamAwarenessOfCell(
+											Map, SquadraDiChiDecide.Observers, CellaDiChiSpinge);
 										break;
 									}
 								}
 							}
 							URTReactionWindowLibrary::AddTriggerIfDetected(
-								NomiDellaFinestra, RTTurnManagerInternal::ReactionWindowUnitName(UnitaCheSpinge), RilevazioneDellaSquadra);
+								NomiDellaFinestra, RTTurnManagerInternal::ReactionWindowUnitName(UnitaCheSpinge),
+								RilevazioneDellaSquadra);
 						}
 					}
 

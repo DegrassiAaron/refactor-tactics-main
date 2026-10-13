@@ -33,8 +33,18 @@ namespace RTReactionResponseText
 	FText DescriptionFor(const FString& Response);
 
 	/**
-	 * La frase di UN'opzione della finestra: «Attacca Ivrin» per un `FIRE` che porta il nome del bersaglio
-	 * (`#3667`). Ogni altra opzione — e un `FIRE` senza nome — ha la frase della tabella.
+	 * La frase di UN'opzione della finestra, come la scrive la tavola E (`#3667`, R2.3):
+	 * - un `FIRE` che porta il nome del bersaglio: «Attacca Ivrin»;
+	 * - `HOLD`: «Non attaccare»;
+	 * - ogni altra risposta — le manovre di profilo — e un `FIRE` senza nome: la frase della tabella.
+	 *
+	 * 🔑 **Le frasi di `FIRE` e `HOLD` sono per-opzione, e NON stanno nella tabella.** La tabella chiavata per
+	 * risposta resta quella di D-491, generica e immutata: chi la interroga per stringa riceve cio' che
+	 * riceveva. Qui si compone la frase di un'opzione di una finestra che il core ha gia' riempito.
+	 *
+	 * ⚠️ Un `FIRE` senza nome ripiega sulla frase generica della tabella, che ha un altro registro di «Non
+	 * attaccare». Succede solo se il core non ha potuto risolvere il bersaglio; i due siti di produzione lo
+	 * risolvono sempre, perche' l'indice viene dall'array che hanno in mano.
 	 */
 	FText DescriptionFor(const FRTReactionWindowOptionView& Option);
 
@@ -48,15 +58,15 @@ namespace RTReactionResponseText
 	FText TitleFor(const FRTReactionWindowView& Window);
 
 	/**
-	 * Il sottotitolo: che cosa ha fatto scattare la finestra (`#3667`).
+	 * Il sottotitolo: che cosa ha fatto scattare la finestra (`#3667`). La frase la sceglie
+	 * `Window.TriggerKind`, che scrive chi apre la finestra — qui non si guarda l'id della reazione.
 	 *
-	 * - Overwatch: «Ivrin è entrato nell'area controllata»; con piu' unita' nello stesso passo, «Ivrin e
-	 *   Branth sono entrati nell'area controllata».
-	 * - `Brace`: «Ivrin ti spinge». ⚠️ **Senza un nome nella vista, «Un nemico ti spinge»**: e' il caso di
-	 *   chi spinge da una cella che la squadra non rileva, e il nome non c'e' perche' il core non lo ha messo.
-	 *
-	 * Vuoto se la finestra non e' aperta, e per un Overwatch senza nomi: una frase che non dice chi e'
-	 * entrato non aggiunge niente al titolo.
+	 * - `EnteredControlledArea`: «Ivrin è entrato nell'area controllata»; con piu' unita' nello stesso passo,
+	 *   «Ivrin e Branth sono entrati nell'area controllata». Senza nomi, nessuna frase: una riga che non dice
+	 *   chi e' entrato non aggiunge niente al titolo.
+	 * - `Pushed`: «Ivrin ti spinge». ⚠️ **Senza un nome nella vista, «Un nemico ti spinge»**: e' il caso di chi
+	 *   spinge da una cella che la squadra non rileva, e il nome non c'e' perche' il core non lo ha messo.
+	 * - `None`, o finestra non aperta: vuoto.
 	 */
 	FText SubtitleFor(const FRTReactionWindowView& Window);
 }

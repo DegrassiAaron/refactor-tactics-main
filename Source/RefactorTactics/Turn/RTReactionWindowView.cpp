@@ -76,6 +76,7 @@ FRTReactionWindowView URTReactionWindowLibrary::FilterWindowForTeam(int32 Observ
 	View.ReactionName = Names.ReactionName;
 	View.ReactorName = Names.ReactorName;
 	View.TriggerNames = Names.TriggerNames;
+	View.TriggerKind = Names.TriggerKind;
 
 	return View;
 }

@@ -272,9 +272,11 @@ bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
 	// chi decide RILEVA in quell'istante — per l'Overwatch e' la condizione stessa del trigger, per il
 	// `Brace` la applica `URTReactionWindowLibrary::AddTriggerIfDetected`. Dicono chi c'e' ORA e chi lo sa
 	// gia', non che cosa fara'. E per un avversario la vista e' ai default: i nomi non ci sono.
+	// `TriggerKind` dice di che specie e' cio' che e' APPENA successo — qualcuno e' entrato, qualcuno spinge —
+	// e lo scrive chi apre la finestra: e' passato, non previsione.
 	CheckClosedFieldSet(FRTReactionWindowView::StaticStruct(), TEXT("FRTReactionWindowView"),
 		{ TEXT("bOpen"), TEXT("Key"), TEXT("WindowSeconds"), TEXT("Options"), TEXT("SafeResponse"),
-		  TEXT("ReactionName"), TEXT("ReactorName"), TEXT("TriggerNames") });
+		  TEXT("ReactionName"), TEXT("ReactorName"), TEXT("TriggerNames"), TEXT("TriggerKind") });
 
 	// `TargetSnapshotIndex` porta il nome del proprio spazio di id apposta: e' un indice in
 	// `MakeCurrentSnapshot`, non un id stabile, e chiamarlo `UnitId` invitava a risolverlo altrove.
@@ -794,6 +796,7 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 	Nomi.ReactionName = FText::FromString(TEXT("Guardia reattiva"));
 	Nomi.ReactorName = FText::FromString(TEXT("Aevik"));
 	Nomi.TriggerNames = { FText::FromString(TEXT("Ivrin")) };
+	Nomi.TriggerKind = ERTReactionTriggerKind::EnteredControlledArea;
 	Nomi.TargetNames.Add(PrimoBersaglio, FText::FromString(TEXT("Ivrin")));
 	// Un nome per un indice che NESSUNA opzione porta: non deve comparire da nessuna parte.
 	Nomi.TargetNames.Add(PrimoBersaglio + 1000, FText::FromString(TEXT("Nessuno")));
@@ -805,6 +808,8 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 	TestEqual(TEXT("il nome della reazione"), Propria.ReactionName.ToString(), FString(TEXT("Guardia reattiva")));
 	TestEqual(TEXT("il nome di chi decide"), Propria.ReactorName.ToString(), FString(TEXT("Aevik")));
 	TestEqual(TEXT("un trigger"), Propria.TriggerNames.Num(), 1);
+	TestTrue(TEXT("la specie dichiarata da chi apre la finestra"),
+		Propria.TriggerKind == ERTReactionTriggerKind::EnteredControlledArea);
 	int32 ConNome = 0;
 	for (const FRTReactionWindowOptionView& Opzione : Propria.Options)
 	{
@@ -827,7 +832,7 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, Opportunity, 3.f);
 	TestTrue(TEXT("senza nomi la finestra si apre lo stesso"), SenzaNomi.bOpen);
 	TestTrue(TEXT("e non ne inventa"), SenzaNomi.ReactionName.IsEmpty() && SenzaNomi.ReactorName.IsEmpty()
-		&& SenzaNomi.TriggerNames.Num() == 0);
+		&& SenzaNomi.TriggerNames.Num() == 0 && SenzaNomi.TriggerKind == ERTReactionTriggerKind::None);
 
 	// --- i tre rifiuti: nessun nome, nessun altro campo ---
 	const auto Chiusa = [this](const FRTReactionWindowView& Vista, const TCHAR* Chi)
@@ -836,6 +841,8 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("%s: nessun nome della reazione"), Chi), Vista.ReactionName.IsEmpty());
 		TestTrue(*FString::Printf(TEXT("%s: nessun nome di chi decide"), Chi), Vista.ReactorName.IsEmpty());
 		TestEqual(*FString::Printf(TEXT("%s: nessun trigger"), Chi), Vista.TriggerNames.Num(), 0);
+		TestTrue(*FString::Printf(TEXT("%s: nessuna specie di trigger"), Chi),
+			Vista.TriggerKind == ERTReactionTriggerKind::None);
 		TestEqual(*FString::Printf(TEXT("%s: nessuna opzione, quindi nessun nome di bersaglio"), Chi),
 			Vista.Options.Num(), 0);
 	};

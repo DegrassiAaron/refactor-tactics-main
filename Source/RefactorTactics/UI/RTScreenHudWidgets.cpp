@@ -1837,28 +1837,48 @@ FText URTFastDecisionWidget::GetCountdownText() const
 
 FText URTFastDecisionWidget::GetPromptText() const
 {
-	if (!IsWindowOpen())
-	{
-		return FText::GetEmpty();
-	}
-
 	// ⛔ **Qui non si risolve un indice, e non si e' mai potuto**: il DTO porta un `TargetSnapshotIndex`,
 	// non un id stabile, e risolverlo nel widget nominerebbe l'unita' sbagliata in ogni partita in cui
 	// qualcuno e' gia' caduto.
 	//
 	// ✅ **Da `#3667` i nomi arrivano gia' scritti**: li risolve il turn manager nell'istante in cui costruisce
-	// la vista, contro l'array in cui l'indice vale. Qui si compone il titolo con cio' che la vista porta —
-	// «Guardia reattiva — Aevik» — e senza nomi resta «Reazione», come prima.
-	return RTReactionResponseText::TitleFor(GetWindow());
+	// la vista, contro l'array in cui l'indice vale. Qui si legge il titolo composto con cio' che la vista
+	// porta — «Guardia reattiva — Aevik» — e senza nomi resta «Reazione», come prima.
+	RefreshWindowTexts();
+	return CachedTitle;
 }
 
 FText URTFastDecisionWidget::GetSubtitleText() const
 {
-	if (!IsWindowOpen())
+	RefreshWindowTexts();
+	return CachedSubtitle;
+}
+
+void URTFastDecisionWidget::RefreshWindowTexts() const
+{
+	// 🔑 **Una composizione per FINESTRA, non per fotogramma.** `GetPromptText` e' un binding, e `RefreshLook`
+	// gira a ogni tick: comporre li' vorrebbe dire copiare la vista e formattare due testi sessanta volte al
+	// secondo per dire la stessa cosa. I testi di una finestra non cambiano finche' la finestra e' quella.
+	//
+	// ⚠️ La chiave e' l'identita' che il view model CHIEDE al manager, come in `PollWindowChanged` — ma e' una
+	// chiave propria: quella consuma il cambio per ricostruire i bottoni, questa deve valere anche quando
+	// nessuno fa girare il tick, come in una run headless.
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+	const FString Corrente = (ViewModel && ViewModel->IsWindowOpen()) ? ViewModel->GetWindowId() : FString();
+	if (Corrente == TextsWindowId)
 	{
-		return FText::GetEmpty();
+		return;
 	}
-	return RTReactionResponseText::SubtitleFor(GetWindow());
+	TextsWindowId = Corrente;
+	if (Corrente.IsEmpty())
+	{
+		CachedTitle = FText::GetEmpty();
+		CachedSubtitle = FText::GetEmpty();
+		return;
+	}
+	const FRTReactionWindowView Finestra = ViewModel->GetWindow();
+	CachedTitle = RTReactionResponseText::TitleFor(Finestra);
+	CachedSubtitle = RTReactionResponseText::SubtitleFor(Finestra);
 }
 
 float URTFastDecisionWidget::GetCountdownFraction() const
