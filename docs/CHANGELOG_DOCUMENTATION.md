@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-13 — Spec panel sulla serie «ciò che il giocatore legge»
+
+**Origine**: la serie di sei issue della v0.1 proposta il 2026-10-13 — [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), [#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629), [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626) e [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627). Le premesse sono state rilette sul sorgente prima di lavorarle; niente è stato eseguito col motore.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/serie-lettura-giocatore-spec-panel-2026-10-13.md`](roadmap/plans/serie-lettura-giocatore-spec-panel-2026-10-13.md) | il referto: per ogni issue le premesse rimisurate, il panel, la specifica, gli esempi e la DoD; quattro scelte per l'autore (`P1`–`P4`); l'ordine di lavoro rispetto al freeze; i limiti, con ciò che falsificherebbe ogni lettura |
+
+---
+
 ## 2026-10-13 — La ricetta del master graybox svuota il grafo senza la funzione del motore
 
 **Origine**: [#3725](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3725). `EnsureMaster` era l'ultima ricetta a chiamare la funzione del motore che svuota un grafo. La verifica di mutazione ha corretto la premessa della issue: su due espressioni quella funzione le toglie entrambe, e ne lascia indietro da tre in su.
