@@ -20,7 +20,7 @@ const CPP = [
   '{',
   '\tstatic const TArray<TPair<FName, FString>> Voci = {',
   '\t\t{ TEXT("Status.Burning"),     TEXT("Subisci danno alla fine di ogni turno, finche\' le fiamme durano o l\'acqua le spegne.") },',
-  '\t\t{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava.") },',
+  '\t\t{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con piu\' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato.") },',
   '\t};',
   '\treturn Voci;',
   '}',
@@ -42,7 +42,7 @@ const DOC = [
   '',
   '| Voce | Nome | Effetto | Da rivedere |',
   '|---|---|---|---|',
-  '| `Terrain.Ice` | Ghiaccio | Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava. |  |',
+  "| `Terrain.Ice` | Ghiaccio | Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato. |  |",
 ].join('\r\n');
 
 test('due copie uguali concordano, e la copertura si conta su entrambi i lati', () => {
@@ -57,8 +57,8 @@ test('un effetto cambiato nel solo documento e una divergenza, con entrambi i va
     {
       id: 'Terrain.Ice',
       campo: 'frase',
-      doc: 'Chi finisce qui il movimento con passi ancora da spendere scivola, nella direzione in cui andava.',
-      cpp: 'Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava.',
+      doc: "Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola, nella direzione in cui andava, e resta sbilanciato.",
+      cpp: "Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato.",
     },
   ]);
 });

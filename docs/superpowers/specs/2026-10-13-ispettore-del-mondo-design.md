@@ -317,7 +317,7 @@ replay. Le regole:
 |---|---|---|
 | **P1** | ➕ rev. **Non si costruisce ciò che non spetta, e l'attore passa da una porta sola.** Una sola funzione legge l'attore di un'unità non comandata e ne ricava il soggetto pubblico: identità, cella, verso, ciò che la targa mostra già, pezzi equipaggiati. Il compositore riceve quel soggetto e non vede mai l'attore: piano, slot e ricariche vere non hanno un campo in cui entrare | la disciplina di `FRTContextInspectorView`; `FRTKnowledgeView` per sapere **se** il soggetto esiste; `FRTUnitOverlayView` per la condizione |
 | **P2** | **Nemico non osservato = cella vuota**, su tutte le uscite: sguardo, scheda, area di movimento, portata. ➕ rev2. Il cancello è **uno**: una voce `Live` nella vista di conoscenza. `ARTUnit::IsKnownToObserver` nasce vero, e qui non decide niente | `FRTKnowledgeView` |
-| **P3** | ➕ rev2. **L'area di movimento di un nemico è il suo potenziale, dentro ciò che la squadra vede adesso.** Il budget è `ARTUnit::GetEffectiveMoveRange`, che legge catalogo e stati pubblici, alle due bande fisse di `S8`: normale e corsa. ⛔ Mai la banda del suo piano: `ARTTurnManager::MakeSimUnit` la legge, e per il soggetto a fuoco non si usa. Non dipende da unità ignote. Si disegna solo su celle in vista adesso, e una cella non in vista non è attraversabile nel calcolo | `URTHexSimLibrary::MakeSnapshot` per l'occupazione; `FRTTeamKnowledge::VisibleCells` per le celle |
+| **P3** | ➕ rev2. **L'area di movimento di un nemico è il suo potenziale, dentro ciò che la squadra vede adesso.** Il budget è `ARTUnit::GetEffectiveMoveRange`, che legge catalogo e stati pubblici, alle due bande fisse di `S8`: normale e corsa. ⛔ Mai la banda del suo piano: `ARTTurnManager::MakeSimUnit` la legge, e per il soggetto a fuoco non si usa. Due regole pubbliche vivono però solo lì, e vanno riportate nello snapshot costruito apposta: il costo in più per cella di `Status.Slow`, e il divieto di corsa di `Status.Unbalanced`. `GetEffectiveMoveRange` legge solo `Status.Root` e `Status.Prone`. Non dipende da unità ignote. Si disegna solo su celle in vista adesso, e una cella non in vista non è attraversabile nel calcolo | `URTHexSimLibrary::MakeSnapshot` per l'occupazione; `FRTTeamKnowledge::VisibleCells` per le celle |
 | **P4** | ➕ rev2. **Le ricariche dedotte sono funzione di due sole cose**: il catalogo, e le voci del TurnLog che il filtro del registro autorizza alla squadra, sull'intera partita. Una voce conta solo se il suo soggetto è l'unità ispezionata **e** il soggetto è chi agisce. ⛔ Mai dedurre chi ha agito dall'`ActionId` o da una cella di una voce che parla di un altro | `URTPlayerEventProjector::IsAuthorized`; `URTTurnLogLibrary::IsSubjectTheSufferer` |
 | **P5** | ➕ rev. **Di una cella si legge qualcosa solo se la squadra la vede adesso.** Una cella esplorata e non più in vista, come una mai vista, non dà sguardo né scheda | `FRTTeamKnowledge::VisibleCells` |
 | **P6** | **Kit ed equipaggiamento di un nemico osservato sono pubblici per regola** (`S2`) | il catalogo |
@@ -566,7 +566,8 @@ Testo proposto. **Il numero si assegna al merge**, dopo `git fetch` e il control
 
 **Automation**, per proprietà. I nomi dei test nascono con i test, non in questa spec.
 
-- Il risolutore rispetta l'ordine di §3 su ogni combinazione di candidati.
+- Il risolutore dello **sguardo** rispetta l'ordine di §3 regola 1 su ogni combinazione di candidati. Il click di
+  §3 regola 9 è un'altra cosa, e in `Pathing` resta fuori finché #705 non decide.
 - Il compositore non porta tipi grezzi, per reflection.
 - Il glossario è completo: un gate rosso quando nasce uno stato, una superficie o un riparo senza testo.
 - I mondi gemelli di P2, P3, P4, P5 e P7, ciascuno con la propria mutazione.
@@ -667,6 +668,11 @@ come inquilino di `Zone_MiddleRight`; nessuna decisione trovata che dichiari pri
 **Verificato da chi scrive dopo la revisione**, perché il revisore aveva finito il tetto: il cancello di `OnSelect`
 in risoluzione (`IsWorldReadOnly`); il pivot che accetta ogni cella della mappa; la risoluzione che precede il
 playback.
+
+**Un secondo revisore avversario**, sul branch finito, ha aggiunto due cose a questa spec: il costo di `Status.Slow`
+e il divieto di corsa di `Status.Unbalanced` non passano da `GetEffectiveMoveRange` (P3), e il test del risolutore
+va distinto dal click in `Pathing` (§11). Ha anche confermato che le regole 10, 11 e 12 di §3, P2 e P4 non si
+contraddicono fra loro né con §11.
 
 **Ancora non verificato**, e scritto dove serve in §6.4:
 

@@ -295,7 +295,7 @@ bool FRTGlossaryEntriesExistTest::RunTest(const FString&)
 		Viste.Add(Key);
 
 		GlossaryCheckText(*this, K, TEXT("nome"), Nomi[I].Value);
-		TestFalse(*FString::Printf(TEXT("%s: il nome non finisce col punto"), *K), Nomi[I].Value.EndsWith(TEXT(".")));
+		TestFalse(*FString::Printf(TEXT("%s (nome): non finisce col punto"), *K), Nomi[I].Value.EndsWith(TEXT(".")));
 
 		if (!Effetti.IsValidIndex(I))
 		{
@@ -304,7 +304,7 @@ bool FRTGlossaryEntriesExistTest::RunTest(const FString&)
 		// Le due tabelle hanno le stesse chiavi nello stesso ordine: e' cio' che le rende rileggibili affiancate.
 		TestEqual(*FString::Printf(TEXT("la voce %d ha la stessa chiave nelle due tabelle"), I), Effetti[I].Key, Key);
 		GlossaryCheckText(*this, K, TEXT("effetto"), Effetti[I].Value);
-		TestTrue(*FString::Printf(TEXT("%s: l'effetto finisce col punto"), *K), Effetti[I].Value.EndsWith(TEXT(".")));
+		TestTrue(*FString::Printf(TEXT("%s (effetto): finisce col punto"), *K), Effetti[I].Value.EndsWith(TEXT(".")));
 	}
 	return true;
 }
@@ -315,7 +315,7 @@ bool FRTGlossaryEntriesExistTest::RunTest(const FString&)
  * 🔑 **Valori letterali, e non una seconda composizione**: se `KeyForSurface` cambiasse forma, il test qui sopra
  * continuerebbe a concordare con lei. `Status.Burning` e `Terrain.Fire` sono cio' che il TurnLog scrive come causa
  * di un danno; gli altri sono gli id del catalogo dei terreni, dove una superficie che non fa danno non arriva
- * mai al TurnLog.
+ * mai al TurnLog. Il catalogo non elenca `Terrain.Void`: quella chiave segue solo lo schema.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlossaryKeysTest,
 	"RefactorTactics.UI.GlossaryKeysAreTheIdsTheGameWrites",
@@ -361,8 +361,9 @@ bool FRTGlossaryKeysTest::RunTest(const FString&)
  *
  * 🔑 **Una tabella sola, chiavata per id stabile**, nella forma di `RTActionDescriptions`. Le chiavi sono id che
  * esistono gia': il nome del tag per uno stato (`Status.Burning`); per una superficie la causa che il TurnLog
- * scrive quando fa danno (`Terrain.Fire`), che per le altre e' l'id del catalogo dei terreni; l'id dello stesso
- * catalogo per un riparo (`Structure.LowCover`).
+ * scrive quando fa danno (`Terrain.Fire`), che per le altre e' l'id del catalogo dei terreni — tranne
+ * `Terrain.Void`, che il catalogo non elenca; l'id dello stesso catalogo per un riparo (`Structure.LowCover`),
+ * che il gioco non scrive da nessuna parte.
  *
  * ⛔ **Un testo non porta numeri ne' nomi di tag.** Durata, danno e costo li compone il gioco dai dati: un numero
  * scritto qui invecchierebbe al primo ribilanciamento, e nessun gate se ne accorgerebbe.
@@ -459,8 +460,9 @@ Sostituisci per intero `Source/RefactorTactics/UI/RTGlossary.cpp`:
 // confronta voce per voce, non l'ordine; due copie nello stesso ordine si rileggono affiancate.
 //
 // ⛔ Niente cifre, niente nomi di tag, solo ASCII: lo verifica `RefactorTactics.UI.GlossaryEntriesNameThingsThatExist`.
-// ⚠️ Una frase segue la REGOLA, non il catalogo dei terreni: dove i due divergono — il ghiaccio fa scivolare chi
-// vi TERMINA il movimento, non chi vi entra — vale il codice che la applica.
+// ⚠️ Una frase segue la REGOLA, non il catalogo dei terreni: dove i due divergono vale il codice che la applica.
+// Due casi: il ghiaccio fa scivolare chi vi TERMINA il movimento, non chi vi entra; la copertura bassa non
+// ferma il passo, che il catalogo le attribuisce.
 // ⚠️ Il radar trova le due tabelle dalla riga della loro definizione: nessun commento sopra di esse deve
 // ripeterne la firma.
 const TArray<TPair<FName, FString>>& RTGlossary::Names()
@@ -506,26 +508,26 @@ const TArray<TPair<FName, FString>>& RTGlossary::Effects()
 		// Stati
 		{ TEXT("Status.Root"),        TEXT("Non puoi muoverti ne' scattare.") },
 		{ TEXT("Status.Slow"),        TEXT("Ogni cella ti costa di piu': a piedi arrivi meno lontano.") },
-		{ TEXT("Status.Reveal"),      TEXT("Gli avversari vedono che cosa stai preparando.") },
+		{ TEXT("Status.Reveal"),      TEXT("Gli avversari vedono il tuo piano del turno, ma non la reazione che hai armato.") },
 		{ TEXT("Status.Exposed"),     TEXT("Finche' dura, il primo colpo che ricevi in un turno fa piu' danno.") },
-		{ TEXT("Status.Guarded"),     TEXT("Ogni colpo che arriva di fronte perde una parte del danno, e una spinta debole non ti sposta, finche' non sei sbilanciato.") },
+		{ TEXT("Status.Guarded"),     TEXT("Ogni colpo che arriva di fronte perde una parte del danno. Una spinta debole non ti sposta, a meno che tu sia sbilanciato.") },
 		{ TEXT("Status.Marked"),      TEXT("Il prossimo colpo della squadra che ti ha marchiato fa piu' danno, poi il marchio si consuma.") },
 		{ TEXT("Status.Wet"),         TEXT("La scarica lineare di Aevik ti fa piu' danno. Bagnarti spegne le fiamme.") },
 		{ TEXT("Status.Braced"),      TEXT("Ogni colpo, da qualunque direzione, perde un po' di danno, e resisti alle spinte finche' non sei sbilanciato.") },
 		{ TEXT("Status.Burning"),     TEXT("Subisci danno alla fine di ogni turno, finche' le fiamme durano o l'acqua le spegne.") },
 		{ TEXT("Status.Obscured"),    TEXT("Sei nel fumo: attraverso il fumo si mira solo da vicino, in entrambi i versi.") },
-		{ TEXT("Status.Electrified"), TEXT("Una scarica elettrica ti ha colpito: mirata su di te, oppure arrivata lungo acqua e metallo.") },
+		{ TEXT("Status.Electrified"), TEXT("L'elettricita' corsa nel terreno ti ha colpito: sulla cella mirata, oppure lungo acqua e metallo.") },
 		{ TEXT("Status.Unbalanced"),  TEXT("Non puoi correre, e guardia e irrigidimento non ti tengono fermo; spinte, trazioni e scivolate ti portano piu' lontano, e una spinta o una trazione che ti sposta ti butta a terra.") },
-		{ TEXT("Status.Prone"),       TEXT("Rialzarti ti costa una parte del movimento, e le tue reazioni non scattano.") },
-		{ TEXT("Status.Stunned"),     TEXT("Non puoi usare l'azione principale, e le tue reazioni non scattano.") },
+		{ TEXT("Status.Prone"),       TEXT("Cadendo perdi cio' che avevi armato, e le tue reazioni non scattano. Rialzarti ti costa una parte del movimento.") },
+		{ TEXT("Status.Stunned"),     TEXT("Non puoi usare l'azione principale, le tue reazioni non scattano, e perdi cio' che avevi gia' armato.") },
 
 		// Superfici
 		{ TEXT("Terrain.Floor"),        TEXT("Nessun effetto proprio. Puo' prendere fuoco.") },
-		{ TEXT("Terrain.ShallowWater"), TEXT("Costa piu' movimento. Bagna chi ci entra e conduce l'elettricita'.") },
+		{ TEXT("Terrain.ShallowWater"), TEXT("Costa piu' movimento e conduce l'elettricita'. Chi ci sta dentro e' bagnato finche' ci resta.") },
 		{ TEXT("Terrain.Rough"),        TEXT("Costa piu' movimento, e non lo si attraversa ne' di scatto ne' in carica. Puo' prendere fuoco.") },
-		{ TEXT("Terrain.Fire"),         TEXT("Costa piu' movimento. Chi ci entra subisce danno e prende fuoco.") },
+		{ TEXT("Terrain.Fire"),         TEXT("Costa piu' movimento. Chi ci entra, o ci si trova quando divampa, subisce danno e prende fuoco.") },
 		{ TEXT("Terrain.Conductive"),   TEXT("Conduce l'elettricita'.") },
-		{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava.") },
+		{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato.") },
 		{ TEXT("Terrain.Void"),         TEXT("Non e' un punto d'atterraggio: chi cade non si ferma qui.") },
 		{ TEXT("Terrain.Smoke"),        TEXT("Chi ci sta dentro e' nel fumo: attraverso il fumo si mira solo da vicino.") },
 		{ TEXT("Terrain.HighGround"),   TEXT("Nessun effetto proprio: indica una posizione rialzata, e il vantaggio viene dal piano della cella.") },
@@ -572,7 +574,8 @@ FName RTGlossary::KeyForSurface(ERTHexSurface Surface)
 {
 	// 🔑 La stessa composizione con cui `ARTTurnManager` scrive la causa di un danno da terreno: il prefisso
 	// arriva dalla libreria del TurnLog e non da un letterale, cosi' le due non divergono. Il TurnLog la scrive
-	// solo per una superficie che fa danno; per le altre e' lo stesso schema, e l'id del catalogo dei terreni.
+	// solo per una superficie che fa danno; per le altre e' lo stesso schema, e l'id del catalogo dei terreni —
+	// tranne `Terrain.Void`, che il catalogo non elenca.
 	return FName(*FString::Printf(TEXT("%s%s"), URTTurnLogLibrary::TerrainCausePrefix(),
 		*StaticEnum<ERTHexSurface>()->GetNameStringByValue(static_cast<int64>(Surface))));
 }
@@ -658,7 +661,7 @@ python tools/suite/esegui.py RefactorTactics.UI.Glossary --log "<scratchpad>/glo
 
 Atteso: tre test trovati, **due rossi e uno verde**.
 - `GlossaryCoversEveryStatusSurfaceAndCover` rosso, con: «Structure.HighCover ha un effetto» (A); «Status.Burning ha un nome» e «Status.Burning ha un effetto» (B).
-- `GlossaryEntriesNameThingsThatExist` rosso, con: «nomi ed effetti hanno lo stesso numero di voci» (A); «Status.Bruciante nomina uno stato, una superficie o un riparo che esiste», «Status.Bruciante (effetto): non porta cifre» e «Status.Bruciante: l'effetto finisce col punto» (B).
+- `GlossaryEntriesNameThingsThatExist` rosso, con: «nomi ed effetti hanno lo stesso numero di voci» (A); «Status.Bruciante nomina uno stato, una superficie o un riparo che esiste», «Status.Bruciante (effetto): non porta cifre» e «Status.Bruciante (effetto): finisce col punto» (B).
 - `GlossaryKeysAreTheIdsTheGameWrites` verde: le funzioni delle chiavi non sono cambiate.
 
 I messaggi si leggono dal log, uno per uno. Se ne manca uno, il ramo che lo produce non guarda ciò che dichiara: ci si ferma e lo si corregge prima di tutto il resto.
@@ -725,7 +728,7 @@ const CPP = [
   '{',
   '\tstatic const TArray<TPair<FName, FString>> Voci = {',
   '\t\t{ TEXT("Status.Burning"),     TEXT("Subisci danno alla fine di ogni turno, finche\' le fiamme durano o l\'acqua le spegne.") },',
-  '\t\t{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava.") },',
+  '\t\t{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con piu\' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato.") },',
   '\t};',
   '\treturn Voci;',
   '}',
@@ -747,7 +750,7 @@ const DOC = [
   '',
   '| Voce | Nome | Effetto | Da rivedere |',
   '|---|---|---|---|',
-  '| `Terrain.Ice` | Ghiaccio | Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava. |  |',
+  "| `Terrain.Ice` | Ghiaccio | Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato. |  |",
 ].join('\r\n');
 
 test('due copie uguali concordano, e la copertura si conta su entrambi i lati', () => {
@@ -762,8 +765,8 @@ test('un effetto cambiato nel solo documento e una divergenza, con entrambi i va
     {
       id: 'Terrain.Ice',
       campo: 'frase',
-      doc: 'Chi finisce qui il movimento con passi ancora da spendere scivola, nella direzione in cui andava.',
-      cpp: 'Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava.',
+      doc: "Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola, nella direzione in cui andava, e resta sbilanciato.",
+      cpp: "Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato.",
     },
   ]);
 });
@@ -928,7 +931,7 @@ Atteso: `pass 6`, `fail 0`.
 > `F3`.
 >
 > **Come rivederle**: correggi le colonne *Nome* ed *Effetto*. Il cambio va riportato nelle tabelle C++ nella
-> stessa PR; il radar lo pretende. La colonna *Voce* è l'id che il gioco scrive, e non si cambia qui.
+> stessa PR; il radar lo pretende. La colonna *Voce* è la chiave della tabella, e non si cambia qui.
 
 ## Stati
 
@@ -939,18 +942,18 @@ La chiave è il nome del tag. Le regole stanno in
 |---|---|---|---|
 | `Status.Root` | Immobilizzato | Non puoi muoverti ne' scattare. |  |
 | `Status.Slow` | Rallentato | Ogni cella ti costa di piu': a piedi arrivi meno lontano. |  |
-| `Status.Reveal` | Rivelato | Gli avversari vedono che cosa stai preparando. | oggi nessuna azione lo applica |
+| `Status.Reveal` | Rivelato | Gli avversari vedono il tuo piano del turno, ma non la reazione che hai armato. | oggi nessuna azione lo applica |
 | `Status.Exposed` | Esposto | Finche' dura, il primo colpo che ricevi in un turno fa piu' danno. |  |
-| `Status.Guarded` | In guardia | Ogni colpo che arriva di fronte perde una parte del danno, e una spinta debole non ti sposta, finche' non sei sbilanciato. |  |
+| `Status.Guarded` | In guardia | Ogni colpo che arriva di fronte perde una parte del danno. Una spinta debole non ti sposta, a meno che tu sia sbilanciato. |  |
 | `Status.Marked` | Marchiato | Il prossimo colpo della squadra che ti ha marchiato fa piu' danno, poi il marchio si consuma. |  |
 | `Status.Wet` | Bagnato | La scarica lineare di Aevik ti fa piu' danno. Bagnarti spegne le fiamme. | il danno in piu' vale per una sola abilita' |
 | `Status.Braced` | Irrigidito | Ogni colpo, da qualunque direzione, perde un po' di danno, e resisti alle spinte finche' non sei sbilanciato. |  |
 | `Status.Burning` | In fiamme | Subisci danno alla fine di ogni turno, finche' le fiamme durano o l'acqua le spegne. |  |
 | `Status.Obscured` | Nel fumo | Sei nel fumo: attraverso il fumo si mira solo da vicino, in entrambi i versi. |  |
-| `Status.Electrified` | Folgorato | Una scarica elettrica ti ha colpito: mirata su di te, oppure arrivata lungo acqua e metallo. | non resta addosso: e' l'istante di una scarica |
+| `Status.Electrified` | Folgorato | L'elettricita' corsa nel terreno ti ha colpito: sulla cella mirata, oppure lungo acqua e metallo. | non resta addosso: e' l'istante di una scarica |
 | `Status.Unbalanced` | Sbilanciato | Non puoi correre, e guardia e irrigidimento non ti tengono fermo; spinte, trazioni e scivolate ti portano piu' lontano, e una spinta o una trazione che ti sposta ti butta a terra. |  |
-| `Status.Prone` | A terra | Rialzarti ti costa una parte del movimento, e le tue reazioni non scattano. |  |
-| `Status.Stunned` | Stordito | Non puoi usare l'azione principale, e le tue reazioni non scattano. | oggi nessuna azione lo applica |
+| `Status.Prone` | A terra | Cadendo perdi cio' che avevi armato, e le tue reazioni non scattano. Rialzarti ti costa una parte del movimento. |  |
+| `Status.Stunned` | Stordito | Non puoi usare l'azione principale, le tue reazioni non scattano, e perdi cio' che avevi gia' armato. | oggi nessuna azione lo applica |
 
 ## Superfici
 
@@ -960,14 +963,14 @@ danno da terreno. Le regole stanno in [`RT_TerrainCatalog_v0.1.md`](RT_TerrainCa
 | Voce | Nome | Effetto | Da rivedere |
 |---|---|---|---|
 | `Terrain.Floor` | Pavimento | Nessun effetto proprio. Puo' prendere fuoco. |  |
-| `Terrain.ShallowWater` | Acqua bassa | Costa piu' movimento. Bagna chi ci entra e conduce l'elettricita'. |  |
+| `Terrain.ShallowWater` | Acqua bassa | Costa piu' movimento e conduce l'elettricita'. Chi ci sta dentro e' bagnato finche' ci resta. |  |
 | `Terrain.Rough` | Accidentato | Costa piu' movimento, e non lo si attraversa ne' di scatto ne' in carica. Puo' prendere fuoco. |  |
-| `Terrain.Fire` | Fuoco | Costa piu' movimento. Chi ci entra subisce danno e prende fuoco. |  |
+| `Terrain.Fire` | Fuoco | Costa piu' movimento. Chi ci entra, o ci si trova quando divampa, subisce danno e prende fuoco. |  |
 | `Terrain.Conductive` | Superficie metallica | Conduce l'elettricita'. |  |
-| `Terrain.Ice` | Ghiaccio | Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava. | il catalogo dei terreni dice «all'ingresso»: il codice fa scivolare chi vi TERMINA il movimento |
+| `Terrain.Ice` | Ghiaccio | Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato. | il catalogo dei terreni dice «all'ingresso»: il codice fa scivolare chi vi TERMINA il movimento, se gli resta piu' di un passo |
 | `Terrain.Void` | Vuoto | Non e' un punto d'atterraggio: chi cade non si ferma qui. | non ha una riga nel catalogo dei terreni; il passo lo blocca la cella, non la superficie |
 | `Terrain.Smoke` | Fumo | Chi ci sta dentro e' nel fumo: attraverso il fumo si mira solo da vicino. |  |
-| `Terrain.HighGround` | Quota elevata | Nessun effetto proprio: indica una posizione rialzata, e il vantaggio viene dal piano della cella. |  |
+| `Terrain.HighGround` | Quota elevata | Nessun effetto proprio: indica una posizione rialzata, e il vantaggio viene dal piano della cella. | la mappa dimostrativa la mette anche su celle del piano terra: li' non indica niente |
 
 ## Ripari
 
@@ -976,7 +979,7 @@ cella, e vale per ciò che attraversa quel lato.
 
 | Voce | Nome | Effetto | Da rivedere |
 |---|---|---|---|
-| `Structure.LowCover` | Copertura bassa | Riduce il danno dei colpi mirati che ti arrivano di fronte attraverso quel lato; non ripara dalle esplosioni. Non ferma la vista ne' il passo. |  |
+| `Structure.LowCover` | Copertura bassa | Riduce il danno dei colpi mirati che ti arrivano di fronte attraverso quel lato; non ripara dalle esplosioni. Non ferma la vista ne' il passo. | il catalogo dei terreni dice «blocca l'arco»: nel codice solo la copertura alta ferma il passo |
 | `Structure.HighCover` | Copertura alta | Chiude quel lato: non passano la vista, il passo e i colpi. |  |
 ````
 
@@ -1212,6 +1215,27 @@ Chiesta dall'autore il 2026-10-13: un agente con contesto fresco, in sola lettur
 | 16 | minore | l'ordine «uguale al documento» non lo verifica nessuno | `compare` indicizza per chiave | commento corretto: il radar non confronta l'ordine |
 
 Il revisore non ha trovato difetti di compilazione né un test che non possa fallire. Ha lasciato **non verificato**, fra l'altro: la frase di `Status.Marked`, la direzione dello scivolamento, «in entrambi i versi» del fumo. Chi scrive le ha rilette dopo: `GetMarkedByTeam` in `ARTTurnManager`, `URTHexSimLibrary::ApplyIceSliding`, `URTTerrainLibrary::EffectiveTargetingRange`.
+
+### ➕ rev3. Revisione avversaria finale, sul branch finito
+
+Un secondo agente con contesto fresco, in sola lettura, sui file committati. Nessun rilievo critico. Ogni rilievo è stato riletto sul codice prima di entrare, ed è entrato nel commit `fix(3744): dopo la revisione avversaria finale`.
+
+| | Gravità | Rilievo | Seconda fonte | Esito |
+|---|---|---|---|---|
+| 1 | importante | `Status.Guarded`: «finché non sei sbilanciato» si leggeva anche sul danno | `ARTTurnManager`, spostamento forzato: l'inerzia di chi è sbilanciato si ferma allo spostamento | frase divisa in due |
+| 2 | importante | `Terrain.Ice` taceva che chi scivola resta sbilanciato, e la soglia è più di un passo | `ARTTurnManager`, fase Move; `URTHexSimLibrary::ApplyIceSliding` | frase corretta |
+| 3 | importante | `Status.Stunned` e `Status.Prone` tacevano che si perde ciò che era armato | `ARTTurnManager::DisarmPreparedReactions` | due frasi corrette |
+| 4 | importante | `Structure.LowCover` contraddice il catalogo dei terreni, e la nota era vuota | `RT_TerrainCatalog_v0.1.md` §3; `URTHexCoverLibrary::BlocksTraversal` | nota nel documento; il catalogo resta com'è |
+| 5 | importante | la modifica ai messaggi dei test non era committata, e due messaggi avevano ancora la forma vecchia | `git status` | committata; suite rifatta su quel commit |
+| 6 | minore | `Terrain.Fire` e `Terrain.ShallowWater`: «chi ci entra» non copre chi c'è quando la superficie nasce | `ARTTurnManager`, `BornSurfaceCells`; `ARTUnit::PersistentWhileOnCell` | due frasi corrette |
+| 7 | minore | `Status.Reveal` sembrava comprendere la reazione | il commento di `FRTPlannedIntent::bRevealed` | frase corretta |
+| 8 | minore | `Status.Electrified` si confondeva con la scarica lineare | il produttore è la sola propagazione nel Cleanup | frase corretta |
+| 9 | minore | tre commenti dicevano il falso su `Terrain.Void` e sulle chiavi dei ripari | `RT_TerrainCatalog_v0.1.md`: `Void` non c'è | commenti e nota del documento corretti |
+| 10 | minore | `Terrain.HighGround` senza nota | la mappa dimostrativa la mette sul piano terra | nota nel documento |
+| 11 | minore | «effetto in una riga» non ha un gate di lunghezza | misura delle voci: la più lunga è `Status.Unbalanced` | **non corretto qui**: il tetto si decide in F2, quando esiste la targa che lo mostra. Scritto nella PR |
+| 12 | minore | spec, P3: `Status.Slow` e il divieto di corsa non passano da `GetEffectiveMoveRange` | `ARTUnit::GetEffectiveMoveRange`; `ARTTurnManager::MakeSimUnit` | spec corretta |
+
+Il revisore ha lasciato **non verificato**, fra l'altro: se «attraversare» l'accidentato copre anche terminarvi lo scatto; il ramo conteso della spinta; se la propagazione elettrica colpisce chi sta sulla cella mirata quando quella non conduce. Chi scrive ha riletto dopo la prima e la terza: `IsTraversableByStep` in `Turn/RTMovementActionLibrary.cpp` vale per ogni cella del passo, quella d'arrivo compresa, e il salto ne è escluso; `CollectElectricPropagation` colpisce al passo zero anche su una cella che non conduce. Le due frasi reggono. Il ramo conteso della spinta resta **non verificato**: tocca un caso limite della frase di `Status.Unbalanced`.
 
 **Ciò che il piano non copre, e lo dice:**
 - la resa a schermo di una voce: non esiste ancora chi la mostri;
