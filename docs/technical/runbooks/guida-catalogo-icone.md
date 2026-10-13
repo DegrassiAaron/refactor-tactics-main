@@ -54,7 +54,7 @@ Devi leggere una cosa di questa **forma** — `xx` sta per un numero che cambia 
 
 ```text
 xx icone + yy cornici -> Content/RT/UI/_Generated
-✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile · T10 tabelle = documenti owner
+✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile · PAL tabelle = documenti owner
 ✅ copertura completa: xx chiavi richieste, tutte disegnate
 ℹ️  xx icone fuori dal set richiesto — <categoria> xx, ...
 xx PNG rasterizzati

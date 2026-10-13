@@ -8,9 +8,11 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32, un punto in più sotto la tabella: il generatore copia i token che le icone usano, e il gate `T10` li confronta; il token del testo spento non è il grigio semantico delle icone |
-| [`research/design/icon/visual-language/02-color-system.md`](research/design/icon/visual-language/02-color-system.md) | sotto la tabella semantica: la copia nel generatore è controllata da `T10`; `RT_Sem_Disabled` non è `RT_UI_Text_Disabled` |
-| [`technical/runbooks/guida-catalogo-icone.md`](technical/runbooks/guida-catalogo-icone.md) | la riga d'esempio dei gate porta `T10` |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32.1, un punto in più: il generatore copia i token che le icone usano, e il gate `PAL` li confronta rileggendo le righe di quella sezione; il token del testo spento non è il grigio semantico delle icone |
+| [`research/design/icon/visual-language/02-color-system.md`](research/design/icon/visual-language/02-color-system.md) | sotto la tabella semantica: la copia nel generatore è controllata dal gate `PAL` e dal referto; `RT_Sem_Disabled` non è `RT_UI_Text_Disabled` |
+| [`technical/runbooks/guida-catalogo-icone.md`](technical/runbooks/guida-catalogo-icone.md) | la riga d'esempio dei gate porta `PAL` |
+| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: il referto si lancia anche quando la PR tocca un token dei due documenti owner; `1` vale anche per una tabella che diverge, `2` per una qualunque delle tre fonti che non si legge |
+| [`technical/systems/spec-icon-card-grammar.md`](technical/systems/spec-icon-card-grammar.md) | accanto ai codici d'uscita del referto: la terza parte, il gate `PAL` e perché non ha un numero `T`, le due chiavi di `tabelle` in `--json` |
 
 ---
 

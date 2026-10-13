@@ -599,11 +599,15 @@ python tools/bot-competence/check.py --check              # lo schema, i suoi `c
                                                           # Scenarios/, o QUALUNQUE rinomina di un nome
                                                           # Automation citato: e' una lettura offline,
                                                           # nel dubbio si lancia
-python tools/hud-assets/color_metrics.py                  # solo se la PR tocca UI/RTHUD.cpp o le tabelle
-                                                          # di colore di tools/hud-assets/: il referto
-                                                          # LEGGE due righe di RTHUD.cpp per forma (#3626).
-                                                          # Exit 1 = un criterio violato; exit 2 = una
-                                                          # riga ha cambiato forma e non si legge piu'
+python tools/hud-assets/color_metrics.py                  # se la PR tocca UI/RTHUD.cpp, le tabelle di
+                                                          # colore di tools/hud-assets/, o un token di
+                                                          # progettazione-hud.md §32 o di
+                                                          # 02-color-system.md §2. Il referto LEGGE due
+                                                          # righe di RTHUD.cpp per forma (#3626) e le
+                                                          # tabelle dei due documenti (#3627).
+                                                          # Exit 1 = un criterio violato, o una tabella
+                                                          # del generatore diversa dal suo documento;
+                                                          # exit 2 = una delle tre fonti non si legge piu'
 
 cd tools/radar
 node --test

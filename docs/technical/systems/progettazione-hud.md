@@ -1623,9 +1623,10 @@ Ogni token di questa sezione ha un valore in `ERTUIToken`, e il suo colore si le
   nell'enum, o se un esadecimale non coincide.
 - **Il generatore degli asset ne tiene una copia, e anche quella è controllata.** Le tabelle `CHROME` e
   `PHASE_INK` di `tools/hud-assets/generate_hud_assets.py` copiano i token di questa sezione che le icone usano.
-  Il gate `T10` del generatore, e il referto `python tools/hud-assets/color_metrics.py`, li confrontano per
-  nome: un valore cambiato da una parte sola è un rosso
-  ([#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627)). ⚠️ Il token del testo spento
+  Il gate `PAL` del generatore, e il referto `python tools/hud-assets/color_metrics.py`, li confrontano per
+  nome, rileggendo le righe di questa sezione e solo di questa: un valore cambiato da una parte sola è un
+  rosso ([#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627)). Chi ritocca un token
+  qui rilancia il referto: è fra i controlli di [`AGENTS.md`](../../../AGENTS.md) §9. ⚠️ Il token del testo spento
   di questa sezione **non** è il grigio semantico delle icone di
   [`02-color-system.md`](../../research/design/icon/visual-language/02-color-system.md): stessa parola, due
   token, due valori, e nessuno dei due va allineato all'altro.
