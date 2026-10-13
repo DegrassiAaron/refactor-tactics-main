@@ -1266,6 +1266,12 @@ void ARTHUD::DrawHUD()
 				// due dicromazie a meno di un punto dalla soglia `20`. Dopo il cambio i due peggiori casi
 				// sono `43.9` e `51.7`. Il gate `T9` ora misura questa coppia e la rilegge DA QUI.
 				//
+				// ⚠️ **La rilegge per FORMA** (`#3626`): `tools/hud-assets/color_metrics.py` cerca la
+				// dichiarazione qui sotto. Fino al 2026-10-13 la frase qui sopra era falsa — il `T9` del
+				// generatore misurava solo la palette delle icone, e la coppia la guardava un referto che
+				// nessuno lanciava. Ora `T9` la include. Chi riscrive questa riga lancia
+				// `python tools/hud-assets/color_metrics.py`.
+				//
 				// ⚠️ `FromSRGBColor` NON e' opzionale: il costruttore prende valori LINEARI, e passargli
 				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
 				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
@@ -1693,6 +1699,10 @@ FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& Vie
 	// dicromazia ([D-233], [D-234]). Una terza tinta andrebbe rimisurata contro entrambe in tre dicromazie
 	// prima di poter essere disegnata; e una quarta semantica su un canale che ne porta gia' una e' lo
 	// stesso errore per cui la certezza e' stata tolta da qui e data al tratteggio.
+	// ⚠️ **L'assegnazione qui sotto e' LETTA PER FORMA da `tools/hud-assets/color_metrics.py`** (`#3626`):
+	// il campo, il ramo su `bOwn` e i due colori. Il 2026-09-04 `#2184` l'ha riscritta e il referto dei colori
+	// dell'overlay ha smesso di girare senza che nessuno lo vedesse. Chi ne cambia la forma, o assegna il
+	// campo anche altrove, lancia `python tools/hud-assets/color_metrics.py`.
 	Out.Color = bOwn
 		? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita', selezionata o no
 		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
