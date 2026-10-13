@@ -281,6 +281,36 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	return Slots;
 }
 
+FText URTHudViewModel::PlanActionDisplayName(const ARTUnit* Unit, const TArray<FRTPlannedAction>& Plan,
+	const FName& ActionId)
+{
+	// 1. Il nome del kit. `IsEmptyOrWhitespace` e non `IsEmpty`: un nome di soli spazi a schermo e' una riga
+	//    vuota, e la cascata deve poter proseguire — e' la stessa scelta di `ARTUnit::DisplayLabel`.
+	if (Unit)
+	{
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.ActionId == ActionId && !A->DisplayName.IsEmptyOrWhitespace())
+			{
+				return A->DisplayName;
+			}
+		}
+	}
+	// 2. La voce di movimento, che `MakePlanFor` aggiunge dal core.
+	for (const FRTPlannedAction& Voce : Plan)
+	{
+		if (Voce.Def.ActionId == ActionId && URTCatalogLibrary::TakesMovementSlot(Voce.Def))
+		{
+			return NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento");
+		}
+	}
+	// 3. La rete: l'ultimo segmento dell'id.
+	FString Id = ActionId.ToString();
+	int32 Punto = INDEX_NONE;
+	return FText::FromString(Id.FindLastChar(TEXT('.'), Punto) ? Id.Mid(Punto + 1) : Id);
+}
+
 TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Unit, const TArray<ARTUnit*>& Units)
 {
 	TArray<FRTPlanWarningView> Avvisi;
@@ -291,41 +321,10 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 
 	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
 
-	// Il nome di un'azione del piano, in cascata, e mai l'id grezzo (review di #3622):
-	//   1. il nome del kit, che e' quello che lo slot mostra;
-	//   2. la voce del MOVIMENTO, che `MakePlanFor` aggiunge dal core e non sta nel kit: l'etichetta dello slot che
-	//      il tooltip gia' usa. E' il caso canonico del conflitto scatto + movimento;
-	//   3. l'ultimo segmento dell'id (`Action.Move` -> `Move`), la stessa cascata di `ARTUnit::DisplayLabel`.
-	//
-	// 🔑 **Il terzo passo e' una RETE, non un percorso** (`#3629`). Nel catalogo spedito non si raggiunge: ogni
-	// voce che `MakePlanFor` produce viene da un'azione del kit, che ha un nome, oppure e' il movimento. Lo
-	// tiene fermo `RefactorTactics.HudViewModel.EveryActionOfTheMatchKitHasAName`, sul kit assemblato di ogni
-	// eroe col loadout di partita. Se quel test cade, e' qui che un id grezzo arriverebbe a schermo senza errore.
-	//
-	// ⛔ Una tabella di nomi per le azioni del core non esiste (`GenericActionDisplayName` ne copre cinque), e
-	// non si scrive finche' non nasce un lettore che non ha un kit in mano — una riga che nomini l'azione di
-	// un avversario, per esempio. Fino ad allora sarebbe testo che nessuna superficie mostra (decisione
-	// d'autore del 2026-10-13).
+	// Il nome di un'azione del piano: la cascata e' `PlanActionDisplayName`, qui sopra.
 	const auto NomeDi = [Unit, &Piano](const FName& ActionId) -> FText
 	{
-		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
-		{
-			const URTActionData* A = Unit->GetAbility(i);
-			if (A && A->Def.ActionId == ActionId && !A->DisplayName.IsEmpty())
-			{
-				return A->DisplayName;
-			}
-		}
-		for (const FRTPlannedAction& Voce : Piano)
-		{
-			if (Voce.Def.ActionId == ActionId && URTCatalogLibrary::TakesMovementSlot(Voce.Def))
-			{
-				return NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento");
-			}
-		}
-		FString Id = ActionId.ToString();
-		int32 Punto = INDEX_NONE;
-		return FText::FromString(Id.FindLastChar(TEXT('.'), Punto) ? Id.Mid(Punto + 1) : Id);
+		return PlanActionDisplayName(Unit, Piano, ActionId);
 	};
 
 	// --- 1. Critical: il validatore. Lo dice, non lo decide. -------------------------------------------------
