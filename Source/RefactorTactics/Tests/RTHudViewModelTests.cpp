@@ -1433,12 +1433,14 @@ bool FRTHudFeedNamesAFallAndAnImpactTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(TEXT("un colpo qualunque resta un colpo: «%s»"), *DiUnColpo),
 		Uguali(DiUnColpo, TEXT("Colpita — 5")));
 
-	// Una causa di caduta che il produttore scrivesse domani, e che qui nessuno conosce: e' comunque una
-	// caduta. Leggerla «Colpita» sarebbe il difetto di oggi, ripresentato al primo id nuovo.
+	// Una causa `Fall.*` che il produttore scrivesse domani NON diventa «Caduta» da sola: gli id riconosciuti
+	// sono un elenco chiuso, perche' una causa nuova potrebbe parlare di un'unita' che non cade — e leggerla
+	// per prefisso direbbe «Caduta» su chi e' rimasto fermo. Resta un colpo finche' qualcuno non le da' una
+	// frase, e questa riga dice dove guardare quel giorno.
 	const FString DiUnaCausaNuova =
 		FraseDi(FName(*(FString(URTTurnLogLibrary::FallCausePrefix()) + TEXT("QualcosaDiNuovo"))));
-	TestTrue(*FString::Printf(TEXT("una causa di caduta sconosciuta resta una caduta: «%s»"), *DiUnaCausaNuova),
-		Uguali(DiUnaCausaNuova, TEXT("Caduta — 5")));
+	TestTrue(*FString::Printf(TEXT("una causa di caduta che nessuno ha dichiarato resta un colpo: «%s»"),
+		*DiUnaCausaNuova), Uguali(DiUnaCausaNuova, TEXT("Colpita — 5")));
 
 	// E lo stesso dal log, per la porta che il widget usa: due voci della stessa unita', una riga, quella frase.
 	FRTTurnLogEntry Movimento = VoceDiTurno(/*TurnNumber*/ 7, /*UnitId*/ 5);

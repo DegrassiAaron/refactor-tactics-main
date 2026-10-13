@@ -1899,12 +1899,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallCauseIdsAreStableTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFallCauseIdsAreStableTest::RunTest(const FString&)
 {
-	// Case-insensitive di proposito: fuori dall'editor `FName::ToString()` non garantisce il caso, e
-	// `IsEnvironmentalDamage` confronta il prefisso allo stesso modo.
-	TestTrue(TEXT("chi cade: Fall.Fall"),
-		URTTurnLogLibrary::FallCauseOfFaller().ToString().Equals(TEXT("Fall.Fall"), ESearchCase::IgnoreCase));
-	TestTrue(TEXT("l'occupante colpito: Fall.Impact"),
-		URTTurnLogLibrary::FallCauseOfImpact().ToString().Equals(TEXT("Fall.Impact"), ESearchCase::IgnoreCase));
+	// 🔑 **Con le maiuscole, ed e' il punto.** La serializzazione e l'hash della traccia usano
+	// `ActionId.ToString()` cosi' com'e': un `fall.fall` cambierebbe i byte e l'hash, mentre
+	// `IsEnvironmentalDamage`, che confronta senza maiuscole, continuerebbe a riconoscere la causa. Un
+	// confronto case-insensitive qui resterebbe verde proprio nel caso che deve cogliere. Trovato in code
+	// review. Il test gira in `EditorContext`, dove `FName` conserva il caso con cui e' stato costruito.
+	TestTrue(TEXT("chi cade: Fall.Fall, lettera per lettera"),
+		URTTurnLogLibrary::FallCauseOfFaller().ToString().Equals(TEXT("Fall.Fall"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("l'occupante colpito: Fall.Impact, lettera per lettera"),
+		URTTurnLogLibrary::FallCauseOfImpact().ToString().Equals(TEXT("Fall.Impact"), ESearchCase::CaseSensitive));
 	TestTrue(TEXT("i due id sono distinti"),
 		URTTurnLogLibrary::FallCauseOfFaller() != URTTurnLogLibrary::FallCauseOfImpact());
 	TestTrue(TEXT("ed entrambi portano il prefisso che IsEnvironmentalDamage riconosce"),
@@ -1991,6 +1994,67 @@ bool FRTFallFeedSaysFallNotHitTest::RunTest(const FString&)
 		const FString Letta = DellOccupante->Text.ToString();
 		TestTrue(*FString::Printf(TEXT("e dice l'urto: «%s»"), *Letta),
 			Letta.Equals(Attesa, ESearchCase::CaseSensitive));
+	}
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * Una spinta fermata dal PARAPETTO, risolta dal turn manager, arriva al feed come uno spostamento subito.
+ *
+ * 🔴 **Il parapetto e' l'unico dei sei esiti di `#3081` la cui riga PROPRIA sopravvive**: non infligge danni,
+ * quindi nessuna voce di rango piu' alto la copre. Per la caduta la prova dal resolver c'era
+ * (`TheFeedSaysFallNotHit`); per il parapetto no, ed e' il caso in cui serviva di piu'. Con le sole voci
+ * montate a mano il test resterebbe verde se il resolver smettesse di scrivere `StoppedByEdgeGuard`, o lo
+ * scrivesse con un altro soggetto o con un verdetto che la squadra non puo' leggere. Trovato in code review.
+ *
+ * Stessa geometria di `ForcedMovement.GuardedLedgeIsNamedInTheLog`, che misura la traccia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardedLedgeReachesTheFeedTest,
+	"RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardedLedgeReachesTheFeedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnLedgeMap(World, PasserellaConAtterraggio());
+	AddLedgeGuard(MapActor, FRTCellId(1, 0, 1), ERTHexDirection::E);
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	// Le premesse: senza, una riga assente direbbe «il feed tace» quando invece il parapetto non ha fermato
+	// niente, e una riga presente non direbbe di quale esito e'.
+	if (!TestEqual(TEXT("premessa: la traccia nomina il parapetto"), LedgeMoveOutcome(TM, Bersaglio),
+			static_cast<uint8>(ERTMoveOutcome::StoppedByEdgeGuard))
+		|| !TestEqual(TEXT("premessa: nessun danno da caduta, quindi nessuna riga che copra questa"),
+			LedgeFallDamage(TM, Bersaglio), -1))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(TM->GetTurnLog(), /*ObserverTeamId*/ 1);
+
+	const FRTPlayerEventLineView* Sua = nullptr;
+	int32 Quante = 0;
+	for (const FRTPlayerEventLineView& Riga : Feed)
+	{
+		if (Riga.PrimaryStableUnitId == Bersaglio->StableUnitId) { Sua = &Riga; ++Quante; }
+	}
+	if (TestEqual(TEXT("chi e' tenuto dal parapetto ha UNA riga nel feed della propria squadra"), Quante, 1))
+	{
+		const FString Letta = Sua->Text.ToString();
+		TestTrue(*FString::Printf(TEXT("e dice che e' stata spostata, non che il suo movimento e' fallito: «%s»"),
+			*Letta), Letta.Equals(TEXT("Spostata"), ESearchCase::CaseSensitive));
+		TestTrue(TEXT("con importanza Important"), Sua->Importance == ERTPlayerEventImportance::Important);
 	}
 
 	DestroyLedgeWorld(World);

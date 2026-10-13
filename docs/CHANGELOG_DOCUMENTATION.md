@@ -8,7 +8,7 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §9.3, nuova: che cosa dice il feed a chi cade, all'occupante colpito e a chi è tenuto dal parapetto; perché sulla riga del danno; i due limiti dichiarati |
+| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §9.3, nuova: che cosa dice il feed a chi cade, all'occupante colpito, a chi ne muore e a chi è tenuto dal parapetto; perché sulla riga del danno; perché uno spostamento subito non sparisce dietro un movimento riuscito; i limiti dichiarati |
 
 ---
 

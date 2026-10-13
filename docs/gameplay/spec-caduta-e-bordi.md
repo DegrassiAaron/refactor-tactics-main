@@ -479,23 +479,40 @@ caduta — e la dice sulla riga del **danno**
 |---|---|
 | chi cade | «Caduta — N», dove N è il danno da caduta |
 | l'occupante che riceve l'atterraggio (§4.2) | «Urto — N» |
-| chi è tenuto sul ciglio da un parapetto (§9.2) | «Spostata»: è uno spostamento subito, non un movimento bloccato |
+| chi cade, o riceve l'atterraggio, e ne muore | «Eliminata»: il KO domina, come per ogni altra causa, e non dice quale |
+| chi è spinto e tenuto sul ciglio da un parapetto, dopo aver percorso almeno una cella (§9.2) | «Spostata»: è uno spostamento subito, non un movimento bloccato |
 
 🔑 **Perché sulla riga del danno.** Il feed tiene una riga per unità, e fra due voci della stessa unità vince
 quella di rango più alto. Chi cade ha nello stesso turno la voce di movimento e quella di danno, e il danno
 vince: classificare la caduta come spostamento non basta a portarla a schermo, perché la riga resterebbe
 «Colpita — N». La causa viaggia già nella voce di danno — `Fall.Fall` per chi cade, `Fall.Impact` per
-l'occupante, i due id di `URTTurnLogLibrary` — e il testo la legge da lì.
+l'occupante, i due id di `URTTurnLogLibrary` — e il testo la legge da lì. Gli id riconosciuti sono quei due:
+una causa `Fall.*` nuova resta «Colpita» finché qualcuno non le dà una frase.
 
-⚠️ **Due limiti dichiarati.**
+🔑 **Uno spostamento subito non sparisce dietro un movimento riuscito dello stesso turno.** Il movimento
+chiesto e uno spostamento subito hanno lo stesso rango, e li distingue solo l'importanza: il primo è
+silenzioso, il secondo no. A parità di rango la riga silenziosa cede il posto all'altra. Senza, chi scatta e
+poi viene spinto contro un parapetto non avrebbe nessuna riga.
+
+⚠️ **Quattro limiti dichiarati.**
 
 - **I quattro esiti di atterraggio non si distinguono nel feed.** Dove l'unità è finita lo mostra la board; i
   quattro testi restano nel log diagnostico (§9.1).
-- **Se chi cade ha già una riga di danno in quel turno, resta quella.** A parità di rango la dominanza tiene
-  la prima arrivata: la caduta non la riscrive.
+- **Se l'unità ha già una riga di danno in quel turno, resta quella, e il feed non dice «Caduta».** Fra due
+  righe dello stesso rango e della stessa importanza la dominanza tiene la prima arrivata. Succede quando chi
+  cade aveva colpito o curato nello stesso Blast: la voce di combattimento porta come soggetto chi colpisce,
+  e arriva prima della caduta. Non è un caso raro in un gioco a turni simultanei. Correggerlo vuol dire
+  decidere quale danno vince fra due di pari rango, cioè cambiare una regola del feed: non è stato fatto qui.
+- **Una caduta che uccide dice «Eliminata» e non «Caduta».** È la terza riga della tabella.
+- **Col parapetto adiacente il feed dice «Spostata» di un'unità che non si è mossa.** Senza celle percorse la
+  traccia scrive `DisplacementResisted` con causa `EdgeGuard` (§9.2), e il feed legge così ogni spostamento
+  resistito. È il comportamento che c'era prima di #3081, non una sua conseguenza.
 
-Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit`, sul percorso vero del resolver, e
-`RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi.
+Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit` e
+`RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed`, sul percorso vero del resolver;
+`RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi; e
+`RefactorTactics.UI.PlayerEventLog.SufferedMoveIsNotSwallowedByAnEarlierMinorMove` per la regola sulla riga
+silenziosa.
 
 ---
 
