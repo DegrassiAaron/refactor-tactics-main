@@ -502,7 +502,8 @@ una causa `Fall.*` nuova resta «Colpita» finché qualcuno non le dà una frase
   uno spostamento subito hanno lo stesso rango, e li distingue solo l'importanza: il primo è silenzioso. Chi
   scatta nel Dash e poi viene spinto nel Blast ha per prima la riga silenziosa, che tiene il posto e poi viene
   tolta: non resta nessuna riga. Vale per il parapetto, e valeva già per ogni spinta. Correggerlo tocca la
-  stessa regola del punto qui sopra, e ha una proposta a parte.
+  stessa regola del punto qui sopra, e ha una proposta a parte:
+  [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734).
 - **Una caduta che uccide dice «Eliminata» e non «Caduta».** È la terza riga della tabella.
 - **Col parapetto adiacente il feed dice «Spostata» di un'unità che non si è mossa.** Senza celle percorse la
   traccia scrive `DisplacementResisted` con causa `EdgeGuard` (§9.2), e il feed legge così ogni spostamento
