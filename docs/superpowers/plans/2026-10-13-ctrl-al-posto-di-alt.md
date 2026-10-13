@@ -29,7 +29,8 @@
 | Fatto | Dove |
 |---|---|
 | Il tasto è mappato in un punto solo: due `MapKey(CameraModifierAction, …)` su `EKeys::LeftAlt` e `EKeys::RightAlt` | `ARTPlayerController::BuildInputMappings` |
-| Nessun altro codice legge `EKeys::LeftAlt`, `RightAlt`, `IsAltDown`; nessun codice legge `LeftControl`, `RightControl`, `IsControlDown` | `grep -rnE "EKeys::(Left\|Right)(Alt\|Control)\|IsAltDown\|IsControlDown" Source/RefactorTactics`: le due righe del controller e una riga di test |
+| **Nel modulo di gioco** nessun altro codice legge `EKeys::LeftAlt`, `RightAlt`, `IsAltDown`, e nessuno legge `LeftControl`, `RightControl`, `IsControlDown` | `grep -rnE "EKeys::(Left\|Right)(Alt\|Control)\|IsAltDown\|IsControlDown" Source/RefactorTactics`: le due righe del controller e una riga di test |
+| ➕ rev. **Nel modulo Editor `Ctrl` è già letto**, come modificatore additivo dell'editor esagonale: `FSlateApplication::Get().GetModifierKeys().IsControlDown()` in `RTHexEditorClick.cpp`, e `IsControlDown` in `Tools/RTHexArchTool.cpp`. Sono gestori di click della modalità editor. ⚠️ Non verificato che tacciano durante PIE | `Source/RefactorTacticsEditor/Private` |
 | L'azione si chiama `IA_CameraModifier` (`NewObject`), e l'unico scrittore di `bCameraModifier` fuori dai test sono `OnCameraModifierPressed` e `OnCameraModifierReleased` | `RTPlayerController.cpp` |
 | Il test `PlayerInput.HotkeysDoNotCollide` controlla che `LeftAlt` sia mappato, e solo il sinistro | `Tests/RTPlayerInteractionTests.cpp` |
 | Identificatori che portano `Alt` nel nome: `bAltPrimaryDown`, `bAltSecondaryDown`, `AltPrimaryDragDistance`, `SetAltPrimaryDownForTest`, `GetAltPrimaryDragDistanceForTest`, il test `Camera.AltDragOrbitsOnlyPastTheClickThreshold` (classe `FRTCameraAltDragOrbitsOnlyPastThresholdTest`). Nessun documento cita quel test | `Player/RTPlayerController.h`, `.cpp`, `Tests/RTCameraPawnTests.cpp`; `git grep AltDragOrbitsOnlyPastTheClickThreshold -- ':!Source'` → niente |
@@ -50,11 +51,11 @@
 
 ## Review Focus
 
-1. **`AltGr`.** Su una tastiera italiana `AltGr` arriva a Windows come `Ctrl` sinistro più `Alt` destro. Dopo il cambio armerebbe ancora il modificatore, passando da `LeftControl`. Nessun test lo può vedere: è del sistema operativo. ⚠️ Non verificato; va in `PIE-PC-GYM` come passo.
-2. **`Ctrl` tenuto più un tasto di gioco, dentro l'Editor.** `Tab` è la vista strategica, e `Ctrl`+`Tab` nell'Editor apre il selettore delle schede. In un gioco impacchettato non esiste. ⚠️ Non verificato; va nello stesso passo PIE.
-3. **Un `Alt` rimasto mappato per un'altra azione.** Il test nuovo lo vieta per ogni azione del contesto, non solo per il modificatore.
-4. **Un solo `Ctrl`.** La mutazione del Task 1 toglie il destro e deve dare rosso.
-5. **Un rename a metà.** Dopo il Task 2 `grep` non deve trovare `AltPrimary`, `AltSecondary`, `AltDrag` in `Source/`.
+1. **`AltGr` arma il modificatore, prima e dopo.** Su una tastiera italiana `AltGr` arriva a Windows come `Ctrl` sinistro più `Alt` destro. Oggi lo arma passando da `RightAlt`; dopo il cambio lo armerà passando da `LeftControl`. ∴ il criterio non è «`Alt` non produce più effetti», che sull'`Alt` destro di quella tastiera è falso: è **«i due `Alt` non sono più mappati»**. A schermo si prova il solo `Alt` sinistro. ⚠️ Come il motore consegni `AltGr` non è verificato.
+2. **`Ctrl` tenuto più un tasto di gioco, dentro l'Editor.** Mentre si orbita con `Ctrl` + sinistro la mano tocca i tasti di gioco: `W` `A` `S` `D`, `Q` `E`, `Spazio` (lock-in), `P` (pausa della preparazione), `Tab` (vista strategica). Nell'Editor alcuni di questi con `Ctrl` sono accordi — salva, content drawer, apri asset, selettore delle schede. In un gioco impacchettato non esistono. ⚠️ Non verificato chi dei due riceva il tasto per primo: è un passo di `PIE-PC-GYM`.
+3. **Un `Alt` rimasto mappato per un'altra azione.** Il test nuovo lo vieta per ogni azione del contesto, e lo prova la seconda mutazione del Task 1.
+4. **Un solo `Ctrl`.** La prima mutazione del Task 1 toglie il destro e deve dare rosso.
+5. **Un rename a metà.** Dopo il Task 2 `grep` non deve trovare `AltPrimary`, `AltSecondary`, `AltDrag` in `Source/`, modulo Editor compreso.
 
 ---
 
@@ -75,6 +76,15 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select-Objec
 ```
 
 Expected: nessun processo, oppure processi di altri cloni. Se uno sta misurando tempi, si aspetta la sua finestra.
+
+- [ ] **Step 3: il numero della decisione, prima di scriverlo nel codice**
+
+```bash
+git fetch -q origin && git show origin/main:docs/decisions/RT_PDR_00_Decision_Log.md | grep -oE '^\| \*\*D-[0-9]+\*\*' | tail -1
+for r in $(git for-each-ref --format='%(refname)' refs/remotes/origin); do git grep -lE 'D-51[1-9]' "$r" -- docs/decisions/RT_PDR_00_Decision_Log.md; done
+```
+
+Expected: `origin/main` arriva a D-510; fra i ref remoti il solo `docs/3747-voci-decision-log-ispettore` porta D-512 e D-513; D-511 è di un'altra sessione, in locale. ∴ **D-514**. Se la misura dice altro, il numero cambia qui, prima del Task 1.
 
 ---
 
@@ -100,7 +110,9 @@ Subito dopo la chiusura di `FRTPlayerInputHotkeysDoNotCollideTest::RunTest`:
  * famiglia di gesti legge poi `bCameraModifier`, quindi questo test e' l'unico posto in cui «quale tasto»
  * si puo' asserire.
  *
- * Tre cose, e la terza e' quella che D-514 chiede con le parole «`Alt` non e' piu' mappato»:
+ * Tre cose, e la terza e' quella che D-514 chiede con le parole «i due `Alt` non sono piu' mappati».
+ * ⚠️ Mappati, non «senza effetto»: su una tastiera italiana `AltGr` arriva come `Ctrl` sinistro piu' `Alt`
+ * destro, e arma il modificatore passando dal `Ctrl`. Questo test non lo puo' vedere, e non lo afferma.
  *  1. l'azione esiste nel contesto (anti-vacuita': senza, gli altri due asserti sarebbero veri di niente);
  *  2. i suoi tasti sono ESATTAMENTE i due `Ctrl` — non «almeno il sinistro», che e' cio' che il test
  *     vicino controllava per `Alt`;
@@ -178,20 +190,20 @@ Stessi due comandi, log `3749-verde.log`.
 
 Expected: l'intera famiglia `RefactorTactics.PlayerInput` verde.
 
-- [ ] **Step 5: mutazione**
-
-Commentare il `MapKey` di `RightControl`, build, rilanciare la famiglia (log `3749-mutazione.log`).
-
-Expected: rosso con «sta sul Ctrl destro» e «non ha altri tasti oltre ai due Ctrl». Ripristinare con `git checkout -- Source/RefactorTactics/Player/RTPlayerController.cpp` **dopo** aver controllato con `git diff` che il file porti solo la mutazione sopra il commit; build; famiglia verde (log `3749-ripristino.log`). Il binario si considera ripristinato solo dopo questa build verde, non dopo il checkout.
-
-- [ ] **Step 6: commit**
+- [ ] **Step 5: commit, a verde**
 
 ```bash
 git add Source/RefactorTactics/Player/RTPlayerController.cpp Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
 git commit -m "feat(3749): il modificatore della camera e' Ctrl, sinistro e destro"
 ```
 
-Il commit del passo 6 precede la mutazione del passo 5 nell'ordine reale: si committa a verde, poi si muta sopra il commit.
+- [ ] **Step 6: due mutazioni, sopra il commit**
+
+Insieme, in una sola build: (a) commentare il `MapKey` di `RightControl`; (b) aggiungere `MappingContext->MapKey(UndoAction, EKeys::LeftAlt);`. Build, rilanciare la famiglia (log `3749-mutazione.log`).
+
+Expected: `CameraModifierIsCtrlOnBothSidesAndAltIsUnmapped` rosso con tre messaggi — «sta sul Ctrl destro», «non ha altri tasti oltre ai due Ctrl» per (a), e «IA_UndoWaypoint non sta su un Alt (LeftAlt)» per (b), che è la prova che il terzo asserto guarda ogni azione. `HotkeysDoNotCollide` resta verde: `LeftAlt` non serve due azioni.
+
+Ripristino: `git diff --stat` deve mostrare il solo `RTPlayerController.cpp`; poi `git checkout -- Source/RefactorTactics/Player/RTPlayerController.cpp`, build, famiglia verde (log `3749-ripristino.log`). Il binario si considera ripristinato solo dopo questa build verde, non dopo il checkout.
 
 ---
 
@@ -204,21 +216,22 @@ Il commit del passo 6 precede la mutazione del passo 5 nell'ordine reale: si com
 **Interfaces:**
 - Produces (rename, nessun comportamento): `bModifierPrimaryDown`, `bModifierSecondaryDown`, `ModifierPrimaryDragDistance`, `SetModifierPrimaryDownForTest(bool, float)`, `GetModifierPrimaryDragDistanceForTest()`, il test `RefactorTactics.Camera.ModifierDragOrbitsOnlyPastTheClickThreshold` (classe `FRTCameraModifierDragOrbitsOnlyPastThresholdTest`).
 
-- [ ] **Step 1: rename degli identificatori**, con uno script che sostituisce le sei parole intere nei tre file e stampa quante sostituzioni ha fatto per parola e per file. Atteso, dalla misura: `AltPrimaryDragDistance` 7 + 3, `bAltPrimaryDown` 6 + 2, `bAltSecondaryDown` 4 + 1, `SetAltPrimaryDownForTest` 1 + 1, `GetAltPrimaryDragDistanceForTest` 1, `FRTCameraAltDragOrbitsOnlyPastThresholdTest` 2, `AltDragOrbitsOnlyPastTheClickThreshold` 1. Un numero diverso ferma il passo.
+- [ ] **Step 1: rename degli identificatori**, con uno script che sostituisce le parole intere elencate qui sotto nei tre file, e stampa quante sostituzioni ha fatto per parola e per file. Atteso, dalla misura (`.cpp` + `.h` del controller, oppure il file di test): `AltPrimaryDragDistance` 7 + 3, `bAltPrimaryDown` 6 + 2, `bAltSecondaryDown` 4 + 1, `SetAltPrimaryDownForTest` 1 nel `.h` e 1 nel test, `GetAltPrimaryDragDistanceForTest` 1, `FRTCameraAltDragOrbitsOnlyPastThresholdTest` 2, `AltDragOrbitsOnlyPastTheClickThreshold` 1. La sostituzione è a parola intera (`\b…\b`): nessuno di questi nomi ne contiene un altro come parola intera, quindi l'ordine non conta. Un numero diverso ferma il passo.
 
-- [ ] **Step 2: i commenti.** Nei tre file, e nelle righe di `RTPlayerInteractionTests.cpp` già toccate, `` `Alt` `` come nome del modificatore diventa `` `Ctrl` ``; nelle stringhe dei test `Alt` diventa `Ctrl`. A mano, non a tappeto, tre punti:
+- [ ] **Step 2: i commenti.** Nei tre file, e nelle righe di `RTPlayerInteractionTests.cpp` già toccate, `` `Alt` `` come nome del modificatore diventa `` `Ctrl` ``; nelle stringhe dei test `Alt` diventa `Ctrl`. A mano, non a tappeto, quattro punti:
   - `RTPlayerController.h`, il commento di `CameraModifierAction`: la riga su `Alt`+`Enter` e `bAltEnterTogglesFullscreen` diventa una riga datata — con `Ctrl` il caso non si pone più, e l'opzione del motore resta com'è;
+  - `RTPlayerController.cpp`, il commento sopra il binding `Canceled` del modificatore: la ragione scritta è la finestra che perde il fuoco «con `Alt` premuto», cioè `Alt`+`Tab`. Il binding resta, perché una finestra perde il fuoco anche con `Ctrl` tenuto; la frase si riscrive senza l'esempio che non vale più;
   - i commenti che raccontano una code review datata restano al passato, col tasto di allora nominato come «il modificatore»;
   - **non si toccano**: la variabile locale `Alt` di `RTPlayerInteractionTests.cpp` (un'unità), `Variant.Alt` in `RTHeroCatalogTests.cpp`.
 
 - [ ] **Step 3: la misura del rename**
 
 ```bash
-grep -rnE "AltPrimary|AltSecondary|AltDrag" Source/RefactorTactics ; echo "rc=$?"
-grep -rnE "\bAlt\b" Source/RefactorTactics --include=*.h --include=*.cpp
+grep -rnE "AltPrimary|AltSecondary|AltDrag" Source ; echo "rc=$?"
+grep -rnE "\bAlt\b" Source --include=*.h --include=*.cpp
 ```
 
-Expected: il primo `rc=1` (niente). Il secondo: solo la variabile `Alt` dei test, `Variant.Alt`, `bAltEnterTogglesFullscreen` nella riga datata, e i `⌫` che dicono «erano i due `Alt`». Ogni altra riga è un difetto del passo 2.
+Expected: il primo `rc=1` (niente), su tutto `Source/`, modulo Editor compreso. Il secondo: la variabile locale `Alt` dei test, `Variant.Alt`, la riga datata su `Alt`+`Enter`, e i `⌫` che dicono «erano i due `Alt`». (`bAltEnterTogglesFullscreen` non compare: `\bAlt\b` non lo trova, e va bene così.) Ogni altra riga è un difetto del passo 2.
 
 - [ ] **Step 4: build, poi le due famiglie**
 
@@ -229,7 +242,8 @@ Expected: tutte verdi; `Camera.ModifierDragOrbitsOnlyPastTheClickThreshold` comp
 - [ ] **Step 5: commit**
 
 ```bash
-git commit -am "refactor(3749): i gesti del modificatore non portano piu' Alt nel nome"
+git add Source/RefactorTactics/Player/RTPlayerController.h Source/RefactorTactics/Player/RTPlayerController.cpp Source/RefactorTactics/Tests/RTCameraPawnTests.cpp Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
+git commit -m "refactor(3749): i gesti del modificatore non portano piu' Alt nel nome"
 ```
 
 ---
@@ -245,11 +259,11 @@ git commit -am "refactor(3749): i gesti del modificatore non portano piu' Alt ne
 
 - [ ] **Step 1: `spec-tactical-camera.md`.** Il titolo di §3.2 e le cinque righe della famiglia dicono `Ctrl`; sotto la tabella una riga `⌫`: fino al 2026-10-13 il modificatore era `Alt`, e lo cambia D-514. Il blocco `CAM-B` resta al passato e guadagna una riga: la scelta «entrambi» non cambia, il secondo modo è `Ctrl`+`LMB`. §3.3 e §4 dicono `Ctrl`.
 
-- [ ] **Step 2: Decision Log.** Rimisurare i numeri (`git fetch`, `git grep` sui ref remoti, `gh pr diff` delle PR aperte). Atteso: D-511 di un'altra sessione, D-512 e D-513 della PR #3752, quindi **D-514**. La riga: titolo; il fatto (`CameraModifierAction` sui due `Alt`, #1771); la domanda che l'autore aveva davanti e la sua risposta *«sostituisci alt con ctrl»*; la lettura `R1` della sessione — tutta la famiglia, non il solo click — dichiarata come tale col suo costo; la tabella dei gesti in prosa; che cosa non cambia (soglia, dolly, `MMB`, `CAM-B`, D-499 punto 3, D-458 punto 3); che cosa non decide (il fuoco, parte due); i due ⚠️ non verificati del Review Focus. In coda alle celle d'impatto di D-458 e D-499 una riga datata che rimanda a D-514.
+- [ ] **Step 2: Decision Log.** Il numero è quello misurato al Task 0. La riga: il titolo, che dice «i due `Alt` non sono più mappati»; il fatto (`CameraModifierAction` sui due `Alt`, #1771); la domanda che l'autore aveva davanti e la sua risposta *«sostituisci alt con ctrl»*; la lettura `R1` della sessione — tutta la famiglia, non il solo click — dichiarata come tale col suo costo; i gesti in prosa; che cosa non cambia (soglia, dolly, `MMB`, `CAM-B`, D-499 punto 3, D-458 punto 3); che cosa non decide (il fuoco, parte due); che `Ctrl` è già il modificatore additivo dell'editor esagonale; i ⚠️ non verificati del Review Focus, con `AltGr` scritto per ciò che è: arma prima e arma dopo. In coda alle celle d'impatto di D-458 e D-499 una riga datata che rimanda alla voce nuova. I testi originali di D-458 e D-499 non si toccano.
 
-- [ ] **Step 3: voci PIE.** In `PIE-PC-GYM` i passi 3, 4 e 5 dicono `Ctrl`. Si aggiunge un passo in coda al percorso: `AltGr` e `Ctrl`+`Tab` (Review Focus 1 e 2), con ciò che deve essere vero. La nota sopra la tabella che dice che il pan di precisione «NON esiste» diventa una riga datata: esiste, in `RouteCameraGesture`; il percorso non lo esercita ancora. La frase «Sedici passi» si aggiorna al numero vero, contato sulle righe della tabella. In `PIE-V01-DOCKCLICK` una nota **in coda** alla cella di stato: il dolly è `Ctrl` più destro.
+- [ ] **Step 3: voci PIE.** In `PIE-PC-GYM` i passi 3, 4 e 5 dicono `Ctrl`. Si aggiunge **un** passo in coda al percorso, in tre parti: (a) l'`Alt` **sinistro** tenuto non arma nessun gesto camera, e `AltGr` lo arma ancora, come prima del cambio: non è un difetto; (b) con `Ctrl` tenuto, in uno stato sicuro, `S`, `W`, `P`, `Spazio` e `Tab` fanno ciò che fanno senza `Ctrl`, e nessun dialogo o pannello dell'Editor compare; (c) se qualcosa compare, si registra quale tasto e in quale finestra. La frase che conta i passi del percorso perde il numero. La nota sopra la tabella che dice che il pan di precisione «NON esiste» **resta**, e guadagna sotto una riga datata: esiste, in `RouteCameraGesture`, e il percorso non lo esercita ancora. In `PIE-V01-DOCKCLICK` una nota **in coda** alla cella di stato: il dolly è `Ctrl` più destro.
 
-- [ ] **Step 4: `editor-sessions.yaml` e `OPEN_DECISIONS.md`.** Nelle note della seduta di #1859 i gesti dicono `Ctrl`, con la data. In `CAM-B` una riga datata sotto la risposta. Il file YAML è CRLF: si verifica con `yaml.safe_load` che le chiavi di primo livello e il numero di sedute non cambino.
+- [ ] **Step 4: `editor-sessions.yaml` e `OPEN_DECISIONS.md`.** Le `notes:` della seduta di #1859 sono un verbale del 2026-08-30 e **non si riscrivono**: si accoda una riga datata, che dice che dal cambio i gesti di quella seduta si eseguono con `Ctrl`. In `CAM-B` una riga datata sotto la risposta. Il file YAML è CRLF: si verifica con `yaml.safe_load` che le chiavi di primo livello, il numero di sedute e quello di `not_schedulable` non cambino.
 
 - [ ] **Step 5: i radar**
 
@@ -265,12 +279,22 @@ Expected: gli stessi due rossi di `main`, `pie-verdict-age` e `wiki-alt`.
 git grep -nIE '`Alt`|Alt ?\+' -- docs ':!docs/archive' ':!docs/roadmap/plans' ':!docs/superpowers'
 ```
 
-Expected: restano solo `Alt+P` e `Ctrl+Alt+F11` (scorciatoie dell'Editor), i verbali datati di `P3`, e le righe `⌫` che nominano il tasto vecchio al passato. Ogni riga rimasta si giustifica per nome nel messaggio della PR.
+Expected: restano, e ciascuna si nomina nel messaggio della PR —
+`Alt+P` e `Ctrl+Alt+F11`, scorciatoie dell'Editor (`test-manuali-pie.md`, `debug-vs-unreal.md`, D-473);
+i testi originali di D-458 punto 3 e di D-499 punto 3, con la riga datata in coda;
+la voce nuova, che nomina il tasto vecchio per dire che cosa cambia;
+`CAM-B` in `OPEN_DECISIONS.md` e nel blocco di `spec-tactical-camera.md`, al passato;
+la riga `⌫` sotto la tabella di §3.2;
+la cella di stato di `PIE-CAM-STRATEGIC` e il corpo di `PIE-V01-DOCKCLICK`, con la nota in coda;
+la nota sul pan di precisione sopra `PIE-PC-GYM`, e la parte (a) del passo nuovo;
+le `notes:` della seduta di #1859 e il verbale che parla dell'`Alt` dello script, in `editor-sessions.yaml`.
+Ogni altra riga è un difetto.
 
 - [ ] **Step 7: commit**
 
 ```bash
-git commit -am "docs(3749): contratto della camera, D-514 e voci PIE dicono Ctrl"
+git add docs/technical/systems/spec-tactical-camera.md docs/decisions/RT_PDR_00_Decision_Log.md docs/technical/test-manuali-pie.md docs/roadmap/editor-sessions.yaml docs/OPEN_DECISIONS.md
+git commit -m "docs(3749): contratto della camera, la voce del registro e le voci PIE dicono Ctrl"
 ```
 
 ---
@@ -295,13 +319,13 @@ Expected: un solo rosso, `RefactorTactics.Packaging.RequiredActionClipsAreCooked
 
 ---
 
-## ➕ rev. I rilievi del revisore avversario — DA ACCOGLIERE PRIMA DI ESEGUIRE
+## ➕ rev. I rilievi del revisore avversario
 
 Un agente con contesto fresco, in sola lettura, tetto di trenta chiamate, il 2026-10-13. Nessun rilievo critico.
-⚠️ **Il testo dei task qui sopra non li porta ancora**: chi esegue applica prima questa tabella. Dove un rilievo
-contraddice un passo, vince il rilievo.
+**I task qui sopra li portano tutti**, accolti il 2026-10-14: questa tabella resta come traccia di che cosa è
+cambiato, e perché.
 
-| | Gravità | Rilievo | Correzione che vincola chi esegue |
+| | Gravità | Rilievo | Correzione accolta nei task |
 |---|---|---|---|
 | **B1** | importante | Task 1: il passo 5 ripristina con `git checkout --`, ma il commit è al passo 6. Eseguito in ordine, cancella il cambio del passo 3 | Ordine vero: commit a verde subito dopo il passo 4, **poi** la mutazione, poi il checkout. La frase correttiva in fondo al task si toglie |
 | **B2** | importante | «Nessun codice legge `Control`» vale solo per `Source/RefactorTactics`. Nel modulo Editor `Ctrl` è già letto: `RTHexEditorClick.cpp` (`GetModifierKeys().IsControlDown()`, selezione additiva) e `Tools/RTHexArchTool.cpp` | La riga della tabella dice «nel modulo di gioco». I grep dei Task 2 e 3 girano su `Source/`. D-514 scrive che `Ctrl` è già il modificatore additivo dell'editor esagonale. ⚠️ Non verificato che quei tool tacciano durante PIE |
