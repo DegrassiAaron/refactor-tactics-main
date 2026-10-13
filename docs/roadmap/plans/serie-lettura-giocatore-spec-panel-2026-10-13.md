@@ -19,7 +19,7 @@
 > (struttura e fonte unica), Nygard (modi di guasto), Crispin (evidenza e test).
 >
 > **Cosa non è**: una decisione, né una riscrittura delle issue. I corpi delle sei issue non sono stati toccati.
-> Le quattro scelte di §7 sono dell'autore: qui si rendono prendibili. Dove questo referto e un owner divergono,
+> Le quattro scelte di §7 sono dell'autore: qui si rendono prendibili, e §7 registra quelle già prese. Dove questo referto e un owner divergono,
 > ha ragione l'owner.
 >
 > **Convenzione sui numeri** ([`AGENTS.md`](../../../AGENTS.md) §14): nessun totale che cambi da solo. Gli insiemi
@@ -53,6 +53,9 @@ rilievo più importante del panel.
 
 Tre lavori non aspettano nessuna risposta e possono partire: #3626, la parte di #3081 che non riguarda il testo, e
 #3667.
+
+➕ **Lo stesso giorno l'autore ha risposto**: le scelte e i loro esiti sono in §7. La colonna *«Aspetta l'autore?»*
+qui sopra resta come istruttoria.
 
 ---
 
@@ -453,6 +456,14 @@ presenta come *«sorgente di design, non canone»*. Chi sia l'owner normativo de
 ## 7. Decisioni richieste
 
 `BLOCKED — DECISION REQUIRED` solo per le parti indicate. Nessuna si deduce dai documenti.
+
+✅ **Tre prese dall'autore il 2026-10-13, in sessione, dopo questo referto**: `P1` **(b)** · `P3` **(a)** · `P4` **(a)**.
+Il testo esatto delle opzioni scelte è nel commento dello stesso giorno su ciascuna issue: #3081, #3629, #3627.
+
+⚠️ **`P2` non è stata chiesta all'autore.** Vale **(a)** perché è la lettura del contratto di `RTPacing.h`, e #3400
+si lavora così. Non è una decisione d'autore: chi vuole rovesciarla lo fa sulla PR di #3400, prima del merge.
+
+La colonna *«Opzioni»* resta come istruttoria; la colonna *«Raccomandazione»* è storia.
 
 | ID | Issue | Domanda | Opzioni e conseguenze | Raccomandazione del panel |
 |---|---|---|---|---|
