@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-13 — La ricetta del master graybox svuota il grafo senza la funzione del motore
+
+**Origine**: [#3725](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3725). `EnsureMaster` era l'ultima ricetta a chiamare la funzione del motore che svuota un grafo. La verifica di mutazione ha corretto la premessa della issue: su due espressioni quella funzione le toglie entrambe, e ne lascia indietro da tre in su.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | la riga di `RTMaterialRecipe`: quando la funzione del motore lascia indietro nodi, e chi usa `ClearGraph` |
+
+---
+
 ## 2026-10-13 — `D-509`: la regola del piano vale per ogni colpo
 
 **Origine**: la decisione d'autore su `VERT-3`, entrata col lavoro di [#2951](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2951).

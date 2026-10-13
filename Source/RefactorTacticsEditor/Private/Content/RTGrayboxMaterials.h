@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 
+class UMaterial;
 class UMaterialInterface;
 
 namespace RTGraybox
@@ -25,6 +26,18 @@ namespace RTGraybox
 	/** Il master. Sotto `/Game/RT/World/Graybox/Materials/`, come tutto il kit condiviso (`D-173`). */
 	extern const TCHAR* MasterAssetName;
 	extern const TCHAR* MaterialsFolder;
+
+	/** Le espressioni del master: i due parametri. Una in piu' e' un nodo orfano (#3725). */
+	inline constexpr int32 MasterExpressionCount = 2;
+
+	/**
+	 * Ricostruisce il grafo del master su `Master`, svuotandolo prima: i due parametri, collegati al colore di base
+	 * e alla ruvidita'. Non salva. Falso se un nodo non nasce.
+	 *
+	 * ⚠️ Finisce con `PostEditChange` e NON chiama `RecompileMaterial`: quella la chiama chi salva l'asset, perche'
+	 * senza un renderer va in crash, e un test deve poter eseguire la ricetta (#3725).
+	 */
+	bool BuildMasterGraph(UMaterial* Master);
 
 	/**
 	 * Una istanza del kit: quale mesh veste, e con quali due valori.
