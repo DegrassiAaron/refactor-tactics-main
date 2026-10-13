@@ -87,6 +87,21 @@ reinterpretazione dalla nuova posizione, nessun ricalcolo.
 §2 — `mai` sulle tre famiglie che percorrono celle, `n/a` sul Transfer — applicato a una causa nuova. Non è
 una regola nuova: è la stessa regola che incontra la caduta.
 
+### 3.3 Chi cade perde il colpo predittivo che aveva armato
+
+Una previsione si arma in Prep e risolve al boundary del Move; fra i due c'è il Blast. Chi ha armato e nel
+Blast viene spinto oltre un bordo aperto **non spara**: al boundary sta su un altro `Layer` rispetto alla cella
+su cui aveva scommesso, e la regola del piano vale per ogni colpo ([D-509](../decisions/RT_PDR_00_Decision_Log.md)).
+
+Il colpo non entra fra quelli da risolvere, quindi **non tronca il movimento** di chi entra nella cella
+bloccata, e lascia una voce di rifiuto — `Fallback`/`Cancelled` con `OtherLayer`, in fase `Move` — invece di un
+«a vuoto»: nella cella qualcuno può essere entrato. La forma della voce è in
+[`spec-turnlog.md`](../technical/architecture/spec-turnlog.md).
+
+⚠️ È una conseguenza della caduta che questa spec non elencava, ed era misurabile: senza la regola, chi entrava
+nella cella bloccata prendeva il colpo da un tiratore caduto un piano sotto. Pinnato da
+`ForcedMovement.FallenShooterDoesNotFireItsPrediction`.
+
 ---
 
 ## 4. I tre esiti di atterraggio

@@ -208,6 +208,13 @@ non cosa succede — è la stessa ragione per cui `Action.Intercept` non ne ha. 
 contava «zero effetti perché E5 non c'è» ora verifica che l'azione sia una reazione: il numero è lo stesso, il
 significato no, ed è per questo che è stato **sostituito** e non lasciato com'era.
 
+➕ **Dal 2026-10-13 l'interposizione chiede lo stesso piano** ([D-509](../decisions/RT_PDR_00_Decision_Log.md)). Chi intercetta
+deve stare sul `Layer` di chi attacca: il colpo deviato è un colpo, e un colpo resta sul piano di chi lo tira.
+La portata dell'azione non bastava a dirlo — `HexDistance` ignora il `Layer`, e chi sta esattamente sopra
+l'alleato dista zero. Da una piattaforma non ci si interpone per chi sta a terra: la reazione resta pronta e
+lascia `Reaction`/`NotTriggered`, come quando l'alleato è troppo lontano. Pinnato da
+`Reactions.Intercept.NotAcrossLayers`.
+
 ### 8.2 Il rinvio a E14 è un dato, non un commento *(decisione)*
 
 `Wraith.InterceptShot` (trigger d'ingresso su movimento) e `Phase.FlowReaction` (movimento reattivo dentro un

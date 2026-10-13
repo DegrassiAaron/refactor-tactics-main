@@ -490,6 +490,27 @@ lo prende il soggetto, ed è lo stesso limite che `#1430` registra per `RearHitB
 stesso turno producono due `Hit`, e l'effetto di gioco è deduplicato da un `TSet`. Senza la stessa guardia
 sulla traccia, il record direbbe che l'unica azione della vittima è stata cancellata due volte.
 
+### La mira su un altro piano ([D-509](../../decisions/RT_PDR_00_Decision_Log.md), `#2951`)
+
+La regola del piano vale per ogni colpo, e in risoluzione una mira fra piani **non avviene e lo dichiara**.
+Il motivo è `ERTActionInvalidReason::OtherLayer`, e viaggia in `Amount` come gli altri. Non è
+`ERTHexTargetReason::OtherLayer`: quello è una classificazione di pianificazione e nel TurnLog non entra
+([D-393](../../decisions/RT_PDR_00_Decision_Log.md) punto 5, pinnato da `Meta.TargetingRefusalStaysOutOfCanonicalState`).
+
+| Produttore | Come si legge |
+|---|---|
+| **Azione del Blast con la mira su un altro piano** — bersaglio-unità (`ValidateInstance`), bersaglio a cella o cella di un ripiego `AttackCell` (`ValidateCellAim`) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione, `SrcCell` = chi agisce, `TgtCell` = dove puntava. `UnitId` = chi agisce |
+| **Colpo predittivo di chi ha cambiato piano** dopo aver armato (`ResolvePredictiveBoundary`) | `Category=Fallback`, **`Phase=Move`**, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione armata, `SrcCell` = dove sta il tiratore **dopo** la caduta, `TgtCell` = la cella bloccata. `UnitId` = il tiratore. **Nessuna voce `Predictive`**: non è un `PredictionWhiffed`, che direbbe che nessuno è entrato |
+
+⚠️ **L'interposizione che non scatta per il piano non produce questo motivo**: lascia `Reaction`/`NotTriggered`,
+la stessa voce di quando l'alleato è troppo lontano. Quell'esito non porta un motivo.
+
+⚠️ **`OtherLayer` è in coda all'enum, come `Interrupted` qui sopra**, e la versione del formato non cambia: le
+tracce già scritte si leggono come prima. Da questa voce la regola non è più solo scritta:
+`Actions.Fallback.InvalidReasonValuesAreAppendOnly` fissa **nome e numero** di ogni motivo, in ordine. Un test
+coi soli nomi simbolici resta verde dopo una rinumerazione — è il modo in cui la prima stesura di D-196 era
+passata.
+
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
 `#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il
