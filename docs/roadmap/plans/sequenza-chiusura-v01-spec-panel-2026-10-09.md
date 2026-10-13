@@ -441,8 +441,9 @@ numero di decisione**. Nessuna resta `OPEN` al freeze.
    tocca `Source/` e il formato del TurnLog, quindi entra prima del freeze.*
    ➕ *Lo stesso giorno l'autore ha risposto «ogni colpo»: è `D-509`, ed è entrata prima del freeze col
    lavoro di `#2951`. Il formato del TurnLog non ha cambiato versione — il motivo nuovo è in coda — e il
-   corpus golden non è stato rigenerato. La review ha aperto `VERT-4`: la stessa regola per ciò che un colpo
-   non è, la cura ad area e le azioni ambientali. Non blocca il freeze: nessuna delle due risposte è presa.*
+   corpus golden non è stato rigenerato. La review e la suite intera hanno aperto `VERT-4`: la stessa regola
+   per ciò che un colpo non è — la cura ad area, le azioni ambientali, il danno a strutture e ponti. Una
+   delle tre è già un difetto: da `D-393` un ponte fra due piani non si può più danneggiare dall'interfaccia.*
 
 🔑 **L'ultimo merge di quest'onda è il candidate v2.** Non si congela prima: ogni commit qui
 invalida ciò che l'Onda 3 misura.

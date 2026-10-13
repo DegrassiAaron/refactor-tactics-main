@@ -492,15 +492,25 @@ sulla traccia, il record direbbe che l'unica azione della vittima è stata cance
 
 ### La mira su un altro piano ([D-509](../../decisions/RT_PDR_00_Decision_Log.md), `#2951`)
 
-La regola del piano vale per ogni colpo, e in risoluzione una mira fra piani **non avviene e lo dichiara**.
-Il motivo è `ERTActionInvalidReason::OtherLayer`, e viaggia in `Amount` come gli altri. Non è
-`ERTHexTargetReason::OtherLayer`: quello è una classificazione di pianificazione e nel TurnLog non entra
+La regola del piano vale per ogni colpo, e in risoluzione un colpo con la mira su un altro piano **non parte
+e lo dichiara**. Il motivo è `ERTActionInvalidReason::OtherLayer`, e viaggia in `Amount` come gli altri. Non
+è `ERTHexTargetReason::OtherLayer`: quello è una classificazione di pianificazione e nel TurnLog non entra
 ([D-393](../../decisions/RT_PDR_00_Decision_Log.md) punto 5, pinnato da `Meta.TargetingRefusalStaysOutOfCanonicalState`).
 
 | Produttore | Come si legge |
 |---|---|
-| **Azione del Blast con la mira su un altro piano** — bersaglio-unità (`ValidateInstance`), bersaglio a cella o cella di un ripiego `AttackCell` (`ValidateCellAim`) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione, `SrcCell` = chi agisce, `TgtCell` = dove puntava. `UnitId` = chi agisce |
+| **Colpo del Blast con la mira su un altro piano** — bersaglio-unità, bersaglio a cella o cella di un ripiego `AttackCell`. Lo ferma `CollectHexAttacks` (`OtherLayerIntents`), lo scrive `LogBlockedIntents` | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione, `SrcCell` = chi tira, `TgtCell` = la mira congelata al lock-in. `UnitId` = chi tira |
 | **Colpo predittivo di chi ha cambiato piano** dopo aver armato (`ResolvePredictiveBoundary`) | `Category=Fallback`, **`Phase=Move`**, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione armata, `SrcCell` = dove sta il tiratore **dopo** la caduta, `TgtCell` = la cella bloccata. `UnitId` = il tiratore. **Nessuna voce `Predictive`**: non è un `PredictionWhiffed`, che direbbe che nessuno è entrato |
+
+⚠️ **«Annullato» è il colpo, non l'azione.** Nel Blast il piano si comporta come la linea di tiro: la
+raccolta ferma il colpo **dopo** aver raccolto strutture e porte, e il danno agli archi legge gli intenti.
+Un'azione che mira all'altro capo di un ponte fra due piani lascia quindi questa voce **e** le sue
+`BridgeDamaged`: il ponte incassa, chi ci sta sopra no. La famiglia `Fallback` non ha un esito per «il colpo
+no, il resto sì», e `Cancelled` qui va letto così.
+
+⚠️ **Un ripiego `AttackCell` verso un altro piano lascia due voci**, entrambe vere: `AttackedCell` col motivo
+che ha fatto perdere il bersaglio, e questa per il colpo sulla cella che non parte. È la stessa coppia di un
+ripiego fermato da un muro.
 
 ⚠️ **L'interposizione che non scatta per il piano non produce questo motivo**: lascia `Reaction`/`NotTriggered`,
 la stessa voce di quando l'alleato è troppo lontano. Quell'esito non porta un motivo.

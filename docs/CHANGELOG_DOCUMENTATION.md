@@ -8,9 +8,9 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-509`, nuova: che cosa è un colpo, come entra, le scelte dell'implementazione da confermare, il costo corretto rispetto all'opzione. `D-393` annotata: il drift è chiuso |
-| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `VERT-3` chiusa, barrata con l'esito. `VERT-4` nuova: la regola del piano per la cura ad area e le azioni ambientali, con due misure |
-| [`technical/architecture/spec-turnlog.md`](technical/architecture/spec-turnlog.md) | sezione nuova: le voci `Fallback` con `OtherLayer`, i loro due produttori, e il test che fissa nome e numero dei motivi |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-509`, nuova: che cosa è un colpo, come entra, la prima stesura sbagliata e chi l'ha trovata, le scelte dell'implementazione da confermare, il costo corretto rispetto all'opzione. `D-393` annotata: il drift è chiuso |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `VERT-3` chiusa, barrata con l'esito. `VERT-4` nuova: la regola del piano per la cura ad area, le azioni ambientali e il danno a strutture e ponti, con tre misure e un conflitto letto — da `D-393` un ponte fra due piani non si danneggia più dall'interfaccia |
+| [`technical/architecture/spec-turnlog.md`](technical/architecture/spec-turnlog.md) | sezione nuova: le voci `Fallback` con `OtherLayer`, i loro due produttori, che cosa vuol dire «annullato» quando la stessa azione scalfisce un ponte, e il test che fissa nome e numero dei motivi |
 | [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §3.3, nuova: chi cade perde il colpo predittivo che aveva armato |
 | [`gameplay/spec-reazioni-componibili-cp55.md`](gameplay/spec-reazioni-componibili-cp55.md) | §8.1: l'interposizione chiede lo stesso piano di chi attacca |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-INTERCEPT`: una nota in coda sulla precondizione. Nessuna voce nuova, totali invariati |
