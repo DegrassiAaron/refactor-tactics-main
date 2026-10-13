@@ -1241,3 +1241,43 @@ Il revisore ha lasciato **non verificato**, fra l'altro: se «attraversare» l'a
 - la resa a schermo di una voce: non esiste ancora chi la mostri;
 - la correttezza di una frase rispetto alla sua regola: nessun test la può verificare. La tabella «Da dove viene ogni frase» dice dove rileggerla, e l'accettazione è dell'autore;
 - la build `Packaged`: `NOT RUN`. Il glossario è codice del modulo di gioco senza asset, e la prima fetta che lo mostra a schermo è quella che deve provarlo cotto.
+
+---
+
+## ➕ esecuzione — 2026-10-13
+
+Eseguito in linea da chi ha scritto il piano, nel checkout `D:/Repositories/rt-wt-ispettore`. I log nominati stanno nello scratchpad della sessione, non nel repository.
+
+### Le misure
+
+| Che cosa | Su quale albero | Esito | Log |
+|---|---|---|---|
+| I tre test sullo scheletro vuoto | piano committato, più i tre file nuovi | trovati 3, rossi 3, coi messaggi attesi | `glossario-rosso.log` |
+| I tre test sulla tabella | lo stesso, con la tabella vera | trovati 3, verdi 3 | `glossario-verde.log` |
+| Le due mutazioni del Task 2 | `26ad846a0` meno una riga di `Effects()`, con una chiave rinominata | trovati 3, rossi 2 coi sette messaggi attesi, verde 1 | `build-3-mutazione.log`, `glossario-mutazione.log` |
+| Il radar sui file veri | `b616b77a6` | esce `0`; con un nome cambiato nel documento esce `1`; dopo il ripristino `0` | uscita del comando |
+| I test dei radar | `6ed819745` | `node --test` in `tools/radar`: nessun fallito | uscita del comando |
+| Tutti i radar | `6ed819745` | rossi solo `pie-verdict-age` e `wiki-alt`, con uscita identica a quella di `origin/main` `4e6d198cd` | confronto con `cmp` |
+| Suite intera, primo giro | `26ad846a0` più la modifica ai messaggi dei test | 3247 trovati e completati, un rosso | `suite-3744.log` |
+| **Suite intera, sul commit definitivo** | `6ed819745`, albero pulito; `Source/` è quello di `f32ecfda3` | 3247 trovati e completati, 3246 riusciti, un rosso; i tre del glossario verdi | `suite-3744-finale.log` |
+
+In entrambe le suite `HEAD`, il diff dell'albero e l'hash della DLL di gioco sono identici prima e dopo la corsa, e nessun altro processo Unreal era vivo.
+
+**Il rosso** è `RefactorTactics.Packaging.RequiredActionClipsAreCooked`. Non nasce da questo branch: il suo owner è [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562), aperta, ed è l'unico rosso anche nella suite intera eseguita la stessa sera da un'altra sessione su un altro albero.
+
+### Che cosa è andato diversamente dal piano
+
+- **Le frasi sono cambiate due volte**, per due revisioni avversarie chieste dall'autore: la prima prima della build verde, la seconda sul branch finito. Le tabelle dei rilievi sono qui sopra.
+- **Il Task 3 è stato anticipato** nei passi che non toccano `Source/`, durante la prima build.
+- **Il Task 2 ha due mutazioni** nella stessa build, non una.
+- **La suite intera è stata eseguita due volte**: la revisione finale è arrivata durante la prima, e la misura deve appartenere al commit che si mergia.
+- **La revisione del codice del Task 4** è stata la revisione avversaria finale, un agente con contesto fresco, non la skill `code-review`.
+- **Il merge non è stato eseguito**: la PR aspetta il via dell'autore, che deve anche accettare i testi.
+- **Il primo avvio dell'Editor in un worktree nuovo** installa i pacchetti Python del motore: la prima corsa dei tre test è durata oltre dodici minuti, le successive meno di due.
+
+### Il motore, e gli altri
+
+Due altre sessioni lavoravano sulla stessa macchina. Le build e le corse dei tre test sono avvenute prima che chi eseguiva sapesse che le loro suite hanno asserti sul tempo reale: una build e una corsa si sono sovrapposte, fra le 22:05 e le 22:09, a una suite intera di un'altra sessione, che l'ha registrata come esplorativa e la rifà in finestra pulita. Le due suite intere di questo lavoro sono invece avvenute in una finestra concordata, con le altre sessioni ferme.
+
+La regola d'attesa scritta in «Global Constraints» guardava la propria misura e non quella altrui: la revisione avversaria lo aveva segnalato, ed è corretta sopra.
+

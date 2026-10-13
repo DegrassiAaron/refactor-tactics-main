@@ -32,6 +32,12 @@
 > in sola lettura e con un tetto di chiamate. Ha trovato i tredici rilievi `A1`–`A13` di §14. Chi scrive li ha
 > verificati sul codice uno per uno prima di accoglierli. Le correzioni sono marcate `➕ rev2.`, e portano la
 > decisione d'autore `S8`, presa leggendo i rilievi.
+>
+> **Fetta `F1` implementata** in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744), col piano
+> [`2026-10-13-glossario-stati-superfici-ripari.md`](../plans/2026-10-13-glossario-stati-superfici-ripari.md): la
+> tabella `RTGlossary`, il documento [`RT_Glossary_v0.1.md`](../../balance/RT_Glossary_v0.1.md), il radar e i test
+> `RefactorTactics.UI.Glossary*`. I testi restano da accettare dall'autore. Le fette `F2`–`F6` non hanno ancora
+> una issue.
 
 ---
 
@@ -496,7 +502,7 @@ il primo copre F1.
 
 | | Fetta | Dipende da |
 |---|---|---|
-| **F1** | **Glossario**: testi d'autore per stati, superfici e ripari, col gate di completezza. Nessuna UI | — |
+| **F1** | **Glossario**: testi d'autore per stati, superfici e ripari, col gate di completezza. Nessuna UI. Implementata in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744) | — |
 | **F2** | **Sguardo**: risolutore, compositore, targa che si apre, etichetta di cella | F1; ➕ rev2. le voci 2 e 5 di §9.3 scritte nel Decision Log |
 | **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede | F2 |
 | **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click | F3 per il fuoco; il solo cambio di tasto è indipendente |
