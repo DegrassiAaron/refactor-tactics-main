@@ -8,8 +8,9 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: `color_metrics.py` fra i controlli noti, quando la PR tocca `UI/RTHUD.cpp` o le tabelle di colore; la sua prova, `python -m pytest -q tools/hud-assets`, fra quelle che sanno fallire |
-| [`technical/systems/spec-icon-card-grammar.md`](technical/systems/spec-icon-card-grammar.md) | accanto ai comandi del referto: la parte sull'overlay del mondo vive solo nel referto e non nel `T9` del generatore, e legge due righe di `RTHUD.cpp` per forma |
+| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: `color_metrics.py` fra i controlli noti, quando la PR tocca `UI/RTHUD.cpp` o le tabelle di colore, coi suoi due codici d'uscita; la sua prova fra quelle che sanno fallire |
+| [`technical/systems/spec-icon-card-grammar.md`](technical/systems/spec-icon-card-grammar.md) | accanto ai comandi del referto: `T9` misura anche l'overlay del mondo leggendo due righe di `RTHUD.cpp` per forma; fino al 2026-10-13 non lo faceva; i codici d'uscita e il comando della prova |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-234` annotata: la coppia fase `Dash` / identità di squadra, che la voce dichiarava non misurata da nessun gate, ora la misura `T9` |
 
 ---
 

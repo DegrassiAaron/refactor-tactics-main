@@ -601,8 +601,9 @@ python tools/bot-competence/check.py --check              # lo schema, i suoi `c
                                                           # nel dubbio si lancia
 python tools/hud-assets/color_metrics.py                  # solo se la PR tocca UI/RTHUD.cpp o le tabelle
                                                           # di colore di tools/hud-assets/: il referto
-                                                          # LEGGE due righe di RTHUD.cpp per forma, e
-                                                          # si rompe quando cambiano (#3626)
+                                                          # LEGGE due righe di RTHUD.cpp per forma (#3626).
+                                                          # Exit 1 = un criterio violato; exit 2 = una
+                                                          # riga ha cambiato forma e non si legge piu'
 
 cd tools/radar
 node --test
@@ -624,8 +625,10 @@ perche' un gate **nasce verde** e senza una mutazione il suo verde non distingue
 python tools/architettura/misure-strutturali.py --autotest   # coi numeri veri dell'audit di agosto;
                                                              # quanti casi lo dice il comando
 python tools/bot-competence/check.py --autotest              # le funzioni pure. Quanti casi lo dice lui
-python -m pytest -q tools/hud-assets                         # la lettura di RTHUD.cpp: la forma attuale si
-                                                             # legge, quella vecchia e una inventata no
+python -m unittest discover -s tools/hud-assets -p "*_test.py"   # la lettura di RTHUD.cpp: la forma attuale
+                                                             # si legge, quella vecchia e una inventata no.
+                                                             # ⚠️ Due dei suoi test leggono l'albero VERO:
+                                                             # cadono anche quando cambia RTHUD.cpp
 ```
 
 ⚠️ Si lanciano quando si **tocca il gate**, non a ogni PR: provano la decisione del gate, non l'albero.

@@ -1266,11 +1266,11 @@ void ARTHUD::DrawHUD()
 				// due dicromazie a meno di un punto dalla soglia `20`. Dopo il cambio i due peggiori casi
 				// sono `43.9` e `51.7`. Il gate `T9` ora misura questa coppia e la rilegge DA QUI.
 				//
-				// ⚠️ **La rilegge per FORMA, e non e' il `T9` del generatore a farlo** (`#3626`): quello misura
-				// la palette delle icone. Questa coppia la misura `tools/hud-assets/color_metrics.py`, che
-				// cerca la dichiarazione qui sotto. Chi la riscrive rilancia
-				// `python -m pytest -q tools/hud-assets`. ⛔ E non la si cita per esteso in un commento:
-				// lo script prenderebbe il commento per la riga.
+				// ⚠️ **La rilegge per FORMA** (`#3626`): `tools/hud-assets/color_metrics.py` cerca la
+				// dichiarazione qui sotto. Fino al 2026-10-13 la frase qui sopra era falsa — il `T9` del
+				// generatore misurava solo la palette delle icone, e la coppia la guardava un referto che
+				// nessuno lanciava. Ora `T9` la include. Chi riscrive questa riga lancia
+				// `python tools/hud-assets/color_metrics.py`.
 				//
 				// ⚠️ `FromSRGBColor` NON e' opzionale: il costruttore prende valori LINEARI, e passargli
 				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
@@ -1701,9 +1701,8 @@ FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& Vie
 	// stesso errore per cui la certezza e' stata tolta da qui e data al tratteggio.
 	// ⚠️ **L'assegnazione qui sotto e' LETTA PER FORMA da `tools/hud-assets/color_metrics.py`** (`#3626`):
 	// il campo, il ramo su `bOwn` e i due colori. Il 2026-09-04 `#2184` l'ha riscritta e il referto dei colori
-	// dell'overlay ha smesso di girare senza che nessuno lo vedesse. Chi ne cambia la forma rilancia
-	// `python -m pytest -q tools/hud-assets`. ⛔ E non la si cita per esteso in un commento: lo script la
-	// troverebbe due volte.
+	// dell'overlay ha smesso di girare senza che nessuno lo vedesse. Chi ne cambia la forma, o assegna il
+	// campo anche altrove, lancia `python tools/hud-assets/color_metrics.py`.
 	Out.Color = bOwn
 		? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita', selezionata o no
 		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato

@@ -32,6 +32,9 @@ import itertools
 import json
 import math
 import re
+import sys
+
+from action_axes import _strip_comments  # i commenti del C++ si tolgono in UN modo solo
 
 # --------------------------------------------------------------------------------------------------
 # Le soglie. Nessuna e' inventata qui: ognuna viene da una decisione gia' presa, e la riga dice quale.
@@ -304,21 +307,30 @@ def _linear_to_hex(triple: tuple[float, float, float]) -> str:
 
 
 def _parse_color_expr(expr: str, where: str) -> str:
-    """Un'espressione di colore del C++ -> HEX sRGB. Due forme, ed entrambe vivono nel modulo."""
-    srgb = re.search(r"FromSRGBColor\(\s*FColor\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", expr)
+    """Un'espressione di colore del C++ -> HEX sRGB.
+
+    Tre forme, e la prima va cercata PER PRIMA:
+
+      * `FColor(r, g, b)` ovunque compaia: dentro `FLinearColor::FromSRGBColor(...)`, dentro il
+        costruttore `FLinearColor(FColor(...))` che converte allo stesso modo, o da sola. Sono byte sRGB;
+      * `FLinearColor(r, g, b, a)`, l'assegnazione: valori LINEARI;
+      * `(r, g, b, a)`, il costruttore `const FLinearColor C(r, g, b, a);`, che arriva qui senza il tipo.
+        Trattarne una sola faceva esplodere il gate invece di misurarlo, ed e' stato trovato dalla prova
+        che lo esegue sul C++ vecchio.
+
+    ⚠️ **L'ordine conta.** Letta come lineare, `FLinearColor(FColor(51, 230, 255))` darebbe `#FFFFFF`:
+    tre «float» sopra 1, schiacciati a bianco, senza errore. Trovato in code review (`#3626`).
+    """
+    srgb = re.search(r"FColor\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", expr)
     if srgb:
         return "#" + "".join(f"{int(c):02X}" for c in srgb.groups())
-    # Due forme dichiarano lo stesso colore lineare, ed entrambe sono C++ legittimo:
-    #   const FLinearColor C = FLinearColor(r, g, b, a);   -> assegnazione
-    #   const FLinearColor C(r, g, b, a);                  -> costruttore
-    # La seconda arriva qui SENZA il nome del tipo. Trattarne una sola faceva esplodere il gate
-    # invece di misurarlo, ed e' stato trovato dalla prova che lo esegue sul C++ vecchio.
     lin = re.search(r"(?:FLinearColor)?\(\s*([\d.]+)f?\s*,\s*([\d.]+)f?\s*,\s*([\d.]+)f?", expr)
     if lin:
         return _linear_to_hex(tuple(float(c) for c in lin.groups()))
     raise RuntimeError(
         f"colore non riconosciuto in {where}: `{expr.strip()[:70]}`. Le forme attese sono "
-        "`FLinearColor(r, g, b, a)` (lineare) e `FLinearColor::FromSRGBColor(FColor(r, g, b))`.")
+        "`FLinearColor(r, g, b, a)` (lineare) e `FColor(r, g, b)` (sRGB), anche dentro "
+        "`FLinearColor::FromSRGBColor(...)`.")
 
 
 # La forma con cui `RTHUD.cpp` dichiara l'asse dell'IDENTITA' di squadra. Una sola, e scritta qui perche' la
@@ -328,7 +340,33 @@ def _parse_color_expr(expr: str, where: str) -> str:
 # riconoscerla ancora terrebbe vivo un ramo che nessun sorgente esercita, e nasconderebbe il giorno in cui
 # la forma cambia di nuovo. Una forma che non e' QUESTA e' un errore esplicito.
 _IDENTITY_ANCHOR = r"\bOut\.Color\s*=\s*bOwn\b(.*?);"
-_IDENTITY_FORM = "`Out.Color = bOwn ? FLinearColor(...) : FLinearColor(...);`"
+_IDENTITY_FORM = "`Out.Color = bOwn ? <colore> : <colore>;`"
+# OGNI assegnazione al campo, qualunque sia il lato destro. `=(?!=)`: un confronto `==` non e' un'assegnazione.
+_IDENTITY_ASSIGNMENT = r"\bOut\.Color\s*=(?!=)"
+_DASH_ANCHOR = r"\bconst FLinearColor DashColor\b\s*=?\s*([^;]+);"
+
+
+def _split_ternary(body: str) -> tuple[str, str] | None:
+    """`? A : B` -> `(A, B)`. Il `:` e' quello a parentesi chiuse, e non meta' di un `::`.
+
+    Serve perche' i due rami si passano INTERI a `_parse_color_expr`: cercare `FLinearColor(...)` nel
+    corpo, come faceva la prima stesura, rifiutava `FLinearColor::FromSRGBColor(FColor(...))` — la forma
+    che `RTHUD.cpp` stesso chiama «non opzionale» per `DashColor` — con un messaggio che parlava d'altro.
+    """
+    body = body.strip()
+    if not body.startswith("?"):
+        return None
+    depth = 0
+    for index, char in enumerate(body):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == ":" and depth == 0:
+            if body[index - 1:index] == ":" or body[index + 1:index + 2] == ":":
+                continue
+            return body[1:index].strip(), body[index + 1:].strip()
+    return None
 
 
 def parse_overlay_colors(text: str) -> tuple[dict, dict]:
@@ -336,14 +374,24 @@ def parse_overlay_colors(text: str) -> tuple[dict, dict]:
 
     🔑 **Una funzione sul testo, non sul file** (`#3626`). La lettura si era rotta il 2026-09-04, quando
     `#2184` ha riscritto la riga dell'identita', ed e' rimasta rotta fino al 2026-10-13: il referto falliva
-    forte e nessun comando lo lanciava. Separare il testo dal file permette di provare le tre cose che
-    contano — la forma attuale si legge, quella vecchia e una inventata danno errore — senza toccare
-    `RTHUD.cpp` (`color_metrics_test.py`).
+    forte e nessun comando lo lanciava. Separare il testo dal file permette di provare cio' che conta — la
+    forma attuale si legge, quella vecchia e una inventata danno errore — senza toccare `RTHUD.cpp`
+    (`color_metrics_test.py`).
 
-    Fallisce **forte** se un ancoraggio sparisce, si sdoppia o porta un numero di colori inatteso,
-    invece di restituire un insieme a meta' e passare in silenzio.
+    🔑 **I commenti si tolgono PRIMA di cercare.** Una riga commentata non e' una riga del gioco: senza,
+    una dichiarazione vecchia lasciata in un commento sopra quella viva verrebbe misurata al suo posto, e
+    il referto uscirebbe verde su colori che il gioco non disegna piu'. Trovato in code review.
+
+    Fallisce **forte**, invece di restituire un insieme a meta' e passare in silenzio, se:
+
+      * un ancoraggio sparisce o compare piu' di una volta;
+      * il campo dell'identita' e' assegnato anche altrove — una terza tinta scritta da un'altra
+        istruzione non starebbe nel ternario, e non verrebbe misurata contro nessuno;
+      * il lato destro non e' un ternario a due rami, o un ramo non e' un colore riconoscibile.
     """
-    idents = re.findall(_IDENTITY_ANCHOR, text, re.S)
+    code = _strip_comments(text)
+
+    idents = re.findall(_IDENTITY_ANCHOR, code, re.S)
     if not idents:
         raise RuntimeError(
             f"{_IDENTITY_FORM} non trovato in RTHUD.cpp: l'asse dell'IDENTITA' di squadra ha cambiato "
@@ -352,44 +400,63 @@ def parse_overlay_colors(text: str) -> tuple[dict, dict]:
         raise RuntimeError(
             f"{_IDENTITY_FORM} compare {len(idents)} volte in RTHUD.cpp: l'ancoraggio e' ambiguo, e "
             "scegliere la prima occorrenza misurerebbe una riga a caso.")
-    found = re.findall(r"FLinearColor\([^)]*\)", idents[0])
-    if len(found) != 2:
+    assignments = len(re.findall(_IDENTITY_ASSIGNMENT, code))
+    if assignments != 1:
         raise RuntimeError(
-            f"l'asse dell'identita' porta {len(found)} colori invece di 2 (proprie / nemico rivelato): "
-            "la forma e' cambiata e la lettura sarebbe parziale.")
-    identity = {"proprie": _parse_color_expr(found[0], "RTHUD.cpp identita'"),
-                "nemico": _parse_color_expr(found[1], "RTHUD.cpp identita'")}
+            f"`Out.Color` e' assegnato {assignments} volte in RTHUD.cpp, e solo una e' il ternario su `bOwn`: "
+            "un colore scritto da un'altra istruzione non verrebbe misurato. Se l'identita' ha una terza "
+            "tinta, va letta e confrontata qui prima di essere disegnata.")
+    arms = _split_ternary(idents[0])
+    if arms is None:
+        raise RuntimeError(
+            f"l'asse dell'identita' non ha la forma {_IDENTITY_FORM}: dopo `bOwn` non c'e' un ternario a "
+            "due rami (proprie / nemico rivelato), e la lettura sarebbe parziale.")
+    identity = {"proprie": _parse_color_expr(arms[0], "RTHUD.cpp identita' (proprie)"),
+                "nemico": _parse_color_expr(arms[1], "RTHUD.cpp identita' (nemico)")}
 
-    dash = re.search(r"const FLinearColor DashColor\s*=?\s*([^;]+);", text)
-    if not dash:
+    dashes = re.findall(_DASH_ANCHOR, code)
+    if not dashes:
         raise RuntimeError(
             "`DashColor` non trovato in RTHUD.cpp: la preview dello scatto ha cambiato forma. E' il "
             "solo elemento dell'overlay che porta un colore di FASE, e senza non c'e' niente da misurare.")
-    return identity, {"Dash": _parse_color_expr(dash.group(1), "RTHUD.cpp DashColor")}
+    if len(dashes) != 1:
+        raise RuntimeError(
+            f"`const FLinearColor DashColor` compare {len(dashes)} volte in RTHUD.cpp: l'ancoraggio e' "
+            "ambiguo, e scegliere la prima occorrenza misurerebbe una riga a caso.")
+    return identity, {"Dash": _parse_color_expr(dashes[0], "RTHUD.cpp DashColor")}
 
 
-def overlay_colors() -> tuple[dict, dict]:
+def overlay_colors(repo_root=None) -> tuple[dict, dict]:
     """I colori del world overlay, **letti** da `RTHUD.cpp` invece che ricopiati qui.
 
     Stessa regola di `match_phase_map()` nel generatore: una mappa scritta a mano direbbe la cosa
     vecchia il giorno dopo il cambio, e nessuno se ne accorgerebbe. L'interpretazione e' in
     `parse_overlay_colors`.
-    """
-    from generate_hud_assets import REPO_ROOT  # noqa: PLC0415
 
-    text = (REPO_ROOT / "Source/RefactorTactics/UI/RTHUD.cpp").read_text(encoding="utf-8")
+    `repo_root` lo passa il generatore, che e' il modulo che lo definisce: importarlo da qui mentre gira
+    come `__main__` lo caricherebbe una seconda volta. Senza argomento si importa, come prima.
+    """
+    if repo_root is None:
+        from generate_hud_assets import REPO_ROOT as repo_root  # noqa: PLC0415
+
+    text = (repo_root / "Source/RefactorTactics/UI/RTHUD.cpp").read_text(encoding="utf-8")
     return parse_overlay_colors(text)
+
+
+def inks_by_owner(phase_ink: dict, chrome: dict, semantic: dict) -> dict:
+    """Ogni HEX delle tre tabelle, con il nome di chi lo possiede. Chi le passa ne e' l'owner."""
+    known: dict = {}
+    for owner, table in (("fase", phase_ink), ("chrome", chrome), ("semantico", semantic)):
+        for name, value in table.items():
+            known.setdefault(value.upper(), f"{owner}/{name}")
+    return known
 
 
 def known_inks() -> dict:
     """Ogni HEX che il sistema conosce, con il nome di chi lo possiede."""
     from generate_hud_assets import CHROME, PHASE_INK, SEMANTIC  # noqa: PLC0415
 
-    known: dict = {}
-    for owner, table in (("fase", PHASE_INK), ("chrome", CHROME), ("semantico", SEMANTIC)):
-        for name, value in table.items():
-            known.setdefault(value.upper(), f"{owner}/{name}")
-    return known
+    return inks_by_owner(PHASE_INK, CHROME, SEMANTIC)
 
 
 def overlay_pairs(identity: dict, phase: dict) -> dict:
@@ -404,10 +471,14 @@ def overlay_pairs(identity: dict, phase: dict) -> dict:
     return out
 
 
-def check_overlay(identity: dict, phase: dict) -> list[str]:
-    """Il colore di FASE dell'overlay contro l'IDENTITA' di squadra. Vuoto = passano."""
+def check_overlay(identity: dict, phase: dict, known: dict | None = None) -> list[str]:
+    """Il colore di FASE dell'overlay contro l'IDENTITA' di squadra. Vuoto = passano.
+
+    `known` sono gli inchiostri che il sistema dichiara (`inks_by_owner`). Il generatore passa i propri;
+    senza argomento si leggono da lui.
+    """
     errors = []
-    known = known_inks()
+    known = known_inks() if known is None else known
     for name, ink in sorted(phase.items()):
         if ink.upper() not in known:
             errors.append(
@@ -433,15 +504,38 @@ def _palette_sources() -> tuple[dict, dict, dict]:
     return PHASE_INK, states, surfaces
 
 
-if __name__ == "__main__":
-    import sys
+# I codici d'uscita del referto. Due rossi diversi hanno due numeri diversi, come nel generatore (`#3002`):
+# «un criterio e' violato» e «non sono riuscito a leggere `RTHUD.cpp`» chiedono due rimedi diversi, e con
+# un `1` per entrambi chi guarda il solo codice non sa quale applicare.
+EXIT_OK = 0
+EXIT_CRITERIA_FAILED = 1
+EXIT_READ_FAILED = 2
 
+
+def main(argv: list[str] | None = None, repo_root=None) -> int:
+    """Il referto. `repo_root` serve alla prova, che lo punta a un albero finto senza toccare quello vero."""
+    argv = sys.argv[1:] if argv is None else argv
     ink, hud_states, hud_surfaces = _palette_sources()
-    if "--json" in sys.argv:
-        print(json.dumps(palette_report(ink, hud_states, hud_surfaces), indent=2, ensure_ascii=False))
-        raise SystemExit(0)
-
     report = palette_report(ink, hud_states, hud_surfaces)
+
+    # Il world overlay: stesso canale, due assi. Letto da RTHUD.cpp, mai ricopiato qui (D-234).
+    #
+    # ⚠️ **Si legge PRIMA di scegliere il formato d'uscita.** Fino a `#3626` il ramo `--json` stampava la
+    # palette e usciva `0` senza mai aprire `RTHUD.cpp`: una macchina che consumasse il JSON sarebbe rimasta
+    # verde per tutto il tempo in cui il referto a testo falliva. Trovato in code review.
+    try:
+        identity, overlay_phase = overlay_colors(repo_root)
+    except RuntimeError as error:
+        print(f"LETTURA FALLITA (exit {EXIT_READ_FAILED}): {error}", file=sys.stderr)
+        return EXIT_READ_FAILED
+    pairs = overlay_pairs(identity, overlay_phase)
+
+    if "--json" in argv:
+        # I numeri, senza giudizio: come la palette qui sopra. Il verdetto e' del modo a testo.
+        report["overlay"] = {"identita": identity, "fase": overlay_phase, "delta_e": pairs}
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return EXIT_OK
+
     print("Palette delle macro-fasi (D-233)\n")
     for phase, data in report["fasi"].items():
         near = data["stato_piu_vicino"]
@@ -449,8 +543,8 @@ if __name__ == "__main__":
         print(f"  {phase:6s} {data['hex']}  L={data['luminanza']:.3f}  {contrasts}"
               f"  stato piu' vicino: {near[1]} (dE={near[0]})")
     print()
-    for kind, pairs in report["delta_e"].items():
-        worst = min(pairs.items(), key=lambda kv: kv[1])
+    for kind, kind_pairs in report["delta_e"].items():
+        worst = min(kind_pairs.items(), key=lambda kv: kv[1])
         print(f"  {kind:14s} dE min={worst[1]:5.1f} ({worst[0]})")
     gray = report["grayscale"]
     print(f"\n  grayscale: {' < '.join(gray['ordine'])}   dL min={gray['delta_luminanza_minima']}")
@@ -461,10 +555,7 @@ if __name__ == "__main__":
     for (phase, surface), why in sorted(CONTRAST_EXEMPT.items()):
         print(f"  deroga dichiarata: {phase} su {surface} — {why}")
 
-    # Il world overlay: stesso canale, due assi. Letto da RTHUD.cpp, mai ricopiato qui (D-234).
-    identity, overlay_phase = overlay_colors()
     known = known_inks()
-    pairs = overlay_pairs(identity, overlay_phase)
     print("\nWorld overlay — lo stesso canale porta due assi (D-234)\n")
     for who, hex_value in sorted(identity.items()):
         print(f"  identita' {who:8s} {hex_value}  {known.get(hex_value.upper(), 'vocabolario proprio')}")
@@ -472,13 +563,18 @@ if __name__ == "__main__":
         owner = known.get(hex_value.upper(), "NESSUNA PALETTE")
         worst = min(min(r.values()) for k, r in pairs.items() if k.startswith(name + "/"))
         print(f"  fase      {name:8s} {hex_value}  {owner}   dE min vs identita' = {worst}")
-    problems += check_overlay(identity, overlay_phase)
+    problems += check_overlay(identity, overlay_phase, known)
 
     if problems:
-        print(f"\n{len(problems)} criteri non rispettati:")
+        print(f"\n{len(problems)} criteri non rispettati (exit {EXIT_CRITERIA_FAILED}):")
         for problem in problems:
             print(f"   {problem}")
-        raise SystemExit(1)
+        return EXIT_CRITERIA_FAILED
     worst_overlay = min(min(r.values()) for r in pairs.values())
     print(f"\nOK: peggior caso CVD dE={report['peggior_caso_cvd']} (soglia {CVD_MIN_DELTA_E})"
           f" · overlay fase/identita' dE={worst_overlay} (soglia {STATE_MIN_DELTA_E})")
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
