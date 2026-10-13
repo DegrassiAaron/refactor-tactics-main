@@ -8,7 +8,7 @@
 namespace
 {
 	/**
-	 * Il contatto regge fra due celle? Tre condizioni, tutte necessarie.
+	 * Il contatto regge fra due celle? Quattro condizioni, tutte necessarie.
 	 *
 	 * Il **cap del fumo** passa da `URTTerrainLibrary::EffectiveTargetingRange`, che di quella regola e'
 	 * l'owner: ricalcolarlo qui darebbe due verita' sullo stesso numero, e la seconda divergerebbe alla prima
@@ -16,6 +16,23 @@ namespace
 	 */
 	bool ContactHolds(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To, int32 Range)
 	{
+		// ⛔ **Stessa colonna, piano diverso: nessun contatto** (`D-510`, #3741). Decisione d'autore del
+		// 2026-10-13: «Se uno sta nella cella sopra un nemico, i 2 non si vedono (la linea di visuale passa al
+		// centro perpendicolare)». La cella impilata sta a distanza ZERO sulla proiezione, quindi senza questa
+		// riga la prende la consapevolezza ravvicinata, in ogni direzione. Vale a ogni distanza di piano.
+		//
+		// 🔑 **Sta QUI e non in `URTHexVisionLibrary::DescribeLineOfSight`, ed e' una scelta misurata.** La prima
+		// stesura l'aveva messa nella linea di vista: la suite ha fatto cadere
+		// `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e `…ClosesNoCycleOfAnyPeriod` sulle otto coppie
+		// di celle impilate dell'arena generata. Da una cella esattamente sotto il bersaglio ogni cella che
+		// «vede» e' piu' lontana: il filtro dei bot arretra, e l'orbita di #1287 si chiude. La linea di vista e'
+		// la geometria su cui i bot scelgono le celle; il CONTATTO e' cio' che una squadra sa. La regola e' del
+		// secondo, e colpire un altro piano e' gia' un rifiuto dichiarato (`D-393`, `D-509`).
+		if (From.X == To.X && From.Y == To.Y && From.Layer != To.Layer)
+		{
+			return false;
+		}
+
 		const int32 Distance = URTHexLibrary::HexDistance(From, To);
 		if (Distance > Range)
 		{
@@ -56,6 +73,11 @@ TArray<FRTCellId> URTPerceptionLibrary::VisibleCells(const URTHexMapAsset* Map, 
 	// non si vedeva, e CP 13.2 la rende visibile rifiutando ogni ingaggio fra piani diversi.
 	// High Ground resta senza bonus numerico alla vista (canone v0.1): qui non si concede un vantaggio, si
 	// toglie una cecita' che nessuna decisione aveva stabilito.
+	//
+	// ➕ `D-510`, #3741: una cecita' ora e' stabilita, ed e' una sola. Due celle sulla STESSA colonna e su
+	// piani diversi non hanno contatto: chi sta sopra la testa di un nemico non lo vede. Sta in
+	// `ContactHolds`, qui sopra. ⚠️ Vale anche per la CELLA impilata, non solo per chi la occupa:
+	// quell'osservatore non la vede, e il velo la disegna solo se la vede un compagno o se e' gia' ricordata.
 	for (const FRTHexCellData& CellData : Map->Cells)
 	{
 		const FRTCellId& Candidate = CellData.Id;

@@ -42,7 +42,7 @@
 | Pezzo | Owner | Stato |
 |---|---|---|
 | Linea di vista geometrica | `URTHexVisionLibrary::HasLineOfSight` | ✅ con regola d'elevazione e copertura alta sul bordo attraversato |
-| Vista a cono + consapevolezza a 360° entro 2 celle | `URTPerceptionLibrary::VisibleCells` | ✅ ADR-0005; il cap del fumo riusa `URTTerrainLibrary::EffectiveTargetingRange` |
+| Vista a cono + consapevolezza a 360° entro 2 celle | `URTPerceptionLibrary::VisibleCells` | ✅ ADR-0005; il cap del fumo riusa `URTTerrainLibrary::EffectiveTargetingRange`. ➕ Due celle sulla **stessa colonna** e su piani diversi non hanno contatto ([D-510](../../decisions/RT_PDR_00_Decision_Log.md), #3741): chi sta sopra la testa di un nemico non lo vede. È una condizione del **contatto**, non della linea di vista |
 | Conoscenza di squadra e memoria del contatto | `FRTTeamKnowledge`, `FRTLastKnownContact` | ✅ versionata, viaggia nello snapshot |
 | Il targeting **decide** | `ARTTurnManager` → `URTTeamKnowledgeLibrary::ClassifyTarget` | ✅ e vale **anche per il giocatore umano**, non solo per il bot |
 | Il bot gioca alla pari | `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` | ✅ canary `HexBotPlay.HiddenEnemyFairness` |

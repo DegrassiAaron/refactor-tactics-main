@@ -5988,6 +5988,33 @@ sessions:
       la board era tutta disegnata e illuminata. Visto una volta, non indagato; per questo la scena è una
       partita non presidiata.
 
+  - id: U88
+    title: Chi sta sopra la testa di un nemico non lo vede (D-510) — e le due alleate impilate
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-VIS-COLONNA`, e la conferma che `PIE-VIS-TWOLAYERS` regge sulla scena con due alleate;
+      nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U87]
+    verifies: [PIE-VIS-COLONNA]
+    issues: [3741]
+    done_when: >-
+      l'autore ha giudicato la voce; #3741 si chiude col suo verdetto
+    notes: |
+      ⏳ **Da convocare con l'autore.** Il 2026-10-13 una sessione senza di lui ha preparato le catture dal clone principale (commit `bbf990e32`), senza portare l'Editor in primo piano: `Visual.Map.StackedColumn` e `Visual.Map.TwoLayersSameColumn`, in tattica, con la camera centrata sulla colonna, da davanti e da dietro, più il controllo a regola spenta dai binari della verifica di mutazione. Le tavole stanno in `docs/technical/evidence/u88/`.
+
+      ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
+
+      Lo scenario `Visual.Map.StackedColumn` non asserisce chi è visto: le sue attese sono solo posizioni. La
+      regola la misura `Vision.StackedColumnIsNotSeen`; la seduta chiede che si veda a schermo, col controllo
+      positivo del nemico accanto.
+
+      Nella stessa seduta si guarda `Visual.Map.TwoLayersSameColumn`, che da #3741 mette nella colonna due
+      alleate: è la scelta dell'autore perché la scena resti una prova di leggibilità.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

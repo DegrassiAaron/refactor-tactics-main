@@ -126,6 +126,7 @@ Solo le righe che lo slice può davvero verificare. Le altre appartengono a §9.
 | Distanza > vista | nessun contatto | `Vista` del catalogo eroi (5–6) |
 | Cella che blocca la LOS | nessun contatto | `bBlocksLineOfSight` (dato d'asset) |
 | Layer diverso | regola D3 di H6.4: blocca solo sul layer dell'osservatore | eredità della LOS esistente |
+| Stessa colonna, layer diverso | nessun contatto: chi sta sopra la testa di un altro non lo vede | [D-510](../decisions/RT_PDR_00_Decision_Log.md), decisione d'autore del 2026-10-13 (#3741) |
 | Fumo (`Terrain.Smoke`) | contatto solo entro **2** celle, dentro o attraverso | catalogo terreni, invariato |
 | Copertura alta | blocca la vista (blocca già LOS e proiettili) | catalogo terreni §3 |
 | Copertura bassa | **non** blocca la vista (protegge, non nasconde) | distinzione copertura ≠ occultamento |

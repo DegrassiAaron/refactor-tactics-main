@@ -4,6 +4,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h"
 #include "Perception/RTPerceptionLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -369,6 +370,72 @@ bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
 	// Una cella che la mappa NON contiene non compare, anche se cadrebbe nell'arco: i candidati sono le celle
 	// che esistono, non un'area generata. E' la differenza che il difetto aveva reso invisibile.
 	TestFalse(TEXT("una quota inesistente non si inventa"), Seen.Contains(FRTCellId(2, 0, 7)));
+	return true;
+}
+
+/**
+ * **Chi sta sopra la testa di un altro non lo vede, e non ne e' visto** (`D-510`, #3741).
+ *
+ * Decisione d'autore del 2026-10-13: «Se uno sta nella cella sopra un nemico, i 2 non si vedono (la linea di
+ * visuale passa al centro perpendicolare)». La cella impilata sta a distanza ZERO sulla proiezione: fino a
+ * #3741 la prendeva la consapevolezza ravvicinata, in ogni direzione.
+ *
+ * 🔑 **Due controlli danno senso al rosso.** Spostata di UNA cella, la stessa cella del piano di sopra si vede:
+ * la vista fra piani fuori dalla colonna non e' cambiata. E la LINEA DI VISTA fra le due celle impilate resta
+ * libera: la regola e' del contatto, non della linea. Messa nella linea fa orbitare i bot sull'arena generata
+ * (`Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack`), ed e' la ragione per cui questo test la fissa li'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionStackedColumnTest,
+	"RefactorTactics.Vision.StackedColumnIsNotSeen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPerceptionStackedColumnTest::RunTest(const FString&)
+{
+	// Tre piani pieni: il caso a due piani di distanza si misura senza inventare una cella.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (int32 Layer = 0; Layer <= 2; ++Layer)
+	{
+		for (const FRTCellId& Flat : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
+		{
+			Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(Flat.X, Flat.Y, Layer)));
+		}
+	}
+	Map->SortCells();
+
+	const FRTPerceiver Sotto = Watcher(FRTCellId(0, 0, 0), ERTHexDirection::E, /*VisionRange*/ 5);
+	const TArray<FRTCellId> DaSotto = URTPerceptionLibrary::VisibleCells(Map, Sotto);
+	if (!TestTrue(TEXT("premessa: da sotto si vede la cella accanto sul piano di sopra"), DaSotto.Contains(FRTCellId(1, 0, 1)))
+		|| !TestTrue(TEXT("premessa: e la propria cella"), DaSotto.Contains(FRTCellId(0, 0, 0))))
+	{
+		return false;
+	}
+	TestFalse(TEXT("da sotto non si vede la cella sopra la testa"), DaSotto.Contains(FRTCellId(0, 0, 1)));
+	TestFalse(TEXT("e nemmeno quella due piani piu' su"), DaSotto.Contains(FRTCellId(0, 0, 2)));
+
+	const FRTPerceiver Sopra = Watcher(FRTCellId(0, 0, 1), ERTHexDirection::E, /*VisionRange*/ 5);
+	const TArray<FRTCellId> DaSopra = URTPerceptionLibrary::VisibleCells(Map, Sopra);
+	if (!TestTrue(TEXT("premessa: da sopra si vede la cella accanto sul piano di sotto"), DaSopra.Contains(FRTCellId(1, 0, 0))))
+	{
+		return false;
+	}
+	TestFalse(TEXT("da sopra non si vede la cella sotto i piedi"), DaSopra.Contains(FRTCellId(0, 0, 0)));
+	TestFalse(TEXT("ne' quella sopra la testa"), DaSopra.Contains(FRTCellId(0, 0, 2)));
+
+	// La domanda di squadra, che e' quella che decide se un nemico e' rilevato.
+	TArray<FRTPerceiver> Squadra;
+	Squadra.Add(Sotto);
+	TestTrue(TEXT("un nemico sopra la testa resta nascosto"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, FRTCellId(0, 0, 1)) == ERTAwareness::Hidden);
+	TestTrue(TEXT("spostato di una cella, e' rilevato"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, FRTCellId(1, 0, 1)) == ERTAwareness::Detected);
+
+	// Un compagno accanto la vede: la conoscenza e' di squadra, e la regola toglie UNA linea, non la cella.
+	Squadra.Add(Watcher(FRTCellId(-1, 0, 0), ERTHexDirection::E, /*VisionRange*/ 5));
+	TestTrue(TEXT("un compagno che non sta nella colonna la rileva per la squadra"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, FRTCellId(0, 0, 1)) == ERTAwareness::Detected);
+
+	// ⛔ La linea di vista NON cambia: e' la geometria su cui i bot scelgono le celle.
+	TestTrue(TEXT("la linea di vista fra le due celle impilate resta libera: la regola e' del contatto"),
+		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(0, 0, 0), FRTCellId(0, 0, 1)));
 	return true;
 }
 
