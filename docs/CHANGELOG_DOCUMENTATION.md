@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-10-13 — L'esposizione fissa, e il giudizio dell'autore sui piani e sul contorno delle unità
+
+**Origine**: [#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723) e [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705), seduta `U85`. La camera di gioco ha l'esposizione fissa, per decisione dell'autore. A esposizione fissa ha riscelto sulle tavole delle catture le intensità dei piani (scurimento 0,4, schiarimento 1,5 stop, desaturazione 1) e ha giudicato il contorno delle unità, che resta acceso a 3 pixel, e i fantasmi del piano.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-CONTORNO-UNITA` e `PIE-CAM-PIANI-ATTIVO` verdi, con le parole dell'autore; la voce nuova `PIE-CAM-ESPOSIZIONE`; una nota in coda a `PIE-CAM-TINTA-VOLUMI` e alle quattro voci da riguardare (`PIE-HEX-VIZ-VELO`, `PIE-VELO-TRANSIZIONE`, `PIE-VIS-TWOLAYERS`, `PIE-CAM-STRATEGIC-PIANI`); i totali rimisurati |
+| [`technical/evidence/u85/`](technical/evidence/u85/) | le tavole su cui ha giudicato (`E1`…`E5`, `C1`, `C3`, `C4`, `C5`) e le tavole finali coi valori insieme (`F1`…`F6`). Sono copie JPEG a qualità 90 delle tavole PNG che ha visto |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U85` chiusa, con l'elenco per nome delle voci PIE visive da riguardare dopo l'esposizione fissa; una nota in coda a `U84` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-501` annotata: l'esposizione fissa e le intensità riscelte. `D-508` annotata: il contorno a 3 pixel e i fantasmi |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: l'esposizione fissa, i valori nuovi delle leve e che cosa costano, lo spessore del contorno |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: i file e i test dell'esposizione, `PIE-CAM-ESPOSIZIONE`, #3723 fra le chiuse. `RT-CAP-CHAR-PRESENTATION`: #3705 fra le chiuse |
+| [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | la riga di `Camera/RTCameraExposure` |
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §6: i tre valori riscelti; §7: lo stato di #3705 |
+
+---
+
 ## 2026-10-13 — Il referto dei colori dell'overlay torna a girare, e ha un comando che lo lancia
 
 **Origine**: [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626). `tools/hud-assets/color_metrics.py` leggeva una riga di `UI/RTHUD.cpp` nella forma che aveva prima del 2026-09-04: da allora usciva con un errore esplicito, e nessun comando lo lanciava.

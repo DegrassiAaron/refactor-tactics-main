@@ -1660,7 +1660,7 @@ capabilities:
         - Content/RT/Characters/Shared/Materials/M_SelectionRing.uasset
         - Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset
         - Content/RT/Characters/Shared/Materials/M_UnitLayerOutline.uasset
-    issues: { open: [286, 1750, 2545, 1095, 2167, 3705], closed: [287] }
+    issues: { open: [286, 1750, 2545, 1095, 2167], closed: [287, 3705] }
     consumers: [RT-CAP-FOG-PRESENTATION, RT-CAP-GRAYKIT-PLAYGROUND]
     dependencies: [RT-CAP-ANIMATION-RUNTIME, RT-CAP-FACING, RT-CAP-TEAM-KNOWLEDGE]
     tests:
@@ -1782,18 +1782,20 @@ capabilities:
       files:
         - Source/RefactorTactics/Camera/RTCameraPawn.h
         - Source/RefactorTactics/Camera/RTCameraPawn.cpp
+        - Source/RefactorTactics/Camera/RTCameraExposure.h
+        - Source/RefactorTactics/Camera/RTCameraExposure.cpp
         - Source/RefactorTactics/Map/RTLayerPresentation.h
         - Source/RefactorTactics/Map/RTLayerPresentation.cpp
         - Source/RefactorTacticsEditor/Private/Content/RTBuildHexVolumeMaterialCommandlet.h
         - Content/RT/Core/Grid/M_HexVolume.uasset
-    issues: { open: [1769, 1781, 1775, 1809, 3723], closed: [864, 3706] }
+    issues: { open: [1769, 1781, 1775, 1809], closed: [864, 3706, 3723] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:
-      automation: ["RefactorTactics.Camera.*", "RefactorTactics.HexVolume.*"]
+      automation: ["RefactorTactics.Camera.*", "RefactorTactics.CameraExposure.*", "RefactorTactics.HexVolume.*"]
       scenarios: [Scenarios/Visual/Map/LayerVolumes.json]
       mutation: []
-    verification: { pie: [PIE-CAM-TINTA-VOLUMI], packaged: [] }
+    verification: { pie: [PIE-CAM-TINTA-VOLUMI, PIE-CAM-ESPOSIZIONE], packaged: [] }
     notes:
       - "⚠️ L'occlusione di camera e' PRESENTAZIONE e non e' la LOS di gioco — vincolo
          dichiarato in capability-roadmaps.md §CR-PRESENT."
