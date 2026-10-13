@@ -5889,10 +5889,10 @@ sessions:
       Sulle scene a un piano illuminate la differenza è fra +0,10 e +0,16 stop, e quelle voci non sono in elenco.
       - Rigiudicate in questa seduta: `PIE-CAM-PIANI-ATTIVO`, `PIE-CAM-CONTORNO-UNITA`, `PIE-CAM-ESPOSIZIONE`.
       - Riguardata sulle tavole, senza una domanda sua: `PIE-CAM-TINTA-VOLUMI`.
-      - Da riguardare alla prossima seduta sulle loro scene, perché lì il quadro è cambiato e nessuno le ha
-        riaperte: `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` (una mappa col velo: in tattica la board è 0,48 stop
-        più scura di prima); `PIE-VIS-TWOLAYERS` e `PIE-CAM-STRATEGIC-PIANI` (scene a più piani: il velo dei piani
-        sopra e lo scurimento dei piani sotto hanno valori nuovi).
+      - Da riguardare sulle loro scene, perché lì il quadro è cambiato: `PIE-HEX-VIZ-VELO` e
+        `PIE-VELO-TRANSIZIONE` (una mappa col velo: in tattica la board è 0,48 stop più scura di prima);
+        `PIE-VIS-TWOLAYERS` e `PIE-CAM-STRATEGIC-PIANI` (scene a più piani: il velo dei piani sopra e lo scurimento
+        dei piani sotto hanno valori nuovi). ➕ Riguardate lo stesso giorno, nella seduta `U87`.
 
       ⌫ *La mattina del 2026-10-13* l'autore aveva aperto `Visual.Map.LayerStack` in PIE dal clone principale per
       una quarantina di secondi — un cambio di piano in su e in giù, uno zoom fino alla strategica — e aveva chiuso
@@ -5949,6 +5949,44 @@ sessions:
 
       ⚠️ Ciò che si vede dei piani sotto dipende dall'esposizione automatica (#3723): se quella issue cambia
       l'esposizione della camera, la voce va riguardata.
+
+  - id: U87
+    title: Le voci visive riguardate a esposizione fissa (#3723) — velo, due piani in colonna, piani in strategica
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      la conferma, o no, dei verdetti dati con l'adattamento del motore acceso sulle scene dove l'esposizione fissa
+      ha cambiato il quadro; nessun valore nel codice e nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U85]
+    verifies: [PIE-HEX-VIZ-VELO, PIE-VELO-TRANSIZIONE, PIE-VIS-TWOLAYERS, PIE-CAM-STRATEGIC-PIANI]
+    issues: [3723]
+    done_when: >-
+      l'autore ha riguardato le quattro voci a esposizione fissa, e le loro celle dicono che cosa ha visto
+    notes: |
+      ✅ **Chiusa il 2026-10-13**: l'autore ha riguardato le quattro voci su tre tavole e due filmati, non a
+      Editor aperto. Alle quattro domande ha risposto con una riga: «tutti si». Nessun verdetto cambia.
+      Tavole e filmati stanno in `docs/technical/evidence/u87/`; vengono dal clone principale sul commit
+      `b3f9f5a53`, senza toccare le leve dei piani o dell'esposizione.
+
+      - `PIE-HEX-VIZ-VELO`, tavola V1: i tre stati del velo in una partita non presidiata su
+        `rt.Map.Fixture VisionSplit`, in tattica e in strategica, su più turni.
+      - `PIE-VELO-TRANSIZIONE`, filmati V2a e V2b: la stessa partita ripresa a 30 fotogrammi al secondo, in
+        tattica e in strategica. La pausa durante una dissolvenza e la cella mai vista che compare tutta
+        insieme non sono state isolate.
+      - `PIE-VIS-TWOLAYERS`, tavola V3: `Visual.Map.TwoLayersSameColumn`, coi modelli degli eroi e col
+        trattamento dei piani, che al primo giudizio non c'erano.
+      - `PIE-CAM-STRATEGIC-PIANI`, tavola V4: la sola parte visiva, dalle catture della tavola F1 di `U85`.
+
+      🔧 Come si è filmato: `ffmpeg` con `ddagrab` sul monitor dell'Editor, a PIE avviata dal bridge con
+      `rt.Test.Scenario ""`, `rt.Map.Fixture VisionSplit` e `rt.Match.Autobattle 1`. La cattura per titolo di
+      finestra riprende un'immagine ferma.
+
+      ⚠️ Dentro uno scenario il velo delle celle non si è visto: a fine corsa di `Visual.Perception.Acceptance`
+      la board era tutta disegnata e illuminata. Visto una volta, non indagato; per questo la scena è una
+      partita non presidiata.
 
 not_schedulable:
 

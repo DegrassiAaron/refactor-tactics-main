@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-10-13 — Le quattro voci visive riguardate a esposizione fissa
+
+**Origine**: [#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723), seduta `U87`. Quattro voci PIE erano state giudicate con l'adattamento del motore acceso, su scene dove l'esposizione fissa ha cambiato il quadro. L'autore le ha riguardate su tre tavole e due filmati: nessun verdetto cambia.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HEX-VIZ-VELO`, `PIE-VELO-TRANSIZIONE`, `PIE-VIS-TWOLAYERS`, `PIE-CAM-STRATEGIC-PIANI`: la nota «va riguardata» diventa «riguardata dall'autore», con ciò che tavole e filmati non mostrano |
+| [`technical/evidence/u87/`](technical/evidence/u87/) | le tre tavole (JPEG a qualità 90) e i due filmati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U87`, chiusa; un rimando da `U85` |
+
+---
+
 ## 2026-10-13 — Una destinazione di scatto è un ordine
 
 **Origine**: [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400). I due rami dello scatto uscivano prima dell'unica chiamata che registra un ordine di pacing: una cella d'arrivo dichiarata con uno scatto non contava.
