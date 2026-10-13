@@ -2,6 +2,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Combat/RTCombatLibrary.h" // ERTHexTargetReason: i verdetti che la risoluzione deve coprire ([D-509])
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
@@ -327,6 +328,172 @@ bool FRTFallbackValidationJudgesTheFrozenAimTest::RunTest(const FString&)
 		URTActionFallbackLibrary::ValidateInstance(FallbackAction(ERTActionFallback::Cancel, Range, Dentro),
 			MakeFallbackUnits(/*bTargetAlive*/ false, 1, Dentro), Map),
 		ERTActionInvalidReason::TargetDead);
+	return true;
+}
+
+/**
+ * **I valori di `ERTActionInvalidReason` sono APPEND-ONLY, e questo test lo rende vero** ([D-509]).
+ *
+ * 🔴 **Il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.** Togliere una voce, spostarla o
+ * inserirne una in mezzo rinumera le successive e cambia il SIGNIFICATO di ogni traccia gia' scritta che ne
+ * porti una — senza cambiare la versione del formato, perche' i byte restano validi. L'header lo ripete a
+ * ogni enumeratore aggiunto in coda, e racconta che e' gia' successo: `Interrupted` fu inserito a meta', e
+ * lo trovo' una code review — «ogni test usa i nomi simbolici e nessun golden porta quelle voci».
+ *
+ * 🔑 **Si fissano NOME e NUMERO di ogni voce, in ordine.** Un test coi soli nomi simbolici resta verde dopo
+ * una rinumerazione: e' esattamente la cecita' che l'header descrive. Aggiungere un motivo vuol dire
+ * aggiungere una riga IN CODA a questa lista; qualunque altra modifica fa cadere il test, ed e' voluto.
+ *
+ * ⚠️ Se un giorno una rinumerazione fosse DECISA, questo test si aggiorna nella stessa PR che alza
+ * `ERTTurnLogFormatVersion` e migra le tracce: e' la sola forma in cui quel cambio e' legittimo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInvalidReasonValuesAreAppendOnlyTest,
+	"RefactorTactics.Actions.Fallback.InvalidReasonValuesAreAppendOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInvalidReasonValuesAreAppendOnlyTest::RunTest(const FString&)
+{
+	const TCHAR* Attesi[] = {
+		TEXT("None"), TEXT("TargetGone"), TEXT("TargetDead"), TEXT("TargetFriendly"), TEXT("OutOfRange"),
+		TEXT("NoLineOfSight"), TEXT("NoMap"), TEXT("TargetUnknown"), TEXT("SlotOccupied"),
+		TEXT("InsufficientMovementPoints"), TEXT("OnCooldown"), TEXT("Interrupted"), TEXT("NoEffect"),
+		TEXT("Neutralised"), TEXT("Unbalanced"), TEXT("DoorLocked"), TEXT("DoorDestroyed"),
+		TEXT("TerrainDeniesDash"), TEXT("DashNotAligned"), TEXT("DashPathBlocked"), TEXT("Stunned"),
+		TEXT("OtherLayer") };
+
+	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
+	if (!TestNotNull(TEXT("l'enum dei motivi e' riflesso"), Motivi)) { return false; }
+
+	// `NumEnums()` conta anche il `_MAX` sintetico che UHT aggiunge in coda.
+	const int32 Dichiarati = Motivi->NumEnums() - 1;
+	TestEqual(TEXT("il numero dei motivi e' quello della lista: uno in piu' va aggiunto IN CODA qui"),
+		Dichiarati, static_cast<int32>(UE_ARRAY_COUNT(Attesi)));
+
+	for (int32 I = 0; I < FMath::Min(Dichiarati, static_cast<int32>(UE_ARRAY_COUNT(Attesi))); ++I)
+	{
+		const FString Nome = Motivi->GetNameStringByIndex(I);
+		const int64 Valore = Motivi->GetValueByIndex(I);
+		// `Equals` con le maiuscole: `TestEqual` su due `FString` le ignora.
+		TestTrue(FString::Printf(TEXT("posizione %d: atteso «%s», trovato «%s»"), I, Attesi[I], *Nome),
+			Nome.Equals(Attesi[I], ESearchCase::CaseSensitive));
+		// Il NUMERO, non solo l'ordine di dichiarazione: un `= 5` scritto su una voce lascerebbe l'ordine
+		// intatto e cambierebbe il valore che finisce nel log.
+		TestEqual(FString::Printf(TEXT("posizione %d (%s): il valore serializzato"), I, *Nome),
+			Valore, static_cast<int64>(I));
+	}
+	return true;
+}
+
+/**
+ * **Ogni verdetto del classificatore ha un esito DICHIARATO in risoluzione** ([D-509], `#2951`).
+ *
+ * 🔴 **Nasce da un difetto e da una promessa falsa.** Il difetto: `ValidateInstance` confrontava il verdetto
+ * con UN valore, e quando `#2951` ha aggiunto `OtherLayer` a `ERTHexTargetReason` quel valore e' caduto nel
+ * ramo «valido» — in risoluzione la regola del piano non esisteva. La promessa: lo `switch` che l'ha
+ * sostituito non ha `default`, e la prima stesura del suo commento diceva che un verdetto nuovo non avrebbe
+ * compilato. Su questo stesso enum il repository l'ha gia' misurato falso (`#3080`): MSVC emette un warning,
+ * e la build non lo alza. E' la terza volta che questo enum insegna la stessa cosa.
+ *
+ * 🔑 **Cio' che regge e' questo banco**, sul modello di `Combat.RefusalCoversEveryReason`: i verdetti si
+ * leggono dalla REFLECTION e si confrontano con una tabella dichiarata qui. Un verdetto aggiunto in coda
+ * senza un esito rende il test rosso nominandolo, prima che `checkNoEntry()` uccida il runner.
+ *
+ * ⛔ **La tabella e' dichiarata, non derivata**: una tabella ricalcolata dal codice sotto prova sarebbe
+ * verde per definizione. E per ogni verdetto che la geometria sa produrre si CHIAMA `ValidateInstance` con
+ * una scena che lo produce — la tabella sola proverebbe che qualcuno l'ha scritta, non che il codice la segue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTValidationCoversEveryTargetingVerdictTest,
+	"RefactorTactics.Actions.Fallback.ValidationCoversEveryTargetingVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTValidationCoversEveryTargetingVerdictTest::RunTest(const FString&)
+{
+	// `bProducibile`: `ValidateInstance` puo' ricevere questo verdetto dal classificatore con una scena vera.
+	// `TooClose` no — la distanza minima in risoluzione non si passa — e il suo esito resta dichiarato lo
+	// stesso: il giorno in cui si passera', questa riga e' la prima che qualcuno dovra' guardare.
+	struct FAtteso { ERTHexTargetReason Verdetto; ERTActionInvalidReason Esito; bool bProducibile; };
+	const TArray<FAtteso> Attesi = {
+		{ ERTHexTargetReason::Ok,            ERTActionInvalidReason::None,          true  },
+		{ ERTHexTargetReason::NoMap,         ERTActionInvalidReason::NoMap,         true  },
+		{ ERTHexTargetReason::OutOfRange,    ERTActionInvalidReason::OutOfRange,    true  },
+		{ ERTHexTargetReason::NoLineOfSight, ERTActionInvalidReason::NoLineOfSight, true  },
+		{ ERTHexTargetReason::TooClose,      ERTActionInvalidReason::None,          false },
+		{ ERTHexTargetReason::OtherLayer,    ERTActionInvalidReason::OtherLayer,    true  },
+	};
+
+	const UEnum* Enum = StaticEnum<ERTHexTargetReason>();
+	if (!TestNotNull(TEXT("la reflection conosce ERTHexTargetReason"), Enum)) { return false; }
+	const int32 Valori = Enum->NumEnums() - 1; // l'ultima voce e' il `_MAX` sintetico di UHT
+	if (!TestTrue(TEXT("anti-vacuita': la reflection vede almeno un valore"), Valori > 0)) { return false; }
+
+	TArray<FString> NonElencati;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const ERTHexTargetReason R = static_cast<ERTHexTargetReason>(Enum->GetValueByIndex(i));
+		if (!Attesi.ContainsByPredicate([R](const FAtteso& A) { return A.Verdetto == R; }))
+		{
+			NonElencati.Add(Enum->GetNameStringByIndex(i));
+		}
+	}
+	if (!TestTrue(*FString::Printf(TEXT("ogni verdetto ha un esito dichiarato in risoluzione; scoperti: [%s]"),
+		*FString::Join(NonElencati, TEXT(", "))), NonElencati.Num() == 0))
+	{
+		return false;
+	}
+	TestEqual(TEXT("la tabella non porta verdetti fantasma"), Attesi.Num(), Valori);
+
+	// --- E ora si chiama: una scena per ogni verdetto che la geometria sa produrre -------------------------
+	URTHexMapAsset* Piana = MakeFallbackMap();
+	URTHexMapAsset* ConMuro = MakeFallbackMap();
+	{
+		FRTHexCellData Wall(FRTCellId(1, 0));
+		Wall.bBlocksLineOfSight = true;
+		ConMuro->AddOrUpdateCell(Wall);
+		ConMuro->SortCells();
+	}
+	URTHexMapAsset* ADuePiani = MakeFallbackMap();
+	ADuePiani->AddOrUpdateCell(FRTHexCellData(FRTCellId(2, 0, 1)));
+	ADuePiani->SortCells();
+
+	struct FScena { ERTHexTargetReason Verdetto; const URTHexMapAsset* Mappa; FRTCellId Bersaglio; int32 Portata; };
+	const FScena Scene[] = {
+		{ ERTHexTargetReason::Ok,            Piana,     FRTCellId(2, 0, 0), 4 },
+		{ ERTHexTargetReason::NoMap,         nullptr,   FRTCellId(2, 0, 0), 4 },
+		{ ERTHexTargetReason::OutOfRange,    Piana,     FRTCellId(5, 0, 0), 2 },
+		{ ERTHexTargetReason::NoLineOfSight, ConMuro,   FRTCellId(2, 0, 0), 4 },
+		{ ERTHexTargetReason::OtherLayer,    ADuePiani, FRTCellId(2, 0, 1), 4 },
+	};
+
+	int32 Chiamati = 0;
+	for (const FAtteso& Atteso : Attesi)
+	{
+		const FScena* Scena = nullptr;
+		for (const FScena& S : Scene) { if (S.Verdetto == Atteso.Verdetto) { Scena = &S; } }
+		const FString Nome = Enum->GetNameStringByValue(static_cast<int64>(Atteso.Verdetto));
+
+		if (!Atteso.bProducibile)
+		{
+			TestNull(*FString::Printf(TEXT("%s e' dichiarato non producibile, e non ha una scena"), *Nome), Scena);
+			continue;
+		}
+		if (!TestNotNull(*FString::Printf(TEXT("%s e' producibile: deve avere una scena"), *Nome), Scena)) { continue; }
+
+		// La premessa, per i verdetti che il classificatore da' con una mappa: la scena produce DAVVERO
+		// quel verdetto. Senza, la riga proverebbe solo che `ValidateInstance` risponde qualcosa.
+		if (Scena->Mappa != nullptr)
+		{
+			TestTrue(*FString::Printf(TEXT("premessa: la scena di %s produce quel verdetto"), *Nome),
+				URTCombatLibrary::ClassifyHexTargeting(Scena->Mappa, FRTCellId(0, 0), Scena->Bersaglio,
+					Scena->Portata, ERTLineOfSightPolicy::Required) == Atteso.Verdetto);
+		}
+
+		const ERTActionInvalidReason Trovato = URTActionFallbackLibrary::ValidateInstance(
+			FallbackAction(ERTActionFallback::Cancel, Scena->Portata, Scena->Bersaglio),
+			MakeFallbackUnits(true, 1, Scena->Bersaglio), Scena->Mappa);
+		TestTrue(*FString::Printf(TEXT("%s: ValidateInstance risponde l'esito dichiarato (trovato %s)"), *Nome,
+				*StaticEnum<ERTActionInvalidReason>()->GetNameStringByValue(static_cast<int64>(Trovato))),
+			Trovato == Atteso.Esito);
+		++Chiamati;
+	}
+	TestTrue(TEXT("anti-vacuita': almeno un verdetto e' stato davvero chiamato"), Chiamati > 0);
 	return true;
 }
 

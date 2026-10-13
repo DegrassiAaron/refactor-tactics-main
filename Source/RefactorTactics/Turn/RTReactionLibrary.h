@@ -131,6 +131,8 @@ public:
 	 * - quell'alleato e' entro `InterceptRange` celle da `SelfId` (2, dichiarato dal catalogo);
 	 * - e' un attacco DIRETTO (intento a forma `Single`): un'area non ha una traiettoria da intercettare, e il
 	 *   catalogo lo esclude esplicitamente. Il danno ambientale non passa nemmeno da qui (arriva con E8);
+	 * - `SelfId` sta sullo stesso `Layer` di chi attacca ([D-509]): il colpo deviato e' un colpo, e un colpo
+	 *   resta sul piano di chi lo tira. Da una piattaforma non ci si interpone per chi sta a terra;
 	 * - la traiettoria dall'attaccante a `SelfId` e' LIBERA: ci si mette in mezzo a un colpo, non lo si
 	 *   teletrasporta addosso. Senza mappa non si intercetta (FAIL-CLOSED: non si puo' verificare la linea).
 	 *

@@ -19,9 +19,11 @@
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h" // l'azione predittiva di Ivrin, per il colpo armato che cade ([D-509])
 #include "Core/RTGameplayTags.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h" // HexDistance: la premessa di portata del colpo predittivo ([D-509])
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTActionEvent.h"
@@ -1726,6 +1728,157 @@ bool FRTFallStaticValidatorIgnoresOccupancyTest::RunTest(const FString&)
 	}
 
 	DestroyLedgeWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// [D-509] — Chi ha armato un colpo predittivo e poi CADE di piano non spara
+// =========================================================================================================
+
+/**
+ * **La caduta toglie il colpo predittivo a chi l'aveva armato** ([D-393], [D-509], `#2951`).
+ *
+ * 🔑 **E' un percorso che si apre GIOCANDO, senza saltare nessun gate**, ed e' per questo che sta in questo
+ * file: la cella bloccata si sceglie in pianificazione, dove la regola del piano la tiene sul `Layer` di
+ * chi arma; la previsione si arma in Prep; e fra il Prep e il boundary del Move c'e' il Blast, dove una
+ * spinta oltre un bordo aperto fa scendere chi la subisce. Senza la regola in risoluzione il colpo partiva
+ * dal piano di sotto verso quello di sopra: letto nel codice da una review il 2026-10-13, e MISURATO lo
+ * stesso giorno togliendo la riga del boundary — chi entrava nella cella bloccata prendeva i 16 danni del
+ * catalogo da un tiratore che stava un piano sotto.
+ *
+ *     Layer 1:  (-2,0) [chi spinge]  (-1,0) [cella bloccata]  (0,0) [chi arma]  (1,0)   || vuoto
+ *     Layer 0:                                                                  (1,0) [atterraggio]  (2,0)  (3,0)
+ *
+ * Chi spinge agisce nel Blast, da due celle, e poi nel Move entra nella cella bloccata — che sta accanto a
+ * chi arma, cioe' alla portata vera di `Ivrin.InterceptShot` (1). La stessa scena due volte, e l'unica
+ * variabile e' di QUANTO si spinge: una cella lascia chi ha armato sulla passerella, due lo fanno cadere.
+ *
+ * ⛔ **Il controllo positivo non e' decorativo**: senza, «nessun danno» lo darebbe anche una previsione mai
+ * armata, una cella bloccata sbagliata o un movimento che non parte. Con una cella di spinta il colpo deve
+ * andare a segno.
+ *
+ * 🔴 **Tre asserti sul caso, perche' tre cose potevano andare storte**: il danno (il colpo non parte), la voce
+ * (non parte e lo dichiara, con un motivo che NON e' «a vuoto» — nella cella qualcuno e' entrato), e la
+ * cella d'arrivo di chi e' entrato (un colpo annullato non tronca il movimento di nessuno).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallenShooterDoesNotFireItsPredictionTest,
+	"RefactorTactics.ForcedMovement.FallenShooterDoesNotFireItsPrediction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
+{
+	const FRTCellId Bloccata(-1, 0, 1);
+	const FRTCellId DaDoveSiSpinge(-2, 0, 1);
+	const FName Predittiva(TEXT("Hero.Ivrin.InterceptShot"));
+
+	struct FEsito
+	{
+		bool bValido = false;
+		FRTCellId DoveFinisceChiArma;
+		FRTCellId DoveFinisceChiEntra;
+		int32 DannoAChiEntra = 0;
+		int32 VociPredittive = 0;
+		uint8 EsitoPredittivo = MAX_uint8;
+		int32 RifiutiDiPiano = 0;
+		FRTTurnLogEntry Rifiuto;
+	};
+
+	auto Gioca = [&Bloccata, &DaDoveSiSpinge, &Predittiva](int32 CelleDiSpinta) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeLedgeWorld();
+		if (!World) { return Out; }
+		TArray<FRTCellId> Celle = PasserellaConAtterraggio(); // porta gia' (-1,0,1), la cella bloccata
+		Celle.Add(DaDoveSiSpinge);
+		SpawnLedgeMap(World, Celle);
+
+		ARTUnit* ChiSpinge = SpawnLedgeUnit(World, 0, DaDoveSiSpinge);
+		ARTUnit* ChiArma = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
+		if (!TM || !ChiSpinge || !ChiArma || !Ivrin || !Ivrin->Actions.IsValidIndex(1)
+			|| !ChiArma->Abilities.IsValidIndex(3)
+			|| Ivrin->Actions[1]->Def.ActionId != Predittiva
+			// La premessa di portata, letta dal catalogo: la cella bloccata dev'essere a tiro di chi arma.
+			|| URTHexLibrary::HexDistance(ChiArma->Cell, Bloccata) > Ivrin->Actions[1]->Def.RangeCells)
+		{
+			DestroyLedgeWorld(World);
+			return Out;
+		}
+
+		// Chi arma: `Ivrin.InterceptShot` sulla cella bloccata, che sta sul SUO piano e alla sua portata
+		// (la guardia qui sopra lo misura). Nello slot 3 e non in coda: `AbilityCooldowns` non si allarga.
+		ChiArma->Abilities[3] = Ivrin->Actions[1];
+		ChiArma->PlannedAbilityIndex = 3;
+		ChiArma->bAttackTargetsCell = true;
+		ChiArma->PlannedAttackCell = Bloccata;
+		ChiArma->PlannedAttackTarget = nullptr;
+
+		// Chi spinge: la spinta nel Blast, e nel Move il passo dentro la cella bloccata.
+		PlanLedgeShove(ChiSpinge, ChiArma, CelleDiSpinta);
+		ChiSpinge->PlannedCell = Bloccata;
+		const int32 Prima = ChiSpinge->Health;
+
+		RunLedgeTurn(TM);
+
+		Out.DoveFinisceChiArma = ChiArma->Cell;
+		Out.DoveFinisceChiEntra = ChiSpinge->Cell;
+		Out.DannoAChiEntra = Prima - ChiSpinge->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Predictive)
+			{
+				++Out.VociPredittive;
+				Out.EsitoPredittivo = E.Outcome;
+			}
+			if (E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OtherLayer))
+			{
+				++Out.RifiutiDiPiano;
+				Out.Rifiuto = E;
+			}
+		}
+		Out.bValido = ChiArma->IsAlive() && ChiSpinge->IsAlive();
+		DestroyLedgeWorld(World);
+		return Out;
+	};
+
+	// ── Controllo: una cella di spinta, chi arma resta sulla passerella, e il colpo va a segno. ───────────
+	const FEsito Resta = Gioca(/*CelleDiSpinta=*/ 1);
+	if (!TestTrue(TEXT("banco (senza caduta): le due unita' ci sono e sono vive"), Resta.bValido)) { return false; }
+	TestTrue(TEXT("controllo — premessa: chi arma e' stato spinto ma e' ancora sul suo piano"),
+		Resta.DoveFinisceChiArma == FRTCellId(1, 0, 1));
+	TestTrue(FString::Printf(TEXT("controllo: il colpo predittivo va a segno (danno %d)"), Resta.DannoAChiEntra),
+		Resta.DannoAChiEntra > 0);
+	TestEqual(TEXT("controllo: e la sua voce e' TriggerMatched"), Resta.EsitoPredittivo,
+		static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
+	TestEqual(TEXT("controllo: nessun rifiuto per piano"), Resta.RifiutiDiPiano, 0);
+
+	// ── Il caso: due celle di spinta, chi arma cade sul piano di sotto. ───────────────────────────────────
+	const FEsito Cade = Gioca(/*CelleDiSpinta=*/ 2);
+	if (!TestTrue(TEXT("banco (con caduta): le due unita' ci sono e sono vive"), Cade.bValido)) { return false; }
+	if (!TestTrue(TEXT("premessa: chi arma e' CADUTO sul piano di sotto"),
+		Cade.DoveFinisceChiArma == FRTCellId(1, 0, 0)))
+	{
+		return false; // senza la caduta il resto misurerebbe un'altra scena
+	}
+
+	TestEqual(TEXT("chi e' caduto non spara: nessun danno a chi entra nella cella bloccata"),
+		Cade.DannoAChiEntra, 0);
+	TestEqual(TEXT("e non resta una voce predittiva: ne' a segno, ne' «a vuoto» — nella cella qualcuno e' entrato"),
+		Cade.VociPredittive, 0);
+	if (TestEqual(TEXT("il turno lo DICHIARA: una voce di rifiuto con OtherLayer"), Cade.RifiutiDiPiano, 1))
+	{
+		TestEqual(TEXT("…Fallback/Cancelled"), Cade.Rifiuto.Outcome,
+			static_cast<uint8>(ERTFallbackOutcome::Cancelled));
+		TestTrue(TEXT("…nella fase del boundary, il Move"), Cade.Rifiuto.Phase == ERTMatchPhase::Move);
+		TestEqual(TEXT("…con l'identita' dell'azione che non e' partita"), Cade.Rifiuto.ActionId, Predittiva);
+		TestTrue(TEXT("…da dove sta chi ha armato DOPO la caduta"), Cade.Rifiuto.SrcCell == FRTCellId(1, 0, 0));
+		TestTrue(TEXT("…verso la cella su cui aveva scommesso"), Cade.Rifiuto.TgtCell == Bloccata);
+		TestTrue(TEXT("…e con la priorita' dell'azione: la tripla di ogni voce Fallback ([D-196])"),
+			Cade.Rifiuto.Priority > 0);
+	}
+	TestTrue(TEXT("un colpo annullato non tronca nessuno: chi entra ARRIVA nella cella bloccata"),
+		Cade.DoveFinisceChiEntra == Bloccata);
 	return true;
 }
 

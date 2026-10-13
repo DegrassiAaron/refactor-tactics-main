@@ -1,4 +1,5 @@
 #include "Turn/RTReactionLibrary.h"
+#include "Combat/RTCombatLibrary.h" // OnSamePlane: il predicato del piano ha una sede sola ([D-509])
 #include "Core/RTGameplayTags.h" // TAG_Status_Stunned/Root/Slow: la lista degli stati di controllo (CP 7.5)
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
@@ -113,6 +114,22 @@ int32 URTReactionLibrary::FindInterceptableHit(int32 SelfId, int32 InterceptRang
 
 		// La traiettoria deve arrivare a CHI intercetta: il colpo cambia bersaglio, non percorso.
 		if (!Units.IsValidIndex(Hit.AttackerId)) { continue; }
+
+		// ➕ **E IL COLPO DEVIATO RESTA UN COLPO** ([D-393], [D-509], `#2951`): parte da chi attacca e arriva
+		// a chi intercetta, quindi i due devono stare sullo stesso `Layer`. Chi sta su una piattaforma non si
+		// interpone per un alleato a terra.
+		//
+		// 🔴 **Il controllo di vicinanza qui sopra non lo diceva**: `HexDistance` ignora il `Layer`, quindi
+		// un intercettore esattamente SOPRA l'alleato distava zero ed era «abbastanza vicino da coprirlo».
+		// Misurato in un turno risolto il 2026-10-13: l'intercettore su `L1` incassava il colpo destinato a
+		// un alleato su `L0`.
+		//
+		// ⚠️ **Si confronta con chi ATTACCA, non con la vittima**, ed e' la stessa cosa detta dalla parte
+		// giusta: il colpo che c'e' gia' sta sul piano del suo attaccante, e quello deviato deve restarci.
+		// La reazione che non scatta lascia la voce di sempre, `Reaction`/`NotTriggered`: la stessa di
+		// quando l'alleato e' troppo lontano. Il motivo non e' dichiarato, perche' quell'esito non ne porta.
+		if (!URTCombatLibrary::OnSamePlane(Units[Hit.AttackerId].Cell, Self.Cell)) { continue; }
+
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Units[Hit.AttackerId].Cell, Self.Cell)) { continue; }
 
 		return h;

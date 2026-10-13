@@ -10,6 +10,7 @@
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Map/RTHexArcLibrary.h" // FindArc: il ponte che incassa mentre il colpo non parte ([D-509])
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Tests/RTAbilityFixtures.h"
@@ -2087,6 +2088,460 @@ bool FRTAimTrackingIsDeclaredTest::RunTest(const FString&)
 	TestEqual(TEXT("come ripiego, agganciare annulla esattamente come `Cancel`"),
 		Esito.Applied, ERTActionFallback::Cancel);
 	TestFalse(TEXT("e non produce effetti"), Esito.bProducesEffects);
+	return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// [D-509] — LA REGOLA DEL PIANO VALE PER OGNI COLPO, e in un turno risolto lascia una voce
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+namespace
+{
+	/** Le voci `Fallback`/`Cancelled` con `OtherLayer` di questa unita', e l'ultima trovata. */
+	int32 CountPlaneRefusals(const ARTTurnManager* TM, const ARTUnit* Unit, FRTTurnLogEntry* OutLast = nullptr)
+	{
+		int32 Count = 0;
+		if (!TM || !Unit) { return Count; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback
+				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OtherLayer)
+				&& E.UnitId == Unit->StableUnitId)
+			{
+				++Count;
+				if (OutLast) { *OutLast = E; }
+			}
+		}
+		return Count;
+	}
+}
+
+/**
+ * **Una mira fra piani che arriva alla risoluzione NON colpisce, e il turno dice perche'** ([D-509], `#2951`).
+ *
+ * 🔑 **Passa dal `TurnManager`, non dalle librerie**, per la ragione di [D-036]: `ValidateInstance` e
+ * `CollectHexAttacks` hanno il loro test puro, e una funzione pura puo' essere verde mentre nessuno ne legge
+ * l'esito. Era gia' successo qui: [D-393] spuntava *«i chiamanti leggono l'esito»*, ed era vero — lo
+ * leggevano e lo buttavano.
+ *
+ * ⚠️ **Il piano si scrive a mano, saltando il gate dell'INTERFACCIA.** `ClassifyHexTargeting` la chiamano
+ * il controller del giocatore e, col suo specchio, il bot; la validazione al lock-in
+ * (`URTPlanValidationLibrary`) il bersaglio non lo classifica. ∴ per un piano che arrivi senza passare
+ * dall'interfaccia — uno scenario scritto a mano oggi, un client domani — la risoluzione e' la SOLA sede
+ * autorevole che applica la regola: `CLIENT PROPOSES -> SERVER VALIDATES`. Non e' una rete per i banchi
+ * di prova.
+ *
+ * 🔴 **Si asserisce il MOTIVO, non solo l'assenza di danno.** Un bersaglio illeso lo produce anche un colpo
+ * fuori portata, una linea bloccata, un bersaglio ignoto: l'unica cosa che distingue questa regola e' la
+ * voce `Fallback`/`Cancelled` con `Amount = OtherLayer`. E i due modi di dichiarare la mira arrivano al
+ * canale per due strade — l'unita' passando da `ValidateInstance`, che il Blast non deve trasformare in un
+ * fallback; la cella direttamente — quindi si provano tutti e due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAcrossLayersIsRefusedInResolutionTest,
+	"RefactorTactics.Combat.Aim.AcrossLayersIsRefusedAndDeclaredInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAcrossLayersIsRefusedInResolutionTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 Danno = 0;          // PV persi dal bersaglio
+		int32 RifiutiDiPiano = 0; // voci Fallback/Cancelled con Amount = OtherLayer, del tiratore
+		FRTTurnLogEntry Rifiuto;
+	};
+
+	auto Gioca = [](int32 PianoDelBersaglio, bool bMiraACella) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		// La piattaforma ESISTE: senza la cella il bersaglio starebbe nel vuoto, e il test misurerebbe quello.
+		const FRTCellId DoveStaIlBersaglio(3, 0, PianoDelBersaglio);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(DoveStaIlBersaglio));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), DoveStaIlBersaglio);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return Out; }
+
+		const int32 Prima = Foe->Health;
+		Shooter->PlannedAbilityIndex = 0; // attacco base: forma `Single`
+		if (bMiraACella)
+		{
+			Shooter->PlannedAttackTarget = nullptr;
+			Shooter->PlannedAttackCell = DoveStaIlBersaglio;
+			Shooter->bAttackTargetsCell = true;
+		}
+		else
+		{
+			Shooter->PlannedAttackTarget = Foe;
+		}
+
+		RunBlastTurn(TM);
+
+		Out.Danno = Prima - Foe->Health;
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Shooter, &Out.Rifiuto);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	for (const bool bMiraACella : { false, true })
+	{
+		const TCHAR* Modo = bMiraACella ? TEXT("mira a CELLA") : TEXT("mira a UNITA'");
+
+		// Controllo positivo: stesso piano, stessa scena. Deve ferire, e non deve esserci nessun rifiuto.
+		const FEsito Piano = Gioca(/*PianoDelBersaglio=*/ 0, bMiraACella);
+		if (!TestTrue(FString::Printf(TEXT("%s — banco (stesso piano)"), Modo), Piano.bValido)) { return false; }
+		TestTrue(FString::Printf(TEXT("%s — controllo: sullo stesso piano il colpo ferisce (danno %d)"), Modo, Piano.Danno),
+			Piano.Danno > 0);
+		TestEqual(FString::Printf(TEXT("%s — controllo: e nessuna voce di rifiuto per piano"), Modo),
+			Piano.RifiutiDiPiano, 0);
+
+		// Il caso: il bersaglio sta una piattaforma sopra. Stessa colonna di celle, stessa distanza.
+		const FEsito Sopra = Gioca(/*PianoDelBersaglio=*/ 1, bMiraACella);
+		if (!TestTrue(FString::Printf(TEXT("%s — banco (altro piano)"), Modo), Sopra.bValido)) { return false; }
+		TestEqual(FString::Printf(TEXT("%s — su un altro piano il colpo non ferisce"), Modo), Sopra.Danno, 0);
+		if (TestEqual(FString::Printf(TEXT("%s — e il turno lo DICHIARA: una voce Fallback/Cancelled con OtherLayer"), Modo),
+			Sopra.RifiutiDiPiano, 1))
+		{
+			TestTrue(FString::Printf(TEXT("%s — la voce dice DOVE puntava il colpo"), Modo),
+				Sopra.Rifiuto.TgtCell == FRTCellId(3, 0, 1));
+			TestTrue(FString::Printf(TEXT("%s — e DA DOVE"), Modo), Sopra.Rifiuto.SrcCell == FRTCellId(0, 0, 0));
+			TestFalse(FString::Printf(TEXT("%s — e QUALE azione"), Modo), Sopra.Rifiuto.ActionId.IsNone());
+			TestTrue(FString::Printf(TEXT("%s — nella fase in cui sarebbe risolta"), Modo),
+				Sopra.Rifiuto.Phase == ERTMatchPhase::Blast);
+		}
+	}
+	return true;
+}
+
+/**
+ * **Il ripiego su CELLA non scavalca la regola del piano, e il turno lo dice con due voci vere** ([D-509]).
+ *
+ * `ValidateInstance` giudica vita e squadra PRIMA della geometria: un'azione puntata su un ALLEATO esce
+ * `TargetFriendly` senza che nessuno abbia guardato dove sta. Se dichiara `AttackCell` il ripiego tiene la
+ * cella — e la cella puo' stare su un altro piano. Il colpo sulla cella e' un colpo: la raccolta lo ferma, e
+ * il turno porta DUE voci — il ripiego dichiarato, e il colpo che non parte perche' la cella e' su un altro
+ * piano. E' la stessa coppia che lascia un ripiego fermato da un muro (`AttackedCell`, poi `NoLineOfSight`).
+ *
+ * 🔴 **Senza la seconda voce il turno mentirebbe**: direbbe «colpisce la cella pianificata» di un colpo che
+ * non c'e' stato. L'ha segnalato la review indipendente; la prima correzione riscriveva la voce del ripiego,
+ * questa la lascia vera e ne aggiunge una.
+ *
+ * ⛔ Il controllo positivo misura la premessa: sullo stesso piano la stessa azione sullo stesso alleato
+ * ripiega davvero sulla cella, e non c'e' nessun rifiuto. Senza, il caso sarebbe verde anche se il ripiego
+ * non esistesse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellFallbackInheritsThePlaneRuleTest,
+	"RefactorTactics.Combat.Aim.CellFallbackAcrossLayersLeavesTheRefusalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellFallbackInheritsThePlaneRuleTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 RipieghiSullaCella = 0;  // voci Fallback con esito AttackedCell, di chi attacca
+		int32 PerBersaglioAlleato = 0; // …di cui col motivo TargetFriendly
+		int32 RifiutiDiPiano = 0;      // voci Fallback/Cancelled con OtherLayer, di chi attacca
+		int32 DannoAllAlleato = 0;
+	};
+
+	auto Gioca = [](int32 PianoDellAlleato) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		const FRTCellId DoveStaLAlleato(2, 0, PianoDellAlleato);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(DoveStaLAlleato));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Alleato = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), DoveStaLAlleato);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Alleato) { DestroyHexBlastWorld(World); return Out; }
+
+		// `Action.LineAttack` dichiara `Fallback.AttackCell`: la premessa e' del catalogo, e si misura.
+		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+		if (Def.Fallback != ERTActionFallback::AttackCell)
+		{
+			DestroyHexBlastWorld(World);
+			return Out;
+		}
+		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+		Attacker->PlannedAttackTarget = Alleato;
+		const int32 Prima = Alleato->Health;
+
+		RunBlastTurn(TM);
+
+		Out.DannoAllAlleato = Prima - Alleato->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Attacker->StableUnitId) { continue; }
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::AttackedCell))
+			{
+				++Out.RipieghiSullaCella;
+				if (E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetFriendly)) { ++Out.PerBersaglioAlleato; }
+			}
+		}
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Attacker);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	// Controllo: alleato sullo stesso piano. Il ripiego parte, e non c'e' nessun rifiuto per piano.
+	const FEsito Piano = Gioca(0);
+	if (!TestTrue(TEXT("banco (stesso piano), e premessa di catalogo: l'azione dichiara AttackCell"), Piano.bValido))
+	{
+		return false;
+	}
+	TestEqual(TEXT("controllo: il ripiego sulla cella e' dichiarato"), Piano.RipieghiSullaCella, 1);
+	TestEqual(TEXT("controllo: col motivo del bersaglio alleato"), Piano.PerBersaglioAlleato, 1);
+	TestEqual(TEXT("controllo: nessun rifiuto per piano"), Piano.RifiutiDiPiano, 0);
+
+	// Il caso: lo stesso alleato una piattaforma sopra.
+	const FEsito Sopra = Gioca(1);
+	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
+	TestEqual(TEXT("su un altro piano il ripiego e' dichiarato come prima"), Sopra.RipieghiSullaCella, 1);
+	TestEqual(TEXT("…e accanto c'e' la voce che dice che il colpo sulla cella NON e' partito, e perche'"),
+		Sopra.RifiutiDiPiano, 1);
+	TestEqual(TEXT("…e l'alleato sull'altro piano non perde un punto"), Sopra.DannoAllAlleato, 0);
+	return true;
+}
+
+/**
+ * **Mirando all'altro capo di un ponte, il ponte incassa e chi ci sta sopra no** ([D-509], CP 9.4).
+ *
+ * 🔴 **E' il caso che la prima stesura di [D-509] rompeva, e l'ha trovato la suite intera.** Il danno a un
+ * arco fra due piani nasce, per progetto, da un'azione che dichiara `DamageStructure` e mira all'altro capo:
+ * la coppia (chi tira, mira) identifica l'arco. Annullare a monte l'azione con la mira su un altro piano
+ * spegneva i ponti — sei test rossi, `Structures.Bridge.*` e `Turn.ArcHit*`.
+ *
+ * 🔑 **Le due meta' insieme, perche' ognuna da sola e' la regola sbagliata.** «Il colpo non parte» senza «il
+ * ponte incassa» e' la prima stesura. «Il ponte incassa» senza «il colpo non parte» e' il codice di prima di
+ * [D-509], dove chi stava sul ponte veniva ferito da un piano sotto.
+ *
+ * ⚠️ **Non decide se il ponte DEBBA incassare da un altro piano**: pinna che questa PR non l'ha cambiato. Se
+ * la regola del piano valga anche per cio' che un colpo non e' — strutture, porte, archi — e' la domanda
+ * aperta `VERT-4`; e dall'INTERFACCIA questa mira non si puo' nemmeno dichiarare da [D-393] in poi, che e'
+ * parte della stessa domanda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAcrossABridgeHitsTheBridgeNotTheUnitTest,
+	"RefactorTactics.Combat.Aim.AcrossABridgeTheBridgeIsHitAndTheUnitIsNot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAcrossABridgeHitsTheBridgeNotTheUnitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+	MapActor->MapAsset->AddTransition(Ground, Upper, /*Cost*/ 1, ERTHexTransitionKind::Bridge,
+		/*bBidirectional*/ true);
+
+	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Ground);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Upper);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	const FRTHexEdge* Prima = MapActor->MapAsset ? URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper) : nullptr;
+	if (!TM || !Breacher || !Foe || !TestNotNull(TEXT("premessa: il ponte c'e'"), Prima))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	const int32 IntegritaPrima = Prima->Integrity;
+
+	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza,
+	// come fa `Structures.Bridge.DamagedInPlayedTurn`).
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Foe;
+	const int32 SalutePrima = Foe->Health;
+
+	RunBlastTurn(TM);
+
+	// (1) Il COLPO non parte: e' [D-509].
+	TestEqual(TEXT("chi sta sul ponte, un piano sopra, non perde un punto"), SalutePrima - Foe->Health, 0);
+	TestEqual(TEXT("e il turno dichiara il colpo fermato per piano"), CountPlaneRefusals(TM, Breacher), 1);
+
+	// (2) Il PONTE incassa come prima: e' CP 9.4, e questa PR non lo tocca.
+	const FRTHexEdge* Dopo = URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper);
+	if (TestNotNull(TEXT("il ponte c'e' ancora"), Dopo))
+	{
+		TestEqual(TEXT("e ha incassato il danno alle strutture dell'azione"), IntegritaPrima - Dopo->Integrity, 20);
+	}
+	int32 VociDelPonte = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Environment
+			&& E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::BridgeDamaged))
+		{
+			++VociDelPonte;
+		}
+	}
+	TestEqual(TEXT("con le sue due voci, una per verso"), VociDelPonte, 2);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **Un'azione interrotta che mirava a un altro piano lascia UN motivo, non due** ([D-509]).
+ *
+ * Il rifiuto per piano e' una voce `Fallback`/`Cancelled`, come quelle delle porte: un'azione interrotta nello
+ * stesso Blast ne porterebbe due — annullata da un avversario, e annullata perche' mirava a un altro piano.
+ * `ApplyInterrupts` la toglie dal canale, con la regola che vale gia' per i rifiuti delle porte: vince cio'
+ * che l'ha fermata per primo.
+ *
+ * ⛔ **Il controllo e' la stessa scena senza chi interrompe**: li' la voce di piano c'e'. Senza, «zero voci
+ * di piano» lo darebbe anche un'azione mai partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptedAimAcrossLayersLeavesOneReasonTest,
+	"RefactorTactics.Combat.Aim.InterruptedAimAcrossLayersLeavesOneReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptedAimAcrossLayersLeavesOneReasonTest::RunTest(const FString&)
+{
+	struct FEsito { bool bValido = false; int32 Interrotte = 0; int32 RifiutiDiPiano = 0; };
+	auto Gioca = [](bool bConChiInterrompe) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		const FRTCellId Sopra(1, 0, 1);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Sopra));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Sopra);
+		ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return Out; }
+
+		// `Action.LineAttack`: si cancella se interrotta, come in `Actions.Interrupt.StillCancels…`.
+		const FRTActionDef Linea = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+		if (Linea.InterruptPolicy != ERTInterruptPolicy::InterruptBeforeEffect) { DestroyHexBlastWorld(World); return Out; }
+
+		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+		Attacker->PlannedAttackTarget = Victim; // un piano sopra
+		if (bConChiInterrompe)
+		{
+			Interrupter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+			Interrupter->PlannedAttackTarget = Attacker; // sullo stesso piano, adiacente
+		}
+
+		RunBlastTurn(TM);
+
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Attacker->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted))
+			{
+				++Out.Interrotte;
+			}
+		}
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Attacker);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	const FEsito Sola = Gioca(/*bConChiInterrompe=*/ false);
+	if (!TestTrue(TEXT("banco (senza interruzione), e premessa: l'azione si cancella se interrotta"), Sola.bValido))
+	{
+		return false;
+	}
+	TestEqual(TEXT("controllo: senza interruzione la voce di piano c'e'"), Sola.RifiutiDiPiano, 1);
+	TestEqual(TEXT("controllo: e nessuna voce di interruzione"), Sola.Interrotte, 0);
+
+	const FEsito Interrotta = Gioca(/*bConChiInterrompe=*/ true);
+	if (!TestTrue(TEXT("banco (con interruzione)"), Interrotta.bValido)) { return false; }
+	TestEqual(TEXT("premessa: l'azione e' stata interrotta"), Interrotta.Interrotte, 1);
+	TestEqual(TEXT("un'azione interrotta non porta ANCHE il motivo del piano"), Interrotta.RifiutiDiPiano, 0);
+	return true;
+}
+
+/**
+ * **La conoscenza viene prima del piano: di un'unita' ignota non si dice su che piano sta** ([D-509], CP 13.2).
+ *
+ * 🔴 **Il difetto che la terza review ha trovato nel rifacimento.** Per fermare il colpo senza annullare
+ * l'azione, il piano e' stato messo fra i motivi che il Blast lascia alla raccolta — e il controllo di
+ * conoscenza girava solo quando la geometria rispondeva `None`. ∴ un bersaglio-unita' IGNOTO alla squadra,
+ * su un altro piano, non usciva piu' `TargetUnknown` come prima di [D-509]: usciva «la mira e' su un altro
+ * piano», con la sua cella nella voce. Di un'unita' che la squadra non conosce, e' dire dove sta.
+ *
+ * 🔑 **Le due scene sono identiche tranne il piano del bersaglio**, e l'esito deve essere lo stesso: ignoto.
+ * La scena sullo stesso piano e' anche la premessa — prova che il bersaglio e' DAVVERO ignoto, cioe' che il
+ * banco non sta misurando un bersaglio visto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnknownTargetOnAnotherLayerStaysUnknownTest,
+	"RefactorTactics.Combat.Aim.UnknownTargetOnAnotherLayerStaysUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnknownTargetOnAnotherLayerStaysUnknownTest::RunTest(const FString&)
+{
+	struct FEsito { bool bValido = false; int32 Ignoti = 0; int32 RifiutiDiPiano = 0; int32 Danno = 0; };
+	auto Gioca = [](int32 PianoDelBersaglio) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		// Alle SPALLE di chi tira, oltre la consapevolezza ravvicinata: e' cio' che lo rende ignoto.
+		const FRTCellId Dietro(-5, 0, PianoDelBersaglio);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Dietro));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Dietro);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return Out; }
+		Shooter->Facing = ERTHexDirection::E; // guarda dall'altra parte
+
+		const int32 Prima = Foe->Health;
+		// `Action.LineAttack`: portata dichiarata dal catalogo, cosi' il bersaglio e' a tiro e la portata
+		// non c'entra.
+		Shooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Shooter, TEXT("Action.LineAttack"));
+		Shooter->PlannedAttackTarget = Foe;
+
+		RunBlastTurn(TM);
+
+		Out.Danno = Prima - Foe->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Shooter->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetUnknown))
+			{
+				++Out.Ignoti;
+			}
+		}
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Shooter);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	// La premessa: sullo stesso piano il bersaglio alle spalle e' ignoto, e l'azione esce per quello.
+	const FEsito SulPiano = Gioca(0);
+	if (!TestTrue(TEXT("banco (stesso piano)"), SulPiano.bValido)) { return false; }
+	if (!TestEqual(TEXT("premessa: il bersaglio alle spalle e' IGNOTO alla squadra"), SulPiano.Ignoti, 1))
+	{
+		return false; // senza la premessa il caso misurerebbe un bersaglio visto
+	}
+	TestEqual(TEXT("premessa: e non viene ferito"), SulPiano.Danno, 0);
+
+	// Il caso: lo stesso bersaglio ignoto, una piattaforma sopra.
+	const FEsito Sopra = Gioca(1);
+	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
+	TestEqual(TEXT("un bersaglio ignoto su un altro piano resta IGNOTO"), Sopra.Ignoti, 1);
+	TestEqual(TEXT("…e il turno NON dice che sta su un altro piano"), Sopra.RifiutiDiPiano, 0);
+	TestEqual(TEXT("…e non viene ferito"), Sopra.Danno, 0);
 	return true;
 }
 

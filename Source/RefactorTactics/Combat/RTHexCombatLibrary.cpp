@@ -575,6 +575,35 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				continue;
 			}
 		}
+		// ➕ **IL PIANO, PRIMA DELLA LINEA DI TIRO** ([D-393], [D-509], `#2951`): un colpo resta sul `Layer` di
+		// chi lo tira. Un intento d'attacco che mira a un altro piano non produce colpi ne' impronta, e
+		// finisce in un canale suo: il chiamante ne fa una voce col motivo giusto.
+		//
+		// 🔴 **Fino al 2026-10-13 questa funzione il `Layer` non lo guardava.** `HexArea(Target, R)` scrive il
+		// piano del CENTRO e `Single` investe la cella mirata, quindi un intento fra piani colpiva chi stava
+		// la'; `HexLine(From, Target)` scrive il piano del TIRATORE, quindi `Line` mancava senza un motivo.
+		// Tre forme, due esiti, nessuno dei due deciso.
+		//
+		// 🔑 **DOPO strutture e porte, come la linea di tiro qui sotto, e per la stessa ragione**: cio' che
+		// si ferma e' il colpo. Il danno a una struttura e l'ordine a una porta sono gia' nel piano, e il
+		// danno agli ARCHI lo raccoglie il chiamante leggendo gli intenti — e' cosi' che si scalfisce un
+		// ponte fra due piani, mirando all'altro capo (CP 9.4). ⚠️ La prima stesura di [D-509] scartava
+		// l'intento piu' in alto e annullava l'azione a monte: spegneva i ponti, e l'hanno trovato sei test
+		// della suite intera. Se anche quegli effetti debbano rispettare il piano e' una domanda aperta
+		// (`VERT-4`), non una conseguenza di questa riga.
+		//
+		// ⚠️ **Solo gli intenti che si dichiarano ATTACCO.** Un'azione non aggressiva non ha un colpo da
+		// fermare: segue il percorso di sempre, qui sotto, senza guadagnare una voce che direbbe «annullata»
+		// di un'azione che ha fatto il suo lavoro.
+		//
+		// ⚠️ E PRIMA della linea di tiro: e' l'ordine di `ClassifyHexTargeting` — portata, piano, linea — e fra
+		// due piani una «linea di tiro bloccata» non descrive niente che chi gioca possa correggere.
+		if (Intent.bCountsAsAttack && !URTCombatLibrary::OnSamePlane(Attacker.Cell, AimCell))
+		{
+			Plan.OtherLayerIntents.Add(IntentIdx);
+			continue;
+		}
+
 		// ➕ **LA LICENZA DELL'AZIONE, LETTA DALLO STESSO DATO DEL PLANNING** (`#2870`, [D-378]).
 		//
 		// 🔑 **E' l'estremo che rende UNA la semantica.** `ClassifyHexTargeting` ha gia' posto la stessa
@@ -683,6 +712,8 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	// ciclo chiamante e non per una garanzia. Un secondo produttore che raccogliesse fuori ordine renderebbe
 	// non deterministica la sequenza delle voci nella traccia archiviata.
 	Plan.DoorlessIntents.Sort();
+	// Stessa rete, stesso motivo: le voci di rifiuto per piano finiscono nel TurnLog ([D-509]).
+	Plan.OtherLayerIntents.Sort();
 	// Stesso ordine canonico e per la stessa ragione: le voci di rifiuto finiscono nel TurnLog, e un ordine
 	// che dipendesse dalla raccolta renderebbe il replay non riproducibile.
 	Plan.DoorToggleRefusals.Sort([](const FRTDoorToggleRefusal& A, const FRTDoorToggleRefusal& B)

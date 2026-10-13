@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-13 — `D-509`: la regola del piano vale per ogni colpo
+
+**Origine**: la decisione d'autore su `VERT-3`, entrata col lavoro di [#2951](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2951).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-509`, nuova: che cosa è un colpo, come entra, la prima stesura sbagliata e chi l'ha trovata, le scelte dell'implementazione da confermare, il costo corretto rispetto all'opzione. `D-393` annotata: il drift è chiuso |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `VERT-3` chiusa, barrata con l'esito. `VERT-4` nuova: la regola del piano per la cura ad area, le azioni ambientali e il danno a strutture e ponti, con le misure e un conflitto letto — da `D-393` un ponte fra due piani non si danneggia né si getta più dall'interfaccia |
+| [`technical/architecture/spec-turnlog.md`](technical/architecture/spec-turnlog.md) | sezione nuova: le voci `Fallback` con `OtherLayer`, i loro due produttori, che cosa vuol dire «annullato» quando la stessa azione scalfisce un ponte, e il test che fissa nome e numero dei motivi |
+| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §3.3, nuova: chi cade perde il colpo predittivo che aveva armato |
+| [`gameplay/spec-reazioni-componibili-cp55.md`](gameplay/spec-reazioni-componibili-cp55.md) | §8.1: l'interposizione chiede lo stesso piano di chi attacca |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-INTERCEPT`: una nota in coda sulla precondizione. Nessuna voce nuova, totali invariati |
+| [`roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md`](roadmap/plans/sequenza-chiusura-v01-spec-panel-2026-10-09.md) | §4, punto 5: `D-509` è entrata, `VERT-4` resta aperta |
+
+---
+
 ## 2026-10-13 — La tinta dei volumi: il giudizio dell'autore
 
 **Origine**: [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706), seduta `U86`. L'autore ha giudicato le tavole delle catture: la forza della tinta resta 0,25, e la issue si chiude.

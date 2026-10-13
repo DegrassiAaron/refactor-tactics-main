@@ -1,5 +1,6 @@
 #include "Bot/RTHexBotLibrary.h"
 #include "UObject/ObjectKey.h" // FObjectKey: identita' d'asset che sopravvive al riuso d'indirizzo
+#include "Combat/RTCombatLibrary.h" // OnSamePlane: il predicato del piano ha una definizione sola ([D-509])
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -30,7 +31,8 @@ namespace
 	 */
 	bool SamePlane(const FRTCellId& A, const FRTCellId& B)
 	{
-		return A.Layer == B.Layer;
+		// [D-509]: il nome resta locale, la definizione no — e' quella che la risoluzione usa.
+		return URTCombatLibrary::OnSamePlane(A, B);
 	}
 
 	/**
@@ -943,6 +945,13 @@ int32 URTHexBotLibrary::ScoreReaction(const URTHexMapAsset* Map, const FRTAction
 		for (const FRTCellId& Ally : Context.Allies)
 		{
 			if (URTHexLibrary::HexDistance(Context.Origin, Ally) > Def.RangeCells)
+			{
+				continue;
+			}
+			// [D-509]: da un altro piano non ci si interpone — `FindInterceptableHit` lo rifiuta, e
+			// `HexDistance` qui sopra non lo vede (ignora il `Layer`). Senza questa riga il bot armerebbe
+			// un'interposizione per un alleato che sta esattamente sotto di lui, e non scatterebbe mai.
+			if (!SamePlane(Context.Origin, Ally))
 			{
 				continue;
 			}

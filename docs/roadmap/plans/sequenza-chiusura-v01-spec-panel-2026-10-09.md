@@ -439,6 +439,12 @@ numero di decisione**. Nessuna resta `OPEN` al freeze.
    preceduta ha misurato che la regola del piano di `D-393` vale in pianificazione e non in risoluzione:
    è la voce `VERT-3` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), e se la risposta è «ogni colpo»
    tocca `Source/` e il formato del TurnLog, quindi entra prima del freeze.*
+   ➕ *Lo stesso giorno l'autore ha risposto «ogni colpo»: è `D-509`, ed è entrata prima del freeze col
+   lavoro di `#2951`. Il formato del TurnLog non ha cambiato versione — il motivo nuovo è in coda — e il
+   corpus golden non è stato rigenerato. La review e la suite intera hanno aperto `VERT-4`: la stessa regola
+   per ciò che un colpo non è — la cura ad area, le azioni ambientali, il danno a strutture e ponti. Una
+   di queste è già un difetto: da `D-393` un ponte fra due piani non si può più danneggiare dall'interfaccia,
+   e nemmeno gettare.*
 
 🔑 **L'ultimo merge di quest'onda è il candidate v2.** Non si congela prima: ogni commit qui
 invalida ciò che l'Onda 3 misura.

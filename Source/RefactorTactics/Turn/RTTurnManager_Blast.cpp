@@ -963,7 +963,16 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// regge, per la stessa ragione per cui `ValidateInstance` mette la portata prima della copertura: il
 		// motivo scritto nel log dev'essere quello che chi gioca deve correggere. «Non lo vedi» detto a chi
 		// era comunque fuori portata sposterebbe l'attenzione sul difetto sbagliato.
-		if (Reason == ERTActionInvalidReason::None && Instance.TargetUnitId != INDEX_NONE
+		//
+		// [D-509] — **IL PIANO NON E' UNA RAGIONE PER SALTARLA.** Portata e copertura si dicono anche a chi
+		// non conosce il bersaglio, ed e' la regola qui sopra, che resta com'e'. Il piano no, per due
+		// ragioni. La prima: prima di [D-509] un bersaglio-unita' su un altro piano arrivava qui con
+		// `None`, e usciva `TargetUnknown` o diventava la cella del ricordo — lasciarlo passare cambierebbe
+		// cio' che la regola del piano non doveva toccare. La seconda: «e' su un altro piano», detto di
+		// un'unita' che la squadra non conosce, dice DOVE sta. Trovato dalla terza review indipendente.
+		const bool bLaGeometriaLasciaDecidereLaConoscenza = Reason == ERTActionInvalidReason::None
+			|| Reason == ERTActionInvalidReason::OtherLayer;
+		if (bLaGeometriaLasciaDecidereLaConoscenza && Instance.TargetUnitId != INDEX_NONE
 			&& HexUnits.IsValidIndex(Instance.TargetUnitId))
 		{
 			const FRTTeamKnowledge Knowledge = KnowledgeForTeam(Unit->TeamId);
@@ -986,6 +995,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				{
 					Instance.TargetUnitId = INDEX_NONE;
 					Instance.TargetCell = Remembered;
+					// [D-509]: se `Reason` era `OtherLayer` resta tale, e non importa — e' fra i motivi che
+					// il Blast lascia alla raccolta, quindi nessun fallback parte. La mira e' ora la cella
+					// ricordata, e il suo piano lo giudica la raccolta come ogni altra geometria di un
+					// colpo a cella.
 					// Nessuna rivalidazione qui: `ValidateInstance` su un bersaglio-cella risponde sempre
 					// `None` per costruzione. Portata e linea di tiro sulla cella ricordata le verifica
 					// `CollectHexAttacks`, che e' l'owner della geometria dei colpi a cella.
@@ -1006,8 +1019,17 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// La copertura NON passa di qui: la registra il piano del Blast col suo reason code (NoLineOfSight), e
 		// con la traiettoria bloccata nemmeno un'area potrebbe partire — applicarle `AttackCell` significherebbe
 		// colpire attraverso il muro. Stesso discorso per la mappa assente, che e' un difetto del livello.
+		//
+		// [D-509] — **E NEMMENO IL PIANO.** Una mira fra piani ferma il COLPO, e lo ferma la raccolta, che
+		// prima ha gia' raccolto strutture e porte: e' la stessa forma del muro alto. Applicare qui un
+		// fallback annullerebbe l'azione intera — e con lei il danno a un ponte fra due piani, che nasce
+		// proprio da un'azione che mira all'altro capo dell'arco (CP 9.4). La voce la scrive
+		// `LogBlockedIntents`, dal canale `OtherLayerIntents`, per il bersaglio-unita' come per quello a
+		// cella: a un bersaglio-cella `ValidateInstance` risponde `None` per costruzione, e la raccolta ne
+		// e' l'owner.
 		const bool bHandledByPlan = Reason == ERTActionInvalidReason::NoLineOfSight
-			|| Reason == ERTActionInvalidReason::NoMap;
+			|| Reason == ERTActionInvalidReason::NoMap
+			|| Reason == ERTActionInvalidReason::OtherLayer;
 
 		if (Reason != ERTActionInvalidReason::None && !bHandledByPlan)
 		{
@@ -1568,6 +1590,14 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return InterruptedIntents.Contains(IntentIdx);
 	});
 
+	// E lo stesso per i rifiuti di PIANO ([D-509]): anche quelli sono voci `Fallback`/`Cancelled`, e
+	// un'azione interrotta ne porterebbe due — annullata da un avversario, e annullata perche' mirava a un
+	// altro piano. Vale la ragione scritta qui sopra: vince cio' che l'ha fermata per primo.
+	Plan.OtherLayerIntents.RemoveAll([&InterruptedIntents](int32 IntentIdx)
+	{
+		return InterruptedIntents.Contains(IntentIdx);
+	});
+
 	// 🔴 **E lo stesso per i rifiuti di commutazione** ([`INT-7`], `#2380`): un `Interact` su una porta
 	// `Locked`, interrotto nello stesso Blast, lascerebbe nel TurnLog sia `Interrupted` sia
 	// `Fallback/Cancelled` con `DoorLocked`. Vale la ragione scritta qui sopra parola per parola — quando due
@@ -1871,6 +1901,42 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 			*Units[Blocked.AttackerId]->GetName(),
 			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")),
 			FRTLogSubject::Unit(Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId] : nullptr));
+	}
+
+	// IL PIANO ([D-393], [D-509], `#2951`): intenti d'attacco che la raccolta ha fermato perche' la mira sta su
+	// un `Layer` diverso da quello di chi tira. Il colpo non parte, e il turno lo dice col suo motivo.
+	//
+	// 🔑 **`Fallback`/`Cancelled` con `OtherLayer`, e non `Combat` con `NoLineOfSight`**: fra chi tira e il
+	// bersaglio non c'e' nessun muro, e dirlo manderebbe chi legge a cercarne uno. E' la ragione per cui i
+	// due pass qui sotto hanno un canale e un motivo propri.
+	//
+	// ⚠️ **«Annullata» vale per il COLPO.** Un'azione che dichiara anche un danno alle strutture puo' aver
+	// scalfito un ponte nello stesso Blast — e' il modo in cui un ponte si scalfisce, CP 9.4 — e la sua voce
+	// `BridgeDamaged` sta accanto a questa. Limite dichiarato in [D-509]: la famiglia `Fallback` non ha un
+	// esito per «il colpo no, il resto si'».
+	for (const int32 RefusedIdx : Plan.OtherLayerIntents)
+	{
+		if (!Intents.IsValidIndex(RefusedIdx)) { continue; }
+		const FRTHexAttackIntent& Refused = Intents[RefusedIdx];
+		if (!HexUnits.IsValidIndex(Refused.AttackerId)) { continue; }
+
+		FRTTurnLogEntry OtherPlane;
+		OtherPlane.Phase = ERTMatchPhase::Blast;
+		OtherPlane.Category = ERTLogCategory::Fallback;
+		OtherPlane.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		OtherPlane.SrcCell = HexUnits[Refused.AttackerId].Cell;
+		// La MIRA, cioe' `TargetCell`: e' la cella congelata al lock-in ([D-415]) e la stessa che la raccolta
+		// ha confrontato col piano di chi tira. La cella viva del bersaglio sarebbe un altro dato.
+		OtherPlane.TgtCell = Refused.TargetCell;
+		OtherPlane.Amount = static_cast<int32>(ERTActionInvalidReason::OtherLayer);
+		if (IntentDefs.IsValidIndex(RefusedIdx))
+		{
+			OtherPlane.ActionId = IntentDefs[RefusedIdx].ActionId;
+			OtherPlane.BaseActionId = IntentDefs[RefusedIdx].BaseActionId;
+			OtherPlane.Priority = IntentDefs[RefusedIdx].Priority;
+		}
+		// Nessun `AddLogEvent`: `ConcludeTurn` deriva la riga leggibile da questa voce (`#1412`).
+		AppendLogEntry(OtherPlane, Units.IsValidIndex(Refused.AttackerId) ? Units[Refused.AttackerId] : nullptr);
 	}
 
 	// Interazioni dichiarate su un bordo dove non c'e' nessuna porta (CP 10.1, `#74`).

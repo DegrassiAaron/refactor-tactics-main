@@ -623,4 +623,113 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Da un altro piano non ci si interpone** ([D-393], [D-509], `#2951`).
+ *
+ * 🔴 **Misurato prima di essere corretto, il 2026-10-13**: sul banco di `Reactions.Intercept`, con
+ * l'intercettore spostato una piattaforma sopra, l'interposizione scattava e l'intercettore su `L1` incassava
+ * il colpo pieno destinato all'alleato su `L0`. `FindInterceptableHit` misurava la vicinanza con
+ * `HexDistance`, che ignora il `Layer`: chi sta esattamente sopra l'alleato dista zero.
+ *
+ * 🔑 **E' una decisione d'autore, non una correzione ovvia**: [D-393] chiudeva la mira e delle reazioni diceva
+ * che sono «una conseguenza da dichiarare, non un'estensione da dedurre». L'ha dichiarata [D-509]: la regola
+ * del piano vale per ogni colpo, e un colpo deviato e' un colpo.
+ *
+ * ⛔ **Il controllo positivo sta sulla STESSA mappa**, con la piattaforma gia' aggiunta: se l'interposizione
+ * smettesse di scattare per un'altra ragione — la cella in piu', la linea di tiro — il caso sarebbe verde per
+ * la ragione sbagliata, e solo il controllo lo direbbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptNotAcrossLayersTest,
+	"RefactorTactics.Reactions.Intercept.NotAcrossLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
+{
+	// ── La funzione pura: l'unica variabile e' il `Layer` di chi intercetta. ─────────────────────────────
+	{
+		URTHexMapAsset* Map = MakeItcMapAsset(6);
+		Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 1)));
+		Map->SortCells();
+
+		const FItcScene SulPiano(ERTAbilityShape::Single, FRTCellId(1, 0, 0));
+		TestEqual(TEXT("puro — controllo: sullo stesso piano il colpo e' intercettabile"),
+			URTReactionLibrary::FindInterceptableHit(/*SelfId*/ 2, /*Range*/ 2, SulPiano.Hits, SulPiano.Intents,
+				SulPiano.Units, Map, TSet<int32>()), 0);
+
+		const FItcScene Sopra(ERTAbilityShape::Single, FRTCellId(1, 0, 1));
+		TestEqual(TEXT("puro — una piattaforma sopra, stessa colonna: nessun colpo intercettabile"),
+			URTReactionLibrary::FindInterceptableHit(/*SelfId*/ 2, /*Range*/ 2, Sopra.Hits, Sopra.Intents,
+				Sopra.Units, Map, TSet<int32>()), static_cast<int32>(INDEX_NONE));
+
+		// Esattamente SOPRA l'alleato: distanza esagonale zero, cioe' il caso in cui la sola vicinanza
+		// risponde «vicinissimo».
+		const FItcScene SopraLaVittima(ERTAbilityShape::Single, FRTCellId(0, 0, 1));
+		TestEqual(TEXT("puro — esattamente sopra l'alleato (distanza 0): nessun colpo intercettabile"),
+			URTReactionLibrary::FindInterceptableHit(/*SelfId*/ 2, /*Range*/ 2, SopraLaVittima.Hits,
+				SopraLaVittima.Intents, SopraLaVittima.Units, Map, TSet<int32>()), static_cast<int32>(INDEX_NONE));
+	}
+
+	// ── Il turno risolto: la stessa scena di `Reactions.Intercept`, col solo piano di chi intercetta. ────
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 Attivate = 0;
+		int32 NonScattate = 0;
+		int32 DannoVittima = 0;
+		int32 DannoIntercettore = 0;
+	};
+	auto Gioca = [](int32 PianoDiChiIntercetta) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeItcWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnItcMap(World);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 1))); // la piattaforma, in entrambe le partite
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(4, 0));
+		if (Attacker) { Attacker->Facing = ERTHexDirection::W; } // CP 13.2: si spara a cio' che si vede
+		ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0, PianoDiChiIntercetta));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Attacker || !Victim || !Saver || !TM) { DestroyItcWorld(World); return Out; }
+
+		Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
+		Saver->PlannedAbilityIndex = INDEX_NONE;
+
+		const int32 VictimHealth = Victim->Health;
+		const int32 SaverHealth = Saver->Health;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Victim;
+
+		RunItcTurn(TM);
+
+		Out.Attivate = CountInterceptOutcome(TM, ERTReactionOutcome::Activated);
+		Out.NonScattate = CountInterceptOutcome(TM, ERTReactionOutcome::NotTriggered);
+		Out.DannoVittima = VictimHealth - Victim->Health;
+		Out.DannoIntercettore = SaverHealth - Saver->Health;
+		Out.bValido = true;
+		DestroyItcWorld(World);
+		return Out;
+	};
+
+	const FEsito SulPiano = Gioca(0);
+	if (!TestTrue(TEXT("banco (stesso piano)"), SulPiano.bValido)) { return false; }
+	TestEqual(TEXT("controllo: sullo stesso piano l'interposizione scatta"), SulPiano.Attivate, 1);
+	TestEqual(TEXT("controllo: e non c'e' una voce di reazione non scattata"), SulPiano.NonScattate, 0);
+	TestEqual(TEXT("controllo: e la vittima non incassa niente"), SulPiano.DannoVittima, 0);
+	TestEqual(TEXT("controllo: il colpo pieno lo prende chi intercetta"), SulPiano.DannoIntercettore, ItcFullHit());
+
+	const FEsito Sopra = Gioca(1);
+	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
+	TestEqual(TEXT("da una piattaforma l'interposizione NON scatta"), Sopra.Attivate, 0);
+	// La reazione era PRONTA e non ha avuto un trigger: lascia la voce di sempre, la stessa di quando
+	// l'alleato e' troppo lontano. Non e' un silenzio — e non porta un motivo, perche' quell'esito non ne
+	// ha. La prima stesura di [D-509] scriveva «nessuna voce»: era falso, e lo ha trovato la review.
+	TestEqual(TEXT("…e lascia la voce Reaction/NotTriggered, come ogni reazione pronta senza trigger"),
+		Sopra.NonScattate, 1);
+	TestEqual(TEXT("chi sta sulla piattaforma non incassa"), Sopra.DannoIntercettore, 0);
+	TestEqual(TEXT("e l'alleato a terra prende il colpo pieno"), Sopra.DannoVittima, ItcFullHit());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

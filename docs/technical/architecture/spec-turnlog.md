@@ -490,6 +490,44 @@ lo prende il soggetto, ed è lo stesso limite che `#1430` registra per `RearHitB
 stesso turno producono due `Hit`, e l'effetto di gioco è deduplicato da un `TSet`. Senza la stessa guardia
 sulla traccia, il record direbbe che l'unica azione della vittima è stata cancellata due volte.
 
+### La mira su un altro piano ([D-509](../../decisions/RT_PDR_00_Decision_Log.md), `#2951`)
+
+La regola del piano vale per ogni colpo, e in risoluzione un colpo con la mira su un altro piano **non parte
+e lo dichiara**. Il motivo è `ERTActionInvalidReason::OtherLayer`, e viaggia in `Amount` come gli altri. Non
+è `ERTHexTargetReason::OtherLayer`: quello è una classificazione di pianificazione e nel TurnLog non entra
+([D-393](../../decisions/RT_PDR_00_Decision_Log.md) punto 5, pinnato da `Meta.TargetingRefusalStaysOutOfCanonicalState`).
+
+| Produttore | Come si legge |
+|---|---|
+| **Colpo del Blast con la mira su un altro piano** — bersaglio-unità, bersaglio a cella o cella di un ripiego `AttackCell`. Lo ferma `CollectHexAttacks` (`OtherLayerIntents`), lo scrive `LogBlockedIntents` | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione, `SrcCell` = chi tira, `TgtCell` = la mira congelata al lock-in. `UnitId` = chi tira |
+| **Colpo predittivo di chi ha cambiato piano** dopo aver armato (`ResolvePredictiveBoundary`) | `Category=Fallback`, **`Phase=Move`**, `Outcome=Cancelled`, **`Amount=OtherLayer`**, identità completa dell'azione armata, `SrcCell` = dove sta il tiratore **dopo** la caduta, `TgtCell` = la cella bloccata. `UnitId` = il tiratore. **Nessuna voce `Predictive`**: non è un `PredictionWhiffed`, che direbbe che nessuno è entrato |
+
+⚠️ **«Annullato» è il colpo, non l'azione.** Nel Blast il piano si comporta come la linea di tiro: la
+raccolta ferma il colpo **dopo** aver raccolto strutture e porte, e il danno agli archi legge gli intenti.
+Un'azione che mira all'altro capo di un ponte fra due piani lascia quindi questa voce **e** le sue
+`BridgeDamaged`: il ponte incassa, chi ci sta sopra no. La famiglia `Fallback` non ha un esito per «il colpo
+no, il resto sì», e `Cancelled` qui va letto così.
+
+⚠️ **Un ripiego `AttackCell` verso un altro piano lascia due voci**, entrambe vere: `AttackedCell` col motivo
+che ha fatto perdere il bersaglio, e questa per il colpo sulla cella che non parte. È la stessa coppia di un
+ripiego fermato da un muro.
+
+⚠️ **La conoscenza viene prima del piano.** Un bersaglio-unità che la squadra non conosce lascia
+`TargetUnknown` anche quando sta su un altro piano, come prima di `D-509`: dire «su un altro piano» di
+un'unità ignota direbbe dove sta. Pinnato da `Combat.Aim.UnknownTargetOnAnotherLayerStaysUnknown`.
+
+⚠️ **Un'azione interrotta che mirava a un altro piano lascia il solo `Interrupted`**: esce dal canale del piano
+come dai rifiuti delle porte. Pinnato da `Combat.Aim.InterruptedAimAcrossLayersLeavesOneReason`.
+
+⚠️ **L'interposizione che non scatta per il piano non produce questo motivo**: lascia `Reaction`/`NotTriggered`,
+la stessa voce di quando l'alleato è troppo lontano. Quell'esito non porta un motivo.
+
+⚠️ **`OtherLayer` è in coda all'enum, come `Interrupted` qui sopra**, e la versione del formato non cambia: le
+tracce già scritte si leggono come prima. Da questa voce la regola non è più solo scritta:
+`Actions.Fallback.InvalidReasonValuesAreAppendOnly` fissa **nome e numero** di ogni motivo, in ordine. Un test
+coi soli nomi simbolici resta verde dopo una rinumerazione — è il modo in cui la prima stesura di D-196 era
+passata.
+
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
 `#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il

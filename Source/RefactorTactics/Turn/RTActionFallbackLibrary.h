@@ -224,7 +224,45 @@ enum class ERTActionInvalidReason : uint8
 	 * motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il
 	 * significato di ogni traccia gia' archiviata che ne porti uno successivo.
 	 */
-	Stunned
+	Stunned,
+
+	/**
+	 * La mira sta su un `Layer` diverso da quello di chi tira: **la regola del piano vale per ogni colpo**,
+	 * non solo per la mira ([D-393], [D-509], `#2951`).
+	 *
+	 * 🔑 **E' il gemello di RISOLUZIONE di `ERTHexTargetReason::OtherLayer`.** Quello e' una classificazione
+	 * di pianificazione e nel TurnLog non entra ([D-393] punto 5, pinnato da
+	 * `Meta.TargetingRefusalStaysOutOfCanonicalState`); questo e' il motivo con cui un colpo arrivato fino
+	 * alla risoluzione con una mira fra piani **non parte e lo dichiara**. Fino a [D-509]
+	 * `ValidateInstance` leggeva il verdetto del classificatore riconoscendone UN solo valore, e questo
+	 * cadeva nel ramo «valido»: `Single` e `Area` colpivano fra piani, `Line` mancava senza una voce.
+	 *
+	 * ⛔ **Non e' `OutOfRange`**, per la ragione scritta su `ERTHexTargetReason::OtherLayer`: `HexDistance`
+	 * ignora il `Layer`, e «fuori portata» direbbe di avvicinarsi a una cosa che nessun avvicinamento
+	 * sistema. Il rimedio e' cambiare piano, e si cambia piano MUOVENDOSI.
+	 *
+	 * 🔑 **Si comporta come `NoLineOfSight`, non come gli altri motivi.** Il Blast non applica un fallback:
+	 * lo lascia alla raccolta dei colpi, che ferma il COLPO (`FRTHexBlastPlan::OtherLayerIntents`) e lascia
+	 * proseguire cio' che un colpo non e' — il danno a una struttura, l'ordine a una porta, il danno a un
+	 * arco. E' la forma che il muro alto aveva gia': ferma il tiro, e resta l'unico bersaglio possibile.
+	 * ⚠️ Non e' un dettaglio: il danno a un PONTE fra due piani nasce, per progetto (CP 9.4), da un'azione
+	 * che mira all'altro capo dell'arco. Annullare l'azione intera lo spegnerebbe — la prima stesura di
+	 * [D-509] lo faceva, e l'hanno trovato sei test della suite intera.
+	 *
+	 * Due produttori: il Blast, per ogni intento d'attacco che la raccolta ferma per piano
+	 * (`ARTTurnManager::LogBlockedIntents`), e il boundary predittivo
+	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara).
+	 * ⛔ Non lo produce l'interposizione: la reazione che non scatta lascia la voce di sempre,
+	 * `Reaction`/`NotTriggered` — la stessa di quando l'alleato e' troppo lontano — e quell'esito non porta
+	 * un motivo. E non lo produce cio' che un colpo non e' — la cura, `ModifyArc`, le azioni ambientali:
+	 * per loro la domanda e' aperta (`VERT-4` in `docs/OPEN_DECISIONS.md`).
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked`, `Stunned` e le altre
+	 * prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo
+	 * riscrive il significato di ogni traccia gia' archiviata che ne porti uno successivo. In coda il
+	 * formato serializzato non cambia versione, e le tracce gia' scritte si leggono come prima.
+	 */
+	OtherLayer
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */
@@ -262,8 +300,10 @@ class REFACTORTACTICS_API URTActionFallbackLibrary : public UBlueprintFunctionLi
 public:
 	/**
 	 * Perche' l'istanza non e' piu' eseguibile, valutata sullo stato CONGELATO della fase (invariante #3).
-	 * Ordine dei controlli: esistenza -> vita -> squadra -> portata -> linea di tiro. E' l'ordine in cui i
-	 * motivi si escludono a vicenda, e da esso dipende quale reason code finisce nel log.
+	 * Ordine dei controlli: esistenza -> vita -> squadra -> portata -> piano -> linea di tiro. E' l'ordine
+	 * in cui i motivi si escludono a vicenda, e da esso dipende quale reason code finisce nel log. Il piano
+	 * sta fra portata e linea di tiro perche' e' li' che lo mette `ClassifyHexTargeting`: la risoluzione
+	 * pone la domanda della pianificazione nello stesso ordine ([D-509]).
 	 *
 	 * Le azioni senza bersaglio (movimento, supporto su se stessi) sono sempre valide qui: il loro esito lo
 	 * decide il resolver del movimento, non la geometria del tiro.

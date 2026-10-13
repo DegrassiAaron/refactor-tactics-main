@@ -105,6 +105,13 @@ struct FRTArmedPrediction
 	UPROPERTY()
 	int32 Damage = 0;
 
+	/**
+	 * Priorita' dichiarata dall'azione che ha armato. Serve alla voce di RIFIUTO ([D-509]): ogni produttore
+	 * `Fallback` scrive la tripla completa ([D-196]), e al boundary l'azione non c'e' piu' per chiederla.
+	 */
+	UPROPERTY()
+	int32 Priority = 0;
+
 	FRTArmedPrediction() = default;
 };
 
