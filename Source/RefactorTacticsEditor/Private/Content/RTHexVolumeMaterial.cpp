@@ -24,6 +24,7 @@ const TCHAR* const RTHexVolumeMaterial::PinDesaturation = TEXT("Desaturation");
 const TCHAR* const RTHexVolumeMaterial::PinExposureStops = TEXT("ExposureStops");
 const TCHAR* const RTHexVolumeMaterial::PinTintStrength = TEXT("TintStrength");
 const TCHAR* const RTHexVolumeMaterial::CustomDescription = TEXT("HexVolumeColor");
+const TCHAR* const RTHexVolumeMaterial::OutputSpecular = TEXT("Specular");
 const TCHAR* const RTHexVolumeMaterial::DitherFunctionPath =
 	TEXT("/Engine/Functions/Engine_MaterialFunctions02/Utility/DitherTemporalAA.DitherTemporalAA");
 const TCHAR* const RTHexVolumeMaterial::DitherInputName = TEXT("Alpha Threshold");
@@ -38,7 +39,10 @@ FString RTHexVolumeMaterial::CustomCode()
 	Code += TEXT("// 2. La tinta del piano, DOPO la desaturazione: e' il colore che dice la relazione, e la desaturazione lo cancellerebbe.\n");
 	Code += TEXT("Body = lerp(Body, Tint.rgb, saturate(TintStrength));\n");
 	Code += TEXT("// 3. La luce di D-501, PER ULTIMA: lo scurimento di un piano sotto vale per tutto il volume, tinta compresa.\n");
-	Code += TEXT("return saturate(Body * exp2(ExposureStops));");
+	Code += TEXT("float Light = exp2(ExposureStops);\n");
+	Code += TEXT("// 4. E vale per il riflesso: senza, un volume scurito terrebbe il riflesso pieno e a schermo risulterebbe piu' chiaro.\n");
+	Code += FString::Printf(TEXT("%s = %s * saturate(Light);\n"), OutputSpecular, *FString::SanitizeFloat(BaseSpecular));
+	Code += TEXT("return saturate(Body * Light);");
 	return Code;
 }
 
@@ -148,6 +152,13 @@ bool RTHexVolumeMaterial::BuildGraph(UMaterial* Material)
 		Input.Input.Connect(0, Pin.From);
 		Custom->Inputs.Add(Input);
 	}
+	// L'uscita in piu': il riflesso. Le uscite del nodo si ricostruiscono a mano, perche' qui non passa `PostEditChangeProperty`.
+	Custom->AdditionalOutputs.Reset();
+	FCustomOutput Riflesso;
+	Riflesso.OutputName = FName(OutputSpecular);
+	Riflesso.OutputType = CMOT_Float1;
+	Custom->AdditionalOutputs.Add(Riflesso);
+	Custom->RebuildOutputs();
 
 	// La maschera: `DitherTemporalAA(1 - trasparenza)`, come `M_HexCell`. A trasparenza zero la maschera vale 1 e il
 	// volume e' pieno; a 0,65 ne restano il 35% dei pixel, e l'antialiasing temporale li fonde.
@@ -176,15 +187,21 @@ bool RTHexVolumeMaterial::BuildGraph(UMaterial* Material)
 	Soglia->Input.Connect(0, Opacity);
 
 	UMaterialEditingLibrary::ConnectMaterialProperty(Custom, TEXT(""), MP_BaseColor);
+	if (!UMaterialEditingLibrary::ConnectMaterialProperty(Custom, OutputSpecular, MP_Specular))
+	{
+		UE_LOG(LogRTHexVolumeMaterial, Error, TEXT("l'uscita %s del nodo Custom non si collega al riflesso."), OutputSpecular);
+		return false;
+	}
 	UMaterialEditingLibrary::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
 	UMaterialEditingLibrary::ConnectMaterialProperty(Dither, TEXT(""), MP_OpacityMask);
 
 	// 🔴 `ConnectMaterialProperty` collega e NON spegne la costante in linea del pin: con `UseConstant` acceso il
 	// traduttore compila la costante e il nodo collegato non viene letto, senza errori. E' il difetto che ha tenuto
-	// opachi i piani sopra da #3679 a #3704 (`M_HexCell`), ed era proprio sulla maschera. Qui si spegne su tutti e tre.
+	// opachi i piani sopra da #3679 a #3704 (`M_HexCell`), ed era proprio sulla maschera. Qui si spegne su tutti e quattro.
 	if (UMaterialEditorOnlyData* Dati = Material->GetEditorOnlyData())
 	{
 		Dati->BaseColor.UseConstant = false;
+		Dati->Specular.UseConstant = false;
 		Dati->Roughness.UseConstant = false;
 		Dati->OpacityMask.UseConstant = false;
 	}

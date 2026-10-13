@@ -105,8 +105,8 @@ namespace
 			}
 		}
 
-		// Le tre uscite: collegate, e con la costante in linea SPENTA (la lezione di `M_HexCell`, #3704).
-		const EMaterialProperty Uscite[] = { MP_BaseColor, MP_Roughness, MP_OpacityMask };
+		// Le quattro uscite: collegate, e con la costante in linea SPENTA (la lezione di `M_HexCell`, #3704).
+		const EMaterialProperty Uscite[] = { MP_BaseColor, MP_Specular, MP_Roughness, MP_OpacityMask };
 		for (const EMaterialProperty Uscita : Uscite)
 		{
 			FMaterialInputDescription Ingresso;
@@ -124,6 +124,22 @@ namespace
 		if (Material->GetExpressionInputDescription(MP_BaseColor, Colore) && Colore.Input != nullptr)
 		{
 			Test.TestTrue(*FString::Printf(TEXT("%s: al colore arriva il nodo Custom"), Chi), Colore.Input->Expression == Custom);
+			Test.TestEqual(*FString::Printf(TEXT("%s: dalla sua uscita principale"), Chi), Colore.Input->OutputIndex, 0);
+		}
+
+		// 🔴 Il riflesso: dall'uscita in piu' dello stesso nodo. Se arrivasse dall'uscita principale il riflesso sarebbe
+		// il colore, e nessun errore lo direbbe.
+		if (Test.TestEqual(*FString::Printf(TEXT("%s: il nodo Custom ha una sola uscita in piu'"), Chi), Custom->AdditionalOutputs.Num(), 1))
+		{
+			Test.TestTrue(*FString::Printf(TEXT("%s: e si chiama come la variabile che il codice scrive"), Chi),
+				Custom->AdditionalOutputs[0].OutputName == FName(RTHexVolumeMaterial::OutputSpecular));
+			Test.TestTrue(*FString::Printf(TEXT("%s: ed e' uno scalare"), Chi), Custom->AdditionalOutputs[0].OutputType == CMOT_Float1);
+		}
+		FMaterialInputDescription Riflesso;
+		if (Material->GetExpressionInputDescription(MP_Specular, Riflesso) && Riflesso.Input != nullptr)
+		{
+			Test.TestTrue(*FString::Printf(TEXT("%s: al riflesso arriva lo stesso nodo Custom"), Chi), Riflesso.Input->Expression == Custom);
+			Test.TestEqual(*FString::Printf(TEXT("%s: dalla sua uscita in piu', non da quella del colore"), Chi), Riflesso.Input->OutputIndex, 1);
 		}
 
 		// 🔴 La maschera: retino( 1 - trasparenza ), con la trasparenza letta dal canale che la board scrive.
@@ -175,6 +191,14 @@ bool FRTHexVolumeRecipeCodeTest::RunTest(const FString&)
 	TestTrue(TEXT("e PRIMA della luce: lo scurimento vale per tutto il volume, tinta compresa"), Tinta < Luce);
 	TestTrue(TEXT("la forza della tinta e' l'alfa della sua interpolazione"),
 		Code.Contains(TEXT("lerp(Body, Tint.rgb, saturate(TintStrength))"), ESearchCase::CaseSensitive));
+
+	// 🔴 Il riflesso segue la luce di un piano sotto, e non supera quello di base su un piano sopra.
+	TestTrue(TEXT("il riflesso e' quello di base per la luce, limitata a uno: sotto scurisce, sopra resta com'e'"),
+		Code.Contains(FString::Printf(TEXT("%s = %s * saturate(Light);"), RTHexVolumeMaterial::OutputSpecular,
+			*FString::SanitizeFloat(RTHexVolumeMaterial::BaseSpecular)), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("e la luce e' una sola, la stessa del colore"),
+		Code.Contains(TEXT("float Light = exp2(ExposureStops);"), ESearchCase::CaseSensitive)
+		&& Code.Contains(TEXT("return saturate(Body * Light);"), ESearchCase::CaseSensitive));
 	return true;
 }
 

@@ -20,6 +20,12 @@ namespace RTHexVolumeMaterial
 	/** La descrizione del nodo Custom: e' il nome con cui il test lo ritrova nell'asset. */
 	extern const TCHAR* const CustomDescription;
 
+	/** L'uscita in piu' del nodo Custom, che va al riflesso speculare: e' anche il nome della variabile nel codice. */
+	extern const TCHAR* const OutputSpecular;
+
+	/** Il riflesso di un volume senza trattamento: e' il default del motore, quello che le mesh avevano prima di #3706. */
+	inline constexpr float BaseSpecular = 0.5f;
+
 	/** La funzione del motore che fa la maschera a retino: la stessa che `M_HexCell` usa per i piani sopra. */
 	extern const TCHAR* const DitherFunctionPath;
 	extern const TCHAR* const DitherInputName;
@@ -36,6 +42,13 @@ namespace RTHexVolumeMaterial
 	 * 🔑 **L'ordine e' la regola**: la desaturazione di D-501 sul colore proprio, poi la tinta del piano, poi la luce.
 	 * Una tinta messa prima della desaturazione perderebbe il suo viola su un piano sotto; messa dopo la luce
 	 * dominerebbe un corpo scurito e lo renderebbe piu' chiaro di un volume non tinto.
+	 *
+	 * 🔴 **La luce di un piano sotto vale anche per il riflesso**, che esce dall'uscita `Specular` del nodo. D-501 (3)
+	 * chiede di attenuare l'USCITA del materiale, e su una superficie illuminata l'uscita non e' il solo colore di
+	 * base. Misurato il 2026-10-13 su `Visual.Map.LayerVolumes`, in strategica, col riflesso lasciato a 0,5: un
+	 * blocco due piani sotto era PIU' CHIARO di uno un piano sotto (90/84/113 contro 74/66/104), perche' il riflesso
+	 * non scuriva e l'esposizione automatica lo riportava su. Con lo show flag `Specular` spento l'ordine tornava
+	 * giusto (50/42/88 contro 52/44/91). Sopra il piano attivo il riflesso resta quello di base.
 	 */
 	FString CustomCode();
 
