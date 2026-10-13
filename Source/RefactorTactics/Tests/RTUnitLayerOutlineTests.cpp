@@ -137,11 +137,12 @@ bool FRTUnitOutlineStencilPureTest::RunTest(const FString&)
 	TestFalse(TEXT("sopra: no"), ShowsThroughGeometry(StencilAbove));
 	TestFalse(TEXT("nessun contorno: no"), ShowsThroughGeometry(StencilNone));
 
-	// Le leve nascono accese e con lo spessore dichiarato: provvisorie, le giudica la voce PIE.
+	// Le leve nascono accese e con lo spessore dichiarato: le ha giudicate l'autore sulle tavole della seduta U85.
 	const FRTUnitLayerOutlineTuning T;
 	TestTrue(TEXT("default: il contorno e' acceso"), T.bEnabled);
 	TestTrue(TEXT("default: lo spessore e' quello dichiarato, sotto il tetto"),
 		FMath::IsNearlyEqual(T.ThicknessPx, DefaultThicknessPx) && DefaultThicknessPx > 0.f && DefaultThicknessPx < MaxThicknessPx);
+	TestTrue(TEXT("default: lo spessore e' 3 pixel (U85)"), FMath::IsNearlyEqual(DefaultThicknessPx, 3.f));
 	return true;
 }
 

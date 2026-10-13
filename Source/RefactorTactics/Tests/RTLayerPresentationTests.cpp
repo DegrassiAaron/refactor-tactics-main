@@ -102,9 +102,12 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 	// Tocca SOLO i piani sopra, non cambia l'opacita', e non scurisce mai.
 	{
 		FRTLayerPresentationTuning Chiaro;
-		Chiaro.UpperExposureStops = 1.5f;
+		Chiaro.UpperExposureStops = 2.5f;
+		// #3723: 1,5, il valore di prova di prima, e' diventato il default, e questo blocco non misurava piu' niente.
+		TestFalse(TEXT("premessa: il valore di prova non e' il default"),
+			FMath::IsNearlyEqual(Chiaro.UpperExposureStops, T.UpperExposureStops));
 		const FRTLayerTreatment SopraChiaro = RTLayerPresentation::Treatment(2, 1, true, Chiaro);
-		TestTrue(TEXT("schiarito: il piano sopra prende gli stop della leva"), FMath::IsNearlyEqual(SopraChiaro.ExposureStops, 1.5f));
+		TestTrue(TEXT("schiarito: il piano sopra prende gli stop della leva"), FMath::IsNearlyEqual(SopraChiaro.ExposureStops, 2.5f));
 		TestTrue(TEXT("schiarito: l'opacita' e' la stessa"), FMath::IsNearlyEqual(SopraChiaro.Transparency, Sopra.Transparency));
 		TestTrue(TEXT("schiarito: l'attivo resta com'e'"), RTLayerPresentation::Treatment(1, 1, true, Chiaro).IsNeutral());
 		TestTrue(TEXT("schiarito: un piano sotto resta com'e'"),
@@ -127,17 +130,30 @@ bool FRTLayerTreatmentPureTest::RunTest(const FString&)
 	TestTrue(TEXT("un piano sotto: desaturato"), FMath::IsNearlyEqual(Sotto1.Desaturation, T.LowerDesaturationPerLayer));
 	TestTrue(TEXT("un piano sotto: scurito"),
 		FMath::IsNearlyEqual(Sotto1.ExposureStops, FMath::Log2(1.f - T.LowerDarkeningPerLayer), 1.e-4f));
-	TestTrue(TEXT("due piani sotto: piu' desaturato di uno"), Sotto2.Desaturation > Sotto1.Desaturation);
+	TestTrue(TEXT("due piani sotto: non meno desaturato di uno"), Sotto2.Desaturation >= Sotto1.Desaturation);
 	TestTrue(TEXT("due piani sotto: piu' scuro di uno"), Sotto2.ExposureStops < Sotto1.ExposureStops);
 
-	// #3704: i valori «sotto» li ha scelti l'autore nella seduta U84. Un default cambiato per sbaglio cade qui.
-	TestTrue(TEXT("default sotto: desaturazione 0,7 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDesaturationPerLayer, 0.7f));
-	TestTrue(TEXT("default sotto: scurimento 0,55 per piano (U84)"), FMath::IsNearlyEqual(T.LowerDarkeningPerLayer, 0.55f));
-	// E l'opacita' «sopra» l'ha scelta lo stesso giorno, sull'asset riparato: prima la maschera era inerte (#3704).
+	// #3723: al default, 1, un piano sotto e' gia' senza colore, e «di piu' con la distanza» li' non si puo' misurare.
+	// La regola cumulata di D-501 si misura con una taratura a meta': una `Treatment` che non cumulasse cade qui.
+	{
+		FRTLayerPresentationTuning Graduale;
+		Graduale.LowerDesaturationPerLayer = 0.5f;
+		TestTrue(TEXT("graduale: un piano sotto perde meta' del colore"),
+			FMath::IsNearlyEqual(RTLayerPresentation::Treatment(1, 2, true, Graduale).Desaturation, 0.5f));
+		TestTrue(TEXT("graduale: due piani sotto ne perdono tre quarti"),
+			FMath::IsNearlyEqual(RTLayerPresentation::Treatment(0, 2, true, Graduale).Desaturation, 0.75f));
+	}
+
+	// #3723: i valori dei piani li ha scelti l'autore il 2026-10-13, a esposizione fissa, sulle tavole della seduta U85.
+	// Un default cambiato per sbaglio cade qui.
+	TestTrue(TEXT("default sotto: desaturazione 1 per piano (U85)"), FMath::IsNearlyEqual(T.LowerDesaturationPerLayer, 1.f));
+	TestTrue(TEXT("default sotto: scurimento 0,4 per piano (U85)"), FMath::IsNearlyEqual(T.LowerDarkeningPerLayer, 0.4f));
+	// L'opacita' «sopra» resta quella della seduta U84, scelta sull'asset riparato: prima la maschera era inerte (#3704).
 	TestTrue(TEXT("default sopra: opacita' 0,35 (U84, su piani traslucidi)"), FMath::IsNearlyEqual(T.UpperOpacity, 0.35f));
-	// #3674: e lo schiarimento «sopra» la sera stessa, su `MultiLevel`. A zero la piattaforma non si distingueva.
-	TestTrue(TEXT("default sopra: schiarimento 3 stop (U84, #3674)"), FMath::IsNearlyEqual(T.UpperExposureStops, 3.f));
-	TestTrue(TEXT("e il default sta sotto il tetto della leva"), T.UpperExposureStops < RTLayerPresentation::MaxUpperExposureStops);
+	// #3674 vuole il velo schiarito: a zero la piattaforma di `MultiLevel` non si distingueva. Quanto, e' di #3723.
+	TestTrue(TEXT("default sopra: schiarimento 1,5 stop (U85)"), FMath::IsNearlyEqual(T.UpperExposureStops, 1.5f));
+	TestTrue(TEXT("e il default e' uno schiarimento, sotto il tetto della leva"),
+		T.UpperExposureStops > 0.f && T.UpperExposureStops < RTLayerPresentation::MaxUpperExposureStops);
 	return true;
 }
 

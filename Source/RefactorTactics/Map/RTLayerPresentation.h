@@ -69,11 +69,16 @@ enum class ERTLayerRelation : uint8
 /**
  * Le intensita' del trattamento, con le leve `rt.Map.Layers.*` che le sostituiscono in PIE.
  *
- * 🔑 **I valori «sotto» li ha scelti l'autore** nella seduta `U84` (2026-10-12): desaturazione 0,7 e scurimento 0,55
- * per piano. **L'opacita' «sopra», 0,35, l'ha scelta lo stesso giorno su piani davvero traslucidi**: prima la maschera
- * di `M_HexCell` era inerte (#3704), i piani sopra erano opachi a ogni valore e 0,2 non era mai stato visto.
- * **Lo schiarimento «sopra», 3 stop, l'ha scelto la sera stessa** su `Visual.Map.MultiLevel` (#3674), dopo aver
- * provato 1,5 e 4. A zero il suo giudizio era stato: «No, si sovrappongono e sembrano sparire».
+ * 🔑 **Tre valori li ha scelti l'autore il 2026-10-13, a esposizione fissa** (#3723), sulle tavole della seduta `U85`:
+ * lo scurimento «sotto», 0,4 per piano (fra 0,55, 0,4 e 0,25); lo schiarimento «sopra», 1,5 stop (fra 3, 2,5, 2 e
+ * 1,5); la desaturazione «sotto», 1 (fra 0,4, 0,7 e 1). Ognuno su una tavola sua, con gli altri al valore di prima.
+ * **L'opacita' «sopra» resta 0,35**, scelta nella seduta `U84` (2026-10-12) su piani davvero traslucidi: prima la
+ * maschera di `M_HexCell` era inerte (#3704), i piani sopra erano opachi a ogni valore e 0,2 non era mai stato visto.
+ *
+ * ⌫ *I valori di prima — desaturazione 0,7 e scurimento 0,55 (`U84`), schiarimento 3 stop (#3674, scelto su
+ * `Visual.Map.MultiLevel` dopo aver provato 1,5 e 4) — l'autore li aveva scelti con l'esposizione automatica del
+ * motore accesa: riportava su i piani scuriti, e abbassava il quadro quando i veli lo schiarivano (#3723).*
+ * A schiarimento zero il suo giudizio era stato: «No, si sovrappongono e sembrano sparire».
  */
 struct REFACTORTACTICS_API FRTLayerPresentationTuning
 {
@@ -85,15 +90,19 @@ struct REFACTORTACTICS_API FRTLayerPresentationTuning
 	 *
 	 * ➕ #3674: un velo dello stesso grigio del pavimento che copre non si vede, a nessuna opacita' — 35% di grigio sopra
 	 * 65% di grigio e' grigio. Schiarito, il velo ha un colore suo e la piattaforma torna a leggersi come un piano.
-	 * A 3 stop la luce e' ×8: il grigio del terreno va verso il bianco, ed e' quello che lo stacca dal pavimento.
+	 * A 1,5 stop la luce e' ×2,8: il velo e' piu' chiaro del pavimento che copre, senza andare al bianco. Finche'
+	 * l'esposizione era automatica servivano 3 stop (×8), perche' l'adattamento abbassava il quadro (#3723).
 	 */
-	float UpperExposureStops = 3.f;
+	float UpperExposureStops = 1.5f;
 
-	/** La saturazione persa per ogni piano di distanza sotto l'attivo, cumulata: 0,7 vuol dire 70%, poi 91%. */
-	float LowerDesaturationPerLayer = 0.7f;
+	/**
+	 * La saturazione persa per ogni piano di distanza sotto l'attivo, cumulata: 0,7 vorrebbe dire 70%, poi 91%.
+	 * A 1, il default, un piano sotto e' gia' senza colore, e cio' che cresce con la distanza e' il solo scurimento.
+	 */
+	float LowerDesaturationPerLayer = 1.f;
 
-	/** La luce persa per ogni piano di distanza sotto l'attivo, cumulata: 0,55 vuol dire ×0,45, poi ×0,2. */
-	float LowerDarkeningPerLayer = 0.55f;
+	/** La luce persa per ogni piano di distanza sotto l'attivo, cumulata: 0,4 vuol dire ×0,6, poi ×0,36. */
+	float LowerDarkeningPerLayer = 0.4f;
 
 	/**
 	 * Quanto un volume prende il colore del suo piano ([D-508], #3706): 0 = del colore suo, 1 = tutto tinta.

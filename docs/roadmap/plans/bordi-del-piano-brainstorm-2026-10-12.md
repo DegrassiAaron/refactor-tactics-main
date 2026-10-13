@@ -67,11 +67,11 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
 
 | Leva | Valore | Stato |
 |---|---|---|
-| `rt.Map.Layers.LowerDesaturation` | 0,7 per piano | scelta in `U84`; diventa il default con #3704 |
-| `rt.Map.Layers.LowerDarkening` | 0,55 per piano | scelta in `U84`; diventa il default con #3704 |
+| `rt.Map.Layers.LowerDesaturation` | 0,7 per piano | scelta in `U84`; diventa il default con #3704. ➕ *2026-10-13, #3723:* riscelta a esposizione fissa nella seduta `U85`: **1** |
+| `rt.Map.Layers.LowerDarkening` | 0,55 per piano | scelta in `U84`; diventa il default con #3704. ➕ *2026-10-13, #3723:* riscelta a esposizione fissa nella seduta `U85`: **0,4** |
 | `rt.Map.Layers.UpperOpacity` | 0,35 | scelta dall'autore il 2026-10-12, **su piani traslucidi** e coi bordi bianchi. Il giudizio di prima («0,2 troppo leggero») era stato dato con la maschera inerte |
 | `rt.Map.Layers.ActiveBorderStops` | superata dalla regola | si toglie con #3704 |
-| `rt.Map.Layers.UpperExposure` | 3 stop | ➕ aggiunta da #3674, dopo questo brief: i piani sopra sono anche schiariti. Scelta dall'autore la sera del 2026-10-12 su `Visual.Map.MultiLevel`, dopo aver provato 1,5 e 4, e tenuta dopo aver visto `Visual.Map.LayerStack` |
+| `rt.Map.Layers.UpperExposure` | 3 stop | ➕ aggiunta da #3674, dopo questo brief: i piani sopra sono anche schiariti. Scelta dall'autore la sera del 2026-10-12 su `Visual.Map.MultiLevel`, dopo aver provato 1,5 e 4, e tenuta dopo aver visto `Visual.Map.LayerStack`. ➕ *2026-10-13, #3723:* riscelta a esposizione fissa nella seduta `U85`: **1,5 stop** |
 
 ## 7. Ordine
 
@@ -85,3 +85,5 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
    rilievo del costo resta fuori. Aspetta il giudizio dell'autore (`PIE-CAM-TINTA-VOLUMI`).
    ➕ *2026-10-13, più tardi:* l'autore ha giudicato #3706 sulle tavole delle catture. La forza della tinta
    resta 0,25, e la issue è chiusa.
+   ➕ *2026-10-13, pomeriggio:* l'autore ha giudicato #3705 sulle tavole della seduta `U85`. Il contorno resta
+   acceso, a 3 pixel invece di 2; i fantasmi del piano dicono il piano della loro cella. La issue è chiusa.
