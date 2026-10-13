@@ -361,7 +361,8 @@ continua a esistere anche lì — non è la vista a definirlo.
 > - 🔴 **Attraverso la geometria passa solo il contorno di chi sta SOTTO il piano attivo.** È il caso che l'autore
 >   ha visto: col mezzanino attivo, l'unità sul pavimento sotto di esso. Per le unità del piano attivo e di quelli
 >   sopra il materiale confronta la profondità dell'unità con quella della scena, e il contorno si ferma dove un
->   muro la copre. Si disegna il solo contorno, non una sagoma piena. ⚠️ Scelte provvisorie, senza l'autore.
+>   muro la copre. Si disegna il solo contorno, non una sagoma piena. Scelte della PR, senza l'autore: stavano
+>   nelle tavole che ha giudicato il 2026-10-13, e non le ha contestate.
 > - ⛔ **Privacy: chi non si vede non ha contorno, e nemmeno una quota.** Lo stencil lo decide l'HUD dalla vista di
 >   chi guarda (`ARTHUD::UnitOutlineStencilForUnit`): per un nemico il piano è quello della sua voce di conoscenza,
 >   mai la cella dell'attore, e un nemico ricordato o senza voce non ne ha. `ARTUnit` lo applica ai soli corpi che
@@ -372,8 +373,10 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   `UnrealEditor-Cmd … -run=RTBuildUnitOutlineMaterial` dal clone principale. È un nodo Custom il cui codice porta
 >   gli stencil del runtime; `UnitOutline.MaterialMatchesTheRecipe` confronta l'asset con la ricetta, e cade se uno
 >   dei due resta indietro. Davanti a un conflitto sul binario si rigenera.
-> - 🔧 **Le leve**: `rt.Unit.LayerOutline` (`0` spegne) e `rt.Unit.LayerOutline.Thickness` (2 pixel a 1080 righe,
->   scalati con l'altezza del quadro). Negativo vuol dire il default. Le giudica `PIE-CAM-CONTORNO-UNITA`.
+> - 🔧 **Le leve**: `rt.Unit.LayerOutline` (`0` spegne) e `rt.Unit.LayerOutline.Thickness` (3 pixel a 1080 righe,
+>   scalati con l'altezza del quadro). Negativo vuol dire il default. L'autore le ha giudicate il 2026-10-13,
+>   sulle tavole della seduta `U85`: il contorno resta acceso, e lo spessore passa da 2 a 3 pixel. Lo spessore di
+>   default sta anche nell'asset: chi lo cambia rilancia il commandlet.
 > - ⚠️ **Limiti noti**: il piano di un'unità è quello della sua cella logica, quindi durante il playback di una
 >   salita il contorno può cambiare colore prima che il modello arrivi (non misurato in PIE); il contorno bianco
 >   di un'unità su un piano sopra sta su un velo schiarito ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)), e stacca poco.
@@ -422,27 +425,42 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   - ⚠️ **La tinta sposta anche la luminosità**: il nero scurisce un volume del piano attivo, il viola schiarisce
 >     nel blu uno che sta sotto. La forza (0,25) l'ha scelta l'autore il 2026-10-13, sulle tavole della seduta
 >     `U86`, fra 0, 0,25 e 0,6: *«Come tinta la seconda che mi hai mostrato. Sembra tutto ok»*.
-> - ⚠️ **Lo scurimento dei piani sotto, a schermo, è un rapporto e non un livello**
->   ([#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723)). L'esposizione automatica del motore è accesa: quando gran parte del quadro è «sotto»
->   alza il guadagno. Misurato il 2026-10-13 su `Visual.Map.LayerVolumes`, in tattica: una cella del piano terra è
->   136, 136 e 134 coi tre piani attivi; con `ShowFlag.EyeAdaptation 0` è 170, 110 e 61. Che cosa farne lo decide
->   l'autore.
-> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.UpperExposure` (3 stop),
->   `rt.Map.Layers.LowerDesaturation` (0,7 per piano), `rt.Map.Layers.LowerDarkening` (0,55 per piano) e
+> - 🔆 **L'esposizione della camera di gioco è fissa** ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723)), per decisione
+>   dell'autore del 2026-10-13. Il metodo è `AEM_Manual` senza la camera fisica, con una compensazione di 0,25
+>   stop (`RTCameraExposure.h`): la luce di una cella non dipende da ciò che il quadro contiene, e lo scurimento
+>   dei piani sotto vale quanto dichiara. Le leve: `rt.Camera.FixedExposure` (`0` rimette l'adattamento del
+>   motore) e `rt.Camera.FixedExposure.Bias`. La giudica `PIE-CAM-ESPOSIZIONE`.
+>   ⌫ *Fino a #3723 l'esposizione automatica del motore era accesa, e lo scurimento dei piani sotto, a schermo,
+>   era un rapporto e non un livello: quando gran parte del quadro è «sotto» l'adattamento alza il guadagno.
+>   Misurato il 2026-10-13 su `Visual.Map.LayerVolumes`, in tattica: una cella del piano terra era 136, 136 e 134
+>   coi tre piani attivi; con `ShowFlag.EyeAdaptation 0` era 170, 110 e 61.*
+>   ⚠️ **Vale per ogni scena.** La compensazione è tarata perché le scene a un piano si vedano come prima: la
+>   differenza è fra +0,10 e +0,16 stop. Dove gran parte del quadro è nera l'adattamento schiariva, e ora no: su
+>   una mappa col velo (`rt.Map.Fixture VisionSplit`), in tattica, la board è 0,48 stop più scura di prima.
+> - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.UpperExposure` (1,5 stop),
+>   `rt.Map.Layers.LowerDesaturation` (1 per piano), `rt.Map.Layers.LowerDarkening` (0,4 per piano) e
 >   `rt.Map.Layers.VolumeTint` (0,25, la forza della tinta dei volumi). Negativo
->   vuol dire il default. I due valori «sotto» li ha scelti l'autore nella seduta `U84`, e lo stesso giorno
->   **l'opacità «sopra»**, sull'asset riparato: prima la maschera era inerte e nessun valore era stato visto.
+>   vuol dire il default. Lo scurimento, lo schiarimento e la desaturazione li ha scelti l'autore il 2026-10-13,
+>   a esposizione fissa, sulle tavole della seduta `U85`. **L'opacità «sopra»** l'ha scelta nella seduta `U84`,
+>   sull'asset riparato: prima la maschera era inerte e nessun valore era stato visto.
 >   La forza della tinta l'ha scelta sulle tavole della seduta `U86`.
+>   ⌫ *Fino a #3723 erano 3 stop, 0,7 e 0,55, scelti nella seduta `U84` con l'esposizione automatica accesa.*
 > - 🔆 **I piani sopra sono anche schiariti** ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)). Un velo dello stesso colore del piano che
 >   copre non si vede a nessuna opacità: 35% di grigio sopra 65% di grigio è grigio. Sulla piattaforma di
 >   `Visual.Map.MultiLevel`, a 120° e a 180°, l'autore aveva detto: *«No, si sovrappongono e sembrano sparire»*.
->   `rt.Map.Layers.UpperExposure` scrive nel canale di esposizione gli stop di cui schiarire; la sera del 2026-10-12
->   l'autore ha provato 1,5, 4 e 3 e ha scelto **3** (luce ×8): *«impostata a 3 , si distingue»*. Con `0` lo
+>   `rt.Map.Layers.UpperExposure` scrive nel canale di esposizione gli stop di cui schiarire. Con `0` lo
 >   schiarimento si spegne. Vale per ogni piano sopra, uguale a ogni distanza, e non tocca i bordi.
->   ⚠️ **Dove i piani sopra coprono il piano attivo, costa.** Su `Visual.Map.LayerStack` a 3 stop i veli sono
->   bianchi: il contorno bianco di D-508 non si stacca più dal riempimento, e un'unità sotto i veli è più pallida.
->   L'autore l'ha visto prima del merge e ha deciso: *«tenere 3, in futuro con colori diversi forse dovremmo cambiare, al momento va bene»*.
->   Il valore va riguardato quando i terreni avranno colori diversi: a ×8 un terreno colorato va verso il bianco.
+>   **Il default è 1,5 stop** (luce ×2,8), scelto dall'autore il 2026-10-13 a esposizione fissa, fra 3, 2,5, 2 e
+>   1,5. ⌫ *La sera del 2026-10-12, con l'esposizione automatica accesa, aveva provato 1,5, 4 e 3 e scelto 3 (luce
+>   ×8): «impostata a 3 , si distingue». Su `Visual.Map.LayerStack` a 3 stop i veli erano bianchi, il contorno
+>   bianco di D-508 non si staccava dal riempimento e un'unità sotto i veli era più pallida; l'aveva visto e
+>   deciso: «tenere 3, in futuro con colori diversi forse dovremmo cambiare, al momento va bene».*
+>   ⚠️ **A 1,5 stop il costo è dall'altra parte.** Dove i piani sopra coprono il piano attivo i veli non sono più
+>   bianchi. Ma sulla piattaforma di `Visual.Map.MultiLevel`, in strategica, il velo è più chiaro del pavimento
+>   di 5 livelli su 255 (a 3 stop erano 25), e la tiene distinta quasi solo il bordo bianco; in tattica lo scarto
+>   è 18 a 120° e 26 a 180°. L'autore l'ha visto sulle tavole finali della seduta `U85` e ha confermato:
+>   *«F1 sì, F2 tieni 1,5, F3 sì, F6 sì»*.
+>   Il valore va riguardato quando i terreni avranno colori diversi.
 >   ⌫ *`rt.Map.Layers.ActiveBorderStops` non c'è più da #3704: il bordo dell'attivo è nero.*
 
 ---

@@ -891,6 +891,8 @@ void ARTHUD::UpdateObserverVeil()
 	if (ARTCameraPawn* OutlineCamera = Cast<ARTCameraPawn>(GetOwningPawn()))
 	{
 		OutlineCamera->SyncUnitLayerOutline(OutlineTuning);
+		// #3723: e l'esposizione della stessa camera, fissa di default, con le sue leve.
+		OutlineCamera->SyncExposure(FRTCameraExposureTuning::FromConsole());
 	}
 
 	for (ARTUnit* Unit : Units)
