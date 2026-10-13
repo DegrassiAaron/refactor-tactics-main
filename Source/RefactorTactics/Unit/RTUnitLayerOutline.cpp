@@ -9,7 +9,7 @@ static TAutoConsoleVariable<int32> CVarRTUnitLayerOutline(
 
 static TAutoConsoleVariable<float> CVarRTUnitLayerOutlineThickness(
 	TEXT("rt.Unit.LayerOutline.Thickness"), -1.f,
-	TEXT("Spessore del contorno delle unita', in pixel a 1080 righe (0..8). Negativo = default (2)."),
+	TEXT("Spessore del contorno delle unita', in pixel a 1080 righe (0..8). Negativo = default (3)."),
 	ECVF_Default);
 
 const TCHAR* const RTUnitLayerOutline::MaterialPackage = TEXT("/Game/RT/Characters/Shared/Materials/M_UnitLayerOutline");

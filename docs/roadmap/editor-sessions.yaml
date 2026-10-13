@@ -5840,6 +5840,11 @@ sessions:
       tutti e tre, e ha tenuto 3. #3674 si chiude. `PIE-CAM-PIANI-ATTIVO` resta parziale per i soli fantasmi del
       piano, che si guardano nella seduta di #3705.
 
+      ➕ **2026-10-13, #3723, seduta `U85`:** lo scurimento, lo schiarimento e la desaturazione scelti qui erano
+      stati guardati con l'esposizione automatica del motore accesa. A esposizione fissa l'autore li ha
+      riscelti sulle tavole: 0,4, 1,5 stop e 1. L'opacità «sopra», 0,35, resta. I fantasmi del piano sono
+      giudicati nella stessa seduta, e `PIE-CAM-PIANI-ATTIVO` è verde.
+
   - id: U85
     title: Il piano di un'unità dal contorno del modello (D-508) — e i fantasmi del piano
     block: 6
@@ -5847,16 +5852,53 @@ sessions:
     execution_lane: pie
     produces: >-
       il verdetto di `PIE-CAM-CONTORNO-UNITA`, e lo spessore e la resa attraverso il piano scelti dall'autore, da
-      scrivere sui default di `FRTUnitLayerOutlineTuning` e su D-508; nessun asset
-    artifacts: []
+      scrivere sui default di `FRTUnitLayerOutlineTuning` e su D-508; `M_UnitLayerOutline` rigenerato, perché lo
+      spessore di default sta anche nell'asset; con #3723, il verdetto di `PIE-CAM-ESPOSIZIONE` e le intensità
+      dei piani riscelte a esposizione fissa, da scrivere sui default di `FRTLayerPresentationTuning` e su D-501
+    artifacts:
+      - Content/RT/Characters/Shared/Materials/M_UnitLayerOutline.uasset
     unblocked_by: []
     shares_setup_with: [U84]
-    verifies: [PIE-CAM-CONTORNO-UNITA]
-    issues: [3705]
+    verifies: [PIE-CAM-CONTORNO-UNITA, PIE-CAM-ESPOSIZIONE]
+    issues: [3705, 3723]
     done_when: >-
       l'autore ha giudicato la voce in PIE, dal clone principale; #3705 si chiude col suo verdetto
     notes: |
-      ⏳ **Da convocare con l'autore.** Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture
+      ✅ **Chiusa il 2026-10-13**: l'autore ha giudicato le tavole delle catture, non una PIE aperta. Le sue parole:
+      «E1 si,E3 0.4, E4 1.5, E5 1, contorno acceso, C3 3pixel, C4 sii». Erano le risposte, in ordine, a: la resa
+      generale a esposizione fissa (E1), quanto scuriscono i piani sotto (E3: 0,55, 0,4 o 0,25), quanto schiariscono
+      i piani sopra (E4: 3, 2,5, 2 o 1,5), la desaturazione dei piani sotto (E5: 0,4, 0,7 o 1), il contorno delle
+      unità (C1 e C5), il suo spessore (C3: 2, 3 o 4) e i fantasmi del piano (C4).
+
+      Che cosa ne segue. Il contorno delle unità resta acceso, a 3 pixel (erano 2). I fantasmi del piano dicono il
+      piano della loro cella. A esposizione fissa (#3723) i valori dei piani sono: scurimento 0,4, schiarimento
+      1,5 stop, desaturazione 1; l'opacità «sopra» resta 0,35 e la compensazione dell'esposizione 0,25 stop. Sono i
+      default dal commit `b8f2e735c`, e `M_UnitLayerOutline` è rigenerato. Le tavole E e C vengono dal commit
+      `9c089fbde`, coi valori di prima.
+
+      Ogni valore l'ha scelto su una tavola sua, con gli altri al valore di prima. Insieme li ha visti sulle
+      tavole finali del commit `b8f2e735c` — F1 i tre piani, F2 la piattaforma di `Visual.Map.MultiLevel`, F3 il
+      contorno nero a 3 pixel, F4 i volumi, F5 i fantasmi, F6 una mappa col velo — e ha confermato:
+      «F1 sì, F2 tieni 1,5, F3 sì, F6 sì». Tutte le tavole stanno in `docs/technical/evidence/u85/`.
+
+      ⚠️ Le tavole sono ferme: che il contorno non tremi quando la camera si muove non è stato giudicato. Le leve
+      non sono state provate in console.
+
+      🔎 **Le voci PIE visive da riguardare dopo l'esposizione fissa** (DoD di #3723). Il criterio: la voce
+      giudica luce, contrasto o colore della board, su una scena dove il quadro è cambiato in modo misurabile.
+      Sulle scene a un piano illuminate la differenza è fra +0,10 e +0,16 stop, e quelle voci non sono in elenco.
+      - Rigiudicate in questa seduta: `PIE-CAM-PIANI-ATTIVO`, `PIE-CAM-CONTORNO-UNITA`, `PIE-CAM-ESPOSIZIONE`.
+      - Riguardata sulle tavole, senza una domanda sua: `PIE-CAM-TINTA-VOLUMI`.
+      - Da riguardare alla prossima seduta sulle loro scene, perché lì il quadro è cambiato e nessuno le ha
+        riaperte: `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` (una mappa col velo: in tattica la board è 0,48 stop
+        più scura di prima); `PIE-VIS-TWOLAYERS` e `PIE-CAM-STRATEGIC-PIANI` (scene a più piani: il velo dei piani
+        sopra e lo scurimento dei piani sotto hanno valori nuovi).
+
+      ⌫ *La mattina del 2026-10-13* l'autore aveva aperto `Visual.Map.LayerStack` in PIE dal clone principale per
+      una quarantina di secondi — un cambio di piano in su e in giù, uno zoom fino alla strategica — e aveva chiuso
+      senza provare le leve e senza un verdetto. Alla domanda su come registrare il giudizio ha scelto le tavole.
+
+      ⌫ *Prima era «da convocare».* Il 2026-10-12, di notte, una sessione senza di lui ha preparato le catture
       dal clone principale (commit `fe38e69db`), con le leve al default: `LayerStack` coi tre piani attivi, in
       tattica e in strategica; il controllo positivo con `rt.Unit.LayerOutline 0`; lo spessore a 4. Le catture e le
       misure sono nella cella della voce. In seduta: si provano le leve `rt.Unit.LayerOutline*` in console, si
