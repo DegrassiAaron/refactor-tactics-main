@@ -102,9 +102,15 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 
 	// Qui si arriva solo con un verdetto che lo `switch` non conosce. FAIL-CLOSED: e' un rifiuto, e in
 	// sviluppo e' rumoroso. ⚠️ Il motivo e' `OutOfRange` per una sola ragione, e va detta: fra quelli che
-	// esistono e' un rifiuto di GEOMETRIA che il Blast annulla col fallback dichiarato. `NoMap` e
-	// `NoLineOfSight` il Blast li lascia alla raccolta, che su un verdetto ignoto non saprebbe cosa fermare.
-	// Il testo nel log sarebbe sbagliato; un colpo partito per distrazione sarebbe peggio.
+	// esistono e' un rifiuto di GEOMETRIA che il Blast passa al fallback dichiarato — e con `Cancel`,
+	// `AttackCell`, `AttackTarget`, `BasicAttack` e `Wait` nessun colpo parte. `NoMap` e `NoLineOfSight` il
+	// Blast li lascia alla raccolta, che su un verdetto ignoto non saprebbe cosa fermare. Il testo nel log
+	// sarebbe sbagliato; un colpo partito per distrazione sarebbe peggio.
+	//
+	// ⛔ **Non e' chiuso per `Stop`**, che lascia l'istanza intatta: e' la regola del
+	// MOVIMENTO, e nessuna azione del Blast la dichiara — il validatore di catalogo la impone ai movimenti e
+	// non la vieta agli altri. Trovato dalla quarta review; il giorno in cui un attacco dichiarasse `Stop`,
+	// questo ramo non lo fermerebbe.
 	checkNoEntry();
 	return ERTActionInvalidReason::OutOfRange;
 }
