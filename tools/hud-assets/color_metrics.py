@@ -321,23 +321,38 @@ def _parse_color_expr(expr: str, where: str) -> str:
         "`FLinearColor(r, g, b, a)` (lineare) e `FLinearColor::FromSRGBColor(FColor(r, g, b))`.")
 
 
-def overlay_colors() -> tuple[dict, dict]:
-    """I colori del world overlay, **letti** da `RTHUD.cpp` invece che ricopiati qui.
+# La forma con cui `RTHUD.cpp` dichiara l'asse dell'IDENTITA' di squadra. Una sola, e scritta qui perche' la
+# usano la lettura e i suoi messaggi d'errore.
+#
+# ⛔ **Non si accettano le forme passate.** Fino a `#2184` la riga era `const FLinearColor Color = bOwn ? … : …;`;
+# riconoscerla ancora terrebbe vivo un ramo che nessun sorgente esercita, e nasconderebbe il giorno in cui
+# la forma cambia di nuovo. Una forma che non e' QUESTA e' un errore esplicito.
+_IDENTITY_ANCHOR = r"\bOut\.Color\s*=\s*bOwn\b(.*?);"
+_IDENTITY_FORM = "`Out.Color = bOwn ? FLinearColor(...) : FLinearColor(...);`"
 
-    Stessa regola di `match_phase_map()` nel generatore: una mappa scritta a mano direbbe la cosa
-    vecchia il giorno dopo il cambio, e nessuno se ne accorgerebbe. Fallisce **forte** se gli
-    ancoraggi spariscono, invece di restituire un insieme a meta' e passare in silenzio.
+
+def parse_overlay_colors(text: str) -> tuple[dict, dict]:
+    """I colori del world overlay da un TESTO C++: identita' di squadra, e fase della linea di scatto.
+
+    🔑 **Una funzione sul testo, non sul file** (`#3626`). La lettura si era rotta il 2026-09-04, quando
+    `#2184` ha riscritto la riga dell'identita', ed e' rimasta rotta fino al 2026-10-13: il referto falliva
+    forte e nessun comando lo lanciava. Separare il testo dal file permette di provare le tre cose che
+    contano — la forma attuale si legge, quella vecchia e una inventata danno errore — senza toccare
+    `RTHUD.cpp` (`color_metrics_test.py`).
+
+    Fallisce **forte** se un ancoraggio sparisce, si sdoppia o porta un numero di colori inatteso,
+    invece di restituire un insieme a meta' e passare in silenzio.
     """
-    from generate_hud_assets import REPO_ROOT  # noqa: PLC0415
-
-    text = (REPO_ROOT / "Source/RefactorTactics/UI/RTHUD.cpp").read_text(encoding="utf-8")
-
-    ident = re.search(r"const FLinearColor Color\s*=\s*bOwn(.*?);", text, re.S)
-    if not ident:
+    idents = re.findall(_IDENTITY_ANCHOR, text, re.S)
+    if not idents:
         raise RuntimeError(
-            "`const FLinearColor Color = bOwn ? ...` non trovato in RTHUD.cpp: l'asse dell'IDENTITA' "
-            "di squadra ha cambiato forma. I colori non si riscrivono qui, si rileggono da la'.")
-    found = re.findall(r"FLinearColor\([^)]*\)", ident.group(1))
+            f"{_IDENTITY_FORM} non trovato in RTHUD.cpp: l'asse dell'IDENTITA' di squadra ha cambiato "
+            "forma. I colori non si riscrivono qui, si rileggono da la': aggiorna l'ancoraggio.")
+    if len(idents) != 1:
+        raise RuntimeError(
+            f"{_IDENTITY_FORM} compare {len(idents)} volte in RTHUD.cpp: l'ancoraggio e' ambiguo, e "
+            "scegliere la prima occorrenza misurerebbe una riga a caso.")
+    found = re.findall(r"FLinearColor\([^)]*\)", idents[0])
     if len(found) != 2:
         raise RuntimeError(
             f"l'asse dell'identita' porta {len(found)} colori invece di 2 (proprie / nemico rivelato): "
@@ -351,6 +366,19 @@ def overlay_colors() -> tuple[dict, dict]:
             "`DashColor` non trovato in RTHUD.cpp: la preview dello scatto ha cambiato forma. E' il "
             "solo elemento dell'overlay che porta un colore di FASE, e senza non c'e' niente da misurare.")
     return identity, {"Dash": _parse_color_expr(dash.group(1), "RTHUD.cpp DashColor")}
+
+
+def overlay_colors() -> tuple[dict, dict]:
+    """I colori del world overlay, **letti** da `RTHUD.cpp` invece che ricopiati qui.
+
+    Stessa regola di `match_phase_map()` nel generatore: una mappa scritta a mano direbbe la cosa
+    vecchia il giorno dopo il cambio, e nessuno se ne accorgerebbe. L'interpretazione e' in
+    `parse_overlay_colors`.
+    """
+    from generate_hud_assets import REPO_ROOT  # noqa: PLC0415
+
+    text = (REPO_ROOT / "Source/RefactorTactics/UI/RTHUD.cpp").read_text(encoding="utf-8")
+    return parse_overlay_colors(text)
 
 
 def known_inks() -> dict:

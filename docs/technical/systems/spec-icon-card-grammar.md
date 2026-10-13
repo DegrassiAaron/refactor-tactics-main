@@ -87,6 +87,14 @@ python3 tools/hud-assets/color_metrics.py           # il referto
 python3 tools/hud-assets/color_metrics.py --json    # lo stesso, per una macchina
 ```
 
+⚠️ **La parte sull'overlay del mondo vive solo nel referto, non nel `T9` del generatore.** `T9` misura la
+palette delle icone. Il confronto fra la fase `Dash` e l'identità di squadra
+([D-234](../../decisions/RT_PDR_00_Decision_Log.md)) lo fa `color_metrics.py` quando gira da solo, leggendo
+due righe di `UI/RTHUD.cpp` **per forma**. Quando una delle due cambia forma il referto esce con un errore
+esplicito: è successo il 2026-09-04, ed è rimasto così fino al 2026-10-13 perché nessun comando lo lanciava
+([#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626)). Ora è fra i controlli noti di
+[`AGENTS.md`](../../../AGENTS.md) §9, e la prova che sa fallire è `python -m pytest -q tools/hud-assets`.
+
 ⚠️ **Tre limiti dichiarati:**
 
 - in **grayscale** `Blast` e `Dash` distano solo `ΔL = 0.035`. Non si corregge spostando i colori: è la
