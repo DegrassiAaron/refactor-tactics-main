@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-13 — Le tabelle di colore del generatore sono copie controllate, e i due grigi restano due token
+
+**Origine**: [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627), con la decisione d'autore `P4` del referto dello stesso giorno. Il generatore degli asset copia la palette da due documenti, e nessuno confrontava le copie. La divergenza che la issue dichiarava su `Disabled` non c'era: sono due token di due vocabolari.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §32.1, un punto in più: il generatore copia i token che le icone usano, e il gate `PAL` li confronta rileggendo le righe di quella sezione; il token del testo spento non è il grigio semantico delle icone |
+| [`research/design/icon/visual-language/02-color-system.md`](research/design/icon/visual-language/02-color-system.md) | sotto la tabella semantica: la copia nel generatore è controllata dal gate `PAL` e dal referto; `RT_Sem_Disabled` non è `RT_UI_Text_Disabled` |
+| [`technical/runbooks/guida-catalogo-icone.md`](technical/runbooks/guida-catalogo-icone.md) | la riga d'esempio dei gate porta `PAL` |
+| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: il referto si lancia anche quando la PR tocca un token dei due documenti owner; `1` vale anche per una tabella che diverge, `2` per una qualunque delle tre fonti che non si legge |
+| [`technical/systems/spec-icon-card-grammar.md`](technical/systems/spec-icon-card-grammar.md) | accanto ai codici d'uscita del referto: la terza parte, il gate `PAL` e perché non ha un numero `T`, le due chiavi di `tabelle` in `--json` |
+
+---
+
 ## 2026-10-13 — Il feed del giocatore dice «Caduta», e il parapetto è uno spostamento subito
 
 **Origine**: [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), con la decisione d'autore `P1` del referto dello stesso giorno. Sei esiti di movimento non arrivavano al feed; e per chi cade la riga che resta è quella del danno, quindi è il suo testo a nominare la causa.
