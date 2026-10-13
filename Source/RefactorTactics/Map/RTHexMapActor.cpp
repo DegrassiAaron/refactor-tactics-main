@@ -10,6 +10,7 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
 #include "Map/RTArenaCriteriaLibrary.h"
 #include "Map/RTGeometryGrammar.h" // ToPolyline: i muri interni si disegnano dal loro segmento (#712)
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h" // #3706: il colore proprio dei pannelli di bordo
 #include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
 #include "DrawDebugHelpers.h" // il solo contorno di DEBUG delle celle (`DrawCellOverlay`): l'anteprima no (#3508)
 #include "Components/LineBatchComponent.h" // #3508: l'anteprima di pianificazione si disegna anche in Shipping
@@ -823,6 +824,8 @@ ARTHexMapActor::ARTHexMapActor()
 	SurfaceVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SurfaceVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
 	SurfaceVolumes->CastShadow = false;
+	// #3706: tinta del piano e trattamento di D-501, per istanza. Nel costruttore per la ragione scritta per `Cells`.
+	SurfaceVolumes->NumCustomDataFloats = RTLayerPresentation::VolumeNumCustomDataFloats;
 	if (CylinderMesh.Succeeded())
 	{
 		SurfaceVolumes->SetStaticMesh(CylinderMesh.Object);
@@ -835,12 +838,14 @@ ARTHexMapActor::ARTHexMapActor()
 	StructuralBodies->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	StructuralBodies->SetCollisionResponseToAllChannels(ECR_Ignore);
 	StructuralBodies->CastShadow = false;
+	StructuralBodies->NumCustomDataFloats = RTLayerPresentation::VolumeNumCustomDataFloats; // #3706
 
 	Blockers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Blockers"));
 	Blockers->SetupAttachment(Cells);
 	Blockers->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Blockers->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Blockers->CastShadow = false;
+	Blockers->NumCustomDataFloats = RTLayerPresentation::VolumeNumCustomDataFloats; // #3706
 	if (CylinderMesh.Succeeded())
 	{
 		Blockers->SetStaticMesh(CylinderMesh.Object);
@@ -853,6 +858,10 @@ ARTHexMapActor::ARTHexMapActor()
 	EdgeFeatures->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	EdgeFeatures->SetCollisionResponseToAllChannels(ECR_Ignore);
 	EdgeFeatures->CastShadow = false;
+	EdgeFeatures->NumCustomDataFloats = RTLayerPresentation::VolumeNumCustomDataFloats; // #3706
+	// #3706: il percorso ha un owner, ed e' lo stesso che il commandlet scrive. Soft: si carica alla ricostruzione.
+	VolumeMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(FString::Printf(TEXT("%s.%s"),
+		RTLayerPresentation::VolumeMaterialPackage, RTLayerPresentation::VolumeMaterialName)));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
 	{
@@ -1952,6 +1961,30 @@ void ARTHexMapActor::ApplyLayerPresentation()
 		Scrivi(SurfaceGlyphs[Ring], GlyphCells[Ring]); // i glifi seguono la cella (D-508)
 	}
 
+	// #3706: i VOLUMI dicono il piano con la tinta ([D-508]) e ricevono il trattamento di D-501. La tinta sta nei canali
+	// 0..2 e la sua forza nel 6; i canali 3..5 sono quelli delle celle, quindi il trattamento lo scrive `Scrivi`.
+	// ⛔ Il velo non li tocca: su queste famiglie nasconde con la scala e non scrive colore.
+	for (const FRTVolumeFamily& Volume : GetVolumeFamilies())
+	{
+		UInstancedStaticMeshComponent* Famiglia = Volume.Component;
+		if (Famiglia == nullptr || Famiglia->NumCustomDataFloats < RTLayerPresentation::VolumeNumCustomDataFloats
+			|| Famiglia->GetInstanceCount() != Volume.Cells->Num())
+		{
+			continue; // senza i canali, o con una mappatura stantia: la stessa guardia di `Scrivi`
+		}
+		for (int32 I = 0; I < Volume.Cells->Num(); ++I)
+		{
+			const FRTLayerVolumeTint Tinta = RTLayerPresentation::VolumeTint((*Volume.Cells)[I].Layer, PresentedActiveLayer,
+				bMultiLayer, AppliedLayerTuning);
+			Famiglia->SetCustomDataValue(I, 0, Tinta.Color.R, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, 1, Tinta.Color.G, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, 2, Tinta.Color.B, /*bMarkRenderStateDirty=*/ false);
+			Famiglia->SetCustomDataValue(I, RTLayerPresentation::VolumeTintStrengthChannel, Tinta.Strength,
+				/*bMarkRenderStateDirty=*/ false);
+		}
+		Scrivi(Famiglia, *Volume.Cells); // i canali 3..5, e marca lo stato di render una volta sola
+	}
+
 	// 🔑 **I bordi dicono il piano col COLORE, e non ricevono il trattamento** ([D-508], #3704). I canali 3..5 restano a
 	// zero: un bordo sopra e' opaco, cioe' un contorno bianco netto attorno a un riempimento traslucido, e un bordo sotto
 	// tiene il suo viola invece di diventare grigio.
@@ -1996,6 +2029,45 @@ void ARTHexMapActor::ApplyLayerPresentation()
 	}
 
 	ApplyPlanGhostBorderColors();
+}
+
+TArray<ARTHexMapActor::FRTVolumeFamily> ARTHexMapActor::GetVolumeFamilies() const
+{
+	// ⛔ `Relief` non c'e', ed e' voluto: vedi `VolumeMaterial`.
+	TArray<FRTVolumeFamily> Famiglie;
+	Famiglie.Add({ EdgeFeatures, &EdgeFeatureCells, TEXT("EdgeFeatures") });
+	Famiglie.Add({ Blockers, &BlockerCells, TEXT("Blockers") });
+	Famiglie.Add({ StructuralBodies, &BodyCells, TEXT("StructuralBodies") });
+	Famiglie.Add({ SurfaceVolumes, &SurfaceVolumeCells, TEXT("SurfaceVolumes") });
+	return Famiglie;
+}
+
+void ARTHexMapActor::ApplyVolumeMaterial()
+{
+	UMaterialInterface* Mat = VolumeMaterial.LoadSynchronous();
+	if (Mat == nullptr)
+	{
+		return; // opzionale come `CellMaterial`: senza, i volumi tengono il materiale della mesh
+	}
+	// I pannelli di bordo hanno il loro colore proprio: una istanza dinamica, creata una volta sola.
+	if (EdgePanelVolumeMaterial == nullptr || EdgePanelVolumeMaterial->Parent != Mat)
+	{
+		EdgePanelVolumeMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+		if (EdgePanelVolumeMaterial != nullptr)
+		{
+			EdgePanelVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor,
+				RTLayerPresentation::VolumeOwnColor(/*bEdgePanel=*/ true));
+		}
+	}
+	for (const FRTVolumeFamily& Volume : GetVolumeFamilies())
+	{
+		UMaterialInterface* Voluto = (Volume.Component == EdgeFeatures && EdgePanelVolumeMaterial != nullptr)
+			? static_cast<UMaterialInterface*>(EdgePanelVolumeMaterial) : Mat;
+		if (Volume.Component != nullptr && Volume.Component->GetMaterial(0) != Voluto)
+		{
+			Volume.Component->SetMaterial(0, Voluto);
+		}
+	}
 }
 
 FLinearColor ARTHexMapActor::BorderBaseColorFor(const FRTCellId& Cell) const
@@ -2679,6 +2751,9 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring) { LastRebuildCreated += Conta(SurfaceGlyphs[Ring]); }
 		}
 	}
+
+	// #3706: dopo tutti i `SetStaticMesh` di qui sopra, che riportano gli slot ai materiali della mesh.
+	ApplyVolumeMaterial();
 
 	// #3679: le istanze nuove nascono coi canali del trattamento a zero, cioe' neutre. Se chi guarda aveva gia' un piano
 	// attivo, il trattamento si riscrive nello stesso fotogramma: la board non torna piatta per una ricostruzione.

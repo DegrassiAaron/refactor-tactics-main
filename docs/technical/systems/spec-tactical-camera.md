@@ -346,7 +346,7 @@ continua a esistere anche lì — non è la vista a definirlo.
 > lo stesso colore a ogni distanza. I bordi delle celle restano **opachi su ogni piano** e non ricevono il
 > trattamento: un piano sopra è un riempimento traslucido con un contorno bianco netto. I fantasmi del piano hanno un
 > contorno del colore del piano, e il riempimento resta la certezza. Su una mappa a un piano i bordi sono quelli di
-> sempre, e i fantasmi non hanno contorno. I volumi seguiranno con [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706).
+> sempre, e i fantasmi non hanno contorno. I volumi lo dicono con una tinta ([#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706)): più sotto.
 >
 > 🎨 **E il piano di un'unità si legge dal contorno del modello** ([D-508](../../decisions/RT_PDR_00_Decision_Log.md), [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705)), in tattica sul
 > modello e in strategica sul segnalino: nero sul piano attivo, bianco sopra, viola sotto. Su una mappa a un piano
@@ -393,10 +393,41 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   canali, e una cella mai vista resta non disegnata su qualunque piano (`HexMap.LayerTreatmentLeavesTheVeilAlone`).
 > - **Il picking non cambia**: la collisione è quella di prima, e un colpo su un piano traslucido sopra l'attivo si
 >   scarta come ogni colpo fuori dal piano attivo (D-255).
-> - ⚠️ **Le famiglie senza dati per istanza non ricevono il trattamento**: `Relief`, `Blockers`, `StructuralBodies`,
->   `EdgeFeatures`, `SurfaceVolumes`. Su `Visual.Map.LayerStack` non ce ne sono.
+> - 🎨 **I volumi ricevono il trattamento, e dicono il piano con una tinta** ([D-508](../../decisions/RT_PDR_00_Decision_Log.md), [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706)):
+>   coperture alte e basse e porte (`EdgeFeatures`), blocchi (`Blockers`), corpi strutturali (`StructuralBodies`) e
+>   volumi di superficie (`SurfaceVolumes`). Sopra il piano attivo sono traslucidi e schiariti, sotto scuriti. E tutto il
+>   volume prende una tinta leggera del colore del suo piano: nero sull'attivo, bianco sopra, viola sotto. Su una
+>   mappa a un piano non hanno né tinta né trattamento, e si vedono come prima.
+>   ⌫ *Fino a #3706 queste famiglie non avevano dati per istanza e usavano il materiale della loro mesh: era il
+>   limite dichiarato da [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679).*
+>   - 🔑 **Sette dati per istanza, e un materiale generato** (`M_HexVolume`, [D-229](../../decisions/RT_PDR_00_Decision_Log.md)). I canali 0..2
+>     sono il colore della tinta, 3..5 il trattamento (gli stessi di `M_HexCell`), 6 la forza della tinta. La
+>     tinta è una funzione pura, `RTLayerPresentation::VolumeTint(piano, piano attivo, mappa a più piani)`. Il
+>     materiale lo scrive `UnrealEditor-Cmd … -run=RTBuildHexVolumeMaterial` dal clone principale, e
+>     `HexVolume.MaterialMatchesTheRecipe` confronta l'asset con la ricetta. Davanti a un conflitto sul binario si
+>     rigenera.
+>   - 🔑 **L'ordine nel materiale è la regola**: la desaturazione sul colore proprio, poi la tinta, poi la luce.
+>     Una tinta messa prima della desaturazione perderebbe il viola su un piano sotto; messa dopo la luce
+>     schiarirebbe un corpo scurito. La luce di un piano sotto vale anche per il **riflesso**: lasciato com'era,
+>     un blocco due piani sotto risultava più chiaro di uno un piano sotto.
+>   - 🔑 **Il colore proprio è quello che c'era**: due grigi, 0,13 per i prismi e 0,092 per i pannelli, tarati
+>     sulle catture di `Visual.Map.BlockVolumes` e `Visual.Map.GrayKitYard` perché una mappa a un piano non
+>     cambi. I pannelli lo ricevono da un'istanza dinamica del materiale.
+>   - 🔴 **Il velo viene prima anche qui**: il velo nasconde un volume azzerandone la scala, e la tinta scrive solo
+>     i suoi canali. I pannelli di bordo la riprendono dopo una ricostruzione parziale
+>     ([#3687](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3687)). Lo guarda `HexMap.VolumeTintSurvivesTheVeilAndAPartialRebuild`.
+>   - ⚠️ **`Relief` resta fuori**: è il rilievo che fa leggere il costo di una cella, non un oggetto, e tiene il
+>     materiale di prima. Su un piano non attivo non riceve nemmeno il trattamento. Scelta della PR, senza l'autore.
+>   - ⚠️ **La tinta sposta anche la luminosità**: il nero scurisce un volume del piano attivo, il viola schiarisce
+>     nel blu uno che sta sotto. La forza (0,25) è provvisoria: la giudica `PIE-CAM-TINTA-VOLUMI`.
+> - ⚠️ **Lo scurimento dei piani sotto, a schermo, è un rapporto e non un livello**
+>   ([#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723)). L'esposizione automatica del motore è accesa: quando gran parte del quadro è «sotto»
+>   alza il guadagno. Misurato il 2026-10-13 su `Visual.Map.LayerVolumes`, in tattica: una cella del piano terra è
+>   136, 136 e 134 coi tre piani attivi; con `ShowFlag.EyeAdaptation 0` è 170, 110 e 61. Che cosa farne lo decide
+>   l'autore.
 > - 🔧 **Le leve**: `rt.Map.Layers.UpperOpacity` (0,35), `rt.Map.Layers.UpperExposure` (3 stop),
->   `rt.Map.Layers.LowerDesaturation` (0,7 per piano) e `rt.Map.Layers.LowerDarkening` (0,55 per piano). Negativo
+>   `rt.Map.Layers.LowerDesaturation` (0,7 per piano), `rt.Map.Layers.LowerDarkening` (0,55 per piano) e
+>   `rt.Map.Layers.VolumeTint` (0,25, la forza della tinta dei volumi). Negativo
 >   vuol dire il default. I due valori «sotto» li ha scelti l'autore nella seduta `U84`, e lo stesso giorno
 >   **l'opacità «sopra»**, sull'asset riparato: prima la maschera era inerte e nessun valore era stato visto.
 > - 🔆 **I piani sopra sono anche schiariti** ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)). Un velo dello stesso colore del piano che

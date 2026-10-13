@@ -19,6 +19,9 @@ namespace RTUnitOutlineMaterial
 	/** La descrizione del nodo Custom: e' il nome con cui il test lo ritrova nell'asset. */
 	extern const TCHAR* const CustomDescription;
 
+	/** Quante espressioni ha il grafo: quattro scene texture, tre colori, lo spessore e il nodo Custom. Una in piu' e' un orfano. */
+	inline constexpr int32 ExpressionCount = 9;
+
 	/**
 	 * Il codice HLSL del nodo Custom.
 	 *

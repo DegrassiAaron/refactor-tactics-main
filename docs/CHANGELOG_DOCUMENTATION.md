@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-10-13 — Il piano di muri, coperture, porte e blocchi si legge dalla tinta del volume
+
+**Origine**: [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706), `D-508`. Che cosa entra, la forza della tinta e l'ordine nel materiale li ha scelti la PR; il giudizio a schermo è dell'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-TINTA-VOLUMI`, nuova e aperta; i totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U86`: la seduta che la giudica |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: i volumi ricevono il trattamento e la tinta, e il limite dichiarato da #3679 si chiude (resta `Relief`); l'esposizione automatica e i piani sotto ([#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723)) |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-508` annotata: le famiglie, la forza, l'ordine nel materiale |
+| [`technical/tooling/asset-map.md`](technical/tooling/asset-map.md) | `M_HexVolume`, generato dal commandlet |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | `Visual.Map.LayerVolumes`, sulla fixture `LayerYard` |
+| [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | la tinta dei volumi in `Map/RTLayerPresentation`, e la ricetta del materiale |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: i file, i test, lo scenario e la voce PIE della tinta |
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §7: lo stato di #3706 |
+
+---
+
 ## 2026-10-13 — `VERT-3`: fin dove vale la regola del piano di `D-393`
 
 **Origine**: la ricognizione per l'ultima casella di [#2951](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2951), chiusa con [#3721](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3721).

@@ -5868,6 +5868,34 @@ sessions:
       Nella stessa seduta si guardano i fantasmi del piano: è il criterio che tiene parziale
       `PIE-CAM-PIANI-ATTIVO` (seduta `U84`).
 
+  - id: U86
+    title: Il piano di muri, coperture, porte e blocchi dalla tinta del volume (D-508)
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto di `PIE-CAM-TINTA-VOLUMI`, e la forza della tinta scelta dall'autore, da scrivere sul default di
+      `FRTLayerPresentationTuning::VolumeTintStrength` e su D-508; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U85]
+    verifies: [PIE-CAM-TINTA-VOLUMI]
+    issues: [3706]
+    done_when: >-
+      l'autore ha giudicato la voce in PIE; #3706 si chiude col suo verdetto
+    notes: |
+      ⏳ **Da convocare con l'autore.** Il 2026-10-13, di notte, una sessione senza di lui ha preparato le catture
+      dal clone principale (commit `5312a5d8b`), con le leve al default: `Visual.Map.LayerVolumes` coi tre
+      piani attivi, in tattica e in strategica; il controllo positivo con `rt.Map.Layers.VolumeTint` a 0 e a 0,6;
+      le due scene a un piano. Le misure sono nella cella della voce. In seduta: si prova la leva in console, si
+      sceglie, e il valore scelto diventa il default nel codice.
+
+      🔧 `M_HexVolume` è **generato** (`-run=RTBuildHexVolumeMaterial`, D-229): un cambio alla ricetta si rilancia
+      dal clone principale, e il binario si committa.
+
+      ⚠️ Ciò che si vede dei piani sotto dipende dall'esposizione automatica (#3723): se quella issue cambia
+      l'esposizione della camera, la voce va riguardata.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

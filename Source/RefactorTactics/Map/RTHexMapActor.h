@@ -13,6 +13,7 @@
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UMaterialInstanceDynamic;
 class UPrimitiveComponent;
 class UStaticMesh;
 class URTHexMapAsset;
@@ -239,6 +240,33 @@ public:
 	TSoftObjectPtr<UMaterialInterface> CellMaterial =
 		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Core/Grid/M_HexCell.M_HexCell")));
 
+	/**
+	 * Materiale dei VOLUMI (#3706, [D-508]): legge i sette `PerInstanceCustomData` di `RTLayerPresentation` — la tinta
+	 * del piano e il trattamento di D-501 — sulle quattro famiglie che lo ricevono: `EdgeFeatures`, `Blockers`,
+	 * `StructuralBodies` e `SurfaceVolumes`. Lo costruisce il commandlet `RTBuildHexVolumeMaterial` (`D-229`).
+	 *
+	 * ⛔ **`Relief` NON lo riceve, ed e' una scelta**: il rilievo del costo tiene il materiale di default perche' il
+	 * sovrapprezzo di movimento DEVE saltare all'occhio (decisione di leggibilita' del 2026-08-15, in
+	 * `RebuildInstances`), ed e' uno strumento di lettura, non un oggetto. Su un piano che non e' l'attivo resta
+	 * pieno: e' un limite dichiarato di #3706.
+	 *
+	 * Se assente, le quattro famiglie tengono il materiale della loro mesh e i dati per istanza sono inerti: niente
+	 * tinta e niente trattamento, come prima di #3706. Sta qui e non nel livello per la ragione di `CellMaterial`.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
+	TSoftObjectPtr<UMaterialInterface> VolumeMaterial;
+
+	/** Una famiglia dei volumi che riceve tinta e trattamento, con le celle delle sue istanze. */
+	struct FRTVolumeFamily
+	{
+		UInstancedStaticMeshComponent* Component = nullptr;
+		const TArray<FRTCellId>* Cells = nullptr;
+		const TCHAR* Name = TEXT("");
+	};
+
+	/** Le quattro famiglie, nell'ordine in cui si scrivono. Le leggono `ApplyLayerPresentation` e i test. */
+	TArray<FRTVolumeFamily> GetVolumeFamilies() const;
+
 	/** Dimensione esagono (cm) usata se MapAsset e' assente. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	float HexSize = 150.f;
@@ -293,7 +321,7 @@ public:
 
 	/**
 	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
-	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`, `LayerStack`.
+	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`, `LayerStack`, `LayerYard`.
 	 *
 	 * ⚠️ **Completato il 2026-08-31, e ne mancavano tre**: `GrayKitYard`, `VisionSplit` e `ProbeYard` erano
 	 * nel dispatcher e non qui. Il test qui sotto verifica **una direzione sola** — che ogni nome elencato
@@ -1578,6 +1606,16 @@ protected:
 
 	/** #3679 — scrive il trattamento di `PresentedActiveLayer` su tutte le famiglie che lo ricevono. */
 	void ApplyLayerPresentation();
+
+	/** #3706 — mette `VolumeMaterial` sulle famiglie dei volumi. Dopo ogni `SetStaticMesh`, che riporta gli slot alla mesh. */
+	void ApplyVolumeMaterial();
+
+	/**
+	 * #3706 — l'istanza di `VolumeMaterial` dei pannelli di bordo: stesso grafo, ma col colore proprio del cubo dei
+	 * pannelli invece che dei prismi (`RTLayerPresentation::VolumeOwnColor`).
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> EdgePanelVolumeMaterial;
 
 	/** #3704 — la mappa disegnata ha piu' di un piano: lo misura `ApplyLayerPresentation`, sulle istanze. */
 	bool bPresentationMultiLayer = false;

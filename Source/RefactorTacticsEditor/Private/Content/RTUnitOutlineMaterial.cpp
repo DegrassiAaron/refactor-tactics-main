@@ -1,4 +1,5 @@
 #include "Content/RTUnitOutlineMaterial.h"
+#include "Content/RTMaterialRecipe.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "MaterialEditingLibrary.h"
@@ -147,7 +148,8 @@ bool RTUnitOutlineMaterial::BuildGraph(UMaterial* Material)
 	}
 
 	// Il grafo si RICOSTRUISCE a ogni esecuzione (`D-229`): un nodo autorato a mano qui andrebbe perso, ed e' voluto.
-	UMaterialEditingLibrary::DeleteAllMaterialExpressions(Material);
+	// ⚠️ Con `ClearGraph` e non con `DeleteAllMaterialExpressions` del motore, che ne lascia indietro la meta'.
+	RTMaterialRecipe::ClearGraph(Material);
 
 	Material->MaterialDomain = MD_PostProcess;
 	// Dopo il DOF e PRIMA dell'antialiasing temporale: il contorno nasce a spigolo vivo sul custom depth, che ha lo

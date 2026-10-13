@@ -81,3 +81,5 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
 2. **#3705** e **#3706**, indipendenti fra loro, dopo #3704.
    ➕ *2026-10-13:* #3705 è attuata con un post-process su custom depth; il contorno di chi sta sotto il piano
    attivo passa attraverso la geometria. Aspetta il giudizio dell'autore (`PIE-CAM-CONTORNO-UNITA`).
+   ➕ *2026-10-13:* #3706 è attuata con un materiale generato, `M_HexVolume`, e sette dati per istanza. Il
+   rilievo del costo resta fuori. Aspetta il giudizio dell'autore (`PIE-CAM-TINTA-VOLUMI`).

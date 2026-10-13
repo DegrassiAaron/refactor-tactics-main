@@ -332,6 +332,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | `Visual.Map.SightWallIsWalkable` | mapRadius | `PIE-VIS-SIGHTWALL` | la cella che nega il tiro **e si attraversa**: porta la lastra **senza** la colonna, ed è l'unico banco in cui la lastra si giudica da sola |
 | `Visual.Map.TwoLayersSameColumn` | TestArena | `PIE-VIS-TWOLAYERS` | due unità sulla **stessa colonna**, piani diversi: si vedono **entrambe**, e a quote diverse |
 | `Visual.Map.LayerStack` | **LayerStack** | `PIE-CAM-STRATEGIC-PIANI` ([#3678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3678)), poi la voce di [#3679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3679) | tre piani **sovrapposti**, con un'unità propria **sotto** ogni piano più alto: la separazione in strategica, e quale piano è attivo |
+| `Visual.Map.LayerVolumes` | **LayerYard** | `PIE-CAM-TINTA-VOLUMI` ([#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706)) | i tre piani di `LayerStack` con **volumi su ogni piano**: blocchi, coperture alte e basse, porte, fumo e corpi. Si legge a che piano sta un volume dalla sua tinta |
 | `Visual.Movement.Charge` | r4 | `PIE-VIS-CHARGE` | la carica si legge diversa dal passo |
 | `Visual.Movement.RoughRefusesCharge` | RelayLite | `PIE-VIS-ROUGH` | un rifiuto è **muto**: non deve accadere niente |
 | `Visual.Reaction.Deflection` | r4 | `PIE-VIS-DEFLECT` | 22 diventano 2 — una difesa, non un attacco debole |

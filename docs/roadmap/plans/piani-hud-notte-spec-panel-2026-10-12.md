@@ -84,4 +84,4 @@ Il giudizio a occhio — «si capisce quale piano è attivo» — resta all'auto
 ## 7. Fuori da questa notte
 
 - Le intensità definitive e il verdetto a occhio di #3679 (autore).
-- Il trattamento delle famiglie senza dati per istanza.
+- Il trattamento delle famiglie senza dati per istanza. ➕ *2026-10-13: fatto da [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706) per `Blockers`, `StructuralBodies`, `EdgeFeatures` e `SurfaceVolumes`; resta fuori `Relief`.*
