@@ -62,16 +62,20 @@ namespace RTUnitLayerOutline
 	/** Il parametro di colore di uno stencil, `NAME_None` per chi non ne ha. */
 	REFACTORTACTICS_API FName ColorParamFor(uint8 Stencil);
 
-	/** Lo spessore di default del contorno, in pixel a 1080 righe; il materiale lo scala con l'altezza del quadro. */
-	inline constexpr float DefaultThicknessPx = 2.f;
+	/**
+	 * Lo spessore di default del contorno, in pixel a 1080 righe; il materiale lo scala con l'altezza del quadro.
+	 * 3 l'ha scelto l'autore il 2026-10-13, sulle tavole della seduta `U85`, fra 2, 3 e 4. E' anche il default del
+	 * parametro nell'asset: chi lo cambia rilancia il commandlet `RTBuildUnitOutlineMaterial`.
+	 */
+	inline constexpr float DefaultThicknessPx = 3.f;
 	inline constexpr float MaxThicknessPx = 8.f;
 }
 
 /**
  * Le leve del contorno, `rt.Unit.LayerOutline*`, da provare in PIE.
  *
- * ⚠️ **Provvisorie, scelte senza l'autore** (PR di #3705): lo spessore, e il fatto stesso che il contorno ci sia.
- * La voce PIE le giudica.
+ * 🔑 **Giudicate dall'autore il 2026-10-13**, sulle tavole della seduta `U85`: il contorno resta acceso, e lo
+ * spessore e' 3 pixel. La PR di #3705 le aveva scelte senza di lui: acceso, 2 pixel.
  */
 struct REFACTORTACTICS_API FRTUnitLayerOutlineTuning
 {

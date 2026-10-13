@@ -32,6 +32,10 @@ namespace
 			case ERTMoveOutcome::BlockedByTopology:
 			case ERTMoveOutcome::StoppedByPrediction:
 			case ERTMoveOutcome::StoppedByOverwatch:
+			// `BlockedByCycle` e' di questa famiglia, e ne era rimasto fuori solo perche' e' nato dopo (`#3081`).
+			// ⚠️ **Oggi nessuno lo emette** ([D-453]; il produttore l'ha spento [D-445]), quindi questo ramo non
+			// cambia nessuna partita: c'e' perche' riaccendere quel valore non renda muto il feed.
+			case ERTMoveOutcome::BlockedByCycle:
 				OutType = ERTPlayerEventType::MoveBlocked;
 				OutImportance = ERTPlayerEventImportance::Important;
 				return true;
@@ -75,6 +79,35 @@ namespace
 			// il non-fatto che deve leggere, perche' cambia cosa aspettarsi nel turno dopo (`D-319`).
 			case ERTMoveOutcome::SlideBlocked:
 				OutType = ERTPlayerEventType::SlideBlocked;
+				OutImportance = ERTPlayerEventImportance::Important;
+				return true;
+
+			// IL PARAPETTO E LE QUATTRO CADUTE (`#3081`): spostamenti SUBITI, come `Displaced` e `Slid`.
+			//
+			// 🔴 **Erano valori nati dopo questo `switch` e mai tradotti qui**: cadevano nel `default`, e
+			// l'unita' cambiava cella — spesso piano — senza che il feed lo dicesse. E' la sparizione che il
+			// commento di `Slid` qui sopra aveva previsto.
+			//
+			// `StoppedByEdgeGuard` sta con `Displaced` e NON con i `Blocked*`: lo spostamento forzato ha
+			// percorso celle, e il parapetto l'ha accorciato. `MoveBlocked` direbbe che il piano del giocatore
+			// e' fallito, che e' falso — l'obiezione di `#2314` per `SlideBlocked`. Prima che il valore
+			// esistesse lo stesso fatto era `Displaced` ([D-354]) e produceva gia' questa riga.
+			//
+			// ⚠️ **Per chi cade, questa riga di solito NON e' quella che resta.** La caduta scrive per la stessa
+			// unita' anche una voce di danno (`URTTurnLogLibrary::FallCauseOfFaller`, rango 80), e la dominanza
+			// tiene una riga per unita': vince il danno. Che il giocatore legga «Caduta» lo decide il TESTO di
+			// quella riga (`URTHudViewModel::ComposePlayerEventText`), non questo ramo. Questo serve quando
+			// l'osservatore e' autorizzato alla voce di movimento e non a quella di danno.
+			//
+			// I quattro esiti di atterraggio hanno qui lo stesso tipo, e nel feed non si distinguono: dove
+			// l'unita' e' finita lo mostra la board, e i quattro testi restano nel log diagnostico
+			// (`URTTurnLogLibrary::DescribeEntry`, [D-352]).
+			case ERTMoveOutcome::StoppedByEdgeGuard:
+			case ERTMoveOutcome::Fell:
+			case ERTMoveOutcome::FellToAlternative:
+			case ERTMoveOutcome::FellToLastStable:
+			case ERTMoveOutcome::FellWithoutLanding:
+				OutType = ERTPlayerEventType::Moved;
 				OutImportance = ERTPlayerEventImportance::Important;
 				return true;
 

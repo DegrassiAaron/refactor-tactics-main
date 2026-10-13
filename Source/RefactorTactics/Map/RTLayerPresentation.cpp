@@ -11,16 +11,16 @@ static TAutoConsoleVariable<float> CVarRTMapLayersUpperOpacity(
 
 static TAutoConsoleVariable<float> CVarRTMapLayersUpperExposure(
 	TEXT("rt.Map.Layers.UpperExposure"), -1.f,
-	TEXT("Di quanti stop si schiarisce un piano sopra quello attivo (0..4, +1 = luce doppia; 0 = spento). Negativo = default (3)."),
+	TEXT("Di quanti stop si schiarisce un piano sopra quello attivo (0..4, +1 = luce doppia; 0 = spento). Negativo = default (1,5)."),
 	ECVF_Default);
 
 static TAutoConsoleVariable<float> CVarRTMapLayersLowerDesaturation(
 	TEXT("rt.Map.Layers.LowerDesaturation"), -1.f,
-	TEXT("Saturazione persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,7)."), ECVF_Default);
+	TEXT("Saturazione persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (1)."), ECVF_Default);
 
 static TAutoConsoleVariable<float> CVarRTMapLayersLowerDarkening(
 	TEXT("rt.Map.Layers.LowerDarkening"), -1.f,
-	TEXT("Luce persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,55)."), ECVF_Default);
+	TEXT("Luce persa per piano di distanza sotto l'attivo (0..1, cumulata). Negativo = default (0,4)."), ECVF_Default);
 
 static TAutoConsoleVariable<float> CVarRTMapLayersVolumeTint(
 	TEXT("rt.Map.Layers.VolumeTint"), -1.f,

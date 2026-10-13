@@ -155,7 +155,13 @@ struct FRTPlayerEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|PlayerEvent")
 	int32 SecondaryUnitId = INDEX_NONE;
 
-	/** L'azione dichiarata dal catalogo, quando la voce la porta. */
+	/**
+	 * L'azione dichiarata dal catalogo, quando la voce la porta.
+	 *
+	 * ⚠️ **Per un danno ambientale non e' un'azione: e' la CAUSA** — `Terrain.<Surface>`, `Status.Burning`, e
+	 * per una caduta `URTTurnLogLibrary::FallCauseOfFaller` / `FallCauseOfImpact`. Da `#3081` il testo della
+	 * riga la legge: e' cio' che fa dire «Caduta» o «Urto» invece di «Colpita».
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|PlayerEvent")
 	FName ActionId;
 

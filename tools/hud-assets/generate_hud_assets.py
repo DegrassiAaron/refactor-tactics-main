@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from action_axes import action_axes, hero_ability_axes, surfaces_created
-from color_metrics import check_palette
+from color_metrics import check_overlay, check_palette, inks_by_owner, overlay_colors
 
 try:
     import cairosvg
@@ -2654,6 +2654,25 @@ def check_alphabet_gates(entries: list) -> list[str]:
     hud_states["Disabled"] = SEMANTIC["Disabled"]
     errors += [f"T9: {e}" for e in check_palette(
         PHASE_INK, hud_states, {k: CHROME[k] for k in ("BG_Panel", "BG_Raised")})]
+
+    # T9, l'altra meta' (D-234): sull'overlay del mondo lo stesso canale porta DUE assi — l'identita' di
+    # squadra e la fase della linea di scatto — e i loro colori si leggono da `UI/RTHUD.cpp`.
+    #
+    # 🔴 **Fino a `#3626` questo gate NON la misurava**, e tre commenti dicevano di si': due in `RTHUD.cpp`
+    # e uno in `RTHudIntentPresentationTests.cpp`. Il controllo viveva solo nel referto `color_metrics.py`
+    # lanciato a mano, che ha smesso di girare il 2026-09-04 senza che nessuno se ne accorgesse. Qui lo
+    # esegue chiunque rigeneri gli asset, e una riga di `RTHUD.cpp` che cambia forma diventa un `T9` rosso.
+    #
+    # ⚠️ Si cattura anche il file che manca o che non si apre, non solo la forma cambiata: un'eccezione
+    # qui farebbe uscire il generatore con un traceback DOPO aver scritto le icone e PRIMA del verdetto,
+    # che e' la perdita descritta nel blocco di `#3002` piu' sotto.
+    try:
+        overlay_identity, overlay_phase = overlay_colors(REPO_ROOT)
+    except (RuntimeError, OSError, UnicodeDecodeError) as error:
+        errors.append(f"T9: l'overlay del mondo non si legge — {type(error).__name__}: {error}")
+    else:
+        errors += [f"T9: {e}" for e in check_overlay(
+            overlay_identity, overlay_phase, inks_by_owner(PHASE_INK, CHROME, SEMANTIC), PHASE_INK)]
 
     if cairosvg is None:
         errors.append("T1/T3: non misurabili senza cairosvg")

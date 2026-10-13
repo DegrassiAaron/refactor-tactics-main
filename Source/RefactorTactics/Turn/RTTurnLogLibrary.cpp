@@ -130,6 +130,20 @@ bool URTTurnLogLibrary::IsArcHit(const FRTTurnLogEntry& Entry)
 	return Esito == ERTEnvironmentOutcome::BridgeDamaged || Esito == ERTEnvironmentOutcome::BridgeDestroyed;
 }
 
+// I due id si compongono dal prefisso invece di riscriverlo: un `Fall.` cambiato in `FallCausePrefix()` li
+// sposta entrambi, e `IsEnvironmentalDamage` continua a riconoscerli senza che nessuno se ne ricordi.
+FName URTTurnLogLibrary::FallCauseOfFaller()
+{
+	static const FName Id(*FString::Printf(TEXT("%sFall"), FallCausePrefix()));
+	return Id;
+}
+
+FName URTTurnLogLibrary::FallCauseOfImpact()
+{
+	static const FName Id(*FString::Printf(TEXT("%sImpact"), FallCausePrefix()));
+	return Id;
+}
+
 bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.Category != ERTLogCategory::Combat || Entry.UnitId == 0)
