@@ -10,6 +10,7 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Tests/RTWorldFixtures.h" // #3400: PlayOneTurn, per leggere il campione a turno chiuso
+#include "Tests/RTAbilityFixtures.h" // #3400: AddCoreAbility, per la mobilita' sintetica a budget
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Turn/RTMovementActionLibrary.h"
@@ -2700,39 +2701,82 @@ bool FRTMovementDestinationIsAnOrderTest::RunTest(const FString&)
 /**
  * UNA DESTINAZIONE DI SCATTO E' UN ORDINE; UNO SCATTO RIFIUTATO NO — la seconda meta' di `#3400`.
  *
- * 🔴 **Il difetto.** `HandleClickOnCell` ha una sola chiamata a `RecordPlanningInput(Order)`, in coda al ramo
- * del waypoint. I due rami della mobilita' rapida — lineare e a budget — scrivevano `PlannedDashCell` e
+ * 🔴 **Il difetto.** `HandleClickOnCell` aveva una sola chiamata a `RecordPlanningInput(Order)`, in coda al
+ * ramo del waypoint. I due rami della mobilita' rapida — lineare e a budget — scrivevano `PlannedDashCell` e
  * uscivano con `return` prima di arrivarci: una cella d'arrivo dichiarata con uno scatto non contava.
  *
- * 🔑 **Il contatore misura GESTI accettati, non lunghezza del piano** (`Turn/RTPacing.h`: «abilita' **o**
- * destinazione»). Lo scatto ne produce due: l'arm, che `SelectAbilityForCurrent` registra gia', e la
- * destinazione. Per questo qui l'arm passa dal controller e non da `ARTUnit::SelectAbility`: il numero atteso e'
- * quello che il giocatore produce davvero. ⚠️ Ne segue che un turno di solo scatto contava gia' UNO prima della
- * correzione, non zero — e i casi di rifiuto qui sotto lo fissano.
+ * 🔑 **Il contatore misura GESTI, non lunghezza del piano** (`Turn/RTPacing.h`: «abilita' **o**
+ * destinazione»), e le due meta' dello scatto non contano con la stessa regola. La pressione del tasto la
+ * registra `SelectAbilityForCurrent` appena raggiunge un'unita' selezionata, prima di validare. La destinazione
+ * conta solo se accettata. Per questo qui l'arm passa dal controller e non da `ARTUnit::SelectAbility`: il
+ * numero atteso e' quello che il giocatore produce davvero. ⚠️ Ne segue che un turno di solo scatto contava
+ * gia' UNO prima della correzione, non zero — e i casi di rifiuto qui sotto lo fissano.
  *
  * ⚠️ **Sono DUE chiamate in due rami, e ciascuna ha il proprio caso accettato.** Con un caso solo, una delle due
  * resterebbe senza un test che cada quando viene tolta. E ciascun ramo ha il proprio caso RIFIUTATO: con la sola
  * asserzione sull'accettato, una chiamata spostata in cima al blocco dello scatto passerebbe — e conterebbe
  * come ordine ogni cella non allineata o fuori budget.
  *
- * ⚠️ **Il ramo a budget si raggiunge con un'azione SINTETICA.** Nessuna azione spedita ci arriva oggi: tutte le
- * mobilita' rapide del catalogo dichiarano uno stile lineare, e `Action.Sprint`, per cui il ramo era nato,
- * risolve nel movimento normale. La prova lo esercita lo stesso, perche' la chiamata c'e' e deve stare al
- * posto giusto il giorno in cui un'azione ci arrivera'.
+ * ⚠️ **Una destinazione ripetuta conta ogni volta.** Due celle valide una dopo l'altra sono due gesti: il piano
+ * tiene l'ultima, il contatore ne registra due. E' un caso a se', perche' e' la lettura che distingue «gesti» da
+ * «destinazioni nel piano».
  *
- * Il terzo caso accettato e' la CARICA puntata sul nemico (`#145`): passa da `HandleClickOnUnit`, che inoltra
- * alla stessa funzione, ed e' il gesto con cui un giocatore usa davvero il ramo lineare.
+ * ⚠️ **Il ramo a budget si raggiunge con un'azione SINTETICA**, e la premessa e' asserita in cima al test invece
+ * che scritta in un commento: ogni mobilita' rapida del catalogo e del roster dichiara uno stile lineare.
+ * `Action.Sprint`, per cui il ramo era nato, risolve nel movimento normale. La prova lo esercita lo stesso,
+ * perche' la chiamata c'e' e deve stare al posto giusto il giorno in cui un'azione ci arrivera' — e quel giorno
+ * la premessa cade e dice di sostituire la sintetica con l'azione vera.
+ *
+ * ⛔ **L'ultimo caso NON e' un gesto del giocatore, ed e' dichiarato per quello che e'.** Chiama
+ * `HandleClickOnUnit` dalla porta di test, con una carica armata e un nemico in linea: prova che quella
+ * funzione INOLTRA alla cella del nemico e che l'ordine si conta una volta sola, non due. Il click vero non ci
+ * arriva: con una mobilita' rapida armata il puntatore non e' in `Targeting`, e `DispatchUnitClick` risponde
+ * `Inspect` a un nemico osservato. Che la carica sul nemico non si pianifichi dal click vero e' un difetto a
+ * se', con la sua issue (`#3736`); qui non lo si copre e non lo si nasconde.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashDestinationIsAnOrderTest,
 	"RefactorTactics.PlayerInput.DashDestinationCountsAsAnOrder",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 {
-	enum class ECaso : uint8 { Lineare, Budget, CaricaSulNemico };
+	// ── Premessa del ramo a budget: nessuna mobilita' rapida SPEDITA ha uno stile non lineare ──
+	{
+		TArray<TPair<FString, FRTActionDef>> Spedite;
+		for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+		{
+			Spedite.Emplace(FString::Printf(TEXT("catalogo, %s"), *Def.ActionId.ToString()), Def);
+		}
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (!Hero) { continue; }
+			for (int32 i = 0; i < Hero->Actions.Num(); ++i)
+			{
+				if (const URTActionData* Azione = Hero->Actions[i])
+				{
+					Spedite.Emplace(FString::Printf(TEXT("%s, azione %d"), *Hero->HeroId.ToString(), i), Azione->Def);
+				}
+			}
+		}
+		int32 Rapide = 0;
+		for (const TPair<FString, FRTActionDef>& Voce : Spedite)
+		{
+			if (!URTCatalogLibrary::IsFastMovement(Voce.Value)) { continue; }
+			++Rapide;
+			TestTrue(*FString::Printf(TEXT("premessa: la mobilita' rapida spedita (%s) ha uno stile lineare — se "
+				"cade, il caso «a budget» deve usare quell'azione e non una sintetica"), *Voce.Key),
+				URTMovementActionLibrary::IsLinear(Voce.Value.MovementStyle));
+		}
+		if (!TestTrue(TEXT("premessa: il censimento ha trovato mobilita' rapide (non e' vacuo)"), Rapide > 0))
+		{
+			return false;
+		}
+	}
+
+	enum class ECaso : uint8 { Lineare, Budget, CaricaInoltrata };
 
 	// Il campione si legge solo a turno chiuso, quindi ogni caso vuole il proprio mondo.
-	auto OrdiniDopoArmEClick = [this](ECaso Caso, const FRTCellId& Bersaglio, int32& OutOrdini,
-		bool& bOutPianificato) -> bool
+	auto OrdiniDopoArmEClick = [this](ECaso Caso, const TArray<FRTCellId>& Click, int32& OutOrdini,
+		bool& bOutPianificato, FRTCellId& OutCellaPianificata) -> bool
 	{
 		UWorld* World = MakeInteractionWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -2745,7 +2789,7 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 		if (TM) { TM->DispatchBeginPlay(); }
 
 		// La carica vuole Branth e un nemico in linea; gli altri due casi, Ivrin e un nemico lontano.
-		const bool bCarica = (Caso == ECaso::CaricaSulNemico);
+		const bool bCarica = (Caso == ECaso::CaricaInoltrata);
 		ARTUnit* Unit = bCarica
 			? SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0))
 			: SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
@@ -2762,14 +2806,14 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 		int32 Idx = INDEX_NONE;
 		if (Caso == ECaso::Budget)
 		{
-			// Una mobilita' rapida il cui stile NON e' lineare: i dati sono quelli di `Action.Dodge`, con il
-			// solo stile cambiato. E' cio' che porta il click nel ramo del pathfinding.
-			URTActionData* Sintetica = NewObject<URTActionData>(Unit);
-			Sintetica->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
-			Sintetica->Def.MovementStyle = ERTMovementStyle::Budget;
-			Sintetica->RangeCells = Sintetica->Def.RangeCells;
-			Unit->Abilities.Add(Sintetica);
-			Idx = Unit->Abilities.Num() - 1;
+			// Una mobilita' rapida il cui stile NON e' lineare: `Action.Dodge` equipaggiata come la equipaggia
+			// la produzione (`RTAbilityFixtures::AddCoreAbility`), con il solo stile cambiato. E' cio' che
+			// porta il click nel ramo del pathfinding.
+			Idx = RTAbilityFixtures::AddCoreAbility(Unit, TEXT("Action.Dodge"));
+			if (Unit->Abilities.IsValidIndex(Idx) && Unit->Abilities[Idx])
+			{
+				Unit->Abilities[Idx]->Def.MovementStyle = ERTMovementStyle::Budget;
+			}
 		}
 		else
 		{
@@ -2791,14 +2835,18 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 		PC->SelectAbilityForCurrentForTest(Idx); // l'arm VERO: registra il proprio ordine
 		if (bCarica)
 		{
+			// ⛔ La porta di test, NON il click del giocatore: vedi l'intestazione.
 			PC->HandleClickOnUnitForTest(Nemico);
 		}
 		else
 		{
-			PC->HandleClickOnCell(Bersaglio);
+			for (const FRTCellId& Cella : Click)
+			{
+				PC->HandleClickOnCell(Cella);
+			}
 		}
-		bOutPianificato = (Unit->PlannedDashAbility == Idx)
-			&& (Unit->PlannedDashCell == (bCarica ? Nemico->Cell : Bersaglio));
+		bOutPianificato = (Unit->PlannedDashAbility == Idx);
+		OutCellaPianificata = Unit->PlannedDashCell;
 
 		RTWorldFixtures::PlayOneTurn(TM);
 		if (!TestTrue(TEXT("un campione chiuso"), TM->GetPacingSamples().Num() >= 1))
@@ -2814,34 +2862,48 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 	{
 		const TCHAR* Nome;
 		ECaso Caso;
-		FRTCellId Bersaglio;
-		bool bAccettato;
+		TArray<FRTCellId> Click;   // nell'ordine in cui arrivano
+		int32 Accettati;           // quanti di quei click devono diventare un ordine
+		FRTCellId CellaAttesa;     // la destinazione che resta nel piano, se almeno uno e' accettato
 	};
 	const FCaso Casi[] = {
 		// (2,-2) + 2 * direzione (-1,+1): in linea, libera, in portata.
-		{ TEXT("lineare, cella allineata"),        ECaso::Lineare,         FRTCellId(0, 0, 0),  true },
+		{ TEXT("lineare, cella allineata"), ECaso::Lineare, { FRTCellId(0, 0, 0) }, 1, FRTCellId(0, 0, 0) },
 		// Libera e a due passi sul grafo, ma su nessuna delle sei direzioni.
-		{ TEXT("lineare, cella non allineata"),    ECaso::Lineare,         FRTCellId(3, -4, 0), false },
-		{ TEXT("a budget, cella vicina"),          ECaso::Budget,          FRTCellId(3, -2, 0), true },
+		{ TEXT("lineare, cella non allineata"), ECaso::Lineare, { FRTCellId(3, -4, 0) }, 0, FRTCellId() },
+		// Due celle valide sulla stessa linea: il piano tiene l'ultima, i gesti sono due.
+		{ TEXT("lineare, due destinazioni valide di fila"), ECaso::Lineare,
+			{ FRTCellId(0, 0, 0), FRTCellId(1, -1, 0) }, 2, FRTCellId(1, -1, 0) },
+		// Una valida e poi una respinta: il piano tiene la prima, e la respinta non conta.
+		{ TEXT("lineare, una valida e poi una respinta"), ECaso::Lineare,
+			{ FRTCellId(0, 0, 0), FRTCellId(3, -4, 0) }, 1, FRTCellId(0, 0, 0) },
+		{ TEXT("a budget, cella vicina"), ECaso::Budget, { FRTCellId(3, -2, 0) }, 1, FRTCellId(3, -2, 0) },
 		// La cella bloccata della mappa di prova: nessun percorso la raggiunge.
-		{ TEXT("a budget, cella bloccata"),        ECaso::Budget,          FRTCellId(2, 1, 0),  false },
-		{ TEXT("carica, click sul nemico"),        ECaso::CaricaSulNemico, FRTCellId(3, 0, 0),  true },
+		{ TEXT("a budget, cella bloccata"), ECaso::Budget, { FRTCellId(2, 1, 0) }, 0, FRTCellId() },
+		// La cella e' quella del nemico: `HandleClickOnUnit` la inoltra, e l'ordine si conta una volta.
+		{ TEXT("carica, HandleClickOnUnit inoltra la cella del nemico"), ECaso::CaricaInoltrata,
+			{ FRTCellId(3, 0, 0) }, 1, FRTCellId(3, 0, 0) },
 	};
 
 	for (const FCaso& C : Casi)
 	{
 		int32 Ordini = -1;
 		bool bPianificato = false;
-		if (!OrdiniDopoArmEClick(C.Caso, C.Bersaglio, Ordini, bPianificato)) { return false; }
+		FRTCellId Cella;
+		if (!OrdiniDopoArmEClick(C.Caso, C.Click, Ordini, bPianificato, Cella)) { return false; }
 
 		// Il controllo positivo dell'allestimento: senza, un conteggio fermo non distingue «la chiamata manca»
 		// da «lo scatto non e' stato accettato».
-		TestTrue(*FString::Printf(TEXT("%s: lo scatto e' stato %s (allestimento valido)"),
-			C.Nome, C.bAccettato ? TEXT("ACCETTATO") : TEXT("RIFIUTATO")), bPianificato == C.bAccettato);
-		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.bAccettato
-			? TEXT("l'arm e la destinazione valgono DUE ordini")
-			: TEXT("resta il solo ordine dell'arm: un tentativo respinto non conta")),
-			Ordini, C.bAccettato ? 2 : 1);
+		const bool bAtteso = (C.Accettati > 0);
+		TestTrue(*FString::Printf(TEXT("%s: lo scatto e' %s (allestimento valido)"),
+			C.Nome, bAtteso ? TEXT("nel piano") : TEXT("fuori dal piano")), bPianificato == bAtteso);
+		if (bAtteso)
+		{
+			TestTrue(*FString::Printf(TEXT("%s: nel piano resta l'ultima destinazione ACCETTATA"), C.Nome),
+				Cella == C.CellaAttesa);
+		}
+		TestEqual(*FString::Printf(TEXT("%s: un ordine per l'arm, piu' uno per ogni destinazione accettata"), C.Nome),
+			Ordini, 1 + C.Accettati);
 	}
 
 	return true;

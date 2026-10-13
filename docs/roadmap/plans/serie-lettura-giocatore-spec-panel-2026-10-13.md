@@ -167,7 +167,7 @@ R1.1, R1.2, R1.3, R1.5 e R1.6 non dipendono da nessuna decisione.
 ### 2.1 Il fatto, rimisurato
 
 **Confermato** (letto): in `ARTPlayerController::HandleClickOnCell` i due rami della mobilità rapida — quello
-**lineare** e quello **a budget** (`Action.Sprint`) — scrivono `PlannedDashAbility` e `PlannedDashCell`, loggano
+**lineare** e quello **a budget** (⌫ non è `Action.Sprint`, come questa riga diceva: vedi §2.4) — scrivono `PlannedDashAbility` e `PlannedDashCell`, loggano
 `[RT] Piano: … SCATTO -> …` ed escono con `return`. L'unica chiamata a `RecordPlanningInput(Order)` della funzione
 sta dopo, in coda al ramo del waypoint accettato.
 
@@ -220,15 +220,25 @@ conteggio rimasto fermo non distingue «la chiamata manca» da «lo scatto non �
 
 ⌫ **Le ultime due righe nominano `Action.Sprint`, ed è sbagliato**: corretto lo stesso giorno, lavorando la
 issue ([#3732](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3732)). `Action.Sprint` risolve nel
-movimento normale e non passa da questo ramo; e nessuna mobilità rapida del catalogo spedito ha uno stile non
-lineare, quindi il ramo «a budget» **non è raggiungibile** in partita. Il test lo esercita con un'azione
-sintetica. In più, il gesto che un giocatore usa davvero sul ramo lineare è la **carica puntata sul nemico**,
-che il referto non aveva visto: passa da `HandleClickOnUnit`, che inoltra alla stessa funzione.
+movimento normale e non passa da questo ramo; e nessuna mobilità rapida del catalogo e del roster ha uno stile
+non lineare, quindi il ramo «a budget» **non è raggiungibile** in partita. Il test lo esercita con un'azione
+sintetica, e ne asserisce la premessa.
+
+⌫ **E una seconda correzione, dalla revisione di quella PR.** La prima diceva qui che *«il gesto che un
+giocatore usa davvero sul ramo lineare è la carica puntata sul nemico»*, e che passa da `HandleClickOnUnit`.
+Dal click vero **non ci passa**: con una mobilità rapida armata il puntatore non è in `Targeting`, e
+`DispatchUnitClick` risponde `Inspect` a un nemico osservato. `HandleClickOnUnit` inoltra la carica solo se
+chiamata dalla porta di test. Il caso resta nel test per quello che prova — l'inoltro, e che l'ordine si conta
+una volta — ed è un difetto a sé, misurato con una sonda e aperto come
+[#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736).
+
+➕ **Due esempi in più, che la tabella non aveva**: due destinazioni valide di fila valgono `3` (`R2.3`: il piano
+tiene l'ultima, i gesti sono due); una valida e poi una respinta valgono `2`, e nel piano resta la prima.
 
 ### 2.5 Definition of Done
 
 - [ ] I quattro esempi sono un test, nella forma di `MovementDestinationCountsAsAnOrder`. Togliere una delle due
-      chiamate fa cadere il solo esempio accettato del suo ramo.
+      chiamate fa cadere i soli esempi accettati del suo ramo.
 - [ ] La casella sull'arm si spunta con la riga di log citata sopra.
 - [ ] `P2` è scritta nella issue.
 - [ ] `PIE-PACING-1` si rigiudica in seduta su un binario che contiene la correzione: resta aperta fino ad allora.
