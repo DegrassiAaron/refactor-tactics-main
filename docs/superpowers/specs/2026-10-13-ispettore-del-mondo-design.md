@@ -22,6 +22,11 @@
 > (PIE `NOT RUN`). I fatti sono citati per **simbolo**, non per riga; chi rilegge più tardi rimisura. Nessun totale
 > volatile: dove serve un elenco ci sono i nomi. Le scelte di chi scrive sono marcate `Ruling` (§8), ognuna col suo
 > costo se è sbagliata, e sono revocabili dall'autore.
+>
+> ➕ rev. **Rivista il 2026-10-13**, su richiesta dell'autore, da chi l'ha scritta: non è una revisione indipendente.
+> Il metodo è stato il confronto di ogni regola con una seconda fonte — il codice su `4e6d198cd` e il Decision Log —
+> e ha trovato i sette difetti `V1`–`V7` di §13. Le correzioni sono nel testo, marcate `➕ rev.`; dove ribaltano una
+> frase della prima stesura lo dicono col `⌫`.
 
 ---
 
@@ -79,6 +84,15 @@ orbita. Il modificatore della camera è `Alt` (`CameraModifierAction`), con la f
   all'attacco base e accoda le azioni concesse da gadget e modulo, poi li dimentica.
 - **Il registro a schermo copre solo l'ultimo turno** (`URTHudViewModel::BuildPlayerEventFeed`, tetto
   `MaxFeedLines`).
+- ➕ rev. **La geometria che la squadra non ha osservato è nascosta**
+  ([D-225](../../decisions/RT_PDR_00_Decision_Log.md)), e quella esplorata resta nota
+  ([D-227](../../decisions/RT_PDR_00_Decision_Log.md)): `FRTTeamKnowledge` porta `VisibleCells` ed
+  `ExploredCells`, e il terzo stato è l'assenza da entrambe. `URTHexSimLibrary::MakeSnapshot` filtra per
+  osservatore l'**occupazione**, non la geometria. Le celle esplorate sono un elenco di id: lo stato che avevano
+  quando sono state viste non è conservato.
+- ➕ rev. **Durante la risoluzione il click su un'unità è `Blocked`**, non `Inspect`:
+  `URTPointerLibrary::ResolveOutcome` risponde così in `ResolutionPlayback`, `Modal` e `ReactionWindow`. La riga
+  di `spec-pointer-interaction.md` §5.3 che lì ammette `Inspect` non ha quindi un produttore.
 
 ### 1.3 Che cosa è già scritto e non ha un produttore
 
@@ -130,6 +144,7 @@ restano alla fetta 2 e atterrano sulle stesse superfici.
 | l'ispezione delle sagome di ultimo contatto (`ERTKnowledgeVisibility::Remembered`) | `FRTKnowledgeEntry` non porta la condizione, e la sagoma ha il suo owner |
 | la parità da tastiera e controller | il contratto la impone per le Decision Window; per l'ispezione va decisa a parte |
 | la zona di minaccia dopo il movimento | unione delle portate da ogni cella raggiungibile: un secondo calcolo, da chiedere se serve |
+| ➕ rev. lo stato **ricordato** di una cella esplorata e non più in vista | chiede una memoria per squadra dello stato delle celle, che oggi non esiste (§1.2): è un sistema di percezione, non di ispezione |
 | i tooltip annidati sulle parole del glossario | il glossario nasce in questa fetta; l'annidamento è un'altra interazione |
 
 ---
@@ -163,13 +178,36 @@ Regole:
    è un comando che chi stava pianificando ritrova tutto com'era.
 3. **Un gesto, una operazione**: `Ctrl` + `LMB` è click oppure trascinamento, mai entrambi. La soglia è quella
    esistente (`ClickDragThreshold`).
-4. **Il fuoco finisce** con `RMB` o con qualunque gesto di pianificazione.
-5. **Contesti**: in `ReactionWindow` e `Modal` l'ispettore è inerte. In `ResolutionPlayback` funziona:
-   `spec-pointer-interaction.md` §5.3 lì ammette `Inspect`.
+4. ➕ rev. **La scheda resta, l'area sulla mappa cede.** ⌫ *La prima stesura diceva «il fuoco finisce con `RMB` o
+   con qualunque gesto di pianificazione»*, e contraddiceva la decisione del 2026-09-11 scritta su
+   `ARTPlayerController::InspectedUnit`: l'ispezione **convive** con la selezione e persiste finché non se ne
+   ispeziona un'altra. Quindi:
+   - la **scheda** si chiude con `RMB`, o quando se ne fissa un'altra;
+   - l'**area di movimento** di chi è a fuoco lascia la mappa al primo gesto di pianificazione — armare, posare un
+     waypoint, dichiarare un verso — e non torna da sola.
+5. ➕ rev. **Contesti**: in `ReactionWindow` e `Modal` l'ispettore è inerte. In `ResolutionPlayback` deve
+   funzionare, come `spec-pointer-interaction.md` §5.3 chiede, e oggi non funziona (§1.2): F3 porta
+   `ResolveOutcome` a rispondere `Inspect` per un'unità osservata in quel contesto. Tutto ciò che cambierebbe il
+   piano resta `Blocked`.
 6. **L'HUD consuma il puntatore prima del mondo**: click e rotella sopra il pannello non raggiungono la mappa.
    Sopra il pannello la rotella scorre la scheda.
 7. **Le skill appartengono a un personaggio**: la barra a chi si comanda, la scheda a chi è a fuoco. La portata
    all'hover parte dalla cella di quel personaggio. Uscendo dalla skill torna la vista di prima.
+8. ➕ rev. **`RMB` chiude la scheda prima di uscire da un targeting.** È l'ordine che `ResolveBack` ha già: il passo
+   `Inspector` viene prima di `Declaration` e di `Waypoint`. Chi fissa la scheda di un nemico e poi arma un attacco
+   preme `RMB` due volte per disarmare. L'ordine non si cambia qui: è un contratto con i suoi test, e il giudizio
+   su quanto pesi è di una seduta PIE.
+
+➕ rev. **Gli esiti**, nell'elenco chiuso di `spec-pointer-interaction.md` §5. Nessun gesto nuovo ne chiede un nono.
+
+| Gesto | Esito |
+|---|---|
+| Hover su unità osservata, cella in vista, porta, riparo, obiettivo | `Inspect` |
+| Hover su una skill | `Inspect`: la portata è informazione pubblica, non un esito non committato |
+| `LMB` su un'unità non comandata, fuori da `Targeting` | `Inspect`, come oggi |
+| `Ctrl` + `LMB` click su un bersaglio che la squadra vede | `Inspect`, più il comando di vista, che non è un esito del puntatore |
+| `Ctrl` + `LMB` click su una cella non in vista o su un'unità non osservata | il solo comando di vista: per il puntatore è `NoOp` |
+| `RMB` con la scheda fissata | `Cancel` |
 
 ---
 
@@ -180,8 +218,9 @@ Regole:
 | Unità comandata o alleata | la targa di oggi, più nome ed effetto di ogni stato | carta, stati, kit con le ricariche **vere**, equipaggiamento. La selezione non cambia |
 | Nemica osservata | come sopra, più il verso | carta, stati, verso, **kit dell'eroe**, **equipaggiamento**, **ricariche dedotte** |
 | Nemica non osservata | l'etichetta della cella, identica a quella di una cella vuota | la scheda della cella, identica |
-| Cella | superficie con effetto, costo d'ingresso se diverso da 1, piano, ripari per lato, «blocca la vista», obiettivo | ogni lato (riparo, porta, parapetto), regola intera della superficie, stato dell'obiettivo |
-| Porta, obiettivo, salita | nome e stato | stato e che cosa blocca: passo, vista |
+| Cella **in vista** | superficie con effetto, costo d'ingresso se diverso da 1, piano, ripari per lato, «blocca la vista», obiettivo | ogni lato (riparo, porta, parapetto), regola intera della superficie, stato dell'obiettivo |
+| ➕ rev. Cella **non in vista**, esplorata o mai vista | nulla | nulla |
+| Porta, obiettivo, salita, su una cella in vista | nome e stato | stato e che cosa blocca: passo, vista |
 
 **Lo sguardo non taglia in silenzio.** Se gli stati non entrano nelle quattro righe, mostra i primi nell'ordine
 che la targa usa già e dichiara che ce ne sono altri; la scheda li porta tutti.
@@ -196,8 +235,14 @@ rende sbagliata. Un'azione mai vista usare non ha riga.
 **Sulla mappa, a fuoco attivo:**
 
 - l'area di movimento del personaggio, nello stile `Predicted` se è un nemico;
-- all'hover di una sua skill, la portata: le celle a tiro libero distinte da quelle in portata ma senza linea di
-  tiro. Sono i due verdetti che `ClassifyHexTargeting` già distingue: `ERTHexTargetReason::Ok` e `NoLineOfSight`.
+- all'hover di una sua skill, la portata. ➕ rev. Le celle in portata hanno **tre** stati, non due:
+  - **tiro libero**: `ClassifyHexTargeting` risponde `ERTHexTargetReason::Ok`, e ogni cella della linea è nota alla
+    squadra;
+  - **tiro bloccato**: risponde `NoLineOfSight`, e la cella che ferma il tiro è nota;
+  - **in portata, senza verdetto**: la linea attraversa celle che la squadra non conosce. Dire «libero» o
+    «bloccato» lì rivelerebbe geometria nascosta.
+
+  ⌫ *La prima stesura aveva solo i primi due*, e li applicava a ogni cella in portata.
 
 **Del nemico non entrano mai**: il piano, gli slot del turno, l'azione armata, le ricariche reali.
 
@@ -214,15 +259,26 @@ replay. Le regole:
 
 | | Regola | Owner che si consuma |
 |---|---|---|
-| **P1** | **Non si costruisce ciò che non spetta.** Il compositore della scheda di un'unità non comandata riceve la proiezione per osservatore, non l'attore: piano, slot e ricariche vere non hanno un campo in cui entrare | la disciplina di `FRTContextInspectorView`; `FRTKnowledgeView` |
+| **P1** | ➕ rev. **Non si costruisce ciò che non spetta, e l'attore passa da una porta sola.** Una sola funzione legge l'attore di un'unità non comandata e ne ricava il soggetto pubblico: identità, cella, verso, ciò che la targa mostra già, pezzi equipaggiati. Il compositore riceve quel soggetto e non vede mai l'attore: piano, slot e ricariche vere non hanno un campo in cui entrare | la disciplina di `FRTContextInspectorView`; `FRTKnowledgeView` per sapere **se** il soggetto esiste; `FRTUnitOverlayView` per la condizione |
 | **P2** | **Nemico non osservato = cella vuota**, su tutte le uscite: sguardo, scheda, area di movimento, portata | `FRTKnowledgeView`, `ARTUnit::IsKnownToObserver` |
-| **P3** | **L'area di movimento di un nemico è il suo potenziale**: budget di catalogo e stati pubblici, su ciò che la squadra conosce. Non dipende dal suo piano né da unità ignote | `URTHexSimLibrary::AsObserver`, `ReachableCells` |
+| **P3** | ➕ rev. **L'area di movimento di un nemico è il suo potenziale, dentro ciò che la squadra conosce**: budget di catalogo e stati pubblici; non dipende dal suo piano, da unità ignote, né da geometria ignota. Si disegna solo su celle note, e una cella ignota non è attraversabile nel calcolo | `URTHexSimLibrary::MakeSnapshot` per l'occupazione; `FRTTeamKnowledge` per le celle |
 | **P4** | **Le ricariche dedotte sono funzione di due sole cose**: il catalogo e gli eventi che il proiettore del registro autorizza alla squadra, sull'intera partita | `URTPlayerEventProjector` |
-| **P5** | **Terreno che cambia**: lo stato dinamico si mostra solo per le celle che la squadra vede adesso. Per le altre restano i dati statici della mappa | `URTPerceptionLibrary::VisibleCells` |
+| **P5** | ➕ rev. **Di una cella si legge qualcosa solo se la squadra la vede adesso.** Una cella esplorata e non più in vista, come una mai vista, non dà sguardo né scheda | `FRTTeamKnowledge::VisibleCells` |
 | **P6** | **Kit ed equipaggiamento di un nemico osservato sono pubblici per regola** (`S2`) | il catalogo |
+| **P7** | ➕ rev. **Il verdetto di tiro nella portata non rivela geometria ignota**: i tre stati di §4 | `FRTTeamKnowledge`; `ClassifyHexTargeting` |
 
 Precisazioni:
 
+- ➕ rev. **P5 e P3 correggono un errore di premessa.** ⌫ *La prima stesura diceva: «lo stato dinamico si mostra
+  solo per le celle che la squadra vede adesso; per le altre restano i dati statici della mappa»*, cioè trattava
+  la mappa come pubblica. Non lo è: D-225 nasconde la geometria non osservata. E per le celle esplorate non c'è
+  uno «stato statico» da mostrare: superfici, ripari e porte cambiano nella stessa mappa di runtime, e lo stato
+  che una cella aveva quando è stata vista non è conservato. Mostrare quello di adesso rivelerebbe ciò che è
+  cambiato fuori vista. Da qui la regola stretta: si legge solo ciò che si vede ora.
+- ➕ rev. **Un canale ereditato, dichiarato.** L'anteprima di pianificazione dell'unità comandata calcola già
+  ventaglio e portata sulla geometria intera: `MakeSnapshot` filtra l'occupazione, non le celle. Questa spec non
+  lo corregge e non lo estende: le sue uscite nuove — l'area di un nemico, il verdetto di tiro — seguono P3 e P7.
+  Se il ventaglio proprio debba fare lo stesso è una domanda per l'owner della conoscenza parziale.
 - **Chi è noto non lo decide la linea di vista.** Da [D-510](../../decisions/RT_PDR_00_Decision_Log.md) ciò che
   una squadra sa passa dal contatto della percezione. L'ispettore legge il velo e la vista di conoscenza, e non
   chiama mai `HasLineOfSight` per deciderlo. La linea di tiro compare in un punto solo, la distinzione fra celle
@@ -235,8 +291,9 @@ Precisazioni:
   il mostrare *«il suo kit con i cooldown»*. Il kit diventa pubblico; i cooldown veri restano una fuga, e P1 li
   tiene fuori.
 
-**Ogni regola da P2 a P5 ha un test a mondi gemelli**: stessa conoscenza autorizzata, stato nascosto diverso,
-uscita identica. Ogni test ha la propria **mutazione**: tolta la guardia, deve diventare rosso.
+**Le regole P2, P3, P4, P5 e P7 hanno ciascuna un test a mondi gemelli**: stessa conoscenza autorizzata, stato
+nascosto diverso, uscita identica. Per P3 e P7 i due mondi differiscono anche nella geometria che la squadra non
+conosce. Ogni test ha la propria **mutazione**: tolta la guardia, deve diventare rosso.
 
 ---
 
@@ -289,6 +346,9 @@ Sono premesse plausibili e non misurate. Il piano le misura prima di poggiarci s
 
 - Quali campi dell'unità nello snapshot derivano dal **piano**. `RefreshPlanningPreview` sottrae i waypoint già
   posati; l'area di un nemico non deve leggere niente di simile.
+- ➕ rev. Come rendere una cella ignota **non attraversabile** nel calcolo dell'area di un nemico (P3), dato che
+  `ReachableCells` legge la mappa dello snapshot per intero. Ritagliare il risultato alle celle note non basta: una
+  cella nota raggiungibile solo passando per celle ignote resterebbe nel ventaglio, e lo direbbe.
 - Come la scheda nomina **variante, gadget e modulo**, dato che l'unità non ne conserva gli id. Se serve un campo,
   lo scrive `EquipLoadout` una volta e la simulazione non lo legge.
 - Che il proiettore degli eventi, applicato all'intera partita, renda il **turno** di ogni uso. Se non lo rende,
@@ -342,7 +402,9 @@ Scelte di chi scrive, mostrate in sessione dentro le sezioni approvate (`S7`). R
 | **R4** | `LMB` su un'unità non comandata fissa la scheda e mostra l'area, senza muovere la camera | due gesti quasi uguali, distinti dalla sola camera |
 | **R5** | Una scheda fissata copre il registro anche in Risoluzione | si perde la spiegazione degli eventi mentre si ispeziona |
 | **R6** | La portata di un nemico parte dalla cella in cui lo si vede ora | sottostima la minaccia di chi si muove prima di tirare; la zona di minaccia è in §2 |
-| **R7** | Lo stato dinamico del terreno si mostra solo per le celle viste adesso | una cella vista un turno fa mostra i dati statici, non l'ultimo stato noto |
+| **R7** | ➕ rev. Di una cella si legge qualcosa solo se è in vista adesso (P5) | una cella esplorata, dove si sta per andare, non dice i suoi ripari: il giocatore li legge solo dalla resa della mappa. Il rimedio è lo stato ricordato di §2 |
+| **R11** | ➕ rev. L'ordine del Back non cambia: `RMB` chiude la scheda prima di uscire da un targeting (§3 regola 8) | un `RMB` in più per disarmare, ogni volta che una scheda è fissata |
+| **R12** | ➕ rev. Nel calcolo dell'area di un nemico una cella ignota vale come muro | l'area è più piccola del vero quando il nemico sta al bordo di ciò che si conosce: sottostima, non rivela |
 | **R8** | La fonte delle ricariche dedotte è il proiettore sull'intera partita | — è una correzione di fatto, vedi §5 |
 | **R9** | Prima consegna del pannello in C++, senza asset | la resa non segue le tavole finché non arriva la pelle |
 | **R10** | Il ritardo dell'hover è un dato: parte da 0,3 secondi e si ritara in PIE | troppo corto, la plancia lampeggia di etichette al passaggio; troppo lungo, lo sguardo sembra rotto |
@@ -420,8 +482,12 @@ Testo proposto. **Il numero si assegna al merge**, dopo `git fetch` e il control
 - Il risolutore rispetta l'ordine di §3 su ogni combinazione di candidati.
 - Il compositore non porta tipi grezzi, per reflection.
 - Il glossario è completo: un gate rosso quando nasce uno stato, una superficie o un riparo senza testo.
-- I mondi gemelli di P2, P3, P4 e P5, ciascuno con la propria mutazione.
-- L'area di un nemico non cambia fra due piani diversi dello stesso nemico.
+- I mondi gemelli di P2, P3, P4, P5 e P7, ciascuno con la propria mutazione.
+- L'area di un nemico non cambia fra due piani diversi dello stesso nemico, né fra due mappe che differiscono
+  solo in celle che la squadra non conosce.
+- ➕ rev. Una cella esplorata e non in vista dà la stessa uscita di una mai vista: nulla.
+- ➕ rev. In `ResolutionPlayback` il click su un'unità osservata ispeziona, e nessun gesto cambia il piano.
+- ➕ rev. La scheda sopravvive a un gesto di pianificazione; l'area del fuoco no.
 - L'arbitro: una sola funzione scrive i setter; chiuso il fuoco, la mappa mostra ciò che mostrava prima.
 - La portata all'hover coincide, cella per cella, con quella che la stessa azione mostra armata.
 - Il cambio di tasto: la famiglia risponde a `Ctrl`, e `Alt` non produce più nessuno dei suoi effetti.
@@ -457,3 +523,23 @@ camera che descrivono `Alt` si rieseguono dopo F4. I verdetti visivi l'autore li
 - **Il glossario è lavoro d'autore**, e F2 non parte senza.
 - **Con `Ctrl` premuto la vista fa il peek.** Avvicinandosi a un bersaglio per il click, il bersaglio si sposta
   sotto il cursore. Succede già oggi con `Alt`; col fuoco il click diventa più frequente.
+- ➕ rev. **La regola stretta sulle celle (P5) può sembrare un difetto a chi gioca**: una cella che si vede sulla
+  mappa, attenuata perché esplorata, non risponde all'hover. Va detto a schermo, o il giocatore conclude che
+  l'ispettore sia rotto.
+
+---
+
+## 13. ➕ rev. I difetti trovati dalla revisione
+
+| | Difetto della prima stesura | Seconda fonte che lo ha trovato | Dove è corretto |
+|---|---|---|---|
+| **V1** | Trattava la mappa statica come pubblica | D-225 e D-227; `FRTTeamKnowledge` | §1.2, §4, P3, P5, R7, R12 |
+| **V2** | Dava per funzionante l'ispezione durante la risoluzione | `URTPointerLibrary::ResolveOutcome` | §1.2, §3 regola 5 |
+| **V3** | Chiudeva il fuoco a ogni gesto di pianificazione | la decisione del 2026-09-11 nel commento di `InspectedUnit` | §3 regola 4 |
+| **V4** | Non diceva quale degli otto esiti produce ogni gesto nuovo | `spec-pointer-interaction.md` §5: l'elenco è chiuso | §3, tabella degli esiti |
+| **V5** | P1 chiedeva una «proiezione per osservatore» che porti la condizione, e non esiste: `FRTKnowledgeEntry` la esclude per scelta | `Perception/RTKnowledgeView.h` | P1 |
+| **V6** | Non diceva che `RMB` chiude la scheda prima di un targeting | l'ordine di `ERTPointerBackStep` | §3 regola 8, R11 |
+| **V7** | Distingueva tiro libero e bloccato su ogni cella in portata | D-225 | §4, P7 |
+
+Che cosa la revisione **non** ha coperto: la resa a schermo di qualunque cosa; i widget Blueprint, che il confronto
+col C++ non vede; e ogni premessa di §6.4, che resta da misurare nel piano della propria fetta.
