@@ -230,6 +230,22 @@ public:
 	static const TCHAR* FallCausePrefix() { return TEXT("Fall."); }
 
 	/**
+	 * Le due cause di caduta, per intero: `Fall.Fall` per chi CADE, `Fall.Impact` per l'occupante che riceve
+	 * l'atterraggio (`spec-caduta-e-bordi.md` §5.1).
+	 *
+	 * 🔑 **Stanno qui perche' da `#3081` hanno un secondo lettore.** Fino ad allora i due suffissi erano
+	 * letterali del solo produttore (`ARTTurnManager::ApplyFallEffects`), e a nessuno serviva distinguerli:
+	 * `IsEnvironmentalDamage` guarda il prefisso. Il feed del giocatore ora nomina la causa — «Caduta» o
+	 * «Urto» — e due letterali uguali per abitudine, uno in chi scrive e uno in chi legge, sono la seconda
+	 * verita' che `D-098` vieta.
+	 *
+	 * ⚠️ **Sono id SERIALIZZATI**: finiscono nell'`ActionId` di una voce del TurnLog, quindi nell'hash.
+	 * Cambiarne uno e' un cambio di formato. Li pinna `RefactorTactics.Fall.CauseIdsAreStable`.
+	 */
+	static FName FallCauseOfFaller();
+	static FName FallCauseOfImpact();
+
+	/**
 	 * La voce e' **danno AMBIENTALE**, cioe' una di quelle in cui `UnitId` porta chi SUBISCE (`#1150`).
 	 *
 	 * Sono due, e la loro causa sta nell'`ActionId`: `Terrain.<Surface>` all'ingresso (`#1067`) e

@@ -1345,7 +1345,32 @@ FText URTHudViewModel::ComposePlayerEventText(const FRTPlayerEvent& Event)
 	case ERTPlayerEventType::ObjectiveChanged: return LOCTEXT("Objective", "Obiettivo aggiornato");
 
 	case ERTPlayerEventType::Attacked:
+	{
+		// 🔑 **Un danno da CADUTA dice la propria causa** (`#3081`, decisione d'autore del 2026-10-13). Chi
+		// cade ha nello stesso turno la voce di movimento E quella di danno, e la dominanza tiene una riga
+		// per unita': vince il danno. Senza questo ramo quella riga direbbe «Colpita», e nel feed una caduta
+		// non si distinguerebbe da un colpo — che e' cio' che la issue ha misurato.
+		//
+		// La causa viaggia gia' in `ActionId`, su una voce che `IsAuthorized` ha gia' esaminato: qui non si
+		// ricalcola niente e non entra nessun campo nuovo. I due id sono di `URTTurnLogLibrary`, che li
+		// condivide col produttore.
+		//
+		// ⚠️ **Due confronti fra `FName`, non un prefisso.** Il feed si ricompone a ogni fotogramma
+		// (`ARTHUD::DrawHUD`), e un `ToString()` per riga allocherebbe una stringa per arrivare a «Colpita» sul
+		// colpo ordinario. E una causa `Fall.*` che il produttore scrivesse domani non e' detto che parli di
+		// chi cade: letta per prefisso diventerebbe «Caduta» su un'unita' rimasta ferma — lo stesso errore di
+		// soggetto che ha reso necessario il ramo dell'urto. Un id nuovo si aggiunge QUI, accanto ai due.
+		if (Event.ActionId == URTTurnLogLibrary::FallCauseOfImpact())
+		{
+			// Non e' caduta lei: e' l'occupante su cui qualcuno e' atterrato (`spec-caduta-e-bordi.md` §5.1).
+			return FText::Format(LOCTEXT("FallImpact", "Urto — {0}"), FText::AsNumber(Event.Amount));
+		}
+		if (Event.ActionId == URTTurnLogLibrary::FallCauseOfFaller())
+		{
+			return FText::Format(LOCTEXT("Fell", "Caduta — {0}"), FText::AsNumber(Event.Amount));
+		}
 		return FText::Format(LOCTEXT("Attacked", "Colpita — {0}"), FText::AsNumber(Event.Amount));
+	}
 	case ERTPlayerEventType::Healed:
 		return FText::Format(LOCTEXT("Healed", "Curata — {0}"), FText::AsNumber(Event.Amount));
 	}
