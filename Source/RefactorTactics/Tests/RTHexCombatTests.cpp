@@ -9,6 +9,9 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "HAL/FileManager.h" // la scansione dei sorgenti dello stato canonico (#2951)
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1027,6 +1030,134 @@ bool FRTTargetingRefusesOtherLayerTest::RunTest(const FString&)
 	TestEqual(TEXT("su un bersaglio ignoto il rifiuto resta Nothing"),
 		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OtherLayer, /*bKnown*/ false),
 		ERTTargetRefusal::Nothing);
+	return true;
+}
+
+/**
+ * I DUE ENUM DEL RIFIUTO DI TARGETING NON ENTRANO NELLO STATO CANONICO (`#2951`, [D-393] punto 5).
+ *
+ * 🔑 **E' la misura di [D-393] resa eseguibile.** La decisione la cita come `git grep` su `Turn/RTTurnLog*`
+ * e `Turn/RTMatchStateHash.cpp` -> zero, e la issue aggiunge che i due enum «devono continuare a non
+ * entrarci»: una misura fatta a mano dice com'era quel giorno, non impedisce niente. Il perimetro qui e'
+ * piu' largo della misura, su indicazione della review: oltre a TurnLog e StateHash ci sono lo snapshot
+ * (`Turn/RTHexSim*`), gli eventi risolti (`Turn/RTActionEvent.h`, `Turn/RTResolvedEvent.h`), la
+ * registrazione (`Turn/RTReplayRecording*`) e tutta `Replay/`, cioe' la traccia nella forma in cui esce. `ERTHexTargetReason` e
+ * `ERTTargetRefusal` sono classificazioni di PLANNING — cio' che il gate risponde a chi sceglie un bersaglio.
+ * Se una delle due finisse nel TurnLog, nello snapshot o nell'hash cambierebbe lo stato canonico: formato
+ * del log, replay, corpus golden. E il confine di privacy, perche' un rifiuto e' un fatto del piano di chi
+ * mira.
+ *
+ * ⚠️ **Perche' i SORGENTI e non i campi riflessi.** Il TurnLog non ha un campo per ogni motivo: le voci
+ * `Fallback` portano `ERTActionInvalidReason` dentro `Amount`, che e' un intero. Un censimento per tipo dei
+ * campi di `FRTTurnLogEntry` resterebbe verde anche il giorno in cui un rifiuto di targeting ci entrasse per
+ * la stessa via — verde per costruzione. Il nome del tipo nel sorgente e' l'unico posto in cui si vede.
+ *
+ * ⛔ **Il controllo positivo non e' decorativo.** `ERTActionInvalidReason` in `RTTurnLogLibrary.cpp` c'e'
+ * davvero, ed e' lo STESSO scanner a doverlo trovare: senza, uno zero potrebbe venire da un file non letto o
+ * da un percorso sbagliato. E i file attesi sono nominati uno per uno, perche' uno schema che dopo un rename
+ * non trova piu' niente darebbe lo stesso verde vuoto.
+ *
+ * ⚠️ Conta anche un COMMENTO, come contava per il `git grep`: chi deve dire in questi file che i due tipi
+ * non ci stanno lo scriva senza l'identificatore.
+ *
+ * ⛔ **Cosa questo test NON dice, ed e' piu' di una cosa.**
+ *   · Non vede un motivo che entrasse per un'ALTRA via: un enumeratore nuovo di `ERTActionInvalidReason`
+ *     (definito in `Turn/RTActionFallbackLibrary.h`, fuori perimetro) finirebbe in `Amount` senza nominare
+ *     nessuno dei due tipi. Quella e' una modifica del formato del log e chiede una decisione, non un test.
+ *   · Non dice che la RISOLUZIONE applichi la regola del piano. `ValidateInstance` legge il verdetto del
+ *     gate e riconosce solo `NoLineOfSight`, e `CollectHexAttacks` non guarda il `Layer`: una mira fra
+ *     piani che arrivasse fin li' colpirebbe con `Single` e con `Area` (misurato con una sonda il
+ *     2026-10-13, riportata nella issue). Da un ingresso del giocatore o del bot non ci arriva: la
+ *     mobilita' che precede il Blast e' lineare e `ResolveLinearMove` non cambia `Layer`, e gli
+ *     spostamenti forzati — che il piano lo cambiano, con la caduta oltre un bordo aperto — si applicano a
+ *     fine Blast, dopo la validazione. Letto nel codice, NON pinnato da un test.
+ * Sono follow-up della issue, non di questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetingRefusalStaysOutOfCanonicalStateTest,
+	"RefactorTactics.Meta.TargetingRefusalStaysOutOfCanonicalState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTargetingRefusalStaysOutOfCanonicalStateTest::RunTest(const FString&)
+{
+	const FString Radice = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics"));
+
+	// Per SCHEMA, cosi' un file nuovo della stessa famiglia entra da solo; e per NOME, cosi' uno schema che
+	// non trova piu' niente non diventa un verde vuoto. I percorsi sono relativi a `Source/RefactorTactics`.
+	struct FSchema { const TCHAR* Cartella; const TCHAR* Schema; };
+	const FSchema Schemi[] = {
+		{ TEXT("Turn"),   TEXT("RTTurnLog*") },          // il TurnLog
+		{ TEXT("Turn"),   TEXT("RTMatchStateHash*") },   // lo StateHash
+		{ TEXT("Turn"),   TEXT("RTHexSim*") },           // lo snapshot
+		{ TEXT("Turn"),   TEXT("RTActionEvent*") },      // gli eventi risolti
+		{ TEXT("Turn"),   TEXT("RTResolvedEvent*") },
+		{ TEXT("Turn"),   TEXT("RTReplayRecording*") },  // la registrazione
+		{ TEXT("Replay"), TEXT("RT*") },                 // la traccia nella forma in cui esce
+	};
+	const TCHAR* Attesi[] = {
+		TEXT("Turn/RTTurnLog.h"), TEXT("Turn/RTTurnLogLibrary.h"), TEXT("Turn/RTTurnLogLibrary.cpp"),
+		TEXT("Turn/RTMatchStateHash.h"), TEXT("Turn/RTMatchStateHash.cpp"),
+		TEXT("Turn/RTHexSim.h"), TEXT("Turn/RTHexSimLibrary.h"), TEXT("Turn/RTHexSimLibrary.cpp"),
+		TEXT("Turn/RTActionEvent.h"), TEXT("Turn/RTResolvedEvent.h"),
+		TEXT("Turn/RTReplayRecording.h"), TEXT("Turn/RTReplayRecording.cpp"),
+		TEXT("Replay/RTReplayRecorderLibrary.cpp"), TEXT("Replay/RTReplayAuditLibrary.cpp"),
+		TEXT("Replay/RTBoundaryChecksum.cpp"), TEXT("Replay/RTReplayStateLibrary.cpp"),
+		TEXT("Replay/RTMatchHistoryLibrary.cpp") };
+	const TCHAR* Vietati[] = { TEXT("ERTHexTargetReason"), TEXT("ERTTargetRefusal") };
+	const TCHAR* FileDelControllo = TEXT("Turn/RTTurnLogLibrary.cpp");
+	const TCHAR* TokenDelControllo = TEXT("ERTActionInvalidReason");
+
+	TArray<FString> Files;
+	for (const FSchema& S : Schemi)
+	{
+		TArray<FString> Trovati;
+		IFileManager::Get().FindFiles(Trovati, *FPaths::Combine(Radice, S.Cartella, S.Schema),
+			/*Files*/ true, /*Directories*/ false);
+		for (const FString& Nome : Trovati)
+		{
+			Files.AddUnique(FString(S.Cartella) / Nome);
+		}
+	}
+	Files.Sort();
+
+	for (const TCHAR* Atteso : Attesi)
+	{
+		TestTrue(FString::Printf(TEXT("premessa: la scansione comprende %s"), Atteso),
+			Files.Contains(FString(Atteso)));
+	}
+
+	bool bControlloPositivo = false;
+	for (const FString& Nome : Files)
+	{
+		FString Testo;
+		const bool bLetto = FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Radice, Nome)) && !Testo.IsEmpty();
+		if (!TestTrue(FString::Printf(TEXT("premessa: %s si legge e non e' vuoto"), *Nome), bLetto))
+		{
+			continue;
+		}
+
+		if (Nome == FileDelControllo)
+		{
+			bControlloPositivo = Testo.Contains(TokenDelControllo, ESearchCase::CaseSensitive);
+		}
+
+		for (const TCHAR* Vietato : Vietati)
+		{
+			if (Testo.Contains(Vietato, ESearchCase::CaseSensitive))
+			{
+				AddError(FString::Printf(
+					TEXT("`%s` nomina `%s`. Il rifiuto di targeting e' una classificazione di PLANNING ")
+					TEXT("([D-393], punto 5): nel TurnLog, nello snapshot, nell'hash o nel replay cambia lo stato ")
+					TEXT("canonico — formato del log, replay, corpus golden, confine di privacy. Se e' un commento, ")
+					TEXT("riscrivilo senza l'identificatore. Se e' voluto, serve una decisione: questo test si ")
+					TEXT("aggiorna nella stessa PR, insieme alla versione del formato."),
+					*Nome, Vietato));
+			}
+		}
+	}
+
+	TestTrue(FString::Printf(
+			TEXT("controllo positivo: lo stesso scanner trova `%s` in %s (uno zero senza questo sarebbe vacuo)"),
+			TokenDelControllo, FileDelControllo),
+		bControlloPositivo);
 	return true;
 }
 
