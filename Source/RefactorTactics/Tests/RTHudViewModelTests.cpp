@@ -23,6 +23,7 @@
 #include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
 #include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
+#include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: da dove viene una voce del piano (#3629)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -63,6 +64,22 @@ namespace
 		Unit->ConfigureFromHeroData(Hero);
 		Unit->TeamId = TeamId;
 		return Unit;
+	}
+
+	/**
+	 * Porta `Unit` — gia' configurata dall'eroe da `SpawnHudVmUnit` — al kit DI PARTITA: il loadout di
+	 * default, che accoda le azioni dei pezzi dopo le generiche. Torna quante azioni ha accodato.
+	 *
+	 * ⚠️ **E' una COPIA di cio' che fa la partita** (`Match/RTMatchBootstrapper.cpp`: `ConfigureFromHeroData`
+	 * e poi `EquipLoadout(DefaultLoadoutFor(...))`), tenuta in un punto solo di questo file invece che in tre.
+	 * Un passo aggiunto al bootstrapper non arriva qui da solo: chi lo aggiunge passa di qui.
+	 */
+	int32 EquipHudVmMatchLoadout(ARTUnit* Unit, const URTHeroData* Hero)
+	{
+		if (!Unit || !Hero) { return 0; }
+		const int32 Prima = Unit->NumAbilities();
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		return Unit->NumAbilities() - Prima;
 	}
 }
 
@@ -2544,7 +2561,7 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
 		if (TestNotNull(*FString::Printf(TEXT("D: unita' di %s"), *Hero->HeroId.ToString()), EroeUnit))
 		{
 			const int32 PrimaDelLoadout = EroeUnit->NumAbilities();
-			EroeUnit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+			EquipHudVmMatchLoadout(EroeUnit, Hero);
 
 			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(EroeUnit);
 			int32 Basi = 0;
@@ -2806,7 +2823,7 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 		}
 
 		// Il kit DI PARTITA: col loadout che `ARTMatchBootstrapper` equipaggia.
-		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		EquipHudVmMatchLoadout(Unit, Hero);
 		Dock->SetSelectedUnitForTest(Unit);
 
 		const TArray<FRTAbilityCooldownView> Lista = Dock->GetActions();
@@ -3121,6 +3138,232 @@ bool FRTHudHealTokenTest::RunTest(const FString&)
 	const FRTDamageTokenView Colpo = URTHudViewModel::BuildDamageToken(18, 3);
 	TestTrue(TEXT("il colpo pulsa ancora"), Colpo.bPulsesHealthBar);
 	TestFalse(TEXT("e non e' una cura"), Colpo.bIsHeal);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Ogni azione del kit DI PARTITA ha un nome: il ripiego sull'id grezzo non si raggiunge (#3629)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **OGNI AZIONE DEL KIT DI PARTITA HA UN NOME, E LA CASCATA DEGLI AVVISI NON RIPIEGA MAI SULL'ID** — `#3629`.
+ *
+ * Gli avvisi di piano nominano un'azione con `URTHudViewModel::PlanActionDisplayName`: il nome del kit, poi
+ * «Movimento», poi l'ultimo segmento dell'id — `Action.Counter` -> `Counter`. Il terzo passo e' il modo in cui
+ * un'azione senza nome arriverebbe a schermo **senza errore**.
+ *
+ * 🔑 **Il test ESEGUE quella cascata, sul kit che la partita monta.** Per ogni eroe del roster, col loadout di
+ * default:
+ *  1. ogni azione del kit ha un `DisplayName` leggibile e un id, e lo slot del dock porta lo stesso nome;
+ *  2. pianificata da sola, la cascata la chiama col SUO nome — quello dell'azione pianificata, non «la prima
+ *     del kit con quell'id»: se due voci del kit dividessero un id con due nomi, qui si vedrebbe;
+ *  3. in un piano composto — scatto, principale e reazione insieme — e con il movimento in ciascuna delle
+ *     sue bande, ogni voce prende il nome del kit oppure «Movimento».
+ * E una volta sola, fuori dal ciclo: per ogni profilo di movimento del catalogo, l'azione che `MakePlanFor`
+ * ne ricava occupa lo slot movimento. E' cio' che fa valere il secondo passo per OGNI banda, non solo per
+ * quelle che i piani qui sotto riescono a produrre.
+ *
+ * ⚠️ **Si guarda il KIT ASSEMBLATO, non le fabbriche.** Chi produce i nomi e' gia' sorvegliato —
+ * `Heroes.EveryActionHasADisplayName`, `Actions.EveryGenericHasADisplayName`,
+ * `Catalog.EveryEquipmentActionHasADisplayName` — e nessuno di quei gate guarda cio' che il giocatore ha in
+ * mano: eroe, generiche e pezzi del loadout di default, insieme.
+ *
+ * ⚠️ **Che cosa questo test NON prova, da solo.**
+ *  - Che il nome di un'azione d'EQUIPAGGIAMENTO sia d'autore: `EquipmentActionDisplayName` ripiega gia' a monte
+ *    sull'ultimo segmento dell'id quando il pezzo non ha un nome, e quel ripiego qui e' un nome non vuoto. Lo
+ *    prova `Catalog.EveryEquipmentActionHasADisplayName`, che confronta col nome del pezzo.
+ *  - Che il kit sia montato come lo monta la partita: `EquipHudVmMatchLoadout` RICOPIA le due righe di
+ *    `RTMatchBootstrapper.cpp`. Un passo aggiunto la' non arriva qui da solo.
+ *  - Quali eroi abbiano un loadout di default: e' materia di `RTHeroSpawnTests`. Qui si chiede solo che, sul
+ *    roster, almeno un kit ne abbia uno — altrimenti il test guarderebbe soli kit nudi senza saperlo.
+ *
+ * ⛔ **Non e' una tabella di nomi per le azioni del core.** Quella e' rinviata al giorno in cui nasce un lettore
+ * che non ha un kit in mano (decisione d'autore `P3`, 2026-10-13; `#3740`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmEveryMatchKitActionHasANameTest,
+	"RefactorTactics.HudViewModel.EveryActionOfTheMatchKitHasAName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmEveryMatchKitActionHasANameTest::RunTest(const FString&)
+{
+	const auto Uguali = [](const FText& A, const FText& B)
+	{
+		// ⚠️ Non `TestEqual` fra due `FString`: quello confronta ignorando le maiuscole, e «HOLD GROUND» per
+		// «Hold Ground» passerebbe. Qui il nome a schermo deve essere QUELLO.
+		return A.ToString().Equals(B.ToString(), ESearchCase::CaseSensitive);
+	};
+	const FText Movimento = FText::FromString(TEXT("Movimento"));
+
+	// --- 0. Ogni profilo di movimento porta a un'azione che occupa lo slot movimento ---------------------------
+	// `MakePlanFor` sceglie l'azione di movimento dalla BANDA: `FindActionForProfile`, e `Action.Move` come
+	// ripiego. Se una di quelle non occupasse lo slot movimento, il secondo passo della cascata non la
+	// riconoscerebbe e l'avviso direbbe `Sprint` o `Withdraw`.
+	const TArray<FRTMovementProfile> Profili = URTMovementProfileLibrary::GetCoreMovementProfileCatalog();
+	if (!TestTrue(TEXT("premessa: il catalogo dei profili di movimento non e' vuoto"), Profili.Num() > 0))
+	{
+		return false;
+	}
+	TSet<FName> AzioniDiMovimento;
+	for (const FRTMovementProfile& Profilo : Profili)
+	{
+		FRTActionDef Azione = URTMovementProfileLibrary::FindActionForProfile(Profilo.Id);
+		if (Azione.ActionId.IsNone())
+		{
+			Azione = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")); // il ripiego di `MakePlanFor`
+		}
+		AzioniDiMovimento.Add(Azione.ActionId);
+		TestTrue(*FString::Printf(TEXT("il profilo `%s` porta a `%s`, che occupa lo slot movimento"),
+			*Profilo.Id.ToString(), *Azione.ActionId.ToString()), URTCatalogLibrary::TakesMovementSlot(Azione));
+	}
+
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("premessa: il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 DalLoadoutSulRoster = 0;
+	TSet<FName> MovimentiVisti;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("il roster non ha voci nulle"), Hero)) { continue; }
+		const FString Eroe = Hero->HeroId.ToString();
+
+		UWorld* World = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { continue; }
+		ARTUnit* Unit = SpawnHudVmUnit(World, Hero->HeroId, /*TeamId*/ 0);
+		if (!TestNotNull(*FString::Printf(TEXT("unita' di %s"), *Eroe), Unit))
+		{
+			DestroyHudVmWorld(World);
+			continue;
+		}
+
+		const int32 DalLoadout = EquipHudVmMatchLoadout(Unit, Hero);
+		DalLoadoutSulRoster += DalLoadout;
+		AddInfo(FString::Printf(TEXT("%s: kit di %d azioni, %d dal loadout di default"), *Eroe, Unit->NumAbilities(), DalLoadout));
+
+		int32 Azioni = 0;
+		int32 VociDalKit = 0;
+		int32 VociDiMovimento = 0;
+		const auto AzzeraIlPiano = [Unit]()
+		{
+			Unit->PlannedDashAbility = INDEX_NONE;
+			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->PlannedReactionAbility = INDEX_NONE;
+			Unit->PlannedCell = Unit->Cell;
+		};
+
+		// --- 1. e 2. ogni azione: ha un nome, lo slot lo porta, e la cascata la chiama col SUO nome --------------
+		const TArray<FRTAbilityCooldownView> Slot = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* Azione = Unit->GetAbility(i);
+			if (!TestNotNull(*FString::Printf(TEXT("%s: la posizione %d del kit ha un'azione"), *Eroe, i), Azione))
+			{
+				continue;
+			}
+			++Azioni;
+			const FString Quale = FString::Printf(TEXT("%s, azione %d (`%s`)"), *Eroe, i, *Azione->Def.ActionId.ToString());
+			TestFalse(*(Quale + TEXT(": ha un nome leggibile")), Azione->DisplayName.IsEmptyOrWhitespace());
+			// Un'azione senza id non entra nel piano (`MakePlanFor` la scarta), e l'avviso del fuoco amico la
+			// chiamerebbe `None`: nel roster spedito non ce ne sono.
+			TestFalse(*(Quale + TEXT(": viene dal catalogo, ha un id")), Azione->Def.ActionId.IsNone());
+
+			const FRTAbilityCooldownView* Vista = Slot.FindByPredicate(
+				[i](const FRTAbilityCooldownView& V) { return V.AbilityIndex == i; });
+			if (TestNotNull(*(Quale + TEXT(": ha il suo slot nel dock")), Vista))
+			{
+				TestTrue(*(Quale + TEXT(": lo slot porta il nome del kit, lettera per lettera")),
+					Uguali(Vista->DisplayName, Azione->DisplayName));
+			}
+
+			// Pianificata DA SOLA: una voce, la sua, e la cascata risponde col suo nome.
+			AzzeraIlPiano();
+			Unit->PlannedAbilityIndex = i;
+			const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
+			if (TestEqual(*(Quale + TEXT(": pianificata da sola e' l'unica voce del piano")), Piano.Num(), 1)
+				&& TestTrue(*(Quale + TEXT(": e la voce porta il suo id")), Piano[0].Def.ActionId == Azione->Def.ActionId))
+			{
+				++VociDalKit;
+				const FText Nome = URTHudViewModel::PlanActionDisplayName(Unit, Piano, Piano[0].Def.ActionId);
+				TestTrue(*FString::Printf(TEXT("%s: l'avviso la chiama «%s», e non «%s»"), *Quale,
+					*Azione->DisplayName.ToString(), *Nome.ToString()), Uguali(Nome, Azione->DisplayName));
+			}
+		}
+
+		// --- 3. piani composti: ogni voce prende il nome del kit, oppure «Movimento» ---------------------------
+		const auto IlKitLaChiama = [Unit, &Uguali](const FName& ActionId, const FText& Nome)
+		{
+			for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+			{
+				const URTActionData* A = Unit->GetAbility(i);
+				if (A && A->Def.ActionId == ActionId && Uguali(A->DisplayName, Nome)) { return true; }
+			}
+			return false;
+		};
+		const auto EsaminaIlPiano = [&](const TCHAR* Caso)
+		{
+			const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
+			for (const FRTPlannedAction& Voce : Piano)
+			{
+				const FText Nome = URTHudViewModel::PlanActionDisplayName(Unit, Piano, Voce.Def.ActionId);
+				const FString Quale = FString::Printf(TEXT("%s, %s, voce `%s` -> «%s»"),
+					*Eroe, Caso, *Voce.Def.ActionId.ToString(), *Nome.ToString());
+				if (IlKitLaChiama(Voce.Def.ActionId, Nome))
+				{
+					++VociDalKit;
+					continue;
+				}
+				// Non e' del kit: allora e' la voce di movimento, e il nome e' quello dello slot.
+				MovimentiVisti.Add(Voce.Def.ActionId);
+				if (TestTrue(*(Quale + TEXT(": non sta nel kit, quindi occupa lo slot movimento")),
+						URTCatalogLibrary::TakesMovementSlot(Voce.Def))
+					&& TestTrue(*(Quale + TEXT(": e l'avviso la chiama «Movimento», non l'ultimo segmento dell'id")),
+						Uguali(Nome, Movimento)))
+				{
+					++VociDiMovimento;
+				}
+			}
+		};
+
+		const int32 Scatto = Unit->FindDashAbilityIndex();
+		int32 Sorveglianza = INDEX_NONE; // `Action.Overwatch`: riserva il movimento, quindi cambia la banda
+		int32 Altra = INDEX_NONE;        // una qualunque che non sia ne' lo scatto ne' la sorveglianza
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (!A) { continue; }
+			if (A->Def.ActionId == FName(TEXT("Action.Overwatch"))) { Sorveglianza = i; }
+			else if (i != Scatto && Altra == INDEX_NONE) { Altra = i; }
+		}
+		const FRTCellId Vicina(Unit->Cell.X + 1, Unit->Cell.Y, Unit->Cell.Layer);
+		const FRTCellId Lontana(Unit->Cell.X + 6, Unit->Cell.Y, Unit->Cell.Layer);
+
+		AzzeraIlPiano(); Unit->PlannedCell = Vicina;
+		EsaminaIlPiano(TEXT("solo movimento, un passo"));
+		AzzeraIlPiano(); Unit->PlannedCell = Lontana;
+		EsaminaIlPiano(TEXT("solo movimento, sei passi"));
+		AzzeraIlPiano(); Unit->PlannedAbilityIndex = Sorveglianza; Unit->PlannedCell = Vicina;
+		EsaminaIlPiano(TEXT("sorveglianza e movimento"));
+		AzzeraIlPiano(); Unit->PlannedDashAbility = Scatto; Unit->PlannedAbilityIndex = Altra;
+		Unit->PlannedReactionAbility = Sorveglianza; Unit->PlannedCell = Lontana;
+		EsaminaIlPiano(TEXT("scatto, principale, reazione e movimento insieme"));
+
+		// Anti-vacuita' PER EROE: una somma sul roster lascerebbe che un eroe senza soggetti fosse coperto dagli altri.
+		TestTrue(*FString::Printf(TEXT("%s: almeno un'azione controllata"), *Eroe), Azioni > 0);
+		TestTrue(*FString::Printf(TEXT("%s: almeno una voce di piano veniva dal kit"), *Eroe), VociDalKit > 0);
+		TestTrue(*FString::Printf(TEXT("%s: almeno una voce di piano era il movimento"), *Eroe), VociDiMovimento > 0);
+		TestTrue(*FString::Printf(TEXT("%s, premessa: il kit ha la sorveglianza, che riserva il movimento"), *Eroe),
+			Sorveglianza != INDEX_NONE);
+
+		DestroyHudVmWorld(World);
+	}
+
+	TestTrue(TEXT("sul roster il loadout di default ha accodato azioni: non si sono guardati soli kit nudi"),
+		DalLoadoutSulRoster > 0);
+	// I piani composti hanno prodotto piu' di una banda, e ciascuna e' fra quelle che il passo 0 ha controllato.
+	TestTrue(TEXT("i piani hanno attraversato piu' di una banda di movimento"), MovimentiVisti.Num() > 1);
+	for (const FName& Visto : MovimentiVisti)
+	{
+		TestTrue(*FString::Printf(TEXT("la voce di movimento `%s` e' fra quelle ricavate dal catalogo dei profili"),
+			*Visto.ToString()), AzioniDiMovimento.Contains(Visto));
+	}
 	return true;
 }
 
