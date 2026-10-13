@@ -468,6 +468,13 @@ bool FRTCrossLayerObstaclesTest::RunTest(const FString&)
  *
  * ⚠️ Gli asserti di non-vacuita' servono davvero: una regola che ferma tutto, o che non ferma niente, e'
  * simmetrica anche lei.
+ *
+ * 🔑 **La regola non toglie soltanto, e questo test lo conta.** Rispetto alla regola di ieri (`D-510`: la linea
+ * di tiro, meno la stessa colonna) ci sono contatti PERSI, dove un pavimento copre, e contatti GUADAGNATI, dove
+ * un muro basso sta sotto il tratto alto della linea: da terra, da lontano, si vede sopra il muro chi sta su una
+ * piattaforma. Quelli guadagnati sono proprio le coppie che ieri erano a senso unico — dall'alto si vedeva gia'.
+ * La prima stesura di questo test asseriva che la regola «toglie contatto»: era vero per conteggio su queste tre
+ * arene e falso come proprieta', e una verifica di mutazione l'ha mostrato.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCrossLayerSymmetryTest,
 	"RefactorTactics.Vision.AcrossLayers.SameAnswerBothWays",
@@ -491,7 +498,9 @@ bool FRTCrossLayerSymmetryTest::RunTest(const FString&)
 		int32 Pairs = 0;
 		int32 OneWay = 0;
 		int32 ByReason[5] = { 0, 0, 0, 0, 0 };
-		int32 TiroLibero = 0;
+		int32 Yesterday = 0; // libere per la regola di ieri
+		int32 Lost = 0;      // ieri libere, oggi ferme
+		int32 Gained = 0;    // ieri ferme, oggi libere
 		for (const FRTHexCellData& A : Arena.Map->Cells)
 		{
 			for (const FRTHexCellData& B : Arena.Map->Cells)
@@ -505,16 +514,21 @@ bool FRTCrossLayerSymmetryTest::RunTest(const FString&)
 				const FRTCrossLayerSightResult Forth = URTPerceptionLibrary::DescribeSightAcrossLayers(Arena.Map, A.Id, B.Id);
 				const FRTCrossLayerSightResult Back = URTPerceptionLibrary::DescribeSightAcrossLayers(Arena.Map, B.Id, A.Id);
 				++ByReason[static_cast<int32>(Forth.Block)];
-				if (URTHexVisionLibrary::HasLineOfSight(Arena.Map, A.Id, B.Id))
-				{
-					++TiroLibero;
-				}
+				// La regola di ieri (`D-510`): la linea di tiro, sul piano di chi guarda, meno la stessa colonna.
+				const bool bYesterday = !(A.Id.X == B.Id.X && A.Id.Y == B.Id.Y)
+					&& URTHexVisionLibrary::HasLineOfSight(Arena.Map, A.Id, B.Id);
+				Yesterday += bYesterday ? 1 : 0;
+				Lost += (bYesterday && !Forth.IsClear()) ? 1 : 0;
+				Gained += (!bYesterday && Forth.IsClear()) ? 1 : 0;
 				if (Forth.Block != Back.Block || (!Forth.IsClear() && !(Forth.BlockedAt == Back.BlockedAt)))
 				{
-					++OneWay;
-					AddError(FString::Printf(TEXT("%s: %s -> %s da' %s su %s, al contrario %s su %s"), Arena.Name,
-						*XlsCell(A.Id), *XlsCell(B.Id), *XlsName(Forth.Block), *XlsCell(Forth.BlockedAt),
-						*XlsName(Back.Block), *XlsCell(Back.BlockedAt)));
+					// Le prime si nominano, le altre si contano: migliaia di righe d'errore rompono il referto.
+					if (++OneWay <= 5)
+					{
+						AddError(FString::Printf(TEXT("%s: %s -> %s da' %s su %s, al contrario %s su %s"), Arena.Name,
+							*XlsCell(A.Id), *XlsCell(B.Id), *XlsName(Forth.Block), *XlsCell(Forth.BlockedAt),
+							*XlsName(Back.Block), *XlsCell(Back.BlockedAt)));
+					}
 				}
 			}
 		}
@@ -524,13 +538,14 @@ bool FRTCrossLayerSymmetryTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: nessuna coppia a senso unico"), Arena.Name), OneWay, 0);
 		TestTrue(*FString::Printf(TEXT("%s: non-vacuita' — qualche coppia si vede"), Arena.Name), Clear > 0);
 		TestTrue(*FString::Printf(TEXT("%s: non-vacuita' — qualche pavimento ferma"), Arena.Name), Floors > 0);
-		TestTrue(*FString::Printf(TEXT("%s: la regola TOGLIE contatto rispetto alla linea in pianta"), Arena.Name),
-			Clear < TiroLibero);
+		TestTrue(*FString::Printf(TEXT("%s: non-vacuita' — qualche contatto di ieri non c'e' piu'"), Arena.Name), Lost > 0);
+		TestEqual(*FString::Printf(TEXT("%s: i conti chiudono — oggi = ieri - persi + guadagnati"), Arena.Name),
+			Clear, Yesterday - Lost + Gained);
 
 		// La misura, per chi legge il log: e' da qui che vengono i numeri dei documenti, non da un prototipo.
 		AddInfo(FString::Printf(
-			TEXT("%s: coppie di celle su piani diversi entro 7 celle = %d · libere per la linea di tiro = %d · libere per la linea fra piani = %d · Floor = %d · CellBlocker = %d · EdgeBlocker = %d · InteriorGeometry = %d"),
-			Arena.Name, Pairs, TiroLibero, Clear, Floors,
+			TEXT("%s: coppie di celle su piani diversi entro 7 celle = %d · libere ieri (D-510) = %d · libere oggi (D-511) = %d · perse = %d · guadagnate = %d · Floor = %d · CellBlocker = %d · EdgeBlocker = %d · InteriorGeometry = %d"),
+			Arena.Name, Pairs, Yesterday, Clear, Lost, Gained, Floors,
 			ByReason[static_cast<int32>(ERTCrossLayerSightBlock::CellBlocker)],
 			ByReason[static_cast<int32>(ERTCrossLayerSightBlock::EdgeBlocker)],
 			ByReason[static_cast<int32>(ERTCrossLayerSightBlock::InteriorGeometry)]));

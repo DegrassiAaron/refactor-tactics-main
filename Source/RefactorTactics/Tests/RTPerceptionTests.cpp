@@ -568,6 +568,28 @@ bool FRTPerceptionPlatformTeamKnowledgeTest::RunTest(const FString&)
 	TestTrue(TEXT("dal bordo si vede la cella a terra accanto"), DalBordo.Contains(FRTCellId(1, 0, 0)));
 	TestFalse(TEXT("dal bordo non si vede la cella sotto i piedi"), DalBordo.Contains(FRTCellId(2, 0, 0)));
 	TestFalse(TEXT("ne' quella sotto la cella dietro"), DalBordo.Contains(FRTCellId(3, 0, 0)));
+
+	// ➕ **La regola non toglie soltanto.** Da terra, tre celle dietro il muro di `q = 0`, chi sta sul bordo della
+	// piattaforma si VEDE: la linea da testa a testa passa sopra il muro, che ferma solo il tratto basso. La linea
+	// di tiro, che sta sul piano di chi guarda, quel muro lo trova: e' la premessa, ed e' cio' che la regola di
+	// ieri rispondeva. Chi sta a terra dietro lo stesso muro resta nascosto, e da piu' vicino il muro copre ancora.
+	const FRTPerceiver OltreIlMuro = Watcher(FRTCellId(-3, 0, 0), ERTHexDirection::E, /*VisionRange*/ 7);
+	const FRTCellId ATerraDietroIlMuro(1, 0, 0);
+	if (!TestFalse(TEXT("premessa: la linea di TIRO da oltre il muro al bordo della piattaforma e' ferma"),
+			URTHexVisionLibrary::HasLineOfSight(Map, OltreIlMuro.Cell, Bordo))
+		|| !TestFalse(TEXT("premessa: e lo e' anche verso la cella a terra dietro il muro"),
+			URTHexVisionLibrary::HasLineOfSight(Map, OltreIlMuro.Cell, ATerraDietroIlMuro)))
+	{
+		return false;
+	}
+	const TArray<FRTCellId> DaOltre = URTPerceptionLibrary::VisibleCells(Map, OltreIlMuro);
+	TestTrue(TEXT("da tre celle dietro il muro si vede chi sta in alto sul bordo: la linea passa sopra il muro"),
+		DaOltre.Contains(Bordo));
+	TestFalse(TEXT("e non chi sta a terra dietro il muro"), DaOltre.Contains(ATerraDietroIlMuro));
+
+	const FRTPerceiver PiuVicino = Watcher(FRTCellId(-2, 0, 0), ERTHexDirection::E, /*VisionRange*/ 7);
+	TestFalse(TEXT("da due celle dietro il muro la linea lo attraversa in basso: il bordo resta coperto"),
+		URTPerceptionLibrary::VisibleCells(Map, PiuVicino).Contains(Bordo));
 	return true;
 }
 
