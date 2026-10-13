@@ -31,6 +31,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTHudViewModel.h" // BuildPlayerEventFeed: la porta da cui il widget legge il feed (#3081)
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1879,6 +1880,120 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("un colpo annullato non tronca nessuno: chi entra ARRIVA nella cella bloccata"),
 		Cade.DoveFinisceChiEntra == Bloccata);
+	return true;
+}
+
+// =========================================================================================================
+// Il feed del giocatore: una caduta si legge «Caduta», non «Colpita» (`#3081`)
+// =========================================================================================================
+
+/**
+ * I due id della causa di caduta sono quelli che il TurnLog porta dal primo giorno (`#2430`).
+ *
+ * 🔑 **Sono serializzati**: stanno nell'`ActionId` di una voce di combattimento, quindi nell'hash della
+ * traccia. `#3081` li ha spostati dal produttore a `URTTurnLogLibrary` perche' hanno un secondo lettore; questo
+ * test dice che lo spostamento non ha cambiato una lettera, e che un rename futuro passa di qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallCauseIdsAreStableTest,
+	"RefactorTactics.Fall.CauseIdsAreStable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallCauseIdsAreStableTest::RunTest(const FString&)
+{
+	// Case-insensitive di proposito: fuori dall'editor `FName::ToString()` non garantisce il caso, e
+	// `IsEnvironmentalDamage` confronta il prefisso allo stesso modo.
+	TestTrue(TEXT("chi cade: Fall.Fall"),
+		URTTurnLogLibrary::FallCauseOfFaller().ToString().Equals(TEXT("Fall.Fall"), ESearchCase::IgnoreCase));
+	TestTrue(TEXT("l'occupante colpito: Fall.Impact"),
+		URTTurnLogLibrary::FallCauseOfImpact().ToString().Equals(TEXT("Fall.Impact"), ESearchCase::IgnoreCase));
+	TestTrue(TEXT("i due id sono distinti"),
+		URTTurnLogLibrary::FallCauseOfFaller() != URTTurnLogLibrary::FallCauseOfImpact());
+	TestTrue(TEXT("ed entrambi portano il prefisso che IsEnvironmentalDamage riconosce"),
+		URTTurnLogLibrary::FallCauseOfFaller().ToString().StartsWith(URTTurnLogLibrary::FallCausePrefix())
+		&& URTTurnLogLibrary::FallCauseOfImpact().ToString().StartsWith(URTTurnLogLibrary::FallCausePrefix()));
+	return true;
+}
+
+/**
+ * Una caduta VERA, risolta dal turn manager, arriva al feed con la sua causa.
+ *
+ * 🔴 **E' la prova sul percorso reale, e gli altri test di `#3081` non la sostituiscono.** Quelli montano le voci
+ * a mano: fissano la classificazione, la dominanza e il testo, ma resterebbero verdi se il resolver scrivesse
+ * la voce di danno con un altro soggetto, un'altra causa o un verdetto che la squadra non puo' leggere. Qui le
+ * voci le scrive `ApplyFallEffects`, e il feed si costruisce dalla porta che il widget usa.
+ *
+ * La geometria e' quella di `OccupiedLandingUsesAdjacentAlternative`, perche' porta le due vesti nello stesso
+ * turno: chi cade, e l'occupante su cui atterrerebbe.
+ *
+ * ⚠️ L'importo si legge dalla TRACCIA e non e' scritto qui: il danno da caduta e' materia di bilanciamento, e
+ * un `5` in questo test lo renderebbe rosso al primo ritocco senza che il feed abbia sbagliato niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallFeedSaysFallNotHitTest,
+	"RefactorTactics.Fall.TheFeedSaysFallNotHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallFeedSaysFallNotHitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, {
+		FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1), FRTCellId(1, 0, 1),
+		FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(0, 0, 0),
+		FRTCellId(1, 1, 0), FRTCellId(1, -1, 0)
+	});
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTUnit* Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 0, 0)); // gia' sul primario
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	// Le premesse, lette dalla traccia: senza, una riga assente direbbe «il feed tace» quando invece la caduta
+	// non e' avvenuta.
+	const int32 DannoDiChiCade = LedgeFallDamage(TM, Bersaglio);
+	const int32 DannoDellOccupante = LedgeFallDamage(TM, Occupante);
+	if (!TestTrue(TEXT("premessa: chi cade ha la sua voce di danno da caduta"), DannoDiChiCade > 0)
+		|| !TestTrue(TEXT("premessa: l'occupante ha la sua voce di danno da urto"), DannoDellOccupante > 0))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+
+	// La squadra dei due che subiscono: e' lei che deve poter leggere che cosa e' successo alle proprie unita'.
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(TM->GetTurnLog(), /*ObserverTeamId*/ 1);
+
+	auto RigaDi = [&Feed](const ARTUnit* Unit) -> const FRTPlayerEventLineView*
+	{
+		const FRTPlayerEventLineView* Trovata = nullptr;
+		int32 Quante = 0;
+		for (const FRTPlayerEventLineView& Riga : Feed)
+		{
+			if (Riga.PrimaryStableUnitId == Unit->StableUnitId) { Trovata = &Riga; ++Quante; }
+		}
+		return Quante == 1 ? Trovata : nullptr; // una riga per unita': zero o due sono entrambi un difetto
+	};
+
+	const FRTPlayerEventLineView* DiChiCade = RigaDi(Bersaglio);
+	if (TestNotNull(TEXT("chi cade ha UNA riga nel feed della propria squadra"), DiChiCade))
+	{
+		const FString Attesa = FString::Printf(TEXT("Caduta — %d"), DannoDiChiCade);
+		const FString Letta = DiChiCade->Text.ToString();
+		TestTrue(*FString::Printf(TEXT("e dice la caduta, non un colpo: «%s»"), *Letta),
+			Letta.Equals(Attesa, ESearchCase::CaseSensitive));
+	}
+
+	const FRTPlayerEventLineView* DellOccupante = RigaDi(Occupante);
+	if (TestNotNull(TEXT("l'occupante ha UNA riga nel feed della propria squadra"), DellOccupante))
+	{
+		const FString Attesa = FString::Printf(TEXT("Urto — %d"), DannoDellOccupante);
+		const FString Letta = DellOccupante->Text.ToString();
+		TestTrue(*FString::Printf(TEXT("e dice l'urto: «%s»"), *Letta),
+			Letta.Equals(Attesa, ESearchCase::CaseSensitive));
+	}
+
+	DestroyLedgeWorld(World);
 	return true;
 }
 

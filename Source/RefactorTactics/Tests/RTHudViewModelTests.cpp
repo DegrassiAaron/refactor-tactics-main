@@ -18,6 +18,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnLog.h"          // ERTMoveOutcome / ERTCombatOutcome: le voci del feed si montano a mano
+#include "Turn/RTTurnLogLibrary.h"   // FallCauseOfFaller / FallCauseOfImpact: gli id che il feed legge (#3081)
 #include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
 #include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
@@ -1385,6 +1387,79 @@ bool FRTHudFeedShowsTheLastLinesWithinBudgetTest::RunTest(const FString&)
 	TestEqual(TEXT("sotto il budget il feed non taglia"),
 		URTHudViewModel::BuildPlayerEventFeed(Poche, 1).Num(), 2);
 
+	return true;
+}
+
+/**
+ * IL FEED DICE «CADUTA», NON «COLPITA» — `#3081`, decisione d'autore del 2026-10-13.
+ *
+ * 🔴 **Senza questo test la correzione di `#3081` si poteva spuntare senza cambiare una riga a schermo.** Chi
+ * cade ha nello stesso turno una voce di movimento e una di danno, e la dominanza tiene quella di danno
+ * (`UI.PlayerEventLog.FallDamageDominatesTheFallMove`): classificare la caduta come spostamento non basta, la
+ * riga resterebbe «Colpita — 5». La causa sta in `ActionId`, ed e' il TESTO a doverla leggere.
+ *
+ * Le frasi si confrontano per intero e con le maiuscole: `TestEqual` su due `FString` le ignora. Il trattino
+ * lungo e' scritto come `—` perche' il confronto non dipenda dalla codifica di questo file.
+ *
+ * ⚠️ **Il terzo caso e' il controllo**: un colpo qualunque dice ancora «Colpita». Senza, un ramo che scrivesse
+ * «Caduta» per OGNI danno passerebbe i primi due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedNamesAFallAndAnImpactTest,
+	"RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedNamesAFallAndAnImpactTest::RunTest(const FString&)
+{
+	auto FraseDi = [](const FName& Causa)
+	{
+		FRTPlayerEvent Evento;
+		Evento.Type = ERTPlayerEventType::Attacked;
+		Evento.Importance = ERTPlayerEventImportance::Important;
+		Evento.ActionId = Causa;
+		Evento.Amount = 5;
+		return URTHudViewModel::ComposePlayerEventText(Evento).ToString();
+	};
+	auto Uguali = [](const FString& A, const TCHAR* B) { return A.Equals(B, ESearchCase::CaseSensitive); };
+
+	const FString DiChiCade = FraseDi(URTTurnLogLibrary::FallCauseOfFaller());
+	TestTrue(*FString::Printf(TEXT("chi cade legge la caduta: «%s»"), *DiChiCade),
+		Uguali(DiChiCade, TEXT("Caduta — 5")));
+
+	const FString DellOccupante = FraseDi(URTTurnLogLibrary::FallCauseOfImpact());
+	TestTrue(*FString::Printf(TEXT("chi riceve l'atterraggio legge l'urto: «%s»"), *DellOccupante),
+		Uguali(DellOccupante, TEXT("Urto — 5")));
+
+	const FString DiUnColpo = FraseDi(FName(TEXT("Action.BasicAttack")));
+	TestTrue(*FString::Printf(TEXT("un colpo qualunque resta un colpo: «%s»"), *DiUnColpo),
+		Uguali(DiUnColpo, TEXT("Colpita — 5")));
+
+	// Una causa di caduta che il produttore scrivesse domani, e che qui nessuno conosce: e' comunque una
+	// caduta. Leggerla «Colpita» sarebbe il difetto di oggi, ripresentato al primo id nuovo.
+	const FString DiUnaCausaNuova =
+		FraseDi(FName(*(FString(URTTurnLogLibrary::FallCausePrefix()) + TEXT("QualcosaDiNuovo"))));
+	TestTrue(*FString::Printf(TEXT("una causa di caduta sconosciuta resta una caduta: «%s»"), *DiUnaCausaNuova),
+		Uguali(DiUnaCausaNuova, TEXT("Caduta — 5")));
+
+	// E lo stesso dal log, per la porta che il widget usa: due voci della stessa unita', una riga, quella frase.
+	FRTTurnLogEntry Movimento = VoceDiTurno(/*TurnNumber*/ 7, /*UnitId*/ 5);
+	Movimento.Category = ERTLogCategory::Move;
+	Movimento.Outcome = static_cast<uint8>(ERTMoveOutcome::Fell);
+	FRTTurnLogEntry Danno = VoceDiTurno(7, 5);
+	Danno.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+	Danno.ActionId = URTTurnLogLibrary::FallCauseOfFaller();
+	Danno.Amount = 5;
+
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(Movimento);
+	Log.Add(Danno);
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+	if (TestEqual(TEXT("caduta e danno della stessa unita' -> una riga nel feed"), Feed.Num(), 1))
+	{
+		TestEqual(TEXT("ed e' la riga dell'unita' caduta"), Feed[0].PrimaryStableUnitId, 5);
+		TestTrue(*FString::Printf(TEXT("che dice la caduta: «%s»"), *Feed[0].Text.ToString()),
+			Uguali(Feed[0].Text.ToString(), TEXT("Caduta — 5")));
+	}
 	return true;
 }
 

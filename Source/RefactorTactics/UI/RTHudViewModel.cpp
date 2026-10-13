@@ -1345,7 +1345,29 @@ FText URTHudViewModel::ComposePlayerEventText(const FRTPlayerEvent& Event)
 	case ERTPlayerEventType::ObjectiveChanged: return LOCTEXT("Objective", "Obiettivo aggiornato");
 
 	case ERTPlayerEventType::Attacked:
+	{
+		// 🔑 **Un danno da CADUTA dice la propria causa** (`#3081`, decisione d'autore del 2026-10-13). Chi
+		// cade ha nello stesso turno la voce di movimento E quella di danno, e la dominanza tiene una riga
+		// per unita': vince il danno. Senza questo ramo quella riga direbbe «Colpita», e nel feed una caduta
+		// non si distinguerebbe da un colpo — che e' cio' che la issue ha misurato.
+		//
+		// La causa viaggia gia' in `ActionId`, su una voce che `IsAuthorized` ha gia' esaminato: qui non si
+		// ricalcola niente e non entra nessun campo nuovo. I due id sono di `URTTurnLogLibrary`, che li
+		// condivide col produttore.
+		//
+		// ⚠️ Il confronto sul prefisso e' case-insensitive per la ragione scritta in `IsEnvironmentalDamage`:
+		// fuori dall'editor `FName::ToString()` non garantisce il caso.
+		if (Event.ActionId == URTTurnLogLibrary::FallCauseOfImpact())
+		{
+			// Non e' caduta lei: e' l'occupante su cui qualcuno e' atterrato (`spec-caduta-e-bordi.md` §5.1).
+			return FText::Format(LOCTEXT("FallImpact", "Urto — {0}"), FText::AsNumber(Event.Amount));
+		}
+		if (Event.ActionId.ToString().StartsWith(URTTurnLogLibrary::FallCausePrefix(), ESearchCase::IgnoreCase))
+		{
+			return FText::Format(LOCTEXT("Fell", "Caduta — {0}"), FText::AsNumber(Event.Amount));
+		}
 		return FText::Format(LOCTEXT("Attacked", "Colpita — {0}"), FText::AsNumber(Event.Amount));
+	}
 	case ERTPlayerEventType::Healed:
 		return FText::Format(LOCTEXT("Healed", "Curata — {0}"), FText::AsNumber(Event.Amount));
 	}

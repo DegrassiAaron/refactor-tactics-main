@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-13 — Il feed del giocatore dice «Caduta», e il parapetto è uno spostamento subito
+
+**Origine**: [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), con la decisione d'autore `P1` del referto dello stesso giorno. Sei esiti di movimento non arrivavano al feed; e per chi cade la riga che resta è quella del danno, quindi è il suo testo a nominare la causa.
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §9.3, nuova: che cosa dice il feed a chi cade, all'occupante colpito e a chi è tenuto dal parapetto; perché sulla riga del danno; i due limiti dichiarati |
+
+---
+
 ## 2026-10-13 — Spec panel sulla serie «ciò che il giocatore legge»
 
 **Origine**: la serie di sei issue della v0.1 proposta il 2026-10-13 — [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), [#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629), [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626) e [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627). Le premesse sono state rilette sul sorgente prima di lavorarle; niente è stato eseguito col motore.

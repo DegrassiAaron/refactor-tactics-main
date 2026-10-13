@@ -468,6 +468,35 @@ implementava [#2403](https://github.com/DegrassiAaron/refactor-tactics-main/issu
 solo fra tre design incompatibili, su un formato di traccia che ha un owner. Deciso in
 [`D-352`](../decisions/RT_PDR_00_Decision_Log.md).
 
+### 9.3 Che cosa dice il feed del giocatore
+
+La traccia distingue quattro esiti di atterraggio. Il feed a schermo dice **una cosa sola** — che l'unità è
+caduta — e la dice sulla riga del **danno**
+([#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), decisione d'autore del
+2026-10-13).
+
+| Chi | La riga del feed |
+|---|---|
+| chi cade | «Caduta — N», dove N è il danno da caduta |
+| l'occupante che riceve l'atterraggio (§4.2) | «Urto — N» |
+| chi è tenuto sul ciglio da un parapetto (§9.2) | «Spostata»: è uno spostamento subito, non un movimento bloccato |
+
+🔑 **Perché sulla riga del danno.** Il feed tiene una riga per unità, e fra due voci della stessa unità vince
+quella di rango più alto. Chi cade ha nello stesso turno la voce di movimento e quella di danno, e il danno
+vince: classificare la caduta come spostamento non basta a portarla a schermo, perché la riga resterebbe
+«Colpita — N». La causa viaggia già nella voce di danno — `Fall.Fall` per chi cade, `Fall.Impact` per
+l'occupante, i due id di `URTTurnLogLibrary` — e il testo la legge da lì.
+
+⚠️ **Due limiti dichiarati.**
+
+- **I quattro esiti di atterraggio non si distinguono nel feed.** Dove l'unità è finita lo mostra la board; i
+  quattro testi restano nel log diagnostico (§9.1).
+- **Se chi cade ha già una riga di danno in quel turno, resta quella.** A parità di rango la dominanza tiene
+  la prima arrivata: la caduta non la riscrive.
+
+Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit`, sul percorso vero del resolver, e
+`RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi.
+
 ---
 
 ## 10. Documenti correlati
