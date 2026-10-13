@@ -417,9 +417,11 @@ continua a esistere anche lì — non è la vista a definirlo.
 >     i suoi canali. I pannelli di bordo la riprendono dopo una ricostruzione parziale
 >     ([#3687](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3687)). Lo guarda `HexMap.VolumeTintSurvivesTheVeilAndAPartialRebuild`.
 >   - ⚠️ **`Relief` resta fuori**: è il rilievo che fa leggere il costo di una cella, non un oggetto, e tiene il
->     materiale di prima. Su un piano non attivo non riceve nemmeno il trattamento. Scelta della PR, senza l'autore.
+>     materiale di prima. Su un piano non attivo non riceve nemmeno il trattamento. Scelta della PR, senza l'autore:
+>     stava nel rapporto che ha letto il 2026-10-13, e non l'ha contestata.
 >   - ⚠️ **La tinta sposta anche la luminosità**: il nero scurisce un volume del piano attivo, il viola schiarisce
->     nel blu uno che sta sotto. La forza (0,25) è provvisoria: la giudica `PIE-CAM-TINTA-VOLUMI`.
+>     nel blu uno che sta sotto. La forza (0,25) l'ha scelta l'autore il 2026-10-13, sulle tavole della seduta
+>     `U86`, fra 0, 0,25 e 0,6: *«Come tinta la seconda che mi hai mostrato. Sembra tutto ok»*.
 > - ⚠️ **Lo scurimento dei piani sotto, a schermo, è un rapporto e non un livello**
 >   ([#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723)). L'esposizione automatica del motore è accesa: quando gran parte del quadro è «sotto»
 >   alza il guadagno. Misurato il 2026-10-13 su `Visual.Map.LayerVolumes`, in tattica: una cella del piano terra è
@@ -430,6 +432,7 @@ continua a esistere anche lì — non è la vista a definirlo.
 >   `rt.Map.Layers.VolumeTint` (0,25, la forza della tinta dei volumi). Negativo
 >   vuol dire il default. I due valori «sotto» li ha scelti l'autore nella seduta `U84`, e lo stesso giorno
 >   **l'opacità «sopra»**, sull'asset riparato: prima la maschera era inerte e nessun valore era stato visto.
+>   La forza della tinta l'ha scelta sulle tavole della seduta `U86`.
 > - 🔆 **I piani sopra sono anche schiariti** ([#3674](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3674)). Un velo dello stesso colore del piano che
 >   copre non si vede a nessuna opacità: 35% di grigio sopra 65% di grigio è grigio. Sulla piattaforma di
 >   `Visual.Map.MultiLevel`, a 120° e a 180°, l'autore aveva detto: *«No, si sovrappongono e sembrano sparire»*.

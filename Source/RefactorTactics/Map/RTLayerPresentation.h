@@ -98,8 +98,8 @@ struct REFACTORTACTICS_API FRTLayerPresentationTuning
 	/**
 	 * Quanto un volume prende il colore del suo piano ([D-508], #3706): 0 = del colore suo, 1 = tutto tinta.
 	 *
-	 * ⚠️ **Provvisoria, scelta senza l'autore** (PR di #3706): la issue chiede una tinta «leggera» e lascia il valore
-	 * alla PIE. La leva e' `rt.Map.Layers.VolumeTint`.
+	 * Scelta dall'autore il 2026-10-13, sulle tavole della seduta `U86`, fra 0, 0,25 e 0,6: la PR di #3706 l'aveva
+	 * messa a 0,25 senza di lui, e 0,25 resta. La leva e' `rt.Map.Layers.VolumeTint`.
 	 */
 	float VolumeTintStrength = 0.25f;
 
