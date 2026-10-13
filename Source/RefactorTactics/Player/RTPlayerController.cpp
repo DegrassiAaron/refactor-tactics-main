@@ -591,7 +591,7 @@ void ARTPlayerController::BuildInputMappings()
 	OrbitModifierAction = NewObject<UInputAction>(this, TEXT("IA_OrbitModifier"));
 	OrbitModifierAction->ValueType = EInputActionValueType::Boolean;
 
-	// #1771 — `Alt` arma i gesti camera. Boolean come `OrbitModifierAction`: e' uno stato tenuto, non un
+	// #1771 — `Ctrl` arma i gesti camera. Boolean come `OrbitModifierAction`: e' uno stato tenuto, non un
 	// evento.
 	CameraModifierAction = NewObject<UInputAction>(this, TEXT("IA_CameraModifier"));
 	CameraModifierAction->ValueType = EInputActionValueType::Boolean;
@@ -934,7 +934,7 @@ void ARTPlayerController::SetupInputComponent()
 				GenericActions.Num(), NumGenericHandlers, NumGenericHandlers);
 		}
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
-		// #1772 — il rilascio del destro chiude il dolly. Serve un `Completed` perche' senza, `Alt`+`RMB`
+		// #1772 — il rilascio del destro chiude il dolly. Serve un `Completed` perche' senza, `Ctrl`+`RMB`
 		// resterebbe armato e ogni movimento del mouse continuerebbe a zoomare.
 		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
@@ -944,7 +944,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 
 		// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
-		// `OrbitModifierAction`: se la finestra perde il fuoco con `Alt` premuto, il rilascio non arriva
+		// `OrbitModifierAction`: se la finestra perde il fuoco con `Ctrl` premuto, il rilascio non arriva
 		// mai e il modificatore resterebbe armato per sempre.
 		EIC->BindAction(CameraModifierAction, ETriggerEvent::Started, this,
 			&ARTPlayerController::OnCameraModifierPressed);
@@ -956,7 +956,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(LayerUpAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerUp);
 		EIC->BindAction(LayerDownAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerDown);
 
-		// #1772 — il rilascio del sinistro chiude il gesto `Alt`+`LMB`: sotto soglia e' un Set Pivot,
+		// #1772 — il rilascio del sinistro chiude il gesto `Ctrl`+`LMB`: sotto soglia e' un Set Pivot,
 		// sopra e' stata un'orbita e non deve produrre altro.
 		EIC->BindAction(SelectAction, ETriggerEvent::Completed, this,
 			&ARTPlayerController::OnSelectReleased);
@@ -984,7 +984,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 
 	// #1772 — il peek residuo rientra da se'. E' oggi l'**unico** movimento automatico della camera, ed e'
 	// per questo che la regola d'interruzione di #1773 ha qui il proprio primo consumatore: `UpdatePeekReturn`
-	// non fa nulla mentre `Alt` e' premuto, cioe' mentre il giocatore sta guidando.
+	// non fa nulla mentre `Ctrl` e' premuto, cioe' mentre il giocatore sta guidando.
 	UpdatePeekReturn(DeltaTime);
 
 	// [D-367]: col selettore del verso aperto, l'hover gira la mesh verso il lato sotto il cursore ([D-463]).
@@ -1230,11 +1230,11 @@ void ARTPlayerController::OnCameraModifierReleased(const FInputActionValue& Valu
 {
 	bCameraModifier = false;
 
-	// I gesti armati cadono con il modificatore: senza, rilasciare `Alt` tenendo il tasto del mouse
+	// I gesti armati cadono con il modificatore: senza, rilasciare `Ctrl` tenendo il tasto del mouse
 	// lascerebbe il gesto attivo e il movimento successivo orbiterebbe senza modificatore.
-	bAltPrimaryDown = false;
-	bAltSecondaryDown = false;
-	AltPrimaryDragDistance = 0.f;
+	bModifierPrimaryDown = false;
+	bModifierSecondaryDown = false;
+	ModifierPrimaryDragDistance = 0.f;
 
 	// ⚠️ Il peek **non** si azzera qui: rientra progressivamente in `UpdatePeekReturn`. Azzerarlo di colpo
 	// farebbe saltare la vista, ed e' esattamente cio' che il rientro esiste per evitare.
@@ -1252,25 +1252,25 @@ void ARTPlayerController::OnLayerDown(const FInputActionValue& Value)
 
 void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 {
-	if (!bAltPrimaryDown)
+	if (!bModifierPrimaryDown)
 	{
 		return; // rilascio di un click di selezione normale: non e' un gesto camera
 	}
 
 	// 🔴 **Il gesto puo' finire dentro una modale aperta a meta'** (code review, 2026-08-30): si preme
-	// `Alt`+`LMB` mentre si pianifica, il turno finisce o si apre la pausa, si rilascia — e senza questa
+	// `Ctrl`+`LMB` mentre si pianifica, il turno finisce o si apre la pausa, si rilascia — e senza questa
 	// guardia il Set Pivot spostava la camera dietro la schermata. Lo stato del gesto si disarma comunque,
 	// altrimenti resterebbe armato per sempre.
 	if (IsGameplayInputBlocked())
 	{
-		bAltPrimaryDown = false;
-		AltPrimaryDragDistance = 0.f;
+		bModifierPrimaryDown = false;
+		ModifierPrimaryDragDistance = 0.f;
 		return;
 	}
 
-	const bool bWasDrag = AltPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f);
-	bAltPrimaryDown = false;
-	AltPrimaryDragDistance = 0.f;
+	const bool bWasDrag = ModifierPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f);
+	bModifierPrimaryDown = false;
+	ModifierPrimaryDragDistance = 0.f;
 
 	// 🔑 **Un gesto, una operazione.** Se ha superato la soglia era un'orbita, e il Set Pivot non si emette:
 	// altrimenti un trascinamento lungo produrrebbe *anche* uno spostamento del pivot al rilascio, cioe'
@@ -1299,7 +1299,7 @@ void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
 		// ⚠️ **Non tocca la selezione.** E' un comando di vista: chi stava pianificando con un'unita'
-		// selezionata la ritrova selezionata, ed e' la meta' del contratto che rende `Alt` utile.
+		// selezionata la ritrova selezionata, ed e' la meta' del contratto che rende `Ctrl` utile.
 		Cam->FocusOn(URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH));
 		UE_LOG(LogRT, Log, TEXT("[RT] Pivot camera su (q=%d,r=%d,L=%d) — la selezione non cambia"),
 			Cell.X, Cell.Y, Cell.Layer);
@@ -1308,7 +1308,7 @@ void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 
 void ARTPlayerController::OnUndoReleased(const FInputActionValue& Value)
 {
-	bAltSecondaryDown = false;
+	bModifierSecondaryDown = false;
 }
 
 bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
@@ -1326,27 +1326,27 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 	// pre-esistente che questa issue non ha misurato. Il ramo bloccato e' quello che **inizia** un gesto
 	// (`OnSelect`), che e' dove il blocco serve davvero.
 
-	// `Alt`+`LMB`: si accumula la strada percorsa **prima** di decidere. Sotto la soglia non si orbita
+	// `Ctrl`+`LMB`: si accumula la strada percorsa **prima** di decidere. Sotto la soglia non si orbita
 	// ancora — altrimenti un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set
 	// pivot arriverebbe su un'inquadratura gia' cambiata.
-	if (bAltPrimaryDown)
+	if (bModifierPrimaryDown)
 	{
-		AltPrimaryDragDistance += Delta.Size();
-		if (AltPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f))
+		ModifierPrimaryDragDistance += Delta.Size();
+		if (ModifierPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f))
 		{
 			Cam->AddOrbit(Delta.X, Delta.Y);
 		}
 		return true;
 	}
 
-	// `Alt`+`RMB`: dolly. Il verticale, perche' e' il gesto che tutti gli editor 3D usano per avvicinare.
+	// `Ctrl`+`RMB`: dolly. Il verticale, perche' e' il gesto che tutti gli editor 3D usano per avvicinare.
 	//
 	// 🔴 **`Delta` e' in PIXEL, `AddZoom` moltiplica per `ZoomStep` (150), e il gesto era inusabile**
 	// (code review, 2026-08-30): un movimento ordinario di 10 px/frame cambiava il braccio di 1500 unita',
 	// cioe' quasi mezzo intervallo `[100, 4000]` in un frame. La rotella consegna ±1 e per quella
 	// `ZoomStep` e' tarato; un delta di puntatore no. `DollySensitivity` fa la conversione, come
 	// `PeekSensitivity` la fa per il peek e `PrecisionPanScale` per il pan.
-	if (bAltSecondaryDown)
+	if (bModifierSecondaryDown)
 	{
 		Cam->AddZoom(Delta.Y * FMath::Max(DollySensitivity, 0.f));
 		return true;
@@ -1354,10 +1354,10 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 
 	if (!bCameraModifier)
 	{
-		return false; // nessun gesto `Alt` armato: se ne occupa l'orbita di #863
+		return false; // nessun gesto `Ctrl` armato: se ne occupa l'orbita di #863
 	}
 
-	// `Alt`+`MMB`: precision pan. Stessa direzione del pan normale, sensibilita' ridotta.
+	// `Ctrl`+`MMB`: precision pan. Stessa direzione del pan normale, sensibilita' ridotta.
 	//
 	// 🔴 **Era piu' VELOCE del pan che doveva raffinare** (code review, 2026-08-30). `AddPlanarMovement`
 	// si aspetta un valore d'ASSE — `WASD` consegna 1, cioe' `PanSpeed = 25` unita' per frame — mentre qui
@@ -1373,7 +1373,7 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 		return true;
 	}
 
-	// `Alt` da solo: peek. Un offset **temporaneo** verso la direzione del cursore, in coordinate della
+	// `Ctrl` da solo: peek. Un offset **temporaneo** verso la direzione del cursore, in coordinate della
 	// vista — come il pan, e per la stessa ragione: chi guida pensa in «su, giu', destra, sinistra»
 	// rispetto a cio' che vede, non in assi della mappa.
 	const float Yaw = Cam->GetCameraYaw();
@@ -1390,7 +1390,7 @@ void ARTPlayerController::UpdatePeekReturn(float DeltaTime)
 	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
 	if (!Cam || bCameraModifier)
 	{
-		return; // con `Alt` premuto il peek e' guidato dal giocatore: non gli si tira contro
+		return; // con `Ctrl` premuto il peek e' guidato dal giocatore: non gli si tira contro
 	}
 
 	const FVector Current = Cam->GetPeekOffset();
@@ -1714,7 +1714,7 @@ void ARTPlayerController::OnOrbit(const FInputActionValue& Value)
 {
 	const FVector2D Delta = Value.Get<FVector2D>();
 
-	// #1772 — i gesti `Alt` hanno la precedenza e **consumano** il movimento. Cosi' l'orbita di #863 resta
+	// #1772 — i gesti `Ctrl` hanno la precedenza e **consumano** il movimento. Cosi' l'orbita di #863 resta
 	// il ramo di default e non deve sapere che i gesti nuovi esistono: e' la stessa disciplina per cui
 	// `OrbitCameraForTest` porta con se' la propria guardia invece di lasciarla al chiamante.
 	if (RouteCameraGesture(Delta))
@@ -1777,21 +1777,21 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
 	//
-	// ⚠️ **Sta PRIMA del ramo `Alt`, e l'ordine e' la correzione di un difetto mio**: la prima stesura di
+	// ⚠️ **Sta PRIMA del ramo del modificatore, e l'ordine e' la correzione di un difetto mio**: la prima stesura di
 	// #1772 armava il gesto camera e usciva *prima* di questa guardia, quindi con una modale aperta —
-	// pausa, fine partita — `Alt`+trascinamento avrebbe continuato a orbitare dietro la schermata. Un
+	// pausa, fine partita — modificatore+trascinamento avrebbe continuato a orbitare dietro la schermata. Un
 	// comando di vista e' comunque un comando: se l'input di gioco e' bloccato, lo e' anche lui.
 	if (IsGameplayInputBlocked())
 	{
 		return;
 	}
 
-	// #1772 — con `Alt` premuto il sinistro **non seleziona**: arma un gesto camera, che al rilascio sara'
+	// #1772 — con `Ctrl` premuto il sinistro **non seleziona**: arma un gesto camera, che al rilascio sara'
 	// un Set Pivot (sotto soglia) o sara' stato un'orbita (sopra). La selezione di gioco resta dov'e'.
 	if (bCameraModifier)
 	{
-		bAltPrimaryDown = true;
-		AltPrimaryDragDistance = 0.f;
+		bModifierPrimaryDown = true;
+		ModifierPrimaryDragDistance = 0.f;
 		return;
 	}
 
@@ -3575,7 +3575,7 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
 	//
-	// 🔴 **Stava DOPO il ramo `Alt`, ed e' lo stesso difetto che avevo corretto in `OnSelect` lasciandolo
+	// 🔴 **Stava DOPO il ramo del modificatore, ed e' lo stesso difetto che avevo corretto in `OnSelect` lasciandolo
 	// qui** (code review, 2026-08-30). Correggere un ordering su un pulsante e non sul suo gemello e' peggio
 	// che non correggerlo: il comportamento diventa asimmetrico fra destro e sinistro senza che niente lo
 	// dichiari.
@@ -3584,17 +3584,17 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		return;
 	}
 
-	// #1772 — con `Alt` premuto il destro e' un **dolly**, e la funzione di gioco viene soppressa per
+	// #1772 — con `Ctrl` premuto il destro e' un **dolly**, e la funzione di gioco viene soppressa per
 	// tutta la durata del gesto. Un dolly che cancella un waypoint mentre si avvicina la vista sarebbe
 	// peggio di non avere il dolly.
 	//
 	// ⚠️ **Si verifica il TASTO, non solo il modificatore.** `UndoAction` e' mappata su `RightMouseButton`
 	// **e** su `BackSpace` (due `MapKey`, riga 360-361), e `FInputActionValue` non porta con se' quale dei
-	// due l'ha prodotta: senza questo controllo `Alt`+`BackSpace` armava il dolly, e da li' in poi ogni
+	// due l'ha prodotta: senza questo controllo modificatore+`BackSpace` armava il dolly, e da li' in poi ogni
 	// movimento del mouse zoomava **senza nessun pulsante premuto**. Trovato in code review.
 	if (bCameraModifier && IsInputKeyDown(EKeys::RightMouseButton))
 	{
-		bAltSecondaryDown = true;
+		bModifierSecondaryDown = true;
 		return;
 	}
 
@@ -3629,7 +3629,7 @@ void ARTPlayerController::UndoStep()
 	// l'opposto esatto del difetto che il countdown esiste per prevenire.
 	//
 	// ⚠️ Sta DOPO le guardie, e ognuna serve: una schermata bloccante copre la partita, e in una sessione
-	// non presidiata non c'e' un umano che possa disdire. La terza — `Alt`+destro e' un dolly — vive in
+	// non presidiata non c'e' un umano che possa disdire. La terza — `Ctrl`+destro e' un dolly — vive in
 	// `OnUndoWaypoint`, PRIMA di arrivare qui: appartiene al tasto tenuto, e un pulsante non ce l'ha ([D-458]).
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
@@ -3658,7 +3658,7 @@ void ARTPlayerController::UndoStep()
 	// esattamente cio' che era successo.
 	//
 	// ⚠️ Le quattro guardie qui sopra NON scendono dentro `ApplyBack()`, e non e' una dimenticanza: non
-	// sono livelli del Back. Una schermata bloccante, il dolly di `Alt`, una sessione non presidiata e
+	// sono livelli del Back. Una schermata bloccante, il dolly di `Ctrl`, una sessione non presidiata e
 	// l'Unready del countdown decidono **se** il tasto ha una funzione di gioco adesso; `ResolveBack`
 	// decide **quale**, e solo dopo che le prime hanno lasciato passare.
 	//
