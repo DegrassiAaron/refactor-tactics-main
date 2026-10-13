@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-13 — Il feed del giocatore dice «Caduta», e il parapetto è uno spostamento subito
+
+**Origine**: [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), con la decisione d'autore `P1` del referto dello stesso giorno. Sei esiti di movimento non arrivavano al feed; e per chi cade la riga che resta è quella del danno, quindi è il suo testo a nominare la causa.
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §9.3, nuova: che cosa dice il feed a chi cade, all'occupante colpito, a chi ne muore e a chi è tenuto dal parapetto; perché sulla riga del danno; i limiti dichiarati |
+
+---
+
 ## 2026-10-13 — L'esposizione fissa, e il giudizio dell'autore sui piani e sul contorno delle unità
 
 **Origine**: [#3723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3723) e [#3705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3705), seduta `U85`. La camera di gioco ha l'esposizione fissa, per decisione dell'autore. A esposizione fissa ha riscelto sulle tavole delle catture le intensità dei piani (scurimento 0,4, schiarimento 1,5 stop, desaturazione 1) e ha giudicato il contorno delle unità, che resta acceso a 3 pixel, e i fantasmi del piano.

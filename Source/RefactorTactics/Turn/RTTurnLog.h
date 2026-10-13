@@ -581,7 +581,9 @@ enum class ERTMoveOutcome : uint8
 	 * Il produttore non e' stato dimenticato: [`D-445`] lo ha **spento**, perche' *«nessuna unita' blocca
 	 * il transito di nessun'altra, quindi l'appartenenza di squadra degli anelli non cambia nessun esito»*
 	 * — la misura sta in `RTHexSimLibrary.cpp`, nel commento che segue il ciclo. Oggi i soli usi in codice
-	 * sono questa dichiarazione e il ramo che ne compone la stringa (`RTTurnLogLibrary.cpp`).
+	 * sono questa dichiarazione, il ramo che ne compone la stringa (`RTTurnLogLibrary.cpp`) e, da `#3081`,
+	 * il `case` che lo classifica per il feed del giocatore (`UI/RTPlayerEventProjector.cpp`), col test che
+	 * lo asserisce. Chi ritira il valore toglie anche quelli.
 	 *
 	 * 🔴 **Non riaccenderlo per far tornare i conti.** Produrlo significherebbe reintrodurre un blocco
 	 * che `D-445` ha abolito, cioe' cambiare una regola **competitiva**: passa per un `D-nnn` che lo

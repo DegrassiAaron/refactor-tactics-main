@@ -575,8 +575,9 @@ void ARTTurnManager::ApplyFallEffects(ARTUnit* Unit, bool bMarchia, ERTMatchPhas
 	FRTTurnLogEntry Caduta;
 	Caduta.Phase = InPhase;
 	Caduta.Category = ERTLogCategory::Combat;
-	Caduta.ActionId = FName(*FString::Printf(TEXT("%s%s"), URTTurnLogLibrary::FallCausePrefix(),
-		bMarchia ? TEXT("Fall") : TEXT("Impact")));
+	// Gli id vivono nella libreria da `#3081`: il feed del giocatore li legge per dire «Caduta» o «Urto», e
+	// due letterali uguali in chi scrive e in chi legge divergerebbero al primo rename. Le stringhe non cambiano.
+	Caduta.ActionId = bMarchia ? URTTurnLogLibrary::FallCauseOfFaller() : URTTurnLogLibrary::FallCauseOfImpact();
 	// ⚠️ **Le due celle COINCIDONO, e non e' una comodita'**: e' la forma che `IsEnvironmentalDamage`
 	// riconosce come ambientale anche senza conoscere la causa. Un attacco non puo' averle uguali.
 	Caduta.SrcCell = Unit->Cell;

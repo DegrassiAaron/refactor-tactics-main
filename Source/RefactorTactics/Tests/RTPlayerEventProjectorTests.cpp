@@ -685,4 +685,195 @@ bool FRTPlayerEventHashIndependenceTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * OGNI ESITO DI MOVIMENTO ARRIVA AL FEED, OPPURE E' DICHIARATO QUI — `#3081`.
+ *
+ * 🔴 **Il difetto che questo test rende impossibile e' una recidiva gia' avvenuta due volte.** `ClassifyEntry`
+ * traduce gli esiti di `Move` con uno `switch` che termina in `default: return false`. Un valore aggiunto
+ * all'enum e non tradotto li' non rompe niente: smette di produrre una riga. E' successo con `Slid` (`#2253`),
+ * poi con le quattro cadute, il parapetto e il ciclo: l'unita' cambiava cella, spesso piano, e il feed taceva.
+ * E' la forma di `RefactorTactics.TurnLog.EveryMoveOutcomeIsDescribed` (`#2628`), sull'altro canale.
+ *
+ * ⚠️ **Si passa da `Project`, non dalla funzione di classificazione**, che e' privata al file: cio' che si fissa
+ * e' che l'esito produca una RIGA, che e' la proprieta' che il giocatore vede.
+ *
+ * 🔑 **Gli esclusi sono un elenco chiuso, col motivo, e anche loro sono asseriti.** Un escluso che un giorno
+ * producesse una riga fa cadere il test: l'elenco non puo' restare indietro in nessuno dei due versi.
+ * `Moved` e' fra gli esclusi per una ragione diversa dagli altri due — e' classificato `Minor`, e `Project` lo
+ * toglie alla fine (`#1936` §D, `OmitsMinorMovement`). Da qui non si distingue da un esito non tradotto, ed e'
+ * il limite di passare dalla porta pubblica: un esito nuovo che si volesse `Minor` va aggiunto qui a mano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventEveryMoveOutcomeTest,
+	"RefactorTactics.UI.PlayerEventLog.EveryMoveOutcomeReachesTheFeedOrIsDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventEveryMoveOutcomeTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTMoveOutcome>();
+	if (!TestNotNull(TEXT("l'enum degli esiti di movimento e' riflesso"), Enum))
+	{
+		return false;
+	}
+	// `NumEnums()` include il `_MAX` sintetico che UHT aggiunge: si sottrae.
+	const int32 Valori = Enum->NumEnums() - 1;
+	if (!TestTrue(TEXT("l'enum ha dei valori da coprire"), Valori > 0))
+	{
+		return false;
+	}
+
+	const TMap<ERTMoveOutcome, const TCHAR*> Esclusi = {
+		{ ERTMoveOutcome::Stayed,           TEXT("non e' accaduto niente") },
+		{ ERTMoveOutcome::SupersededByDash, TEXT("il movimento non e' avvenuto: lo ha sostituito lo scatto") },
+		{ ERTMoveOutcome::Moved,            TEXT("Minor: Project lo toglie alla fine (#1936 par. D)") },
+	};
+
+	auto RigheDi = [](uint8 Esito)
+	{
+		TArray<FRTTurnLogEntry> Log;
+		Log.Add(PlayerEventEntry(ERTLogCategory::Move, Esito, /*UnitId*/ 3, /*Team*/ 0));
+		return URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0).Num();
+	};
+
+	// 🔑 **IL CONTROLLO POSITIVO DELLA RETE, e viene prima.** `200` non e' un enumeratore: dimostra che il
+	// `default` c'e' ancora e non produce righe. Senza, un `default` che classificasse tutto renderebbe verde
+	// il ciclo qui sotto per la ragione sbagliata.
+	TestEqual(TEXT("un valore fuori enum cade nel default e non produce righe"), RigheDi(200), 0);
+
+	int32 Raccontati = 0;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const ERTMoveOutcome Esito = static_cast<ERTMoveOutcome>(Enum->GetValueByIndex(i));
+		const FString Nome = Enum->GetNameStringByIndex(i);
+		const int32 Righe = RigheDi(static_cast<uint8>(Esito));
+
+		if (const TCHAR* const* Motivo = Esclusi.Find(Esito))
+		{
+			TestEqual(FString::Printf(TEXT("%s e' escluso (%s) e non produce righe"), *Nome, *Motivo), Righe, 0);
+		}
+		else
+		{
+			TestEqual(FString::Printf(
+				TEXT("%s produce una riga nel feed: un esito non tradotto in ClassifyEntry sparisce in silenzio"),
+				*Nome), Righe, 1);
+			Raccontati += Righe;
+		}
+	}
+
+	// ANTI-VACUITA': se l'elenco degli esclusi coprisse tutto l'enum il ciclo non asserirebbe niente di utile.
+	TestTrue(TEXT("gli esiti raccontati sono piu' degli esclusi"), Raccontati > Esclusi.Num());
+	return true;
+}
+
+/**
+ * LE QUATTRO CADUTE E IL PARAPETTO SONO SPOSTAMENTI SUBITI; IL CICLO E' UN BLOCCO — `#3081`.
+ *
+ * Il test qui sopra dice che una riga c'e'. Questo dice QUALE: tipo e importanza sono decisi, non ereditati.
+ *
+ * ⛔ **`StoppedByEdgeGuard` non e' `MoveBlocked`.** Lo spostamento forzato ha percorso celle e il parapetto
+ * l'ha accorciato: dire «Movimento bloccato» direbbe al giocatore che il suo piano e' fallito, che e' falso —
+ * la stessa obiezione che `SlideBlockedIsDistinctFromSlid` porta per lo scivolamento. Sta con `Displaced`, che
+ * e' cio' che quel fatto produceva prima che il valore esistesse ([D-354]).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventFallsAreSufferedMovesTest,
+	"RefactorTactics.UI.PlayerEventLog.FallsAndEdgeGuardAreSufferedMoves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventFallsAreSufferedMovesTest::RunTest(const FString&)
+{
+	auto Proietta = [](ERTMoveOutcome Esito)
+	{
+		TArray<FRTTurnLogEntry> Log;
+		Log.Add(PlayerEventEntry(ERTLogCategory::Move, static_cast<uint8>(Esito), /*UnitId*/ 3, /*Team*/ 0));
+		return URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+	};
+
+	const ERTMoveOutcome Subiti[] = {
+		ERTMoveOutcome::Fell, ERTMoveOutcome::FellToAlternative, ERTMoveOutcome::FellToLastStable,
+		ERTMoveOutcome::FellWithoutLanding, ERTMoveOutcome::StoppedByEdgeGuard,
+	};
+	for (const ERTMoveOutcome Esito : Subiti)
+	{
+		const FString Nome = StaticEnum<ERTMoveOutcome>()->GetNameStringByValue(static_cast<int64>(Esito));
+		const TArray<FRTPlayerEvent> Events = Proietta(Esito);
+		if (!TestEqual(*(Nome + TEXT(": una riga")), Events.Num(), 1))
+		{
+			continue;
+		}
+		TestTrue(*(Nome + TEXT(": e' uno spostamento, non un blocco")),
+			Events[0].Type == ERTPlayerEventType::Moved);
+		TestTrue(*(Nome + TEXT(": Important, perche' l'unita' non e' dove il giocatore l'aveva mandata")),
+			Events[0].Importance == ERTPlayerEventImportance::Important);
+	}
+
+	const TArray<FRTPlayerEvent> Ciclo = Proietta(ERTMoveOutcome::BlockedByCycle);
+	if (TestEqual(TEXT("BlockedByCycle: una riga"), Ciclo.Num(), 1))
+	{
+		TestTrue(TEXT("BlockedByCycle: e' un movimento bloccato, come gli altri Blocked*"),
+			Ciclo[0].Type == ERTPlayerEventType::MoveBlocked);
+		TestTrue(TEXT("BlockedByCycle: Important"),
+			Ciclo[0].Importance == ERTPlayerEventImportance::Important);
+	}
+	return true;
+}
+
+/**
+ * CHI CADE HA UNA RIGA SOLA, ED E' QUELLA DEL DANNO — `#3081`.
+ *
+ * 🔴 **E' il fatto che rende insufficiente il solo `case`.** Una caduta scrive per la stessa unita' la voce di
+ * movimento (`Fell`, rango 20) e una voce di danno con causa `Fall.Fall` (rango 80). La dominanza tiene una
+ * riga per unita', quindi classificare la caduta come `Moved` NON la porta nel feed: la riga che resta e'
+ * quella del danno. Chi leggesse solo il test degli esiti crederebbe che il feed racconti la caduta.
+ *
+ * 🔑 Cio' che questa prova fissa e' che la riga superstite porti la CAUSA — `ActionId` e `Amount` — perche' e'
+ * da li' che `URTHudViewModel::ComposePlayerEventText` scrive «Caduta» invece di «Colpita». Il testo lo
+ * asserisce `RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact`; il percorso vero del resolver,
+ * `RefactorTactics.Fall.TheFeedSaysFallNotHit`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventFallDamageDominatesTest,
+	"RefactorTactics.UI.PlayerEventLog.FallDamageDominatesTheFallMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventFallDamageDominatesTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Caduta = PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Fell), /*UnitId*/ 7, /*Team*/ 0);
+	FRTTurnLogEntry Danno = PlayerEventEntry(ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), /*UnitId*/ 7, /*Team*/ 0);
+	Danno.ActionId = URTTurnLogLibrary::FallCauseOfFaller();
+	Danno.Amount = 5;
+
+	// Nei due ordini: la voce di movimento precede il danno nel resolver, ma la dominanza non deve dipenderne.
+	for (const bool bDannoPrima : { false, true })
+	{
+		TArray<FRTTurnLogEntry> Log;
+		Log.Add(bDannoPrima ? Danno : Caduta);
+		Log.Add(bDannoPrima ? Caduta : Danno);
+		const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+
+		const TCHAR* Ordine = bDannoPrima ? TEXT("danno prima") : TEXT("caduta prima");
+		if (!TestEqual(*FString::Printf(TEXT("%s: due voci della stessa unita' -> una riga"), Ordine),
+			Events.Num(), 1))
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("%s: la riga che resta e' il danno"), Ordine),
+			Events[0].Type == ERTPlayerEventType::Attacked);
+		TestTrue(*FString::Printf(TEXT("%s: e porta la causa di caduta"), Ordine),
+			Events[0].ActionId == URTTurnLogLibrary::FallCauseOfFaller());
+		TestEqual(*FString::Printf(TEXT("%s: e l'importo"), Ordine), Events[0].Amount, 5);
+	}
+
+	// Il caso per cui il `case` serve comunque: l'osservatore e' autorizzato alla voce di movimento e non a
+	// quella di danno. Senza il ramo di `#3081` qui non resterebbe nessuna riga.
+	FRTTurnLogEntry DannoNascosto = PlayerEventEntry(ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), /*UnitId*/ 7, /*Team*/ 1);
+	DannoNascosto.ActionId = URTTurnLogLibrary::FallCauseOfFaller();
+	TArray<FRTTurnLogEntry> Parziale;
+	Parziale.Add(Caduta);
+	Parziale.Add(DannoNascosto);
+	const TArray<FRTPlayerEvent> Vista = URTPlayerEventProjector::Project(Parziale, /*ObserverTeamId*/ 0);
+	if (TestEqual(TEXT("senza la voce di danno resta la riga dello spostamento"), Vista.Num(), 1))
+	{
+		TestTrue(TEXT("ed e' lo spostamento subito"), Vista[0].Type == ERTPlayerEventType::Moved);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

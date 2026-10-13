@@ -468,6 +468,51 @@ implementava [#2403](https://github.com/DegrassiAaron/refactor-tactics-main/issu
 solo fra tre design incompatibili, su un formato di traccia che ha un owner. Deciso in
 [`D-352`](../decisions/RT_PDR_00_Decision_Log.md).
 
+### 9.3 Che cosa dice il feed del giocatore
+
+La traccia distingue quattro esiti di atterraggio. Il feed a schermo dice **una cosa sola** — che l'unità è
+caduta — e la dice sulla riga del **danno**
+([#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), decisione d'autore del
+2026-10-13).
+
+| Chi | La riga del feed |
+|---|---|
+| chi cade | «Caduta — N», dove N è il danno da caduta |
+| l'occupante che riceve l'atterraggio (§4.2) | «Urto — N» |
+| chi cade, o riceve l'atterraggio, e ne muore | «Eliminata»: il KO domina, come per ogni altra causa, e non dice quale |
+| chi è spinto e tenuto sul ciglio da un parapetto, dopo aver percorso almeno una cella (§9.2) | «Spostata»: è uno spostamento subito, non un movimento bloccato |
+
+🔑 **Perché sulla riga del danno.** Il feed tiene una riga per unità, e fra due voci della stessa unità vince
+quella di rango più alto. Chi cade ha nello stesso turno la voce di movimento e quella di danno, e il danno
+vince: classificare la caduta come spostamento non basta a portarla a schermo, perché la riga resterebbe
+«Colpita — N». La causa viaggia già nella voce di danno — `Fall.Fall` per chi cade, `Fall.Impact` per
+l'occupante, i due id di `URTTurnLogLibrary` — e il testo la legge da lì. Gli id riconosciuti sono quei due:
+una causa `Fall.*` nuova resta «Colpita» finché qualcuno non le dà una frase.
+
+⚠️ **Cinque limiti dichiarati.**
+
+- **I quattro esiti di atterraggio non si distinguono nel feed.** Dove l'unità è finita lo mostra la board; i
+  quattro testi restano nel log diagnostico (§9.1).
+- **Se l'unità ha già una riga di danno in quel turno, resta quella, e il feed non dice «Caduta».** Fra due
+  righe dello stesso rango e della stessa importanza la dominanza tiene la prima arrivata. Succede quando chi
+  cade aveva colpito o curato nello stesso Blast: la voce di combattimento porta come soggetto chi colpisce,
+  e arriva prima della caduta. Non è un caso raro in un gioco a turni simultanei. Correggerlo vuol dire
+  decidere quale danno vince fra due di pari rango, cioè cambiare una regola del feed: non è stato fatto qui.
+- **Dopo uno scatto riuscito nello stesso turno, uno spostamento subito non compare.** Il movimento chiesto e
+  uno spostamento subito hanno lo stesso rango, e li distingue solo l'importanza: il primo è silenzioso. Chi
+  scatta nel Dash e poi viene spinto nel Blast ha per prima la riga silenziosa, che tiene il posto e poi viene
+  tolta: non resta nessuna riga. Vale per il parapetto, e valeva già per ogni spinta. Correggerlo tocca la
+  stessa regola del punto qui sopra, e ha una proposta a parte:
+  [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734).
+- **Una caduta che uccide dice «Eliminata» e non «Caduta».** È la terza riga della tabella.
+- **Col parapetto adiacente il feed dice «Spostata» di un'unità che non si è mossa.** Senza celle percorse la
+  traccia scrive `DisplacementResisted` con causa `EdgeGuard` (§9.2), e il feed legge così ogni spostamento
+  resistito. È il comportamento che c'era prima di #3081, non una sua conseguenza.
+
+Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit` e
+`RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed`, sul percorso vero del resolver; e
+`RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi.
+
 ---
 
 ## 10. Documenti correlati
