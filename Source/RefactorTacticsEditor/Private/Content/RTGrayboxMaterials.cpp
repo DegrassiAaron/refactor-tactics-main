@@ -1,4 +1,5 @@
 #include "Content/RTGrayboxMaterials.h"
+#include "Content/RTMaterialRecipe.h" // #3725: lo svuotamento del grafo
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "MaterialEditingLibrary.h"
@@ -78,6 +79,45 @@ namespace RTGraybox
 	}
 }
 
+bool RTGraybox::BuildMasterGraph(UMaterial* Master)
+{
+	if (Master == nullptr)
+	{
+		return false;
+	}
+
+	// ⚠️ Con `ClearGraph` e non con la funzione del motore che svuota il grafo: quella ne lascia indietro una parte a
+	// ogni rilancio (#3725, misurato su `M_UnitLayerOutline` con #3706). Vedi `RTMaterialRecipe::ClearGraph`.
+	RTMaterialRecipe::ClearGraph(Master);
+
+	UMaterialExpressionVectorParameter* BaseColor = Cast<UMaterialExpressionVectorParameter>(
+		UMaterialEditingLibrary::CreateMaterialExpression(
+			Master, UMaterialExpressionVectorParameter::StaticClass(), -400, 0));
+	UMaterialExpressionScalarParameter* Roughness = Cast<UMaterialExpressionScalarParameter>(
+		UMaterialEditingLibrary::CreateMaterialExpression(
+			Master, UMaterialExpressionScalarParameter::StaticClass(), -400, 200));
+
+	if (!BaseColor || !Roughness)
+	{
+		return false;
+	}
+
+	BaseColor->ParameterName = RTGraybox::ParamBaseColor;
+	// Il default e' il grigio medio del kit: un'istanza che non sovrascrivesse nulla resterebbe
+	// leggibile invece di diventare nera, ed e' cio' che rende innocuo dimenticare un override.
+	BaseColor->DefaultValue = FLinearColor(0.30f, 0.30f, 0.30f, 1.f);
+
+	Roughness->ParameterName = RTGraybox::ParamRoughness;
+	Roughness->DefaultValue = 0.80f;
+
+	UMaterialEditingLibrary::ConnectMaterialProperty(BaseColor, TEXT(""), MP_BaseColor);
+	UMaterialEditingLibrary::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
+
+	UMaterialEditingLibrary::LayoutMaterialExpressions(Master);
+	Master->PostEditChange();
+	return true;
+}
+
 namespace
 {
 	/** Salva il package di un asset appena creato o modificato. */
@@ -101,7 +141,7 @@ namespace
 	/**
 	 * Il master, con i suoi DUE parametri collegati.
 	 *
-	 * Il graph si RICOSTRUISCE a ogni esecuzione — `DeleteAllMaterialExpressions` e poi da capo — perche'
+	 * Il graph si RICOSTRUISCE a ogni esecuzione — `BuildMasterGraph` lo svuota e riparte da capo — perche'
 	 * la sorgente e' questo codice e l'asset e' il suo output (`D-229`). Se un giorno il master avesse un
 	 * nodo autorato a mano, lo perderebbe qui: e' la stessa proprieta' per cui le sei mesh si rigenerano
 	 * invece di fondersi.
@@ -129,34 +169,12 @@ namespace
 			return nullptr;
 		}
 
-		UMaterialEditingLibrary::DeleteAllMaterialExpressions(Master);
-
-		UMaterialExpressionVectorParameter* BaseColor = Cast<UMaterialExpressionVectorParameter>(
-			UMaterialEditingLibrary::CreateMaterialExpression(
-				Master, UMaterialExpressionVectorParameter::StaticClass(), -400, 0));
-		UMaterialExpressionScalarParameter* Roughness = Cast<UMaterialExpressionScalarParameter>(
-			UMaterialEditingLibrary::CreateMaterialExpression(
-				Master, UMaterialExpressionScalarParameter::StaticClass(), -400, 200));
-
-		if (!BaseColor || !Roughness)
+		if (!RTGraybox::BuildMasterGraph(Master))
 		{
 			UE_LOG(LogRTGrayboxMaterials, Error, TEXT("%s: le espressioni del master non sono nate."), *AssetName);
 			return nullptr;
 		}
-
-		BaseColor->ParameterName = RTGraybox::ParamBaseColor;
-		// Il default e' il grigio medio del kit: un'istanza che non sovrascrivesse nulla resterebbe
-		// leggibile invece di diventare nera, ed e' cio' che rende innocuo dimenticare un override.
-		BaseColor->DefaultValue = FLinearColor(0.30f, 0.30f, 0.30f, 1.f);
-
-		Roughness->ParameterName = RTGraybox::ParamRoughness;
-		Roughness->DefaultValue = 0.80f;
-
-		UMaterialEditingLibrary::ConnectMaterialProperty(BaseColor, TEXT(""), MP_BaseColor);
-		UMaterialEditingLibrary::ConnectMaterialProperty(Roughness, TEXT(""), MP_Roughness);
-
-		UMaterialEditingLibrary::LayoutMaterialExpressions(Master);
-		Master->PostEditChange();
+		// Solo qui, dove l'asset si salva: dentro un test, senza un renderer, andrebbe in crash (#3725).
 		UMaterialEditingLibrary::RecompileMaterial(Master);
 		Master->MarkPackageDirty();
 
