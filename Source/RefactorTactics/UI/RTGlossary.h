@@ -9,8 +9,9 @@
  *
  * 🔑 **Una tabella sola, chiavata per id stabile**, nella forma di `RTActionDescriptions`. Le chiavi sono id che
  * esistono gia': il nome del tag per uno stato (`Status.Burning`); per una superficie la causa che il TurnLog
- * scrive quando fa danno (`Terrain.Fire`), che per le altre e' l'id del catalogo dei terreni; l'id dello stesso
- * catalogo per un riparo (`Structure.LowCover`).
+ * scrive quando fa danno (`Terrain.Fire`), che per le altre e' l'id del catalogo dei terreni — tranne
+ * `Terrain.Void`, che il catalogo non elenca; l'id dello stesso catalogo per un riparo (`Structure.LowCover`),
+ * che il gioco non scrive da nessuna parte.
  *
  * ⛔ **Un testo non porta numeri ne' nomi di tag.** Durata, danno e costo li compone il gioco dai dati: un numero
  * scritto qui invecchierebbe al primo ribilanciamento, e nessun gate se ne accorgerebbe.

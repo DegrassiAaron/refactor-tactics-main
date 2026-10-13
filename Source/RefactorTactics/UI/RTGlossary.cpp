@@ -7,8 +7,9 @@
 // confronta voce per voce, non l'ordine; due copie nello stesso ordine si rileggono affiancate.
 //
 // ⛔ Niente cifre, niente nomi di tag, solo ASCII: lo verifica `RefactorTactics.UI.GlossaryEntriesNameThingsThatExist`.
-// ⚠️ Una frase segue la REGOLA, non il catalogo dei terreni: dove i due divergono — il ghiaccio fa scivolare chi
-// vi TERMINA il movimento, non chi vi entra — vale il codice che la applica.
+// ⚠️ Una frase segue la REGOLA, non il catalogo dei terreni: dove i due divergono vale il codice che la applica.
+// Due casi: il ghiaccio fa scivolare chi vi TERMINA il movimento, non chi vi entra; la copertura bassa non
+// ferma il passo, che il catalogo le attribuisce.
 // ⚠️ Il radar trova le due tabelle dalla riga della loro definizione: nessun commento sopra di esse deve
 // ripeterne la firma.
 const TArray<TPair<FName, FString>>& RTGlossary::Names()
@@ -54,26 +55,26 @@ const TArray<TPair<FName, FString>>& RTGlossary::Effects()
 		// Stati
 		{ TEXT("Status.Root"),        TEXT("Non puoi muoverti ne' scattare.") },
 		{ TEXT("Status.Slow"),        TEXT("Ogni cella ti costa di piu': a piedi arrivi meno lontano.") },
-		{ TEXT("Status.Reveal"),      TEXT("Gli avversari vedono che cosa stai preparando.") },
+		{ TEXT("Status.Reveal"),      TEXT("Gli avversari vedono il tuo piano del turno, ma non la reazione che hai armato.") },
 		{ TEXT("Status.Exposed"),     TEXT("Finche' dura, il primo colpo che ricevi in un turno fa piu' danno.") },
-		{ TEXT("Status.Guarded"),     TEXT("Ogni colpo che arriva di fronte perde una parte del danno, e una spinta debole non ti sposta, finche' non sei sbilanciato.") },
+		{ TEXT("Status.Guarded"),     TEXT("Ogni colpo che arriva di fronte perde una parte del danno. Una spinta debole non ti sposta, a meno che tu sia sbilanciato.") },
 		{ TEXT("Status.Marked"),      TEXT("Il prossimo colpo della squadra che ti ha marchiato fa piu' danno, poi il marchio si consuma.") },
 		{ TEXT("Status.Wet"),         TEXT("La scarica lineare di Aevik ti fa piu' danno. Bagnarti spegne le fiamme.") },
 		{ TEXT("Status.Braced"),      TEXT("Ogni colpo, da qualunque direzione, perde un po' di danno, e resisti alle spinte finche' non sei sbilanciato.") },
 		{ TEXT("Status.Burning"),     TEXT("Subisci danno alla fine di ogni turno, finche' le fiamme durano o l'acqua le spegne.") },
 		{ TEXT("Status.Obscured"),    TEXT("Sei nel fumo: attraverso il fumo si mira solo da vicino, in entrambi i versi.") },
-		{ TEXT("Status.Electrified"), TEXT("Una scarica elettrica ti ha colpito: mirata su di te, oppure arrivata lungo acqua e metallo.") },
+		{ TEXT("Status.Electrified"), TEXT("L'elettricita' corsa nel terreno ti ha colpito: sulla cella mirata, oppure lungo acqua e metallo.") },
 		{ TEXT("Status.Unbalanced"),  TEXT("Non puoi correre, e guardia e irrigidimento non ti tengono fermo; spinte, trazioni e scivolate ti portano piu' lontano, e una spinta o una trazione che ti sposta ti butta a terra.") },
-		{ TEXT("Status.Prone"),       TEXT("Rialzarti ti costa una parte del movimento, e le tue reazioni non scattano.") },
-		{ TEXT("Status.Stunned"),     TEXT("Non puoi usare l'azione principale, e le tue reazioni non scattano.") },
+		{ TEXT("Status.Prone"),       TEXT("Cadendo perdi cio' che avevi armato, e le tue reazioni non scattano. Rialzarti ti costa una parte del movimento.") },
+		{ TEXT("Status.Stunned"),     TEXT("Non puoi usare l'azione principale, le tue reazioni non scattano, e perdi cio' che avevi gia' armato.") },
 
 		// Superfici
 		{ TEXT("Terrain.Floor"),        TEXT("Nessun effetto proprio. Puo' prendere fuoco.") },
-		{ TEXT("Terrain.ShallowWater"), TEXT("Costa piu' movimento. Bagna chi ci entra e conduce l'elettricita'.") },
+		{ TEXT("Terrain.ShallowWater"), TEXT("Costa piu' movimento e conduce l'elettricita'. Chi ci sta dentro e' bagnato finche' ci resta.") },
 		{ TEXT("Terrain.Rough"),        TEXT("Costa piu' movimento, e non lo si attraversa ne' di scatto ne' in carica. Puo' prendere fuoco.") },
-		{ TEXT("Terrain.Fire"),         TEXT("Costa piu' movimento. Chi ci entra subisce danno e prende fuoco.") },
+		{ TEXT("Terrain.Fire"),         TEXT("Costa piu' movimento. Chi ci entra, o ci si trova quando divampa, subisce danno e prende fuoco.") },
 		{ TEXT("Terrain.Conductive"),   TEXT("Conduce l'elettricita'.") },
-		{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con passi ancora da spendere scivola oltre, nella direzione in cui andava.") },
+		{ TEXT("Terrain.Ice"),          TEXT("Chi finisce qui il movimento con piu' di un passo ancora da spendere scivola oltre, nella direzione in cui andava, e resta sbilanciato.") },
 		{ TEXT("Terrain.Void"),         TEXT("Non e' un punto d'atterraggio: chi cade non si ferma qui.") },
 		{ TEXT("Terrain.Smoke"),        TEXT("Chi ci sta dentro e' nel fumo: attraverso il fumo si mira solo da vicino.") },
 		{ TEXT("Terrain.HighGround"),   TEXT("Nessun effetto proprio: indica una posizione rialzata, e il vantaggio viene dal piano della cella.") },
@@ -120,7 +121,8 @@ FName RTGlossary::KeyForSurface(ERTHexSurface Surface)
 {
 	// 🔑 La stessa composizione con cui `ARTTurnManager` scrive la causa di un danno da terreno: il prefisso
 	// arriva dalla libreria del TurnLog e non da un letterale, cosi' le due non divergono. Il TurnLog la scrive
-	// solo per una superficie che fa danno; per le altre e' lo stesso schema, e l'id del catalogo dei terreni.
+	// solo per una superficie che fa danno; per le altre e' lo stesso schema, e l'id del catalogo dei terreni —
+	// tranne `Terrain.Void`, che il catalogo non elenca.
 	return FName(*FString::Printf(TEXT("%s%s"), URTTurnLogLibrary::TerrainCausePrefix(),
 		*StaticEnum<ERTHexSurface>()->GetNameStringByValue(static_cast<int64>(Surface))));
 }

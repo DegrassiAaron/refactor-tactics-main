@@ -63,7 +63,7 @@ namespace
 	/** Le regole di un testo: non vuoto, solo ASCII stampabile, nessuna cifra, nessun nome di tag. */
 	void GlossaryCheckText(FAutomationTestBase& Test, const FString& Key, const TCHAR* Quale, const FString& Testo)
 	{
-		Test.TestFalse(*FString::Printf(TEXT("%s: il %s non e' vuoto"), *Key, Quale), Testo.TrimStartAndEnd().IsEmpty());
+		Test.TestFalse(*FString::Printf(TEXT("%s (%s): non e' vuoto"), *Key, Quale), Testo.TrimStartAndEnd().IsEmpty());
 		bool bSoloAscii = true;
 		bool bSenzaCifre = true;
 		// Per indice e non con un `for` a intervallo: qui conta ogni carattere della stringa e nessun terminatore.
@@ -73,11 +73,11 @@ namespace
 			bSoloAscii = bSoloAscii && C >= 0x20 && C <= 0x7E;
 			bSenzaCifre = bSenzaCifre && !FChar::IsDigit(C);
 		}
-		Test.TestTrue(*FString::Printf(TEXT("%s: il %s e' ASCII, con l'apostrofo al posto dell'accento"), *Key, Quale), bSoloAscii);
-		Test.TestTrue(*FString::Printf(TEXT("%s: il %s non porta cifre"), *Key, Quale), bSenzaCifre);
+		Test.TestTrue(*FString::Printf(TEXT("%s (%s): solo ASCII, con l'apostrofo al posto dell'accento"), *Key, Quale), bSoloAscii);
+		Test.TestTrue(*FString::Printf(TEXT("%s (%s): non porta cifre"), *Key, Quale), bSenzaCifre);
 		for (const TCHAR* Prefisso : { TEXT("Status."), TEXT("Terrain."), TEXT("Structure.") })
 		{
-			Test.TestFalse(*FString::Printf(TEXT("%s: il %s non nomina un tag (%s)"), *Key, Quale, Prefisso),
+			Test.TestFalse(*FString::Printf(TEXT("%s (%s): non nomina un tag (%s)"), *Key, Quale, Prefisso),
 				Testo.Contains(Prefisso, ESearchCase::IgnoreCase));
 		}
 	}
@@ -160,7 +160,7 @@ bool FRTGlossaryEntriesExistTest::RunTest(const FString&)
 		Viste.Add(Key);
 
 		GlossaryCheckText(*this, K, TEXT("nome"), Nomi[I].Value);
-		TestFalse(*FString::Printf(TEXT("%s: il nome non finisce col punto"), *K), Nomi[I].Value.EndsWith(TEXT(".")));
+		TestFalse(*FString::Printf(TEXT("%s (nome): non finisce col punto"), *K), Nomi[I].Value.EndsWith(TEXT(".")));
 
 		if (!Effetti.IsValidIndex(I))
 		{
@@ -169,7 +169,7 @@ bool FRTGlossaryEntriesExistTest::RunTest(const FString&)
 		// Le due tabelle hanno le stesse chiavi nello stesso ordine: e' cio' che le rende rileggibili affiancate.
 		TestEqual(*FString::Printf(TEXT("la voce %d ha la stessa chiave nelle due tabelle"), I), Effetti[I].Key, Key);
 		GlossaryCheckText(*this, K, TEXT("effetto"), Effetti[I].Value);
-		TestTrue(*FString::Printf(TEXT("%s: l'effetto finisce col punto"), *K), Effetti[I].Value.EndsWith(TEXT(".")));
+		TestTrue(*FString::Printf(TEXT("%s (effetto): finisce col punto"), *K), Effetti[I].Value.EndsWith(TEXT(".")));
 	}
 	return true;
 }
@@ -180,7 +180,7 @@ bool FRTGlossaryEntriesExistTest::RunTest(const FString&)
  * 🔑 **Valori letterali, e non una seconda composizione**: se `KeyForSurface` cambiasse forma, il test qui sopra
  * continuerebbe a concordare con lei. `Status.Burning` e `Terrain.Fire` sono cio' che il TurnLog scrive come causa
  * di un danno; gli altri sono gli id del catalogo dei terreni, dove una superficie che non fa danno non arriva
- * mai al TurnLog.
+ * mai al TurnLog. Il catalogo non elenca `Terrain.Void`: quella chiave segue solo lo schema.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlossaryKeysTest,
 	"RefactorTactics.UI.GlossaryKeysAreTheIdsTheGameWrites",
