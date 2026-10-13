@@ -316,6 +316,18 @@ bool FRTCrossLayerTwoFloorsTest::RunTest(const FString&)
 		XlsExpectStopped(*this, TEXT("muro al piano in cui la linea attraversa la cella"), Map, Viewer, Far,
 			ERTCrossLayerSightBlock::CellBlocker, FRTCellId(3, 0, 1));
 	}
+
+	// ⚠️ Un LIMITE dichiarato, e questo asserto lo misura invece di raccontarlo. In quella stessa linea il punto
+	// in cui si raggiunge la quota del piano 2 cade a 3,5 celle: esattamente sul confine fra due celle. Decide lo
+	// spareggio fisso di `HexLine`, che spinge sempre dalla stessa parte. Verso +q il punto finisce nella cella 4
+	// e la (3,0,2) non e' un pavimento bucato — e' la premessa qui sopra. Sulla mappa SPECCHIATA finisce nella
+	// cella 3, e la stessa cella ferma la linea. La risposta resta la stessa nei due versi; non fra le due mappe.
+	{
+		const FRTCellId MirrorFar(-5, 0, 2);
+		const FRTCellId MirrorTouched(-3, 0, 2);
+		XlsExpectStopped(*this, TEXT("la stessa linea, specchiata: il punto sul confine cade dall'altra parte"),
+			XlsGroundWith(6, { MirrorFar, MirrorTouched }), Viewer, MirrorFar, ERTCrossLayerSightBlock::Floor, MirrorTouched);
+	}
 	return true;
 }
 
