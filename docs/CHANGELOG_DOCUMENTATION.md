@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-13 — La tinta dei volumi: il giudizio dell'autore
+
+**Origine**: [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706), seduta `U86`. L'autore ha giudicato le tavole delle catture: la forza della tinta resta 0,25, e la issue si chiude.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-TINTA-VOLUMI` verde, con le parole dell'autore; i totali rimisurati |
+| [`technical/evidence/u86/`](technical/evidence/u86/) | le tre tavole su cui ha giudicato, e un controllo su `Visual.Map.MultiLevel` fatto dopo |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U86` chiusa |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-508` annotata: la forza della tinta è scelta |
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §6: la forza non è più provvisoria |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: #3706 fra le chiuse |
+| [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §7: lo stato di #3706 |
+
+---
+
 ## 2026-10-13 — Il piano di muri, coperture, porte e blocchi si legge dalla tinta del volume
 
 **Origine**: [#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706), `D-508`. Che cosa entra, la forza della tinta e l'ordine nel materiale li ha scelti la PR; il giudizio a schermo è dell'autore.

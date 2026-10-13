@@ -83,3 +83,5 @@ L'ultima frase è stata **misurata**, e i dati si aggiornano. Dal bridge, sulla 
    attivo passa attraverso la geometria. Aspetta il giudizio dell'autore (`PIE-CAM-CONTORNO-UNITA`).
    ➕ *2026-10-13:* #3706 è attuata con un materiale generato, `M_HexVolume`, e sette dati per istanza. Il
    rilievo del costo resta fuori. Aspetta il giudizio dell'autore (`PIE-CAM-TINTA-VOLUMI`).
+   ➕ *2026-10-13, più tardi:* l'autore ha giudicato #3706 sulle tavole delle catture. La forza della tinta
+   resta 0,25, e la issue è chiusa.
