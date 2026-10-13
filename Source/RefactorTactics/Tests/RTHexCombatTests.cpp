@@ -1306,6 +1306,26 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 			ERTActionInvalidReason::None);
 	}
 
+	// IL RIPIEGO: un'area che dichiara `AttackCell` NON ripiega sulla cella quando il difetto e' il piano. La
+	// cella puntata ha lo stesso difetto del bersaglio, e colpirla sarebbe il colpo fra piani che la regola
+	// vieta, rientrato dal fallback.
+	{
+		FRTActionInstance Area = Istanza(FRTCellId(2, 0, 1), 1, 6);
+		Area.Def.Fallback = ERTActionFallback::AttackCell;
+
+		const FRTFallbackResult PerPiano =
+			URTActionFallbackLibrary::ApplyFallback(Area, ERTActionInvalidReason::OtherLayer);
+		TestTrue(TEXT("AttackCell con OtherLayer: degrada a Cancel, e lo dichiara"),
+			PerPiano.Applied == ERTActionFallback::Cancel);
+		TestFalse(TEXT("…e non produce effetti"), PerPiano.bProducesEffects);
+
+		// Controllo: lo stesso ripiego, quando a mancare e' il BERSAGLIO, la cella la tiene.
+		const FRTFallbackResult PerBersaglio =
+			URTActionFallbackLibrary::ApplyFallback(Area, ERTActionInvalidReason::TargetDead);
+		TestTrue(TEXT("controllo: AttackCell con TargetDead resta AttackCell e produce effetti"),
+			PerBersaglio.Applied == ERTActionFallback::AttackCell && PerBersaglio.bProducesEffects);
+	}
+
 	// Il predicato ha UN nome, e le quattro sedi lo leggono da li'.
 	TestTrue(TEXT("OnSamePlane: stesso Layer"), URTCombatLibrary::OnSamePlane(FRTCellId(0, 0, 1), FRTCellId(5, -3, 1)));
 	TestFalse(TEXT("OnSamePlane: Layer diversi, anche sulla stessa colonna"),
