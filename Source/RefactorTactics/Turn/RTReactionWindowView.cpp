@@ -81,12 +81,12 @@ FRTReactionWindowView URTReactionWindowLibrary::FilterWindowForTeam(int32 Observ
 	return View;
 }
 
-bool URTReactionWindowLibrary::AddTriggerIfDetected(FRTReactionWindowNames& Names, const FText& Name,
-	ERTAwareness OwnerTeamAwareness)
+bool URTReactionWindowLibrary::AddTriggerIfKnown(FRTReactionWindowNames& Names, const FText& Name,
+	ERTTargetKnowledge OwnerTeamKnowledge)
 {
-	// 🔴 Solo `Detected`. `Uncertain` e' un contatto senza identita' (CP 13.2): un nome qui gliela darebbe, e
-	// `Hidden` e' un'unita' che per quella squadra non c'e'. Un nome vuoto non e' un nome.
-	if (OwnerTeamAwareness != ERTAwareness::Detected || Name.IsEmptyOrWhitespace())
+	// 🔴 Solo `Allowed`. `CellOnly` e' un contatto ricordato, senza identita' di adesso (CP 13.2): un nome qui
+	// gliela darebbe, e `Rejected` e' un'unita' che per quella squadra non c'e'. Un nome vuoto non e' un nome.
+	if (OwnerTeamKnowledge != ERTTargetKnowledge::Allowed || Name.IsEmptyOrWhitespace())
 	{
 		return false;
 	}

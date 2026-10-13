@@ -948,7 +948,7 @@ public:
 	 * l'Overwatch sono chi e' entrato nella zona a quel passo (`FRTOverwatchTrigger::TargetUnitIds`): non
 	 * coincidono coi bersagli dei `FIRE` quando una condizione dichiarata ne esclude alcuni. ⚠️ Chi li passa
 	 * garantisce che la squadra di chi decide li rilevi. Chi spinge un `Brace` NON passa di qui: lo aggiunge
-	 * il sito con `URTReactionWindowLibrary::AddTriggerIfDetected`, che chiede la rilevazione.
+	 * il sito con `URTReactionWindowLibrary::AddTriggerIfKnown`, che chiede la conoscenza di squadra del Blast.
 	 *
 	 * Statica e senza stato: si prova senza montare una partita.
 	 */

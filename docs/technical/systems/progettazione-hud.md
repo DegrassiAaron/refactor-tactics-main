@@ -796,7 +796,8 @@ Regole UX:
   finestra: «{unità} è entrato nell'area controllata» per l'Overwatch, «{unità} ti spinge» per il `Brace`
   ([#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667)). I nomi li scrive il turn manager
   nella vista, quando la costruisce: il widget non risolve nessun indice. ⚠️ Chi spinge si nomina solo se la
-  squadra di chi decide lo rileva; altrimenti «Un nemico ti spinge». A contatto è sempre rilevato — la
+  squadra di chi decide lo rileva — con la conoscenza di squadra del Blast, la stessa che decide chi legge la
+  riga del colpo ([D-223](../../decisions/RT_PDR_00_Decision_Log.md)); altrimenti «Un nemico ti spinge». A contatto è sempre rilevato — la
   consapevolezza ravvicinata copre ogni direzione entro due celle — quindi la frase neutra nasce solo da una
   spinta a distanza, come l'attacco base di Muiren alle spalle di chi si irrigidisce. ⚠️ Il sottotitolo vuole un `TextBlock`
   `SubtitleText` in `WBP_RT_FastDecision`, che oggi non c'è: si calcola e non si vede.

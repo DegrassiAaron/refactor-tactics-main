@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Perception/RTTeamKnowledge.h" // ERTTargetKnowledge: la regola di [D-223] decide chi ha un nome
 #include "RTReactionWindowView.generated.h"
 
 /**
@@ -104,7 +105,7 @@ struct FRTReactionWindowNames
 	 * 🔴 **Entra solo chi la squadra del proprietario RILEVA in quell'istante** (R2.2). Per l'Overwatch e'
 	 * vero per costruzione: il trigger esiste solo per un'unita' `Detected` e in linea di vista. Per il
 	 * `Brace` no — chi spinge puo' farlo da una cella che la squadra non vede — e il nome passa da
-	 * `URTReactionWindowLibrary::AddTriggerIfDetected`, che e' l'unico punto in cui la regola e' scritta.
+	 * `URTReactionWindowLibrary::AddTriggerIfKnown`, che e' l'unico punto in cui la regola e' scritta.
 	 *
 	 * ⚠️ **Non e' l'elenco dei bersagli.** Una condizione dichiarata riduce le risposte `FIRE`, non chi e'
 	 * entrato: con «solo sotto meta' vita», due unita' entrano e a una sola si puo' sparare.
@@ -298,14 +299,19 @@ public:
 
 	/**
 	 * Aggiunge a `Names` il nome di chi ha fatto scattare la finestra, **solo se la squadra del proprietario
-	 * lo rileva** (R2.2, `#3667`). E' l'unico punto in cui la regola e' scritta.
+	 * lo conosce** (R2.2, `#3667`). E' l'unico punto in cui la regola e' scritta.
 	 *
-	 * `OwnerTeamAwareness` e' cio' che `URTPerceptionLibrary::TeamAwarenessOfCell` risponde per la cella di
-	 * quell'unita', con gli osservatori della squadra di chi decide. Solo `Detected` nomina: `Uncertain` e'
-	 * un contatto senza identita', e dargli un nome gliela darebbe.
+	 * 🔑 **`OwnerTeamKnowledge` e' cio' che `URTTeamKnowledgeLibrary::ClassifyTarget` risponde** per quell'unita',
+	 * con la conoscenza della squadra di chi decide: la regola di [D-223], la stessa con cui si congela il
+	 * verdetto di una riga del registro. Solo `Allowed` nomina — un'unita' rilevata, o un compagno. `CellOnly`
+	 * e' un contatto ricordato: la squadra sa dove lo ha visto l'ultima volta, non che e' lui ADESSO, e dargli un
+	 * nome glielo direbbe.
+	 *
+	 * ⏱️ *Fino alla seconda revisione di `#3739` prendeva un `ERTAwareness`, che il sito del `Brace` calcolava da
+	 * se' con gli osservatori vivi DOPO i danni. Era un secondo predicato accanto a quello del Blast.*
 	 *
 	 * @return vero se il nome e' entrato.
 	 */
-	static bool AddTriggerIfDetected(FRTReactionWindowNames& Names, const FText& Name,
-		ERTAwareness OwnerTeamAwareness);
+	static bool AddTriggerIfKnown(FRTReactionWindowNames& Names, const FText& Name,
+		ERTTargetKnowledge OwnerTeamKnowledge);
 };

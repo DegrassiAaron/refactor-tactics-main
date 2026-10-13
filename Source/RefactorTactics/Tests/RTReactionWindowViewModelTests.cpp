@@ -1838,9 +1838,121 @@ bool FRTOverwatchWindowNamesSurviveAFallenUnitTest::RunTest(const FString&)
 }
 
 /**
+ * **IL SOTTOTITOLO NOMINA CHI E' ENTRATO, NON A CHI SI PUO' SPARARE** (`#3667`) — dal Move vero.
+ *
+ * Due unita' entrano nella linea di un Overwatch allo stesso passo, e chi sorveglia ha dichiarato una
+ * condizione: «solo a meta' vita o meno». Una e' ferita e una no. La finestra deve dire che sono entrate in
+ * DUE, e offrire UN solo `FIRE`.
+ *
+ * 🔑 **E' il caso che distingue i due elenchi.** `FRTOverwatchTrigger::TargetUnitIds` dice chi e' entrato; le
+ * risposte `FIRE:` dicono a chi si puo' sparare, e una condizione riduce le seconde senza toccare il primo. Un
+ * sito che ricostruisse chi e' entrato dalle risposte resterebbe verde sugli altri test dal turno vero, che
+ * hanno un solo mover: qui direbbe «Ivrin e' entrato» mentre sono entrati in due. Fino alla seconda revisione
+ * il caso era provato solo sulla funzione, con un elenco di id scritto a mano.
+ *
+ * ⚠️ **La condizione passa da `SetPlannedReactionCondition`**, che pretende uno slot reazione armato: il test
+ * ne arma uno (`Action.Counter`, che qui non scatta: nessuno colpisce chi sorveglia). E' lo stato che la
+ * partita raggiunge con `rt.Reaction.Condition`; scrivere il campo a mano salterebbe il validator.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchWindowNamesEveryoneWhoEnteredTest,
+	"RefactorTactics.Reactions.Overwatch.WindowNamesEveryoneWhoEntered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchWindowNamesEveryoneWhoEnteredTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	// La zona di un Overwatch e' la LINEA davanti a chi guarda: da (3,0) verso ovest, (2,0) e (1,0). I due
+	// partono accanto alla linea e ci entrano con UN passo ciascuno: lo stesso micro-step.
+	ARTUnit* Ferito = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(2, 1));
+	ARTUnit* Sano = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(1, 1));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Ferito"), Ferito) || !TestNotNull(TEXT("Sano"), Sano)
+		|| !TestNotNull(TEXT("Watcher"), Watcher) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Ferito->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
+	Sano->HeroDisplayName = FText::FromString(TEXT("Branth"));
+	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+	ArmOverwatchScenario(Ferito, Watcher); // il ferito entra in (2,0)
+	Sano->PlannedCell = FRTCellId(1, 0);
+
+	// La condizione: solo chi e' a meta' vita o meno.
+	const FRTDeclaredCondition SoloIFeriti(URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
+	Ferito->Health = Ferito->MaxHealth / 2;
+	Watcher->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbility(Watcher, TEXT("Action.Counter"));
+	const bool bDichiarata = Watcher->SetPlannedReactionCondition(SoloIFeriti);
+	const FRTTargetVitals VitaDelFerito(Ferito->Health, Ferito->MaxHealth);
+	const FRTTargetVitals VitaDelSano(Sano->Health, Sano->MaxHealth);
+	// L'ordine in cui il resolver tiene le unita', PRIMA che il turno le sposti: e' quello dei nomi nel sottotitolo.
+	const TArray<ARTUnit*> Tutte = NellOrdineDelResolver({ Ferito, Sano, Watcher });
+	if (!TestTrue(TEXT("premessa: la condizione e' entrata nel piano"),
+			bDichiarata && Watcher->PlannedReactionCondition.IsDeclared())
+		|| !TestTrue(TEXT("premessa: il ferito la soddisfa"),
+			URTReactionOpportunityLibrary::IsConditionSatisfied(SoloIFeriti, &VitaDelFerito))
+		|| !TestFalse(TEXT("premessa: il sano no"),
+			URTReactionOpportunityLibrary::IsConditionSatisfied(SoloIFeriti, &VitaDelSano)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	int32 Aperte = 0;
+	FRTReactionWindowView Vista;
+	TM->OnReactionWindowOpened.BindLambda([&Aperte, &Vista](const FRTReactionWindowView& Consegnata, int32)
+	{
+		++Aperte;
+		if (Aperte == 1) { Vista = Consegnata; }
+	});
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+	if (Aperte != 1)
+	{
+		for (const FRTTurnLogEntry& Voce : TM->GetTurnLog())
+		{
+			AddInfo(FString::Printf(TEXT("TurnLog: %s"), *URTTurnLogLibrary::DescribeEntry(Voce)));
+		}
+	}
+	if (TestEqual(TEXT("premessa: si e' aperta una finestra dell'Overwatch"), Aperte, 1))
+	{
+		const bool bFeritoPrima = Tutte.IndexOfByKey(Ferito) < Tutte.IndexOfByKey(Sano);
+		const TCHAR* Atteso = bFeritoPrima
+			? TEXT("Ivrin e Branth sono entrati nell'area controllata")
+			: TEXT("Branth e Ivrin sono entrati nell'area controllata");
+		TestEqual(TEXT("🔴 sono entrate in due, e la vista le porta entrambe"), Vista.TriggerNames.Num(), 2);
+		TestTrue(TEXT("🔴 il sottotitolo le nomina entrambe, nell'ordine del resolver"),
+			StessoTesto(RTReactionResponseText::SubtitleFor(Vista), Atteso));
+
+		int32 Spari = 0;
+		for (const FRTReactionWindowOptionView& Opzione : Vista.Options)
+		{
+			if (Opzione.TargetSnapshotIndex == INDEX_NONE) { continue; }
+			++Spari;
+			TestTrue(TEXT("🔴 si puo' sparare solo al ferito"),
+				StessoTesto(RTReactionResponseText::DescriptionFor(Opzione), TEXT("Attacca Ivrin")));
+		}
+		TestEqual(TEXT("🔴 la condizione lascia un solo FIRE"), Spari, 1);
+		TestEqual(TEXT("e la finestra ha due opzioni: sparare al ferito, o non sparare"), Vista.Options.Num(), 2);
+	}
+
+	for (int32 Giro = 0; Giro < 16 && TM->IsResolutionSuspended(); ++Giro)
+	{
+		TM->ExpireReactionWindow();
+	}
+	TM->OnReactionWindowOpened.Unbind();
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * **IL `Brace` NOMINA CHI SPINGE SOLO SE LA SQUADRA LO RILEVA** (`#3667`, esempi 2 e 3) — dal Blast vero.
  *
- * Tre turni. Chi spinge da lontano, dentro l'arco di chi si irrigidisce: la squadra ne rileva la cella e la
+ * Quattro turni. Chi spinge da lontano, dentro l'arco di chi si irrigidisce: la squadra ne rileva la cella e la
  * finestra dice il nome. Lo stesso turno con chi si irrigidisce girato dall'altra parte: non la rileva, e la
  * finestra dice «Un nemico ti spinge». Il nome non sta nel DTO: lo si cerca in OGNI campo di testo della vista,
  * non solo nel sottotitolo.
@@ -1849,6 +1961,12 @@ bool FRTOverwatchWindowNamesSurviveAFallenUnitTest::RunTest(const FString&)
  * cella ADIACENTE e' rilevato anche di spalle: la consapevolezza ravvicinata copre ogni direzione entro
  * `CloseAwarenessRange`. Il caso senza nome nasce solo da una spinta a distanza — l'attacco base di Muiren, che
  * spinge lungo una linea — ed e' per questo che il test la usa. `Action.Push`, a contatto, nomina sempre.
+ *
+ * 🔑 **Il quarto turno e' la seconda revisione.** Chi si irrigidisce da' le spalle a chi spinge, ma un suo
+ * compagno lo vede — e quel compagno cade NELLO STESSO Blast, per mano di un altro nemico. La squadra lo
+ * conosceva quando i colpi sono stati decisi: il registro mostra il colpo, e la finestra deve dire il nome. La
+ * stesura precedente chiedeva la rilevazione agli osservatori vivi DOPO i danni, e in questo turno diceva «Un
+ * nemico ti spinge». Ora la domanda e' quella di [D-223], fatta alla conoscenza di squadra del Blast.
  *
  * 🔴 **In ogni turno ci sono due CADUTI, e sono la parte che la prima stesura non aveva.**
  *  - Uno ordina prima di tutti: sposta di uno ogni indice fra `Units` del Blast, che tiene i caduti, e lo spazio
@@ -1860,8 +1978,9 @@ bool FRTOverwatchWindowNamesSurviveAFallenUnitTest::RunTest(const FString&)
  * I loro nomi non devono comparire in nessun testo della vista.
  *
  * ⚠️ **Le premesse sono misurate, non assunte**: che cosa la squadra rileva lo si chiede a
- * `TeamAwarenessOfCell`, con l'osservatore costruito come lo costruisce il resolver; l'ordine dei caduti lo da'
- * `SortUnitsForResolution`. Se una non regge il test si ferma, invece di passare su un turno che non distingue.
+ * `TeamAwarenessOfCell`, con l'osservatore costruito come lo costruisce il resolver — che NON e' la funzione
+ * con cui la produzione decide (`ClassifyTarget` sulla conoscenza del Blast): e' una seconda fonte, non lo
+ * stesso calcolo riletto. L'ordine dei caduti lo da' `SortUnitsForResolution`. Se una non regge il test si ferma, invece di passare su un turno che non distingue.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowNamesThePusherOnlyWhenDetectedTest,
 	"RefactorTactics.Reactions.Brace.WindowNamesThePusherOnlyWhenDetected",
@@ -1872,10 +1991,16 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 	{
 		bool bValido = false;
 		ERTAwareness Quanto = ERTAwareness::Hidden;
+		// Solo nel turno col testimone: che cosa rileva la squadra finche' lui e' vivo, e se era gia' caduto
+		// quando la finestra e' arrivata.
+		ERTAwareness QuantoColTestimone = ERTAwareness::Hidden;
+		bool bTestimoneCadutoAllaConsegna = false;
 		FRTReactionWindowView Vista;
 	};
 	// `bDaLontano`: Muiren col suo attacco base, a tre celle. Altrimenti `Action.Push`, a contatto.
-	const auto Gioca = [this](bool bDaLontano, ERTHexDirection VersoDelBracer) -> FEsito
+	// `bColTestimoneCheCade`: un compagno di chi si irrigidisce sta accanto a chi spinge, e un altro nemico lo
+	// abbatte nello stesso Blast.
+	const auto Gioca = [this](bool bDaLontano, ERTHexDirection VersoDelBracer, bool bColTestimoneCheCade) -> FEsito
 	{
 		FEsito Esito;
 		UWorld* World = RTWorldFixtures::MakeWorld();
@@ -1908,10 +2033,21 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		{
 			Pusher = SpawnVmUnit(World, /*TeamId=*/ 1, CellaDiChiSpinge);
 		}
+		// Il testimone sta ACCANTO a chi spinge: lo rileva da ogni verso, per la consapevolezza ravvicinata. Il
+		// sicario gli sta accanto a sua volta, dall'altra parte.
+		ARTUnit* Testimone = nullptr;
+		ARTUnit* Sicario = nullptr;
+		if (bColTestimoneCheCade)
+		{
+			Testimone = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(3, 1));
+			Sicario = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(4, 1));
+		}
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
 			|| !TestNotNull(TEXT("caduto lontano"), CadutoLontano) || !TestNotNull(TEXT("cadavere"), Cadavere)
-			|| !TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("mappa"), Mappa))
+			|| !TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("mappa"), Mappa)
+			|| (bColTestimoneCheCade
+				&& (!TestNotNull(TEXT("testimone"), Testimone) || !TestNotNull(TEXT("sicario"), Sicario))))
 		{
 			RTWorldFixtures::DestroyWorld(World);
 			return Esito;
@@ -1960,10 +2096,43 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		{
 			ArmBraceScenario(Bracer, Pusher);
 		}
+		if (bColTestimoneCheCade)
+		{
+			Testimone->HeroDisplayName = FText::FromString(TEXT("Testimone"));
+			Sicario->HeroDisplayName = FText::FromString(TEXT("Sicario"));
+			// Un colpo lo abbatte: l'attacco base di Ivrin, dal nemico che gli sta accanto.
+			Testimone->Health = 1;
+			Testimone->Shield = 0;
+			int32 IndiceDelColpo = INDEX_NONE;
+			for (int32 i = 0; i < Sicario->NumAbilities(); ++i)
+			{
+				const URTActionData* Azione = Sicario->GetAbility(i);
+				if (Azione && Azione->Def.ActionId == FName(TEXT("Hero.Ivrin.PulseShot"))) { IndiceDelColpo = i; break; }
+			}
+			const URTActionData* Colpo = Sicario->GetAbility(IndiceDelColpo);
+			const bool bFaDanno = Colpo && Colpo->Def.Effects.ContainsByPredicate(
+				[](const FRTActionEffectSpec& Effetto) { return Effetto.Effect == ERTActionEffect::Damage; });
+			if (!TestNotNull(TEXT("premessa: il sicario ha il suo attacco base"), (void*)Colpo)
+				|| !TestTrue(TEXT("premessa: quell'attacco fa danno"), bFaDanno))
+			{
+				RTWorldFixtures::DestroyWorld(World);
+				return Esito;
+			}
+			Sicario->PlannedAbilityIndex = IndiceDelColpo;
+			Sicario->DeclareAttackOnUnit(Testimone);
+			Sicario->PlannedCell = Sicario->Cell;
+			Sicario->Facing = ERTHexDirection::W; // guarda il testimone, che gli sta a ovest
+		}
 		Bracer->Facing = VersoDelBracer;
 
 		// Le due premesse sui caduti, nell'ordine in cui il Blast tiene le unita'.
-		const TArray<ARTUnit*> Tutte = NellOrdineDelResolver({ Bracer, Pusher, CadutoLontano, Cadavere });
+		TArray<ARTUnit*> InCampo = { Bracer, Pusher, CadutoLontano, Cadavere };
+		if (bColTestimoneCheCade)
+		{
+			InCampo.Add(Testimone);
+			InCampo.Add(Sicario);
+		}
+		const TArray<ARTUnit*> Tutte = NellOrdineDelResolver(InCampo);
 		const TArray<ARTUnit*> Vive = SoloLeVive(Tutte);
 		const bool bPremesseSuiCaduti =
 			TestTrue(TEXT("premessa: un caduto sposta l'indice di chi decide fra i due spazi"),
@@ -1977,12 +2146,22 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		Osservatore.Facing = Bracer->Facing;
 		Osservatore.VisionRange = Bracer->VisionRange;
 		Esito.Quanto = URTPerceptionLibrary::TeamAwarenessOfCell(Mappa->MapAsset, { Osservatore }, Pusher->Cell);
+		if (bColTestimoneCheCade)
+		{
+			FRTPerceiver AltroOsservatore;
+			AltroOsservatore.Cell = Testimone->Cell;
+			AltroOsservatore.Facing = Testimone->Facing;
+			AltroOsservatore.VisionRange = Testimone->VisionRange;
+			Esito.QuantoColTestimone = URTPerceptionLibrary::TeamAwarenessOfCell(
+				Mappa->MapAsset, { Osservatore, AltroOsservatore }, Pusher->Cell);
+		}
 
 		int32 Aperte = 0;
-		TM->OnReactionWindowOpened.BindLambda([&Aperte, &Esito](const FRTReactionWindowView& Vista, int32)
+		TM->OnReactionWindowOpened.BindLambda([&Aperte, &Esito, Testimone](const FRTReactionWindowView& Vista, int32)
 		{
 			++Aperte;
 			Esito.Vista = Vista;
+			Esito.bTestimoneCadutoAllaConsegna = Testimone && !Testimone->IsAlive();
 		});
 		TM->LockInAndResolve();
 		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
@@ -2008,16 +2187,26 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 	};
 
 	// Chi spinge sta a est: guardarlo, e dargli le spalle.
-	const FEsito LontanoDiFronte = Gioca(/*bDaLontano=*/ true, ERTHexDirection::E);
-	const FEsito LontanoDiSpalle = Gioca(/*bDaLontano=*/ true, ERTHexDirection::W);
-	const FEsito VicinoDiSpalle = Gioca(/*bDaLontano=*/ false, ERTHexDirection::W);
-	if (!LontanoDiFronte.bValido || !LontanoDiSpalle.bValido || !VicinoDiSpalle.bValido) { return false; }
+	const FEsito LontanoDiFronte = Gioca(/*bDaLontano=*/ true, ERTHexDirection::E, /*bColTestimoneCheCade=*/ false);
+	const FEsito LontanoDiSpalle = Gioca(/*bDaLontano=*/ true, ERTHexDirection::W, /*bColTestimoneCheCade=*/ false);
+	const FEsito VicinoDiSpalle = Gioca(/*bDaLontano=*/ false, ERTHexDirection::W, /*bColTestimoneCheCade=*/ false);
+	const FEsito ColTestimone = Gioca(/*bDaLontano=*/ true, ERTHexDirection::W, /*bColTestimoneCheCade=*/ true);
+	if (!LontanoDiFronte.bValido || !LontanoDiSpalle.bValido || !VicinoDiSpalle.bValido || !ColTestimone.bValido)
+	{
+		return false;
+	}
 	if (!TestTrue(TEXT("premessa: da lontano e di fronte, la squadra RILEVA la cella di chi spinge"),
 			LontanoDiFronte.Quanto == ERTAwareness::Detected)
 		|| !TestTrue(TEXT("premessa: da lontano e di spalle, NON la rileva"),
 			LontanoDiSpalle.Quanto != ERTAwareness::Detected)
 		|| !TestTrue(TEXT("premessa: a contatto la rileva anche di spalle (consapevolezza ravvicinata)"),
-			VicinoDiSpalle.Quanto == ERTAwareness::Detected))
+			VicinoDiSpalle.Quanto == ERTAwareness::Detected)
+		|| !TestTrue(TEXT("premessa: col testimone, chi si irrigidisce DA SOLO non rileva la cella di chi spinge"),
+			ColTestimone.Quanto != ERTAwareness::Detected)
+		|| !TestTrue(TEXT("premessa: ma finche' il testimone e' vivo la squadra la RILEVA"),
+			ColTestimone.QuantoColTestimone == ERTAwareness::Detected)
+		|| !TestTrue(TEXT("premessa: e quando la finestra arriva il testimone e' gia' caduto"),
+			ColTestimone.bTestimoneCadutoAllaConsegna))
 	{
 		return false;
 	}
@@ -2030,12 +2219,18 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		return Tutto + TEXT("|") + RTReactionResponseText::TitleFor(Vista).ToString()
 			+ TEXT("|") + RTReactionResponseText::SubtitleFor(Vista).ToString();
 	};
+	const auto NomeDelTurno = [&](const FEsito* Turno) -> const TCHAR*
+	{
+		return (Turno == &LontanoDiFronte) ? TEXT("da lontano, di fronte")
+			: (Turno == &LontanoDiSpalle) ? TEXT("da lontano, di spalle")
+			: (Turno == &VicinoDiSpalle) ? TEXT("a contatto, di spalle")
+			: TEXT("di spalle, col testimone che cade");
+	};
 
 	// --- in OGNI turno: chi decide e' lui, e i caduti non sono nominati da nessuna parte ---
-	for (const FEsito* Turno : { &LontanoDiFronte, &LontanoDiSpalle, &VicinoDiSpalle })
+	for (const FEsito* Turno : { &LontanoDiFronte, &LontanoDiSpalle, &VicinoDiSpalle, &ColTestimone })
 	{
-		const TCHAR* Quale = (Turno == &LontanoDiFronte) ? TEXT("da lontano, di fronte")
-			: (Turno == &LontanoDiSpalle) ? TEXT("da lontano, di spalle") : TEXT("a contatto, di spalle");
+		const TCHAR* Quale = NomeDelTurno(Turno);
 		TestTrue(*FString::Printf(TEXT("%s: 🔴 chi decide e' Aevik, col caduto che sposta gli indici"), Quale),
 			StessoTesto(Turno->Vista.ReactorName, TEXT("Aevik")));
 		TestFalse(*FString::Printf(TEXT("%s: la reazione ha un nome"), Quale), Turno->Vista.ReactionName.IsEmptyOrWhitespace());
@@ -2045,12 +2240,15 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s: 🔴 il cadavere sulla cella di chi spinge non e' nominato"), Quale),
 			Testi.Contains(TEXT("Muiren")));
 		TestFalse(*FString::Printf(TEXT("%s: ne' il caduto lontano"), Quale), Testi.Contains(TEXT("Branth")));
+		TestFalse(*FString::Printf(TEXT("%s: ne' il testimone, ne' chi lo abbatte"), Quale),
+			Testi.Contains(TEXT("Testimone")) || Testi.Contains(TEXT("Sicario")));
 	}
 
-	// --- rilevato: la finestra lo nomina ---
-	for (const FEsito* Rilevato : { &LontanoDiFronte, &VicinoDiSpalle })
+	// --- la squadra lo conosce: la finestra lo nomina ---
+	// 🔴 Col testimone e' il caso che distingue le due fotografie: prima dei danni la squadra lo rileva, dopo no.
+	for (const FEsito* Rilevato : { &LontanoDiFronte, &VicinoDiSpalle, &ColTestimone })
 	{
-		const TCHAR* Quale = (Rilevato == &LontanoDiFronte) ? TEXT("da lontano, di fronte") : TEXT("a contatto, di spalle");
+		const TCHAR* Quale = NomeDelTurno(Rilevato);
 		if (TestEqual(*FString::Printf(TEXT("%s: un trigger"), Quale), Rilevato->Vista.TriggerNames.Num(), 1))
 		{
 			TestTrue(*FString::Printf(TEXT("%s: ed e' chi spinge"), Quale),

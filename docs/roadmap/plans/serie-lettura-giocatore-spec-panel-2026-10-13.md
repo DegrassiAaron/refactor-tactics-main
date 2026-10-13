@@ -576,7 +576,10 @@ Lo si è trovato lavorando, e le correzioni datate stanno nelle sezioni. In brev
   dalla PR: non era ciò che l'autore aveva approvato.
 - **§4**: «chi ha fatto scattare la finestra» non coincide coi bersagli dei `FIRE` quando c'è una condizione
   dichiarata; chi spinge non si ritrova dalla cella, perché su quella cella può esserci un caduto; e chi spinge a
-  contatto è sempre rilevato, quindi la frase neutra nasce solo da una spinta a distanza.
+  contatto è sempre rilevato, quindi la frase neutra nasce solo da una spinta a distanza. E la specifica
+  dell'11 ottobre diceva che il Blast non ha una conoscenza di squadra propria: ce l'ha, ed è quella che ora
+  decide se chi spinge ha un nome — la stessa con cui si congela la riga del colpo. La prima stesura aveva
+  costruito un secondo predicato accanto.
 - **§6**: `P4` diceva che `T9` «legge il grigio che l'HUD disegna». Sostituire un grigio con l'altro avrebbe tolto
   dal gate quello che le icone portano ancora.
 - **§9**: *«Una verifica avversaria non è stata fatta»*. È stata fatta dopo, PR per PR, ed è da lì che vengono le

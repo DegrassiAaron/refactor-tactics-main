@@ -7675,6 +7675,13 @@ FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReaction
 	}
 
 	// I bersagli dei `FIRE:<i>`, per indice. `FireResponseTarget` e' l'unico parser di quel formato.
+	//
+	// ⚠️ **Un bersaglio a 0 PV qui ha ancora un nome**, perche' `IsValid` resta vero su un'unita' abbattuta
+	// (`#1158`). Capita cosi': due Overwatch armati sullo stesso passo, la prima finestra abbatte chi e'
+	// entrato, e la seconda — costruita dai trigger di PRIMA del colpo — offre ancora `FIRE` su di lui. Che
+	// quella finestra si apra, e che la charge si spenda, e' lo status quo che `#1158` ha lasciato all'owner di
+	// ADR-0004: non lo si decide qui. Il nome e' vero — l'opzione spara proprio a quell'unita' — e toglierlo
+	// lascerebbe la frase generica, che dice ancora meno.
 	for (const FString& Response : Opportunity.AllowedResponses)
 	{
 		const int32 TargetId = URTReactionOpportunityLibrary::FireResponseTarget(Response);
@@ -7692,7 +7699,7 @@ FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReaction
 	//
 	// ⚠️ Chi passa `TriggerUnitIds` garantisce che la squadra di chi decide RILEVI quelle unita': per
 	// l'Overwatch e' la condizione stessa del trigger (ADR-0004 §6). Dove non e' garantito — chi spinge un
-	// `Brace` — il sito non le passa qui: usa `URTReactionWindowLibrary::AddTriggerIfDetected`.
+	// `Brace` — il sito non le passa qui: usa `URTReactionWindowLibrary::AddTriggerIfKnown`.
 	for (const int32 TriggerId : TriggerUnitIds)
 	{
 		if (const ARTUnit* Trigger = UnitAt(TriggerId))

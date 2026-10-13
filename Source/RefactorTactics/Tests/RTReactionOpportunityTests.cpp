@@ -270,7 +270,7 @@ bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
 	// `ReactionName` e `ReactorName` nominano la reazione e l'unita' di CHI DECIDE, che sono sue;
 	// `TriggerNames` nomina chi ha fatto scattare la finestra, e ci entra solo un'unita' che la squadra di
 	// chi decide RILEVA in quell'istante — per l'Overwatch e' la condizione stessa del trigger, per il
-	// `Brace` la applica `URTReactionWindowLibrary::AddTriggerIfDetected`. Dicono chi c'e' ORA e chi lo sa
+	// `Brace` la applica `URTReactionWindowLibrary::AddTriggerIfKnown`. Dicono chi c'e' ORA e chi lo sa
 	// gia', non che cosa fara'. E per un avversario la vista e' ai default: i nomi non ci sono.
 	// `TriggerKind` dice di che specie e' cio' che e' APPENA successo — qualcuno e' entrato, qualcuno spinge —
 	// e lo scrive chi apre la finestra: e' passato, non previsione.
@@ -862,27 +862,30 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 }
 
 /**
- * **CHI FA SCATTARE UNA FINESTRA SI NOMINA SOLO SE LA SQUADRA DI CHI DECIDE LO RILEVA** (`#3667`, R2.2).
+ * **CHI FA SCATTARE UNA FINESTRA SI NOMINA SOLO SE LA SQUADRA DI CHI DECIDE LO CONOSCE** (`#3667`, R2.2).
  *
  * E' la regola di privacy del `Brace`: una spinta non e' soggetta alla rilevazione, e puo' arrivare da una
- * cella che la squadra non vede. `AddTriggerIfDetected` e' l'unico punto in cui e' scritta, ed e' pura apposta.
+ * cella che la squadra non vede. `AddTriggerIfKnown` e' l'unico punto in cui e' scritta, ed e' pura apposta.
+ * Riceve cio' che `ClassifyTarget` risponde: la regola di [D-223], non una seconda.
  *
- * ⚠️ `Uncertain` NON nomina: e' un contatto senza identita' (CP 13.2), e un nome gliela darebbe.
+ * ⚠️ `CellOnly` NON nomina: e' un contatto ricordato (CP 13.2). La squadra sa dove lo ha visto l'ultima volta,
+ * non che e' lui adesso.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionTriggerIsNamedOnlyWhenDetectedTest,
-	"RefactorTactics.Reactions.TriggerIsNamedOnlyWhenDetected",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionTriggerIsNamedOnlyWhenKnownTest,
+	"RefactorTactics.Reactions.TriggerIsNamedOnlyWhenKnown",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTReactionTriggerIsNamedOnlyWhenDetectedTest::RunTest(const FString&)
+bool FRTReactionTriggerIsNamedOnlyWhenKnownTest::RunTest(const FString&)
 {
 	const FText Ivrin = FText::FromString(TEXT("Ivrin"));
 
 	FRTReactionWindowNames Nomi;
-	TestFalse(TEXT("Hidden: non entra"), URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, Ivrin, ERTAwareness::Hidden));
-	TestFalse(TEXT("Uncertain: non entra"),
-		URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, Ivrin, ERTAwareness::Uncertain));
+	TestFalse(TEXT("Rejected: non entra"),
+		URTReactionWindowLibrary::AddTriggerIfKnown(Nomi, Ivrin, ERTTargetKnowledge::Rejected));
+	TestFalse(TEXT("CellOnly: non entra"),
+		URTReactionWindowLibrary::AddTriggerIfKnown(Nomi, Ivrin, ERTTargetKnowledge::CellOnly));
 	TestEqual(TEXT("e l'elenco e' rimasto vuoto"), Nomi.TriggerNames.Num(), 0);
 
-	TestTrue(TEXT("Detected: entra"), URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, Ivrin, ERTAwareness::Detected));
+	TestTrue(TEXT("Allowed: entra"), URTReactionWindowLibrary::AddTriggerIfKnown(Nomi, Ivrin, ERTTargetKnowledge::Allowed));
 	if (TestEqual(TEXT("un nome"), Nomi.TriggerNames.Num(), 1))
 	{
 		TestEqual(TEXT("ed e' quello"), Nomi.TriggerNames[0].ToString(), FString(TEXT("Ivrin")));
@@ -890,9 +893,9 @@ bool FRTReactionTriggerIsNamedOnlyWhenDetectedTest::RunTest(const FString&)
 
 	// Un nome vuoto non e' un nome: rilevato o no, non entra — una frase costruita su di lui sarebbe rotta.
 	TestFalse(TEXT("un nome vuoto non entra"),
-		URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, FText::GetEmpty(), ERTAwareness::Detected));
+		URTReactionWindowLibrary::AddTriggerIfKnown(Nomi, FText::GetEmpty(), ERTTargetKnowledge::Allowed));
 	TestFalse(TEXT("ne' uno di soli spazi"),
-		URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, FText::FromString(TEXT("  ")), ERTAwareness::Detected));
+		URTReactionWindowLibrary::AddTriggerIfKnown(Nomi, FText::FromString(TEXT("  ")), ERTTargetKnowledge::Allowed));
 	TestEqual(TEXT("l'elenco ha ancora un solo nome"), Nomi.TriggerNames.Num(), 1);
 
 	// Gli altri campi non li tocca: e' una funzione sul solo elenco dei trigger.

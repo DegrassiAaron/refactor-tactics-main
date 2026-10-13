@@ -2618,9 +2618,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// spendere l'unica attivazione del turno.
 			const bool bAboutToMove = (Pushes && *Pushes == 1) || (Pulls && *Pulls == 1);
 
-			// Nessun `TriggeredBy`: di uno spostamento si conosce la cella di provenienza
-			// (`KnockFrom`/`PullToward`), non un'unita' — e con due attaccanti non ce ne sarebbe una sola.
-			// Gli effetti difensivi non ne hanno bisogno, e `BuildReactionEvents` scarta gli offensivi.
+			// Nessun `TriggeredBy`: con due attaccanti non ci sarebbe UNA unita' da nominare, e gli effetti
+			// difensivi non ne hanno bisogno — `BuildReactionEvents` scarta gli offensivi.
+			// ⏱️ *Fino a `#3667` questa riga diceva che di uno spostamento si conosce solo la cella di
+			// provenienza. Da allora `Ctx.KnockAttackerId` tiene chi spinge, per la finestra del `Brace`: qui non
+			// lo si legge, perche' vale dove `KnockCount` e' uno e questo ramo gira anche con due.*
 			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE };
 		},
 		Units, States, Map, DisplacementReactions);
@@ -2891,7 +2893,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					FRTReactionWindowNames NomiDellaFinestra = MakeReactionWindowNames(
 						BraceOpportunity, BlastAliveUnits, ERTReactionTriggerKind::Pushed);
 
-					// 🔴 **Chi spinge si nomina solo se la squadra di chi decide lo RILEVA** (R2.2). Una
+					// 🔴 **Chi spinge si nomina solo se la squadra di chi decide lo CONOSCE** (R2.2). Una
 					// spinta non e' soggetta alla rilevazione: puo' arrivare da una cella che la squadra non
 					// vede, e dare un nome a quell'unita' direbbe al giocatore CHI c'e' in un punto che non
 					// conosce. Senza nome il sottotitolo e' «Un nemico ti spinge».
@@ -2902,37 +2904,31 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// dove un'altra e' caduta. La scansione trovava il cadavere — un compagno caduto li'
 					// sarebbe stato nominato come chi spinge, senza nemmeno chiedere la rilevazione.
 					//
+					// 🔑 **La domanda e' quella di [D-223], fatta alla conoscenza del BLAST**: `ClassifyTarget`
+					// su `TeamKnowledgeState`, che `RefreshTeamKnowledgeForBlast` rinfresca prima dei colpi. E'
+					// la stessa regola, sulla stessa fotografia, con cui si congela il verdetto della riga di
+					// QUESTO colpo: la finestra nomina chi spinge esattamente quando il registro lo mostra. Il
+					// ramo del compagno — la squadra conosce i propri — sta dentro `ClassifyTarget`, non qui.
+					//
+					// ⏱️ *Fino alla seconda revisione di `#3739` si chiedeva a `TeamAwarenessOfCell` con
+					// `PushObserverTeams`, cioe' con chi e' vivo DOPO i danni: un compagno che vedeva chi spinge
+					// e cadeva nello stesso Blast toglieva il nome alla finestra, mentre il registro mostrava
+					// il colpo. Era un secondo predicato accanto a quello del Blast, nato da una premessa falsa
+					// della specifica: «il Blast non ha una conoscenza di squadra propria».*
+					//
 					// La cella e' quella della fotografia del Blast (`HexUnits`), non quella dell'attore: a
 					// questo punto del ciclo chi spinge puo' essere gia' stato spostato da una spinta precedente.
-					// Gli osservatori sono quelli di inizio passata ([D-223]), gli stessi con cui si decide chi
-					// vede queste spinte disegnate.
 					if (const int32* IndiceDiChiSpinge = Ctx.KnockAttackerId.Find(T))
 					{
 						const ARTUnit* UnitaCheSpinge =
 							Units.IsValidIndex(*IndiceDiChiSpinge) ? Units[*IndiceDiChiSpinge] : nullptr;
 						if (IsValid(UnitaCheSpinge) && Ctx.HexUnits.IsValidIndex(*IndiceDiChiSpinge))
 						{
-							const FRTCellId CellaDiChiSpinge = Ctx.HexUnits[*IndiceDiChiSpinge].Cell;
-
-							// Un compagno e' noto alla propria squadra per definizione: la rilevazione e' una
-							// domanda sugli AVVERSARI, e i coni di vista non la decidono per i propri.
-							ERTAwareness RilevazioneDellaSquadra = ERTAwareness::Detected;
-							if (UnitaCheSpinge->TeamId != OwnerTeamId)
-							{
-								RilevazioneDellaSquadra = ERTAwareness::Hidden;
-								for (const RTTurnManagerInternal::FRTRouteObserverTeam& SquadraDiChiDecide : PushObserverTeams)
-								{
-									if (SquadraDiChiDecide.TeamId == OwnerTeamId)
-									{
-										RilevazioneDellaSquadra = URTPerceptionLibrary::TeamAwarenessOfCell(
-											Map, SquadraDiChiDecide.Observers, CellaDiChiSpinge);
-										break;
-									}
-								}
-							}
-							URTReactionWindowLibrary::AddTriggerIfDetected(
+							URTReactionWindowLibrary::AddTriggerIfKnown(
 								NomiDellaFinestra, RTTurnManagerInternal::ReactionWindowUnitName(UnitaCheSpinge),
-								RilevazioneDellaSquadra);
+								URTTeamKnowledgeLibrary::ClassifyTarget(KnowledgeForTeam(OwnerTeamId),
+									UnitaCheSpinge->StableUnitId, UnitaCheSpinge->TeamId,
+									Ctx.HexUnits[*IndiceDiChiSpinge].Cell));
 						}
 					}
 
