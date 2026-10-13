@@ -5884,7 +5884,19 @@ sessions:
     done_when: >-
       l'autore ha giudicato la voce in PIE; #3706 si chiude col suo verdetto
     notes: |
-      ⏳ **Da convocare con l'autore.** Il 2026-10-13, di notte, una sessione senza di lui ha preparato le catture
+      ✅ **Chiusa il 2026-10-13**: l'autore ha giudicato le tre tavole delle catture, non una PIE aperta. Le sue
+      parole: «Come tinta la seconda che mi hai mostrato. Sembra tutto ok». «La seconda» è il secondo dei tre
+      riquadri della leva nella tavola in strategica: 0, 0,25 e 0,6. La forza resta 0,25, che era già il default:
+      nel codice non cambia nessun valore. #3706 si chiude. Le tavole stanno in `docs/technical/evidence/u86/`.
+
+      ⚠️ La leva non è stata provata in console, e le tavole non mostrano una cella mai vista: quel caso resta al
+      test `HexMap.VolumeTintSurvivesTheVeilAndAPartialRebuild`.
+
+      ➕ Dopo il giudizio, un controllo su `Visual.Map.MultiLevel`, che l'autore aveva giudicato prima di #3706 e che
+      ha blocchi sul piano terra: con la piattaforma attiva sono viola, col piano terra attivo restano grigio scuro.
+      La tavola è `docs/technical/evidence/u86/controllo-multilevel-2026-10-13.png`; l'autore non l'aveva davanti.
+
+      ⌫ *Prima era «da convocare».* Il 2026-10-13, di notte, una sessione senza di lui ha preparato le catture
       dal clone principale (commit `5312a5d8b`), con le leve al default: `Visual.Map.LayerVolumes` coi tre
       piani attivi, in tattica e in strategica; il controllo positivo con `rt.Map.Layers.VolumeTint` a 0 e a 0,6;
       le due scene a un piano. Le misure sono nella cella della voce. In seduta: si prova la leva in console, si

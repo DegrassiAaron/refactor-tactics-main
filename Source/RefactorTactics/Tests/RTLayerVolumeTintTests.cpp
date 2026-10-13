@@ -139,8 +139,8 @@ bool FRTLayerVolumeTintPureTest::RunTest(const FString&)
 	Leva.VolumeTintStrength = 0.f;
 	TestTrue(TEXT("a zero la tinta e' spenta anche su una mappa a piu' piani"), RTLayerPresentation::VolumeTint(2, 1, true, Leva).IsNone());
 
-	// Il default e' provvisorio, scelto dalla PR: la voce PIE lo giudica. Un cambio per sbaglio cade qui.
-	TestTrue(TEXT("default: la tinta e' leggera, 0,25 (provvisoria, #3706)"), FMath::IsNearlyEqual(T.VolumeTintStrength, 0.25f));
+	// Il default l'ha scelto l'autore (seduta `U86`, 2026-10-13). Un cambio per sbaglio cade qui.
+	TestTrue(TEXT("default: la tinta e' leggera, 0,25 (scelta dall'autore, #3706)"), FMath::IsNearlyEqual(T.VolumeTintStrength, 0.25f));
 
 	// La disposizione dei canali: il trattamento sta dove sta sulle celle, la forza della tinta e' l'ultimo.
 	TestEqual(TEXT("i volumi portano un canale in piu' delle celle"),
