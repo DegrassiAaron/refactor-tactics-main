@@ -227,13 +227,13 @@ enum class ERTActionInvalidReason : uint8
 	Stunned,
 
 	/**
-	 * La mira sta su un `Layer` diverso da quello di chi agisce: **la regola del piano vale per ogni colpo**,
+	 * La mira sta su un `Layer` diverso da quello di chi tira: **la regola del piano vale per ogni colpo**,
 	 * non solo per la mira ([D-393], [D-509], `#2951`).
 	 *
 	 * 🔑 **E' il gemello di RISOLUZIONE di `ERTHexTargetReason::OtherLayer`.** Quello e' una classificazione
 	 * di pianificazione e nel TurnLog non entra ([D-393] punto 5, pinnato da
-	 * `Meta.TargetingRefusalStaysOutOfCanonicalState`); questo e' il motivo con cui un'azione arrivata fino
-	 * alla risoluzione con una mira fra piani **non avviene e lo dichiara**. Fino a [D-509]
+	 * `Meta.TargetingRefusalStaysOutOfCanonicalState`); questo e' il motivo con cui un colpo arrivato fino
+	 * alla risoluzione con una mira fra piani **non parte e lo dichiara**. Fino a [D-509]
 	 * `ValidateInstance` leggeva il verdetto del classificatore riconoscendone UN solo valore, e questo
 	 * cadeva nel ramo «valido»: `Single` e `Area` colpivano fra piani, `Line` mancava senza una voce.
 	 *
@@ -241,17 +241,21 @@ enum class ERTActionInvalidReason : uint8
 	 * ignora il `Layer`, e «fuori portata» direbbe di avvicinarsi a una cosa che nessun avvicinamento
 	 * sistema. Il rimedio e' cambiare piano, e si cambia piano MUOVENDOSI.
 	 *
-	 * Tre produttori, e sono le sedi in cui un COLPO viene deciso in risoluzione: `ValidateInstance`
-	 * (bersaglio-unita'), `ValidateCellAim` (bersaglio a cella, compreso il ripiego `AttackCell`) e il
-	 * boundary predittivo (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di
-	 * piano non spara).
+	 * 🔑 **Si comporta come `NoLineOfSight`, non come gli altri motivi.** Il Blast non applica un fallback:
+	 * lo lascia alla raccolta dei colpi, che ferma il COLPO (`FRTHexBlastPlan::OtherLayerIntents`) e lascia
+	 * proseguire cio' che un colpo non e' — il danno a una struttura, l'ordine a una porta, il danno a un
+	 * arco. E' la forma che il muro alto aveva gia': ferma il tiro, e resta l'unico bersaglio possibile.
+	 * ⚠️ Non e' un dettaglio: il danno a un PONTE fra due piani nasce, per progetto (CP 9.4), da un'azione
+	 * che mira all'altro capo dell'arco. Annullare l'azione intera lo spegnerebbe — la prima stesura di
+	 * [D-509] lo faceva, e l'hanno trovato sei test della suite intera.
 	 *
-	 * ⛔ **Non lo produce cio' che un colpo non e'.** La cura, `ModifyArc`, le strutture di copertura e le
-	 * azioni ambientali che risolvono in Cleanup hanno una mira e NON rivalutano il piano in risoluzione:
-	 * [D-509] decide dei colpi, e per loro la domanda resta aperta (`VERT-4` in `docs/OPEN_DECISIONS.md`).
-	 * E non lo produce l'interposizione: la reazione che non scatta lascia la voce di sempre,
-	 * `Reaction`/`NotTriggered` — la stessa di quando l'alleato e' troppo lontano — e quell'esito non
-	 * porta un motivo.
+	 * Due produttori: il Blast, per ogni intento d'attacco che la raccolta ferma per piano
+	 * (`ARTTurnManager::LogBlockedIntents`), e il boundary predittivo
+	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara).
+	 * ⛔ Non lo produce l'interposizione: la reazione che non scatta lascia la voce di sempre,
+	 * `Reaction`/`NotTriggered` — la stessa di quando l'alleato e' troppo lontano — e quell'esito non porta
+	 * un motivo. E non lo produce cio' che un colpo non e' — la cura, `ModifyArc`, le azioni ambientali:
+	 * per loro la domanda e' aperta (`VERT-4` in `docs/OPEN_DECISIONS.md`).
 	 *
 	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked`, `Stunned` e le altre
 	 * prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo
@@ -306,33 +310,6 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static ERTActionInvalidReason ValidateInstance(const FRTActionInstance& Instance,
-		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map);
-
-	/**
-	 * Il PIANO di un bersaglio a CELLA: `OtherLayer` se la cella mirata sta su un `Layer` diverso da quello
-	 * di chi agisce, altrimenti `None` ([D-509], `#2951`).
-	 *
-	 * ⚠️ **`None` anche quando chi agisce non c'e' o e' gia' caduto**, qualunque sia il piano: quel colpo lo
-	 * scarta la raccolta, in silenzio, e una voce di rifiuto per un cadavere sarebbe rumore nel replay.
-	 * `ValidateInstance` fa lo stesso per questo motivo — e solo per questo: gli altri li dichiarava gia'.
-	 *
-	 * 🔑 **Perche' una funzione a parte.** `ValidateInstance` risponde `None` a ogni istanza senza
-	 * bersaglio-unita', e non puo' fare altrimenti: da li' passano anche il movimento e il supporto su se
-	 * stessi, che una cella mirata non ce l'hanno — e `(0,0,0)`, il default di `TargetCell`, e' una cella
-	 * vera. Chi SA che l'istanza mira a una cella lo dichiara chiamando questa.
-	 *
-	 * ⚠️ **Giudica SOLO il piano, ed e' una scelta.** Portata e linea di tiro di un colpo a cella restano di
-	 * `URTHexCombatLibrary::CollectHexAttacks`, che ne e' l'owner. Il piano no, e la ragione e' la TRACCIA:
-	 * la raccolta scarta un intento fra piani **senza un canale**, come fa col fuori portata, quindi se la
-	 * domanda si ponesse solo la' l'azione sparirebbe dal turno senza una voce. Posta qui, il rifiuto passa
-	 * dal fallback dichiarato e lascia `Fallback`/`Cancelled` col suo motivo.
-	 *
-	 * La domanda e' quella della pianificazione, `ClassifyHexTargeting`, letta nello stesso ordine: una
-	 * cella che viola ANCHE la portata conserva il trattamento che aveva — la scarta la raccolta — e un caso
-	 * che gia' funzionava non cambia esito.
-	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
-	static ERTActionInvalidReason ValidateCellAim(const FRTActionInstance& Instance,
 		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map);
 
 	/**

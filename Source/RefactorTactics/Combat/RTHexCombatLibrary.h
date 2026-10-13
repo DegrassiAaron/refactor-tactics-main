@@ -424,6 +424,23 @@ struct FRTHexBlastPlan
 	TArray<FRTDoorToggleRefusal> DoorToggleRefusals;
 
 	/**
+	 * Indici degli intenti d'attacco il cui COLPO non parte perche' la mira sta su un `Layer` diverso da
+	 * quello di chi tira ([D-393], [D-509], `#2951`), in ordine canonico di indice. Il chiamante ne fa una
+	 * voce `Fallback`/`Cancelled` con `ERTActionInvalidReason::OtherLayer`.
+	 *
+	 * 🔑 **Quinto canale, e la forma e' quella di `BlockedIntents`**: l'intento e' fermato DOPO che
+	 * strutture e porte sono state raccolte. Il piano ferma il colpo, non cio' che un colpo non e' — ed e'
+	 * cio' che tiene vivo il danno a un PONTE fra due piani, che per progetto (CP 9.4) nasce da un'azione
+	 * che mira all'altro capo dell'arco.
+	 *
+	 * ⛔ **Non un riuso di `BlockedIntents`**, per la disciplina che separa gli altri canali: li' il motivo
+	 * e' una linea di tiro bloccata, e scriverlo nel TurnLog per un bersaglio che sta un piano sopra direbbe
+	 * una cosa falsa — e manderebbe chi legge a cercare un muro che non c'e'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<int32> OtherLayerIntents;
+
+	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non
 	 * applicato subito per la stessa ragione dei colpi: due attaccanti sullo stesso muro devono dare lo stesso
 	 * esito in qualunque ordine. Lo applica `URTHexCoverLibrary::ApplyStructureDamage` a fase conclusa.
@@ -731,10 +748,10 @@ public:
 	 * Raccoglie i colpi a segno degli intenti del turno.
 	 *
 	 * Scarta l'intento se: id non validi, attaccante o bersaglio non vivi, stessa squadra, bersaglio oltre
-	 * `RangeCells` (distanza esagonale), mira su un `Layer` diverso da quello dell'attaccante ([D-509]: la
-	 * regola del piano vale per ogni colpo; il motivo lo dichiara chi valida l'azione a monte). Se il
-	 * bersaglio e' in portata ma la linea di tiro e' bloccata, l'indice dell'intento finisce in
-	 * `BlockedIntents` (il chiamante ne fa un reason code NoLineOfSight).
+	 * `RangeCells` (distanza esagonale). Se il bersaglio e' in portata ma sta su un altro `Layer`, l'indice
+	 * dell'intento finisce in `OtherLayerIntents` ([D-509]: la regola del piano vale per ogni colpo); se la
+	 * linea di tiro e' bloccata, in `BlockedIntents` (il chiamante ne fa un reason code NoLineOfSight). In
+	 * entrambi i casi strutture e porte sono gia' state raccolte: a fermarsi e' il colpo.
 	 *
 	 * **FAIL-CLOSED**: `Map == nullptr` -> nessun colpo e intento in `BlockedIntents`. Senza mappa autorevole
 	 * la linea di tiro non e' valutabile, quindi non si colpisce (stessa scelta di CanTargetHexCell).

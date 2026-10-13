@@ -88,48 +88,14 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// verdetto del classificatore non diventi «valido» il giorno in cui quei controlli si spostano.
 	case ERTHexTargetReason::NoMap:         return ERTActionInvalidReason::NoMap;
 	case ERTHexTargetReason::OutOfRange:    return ERTActionInvalidReason::OutOfRange;
-	// Chi e' gia' caduto non dichiara questo motivo, come in `ValidateCellAim` qui sotto e per la stessa
-	// ragione: il suo colpo lo scarta la raccolta, in silenzio, e un cadavere che lascia una voce e' rumore
-	// nell'hash del replay. ⚠️ Vale per il SOLO motivo nuovo: gli altri di questa funzione un attaccante
-	// caduto li dichiarava gia', e toglierli cambierebbe tracce che esistono — e' un'altra decisione.
-	case ERTHexTargetReason::OtherLayer:
-		return Source.bAlive ? ERTActionInvalidReason::OtherLayer : ERTActionInvalidReason::None;
+	// Come `NoLineOfSight`: chi chiama non applica un fallback, lascia il motivo alla raccolta dei colpi.
+	case ERTHexTargetReason::OtherLayer:    return ERTActionInvalidReason::OtherLayer;
 	case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
 	// La distanza MINIMA non si rivaluta in risoluzione: il parametro non viene passato, quindi il
 	// classificatore non puo' rispondere cosi'. Non e' una regola decisa qui — e' lo stato di `#2950`.
 	case ERTHexTargetReason::TooClose:      break;
 	}
 
-	return ERTActionInvalidReason::None;
-}
-
-ERTActionInvalidReason URTActionFallbackLibrary::ValidateCellAim(const FRTActionInstance& Instance,
-	const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map)
-{
-	// Nessuno che tiri, o chi tirava e' gia' caduto (nel Prep, nel Dash): l'intento lo scarta la raccolta
-	// dei colpi, in silenzio, ed e' voluto — `CollectAttackIntents` lo dice per esteso: un cadavere che
-	// lascia una voce e' rumore che entra nell'hash del replay.
-	if (!Units.IsValidIndex(Instance.SourceUnitId) || !Units[Instance.SourceUnitId].bAlive)
-	{
-		return ERTActionInvalidReason::None;
-	}
-
-	// La domanda della pianificazione, nello stesso ordine: una cella che viola anche la portata conserva
-	// il trattamento che aveva. Senza `default`, per la ragione scritta in `ValidateInstance`.
-	switch (URTCombatLibrary::ClassifyHexTargeting(Map, Units[Instance.SourceUnitId].Cell, Instance.TargetCell,
-		Instance.Def.RangeCells, URTCombatLibrary::TrajectoryPolicy(Instance.Def.LineOfSightPolicy)))
-	{
-	case ERTHexTargetReason::OtherLayer:
-		return ERTActionInvalidReason::OtherLayer;
-	// Tutti gli altri verdetti, per un colpo a CELLA, sono di `CollectHexAttacks`: la portata la scarta, la
-	// mappa assente finisce in `UnverifiableIntents`, la linea di tiro in `BlockedIntents`.
-	case ERTHexTargetReason::Ok:
-	case ERTHexTargetReason::NoMap:
-	case ERTHexTargetReason::OutOfRange:
-	case ERTHexTargetReason::NoLineOfSight:
-	case ERTHexTargetReason::TooClose:
-		break;
-	}
 	return ERTActionInvalidReason::None;
 }
 
@@ -159,9 +125,9 @@ FRTFallbackResult URTActionFallbackLibrary::ApplyFallback(const FRTActionInstanc
 	case ERTActionFallback::AttackCell:
 	{
 		// L'area parte comunque: si perde il bersaglio, si tiene la CELLA pianificata. Dove hai puntato, li'
-		// colpisci — ma solo se il problema era il BERSAGLIO. Se era la geometria (fuori portata, altro piano,
-		// traiettoria bloccata, nessuna mappa) la cella ha lo stesso difetto, e colpirla vorrebbe dire sparare
-		// attraverso il muro, oltre la propria portata o su un piano che non e' il proprio ([D-509]). `TargetGone` e' escluso perche' senza il bersaglio non si sa
+		// colpisci — ma solo se il problema era il BERSAGLIO. Se era la geometria (fuori portata, traiettoria
+		// bloccata, nessuna mappa) la cella ha lo stesso difetto, e colpirla vorrebbe dire sparare attraverso
+		// il muro o oltre la propria portata. `TargetGone` e' escluso perche' senza il bersaglio non si sa
 		// nemmeno DOVE fosse: non c'e' una cella su cui ripiegare.
 		//
 		// `TargetUnknown` (CP 13.2) e' escluso per una ragione piu' forte delle altre, e va detta: la cella

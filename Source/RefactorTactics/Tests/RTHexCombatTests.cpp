@@ -9,7 +9,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Turn/RTActionFallbackLibrary.h" // ValidateInstance / ValidateCellAim: il piano in risoluzione ([D-509])
+#include "Turn/RTActionFallbackLibrary.h" // ValidateInstance: il piano in risoluzione ([D-509])
 #include "Turn/RTTurnLogLibrary.h"        // DescribeInvalidReason: il motivo nuovo deve leggersi
 #include "HAL/FileManager.h" // la scansione dei sorgenti dello stato canonico (#2951)
 #include "Misc/FileHelper.h"
@@ -1065,8 +1065,8 @@ bool FRTTargetingRefusesOtherLayerTest::RunTest(const FString&)
  * ⛔ **Cosa questo test NON vede**: un motivo che entri per un'ALTRA via. Un enumeratore di
  * `ERTActionInvalidReason` (definito in `Turn/RTActionFallbackLibrary.h`, fuori perimetro) finisce in
  * `Amount` senza nominare nessuno dei due tipi. E' successo, ed era una DECISIONE: [D-509] ha aggiunto in
- * coda `ERTActionInvalidReason::OtherLayer`, il motivo con cui un'azione arrivata in risoluzione con una
- * mira fra piani non avviene e lo dichiara. Questo test e' rimasto verde, com'era giusto: il confine che
+ * coda `ERTActionInvalidReason::OtherLayer`, il motivo con cui un colpo arrivato in risoluzione con una
+ * mira fra piani non parte e lo dichiara. Questo test e' rimasto verde, com'era giusto: il confine che
  * sorveglia e' fra le classificazioni di PLANNING e lo stato canonico, e quel motivo e' di risoluzione.
  *
  * ⌫ *Fino a [D-509] qui stava scritto anche che la RISOLUZIONE non applicava la regola del piano, con la
@@ -1170,13 +1170,19 @@ bool FRTTargetingRefusalStaysOutOfCanonicalStateTest::RunTest(const FString&)
  * lo guardava — `Single` e `Area` colpivano fra piani, `Line` mancava senza un motivo. La pianificazione
  * rifiutava cio' che la risoluzione avrebbe eseguito.
  *
- * 🔑 **Tre sedi, tre asserti, e i due VERSI.** Chi sale e chi resta a terra non sono lo stesso caso: le tre
- * forme leggono il piano da capi diversi (`HexArea` dal centro, `HexLine` dal tiratore), e un controllo
- * scritto da un capo solo ne lascerebbe passare uno.
+ * 🔑 **Le due funzioni, le quattro forme, e i due VERSI.** Chi sale e chi resta a terra non sono lo stesso
+ * caso: le forme leggono il piano da capi diversi (`HexArea` dal centro, `HexLine` e `HexCone` dal tiratore),
+ * e in un verso «zero colpi» lo darebbe anche la geometria da sola. Per questo si asserisce il CANALE, che e'
+ * l'unica cosa che distingue un colpo fermato dalla regola da un colpo che ha mancato.
  *
  * ⛔ **I controlli positivi non sono decorativi.** Sullo stesso piano le stesse istanze sono valide e gli
  * stessi intenti colpiscono: senza, «zero colpi» potrebbe venire da una mappa senza celle, da una portata
  * sbagliata o da un intento muto — verde per la ragione sbagliata.
+ *
+ * ⚠️ **Cio' che questo test NON asserisce, di proposito**: se il danno a una struttura o l'ordine a una porta
+ * di un'azione con la mira su un altro piano debbano partire. Oggi partono come prima — e' cosi' che si
+ * scalfisce un ponte fra due piani — e se debbano e' la domanda aperta `VERT-4`. Pinnarlo qui sarebbe
+ * decidere al posto dell'autore.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionRefusesOtherLayerTest,
 	"RefactorTactics.Combat.ResolutionRefusesOtherLayer",
@@ -1187,16 +1193,6 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 	for (const FRTCellId& Id : { FRTCellId(0, 0, 1), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1), FRTCellId(3, 0, 1) })
 	{
 		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
-	// Una copertura BASSA sul bordo fra (0,0) e (1,0), su entrambi i piani: non ferma la vista ne' il colpo,
-	// ma e' una struttura che un intento con `StructurePower` puo' danneggiare. Serve a misurare che lo
-	// scarto per piano avvenga PRIMA della raccolta delle strutture, e non solo prima dei colpi.
-	for (const FRTCellId& Id : { FRTCellId(1, 0, 0), FRTCellId(1, 0, 1) })
-	{
-		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
-		Data.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low,
-			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
-		Map->AddOrUpdateCell(Data);
 	}
 	Map->SortCells();
 
@@ -1239,33 +1235,20 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 		Units.Add(CombatUnit(0, 0, Caso.Tiratore));
 		Units.Add(CombatUnit(1, 1, Caso.Bersaglio));
 
-		const ERTActionInvalidReason Atteso =
-			Caso.bStessoPiano ? ERTActionInvalidReason::None : ERTActionInvalidReason::OtherLayer;
-
 		// La premessa: e' la stessa domanda che la pianificazione pone, e la risposta deve essere la stessa.
 		TestEqual(FString::Printf(TEXT("%s — premessa: la PIANIFICAZIONE risponde come ci si aspetta"), Caso.Nome),
 			URTCombatLibrary::ClassifyHexTargeting(Map, Caso.Tiratore, Caso.Bersaglio, 6,
 				ERTLineOfSightPolicy::Required),
 			Caso.bStessoPiano ? ERTHexTargetReason::Ok : ERTHexTargetReason::OtherLayer);
 
-		// (1) Il bersaglio-UNITA': `ValidateInstance`.
+		// (1) `ValidateInstance` su un bersaglio-UNITA' non risponde piu' «valido».
 		const ERTActionInvalidReason SuUnita =
 			URTActionFallbackLibrary::ValidateInstance(Istanza(Caso.Bersaglio, 1, 6), Units, Map);
 		TestEqual(FString::Printf(TEXT("%s — ValidateInstance (trovato %s)"), Caso.Nome, *Motivo(SuUnita)),
-			SuUnita, Atteso);
+			SuUnita, Caso.bStessoPiano ? ERTActionInvalidReason::None : ERTActionInvalidReason::OtherLayer);
 
-		// (2) Il bersaglio a CELLA: `ValidateCellAim`. `ValidateInstance` qui risponde `None` per costruzione
-		// — lo si asserisce, perche' e' la ragione per cui la seconda funzione esiste.
-		TestEqual(FString::Printf(TEXT("%s — ValidateInstance su un bersaglio-cella non giudica niente"), Caso.Nome),
-			URTActionFallbackLibrary::ValidateInstance(Istanza(Caso.Bersaglio, INDEX_NONE, 6), Units, Map),
-			ERTActionInvalidReason::None);
-		const ERTActionInvalidReason SuCella =
-			URTActionFallbackLibrary::ValidateCellAim(Istanza(Caso.Bersaglio, INDEX_NONE, 6), Units, Map);
-		TestEqual(FString::Printf(TEXT("%s — ValidateCellAim (trovato %s)"), Caso.Nome, *Motivo(SuCella)),
-			SuCella, Atteso);
-
-		// (3) La raccolta dei colpi, per ognuna delle tre forme e per i due modi di dichiarare la mira.
-		const int32 ColpiAttesi = Caso.bStessoPiano ? 1 : 0;
+		// (2) La raccolta dei colpi, per ognuna delle forme e per i due modi di dichiarare la mira.
+		const int32 Attesi = Caso.bStessoPiano ? 1 : 0;
 		for (const FForma& Forma : Forme)
 		{
 			for (const bool bMiraACella : { false, true })
@@ -1273,90 +1256,77 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 				FRTHexAttackIntent Intent =
 					CombatIntent(Units, 0, bMiraACella ? INDEX_NONE : 1, Forma.Shape, /*Range*/ 6, /*Power*/ 25, Forma.Raggio);
 				Intent.TargetCell = Caso.Bersaglio;
-				Intent.StructurePower = 20;
 
 				const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { Intent }, Map);
 				const FString Dove = FString::Printf(TEXT("%s / %s / mira a %s"), Caso.Nome, Forma.Nome,
 					bMiraACella ? TEXT("cella") : TEXT("unita'"));
 
-				TestEqual(Dove + TEXT(" — colpi"), Plan.Hits.Num(), ColpiAttesi);
-				TestEqual(Dove + TEXT(" — impronte"), Plan.Footprints.Num(), ColpiAttesi);
-				TestEqual(Dove + TEXT(" — danno alle strutture"), Plan.StructureHits.Num(), ColpiAttesi);
-				// Non e' una questione di linea di tiro, e non deve finire fra gli intenti bloccati: la'
-				// diventerebbe una voce «nessuna linea di tiro», che e' un'altra causa.
+				TestEqual(Dove + TEXT(" — colpi"), Plan.Hits.Num(), Attesi);
+				TestEqual(Dove + TEXT(" — impronte"), Plan.Footprints.Num(), Attesi);
+				// IL CANALE: e' l'asserto che distingue la regola dalla geometria. In un verso `Line` e `Cone`
+				// danno zero colpi anche senza la regola, perche' la loro impronta sta sul piano di chi tira.
+				TestEqual(Dove + TEXT(" — fermato per PIANO"), Plan.OtherLayerIntents.Num(), 1 - Attesi);
+				// E non e' una questione di linea di tiro: la' diventerebbe «nessuna linea di tiro», che e'
+				// un'altra causa e manda a cercare un muro.
 				TestEqual(Dove + TEXT(" — non e' un intento BLOCCATO"), Plan.BlockedIntents.Num(), 0);
 				TestEqual(Dove + TEXT(" — ne' uno non valutabile"), Plan.UnverifiableIntents.Num(), 0);
 			}
 		}
 	}
 
-	// L'ORDINE DEI MOTIVI: la portata viene prima del piano, come in pianificazione. Un bersaglio che viola
-	// entrambe conserva il motivo che aveva — un caso che gia' funzionava non cambia messaggio.
+	// I CONFINI DEL CANALE, sul caso fra piani. Tre cose che il canale NON deve raccogliere.
 	{
 		TArray<FRTHexCombatUnit> Units;
 		Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0)));
 		Units.Add(CombatUnit(1, 1, FRTCellId(2, 0, 1)));
 
+		// (a) LA PORTATA VIENE PRIMA DEL PIANO, come in pianificazione: un bersaglio che viola entrambe
+		// conserva il trattamento che aveva. Su un'unita' il motivo resta `OutOfRange`; nella raccolta
+		// l'intento e' scartato dalla portata, in silenzio, e nel canale del piano non entra.
 		TestEqual(TEXT("fuori portata E su un altro piano: su un'unita' il motivo resta OutOfRange"),
 			URTActionFallbackLibrary::ValidateInstance(Istanza(FRTCellId(2, 0, 1), 1, /*Portata*/ 1), Units, Map),
 			ERTActionInvalidReason::OutOfRange);
-		// Su una cella la portata e' della raccolta, che la scarta: qui non si dichiara un motivo che la'
-		// non si dichiarava.
-		TestEqual(TEXT("fuori portata E su un altro piano: su una cella ValidateCellAim tace, come prima"),
-			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, /*Portata*/ 1), Units, Map),
-			ERTActionInvalidReason::None);
+		FRTHexAttackIntent Lontano = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 1, /*Power*/ 25);
+		TestEqual(TEXT("fuori portata E su un altro piano: la raccolta lo scarta per portata, non per piano"),
+			URTHexCombatLibrary::CollectHexAttacks(Units, { Lontano }, Map).OtherLayerIntents.Num(), 0);
+
+		// (b) UN'AZIONE NON AGGRESSIVA non ha un colpo da fermare: non guadagna una voce «annullata».
+		FRTHexAttackIntent NonAttacco = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 6, /*Power*/ 0);
+		NonAttacco.bCountsAsAttack = false;
+		const FRTHexBlastPlan PianoNonAttacco = URTHexCombatLibrary::CollectHexAttacks(Units, { NonAttacco }, Map);
+		TestEqual(TEXT("un intento che non e' un attacco non entra nel canale del piano"),
+			PianoNonAttacco.OtherLayerIntents.Num(), 0);
+		TestEqual(TEXT("…e non colpisce, come prima"), PianoNonAttacco.Hits.Num(), 0);
+
+		// (c) CHI E' CADUTO NON LASCIA UNA VOCE: un attaccante gia' morto arriva alla raccolta col piano
+		// ancora addosso, e lei lo salta in cima, in silenzio. Un cadavere nel canale sarebbe una voce di
+		// rifiuto nel TurnLog — rumore nell'hash del replay.
+		FRTHexAttackIntent Vivo = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 6, /*Power*/ 25);
+		Units[0].bAlive = false;
+		TestEqual(TEXT("attaccante caduto con la mira su un altro piano: il canale resta vuoto"),
+			URTHexCombatLibrary::CollectHexAttacks(Units, { Vivo }, Map).OtherLayerIntents.Num(), 0);
+		Units[0].bAlive = true;
+		TestEqual(TEXT("controllo: lo stesso intento, con l'attaccante vivo, nel canale ci entra"),
+			URTHexCombatLibrary::CollectHexAttacks(Units, { Vivo }, Map).OtherLayerIntents.Num(), 1);
 	}
 
-	// CHI E' CADUTO NON LASCIA UNA VOCE: un attaccante gia' morto arriva alla raccolta col piano ancora
-	// addosso, e il suo colpo lo scarta lei, in silenzio. `ValidateCellAim` non deve dichiarare un rifiuto
-	// al posto suo — sarebbe una voce di un cadavere, rumore nell'hash del replay.
+	// L'ORDINE CANONICO del canale: permutare gli intenti non cambia il piano in uscita.
 	{
 		TArray<FRTHexCombatUnit> Units;
-		Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0), /*bAlive=*/ false));
+		Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0)));
 		Units.Add(CombatUnit(1, 1, FRTCellId(2, 0, 1)));
-		TestEqual(TEXT("attaccante caduto, mira a cella su un altro piano: ValidateCellAim tace"),
-			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, 6), Units, Map),
-			ERTActionInvalidReason::None);
-		// Controllo: lo stesso caso con l'attaccante VIVO il rifiuto lo dichiara.
-		Units[0].bAlive = true;
-		TestEqual(TEXT("controllo: lo stesso attaccante, vivo, viene rifiutato per piano"),
-			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, 6), Units, Map),
-			ERTActionInvalidReason::OtherLayer);
-
-		// E lo stesso sul bersaglio-UNITA': i due modi di dichiarare la mira non devono rispondere diverso.
-		// La prima stesura metteva la guardia in una funzione sola, e l'ha trovato la seconda review.
-		Units[0].bAlive = false;
-		TestEqual(TEXT("attaccante caduto, bersaglio-unita' su un altro piano: ValidateInstance non dichiara il piano"),
-			URTActionFallbackLibrary::ValidateInstance(Istanza(FRTCellId(2, 0, 1), 1, 6), Units, Map),
-			ERTActionInvalidReason::None);
-		// ⚠️ Solo il piano: un attaccante caduto con un bersaglio FUORI PORTATA dichiarava gia' il suo motivo,
-		// e continua a farlo. Questo asserto pinna il confine della guardia, non un comportamento desiderato.
-		TestEqual(TEXT("…mentre il fuori portata lo dichiara come prima: la guardia e' del solo motivo nuovo"),
-			URTActionFallbackLibrary::ValidateInstance(Istanza(FRTCellId(2, 0, 1), 1, /*Portata*/ 1), Units, Map),
-			ERTActionInvalidReason::OutOfRange);
+		Units.Add(CombatUnit(2, 1, FRTCellId(3, 0, 1)));
+		const FRTHexAttackIntent A = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, 6, 25);
+		const FRTHexAttackIntent B = CombatIntent(Units, 0, 2, ERTAbilityShape::Single, 6, 25);
+		const FRTHexBlastPlan Piano = URTHexCombatLibrary::CollectHexAttacks(Units, { A, B }, Map);
+		if (TestEqual(TEXT("due intenti fra piani, due voci nel canale"), Piano.OtherLayerIntents.Num(), 2))
+		{
+			TestTrue(TEXT("…in ordine crescente di indice"),
+				Piano.OtherLayerIntents[0] == 0 && Piano.OtherLayerIntents[1] == 1);
+		}
 	}
 
-	// IL RIPIEGO: un'area che dichiara `AttackCell` NON ripiega sulla cella quando il difetto e' il piano. La
-	// cella puntata ha lo stesso difetto del bersaglio, e colpirla sarebbe il colpo fra piani che la regola
-	// vieta, rientrato dal fallback.
-	{
-		FRTActionInstance Area = Istanza(FRTCellId(2, 0, 1), 1, 6);
-		Area.Def.Fallback = ERTActionFallback::AttackCell;
-
-		const FRTFallbackResult PerPiano =
-			URTActionFallbackLibrary::ApplyFallback(Area, ERTActionInvalidReason::OtherLayer);
-		TestTrue(TEXT("AttackCell con OtherLayer: degrada a Cancel, e lo dichiara"),
-			PerPiano.Applied == ERTActionFallback::Cancel);
-		TestFalse(TEXT("…e non produce effetti"), PerPiano.bProducesEffects);
-
-		// Controllo: lo stesso ripiego, quando a mancare e' il BERSAGLIO, la cella la tiene.
-		const FRTFallbackResult PerBersaglio =
-			URTActionFallbackLibrary::ApplyFallback(Area, ERTActionInvalidReason::TargetDead);
-		TestTrue(TEXT("controllo: AttackCell con TargetDead resta AttackCell e produce effetti"),
-			PerBersaglio.Applied == ERTActionFallback::AttackCell && PerBersaglio.bProducesEffects);
-	}
-
-	// Il predicato ha UN nome, e le quattro sedi lo leggono da li'.
+	// Il predicato ha UN nome, e le sedi lo leggono da li'.
 	TestTrue(TEXT("OnSamePlane: stesso Layer"), URTCombatLibrary::OnSamePlane(FRTCellId(0, 0, 1), FRTCellId(5, -3, 1)));
 	TestFalse(TEXT("OnSamePlane: Layer diversi, anche sulla stessa colonna"),
 		URTCombatLibrary::OnSamePlane(FRTCellId(2, 0, 0), FRTCellId(2, 0, 1)));
