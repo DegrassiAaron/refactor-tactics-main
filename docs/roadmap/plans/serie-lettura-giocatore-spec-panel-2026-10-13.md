@@ -218,6 +218,13 @@ conteggio rimasto fermo non distingue «la chiamata manca» da «lo scatto non �
 | arm di `Action.Sprint`, poi cella dentro il budget | scritta | 2 |
 | arm di `Action.Sprint`, poi cella fuori dal budget | non scritta | 1 |
 
+⌫ **Le ultime due righe nominano `Action.Sprint`, ed è sbagliato**: corretto lo stesso giorno, lavorando la
+issue ([#3732](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3732)). `Action.Sprint` risolve nel
+movimento normale e non passa da questo ramo; e nessuna mobilità rapida del catalogo spedito ha uno stile non
+lineare, quindi il ramo «a budget» **non è raggiungibile** in partita. Il test lo esercita con un'azione
+sintetica. In più, il gesto che un giocatore usa davvero sul ramo lineare è la **carica puntata sul nemico**,
+che il referto non aveva visto: passa da `HandleClickOnUnit`, che inoltra alla stessa funzione.
+
 ### 2.5 Definition of Done
 
 - [ ] I quattro esempi sono un test, nella forma di `MovementDestinationCountsAsAnOrder`. Togliere una delle due
