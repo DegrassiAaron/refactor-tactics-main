@@ -324,27 +324,24 @@ bool FRTVisionPermutationInvariantTest::RunTest(const FString&)
  *
  * Il difetto e' rimasto invisibile finche' nessuno **consumava** la vista: CP 13.2 l'ha reso fatale, perche'
  * da li' un bersaglio non visto non e' bersagliabile e ogni ingaggio fra piani diversi diventava illegale.
- * E' il difetto ricorrente di questo repository visto dall'altro lato: non un dato che nessuno legge, ma un
- * dato sbagliato che nessuno leggeva **ancora**.
  *
- * La regola non e' nuova e non concede niente alla verticalita': `HasLineOfSight` e `HexDistance` il layer
- * non lo guardano gia' oggi: la linea di tiro si valuta sulla proiezione esagonale. Erano la vista e il tiro
- * a dire due cose diverse sullo stesso spazio. High Ground resta senza bonus numerico alla vista (canone
- * v0.1) — qui non si aggiunge un vantaggio, si toglie una cecita' che nessuna decisione aveva stabilito.
+ * ➕ `D-511`, #3743: fra due piani la vista segue ora una linea vera, da testa a testa, che si ferma sui
+ * pavimenti. La fixture di prima — due piani PIENI — con quella regola non mostra piu' niente del piano di
+ * sopra, ed e' giusto cosi': chi guarda aveva un soffitto. Qui la piattaforma comincia DUE celle piu' in la',
+ * quindi chi guarda sta allo scoperto, e i candidati di un altro piano si vedono ancora. High Ground resta
+ * senza bonus numerico alla vista (`D-018`): la quota non regala niente, toglie cio' che un pavimento copre.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionSeesAcrossLayersTest,
 	"RefactorTactics.Vision.SeesAcrossLayers",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
 {
-	// Due piani sovrapposti, entrambi pieni: e' la forma di una mappa con un ponte o un ballatoio.
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (int32 Layer = 0; Layer <= 1; ++Layer)
+	// Un piano terra pieno, e una piattaforma al piano 1 lungo la riga di chi guarda: da x=2 a x=4. Piu' una
+	// cella isolata alle sue spalle, per chiedere che la quota non regali nulla.
+	URTHexMapAsset* Map = MakePerceptionMap(5);
+	for (const FRTCellId& Id : { FRTCellId(2, 0, 1), FRTCellId(3, 0, 1), FRTCellId(4, 0, 1), FRTCellId(-4, 0, 1) })
 	{
-		for (const FRTCellId& Flat : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(Flat.X, Flat.Y, Layer)));
-		}
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
 	}
 	Map->SortCells();
 
@@ -358,12 +355,20 @@ bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Ravvicinata (entro 2 celle, ogni direzione) e arco frontale, entrambe sul piano DI SOPRA.
-	TestTrue(TEXT("vede la cella adiacente di sopra"), Seen.Contains(FRTCellId(1, 0, 1)));
-	TestTrue(TEXT("vede nel proprio arco frontale di sopra"), Seen.Contains(FRTCellId(3, 0, 1)));
+	// La cella di bordo della piattaforma, a due celle: e quella dietro, a tre. Entrambe sul piano DI SOPRA.
+	TestTrue(TEXT("vede la cella di bordo della piattaforma"), Seen.Contains(FRTCellId(2, 0, 1)));
+	TestTrue(TEXT("vede la cella dietro il bordo, da tre celle"), Seen.Contains(FRTCellId(3, 0, 1)));
 
-	// E la quota non regala nulla: cio' che e' fuori dall'arco resta invisibile su OGNI piano. Senza questo
-	// controllo il test passerebbe anche con una vista che ha smesso di filtrare.
+	// Due celle dietro il bordo servono cinque celle di distanza: da quattro il bordo la copre (`D-511`).
+	TestFalse(TEXT("due celle dietro il bordo, da quattro celle: il bordo la copre"), Seen.Contains(FRTCellId(4, 0, 1)));
+
+	// E la quota non regala nulla: cio' che e' fuori dall'arco resta invisibile su OGNI piano, anche quando la
+	// linea e' libera. Senza la premessa sulla linea il test passerebbe anche con un pavimento in mezzo.
+	if (!TestTrue(TEXT("premessa: verso la cella alle spalle la linea fra piani e' libera"),
+		URTPerceptionLibrary::HasSightAcrossLayers(Map, Observer.Cell, FRTCellId(-4, 0, 1))))
+	{
+		return false;
+	}
 	TestFalse(TEXT("dietro le spalle non si vede, nemmeno di sopra"), Seen.Contains(FRTCellId(-4, 0, 1)));
 	TestFalse(TEXT("dietro le spalle non si vede, nemmeno sul proprio piano"), Seen.Contains(FRTCellId(-4, 0, 0)));
 
@@ -374,14 +379,81 @@ bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
 }
 
 /**
+ * **Sotto un pavimento non si vede niente di cio' che c'e' sopra, e da sopra niente di cio' che c'e' sotto**
+ * (`D-511`, #3743). Vale per le CELLE, non solo per chi le occupa: e' la scelta d'autore «Anche le celle».
+ *
+ * Due piani pieni, uno sull'altro: e' la fixture con cui fino a #3743 questo file asseriva il contrario.
+ *
+ * 🔑 **Il controllo che da' senso al rosso e' il buco.** Tolta UNA cella dal soffitto — quella in cui la linea
+ * raggiunge la quota — la cella oltre il buco si vede: non e' il piano di sopra a essere invisibile, e' il
+ * pavimento a coprirlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionFloorHidesLayerTest,
+	"RefactorTactics.Vision.FloorHidesTheOtherLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPerceptionFloorHidesLayerTest::RunTest(const FString&)
+{
+	auto TwoFloors = [](const FRTCellId* Hole)
+	{
+		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+		for (int32 Layer = 0; Layer <= 1; ++Layer)
+		{
+			for (const FRTCellId& Flat : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
+			{
+				const FRTCellId Id(Flat.X, Flat.Y, Layer);
+				if (Hole == nullptr || !(Id == *Hole))
+				{
+					Map->AddOrUpdateCell(FRTHexCellData(Id));
+				}
+			}
+		}
+		Map->SortCells();
+		return Map;
+	};
+	auto CountOnLayer = [](const TArray<FRTCellId>& Cells, int32 Layer)
+	{
+		int32 Count = 0;
+		for (const FRTCellId& Cell : Cells)
+		{
+			Count += (Cell.Layer == Layer) ? 1 : 0;
+		}
+		return Count;
+	};
+
+	const URTHexMapAsset* Full = TwoFloors(nullptr);
+	const FRTPerceiver Sotto = Watcher(FRTCellId(0, 0, 0), ERTHexDirection::E, /*VisionRange*/ 5);
+	const FRTPerceiver Sopra = Watcher(FRTCellId(0, 0, 1), ERTHexDirection::E, /*VisionRange*/ 5);
+
+	const TArray<FRTCellId> DaSotto = URTPerceptionLibrary::VisibleCells(Full, Sotto);
+	const TArray<FRTCellId> DaSopra = URTPerceptionLibrary::VisibleCells(Full, Sopra);
+	if (!TestTrue(TEXT("premessa: da sotto si vede il proprio piano"), CountOnLayer(DaSotto, 0) > 10)
+		|| !TestTrue(TEXT("premessa: da sopra si vede il proprio piano"), CountOnLayer(DaSopra, 1) > 10))
+	{
+		return false;
+	}
+	TestEqual(TEXT("da sotto un soffitto pieno, nessuna cella del piano di sopra"), CountOnLayer(DaSotto, 1), 0);
+	TestEqual(TEXT("da sopra un pavimento pieno, nessuna cella del piano di sotto"), CountOnLayer(DaSopra, 0), 0);
+
+	// Il buco: la linea da (0,0,0) a (2,0,1) raggiunge la quota del piano 1 sopra la cella (1,0).
+	const FRTCellId Hole(1, 0, 1);
+	const URTHexMapAsset* Holed = TwoFloors(&Hole);
+	const TArray<FRTCellId> DalBuco = URTPerceptionLibrary::VisibleCells(Holed, Sotto);
+	TestTrue(TEXT("dal buco si vede la cella oltre"), DalBuco.Contains(FRTCellId(2, 0, 1)));
+	TestFalse(TEXT("e il buco non e' una cella: non compare"), DalBuco.Contains(Hole));
+	TestFalse(TEXT("la cella sopra la testa resta coperta"), DalBuco.Contains(FRTCellId(0, 0, 1)));
+	return true;
+}
+
+/**
  * **Chi sta sopra la testa di un altro non lo vede, e non ne e' visto** (`D-510`, #3741).
  *
  * Decisione d'autore del 2026-10-13: «Se uno sta nella cella sopra un nemico, i 2 non si vedono (la linea di
  * visuale passa al centro perpendicolare)». La cella impilata sta a distanza ZERO sulla proiezione: fino a
- * #3741 la prendeva la consapevolezza ravvicinata, in ogni direzione.
+ * #3741 la prendeva la consapevolezza ravvicinata, in ogni direzione. Da `D-511` e' il caso verticale della
+ * linea fra piani, e questo test tiene vero che lo sia rimasto.
  *
- * 🔑 **Due controlli danno senso al rosso.** Spostata di UNA cella, la stessa cella del piano di sopra si vede:
- * la vista fra piani fuori dalla colonna non e' cambiata. E la LINEA DI VISTA fra le due celle impilate resta
+ * 🔑 **Due controlli danno senso al rosso.** Un compagno spostato di UNA cella, allo scoperto, quella stessa
+ * cella la vede: e' la colonna a nasconderla, non il piano. E la LINEA DI TIRO fra le due celle impilate resta
  * libera: la regola e' del contatto, non della linea. Messa nella linea fa orbitare i bot sull'arena generata
  * (`Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack`), ed e' la ragione per cui questo test la fissa li'.
  */
@@ -390,21 +462,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionStackedColumnTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPerceptionStackedColumnTest::RunTest(const FString&)
 {
-	// Tre piani pieni: il caso a due piani di distanza si misura senza inventare una cella.
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (int32 Layer = 0; Layer <= 2; ++Layer)
+	// Un piano terra pieno e una PILA: due celle sopra la (0,0), una per piano. Niente altro in quota, cosi'
+	// chi sta accanto alla pila e' allo scoperto.
+	URTHexMapAsset* Map = MakePerceptionMap(5);
+	for (const FRTCellId& Id : { FRTCellId(0, 0, 1), FRTCellId(0, 0, 2) })
 	{
-		for (const FRTCellId& Flat : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(Flat.X, Flat.Y, Layer)));
-		}
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
 	}
 	Map->SortCells();
 
 	const FRTPerceiver Sotto = Watcher(FRTCellId(0, 0, 0), ERTHexDirection::E, /*VisionRange*/ 5);
 	const TArray<FRTCellId> DaSotto = URTPerceptionLibrary::VisibleCells(Map, Sotto);
-	if (!TestTrue(TEXT("premessa: da sotto si vede la cella accanto sul piano di sopra"), DaSotto.Contains(FRTCellId(1, 0, 1)))
-		|| !TestTrue(TEXT("premessa: e la propria cella"), DaSotto.Contains(FRTCellId(0, 0, 0))))
+	if (!TestTrue(TEXT("premessa: da sotto si vede la propria cella"), DaSotto.Contains(FRTCellId(0, 0, 0)))
+		|| !TestTrue(TEXT("premessa: e la cella accanto sul proprio piano"), DaSotto.Contains(FRTCellId(1, 0, 0))))
 	{
 		return false;
 	}
@@ -413,7 +483,7 @@ bool FRTPerceptionStackedColumnTest::RunTest(const FString&)
 
 	const FRTPerceiver Sopra = Watcher(FRTCellId(0, 0, 1), ERTHexDirection::E, /*VisionRange*/ 5);
 	const TArray<FRTCellId> DaSopra = URTPerceptionLibrary::VisibleCells(Map, Sopra);
-	if (!TestTrue(TEXT("premessa: da sopra si vede la cella accanto sul piano di sotto"), DaSopra.Contains(FRTCellId(1, 0, 0))))
+	if (!TestTrue(TEXT("premessa: da sopra si vede la propria cella"), DaSopra.Contains(FRTCellId(0, 0, 1))))
 	{
 		return false;
 	}
@@ -425,17 +495,79 @@ bool FRTPerceptionStackedColumnTest::RunTest(const FString&)
 	Squadra.Add(Sotto);
 	TestTrue(TEXT("un nemico sopra la testa resta nascosto"),
 		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, FRTCellId(0, 0, 1)) == ERTAwareness::Hidden);
-	TestTrue(TEXT("spostato di una cella, e' rilevato"),
-		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, FRTCellId(1, 0, 1)) == ERTAwareness::Detected);
 
-	// Un compagno accanto la vede: la conoscenza e' di squadra, e la regola toglie UNA linea, non la cella.
+	// Un compagno accanto, allo scoperto, la vede: la conoscenza e' di squadra, e la regola toglie UNA linea,
+	// non la cella.
 	Squadra.Add(Watcher(FRTCellId(-1, 0, 0), ERTHexDirection::E, /*VisionRange*/ 5));
 	TestTrue(TEXT("un compagno che non sta nella colonna la rileva per la squadra"),
 		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, FRTCellId(0, 0, 1)) == ERTAwareness::Detected);
 
-	// ⛔ La linea di vista NON cambia: e' la geometria su cui i bot scelgono le celle.
+	// ⛔ La linea di TIRO non cambia: e' la geometria su cui i bot scelgono le celle.
 	TestTrue(TEXT("la linea di vista fra le due celle impilate resta libera: la regola e' del contatto"),
 		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(0, 0, 0), FRTCellId(0, 0, 1)));
+	return true;
+}
+
+/**
+ * La tavola `S1` della seduta `U88`, come **conoscenza di squadra**: e' la scena davanti a cui l'autore ha
+ * scritto «mi sembra che aevik non potrebbe vedere nessuno dei due nemici sopra» (`D-511`, #3743).
+ *
+ * Sulla piattaforma di `TestArena`: chi sta a terra SOTTO non vede nessuna delle sue celle; un compagno allo
+ * scoperto ne vede il bordo e non la cella dietro; un terzo, dall'altro lato, vede quella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionPlatformTeamKnowledgeTest,
+	"RefactorTactics.Vision.PlatformIsSeenFromTheOpenNotFromUnderneath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPerceptionPlatformTeamKnowledgeTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("premessa: TestArena esiste"), Map))
+	{
+		return false;
+	}
+	const TArray<FRTCellId> Platform = { FRTCellId(2, -1, 1), FRTCellId(2, 0, 1), FRTCellId(3, -1, 1), FRTCellId(3, 0, 1) };
+	const FRTCellId Bordo(2, 0, 1);
+	const FRTCellId Dietro(3, 0, 1);
+
+	// Sotto la piattaforma, rivolto verso di essa: la vista piu' lunga del roster non cambia niente.
+	const FRTPerceiver Sotto = Watcher(FRTCellId(2, 0, 0), ERTHexDirection::E, /*VisionRange*/ 7);
+	const TArray<FRTCellId> DaSotto = URTPerceptionLibrary::VisibleCells(Map, Sotto);
+	if (!TestTrue(TEXT("premessa: da sotto si vede a terra"), DaSotto.Contains(FRTCellId(3, 0, 0))))
+	{
+		return false;
+	}
+	for (const FRTCellId& Cell : Platform)
+	{
+		TestFalse(*FString::Printf(TEXT("da sotto la piattaforma non si vede la sua cella (%d,%d)"), Cell.X, Cell.Y),
+			DaSotto.Contains(Cell));
+	}
+
+	TArray<FRTPerceiver> Squadra;
+	Squadra.Add(Sotto);
+	TestTrue(TEXT("chi sta sul bordo e' nascosto a chi sta sotto"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, Bordo) == ERTAwareness::Hidden);
+	TestTrue(TEXT("chi sta dietro e' nascosto a chi sta sotto"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, Dietro) == ERTAwareness::Hidden);
+
+	// Un compagno allo scoperto, accanto alla piattaforma.
+	Squadra.Add(Watcher(FRTCellId(1, 0, 0), ERTHexDirection::E, /*VisionRange*/ 7));
+	TestTrue(TEXT("dallo scoperto si rileva chi sta sul bordo"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, Bordo) == ERTAwareness::Detected);
+	TestTrue(TEXT("ma non chi sta una cella piu' indietro: il bordo lo copre"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, Dietro) == ERTAwareness::Hidden);
+
+	// Un terzo dall'altro lato, per cui la cella «dietro» e' quella di bordo.
+	Squadra.Add(Watcher(FRTCellId(4, 0, 0), ERTHexDirection::W, /*VisionRange*/ 7));
+	TestTrue(TEXT("dall'altro lato si rileva anche l'altro"),
+		URTPerceptionLibrary::TeamAwarenessOfCell(Map, Squadra, Dietro) == ERTAwareness::Detected);
+
+	// E al contrario, con la stessa linea: chi sta sul bordo vede la cella a terra li' accanto, non quella sotto
+	// i propri piedi ne' quelle sotto la piattaforma.
+	const FRTPerceiver SulBordo = Watcher(Bordo, ERTHexDirection::W, /*VisionRange*/ 7);
+	const TArray<FRTCellId> DalBordo = URTPerceptionLibrary::VisibleCells(Map, SulBordo);
+	TestTrue(TEXT("dal bordo si vede la cella a terra accanto"), DalBordo.Contains(FRTCellId(1, 0, 0)));
+	TestFalse(TEXT("dal bordo non si vede la cella sotto i piedi"), DalBordo.Contains(FRTCellId(2, 0, 0)));
+	TestFalse(TEXT("ne' quella sotto la cella dietro"), DalBordo.Contains(FRTCellId(3, 0, 0)));
 	return true;
 }
 

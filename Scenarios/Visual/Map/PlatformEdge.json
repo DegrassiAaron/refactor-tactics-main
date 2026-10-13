@@ -1,0 +1,31 @@
+{
+  "scenarioId": "Visual.Map.PlatformEdge",
+  "tags": ["map", "layer", "perception", "vision", "visual", "gadget", "riktor", "wraith"],
+  "verifies": ["PIE-VIS-COLONNA"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "Da fuori, chi sta sul BORDO di una piattaforma si vede; chi sta una cella piu' indietro no, perche' il bordo lo copre. A1 sta sul pavimento, accanto alla piattaforma e allo scoperto; B1 sta sulla piattaforma, sulla cella di bordo verso A1; B2 sta sulla piattaforma, una cella piu' indietro. Non misura la regola, che e' dei test `Vision.AcrossLayers.EdgeHidesWhoStandsBehind` e `Vision.PlatformIsSeenFromTheOpenNotFromUnderneath`: costruisce la scena in cui una persona la guarda.",
+
+  "_oracolo": "La voce `PIE-VIS-COLONNA` di `docs/technical/test-manuali-pie.md`. Dalla squadra 0 si vede B1 e NON si vede B2. `D-511`: la linea va da testa a testa e si ferma sui pavimenti. Verso B1 raggiunge la quota della piattaforma sopra la cella di A1, dove la piattaforma non c'e'. Verso B2 la raggiunge sopra la cella di B1, dove c'e'.",
+
+  "_nota_controllo": "B1 e' il controllo positivo, e sta nella stessa scena: senza di lui «non vedo B2» sarebbe indistinguibile da «da terra non vedo niente sulla piattaforma». Con la testa a sei decimi di piano, chi sta una cella dietro il bordo si vede da tre celle di distanza: A1 ne dista due.",
+
+  "_nota_fixture": "`TestArena`, come `Visual.Map.StackedColumn`: stessi due nemici sulle stesse due celle. La' chi guarda sta sotto la piattaforma e non ne vede nessuno; qui sta fuori, sulla cella (1,0,0), che e' anche l'ancora della salita.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 1] },
+    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 1] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [2, 0, 1] },
+    { "type": "UnitAtCell", "unit": "B2", "cell": [3, 0, 1] }
+  ]
+}

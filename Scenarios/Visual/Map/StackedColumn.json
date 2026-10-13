@@ -6,18 +6,19 @@
   "seed": 0,
   "fixture": "TestArena",
 
-  "_nota": "Due NEMICI sulla stessa colonna (X=2, Y=0) e su piani diversi, piu' un terzo accanto. A1 sta sul pavimento; B1 sta sulla piattaforma, esattamente sopra la sua testa; B2 sta sulla piattaforma, una cella piu' in la'. Non misura la regola, che e' dei test `HexVision.StackedCellsHaveNoSight` e `Vision.StackedColumnIsNotSeen`: costruisce la scena in cui una persona la guarda.",
+  "_nota": "Chi sta SOTTO una piattaforma non vede niente di cio' che ha sopra. A1 sta sul pavimento, sotto la piattaforma; B1 sta sulla piattaforma, esattamente sopra la sua testa; B2 sta sulla piattaforma, una cella piu' in la'; B3 sta a terra, a due celle. Non misura la regola, che e' dei test `Vision.AcrossLayers.ProposalCasesOnTestArena` e `Vision.PlatformIsSeenFromTheOpenNotFromUnderneath`: costruisce la scena in cui una persona la guarda.",
 
-  "_oracolo": "La voce `PIE-VIS-COLONNA` di `docs/technical/test-manuali-pie.md`. Dalla squadra 0 si vede B2 e NON si vede B1: `D-510` dice che due celle sulla stessa colonna e su piani diversi non hanno linea di vista, perche' la linea passerebbe dal centro, in perpendicolare, attraverso il pavimento.",
+  "_oracolo": "La voce `PIE-VIS-COLONNA` di `docs/technical/test-manuali-pie.md`. Dalla squadra 0 si vede B3 e NON si vedono ne' B1 ne' B2. `D-510` aveva tolto B1: stessa colonna, la linea passerebbe dal centro attraverso il pavimento. `D-511` toglie anche B2: la linea da testa a testa fra A1 e B2 buca il pavimento che A1 ha sopra la testa.",
 
-  "_nota_controllo": "B2 e' il controllo positivo, e senza di lui la scena non proverebbe niente: «non vedo B1» sarebbe indistinguibile da «non vedo niente sul piano di sopra». B2 sta a una cella da A1 e su un altro piano: la vista fra piani fuori dalla colonna non e' cambiata, quindi si deve vedere.",
+  "_nota_controllo": "B3 e' il controllo positivo, e senza di lui la scena non proverebbe niente: «non vedo nessuno sulla piattaforma» sarebbe indistinguibile da «non vedo nessuno». B3 sta sullo stesso piano di A1, a due celle e senza muri in mezzo: si deve vedere. Fino a #3743 il controllo era B2, che la regola di allora lasciava vedere; davanti a quella scena l'autore ha scritto che A1 non avrebbe dovuto vederlo, e la regola e' cambiata.",
 
-  "_nota_fixture": "`TestArena` e' la sola fixture con una piattaforma sul layer 1 — celle (2,-1,1), (2,0,1), (3,-1,1), (3,0,1). E' la stessa di `Visual.Map.TwoLayersSameColumn`, che da #3741 mette nella colonna due ALLEATE: quella resta la prova di leggibilita' del viewport, questa e' la prova della regola.",
+  "_nota_fixture": "`TestArena` e' la sola fixture con una piattaforma isolata sul layer 1 — celle (2,-1,1), (2,0,1), (3,-1,1), (3,0,1). La scena gemella e' `Visual.Map.PlatformEdge`: stessi due nemici sulla piattaforma, guardati da fuori. `Visual.Map.TwoLayersSameColumn` mette nella colonna due ALLEATE ed e' la prova di leggibilita' del viewport, non della regola.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [2, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 1] },
-    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 1] }
+    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 1] },
+    { "id": "B3", "hero": "Hero.Muiren", "team": 1, "cell": [4, 0, 0] }
   ],
 
   "turns": [],
@@ -26,6 +27,7 @@
     { "type": "TurnsCompleted", "value": 0 },
     { "type": "UnitAtCell", "unit": "A1", "cell": [2, 0, 0] },
     { "type": "UnitAtCell", "unit": "B1", "cell": [2, 0, 1] },
-    { "type": "UnitAtCell", "unit": "B2", "cell": [3, 0, 1] }
+    { "type": "UnitAtCell", "unit": "B2", "cell": [3, 0, 1] },
+    { "type": "UnitAtCell", "unit": "B3", "cell": [4, 0, 0] }
   ]
 }
