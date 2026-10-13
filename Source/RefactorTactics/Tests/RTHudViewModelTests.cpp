@@ -23,6 +23,7 @@
 #include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
 #include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
+#include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: da dove viene una voce del piano (#3629)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -3121,6 +3122,152 @@ bool FRTHudHealTokenTest::RunTest(const FString&)
 	const FRTDamageTokenView Colpo = URTHudViewModel::BuildDamageToken(18, 3);
 	TestTrue(TEXT("il colpo pulsa ancora"), Colpo.bPulsesHealthBar);
 	TestFalse(TEXT("e non e' una cura"), Colpo.bIsHeal);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Ogni azione del kit DI PARTITA ha un nome: il ripiego sull'id grezzo non si raggiunge (#3629)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **OGNI AZIONE DEL KIT DI PARTITA HA UN NOME, E OGNI VOCE DI UN PIANO VIENE DAL KIT O E' IL MOVIMENTO** — `#3629`.
+ *
+ * Gli avvisi di piano nominano un'azione con una cascata (`NomeDi`, in `URTHudViewModel::BuildPlanWarnings`): il
+ * nome del kit, poi «Movimento», poi l'ultimo segmento dell'id — `Action.Counter` -> `Counter`. Il terzo passo
+ * e' il modo in cui un'azione senza nome arriverebbe a schermo **senza errore**.
+ *
+ * 🔑 **Questo test e' cio' che rende quel passo irraggiungibile nel catalogo spedito**, e lo fa da due lati:
+ *  1. ogni azione del kit assemblato ha un `DisplayName` leggibile, e lo slot del dock porta lo stesso nome;
+ *  2. ogni voce che `MakePlanFor` produce e' la voce di movimento, oppure porta l'id di un'azione del kit che ha
+ *     un nome — cioe' il primo o il secondo passo della cascata la trovano sempre.
+ *
+ * ⚠️ **Si guarda il KIT ASSEMBLATO, non le fabbriche.** Tre gate guardano gia' chi produce i nomi —
+ * `Heroes.EveryActionHasADisplayName`, `Actions.EveryGenericHasADisplayName` e
+ * `Catalog.EveryEquipmentActionHasADisplayName` — e nessuno il risultato che il giocatore ha in mano: eroe,
+ * generiche e pezzi del loadout di default, montati come li monta `ARTMatchBootstrapper`.
+ *
+ * ⚠️ **Il secondo lato non ricostruisce quale campo spetti a quale azione.** Lo decide il controller. Qui ogni
+ * azione si scrive in ciascuno dei tre campi da cui `MakePlanFor` legge, e si chiede solo da dove puo' venire
+ * una voce del piano: la risposta non dipende dal fatto che quel piano sia legale.
+ *
+ * ⛔ **Non e' una tabella di nomi per le azioni del core.** Quella si rinvia al giorno in cui nasce un lettore
+ * che non ha un kit in mano (decisione d'autore `P3`, 2026-10-13): fino ad allora un nome per ogni voce di
+ * `GetCoreActionCatalog()` sarebbe testo che nessuna superficie mostra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmEveryMatchKitActionHasANameTest,
+	"RefactorTactics.HudViewModel.EveryActionOfTheMatchKitHasAName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmEveryMatchKitActionHasANameTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("premessa: il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 Azioni = 0;
+	int32 DalLoadout = 0;
+	int32 VociDalKit = 0;
+	int32 VociDiMovimento = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+		const FString Eroe = Hero->HeroId.ToString();
+
+		UWorld* World = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { continue; }
+		ARTUnit* Unit = SpawnHudVmUnit(World, Hero->HeroId, /*TeamId*/ 0);
+		if (!TestNotNull(*FString::Printf(TEXT("unita' di %s"), *Eroe), Unit))
+		{
+			DestroyHudVmWorld(World);
+			continue;
+		}
+
+		// Il kit DI PARTITA: col loadout che `ARTMatchBootstrapper` equipaggia.
+		const int32 PrimaDelLoadout = Unit->NumAbilities();
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		DalLoadout += Unit->NumAbilities() - PrimaDelLoadout;
+
+		// --- 1. ogni azione del kit ha un nome, e lo slot del dock porta quello -----------------------------------
+		const TArray<FRTAbilityCooldownView> Slot = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* Azione = Unit->GetAbility(i);
+			if (!TestNotNull(*FString::Printf(TEXT("%s: la posizione %d del kit ha un'azione"), *Eroe, i), Azione))
+			{
+				continue;
+			}
+			++Azioni;
+			TestFalse(*FString::Printf(TEXT("%s: l'azione %d (`%s`) ha un nome leggibile"),
+				*Eroe, i, *Azione->Def.ActionId.ToString()), Azione->DisplayName.IsEmptyOrWhitespace());
+			// Un'azione senza id non entra nel piano (`MakePlanFor` la scarta), e un avviso non potrebbe
+			// nominarla: nel roster spedito non ce ne sono, e se una arrivasse il secondo lato qui sotto non la
+			// vedrebbe.
+			TestFalse(*FString::Printf(TEXT("%s: l'azione %d viene dal catalogo, ha un id"), *Eroe, i),
+				Azione->Def.ActionId.IsNone());
+
+			const FRTAbilityCooldownView* Vista = Slot.FindByPredicate(
+				[i](const FRTAbilityCooldownView& V) { return V.AbilityIndex == i; });
+			if (TestNotNull(*FString::Printf(TEXT("%s: l'azione %d ha il suo slot nel dock"), *Eroe, i), Vista))
+			{
+				TestEqual(*FString::Printf(TEXT("%s: lo slot dell'azione %d porta il nome del kit"), *Eroe, i),
+					Vista->DisplayName.ToString(), Azione->DisplayName.ToString());
+			}
+		}
+
+		// --- 2. ogni voce di un piano viene dal kit, o e' il movimento ------------------------------------------
+		const auto IlKitLaNomina = [Unit](const FName& ActionId)
+		{
+			for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+			{
+				const URTActionData* A = Unit->GetAbility(i);
+				if (A && A->Def.ActionId == ActionId && !A->DisplayName.IsEmptyOrWhitespace()) { return true; }
+			}
+			return false;
+		};
+		const auto EsaminaIlPiano = [this, Unit, &Eroe, &IlKitLaNomina, &VociDalKit, &VociDiMovimento]()
+		{
+			for (const FRTPlannedAction& Voce : URTPlanValidationLibrary::MakePlanFor(Unit))
+			{
+				if (IlKitLaNomina(Voce.Def.ActionId))
+				{
+					++VociDalKit;
+				}
+				else if (TestTrue(*FString::Printf(TEXT("%s: la voce di piano `%s` non sta nel kit, quindi e' il "
+					"movimento — altrimenti l'avviso la chiamerebbe con l'ultimo segmento dell'id"),
+					*Eroe, *Voce.Def.ActionId.ToString()), URTCatalogLibrary::TakesMovementSlot(Voce.Def)))
+				{
+					++VociDiMovimento;
+				}
+			}
+		};
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			for (int32 Campo = 0; Campo < 3; ++Campo)
+			{
+				Unit->PlannedDashAbility = (Campo == 0) ? i : INDEX_NONE;
+				Unit->PlannedAbilityIndex = (Campo == 1) ? i : INDEX_NONE;
+				Unit->PlannedReactionAbility = (Campo == 2) ? i : INDEX_NONE;
+				EsaminaIlPiano();
+			}
+		}
+		// E col movimento normale dichiarato: e' la voce che `MakePlanFor` aggiunge dal core, fuori dal kit.
+		Unit->PlannedDashAbility = INDEX_NONE;
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->PlannedReactionAbility = INDEX_NONE;
+		Unit->PlannedCell = FRTCellId(Unit->Cell.X + 1, Unit->Cell.Y, Unit->Cell.Layer);
+		if (TestTrue(*FString::Printf(TEXT("%s, premessa: il movimento normale risulta dichiarato"), *Eroe),
+			Unit->HasPlannedNormalMove()))
+		{
+			EsaminaIlPiano();
+		}
+
+		DestroyHudVmWorld(World);
+	}
+
+	// Anti-vacuita': ogni ciclo ha avuto dei soggetti, e il loadout ha davvero aggiunto qualcosa al kit.
+	TestTrue(TEXT("almeno un'azione controllata"), Azioni > 0);
+	TestTrue(TEXT("il loadout di default ha accodato azioni: si e' guardato il kit di partita, non quello nudo"),
+		DalLoadout > 0);
+	TestTrue(TEXT("almeno una voce di piano veniva dal kit"), VociDalKit > 0);
+	TestTrue(TEXT("almeno una voce di piano era il movimento"), VociDiMovimento > 0);
 	return true;
 }
 

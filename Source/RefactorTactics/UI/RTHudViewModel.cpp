@@ -296,8 +296,16 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 	//   2. la voce del MOVIMENTO, che `MakePlanFor` aggiunge dal core e non sta nel kit: l'etichetta dello slot che
 	//      il tooltip gia' usa. E' il caso canonico del conflitto scatto + movimento;
 	//   3. l'ultimo segmento dell'id (`Action.Move` -> `Move`), la stessa cascata di `ARTUnit::DisplayLabel`.
+	//
+	// 🔑 **Il terzo passo e' una RETE, non un percorso** (`#3629`). Nel catalogo spedito non si raggiunge: ogni
+	// voce che `MakePlanFor` produce viene da un'azione del kit, che ha un nome, oppure e' il movimento. Lo
+	// tiene fermo `RefactorTactics.HudViewModel.EveryActionOfTheMatchKitHasAName`, sul kit assemblato di ogni
+	// eroe col loadout di partita. Se quel test cade, e' qui che un id grezzo arriverebbe a schermo senza errore.
+	//
 	// ⛔ Una tabella di nomi per le azioni del core non esiste (`GenericActionDisplayName` ne copre cinque), e
-	// scriverla e' lavoro di contenuto, non di questo avviso.
+	// non si scrive finche' non nasce un lettore che non ha un kit in mano — una riga che nomini l'azione di
+	// un avversario, per esempio. Fino ad allora sarebbe testo che nessuna superficie mostra (decisione
+	// d'autore del 2026-10-13).
 	const auto NomeDi = [Unit, &Piano](const FName& ActionId) -> FText
 	{
 		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
