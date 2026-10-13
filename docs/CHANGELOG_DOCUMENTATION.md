@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-13 — Il referto dei colori dell'overlay torna a girare, e ha un comando che lo lancia
+
+**Origine**: [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626). `tools/hud-assets/color_metrics.py` leggeva una riga di `UI/RTHUD.cpp` nella forma che aveva prima del 2026-09-04: da allora usciva con un errore esplicito, e nessun comando lo lanciava.
+
+| Dove | Che cosa |
+|---|---|
+| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: `color_metrics.py` fra i controlli noti, quando la PR tocca `UI/RTHUD.cpp` o le tabelle di colore, coi suoi due codici d'uscita; la sua prova fra quelle che sanno fallire |
+| [`technical/systems/spec-icon-card-grammar.md`](technical/systems/spec-icon-card-grammar.md) | accanto ai comandi del referto: `T9` misura anche l'overlay del mondo leggendo due righe di `RTHUD.cpp` per forma; fino al 2026-10-13 non lo faceva; i codici d'uscita e il comando della prova |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-234` annotata: la coppia fase `Dash` / identità di squadra, che la voce dichiarava non misurata da nessun gate, ora la misura `T9` |
+
+---
+
 ## 2026-10-13 — Spec panel sulla serie «ciò che il giocatore legge»
 
 **Origine**: la serie di sei issue della v0.1 proposta il 2026-10-13 — [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081), [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), [#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629), [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626) e [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627). Le premesse sono state rilette sul sorgente prima di lavorarle; niente è stato eseguito col motore.
