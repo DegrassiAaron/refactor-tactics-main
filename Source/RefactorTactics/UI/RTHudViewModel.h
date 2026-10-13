@@ -22,6 +22,7 @@ enum class ERTActionInvalidReason : uint8;
 enum class ERTTargetRefusal : uint8;
 
 struct FRTTurnLogEntry;
+struct FRTPlannedAction;
 
 class AActor;
 class ARTTurnManager;
@@ -1533,6 +1534,34 @@ public:
 	 * comandata consegnerebbe il suo piano.
 	 */
 	static TArray<FRTPlanWarningView> BuildPlanWarnings(const ARTUnit* Unit, const TArray<ARTUnit*>& Units);
+
+	/**
+	 * Il nome con cui un avviso di piano chiama l'azione `ActionId`, in cascata, e mai l'id grezzo finche'
+	 * c'e' un nome (review di `#3622`):
+	 *   1. il nome del kit di `Unit`, che e' quello che lo slot mostra;
+	 *   2. «Movimento», per la voce che `MakePlanFor` aggiunge dal core e che non sta nel kit: l'etichetta
+	 *      dello slot che il tooltip gia' usa. E' il caso canonico del conflitto scatto + movimento;
+	 *   3. l'ultimo segmento dell'id (`Action.Move` -> `Move`), la stessa cascata di `ARTUnit::DisplayLabel`.
+	 *
+	 * 🔑 **Il terzo passo e' una RETE, non un percorso** (`#3629`). Nel catalogo spedito non si raggiunge: ogni
+	 * voce di un piano viene da un'azione del kit, che ha un nome, oppure e' il movimento. Lo tiene fermo
+	 * `RefactorTactics.HudViewModel.EveryActionOfTheMatchKitHasAName`, che esegue questa funzione sul kit
+	 * assemblato di ogni eroe col loadout di partita.
+	 *
+	 * ⚠️ **Non e' l'unico punto in cui un id puo' arrivare a schermo.** La riga del bersaglio degradato in
+	 * `BuildPlanWarnings`, il titolo del tooltip e i chip di piano hanno ciascuno il proprio ripiego sull'id.
+	 * Dipendono tutti dalla stessa proprieta' — ogni azione del kit ha un nome — e quel test la tiene dal lato
+	 * del kit, non sito per sito.
+	 *
+	 * ⛔ Una tabella di nomi per le azioni del core non esiste (`GenericActionDisplayName` ne copre cinque), e
+	 * non si scrive finche' non nasce un lettore che non ha un kit in mano — una riga che nomini l'azione di
+	 * un avversario, per esempio (decisione d'autore del 2026-10-13, `#3740`).
+	 *
+	 * Statica e pubblica perche' la si possa provare: come lambda locale di `BuildPlanWarnings` un test poteva
+	 * solo ricopiarne i passi, e una copia non cade quando l'originale cambia.
+	 */
+	static FText PlanActionDisplayName(const ARTUnit* Unit, const TArray<FRTPlannedAction>& Plan,
+		const FName& ActionId);
 
 	/** Aggiunge a `InOut` gli avvisi di `Warnings`, uno per livello ([D-494]). */
 	static void AddPlanWarningCounts(const TArray<FRTPlanWarningView>& Warnings, FRTPlanWarningCounts& InOut);
