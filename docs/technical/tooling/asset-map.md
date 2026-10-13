@@ -224,6 +224,7 @@ fossero un dato).
 | `Core/Framework/BP_GameMode.uasset` | Framework | — | ✅ committato |
 | `Core/Grid/M_HexCell.uasset` | Materiale griglia | — | ✅ committato |
 | `Core/Grid/M_HexOverlayFill.uasset` | Materiale overlay | — | ✅ committato |
+| `Core/Grid/M_HexVolume.uasset` | Materiale dei volumi | — | ✅ committato · **generato** da `-run=RTBuildHexVolumeMaterial` ([#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706), [`D-229`](../../decisions/RT_PDR_00_Decision_Log.md)): davanti a un conflitto si rigenera |
 | `Art/GlobalMaterials/M_Global_Tint.uasset` | Materiale globale | — | ✅ committato |
 | `UI/Framework/WBP_RT_FallbackBanner.uasset` | Frontend | **U24** | ✅ committato |
 | `UI/Framework/WBP_RT_ErrorModal.uasset` | Frontend | **U24** | ✅ committato |
@@ -253,6 +254,9 @@ fare»*, e la differenza va letta.
 `M_HexOverlayFill.uasset` sono in allowlist e committati, ma `editor-sessions.yaml` non li nomina: come
 i cinque path storici marcati `—`, esistono senza che una seduta ne risponda. Non è un difetto da
 correggere qui — è un buco della fonte, e si chiude lì.
+➕ *2026-10-13:* nella stessa cartella c'è anche `M_HexVolume.uasset`, e questa nota non lo riguarda: non è
+autorato in una seduta, lo genera `-run=RTBuildHexVolumeMaterial`
+([#3706](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3706)).
 >
 > ⌫ *Fino al 2026-09-11 questa nota parlava del solo `M_HexCell`. `M_HexOverlayFill` è nato il
 > 2026-09-11 da [#1944](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1944) (PR
