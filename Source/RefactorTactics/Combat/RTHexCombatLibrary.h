@@ -428,10 +428,12 @@ struct FRTHexBlastPlan
 	 * quello di chi tira ([D-393], [D-509], `#2951`), in ordine canonico di indice. Il chiamante ne fa una
 	 * voce `Fallback`/`Cancelled` con `ERTActionInvalidReason::OtherLayer`.
 	 *
-	 * 🔑 **Quinto canale, e la forma e' quella di `BlockedIntents`**: l'intento e' fermato DOPO che
-	 * strutture e porte sono state raccolte. Il piano ferma il colpo, non cio' che un colpo non e' — ed e'
-	 * cio' che tiene vivo il danno a un PONTE fra due piani, che per progetto (CP 9.4) nasce da un'azione
-	 * che mira all'altro capo dell'arco.
+	 * 🔑 **Un canale proprio, e dove ferma l'intento e' la forma di `BlockedIntents`**: DOPO che strutture e
+	 * porte sono state raccolte. Il piano ferma il colpo, non cio' che un colpo non e' — ed e' cio' che
+	 * tiene vivo il danno a un PONTE fra due piani, che per progetto (CP 9.4) nasce da un'azione che mira
+	 * all'altro capo dell'arco. ⚠️ La somiglianza finisce li': la voce che ne esce e' `Fallback` e non
+	 * `Combat`, e un'azione interrotta esce da questo canale come da `DoorlessIntents` — da
+	 * `BlockedIntents` no.
 	 *
 	 * ⛔ **Non un riuso di `BlockedIntents`**, per la disciplina che separa gli altri canali: li' il motivo
 	 * e' una linea di tiro bloccata, e scriverlo nel TurnLog per un bersaglio che sta un piano sopra direbbe

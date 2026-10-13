@@ -1310,6 +1310,49 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 			URTHexCombatLibrary::CollectHexAttacks(Units, { Vivo }, Map).OtherLayerIntents.Num(), 1);
 	}
 
+	// LA MIRA CONGELATA, NON LA CELLA VIVA ([D-415]). Nelle scene qui sopra coincidono, e una regressione
+	// che tornasse a leggere `Units[TargetId].Cell` passerebbe inosservata. Qui divergono, nei due versi.
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0)));
+		Units.Add(CombatUnit(1, 1, FRTCellId(2, 0, 0))); // l'unita' sta sul piano di chi tira…
+
+		FRTHexAttackIntent MiraSopra = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 6, /*Power*/ 25);
+		MiraSopra.TargetCell = FRTCellId(2, 0, 1);        // …ma la mira congelata e' un piano sopra
+		const FRTHexBlastPlan PianoSopra = URTHexCombatLibrary::CollectHexAttacks(Units, { MiraSopra }, Map);
+		TestEqual(TEXT("mira congelata su un altro piano, unita' sul proprio: fermato per piano"),
+			PianoSopra.OtherLayerIntents.Num(), 1);
+		TestEqual(TEXT("…e nessun colpo, nemmeno a chi sta sul piano di chi tira"), PianoSopra.Hits.Num(), 0);
+
+		Units[1].Cell = FRTCellId(2, 0, 1);               // ora l'unita' e' salita…
+		FRTHexAttackIntent MiraATerra = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 6, /*Power*/ 25);
+		MiraATerra.TargetCell = FRTCellId(2, 0, 0);       // …e la mira congelata e' rimasta a terra
+		const FRTHexBlastPlan PianoATerra = URTHexCombatLibrary::CollectHexAttacks(Units, { MiraATerra }, Map);
+		TestEqual(TEXT("mira congelata sul proprio piano, unita' salita: NON e' fermato per piano"),
+			PianoATerra.OtherLayerIntents.Num(), 0);
+		TestEqual(TEXT("…il colpo parte sulla cella mirata, e chi e' salito non lo prende"), PianoATerra.Hits.Num(), 0);
+		TestEqual(TEXT("…con la sua impronta"), PianoATerra.Footprints.Num(), 1);
+	}
+
+	// UN COLPO NON E' IL SUO DANNO. Spinte, stati, marchi e interruzioni sono intenti che si dichiarano
+	// attacco e viaggiano sul colpo, anche a danno ZERO: la regola del piano li ferma come gli altri.
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0)));
+		Units.Add(CombatUnit(1, 1, FRTCellId(2, 0, 1)));
+		const FRTHexAttackIntent SenzaDanno = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 6, /*Power*/ 0);
+		const FRTHexBlastPlan Fermato = URTHexCombatLibrary::CollectHexAttacks(Units, { SenzaDanno }, Map);
+		TestEqual(TEXT("un attacco a danno zero verso un altro piano: nessun colpo su cui far viaggiare un effetto"),
+			Fermato.Hits.Num(), 0);
+		TestEqual(TEXT("…ed e' fermato per piano"), Fermato.OtherLayerIntents.Num(), 1);
+
+		// Controllo: sullo stesso piano lo stesso intento a danno zero IL COLPO lo produce.
+		Units[1].Cell = FRTCellId(2, 0, 0);
+		const FRTHexAttackIntent SulPiano = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 6, /*Power*/ 0);
+		TestEqual(TEXT("controllo: sullo stesso piano un attacco a danno zero produce il suo colpo"),
+			URTHexCombatLibrary::CollectHexAttacks(Units, { SulPiano }, Map).Hits.Num(), 1);
+	}
+
 	// L'ORDINE CANONICO del canale: permutare gli intenti non cambia il piano in uscita.
 	{
 		TArray<FRTHexCombatUnit> Units;

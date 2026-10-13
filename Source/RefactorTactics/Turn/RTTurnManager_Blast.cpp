@@ -963,7 +963,16 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// regge, per la stessa ragione per cui `ValidateInstance` mette la portata prima della copertura: il
 		// motivo scritto nel log dev'essere quello che chi gioca deve correggere. «Non lo vedi» detto a chi
 		// era comunque fuori portata sposterebbe l'attenzione sul difetto sbagliato.
-		if (Reason == ERTActionInvalidReason::None && Instance.TargetUnitId != INDEX_NONE
+		//
+		// [D-509] — **IL PIANO NON E' UNA RAGIONE PER SALTARLA.** Portata e copertura si dicono anche a chi
+		// non conosce il bersaglio, ed e' la regola qui sopra, che resta com'e'. Il piano no, per due
+		// ragioni. La prima: prima di [D-509] un bersaglio-unita' su un altro piano arrivava qui con
+		// `None`, e usciva `TargetUnknown` o diventava la cella del ricordo — lasciarlo passare cambierebbe
+		// cio' che la regola del piano non doveva toccare. La seconda: «e' su un altro piano», detto di
+		// un'unita' che la squadra non conosce, dice DOVE sta. Trovato dalla terza review indipendente.
+		const bool bLaGeometriaLasciaDecidereLaConoscenza = Reason == ERTActionInvalidReason::None
+			|| Reason == ERTActionInvalidReason::OtherLayer;
+		if (bLaGeometriaLasciaDecidereLaConoscenza && Instance.TargetUnitId != INDEX_NONE
 			&& HexUnits.IsValidIndex(Instance.TargetUnitId))
 		{
 			const FRTTeamKnowledge Knowledge = KnowledgeForTeam(Unit->TeamId);
@@ -986,6 +995,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				{
 					Instance.TargetUnitId = INDEX_NONE;
 					Instance.TargetCell = Remembered;
+					// [D-509]: se `Reason` era `OtherLayer` resta tale, e non importa — e' fra i motivi che
+					// il Blast lascia alla raccolta, quindi nessun fallback parte. La mira e' ora la cella
+					// ricordata, e il suo piano lo giudica la raccolta come ogni altra geometria di un
+					// colpo a cella.
 					// Nessuna rivalidazione qui: `ValidateInstance` su un bersaglio-cella risponde sempre
 					// `None` per costruzione. Portata e linea di tiro sulla cella ricordata le verifica
 					// `CollectHexAttacks`, che e' l'owner della geometria dei colpi a cella.

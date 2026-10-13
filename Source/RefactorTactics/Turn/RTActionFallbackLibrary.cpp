@@ -73,17 +73,21 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// D-490 (#3608): qui si giudica un colpo che parte, quindi conta la TRAIETTORIA e non la licenza di mira —
 	// `BlindAimDirect` ha mirato al buio, ma il primo ostacolo lo ferma come `Required`.
 	//
-	// 🔴 **UN `switch` SENZA `default`, E NON UN CONFRONTO** ([D-509], `#2951`). Fino al 2026-10-13 questa
-	// riga era `Classify(...) == NoLineOfSight`, seguita da `return None`: ogni altro verdetto del
-	// classificatore cadeva nel ramo «valido». Quando `#2951` gli ha aggiunto `OtherLayer`, la casella
-	// *«i chiamanti leggono l'esito e non ricalcolano il predicato»* era vera alla lettera — e in
-	// risoluzione la regola del piano non esisteva: una mira fra piani era un'azione valida.
-	// Cosi' il prossimo verdetto aggiunto in coda a `ERTHexTargetReason` non compila finche' qualcuno
-	// non dice che cosa ne fa la risoluzione.
+	// 🔴 **OGNI VERDETTO HA UN RAMO, E CIO' CHE NON NE HA UNO NON E' UN VIA LIBERA** ([D-509], `#2951`).
+	// Fino al 2026-10-13 questa riga era `Classify(...) == NoLineOfSight`, seguita da `return None`: ogni
+	// altro verdetto del classificatore cadeva nel ramo «valido». Quando `#2951` gli ha aggiunto
+	// `OtherLayer`, la casella *«i chiamanti leggono l'esito e non ricalcolano il predicato»* era vera alla
+	// lettera — e in risoluzione la regola del piano non esisteva: una mira fra piani era un'azione valida.
+	//
+	// ⛔ **Lo `switch` senza `default` NON ferma la build**, e la prima stesura di questo commento lo
+	// prometteva: su questo stesso enum il repository l'ha gia' misurato falso (`#3080`, in
+	// `URTCombatLibrary::RefusalForReason`) — MSVC emette C4061/C4062, un warning che la build non alza.
+	// Cio' che regge e' un banco: `Actions.Fallback.ValidationCoversEveryTargetingVerdict` legge i verdetti
+	// dalla reflection, e uno senza un esito dichiarato lo rende rosso nominandolo.
 	switch (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Aim, Instance.Def.RangeCells,
 		URTCombatLibrary::TrajectoryPolicy(Instance.Def.LineOfSightPolicy)))
 	{
-	case ERTHexTargetReason::Ok:            break;
+	case ERTHexTargetReason::Ok:            return ERTActionInvalidReason::None;
 	// I due qui sotto sono gia' usciti piu' in alto, con lo stesso criterio: restano scritti perche' il
 	// verdetto del classificatore non diventi «valido» il giorno in cui quei controlli si spostano.
 	case ERTHexTargetReason::NoMap:         return ERTActionInvalidReason::NoMap;
@@ -93,10 +97,16 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
 	// La distanza MINIMA non si rivaluta in risoluzione: il parametro non viene passato, quindi il
 	// classificatore non puo' rispondere cosi'. Non e' una regola decisa qui — e' lo stato di `#2950`.
-	case ERTHexTargetReason::TooClose:      break;
+	case ERTHexTargetReason::TooClose:      return ERTActionInvalidReason::None;
 	}
 
-	return ERTActionInvalidReason::None;
+	// Qui si arriva solo con un verdetto che lo `switch` non conosce. FAIL-CLOSED: e' un rifiuto, e in
+	// sviluppo e' rumoroso. ⚠️ Il motivo e' `OutOfRange` per una sola ragione, e va detta: fra quelli che
+	// esistono e' un rifiuto di GEOMETRIA che il Blast annulla col fallback dichiarato. `NoMap` e
+	// `NoLineOfSight` il Blast li lascia alla raccolta, che su un verdetto ignoto non saprebbe cosa fermare.
+	// Il testo nel log sarebbe sbagliato; un colpo partito per distrazione sarebbe peggio.
+	checkNoEntry();
+	return ERTActionInvalidReason::OutOfRange;
 }
 
 FRTFallbackResult URTActionFallbackLibrary::ApplyFallback(const FRTActionInstance& Instance,
