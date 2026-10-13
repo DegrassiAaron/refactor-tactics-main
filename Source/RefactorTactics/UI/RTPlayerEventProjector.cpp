@@ -375,24 +375,8 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		// ⚠️ A parita' di rango vince chi e' arrivato prima: due colpi sulla stessa unita' restano una riga,
 		// e il secondo non riscrive il primo. Sommare i danni sarebbe un'altra decisione — non presa qui,
 		// perche' §E parla di dominanza e non di aggregazione.
-		//
-		// 🔑 **Con UN'eccezione al «vince chi e' arrivato prima»: una riga `Minor` non tiene lo slot contro una
-		// `Important` dello stesso rango** (`#3081`, trovato in code review). Il caso e' uno solo, perche'
-		// solo `Moved` ha entrambe le importanze: il movimento CHIESTO e riuscito e' `Minor`, uno spostamento
-		// SUBITO — spinta, scivolamento, caduta, parapetto — e' `Important`, e hanno lo stesso rango. Chi
-		// scatta nel Dash e poi viene spinto nel Blast ha per prima la riga `Minor`: a parita' stretta la
-		// teneva, il filtro in fondo la toglieva, e l'unita' veniva spostata senza che il feed lo dicesse.
-		// E' la stessa sparizione che i commenti di `DominanceRank` descrivono per `SlideBlocked` e
-		// `AttackBlocked`, qui fra due eventi dello stesso tipo — dove alzare un rango non si puo'.
-		//
-		// ⚠️ Fra due `Important` dello stesso rango non cambia niente: resta la prima, come sopra.
 		FRTPlayerEvent& Held = Out[*Existing];
-		const int32 CandidateRank = DominanceRank(Candidate.Type);
-		const int32 HeldRank = DominanceRank(Held.Type);
-		const bool bMinorHoldsTheSlot = CandidateRank == HeldRank
-			&& Held.Importance == ERTPlayerEventImportance::Minor
-			&& Candidate.Importance != ERTPlayerEventImportance::Minor;
-		if (CandidateRank > HeldRank || bMinorHoldsTheSlot)
+		if (DominanceRank(Candidate.Type) > DominanceRank(Held.Type))
 		{
 			const int32 Slot = *Existing;
 			Out[Slot] = MoveTemp(Candidate);

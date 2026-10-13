@@ -489,12 +489,7 @@ vince: classificare la caduta come spostamento non basta a portarla a schermo, p
 l'occupante, i due id di `URTTurnLogLibrary` — e il testo la legge da lì. Gli id riconosciuti sono quei due:
 una causa `Fall.*` nuova resta «Colpita» finché qualcuno non le dà una frase.
 
-🔑 **Uno spostamento subito non sparisce dietro un movimento riuscito dello stesso turno.** Il movimento
-chiesto e uno spostamento subito hanno lo stesso rango, e li distingue solo l'importanza: il primo è
-silenzioso, il secondo no. A parità di rango la riga silenziosa cede il posto all'altra. Senza, chi scatta e
-poi viene spinto contro un parapetto non avrebbe nessuna riga.
-
-⚠️ **Quattro limiti dichiarati.**
+⚠️ **Cinque limiti dichiarati.**
 
 - **I quattro esiti di atterraggio non si distinguono nel feed.** Dove l'unità è finita lo mostra la board; i
   quattro testi restano nel log diagnostico (§9.1).
@@ -503,16 +498,19 @@ poi viene spinto contro un parapetto non avrebbe nessuna riga.
   cade aveva colpito o curato nello stesso Blast: la voce di combattimento porta come soggetto chi colpisce,
   e arriva prima della caduta. Non è un caso raro in un gioco a turni simultanei. Correggerlo vuol dire
   decidere quale danno vince fra due di pari rango, cioè cambiare una regola del feed: non è stato fatto qui.
+- **Dopo uno scatto riuscito nello stesso turno, uno spostamento subito non compare.** Il movimento chiesto e
+  uno spostamento subito hanno lo stesso rango, e li distingue solo l'importanza: il primo è silenzioso. Chi
+  scatta nel Dash e poi viene spinto nel Blast ha per prima la riga silenziosa, che tiene il posto e poi viene
+  tolta: non resta nessuna riga. Vale per il parapetto, e valeva già per ogni spinta. Correggerlo tocca la
+  stessa regola del punto qui sopra, e ha una proposta a parte.
 - **Una caduta che uccide dice «Eliminata» e non «Caduta».** È la terza riga della tabella.
 - **Col parapetto adiacente il feed dice «Spostata» di un'unità che non si è mossa.** Senza celle percorse la
   traccia scrive `DisplacementResisted` con causa `EdgeGuard` (§9.2), e il feed legge così ogni spostamento
   resistito. È il comportamento che c'era prima di #3081, non una sua conseguenza.
 
 Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit` e
-`RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed`, sul percorso vero del resolver;
-`RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi; e
-`RefactorTactics.UI.PlayerEventLog.SufferedMoveIsNotSwallowedByAnEarlierMinorMove` per la regola sulla riga
-silenziosa.
+`RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed`, sul percorso vero del resolver; e
+`RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi.
 
 ---
 
