@@ -105,9 +105,18 @@ una delle due righe ha cambiato forma: usciva con un errore esplicito, e nessun 
 esegue il generatore a ogni rigenerazione degli asset, ed è fra i controlli noti di
 [`AGENTS.md`](../../../AGENTS.md) §9.
 
-Il referto esce con `1` se un criterio è violato e con `2` se `RTHUD.cpp` non si legge più; se accadono
-insieme vince il `2`, e i criteri violati si stampano comunque. `--json` porta i colori dell'overlay, l'elenco
-dei criteri non rispettati e lo stesso codice d'uscita. La prova che la lettura sa fallire:
+Il referto ha una terza parte ([#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627)):
+confronta le tabelle di colore del generatore coi documenti che ne sono owner, per nome — `CHROME` e
+`PHASE_INK` coi token `RT_UI_*` di [`progettazione-hud.md`](progettazione-hud.md) §32, `SEMANTIC` coi token
+`RT_Sem_*` di [`02-color-system.md`](../../research/design/icon/visual-language/02-color-system.md) §2. Nel
+generatore è il gate `PAL`. Non ha un numero `T`: quelli sono i test di accettazione della specifica
+dell'alfabeto, e il decimo parla d'altro.
+
+Il referto esce con `1` se un criterio è violato o una tabella diverge dal suo documento, e con `2` se una
+delle tre fonti non si legge più: `RTHUD.cpp`, o uno dei due documenti. Se accadono insieme vince il `2`, e
+ciò che si è potuto giudicare si stampa comunque. `--json` porta i colori dell'overlay, l'esito delle tabelle
+(`tabelle.divergenze` e `tabelle.letture_fallite`), l'elenco dei criteri non rispettati e lo stesso codice
+d'uscita. La prova che la lettura sa fallire:
 
 ```bash
 python -m unittest discover -s tools/hud-assets -p "*_test.py"

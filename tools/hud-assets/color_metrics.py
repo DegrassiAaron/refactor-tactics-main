@@ -628,28 +628,187 @@ def check_overlay(identity: dict, phase: dict, known: dict | None = None,
     return errors
 
 
+# --------------------------------------------------------------------------------------------------
+# Le tabelle del generatore sono COPIE, e i loro owner sono due documenti (#3627)
+# --------------------------------------------------------------------------------------------------
+# `CHROME` e `PHASE_INK` copiano i token `RT_UI_*` di `progettazione-hud.md` §32; `SEMANTIC` copia i token
+# `RT_Sem_*` di `02-color-system.md` §2. Il generatore lo dichiara in un commento — *«nessun valore inventato
+# qui: se un colore serve e non c'e', si aggiunge prima al documento owner»* — e fino a `#3627` nessuno
+# confrontava le copie. `URTUIPalette`, la sede a runtime, e' confrontata con §32 da un test C++
+# (`UI.Palette.MatchesStyleGuide`): questo chiude il terzo lato.
+#
+# 🔑 **Due vocabolari, non uno.** `RT_Sem_Disabled`, il grigio semantico delle icone, e
+# `RT_UI_Text_Disabled`, il testo spento dell'HUD, sono due token con due owner e due valori. La issue li
+# leggeva come due copie divergenti dello stesso valore: non lo sono, e il confronto e' PER NOME dentro
+# ciascun vocabolario proprio per non fonderli (decisione d'autore `P4`, 2026-10-13).
+#
+# ⚠️ Il verso e' uno solo: ogni voce di una TABELLA deve avere il suo token nel documento, con lo stesso
+# valore. Un token del documento senza voce in tabella non e' un errore — §32 ne ha molti che le icone non
+# usano.
+#
+# ⚠️ **Si legge la SEZIONE owner, non il documento.** Altre sezioni degli stessi file riusano il prefisso, e
+# una riga omonima fuori dalla sezione farebbe passare per dichiarato un token che la tabella owner non ha
+# piu' — o, con un altro valore, farebbe dire «dichiarato due volte» a una tabella in ordine. E' il confine
+# che legge anche il gemello in C++ (`RigheDiPalette`, da `# 32.` a `# 33.`).
+#
+# ⚠️ **Una riga che NOMINA il token e non porta un esadecimale e' una lettura fallita, non un token che
+# manca.** Cercare nome e valore con una sola espressione scartava in silenzio la riga malformata, e il
+# referto rispondeva «un colore si aggiunge prima al documento owner» di un colore che nel documento c'era:
+# il rimedio sbagliato, col codice d'uscita sbagliato.
+
+# Che cosa puo' andare storto LEGGENDO, e che non e' un criterio violato: la forma (`RuntimeError`, alzato
+# da questo modulo), il file che manca o non si apre (`OSError`), il file che non e' UTF-8. Lo usa anche
+# il generatore: e' UN elenco, perche' una classe di errore aggiunta qui e non la' farebbe uscire il
+# generatore con un traceback dopo aver scritto le icone e prima del verdetto.
+READ_ERRORS = (RuntimeError, OSError, UnicodeDecodeError)
+
+HUD_STYLE_DOC = "docs/technical/systems/progettazione-hud.md"
+SEMANTIC_DOC = "docs/research/design/icon/visual-language/02-color-system.md"
+# Il titolo che apre la sezione owner, e la forma del primo titolo dello STESSO livello che la chiude.
+_UI_SECTION = (re.compile(r"^# 32\.[^\n]*$", re.M), re.compile(r"^# \d+\.", re.M))
+_SEM_SECTION = (re.compile(r"^## 2\.[^\n]*$", re.M), re.compile(r"^## \d+\.", re.M))
+_HEX_CELL = re.compile(r"`(#[0-9A-Fa-f]{6})`")
+# Il separatore di cella, non la barra con l'escape che una cella puo' contenere.
+_CELL_SEPARATOR = re.compile(r"(?<!\\)\|")
+
+
+def owner_section(text: str, bounds: tuple, where: str) -> str:
+    """Il testo della sezione owner: dal suo titolo al primo titolo dello stesso livello che segue.
+
+    Fallisce forte se il titolo non c'e' o c'e' due volte: senza un confine certo si tornerebbe a leggere
+    l'intero documento, che e' il difetto che questa funzione chiude.
+    """
+    opens, closes = bounds
+    found = list(opens.finditer(text))
+    if len(found) != 1:
+        raise RuntimeError(
+            f"{where}: il titolo della sezione owner (`{opens.pattern}`) compare {len(found)} volte, e ne "
+            "serve una. Il documento ha cambiato struttura, e il confronto con le copie non puo' essere fatto.")
+    start = found[0].end()
+    following = closes.search(text, start)
+    return text[start:following.start() if following else len(text)]
+
+
+def read_doc_tokens(text: str, prefix: str, bounds: tuple, where: str) -> dict:
+    """I token che la sezione owner di un documento dichiara: nome (senza prefisso) -> HEX.
+
+    Una riga di tabella dichiara un token quando una sua cella e' il token fra apici inversi, e la cella
+    ACCANTO ne e' il valore. Fallisce forte in quattro casi, tutti letture fallite e non divergenze: la
+    sezione non si trova; la cella accanto al token non e' un esadecimale a sei cifre; un token e'
+    dichiarato due volte; nessun token letto.
+    """
+    token_cell = re.compile("`" + re.escape(prefix) + r"(\w+)`")
+    tokens: dict = {}
+    for line in owner_section(text, bounds, where).splitlines():
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in _CELL_SEPARATOR.split(line.strip())[1:]]
+        for index, cell in enumerate(cells):
+            named = token_cell.fullmatch(cell)
+            if named is None:
+                continue
+            name = named.group(1)
+            beside = cells[index + 1] if index + 1 < len(cells) else ""
+            value = _HEX_CELL.fullmatch(beside)
+            if value is None:
+                raise RuntimeError(
+                    f"{where}: la riga del token `{prefix}{name}` non porta un esadecimale `#RRGGBB` nella "
+                    f"cella accanto (c'e' «{beside}»). La tabella ha cambiato forma: il token c'e', ed e' "
+                    "il suo valore che non si legge.")
+            if name in tokens:
+                raise RuntimeError(
+                    f"{where} dichiara il token `{prefix}{name}` due volte ({tokens[name]} e "
+                    f"{value.group(1)}): la sezione owner non e' piu' una fonte sola.")
+            tokens[name] = value.group(1)
+            break
+    if not tokens:
+        raise RuntimeError(
+            f"{where}: nessun token letto. La tabella dei colori ha cambiato forma, e il confronto con le "
+            "copie del generatore non puo' essere fatto.")
+    return tokens
+
+
+def check_table(table_name: str, table: dict, tokens: dict, token_prefix: str, where: str,
+                key_prefix: str = "") -> list[str]:
+    """Ogni voce della tabella ha il suo token nel documento, con lo stesso valore. Vuoto = coincidono."""
+    errors = []
+    for key, value in table.items():
+        token = token_prefix + key_prefix + key
+        declared = tokens.get(key_prefix + key)
+        if declared is None:
+            errors.append(
+                f"`{table_name}[\"{key}\"]` ({value}) non ha il token `{token}` in {where} — un colore si "
+                "aggiunge prima al documento owner, poi alla copia")
+        elif declared.upper() != value.upper():
+            errors.append(
+                f"`{table_name}[\"{key}\"]` vale {value}, ma `{token}` in {where} vale {declared} — la copia "
+                "e il documento owner divergono")
+    return errors
+
+
+def check_palette_owners(phase_ink: dict, chrome: dict, semantic: dict,
+                         repo_root=None) -> tuple[list[str], list[str]]:
+    """Le tre tabelle del generatore contro i due documenti owner: `(divergenze, letture_fallite)`.
+
+    🔑 **I due documenti si leggono e si giudicano SEPARATAMENTE.** Un documento che non si legge non e' una
+    divergenza, e non deve portarsi via il giudizio sull'altro: `CHROME` e `PHASE_INK` si confrontano con
+    §32 anche se il documento semantico manca. Per questo la funzione non alza: restituisce le letture
+    fallite accanto alle divergenze, e chi chiama tiene i due rossi distinti.
+    """
+    root = REPO_ROOT if repo_root is None else repo_root
+    owners = (
+        (HUD_STYLE_DOC, "RT_UI_", _UI_SECTION, (("CHROME", chrome, ""), ("PHASE_INK", phase_ink, "Phase_"))),
+        (SEMANTIC_DOC, "RT_Sem_", _SEM_SECTION, (("SEMANTIC", semantic, ""),)),
+    )
+    divergences: list[str] = []
+    unread: list[str] = []
+    for where, prefix, bounds, tables in owners:
+        try:
+            tokens = read_doc_tokens((root / where).read_text(encoding="utf-8"), prefix, bounds, where)
+        except READ_ERRORS as error:
+            unread.append(f"{type(error).__name__}: {error}")
+            continue
+        for table_name, table, key_prefix in tables:
+            divergences += check_table(table_name, table, tokens, prefix, where, key_prefix)
+    return divergences, unread
+
+
+def hud_state_sets(chrome: dict, semantic: dict) -> tuple[dict, dict]:
+    """Gli stati e le superfici dell'HUD contro cui si misurano i colori di fase: `(stati, superfici)`.
+
+    UNA definizione, per il referto e per il gate `T9` del generatore. Erano due elenchi scritti a mano in
+    due file, e avevano gia' preso due forme: un letterale da una parte, una voce di tabella dall'altra.
+
+    🔑 **I grigi spenti sono DUE, e si misurano tutti e due** (`#3627`). `Text_Disabled` e' il testo spento
+    che l'HUD disegna, un token di §32; `Sem_Disabled` e' la tinta semantica che il generatore assegna alle
+    icone che dicono «non disponibile». Fino a `#3627` si misurava solo il secondo. Sostituirlo col primo
+    avrebbe tolto dal gate un grigio che le icone portano ancora: una fase puo' somigliare a uno qualunque
+    dei due.
+    """
+    states = {key: chrome[key] for key in ("Cyan", "Violet", "Amber", "Red")}
+    states["Text_Disabled"] = chrome["Text_Disabled"]
+    states["Sem_Disabled"] = semantic["Disabled"]
+    surfaces = {key: chrome[key] for key in ("BG_Panel", "BG_Raised")}
+    return states, surfaces
+
+
 def _palette_sources() -> tuple[dict, dict, dict]:
     """I colori vivono nel generatore, che ne e' l'owner. L'import e' QUI e non in testa al file
     perche' il generatore importa questo modulo: a livello di modulo sarebbe circolare."""
-    from generate_hud_assets import CHROME, PHASE_INK  # noqa: PLC0415
+    from generate_hud_assets import CHROME, PHASE_INK, SEMANTIC  # noqa: PLC0415
 
-    states = {k: CHROME[k] for k in ("Cyan", "Violet", "Amber", "Red")}
-    states["Disabled"] = "#6B7280"  # il grigio di `SEMANTIC`, che e' uno stato e non una famiglia
-    surfaces = {k: CHROME[k] for k in ("BG_Panel", "BG_Raised")}
+    states, surfaces = hud_state_sets(CHROME, SEMANTIC)
     return PHASE_INK, states, surfaces
 
 
 # I codici d'uscita del referto. Due rossi diversi hanno due numeri diversi, come nel generatore (`#3002`):
-# «un criterio e' violato» e «non sono riuscito a leggere `RTHUD.cpp`» chiedono due rimedi diversi, e con
-# un `1` per entrambi chi guarda il solo codice non sa quale applicare. Se accadono insieme vince il `2`:
-# con una lettura fallita il giudizio sui criteri e' parziale, e il referto li stampa comunque.
+# «un criterio e' violato» e «non sono riuscito a leggere una fonte» chiedono due rimedi diversi, e con
+# un `1` per entrambi chi guarda il solo codice non sa quale applicare. Le fonti sono tre: `RTHUD.cpp` e
+# i due documenti owner della palette. Se i due rossi accadono insieme vince il `2`: con una lettura
+# fallita il giudizio sui criteri e' parziale, e il referto li stampa comunque.
 EXIT_OK = 0
 EXIT_CRITERIA_FAILED = 1
 EXIT_READ_FAILED = 2
-
-# Che cosa puo' andare storto LEGGENDO, e che non e' un criterio violato: la forma (`RuntimeError`, alzato
-# da questo modulo), il file che manca o non si apre (`OSError`), il file che non e' UTF-8.
-_READ_ERRORS = (RuntimeError, OSError, UnicodeDecodeError)
 
 
 def _stdout_to_utf8() -> None:
@@ -664,8 +823,9 @@ def _stdout_to_utf8() -> None:
 def main(argv: list[str] | None = None, repo_root=None) -> int:
     """Il referto. `repo_root` serve alla prova, che lo punta a un albero finto senza toccare quello vero.
 
-    Le due meta' sono indipendenti e si riportano entrambe: la palette delle icone non legge `RTHUD.cpp`,
-    e una lettura fallita dell'overlay non deve portarsela via. Vale anche in `--json`.
+    Le tre parti sono indipendenti e si riportano tutte: la palette delle icone non legge `RTHUD.cpp`, il
+    confronto delle tabelle legge due documenti, e una lettura fallita non deve portarsi via il resto —
+    nemmeno l'altro documento, dentro la terza parte. Vale anche in `--json`.
     """
     argv = sys.argv[1:] if argv is None else argv
     as_json = "--json" in argv
@@ -681,14 +841,21 @@ def main(argv: list[str] | None = None, repo_root=None) -> int:
     overlay_phase: dict = {}
     try:
         identity, overlay_phase = overlay_colors(repo_root)
-    except _READ_ERRORS as error:
+    except READ_ERRORS as error:
         read_error = f"{type(error).__name__}: {error}"
     pairs = overlay_pairs(identity, overlay_phase)
     known = known_inks()
     if read_error is None:
         problems += check_overlay(identity, overlay_phase, known, ink)
 
-    code = EXIT_READ_FAILED if read_error else (EXIT_CRITERIA_FAILED if problems else EXIT_OK)
+    # Le tabelle del generatore contro i documenti che ne sono owner (`#3627`). Terza parte, indipendente
+    # dalle altre due: legge due documenti, non `RTHUD.cpp`, e li giudica uno per volta.
+    from generate_hud_assets import CHROME, SEMANTIC  # noqa: PLC0415
+    divergences, unread_owners = check_palette_owners(ink, CHROME, SEMANTIC, repo_root)
+    problems += divergences
+
+    read_errors = ([read_error] if read_error else []) + unread_owners
+    code = EXIT_READ_FAILED if read_errors else (EXIT_CRITERIA_FAILED if problems else EXIT_OK)
 
     if as_json:
         # ⚠️ Fino a `#3626` questo ramo stampava la palette e usciva `0` senza aprire `RTHUD.cpp` e senza
@@ -696,6 +863,9 @@ def main(argv: list[str] | None = None, repo_root=None) -> int:
         report["overlay"] = ({"errore_di_lettura": read_error} if read_error else
                              {"identita": identity, "fase": overlay_phase, "delta_e": pairs,
                               "delta_e_identita": identity_pairs(identity)})
+        # Le due chiavi ci sono SEMPRE: un documento che non si legge non cancella le divergenze
+        # trovate nell'altro, e chi consuma il JSON non deve indovinare quale delle due forme arriva.
+        report["tabelle"] = {"divergenze": divergences, "letture_fallite": unread_owners}
         report["criteri_non_rispettati"] = problems
         report["exit"] = code
         print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -731,12 +901,22 @@ def main(argv: list[str] | None = None, repo_root=None) -> int:
         for pair, row in sorted(identity_pairs(identity).items()):
             print(f"  identita' fra loro  {pair}   dE min = {min(row.values())}")
 
+    print("\nTabelle del generatore contro i documenti owner (#3627)\n")
+    if unread_owners:
+        print("  NON LETTE, in tutto o in parte: vedi l'errore in coda. Cio' che si e' letto e' giudicato.")
+    if divergences:
+        print("  DIVERGONO: vedi i criteri in coda.")
+    if not unread_owners and not divergences:
+        print(f"  CHROME e PHASE_INK coincidono con i token `RT_UI_*` di {HUD_STYLE_DOC}")
+        print(f"  SEMANTIC coincide con i token `RT_Sem_*` di {SEMANTIC_DOC}")
+
     if problems:
         print(f"\n{len(problems)} criteri non rispettati:")
         for problem in problems:
             print(f"   {problem}")
-    if read_error:
-        print(f"\nLETTURA FALLITA (exit {EXIT_READ_FAILED}): {read_error}", file=sys.stderr)
+    if read_errors:
+        for error in read_errors:
+            print(f"\nLETTURA FALLITA (exit {EXIT_READ_FAILED}): {error}", file=sys.stderr)
         return code
     if problems:
         return code

@@ -1621,6 +1621,15 @@ Ogni token di questa sezione ha un valore in `ERTUIToken`, e il suo colore si le
 - **Questa tabella e la palette in C++ si controllano a vicenda.** `RefactorTactics.UI.Palette.MatchesStyleGuide`
   rilegge le righe `RT_UI_…` di questa sezione. Fallisce se un token dell'enum manca qui, se una riga qui manca
   nell'enum, o se un esadecimale non coincide.
+- **Il generatore degli asset ne tiene una copia, e anche quella è controllata.** Le tabelle `CHROME` e
+  `PHASE_INK` di `tools/hud-assets/generate_hud_assets.py` copiano i token di questa sezione che le icone usano.
+  Il gate `PAL` del generatore, e il referto `python tools/hud-assets/color_metrics.py`, li confrontano per
+  nome, rileggendo le righe di questa sezione e solo di questa: un valore cambiato da una parte sola è un
+  rosso ([#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627)). Chi ritocca un token
+  qui rilancia il referto: è fra i controlli di [`AGENTS.md`](../../../AGENTS.md) §9. ⚠️ Il token del testo spento
+  di questa sezione **non** è il grigio semantico delle icone di
+  [`02-color-system.md`](../../research/design/icon/visual-language/02-color-system.md): stessa parola, due
+  token, due valori, e nessuno dei due va allineato all'altro.
 - **Gli esadecimali scritti nei test dello slot non sono copie da migrare.** `RTActionSlotMockupLookTests` e
   `RTActionBarNamedPortsTests` li tengono letterali di proposito: sono l'oracolo, indipendente dalla palette, che
   dice che il passaggio ai token non ha cambiato un pixel.

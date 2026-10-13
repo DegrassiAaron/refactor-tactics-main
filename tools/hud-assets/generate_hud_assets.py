@@ -37,7 +37,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from action_axes import action_axes, hero_ability_axes, surfaces_created
-from color_metrics import check_overlay, check_palette, inks_by_owner, overlay_colors
+from color_metrics import (READ_ERRORS, check_overlay, check_palette, check_palette_owners,
+                           hud_state_sets, inks_by_owner, overlay_colors)
 
 try:
     import cairosvg
@@ -56,6 +57,10 @@ except (ImportError, OSError):  # pragma: no cover - dipendenza opzionale, e la 
 # --------------------------------------------------------------------------------------------------
 # Chrome: `progettazione-hud.md` §32. Semantica: `02-color-system.md` §2 (base Okabe-Ito).
 # Nessun valore inventato qui: se un colore serve e non c'e', si aggiunge prima al documento owner.
+#
+# 🔑 **Queste tabelle sono COPIE, e da `#3627` il gate `PAL` le confronta coi loro documenti, per nome**:
+# `CHROME` e `PHASE_INK` coi token `RT_UI_*` di §32, `SEMANTIC` coi token `RT_Sem_*` di `02-color-system.md`.
+# Una voce senza token, o con un valore diverso, e' un `PAL` rosso. Vedi `check_colour_gates`.
 
 CHROME = {
     "BG_Deep": "#080F14",
@@ -68,6 +73,10 @@ CHROME = {
     "Amber": "#FFD456",
     "Red": "#FF4D4D",
     "White": "#FFFFFF",
+    # Il testo e le icone SPENTI dell'HUD: il token `RT_UI_Text_Disabled` di §32. `T9` lo misura contro le
+    # fasi, insieme al grigio semantico qui sotto.
+    # ⚠️ Non e' `SEMANTIC["Disabled"]`: stessa parola, altro vocabolario, altro valore.
+    "Text_Disabled": "#6B7684",
 }
 
 SEMANTIC = {
@@ -78,6 +87,9 @@ SEMANTIC = {
     "Reaction": "#CC79A7",
     "Electric": "#F0E442",
     "Defense": "#56B4E9",
+    # `RT_Sem_Disabled`: la tinta SEMANTICA di un'icona che dice «non disponibile, esaurito».
+    # ⛔ **Non e' una copia di `RT_UI_Text_Disabled`, e non va allineata a quello** (`#3627`, decisione
+    # d'autore del 2026-10-13): sono due token di due vocabolari, con due documenti owner.
     "Disabled": "#6B7280",
 }
 
@@ -2606,8 +2618,65 @@ def color_phase_audit(entries: list) -> tuple[list, list, list]:
                         f"risolve in `{macro}` e vuole {want}, ma porta {got} (token `{token}`)"))
     return ok, bad, no_ink
 
+def check_colour_gates() -> list[str]:
+    """`T9` e `PAL`: i gate che giudicano i COLORI di questo file. Restituisce gli errori; vuoto = passa.
+
+    Stanno in una funzione propria perche' non rasterizzano niente: si possono provare senza `cairosvg`, e
+    `color_metrics_test.py` lo fa — una tabella ritoccata in memoria deve produrre un errore QUI, altrimenti
+    il controllo esiste e nessuno lo chiama, che e' il difetto di `#3626`.
+    """
+    errors: list[str] = []
+
+    # T9 — i quattro colori delle fasi sono davvero distinguibili (D-233).
+    # T8 verifica che ogni icona porti il colore GIUSTO; questo verifica che quei colori SIANO una
+    # palette. Sono due domande diverse: un set in cui due fasi collassano in tritanopia supererebbe
+    # T8 senza un errore, perche' ogni icona porterebbe correttamente un colore indistinguibile.
+    #
+    # Gli stati contro cui si misura li definisce `hud_state_sets`, una volta sola per il gate e per il
+    # referto: fra questi i DUE grigi spenti, quello che l'HUD disegna e quello semantico delle icone.
+    hud_states, hud_surfaces = hud_state_sets(CHROME, SEMANTIC)
+    errors += [f"T9: {e}" for e in check_palette(PHASE_INK, hud_states, hud_surfaces)]
+
+    # T9, l'altra meta' (D-234): sull'overlay del mondo lo stesso canale porta DUE assi — l'identita' di
+    # squadra e la fase della linea di scatto — e i loro colori si leggono da `UI/RTHUD.cpp`.
+    #
+    # 🔴 **Fino a `#3626` questo gate NON la misurava**, e tre commenti dicevano di si': due in `RTHUD.cpp`
+    # e uno in `RTHudIntentPresentationTests.cpp`. Il controllo viveva solo nel referto `color_metrics.py`
+    # lanciato a mano, che ha smesso di girare il 2026-09-04 senza che nessuno se ne accorgesse. Qui lo
+    # esegue chiunque rigeneri gli asset, e una riga di `RTHUD.cpp` che cambia forma diventa un `T9` rosso.
+    #
+    # ⚠️ Si cattura anche il file che manca o che non si apre, non solo la forma cambiata: un'eccezione
+    # qui farebbe uscire il generatore con un traceback DOPO aver scritto le icone e PRIMA del verdetto,
+    # che e' la perdita descritta nel blocco di `#3002` piu' sotto. L'elenco delle eccezioni e' quello del
+    # referto (`READ_ERRORS`), non una copia.
+    try:
+        overlay_identity, overlay_phase = overlay_colors(REPO_ROOT)
+    except READ_ERRORS as error:
+        errors.append(f"T9: l'overlay del mondo non si legge — {type(error).__name__}: {error}")
+    else:
+        errors += [f"T9: {e}" for e in check_overlay(
+            overlay_identity, overlay_phase, inks_by_owner(PHASE_INK, CHROME, SEMANTIC), PHASE_INK)]
+
+    # PAL — le tabelle di colore di questo file sono le stesse dei documenti che ne sono owner (`#3627`).
+    # `T8` e `T9` giudicano i colori che trovano QUI: se una copia e' gia' diversa dal documento, giudicano
+    # il colore sbagliato e lo trovano in ordine. Questo e' il gate che lega la copia alla fonte.
+    #
+    # ⚠️ **Non ha un numero `T`, apposta.** I numeri sono quelli dei test di accettazione della specifica
+    # dell'alfabeto (`09-alfabeto-fase-e-conseguenza.md` §7), dove il decimo e' la copertura delle chiavi.
+    # `T8` e `T9` di questo file gia' non sono i suoi: un terzo numero preso in prestito avrebbe mandato chi
+    # legge «il gate T10» in un documento a cercare un test che parla d'altro.
+    #
+    # Un documento che non si legge non toglie il giudizio sull'altro: le due liste arrivano separate.
+    divergences, unread = check_palette_owners(PHASE_INK, CHROME, SEMANTIC, REPO_ROOT)
+    errors += [f"PAL: {e}" for e in divergences]
+    errors += [f"PAL: un documento owner della palette non si legge — {e}" for e in unread]
+    return errors
+
+
 def check_alphabet_gates(entries: list) -> list[str]:
-    """T1, T3, T5, T6, T7 della specifica. Restituisce gli errori; vuoto = passa."""
+    """T1, T3, T5, T6, T7 della specifica, piu' i gate propri di questo file: T8, T9 e PAL.
+
+    Restituisce gli errori; vuoto = passa."""
     errors: list[str] = []
     scale = 240 / GRID
 
@@ -2646,33 +2715,8 @@ def check_alphabet_gates(entries: list) -> list[str]:
         if semantic not in COLOR_DEBT:
             errors.append(f"T8: `{semantic}` {why}")
 
-    # T9 — i quattro colori delle fasi sono davvero distinguibili (D-233).
-    # T8 verifica che ogni icona porti il colore GIUSTO; questo verifica che quei colori SIANO una
-    # palette. Sono due domande diverse: un set in cui due fasi collassano in tritanopia supererebbe
-    # T8 senza un errore, perche' ogni icona porterebbe correttamente un colore indistinguibile.
-    hud_states = {k: CHROME[k] for k in ("Cyan", "Violet", "Amber", "Red")}
-    hud_states["Disabled"] = SEMANTIC["Disabled"]
-    errors += [f"T9: {e}" for e in check_palette(
-        PHASE_INK, hud_states, {k: CHROME[k] for k in ("BG_Panel", "BG_Raised")})]
-
-    # T9, l'altra meta' (D-234): sull'overlay del mondo lo stesso canale porta DUE assi — l'identita' di
-    # squadra e la fase della linea di scatto — e i loro colori si leggono da `UI/RTHUD.cpp`.
-    #
-    # 🔴 **Fino a `#3626` questo gate NON la misurava**, e tre commenti dicevano di si': due in `RTHUD.cpp`
-    # e uno in `RTHudIntentPresentationTests.cpp`. Il controllo viveva solo nel referto `color_metrics.py`
-    # lanciato a mano, che ha smesso di girare il 2026-09-04 senza che nessuno se ne accorgesse. Qui lo
-    # esegue chiunque rigeneri gli asset, e una riga di `RTHUD.cpp` che cambia forma diventa un `T9` rosso.
-    #
-    # ⚠️ Si cattura anche il file che manca o che non si apre, non solo la forma cambiata: un'eccezione
-    # qui farebbe uscire il generatore con un traceback DOPO aver scritto le icone e PRIMA del verdetto,
-    # che e' la perdita descritta nel blocco di `#3002` piu' sotto.
-    try:
-        overlay_identity, overlay_phase = overlay_colors(REPO_ROOT)
-    except (RuntimeError, OSError, UnicodeDecodeError) as error:
-        errors.append(f"T9: l'overlay del mondo non si legge — {type(error).__name__}: {error}")
-    else:
-        errors += [f"T9: {e}" for e in check_overlay(
-            overlay_identity, overlay_phase, inks_by_owner(PHASE_INK, CHROME, SEMANTIC), PHASE_INK)]
+    # T9 e PAL — i colori: che le fasi siano una palette, e che le tabelle siano quelle dei documenti.
+    errors += check_colour_gates()
 
     if cairosvg is None:
         errors.append("T1/T3: non misurabili senza cairosvg")
@@ -2903,7 +2947,8 @@ def main() -> int:
             emit(f"   {e}")
     else:
         emit("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
-              "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile")
+              "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile · "
+              "PAL tabelle = documenti owner")
         for key, why in ALPHABET_EXEMPT.items():
             emit(f"   ⏱️  deroga dichiarata: {key} — {why}")
     if missing:
