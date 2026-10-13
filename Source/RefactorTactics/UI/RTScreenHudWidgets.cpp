@@ -1842,10 +1842,23 @@ FText URTFastDecisionWidget::GetPromptText() const
 		return FText::GetEmpty();
 	}
 
-	// ⛔ **Niente nome del bersaglio, e la ragione sta nella dichiarazione**: il DTO porta un
-	// `TargetSnapshotIndex`, non un id stabile, e risolverlo qui nominerebbe l'unita' sbagliata in ogni
-	// partita in cui qualcuno e' gia' caduto. Un'etichetta neutra e' l'unica cosa che questo widget sa.
-	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
+	// ⛔ **Qui non si risolve un indice, e non si e' mai potuto**: il DTO porta un `TargetSnapshotIndex`,
+	// non un id stabile, e risolverlo nel widget nominerebbe l'unita' sbagliata in ogni partita in cui
+	// qualcuno e' gia' caduto.
+	//
+	// ✅ **Da `#3667` i nomi arrivano gia' scritti**: li risolve il turn manager nell'istante in cui costruisce
+	// la vista, contro l'array in cui l'indice vale. Qui si compone il titolo con cio' che la vista porta —
+	// «Guardia reattiva — Aevik» — e senza nomi resta «Reazione», come prima.
+	return RTReactionResponseText::TitleFor(GetWindow());
+}
+
+FText URTFastDecisionWidget::GetSubtitleText() const
+{
+	if (!IsWindowOpen())
+	{
+		return FText::GetEmpty();
+	}
+	return RTReactionResponseText::SubtitleFor(GetWindow());
 }
 
 float URTFastDecisionWidget::GetCountdownFraction() const
@@ -1902,6 +1915,15 @@ void URTFastDecisionWidget::RefreshLook()
 	{
 		SafeOutcomeText->SetText(GetSafeOutcomeText());
 		SafeOutcomeText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (SubtitleText)
+	{
+		// Il sottotitolo (`#3667`): che cosa ha fatto scattare la finestra. Senza una frase la riga si
+		// toglie, invece di lasciare uno spazio vuoto sotto il titolo.
+		const FText Sottotitolo = GetSubtitleText();
+		SubtitleText->SetText(Sottotitolo);
+		SubtitleText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+		RTShowIf(SubtitleText, !Sottotitolo.IsEmpty());
 	}
 }
 
@@ -1994,7 +2016,9 @@ FText URTFastDecisionOptionWidget::GetOptionLabel() const
 
 FText URTFastDecisionOptionWidget::GetOptionDescription() const
 {
-	return RTReactionResponseText::DescriptionFor(Option.Response);
+	// L'opzione INTERA e non la sola risposta (`#3667`): un `FIRE` porta il nome del bersaglio che il core
+	// ha risolto, e la frase diventa «Attacca Ivrin». Le altre restano quelle della tabella.
+	return RTReactionResponseText::DescriptionFor(Option);
 }
 
 FText URTFastDecisionOptionWidget::GetKeyLabel() const

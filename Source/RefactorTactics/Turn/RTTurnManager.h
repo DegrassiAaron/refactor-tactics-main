@@ -920,9 +920,37 @@ public:
 	 * di cancellarla perche' la ragione che dava — la durata non deve avere una seconda sorgente — vale
 	 * ancora, ed e' il motivo per cui questo metodo esiste invece di lasciare che ogni chiamante componga
 	 * filtro e durata da se'.
+	 *
+	 * ➕ **`Names`** (`#3667`): i nomi che il sito ha risolto con `MakeReactionWindowNames`. Passano dal
+	 * filtro come tutto il resto, quindi un avversario non li riceve. Senza, la vista resta senza nomi e la
+	 * finestra dice «Reazione»: e' il comportamento di prima, e quello dei chiamanti che non hanno unita'.
 	 */
 	FRTReactionWindowView MakeReactionWindowView(const FRTReactionOpportunity& Opportunity,
-		int32 OwnerTeamId, int32 ObserverTeamId) const;
+		int32 OwnerTeamId, int32 ObserverTeamId,
+		const FRTReactionWindowNames& Names = FRTReactionWindowNames()) const;
+
+	/**
+	 * I nomi di una finestra, risolti **contro l'array in cui i suoi indici valgono** (`#3667`).
+	 *
+	 * 🔴 **`SnapshotUnits` e' lo spazio di id di `MakeCurrentSnapshot`, che scarta i morti — non un roster.**
+	 * `Key.OwnerId` e ogni `FIRE:<i>` sono indici in QUELL'array: risolti su un altro, dopo un KO nominano
+	 * l'unita' sbagliata. E' il difetto per cui il widget diceva «Reazione» e non un nome, e la ragione per
+	 * cui i nomi si scrivono qui, nell'istante in cui il sito ha quell'array in mano, e mai dopo.
+	 *
+	 * Che cosa risolve:
+	 * - `ReactorName`: l'unita' di `Key.OwnerId`;
+	 * - `ReactionName`: il `DisplayName` della voce del SUO kit con id `Key.ReactionDefId`. La stessa fonte
+	 *   che la vista degli intenti usa per il proprio campo omonimo; se il kit non la nomina resta vuoto;
+	 * - `TargetNames`: il bersaglio di ogni `FIRE:<i>`;
+	 * - `TriggerNames`: quegli stessi bersagli. Nell'Overwatch chi fa scattare la finestra E' cio' a cui si
+	 *   puo' sparare, e il trigger esiste solo per un'unita' `Detected` e in linea di vista: il nome e' gia'
+	 *   noto a chi riceve la vista. ⚠️ Per il `Brace` questo elenco esce vuoto — non ci sono `FIRE` — e chi
+	 *   spinge lo aggiunge il sito, con `URTReactionWindowLibrary::AddTriggerIfDetected`.
+	 *
+	 * Statica e senza stato: si prova senza montare una partita.
+	 */
+	static FRTReactionWindowNames MakeReactionWindowNames(const FRTReactionOpportunity& Opportunity,
+		TConstArrayView<ARTUnit*> SnapshotUnits);
 
 	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")

@@ -47,6 +47,48 @@ struct FRTReactionWindowOptionView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	int32 TargetSnapshotIndex = INDEX_NONE;
+
+	/**
+	 * Il nome del bersaglio, quando la risposta ne ha uno: «Ivrin» per un `FIRE:<i>`. Vuoto altrimenti.
+	 *
+	 * 🔑 **E' la risposta al problema che `TargetSnapshotIndex` dichiara qui sopra** (`#3667`): l'indice non
+	 * si puo' risolvere fuori dall'array che ha costruito la finestra, quindi il nome lo risolve il
+	 * PRODUTTORE, in quell'istante, e arriva qui come testo gia' scritto. Chi disegna non risolve niente.
+	 *
+	 * ⚠️ Non e' informazione nuova per chi lo riceve: e' l'unita' a cui quella risposta spara, e la
+	 * risposta e' gia' sua.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	FText TargetName;
+};
+
+/**
+ * I nomi che il PRODUTTORE di una finestra risolve nell'istante in cui la costruisce (`#3667`).
+ *
+ * Non e' una `USTRUCT` e non attraversa nessun confine: e' l'argomento con cui chi ha in mano lo snapshot
+ * — il turn manager — passa i nomi a `FilterWindowForTeam`, che decide a chi consegnarli. Un avversario
+ * non ne riceve nessuno, perche' il filtro esce prima di leggerli.
+ */
+struct FRTReactionWindowNames
+{
+	/** Il nome della reazione nel kit di chi decide: «Guardia reattiva». Vuoto se il kit non la nomina. */
+	FText ReactionName;
+
+	/** Il nome dell'unita' che decide: «Aevik». */
+	FText ReactorName;
+
+	/**
+	 * Chi ha fatto scattare la finestra, nell'ordine in cui il produttore li ha trovati.
+	 *
+	 * 🔴 **Entra solo chi la squadra del proprietario RILEVA in quell'istante** (R2.2). Per l'Overwatch e'
+	 * vero per costruzione: il trigger esiste solo per un'unita' `Detected` e in linea di vista. Per il
+	 * `Brace` no — chi spinge puo' farlo da una cella che la squadra non vede — e il nome passa da
+	 * `URTReactionWindowLibrary::AddTriggerIfDetected`, che e' l'unico punto in cui la regola e' scritta.
+	 */
+	TArray<FText> TriggerNames;
+
+	/** Il nome di ogni bersaglio di un `FIRE:<i>`, per indice di snapshot. Si legge per chiave, non si itera. */
+	TMap<int32, FText> TargetNames;
 };
 
 /**
@@ -129,6 +171,33 @@ struct FRTReactionWindowView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	FString SafeResponse;
+
+	// --- I nomi (`#3667`): testo gia' scritto dal produttore, mai risolto da chi disegna -----------------
+	//
+	// 🔑 **Si risolvono dove l'indice di snapshot VALE**, cioe' nell'istante in cui il turn manager
+	// costruisce la vista. Da `#3666` la vista si costruisce prima e si consegna dopo: fra i due momenti
+	// questi campi sono testo, e non si ricalcolano. Un'unita' che cade nel frattempo non cambia il titolo.
+	//
+	// ⚠️ **Non sono informazione futura**, ed e' la ragione per cui `OpportunityLeaksNoFuture` li ammette:
+	// nominano la reazione e l'unita' di chi decide, che sono sue, e le unita' che la sua squadra rileva gia'.
+
+	/** Il nome della reazione, dal kit di chi decide: «Guardia reattiva». Vuoto se il kit non la nomina. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	FText ReactionName;
+
+	/** Il nome dell'unita' che decide: «Aevik». */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	FText ReactorName;
+
+	/**
+	 * Chi ha fatto scattare la finestra. Vuoto quando nessuno e' nominabile.
+	 *
+	 * 🔴 **Un nome avversario sta qui solo se la squadra di chi decide lo rileva** (R2.2). Per il `Brace`
+	 * spinto da un'unita' che la squadra non vede l'elenco resta vuoto, e il sottotitolo dice «Un nemico ti
+	 * spinge»: il DTO non porta il nome, quindi nessun widget puo' mostrarlo per sbaglio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	TArray<FText> TriggerNames;
 };
 
 /**
@@ -176,7 +245,25 @@ public:
 	 * esiste per impedire. Il chiamante e' il core, che ha gia' l'opportunity in mano; la presentazione
 	 * riceve il **risultato**, che e' `BlueprintType` per intero. UHT lo ha rifiutato al primo tentativo, e
 	 * aveva ragione.
+	 *
+	 * ➕ **`Names`** (`#3667`): i nomi che il produttore ha risolto dal proprio snapshot. Entrano nella vista
+	 * SOLO se la vista si apre: i rifiuti qui sopra escono prima di leggerli, quindi un avversario non
+	 * riceve un campo in piu' — `FilterWindowForTeam` resta l'unico filtro (R2.4).
 	 */
 	static FRTReactionWindowView FilterWindowForTeam(int32 ObserverTeamId, int32 OwnerTeamId,
-		const FRTReactionOpportunity& Opportunity, float WindowSeconds);
+		const FRTReactionOpportunity& Opportunity, float WindowSeconds,
+		const FRTReactionWindowNames& Names = FRTReactionWindowNames());
+
+	/**
+	 * Aggiunge a `Names` il nome di chi ha fatto scattare la finestra, **solo se la squadra del proprietario
+	 * lo rileva** (R2.2, `#3667`). E' l'unico punto in cui la regola e' scritta.
+	 *
+	 * `OwnerTeamAwareness` e' cio' che `URTPerceptionLibrary::TeamAwarenessOfCell` risponde per la cella di
+	 * quell'unita', con gli osservatori della squadra di chi decide. Solo `Detected` nomina: `Uncertain` e'
+	 * un contatto senza identita', e dargli un nome gliela darebbe.
+	 *
+	 * @return vero se il nome e' entrato.
+	 */
+	static bool AddTriggerIfDetected(FRTReactionWindowNames& Names, const FText& Name,
+		ERTAwareness OwnerTeamAwareness);
 };

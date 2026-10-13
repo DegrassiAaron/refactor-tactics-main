@@ -1117,8 +1117,14 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 			//
 			// 🔑 **Costruito QUI, consegnato DOPO** (`#3666`): la vista legge lo snapshot di questo istante, ma il
 			// giocatore la riceve quando il playback ha mostrato l'ingresso. Vedi `SuspendReactionWindowForPresentation`.
+			//
+			// 🔑 **I nomi si risolvono QUI, contro `Units`** (`#3667`): e' l'array in cui `OwnerId` e i
+			// `FIRE:<i>` di questa opportunity valgono. Alla consegna sono gia' testo: un'unita' che cade
+			// fra i due momenti non cambia il titolo, e nessun widget risolve un indice.
 			SuspendReactionWindowForPresentation(
-				MakeReactionWindowView(Opportunity, OwnerTeamId, OwnerTeamId), Opportunity.Key.OwnerId);
+				MakeReactionWindowView(Opportunity, OwnerTeamId, OwnerTeamId,
+					MakeReactionWindowNames(Opportunity, Units)),
+				Opportunity.Key.OwnerId);
 
 			return ERTMovementAdvanceResult::Suspended;
 		}

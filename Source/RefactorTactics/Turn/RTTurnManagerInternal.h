@@ -35,6 +35,20 @@
  */
 namespace RTTurnManagerInternal
 {
+/**
+ * Il nome con cui una finestra di reazione chiama un'unita' (`#3667`): quello della sua scheda nell'HUD.
+ *
+ * Sta qui perche' lo scrivono due fasi — il Move per l'Overwatch, il Blast per il `Brace` — e un titolo che
+ * dicesse «Aevik» dove il sottotitolo dice `RTUnit_3` sarebbe lo stesso difetto che `ARTUnit::LogLabel`
+ * esiste per chiudere nel log. La cascata e' di `ARTUnit::DisplayLabel` (D-120), non si riscrive.
+ */
+inline FText ReactionWindowUnitName(const ARTUnit* Unit)
+{
+	return IsValid(Unit)
+		? FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()))
+		: FText::GetEmpty();
+}
+
 /** Gli osservatori di una squadra, alle posizioni con cui si decide il verdetto della traccia. */
 struct FRTRouteObserverTeam
 {

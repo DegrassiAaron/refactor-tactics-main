@@ -265,13 +265,24 @@ bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
 	// `WindowSeconds` e' un parametro pubblico della regola (ADR-0004 §8), non uno stato di partita;
 	// `Options` sono le risposte che il proprietario puo' gia' scegliere; `SafeResponse` e' cio' che accade
 	// allo scadere, cioe' una conseguenza gia' decisa e non una previsione.
+	//
+	// ➕ **I tre nomi** (`#3667`), e perche' nessuno e' informazione futura ne' altrui:
+	// `ReactionName` e `ReactorName` nominano la reazione e l'unita' di CHI DECIDE, che sono sue;
+	// `TriggerNames` nomina chi ha fatto scattare la finestra, e ci entra solo un'unita' che la squadra di
+	// chi decide RILEVA in quell'istante — per l'Overwatch e' la condizione stessa del trigger, per il
+	// `Brace` la applica `URTReactionWindowLibrary::AddTriggerIfDetected`. Dicono chi c'e' ORA e chi lo sa
+	// gia', non che cosa fara'. E per un avversario la vista e' ai default: i nomi non ci sono.
 	CheckClosedFieldSet(FRTReactionWindowView::StaticStruct(), TEXT("FRTReactionWindowView"),
-		{ TEXT("bOpen"), TEXT("Key"), TEXT("WindowSeconds"), TEXT("Options"), TEXT("SafeResponse") });
+		{ TEXT("bOpen"), TEXT("Key"), TEXT("WindowSeconds"), TEXT("Options"), TEXT("SafeResponse"),
+		  TEXT("ReactionName"), TEXT("ReactorName"), TEXT("TriggerNames") });
 
 	// `TargetSnapshotIndex` porta il nome del proprio spazio di id apposta: e' un indice in
 	// `MakeCurrentSnapshot`, non un id stabile, e chiamarlo `UnitId` invitava a risolverlo altrove.
+	//
+	// ➕ `TargetName` (`#3667`) e' quell'indice gia' risolto dal produttore: il nome dell'unita' a cui la
+	// risposta spara. Non aggiunge niente a cio' che la risposta — che e' gia' di chi decide — dice.
 	CheckClosedFieldSet(FRTReactionWindowOptionView::StaticStruct(), TEXT("FRTReactionWindowOptionView"),
-		{ TEXT("Response"), TEXT("TargetSnapshotIndex") });
+		{ TEXT("Response"), TEXT("TargetSnapshotIndex"), TEXT("TargetName") });
 
 	return true;
 }
@@ -744,6 +755,142 @@ bool FRTReactionWindowClosedWithoutBoundaryTest::RunTest(const FString&)
 	TestEqual(TEXT("nessuna opzione"), View.Options.Num(), 0);
 	TestEqual(TEXT("nessun countdown"), View.WindowSeconds, 0.f);
 
+	return true;
+}
+
+/**
+ * **I NOMI DI UNA FINESTRA VANNO SOLO ALLA SQUADRA DI CHI DECIDE** (`#3667`, R2.4).
+ *
+ * Il produttore passa i nomi a `FilterWindowForTeam` insieme all'opportunity, e il filtro decide a chi
+ * consegnarli. La regola da tenere ferma e' che i rifiuti escono PRIMA di leggerli: un avversario, una squadra
+ * non risolta e un'opportunity senza boundary ricevono una vista ai default, e ai default i nomi non ci sono.
+ *
+ * ⚠️ **Si confronta col default, campo per campo, e non con «`bOpen` e' falso».** Un filtro che spegnesse il
+ * flag e lasciasse i nomi scritti passerebbe un test che guarda il solo flag — e un widget che leggesse
+ * `ReactorName` senza chiedere `bOpen` li mostrerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowNamesGoToTheOwnersTeamTest,
+	"RefactorTactics.Reactions.WindowNamesGoOnlyToTheOwnersTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
+{
+	const int32 OwnerTeam = 0;
+	const FRTReactionOpportunity Opportunity =
+		MakeOverwatchWindowForViewTest(4, 9, 3, /*OwnerId=*/7, ERTMatchPhase::Move, /*Seq=*/0);
+
+	// Il bersaglio del primo `FIRE` dell'opportunity: il nome va cercato per QUELL'indice.
+	int32 PrimoBersaglio = INDEX_NONE;
+	for (const FString& Risposta : Opportunity.AllowedResponses)
+	{
+		PrimoBersaglio = URTReactionOpportunityLibrary::FireResponseTarget(Risposta);
+		if (PrimoBersaglio != INDEX_NONE) { break; }
+	}
+	if (!TestNotEqual(TEXT("premessa: l'opportunity di prova offre almeno un FIRE"), PrimoBersaglio, (int32)INDEX_NONE))
+	{
+		return false;
+	}
+
+	FRTReactionWindowNames Nomi;
+	Nomi.ReactionName = FText::FromString(TEXT("Guardia reattiva"));
+	Nomi.ReactorName = FText::FromString(TEXT("Aevik"));
+	Nomi.TriggerNames = { FText::FromString(TEXT("Ivrin")) };
+	Nomi.TargetNames.Add(PrimoBersaglio, FText::FromString(TEXT("Ivrin")));
+	// Un nome per un indice che NESSUNA opzione porta: non deve comparire da nessuna parte.
+	Nomi.TargetNames.Add(PrimoBersaglio + 1000, FText::FromString(TEXT("Nessuno")));
+
+	// --- la squadra di chi decide riceve i nomi ---
+	const FRTReactionWindowView Propria =
+		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, Opportunity, 3.f, Nomi);
+	if (!TestTrue(TEXT("premessa: la propria squadra riceve la finestra"), Propria.bOpen)) { return false; }
+	TestEqual(TEXT("il nome della reazione"), Propria.ReactionName.ToString(), FString(TEXT("Guardia reattiva")));
+	TestEqual(TEXT("il nome di chi decide"), Propria.ReactorName.ToString(), FString(TEXT("Aevik")));
+	TestEqual(TEXT("un trigger"), Propria.TriggerNames.Num(), 1);
+	int32 ConNome = 0;
+	for (const FRTReactionWindowOptionView& Opzione : Propria.Options)
+	{
+		if (Opzione.TargetSnapshotIndex == PrimoBersaglio)
+		{
+			++ConNome;
+			TestEqual(TEXT("l'opzione che spara a quell'indice ne porta il nome"),
+				Opzione.TargetName.ToString(), FString(TEXT("Ivrin")));
+		}
+		else
+		{
+			TestTrue(*FString::Printf(TEXT("l'opzione `%s` non ha un nome che non le spetta"), *Opzione.Response),
+				Opzione.TargetName.IsEmpty());
+		}
+	}
+	TestEqual(TEXT("una sola opzione ha quel bersaglio"), ConNome, 1);
+
+	// --- senza nomi la vista e' quella di prima di `#3667` ---
+	const FRTReactionWindowView SenzaNomi =
+		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, Opportunity, 3.f);
+	TestTrue(TEXT("senza nomi la finestra si apre lo stesso"), SenzaNomi.bOpen);
+	TestTrue(TEXT("e non ne inventa"), SenzaNomi.ReactionName.IsEmpty() && SenzaNomi.ReactorName.IsEmpty()
+		&& SenzaNomi.TriggerNames.Num() == 0);
+
+	// --- i tre rifiuti: nessun nome, nessun altro campo ---
+	const auto Chiusa = [this](const FRTReactionWindowView& Vista, const TCHAR* Chi)
+	{
+		TestFalse(*FString::Printf(TEXT("%s: la finestra non esiste"), Chi), Vista.bOpen);
+		TestTrue(*FString::Printf(TEXT("%s: nessun nome della reazione"), Chi), Vista.ReactionName.IsEmpty());
+		TestTrue(*FString::Printf(TEXT("%s: nessun nome di chi decide"), Chi), Vista.ReactorName.IsEmpty());
+		TestEqual(*FString::Printf(TEXT("%s: nessun trigger"), Chi), Vista.TriggerNames.Num(), 0);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna opzione, quindi nessun nome di bersaglio"), Chi),
+			Vista.Options.Num(), 0);
+	};
+	Chiusa(URTReactionWindowLibrary::FilterWindowForTeam(/*Observer=*/1, OwnerTeam, Opportunity, 3.f, Nomi),
+		TEXT("l'avversario"));
+	Chiusa(URTReactionWindowLibrary::FilterWindowForTeam(INDEX_NONE, OwnerTeam, Opportunity, 3.f, Nomi),
+		TEXT("un osservatore non risolto"));
+	Chiusa(URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, INDEX_NONE, Opportunity, 3.f, Nomi),
+		TEXT("un proprietario non risolto"));
+
+	FRTReactionOpportunity UnaSola = Opportunity;
+	UnaSola.AllowedResponses = { FString(URTReactionOpportunityLibrary::HoldResponse()) };
+	Chiusa(URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, UnaSola, 3.f, Nomi),
+		TEXT("un'opportunity senza boundary"));
+
+	return true;
+}
+
+/**
+ * **CHI FA SCATTARE UNA FINESTRA SI NOMINA SOLO SE LA SQUADRA DI CHI DECIDE LO RILEVA** (`#3667`, R2.2).
+ *
+ * E' la regola di privacy del `Brace`: una spinta non e' soggetta alla rilevazione, e puo' arrivare da una
+ * cella che la squadra non vede. `AddTriggerIfDetected` e' l'unico punto in cui e' scritta, ed e' pura apposta.
+ *
+ * ⚠️ `Uncertain` NON nomina: e' un contatto senza identita' (CP 13.2), e un nome gliela darebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionTriggerIsNamedOnlyWhenDetectedTest,
+	"RefactorTactics.Reactions.TriggerIsNamedOnlyWhenDetected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionTriggerIsNamedOnlyWhenDetectedTest::RunTest(const FString&)
+{
+	const FText Ivrin = FText::FromString(TEXT("Ivrin"));
+
+	FRTReactionWindowNames Nomi;
+	TestFalse(TEXT("Hidden: non entra"), URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, Ivrin, ERTAwareness::Hidden));
+	TestFalse(TEXT("Uncertain: non entra"),
+		URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, Ivrin, ERTAwareness::Uncertain));
+	TestEqual(TEXT("e l'elenco e' rimasto vuoto"), Nomi.TriggerNames.Num(), 0);
+
+	TestTrue(TEXT("Detected: entra"), URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, Ivrin, ERTAwareness::Detected));
+	if (TestEqual(TEXT("un nome"), Nomi.TriggerNames.Num(), 1))
+	{
+		TestEqual(TEXT("ed e' quello"), Nomi.TriggerNames[0].ToString(), FString(TEXT("Ivrin")));
+	}
+
+	// Un nome vuoto non e' un nome: rilevato o no, non entra — una frase costruita su di lui sarebbe rotta.
+	TestFalse(TEXT("un nome vuoto non entra"),
+		URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, FText::GetEmpty(), ERTAwareness::Detected));
+	TestFalse(TEXT("ne' uno di soli spazi"),
+		URTReactionWindowLibrary::AddTriggerIfDetected(Nomi, FText::FromString(TEXT("  ")), ERTAwareness::Detected));
+	TestEqual(TEXT("l'elenco ha ancora un solo nome"), Nomi.TriggerNames.Num(), 1);
+
+	// Gli altri campi non li tocca: e' una funzione sul solo elenco dei trigger.
+	TestTrue(TEXT("non scrive il nome di chi decide"), Nomi.ReactorName.IsEmpty());
+	TestEqual(TEXT("ne' i nomi dei bersagli"), Nomi.TargetNames.Num(), 0);
 	return true;
 }
 

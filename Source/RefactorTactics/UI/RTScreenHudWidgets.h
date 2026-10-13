@@ -1936,9 +1936,21 @@ public:
 	 * ∴ mostrare un nome richiede che il **produttore** lo metta nel DTO — ha lo snapshot in mano, questo
 	 * widget no. Finche' non c'e', un'etichetta neutra e' l'unica cosa onesta: inventare un nome qui
 	 * sarebbe il difetto che quella dichiarazione esiste per impedire. Owner: `#166`, meta' «e bersaglio».
+	 *
+	 * ✅ **Da `#3667` il produttore lo mette**: `FRTReactionWindowView` porta `ReactionName` e `ReactorName`
+	 * gia' scritti, e il titolo e' «Guardia reattiva — Aevik». Il divieto qui sopra resta intero — questo
+	 * widget continua a non risolvere nessun indice — ed e' la ragione per cui i nomi arrivano come testo.
+	 * Senza nomi nella vista il titolo torna «Reazione».
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetPromptText() const;
+
+	/**
+	 * La riga sotto il titolo: che cosa ha fatto scattare la finestra (`#3667`). Vuota quando non c'e' una
+	 * finestra, o quando la vista non porta abbastanza per dirlo. La frase e' di `RTReactionResponseText`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetSubtitleText() const;
 
 	/**
 	 * Quanto resta della finestra, da 1 (appena aperta) a 0: la barra del countdown della tavola E (#3634).
@@ -1980,6 +1992,17 @@ public:
 	/** «Allo scadere: …», da `GetSafeOutcomeText()`. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
 	TObjectPtr<class UTextBlock> SafeOutcomeText;
+
+	/**
+	 * La riga sotto il titolo: che cosa ha fatto scattare la finestra (`#3667`, tavola E) — «Ivrin è entrato
+	 * nell'area controllata».
+	 *
+	 * ⚠️ **Porta OPZIONALE, e oggi `WBP_RT_FastDecision` non la ha**: finche' l'asset non guadagna un
+	 * `TextBlock` con questo nome, il sottotitolo si calcola e non si vede. Aggiungerlo e' authoring
+	 * sull'asset, e va fatto dal clone principale. `GetSubtitleText()` e' gia' leggibile da un binding.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
+	TObjectPtr<class UTextBlock> SubtitleText;
 
 	/** Scrive le porte della resa. La chiama `NativeTick`; i test la chiamano a mano. */
 	void RefreshLook();

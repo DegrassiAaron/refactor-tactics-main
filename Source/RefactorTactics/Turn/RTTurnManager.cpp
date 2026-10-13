@@ -7644,13 +7644,59 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 }
 
 FRTReactionWindowView ARTTurnManager::MakeReactionWindowView(const FRTReactionOpportunity& Opportunity,
-	int32 OwnerTeamId, int32 ObserverTeamId) const
+	int32 OwnerTeamId, int32 ObserverTeamId, const FRTReactionWindowNames& Names) const
 {
 	// L'unico contenuto di questo metodo e' il valore che una funzione pura non puo' avere: la durata
-	// autorevole. Tutto il resto — privacy, cardinalita', forma delle opzioni — resta nella libreria, che
-	// per questo si verifica senza mondo.
+	// autorevole. Tutto il resto — privacy, cardinalita', forma delle opzioni, e a chi vanno i nomi —
+	// resta nella libreria, che per questo si verifica senza mondo.
 	return URTReactionWindowLibrary::FilterWindowForTeam(ObserverTeamId, OwnerTeamId, Opportunity,
-		FastReactionDuration);
+		FastReactionDuration, Names);
+}
+
+FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReactionOpportunity& Opportunity,
+	TConstArrayView<ARTUnit*> SnapshotUnits)
+{
+	FRTReactionWindowNames Names;
+
+	// Chi decide, e come il SUO kit chiama la reazione. Un indice fuori dall'array non e' un nome: i campi
+	// restano vuoti e la finestra dice «Reazione», che e' cio' che diceva prima di `#3667`.
+	const int32 OwnerId = Opportunity.Key.OwnerId;
+	if (SnapshotUnits.IsValidIndex(OwnerId) && IsValid(SnapshotUnits[OwnerId]))
+	{
+		const ARTUnit* Owner = SnapshotUnits[OwnerId];
+		Names.ReactorName = RTTurnManagerInternal::ReactionWindowUnitName(Owner);
+		for (int32 i = 0; i < Owner->NumAbilities(); ++i)
+		{
+			const URTActionData* Azione = Owner->GetAbility(i);
+			if (Azione && Azione->Def.ActionId == Opportunity.Key.ReactionDefId
+				&& !Azione->DisplayName.IsEmptyOrWhitespace())
+			{
+				Names.ReactionName = Azione->DisplayName;
+				break;
+			}
+		}
+	}
+
+	// I bersagli dei `FIRE:<i>`, nell'ordine dell'opportunity: e' un array, e l'ordine e' quello che il
+	// resolver ha gia' reso deterministico. `FireResponseTarget` e' l'unico parser di quel formato.
+	for (const FString& Response : Opportunity.AllowedResponses)
+	{
+		const int32 TargetId = URTReactionOpportunityLibrary::FireResponseTarget(Response);
+		if (TargetId == INDEX_NONE || Names.TargetNames.Contains(TargetId)
+			|| !SnapshotUnits.IsValidIndex(TargetId) || !IsValid(SnapshotUnits[TargetId]))
+		{
+			continue;
+		}
+		const FText Nome = RTTurnManagerInternal::ReactionWindowUnitName(SnapshotUnits[TargetId]);
+		Names.TargetNames.Add(TargetId, Nome);
+		// 🔑 Il bersaglio di un `FIRE` E' chi ha fatto scattare la finestra, ed e' `Detected` per
+		// costruzione: `BuildOverwatchTriggers` non apre un trigger per un'unita' che la squadra del
+		// watcher non rileva (ADR-0004 §6). Per questo qui il nome entra senza passare da
+		// `AddTriggerIfDetected` — la domanda ha gia' avuto risposta a monte.
+		Names.TriggerNames.Add(Nome);
+	}
+
+	return Names;
 }
 
 FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportunity& Opportunity,

@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-13 — La finestra di reazione dice chi reagisce, a che cosa, e contro chi
+
+**Origine**: [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), la parte «e bersaglio» che `D-491` lasciava a [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166). I nomi li scrive il turn manager nella vista, nell'istante in cui la costruisce; chi spinge si nomina solo se la squadra di chi decide lo rileva. Il sottotitolo si calcola e non si vede finché `WBP_RT_FastDecision` non ha la sua riga di testo.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-491`, annotazione in coda: la parte che il punto (5) lasciava aperta è arrivata; la tabella resta generica, il nome sta nella vista; la frase di `HOLD` è «Non attaccare» |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §11.1: la frase di un `FIRE` nomina il bersaglio; un punto nuovo su titolo e sottotitolo, con la regola di rilevazione e il `TextBlock` che manca |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | la nota di `U74` sui testi lunghi: le frasi di `FIRE` e `HOLD` sono cambiate, la regola resta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK` e `PIE-V01-RXBRACE`, note in coda alle celle: i testi nuovi, e il sottotitolo che non si vede ancora. Verdetti invariati, voci non rigiudicate |
+
+---
+
 ## 2026-10-13 — Le tabelle di colore del generatore sono copie controllate, e i due grigi restano due token
 
 **Origine**: [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627), con la decisione d'autore `P4` del referto dello stesso giorno. Il generatore degli asset copia la palette da due documenti, e nessuno confrontava le copie. La divergenza che la issue dichiarava su `Disabled` non c'era: sono due token di due vocabolari.

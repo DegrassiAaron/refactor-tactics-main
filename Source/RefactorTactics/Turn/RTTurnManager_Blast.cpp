@@ -2885,8 +2885,56 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito. Costruito qui e
 					// consegnato quando il playback ha mostrato la spinta (`#3666`), come nell'altro sito.
 					const int32 OwnerTeamId = T->TeamId;
+
+					// 🔑 **I nomi, risolti qui** (`#3667`). `BlastAliveUnits` e' lo spazio in cui vive
+					// `Key.OwnerId`: lo ha costruito il ramo qui sopra, proprio perche' una finestra si apre.
+					FRTReactionWindowNames NomiDellaFinestra = MakeReactionWindowNames(BraceOpportunity, BlastAliveUnits);
+
+					// 🔴 **Chi spinge si nomina solo se la squadra di chi decide lo RILEVA** (R2.2). Una
+					// spinta non e' soggetta alla rilevazione: puo' arrivare da una cella che la squadra non
+					// vede, e dare un nome a quell'unita' direbbe al giocatore CHI c'e' in un punto che non
+					// conosce. Senza nome il sottotitolo e' «Un nemico ti spinge».
+					//
+					// La cella e' quella da cui la spinta e' stata registrata (`KnockFrom`), e l'unita' si
+					// ritrova sulla fotografia del Blast (`HexUnits`), che e' parallela a `Units`: a questo
+					// punto del ciclo un attore puo' essere gia' stato spostato da una spinta precedente, e
+					// cercarlo per `Cell` troverebbe la cella di dopo. Gli osservatori sono quelli di inizio
+					// passata ([D-223]), gli stessi con cui si decide chi vede queste spinte disegnate.
+					if (const FRTCellId* CellaDiChiSpinge = KnockFrom.Find(T))
+					{
+						const ARTUnit* UnitaCheSpinge = nullptr;
+						for (int32 IndiceUnita = 0; IndiceUnita < Units.Num() && IndiceUnita < Ctx.HexUnits.Num(); ++IndiceUnita)
+						{
+							if (Ctx.HexUnits[IndiceUnita].Cell == *CellaDiChiSpinge && IsValid(Units[IndiceUnita]) && Units[IndiceUnita] != T)
+							{
+								UnitaCheSpinge = Units[IndiceUnita];
+								break;
+							}
+						}
+						if (UnitaCheSpinge)
+						{
+							// Un compagno e' noto alla propria squadra per definizione: la rilevazione e' una
+							// domanda sugli AVVERSARI, e i coni di vista non la decidono per i propri.
+							ERTAwareness RilevazioneDellaSquadra = ERTAwareness::Detected;
+							if (UnitaCheSpinge->TeamId != OwnerTeamId)
+							{
+								RilevazioneDellaSquadra = ERTAwareness::Hidden;
+								for (const RTTurnManagerInternal::FRTRouteObserverTeam& SquadraDiChiDecide : PushObserverTeams)
+								{
+									if (SquadraDiChiDecide.TeamId == OwnerTeamId)
+									{
+										RilevazioneDellaSquadra = URTPerceptionLibrary::TeamAwarenessOfCell(Map, SquadraDiChiDecide.Observers, *CellaDiChiSpinge);
+										break;
+									}
+								}
+							}
+							URTReactionWindowLibrary::AddTriggerIfDetected(
+								NomiDellaFinestra, RTTurnManagerInternal::ReactionWindowUnitName(UnitaCheSpinge), RilevazioneDellaSquadra);
+						}
+					}
+
 					SuspendReactionWindowForPresentation(
-						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId),
+						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId, NomiDellaFinestra),
 						BraceOpportunity.Key.OwnerId);
 
 					// ⛔ **Si esce PRIMA dell'incremento**, quindi `NextTarget` punta ancora a questo

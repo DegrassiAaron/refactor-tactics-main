@@ -698,8 +698,10 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   riaprilo. `RosterAndPanelWearTheirClasses` vede l'override nullo una volta salvato. Lo stato in memoria non si
   riproduce in un processo fresco, e lo si vede solo a schermo.
 - 🔴 **I testi veri sono piu' lunghi di quelli della tavola: si misura con loro** (`U74`). La tavola scrive «Non
-  attaccare»; il catalogo (`RTReactionResponseText.cpp`) scrive «Non spari: lasci passare il bersaglio.», e «Hold
-  Ground» e' piu' lungo ancora. Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
+  attaccare»; il catalogo (`RTReactionResponseText.cpp`) scriveva «Non spari: lasci passare il bersaglio.», e «Hold
+  Ground» e' piu' lungo ancora. ⏱️ *Dal 2026-10-13 (#3667) le frasi di `FIRE` e `HOLD` sono quelle della tavola —
+  «Attacca {bersaglio}» e «Non attaccare» — ma la regola resta: le risposte di profilo tengono le frasi lunghe, e
+  un nome di unita' puo' essere piu' lungo di «Ivrin».* Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
   Il badge della scelta sicura e' salito nella riga dell'etichetta, la descrizione va a capo, e l'altezza
   dell'opzione e' un minimo, non un valore fisso.
 
