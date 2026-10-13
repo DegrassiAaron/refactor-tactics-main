@@ -72,12 +72,56 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	//
 	// D-490 (#3608): qui si giudica un colpo che parte, quindi conta la TRAIETTORIA e non la licenza di mira —
 	// `BlindAimDirect` ha mirato al buio, ma il primo ostacolo lo ferma come `Required`.
-	if (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Aim, Instance.Def.RangeCells,
-		URTCombatLibrary::TrajectoryPolicy(Instance.Def.LineOfSightPolicy)) == ERTHexTargetReason::NoLineOfSight)
+	//
+	// 🔴 **UN `switch` SENZA `default`, E NON UN CONFRONTO** ([D-509], `#2951`). Fino al 2026-10-13 questa
+	// riga era `Classify(...) == NoLineOfSight`, seguita da `return None`: ogni altro verdetto del
+	// classificatore cadeva nel ramo «valido». Quando `#2951` gli ha aggiunto `OtherLayer`, la casella
+	// *«i chiamanti leggono l'esito e non ricalcolano il predicato»* era vera alla lettera — e in
+	// risoluzione la regola del piano non esisteva: una mira fra piani era un'azione valida.
+	// Cosi' il prossimo verdetto aggiunto in coda a `ERTHexTargetReason` non compila finche' qualcuno
+	// non dice che cosa ne fa la risoluzione.
+	switch (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Aim, Instance.Def.RangeCells,
+		URTCombatLibrary::TrajectoryPolicy(Instance.Def.LineOfSightPolicy)))
 	{
-		return ERTActionInvalidReason::NoLineOfSight;
+	case ERTHexTargetReason::Ok:            break;
+	// I due qui sotto sono gia' usciti piu' in alto, con lo stesso criterio: restano scritti perche' il
+	// verdetto del classificatore non diventi «valido» il giorno in cui quei controlli si spostano.
+	case ERTHexTargetReason::NoMap:         return ERTActionInvalidReason::NoMap;
+	case ERTHexTargetReason::OutOfRange:    return ERTActionInvalidReason::OutOfRange;
+	case ERTHexTargetReason::OtherLayer:    return ERTActionInvalidReason::OtherLayer;
+	case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
+	// La distanza MINIMA non si rivaluta in risoluzione: il parametro non viene passato, quindi il
+	// classificatore non puo' rispondere cosi'. Non e' una regola decisa qui — e' lo stato di `#2950`.
+	case ERTHexTargetReason::TooClose:      break;
 	}
 
+	return ERTActionInvalidReason::None;
+}
+
+ERTActionInvalidReason URTActionFallbackLibrary::ValidateCellAim(const FRTActionInstance& Instance,
+	const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map)
+{
+	if (!Units.IsValidIndex(Instance.SourceUnitId))
+	{
+		return ERTActionInvalidReason::None; // nessuno che tiri: l'intento lo scarta la raccolta dei colpi
+	}
+
+	// La domanda della pianificazione, nello stesso ordine: una cella che viola anche la portata conserva
+	// il trattamento che aveva. Senza `default`, per la ragione scritta in `ValidateInstance`.
+	switch (URTCombatLibrary::ClassifyHexTargeting(Map, Units[Instance.SourceUnitId].Cell, Instance.TargetCell,
+		Instance.Def.RangeCells, URTCombatLibrary::TrajectoryPolicy(Instance.Def.LineOfSightPolicy)))
+	{
+	case ERTHexTargetReason::OtherLayer:
+		return ERTActionInvalidReason::OtherLayer;
+	// Tutti gli altri verdetti, per un colpo a CELLA, sono di `CollectHexAttacks`: la portata la scarta, la
+	// mappa assente finisce in `UnverifiableIntents`, la linea di tiro in `BlockedIntents`.
+	case ERTHexTargetReason::Ok:
+	case ERTHexTargetReason::NoMap:
+	case ERTHexTargetReason::OutOfRange:
+	case ERTHexTargetReason::NoLineOfSight:
+	case ERTHexTargetReason::TooClose:
+		break;
+	}
 	return ERTActionInvalidReason::None;
 }
 
@@ -107,9 +151,9 @@ FRTFallbackResult URTActionFallbackLibrary::ApplyFallback(const FRTActionInstanc
 	case ERTActionFallback::AttackCell:
 	{
 		// L'area parte comunque: si perde il bersaglio, si tiene la CELLA pianificata. Dove hai puntato, li'
-		// colpisci — ma solo se il problema era il BERSAGLIO. Se era la geometria (fuori portata, traiettoria
-		// bloccata, nessuna mappa) la cella ha lo stesso difetto, e colpirla vorrebbe dire sparare attraverso
-		// il muro o oltre la propria portata. `TargetGone` e' escluso perche' senza il bersaglio non si sa
+		// colpisci — ma solo se il problema era il BERSAGLIO. Se era la geometria (fuori portata, altro piano,
+		// traiettoria bloccata, nessuna mappa) la cella ha lo stesso difetto, e colpirla vorrebbe dire sparare
+		// attraverso il muro, oltre la propria portata o su un piano che non e' il proprio ([D-509]). `TargetGone` e' escluso perche' senza il bersaglio non si sa
 		// nemmeno DOVE fosse: non c'e' una cella su cui ripiegare.
 		//
 		// `TargetUnknown` (CP 13.2) e' escluso per una ragione piu' forte delle altre, e va detta: la cella

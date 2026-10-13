@@ -1003,6 +1003,19 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			}
 		}
 
+		// [D-509] — **IL PIANO DI UN BERSAGLIO A CELLA SI GIUDICA QUI.** `ValidateInstance` a un
+		// bersaglio-cella risponde `None` per costruzione, e la raccolta dei colpi un intento fra piani lo
+		// scarta SENZA un canale: lasciato a lei, l'azione sparirebbe dal turno senza una voce. Qui il
+		// rifiuto passa dal fallback dichiarato, come ogni altro motivo.
+		//
+		// ⚠️ A questo punto `TargetUnitId == INDEX_NONE` con `Reason == None` vuol dire una cosa sola: la
+		// mira E' una cella — dichiarata dal piano, o il ricordo di un contatto incerto scritto dal ramo
+		// `CellOnly` qui sopra. Il bersaglio PERSO e' gia' `TargetGone`.
+		if (Reason == ERTActionInvalidReason::None && Instance.TargetUnitId == INDEX_NONE)
+		{
+			Reason = URTActionFallbackLibrary::ValidateCellAim(Instance, HexUnits, Map);
+		}
+
 		// La copertura NON passa di qui: la registra il piano del Blast col suo reason code (NoLineOfSight), e
 		// con la traiettoria bloccata nemmeno un'area potrebbe partire — applicarle `AttackCell` significherebbe
 		// colpire attraverso il muro. Stesso discorso per la mappa assente, che e' un difetto del livello.

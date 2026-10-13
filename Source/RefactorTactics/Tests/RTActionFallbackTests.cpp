@@ -330,4 +330,56 @@ bool FRTFallbackValidationJudgesTheFrozenAimTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **I valori di `ERTActionInvalidReason` sono APPEND-ONLY, e questo test lo rende vero** ([D-509]).
+ *
+ * 🔴 **Il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.** Togliere una voce, spostarla o
+ * inserirne una in mezzo rinumera le successive e cambia il SIGNIFICATO di ogni traccia gia' scritta che ne
+ * porti una — senza cambiare la versione del formato, perche' i byte restano validi. L'header lo ripete su
+ * dieci enumeratori, e racconta che e' gia' successo: `Interrupted` fu inserito a meta', e lo trovo' una code
+ * review — «ogni test usa i nomi simbolici e nessun golden porta quelle voci».
+ *
+ * 🔑 **Si fissano NOME e NUMERO di ogni voce, in ordine.** Un test coi soli nomi simbolici resta verde dopo
+ * una rinumerazione: e' esattamente la cecita' che l'header descrive. Aggiungere un motivo vuol dire
+ * aggiungere una riga IN CODA a questa lista; qualunque altra modifica fa cadere il test, ed e' voluto.
+ *
+ * ⚠️ Se un giorno una rinumerazione fosse DECISA, questo test si aggiorna nella stessa PR che alza
+ * `ERTTurnLogFormatVersion` e migra le tracce: e' la sola forma in cui quel cambio e' legittimo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInvalidReasonValuesAreAppendOnlyTest,
+	"RefactorTactics.Actions.Fallback.InvalidReasonValuesAreAppendOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInvalidReasonValuesAreAppendOnlyTest::RunTest(const FString&)
+{
+	const TCHAR* Attesi[] = {
+		TEXT("None"), TEXT("TargetGone"), TEXT("TargetDead"), TEXT("TargetFriendly"), TEXT("OutOfRange"),
+		TEXT("NoLineOfSight"), TEXT("NoMap"), TEXT("TargetUnknown"), TEXT("SlotOccupied"),
+		TEXT("InsufficientMovementPoints"), TEXT("OnCooldown"), TEXT("Interrupted"), TEXT("NoEffect"),
+		TEXT("Neutralised"), TEXT("Unbalanced"), TEXT("DoorLocked"), TEXT("DoorDestroyed"),
+		TEXT("TerrainDeniesDash"), TEXT("DashNotAligned"), TEXT("DashPathBlocked"), TEXT("Stunned"),
+		TEXT("OtherLayer") };
+
+	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
+	if (!TestNotNull(TEXT("l'enum dei motivi e' riflesso"), Motivi)) { return false; }
+
+	// `NumEnums()` conta anche il `_MAX` sintetico che UHT aggiunge in coda.
+	const int32 Dichiarati = Motivi->NumEnums() - 1;
+	TestEqual(TEXT("il numero dei motivi e' quello della lista: uno in piu' va aggiunto IN CODA qui"),
+		Dichiarati, static_cast<int32>(UE_ARRAY_COUNT(Attesi)));
+
+	for (int32 I = 0; I < FMath::Min(Dichiarati, static_cast<int32>(UE_ARRAY_COUNT(Attesi))); ++I)
+	{
+		const FString Nome = Motivi->GetNameStringByIndex(I);
+		const int64 Valore = Motivi->GetValueByIndex(I);
+		// `Equals` con le maiuscole: `TestEqual` su due `FString` le ignora.
+		TestTrue(FString::Printf(TEXT("posizione %d: atteso «%s», trovato «%s»"), I, Attesi[I], *Nome),
+			Nome.Equals(Attesi[I], ESearchCase::CaseSensitive));
+		// Il NUMERO, non solo l'ordine di dichiarazione: un `= 5` scritto su una voce lascerebbe l'ordine
+		// intatto e cambierebbe il valore che finisce nel log.
+		TestEqual(FString::Printf(TEXT("posizione %d (%s): il valore serializzato"), I, *Nome),
+			Valore, static_cast<int64>(I));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

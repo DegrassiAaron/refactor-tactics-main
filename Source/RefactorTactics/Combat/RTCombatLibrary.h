@@ -628,6 +628,21 @@ public:
 		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
 
 	/**
+	 * **IL PREDICATO DEL PIANO**, uno solo ([D-393], [D-509]): un colpo resta sul `Layer` di chi lo tira.
+	 *
+	 * 🔑 **Esiste con un nome perche' la regola ha piu' di una sede.** In pianificazione la applica
+	 * `ClassifyHexTargeting`, che la colloca fra la portata e la licenza. In RISOLUZIONE un colpo nasce anche
+	 * dove quella funzione non passa — la raccolta dei colpi, l'interposizione, il colpo predittivo — e
+	 * ognuna di quelle sedi deve porre la STESSA domanda. Scriverla come `A.Layer != B.Layer` in quattro
+	 * file darebbe quattro copie da tenere d'accordo; qui ce n'e' una, e si legge per nome.
+	 *
+	 * ⛔ **Non e' una domanda di distanza**: `HexDistance` IGNORA il `Layer` (`Map/RTHexLibrary.h`), quindi
+	 * due celle su piani diversi possono distare 1. Chi misura la vicinanza e non pone anche questa domanda
+	 * ha misurato una colonna, non una cella.
+	 */
+	static bool OnSamePlane(const FRTCellId& From, const FRTCellId& To) { return From.Layer == To.Layer; }
+
+	/**
 	 * **La licenza di MIRA** (D-490, #3608): in PIANIFICAZIONE questa policy chiede la linea di tiro? Solo
 	 * `Required`. `NotRequired` (il mortaio) e `BlindAimDirect` (l'attacco base) mirano anche dove non si vede.
 	 * E' la domanda che `ClassifyHexTargeting` pone quando un giocatore, l'HUD o un test scelgono un bersaglio.

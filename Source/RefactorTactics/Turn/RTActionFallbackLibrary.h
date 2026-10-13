@@ -224,7 +224,35 @@ enum class ERTActionInvalidReason : uint8
 	 * motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il
 	 * significato di ogni traccia gia' archiviata che ne porti uno successivo.
 	 */
-	Stunned
+	Stunned,
+
+	/**
+	 * La mira sta su un `Layer` diverso da quello di chi agisce: **la regola del piano vale per ogni colpo**,
+	 * non solo per la mira ([D-393], [D-509], `#2951`).
+	 *
+	 * 🔑 **E' il gemello di RISOLUZIONE di `ERTHexTargetReason::OtherLayer`.** Quello e' una classificazione
+	 * di pianificazione e nel TurnLog non entra ([D-393] punto 5, pinnato da
+	 * `Meta.TargetingRefusalStaysOutOfCanonicalState`); questo e' il motivo con cui un'azione arrivata fino
+	 * alla risoluzione con una mira fra piani **non avviene e lo dichiara**. Fino a [D-509]
+	 * `ValidateInstance` leggeva il verdetto del classificatore riconoscendone UN solo valore, e questo
+	 * cadeva nel ramo «valido»: `Single` e `Area` colpivano fra piani, `Line` mancava senza una voce.
+	 *
+	 * ⛔ **Non e' `OutOfRange`**, per la ragione scritta su `ERTHexTargetReason::OtherLayer`: `HexDistance`
+	 * ignora il `Layer`, e «fuori portata» direbbe di avvicinarsi a una cosa che nessun avvicinamento
+	 * sistema. Il rimedio e' cambiare piano, e si cambia piano MUOVENDOSI.
+	 *
+	 * Tre produttori, e sono le tre sedi in cui un'azione con una mira arriva alla risoluzione:
+	 * `ValidateInstance` (bersaglio-unita'), `ValidateCellAim` (bersaglio a cella) e il boundary predittivo
+	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara).
+	 * L'interposizione NON lo produce: una reazione la cui condizione non e' soddisfatta non scatta, e non
+	 * lascia una voce — come quando l'alleato e' troppo lontano.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked`, `Stunned` e le altre
+	 * prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo
+	 * riscrive il significato di ogni traccia gia' archiviata che ne porti uno successivo. In coda il
+	 * formato serializzato non cambia versione, e le tracce gia' scritte si leggono come prima.
+	 */
+	OtherLayer
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */
@@ -262,14 +290,39 @@ class REFACTORTACTICS_API URTActionFallbackLibrary : public UBlueprintFunctionLi
 public:
 	/**
 	 * Perche' l'istanza non e' piu' eseguibile, valutata sullo stato CONGELATO della fase (invariante #3).
-	 * Ordine dei controlli: esistenza -> vita -> squadra -> portata -> linea di tiro. E' l'ordine in cui i
-	 * motivi si escludono a vicenda, e da esso dipende quale reason code finisce nel log.
+	 * Ordine dei controlli: esistenza -> vita -> squadra -> portata -> piano -> linea di tiro. E' l'ordine
+	 * in cui i motivi si escludono a vicenda, e da esso dipende quale reason code finisce nel log. Il piano
+	 * sta fra portata e linea di tiro perche' e' li' che lo mette `ClassifyHexTargeting`: la risoluzione
+	 * pone la domanda della pianificazione nello stesso ordine ([D-509]).
 	 *
 	 * Le azioni senza bersaglio (movimento, supporto su se stessi) sono sempre valide qui: il loro esito lo
 	 * decide il resolver del movimento, non la geometria del tiro.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static ERTActionInvalidReason ValidateInstance(const FRTActionInstance& Instance,
+		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map);
+
+	/**
+	 * Il PIANO di un bersaglio a CELLA: `OtherLayer` se la cella mirata sta su un `Layer` diverso da quello
+	 * di chi agisce, altrimenti `None` ([D-509], `#2951`).
+	 *
+	 * 🔑 **Perche' una funzione a parte.** `ValidateInstance` risponde `None` a ogni istanza senza
+	 * bersaglio-unita', e non puo' fare altrimenti: da li' passano anche il movimento e il supporto su se
+	 * stessi, che una cella mirata non ce l'hanno — e `(0,0,0)`, il default di `TargetCell`, e' una cella
+	 * vera. Chi SA che l'istanza mira a una cella lo dichiara chiamando questa.
+	 *
+	 * ⚠️ **Giudica SOLO il piano, ed e' una scelta.** Portata e linea di tiro di un colpo a cella restano di
+	 * `URTHexCombatLibrary::CollectHexAttacks`, che ne e' l'owner. Il piano no, e la ragione e' la TRACCIA:
+	 * la raccolta scarta un intento fra piani **senza un canale**, come fa col fuori portata, quindi se la
+	 * domanda si ponesse solo la' l'azione sparirebbe dal turno senza una voce. Posta qui, il rifiuto passa
+	 * dal fallback dichiarato e lascia `Fallback`/`Cancelled` col suo motivo.
+	 *
+	 * La domanda e' quella della pianificazione, `ClassifyHexTargeting`, letta nello stesso ordine: una
+	 * cella che viola ANCHE la portata conserva il trattamento che aveva — la scarta la raccolta — e un caso
+	 * che gia' funzionava non cambia esito.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
+	static ERTActionInvalidReason ValidateCellAim(const FRTActionInstance& Instance,
 		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map);
 
 	/**

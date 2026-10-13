@@ -212,6 +212,24 @@ bool FRTBotReactionInterposeTest::RunTest(const FString&)
 	TestEqual(TEXT("un alleato fuori dalla portata dell'azione non si copre"),
 		URTHexBotLibrary::ScoreReaction(nullptr, Intercept, Lontano), 0);
 
+	// [D-509] — Un alleato su un ALTRO PIANO non si copre, per quanto sia vicino: da una piattaforma non ci
+	// si interpone, e `HexDistance` non lo dice (ignora il `Layer`). Il nemico sta sul piano dell'alleato e
+	// lo raggiunge: e' una minaccia vera, e l'unica cosa che manca e' il piano di chi dovrebbe coprire.
+	FRTHexBotContext Sotto = EmptyContext();          // il bot in (0,0,0)
+	Sotto.Allies.Add(FRTCellId(1, 0, 1));             // adiacente in pianta, una piattaforma sopra
+	Sotto.AllyHealth.Add(90);
+	AddKnownEnemy(Sotto, FRTCellId(3, 0, 1), /*Reach*/ 2);
+	TestEqual(TEXT("un alleato su un altro piano non si copre, anche se in pianta e' adiacente"),
+		URTHexBotLibrary::ScoreReaction(nullptr, Intercept, Sotto), 0);
+	// Controllo: la stessa scena con l'alleato riportato sul piano del bot — e il nemico con lui, perche'
+	// una minaccia da un altro piano non conta ([D-393]) — torna a valere.
+	FRTHexBotContext Insieme = EmptyContext();
+	Insieme.Allies.Add(FRTCellId(1, 0, 0));
+	Insieme.AllyHealth.Add(90);
+	AddKnownEnemy(Insieme, FRTCellId(3, 0, 0), /*Reach*/ 2);
+	TestEqual(TEXT("controllo: sullo stesso piano la stessa scena vale WThreat"),
+		URTHexBotLibrary::ScoreReaction(nullptr, Intercept, Insieme), Insieme.WThreat);
+
 	return true;
 }
 

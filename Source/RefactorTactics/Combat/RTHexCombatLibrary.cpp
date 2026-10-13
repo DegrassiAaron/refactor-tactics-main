@@ -412,6 +412,27 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			continue;
 		}
 
+		// ➕ **IL PIANO, ANCHE QUI** ([D-393], [D-509], `#2951`): un intento che mira a un altro `Layer` non
+		// produce NIENTE — ne' colpi, ne' danno alle strutture, ne' ordini alle porte, ne' impronta.
+		//
+		// 🔴 **Fino al 2026-10-13 questa funzione il `Layer` non lo guardava.** `HexArea(Target, R)` scrive il
+		// piano del CENTRO e `Single` investe la cella mirata, quindi un intento fra piani colpiva chi stava
+		// la'; `HexLine(From, Target)` scrive il piano del TIRATORE, quindi `Line` mancava senza un motivo.
+		// Tre forme, due esiti, nessuno dei due deciso.
+		//
+		// ⚠️ **Dopo la portata e la mappa, prima di tutto il resto**: e' l'ordine di `ClassifyHexTargeting`, e
+		// sta sopra strutture e porte perche' anche quelle nascono da una traiettoria verso `AimCell`.
+		//
+		// ⚠️ **Scarto SENZA canale, come il fuori portata qui sopra, e il motivo e' lo stesso**: la voce la
+		// scrive chi valida l'azione a monte — `ValidateInstance` per il bersaglio-unita', `ValidateCellAim`
+		// per quello a cella — con `ERTActionInvalidReason::OtherLayer`. Questa riga e' la RETE: tiene vera
+		// la regola per gli intenti che di li' non passano (gli impatti di carica, un banco di prova, il
+		// prossimo produttore). ⛔ Limite dichiarato: per quelli lo scarto e' muto.
+		if (!URTCombatLibrary::OnSamePlane(Attacker.Cell, AimCell))
+		{
+			continue;
+		}
+
 		// STRUTTURE (CP 9.2): il colpo che sbatte contro una barriera la danneggia. Si raccoglie PRIMA del
 		// controllo sulla linea di tiro, perche' il caso principale e' proprio quello — il muro alto che
 		// ferma il colpo e' anche l'unico bersaglio che l'attaccante puo' avere, visto che gli impedisce di

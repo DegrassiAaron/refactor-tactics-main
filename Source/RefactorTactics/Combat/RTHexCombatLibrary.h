@@ -731,8 +731,10 @@ public:
 	 * Raccoglie i colpi a segno degli intenti del turno.
 	 *
 	 * Scarta l'intento se: id non validi, attaccante o bersaglio non vivi, stessa squadra, bersaglio oltre
-	 * `RangeCells` (distanza esagonale). Se il bersaglio e' in portata ma la linea di tiro e' bloccata,
-	 * l'indice dell'intento finisce in `BlockedIntents` (il chiamante ne fa un reason code NoLineOfSight).
+	 * `RangeCells` (distanza esagonale), mira su un `Layer` diverso da quello dell'attaccante ([D-509]: la
+	 * regola del piano vale per ogni colpo; il motivo lo dichiara chi valida l'azione a monte). Se il
+	 * bersaglio e' in portata ma la linea di tiro e' bloccata, l'indice dell'intento finisce in
+	 * `BlockedIntents` (il chiamante ne fa un reason code NoLineOfSight).
 	 *
 	 * **FAIL-CLOSED**: `Map == nullptr` -> nessun colpo e intento in `BlockedIntents`. Senza mappa autorevole
 	 * la linea di tiro non e' valutabile, quindi non si colpisce (stessa scelta di CanTargetHexCell).

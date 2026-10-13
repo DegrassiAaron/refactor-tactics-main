@@ -2090,4 +2090,118 @@ bool FRTAimTrackingIsDeclaredTest::RunTest(const FString&)
 	return true;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// [D-509] — LA REGOLA DEL PIANO VALE PER OGNI COLPO, e in un turno risolto lascia una voce
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * **Una mira fra piani che arriva alla risoluzione NON colpisce, e il turno dice perche'** ([D-509], `#2951`).
+ *
+ * 🔑 **Passa dal `TurnManager`, non dalle librerie**, per la ragione di [D-036]: `ValidateInstance` e
+ * `ValidateCellAim` hanno il loro test puro, e una funzione pura puo' essere verde mentre nessuno la chiama.
+ * Era gia' successo qui: [D-393] spuntava *«i chiamanti leggono l'esito»*, ed era vero — lo leggevano e lo
+ * buttavano.
+ *
+ * ⚠️ **Il piano si scrive a mano, saltando il gate di pianificazione**, ed e' l'unico modo di arrivarci: da un
+ * ingresso del giocatore o del bot una mira fra piani viene rifiutata prima. E' il percorso di un banco di
+ * prova, di uno scenario scritto a mano, e di qualunque mobilita' futura che cambi piano prima del Blast.
+ *
+ * 🔴 **Si asserisce il MOTIVO, non solo l'assenza di danno.** Un bersaglio illeso lo produce anche un colpo
+ * fuori portata, una linea bloccata, un bersaglio ignoto: l'unica cosa che distingue questa regola e' la
+ * voce `Fallback`/`Cancelled` con `Amount = OtherLayer`. E i due modi di dichiarare la mira passano da due
+ * funzioni diverse — l'unita' da `ValidateInstance`, la cella da `ValidateCellAim` — quindi si provano tutti e
+ * due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAcrossLayersIsRefusedInResolutionTest,
+	"RefactorTactics.Combat.Aim.AcrossLayersIsRefusedAndDeclaredInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAcrossLayersIsRefusedInResolutionTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 Danno = 0;          // PV persi dal bersaglio
+		int32 RifiutiDiPiano = 0; // voci Fallback/Cancelled con Amount = OtherLayer, del tiratore
+		FRTCellId MiraDelRifiuto; // dove puntava l'azione rifiutata
+		FName AzioneRifiutata;
+		ERTMatchPhase FaseDelRifiuto = ERTMatchPhase::Planning;
+	};
+
+	auto Gioca = [](int32 PianoDelBersaglio, bool bMiraACella) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		// La piattaforma ESISTE: senza la cella il bersaglio starebbe nel vuoto, e il test misurerebbe quello.
+		const FRTCellId DoveStaIlBersaglio(3, 0, PianoDelBersaglio);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(DoveStaIlBersaglio));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), DoveStaIlBersaglio);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return Out; }
+
+		const int32 Prima = Foe->Health;
+		Shooter->PlannedAbilityIndex = 0; // attacco base: forma `Single`
+		if (bMiraACella)
+		{
+			Shooter->PlannedAttackTarget = nullptr;
+			Shooter->PlannedAttackCell = DoveStaIlBersaglio;
+			Shooter->bAttackTargetsCell = true;
+		}
+		else
+		{
+			Shooter->PlannedAttackTarget = Foe;
+		}
+
+		RunBlastTurn(TM);
+
+		Out.Danno = Prima - Foe->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback
+				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OtherLayer)
+				&& E.UnitId == Shooter->StableUnitId)
+			{
+				++Out.RifiutiDiPiano;
+				Out.MiraDelRifiuto = E.TgtCell;
+				Out.AzioneRifiutata = E.ActionId;
+				Out.FaseDelRifiuto = E.Phase;
+			}
+		}
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	for (const bool bMiraACella : { false, true })
+	{
+		const TCHAR* Modo = bMiraACella ? TEXT("mira a CELLA") : TEXT("mira a UNITA'");
+
+		// Controllo positivo: stesso piano, stessa scena. Deve ferire, e non deve esserci nessun rifiuto.
+		const FEsito Piano = Gioca(/*PianoDelBersaglio=*/ 0, bMiraACella);
+		if (!TestTrue(FString::Printf(TEXT("%s — banco (stesso piano)"), Modo), Piano.bValido)) { return false; }
+		TestTrue(FString::Printf(TEXT("%s — controllo: sullo stesso piano il colpo ferisce (danno %d)"), Modo, Piano.Danno),
+			Piano.Danno > 0);
+		TestEqual(FString::Printf(TEXT("%s — controllo: e nessuna voce di rifiuto per piano"), Modo),
+			Piano.RifiutiDiPiano, 0);
+
+		// Il caso: il bersaglio sta una piattaforma sopra. Stessa colonna di celle, stessa distanza.
+		const FEsito Sopra = Gioca(/*PianoDelBersaglio=*/ 1, bMiraACella);
+		if (!TestTrue(FString::Printf(TEXT("%s — banco (altro piano)"), Modo), Sopra.bValido)) { return false; }
+		TestEqual(FString::Printf(TEXT("%s — su un altro piano il colpo non ferisce"), Modo), Sopra.Danno, 0);
+		TestEqual(FString::Printf(TEXT("%s — e il turno lo DICHIARA: una voce Fallback/Cancelled con OtherLayer"), Modo),
+			Sopra.RifiutiDiPiano, 1);
+		TestTrue(FString::Printf(TEXT("%s — la voce dice DOVE puntava l'azione rifiutata"), Modo),
+			Sopra.MiraDelRifiuto == FRTCellId(3, 0, 1));
+		TestFalse(FString::Printf(TEXT("%s — e QUALE azione"), Modo), Sopra.AzioneRifiutata.IsNone());
+		TestTrue(FString::Printf(TEXT("%s — nella fase in cui sarebbe risolta"), Modo),
+			Sopra.FaseDelRifiuto == ERTMatchPhase::Blast);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -420,6 +420,9 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
 	case ERTActionInvalidReason::Stunned:        return TEXT("stordito: non puo' agire");
+	// [D-509]: nomina il PIANO, e non «fuori portata» — la distanza puo' essere uno, e avvicinarsi non
+	// sistema niente. Il rimedio che il lettore deve dedurre e' cambiare piano.
+	case ERTActionInvalidReason::OtherLayer:     return TEXT("la mira e' su un altro piano");
 	// ⚠️ Il testo nomina il TERRENO e dice cosa gli si puo' fare, perche' la voce `PIE-V01-LOG` non chiede
 	// se il log registri l'evento — chiede se chi lo apre **senza sapere cosa cercare** capisca perche'
 	// l'azione e' stata sostituita. «Terreno che nega lo scatto» descriverebbe il dato e lascerebbe il

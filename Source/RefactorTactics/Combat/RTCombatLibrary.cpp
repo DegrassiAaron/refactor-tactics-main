@@ -217,7 +217,10 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 	// ⛔ **E PRIMA della licenza**: il tiro indiretto toglie il requisito della LINEA e nient'altro. Un
 	// mortaio non scavalca un piano — [D-380] non gliel'ha concesso, e concederglielo qui sarebbe la
 	// seconda sede di una decisione che nessuno ha preso.
-	if (From.Layer != To.Layer)
+	//
+	// Il predicato ha un nome — `OnSamePlane` — perche' da [D-509] lo pongono anche le sedi di RISOLUZIONE
+	// che di qui non passano: e' la stessa domanda, e deve restare una.
+	if (!OnSamePlane(From, To))
 	{
 		return ERTHexTargetReason::OtherLayer;
 	}

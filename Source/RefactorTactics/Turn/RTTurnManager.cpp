@@ -4568,6 +4568,7 @@ void ARTTurnManager::ResolvePrep()
 				Armed.LockedCell = Unit->PlannedAttackCell;
 				Armed.ActionId = Ability->Def.ActionId;
 				Armed.BaseActionId = Ability->Def.BaseActionId;
+				Armed.Priority = Ability->Def.Priority; // per la voce di rifiuto al boundary ([D-509])
 				// Il danno viene dagli EFFECTS del catalogo, non da un numero scritto qui: cambiare quanto
 				// fa `InterceptShot` deve restare una modifica ai dati.
 				for (const FRTActionEffectSpec& Effect : Ability->Def.Effects)
@@ -7449,6 +7450,38 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		const int32 ShooterIdx = Units.IndexOfByKey(Shooter);
 		if (ShooterIdx == INDEX_NONE)
 		{
+			continue;
+		}
+
+		// [D-393], [D-509] (`#2951`) — **CHI HA CAMBIATO PIANO NON SPARA.** La cella bloccata e' stata
+		// scelta in pianificazione, dove la regola del piano la tiene sul `Layer` di chi arma; fra
+		// l'armamento in Prep e questo boundary c'e' il Blast, e uno spostamento forzato oltre un bordo
+		// aperto fa CADERE chi lo subisce. Senza questa riga il colpo partiva dal piano di sotto verso
+		// quello di sopra: la regola valeva per la mira e non per il colpo.
+		//
+		// 🔑 **Rifiuto DICHIARATO, e PRIMA di `ResolvePredictions`.** Il colpo non entra fra quelli da
+		// risolvere, quindi non tronca il movimento di nessuno; e lascia una voce `Fallback`/`Cancelled`
+		// col suo motivo, perche' una scommessa che non parte e' un fatto del turno e non un buco. Non e'
+		// un `PredictionWhiffed`: quello dice che nessuno e' entrato, e qui puo' essere entrato chiunque.
+		//
+		// ⚠️ **`Shooter->Cell`, come le altre letture di questa funzione** — la copertura, l'origine della
+		// voce direzionale, `Entry.SrcCell`: e' la cella con cui il tiratore ENTRA nel Move, quindi vede
+		// la caduta del Blast e non il movimento di questo stesso Move. Quale sia l'istante del tiratore al
+		// boundary lo decide `#2148`, e quel giorno le letture si spostano insieme: ora sono QUATTRO.
+		if (!URTCombatLibrary::OnSamePlane(Shooter->Cell, Armed.LockedCell))
+		{
+			FRTTurnLogEntry Annullata;
+			Annullata.Phase = ERTMatchPhase::Move;
+			Annullata.Category = ERTLogCategory::Fallback;
+			Annullata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			Annullata.ActionId = Armed.ActionId;
+			Annullata.BaseActionId = Armed.BaseActionId;
+			Annullata.Priority = Armed.Priority;
+			Annullata.SrcCell = Shooter->Cell;
+			Annullata.TgtCell = Armed.LockedCell;
+			Annullata.Amount = static_cast<int32>(ERTActionInvalidReason::OtherLayer);
+			// Nessun `AddLogEvent`: `ConcludeTurn` deriva la riga leggibile da questa voce (`#1412`).
+			AppendLogEntry(Annullata, Shooter);
 			continue;
 		}
 

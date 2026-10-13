@@ -946,6 +946,13 @@ int32 URTHexBotLibrary::ScoreReaction(const URTHexMapAsset* Map, const FRTAction
 			{
 				continue;
 			}
+			// [D-509]: da un altro piano non ci si interpone — `FindInterceptableHit` lo rifiuta, e
+			// `HexDistance` qui sopra non lo vede (ignora il `Layer`). Senza questa riga il bot armerebbe
+			// un'interposizione per un alleato che sta esattamente sotto di lui, e non scatterebbe mai.
+			if (!SamePlane(Context.Origin, Ally))
+			{
+				continue;
+			}
 			for (int32 i = 0; i < Context.Enemies.Num(); ++i)
 			{
 				if (Threatens(Ally, i)) { ++Coverable; break; }
