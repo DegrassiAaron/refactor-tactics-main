@@ -757,10 +757,11 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
 
-	// #1771 — **entrambi** gli `Alt`: chi tiene il destro con la mano sul mouse deve poter orbitare come
-	// chi tiene il sinistro. Enhanced Input consegna la stessa azione da due tasti senza doppioni.
-	MappingContext->MapKey(CameraModifierAction, EKeys::LeftAlt);
-	MappingContext->MapKey(CameraModifierAction, EKeys::RightAlt);
+	// #1771, #3749 — **entrambi** i `Ctrl` ([D-514]): chi tiene il destro con la mano sul mouse deve poter
+	// orbitare come chi tiene il sinistro. Enhanced Input consegna la stessa azione da due tasti senza
+	// doppioni. ⌫ *Fino al 2026-10-13 erano i due `Alt`.*
+	MappingContext->MapKey(CameraModifierAction, EKeys::LeftControl);
+	MappingContext->MapKey(CameraModifierAction, EKeys::RightControl);
 
 	// #1775 — `PageUp`/`PageDown`: verificati liberi sull'elenco completo dei `MapKey` di questa funzione e
 	// contro `AbilityHotkeys()` (le dieci cifre) e `GenericHotkeys()` (`G B C X Z`).
