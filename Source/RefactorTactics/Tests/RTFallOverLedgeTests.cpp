@@ -23,6 +23,7 @@
 #include "Core/RTGameplayTags.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h" // HexDistance: la premessa di portata del colpo predittivo ([D-509])
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTActionEvent.h"
@@ -1737,19 +1738,20 @@ bool FRTFallStaticValidatorIgnoresOccupancyTest::RunTest(const FString&)
 /**
  * **La caduta toglie il colpo predittivo a chi l'aveva armato** ([D-393], [D-509], `#2951`).
  *
- * 🔑 **E' l'unico percorso che da un ingresso di GIOCO porta un colpo fra piani**, ed e' per questo che sta
- * in questo file: la cella bloccata si sceglie in pianificazione, dove la regola del piano la tiene sul
- * `Layer` di chi arma; la previsione si arma in Prep; e fra il Prep e il boundary del Move c'e' il Blast, dove
- * una spinta oltre un bordo aperto fa scendere chi la subisce. Senza la regola in risoluzione il colpo partiva
- * dal piano di sotto verso quello di sopra — letto nel codice da una review il 2026-10-13, misurato da
- * questo test.
+ * 🔑 **E' un percorso che si apre GIOCANDO, senza saltare nessun gate**, ed e' per questo che sta in questo
+ * file: la cella bloccata si sceglie in pianificazione, dove la regola del piano la tiene sul `Layer` di
+ * chi arma; la previsione si arma in Prep; e fra il Prep e il boundary del Move c'e' il Blast, dove una
+ * spinta oltre un bordo aperto fa scendere chi la subisce. Senza la regola in risoluzione il colpo partiva
+ * dal piano di sotto verso quello di sopra: letto nel codice da una review il 2026-10-13, e MISURATO lo
+ * stesso giorno togliendo la riga del boundary — chi entrava nella cella bloccata prendeva i 16 danni del
+ * catalogo da un tiratore che stava un piano sotto.
  *
- *     Layer 1:  (-2,0) [cella bloccata]  (-1,0) [chi spinge]  (0,0) [chi arma]  (1,0)   || vuoto
+ *     Layer 1:  (-2,0) [chi spinge]  (-1,0) [cella bloccata]  (0,0) [chi arma]  (1,0)   || vuoto
  *     Layer 0:                                                                  (1,0) [atterraggio]  (2,0)  (3,0)
  *
- * Chi spinge agisce nel Blast e poi, nel Move, entra nella cella bloccata. La stessa scena due volte, e
- * l'unica variabile e' di QUANTO si spinge: una cella lascia chi ha armato sulla passerella, due lo fanno
- * cadere.
+ * Chi spinge agisce nel Blast, da due celle, e poi nel Move entra nella cella bloccata — che sta accanto a
+ * chi arma, cioe' alla portata vera di `Ivrin.InterceptShot` (1). La stessa scena due volte, e l'unica
+ * variabile e' di QUANTO si spinge: una cella lascia chi ha armato sulla passerella, due lo fanno cadere.
  *
  * ⛔ **Il controllo positivo non e' decorativo**: senza, «nessun danno» lo darebbe anche una previsione mai
  * armata, una cella bloccata sbagliata o un movimento che non parte. Con una cella di spinta il colpo deve
@@ -1764,7 +1766,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallenShooterDoesNotFireItsPredictionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 {
-	const FRTCellId Bloccata(-2, 0, 1);
+	const FRTCellId Bloccata(-1, 0, 1);
+	const FRTCellId DaDoveSiSpinge(-2, 0, 1);
 	const FName Predittiva(TEXT("Hero.Ivrin.InterceptShot"));
 
 	struct FEsito
@@ -1779,29 +1782,31 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 		FRTTurnLogEntry Rifiuto;
 	};
 
-	auto Gioca = [&Bloccata, &Predittiva](int32 CelleDiSpinta) -> FEsito
+	auto Gioca = [&Bloccata, &DaDoveSiSpinge, &Predittiva](int32 CelleDiSpinta) -> FEsito
 	{
 		FEsito Out;
 		UWorld* World = MakeLedgeWorld();
 		if (!World) { return Out; }
-		TArray<FRTCellId> Celle = PasserellaConAtterraggio();
-		Celle.Add(Bloccata);
+		TArray<FRTCellId> Celle = PasserellaConAtterraggio(); // porta gia' (-1,0,1), la cella bloccata
+		Celle.Add(DaDoveSiSpinge);
 		SpawnLedgeMap(World, Celle);
 
-		ARTUnit* ChiSpinge = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+		ARTUnit* ChiSpinge = SpawnLedgeUnit(World, 0, DaDoveSiSpinge);
 		ARTUnit* ChiArma = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 		if (!TM || !ChiSpinge || !ChiArma || !Ivrin || !Ivrin->Actions.IsValidIndex(1)
 			|| !ChiArma->Abilities.IsValidIndex(3)
-			|| Ivrin->Actions[1]->Def.ActionId != Predittiva)
+			|| Ivrin->Actions[1]->Def.ActionId != Predittiva
+			// La premessa di portata, letta dal catalogo: la cella bloccata dev'essere a tiro di chi arma.
+			|| URTHexLibrary::HexDistance(ChiArma->Cell, Bloccata) > Ivrin->Actions[1]->Def.RangeCells)
 		{
 			DestroyLedgeWorld(World);
 			return Out;
 		}
 
-		// Chi arma: `Ivrin.InterceptShot` sulla cella bloccata, che sta sul SUO piano — come la pianificazione
-		// l'avrebbe accettata. Nello slot 3 e non in coda: `AbilityCooldowns` non si allarga da solo.
+		// Chi arma: `Ivrin.InterceptShot` sulla cella bloccata, che sta sul SUO piano e alla sua portata
+		// (la guardia qui sopra lo misura). Nello slot 3 e non in coda: `AbilityCooldowns` non si allarga.
 		ChiArma->Abilities[3] = Ivrin->Actions[1];
 		ChiArma->PlannedAbilityIndex = 3;
 		ChiArma->bAttackTargetsCell = true;

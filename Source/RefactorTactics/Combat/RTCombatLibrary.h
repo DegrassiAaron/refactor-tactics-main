@@ -634,7 +634,9 @@ public:
 	 * `ClassifyHexTargeting`, che la colloca fra la portata e la licenza. In RISOLUZIONE un colpo nasce anche
 	 * dove quella funzione non passa — la raccolta dei colpi, l'interposizione, il colpo predittivo — e
 	 * ognuna di quelle sedi deve porre la STESSA domanda. Scriverla come `A.Layer != B.Layer` in quattro
-	 * file darebbe quattro copie da tenere d'accordo; qui ce n'e' una, e si legge per nome.
+	 * file darebbe quattro copie da tenere d'accordo; qui ce n'e' una, e si legge per nome. La richiama
+	 * anche lo specchio del bot: il suo `SamePlane` (`Bot/RTHexBotLibrary.cpp`) e' un nome locale, non una
+	 * seconda definizione.
 	 *
 	 * ⛔ **Non e' una domanda di distanza**: `HexDistance` IGNORA il `Layer` (`Map/RTHexLibrary.h`), quindi
 	 * due celle su piani diversi possono distare 1. Chi misura la vicinanza e non pone anche questa domanda

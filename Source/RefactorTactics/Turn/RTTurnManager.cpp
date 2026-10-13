@@ -7467,7 +7467,8 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		// ⚠️ **`Shooter->Cell`, come le altre letture di questa funzione** — la copertura, l'origine della
 		// voce direzionale, `Entry.SrcCell`: e' la cella con cui il tiratore ENTRA nel Move, quindi vede
 		// la caduta del Blast e non il movimento di questo stesso Move. Quale sia l'istante del tiratore al
-		// boundary lo decide `#2148`, e quel giorno le letture si spostano insieme: ora sono QUATTRO.
+		// boundary lo decide `#2148`, e quel giorno OGNI lettura di `Shooter->Cell` in questa funzione si
+		// sposta insieme alle altre — questa e quella di `Annullata.SrcCell` qui sotto comprese.
 		if (!URTCombatLibrary::OnSamePlane(Shooter->Cell, Armed.LockedCell))
 		{
 			FRTTurnLogEntry Annullata;

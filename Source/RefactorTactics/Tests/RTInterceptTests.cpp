@@ -669,7 +669,14 @@ bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
 	}
 
 	// ── Il turno risolto: la stessa scena di `Reactions.Intercept`, col solo piano di chi intercetta. ────
-	struct FEsito { bool bValido = false; int32 Attivate = 0; int32 DannoVittima = 0; int32 DannoIntercettore = 0; };
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 Attivate = 0;
+		int32 NonScattate = 0;
+		int32 DannoVittima = 0;
+		int32 DannoIntercettore = 0;
+	};
 	auto Gioca = [](int32 PianoDiChiIntercetta) -> FEsito
 	{
 		FEsito Out;
@@ -697,6 +704,7 @@ bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
 		RunItcTurn(TM);
 
 		Out.Attivate = CountInterceptOutcome(TM, ERTReactionOutcome::Activated);
+		Out.NonScattate = CountInterceptOutcome(TM, ERTReactionOutcome::NotTriggered);
 		Out.DannoVittima = VictimHealth - Victim->Health;
 		Out.DannoIntercettore = SaverHealth - Saver->Health;
 		Out.bValido = true;
@@ -707,12 +715,18 @@ bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
 	const FEsito SulPiano = Gioca(0);
 	if (!TestTrue(TEXT("banco (stesso piano)"), SulPiano.bValido)) { return false; }
 	TestEqual(TEXT("controllo: sullo stesso piano l'interposizione scatta"), SulPiano.Attivate, 1);
+	TestEqual(TEXT("controllo: e non c'e' una voce di reazione non scattata"), SulPiano.NonScattate, 0);
 	TestEqual(TEXT("controllo: e la vittima non incassa niente"), SulPiano.DannoVittima, 0);
 	TestEqual(TEXT("controllo: il colpo pieno lo prende chi intercetta"), SulPiano.DannoIntercettore, ItcFullHit());
 
 	const FEsito Sopra = Gioca(1);
 	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
 	TestEqual(TEXT("da una piattaforma l'interposizione NON scatta"), Sopra.Attivate, 0);
+	// La reazione era PRONTA e non ha avuto un trigger: lascia la voce di sempre, la stessa di quando
+	// l'alleato e' troppo lontano. Non e' un silenzio — e non porta un motivo, perche' quell'esito non ne
+	// ha. La prima stesura di [D-509] scriveva «nessuna voce»: era falso, e lo ha trovato la review.
+	TestEqual(TEXT("…e lascia la voce Reaction/NotTriggered, come ogni reazione pronta senza trigger"),
+		Sopra.NonScattate, 1);
 	TestEqual(TEXT("chi sta sulla piattaforma non incassa"), Sopra.DannoIntercettore, 0);
 	TestEqual(TEXT("e l'alleato a terra prende il colpo pieno"), Sopra.DannoVittima, ItcFullHit());
 	return true;

@@ -101,9 +101,12 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 ERTActionInvalidReason URTActionFallbackLibrary::ValidateCellAim(const FRTActionInstance& Instance,
 	const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map)
 {
-	if (!Units.IsValidIndex(Instance.SourceUnitId))
+	// Nessuno che tiri, o chi tirava e' gia' caduto (nel Prep, nel Dash): l'intento lo scarta la raccolta
+	// dei colpi, in silenzio, ed e' voluto — `CollectAttackIntents` lo dice per esteso: un cadavere che
+	// lascia una voce e' rumore che entra nell'hash del replay.
+	if (!Units.IsValidIndex(Instance.SourceUnitId) || !Units[Instance.SourceUnitId].bAlive)
 	{
-		return ERTActionInvalidReason::None; // nessuno che tiri: l'intento lo scarta la raccolta dei colpi
+		return ERTActionInvalidReason::None;
 	}
 
 	// La domanda della pianificazione, nello stesso ordine: una cella che viola anche la portata conserva

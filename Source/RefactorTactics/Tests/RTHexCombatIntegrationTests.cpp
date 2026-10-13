@@ -2102,9 +2102,12 @@ bool FRTAimTrackingIsDeclaredTest::RunTest(const FString&)
  * Era gia' successo qui: [D-393] spuntava *«i chiamanti leggono l'esito»*, ed era vero — lo leggevano e lo
  * buttavano.
  *
- * ⚠️ **Il piano si scrive a mano, saltando il gate di pianificazione**, ed e' l'unico modo di arrivarci: da un
- * ingresso del giocatore o del bot una mira fra piani viene rifiutata prima. E' il percorso di un banco di
- * prova, di uno scenario scritto a mano, e di qualunque mobilita' futura che cambi piano prima del Blast.
+ * ⚠️ **Il piano si scrive a mano, saltando il gate dell'INTERFACCIA.** `ClassifyHexTargeting` la chiamano
+ * il controller del giocatore e, col suo specchio, il bot; la validazione al lock-in
+ * (`URTPlanValidationLibrary`) il bersaglio non lo classifica. ∴ per un piano che arrivi senza passare
+ * dall'interfaccia — uno scenario scritto a mano oggi, un client domani — la risoluzione e' la SOLA sede
+ * autorevole che applica la regola: `CLIENT PROPOSES -> SERVER VALIDATES`. Non e' una rete per i banchi
+ * di prova.
  *
  * 🔴 **Si asserisce il MOTIVO, non solo l'assenza di danno.** Un bersaglio illeso lo produce anche un colpo
  * fuori portata, una linea bloccata, un bersaglio ignoto: l'unica cosa che distingue questa regola e' la
@@ -2201,6 +2204,105 @@ bool FRTAimAcrossLayersIsRefusedInResolutionTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s — nella fase in cui sarebbe risolta"), Modo),
 			Sopra.FaseDelRifiuto == ERTMatchPhase::Blast);
 	}
+	return true;
+}
+
+/**
+ * **Il ripiego su CELLA non scavalca la regola del piano** ([D-509], `#2951`).
+ *
+ * 🔴 **Il caso che la prima stesura lasciava aperto, trovato dalla review indipendente.** `ValidateInstance`
+ * giudica vita e squadra PRIMA della geometria: un'azione puntata su un ALLEATO esce `TargetFriendly` senza
+ * che nessuno abbia guardato dove sta. Se dichiara `AttackCell` il ripiego tiene la cella — e la cella puo'
+ * stare su un altro piano. Il colpo non partiva comunque, perche' la raccolta lo scarta; ma il turno diceva
+ * «colpisce la cella pianificata» di un colpo che non c'era.
+ *
+ * 🔑 **Si asserisce la VOCE, perche' sull'altro piano il danno e' zero comunque**: la raccolta scarta
+ * l'intento con o senza questa correzione, quindi un asserto sui soli PV sarebbe verde col difetto. Cio'
+ * che cambia e' cosa il turno racconta — `AttackedCell` quando il ripiego parte, `Cancelled` con
+ * `OtherLayer` quando la cella sta su un altro piano.
+ *
+ * ⛔ Il controllo positivo misura la premessa: sullo stesso piano la stessa azione sullo stesso alleato
+ * ripiega davvero sulla cella. Senza, il caso sarebbe verde anche se il ripiego non esistesse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellFallbackInheritsThePlaneRuleTest,
+	"RefactorTactics.Combat.Aim.CellFallbackAcrossLayersIsCancelledNotDeclaredAsAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellFallbackInheritsThePlaneRuleTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 VociDiFallback = 0;      // tutte le voci Fallback di chi attacca
+		int32 RipieghiSullaCella = 0;  // …con esito AttackedCell
+		int32 RifiutiDiPiano = 0;      // …con esito Cancelled e motivo OtherLayer
+		int32 PerBersaglioAlleato = 0; // …con motivo TargetFriendly, qualunque esito
+		int32 DannoAllAlleato = 0;
+	};
+
+	auto Gioca = [](int32 PianoDellAlleato) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		const FRTCellId DoveStaLAlleato(2, 0, PianoDellAlleato);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(DoveStaLAlleato));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Alleato = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), DoveStaLAlleato);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Alleato) { DestroyHexBlastWorld(World); return Out; }
+
+		// `Action.LineAttack` dichiara `Fallback.AttackCell`: la premessa e' del catalogo, e si misura.
+		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+		if (Def.Fallback != ERTActionFallback::AttackCell)
+		{
+			DestroyHexBlastWorld(World);
+			return Out;
+		}
+		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+		Attacker->PlannedAttackTarget = Alleato;
+		const int32 Prima = Alleato->Health;
+
+		RunBlastTurn(TM);
+
+		Out.DannoAllAlleato = Prima - Alleato->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Attacker->StableUnitId) { continue; }
+			++Out.VociDiFallback;
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::AttackedCell)) { ++Out.RipieghiSullaCella; }
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OtherLayer))
+			{
+				++Out.RifiutiDiPiano;
+			}
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetFriendly)) { ++Out.PerBersaglioAlleato; }
+		}
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	// Controllo: alleato sullo stesso piano. Il ripiego parte, e il turno lo dice.
+	const FEsito Piano = Gioca(0);
+	if (!TestTrue(TEXT("banco (stesso piano), e premessa di catalogo: l'azione dichiara AttackCell"), Piano.bValido))
+	{
+		return false;
+	}
+	TestEqual(TEXT("controllo: una sola voce di fallback"), Piano.VociDiFallback, 1);
+	TestEqual(TEXT("controllo: e' il ripiego sulla cella"), Piano.RipieghiSullaCella, 1);
+	TestEqual(TEXT("controllo: col motivo del bersaglio alleato"), Piano.PerBersaglioAlleato, 1);
+	TestEqual(TEXT("controllo: nessun rifiuto per piano"), Piano.RifiutiDiPiano, 0);
+
+	// Il caso: lo stesso alleato una piattaforma sopra.
+	const FEsito Sopra = Gioca(1);
+	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
+	TestEqual(TEXT("su un altro piano: una sola voce, non due"), Sopra.VociDiFallback, 1);
+	TestEqual(TEXT("…e NON dice «colpisce la cella pianificata»"), Sopra.RipieghiSullaCella, 0);
+	TestEqual(TEXT("…dice che l'azione e' annullata perche' la mira e' su un altro piano"), Sopra.RifiutiDiPiano, 1);
+	TestEqual(TEXT("…e l'alleato sull'altro piano non perde un punto"), Sopra.DannoAllAlleato, 0);
 	return true;
 }
 

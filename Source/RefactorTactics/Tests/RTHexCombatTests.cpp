@@ -1230,6 +1230,7 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 		{ TEXT("Single"), ERTAbilityShape::Single, 0 },
 		{ TEXT("Area r1"), ERTAbilityShape::Area, 1 },
 		{ TEXT("Line"), ERTAbilityShape::Line, 0 },
+		{ TEXT("Cone"), ERTAbilityShape::Cone, 0 },
 	};
 
 	for (const FCaso& Caso : Casi)
@@ -1304,6 +1305,23 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 		TestEqual(TEXT("fuori portata E su un altro piano: su una cella ValidateCellAim tace, come prima"),
 			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, /*Portata*/ 1), Units, Map),
 			ERTActionInvalidReason::None);
+	}
+
+	// CHI E' CADUTO NON LASCIA UNA VOCE: un attaccante gia' morto arriva alla raccolta col piano ancora
+	// addosso, e il suo colpo lo scarta lei, in silenzio. `ValidateCellAim` non deve dichiarare un rifiuto
+	// al posto suo — sarebbe una voce di un cadavere, rumore nell'hash del replay.
+	{
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0), /*bAlive=*/ false));
+		Units.Add(CombatUnit(1, 1, FRTCellId(2, 0, 1)));
+		TestEqual(TEXT("attaccante caduto, mira a cella su un altro piano: ValidateCellAim tace"),
+			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, 6), Units, Map),
+			ERTActionInvalidReason::None);
+		// Controllo: lo stesso caso con l'attaccante VIVO il rifiuto lo dichiara.
+		Units[0].bAlive = true;
+		TestEqual(TEXT("controllo: lo stesso attaccante, vivo, viene rifiutato per piano"),
+			URTActionFallbackLibrary::ValidateCellAim(Istanza(FRTCellId(2, 0, 1), INDEX_NONE, 6), Units, Map),
+			ERTActionInvalidReason::OtherLayer);
 	}
 
 	// IL RIPIEGO: un'area che dichiara `AttackCell` NON ripiega sulla cella quando il difetto e' il piano. La

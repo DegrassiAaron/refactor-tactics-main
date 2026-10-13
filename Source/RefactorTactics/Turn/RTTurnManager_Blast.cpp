@@ -1024,7 +1024,28 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 		if (Reason != ERTActionInvalidReason::None && !bHandledByPlan)
 		{
-			const FRTFallbackResult Fallback = URTActionFallbackLibrary::ApplyFallback(Instance, Reason);
+			FRTFallbackResult Fallback = URTActionFallbackLibrary::ApplyFallback(Instance, Reason);
+
+			// [D-509] — **IL RIPIEGO SU CELLA EREDITA LA DOMANDA DEL PIANO.** `AttackCell` tiene la cella quando
+			// a mancare e' il BERSAGLIO — eliminato, o alleato — e vita e squadra si giudicano prima della
+			// geometria: qui si arriva quindi senza che nessuno abbia ancora guardato dove sta quella cella.
+			// Se sta su un altro piano il ripiego non e' eseguibile, e il motivo che la voce deve portare e'
+			// quello. Senza questa riga il log direbbe «colpisce la cella pianificata» di un colpo che la
+			// raccolta scarta in silenzio, e l'azione risulterebbe attivata. Trovato dalla review indipendente.
+			//
+			// ⚠️ Solo cio' che `ValidateCellAim` giudica, cioe' il piano: la PORTATA della cella di ripiego resta
+			// della raccolta, com'era. E si legge ogni suo rifiuto, non uno per nome: il giorno in cui quella
+			// funzione ne dichiarasse un altro, questa riga lo applica senza essere toccata.
+			if (Fallback.bProducesEffects && Fallback.Instance.TargetUnitId == INDEX_NONE)
+			{
+				const ERTActionInvalidReason SullaCella =
+					URTActionFallbackLibrary::ValidateCellAim(Fallback.Instance, HexUnits, Map);
+				if (SullaCella != ERTActionInvalidReason::None)
+				{
+					Reason = SullaCella;
+					Fallback = URTActionFallbackLibrary::ApplyFallback(Instance, Reason);
+				}
+			}
 
 			// L'azione fallita non sparisce piu' in silenzio: cosa e' stato applicato e PERCHE' finiscono nel
 			// TurnLog (categoria Fallback, motivo in Amount) e nel combat log.

@@ -126,7 +126,8 @@ int32 URTReactionLibrary::FindInterceptableHit(int32 SelfId, int32 InterceptRang
 		//
 		// ⚠️ **Si confronta con chi ATTACCA, non con la vittima**, ed e' la stessa cosa detta dalla parte
 		// giusta: il colpo che c'e' gia' sta sul piano del suo attaccante, e quello deviato deve restarci.
-		// Nessuna voce per la reazione che non scatta — come quando l'alleato e' troppo lontano.
+		// La reazione che non scatta lascia la voce di sempre, `Reaction`/`NotTriggered`: la stessa di
+		// quando l'alleato e' troppo lontano. Il motivo non e' dichiarato, perche' quell'esito non ne porta.
 		if (!URTCombatLibrary::OnSamePlane(Units[Hit.AttackerId].Cell, Self.Cell)) { continue; }
 
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Units[Hit.AttackerId].Cell, Self.Cell)) { continue; }

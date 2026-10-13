@@ -241,11 +241,17 @@ enum class ERTActionInvalidReason : uint8
 	 * ignora il `Layer`, e «fuori portata» direbbe di avvicinarsi a una cosa che nessun avvicinamento
 	 * sistema. Il rimedio e' cambiare piano, e si cambia piano MUOVENDOSI.
 	 *
-	 * Tre produttori, e sono le tre sedi in cui un'azione con una mira arriva alla risoluzione:
-	 * `ValidateInstance` (bersaglio-unita'), `ValidateCellAim` (bersaglio a cella) e il boundary predittivo
-	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara).
-	 * L'interposizione NON lo produce: una reazione la cui condizione non e' soddisfatta non scatta, e non
-	 * lascia una voce — come quando l'alleato e' troppo lontano.
+	 * Tre produttori, e sono le sedi in cui un COLPO viene deciso in risoluzione: `ValidateInstance`
+	 * (bersaglio-unita'), `ValidateCellAim` (bersaglio a cella, compreso il ripiego `AttackCell`) e il
+	 * boundary predittivo (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di
+	 * piano non spara).
+	 *
+	 * ⛔ **Non lo produce cio' che un colpo non e'.** La cura, `ModifyArc`, le strutture di copertura e le
+	 * azioni ambientali che risolvono in Cleanup hanno una mira e NON rivalutano il piano in risoluzione:
+	 * [D-509] decide dei colpi, e per loro la domanda resta aperta (`VERT-4` in `docs/OPEN_DECISIONS.md`).
+	 * E non lo produce l'interposizione: la reazione che non scatta lascia la voce di sempre,
+	 * `Reaction`/`NotTriggered` — la stessa di quando l'alleato e' troppo lontano — e quell'esito non
+	 * porta un motivo.
 	 *
 	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked`, `Stunned` e le altre
 	 * prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo
