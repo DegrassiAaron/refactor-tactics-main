@@ -2662,13 +2662,17 @@ def check_alphabet_gates(entries: list) -> list[str]:
     # e uno in `RTHudIntentPresentationTests.cpp`. Il controllo viveva solo nel referto `color_metrics.py`
     # lanciato a mano, che ha smesso di girare il 2026-09-04 senza che nessuno se ne accorgesse. Qui lo
     # esegue chiunque rigeneri gli asset, e una riga di `RTHUD.cpp` che cambia forma diventa un `T9` rosso.
+    #
+    # ⚠️ Si cattura anche il file che manca o che non si apre, non solo la forma cambiata: un'eccezione
+    # qui farebbe uscire il generatore con un traceback DOPO aver scritto le icone e PRIMA del verdetto,
+    # che e' la perdita descritta nel blocco di `#3002` piu' sotto.
     try:
         overlay_identity, overlay_phase = overlay_colors(REPO_ROOT)
-    except RuntimeError as error:
-        errors.append(f"T9: l'overlay del mondo non si legge — {error}")
+    except (RuntimeError, OSError, UnicodeDecodeError) as error:
+        errors.append(f"T9: l'overlay del mondo non si legge — {type(error).__name__}: {error}")
     else:
         errors += [f"T9: {e}" for e in check_overlay(
-            overlay_identity, overlay_phase, inks_by_owner(PHASE_INK, CHROME, SEMANTIC))]
+            overlay_identity, overlay_phase, inks_by_owner(PHASE_INK, CHROME, SEMANTIC), PHASE_INK)]
 
     if cairosvg is None:
         errors.append("T1/T3: non misurabili senza cairosvg")

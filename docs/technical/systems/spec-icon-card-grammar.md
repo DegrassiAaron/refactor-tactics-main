@@ -87,11 +87,16 @@ python3 tools/hud-assets/color_metrics.py           # il referto
 python3 tools/hud-assets/color_metrics.py --json    # lo stesso, per una macchina
 ```
 
-⚠️ **`T9` misura anche l'overlay del mondo, e lo fa leggendo il C++.** Il confronto fra la fase `Dash` e
-l'identità di squadra ([D-234](../../decisions/RT_PDR_00_Decision_Log.md)) legge due righe di
-`UI/RTHUD.cpp` **per forma**: l'assegnazione dell'identità e la dichiarazione di `DashColor`. I commenti del
-C++ si scartano prima di cercare, quindi una riga vecchia lasciata commentata non viene misurata al posto di
-quella viva.
+⚠️ **`T9` misura anche l'overlay del mondo, e lo fa leggendo il C++.** Sull'overlay lo stesso canale porta due
+assi ([D-234](../../decisions/RT_PDR_00_Decision_Log.md)), e i criteri sono tre: la fase `Dash` porta
+l'inchiostro che la palette le assegna, non un altro; la fase non si confonde con l'identità di squadra; le
+due identità — le proprie unità e il nemico rivelato — non si confondono fra loro.
+
+I colori si leggono da due righe di `UI/RTHUD.cpp` **per forma**: l'assegnazione dell'identità dentro
+`ARTHUD::ComposeIntentPresentation` e la dichiarazione di `DashColor`. Si misurano solo **letterali** di
+colore: un colore calcolato, un ternario annidato o una seconda scrittura del campo sono un errore di
+lettura, non una misura del primo colore che capita. I commenti e il contenuto delle stringhe si scartano
+prima di cercare.
 
 🔴 **Fino al 2026-10-13 non era vero, e nessuno lo sapeva**
 ([#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626)). `T9` misurava solo la palette
@@ -100,8 +105,9 @@ una delle due righe ha cambiato forma: usciva con un errore esplicito, e nessun 
 esegue il generatore a ogni rigenerazione degli asset, ed è fra i controlli noti di
 [`AGENTS.md`](../../../AGENTS.md) §9.
 
-Il referto esce con `1` se un criterio è violato e con `2` se una riga non si legge più; `--json` porta
-anche i colori dell'overlay. La prova che la lettura sa fallire:
+Il referto esce con `1` se un criterio è violato e con `2` se `RTHUD.cpp` non si legge più; se accadono
+insieme vince il `2`, e i criteri violati si stampano comunque. `--json` porta i colori dell'overlay, l'elenco
+dei criteri non rispettati e lo stesso codice d'uscita. La prova che la lettura sa fallire:
 
 ```bash
 python -m unittest discover -s tools/hud-assets -p "*_test.py"

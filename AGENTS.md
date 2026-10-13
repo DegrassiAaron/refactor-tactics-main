@@ -627,8 +627,9 @@ python tools/architettura/misure-strutturali.py --autotest   # coi numeri veri d
 python tools/bot-competence/check.py --autotest              # le funzioni pure. Quanti casi lo dice lui
 python -m unittest discover -s tools/hud-assets -p "*_test.py"   # la lettura di RTHUD.cpp: la forma attuale
                                                              # si legge, quella vecchia e una inventata no.
-                                                             # ⚠️ Due dei suoi test leggono l'albero VERO:
-                                                             # cadono anche quando cambia RTHUD.cpp
+                                                             # ⚠️ La classe `IlSorgenteVeroSiLegge` legge
+                                                             # l'albero VERO: cade anche quando cambia
+                                                             # RTHUD.cpp, non solo quando cambia il gate
 ```
 
 ⚠️ Si lanciano quando si **tocca il gate**, non a ogni PR: provano la decisione del gate, non l'albero.
