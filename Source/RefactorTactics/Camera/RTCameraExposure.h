@@ -44,7 +44,8 @@ namespace RTCameraExposure
 	 * Un valore che le rimetta tutte non c'e': l'adattamento dava a ogni scena un'esposizione sua, ed e' il difetto.
 	 * 0,25 sta in mezzo: nessuna delle sei viste cambia di piu' di 0,16 stop.
 	 *
-	 * ⚠️ Scelta della PR di #3723, senza l'autore: la giudica in PIE, con la leva `rt.Camera.FixedExposure.Bias`.
+	 * Scelta dalla PR di #3723 e confermata dall'autore il 2026-10-13, sulla tavola del prima e dopo della seduta
+	 * `U85`. La leva e' `rt.Camera.FixedExposure.Bias`.
 	 */
 	inline constexpr float DefaultBiasStops = 0.25f;
 }
