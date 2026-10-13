@@ -1754,6 +1754,22 @@ namespace
 		return Cast<ARTTurnManager>(
 			UGameplayStatics::GetActorOfClass(WorldContext, ARTTurnManager::StaticClass()));
 	}
+
+	/**
+	 * Registra un ordine di pacing per una DESTINAZIONE accettata: un waypoint, o la cella d'arrivo di uno
+	 * scatto (`#3400`).
+	 *
+	 * ⚠️ Si chiama DOPO l'accettazione, mai prima: un tentativo respinto non e' un ordine. Per questo i
+	 * tre punti di `HandleClickOnCell` che la usano stanno ciascuno in coda al proprio ramo, e non c'e' una
+	 * chiamata sola in cima alla funzione.
+	 */
+	void RecordDestinationOrder(const UObject* WorldContext)
+	{
+		if (ARTTurnManager* TM = PacingTurnManager(WorldContext))
+		{
+			TM->RecordPlanningInput(ERTPlanningInput::Order);
+		}
+	}
 }
 
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
@@ -2609,6 +2625,28 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			return;
 		}
 
+		// 🔑 **Una destinazione di SCATTO e' un ordine, come un waypoint** (`#3400`). `ERTPlanningInput::Order`
+		// e' «abilita' **o destinazione**» (`Turn/RTPacing.h`), e i due rami qui sotto uscivano con `return`
+		// prima dell'unica chiamata della funzione, che sta in coda al ramo del waypoint: una cella d'arrivo
+		// dichiarata con uno scatto non contava.
+		//
+		// ⚠️ **Si registra DOPO l'accettazione, mai prima** (`RecordDestinationOrder`): e' la stessa regola del
+		// waypoint. I rami di rifiuto qui sotto — non allineata, terreno, fuori budget — sono tentativi
+		// respinti. Per questo e' una chiamata in due punti e non una in cima al blocco.
+		//
+		// ⚠️ **Le due meta' dello scatto NON contano con la stessa regola**, e chi legge `OrderCount` deve
+		// saperlo. La pressione del tasto la registra `SelectAbilityForCurrent` appena raggiunge un'unita'
+		// selezionata, PRIMA di validare: conta anche se la posizione e' vuota, o se e' un disarmo (`#971`).
+		// La destinazione conta solo se accettata. Uno scatto pianificato ne produce quindi almeno due.
+		//
+		// ⚠️ **Una destinazione ripetuta conta ogni volta**: chi clicca una seconda cella valida sostituisce
+		// `PlannedDashCell` e registra un secondo ordine. Il piano ha una destinazione sola; i gesti sono
+		// stati due, ed e' quelli che il contatore misura.
+		//
+		// ⚠️ **La guardia `IsPlanningInputInert()` non sta in questa funzione**, che esce sul solo
+		// `IsWorldReadOnly()`: sta in `OnSelect`, da cui passa ogni click vero. Chi chiama questa funzione
+		// direttamente — i test — la salta. Vale anche per il waypoint, da prima di `#3400`.
+
 		if (URTMovementActionLibrary::IsLinear(SelAb->Def.MovementStyle))
 		{
 			// Mobilita' LINEARE: la si valida con lo STESSO codice che la eseguira'. Con l'A* il giocatore
@@ -2657,10 +2695,17 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto") : TEXT(""));
+			RecordDestinationOrder(this);
 			return;
 		}
 
-		// Mobilita' a BUDGET (`Action.Sprint`): risolve col pathfinding, quindi si valida col pathfinding.
+		// Mobilita' a BUDGET: risolve col pathfinding, quindi si valida col pathfinding.
+		//
+		// ⚠️ **Nessuna azione spedita arriva qui oggi** (`#3400`). Il ramo era nato per `Action.Sprint`, che ora
+		// risolve nel movimento normale; e ogni mobilita' rapida del catalogo e del roster dichiara uno stile
+		// lineare. Lo asserisce `PlayerInput.DashDestinationCountsAsAnOrder`, che per esercitare questo ramo
+		// monta un'azione sintetica: il giorno in cui un'azione spedita ci arrivera', quella premessa cade e
+		// lo dice.
 		const TSet<FRTCellId> Occupied = [&Snapshot, UnitId]()
 		{
 			TSet<FRTCellId> Set;
@@ -2682,6 +2727,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		SelectedUnit->PlannedDashCell = Cell;
 		UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d) costo %d"),
 			*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer, DashPath.TotalCost);
+		RecordDestinationOrder(this);
 		return;
 	}
 
@@ -2732,13 +2778,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// destinazione**» (`Turn/RTPacing.h:21`) e fino a `#3400` la metà «destinazione» non era cablata:
 	// `OrderCount` restava 0 su un turno in cui il giocatore aveva dato una destinazione, e nessun test
 	// lo vedeva perché i contatori erano esercitati chiamando `RecordPlanningInput` a mano.
+	// Le destinazioni di SCATTO passano dalla stessa funzione più sopra, nei loro due rami: escono con
+	// `return` prima di arrivare qui.
 	//
 	// ⛔ **Non serve un `Click` sul ramo di rifiuto**: `OnSelect` ne registra già uno per OGNI clic prima
 	// di arrivare qui (`:1556`), quindi i tempi sono aggiornati e aggiungerne un altro li raddoppierebbe.
-	if (ARTTurnManager* TM = PacingTurnManager(this))
-	{
-		TM->RecordPlanningInput(ERTPlanningInput::Order);
-	}
+	RecordDestinationOrder(this);
 
 	// 🔑 **Il denominatore e' il budget dello SNAPSHOT**, come nel rifiuto di `DescribeWaypointRejection`: e' quello
 	// che il profilo dichiarato o riservato ha gia' applicato. ⏱️ *Fino a `#3501` era `GetEffectiveMoveRange()`, la

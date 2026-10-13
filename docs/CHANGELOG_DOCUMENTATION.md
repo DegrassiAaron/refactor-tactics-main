@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-10-13 — Una destinazione di scatto è un ordine
+
+**Origine**: [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400). I due rami dello scatto uscivano prima dell'unica chiamata che registra un ordine di pacing: una cella d'arrivo dichiarata con uno scatto non contava.
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | §5, riga di `OrderCount`: conta gesti e non lunghezza del piano, con due regole — la pressione di un tasto abilità conta appena raggiunge un'unità, bersagli e destinazioni solo se accettati; perché uno scatto vale almeno due; `P2` dichiarata come lettura del contratto e non come decisione d'autore |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-PACING-1`, nota in coda alla cella: da #3400 anche la destinazione di uno scatto è un ordine, e chi rigiudica la voce si aspetta almeno due ordini per uno scatto. Verdetto invariato, voce non rigiudicata |
+| [`roadmap/plans/serie-lettura-giocatore-spec-panel-2026-10-13.md`](roadmap/plans/serie-lettura-giocatore-spec-panel-2026-10-13.md) | §2.1 e §2.4, tre correzioni datate: il ramo a budget non è `Action.Sprint`; la carica puntata sul nemico non è un gesto che il click vero raggiunge ([#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)); due esempi in più |
+
+---
+
 ## 2026-10-13 — Le tabelle di colore del generatore sono copie controllate, e i due grigi restano due token
 
 **Origine**: [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627), con la decisione d'autore `P4` del referto dello stesso giorno. Il generatore degli asset copia la palette da due documenti, e nessuno confrontava le copie. La divergenza che la issue dichiarava su `Disabled` non c'era: sono due token di due vocabolari.
