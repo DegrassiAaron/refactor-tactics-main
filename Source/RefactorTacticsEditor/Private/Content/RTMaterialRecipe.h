@@ -19,6 +19,11 @@ namespace RTMaterialRecipe
 	 * Custom, e il test di idempotenza lo ha preso. Su un asset gia' esistente ogni rigenerazione lascerebbe nodi
 	 * orfani nel binario — niente a schermo, e un parametro col nome doppio a chi lo apre.
 	 *
+	 * ➕ #3725: su un grafo di DUE espressioni quella funzione le toglie entrambe. Scorre una vista lunga quanto
+	 * l'elenco all'inizio, e dopo la prima cancellazione il secondo posto contiene ancora la seconda espressione.
+	 * Quindi un test di idempotenza su due espressioni non la distingue da questa: serve un grafo di partenza da
+	 * tre in su (`Graybox.MasterRecipeClearsWhatItFinds`).
+	 *
 	 * Qui si copia l'elenco prima di cancellare.
 	 */
 	inline void ClearGraph(UMaterial* Material)
