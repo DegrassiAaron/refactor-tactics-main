@@ -64,6 +64,17 @@ bool URTReactionOpportunityLibrary::RequiresDecisionBoundary(const FRTReactionOp
 	return Opportunity.AllowedResponses.Num() >= 2;
 }
 
+int32 URTReactionOpportunityLibrary::RemoveFireResponsesWhere(FRTReactionOpportunity& InOut,
+	TFunctionRef<bool(int32 TargetUnitId)> bRemove)
+{
+	// `RemoveAll` conserva l'ordine di cio' che resta: la finestra mostra le risposte rimaste come le mostrava.
+	return InOut.AllowedResponses.RemoveAll([&bRemove](const FString& Response)
+	{
+		const int32 TargetUnitId = FireResponseTarget(Response);
+		return TargetUnitId != INDEX_NONE && bRemove(TargetUnitId);
+	});
+}
+
 const TArray<FName>& URTReactionOpportunityLibrary::BoundaryCapableReactionIds()
 {
 	// ⚠️ **Elenco chiuso e scritto qui, non derivato dal catalogo**, e il perche' sta nel docstring: il

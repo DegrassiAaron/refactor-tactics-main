@@ -1317,37 +1317,38 @@ bool FRTOverwatchSegmentedResolutionOverheadTest::RunTest(const FString&)
 
 
 /**
- * DUE Overwatch di unita' diverse sullo stesso mover: il secondo `FIRE` non deve dichiarare un danno che non
- * ha inflitto (#1158).
+ * DUE Overwatch di unita' diverse sullo stesso mover, e il primo lo abbatte: **al secondo il `FIRE` su chi e' gia' a
+ * terra non si offre, e la sua carica resta** ([D-518], `#3745`).
  *
- * Il difetto, misurato nella issue e non supposto: `ResolveReactionBoundary` costruisce i `Triggers` **una
- * volta sola** prima del ciclo per-opportunity, e l'unico guard per iterazione e' `bCharged` — che e' **per
- * watcher**, non per bersaglio. `ApplyReactionDecision` calcola poi `bFire` con `IsValid(Units[TargetIdx])` e
- * **nessun `IsAlive()`**, mentre `ARTUnit::ApplyCombatState` dichiara di NON distruggere l'Actor alla morte
- * («la rimozione VISIVA e la distruzione sono differite … cosi' il colpo mortale resta osservabile»). Quindi
- * `IsValid` resta vero su un'unita' a 0 HP e il secondo `FIRE` esegue tutto il corpo — danno, charge spesa,
- * `StopUnitInPlace`, e `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**.
+ * I `Triggers` di un passo si costruiscono **una volta sola**, prima di chiedere a chiunque, quindi l'opportunity
+ * del secondo watcher nasce col `FIRE` sul mover anche se il primo colpo lo ha gia' abbattuto. #1158 aveva corretto
+ * il danno fantasma nel TurnLog e lasciato la regola aperta: il secondo `FIRE` si sceglieva, non faceva danno e
+ * **spendeva la carica**. Da [D-518] `PumpReactionTriggers` lo toglie prima di chiedere: resta il solo `HOLD`, la
+ * finestra non si apre (ADR-0004 §2), e la voce del secondo watcher e' `CollapsedTargetDown`.
  *
- * ⚠️ **Si misura sul TurnLog e non sugli HP**, ed e' la differenza fra vedere il difetto e non vederlo: gli HP
- * del bersaglio sono gia' a zero, quindi il secondo colpo non li cambia e una assertion sulla salute passerebbe
- * anche col bug vivo. Cio' che il difetto rompe e' la **fonte autorevole**, che dichiara piu' danno di quanto
- * ne sia stato inflitto.
+ * ⌫ *Fino a `#3745` questo test si chiamava `SecondFireOnDownedTargetLogsNoDamage` e fissava lo status quo: due
+ * `FIRE` scelti, uno solo col danno. Lo scenario dichiarava una decisione `FIRE` anche per il secondo watcher; ora
+ * quella decisione non avrebbe una finestra che la consuma, e l'harness la chiamerebbe errore.*
  *
- * ⚠️ Lo scenario si costruisce in MEMORIA: la issue dichiara «nessuno scenario nuovo», e `Scenarios/` e'
- * `integration_only`. Il percorso pero' e' quello vero — `URTScenarioRunner::Run` entra dagli stessi ingressi
- * del giocatore — quindi qui non nasce nessun resolver parallelo.
+ * ⚠️ **Si misura sul TurnLog e non sugli HP**: gli HP del bersaglio sono gia' a zero dopo il primo colpo, quindi
+ * una assertion sulla salute passerebbe con qualunque regola. La carica rimasta la mostra il test interattivo
+ * `Reactions.ADownedTargetIsNotOfferedToTheSecondWatcher`, dove il secondo watcher spara al passo dopo.
+ *
+ * ⚠️ Lo scenario si costruisce in MEMORIA: `Scenarios/` e' `integration_only`. Il percorso pero' e' quello vero —
+ * `URTScenarioRunner::Run` entra dagli stessi ingressi del giocatore — quindi qui non nasce nessun resolver
+ * parallelo.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondFireOnDownedTargetTest,
-	"RefactorTactics.Overwatch.SecondFireOnDownedTargetLogsNoDamage",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondWatcherDownedTargetTest,
+	"RefactorTactics.Overwatch.SecondWatcherHoldsOnADownedTarget",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
+bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 {
 	// Due Ivrin che guardano la STESSA cella da lati opposti: `MakeSuppressiveZone` costruisce una LINEA
 	// lungo il facing, quindi (-1,-1,0) cade nella zona di entrambi. Sono due WATCHER diversi sullo stesso
 	// bersaglio — quindi due opportunity — non due bersagli nello stesso passo, che darebbero una opportunity
 	// sola (`Overwatch.SimultaneousTargetsSingleOpportunity`).
 	FRTTestScenario Scenario;
-	Scenario.ScenarioId = TEXT("Unit.Overwatch.DoubleFireOnDownedTarget");
+	Scenario.ScenarioId = TEXT("Unit.Overwatch.SecondWatcherOnDownedTarget");
 	Scenario.Version = 2;
 	Scenario.Seed = 0;
 	Scenario.MapRadius = 5;
@@ -1369,8 +1370,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	Scenario.Units.Add(W2);
 
 	// ⚠️ `Health` basso E DICHIARATO: serve che il PRIMO colpo abbatta il bersaglio, che e' la premessa
-	// dell'intero caso. Col valore di roster il mover sopravvivrebbe a entrambi i colpi e il difetto non
-	// avrebbe modo di manifestarsi — il test resterebbe verde su un bug vivo.
+	// dell'intero caso. Col valore di roster il mover sopravvivrebbe, e il secondo `FIRE` resterebbe legittimo.
 	FRTScenarioUnit M1;
 	M1.Id = TEXT("M1");
 	M1.HeroId = TEXT("Hero.Aevik");
@@ -1398,26 +1398,17 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	MoveM1.Move.Add(FRTCellId(-1, -1, 0));
 	Turn.Intents.Add(MoveM1);
 
-	// Entrambi rispondono `FIRE` sullo stesso bersaglio: e' la configurazione che [D-155] dichiara NORMALE in
-	// v0.1 — un umano comanda due unita', entrambe possono coprire lo stesso corridoio.
+	// Una decisione sola, di chi viene chiesto per primo. Il secondo non viene chiesto: e' il punto.
 	FRTScenarioDecision FireW1;
 	FireW1.Unit = TEXT("W1");
 	FireW1.Respond = TEXT("FIRE");
 	FireW1.Target = TEXT("M1");
 	Turn.Decisions.Add(FireW1);
 
-	FRTScenarioDecision FireW2;
-	FireW2.Unit = TEXT("W2");
-	FireW2.Respond = TEXT("FIRE");
-	FireW2.Target = TEXT("M1");
-	Turn.Decisions.Add(FireW2);
-
 	Scenario.Turns.Add(Turn);
 
-	// ⚠️ L'harness RIFIUTA uno scenario senza `expect` — «lo scenario passerebbe sempre» — ed è la stessa
-	// disciplina che vieta i test vacui. Qui le due assertion dicono qualcosa di vero e non banale: chi arma un
-	// Overwatch spende l'azione principale e **non si muove**, quindi i watcher devono trovarsi dove sono
-	// stati posati. La misura del difetto resta in C++ sotto, perché guarda il TurnLog e non lo stato finale.
+	// L'harness RIFIUTA uno scenario senza `expect`. Chi arma un Overwatch spende l'azione principale e **non si
+	// muove**: i watcher devono trovarsi dove sono stati posati.
 	FRTTestExpectation W1Stays;
 	W1Stays.Kind = ERTAssertionKind::UnitAtCell;
 	W1Stays.UnitId = TEXT("W1");
@@ -1437,14 +1428,8 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	}
 	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
 
-	// ⚠️ **`BLOCKED` non e' un successo**, e senza questa riga lo diventerebbe in silenzio: uno scenario che
-	// dichiara una capability indisponibile esce senza eseguire nulla, e ogni conteggio sotto darebbe zero —
-	// cioe' il difetto «non riprodotto» sarebbe indistinguibile da «assente».
-	// 🔴 **Si pretende `Pass`, non «diverso da `Blocked` e `Error`»**, e la differenza non e' pedanteria: con
-	// quel guard piu' debole un `Fail` passava in silenzio, cioe' le due `Expect` che l'harness obbliga a
-	// dichiarare potevano cadere tutte senza che il test se ne accorgesse — bastava che i due contatori sotto
-	// tornassero. Un domani in cui un'unita' che arma l'Overwatch potesse muoversi, questo test resterebbe
-	// verde su uno scenario rotto. Trovato da una code review.
+	// 🔴 **Si pretende `Pass`**: con un guard piu' debole un `Fail` passerebbe in silenzio, e un `Error` — una
+	// decisione scritta mai consumata — direbbe che il primo watcher non e' stato chiesto.
 	TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
 			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason, Result.TurnsPlayed),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
@@ -1458,36 +1443,30 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 
 	int32 FireEntries = 0;
 	int32 FireEntriesWithDamage = 0;
-	int32 FireEntriesWithoutTarget = 0;
+	int32 Collapsed = 0;
+	int32 CollapsedNotHold = 0;
 	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
 	{
 		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
 		{
 			if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+			if (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome) == ERTReactionDecisionOutcome::CollapsedTargetDown)
+			{
+				++Collapsed;
+				if (Entry.ReactionResponse != URTReactionOpportunityLibrary::HoldResponse()) { ++CollapsedNotHold; }
+			}
 			if (URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) == INDEX_NONE) { continue; }
 			++FireEntries;
 			if (Entry.Amount > 0) { ++FireEntriesWithDamage; }
-			if (Entry.SelectedTargetUnitId == INDEX_NONE) { ++FireEntriesWithoutTarget; }
 		}
 	}
 
-	// La premessa del caso: due watcher, due finestre, due `FIRE` scelti. Se questa cade, non e' il difetto ad
-	// essere assente — e' lo scenario a non descriverlo, e va corretto prima di leggere la riga dopo.
-	TestEqual(TEXT("due `FIRE` sono stati scelti, uno per watcher"), FireEntries, 2);
-
-	// 🔴 IL PUNTO: **uno solo** dei due ha inflitto danno. L'altro ha sparato a un bersaglio gia' a terra, e il
-	// TurnLog non deve dichiarare un danno che non e' stato inflitto.
-	TestEqual(TEXT("una sola voce dichiara danno: il secondo colpisce un bersaglio gia' abbattuto"),
-		FireEntriesWithDamage, 1);
-
-	// 🔴 **Ogni `FireChosen` deve NOMINARE il proprio bersaglio, anche quello che non ha colpito.**
-	// `ArmRecordedReactionDecisions` ricostruisce la risposta dal log — `FireResponse(SelectedTargetUnitId)` —
-	// quindi una voce senza bersaglio diventa `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: rieseguendo la
-	// partita come Verifier si otterrebbe una divergenza spuria, `HoldRejected` al posto di `FireChosen` e un
-	// hash del turno diverso dall'originale. La prima stesura di questo fix aveva proprio quel difetto, e a
-	// trovarlo e' stata una code review: nessun test rieseguiva come Verifier una partita con due `FIRE`.
-	TestEqual(TEXT("ogni `FIRE` registrato nomina il bersaglio: la traccia resta rigiocabile"),
-		FireEntriesWithoutTarget, 0);
+	// Il caso: un `FIRE`, quello che abbatte; il secondo watcher non sceglie niente.
+	TestEqual(TEXT("un solo `FIRE`: il secondo non e' stato offerto"), FireEntries, 1);
+	TestEqual(TEXT("ed e' quello che abbatte"), FireEntriesWithDamage, 1);
+	// 🔴 IL PUNTO: la voce del secondo watcher dice PERCHE' non ha scelto, con l'esito che non mente sulla causa.
+	TestEqual(TEXT("il secondo watcher collassa perche' il bersaglio e' gia' a terra"), Collapsed, 1);
+	TestEqual(TEXT("e il collasso applica HOLD, che conserva la carica"), CollapsedNotHold, 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

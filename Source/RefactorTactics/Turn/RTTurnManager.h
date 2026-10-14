@@ -2096,6 +2096,15 @@ protected:
 		const FRTReactionOpportunity& Opportunity, const FRTReactionDecision& Decision, int32 ArmedIndex);
 
 	/**
+	 * Vero se il bersaglio di un `FIRE` e' ancora in piedi: esiste, e' valido e vive (#1158).
+	 *
+	 * 🔑 **Una domanda, due lettori** ([D-518], `#3745`): `PumpReactionTriggers` toglie il `FIRE` su chi e' gia' a
+	 * terra prima di chiedere, `ApplyReactionDecision` non colpisce chi non c'e'. ⚠️ `IsValid` da solo resta vero
+	 * su un'unita' a 0 PV: `ARTUnit::ApplyCombatState` differisce la distruzione dell'Actor.
+	 */
+	static bool IsReactionTargetStanding(const TArray<ARTUnit*>& Units, int32 TargetIdx);
+
+	/**
 	 * Chi risponde per l'unita' `OwnerUnitId` a questa opportunity. Restituisce una delle `AllowedResponses`,
 	 * oppure una stringa vuota per «non ho risposto» — che l'orchestratore tratta come scadenza.
 	 *

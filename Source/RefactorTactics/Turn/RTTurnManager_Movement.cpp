@@ -1066,6 +1066,18 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 
 	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
 	{
+		// 🔑 **[D-518] (`#3745`): il `FIRE` su un bersaglio gia' abbattuto non si offre.** I trigger di un passo si
+		// costruiscono UNA volta, prima di chiedere a chiunque: se un watcher precedente ha gia' abbattuto il
+		// bersaglio, l'opportunity del successivo lo offre ancora. Lo si toglie qui, dove l'opportunity si consuma,
+		// e non nella UI: vale per la finestra, per i bot e per la ri-simulazione, che la ricalcola dallo stato.
+		//
+		// ⚠️ **Sul trigger SALVATO, non sulla copia**: `CloseReactionWindow` rilegge l'opportunity da qui quando la
+		// finestra si chiude, e deve giudicare la risposta sulle stesse `AllowedResponses` che la finestra ha
+		// mostrato. Nel caso misto — un bersaglio a terra e uno in piedi — resta il `FIRE` su quello in piedi.
+		const int32 FireSuAbbattuti = URTReactionOpportunityLibrary::RemoveFireResponsesWhere(
+			Ctx->PendingTriggers[Ctx->NextTrigger].Opportunity,
+			[&Units](int32 TargetIdx) { return !IsReactionTargetStanding(Units, TargetIdx); });
+
 		// Copiato e non referenziato: `ApplyReactionDecision` puo' toccare lo stato, e da `#2679` in poi
 		// fra due giri di questo ciclo puo' passare un frame intero.
 		const FRTPendingReactionTrigger Pending = Ctx->PendingTriggers[Ctx->NextTrigger];
@@ -1131,8 +1143,14 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 			return ERTMovementAdvanceResult::Suspended;
 		}
 
-		const FRTReactionDecision Decision = AskReactionDecision(Opportunity, Opportunity.Key.OwnerId,
-			bOwnerIsBot);
+		// [D-518]: se il filtro ha tolto l'ultima scelta, la causa la dice il pompaggio — `AskReactionDecision`
+		// vedrebbe il solo `HOLD` e lo chiamerebbe collasso da condizione, che qui sarebbe falso. Con un'altra
+		// scelta rimasta si chiede come sempre.
+		const FRTReactionDecision Decision =
+			(FireSuAbbattuti > 0 && !URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+			? FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
+				ERTReactionDecisionOutcome::CollapsedTargetDown)
+			: AskReactionDecision(Opportunity, Opportunity.Key.OwnerId, bOwnerIsBot);
 		ApplyReactionDecision(Map, Units, State, Opportunity, Decision, ArmedIndex);
 	}
 

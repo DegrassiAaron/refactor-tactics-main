@@ -538,6 +538,147 @@ bool FRTReactionWindowFullCycleTest::RunTest(const FString&)
 
 
 /**
+ * [D-518] (`#3745`) — **due finestre interattive in fila sullo stesso passo: la seconda non si apre se il suo unico
+ * bersaglio e' gia' a terra, e la carica di quel watcher resta.**
+ *
+ * Due guardie non-bot guardano la stessa riga da lati opposti: W1 in (2,0) verso W, W2 in (-2,0) verso E. Al primo
+ * passo `Abbattuto` entra in (0,0), che sta nella linea di entrambe: i trigger di quel passo sono due, costruiti
+ * insieme. Alla prima finestra si risponde `FIRE`, e il colpo lo abbatte. Prima di [D-518] la seconda finestra si
+ * apriva lo stesso, costruita sullo stato di prima, e offriva `FIRE` su chi era a terra.
+ *
+ * 🔑 **La carica rimasta si vede al passo dopo**: due altre unita' arrivano al secondo passo accanto a ciascuna guardia.
+ * La guardia che ha sparato e' scarica; quella che non e' stata chiesta deve avere ancora la carica, e la sua finestra
+ * si apre su di loro. Prima di [D-518] il `FIRE` sul caduto spendeva la carica, e quella finestra non arrivava.
+ *
+ * ⚠️ **Quale delle due guardie venga chiesta per prima non e' un'ipotesi del test**: lo decide l'ordine canonico dei
+ * trigger. Si risponde a quella che si apre, e si pretende che la seconda finestra sia dell'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionDownedTargetSecondWindowTest,
+	"RefactorTactics.Reactions.ADownedTargetIsNotOfferedToTheSecondWatcher",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionDownedTargetSecondWindowTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Abbattuto = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 1));
+	ARTUnit* VersoW1 = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(1, 2));
+	ARTUnit* VersoW2 = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 2));
+	ARTUnit* W1 = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(2, 0));
+	ARTUnit* W2 = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(-2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Abbattuto || !VersoW1 || !VersoW2 || !W1 || !W2 || !TM)
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	for (ARTUnit* Guardia : { W1, W2 })
+	{
+		Guardia->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Guardia, TEXT("Action.Overwatch"), 3);
+		Guardia->PlannedCell = Guardia->Cell;
+	}
+	W1->Facing = ERTHexDirection::W;
+	W2->Facing = ERTHexDirection::E;
+
+	// Un passo solo, dentro la riga: ci entra al primo micro-step. Un colpo basta.
+	Abbattuto->Health = 1;
+	Abbattuto->PlannedCell = FRTCellId(0, 0);
+	// Due passi, l'ultimo dentro la riga accanto a una guardia: ci entrano al secondo micro-step, uno per guardia.
+	VersoW1->PlannedCell = FRTCellId(1, 0);
+	VersoW2->PlannedCell = FRTCellId(-1, 0);
+
+	struct FAperta
+	{
+		FString Id;
+		int32 Owner = INDEX_NONE;
+		TArray<FString> Risposte;
+	};
+	TArray<FAperta> Aperte;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Aperte](const FRTReactionWindowView& View, int32 OwnerUnitId)
+		{
+			FAperta A;
+			A.Id = URTReactionOpportunityLibrary::DeriveOpportunityId(View.Key);
+			A.Owner = OwnerUnitId;
+			for (const FRTReactionWindowOptionView& Opzione : View.Options)
+			{
+				A.Risposte.Add(Opzione.Response);
+			}
+			Aperte.Add(A);
+		});
+
+	// Il primo `FIRE` di una finestra, o `HOLD` se non ne offre.
+	const auto PrimoFire = [](const FAperta& A) -> FString
+	{
+		for (const FString& R : A.Risposte)
+		{
+			if (URTReactionOpportunityLibrary::FireResponseTarget(R) != INDEX_NONE) { return R; }
+		}
+		return URTReactionOpportunityLibrary::HoldResponse();
+	};
+
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+
+	if (!TestTrue(TEXT("premessa: la prima finestra si e' aperta"), TM->IsResolutionSuspended() && Aperte.Num() == 1))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("premessa: la prima finestra offre un FIRE e HOLD"), Aperte[0].Risposte.Num(), 2);
+	TM->SubmitReactionResponse(Aperte[0].Id, PrimoFire(Aperte[0]));
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+	TestTrue(TEXT("il primo FIRE abbatte"), !Abbattuto->IsAlive());
+
+	// Ogni altra finestra: si spara, cosi' la carica rimasta si vede nel danno.
+	for (int32 Giro = 0; Giro < 8 && TM->IsResolutionSuspended(); ++Giro)
+	{
+		const FString Aperta = TM->GetOpenReactionWindowId();
+		if (Aperta.IsEmpty() || Aperte.Num() == 0) { break; }
+		TM->SubmitReactionResponse(Aperta, PrimoFire(Aperte.Last()));
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+	}
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	TM->OnReactionWindowOpened.Unbind();
+
+	// 🔴 IL PUNTO, prima meta': la seconda finestra non e' quella sul caduto. E' dell'ALTRA guardia, e arriva al passo
+	// dopo — se arriva, la carica c'era ancora.
+	TestEqual(TEXT("due finestre in tutto: la prima, e quella del passo dopo"), Aperte.Num(), 2);
+	if (Aperte.Num() == 2)
+	{
+		TestNotEqual(TEXT("la seconda finestra e' dell'altra guardia"), Aperte[1].Owner, Aperte[0].Owner);
+	}
+
+	int32 Collassate = 0;
+	int32 FireConDanno = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::ReactionDecision) { continue; }
+		if (static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::CollapsedTargetDown)
+		{
+			++Collassate;
+		}
+		if (URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE && E.Amount > 0)
+		{
+			++FireConDanno;
+		}
+	}
+	// Seconda meta': la traccia dice perche' la seconda guardia non e' stata chiesta, e che ha sparato dopo.
+	TestEqual(TEXT("la guardia non chiesta collassa col bersaglio a terra"), Collassate, 1);
+	TestEqual(TEXT("due FIRE con danno: chi abbatte, e chi aveva conservato la carica"), FireConDanno, 2);
+
+	DestroyResumeWorld(World);
+	return true;
+}
+
+
+/**
  * Il montaggio dei test di `#3666`: un nemico che cammina nella linea di una guardia non-bot.
  *
  * Il watcher sta in (3,0) e guarda a W, quindi la sua linea e' (2,0) (1,0) (0,0) (-1,0); il mover parte da (0,0) e

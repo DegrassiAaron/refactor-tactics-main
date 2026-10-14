@@ -107,6 +107,8 @@ all'ordine di iterazione, che l'invariante **#4** vieta.
 Quando più reazioni distinte scattano nello stesso micro-step, l'ordine è totale e stabile:
 `ReactionPriority → AbilityPriority → UnitInitiative → StableUnitId → ReactionInstanceId`.
 
+> **Precisazione 2026-10-14 — [D-518](RT_PDR_00_Decision_Log.md)** ([#3745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3745)): le opportunity di uno stesso micro-step si costruiscono **una volta**, prima di chiedere a chiunque, e si consumano nell'ordine qui sopra. Se un watcher abbatte un bersaglio, le opportunity che vengono dopo **perdono il `FIRE` su di lui** al momento di chiedere. Se resta il solo `HOLD`, la cardinalità è 1 e la finestra non si apre (§2); la carica resta, e la traccia scrive `CollapsedTargetDown`. Se resta un altro bersaglio in piedi, la finestra si apre su di lui. Vale per la finestra, per i bot e per la ri-simulazione, perché il filtro sta dove l'opportunity si consuma e non nella UI.
+
 ### 5. La sospensione è **globale** *(risolve la domanda aperta §8.2 del brief)*
 
 Durante una finestra la simulazione si ferma **per tutte le unità**, non solo per quella che decide.
@@ -426,6 +428,7 @@ contiene **solo il presente** — mai trigger futuri, percorsi futuri, opportuni
 | `Overwatch.RequiresDetection` | contatto `Incerto` (fumo oltre 2, o solo rumore) **non** arma il trigger |
 | `Overwatch.OpportunityLeaksNoFuture` | la opportunity non contiene trigger, percorsi o posizioni future |
 | `Overwatch.HoldKeepsArmed` | `HOLD` perde l'opportunità, non la reaction |
+| `Reactions.FireOnADownedTargetIsRemovedFromTheOpportunity` · `Overwatch.SecondWatcherHoldsOnADownedTarget` · `Reactions.ADownedTargetIsNotOfferedToTheSecondWatcher` | [D-518](RT_PDR_00_Decision_Log.md): il `FIRE` su un bersaglio già abbattuto nello stesso passo non si offre; col solo `HOLD` la seconda finestra non si apre, e quella guardia spara al passo dopo |
 | ~~`Overwatch.CancelledByStun` · `…ByForcedMovement`~~ → `Reactions.ArmedZoneFollowsCurrentCell` | 🔴 **Riga corretta il 2026-08-17 ([D-169](RT_PDR_00_Decision_Log.md)), ed era falsa due volte.** *(a)* Diceva «l'overwatch armato non è garantito fino a fine turno» per il **movimento forzato**, cioè l'opposto di ciò che §6 stabilisce: il watcher spinto **rilocalizza**. *(b)* Citava due test che **non sono mai esistiti** — `grep -rn "CancelledByStun\|ByForcedMovement" Source/` dà zero — e nessun gate lo vede, perché `check-docs-symbols.py` non risolve i nomi delle automation test. Il pin vero verifica che la zona sia funzione di *(cella, facing)*; `Stun` e `Disarm` escono con lo stato che non esiste |
 
 Checkpoint in [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) epic **E14** (CP 14.1–14.5); questo ADR **è** il CP 14.1.

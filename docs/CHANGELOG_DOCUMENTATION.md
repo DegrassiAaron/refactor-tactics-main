@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-14 — Il `FIRE` su un bersaglio già abbattuto non si offre
+
+**Origine**: [#3745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3745), decisioni d'autore `D-518`. Due Overwatch sullo stesso mover: il primo lo abbatte, e la seconda finestra offriva ancora `FIRE` su di lui, che spendeva la carica senza fare danno. Ora quel `FIRE` non si offre: col solo `HOLD` la finestra non si apre e la carica resta.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-518`, con le due proposte come l'autore le ha lette, e il caso misto come conseguenza |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione sui trigger dello stesso passo; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-OVERWATCH-PREDICTIVE`: #3745 fra le chiuse |
+| [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | `ReactionWindowsOpened`: `CollapsedTargetDown` fra i commit immediati, che non contano |
+| [`technical/tooling/tassonomia-icone-manifest-runtime.md`](technical/tooling/tassonomia-icone-manifest-runtime.md) | gli esiti di `ERTReactionDecisionOutcome` per nome; diceva «sei valori», che con il nuovo non era più vero |
+
+---
+
 ## 2026-10-14 — Il velo delle celle si vede anche dentro gli scenari
 
 **Origine**: [#3763](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3763), decisione d'autore `D-517`. Uno scenario non agganciava il velo delle celle; quello sulle unità sì. Corretto l'aggancio, l'autore ha scelto che valga in tutti gli scenari, come in partita.

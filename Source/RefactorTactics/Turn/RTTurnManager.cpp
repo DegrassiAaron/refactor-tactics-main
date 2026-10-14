@@ -7711,6 +7711,11 @@ FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReaction
 	return Names;
 }
 
+bool ARTTurnManager::IsReactionTargetStanding(const TArray<ARTUnit*>& Units, int32 TargetIdx)
+{
+	return Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx]) && Units[TargetIdx]->IsAlive();
+}
+
 FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportunity& Opportunity,
 	int32 OwnerUnitId, bool bOwnerIsBot) const
 {
@@ -7890,8 +7895,13 @@ void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>&
 		// come funzione pura dello stato, quindi entrambi si scartano qui — e dimenticarne uno non produce un
 		// errore di compilazione ma una **risposta orfana**, che e' come il test `CollapsedWindowIgnoresTheTrace`
 		// l'ha trovato: «nessuna finestra ha reclamato T2|P4|M0|U1|action.overwatch|S0».
+		//
+		// ➕ **E da [D-518] sono TRE** (`#3745`): `CollapsedTargetDown`, il `FIRE` su un bersaglio gia' abbattuto
+		// che non si offre. Anche quello si ricalcola dallo stato — chi e' a terra lo decide il colpo prima —, e
+		// si scarta qui per la stessa ragione.
 		if (Outcome == ERTReactionDecisionOutcome::Immediate
-			|| Outcome == ERTReactionDecisionOutcome::CollapsedByCondition)
+			|| Outcome == ERTReactionDecisionOutcome::CollapsedByCondition
+			|| Outcome == ERTReactionDecisionOutcome::CollapsedTargetDown)
 		{
 			continue;
 		}
@@ -8032,8 +8042,7 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	// ⚠️ Il predicato e' quello che questo file usa gia' ovunque (`:182` con tanto di commento «un cadavere non
 	// vede e non si nasconde»), non un secondo criterio nuovo: la sua assenza qui era un'incoerenza, e nessun
 	// commento la difendeva.
-	const bool bTargetStanding = Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])
-		&& Units[TargetIdx]->IsAlive();
+	const bool bTargetStanding = IsReactionTargetStanding(Units, TargetIdx);
 	// ⚠️ **Si legge dalla RISPOSTA e non dall'esito** (`#1118`): `Chosen` dice che qualcuno ha deciso, non
 	// che abbia sparato. `TargetIdx` viene gia' da `FireResponseTarget(Decision.Response)` dieci righe sopra,
 	// quindi la domanda «e' un FIRE?» e' la stessa che ha prodotto quell'indice — e la si fa una volta sola.
@@ -8053,12 +8062,15 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		// dire e' un danno mai inflitto, quindi `Entry.Amount` resta a zero e non si tronca nessun movimento
 		// (il bersaglio non si muove piu' comunque).
 		//
-		// 🔴 **La charge in questo secondo caso si spende, ed e' STATUS QUO — non una decisione presa qui.**
-		// Prima di #1158 il ramo `FIRE` girava per intero anche sul bersaglio a terra, e `Armed.bCharged = false`
-		// con esso. Se il watcher debba spenderla o conservarla e' una domanda di **regola**, dichiarata fuori
-		// scope dalla issue e da decidere dall'owner di ADR-0004: le due letture — *ha sparato* contro *non
-		// c'era piu' niente da colpire* — sono entrambe difendibili. Conservarla qui sarebbe rispondere di
-		// iniziativa, e per giunta cambiando il comportamento osservabile insieme alla correzione del log.
+		// ✅ **La regola che qui era «status quo» e' decisa: [D-518] (`#3745`).** Il `FIRE` su un bersaglio gia'
+		// abbattuto **non si offre**: `PumpReactionTriggers` lo toglie dall'opportunity prima di chiedere, e se resta
+		// il solo `HOLD` la finestra non si apre e la carica resta (`CollapsedTargetDown`). Il percorso di
+		// produzione quindi non arriva qui: una risposta registrata o iniettata che nomini quel bersaglio non e'
+		// fra le `AllowedResponses`, e `AskReactionDecision` la rifiuta.
+		//
+		// ⚠️ **Il ramo resta come rete, e spende la carica**: ci arriverebbe solo un chiamante che salta il filtro
+		// con un `FIRE` scelto davvero, e allora la lettura onesta e' *ha sparato*. Il log continua a non dichiarare
+		// un danno mai inflitto, che e' cio' che #1158 aveva corretto.
 		if (bFireResponse && !bTargetStanding)
 		{
 			Armed.bCharged = false;
