@@ -42,11 +42,54 @@
 | Pezzo | Owner | Stato |
 |---|---|---|
 | Linea di vista geometrica | `URTHexVisionLibrary::HasLineOfSight` | ✅ con regola d'elevazione e copertura alta sul bordo attraversato |
-| Vista a cono + consapevolezza a 360° entro 2 celle | `URTPerceptionLibrary::VisibleCells` | ✅ ADR-0005; il cap del fumo riusa `URTTerrainLibrary::EffectiveTargetingRange`. ➕ Due celle sulla **stessa colonna** e su piani diversi non hanno contatto ([D-510](../../decisions/RT_PDR_00_Decision_Log.md), #3741): chi sta sopra la testa di un nemico non lo vede. È una condizione del **contatto**, non della linea di vista |
+| Vista a cono + consapevolezza a 360° entro 2 celle | `URTPerceptionLibrary::VisibleCells` | ✅ ADR-0005; il cap del fumo riusa `URTTerrainLibrary::EffectiveTargetingRange`. ➕ Fra due celle di **piani diversi** il contatto non chiede la linea di tiro ma la **linea fra piani** della riga qui sotto ([D-511](../../decisions/RT_PDR_00_Decision_Log.md), #3743). La stessa colonna ([D-510](../../decisions/RT_PDR_00_Decision_Log.md), #3741) ne è il caso verticale |
+| Linea di vista **fra due piani** | `URTPerceptionLibrary::DescribeSightAcrossLayers` | ✅ [D-511](../../decisions/RT_PDR_00_Decision_Log.md): da testa a testa, ferma sui pavimenti, con gli ostacoli del piano attraversato. Lo stesso esito nei due versi, soli interi. È del **contatto**: `HasLineOfSight` non cambia. La regola è in §1.1.1 |
 | Conoscenza di squadra e memoria del contatto | `FRTTeamKnowledge`, `FRTLastKnownContact` | ✅ versionata, viaggia nello snapshot |
 | Il targeting **decide** | `ARTTurnManager` → `URTTeamKnowledgeLibrary::ClassifyTarget` | ✅ e vale **anche per il giocatore umano**, non solo per il bot |
 | Il bot gioca alla pari | `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` | ✅ canary `HexBotPlay.HiddenEnemyFairness` |
 | Propagazione del rumore | `URTAcousticPropagationLibrary` | 🟡 propaga e attenua, ma **nessun sistema di gioco la chiama** |
+
+### 1.1.1 La vista fra due piani
+
+Decisione d'autore del 2026-10-13, [D-511](../../decisions/RT_PDR_00_Decision_Log.md) e [#3743](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3743). Vale per le sole coppie di celle su piani diversi; dentro un
+piano la vista è quella di prima.
+
+1. Ogni cella che esiste è un **pavimento**, alla quota del suo piano. Dove una cella non c'è, c'è un buco.
+2. La linea va **da testa a testa**: il centro di ciascuna cella, alzato di tre quinti di piano sopra il suo
+   pavimento. La stessa altezza ai due capi.
+3. La linea è **ferma** se attraversa la quota di un piano in un punto dove quel piano ha una cella.
+4. Lungo la linea contano gli ostacoli **del piano in cui la linea sta passando**: la cella che blocca la vista, il
+   bordo con copertura alta o porta chiusa, il muro interno alto.
+
+Ne esce una regola che si dice a parole. Chi sta a terra sotto una piattaforma non vede niente di ciò che ha sopra.
+Da fuori, lungo una riga dritta e con un piano di dislivello, chi sta sulla cella di bordo si vede da una cella; chi
+sta una cella più indietro da tre; due più indietro da cinque. Vale uguale al contrario: chi sta dietro il bordo ha una
+zona cieca sotto di sé.
+
+| Garanzia | Come è ottenuta | Chi la misura |
+|---|---|---|
+| Lo stesso esito nei due versi | la linea si traccia sempre dalla cella più bassa alla più alta | `Vision.AcrossLayers.SameAnswerBothWays` |
+| Soli interi | la quota di un piano si raggiunge a una frazione fissa della distanza; la cella la dà `URTHexLibrary::HexLinePoint`, l'arrotondamento di `HexLine` | `Hex.LinePointIsTheRoundingOfHexLine` |
+| L'altezza della testa | `SightHeadHeightNum / SightHeadHeightDen`, costante della regola e non leva di bilanciamento | `Vision.AcrossLayers.EdgeHidesWhoStandsBehind` |
+| Gli ostacoli del piano attraversato | una cella intermedia risponde di ogni piano che la linea occupa mentre l'attraversa; i due capi del proprio | `Vision.AcrossLayers.ObstaclesCountOnTheLayerTheLinePasses` |
+| La stessa colonna ([D-510](../../decisions/RT_PDR_00_Decision_Log.md)) | ramo esplicito: vale anche se l'asset non ha la cella di sopra | `Vision.StackedColumnIsNotSeen` |
+| Vale per le celle, non solo per chi le occupa | la regola sta nel contatto, che decide le celle viste | `Vision.FloorHidesTheOtherLayer` |
+
+🔑 **La regola non toglie soltanto.** Toglie i contatti che un pavimento copre, e ne aggiunge dove un muro basso sta
+sotto il tratto alto della linea: da terra, da lontano, si vede sopra il muro chi sta su una piattaforma. Con la vista
+in pianta quelle coppie erano a senso unico: dall'alto si vedeva, dal basso no. Lo misurano
+`Vision.PlatformIsSeenFromTheOpenNotFromUnderneath` e, in conteggio, `Vision.AcrossLayers.SameAnswerBothWays`.
+
+⛔ **Non è la linea di tiro.** `URTHexVisionLibrary::HasLineOfSight` resta planare sul piano di chi guarda: è la
+geometria su cui i bot scelgono le celle, e #3741 ha misurato che toccarla fa cadere due sonde anti-stallo. Colpire
+un altro piano resta un rifiuto dichiarato ([D-393](../../decisions/RT_PDR_00_Decision_Log.md), [D-509](../../decisions/RT_PDR_00_Decision_Log.md)).
+
+⚠️ **Il fumo non è stato toccato.** Il suo tetto di due celle si legge ancora sul piano di chi guarda: dove c'è fumo,
+fra due piani il contatto può reggere in un verso solo. È un limite che c'era già, e nessuna decisione lo copre.
+
+⚠️ **Sul confine fra due celle decide lo spareggio di `HexLine`.** Quando il punto in cui la linea raggiunge una quota
+cade esattamente fra due celle, vince sempre lo stesso lato. La risposta resta la stessa nei due versi, ma una mappa
+specchiata può averne un'altra: lo misura `Vision.AcrossLayers.TwoLayersOfRiseCrossTwoFloors`.
 
 ### 1.2 La presentazione non la usa — e non è che non possa
 

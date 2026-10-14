@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-10-14 — Fra due piani la vista segue una linea vera
+
+**Origine**: [#3743](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3743), decisione d'autore `D-511` del 2026-10-13. Davanti alla tavola della regola della colonna l'autore ha scritto che chi sta sotto una piattaforma non dovrebbe vedere nessuno di quelli che ci stanno sopra. Fra due piani la vista ora segue una linea da testa a testa, che si ferma sui pavimenti. La linea di tiro non cambia.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-511`: le parole dell'autore, le quattro scelte col testo delle opzioni, le letture di chi l'ha scritta e le misure; un'annotazione a `D-510`, superata in parte |
+| [`roadmap/plans/vista-fra-piani-linea-3d-proposta-2026-10-13.md`](roadmap/plans/vista-fra-piani-linea-3d-proposta-2026-10-13.md) | nuovo: la proposta che l'autore ha letto, con le scelte prese, la misura fatta dal gioco e una correzione: la regola non toglie soltanto contatti |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §1.1.1, nuova: la regola, le garanzie e chi le misura |
+| [`technical/systems/h6-4-hex-vision-spec.md`](technical/systems/h6-4-hex-vision-spec.md) | la vista fra piani non sta nella linea di tiro, e dove sta |
+| [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | la riga «Layer diverso» della tabella dei casi di contatto |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-VIS-COLONNA` chiede la regola nuova, su due scene; resta aperta |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U88`: la prima tornata e la reazione dell'autore, la seconda da giudicare |
+| [`technical/evidence/u88/`](technical/evidence/u88/) | le tavole `S3`, `S4` e `S5`: ogni scena con la regola di prima accanto a quella nuova |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md), [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | `Visual.Map.StackedColumn` ridisegnato; `Visual.Map.PlatformEdge` e `Visual.Map.OverTheWall`, nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-PERCEPTION`: #3743 e lo scenario nuovo |
+
+---
+
 ## 2026-10-13 — La finestra di reazione dice chi reagisce, a che cosa, e contro chi
 
 **Origine**: [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), la parte «e bersaglio» che `D-491` lasciava a [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166). I nomi li scrive il turn manager nella vista, nell'istante in cui la costruisce; chi spinge si nomina solo se la squadra di chi decide lo rileva. Il sottotitolo si calcola e non si vede finché `WBP_RT_FastDecision` non ha la sua riga di testo.
