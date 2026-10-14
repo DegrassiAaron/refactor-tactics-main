@@ -1680,11 +1680,17 @@ void ARTHexMapActor::DrawRememberedWallsAsLines() const
 		return (Dati ? static_cast<float>(Dati->Height) : 0.f) + RTLiftPreview;
 	};
 
-	// I muri dei pannelli di bordo — coperture, porte, muri interni — come un tratto sul pavimento lungo il pannello.
-	// La lunghezza viene dall'istanza, cosi' un muro interno corto resta corto.
+	// I muri dei pannelli di bordo — coperture, porte, muri interni — come il CONTORNO del pannello: il tratto in cima,
+	// alla sua altezza, e i due montanti fino a terra.
+	//
+	// 🔴 **Non il solo tratto a terra, ed e' misurato**: un pannello di bordo sta SUL lato fra due celle, e a terra quel
+	// lato e' gia' disegnato dagli anelli della pianta, dello stesso colore. Nella seduta `U89` il tratto a terra
+	// spariva nella griglia. In cima si stacca, e dice anche se il muro e' alto o basso. La lunghezza e l'altezza vengono
+	// dall'istanza a scala piena, cosi' un muro interno corto resta corto e una copertura bassa resta bassa.
 	if (EdgeFeatures && EdgeFeatures->GetStaticMesh() && LastEdgeFeatureVeilState.Num() == EdgeFeatureCells.Num())
 	{
-		const float MezzaY = EdgeFeatures->GetStaticMesh()->GetBounds().BoxExtent.Y;
+		const FBoxSphereBounds Forma = EdgeFeatures->GetStaticMesh()->GetBounds();
+		const FVector Ext = Forma.BoxExtent;
 		for (int32 I = 0; I < EdgeFeatureCells.Num(); ++I)
 		{
 			if (LastEdgeFeatureVeilState[I] != RTVeilRemembered)
@@ -1696,12 +1702,16 @@ void ARTHexMapActor::DrawRememberedWallsAsLines() const
 			{
 				continue;
 			}
-			// La scala dell'istanza nascosta e' zero: la lunghezza si prende dalla scala piena.
-			const float ScalaY = EdgeFeatureBaseScale.IsValidIndex(I) ? EdgeFeatureBaseScale[I].Y : 1.f;
-			const FVector Lungo = Xf.GetRotation().GetAxisY() * (MezzaY * ScalaY);
-			const FVector Centro = URTHexLibrary::AxialToWorld(EdgeFeatureCells[I], Origin, Size, LayerH);
-			const FVector Punto(Xf.GetLocation().X, Xf.GetLocation().Y, Centro.Z + Quota(EdgeFeatureCells[I]));
-			DisegnaLineaAnteprima(World, Punto - Lungo, Punto + Lungo, Colore, SDPG_World, 4.f);
+			// La scala dell'istanza nascosta e' zero: la forma si prende dalla scala piena.
+			const FTransform Pieno(Xf.GetRotation(), Xf.GetLocation(),
+				EdgeFeatureBaseScale.IsValidIndex(I) ? EdgeFeatureBaseScale[I] : FVector::OneVector);
+			const FVector CimaA = Pieno.TransformPosition(Forma.Origin + FVector(0.f, -Ext.Y, Ext.Z));
+			const FVector CimaB = Pieno.TransformPosition(Forma.Origin + FVector(0.f, Ext.Y, Ext.Z));
+			const FVector BaseA = Pieno.TransformPosition(Forma.Origin + FVector(0.f, -Ext.Y, -Ext.Z));
+			const FVector BaseB = Pieno.TransformPosition(Forma.Origin + FVector(0.f, Ext.Y, -Ext.Z));
+			DisegnaLineaAnteprima(World, CimaA, CimaB, Colore, SDPG_World, 4.f);
+			DisegnaLineaAnteprima(World, BaseA, CimaA, Colore, SDPG_World, 3.f);
+			DisegnaLineaAnteprima(World, BaseB, CimaB, Colore, SDPG_World, 3.f);
 		}
 	}
 

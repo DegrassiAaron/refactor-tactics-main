@@ -233,22 +233,35 @@ bool FRTRememberedWallIsAPlanLineTest::RunTest(const FString&)
 	RTTestConsoleVariable::TGuardia<int32> DebugSpento(*Debug, 0);
 
 	const FLinearColor Pianta(ARTHexMapActor::PlanColor().ToFColor(/*bSRGB=*/ true));
+	float QuotaMassima = -BIG_NUMBER;
 	const auto LineeDellaPianta = [&]()
 	{
 		Mondo->Flush();
 		static_cast<AActor*>(HexMap)->Tick(0.f);
 		int32 N = 0;
+		QuotaMassima = -BIG_NUMBER;
 		for (const FBatchedLine& L : Mondo->BatchedLines)
 		{
-			N += L.Color.Equals(Pianta) ? 1 : 0;
+			if (L.Color.Equals(Pianta))
+			{
+				++N;
+				QuotaMassima = FMath::Max(QuotaMassima, FMath::Max(L.Start.Z, L.End.Z));
+			}
 		}
 		return N;
 	};
 
-	// Ricordata: il pannello sparisce, e al suo posto c'e' UNA linea della pianta.
+	// Ricordata: il pannello sparisce, e al suo posto c'e' il suo CONTORNO a linee: la cima e i due montanti.
 	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ FRTCellId(0, 0, 0) }, { FRTCellId(0, 0, 0), ConMuro }));
 	TestFalse(TEXT("ricordato: il pannello solido non si disegna"), DisegnataPianta(Pannelli, 0));
-	TestEqual(TEXT("ricordato: una linea della pianta lo sostituisce"), LineeDellaPianta(), 1);
+	TestEqual(TEXT("ricordato: tre linee della pianta lo sostituiscono, la cima e i due montanti"), LineeDellaPianta(), 3);
+	// 🔴 La cima sta SOPRA il pavimento: a terra il tratto coinciderebbe coi lati degli anelli della pianta, dello stesso
+	// colore, e sparirebbe nella griglia — misurato nella seduta `U89`.
+	FVector Origin; float Size = 0.f; float LayerH = 0.f;
+	HexMap->GetHexContext(Origin, Size, LayerH);
+	const float Pavimento = URTHexLibrary::AxialToWorld(ConMuro, Origin, Size, LayerH).Z;
+	TestTrue(*FString::Printf(TEXT("la cima del contorno sta sopra il pavimento (%.1f contro %.1f)"), QuotaMassima, Pavimento),
+		QuotaMassima > Pavimento + 20.f);
 
 	// Rivista: il pannello torna solido, e la linea della pianta sparisce.
 	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ FRTCellId(0, 0, 0), ConMuro }, { FRTCellId(0, 0, 0), ConMuro }));

@@ -2756,7 +2756,7 @@ bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
 	TestEqual(TEXT("visto solo il lato est: la sola copertura"), PannelliVisibili({ Est }), 1);
 	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati. ➕ #3760 (D-520): un pannello ricordato non e'
 	// piu' solido, diventa una linea della pianta — e lo diventa ricordato da un lato qualunque, come si vede da un lato
-	// qualunque. Le linee si contano nel batcher, nel colore della pianta.
+	// qualunque. Le linee si contano nel batcher, nel colore della pianta: tre per pannello, la cima e i due montanti.
 	auto LineeDellaPianta = [&]() -> int32
 	{
 		ULineBatchComponent* Batcher = World->GetLineBatcher(UWorld::ELineBatcherType::World);
@@ -2775,9 +2775,9 @@ bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
 		return N;
 	};
 	TestEqual(TEXT("lati opposti solo ricordati: nessun pannello solido"), PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 0);
-	TestEqual(TEXT("e due linee della pianta, la copertura e la porta"), LineeDellaPianta(), 2);
+	TestEqual(TEXT("e il contorno a linee di tutti e due, tre linee ciascuno"), LineeDellaPianta(), 6);
 	TestEqual(TEXT("il solo lato est ricordato: nessun pannello solido"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 0);
-	TestEqual(TEXT("e la sola linea della copertura"), LineeDellaPianta(), 1);
+	TestEqual(TEXT("e il solo contorno della copertura"), LineeDellaPianta(), 3);
 
 	DestroyMapActorWorld(World);
 	return true;
