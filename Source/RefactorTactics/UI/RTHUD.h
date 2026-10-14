@@ -271,17 +271,24 @@ struct FRTDashPreview
 	TArray<FRTCellId> PathCells;
 
 	/**
-	 * [D-516] Quanti tratti di `PathCells` la corsa PERCORRE: il tratto `PathCells[i - 1] -> PathCells[i]` e' corsa
-	 * se `i <= ReachSegments`. Oltre — una carica col bersaglio fuori portata — e' la retta che la carica non fara',
-	 * fino al nemico. Senza una carica oltre la portata vale `PathCells.Num() - 1`: tutto.
+	 * [D-516] Quanti tratti di `PathCells` la corsa PERCORRE, quando non li percorre tutti: il tratto
+	 * `PathCells[i - 1] -> PathCells[i]` e' corsa se `i <= ReachSegments`. Oltre — una carica col bersaglio fuori
+	 * portata — e' la retta che la carica non fara', fino al nemico.
+	 *
+	 * ⚠️ **`INDEX_NONE` vuol dire «tutta la traiettoria»**, ed e' il default: chi costruisce la struttura senza
+	 * `ComposeDashPreview` e non scrive questo campo ottiene una corsa intera, non una tutta rossa (review della PR
+	 * #3767, quando il default era `0`).
 	 */
-	int32 ReachSegments = 0;
+	int32 ReachSegments = INDEX_NONE;
 
 	/** [D-516] Vero se resta un tratto che la corsa non fa: lo si disegna tratteggiato, in rosso. */
-	bool HasShortfall() const { return ReachSegments < PathCells.Num() - 1; }
+	bool HasShortfall() const { return ReachSegments != INDEX_NONE && ReachSegments < PathCells.Num() - 1; }
 
-	/** [D-516] Dove la corsa si ferma: la destinazione, o l'ultima cella della portata. Invalida senza traiettoria. */
-	FRTCellId StopCell() const { return PathCells.IsValidIndex(ReachSegments) ? PathCells[ReachSegments] : FRTCellId(); }
+	/** [D-516] Dove la corsa si ferma: l'ultima cella della portata, o la fine della traiettoria. Invalida senza. */
+	FRTCellId StopCell() const
+	{
+		return HasShortfall() ? PathCells[ReachSegments] : (PathCells.Num() > 0 ? PathCells.Last() : FRTCellId());
+	}
 };
 
 struct FRTIntentCertaintyStyle

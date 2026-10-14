@@ -1279,7 +1279,8 @@ void ARTHUD::DrawHUD()
 				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
 				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
 				const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
-				for (int32 i = 1; i <= Scatto.ReachSegments && i < Scatto.PathCells.Num(); ++i)
+				const int32 UltimoTrattoDiCorsa = Scatto.HasShortfall() ? Scatto.ReachSegments : Scatto.PathCells.Num() - 1;
+				for (int32 i = 1; i <= UltimoTrattoDiCorsa; ++i)
 				{
 					const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
 					const FVector DB = Project(HexCellWorld(Scatto.PathCells[i], Origin, HexSize, LayerH));
@@ -1305,7 +1306,8 @@ void ARTHUD::DrawHUD()
 					}
 				}
 
-				// Il segno d'arrivo sta dove la corsa SI FERMA: con una carica oltre la portata non e' il nemico.
+				// Con una carica oltre la portata il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico. ⚠️ In portata
+				// resta sulla cella del nemico, com'era: la carica si ferma accanto a lui ([D-296]), e dirlo e' #3769.
 				const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
 					Origin, HexSize, LayerH));
 				if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
@@ -1848,10 +1850,10 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 
 	// [D-516]: una carica col bersaglio oltre la portata corre per `DashReachCells` celle della retta e si ferma.
 	// Il numero lo calcola l'unita' (`PlannedChargeReachBeyondRange`) con la portata del resolver: qui si legge.
-	Out.ReachSegments = FMath::Max(0, Out.PathCells.Num() - 1);
-	if (View.DashReachCells > 0 && URTMovementActionLibrary::IsLinear(View.DashStyle))
+	if (View.DashReachCells > 0 && URTMovementActionLibrary::IsLinear(View.DashStyle)
+		&& View.DashReachCells < Out.PathCells.Num() - 1)
 	{
-		Out.ReachSegments = FMath::Min(View.DashReachCells, Out.ReachSegments);
+		Out.ReachSegments = View.DashReachCells;
 	}
 
 	return Out;

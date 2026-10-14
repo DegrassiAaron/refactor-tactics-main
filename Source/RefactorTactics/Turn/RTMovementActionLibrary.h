@@ -88,6 +88,16 @@ struct FRTLinearMoveResult
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
 	ERTLinearStop Stop = ERTLinearStop::NotAligned;
 
+	/**
+	 * [D-516] Vero se il bersaglio era una CARICA in linea ma oltre la portata, qualunque cosa l'abbia poi fermata.
+	 *
+	 * 🔑 **`Stop` da solo non lo dice**: un nemico sulla retta entro la portata da' `Impact` sia verso un bersaglio in
+	 * portata sia durante la corsa verso uno lontano. Chi accetta un impatto come «la carica arriva» deve poterli
+	 * distinguere senza rifare la geometria (review della PR #3767).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bTargetBeyondRange = false;
+
 	FRTLinearMoveResult() = default;
 };
 

@@ -2154,11 +2154,15 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la
 	// pianificazione usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un
 	// altro gruppo continua a ispezionarsi.
-	// ⚠️ **E solo una carica che si puo' usare** (review di #3736): armata in ricarica, il click finirebbe nel «non
-	// pronto» di `HandleClickOnCell` senza ispezionare niente, cioe' un click perso dove prima si ispezionava.
-	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(SelectedUnit->SelectedAbilityIndex) : nullptr;
+	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`)
+	// o col movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di
+	// `HandleClickOnCell` senza ispezionare niente, cioe' un click perso dove prima si ispezionava.
+	const int32 IndiceArmato = SelectedUnit ? SelectedUnit->SelectedAbilityIndex : INDEX_NONE;
+	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(IndiceArmato) : nullptr;
 	const bool bArmedChargeTargetsClicked = Armata && Armata->Def.MovementStyle == ERTMovementStyle::LinearCharge
-		&& SelectedUnit->CanUseAbility(SelectedUnit->SelectedAbilityIndex)
+		&& SelectedUnit->CanUseAbility(IndiceArmato)
+		&& SelectedUnit->EffectiveDashRangeOf(IndiceArmato) > 0
+		&& !SelectedUnit->bDeclaresPlannedFacing
 		&& ClickedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId;
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
 		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
@@ -2689,10 +2693,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			// vuota, un muro o un nemico lontano: accettarlo pianificava cio' che la decisione non copre, e l'anteprima e
 			// l'avviso avrebbero descritto una corsa fino alla portata che l'impatto ferma prima. Quel caso resta com'era
 			// prima di [D-516] — rifiutato —, e il giocatore carica il nemico piu' vicino cliccando lui.
-			int32 DistanzaDalBersaglio = 0;
-			const bool bOltreLaPortata = URTMovementActionLibrary::IsStraightLine(SelectedUnit->Cell, Cell, DistanzaDalBersaglio)
-				&& DistanzaDalBersaglio > DashRange;
-			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact) && !bOltreLaPortata;
+			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact) && !Linear.bTargetBeyondRange;
 
 			// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla
 			// risoluzione corre fino alla portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano
@@ -2740,6 +2741,10 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto")
 					: bChargesBeyondRange ? TEXT(" oltre la portata: si fermera' prima") : TEXT(""));
+			// 🔑 **La timeline del piano si ricompone qui** (review della PR #3767): lo scatto e' una fase del piano, e
+			// fino a qui la timeline posata restava quella di prima del click — il fantasma dello scatto compariva
+			// solo al gesto successivo. Lo stesso del waypoint, che ricompone dopo averlo accettato.
+			RefreshPlanningPreview(GetWorld(), SelectedUnit);
 			RecordDestinationOrder(this);
 			return;
 		}

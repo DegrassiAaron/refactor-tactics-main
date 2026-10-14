@@ -418,9 +418,10 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				"Il bersaglio è oltre la portata ({0} celle, portata {1})"), FText::AsNumber(Distanza), FText::AsNumber(Corsa));
 			// ⚠️ **«Non lo raggiunge», non «senza colpire»** (review di #3736): la corsa colpisce ancora chi sta sulla
 			// linea entro la portata all'inizio del Dash, compreso un nemico che chi pianifica non vede. Promettere che
-			// non colpira' nessuno sarebbe dire al giocatore una cosa che il resolver non mantiene.
+			// non colpira' nessuno sarebbe dire al giocatore una cosa che il resolver non mantiene. E «al piu'», perche' quel
+			// nemico la ferma prima della portata (seconda revisione della PR #3767).
 			Corta.Cost = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeCost",
-				"Corre per {0} celle e non lo raggiunge"), FText::AsNumber(Corsa));
+				"Non lo raggiunge: corre al più per {0} celle"), FText::AsNumber(Corsa));
 			Avvisi.Add(Corta);
 		}
 	}

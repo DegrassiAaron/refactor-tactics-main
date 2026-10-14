@@ -110,6 +110,7 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 		return Result;
 	}
 	const int32 Steps = bChargeBeyondRange ? MaxCells : Distance;
+	Result.bTargetBeyondRange = bChargeBeyondRange;
 
 	const FIntPoint Step(Target.X - From.X, Target.Y - From.Y);
 	const FIntPoint UnitStep(Step.X / Distance, Step.Y / Distance);
@@ -194,13 +195,13 @@ bool URTMovementActionLibrary::IsLineOpenToTarget(const URTHexMapAsset* Map, con
 	int32 Distance = 0;
 	if (!IsStraightLine(From, Target, Distance))
 	{
-		return false;
+		return false; // anche `From == Target`: non c'e' una retta da percorrere
 	}
-	// Lo stile a passi qualunque, con la portata pari alla distanza e nessuno sulla strada: conta solo il terreno.
+	// `IsLinearReachable` con uno stile a passi, la portata pari alla distanza e nessuno sulla strada: conta solo il
+	// terreno. Un predicato solo sulla stessa chiamata, non un secondo (review della PR #3767).
 	const TMap<FRTCellId, int32> Nessuno;
 	const TSet<int32> NessunNemico;
-	return ResolveLinearMove(Map, From, Target, Distance, ERTMovementStyle::LinearDash, Nessuno, NessunNemico).Stop
-		== ERTLinearStop::Completed;
+	return IsLinearReachable(Map, From, Target, Distance, ERTMovementStyle::LinearDash, Nessuno, NessunNemico);
 }
 
 bool URTMovementActionLibrary::IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From,

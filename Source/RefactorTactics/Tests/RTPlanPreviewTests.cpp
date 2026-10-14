@@ -96,6 +96,17 @@ bool FRTPlanPreviewChargeBeyondRangeTest::RunTest(const FString&)
 	TestTrue(TEXT("con la carica oltre la portata il fantasma si ferma alla portata"),
 		Corta->PreviewDestination == FRTCellId(3, 0, 0));
 	TestEqual(TEXT("e la rotta ha la partenza piu' le tre celle che corre"), Corta->PreviewPath.Num(), 4);
+
+	// La carica non paga il movimento: con un budget che non arriva al bersaglio lontano il fantasma si ferma lo stesso
+	// alla portata, lungo la retta (seconda revisione della PR #3767 — l'A* del movimento lo lasciava fermo).
+	TArray<FRTHexSimUnit> Lenti;
+	Lenti.Add(FRTHexSimUnit(/*UnitId=*/ 0, FRTCellId(0, 0, 0), /*MoveBudget=*/ 2));
+	const FRTHexSnapshot SnapshotLento = URTHexSimLibrary::MakeSnapshotOmniscient(M, Lenti);
+	const FRTPlanPreview AnteprimaLenta = URTPlanPreviewLibrary::MakePlanPreview(SnapshotLento, Plan, {});
+	const FRTPhasePreviewEntry* Lenta = PhaseOf(AnteprimaLenta, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("col budget basso la timeline porta la fase Dash"), Lenta)) { return false; }
+	TestTrue(TEXT("e il fantasma si ferma alla portata anche se il movimento non arriverebbe al bersaglio"),
+		Lenta->PreviewDestination == FRTCellId(3, 0, 0));
 	return true;
 }
 

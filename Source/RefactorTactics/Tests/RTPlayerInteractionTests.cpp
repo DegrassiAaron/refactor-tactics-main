@@ -34,6 +34,7 @@
 #include "Turn/RTIntentPrivacyLibrary.h" // [D-516]: la vista filtrata che l'HUD disegna
 #include "Perception/RTTeamKnowledge.h" // [D-516]: ClassifyTarget, chi la squadra conosce
 #include "Player/RTPointerInteraction.h" // ERTPointerContext
+#include "Core/RTGameplayTags.h"        // TAG_Status_Root: una carica senza portata non ruba il click
 #include "Turn/RTPlanPreview.h"         // [D-516]: la timeline del piano posata sulla mappa
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -333,6 +334,20 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 		PC->GetInspectedUnit() == Alleata);
 	TestTrue(TEXT("e la carica resta quella sul nemico"), Charger->PlannedDashCell == Enemy->Cell);
 
+	// Una carica che adesso non puo' pianificare non ruba il click (seconda revisione della PR #3767): sotto `Root` la
+	// portata e' zero, e col verso dichiarato il movimento e' chiuso. In tutti e due i casi il nemico si ispeziona.
+	Charger->ApplyStatus(TAG_Status_Root, 1);
+	TestEqual(TEXT("premessa: sotto Root la carica non ha portata"), Charger->EffectiveDashRangeOf(ChargeIdx), 0);
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestTrue(TEXT("sotto Root il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
+	Charger->RemoveStatus(TAG_Status_Root);
+	PC->DispatchUnitClickForTest(Alleata, Charger);
+	Charger->bDeclaresPlannedFacing = true;
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestTrue(TEXT("col verso dichiarato il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
+	Charger->bDeclaresPlannedFacing = false;
+	PC->DispatchUnitClickForTest(Alleata, Charger);
+
 	// Una carica in RICARICA non ruba il click (review di #3736): armata, ma inutilizzabile, il nemico si ispeziona.
 	Charger->ConsumeAbility(ChargeIdx);
 	TestFalse(TEXT("premessa: la carica e' in ricarica"), Charger->CanUseAbility(ChargeIdx));
@@ -538,9 +553,9 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 	}
 
 	// La timeline del piano, quella che il controller compone e posa sulla mappa: il fantasma dello scatto si ferma
-	// alla portata. La riconferma dell'azione la ricompone, come in `AimOrigin.*`: riselezionare la stessa unita'
-	// non basta, misurato — la timeline restava vuota.
-	PC->SelectAbilityForCurrentForTest(ChargeIdx);
+	// alla portata. ⚠️ **Letta subito dopo il click, senza altri gesti** (seconda revisione della PR #3767): una prima
+	// stesura la ricomponeva riarmando l'azione, perche' il click che pianifica lo scatto non la ricomponeva — e
+	// nel gioco il giocatore quel gesto non lo fa.
 	const FRTPhasePreviewEntry* FantasmaScatto = nullptr;
 	for (const FRTPhasePreviewEntry& Voce : MapActor->GetPlanPreview().Phases)
 	{

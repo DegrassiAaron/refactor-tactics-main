@@ -4,6 +4,7 @@
 #include "Turn/RTHexSimLibrary.h"  // BuildCompositeHexPath: lo STESSO A* del resolver
 #include "Turn/RTFacingLibrary.h"  // FacingFromPath: la derivazione pura, senza TurnLog
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: la fase dell'azione decide il posto della voce ([D-470])
+#include "Map/RTHexLibrary.h"        // HexLine: la retta di una carica oltre la portata ([D-516])
 
 namespace
 {
@@ -214,11 +215,19 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		FRTHexPathResult RottaScatto = bScattoEffettivo
 			? URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell)
 			: FRTHexPathResult();
-		// [D-516]: una carica col bersaglio oltre la portata si ferma dopo `DashReachCells` celle. Fra due celle della
-		// stessa retta esagonale la via piu' breve e' una sola, la retta, quindi troncarla da' le celle che corre.
-		if (Plan.DashReachCells > 0 && RottaScatto.Path.Num() > Plan.DashReachCells + 1)
+		// [D-516]: una carica col bersaglio oltre la portata corre lungo la RETTA e si ferma dopo `DashReachCells`
+		// celle. ⚠️ **La retta, non l'A* qui sopra** (review della PR #3767): l'A* usa il budget del MOVIMENTO e gli
+		// occupanti come ostacoli, e la carica non paga ne' l'uno ne' gli altri. Con un budget basso — `Unbalanced`,
+		// `Sneak` — non arrivava al bersaglio lontano e il fantasma restava fermo; con un'unita' sulla retta oltre la
+		// portata deviava. La retta e' cio' che `ResolveLinearMove` percorre.
+		if (bScattoEffettivo && Plan.DashReachCells > 0)
 		{
-			RottaScatto.Path.SetNum(Plan.DashReachCells + 1);
+			TArray<FRTCellId> Retta = URTHexLibrary::HexLine(CellaCorrenteDiFase, Plan.PlannedDashCell);
+			if (Retta.Num() > Plan.DashReachCells + 1)
+			{
+				Retta.SetNum(Plan.DashReachCells + 1);
+			}
+			RottaScatto.Path = MoveTemp(Retta);
 		}
 
 		FRTPhasePreviewEntry Dash;

@@ -4,7 +4,7 @@
 
 ## 2026-10-14 — La carica si pianifica cliccando il nemico, anche oltre la portata
 
-**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), decisioni d'autore `D-516`. Con una carica armata il click su un nemico osservato lo ispezionava e non pianificava: il ramo che inoltra la carica alla sua cella si raggiungeva solo dalla porta di test. Ora il click pianifica la carica; su un nemico in linea ma oltre la portata la carica si pianifica con un avviso e il tratto rosso, e alla risoluzione corre fino alla portata e si ferma senza colpire.
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), decisioni d'autore `D-516`. Con una carica armata il click su un nemico osservato lo ispezionava e non pianificava: il ramo che inoltra la carica alla sua cella si raggiungeva solo dalla porta di test. Ora il click pianifica la carica; su un nemico in linea ma oltre la portata la carica si pianifica con un avviso e il tratto rosso, e alla risoluzione corre fino alla portata e si ferma senza raggiungerlo.
 
 | Dove | Che cosa |
 |---|---|
