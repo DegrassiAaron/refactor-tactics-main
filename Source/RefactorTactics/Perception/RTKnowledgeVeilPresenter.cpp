@@ -70,7 +70,11 @@ void URTKnowledgeVeilPresenter::Apply()
 	// 🔴 **E' anche il punto che il multiplayer dovra' cambiare**: vedi il disegno di rete nell'header. Qui
 	// il client legge una conoscenza canonica LOCALE, cosa che in rete sarebbe una fuga di informazione — il
 	// server dovra' sanificarla per squadra e replicarne il DTO al solo owner autorizzato.
-	HexMap->ApplyKnowledgeVeil(TM->KnowledgeForTeamPublic(ViewerTeamId()));
+	// ➕ **E la linea di confine della vista, con la STESSA conoscenza** (#3761): una sola lettura per tutti e
+	// due, cosi' velo e linea non possono raccontare due viste diverse.
+	const FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(ViewerTeamId());
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+	HexMap->SetVisionBorder(Conoscenza.VisibleCells);
 
 	// L'anello osservabile: `GetVeilCounts` dice com'e' la board, questo dice QUANTE VOLTE e' stata
 	// ridipinta. Senza, «steso una volta sola» e «ridipinto con conoscenza vuota» sono indistinguibili.
@@ -106,7 +110,10 @@ void URTKnowledgeVeilPresenter::HandlePlaybackStepAdvanced()
 	// ⚠️ `PlaybackKnowledgeForTeam` e **non** `KnowledgeForTeamPublic`: quella, quando il playback comincia,
 	// contiene gia' tutto il transito del turno ([D-379]) e farebbe accendere il corridoio prima che
 	// l'unita' ci arrivi. Vedi il suo commento nell'header del TurnManager.
-	HexMap->ApplyKnowledgeVeil(TM->PlaybackKnowledgeForTeam(ViewerTeamId()));
+	// ➕ La linea di confine segue il movimento come il velo, e con la stessa conoscenza (#3761).
+	const FRTTeamKnowledge Conoscenza = TM->PlaybackKnowledgeForTeam(ViewerTeamId());
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+	HexMap->SetVisionBorder(Conoscenza.VisibleCells);
 
 	// ⛔ **`Applications` NON si incrementa qui.** Quel contatore misura quante volte il velo e' stato steso
 	// **dai punti di refresh** — e' l'anello che `Veil.GameModeAppliesTheVeilForTheViewerTeam` asserisce
