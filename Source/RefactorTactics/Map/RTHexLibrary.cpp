@@ -711,6 +711,49 @@ namespace
 	}
 }
 
+FRTCellId URTHexLibrary::HexLinePoint(const FRTCellId& A, const FRTCellId& B, int32 InNum, int32 InDen)
+{
+	if (InDen <= 0)
+	{
+		return FRTCellId(A.X, A.Y, A.Layer); // frazione senza denominatore: si resta dove si e'
+	}
+
+	const int64 Steps = InDen;
+	const int64 Step = FMath::Clamp(InNum, 0, InDen);
+
+	// Estremi in coordinate cubiche (q, r, s = -q-r).
+	const int64 Aq = A.X, Ar = A.Y, As = A.CubeZ();
+	const int64 Bq = B.X, Br = B.Y, Bs = B.CubeZ();
+	const int64 Den = RT_HEX_LINE_SCALE * Steps;
+
+	// Punto Step/Steps sulla retta come frazione INTERA (numeratori scalati + bias di rottura dei pareggi).
+	const int64 Nq = RT_HEX_LINE_SCALE * (Aq * (Steps - Step) + Bq * Step) + 1;
+	const int64 Nr = RT_HEX_LINE_SCALE * (Ar * (Steps - Step) + Br * Step) + 1;
+	const int64 Ns = RT_HEX_LINE_SCALE * (As * (Steps - Step) + Bs * Step) - 2;
+
+	int64 Rq = RoundDivInt(Nq, Den);
+	int64 Rr = RoundDivInt(Nr, Den);
+	int64 Rs = RoundDivInt(Ns, Den);
+
+	// Resti interi (scala Den): la componente col resto maggiore si ricava dalle altre due, cosi' q+r+s = 0
+	// resta vero. Ordine di preferenza fisso q -> r -> s, come CubeRound.
+	const int64 Dq = FMath::Abs(Rq * Den - Nq);
+	const int64 Dr = FMath::Abs(Rr * Den - Nr);
+	const int64 Ds = FMath::Abs(Rs * Den - Ns);
+
+	if (Dq > Dr && Dq > Ds)
+	{
+		Rq = -Rr - Rs;
+	}
+	else if (Dr > Ds)
+	{
+		Rr = -Rq - Rs;
+	}
+	// altrimenti si aggiusta s, che non serve all'output (q e r bastano)
+
+	return FRTCellId(static_cast<int32>(Rq), static_cast<int32>(Rr), A.Layer);
+}
+
 TArray<FRTCellId> URTHexLibrary::HexLine(const FRTCellId& A, const FRTCellId& B)
 {
 	TArray<FRTCellId> Out;
@@ -723,39 +766,10 @@ TArray<FRTCellId> URTHexLibrary::HexLine(const FRTCellId& A, const FRTCellId& B)
 		return Out;
 	}
 
-	// Estremi in coordinate cubiche (q, r, s = -q-r).
-	const int64 Aq = A.X, Ar = A.Y, As = A.CubeZ();
-	const int64 Bq = B.X, Br = B.Y, Bs = B.CubeZ();
-	const int64 Den = RT_HEX_LINE_SCALE * N;
-
+	// Un campione per passo: il punto i/N. L'arrotondamento sta in `HexLinePoint`, ed e' uno solo.
 	for (int32 i = 0; i <= N; ++i)
 	{
-		// Punto i/N sulla retta come frazione INTERA (numeratori scalati + bias di rottura dei pareggi).
-		const int64 Nq = RT_HEX_LINE_SCALE * (Aq * (N - i) + Bq * i) + 1;
-		const int64 Nr = RT_HEX_LINE_SCALE * (Ar * (N - i) + Br * i) + 1;
-		const int64 Ns = RT_HEX_LINE_SCALE * (As * (N - i) + Bs * i) - 2;
-
-		int64 Rq = RoundDivInt(Nq, Den);
-		int64 Rr = RoundDivInt(Nr, Den);
-		int64 Rs = RoundDivInt(Ns, Den);
-
-		// Resti interi (scala Den): la componente col resto maggiore si ricava dalle altre due, cosi' q+r+s = 0
-		// resta vero. Ordine di preferenza fisso q -> r -> s, come CubeRound.
-		const int64 Dq = FMath::Abs(Rq * Den - Nq);
-		const int64 Dr = FMath::Abs(Rr * Den - Nr);
-		const int64 Ds = FMath::Abs(Rs * Den - Ns);
-
-		if (Dq > Dr && Dq > Ds)
-		{
-			Rq = -Rr - Rs;
-		}
-		else if (Dr > Ds)
-		{
-			Rr = -Rq - Rs;
-		}
-		// altrimenti si aggiusta s, che non serve all'output (q e r bastano)
-
-		Out.Add(FRTCellId(static_cast<int32>(Rq), static_cast<int32>(Rr), A.Layer));
+		Out.Add(HexLinePoint(A, B, i, N));
 	}
 	return Out;
 }

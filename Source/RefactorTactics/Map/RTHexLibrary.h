@@ -508,6 +508,22 @@ public:
 	static TArray<FRTCellId> HexLine(const FRTCellId& A, const FRTCellId& B);
 
 	/**
+	 * La cella che contiene il punto a `Num / Den` della retta A->B, sul layer di A: `Num = 0` e' A,
+	 * `Num = Den` e' la colonna di B. Planare come `HexLine`.
+	 *
+	 * 🔑 **E' l'arrotondamento di `HexLine`, non uno uguale**: `HexLine` e' questa funzione chiamata con
+	 * `Num = i`, `Den = N`. Esiste perche' la vista fra piani (`D-511`, #3743) deve sapere in quale cella la
+	 * linea attraversa la quota di un pavimento, e quel punto non cade su un campione intero della linea. Una
+	 * seconda interpolazione «accanto» avrebbe scelto, sui confini, un lato diverso da quello di `HexLine`.
+	 *
+	 * Il punto a `Num / Den` da A verso B e quello a `(Den - Num) / Den` da B verso A sono lo stesso punto, con
+	 * lo stesso spostamento di spareggio: la cella non dipende dal verso. `Den <= 0` -> A; `Num` fuori da
+	 * `0..Den` viene riportato dentro.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FRTCellId HexLinePoint(const FRTCellId& A, const FRTCellId& B, int32 Num, int32 Den);
+
+	/**
 	 * Ventaglio di 120 gradi da From verso Target, profondo Range celle: unione dei due settori esagonali a 60
 	 * gradi adiacenti alla direzione principale (il primo passo della linea From->Target). From e' ESCLUSO;
 	 * output ordinato con StableLess (deterministico). Target == From o Range <= 0 -> vuoto.

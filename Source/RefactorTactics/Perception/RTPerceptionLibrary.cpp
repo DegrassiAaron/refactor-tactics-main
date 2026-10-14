@@ -1,14 +1,17 @@
 #include "Perception/RTPerceptionLibrary.h"
 
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexOcclusionLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace
 {
 	/**
-	 * Il contatto regge fra due celle? Quattro condizioni, tutte necessarie.
+	 * Il contatto regge fra due celle? Tre condizioni, tutte necessarie: portata, fumo, linea di vista.
 	 *
 	 * Il **cap del fumo** passa da `URTTerrainLibrary::EffectiveTargetingRange`, che di quella regola e'
 	 * l'owner: ricalcolarlo qui darebbe due verita' sullo stesso numero, e la seconda divergerebbe alla prima
@@ -16,23 +19,6 @@ namespace
 	 */
 	bool ContactHolds(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To, int32 Range)
 	{
-		// ⛔ **Stessa colonna, piano diverso: nessun contatto** (`D-510`, #3741). Decisione d'autore del
-		// 2026-10-13: «Se uno sta nella cella sopra un nemico, i 2 non si vedono (la linea di visuale passa al
-		// centro perpendicolare)». La cella impilata sta a distanza ZERO sulla proiezione, quindi senza questa
-		// riga la prende la consapevolezza ravvicinata, in ogni direzione. Vale a ogni distanza di piano.
-		//
-		// 🔑 **Sta QUI e non in `URTHexVisionLibrary::DescribeLineOfSight`, ed e' una scelta misurata.** La prima
-		// stesura l'aveva messa nella linea di vista: la suite ha fatto cadere
-		// `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e `…ClosesNoCycleOfAnyPeriod` sulle otto coppie
-		// di celle impilate dell'arena generata. Da una cella esattamente sotto il bersaglio ogni cella che
-		// «vede» e' piu' lontana: il filtro dei bot arretra, e l'orbita di #1287 si chiude. La linea di vista e'
-		// la geometria su cui i bot scelgono le celle; il CONTATTO e' cio' che una squadra sa. La regola e' del
-		// secondo, e colpire un altro piano e' gia' un rifiuto dichiarato (`D-393`, `D-509`).
-		if (From.X == To.X && From.Y == To.Y && From.Layer != To.Layer)
-		{
-			return false;
-		}
-
 		const int32 Distance = URTHexLibrary::HexDistance(From, To);
 		if (Distance > Range)
 		{
@@ -42,8 +28,163 @@ namespace
 		{
 			return false; // fumo dentro o attraverso: il contatto si ferma prima
 		}
+
+		// ⛔ **Fra due piani la linea e' un'altra** (`D-511`, #3743; e `D-510`, #3741, che ne e' il caso della
+		// stessa colonna). Va da testa a testa e si ferma sui pavimenti: chi sta sotto una piattaforma non vede
+		// che cosa ha sopra, e chi sta sul bordo copre chi gli sta dietro.
+		//
+		// 🔑 **Sta QUI e non in `URTHexVisionLibrary::DescribeLineOfSight`, ed e' una scelta misurata.** La prima
+		// stesura di #3741 aveva messo la sua regola nella linea di vista: la suite ha fatto cadere
+		// `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e `…ClosesNoCycleOfAnyPeriod` sulle otto coppie
+		// di celle impilate dell'arena generata. Da una cella esattamente sotto il bersaglio ogni cella che
+		// «vede» e' piu' lontana: il filtro dei bot arretra, e l'orbita di #1287 si chiude. La linea di vista e'
+		// la geometria su cui i bot scelgono le celle; il CONTATTO e' cio' che una squadra sa. La regola e' del
+		// secondo, e colpire un altro piano e' gia' un rifiuto dichiarato (`D-393`, `D-509`).
+		if (From.Layer != To.Layer)
+		{
+			return URTPerceptionLibrary::HasSightAcrossLayers(Map, From, To);
+		}
 		return URTHexVisionLibrary::HasLineOfSight(Map, From, To);
 	}
+}
+
+FRTCrossLayerSightResult URTPerceptionLibrary::DescribeSightAcrossLayers(const URTHexMapAsset* Map,
+	const FRTCellId& From, const FRTCellId& To)
+{
+	FRTCrossLayerSightResult Result;
+	if (!Map || From.Layer == To.Layer)
+	{
+		return Result; // nessun pavimento noto, oppure stesso piano: non e' la domanda di questa regola
+	}
+
+	// 🔑 Sempre dalla cella piu' BASSA alla piu' ALTA, chiunque sia `From`. E' cio' che rende l'esito lo stesso
+	// nei due versi senza doverlo asserire: non esistono due linee da tenere allineate, ne esiste una.
+	const bool bFromIsLower = From.Layer < To.Layer;
+	const FRTCellId& Lower = bFromIsLower ? From : To;
+	const FRTCellId& Upper = bFromIsLower ? To : From;
+	const int32 Rise = Upper.Layer - Lower.Layer; // >= 1
+
+	auto OnLayer = [](const FRTCellId& Cell, int32 Layer) { return FRTCellId(Cell.X, Cell.Y, Layer); };
+	auto Stopped = [&Result](ERTCrossLayerSightBlock Why, const FRTCellId& At) -> FRTCrossLayerSightResult
+	{
+		Result.Block = Why;
+		Result.BlockedAt = At;
+		return Result;
+	};
+
+	// `D-510`, #3741: «Se uno sta nella cella sopra un nemico, i 2 non si vedono (la linea di visuale passa al
+	// centro perpendicolare)». La linea e' verticale e buca il pavimento su cui sta chi e' sopra. Il ramo e'
+	// esplicito perche' la decisione non dipende dall'asset: vale anche se quella cella non e' fra i dati.
+	if (Lower.X == Upper.X && Lower.Y == Upper.Y)
+	{
+		return Stopped(ERTCrossLayerSightBlock::Floor, Upper);
+	}
+
+	// --- 1. I PAVIMENTI -------------------------------------------------------------------------------------
+	// La testa sta a `HeadNum / HeadDen` di piano sopra il pavimento, ai due capi: in altezze di piano la linea
+	// sale di `Rise` in tutto, e raggiunge la quota del piano `Lower.Layer + Climb` dopo averne salite
+	// `Climb - HeadNum / HeadDen`. Quindi a `(HeadDen * Climb - HeadNum) / (HeadDen * Rise)` della distanza,
+	// contando da chi sta sotto: due quinti, con un piano di dislivello e la testa a tre quinti. Nessuna misura
+	// in unita' di mondo entra nel conto.
+	constexpr int32 HeadNum = SightHeadHeightNum;
+	constexpr int32 HeadDen = SightHeadHeightDen;
+	for (int32 Climb = 1; Climb <= Rise; ++Climb)
+	{
+		const FRTCellId Crossing =
+			URTHexLibrary::HexLinePoint(Lower, Upper, HeadDen * Climb - HeadNum, HeadDen * Rise);
+		const FRTCellId FloorCell = OnLayer(Crossing, Lower.Layer + Climb);
+		if (Map->FindCell(FloorCell) != nullptr)
+		{
+			return Stopped(ERTCrossLayerSightBlock::Floor, FloorCell);
+		}
+		// cella assente = buco nel pavimento: la linea passa
+	}
+
+	// --- 2. GLI OSTACOLI, DEL PIANO ATTRAVERSATO ------------------------------------------------------------
+	// La linea in pianta e' quella di `HexLine`, col suo passo: ogni cella vale da mezzo passo prima a mezzo
+	// passo dopo il proprio campione. In MEZZI passi dalla cella bassa la quota e' una frazione intera:
+	//
+	//     quota = Lower.Layer + HeadNum / HeadDen + Rise * Mezzi / (2 * N)
+	//
+	// e il piano e' la sua parte intera. `LayerAt` e' il piano in quel punto; `LayerBefore` quello appena
+	// prima, cosi' una cella non risponde di un piano che la linea tocca solo uscendone.
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Lower, Upper);
+	const int32 N = Line.Num() - 1; // >= 1: la stessa colonna e' gia' uscita
+	const int64 Scale = static_cast<int64>(2) * HeadDen * N;
+	auto ScaledHeight = [&](int32 HalfSteps) -> int64
+	{
+		return static_cast<int64>(2) * HeadNum * N + static_cast<int64>(HeadDen) * Rise * HalfSteps;
+	};
+	auto LayerAt = [&](int32 HalfSteps) { return Lower.Layer + static_cast<int32>(ScaledHeight(HalfSteps) / Scale); };
+	auto LayerBefore = [&](int32 HalfSteps)
+	{
+		return Lower.Layer + static_cast<int32>((ScaledHeight(HalfSteps) - 1) / Scale);
+	};
+
+	// I muri interni di una cella, su un piano: la corda va dal lato d'ingresso a quello d'uscita, e ai due
+	// capi nasce o muore al centro (`Prev == Cell`, `Next == Cell`), come in `DescribeLineOfSight`.
+	auto InteriorBlocks = [&](int32 Index, int32 Layer) -> bool
+	{
+		const FRTCellId Cell = OnLayer(Line[Index], Layer);
+		const FRTCellId Prev = (Index > 0) ? OnLayer(Line[Index - 1], Layer) : Cell;
+		const FRTCellId Next = (Index < N) ? OnLayer(Line[Index + 1], Layer) : Cell;
+		return URTHexOcclusionLibrary::BlocksSight(Map, Prev, Cell, Next);
+	};
+
+	// I due capi rispondono del PROPRIO piano soltanto. Dentro la colonna di un capo la linea puo' cambiare
+	// piano solo bucando il pavimento di quella colonna, e quello l'ha gia' chiesto il passo 1.
+	if (InteriorBlocks(0, Lower.Layer))
+	{
+		return Stopped(ERTCrossLayerSightBlock::InteriorGeometry, Lower);
+	}
+
+	for (int32 I = 1; I <= N; ++I)
+	{
+		// Il bordo fra `I - 1` e `I` sta a `2 * I - 1` mezzi passi: conta la copertura alta, o la porta chiusa,
+		// del piano in cui la linea lo attraversa. Come dentro un piano, contano anche il primo e l'ultimo.
+		const int32 EdgeLayer = LayerAt(2 * I - 1);
+		const FRTCellId Entering = OnLayer(Line[I], EdgeLayer);
+		if (URTHexCoverLibrary::BlocksTraversal(Map, OnLayer(Line[I - 1], EdgeLayer), Entering))
+		{
+			return Stopped(ERTCrossLayerSightBlock::EdgeBlocker, Entering);
+		}
+
+		if (I == N)
+		{
+			break; // l'ultima cella e' un capo: non ci si oscura da soli
+		}
+
+		// Una cella intermedia risponde di ogni piano che la linea occupa mentre l'attraversa.
+		const int32 LastLayer = LayerBefore(2 * I + 1);
+		for (int32 Layer = EdgeLayer; Layer <= LastLayer; ++Layer)
+		{
+			const FRTCellId Cell = OnLayer(Line[I], Layer);
+			if (const FRTHexCellData* Data = Map->FindCell(Cell))
+			{
+				if (Data->bBlocksLineOfSight)
+				{
+					return Stopped(ERTCrossLayerSightBlock::CellBlocker, Cell);
+				}
+			}
+			if (InteriorBlocks(I, Layer))
+			{
+				return Stopped(ERTCrossLayerSightBlock::InteriorGeometry, Cell);
+			}
+		}
+	}
+
+	if (InteriorBlocks(N, Upper.Layer))
+	{
+		return Stopped(ERTCrossLayerSightBlock::InteriorGeometry, Upper);
+	}
+
+	return Result;
+}
+
+bool URTPerceptionLibrary::HasSightAcrossLayers(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	return DescribeSightAcrossLayers(Map, From, To).IsClear();
 }
 
 TArray<FRTCellId> URTPerceptionLibrary::VisibleCells(const URTHexMapAsset* Map, const FRTPerceiver& Observer)
@@ -74,10 +215,12 @@ TArray<FRTCellId> URTPerceptionLibrary::VisibleCells(const URTHexMapAsset* Map, 
 	// High Ground resta senza bonus numerico alla vista (canone v0.1): qui non si concede un vantaggio, si
 	// toglie una cecita' che nessuna decisione aveva stabilito.
 	//
-	// ➕ `D-510`, #3741: una cecita' ora e' stabilita, ed e' una sola. Due celle sulla STESSA colonna e su
-	// piani diversi non hanno contatto: chi sta sopra la testa di un nemico non lo vede. Sta in
-	// `ContactHolds`, qui sopra. ⚠️ Vale anche per la CELLA impilata, non solo per chi la occupa:
-	// quell'osservatore non la vede, e il velo la disegna solo se la vede un compagno o se e' gia' ricordata.
+	// ➕ `D-510` (#3741) e poi `D-511` (#3743): la cecita' fra piani ora e' stabilita, ed e' quella di una
+	// linea vera. I candidati restano le celle di ogni piano, e distanza e arco restano sulla proiezione; e' il
+	// CONTATTO che fra due piani chiede `DescribeSightAcrossLayers`, da testa a testa e ferma sui pavimenti.
+	// ⚠️ Vale per la CELLA, non solo per chi la occupa (scelta d'autore: «Anche le celle»): chi sta sotto un
+	// mezzanino non ne vede le celle, e il velo le disegna solo se le vede un compagno da fuori o se sono gia'
+	// ricordate.
 	for (const FRTHexCellData& CellData : Map->Cells)
 	{
 		const FRTCellId& Candidate = CellData.Id;
