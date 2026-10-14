@@ -29,6 +29,13 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "InputMappingContext.h" // #1771: il test delle collisioni interroga i MapKey reali
+#include "UI/RTHudViewModel.h"          // [D-516]: gli avvisi di piano e gli intenti della carica oltre la portata
+#include "UI/RTHUD.h"                   // [D-516]: ComposeDashPreview, il tratto che la carica non fara'
+#include "Turn/RTIntentPrivacyLibrary.h" // [D-516]: la vista filtrata che l'HUD disegna
+#include "Perception/RTTeamKnowledge.h" // [D-516]: ClassifyTarget, chi la squadra conosce
+#include "Player/RTPointerInteraction.h" // ERTPointerContext
+#include "Core/RTGameplayTags.h"        // TAG_Status_Root: una carica senza portata non ruba il click
+#include "Turn/RTPlanPreview.h"         // [D-516]: la timeline del piano posata sulla mappa
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -226,13 +233,47 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 }
 
 
+namespace
+{
+	/** L'indice della carica (`LinearCharge`) nel kit: si CERCA per stile, l'indice e' una convenzione del kit. */
+	int32 FindChargeAbilityIndex(const ARTUnit* Unit)
+	{
+		for (int32 i = 0; Unit && i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.MovementStyle == ERTMovementStyle::LinearCharge)
+			{
+				return i;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/**
+	 * Terreno accidentato su una cella della mappa di prova: nega la corsa (`bBlocksDashCharge`) e lascia passare
+	 * la vista. Nome distinto per file (unity build).
+	 */
+	void MakeInteractionRough(URTHexMapAsset* Map, const FRTCellId& Id)
+	{
+		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
+		Data.Surface = ERTHexSurface::Rough;
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+}
+
 /**
- * Con una CARICA selezionata, cliccare un nemico la pianifica contro di lui.
+ * Con una CARICA armata, il click VERO su un nemico osservato la pianifica contro di lui ([D-516], `#3736`).
  *
- * Prima di #145 il click veniva rifiutato con «lo scatto si pianifica su una CELLA, non su un nemico», e
- * l'unico modo di caricare era cliccare una cella OLTRE il bersaglio e sperare che la traiettoria lo
- * incontrasse: un'affordance che nessuno indovina. Il rifiuto resta giusto per gli scatti che NON sono
- * cariche — quelli si fermano davanti alle unita', quindi puntarne una non ha senso.
+ * Prima di #145 il click veniva rifiutato con «lo scatto si pianifica su una CELLA, non su un nemico». Da #145
+ * il ramo che inoltra la carica alla cella del nemico c'era, ma fino a `#3736` lo raggiungeva solo
+ * `HandleClickOnUnitForTest`: questo test entrava da li', ed era verde mentre dal click vero `ResolveOutcome`
+ * rispondeva `Inspect` — la carica e' mobilita' rapida e resta fuori da `Targeting`. Ora entra da
+ * `DispatchUnitClick`, la porta che `OnSelect` attraversa dopo il raycast.
+ *
+ * Il rifiuto resta giusto per gli scatti che NON sono cariche: quelli si fermano davanti alle unita', e con uno
+ * scatto armato il click sul nemico continua a ispezionarlo. ⌫ *Fino a `#3736` quella meta' armava l'indice 3
+ * di Ivrin, che dalla migrazione al roster e' `Deflection`, una reazione: asseriva su un'azione che non c'entra.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeOnEnemyTest,
 	"RefactorTactics.PlayerInput.ChargeIsPlannedByClickingTheEnemy",
@@ -245,40 +286,286 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
-	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	// Guardian e bersaglio allineati sull'asse q, a distanza 3: dentro la portata della Carica (4).
+	// Branth e il bersaglio allineati sull'asse q, a distanza 3: dentro la portata della carica.
 	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	if (!PC || !Charger || !Enemy) { DestroyInteractionWorld(World); return false; }
+	if (!PC || !Charger || !Enemy || !TM) { DestroyInteractionWorld(World); return false; }
 
-	const int32 ChargeIdx = 3;
-	const URTActionData* Charge = Charger->GetAbility(ChargeIdx);
-	if (!TestTrue(TEXT("premessa: la quarta abilita' del Guardian e' una carica"),
-		Charge && Charge->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	// 🔑 La conoscenza di squadra: senza, la fotografia di chi pianifica non contiene il nemico ([D-371]).
+	TM->RefreshTeamKnowledgeNow();
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	if (!TestNotEqual(TEXT("premessa: Branth ha una carica nel kit"), ChargeIdx, (int32)INDEX_NONE))
 	{
 		DestroyInteractionWorld(World); return false;
 	}
+	TestTrue(TEXT("premessa: il nemico e' noto a chi guarda"), Enemy->IsKnownToObserver());
+	TestTrue(TEXT("premessa: in portata"),
+		URTHexLibrary::HexDistance(Charger->Cell, Enemy->Cell) <= Charger->EffectiveDashRangeOf(ChargeIdx));
 
 	PC->SelectActorForTest(Charger);
 	Charger->SelectAbility(ChargeIdx);
-	PC->HandleClickOnUnitForTest(Enemy);
+	TestTrue(TEXT("premessa: con la carica armata il contesto resta Planning, fuori da Targeting"),
+		PC->GetPointerContext() == ERTPointerContext::Planning);
 
+	TestTrue(TEXT("il click sul nemico e' consumato"), PC->DispatchUnitClickForTest(Enemy, Charger));
 	TestEqual(TEXT("il click sul nemico pianifica la carica"), Charger->PlannedDashAbility, ChargeIdx);
 	TestTrue(TEXT("verso la cella del nemico"), Charger->PlannedDashCell == Enemy->Cell);
+	TestTrue(TEXT("e non lo ispeziona"), PC->GetInspectedUnit() != Enemy);
 	// La carica NON e' un attacco del Blast: l'impatto lo produce la fase Dash. Pianificare anche un attacco
 	// significherebbe colpire due volte con la stessa azione.
 	TestEqual(TEXT("e non pianifica anche un attacco separato"),
 		Charger->PlannedAbilityIndex, (int32)INDEX_NONE);
+	// In portata: nessun tratto da percorrere a vuoto, e nessun avviso ([D-516] tace).
+	TestEqual(TEXT("in portata la carica non si ferma prima"), Charger->PlannedChargeReachBeyondRange(), 0);
+
+	// La carica punta i NEMICI: un'alleata che non comandi — qui guidata dal bot — si ispeziona anche con la
+	// carica armata, come prima.
+	ARTUnit* Alleata = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-1, 0, 0));
+	if (!TestNotNull(TEXT("premessa: l'alleata"), Alleata)) { DestroyInteractionWorld(World); return false; }
+	Alleata->bIsBotControlled = true;
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	TestTrue(TEXT("il click sull'alleata e' consumato"), PC->DispatchUnitClickForTest(Alleata, Charger));
+	TestTrue(TEXT("e la ispeziona: con la carica armata un'alleata non e' un bersaglio"),
+		PC->GetInspectedUnit() == Alleata);
+	TestTrue(TEXT("e la carica resta quella sul nemico"), Charger->PlannedDashCell == Enemy->Cell);
+
+	// Una carica che adesso non puo' pianificare non ruba il click (seconda revisione della PR #3767): sotto `Root` la
+	// portata e' zero, e col verso dichiarato il movimento e' chiuso. In tutti e due i casi il nemico si ispeziona.
+	Charger->ApplyStatus(TAG_Status_Root, 1);
+	TestEqual(TEXT("premessa: sotto Root la carica non ha portata"), Charger->EffectiveDashRangeOf(ChargeIdx), 0);
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestTrue(TEXT("sotto Root il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
+	Charger->RemoveStatus(TAG_Status_Root);
+	PC->DispatchUnitClickForTest(Alleata, Charger);
+	Charger->bDeclaresPlannedFacing = true;
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestTrue(TEXT("col verso dichiarato il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
+	Charger->bDeclaresPlannedFacing = false;
+	PC->DispatchUnitClickForTest(Alleata, Charger);
+
+	// Una carica in RICARICA non ruba il click (review di #3736): armata, ma inutilizzabile, il nemico si ispeziona.
+	Charger->ConsumeAbility(ChargeIdx);
+	TestFalse(TEXT("premessa: la carica e' in ricarica"), Charger->CanUseAbility(ChargeIdx));
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	TestTrue(TEXT("premessa: prima del click l'ispezionata e' l'alleata"), PC->GetInspectedUnit() == Alleata);
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestTrue(TEXT("con la carica in ricarica il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
+	// L'ispezione torna sull'alleata, o il controllo sullo scatto qui sotto sarebbe vero gia' prima del click.
+	PC->DispatchUnitClickForTest(Alleata, Charger);
 
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
 	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 0, 0));
+	const int32 DashIdx = Dasher ? Dasher->FindDashAbilityIndex() : INDEX_NONE;
+	const URTActionData* Dash = Dasher ? Dasher->GetAbility(DashIdx) : nullptr;
+	if (!TestNotNull(TEXT("premessa: Ivrin ha una mobilita' rapida"), (void*)Dash))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	TestTrue(TEXT("premessa: e non e' una carica"), Dash->Def.MovementStyle != ERTMovementStyle::LinearCharge);
 	PC->SelectActorForTest(Dasher);
-	Dasher->SelectAbility(3); // Scatto del Ranger: LinearDash
-	PC->HandleClickOnUnitForTest(Enemy);
-	TestEqual(TEXT("uno scatto non-carica sul nemico resta rifiutato"),
+	Dasher->SelectAbility(DashIdx);
+	PC->DispatchUnitClickForTest(Enemy, Dasher);
+	TestEqual(TEXT("uno scatto non-carica sul nemico non si pianifica"),
 		Dasher->PlannedDashAbility, (int32)INDEX_NONE);
+	TestTrue(TEXT("e il nemico si ispeziona, come prima"), PC->GetInspectedUnit() == Enemy);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-516] (`#3736`, decisione d'autore «Carica rifiutata») — **con la carica armata, un nemico che NON sta in
+ * linea rifiuta la carica, e non si ispeziona**: il click vuol dire «carica li'», e se non si puo' non succede
+ * nient'altro, come cliccando la sua cella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeOutOfLineTest,
+	"RefactorTactics.PlayerInput.ChargeOnAnEnemyOutOfLineIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeOutOfLineTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	// (2,1) e' a due passi ma su nessuna delle sei direzioni.
+	ARTUnit* Enemy = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 1, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Charger || !Enemy || !TM) { DestroyInteractionWorld(World); return false; }
+	TM->RefreshTeamKnowledgeNow();
+
+	int32 Distanza = 0;
+	TestFalse(TEXT("premessa: il nemico non e' in linea"),
+		URTMovementActionLibrary::IsStraightLine(Charger->Cell, Enemy->Cell, Distanza));
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+
+	TestTrue(TEXT("il click e' consumato dalla carica"), PC->DispatchUnitClickForTest(Enemy, Charger));
+	TestEqual(TEXT("la carica e' rifiutata"), Charger->PlannedDashAbility, (int32)INDEX_NONE);
+	TestTrue(TEXT("e il nemico non si ispeziona"), PC->GetInspectedUnit() != Enemy);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-516] (`#3736`) — **una carica su un nemico in linea ma OLTRE la portata si pianifica, e lo dice**: l'avviso
+ * di piano (`Warning`, [D-480]) e l'anteprima, piena fino alla portata e col tratto che la carica non fara'.
+ *
+ * Tre rifiuti nella stessa scena, perche' la regola ha tre condizioni e ognuna va vista cadere:
+ * - **il nemico dev'essere noto**: prima di allestire la conoscenza la sua cella e' vuota per chi pianifica, e la
+ *   carica oltre la portata si rifiuta come su una cella vuota. E' anche cio' che impedisce al gesto di dire
+ *   «li' c'e' qualcuno» ([D-371]);
+ * - **una cella vuota oltre la portata resta rifiutata**: la regola e' «caricare un nemico»;
+ * - **la retta fino al nemico dev'essere libera dal terreno**, anche oltre la portata. ⚠️ Con un terreno che
+ *   nega la corsa e non un muro: un muro toglierebbe anche la vista, e il nemico cadrebbe nel primo rifiuto
+ *   invece che in questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeBeyondRangeTest,
+	"RefactorTactics.PlayerInput.ChargeBeyondRangeIsPlannedWithAWarning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 8);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!MapActor || !TM || !Charger || !PC) { DestroyInteractionWorld(World); return false; }
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
+	if (!TestTrue(TEXT("premessa: la carica ha una portata, e la mappa ne contiene due celle in piu'"),
+		ChargeIdx != INDEX_NONE && Portata >= 2 && Portata + 2 <= 7))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	const FName CaricaId = Charger->GetAbility(ChargeIdx)->Def.ActionId;
+
+	// Il bersaglio vero, due celle oltre la portata sull'asse q.
+	ARTUnit* Enemy = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(Portata + 2, 0, 0));
+	// Un secondo nemico sull'altra diagonale davanti — alle spalle la squadra non lo vedrebbe —, con un terreno
+	// che nega la corsa fra la portata e lui.
+	ARTUnit* Ostacolato = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(Portata + 2, -(Portata + 2), 0));
+	MakeInteractionRough(MapActor->MapAsset, FRTCellId(Portata + 1, -(Portata + 1), 0));
+	if (!Enemy || !Ostacolato) { DestroyInteractionWorld(World); return false; }
+
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+
+	// (1) Nemico non ancora noto alla squadra: per chi pianifica la sua cella e' vuota.
+	TestTrue(TEXT("controllo: prima di allestirla, la squadra non conosce il nemico"),
+		URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Enemy->StableUnitId, Enemy->TeamId,
+			Enemy->Cell) == ERTTargetKnowledge::Rejected);
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestEqual(TEXT("un nemico che la squadra non conosce non si carica oltre la portata"),
+		Charger->PlannedDashAbility, (int32)INDEX_NONE);
+
+	TM->RefreshTeamKnowledgeNow();
+	TestTrue(TEXT("premessa: allestita la conoscenza, la squadra vede il nemico"),
+		URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Enemy->StableUnitId, Enemy->TeamId,
+			Enemy->Cell) == ERTTargetKnowledge::Allowed);
+
+	// (2) Una cella vuota oltre la portata, in linea.
+	PC->HandleClickOnCellForTest(FRTCellId(0, Portata + 2, 0));
+	TestEqual(TEXT("una cella vuota oltre la portata resta rifiutata"),
+		Charger->PlannedDashAbility, (int32)INDEX_NONE);
+
+	// (3) Il nemico dietro un terreno che nega la corsa, OLTRE la portata.
+	TestTrue(TEXT("premessa: la squadra vede anche lui"),
+		URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Ostacolato->StableUnitId,
+			Ostacolato->TeamId, Ostacolato->Cell) == ERTTargetKnowledge::Allowed);
+	PC->DispatchUnitClickForTest(Ostacolato, Charger);
+	TestEqual(TEXT("una retta che non si percorre di corsa, anche oltre la portata, rifiuta la carica"),
+		Charger->PlannedDashAbility, (int32)INDEX_NONE);
+
+	// (4) Un nemico oltre la portata con un altro nemico noto sulla retta ENTRO la portata (review di #3736). La corsa
+	// verso il lontano incontra il vicino e si ferma con un impatto: e' il caso che [D-516] non copre, e resta com'era
+	// prima — rifiutato. Il vicino si carica cliccando lui. Sulla diagonale SE, dove la cella vuota e' gia' stata provata.
+	ARTUnit* Vicino = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2, 0));
+	ARTUnit* Lontano = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, Portata + 2, 0));
+	if (!Vicino || !Lontano) { DestroyInteractionWorld(World); return false; }
+	TM->RefreshTeamKnowledgeNow();
+	TestTrue(TEXT("premessa: la squadra vede il vicino e il lontano"),
+		URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Vicino->StableUnitId, Vicino->TeamId,
+			Vicino->Cell) == ERTTargetKnowledge::Allowed
+		&& URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Lontano->StableUnitId, Lontano->TeamId,
+			Lontano->Cell) == ERTTargetKnowledge::Allowed);
+	PC->DispatchUnitClickForTest(Lontano, Charger);
+	TestEqual(TEXT("un nemico oltre la portata dietro un nemico noto entro la portata non si carica"),
+		Charger->PlannedDashAbility, (int32)INDEX_NONE);
+	PC->DispatchUnitClickForTest(Vicino, Charger);
+	TestTrue(TEXT("controllo: il vicino, in portata, si carica"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Vicino->Cell);
+	// Si toglie il piano. Vicino e lontano stanno sulla diagonale SE, fuori dalla retta E del caso qui sotto.
+	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->SelectAbility(ChargeIdx);
+
+	// Il caso della regola.
+	TestTrue(TEXT("il click sul nemico oltre la portata e' consumato"), PC->DispatchUnitClickForTest(Enemy, Charger));
+	TestEqual(TEXT("e la carica si pianifica"), Charger->PlannedDashAbility, ChargeIdx);
+	TestTrue(TEXT("verso la sua cella"), Charger->PlannedDashCell == Enemy->Cell);
+	TestEqual(TEXT("correra' per tutta la portata"), Charger->PlannedChargeReachBeyondRange(), Portata);
+
+	// L'avviso: uno, `Warning`, attribuito alla carica, coi due numeri.
+	const TArray<FRTPlanWarningView> Avvisi = URTHudViewModel::BuildPlanWarnings(Charger, { Charger, Enemy, Ostacolato });
+	const FRTPlanWarningView* Corta = Avvisi.FindByPredicate([&CaricaId](const FRTPlanWarningView& A)
+	{
+		return A.SourceActionId == CaricaId;
+	});
+	if (TestNotNull(TEXT("un avviso attribuito alla carica"), Corta))
+	{
+		TestTrue(TEXT("di livello Warning: il piano e' legale e degradato"), Corta->Level == ERTPlanWarningLevel::Warning);
+		TestTrue(TEXT("il perche' dice la distanza"), Corta->Why.ToString().Contains(FString::FromInt(Portata + 2)));
+		TestTrue(TEXT("il costo dice dove si ferma"), Corta->Cost.ToString().Contains(FString::FromInt(Portata)));
+	}
+	FRTPlanWarningCounts Contatore;
+	URTHudViewModel::AddPlanWarningCounts(Avvisi, Contatore);
+	TestEqual(TEXT("il contatore accanto a Conferma lo conta fra i Warning"), Contatore.Warning, 1);
+
+	// L'anteprima, dalla vista filtrata che l'HUD disegna.
+	const TArray<FRTIntentView> Viste = URTIntentPrivacyLibrary::FilterForTeam(0,
+		URTHudViewModel::BuildAuthoritativeIntents({ Charger, Enemy, Ostacolato }));
+	const FRTIntentView* Mia = Viste.FindByPredicate([Charger](const FRTIntentView& V)
+	{
+		return V.OwnerCell == Charger->Cell;
+	});
+	if (TestNotNull(TEXT("la vista della propria carica"), Mia))
+	{
+		TestEqual(TEXT("la vista porta quante celle la carica percorre"), Mia->DashReachCells, Portata);
+		const FRTDashPreview Anteprima = ARTHUD::ComposeDashPreview(*Mia, MapActor->MapAsset);
+		TestTrue(TEXT("l'anteprima arriva fino al nemico"),
+			Anteprima.PathCells.Num() > 0 && Anteprima.PathCells.Last() == Enemy->Cell);
+		TestEqual(TEXT("ed e' corsa per i soli tratti della portata"), Anteprima.ReachSegments, Portata);
+		TestTrue(TEXT("il resto e' il tratto che la carica non fara'"), Anteprima.HasShortfall());
+		TestTrue(TEXT("e il segno d'arrivo sta dove si ferma"), Anteprima.StopCell() == FRTCellId(Portata, 0, 0));
+	}
+
+	// La timeline del piano, quella che il controller compone e posa sulla mappa: il fantasma dello scatto si ferma
+	// alla portata. ⚠️ **Letta subito dopo il click, senza altri gesti** (seconda revisione della PR #3767): una prima
+	// stesura la ricomponeva riarmando l'azione, perche' il click che pianifica lo scatto non la ricomponeva — e
+	// nel gioco il giocatore quel gesto non lo fa.
+	const FRTPhasePreviewEntry* FantasmaScatto = nullptr;
+	for (const FRTPhasePreviewEntry& Voce : MapActor->GetPlanPreview().Phases)
+	{
+		if (Voce.Phase == ERTResolutionPhase::FastMovement) { FantasmaScatto = &Voce; }
+	}
+	if (TestNotNull(TEXT("la timeline posata porta la fase Dash"), FantasmaScatto))
+	{
+		TestTrue(TEXT("e il suo fantasma si ferma alla portata, non sul nemico"),
+			FantasmaScatto->PreviewDestination == FRTCellId(Portata, 0, 0));
+	}
 
 	DestroyInteractionWorld(World);
 	return true;

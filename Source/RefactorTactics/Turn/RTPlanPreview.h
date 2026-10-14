@@ -278,6 +278,14 @@ struct FRTPlanPreviewInput
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FRTCellId PlannedDashCell;
 
+	/**
+	 * [D-516] Le celle che una CARICA col bersaglio oltre la portata percorre: la rotta del fantasma si ferma li', e
+	 * non sul nemico. `0` per ogni altro scatto. Lo scrive chi compone l'ingresso, da
+	 * `ARTUnit::PlannedChargeReachBeyondRange`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 DashReachCells = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FName DashActionId;
 

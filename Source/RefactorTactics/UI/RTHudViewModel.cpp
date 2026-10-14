@@ -397,6 +397,34 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 			Avvisi.Add(FuocoAmico);
 		}
 	}
+
+	// --- 4. Warning: la carica col bersaglio OLTRE la portata ([D-516], `#3736`) ------------------------------
+	//
+	// 🔑 **Riporta, non decide**: il numero viene da `PlannedChargeReachBeyondRange`, la stessa portata che la
+	// pianificazione ha accettato e che il resolver eseguira'. Il piano e' legale — la carica corre fino alla
+	// portata e si ferma —, ed e' degradato: non colpisce il bersaglio scelto. E' la definizione di `Warning`.
+	int32 Distanza = 0;
+	if (const int32 Corsa = Unit->PlannedChargeReachBeyondRange(&Distanza); Corsa > 0)
+	{
+		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
+		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
+		if (!CopertaDalCritico(CaricaId))
+		{
+			FRTPlanWarningView Corta;
+			Corta.Level = ERTPlanWarningLevel::Warning;
+			Corta.SourceActionId = CaricaId;
+			Corta.What = NomeDi(CaricaId);
+			Corta.Why = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeWhy",
+				"Il bersaglio è oltre la portata ({0} celle, portata {1})"), FText::AsNumber(Distanza), FText::AsNumber(Corsa));
+			// ⚠️ **«Non lo raggiunge», non «senza colpire»** (review di #3736): la corsa colpisce ancora chi sta sulla
+			// linea entro la portata all'inizio del Dash, compreso un nemico che chi pianifica non vede. Promettere che
+			// non colpira' nessuno sarebbe dire al giocatore una cosa che il resolver non mantiene. E «al piu'», perche' quel
+			// nemico la ferma prima della portata (seconda revisione della PR #3767).
+			Corta.Cost = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeCost",
+				"Non lo raggiunge: corre al più per {0} celle"), FText::AsNumber(Corsa));
+			Avvisi.Add(Corta);
+		}
+	}
 	return Avvisi;
 }
 
@@ -1311,6 +1339,7 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		{
 			Intent.DashStyle = DashAb->Def.MovementStyle;
 		}
+		Intent.DashReachCells = Unit->PlannedChargeReachBeyondRange(); // [D-516]
 		Authoritative.Add(Intent);
 	}
 	return Authoritative;

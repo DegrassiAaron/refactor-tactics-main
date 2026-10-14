@@ -98,9 +98,11 @@ namespace
 	/**
 	 * La portata DICHIARATA di un'azione.
 	 *
-	 * E' l'espressione che `ARTTurnManager` e `ARTPlayerController` usano gia' per lo scatto: se l'azione e'
-	 * catalogata comanda il catalogo, altrimenti il dato dell'asset. Riscriverla diversamente qui
-	 * produrrebbe un'anteprima che promette una portata che il resolver non concedera'.
+	 * E' la stessa scelta di `ARTUnit::EffectiveDashRangeOf`, che `ARTTurnManager` e `ARTPlayerController` usano per
+	 * lo scatto ([D-516]): se l'azione e' catalogata comanda il catalogo, altrimenti il dato dell'asset. Riscriverla
+	 * diversamente qui produrrebbe un'anteprima che promette una portata che il resolver non concedera'.
+	 * ⚠️ **Qui pero' e' la portata DICHIARATA, senza `GetEffectiveDashRange`**: sotto `Root` il resolver la azzera,
+	 * questa no. Era cosi' anche prima di [D-516]; e' una regione di minaccia, non un piano.
 	 */
 	int32 DeclaredRange(const URTActionData* Action)
 	{

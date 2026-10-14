@@ -58,6 +58,59 @@ namespace
 }
 
 /**
+ * [D-516] (`#3736`, review) — **il fantasma di una carica col bersaglio oltre la portata si ferma alla portata**, e
+ * da li' parte la fase dopo. Il segno d'arrivo dell'HUD sta gia' li'; senza questo la timeline lo metteva sul nemico.
+ *
+ * 🔑 Controllo nella stessa scena: senza `DashReachCells` il fantasma arriva sul bersaglio, com'era. Senza quella
+ * meta' il test passerebbe anche se la timeline troncasse sempre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewChargeBeyondRangeTest,
+	"RefactorTactics.Preview.ChargeBeyondRangeStopsTheGhostAtRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewChargeBeyondRangeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 6);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, FRTCellId(0, 0, 0), /*MoveBudget=*/ 12));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	FRTPlanPreviewInput Plan;
+	Plan.UnitId = 0;
+	Plan.bDashPlanned = true;
+	Plan.bDashResolves = true;
+	Plan.PlannedDashCell = FRTCellId(5, 0, 0);
+	Plan.DashActionId = TEXT("Action.Charge");
+
+	// ⚠️ L'anteprima in una variabile: `PhaseOf` restituisce un puntatore dentro di lei.
+	const FRTPlanPreview AnteprimaIntera = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
+	const FRTPhasePreviewEntry* Intera = PhaseOf(AnteprimaIntera, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("controllo: la timeline porta la fase Dash"), Intera)) { return false; }
+	TestTrue(TEXT("controllo: senza portata dichiarata il fantasma arriva sul bersaglio"),
+		Intera->PreviewDestination == FRTCellId(5, 0, 0));
+
+	Plan.DashReachCells = 3;
+	const FRTPlanPreview AnteprimaCorta = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
+	const FRTPhasePreviewEntry* Corta = PhaseOf(AnteprimaCorta, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("la timeline porta la fase Dash"), Corta)) { return false; }
+	TestTrue(TEXT("con la carica oltre la portata il fantasma si ferma alla portata"),
+		Corta->PreviewDestination == FRTCellId(3, 0, 0));
+	TestEqual(TEXT("e la rotta ha la partenza piu' le tre celle che corre"), Corta->PreviewPath.Num(), 4);
+
+	// La carica non paga il movimento: con un budget che non arriva al bersaglio lontano il fantasma si ferma lo stesso
+	// alla portata, lungo la retta (seconda revisione della PR #3767 — l'A* del movimento lo lasciava fermo).
+	TArray<FRTHexSimUnit> Lenti;
+	Lenti.Add(FRTHexSimUnit(/*UnitId=*/ 0, FRTCellId(0, 0, 0), /*MoveBudget=*/ 2));
+	const FRTHexSnapshot SnapshotLento = URTHexSimLibrary::MakeSnapshotOmniscient(M, Lenti);
+	const FRTPlanPreview AnteprimaLenta = URTPlanPreviewLibrary::MakePlanPreview(SnapshotLento, Plan, {});
+	const FRTPhasePreviewEntry* Lenta = PhaseOf(AnteprimaLenta, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("col budget basso la timeline porta la fase Dash"), Lenta)) { return false; }
+	TestTrue(TEXT("e il fantasma si ferma alla portata anche se il movimento non arriverebbe al bersaglio"),
+		Lenta->PreviewDestination == FRTCellId(3, 0, 0));
+	return true;
+}
+
+/**
  * 🔴 **Il ghost del Move percorre la STESSA rotta che il resolver percorrera'** — voce della DoD di `CP 11.5`:
  * *«origine, destinazione, celle bersaglio e area coincidono con quelle che userebbe il resolver: stesso A*,
  * stesso snapshot dell'autorita'. Nessuna seconda implementazione delle regole nel renderer»*.

@@ -96,10 +96,21 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 
 	// FAIL-CLOSED: senza mappa autorevole non si sa cosa ci sia davanti, quindi non ci si muove.
 	int32 Distance = 0;
-	if (Map == nullptr || MaxCells <= 0 || !IsStraightLine(From, Target, Distance) || Distance > MaxCells)
+	if (Map == nullptr || MaxCells <= 0 || !IsStraightLine(From, Target, Distance))
 	{
 		return Result;
 	}
+
+	// 🔑 **[D-516] Una CARICA su un bersaglio oltre la portata non si annulla: corre per tutta la portata.** Ogni
+	// altro stile resta com'era — oltre la portata non parte. La direzione resta quella del bersaglio, e gli
+	// ostacoli entro la portata la fermano come sempre: un nemico incontrato e' un impatto.
+	const bool bChargeBeyondRange = Distance > MaxCells && Style == ERTMovementStyle::LinearCharge;
+	if (Distance > MaxCells && !bChargeBeyondRange)
+	{
+		return Result;
+	}
+	const int32 Steps = bChargeBeyondRange ? MaxCells : Distance;
+	Result.bTargetBeyondRange = bChargeBeyondRange;
 
 	const FIntPoint Step(Target.X - From.X, Target.Y - From.Y);
 	const FIntPoint UnitStep(Step.X / Distance, Step.Y / Distance);
@@ -126,7 +137,7 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 
 	// Dash, Charge e Reposition avanzano una cella alla volta: cio' che incontrano le ferma.
 	FRTCellId Current = From;
-	for (int32 K = 1; K <= Distance; ++K)
+	for (int32 K = 1; K <= Steps; ++K)
 	{
 		const FRTCellId Next(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
 
@@ -167,14 +178,30 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 
 		Current = Next;
 		Result.Entered.Add(Next);
-		if (K == Distance)
+		if (K == Steps)
 		{
-			Result.Stop = ERTLinearStop::Completed;
+			// [D-516]: l'ultima cella della portata non e' il bersaglio, e l'esito lo dice.
+			Result.Stop = bChargeBeyondRange ? ERTLinearStop::OutOfRange : ERTLinearStop::Completed;
 		}
 	}
 
 	Result.Final = Current;
 	return Result;
+}
+
+bool URTMovementActionLibrary::IsLineOpenToTarget(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& Target)
+{
+	int32 Distance = 0;
+	if (!IsStraightLine(From, Target, Distance))
+	{
+		return false; // anche `From == Target`: non c'e' una retta da percorrere
+	}
+	// `IsLinearReachable` con uno stile a passi, la portata pari alla distanza e nessuno sulla strada: conta solo il
+	// terreno. Un predicato solo sulla stessa chiamata, non un secondo (review della PR #3767).
+	const TMap<FRTCellId, int32> Nessuno;
+	const TSet<int32> NessunNemico;
+	return IsLinearReachable(Map, From, Target, Distance, ERTMovementStyle::LinearDash, Nessuno, NessunNemico);
 }
 
 bool URTMovementActionLibrary::IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From,
