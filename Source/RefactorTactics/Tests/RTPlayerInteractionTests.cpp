@@ -538,8 +538,9 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 	}
 
 	// La timeline del piano, quella che il controller compone e posa sulla mappa: il fantasma dello scatto si ferma
-	// alla portata. Riselezionare la ricompone, come fa il gioco a ogni cambio di selezione.
-	PC->SelectActorForTest(Charger);
+	// alla portata. La riconferma dell'azione la ricompone, come in `AimOrigin.*`: riselezionare la stessa unita'
+	// non basta, misurato — la timeline restava vuota.
+	PC->SelectAbilityForCurrentForTest(ChargeIdx);
 	const FRTPhasePreviewEntry* FantasmaScatto = nullptr;
 	for (const FRTPhasePreviewEntry& Voce : MapActor->GetPlanPreview().Phases)
 	{
