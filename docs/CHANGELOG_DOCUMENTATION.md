@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-14 — La fog of war ripensata: il brainstorming
+
+**Origine**: brainstorming con l'autore. Le sue scelte su come appare la nebbia, su che cosa ricorda la squadra e sugli strumenti del giocatore, con il riferimento Invisible Inc.
+
+| Dove | Che cosa |
+|---|---|
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | nuovo: com'è oggi, le scelte col testo delle opzioni come l'autore le ha viste, il lavoro nell'ordine scelto, le domande aperte e le decisioni da registrare |
+
+---
+
 ## 2026-10-14 — Il verdetto sulla vista fra piani
 
 **Origine**: seduta `U88`, [#3743](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3743) e [#3741](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3741). L'autore ha giudicato le tre tavole della linea di vista fra piani: *«s3 si,s4 si,s5 si»*.
