@@ -281,6 +281,15 @@ namespace
 	 */
 	enum class ERTPoolClip : uint8 { Ruolo, Azione, Entrambi };
 
+	/** La classe d'animazione autorata che `RTBuildAnimBindings` genera e i `BP_Unit_*` usano (#3562). */
+	const TCHAR* RTAuthoredAnimClassPath = TEXT("/Game/RT/Anim/ABP_RTUnitAuthored.ABP_RTUnitAuthored_C");
+
+	/** Il suo file su disco: la sua presenza decide se il gate deve leggerne il CDO (#3562, `Q2`). */
+	FString RTAuthoredAnimClassFile()
+	{
+		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Anim/ABP_RTUnitAuthored.uasset"));
+	}
+
 	/**
 	 * Il set di package che il cook deve portare: la variante ATTIVA di ogni pool del CDO — `(eroe, ruolo)` e, da
 	 * #3563, `(eroe, azione, ruolo)`. Estratto dal gate perche' abbia un test proprio, verde
@@ -360,7 +369,28 @@ namespace
 	 */
 	bool RTVerificaCotturaClip(FAutomationTestBase& Test, ERTPoolClip Pool, const TCHAR* Rimedio)
 	{
-		const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+		// ➕ #3562 (`Q2` del piano): il set richiesto e' quello della classe che le unita' USANO. Da #3562 i `BP_Unit_*`
+		// assegnano `UnitAnimClass` alla classe autorata, il cui CDO e' il default C++ con sopra i pool del catalogo:
+		// chiedere il set del solo default C++ cercherebbe le clip sbagliate il giorno che il catalogo lega una variante.
+		// 🔴 **Se il FILE c'e', la classe DEVE caricarsi.** Ripiegare in silenzio sul C++ lascerebbe il gate rosso sulle
+		// stesse clip per una ragione diversa da quella che la misura dice — il rilievo `R1` della revisione del piano.
+		// Il ripiego vale solo dove il file non c'e', cioe' com'era prima di #3562.
+		const URTUnitAnimInstance* Cdo = nullptr;
+		if (FPaths::FileExists(RTAuthoredAnimClassFile()))
+		{
+			const UClass* Autorata = LoadClass<URTUnitAnimInstance>(nullptr, RTAuthoredAnimClassPath);
+			if (!Test.TestNotNull(TEXT("la classe autorata esiste su disco e si carica"), Autorata))
+			{
+				return false;
+			}
+			Cdo = Autorata->GetDefaultObject<URTUnitAnimInstance>();
+			Test.AddInfo(TEXT("CDO: classe autorata (ABP_RTUnitAuthored)"));
+		}
+		else
+		{
+			Cdo = GetDefault<URTUnitAnimInstance>();
+			Test.AddInfo(TEXT("CDO: default C++ (ABP_RTUnitAuthored non c'e' su disco)"));
+		}
 		if (!Test.TestNotNull(TEXT("CDO del grafo di animazione"), Cdo))
 		{
 			return false;
@@ -435,7 +465,20 @@ namespace
 		}
 
 		const FString ContentDir = FPaths::ProjectContentDir();
-		const TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+		// ⚠️ «Versionati» e' il nome storico: sono i file presenti SU DISCO sotto `Content/RT`, e un file che git ignora
+		// conta quanto uno versionato. L'esito puo' quindi cambiare da un clone all'altro (rilievo `R8` della revisione).
+		TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+
+		// 🔴 #3562 (`Q1`): **la classe autorata NON conta.** Il suo CDO porta `ClipsPerHero`, cioe' il path di OGNI clip
+		// attiva come riferimento MORBIDO, e questo gate cerca i path nei byte: senza l'esclusione il gate diventerebbe
+		// verde da solo appena l'asset esiste, e smetterebbe di misurare se qualcosa porta le clip nel cook. Il
+		// riferimento duro sta in `CookDeps_Anim` dei `BP_Unit_*` (`RTSyncUnitAnimRefs`). ⚠️ Se un giorno questo asset
+		// portasse un riferimento duro voluto, questo gate non lo vedrebbe.
+		const FString FileAutorata = FPaths::ConvertRelativePathToFull(RTAuthoredAnimClassFile());
+		Versionati.RemoveAll([&FileAutorata](const FString& File)
+		{
+			return FPaths::IsSamePath(FPaths::ConvertRelativePathToFull(File), FileAutorata);
+		});
 
 		// Secondo controllo anti-vacuita': se non si leggesse nessun package, ogni clip risulterebbe scoperta
 		// e il rosso non direbbe niente sul cook.
