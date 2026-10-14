@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-14 — Su richiesta si vede che cosa vede un nemico in vista
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), decisione d'autore `D-521`. Col mouse sul nemico, o tenendo `H` per tutti, si vede il contorno delle celle che vede, calcolato sul solo terreno che la squadra conosce.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`, con la regola di privacy e le tre domande come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: l'arco del nemico |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-ARCO` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3762 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1c: le scelte dell'autore |
+
+---
+
 ## 2026-10-14 — Una linea segna in partita dove finisce la vista della squadra
 
 **Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), decisione d'autore `D-519`. La linea corre sui lati fra le celle viste adesso e quelle che non si vedono: ciano della vista, anche in strategica, mai lungo il vuoto.
