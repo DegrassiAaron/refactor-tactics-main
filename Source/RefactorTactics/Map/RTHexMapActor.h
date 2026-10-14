@@ -1167,6 +1167,9 @@ protected:
 	/** Disegna la linea di confine della vista (#3761). Nessun effetto sulla logica. */
 	void DrawVisionBorder() const;
 
+	/** Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella, nel line batcher del mondo (#3761). */
+	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const;
+
 	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
 	TArray<FRTExposedEdge> VisionBorder;
 
