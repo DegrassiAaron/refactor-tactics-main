@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-10-14 — Il cursore indica anche una cella mai vista, come D-373 e D-372
+
+**Origine**: [#3766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3766). Il riquadro dell'hover su una cella mai vista sembrava una fuga d'informazione. Non lo è: dice solo che la cella esiste, e [D-373](decisions/RT_PDR_00_Decision_Log.md) rende pubblica la forma della board. L'autore ha scelto di lasciare il comportamento com'è; nessun codice cambia.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | una nota datata in coda a `D-373`, con la domanda e le opzioni come l'autore le ha viste |
+
+---
+
 ## 2026-10-14 — Il velo delle celle si vede anche dentro gli scenari
 
 **Origine**: [#3763](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3763), decisione d'autore `D-517`. Uno scenario non agganciava il velo delle celle; quello sulle unità sì. Corretto l'aggancio, l'autore ha scelto che valga in tutti gli scenari, come in partita.
