@@ -1560,8 +1560,20 @@ void ARTHexMapActor::DrawVisionBorder() const
 	{
 		return;
 	}
+	FColor Colore(240, 240, 232);
+	switch (CVarRTFogBorderColor.GetValueOnGameThread())
+	{
+	case 1: Colore = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision); break;
+	case 2: Colore = FLinearColor(0.10f, 0.40f, 1.00f).ToFColor(/*bSRGB=*/ true); break;
+	default: break;
+	}
+	DrawEdgeLines(VisionBorder, Colore, FMath::Max(1.f, CVarRTFogBorderThickness.GetValueOnGameThread()));
+}
+
+void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const
+{
 	const UWorld* World = GetWorld();
-	if (!World)
+	if (!World || Lati.Num() == 0)
 	{
 		return;
 	}
@@ -1571,16 +1583,7 @@ void ARTHexMapActor::DrawVisionBorder() const
 	float LayerH = 0.f;
 	GetHexContext(Origin, Size, LayerH);
 
-	FColor Colore(240, 240, 232);
-	switch (CVarRTFogBorderColor.GetValueOnGameThread())
-	{
-	case 1: Colore = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision); break;
-	case 2: Colore = FLinearColor(0.10f, 0.40f, 1.00f).ToFColor(/*bSRGB=*/ true); break;
-	default: break;
-	}
-	const float Spessore = FMath::Max(1.f, CVarRTFogBorderThickness.GetValueOnGameThread());
-
-	for (const FRTExposedEdge& Lato : VisionBorder)
+	for (const FRTExposedEdge& Lato : Lati)
 	{
 		// Il tratto e' il LATO dell'esagono: meta' lunghezza per parte, a partire dal punto medio che
 		// `EdgeMidpointWorld` deriva dai due centri, e perpendicolare alla direzione del vicino. Con un
