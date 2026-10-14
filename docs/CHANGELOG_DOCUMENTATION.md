@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-14 — Il velo delle celle si vede anche dentro gli scenari
+
+**Origine**: [#3763](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3763), decisione d'autore `D-517`. Uno scenario non agganciava il velo delle celle; quello sulle unità sì. Corretto l'aggancio, l'autore ha scelto che valga in tutti gli scenari, come in partita.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-517`, con la domanda e le opzioni come l'autore le ha viste |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | §1: la scena mostra ciò che la squadra conosce, e chi scrive una scena ne tiene conto |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | una nota in coda a `PIE-HEX-VIZ-VELO`: si può allestire con uno scenario; il verdetto non cambia |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3763 fra le chiuse |
+| [`technical/evidence/3763/`](technical/evidence/3763/) | la tavola `V1`: quattro scene lanciate come scenario, col velo delle celle |
+
+---
+
 ## 2026-10-14 — Nel feed, ciò che una tua unità ha subito vince su ciò che ha fatto
 
 **Origine**: [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734), decisione d'autore A1 del 2026-10-13. Per le unità della squadra di chi guarda, una riga di riuscita propria — il movimento arrivato, il colpo dato, la cura data — cede a qualunque notizia della stessa unità nel turno — uno spostamento subito, un piano fallito, uno stato che le arriva addosso, una reazione che scatta, il KO che subisce; un'eliminazione data cede come un colpo dato, e la fine di uno stato compare solo se l'unità non ha altro (decisioni d'autore del 2026-10-14). Per le unità degli altri, e nella sessione non presidiata, la scala di sempre. Una reazione armata che non scatta non compare più come «Reazione scattata».
