@@ -55,3 +55,36 @@ TArray<FRTCellId> URTEnemyArcLibrary::SightOnKnownTerrain(const URTHexMapAsset* 
 	Out.RemoveAll([&](const FRTCellId& C) { return !(C == Enemy.Cell) && !Note.Contains(C); });
 	return Out;
 }
+
+TArray<FRTCellId> URTEnemyArcLibrary::ConeOnKnownTerrain(const URTHexMapAsset* Map, const FRTPerceiver& Enemy,
+	const TArray<FRTCellId>& KnownCells)
+{
+	TArray<FRTCellId> Out;
+	Out.Add(Enemy.Cell);
+	if (!Map)
+	{
+		return Out;
+	}
+	// Le stesse due regole di forma di `URTPerceptionLibrary::VisibleCells`, senza la linea di vista: il cono di
+	// `HexCone` sul piano del nemico, e l'anello di `CloseAwarenessRange`.
+	const TSet<FRTCellId> Note(KnownCells);
+	const FRTCellId Avanti = URTHexLibrary::Neighbor(Enemy.Cell, Enemy.Facing);
+	for (const FRTHexCellData& Dati : Map->Cells)
+	{
+		const FRTCellId& C = Dati.Id;
+		if (C == Enemy.Cell || !Note.Contains(C))
+		{
+			continue;
+		}
+		const int32 D = URTHexLibrary::HexDistance(Enemy.Cell, C);
+		const bool bVicina = D <= URTPerceptionLibrary::CloseAwarenessRange;
+		const bool bNelCono = D <= Enemy.VisionRange
+			&& URTHexLibrary::HexCone(Enemy.Cell, Avanti, D).Contains(FRTCellId(C.X, C.Y, Enemy.Cell.Layer));
+		if (bVicina || bNelCono)
+		{
+			Out.Add(C);
+		}
+	}
+	Out.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+	return Out;
+}

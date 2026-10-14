@@ -56,4 +56,14 @@ public:
 	 */
 	static TArray<FRTCellId> SightOnKnownTerrain(const URTHexMapAsset* KnownMap, const FRTPerceiver& Enemy,
 		const TArray<FRTCellId>& KnownCells);
+
+	/**
+	 * La PORTATA PIENA dei due canali della percezione — il cono frontale fino a `VisionRange` e l'anello ravvicinato —
+	 * senza linea di vista, ristretta a `KnownCells`. E' la seconda risposta possibile alla domanda aperta di #3762
+	 * («la portata piena del cono, o solo le celle che il nemico vede davvero»), per le tavole dell'autore.
+	 *
+	 * ⚠️ Non rivela niente per costruzione: non legge il contenuto di nessuna cella, solo quali esistono ([D-373]).
+	 */
+	static TArray<FRTCellId> ConeOnKnownTerrain(const URTHexMapAsset* Map, const FRTPerceiver& Enemy,
+		const TArray<FRTCellId>& KnownCells);
 };

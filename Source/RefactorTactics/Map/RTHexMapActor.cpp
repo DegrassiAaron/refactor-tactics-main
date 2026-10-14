@@ -1172,7 +1172,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0
 		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
-		|| VisionBorder.Num() > 0;
+		|| VisionBorder.Num() > 0
+		// E il contorno dell'arco dei nemici in vista (#3762).
+		|| EnemyArcBorder.Num() > 0;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1311,6 +1313,8 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
 	DrawVisionBorder();
+	// #3762: il colore della squadra 1, il nemico del vertical slice offline. Leva di prova come le altre.
+	DrawEdgeLines(EnemyArcBorder, FLinearColor(1.00f, 0.20f, 0.15f).ToFColor(/*bSRGB=*/ true), 3.f);
 	DrawPlanningPreview();
 }
 
@@ -1551,6 +1555,12 @@ void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
 	VisionBorder = CVarRTFogBorderMapEdge.GetValueOnGameThread() != 0
 		? URTVisibilityBorderLibrary::ExposedEdges(VisibleCells)
 		: URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcBorder(const TArray<FRTExposedEdge>& Edges)
+{
+	EnemyArcBorder = Edges;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 

@@ -579,6 +579,13 @@ public:
 	const TArray<FRTExposedEdge>& GetVisionBorder() const { return VisionBorder; }
 
 	/**
+	 * IL CONTORNO DELL'ARCO DEI NEMICI IN VISTA (#3762): i lati che chiudono le celle che ciascun nemico vede, gia'
+	 * calcolati sul solo terreno che la squadra conosce (`URTEnemyArcLibrary`). La mappa li disegna e basta.
+	 */
+	void SetEnemyArcBorder(const TArray<FRTExposedEdge>& Edges);
+	const TArray<FRTExposedEdge>& GetEnemyArcBorder() const { return EnemyArcBorder; }
+
+	/**
 	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
 	 * certa soglia il ricordo diventa indistinguibile dal nascosto, e i tre stati tornano due.
 	 */
@@ -1172,6 +1179,9 @@ protected:
 
 	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
 	TArray<FRTExposedEdge> VisionBorder;
+
+	/** Il contorno degli archi dei nemici in vista (#3762). Vedi `SetEnemyArcBorder`. */
+	TArray<FRTExposedEdge> EnemyArcBorder;
 
 	/** Cella sotto il cursore, impostata dal controller. */
 	FRTCellId HoveredCell;
