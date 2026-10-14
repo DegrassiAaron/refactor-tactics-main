@@ -13,6 +13,7 @@
 #include "Turn/RTActionEvent.h"         // #3734: FRTActionEffectSpec, la spinta che spinge e basta
 #include "Turn/RTTurnManager.h"
 #include "UI/RTHudViewModel.h"             // #3734: il feed dalla porta che il widget usa
+#include "UI/RTScreenHudWidgets.h"         // #3734: e dal widget stesso, la porta di produzione
 #include "Unit/RTUnit.h"
 
 // La guardia: senza, questi test finiscono compilati DENTRO il binario Shipping. Vedi `#923`.
@@ -1202,6 +1203,21 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 					AddInfo(FString::Printf(TEXT("TurnLog della mia: %s"), *URTTurnLogLibrary::DescribeEntry(Voce)));
 				}
 			}
+		}
+	}
+
+	// 🔴 **E dal widget, la porta che il giocatore vede.** `GetFeed` raccoglie da solo le unita' del proprio mondo
+	// e le passa al view model: senza questa lettura, un widget che smettesse di passarle — e mostrasse di nuovo
+	// il feed muto — lascerebbe verde tutto il resto. Misurato con la mutazione `M7`.
+	URTPlayerEventLogWidget* Widget = NewObject<URTPlayerEventLogWidget>(World);
+	if (TestNotNull(TEXT("il widget del feed"), Widget))
+	{
+		Widget->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+		FString DalWidget;
+		if (TestEqual(TEXT("🔴 dal widget, la mia unita' ha UNA riga"), RigheDi(Widget->GetFeed(), Mia, DalWidget), 1))
+		{
+			TestTrue(*FString::Printf(TEXT("ed e' lo spostamento: «%s»"), *DalWidget),
+				DalWidget.Equals(TEXT("Spostata"), ESearchCase::CaseSensitive));
 		}
 	}
 
