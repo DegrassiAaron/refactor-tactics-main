@@ -345,12 +345,22 @@ void ARTUnit::ShowHealToken(int32 Amount)
 	}
 }
 
+TSubclassOf<UAnimInstance> ARTUnit::ResolvedAnimClass() const
+{
+	// #3562 (`Q6` del piano): una classe nulla non lascia l'unita' ferma, ripiega sul grafo C++.
+	return UnitAnimClass != nullptr ? UnitAnimClass : TSubclassOf<UAnimInstance>(URTUnitAnimInstance::StaticClass());
+}
+
 void ARTUnit::ApplyUnitAnimClass()
 {
 	if (UnitAnimClass == nullptr)
 	{
-		return;
+		// Non e' un errore che fermi la partita: l'unita' si anima col grafo C++. Ma un blueprint che ha perso la classe
+		// autorata e' un dato rotto, e senza questa riga lo si scoprirebbe solo guardando quale clip suona.
+		UE_LOG(LogRT, Warning, TEXT("[RT] %s: UnitAnimClass nulla, ripiego sul grafo C++ (URTUnitAnimInstance)"),
+			*GetName());
 	}
+	const TSubclassOf<UAnimInstance> Classe = ResolvedAnimClass();
 
 	// La Skeletal Mesh la aggiunge il Blueprint, non il C++: il cilindro segnaposto e' uno
 	// `UStaticMeshComponent`. Un'unita' senza skeletal — il ripiego di `#287` — non ha niente da animare,
@@ -373,7 +383,7 @@ void ARTUnit::ApplyUnitAnimClass()
 			continue;
 		}
 
-		Skeletal->SetAnimInstanceClass(UnitAnimClass);
+		Skeletal->SetAnimInstanceClass(Classe);
 	}
 }
 
@@ -907,12 +917,7 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	// lo chiamasse non potrebbe distinguere «la clip giusta non si carica» da «punto alla clip sbagliata».
 	// Sul `TSoftObjectPtr` il PATH c'e' comunque, ed e' cio' che si puo' asserire headless: e' lo stesso
 	// motivo per cui `Unit.LocomotionClipsMatchThePacks` confronta `ToSoftObjectPath()` e non l'asset.
-	if (UnitAnimClass == nullptr)
-	{
-		return nullptr;
-	}
-
-	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(ResolvedAnimClass()->GetDefaultObject());
 	if (Defaults == nullptr)
 	{
 		return nullptr;
@@ -926,12 +931,7 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRo
 {
 	// Stessa porta di `GhostFallbackClipPath`, e per la stessa ragione: il CDO di `UnitAnimClass` e' l'unica
 	// lista dei nomi delle clip. Una seconda lista qui divergerebbe alla prima modifica.
-	if (UnitAnimClass == nullptr)
-	{
-		return nullptr;
-	}
-
-	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(ResolvedAnimClass()->GetDefaultObject());
 	if (Defaults == nullptr)
 	{
 		return nullptr;
@@ -953,7 +953,8 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 	UAnimSequenceBase* Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
 
 	// 🔴 **Il ripiego sul RUOLO vale anche al CARICAMENTO, non solo nella scelta del path** (review finale I1).
-	// In un pacchetto le clip d'azione non sono cotte — nessun riferimento duro, owner #3562 — e `LoadSynchronous`
+	// In un pacchetto le clip d'azione non erano cotte fino a #3562 (2026-10-14), e una variante attivata senza
+	// risincronizzare i `BP_Unit_*` torna in quella condizione — e `LoadSynchronous`
 	// torna `nullptr`: senza questo blocco il beat non suonerebbe NIENTE, dove prima di #3563 suonava la clip di
 	// ruolo. Si ritenta col path di SOLO ruolo (l'overload a due argomenti) quando e' diverso da quello risolto:
 	// se e' uguale non c'era una voce d'azione, e ricaricarlo darebbe lo stesso `nullptr`.
@@ -969,7 +970,7 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 	if ((Sequenza == nullptr || bAdditiva) && !Path.IsNull())
 	{
 		// `Path` non nullo implica un CDO valido: e' la stessa porta di `ResolvedClipPathFor`.
-		const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+		const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(ResolvedAnimClass()->GetDefaultObject());
 		const TSoftObjectPtr<UAnimSequenceBase> PathRuolo =
 			Defaults != nullptr ? Defaults->ActiveClipFor(HeroId, Ruolo) : TSoftObjectPtr<UAnimSequenceBase>();
 		if (!PathRuolo.IsNull() && PathRuolo.ToSoftObjectPath() != Path.ToSoftObjectPath())

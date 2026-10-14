@@ -4,6 +4,9 @@
 #include "UObject/StrongObjectPtr.h"
 #include "Unit/RTAnimCatalogLibrary.h"
 #include "Unit/RTAnimCatalogTypes.h"
+#include "Unit/RTUnitAnimInstance.h"
+#include "Animation/AnimBlueprintGeneratedClass.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -466,6 +469,89 @@ bool FRTAnimCatalogGestureClipThatDoesNotLoadIsNotRunTest::RunTest(const FString
 	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateGestureClips(&Catalog, NonVerificati);
 	TestEqual(TEXT("nessun errore: una clip che non si carica non si giudica"), Errori.Num(), 0);
 	TestEqual(TEXT("🔴 e i due gesti attivi (Cast e Attack) sono contati come NON verificati, non come passati"), NonVerificati, 2);
+	return true;
+}
+
+// --- #3562 · la classe autorata che le unita' usano ------------------------------------------------------
+
+/**
+ * **`ABP_RTUnitAuthored` esiste, si carica, non e' un AnimBlueprint, e finche' il catalogo non ha legami porta
+ * esattamente il default C++** (#3562).
+ *
+ * Da #3562 i `BP_Unit_*` assegnano `UnitAnimClass` a questa classe, quindi cio' che suona in gioco viene dal suo CDO.
+ * 🔑 **Il test esiste perche' l'equivalenza col C++ era un argomento, non una misura** (rilievo `R5` della revisione del
+ * piano): `RTBuildAnimBindings` fonde i pool del catalogo sopra il default C++, e senza legami la fusione e' il default.
+ * Se non lo fosse, assegnare la classe ai blueprint cambierebbe le clip in gioco senza che nessuno l'abbia deciso.
+ *
+ * ⛔ **Il file DEVE esserci.** E' versionato da #3562 (`.gitignore`): un clone senza e' un clone rotto, e un test che
+ * passasse in sua assenza direbbe verde proprio li'.
+ * ⚠️ Non e' un `UAnimBlueprint`: D-248 tiene il grafo in C++, e la classe autorata porta solo dati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimAuthoredClassCarriesCppDefaultsTest,
+	"RefactorTactics.Anim.AuthoredClassCarriesTheCppDefaultsWhileTheCatalogHasNoBindings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimAuthoredClassCarriesCppDefaultsTest::RunTest(const FString&)
+{
+	const FString File = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Anim/ABP_RTUnitAuthored.uasset"));
+	if (!TestTrue(FString::Printf(TEXT("la classe autorata e' su disco (%s)"), *File), FPaths::FileExists(File)))
+	{
+		return false;
+	}
+
+	const UClass* Autorata = LoadClass<URTUnitAnimInstance>(nullptr,
+		TEXT("/Game/RT/Anim/ABP_RTUnitAuthored.ABP_RTUnitAuthored_C"));
+	if (!TestNotNull(TEXT("la classe autorata si carica"), Autorata))
+	{
+		return false;
+	}
+	TestTrue(TEXT("e' figlia di URTUnitAnimInstance"), Autorata->IsChildOf(URTUnitAnimInstance::StaticClass()));
+	// ⚠️ `UClass::IsA` e' privato: la domanda «quest'oggetto-classe e' una classe di AnimBlueprint?» e' un `Cast`.
+	TestNull(TEXT("non e' un AnimBlueprint: il grafo resta in C++ (D-248)"),
+		Cast<UAnimBlueprintGeneratedClass>(Autorata));
+
+	FRTAnimCatalog Catalogo;
+	FString Errore;
+	if (!TestTrue(TEXT("il catalogo si legge"),
+		URTAnimCatalogLibrary::LoadFromFile(URTAnimCatalogLibrary::DefaultCatalogPath(), Catalogo, Errore)))
+	{
+		AddError(Errore);
+		return false;
+	}
+	int32 Legami = 0;
+	for (const FRTAnimCatalogEntry& Voce : Catalogo.Entries)
+	{
+		Legami += Voce.Authored.Bindings.Num();
+	}
+	if (Legami > 0)
+	{
+		// Con dei legami la classe autorata DEVE differire dal C++ nei pool legati: il confronto qui sotto non vale, e
+		// lo dice invece di tacere. Il controllo di quei pool e' `Anim.Bindings.MapToCdo`.
+		AddInfo(FString::Printf(TEXT("il catalogo ha %d legami: il confronto col default C++ non si applica"), Legami));
+		return true;
+	}
+
+	const URTUnitAnimInstance* Cpp = GetDefault<URTUnitAnimInstance>();
+	const URTUnitAnimInstance* Generata = Autorata->GetDefaultObject<URTUnitAnimInstance>();
+	TArray<FName> EroiCpp, EroiGenerata;
+	Cpp->ClipsPerHero.GetKeys(EroiCpp);
+	Generata->ClipsPerHero.GetKeys(EroiGenerata);
+	EroiCpp.Sort(FNameLexicalLess());
+	EroiGenerata.Sort(FNameLexicalLess());
+	TestTrue(TEXT("gli stessi eroi del default C++"), EroiCpp == EroiGenerata);
+	TestTrue(TEXT("anti-vacuita': il default C++ ha almeno un eroe"), EroiCpp.Num() > 0);
+
+	for (const FName& Eroe : EroiCpp)
+	{
+		TArray<FSoftObjectPath> DaCpp, DaGenerata;
+		Cpp->CollectActiveClips(Eroe, DaCpp);
+		Generata->CollectActiveClips(Eroe, DaGenerata);
+		TArray<FString> A, B;
+		for (const FSoftObjectPath& P : DaCpp) { A.Add(P.ToString()); }
+		for (const FSoftObjectPath& P : DaGenerata) { B.Add(P.ToString()); }
+		// ⚠️ Confronto sensibile alle maiuscole: `TestEqual` su `FString` non lo e'.
+		TestTrue(*FString::Printf(TEXT("%s: le clip attive sono quelle del default C++"), *Eroe.ToString()),
+			FString::Join(A, TEXT("\n")).Equals(FString::Join(B, TEXT("\n")), ESearchCase::CaseSensitive));
+	}
 	return true;
 }
 

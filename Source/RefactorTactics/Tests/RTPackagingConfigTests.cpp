@@ -275,11 +275,36 @@ namespace
 
 	/**
 	 * Quale pool di clip un helper di cook attraversa (R14, #3563): il pool di RUOLO (`PerRole` dell'eroe) e quello d'AZIONE
-	 * (`PerAction`) hanno owner e stato diversi — il primo e' raggiunto dai `BP_Unit_*`, il secondo no (#3562) — e un
+	 * (`PerAction`) hanno owner e stato diversi — il primo raggiunto dai `BP_Unit_*` da sempre, il secondo solo da #3562 (2026-10-14) — e un
 	 * gate unico, gia' rosso per il secondo, nasconderebbe un rosso futuro del primo. `Entrambi` e' il default: il set
 	 * completo, quello che guarda `RequiredSetIncludesActionClips`.
 	 */
 	enum class ERTPoolClip : uint8 { Ruolo, Azione, Entrambi };
+
+	/** La classe d'animazione autorata che `RTBuildAnimBindings` genera e i `BP_Unit_*` usano (#3562). */
+	const TCHAR* RTAuthoredAnimClassPath = TEXT("/Game/RT/Anim/ABP_RTUnitAuthored.ABP_RTUnitAuthored_C");
+
+	/** Il suo file su disco: la sua presenza decide se il gate deve leggerne il CDO (#3562, `Q2`). */
+	FString RTAuthoredAnimClassFile()
+	{
+		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Anim/ABP_RTUnitAuthored.uasset"));
+	}
+
+	/**
+	 * Toglie dai file da esaminare quello della classe autorata, e dice quanti ne ha tolti (#3562, `Q1`).
+	 *
+	 * 🔑 Estratta perche' abbia un test proprio (`Packaging.CookGateIgnoresTheAuthoredAnimClassFile`): i path che
+	 * `RTPackageFilesUnder` restituisce sono relativi alla cartella di lavoro dell'Editor, e un confronto di stringhe
+	 * nudo potrebbe non riconoscere lo stesso file scritto in due modi. Si confrontano i path COMPLETI.
+	 */
+	int32 RTEscludiClasseAutorata(TArray<FString>& Files, const FString& FileAutorata)
+	{
+		const FString Completo = FPaths::ConvertRelativePathToFull(FileAutorata);
+		return Files.RemoveAll([&Completo](const FString& File)
+		{
+			return FPaths::IsSamePath(FPaths::ConvertRelativePathToFull(File), Completo);
+		});
+	}
 
 	/**
 	 * Il set di package che il cook deve portare: la variante ATTIVA di ogni pool del CDO — `(eroe, ruolo)` e, da
@@ -360,7 +385,28 @@ namespace
 	 */
 	bool RTVerificaCotturaClip(FAutomationTestBase& Test, ERTPoolClip Pool, const TCHAR* Rimedio)
 	{
-		const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+		// ➕ #3562 (`Q2` del piano): il set richiesto e' quello della classe che le unita' USANO. Da #3562 i `BP_Unit_*`
+		// assegnano `UnitAnimClass` alla classe autorata, il cui CDO e' il default C++ con sopra i pool del catalogo:
+		// chiedere il set del solo default C++ cercherebbe le clip sbagliate il giorno che il catalogo lega una variante.
+		// 🔴 **Se il FILE c'e', la classe DEVE caricarsi.** Ripiegare in silenzio sul C++ lascerebbe il gate rosso sulle
+		// stesse clip per una ragione diversa da quella che la misura dice — il rilievo `R1` della revisione del piano.
+		// Il ripiego vale solo dove il file non c'e', cioe' com'era prima di #3562.
+		const URTUnitAnimInstance* Cdo = nullptr;
+		if (FPaths::FileExists(RTAuthoredAnimClassFile()))
+		{
+			const UClass* Autorata = LoadClass<URTUnitAnimInstance>(nullptr, RTAuthoredAnimClassPath);
+			if (!Test.TestNotNull(TEXT("la classe autorata esiste su disco e si carica"), Autorata))
+			{
+				return false;
+			}
+			Cdo = Autorata->GetDefaultObject<URTUnitAnimInstance>();
+			Test.AddInfo(TEXT("CDO: classe autorata (ABP_RTUnitAuthored)"));
+		}
+		else
+		{
+			Cdo = GetDefault<URTUnitAnimInstance>();
+			Test.AddInfo(TEXT("CDO: default C++ (ABP_RTUnitAuthored non c'e' su disco)"));
+		}
 		if (!Test.TestNotNull(TEXT("CDO del grafo di animazione"), Cdo))
 		{
 			return false;
@@ -435,11 +481,22 @@ namespace
 		}
 
 		const FString ContentDir = FPaths::ProjectContentDir();
-		const TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+		// ⚠️ Sono i file presenti SU DISCO sotto `Content/RT`, non quelli versionati: un file che git ignora conta quanto
+		// uno versionato, e l'esito puo' cambiare da un clone all'altro (rilievo `R8` della revisione del piano).
+		TArray<FString> FileSuDisco = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+
+		// 🔴 #3562 (`Q1`): **la classe autorata NON conta.** Il suo CDO porta `ClipsPerHero`, e i path che vi finiscono
+		// sono riferimenti MORBIDI: questo gate cerca i path nei byte, e contarli lo renderebbe verde senza che niente
+		// porti le clip nel cook. Il riferimento duro sta in `CookDeps_Anim` dei `BP_Unit_*` (`RTSyncUnitAnimRefs`).
+		// ⚠️ **Oggi i byte dell'asset NON portano i path**: col catalogo senza legami il suo CDO e' identico al padre, e un
+		// CDO si salva per differenza. Ce li porteranno i legami. L'esclusione e' per quel giorno, e la prova
+		// `Packaging.CookGateIgnoresTheAuthoredAnimClassFile`. ⚠️ Se un giorno questo asset portasse un riferimento duro
+		// voluto, questo gate non lo vedrebbe.
+		RTEscludiClasseAutorata(FileSuDisco, RTAuthoredAnimClassFile());
 
 		// Secondo controllo anti-vacuita': se non si leggesse nessun package, ogni clip risulterebbe scoperta
 		// e il rosso non direbbe niente sul cook.
-		if (!Test.TestTrue(TEXT("ci sono package versionati sotto Content/RT da esaminare"), Versionati.Num() > 0))
+		if (!Test.TestTrue(TEXT("ci sono package su disco sotto Content/RT da esaminare"), FileSuDisco.Num() > 0))
 		{
 			return false;
 		}
@@ -447,8 +504,8 @@ namespace
 		// I byte, letti una volta sola: il ciclo sotto e' Clip x Package, e rileggere i file per ogni clip
 		// moltiplicherebbe l'I/O per il numero di clip senza cambiare l'esito.
 		TArray<TArray<uint8>> Byte;
-		Byte.Reserve(Versionati.Num());
-		for (const FString& File : Versionati)
+		Byte.Reserve(FileSuDisco.Num());
+		for (const FString& File : FileSuDisco)
 		{
 			TArray<uint8> Bytes;
 			FFileHelper::LoadFileToArray(Bytes, *File);
@@ -470,7 +527,7 @@ namespace
 		// 🔑 **Terzo controllo, e il piu' importante: il metodo sa trovare un riferimento VERO.**
 		// Le mesh Paragon sono la famiglia SORELLA delle clip — stesso pack, stesso eroe, cartella accanto —
 		// e sono referenziate duro dai `BP_Unit_*`: misurato il 2026-10-08: mesh e clip di RUOLO sono referenziate duro, le clip
-		// d'AZIONE no (#3562). ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
+		// d'AZIONE no (le porta `CookDeps_Anim` da #3562, 2026-10-14). ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
 		// «l'oracolo non sa guardare» invece di «la clip non e' raggiungibile» — la stessa confusione che il
 		// registro PIE avverte per gli zeri di packaging.
 		// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
@@ -508,8 +565,8 @@ namespace
 		{
 			// 🔑 **Il messaggio dice COSA FARE, e non solo cosa manca.** Chi incontra questo rosso la prima
 			// volta lo legge come un guasto dello strumento se non gli si spiega che il cook segue solo i
-			// riferimenti duri, e che scriverlo e' lavoro di #3562 (storico: #2444, chiusa; proprietario dei
-			// `BP_Unit_*`, che sono binari e non si mergiano). Da #3563 la provenienza nomina anche l'AZIONE.
+			// riferimenti duri, e che da #3562 li scrive un commandlet (`RTSyncUnitAnimRefs`) e non una persona: i
+			// `BP_Unit_*` sono binari e non si mergiano (storico: #2444, chiusa). Da #3563 la provenienza nomina anche l'AZIONE.
 			const FString* Provenuta = Provenienza.Find(Scoperta);
 			FString Chi = TEXT("ruolo ignoto");
 			if (Provenuta)
@@ -773,7 +830,7 @@ bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
  * **Le clip di animazione richieste dal vertical slice sono raggiungibili dal cook** (#1663, `D-262`).
  *
  * ➕ **R14 (#3563): questo gate pretende SOLO le clip del pool di RUOLO** (`PerRole`), e resta verde e binario; le clip del pool
- * d'AZIONE hanno il gate gemello `RequiredActionClipsAreCooked` (rosso finche' #3562 non scrive i riferimenti duri). Il corpo e'
+ * d'AZIONE hanno il gate gemello `RequiredActionClipsAreCooked` (rosso dal 2026-10-08 al 2026-10-14, verde da #3562). Il corpo e'
  * comune (`RTVerificaCotturaClip`).
  *
  * 🔴 **Cosa questo test presidia, nella forma che `D-262` ordina.** Quella voce dichiara che una build
@@ -792,7 +849,8 @@ bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
  * versionato sotto `/Game/RT` e' cotto per la riga `+DirectoriesToAlwaysCook=(Path="/Game/RT")`, e
  * trascina con se' cio' che referenzia duro. E' **gia' il meccanismo** con cui le mesh Paragon entrano
  * nel pacchetto, ed e' misurato il 2026-10-08: le clip di RUOLO sono referenziate duro dai `BP_Unit_*`,
- * quelle d'AZIONE no (#3562).
+ * quelle d'AZIONE no. ✅ Dal 2026-10-14 (#3562) le porta `CookDeps_Anim` dei `BP_Unit_*`, scritta da
+ * `-run=RTSyncUnitAnimRefs` invece che a mano.
  *
  * ⛔ **E le due vie che sembravano possibili non lo sono, verificato sulla documentazione del motore e
  * non dedotto.** `DirectoriesToAlwaysCook` accetta **directory, mai singoli asset** — quindi un «set
@@ -811,18 +869,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredAnimationClipsAreCookedTest,
 bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 {
 	return RTVerificaCotturaClip(*this, ERTPoolClip::Ruolo,
-		TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#3562), oppure ")
-		TEXT("disattiva la variante se non deve entrare nel pacchetto."));
+		TEXT("Per chiudere: rigenera la classe autorata e risincronizza i BP_Unit_* dal clone principale — ")
+		TEXT("-run=RTBuildAnimBindings, poi -run=RTSyncUnitAnimRefs (#3562) — oppure disattiva la variante se non deve ")
+		TEXT("entrare nel pacchetto."));
 }
 
 /**
  * **Le clip d'AZIONE sono raggiungibili dal cook** (#3563, R14) — il gemello di `RequiredAnimationClipsAreCooked`, che pretende
  * solo le clip di RUOLO e deve restare verde e binario.
  *
- * 🔴 **Rosso per costruzione finche' #3562 non scrive i riferimenti duri.** Le clip del pool d'azione (`PerAction`) sono nel
- * set richiesto dal cook, ma nessun `BP_Unit_*` le referenzia: il cook non le segue, e su packaged l'azione ripiega sulla clip
- * di ruolo. L'owner del gesto in Editor e' #3562 (riferimenti duri nei `BP_Unit_*` alle clip d'azione; sono binari e non si
- * mergiano). Il rosso elenca, ordinate, le clip scoperte con la provenienza `Hero.X / Azione / Ruolo`.
+ * ⌫ *Rosso per costruzione dal 2026-10-08 al 2026-10-14*: le clip del pool d'azione (`PerAction`) erano nel set richiesto
+ * dal cook e nessun `BP_Unit_*` le referenziava. ✅ #3562 le ha portate in `CookDeps_Anim`, scritta da un commandlet
+ * (`RTSyncUnitAnimRefs`) e non a mano. Un rosso, da qui, vuol dire che una variante e' diventata attiva senza risincronizzare
+ * i blueprint: l'elenco dice quali clip, con la provenienza `Hero.X / Azione / Ruolo`.
  *
  * 🔑 **Perche' non dentro il gate di ruolo**: un gate unico, gia' rosso per le clip d'azione, avrebbe nascosto un rosso futuro
  * del ruolo (una variante di ruolo resa attiva senza riferimento) nello stesso elenco. Separati, il verde del ruolo dice
@@ -836,8 +895,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredActionClipsAreCookedTest,
 bool FRTRequiredActionClipsAreCookedTest::RunTest(const FString&)
 {
 	return RTVerificaCotturaClip(*this, ERTPoolClip::Azione,
-		TEXT("L'owner del gesto in Editor e' #3562: aggiungi il riferimento duro alla clip d'azione nel BP_Unit_ dell'eroe, ")
-		TEXT("oppure disattiva la variante d'azione se non deve entrare nel pacchetto."));
+		TEXT("Per chiudere: rigenera la classe autorata e risincronizza i BP_Unit_* dal clone principale — ")
+		TEXT("-run=RTBuildAnimBindings, poi -run=RTSyncUnitAnimRefs (#3562) — oppure disattiva la variante d'azione ")
+		TEXT("se non deve entrare nel pacchetto."));
 }
 
 /**
@@ -971,6 +1031,33 @@ bool FRTAnimationClipScanDetectsAnUncoveredClipTest::RunTest(const FString&)
 
 	IFileManager::Get().Delete(*Finto, false, true);
 	IFileManager::Get().DeleteDirectory(*Radice, true, true);
+	return true;
+}
+
+/**
+ * **Il gate di cook non conta il file della classe autorata, comunque sia scritto il suo path** (#3562, `Q1`).
+ *
+ * 🔴 Esiste perche' la prova naturale non c'e': i byte di `ABP_RTUnitAuthored` oggi non portano i path delle clip (il
+ * suo CDO e' identico al padre e si salva per differenza), quindi togliere l'esclusione dal gate non lo renderebbe
+ * verde, e una mutazione sull'asset vero non proverebbe niente. Si prova l'esclusione da sola: il file della classe
+ * esce, in forma relativa e completa; un file accanto resta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCookGateIgnoresAuthoredClassTest,
+	"RefactorTactics.Packaging.CookGateIgnoresTheAuthoredAnimClassFile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCookGateIgnoresAuthoredClassTest::RunTest(const FString&)
+{
+	const FString Autorata = RTAuthoredAnimClassFile();
+	const FString Accanto = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Anim/ABP_Accanto.uasset"));
+	const FString Lontano = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset"));
+
+	TArray<FString> Files = { Lontano, Autorata, Accanto, FPaths::ConvertRelativePathToFull(Autorata) };
+	const int32 Tolti = RTEscludiClasseAutorata(Files, Autorata);
+
+	TestEqual(TEXT("escono le due scritture del file della classe autorata"), Tolti, 2);
+	TestEqual(TEXT("restano gli altri due file"), Files.Num(), 2);
+	TestTrue(TEXT("il blueprint di un'unita' resta"), Files.Contains(Lontano));
+	TestTrue(TEXT("un file accanto, con un nome simile, resta"), Files.Contains(Accanto));
 	return true;
 }
 

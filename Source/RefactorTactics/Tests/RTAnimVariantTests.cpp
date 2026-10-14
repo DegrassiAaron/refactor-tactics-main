@@ -239,4 +239,87 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 	return true;
 }
 
+// --- #3562 · le clip attive di un eroe, ruolo piu' azione ------------------------------------------------
+
+/**
+ * `CollectActiveClips` e' il set che il commandlet `RTSyncUnitAnimRefs` scrive in `CookDeps_Anim` dei `BP_Unit_*`
+ * come riferimenti duri: cio' che manca da qui manca dal pacchetto, e l'unita' resta in posa di riferimento (D-262).
+ *
+ * 🔑 **Gli elenchi sono LETTERALI, e non ricalcolati coi cicli della funzione.** Un test che rifacesse l'unione di
+ * `PerRole` e `PerAction` darebbe ragione a qualunque errore comune ai due. Questi sono i default C++ del
+ * 2026-10-14 (`URTUnitAnimInstance::URTUnitAnimInstance`): se un default cambia, l'elenco va riscritto, ed e'
+ * giusto che il test lo chieda.
+ *
+ * Due casi che l'elenco copre per costruzione:
+ *  - **una clip condivisa da due pool** compare una volta: `Cast` e' sia il ruolo `Cast` sia il ruolo `Attack`
+ *    (`MakeClips`, #3549);
+ *  - **un'azione con due beat** porta due clip: `Hero.Branth.Ram` e `Hero.Branth.MortarShot`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCollectActiveClipsTest,
+	"RefactorTactics.Anim.CollectActiveClipsCoversRolesAndActions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCollectActiveClipsTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO del grafo"), Cdo)) { return false; }
+
+	auto Pacchetti = [Cdo](const TCHAR* Eroe)
+	{
+		TArray<FSoftObjectPath> Clip;
+		Cdo->CollectActiveClips(FName(Eroe), Clip);
+		TArray<FString> Nomi;
+		for (const FSoftObjectPath& P : Clip) { Nomi.Add(P.GetLongPackageName()); }
+		return Nomi;
+	};
+	auto Atteso = [](const TCHAR* Radice, std::initializer_list<const TCHAR*> Nomi)
+	{
+		TArray<FString> Out;
+		for (const TCHAR* N : Nomi) { Out.Add(FString(Radice) + N); }
+		return Out;
+	};
+
+	const TArray<FString> Aevik = Atteso(TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/"), {
+		TEXT("Cast"), TEXT("Death_Fwd"), TEXT("Hitreact_Fwd"), TEXT("Idle"),
+		TEXT("LMB_Fire_A_Slow_V1"), TEXT("LMB_Fire_B_Slow_V1"), TEXT("LMB_Fire_C_Slow_V1"), TEXT("Run_Fwd") });
+	const TArray<FString> Branth = Atteso(TEXT("/Game/FabAsset/Paragon/ParagonRiktor/Characters/Heroes/Riktor/Animations/"), {
+		TEXT("Ability_Hook_Cast"), TEXT("Ability_Hook_Pull"), TEXT("Ability_Hook_Start"), TEXT("Ability_Lockdown"),
+		TEXT("Ability_ShockingPunch"), TEXT("Cast"), TEXT("Death_Fwd"), TEXT("HitReact_Front"), TEXT("Idle"),
+		TEXT("Jog_Fwd"), TEXT("PrimaryAttack_A_Slow"), TEXT("PrimaryAttack_B_Slow") });
+
+	const TArray<FString> TrovatiAevik = Pacchetti(TEXT("Hero.Aevik"));
+	const TArray<FString> TrovatiBranth = Pacchetti(TEXT("Hero.Branth"));
+	TestEqual(TEXT("Aevik: le clip di ruolo e d'azione, in ordine"), FString::Join(TrovatiAevik, TEXT("\n")),
+		FString::Join(Aevik, TEXT("\n")));
+	TestEqual(TEXT("Branth: le clip di ruolo e d'azione, in ordine"), FString::Join(TrovatiBranth, TEXT("\n")),
+		FString::Join(Branth, TEXT("\n")));
+	// ⚠️ `TestEqual` su `FString` ignora le maiuscole, e anche `operator==` di `FString`: i nomi Paragon si
+	// distinguono anche per quelle (`Hitreact_Fwd` di Gadget, `HitReact_Front` di Riktor), quindi il confronto
+	// esatto si ripete qui con `ESearchCase::CaseSensitive`.
+	TestTrue(TEXT("Aevik: confronto sensibile alle maiuscole"), FString::Join(TrovatiAevik, TEXT("\n")).Equals(
+		FString::Join(Aevik, TEXT("\n")), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("Branth: confronto sensibile alle maiuscole"), FString::Join(TrovatiBranth, TEXT("\n")).Equals(
+		FString::Join(Branth, TEXT("\n")), ESearchCase::CaseSensitive));
+
+	// Su OGNI eroe del CDO: nessun doppione, e ordine per path. ⚠️ Che un eroe abbia clip d'azione e' un fatto dei DATI,
+	// non della funzione: lo assicurano gli elenchi letterali qui sopra, e un eroe futuro senza clip d'azione non deve far
+	// cadere questo test (rilievo 8 della revisione del codice).
+	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
+	{
+		TArray<FSoftObjectPath> Clip;
+		Cdo->CollectActiveClips(Voce.Key, Clip);
+		TSet<FSoftObjectPath> Unici(Clip);
+		TestEqual(*FString::Printf(TEXT("%s: nessun doppione"), *Voce.Key.ToString()), Unici.Num(), Clip.Num());
+		for (int32 i = 1; i < Clip.Num(); ++i)
+		{
+			TestTrue(*FString::Printf(TEXT("%s: ordine per path alla posizione %d"), *Voce.Key.ToString(), i),
+				Clip[i - 1].ToString() < Clip[i].ToString());
+		}
+	}
+
+	TArray<FSoftObjectPath> Nessuno;
+	Cdo->CollectActiveClips(FName(TEXT("Hero.NonEsiste")), Nessuno);
+	TestEqual(TEXT("un eroe fuori catalogo non ha clip, e non e' un errore"), Nessuno.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

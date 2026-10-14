@@ -607,7 +607,8 @@ bool FRTPlaybackActivationPlaysTheActionClipTest::RunTest(const FString&)
 
 /**
  * Review finale I1: una clip d'azione che NON si carica ripiega sulla clip di RUOLO, al caricamento — il pacchetto,
- * dove le clip d'azione non sono cotte (#3562), degrada come prima di #3563 invece di restare muto.
+ * dove una clip d'azione puo' mancare (lo erano tutte fino a #3562; oggi una variante attivata senza risincronizzare i
+ * `BP_Unit_*`), degrada come prima di #3563 invece di restare muto.
  *
  * 🔑 Il path d'azione dello Scudo e' sintetico: non si carica mai, ne' headless ne' altrove. Il path di ruolo
  * (`Cast` di Muiren, il default del CDO) e' diverso e non nullo, quindi il ripiego va TENTATO; headless fallisce

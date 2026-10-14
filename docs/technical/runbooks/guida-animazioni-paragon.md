@@ -329,6 +329,25 @@ appartiene a **[#3562](https://github.com/DegrassiAaron/refactor-tactics-main/is
   pretende le sole clip di **ruolo** ed è verde; `RequiredActionClipsAreCooked` pretende le clip d'**azione** ed è
   rosso finché #3562 non fa il gesto. Così un futuro rosso di ruolo non si nasconde dentro un test già rosso.
 
+📏 **Misurato il 2026-10-14** ([#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562),
+[`D-515`](../../decisions/RT_PDR_00_Decision_Log.md)), nel clone principale sul ramo `issue/3562-clip-d-azione-nel-cook`:
+**entrambi i gate sono verdi**. Le clip d'azione le porta `CookDeps_Anim` dei `BP_Unit_*`, scritta da un commandlet e non
+a mano, e `UnitAnimClass` dei `BP_Unit_*` è la classe autorata `ABP_RTUnitAuthored`. Il gesto in Editor che questa pagina
+chiedeva non serve più: è un comando.
+
+**Quando una variante diventa attiva** — dal pannello o nel catalogo — si lancia, **dal clone principale** (è l'unico con i
+pack Paragon: altrove le clip non si caricano e il commandlet si rifiuta di salvare), in quest'ordine:
+
+1. `UnrealEditor-Cmd <progetto> -run=RTBuildAnimBindings` — rigenera la classe autorata dal catalogo;
+2. `UnrealEditor-Cmd <progetto> -run=RTSyncUnitAnimRefs -DryRun` — elenca, per ogni `BP_Unit_*`, le clip che entrano e
+   quelle che escono, e una riga `TOTALE`; poi lo stesso senza `-DryRun`;
+3. `UnrealEditor-Cmd <progetto> -run=RTSyncUnitAnimRefs -ExpectNoChanges` — deve uscire con zero: è la prova che i valori
+   sono sopravvissuti alla compilazione dei blueprint;
+4. `Automation RunTests RefactorTactics.Packaging` — i due gate verdi.
+
+Saltare il passo 2 è il difetto che `RequiredActionClipsAreCooked` esiste per vedere: la variante suona in Editor e manca dal
+pacchetto. I blueprint e la classe autorata si committano insieme.
+
 Il numero di scoperte non si scrive qui: si rimisura lanciando il gate e leggendo il log, una riga per package
 scoperto con la sua provenienza.
 
