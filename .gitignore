@@ -200,6 +200,12 @@ Content/RT/UI/_Generated/
 !Content/RT/Characters/Branth/Blueprints/BP_Unit_Branth.uasset
 !Content/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin.uasset
 !Content/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.uasset
+# La classe d'animazione autorata (#3562): `UnitAnimClass` dei quattro BP_Unit_* qui sopra. NON e' uno degli ABP_*
+# di D-248 descritti qui sotto: non duplica un AnimBlueprint di Paragon e non ha grafo — il grafo resta in C++
+# (URTUnitAnimInstance), e questa e' una sua sottoclasse che porta solo dati (ClipsPerHero). E' l'output di
+# `-run=RTBuildAnimBindings`, e si versiona perche' i BP_Unit_* la referenziano duro: un clone senza leggerebbe
+# `UnitAnimClass` nulla. Si rigenera solo dal clone principale, quando il catalogo lega una variante.
+!Content/RT/Anim/ABP_RTUnitAuthored.uasset
 # Gli ABP_* dei quattro eroi NON hanno una riga, e non e' una dimenticanza: D-248 (2026-08-30) ha
 # stabilito che il grafo di locomozione vive in C++ (URTUnitAnimInstance) e che quei quattro .uasset
 # non vanno creati. Le righe c'erano, e sono uscite il 2026-08-31: finche' restavano, il comando di
