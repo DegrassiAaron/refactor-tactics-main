@@ -1,6 +1,6 @@
 # La serie «ciò che il giocatore legge» — spec panel su sei issue della v0.1
 
-> **Stato**: `CURRENT` · **Creato**: 2026-10-13 · **Tipo**: referto di spec panel — **vista di esecuzione**, non owner.
+> **Stato**: `CURRENT` — **eseguito**, vedi [§11](#11-esito-dellesecuzione) · **Creato**: 2026-10-13 · **Tipo**: referto di spec panel — **vista di esecuzione**, non owner.
 >
 > **Oggetto**: le sei issue proposte come serie il 2026-10-13. Quattro toccano `Source/`:
 > [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081),
@@ -32,7 +32,7 @@
 [4. #3667](#4-3667--titolo-sottotitolo-e-bersaglio-nella-finestra-di-reazione) ·
 [5. #3626](#5-3626--color_metricspy-non-gira) · [6. #3627](#6-3627--la-copia-python-della-palette) ·
 [7. Decisioni](#7-decisioni-richieste) · [8. Ordine](#8-lordine-e-i-vincoli) · [9. Limiti](#9-limiti-dichiarati) ·
-[10. Gate](#10-gate-di-questo-passaggio)
+[10. Gate](#10-gate-di-questo-passaggio) · [11. Esito](#11-esito-dellesecuzione)
 
 ---
 
@@ -152,12 +152,12 @@ R1.1, R1.2, R1.3, R1.5 e R1.6 non dipendono da nessuna decisione.
 
 ### 1.5 Definition of Done
 
-- [ ] I sei esiti sono classificati come R1.1–R1.3, e togliere uno qualunque dei `case` fa cadere il test di R1.5.
-- [ ] L'esempio 1 è un test, e asserisce **una** riga e il suo testo: è ciò che distingue «la funzione classifica»
+- [x] I sei esiti sono classificati come R1.1–R1.3, e togliere uno qualunque dei `case` fa cadere il test di R1.5.
+- [x] L'esempio 1 è un test, e asserisce **una** riga e il suo testo: è ciò che distingue «la funzione classifica»
       da «il feed racconta».
-- [ ] L'esempio 3 è un test.
-- [ ] `P1` è scritta nella issue, con il testo scelto.
-- [ ] Confine di privacy: nessun campo nuovo attraversa la proiezione. La causa sta in `ActionId`, che l'evento
+- [x] L'esempio 3 è un test.
+- [x] `P1` è scritta nella issue, con il testo scelto.
+- [x] Confine di privacy: nessun campo nuovo attraversa la proiezione. La causa sta in `ActionId`, che l'evento
       porta già, su una voce che `IsAuthorized` ha già esaminato.
 
 ---
@@ -237,10 +237,10 @@ tiene l'ultima, i gesti sono due); una valida e poi una respinta valgono `2`, e 
 
 ### 2.5 Definition of Done
 
-- [ ] I quattro esempi sono un test, nella forma di `MovementDestinationCountsAsAnOrder`. Togliere una delle due
+- [x] I quattro esempi sono un test, nella forma di `MovementDestinationCountsAsAnOrder`. Togliere una delle due
       chiamate fa cadere i soli esempi accettati del suo ramo.
-- [ ] La casella sull'arm si spunta con la riga di log citata sopra.
-- [ ] `P2` è scritta nella issue.
+- [x] La casella sull'arm si spunta con la riga di log citata sopra.
+- [x] `P2` è scritta nella issue.
 - [ ] `PIE-PACING-1` si rigiudica in seduta su un binario che contiene la correzione: resta aperta fino ad allora.
 
 ---
@@ -300,8 +300,8 @@ che nomini l'azione di un avversario, per esempio.
 
 ### 3.4 Definition of Done
 
-- [ ] `P3` è scritta nella issue.
-- [ ] Forma ridotta: R3.1–R3.3. Forma piena: R3.4–R3.6, con l'elenco dei nomi approvato in un commento della issue.
+- [x] `P3` è scritta nella issue.
+- [x] Forma ridotta: R3.1–R3.3. Forma piena: R3.4–R3.6, con l'elenco dei nomi approvato in un commento della issue.
 
 ---
 
@@ -402,10 +402,10 @@ cambiati.
 
 ### 5.4 Definition of Done
 
-- [ ] `python tools/hud-assets/color_metrics.py` esce con 0 e stampa la sezione «World overlay».
-- [ ] La prova di R5.2 è eseguibile, e cade se la forma inventata viene accettata.
-- [ ] R5.3: il chiamante è nominato nella PR, e una riga di documentazione dice come si lancia.
-- [ ] R5.4: l'esito della rimisura è scritto, anche se è «nessuna violazione».
+- [x] `python tools/hud-assets/color_metrics.py` esce con 0 e stampa la sezione «World overlay».
+- [x] La prova di R5.2 è eseguibile, e cade se la forma inventata viene accettata.
+- [x] R5.3: il chiamante è nominato nella PR, e una riga di documentazione dice come si lancia.
+- [x] R5.4: l'esito della rimisura è scritto, anche se è «nessuna violazione».
 
 ---
 
@@ -461,9 +461,9 @@ errore, non essere saltata.
 
 ### 6.4 Definition of Done
 
-- [ ] R6.1 è eseguibile, e cade cambiando un valore di una delle due tabelle.
-- [ ] `P4` è scritta nella issue, e il secondo criterio del corpo è riformulato di conseguenza.
-- [ ] Se `T9` cambia fonte, i due esiti (prima e dopo) sono nella PR.
+- [x] R6.1 è eseguibile, e cade cambiando un valore di una delle due tabelle.
+- [x] `P4` è scritta nella issue, e il secondo criterio del corpo è riformulato di conseguenza.
+- [x] Se `T9` cambia fonte, i due esiti (prima e dopo) sono nella PR.
 
 Fuori perimetro, da non risolvere qui: il documento che il generatore dichiara owner della palette semantica si
 presenta come *«sorgente di design, non canone»*. Chi sia l'owner normativo dei token `RT_Sem_*` è una domanda a sé.
@@ -537,3 +537,51 @@ porta, col commit su cui è stato misurato.
 node tools/radar/doc-links.ts --check
 node tools/radar/doc-coherence.ts --check
 ```
+
+---
+
+## 11. Esito dell'esecuzione
+
+> Aggiunto il 2026-10-13, a serie lavorata. La serie è stata eseguita nell'ordine di §8, un ramo per issue. I commit
+> sono quelli di merge su `main`, letti da GitHub. Le misure — build, suite, mutazioni — stanno nel corpo di ogni PR,
+> col commit su cui sono state fatte: qui non si ricopiano.
+
+| Issue | PR | Su `main` | Issue | Che cosa resta |
+|---|---|---|---|---|
+| [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626) | [#3730](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3730) | `c47dd2dde` | chiusa | — |
+| [#3081](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3081) | [#3731](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3731) | `2faff5646` | chiusa | [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734): dopo uno scatto riuscito, uno spostamento subito non compare nel feed. Chiede una decisione d'autore |
+| [#3627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3627) | [#3733](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3733) | `630060b4d` | chiusa | — |
+| [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400) | [#3732](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3732) | `0bec2614a` | **aperta** | `PIE-PACING-1` da rigiudicare in seduta. `P2` è stata chiesta all'autore il 2026-10-13, a codice già su `main`: «sono due ordini», cioè la lettura assunta. Fino ad allora era un'assunzione dichiarata. [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736): la carica non si pianifica cliccando il nemico osservato |
+| [#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629) | [#3738](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3738) | `a0ab433f3` | chiusa, in forma ridotta | [#3740](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3740): la tabella dei nomi, rinviata a quando nasce un lettore senza kit |
+| [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667) | [#3739](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3739) | la PR che porta questa sezione | **aperta** | Il `TextBlock` `SubtitleText` in `WBP_RT_FastDecision`, dal clone principale: senza, il sottotitolo si calcola e non si vede. La cattura in PIE sul banco. La casella di [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) «… e bersaglio». [#3745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3745): la seconda finestra di uno stesso passo può nominare un'unità già abbattuta; l'autore ha deciso che quel `FIRE` non si offre, e il codice è da scrivere |
+
+### Le quattro letture di §9, alla prova
+
+§9 dichiarava quattro affermazioni ottenute per sola lettura, ciascuna con ciò che l'avrebbe smentita.
+
+| Lettura | Esito |
+|---|---|
+| chi cade ha nel feed una sola riga, ed è quella del danno | ✅ Confermata dal resolver: `Fall.TheFeedSaysFallNotHit`. Senza il ramo che legge la causa la riga dice «Colpita» |
+| un turno di solo scatto conta oggi un ordine | ✅ Confermata per mutazione: tolta la chiamata nuova, i casi accettati tornano a `1` |
+| il terzo passo di `NomeDi` non è raggiungibile nel catalogo spedito | ✅ Confermata da `HudViewModel.EveryActionOfTheMatchKitHasAName`, che esegue la cascata. ⚠️ Con un limite: per l'equipaggiamento un ripiego sull'id esiste già a monte, e lo sorveglia un altro gate |
+| spostare `T9` sul token di §32 non ne cambia il verdetto | ✅ Misurata: la fase `Move` dista `32.5` dal testo spento e `33.0` dal grigio semantico, soglia `20.0`. ⚠️ E il gate non è stato *spostato*: ora li misura entrambi |
+
+### Che cosa questo referto aveva sbagliato
+
+Lo si è trovato lavorando, e le correzioni datate stanno nelle sezioni. In breve:
+
+- **§2**: il ramo «a budget» non è `Action.Sprint`, e nessuna azione spedita ci arriva. La carica puntata sul nemico
+  non è un gesto che il click vero raggiunge.
+- **§1**: la revisione ha proposto una regola di dominanza che `P1` escludeva. È stata scritta, misurata e **tolta**
+  dalla PR: non era ciò che l'autore aveva approvato.
+- **§2**: `P2` era segnata come assunta e mai chiesta. È stata chiesta dopo, e confermata: una decisione che arriva a codice mergiato è comunque una decisione, ma l'ordine era sbagliato.
+- **§4**: «chi ha fatto scattare la finestra» non coincide coi bersagli dei `FIRE` quando c'è una condizione
+  dichiarata; chi spinge non si ritrova dalla cella, perché su quella cella può esserci un caduto; e chi spinge a
+  contatto è sempre rilevato, quindi la frase neutra nasce solo da una spinta a distanza. E la specifica
+  dell'11 ottobre diceva che il Blast non ha una conoscenza di squadra propria: ce l'ha, ed è quella che ora
+  decide se chi spinge ha un nome — la stessa con cui si congela la riga del colpo. La prima stesura aveva
+  costruito un secondo predicato accanto.
+- **§6**: `P4` diceva che `T9` «legge il grigio che l'HUD disegna». Sostituire un grigio con l'altro avrebbe tolto
+  dal gate quello che le icone portano ancora.
+- **§9**: *«Una verifica avversaria non è stata fatta»*. È stata fatta dopo, PR per PR, ed è da lì che vengono le
+  correzioni qui sopra.
