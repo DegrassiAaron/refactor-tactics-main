@@ -356,4 +356,66 @@ bool FRTScenarioBranchAppliesPlaybackControlsTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// `#3763` — IL VELO DELLE CELLE NEL RAMO DELLO SCENARIO.
+//
+// 🔴 Lo stesso difetto di `#3267`, un aggancio piu' in la'. Dentro uno scenario il velo sulle UNITA' si
+// vedeva e quello sulle CELLE no: `HookKnowledgeVeil` sta in fondo a `BeginPlay`, e il ramo `Started` esce
+// prima. Osservato il 2026-10-13 nella seduta `U87`, su `Visual.Perception.Acceptance`; l'autore ha poi
+// scelto, sulla tavola delle quattro scene col velo, che valga in tutti gli scenari come in partita.
+// =========================================================================================================
+
+/**
+ * Il ramo dell'auto-run AGGANCIA il velo delle celle, e dopo aver aperto il primo turno — `#3763`.
+ *
+ * ⚠️ **E' un controllo sul SORGENTE**, per la stessa ragione del gemello qui sopra: far correre `BeginPlay`
+ * headless con uno scenario non e' percorribile. Il comportamento a schermo l'ha misurato una seduta PIE,
+ * sulla tavola `V1` di #3763.
+ *
+ * 🔑 **L'ordine e' parte dell'asserzione.** Aprire il turno 1 ricalcola la conoscenza di squadra
+ * (`StartPlanningTimer` → `PlanBots` → `RefreshTeamKnowledgeForPlanning`), e l'aggancio stende il velo
+ * subito: agganciato prima, il velo leggerebbe una conoscenza vuota e marcherebbe l'intera board come mai
+ * vista. E' l'ordine che il percorso normale dichiara per se' (prima la conoscenza, poi il velo).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBranchHooksTheVeilTest,
+	"RefactorTactics.Veil.ScenarioBranchHooksTheCellVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBranchHooksTheVeilTest::RunTest(const FString&)
+{
+	const FString Percorso = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Source/RefactorTactics/RTGameMode.cpp"));
+	FString Testo;
+	if (!TestTrue(TEXT("⛔ premessa: il sorgente del GameMode si legge"),
+		FFileHelper::LoadFileToString(Testo, *Percorso)))
+	{
+		return false;
+	}
+
+	const int32 Inizio = Testo.Find(TEXT("case ERTScenarioStart::Started:"));
+	if (!TestTrue(TEXT("⛔ premessa: il ramo `Started` esiste"), Inizio != INDEX_NONE)) { return false; }
+	const int32 Fine = Testo.Find(TEXT("return;"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Inizio);
+	if (!TestTrue(TEXT("⛔ premessa: il ramo esce con un `return`"), Fine != INDEX_NONE)) { return false; }
+
+	const FString Ramo = Testo.Mid(Inizio, Fine - Inizio);
+
+	// ⛔ Si cercano le CHIAMATE, con la parentesi: il commento del ramo nomina la funzione, e un controllo che
+	// non distingue il codice dalla prosa misura la prosa (la lezione del gemello qui sopra).
+	const int32 Aggancio = Ramo.Find(TEXT("HookKnowledgeVeil();"));
+	TestTrue(TEXT("🔴 il ramo dell'auto-run aggancia il velo delle celle"), Aggancio != INDEX_NONE);
+
+	const int32 Apertura = Ramo.Find(TEXT("OpenClaimedFirstTurn();"));
+	if (TestTrue(TEXT("⛔ premessa: il ramo apre il primo turno"), Apertura != INDEX_NONE)
+		&& Aggancio != INDEX_NONE)
+	{
+		TestTrue(TEXT("🔴 e lo fa DOPO aver aperto il turno 1: prima, il velo leggerebbe una conoscenza vuota"),
+			Apertura < Aggancio);
+	}
+
+	// E il percorso normale lo aggancia ancora: la correzione aggiunge un aggancio, non lo sposta.
+	TestTrue(TEXT("il percorso normale aggancia ancora il velo, in fondo a BeginPlay"),
+		Testo.Find(TEXT("HookKnowledgeVeil();"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Fine) != INDEX_NONE);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
