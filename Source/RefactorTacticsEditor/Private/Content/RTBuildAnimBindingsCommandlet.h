@@ -16,6 +16,8 @@
  *  - **scrivere il sorgente C++** obbliga l'autore a ricompilare per vedere l'effetto della propria scelta;
  *  - **autorare un `.uasset` a mano** aggiunge il byte binario che `D-248` e #2441 esistono per evitare,
  *    e `CLAUDE.md` §5 lo vieta comunque;
+ *    ➕ *da #3562 (D-515) l'output di questo commandlet e' versionato*: i `BP_Unit_*` lo usano come `UnitAnimClass`,
+ *    e un clone senza leggerebbe una classe nulla. Resta un output, non un asset autorato: si rigenera, non si edita;
  *  - **testo versionato + generazione** non paga nessuno dei due, ed e' il pattern che il repository ha
  *    gia' pagato tre volte (`RTBuildGrayboxMeshes`, `RTBuildIconCatalog`, `RTBuildPlaygroundPanel`).
  *    `D-229`: la sorgente e' il codice, l'asset e' il suo **output**.
@@ -37,6 +39,10 @@
  * ```
  * UnrealEditor-Cmd.exe <progetto> -run=RTBuildAnimBindings [-DryRun]
  * ```
+ *
+ * ⚠️ Da #3562, dopo questo si lancia `-run=RTSyncUnitAnimRefs`: scrive nei `BP_Unit_*` la classe e le clip attive come
+ * riferimenti duri. Senza, una variante appena attivata suona in Editor e manca dal pacchetto, e
+ * `Packaging.RequiredActionClipsAreCooked` lo dice. Entrambi solo dal clone principale, che ha i pack Paragon.
  */
 UCLASS()
 class URTBuildAnimBindingsCommandlet : public UCommandlet

@@ -953,7 +953,8 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 	UAnimSequenceBase* Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
 
 	// 🔴 **Il ripiego sul RUOLO vale anche al CARICAMENTO, non solo nella scelta del path** (review finale I1).
-	// In un pacchetto le clip d'azione non sono cotte — nessun riferimento duro, owner #3562 — e `LoadSynchronous`
+	// In un pacchetto le clip d'azione non erano cotte fino a #3562 (2026-10-14), e una variante attivata senza
+	// risincronizzare i `BP_Unit_*` torna in quella condizione — e `LoadSynchronous`
 	// torna `nullptr`: senza questo blocco il beat non suonerebbe NIENTE, dove prima di #3563 suonava la clip di
 	// ruolo. Si ritenta col path di SOLO ruolo (l'overload a due argomenti) quando e' diverso da quello risolto:
 	// se e' uguale non c'era una voce d'azione, e ricaricarlo darebbe lo stesso `nullptr`.

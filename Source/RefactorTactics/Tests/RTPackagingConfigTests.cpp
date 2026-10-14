@@ -275,7 +275,7 @@ namespace
 
 	/**
 	 * Quale pool di clip un helper di cook attraversa (R14, #3563): il pool di RUOLO (`PerRole` dell'eroe) e quello d'AZIONE
-	 * (`PerAction`) hanno owner e stato diversi — il primo e' raggiunto dai `BP_Unit_*`, il secondo no (#3562) — e un
+	 * (`PerAction`) hanno owner e stato diversi — il primo raggiunto dai `BP_Unit_*` da sempre, il secondo solo da #3562 (2026-10-14) — e un
 	 * gate unico, gia' rosso per il secondo, nasconderebbe un rosso futuro del primo. `Entrambi` e' il default: il set
 	 * completo, quello che guarda `RequiredSetIncludesActionClips`.
 	 */
@@ -527,7 +527,7 @@ namespace
 		// 🔑 **Terzo controllo, e il piu' importante: il metodo sa trovare un riferimento VERO.**
 		// Le mesh Paragon sono la famiglia SORELLA delle clip — stesso pack, stesso eroe, cartella accanto —
 		// e sono referenziate duro dai `BP_Unit_*`: misurato il 2026-10-08: mesh e clip di RUOLO sono referenziate duro, le clip
-		// d'AZIONE no (#3562). ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
+		// d'AZIONE no (le porta `CookDeps_Anim` da #3562, 2026-10-14). ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
 		// «l'oracolo non sa guardare» invece di «la clip non e' raggiungibile» — la stessa confusione che il
 		// registro PIE avverte per gli zeri di packaging.
 		// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
@@ -565,8 +565,8 @@ namespace
 		{
 			// 🔑 **Il messaggio dice COSA FARE, e non solo cosa manca.** Chi incontra questo rosso la prima
 			// volta lo legge come un guasto dello strumento se non gli si spiega che il cook segue solo i
-			// riferimenti duri, e che scriverlo e' lavoro di #3562 (storico: #2444, chiusa; proprietario dei
-			// `BP_Unit_*`, che sono binari e non si mergiano). Da #3563 la provenienza nomina anche l'AZIONE.
+			// riferimenti duri, e che da #3562 li scrive un commandlet (`RTSyncUnitAnimRefs`) e non una persona: i
+			// `BP_Unit_*` sono binari e non si mergiano (storico: #2444, chiusa). Da #3563 la provenienza nomina anche l'AZIONE.
 			const FString* Provenuta = Provenienza.Find(Scoperta);
 			FString Chi = TEXT("ruolo ignoto");
 			if (Provenuta)
@@ -830,7 +830,7 @@ bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
  * **Le clip di animazione richieste dal vertical slice sono raggiungibili dal cook** (#1663, `D-262`).
  *
  * ➕ **R14 (#3563): questo gate pretende SOLO le clip del pool di RUOLO** (`PerRole`), e resta verde e binario; le clip del pool
- * d'AZIONE hanno il gate gemello `RequiredActionClipsAreCooked` (rosso finche' #3562 non scrive i riferimenti duri). Il corpo e'
+ * d'AZIONE hanno il gate gemello `RequiredActionClipsAreCooked` (rosso dal 2026-10-08 al 2026-10-14, verde da #3562). Il corpo e'
  * comune (`RTVerificaCotturaClip`).
  *
  * 🔴 **Cosa questo test presidia, nella forma che `D-262` ordina.** Quella voce dichiara che una build
@@ -849,7 +849,8 @@ bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
  * versionato sotto `/Game/RT` e' cotto per la riga `+DirectoriesToAlwaysCook=(Path="/Game/RT")`, e
  * trascina con se' cio' che referenzia duro. E' **gia' il meccanismo** con cui le mesh Paragon entrano
  * nel pacchetto, ed e' misurato il 2026-10-08: le clip di RUOLO sono referenziate duro dai `BP_Unit_*`,
- * quelle d'AZIONE no (#3562).
+ * quelle d'AZIONE no. ✅ Dal 2026-10-14 (#3562) le porta `CookDeps_Anim` dei `BP_Unit_*`, scritta da
+ * `-run=RTSyncUnitAnimRefs` invece che a mano.
  *
  * ⛔ **E le due vie che sembravano possibili non lo sono, verificato sulla documentazione del motore e
  * non dedotto.** `DirectoriesToAlwaysCook` accetta **directory, mai singoli asset** — quindi un «set
@@ -868,18 +869,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredAnimationClipsAreCookedTest,
 bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 {
 	return RTVerificaCotturaClip(*this, ERTPoolClip::Ruolo,
-		TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#3562), oppure ")
-		TEXT("disattiva la variante se non deve entrare nel pacchetto."));
+		TEXT("Per chiudere: rigenera la classe autorata e risincronizza i BP_Unit_* dal clone principale — ")
+		TEXT("-run=RTBuildAnimBindings, poi -run=RTSyncUnitAnimRefs (#3562) — oppure disattiva la variante se non deve ")
+		TEXT("entrare nel pacchetto."));
 }
 
 /**
  * **Le clip d'AZIONE sono raggiungibili dal cook** (#3563, R14) — il gemello di `RequiredAnimationClipsAreCooked`, che pretende
  * solo le clip di RUOLO e deve restare verde e binario.
  *
- * 🔴 **Rosso per costruzione finche' #3562 non scrive i riferimenti duri.** Le clip del pool d'azione (`PerAction`) sono nel
- * set richiesto dal cook, ma nessun `BP_Unit_*` le referenzia: il cook non le segue, e su packaged l'azione ripiega sulla clip
- * di ruolo. L'owner del gesto in Editor e' #3562 (riferimenti duri nei `BP_Unit_*` alle clip d'azione; sono binari e non si
- * mergiano). Il rosso elenca, ordinate, le clip scoperte con la provenienza `Hero.X / Azione / Ruolo`.
+ * ⌫ *Rosso per costruzione dal 2026-10-08 al 2026-10-14*: le clip del pool d'azione (`PerAction`) erano nel set richiesto
+ * dal cook e nessun `BP_Unit_*` le referenziava. ✅ #3562 le ha portate in `CookDeps_Anim`, scritta da un commandlet
+ * (`RTSyncUnitAnimRefs`) e non a mano. Un rosso, da qui, vuol dire che una variante e' diventata attiva senza risincronizzare
+ * i blueprint: l'elenco dice quali clip, con la provenienza `Hero.X / Azione / Ruolo`.
  *
  * 🔑 **Perche' non dentro il gate di ruolo**: un gate unico, gia' rosso per le clip d'azione, avrebbe nascosto un rosso futuro
  * del ruolo (una variante di ruolo resa attiva senza riferimento) nello stesso elenco. Separati, il verde del ruolo dice
@@ -893,8 +895,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredActionClipsAreCookedTest,
 bool FRTRequiredActionClipsAreCookedTest::RunTest(const FString&)
 {
 	return RTVerificaCotturaClip(*this, ERTPoolClip::Azione,
-		TEXT("L'owner del gesto in Editor e' #3562: aggiungi il riferimento duro alla clip d'azione nel BP_Unit_ dell'eroe, ")
-		TEXT("oppure disattiva la variante d'azione se non deve entrare nel pacchetto."));
+		TEXT("Per chiudere: rigenera la classe autorata e risincronizza i BP_Unit_* dal clone principale — ")
+		TEXT("-run=RTBuildAnimBindings, poi -run=RTSyncUnitAnimRefs (#3562) — oppure disattiva la variante d'azione ")
+		TEXT("se non deve entrare nel pacchetto."));
 }
 
 /**
