@@ -13,6 +13,7 @@
 #include "Frontend/RTStartupReport.h"
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
+#include "Unit/RTUnitAnimInstance.h"
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la classe visiva per eroe (#3586)
 #include "Tests/RTUnitClassProbeForTest.h"
 #include "Turn/RTTurnManager.h"            // GetTurnLog: la traccia del primo turno, oracolo di «stessa partita» (#2748)
@@ -511,6 +512,42 @@ bool FRTUnknownHeroIsDeclaredFatalTest::RunTest(const FString&)
 // l'`HeroId` inesistente e quello ripetuto, che sono un'altra regola. Prima di questi tre test nessun test
 // del repository nominava `HeroUnitClasses`: il ripiego al cilindro non era coperto da niente.
 // ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **I `BP_Unit_*` degli eroi usano la classe d'animazione autorata** (#3562).
+ *
+ * Da #3562 `RTSyncUnitAnimRefs` scrive `UnitAnimClass = ABP_RTUnitAuthored` su ogni blueprint di
+ * `HeroUnitClasses`, cosi' cio' che suona in gioco viene dal catalogo. 🔑 Il test legge il CDO del BLUEPRINT, non
+ * quello di `ARTUnit`: quest'ultimo resta `URTUnitAnimInstance` (`Unit.*`), ed e' il ripiego del runtime.
+ * ⚠️ Non nulla, figlia di `URTUnitAnimInstance`, e proprio la classe autorata: una classe nulla si animerebbe col
+ * ripiego (`ResolvedAnimClass`), e il test lo direbbe invece di lasciarlo al log.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBlueprintsUseAuthoredAnimClassTest,
+	"RefactorTactics.Heroes.UnitBlueprintsUseTheAuthoredAnimClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroBlueprintsUseAuthoredAnimClassTest::RunTest(const FString&)
+{
+	const ARTGameMode* Cdo = GetDefault<ARTGameMode>();
+	if (!TestNotNull(TEXT("CDO del GameMode"), Cdo)) { return false; }
+	TestTrue(TEXT("anti-vacuita': ci sono blueprint da guardare"), Cdo->HeroUnitClasses.Num() > 0);
+
+	const UClass* Autorata = LoadClass<URTUnitAnimInstance>(nullptr,
+		TEXT("/Game/RT/Anim/ABP_RTUnitAuthored.ABP_RTUnitAuthored_C"));
+	if (!TestNotNull(TEXT("la classe autorata si carica"), Autorata)) { return false; }
+
+	for (const TPair<FName, TSubclassOf<ARTUnit>>& Voce : Cdo->HeroUnitClasses)
+	{
+		const ARTUnit* Unita = Voce.Value ? Voce.Value->GetDefaultObject<ARTUnit>() : nullptr;
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il blueprint c'e'"), *Voce.Key.ToString()), Unita)) { continue; }
+		const UClass* Classe = Unita->UnitAnimClass.Get();
+		TestNotNull(*FString::Printf(TEXT("%s: UnitAnimClass non e' nulla"), *Voce.Key.ToString()), Classe);
+		TestTrue(*FString::Printf(TEXT("%s: UnitAnimClass e' la classe autorata (e' %s)"), *Voce.Key.ToString(),
+			Classe ? *Classe->GetPathName() : TEXT("nulla")), Classe == Autorata);
+		TestTrue(*FString::Printf(TEXT("%s: UnitAnimClass e' figlia di URTUnitAnimInstance"), *Voce.Key.ToString()),
+			Classe != nullptr && Classe->IsChildOf(URTUnitAnimInstance::StaticClass()));
+	}
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroUnitClassesDefaultTest,
 	"RefactorTactics.Heroes.HeroUnitClassesCoversTheRoster",

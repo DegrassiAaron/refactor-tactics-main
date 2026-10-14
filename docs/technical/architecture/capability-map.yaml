@@ -1678,7 +1678,7 @@ capabilities:
   - id: RT-CAP-ANIMATION-RUNTIME
     name: Animation Runtime & Catalog
     area: presentation
-    status: { implementation: partial, validation: complete, presentation: partial }   # presentation: partial per il cook (#3562), non per la PIE — dal 2026-10-09 PIE-CLIP-ABILITA ✅ (U70 riconvocata) accanto a PIE-AS4b/c ✅
+    status: { implementation: partial, validation: complete, presentation: partial }   # presentation: partial per il pacchetto, non per la PIE né per il gate di cook: dal 2026-10-14 (#3562) il gate delle clip d'azione è verde, e manca la prova su un pacchetto vero (G13) — dal 2026-10-09 PIE-CLIP-ABILITA ✅ (U70 riconvocata) accanto a PIE-AS4b/c ✅
     owner:
       epic: 286
       spec: docs/technical/runbooks/guida-animazioni-paragon.md
@@ -1692,6 +1692,8 @@ capabilities:
         - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
         - Data/Anim/AnimCatalog.json
         - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/RTSyncUnitAnimRefsCommandlet.h
+        - Content/RT/Anim/ABP_RTUnitAuthored.uasset
     issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663, 3563, 3590] }
     consumers: [RT-CAP-CHAR-PRESENTATION]
     dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]

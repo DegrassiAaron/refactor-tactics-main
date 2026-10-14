@@ -1245,10 +1245,13 @@ public:
 	/**
 	 * Classe di animazione applicata alla Skeletal Mesh che il Blueprint aggiunge, se ne ha una.
 	 *
-	 * 🔴 **Si assegna da qui e non nei `BP_Unit_*`, ed e' una scelta sul PESO del repository.** Gli
-	 * AnimBlueprint dei pack Paragon pesano 650–735 KB l'uno: duplicarne quattro per ricablarne l'ingresso
-	 * costerebbe ~2,8 MB contro gli 0,7 MB che pesa oggi tutto `Content/` versionato, e i `.uasset` non si
-	 * comprimono per delta. `URTUnitAnimInstance` fa lo stesso lavoro in C++, e nessun binario cambia.
+	 * 🔴 **Il default si assegna da qui, ed era una scelta sul PESO del repository.** Gli AnimBlueprint dei pack
+	 * Paragon pesano 650–735 KB l'uno: duplicarne quattro per ricablarne l'ingresso costerebbe ~2,8 MB, e i `.uasset`
+	 * non si comprimono per delta. `URTUnitAnimInstance` fa lo stesso lavoro in C++.
+	 * ➕ **Da #3562 (2026-10-14, D-515) i `BP_Unit_*` la scavalcano con `ABP_RTUnitAuthored`**, che NON e' uno di quegli
+	 * AnimBlueprint: e' una sottoclasse senza grafo di `URTUnitAnimInstance` che porta solo `ClipsPerHero` (12 KB),
+	 * generata da `-run=RTBuildAnimBindings` e scritta nei blueprint da `-run=RTSyncUnitAnimRefs`. Il grafo resta in
+	 * C++. Questo default resta il ripiego (`ResolvedAnimClass`).
 	 *
 	 * ⚠️ **Non scavalca una scelta fatta in Blueprint**: se il componente porta gia' una `Anim Class`,
 	 * quella vince e questa non viene applicata — provare un AnimBP a mano resta possibile senza
@@ -1465,6 +1468,9 @@ public:
 		const FSoftObjectPath* Path = LastResolvedClipPaths.Find(Ruolo);
 		return Path ? *Path : FSoftObjectPath();
 	}
+
+	/** `GhostFallbackClipPath`, che e' protetta, per il test del ripiego di `ResolvedAnimClass` (#3562). */
+	TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipPathForTest() const { return GhostFallbackClipPath(); }
 
 	/**
 	 * Se l'ULTIMA `PlayPresentationRole(Ruolo)` ha ripiegato sulla clip di RUOLO perche' quella d'azione non si e'
@@ -1972,6 +1978,16 @@ protected:
 	 * gia' una propria `Anim Class`. Un'unita' col solo cilindro segnaposto non ha niente da animare.
 	 */
 	void ApplyUnitAnimClass();
+
+	/**
+	 * La classe d'animazione in uso: `UnitAnimClass`, o `URTUnitAnimInstance` se e' nulla (#3562).
+	 *
+	 * 🔴 **Da #3562 `UnitAnimClass` dei `BP_Unit_*` e' un ASSET** (`ABP_RTUnitAuthored`). Un clone dove manca, o un
+	 * blueprint salvato dove non si caricava, la legge nulla: prima di questo ripiego l'unita' non risolveva nessuna
+	 * clip e restava in posa di riferimento, senza una riga di log. Il ripiego e' cio' che `UnitAnimClass` valeva
+	 * prima dei blueprint. Ogni lettura del CDO delle clip passa da qui, e `ApplyUnitAnimClass` lo scrive nel log.
+	 */
+	TSubclassOf<UAnimInstance> ResolvedAnimClass() const;
 
 	/** Cabla `OverlayWidgetClass` sul componente. Senza classe assegnata non fa nulla (`#2288`). */
 	void ApplyOverlayWidgetClass();
