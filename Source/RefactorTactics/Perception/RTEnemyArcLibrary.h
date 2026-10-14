@@ -4,9 +4,31 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
 #include "Perception/RTPerceptionLibrary.h" // FRTPerceiver: l'arco e' quello della percezione, non una seconda geometria
+#include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: chi guarda, e che cosa conosce
+#include "Perception/RTVisibilityBorder.h" // FRTExposedEdge: il contorno dell'arco
 #include "RTEnemyArcLibrary.generated.h"
 
 class URTHexMapAsset;
+
+/**
+ * Un nemico, ridotto a cio' che serve per il suo arco: dove sta, dove guarda, quanto lontano vede, di che squadra e',
+ * e di che colore si disegna. Lo riempie chi ha gli attori; la libreria non ne vede nessuno.
+ */
+struct FRTEnemyForArc
+{
+	FRTCellId Cell;
+	ERTHexDirection Facing = ERTHexDirection::E;
+	int32 VisionRange = 5;
+	int32 TeamId = 1;
+	FColor Color = FColor::Red;
+};
+
+/** L'arco di un nemico a schermo: i lati che lo chiudono, e il colore in cui si disegnano (#3762). */
+struct FRTEnemyArcView
+{
+	TArray<FRTExposedEdge> Edges;
+	FColor Color = FColor::Red;
+};
 
 /**
  * L'ARCO DI UN NEMICO, come lo puo' vedere la squadra che lo guarda (#3762).
@@ -58,12 +80,18 @@ public:
 		const TArray<FRTCellId>& KnownCells);
 
 	/**
-	 * La PORTATA PIENA dei due canali della percezione — il cono frontale fino a `VisionRange` e l'anello ravvicinato —
-	 * senza linea di vista, ristretta a `KnownCells`. E' la seconda risposta possibile alla domanda aperta di #3762
-	 * («la portata piena del cono, o solo le celle che il nemico vede davvero»), per le tavole dell'autore.
+	 * GLI ARCHI DEI NEMICI IN VISTA, per chi guarda con la conoscenza `Viewer`: uno per nemico, chiave la sua cella.
 	 *
-	 * ⚠️ Non rivela niente per costruzione: non legge il contenuto di nessuna cella, solo quali esistono ([D-373]).
+	 * 🔑 **Solo i nemici in vista adesso**, cioe' di un'altra squadra e su una cella di `Viewer.VisibleCells`: un nemico
+	 * ricordato o incerto non mostra niente (il vincolo della issue). L'arco e' `SightOnKnownTerrain` sul terreno
+	 * noto — esplorato e visto — e il contorno e' `ExposedEdgesFacingMapCells`, come la linea di confine della vista.
+	 *
+	 * ⚠️ **La cella e' una chiave valida** perche' ogni cella ha un solo slot di occupazione autorevole: due nemici
+	 * non stanno sulla stessa cella.
+	 *
+	 * La mappa del terreno noto si costruisce UNA volta per chiamata, e solo se c'e' almeno un nemico in vista.
 	 */
-	static TArray<FRTCellId> ConeOnKnownTerrain(const URTHexMapAsset* Map, const FRTPerceiver& Enemy,
-		const TArray<FRTCellId>& KnownCells);
+	static TMap<FRTCellId, FRTEnemyArcView> ArcsOfEnemiesInView(const URTHexMapAsset* Map,
+		const FRTTeamKnowledge& Viewer, const TArray<FRTEnemyForArc>& Enemies);
+
 };

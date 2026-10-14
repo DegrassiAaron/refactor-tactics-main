@@ -56,35 +56,39 @@ TArray<FRTCellId> URTEnemyArcLibrary::SightOnKnownTerrain(const URTHexMapAsset* 
 	return Out;
 }
 
-TArray<FRTCellId> URTEnemyArcLibrary::ConeOnKnownTerrain(const URTHexMapAsset* Map, const FRTPerceiver& Enemy,
-	const TArray<FRTCellId>& KnownCells)
+TMap<FRTCellId, FRTEnemyArcView> URTEnemyArcLibrary::ArcsOfEnemiesInView(const URTHexMapAsset* Map,
+	const FRTTeamKnowledge& Viewer, const TArray<FRTEnemyForArc>& Enemies)
 {
-	TArray<FRTCellId> Out;
-	Out.Add(Enemy.Cell);
+	TMap<FRTCellId, FRTEnemyArcView> Out;
 	if (!Map)
 	{
 		return Out;
 	}
-	// Le stesse due regole di forma di `URTPerceptionLibrary::VisibleCells`, senza la linea di vista: il cono di
-	// `HexCone` sul piano del nemico, e l'anello di `CloseAwarenessRange`.
-	const TSet<FRTCellId> Note(KnownCells);
-	const FRTCellId Avanti = URTHexLibrary::Neighbor(Enemy.Cell, Enemy.Facing);
-	for (const FRTHexCellData& Dati : Map->Cells)
+	const TSet<FRTCellId> Viste(Viewer.VisibleCells);
+	TSet<FRTCellId> Unione(Viewer.ExploredCells);
+	Unione.Append(Viewer.VisibleCells);
+	const TArray<FRTCellId> Note = Unione.Array(); // l'ordine non conta: chi la riceve ne fa un insieme
+
+	URTHexMapAsset* MappaNota = nullptr; // una sola copia per chiamata, e solo se serve
+	for (const FRTEnemyForArc& E : Enemies)
 	{
-		const FRTCellId& C = Dati.Id;
-		if (C == Enemy.Cell || !Note.Contains(C))
+		if (E.TeamId == Viewer.TeamId || !Viste.Contains(E.Cell))
 		{
-			continue;
+			continue; // un alleato, o un nemico che la squadra non vede adesso
 		}
-		const int32 D = URTHexLibrary::HexDistance(Enemy.Cell, C);
-		const bool bVicina = D <= URTPerceptionLibrary::CloseAwarenessRange;
-		const bool bNelCono = D <= Enemy.VisionRange
-			&& URTHexLibrary::HexCone(Enemy.Cell, Avanti, D).Contains(FRTCellId(C.X, C.Y, Enemy.Cell.Layer));
-		if (bVicina || bNelCono)
+		if (!MappaNota)
 		{
-			Out.Add(C);
+			MappaNota = KnownTerrainMap(GetTransientPackage(), Map, Note);
 		}
+		FRTPerceiver P;
+		P.Cell = E.Cell;
+		P.Facing = E.Facing;
+		P.VisionRange = E.VisionRange;
+
+		FRTEnemyArcView Vista;
+		Vista.Edges = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(Map, SightOnKnownTerrain(MappaNota, P, Note));
+		Vista.Color = E.Color;
+		Out.Add(E.Cell, MoveTemp(Vista));
 	}
-	Out.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
 	return Out;
 }
