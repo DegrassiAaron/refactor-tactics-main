@@ -69,35 +69,6 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
-/**
- * `#3761` — le leve della linea di confine della vista, per le tavole dell'autore. ⚠️ Sono leve di PROVA: colore,
- * spessore e bordo della mappa li sceglie l'autore guardando, e la scelta prendera' il posto di queste righe.
- */
-static TAutoConsoleVariable<int32> CVarRTFogBorder(
-	TEXT("rt.Fog.Border"),
-	1,
-	TEXT("1 = la linea sul confine della vista della squadra si disegna. 0 = no."),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarRTFogBorderColor(
-	TEXT("rt.Fog.Border.Color"),
-	0,
-	TEXT("Colore della linea di confine: 0 = bianco caldo, 1 = ciano della vista (#32ADE6), 2 = blu della squadra 0."),
-	ECVF_Default);
-
-static TAutoConsoleVariable<float> CVarRTFogBorderThickness(
-	TEXT("rt.Fog.Border.Thickness"),
-	4.f,
-	TEXT("Spessore della linea di confine."),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarRTFogBorderMapEdge(
-	TEXT("rt.Fog.Border.MapEdge"),
-	0,
-	TEXT("1 = la linea corre anche lungo i lati che danno sul vuoto (bordo della mappa e delle piattaforme). "
-		"0 = solo verso celle della mappa. Si applica al refresh successivo."),
-	ECVF_Default);
-
 namespace
 {
 	/**
@@ -191,6 +162,9 @@ namespace
 	// La linea di confine della vista (#3761): sopra i marcatori, SOTTO l'anteprima. Un contorno d'anteprima su una
 	// cella di bordo corre lungo lo stesso lato, e alla stessa quota i due colori si contenderebbero il pixel.
 	constexpr float RTLiftVisionBorder = RTCellTopZ + 2.0f;
+	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
+	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
+	constexpr float RTVisionBorderThickness = 4.f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1548,26 +1522,23 @@ void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
 {
 	// Si calcola QUI, dove sta la mappa, e si conservano soltanto i lati: l'actor non tiene la conoscenza di
 	// squadra ([D-242]), come per il velo.
-	VisionBorder = CVarRTFogBorderMapEdge.GetValueOnGameThread() != 0
-		? URTVisibilityBorderLibrary::ExposedEdges(VisibleCells)
-		: URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
+	//
+	// 🔑 **Solo i lati verso una cella della mappa**, per scelta dell'autore sulla domanda L3 di #3761: la linea segna
+	// dove finisce la vista, non dove finisce il pavimento. Sul bordo della mappa e sul perimetro di una piattaforma —
+	// dove la vista scende al piano di sotto ([D-511]) — non c'e' linea.
+	VisionBorder = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
 void ARTHexMapActor::DrawVisionBorder() const
 {
-	if (VisionBorder.Num() == 0 || CVarRTFogBorder.GetValueOnGameThread() == 0)
-	{
-		return;
-	}
-	FColor Colore(240, 240, 232);
-	switch (CVarRTFogBorderColor.GetValueOnGameThread())
-	{
-	case 1: Colore = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision); break;
-	case 2: Colore = FLinearColor(0.10f, 0.40f, 1.00f).ToFColor(/*bSRGB=*/ true); break;
-	default: break;
-	}
-	DrawEdgeLines(VisionBorder, Colore, FMath::Max(1.f, CVarRTFogBorderThickness.GetValueOnGameThread()));
+	// 🔑 **Il colore e' quello della VISTA nella palette** (`#32ADE6`, [D-368]): l'autore l'ha scelto sulla tavola L1
+	// di #3761, fra il bianco caldo e il blu della squadra. Si chiede alla palette e non si ricopia: se il colore
+	// della vista cambia, la linea lo segue.
+	//
+	// ⚠️ **Si disegna anche in vista strategica**, per scelta dell'autore sulla tavola L2: nessun ramo su
+	// `IsStrategicPresentation()` qui.
+	DrawEdgeLines(VisionBorder, URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision), RTVisionBorderThickness);
 }
 
 void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const
