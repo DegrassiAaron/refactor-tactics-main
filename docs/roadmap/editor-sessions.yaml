@@ -6009,7 +6009,9 @@ sessions:
     done_when: >-
       l'autore ha giudicato la voce; #3741 e #3743 si chiudono col suo verdetto
     notes: |
-      ⏳ **Da convocare con l'autore.**
+      ✅ **Chiusa il 2026-10-14**: l'autore ha giudicato `PIE-VIS-COLONNA` sulle tavole `S3`, `S4` e `S5` della
+      seconda tornata, non a Editor aperto. Alle tre domande ha risposto con una riga: *«s3 si,s4 si,s5 si»*. Con questo si
+      chiudono #3741 e #3743. Le domande stanno scritte sulle tavole, in `docs/technical/evidence/u88/`.
 
       **Prima tornata, 2026-10-13, per #3741.** Una sessione senza di lui ha preparato le catture dal clone principale (commit `bbf990e32`), senza portare l'Editor in primo piano, e l'autore le ha guardate lo stesso giorno. Davanti alla tavola `S1` non ha dato un verdetto: ha scritto *«mi sembra che aevik non potrebbe vedere nessuno dei due nemici sopra, o c-e- una linea di visuale che non ho visto?»*. Da lì viene `D-511`, #3743: la voce ora chiede la regola nuova, e le tavole `S1` e `S2` restano in `docs/technical/evidence/u88/` come fotografia di quella di prima.
 
