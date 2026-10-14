@@ -67,6 +67,13 @@ class ARTTurnManager;
  *
  * ⛔ **Il giorno del secondo umano per squadra questa e' la prima riga da rileggere** — insieme al payload
  * del delegate, che oggi non porta l'`OwnerTeamId` che servirebbe a decidere. Owner: `#166` / multiplayer.
+ *
+ * 🔴 **Da `#3667` cio' che passerebbe e' di piu'.** La vista porta i NOMI: la reazione e l'unita' di chi
+ * decide, chi ha fatto scattare la finestra, e il bersaglio di ogni `FIRE`. `FilterWindowForTeam` li nega a
+ * un avversario — ma i due siti costruiscono la vista per la squadra del proprietario, quindi quel rifiuto in
+ * produzione non scatta mai: a tenere fuori l'avversario e' il solo `!bOwnerIsBot`. In un processo con unita'
+ * umane di due squadre il giocatore locale riceverebbe la finestra dell'altra, coi nomi dentro. In v0.1 non
+ * succede; il giorno in cui puo' succedere, questo e' un difetto di privacy e non piu' una nota.
  */
 UCLASS()
 class REFACTORTACTICS_API URTReactionWindowViewModel : public UObject

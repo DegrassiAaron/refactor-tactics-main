@@ -3,7 +3,29 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Perception/RTTeamKnowledge.h" // ERTTargetKnowledge: la regola di [D-223] decide chi ha un nome
 #include "RTReactionWindowView.generated.h"
+
+/**
+ * Che cosa ha aperto una finestra di reazione, detto da chi la apre (`#3667`).
+ *
+ * 🔑 **Lo scrive il PRODUTTORE, e la presentazione lo legge.** Il sottotitolo cambia frase a seconda di cio'
+ * che e' successo — qualcuno e' entrato nell'area controllata, qualcuno ti spinge — e chi apre la finestra lo
+ * sa. La prima stesura lo deduceva nel testo dall'id della reazione (`Action.Overwatch`, `Action.Brace`): una
+ * terza copia di quegli id, che una reazione nuova avrebbe lasciato senza frase in silenzio.
+ *
+ * Non e' informazione futura: dice che cosa e' APPENA successo a chi decide.
+ */
+UENUM(BlueprintType)
+enum class ERTReactionTriggerKind : uint8
+{
+	/** Nessuna specie dichiarata: la finestra non ha un sottotitolo. E' il default, e cio' che riceve un avversario. */
+	None,
+	/** Una o piu' unita' sono entrate nell'area che chi decide controlla (Overwatch). */
+	EnteredControlledArea,
+	/** Chi decide sta per essere spinto (`Brace`). */
+	Pushed
+};
 
 /**
  * Una risposta legale dentro una finestra: la stringa ESATTA da rimandare al core, e il bersaglio quando ne
@@ -47,6 +69,54 @@ struct FRTReactionWindowOptionView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	int32 TargetSnapshotIndex = INDEX_NONE;
+
+	/**
+	 * Il nome del bersaglio, quando la risposta ne ha uno: «Ivrin» per un `FIRE:<i>`. Vuoto altrimenti.
+	 *
+	 * 🔑 **E' la risposta al problema che `TargetSnapshotIndex` dichiara qui sopra** (`#3667`): l'indice non
+	 * si puo' risolvere fuori dall'array che ha costruito la finestra, quindi il nome lo risolve il
+	 * PRODUTTORE, in quell'istante, e arriva qui come testo gia' scritto. Chi disegna non risolve niente.
+	 *
+	 * ⚠️ Non e' informazione nuova per chi lo riceve: e' l'unita' a cui quella risposta spara, e la
+	 * risposta e' gia' sua.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	FText TargetName;
+};
+
+/**
+ * I nomi che il PRODUTTORE di una finestra risolve nell'istante in cui la costruisce (`#3667`).
+ *
+ * Non e' una `USTRUCT` e non attraversa nessun confine: e' l'argomento con cui chi ha in mano lo snapshot
+ * — il turn manager — passa i nomi a `FilterWindowForTeam`, che decide a chi consegnarli. Un avversario
+ * non ne riceve nessuno, perche' il filtro esce prima di leggerli.
+ */
+struct FRTReactionWindowNames
+{
+	/** Il nome della reazione nel kit di chi decide: «Guardia reattiva». Vuoto se il kit non la nomina. */
+	FText ReactionName;
+
+	/** Il nome dell'unita' che decide: «Aevik». */
+	FText ReactorName;
+
+	/**
+	 * Chi ha fatto scattare la finestra, nell'ordine in cui il produttore li ha trovati.
+	 *
+	 * 🔴 **Entra solo chi la squadra del proprietario RILEVA in quell'istante** (R2.2). Per l'Overwatch e'
+	 * vero per costruzione: il trigger esiste solo per un'unita' `Detected` e in linea di vista. Per il
+	 * `Brace` no — chi spinge puo' farlo da una cella che la squadra non vede — e il nome passa da
+	 * `URTReactionWindowLibrary::AddTriggerIfKnown`, che e' l'unico punto in cui la regola e' scritta.
+	 *
+	 * ⚠️ **Non e' l'elenco dei bersagli.** Una condizione dichiarata riduce le risposte `FIRE`, non chi e'
+	 * entrato: con «solo sotto meta' vita», due unita' entrano e a una sola si puo' sparare.
+	 */
+	TArray<FText> TriggerNames;
+
+	/** Che cosa ha aperto la finestra. Lo scrive il sito che la apre. */
+	ERTReactionTriggerKind TriggerKind = ERTReactionTriggerKind::None;
+
+	/** Il nome di ogni bersaglio di un `FIRE:<i>`, per indice di snapshot. Si legge per chiave, non si itera. */
+	TMap<int32, FText> TargetNames;
 };
 
 /**
@@ -129,6 +199,48 @@ struct FRTReactionWindowView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	FString SafeResponse;
+
+	// --- I nomi (`#3667`): testo gia' scritto dal produttore, mai risolto da chi disegna -----------------
+	//
+	// 🔑 **Si risolvono dove l'indice di snapshot VALE**, cioe' nell'istante in cui il turn manager
+	// costruisce la vista. Da `#3666` la vista si costruisce prima e si consegna dopo: fra i due momenti
+	// questi campi sono testo, e non si ricalcolano. Un'unita' che cade nel frattempo non cambia il titolo.
+	//
+	// ⚠️ **Non sono informazione futura**, ed e' la ragione per cui `OpportunityLeaksNoFuture` li ammette:
+	// nominano la reazione e l'unita' di chi decide, che sono sue, e le unita' che la sua squadra rileva gia'.
+	//
+	// 🔴 **Tutto questo vale se la vista arriva alla squadra di chi decide, e oggi non lo verifica nessuno alla
+	// CONSEGNA.** I due siti la costruiscono per la squadra del proprietario e la spediscono a un delegate
+	// single-cast, legato al view model del giocatore locale. Che quel giocatore sia della stessa squadra lo
+	// garantisce il solo `!bOwnerIsBot`, che in v0.1 — un umano, due unita' ([D-155]) — coincide col gate di
+	// squadra. Il giorno in cui un processo ospita unita' umane di due squadre, questa vista arriverebbe
+	// all'avversario: prima di `#3667` portava l'esistenza della finestra e le risposte, ora anche i nomi.
+	// La riga da rileggere quel giorno sta nell'intestazione di `URTReactionWindowViewModel`.
+
+	/** Il nome della reazione, dal kit di chi decide: «Guardia reattiva». Vuoto se il kit non la nomina. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	FText ReactionName;
+
+	/** Il nome dell'unita' che decide: «Aevik». */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	FText ReactorName;
+
+	/**
+	 * Chi ha fatto scattare la finestra. Vuoto quando nessuno e' nominabile.
+	 *
+	 * 🔴 **Un nome avversario sta qui solo se la squadra di chi decide lo rileva** (R2.2). Per il `Brace`
+	 * spinto da un'unita' che la squadra non vede l'elenco resta vuoto, e il sottotitolo dice «Un nemico ti
+	 * spinge»: il DTO non porta il nome, quindi nessun widget puo' mostrarlo per sbaglio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	TArray<FText> TriggerNames;
+
+	/**
+	 * Che cosa ha aperto la finestra: e' cio' che sceglie la frase del sottotitolo. `None` quando la finestra
+	 * non e' aperta, o quando chi la apre non lo ha dichiarato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	ERTReactionTriggerKind TriggerKind = ERTReactionTriggerKind::None;
 };
 
 /**
@@ -176,7 +288,30 @@ public:
 	 * esiste per impedire. Il chiamante e' il core, che ha gia' l'opportunity in mano; la presentazione
 	 * riceve il **risultato**, che e' `BlueprintType` per intero. UHT lo ha rifiutato al primo tentativo, e
 	 * aveva ragione.
+	 *
+	 * ➕ **`Names`** (`#3667`): i nomi che il produttore ha risolto dal proprio snapshot. Entrano nella vista
+	 * SOLO se la vista si apre: i rifiuti qui sopra escono prima di leggerli, quindi un avversario non
+	 * riceve un campo in piu' — `FilterWindowForTeam` resta l'unico filtro (R2.4).
 	 */
 	static FRTReactionWindowView FilterWindowForTeam(int32 ObserverTeamId, int32 OwnerTeamId,
-		const FRTReactionOpportunity& Opportunity, float WindowSeconds);
+		const FRTReactionOpportunity& Opportunity, float WindowSeconds,
+		const FRTReactionWindowNames& Names = FRTReactionWindowNames());
+
+	/**
+	 * Aggiunge a `Names` il nome di chi ha fatto scattare la finestra, **solo se la squadra del proprietario
+	 * lo conosce** (R2.2, `#3667`). E' l'unico punto in cui la regola e' scritta.
+	 *
+	 * 🔑 **`OwnerTeamKnowledge` e' cio' che `URTTeamKnowledgeLibrary::ClassifyTarget` risponde** per quell'unita',
+	 * con la conoscenza della squadra di chi decide: la regola di [D-223], la stessa con cui si congela il
+	 * verdetto di una riga del registro. Solo `Allowed` nomina — un'unita' rilevata, o un compagno. `CellOnly`
+	 * e' un contatto ricordato: la squadra sa dove lo ha visto l'ultima volta, non che e' lui ADESSO, e dargli un
+	 * nome glielo direbbe.
+	 *
+	 * ⏱️ *Fino alla seconda revisione di `#3739` prendeva un `ERTAwareness`, che il sito del `Brace` calcolava da
+	 * se' con gli osservatori vivi DOPO i danni. Era un secondo predicato accanto a quello del Blast.*
+	 *
+	 * @return vero se il nome e' entrato.
+	 */
+	static bool AddTriggerIfKnown(FRTReactionWindowNames& Names, const FText& Name,
+		ERTTargetKnowledge OwnerTeamKnowledge);
 };

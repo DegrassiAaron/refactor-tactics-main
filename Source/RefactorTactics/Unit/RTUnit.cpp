@@ -1926,6 +1926,18 @@ void ARTUnit::EnsureDefaultAbilities()
 	SyncAbilityCooldowns();
 }
 
+FText ARTUnit::KitDisplayNameFor(const FName& ActionId) const
+{
+	for (const URTActionData* Action : Abilities)
+	{
+		if (Action && Action->Def.ActionId == ActionId && !Action->DisplayName.IsEmptyOrWhitespace())
+		{
+			return Action->DisplayName;
+		}
+	}
+	return FText::GetEmpty();
+}
+
 int32 ARTUnit::FindDashAbilityIndex() const
 {
 	for (int32 i = 0; i < Abilities.Num(); ++i)

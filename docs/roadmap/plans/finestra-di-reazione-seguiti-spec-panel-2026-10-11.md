@@ -214,6 +214,14 @@ unità: la firma cambia, e i due siti le passano. Al sito del `Brace` lo snapsho
   `URTPerceptionLibrary::TeamAwarenessOfCell` (`Perception/RTPerceptionLibrary.h:112`), con gli osservatori della
   squadra costruiti come per l'Overwatch (`Turn/RTTurnManager_Movement.cpp:566-585`, o `BuildRouteObserverTeams` in
   `Turn/RTTurnManagerInternal.h:59`). Altrimenti il sottotitolo è neutro: «Un nemico ti spinge».
+  ⚠️ **Corretto il 2026-10-13, alla seconda revisione di [#3739](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3739).** «Il Blast non ha una
+  conoscenza di squadra propria» era falso: `RefreshTeamKnowledgeForBlast` la rinfresca prima dei colpi, ed è
+  quella con cui si congela il verdetto di ogni riga del Blast
+  ([D-223](../../decisions/RT_PDR_00_Decision_Log.md)). L'implementazione chiede a
+  `URTTeamKnowledgeLibrary::ClassifyTarget` su quella conoscenza, non a `TeamAwarenessOfCell`. La regola resta
+  questa; cambia la fotografia, che è quella del Blast **prima** dei danni: la finestra nomina chi spinge
+  esattamente quando il registro mostra il colpo. Con gli osservatori ricostruiti dopo i danni, un compagno che
+  vedeva chi spinge e cadeva nello stesso Blast toglieva il nome alla finestra.
 - **Alleato in sola lettura**: riceve la stessa vista, e la conoscenza di squadra è condivisa. Nessun rischio.
 - **Determinismo**: la vista non entra nel TurnLog né nell'hash, e i nomi non cambiano nessun esito.
 
@@ -250,7 +258,8 @@ unità: la firma cambia, e i due siti le passano. Al sito del `Brace` lo snapsho
   `TargetName`. Sono risolti in `MakeReactionWindowView` dallo snapshot del momento, mai dal widget.
 - **R2.2** Un nome di un'unità avversaria entra nel DTO solo se la squadra del proprietario la ha `Detected` in quel
   momento. Per l'Overwatch è vero per costruzione; per il `Brace` si chiede a `TeamAwarenessOfCell` con gli
-  osservatori della squadra del proprietario.
+  osservatori della squadra del proprietario. ⚠️ *Dal 2026-10-13 si chiede a `ClassifyTarget` sulla conoscenza
+  di squadra del Blast: vedi la correzione nella revisione di privacy, qui sopra.*
 - **R2.3** I testi sono quelli di §4.2 (Wiegers). Le frasi di `FIRE` e `HOLD` escono dalla tabella statica e diventano
   per-opzione.
 - **R2.4** Nessun campo nuovo nella vista dell'avversario: `FilterWindowForTeam` resta l'unico filtro.

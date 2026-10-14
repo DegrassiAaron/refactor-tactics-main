@@ -3,7 +3,7 @@
 #include "Combat/RTCombatLibrary.h" // IsIntentVisibleTo: la visibilita' per squadra ha UN owner (#507)
 
 FRTReactionWindowView URTReactionWindowLibrary::FilterWindowForTeam(int32 ObserverTeamId, int32 OwnerTeamId,
-	const FRTReactionOpportunity& Opportunity, float WindowSeconds)
+	const FRTReactionOpportunity& Opportunity, float WindowSeconds, const FRTReactionWindowNames& Names)
 {
 	FRTReactionWindowView View;
 
@@ -60,8 +60,36 @@ FRTReactionWindowView URTReactionWindowLibrary::FilterWindowForTeam(int32 Observ
 		// non si puo' scegliere e' una finestra che non si puo' chiudere.
 		Option.TargetSnapshotIndex = URTReactionOpportunityLibrary::FireResponseTarget(Response);
 
+		// Il nome del bersaglio lo ha gia' risolto il produttore, contro l'array in cui l'indice vale
+		// (`#3667`). Qui lo si cerca per chiave e basta: senza una voce resta vuoto, e chi disegna ripiega.
+		if (const FText* Bersaglio = Names.TargetNames.Find(Option.TargetSnapshotIndex))
+		{
+			Option.TargetName = *Bersaglio;
+		}
+
 		View.Options.Add(MoveTemp(Option));
 	}
 
+	// 🔑 **I nomi entrano QUI, dopo i rifiuti** (`#3667`): chi non riceve la finestra non riceve nemmeno un
+	// nome, perche' a questa riga non ci arriva. E' cio' che tiene R2.4 vera per costruzione invece che per
+	// disciplina di chi chiama.
+	View.ReactionName = Names.ReactionName;
+	View.ReactorName = Names.ReactorName;
+	View.TriggerNames = Names.TriggerNames;
+	View.TriggerKind = Names.TriggerKind;
+
 	return View;
+}
+
+bool URTReactionWindowLibrary::AddTriggerIfKnown(FRTReactionWindowNames& Names, const FText& Name,
+	ERTTargetKnowledge OwnerTeamKnowledge)
+{
+	// 🔴 Solo `Allowed`. `CellOnly` e' un contatto ricordato, senza identita' di adesso (CP 13.2): un nome qui
+	// gliela darebbe, e `Rejected` e' un'unita' che per quella squadra non c'e'. Un nome vuoto non e' un nome.
+	if (OwnerTeamKnowledge != ERTTargetKnowledge::Allowed || Name.IsEmptyOrWhitespace())
+	{
+		return false;
+	}
+	Names.TriggerNames.Add(Name);
+	return true;
 }
