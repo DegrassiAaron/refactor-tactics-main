@@ -392,6 +392,9 @@ namespace
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bDashing),          ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DashCell),          ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DashStyle),         ERTIntentViewFieldClass::Public },
+			// [D-516]: dove si ferma una carica oltre la portata. Si ricava da `DashCell`, dalla cella e dalla portata
+			// del kit, che sono gia' pubbliche: e' movimento come `DashCell`, non autoria del piano.
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DashReachCells),    ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, Facing),            ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bDeclaresRotation), ERTIntentViewFieldClass::AllyOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DeclaredFacing),    ERTIntentViewFieldClass::AllyOnly },
@@ -476,6 +479,7 @@ namespace
 		I.bDashing = true;
 		I.DashCell = FRTCellId(1, 1);
 		I.DashStyle = ERTMovementStyle::LinearDash;
+		I.DashReachCells = 2; // [D-516]: diverso dal default, o il test non vede se arriva
 		I.Facing = ERTHexDirection::NW;
 		I.bDeclaresRotation = true;
 		I.DeclaredFacing = ERTHexDirection::SE;
