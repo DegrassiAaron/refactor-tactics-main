@@ -149,8 +149,10 @@ void URTKnowledgeVeilPresenter::PresentEnemyArcs(ARTHexMapActor& HexMap, const F
 		E.Facing = U->Facing;
 		E.VisionRange = U->VisionRange;
 		E.TeamId = U->TeamId;
-		// Il colore della SUA squadra: l'arco dice che cosa vede quel nemico, e lo dice nel suo colore.
-		E.Color = ARTUnit::TeamColorFor(U->TeamId, U->Team0Color, U->Team1Color).ToFColor(/*bSRGB=*/ true);
+		// Il rosso dei NEMICI: un arco e' sempre di un nemico di chi guarda, quindi il colore e' relativo a chi guarda,
+		// come nell'HUD (`URTHudViewModel`). E' il default di `ARTUnit::Team1Color`, lo stesso che l'autore ha visto
+		// sulle tavole; i colori di squadra di un'unita' sono protetti, e ricopiarlo qui costa meno di aprirli.
+		E.Color = FLinearColor(1.00f, 0.20f, 0.15f).ToFColor(/*bSRGB=*/ true);
 		Nemici.Add(E);
 	}
 	HexMap.SetEnemyArcs(URTEnemyArcLibrary::ArcsOfEnemiesInView(HexMap.MapAsset, Viewer, Nemici));
