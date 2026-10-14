@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-13 — La finestra di reazione dice chi reagisce, a che cosa, e contro chi
+
+**Origine**: [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), la parte «e bersaglio» che `D-491` lasciava a [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166). I nomi li scrive il turn manager nella vista, nell'istante in cui la costruisce; chi spinge si nomina solo se la squadra di chi decide lo rileva. Il sottotitolo si calcola e non si vede finché `WBP_RT_FastDecision` non ha la sua riga di testo.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-491`, annotazione in coda: la parte che il punto (5) lasciava aperta è arrivata; la tabella non cambia una riga, il nome sta nella vista, e le frasi della tavola E sono per opzione |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §11.1: la frase di un `FIRE` nomina il bersaglio; un punto nuovo su titolo e sottotitolo, con la regola di rilevazione e il `TextBlock` che manca |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | §7-bis: `Get Prompt Text` rende il titolo coi nomi, `Get Window` porta i campi nuovi, la porta `SubtitleText` e `Get Subtitle Text` entrano nella tabella con ciò che manca nell'asset, e con la riga del gate delle porte che va aggiunta insieme al widget. §7-quater, la nota di `U74` sui testi lunghi: le frasi di un'opzione `FIRE` o `HOLD` sono cambiate, la regola resta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK` e `PIE-V01-RXBRACE`, note in coda alle celle: i testi nuovi, e il sottotitolo che non si vede ancora. Verdetti invariati, voci non rigiudicate |
+| [`roadmap/plans/finestra-di-reazione-seguiti-spec-panel-2026-10-11.md`](roadmap/plans/finestra-di-reazione-seguiti-spec-panel-2026-10-11.md) | §4, revisione di privacy e R2.2: una correzione datata. La specifica diceva che il Blast non ha una conoscenza di squadra propria; ce l'ha, e chi spinge un `Brace` si nomina con quella, non con un predicato a parte |
+| [`roadmap/plans/serie-lettura-giocatore-spec-panel-2026-10-13.md`](roadmap/plans/serie-lettura-giocatore-spec-panel-2026-10-13.md) | §11, nuova: l'esito dell'esecuzione per issue, coi commit di merge; le quattro letture di §9 alla prova; che cosa il referto aveva sbagliato. Le caselle delle DoD chiuse sono spuntate; resta aperta quella che chiede una seduta |
+
+---
+
 ## 2026-10-13 — Chi sta sopra la testa di un nemico non lo vede
 
 **Origine**: [#3741](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3741), decisione d'autore `D-510`. Due unità sulla stessa colonna e su piani diversi non hanno contatto visivo. La vista fra piani, fuori dalla colonna, resta com'è, e la linea di vista non cambia: la regola sta nel contatto della percezione, perché nella linea faceva arretrare il filtro dei bot.

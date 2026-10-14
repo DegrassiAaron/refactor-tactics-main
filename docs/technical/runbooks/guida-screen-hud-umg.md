@@ -448,7 +448,7 @@ Il C++ è atterrato: quello che resta qui è **solo layout**.
 | Nodo | Rende | Nota |
 |---|---|---|
 | `Is Window Open` | `bool` | **è questa** che governa visibilità e input, non il countdown |
-| `Get Window` | `FRTReactionWindowView` | `Options`, `SafeResponse`, `WindowSeconds` |
+| `Get Window` | `FRTReactionWindowView` | `Options`, `SafeResponse`, `WindowSeconds`; da [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667) anche `ReactionName`, `ReactorName`, `TriggerNames`, `TriggerKind`, e `TargetName` su ogni opzione |
 | `Get Remaining Seconds` | `float` | **negativo** quando nessuna finestra attende |
 | `Choose Option` | — | prende l'**indice** dell'opzione premuta |
 
@@ -458,11 +458,14 @@ una funzione che renda `ESlateVisibility`, uno di `Text` una che renda `FText` �
 `URTTurnHeaderWidget::GetRoundCounterText` esiste come funzione invece che come regola scritta qui: la
 formattazione messa in un grafo è formattazione che nessun test legge.
 
-🔴 **`Get Prompt Text` NON nomina il bersaglio, e non è una semplificazione.** La DoD chiede *«countdown **e
-bersaglio**»*, ma l'unico riferimento che il DTO porta è `TargetSnapshotIndex` — un indice nello spazio di
-`MakeCurrentSnapshot`, che scarta i morti. Risolverlo su un roster nominerebbe **l'unità sbagliata** in ogni
-partita in cui qualcuno è già caduto. Mostrare un nome richiede che il **produttore** lo metta nel DTO;
-finché non c'è, non inventarlo nel Designer.
+🔴 **Nel Designer non si risolve nessun indice, e non è una semplificazione.** Il DTO porta
+`TargetSnapshotIndex`, un indice nello spazio di `MakeCurrentSnapshot`, che scarta i morti: risolverlo su un
+roster nominerebbe **l'unità sbagliata** in ogni partita in cui qualcuno è già caduto.
+
+✅ **Da [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667) i nomi li mette il produttore**, già
+scritti: il turn manager li risolve quando costruisce la finestra. `Get Prompt Text` rende il titolo —
+«Guardia reattiva — Aevik» — e torna «Reazione» solo se la vista non porta nomi. Il grafo e il Designer li
+**leggono**: non compongono frasi e non cercano unità.
 
 ### Le porte della resa della tavola E ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634))
 
@@ -475,9 +478,13 @@ loro la finestra resta quella dei tre binding qui sopra, che **non si toccano**.
 | `AccentStrip` | `Border` | `BrushColor` `Violet`: la striscia a sinistra |
 | `CountdownBar` | `ProgressBar` | la frazione di `Get Countdown Fraction`, riempimento `White`. Il fondo della barra (`Frame_Off`) sta nell'asset |
 | `SafeOutcomeText` | `TextBlock` | «Allo scadere: HOLD», da `Get Safe Outcome Text` |
+| `SubtitleText` | `TextBlock` | il sottotitolo, da `Get Subtitle Text`, in `Text_Secondary`: «Ivrin è entrato nell'area controllata», «Ivrin ti spinge», «Un nemico ti spinge». Senza una frase il C++ lo mette `Collapsed`. 🔴 **Oggi l'asset NON la ha** ([#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667)): va aggiunta sotto `PromptText`, dal clone principale. Finché manca, il sottotitolo si calcola e non si vede. ⚠️ Chi la aggiunge mette nello stesso commit la riga `SubtitleText` nell'elenco `Finestra` di `ScreenHud.ActionBarDeclaresTheNamedPorts` (`Tests/RTMatchWidgetAssetTests.cpp`): oggi non c'è, perché sarebbe rossa per costruzione, e senza quella riga un nome sbagliato resterebbe spento in silenzio |
 
 Due letture nuove: **`Get Countdown Fraction`**, il residuo autorevole sulla durata (da 1 a 0, negativo senza
-finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND».
+finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND». E una
+terza da [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667): **`Get Subtitle Text`**, che cosa ha
+fatto scattare la finestra. ⚠️ La riga del sottotitolo allunga la finestra: l'ingombro `600 × 200` va
+riguardato a schermo quando la porta entra nell'asset.
 
 ### Le quattro regole, e perché
 
@@ -698,8 +705,11 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   riaprilo. `RosterAndPanelWearTheirClasses` vede l'override nullo una volta salvato. Lo stato in memoria non si
   riproduce in un processo fresco, e lo si vede solo a schermo.
 - 🔴 **I testi veri sono piu' lunghi di quelli della tavola: si misura con loro** (`U74`). La tavola scrive «Non
-  attaccare»; il catalogo (`RTReactionResponseText.cpp`) scrive «Non spari: lasci passare il bersaglio.», e «Hold
-  Ground» e' piu' lungo ancora. Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
+  attaccare»; il catalogo (`RTReactionResponseText.cpp`) scriveva «Non spari: lasci passare il bersaglio.», e «Hold
+  Ground» e' piu' lungo ancora. ⏱️ *Dal 2026-10-13 (#3667) un'opzione `FIRE` o `HOLD` mostra la frase della tavola —
+  «Attacca {bersaglio}» e «Non attaccare» — composta per opzione; la tabella per risposta e' rimasta com'era.
+  La regola resta: le risposte di profilo tengono le frasi lunghe, e un nome di unita' puo' essere piu' lungo
+  di «Ivrin».* Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
   Il badge della scelta sicura e' salito nella riga dell'etichetta, la descrizione va a capo, e l'altezza
   dell'opzione e' un minimo, non un valore fisso.
 

@@ -787,9 +787,20 @@ Regole UX:
 - nessuna anticipazione di futuri trigger;
 - nessun contatore tipo `Opportunity 1/3`;
 - ogni opzione porta il **tasto** della sua posizione (`1`, `2`, `3`…), il **nome** e una **frase**
-  generica, senza il nome del bersaglio ([D-491](../../decisions/RT_PDR_00_Decision_Log.md), [#3615](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3615)).
-  Nome e frase stanno in `RTReactionResponseText`; il nome del bersaglio arriva con la parte «e bersaglio» di
-  [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166).
+  ([D-491](../../decisions/RT_PDR_00_Decision_Log.md), [#3615](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3615)).
+  Nome e frase stanno in `RTReactionResponseText`. La frase chiavata per risposta è generica; quella di un
+  `FIRE` nomina il bersaglio — «Attacca Ivrin» — quando la vista ne porta il nome
+  ([#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), la parte «e bersaglio» di
+  [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166));
+- il **titolo** è «{reazione} — {unità che decide}», e il **sottotitolo** dice che cosa ha fatto scattare la
+  finestra: «{unità} è entrato nell'area controllata» per l'Overwatch, «{unità} ti spinge» per il `Brace`
+  ([#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667)). I nomi li scrive il turn manager
+  nella vista, quando la costruisce: il widget non risolve nessun indice. ⚠️ Chi spinge si nomina solo se la
+  squadra di chi decide lo rileva — con la conoscenza di squadra del Blast, la stessa che decide chi legge la
+  riga del colpo ([D-223](../../decisions/RT_PDR_00_Decision_Log.md)); altrimenti «Un nemico ti spinge». A contatto è sempre rilevato — la
+  consapevolezza ravvicinata copre ogni direzione entro due celle — quindi la frase neutra nasce solo da una
+  spinta a distanza, come l'attacco base di Muiren alle spalle di chi si irrigidisce. ⚠️ Il sottotitolo vuole un `TextBlock`
+  `SubtitleText` in `WBP_RT_FastDecision`, che oggi non c'è: si calcola e non si vede.
 
 ## 11.2 Target simultanei
 

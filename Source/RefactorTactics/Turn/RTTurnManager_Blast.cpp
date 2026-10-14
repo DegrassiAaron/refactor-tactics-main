@@ -2618,9 +2618,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// spendere l'unica attivazione del turno.
 			const bool bAboutToMove = (Pushes && *Pushes == 1) || (Pulls && *Pulls == 1);
 
-			// Nessun `TriggeredBy`: di uno spostamento si conosce la cella di provenienza
-			// (`KnockFrom`/`PullToward`), non un'unita' — e con due attaccanti non ce ne sarebbe una sola.
-			// Gli effetti difensivi non ne hanno bisogno, e `BuildReactionEvents` scarta gli offensivi.
+			// Nessun `TriggeredBy`: con due attaccanti non ci sarebbe UNA unita' da nominare, e gli effetti
+			// difensivi non ne hanno bisogno — `BuildReactionEvents` scarta gli offensivi.
+			// ⏱️ *Fino a `#3667` questa riga diceva che di uno spostamento si conosce solo la cella di
+			// provenienza. Da allora `Ctx.KnockAttackerId` tiene chi spinge, per la finestra del `Brace`: qui non
+			// lo si legge, perche' vale dove `KnockCount` e' uno e questo ramo gira anche con due.*
 			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE };
 		},
 		Units, States, Map, DisplacementReactions);
@@ -2885,8 +2887,53 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito. Costruito qui e
 					// consegnato quando il playback ha mostrato la spinta (`#3666`), come nell'altro sito.
 					const int32 OwnerTeamId = T->TeamId;
+
+					// 🔑 **I nomi, risolti qui** (`#3667`). `BlastAliveUnits` e' lo spazio in cui vive
+					// `Key.OwnerId`: lo ha costruito il ramo qui sopra, proprio perche' una finestra si apre.
+					FRTReactionWindowNames NomiDellaFinestra = MakeReactionWindowNames(
+						BraceOpportunity, BlastAliveUnits, ERTReactionTriggerKind::Pushed);
+
+					// 🔴 **Chi spinge si nomina solo se la squadra di chi decide lo CONOSCE** (R2.2). Una
+					// spinta non e' soggetta alla rilevazione: puo' arrivare da una cella che la squadra non
+					// vede, e dare un nome a quell'unita' direbbe al giocatore CHI c'e' in un punto che non
+					// conosce. Senza nome il sottotitolo e' «Un nemico ti spinge».
+					//
+					// 🔑 **Chi spinge si LEGGE, non si cerca.** `KnockAttackerId` lo registra dove il colpo
+					// viene accumulato. La prima stesura lo ricavava dalla cella di `KnockFrom`, scorrendo
+					// `Units`: ma `Units` tiene i caduti con la loro ultima cella, e un'unita' viva puo' stare
+					// dove un'altra e' caduta. La scansione trovava il cadavere — un compagno caduto li'
+					// sarebbe stato nominato come chi spinge, senza nemmeno chiedere la rilevazione.
+					//
+					// 🔑 **La domanda e' quella di [D-223], fatta alla conoscenza del BLAST**: `ClassifyTarget`
+					// su `TeamKnowledgeState`, che `RefreshTeamKnowledgeForBlast` rinfresca prima dei colpi. E'
+					// la stessa regola, sulla stessa fotografia, con cui si congela il verdetto della riga di
+					// QUESTO colpo: la finestra nomina chi spinge esattamente quando il registro lo mostra. Il
+					// ramo del compagno — la squadra conosce i propri — sta dentro `ClassifyTarget`, non qui.
+					//
+					// ⏱️ *Fino alla seconda revisione di `#3739` si chiedeva a `TeamAwarenessOfCell` con
+					// `PushObserverTeams`, cioe' con chi e' vivo DOPO i danni: un compagno che vedeva chi spinge
+					// e cadeva nello stesso Blast toglieva il nome alla finestra, mentre il registro mostrava
+					// il colpo. Era un secondo predicato accanto a quello del Blast, nato da una premessa falsa
+					// della specifica: «il Blast non ha una conoscenza di squadra propria».*
+					//
+					// La cella e' quella della fotografia del Blast (`HexUnits`), non quella dell'attore: a
+					// questo punto del ciclo chi spinge puo' essere gia' stato spostato da una spinta precedente.
+					if (const int32* IndiceDiChiSpinge = Ctx.KnockAttackerId.Find(T))
+					{
+						const ARTUnit* UnitaCheSpinge =
+							Units.IsValidIndex(*IndiceDiChiSpinge) ? Units[*IndiceDiChiSpinge] : nullptr;
+						if (IsValid(UnitaCheSpinge) && Ctx.HexUnits.IsValidIndex(*IndiceDiChiSpinge))
+						{
+							URTReactionWindowLibrary::AddTriggerIfKnown(
+								NomiDellaFinestra, RTTurnManagerInternal::ReactionWindowUnitName(UnitaCheSpinge),
+								URTTeamKnowledgeLibrary::ClassifyTarget(KnowledgeForTeam(OwnerTeamId),
+									UnitaCheSpinge->StableUnitId, UnitaCheSpinge->TeamId,
+									Ctx.HexUnits[*IndiceDiChiSpinge].Cell));
+						}
+					}
+
 					SuspendReactionWindowForPresentation(
-						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId),
+						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId, NomiDellaFinestra),
 						BraceOpportunity.Key.OwnerId);
 
 					// ⛔ **Si esce PRIMA dell'incremento**, quindi `NextTarget` punta ancora a questo

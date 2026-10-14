@@ -315,6 +315,18 @@ struct FRTBlastContext
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
 
+	/**
+	 * CHI spinge ciascun bersaglio: l'indice dell'attaccante in `Units` (`#3667`).
+	 *
+	 * 🔑 **`KnockFrom` ne tiene la cella, e dalla cella non si risale all'unita'.** `Units` conserva i caduti
+	 * con la loro ultima cella, e un'unita' viva puo' stare dove un'altra e' caduta: cercare «chi sta su
+	 * quella cella» puo' trovare il cadavere. La finestra del `Brace` nomina chi spinge, e deve nominare LUI.
+	 *
+	 * ⚠️ Con due attaccanti tiene l'ultimo, come `KnockFrom`. Chi lo legge lo fa dove `KnockCount` vale uno —
+	 * il ramo del `Brace` — e li' l'attaccante e' uno solo. Si legge per chiave, non si itera.
+	 */
+	TMap<ARTUnit*, int32> KnockAttackerId;
+
 	TMap<ARTUnit*, FRTCellId> PullToward;
 	TMap<ARTUnit*, int32> PullDist;
 	TMap<ARTUnit*, int32> PullCount;

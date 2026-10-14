@@ -871,7 +871,8 @@ struct FRTScenarioOpportunitySelector
 	 *
 	 * Si confronta con i bersagli che la finestra **offre**, cioe' con i token `FIRE:<id>` di
 	 * `AllowedResponses`: per l'Overwatch il bersaglio di un `FIRE` E' il mover che e' entrato nella zona
-	 * (`FRTOverwatchTrigger::TargetUnitIds`, «uno per ogni risposta `FIRE:`»). E' l'unico modo di nominare
+	 * (uno di `FRTOverwatchTrigger::TargetUnitIds`; con una condizione dichiarata i `FIRE:` ne sono un
+	 * sottoinsieme). E' l'unico modo di nominare
 	 * il trigger con cio' che l'opportunity porta davvero.
 	 *
 	 * ⚠️ **Su una finestra senza `FIRE:` — un profilo di `Brace`, per esempio — questo vincolo non puo'
