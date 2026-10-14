@@ -593,6 +593,7 @@ bool FRTReactionDownedTargetSecondWindowTest::RunTest(const FString&)
 	{
 		FString Id;
 		int32 Owner = INDEX_NONE;
+		int32 MicroStep = INDEX_NONE;
 		TArray<FString> Risposte;
 	};
 	TArray<FAperta> Aperte;
@@ -602,6 +603,7 @@ bool FRTReactionDownedTargetSecondWindowTest::RunTest(const FString&)
 			FAperta A;
 			A.Id = URTReactionOpportunityLibrary::DeriveOpportunityId(View.Key);
 			A.Owner = OwnerUnitId;
+			A.MicroStep = View.Key.MicroStepIndex;
 			for (const FRTReactionWindowOptionView& Opzione : View.Options)
 			{
 				A.Risposte.Add(Opzione.Response);
@@ -633,12 +635,14 @@ bool FRTReactionDownedTargetSecondWindowTest::RunTest(const FString&)
 	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
 	TestTrue(TEXT("il primo FIRE abbatte"), !Abbattuto->IsAlive());
 
-	// Ogni altra finestra: si spara, cosi' la carica rimasta si vede nel danno.
+	// Ogni altra finestra: si spara, cosi' la carica rimasta si vede nel danno. La vista si cerca per IDENTITA', non
+	// come l'ultima arrivata: se la presentazione fosse in ritardo, l'ultima sarebbe ancora la finestra di prima.
 	for (int32 Giro = 0; Giro < 8 && TM->IsResolutionSuspended(); ++Giro)
 	{
 		const FString Aperta = TM->GetOpenReactionWindowId();
-		if (Aperta.IsEmpty() || Aperte.Num() == 0) { break; }
-		TM->SubmitReactionResponse(Aperta, PrimoFire(Aperte.Last()));
+		const FAperta* Vista = Aperte.FindByPredicate([&Aperta](const FAperta& A) { return A.Id == Aperta; });
+		if (Aperta.IsEmpty() || !TestNotNull(TEXT("la finestra aperta e' stata presentata"), Vista)) { break; }
+		TM->SubmitReactionResponse(Aperta, PrimoFire(*Vista));
 		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
 	}
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
@@ -653,6 +657,11 @@ bool FRTReactionDownedTargetSecondWindowTest::RunTest(const FString&)
 	if (Aperte.Num() == 2)
 	{
 		TestNotEqual(TEXT("la seconda finestra e' dell'altra guardia"), Aperte[1].Owner, Aperte[0].Owner);
+		// 🔑 **E arriva a un micro-step DOPO**: e' cio' che distingue la regola. Senza [D-518] le finestre erano due e
+		// di guardie diverse anche prima — la seconda si apriva sullo stesso passo, col `FIRE` sul caduto (revisione
+		// della PR #3770).
+		TestTrue(FString::Printf(TEXT("e si apre a un passo successivo (%d dopo %d)"), Aperte[1].MicroStep,
+			Aperte[0].MicroStep), Aperte[1].MicroStep > Aperte[0].MicroStep);
 	}
 
 	int32 Collassate = 0;

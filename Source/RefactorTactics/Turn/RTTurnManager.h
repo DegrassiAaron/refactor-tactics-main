@@ -2262,14 +2262,14 @@ public:
 	 * — cioe' sempre, in partita — il comportamento e' identico a quello di prima: il costo per il percorso
 	 * normale e' un `Num() == 0`.
 	 *
-	 * ⚠️ Le voci `HoldImmediate` **si scartano** invece di essere caricate. Quelle finestre non vengono mai
-	 * consultate (le precede il gate di cardinalita'), quindi tenerle qui le farebbe risultare **orfane a fine
-	 * corsa su una ri-simulazione perfettamente riuscita** — un falso positivo sistematico — e le renderebbe
-	 * applicabili per errore a una finestra che non e' la loro.
+	 * ⚠️ Le voci dei **collassi** — `Immediate`, `CollapsedByCondition` e, da [D-518], `CollapsedTargetDown` — **si
+	 * scartano** invece di essere caricate. Quelle finestre non vengono mai consultate (le precede il gate di
+	 * cardinalita', o il pompaggio), quindi tenerle qui le farebbe risultare **orfane a fine corsa su una
+	 * ri-simulazione perfettamente riuscita** — un falso positivo sistematico — e le renderebbe applicabili per
+	 * errore a una finestra che non e' la loro. Un collasso nuovo va aggiunto qui e nel `.cpp`.
 	 *
-	 * ⚠️ La risposta si **ricostruisce** da `Outcome` e `SelectedTargetUnitId`: il TurnLog non porta la
-	 * stringa. `FireChosen` da' `FIRE:<id>`, ogni altro esito da' `HOLD` — che e' cio' che quegli esiti hanno
-	 * applicato, per quanto diverso sia il modo in cui ci sono arrivati.
+	 * ⚠️ La risposta si **legge** da `ReactionResponse` quando la voce la porta, e si ricostruisce dalle tracce
+	 * di prima del formato che la scrive: vedi il `.cpp`.
 	 */
 	void ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries);
 

@@ -1372,6 +1372,7 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 	int32 FireEntriesWithDamage = 0;
 	int32 Collapsed = 0;
 	int32 CollapsedNotHold = 0;
+	int32 CollapsedWrongLine = 0;
 	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
 	{
 		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
@@ -1382,7 +1383,7 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 				++Collapsed;
 				if (Entry.ReactionResponse != URTReactionOpportunityLibrary::HoldResponse()) { ++CollapsedNotHold; }
 				// La riga del registro dice la causa, non «nessun bersaglio soddisfa la condizione».
-				if (!URTTurnLogLibrary::DescribeEntry(Entry).Contains(TEXT("a terra"))) { ++CollapsedNotHold; }
+				if (!URTTurnLogLibrary::DescribeEntry(Entry).Contains(TEXT("a terra"))) { ++CollapsedWrongLine; }
 			}
 			if (URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) == INDEX_NONE) { continue; }
 			++FireEntries;
@@ -1395,7 +1396,9 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 	TestEqual(TEXT("ed e' quello che abbatte"), FireEntriesWithDamage, 1);
 	// 🔴 IL PUNTO: la voce del secondo watcher dice PERCHE' non ha scelto, con l'esito che non mente sulla causa.
 	TestEqual(TEXT("il secondo watcher collassa perche' il bersaglio e' gia' a terra"), Collapsed, 1);
-	TestEqual(TEXT("e il collasso applica HOLD, che conserva la carica, con la riga che lo dice"), CollapsedNotHold, 0);
+	TestEqual(TEXT("e il collasso applica HOLD"), CollapsedNotHold, 0);
+	TestEqual(TEXT("e la riga del registro dice che il bersaglio e' a terra, non che la condizione l'ha escluso"),
+		CollapsedWrongLine, 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

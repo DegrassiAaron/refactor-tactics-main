@@ -557,7 +557,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319], closed: [2717] }
+    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319, 3771], closed: [2717, 3745] }
     consumers:
       - RT-CAP-BOT-DECISION
       - RT-CAP-COMBAT
@@ -589,7 +589,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTPredictiveLibrary.h
         - Source/RefactorTactics/Turn/RTPredictiveLibrary.cpp
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2795, 2367, 329, 330], closed: [3745] }
+    issues: { open: [2795, 2367, 329, 330], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-LOS, RT-CAP-REACTIONS]
     tests:

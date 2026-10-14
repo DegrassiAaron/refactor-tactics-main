@@ -1902,8 +1902,10 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 	 * Il SELETTORE combacia con questa finestra?
 	 *
 	 * Confronta soltanto cio' che l'opportunity porta davvero: la reaction che l'ha aperta
-	 * (`Key.ReactionDefId`) e i bersagli che offre (i token `FIRE:<id>` di `AllowedResponses`, che per
-	 * l'Overwatch sono esattamente i mover entrati nella zona). Non esiste un terzo campo da confrontare:
+	 * (`Key.ReactionDefId`) e i bersagli che offre (i token `FIRE:<id>` di `AllowedResponses`). Per l'Overwatch
+	 * sono i mover entrati nella zona **e ancora in piedi**: da [D-518] il `FIRE` su chi un watcher precedente ha
+	 * gia' abbattuto non si offre, quindi un selettore che nomina lui non combacia con quella finestra (revisione
+	 * della PR #3770). Non esiste un terzo campo da confrontare:
 	 * `FRTReactionOpportunity` ha un elenco chiuso, e il decisore riceve lei e l'`OwnerUnitId`.
 	 *
 	 * Una decisione SENZA selettore combacia sempre — e' la forma legacy, abbinata per ordine, e i file

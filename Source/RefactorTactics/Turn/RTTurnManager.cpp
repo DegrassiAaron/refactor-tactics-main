@@ -7676,12 +7676,10 @@ FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReaction
 
 	// I bersagli dei `FIRE:<i>`, per indice. `FireResponseTarget` e' l'unico parser di quel formato.
 	//
-	// ⚠️ **Un bersaglio a 0 PV qui ha ancora un nome**, perche' `IsValid` resta vero su un'unita' abbattuta
-	// (`#1158`). Capita cosi': due Overwatch armati sullo stesso passo, la prima finestra abbatte chi e'
-	// entrato, e la seconda — costruita dai trigger di PRIMA del colpo — offre ancora `FIRE` su di lui. Che
-	// quella finestra si apra, e che la charge si spenda, e' lo status quo che `#1158` ha lasciato all'owner di
-	// ADR-0004: non lo si decide qui. Il nome e' vero — l'opzione spara proprio a quell'unita' — e toglierlo
-	// lascerebbe la frase generica, che dice ancora meno.
+	// ⚠️ **Un `FIRE` su un bersaglio a 0 PV qui non arriva piu'** ([D-518], `#3745`): `PumpReactionTriggers` lo toglie
+	// dall'opportunity prima di costruire la finestra. Fino ad allora capitava con due Overwatch armati sullo stesso
+	// passo — la seconda finestra, costruita dai trigger di PRIMA del colpo, offriva `FIRE` su chi era a terra —, e
+	// questo ciclo gli dava un nome, perche' `IsValid` resta vero su un'unita' abbattuta (`#1158`).
 	for (const FString& Response : Opportunity.AllowedResponses)
 	{
 		const int32 TargetId = URTReactionOpportunityLibrary::FireResponseTarget(Response);
@@ -8057,8 +8055,8 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		// vero, quindi un micro-step successivo puo' ancora aprire una finestra nuova — ed e' precisamente
 		// cio' che rende possibile il bait: lascio passare il tank perche' penso che dietro arrivi di meglio.
 		//
-		// (2) `FIRE` scelto su un bersaglio **gia' abbattuto** (#1158). Non e' un `HOLD`: il giocatore ha
-		// premuto, e il log deve continuare a dirlo — `Entry.Outcome` resta `FireChosen`. Cio' che non deve
+		// (2) `FIRE` scelto su un bersaglio **gia' abbattuto** (#1158). Non e' un `HOLD`: qualcuno ha scelto, e il
+		// log deve continuare a dirlo — `Entry.Outcome` resta `Chosen`, con la risposta `FIRE`. Cio' che non deve
 		// dire e' un danno mai inflitto, quindi `Entry.Amount` resta a zero e non si tronca nessun movimento
 		// (il bersaglio non si muove piu' comunque).
 		//
@@ -8068,12 +8066,13 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		// produzione quindi non arriva qui: una risposta registrata o iniettata che nomini quel bersaglio non e'
 		// fra le `AllowedResponses`, e `AskReactionDecision` la rifiuta.
 		//
-		// ⚠️ **Il ramo resta come rete, e spende la carica**: ci arriverebbe solo un chiamante che salta il filtro
-		// con un `FIRE` scelto davvero, e allora la lettura onesta e' *ha sparato*. Il log continua a non dichiarare
-		// un danno mai inflitto, che e' cio' che #1158 aveva corretto.
+		// ⚠️ **Il ramo resta come rete, e la carica resta** (revisione della PR #3770): ci arriverebbe solo un chiamante
+		// che salta il filtro, e la regola decisa e' che su un bersaglio a terra la carica non si spende — *non c'era
+		// piu' niente da colpire*. Una prima stesura di [D-518] la spendeva qui, cioe' rispondeva alla domanda col
+		// vecchio status quo proprio nel ramo che la domanda riguardava. Il log continua a non dichiarare un danno
+		// mai inflitto, che e' cio' che #1158 aveva corretto.
 		if (bFireResponse && !bTargetStanding)
 		{
-			Armed.bCharged = false;
 
 			// 🔴 **Il bersaglio va nominato anche quando non lo si colpisce**, e ometterlo rompeva il
 			// round-trip della traccia consegnato da `#886`. `ArmRecordedReactionDecisions` RICOSTRUISCE la

@@ -10,7 +10,7 @@
 |---|---|
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-518`, con le due proposte come l'autore le ha lette, e il caso misto come conseguenza |
 | [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione sui trigger dello stesso passo; la tabella di verifica coi tre test nuovi |
-| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-OVERWATCH-PREDICTIVE`: #3745 fra le chiuse |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3745 fra le chiuse — la regola sta nella libreria delle opportunity e nel pompaggio delle finestre —, #3771 fra le aperte |
 | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | `ReactionWindowsOpened`: `CollapsedTargetDown` fra i commit immediati, che non contano |
 | [`technical/tooling/tassonomia-icone-manifest-runtime.md`](technical/tooling/tassonomia-icone-manifest-runtime.md) | gli esiti di `ERTReactionDecisionOutcome` per nome; diceva «sei valori», che con il nuovo non era più vero |
 
