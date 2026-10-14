@@ -70,11 +70,29 @@ public:
 	 * cosi' *«le squadre per cui esiste una traccia pubblica filtrata per osservatore»*. Stesso concetto,
 	 * stesso tipo, stesso nome.
 	 *
+	 * ➕ **E per le unita' di chi guarda, cio' che hanno SUBITO vince su cio' che hanno FATTO** (`#3734`, decisione
+	 * d'autore A1 del 2026-10-13). Una riga e' una *riuscita propria* quando racconta un'azione scelta e andata a
+	 * segno — il movimento arrivato, il colpo dato, la cura data — e una *notizia* quando racconta cio' che
+	 * l'unita' non ha deciso: uno spostamento subito, un piano fallito, uno stato che le arriva addosso, una
+	 * reazione che scatta, il KO che subisce (un'eliminazione DATA e' una riuscita propria). Per un'unita' della squadra `OwnTeamId` una riuscita propria cede a una notizia
+	 * della stessa unita' nel turno, e una notizia non cede a una riuscita propria arrivata dopo. Il resto — fra
+	 * due righe della stessa specie, o con una riga *neutra* come la fine di uno stato — lo decide la scala di
+	 * sempre.
+	 *
+	 * 🔴 **Di chi e' l'unita' lo dice la voce, non il mondo**: `VerdictSubject.TeamId`, scritto da `AppendLogEntry`
+	 * insieme al verdetto. Per le unita' delle altre squadre la scala di sempre, ed e' una guardia: la riga di un
+	 * colpo d'arma e' agganciata a chi COLPISCE, e quando un nemico colpisce una tua unita' quella riga e' la
+	 * notizia per te. Una voce senza soggetto registrato — una traccia ricaricata, dove il campo e' `Transient` —
+	 * resta sulla scala di sempre.
+	 *
 	 * @param ObserverTeamIds  chi guarda. **Vuoto -> nessun evento**: il fail-closed di `AllowsTeam` non si
 	 *                         allenta passando per un contenitore, e un insieme vuoto non significa «tutti».
+	 * @param OwnTeamId        la squadra di chi guarda, per la regola di `#3734`. **`INDEX_NONE` -> la scala di
+	 *                         sempre per tutte le unita'**: lo e' per default, e lo passa chi non sa se la sessione
+	 *                         e' presidiata.
 	 */
 	static TArray<FRTPlayerEvent> Project(const TArray<FRTTurnLogEntry>& Entries,
-		const TArray<int32>& ObserverTeamIds);
+		const TArray<int32>& ObserverTeamIds, int32 OwnTeamId = INDEX_NONE);
 
 	/**
 	 * Il solo passo di autorizzazione, esposto perche' e' **verificabile**.

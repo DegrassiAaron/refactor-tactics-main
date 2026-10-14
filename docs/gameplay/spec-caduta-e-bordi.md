@@ -489,28 +489,32 @@ vince: classificare la caduta come spostamento non basta a portarla a schermo, p
 l'occupante, i due id di `URTTurnLogLibrary` — e il testo la legge da lì. Gli id riconosciuti sono quei due:
 una causa `Fall.*` nuova resta «Colpita» finché qualcuno non le dà una frase.
 
-⚠️ **Cinque limiti dichiarati.**
+🔑 **Per le unità di chi guarda, ciò che hanno subito vince su ciò che hanno fatto** ([#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734), decisione d'autore del 2026-10-13). Una riga è una *riuscita propria* quando racconta un'azione scelta e andata a segno: il movimento arrivato, il colpo dato, la cura data. È una *notizia* ciò che l'unità non ha deciso: uno spostamento subito, una caduta, un piano fallito, uno stato che le arriva addosso, una reazione che scatta, il KO che subisce. Un'eliminazione che l'unità ha *dato* è invece una riuscita propria, come un colpo dato: la riga di un colpo letale d'arma è agganciata a chi colpisce (decisione d'autore del 2026-10-14). Per un'unità della squadra di chi guarda una riuscita propria cede a una notizia della stessa unità nel turno, e una notizia non cede a una riuscita propria arrivata dopo. Il resto lo decide il rango, e a parità la prima arrivata. La fine di uno stato non è successa all'unità in quel turno: non scavalca né una notizia né una riuscita propria visibile, e compare solo se l'unità non ha altro (decisione d'autore del 2026-10-14). Una reazione che scatta resta una notizia, anche se l'unità l'aveva armata. Ne seguono due righe della tabella: chi cade dopo aver colpito legge «Caduta — N»; chi scatta nel Dash e poi viene spinto nel Blast legge «Spostata».
+
+⛔ **Per le unità degli altri la scala di sempre, invariata.** La riga di un colpo d'arma è agganciata a chi **colpisce**: quando un nemico colpisce una tua unità, quella riga è la notizia che la tua unità è stata colpita, e non deve cedere a ciò che succede al nemico nello stesso turno. Di chi è un'unità lo dice la voce del registro, non gli attori in campo; e in sessione non presidiata nessuna unità è «di chi guarda», e vale la scala di sempre per tutte.
+
+➕ **Una reazione armata che non scatta non compare nel feed.** Il registro la scrive in ogni Blast, e prima il feed la diceva «Reazione scattata» quando l'unità non aveva righe più alte; con la regola qui sopra avrebbe coperto anche il colpo che l'unità aveva dato.
+
+⚠️ **Limiti dichiarati.**
 
 - **I quattro esiti di atterraggio non si distinguono nel feed.** Dove l'unità è finita lo mostra la board; i
   quattro testi restano nel log diagnostico (§9.1).
-- **Se l'unità ha già una riga di danno in quel turno, resta quella, e il feed non dice «Caduta».** Fra due
-  righe dello stesso rango e della stessa importanza la dominanza tiene la prima arrivata. Succede quando chi
-  cade aveva colpito o curato nello stesso Blast: la voce di combattimento porta come soggetto chi colpisce,
-  e arriva prima della caduta. Non è un caso raro in un gioco a turni simultanei. Correggerlo vuol dire
-  decidere quale danno vince fra due di pari rango, cioè cambiare una regola del feed: non è stato fatto qui.
-- **Dopo uno scatto riuscito nello stesso turno, uno spostamento subito non compare.** Il movimento chiesto e
-  uno spostamento subito hanno lo stesso rango, e li distingue solo l'importanza: il primo è silenzioso. Chi
-  scatta nel Dash e poi viene spinto nel Blast ha per prima la riga silenziosa, che tiene il posto e poi viene
-  tolta: non resta nessuna riga. Vale per il parapetto, e valeva già per ogni spinta. Correggerlo tocca la
-  stessa regola del punto qui sopra, e ha una proposta a parte:
-  [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734).
+- **Per un'unità degli altri le due righe qui sopra non cambiano.** Un nemico che colpisce e poi cade tiene la
+  riga del colpo, perché quella riga è la notizia del colpo che una tua unità ha preso; uno che scatta e poi
+  viene spinto non ha riga. È il prezzo della guardia, e la decisione lo accetta.
+- **Uno stato che l'unità si dà da sola conta come notizia**: la voce di nascita di uno stato non dice chi
+  l'ha applicato. Distinguerlo vorrebbe dire cambiare il formato del registro.
+- **Il danno che una tua unità ha fatto sparisce dal feed quando le è successo altro**; resta il numero
+  sopra la pedina del bersaglio.
 - **Una caduta che uccide dice «Eliminata» e non «Caduta».** È la terza riga della tabella.
 - **Col parapetto adiacente il feed dice «Spostata» di un'unità che non si è mossa.** Senza celle percorse la
   traccia scrive `DisplacementResisted` con causa `EdgeGuard` (§9.2), e il feed legge così ogni spostamento
   resistito. È il comportamento che c'era prima di #3081, non una sua conseguenza.
 
-Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit` e
-`RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed`, sul percorso vero del resolver; e
+Lo fissano `RefactorTactics.Fall.TheFeedSaysFallNotHit`, `RefactorTactics.Fall.TheFeedSaysFallEvenAfterTheFallerHit`,
+`RefactorTactics.UI.PlayerEventLog.APushAfterASuccessfulDashReachesTheFeed` e
+`RefactorTactics.ForcedMovement.GuardedLedgeReachesTheFeed`, sul percorso vero del resolver;
+`RefactorTactics.UI.PlayerEventLog.WhatYourUnitSufferedBeatsWhatItDid` per la regola, caso per caso; e
 `RefactorTactics.ScreenHud.FeedNamesAFallAndAnImpact` per le frasi.
 
 ---

@@ -1,6 +1,8 @@
 #include "UI/RTPlayerEventProjector.h"
 
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h" // IsSubjectTheSufferer, IsStatusBirth: chi ha dato, chi ha subito (#3734)
+#include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: solo una reazione scattata e' «Reazione scattata»
 
 namespace
 {
@@ -159,6 +161,15 @@ namespace
 		}
 
 		case ERTLogCategory::Reaction:
+			// 🔴 **Solo una reazione SCATTATA** (`#3734`, trovato in code review). Il passaggio delle reazioni scrive
+			// una voce per ogni reazione armata in ogni Blast, anche quando non scatta (`NotTriggered`) o non puo'
+			// (`Unavailable`): il registro deve dirlo, il feed no. Prima ogni voce diventava «Reazione scattata», e la
+			// riga falsa compariva quando l'unita' non aveva niente di piu' alto; con la regola di `#3734` avrebbe
+			// coperto anche il colpo che l'unita' aveva dato.
+			if (static_cast<ERTReactionOutcome>(Entry.Outcome) != ERTReactionOutcome::Activated)
+			{
+				return false;
+			}
 			OutType = ERTPlayerEventType::ReactionFired;
 			OutImportance = ERTPlayerEventImportance::Important;
 			return true;
@@ -182,6 +193,87 @@ namespace
 		default:
 			return false;
 		}
+	}
+
+	/**
+	 * Le specie di riga della regola di `#3734`, per le unita' di chi guarda. **Il valore E' la precedenza**: fra due
+	 * righe di specie diverse vince quella col valore piu' alto, e dentro la stessa specie decide il rango.
+	 *
+	 * - `News`: cio' che l'unita' non ha deciso — uno spostamento subito, un piano fallito, uno stato che le arriva
+	 *   addosso, una reazione che scatta, il KO che subisce.
+	 * - `OwnSuccess`: un'azione SCELTA e andata a segno, e visibile — il colpo dato, la cura data, l'eliminazione data.
+	 * - `Neutral`: la FINE di uno stato. Non e' successo niente all'unita' in questo turno: scade, si spegne, si
+	 *   consuma. Non scavalca ne' una notizia ne' una riuscita propria visibile, e compare solo se l'unita' non ha
+	 *   altro (decisione d'autore del 2026-10-14). ⏱️ *La prima stesura la confrontava per rango, e uno stato che
+	 *   scadeva nel Cleanup cancellava la spinta subita (code review).*
+	 * - `SilentOwnSuccess`: il movimento chiesto e arrivato, che §D vuole silenzioso e che viene tolto alla fine. Sta
+	 *   SOTTO tutto: se tenesse il posto, cio' che arriva dopo sparirebbe con lui — era il difetto di `#3734`.
+	 *
+	 * Il KO: una riga di colpo letale d'arma e' agganciata a chi COLPISCE. Sotto una tua unita' e' l'eliminazione che
+	 * lei ha DATO, una riuscita propria (decisione d'autore del 2026-10-14). Il KO subito per una causa ambientale e'
+	 * agganciato a lei, ed e' una notizia di rango massimo.
+	 */
+	enum class ERTFeedRowSpecies : uint8 { SilentOwnSuccess = 0, Neutral = 1, OwnSuccess = 2, News = 3 };
+
+	/**
+	 * 🔑 **Chi ha dato e chi ha subito lo dice il registro**: `IsSubjectTheSufferer` per i colpi — un `Hit` d'arma e'
+	 * di chi colpisce, il danno ambientale e quello di una caduta di chi li subisce — e `IsStatusBirth` per gli
+	 * stati. Non se ne scrive una seconda tassonomia qui.
+	 *
+	 * ⚠️ **Uno stato che l'unita' si da' da sola e' una notizia**: la voce di nascita non dice chi l'ha applicato, e
+	 * distinguerlo vorrebbe dire cambiare il formato del registro. Limite accettato con la decisione d'autore.
+	 *
+	 * ⚠️ **Si chiama solo per le unita' di chi guarda.** Per un colpo passa da `IsEnvironmentalDamage`, che alloca
+	 * una stringa: chiamarla per ogni voce a ogni fotogramma — il feed si ricostruisce due volte per fotogramma —
+	 * costerebbe anche dove la regola e' spenta (code review).
+	 */
+	ERTFeedRowSpecies FeedRowSpeciesOf(const FRTTurnLogEntry& Entry, ERTPlayerEventType Type,
+		ERTPlayerEventImportance Importance)
+	{
+		switch (Type)
+		{
+		case ERTPlayerEventType::Moved:
+			// chiesto e arrivato e' `Minor`; il resto di `Moved` — spinta, scivolata, caduta, parapetto — e' subito
+			return Importance == ERTPlayerEventImportance::Minor ? ERTFeedRowSpecies::SilentOwnSuccess : ERTFeedRowSpecies::News;
+		case ERTPlayerEventType::Attacked:
+			return URTTurnLogLibrary::IsSubjectTheSufferer(Entry) ? ERTFeedRowSpecies::News : ERTFeedRowSpecies::OwnSuccess;
+		case ERTPlayerEventType::Healed:
+			// ⚠️ **Sempre data, e non per la tassonomia dei danni.** L'unico produttore e' `ApplyPlannedHeals`, che la
+			// scrive a nome di chi cura. `IsSubjectTheSufferer` qui sbaglierebbe la cura su se stessi: celle di
+			// partenza e d'arrivo coincidono, e la sua rete la legge come un danno ambientale (code review).
+			return ERTFeedRowSpecies::OwnSuccess;
+		case ERTPlayerEventType::Defeated:
+			// L'eliminazione DATA cede come un colpo dato; il KO SUBITO resta in cima. Vedi l'enum qui sopra.
+			return URTTurnLogLibrary::IsSubjectTheSufferer(Entry)
+				? ERTFeedRowSpecies::News
+				: ERTFeedRowSpecies::OwnSuccess;
+		case ERTPlayerEventType::StatusChanged:
+			return URTTurnLogLibrary::IsStatusBirth(static_cast<ERTStatusOutcome>(Entry.Outcome))
+				? ERTFeedRowSpecies::News : ERTFeedRowSpecies::Neutral;
+		default:
+			return ERTFeedRowSpecies::News; // piani falliti, reazioni scattate
+		}
+	}
+
+	/** La riga gia' tenuta per un'unita': dove sta in `Out`, e di che specie e' (solo per le unita' di chi guarda). */
+	struct FRTFeedHeldRow
+	{
+		int32 Slot = INDEX_NONE;
+		ERTFeedRowSpecies Species = ERTFeedRowSpecies::News;
+	};
+
+	/**
+	 * La sola decisione «la riga nuova prende il posto di quella tenuta?» (`#3734`). Per un'unita' di chi guarda e
+	 * due specie diverse decide la specie; altrimenti il rango, e a parita' resta la prima arrivata (§E).
+	 */
+	bool ShouldReplaceFeedRow(bool bOwnUnit, ERTFeedRowSpecies Held, ERTFeedRowSpecies Candidate,
+		int32 HeldRank, int32 CandidateRank)
+	{
+		if (bOwnUnit && Held != Candidate)
+		{
+			return static_cast<uint8>(Candidate) > static_cast<uint8>(Held);
+		}
+		return CandidateRank > HeldRank;
 	}
 
 	/** Chi domina chi, quando due eventi parlano della STESSA unita' — `#1936` §E. */
@@ -256,13 +348,16 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 }
 
 TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogEntry>& Entries,
-	const TArray<int32>& ObserverTeamIds)
+	const TArray<int32>& ObserverTeamIds, int32 OwnTeamId)
 {
 	TArray<FRTPlayerEvent> Out;
 
 	// L'evento gia' emesso per ciascuna unita', per indice in `Out`: e' come la dominanza sostituisce invece
 	// di accodare. `INDEX_NONE` = quell'unita' non ha ancora una riga.
-	TMap<int32, int32> IndexByUnit;
+	//
+	// ➕ Accanto all'indice, la specie della riga tenuta (`#3734`): nella stessa voce della mappa, non in una seconda
+	// mappa o in un array parallelo a `Out` da tenere allineati a mano (code review).
+	TMap<int32, FRTFeedHeldRow> IndexByUnit;
 
 	// 🔴 L'ambiente si raggruppa per TURNO, non per unita': la propagazione dell'acqua o del fuoco tocca
 	// celle, non qualcuno, e §E vieta esplicitamente «cella d'acqua A / cella d'acqua B / cella
@@ -357,11 +452,18 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 			continue;
 		}
 
-		const int32* Existing = IndexByUnit.Find(UnitId);
+		// ➕ **Di chi e' l'unita' lo dice la voce** (`VerdictSubject.TeamId`, `#3734`). Per le altre squadre la specie
+		// non si calcola nemmeno: decide il rango, come sempre.
+		const bool bOwnUnit = OwnTeamId != INDEX_NONE && Entry.VerdictSubject.StableUnitId != INDEX_NONE
+			&& Entry.VerdictSubject.TeamId == OwnTeamId;
+		const ERTFeedRowSpecies CandidateSpecies =
+			bOwnUnit ? FeedRowSpeciesOf(Entry, Type, Importance) : ERTFeedRowSpecies::News;
+
+		FRTFeedHeldRow* Existing = IndexByUnit.Find(UnitId);
 		if (Existing == nullptr)
 		{
 			Out.Add(MoveTemp(Candidate));
-			IndexByUnit.Add(UnitId, Out.Num() - 1);
+			IndexByUnit.Add(UnitId, FRTFeedHeldRow{ Out.Num() - 1, CandidateSpecies });
 			continue;
 		}
 
@@ -375,11 +477,23 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		// ⚠️ A parita' di rango vince chi e' arrivato prima: due colpi sulla stessa unita' restano una riga,
 		// e il secondo non riscrive il primo. Sommare i danni sarebbe un'altra decisione — non presa qui,
 		// perche' §E parla di dominanza e non di aggregazione.
-		FRTPlayerEvent& Held = Out[*Existing];
-		if (DominanceRank(Candidate.Type) > DominanceRank(Held.Type))
+		FRTPlayerEvent& Held = Out[Existing->Slot];
+		//
+		// ➕ **Per un'unita' di chi guarda, cio' che ha SUBITO vince su cio' che ha FATTO** (`#3734`, decisione
+		// d'autore A1 del 2026-10-13, precisata il 2026-10-14). Fra due righe di specie diversa decide la specie —
+		// notizia, poi riuscita propria visibile, poi fine di uno stato, poi il movimento silenzioso — e dentro la stessa
+		// specie il rango, come per tutte. Il caso che l'ha chiesta: chi scatta nel Dash e viene spinto nel Blast aveva
+		// per prima la riga silenziosa dello scatto, che teneva il posto allo stesso rango e poi spariva; chi colpiva e
+		// poi cadeva leggeva il colpo.
+		//
+		// 🔴 **Per le altre squadre la scala di sempre**: la riga di un colpo d'arma e' agganciata a chi COLPISCE, e
+		// quando un nemico colpisce una tua unita' quella riga e' la notizia per te. Farla cedere a cio' che succede al
+		// nemico la cancellerebbe.
+		if (ShouldReplaceFeedRow(bOwnUnit, Existing->Species, CandidateSpecies, DominanceRank(Held.Type),
+			DominanceRank(Candidate.Type)))
 		{
-			const int32 Slot = *Existing;
-			Out[Slot] = MoveTemp(Candidate);
+			Held = MoveTemp(Candidate);
+			Existing->Species = CandidateSpecies;
 		}
 	}
 

@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-14 — Nel feed, ciò che una tua unità ha subito vince su ciò che ha fatto
+
+**Origine**: [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734), decisione d'autore A1 del 2026-10-13. Per le unità della squadra di chi guarda, una riga di riuscita propria — il movimento arrivato, il colpo dato, la cura data — cede a qualunque notizia della stessa unità nel turno — uno spostamento subito, un piano fallito, uno stato che le arriva addosso, una reazione che scatta, il KO che subisce; un'eliminazione data cede come un colpo dato, e la fine di uno stato compare solo se l'unità non ha altro (decisioni d'autore del 2026-10-14). Per le unità degli altri, e nella sessione non presidiata, la scala di sempre. Una reazione armata che non scatta non compare più come «Reazione scattata».
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §9.3: la regola e la sua guardia al posto dei due limiti che descrivevano il caso — chi cade dopo aver colpito, chi scatta e poi viene spinto; le notizie distinte dalla fine di uno stato; la reazione non scattata; i limiti che restano; i test che la fissano |
+
+---
+
 ## 2026-10-14 — La fog of war ripensata: il brainstorming
 
 **Origine**: brainstorming con l'autore. Le sue scelte su come appare la nebbia, su che cosa ricorda la squadra e sugli strumenti del giocatore, con il riferimento Invisible Inc.
