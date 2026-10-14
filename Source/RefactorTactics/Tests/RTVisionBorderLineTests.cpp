@@ -243,24 +243,31 @@ bool FRTVisionBorderFollowsTheVeilTest::RunTest(const FString&)
 		return URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(HexMap->MapAsset,
 			TM->KnowledgeForTeamPublic(Presenter->ViewerTeamId()).VisibleCells);
 	};
-	TestTrue(TEXT("premessa: la squadra del viewer vede qualcosa"),
-		TM->KnowledgeForTeamPublic(Presenter->ViewerTeamId()).VisibleCells.Num() > 0);
+	// ⚠️ All'aggancio la conoscenza e' ancora VUOTA: si riempie al primo refresh, quando si apre un turno. Qui il
+	// confronto vale per costruzione — nessuna cella vista, nessuna linea — e il test vero e' dopo.
 	TestTrue(TEXT("all'aggancio la linea e' il confine delle celle VISTE"), HexMap->GetVisionBorder() == Atteso());
-	TestTrue(TEXT("e non e' vuota"), HexMap->GetVisionBorder().Num() > 0);
 
-	// Un turno giocato: la linea si ridisegna perche' il presenter ascolta il refresh, non perche' la si chiama.
-	TM->LockInAndResolve();
-	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	// DUE turni giocati: la linea si ridisegna perche' il presenter ascolta il refresh, non perche' la si chiama.
+	// ⚠️ Due e non uno: il primo refresh e' la prima osservazione, e li' vista ed esplorata coincidono.
+	for (int32 Turno = 0; Turno < 2 && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turno)
 	{
-		TM->Tick(0.05f);
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
 	}
 	const FRTTeamKnowledge Dopo = TM->KnowledgeForTeamPublic(Presenter->ViewerTeamId());
-	// Senza questa premessa il confronto non distinguerebbe le celle viste da quelle esplorate: al primo turno
-	// sono le stesse, e un presenter che passasse `ExploredCells` resterebbe verde.
-	TestTrue(TEXT("premessa: dopo un turno la squadra ricorda celle che non vede piu'"),
+	AddInfo(FString::Printf(TEXT("dopo due turni: VisibleCells=%d, ExploredCells=%d, lati della linea=%d"),
+		Dopo.VisibleCells.Num(), Dopo.ExploredCells.Num(), HexMap->GetVisionBorder().Num()));
+	TestTrue(TEXT("premessa: la squadra del viewer vede qualcosa"), Dopo.VisibleCells.Num() > 0);
+	// Senza questa premessa il confronto non distinguerebbe le celle viste da quelle esplorate, e un presenter che
+	// passasse `ExploredCells` resterebbe verde.
+	TestTrue(TEXT("premessa: la squadra ricorda celle che non vede piu'"),
 		URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(HexMap->MapAsset, Dopo.ExploredCells)
 			!= URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(HexMap->MapAsset, Dopo.VisibleCells));
-	TestTrue(TEXT("dopo un turno la linea e' il confine delle celle viste ADESSO"), HexMap->GetVisionBorder() == Atteso());
+	TestTrue(TEXT("la linea e' il confine delle celle viste ADESSO"), HexMap->GetVisionBorder() == Atteso());
+	TestTrue(TEXT("e non e' vuota"), HexMap->GetVisionBorder().Num() > 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
