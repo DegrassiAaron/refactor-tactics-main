@@ -2150,9 +2150,15 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
 		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
 		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la
+	// pianificazione usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un
+	// altro gruppo continua a ispezionarsi.
+	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(SelectedUnit->SelectedAbilityIndex) : nullptr;
+	const bool bArmedChargeTargetsClicked = Armata && Armata->Def.MovementStyle == ERTMovementStyle::LinearCharge
+		&& ClickedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId;
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
 		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
-		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver());
+		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver(), bArmedChargeTargetsClicked);
 
 	// `Inspect` — il soggetto ISPEZIONATO, che non e' il soggetto comandato.
 	//
@@ -2211,6 +2217,11 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// Una CARICA si pianifica proprio cliccando il nemico: e' l'azione che punta LUI e si ferma addosso a
 		// lui. Prima di #145 l'unico modo era cliccare una cella oltre il bersaglio e sperare che la
 		// traiettoria lo incontrasse — un'affordance che nessuno indovina.
+		//
+		// 🔴 **Fino a `#3736` questo ramo si raggiungeva solo da `HandleClickOnUnitForTest`**: dal click vero
+		// `ResolveOutcome` rispondeva `Inspect`, perche' la carica e' mobilita' rapida e resta fuori da
+		// `Targeting`. Da [D-516] la matrice conosce la carica armata e risponde `Confirm` su un nemico osservato.
+		// Il resto e' la cella: in linea, oltre la portata, rifiutata — tutto come cliccando la sua cella.
 		if (Ability && Ability->Def.MovementStyle == ERTMovementStyle::LinearCharge)
 		{
 			HandleClickOnCell(ClickedUnit->Cell);
@@ -2616,9 +2627,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		}
 		// Portata letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte, altrimenti dal campo
 		// legacy dell'asset. Leggere un numero diverso da quello del resolver significa accettare piani che
-		// poi non si eseguono (o negarne di buoni).
-		const int32 DeclaredRange = SelAb->Def.ActionId.IsNone() ? SelAb->RangeCells : SelAb->Def.RangeCells;
-		const int32 DashRange = SelectedUnit->GetEffectiveDashRange(DeclaredRange);
+		// poi non si eseguono (o negarne di buoni). La regola sta in `EffectiveDashRangeOf`, la stessa del resolver.
+		const int32 DashRange = SelectedUnit->EffectiveDashRangeOf(SelIdx);
 		if (DashRange <= 0)
 		{
 			// MaxCost == 0 significa "illimitato" per l'A*: il budget nullo va intercettato prima.
@@ -2671,7 +2681,21 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			// L'unica eccezione e' la CARICA: fermarsi addosso al nemico E' il suo modo di arrivare, e senza
 			// questa riga un bersaglio adiacente renderebbe la carica impianificabile.
 			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact);
-			if (Linear.Final != Cell && !bCharges)
+
+			// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla
+			// risoluzione corre fino alla portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano
+			// lo dicono. Tre condizioni, tutte di chi pianifica:
+			// - la corsa e' arrivata in fondo alla portata (`OutOfRange`): niente l'ha fermata prima;
+			// - sulla cella c'e' un NEMICO di questa fotografia, cioe' uno che chi pianifica conosce ([D-371]). Una
+			//   cella vuota oltre la portata resta rifiutata: la regola e' «caricare un nemico», non «correre
+			//   verso un punto»;
+			// - la retta fino a lui e' libera dal TERRENO (`IsLineOpenToTarget`): e' il «percorso lineare» della
+			//   decisione. Le unita' oltre la portata non contano — si saranno mosse.
+			const int32* const OccupanteDellaCella = Snapshot.Occupancy.Find(Cell);
+			const bool bNemicoSullaCella = OccupanteDellaCella && Hostiles.Contains(*OccupanteDellaCella);
+			const bool bChargesBeyondRange = Linear.Stop == ERTLinearStop::OutOfRange && bNemicoSullaCella
+				&& URTMovementActionLibrary::IsLineOpenToTarget(Map, SelectedUnit->Cell, Cell);
+			if (Linear.Final != Cell && !bCharges && !bChargesBeyondRange)
 			{
 				// Il ternario che stava qui rendeva «traiettoria bloccata» tutto cio' che non fosse
 				// `NotAligned`, e con `TerrainDeniesDash` avrebbe mandato il giocatore a cercare un muro su
@@ -2683,6 +2707,11 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 					Perche = TEXT("non allineata o fuori portata"); break;
 				case ERTLinearStop::TerrainDeniesDash:
 					Perche = TEXT("il terreno non si attraversa di corsa"); break;
+				case ERTLinearStop::OutOfRange: // [D-516]: la corsa arriva in fondo, manca l'altra condizione
+					Perche = bNemicoSullaCella
+						? TEXT("oltre la portata, e la retta fino al nemico e' bloccata")
+						: TEXT("oltre la portata, e sulla cella non c'e' un nemico che vedi");
+					break;
 				default: break;
 				}
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non e' raggiungibile in LINEA (%s, max %d) per %s"),
@@ -2695,7 +2724,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			SelectedUnit->PlannedDashCell = Cell;
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
-				bCharges ? TEXT(" con impatto") : TEXT(""));
+				bCharges ? TEXT(" con impatto")
+					: bChargesBeyondRange ? TEXT(" oltre la portata: si fermera' prima") : TEXT(""));
 			RecordDestinationOrder(this);
 			return;
 		}

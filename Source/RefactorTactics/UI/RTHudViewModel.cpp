@@ -22,6 +22,7 @@
 #include "Turn/RTTurnLogLibrary.h"        // DescribeInvalidReason: il testo del motivo ha gia' un owner
 #include "Terrain/RTTerrainLibrary.h"     // EffectiveTargetingRange: la portata APPLICATA del rifiuto
 #include "UI/RTHUD.h"                     // RefusalText: il testo del rifiuto ha gia' un owner
+#include "Turn/RTMovementActionLibrary.h"  // IsStraightLine: la distanza della carica oltre la portata ([D-516])
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
@@ -395,6 +396,31 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				FText::FromString(FString::Join(Alleate, TEXT(", "))));
 			FuocoAmico.Cost = NSLOCTEXT("RTPlanWarning", "FriendlyFireCost", "Colpisce anche le alleate nella zona");
 			Avvisi.Add(FuocoAmico);
+		}
+	}
+
+	// --- 4. Warning: la carica col bersaglio OLTRE la portata ([D-516], `#3736`) ------------------------------
+	//
+	// 🔑 **Riporta, non decide**: il numero viene da `PlannedChargeReachBeyondRange`, la stessa portata che la
+	// pianificazione ha accettato e che il resolver eseguira'. Il piano e' legale — la carica corre fino alla
+	// portata e si ferma —, ed e' degradato: non colpisce il bersaglio scelto. E' la definizione di `Warning`.
+	if (const int32 Corsa = Unit->PlannedChargeReachBeyondRange(); Corsa > 0)
+	{
+		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
+		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
+		int32 Distanza = 0;
+		URTMovementActionLibrary::IsStraightLine(Unit->Cell, Unit->PlannedDashCell, Distanza);
+		if (!CopertaDalCritico(CaricaId))
+		{
+			FRTPlanWarningView Corta;
+			Corta.Level = ERTPlanWarningLevel::Warning;
+			Corta.SourceActionId = CaricaId;
+			Corta.What = NomeDi(CaricaId);
+			Corta.Why = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeWhy",
+				"Il bersaglio è oltre la portata ({0} celle, portata {1})"), FText::AsNumber(Distanza), FText::AsNumber(Corsa));
+			Corta.Cost = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeCost",
+				"Si ferma dopo {0} celle senza colpire"), FText::AsNumber(Corsa));
+			Avvisi.Add(Corta);
 		}
 	}
 	return Avvisi;
@@ -1311,6 +1337,7 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		{
 			Intent.DashStyle = DashAb->Def.MovementStyle;
 		}
+		Intent.DashReachCells = Unit->PlannedChargeReachBeyondRange(); // [D-516]
 		Authoritative.Add(Intent);
 	}
 	return Authoritative;

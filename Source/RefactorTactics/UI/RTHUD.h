@@ -269,6 +269,19 @@ struct FRTDashPreview
 	 * due letture divergessero, l'anteprima prometterebbe una traiettoria che la risoluzione non fa.
 	 */
 	TArray<FRTCellId> PathCells;
+
+	/**
+	 * [D-516] Quanti tratti di `PathCells` la corsa PERCORRE: il tratto `PathCells[i - 1] -> PathCells[i]` e' corsa
+	 * se `i <= ReachSegments`. Oltre — una carica col bersaglio fuori portata — e' la retta che la carica non fara',
+	 * fino al nemico. Senza una carica oltre la portata vale `PathCells.Num() - 1`: tutto.
+	 */
+	int32 ReachSegments = 0;
+
+	/** [D-516] Vero se resta un tratto che la corsa non fa: lo si disegna tratteggiato, in rosso. */
+	bool HasShortfall() const { return ReachSegments < PathCells.Num() - 1; }
+
+	/** [D-516] Dove la corsa si ferma: la destinazione, o l'ultima cella della portata. Invalida senza traiettoria. */
+	FRTCellId StopCell() const { return PathCells.IsValidIndex(ReachSegments) ? PathCells[ReachSegments] : FRTCellId(); }
 };
 
 struct FRTIntentCertaintyStyle

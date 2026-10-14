@@ -1135,10 +1135,9 @@ void ARTTurnManager::PlanBots()
 		}
 
 		F.DashAbilityIndex = U->FindDashAbilityIndex();
-		if (const URTActionData* DashAb = U->GetAbility(F.DashAbilityIndex))
+		if (U->GetAbility(F.DashAbilityIndex))
 		{
-			const int32 Dichiarata = DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells;
-			F.EffectiveDashRange = U->GetEffectiveDashRange(Dichiarata);
+			F.EffectiveDashRange = U->EffectiveDashRangeOf(F.DashAbilityIndex);
 		}
 
 		Facts.Add(MoveTemp(F));
@@ -4964,9 +4963,9 @@ void ARTTurnManager::ResolveDash()
 
 		// Budget della fase Dash: la portata dichiarata dall'azione (con gli status), non il movimento del
 		// turno. Per un'azione catalogata la verita' e' il `Def`: `Action.Sprint` vale 8 MP e quel numero sta
-		// nel catalogo, non sul campo legacy dell'asset.
-		const int32 DeclaredRange = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
-		const int32 EffectiveRange = Unit->GetEffectiveDashRange(DeclaredRange);
+		// nel catalogo, non sul campo legacy dell'asset. La regola sta in `EffectiveDashRangeOf`, che la
+		// pianificazione, l'anteprima e gli avvisi leggono uguale ([D-516]).
+		const int32 EffectiveRange = Unit->EffectiveDashRangeOf(DashIdx);
 
 		TArray<FRTCellId> Path;
 		bool bChargedIntoTarget = false;
@@ -4988,6 +4987,25 @@ void ARTTurnManager::ResolveDash()
 				Snapshot.Map, Unit->Cell, Unit->PlannedDashCell, EffectiveRange,
 				Dash->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 			LinearStop = Linear.Stop;
+
+			// 🔑 **[D-516] Una carica pianificata OLTRE la portata corre fino alla portata e si ferma**, e la traccia
+			// lo dice: un ripiego `Stopped` col motivo `OutOfRange`, accanto al movimento che la fase registra
+			// comunque. Senza questa voce chi rilegge il turno vede una carica arrivata a meta' strada e nessun
+			// perche'. Stessa forma — e stessa guardia sulla vita — del rifiuto dichiarato piu' sotto.
+			if (Linear.Stop == ERTLinearStop::OutOfRange && Unit->IsAlive())
+			{
+				FRTTurnLogEntry Fermata;
+				Fermata.Phase = ERTMatchPhase::Dash;
+				Fermata.Category = ERTLogCategory::Fallback;
+				Fermata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Stopped);
+				Fermata.ActionId = Dash->Def.ActionId;
+				Fermata.BaseActionId = Dash->Def.BaseActionId;
+				Fermata.Priority = Dash->Def.Priority;
+				Fermata.SrcCell = Unit->Cell;
+				Fermata.TgtCell = Unit->PlannedDashCell; // il bersaglio pianificato, non la cella in cui si ferma
+				Fermata.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+				AppendLogEntry(Fermata, Unit);
+			}
 
 			// L'impatto della carica NON si applica qui: il catalogo le da' codice 20/30, cioe' movimento in
 			// fase Dash e impatto fra i controlli, che risolvono per priorita' dentro il Blast.

@@ -20,6 +20,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTOverlayPalette.h" // [D-516]: il rosso del tratto che una carica oltre la portata non fa
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Engine/Canvas.h"
@@ -1278,13 +1279,35 @@ void ARTHUD::DrawHUD()
 				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
 				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
 				const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
-				for (int32 i = 1; i < Scatto.PathCells.Num(); ++i)
+				for (int32 i = 1; i <= Scatto.ReachSegments && i < Scatto.PathCells.Num(); ++i)
 				{
 					const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
 					const FVector DB = Project(HexCellWorld(Scatto.PathCells[i], Origin, HexSize, LayerH));
 					if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
 				}
-				const FVector DDest = Project(HexCellWorld(View.DashCell, Origin, HexSize, LayerH));
+
+				// 🔑 **[D-516] Oltre la portata, la retta fino al nemico: TRATTEGGIATA e rossa.** E' la grammatica del
+				// tiro rifiutato qui sotto — piena fin dove arriva, tratteggiata dove non arriva —, quindi il rosso
+				// non e' l'unico canale ([D-146]): rosso e verde dello scatto sono la coppia che una deuteranopia
+				// confonde, il tratteggio no. Il rosso e' quello della palette dell'overlay, non un letterale nuovo.
+				if (Scatto.HasShortfall())
+				{
+					const FVector DStop = Project(HexCellWorld(Scatto.StopCell(), Origin, HexSize, LayerH));
+					const FVector DTarget = Project(HexCellWorld(Scatto.PathCells.Last(), Origin, HexSize, LayerH));
+					if (DStop.Z > 0.f && DTarget.Z > 0.f)
+					{
+						const FLinearColor OltreLaPortata(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack));
+						for (const TPair<FVector2D, FVector2D>& T : ComposeCountedDashSegments(
+								FVector2D(DStop.X, DStop.Y), FVector2D(DTarget.X, DTarget.Y), BlockedShotDashSpans))
+						{
+							DrawLine(T.Key.X, T.Key.Y, T.Value.X, T.Value.Y, OltreLaPortata, 2.f);
+						}
+					}
+				}
+
+				// Il segno d'arrivo sta dove la corsa SI FERMA: con una carica oltre la portata non e' il nemico.
+				const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
+					Origin, HexSize, LayerH));
 				if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
 			}
 
@@ -1822,6 +1845,14 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 	Out.PathCells = URTMovementActionLibrary::IsLinear(View.DashStyle)
 		? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
 		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
+
+	// [D-516]: una carica col bersaglio oltre la portata corre per `DashReachCells` celle della retta e si ferma.
+	// Il numero lo calcola l'unita' (`PlannedChargeReachBeyondRange`) con la portata del resolver: qui si legge.
+	Out.ReachSegments = FMath::Max(0, Out.PathCells.Num() - 1);
+	if (View.DashReachCells > 0 && URTMovementActionLibrary::IsLinear(View.DashStyle))
+	{
+		Out.ReachSegments = FMath::Min(View.DashReachCells, Out.ReachSegments);
+	}
 
 	return Out;
 }

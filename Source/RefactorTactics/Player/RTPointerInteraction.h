@@ -336,8 +336,12 @@ public:
 	 * @param bHitUnit      il raggio ha toccato un'unita'. Falso -> `NoOp`: le celle sono di `ResolveTarget`.
 	 * @param bCommandable  il giocatore puo' COMANDARE quell'unita' adesso.
 	 * @param bObserved     la conoscenza di squadra la osserva. Irrilevante per le unita' comandabili.
+	 * @param bArmedChargeTargetsUnit  l'azione armata e' una CARICA e l'unita' e' un nemico di chi carica ([D-516],
+	 *                      `#3736`). La carica e' mobilita' rapida e non porta in `Targeting`, ma il suo bersaglio
+	 *                      e' proprio il nemico: in `Planning` e in `Pathing` il click lo **conferma** invece di
+	 *                      ispezionarlo. ⛔ Non tocca il velo: un nemico non osservato resta `NoOp`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	static ERTPointerOutcome ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,
-		bool bObserved);
+		bool bObserved, bool bArmedChargeTargetsUnit = false);
 };

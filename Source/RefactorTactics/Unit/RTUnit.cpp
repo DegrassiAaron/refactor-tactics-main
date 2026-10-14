@@ -2123,6 +2123,33 @@ bool ARTUnit::PlannedDashIsCharge() const
 	return Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge;
 }
 
+int32 ARTUnit::EffectiveDashRangeOf(int32 AbilityIndex) const
+{
+	const URTActionData* Dash = GetAbility(AbilityIndex);
+	if (!Dash)
+	{
+		return 0;
+	}
+	// Per un'azione catalogata la verita' e' il `Def`; il campo dell'asset vale solo fuori catalogo.
+	const int32 Declared = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
+	return GetEffectiveDashRange(Declared);
+}
+
+int32 ARTUnit::PlannedChargeReachBeyondRange() const
+{
+	if (!PlannedDashMoves() || !PlannedDashIsCharge())
+	{
+		return 0;
+	}
+	const int32 Range = EffectiveDashRangeOf(PlannedDashAbility);
+	int32 Distance = 0;
+	if (Range <= 0 || !URTMovementActionLibrary::IsStraightLine(Cell, PlannedDashCell, Distance) || Distance <= Range)
+	{
+		return 0;
+	}
+	return Range;
+}
+
 bool ARTUnit::PlannedDashDeniedByStatus() const
 {
 	const URTActionData* Dash = GetAbility(PlannedDashAbility);

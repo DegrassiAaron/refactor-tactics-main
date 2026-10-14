@@ -935,6 +935,25 @@ public:
 	bool PlannedDashIsCharge() const;
 
 	/**
+	 * La portata EFFETTIVA della mobilita' rapida all'indice `AbilityIndex`: quella dichiarata dal catalogo — o dal
+	 * campo dell'asset per un'azione fuori catalogo — passata per `GetEffectiveDashRange`. `0` senza azione.
+	 *
+	 * 🔑 **E' il numero che la pianificazione valida e che `ARTTurnManager::ResolveDash` esegue**: leggerne due
+	 * diversi accetterebbe piani che poi non si eseguono ([D-516] lo chiede anche all'anteprima e agli avvisi).
+	 */
+	int32 EffectiveDashRangeOf(int32 AbilityIndex) const;
+
+	/**
+	 * [D-516] Le celle che la **carica pianificata** percorrera' quando il suo bersaglio sta in linea ma OLTRE la
+	 * portata: e' la portata effettiva. `0` in ogni altro caso — nessuna carica, una carica che lo stato nega, un
+	 * bersaglio in portata o non in linea.
+	 *
+	 * ⚠️ E' una previsione sulla geometria, come `PlannedDashMoves()`: la risoluzione puo' fermare la corsa prima,
+	 * per un ostacolo o per uno scontro simultaneo. Dice «non arriva al bersaglio», non «arriva fin li'».
+	 */
+	int32 PlannedChargeReachBeyondRange() const;
+
+	/**
 	 * Vero se lo STATO dell'unita' nega lo scatto pianificato: `Status.Unbalanced` e una mobilita' rapida non
 	 * lineare ([D-319]). Chi ha perso l'equilibrio non sceglie celle una per una correndo, mentre uno slancio
 	 * lineare gia' deciso puo' ancora compierlo.
