@@ -1817,7 +1817,7 @@ capabilities:
         - Source/RefactorTactics/Perception/RTVisibilityBorder.h
         - Source/RefactorTactics/Unit/RTContactGhostAnimInstance.h
         - Source/RefactorTactics/Map/RTKnowledgeDebugConsole.cpp
-    issues: { open: [2731, 1750], closed: [3763] }
+    issues: { open: [2731, 1750], closed: [3763, 3761, 3762] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-SCREEN-HUD, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-CHAR-PRESENTATION, RT-CAP-PERCEPTION, RT-CAP-TEAM-KNOWLEDGE, RT-CAP-WORLD-OVERLAY]
     tests:

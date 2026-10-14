@@ -2,6 +2,35 @@
 
 ---
 
+## 2026-10-14 — Su richiesta si vede che cosa vede un nemico in vista
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), decisione d'autore `D-521`. Col mouse sul nemico, o tenendo `H` per tutti, si vede il contorno delle celle che vede, calcolato sul solo terreno che la squadra conosce.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`, con la regola di privacy e le tre domande come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: l'arco del nemico |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-ARCO` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3762 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1c: le scelte dell'autore |
+
+---
+
+## 2026-10-14 — Una linea segna in partita dove finisce la vista della squadra
+
+**Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), decisione d'autore `D-519`. La linea corre sui lati fra le celle viste adesso e quelle che non si vedono: ciano della vista, anche in strategica, mai lungo il vuoto.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`, con le tre domande e le opzioni come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la linea, chi la calcola e chi la disegna |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-CONFINE` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3761 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1b: le scelte dell'autore |
+| [`technical/evidence/3761/`](technical/evidence/3761/) | le tavole `L1` e `L2` |
+
+---
+
 ## 2026-10-14 — Il cursore indica anche una cella mai vista, come D-373 e D-372
 
 **Origine**: [#3766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3766). Il riquadro dell'hover su una cella mai vista sembrava una fuga d'informazione. Non lo è: dice solo che la cella esiste, e [D-373](decisions/RT_PDR_00_Decision_Log.md) rende pubblica la forma della board. L'autore ha scelto di lasciare il comportamento com'è; nessun codice cambia.

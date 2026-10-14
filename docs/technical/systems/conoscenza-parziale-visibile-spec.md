@@ -899,6 +899,36 @@ serve**, e non perché la si rinvii: perché la classe di difetto non esiste pi�
 > docstring apre dichiarando proprio questo buco: *«resta verde mentre la leggibilità del terreno ricordato
 > cala, ed è il buco che questo test chiude»*.
 
+### 5.7 ➕ La resa ripensata: la linea di confine della vista ([#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), [D-519](../../decisions/RT_PDR_00_Decision_Log.md))
+
+In partita una linea ciano corre sui lati fra le celle che la squadra vede adesso e le celle della mappa che non
+vede. Il colore e' quello della vista nella palette (`#32ADE6`); la linea si vede anche in strategica, e non corre
+mai lungo il vuoto: sul bordo della mappa e sul perimetro di una piattaforma non c'e'.
+
+| Che cosa | Dove |
+|---|---|
+| I lati | `URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells`: i lati esposti di `ExposedEdges`, meno quelli che danno sul vuoto |
+| Chi li aggiorna | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo e con la stessa conoscenza |
+| Chi li disegna | `ARTHexMapActor::DrawVisionBorder`, nel line batcher del mondo: si vede anche in Shipping |
+
+⚠️ **Il confine dell'ESPLORATO non e' questo.** La linea chiude le celle viste adesso, non quelle ricordate: i due
+stati di [D-227](../../decisions/RT_PDR_00_Decision_Log.md) restano distinti, ed e' `Veil.PresenterDrawsTheBorderOfTheSameKnowledge` a
+misurarlo.
+
+#### L'arco del nemico in vista ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), [D-521](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Su richiesta si vede che cosa vede un nemico in vista: col mouse sul nemico il suo arco, tenendo `H` quelli di tutti.
+L'arco sono le celle che il nemico vede davvero, muri noti compresi, calcolate sul **solo terreno che la squadra
+conosce**: altrimenti un muro mai visto si scoprirebbe dalla forma dell'arco.
+
+| Che cosa | Dove |
+|---|---|
+| La regola di privacy | `URTEnemyArcLibrary::KnownTerrainMap`: le celle mai viste esistono ([D-373](../../decisions/RT_PDR_00_Decision_Log.md)) ma sono vuote |
+| L'arco | `URTEnemyArcLibrary::SightOnKnownTerrain`, cioe' `VisibleCells` su quella copia, ristretta alle celle note |
+| Quali nemici | `URTEnemyArcLibrary::ArcsOfEnemiesInView`: di un'altra squadra, su una cella vista adesso |
+| Chi li calcola | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo |
+| Quali si disegnano | `ARTPlayerController::PlayerTick` → `ARTHexMapActor::SetEnemyArcFocus` |
+
 ### 5.6 🔴 Il rischio che nessun test misura
 
 Un prisma opaco alto ~200 uu può **occludere le unità proprie** quando la camera guarda attraverso una fascia
