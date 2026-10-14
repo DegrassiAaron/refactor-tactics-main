@@ -1022,10 +1022,17 @@ bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
 		Resta({ Mossa(ERTMoveOutcome::Moved, Mia, TEXT("Prova.Scatto")), Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato) }, Proprie),
 		ColpoDato);
 
-	// (9) Il KO non cede mai.
-	Atteso(TEXT("(9) KO, poi spinta"),
+	// (9) Il KO della TUA unita' non cede mai. ⚠️ Ma la riga di un colpo letale d'arma e' di chi colpisce: sotto la
+	//     mia unita' e' l'eliminazione che lei ha DATO, e cede come un colpo dato (decisione d'autore del
+	//     2026-10-14, trovato in code review).
+	Atteso(TEXT("(9) elimina un nemico, poi viene spinta"),
 		Resta({ Colpo(ERTCombatOutcome::Lethal, Mia, KO), Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) }, Proprie),
-		KO);
+		FName(TEXT("Prova.Spinta")));
+	// Il KO che la mia unita' SUBISCE da una causa ambientale e' agganciato a lei: quello resta, anche contro una spinta.
+	Atteso(TEXT("(9) muore cadendo, e una spinta arriva dopo"),
+		Resta({ Colpo(ERTCombatOutcome::Lethal, Mia, URTTurnLogLibrary::FallCauseOfFaller()),
+			Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) }, Proprie),
+		URTTurnLogLibrary::FallCauseOfFaller());
 
 	// (10) Senza la squadra di chi guarda, la scala di sempre: il colpo dato tiene il posto. E' cio' che fa il
 	//      proiettore per default, e la sessione non presidiata.
@@ -1241,6 +1248,17 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 			}
 		}
 	}
+
+	// 🔴 **La porta a un osservatore — quella dei segni dei bloccanti nell'HUD — e la diagnostica seguono la stessa
+	// regola.** Senza, un segno sulla mappa potrebbe non avere la sua riga nel feed, e la diagnostica contare righe
+	// che il widget non mostra (code review).
+	FString DallaPortaSingola;
+	TestEqual(TEXT("dalla porta a un osservatore, la stessa riga per la mia unita'"),
+		RigheDi(URTHudViewModel::BuildPlayerEventFeed(TM, 0), Mia, DallaPortaSingola), 1);
+	const FString Conteggio = FString::Printf(TEXT("righe dopo filtro=%d"),
+		URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 0 }).Num());
+	TestTrue(*FString::Printf(TEXT("la diagnostica conta le righe che il feed mostra («%s»)"), *Conteggio),
+		FString::Join(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 0 }), TEXT("\n")).Contains(Conteggio));
 
 	// 🔴 **In sessione non presidiata nessuna unita' e' «di chi guarda»**, anche se l'insieme si restringe a una
 	// squadra — succede a fine autobattle, quando l'altra non ha piu' attori in campo. Lo decide il manager.

@@ -232,7 +232,13 @@ namespace
 			// partenza e d'arrivo coincidono, e la sua rete la legge come un danno ambientale (code review).
 			return ERTFeedRowSpecies::OwnSuccess;
 		case ERTPlayerEventType::Defeated:
-			return ERTFeedRowSpecies::News; // il KO non cede mai
+			// 🔴 **Il KO della TUA unita' non cede mai — ma la riga di un colpo letale d'arma e' di chi COLPISCE.** Sotto
+			// una tua unita', quella riga e' l'eliminazione che lei ha DATO, e cede come un colpo dato: chi elimina un
+			// nemico e poi cade legge «Caduta», non «Eliminata» (decisione d'autore del 2026-10-14, trovato in code
+			// review). Il KO subito per una causa ambientale — fuoco, caduta — e' agganciato a lei, e resta in cima.
+			return URTTurnLogLibrary::IsSubjectTheSufferer(Entry)
+				? ERTFeedRowSpecies::News
+				: ERTFeedRowSpecies::OwnSuccess;
 		case ERTPlayerEventType::StatusChanged:
 			return URTTurnLogLibrary::IsStatusBirth(static_cast<ERTStatusOutcome>(Entry.Outcome))
 				? ERTFeedRowSpecies::News : ERTFeedRowSpecies::Neutral;

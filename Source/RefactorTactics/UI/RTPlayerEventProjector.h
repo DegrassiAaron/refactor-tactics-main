@@ -74,7 +74,7 @@ public:
 	 * d'autore A1 del 2026-10-13). Una riga e' una *riuscita propria* quando racconta un'azione scelta e andata a
 	 * segno — il movimento arrivato, il colpo dato, la cura data — e una *notizia* quando racconta cio' che
 	 * l'unita' non ha deciso: uno spostamento subito, un piano fallito, uno stato che le arriva addosso, una
-	 * reazione che scatta, il KO. Per un'unita' della squadra `OwnTeamId` una riuscita propria cede a una notizia
+	 * reazione che scatta, il KO che subisce (un'eliminazione DATA e' una riuscita propria). Per un'unita' della squadra `OwnTeamId` una riuscita propria cede a una notizia
 	 * della stessa unita' nel turno, e una notizia non cede a una riuscita propria arrivata dopo. Il resto — fra
 	 * due righe della stessa specie, o con una riga *neutra* come la fine di uno stato — lo decide la scala di
 	 * sempre.
