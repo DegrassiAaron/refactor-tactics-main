@@ -5994,7 +5994,7 @@ sessions:
       partita non presidiata.
 
   - id: U88
-    title: Chi sta sopra la testa di un nemico non lo vede (D-510) — e le due alleate impilate
+    title: La vista fra due piani segue una linea vera (D-511, D-510) — e le due alleate impilate
     block: 6
     critical: false
     execution_lane: pie
@@ -6005,17 +6005,22 @@ sessions:
     unblocked_by: []
     shares_setup_with: [U87]
     verifies: [PIE-VIS-COLONNA]
-    issues: [3741]
+    issues: [3741, 3743]
     done_when: >-
-      l'autore ha giudicato la voce; #3741 si chiude col suo verdetto
+      l'autore ha giudicato la voce; #3741 e #3743 si chiudono col suo verdetto
     notes: |
-      ⏳ **Da convocare con l'autore.** Il 2026-10-13 una sessione senza di lui ha preparato le catture dal clone principale (commit `bbf990e32`), senza portare l'Editor in primo piano: `Visual.Map.StackedColumn` e `Visual.Map.TwoLayersSameColumn`, in tattica, con la camera centrata sulla colonna, da davanti e da dietro, più il controllo a regola spenta dai binari della verifica di mutazione. Le tavole stanno in `docs/technical/evidence/u88/`.
+      ⏳ **Da convocare con l'autore.**
+
+      **Prima tornata, 2026-10-13, per #3741.** Una sessione senza di lui ha preparato le catture dal clone principale (commit `bbf990e32`), senza portare l'Editor in primo piano, e l'autore le ha guardate lo stesso giorno. Davanti alla tavola `S1` non ha dato un verdetto: ha scritto *«mi sembra che aevik non potrebbe vedere nessuno dei due nemici sopra, o c-e- una linea di visuale che non ho visto?»*. Da lì viene `D-511`, #3743: la voce ora chiede la regola nuova, e le tavole `S1` e `S2` restano in `docs/technical/evidence/u88/` come fotografia di quella di prima.
+
+      **Seconda tornata, 2026-10-14, per #3743.** Le catture sono state rifatte dal clone principale (commit `9a3b872b5`), senza portare l'Editor in primo piano: `Visual.Map.StackedColumn`, `Visual.Map.PlatformEdge` e `Visual.Map.OverTheWall`, in tattica, ognuna con la regola di D-510 accanto a quella nuova. I binari di controllo riportano il contatto alla regola di D-510 con una riga di `ContactHolds`. Le tavole `S3`, `S4` e `S5` stanno in `docs/technical/evidence/u88/`. Le due scene a più piani già giudicate, `Visual.Map.LayerStack` e `Visual.Map.LayerVolumes`, sono state rilette dal bridge con le due regole: l'anello di squadra del nemico ha lo stesso stato con l'una e con l'altra.
 
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
 
-      Lo scenario `Visual.Map.StackedColumn` non asserisce chi è visto: le sue attese sono solo posizioni. La
-      regola la misura `Vision.StackedColumnIsNotSeen`; la seduta chiede che si veda a schermo, col controllo
-      positivo del nemico accanto.
+      Gli scenari `Visual.Map.StackedColumn`, `Visual.Map.PlatformEdge` e `Visual.Map.OverTheWall` non
+      asseriscono chi è visto: le loro attese sono solo posizioni. La regola la misurano `Vision.AcrossLayers.*` e
+      `Vision.PlatformIsSeenFromTheOpenNotFromUnderneath`; la seduta chiede che si veda a schermo, col controllo
+      positivo che ogni scena porta.
 
       Nella stessa seduta si guarda `Visual.Map.TwoLayersSameColumn`, che da #3741 mette nella colonna due
       alleate: è la scelta dell'autore perché la scena resti una prova di leggibilità.
