@@ -595,7 +595,7 @@ public:
 	 *
 	 * La chiama `ARTPlayerController::PlayerTick`. Se non cambia niente non tocca il `Tick`.
 	 */
-	void SetEnemyArcFocus(bool bAll, const FRTCellId& HoveredCell, bool bHasHover);
+	void SetEnemyArcFocus(bool bAll, const FRTCellId& InHoveredCell, bool bHasHover);
 
 	/** Gli archi che si disegnano adesso, nell'ordine stabile delle celle dei nemici. Diagnostica e test. */
 	TArray<FRTEnemyArcView> GetShownEnemyArcs() const;

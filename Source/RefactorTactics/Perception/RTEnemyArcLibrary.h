@@ -12,7 +12,7 @@ class URTHexMapAsset;
 
 /**
  * Un nemico, ridotto a cio' che serve per il suo arco: dove sta, dove guarda, quanto lontano vede, di che squadra e',
- * e di che colore si disegna. Lo riempie chi ha gli attori; la libreria non ne vede nessuno.
+ * e di che colore si disegna (il presenter usa il rosso dei nemici, relativo a chi guarda). Lo riempie chi ha gli attori; la libreria non ne vede nessuno.
  */
 struct FRTEnemyForArc
 {

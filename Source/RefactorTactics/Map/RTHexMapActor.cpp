@@ -1552,15 +1552,15 @@ void ARTHexMapActor::SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsBy
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
-void ARTHexMapActor::SetEnemyArcFocus(bool bAll, const FRTCellId& HoveredCell, bool bHasHover)
+void ARTHexMapActor::SetEnemyArcFocus(bool bAll, const FRTCellId& InHoveredCell, bool bHasHover)
 {
-	if (bAll == bEnemyArcsAll && bHasHover == bEnemyArcHover && (!bHasHover || HoveredCell == EnemyArcHoveredCell))
+	if (bAll == bEnemyArcsAll && bHasHover == bEnemyArcHover && (!bHasHover || InHoveredCell == EnemyArcHoveredCell))
 	{
 		return;
 	}
 	bEnemyArcsAll = bAll;
 	bEnemyArcHover = bHasHover;
-	EnemyArcHoveredCell = HoveredCell;
+	EnemyArcHoveredCell = InHoveredCell;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
