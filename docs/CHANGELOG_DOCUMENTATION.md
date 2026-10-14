@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-14 — La carica si pianifica cliccando il nemico, anche oltre la portata
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), decisioni d'autore `D-516`. Con una carica armata il click su un nemico osservato lo ispezionava e non pianificava: il ramo che inoltra la carica alla sua cella si raggiungeva solo dalla porta di test. Ora il click pianifica la carica; su un nemico in linea ma oltre la portata la carica si pianifica con un avviso e il tratto rosso, e alla risoluzione corre fino alla portata e si ferma senza colpire.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-516`, con le tre domande come l'autore le ha viste, e che cosa colpisce davvero una carica oltre la portata |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1: la riga del nemico rilevato con una carica armata, e la scelta fra le tre uscite di #3736 con la sua ragione |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | `LinearCharge` oltre la portata; il click sul nemico; l'anteprima tratteggiata in rosso oltre la portata. Il colore dell'anteprima diceva ancora «magenta», che è uscito con `D-234` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-POINTER-INTERACTION` e `RT-CAP-MOVEMENT-LINEAR`: #3736 fra le chiuse; #3764, la carica fra più piani, fra le aperte |
+
+---
+
 ## 2026-10-14 — Il velo delle celle si vede anche dentro gli scenari
 
 **Origine**: [#3763](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3763), decisione d'autore `D-517`. Uno scenario non agganciava il velo delle celle; quello sulle unità sì. Corretto l'aggancio, l'autore ha scelto che valga in tutti gli scenari, come in partita.

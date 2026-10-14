@@ -64,7 +64,8 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   la fase) non venivano riconosciute — il bot non pianificava scatti per nessuno dei quattro.
 - **Come si sposta** lo dice `FRTActionDef::MovementStyle`: `LinearDash` · `LinearCharge` (si ferma sulla cella
   **adiacente** al primo nemico e lo colpisce — [D-296](../decisions/RT_PDR_00_Decision_Log.md), mai *sulla* sua
-  cella) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
+  cella; con un bersaglio in linea ma **oltre la portata** corre per tutta la portata e si ferma, `OutOfRange` —
+  [D-516](../decisions/RT_PDR_00_Decision_Log.md)) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
   un'azione di fase Dash è un **errore**, sorvegliato da `RefactorTactics.Actions.EveryFastMovementDeclaresStyle`
   su tutti e tre i cataloghi (generico, spedito, eroi).
 - `ARTUnit::PlannedDashAbility` (`INDEX_NONE` = nessuno) + `ARTUnit::PlannedDashCell` — pianificazione dello
@@ -131,12 +132,21 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   per le mobilità lineari, pathfinding per quelle a budget. Vale la regola di CP 4.5 — **o si arriva sulla cella
   richiesta, o lo scatto non si pianifica**: niente scatto a metà verso una cella che il giocatore non ha
   scelto. L'unica eccezione è la **carica**, per cui fermarsi sulla cella **adiacente** al nemico *è* il modo
-  di arrivare ([D-296](../decisions/RT_PDR_00_Decision_Log.md)).
-  Cliccare un nemico con lo scatto selezionato non fa nulla (lo scatto è su cella).
-- **HUD**: la preview dello scatto è disegnata in **magenta** (percorso + destinazione), distinta dal movimento
-  normale (ciano). La traiettoria segue **lo stile dichiarato** (`FRTIntentView::DashStyle`): linea retta per le
+  di arrivare ([D-296](../decisions/RT_PDR_00_Decision_Log.md)). E la carica ha una seconda eccezione ([D-516](../decisions/RT_PDR_00_Decision_Log.md)):
+  su un nemico che la squadra conosce, **in linea ma oltre la portata**, si pianifica se la retta fino a lui è libera
+  dal terreno; alla risoluzione corre fino alla portata e si ferma senza colpire. Una cella vuota oltre la portata
+  resta rifiutata.
+  Con una **carica** armata, cliccare un nemico osservato pianifica la carica su di lui, come cliccando la sua cella
+  ([D-516](../decisions/RT_PDR_00_Decision_Log.md), [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)); con ogni altro scatto il
+  click sul nemico lo ispeziona.
+- **HUD**: la preview dello scatto è disegnata nel **verde della fase Dash** (`#009E73`,
+  [D-234](../decisions/RT_PDR_00_Decision_Log.md); fino a D-234 era magenta), percorso e destinazione, distinta dal
+  movimento normale. La traiettoria segue **lo stile dichiarato** (`FRTIntentView::DashStyle`): linea retta per le
   lineari, grafo per quelle a budget — disegnare l'A\* per uno scatto lineare mostrerebbe un percorso curvo
   attorno a un ostacolo che in realtà lo ferma. Soggetta alla privacy dell'intento (invariante #6).
+  Una carica col bersaglio **oltre la portata** è piena fino alla portata e **tratteggiata in rosso** oltre, fino
+  al nemico; il segno d'arrivo sta dove la corsa si ferma, e l'elenco degli avvisi del piano porta un `Warning`
+  ([D-516](../decisions/RT_PDR_00_Decision_Log.md)).
 
 ## 6. Playback (animazione)
 
