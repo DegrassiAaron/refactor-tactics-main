@@ -12,6 +12,20 @@
 
 ---
 
+## 2026-10-14 — Il verdetto sulla vista fra piani
+
+**Origine**: seduta `U88`, [#3743](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3743) e [#3741](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3741). L'autore ha giudicato le tre tavole della linea di vista fra piani: *«s3 si,s4 si,s5 si»*.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-VIS-COLONNA` passa a verde col verdetto e le domande come stavano scritte sulle tavole; i totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U88`, chiusa |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-511`: il verdetto in coda allo stato |
+| [`roadmap/plans/vista-fra-piani-linea-3d-proposta-2026-10-13.md`](roadmap/plans/vista-fra-piani-linea-3d-proposta-2026-10-13.md) | l'autore ha visto la conseguenza che la proposta aveva escluso, e l'ha accettata |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-PERCEPTION`: #3741 e #3743 fra le chiuse |
+
+---
+
 ## 2026-10-14 — Fra due piani la vista segue una linea vera
 
 **Origine**: [#3743](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3743), decisione d'autore `D-511` del 2026-10-13. Davanti alla tavola della regola della colonna l'autore ha scritto che chi sta sotto una piattaforma non dovrebbe vedere nessuno di quelli che ci stanno sopra. Fra due piani la vista ora segue una linea da testa a testa, che si ferma sui pavimenti. La linea di tiro non cambia.

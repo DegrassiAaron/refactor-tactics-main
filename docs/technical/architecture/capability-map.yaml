@@ -825,7 +825,7 @@ capabilities:
         - Source/RefactorTactics/Perception/RTAcousticPropagationLibrary.h
         - Source/RefactorTactics/Perception/RTNoiseTypes.h
         - Source/RefactorTactics/Perception/RTKnowledgeView.h
-    issues: { open: [327, 2795, 824, 3741, 3743], closed: [] }
+    issues: { open: [327, 2795, 824], closed: [3741, 3743] }
     consumers: [RT-CAP-BOT-FAIRNESS, RT-CAP-FOG-PRESENTATION, RT-CAP-TEAM-KNOWLEDGE]
     dependencies: [RT-CAP-LOS, RT-CAP-MAP-TOPOLOGY]
     tests:

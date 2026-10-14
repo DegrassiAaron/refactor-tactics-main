@@ -233,6 +233,7 @@ non le vede da fuori.»*
   calcolata dall'autorità e data a ogni squadra per la sua parte. Cambia chi è in contatto con chi. L'ha mostrato una
   verifica di mutazione, che ha fatto cadere un asserto scritto sulla frase sbagliata. La scena che lo fa vedere è
   `Visual.Map.OverTheWall`.
+  ➕ Il 2026-10-14 l'autore ha visto questa conseguenza sulla tavola `S5` e ha risposto sì.
 
 ## 8. Come si verifica
 
