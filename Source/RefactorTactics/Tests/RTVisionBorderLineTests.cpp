@@ -17,6 +17,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTOverlayPalette.h"
 #include "Perception/RTKnowledgeVeilPresenter.h"
 #include "Perception/RTVisibilityBorder.h"
 #include "RTConsoleVariableGuardForTest.h"
@@ -186,6 +187,15 @@ bool FRTVisionBorderDrawsWithDebugDrawingOffTest::RunTest(const FString&)
 		SuGliSpigoli += (SuUnoSpigolo(Linea.Start) && SuUnoSpigolo(Linea.End)) ? 1 : 0;
 	}
 	TestEqual(TEXT("ogni tratto va da uno spigolo all'altro dell'esagono"), SuGliSpigoli, 6);
+
+	// Il colore e' quello della VISTA nella palette: la scelta dell'autore sulla tavola L1 di #3761.
+	const FLinearColor Vista(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision));
+	int32 ColoreDellaVista = 0;
+	for (const FBatchedLine& Linea : Mondo->BatchedLines)
+	{
+		ColoreDellaVista += Linea.Color.Equals(Vista) ? 1 : 0;
+	}
+	TestEqual(TEXT("ogni tratto ha il colore della vista della palette"), ColoreDellaVista, 6);
 
 	// Nessuna cella vista: nessuna linea, e la mappa smette di tickare per la linea.
 	HexMap->SetVisionBorder({});
