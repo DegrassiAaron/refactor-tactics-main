@@ -10,6 +10,8 @@
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
 #include "Map/RTLayerPresentation.h" // FRTLayerPresentationTuning: le leve con cui e' stato scritto il trattamento (#3679)
+#include "Perception/RTVisibilityBorder.h" // FRTExposedEdge: i lati della linea di confine della vista (#3761)
+#include "Perception/RTEnemyArcLibrary.h" // FRTEnemyArcView: gli archi dei nemici in vista (#3762)
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -558,6 +560,45 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
 	void ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge);
+
+	/**
+	 * LA LINEA DI CONFINE della vista della squadra (#3761): un tratto lungo ogni lato fra una cella che la
+	 * squadra vede adesso e una cella della mappa che non vede.
+	 *
+	 * 🔑 **Riceve le celle viste, conserva soltanto i lati.** I lati li calcola
+	 * `URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells`, che e' pura e ha i suoi test; qui non si
+	 * consulta la linea di vista e non si tiene la conoscenza di squadra ([D-242]). La chiama chi stende il
+	 * velo, `URTKnowledgeVeilPresenter`, negli stessi due punti e con la stessa conoscenza: la linea e il velo
+	 * non possono raccontare due viste diverse.
+	 *
+	 * ⚠️ Si disegna nel line batcher del mondo, come l'anteprima di pianificazione, e mai con `DrawDebug*`:
+	 * in Shipping `DrawDebugLine` non disegna (#3508).
+	 */
+	void SetVisionBorder(const TArray<FRTCellId>& VisibleCells);
+
+	/** I lati della linea di confine, nell'ordine stabile di `ExposedEdges`. Diagnostica e test. */
+	const TArray<FRTExposedEdge>& GetVisionBorder() const { return VisionBorder; }
+
+	/**
+	 * GLI ARCHI DEI NEMICI IN VISTA (#3762), uno per nemico e chiave la sua cella: i lati che chiudono cio' che vede,
+	 * gia' calcolati sul solo terreno che la squadra conosce (`URTEnemyArcLibrary::ArcsOfEnemiesInView`). Li scrive il
+	 * presenter del velo; la mappa li conserva, e ne disegna soltanto quelli che il giocatore chiede.
+	 */
+	void SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell);
+
+	/**
+	 * QUALI ARCHI SI DISEGNANO, a ogni fotogramma (#3762). La scelta dell'autore: *«Si vede passando il mouse sul
+	 * nemico, o con un tasto»*, e tutti e due.
+	 *
+	 *  - `bAll`: il tasto `H` e' premuto, e si vedono gli archi di tutti i nemici in vista;
+	 *  - altrimenti si vede l'arco del nemico sulla cella sotto il cursore, se ce n'e' uno.
+	 *
+	 * La chiama `ARTPlayerController::PlayerTick`. Se non cambia niente non tocca il `Tick`.
+	 */
+	void SetEnemyArcFocus(bool bAll, const FRTCellId& HoveredCell, bool bHasHover);
+
+	/** Gli archi che si disegnano adesso, nell'ordine stabile delle celle dei nemici. Diagnostica e test. */
+	TArray<FRTEnemyArcView> GetShownEnemyArcs() const;
 
 	/**
 	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
@@ -1151,6 +1192,26 @@ protected:
 
 	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
 	void DrawPlanningPreview() const;
+
+	/** Disegna la linea di confine della vista (#3761). Nessun effetto sulla logica. */
+	void DrawVisionBorder() const;
+
+	/** Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella, nel line batcher del mondo (#3761). */
+	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const;
+
+	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
+	TArray<FRTExposedEdge> VisionBorder;
+
+	/** Gli archi dei nemici in vista (#3762). Vedi `SetEnemyArcs`. */
+	TMap<FRTCellId, FRTEnemyArcView> EnemyArcs;
+
+	/** Quali archi chiede il giocatore (#3762). Vedi `SetEnemyArcFocus`. */
+	bool bEnemyArcsAll = false;
+	bool bEnemyArcHover = false;
+	FRTCellId EnemyArcHoveredCell;
+
+	/** Vero se almeno un arco si disegna adesso: tiene acceso il `Tick` solo quando serve. */
+	bool HasEnemyArcToDraw() const;
 
 	/** Cella sotto il cursore, impostata dal controller. */
 	FRTCellId HoveredCell;

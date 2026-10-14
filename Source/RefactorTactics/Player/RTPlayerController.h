@@ -294,6 +294,13 @@ protected:
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
 
 	/**
+	 * `H` tenuto premuto: gli archi di TUTTI i nemici in vista (#3762). La scelta dell'autore: l'arco si vede
+	 * passando il mouse sul nemico, o con un tasto — e tutti e due. Il tasto l'ha scelto l'autore fra i liberi.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EnemyArcsAction;
+
+	/**
 	 * `P`: ferma e riprende la **finestra di preparazione** dell'autobattle (`#2386`).
 	 *
 	 * 🔑 **Sta accanto a `PlaybackSpeedAction` e non fra i comandi di pianificazione**, perche' e' lo stesso
@@ -430,6 +437,9 @@ protected:
 
 	/** `Ctrl` tenuto: arma i gesti camera. */
 	bool bCameraModifier = false;
+
+	/** Vero mentre `H` e' premuto (#3762). Lo legge `PlayerTick` per dire alla mappa quali archi disegnare. */
+	bool bShowAllEnemyArcs = false;
 
 	/** `Ctrl`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
 	bool bModifierPrimaryDown = false;
@@ -853,6 +863,9 @@ private:
 	void OnGeneric5(const FInputActionValue& Value);
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
+	/** `H` premuto e rilasciato (#3762): accende e spegne gli archi di tutti i nemici in vista. */
+	void OnEnemyArcsPressed(const FInputActionValue& Value);
+	void OnEnemyArcsReleased(const FInputActionValue& Value);
 
 	/**
 	 * Ferma e riprende la finestra di preparazione dell'autobattle (`#2386`).

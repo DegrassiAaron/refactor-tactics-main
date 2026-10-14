@@ -30,6 +30,7 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
 #include "UObject/StrongObjectPtr.h"
 #include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
 #include "Map/RTOverlayPalette.h" // #1941: colore, scala e profondita' di un significato, in una sede sola
+#include "Perception/RTVisibilityBorder.h" // #3761: i lati esposti, da cui la linea di confine della vista
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "Map/RTHexLabel.h"
@@ -161,6 +162,15 @@ namespace
 	// compilatore rilega quando la gerarchia cambia (vedi `RTMapVisuals.h`).
 	constexpr float RTLiftCoordinateLabel = RTCellTopZ + 1.0f;
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
+	// La linea di confine della vista (#3761): sopra i marcatori, SOTTO l'anteprima. Un contorno d'anteprima su una
+	// cella di bordo corre lungo lo stesso lato, e alla stessa quota i due colori si contenderebbero il pixel.
+	constexpr float RTLiftVisionBorder = RTCellTopZ + 2.0f;
+	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
+	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
+	constexpr float RTVisionBorderThickness = 4.f;
+	// Lo spessore del contorno dell'arco di un nemico (#3762): quello con cui l'autore l'ha visto sulle tavole, un
+	// punto sotto la linea di confine, perche' dove si sovrappongono si legga ancora la linea della propria vista.
+	constexpr float RTEnemyArcThickness = 3.f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1141,6 +1151,10 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0
+		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
+		|| VisionBorder.Num() > 0
+		// E gli archi dei nemici in vista che il giocatore chiede (#3762).
+		|| HasEnemyArcToDraw()
 		// #3760: le linee dei muri ricordati si ridisegnano a ogni fotogramma.
 		|| bRememberedWallsToDraw;
 }
@@ -1279,6 +1293,12 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	if (bCellOverlay)
 	{
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
+	}
+	DrawVisionBorder();
+	// #3762: ogni arco nel colore della squadra del suo nemico, e sotto la linea di confine per spessore.
+	for (const FRTEnemyArcView& Arco : GetShownEnemyArcs())
+	{
+		DrawEdgeLines(Arco.Edges, Arco.Color, RTEnemyArcThickness);
 	}
 	DrawRememberedWallsAsLines();
 	DrawPlanningPreview();
@@ -1511,6 +1531,108 @@ namespace
 		{
 			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
 		}
+	}
+}
+
+void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
+{
+	// Si calcola QUI, dove sta la mappa, e si conservano soltanto i lati: l'actor non tiene la conoscenza di
+	// squadra ([D-242]), come per il velo.
+	//
+	// 🔑 **Solo i lati verso una cella della mappa**, per scelta dell'autore sulla domanda L3 di #3761: la linea segna
+	// dove finisce la vista, non dove finisce il pavimento. Sul bordo della mappa e sul perimetro di una piattaforma —
+	// dove la vista scende al piano di sotto ([D-511]) — non c'e' linea.
+	VisionBorder = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell)
+{
+	EnemyArcs = ArcsByEnemyCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcFocus(bool bAll, const FRTCellId& HoveredCell, bool bHasHover)
+{
+	if (bAll == bEnemyArcsAll && bHasHover == bEnemyArcHover && (!bHasHover || HoveredCell == EnemyArcHoveredCell))
+	{
+		return;
+	}
+	bEnemyArcsAll = bAll;
+	bEnemyArcHover = bHasHover;
+	EnemyArcHoveredCell = HoveredCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+bool ARTHexMapActor::HasEnemyArcToDraw() const
+{
+	if (EnemyArcs.Num() == 0)
+	{
+		return false;
+	}
+	return bEnemyArcsAll || (bEnemyArcHover && EnemyArcs.Contains(EnemyArcHoveredCell));
+}
+
+TArray<FRTEnemyArcView> ARTHexMapActor::GetShownEnemyArcs() const
+{
+	TArray<FRTEnemyArcView> Out;
+	if (bEnemyArcsAll)
+	{
+		// L'ordine di un `TMap` dipende dall'hash: si ordina per cella, perche' la diagnostica non cambi fra due giri.
+		TArray<FRTCellId> Chiavi;
+		EnemyArcs.GetKeys(Chiavi);
+		Chiavi.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+		for (const FRTCellId& K : Chiavi)
+		{
+			Out.Add(EnemyArcs[K]);
+		}
+	}
+	else if (bEnemyArcHover)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
+		{
+			Out.Add(*Arco);
+		}
+	}
+	return Out;
+}
+
+void ARTHexMapActor::DrawVisionBorder() const
+{
+	// 🔑 **Il colore e' quello della VISTA nella palette** (`#32ADE6`, [D-368]): l'autore l'ha scelto sulla tavola L1
+	// di #3761, fra il bianco caldo e il blu della squadra. Si chiede alla palette e non si ricopia: se il colore
+	// della vista cambia, la linea lo segue.
+	//
+	// ⚠️ **Si disegna anche in vista strategica**, per scelta dell'autore sulla tavola L2: nessun ramo su
+	// `IsStrategicPresentation()` qui.
+	DrawEdgeLines(VisionBorder, URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision), RTVisionBorderThickness);
+}
+
+void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const
+{
+	const UWorld* World = GetWorld();
+	if (!World || Lati.Num() == 0)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+
+	for (const FRTExposedEdge& Lato : Lati)
+	{
+		// Il tratto e' il LATO dell'esagono: meta' lunghezza per parte, a partire dal punto medio che
+		// `EdgeMidpointWorld` deriva dai due centri, e perpendicolare alla direzione del vicino. Con un
+		// circumraggio `Size` il lato e' lungo `Size`, quindi gli estremi cadono sugli spigoli di `HexCorners`.
+		const FRTHexCellData* Dati = MapAsset ? MapAsset->FindCell(Lato.Cell) : nullptr;
+		const FVector Su(0.f, 0.f, (Dati ? static_cast<float>(Dati->Height) : 0.f) + RTLiftVisionBorder);
+		const FVector Centro = URTHexLibrary::AxialToWorld(Lato.Cell, Origin, Size, LayerH);
+		const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Lato.Cell, Lato.Direction, Origin, Size, LayerH);
+		const FVector Verso = FVector(Medio.X - Centro.X, Medio.Y - Centro.Y, 0.f).GetSafeNormal();
+		const FVector Lungo = FVector::CrossProduct(Verso, FVector::UpVector) * (Size * 0.5f);
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su, Medio + Lungo + Su, Colore, SDPG_World, Spessore);
 	}
 }
 

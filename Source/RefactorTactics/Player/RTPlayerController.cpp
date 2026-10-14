@@ -656,6 +656,9 @@ void ARTPlayerController::BuildInputMappings()
 
 	SneakAction = NewObject<UInputAction>(this, TEXT("IA_DeclareSneak"));
 	SneakAction->ValueType = EInputActionValueType::Boolean;
+
+	EnemyArcsAction = NewObject<UInputAction>(this, TEXT("IA_ShowEnemyArcs")); // #3762
+	EnemyArcsAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
 	// `#2858`: i due comandi che mancavano alla matrice di `#1881`. Nascono sempre — anche in Shipping,
@@ -780,6 +783,10 @@ void ARTPlayerController::BuildInputMappings()
 	// ovunque.
 	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
 	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
+
+	// `#3762`: `H`, tenuto premuto, mostra gli archi di tutti i nemici in vista. Scelto dall'autore fra i tasti
+	// liberi; `PlayerInput.HotkeysDoNotCollide` verifica che resti libero su tutto il contesto.
+	MappingContext->MapKey(EnemyArcsAction, EKeys::H);
 
 	// `P` come "pausa". ⚠️ **Non `ESC`** — quello apre il menu modale di CP 46.6 — e non `Spazio`, che e' il
 	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
@@ -965,6 +972,11 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
 		EIC->BindAction(SneakAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleSneak);
+		// #3762: un gesto TENUTO, quindi pressione e rilascio — e `Canceled`, perche' un rilascio perso (fuoco tolto
+		// alla finestra a tasto premuto) lascerebbe gli archi accesi.
+		EIC->BindAction(EnemyArcsAction, ETriggerEvent::Started, this, &ARTPlayerController::OnEnemyArcsPressed);
+		EIC->BindAction(EnemyArcsAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnEnemyArcsReleased);
+		EIC->BindAction(EnemyArcsAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnEnemyArcsReleased);
 		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
 		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
@@ -1029,6 +1041,11 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
+
+	// `#3762`: quali archi dei nemici in vista si disegnano. Col mouse quello del nemico sotto il cursore — la cella
+	// e' la stessa dell'hover, e colpendo un'unita' del piano attivo e' la SUA cella — e con `H` tutti. Gli archi li
+	// calcola il presenter del velo; qui si sceglie soltanto quali mostrare.
+	HexMap->SetEnemyArcFocus(bShowAllEnemyArcs, HexMap->GetHoveredCell(), HexMap->IsHoveredCellValid());
 }
 
 // --- #1775 / #1776 · il piano attivo del giocatore, e il picking che lo rispetta (D-255) --------------
@@ -2922,6 +2939,16 @@ void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
 	// L'unica scrittura della UI nel modello. La scala e' dell'HUD — e' vocabolario di presentazione,
 	// non una regola — e qui si applica soltanto.
 	TurnManager->ViewerPlaybackSpeed = ARTHUD::NextViewerPlaybackSpeed(TurnManager->ViewerPlaybackSpeed);
+}
+
+void ARTPlayerController::OnEnemyArcsPressed(const FInputActionValue& Value)
+{
+	bShowAllEnemyArcs = true;
+}
+
+void ARTPlayerController::OnEnemyArcsReleased(const FInputActionValue& Value)
+{
+	bShowAllEnemyArcs = false;
 }
 
 void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
