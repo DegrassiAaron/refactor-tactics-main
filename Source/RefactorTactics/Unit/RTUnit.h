@@ -1973,6 +1973,16 @@ protected:
 	 */
 	void ApplyUnitAnimClass();
 
+	/**
+	 * La classe d'animazione in uso: `UnitAnimClass`, o `URTUnitAnimInstance` se e' nulla (#3562).
+	 *
+	 * 🔴 **Da #3562 `UnitAnimClass` dei `BP_Unit_*` e' un ASSET** (`ABP_RTUnitAuthored`). Un clone dove manca, o un
+	 * blueprint salvato dove non si caricava, la legge nulla: prima di questo ripiego l'unita' non risolveva nessuna
+	 * clip e restava in posa di riferimento, senza una riga di log. Il ripiego e' cio' che `UnitAnimClass` valeva
+	 * prima dei blueprint. Ogni lettura del CDO delle clip passa da qui, e `ApplyUnitAnimClass` lo scrive nel log.
+	 */
+	TSubclassOf<UAnimInstance> ResolvedAnimClass() const;
+
 	/** Cabla `OverlayWidgetClass` sul componente. Senza classe assegnata non fa nulla (`#2288`). */
 	void ApplyOverlayWidgetClass();
 

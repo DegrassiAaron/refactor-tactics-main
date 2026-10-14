@@ -996,4 +996,49 @@ bool FRTUnitDefaultGestureClipsAreNotAdditiveTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una classe d'animazione nulla ripiega sul grafo C++, invece di lasciare l'unita' in posa di riferimento** (#3562).
+ *
+ * 🔴 Da #3562 i `BP_Unit_*` assegnano `UnitAnimClass` alla classe autorata `ABP_RTUnitAuthored`, che e' un asset.
+ * Un clone dove quell'asset manca, o un blueprint salvato dove non si caricava, legge `UnitAnimClass` nulla: prima di
+ * questo test `ResolvedClipPathFor` tornava `nullptr` e l'unita' non suonava niente, senza una riga di log. Il
+ * ripiego e' `URTUnitAnimInstance`, cioe' cio' che `UnitAnimClass` valeva prima dei blueprint.
+ *
+ * ⚠️ Si usano i default C++ di `Hero.Aevik` e non una voce sintetica: il ripiego legge il CDO C++, quindi una voce
+ * scritta in un altro CDO non lo proverebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimChannelNullAnimClassFallsBackTest,
+	"RefactorTactics.Anim.Channel.NullAnimClassFallsBackToTheCppGraph",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimChannelNullAnimClassFallsBackTest::RunTest(const FString&)
+{
+	UWorld* World = MakeChannelWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* U = SpawnChannelUnit(World, 0, FRTCellId(0, 0));
+	if (!U) { DestroyChannelWorld(World); return false; }
+	U->HeroId = FName(TEXT("Hero.Aevik"));
+	const FName Azione(TEXT("Hero.Aevik.ArcPulse"));
+
+	// Premessa: con la classe C++ le due clip risolvono, e sono diverse fra loro.
+	const FString AttaccoC = U->ResolvedClipPathFor(ERTPresentationRole::Attack, Azione, NAME_None).ToSoftObjectPath().ToString();
+	const FString IdleC = U->ResolvedClipPathFor(ERTPresentationRole::Idle).ToSoftObjectPath().ToString();
+	if (!TestFalse(TEXT("premessa: con la classe C++ la clip d'azione risolve"), AttaccoC.IsEmpty())
+		|| !TestFalse(TEXT("premessa: con la classe C++ l'idle risolve"), IdleC.IsEmpty()))
+	{
+		DestroyChannelWorld(World); return false;
+	}
+
+	U->UnitAnimClass = nullptr;
+	TestEqual(TEXT("classe nulla: la clip d'azione e' quella del grafo C++"),
+		U->ResolvedClipPathFor(ERTPresentationRole::Attack, Azione, NAME_None).ToSoftObjectPath().ToString(), AttaccoC);
+	TestEqual(TEXT("classe nulla: l'idle e' quello del grafo C++"),
+		U->ResolvedClipPathFor(ERTPresentationRole::Idle).ToSoftObjectPath().ToString(), IdleC);
+	// Nessuna asserzione di «non crasha»: se crasha, il test non arriva alla riga dopo.
+	U->PlayPresentationRole(ERTPresentationRole::Attack, Azione, NAME_None);
+
+	DestroyChannelWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
