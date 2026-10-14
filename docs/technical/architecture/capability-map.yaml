@@ -323,7 +323,7 @@ capabilities:
       files:
         - Source/RefactorTactics/Turn/RTMovementActionLibrary.h
         - Source/RefactorTactics/Turn/RTMovementActionLibrary.cpp
-    issues: { open: [704, 2825, 3764], closed: [3736] }
+    issues: { open: [704, 2825, 3736, 3764], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-FACING, RT-CAP-MAP-TOPOLOGY]
     tests:
@@ -1937,7 +1937,7 @@ capabilities:
         - Source/RefactorTactics/Player/RTPointerInteraction.h
         - Source/RefactorTactics/Player/RTPlayerController.h
         - Source/RefactorTactics/Selection/RTSelectable.h
-    issues: { open: [1614, 2802, 3769], closed: [3736] }
+    issues: { open: [1614, 2802, 3736, 3769], closed: [] }
     consumers: [RT-CAP-SCREEN-HUD, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:

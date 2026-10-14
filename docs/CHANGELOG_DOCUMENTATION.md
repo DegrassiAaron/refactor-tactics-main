@@ -11,7 +11,8 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-516`, con le tre domande come l'autore le ha viste, e che cosa colpisce davvero una carica oltre la portata |
 | [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1: la riga del nemico rilevato con una carica armata, e la scelta fra le tre uscite di #3736 con la sua ragione |
 | [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | `LinearCharge` oltre la portata; il click sul nemico; l'anteprima tratteggiata in rosso oltre la portata. Il colore dell'anteprima diceva ancora «magenta», che è uscito con `D-234` |
-| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-POINTER-INTERACTION` e `RT-CAP-MOVEMENT-LINEAR`: #3736 fra le chiuse; fra le aperte #3764, la carica fra più piani, e #3769, hover e anteprima che non dicono chi la carica colpirà |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK`, voce nuova: che cosa fa il click quando il raggio prende la mappa invece dell'unità, e il tratto rosso della carica oltre la portata. Nessuno scenario dà Branth al giocatore, e la voce lo dice
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-POINTER-INTERACTION` e `RT-CAP-MOVEMENT-LINEAR`: fra le aperte #3736, finché la sua voce PIE non ha un verdetto, #3764, la carica fra più piani, e #3769, hover e anteprima che non dicono chi la carica colpirà |
 
 ---
 
