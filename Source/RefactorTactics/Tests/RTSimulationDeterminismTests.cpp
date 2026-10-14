@@ -23,6 +23,7 @@
 #include "Misc/AutomationTest.h"
 #include "Replay/RTBoundaryChecksum.h"
 #include "RTWorldFixtures.h"
+#include "RTOverwatchScenarioFixtures.h" // [D-518]: lo scenario dei due watcher sul bersaglio abbattuto
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -731,6 +732,103 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("e la risposta che nessuna finestra ha reclamato e' segnalata"), bCollassoOrfano);
 
+	return true;
+}
+
+
+/**
+ * [D-518] (`#3745`) — **il collasso per bersaglio a terra si ricalcola dallo stato, come quello da condizione, e
+ * non consulta la traccia.**
+ *
+ * Lo scenario e' quello di `Overwatch.SecondWatcherHoldsOnADownedTarget`: il primo watcher abbatte il mover, e al
+ * secondo il `FIRE` su di lui non si offre. Le due meta' sono quelle di `CollapsedWindowIgnoresTheTrace`, e per la
+ * stessa ragione:
+ *
+ *     (a) traccia ORIGINALE   -> nessuna divergenza. Se la voce `CollapsedTargetDown` entrasse nella mappa delle
+ *                                risposte registrate, nessuna finestra la reclamerebbe e risulterebbe orfana
+ *     (b) traccia PERTURBATA  -> quella voce diventa un `FIRE` scelto sul caduto: e' la forma che una traccia
+ *                                registrata PRIMA di [D-518] porta. Il `FIRE` non si applica, il collasso resta, e
+ *                                la risposta che nessuna finestra reclama e' segnalata
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierDownedTargetCollapseTest,
+	"RefactorTactics.Replay.Verifier.DownedTargetCollapseIgnoresTheTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierDownedTargetCollapseTest::RunTest(const FString&)
+{
+	const FRTTestScenario Scenario = RTOverwatchScenarioFixtures::MakeSecondWatcherOnDownedTargetScenario();
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(A);
+	const int32 Collassi = CountOutcome(Traccia, ERTReactionDecisionOutcome::CollapsedTargetDown);
+	if (!TestEqual(TEXT("la traccia porta il collasso del secondo watcher, o il test non verifica niente"), Collassi, 1))
+	{
+		return false;
+	}
+
+	// (a) La traccia originale, senza le decisioni dello scenario: risponde solo la traccia.
+	const FRTTestScenario Muto = WithoutScriptedDecisions(Scenario);
+	const FRTTestResult B = RunAsVerifier(Muto, Traccia, nullptr, Divergenze);
+	TestEqual(FString::Printf(TEXT("la ri-simulazione da' lo stesso stato (%08x vs %08x)"), B.StateHash, A.StateHash),
+		B.StateHash, A.StateHash);
+	TestEqual(TEXT("e lo stesso collasso"), CountOutcome(AllEntries(B), ERTReactionDecisionOutcome::CollapsedTargetDown),
+		Collassi);
+	TestEqual(TEXT("nessuna divergenza: la voce del collasso non entra nella mappa e non resta orfana"),
+		Divergenze.Num(), 0);
+	if (Divergenze.Num() > 0)
+	{
+		AddError(FString::Printf(TEXT("primo disaccordo: %s"), *Divergenze[0]));
+	}
+
+	// (b) La voce del collasso diventa un `FIRE` scelto sul caduto: com'era prima di [D-518].
+	int32 Bersaglio = INDEX_NONE;
+	for (const FRTTurnLogEntry& E : Traccia)
+	{
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE)
+		{
+			Bersaglio = URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse);
+			break;
+		}
+	}
+	TArray<FRTTurnLogEntry> Vecchia = Traccia;
+	FString ChiaveCollasso;
+	for (FRTTurnLogEntry& E : Vecchia)
+	{
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::CollapsedTargetDown)
+		{
+			ChiaveCollasso = E.OpportunityId;
+			E.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+			E.ReactionResponse = URTReactionOpportunityLibrary::FireResponse(Bersaglio);
+			E.SelectedTargetUnitId = Bersaglio;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("c'erano un FIRE da cui prendere il bersaglio e un collasso da riscrivere"),
+		Bersaglio != INDEX_NONE && !ChiaveCollasso.IsEmpty()))
+	{
+		return false;
+	}
+
+	const FRTTestResult C = RunAsVerifier(Muto, Vecchia, nullptr, Divergenze);
+	TestEqual(TEXT("il FIRE registrato sul caduto NON si applica: il collasso resta"),
+		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::CollapsedTargetDown), Collassi);
+	TestEqual(TEXT("e i FIRE della ri-simulazione sono quelli della partita"), CountFireResponses(AllEntries(C)),
+		CountFireResponses(Traccia));
+
+	bool bOrfana = false;
+	for (const FString& D : Divergenze)
+	{
+		if (D.Contains(TEXT("orfana")) && D.Contains(ChiaveCollasso)) { bOrfana = true; }
+	}
+	TestTrue(TEXT("e la risposta registrata che nessuna finestra reclama e' segnalata"), bOrfana);
 	return true;
 }
 

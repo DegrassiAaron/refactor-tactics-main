@@ -423,9 +423,10 @@ bool FRTPacingOpportunitiesCountEveryDecisionTest::RunTest(const FString&)
 	Entries.Add(Decision(2, ERTReactionDecisionOutcome::Timeout));
 	Entries.Add(Decision(2, ERTReactionDecisionOutcome::Rejected));
 	Entries.Add(Decision(1, ERTReactionDecisionOutcome::Chosen));
-	// E le TRE che non occupano nessuno — ma sono opportunity a tutti gli effetti: il sistema le ha prodotte.
+	// E le QUATTRO che non occupano nessuno — ma sono opportunity a tutti gli effetti: il sistema le ha prodotte.
 	Entries.Add(Decision(1, ERTReactionDecisionOutcome::Immediate));
 	Entries.Add(Decision(2, ERTReactionDecisionOutcome::CollapsedByCondition));
+	Entries.Add(Decision(1, ERTReactionDecisionOutcome::CollapsedTargetDown)); // [D-518]: il bersaglio era gia' a terra
 	Entries.Add(Decision(2, ERTReactionDecisionOutcome::NoDecider));
 	// Una voce di un'altra categoria: non e' una opportunity, e nessuno dei due conteggi la vede.
 	FRTTurnLogEntry Move;
@@ -437,8 +438,8 @@ bool FRTPacingOpportunitiesCountEveryDecisionTest::RunTest(const FString&)
 
 	const TSet<int32> MyTeam{ 1, 2 };
 
-	TestEqual(TEXT("otto opportunity: le cinque che occupano PIU' le tre auto-risolte"),
-		URTPacingLibrary::CountReactionOpportunities(Entries, MyTeam), 8);
+	TestEqual(TEXT("nove opportunity: le cinque che occupano PIU' le quattro auto-risolte"),
+		URTPacingLibrary::CountReactionOpportunities(Entries, MyTeam), 9);
 	TestEqual(TEXT("cinque finestre: solo quelle che hanno preso il tempo di qualcuno"),
 		URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam), 5);
 
@@ -481,6 +482,7 @@ bool FRTPacingBoundariesSubsetTest::RunTest(const FString&)
 		ERTReactionDecisionOutcome::Immediate,
 		ERTReactionDecisionOutcome::CollapsedByCondition,
 		ERTReactionDecisionOutcome::NoDecider,
+		ERTReactionDecisionOutcome::CollapsedTargetDown,
 	};
 
 	const TSet<int32> MyTeam{ 1 };

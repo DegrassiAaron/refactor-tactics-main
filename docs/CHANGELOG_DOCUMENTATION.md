@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-14 — Il `FIRE` su un bersaglio già abbattuto non si offre
+
+**Origine**: [#3745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3745), decisioni d'autore `D-518`. Due Overwatch sullo stesso mover: il primo lo abbatte, e la seconda finestra offriva ancora `FIRE` su di lui, che spendeva la carica senza fare danno. Ora quel `FIRE` non si offre: col solo `HOLD` la finestra non si apre e la carica resta.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-518`, con le due proposte come l'autore le ha lette, e il caso misto come conseguenza |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione sui trigger dello stesso passo; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3745 fra le chiuse — la regola sta nella libreria delle opportunity e nel pompaggio delle finestre —, #3771 fra le aperte |
+| [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | `ReactionWindowsOpened`: `CollapsedTargetDown` fra i commit immediati, che non contano |
+| [`technical/tooling/tassonomia-icone-manifest-runtime.md`](technical/tooling/tassonomia-icone-manifest-runtime.md) | gli esiti di `ERTReactionDecisionOutcome` per nome; diceva «sei valori», che con il nuovo non era più vero |
+
+---
+
 ## 2026-10-14 — La carica si pianifica cliccando il nemico, anche oltre la portata
 
 **Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), decisioni d'autore `D-516`. Con una carica armata il click su un nemico osservato lo ispezionava e non pianificava: il ramo che inoltra la carica alla sua cella si raggiungeva solo dalla porta di test. Ora il click pianifica la carica; su un nemico in linea ma oltre la portata la carica si pianifica con un avviso e il tratto rosso, e alla risoluzione corre fino alla portata e si ferma senza raggiungerlo.
