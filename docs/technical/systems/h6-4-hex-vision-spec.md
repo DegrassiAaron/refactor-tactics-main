@@ -54,9 +54,11 @@ Questo slice colma il divario, resta **puro e headless** e non tocca nulla di es
 - `static bool HasLineOfSight(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)` — falso se
   una cella **intermedia** esiste sul layer di `From` e ha `bBlocksLineOfSight`. Estremi mai bloccanti (tiratore e
   bersaglio non si coprono da soli); mappa nulla → vero (nessun ostacolo noto); `From == To` → vero.
-  ⚠️ Anche **stessa colonna e piano diverso → vero**: la linea non ha quota. Che due unità impilate non si
-  **vedano** è una regola del contatto della percezione ([D-510](../../decisions/RT_PDR_00_Decision_Log.md), #3741), e non sta qui: messa nella
-  linea fa arretrare il filtro dei bot (`Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack`).
+  ⚠️ Anche **stessa colonna e piano diverso → vero**: la linea non ha quota. Che cosa una squadra **vede** fra
+  due piani è una regola del contatto della percezione, e non sta qui: una linea da testa a testa che si ferma
+  sui pavimenti ([D-511](../../decisions/RT_PDR_00_Decision_Log.md), #3743), di cui le due unità impilate sono il caso verticale ([D-510](../../decisions/RT_PDR_00_Decision_Log.md), #3741).
+  Messa in questa linea, la regola fa arretrare il filtro dei bot (`Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack`).
+  La regola è in [`conoscenza-parziale-visibile-spec.md`](conoscenza-parziale-visibile-spec.md) §1.1.1.
   🔑 Il corpo **delega** a `DescribeLineOfSight` e ne butta via la ragione: la parità fra bool e ragione è
   **strutturale**, non asserita, perché non esiste una seconda LOS da tenere allineata.
 - `static FRTLineOfSightResult DescribeLineOfSight(...)` — la stessa decisione con la **ragione** e il **punto**.

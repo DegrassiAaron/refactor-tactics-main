@@ -825,12 +825,12 @@ capabilities:
         - Source/RefactorTactics/Perception/RTAcousticPropagationLibrary.h
         - Source/RefactorTactics/Perception/RTNoiseTypes.h
         - Source/RefactorTactics/Perception/RTKnowledgeView.h
-    issues: { open: [327, 2795, 824, 3741], closed: [] }
+    issues: { open: [327, 2795, 824, 3741, 3743], closed: [] }
     consumers: [RT-CAP-BOT-FAIRNESS, RT-CAP-FOG-PRESENTATION, RT-CAP-TEAM-KNOWLEDGE]
     dependencies: [RT-CAP-LOS, RT-CAP-MAP-TOPOLOGY]
     tests:
       automation: ["RefactorTactics.Perception.*", "RefactorTactics.Noise.*", "RefactorTactics.Knowledge.*", "RefactorTactics.Visibility.*", "RefactorTactics.Vision.*"]
-      scenarios: [Scenarios/Spec/Bot/PlansOnPartialKnowledge.json, Scenarios/Visual/Map/StackedColumn.json]
+      scenarios: [Scenarios/Spec/Bot/PlansOnPartialKnowledge.json, Scenarios/Visual/Map/StackedColumn.json, Scenarios/Visual/Map/PlatformEdge.json, Scenarios/Visual/Map/OverTheWall.json]
       mutation: []
     verification: { pie: [PIE-VIS-COLONNA], packaged: [] }
 

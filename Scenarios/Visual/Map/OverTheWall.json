@@ -1,0 +1,32 @@
+{
+  "scenarioId": "Visual.Map.OverTheWall",
+  "tags": ["map", "layer", "perception", "vision", "visual", "gadget", "riktor", "wraith"],
+  "verifies": ["PIE-VIS-COLONNA"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "La regola della linea fra piani non toglie soltanto: da terra, da lontano, si vede SOPRA un muro chi sta in alto. A1 sta sul pavimento, tre celle dietro il muro di vista di q=0, rivolto verso la piattaforma; B1 sta sulla piattaforma, sulla cella di bordo; B2 sta a terra, subito dietro il muro. Non misura la regola, che e' del test `Vision.PlatformIsSeenFromTheOpenNotFromUnderneath`: costruisce la scena in cui una persona la guarda.",
+
+  "_oracolo": "La voce `PIE-VIS-COLONNA` di `docs/technical/test-manuali-pie.md`. Dalla squadra 0 si vede B1 e NON si vede B2. `D-511`: contano gli ostacoli del piano in cui la linea sta passando. Verso B1 la linea sale, e sopra il muro e' gia' al piano di sopra: il muro ferma solo il tratto basso. Verso B2 la linea resta a terra, e il muro la ferma.",
+
+  "_nota_controllo": "I due nemici si fanno da controllo a vicenda: B2 dice che il muro c'e' e ferma la vista a terra, B1 dice che la linea verso l'alto gli passa sopra. Fino a #3743 da quella cella non si vedeva nessuno dei due: la vista si calcolava sul piano di chi guarda, e il muro la fermava tutta.",
+
+  "_nota_fixture": "`TestArena`: il muro che blocca la vista sta lungo q=0, da r=-2 a r=2, e si attraversa. Le scene gemelle sono `Visual.Map.StackedColumn` (da sotto la piattaforma) e `Visual.Map.PlatformEdge` (da fuori, accanto).",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-3, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 1] },
+    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [1, 0, 0] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-3, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [2, 0, 1] },
+    { "type": "UnitAtCell", "unit": "B2", "cell": [1, 0, 0] },
+    { "type": "UnitFacing", "unit": "A1", "value": "E" }
+  ]
+}
