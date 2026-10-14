@@ -1,0 +1,26 @@
+{
+  "scenarioId": "Visual.Input.ChargeBeyondRange",
+  "tags": ["pointer", "planning", "dash", "movement", "visual", "branth", "ivrin"],
+  "verifies": ["PIE-V01-CHARGECLICK"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "BANCO della carica oltre la portata (D-516, #3736). Zero turni: la partita resta in Pianificazione perche' una persona arma `Hero.Branth.Ram` e clicchi B1. B1 e' in linea e la retta e' libera, ma sta a quattro celle e la portata di `Ram` e' 3: la carica si pianifica lo stesso, con un avviso, e alla risoluzione si fermerebbe a `(-1,3)` senza raggiungerla.",
+  "_oracolo": "`PIE-V01-CHARGECLICK`, domanda (3). Dopo il click su B1: la linea dello scatto e' piena da A1 fino a `(-1,3)`, la cella dove la carica si ferma, poi tratteggiata in rosso fino a B1; il segno d'arrivo sta su `(-1,3)`, non su B1. Confermando il piano compare l'avviso «Il bersaglio è oltre la portata». Tratto e segno li disegna `DrawHUD`, che headless non gira.",
+  "_nota_geometria": "Tutto su `r = 3` di `TestArena`, come in `Visual.Input.ChargeClick`: nessun ostacolo fra A1 e B1, e la colonna di vista `(0, r)` si ferma a `r = 2`. B1 a quattro celle resta dentro la vista di A1 e nel suo cono frontale: letto dalla geometria, non misurato. Se in seduta B1 compare velata, il click la tratta come terreno e la domanda non si pone. Il turno non si gioca: la regola della risoluzione la misurano `HexMatch.ChargeBeyondRangeRunsToRangeAndStops` e `HexMatch.ChargeBeyondRangeIsRevalidatedByTheResolver`.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-4, 3, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [0, 3, 0],  "facing": "W" }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-4, 3, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 3, 0] },
+    { "type": "UnitAlive", "unit": "B1", "value": true }
+  ]
+}

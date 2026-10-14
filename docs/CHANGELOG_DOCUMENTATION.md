@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-14 — Le due scene della carica cliccata
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), il quarto criterio: misurare in PIE che cosa fa il click con una carica armata. La voce `PIE-V01-CHARGECLICK` chiedeva Branth nella squadra del giocatore, e nessuno scenario ce lo metteva.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK`: la precondizione nomina le due scene, e dice che la vista dei nemici è letta dalla geometria e non misurata |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | Fascia E: `Visual.Input.ChargeClick` e `Visual.Input.ChargeBeyondRange`, che allestiscono e non giocano come `PcGym` |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | le due righe, con la voce che le guarda |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-POINTER-INTERACTION`: i due scenari |
+
+---
+
 ## 2026-10-14 — Il `FIRE` su un bersaglio già abbattuto non si offre
 
 **Origine**: [#3745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3745), decisioni d'autore `D-518`. Due Overwatch sullo stesso mover: il primo lo abbatte, e la seconda finestra offriva ancora `FIRE` su di lui, che spendeva la carica senza fare danno. Ora quel `FIRE` non si offre: col solo `HOLD` la finestra non si apre e la carica resta.
