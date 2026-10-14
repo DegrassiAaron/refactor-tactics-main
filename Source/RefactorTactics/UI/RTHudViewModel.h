@@ -1312,7 +1312,11 @@ public:
 	static constexpr int32 MaxFeedLines = 12;
 
 	/**
-	 * Lo stesso feed, preso dal manager. `TurnManager` nullo -> nessuna riga.
+	 * Il feed preso dal manager. `TurnManager` nullo -> nessuna riga.
+	 *
+	 * ⚠️ **Non e' identico a quello del solo `TurnLog`** (`#3734`): il manager sa se la sessione e' presidiata, e
+	 * passa la squadra di chi guarda (`OwnTeamForFeed`) — per le sue unita' cio' che hanno subito vince su cio' che
+	 * hanno fatto. Chi legge il `TurnLog` da se' e vuole la stessa regola la passa con `OwnTeamId`.
 	 *
 	 * 🔑 **Esiste per non far pagare a `RTScreenHudWidgets.cpp` l'header dell'orchestratore**, che `#2257`
 	 * ne ha tolto: leggere `GetTurnLog()` da li' pretenderebbe il tipo completo, e la dipendenza tornerebbe
@@ -1347,8 +1351,8 @@ public:
 	 * `AllowsTeam`, una volta per voce. Un insieme **vuoto** da' un feed **vuoto**: il fail-closed non si
 	 * allenta passando per un contenitore.
 	 *
-	 * ⛔ Le due firme a un solo `int32` restano quello che erano e rispondono identiche: delegano a queste
-	 * con un insieme di un elemento. Non esiste un parametro che significhi «ignora l'osservatore».
+	 * ⛔ Le due firme a un solo `int32` delegano a queste con un insieme di un elemento, e rispondono come loro.
+	 * Non esiste un parametro che significhi «ignora l'osservatore».
 	 *
 	 * ➕ **`OwnTeamId`** (`#3734`): la squadra di chi guarda, per cui cio' che le sue unita' hanno subito vince su
 	 * cio' che hanno fatto — vedi `URTPlayerEventProjector::Project`. `INDEX_NONE` per default: la scala di sempre.

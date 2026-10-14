@@ -1067,6 +1067,22 @@ bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
 			Voce(ERTLogCategory::Status, static_cast<uint8>(ERTStatusOutcome::Expired), Mia, Stato) }, Proprie),
 		ColpoDato);
 
+	// (12b) ... non cancella una spinta subita, ne' la rende cedevole a un colpo dato dopo (code review).
+	Atteso(TEXT("(12b) viene spinta, e un suo stato scade"),
+		Resta({ Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")),
+			Voce(ERTLogCategory::Status, static_cast<uint8>(ERTStatusOutcome::Expired), Mia, Stato) }, Proprie),
+		FName(TEXT("Prova.Spinta")));
+	Atteso(TEXT("(12b) viene spinta, uno stato scade, poi colpisce"),
+		Resta({ Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")),
+			Voce(ERTLogCategory::Status, static_cast<uint8>(ERTStatusOutcome::Expired), Mia, Stato),
+			Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato) }, Proprie),
+		FName(TEXT("Prova.Spinta")));
+	// ... ma compare se l'unita' non ha altro: il movimento silenzioso non gli tiene il posto.
+	Atteso(TEXT("(12b) scatta, e un suo stato scade"),
+		Resta({ Mossa(ERTMoveOutcome::Moved, Mia, TEXT("Prova.Scatto")),
+			Voce(ERTLogCategory::Status, static_cast<uint8>(ERTStatusOutcome::Expired), Mia, Stato) }, Proprie),
+		Stato);
+
 	// (13) Una cura su se stessi e' una cura DATA, anche con le due celle uguali che la rete dei danni legge come
 	//      ambientali: cede alla spinta.
 	FRTTurnLogEntry CuraSuDiSe = Colpo(ERTCombatOutcome::Healed, Mia, CuraData);
@@ -1096,8 +1112,8 @@ bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
  * ⚠️ **Le premesse si leggono dalla traccia**: che lo scatto sia arrivato e che la spinta sia avvenuta, e in
  * quest'ordine. Senza, una riga assente direbbe «il feed tace» quando la scena non ha prodotto il caso.
  *
- * 🔑 Con la scala di sempre — l'overload senza le unita' di chi guarda — la mia unita' resta senza righe: e' il
- * difetto, ed e' la prova che la scena lo produce davvero.
+ * 🔑 Con la scala di sempre — il feed del solo `TurnLog`, senza la squadra di chi guarda — la mia unita' resta
+ * senza righe: e' il difetto, ed e' la prova che la scena lo produce davvero.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventPushAfterDashTest,
 	"RefactorTactics.UI.PlayerEventLog.APushAfterASuccessfulDashReachesTheFeed",
@@ -1270,9 +1286,9 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 		RigheDi(URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 0 }), Mia, NonPresidiata), 0);
 	TM->SetUnattendedSession(false);
 
-	// 🔴 **E dal widget, la porta che il giocatore vede.** `GetFeed` raccoglie da solo le unita' del proprio mondo
-	// e le passa al view model: senza questa lettura, un widget che smettesse di passarle — e mostrasse di nuovo
-	// il feed muto — lascerebbe verde tutto il resto. Misurato con la mutazione `M7`.
+	// 🔴 **E dal widget, la porta che il giocatore vede.** `GetFeed` passa dal view model col manager, che sa se la
+	// sessione e' presidiata e da' la squadra di chi guarda: senza questa lettura, un widget che tornasse al feed
+	// del solo `TurnLog` — e mostrasse di nuovo il feed muto — lascerebbe verde tutto il resto.
 	URTPlayerEventLogWidget* Widget = NewObject<URTPlayerEventLogWidget>(World);
 	if (TestNotNull(TEXT("il widget del feed"), Widget))
 	{
