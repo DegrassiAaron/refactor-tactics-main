@@ -119,7 +119,7 @@ Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177
 
 > ⌫ **Fino al 2026-10-13 il modificatore era `Alt`, sinistro e destro.** Lo cambia
 > [D-514](../../decisions/RT_PDR_00_Decision_Log.md), in [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749):
-> i cinque gesti della tabella sono gli stessi, su `Ctrl`, e i due `Alt` non sono più mappati. I due blocchi qui
+> i gesti della tabella sono gli stessi, su `Ctrl`, e i due `Alt` non sono più mappati. I due blocchi qui
 > sotto sono del 2026-08-30 e nominano il tasto di allora. La risposta «entrambi» non cambia: il secondo modo di
 > orbitare è `Ctrl`+`LMB`, e con `Ctrl` premuto `MMB` pana invece di orbitare.
 >

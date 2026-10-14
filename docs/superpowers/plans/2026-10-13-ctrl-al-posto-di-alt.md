@@ -347,3 +347,37 @@ quattro messaggi attesi, e la mutazione sul `Ctrl` destro uccide.
 
 **Non controllato**: come il motore consegna `AltGr` e gli accordi con `Ctrl` dentro l'Editor; gli asset binari
 (una legenda dei tasti in un `WBP` non si vede col grep); i numeri delle decisioni, che chiedono `git` e `gh`.
+
+---
+
+## ➕ esecuzione. Che cosa è stato misurato (2026-10-14)
+
+I log sono nello scratchpad della sessione che ha eseguito, coi nomi `3749-<giro>-…`.
+
+| Giro | Commit o stato | Esito |
+|---|---|---|
+| `rosso` | test nuovo, tasti ancora sugli `Alt` | `RefactorTactics.PlayerInput`: un rosso, `CameraModifierIsCtrlOnBothSidesAndAltIsUnmapped`, coi quattro messaggi attesi |
+| `verde` | i due `MapKey` sui `Ctrl` | la famiglia intera verde; commit `6db0579db` |
+| `mutazione` | sopra `6db0579db`: tolto il `MapKey` di `RightControl`, aggiunto `MapKey(UndoAction, EKeys::LeftAlt)` | un rosso, coi tre messaggi attesi: «IA_UndoWaypoint non sta su un Alt (LeftAlt)», «sta sul Ctrl destro», «non ha altri tasti oltre ai due Ctrl». `HotkeysDoNotCollide` verde |
+| `rename` | file ripristinato con `git checkout`, poi il rename | `PlayerInput` e `Camera` verdi; compare `Camera.ModifierDragOrbitsOnlyPastTheClickThreshold`, il nome vecchio no; commit `484866a95` |
+
+**Ruling `E1`.** Il piano chiedeva una build e un giro verde di solo ripristino dopo la mutazione, prima del rename. Sono stati fusi nel giro `rename`: il ripristino è `git checkout` del solo file mutato, controllato col diff, e il rename ricompila lo stesso file. La prova che il binario non porta più la mutazione è il verde di `CameraModifierIsCtrlOnBothSidesAndAltIsUnmapped` in quel giro, cioè il test che la mutazione aveva fatto cadere. Costo se è sbagliato: nessuno che quel verde non scopra.
+
+## ➕ rev2. I rilievi del revisore avversario sul branch
+
+Un secondo agente con contesto fresco, in sola lettura, sul branch finito. Nessun rilievo critico: nel sorgente non c'è logica cambiata oltre ai due `MapKey` e ai rename. Corretti in una passata sola, prima della suite intera.
+
+| | Gravità | Rilievo | Correzione |
+|---|---|---|---|
+| **C1** | importante | Il passo 17 di `PIE-PC-GYM`, parte (a), poteva dare un falso FAIL: con l'`Alt` sinistro il destro è quello di gioco e toglie un waypoint, mentre il passo 5 chiede che nessun waypoint sia cancellato | Il passo ha una precondizione, dice che il waypoint tolto è l'esito atteso, e che i criteri dei passi 3–5 lì non valgono |
+| **C2** | minore | Un commento datato 2026-08-30 diceva `Ctrl`+`LMB`: quel giorno era `Alt` | «il modificatore col sinistro» |
+| **C3** | minore | `B10` accolto a metà: il commento sul binding `Canceled` era una sostituzione meccanica | riscritto senza il tasto, con la causa: un clic fuori, un cambio di finestra |
+| **C4** | minore | Il commento del header mandava `AltGr` al passo 17, che non chiedeva di premerlo | il passo 17 ha una parte (c) per `AltGr` |
+| **C5** | minore | Il punto (c) di D-514 (8), l'editor esagonale, non ha un passo; i tasti del passo non combaciavano con quelli della voce | D-514 lo dichiara senza passo; il passo elenca `W` `A` `S` `D`, `P`, `Tab`, e `Spazio` a parte |
+| **C6** | minore | D-514 citava la richiesta d'autore troncata, senza dirlo | citata per intero, e il punto (7) nomina il terzo elemento |
+| **C7** | minore | «i cinque gesti della tabella» nella spec della camera: un totale che invecchia | «i gesti della tabella» |
+| **C8** | minore | D-514 (4): «sinistro o destro» ambiguo fra i `Ctrl` e i tasti del mouse | «con uno dei due `Ctrl` tenuto» |
+| **C9** | minore | `PIE-V01-DOCKCLICK`: l'istruzione ancora da eseguire diceva `Alt`, e la correzione era solo in coda | l'istruzione dice `Ctrl`; la coda dichiara che cosa diceva prima |
+| **C10** | minore | Il passo 17 (a) non distingueva «non mappato» da «tasto inghiottito dall'Editor» | il controllo positivo sono i passi 3–5 con `Ctrl` nella stessa seduta; se la barra dei menu prende il fuoco, si ripete |
+
+**Non controllato da nessuno dei due revisori**: gli asset binari (una legenda dei tasti in un `WBP` non si vede col grep); come il motore consegna `AltGr`; gli accordi dell'Editor con `Ctrl`.

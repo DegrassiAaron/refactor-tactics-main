@@ -944,8 +944,8 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 
 		// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
-		// `OrbitModifierAction`: se la finestra perde il fuoco con `Ctrl` premuto, il rilascio non arriva
-		// mai e il modificatore resterebbe armato per sempre.
+		// `OrbitModifierAction`: se la finestra perde il fuoco col modificatore premuto — un clic fuori, un
+		// cambio di finestra — il rilascio non arriva mai e il modificatore resterebbe armato per sempre.
 		EIC->BindAction(CameraModifierAction, ETriggerEvent::Started, this,
 			&ARTPlayerController::OnCameraModifierPressed);
 		EIC->BindAction(CameraModifierAction, ETriggerEvent::Completed, this,
@@ -1258,7 +1258,7 @@ void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 	}
 
 	// 🔴 **Il gesto puo' finire dentro una modale aperta a meta'** (code review, 2026-08-30): si preme
-	// `Ctrl`+`LMB` mentre si pianifica, il turno finisce o si apre la pausa, si rilascia — e senza questa
+	// il modificatore col sinistro mentre si pianifica, il turno finisce o si apre la pausa, si rilascia — e senza questa
 	// guardia il Set Pivot spostava la camera dietro la schermata. Lo stato del gesto si disarma comunque,
 	// altrimenti resterebbe armato per sempre.
 	if (IsGameplayInputBlocked())

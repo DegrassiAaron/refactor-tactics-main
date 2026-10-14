@@ -275,7 +275,8 @@ protected:
 	 * `Ctrl` il caso non si pone: l'opzione del motore resta com'e', su una combinazione che qui non e' mappata.
 	 *
 	 * ⚠️ `AltGr` arma il modificatore, prima e dopo il cambio: su una tastiera italiana arriva a Windows come
-	 * `Ctrl` sinistro piu' `Alt` destro. Non verificato a schermo: e' il passo 17 di `PIE-PC-GYM`.
+	 * `Ctrl` sinistro piu' `Alt` destro. Non verificato a schermo: lo guarda la parte (c) del passo 17 di
+	 * `PIE-PC-GYM`.
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CameraModifierAction;
