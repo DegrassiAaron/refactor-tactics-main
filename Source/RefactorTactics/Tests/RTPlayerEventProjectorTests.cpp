@@ -4,6 +4,16 @@
 #include "Turn/RTTurnLogLibrary.h" // HashTurnLog: l'invariante che la proiezione non deve toccare
 #include "Turn/RTCombatLog.h" // ComposeVisibleLogLines: il canale gemello da confrontare
 #include "UI/RTPlayerEventProjector.h"
+#include "Ability/RTActionData.h"          // #3734: l'indice nel kit dello scatto e del getto di Muiren
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Map/RTHexMapActor.h"
+#include "Tests/RTWorldFixtures.h"
+#include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTActionEvent.h"         // #3734: FRTActionEffectSpec, la spinta che spinge e basta
+#include "Turn/RTTurnManager.h"
+#include "UI/RTHudViewModel.h"             // #3734: il feed dalla porta che il widget usa
+#include "Unit/RTUnit.h"
 
 // La guardia: senza, questi test finiscono compilati DENTRO il binario Shipping. Vedi `#923`.
 #if WITH_DEV_AUTOMATION_TESTS
@@ -873,6 +883,329 @@ bool FRTPlayerEventFallDamageDominatesTest::RunTest(const FString&)
 	{
 		TestTrue(TEXT("ed e' lo spostamento subito"), Vista[0].Type == ERTPlayerEventType::Moved);
 	}
+	return true;
+}
+
+/**
+ * **CIO' CHE LA TUA UNITA' HA SUBITO VINCE SU CIO' CHE HA FATTO** (`#3734`, decisione d'autore A1 del 2026-10-13).
+ *
+ * Una riga per unita' (§E) costringe a scegliere. Per le unita' di chi guarda, una *riuscita propria* — il
+ * movimento arrivato, il colpo dato, la cura data — cede a qualunque altra riga della stessa unita'; fra le
+ * altre resta la scala di sempre, e a parita' la prima arrivata. I primi quattro casi sono le righe della
+ * tabella approvata; gli altri sono i confini.
+ *
+ * 🔑 **Il quinto e' la guardia, e senza di lui la regola sarebbe sbagliata.** La riga di un colpo d'arma e'
+ * agganciata a chi colpisce: quando un nemico colpisce una tua unita', quella riga E' la notizia per te, e
+ * non deve cedere a cio' che succede al nemico nello stesso turno.
+ *
+ * ⚠️ Le stringhe si confrontano con `Equals(..., CaseSensitive)`: `TestEqual` fra due `FString` ignora le
+ * maiuscole, e qui si legge quale voce e' rimasta dal suo `ActionId`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventSufferedBeatsDoneTest,
+	"RefactorTactics.UI.PlayerEventLog.WhatYourUnitSufferedBeatsWhatItDid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
+{
+	constexpr int32 Mia = 3;
+	constexpr int32 Nemica = 7;
+	const TSet<int32> Proprie = { Mia };
+	const TArray<int32> Chi = { 0 };
+
+	auto Voce = [](ERTLogCategory Categoria, uint8 Esito, int32 Unita, const FName& Azione)
+	{
+		FRTTurnLogEntry E = PlayerEventEntry(Categoria, Esito, Unita, /*Team*/ 0);
+		E.ActionId = Azione; // serve solo a riconoscere QUALE voce e' rimasta
+		return E;
+	};
+	auto Mossa = [&Voce](ERTMoveOutcome Esito, int32 Unita, const TCHAR* Azione)
+	{
+		return Voce(ERTLogCategory::Move, static_cast<uint8>(Esito), Unita, FName(Azione));
+	};
+	// ⚠️ **Due celle diverse, e non e' un dettaglio.** Con `SrcCell == TgtCell` la rete di
+	// `IsEnvironmentalDamage` classifica la voce come danno SUBITO — e' la forma di una voce ambientale — e la
+	// regola la tratterebbe come una notizia. Un colpo dato ha la cella di chi colpisce e quella di chi e' colpito.
+	auto Colpo = [&Voce](ERTCombatOutcome Esito, int32 Unita, const FName& Azione)
+	{
+		FRTTurnLogEntry E = Voce(ERTLogCategory::Combat, static_cast<uint8>(Esito), Unita, Azione);
+		E.SrcCell = FRTCellId(0, 0);
+		E.TgtCell = FRTCellId(1, 0);
+		return E;
+	};
+	const FName ColpoDato(TEXT("Prova.Colpo"));
+	const FName CuraData(TEXT("Prova.Cura"));
+	const FName KO(TEXT("Prova.KO"));
+	const FName Stato(TEXT("Status.Prova"));
+
+	// L'unica riga rimasta, letta dal suo `ActionId`; zero o due righe sono entrambe un difetto.
+	auto Resta = [&Chi](const TArray<FRTTurnLogEntry>& Log, const TSet<int32>& Unita) -> FString
+	{
+		const TArray<FRTPlayerEvent> Ev = URTPlayerEventProjector::Project(Log, Chi, Unita);
+		return Ev.Num() == 1 ? Ev[0].ActionId.ToString() : FString::Printf(TEXT("<%d righe>"), Ev.Num());
+	};
+	auto Atteso = [this](const FString& Caso, const FString& Letta, const FName& Voluta)
+	{
+		TestTrue(*FString::Printf(TEXT("%s: resta «%s», letta «%s»"), *Caso, *Voluta.ToString(), *Letta),
+			Letta.Equals(Voluta.ToString(), ESearchCase::CaseSensitive));
+	};
+
+	// La premessa del caso (2): la tassonomia del registro dice chi subisce, e la regola le crede.
+	// Il danno da caduta e' riconosciuto dalla sua CAUSA, non dalla forma delle celle.
+	const FRTTurnLogEntry DannoDaCaduta = Colpo(ERTCombatOutcome::Hit, Mia, URTTurnLogLibrary::FallCauseOfFaller());
+	if (!TestTrue(TEXT("premessa: il danno da caduta e' di chi lo SUBISCE"), URTTurnLogLibrary::IsSubjectTheSufferer(DannoDaCaduta))
+		|| !TestFalse(TEXT("premessa: il colpo d'arma e' di chi lo DA"),
+			URTTurnLogLibrary::IsSubjectTheSufferer(Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato))))
+	{
+		return false;
+	}
+
+	// (1) Lo scatto riuscito e poi lo spostamento subito: con la scala di sempre la riga silenziosa teneva il
+	//     posto e poi spariva. Nei due ordini resta lo spostamento.
+	const ERTMoveOutcome Subiti[] = {
+		ERTMoveOutcome::Displaced, ERTMoveOutcome::Slid, ERTMoveOutcome::Fell, ERTMoveOutcome::StoppedByEdgeGuard,
+	};
+	for (const ERTMoveOutcome Subito : Subiti)
+	{
+		const FString Nome = StaticEnum<ERTMoveOutcome>()->GetNameStringByValue(static_cast<int64>(Subito));
+		Atteso(TEXT("(1) scatto riuscito, poi ") + Nome,
+			Resta({ Mossa(ERTMoveOutcome::Moved, Mia, TEXT("Prova.Scatto")), Mossa(Subito, Mia, TEXT("Prova.Spinta")) }, Proprie),
+			FName(TEXT("Prova.Spinta")));
+		Atteso(TEXT("(1) ") + Nome + TEXT(", poi scatto riuscito"),
+			Resta({ Mossa(Subito, Mia, TEXT("Prova.Spinta")), Mossa(ERTMoveOutcome::Moved, Mia, TEXT("Prova.Scatto")) }, Proprie),
+			FName(TEXT("Prova.Spinta")));
+	}
+
+	// (2) Colpisce, poi cade: «Caduta — M», non «Colpita — N». La voce di danno della caduta vince anche sulla
+	//     voce `Fell` del movimento, per rango: e' lei che porta il numero.
+	Atteso(TEXT("(2) colpisce e poi cade"),
+		Resta({ Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato), Mossa(ERTMoveOutcome::Fell, Mia, TEXT("Prova.Caduta")),
+			DannoDaCaduta }, Proprie),
+		URTTurnLogLibrary::FallCauseOfFaller());
+
+	// (3) Colpisce, poi riceve uno stato.
+	Atteso(TEXT("(3) colpisce e riceve uno stato"),
+		Resta({ Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato),
+			Voce(ERTLogCategory::Status, static_cast<uint8>(ERTStatusOutcome::AppliedByAction), Mia, Stato) }, Proprie),
+		Stato);
+
+	// (4) Cura, poi viene spinta.
+	Atteso(TEXT("(4) cura e viene spinta"),
+		Resta({ Colpo(ERTCombatOutcome::Healed, Mia, CuraData), Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) },
+			Proprie),
+		FName(TEXT("Prova.Spinta")));
+
+	// (5) 🔴 LA GUARDIA: un'unita' NON di chi guarda colpisce e poi viene spinta. Quella riga e' il colpo che una
+	//     tua unita' ha preso: resta.
+	Atteso(TEXT("(5) un nemico colpisce e poi viene spinto"),
+		Resta({ Colpo(ERTCombatOutcome::Hit, Nemica, ColpoDato), Mossa(ERTMoveOutcome::Displaced, Nemica, TEXT("Prova.Spinta")) },
+			Proprie),
+		ColpoDato);
+
+	// (6) Una notizia non cede a una riuscita propria arrivata DOPO, anche se la scala la metterebbe sopra.
+	Atteso(TEXT("(6) spinta, poi colpo dato"),
+		Resta({ Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")), Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato) },
+			Proprie),
+		FName(TEXT("Prova.Spinta")));
+
+	// (7) Fra due notizie dello stesso rango resta la prima arrivata, come prima.
+	Atteso(TEXT("(7) due spostamenti subiti"),
+		Resta({ Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")), Mossa(ERTMoveOutcome::Slid, Mia, TEXT("Prova.Scivolata")) },
+			Proprie),
+		FName(TEXT("Prova.Spinta")));
+
+	// (8) Fra due riuscite proprie decide la scala: il colpo dato copre il movimento arrivato.
+	Atteso(TEXT("(8) scatto riuscito, poi colpo dato"),
+		Resta({ Mossa(ERTMoveOutcome::Moved, Mia, TEXT("Prova.Scatto")), Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato) }, Proprie),
+		ColpoDato);
+
+	// (9) Il KO non cede mai.
+	Atteso(TEXT("(9) KO, poi spinta"),
+		Resta({ Colpo(ERTCombatOutcome::Lethal, Mia, KO), Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) }, Proprie),
+		KO);
+
+	// (10) Senza sapere quali unita' sono di chi guarda, la scala di sempre: il colpo dato tiene il posto. E'
+	//      cio' che fanno i due overload senza `OwnUnitIds`, e la sessione non presidiata.
+	const TArray<FRTTurnLogEntry> ColpoESpinta = {
+		Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato), Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) };
+	Atteso(TEXT("(10) senza unita' proprie"), Resta(ColpoESpinta, TSet<int32>()), ColpoDato);
+	const TArray<FRTPlayerEvent> SenzaInsieme = URTPlayerEventProjector::Project(ColpoESpinta, /*ObserverTeamId*/ 0);
+	if (TestEqual(TEXT("(10) l'overload a un osservatore: una riga"), SenzaInsieme.Num(), 1))
+	{
+		Atteso(TEXT("(10) l'overload a un osservatore"), SenzaInsieme[0].ActionId.ToString(), ColpoDato);
+	}
+	return true;
+}
+
+/**
+ * **UNA SPINTA DOPO UNO SCATTO RIUSCITO ARRIVA AL FEED, DAL TURNO VERO** (`#3734`).
+ *
+ * Il caso che la issue ha trovato, e che fino a qui era provato solo con voci di registro scritte a mano.
+ * Muiren scatta di due celle con la sua scia; un'unita' nemica la spinge di una cella con un colpo che spinge
+ * e basta. Le voci le scrive il turn manager, e il feed si costruisce dalla porta che il widget usa.
+ *
+ * ⚠️ **Non col getto di Muiren, ed e' misurato.** Il getto bagna il bersaglio (`Status.Wet`): la riga di stato
+ * vince per rango sulla spinta, come deve, e la scena non isolava piu' il caso. La spinta qui e' la stessa
+ * di `RTFallOverLedgeTests`: danno zero, un solo effetto.
+ *
+ * ⚠️ **Le premesse si leggono dalla traccia**: che lo scatto sia arrivato e che la spinta sia avvenuta, e in
+ * quest'ordine. Senza, una riga assente direbbe «il feed tace» quando la scena non ha prodotto il caso.
+ *
+ * 🔑 Con la scala di sempre — l'overload senza le unita' di chi guarda — la mia unita' resta senza righe: e' il
+ * difetto, ed e' la prova che la scena lo produce davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventPushAfterDashTest,
+	"RefactorTactics.UI.PlayerEventLog.APushAfterASuccessfulDashReachesTheFeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* Mappa = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("mappa"), Mappa)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	Mappa->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+
+	auto Muiren = [World](int32 Squadra, const FRTCellId& Cella) -> ARTUnit*
+	{
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = Squadra;
+		U->bIsBotControlled = false; // i piani li scriviamo noi
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeMuiren());
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cella, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cella;
+		return U;
+	};
+	auto NelKit = [](const ARTUnit* U, const TCHAR* Id) -> int32
+	{
+		for (int32 i = 0; U && i < U->NumAbilities(); ++i)
+		{
+			const URTActionData* Azione = U->GetAbility(i);
+			if (Azione && Azione->Def.ActionId == FName(Id)) { return i; }
+		}
+		return INDEX_NONE;
+	};
+
+	ARTUnit* Mia = Muiren(/*Squadra=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Nemica = Muiren(/*Squadra=*/ 1, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("la mia"), Mia) || !TestNotNull(TEXT("la nemica"), Nemica) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	// 🔴 **La conoscenza di squadra va allestita come la allestisce la partita**, dopo lo spawn. Senza, al primo
+	// turno `TeamKnowledgeState` e' vuoto quando lo scatto scrive la sua voce, e il verdetto della voce esce
+	// vuoto: non autorizzata per nessuno, nemmeno per la squadra che ha scattato. Il feed non la vedeva, e la
+	// spinta compariva gia' con la scala di sempre — misurato: la scena non produceva il caso.
+	TM->RefreshTeamKnowledgeNow();
+
+	// La mia scatta di due celle verso est con la scia; la nemica, guardando a ovest, la spinge di una cella.
+	const int32 Scatto = NelKit(Mia, TEXT("Hero.Muiren.FluidTrail"));
+	Mia->PlannedDashAbility = Scatto;
+	Mia->PlannedDashCell = FRTCellId(2, 0);
+
+	URTActionData* AzioneDiSpinta = NewObject<URTActionData>(Nemica);
+	AzioneDiSpinta->Def.ActionId = TEXT("Test.Spinta");
+	AzioneDiSpinta->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+	AzioneDiSpinta->Def.Priority = 55;
+	AzioneDiSpinta->Def.RangeCells = 4;
+	AzioneDiSpinta->Def.Fallback = ERTActionFallback::AttackCell;
+	AzioneDiSpinta->Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+	AzioneDiSpinta->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
+	AzioneDiSpinta->Def.bCountsAsAttack = true; // senza, nessun colpo e nessuna spinta (`INT-8`)
+	AzioneDiSpinta->RangeCells = AzioneDiSpinta->Def.RangeCells;
+	AzioneDiSpinta->Power = 0; // danno zero: un'unita' a terra non si sposta, e qui conta solo lo spostamento
+	Nemica->Abilities.Add(AzioneDiSpinta);
+	Nemica->PlannedAbilityIndex = Nemica->Abilities.Num() - 1;
+	// ⚠️ **Sulla CELLA d'arrivo dello scatto, non sull'unita'.** Misurato: dichiarato sull'unita', il colpo non
+	// arrivava — nessuna voce di combattimento nel turno. Perche', questo test non lo indaga: gli serve una
+	// spinta che arrivi, e la premessa qui sotto lo controlla.
+	Nemica->DeclareAttackOnCell(FRTCellId(2, 0));
+	Nemica->Facing = ERTHexDirection::W;
+	if (!TestTrue(TEXT("premessa: la mia ha lo scatto"), Scatto != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: lo scatto si applica, e non e' una carica"), Mia->PlannedDashApplies() && !Mia->PlannedDashIsCharge()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+
+	// Le premesse, dalla traccia: lo scatto arrivato, POI lo spostamento subito.
+	int32 Arrivo = INDEX_NONE;
+	int32 Spinta = INDEX_NONE;
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	for (int32 i = 0; i < Log.Num(); ++i)
+	{
+		if (Log[i].UnitId != Mia->StableUnitId || Log[i].Category != ERTLogCategory::Move) { continue; }
+		const ERTMoveOutcome Esito = static_cast<ERTMoveOutcome>(Log[i].Outcome);
+		if (Esito == ERTMoveOutcome::Moved && Arrivo == INDEX_NONE) { Arrivo = i; }
+		if ((Esito == ERTMoveOutcome::Displaced || Esito == ERTMoveOutcome::Slid) && Spinta == INDEX_NONE) { Spinta = i; }
+	}
+	if (!TestTrue(TEXT("premessa: lo scatto e' arrivato"), Arrivo != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: poi la mia e' stata spinta"), Spinta != INDEX_NONE && Spinta > Arrivo))
+	{
+		for (const FRTTurnLogEntry& Voce : Log)
+		{
+			AddInfo(FString::Printf(TEXT("TurnLog: %s"), *URTTurnLogLibrary::DescribeEntry(Voce)));
+		}
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	auto RigheDi = [](const TArray<FRTPlayerEventLineView>& Feed, const ARTUnit* U, FString& Testo) -> int32
+	{
+		int32 Quante = 0;
+		for (const FRTPlayerEventLineView& Riga : Feed)
+		{
+			if (Riga.PrimaryStableUnitId == U->StableUnitId) { ++Quante; Testo = Riga.Text.ToString(); }
+		}
+		return Quante;
+	};
+
+	// Il difetto, con la scala di sempre: nessuna riga per la mia unita'.
+	FString Prima;
+	if (!TestEqual(TEXT("premessa: con la scala di sempre la mia unita' resta senza righe — e' il difetto"),
+		RigheDi(URTHudViewModel::BuildPlayerEventFeed(Log, TArray<int32>{ 0 }), Mia, Prima), 0))
+	{
+		AddInfo(FString::Printf(TEXT("con la scala di sempre la riga e': «%s»"), *Prima));
+		for (const FRTTurnLogEntry& Voce : Log)
+		{
+			if (Voce.UnitId == Mia->StableUnitId)
+			{
+				AddInfo(FString::Printf(TEXT("TurnLog della mia (autorizzata %d): %s"),
+					URTPlayerEventProjector::IsAuthorized(Voce, 0) ? 1 : 0, *URTTurnLogLibrary::DescribeEntry(Voce)));
+			}
+		}
+	}
+
+	// La regola, dalla porta che il widget usa: il manager, chi guarda, le unita' in campo.
+	const TArray<ARTUnit*> InCampo = { Mia, Nemica };
+	TestTrue(TEXT("le unita' di chi guarda sono la sola mia"),
+		URTHudViewModel::OwnUnitIdsForFeed(TArray<int32>{ 0 }, InCampo).Array() == TArray<int32>{ Mia->StableUnitId });
+	TestEqual(TEXT("con due squadre che guardano, nessuna: la scala di sempre"),
+		URTHudViewModel::OwnUnitIdsForFeed(TArray<int32>{ 0, 1 }, InCampo).Num(), 0);
+	FString Dopo;
+	if (TestEqual(TEXT("🔴 la mia unita' ha UNA riga"),
+		RigheDi(URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 0 }, InCampo), Mia, Dopo), 1))
+	{
+		if (!TestTrue(*FString::Printf(TEXT("ed e' lo spostamento: «%s»"), *Dopo), Dopo.Equals(TEXT("Spostata"), ESearchCase::CaseSensitive)))
+		{
+			for (const FRTTurnLogEntry& Voce : Log)
+			{
+				if (Voce.UnitId == Mia->StableUnitId)
+				{
+					AddInfo(FString::Printf(TEXT("TurnLog della mia: %s"), *URTTurnLogLibrary::DescribeEntry(Voce)));
+				}
+			}
+		}
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 

@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-14 — Nel feed, ciò che una tua unità ha subito vince su ciò che ha fatto
+
+**Origine**: [#3734](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3734), decisione d'autore A1 del 2026-10-13. Per le unità della squadra di chi guarda, una riga di riuscita propria — il movimento arrivato, il colpo dato, la cura data — cede a qualunque altra riga della stessa unità nel turno. Per le unità degli altri, e nella sessione non presidiata, la scala di sempre.
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) | §9.3: la regola e la sua guardia al posto dei due limiti che descrivevano il caso — chi cade dopo aver colpito, chi scatta e poi viene spinto; i limiti che restano; i test che la fissano |
+
+---
+
 ## 2026-10-14 — Fra due piani la vista segue una linea vera
 
 **Origine**: [#3743](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3743), decisione d'autore `D-511` del 2026-10-13. Davanti alla tavola della regola della colonna l'autore ha scritto che chi sta sotto una piattaforma non dovrebbe vedere nessuno di quelli che ci stanno sopra. Fra due piani la vista ora segue una linea da testa a testa, che si ferma sui pavimenti. La linea di tiro non cambia.

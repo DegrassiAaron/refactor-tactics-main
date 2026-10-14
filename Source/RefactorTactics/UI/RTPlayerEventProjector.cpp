@@ -1,6 +1,7 @@
 #include "UI/RTPlayerEventProjector.h"
 
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h" // IsSubjectTheSufferer: chi ha dato e chi ha subito (#3734)
 
 namespace
 {
@@ -184,6 +185,33 @@ namespace
 		}
 	}
 
+	/**
+	 * La riga racconta un'azione SCELTA dall'unita' e andata a segno (`#3734`): il movimento arrivato, il colpo
+	 * dato, la cura data. E' la sola specie di riga che, per un'unita' di chi guarda, cede il posto a qualunque
+	 * altra.
+	 *
+	 * 🔑 **Chi ha dato e chi ha subito lo dice `IsSubjectTheSufferer`**, la tassonomia che il registro ha gia':
+	 * un `Hit` d'arma e' di chi colpisce, il danno ambientale e quello di una caduta sono di chi li subisce. Non
+	 * se ne scrive una seconda qui.
+	 *
+	 * ⚠️ **Uno stato non e' mai una riuscita propria, nemmeno quando l'unita' se l'e' dato da sola.** La voce di
+	 * nascita di uno stato non dice chi l'ha applicato, e distinguerlo vorrebbe dire cambiare il formato del
+	 * registro: e' un limite accettato con la decisione d'autore. Il KO non lo e' mai: non cede.
+	 */
+	bool IsOwnSuccess(const FRTTurnLogEntry& Entry, ERTPlayerEventType Type, ERTPlayerEventImportance Importance)
+	{
+		switch (Type)
+		{
+		case ERTPlayerEventType::Moved:
+			return Importance == ERTPlayerEventImportance::Minor; // chiesto e arrivato: il resto di `Moved` e' subito
+		case ERTPlayerEventType::Attacked:
+		case ERTPlayerEventType::Healed:
+			return !URTTurnLogLibrary::IsSubjectTheSufferer(Entry);
+		default:
+			return false;
+		}
+	}
+
 	/** Chi domina chi, quando due eventi parlano della STESSA unita' — `#1936` §E. */
 	int32 DominanceRank(ERTPlayerEventType Type)
 	{
@@ -258,11 +286,22 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogEntry>& Entries,
 	const TArray<int32>& ObserverTeamIds)
 {
+	// Senza sapere quali unita' sono di chi guarda, la scala di sempre per tutte (`#3734`).
+	return Project(Entries, ObserverTeamIds, TSet<int32>());
+}
+
+TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogEntry>& Entries,
+	const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds)
+{
 	TArray<FRTPlayerEvent> Out;
 
 	// L'evento gia' emesso per ciascuna unita', per indice in `Out`: e' come la dominanza sostituisce invece
 	// di accodare. `INDEX_NONE` = quell'unita' non ha ancora una riga.
 	TMap<int32, int32> IndexByUnit;
+
+	// Per ogni riga di `Out`, se e' una riuscita propria (`#3734`): serve solo alla dominanza qui sotto, quindi
+	// vive accanto a `Out` invece di diventare un campo della vista. Tenuto allineato a ogni `Add`.
+	TArray<bool> OwnSuccess;
 
 	// 🔴 L'ambiente si raggruppa per TURNO, non per unita': la propagazione dell'acqua o del fuoco tocca
 	// celle, non qualcuno, e §E vieta esplicitamente «cella d'acqua A / cella d'acqua B / cella
@@ -298,6 +337,7 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 				continue;
 			}
 
+			OwnSuccess.Add(false);
 			FRTPlayerEvent& Ev = Out.AddDefaulted_GetRef();
 			Ev.Type = Type;
 			Ev.Importance = Importance;
@@ -351,8 +391,11 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 			Candidate.BlockerCell = Entry.SightBlockerCell;
 		}
 
+		const bool bCandidateOwnSuccess = IsOwnSuccess(Entry, Type, Importance);
+
 		if (UnitId == INDEX_NONE)
 		{
+			OwnSuccess.Add(false);
 			Out.Add(MoveTemp(Candidate)); // voce di mondo: nessuna dominanza da applicare
 			continue;
 		}
@@ -360,6 +403,7 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		const int32* Existing = IndexByUnit.Find(UnitId);
 		if (Existing == nullptr)
 		{
+			OwnSuccess.Add(bCandidateOwnSuccess);
 			Out.Add(MoveTemp(Candidate));
 			IndexByUnit.Add(UnitId, Out.Num() - 1);
 			continue;
@@ -376,10 +420,29 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		// e il secondo non riscrive il primo. Sommare i danni sarebbe un'altra decisione — non presa qui,
 		// perche' §E parla di dominanza e non di aggregazione.
 		FRTPlayerEvent& Held = Out[*Existing];
-		if (DominanceRank(Candidate.Type) > DominanceRank(Held.Type))
+		//
+		// ➕ **Per un'unita' di chi guarda, cio' che ha SUBITO vince su cio' che ha FATTO** (`#3734`, decisione
+		// d'autore A1 del 2026-10-13). Una riuscita propria — il movimento arrivato, il colpo dato, la cura data —
+		// cede a qualunque altra riga della stessa unita', e una di queste non cede a una riuscita propria arrivata
+		// dopo. Dentro ciascuna delle due specie decide il rango, e a parita' resta la prima: la regola di sopra.
+		// Il caso che l'ha chiesta: chi scatta nel Dash e viene spinto nel Blast aveva per prima la riga
+		// silenziosa dello scatto, che teneva il posto allo stesso rango e poi spariva — e l'unita' veniva spostata
+		// senza che il feed lo dicesse. Lo stesso per chi colpisce e poi cade: leggeva il colpo.
+		//
+		// 🔴 **Solo per le unita' di chi guarda.** Per le altre la scala di sempre: la riga di un colpo d'arma e'
+		// agganciata a chi COLPISCE, e quando un nemico colpisce una tua unita' quella riga e' la notizia che la
+		// tua unita' e' stata colpita. Farla cedere a cio' che succede al nemico nello stesso turno la cancellerebbe.
+		const bool bHeldOwnSuccess = OwnSuccess[*Existing];
+		bool bReplace = DominanceRank(Candidate.Type) > DominanceRank(Held.Type);
+		if (OwnUnitIds.Contains(UnitId) && bHeldOwnSuccess != bCandidateOwnSuccess)
+		{
+			bReplace = bHeldOwnSuccess; // la riuscita propria cede; l'altra non cede a una riuscita propria
+		}
+		if (bReplace)
 		{
 			const int32 Slot = *Existing;
 			Out[Slot] = MoveTemp(Candidate);
+			OwnSuccess[Slot] = bCandidateOwnSuccess;
 		}
 	}
 

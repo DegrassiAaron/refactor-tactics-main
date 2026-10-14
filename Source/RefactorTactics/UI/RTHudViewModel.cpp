@@ -1395,6 +1395,30 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	const TArray<int32>& ObserverTeamIds)
 {
+	// Senza le unita' di chi guarda: la scala di sempre per tutte (`#3734`).
+	return BuildPlayerEventFeed(TurnLog, ObserverTeamIds, TSet<int32>());
+}
+
+TSet<int32> URTHudViewModel::OwnUnitIdsForFeed(const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units)
+{
+	TSet<int32> Proprie;
+	if (ObserverTeamIds.Num() != 1)
+	{
+		return Proprie; // sessione non presidiata, o nessuno guarda: la scala di sempre
+	}
+	for (const ARTUnit* Unit : Units)
+	{
+		if (Unit && Unit->TeamId == ObserverTeamIds[0] && Unit->StableUnitId != 0)
+		{
+			Proprie.Add(Unit->StableUnitId); // `0` non e' un id ([D-063])
+		}
+	}
+	return Proprie;
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
+	const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds)
+{
 	// 🔴 **Il PERIMETRO viene prima della proiezione, ed e' una correzione non un taglio.**
 	// `Project` applica la dominanza — una riga per unita' — e il suo commento la descrive «in questo
 	// turno». Passandogli la partita intera quella regola cambia significato: chi e' andato KO al round 3
@@ -1424,7 +1448,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 	//
 	// ⚠️ Il filtro qui sopra non tocca l'autorizzazione: seleziona QUALI voci entrano, non chi puo'
 	// vederle. Le due decisioni restano separate, e quella di privacy resta una sola.
-	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(DelTurnoCorrente, ObserverTeamIds);
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(DelTurnoCorrente, ObserverTeamIds, OwnUnitIds);
 
 	// Le **ultime** `MaxFeedLines`: il giocatore vuole sapere cos'e' appena successo, non come il turno
 	// era cominciato. Prendere le prime sarebbe altrettanto implementabile e inutile.
@@ -1524,6 +1548,14 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTu
 {
 	return TurnManager != nullptr
 		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds)
+		: TArray<FRTPlayerEventLineView>{};
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
+	const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units)
+{
+	return TurnManager != nullptr
+		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnUnitIdsForFeed(ObserverTeamIds, Units))
 		: TArray<FRTPlayerEventLineView>{};
 }
 

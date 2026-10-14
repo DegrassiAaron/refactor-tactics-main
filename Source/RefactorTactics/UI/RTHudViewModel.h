@@ -1357,6 +1357,33 @@ public:
 		const TArray<int32>& ObserverTeamIds);
 
 	/**
+	 * Il feed con la regola di `#3734`: per le unita' di chi guarda, cio' che hanno SUBITO vince su cio' che hanno
+	 * FATTO. Vedi l'overload di `URTPlayerEventProjector::Project` con `OwnUnitIds`.
+	 *
+	 * ⚠️ Le due firme senza questo parametro restano quello che erano: la scala di sempre per tutte le unita'.
+	 */
+	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
+		const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds);
+
+	/** Lo stesso, dal manager, con le unita' in campo da cui ricavare quelle di chi guarda (`OwnUnitIdsForFeed`). */
+	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
+		const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units);
+
+	/**
+	 * Le unita' di chi guarda, per la regola del feed di `#3734`: lo `StableUnitId` di ogni unita' la cui squadra
+	 * e' fra gli osservatori.
+	 *
+	 * 🔴 **Con piu' di una squadra che guarda risponde VUOTO**, cioe' la scala di sempre. E' la sessione non
+	 * presidiata (`#2744`): chi guarda non gioca, ogni unita' sarebbe «sua», e la riga del colpo che un'unita'
+	 * da' a un'altra — agganciata a chi colpisce — cederebbe a cio' che e' successo a chi ha colpito, anche se
+	 * la notizia e' per la squadra di chi e' stato colpito. La decisione d'autore parla di «la squadra di chi
+	 * guarda»: con due squadre non c'e' una risposta sola, e si tiene il comportamento di prima.
+	 *
+	 * ⚠️ Un'unita' gia' distrutta non c'e' fra le `Units`, e le sue righe seguono la scala di sempre.
+	 */
+	static TSet<int32> OwnUnitIdsForFeed(const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units);
+
+	/**
 	 * 🔑 **Chi guarda questa partita.** La sede UNICA della domanda, e il motivo per cui vive qui.
 	 *
 	 * Sessione presidiata → `{ PlayerTeamId }`, cioe' il comportamento di sempre.

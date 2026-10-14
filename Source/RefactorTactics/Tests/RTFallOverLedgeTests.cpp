@@ -2001,6 +2001,105 @@ bool FRTFallFeedSaysFallNotHitTest::RunTest(const FString&)
 }
 
 /**
+ * **CHI CADE DOPO AVER COLPITO LEGGE «CADUTA»**, dal turno vero (`#3734`).
+ *
+ * Era un limite dichiarato di `#3081` (`spec-caduta-e-bordi.md` §9.3): chi colpiva e poi cadeva nello stesso
+ * Blast teneva la riga del colpo, perche' colpo dato e danno da caduta hanno lo stesso rango e vinceva il
+ * primo arrivato. Per le unita' di chi guarda ora cio' che hanno subito vince su cio' che hanno fatto.
+ *
+ * La scena e' quella di `TheFeedSaysFallNotHit`, con una cosa in piu': chi cadra' colpisce, nello stesso
+ * Blast, chi lo spinge, che gli sta accanto.
+ *
+ * 🔑 Con la scala di sempre la riga di chi cade dice il colpo: e' la prova che la scena produce il caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallFeedSaysFallAfterAHitTest,
+	"RefactorTactics.Fall.TheFeedSaysFallEvenAfterTheFallerHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallFeedSaysFallAfterAHitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, {
+		FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1), FRTCellId(1, 0, 1),
+		FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(0, 0, 0),
+		FRTCellId(1, 1, 0), FRTCellId(1, -1, 0)
+	});
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTUnit* Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 0, 0)); // gia' sul primario
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+	// Chi cadra' colpisce chi lo spinge, a ovest, col suo attacco base.
+	int32 Colpo = INDEX_NONE;
+	for (int32 i = 0; i < Bersaglio->NumAbilities(); ++i)
+	{
+		const URTActionData* Azione = Bersaglio->GetAbility(i);
+		if (Azione && Azione->Def.ActionId == FName(TEXT("Hero.Ivrin.PulseShot"))) { Colpo = i; break; }
+	}
+	if (!TestTrue(TEXT("premessa: chi cadra' ha il suo attacco base"), Colpo != INDEX_NONE)) { DestroyLedgeWorld(World); return false; }
+	Bersaglio->PlannedAbilityIndex = Colpo;
+	Bersaglio->DeclareAttackOnUnit(Attaccante);
+	Bersaglio->Facing = ERTHexDirection::W;
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	// Le premesse, dalla traccia: il colpo dato da chi cade, e la sua caduta.
+	bool bHaColpito = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.UnitId == Bersaglio->StableUnitId && E.Category == ERTLogCategory::Combat
+			&& !URTTurnLogLibrary::IsSubjectTheSufferer(E)
+			&& static_cast<ERTCombatOutcome>(E.Outcome) == ERTCombatOutcome::Hit)
+		{
+			bHaColpito = true;
+		}
+	}
+	const int32 DannoDiChiCade = LedgeFallDamage(TM, Bersaglio);
+	if (!TestTrue(TEXT("premessa: chi cade ha colpito, nello stesso turno"), bHaColpito)
+		|| !TestTrue(TEXT("premessa: chi cade ha la sua voce di danno da caduta"), DannoDiChiCade > 0))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+
+	auto RigaDi = [](const TArray<FRTPlayerEventLineView>& Feed, const ARTUnit* Unit) -> FString
+	{
+		FString Testo;
+		int32 Quante = 0;
+		for (const FRTPlayerEventLineView& Riga : Feed)
+		{
+			if (Riga.PrimaryStableUnitId == Unit->StableUnitId) { Testo = Riga.Text.ToString(); ++Quante; }
+		}
+		return Quante == 1 ? Testo : FString::Printf(TEXT("<%d righe>"), Quante);
+	};
+
+	// Con la scala di sempre la riga di chi cade dice il colpo: il caso c'e'.
+	const FString Prima = RigaDi(URTHudViewModel::BuildPlayerEventFeed(TM->GetTurnLog(), /*ObserverTeamId*/ 1), Bersaglio);
+	TestTrue(*FString::Printf(TEXT("premessa: con la scala di sempre chi cade legge il colpo: «%s»"), *Prima),
+		Prima.StartsWith(TEXT("Colpita"), ESearchCase::CaseSensitive));
+
+	// La regola, dalla porta che il widget usa.
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 1 }, TArray<ARTUnit*>{ Attaccante, Bersaglio, Occupante });
+	const FString Attesa = FString::Printf(TEXT("Caduta — %d"), DannoDiChiCade);
+	const FString Letta = RigaDi(Feed, Bersaglio);
+	TestTrue(*FString::Printf(TEXT("🔴 chi cade dopo aver colpito legge la caduta: «%s»"), *Letta),
+		Letta.Equals(Attesa, ESearchCase::CaseSensitive));
+
+	// E l'occupante, che non ha fatto niente, legge l'urto come prima.
+	const int32 DannoDellOccupante = LedgeFallDamage(TM, Occupante);
+	const FString Urto = RigaDi(Feed, Occupante);
+	TestTrue(*FString::Printf(TEXT("l'occupante legge ancora l'urto: «%s»"), *Urto),
+		Urto.Equals(FString::Printf(TEXT("Urto — %d"), DannoDellOccupante), ESearchCase::CaseSensitive));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
  * Una spinta fermata dal PARAPETTO, risolta dal turn manager, arriva al feed come uno spostamento subito.
  *
  * 🔴 **Il parapetto e' l'unico dei sei esiti di `#3081` la cui riga PROPRIA sopravvive**: non infligge danni,

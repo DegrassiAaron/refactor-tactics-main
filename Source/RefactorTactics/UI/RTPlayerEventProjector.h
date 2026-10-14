@@ -77,6 +77,27 @@ public:
 		const TArray<int32>& ObserverTeamIds);
 
 	/**
+	 * Lo stesso, sapendo QUALI unita' sono di chi guarda (`#3734`, decisione d'autore del 2026-10-13).
+	 *
+	 * 🔑 **Per un'unita' di chi guarda, cio' che ha SUBITO vince su cio' che ha FATTO.** Una riga e' una
+	 * *riuscita propria* quando racconta un'azione scelta e andata a segno: il movimento arrivato, il colpo
+	 * dato, la cura data. Per le unita' in `OwnUnitIds` una riuscita propria cede a qualunque altra riga della
+	 * stessa unita' nel turno — spinta, caduta, stato, piano fallito, reazione, KO — e una di queste non cede a
+	 * una riuscita propria arrivata dopo. Dentro ciascuna delle due specie decide la scala di sempre
+	 * (`DominanceRank`), e a parita' resta la prima arrivata.
+	 *
+	 * ⚠️ **Per le altre unita' la scala di sempre, invariata, e non per prudenza.** La riga di un colpo d'arma e'
+	 * agganciata a chi COLPISCE (`IsSubjectTheSufferer` e' falso per un `Hit`): quando un nemico colpisce una tua
+	 * unita', quella riga e' la notizia che la tua unita' e' stata colpita, e non deve cedere a cio' che e'
+	 * successo al nemico nello stesso turno.
+	 *
+	 * @param OwnUnitIds  `StableUnitId` delle unita' di chi guarda. **Vuoto -> la scala di sempre per tutte**:
+	 *                    e' cio' che fanno i due overload senza questo parametro.
+	 */
+	static TArray<FRTPlayerEvent> Project(const TArray<FRTTurnLogEntry>& Entries,
+		const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds);
+
+	/**
 	 * Il solo passo di autorizzazione, esposto perche' e' **verificabile**.
 	 *
 	 * Esiste per `UI.PlayerEventLog.AuthorizationMatchesLogLines`: senza un punto nominabile, «il proiettore
