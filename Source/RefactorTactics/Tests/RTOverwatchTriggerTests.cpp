@@ -1345,7 +1345,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondWatcherDownedTargetTest,
 bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 {
 	// Lo scenario e' condiviso con `Replay.Verifier.DownedTargetCollapseIgnoresTheTrace`: due watcher sullo stesso
-	// mover, una decisione sola, di W1. Le ragioni di ogni scelta stanno nel fixture.
+	// mover, una decisione sola, di W2, che e' chiesto per primo. Le ragioni di ogni scelta stanno nel fixture.
 	const FRTTestScenario Scenario = RTOverwatchScenarioFixtures::MakeSecondWatcherOnDownedTargetScenario();
 
 	UWorld* World = RTWorldFixtures::MakeWorld();

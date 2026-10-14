@@ -25,8 +25,10 @@ namespace RTOverwatchScenarioFixtures
 	 * ⚠️ `Health` basso E DICHIARATO: serve che il PRIMO colpo abbatta il bersaglio. Col valore di roster il mover
 	 * sopravvivrebbe, e il secondo `FIRE` resterebbe legittimo.
 	 *
-	 * ⚠️ **Una decisione sola, di W1**: il secondo watcher non viene chiesto, e una decisione scritta per lui non
-	 * avrebbe una finestra che la consuma — l'harness la chiamerebbe errore.
+	 * ⚠️ **Una decisione sola, di W2**: e' lui il primo a essere chiesto, nell'ordine canonico dei trigger (ADR-0004
+	 * §4) — misurato: con la decisione su W1 l'harness rispondeva *«finestra aperta per 'W2' senza una decisione che la
+	 * nomini»*. Il secondo, W1, non viene chiesto, e una decisione scritta per lui non avrebbe una finestra che la
+	 * consuma: l'harness la chiamerebbe errore.
 	 */
 	inline FRTTestScenario MakeSecondWatcherOnDownedTargetScenario()
 	{
@@ -79,11 +81,11 @@ namespace RTOverwatchScenarioFixtures
 		MoveM1.Move.Add(FRTCellId(-1, -1, 0));
 		Turn.Intents.Add(MoveM1);
 
-		FRTScenarioDecision FireW1;
-		FireW1.Unit = TEXT("W1");
-		FireW1.Respond = TEXT("FIRE");
-		FireW1.Target = TEXT("M1");
-		Turn.Decisions.Add(FireW1);
+		FRTScenarioDecision FireW2;
+		FireW2.Unit = TEXT("W2");
+		FireW2.Respond = TEXT("FIRE");
+		FireW2.Target = TEXT("M1");
+		Turn.Decisions.Add(FireW2);
 
 		Scenario.Turns.Add(Turn);
 
