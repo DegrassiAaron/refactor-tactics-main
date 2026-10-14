@@ -1392,32 +1392,16 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 	return BuildPlayerEventFeed(TurnLog, TArray<int32>{ ObserverTeamId });
 }
 
-TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
-	const TArray<int32>& ObserverTeamIds)
+int32 URTHudViewModel::OwnTeamForFeed(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds)
 {
-	// Senza le unita' di chi guarda: la scala di sempre per tutte (`#3734`).
-	return BuildPlayerEventFeed(TurnLog, ObserverTeamIds, TSet<int32>());
-}
-
-TSet<int32> URTHudViewModel::OwnUnitIdsForFeed(const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units)
-{
-	TSet<int32> Proprie;
-	if (ObserverTeamIds.Num() != 1)
-	{
-		return Proprie; // sessione non presidiata, o nessuno guarda: la scala di sempre
-	}
-	for (const ARTUnit* Unit : Units)
-	{
-		if (Unit && Unit->TeamId == ObserverTeamIds[0] && Unit->StableUnitId != 0)
-		{
-			Proprie.Add(Unit->StableUnitId); // `0` non e' un id ([D-063])
-		}
-	}
-	return Proprie;
+	// Presidiata e una squadra sola che guarda: e' lei. Altrimenti nessuna, e la scala di sempre (`#3734`).
+	return (TurnManager != nullptr && !TurnManager->IsUnattendedSession() && ObserverTeamIds.Num() == 1)
+		? ObserverTeamIds[0]
+		: INDEX_NONE;
 }
 
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
-	const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds)
+	const TArray<int32>& ObserverTeamIds, int32 OwnTeamId)
 {
 	// 🔴 **Il PERIMETRO viene prima della proiezione, ed e' una correzione non un taglio.**
 	// `Project` applica la dominanza — una riga per unita' — e il suo commento la descrive «in questo
@@ -1448,7 +1432,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 	//
 	// ⚠️ Il filtro qui sopra non tocca l'autorizzazione: seleziona QUALI voci entrano, non chi puo'
 	// vederle. Le due decisioni restano separate, e quella di privacy resta una sola.
-	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(DelTurnoCorrente, ObserverTeamIds, OwnUnitIds);
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(DelTurnoCorrente, ObserverTeamIds, OwnTeamId);
 
 	// Le **ultime** `MaxFeedLines`: il giocatore vuole sapere cos'e' appena successo, non come il turno
 	// era cominciato. Prendere le prime sarebbe altrettanto implementabile e inutile.
@@ -1490,7 +1474,10 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 	}
 
 	const TArray<FRTTurnLogEntry>& Log = TurnManager->GetTurnLog();
-	const TArray<FRTPlayerEventLineView> Filtrato = BuildPlayerEventFeed(Log, ObserverTeamIds);
+	// La stessa regola del feed a schermo (`#3734`): senza, la diagnostica conterebbe righe diverse da quelle che
+	// il widget mostra, e indicherebbe lo strato sbagliato.
+	const TArray<FRTPlayerEventLineView> Filtrato =
+		BuildPlayerEventFeed(Log, ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds));
 
 	FString Osservatori;
 	for (const int32 Id : ObserverTeamIds)
@@ -1538,24 +1525,15 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTu
 {
 	// Nessun manager, nessun log: un feed vuoto e' gia' la risposta giusta, e non c'e' una «vista neutra»
 	// da inventare come per l'intestazione — una riga non esiste finche' qualcosa non e' successo.
-	return TurnManager != nullptr
-		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamId)
-		: TArray<FRTPlayerEventLineView>{};
+	// Per l'insieme di un elemento: e' li' che la regola di `#3734` sa se la sessione e' presidiata.
+	return BuildPlayerEventFeed(TurnManager, TArray<int32>{ ObserverTeamId });
 }
 
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 	const TArray<int32>& ObserverTeamIds)
 {
 	return TurnManager != nullptr
-		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds)
-		: TArray<FRTPlayerEventLineView>{};
-}
-
-TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
-	const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units)
-{
-	return TurnManager != nullptr
-		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnUnitIdsForFeed(ObserverTeamIds, Units))
+		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds))
 		: TArray<FRTPlayerEventLineView>{};
 }
 

@@ -2083,7 +2083,7 @@ bool FRTFallFeedSaysFallAfterAHitTest::RunTest(const FString&)
 
 	// La regola, dalla porta che il widget usa.
 	const TArray<FRTPlayerEventLineView> Feed =
-		URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 1 }, TArray<ARTUnit*>{ Attaccante, Bersaglio, Occupante });
+		URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 1 });
 	const FString Attesa = FString::Printf(TEXT("Caduta — %d"), DannoDiChiCade);
 	const FString Letta = RigaDi(Feed, Bersaglio);
 	TestTrue(*FString::Printf(TEXT("🔴 chi cade dopo aver colpito legge la caduta: «%s»"), *Letta),

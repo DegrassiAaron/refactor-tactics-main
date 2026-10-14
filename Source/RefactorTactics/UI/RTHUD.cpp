@@ -1331,17 +1331,8 @@ void ARTHUD::DrawHUD()
 	// contratto di conoscenza che `#1936` vieta.
 	if (TurnManager)
 	{
-		// ➕ **Le stesse righe del feed, con la stessa regola** (`#3734`): un segno su una cella deve
-		// corrispondere a una riga che il feed mostra. Con la scala di sempre, un attacco bloccato di una propria
-		// unita' che ha anche colpito resterebbe senza riga nel feed e col segno sulla mappa, o il contrario.
-		TArray<ARTUnit*> UnitaPerIlFeed;
-		for (AActor* Attore : Actors)
-		{
-			if (ARTUnit* Unita = Cast<ARTUnit>(Attore)) { UnitaPerIlFeed.Add(Unita); }
-		}
 		TSet<FRTCellId> BlockerCells;
-		ComputeBlockerMarks(URTHudViewModel::BuildPlayerEventFeed(TurnManager, TArray<int32>{ PlayerTeamId },
-			UnitaPerIlFeed), BlockerCells);
+		ComputeBlockerMarks(URTHudViewModel::BuildPlayerEventFeed(TurnManager, PlayerTeamId), BlockerCells);
 
 		// Un contorno esagonale, non un riempimento: la cella porta gia' la propria geometria, e coprirla
 		// nasconderebbe cio' che il giocatore deve riconoscere come ostacolo. Colore ambra, lo stesso della

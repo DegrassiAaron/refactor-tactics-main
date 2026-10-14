@@ -306,12 +306,7 @@ TArray<FRTPlayerEventLineView> URTPlayerEventLogWidget::GetFeed() const
 	// ⚠️ **L'insieme e non il singolo** (`#2744`): in sessione presidiata contiene la sola `PlayerTeamId` e
 	// questa riga risponde come rispondeva; in autobattle contiene le squadre in campo, e la decisione
 	// resta una per voce dentro `Project` — non due proiezioni concatenate, che produrrebbero doppioni.
-	//
-	// ➕ **E le unita' in campo** (`#3734`): da li' il view model ricava quali sono di chi guarda, e per quelle cio'
-	// che hanno subito vince su cio' che hanno fatto. Raccolte una volta e passate a entrambe le domande.
-	const TArray<ARTUnit*> Unita = GatherUnitsInWorld();
-	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(),
-		URTHudViewModel::ResolveObserverTeamIds(GetTurnManager(), GetPlayerTeamId(), Unita), Unita);
+	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), ResolveObserverTeamIds());
 }
 
 TArray<FString> URTPlayerEventLogWidget::DescribeFeedState() const

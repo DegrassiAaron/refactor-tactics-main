@@ -4,6 +4,7 @@
 #include "Turn/RTTurnLogLibrary.h" // HashTurnLog: l'invariante che la proiezione non deve toccare
 #include "Turn/RTCombatLog.h" // ComposeVisibleLogLines: il canale gemello da confrontare
 #include "UI/RTPlayerEventProjector.h"
+#include "Turn/RTReactionLibrary.h"        // #3734: ERTReactionOutcome, una reazione non scattata
 #include "Ability/RTActionData.h"          // #3734: l'indice nel kit dello scatto e del getto di Muiren
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -909,13 +910,16 @@ bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
 {
 	constexpr int32 Mia = 3;
 	constexpr int32 Nemica = 7;
-	const TSet<int32> Proprie = { Mia };
+	const int32 Proprie = 0; // la squadra di chi guarda, per la regola
 	const TArray<int32> Chi = { 0 };
 
 	auto Voce = [](ERTLogCategory Categoria, uint8 Esito, int32 Unita, const FName& Azione)
 	{
 		FRTTurnLogEntry E = PlayerEventEntry(Categoria, Esito, Unita, /*Team*/ 0);
 		E.ActionId = Azione; // serve solo a riconoscere QUALE voce e' rimasta
+		// Di chi e' l'unita' lo dice la voce, come la scrive `AppendLogEntry`: la mia e' della squadra 0.
+		E.VerdictSubject.StableUnitId = Unita;
+		E.VerdictSubject.TeamId = Unita == Nemica ? 1 : 0;
 		return E;
 	};
 	auto Mossa = [&Voce](ERTMoveOutcome Esito, int32 Unita, const TCHAR* Azione)
@@ -938,9 +942,9 @@ bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
 	const FName Stato(TEXT("Status.Prova"));
 
 	// L'unica riga rimasta, letta dal suo `ActionId`; zero o due righe sono entrambe un difetto.
-	auto Resta = [&Chi](const TArray<FRTTurnLogEntry>& Log, const TSet<int32>& Unita) -> FString
+	auto Resta = [&Chi](const TArray<FRTTurnLogEntry>& Log, int32 Squadra) -> FString
 	{
-		const TArray<FRTPlayerEvent> Ev = URTPlayerEventProjector::Project(Log, Chi, Unita);
+		const TArray<FRTPlayerEvent> Ev = URTPlayerEventProjector::Project(Log, Chi, Squadra);
 		return Ev.Num() == 1 ? Ev[0].ActionId.ToString() : FString::Printf(TEXT("<%d righe>"), Ev.Num());
 	};
 	auto Atteso = [this](const FString& Caso, const FString& Letta, const FName& Voluta)
@@ -1023,11 +1027,46 @@ bool FRTPlayerEventSufferedBeatsDoneTest::RunTest(const FString&)
 		Resta({ Colpo(ERTCombatOutcome::Lethal, Mia, KO), Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) }, Proprie),
 		KO);
 
-	// (10) Senza sapere quali unita' sono di chi guarda, la scala di sempre: il colpo dato tiene il posto. E'
-	//      cio' che fanno i due overload senza `OwnUnitIds`, e la sessione non presidiata.
+	// (10) Senza la squadra di chi guarda, la scala di sempre: il colpo dato tiene il posto. E' cio' che fa il
+	//      proiettore per default, e la sessione non presidiata.
 	const TArray<FRTTurnLogEntry> ColpoESpinta = {
 		Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato), Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) };
-	Atteso(TEXT("(10) senza unita' proprie"), Resta(ColpoESpinta, TSet<int32>()), ColpoDato);
+	Atteso(TEXT("(10) senza la squadra di chi guarda"), Resta(ColpoESpinta, INDEX_NONE), ColpoDato);
+	// ... e una voce senza soggetto registrato — una traccia ricaricata: il campo e' `Transient` — anche.
+	TArray<FRTTurnLogEntry> Ricaricata = ColpoESpinta;
+	for (FRTTurnLogEntry& E : Ricaricata) { E.VerdictSubject = FRTVerdictSubjectRef(); }
+	Atteso(TEXT("(10) una traccia ricaricata"), Resta(Ricaricata, Proprie), ColpoDato);
+
+	// (11) Una reazione che NON scatta non e' «Reazione scattata», e non copre il colpo dato. Il registro la
+	//      scrive per ogni reazione armata in ogni Blast (code review).
+	Atteso(TEXT("(11) colpisce, e la sua reazione armata non scatta"),
+		Resta({ Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato),
+			Voce(ERTLogCategory::Reaction, static_cast<uint8>(ERTReactionOutcome::NotTriggered), Mia, FName(TEXT("Prova.Reazione"))) },
+			Proprie),
+		ColpoDato);
+	TestEqual(TEXT("(11) da sola, una reazione non scattata non da' righe"),
+		URTPlayerEventProjector::Project({ Voce(ERTLogCategory::Reaction, static_cast<uint8>(ERTReactionOutcome::Unavailable), Mia,
+			FName(TEXT("Prova.Reazione"))) }, Chi, Proprie).Num(), 0);
+	// ... e una scattata e' una notizia: copre il colpo dato.
+	Atteso(TEXT("(11) colpisce, e la sua reazione scatta"),
+		Resta({ Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato),
+			Voce(ERTLogCategory::Reaction, static_cast<uint8>(ERTReactionOutcome::Activated), Mia, FName(TEXT("Prova.Reazione"))) },
+			Proprie),
+		FName(TEXT("Prova.Reazione")));
+
+	// (12) Uno stato che SCADE non e' successo all'unita' in questo turno: non copre il colpo dato.
+	Atteso(TEXT("(12) colpisce, e un suo stato scade"),
+		Resta({ Colpo(ERTCombatOutcome::Hit, Mia, ColpoDato),
+			Voce(ERTLogCategory::Status, static_cast<uint8>(ERTStatusOutcome::Expired), Mia, Stato) }, Proprie),
+		ColpoDato);
+
+	// (13) Una cura su se stessi e' una cura DATA, anche con le due celle uguali che la rete dei danni legge come
+	//      ambientali: cede alla spinta.
+	FRTTurnLogEntry CuraSuDiSe = Colpo(ERTCombatOutcome::Healed, Mia, CuraData);
+	CuraSuDiSe.TgtCell = CuraSuDiSe.SrcCell;
+	Atteso(TEXT("(13) si cura, poi viene spinta"),
+		Resta({ CuraSuDiSe, Mossa(ERTMoveOutcome::Displaced, Mia, TEXT("Prova.Spinta")) }, Proprie),
+		FName(TEXT("Prova.Spinta")));
 	const TArray<FRTPlayerEvent> SenzaInsieme = URTPlayerEventProjector::Project(ColpoESpinta, /*ObserverTeamId*/ 0);
 	if (TestEqual(TEXT("(10) l'overload a un osservatore: una riga"), SenzaInsieme.Num(), 1))
 	{
@@ -1184,15 +1223,12 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 		}
 	}
 
-	// La regola, dalla porta che il widget usa: il manager, chi guarda, le unita' in campo.
-	const TArray<ARTUnit*> InCampo = { Mia, Nemica };
-	TestTrue(TEXT("le unita' di chi guarda sono la sola mia"),
-		URTHudViewModel::OwnUnitIdsForFeed(TArray<int32>{ 0 }, InCampo).Array() == TArray<int32>{ Mia->StableUnitId });
-	TestEqual(TEXT("con due squadre che guardano, nessuna: la scala di sempre"),
-		URTHudViewModel::OwnUnitIdsForFeed(TArray<int32>{ 0, 1 }, InCampo).Num(), 0);
+	// La regola, dalla porta che il widget usa: il manager e chi guarda. La squadra la sa il manager.
+	TestEqual(TEXT("presidiata, una squadra che guarda: e' lei"), URTHudViewModel::OwnTeamForFeed(TM, TArray<int32>{ 0 }), 0);
+	TestEqual(TEXT("due squadre che guardano: nessuna"), URTHudViewModel::OwnTeamForFeed(TM, TArray<int32>{ 0, 1 }), INDEX_NONE);
 	FString Dopo;
 	if (TestEqual(TEXT("🔴 la mia unita' ha UNA riga"),
-		RigheDi(URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 0 }, InCampo), Mia, Dopo), 1))
+		RigheDi(URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 0 }), Mia, Dopo), 1))
 	{
 		if (!TestTrue(*FString::Printf(TEXT("ed e' lo spostamento: «%s»"), *Dopo), Dopo.Equals(TEXT("Spostata"), ESearchCase::CaseSensitive)))
 		{
@@ -1205,6 +1241,16 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 			}
 		}
 	}
+
+	// 🔴 **In sessione non presidiata nessuna unita' e' «di chi guarda»**, anche se l'insieme si restringe a una
+	// squadra — succede a fine autobattle, quando l'altra non ha piu' attori in campo. Lo decide il manager.
+	TM->SetUnattendedSession(true);
+	FString NonPresidiata;
+	TestEqual(TEXT("non presidiata, anche con una squadra sola nell'insieme: nessuna squadra di chi guarda"),
+		URTHudViewModel::OwnTeamForFeed(TM, TArray<int32>{ 0 }), INDEX_NONE);
+	TestEqual(TEXT("non presidiata: la scala di sempre, quindi nessuna riga per la mia unita'"),
+		RigheDi(URTHudViewModel::BuildPlayerEventFeed(TM, TArray<int32>{ 0 }), Mia, NonPresidiata), 0);
+	TM->SetUnattendedSession(false);
 
 	// 🔴 **E dal widget, la porta che il giocatore vede.** `GetFeed` raccoglie da solo le unita' del proprio mondo
 	// e le passa al view model: senza questa lettura, un widget che smettesse di passarle — e mostrasse di nuovo

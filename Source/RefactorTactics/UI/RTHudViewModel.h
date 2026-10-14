@@ -1349,39 +1349,21 @@ public:
 	 *
 	 * ⛔ Le due firme a un solo `int32` restano quello che erano e rispondono identiche: delegano a queste
 	 * con un insieme di un elemento. Non esiste un parametro che significhi «ignora l'osservatore».
+	 *
+	 * ➕ **`OwnTeamId`** (`#3734`): la squadra di chi guarda, per cui cio' che le sue unita' hanno subito vince su
+	 * cio' che hanno fatto — vedi `URTPlayerEventProjector::Project`. `INDEX_NONE` per default: la scala di sempre.
+	 * ✅ **Le firme col manager la passano da sole** quando la sessione e' presidiata e chi guarda e' una squadra
+	 * sola; in sessione non presidiata (`IsUnattendedSession`) nessuna unita' e' «di chi guarda». Lo decide il
+	 * manager e non la taglia dell'insieme, che a fine autobattle puo' restringersi alla squadra rimasta in campo.
 	 */
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
-		const TArray<int32>& ObserverTeamIds);
+		const TArray<int32>& ObserverTeamIds, int32 OwnTeamId = INDEX_NONE);
+
+	/** La squadra di chi guarda per la regola di `#3734`, o `INDEX_NONE`: vedi `BuildPlayerEventFeed`. */
+	static int32 OwnTeamForFeed(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds);
 
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 		const TArray<int32>& ObserverTeamIds);
-
-	/**
-	 * Il feed con la regola di `#3734`: per le unita' di chi guarda, cio' che hanno SUBITO vince su cio' che hanno
-	 * FATTO. Vedi l'overload di `URTPlayerEventProjector::Project` con `OwnUnitIds`.
-	 *
-	 * ⚠️ Le due firme senza questo parametro restano quello che erano: la scala di sempre per tutte le unita'.
-	 */
-	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
-		const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds);
-
-	/** Lo stesso, dal manager, con le unita' in campo da cui ricavare quelle di chi guarda (`OwnUnitIdsForFeed`). */
-	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
-		const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units);
-
-	/**
-	 * Le unita' di chi guarda, per la regola del feed di `#3734`: lo `StableUnitId` di ogni unita' la cui squadra
-	 * e' fra gli osservatori.
-	 *
-	 * 🔴 **Con piu' di una squadra che guarda risponde VUOTO**, cioe' la scala di sempre. E' la sessione non
-	 * presidiata (`#2744`): chi guarda non gioca, ogni unita' sarebbe «sua», e la riga del colpo che un'unita'
-	 * da' a un'altra — agganciata a chi colpisce — cederebbe a cio' che e' successo a chi ha colpito, anche se
-	 * la notizia e' per la squadra di chi e' stato colpito. La decisione d'autore parla di «la squadra di chi
-	 * guarda»: con due squadre non c'e' una risposta sola, e si tiene il comportamento di prima.
-	 *
-	 * ⚠️ Un'unita' gia' distrutta non c'e' fra le `Units`, e le sue righe seguono la scala di sempre.
-	 */
-	static TSet<int32> OwnUnitIdsForFeed(const TArray<int32>& ObserverTeamIds, const TArray<ARTUnit*>& Units);
 
 	/**
 	 * 🔑 **Chi guarda questa partita.** La sede UNICA della domanda, e il motivo per cui vive qui.

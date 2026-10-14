@@ -70,32 +70,29 @@ public:
 	 * cosi' *«le squadre per cui esiste una traccia pubblica filtrata per osservatore»*. Stesso concetto,
 	 * stesso tipo, stesso nome.
 	 *
+	 * ➕ **E per le unita' di chi guarda, cio' che hanno SUBITO vince su cio' che hanno FATTO** (`#3734`, decisione
+	 * d'autore A1 del 2026-10-13). Una riga e' una *riuscita propria* quando racconta un'azione scelta e andata a
+	 * segno — il movimento arrivato, il colpo dato, la cura data — e una *notizia* quando racconta cio' che
+	 * l'unita' non ha deciso: uno spostamento subito, un piano fallito, uno stato che le arriva addosso, una
+	 * reazione che scatta, il KO. Per un'unita' della squadra `OwnTeamId` una riuscita propria cede a una notizia
+	 * della stessa unita' nel turno, e una notizia non cede a una riuscita propria arrivata dopo. Il resto — fra
+	 * due righe della stessa specie, o con una riga *neutra* come la fine di uno stato — lo decide la scala di
+	 * sempre.
+	 *
+	 * 🔴 **Di chi e' l'unita' lo dice la voce, non il mondo**: `VerdictSubject.TeamId`, scritto da `AppendLogEntry`
+	 * insieme al verdetto. Per le unita' delle altre squadre la scala di sempre, ed e' una guardia: la riga di un
+	 * colpo d'arma e' agganciata a chi COLPISCE, e quando un nemico colpisce una tua unita' quella riga e' la
+	 * notizia per te. Una voce senza soggetto registrato — una traccia ricaricata, dove il campo e' `Transient` —
+	 * resta sulla scala di sempre.
+	 *
 	 * @param ObserverTeamIds  chi guarda. **Vuoto -> nessun evento**: il fail-closed di `AllowsTeam` non si
 	 *                         allenta passando per un contenitore, e un insieme vuoto non significa «tutti».
+	 * @param OwnTeamId        la squadra di chi guarda, per la regola di `#3734`. **`INDEX_NONE` -> la scala di
+	 *                         sempre per tutte le unita'**: lo e' per default, e lo passa chi non sa se la sessione
+	 *                         e' presidiata.
 	 */
 	static TArray<FRTPlayerEvent> Project(const TArray<FRTTurnLogEntry>& Entries,
-		const TArray<int32>& ObserverTeamIds);
-
-	/**
-	 * Lo stesso, sapendo QUALI unita' sono di chi guarda (`#3734`, decisione d'autore del 2026-10-13).
-	 *
-	 * 🔑 **Per un'unita' di chi guarda, cio' che ha SUBITO vince su cio' che ha FATTO.** Una riga e' una
-	 * *riuscita propria* quando racconta un'azione scelta e andata a segno: il movimento arrivato, il colpo
-	 * dato, la cura data. Per le unita' in `OwnUnitIds` una riuscita propria cede a qualunque altra riga della
-	 * stessa unita' nel turno — spinta, caduta, stato, piano fallito, reazione, KO — e una di queste non cede a
-	 * una riuscita propria arrivata dopo. Dentro ciascuna delle due specie decide la scala di sempre
-	 * (`DominanceRank`), e a parita' resta la prima arrivata.
-	 *
-	 * ⚠️ **Per le altre unita' la scala di sempre, invariata, e non per prudenza.** La riga di un colpo d'arma e'
-	 * agganciata a chi COLPISCE (`IsSubjectTheSufferer` e' falso per un `Hit`): quando un nemico colpisce una tua
-	 * unita', quella riga e' la notizia che la tua unita' e' stata colpita, e non deve cedere a cio' che e'
-	 * successo al nemico nello stesso turno.
-	 *
-	 * @param OwnUnitIds  `StableUnitId` delle unita' di chi guarda. **Vuoto -> la scala di sempre per tutte**:
-	 *                    e' cio' che fanno i due overload senza questo parametro.
-	 */
-	static TArray<FRTPlayerEvent> Project(const TArray<FRTTurnLogEntry>& Entries,
-		const TArray<int32>& ObserverTeamIds, const TSet<int32>& OwnUnitIds);
+		const TArray<int32>& ObserverTeamIds, int32 OwnTeamId = INDEX_NONE);
 
 	/**
 	 * Il solo passo di autorizzazione, esposto perche' e' **verificabile**.
