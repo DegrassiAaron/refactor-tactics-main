@@ -1552,6 +1552,8 @@ protected:
 	 */
 	TArray<FRTCellId> EdgeFeatureOtherCells;
 	TArray<FVector> EdgeFeatureBaseScale;
+	/** #3760: vero se almeno un muro, una copertura o una porta e' RICORDATO, e la pianta lo disegna a linee. */
+	bool bRememberedWallsToDraw = false;
 	TArray<uint8> LastEdgeFeatureVeilState;
 
 	/**
@@ -1817,6 +1819,29 @@ protected:
 	 * sola banda che cambia — la stessa disciplina di `Last…VeilState`, un livello piu' sotto.
 	 */
 	void AdvanceVeilTransition(float DeltaSeconds);
+
+	/**
+	 * CHE COSA FA UNA FAMIGLIA DI ISTANZE NEL RICORDO (#3760, la pianta).
+	 *
+	 * | valore | una cella esplorata e non osservata |
+	 * |---|---|
+	 * | `Attenuate` | si disegna coi colori veri moltiplicati per `RTVeilExploredFactor` — com'era prima della pianta |
+	 * | `Hide` | non si disegna, come una cella mai vista |
+	 * | `Plan` | si disegna col colore della pianta, a piena luminosita'. Solo l'anello della griglia |
+	 *
+	 * 🔑 **Il ricordo di oggi e' «Attenuate» per tutte.** Con la pianta il disco, i glifi, il rilievo e i volumi
+	 * spariscono, e resta l'anello della griglia: il disegno a linee che l'autore ha scelto.
+	 */
+	enum class ERTVeilMemory : uint8 { Attenuate, Hide, Plan };
+
+	/** Il trattamento del ricordo di ogni famiglia, letto dalle leve della pianta (#3760). */
+	ERTVeilMemory MemoryFor(const UInstancedStaticMeshComponent* Component) const;
+
+	/** Il colore delle linee della pianta (#3760). */
+	FLinearColor PlanColor() const;
+
+	/** Le linee dei muri, delle coperture e delle porte RICORDATI, quando la pianta li disegna a linee (#3760). */
+	void DrawRememberedWallsAsLines() const;
 
 	/** Un passo del filtro su UNA famiglia. Risponde quante istanze restano in movimento. */
 	int32 AdvanceVeilFamily(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,

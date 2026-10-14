@@ -68,6 +68,30 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
+/**
+ * `#3760` — le leve della pianta, per le tavole dell'autore. ⚠️ Sono leve di PROVA: colore della pianta e resa dei
+ * muri ricordati li sceglie l'autore guardando, e la scelta prendera' il posto di queste righe. Si leggono quando il
+ * velo si stende: cambiarle a partita in corso vale per le celle che cambiano stato da li' in poi.
+ */
+static TAutoConsoleVariable<int32> CVarRTFogPlan(
+	TEXT("rt.Fog.Plan"),
+	1,
+	TEXT("1 = il terreno ricordato si disegna come pianta (solo l'anello della griglia, nel colore della pianta). "
+		"0 = attenuato coi colori veri, com'era prima di #3760."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarRTFogPlanColor(
+	TEXT("rt.Fog.Plan.Color"),
+	0,
+	TEXT("Colore della pianta: 0 = ciano chiaro, 1 = bianco, 2 = ambra."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarRTFogPlanWalls(
+	TEXT("rt.Fog.Plan.Walls"),
+	2,
+	TEXT("Muri, coperture e porte ricordati: 0 = solidi come quando li si vede, 1 = spariscono, 2 = linee della pianta."),
+	ECVF_Default);
+
 namespace
 {
 	/**
@@ -1137,7 +1161,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackTracers.Num() > 0
 		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
-		|| VeilCellsInTransition > 0;
+		|| VeilCellsInTransition > 0
+		// #3760: le linee dei muri ricordati si ridisegnano a ogni fotogramma.
+		|| bRememberedWallsToDraw;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1275,6 +1301,7 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	{
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
+	DrawRememberedWallsAsLines();
 	DrawPlanningPreview();
 }
 
@@ -1504,6 +1531,102 @@ namespace
 		if (Batcher)
 		{
 			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
+		}
+	}
+}
+
+ARTHexMapActor::ERTVeilMemory ARTHexMapActor::MemoryFor(const UInstancedStaticMeshComponent* Component) const
+{
+	if (CVarRTFogPlan.GetValueOnGameThread() == 0)
+	{
+		return ERTVeilMemory::Attenuate; // il ricordo di prima della pianta, per tutte le famiglie
+	}
+	if (Component == CellBorders)
+	{
+		return ERTVeilMemory::Plan; // l'anello della griglia E' la pianta
+	}
+	if (Component == Blockers || Component == EdgeFeatures || Component == StructuralBodies)
+	{
+		// I muri: solidi come oggi, oppure spariscono — e con le linee (`2`) li ridisegna `DrawRememberedWallsAsLines`.
+		return CVarRTFogPlanWalls.GetValueOnGameThread() == 0 ? ERTVeilMemory::Attenuate : ERTVeilMemory::Hide;
+	}
+	// Disco, glifi, rilievo, volumi di superficie: e' il «nessun colore di superficie» della scelta dell'autore.
+	return ERTVeilMemory::Hide;
+}
+
+FLinearColor ARTHexMapActor::PlanColor() const
+{
+	switch (CVarRTFogPlanColor.GetValueOnGameThread())
+	{
+	case 1: return FLinearColor::FromSRGBColor(FColor(225, 230, 235));
+	case 2: return FLinearColor::FromSRGBColor(FColor(240, 180, 70));
+	default: return FLinearColor::FromSRGBColor(FColor(110, 205, 230));
+	}
+}
+
+void ARTHexMapActor::DrawRememberedWallsAsLines() const
+{
+	if (!bRememberedWallsToDraw || CVarRTFogPlan.GetValueOnGameThread() == 0 || CVarRTFogPlanWalls.GetValueOnGameThread() != 2)
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	if (!World || !MapAsset)
+	{
+		return;
+	}
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+	const FColor Colore = PlanColor().ToFColor(/*bSRGB=*/ true);
+	const auto Quota = [this](const FRTCellId& Cella)
+	{
+		const FRTHexCellData* Dati = MapAsset->FindCell(Cella);
+		return (Dati ? static_cast<float>(Dati->Height) : 0.f) + RTLiftPreview;
+	};
+
+	// I muri dei pannelli di bordo — coperture, porte, muri interni — come un tratto sul pavimento lungo il pannello.
+	// La lunghezza viene dall'istanza, cosi' un muro interno corto resta corto.
+	if (EdgeFeatures && EdgeFeatures->GetStaticMesh() && LastEdgeFeatureVeilState.Num() == EdgeFeatureCells.Num())
+	{
+		const float MezzaY = EdgeFeatures->GetStaticMesh()->GetBounds().BoxExtent.Y;
+		for (int32 I = 0; I < EdgeFeatureCells.Num(); ++I)
+		{
+			if (LastEdgeFeatureVeilState[I] != RTVeilRemembered)
+			{
+				continue;
+			}
+			FTransform Xf;
+			if (!EdgeFeatures->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+			{
+				continue;
+			}
+			// La scala dell'istanza nascosta e' zero: la lunghezza si prende dalla scala piena.
+			const float ScalaY = EdgeFeatureBaseScale.IsValidIndex(I) ? EdgeFeatureBaseScale[I].Y : 1.f;
+			const FVector Lungo = Xf.GetRotation().GetAxisY() * (MezzaY * ScalaY);
+			const FVector Centro = URTHexLibrary::AxialToWorld(EdgeFeatureCells[I], Origin, Size, LayerH);
+			const FVector Punto(Xf.GetLocation().X, Xf.GetLocation().Y, Centro.Z + Quota(EdgeFeatureCells[I]));
+			DisegnaLineaAnteprima(World, Punto - Lungo, Punto + Lungo, Colore, SDPG_World, 4.f);
+		}
+	}
+
+	// Le celle che bloccano — colonne, lastre — come un esagono piu' piccolo dentro la cella.
+	if (LastBlockerVeilState.Num() == BlockerCells.Num())
+	{
+		for (int32 I = 0; I < BlockerCells.Num(); ++I)
+		{
+			if (LastBlockerVeilState[I] != RTVeilRemembered)
+			{
+				continue;
+			}
+			const FVector Centro = URTHexLibrary::AxialToWorld(BlockerCells[I], Origin, Size, LayerH)
+				+ FVector(0.f, 0.f, Quota(BlockerCells[I]));
+			const TArray<FVector> Spigoli = URTHexLibrary::HexCorners(Centro, Size * 0.6f);
+			for (int32 S = 0; S < Spigoli.Num(); ++S)
+			{
+				DisegnaLineaAnteprima(World, Spigoli[S], Spigoli[(S + 1) % Spigoli.Num()], Colore, SDPG_World, 3.f);
+			}
 		}
 	}
 }
@@ -3154,6 +3277,9 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		return 0;
 	}
 
+	// #3760: che cosa fa questa famiglia nel ricordo. Si chiede una volta per chiamata, non per istanza.
+	const ERTVeilMemory Ricordo = MemoryFor(Component);
+
 	// La precondizione DICHIARATA: la mappatura e' stata DERIVATA da `RebuildInstances`, e una ricostruzione
 	// passata di mezzo lascia indici stantii. L'esito non e' un crash ma celle velate SBAGLIATE — il difetto
 	// che si legge come «problema grafico» per settimane, finche' qualcuno non lo misura.
@@ -3219,20 +3345,29 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 			continue;
 		}
 		const FVector Full = BaseScale.IsValidIndex(I) ? BaseScale[I] : FVector::OneVector;
-		Xf.SetScale3D(bKnown ? Full : FVector::ZeroVector);
+		// #3760: nel ricordo una famiglia `Hide` non si disegna, come una cella mai vista.
+		const bool bDrawn = bVisible || (bKnown && Ricordo != ERTVeilMemory::Hide);
+		Xf.SetScale3D(bDrawn ? Full : FVector::ZeroVector);
 		Component->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
 
 		LastState[I] = State;
 		++Toccate;
 
 		FLinearColor Base;
-		if (!bKnown || !BaseColor(Cell, Base))
+		if (!bDrawn || !BaseColor(Cell, Base))
 		{
 			// Niente colore da scrivere: su cio' che non si disegna, e sulle famiglie che non hanno un canale
 			// colore per istanza — dove ricordato e osservato restano indistinguibili.
 			continue;
 		}
-		const float Target = bVisible ? 1.f : RTVeilExploredFactor;
+		// #3760: la pianta ha un colore suo, a piena luminosita'. Con target 1 sia osservata sia ricordata, il
+		// fattore non si muove: il passaggio fra le due e' un cambio di colore secco, non una dissolvenza.
+		const bool bPianta = !bVisible && Ricordo == ERTVeilMemory::Plan;
+		if (bPianta)
+		{
+			Base = PlanColor();
+		}
+		const float Target = (bVisible || bPianta) ? 1.f : RTVeilExploredFactor;
 
 		// 🔴 **Si ATTENUA solo fra due stati DISEGNATI, e il reveal da `Hidden` resta uno scalino.**
 		// E' la decisione (i) di `#2875`, e la ragione e' il multilivello: `LayerView` vale `AllLayers` di
@@ -3937,6 +4072,12 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	{
 		SetActorTickEnabled(true);
 	}
+
+	// #3760: c'e' qualche muro, copertura o porta RICORDATO da disegnare a linee? Le linee si ridisegnano a ogni
+	// fotogramma, quindi il `Tick` resta acceso finche' ce n'e' almeno uno.
+	bRememberedWallsToDraw = LastEdgeFeatureVeilState.Contains(RTVeilRemembered)
+		|| LastBlockerVeilState.Contains(RTVeilRemembered);
+	SetActorTickEnabled(HasAnythingToDraw());
 }
 
 bool ARTHexMapActor::GetVeilWrittenColor(int32 InstanceIndex, FLinearColor& OutColor) const
@@ -4000,6 +4141,7 @@ int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component
 
 	int32 InMovimento = 0;
 	int32 Scritte = 0;
+	const ERTVeilMemory Ricordo = MemoryFor(Component); // #3760
 	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
 	{
 		const uint8 State = LastState[I];
@@ -4010,8 +4152,14 @@ int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component
 		{
 			continue;
 		}
+		// #3760: un ricordo che non si disegna non ha niente da far convergere.
+		if (State == RTVeilRemembered && Ricordo == ERTVeilMemory::Hide)
+		{
+			continue;
+		}
+		const bool bPianta = State == RTVeilRemembered && Ricordo == ERTVeilMemory::Plan;
 
-		const float Target = (State == RTVeilLit) ? 1.f : RTVeilExploredFactor;
+		const float Target = (State == RTVeilLit || bPianta) ? 1.f : RTVeilExploredFactor;
 		const float Corrente = DisplayFactor[I];
 		if (Corrente == Target)
 		{
@@ -4024,6 +4172,10 @@ int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component
 		FLinearColor Base;
 		if (BaseColor(CellsOfInstance[I], Base))
 		{
+			if (bPianta)
+			{
+				Base = PlanColor();
+			}
 			Component->SetCustomDataValue(I, 0, Base.R * Prossimo);
 			Component->SetCustomDataValue(I, 1, Base.G * Prossimo);
 			Component->SetCustomDataValue(I, 2, Base.B * Prossimo, /*bMarkRenderStateDirty=*/ false);
