@@ -1,0 +1,33 @@
+{
+  "scenarioId": "Visual.Perception.RememberedCover",
+  "tags": ["perception", "fog", "veil", "plan", "cover", "aevik"],
+  "verifies": ["PIE-FOG-PIANTA"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "CoverYard",
+
+  "_nota": "BANCO della pianta (#3760, D-520): muri, coperture e porte RICORDATI si disegnano come linee della pianta. Aevik parte accanto alle due coperture di `CoverYard` — alta fra (0,0) e (1,0), bassa fra (0,1) e (1,1) — e si allontana di due celle verso ovest. Dopo il turno guarda a ovest: le coperture gli restano alle spalle, oltre la consapevolezza ravvicinata (2 celle), quindi non le vede piu' ma le ricorda.",
+
+  "_nota_cosa_guardare": "Le due coperture non sono pannelli solidi ma tratti ciano sul pavimento, nel colore della pianta; le celle intorno a loro sono anelli ciano senza disco. Davanti ad Aevik, verso ovest, le celle viste hanno disco e anello della griglia. Nessuna regola cambia: le attese sono solo posizione e verso.",
+
+  "_nota_nemico": "Branth sta lontano, in (3,-3), e non agisce: c'e' perche' la scena abbia due squadre come una partita, non perche' serva alla pianta.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "F1", "move": [[-3, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "F1", "cell": [-3, 0, 0] },
+    { "type": "UnitFacing",     "unit": "F1", "value": "W" },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
