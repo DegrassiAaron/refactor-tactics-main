@@ -1937,7 +1937,7 @@ capabilities:
         - Source/RefactorTactics/Player/RTPointerInteraction.h
         - Source/RefactorTactics/Player/RTPlayerController.h
         - Source/RefactorTactics/Selection/RTSelectable.h
-    issues: { open: [1614, 2802], closed: [3736] }
+    issues: { open: [1614, 2802, 3769], closed: [3736] }
     consumers: [RT-CAP-SCREEN-HUD, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:

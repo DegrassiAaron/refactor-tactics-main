@@ -22,7 +22,6 @@
 #include "Turn/RTTurnLogLibrary.h"        // DescribeInvalidReason: il testo del motivo ha gia' un owner
 #include "Terrain/RTTerrainLibrary.h"     // EffectiveTargetingRange: la portata APPLICATA del rifiuto
 #include "UI/RTHUD.h"                     // RefusalText: il testo del rifiuto ha gia' un owner
-#include "Turn/RTMovementActionLibrary.h"  // IsStraightLine: la distanza della carica oltre la portata ([D-516])
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
@@ -404,12 +403,11 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 	// 🔑 **Riporta, non decide**: il numero viene da `PlannedChargeReachBeyondRange`, la stessa portata che la
 	// pianificazione ha accettato e che il resolver eseguira'. Il piano e' legale — la carica corre fino alla
 	// portata e si ferma —, ed e' degradato: non colpisce il bersaglio scelto. E' la definizione di `Warning`.
-	if (const int32 Corsa = Unit->PlannedChargeReachBeyondRange(); Corsa > 0)
+	int32 Distanza = 0;
+	if (const int32 Corsa = Unit->PlannedChargeReachBeyondRange(&Distanza); Corsa > 0)
 	{
 		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
 		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
-		int32 Distanza = 0;
-		URTMovementActionLibrary::IsStraightLine(Unit->Cell, Unit->PlannedDashCell, Distanza);
 		if (!CopertaDalCritico(CaricaId))
 		{
 			FRTPlanWarningView Corta;
@@ -418,8 +416,11 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 			Corta.What = NomeDi(CaricaId);
 			Corta.Why = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeWhy",
 				"Il bersaglio è oltre la portata ({0} celle, portata {1})"), FText::AsNumber(Distanza), FText::AsNumber(Corsa));
+			// ⚠️ **«Non lo raggiunge», non «senza colpire»** (review di #3736): la corsa colpisce ancora chi sta sulla
+			// linea entro la portata all'inizio del Dash, compreso un nemico che chi pianifica non vede. Promettere che
+			// non colpira' nessuno sarebbe dire al giocatore una cosa che il resolver non mantiene.
 			Corta.Cost = FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeBeyondRangeCost",
-				"Si ferma dopo {0} celle senza colpire"), FText::AsNumber(Corsa));
+				"Corre per {0} celle e non lo raggiunge"), FText::AsNumber(Corsa));
 			Avvisi.Add(Corta);
 		}
 	}

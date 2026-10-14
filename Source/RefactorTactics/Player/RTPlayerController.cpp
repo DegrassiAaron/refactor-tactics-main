@@ -366,6 +366,7 @@ namespace
 				&& !(Unit->PlannedDashCell == Unit->Cell);
 			Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
+			Timeline.DashReachCells = Unit->PlannedChargeReachBeyondRange(); // [D-516]: il fantasma si ferma alla portata
 			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
 				Timeline.DashActionId = Scatto->Def.ActionId;
@@ -2153,8 +2154,11 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la
 	// pianificazione usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un
 	// altro gruppo continua a ispezionarsi.
+	// ⚠️ **E solo una carica che si puo' usare** (review di #3736): armata in ricarica, il click finirebbe nel «non
+	// pronto» di `HandleClickOnCell` senza ispezionare niente, cioe' un click perso dove prima si ispezionava.
 	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(SelectedUnit->SelectedAbilityIndex) : nullptr;
 	const bool bArmedChargeTargetsClicked = Armata && Armata->Def.MovementStyle == ERTMovementStyle::LinearCharge
+		&& SelectedUnit->CanUseAbility(SelectedUnit->SelectedAbilityIndex)
 		&& ClickedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId;
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
 		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
@@ -2680,7 +2684,15 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			//
 			// L'unica eccezione e' la CARICA: fermarsi addosso al nemico E' il suo modo di arrivare, e senza
 			// questa riga un bersaglio adiacente renderebbe la carica impianificabile.
-			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact);
+			// ⚠️ **Oltre la portata un impatto NON basta** (review di #3736). Da [D-516] la libreria fa correre la carica
+			// verso un bersaglio lontano, quindi un nemico noto sulla retta ENTRO la portata da' `Impact` anche per una cella
+			// vuota, un muro o un nemico lontano: accettarlo pianificava cio' che la decisione non copre, e l'anteprima e
+			// l'avviso avrebbero descritto una corsa fino alla portata che l'impatto ferma prima. Quel caso resta com'era
+			// prima di [D-516] — rifiutato —, e il giocatore carica il nemico piu' vicino cliccando lui.
+			int32 DistanzaDalBersaglio = 0;
+			const bool bOltreLaPortata = URTMovementActionLibrary::IsStraightLine(SelectedUnit->Cell, Cell, DistanzaDalBersaglio)
+				&& DistanzaDalBersaglio > DashRange;
+			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact) && !bOltreLaPortata;
 
 			// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla
 			// risoluzione corre fino alla portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano
@@ -2707,6 +2719,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 					Perche = TEXT("non allineata o fuori portata"); break;
 				case ERTLinearStop::TerrainDeniesDash:
 					Perche = TEXT("il terreno non si attraversa di corsa"); break;
+				case ERTLinearStop::Impact: // [D-516]: un impatto oltre la portata non pianifica, vedi sopra
+					Perche = TEXT("oltre la portata, e un nemico sulla retta la ferma prima"); break;
 				case ERTLinearStop::OutOfRange: // [D-516]: la corsa arriva in fondo, manca l'altra condizione
 					Perche = bNemicoSullaCella
 						? TEXT("oltre la portata, e la retta fino al nemico e' bloccata")

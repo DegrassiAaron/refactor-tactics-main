@@ -34,6 +34,7 @@
 #include "Turn/RTIntentPrivacyLibrary.h" // [D-516]: la vista filtrata che l'HUD disegna
 #include "Perception/RTTeamKnowledge.h" // [D-516]: ClassifyTarget, chi la squadra conosce
 #include "Player/RTPointerInteraction.h" // ERTPointerContext
+#include "Turn/RTPlanPreview.h"         // [D-516]: la timeline del piano posata sulla mappa
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -332,6 +333,17 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 		PC->GetInspectedUnit() == Alleata);
 	TestTrue(TEXT("e la carica resta quella sul nemico"), Charger->PlannedDashCell == Enemy->Cell);
 
+	// Una carica in RICARICA non ruba il click (review di #3736): armata, ma inutilizzabile, il nemico si ispeziona.
+	Charger->ConsumeAbility(ChargeIdx);
+	TestFalse(TEXT("premessa: la carica e' in ricarica"), Charger->CanUseAbility(ChargeIdx));
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	TestTrue(TEXT("premessa: prima del click l'ispezionata e' l'alleata"), PC->GetInspectedUnit() == Alleata);
+	PC->DispatchUnitClickForTest(Enemy, Charger);
+	TestTrue(TEXT("con la carica in ricarica il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
+	// L'ispezione torna sull'alleata, o il controllo sullo scatto qui sotto sarebbe vero gia' prima del click.
+	PC->DispatchUnitClickForTest(Alleata, Charger);
+
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
 	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 0, 0));
 	const int32 DashIdx = Dasher ? Dasher->FindDashAbilityIndex() : INDEX_NONE;
@@ -463,6 +475,28 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 	TestEqual(TEXT("una retta che non si percorre di corsa, anche oltre la portata, rifiuta la carica"),
 		Charger->PlannedDashAbility, (int32)INDEX_NONE);
 
+	// (4) Un nemico oltre la portata con un altro nemico noto sulla retta ENTRO la portata (review di #3736). La corsa
+	// verso il lontano incontra il vicino e si ferma con un impatto: e' il caso che [D-516] non copre, e resta com'era
+	// prima — rifiutato. Il vicino si carica cliccando lui. Sulla diagonale SE, dove la cella vuota e' gia' stata provata.
+	ARTUnit* Vicino = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2, 0));
+	ARTUnit* Lontano = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, Portata + 2, 0));
+	if (!Vicino || !Lontano) { DestroyInteractionWorld(World); return false; }
+	TM->RefreshTeamKnowledgeNow();
+	TestTrue(TEXT("premessa: la squadra vede il vicino e il lontano"),
+		URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Vicino->StableUnitId, Vicino->TeamId,
+			Vicino->Cell) == ERTTargetKnowledge::Allowed
+		&& URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Lontano->StableUnitId, Lontano->TeamId,
+			Lontano->Cell) == ERTTargetKnowledge::Allowed);
+	PC->DispatchUnitClickForTest(Lontano, Charger);
+	TestEqual(TEXT("un nemico oltre la portata dietro un nemico noto entro la portata non si carica"),
+		Charger->PlannedDashAbility, (int32)INDEX_NONE);
+	PC->DispatchUnitClickForTest(Vicino, Charger);
+	TestTrue(TEXT("controllo: il vicino, in portata, si carica"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Vicino->Cell);
+	// Si toglie il piano. Vicino e lontano stanno sulla diagonale SE, fuori dalla retta E del caso qui sotto.
+	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->SelectAbility(ChargeIdx);
+
 	// Il caso della regola.
 	TestTrue(TEXT("il click sul nemico oltre la portata e' consumato"), PC->DispatchUnitClickForTest(Enemy, Charger));
 	TestEqual(TEXT("e la carica si pianifica"), Charger->PlannedDashAbility, ChargeIdx);
@@ -501,6 +535,20 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 		TestEqual(TEXT("ed e' corsa per i soli tratti della portata"), Anteprima.ReachSegments, Portata);
 		TestTrue(TEXT("il resto e' il tratto che la carica non fara'"), Anteprima.HasShortfall());
 		TestTrue(TEXT("e il segno d'arrivo sta dove si ferma"), Anteprima.StopCell() == FRTCellId(Portata, 0, 0));
+	}
+
+	// La timeline del piano, quella che il controller compone e posa sulla mappa: il fantasma dello scatto si ferma
+	// alla portata. Riselezionare la ricompone, come fa il gioco a ogni cambio di selezione.
+	PC->SelectActorForTest(Charger);
+	const FRTPhasePreviewEntry* FantasmaScatto = nullptr;
+	for (const FRTPhasePreviewEntry& Voce : MapActor->GetPlanPreview().Phases)
+	{
+		if (Voce.Phase == ERTResolutionPhase::FastMovement) { FantasmaScatto = &Voce; }
+	}
+	if (TestNotNull(TEXT("la timeline posata porta la fase Dash"), FantasmaScatto))
+	{
+		TestTrue(TEXT("e il suo fantasma si ferma alla portata, non sul nemico"),
+			FantasmaScatto->PreviewDestination == FRTCellId(Portata, 0, 0));
 	}
 
 	DestroyInteractionWorld(World);

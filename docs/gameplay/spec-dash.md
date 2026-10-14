@@ -134,8 +134,8 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   scelto. L'unica eccezione è la **carica**, per cui fermarsi sulla cella **adiacente** al nemico *è* il modo
   di arrivare ([D-296](../decisions/RT_PDR_00_Decision_Log.md)). E la carica ha una seconda eccezione ([D-516](../decisions/RT_PDR_00_Decision_Log.md)):
   su un nemico che la squadra conosce, **in linea ma oltre la portata**, si pianifica se la retta fino a lui è libera
-  dal terreno; alla risoluzione corre fino alla portata e si ferma senza colpire. Una cella vuota oltre la portata
-  resta rifiutata.
+  dal terreno e nessun nemico noto la ferma entro la portata; alla risoluzione corre fino alla portata e si ferma, e
+  colpisce solo chi stava sulla linea senza che lo si vedesse. Una cella vuota oltre la portata resta rifiutata.
   Con una **carica** armata, cliccare un nemico osservato pianifica la carica su di lui, come cliccando la sua cella
   ([D-516](../decisions/RT_PDR_00_Decision_Log.md), [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)); con ogni altro scatto il
   click sul nemico lo ispeziona.
@@ -145,7 +145,8 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   lineari, grafo per quelle a budget — disegnare l'A\* per uno scatto lineare mostrerebbe un percorso curvo
   attorno a un ostacolo che in realtà lo ferma. Soggetta alla privacy dell'intento (invariante #6).
   Una carica col bersaglio **oltre la portata** è piena fino alla portata e **tratteggiata in rosso** oltre, fino
-  al nemico; il segno d'arrivo sta dove la corsa si ferma, e l'elenco degli avvisi del piano porta un `Warning`
+  al nemico; il segno d'arrivo e il fantasma della timeline stanno dove la corsa si ferma, e l'elenco degli avvisi del
+  piano porta un `Warning`
   ([D-516](../decisions/RT_PDR_00_Decision_Log.md)).
 
 ## 6. Playback (animazione)

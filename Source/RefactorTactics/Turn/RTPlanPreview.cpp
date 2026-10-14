@@ -211,9 +211,15 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		// stesso difetto che la fase Move era stata scritta per evitare, sulla fase accanto.
 		// [D-474]: la rotta si chiede al resolver solo per uno scatto che si applica. Per gli altri resta vuota,
 		// cioe' la rotta rifiutata qui sotto: l'unita' non si sposta e non si gira.
-		const FRTHexPathResult RottaScatto = bScattoEffettivo
+		FRTHexPathResult RottaScatto = bScattoEffettivo
 			? URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell)
 			: FRTHexPathResult();
+		// [D-516]: una carica col bersaglio oltre la portata si ferma dopo `DashReachCells` celle. Fra due celle della
+		// stessa retta esagonale la via piu' breve e' una sola, la retta, quindi troncarla da' le celle che corre.
+		if (Plan.DashReachCells > 0 && RottaScatto.Path.Num() > Plan.DashReachCells + 1)
+		{
+			RottaScatto.Path.SetNum(Plan.DashReachCells + 1);
+		}
 
 		FRTPhasePreviewEntry Dash;
 		Dash.Phase = ERTResolutionPhase::FastMovement;

@@ -949,9 +949,13 @@ public:
 	 * bersaglio in portata o non in linea.
 	 *
 	 * ⚠️ E' una previsione sulla geometria, come `PlannedDashMoves()`: la risoluzione puo' fermare la corsa prima,
-	 * per un ostacolo o per uno scontro simultaneo. Dice «non arriva al bersaglio», non «arriva fin li'».
+	 * per un ostacolo, per uno scontro simultaneo o per un nemico sulla linea che chi pianificava non vedeva. Dice
+	 * «non arriva al bersaglio», non «arriva fin li'».
+	 *
+	 * @param OutDistance  se non nullo, la distanza del bersaglio quando la risposta e' positiva: chi la mostra non
+	 *                     deve rifare la geometria.
 	 */
-	int32 PlannedChargeReachBeyondRange() const;
+	int32 PlannedChargeReachBeyondRange(int32* OutDistance = nullptr) const;
 
 	/**
 	 * Vero se lo STATO dell'unita' nega lo scatto pianificato: `Status.Unbalanced` e una mobilita' rapida non

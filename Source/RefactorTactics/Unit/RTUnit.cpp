@@ -2135,7 +2135,7 @@ int32 ARTUnit::EffectiveDashRangeOf(int32 AbilityIndex) const
 	return GetEffectiveDashRange(Declared);
 }
 
-int32 ARTUnit::PlannedChargeReachBeyondRange() const
+int32 ARTUnit::PlannedChargeReachBeyondRange(int32* OutDistance) const
 {
 	if (!PlannedDashMoves() || !PlannedDashIsCharge())
 	{
@@ -2146,6 +2146,10 @@ int32 ARTUnit::PlannedChargeReachBeyondRange() const
 	if (Range <= 0 || !URTMovementActionLibrary::IsStraightLine(Cell, PlannedDashCell, Distance) || Distance <= Range)
 	{
 		return 0;
+	}
+	if (OutDistance)
+	{
+		*OutDistance = Distance;
 	}
 	return Range;
 }

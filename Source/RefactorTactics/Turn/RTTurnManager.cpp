@@ -421,8 +421,9 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
-	// `EnsureDefaultAbilities`/`MakeAbility` (`CollectAttackIntents`), lo scatto legacy di `ResolveDash`
-	// (`Dash->Def.ActionId.IsNone() ? Dash->RangeCells : ...`), le istanze della Prep e le coperture.
+	// `EnsureDefaultAbilities`/`MakeAbility` (`CollectAttackIntents`), lo scatto legacy di `ResolveDash` (un'azione
+	// fuori catalogo, la cui portata `ARTUnit::EffectiveDashRangeOf` legge dall'asset), le istanze della Prep e le
+	// coperture.
 	// ⏱️ *Fino alla review della PR #3561 qui c'era un `ensureMsgf`, e la guardia muta stava solo nel sito del Blast:
 	// lo scatto legacy, la Prep e le coperture raggiungevano l'ensure.* La guardia sta QUI perche' copre ogni sito in
 	// un punto solo — un produttore nuovo non deve ricordarsene.
@@ -1135,10 +1136,7 @@ void ARTTurnManager::PlanBots()
 		}
 
 		F.DashAbilityIndex = U->FindDashAbilityIndex();
-		if (U->GetAbility(F.DashAbilityIndex))
-		{
-			F.EffectiveDashRange = U->EffectiveDashRangeOf(F.DashAbilityIndex);
-		}
+		F.EffectiveDashRange = U->EffectiveDashRangeOf(F.DashAbilityIndex); // `0` senza mobilita' rapida
 
 		Facts.Add(MoveTemp(F));
 
