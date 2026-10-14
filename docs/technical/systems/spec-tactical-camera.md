@@ -101,21 +101,32 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
 | Vista strategica | `Tab` | `ToggleStrategicView`: sposta la distanza alla soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md), §5) |
 
-### 3.2 Binding del modificatore `Alt` — ✅ consegnati
+### 3.2 Binding del modificatore `Ctrl` — ✅ consegnati
 
 Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1771) (`CAM-02`) e [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772) (`CAM-03`), chiusi il 2026-08-30.
 
 | Gesto | Effetto | Stato |
 |---|---|---|
-| `Alt` + `LMB` **click** | pivot sulla cella valida sotto il cursore | ✅ non tocca la selezione |
-| `Alt` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag; in strategica non agisce ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
-| `Alt` + `RMB` drag | dolly | ✅ sopprime l'`UndoAction` per tutto il gesto |
-| `Alt` + movimento senza tasti | peek | ✅ limitato, rientra da sé al rilascio |
-| `Alt` + `MMB` drag | precision pan | ✅ `PrecisionPanScale` |
+| `Ctrl` + `LMB` **click** | pivot sulla cella valida sotto il cursore | ✅ non tocca la selezione |
+| `Ctrl` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag; in strategica non agisce ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Ctrl` + `RMB` drag | dolly | ✅ sopprime l'`UndoAction` per tutto il gesto |
+| `Ctrl` + movimento senza tasti | peek | ✅ limitato, rientra da sé al rilascio |
+| `Ctrl` + `MMB` drag | precision pan | ✅ `PrecisionPanScale` |
 | `PageUp` / `PageDown` | `ActiveLayer` sopra / sotto | ✅ limitato ai layer che la mappa ha |
 | doppio `LMB` | Select + Focus | ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773) |
 | `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida; in strategica non agisce ([D-498](../../decisions/RT_PDR_00_Decision_Log.md), [D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Tab` → Strategic View | porta lo zoom oltre la soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md)) | ⏳ non cablato: lo stato esiste, la vista no (§5). ⌫ *Fino al 2026-10-09 questa riga diceva `M`, che dichiara `Sneak` ([D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 3, [#3470](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3470); il badge è cliccabile da [D-457](../../decisions/RT_PDR_00_Decision_Log.md))* |
+
+> ⌫ **Fino al 2026-10-13 il modificatore era `Alt`, sinistro e destro.** Lo cambia
+> [D-514](../../decisions/RT_PDR_00_Decision_Log.md), in [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749):
+> i gesti della tabella sono gli stessi, su `Ctrl`, e i due `Alt` non sono più mappati. I due blocchi qui
+> sotto sono del 2026-08-30 e nominano il tasto di allora. La risposta «entrambi» non cambia: il secondo modo di
+> orbitare è `Ctrl`+`LMB`, e con `Ctrl` premuto `MMB` pana invece di orbitare.
+>
+> ⚠️ **Non verificato a schermo**, e nessun test headless lo vede. Su una tastiera italiana `AltGr` arriva a
+> Windows come `Ctrl` sinistro più `Alt` destro: armava il modificatore prima, passando dall'`Alt` destro, e lo
+> arma ancora. E dentro l'Editor `Ctrl` tenuto più un tasto di gioco può essere un accordo dell'Editor. Sono un
+> passo di `PIE-PC-GYM`.
 
 > ✅ **`CAM-B` risposta il 2026-08-30: «entrambi».** `MMB` **resta** l'orbita e `Alt`+`LMB` è un secondo
 > modo; il pan resta su `WASD`. La domanda era aperta perché il rebinding avrebbe invalidato
@@ -138,7 +149,7 @@ Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177
 
 ### 3.3 Click contro drag
 
-Un gesto deve produrre **una** operazione. `Alt`+`LMB` è click *oppure* drag, mai entrambi, e la
+Un gesto deve produrre **una** operazione. `Ctrl`+`LMB` è click *oppure* drag, mai entrambi, e la
 discriminante è una **soglia configurabile** in pixel: sotto la soglia al rilascio è un click (set pivot),
 oltre la soglia è un'orbita e il click non si emette più.
 
@@ -169,7 +180,7 @@ un'unità converte la sua cella invece di leggerne la posizione — è la correz
    tocca il mouse ha ripreso il comando, e finire l'interpolazione «perché era iniziata» è la forma più
    comune di camera che combatte contro il giocatore.
    ⚠️ **Ha oggi un solo consumatore**, ed è onesto dirlo: il rientro del peek, che è l'**unico** movimento
-   automatico che esista — `UpdatePeekReturn` non fa nulla mentre `Alt` è premuto, cioè mentre il giocatore
+   automatico che esista — `UpdatePeekReturn` non fa nulla mentre `Ctrl` è premuto, cioè mentre il giocatore
    sta guidando. `FocusOn` è istantaneo, quindi non c'è ancora niente da interrompere. La regola è scritta
    **prima** della prima transizione interpolata, non dopo: è l'unico momento in cui costa poco.
 2. **Ping, notifiche e UI ordinaria non rubano la camera.** Nessuna eccezione per «è importante»: se

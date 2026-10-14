@@ -712,6 +712,11 @@ sessions:
       che un domani usera' la stessa `.umap`.
       ⚠️ **L'ownership non si muove**: il contratto Hover/LMB/RMB resta di **#705**, la camera di
       **#1769/E49**, l'asset di **#1780/CAM-11**. Questa seduta appartiene funzionalmente a **E11/#25**.
+      🔄 **Dal 2026-10-13 il modificatore della camera e' `Ctrl`** (`D-514`, #3749): i gesti che queste note
+      chiamano `Alt`+`LMB` e `Alt`+`RMB` si eseguono con `Ctrl`. Le note restano come furono scritte il
+      2026-08-30. E oggi il precision pan col modificatore **esiste**
+      (`ARTPlayerController::RouteCameraGesture`, col tasto centrale tenuto): il percorso di `PIE-PC-GYM`
+      non lo esercita ancora.
 
   - id: U23
     title: Autobattle registrata — la partita che si guarda, in PIE e su packaged

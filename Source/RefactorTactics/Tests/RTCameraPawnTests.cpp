@@ -1234,11 +1234,11 @@ bool FRTCameraFocusPassesThroughBoundsTest::RunTest(const FString&)
 
 // --- #1771 / #1772 · i gesti del modificatore camera -------------------------------------------------
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraAltDragOrbitsOnlyPastThresholdTest,
-	"RefactorTactics.Camera.AltDragOrbitsOnlyPastTheClickThreshold",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraModifierDragOrbitsOnlyPastThresholdTest,
+	"RefactorTactics.Camera.ModifierDragOrbitsOnlyPastTheClickThreshold",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTCameraAltDragOrbitsOnlyPastThresholdTest::RunTest(const FString&)
+bool FRTCameraModifierDragOrbitsOnlyPastThresholdTest::RunTest(const FString&)
 {
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
@@ -1261,8 +1261,8 @@ bool FRTCameraAltDragOrbitsOnlyPastThresholdTest::RunTest(const FString&)
 	// guardia un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set-pivot
 	// arriverebbe su un'inquadratura gia' cambiata.
 	PC->SetCameraModifierForTest(true);
-	PC->SetAltPrimaryDownForTest(true, 0.f);
-	TestTrue(TEXT("il gesto Alt consuma il movimento"), PC->RouteCameraGestureForTest(FVector2D(3.f, 0.f)));
+	PC->SetModifierPrimaryDownForTest(true, 0.f);
+	TestTrue(TEXT("il gesto Ctrl consuma il movimento"), PC->RouteCameraGestureForTest(FVector2D(3.f, 0.f)));
 	TestEqual(TEXT("sotto soglia lo yaw non cambia"), Cam->GetCameraYaw(), YawBefore);
 
 	// Oltre soglia: da qui in poi e' un'orbita.
@@ -1295,20 +1295,20 @@ bool FRTCameraPeekReturnsToZeroTest::RunTest(const FString&)
 	const FVector Pivot(100.f, 200.f, 0.f);
 	Cam->SetCameraPivotForTest(Pivot);
 
-	// `Alt` da solo + movimento = peek.
+	// `Ctrl` da solo + movimento = peek.
 	PC->SetCameraModifierForTest(true);
-	TestTrue(TEXT("Alt da solo consuma il movimento come peek"),
+	TestTrue(TEXT("Ctrl da solo consuma il movimento come peek"),
 		PC->RouteCameraGestureForTest(FVector2D(20.f, 0.f)));
 	TestFalse(TEXT("il peek si e' aperto"), Cam->GetPeekOffset().IsNearlyZero());
 	TestEqual(TEXT("e il pivot non si e' mosso"), Cam->GetCameraPivot(), Pivot);
 
-	// Con `Alt` ancora premuto il rientro NON deve partire: tirare contro il giocatore mentre sta
+	// Con `Ctrl` ancora premuto il rientro NON deve partire: tirare contro il giocatore mentre sta
 	// guidando e' la forma piu' fastidiosa di camera automatica.
 	const FVector Held = Cam->GetPeekOffset();
 	PC->UpdatePeekReturnForTest(0.1f);
-	TestEqual(TEXT("con Alt premuto il peek resta dov'e'"), Cam->GetPeekOffset(), Held);
+	TestEqual(TEXT("con Ctrl premuto il peek resta dov'e'"), Cam->GetPeekOffset(), Held);
 
-	// Rilasciato `Alt`, rientra fino a zero — e il pivot e' sempre quello.
+	// Rilasciato `Ctrl`, rientra fino a zero — e il pivot e' sempre quello.
 	PC->SetCameraModifierForTest(false);
 	for (int32 i = 0; i < 200 && !Cam->GetPeekOffset().IsNearlyZero(); ++i)
 	{
