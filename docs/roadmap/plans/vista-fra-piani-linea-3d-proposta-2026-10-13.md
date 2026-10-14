@@ -130,17 +130,20 @@ Coppie di celle su piani diversi entro sette celle, contate nei due versi. Senza
 Su `LayerStack` oggi si vede quasi tutto; con la linea vera resta fra un quinto e due quinti. È la mappa dove ogni
 piano alto ha un piano sotto, quindi è il caso in cui i pavimenti coprono di più.
 
-➕ **Misurato dal gioco il 2026-10-13, con la regola implementata e la testa a 0,6.** Lo stampa il test
+➕ **Misurato dal gioco il 2026-10-14, con la regola implementata e la testa a 0,6.** Lo stampa il test
 `RefactorTactics.Vision.AcrossLayers.SameAnswerBothWays`, sulle stesse coppie:
 
-| Mappa | Coppie | Libere per la linea di tiro, che non cambia | Libere per la linea fra piani |
-|---|---|---|---|
-| `TestArena` | 488 | 386 | 294 |
-| `LayerStack` | 3438 | 3438 | 944 |
-| `LayerYard`: le impronte di `LayerStack`, con blocchi, coperture e porte | 3438 | 3005 | 672 |
+| Mappa | Coppie | Si vedevano con la regola di D-510 | Si vedono con la linea fra piani | Perse | Guadagnate |
+|---|---|---|---|---|---|
+| `TestArena` | 488 | 378 | 294 | 128 | 44 |
+| `LayerStack` | 3438 | 3372 | 944 | 2428 | 0 |
+| `LayerYard`: le impronte di `LayerStack`, con blocchi, coperture e porte | 3438 | 2939 | 672 | 2283 | 16 |
 
 Nessuna coppia a senso unico. Il prototipo aveva detto 298 e 941: la differenza sono i casi sul confine fra due
-celle, come §9 avvertiva. Un secondo oracolo, scritto dalla regola in soli interi e non dal codice, dà 294 e 944.
+celle, come §9 avvertiva. Un secondo oracolo, scritto dalla regola in soli interi e non dal codice, dà gli stessi
+numeri del gioco su `TestArena` e `LayerStack`.
+
+⚠️ **La colonna «Guadagnate» corregge §7**, che diceva che la regola toglie soltanto. Vedi la nota lì.
 
 ## 5. Le quattro scelte, e come l'autore le ha prese
 
@@ -216,11 +219,20 @@ non le vede da fuori.»*
   che non cambia: fra piani continuano a credersi in vista quando non lo sono. È una stima prudente.
 - **Le scene.** `Visual.Map.StackedColumn` va ridisegnata: oggi chi guarda sta sotto la piattaforma, e con la linea
   vera non vede nessuno dei due nemici. Serve chi guarda da fuori, un nemico sul bordo e uno più indietro.
-  ➕ Fatto in due scene: `Visual.Map.StackedColumn` resta la vista da sotto, con un nemico a terra che fa da
-  controllo; `Visual.Map.PlatformEdge`, nuova, è la vista da fuori.
+  ➕ Fatto in tre scene: `Visual.Map.StackedColumn` resta la vista da sotto, con un nemico a terra che fa da
+  controllo; `Visual.Map.PlatformEdge`, nuova, è la vista da fuori; `Visual.Map.OverTheWall`, nuova, è la vista da
+  dietro un muro, cioè il contatto guadagnato.
 - **Le voci PIE.** `PIE-VIS-COLONNA` diventa la voce di questa regola. Le scene a più piani già giudicate hanno i
   nemici a terra, sullo stesso piano di almeno un'unità di chi guarda: non dovrebbero cambiare, e si verifica.
 - **Privacy.** La regola toglie informazione a una squadra, non ne aggiunge.
+  ⚠️ **Sbagliato, corretto il 2026-10-14 dopo l'implementazione.** La regola toglie i contatti che un pavimento
+  copre, e ne **aggiunge** altri. Con la scelta S3 (a) un muro a terra ferma solo il tratto basso della linea:
+  da terra, da lontano, si vede **sopra il muro** chi sta su una piattaforma. Con la vista in pianta quelle coppie
+  erano a senso unico, perché il muro valeva solo per chi guardava da terra: dall'alto si vedeva già. Su `TestArena`
+  sono 44 coppie guadagnate su 488; la misura è in coda a §4.3. Il confine di privacy non cambia: la conoscenza resta
+  calcolata dall'autorità e data a ogni squadra per la sua parte. Cambia chi è in contatto con chi. L'ha mostrato una
+  verifica di mutazione, che ha fatto cadere un asserto scritto sulla frase sbagliata. La scena che lo fa vedere è
+  `Visual.Map.OverTheWall`.
 
 ## 8. Come si verifica
 
