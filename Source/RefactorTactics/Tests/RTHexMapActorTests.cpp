@@ -3,6 +3,7 @@
 #include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
+#include "Components/LineBatchComponent.h" // #3760: le linee della pianta
 #include "EngineUtils.h"                  // TActorIterator: nessun Actor per cella si conta guardando il mondo
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -2753,10 +2754,30 @@ bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
 	TestEqual(TEXT("visto il solo lato portante: entrambi visibili"), PannelliVisibili({ Portante }), 2);
 	// Un lato solo per pannello: la copertura sì, la porta no.
 	TestEqual(TEXT("visto solo il lato est: la sola copertura"), PannelliVisibili({ Est }), 1);
-	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati.
-	TestEqual(TEXT("lati opposti solo ricordati: entrambi visibili, come geometria ricordata"),
-		PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 2);
-	TestEqual(TEXT("il solo lato est ricordato: la sola copertura"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 1);
+	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati. ➕ #3760 (D-520): un pannello ricordato non e'
+	// piu' solido, diventa una linea della pianta — e lo diventa ricordato da un lato qualunque, come si vede da un lato
+	// qualunque. Le linee si contano nel batcher, nel colore della pianta.
+	auto LineeDellaPianta = [&]() -> int32
+	{
+		ULineBatchComponent* Batcher = World->GetLineBatcher(UWorld::ELineBatcherType::World);
+		if (!Batcher)
+		{
+			return -1;
+		}
+		Batcher->Flush();
+		static_cast<AActor*>(Actor)->Tick(0.f);
+		const FLinearColor Pianta(ARTHexMapActor::PlanColor().ToFColor(/*bSRGB=*/ true));
+		int32 N = 0;
+		for (const FBatchedLine& L : Batcher->BatchedLines)
+		{
+			N += L.Color.Equals(Pianta) ? 1 : 0;
+		}
+		return N;
+	};
+	TestEqual(TEXT("lati opposti solo ricordati: nessun pannello solido"), PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 0);
+	TestEqual(TEXT("e due linee della pianta, la copertura e la porta"), LineeDellaPianta(), 2);
+	TestEqual(TEXT("il solo lato est ricordato: nessun pannello solido"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 0);
+	TestEqual(TEXT("e la sola linea della copertura"), LineeDellaPianta(), 1);
 
 	DestroyMapActorWorld(World);
 	return true;

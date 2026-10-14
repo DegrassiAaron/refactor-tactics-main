@@ -872,6 +872,13 @@ public:
 	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
 
 	/**
+	 * #3760: rimette il ricordo ATTENUATO su tutte le famiglie, come prima della pianta. Esiste per i test del meccanismo
+	 * che resta nel codice — la dissolvenza di `#2875` fra osservato e ricordato — e che nessuna famiglia usa piu' da
+	 * [D-520]. Va chiamata prima del primo velo.
+	 */
+	void SetVeilMemoryAttenuatedForTest(bool bInAttenuated) { bVeilMemoryAttenuatedForTest = bInAttenuated; }
+
+	/**
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
 	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
 	 *
@@ -1622,6 +1629,8 @@ protected:
 	TArray<FVector> EdgeFeatureBaseScale;
 	/** #3760: vero se almeno un muro, una copertura o una porta e' RICORDATO, e la pianta lo disegna a linee. */
 	bool bRememberedWallsToDraw = false;
+	/** #3760: vedi `SetVeilMemoryAttenuatedForTest`. */
+	bool bVeilMemoryAttenuatedForTest = false;
 	TArray<uint8> LastEdgeFeatureVeilState;
 
 	/**

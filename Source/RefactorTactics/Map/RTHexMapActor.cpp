@@ -1638,6 +1638,10 @@ void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FCo
 
 ARTHexMapActor::ERTVeilMemory ARTHexMapActor::MemoryFor(const UInstancedStaticMeshComponent* Component) const
 {
+	if (bVeilMemoryAttenuatedForTest)
+	{
+		return ERTVeilMemory::Attenuate; // solo test: il meccanismo di prima della pianta
+	}
 	if (Component == CellBorders)
 	{
 		return ERTVeilMemory::Plan; // l'anello della griglia E' la pianta
