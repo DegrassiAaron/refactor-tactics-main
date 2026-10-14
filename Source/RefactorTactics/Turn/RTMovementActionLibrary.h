@@ -43,7 +43,18 @@ enum class ERTLinearStop : uint8
 	 *
 	 * Valore aggiunto in CODA: le tracce gia' scritte conservano il proprio significato.
 	 */
-	TerrainDeniesDash
+	TerrainDeniesDash,
+	/**
+	 * Una CARICA il cui bersaglio sta in linea ma **oltre la portata** ha percorso tutta la portata, senza
+	 * ostacoli e senza impatti, e si e' fermata li' ([D-516]). Solo `LinearCharge`: per ogni altro stile un
+	 * bersaglio oltre la portata resta `NotAligned`, e lo scatto non parte.
+	 *
+	 * 🔑 **Non e' un arrivo**: `Final` e' l'ultima cella della portata, non `Target`, e `IsLinearReachable`
+	 * risponde falso. La carica non colpisce nessuno che non stia sulla linea entro la portata.
+	 *
+	 * Valore aggiunto in CODA, come `TerrainDeniesDash`.
+	 */
+	OutOfRange
 };
 
 /** Esito di una mobilita' lineare: dove si arriva, cosa si attraversa, chi si colpisce e perche' ci si ferma. */
@@ -76,6 +87,16 @@ struct FRTLinearMoveResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
 	ERTLinearStop Stop = ERTLinearStop::NotAligned;
+
+	/**
+	 * [D-516] Vero se il bersaglio era una CARICA in linea ma oltre la portata, qualunque cosa l'abbia poi fermata.
+	 *
+	 * 🔑 **`Stop` da solo non lo dice**: un nemico sulla retta entro la portata da' `Impact` sia verso un bersaglio in
+	 * portata sia durante la corsa verso uno lontano. Chi accetta un impatto come «la carica arriva» deve poterli
+	 * distinguere senza rifare la geometria (review della PR #3767).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bTargetBeyondRange = false;
 
 	FRTLinearMoveResult() = default;
 };
@@ -120,7 +141,8 @@ public:
 	 * - `LinearDash` — avanza finche' la cella successiva e' percorribile e libera; si ferma PRIMA di un muro
 	 *   o di un'unita'. Non termina mai in una cella occupata.
 	 * - `LinearCharge` — come sopra, ma se la cella successiva ospita un NEMICO si ferma li' davanti e lo
-	 *   segnala come impatto: e' la carica che si arresta addosso al bersaglio.
+	 *   segnala come impatto: e' la carica che si arresta addosso al bersaglio. E un bersaglio in linea ma
+	 *   **oltre** `MaxCells` non la annulla: corre per tutta la portata e si ferma con `OutOfRange` ([D-516]).
 	 * - `LinearLeap` — ignora unita' e celle intermedie: conta solo l'atterraggio, che deve essere una cella
 	 *   percorribile e libera. Non cambia layer.
 	 *
@@ -149,4 +171,17 @@ public:
 	static bool IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& Target,
 		int32 MaxCells, ERTMovementStyle Style, const TMap<FRTCellId, int32>& Occupancy,
 		const TSet<int32>& Hostiles);
+
+	/**
+	 * Vero se fra `From` e `Target` c'e' una **retta libera dal terreno**, a qualunque distanza: ogni cella,
+	 * `Target` compreso, si attraversa di corsa ([D-516]).
+	 *
+	 * 🔑 **Le unita' non contano, e la portata nemmeno.** E' la domanda che la pianificazione fa per una carica
+	 * su un nemico OLTRE la portata: *«c'e' un percorso lineare fino a lui?»*. Chi sta sulla linea si sara' mosso
+	 * quando la carica risolve; un muro no.
+	 *
+	 * ⚠️ **Non e' una seconda geometria**: e' `ResolveLinearMove` con un passo per ogni cella della retta e
+	 * un'occupazione vuota, quindi muri, bordo e terreno che nega la corsa sono gli stessi della risoluzione.
+	 */
+	static bool IsLineOpenToTarget(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& Target);
 };

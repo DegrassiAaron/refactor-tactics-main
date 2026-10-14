@@ -421,8 +421,9 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
-	// `EnsureDefaultAbilities`/`MakeAbility` (`CollectAttackIntents`), lo scatto legacy di `ResolveDash`
-	// (`Dash->Def.ActionId.IsNone() ? Dash->RangeCells : ...`), le istanze della Prep e le coperture.
+	// `EnsureDefaultAbilities`/`MakeAbility` (`CollectAttackIntents`), lo scatto legacy di `ResolveDash` (un'azione
+	// fuori catalogo, la cui portata `ARTUnit::EffectiveDashRangeOf` legge dall'asset), le istanze della Prep e le
+	// coperture.
 	// ⏱️ *Fino alla review della PR #3561 qui c'era un `ensureMsgf`, e la guardia muta stava solo nel sito del Blast:
 	// lo scatto legacy, la Prep e le coperture raggiungevano l'ensure.* La guardia sta QUI perche' copre ogni sito in
 	// un punto solo — un produttore nuovo non deve ricordarsene.
@@ -1135,11 +1136,7 @@ void ARTTurnManager::PlanBots()
 		}
 
 		F.DashAbilityIndex = U->FindDashAbilityIndex();
-		if (const URTActionData* DashAb = U->GetAbility(F.DashAbilityIndex))
-		{
-			const int32 Dichiarata = DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells;
-			F.EffectiveDashRange = U->GetEffectiveDashRange(Dichiarata);
-		}
+		F.EffectiveDashRange = U->EffectiveDashRangeOf(F.DashAbilityIndex); // `0` senza mobilita' rapida
 
 		Facts.Add(MoveTemp(F));
 
@@ -4887,12 +4884,14 @@ void ARTTurnManager::ResolveDash()
 	TArray<int32> Priorities;     // parallelo a Units: FRTActionDef::Priority dell'azione, 0 per chi non scatta
 	TArray<bool> bLinearMovers;   // parallelo a Units: vero se la mobilita' e' lineare (URTMovementActionLibrary::IsLinear)
 	TArray<bool> bPassThrough;    // parallelo a Units: vero per chi ATTRAVERSA le unita' ferme (LinearPass)
+	TArray<bool> bChargeRunsShort; // parallelo a Units: [D-516], la carica corre fino alla portata e si ferma
 	TArray<int32> Teams;          // parallelo a Units: la squadra, che decide chi si attraversa ([D-396])
 	Paths.Reserve(Units.Num());
 	DashAbilityIdx.Init(INDEX_NONE, Units.Num());
 	Priorities.Init(0, Units.Num());
 	bLinearMovers.Init(false, Units.Num());
 	bPassThrough.Init(false, Units.Num());
+	bChargeRunsShort.Init(false, Units.Num());
 	// `INDEX_NONE` e non `0`: chi non dichiara la squadra non attraversa nessuno ([D-396]).
 	Teams.Init(INDEX_NONE, Units.Num());
 	int32 DasherCount = 0;
@@ -4964,9 +4963,9 @@ void ARTTurnManager::ResolveDash()
 
 		// Budget della fase Dash: la portata dichiarata dall'azione (con gli status), non il movimento del
 		// turno. Per un'azione catalogata la verita' e' il `Def`: `Action.Sprint` vale 8 MP e quel numero sta
-		// nel catalogo, non sul campo legacy dell'asset.
-		const int32 DeclaredRange = Dash->Def.ActionId.IsNone() ? Dash->RangeCells : Dash->Def.RangeCells;
-		const int32 EffectiveRange = Unit->GetEffectiveDashRange(DeclaredRange);
+		// nel catalogo, non sul campo legacy dell'asset. La regola sta in `EffectiveDashRangeOf`, che la
+		// pianificazione, l'anteprima e gli avvisi leggono uguale ([D-516]).
+		const int32 EffectiveRange = Unit->EffectiveDashRangeOf(DashIdx);
 
 		TArray<FRTCellId> Path;
 		bool bChargedIntoTarget = false;
@@ -4984,9 +4983,36 @@ void ARTTurnManager::ResolveDash()
 				if (Units[u] && Units[u]->IsAlive() && Units[u]->TeamId != Unit->TeamId) { Hostiles.Add(u); }
 			}
 
-			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+			FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
 				Snapshot.Map, Unit->Cell, Unit->PlannedDashCell, EffectiveRange,
 				Dash->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+
+			// 🔑 **[D-516] La carica oltre la portata la RIVALIDA il server** (review della PR #3767). Le condizioni della
+			// decisione — un nemico sulla cella, una retta libera dal terreno fino a lui — le controllava solo il
+			// controller, e la libreria fa correre qualunque carica oltre la portata: un piano scritto da un altro
+			// produttore (lo scenario, un client) verso una cella vuota o dietro un muro sarebbe corso fino alla
+			// portata, dove prima era annullato. `CLIENT PROPOSES → SERVER VALIDATES`: qui le stesse due condizioni
+			// sulla fotografia della fase, e se cadono la carica resta annullata com'era prima di [D-516].
+			// ⚠️ Il nemico si cerca fra TUTTI, non fra i noti a chi ha pianificato: il server non giudica la conoscenza,
+			// e un nemico che chi pianifica non vedeva non rende illegale un piano.
+			if (Linear.Stop == ERTLinearStop::OutOfRange)
+			{
+				const int32* const Occupante = Snapshot.Occupancy.Find(Unit->PlannedDashCell);
+				const bool bLegale = Occupante && Hostiles.Contains(*Occupante)
+					&& URTMovementActionLibrary::IsLineOpenToTarget(Snapshot.Map, Unit->Cell, Unit->PlannedDashCell);
+				if (bLegale)
+				{
+					// La voce «fermata, fuori portata» si scrive DOPO la risoluzione simultanea, e solo se la corsa c'e'
+					// stata: uno scontro puo' fermare chi carica prima, e allora la voce direbbe una corsa mai fatta.
+					bChargeRunsShort[i] = true;
+				}
+				else
+				{
+					Linear = FRTLinearMoveResult();
+					Linear.Final = Unit->Cell;
+					Linear.Stop = ERTLinearStop::NotAligned;
+				}
+			}
 			LinearStop = Linear.Stop;
 
 			// L'impatto della carica NON si applica qui: il catalogo le da' codice 20/30, cioe' movimento in
@@ -5263,6 +5289,25 @@ void ARTTurnManager::ResolveDash()
 			DashEntry.BaseActionId = DashDef->Def.BaseActionId;
 			DashEntry.Priority = DashDef->Def.Priority;
 			AppendLogEntry(DashEntry, Unit);
+
+			// 🔑 **[D-516] La carica oltre la portata: la traccia dice perche' si e' fermata dove si e' fermata**, con
+			// un ripiego `Stopped` col motivo `OutOfRange`. Solo se la corsa c'e' stata per intero — `Moved`, lo
+			// stesso criterio con cui qui sopra si scartano gli impatti di chi uno scontro ha fermato —, altrimenti
+			// la voce racconterebbe una corsa fino alla portata che non e' avvenuta (review della PR #3767).
+			if (bChargeRunsShort[i] && Resolved[i].Outcome == ERTMoveOutcome::Moved && Unit->IsAlive())
+			{
+				FRTTurnLogEntry Fermata;
+				Fermata.Phase = ERTMatchPhase::Dash;
+				Fermata.Category = ERTLogCategory::Fallback;
+				Fermata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Stopped);
+				Fermata.ActionId = DashDef->Def.ActionId;
+				Fermata.BaseActionId = DashDef->Def.BaseActionId;
+				Fermata.Priority = DashDef->Def.Priority;
+				Fermata.SrcCell = Unit->Cell;
+				Fermata.TgtCell = Unit->PlannedDashCell; // il bersaglio pianificato, non la cella in cui si ferma
+				Fermata.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+				AppendLogEntry(Fermata, Unit);
+			}
 		}
 
 		Unit->ConsumeAbility(DashAbilityIdx[i]);

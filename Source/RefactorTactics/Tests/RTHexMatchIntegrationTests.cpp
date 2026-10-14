@@ -570,6 +570,168 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 }
 
 /**
+ * [D-516] (`#3736`, decisione d'autore «Corre fino alla portata») — **una carica pianificata su un nemico in
+ * linea ma OLTRE la portata corre per tutta la portata, si ferma, e non colpisce**. La traccia lo dice: un
+ * ripiego `Stopped` col motivo `OutOfRange`, e nessun annullamento.
+ *
+ * ⌫ *Fino a [D-516] la stessa carica era annullata dalla fase Dash con `DashNotAligned`: l'unita' restava ferma
+ * e l'azione era spesa.* Il piano lo scrive il test, come in `HexMatch.ChargeStopsOnEnemyAndHits`: la
+ * pianificazione e' di `PlayerInput.ChargeBeyondRangeIsPlannedWithAWarning`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeBeyondRangeTest,
+	"RefactorTactics.HexMatch.ChargeBeyondRangeRunsToRangeAndStops",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexChargeBeyondRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 7);
+
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger) { DestroyHexMatchWorld(World); return false; }
+	Charger->bIsBotControlled = false;
+
+	int32 ChargeIdx = INDEX_NONE;
+	for (int32 i = 0; i < Charger->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Charger->GetAbility(i);
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+	}
+	const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
+	if (!TestTrue(TEXT("premessa: Branth ha la carica, con una portata che la mappa contiene due volte"),
+		ChargeIdx != INDEX_NONE && Portata >= 2 && Portata + 2 <= 6))
+	{
+		DestroyHexMatchWorld(World); return false;
+	}
+
+	ARTUnit* Target = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(Portata + 2, 0));
+	if (!Target) { DestroyHexMatchWorld(World); return false; }
+	Target->bIsBotControlled = false;
+
+	const int32 HealthBefore = Target->Health;
+	const FRTCellId TargetCell = Target->Cell;
+	Charger->PlannedDashAbility = ChargeIdx;
+	Charger->PlannedDashCell = TargetCell;
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	TestEqual(TEXT("chi carica corre fino all'ultima cella della portata"),
+		Charger->Cell.ToString(), FRTCellId(Portata, 0, 0).ToString());
+	TestEqual(TEXT("e non colpisce: il bersaglio era oltre"), Target->Health, HealthBefore);
+	TestEqual(TEXT("ne' lo sposta"), Target->Cell.ToString(), TargetCell.ToString());
+
+	int32 Fermate = 0;
+	int32 Annullate = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Fallback || E.Phase != ERTMatchPhase::Dash
+			|| E.ActionId != FName(TEXT("Hero.Branth.Ram")))
+		{
+			continue;
+		}
+		if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Stopped))
+		{
+			++Fermate;
+			TestEqual(TEXT("il motivo e' «fuori portata»"),
+				E.Amount, static_cast<int32>(ERTActionInvalidReason::OutOfRange));
+			TestEqual(TEXT("la voce porta la cella da cui parte"), E.SrcCell.ToString(), FRTCellId(0, 0, 0).ToString());
+			TestEqual(TEXT("e il bersaglio pianificato"), E.TgtCell.ToString(), TargetCell.ToString());
+			TestTrue(TEXT("e la riga lo dice in chiaro"),
+				URTTurnLogLibrary::DescribeEntry(E).Contains(TEXT("fuori portata")));
+		}
+		else if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled))
+		{
+			++Annullate;
+		}
+	}
+	TestEqual(TEXT("una voce di carica fermata"), Fermate, 1);
+	TestEqual(TEXT("e nessun annullamento: la carica e' partita"), Annullate, 0);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * [D-516] (`#3736`, seconda revisione della PR #3767) — **le condizioni della carica oltre la portata le rivalida il
+ * server.** Un piano scritto da un altro produttore — lo scenario, un client — verso una cella vuota oltre la portata,
+ * o verso un nemico dietro un terreno che non si percorre di corsa, resta annullato com'era prima di [D-516]: l'unita'
+ * non si muove, e la traccia lo dice con `DashNotAligned`.
+ *
+ * Il controllo positivo e' `HexMatch.ChargeBeyondRangeRunsToRangeAndStops`: stessa geometria, piano legale, e la carica
+ * corre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeBeyondRangeRevalidatedTest,
+	"RefactorTactics.HexMatch.ChargeBeyondRangeIsRevalidatedByTheResolver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexChargeBeyondRangeRevalidatedTest::RunTest(const FString&)
+{
+	for (const bool bCellaVuota : { true, false })
+	{
+		UWorld* World = MakeHexMatchWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 7);
+
+		ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Charger || !Map) { DestroyHexMatchWorld(World); return false; }
+		Charger->bIsBotControlled = false;
+
+		int32 ChargeIdx = INDEX_NONE;
+		for (int32 i = 0; i < Charger->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Charger->GetAbility(i);
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+		}
+		const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
+		if (!TestTrue(TEXT("premessa: Branth ha la carica, e la mappa ne contiene due celle in piu'"),
+			ChargeIdx != INDEX_NONE && Portata >= 2 && Portata + 2 <= 6))
+		{
+			DestroyHexMatchWorld(World); return false;
+		}
+
+		const FRTCellId Bersaglio(Portata + 2, 0, 0);
+		if (!bCellaVuota)
+		{
+			// Un nemico c'e', ma la retta fino a lui passa da un terreno che nega la corsa, oltre la portata.
+			ARTUnit* Nemico = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Bersaglio);
+			if (!Nemico) { DestroyHexMatchWorld(World); return false; }
+			Nemico->bIsBotControlled = false;
+			const FRTCellId Accidentata(Portata + 1, 0, 0);
+			FRTHexCellData Dato = Map->FindCell(Accidentata) ? *Map->FindCell(Accidentata) : FRTHexCellData(Accidentata);
+			Dato.Surface = ERTHexSurface::Rough;
+			Map->AddOrUpdateCell(Dato);
+			Map->SortCells();
+		}
+
+		Charger->PlannedDashAbility = ChargeIdx;
+		Charger->PlannedDashCell = Bersaglio;
+		RTWorldFixtures::PlayOneTurn(TM);
+
+		const TCHAR* Caso = bCellaVuota ? TEXT("cella vuota") : TEXT("retta bloccata");
+		TestEqual(FString::Printf(TEXT("%s: chi carica non si muove"), Caso),
+			Charger->Cell.ToString(), FRTCellId(0, 0, 0).ToString());
+
+		int32 Annullate = 0;
+		int32 Fermate = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback || E.Phase != ERTMatchPhase::Dash) { continue; }
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::DashNotAligned))
+			{
+				++Annullate;
+			}
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Stopped)) { ++Fermate; }
+		}
+		TestEqual(FString::Printf(TEXT("%s: la carica e' annullata, come prima di D-516"), Caso), Annullate, 1);
+		TestEqual(FString::Printf(TEXT("%s: e non si scrive una corsa fino alla portata"), Caso), Fermate, 0);
+
+		DestroyHexMatchWorld(World);
+	}
+	return true;
+}
+
+/**
  * Lo scatto non entra in una cella che blocca il movimento: si FERMA nell'ultima cella libera della
  * traiettoria (`Fallback.Stop`). Copre headless la parte verificabile di PIE-V01-DASHCOVER.
  *

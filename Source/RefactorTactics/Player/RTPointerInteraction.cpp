@@ -296,7 +296,7 @@ bool URTPointerLibrary::FacingSectorTowardCell(const FRTCellId& From, const FRTC
 }
 
 ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,
-	bool bObserved)
+	bool bObserved, bool bArmedChargeTargetsUnit)
 {
 	// Nessuna unita' sotto il cursore: questa funzione non ha niente da dire. Le celle, i bordi e gli oggetti
 	// logici sono di `ResolveTarget`, che ha i candidati in mano; rispondere qualcosa di diverso da `NoOp`
@@ -358,7 +358,23 @@ ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, b
 	// stessa cosa**: selezionare significa comandare, e cio' che segue la selezione — il pannello degli slot,
 	// il dock delle azioni — leggerebbe di un'avversaria il piano e il kit. L'esito separato esiste perche'
 	// il soggetto ispezionato sia un'altra cosa dal soggetto comandato.
-	return Context == ERTPointerContext::Targeting ? ERTPointerOutcome::Confirm : ERTPointerOutcome::Inspect;
+	if (Context == ERTPointerContext::Targeting)
+	{
+		return ERTPointerOutcome::Confirm;
+	}
+
+	// 🔑 **[D-516] Con una CARICA armata il nemico e' il bersaglio, anche fuori da `Targeting`** (`#3736`). La carica
+	// e' mobilita' rapida — chiede una destinazione, e `GetPointerContext` la tiene fuori da `Targeting` di
+	// proposito — ma la sua destinazione E' il nemico ([D-296]): ispezionarlo toglieva il gesto che #145 aveva dato.
+	// Solo `Planning` e `Pathing`, i due contesti in cui una carica armata puo' stare: in `Facing` il click e' una
+	// direzione, e resta com'era.
+	// ⚠️ `Confirm` non dice che la carica e' legale: linea, portata e terreno restano di chi chiama, che la
+	// rifiuta come se si fosse cliccata la cella del nemico.
+	if (bArmedChargeTargetsUnit && (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing))
+	{
+		return ERTPointerOutcome::Confirm;
+	}
+	return ERTPointerOutcome::Inspect;
 }
 
 bool URTPointerLibrary::IsInsideSceneRect(const FVector2D& ScreenPos, const FIntRect& SceneRect)

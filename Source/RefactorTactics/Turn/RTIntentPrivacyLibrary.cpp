@@ -61,6 +61,7 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		View.bDashing = Intent.bDashing;
 		View.DashCell = Intent.DashCell;
 		View.DashStyle = Intent.DashStyle;
+		View.DashReachCells = Intent.DashReachCells; // [D-516]: movimento, come `DashCell`
 		View.Facing = Intent.Facing; // posa attuale: si vede guardando l'unita', non e' un piano
 
 		// Il livello di certezza (CP 11.2) si calcola da QUESTO intento e da nient'altro: `Intents` contiene

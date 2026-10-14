@@ -235,6 +235,92 @@ bool FRTChargeStopsOnImpactTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-516] (`#3736`) — **una CARICA col bersaglio in linea ma oltre la portata corre per tutta la portata e si
+ * ferma**, e solo la carica: per ogni altro stile un bersaglio oltre la portata resta `NotAligned`.
+ *
+ * 🔑 L'oracolo e' la COPPIA carica / scatto sulla stessa geometria: un test che guardasse solo la carica
+ * passerebbe anche se la regola valesse per tutti gli stili.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeBeyondRangeRunsToRangeTest,
+	"RefactorTactics.Actions.Charge.BeyondRangeRunsToRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeBeyondRangeRunsToRangeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap();
+	const TMap<FRTCellId, int32> Nessuno;
+	TSet<int32> Hostiles;
+	Hostiles.Add(4);
+
+	// Bersaglio a 5 celle, portata 3.
+	const FRTLinearMoveResult Corta = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0), FRTCellId(5, 0), /*MaxCells*/ 3, ERTMovementStyle::LinearCharge, Nessuno, Hostiles);
+	TestTrue(TEXT("la carica corre fino all'ultima cella della portata"), Corta.Final == FRTCellId(3, 0));
+	TestTrue(TEXT("e l'esito dice che il bersaglio era oltre"), Corta.Stop == ERTLinearStop::OutOfRange);
+	TestEqual(TEXT("tre celle percorse"), Corta.Entered.Num(), 3);
+	TestEqual(TEXT("nessun impatto"), Corta.ImpactUnitId, static_cast<int32>(INDEX_NONE));
+	TestFalse(TEXT("e non e' un arrivo: IsLinearReachable resta falso"), URTMovementActionLibrary::IsLinearReachable(
+		Map, FRTCellId(0, 0), FRTCellId(5, 0), 3, ERTMovementStyle::LinearCharge, Nessuno, Hostiles));
+
+	// Controllo: lo SCATTO sulla stessa geometria non parte, come prima.
+	const FRTLinearMoveResult Scatto = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0), FRTCellId(5, 0), 3, ERTMovementStyle::LinearDash, Nessuno, Hostiles);
+	TestTrue(TEXT("lo scatto oltre la portata resta NotAligned"), Scatto.Stop == ERTLinearStop::NotAligned);
+	TestTrue(TEXT("e non si muove"), Scatto.Final == FRTCellId(0, 0) && Scatto.Entered.Num() == 0);
+
+	// Un nemico sulla linea ENTRO la portata e' un impatto, come per un bersaglio in portata.
+	TMap<FRTCellId, int32> Davanti;
+	Davanti.Add(FRTCellId(2, 0), 4);
+	const FRTLinearMoveResult Urto = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0), FRTCellId(5, 0), 3, ERTMovementStyle::LinearCharge, Davanti, Hostiles);
+	TestTrue(TEXT("un nemico entro la portata ferma la carica con un impatto"), Urto.Stop == ERTLinearStop::Impact);
+	TestEqual(TEXT("e dice chi"), Urto.ImpactUnitId, 4);
+
+	// Uno OLTRE la portata non la riguarda: la corsa finisce prima.
+	TMap<FRTCellId, int32> Oltre;
+	Oltre.Add(FRTCellId(4, 0), 4);
+	const FRTLinearMoveResult Lontano = URTMovementActionLibrary::ResolveLinearMove(
+		Map, FRTCellId(0, 0), FRTCellId(5, 0), 3, ERTMovementStyle::LinearCharge, Oltre, Hostiles);
+	TestTrue(TEXT("un nemico oltre la portata non e' un impatto"),
+		Lontano.Stop == ERTLinearStop::OutOfRange && Lontano.ImpactUnitId == INDEX_NONE);
+
+	// Un muro entro la portata la ferma come sempre.
+	URTHexMapAsset* Walled = MakeMoveActionMap();
+	MakeWall(Walled, FRTCellId(2, 0));
+	const FRTLinearMoveResult Muro = URTMovementActionLibrary::ResolveLinearMove(
+		Walled, FRTCellId(0, 0), FRTCellId(5, 0), 3, ERTMovementStyle::LinearCharge, Nessuno, Hostiles);
+	TestTrue(TEXT("un muro entro la portata ferma la carica davanti"),
+		Muro.Stop == ERTLinearStop::BlockedByTerrain && Muro.Final == FRTCellId(1, 0));
+	return true;
+}
+
+/**
+ * [D-516] — **«c'e' un percorso lineare fino a lui?»**: la retta e' libera dal terreno a qualunque distanza, e le
+ * unita' non contano. E' la domanda che la pianificazione fa per una carica oltre la portata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLineOpenToTargetTest,
+	"RefactorTactics.Actions.Charge.LineOpenToTargetIgnoresRangeAndUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLineOpenToTargetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Aperta = MakeMoveActionMap();
+	TestTrue(TEXT("una retta libera di 5 celle e' aperta, senza portata da rispettare"),
+		URTMovementActionLibrary::IsLineOpenToTarget(Aperta, FRTCellId(0, 0), FRTCellId(5, 0)));
+	TestFalse(TEXT("una cella non allineata non ha una retta"),
+		URTMovementActionLibrary::IsLineOpenToTarget(Aperta, FRTCellId(0, 0), FRTCellId(2, 1)));
+
+	URTHexMapAsset* ConMuro = MakeMoveActionMap();
+	MakeWall(ConMuro, FRTCellId(4, 0));
+	TestFalse(TEXT("un muro sulla retta la chiude, anche oltre una portata qualsiasi"),
+		URTMovementActionLibrary::IsLineOpenToTarget(ConMuro, FRTCellId(0, 0), FRTCellId(5, 0)));
+
+	URTHexMapAsset* Accidentata = MakeMoveActionMap();
+	MakeRough(Accidentata, FRTCellId(5, 0));
+	TestFalse(TEXT("il terreno che nega la corsa la chiude, cella del bersaglio compresa"),
+		URTMovementActionLibrary::IsLineOpenToTarget(Accidentata, FRTCellId(0, 0), FRTCellId(5, 0)));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLeapIgnoresIntermediateTest,
 	"RefactorTactics.Actions.Leap.IgnoresIntermediateCells",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
