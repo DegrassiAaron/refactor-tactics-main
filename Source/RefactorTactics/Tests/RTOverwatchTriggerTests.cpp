@@ -41,6 +41,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "Tests/RTOverwatchScenarioFixtures.h" // [D-518]: lo scenario dei due watcher, condiviso col Verifier
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTTurnManager.h"
 
@@ -1343,83 +1344,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondWatcherDownedTargetTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 {
-	// Due Ivrin che guardano la STESSA cella da lati opposti: `MakeSuppressiveZone` costruisce una LINEA
-	// lungo il facing, quindi (-1,-1,0) cade nella zona di entrambi. Sono due WATCHER diversi sullo stesso
-	// bersaglio — quindi due opportunity — non due bersagli nello stesso passo, che darebbero una opportunity
-	// sola (`Overwatch.SimultaneousTargetsSingleOpportunity`).
-	FRTTestScenario Scenario;
-	Scenario.ScenarioId = TEXT("Unit.Overwatch.SecondWatcherOnDownedTarget");
-	Scenario.Version = 2;
-	Scenario.Seed = 0;
-	Scenario.MapRadius = 5;
-
-	FRTScenarioUnit W1;
-	W1.Id = TEXT("W1");
-	W1.HeroId = TEXT("Hero.Ivrin");
-	W1.TeamId = 1;
-	W1.Cell = FRTCellId(2, -1, 0);
-	W1.Facing = ERTHexDirection::W;
-	Scenario.Units.Add(W1);
-
-	FRTScenarioUnit W2;
-	W2.Id = TEXT("W2");
-	W2.HeroId = TEXT("Hero.Ivrin");
-	W2.TeamId = 1;
-	W2.Cell = FRTCellId(-3, -1, 0);
-	W2.Facing = ERTHexDirection::E;
-	Scenario.Units.Add(W2);
-
-	// ⚠️ `Health` basso E DICHIARATO: serve che il PRIMO colpo abbatta il bersaglio, che e' la premessa
-	// dell'intero caso. Col valore di roster il mover sopravvivrebbe, e il secondo `FIRE` resterebbe legittimo.
-	FRTScenarioUnit M1;
-	M1.Id = TEXT("M1");
-	M1.HeroId = TEXT("Hero.Aevik");
-	M1.TeamId = 0;
-	M1.Cell = FRTCellId(-2, 0, 0);
-	M1.Health = 10;
-	Scenario.Units.Add(M1);
-
-	FRTScenarioTurn Turn;
-	// La finestra live e' una capability: dichiararla e' cio' che distingue un `BLOCKED` onesto da un `Error`.
-	Turn.Requires.Add(TEXT("DecisionBoundary"));
-
-	FRTScenarioIntent ArmW1;
-	ArmW1.UnitId = TEXT("W1");
-	ArmW1.Ability = TEXT("Action.Overwatch");
-	Turn.Intents.Add(ArmW1);
-
-	FRTScenarioIntent ArmW2;
-	ArmW2.UnitId = TEXT("W2");
-	ArmW2.Ability = TEXT("Action.Overwatch");
-	Turn.Intents.Add(ArmW2);
-
-	FRTScenarioIntent MoveM1;
-	MoveM1.UnitId = TEXT("M1");
-	MoveM1.Move.Add(FRTCellId(-1, -1, 0));
-	Turn.Intents.Add(MoveM1);
-
-	// Una decisione sola, di chi viene chiesto per primo. Il secondo non viene chiesto: e' il punto.
-	FRTScenarioDecision FireW1;
-	FireW1.Unit = TEXT("W1");
-	FireW1.Respond = TEXT("FIRE");
-	FireW1.Target = TEXT("M1");
-	Turn.Decisions.Add(FireW1);
-
-	Scenario.Turns.Add(Turn);
-
-	// L'harness RIFIUTA uno scenario senza `expect`. Chi arma un Overwatch spende l'azione principale e **non si
-	// muove**: i watcher devono trovarsi dove sono stati posati.
-	FRTTestExpectation W1Stays;
-	W1Stays.Kind = ERTAssertionKind::UnitAtCell;
-	W1Stays.UnitId = TEXT("W1");
-	W1Stays.Cell = FRTCellId(2, -1, 0);
-	Scenario.Expect.Add(W1Stays);
-
-	FRTTestExpectation W2Stays;
-	W2Stays.Kind = ERTAssertionKind::UnitAtCell;
-	W2Stays.UnitId = TEXT("W2");
-	W2Stays.Cell = FRTCellId(-3, -1, 0);
-	Scenario.Expect.Add(W2Stays);
+	// Lo scenario e' condiviso con `Replay.Verifier.DownedTargetCollapseIgnoresTheTrace`: due watcher sullo stesso
+	// mover, una decisione sola, di W1. Le ragioni di ogni scelta stanno nel fixture.
+	const FRTTestScenario Scenario = RTOverwatchScenarioFixtures::MakeSecondWatcherOnDownedTargetScenario();
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
@@ -1454,6 +1381,8 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 			{
 				++Collapsed;
 				if (Entry.ReactionResponse != URTReactionOpportunityLibrary::HoldResponse()) { ++CollapsedNotHold; }
+				// La riga del registro dice la causa, non «nessun bersaglio soddisfa la condizione».
+				if (!URTTurnLogLibrary::DescribeEntry(Entry).Contains(TEXT("a terra"))) { ++CollapsedNotHold; }
 			}
 			if (URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) == INDEX_NONE) { continue; }
 			++FireEntries;
@@ -1466,7 +1395,7 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 	TestEqual(TEXT("ed e' quello che abbatte"), FireEntriesWithDamage, 1);
 	// 🔴 IL PUNTO: la voce del secondo watcher dice PERCHE' non ha scelto, con l'esito che non mente sulla causa.
 	TestEqual(TEXT("il secondo watcher collassa perche' il bersaglio e' gia' a terra"), Collapsed, 1);
-	TestEqual(TEXT("e il collasso applica HOLD, che conserva la carica"), CollapsedNotHold, 0);
+	TestEqual(TEXT("e il collasso applica HOLD, che conserva la carica, con la riga che lo dice"), CollapsedNotHold, 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
