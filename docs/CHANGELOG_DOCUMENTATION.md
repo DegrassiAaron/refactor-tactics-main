@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-14 — Il terreno ricordato si disegna come pianta
+
+**Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), decisione d'autore `D-520`. Il ricordo non ha piu' disco ne' colore di superficie: resta l'anello della cella in ciano chiaro, e muri, coperture e porte diventano linee.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`, con le domande e le opzioni come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la pianta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-PIANTA`; note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE`, da rigiudicare |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3760 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1a: le scelte dell'autore |
+| [`technical/evidence/3760/`](technical/evidence/3760/) | le tavole `P1` e `P2` |
+
+---
+
 ## 2026-10-14 — Su richiesta si vede che cosa vede un nemico in vista
 
 **Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), decisione d'autore `D-521`. Col mouse sul nemico, o tenendo `H` per tutti, si vede il contorno delle celle che vede, calcolato sul solo terreno che la squadra conosce.

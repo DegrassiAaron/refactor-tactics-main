@@ -915,6 +915,22 @@ mai lungo il vuoto: sul bordo della mappa e sul perimetro di una piattaforma non
 stati di [D-227](../../decisions/RT_PDR_00_Decision_Log.md) restano distinti, ed e' `Veil.PresenterDrawsTheBorderOfTheSameKnowledge` a
 misurarlo.
 
+#### La pianta del terreno ricordato ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), [D-520](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Il terreno esplorato e non osservato si disegna come pianta: nessun disco e nessun colore di superficie, l'anello
+della cella in ciano chiaro, e muri, coperture e porte come linee della pianta. I tre stati restano tre: osservata
+(disco e anello della griglia), ricordata (solo l'anello, ciano), mai vista (niente).
+
+| Che cosa | Dove |
+|---|---|
+| Che cosa fa ogni famiglia nel ricordo | `ARTHexMapActor::MemoryFor`: `Plan` per l'anello, `Hide` per tutte le altre |
+| Il colore | `ARTHexMapActor::PlanColor` |
+| I muri ricordati | `ARTHexMapActor::DrawRememberedWallsAsLines`, nel line batcher del mondo |
+| Il conteggio dei tre stati | `ARTHexMapActor::GetVeilCounts` legge il ricordo nell'anello |
+
+⚠️ **Il riquadro in testa a questa fase descrive il ricordo attenuato** (`RTVeilExploredFactor`): da [D-520](../../decisions/RT_PDR_00_Decision_Log.md)
+nessuna famiglia lo usa piu', e con lui la dissolvenza di `#2875` fra osservato e ricordato.
+
 #### L'arco del nemico in vista ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), [D-521](../../decisions/RT_PDR_00_Decision_Log.md))
 
 Su richiesta si vede che cosa vede un nemico in vista: col mouse sul nemico il suo arco, tenendo `H` quelli di tutti.
