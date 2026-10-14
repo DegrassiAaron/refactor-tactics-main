@@ -30,6 +30,7 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
 #include "UObject/StrongObjectPtr.h"
 #include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
 #include "Map/RTOverlayPalette.h" // #1941: colore, scala e profondita' di un significato, in una sede sola
+#include "Perception/RTVisibilityBorder.h" // #3761: i lati esposti, da cui la linea di confine della vista
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "Map/RTHexLabel.h"
@@ -67,6 +68,35 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
  * entrambe le estremita' insieme, ed e' per questo che esiste. Un gate automatico non c'e'.
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
+
+/**
+ * `#3761` — le leve della linea di confine della vista, per le tavole dell'autore. ⚠️ Sono leve di PROVA: colore,
+ * spessore e bordo della mappa li sceglie l'autore guardando, e la scelta prendera' il posto di queste righe.
+ */
+static TAutoConsoleVariable<int32> CVarRTFogBorder(
+	TEXT("rt.Fog.Border"),
+	1,
+	TEXT("1 = la linea sul confine della vista della squadra si disegna. 0 = no."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarRTFogBorderColor(
+	TEXT("rt.Fog.Border.Color"),
+	0,
+	TEXT("Colore della linea di confine: 0 = bianco caldo, 1 = ciano della vista (#32ADE6), 2 = blu della squadra 0."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<float> CVarRTFogBorderThickness(
+	TEXT("rt.Fog.Border.Thickness"),
+	4.f,
+	TEXT("Spessore della linea di confine."),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarRTFogBorderMapEdge(
+	TEXT("rt.Fog.Border.MapEdge"),
+	0,
+	TEXT("1 = la linea corre anche lungo i lati che danno sul vuoto (bordo della mappa e delle piattaforme). "
+		"0 = solo verso celle della mappa. Si applica al refresh successivo."),
+	ECVF_Default);
 
 namespace
 {
@@ -158,6 +188,9 @@ namespace
 	// compilatore rilega quando la gerarchia cambia (vedi `RTMapVisuals.h`).
 	constexpr float RTLiftCoordinateLabel = RTCellTopZ + 1.0f;
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
+	// La linea di confine della vista (#3761): sopra i marcatori, SOTTO l'anteprima. Un contorno d'anteprima su una
+	// cella di bordo corre lungo lo stesso lato, e alla stessa quota i due colori si contenderebbero il pixel.
+	constexpr float RTLiftVisionBorder = RTCellTopZ + 2.0f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1137,7 +1170,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackTracers.Num() > 0
 		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
-		|| VeilCellsInTransition > 0;
+		|| VeilCellsInTransition > 0
+		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
+		|| VisionBorder.Num() > 0;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1275,6 +1310,7 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	{
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
+	DrawVisionBorder();
 	DrawPlanningPreview();
 }
 
@@ -1505,6 +1541,57 @@ namespace
 		{
 			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
 		}
+	}
+}
+
+void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
+{
+	// Si calcola QUI, dove sta la mappa, e si conservano soltanto i lati: l'actor non tiene la conoscenza di
+	// squadra ([D-242]), come per il velo.
+	VisionBorder = CVarRTFogBorderMapEdge.GetValueOnGameThread() != 0
+		? URTVisibilityBorderLibrary::ExposedEdges(VisibleCells)
+		: URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::DrawVisionBorder() const
+{
+	if (VisionBorder.Num() == 0 || CVarRTFogBorder.GetValueOnGameThread() == 0)
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+
+	FColor Colore(240, 240, 232);
+	switch (CVarRTFogBorderColor.GetValueOnGameThread())
+	{
+	case 1: Colore = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision); break;
+	case 2: Colore = FLinearColor(0.10f, 0.40f, 1.00f).ToFColor(/*bSRGB=*/ true); break;
+	default: break;
+	}
+	const float Spessore = FMath::Max(1.f, CVarRTFogBorderThickness.GetValueOnGameThread());
+
+	for (const FRTExposedEdge& Lato : VisionBorder)
+	{
+		// Il tratto e' il LATO dell'esagono: meta' lunghezza per parte, a partire dal punto medio che
+		// `EdgeMidpointWorld` deriva dai due centri, e perpendicolare alla direzione del vicino. Con un
+		// circumraggio `Size` il lato e' lungo `Size`, quindi gli estremi cadono sugli spigoli di `HexCorners`.
+		const FRTHexCellData* Dati = MapAsset ? MapAsset->FindCell(Lato.Cell) : nullptr;
+		const FVector Su(0.f, 0.f, (Dati ? static_cast<float>(Dati->Height) : 0.f) + RTLiftVisionBorder);
+		const FVector Centro = URTHexLibrary::AxialToWorld(Lato.Cell, Origin, Size, LayerH);
+		const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Lato.Cell, Lato.Direction, Origin, Size, LayerH);
+		const FVector Verso = FVector(Medio.X - Centro.X, Medio.Y - Centro.Y, 0.f).GetSafeNormal();
+		const FVector Lungo = FVector::CrossProduct(Verso, FVector::UpVector) * (Size * 0.5f);
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su, Medio + Lungo + Su, Colore, SDPG_World, Spessore);
 	}
 }
 
