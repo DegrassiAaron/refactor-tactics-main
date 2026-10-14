@@ -28,6 +28,12 @@ punto sbagliato.
 Regola pratica: **un'assertion per ogni cosa che stai guardando**. Guardi un colpo? Verifica gli HP. Guardi
 una scivolata? Verifica la cella finale.
 
+➕ **La scena mostra ciò che la squadra del giocatore conosce, come in partita** ([D-517](../../decisions/RT_PDR_00_Decision_Log.md), [#3763](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3763)). Il
+velo delle celle si vede anche dentro uno scenario: le celle mai viste non si disegnano, quelle viste prima sono
+spente. Chi scrive una scena mette le unità del giocatore in modo che ciò che va guardato sia **visto**; altrimenti
+la scena mostra un vuoto, e non è un difetto della grafica. Fino al 2026-10-14 il velo delle celle negli scenari non
+c'era: una scena giudicata prima di quella data si riguarda col velo, se la si rigiudica.
+
 ## 2. Come si esegue
 
 `ARTGameMode`, sezione `RefactorTactics|Test`:

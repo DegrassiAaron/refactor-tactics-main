@@ -759,6 +759,17 @@ void ARTGameMode::BeginPlay()
 		// Lo scenario allestisce da se' e pilota il TurnManager, ma il campione di pacing del primo turno
 		// lo apre `StartPlanningTimer`: senza questa riga, l'harness auto-run perderebbe cio' che aveva.
 		OpenClaimedFirstTurn();
+		// 🔴 **Il velo delle CELLE si aggancia anche qui** — #3763. Fino a questa riga uno scenario non lo
+		// agganciava mai: `HookKnowledgeVeil` sta in fondo alla funzione, e questo ramo esce col `return` qui
+		// sotto. Il velo sulle unita' si vedeva lo stesso, perche' passa da un'altra strada; quello sulle celle
+		// no, e le scene costruite per la percezione non potevano mostrarne la meta' che riguarda il terreno.
+		// E' la stessa forma del difetto che #3267 ha chiuso per i controlli di playback.
+		//
+		// ⚠️ **Dopo `OpenClaimedFirstTurn` e non prima**, nello stesso ordine del percorso normale (prima la
+		// conoscenza, poi il velo). Aprire il turno 1 ricalcola la conoscenza di squadra
+		// (`StartPlanningTimer` → `PlanBots` → `RefreshTeamKnowledgeForPlanning`); l'aggancio stende il velo
+		// subito, e su una conoscenza ancora vuota marcherebbe l'intera board come mai vista.
+		HookKnowledgeVeil();
 		return;
 	}
 
