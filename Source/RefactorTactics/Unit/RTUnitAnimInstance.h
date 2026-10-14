@@ -238,6 +238,17 @@ public:
 	TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
 		const FName& ActionId, const FName& BaseActionId) const;
 
+	/**
+	 * Le clip che possono suonare per `HeroId`: la variante ATTIVA di ogni pool di ruolo e di ogni pool d'azione,
+	 * senza doppioni, ordinate per path (#3562).
+	 *
+	 * 🔑 **E' il set che il cook deve portare per quell'eroe.** `RTSyncUnitAnimRefs` lo scrive come riferimenti duri in
+	 * `CookDeps_Anim` del `BP_Unit_*`; `Packaging.RequiredActionClipsAreCooked` e il gemello di ruolo lo ricalcolano
+	 * per conto proprio, e sono loro l'oracolo. Una variante legata ma non attiva non c'e': non suona (D-262).
+	 * ⚠️ Un eroe fuori catalogo da' un set vuoto, e non e' un errore.
+	 */
+	void CollectActiveClips(const FName& HeroId, TArray<FSoftObjectPath>& Out) const;
+
 protected:
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
 };

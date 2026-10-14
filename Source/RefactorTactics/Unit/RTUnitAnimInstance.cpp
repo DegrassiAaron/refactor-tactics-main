@@ -233,6 +233,40 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 	});
 }
 
+void URTUnitAnimInstance::CollectActiveClips(const FName& HeroId, TArray<FSoftObjectPath>& Out) const
+{
+	Out.Reset();
+	const FRTHeroPresentationClips* Eroe = FindClipsFor(HeroId);
+	if (Eroe == nullptr)
+	{
+		return;
+	}
+	auto Accoda = [&Out](const FRTAnimRoleClips& Pool)
+	{
+		const FRTAnimVariant* Attiva = Pool.FindActive();
+		const FSoftObjectPath Path = Attiva ? Attiva->Clip.ToSoftObjectPath() : FSoftObjectPath();
+		if (!Path.IsNull())
+		{
+			// ⚠️ `AddUnique`: un package serve piu' pool (`Cast` = `Attack` sul ruolo, #3549) e va scritto una volta.
+			Out.AddUnique(Path);
+		}
+	};
+	for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Eroe->PerRole)
+	{
+		Accoda(Ruolo.Value);
+	}
+	for (const TPair<FName, FRTActionPresentationClips>& Azione : Eroe->PerAction)
+	{
+		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
+		{
+			Accoda(Ruolo.Value);
+		}
+	}
+	// Ordine per path: l'iterazione dei `TMap` non e' un ordine, e chi scrive questo set in un asset non deve farlo
+	// dipendere da lei.
+	Out.Sort([](const FSoftObjectPath& A, const FSoftObjectPath& B) { return A.ToString() < B.ToString(); });
+}
+
 TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
 	const FName& HeroId, ERTPresentationRole Role) const
 {
