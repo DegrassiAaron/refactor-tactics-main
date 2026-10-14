@@ -68,29 +68,8 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
-/**
- * `#3760` — le leve della pianta, per le tavole dell'autore. ⚠️ Sono leve di PROVA: colore della pianta e resa dei
- * muri ricordati li sceglie l'autore guardando, e la scelta prendera' il posto di queste righe. Si leggono quando il
- * velo si stende: cambiarle a partita in corso vale per le celle che cambiano stato da li' in poi.
- */
-static TAutoConsoleVariable<int32> CVarRTFogPlan(
-	TEXT("rt.Fog.Plan"),
-	1,
-	TEXT("1 = il terreno ricordato si disegna come pianta (solo l'anello della griglia, nel colore della pianta). "
-		"0 = attenuato coi colori veri, com'era prima di #3760."),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarRTFogPlanColor(
-	TEXT("rt.Fog.Plan.Color"),
-	0,
-	TEXT("Colore della pianta: 0 = ciano chiaro, 1 = bianco, 2 = ambra."),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarRTFogPlanWalls(
-	TEXT("rt.Fog.Plan.Walls"),
-	2,
-	TEXT("Muri, coperture e porte ricordati: 0 = solidi come quando li si vede, 1 = spariscono, 2 = linee della pianta."),
-	ECVF_Default);
+/** Il colore delle linee della pianta (#3760), scelto dall'autore sulla tavola P2: il ciano chiaro. */
+static const FColor RTPlanLineColor(110, 205, 230);
 
 namespace
 {
@@ -1537,36 +1516,25 @@ namespace
 
 ARTHexMapActor::ERTVeilMemory ARTHexMapActor::MemoryFor(const UInstancedStaticMeshComponent* Component) const
 {
-	if (CVarRTFogPlan.GetValueOnGameThread() == 0)
-	{
-		return ERTVeilMemory::Attenuate; // il ricordo di prima della pianta, per tutte le famiglie
-	}
 	if (Component == CellBorders)
 	{
 		return ERTVeilMemory::Plan; // l'anello della griglia E' la pianta
 	}
-	if (Component == Blockers || Component == EdgeFeatures || Component == StructuralBodies)
-	{
-		// I muri: solidi come oggi, oppure spariscono — e con le linee (`2`) li ridisegna `DrawRememberedWallsAsLines`.
-		return CVarRTFogPlanWalls.GetValueOnGameThread() == 0 ? ERTVeilMemory::Attenuate : ERTVeilMemory::Hide;
-	}
-	// Disco, glifi, rilievo, volumi di superficie: e' il «nessun colore di superficie» della scelta dell'autore.
+	// Tutto il resto nel ricordo non si disegna: disco, glifi, rilievo e volumi di superficie sono il «nessun colore di
+	// superficie» della scelta dell'autore; muri, coperture, porte e corpi li ridisegna a linee
+	// `DrawRememberedWallsAsLines`, per la seconda scelta dell'autore (le linee della pianta).
 	return ERTVeilMemory::Hide;
 }
 
-FLinearColor ARTHexMapActor::PlanColor() const
+FLinearColor ARTHexMapActor::PlanColor()
 {
-	switch (CVarRTFogPlanColor.GetValueOnGameThread())
-	{
-	case 1: return FLinearColor::FromSRGBColor(FColor(225, 230, 235));
-	case 2: return FLinearColor::FromSRGBColor(FColor(240, 180, 70));
-	default: return FLinearColor::FromSRGBColor(FColor(110, 205, 230));
-	}
+	// Il ciano chiaro, «quasi olografico»: l'autore l'ha scelto sulla tavola P2 di #3760, fra il bianco e l'ambra.
+	return FLinearColor::FromSRGBColor(RTPlanLineColor);
 }
 
 void ARTHexMapActor::DrawRememberedWallsAsLines() const
 {
-	if (!bRememberedWallsToDraw || CVarRTFogPlan.GetValueOnGameThread() == 0 || CVarRTFogPlanWalls.GetValueOnGameThread() != 2)
+	if (!bRememberedWallsToDraw)
 	{
 		return;
 	}
@@ -4217,7 +4185,25 @@ void ARTHexMapActor::GetVeilCounts(int32& OutVisible, int32& OutExplored, int32&
 		}
 		if (Xf.GetScale3D().IsNearlyZero())
 		{
-			++OutHidden;
+			// ➕ **#3760: col disco spento la cella puo' essere un RICORDO**, perche' nella pianta il ricordo non ha
+			// disco: lo dice l'anello della griglia, disegnato nel colore della pianta. Si legge l'anello, cioe' cio'
+			// che si vede, con la stessa disciplina di qui sopra. ⚠️ L'anello di indice `I` e' quello della stessa
+			// cella — `BorderCells` e `InstanceCells` sono uno-a-uno — e lo si verifica invece di assumerlo: una
+			// mappatura disallineata ricade su «mai vista», che e' la lettura piu' prudente.
+			bool bPianta = false;
+			FTransform Anello;
+			if (CellBorders && BorderCells.IsValidIndex(I) && BorderCells[I] == InstanceCells[I]
+				&& CellBorders->GetInstanceTransform(I, Anello, /*bWorldSpace=*/ true)
+				&& !Anello.GetScale3D().IsNearlyZero())
+			{
+				const int32 BaseAnello = I * CellBorders->NumCustomDataFloats;
+				const FLinearColor Pianta = PlanColor();
+				bPianta = CellBorders->PerInstanceSMCustomData.IsValidIndex(BaseAnello + 2)
+					&& FMath::IsNearlyEqual(CellBorders->PerInstanceSMCustomData[BaseAnello], Pianta.R, 1e-3f)
+					&& FMath::IsNearlyEqual(CellBorders->PerInstanceSMCustomData[BaseAnello + 1], Pianta.G, 1e-3f)
+					&& FMath::IsNearlyEqual(CellBorders->PerInstanceSMCustomData[BaseAnello + 2], Pianta.B, 1e-3f);
+			}
+			++(bPianta ? OutExplored : OutHidden);
 			continue;
 		}
 		// Fra accesa e ricordata distingue solo il COLORE: entrambe sono disegnate a scala piena.

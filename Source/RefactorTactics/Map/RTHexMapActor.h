@@ -565,6 +565,13 @@ public:
 	 */
 	static constexpr float RTVeilExploredFactor = 0.35f;
 
+	/**
+	 * Il colore delle linee della PIANTA, cioe' del terreno ricordato (#3760): il ciano chiaro, «quasi olografico», che
+	 * l'autore ha scelto sulla tavola P2 fra il bianco e l'ambra. Lo scrive il velo sull'anello della griglia di ogni
+	 * cella ricordata, e lo usano le linee dei muri ricordati.
+	 */
+	static FLinearColor PlanColor();
+
 #if !UE_BUILD_SHIPPING
 	/**
 	 * 🔑 **Le quattro frazioni del volume-cella, il vocabolario di forma del debug della conoscenza.**
@@ -1829,16 +1836,22 @@ protected:
 	 * | `Hide` | non si disegna, come una cella mai vista |
 	 * | `Plan` | si disegna col colore della pianta, a piena luminosita'. Solo l'anello della griglia |
 	 *
-	 * 🔑 **Il ricordo di oggi e' «Attenuate» per tutte.** Con la pianta il disco, i glifi, il rilievo e i volumi
-	 * spariscono, e resta l'anello della griglia: il disegno a linee che l'autore ha scelto.
+	 * 🔑 **Fino a #3760 il ricordo era «Attenuate» per tutte.** Con la pianta l'anello della griglia e' `Plan`, e ogni
+	 * altra famiglia e' `Hide`: il disco, i glifi, il rilievo e i volumi spariscono, e muri, coperture e porte li
+	 * ridisegna a linee `DrawRememberedWallsAsLines`.
+	 *
+	 * ⚠️ **`Attenuate` oggi non lo usa nessuna famiglia**, e con lui la dissolvenza fra osservato e ricordato di
+	 * `#2875`: fra due stati che hanno entrambi fattore 1, o uno dei quali non si disegna, non c'e' niente da sfumare.
+	 * Resta come meccanismo, e la domanda se toglierlo e' un candidato a seguire, non una scelta di questa fetta.
+	 *
+	 * ⚠️ **La pianta vive nell'anello della griglia**, quindi una griglia spenta (`SetCellBordersVisible(false)`) la
+	 * spegnerebbe con lei. Oggi nessun chiamante di produzione la spegne.
 	 */
 	enum class ERTVeilMemory : uint8 { Attenuate, Hide, Plan };
 
 	/** Il trattamento del ricordo di ogni famiglia, letto dalle leve della pianta (#3760). */
 	ERTVeilMemory MemoryFor(const UInstancedStaticMeshComponent* Component) const;
 
-	/** Il colore delle linee della pianta (#3760). */
-	FLinearColor PlanColor() const;
 
 	/** Le linee dei muri, delle coperture e delle porte RICORDATI, quando la pianta li disegna a linee (#3760). */
 	void DrawRememberedWallsAsLines() const;
