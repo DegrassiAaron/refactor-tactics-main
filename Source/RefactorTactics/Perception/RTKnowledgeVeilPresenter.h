@@ -145,9 +145,9 @@ protected:
 
 private:
 	/**
-	 * IL CONTORNO DELL'ARCO DEI NEMICI IN VISTA (#3762), con la stessa conoscenza del velo. Ogni nemico vivo, dell'altra
-	 * squadra e su una cella che la squadra vede adesso; l'arco e' calcolato sul solo terreno noto
-	 * (`URTEnemyArcLibrary`), e la mappa riceve i lati che lo chiudono.
+	 * GLI ARCHI DEI NEMICI IN VISTA (#3762), con la stessa conoscenza del velo e negli stessi due punti. Si calcolano
+	 * tutti, uno per nemico in vista; quali si DISEGNANO lo decide il giocatore, col mouse o col tasto, e lo dice alla
+	 * mappa `ARTPlayerController` a ogni fotogramma (`ARTHexMapActor::SetEnemyArcFocus`).
 	 */
 	void PresentEnemyArcs(ARTHexMapActor& HexMap, const FRTTeamKnowledge& Conoscenza) const;
 

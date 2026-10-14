@@ -5,22 +5,10 @@
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
 #include "EngineUtils.h" // TActorIterator: i nemici in vista, per il loro arco (#3762)
-#include "HAL/IConsoleManager.h"
 #include "Map/RTHexMapAsset.h"
 #include "Perception/RTEnemyArcLibrary.h"
 #include "Perception/RTVisibilityBorder.h"
 #include "Unit/RTUnit.h"
-
-/**
- * `#3762` — l'arco dei nemici in vista, per le tavole dell'autore. ⚠️ Leva di PROVA: il gesto (mouse, tasto, tutti e
- * due) e che cosa l'arco mostra li sceglie l'autore guardando, e la scelta prendera' il posto di questa riga.
- */
-static TAutoConsoleVariable<int32> CVarRTFogEnemyArc(
-	TEXT("rt.Fog.EnemyArc"),
-	0,
-	TEXT("Arco dei nemici in vista: 0 = nessuno, 1 = le celle che vedono davvero (sul terreno noto), "
-		"2 = la portata piena del cono e dell'anello ravvicinato."),
-	ECVF_Default);
 
 void URTKnowledgeVeilPresenter::Hook(ARTTurnManager* InTurnManager)
 {
@@ -143,47 +131,27 @@ void URTKnowledgeVeilPresenter::HandlePlaybackStepAdvanced()
 
 void URTKnowledgeVeilPresenter::PresentEnemyArcs(ARTHexMapActor& HexMap, const FRTTeamKnowledge& Conoscenza) const
 {
-	TArray<FRTExposedEdge> Lati;
-	const int32 Modo = CVarRTFogEnemyArc.GetValueOnGameThread();
-	const URTHexMapAsset* Map = HexMap.MapAsset;
-	if (Modo != 0 && Map)
-	{
-		// Il terreno noto e' quello esplorato, che contiene gia' quello visto ([D-227]); si uniscono per non dipendere
-		// da quell'inclusione.
-		TSet<FRTCellId> Unione(Conoscenza.ExploredCells);
-		Unione.Append(Conoscenza.VisibleCells);
-		const TArray<FRTCellId> Note = Unione.Array(); // l'ordine non conta: chi la riceve ne fa un insieme
-		const TSet<FRTCellId> Viste(Conoscenza.VisibleCells);
-		const int32 Viewer = ViewerTeamId();
-		URTHexMapAsset* MappaNota = nullptr; // una sola copia per refresh, e solo se serve
-		for (TActorIterator<ARTUnit> It(HexMap.GetWorld()); It; ++It)
-		{
-			const ARTUnit* U = *It;
-			// Solo i nemici IN VISTA adesso: un nemico ricordato o incerto non mostra niente.
-			if (!U || !U->IsAlive() || U->TeamId == Viewer || !Viste.Contains(U->Cell))
-			{
-				continue;
-			}
-			FRTPerceiver P;
-			P.Cell = U->Cell;
-			P.Facing = U->Facing;
-			P.VisionRange = U->VisionRange;
+	// Gli attori li legge il presenter, che e' del client; la regola — chi e' in vista, su che terreno si calcola —
+	// sta in `URTEnemyArcLibrary`, pura e testata. La squadra di chi guarda e' quella del velo.
+	FRTTeamKnowledge Viewer = Conoscenza;
+	Viewer.TeamId = ViewerTeamId();
 
-			TArray<FRTCellId> Arco;
-			if (Modo == 2)
-			{
-				Arco = URTEnemyArcLibrary::ConeOnKnownTerrain(Map, P, Note);
-			}
-			else
-			{
-				if (!MappaNota)
-				{
-					MappaNota = URTEnemyArcLibrary::KnownTerrainMap(GetTransientPackage(), Map, Note);
-				}
-				Arco = URTEnemyArcLibrary::SightOnKnownTerrain(MappaNota, P, Note);
-			}
-			Lati.Append(URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(Map, Arco));
+	TArray<FRTEnemyForArc> Nemici;
+	for (TActorIterator<ARTUnit> It(HexMap.GetWorld()); It; ++It)
+	{
+		const ARTUnit* U = *It;
+		if (!U || !U->IsAlive())
+		{
+			continue;
 		}
+		FRTEnemyForArc E;
+		E.Cell = U->Cell;
+		E.Facing = U->Facing;
+		E.VisionRange = U->VisionRange;
+		E.TeamId = U->TeamId;
+		// Il colore della SUA squadra: l'arco dice che cosa vede quel nemico, e lo dice nel suo colore.
+		E.Color = ARTUnit::TeamColorFor(U->TeamId, U->Team0Color, U->Team1Color).ToFColor(/*bSRGB=*/ true);
+		Nemici.Add(E);
 	}
-	HexMap.SetEnemyArcBorder(Lati);
+	HexMap.SetEnemyArcs(URTEnemyArcLibrary::ArcsOfEnemiesInView(HexMap.MapAsset, Viewer, Nemici));
 }

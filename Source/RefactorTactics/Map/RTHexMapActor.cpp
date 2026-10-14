@@ -165,6 +165,9 @@ namespace
 	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
 	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
 	constexpr float RTVisionBorderThickness = 4.f;
+	// Lo spessore del contorno dell'arco di un nemico (#3762): quello con cui l'autore l'ha visto sulle tavole, un
+	// punto sotto la linea di confine, perche' dove si sovrappongono si legga ancora la linea della propria vista.
+	constexpr float RTEnemyArcThickness = 3.f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1147,8 +1150,8 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| VeilCellsInTransition > 0
 		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
 		|| VisionBorder.Num() > 0
-		// E il contorno dell'arco dei nemici in vista (#3762).
-		|| EnemyArcBorder.Num() > 0;
+		// E gli archi dei nemici in vista che il giocatore chiede (#3762).
+		|| HasEnemyArcToDraw();
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1287,8 +1290,11 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
 	DrawVisionBorder();
-	// #3762: il colore della squadra 1, il nemico del vertical slice offline. Leva di prova come le altre.
-	DrawEdgeLines(EnemyArcBorder, FLinearColor(1.00f, 0.20f, 0.15f).ToFColor(/*bSRGB=*/ true), 3.f);
+	// #3762: ogni arco nel colore della squadra del suo nemico, e sotto la linea di confine per spessore.
+	for (const FRTEnemyArcView& Arco : GetShownEnemyArcs())
+	{
+		DrawEdgeLines(Arco.Edges, Arco.Color, RTEnemyArcThickness);
+	}
 	DrawPlanningPreview();
 }
 
@@ -1534,10 +1540,55 @@ void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
-void ARTHexMapActor::SetEnemyArcBorder(const TArray<FRTExposedEdge>& Edges)
+void ARTHexMapActor::SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell)
 {
-	EnemyArcBorder = Edges;
+	EnemyArcs = ArcsByEnemyCell;
 	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcFocus(bool bAll, const FRTCellId& HoveredCell, bool bHasHover)
+{
+	if (bAll == bEnemyArcsAll && bHasHover == bEnemyArcHover && (!bHasHover || HoveredCell == EnemyArcHoveredCell))
+	{
+		return;
+	}
+	bEnemyArcsAll = bAll;
+	bEnemyArcHover = bHasHover;
+	EnemyArcHoveredCell = HoveredCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+bool ARTHexMapActor::HasEnemyArcToDraw() const
+{
+	if (EnemyArcs.Num() == 0)
+	{
+		return false;
+	}
+	return bEnemyArcsAll || (bEnemyArcHover && EnemyArcs.Contains(EnemyArcHoveredCell));
+}
+
+TArray<FRTEnemyArcView> ARTHexMapActor::GetShownEnemyArcs() const
+{
+	TArray<FRTEnemyArcView> Out;
+	if (bEnemyArcsAll)
+	{
+		// L'ordine di un `TMap` dipende dall'hash: si ordina per cella, perche' la diagnostica non cambi fra due giri.
+		TArray<FRTCellId> Chiavi;
+		EnemyArcs.GetKeys(Chiavi);
+		Chiavi.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+		for (const FRTCellId& K : Chiavi)
+		{
+			Out.Add(EnemyArcs[K]);
+		}
+	}
+	else if (bEnemyArcHover)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
+		{
+			Out.Add(*Arco);
+		}
+	}
+	return Out;
 }
 
 void ARTHexMapActor::DrawVisionBorder() const

@@ -11,6 +11,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTLayerPresentation.h" // FRTLayerPresentationTuning: le leve con cui e' stato scritto il trattamento (#3679)
 #include "Perception/RTVisibilityBorder.h" // FRTExposedEdge: i lati della linea di confine della vista (#3761)
+#include "Perception/RTEnemyArcLibrary.h" // FRTEnemyArcView: gli archi dei nemici in vista (#3762)
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -579,11 +580,25 @@ public:
 	const TArray<FRTExposedEdge>& GetVisionBorder() const { return VisionBorder; }
 
 	/**
-	 * IL CONTORNO DELL'ARCO DEI NEMICI IN VISTA (#3762): i lati che chiudono le celle che ciascun nemico vede, gia'
-	 * calcolati sul solo terreno che la squadra conosce (`URTEnemyArcLibrary`). La mappa li disegna e basta.
+	 * GLI ARCHI DEI NEMICI IN VISTA (#3762), uno per nemico e chiave la sua cella: i lati che chiudono cio' che vede,
+	 * gia' calcolati sul solo terreno che la squadra conosce (`URTEnemyArcLibrary::ArcsOfEnemiesInView`). Li scrive il
+	 * presenter del velo; la mappa li conserva, e ne disegna soltanto quelli che il giocatore chiede.
 	 */
-	void SetEnemyArcBorder(const TArray<FRTExposedEdge>& Edges);
-	const TArray<FRTExposedEdge>& GetEnemyArcBorder() const { return EnemyArcBorder; }
+	void SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell);
+
+	/**
+	 * QUALI ARCHI SI DISEGNANO, a ogni fotogramma (#3762). La scelta dell'autore: *«Si vede passando il mouse sul
+	 * nemico, o con un tasto»*, e tutti e due.
+	 *
+	 *  - `bAll`: il tasto `H` e' premuto, e si vedono gli archi di tutti i nemici in vista;
+	 *  - altrimenti si vede l'arco del nemico sulla cella sotto il cursore, se ce n'e' uno.
+	 *
+	 * La chiama `ARTPlayerController::PlayerTick`. Se non cambia niente non tocca il `Tick`.
+	 */
+	void SetEnemyArcFocus(bool bAll, const FRTCellId& HoveredCell, bool bHasHover);
+
+	/** Gli archi che si disegnano adesso, nell'ordine stabile delle celle dei nemici. Diagnostica e test. */
+	TArray<FRTEnemyArcView> GetShownEnemyArcs() const;
 
 	/**
 	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
@@ -1180,8 +1195,16 @@ protected:
 	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
 	TArray<FRTExposedEdge> VisionBorder;
 
-	/** Il contorno degli archi dei nemici in vista (#3762). Vedi `SetEnemyArcBorder`. */
-	TArray<FRTExposedEdge> EnemyArcBorder;
+	/** Gli archi dei nemici in vista (#3762). Vedi `SetEnemyArcs`. */
+	TMap<FRTCellId, FRTEnemyArcView> EnemyArcs;
+
+	/** Quali archi chiede il giocatore (#3762). Vedi `SetEnemyArcFocus`. */
+	bool bEnemyArcsAll = false;
+	bool bEnemyArcHover = false;
+	FRTCellId EnemyArcHoveredCell;
+
+	/** Vero se almeno un arco si disegna adesso: tiene acceso il `Tick` solo quando serve. */
+	bool HasEnemyArcToDraw() const;
 
 	/** Cella sotto il cursore, impostata dal controller. */
 	FRTCellId HoveredCell;
