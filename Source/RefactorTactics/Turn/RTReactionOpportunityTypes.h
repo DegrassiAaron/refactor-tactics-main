@@ -485,7 +485,15 @@ struct FRTOverwatchTrigger
 	UPROPERTY()
 	FRTReactionOpportunity Opportunity;
 
-	/** Bersagli che hanno armato il trigger, in ordine crescente di `UnitId`: uno per ogni risposta `FIRE:`. */
+	/**
+	 * Chi ha armato il trigger a questo passo — e' entrato nella zona, rilevato e in linea di vista — in
+	 * ordine crescente di `UnitId`.
+	 *
+	 * ⚠️ **Non e' l'elenco dei `FIRE:`.** Senza una condizione dichiarata i due coincidono; una condizione
+	 * riduce le RISPOSTE, non questo elenco (`BuildOverwatchTriggers`: «filtra le risposte, non i
+	 * bersagli»). ⏱️ *Fino a `#3667` questa riga diceva «uno per ogni risposta `FIRE:`», che era vero solo
+	 * nel primo caso. Da allora il sottotitolo della finestra dipende dalla differenza.*
+	 */
 	UPROPERTY()
 	TArray<int32> TargetUnitIds;
 

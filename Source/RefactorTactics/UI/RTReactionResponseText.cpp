@@ -1,6 +1,7 @@
 #include "UI/RTReactionResponseText.h"
 
 #include "Turn/RTReactionOpportunityTypes.h" // FireResponseTarget: il formato `FIRE:<i>` ha un solo parser
+#include "Turn/RTReactionWindowView.h" // la vista che porta i nomi gia' risolti (#3667)
 
 namespace
 {
@@ -57,4 +58,91 @@ FText RTReactionResponseText::DescriptionFor(const FString& Response)
 {
 	const FRTResponseText* Voce = Find(Response);
 	return Voce ? FText::FromString(Voce->Description) : FText::GetEmpty();
+}
+
+FText RTReactionResponseText::DescriptionFor(const FRTReactionWindowOptionView& Option)
+{
+	// Il nome c'e' solo dove il core lo ha scritto: un `FIRE` il cui bersaglio e' stato risolto alla
+	// costruzione della vista. Senza, la frase generica della tabella — mai un indice, mai un nome ricavato qui.
+	if (URTReactionOpportunityLibrary::FireResponseTarget(Option.Response) != INDEX_NONE)
+	{
+		return Option.TargetName.IsEmptyOrWhitespace()
+			? DescriptionFor(Option.Response)
+			: FText::Format(NSLOCTEXT("RTReactionResponseText", "FireAtTarget", "Attacca {0}"), Option.TargetName);
+	}
+	// `HOLD` e' la risposta dell'Overwatch, e la tavola E la scrive in coppia con «Attacca …». Il confronto e'
+	// con la funzione che quel valore lo SCRIVE, non con una stringa ripetuta qui.
+	if (Option.Response == FString(URTReactionOpportunityLibrary::HoldResponse()))
+	{
+		return NSLOCTEXT("RTReactionResponseText", "HoldFire", "Non attaccare");
+	}
+	return DescriptionFor(Option.Response);
+}
+
+FText RTReactionResponseText::TitleFor(const FRTReactionWindowView& Window)
+{
+	if (!Window.bOpen)
+	{
+		return FText::GetEmpty();
+	}
+	const bool bReazione = !Window.ReactionName.IsEmptyOrWhitespace();
+	const bool bUnita = !Window.ReactorName.IsEmptyOrWhitespace();
+	const FText Reazione = bReazione ? Window.ReactionName : NSLOCTEXT("RTReactionResponseText", "NeutralTitle", "Reazione");
+	return bUnita
+		? FText::Format(NSLOCTEXT("RTReactionResponseText", "TitleWithReactor", "{0} — {1}"), Reazione, Window.ReactorName)
+		: Reazione;
+}
+
+FText RTReactionResponseText::SubtitleFor(const FRTReactionWindowView& Window)
+{
+	if (!Window.bOpen)
+	{
+		return FText::GetEmpty();
+	}
+
+	// Solo i nomi leggibili: un nome vuoto in mezzo a una frase e' una frase rotta.
+	TArray<FText> Nomi;
+	for (const FText& Nome : Window.TriggerNames)
+	{
+		if (!Nome.IsEmptyOrWhitespace()) { Nomi.Add(Nome); }
+	}
+
+	// 🔑 **La frase la sceglie cio' che chi apre la finestra ha dichiarato**, non l'id della reazione: il
+	// produttore sa se qualcuno e' entrato nella sua area o lo sta spingendo, e lo scrive in `TriggerKind`.
+	switch (Window.TriggerKind)
+	{
+	case ERTReactionTriggerKind::Pushed:
+		// ⚠️ Senza un nome la frase e' NEUTRA, e non e' un ripiego di comodo: e' cio' che il giocatore ha
+		// diritto di sapere quando chi lo spinge sta in una cella che la sua squadra non rileva.
+		return Nomi.Num() > 0
+			? FText::Format(NSLOCTEXT("RTReactionResponseText", "PushedBy", "{0} ti spinge"), Nomi[0])
+			: NSLOCTEXT("RTReactionResponseText", "PushedByUnknown", "Un nemico ti spinge");
+
+	case ERTReactionTriggerKind::EnteredControlledArea:
+	{
+		if (Nomi.Num() == 0)
+		{
+			return FText::GetEmpty();
+		}
+		if (Nomi.Num() == 1)
+		{
+			return FText::Format(
+				NSLOCTEXT("RTReactionResponseText", "OneEntered", "{0} è entrato nell'area controllata"), Nomi[0]);
+		}
+		// «A, B e C»: tutti tranne l'ultimo con la virgola, l'ultimo con la congiunzione.
+		FText Primi = Nomi[0];
+		for (int32 i = 1; i < Nomi.Num() - 1; ++i)
+		{
+			Primi = FText::Format(NSLOCTEXT("RTReactionResponseText", "ListComma", "{0}, {1}"), Primi, Nomi[i]);
+		}
+		return FText::Format(
+			NSLOCTEXT("RTReactionResponseText", "ManyEntered", "{0} e {1} sono entrati nell'area controllata"),
+			Primi, Nomi.Last());
+	}
+
+	case ERTReactionTriggerKind::None:
+	default:
+		break;
+	}
+	return FText::GetEmpty();
 }

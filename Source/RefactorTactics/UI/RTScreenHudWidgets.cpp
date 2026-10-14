@@ -1837,15 +1837,48 @@ FText URTFastDecisionWidget::GetCountdownText() const
 
 FText URTFastDecisionWidget::GetPromptText() const
 {
-	if (!IsWindowOpen())
-	{
-		return FText::GetEmpty();
-	}
+	// ⛔ **Qui non si risolve un indice, e non si e' mai potuto**: il DTO porta un `TargetSnapshotIndex`,
+	// non un id stabile, e risolverlo nel widget nominerebbe l'unita' sbagliata in ogni partita in cui
+	// qualcuno e' gia' caduto.
+	//
+	// ✅ **Da `#3667` i nomi arrivano gia' scritti**: li risolve il turn manager nell'istante in cui costruisce
+	// la vista, contro l'array in cui l'indice vale. Qui si legge il titolo composto con cio' che la vista
+	// porta — «Guardia reattiva — Aevik» — e senza nomi resta «Reazione», come prima.
+	RefreshWindowTexts();
+	return CachedTitle;
+}
 
-	// ⛔ **Niente nome del bersaglio, e la ragione sta nella dichiarazione**: il DTO porta un
-	// `TargetSnapshotIndex`, non un id stabile, e risolverlo qui nominerebbe l'unita' sbagliata in ogni
-	// partita in cui qualcuno e' gia' caduto. Un'etichetta neutra e' l'unica cosa che questo widget sa.
-	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
+FText URTFastDecisionWidget::GetSubtitleText() const
+{
+	RefreshWindowTexts();
+	return CachedSubtitle;
+}
+
+void URTFastDecisionWidget::RefreshWindowTexts() const
+{
+	// 🔑 **Una composizione per FINESTRA, non per fotogramma.** `GetPromptText` e' un binding, e `RefreshLook`
+	// gira a ogni tick: comporre li' vorrebbe dire copiare la vista e formattare due testi sessanta volte al
+	// secondo per dire la stessa cosa. I testi di una finestra non cambiano finche' la finestra e' quella.
+	//
+	// ⚠️ La chiave e' l'identita' che il view model CHIEDE al manager, come in `PollWindowChanged` — ma e' una
+	// chiave propria: quella consuma il cambio per ricostruire i bottoni, questa deve valere anche quando
+	// nessuno fa girare il tick, come in una run headless.
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+	const FString Corrente = (ViewModel && ViewModel->IsWindowOpen()) ? ViewModel->GetWindowId() : FString();
+	if (Corrente == TextsWindowId)
+	{
+		return;
+	}
+	TextsWindowId = Corrente;
+	if (Corrente.IsEmpty())
+	{
+		CachedTitle = FText::GetEmpty();
+		CachedSubtitle = FText::GetEmpty();
+		return;
+	}
+	const FRTReactionWindowView Finestra = ViewModel->GetWindow();
+	CachedTitle = RTReactionResponseText::TitleFor(Finestra);
+	CachedSubtitle = RTReactionResponseText::SubtitleFor(Finestra);
 }
 
 float URTFastDecisionWidget::GetCountdownFraction() const
@@ -1902,6 +1935,15 @@ void URTFastDecisionWidget::RefreshLook()
 	{
 		SafeOutcomeText->SetText(GetSafeOutcomeText());
 		SafeOutcomeText->SetColorAndOpacity(FSlateColor(C(T::Text_Primary)));
+	}
+	if (SubtitleText)
+	{
+		// Il sottotitolo (`#3667`): che cosa ha fatto scattare la finestra. Senza una frase la riga si
+		// toglie, invece di lasciare uno spazio vuoto sotto il titolo.
+		const FText Sottotitolo = GetSubtitleText();
+		SubtitleText->SetText(Sottotitolo);
+		SubtitleText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
+		RTShowIf(SubtitleText, !Sottotitolo.IsEmpty());
 	}
 }
 
@@ -1994,7 +2036,9 @@ FText URTFastDecisionOptionWidget::GetOptionLabel() const
 
 FText URTFastDecisionOptionWidget::GetOptionDescription() const
 {
-	return RTReactionResponseText::DescriptionFor(Option.Response);
+	// L'opzione INTERA e non la sola risposta (`#3667`): un `FIRE` porta il nome del bersaglio che il core
+	// ha risolto, e la frase diventa «Attacca Ivrin». Le altre restano quelle della tabella.
+	return RTReactionResponseText::DescriptionFor(Option);
 }
 
 FText URTFastDecisionOptionWidget::GetKeyLabel() const

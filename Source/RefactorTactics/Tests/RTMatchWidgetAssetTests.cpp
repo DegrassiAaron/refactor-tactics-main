@@ -529,7 +529,7 @@ bool FRTFastDecisionBindingsWiredTest::RunTest(const FString&)
 		{ TEXT("CountdownText"), TEXT("Text"), TEXT("GetCountdownText"),
 		  TEXT("il countdown viene dall'orologio autorevole, non da un contatore del widget") },
 		{ TEXT("PromptText"), TEXT("Text"), TEXT("GetPromptText"),
-		  TEXT("l'etichetta viene dal C++, che sa di non poter nominare il bersaglio") },
+		  TEXT("l'etichetta viene dal C++, che la compone coi nomi gia' scritti nella vista (#3667)") },
 	};
 
 	for (const FAtteso& A : Attesi)
@@ -1529,6 +1529,13 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 
 	// La finestra di reazione come la tavola E (#3634, seduta U74). I tre binding obbligatori li controlla
 	// `FastDecisionBindingsAreWiredToTheRightNodes`: qui solo le porte della resa.
+	//
+	// ⚠️ **`SubtitleText` (`#3667`) NON e' in questo elenco, e non per dimenticanza.** Il C++ la riempie da
+	// quando la finestra ha un sottotitolo, ma `WBP_RT_FastDecision` non ha ancora quel `TextBlock`:
+	// aggiungerlo e' authoring sull'asset, dal clone principale. Messa qui adesso, la riga sarebbe rossa per
+	// costruzione. **Chi aggiunge il widget all'asset aggiunge nello stesso commit**
+	// `{ TEXT("SubtitleText"), UTextBlock::StaticClass() }` — altrimenti un nome sbagliato resterebbe spento
+	// in silenzio, che e' il difetto per cui questo gate esiste. Finche' manca, la issue resta aperta.
 	const TArray<FPorta> Finestra = {
 		{ TEXT("WindowFrame"), UBorder::StaticClass() },
 		{ TEXT("AccentStrip"), UBorder::StaticClass() },

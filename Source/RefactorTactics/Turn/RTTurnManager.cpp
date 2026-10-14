@@ -6629,6 +6629,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 						if (!bAlreadyPushing) { KnockCount.FindOrAdd(Victim)++; }
 					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
+					Ctx.KnockAttackerId.Add(Victim, Hit.AttackerId); // chi spinge, non solo da dove (`#3667`)
 					KnockDist.FindOrAdd(Victim) += Event.Amount;
 					PushCause.Add(Victim, bHasDef
 						? FRTDisplacementCause{ IntentDefs[Hit.IntentIndex].ActionId,
@@ -7644,13 +7645,70 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 }
 
 FRTReactionWindowView ARTTurnManager::MakeReactionWindowView(const FRTReactionOpportunity& Opportunity,
-	int32 OwnerTeamId, int32 ObserverTeamId) const
+	int32 OwnerTeamId, int32 ObserverTeamId, const FRTReactionWindowNames& Names) const
 {
 	// L'unico contenuto di questo metodo e' il valore che una funzione pura non puo' avere: la durata
-	// autorevole. Tutto il resto — privacy, cardinalita', forma delle opzioni — resta nella libreria, che
-	// per questo si verifica senza mondo.
+	// autorevole. Tutto il resto — privacy, cardinalita', forma delle opzioni, e a chi vanno i nomi —
+	// resta nella libreria, che per questo si verifica senza mondo.
 	return URTReactionWindowLibrary::FilterWindowForTeam(ObserverTeamId, OwnerTeamId, Opportunity,
-		FastReactionDuration);
+		FastReactionDuration, Names);
+}
+
+FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReactionOpportunity& Opportunity,
+	TConstArrayView<ARTUnit*> SnapshotUnits, ERTReactionTriggerKind TriggerKind,
+	TConstArrayView<int32> TriggerUnitIds)
+{
+	FRTReactionWindowNames Names;
+	Names.TriggerKind = TriggerKind;
+
+	const auto UnitAt = [&SnapshotUnits](int32 Index) -> const ARTUnit*
+	{
+		return (SnapshotUnits.IsValidIndex(Index) && IsValid(SnapshotUnits[Index])) ? SnapshotUnits[Index] : nullptr;
+	};
+
+	// Chi decide, e come il SUO kit chiama la reazione. Un indice fuori dall'array non e' un nome: i campi
+	// restano vuoti e la finestra dice «Reazione», che e' cio' che diceva prima di `#3667`.
+	if (const ARTUnit* Owner = UnitAt(Opportunity.Key.OwnerId))
+	{
+		Names.ReactorName = RTTurnManagerInternal::ReactionWindowUnitName(Owner);
+		Names.ReactionName = Owner->KitDisplayNameFor(Opportunity.Key.ReactionDefId);
+	}
+
+	// I bersagli dei `FIRE:<i>`, per indice. `FireResponseTarget` e' l'unico parser di quel formato.
+	//
+	// ⚠️ **Un bersaglio a 0 PV qui ha ancora un nome**, perche' `IsValid` resta vero su un'unita' abbattuta
+	// (`#1158`). Capita cosi': due Overwatch armati sullo stesso passo, la prima finestra abbatte chi e'
+	// entrato, e la seconda — costruita dai trigger di PRIMA del colpo — offre ancora `FIRE` su di lui. Che
+	// quella finestra si apra, e che la charge si spenda, e' lo status quo che `#1158` ha lasciato all'owner di
+	// ADR-0004: non lo si decide qui. Il nome e' vero — l'opzione spara proprio a quell'unita' — e toglierlo
+	// lascerebbe la frase generica, che dice ancora meno.
+	for (const FString& Response : Opportunity.AllowedResponses)
+	{
+		const int32 TargetId = URTReactionOpportunityLibrary::FireResponseTarget(Response);
+		const ARTUnit* Target = UnitAt(TargetId);
+		if (Target && !Names.TargetNames.Contains(TargetId))
+		{
+			Names.TargetNames.Add(TargetId, RTTurnManagerInternal::ReactionWindowUnitName(Target));
+		}
+	}
+
+	// 🔑 **Chi ha fatto scattare la finestra lo dice il chiamante, e NON si ricava dalle risposte.** Una
+	// condizione dichiarata riduce i `FIRE`, non chi e' entrato: `BuildOverwatchTriggers` tiene i due elenchi
+	// distinti (`TargetUnitIds` e `AllowedResponses`), e ricostruire il primo dal secondo farebbe dire «Branth
+	// e' entrato» quando sono entrati in due.
+	//
+	// ⚠️ Chi passa `TriggerUnitIds` garantisce che la squadra di chi decide RILEVI quelle unita': per
+	// l'Overwatch e' la condizione stessa del trigger (ADR-0004 §6). Dove non e' garantito — chi spinge un
+	// `Brace` — il sito non le passa qui: usa `URTReactionWindowLibrary::AddTriggerIfKnown`.
+	for (const int32 TriggerId : TriggerUnitIds)
+	{
+		if (const ARTUnit* Trigger = UnitAt(TriggerId))
+		{
+			Names.TriggerNames.Add(RTTurnManagerInternal::ReactionWindowUnitName(Trigger));
+		}
+	}
+
+	return Names;
 }
 
 FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportunity& Opportunity,

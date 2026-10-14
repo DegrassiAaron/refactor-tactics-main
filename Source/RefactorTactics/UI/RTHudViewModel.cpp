@@ -284,17 +284,15 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 FText URTHudViewModel::PlanActionDisplayName(const ARTUnit* Unit, const TArray<FRTPlannedAction>& Plan,
 	const FName& ActionId)
 {
-	// 1. Il nome del kit. `IsEmptyOrWhitespace` e non `IsEmpty`: un nome di soli spazi a schermo e' una riga
-	//    vuota, e la cascata deve poter proseguire — e' la stessa scelta di `ARTUnit::DisplayLabel`.
+	// 1. Il nome del kit: la prima voce con quell'id e un nome leggibile. La ricerca e' di `ARTUnit`, che la
+	//    tiene in un posto solo — la usa anche il titolo della finestra di reazione (`#3667`). Un nome di soli
+	//    spazi non conta: a schermo e' una riga vuota, e la cascata deve poter proseguire.
 	if (Unit)
 	{
-		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		const FText DalKit = Unit->KitDisplayNameFor(ActionId);
+		if (!DalKit.IsEmpty())
 		{
-			const URTActionData* A = Unit->GetAbility(i);
-			if (A && A->Def.ActionId == ActionId && !A->DisplayName.IsEmptyOrWhitespace())
-			{
-				return A->DisplayName;
-			}
+			return DalKit;
 		}
 	}
 	// 2. La voce di movimento, che `MakePlanFor` aggiunge dal core.
