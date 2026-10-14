@@ -1126,7 +1126,7 @@ bool FRTPlayerInputGenericResolvesByNameTest::RunTest(const FString&)
  *
  * ⚠️ Uno stesso tasto su **piu' chiavi della stessa azione** e' legittimo e non e' una collisione:
  * `PanAction` sta su `W A S D` con modificatori diversi, `UndoAction` su `RMB` e `BackSpace`,
- * `CameraModifierAction` su entrambi gli `Alt`. Cio' che si vieta e' un tasto che serva **due azioni
+ * `CameraModifierAction` su entrambi i `Ctrl`. Cio' che si vieta e' un tasto che serva **due azioni
  * distinte**, perche' li' il giocatore non puo' sapere quale otterra'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputHotkeysDoNotCollideTest,
@@ -1175,14 +1175,14 @@ bool FRTPlayerInputHotkeysDoNotCollideTest::RunTest(const FString&)
 
 			// I quattro tasti di #1771 sono davvero mappati: senza questa riga il test resterebbe verde
 			// anche se qualcuno li togliesse, perche' «zero collisioni» e' vero anche di zero tasti nuovi.
-			bool bAlt = false, bPageUp = false, bPageDown = false;
+			bool bCtrl = false, bPageUp = false, bPageDown = false;
 			for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
 			{
-				bAlt      |= (M.Key == EKeys::LeftAlt);
+				bCtrl     |= (M.Key == EKeys::LeftControl);
 				bPageUp   |= (M.Key == EKeys::PageUp);
 				bPageDown |= (M.Key == EKeys::PageDown);
 			}
-			TestTrue(TEXT("Alt e' mappato (modificatore camera)"), bAlt);
+			TestTrue(TEXT("Ctrl e' mappato (modificatore camera)"), bCtrl);
 			TestTrue(TEXT("PageUp e' mappato (piano attivo)"), bPageUp);
 			TestTrue(TEXT("PageDown e' mappato (piano attivo)"), bPageDown);
 		}
@@ -1191,6 +1191,58 @@ bool FRTPlayerInputHotkeysDoNotCollideTest::RunTest(const FString&)
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return bOk;
+}
+
+// --- #3749 · il modificatore della camera e' `Ctrl`, su entrambi i lati ------------------------------
+
+/**
+ * Il tasto del modificatore vive in un punto solo: i due `MapKey` di `BuildInputMappings`. Tutta la
+ * famiglia di gesti legge poi `bCameraModifier`, quindi questo test e' l'unico posto in cui «quale tasto»
+ * si puo' asserire.
+ *
+ * Tre cose, e la terza e' quella che D-514 chiede con le parole «i due `Alt` non sono piu' mappati».
+ * ⚠️ Mappati, non «senza effetto»: su una tastiera italiana `AltGr` arriva come `Ctrl` sinistro piu' `Alt`
+ * destro, e arma il modificatore passando dal `Ctrl`. Questo test non lo puo' vedere, e non lo afferma.
+ *  1. l'azione esiste nel contesto (anti-vacuita': senza, gli altri due asserti sarebbero veri di niente);
+ *  2. i suoi tasti sono ESATTAMENTE i due `Ctrl` — non «almeno il sinistro», che e' cio' che il test
+ *     vicino controllava per `Alt`;
+ *  3. nessuna azione del contesto, non solo questa, sta su un `Alt`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputCameraModifierIsCtrlTest,
+	"RefactorTactics.PlayerInput.CameraModifierIsCtrlOnBothSidesAndAltIsUnmapped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputCameraModifierIsCtrlTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	const UInputMappingContext* Imc = PC ? PC->BuildAndGetMappingContextForTest() : nullptr;
+	if (TestNotNull(TEXT("mapping context costruito"), Imc))
+	{
+		TSet<FKey> ModifierKeys;
+		for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+		{
+			if (!M.Action) { continue; }
+			if (M.Action->GetName() == TEXT("IA_CameraModifier"))
+			{
+				ModifierKeys.Add(M.Key);
+			}
+			TestFalse(*FString::Printf(TEXT("%s non sta su un Alt (%s)"), *M.Action->GetName(), *M.Key.ToString()),
+				M.Key == EKeys::LeftAlt || M.Key == EKeys::RightAlt);
+		}
+
+		TestTrue(TEXT("il modificatore camera e' nel contesto"), ModifierKeys.Num() > 0);
+		TestTrue(TEXT("il modificatore sta sul Ctrl sinistro"), ModifierKeys.Contains(EKeys::LeftControl));
+		TestTrue(TEXT("il modificatore sta sul Ctrl destro"), ModifierKeys.Contains(EKeys::RightControl));
+		TestEqual(TEXT("il modificatore non ha altri tasti oltre ai due Ctrl"), ModifierKeys.Num(), 2);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
 }
 
 // --- code review 2026-08-30 · il picking del layer, e i due modi in cui sbagliava -------------------

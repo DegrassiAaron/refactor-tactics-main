@@ -267,10 +267,16 @@ protected:
 	TObjectPtr<UInputAction> FocusAction;
 
 	/**
-	 * `#1771` — **il modificatore camera** (`Alt`). Arma i gesti di vista senza toccare quelli di gioco.
+	 * `#1771`, `#3749` — **il modificatore camera** (`Ctrl`, sinistro e destro: [D-514]). Arma i gesti di
+	 * vista senza toccare quelli di gioco.
 	 *
-	 * ⚠️ Non collide con `Alt`+`Enter`: quello e' `bAltEnterTogglesFullscreen` in `DefaultInput.ini`, cioe'
-	 * una scorciatoia del motore su una combinazione che qui non e' mappata.
+	 * ⌫ *Fino al 2026-10-13 erano i due `Alt`*, e questo commento avvertiva che il modificatore non collideva
+	 * con la scorciatoia di fullscreen del motore (`bAltEnterTogglesFullscreen` in `DefaultInput.ini`). Con
+	 * `Ctrl` il caso non si pone: l'opzione del motore resta com'e', su una combinazione che qui non e' mappata.
+	 *
+	 * ⚠️ `AltGr` arma il modificatore, prima e dopo il cambio: su una tastiera italiana arriva a Windows come
+	 * `Ctrl` sinistro piu' `Alt` destro. Non verificato a schermo: lo guarda la parte (c) del passo 17 di
+	 * `PIE-PC-GYM`.
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CameraModifierAction;
@@ -328,7 +334,7 @@ protected:
 	 *
 	 * 🔑 **`K` e `L` sono la convenzione dei riproduttori** (pausa e avanti), e sono liberi: mappati
 	 * altrove sono `A B C D E F G Q R S T V W X Z P`, `0`-`9`, Spazio, `ESC`, `Home`, `PageUp`/`PageDown`,
-	 * `BackSpace`, i pulsanti del mouse e i due `Alt`. Verificato sull'elenco completo dei `MapKey` di
+	 * `BackSpace`, i pulsanti del mouse e i due `Ctrl`. Verificato sull'elenco completo dei `MapKey` di
 	 * `BuildInputMappings`, come `#1775` e `PlaybackSpeedAction` hanno gia' fatto.
 	 *
 	 * ⚠️ **Sta accanto a `PlaybackSpeedAction`**, e per la stessa ragione: e' un comando dello
@@ -422,26 +428,26 @@ protected:
 	void OnLayerUp(const FInputActionValue& Value);
 	void OnLayerDown(const FInputActionValue& Value);
 
-	/** `Alt` tenuto: arma i gesti camera. */
+	/** `Ctrl` tenuto: arma i gesti camera. */
 	bool bCameraModifier = false;
 
-	/** `Alt`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
-	bool bAltPrimaryDown = false;
+	/** `Ctrl`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
+	bool bModifierPrimaryDown = false;
 
-	/** `Alt`+`RMB` in corso: dolly. Sopprime l'`UndoAction` per tutta la durata del gesto. */
-	bool bAltSecondaryDown = false;
+	/** `Ctrl`+`RMB` in corso: dolly. Sopprime l'`UndoAction` per tutta la durata del gesto. */
+	bool bModifierSecondaryDown = false;
 
 	/**
-	 * Quanta strada ha percorso il puntatore da quando `Alt`+`LMB` e' stato premuto.
+	 * Quanta strada ha percorso il puntatore da quando `Ctrl`+`LMB` e' stato premuto.
 	 *
 	 * 🔑 **E' cio' che separa un click da un drag**, e la separazione dev'essere netta: superata la soglia
 	 * il gesto e' un'orbita e il click **non si emette piu'**, altrimenti un trascinamento lungo
 	 * produrrebbe anche un set-pivot al rilascio — due operazioni da un gesto solo.
 	 */
-	float AltPrimaryDragDistance = 0.f;
+	float ModifierPrimaryDragDistance = 0.f;
 
 	/**
-	 * Soglia in pixel oltre la quale `Alt`+`LMB` e' un trascinamento e non un click.
+	 * Soglia in pixel oltre la quale `Ctrl`+`LMB` e' un trascinamento e non un click.
 	 *
 	 * ⏳ **Taratura aperta**: la distanza che una mano percorre senza volerlo non e' una costante
 	 * universale, e il numero si tara in `L_CameraFeatureLab` ([#1780]).
@@ -450,7 +456,7 @@ protected:
 		meta = (ClampMin = "0.0"))
 	float ClickDragThreshold = 6.f;
 
-	/** Sensibilita' del precision pan (`Alt`+`MMB`) rispetto al pan normale. Taratura aperta. */
+	/** Sensibilita' del precision pan (`Ctrl`+`MMB`) rispetto al pan normale. Taratura aperta. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "0.01", ClampMax = "1.0"))
 	float PrecisionPanScale = 0.25f;
@@ -481,7 +487,7 @@ protected:
 		meta = (ClampMin = "0.0"))
 	float PeekSensitivity = 3.f;
 
-	/** Frazione di peek residuo riassorbita per secondo quando `Alt` e' rilasciato. Taratura aperta. */
+	/** Frazione di peek residuo riassorbita per secondo quando `Ctrl` e' rilasciato. Taratura aperta. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "0.0"))
 	float PeekReturnSpeed = 8.f;
@@ -524,12 +530,12 @@ public:
 	/** Stato dei gesti camera, per i test: nessuno di questi ha un viewport da interrogare. */
 	void SetCameraModifierForTest(bool bDown) { bCameraModifier = bDown; }
 	bool IsCameraModifierForTest() const { return bCameraModifier; }
-	void SetAltPrimaryDownForTest(bool bDown, float Distance = 0.f)
+	void SetModifierPrimaryDownForTest(bool bDown, float Distance = 0.f)
 	{
-		bAltPrimaryDown = bDown;
-		AltPrimaryDragDistance = Distance;
+		bModifierPrimaryDown = bDown;
+		ModifierPrimaryDragDistance = Distance;
 	}
-	float GetAltPrimaryDragDistanceForTest() const { return AltPrimaryDragDistance; }
+	float GetModifierPrimaryDragDistanceForTest() const { return ModifierPrimaryDragDistance; }
 	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
 	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
 	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
@@ -728,7 +734,7 @@ public:
 	/**
 	 * Il tasto da tastiera del Back (`BackSpace`), gemello del tasto destro — lo stesso gesto che il pulsante
 	 * `Annulla` della HUD inoltra ([D-458]). ⚠️ Il destro resta mappato a parte: e' anche il dolly della camera
-	 * con `Alt`, e un pulsante non ha un modificatore da tenere.
+	 * con `Ctrl`, e un pulsante non ha un modificatore da tenere.
 	 */
 	static const FKey& UndoKeyboardHotkey();
 
@@ -1221,7 +1227,7 @@ public:
 	 *
 	 * Durante il countdown del Ready **ritira il Ready** (#2193), altrimenti smonta **un** livello con
 	 * `ApplyBack()` (§5.5). ⛔ E' il corpo di `OnUndoWaypoint` meno il dolly della camera, che appartiene al
-	 * tasto destro tenuto con `Alt` e non a un pulsante: le due strade non possono divergere sul gioco.
+	 * tasto destro tenuto con `Ctrl` e non a un pulsante: le due strade non possono divergere sul gioco.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
 	void UndoStep();

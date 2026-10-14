@@ -509,7 +509,7 @@ il primo copre F1.
 | **F1** | **Glossario**: testi d'autore per stati, superfici e ripari, col gate di completezza. Nessuna UI. Implementata in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744) | — |
 | **F2** | **Sguardo**: risolutore, compositore, targa che si apre, etichetta di cella. Issue: [#3747](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3747) | F1; ➕ rev2. le voci 2 e 5 di §9.3 scritte nel Decision Log: sono [D-512](../../decisions/RT_PDR_00_Decision_Log.md) e [D-513](../../decisions/RT_PDR_00_Decision_Log.md) |
 | **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede. Issue: [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748) | F2 |
-| **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click. Issue: [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749) | F3 per il fuoco; il solo cambio di tasto è indipendente |
+| **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click. Issue: [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749). Il cambio di tasto è fatto, con [D-514](../../decisions/RT_PDR_00_Decision_Log.md); il fuoco sul click no | F3 per il fuoco; il solo cambio di tasto è indipendente |
 | **F5** | **Aree del fuoco e hover su skill**: arbitro, area di movimento, portata. Issue: [#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750) | F3, [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511) |
 | **F6** | **Ricariche dedotte**. Issue: [#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751) | F3 |
 
@@ -529,8 +529,9 @@ il primo copre F1.
 Testo proposto. **Il numero si assegna al merge**, dopo `git fetch` e il controllo dei ref remoti.
 
 **Scritte**: la voce 2 è [D-512](../../decisions/RT_PDR_00_Decision_Log.md), la voce 5 è
-[D-513](../../decisions/RT_PDR_00_Decision_Log.md). Sono le due che `F2` aspetta; fa fede il testo del registro,
-non quello qui sotto. Le voci 1, 3 e 4 si scrivono con le loro fette: `F3`, `F4`, `F5`.
+[D-513](../../decisions/RT_PDR_00_Decision_Log.md), le due che `F2` aspetta. La voce 3 è
+[D-514](../../decisions/RT_PDR_00_Decision_Log.md), scritta con la prima parte di `F4`. Fa fede il testo del
+registro, non quello qui sotto. Le voci 1 e 4 si scrivono con le loro fette: `F3`, `F5`.
 
 1. **Di un nemico osservato sono pubblici il kit dell'eroe e l'equipaggiamento; le ricariche si leggono solo come
    deduzione dagli eventi autorizzati.** Il piano, gli slot del turno, l'azione armata e le ricariche reali restano
@@ -598,7 +599,9 @@ non quello qui sotto. Le voci 1, 3 e 4 si scrivono con le loro fette: `F3`, `F4`
 - L'arbitro: una sola funzione scrive i setter; chiuso il fuoco, la mappa mostra ciò che mostrava prima.
 - ➕ rev2. L'**insieme** delle celle in portata all'hover coincide con quello che la stessa azione mostra armata.
   Il verdetto di tiro no: segue P7.
-- Il cambio di tasto: la famiglia risponde a `Ctrl`, e `Alt` non produce più nessuno dei suoi effetti.
+- Il cambio di tasto: la famiglia risponde a `Ctrl`, e i due `Alt` non sono più mappati. ➕ ⌫ *Diceva «`Alt` non
+  produce più nessuno dei suoi effetti»*: su una tastiera italiana `AltGr` arriva come `Ctrl` sinistro più `Alt`
+  destro, e arma il modificatore prima e dopo il cambio ([D-514](../../decisions/RT_PDR_00_Decision_Log.md) punto 8).
 - Click e rotella sul pannello non raggiungono il mondo.
 - Il fuoco e l'ispezione non cambiano selezione, piano, né l'hash dello stato di partita.
 

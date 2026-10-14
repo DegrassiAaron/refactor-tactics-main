@@ -2323,6 +2323,11 @@ che il repository applicava già.
 > essere il *precision pan* «puro» previsto dal consolidamento, perche' `MMB` resta armato come orbita.
 > E' stato risolto dando la precedenza al modificatore — con `Alt` premuto, `MMB` **pana** invece di
 > orbitare — cioe' l'unico modo di avere entrambi senza un terzo tasto.
+>
+> 🔄 **Dal 2026-10-13 il modificatore e' `Ctrl`** ([`D-514`](decisions/RT_PDR_00_Decision_Log.md),
+> [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749)). La risposta «entrambi» non cambia: `MMB`
+> resta l'orbita, il secondo modo e' `Ctrl`+`LMB`, e con `Ctrl` premuto `MMB` pana. Il testo qui sopra
+> resta com'e' stato scritto il 2026-08-30, col tasto di allora.
 
 ## ~~Aperte~~ — le due domande come furono poste
 
