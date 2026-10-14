@@ -2086,8 +2086,12 @@ protected:
 		bool bOwnerIsBot) const;
 
 	/**
-	 * Applica l'esito di una finestra: `FIRE` colpisce, spende la charge e TRONCA il movimento residuo del
-	 * bersaglio; `HOLD` non fa nulla e lascia la reaction armata (CP 14.5).
+	 * Applica l'esito di una finestra: `FIRE` su un bersaglio in piedi colpisce, spende la charge e TRONCA il
+	 * movimento residuo del bersaglio; `HOLD` non fa nulla e lascia la reaction armata (CP 14.5).
+	 *
+	 * Un `FIRE` su un bersaglio gia' abbattuto non dovrebbe arrivare qui: da [D-518] il pompaggio non lo offre. Se
+	 * arriva, si registra come il collasso che il filtro avrebbe scritto (`CollapsedTargetDown`, risposta sicura),
+	 * la charge resta, e un `ensure` lo segnala.
 	 *
 	 * `ArmedIndex` indicizza `ArmedOverwatches`: e' l'armamento la cui charge si consuma, e tenerlo esplicito
 	 * evita di ricercarlo una seconda volta con una regola che potrebbe non coincidere con la prima.

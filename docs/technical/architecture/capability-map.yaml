@@ -554,6 +554,8 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionLibrary.h
         - Source/RefactorTactics/Turn/RTReactionLibrary.cpp
         - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
+        - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
+        - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
@@ -566,7 +568,9 @@ capabilities:
       - RT-CAP-SCREEN-HUD
     dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-TARGETING, RT-CAP-TURN-LOOP]
     tests:
-      automation: ["RefactorTactics.Reactions.*", "RefactorTactics.Reaction.*", "RefactorTactics.Clash.*"]
+      automation: ["RefactorTactics.Reactions.*", "RefactorTactics.Reaction.*", "RefactorTactics.Clash.*",
+                   "RefactorTactics.Overwatch.SecondWatcherHoldsOnADownedTarget",
+                   "RefactorTactics.Replay.Verifier.DownedTargetCollapseIgnoresTheTrace"]
       scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
       mutation: []
     verification: { pie: [], packaged: [] }

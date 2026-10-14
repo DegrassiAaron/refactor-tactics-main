@@ -8050,7 +8050,7 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	CurrentMicroStepIndex = Opportunity.Key.MicroStepIndex;
 	ON_SCOPE_EXIT{ CurrentMicroStepIndex = IndiceAmbientale; };
 
-	// La voce e' COMUNE ai sei esiti, e non solo al `FIRE`: un `HOLD` che non lascia traccia renderebbe
+	// La voce e' COMUNE a ogni esito, e non solo al `FIRE`: un `HOLD` che non lascia traccia renderebbe
 	// indistinguibile «ha scelto di non sparare» da «la finestra non si e' mai aperta», che sono la lettura
 	// riuscita e il difetto. E' la stessa ragione per cui `ERTReactionOutcome::NotTriggered` esiste dal CP 5.1.
 	FRTTurnLogEntry Entry;
@@ -8094,41 +8094,31 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 
 	if (!bFire)
 	{
-		// ⚠️ **Qui finiscono DUE casi diversi, e vanno distinti perche' la charge si comporta diversamente.**
+		// ⚠️ **Qui finiscono DUE casi, e il secondo non dovrebbe arrivarci.** In entrambi la charge resta.
 		//
-		// (1) `HOLD`, in tutte e cinque le sue forme: si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
+		// (1) `HOLD`, comunque ci si arrivi: scelto (`Chosen`), `Timeout`, `NoDecider`, `Rejected`, `Immediate`,
+		// `CollapsedByCondition`, `CollapsedTargetDown`. Si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
 		// vero, quindi un micro-step successivo puo' ancora aprire una finestra nuova — ed e' precisamente
 		// cio' che rende possibile il bait: lascio passare il tank perche' penso che dietro arrivi di meglio.
 		//
-		// (2) `FIRE` scelto su un bersaglio **gia' abbattuto** (#1158). Non e' un `HOLD`: qualcuno ha scelto, e il
-		// log deve continuare a dirlo — `Entry.Outcome` resta `Chosen`, con la risposta `FIRE`. Cio' che non deve
-		// dire e' un danno mai inflitto, quindi `Entry.Amount` resta a zero e non si tronca nessun movimento
-		// (il bersaglio non si muove piu' comunque).
+		// (2) `FIRE` su un bersaglio **gia' abbattuto** (#1158). La regola e' decisa: [D-518] (`#3745`). Il `FIRE`
+		// su un bersaglio gia' abbattuto **non si offre**: `PumpReactionTriggers` lo toglie dall'opportunity prima di
+		// chiedere, e se resta il solo `HOLD` la finestra non si apre e la carica resta (`CollapsedTargetDown`). Il
+		// percorso di produzione quindi non arriva qui: una risposta registrata o iniettata che nomini quel
+		// bersaglio non e' fra le `AllowedResponses`, e `AskReactionDecision` la rifiuta.
 		//
-		// ✅ **La regola che qui era «status quo» e' decisa: [D-518] (`#3745`).** Il `FIRE` su un bersaglio gia'
-		// abbattuto **non si offre**: `PumpReactionTriggers` lo toglie dall'opportunity prima di chiedere, e se resta
-		// il solo `HOLD` la finestra non si apre e la carica resta (`CollapsedTargetDown`). Il percorso di
-		// produzione quindi non arriva qui: una risposta registrata o iniettata che nomini quel bersaglio non e'
-		// fra le `AllowedResponses`, e `AskReactionDecision` la rifiuta.
-		//
-		// ⚠️ **Il ramo resta come rete, e la carica resta** (revisione della PR #3770): ci arriverebbe solo un chiamante
-		// che salta il filtro, e la regola decisa e' che su un bersaglio a terra la carica non si spende — *non c'era
-		// piu' niente da colpire*. Una prima stesura di [D-518] la spendeva qui, cioe' rispondeva alla domanda col
-		// vecchio status quo proprio nel ramo che la domanda riguardava. Il log continua a non dichiarare un danno
-		// mai inflitto, che e' cio' che #1158 aveva corretto.
+		// 🔴 **Il ramo resta come rete, e fa cio' che il filtro avrebbe fatto** (revisione della PR #3770): la
+		// carica resta, e la voce dice `CollapsedTargetDown` con la risposta sicura, cioe' la voce che il pompaggio
+		// scrive per lo stesso caso. Una voce `Chosen` con un `FIRE` accanto a una carica intatta racconterebbe uno
+		// sparo che lo stato smentisce: una reazione da una carica comparirebbe due volte nel registro, e la
+		// ri-simulazione di quella traccia, che passa dal filtro, troverebbe un `FIRE` orfano. Il danno resta zero,
+		// come #1158 aveva corretto. L'`ensure` dice che ci si e' arrivati, perche' nessun chiamante dovrebbe.
 		if (bFireResponse && !bTargetStanding)
 		{
-
-			// 🔴 **Il bersaglio va nominato anche quando non lo si colpisce**, e ometterlo rompeva il
-			// round-trip della traccia consegnato da `#886`. `ArmRecordedReactionDecisions` RICOSTRUISCE la
-			// risposta dal TurnLog — `FireResponse(Entry.SelectedTargetUnitId)` per ogni `FireChosen` — quindi
-			// una voce senza bersaglio produce `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: la
-			// ri-simulazione registrerebbe una divergenza spuria, tornerebbe `HoldRejected` e cambierebbe
-			// l'hash del turno rispetto alla partita originale.
-			// ⚠️ Prima di #1158 il caso non esisteva perche' il ramo `FIRE` girava per intero e assegnava
-			// questo campo; separando i due rami il campo va assegnato **due volte**, non una. Trovato da una
-			// code review, non da un test: nessuno rieseguiva come Verifier una partita con due `FIRE`.
-			Entry.SelectedTargetUnitId = TargetIdx;
+			ensureMsgf(false, TEXT("ApplyReactionDecision: FIRE su un bersaglio gia' abbattuto (%d), senza il filtro di D-518"),
+				TargetIdx);
+			Entry.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::CollapsedTargetDown);
+			Entry.ReactionResponse = URTReactionOpportunityLibrary::SafeResponse(Opportunity);
 		}
 		// Il soggetto porta la cella del micro-step: dentro il ciclo `WatchOwner->Cell` e' quella di
 		// partenza del turno, e il verdetto di [D-223] finirebbe congelato su una posizione gia' lasciata

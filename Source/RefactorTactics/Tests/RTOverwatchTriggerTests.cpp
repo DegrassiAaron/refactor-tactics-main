@@ -1381,7 +1381,12 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 			if (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome) == ERTReactionDecisionOutcome::CollapsedTargetDown)
 			{
 				++Collapsed;
-				if (Entry.ReactionResponse != URTReactionOpportunityLibrary::HoldResponse()) { ++CollapsedNotHold; }
+				// Sensibile alle maiuscole: `!=` su `FString` le ignora, e `TurnLogLibrary` confronta HOLD con
+				// `ESearchCase::CaseSensitive`.
+				if (!Entry.ReactionResponse.Equals(URTReactionOpportunityLibrary::HoldResponse(), ESearchCase::CaseSensitive))
+				{
+					++CollapsedNotHold;
+				}
 				// La riga del registro dice la causa, non «nessun bersaglio soddisfa la condizione».
 				if (!URTTurnLogLibrary::DescribeEntry(Entry).Contains(TEXT("a terra"))) { ++CollapsedWrongLine; }
 			}

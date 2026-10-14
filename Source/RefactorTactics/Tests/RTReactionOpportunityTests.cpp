@@ -1209,8 +1209,10 @@ bool FRTRemoveFireOnDownedTest::RunTest(const FString&)
 	Misto.AllowedResponses = { L::FireResponse(4), L::FireResponse(7), L::HoldResponse() };
 	const int32 Tolti = L::RemoveFireResponsesWhere(Misto, [](int32 Bersaglio) { return Bersaglio == 4; });
 	TestEqual(TEXT("un FIRE tolto"), Tolti, 1);
-	TestEqual(TEXT("resta il FIRE sul bersaglio in piedi, poi HOLD, nell'ordine di prima"),
-		FString::Join(Misto.AllowedResponses, TEXT(",")), L::FireResponse(7) + TEXT(",") + L::HoldResponse());
+	// Confronti sensibili alle maiuscole: `TestEqual` su `FString` le ignora, e i token sono un formato.
+	TestTrue(TEXT("resta il FIRE sul bersaglio in piedi, poi HOLD, nell'ordine di prima"),
+		FString::Join(Misto.AllowedResponses, TEXT(",")).Equals(L::FireResponse(7) + TEXT(",") + L::HoldResponse(),
+			ESearchCase::CaseSensitive));
 	TestTrue(TEXT("e la finestra si apre ancora"), L::RequiresDecisionBoundary(Misto));
 
 	// L'unico bersaglio a terra: resta il solo HOLD, e la finestra non si apre (ADR-0004 §2).
@@ -1219,7 +1221,8 @@ bool FRTRemoveFireOnDownedTest::RunTest(const FString&)
 	TestEqual(TEXT("il FIRE sul caduto si toglie"),
 		L::RemoveFireResponsesWhere(Solo, [](int32 Bersaglio) { return Bersaglio == 4; }), 1);
 	TestFalse(TEXT("col solo HOLD la finestra non si apre"), L::RequiresDecisionBoundary(Solo));
-	TestEqual(TEXT("e la risposta sicura e' HOLD"), L::SafeResponse(Solo), FString(L::HoldResponse()));
+	TestTrue(TEXT("e la risposta sicura e' HOLD"),
+		L::SafeResponse(Solo).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
 
 	// Nessuno a terra: niente cambia. E una risposta che non e' un FIRE non si tocca mai.
 	FRTReactionOpportunity Intatta;
@@ -1228,7 +1231,9 @@ bool FRTRemoveFireOnDownedTest::RunTest(const FString&)
 		L::RemoveFireResponsesWhere(Intatta, [](int32) { return false; }), 0);
 	TestEqual(TEXT("un predicato che dice si' a tutto toglie i soli FIRE"),
 		L::RemoveFireResponsesWhere(Intatta, [](int32) { return true; }), 1);
-	TestEqual(TEXT("HOLD e SIDESTEP restano"), Intatta.AllowedResponses.Num(), 2);
+	TestTrue(TEXT("HOLD e SIDESTEP restano, e sono loro"),
+		FString::Join(Intatta.AllowedResponses, TEXT(",")).Equals(FString(L::HoldResponse()) + TEXT(",SIDESTEP:1,2,0"),
+			ESearchCase::CaseSensitive));
 	return true;
 }
 
