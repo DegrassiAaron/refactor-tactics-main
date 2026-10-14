@@ -110,9 +110,10 @@ Solo dopo «clone libero». Il clone passa sul branch e si compila lì.
 - [ ] `.gitignore`: eccezione `!Content/RT/Anim/ABP_RTUnitAuthored.uasset`, con la nota che dice perché non è uno degli `ABP_*` di D-248.
 - [ ] `-run=RTBuildAnimBindings -DryRun`, poi senza. Atteso: asset scritto, nessun legame. La dimensione del file nello scratchpad.
 - [ ] `Anim.AuthoredClassCarriesTheCppDefaultsWhileTheCatalogHasNoBindings`: verde.
-- [ ] **Misura A**: il gate d'azione, con la classe autorata presente e i blueprint non ancora toccati. Atteso: **rosso, sullo stesso elenco di Misura 0**, e nel log «CDO: classe autorata». **Mutazione**: tolta l'esclusione di `Q1`, il gate deve diventare **verde**; poi si ripristina, si ricompila e la Misura A torna rossa. Se la Misura A è verde senza mutazione, ci si ferma.
+- [ ] **Misura A**: il gate d'azione, con la classe autorata presente e i blueprint non ancora toccati. Atteso: **rosso, sullo stesso elenco di Misura 0**, e nel log «CDO: classe autorata». Se la Misura A è verde, ci si ferma.
+- [ ] ➕ rev2. **I byte della classe autorata**: si cerca nel `.uasset` generato il path di una clip (`ParagonGadget`). Atteso: **assente**, perché il CDO è identico al padre e si salva per differenza. ⌫ *Il piano chiedeva qui una mutazione: togliere l'esclusione e vedere il gate verde.* Con i path assenti non proverebbe niente; l'esclusione la prova `Packaging.CookGateIgnoresTheAuthoredAnimClassFile`. Se i path ci sono, la mutazione torna valida e si fa.
 - [ ] `-run=RTSyncUnitAnimRefs -DryRun`: per ogni eroe entrano le sue clip d'azione dell'elenco di Misura 0, e non ne esce nessuna. Poi senza `-DryRun`.
-- [ ] **Misura B**: `Packaging.RequiredActionClipsAreCooked` e `Packaging.RequiredAnimationClipsAreCooked` verdi; la Fase 3 del commandlet verde; un secondo `-DryRun` dice zero aggiunte e zero tolte.
+- [ ] **Misura B**: `Packaging.RequiredActionClipsAreCooked` e `Packaging.RequiredAnimationClipsAreCooked` verdi; la Fase 3 del commandlet verde; `-run=RTSyncUnitAnimRefs -ExpectNoChanges` esce con zero, cioè la riga `TOTALE` dice zero che entrano, zero che escono, zero classi da assegnare.
 - [ ] Un test nuovo, `RefactorTactics.Heroes.UnitBlueprintsUseTheAuthoredAnimClass`: per le quattro voci di `HeroUnitClasses`, `UnitAnimClass` non è nulla, è la classe autorata, ed è figlia di `URTUnitAnimInstance`. Verde.
 - [ ] PIE: un'unità per eroe in scena, ferma e in movimento. Si anima come prima? La risposta la dà l'autore su una tavola; finché non c'è, `NOT RUN`.
 - [ ] Commit dei quattro `BP_Unit_*`, di `ABP_RTUnitAuthored` e del `.gitignore`, dal clone principale.
@@ -150,3 +151,21 @@ Un agente con contesto fresco, in sola lettura, tetto di trenta chiamate, il 202
 | **R9** | minore | Il costo del binario versionato non era misurato | `Q5`; Task 5 |
 | **R10** | minore | Il test del Task 1 ripeteva l'algoritmo | Task 1, elenchi letterali |
 | **R11** | minore | Totali volatili nel piano | Global Constraints; testo |
+
+## ➕ rev2. I rilievi del revisore avversario sul codice dei Task 1–4
+
+Un secondo agente, sul codice compilato e non ancora eseguito, prima del clone principale. Nessun rilievo critico. Corretti in una passata sola.
+
+| | Gravità | Rilievo | Correzione |
+|---|---|---|---|
+| **C1** | importante | Il CDO della classe autorata, finché il catalogo non ha legami, è identico al padre e si salva per differenza: i suoi byte non portano i path delle clip. La mutazione della Misura A non avrebbe provato niente, e il commento del gate diceva il contrario | Il commento dice com'è oggi; l'esclusione diventa `RTEscludiClasseAutorata`, con un test proprio (`Packaging.CookGateIgnoresTheAuthoredAnimClassFile`); la Misura A guarda i byte prima di mutare |
+| **C2** | importante | `R4` accolto a metà: il commandlet controllava che le dipendenze dure esistessero, non che si caricassero | `LoadPackage` su ogni dipendenza non `/Script/` |
+| **C3** | minore | Il ripiego della sagoma (`GhostFallbackClipPath`) non era coperto dal test | `GhostFallbackClipPathForTest`, e un'asserzione in `NullAnimClassFallsBackToTheCppGraph` |
+| **C4** | minore | L'esito di `PropertyValueToString` era ignorato | Se fallisce, errore prima di compilare |
+| **C5** | minore | Un errore in fase 2 lasciava scrivere gli altri blueprint | Ci si ferma al primo, e il log dice chi era già salvato |
+| **C6** | minore | La variabile del gate si chiamava ancora `Versionati` | `FileSuDisco` |
+| **C7** | minore | Il «secondo `-DryRun` a zero» era solo prosa nel log | Riga `TOTALE …`, e `-ExpectNoChanges`, che esce con errore se qualcosa cambierebbe |
+| **C8** | minore | Il test di `CollectActiveClips` pretendeva clip d'azione da ogni eroe: è un fatto dei dati | L'asserzione resta solo negli elenchi letterali |
+
+**Non controllato dal revisore**, e lo misura il Task 5: che `RTBuildAnimBindings` generi davvero la classe (il suo `Main` non è mai stato eseguito), e che una `UBlueprintGeneratedClass` senza grafo funzioni come classe d'animazione a runtime.
+

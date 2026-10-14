@@ -12,6 +12,7 @@
 #include "Unit/RTUnit.h"
 #include "Unit/RTUnitAnimInstance.h"
 #include "UObject/SavePackage.h"
+#include "UObject/StrongObjectPtr.h"
 #include "UObject/UnrealType.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRTSyncUnitAnimRefs, Log, All);
@@ -93,8 +94,16 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 	TArray<FString> Tokens;
 	TArray<FString> Switches;
 	ParseCommandLine(*Params, Tokens, Switches);
-	const bool bDryRun = Switches.Contains(TEXT("DryRun"));
-	UE_LOG(LogRTSyncUnitAnimRefs, Display, TEXT("=== RTSyncUnitAnimRefs%s ==="), bDryRun ? TEXT(" [DryRun]") : TEXT(""));
+	// `-ExpectNoChanges` implica `-DryRun`: e' la prova di andata e ritorno dopo un salvataggio (rilievo `R3`), ed esce
+	// con errore se qualcosa entrerebbe o uscirebbe ancora.
+	const bool bExpectNoChanges = Switches.Contains(TEXT("ExpectNoChanges"));
+	const bool bDryRun = bExpectNoChanges || Switches.Contains(TEXT("DryRun"));
+	UE_LOG(LogRTSyncUnitAnimRefs, Display, TEXT("=== RTSyncUnitAnimRefs%s%s ==="), bDryRun ? TEXT(" [DryRun]") : TEXT(""),
+		bExpectNoChanges ? TEXT(" [ExpectNoChanges]") : TEXT(""));
+
+	// ⚠️ `CompileBlueprint` esegue una garbage collection dopo ogni blueprint: i puntatori nudi di `Piani` devono
+	// sopravviverle. Gli asset caricati da un package sono di norma `RF_Standalone`, ma non lo si da' per scontato.
+	TArray<TStrongObjectPtr<UObject>> Trattenuti;
 
 	IAssetRegistry& Registro = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
 	Registro.SearchAllAssets(/*bSynchronousSearch=*/ true);
@@ -114,7 +123,11 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 			RTAuthoredClassPath));
 		return 1;
 	}
+	Trattenuti.Emplace(Autorata);
 	const URTUnitAnimInstance* CdoAutorato = Autorata->GetDefaultObject<URTUnitAnimInstance>();
+	int32 TotaleEntrano = 0;
+	int32 TotaleEscono = 0;
+	int32 ClassiDaAssegnare = 0;
 
 	// L'elenco ATTESO degli eroi e' quello del default C++: `HeroUnitClasses` lascia ASSENTE, in silenzio, un eroe il cui
 	// `FClassFinder` non risolve (`RTGameMode.cpp`), e un commandlet che iterasse solo quella mappa uscirebbe 0 avendo
@@ -142,6 +155,7 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 			Errore(FString::Printf(TEXT("%s: %s non viene da un Blueprint"), *Eroe.ToString(), *P.Classe->GetName()));
 			continue;
 		}
+		Trattenuti.Emplace(P.Blueprint);
 		const FString Package = P.Blueprint->GetOutermost()->GetName();
 
 		P.CookDeps = FindFProperty<FArrayProperty>(P.Classe, RTCookDepsName);
@@ -171,6 +185,12 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 			if (!FPackageName::DoesPackageExist(Nome))
 			{
 				Errore(FString::Printf(TEXT("%s: la dipendenza dura %s non c'e' su disco"), *Package, *Nome));
+				continue;
+			}
+			// «C'e' su disco» non basta: un package che non si carica verrebbe salvato come `None` (rilievo `R4`).
+			if (LoadPackage(nullptr, *Nome, LOAD_None) == nullptr)
+			{
+				Errore(FString::Printf(TEXT("%s: la dipendenza dura %s non si carica"), *Package, *Nome));
 			}
 		}
 
@@ -191,6 +211,7 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 				continue;
 			}
 			P.Clip.Add(Clip);
+			Trattenuti.Emplace(Clip);
 		}
 
 		// Il confronto, nel log: cio' che entra e cio' che esce.
@@ -210,12 +231,18 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 		}
 		const ARTUnit* UnitCdo = Cast<ARTUnit>(P.Classe->GetDefaultObject());
 		const bool bClasseGiusta = UnitCdo && UnitCdo->UnitAnimClass.Get() == Autorata;
+		TotaleEntrano += Entrano;
+		TotaleEscono += Escono;
+		ClassiDaAssegnare += bClasseGiusta ? 0 : 1;
 		UE_LOG(LogRTSyncUnitAnimRefs, Display, TEXT("%s (%s): %d clip, %d entrano, %d escono; UnitAnimClass %s"),
 			*Package, *Eroe.ToString(), P.Clip.Num(), Entrano, Escono,
 			bClasseGiusta ? TEXT("gia' autorata") : TEXT("da assegnare"));
 		Piani.Add(MoveTemp(P));
 	}
 
+	// Una riga fissa, che si legge col `Select-String` e non con l'occhio (rilievo 7 della revisione del codice).
+	UE_LOG(LogRTSyncUnitAnimRefs, Display, TEXT("TOTALE blueprint=%d entrano=%d escono=%d classi_da_assegnare=%d errori=%d"),
+		Piani.Num(), TotaleEntrano, TotaleEscono, ClassiDaAssegnare, Errori);
 	if (Errori > 0)
 	{
 		UE_LOG(LogRTSyncUnitAnimRefs, Error, TEXT("%d errori nella validazione: nessun blueprint scritto."), Errori);
@@ -224,6 +251,11 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 	if (bDryRun)
 	{
 		UE_LOG(LogRTSyncUnitAnimRefs, Display, TEXT("-DryRun: nessun blueprint scritto."));
+		if (bExpectNoChanges && (TotaleEntrano + TotaleEscono + ClassiDaAssegnare) > 0)
+		{
+			UE_LOG(LogRTSyncUnitAnimRefs, Error, TEXT("-ExpectNoChanges: i blueprint non portano ancora cio' che dovrebbero."));
+			return 1;
+		}
 		return 0;
 	}
 
@@ -247,23 +279,47 @@ int32 URTSyncUnitAnimRefsCommandlet::Main(const FString& Params)
 		if (Indice != INDEX_NONE && !P.Blueprint->NewVariables[Indice].DefaultValue.IsEmpty())
 		{
 			FString Valore;
-			if (FBlueprintEditorUtils::PropertyValueToString(P.CookDeps, reinterpret_cast<const uint8*>(UnitCdo), Valore))
+			if (!FBlueprintEditorUtils::PropertyValueToString(P.CookDeps, reinterpret_cast<const uint8*>(UnitCdo), Valore))
+			{
+				// Senza la stringa nuova, la compilazione rimetterebbe il default vecchio sopra il CDO appena scritto.
+				Errore(FString::Printf(TEXT("%s: il default di %s non si converte, non compilo"),
+					*P.Blueprint->GetPathName(), *RTCookDepsName.ToString()));
+			}
+			else
 			{
 				P.Blueprint->NewVariables[Indice].DefaultValue = Valore;
 			}
 		}
 
-		FKismetEditorUtilities::CompileBlueprint(P.Blueprint);
-		if (P.Blueprint->Status == BS_Error)
+		if (Errori == 0)
 		{
-			Errore(FString::Printf(TEXT("%s: la compilazione e' fallita, non salvo"), *P.Blueprint->GetPathName()));
-			continue;
+			FKismetEditorUtilities::CompileBlueprint(P.Blueprint);
+			if (P.Blueprint->Status == BS_Error)
+			{
+				Errore(FString::Printf(TEXT("%s: la compilazione e' fallita, non salvo"), *P.Blueprint->GetPathName()));
+			}
 		}
-		P.Blueprint->MarkPackageDirty();
-		if (!RTSalva(P.Blueprint))
+		if (Errori == 0)
 		{
-			Errore(FString::Printf(TEXT("%s: salvataggio fallito"), *P.Blueprint->GetPathName()));
-			continue;
+			P.Blueprint->MarkPackageDirty();
+			if (!RTSalva(P.Blueprint))
+			{
+				Errore(FString::Printf(TEXT("%s: salvataggio fallito"), *P.Blueprint->GetPathName()));
+			}
+		}
+		if (Errori > 0)
+		{
+			// Al primo errore ci si ferma, e si dice chi era gia' stato scritto: l'albero non deve restare a meta' in
+			// silenzio (rilievo 5 della revisione del codice).
+			TArray<FString> Scritti;
+			for (const FRTPianoBlueprint& Gia : Piani)
+			{
+				if (&Gia == &P) { break; }
+				Scritti.Add(Gia.Blueprint->GetOutermost()->GetName());
+			}
+			UE_LOG(LogRTSyncUnitAnimRefs, Error, TEXT("Scrittura interrotta. Gia' salvati: %s"),
+				Scritti.Num() > 0 ? *FString::Join(Scritti, TEXT(", ")) : TEXT("nessuno"));
+			return 1;
 		}
 		UE_LOG(LogRTSyncUnitAnimRefs, Display, TEXT("%s: scritto"), *P.Blueprint->GetOutermost()->GetName());
 	}

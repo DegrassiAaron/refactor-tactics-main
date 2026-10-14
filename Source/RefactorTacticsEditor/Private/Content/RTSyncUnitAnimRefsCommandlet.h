@@ -25,9 +25,10 @@
  *
  *     UnrealEditor-Cmd RefactorTactics.uproject -run=RTSyncUnitAnimRefs [-DryRun]
  *
- * `-DryRun` esegue la fase 1 e scrive nel log, per ogni blueprint, le clip che entrano e quelle che escono. Dopo un
- * salvataggio, un secondo `-DryRun` deve dire zero e zero: e' la prova che i valori sono sopravvissuti alla
- * compilazione.
+ * `-DryRun` esegue la fase 1 e scrive nel log, per ogni blueprint, le clip che entrano e quelle che escono, e una riga
+ * `TOTALE blueprint=… entrano=… escono=… classi_da_assegnare=… errori=…`. `-ExpectNoChanges` fa lo stesso ed esce
+ * con errore se qualcosa entrerebbe o uscirebbe ancora: dopo un salvataggio e' la prova che i valori sono
+ * sopravvissuti alla compilazione.
  *
  * ⚠️ Quando una variante diventa attiva, l'ordine e': `-run=RTBuildAnimBindings`, poi questo.
  */

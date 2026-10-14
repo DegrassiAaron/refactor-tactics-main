@@ -300,7 +300,9 @@ bool FRTAnimCollectActiveClipsTest::RunTest(const FString&)
 	TestTrue(TEXT("Branth: confronto sensibile alle maiuscole"), FString::Join(TrovatiBranth, TEXT("\n")).Equals(
 		FString::Join(Branth, TEXT("\n")), ESearchCase::CaseSensitive));
 
-	// Su OGNI eroe del CDO: nessun doppione, ordine per path, e almeno una clip d'azione.
+	// Su OGNI eroe del CDO: nessun doppione, e ordine per path. ⚠️ Che un eroe abbia clip d'azione e' un fatto dei DATI,
+	// non della funzione: lo assicurano gli elenchi letterali qui sopra, e un eroe futuro senza clip d'azione non deve far
+	// cadere questo test (rilievo 8 della revisione del codice).
 	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
 	{
 		TArray<FSoftObjectPath> Clip;
@@ -312,8 +314,6 @@ bool FRTAnimCollectActiveClipsTest::RunTest(const FString&)
 			TestTrue(*FString::Printf(TEXT("%s: ordine per path alla posizione %d"), *Voce.Key.ToString(), i),
 				Clip[i - 1].ToString() < Clip[i].ToString());
 		}
-		TestTrue(*FString::Printf(TEXT("%s: porta almeno una clip d'azione"), *Voce.Key.ToString()),
-			Voce.Value.PerAction.Num() > 0);
 	}
 
 	TArray<FSoftObjectPath> Nessuno;

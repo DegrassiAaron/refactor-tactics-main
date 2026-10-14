@@ -1466,6 +1466,9 @@ public:
 		return Path ? *Path : FSoftObjectPath();
 	}
 
+	/** `GhostFallbackClipPath`, che e' protetta, per il test del ripiego di `ResolvedAnimClass` (#3562). */
+	TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipPathForTest() const { return GhostFallbackClipPath(); }
+
 	/**
 	 * Se l'ULTIMA `PlayPresentationRole(Ruolo)` ha ripiegato sulla clip di RUOLO perche' quella d'azione non si e'
 	 * caricata — seam di misura (#3563, review finale I1) — o perche' era un gesto ADDITIVO (#3590).

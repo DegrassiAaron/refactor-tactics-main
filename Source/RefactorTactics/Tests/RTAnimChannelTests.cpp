@@ -1023,17 +1023,22 @@ bool FRTAnimChannelNullAnimClassFallsBackTest::RunTest(const FString&)
 	// Premessa: con la classe C++ le due clip risolvono, e sono diverse fra loro.
 	const FString AttaccoC = U->ResolvedClipPathFor(ERTPresentationRole::Attack, Azione, NAME_None).ToSoftObjectPath().ToString();
 	const FString IdleC = U->ResolvedClipPathFor(ERTPresentationRole::Idle).ToSoftObjectPath().ToString();
+	const FString SagomaC = U->GhostFallbackClipPathForTest().ToSoftObjectPath().ToString();
 	if (!TestFalse(TEXT("premessa: con la classe C++ la clip d'azione risolve"), AttaccoC.IsEmpty())
-		|| !TestFalse(TEXT("premessa: con la classe C++ l'idle risolve"), IdleC.IsEmpty()))
+		|| !TestFalse(TEXT("premessa: con la classe C++ l'idle risolve"), IdleC.IsEmpty())
+		|| !TestFalse(TEXT("premessa: con la classe C++ la sagoma ha una posa"), SagomaC.IsEmpty()))
 	{
 		DestroyChannelWorld(World); return false;
 	}
 
+	// I tre lettori del CDO che `ResolvedAnimClass` serve: la risoluzione con l'azione, quella col solo ruolo, la sagoma.
 	U->UnitAnimClass = nullptr;
 	TestEqual(TEXT("classe nulla: la clip d'azione e' quella del grafo C++"),
 		U->ResolvedClipPathFor(ERTPresentationRole::Attack, Azione, NAME_None).ToSoftObjectPath().ToString(), AttaccoC);
 	TestEqual(TEXT("classe nulla: l'idle e' quello del grafo C++"),
 		U->ResolvedClipPathFor(ERTPresentationRole::Idle).ToSoftObjectPath().ToString(), IdleC);
+	TestEqual(TEXT("classe nulla: la sagoma ha la posa del grafo C++"),
+		U->GhostFallbackClipPathForTest().ToSoftObjectPath().ToString(), SagomaC);
 	// Nessuna asserzione di «non crasha»: se crasha, il test non arriva alla riga dopo.
 	U->PlayPresentationRole(ERTPresentationRole::Attack, Azione, NAME_None);
 

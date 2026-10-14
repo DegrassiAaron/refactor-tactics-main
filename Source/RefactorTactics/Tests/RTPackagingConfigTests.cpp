@@ -291,6 +291,22 @@ namespace
 	}
 
 	/**
+	 * Toglie dai file da esaminare quello della classe autorata, e dice quanti ne ha tolti (#3562, `Q1`).
+	 *
+	 * 🔑 Estratta perche' abbia un test proprio (`Packaging.CookGateIgnoresTheAuthoredAnimClassFile`): i path che
+	 * `RTPackageFilesUnder` restituisce sono relativi alla cartella di lavoro dell'Editor, e un confronto di stringhe
+	 * nudo potrebbe non riconoscere lo stesso file scritto in due modi. Si confrontano i path COMPLETI.
+	 */
+	int32 RTEscludiClasseAutorata(TArray<FString>& Files, const FString& FileAutorata)
+	{
+		const FString Completo = FPaths::ConvertRelativePathToFull(FileAutorata);
+		return Files.RemoveAll([&Completo](const FString& File)
+		{
+			return FPaths::IsSamePath(FPaths::ConvertRelativePathToFull(File), Completo);
+		});
+	}
+
+	/**
 	 * Il set di package che il cook deve portare: la variante ATTIVA di ogni pool del CDO — `(eroe, ruolo)` e, da
 	 * #3563, `(eroe, azione, ruolo)`. Estratto dal gate perche' abbia un test proprio, verde
 	 * (`RequiredSetIncludesActionClips`), mentre il gate guarda i riferimenti duri (#3562).
@@ -465,24 +481,22 @@ namespace
 		}
 
 		const FString ContentDir = FPaths::ProjectContentDir();
-		// ⚠️ «Versionati» e' il nome storico: sono i file presenti SU DISCO sotto `Content/RT`, e un file che git ignora
-		// conta quanto uno versionato. L'esito puo' quindi cambiare da un clone all'altro (rilievo `R8` della revisione).
-		TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+		// ⚠️ Sono i file presenti SU DISCO sotto `Content/RT`, non quelli versionati: un file che git ignora conta quanto
+		// uno versionato, e l'esito puo' cambiare da un clone all'altro (rilievo `R8` della revisione del piano).
+		TArray<FString> FileSuDisco = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
 
-		// 🔴 #3562 (`Q1`): **la classe autorata NON conta.** Il suo CDO porta `ClipsPerHero`, cioe' il path di OGNI clip
-		// attiva come riferimento MORBIDO, e questo gate cerca i path nei byte: senza l'esclusione il gate diventerebbe
-		// verde da solo appena l'asset esiste, e smetterebbe di misurare se qualcosa porta le clip nel cook. Il
-		// riferimento duro sta in `CookDeps_Anim` dei `BP_Unit_*` (`RTSyncUnitAnimRefs`). ⚠️ Se un giorno questo asset
-		// portasse un riferimento duro voluto, questo gate non lo vedrebbe.
-		const FString FileAutorata = FPaths::ConvertRelativePathToFull(RTAuthoredAnimClassFile());
-		Versionati.RemoveAll([&FileAutorata](const FString& File)
-		{
-			return FPaths::IsSamePath(FPaths::ConvertRelativePathToFull(File), FileAutorata);
-		});
+		// 🔴 #3562 (`Q1`): **la classe autorata NON conta.** Il suo CDO porta `ClipsPerHero`, e i path che vi finiscono
+		// sono riferimenti MORBIDI: questo gate cerca i path nei byte, e contarli lo renderebbe verde senza che niente
+		// porti le clip nel cook. Il riferimento duro sta in `CookDeps_Anim` dei `BP_Unit_*` (`RTSyncUnitAnimRefs`).
+		// ⚠️ **Oggi i byte dell'asset NON portano i path**: col catalogo senza legami il suo CDO e' identico al padre, e un
+		// CDO si salva per differenza. Ce li porteranno i legami. L'esclusione e' per quel giorno, e la prova
+		// `Packaging.CookGateIgnoresTheAuthoredAnimClassFile`. ⚠️ Se un giorno questo asset portasse un riferimento duro
+		// voluto, questo gate non lo vedrebbe.
+		RTEscludiClasseAutorata(FileSuDisco, RTAuthoredAnimClassFile());
 
 		// Secondo controllo anti-vacuita': se non si leggesse nessun package, ogni clip risulterebbe scoperta
 		// e il rosso non direbbe niente sul cook.
-		if (!Test.TestTrue(TEXT("ci sono package versionati sotto Content/RT da esaminare"), Versionati.Num() > 0))
+		if (!Test.TestTrue(TEXT("ci sono package su disco sotto Content/RT da esaminare"), FileSuDisco.Num() > 0))
 		{
 			return false;
 		}
@@ -490,8 +504,8 @@ namespace
 		// I byte, letti una volta sola: il ciclo sotto e' Clip x Package, e rileggere i file per ogni clip
 		// moltiplicherebbe l'I/O per il numero di clip senza cambiare l'esito.
 		TArray<TArray<uint8>> Byte;
-		Byte.Reserve(Versionati.Num());
-		for (const FString& File : Versionati)
+		Byte.Reserve(FileSuDisco.Num());
+		for (const FString& File : FileSuDisco)
 		{
 			TArray<uint8> Bytes;
 			FFileHelper::LoadFileToArray(Bytes, *File);
@@ -1014,6 +1028,33 @@ bool FRTAnimationClipScanDetectsAnUncoveredClipTest::RunTest(const FString&)
 
 	IFileManager::Get().Delete(*Finto, false, true);
 	IFileManager::Get().DeleteDirectory(*Radice, true, true);
+	return true;
+}
+
+/**
+ * **Il gate di cook non conta il file della classe autorata, comunque sia scritto il suo path** (#3562, `Q1`).
+ *
+ * 🔴 Esiste perche' la prova naturale non c'e': i byte di `ABP_RTUnitAuthored` oggi non portano i path delle clip (il
+ * suo CDO e' identico al padre e si salva per differenza), quindi togliere l'esclusione dal gate non lo renderebbe
+ * verde, e una mutazione sull'asset vero non proverebbe niente. Si prova l'esclusione da sola: il file della classe
+ * esce, in forma relativa e completa; un file accanto resta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCookGateIgnoresAuthoredClassTest,
+	"RefactorTactics.Packaging.CookGateIgnoresTheAuthoredAnimClassFile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCookGateIgnoresAuthoredClassTest::RunTest(const FString&)
+{
+	const FString Autorata = RTAuthoredAnimClassFile();
+	const FString Accanto = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Anim/ABP_Accanto.uasset"));
+	const FString Lontano = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset"));
+
+	TArray<FString> Files = { Lontano, Autorata, Accanto, FPaths::ConvertRelativePathToFull(Autorata) };
+	const int32 Tolti = RTEscludiClasseAutorata(Files, Autorata);
+
+	TestEqual(TEXT("escono le due scritture del file della classe autorata"), Tolti, 2);
+	TestEqual(TEXT("restano gli altri due file"), Files.Num(), 2);
+	TestTrue(TEXT("il blueprint di un'unita' resta"), Files.Contains(Lontano));
+	TestTrue(TEXT("un file accanto, con un nome simile, resta"), Files.Contains(Accanto));
 	return true;
 }
 
