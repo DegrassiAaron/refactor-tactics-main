@@ -637,6 +637,17 @@ private:
 	FString AutobattleSourceLabel;
 
 	/**
+	 * Il ricordo di `GetLabStepText` (`#3774`): la scena per cui la riga e' stata composta, e la riga.
+	 *
+	 * 🔴 **Esiste perche' la riga si legge a ogni fotogramma** (`ARTHUD::DrawHUD`) e comporla costruisce da capo
+	 * il roster d'eroi, oggetti compresi: misurato, 189 `UObject` per lettura. Si ricompone solo quando la
+	 * scena cambia, cioe' quasi mai — il passo del banco ricarica il livello e il GameMode e' un altro.
+	 */
+	mutable FString LabStepScenarioId;
+	mutable FString LabStepText;
+	mutable bool bLabStepComposed = false;
+
+	/**
 	 * Porta il verdetto di fine partita alla schermata di Result (CP 46.5, `#940` · `#939`).
 	 *
 	 * ⚠️ **Sta qui e non nel `TurnManager`** perché questo è l'unico punto che conosce sia il turno sia il

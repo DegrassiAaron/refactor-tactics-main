@@ -1757,7 +1757,16 @@ FString ARTGameMode::GetLabStepText() const
 {
 	// Stessa sorgente della banda qui sopra, per la stessa ragione: la riga descrive la sessione che si sta
 	// giocando, e una scena del banco si riconosce dal suo Id.
-	return URTAbilityLabLibrary::DescribeLabStep(ResolveScenarioToRun());
+	const FString ScenarioId = ResolveScenarioToRun();
+	// 🔴 Si ricompone solo se la scena e' cambiata: la chiama l'HUD a ogni fotogramma, e comporla costruisce il
+	// roster d'eroi da capo (vedi il ricordo nell'header).
+	if (!bLabStepComposed || ScenarioId != LabStepScenarioId)
+	{
+		LabStepScenarioId = ScenarioId;
+		LabStepText = URTAbilityLabLibrary::DescribeLabStep(ScenarioId);
+		bLabStepComposed = true;
+	}
+	return LabStepText;
 }
 
 bool ARTGameMode::StepLabScenario(int32 Step, FString& OutError)

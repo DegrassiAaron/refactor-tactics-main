@@ -14,6 +14,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "RTConsoleVariableGuardForTest.h"
 #include "Ability/RTAbilityLab.h" // #3774: la banda di una scena del banco porta il passo
+#include "UObject/UObjectArray.h" // #3774: GUObjectArray, la riga del banco non crea oggetti a ogni lettura
 #include "Misc/CommandLine.h"  // la terza fonte della banda e' un flag di riga di comando (`#2182`)
 #include "Misc/ScopeExit.h"    // ON_SCOPE_EXIT: la riga di comando e' stato globale e va ripristinata
 
@@ -415,8 +416,19 @@ bool FRTAutoRunBannerShowsTheLabStepTest::RunTest(const FString&)
 	TestTrue(TEXT("la banda nomina la scena del banco"), GameMode->GetScenarioBannerText().Contains(LabId));
 	TestEqual(TEXT("la seconda riga e' il passo del banco"), GameMode->GetLabStepText(), Passo);
 
+	// 🔴 **La riga si legge a ogni fotogramma** (`ARTHUD::DrawHUD`), e comporla costa: il roster d'eroi si costruisce
+	// da capo a ogni chiamata, oggetti compresi. La seconda lettura della stessa scena non deve crearne nessuno.
+	const int32 OggettiPrima = GUObjectArray.GetObjectArrayNumMinusAvailable();
+	TestEqual(TEXT("seconda lettura, stessa riga"), GameMode->GetLabStepText(), Passo);
+	TestEqual(TEXT("e nessun oggetto creato per comporla di nuovo"),
+		GUObjectArray.GetObjectArrayNumMinusAvailable(), OggettiPrima);
+
 	Guard.Set(TEXT("Movement.Basic"));
 	TestTrue(TEXT("uno scenario che non e' del banco non ha la seconda riga"), GameMode->GetLabStepText().IsEmpty());
+
+	// E cambiando scena la riga si ricompone: il ricordo vale per la scena, non per la sessione.
+	Guard.Set(*LabId);
+	TestEqual(TEXT("tornando alla scena del banco la riga torna"), GameMode->GetLabStepText(), Passo);
 
 	DestroyAutoRunWorld(World);
 	return true;
