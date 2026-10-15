@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-15 — La linea di confine della vista è verde
+
+**Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), seduta `U89`. L'autore ha giudicato la tavola `V1` della prima tornata; nella stessa seduta ha respinto la pianta ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760)) e l'arco del nemico ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762)).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-CONFINE` ✅, con il limite del contesto: nelle catture il ricordo era già la pianta; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | la tavola `V1` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: `PIE-FOG-CONFINE` in `verification.pie`; `presentation` resta `partial` |
+
+---
+
 ## 2026-10-14 — Una linea segna in partita dove finisce la vista della squadra
 
 **Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), decisione d'autore `D-519`. La linea corre sui lati fra le celle viste adesso e quelle che non si vedono: ciano della vista, anche in strategica, mai lungo il vuoto.

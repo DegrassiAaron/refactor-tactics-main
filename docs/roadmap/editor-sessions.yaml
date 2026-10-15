@@ -6027,6 +6027,32 @@ sessions:
       Nella stessa seduta si guarda `Visual.Map.TwoLayersSameColumn`, che da #3741 mette nella colonna due
       alleate: è la scelta dell'autore perché la scena resti una prova di leggibilità.
 
+  - id: U89
+    title: La fog of war ripensata — la linea di confine, la pianta, l'arco del nemico (D-519, D-520, D-521)
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti di `PIE-FOG-CONFINE`, `PIE-FOG-PIANTA` e `PIE-FOG-ARCO`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-FOG-CONFINE, PIE-FOG-PIANTA, PIE-FOG-ARCO]
+    issues: [3760, 3761, 3762]
+    done_when: >-
+      l'autore ha giudicato le tre voci sulle tavole; ciascuna issue si chiude col proprio verdetto
+    notes: |
+      🟡 **Prima tornata, catture del 2026-10-14 e verdetti del 2026-10-15: una voce verde su tre.** Le catture le ha
+      fatte dal clone principale la sessione che scriveva la pila, sul ramo locale di verifica `57491d7b9` (la pila più
+      tre leve di sola cattura), senza portare l'Editor in primo piano; la cattura C di `V2` è rifatta su `eb90d8e91`.
+      Tavole `V1`, `V2` e `V3`; quella che ha deciso una voce sta in `docs/technical/evidence/u89/`.
+      - `PIE-FOG-CONFINE` ✅, chiude #3761.
+      - `PIE-FOG-PIANTA` e `PIE-FOG-ARCO` respinte: il ricordo a solo anello sembra «mai visto», il cambio secco fra
+        osservato e ricordato disturba, i muri ricordati non vanno né a terra né in cima; l'arco è sottile, coperto, e
+        se ne vede più d'uno. Le correzioni stanno su #3760 e #3762, e tornano in una seconda tornata con tavole nuove.
+
+      ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
