@@ -8,8 +8,9 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-373`: la nota sulla chiusura di #1836, con la domanda come l'autore l'ha vista; `D-286`: il dominio di navigazione esce dallo scope della v0.1 |
-| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | `CAMERA-HIDDEN-ENEMY-NO-ORACLE` passa a #1837: l'oracolo che resta è l'inquadratura di `Home` |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-373`: la nota sulla chiusura di #1836, con la domanda come l'autore l'ha vista e le due letture di `BLIND-4` che dicevano il contrario; il debito di `FrameOwnTeam` resta dichiarato aperto in `D-143`. `D-286`: il dominio di navigazione esce dallo scope della v0.1 |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | `CAMERA-HIDDEN-ENEMY-NO-ORACLE` torna all'epic #1769: con #1836 chiusa non ha un owner camera, e gli oracoli possibili dipendono da `BLIND-3` |
+| [`roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md`](roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md) | #1836 tolta dalle `CAM-*` della v0.1 |
 
 ---
 

@@ -1442,7 +1442,7 @@ spetta al suo owner — ma il nome è scrivibile, e a dirlo è un comando invece
 | `CAMERA-LAYER-MARKER-STACK` | #1835 | idem |
 | `CAMERA-LAST-KNOWN-MARKER` | #1769 | il **dato** c'è (`TeamKnowledge`), il marker che lo disegna no — l'omonimo a monte di (3) |
 | `CAMERA-ACOUSTIC-AREA-MARKER` | #151 | la capability `Perception` copre l'udito ed è **nota e indisponibile** |
-| `CAMERA-HIDDEN-ENEMY-NO-ORACLE` | #1837 | `CAM-16`: `Home` non inquadra mai un'unità di un'altra squadra. ⌫ Fino al 2026-10-15 l'owner era #1836 (`CAM-15`, il pan limitato all'esplorato), chiusa senza codice per [`D-373`](../../decisions/RT_PDR_00_Decision_Log.md): la forma della board è pubblica, e l'oracolo che resta è l'inquadratura |
+| `CAMERA-HIDDEN-ENEMY-NO-ORACLE` | #1769 | nessuna issue camera la possiede. ⌫ Fino al 2026-10-15 l'owner era #1836 (`CAM-15`, il pan limitato all'esplorato), chiusa senza codice per [`D-373`](../../decisions/RT_PDR_00_Decision_Log.md): la forma della board è pubblica, e il pan non era un oracolo sui nemici. Gli oracoli possibili — hover, validità del click, focus su un nemico mai percepito — dipendono da `BLIND-3` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), aperta; #1837 esclude solo quello di `Home` |
 | `CAMERA-CUTAWAY-ROOF` | #1779 | `CAM-10`: *«zero cutaway, zero fade»* |
 | `CAMERA-OCCLUSION-WALL` | #1779 | idem |
 | `CAMERA-OCCLUSION-BRIDGE` | #1779 | idem |
