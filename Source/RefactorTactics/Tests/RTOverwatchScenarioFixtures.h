@@ -245,6 +245,54 @@ namespace RTOverwatchScenarioFixtures
 	}
 
 	/**
+	 * [D-349] Il watcher CAMMINA fino al bordo durante il Move, con l'Overwatch armato verso est: la linea, rifatta dalla
+	 * cella attuale (ADR-0004 §6), si svuota quando arriva in `(5,-2,0)`.
+	 *
+	 * 🔑 **E' il caso che distingue la cella del FATTO da quella di partenza** (`#2142`): `ARTUnit::Cell` la scrive
+	 * `PlaceOnCell` dopo il ciclo dei micro-step, quindi durante il passo l'Actor dice ancora `(4,-2,0)`. Un soggetto di
+	 * log costruito dall'Actor metterebbe nell'audit la cella sbagliata, e negli altri scenari — watcher fermi — le due
+	 * coincidono e nessuno se ne accorgerebbe.
+	 */
+	inline FRTTestScenario MakeLineEmptiesWhenTheWatcherWalksToTheEdgeScenario()
+	{
+		FRTTestScenario Scenario;
+		Scenario.ScenarioId = TEXT("Unit.Overwatch.LineEmptiesAtTheEdge");
+		Scenario.Version = 2;
+		Scenario.Seed = 0;
+		Scenario.MapRadius = 5;
+
+		FRTScenarioUnit W;
+		W.Id = TEXT("W");
+		W.HeroId = TEXT("Hero.Ivrin");
+		W.TeamId = 1;
+		W.Cell = FRTCellId(4, -2, 0);
+		W.Facing = ERTHexDirection::E;
+		Scenario.Units.Add(W);
+
+		FRTScenarioUnit M1;
+		M1.Id = TEXT("M1");
+		M1.HeroId = TEXT("Hero.Aevik");
+		M1.TeamId = 0;
+		M1.Cell = FRTCellId(-2, 0, 0);
+		Scenario.Units.Add(M1);
+
+		FRTScenarioTurn Turn;
+		FRTScenarioIntent ArmW;
+		ArmW.UnitId = TEXT("W");
+		ArmW.Ability = TEXT("Action.Overwatch");
+		ArmW.Move = { FRTCellId(5, -2, 0) };
+		Turn.Intents.Add(ArmW);
+		Scenario.Turns.Add(Turn);
+
+		FRTTestExpectation WArrives;
+		WArrives.Kind = ERTAssertionKind::UnitAtCell;
+		WArrives.UnitId = TEXT("W");
+		WArrives.Cell = FRTCellId(5, -2, 0);
+		Scenario.Expect.Add(WArrives);
+		return Scenario;
+	}
+
+	/**
 	 * [D-349] Un Overwatch spara, e DOPO un secondo nemico rilevato attraversa la sua linea: `ChargeSpent`.
 	 *
 	 * W guarda verso est da `(-3,-1,0)`: la linea e' `(-2,-1)` … `(1,-1)`. Al primo passo M1 entra in `(-1,-1,0)` e W

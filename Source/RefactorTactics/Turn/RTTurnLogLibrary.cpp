@@ -765,7 +765,8 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			case ERTOverwatchSilenceReason::ZoneEmpty:
 				Why = TEXT("la linea non controlla nessuna cella, la chiude"); break;
 			case ERTOverwatchSilenceReason::ChargeSpent:
-				Why = TEXT("un nemico e' entrato nella linea, ma il colpo era gia' stato sparato:"); break;
+				// Non «il colpo era gia' partito»: un disarmo ([D-319]) spende la carica senza sparare (review della PR #3778).
+				Why = TEXT("un nemico e' entrato nella linea, ma la carica era gia' spesa:"); break;
 			case ERTOverwatchSilenceReason::OwnerDown:
 				Why = TEXT("un nemico e' entrato nella linea, ma chi la teneva e' a terra:"); break;
 			case ERTOverwatchSilenceReason::PromptCapReached:

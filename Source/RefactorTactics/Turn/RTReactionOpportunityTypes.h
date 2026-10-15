@@ -532,7 +532,7 @@ enum class ERTOverwatchMoverCheck : uint8
  * Famiglia **B**, qualcuno e' passato e non e' stato ingaggiato: `NotPerceived`, `NoLineOfSight`. La famiglia C —
  * nessuno e' passato — resta in silenzio, ed e' la scelta che tiene fermi gli hash dei turni normali.
  *
- * Valori aggiunti in CODA, sempre: una traccia scritta conserva il proprio significato.
+ * Valori aggiunti in CODA, sempre — subito prima di `Count`: una traccia scritta conserva il proprio significato.
  */
 UENUM()
 enum class ERTOverwatchSilenceReason : uint8
@@ -540,7 +540,10 @@ enum class ERTOverwatchSilenceReason : uint8
 	None,
 	/** La linea, rifatta dalla cella attuale, non contiene nessuna cella: il watcher spinto contro un muro o sul bordo. */
 	ZoneEmpty,
-	/** Un nemico rilevato e' entrato nella linea, e il colpo era gia' stato sparato. */
+	/**
+	 * Un nemico rilevato e' entrato nella linea, e la carica era gia' spesa: il colpo e' partito, oppure un disarmo l'ha
+	 * tolta ([D-319], `Prone` e `Stun`). E' `!bCharged`, come lo definisce [D-349]: il motivo non distingue le due cause.
+	 */
 	ChargeSpent,
 	/** Un nemico rilevato e' entrato nella linea, e chi teneva l'Overwatch e' a terra. */
 	OwnerDown,
@@ -549,7 +552,10 @@ enum class ERTOverwatchSilenceReason : uint8
 	/** Un nemico NON rilevato e' entrato nella linea. ⚠️ Solo nella traccia d'audit: la squadra non lo ha visto. */
 	NotPerceived,
 	/** Un nemico rilevato e' entrato nella linea, senza linea di vista dalla cella del watcher. */
-	NoLineOfSight
+	NoLineOfSight,
+
+	/** Non e' un motivo: il numero dei valori, per il `static_assert` del campo di bit. Non si scrive mai in una voce. */
+	Count UMETA(Hidden)
 };
 
 /** [D-349] Un silenzio dell'Overwatch, con la cella del fatto: dove e' entrato chi non e' stato ingaggiato. */
@@ -734,29 +740,6 @@ public:
 	static FRTReactionDecision DecisionOnTimeout(const FRTReactionOpportunity& Opportunity);
 
 	/**
-	 * Le opportunity che gli Overwatch armati aprono lungo i micro-step della fase Move (CP 14.4).
-	 *
-	 * Condizione di trigger, per bersaglio e per micro-step, e sono tutte e quattro necessarie
-	 * (ADR-0004 §6): `TargetInsideArea ∧ HasLineOfSight ∧ TargetDetected ∧ ReactionStillArmed`.
-	 *
-	 * Piu' bersagli nello stesso micro-step danno **una sola** opportunity con piu' risposte
-	 * (`FIRE:a` / `FIRE:b` / `HOLD`), mai due prompt in sequenza: prompt sequenziali darebbero un vantaggio
-	 * all'ordine di iterazione, che l'invariante #4 vieta (ADR-0004 §4).
-	 *
-	 * L'esito e' ordinato in modo TOTALE — micro-step, poi `ReactionPriority → AbilityPriority →
-	 * UnitInitiative → StableUnitId → ReactionInstanceId` — e non dipende dall'ordine di `Watchers` ne' di
-	 * `Movers`: permutarli non cambia il risultato.
-	 *
-	 * Pura e fail-closed: senza mappa autorevole non c'e' LOS, quindi nessun trigger.
-	 */
-	/**
-	 * `TargetVitals` serve solo alle condizioni dichiarate, ed e' opzionale perche' la stragrande maggioranza
-	 * dei watcher non ne ha nessuna. **Fail-closed**: se una condizione e' dichiarata e la salute del bersaglio
-	 * non c'e', quel bersaglio non diventa una risposta legale — offrire `FIRE` su una condizione non
-	 * verificabile significherebbe sparare a una regola che nessuno ha controllato. E' la stessa scelta che
-	 * `TeamAwareness` fa per un bersaglio non dichiarato.
-	 */
-	/**
 	 * [D-349] Le condizioni del trigger per un mover che a questo passo sta in `Cell` (`ERTOverwatchMoverCheck`).
 	 * `Controlled` e' l'insieme delle celle di `Watcher.Zone`, costruito una volta dal chiamante. Pura.
 	 */
@@ -786,6 +769,41 @@ public:
 	 * rilevato (AGENTS.md §4), e resta nella traccia d'audit.
 	 */
 	static FRTKnowledgeVerdict SilenceReaders(ERTOverwatchSilenceReason Reason, int32 OwnerTeamId);
+
+	/**
+	 * [D-349] La REGOLA di quel verdetto (`ERTPlanVerdict`): `AuditOnly` per `NotPerceived`, `OwnerTeam` per gli altri.
+	 * E' cio' che viaggia col soggetto della voce fino all'audit; `SilenceReaders` ne e' il verdetto.
+	 */
+	static ERTPlanVerdict SilencePlanVerdict(ERTOverwatchSilenceReason Reason);
+
+	/** [D-349] Il bit di un motivo in `FRTArmedOverwatch::ReportedSilenceReasons`. */
+	static uint8 SilenceReasonBit(ERTOverwatchSilenceReason Reason);
+
+
+	/**
+	 * Le opportunity che gli Overwatch armati aprono lungo i micro-step della fase Move (CP 14.4).
+	 *
+	 * Condizione di trigger, per bersaglio e per micro-step, e sono tutte e quattro necessarie
+	 * (ADR-0004 §6): `TargetInsideArea ∧ HasLineOfSight ∧ TargetDetected ∧ ReactionStillArmed`.
+	 *
+	 * Piu' bersagli nello stesso micro-step danno **una sola** opportunity con piu' risposte
+	 * (`FIRE:a` / `FIRE:b` / `HOLD`), mai due prompt in sequenza: prompt sequenziali darebbero un vantaggio
+	 * all'ordine di iterazione, che l'invariante #4 vieta (ADR-0004 §4).
+	 *
+	 * L'esito e' ordinato in modo TOTALE — micro-step, poi `ReactionPriority → AbilityPriority →
+	 * UnitInitiative → StableUnitId → ReactionInstanceId` — e non dipende dall'ordine di `Watchers` ne' di
+	 * `Movers`: permutarli non cambia il risultato.
+	 *
+	 * Pura e fail-closed: senza mappa autorevole non c'e' LOS, quindi nessun trigger.
+	 */
+	/**
+	 * `TargetVitals` serve solo alle condizioni dichiarate, ed e' opzionale perche' la stragrande maggioranza
+	 * dei watcher non ne ha nessuna. **Fail-closed**: se una condizione e' dichiarata e la salute del bersaglio
+	 * non c'e', quel bersaglio non diventa una risposta legale — offrire `FIRE` su una condizione non
+	 * verificabile significherebbe sparare a una regola che nessuno ha controllato. E' la stessa scelta che
+	 * `TeamAwareness` fa per un bersaglio non dichiarato.
+	 */
+
 
 	/**
 	 * `FirstMicroStepIndex` dice a quale micro-step del TURNO corrisponde il passo 0 dei `Movers` (CP 14.5).

@@ -63,6 +63,14 @@ struct FRTLogSubject
 	 */
 	static FRTLogSubject UnitWithVerdict(const ARTUnit* InUnit, const FRTKnowledgeVerdict& InVerdict);
 
+	/**
+	 * `UnitWithVerdict` con la cella del FATTO di `UnitAt` ([D-349]): per un produttore che gira dentro il ciclo dei
+	 * micro-step, prima di `PlaceOnCell`, e porta un verdetto congelato da se'. Senza, il soggetto d'audit
+	 * leggerebbe la cella di partenza del turno (`#2142`).
+	 */
+	static FRTLogSubject UnitAtWithVerdict(const ARTUnit* InUnit, const FRTCellId& InFactCell,
+		const FRTKnowledgeVerdict& InVerdict);
+
 	/** Un fatto che riguarda tutti: nessun soggetto da conoscere, nessuna ragione per nasconderlo. */
 	static FRTLogSubject World();
 

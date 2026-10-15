@@ -662,14 +662,24 @@ TArray<FRTOverwatchSilence> URTReactionOpportunityLibrary::ClassifyOverwatchSile
 	return Silences;
 }
 
+ERTPlanVerdict URTReactionOpportunityLibrary::SilencePlanVerdict(ERTOverwatchSilenceReason Reason)
+{
+	return Reason == ERTOverwatchSilenceReason::NotPerceived ? ERTPlanVerdict::AuditOnly : ERTPlanVerdict::OwnerTeam;
+}
+
 FRTKnowledgeVerdict URTReactionOpportunityLibrary::SilenceReaders(ERTOverwatchSilenceReason Reason, int32 OwnerTeamId)
 {
-	FRTKnowledgeVerdict Readers = FRTKnowledgeVerdict::NoOne();
-	if (Reason != ERTOverwatchSilenceReason::NotPerceived)
-	{
-		Readers.AllowTeam(OwnerTeamId);
-	}
-	return Readers;
+	return URTTeamKnowledgeLibrary::FreezePlanVerdict(SilencePlanVerdict(Reason), OwnerTeamId);
+}
+
+// Un bit per motivo in un `uint8`: ogni valore deve stare sotto l'ottavo bit. Un motivo oltre il settimo renderebbe il
+// bit zero, e la regola «al piu' una voce per motivo» cadrebbe senza che niente lo dica. `Count` segue l'ultimo valore.
+static_assert(static_cast<uint8>(ERTOverwatchSilenceReason::Count) <= 8,
+	"ERTOverwatchSilenceReason non sta piu' in FRTArmedOverwatch::ReportedSilenceReasons (uint8): allargare il campo");
+
+uint8 URTReactionOpportunityLibrary::SilenceReasonBit(ERTOverwatchSilenceReason Reason)
+{
+	return static_cast<uint8>(1u << static_cast<uint8>(Reason));
 }
 
 TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTriggers(const URTHexMapAsset* Map,
