@@ -2122,14 +2122,17 @@ public:
 	 *
 	 * ⚠️ L'evento parte per ULTIMO, dopo i campi: vedi `URTActionSlotWidget::SetAction`.
 	 */
-	void SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowOptionView& InOption,
-		int32 InIndex, bool bInIsSafe);
+	void SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowView& InWindow, int32 InIndex, bool bInIsSafe);
 
 	/** L'etichetta da stampare sul bottone: il NOME della risposta (`RTReactionResponseText`). `FText`, mai la stringa di risposta. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetOptionLabel() const;
 
-	/** La frase dell'opzione, generica e senza bersaglio ([D-491]). Vuota per una risposta senza voce. */
+	/**
+	 * La frase dell'opzione, letta dentro la sua finestra: «Attacca Ivrin» per un `FIRE` (`#3667`), «Lascia passare
+	 * Ivrin» o «Lascia passare tutti» per l'`HOLD` dell'Overwatch (`#3788`, [D-411]), la frase della tabella per le
+	 * altre risposte ([D-491]). Vuota per una risposta senza voce.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetOptionDescription() const;
 
@@ -2180,6 +2183,13 @@ private:
 
 	/** La risposta esatta, per l'etichetta. Privata: il grafo non la vede e non puo' comporla. */
 	FRTReactionWindowOptionView Option;
+
+	/**
+	 * La frase, composta UNA volta in `SetOption` con la finestra che ha creato il bottone (`#3788`, review della PR
+	 * #3791). Rileggerla dalla finestra aperta adesso la farebbe dipendere da un'altra domanda: un bottone che
+	 * sopravvive alla sua finestra nominerebbe i bersagli della successiva, o tornerebbe a «Non attaccare».
+	 */
+	FText Description;
 };
 
 /**

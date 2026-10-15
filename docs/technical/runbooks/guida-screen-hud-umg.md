@@ -709,7 +709,8 @@ Nessun gate sull'albero le vede: si scoprono solo a schermo.
   Ground» e' piu' lungo ancora. ⏱️ *Dal 2026-10-13 (#3667) un'opzione `FIRE` o `HOLD` mostra la frase della tavola —
   «Attacca {bersaglio}» e «Non attaccare» — composta per opzione; la tabella per risposta e' rimasta com'era.
   La regola resta: le risposte di profilo tengono le frasi lunghe, e un nome di unita' puo' essere piu' lungo
-  di «Ivrin».* Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
+  di «Ivrin».* ⏱️ *Dal 2026-10-15 (#3788, D-411) l'`HOLD` dell'Overwatch dice «Lascia passare {nemico}» o «Lascia
+  passare tutti»: piu' lungo di «Non attaccare», ed e' cio' che la cattura in PIE di #3788 deve guardare.* Un `TextBlock` in una colonna `Fill` non si ritaglia: sborda sotto il widget accanto.
   Il badge della scelta sicura e' salito nella riga dell'etichetta, la descrizione va a capo, e l'altezza
   dell'opzione e' un minimo, non un valore fisso.
 
