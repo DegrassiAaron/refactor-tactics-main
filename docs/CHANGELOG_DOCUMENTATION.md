@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-10-15 — Il passo del banco dentro il PIE è verde
+
+**Origine**: [#3774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3774) e [#3773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3773), seduta `U90`. L'autore ha visto a schermo il verso `,` e lo scenario fuori dal banco, i due criteri rimasti aperti dopo la prima tornata.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-LAB-PASSO` ✅, criterio per criterio e tornata per tornata; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U90`, eseguita |
+
+---
+
 ## 2026-10-15 — La linea di confine della vista è verde
 
 **Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), seduta `U89`. L'autore ha giudicato la tavola `V1` della prima tornata; nella stessa seduta ha respinto la pianta ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760)) e l'arco del nemico ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762)).
