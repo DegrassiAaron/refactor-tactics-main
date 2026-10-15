@@ -274,7 +274,8 @@ bool FRTEnemyArcOnlyInViewTest::RunTest(const FString&)
 /**
  * La mappa disegna UN arco, quello che il giocatore chiede ([D-521], seduta `U89`): nessuno di base, quello del nemico
  * sotto il mouse, altrimenti quello del nemico ispezionato, e il mouse vince sull'ispezione. In primo piano, davanti
- * alla geometria, e col debug spento come in Shipping.
+ * alla geometria, e col debug spento come in Shipping. Con l'arco si disegnano i sei lati della cella del suo nemico,
+ * nello stesso rosso: dove stanno lo misura `EnemyArc.OwnerCellIsOutlinedInTheArcColor`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyArcFocusTest,
 	"RefactorTactics.EnemyArc.FocusChoosesWhichArcsAreDrawn",
@@ -316,6 +317,7 @@ bool FRTEnemyArcFocusTest::RunTest(const FString&)
 	}
 
 	const FLinearColor Rosso(ArcoA.Color);
+	constexpr int32 LatiDelNemico = 6; // il contorno della cella del nemico che possiede l'arco
 	const auto ContaRosse = [&](const ULineBatchComponent* Batcher)
 	{
 		int32 N = 0;
@@ -343,24 +345,102 @@ bool FRTEnemyArcFocusTest::RunTest(const FString&)
 
 	HexMap->SetEnemyArcFocus(A, true, FRTCellId(), false);
 	TestEqual(TEXT("col mouse sul nemico A, il suo arco"), HexMap->GetShownEnemyArcs().Num(), 1);
-	TestEqual(TEXT("e solo le sue linee, in primo piano"), LineeRosse(), ArcoA.Edges.Num());
+	TestEqual(TEXT("e solo le sue linee, in primo piano"), LineeRosse(), ArcoA.Edges.Num() + LatiDelNemico);
 	TestEqual(TEXT("e nessuna nel batcher del mondo"), NelMondo, 0);
 
 	HexMap->SetEnemyArcFocus(Vuota, true, FRTCellId(), false);
 	TestEqual(TEXT("col mouse su una cella senza nemico, niente"), HexMap->GetShownEnemyArcs().Num(), 0);
 
 	HexMap->SetEnemyArcFocus(Vuota, true, B, true);
-	TestEqual(TEXT("col mouse su una cella vuota e B ispezionato, l'arco di B"), LineeRosse(), ArcoB.Edges.Num());
+	TestEqual(TEXT("col mouse su una cella vuota e B ispezionato, l'arco di B"), LineeRosse(), ArcoB.Edges.Num() + LatiDelNemico);
 
 	HexMap->SetEnemyArcFocus(FRTCellId(), false, B, true);
-	TestEqual(TEXT("senza mouse e B ispezionato, l'arco di B"), LineeRosse(), ArcoB.Edges.Num());
+	TestEqual(TEXT("senza mouse e B ispezionato, l'arco di B"), LineeRosse(), ArcoB.Edges.Num() + LatiDelNemico);
 
 	HexMap->SetEnemyArcFocus(A, true, B, true);
 	TestEqual(TEXT("col mouse su A e B ispezionato, un arco solo"), HexMap->GetShownEnemyArcs().Num(), 1);
-	TestEqual(TEXT("ed e' quello di A: il mouse vince"), LineeRosse(), ArcoA.Edges.Num());
+	TestEqual(TEXT("ed e' quello di A: il mouse vince"), LineeRosse(), ArcoA.Edges.Num() + LatiDelNemico);
 
 	HexMap->SetEnemyArcFocus(FRTCellId(), false, Vuota, true);
 	TestEqual(TEXT("un'unita' ispezionata senza arco non ne mostra"), HexMap->GetShownEnemyArcs().Num(), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * L'arco dice DI CHI e': la cella del nemico che lo possiede ha i suoi sei lati nello stesso rosso, in primo piano
+ * ([D-521] (6)). Nella seconda tornata di `U89` l'autore leggeva l'area ma non il nemico, e ha scelto «Nemico
+ * evidenziato».
+ *
+ * 🔑 L'arco del test e' lontano dal suo nemico, quindi i lati trovati sulla cella del nemico non possono essere suoi.
+ * E si guarda anche il nemico ISPEZIONATO col mouse su una cella vuota: e' il ramo in cui la cella del padrone non e'
+ * quella sotto il cursore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyArcOwnerOutlineTest,
+	"RefactorTactics.EnemyArc.OwnerCellIsOutlinedInTheArcColor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEnemyArcOwnerOutlineTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ULineBatchComponent* PrimoPiano = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground);
+	if (!TestTrue(TEXT("premessa: mappa e batcher"), HexMap && PrimoPiano))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+
+	const FRTCellId A(2, 0, 0);
+	const FRTCellId B(0, 2, 0);
+	const FRTCellId Vuota(0, 0, 0);
+	FRTEnemyArcView Arco;
+	Arco.Edges = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(HexMap->MapAsset, { FRTCellId(-3, 0, 0) });
+	Arco.Color = FColor(255, 51, 38);
+	TMap<FRTCellId, FRTEnemyArcView> Archi;
+	Archi.Add(A, Arco);
+	Archi.Add(B, Arco);
+	HexMap->SetEnemyArcs(Archi);
+
+	FVector Origine;
+	float Lato = 0.f;
+	float Piano = 0.f;
+	HexMap->GetHexContext(Origine, Lato, Piano);
+	const FLinearColor Rosso(Arco.Color);
+	// Quanti dei sei lati di `Cella` hanno una linea rossa in primo piano, misurando il punto medio sul piano.
+	const auto LatiRossiDi = [&](const FRTCellId& Cella)
+	{
+		PrimoPiano->Flush();
+		static_cast<AActor*>(HexMap)->Tick(0.f);
+		int32 N = 0;
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Cella, static_cast<ERTHexDirection>(D), Origine, Lato, Piano);
+			for (const FBatchedLine& L : PrimoPiano->BatchedLines)
+			{
+				const FVector M = (L.Start + L.End) * 0.5f;
+				if (L.Color.Equals(Rosso) && FVector2D(M.X - Medio.X, M.Y - Medio.Y).Size() < 1.f)
+				{
+					++N;
+					break;
+				}
+			}
+		}
+		return N;
+	};
+
+	HexMap->SetEnemyArcFocus(A, /*bHasHover=*/ true, FRTCellId(), /*bHasInspected=*/ false);
+	TestEqual(TEXT("col mouse sul nemico A, i sei lati della sua cella sono rossi"), LatiRossiDi(A), 6);
+	TestEqual(TEXT("e quelli di B no"), LatiRossiDi(B), 0);
+
+	HexMap->SetEnemyArcFocus(Vuota, true, B, true);
+	TestEqual(TEXT("col mouse su una cella vuota e B ispezionato, i sei lati di B"), LatiRossiDi(B), 6);
+	TestEqual(TEXT("e nessuno della cella sotto il cursore"), LatiRossiDi(Vuota), 0);
+
+	HexMap->SetEnemyArcFocus(FRTCellId(), false, FRTCellId(), false);
+	TestEqual(TEXT("senza arco, nessun contorno"), LatiRossiDi(A) + LatiRossiDi(B), 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

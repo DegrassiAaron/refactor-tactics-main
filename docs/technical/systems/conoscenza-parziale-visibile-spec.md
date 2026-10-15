@@ -954,6 +954,7 @@ conosce**: altrimenti un muro mai visto si scoprirebbe dalla forma dell'arco.
 | Quali nemici | `URTEnemyArcLibrary::ArcsOfEnemiesInView`: di un'altra squadra, su una cella vista adesso |
 | Chi li calcola | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo |
 | Quale si disegna | `ARTPlayerController::UpdateEnemyArcFocus` → `ARTHexMapActor::SetEnemyArcFocus`: il mouse prima dell'ispezione, nel batcher in primo piano |
+| Di chi e' | `ARTHexMapActor::FocusedEnemyArc` dice anche la cella del nemico, e il `Tick` ne contorna i sei lati nello stesso rosso ([D-521](../../decisions/RT_PDR_00_Decision_Log.md) (6)) |
 
 ### 5.6 🔴 Il rischio che nessun test misura
 

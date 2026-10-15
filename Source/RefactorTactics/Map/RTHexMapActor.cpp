@@ -1323,9 +1323,18 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	DrawVisionBorder();
 	// #3762: l'arco di UN nemico, nel rosso dei nemici, e in primo piano: davanti alla geometria, perche' nella
 	// seduta `U89` anelli ed evidenziazioni lo coprivano.
-	if (const FRTEnemyArcView* Arco = FocusedEnemyArc())
+	FRTCellId Padrone;
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc(&Padrone))
 	{
 		DrawEdgeLines(Arco->Edges, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
+		// E il contorno della cella del nemico che lo possiede, nello stesso rosso: nella seconda tornata di `U89`
+		// l'autore leggeva l'area ma non di chi fosse, e ha scelto «Nemico evidenziato» (vedi [D-521] (6)).
+		TArray<FRTExposedEdge> Contorno;
+		for (int32 D = 0; D < 6; ++D)
+		{
+			Contorno.Emplace(Padrone, static_cast<ERTHexDirection>(D));
+		}
+		DrawEdgeLines(Contorno, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
 	}
 	DrawPlanningPreview();
 }
@@ -1631,7 +1640,7 @@ void ARTHexMapActor::SetEnemyArcFocus(const FRTCellId& InHoveredCell, bool bHasH
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
-const FRTEnemyArcView* ARTHexMapActor::FocusedEnemyArc() const
+const FRTEnemyArcView* ARTHexMapActor::FocusedEnemyArc(FRTCellId* OutEnemyCell) const
 {
 	// Il cursore vince sull'ispezione: passando il mouse su un altro nemico se ne vede l'arco, e togliendolo torna
 	// quello del nemico ispezionato. Una cella senza arco — vuota, alleata, nemico non in vista — non ne mostra.
@@ -1639,12 +1648,17 @@ const FRTEnemyArcView* ARTHexMapActor::FocusedEnemyArc() const
 	{
 		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
 		{
+			if (OutEnemyCell) { *OutEnemyCell = EnemyArcHoveredCell; }
 			return Arco;
 		}
 	}
 	if (bEnemyArcInspected)
 	{
-		return EnemyArcs.Find(EnemyArcInspectedCell);
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcInspectedCell))
+		{
+			if (OutEnemyCell) { *OutEnemyCell = EnemyArcInspectedCell; }
+			return Arco;
+		}
 	}
 	return nullptr;
 }

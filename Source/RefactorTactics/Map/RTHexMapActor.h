@@ -1239,8 +1239,12 @@ protected:
 	bool bEnemyArcInspected = false;
 	FRTCellId EnemyArcInspectedCell;
 
-	/** L'arco da disegnare adesso, o nessuno: prima il nemico sotto il cursore, poi quello ispezionato. */
-	const FRTEnemyArcView* FocusedEnemyArc() const;
+	/**
+	 * L'arco da disegnare adesso, o nessuno: prima il nemico sotto il cursore, poi quello ispezionato.
+	 *
+	 * @param OutEnemyCell se non nullo e c'e' un arco, la cella del nemico che lo possiede.
+	 */
+	const FRTEnemyArcView* FocusedEnemyArc(FRTCellId* OutEnemyCell = nullptr) const;
 
 	/** Vero se un arco si disegna adesso: tiene acceso il `Tick` solo quando serve. */
 	bool HasEnemyArcToDraw() const;
