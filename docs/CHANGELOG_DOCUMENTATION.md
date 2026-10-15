@@ -17,6 +17,34 @@
 
 ---
 
+## 2026-10-14 — Il `FIRE` su un bersaglio già abbattuto non si offre
+
+**Origine**: [#3745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3745), decisioni d'autore `D-518`. Due Overwatch sullo stesso mover: il primo lo abbatte, e la seconda finestra offriva ancora `FIRE` su di lui, che spendeva la carica senza fare danno. Ora quel `FIRE` non si offre: col solo `HOLD` la finestra non si apre e la carica resta.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-518`, con le due proposte come l'autore le ha lette, e il caso misto come conseguenza |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione sui trigger dello stesso passo; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3745 fra le chiuse — la regola sta nella libreria delle opportunity e nel pompaggio delle finestre —, #3771 fra le aperte |
+| [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | `ReactionWindowsOpened`: `CollapsedTargetDown` fra i commit immediati, che non contano |
+| [`technical/tooling/tassonomia-icone-manifest-runtime.md`](technical/tooling/tassonomia-icone-manifest-runtime.md) | gli esiti di `ERTReactionDecisionOutcome` per nome; diceva «sei valori», che con il nuovo non era più vero |
+
+---
+
+## 2026-10-14 — La carica si pianifica cliccando il nemico, anche oltre la portata
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), decisioni d'autore `D-516`. Con una carica armata il click su un nemico osservato lo ispezionava e non pianificava: il ramo che inoltra la carica alla sua cella si raggiungeva solo dalla porta di test. Ora il click pianifica la carica; su un nemico in linea ma oltre la portata la carica si pianifica con un avviso e il tratto rosso, e alla risoluzione corre fino alla portata e si ferma senza raggiungerlo.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-516`, con le tre domande come l'autore le ha viste, e che cosa colpisce davvero una carica oltre la portata |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1: la riga del nemico rilevato con una carica armata, e la scelta fra le tre uscite di #3736 con la sua ragione |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | `LinearCharge` oltre la portata; il click sul nemico; l'anteprima tratteggiata in rosso oltre la portata. Il colore dell'anteprima diceva ancora «magenta», che è uscito con `D-234` |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK`, voce nuova: che cosa fa il click quando il raggio prende la mappa invece dell'unità, e il tratto rosso della carica oltre la portata. Nessuno scenario dà Branth al giocatore, e la voce lo dice
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-POINTER-INTERACTION` e `RT-CAP-MOVEMENT-LINEAR`: fra le aperte #3736, finché la sua voce PIE non ha un verdetto, #3764, la carica fra più piani, e #3769, hover e anteprima che non dicono chi la carica colpirà |
+
+---
+
 ## 2026-10-14 — Il cursore indica anche una cella mai vista, come D-373 e D-372
 
 **Origine**: [#3766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3766). Il riquadro dell'hover su una cella mai vista sembrava una fuga d'informazione. Non lo è: dice solo che la cella esiste, e [D-373](decisions/RT_PDR_00_Decision_Log.md) rende pubblica la forma della board. L'autore ha scelto di lasciare il comportamento com'è; nessun codice cambia.

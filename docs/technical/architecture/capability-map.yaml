@@ -323,7 +323,7 @@ capabilities:
       files:
         - Source/RefactorTactics/Turn/RTMovementActionLibrary.h
         - Source/RefactorTactics/Turn/RTMovementActionLibrary.cpp
-    issues: { open: [704, 2825], closed: [] }
+    issues: { open: [704, 2825, 3736, 3764], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-FACING, RT-CAP-MAP-TOPOLOGY]
     tests:
@@ -554,10 +554,12 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionLibrary.h
         - Source/RefactorTactics/Turn/RTReactionLibrary.cpp
         - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
+        - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
+        - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319], closed: [2717] }
+    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319, 3771], closed: [2717, 3745] }
     consumers:
       - RT-CAP-BOT-DECISION
       - RT-CAP-COMBAT
@@ -566,7 +568,9 @@ capabilities:
       - RT-CAP-SCREEN-HUD
     dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-TARGETING, RT-CAP-TURN-LOOP]
     tests:
-      automation: ["RefactorTactics.Reactions.*", "RefactorTactics.Reaction.*", "RefactorTactics.Clash.*"]
+      automation: ["RefactorTactics.Reactions.*", "RefactorTactics.Reaction.*", "RefactorTactics.Clash.*",
+                   "RefactorTactics.Overwatch.SecondWatcherHoldsOnADownedTarget",
+                   "RefactorTactics.Replay.Verifier.DownedTargetCollapseIgnoresTheTrace"]
       scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
       mutation: []
     verification: { pie: [], packaged: [] }
@@ -1937,7 +1941,7 @@ capabilities:
         - Source/RefactorTactics/Player/RTPointerInteraction.h
         - Source/RefactorTactics/Player/RTPlayerController.h
         - Source/RefactorTactics/Selection/RTSelectable.h
-    issues: { open: [1614, 2802], closed: [] }
+    issues: { open: [1614, 2802, 3736, 3769], closed: [] }
     consumers: [RT-CAP-SCREEN-HUD, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:

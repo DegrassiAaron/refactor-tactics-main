@@ -153,6 +153,11 @@ bool FRTHudDashPreviewLinearTest::RunTest(const FString&)
 	TestTrue(TEXT("⛔ e passa PER la cella bloccata: uno scatto lineare non gira gli angoli (#142)"),
 		Scatto.PathCells.Contains(FRTCellId(2, 0, 0)));
 
+	// [D-516]: senza una carica oltre la portata la corsa e' tutta la traiettoria — niente tratto rosso, e il segno
+	// d'arrivo sulla destinazione. E' la meta' che regge il default di `ReachSegments` (seconda revisione della PR #3767).
+	TestFalse(TEXT("uno scatto in portata non ha un tratto che non fa"), Scatto.HasShortfall());
+	TestTrue(TEXT("e si ferma sulla destinazione"), Scatto.StopCell() == FRTCellId(3, 0, 0));
+
 	return true;
 }
 
