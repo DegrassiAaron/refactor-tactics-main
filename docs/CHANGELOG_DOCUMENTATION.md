@@ -9,8 +9,9 @@
 | Dove | Che cosa |
 |---|---|
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-349`: la precisazione, con le quattro regole e le due risposte sulla privacy come l'autore le ha lette; il formato non cambia. La nota di `D-522` dice che `D-523` è stato liberato |
-| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §6: la delega a CP 14.6 è soddisfatta; la tabella di verifica coi tre test nuovi |
-| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: i tre test nuovi |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §6: la delega a CP 14.6 è soddisfatta; la tabella di verifica coi test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: i test nuovi |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | il silenzio dell'Overwatch fra i canali: chiuso per costruzione, verdetto per regola, ricalcolato dall'audit con la stessa funzione |
 
 ---
 
