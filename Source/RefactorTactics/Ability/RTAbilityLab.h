@@ -90,6 +90,18 @@ struct FRTAbilityLabFixtureSpec
 	FRTCellId TargetCell = FRTCellId(2, 0);
 
 	/**
+	 * La cella d'arrivo di uno SCATTO (`#3773`): un'azione di fase Dash si dichiara con `Dash`/`DashCell`, non
+	 * come abilita'. Il default sta oltre il bersaglio, sulla stessa riga del caster: e' la posa di
+	 * `Visual.Ability.ClipIvrin`, e da li' chi attraversa (`PassingBlade`) attraversa e chi carica (`Ram`) si
+	 * ferma sul primo nemico.
+	 *
+	 * ⚠️ **E' una posa, non un calcolo**: il Lab non porta aritmetica esagonale, e dove lo scatto si ferma lo
+	 * decide il resolver. Chi sposta `TargetCell` sposta anche questa, se vuole che lo scatto incontri il bersaglio.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
+	FRTCellId DashCell = FRTCellId(3, 0);
+
+	/**
 	 * L'eroe che subisce. Deve essere diverso dal caster, altrimenti la posa mette due unita' della
 	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda.
 	 */
@@ -146,7 +158,8 @@ public:
 	 *
 	 * Stesso rifiuto, e stessa forma, per una core che **nessuna unita' impugna** — `#3472`: un'unita' porta il
 	 * proprio kit e le generiche, quindi una core fuori da quell'insieme finirebbe rifiutata dall'harness in
-	 * ERROR. Un'azione che si applica a chi la usa (`bSelfTarget`) si dichiara senza bersaglio.
+	 * ERROR. Un'azione che si applica a chi la usa (`bSelfTarget`) si dichiara senza bersaglio. Uno SCATTO (fase
+	 * Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita' (`#3773`).
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
@@ -172,4 +185,34 @@ public:
 	// otto secondi — *«Unable to find 'class', 'delegate', 'enum', or 'struct' with name
 	// 'FRTTestResult'»* — e ha ragione: il risultato di una run e' un oggetto di dominio, non un DTO.
 	static TArray<FString> DescribeRunTurnLog(const FRTTestResult& Result);
+
+	/**
+	 * Il PASSO del banco dentro il PIE (`#3774`): da una scena del Lab, l'azione a `Step` posizioni dalla sua.
+	 *
+	 * L'elenco e' il kit dell'eroe che la possiede — lo stesso, nello stesso ordine, che il pannello mostra col
+	 * filtro per eroe (`URTHeroLabLibrary::ListHeroKit`) — o le core, per un'azione core; ne restano le voci
+	 * che `BuildFixture` costruisce. Il giro agli estremi vale nei due versi.
+	 *
+	 * `OutPosition` e' la posizione, da 1, dell'azione PROPOSTA; `OutCount` quante sono.
+	 *
+	 * `false`, senza toccare le uscite, per un Id che non e' una scena del Lab o la cui azione non e' nel ciclo:
+	 * e' cio' che tiene inerti i due tasti fuori dal banco.
+	 */
+	static bool PlanLabStep(const FString& CurrentScenarioId, int32 Step, FName& OutAbilityId,
+		int32& OutPosition, int32& OutCount);
+
+	/**
+	 * La riga della banda che, in una scena del Lab, dice dove si e' nell'elenco e quali tasti premere
+	 * (`#3774`). Vuota per ogni altro Id.
+	 */
+	static FString DescribeLabStep(const FString& ScenarioId);
+
+	/**
+	 * Scrive `Scenario` nella radice del Lab (`URTScenarioLoader::LabScenariosRoot`) e verifica che il suo Id
+	 * risolva a quel file. Fail closed: un file scritto ma non lanciabile si toglie, e `OutError` dice perche'.
+	 *
+	 * Vive qui e non nel pannello (`#3774`): la usano il pannello dell'Editor e il passo del banco dentro il
+	 * PIE, e una seconda copia della scrittura sarebbe il secondo costruttore di scene che il Lab non deve avere.
+	 */
+	static bool WriteLabScenario(const FRTTestScenario& Scenario, FString& OutError);
 };

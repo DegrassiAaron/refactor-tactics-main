@@ -203,6 +203,26 @@ struct FRTKnowledgeVerdict
  * Tutto puro e headless: nessun Actor, nessun `UWorld`. E' la condizione perche' la regola sia verificabile
  * senza montare una partita — e perche' il server possa applicarla senza che il client abbia voce.
  */
+/**
+ * [D-349] La REGOLA di un verdetto che non viene dalla conoscenza di squadra: la voce racconta un PIANO del proprio
+ * soggetto, non un fatto che qualcuno abbia visto accadere — un Overwatch armato che non ha sparato.
+ *
+ * 🔑 **Viaggia col soggetto della voce (`FRTVerdictSubjectRef`) e arriva all'audit di [D-313]**, come `bEdge` per i
+ * muri di [D-502]: senza, l'audit ricalcolerebbe il verdetto dalla conoscenza di chi osserva il soggetto, e
+ * accuserebbe il gioco di un difetto che non ha. Produzione e ricalcolo chiamano la stessa
+ * `URTTeamKnowledgeLibrary::FreezePlanVerdict`.
+ */
+UENUM(BlueprintType)
+enum class ERTPlanVerdict : uint8
+{
+	/** Nessuna regola: il verdetto viene dalla conoscenza di squadra (`FreezeVerdict`), com'e' sempre stato. */
+	None,
+	/** La legge la sola squadra del soggetto: il piano e' suo, e il nemico non deve saperlo. */
+	OwnerTeam,
+	/** Non la legge nessuna squadra: resta nella traccia d'audit. */
+	AuditOnly
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTTeamKnowledgeLibrary : public UBlueprintFunctionLibrary
 {
@@ -310,6 +330,13 @@ public:
 	 */
 	static FRTKnowledgeVerdict FreezeEdgeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
 		const TArray<int32>& AuthorTeamIds, const FRTCellId& CellA, const FRTCellId& CellB);
+
+	/**
+	 * [D-349] Il verdetto di una voce che racconta un piano (`ERTPlanVerdict`): `OwnerTeam` concede la sola
+	 * `OwnerTeamId`, `AuditOnly` nessuno. `None` non e' una regola di piano, e rende `NoOne`: chi la chiama con `None`
+	 * ha sbagliato strada, e fail-closed e' l'unico errore che non apre niente.
+	 */
+	static FRTKnowledgeVerdict FreezePlanVerdict(ERTPlanVerdict Rule, int32 OwnerTeamId);
 
 	/**
 	 * Quante celle iniziali di una rotta l'osservatore ha il diritto di vedere: la regola di troncamento

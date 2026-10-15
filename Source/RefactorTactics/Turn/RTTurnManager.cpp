@@ -4090,18 +4090,8 @@ void ARTTurnManager::RecordTurnToReplay()
 	Audit.Verdicts.Reserve(TurnLog.Num());
 	for (const FRTTurnLogEntry& Entry : TurnLog)
 	{
-		FRTAuditVerdictRecord Record;
-		Record.Phase = Entry.Phase;
-		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
-		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
-		Record.SubjectCell = Entry.VerdictSubject.Cell;
-		// `#3681`: il verdetto di un bordo si ricalcola dal bordo e dagli autori, non dall'unita'.
-		Record.bEdge = Entry.VerdictSubject.bEdge;
-		Record.EdgeCell = Entry.VerdictSubject.EdgeCell;
-		Record.EdgeToward = Entry.VerdictSubject.EdgeToward;
-		Record.AuthorTeamIds = Entry.VerdictSubject.AuthorTeamIds;
-		Record.Verdict = Entry.Verdict;
-		Audit.Verdicts.Add(Record);
+		// Il record lo costruisce `MakeVerdictRecord`, la stessa funzione che i test leggono ([D-349]).
+		Audit.Verdicts.Add(URTReplayAuditLibrary::MakeVerdictRecord(Entry));
 	}
 
 	if (!ReplayRecording.RecordAudit(Radice, Audit))

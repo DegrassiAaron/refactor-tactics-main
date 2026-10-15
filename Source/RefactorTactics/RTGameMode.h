@@ -409,6 +409,29 @@ public:
 	FString GetScenarioBannerText() const;
 
 	/**
+	 * La seconda riga della banda, nelle sole scene del banco Ability Lab (`#3774`): dove si e' nel kit
+	 * dell'eroe e quali tasti cambiano azione. Vuota per ogni altra sessione.
+	 *
+	 * Una riga a parte e non un pezzo di `GetScenarioBannerText`: quella e' gia' lunga quanto lo schermo di un
+	 * PIE, e la frase che dice cosa premere deve leggersi senza uscire dai bordi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
+	FString GetLabStepText() const;
+
+	/**
+	 * Il passo del banco dentro il PIE (`#3774`): passa all'azione a `Step` posizioni da quella della scena in
+	 * corso, nell'elenco del suo eroe, e ricarica il livello perche' riparta con la nuova.
+	 *
+	 * La nuova scena la costruisce `URTAbilityLabLibrary::BuildFixture` e la scrive `WriteLabScenario`, le stesse
+	 * del pannello; `rt.Test.Scenario` si riscrive alla sua priorita' corrente (mai sotto `Code`), cosi' il
+	 * ripristino del lanciatore a fine PIE (`FRTLabPieLauncher`) la rimette comunque com'era.
+	 *
+	 * `false` con `OutError` VUOTO fuori da una scena del banco — i due tasti sono inerti, e non e' un errore;
+	 * `false` con `OutError` valorizzato se la scena non si costruisce, non si scrive o la variabile non prende.
+	 */
+	bool StepLabScenario(int32 Step, FString& OutError);
+
+	/**
 	 * Cosa e' successo all'allestimento: le condizioni rilevate e la fase raggiunta (CP 46.2, `#937`).
 	 *
 	 * ⚠️ **E' un rapporto, non una decisione.** Questo GameMode continua a decidere esattamente come prima
@@ -612,6 +635,17 @@ private:
 
 	/** Come sopra: la sorgente che ha deciso, latchata insieme alla decisione perche' la banda la nomina. */
 	FString AutobattleSourceLabel;
+
+	/**
+	 * Il ricordo di `GetLabStepText` (`#3774`): la scena per cui la riga e' stata composta, e la riga.
+	 *
+	 * 🔴 **Esiste perche' la riga si legge a ogni fotogramma** (`ARTHUD::DrawHUD`) e comporla costruisce da capo
+	 * il roster d'eroi, oggetti compresi: misurato, 189 `UObject` per lettura. Si ricompone solo quando la
+	 * scena cambia, cioe' quasi mai — il passo del banco ricarica il livello e il GameMode e' un altro.
+	 */
+	mutable FString LabStepScenarioId;
+	mutable FString LabStepText;
+	mutable bool bLabStepComposed = false;
 
 	/**
 	 * Porta il verdetto di fine partita alla schermata di Result (CP 46.5, `#940` · `#939`).

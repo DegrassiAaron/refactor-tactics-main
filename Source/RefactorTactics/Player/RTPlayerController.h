@@ -360,6 +360,19 @@ protected:
 	TObjectPtr<UInputAction> PlaybackStepAction;
 
 	/**
+	 * `,` e `.`: nelle scene del banco Ability Lab passano all'azione precedente e successiva dello stesso
+	 * eroe, e la scena riparte (`#3774`). Anche questi sono comandi dello spettatore, come `K` e `L`.
+	 *
+	 * ⛔ **Inerti fuori dal banco**, e la regola non sta qui: la decide `ARTGameMode::StepLabScenario`, che
+	 * sa quale scena gira. Una guardia anche nel controller sarebbe una seconda sede della stessa regola.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LabStepPreviousAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LabStepNextAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -888,6 +901,11 @@ private:
 
 	/** `L` — avanza di un micro-step e torna in pausa (`#2858`). */
 	void OnStepPlaybackMicroStep(const FInputActionValue& Value);
+
+	/** `,` e `.` — il passo del banco Ability Lab dentro il PIE (`#3774`). */
+	void OnLabStepPrevious(const FInputActionValue& Value);
+	void OnLabStepNext(const FInputActionValue& Value);
+	void StepLab(int32 Step);
 
 	void OnRecenter(const FInputActionValue& Value);
 
