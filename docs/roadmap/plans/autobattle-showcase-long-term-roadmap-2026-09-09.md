@@ -119,7 +119,7 @@ va chiarito · **CREATE** = lavoro reale senza owner.
 | Bot stall patologico | #2556 · #2629 | OPEN | `BOT-STALL-1` **riaperta** il 2026-09-09 | KEEP |
 | Banchi PIE-AI e breakdown decisionale | #2477 | OPEN | `PIE-AI-03` e `PIE-AI-04` senza banco | KEEP |
 | Competenza del bot oltre la v0.1 | #326 (`E26`) → #328 (`E28`) | OPEN | post-v0.1 | KEEP |
-| Camera tattica e presentazione mappa | #1769 (`E49`) + le `CAM-*` | OPEN | #1834 · #1835 · #1836 · #1837 · #1838 promosse a v0.1 da `D-286` | KEEP |
+| Camera tattica e presentazione mappa | #1769 (`E49`) + le `CAM-*` | OPEN | #1834 · #1835 · #1837 · #1838 promosse a v0.1 da `D-286`; ⌫ #1836 chiusa il 2026-10-15 senza codice per `D-373` | KEEP |
 | Camera Director della Resolution | #1781 (`CAM-12`) | OPEN | backlog dichiarato, `P3` | KEEP |
 | Observer / POV esplicito, omniscient in partita | *nessuno* | — | `OmniscientTeamId` esiste **solo** nell'harness | **DECISIONE → `OBS-1`** |
 | Replay: viewer player-facing | #472 | **CLOSED** | ⛔ non ricreare | KEEP |
@@ -269,7 +269,7 @@ già: *«un risultato bot-contro-bot **non è ancora** una misura di bilanciamen
 **Outcome**: guardo la partita da spettatore, non da giocatore a cui hanno tolto i controlli.
 
 **Owner**: #1769 (`E49`) per tutto il lavoro camera · #1781 (`CAM-12`) per il Camera Director.
-**Release**: le `CAM-*` promosse a **v0.1** da `D-286` sono #1834 · #1835 · #1836 · #1837 · #1838; il
+**Release**: le `CAM-*` promosse a **v0.1** da `D-286` sono #1834 · #1835 · #1837 · #1838 (⌫ #1836 chiusa il 2026-10-15 per `D-373`); il
 resto **post-v0.1**.
 
 ⛔ **Nessuna epic camera nuova.** #1769 possiede stato camera, gesti, zoom e Strategic View, multilayer,
@@ -512,8 +512,8 @@ l'harness ha già attraversa il confine verso la partita — e con quale garanzi
 ### v0.1
 
 #2744 · #1936 · #2697 · #2281 · #613 · #2556 · #2629 · #2477 · #940 · #2411 · #1805 · #2098 · #2156 ·
-#286 → #288 · #289 · #1758 · #217 · #2453 → #2454 · #2456 · #2457 · le cinque `CAM-*` di `D-286`
-(#1834 · #1835 · #1836 · #1837 · #1838) · #221 (`P3`, tagliabile).
+#286 → #288 · #289 · #1758 · #217 · #2453 → #2454 · #2456 · #2457 · le `CAM-*` di `D-286`
+(#1834 · #1835 · #1837 · #1838; ⌫ #1836 chiusa il 2026-10-15 per `D-373`) · #221 (`P3`, tagliabile).
 
 ### post-v0.1
 
