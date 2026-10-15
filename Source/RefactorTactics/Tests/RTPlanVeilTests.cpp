@@ -467,4 +467,54 @@ bool FRTReliefIsLightTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il volume del FUMO ha il colore della sua superficie (#3760, seduta `U89`). Con il grigio scuro dei prismi una cella di
+ * fumo restava «nera» nella zona vista, accanto alle celle col rilievo appena schiarito. Su `RelayBasin`, che il fumo lo
+ * porta, come nella tavola `V3`.
+ *
+ * 🔑 La seconda meta' e' la guardia del colore unico: la famiglia ha UNA istanza del materiale, quindi il colore vale
+ * finche' il fumo e' l'unica superficie con un volume. Una seconda forma fa cadere il test, e dovra' decidere il suo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSmokeVolumeIsLightTest,
+	"RefactorTactics.HexMapActor.SmokeVolumeIsLight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSmokeVolumeIsLightTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = MakePiantaBoard(World, URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(GetTransientPackage()));
+	const UInstancedStaticMeshComponent* Fumo = HexMap ? IsmPianta(HexMap, TEXT("SurfaceVolumes")) : nullptr;
+	if (!TestNotNull(TEXT("premessa: i volumi di superficie"), Fumo) || !TestTrue(TEXT("premessa: la mappa ha del fumo"), Fumo->GetInstanceCount() > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	UMaterialInstanceDynamic* Mid = Cast<UMaterialInstanceDynamic>(Fumo->GetMaterial(0));
+	if (TestNotNull(TEXT("il volume del fumo ha un'istanza del materiale dei volumi"), Mid))
+	{
+		const FLinearColor Proprio = Mid->K2_GetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor);
+		const FLinearColor DelFumo = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(ERTHexSurface::Smoke));
+		TestTrue(TEXT("il suo colore proprio e' quello della superficie del fumo"), Proprio.Equals(DelFumo, 1.e-4f));
+		const FLinearColor DeiVolumi = RTLayerPresentation::VolumeOwnColor(/*bEdgePanel=*/ false);
+		TestTrue(*FString::Printf(TEXT("ed e' piu' chiaro di quello dei volumi (%.2f contro %.2f)"),
+			Proprio.GetLuminance(), DeiVolumi.GetLuminance()), Proprio.GetLuminance() > 2.f * DeiVolumi.GetLuminance());
+	}
+
+	const UEnum* SurfaceEnum = StaticEnum<ERTHexSurface>();
+	if (TestNotNull(TEXT("l'enum delle superfici e' riflesso"), SurfaceEnum))
+	{
+		for (int32 I = 0; I < SurfaceEnum->NumEnums() - 1; ++I)
+		{
+			const ERTHexSurface S = static_cast<ERTHexSurface>(SurfaceEnum->GetValueByIndex(I));
+			if (S != ERTHexSurface::Smoke)
+			{
+				TestFalse(*FString::Printf(TEXT("%s non ha un volume: il colore della famiglia e' quello del fumo"),
+					*SurfaceEnum->GetNameStringByIndex(I)), URTHexLibrary::SurfaceVolumeFor(S).Y > 0.0);
+			}
+		}
+	}
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

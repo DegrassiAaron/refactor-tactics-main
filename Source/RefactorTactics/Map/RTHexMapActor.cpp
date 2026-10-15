@@ -2375,10 +2375,31 @@ void ARTHexMapActor::ApplyVolumeMaterial()
 				RTLayerPresentation::VolumeOwnColor(/*bEdgePanel=*/ true));
 		}
 	}
+	// #3760, seduta `U89`: anche il VOLUME DEL FUMO aveva il grigio scuro dei prismi, e nella zona vista una cella di fumo
+	// restava «nera» dopo che il rilievo si era schiarito: e' una superficie, e l'autore ha scelto che le superfici viste
+	// non sembrino nere. Il volume prende il colore della sua superficie, che e' l'unica verita' sul colore del terreno.
+	// ⚠️ Un colore per tutta la famiglia vale finche' il fumo e' l'unica superficie con un volume: lo pinna
+	// `HexMapActor.SmokeVolumeIsLight`, e una seconda forma dovra' decidere il suo.
+	if (SurfaceVolumeMaterial == nullptr || SurfaceVolumeMaterial->Parent != Mat)
+	{
+		SurfaceVolumeMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+		if (SurfaceVolumeMaterial != nullptr)
+		{
+			SurfaceVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor,
+				FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(ERTHexSurface::Smoke)));
+		}
+	}
 	for (const FRTVolumeFamily& Volume : GetVolumeFamilies())
 	{
-		UMaterialInterface* Voluto = (Volume.Component == EdgeFeatures && EdgePanelVolumeMaterial != nullptr)
-			? static_cast<UMaterialInterface*>(EdgePanelVolumeMaterial) : Mat;
+		UMaterialInterface* Voluto = Mat;
+		if (Volume.Component == EdgeFeatures && EdgePanelVolumeMaterial != nullptr)
+		{
+			Voluto = EdgePanelVolumeMaterial;
+		}
+		else if (Volume.Component == SurfaceVolumes && SurfaceVolumeMaterial != nullptr)
+		{
+			Voluto = SurfaceVolumeMaterial;
+		}
 		if (Volume.Component != nullptr && Volume.Component->GetMaterial(0) != Voluto)
 		{
 			Volume.Component->SetMaterial(0, Voluto);

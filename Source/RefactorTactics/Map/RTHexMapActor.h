@@ -251,7 +251,9 @@ public:
 	 * non un oggetto, e non riceve ne' tinta del piano ne' trattamento. Su un piano che non e' l'attivo resta pieno: e' un
 	 * limite dichiarato di #3706. ➕ Dal 2026-10-15 (#3760, seduta `U89`) ne prende pero' il grafo, in un'istanza col suo
 	 * colore proprio, un grigio chiaro: il materiale di default della mesh, in luce piena, lo faceva leggere «nero». Senza
-	 * dati per istanza il materiale legge i canali a zero, cioe' opaco e nel suo colore.
+	 * dati per istanza il materiale legge i canali a zero, cioe' opaco e nel suo colore. ➕ Per la stessa seduta anche
+ * `SurfaceVolumes`, che resta una famiglia, ha un'istanza sua: il colore della superficie che porta il volume, il fumo,
+ * invece del grigio scuro dei prismi.
 	 *
 	 * Se assente, le quattro famiglie tengono il materiale della loro mesh e i dati per istanza sono inerti: niente
 	 * tinta e niente trattamento, come prima di #3706. Sta qui e non nel livello per la ragione di `CellMaterial`.
@@ -1723,6 +1725,13 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ReliefVolumeMaterial;
+
+	/**
+	 * #3760, seduta `U89` — l'istanza di `VolumeMaterial` dei VOLUMI DI SUPERFICIE, col colore della superficie che li
+	 * porta: oggi il solo fumo (`URTHexLibrary::SurfaceVolumeFor`). Vedi `ApplyVolumeMaterial`.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SurfaceVolumeMaterial;
 
 	/** #3704 — la mappa disegnata ha piu' di un piano: lo misura `ApplyLayerPresentation`, sulle istanze. */
 	bool bPresentationMultiLayer = false;

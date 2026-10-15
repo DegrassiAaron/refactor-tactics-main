@@ -933,6 +933,7 @@ muri a linee.
 | La dissolvenza | il fattore del velo e' quanto la cella e' osservata; `VeilInstances` e `AdvanceVeilFamily` interpolano fra il colore vero e quello della pianta |
 | I muri ricordati | `ARTHexMapActor::WriteVolumeAppearance`: tinta della pianta e trasparenza a retino, lo stesso scrittore della presentazione dei piani |
 | Il rilievo del costo | grigio chiaro, in un'istanza del materiale dei volumi (`ApplyVolumeMaterial`) |
+| Il volume del fumo | il colore della superficie del fumo, in un'istanza del materiale dei volumi (`ApplyVolumeMaterial`) |
 | Il conteggio dei tre stati | `ARTHexMapActor::GetVeilCounts`: un disco ricordato e' quello piu' vicino al fondo della pianta che al colore vero |
 
 ⚠️ **Il riquadro in testa a questa fase descrive il ricordo attenuato** (`RTVeilExploredFactor`): da [D-520](../../decisions/RT_PDR_00_Decision_Log.md)

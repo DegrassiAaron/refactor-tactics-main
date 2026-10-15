@@ -9,7 +9,7 @@
 | Dove | Che cosa |
 |---|---|
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`: titolo e punto (4), con le domande come l'autore le ha viste |
-| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: che cosa fa ogni famiglia nel ricordo, e la dissolvenza |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: che cosa fa ogni famiglia nel ricordo, la dissolvenza, il rilievo chiaro e il volume del fumo nel colore della sua superficie |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-PIANTA`: il comportamento nuovo e il ❌ della prima tornata, da rigiudicare; note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` |
 | [`Scenarios/Visual/Perception/RememberedCover.json`](../Scenarios/Visual/Perception/RememberedCover.json) | che cosa guardare, coi pannelli traslucidi |
 
