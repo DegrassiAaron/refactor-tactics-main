@@ -1191,4 +1191,50 @@ bool FRTReactionWindowCountFromLogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-518] (`#3745`) — **il filtro toglie i soli `FIRE` sui bersagli indicati**, e lascia il resto com'era.
+ *
+ * 🔑 L'oracolo e' il caso misto, non quello col solo `HOLD`: un filtro che svuotasse ogni `FIRE` passerebbe il
+ * secondo e cadrebbe qui. E la finestra la decide ancora `RequiresDecisionBoundary`: nessuna regola in piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRemoveFireOnDownedTest,
+	"RefactorTactics.Reactions.FireOnADownedTargetIsRemovedFromTheOpportunity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRemoveFireOnDownedTest::RunTest(const FString&)
+{
+	using L = URTReactionOpportunityLibrary;
+
+	// Caso misto: due bersagli, uno a terra.
+	FRTReactionOpportunity Misto;
+	Misto.AllowedResponses = { L::FireResponse(4), L::FireResponse(7), L::HoldResponse() };
+	const int32 Tolti = L::RemoveFireResponsesWhere(Misto, [](int32 Bersaglio) { return Bersaglio == 4; });
+	TestEqual(TEXT("un FIRE tolto"), Tolti, 1);
+	// Confronti sensibili alle maiuscole: `TestEqual` su `FString` le ignora, e i token sono un formato.
+	TestTrue(TEXT("resta il FIRE sul bersaglio in piedi, poi HOLD, nell'ordine di prima"),
+		FString::Join(Misto.AllowedResponses, TEXT(",")).Equals(L::FireResponse(7) + TEXT(",") + L::HoldResponse(),
+			ESearchCase::CaseSensitive));
+	TestTrue(TEXT("e la finestra si apre ancora"), L::RequiresDecisionBoundary(Misto));
+
+	// L'unico bersaglio a terra: resta il solo HOLD, e la finestra non si apre (ADR-0004 §2).
+	FRTReactionOpportunity Solo;
+	Solo.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+	TestEqual(TEXT("il FIRE sul caduto si toglie"),
+		L::RemoveFireResponsesWhere(Solo, [](int32 Bersaglio) { return Bersaglio == 4; }), 1);
+	TestFalse(TEXT("col solo HOLD la finestra non si apre"), L::RequiresDecisionBoundary(Solo));
+	TestTrue(TEXT("e la risposta sicura e' HOLD"),
+		L::SafeResponse(Solo).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+
+	// Nessuno a terra: niente cambia. E una risposta che non e' un FIRE non si tocca mai.
+	FRTReactionOpportunity Intatta;
+	Intatta.AllowedResponses = { L::FireResponse(4), L::HoldResponse(), TEXT("SIDESTEP:1,2,0") };
+	TestEqual(TEXT("nessun bersaglio indicato: niente da togliere"),
+		L::RemoveFireResponsesWhere(Intatta, [](int32) { return false; }), 0);
+	TestEqual(TEXT("un predicato che dice si' a tutto toglie i soli FIRE"),
+		L::RemoveFireResponsesWhere(Intatta, [](int32) { return true; }), 1);
+	TestTrue(TEXT("HOLD e SIDESTEP restano, e sono loro"),
+		FString::Join(Intatta.AllowedResponses, TEXT(",")).Equals(FString(L::HoldResponse()) + TEXT(",SIDESTEP:1,2,0"),
+			ESearchCase::CaseSensitive));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

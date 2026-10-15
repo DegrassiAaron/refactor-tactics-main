@@ -103,7 +103,19 @@ enum class ERTReactionDecisionOutcome : uint8
 	 * scelta» e «la condizione ha tolto la scelta» sono cause diverse, e uno scenario che le conta insieme
 	 * verifica meno di quanto crede.
 	 */
-	CollapsedByCondition
+	CollapsedByCondition,
+	/**
+	 * [D-518] (`#3745`) I `FIRE` di questa finestra puntavano bersagli **gia' abbattuti** nello stesso passo, e non
+	 * si offrono: e' rimasto il solo `HOLD`, la finestra non si e' aperta e la carica resta.
+	 *
+	 * 🔑 **Separato da `CollapsedByCondition` per la stessa ragione di quello da `Immediate`**: dice la CAUSA. La'
+	 * la condizione dichiarata ha escluso i bersagli; qui li ha tolti un altro colpo, prima che chiedere avesse
+	 * senso. Lo stesso `uint8` per le due cause farebbe dire al registro «nessun bersaglio soddisfa la
+	 * condizione» di un piano senza condizioni.
+	 *
+	 * Valore aggiunto in CODA: le tracce gia' scritte conservano il proprio significato.
+	 */
+	CollapsedTargetDown
 };
 
 /**

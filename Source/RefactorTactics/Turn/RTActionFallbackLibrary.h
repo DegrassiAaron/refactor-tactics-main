@@ -26,7 +26,13 @@ enum class ERTActionInvalidReason : uint8
 	TargetDead,
 	/** Il bersaglio e' un alleato: le azioni offensive del vertical slice non colpiscono la propria squadra. */
 	TargetFriendly,
-	/** Il bersaglio si e' allontanato oltre la portata dichiarata. */
+	/**
+	 * Il bersaglio si e' allontanato oltre la portata dichiarata.
+	 *
+	 * E, da [D-516], il bersaglio di una CARICA pianificato in linea ma oltre la portata: la carica corre fino alla
+	 * portata e la traccia la scrive `ERTFallbackOutcome::Stopped` con questo motivo. Il rimedio e' lo stesso —
+	 * avvicinarsi —, ed e' cio' che separa questo motivo da `DashNotAligned`.
+	 */
 	OutOfRange,
 	/** In portata, ma la traiettoria e' bloccata. */
 	NoLineOfSight,
@@ -192,7 +198,8 @@ enum class ERTActionInvalidReason : uint8
 	TerrainDeniesDash,
 	/**
 	 * La destinazione dello scatto non sta su una delle sei direzioni assiali, oppure e' oltre la portata
-	 * dell'azione: la mobilita' lineare non parte affatto (`ERTLinearStop::NotAligned`).
+	 * dell'azione: la mobilita' lineare non parte affatto (`ERTLinearStop::NotAligned`). Per una carica oltre
+	 * la portata non vale piu': corre fino alla portata ([D-516], `OutOfRange`).
 	 *
 	 * Distinto da `OutOfRange`, che parla di un BERSAGLIO allontanatosi: qui non c'e' un bersaglio che si
 	 * e' mosso, c'e' una geometria che l'azione non ammette — e il rimedio e' scegliere un'altra cella,

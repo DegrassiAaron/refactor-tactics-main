@@ -128,6 +128,14 @@ struct FRTPlannedIntent
 	ERTMovementStyle DashStyle = ERTMovementStyle::None;
 
 	/**
+	 * [D-516] Le celle della retta che una CARICA percorrera' quando il bersaglio sta oltre la portata; `0` per ogni
+	 * altro scatto. Serve all'anteprima, che da qui in poi disegna in rosso il tratto che la carica non fara'.
+	 * Stessa classe d'informazione di `DashCell`: e' dove l'unita' si ferma, cioe' movimento.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	int32 DashReachCells = 0;
+
+	/**
 	 * Orientamento ATTUALE dell'unita' (CP 16.1). Pubblico: e' una posa osservabile sul campo, non un piano —
 	 * chi guarda vede da che parte e' girata una figura, e nasconderlo non renderebbe il gioco piu' segreto,
 	 * solo meno leggibile di cio' che si ha davanti agli occhi.
@@ -205,6 +213,10 @@ struct FRTIntentView
 	/** Stile dello scatto: movimento, quindi esposto quanto `DashCell`. Vedi `FRTPlannedIntent::DashStyle`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	ERTMovementStyle DashStyle = ERTMovementStyle::None;
+
+	/** [D-516] Dove si ferma una carica oltre la portata: movimento, esposto quanto `DashCell`. Vedi `FRTPlannedIntent`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	int32 DashReachCells = 0;
 
 	/** Posa ATTUALE: pubblica, si vede guardando l'unita'. Valorizzata anche per un avversario rivelato. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")

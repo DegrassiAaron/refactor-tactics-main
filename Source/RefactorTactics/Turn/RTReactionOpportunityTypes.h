@@ -726,6 +726,17 @@ public:
 	static bool RequiresDecisionBoundary(const FRTReactionOpportunity& Opportunity);
 
 	/**
+	 * [D-518] (`#3745`) Toglie da `InOut` ogni `FIRE` il cui bersaglio `bRemove` indica, e dice quanti ne ha tolti.
+	 * `HOLD` e ogni risposta che non e' un `FIRE` restano dove sono, nello stesso ordine.
+	 *
+	 * 🔑 **E' la regola «il `FIRE` su un bersaglio gia' abbattuto non si offre», scritta pura**: chi la chiama sa
+	 * chi e' a terra, questa sa solo leggere il formato `FIRE:<i>` — con `FireResponseTarget`, che e' l'unico
+	 * parser. Se dopo il filtro resta il solo `HOLD`, `RequiresDecisionBoundary` risponde falso e la finestra non
+	 * si apre: e' ADR-0004 §2, non una regola in piu'.
+	 */
+	static int32 RemoveFireResponsesWhere(FRTReactionOpportunity& InOut, TFunctionRef<bool(int32 TargetUnitId)> bRemove);
+
+	/**
 	 * Id stabile e ispezionabile derivato dai sei campi di `Key`.
 	 *
 	 * Stabile: la stessa chiave da' lo stesso id in ogni esecuzione e in ogni processo — nessun hash di

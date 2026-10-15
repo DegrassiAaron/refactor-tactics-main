@@ -279,6 +279,24 @@ bool FRTVisionBorderFollowsTheVeilTest::RunTest(const FString&)
 	TestTrue(TEXT("la linea e' il confine delle celle viste ADESSO"), HexMap->GetVisionBorder() == Atteso());
 	TestTrue(TEXT("e non e' vuota"), HexMap->GetVisionBorder().Num() > 0);
 
+	// 🔴 **Ciascuno dei due percorsi, DA SOLO.** Dopo due turni la conoscenza del playback e quella dal vivo
+	// coincidono, quindi la linea qui sopra l'ha potuta scrivere l'uno o l'altro: togliere UNA delle due chiamate a
+	// `SetVisionBorder` lasciava il test verde (mutazioni `M2` e `M3` della verifica del 2026-10-15). Qui si svuota la
+	// linea e si fa passare un percorso alla volta.
+	HexMap->SetVisionBorder(TArray<FRTCellId>());
+	TestEqual(TEXT("premessa: la linea svuotata"), HexMap->GetVisionBorder().Num(), 0);
+	Presenter->Apply();
+	TestTrue(TEXT("il refresh dal vivo, da solo, ridisegna la linea delle celle viste"),
+		HexMap->GetVisionBorder().Num() > 0 && HexMap->GetVisionBorder() == Atteso());
+
+	HexMap->SetVisionBorder(TArray<FRTCellId>());
+	TM->OnPlaybackStepAdvanced.Broadcast();
+	const TArray<FRTExposedEdge> AttesoPlayback = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(
+		HexMap->MapAsset, TM->PlaybackKnowledgeForTeam(Presenter->ViewerTeamId()).VisibleCells);
+	TestTrue(TEXT("premessa: nel playback la squadra vede qualcosa"), AttesoPlayback.Num() > 0);
+	TestTrue(TEXT("il passo di playback, da solo, ridisegna la linea con la conoscenza del playback"),
+		HexMap->GetVisionBorder().Num() > 0 && HexMap->GetVisionBorder() == AttesoPlayback);
+
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }

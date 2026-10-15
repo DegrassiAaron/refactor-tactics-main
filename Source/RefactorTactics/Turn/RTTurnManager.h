@@ -2086,14 +2086,27 @@ protected:
 		bool bOwnerIsBot) const;
 
 	/**
-	 * Applica l'esito di una finestra: `FIRE` colpisce, spende la charge e TRONCA il movimento residuo del
-	 * bersaglio; `HOLD` non fa nulla e lascia la reaction armata (CP 14.5).
+	 * Applica l'esito di una finestra: `FIRE` su un bersaglio in piedi colpisce, spende la charge e TRONCA il
+	 * movimento residuo del bersaglio; `HOLD` non fa nulla e lascia la reaction armata (CP 14.5).
+	 *
+	 * Un `FIRE` su un bersaglio gia' abbattuto non dovrebbe arrivare qui: da [D-518] il pompaggio non lo offre. Se
+	 * arriva, si registra come il collasso che il filtro avrebbe scritto (`CollapsedTargetDown`, risposta sicura),
+	 * la charge resta, e un `ensure` lo segnala.
 	 *
 	 * `ArmedIndex` indicizza `ArmedOverwatches`: e' l'armamento la cui charge si consuma, e tenerlo esplicito
 	 * evita di ricercarlo una seconda volta con una regola che potrebbe non coincidere con la prima.
 	 */
 	void ApplyReactionDecision(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
 		const FRTReactionOpportunity& Opportunity, const FRTReactionDecision& Decision, int32 ArmedIndex);
+
+	/**
+	 * Vero se il bersaglio di un `FIRE` e' ancora in piedi: esiste, e' valido e vive (#1158).
+	 *
+	 * 🔑 **Una domanda, due lettori** ([D-518], `#3745`): `PumpReactionTriggers` toglie il `FIRE` su chi e' gia' a
+	 * terra prima di chiedere, `ApplyReactionDecision` non colpisce chi non c'e'. ⚠️ `IsValid` da solo resta vero
+	 * su un'unita' a 0 PV: `ARTUnit::ApplyCombatState` differisce la distruzione dell'Actor.
+	 */
+	static bool IsReactionTargetStanding(const TArray<ARTUnit*>& Units, int32 TargetIdx);
 
 	/**
 	 * Chi risponde per l'unita' `OwnerUnitId` a questa opportunity. Restituisce una delle `AllowedResponses`,
@@ -2253,14 +2266,14 @@ public:
 	 * — cioe' sempre, in partita — il comportamento e' identico a quello di prima: il costo per il percorso
 	 * normale e' un `Num() == 0`.
 	 *
-	 * ⚠️ Le voci `HoldImmediate` **si scartano** invece di essere caricate. Quelle finestre non vengono mai
-	 * consultate (le precede il gate di cardinalita'), quindi tenerle qui le farebbe risultare **orfane a fine
-	 * corsa su una ri-simulazione perfettamente riuscita** — un falso positivo sistematico — e le renderebbe
-	 * applicabili per errore a una finestra che non e' la loro.
+	 * ⚠️ Le voci dei **collassi** — `Immediate`, `CollapsedByCondition` e, da [D-518], `CollapsedTargetDown` — **si
+	 * scartano** invece di essere caricate. Quelle finestre non vengono mai consultate (le precede il gate di
+	 * cardinalita', o il pompaggio), quindi tenerle qui le farebbe risultare **orfane a fine corsa su una
+	 * ri-simulazione perfettamente riuscita** — un falso positivo sistematico — e le renderebbe applicabili per
+	 * errore a una finestra che non e' la loro. Un collasso nuovo va aggiunto qui e nel `.cpp`.
 	 *
-	 * ⚠️ La risposta si **ricostruisce** da `Outcome` e `SelectedTargetUnitId`: il TurnLog non porta la
-	 * stringa. `FireChosen` da' `FIRE:<id>`, ogni altro esito da' `HOLD` — che e' cio' che quegli esiti hanno
-	 * applicato, per quanto diverso sia il modo in cui ci sono arrivati.
+	 * ⚠️ La risposta si **legge** da `ReactionResponse` quando la voce la porta, e si ricostruisce dalle tracce
+	 * di prima del formato che la scrive: vedi il `.cpp`.
 	 */
 	void ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries);
 

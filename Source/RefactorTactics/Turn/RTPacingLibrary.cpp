@@ -222,9 +222,10 @@ int32 URTPacingLibrary::CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>
 
 		case ERTReactionDecisionOutcome::Immediate:
 		case ERTReactionDecisionOutcome::CollapsedByCondition:
-			// Commit immediati: nessuna finestra si e' aperta, nessun secondo speso. I due esiti sono
-			// separati apposta — «non c'era scelta» e «la condizione dichiarata l'ha tolta» sono meccanismi
-			// diversi — e qui contano allo stesso modo: zero.
+		case ERTReactionDecisionOutcome::CollapsedTargetDown:
+			// Commit immediati: nessuna finestra si e' aperta, nessun secondo speso. I tre esiti sono
+			// separati apposta — «non c'era scelta», «la condizione dichiarata l'ha tolta» e «il bersaglio era
+			// gia' a terra» ([D-518]) sono meccanismi diversi — e qui contano allo stesso modo: zero.
 			break;
 		}
 
