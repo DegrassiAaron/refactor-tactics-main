@@ -6123,6 +6123,26 @@ sessions:
       `PIE-CAM-START` perche' il ripiego d'avvio passa dallo stesso codice di `Home` (`ResetAndFrame`): il
       verdetto del 2026-08-06 resta nel registro finche' la riesecuzione non lo sostituisce.
 
+  - id: U93
+    title: L'edge pan — il cursore al bordo fa scorrere la vista, e si ferma quando lo lascia
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-CAM-EDGE-PAN`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U91]
+    verifies: [PIE-CAM-EDGE-PAN]
+    issues: [1838]
+    done_when: >-
+      la voce `PIE-CAM-EDGE-PAN` ha un verdetto nel registro, dato a schermo dall'autore
+    notes: |
+      Scritta il 2026-10-15 con #1838. L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento:
+      Editor ricompilato da un commit che porta #1838, partita hex avviata, finestra a fuoco. Lo stesso Editor di
+      `U91` va bene, se porta anche #1838. Per il caso «spento» si toglie `bEdgePanEnabled` dal Details del pawn
+      della camera durante la PIE. ⚠️ Lo smoke packaged che #1838 chiede non e' questa seduta.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

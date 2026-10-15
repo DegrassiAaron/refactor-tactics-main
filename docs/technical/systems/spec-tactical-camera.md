@@ -92,6 +92,7 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Comando | Tasto | Funzione |
 |---|---|---|
 | Pan | `W` `A` `S` `D` | `AddPlanarMovement`, **relativo alla vista** |
+| Edge pan | cursore entro la banda dal bordo del viewport | `ApplyEdgePan` → `AddPlanarMovement` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)), §3.4: acceso di default, spegnibile |
 | Zoom | rotella | `ZoomTowards` (ancorato al cursore), ripiego al centro fuori mappa |
 | Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°`; in strategica `StrategicYawStep = 60°`, con l'imbardata allineata all'ingresso ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`). In strategica l'orbita non agisce, né la Y ([D-498](../../decisions/RT_PDR_00_Decision_Log.md)) né la X ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
@@ -155,6 +156,55 @@ oltre la soglia è un'orbita e il click non si emette più.
 
 La soglia è un campo, non un letterale: la distanza che il pollice di una persona percorre senza volerlo
 non è una costante universale, e il valore giusto si tara in `L_CameraFeatureLab` (§9).
+
+### 3.4 Edge pan — [#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)
+
+Il cursore entro una banda dal bordo del viewport fa scorrere la vista verso quel bordo, tanto più veloce
+quanto più è vicino al bordo. **Non è una seconda pipeline**: `ARTCameraPawn::ApplyEdgePan` chiama
+`AddPlanarMovement`, quindi eredita la relatività allo yaw, la somma dal pivot, i limiti del viewport
+(`D-251`) e la velocità di `WASD` allo stesso `ZoomAlpha`.
+
+| Proprietà | Stato |
+|---|---|
+| l'asse è la penetrazione nella banda, zero fuori, e nessun pan col cursore fuori dal viewport; i quattro bordi arrivano alla penetrazione piena sull'ultimo pixel, `Size - 1` | ✅ `Camera.EdgePanAxisIsZeroOutsideTheBandAndGrowsWithPenetration` |
+| relativo alla vista, negli otto orientamenti | ✅ `Camera.EdgePanFollowsTheViewYawInAllEightOrientations` |
+| a penetrazione piena va come `WASD`, a due zoom | ✅ `Camera.EdgePanMovesLikeWasdAtTheSameZoom` |
+| a riposo zero movimento e zero aggiornamenti; uscendo dalla banda si ferma nello stesso fotogramma | ✅ `Camera.EdgePanDoesNoWorkAtRestAndStopsTheSameFrame` |
+| spento non si attiva in nessuna posizione | ✅ `Camera.EdgePanSwitchedOffNeverMoves` |
+| dentro i limiti del viewport: arriva dove arriva `WASD`; contro il limite lavora e risponde che non ha mosso | ✅ `Camera.EdgePanStaysInsideTheViewportBounds` |
+| rifiutato con un modale aperto, un'orbita o `Ctrl` tenuti, o l'interruttore spento; con un tasto del pan premuto vincono i tasti | ✅ `Camera.EdgePanIsRefusedDuringModalsAndCameraGestures`: il modale sulla regola, il resto dall'ingresso del controller |
+
+- **L'interruttore** è `bEdgePanEnabled`, acceso di default (scelta dell'autore del 2026-10-15). È una proprietà
+  `Config`, e si spegne da `Game.ini` sotto `[/Script/RefactorTactics.RTCameraPawn]` con `bEdgePanEnabled=False`.
+- **Le precedenze.** «Modale» è `IsGameplayInputBlocked()`, la lettura unica del contratto del puntatore (#705).
+  ⚠️ È un'eccezione voluta al suo commento, che dice che i modali non bloccano la camera: `WASD`, zoom e orbita
+  restano vivi perché non toccano il piano, ma l'edge pan lo guida il cursore, e con un modale aperto il cursore
+  sta sul modale. Rifiuta anche un gesto camera in corso (orbita, `Ctrl` tenuto). **Con un tasto del pan premuto
+  vincono i tasti**: due ingressi nello stesso fotogramma sommerebbero il doppio della velocità di `WASD`.
+- **Il focus.** Senza il viewport a fuoco non c'è cursore: `GetMousePosition` risponde con la posizione in cache,
+  che sopravvive alla perdita del focus. Dopo un Alt-Tab col cursore sul bordo la camera continuerebbe a scorrere da
+  sola, mentre `WASD` si ferma.
+- **Il log** scrive le transizioni a `Verbose`: `[RT] Edge pan: attivo`, `fermo`, `rifiutato: modale aperto`,
+  `rifiutato: gesto camera in corso`, `rifiutato: interruttore spento`, `rifiutato: i tasti del pan hanno la
+  precedenza`. Lo stato è un enum, non un testo; a riposo il lavoro del controller è un asse calcolato e uno stato
+  che non cambia.
+- ⚠️ **Che `PlayerTick` lo chiami davvero, e il controllo del focus, non si provano headless**: senza viewport
+  `GetMousePosition` risponde falso. Li copre la voce `PIE-CAM-EDGE-PAN`.
+- ⚠️ **La velocità è per fotogramma, come quella di `WASD`**, e ne eredita la dipendenza dal frame rate:
+  `AddPlanarMovement` non usa `DeltaTime`. A 144 fps l'edge pan è più veloce che a 60, esattamente come `WASD`.
+  La correzione sta in `AddPlanarMovement`, per tutti e due gli ingressi, e non è di questa issue.
+- ⚠️ **La schermata finale non lo ferma**: `IsGameplayInputBlocked()` vale per la pausa e le impostazioni, mentre il
+  risultato di fine partita è una schermata e non un modale. Se si decide che deve bloccarlo, si corregge lì, e
+  l'edge pan segue.
+- ⚠️ **Un pannello sotto il cursore non lo ferma**: il contratto del puntatore ha il contesto `Modal`, ma non un
+  «cursore su un widget». Le fasce dell'HUD (#3661) stanno proprio ai bordi, quindi un pulsante a meno di una
+  banda dal bordo fa anche scorrere la vista. Si giudica in PIE; se disturba, il rimedio è un'issue sul contratto
+  del puntatore, non una seconda matrice qui.
+- `N/A` **Il dominio di conoscenza** del criterio 6: era #1836, chiusa senza codice per D-373.
+- ⏳ **Prescritto e non ancora visto**: la banda (`EdgePanBandPixels`, 16 px), la velocità e la curva si tarano in
+  [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780). La banda è in pixel **fisici**: su un 4K al 200% vale metà di quella su un 1080p, e
+  se scalarla col DPI è una domanda di #1780. Restano da fare la voce `PIE-CAM-EDGE-PAN` (seduta `U93`) e lo smoke packaged:
+  il cursore al bordo si comporta in modo diverso a schermo intero.
 
 ---
 
@@ -691,7 +741,7 @@ accessibilità esiste nel repository.
 | Livello | Stato |
 |---|---|
 | Automation | ✅ i test `RefactorTactics.Camera.*` in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp): quanti, lo dice `grep -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`. ⌫ *Fino al 2026-10-15 questa cella diceva «28», un totale fermo al 2026-08-30* |
-| PIE | ✅ `PIE-CAM-START` · `PIE-CAM-ORBIT` · `PIE-CAM-ZOOM-ANCHOR` · `PIE-CAM-BOUNDS` · `PIE-CAM-FOCUS` · ⏳ `PIE-CAM-HOME-CONTEXT` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) |
+| PIE | ✅ `PIE-CAM-START` · `PIE-CAM-ORBIT` · `PIE-CAM-ZOOM-ANCHOR` · `PIE-CAM-BOUNDS` · `PIE-CAM-FOCUS` · ⏳ `PIE-CAM-HOME-CONTEXT` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) · ⏳ `PIE-CAM-EDGE-PAN` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)) |
 | Scenari | ❌ **zero** — [`scenario-map.md`](../tooling/scenario-map.md) lo dichiara, con la motivazione |
 | Input | ✅ `PlayerInput.HotkeysDoNotCollide`, che **era citato e non esisteva** |
 
