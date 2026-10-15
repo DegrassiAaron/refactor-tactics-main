@@ -157,6 +157,35 @@ namespace RTOverwatchScenarioFixtures
 
 		return Scenario;
 	}
+
+	/**
+	 * [D-522] (`#3771`) Il cambio di ETICHETTA che D-522 §4 dichiara: un bersaglio escluso all'ingresso dalla condizione,
+	 * e poi abbattuto dal watcher chiesto prima.
+	 *
+	 * Lo stesso montaggio di `MakeSecondWatcherOnDownedTargetScenario` — Aevik con 10 PV, W2 che spara per primo e lo
+	 * abbatte — piu' una condizione su W1: «al 10% dei PV o meno». 10/90 e' l'11%, quindi all'ingresso W1 non ha un
+	 * `FIRE`. Prima di [D-522] il pompaggio non toglieva niente, e la voce era `CollapsedByCondition`; ora nessuno
+	 * dei bersagli e' in piedi, e la voce e' `CollapsedTargetDown`.
+	 *
+	 * Una decisione sola, di W2, come nel montaggio di [D-518]: la finestra di W1 non si apre in nessuna delle due regole.
+	 */
+	inline FRTTestScenario MakeConditionExcludedThenDownedScenario()
+	{
+		FRTTestScenario Scenario = MakeSecondWatcherOnDownedTargetScenario();
+		Scenario.ScenarioId = TEXT("Unit.Overwatch.ConditionExcludedThenDowned");
+
+		FRTScenarioTurn& Turn = Scenario.Turns[0];
+		Turn.Requires.Add(TEXT("Reaction"));
+		for (FRTScenarioIntent& Intent : Turn.Intents)
+		{
+			if (Intent.UnitId == TEXT("W1"))
+			{
+				Intent.Reaction = TEXT("Hero.Ivrin.Deflection");
+				Intent.Condition = FRTDeclaredCondition(URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 10);
+			}
+		}
+		return Scenario;
+	}
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

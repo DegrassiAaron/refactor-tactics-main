@@ -1080,6 +1080,15 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 		// ⚠️ **La condizione e' quella dell'ARMAMENTO**, letta dall'indice che il trigger porta: e' la stessa che
 		// `BuildOverwatchTriggers` ha ricevuto nel `Watcher`, quindi con le vitals dell'ingresso la ricostruzione ridà
 		// le stesse risposte. Un indice che non vale non ha condizione da applicare, e il giro qui sotto lo salta.
+		// L'appaiamento dell'indice ha un limite dichiarato sopra (due Overwatch della stessa unita'), e da [D-522]
+		// vale anche per la condizione: oggi il caso non si produce.
+		//
+		// ⚠️ **Si rifanno solo «in piedi» e la condizione.** Gli altri fatti del trigger — la zona, la rilevazione,
+		// la linea di vista — restano quelli dell'ingresso, come per ogni `FIRE` che c'era gia' (ADR-0004 §6: il
+		// trigger e' l'ingresso). Fra due giri dello stesso passo un `FIRE` fa danno e tronca il movimento che
+		// resta, ma non sposta nessuno: zona e linea di vista non cambiano. La rilevazione potrebbe, se un
+		// osservatore della squadra cade nello stesso passo; rifarla sarebbe una regola nuova, e toglierebbe anche
+		// `FIRE` che oggi restano.
 		FRTPendingReactionTrigger& Salvato = Ctx->PendingTriggers[Ctx->NextTrigger];
 		const FRTDeclaredCondition Condizione = ArmedOverwatches.IsValidIndex(Salvato.ArmedIndex)
 			? ArmedOverwatches[Salvato.ArmedIndex].Condition

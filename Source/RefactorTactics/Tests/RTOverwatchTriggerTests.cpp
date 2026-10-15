@@ -1479,6 +1479,65 @@ bool FRTOverwatchConditionMetAfterFirstShotTest::RunTest(const FString&)
 }
 
 
+/**
+ * Un bersaglio escluso all'ingresso dalla condizione e poi abbattuto: **la voce dice che e' a terra**, non che la
+ * condizione l'ha escluso ([D-522] §4, `#3771`).
+ *
+ * E' uno dei due cambi di etichetta che [D-522] dichiara, e il solo oracolo del ramo del pompaggio che sceglie la
+ * causa dal numero di bersagli in piedi. Prima di [D-522] la causa la decideva «e' stato tolto un `FIRE` su un
+ * caduto?», e qui un `FIRE` da togliere non c'era: la voce era `CollapsedByCondition`. Il collasso applica `HOLD` in
+ * entrambe le regole, quindi l'esito della partita non cambia, e si misura sul TurnLog.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchConditionExcludedThenDownedTest,
+	"RefactorTactics.Overwatch.ConditionExcludedThenDownedCollapsesAsTargetDown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchConditionExcludedThenDownedTest::RunTest(const FString&)
+{
+	const FRTTestScenario Scenario = RTOverwatchScenarioFixtures::MakeConditionExcludedThenDownedScenario();
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
+			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason, Result.TurnsPlayed),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+
+	ARTTurnManager* Manager = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It)
+	{
+		Manager = *It;
+		break;
+	}
+
+	int32 FireEntries = 0;
+	int32 TargetDown = 0;
+	int32 ByCondition = 0;
+	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
+	{
+		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
+		{
+			if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+			const ERTReactionDecisionOutcome Outcome = static_cast<ERTReactionDecisionOutcome>(Entry.Outcome);
+			if (Outcome == ERTReactionDecisionOutcome::CollapsedTargetDown) { ++TargetDown; }
+			if (Outcome == ERTReactionDecisionOutcome::CollapsedByCondition) { ++ByCondition; }
+			if (URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) != INDEX_NONE) { ++FireEntries; }
+		}
+	}
+
+	// Premessa: il colpo di W2 c'e' stato, ed e' quello che abbatte.
+	TestEqual(TEXT("un solo `FIRE`, quello di W2"), FireEntries, 1);
+	// 🔴 IL PUNTO: la voce di W1 nomina la causa vera.
+	TestEqual(TEXT("W1 collassa perche' il bersaglio e' a terra"), TargetDown, 1);
+	TestEqual(TEXT("e non perche' la condizione lo escludeva"), ByCondition, 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+
 // ─── E14.7 · Reaction Clash ([D-048], [D-049]) ──────────────────────────────────────────────────────────
 //
 // Il Clash e' logica su `AllowedResponses`: chi le produce — profilo d'eroe, condizione dichiarata, catalogo

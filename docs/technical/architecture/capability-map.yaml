@@ -572,6 +572,7 @@ capabilities:
                    "RefactorTactics.Overwatch.SecondWatcherHoldsOnADownedTarget",
                    "RefactorTactics.Replay.Verifier.DownedTargetCollapseIgnoresTheTrace",
                    "RefactorTactics.Overwatch.ConditionIsReadWhenTheSecondWatcherIsAsked",
+                   "RefactorTactics.Overwatch.ConditionExcludedThenDownedCollapsesAsTargetDown",
                    "RefactorTactics.Replay.Verifier.ConditionReadWhenAskedResimulates"]
       scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
       mutation: []

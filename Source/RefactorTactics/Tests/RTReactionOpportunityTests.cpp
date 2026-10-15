@@ -1310,6 +1310,36 @@ bool FRTRebuildFireOnCurrentStateTest::RunTest(const FString&)
 		L::RebuildFireResponses(Op, { 4 }, MetaVita, {}, TuttiInPiedi);
 		TestTrue(TEXT("dato mancante: nessun FIRE"), Risposte(Op).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
 	}
+
+	// (6) Il caso MISTO, che decide la causa nel pompaggio: 4 a terra, 7 in piedi. Il conteggio deve contare chi e' in
+	// piedi, non chi soddisfa la condizione: con 7 sopra la soglia resta il solo HOLD, e la causa e' la condizione.
+	{
+		const auto SoloSetteInPiedi = [](int32 Bersaglio) { return Bersaglio == 7; };
+
+		FRTReactionOpportunity Ammesso;
+		Ammesso.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Ferito = { { 4, FRTTargetVitals(0, 90) }, { 7, FRTTargetVitals(40, 90) } };
+		TestEqual(TEXT("misto, 7 sotto la soglia: uno in piedi"),
+			L::RebuildFireResponses(Ammesso, { 4, 7 }, MetaVita, Ferito, SoloSetteInPiedi), 1);
+		TestTrue(TEXT("e il FIRE e' su di lui, non sul caduto"),
+			Risposte(Ammesso).Equals(L::FireResponse(7) + TEXT(",") + L::HoldResponse(), ESearchCase::CaseSensitive));
+
+		FRTReactionOpportunity Escluso;
+		Escluso.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Sano = { { 4, FRTTargetVitals(0, 90) }, { 7, FRTTargetVitals(60, 90) } };
+		TestEqual(TEXT("misto, 7 sopra la soglia: uno in piedi lo stesso — la causa e' la condizione, non il caduto"),
+			L::RebuildFireResponses(Escluso, { 4, 7 }, MetaVita, Sano, SoloSetteInPiedi), 1);
+		TestTrue(TEXT("e resta il solo HOLD"), Risposte(Escluso).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+	}
+
+	// (7) Nessuno entrato: nessun FIRE resta, e nessuno e' in piedi. In partita non accade — l'unico produttore di
+	// trigger passa sempre chi e' entrato —, ma la funzione non deve lasciare un FIRE che nessun ingresso giustifica.
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		TestEqual(TEXT("nessuno entrato: zero in piedi"), L::RebuildFireResponses(Op, {}, FRTDeclaredCondition(), {}, TuttiInPiedi), 0);
+		TestTrue(TEXT("e il solo HOLD"), Risposte(Op).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+	}
 	return true;
 }
 
