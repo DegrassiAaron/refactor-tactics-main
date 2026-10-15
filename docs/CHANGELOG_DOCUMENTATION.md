@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-15 — L'Overwatch chiede una volta per nemico e per turno
+
+**Origine**: [#3132](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3132). È l'attuazione di `D-411`, decisa il 2026-09-13.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-411`: attuazione, regole dell'attuazione, test; il prezzo da rendere esplicito nella UI è [#3788](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3788) |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione di D-411; la tabella di verifica coi test nuovi |
+| [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) | la riga D-169/D-411: attuata; e il movimento forzato, che da D-366 disarma |
+| [`roadmap/v0.1-issue-plan.md`](roadmap/v0.1-issue-plan.md) e [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | il nome del test riscritto |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK`: il banco della ripresa è cambiato, nota in coda |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3132 fra le chiuse, i test nuovi |
+
+---
+
 ## 2026-10-15 — `Home` inquadra la selezione, poi la squadra, poi la mappa
 
 **Origine**: [#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837) (`CAM-16`). `Home` centrava sempre la mappa; ora segue una gerarchia di ripiego e azzera sempre orientamento e distanza, come ha scelto l'autore. Non inquadra mai un'unità di un'altra squadra.

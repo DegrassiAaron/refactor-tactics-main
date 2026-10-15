@@ -180,10 +180,22 @@ struct FRTArmedOverwatch
 	 * La charge: `Charges = 1` in v0.1 (ADR-0004 §8). `FIRE` la consuma, `HOLD` **no**.
 	 *
 	 * E' il campo che rende `Overwatch.HoldKeepsArmed` una proprieta' e non una speranza: finche' e' vero, un
-	 * micro-step successivo puo' ancora aprire una nuova opportunity.
+	 * micro-step successivo puo' ancora aprire una nuova opportunity — su un nemico non ancora chiesto ([D-411]).
 	 */
 	UPROPERTY()
 	bool bCharged = true;
+
+	/**
+	 * [D-411] I nemici su cui questo Overwatch ha gia' CHIESTO in questo turno, come indici in `Units`: chi aveva un
+	 * `FIRE` nella domanda, dopo la ricostruzione di [D-518] e [D-522]. Non tornano bersagli, qualunque sia stata la
+	 * risposta — `FIRE`, `HOLD` o lo scadere.
+	 *
+	 * 🔑 **Si segna quando si chiede, non quando si risponde**: la finestra puo' restare aperta un frame intero, e la
+	 * domanda e' gia' stata posta. Lo legge `ResolveReactionBoundary`, che lo copia nel watcher
+	 * (`FRTOverwatchWatcher::AlreadyAskedUnitIds`). L'armamento vive un turno, e con lui il campo.
+	 */
+	UPROPERTY()
+	TArray<int32> AskedTargetUnitIds;
 
 	/**
 	 * Quante finestre questa reaction ha gia' APERTO in questo turno (ADR-0004 §8, cap a

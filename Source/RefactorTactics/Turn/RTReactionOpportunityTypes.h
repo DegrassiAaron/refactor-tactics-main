@@ -466,6 +466,18 @@ struct FRTOverwatchWatcher
 	UPROPERTY()
 	FRTDeclaredCondition DeclaredCondition;
 
+	/**
+	 * [D-411] I nemici su cui questo Overwatch ha GIA' CHIESTO in questo turno: non tornano bersagli. L'occasione e' una
+	 * per nemico e per turno, non una per micro-step, e dopo un `HOLD` o uno scadere quel nemico non viene riproposto.
+	 *
+	 * 🔑 **Esclude dalla DOMANDA, non dalla carica.** La carica resta una per watcher, ed e' `FRTArmedOverwatch::bCharged`:
+	 * un nemico mai chiesto apre ancora la finestra, ed e' il *bait* — lascio passare il primo e aspetto il secondo.
+	 * Lo scrive il pompaggio quando chiede (`FRTArmedOverwatch::AskedTargetUnitIds`). Lo leggono `BuildOverwatchTriggers`,
+	 * che non propone questi nemici, e `ClassifyOverwatchSilences`, che non ne scrive i silenzi: la risposta c'e' stata.
+	 */
+	UPROPERTY()
+	TArray<int32> AlreadyAskedUnitIds;
+
 	FRTOverwatchWatcher() = default;
 };
 
@@ -706,6 +718,13 @@ public:
 	static int32 FireResponseTarget(const FString& Response);
 
 	/**
+	 * [D-411] I bersagli che un'opportunity OFFRE: chi ha un `FIRE` fra le `AllowedResponses`, nell'ordine delle risposte.
+	 * E' la definizione di «chiesto»: chi la condizione dichiarata esclude, o chi e' gia' a terra, non ha un `FIRE` e non
+	 * e' stato chiesto. Un posto solo, per il pompaggio che segna l'armamento e per i test che lo imitano.
+	 */
+	static TArray<int32> OfferedFireTargets(const FRTReactionOpportunity& Opportunity);
+
+	/**
 	 * La risposta e' fra quelle legali per questa opportunity? Confronto esatto, elenco chiuso.
 	 *
 	 * E' la guardia contro la **risposta stale** che il DoD di E14 richiede: una decisione che arriva per una
@@ -807,6 +826,11 @@ public:
 	 * Piu' bersagli nello stesso micro-step danno **una sola** opportunity con piu' risposte
 	 * (`FIRE:a` / `FIRE:b` / `HOLD`), mai due prompt in sequenza: prompt sequenziali darebbero un vantaggio
 	 * all'ordine di iterazione, che l'invariante #4 vieta (ADR-0004 §4).
+	 *
+	 * **Una occasione per nemico e per turno** ([D-411]): un nemico in `FRTOverwatchWatcher::AlreadyAskedUnitIds` non e'
+	 * un bersaglio. La memoria la porta il CHIAMANTE, cioe' il pompaggio, che segna l'armamento quando chiede: questa
+	 * funzione non ricorda niente fra un passo e l'altro, e su percorsi interi propone ancora un nemico a ogni passo. I test
+	 * che vogliono la cadenza della partita passano dall'aiuto `RTOverwatchScenarioFixtures::TriggersAsThePumpAsks`.
 	 *
 	 * L'esito e' ordinato in modo TOTALE — micro-step, poi `ReactionPriority → AbilityPriority →
 	 * UnitInitiative → StableUnitId → ReactionInstanceId` — e non dipende dall'ordine di `Watchers` ne' di

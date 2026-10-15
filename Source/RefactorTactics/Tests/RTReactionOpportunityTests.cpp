@@ -25,6 +25,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"                 // Neighbor: il facing dichiarato diventa una cella
 #include "Map/RTHexMapAsset.h"
+#include "Tests/RTOverwatchScenarioFixtures.h" // [D-411]: la cadenza della partita, un passo alla volta
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -993,10 +994,12 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 
 	// Un mover nemico che percorre il corridoio controllato **per intero**: e' lo stesso di
 	// `ArmedZoneFollowsCurrentCell`, e non e' un dettaglio di comodo. Un percorso che sfiorasse la zona per un
-	// passo solo darebbe una finestra per unita' armata — un numero vero e una baseline **falsa**, perche' le
-	// finestre si aprono **per micro-step dentro la zona** (`Overwatch.TriggersPerMicroStep`), ed e' quella
-	// moltiplicazione che il bank deve reggere. La prima stesura di questo test aveva esattamente quel
-	// difetto, e i suoi numeri erano un terzo del vero.
+	// passo solo darebbe una finestra per unita' armata. ⏱️ **Fino al 2026-10-15 quella era una baseline falsa**,
+	// perche' le finestre si aprivano per micro-step dentro la zona, e la prima stesura di questo test contava un terzo
+	// del vero. Da [D-411] e' la baseline vera: l'occasione e' una per nemico e per turno, e i trigger si contano come
+	// il pompaggio li produce — un passo alla volta, con la memoria di chi e' stato chiesto
+	// (`RTOverwatchScenarioFixtures::TriggersAsThePumpAsks`). Il percorso intero resta, perche' e' il caso in cui la
+	// vecchia regola moltiplicava.
 	//
 	// Il bersaglio e' unico: con un bersaglio le risposte sono `FIRE:9` e `HOLD`, cioe' cardinalita' 2, cioe'
 	// una finestra vera.
@@ -1032,7 +1035,7 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 		}
 
 		const TArray<FRTOverwatchTrigger> Triggers =
-			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
+			RTOverwatchScenarioFixtures::TriggersAsThePumpAsks(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
 
 		// 🔴 **Il cap dei prompt vive nel RESOLVER, non nello strato puro**, e senza applicarlo qui il numero
 		// pubblicato sarebbe uno che la partita non puo' produrre: `ResolveReactionBoundary` salta un watcher
