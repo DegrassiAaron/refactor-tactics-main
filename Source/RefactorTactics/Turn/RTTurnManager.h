@@ -197,6 +197,16 @@ struct FRTArmedOverwatch
 	UPROPERTY()
 	int32 PromptsUsed = 0;
 
+	/**
+	 * [D-349] I motivi di silenzio gia' scritti nel TurnLog in questo turno, un bit per `ERTOverwatchSilenceReason`.
+	 *
+	 * La regola e' al piu' una voce per Overwatch e per motivo in un turno, la prima volta (precisazione d'autore del
+	 * 2026-10-15): la linea si rifa' a ogni micro-step in cui qualcuno si muove, e senza questo campo lo stesso fatto
+	 * si ripeterebbe a ogni passo. L'armamento vive un turno, e con lui il campo.
+	 */
+	UPROPERTY()
+	uint8 ReportedSilenceReasons = 0;
+
 	FRTArmedOverwatch() = default;
 };
 

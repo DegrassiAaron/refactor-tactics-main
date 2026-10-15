@@ -44,6 +44,8 @@
 #include "Tests/RTOverwatchScenarioFixtures.h" // [D-518]: lo scenario dei due watcher, condiviso col Verifier
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTReactionLibrary.h"           // [D-349]: ERTReactionOutcome, l'esito della voce di silenzio
+#include "Replay/RTReplayPrivacyLibrary.h"    // [D-349]: chi legge la voce, col filtro del replay per osservatore
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1534,6 +1536,204 @@ bool FRTOverwatchConditionExcludedThenDownedTest::RunTest(const FString&)
 	TestEqual(TEXT("e non perche' la condizione lo escludeva"), ByCondition, 0);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+
+/**
+ * [D-349] **Perche' un Overwatch non spara, letto con le stesse condizioni del trigger.** `ClassifyOverwatchSilences`
+ * e' pura: qui si fissano i sei motivi, la famiglia C che resta muta, e le due regole d'autore del 2026-10-15 che la
+ * funzione applica — i motivi di stato solo per un nemico RILEVATO nella linea, `ZoneEmpty` solo per chi e' armato.
+ *
+ * 🔑 Ogni motivo ha accanto il suo contrario: un classificatore che restituisse sempre lo stesso esito cadrebbe sul
+ * caso vicino. E l'ultima meta' lega i due lettori: dove la funzione tace, `BuildOverwatchTriggers` apre il trigger.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSilenceReasonsTest,
+	"RefactorTactics.Overwatch.SilenceReasonsFollowTheTriggerConditions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSilenceReasonsTest::RunTest(const FString&)
+{
+	using L = URTReactionOpportunityLibrary;
+	using R = ERTOverwatchSilenceReason;
+	URTHexMapAsset* Map = MakeOverwatchMap();
+
+	// Sentinella in (0,0,0) che guarda verso est: la linea e' (1,0,0) … (4,0,0). Il nemico 9 entra in (2,0,0).
+	const FRTCellId Davanti(1, 0, 0);
+	const FRTOverwatchWatcher Base = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0, FRTCellId(0, 0, 0), Davanti);
+	const TArray<FRTSuppressionMover> Entra = { MakeOverwatchMover(9, /*TeamId*/ 1, { FRTCellId(2, 0, 0) }) };
+	const auto Unico = [&](const TArray<FRTOverwatchSilence>& S, R Atteso, const TCHAR* Cosa)
+	{
+		TestEqual(FString::Printf(TEXT("%s: un silenzio"), Cosa), S.Num(), 1);
+		if (S.Num() == 1)
+		{
+			TestEqual(FString::Printf(TEXT("%s: il motivo"), Cosa), static_cast<int32>(S[0].Reason), static_cast<int32>(Atteso));
+			TestEqual(FString::Printf(TEXT("%s: la cella del fatto"), Cosa), S[0].FactCell, FRTCellId(2, 0, 0));
+			TestEqual(FString::Printf(TEXT("%s: il mover"), Cosa), S[0].MoverUnitId, 9);
+		}
+	};
+
+	FRTOverwatchWatcher Visto = Base;
+	Visto.TeamAwareness.Add(9, ERTAwareness::Detected);
+	FRTOverwatchWatcher Incerto = Base;
+	Incerto.TeamAwareness.Add(9, ERTAwareness::Uncertain);
+
+	// (B) Armato. Rilevato e in vista: nessun silenzio, perche' il trigger scatta.
+	TestEqual(TEXT("ingaggiabile: nessun silenzio"), L::ClassifyOverwatchSilences(Map, Visto, R::None, Davanti, Entra).Num(), 0);
+	TestEqual(TEXT("e il trigger c'e'"), L::BuildOverwatchTriggers(Map, 1, { Visto }, Entra).Num(), 1);
+
+	// (B) Non rilevato: `NotPerceived` — e il trigger non c'e'.
+	Unico(L::ClassifyOverwatchSilences(Map, Incerto, R::None, Davanti, Entra), R::NotPerceived, TEXT("Incerto"));
+	TestEqual(TEXT("Incerto: niente trigger"), L::BuildOverwatchTriggers(Map, 1, { Incerto }, Entra).Num(), 0);
+
+	// (B) Rilevato, nella linea, senza linea di vista. La linea si costruisce sulla mappa aperta e la copertura si
+	// posa DOPO: `MakeSuppressiveZone` si fermerebbe prima di lei, e la linea resterebbe vuota.
+	{
+		URTHexMapAsset* Coperta = MakeOverwatchMap();
+		FRTOverwatchWatcher Dietro = MakeOverwatchWatcher(Coperta, 1, 0, FRTCellId(0, 0, 0), Davanti);
+		Dietro.TeamAwareness.Add(9, ERTAwareness::Detected);
+		MakeOverwatchHighCover(Coperta, Davanti);
+		Unico(L::ClassifyOverwatchSilences(Coperta, Dietro, R::None, Davanti, Entra), R::NoLineOfSight, TEXT("dietro la copertura"));
+		TestEqual(TEXT("senza linea di vista: niente trigger"), L::BuildOverwatchTriggers(Coperta, 1, { Dietro }, Entra).Num(), 0);
+	}
+
+	// (C) Nessuno nella linea, o un alleato: silenzio vero, nessuna voce.
+	TestEqual(TEXT("passato altrove: nessun silenzio"), L::ClassifyOverwatchSilences(Map, Incerto, R::None, Davanti,
+		{ MakeOverwatchMover(9, 1, { FRTCellId(0, 2, 0) }) }).Num(), 0);
+	TestEqual(TEXT("un alleato nella linea: nessun silenzio"), L::ClassifyOverwatchSilences(Map, Incerto, R::None, Davanti,
+		{ MakeOverwatchMover(9, 0, { FRTCellId(2, 0, 0) }) }).Num(), 0);
+
+	// (A) I motivi di stato: solo per un nemico RILEVATO nella linea, con o senza linea di vista.
+	Unico(L::ClassifyOverwatchSilences(Map, Visto, R::ChargeSpent, Davanti, Entra), R::ChargeSpent, TEXT("scarico"));
+	Unico(L::ClassifyOverwatchSilences(Map, Visto, R::OwnerDown, Davanti, Entra), R::OwnerDown, TEXT("a terra"));
+	Unico(L::ClassifyOverwatchSilences(Map, Visto, R::PromptCapReached, Davanti, Entra), R::PromptCapReached, TEXT("senza finestre"));
+	TestEqual(TEXT("scarico, ma il nemico non e' rilevato: nessun silenzio — per la squadra non c'e'"),
+		L::ClassifyOverwatchSilences(Map, Incerto, R::ChargeSpent, Davanti, Entra).Num(), 0);
+	TestEqual(TEXT("scarico, e nessuno nella linea: muto"), L::ClassifyOverwatchSilences(Map, Visto, R::ChargeSpent, Davanti,
+		{ MakeOverwatchMover(9, 1, { FRTCellId(0, 2, 0) }) }).Num(), 0);
+
+	// (A) Linea vuota: `ZoneEmpty` solo per chi e' armato, con la cella che la chiude. Chi non puo' rispondere tace.
+	{
+		FRTOverwatchWatcher Vuoto = Visto;
+		Vuoto.Zone.Cells.Reset();
+		const TArray<FRTOverwatchSilence> S = L::ClassifyOverwatchSilences(Map, Vuoto, R::None, Davanti, Entra);
+		TestEqual(TEXT("linea vuota: un silenzio"), S.Num(), 1);
+		if (S.Num() == 1)
+		{
+			TestEqual(TEXT("ed e' ZoneEmpty"), static_cast<int32>(S[0].Reason), static_cast<int32>(R::ZoneEmpty));
+			TestEqual(TEXT("con la cella davanti"), S[0].FactCell, Davanti);
+			TestEqual(TEXT("e senza mover"), S[0].MoverUnitId, static_cast<int32>(INDEX_NONE));
+		}
+		TestEqual(TEXT("linea vuota di un Overwatch scarico: muto"),
+			L::ClassifyOverwatchSilences(Map, Vuoto, R::ChargeSpent, Davanti, Entra).Num(), 0);
+	}
+
+	// L'ordine e' quello dello stato: due nemici nello stesso passo, passati al contrario, escono in ordine di id.
+	{
+		FRTOverwatchWatcher Due = Base;
+		Due.TeamAwareness.Add(9, ERTAwareness::Uncertain);
+		Due.TeamAwareness.Add(5, ERTAwareness::Uncertain);
+		const TArray<FRTOverwatchSilence> S = L::ClassifyOverwatchSilences(Map, Due, R::None, Davanti,
+			{ MakeOverwatchMover(9, 1, { FRTCellId(2, 0, 0) }), MakeOverwatchMover(5, 1, { FRTCellId(3, 0, 0) }) });
+		TestEqual(TEXT("due silenzi"), S.Num(), 2);
+		if (S.Num() == 2)
+		{
+			TestEqual(TEXT("prima il 5"), S[0].MoverUnitId, 5);
+			TestEqual(TEXT("poi il 9"), S[1].MoverUnitId, 9);
+		}
+	}
+
+	// Chi legge la voce: la squadra del watcher, e nessun altro; `NotPerceived` nemmeno lei.
+	TestTrue(TEXT("ZoneEmpty: la squadra la legge"), L::SilenceReaders(R::ZoneEmpty, 0).AllowsTeam(0));
+	TestFalse(TEXT("ZoneEmpty: il nemico no"), L::SilenceReaders(R::ZoneEmpty, 0).AllowsTeam(1));
+	TestFalse(TEXT("NotPerceived: nemmeno la squadra"), L::SilenceReaders(R::NotPerceived, 0).AllowsTeam(0));
+	TestFalse(TEXT("NotPerceived: e il nemico no"), L::SilenceReaders(R::NotPerceived, 0).AllowsTeam(1));
+	return true;
+}
+
+
+namespace
+{
+	/** [D-349] Le voci di silenzio dell'Overwatch col motivo dato, dal TurnLog vivo del mondo di prova. */
+	TArray<FRTTurnLogEntry> OverwatchSilenceEntries(const TArray<FRTTurnLogEntry>& Log, ERTOverwatchSilenceReason Reason)
+	{
+		TArray<FRTTurnLogEntry> Out;
+		for (const FRTTurnLogEntry& E : Log)
+		{
+			if (E.Category == ERTLogCategory::Reaction
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::NotTriggered
+				&& E.Amount == static_cast<int32>(Reason))
+			{
+				Out.Add(E);
+			}
+		}
+		return Out;
+	}
+
+	/**
+	 * Gioca lo scenario e controlla che lasci UNA voce di silenzio del motivo dato, nella cella attesa, letta dalla
+	 * squadra del watcher e da nessun'altra. Il filtro e' quello del replay per osservatore ([D-316]), che legge lo
+	 * stesso verdetto delle righe del registro in partita.
+	 */
+	void CheckOneTeamOnlySilence(FAutomationTestBase& Test, const FRTTestScenario& Scenario, ERTOverwatchSilenceReason Reason,
+		const FRTCellId& ExpectedCell, int32 WatcherTeam, int32 EnemyTeam)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("il mondo di prova esiste"), World))
+		{
+			return;
+		}
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		Test.TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito: %d · error: '%s' · blocked: '%s')"),
+				static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason),
+			static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+
+		ARTTurnManager* Manager = nullptr;
+		for (TActorIterator<ARTTurnManager> It(World); It; ++It) { Manager = *It; break; }
+		if (Test.TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
+		{
+			const TArray<FRTTurnLogEntry>& Log = Manager->GetTurnLog();
+			const TArray<FRTTurnLogEntry> Voci = OverwatchSilenceEntries(Log, Reason);
+			// 🔴 IL PUNTO: il silenzio lascia traccia, UNA volta, anche se la linea si e' rifatta a piu' micro-step.
+			Test.TestEqual(TEXT("una voce di silenzio, una sola"), Voci.Num(), 1);
+			if (Voci.Num() == 1)
+			{
+				Test.TestEqual(TEXT("nella cella del fatto"), Voci[0].TgtCell, ExpectedCell);
+			}
+			Test.TestEqual(TEXT("la squadra del watcher la legge"),
+				OverwatchSilenceEntries(URTReplayPrivacyLibrary::FilterEntriesForObserver(Log, WatcherTeam), Reason).Num(), 1);
+			Test.TestEqual(TEXT("la squadra nemica no: non sa che quell'unita' aveva un Overwatch"),
+				OverwatchSilenceEntries(URTReplayPrivacyLibrary::FilterEntriesForObserver(Log, EnemyTeam), Reason).Num(), 0);
+		}
+		RTWorldFixtures::DestroyWorld(World);
+	}
+}
+
+/**
+ * [D-349] Un Overwatch rivolto fuori dalla mappa non controlla nessuna cella, e il registro lo dice: `ZoneEmpty`, una
+ * voce, letta dalla sola squadra del watcher. E' la casella «zona vuota per spinta» di #166: la linea si rifa' dalla
+ * cella attuale, quindi il watcher spinto contro il bordo e quello armato gia' rivolto al bordo sono lo stesso caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchLineEmptyAtTheEdgeTest,
+	"RefactorTactics.Overwatch.EmptyLineLeavesOneTeamOnlyEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchLineEmptyAtTheEdgeTest::RunTest(const FString&)
+{
+	CheckOneTeamOnlySilence(*this, RTOverwatchScenarioFixtures::MakeLineEmptyAtTheEdgeScenario(),
+		ERTOverwatchSilenceReason::ZoneEmpty, FRTCellId(6, -2, 0), /*WatcherTeam*/ 1, /*EnemyTeam*/ 0);
+	return true;
+}
+
+/**
+ * [D-349] Un Overwatch che ha sparato, e dopo un secondo nemico rilevato attraversa la sua linea: `ChargeSpent`, una
+ * voce sulla prima cella in cui entra, letta dalla sola squadra del watcher.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchChargeSpentTest,
+	"RefactorTactics.Overwatch.SpentChargeLeavesOneTeamOnlyEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchChargeSpentTest::RunTest(const FString&)
+{
+	CheckOneTeamOnlySilence(*this, RTOverwatchScenarioFixtures::MakeChargeSpentThenAnotherEntersScenario(),
+		ERTOverwatchSilenceReason::ChargeSpent, FRTCellId(0, -1, 0), /*WatcherTeam*/ 1, /*EnemyTeam*/ 0);
 	return true;
 }
 

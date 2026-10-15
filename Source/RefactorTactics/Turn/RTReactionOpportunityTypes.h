@@ -500,6 +500,76 @@ struct FRTOverwatchTrigger
 	FRTOverwatchTrigger() = default;
 };
 
+/**
+ * [D-349] Come sta un mover rispetto alla linea di un watcher, in un micro-step: le condizioni del trigger di
+ * ADR-0004 §6, lette nello stesso ordine in cui `BuildOverwatchTriggers` le applica, tranne la carica.
+ *
+ * 🔑 **Due lettori, una regola.** `BuildOverwatchTriggers` tiene i soli `Engageable`; `ClassifyOverwatchSilences`
+ * legge gli altri esiti per dire PERCHE' un Overwatch non ha sparato. Con due copie dei controlli, il registro
+ * potrebbe spiegare un silenzio con una regola diversa da quella che lo ha prodotto.
+ */
+UENUM()
+enum class ERTOverwatchMoverCheck : uint8
+{
+	/** Della squadra del watcher, o il watcher stesso: la linea non scatta sui propri. */
+	NotAnEnemy,
+	/** E' passato altrove: il caso normale, che non lascia traccia (famiglia C di [D-349]). */
+	NotInLine,
+	/** Nella linea, ma la squadra non lo ha `Rilevato`: fumo oltre 2 celle, o solo rumore. */
+	NotPerceived,
+	/** Nella linea e `Rilevato`, ma senza linea di vista dalla cella del watcher. */
+	NoLineOfSight,
+	/** Nella linea, `Rilevato` e in linea di vista: il trigger scatta, se il watcher e' armato. */
+	Engageable
+};
+
+/**
+ * [D-349] Perche' un Overwatch armato non ha sparato. Viaggia in `FRTTurnLogEntry::Amount` di una voce `Reaction` /
+ * `NotTriggered`, come l'indice relativo viaggia in quello delle voci `Facing`: nessun campo nuovo, nessuna versione
+ * nuova del formato. `None` e' lo zero, cioe' ogni voce `NotTriggered` scritta prima, e quelle delle reazioni E5.
+ *
+ * Famiglia **A**, il watcher non poteva controllare: `ZoneEmpty`, `ChargeSpent`, `OwnerDown`, `PromptCapReached`.
+ * Famiglia **B**, qualcuno e' passato e non e' stato ingaggiato: `NotPerceived`, `NoLineOfSight`. La famiglia C —
+ * nessuno e' passato — resta in silenzio, ed e' la scelta che tiene fermi gli hash dei turni normali.
+ *
+ * Valori aggiunti in CODA, sempre: una traccia scritta conserva il proprio significato.
+ */
+UENUM()
+enum class ERTOverwatchSilenceReason : uint8
+{
+	None,
+	/** La linea, rifatta dalla cella attuale, non contiene nessuna cella: il watcher spinto contro un muro o sul bordo. */
+	ZoneEmpty,
+	/** Un nemico rilevato e' entrato nella linea, e il colpo era gia' stato sparato. */
+	ChargeSpent,
+	/** Un nemico rilevato e' entrato nella linea, e chi teneva l'Overwatch e' a terra. */
+	OwnerDown,
+	/** Un nemico rilevato e' entrato nella linea, e l'Overwatch aveva esaurito le proprie finestre (ADR-0004 §8). */
+	PromptCapReached,
+	/** Un nemico NON rilevato e' entrato nella linea. ⚠️ Solo nella traccia d'audit: la squadra non lo ha visto. */
+	NotPerceived,
+	/** Un nemico rilevato e' entrato nella linea, senza linea di vista dalla cella del watcher. */
+	NoLineOfSight
+};
+
+/** [D-349] Un silenzio dell'Overwatch, con la cella del fatto: dove e' entrato chi non e' stato ingaggiato. */
+USTRUCT()
+struct FRTOverwatchSilence
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	ERTOverwatchSilenceReason Reason = ERTOverwatchSilenceReason::None;
+
+	/** La cella in cui il mover e' entrato; per `ZoneEmpty`, la cella davanti al watcher che chiude la linea. */
+	UPROPERTY()
+	FRTCellId FactCell;
+
+	/** Il mover; `INDEX_NONE` per `ZoneEmpty`, che non ne ha. */
+	UPROPERTY()
+	int32 MoverUnitId = INDEX_NONE;
+};
+
 
 /**
  * L'esito di una finestra: la risposta applicata, e l'esito che spiega da dove viene (CP 14.5).
@@ -686,6 +756,37 @@ public:
 	 * verificabile significherebbe sparare a una regola che nessuno ha controllato. E' la stessa scelta che
 	 * `TeamAwareness` fa per un bersaglio non dichiarato.
 	 */
+	/**
+	 * [D-349] Le condizioni del trigger per un mover che a questo passo sta in `Cell` (`ERTOverwatchMoverCheck`).
+	 * `Controlled` e' l'insieme delle celle di `Watcher.Zone`, costruito una volta dal chiamante. Pura.
+	 */
+	static ERTOverwatchMoverCheck CheckMoverAgainstWatcher(const URTHexMapAsset* Map, const FRTOverwatchWatcher& Watcher,
+		const TSet<FRTCellId>& Controlled, int32 MoverUnitId, int32 MoverTeamId, const FRTCellId& Cell);
+
+	/**
+	 * [D-349] Perche' questo watcher non spara, a questo micro-step. Pura: non scrive niente e non deduplica — al piu'
+	 * una voce per Overwatch e per motivo in un turno e' la regola di chi registra (`ARTTurnManager`).
+	 *
+	 * - `StateReason` diverso da `None` (`ChargeSpent`, `OwnerDown`, `PromptCapReached`): un silenzio per ogni mover
+	 *   nemico che entra nella linea ed e' RILEVATO dalla squadra (con o senza linea di vista). Nessuno: nessun silenzio,
+	 *   e un Overwatch che ha sparato e poi non vede passare nessuno resta muto.
+	 * - `StateReason` uguale a `None` e linea vuota: `ZoneEmpty`, con `FactCell` = `FacingCell`.
+	 * - Altrimenti: `NotPerceived` e `NoLineOfSight` per i mover nemici nella linea che non sono ingaggiabili.
+	 *
+	 * Ordine: per micro-step, poi crescente per `UnitId` — una funzione dello stato, non dell'ordine di `Movers`.
+	 */
+	static TArray<FRTOverwatchSilence> ClassifyOverwatchSilences(const URTHexMapAsset* Map,
+		const FRTOverwatchWatcher& Watcher, ERTOverwatchSilenceReason StateReason, const FRTCellId& FacingCell,
+		const TArray<FRTSuppressionMover>& Movers);
+
+	/**
+	 * [D-349] Chi legge la voce di un silenzio (precisazione d'autore del 2026-10-15): la squadra del watcher, e nessun
+	 * altro. La voce racconta un piano, non un fatto visto nel mondo, e il nemico non deve sapere che quell'unita' aveva
+	 * un Overwatch armato. `NotPerceived` non la legge nemmeno la squadra: racconta un nemico che la squadra non ha
+	 * rilevato (AGENTS.md §4), e resta nella traccia d'audit.
+	 */
+	static FRTKnowledgeVerdict SilenceReaders(ERTOverwatchSilenceReason Reason, int32 OwnerTeamId);
+
 	/**
 	 * `FirstMicroStepIndex` dice a quale micro-step del TURNO corrisponde il passo 0 dei `Movers` (CP 14.5).
 	 *

@@ -755,6 +755,32 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).
 	if (Entry.Category == ERTLogCategory::Reaction)
 	{
+		// [D-349]: l'Overwatch che non ha sparato dice PERCHE'. Il motivo sta in `Amount`; zero e' ogni altra voce
+		// `NotTriggered`, e scende alla riga di sempre qui sotto.
+		if (static_cast<ERTReactionOutcome>(Entry.Outcome) == ERTReactionOutcome::NotTriggered && Entry.Amount != 0)
+		{
+			const TCHAR* Why = TEXT("");
+			switch (static_cast<ERTOverwatchSilenceReason>(Entry.Amount))
+			{
+			case ERTOverwatchSilenceReason::ZoneEmpty:
+				Why = TEXT("la linea non controlla nessuna cella, la chiude"); break;
+			case ERTOverwatchSilenceReason::ChargeSpent:
+				Why = TEXT("un nemico e' entrato nella linea, ma il colpo era gia' stato sparato:"); break;
+			case ERTOverwatchSilenceReason::OwnerDown:
+				Why = TEXT("un nemico e' entrato nella linea, ma chi la teneva e' a terra:"); break;
+			case ERTOverwatchSilenceReason::PromptCapReached:
+				Why = TEXT("un nemico e' entrato nella linea, ma le finestre di questo turno erano finite:"); break;
+			case ERTOverwatchSilenceReason::NotPerceived:
+				Why = TEXT("un nemico non rilevato e' entrato nella linea:"); break;
+			case ERTOverwatchSilenceReason::NoLineOfSight:
+				Why = TEXT("un nemico rilevato e' entrato nella linea, senza linea di vista:"); break;
+			default:
+				Why = TEXT("motivo sconosciuto, cella"); break;
+			}
+			return FString::Printf(TEXT("%s: overwatch non scattato, %s %s (%s)"), *CellText(Entry.SrcCell), Why,
+				*CellText(Entry.TgtCell), *ActionIdentityOr(Entry, TEXT("overwatch")));
+		}
+
 		const TCHAR* What = TEXT("");
 		switch (static_cast<ERTReactionOutcome>(Entry.Outcome))
 		{

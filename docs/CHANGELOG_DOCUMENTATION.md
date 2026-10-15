@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-15 — Un Overwatch armato che non spara lascia traccia, col motivo
+
+**Origine**: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166), casella «zona vuota per spinta», e l'uscita 4 di [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367): l'attuazione di `D-349`, decisa il 2026-09-08 e mai scritta nel codice, con la precisazione d'autore del 2026-10-15 su quando nasce la voce e chi la legge.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-349`: la precisazione, con le quattro regole e le due risposte sulla privacy come l'autore le ha lette; il formato non cambia. La nota di `D-522` dice che `D-523` è stato liberato |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §6: la delega a CP 14.6 è soddisfatta; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: i tre test nuovi |
+
+---
+
 ## 2026-10-15 — La condizione dichiarata dell'Overwatch si legge quando il watcher viene chiesto
 
 **Origine**: [#3771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3771), decisione d'autore `D-522`. Due Overwatch sullo stesso mover, il secondo con la condizione «al 50% dei PV o meno»: il colpo del primo portava il bersaglio sotto la soglia, e il secondo restava muto perché la condizione era stata letta prima del colpo. Ora si legge quando arriva il turno di quel watcher, e la sua finestra si apre.
