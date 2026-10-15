@@ -421,6 +421,54 @@ void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 	SetCameraPivot(CameraPivot + Delta);
 }
 
+FVector2D ARTCameraPawn::ComputeEdgePanAxis(const FVector2D& Cursor, const FVector2D& ViewportSize, float BandPixels)
+{
+	if (ViewportSize.X <= 0.0 || ViewportSize.Y <= 0.0 || BandPixels <= 0.f)
+	{
+		return FVector2D::ZeroVector;
+	}
+	// 🔴 **L'ultimo pixel e' `Size - 1`, non `Size`.** Il motore tronca il cursore a intero
+	// (`FSceneViewport::UpdateCachedCursorPos`), quindi a schermo intero il bordo destro vale 1919 su 1920: con
+	// le distanze misurate da `Size` i bordi destro e basso non arrivavano mai alla penetrazione piena, e
+	// andavano piu' piano di sinistra, alto e `WASD` (rilievo di review).
+	const double LastX = ViewportSize.X - 1.0;
+	const double LastY = ViewportSize.Y - 1.0;
+	// Fuori dal viewport non c'e' una banda: il cursore sta altrove, e la camera non deve correre da sola.
+	if (Cursor.X < 0.0 || Cursor.Y < 0.0 || Cursor.X > LastX || Cursor.Y > LastY)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	// Penetrazione: 0 sul bordo interno della banda, 1 sul bordo del viewport, lineare in mezzo — quindi
+	// monotona. La curva vera si tara in #1780; qui conta solo che cresca avvicinandosi al bordo.
+	const double Band = BandPixels;
+	auto Penetration = [Band](double DistanceFromEdge)
+	{
+		return FMath::Clamp(1.0 - DistanceFromEdge / Band, 0.0, 1.0);
+	};
+	const double Left = Penetration(Cursor.X);
+	const double Right = Penetration(LastX - Cursor.X);
+	const double Top = Penetration(Cursor.Y);
+	const double Bottom = Penetration(LastY - Cursor.Y);
+	// Lo schermo ha la Y verso il basso; l'asse del pan ha `Y` «avanti», cioe' verso il bordo alto.
+	return FVector2D(Right - Left, Top - Bottom);
+}
+
+bool ARTCameraPawn::ApplyEdgePan(const FVector2D& Axis)
+{
+	if (!bEdgePanEnabled || Axis.IsNearlyZero())
+	{
+		return false;
+	}
+	++EdgePanUpdates;
+	// ⛔ Nessuna seconda formula di velocita': e' il difetto che #1834 esiste per prevenire. L'edge pan e' un
+	// ingresso di `AddPlanarMovement`, come `WASD`.
+	const FVector Before = CameraPivot;
+	AddPlanarMovement(Axis);
+	// Contro il limite del viewport il lavoro c'e' e il movimento no: la risposta e' sul movimento.
+	return !CameraPivot.Equals(Before);
+}
+
 void ARTCameraPawn::AddYaw(float AxisValue)
 {
 	if (FMath::IsNearlyZero(AxisValue))

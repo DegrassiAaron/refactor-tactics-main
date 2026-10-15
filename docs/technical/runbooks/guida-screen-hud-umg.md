@@ -478,13 +478,13 @@ loro la finestra resta quella dei tre binding qui sopra, che **non si toccano**.
 | `AccentStrip` | `Border` | `BrushColor` `Violet`: la striscia a sinistra |
 | `CountdownBar` | `ProgressBar` | la frazione di `Get Countdown Fraction`, riempimento `White`. Il fondo della barra (`Frame_Off`) sta nell'asset |
 | `SafeOutcomeText` | `TextBlock` | «Allo scadere: HOLD», da `Get Safe Outcome Text` |
-| `SubtitleText` | `TextBlock` | il sottotitolo, da `Get Subtitle Text`, in `Text_Secondary`: «Ivrin è entrato nell'area controllata», «Ivrin ti spinge», «Un nemico ti spinge». Senza una frase il C++ lo mette `Collapsed`. 🔴 **Oggi l'asset NON la ha** ([#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667)): va aggiunta sotto `PromptText`, dal clone principale. Finché manca, il sottotitolo si calcola e non si vede. ⚠️ Chi la aggiunge mette nello stesso commit la riga `SubtitleText` nell'elenco `Finestra` di `ScreenHud.ActionBarDeclaresTheNamedPorts` (`Tests/RTMatchWidgetAssetTests.cpp`): oggi non c'è, perché sarebbe rossa per costruzione, e senza quella riga un nome sbagliato resterebbe spento in silenzio |
+| `SubtitleText` | `TextBlock` | il sottotitolo, da `Get Subtitle Text`, in `Text_Secondary`: «Ivrin è entrato nell'area controllata», «Ivrin ti spinge», «Un nemico ti spinge». Senza una frase il C++ lo mette `Collapsed`. Sta sotto `PromptText`, nella colonna del titolo, in Exo2 Regular 10,5 (i 14 px della tavola E a scala 0,75), aggiunta dal clone principale con [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667). La controlla la riga `SubtitleText` nell'elenco `Finestra` di `ScreenHud.ActionBarDeclaresTheNamedPorts` (`Tests/RTMatchWidgetAssetTests.cpp`): senza, un nome sbagliato resterebbe spento in silenzio |
 
 Due letture nuove: **`Get Countdown Fraction`**, il residuo autorevole sulla durata (da 1 a 0, negativo senza
 finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND». E una
 terza da [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667): **`Get Subtitle Text`**, che cosa ha
-fatto scattare la finestra. ⚠️ La riga del sottotitolo allunga la finestra: l'ingombro `600 × 200` va
-riguardato a schermo quando la porta entra nell'asset.
+fatto scattare la finestra. La riga del sottotitolo allunga la finestra: l'ingombro `600 × 200` è stato
+riguardato a schermo quando la porta è entrata nell'asset, nella seduta `U92` (tavola `V1`, «PASS»).
 
 ### Le quattro regole, e perché
 
