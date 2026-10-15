@@ -1,0 +1,2 @@
+Turn,AliveT0,AliveT1,ActionsAvailable,MsToFirstInput,SelectionCount,OrderCount,UndoCount,MsToLockIn,MsSinceLastInput,LockInSource,MsPlayback,PlaybackSkipped,ReactionWindows,ReactionOpportunities,CandidateEvents,CandidatesTotal,CollectionCpuUsTotal,BoundaryEvents,BoundaryCpuUsTotal
+1,2,2,23,33269,2,1,1,58914,4952,0,0,0,0,0,0,0,0,0,0
