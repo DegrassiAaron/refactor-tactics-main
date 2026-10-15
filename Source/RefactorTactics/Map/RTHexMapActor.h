@@ -587,17 +587,19 @@ public:
 	void SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell);
 
 	/**
-	 * QUALI ARCHI SI DISEGNANO, a ogni fotogramma (#3762). La scelta dell'autore: *«Si vede passando il mouse sul
-	 * nemico, o con un tasto»*, e tutti e due.
+	 * QUALE ARCO SI DISEGNA, a ogni fotogramma (#3762, [D-521]): **uno solo**. Quello del nemico sulla cella sotto il
+	 * cursore, se ce n'e' uno; altrimenti quello del nemico che il giocatore ha cliccato per ispezionarlo.
 	 *
-	 *  - `bAll`: il tasto `H` e' premuto, e si vedono gli archi di tutti i nemici in vista;
-	 *  - altrimenti si vede l'arco del nemico sulla cella sotto il cursore, se ce n'e' uno.
+	 * 🔑 Nella seduta `U89` l'autore ha chiesto *«l'arco visto deve essere solo quello del nemico
+	 * selezionato/hoverato»*: il tasto che mostrava gli archi di tutti i nemici in vista non c'e' piu', perche' gli
+	 * archi sovrapposti non si leggevano e non si capiva di chi fossero.
 	 *
-	 * La chiama `ARTPlayerController::PlayerTick`. Se non cambia niente non tocca il `Tick`.
+	 * La chiama `ARTPlayerController::UpdateEnemyArcFocus`. Se non cambia niente non tocca il `Tick`.
 	 */
-	void SetEnemyArcFocus(bool bAll, const FRTCellId& InHoveredCell, bool bHasHover);
+	void SetEnemyArcFocus(const FRTCellId& InHoveredCell, bool bHasHover, const FRTCellId& InInspectedCell,
+		bool bHasInspected);
 
-	/** Gli archi che si disegnano adesso, nell'ordine stabile delle celle dei nemici. Diagnostica e test. */
+	/** L'arco che si disegna adesso, in un elenco di zero o un elemento. Diagnostica e test. */
 	TArray<FRTEnemyArcView> GetShownEnemyArcs() const;
 
 	/**
@@ -1203,8 +1205,12 @@ protected:
 	/** Disegna la linea di confine della vista (#3761). Nessun effetto sulla logica. */
 	void DrawVisionBorder() const;
 
-	/** Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella, nel line batcher del mondo (#3761). */
-	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const;
+	/**
+	 * Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella (#3761). Nel line batcher del mondo, o in
+	 * quello in primo piano con `SDPG_Foreground`, che disegna davanti alla geometria (l'arco di #3762).
+	 */
+	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore,
+		uint8 Profondita = SDPG_World) const;
 
 	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
 	TArray<FRTExposedEdge> VisionBorder;
@@ -1212,12 +1218,16 @@ protected:
 	/** Gli archi dei nemici in vista (#3762). Vedi `SetEnemyArcs`. */
 	TMap<FRTCellId, FRTEnemyArcView> EnemyArcs;
 
-	/** Quali archi chiede il giocatore (#3762). Vedi `SetEnemyArcFocus`. */
-	bool bEnemyArcsAll = false;
+	/** Quale arco chiede il giocatore (#3762). Vedi `SetEnemyArcFocus`. */
 	bool bEnemyArcHover = false;
 	FRTCellId EnemyArcHoveredCell;
+	bool bEnemyArcInspected = false;
+	FRTCellId EnemyArcInspectedCell;
 
-	/** Vero se almeno un arco si disegna adesso: tiene acceso il `Tick` solo quando serve. */
+	/** L'arco da disegnare adesso, o nessuno: prima il nemico sotto il cursore, poi quello ispezionato. */
+	const FRTEnemyArcView* FocusedEnemyArc() const;
+
+	/** Vero se un arco si disegna adesso: tiene acceso il `Tick` solo quando serve. */
 	bool HasEnemyArcToDraw() const;
 
 	/** Cella sotto il cursore, impostata dal controller. */

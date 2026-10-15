@@ -366,6 +366,7 @@ namespace
 				&& !(Unit->PlannedDashCell == Unit->Cell);
 			Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
+			Timeline.DashReachCells = Unit->PlannedChargeReachBeyondRange(); // [D-516]: il fantasma si ferma alla portata
 			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
 				Timeline.DashActionId = Scatto->Def.ActionId;
@@ -656,9 +657,6 @@ void ARTPlayerController::BuildInputMappings()
 
 	SneakAction = NewObject<UInputAction>(this, TEXT("IA_DeclareSneak"));
 	SneakAction->ValueType = EInputActionValueType::Boolean;
-
-	EnemyArcsAction = NewObject<UInputAction>(this, TEXT("IA_ShowEnemyArcs")); // #3762
-	EnemyArcsAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
 	// `#2858`: i due comandi che mancavano alla matrice di `#1881`. Nascono sempre — anche in Shipping,
@@ -783,10 +781,6 @@ void ARTPlayerController::BuildInputMappings()
 	// ovunque.
 	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
 	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
-
-	// `#3762`: `H`, tenuto premuto, mostra gli archi di tutti i nemici in vista. Scelto dall'autore fra i tasti
-	// liberi; `PlayerInput.HotkeysDoNotCollide` verifica che resti libero su tutto il contesto.
-	MappingContext->MapKey(EnemyArcsAction, EKeys::H);
 
 	// `P` come "pausa". ⚠️ **Non `ESC`** — quello apre il menu modale di CP 46.6 — e non `Spazio`, che e' il
 	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
@@ -972,11 +966,6 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
 		EIC->BindAction(SneakAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleSneak);
-		// #3762: un gesto TENUTO, quindi pressione e rilascio — e `Canceled`, perche' un rilascio perso (fuoco tolto
-		// alla finestra a tasto premuto) lascerebbe gli archi accesi.
-		EIC->BindAction(EnemyArcsAction, ETriggerEvent::Started, this, &ARTPlayerController::OnEnemyArcsPressed);
-		EIC->BindAction(EnemyArcsAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnEnemyArcsReleased);
-		EIC->BindAction(EnemyArcsAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnEnemyArcsReleased);
 		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
 		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
@@ -1042,10 +1031,22 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
 
-	// `#3762`: quali archi dei nemici in vista si disegnano. Col mouse quello del nemico sotto il cursore — la cella
-	// e' la stessa dell'hover, e colpendo un'unita' del piano attivo e' la SUA cella — e con `H` tutti. Gli archi li
-	// calcola il presenter del velo; qui si sceglie soltanto quali mostrare.
-	HexMap->SetEnemyArcFocus(bShowAllEnemyArcs, HexMap->GetHoveredCell(), HexMap->IsHoveredCellValid());
+	UpdateEnemyArcFocus(HexMap);
+}
+
+void ARTPlayerController::UpdateEnemyArcFocus(ARTHexMapActor* HexMap) const
+{
+	// `#3762` ([D-521]): l'arco di UN nemico in vista. Quello sotto il cursore — la cella e' la stessa dell'hover, e
+	// colpendo un'unita' del piano attivo e' la SUA cella — altrimenti quello del nemico ispezionato col click. Mai
+	// piu' di uno: lo ha chiesto l'autore nella seduta `U89`. Gli archi li calcola il presenter del velo, solo per i
+	// nemici in vista; qui si sceglie soltanto quale mostrare, e un'unita' ispezionata che non ha arco non ne mostra.
+	if (!HexMap)
+	{
+		return;
+	}
+	const ARTUnit* Ispezionata = GetInspectedUnit();
+	HexMap->SetEnemyArcFocus(HexMap->GetHoveredCell(), HexMap->IsHoveredCellValid(),
+		Ispezionata ? Ispezionata->Cell : FRTCellId(), Ispezionata != nullptr);
 }
 
 // --- #1775 / #1776 · il piano attivo del giocatore, e il picking che lo rispetta (D-255) --------------
@@ -2167,9 +2168,22 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
 		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
 		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la
+	// pianificazione usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un
+	// altro gruppo continua a ispezionarsi.
+	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`)
+	// o col movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di
+	// `HandleClickOnCell` senza ispezionare niente, cioe' un click perso dove prima si ispezionava.
+	const int32 IndiceArmato = SelectedUnit ? SelectedUnit->SelectedAbilityIndex : INDEX_NONE;
+	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(IndiceArmato) : nullptr;
+	const bool bArmedChargeTargetsClicked = Armata && Armata->Def.MovementStyle == ERTMovementStyle::LinearCharge
+		&& SelectedUnit->CanUseAbility(IndiceArmato)
+		&& SelectedUnit->EffectiveDashRangeOf(IndiceArmato) > 0
+		&& !SelectedUnit->bDeclaresPlannedFacing
+		&& ClickedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId;
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
 		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
-		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver());
+		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver(), bArmedChargeTargetsClicked);
 
 	// `Inspect` — il soggetto ISPEZIONATO, che non e' il soggetto comandato.
 	//
@@ -2228,6 +2242,11 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// Una CARICA si pianifica proprio cliccando il nemico: e' l'azione che punta LUI e si ferma addosso a
 		// lui. Prima di #145 l'unico modo era cliccare una cella oltre il bersaglio e sperare che la
 		// traiettoria lo incontrasse — un'affordance che nessuno indovina.
+		//
+		// 🔴 **Fino a `#3736` questo ramo si raggiungeva solo da `HandleClickOnUnitForTest`**: dal click vero
+		// `ResolveOutcome` rispondeva `Inspect`, perche' la carica e' mobilita' rapida e resta fuori da
+		// `Targeting`. Da [D-516] la matrice conosce la carica armata e risponde `Confirm` su un nemico osservato.
+		// Il resto e' la cella: in linea, oltre la portata, rifiutata — tutto come cliccando la sua cella.
 		if (Ability && Ability->Def.MovementStyle == ERTMovementStyle::LinearCharge)
 		{
 			HandleClickOnCell(ClickedUnit->Cell);
@@ -2633,9 +2652,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		}
 		// Portata letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte, altrimenti dal campo
 		// legacy dell'asset. Leggere un numero diverso da quello del resolver significa accettare piani che
-		// poi non si eseguono (o negarne di buoni).
-		const int32 DeclaredRange = SelAb->Def.ActionId.IsNone() ? SelAb->RangeCells : SelAb->Def.RangeCells;
-		const int32 DashRange = SelectedUnit->GetEffectiveDashRange(DeclaredRange);
+		// poi non si eseguono (o negarne di buoni). La regola sta in `EffectiveDashRangeOf`, la stessa del resolver.
+		const int32 DashRange = SelectedUnit->EffectiveDashRangeOf(SelIdx);
 		if (DashRange <= 0)
 		{
 			// MaxCost == 0 significa "illimitato" per l'A*: il budget nullo va intercettato prima.
@@ -2687,8 +2705,27 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			//
 			// L'unica eccezione e' la CARICA: fermarsi addosso al nemico E' il suo modo di arrivare, e senza
 			// questa riga un bersaglio adiacente renderebbe la carica impianificabile.
-			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact);
-			if (Linear.Final != Cell && !bCharges)
+			// ⚠️ **Oltre la portata un impatto NON basta** (review di #3736). Da [D-516] la libreria fa correre la carica
+			// verso un bersaglio lontano, quindi un nemico noto sulla retta ENTRO la portata da' `Impact` anche per una cella
+			// vuota, un muro o un nemico lontano: accettarlo pianificava cio' che la decisione non copre, e l'anteprima e
+			// l'avviso avrebbero descritto una corsa fino alla portata che l'impatto ferma prima. Quel caso resta com'era
+			// prima di [D-516] — rifiutato —, e il giocatore carica il nemico piu' vicino cliccando lui.
+			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact) && !Linear.bTargetBeyondRange;
+
+			// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla
+			// risoluzione corre fino alla portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano
+			// lo dicono. Tre condizioni, tutte di chi pianifica:
+			// - la corsa e' arrivata in fondo alla portata (`OutOfRange`): niente l'ha fermata prima;
+			// - sulla cella c'e' un NEMICO di questa fotografia, cioe' uno che chi pianifica conosce ([D-371]). Una
+			//   cella vuota oltre la portata resta rifiutata: la regola e' «caricare un nemico», non «correre
+			//   verso un punto»;
+			// - la retta fino a lui e' libera dal TERRENO (`IsLineOpenToTarget`): e' il «percorso lineare» della
+			//   decisione. Le unita' oltre la portata non contano — si saranno mosse.
+			const int32* const OccupanteDellaCella = Snapshot.Occupancy.Find(Cell);
+			const bool bNemicoSullaCella = OccupanteDellaCella && Hostiles.Contains(*OccupanteDellaCella);
+			const bool bChargesBeyondRange = Linear.Stop == ERTLinearStop::OutOfRange && bNemicoSullaCella
+				&& URTMovementActionLibrary::IsLineOpenToTarget(Map, SelectedUnit->Cell, Cell);
+			if (Linear.Final != Cell && !bCharges && !bChargesBeyondRange)
 			{
 				// Il ternario che stava qui rendeva «traiettoria bloccata» tutto cio' che non fosse
 				// `NotAligned`, e con `TerrainDeniesDash` avrebbe mandato il giocatore a cercare un muro su
@@ -2700,6 +2737,13 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 					Perche = TEXT("non allineata o fuori portata"); break;
 				case ERTLinearStop::TerrainDeniesDash:
 					Perche = TEXT("il terreno non si attraversa di corsa"); break;
+				case ERTLinearStop::Impact: // [D-516]: un impatto oltre la portata non pianifica, vedi sopra
+					Perche = TEXT("oltre la portata, e un nemico sulla retta la ferma prima"); break;
+				case ERTLinearStop::OutOfRange: // [D-516]: la corsa arriva in fondo, manca l'altra condizione
+					Perche = bNemicoSullaCella
+						? TEXT("oltre la portata, e la retta fino al nemico e' bloccata")
+						: TEXT("oltre la portata, e sulla cella non c'e' un nemico che vedi");
+					break;
 				default: break;
 				}
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non e' raggiungibile in LINEA (%s, max %d) per %s"),
@@ -2712,7 +2756,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			SelectedUnit->PlannedDashCell = Cell;
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
-				bCharges ? TEXT(" con impatto") : TEXT(""));
+				bCharges ? TEXT(" con impatto")
+					: bChargesBeyondRange ? TEXT(" oltre la portata: si fermera' prima") : TEXT(""));
+			// 🔑 **La timeline del piano si ricompone qui** (review della PR #3767): lo scatto e' una fase del piano, e
+			// fino a qui la timeline posata restava quella di prima del click — il fantasma dello scatto compariva
+			// solo al gesto successivo. Lo stesso del waypoint, che ricompone dopo averlo accettato.
+			RefreshPlanningPreview(GetWorld(), SelectedUnit);
 			RecordDestinationOrder(this);
 			return;
 		}
@@ -2939,16 +2988,6 @@ void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
 	// L'unica scrittura della UI nel modello. La scala e' dell'HUD — e' vocabolario di presentazione,
 	// non una regola — e qui si applica soltanto.
 	TurnManager->ViewerPlaybackSpeed = ARTHUD::NextViewerPlaybackSpeed(TurnManager->ViewerPlaybackSpeed);
-}
-
-void ARTPlayerController::OnEnemyArcsPressed(const FInputActionValue& Value)
-{
-	bShowAllEnemyArcs = true;
-}
-
-void ARTPlayerController::OnEnemyArcsReleased(const FInputActionValue& Value)
-{
-	bShowAllEnemyArcs = false;
 }
 
 void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)

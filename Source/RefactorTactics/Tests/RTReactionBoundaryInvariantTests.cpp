@@ -30,8 +30,9 @@
 // resto della resolution, ne' che la revalidation sia mirata. Coprono due proprieta' del ciclo
 // per-opportunity, non il boundary come concetto.
 //
-// ➕ Adiacente e **non** duplicato: `RefactorTactics.Overwatch.SecondFireOnDownedTargetLogsNoDamage` (`#1158`)
-// sorveglia una **voce nuova falsa** — un `FIRE` che dichiara un danno mai inflitto. Qui si sorveglia una
+// ➕ Adiacente e **non** duplicato: `RefactorTactics.Overwatch.SecondWatcherHoldsOnADownedTarget` (`#1158`,
+// [D-518]) sorveglia il secondo watcher quando il primo ha gia' abbattuto il bersaglio: un tempo un `FIRE` che
+// dichiarava un danno mai inflitto, da [D-518] un `FIRE` che non si offre. Qui si sorveglia una
 // **voce esistente** che non deve cambiare. Sono due difetti diversi dello stesso vicinato.
 
 #include "Misc/AutomationTest.h"
@@ -74,7 +75,7 @@ namespace RTBoundaryInvariants
 		FRTTestScenario Scenario;
 		Scenario.ScenarioId = FString::Printf(TEXT("Unit.Reactions.BoundaryInvariants.%s%s"),
 			bArmW1 ? TEXT("W1") : TEXT(""), bArmW2 ? TEXT("W2") : TEXT(""));
-		// Versione del FORMATO, non del contenuto: la stessa che usa `SecondFireOnDownedTargetLogsNoDamage`,
+		// Versione del FORMATO, non del contenuto: la stessa che usa `SecondWatcherHoldsOnADownedTarget`,
 		// perche' due scenari dello stesso vicinato non devono dichiarare formati diversi.
 		Scenario.Version = 2;
 		Scenario.Seed = 0;

@@ -864,6 +864,10 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTReactionDecisionOutcome::CollapsedByCondition:
 			return FString::Printf(TEXT("%s: nessun bersaglio soddisfa la condizione, %s resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
+		// [D-518] (`#3745`): la causa e' un altro colpo dello stesso passo, non la condizione.
+		case ERTReactionDecisionOutcome::CollapsedTargetDown:
+			return FString::Printf(TEXT("%s: il bersaglio e' gia' a terra, %s resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		}
 		// Un valore aggiunto in coda e non ancora tradotto: si dice cosi', invece di mentire su quale sia.
 		// Stessa disciplina di `ERTDisplacementBlockReason` piu' sopra.

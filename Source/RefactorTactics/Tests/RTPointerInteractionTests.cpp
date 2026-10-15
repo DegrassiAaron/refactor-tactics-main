@@ -1980,6 +1980,53 @@ bool FRTPointerVeiledUnitTest::RunTest(const FString&)
 }
 
 /**
+ * [D-516] (`#3736`) — **con una CARICA armata il nemico osservato si CONFERMA, non si ispeziona.**
+ *
+ * La carica e' mobilita' rapida e resta fuori da `Targeting`, quindi senza questa riga di matrice il click sul
+ * nemico lo ispezionava e la carica non si pianificava.
+ *
+ * 🔑 **L'oracolo e' la differenza col flag spento**, nello stesso contesto: un test che asserisse solo `Confirm`
+ * passerebbe anche se `Planning` confermasse sempre. E pinna cio' che NON cambia: il velo (un nemico non
+ * osservato resta come il terreno vuoto, carica o no), `Facing` e le proprie unita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerArmedChargeConfirmsTest,
+	"RefactorTactics.Pointer.ArmedChargeConfirmsAnObservedEnemy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerArmedChargeConfirmsTest::RunTest(const FString&)
+{
+	using ERTOut = ERTPointerOutcome;
+
+	for (const ERTPointerContext Ctx : { ERTPointerContext::Planning, ERTPointerContext::Pathing })
+	{
+		TestEqual(TEXT("con la carica armata il nemico osservato si conferma"),
+			URTPointerLibrary::ResolveOutcome(Ctx, true, false, true, /*bArmedChargeTargetsUnit=*/ true), ERTOut::Confirm);
+		TestEqual(TEXT("controllo: senza carica, nello stesso contesto, si ispeziona"),
+			URTPointerLibrary::ResolveOutcome(Ctx, true, false, true, /*bArmedChargeTargetsUnit=*/ false), ERTOut::Inspect);
+		TestEqual(TEXT("la propria unita' si seleziona anche con la carica armata"),
+			URTPointerLibrary::ResolveOutcome(Ctx, true, true, true, true), ERTOut::Select);
+	}
+
+	// ⛔ Il velo decide prima: carica o no, un nemico non osservato risponde come il terreno vuoto.
+	for (const ERTPointerContext Ctx : { ERTPointerContext::Planning, ERTPointerContext::Pathing,
+		ERTPointerContext::Facing })
+	{
+		TestEqual(TEXT("un nemico velato con la carica armata resta indistinguibile dal terreno vuoto"),
+			URTPointerLibrary::ResolveOutcome(Ctx, true, false, /*bObserved=*/ false, true),
+			URTPointerLibrary::ResolveOutcome(Ctx, false, false, false, true));
+	}
+
+	// In `Facing` il click e' una direzione: la carica armata non cambia la riga.
+	TestEqual(TEXT("in Facing il nemico si ispeziona anche con la carica armata"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Facing, true, false, true, true), ERTOut::Inspect);
+
+	// I contesti bloccati restano bloccati.
+	TestEqual(TEXT("durante il playback il click resta rifiutato"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::ResolutionPlayback, true, false, true, true), ERTOut::Blocked);
+
+	return true;
+}
+
+/**
  * `#2988` — LA SELEZIONE NON SOPRAVVIVE ALL'UNITA', e nemmeno l'ispezione.
  *
  * 🔴 **Niente azzerava la selezione quando l'unita' selezionata cadeva.** `ARTTurnManager::DestroyDefeatedUnits`

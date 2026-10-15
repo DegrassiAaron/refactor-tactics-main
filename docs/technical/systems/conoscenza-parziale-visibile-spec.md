@@ -933,7 +933,9 @@ nessuna famiglia lo usa piu', e con lui la dissolvenza di `#2875` fra osservato 
 
 #### L'arco del nemico in vista ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), [D-521](../../decisions/RT_PDR_00_Decision_Log.md))
 
-Su richiesta si vede che cosa vede un nemico in vista: col mouse sul nemico il suo arco, tenendo `H` quelli di tutti.
+Su richiesta si vede che cosa vede un nemico in vista, **uno alla volta**: l'arco del nemico sotto il mouse, altrimenti
+quello del nemico ispezionato col click. Nessun tasto li mostra tutti: lo ha chiesto l'autore nella seduta `U89`
+([D-521](../../decisions/RT_PDR_00_Decision_Log.md) (5)).
 L'arco sono le celle che il nemico vede davvero, muri noti compresi, calcolate sul **solo terreno che la squadra
 conosce**: altrimenti un muro mai visto si scoprirebbe dalla forma dell'arco.
 
@@ -943,7 +945,7 @@ conosce**: altrimenti un muro mai visto si scoprirebbe dalla forma dell'arco.
 | L'arco | `URTEnemyArcLibrary::SightOnKnownTerrain`, cioe' `VisibleCells` su quella copia, ristretta alle celle note |
 | Quali nemici | `URTEnemyArcLibrary::ArcsOfEnemiesInView`: di un'altra squadra, su una cella vista adesso |
 | Chi li calcola | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo |
-| Quali si disegnano | `ARTPlayerController::PlayerTick` → `ARTHexMapActor::SetEnemyArcFocus` |
+| Quale si disegna | `ARTPlayerController::UpdateEnemyArcFocus` → `ARTHexMapActor::SetEnemyArcFocus`: il mouse prima dell'ispezione, nel batcher in primo piano |
 
 ### 5.6 🔴 Il rischio che nessun test misura
 
