@@ -10,6 +10,7 @@
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
 #include "Map/RTLayerPresentation.h" // FRTLayerPresentationTuning: le leve con cui e' stato scritto il trattamento (#3679)
+#include "Perception/RTVisibilityBorder.h" // FRTExposedEdge: i lati della linea di confine della vista (#3761)
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -558,6 +559,28 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
 	void ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge);
+
+	/**
+	 * LA LINEA DI CONFINE della vista della squadra (#3761): un tratto lungo ogni lato fra una cella che la
+	 * squadra vede adesso e una cella della mappa che non vede.
+	 *
+	 * 🔑 **Riceve le celle viste, conserva soltanto i lati.** I lati li calcola
+	 * `URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells`, che e' pura e ha i suoi test; qui non si
+	 * consulta la linea di vista e non si tiene la conoscenza di squadra ([D-242]). La chiama chi stende il
+	 * velo, `URTKnowledgeVeilPresenter`, negli stessi due punti e con la stessa conoscenza: la linea e il velo
+	 * non possono raccontare due viste diverse.
+	 *
+	 * ⏱️ **Il CONTENUTO e' lo stesso, il tempo no.** Il velo converge verso il nuovo stato con la dissolvenza di
+	 * `#2875`; la linea passa subito al confine nuovo. Per la durata della dissolvenza la linea chiude gia' le celle
+	 * che il velo sta ancora accendendo, o non chiude piu' quelle che sta spegnendo.
+	 *
+	 * ⚠️ Si disegna nel line batcher del mondo, come l'anteprima di pianificazione, e mai con `DrawDebug*`:
+	 * in Shipping `DrawDebugLine` non disegna (#3508).
+	 */
+	void SetVisionBorder(const TArray<FRTCellId>& VisibleCells);
+
+	/** I lati della linea di confine, nell'ordine stabile di `ExposedEdges`. Diagnostica e test. */
+	const TArray<FRTExposedEdge>& GetVisionBorder() const { return VisionBorder; }
 
 	/**
 	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
@@ -1144,6 +1167,19 @@ protected:
 
 	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
 	void DrawPlanningPreview() const;
+
+	/** Disegna la linea di confine della vista (#3761). Nessun effetto sulla logica. */
+	void DrawVisionBorder() const;
+
+	/**
+	 * Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella, nel line batcher del mondo (#3761). Dove sul
+	 * lato sta un pannello — copertura o porta — il tratto si sposta verso il centro della cella, davanti al pannello:
+	 * sul lato gli starebbe dentro.
+	 */
+	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const;
+
+	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
+	TArray<FRTExposedEdge> VisionBorder;
 
 	/** Cella sotto il cursore, impostata dal controller. */
 	FRTCellId HoveredCell;

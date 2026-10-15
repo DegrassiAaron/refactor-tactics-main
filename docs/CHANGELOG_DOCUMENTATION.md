@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-15 — La linea di confine della vista è verde
+
+**Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), seduta `U89`. L'autore ha giudicato la tavola `V1` della prima tornata; nella stessa seduta ha respinto la pianta ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760)) e l'arco del nemico ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762)).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-CONFINE` ✅, con il limite del contesto: nelle catture il ricordo era già la pianta; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata; su questo ramo cita la sola voce di #3761 |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`: la linea davanti ai pannelli, con la domanda come l'autore l'ha vista |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la riga «lungo un pannello» |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | la tavola `V1` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: `PIE-FOG-CONFINE` in `verification.pie`; `presentation` resta `partial` |
+
+---
+
 ## 2026-10-15 — Un Overwatch armato che non spara lascia traccia, col motivo
 
 **Origine**: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166), casella «zona vuota per spinta»: l'attuazione di `D-349`, decisa il 2026-09-08 e mai scritta nel codice, con la precisazione d'autore del 2026-10-15 su quando nasce la voce e chi la legge.
@@ -24,6 +39,21 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-522`, con le due domande come l'autore le ha lette, la causa dei collassi, e la conseguenza sulle tracce registrate prima |
 | [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione accanto a quella di `D-518`; la tabella di verifica coi tre test nuovi |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3771 fra le chiuse, e i due test nuovi fuori dalle famiglie già elencate |
+
+---
+
+## 2026-10-14 — Una linea segna in partita dove finisce la vista della squadra
+
+**Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), decisione d'autore `D-519`. La linea corre sui lati fra le celle viste adesso e quelle che non si vedono: ciano della vista, anche in strategica, mai lungo il vuoto.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`, con le tre domande e le opzioni come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la linea, chi la calcola e chi la disegna |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-CONFINE` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3761 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1b: le scelte dell'autore |
+| [`technical/evidence/3761/`](technical/evidence/3761/) | le tavole `L1` e `L2` |
 
 ---
 

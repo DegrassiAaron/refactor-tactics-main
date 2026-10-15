@@ -158,6 +158,15 @@ namespace
 	// compilatore rilega quando la gerarchia cambia (vedi `RTMapVisuals.h`).
 	constexpr float RTLiftCoordinateLabel = RTCellTopZ + 1.0f;
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
+	// La linea di confine della vista (#3761): sopra i marcatori, SOTTO l'anteprima. Un contorno d'anteprima su una
+	// cella di bordo corre lungo lo stesso lato, e alla stessa quota i due colori si contenderebbero il pixel.
+	constexpr float RTLiftVisionBorder = RTCellTopZ + 2.0f;
+	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
+	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
+	constexpr float RTVisionBorderThickness = 4.f;
+	// Di quanto la linea si sposta verso la cella vista quando sul lato sta un pannello (#3761): meta' dello spessore
+	// del pannello, che e' centrato sul lato, piu' meta' di quello della linea e un margine.
+	constexpr float RTVisionBorderPanelInset = RTEdgePanelThickness * 100.f * 0.5f + RTVisionBorderThickness * 0.5f + 2.f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1137,7 +1146,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackTracers.Num() > 0
 		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
-		|| VeilCellsInTransition > 0;
+		|| VeilCellsInTransition > 0
+		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
+		|| VisionBorder.Num() > 0;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1260,8 +1271,9 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	// il valore disegnato verso un bersaglio gia' scelto. `Veil.FollowsRefreshPoints` resta verde per
 	// costruzione — misura le emissioni di `OnTeamKnowledgeRefreshed`, che questa funzione non produce.
 	//
-	// ⚠️ **A regime non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso, e
-	// `HasAnythingToDraw` spegne il `Tick`.
+	// ⚠️ **A regime il velo non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso. Il
+	// `Tick` pero' resta acceso per tutta la partita da #3761: la linea di confine della vista si ridisegna a ogni
+	// fotogramma, un tratto per lato, e `HasAnythingToDraw` lo spegne solo quando non c'e' nessuna cella vista.
 	if (VeilCellsInTransition > 0)
 	{
 		AdvanceVeilTransition(DeltaSeconds);
@@ -1275,6 +1287,7 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	{
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
+	DrawVisionBorder();
 	DrawPlanningPreview();
 }
 
@@ -1505,6 +1518,102 @@ namespace
 		{
 			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
 		}
+	}
+
+	/**
+	 * Vero se sul lato fra `Cella` e il suo vicino in `Lato` sta un PANNELLO DI BORDO — una copertura o una porta —
+	 * da una parte o dall'altra: e' cio' che `RebuildInstances` posa con `AddEdgePanel`, che legge `Covers` e `Doors`
+	 * della cella che li porta. Il velo mostra quel pannello se e' accesa una delle due celle (#3691), quindi chi
+	 * guarda una cella vista lo vede gia': chiederlo qui non rivela niente.
+	 */
+	bool LatoConPannello(const URTHexMapAsset* Map, const FRTCellId& Cella, ERTHexDirection Lato)
+	{
+		if (!Map)
+		{
+			return false;
+		}
+		const auto HaPannello = [](const FRTHexCellData* Dati, ERTHexDirection Bordo)
+		{
+			if (!Dati)
+			{
+				return false;
+			}
+			for (const FRTHexCover& Copertura : Dati->Covers)
+			{
+				if (Copertura.Type != ERTHexCoverType::None && Copertura.Edge == Bordo)
+				{
+					return true;
+				}
+			}
+			for (const FRTHexDoor& Uscio : Dati->Doors)
+			{
+				if (Uscio.Edge == Bordo)
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+		return HaPannello(Map->FindCell(Cella), Lato)
+			|| HaPannello(Map->FindCell(URTHexLibrary::Neighbor(Cella, Lato)), URTHexLibrary::OppositeDirection(Lato));
+	}
+}
+
+void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
+{
+	// Si calcola QUI, dove sta la mappa, e si conservano soltanto i lati: l'actor non tiene la conoscenza di
+	// squadra ([D-242]), come per il velo.
+	//
+	// 🔑 **Solo i lati verso una cella della mappa**, per scelta dell'autore sulla domanda L3 di #3761: la linea segna
+	// dove finisce la vista, non dove finisce il pavimento. Sul bordo della mappa e sul perimetro di una piattaforma —
+	// dove la vista scende al piano di sotto ([D-511]) — non c'e' linea.
+	VisionBorder = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::DrawVisionBorder() const
+{
+	// 🔑 **Il colore e' quello della VISTA nella palette** (`#32ADE6`, [D-368]): l'autore l'ha scelto sulla tavola L1
+	// di #3761, fra il bianco caldo e il blu della squadra. Si chiede alla palette e non si ricopia: se il colore
+	// della vista cambia, la linea lo segue.
+	//
+	// ⚠️ **Si disegna anche in vista strategica**, per scelta dell'autore sulla tavola L2: nessun ramo su
+	// `IsStrategicPresentation()` qui.
+	DrawEdgeLines(VisionBorder, URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision), RTVisionBorderThickness);
+}
+
+void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const
+{
+	const UWorld* World = GetWorld();
+	if (!World || Lati.Num() == 0)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+
+	for (const FRTExposedEdge& Lato : Lati)
+	{
+		// Il tratto e' il LATO dell'esagono: meta' lunghezza per parte, a partire dal punto medio che
+		// `EdgeMidpointWorld` deriva dai due centri, e perpendicolare alla direzione del vicino. Con un
+		// circumraggio `Size` il lato e' lungo `Size`, quindi gli estremi cadono sugli spigoli di `HexCorners`.
+		const FRTHexCellData* Dati = MapAsset ? MapAsset->FindCell(Lato.Cell) : nullptr;
+		const FVector Su(0.f, 0.f, (Dati ? static_cast<float>(Dati->Height) : 0.f) + RTLiftVisionBorder);
+		const FVector Centro = URTHexLibrary::AxialToWorld(Lato.Cell, Origin, Size, LayerH);
+		const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Lato.Cell, Lato.Direction, Origin, Size, LayerH);
+		const FVector Verso = FVector(Medio.X - Centro.X, Medio.Y - Centro.Y, 0.f).GetSafeNormal();
+		const FVector Lungo = FVector::CrossProduct(Verso, FVector::UpVector) * (Size * 0.5f);
+		// 🔑 **Davanti al pannello, se sul lato ce n'e' uno.** Il pannello di un muro, di una copertura o di una porta
+		// sta CENTRATO sul lato e sale dalla cima della cella: sul lato la linea gli starebbe dentro, e non si
+		// vedrebbe da nessuna parte. Si sposta verso il centro della cella vista. Scelta dell'autore del 2026-10-15
+		// («visibile anche li'»), dopo la review: nella tavola V1 il confine correva solo su terreno aperto.
+		const FVector Dentro = LatoConPannello(MapAsset, Lato.Cell, Lato.Direction)
+			? -Verso * RTVisionBorderPanelInset : FVector::ZeroVector;
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su + Dentro, Medio + Lungo + Su + Dentro, Colore, SDPG_World,
+			Spessore);
 	}
 }
 
