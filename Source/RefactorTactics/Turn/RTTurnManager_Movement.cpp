@@ -1066,17 +1066,44 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 
 	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
 	{
-		// 🔑 **[D-518] (`#3745`): il `FIRE` su un bersaglio gia' abbattuto non si offre.** I trigger di un passo si
-		// costruiscono UNA volta, prima di chiedere a chiunque: se un watcher precedente ha gia' abbattuto il
-		// bersaglio, l'opportunity del successivo lo offre ancora. Lo si toglie qui, dove l'opportunity si consuma,
-		// e non nella UI: vale per la finestra, per i bot e per la ri-simulazione, che la ricalcola dallo stato.
+		// 🔑 **I `FIRE` si rifanno sullo stato di ADESSO** — [D-518] (`#3745`) per chi e' a terra, [D-522] (`#3771`)
+		// per la condizione dichiarata. I trigger di un passo si costruiscono UNA volta, prima di chiedere a chiunque:
+		// se un watcher precedente ha gia' sparato, l'opportunity del successivo e' fatta sullo stato di prima del
+		// colpo. Offrirebbe `FIRE` su chi e' gia' a terra, e lo negherebbe a chi il colpo ha portato sotto la soglia
+		// della condizione. Si rifa' qui, dove l'opportunity si consuma, e non nella UI: vale per la finestra, per i
+		// bot e per la ri-simulazione, che la ricalcola dallo stato.
 		//
 		// ⚠️ **Sul trigger SALVATO, non sulla copia**: `CloseReactionWindow` rilegge l'opportunity da qui quando la
 		// finestra si chiude, e deve giudicare la risposta sulle stesse `AllowedResponses` che la finestra ha
 		// mostrato. Nel caso misto — un bersaglio a terra e uno in piedi — resta il `FIRE` su quello in piedi.
-		const int32 FireSuAbbattuti = URTReactionOpportunityLibrary::RemoveFireResponsesWhere(
-			Ctx->PendingTriggers[Ctx->NextTrigger].Opportunity,
-			[&Units](int32 TargetIdx) { return !IsReactionTargetStanding(Units, TargetIdx); });
+		//
+		// ⚠️ **La condizione e' quella dell'ARMAMENTO**, letta dall'indice che il trigger porta: e' la stessa che
+		// `BuildOverwatchTriggers` ha ricevuto nel `Watcher`, quindi con le vitals dell'ingresso la ricostruzione ridà
+		// le stesse risposte. Un indice che non vale non ha condizione da applicare, e il giro qui sotto lo salta.
+		// L'appaiamento dell'indice ha un limite dichiarato sopra (due Overwatch della stessa unita'), e da [D-522]
+		// vale anche per la condizione: oggi il caso non si produce.
+		//
+		// ⚠️ **Si rifanno solo «in piedi» e la condizione.** Gli altri fatti del trigger — la zona, la rilevazione,
+		// la linea di vista — restano quelli dell'ingresso, come per ogni `FIRE` che c'era gia' (ADR-0004 §6: il
+		// trigger e' l'ingresso). Fra due giri dello stesso passo un `FIRE` fa danno e tronca il movimento che
+		// resta, ma non sposta nessuno: zona e linea di vista non cambiano. La rilevazione potrebbe, se un
+		// osservatore della squadra cade nello stesso passo; rifarla sarebbe una regola nuova, e toglierebbe anche
+		// `FIRE` che oggi restano.
+		FRTPendingReactionTrigger& Salvato = Ctx->PendingTriggers[Ctx->NextTrigger];
+		const FRTDeclaredCondition Condizione = ArmedOverwatches.IsValidIndex(Salvato.ArmedIndex)
+			? ArmedOverwatches[Salvato.ArmedIndex].Condition
+			: FRTDeclaredCondition();
+		TMap<int32, FRTTargetVitals> VitalsAdesso;
+		for (const int32 TargetIdx : Salvato.TriggerUnitIds)
+		{
+			if (Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx]))
+			{
+				VitalsAdesso.Add(TargetIdx, FRTTargetVitals(Units[TargetIdx]->Health, Units[TargetIdx]->MaxHealth));
+			}
+		}
+		const int32 BersagliInPiedi = URTReactionOpportunityLibrary::RebuildFireResponses(
+			Salvato.Opportunity, Salvato.TriggerUnitIds, Condizione, VitalsAdesso,
+			[&Units](int32 TargetIdx) { return IsReactionTargetStanding(Units, TargetIdx); });
 
 		// Copiato e non referenziato: `ApplyReactionDecision` puo' toccare lo stato, e da `#2679` in poi
 		// fra due giri di questo ciclo puo' passare un frame intero.
@@ -1143,11 +1170,12 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 			return ERTMovementAdvanceResult::Suspended;
 		}
 
-		// [D-518]: se il filtro ha tolto l'ultima scelta, la causa la dice il pompaggio — `AskReactionDecision`
-		// vedrebbe il solo `HOLD` e lo chiamerebbe collasso da condizione, che qui sarebbe falso. Con un'altra
-		// scelta rimasta si chiede come sempre.
+		// [D-518]: se non resta una scelta e nessuno di quelli entrati e' in piedi, la causa la dice il pompaggio —
+		// `AskReactionDecision` vedrebbe il solo `HOLD` e lo chiamerebbe collasso da condizione, che qui sarebbe
+		// falso. Con qualcuno in piedi il solo `HOLD` vuol dire che la condizione lo ha escluso ([D-522]), ed e'
+		// quello che `AskReactionDecision` scrive. Con un'altra scelta rimasta si chiede come sempre.
 		const FRTReactionDecision Decision =
-			(FireSuAbbattuti > 0 && !URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+			(BersagliInPiedi == 0 && !URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
 			? FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 				ERTReactionDecisionOutcome::CollapsedTargetDown)
 			: AskReactionDecision(Opportunity, Opportunity.Key.OwnerId, bOwnerIsBot);

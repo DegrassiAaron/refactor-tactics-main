@@ -75,6 +75,38 @@ int32 URTReactionOpportunityLibrary::RemoveFireResponsesWhere(FRTReactionOpportu
 	});
 }
 
+int32 URTReactionOpportunityLibrary::RebuildFireResponses(FRTReactionOpportunity& InOut,
+	TConstArrayView<int32> TriggerUnitIds, const FRTDeclaredCondition& Condition,
+	const TMap<int32, FRTTargetVitals>& VitalsNow, TFunctionRef<bool(int32 TargetUnitId)> bStanding)
+{
+	// Crescente per id, come in `BuildOverwatchTriggers`: l'ordine delle risposte e' una funzione dello stato, e non
+	// di come il chiamante ha conservato chi e' entrato.
+	TArray<int32> Targets;
+	Targets.Append(TriggerUnitIds.GetData(), TriggerUnitIds.Num());
+	Targets.Sort();
+
+	TArray<FString> Fires;
+	int32 Standing = 0;
+	for (const int32 TargetId : Targets)
+	{
+		if (!bStanding(TargetId))
+		{
+			continue; // [D-518]: a terra non si spara, e la condizione non si chiede nemmeno
+		}
+		++Standing;
+		if (IsConditionSatisfied(Condition, VitalsNow.Find(TargetId)))
+		{
+			Fires.Add(FireResponse(TargetId));
+		}
+	}
+
+	// Via tutti i `FIRE` — passando da `RemoveFireResponsesWhere`, che usa l'unico parser del formato — e i nuovi in
+	// testa: `HOLD` e ogni risposta che non e' un `FIRE` restano in coda, nell'ordine in cui erano.
+	RemoveFireResponsesWhere(InOut, [](int32) { return true; });
+	InOut.AllowedResponses.Insert(Fires, 0);
+	return Standing;
+}
+
 const TArray<FName>& URTReactionOpportunityLibrary::BoundaryCapableReactionIds()
 {
 	// ⚠️ **Elenco chiuso e scritto qui, non derivato dal catalogo**, e il perche' sta nel docstring: il
@@ -643,18 +675,19 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 			// zona e sono state rilevate — e `TargetUnitIds` continua a dire chi e' passato. Se la riduzione
 			// lascia il solo `HOLD`, `RequiresDecisionBoundary` diventa falso e il commit e' immediato: e' cosi'
 			// che il regime *Conditional* emerge dai dati, senza un enum di policy parallelo.
-			for (int32 TargetId : TargetsThisStep)
-			{
-				if (!IsConditionSatisfied(Watcher.DeclaredCondition, TargetVitals.Find(TargetId)))
-				{
-					continue;
-				}
-				Trigger.Opportunity.AllowedResponses.Add(FireResponse(TargetId));
-			}
+			//
 			// `HOLD` in coda ed e' SEMPRE presente: senza di lei un bersaglio solo darebbe cardinalita' 1,
 			// cioe' un commit automatico — l'Overwatch sparerebbe da solo. La scelta di non sparare e' una
 			// risposta legale quanto le altre (ADR-0004 §3: `Timeout -> HOLD`).
+			//
+			// 🔑 **I `FIRE` li scrive `RebuildFireResponses`, la stessa funzione che il pompaggio richiama quando
+			// chiede** ([D-522], `#3771`). Due copie della regola — ordine, condizione, `HOLD` in coda — potrebbero
+			// divergere, e la promessa «con le vitals dell'ingresso la ricostruzione ridà le stesse risposte»
+			// diventerebbe falsa senza che niente diventi rosso. Qui «in piedi» vale sempre vero, com'era prima: questa
+			// funzione non lo ha mai chiesto, e chi cade fra l'ingresso e la domanda lo toglie il pompaggio ([D-518]).
 			Trigger.Opportunity.AllowedResponses.Add(HoldResponse());
+			RebuildFireResponses(Trigger.Opportunity, TargetsThisStep, Watcher.DeclaredCondition, TargetVitals,
+				[](int32) { return true; });
 
 			FPendingOverwatchTrigger P;
 			P.Trigger = MoveTemp(Trigger);

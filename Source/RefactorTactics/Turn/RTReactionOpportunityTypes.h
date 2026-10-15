@@ -709,7 +709,11 @@ public:
 		int32 FirstMicroStepIndex = 0);
 
 	/**
-	 * La condizione e' soddisfatta per questo bersaglio? Funzione pura, valutata al trigger.
+	 * La condizione e' soddisfatta per questo bersaglio? Funzione pura.
+	 *
+	 * Si valuta due volte, sulle vitals che il chiamante le passa: all'ingresso nella zona (`BuildOverwatchTriggers`)
+	 * e di nuovo quando arriva il turno di quel watcher (`RebuildFireResponses`, [D-522]). Decide la seconda: e' lo
+	 * stato in cui il colpo partirebbe.
 	 *
 	 * Condizione non dichiarata -> vero: chi non pone condizioni non restringe nulla. Dato mancante o
 	 * incoerente (`MaxHealth <= 0`) -> falso, per la ragione fail-closed di sopra.
@@ -735,6 +739,27 @@ public:
 	 * si apre: e' ADR-0004 §2, non una regola in piu'.
 	 */
 	static int32 RemoveFireResponsesWhere(FRTReactionOpportunity& InOut, TFunctionRef<bool(int32 TargetUnitId)> bRemove);
+
+	/**
+	 * [D-522] (`#3771`) Ricostruisce i `FIRE` di `InOut` sullo stato di ADESSO, e dice quanti bersagli sono in piedi.
+	 *
+	 * Un `FIRE` per ogni unita' di `TriggerUnitIds` che `bStanding` dice in piedi e che soddisfa `Condition` con
+	 * `VitalsNow`, in ordine crescente di id; dopo, le risposte che non sono un `FIRE`, nell'ordine in cui erano. E' la
+	 * forma che `BuildOverwatchTriggers` produce: con le vitals dell'ingresso ridarebbe le stesse risposte, quindi se
+	 * nessuno ha sparato nel frattempo non cambia niente.
+	 *
+	 * 🔑 **Toglie e AGGIUNGE.** [D-518] toglie il `FIRE` su chi e' gia' a terra. La condizione dichiarata ([D-109]) e'
+	 * l'altra meta': il colpo di un watcher precedente puo' portare il bersaglio SOTTO la soglia, e quel `FIRE`
+	 * all'ingresso non c'era. Con una funzione che sa solo togliere, il secondo watcher resterebbe muto su un bersaglio
+	 * che soddisfa la sua condizione — ed e' il difetto di `#3771`.
+	 *
+	 * Il valore di ritorno serve alla CAUSA di un collasso, non alla regola: zero bersagli in piedi col solo `HOLD`
+	 * rimasto e' `CollapsedTargetDown` ([D-518]); almeno uno in piedi e' `CollapsedByCondition` ([D-109]), perche'
+	 * allora c'e' qualcuno a cui sparare e la condizione lo ha escluso.
+	 */
+	static int32 RebuildFireResponses(FRTReactionOpportunity& InOut, TConstArrayView<int32> TriggerUnitIds,
+		const FRTDeclaredCondition& Condition, const TMap<int32, FRTTargetVitals>& VitalsNow,
+		TFunctionRef<bool(int32 TargetUnitId)> bStanding);
 
 	/**
 	 * Id stabile e ispezionabile derivato dai sei campi di `Key`.

@@ -1237,4 +1237,110 @@ bool FRTRemoveFireOnDownedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-522] (`#3771`) — **la condizione dichiarata si legge sullo stato del momento in cui il watcher viene chiesto**, e
+ * la ricostruzione dei `FIRE` toglie E aggiunge.
+ *
+ * 🔑 L'oracolo e' il primo caso: all'ingresso nessuno soddisfa la condizione, e adesso uno si'. Una funzione che sa solo
+ * togliere — il filtro di [D-518] da solo — lascerebbe il solo `HOLD`, e la finestra resterebbe chiusa su un bersaglio
+ * che la condizione ammette. Gli altri casi fissano che la ricostruzione non cambi cio' che non deve.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRebuildFireOnCurrentStateTest,
+	"RefactorTactics.Reactions.DeclaredConditionIsReadWhenTheWatcherIsAsked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRebuildFireOnCurrentStateTest::RunTest(const FString&)
+{
+	using L = URTReactionOpportunityLibrary;
+	const FRTDeclaredCondition MetaVita(L::TargetHealthAtOrBelowPercent(), 50);
+	const auto TuttiInPiedi = [](int32) { return true; };
+	// Confronti sensibili alle maiuscole: `TestEqual` su `FString` le ignora, e i token sono un formato.
+	const auto Risposte = [](const FRTReactionOpportunity& O) { return FString::Join(O.AllowedResponses, TEXT(",")); };
+
+	// (1) IL CASO DI #3771. Entrati 4 e 7 a piena vita: all'ingresso la condizione li escludeva entrambi. Un colpo
+	// precedente ha portato 4 a 40/90 (44%): ora lo ammette. 7 e' ancora a 90/90.
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Adesso = { { 4, FRTTargetVitals(40, 90) }, { 7, FRTTargetVitals(90, 90) } };
+		const int32 InPiedi = L::RebuildFireResponses(Op, { 4, 7 }, MetaVita, Adesso, TuttiInPiedi);
+		TestTrue(TEXT("il FIRE su chi il colpo ha portato sotto la soglia COMPARE, e HOLD resta in coda"),
+			Risposte(Op).Equals(L::FireResponse(4) + TEXT(",") + L::HoldResponse(), ESearchCase::CaseSensitive));
+		TestTrue(TEXT("e la finestra si apre"), L::RequiresDecisionBoundary(Op));
+		TestEqual(TEXT("due bersagli in piedi"), InPiedi, 2);
+	}
+
+	// (2) Il verso opposto, con vitals fabbricate: all'ingresso 4 soddisfaceva, adesso no. Col solo predicato di
+	// [D-109] in partita accade solo con la morte — il caso (3) —, ma la funzione deve togliere comunque.
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Adesso = { { 4, FRTTargetVitals(60, 90) } };
+		const int32 InPiedi = L::RebuildFireResponses(Op, { 4 }, MetaVita, Adesso, TuttiInPiedi);
+		TestTrue(TEXT("il FIRE che la condizione non ammette piu' sparisce"),
+			Risposte(Op).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+		TestEqual(TEXT("ma il bersaglio e' in piedi: la causa e' la condizione"), InPiedi, 1);
+	}
+
+	// (3) A terra: nessun FIRE, a prescindere dalla condizione, e zero in piedi — la causa e' [D-518].
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Adesso = { { 4, FRTTargetVitals(0, 90) } };
+		const int32 InPiedi = L::RebuildFireResponses(Op, { 4 }, FRTDeclaredCondition(), Adesso,
+			[](int32 Bersaglio) { return Bersaglio != 4; });
+		TestTrue(TEXT("a terra non si spara"), Risposte(Op).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+		TestEqual(TEXT("e nessuno e' in piedi"), InPiedi, 0);
+	}
+
+	// (4) Niente e' cambiato: senza condizione e con tutti in piedi la ricostruzione ridà le risposte di prima — anche
+	// se chi chiama passa gli id in un altro ordine. E una risposta che non e' un FIRE resta dov'era.
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::FireResponse(4), L::FireResponse(7), L::HoldResponse(), TEXT("SIDESTEP:1,2,0") };
+		const FString Prima = Risposte(Op);
+		L::RebuildFireResponses(Op, { 7, 4 }, FRTDeclaredCondition(), {}, TuttiInPiedi);
+		TestTrue(FString::Printf(TEXT("stesse risposte, stesso ordine (prima '%s', dopo '%s')"), *Prima, *Risposte(Op)),
+			Risposte(Op).Equals(Prima, ESearchCase::CaseSensitive));
+	}
+
+	// (5) Fail-closed come all'ingresso: con una condizione dichiarata e senza vitals il FIRE non si offre.
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::HoldResponse() };
+		L::RebuildFireResponses(Op, { 4 }, MetaVita, {}, TuttiInPiedi);
+		TestTrue(TEXT("dato mancante: nessun FIRE"), Risposte(Op).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+	}
+
+	// (6) Il caso MISTO, che decide la causa nel pompaggio: 4 a terra, 7 in piedi. Il conteggio deve contare chi e' in
+	// piedi, non chi soddisfa la condizione: con 7 sopra la soglia resta il solo HOLD, e la causa e' la condizione.
+	{
+		const auto SoloSetteInPiedi = [](int32 Bersaglio) { return Bersaglio == 7; };
+
+		FRTReactionOpportunity Ammesso;
+		Ammesso.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Ferito = { { 4, FRTTargetVitals(0, 90) }, { 7, FRTTargetVitals(40, 90) } };
+		TestEqual(TEXT("misto, 7 sotto la soglia: uno in piedi"),
+			L::RebuildFireResponses(Ammesso, { 4, 7 }, MetaVita, Ferito, SoloSetteInPiedi), 1);
+		TestTrue(TEXT("e il FIRE e' su di lui, non sul caduto"),
+			Risposte(Ammesso).Equals(L::FireResponse(7) + TEXT(",") + L::HoldResponse(), ESearchCase::CaseSensitive));
+
+		FRTReactionOpportunity Escluso;
+		Escluso.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		const TMap<int32, FRTTargetVitals> Sano = { { 4, FRTTargetVitals(0, 90) }, { 7, FRTTargetVitals(60, 90) } };
+		TestEqual(TEXT("misto, 7 sopra la soglia: uno in piedi lo stesso — la causa e' la condizione, non il caduto"),
+			L::RebuildFireResponses(Escluso, { 4, 7 }, MetaVita, Sano, SoloSetteInPiedi), 1);
+		TestTrue(TEXT("e resta il solo HOLD"), Risposte(Escluso).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+	}
+
+	// (7) Nessuno entrato: nessun FIRE resta, e nessuno e' in piedi. In partita non accade — l'unico produttore di
+	// trigger passa sempre chi e' entrato —, ma la funzione non deve lasciare un FIRE che nessun ingresso giustifica.
+	{
+		FRTReactionOpportunity Op;
+		Op.AllowedResponses = { L::FireResponse(4), L::HoldResponse() };
+		TestEqual(TEXT("nessuno entrato: zero in piedi"), L::RebuildFireResponses(Op, {}, FRTDeclaredCondition(), {}, TuttiInPiedi), 0);
+		TestTrue(TEXT("e il solo HOLD"), Risposte(Op).Equals(L::HoldResponse(), ESearchCase::CaseSensitive));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
