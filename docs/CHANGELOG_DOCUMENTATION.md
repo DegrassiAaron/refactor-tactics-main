@@ -2,7 +2,7 @@
 
 ---
 
-## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano
+## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano, col suo nemico; verde
 
 **Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), seduta `U89`. L'autore ha respinto l'arco della prima tornata: sottile, coperto, e col tasto `H` se ne vedeva più d'uno. Ha chiesto *«l'arco visto deve essere solo quello del nemico selezionato/hoverato»*.
 
@@ -10,7 +10,9 @@
 |---|---|
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`: titolo e punti (5) e (6), con le domande come l'autore le ha viste; il tasto `H` non c'è più, e il nemico dell'arco si contorna nel suo rosso |
 | [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: un arco alla volta, chi lo sceglie, e il contorno del suo nemico |
-| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-ARCO`: il comportamento nuovo, e il ❌ della prima tornata; da rigiudicare |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-ARCO` ✅ nella terza tornata, dopo il ❌ della prima e della seconda; totali rimisurati |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `PIE-FOG-ARCO` fra le verifiche PIE della capability |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | le tavole `V6` e `V11` |
 
 ---
 
