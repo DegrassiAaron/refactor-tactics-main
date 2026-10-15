@@ -6069,6 +6069,11 @@ sessions:
     done_when: >-
       la voce `PIE-LAB-PASSO` ha un verdetto nel registro, dato a schermo dall'autore
     notes: |
+      ✅ **Eseguita il 2026-10-15, in due tornate, con l'autore a schermo: `PIE-LAB-PASSO` verde.** La prima
+      tornata, su `a4a315fca`, ha visto i criteri (0), (1), (3) e il verso `.` del (2). La seconda, su `main`
+      `37b858f0f`, ha visto il verso `,` del (2) e il (4). Il verdetto, criterio per criterio, sta nella cella della
+      voce. #3774 si era chiusa prima della seconda tornata, con aperte le due voci della DoD che questa ha visto.
+
       Scritta il 2026-10-15 da `/issue-run 3773 3774`. L'esito atteso vive in `test-manuali-pie.md`; qui solo
       l'allestimento: Editor del clone principale ricompilato da un commit che porta le due issue, pannello
       «Ability / Hero Lab», campo Eroe `Hero.Ivrin`, voce `Hero.Ivrin.PassingBlade`, «Esegui in PIE».
