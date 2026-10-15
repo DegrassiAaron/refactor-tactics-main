@@ -769,6 +769,8 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		// l'istanza (i suoi sei campi sono turno, macro-fase, micro-step, proprietario, reaction e `Seq`). Il
 		// secondo armamento ricadrebbe sull'indice del primo e verrebbe saltato in silenzio alla riga sotto,
 		// trovando `bCharged` gia' falso.
+		// ⚠️ Da [D-411] l'indice sbagliato deciderebbe anche QUALE armamento ricorda i nemici chiesti: il secondo
+		// Overwatch chiederebbe di nuovo, a ogni passo, dei nemici gia' chiesti dal primo (review della PR #3787).
 		// Oggi il caso NON si produce — un'unita' pianifica una sola abilita' per turno, quindi
 		// `ArmedOverwatches` non ne contiene due dello stesso proprietario. Quando servira', a disambiguare
 		// non basta un confronto in piu': serve che `FRTOverwatchTrigger` porti l'indice del watcher da cui
@@ -1229,13 +1231,9 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 		// tornano bersagli di questo Overwatch per il resto del turno, qualunque sia la risposta. Chi e' a terra o escluso
 		// dalla condizione non ha un `FIRE`, quindi non e' stato chiesto. Prima della sospensione, perche' la finestra
 		// che si apre e' gia' la domanda.
-		for (const FString& Response : Opportunity.AllowedResponses)
+		for (const int32 Chiesto : URTReactionOpportunityLibrary::OfferedFireTargets(Opportunity))
 		{
-			const int32 Chiesto = URTReactionOpportunityLibrary::FireResponseTarget(Response);
-			if (Chiesto != INDEX_NONE)
-			{
-				ArmedOverwatches[ArmedIndex].AskedTargetUnitIds.AddUnique(Chiesto);
-			}
+			ArmedOverwatches[ArmedIndex].AskedTargetUnitIds.AddUnique(Chiesto);
 		}
 
 		// Un PROMPT e' una finestra che chiede davvero: si conta prima di chiedere, e solo se c'e' una scelta.

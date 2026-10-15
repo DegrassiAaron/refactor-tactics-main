@@ -25,6 +25,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"                 // Neighbor: il facing dichiarato diventa una cella
 #include "Map/RTHexMapAsset.h"
+#include "Tests/RTOverwatchScenarioFixtures.h" // [D-411]: la cadenza della partita, un passo alla volta
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -450,18 +451,10 @@ bool FRTArmedZoneFollowsCurrentCellTest::RunTest(const FString&)
 	const TArray<FRTCellId> EastFromPushed = { FRTCellId(1, 2, 0), FRTCellId(2, 2, 0), FRTCellId(3, 2, 0) };
 	const TArray<FRTCellId> NorthEastFromOrigin = { FRTCellId(1, -1, 0), FRTCellId(2, -2, 0), FRTCellId(3, -3, 0) };
 
-	// Quante celle del percorso la zona copre, una chiamata per cella. ⏱️ Fino al 2026-10-15 si contavano i trigger del
-	// percorso intero, uno per micro-step; da [D-411] lo stesso nemico ne apre uno solo, e quel conteggio direbbe «uno»
-	// anche per una zona che coprisse la sola prima cella. Una chiamata per cella misura la copertura, non la cadenza.
 	auto TriggerCount = [Map](const FRTOverwatchWatcher& W, const TArray<FRTCellId>& Path)
 	{
-		int32 Coperte = 0;
-		for (const FRTCellId& Cell : Path)
-		{
-			Coperte += URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-				Map, /*TurnNumber*/ 4, { W }, { MakeZoneFollowMover(9, { Cell }) }).Num();
-		}
-		return Coperte;
+		return URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+			Map, /*TurnNumber*/ 4, { W }, { MakeZoneFollowMover(9, Path) }).Num();
 	};
 
 	// --- 1. LA CELLA cambia, il facing no --------------------------------------------------------------
@@ -470,8 +463,9 @@ bool FRTArmedZoneFollowsCurrentCellTest::RunTest(const FString&)
 	const FRTOverwatchWatcher AtPushed =
 		MakeZoneFollowWatcher(Map, Pushed, ERTHexDirection::E, /*OwnerIdx*/ 1, /*StableId*/ 41, /*InstanceId*/ 0);
 
-	// Il conteggio e' **esatto**: tre celle controllate, tre coperture. Un `> 0` lascerebbe verde una zona che si
-	// fermasse alla prima cella.
+	// Il conteggio e' **esatto**: tre celle controllate percorse in tre micro-step danno tre opportunity, come
+	// pinna `Overwatch.TriggersPerMicroStep` sullo stesso percorso. Un `> 0` lascerebbe verde una regressione
+	// che si ferma alla prima — ed e' proprio il difetto che quel test fratello esiste per prendere.
 	TestEqual(TEXT("premessa: dalla cella iniziale la zona copre il proprio corridoio, per intero"),
 		TriggerCount(AtOrigin, EastFromOrigin), 3);
 
@@ -1002,9 +996,10 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 	// `ArmedZoneFollowsCurrentCell`, e non e' un dettaglio di comodo. Un percorso che sfiorasse la zona per un
 	// passo solo darebbe una finestra per unita' armata. ⏱️ **Fino al 2026-10-15 quella era una baseline falsa**,
 	// perche' le finestre si aprivano per micro-step dentro la zona, e la prima stesura di questo test contava un terzo
-	// del vero. Da [D-411] e' la baseline vera: l'occasione e' una per nemico e per turno, quindi un nemico che percorre
-	// tutto il corridoio apre una finestra per unita' armata, come uno che lo sfiora. Il percorso intero resta, perche'
-	// e' il caso in cui la vecchia regola moltiplicava.
+	// del vero. Da [D-411] e' la baseline vera: l'occasione e' una per nemico e per turno, e i trigger si contano come
+	// il pompaggio li produce — un passo alla volta, con la memoria di chi e' stato chiesto
+	// (`RTOverwatchScenarioFixtures::TriggersAsThePumpAsks`). Il percorso intero resta, perche' e' il caso in cui la
+	// vecchia regola moltiplicava.
 	//
 	// Il bersaglio e' unico: con un bersaglio le risposte sono `FIRE:9` e `HOLD`, cioe' cardinalita' 2, cioe'
 	// una finestra vera.
@@ -1040,7 +1035,7 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 		}
 
 		const TArray<FRTOverwatchTrigger> Triggers =
-			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
+			RTOverwatchScenarioFixtures::TriggersAsThePumpAsks(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
 
 		// 🔴 **Il cap dei prompt vive nel RESOLVER, non nello strato puro**, e senza applicarlo qui il numero
 		// pubblicato sarebbe uno che la partita non puo' produrre: `ResolveReactionBoundary` salta un watcher
