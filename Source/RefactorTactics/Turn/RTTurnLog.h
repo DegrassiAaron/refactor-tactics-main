@@ -890,6 +890,13 @@ struct FRTVerdictSubjectRef
 	/** Le squadre degli autori, se `bEdge`, ordinate e senza ripetizioni: [D-502] (b) ed (e). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	TArray<int32> AuthorTeamIds;
+
+	/**
+	 * [D-349] Se il verdetto e' quello di un PIANO del soggetto, la sua regola (`ERTPlanVerdict`): si ricalcola con
+	 * `URTTeamKnowledgeLibrary::FreezePlanVerdict` e la squadra qui sopra, non dalla conoscenza di chi lo osserva.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	ERTPlanVerdict PlanVerdict = ERTPlanVerdict::None;
 };
 
 USTRUCT(BlueprintType)

@@ -523,4 +523,91 @@ bool FRTReplayAuditEdgeVerdictTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-349] — l'audit di [D-313] ricalcola il verdetto di un PIANO per regola, e lo porta nell'artefatto.
+ *
+ * La voce di un Overwatch armato che non ha sparato la legge la sola squadra del watcher (`OwnerTeam`), o nessuno
+ * (`AuditOnly`, per `NotPerceived`). 🔴 **Ricalcolata dalla conoscenza, divergerebbe a ogni turno**: la squadra
+ * nemica che vede il watcher riceverebbe il bit, e l'audit accuserebbe il gioco di un difetto che non ha. Trovato
+ * dalla review della PR #3778.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditPlanVerdictTest,
+	"RefactorTactics.Replay.Audit.PlanVerdictRoundTripsAndRecomputes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditPlanVerdictTest::RunTest(const FString&)
+{
+	const FRTCellId Watcher(2, 0, 0);
+
+	// Entrambe le squadre vedono la cella del watcher: ricalcolato dalla conoscenza, il verdetto le concederebbe tutte e due.
+	FRTTeamKnowledge Mia;
+	Mia.TeamId = 0;
+	Mia.TurnNumber = 3;
+	Mia.VisibleCells.Add(Watcher);
+	FRTTeamKnowledge Nemica;
+	Nemica.TeamId = 1;
+	Nemica.TurnNumber = 3;
+	Nemica.VisibleCells.Add(Watcher);
+
+	FRTTurnAudit A;
+	A.MatchId = FGuid(5, 6, 7, 8);
+	A.TurnNumber = 3;
+	A.OrderedHash = 42;
+	A.PlanningKnowledge = { Mia, Nemica };
+	A.BlastKnowledge = { Mia, Nemica };
+
+	FRTAuditVerdictRecord Squadra;
+	Squadra.Phase = ERTMatchPhase::Move;
+	Squadra.SubjectUnitId = 7;
+	Squadra.SubjectTeamId = 0;
+	Squadra.SubjectCell = Watcher;
+	Squadra.PlanVerdict = ERTPlanVerdict::OwnerTeam;
+	Squadra.Verdict = URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::OwnerTeam, 0);
+	A.Verdicts.Add(Squadra);
+
+	FRTAuditVerdictRecord Audit = Squadra;
+	Audit.PlanVerdict = ERTPlanVerdict::AuditOnly;
+	Audit.Verdict = URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::AuditOnly, 0);
+	A.Verdicts.Add(Audit);
+
+	TestTrue(TEXT("premessa: la regola concede la sola squadra del soggetto"),
+		Squadra.Verdict.AllowsTeam(0) && !Squadra.Verdict.AllowsTeam(1));
+	TestTrue(TEXT("premessa: AuditOnly non concede nessuno"), !Audit.Verdict.AllowsTeam(0) && !Audit.Verdict.AllowsTeam(1));
+	TestEqual(TEXT("🔴 un verdetto di piano si ricalcola per regola: nessuna divergenza"),
+		URTReplayAuditLibrary::FindVerdictMismatches(A).Num(), 0);
+
+	// Il controllo resta un controllo: la regola tolta fa ricalcolare dalla conoscenza, e diverge.
+	FRTTurnAudit SenzaRegola = A;
+	SenzaRegola.Verdicts[0].PlanVerdict = ERTPlanVerdict::None;
+	TestEqual(TEXT("senza la regola il ricalcolo viene dalla conoscenza, e diverge"),
+		URTReplayAuditLibrary::FindVerdictMismatches(SenzaRegola).Num(), 1);
+	FRTTurnAudit Manomesso = A;
+	Manomesso.Verdicts[0].Verdict.AllowTeam(1);
+	TestEqual(TEXT("e un verdetto manomesso diverge"), URTReplayAuditLibrary::FindVerdictMismatches(Manomesso).Num(), 1);
+
+	// L'artefatto porta la regola, e un lettore la ritrova.
+	FRTTurnAudit Letto;
+	if (!TestTrue(TEXT("l'artefatto si rilegge"),
+		URTReplayAuditLibrary::AuditFromJson(URTReplayAuditLibrary::AuditToJson(A), Letto)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("due verdetti"), Letto.Verdicts.Num(), 2)) { return false; }
+	TestEqual(TEXT("la regola della squadra attraversa il file"), static_cast<int32>(Letto.Verdicts[0].PlanVerdict),
+		static_cast<int32>(ERTPlanVerdict::OwnerTeam));
+	TestEqual(TEXT("e quella d'audit"), static_cast<int32>(Letto.Verdicts[1].PlanVerdict),
+		static_cast<int32>(ERTPlanVerdict::AuditOnly));
+	TestEqual(TEXT("e riletto non diverge"), URTReplayAuditLibrary::FindVerdictMismatches(Letto).Num(), 0);
+
+	// Una regola fuori dall'enum e' un artefatto ROTTO, non una voce da ricalcolare dalla conoscenza.
+	const FString Json = URTReplayAuditLibrary::AuditToJson(A);
+	FRTTurnAudit Rotto;
+	// Premessa della manomissione: senza, il `Replace` qui sotto non toccherebbe niente e il rifiuto non sarebbe misurato.
+	TestTrue(TEXT("premessa: l'artefatto scrive la regola nella forma che la manomissione cerca"),
+		Json.Contains(TEXT("\"PlanVerdict\": 1"), ESearchCase::CaseSensitive));
+	TestFalse(TEXT("una regola sconosciuta: l'artefatto si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(
+			Json.Replace(TEXT("\"PlanVerdict\": 1"), TEXT("\"PlanVerdict\": 9"), ESearchCase::CaseSensitive), Rotto));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

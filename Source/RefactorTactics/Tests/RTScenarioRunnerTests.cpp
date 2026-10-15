@@ -1285,6 +1285,77 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
+// #3773 — una MOBILITA' dichiarata come abilita' e' un errore di scrittura, non un turno in cui non succede niente.
+
+/**
+ * `ability` che nomina un'azione di movimento finisce in ERROR, e la stessa azione scritta come `dash` gira.
+ *
+ * Prima la sessione la scriveva come principale (`PlannedAbilityIndex`), il turno la ignorava in silenzio e
+ * l'unita' restava ferma: e' cosi' che il banco Ability Lab ha mostrato `Hero.Ivrin.PassingBlade` senza che
+ * Ivrin si muovesse, con la scena superata (`TurnsCompleted` era la sua sola assertion). L'id del caso e'
+ * quello osservato in seduta.
+ *
+ * ⚠️ **La seconda meta' non e' decorazione**: senza di lei il test sarebbe verde anche su una sessione che
+ * rifiutasse lo scatto in OGNI forma — cioe' su un harness che ha smesso di eseguire gli scatti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioMovementDeclaredAsAbilityIsErrorTest,
+	"RefactorTactics.Scenario.MovementDeclaredAsAbilityIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioMovementDeclaredAsAbilityIsErrorTest::RunTest(const FString&)
+{
+	AddExpectedError(TEXT("e' una mobilita'"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	auto Posa = []()
+	{
+		FRTTestScenario S;
+		S.MapRadius = 4;
+		FRTScenarioUnit V; V.Id = TEXT("V1"); V.HeroId = TEXT("Hero.Ivrin");  V.TeamId = 0; V.Cell = FRTCellId(0, 0, 0);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
+		S.Units.Add(V); S.Units.Add(B);
+		return S;
+	};
+
+	// --- la forma sbagliata: lo scatto nel campo dell'abilita', contro un bersaglio ---------------------------
+	FRTTestScenario Sbagliato = Posa();
+	Sbagliato.ScenarioId = TEXT("Probe.DashAsAbility");
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I; I.UnitId = TEXT("V1"); I.Ability = TEXT("Hero.Ivrin.PassingBlade"); I.Target = TEXT("B1");
+		T.Intents.Add(I); Sbagliato.Turns.Add(T);
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 1;
+		Sbagliato.Expect.Add(E);
+	}
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Rifiutato = URTScenarioRunner::Run(W1, Sbagliato);
+	DestroyRunnerWorld(W1);
+
+	TestEqual(TEXT("esito ERROR, non PASS"), Rifiutato.OutcomeString(), FString(TEXT("ERROR")));
+	TestTrue(TEXT("il messaggio nomina l'azione"), Rifiutato.ErrorMessage.Contains(TEXT("Hero.Ivrin.PassingBlade")));
+	TestTrue(TEXT("e dice come si scrive"), Rifiutato.ErrorMessage.Contains(TEXT("dash")));
+
+	// --- la forma giusta: la stessa azione come scatto, con la cella d'arrivo oltre il bersaglio --------------
+	FRTTestScenario Giusto = Posa();
+	Giusto.ScenarioId = TEXT("Probe.DashAsDash");
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I; I.UnitId = TEXT("V1"); I.Dash = TEXT("Hero.Ivrin.PassingBlade"); I.DashCell = FRTCellId(3, 0, 0);
+		T.Intents.Add(I); Giusto.Turns.Add(T);
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("V1"); E.Cell = FRTCellId(3, 0, 0);
+		Giusto.Expect.Add(E);
+	}
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult Eseguito = URTScenarioRunner::Run(W2, Giusto);
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("lo scatto scritto come scatto passa, e Ivrin arriva"), Eseguito.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+// =====================================================================================================
 // S2-2 — un bersaglio gia' abbattuto e' un esito di GIOCO, non un errore. Ma va detto.
 //
 // Prima veniva scartato in silenzio: l'intent spariva, l'assertion successiva cadeva, e il report non
