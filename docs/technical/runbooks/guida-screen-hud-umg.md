@@ -483,8 +483,8 @@ loro la finestra resta quella dei tre binding qui sopra, che **non si toccano**.
 Due letture nuove: **`Get Countdown Fraction`**, il residuo autorevole sulla durata (da 1 a 0, negativo senza
 finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND». E una
 terza da [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667): **`Get Subtitle Text`**, che cosa ha
-fatto scattare la finestra. ⚠️ La riga del sottotitolo allunga la finestra: l'ingombro `600 × 200` va
-riguardato a schermo quando la porta entra nell'asset.
+fatto scattare la finestra. La riga del sottotitolo allunga la finestra: l'ingombro `600 × 200` è stato
+riguardato a schermo quando la porta è entrata nell'asset, nella seduta `U92` (tavola `V1`, «PASS»).
 
 ### Le quattro regole, e perché
 
