@@ -55,7 +55,7 @@ enum class ERTClashLogEvent : uint8
  * Viaggia in `FRTTurnLogEntry::Outcome` delle voci di categoria `ReactionDecision`.
  *
  * ⚠️ Categoria PROPRIA e non `Reaction`, benche' parlino della stessa meccanica. `Reaction` ha gia' il suo
- * enum di esito — `ERTReactionOutcome` (`Activated`/`NotTriggered`/`Unavailable`) — e `Outcome` e' un `uint8`
+ * enum di esito — `ERTReactionOutcome` (`Activated`/`NotTriggered`/`Unavailable`/`Disarmed`) — e `Outcome` e' un `uint8`
  * il cui significato lo decide la categoria: due enum diversi sotto la stessa categoria renderebbero il campo
  * illeggibile senza sapere quale dei due chi ha scritto la voce intendeva. Aggiunta in CODA, come `Fallback` e
  * `Reaction` prima: i file gia' scritti non cambiano significato.

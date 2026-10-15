@@ -15,6 +15,20 @@
 
 ---
 
+## 2026-10-15 — Uno spostamento forzato disarma l'Overwatch, e il TurnLog lo dice
+
+**Origine**: [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367). È l'attuazione di `D-366`, decisa il 2026-09-10 e confermata dall'autore il 2026-10-15 con davanti il costo misurato su #2367: un watcher spinto che un compagno copriva sparava ancora, e ora no.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-366`: conferma, attuazione, formato riverificato, test, e la seconda decisione d'autore: scarto e fughe scelte non disarmano. Note su `D-349` (il caso di #2367 non produce più `NotPerceived`), `D-411` (il suo punto 3 non citava D-366) e `D-169` (il punto 2 è superato) |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §6: la precisazione di D-366 sotto la tabella di `ReactionStillArmed`, con l'eccezione delle reazioni scelte; la tabella di verifica coi test nuovi |
+| [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | §6: l'investimento si perde anche per una spinta altrui, come #2367 chiedeva |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #2367 fra le chiuse, i due test, il rischio tolto |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | il disarmo fra i canali: chiuso per costruzione, con il verdetto per regola dei silenzi |
+
+---
+
 ## 2026-10-15 — Il pan della camera non si ferma all'esplorato: #1836 si chiude senza codice
 
 **Origine**: [#1836](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1836) (`CAM-15`). [`D-373`](decisions/RT_PDR_00_Decision_Log.md) ha reso pubblica la forma della board, e la ragione di `CAM-15` era non rivelarla. L'autore ha scelto «Chiudi senza codice».
