@@ -1572,6 +1572,26 @@ bool FRTReactionWindowTextsFollowTheBoardTest::RunTest(const FString&)
 	TestTrue(TEXT("HOLD con due bersagli: «Lascia passare tutti»"),
 		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, Due), TEXT("Lascia passare tutti")));
 
+	// Due bersagli senza nome: «tutti» non ha bisogno dei nomi (review della PR #3791).
+	FRTReactionWindowOptionView SuBranthSenzaNome = FuocoSuBranth;
+	SuBranthSenzaNome.TargetName = FText::GetEmpty();
+	FRTReactionWindowView DueSenzaNomi = Uno;
+	DueSenzaNomi.Options = { FuocoSenzaNome, SuBranthSenzaNome, Tieni };
+	TestTrue(TEXT("HOLD con due bersagli senza nome: «Lascia passare tutti»"),
+		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, DueSenzaNomi), TEXT("Lascia passare tutti")));
+
+	// 🔴 Tre entrati, due offerti: il terzo la condizione lo ha escluso, e non e' stato chiesto. «Tutti» direbbe che
+	// passa anche lui; il bottone nomina invece chi passa.
+	FRTReactionWindowView TreEntrati = Due;
+	TreEntrati.TriggerNames = { FText::FromString(TEXT("Ivrin")), FText::FromString(TEXT("Branth")),
+		FText::FromString(TEXT("Corv")) };
+	TestTrue(TEXT("tre entrati e due offerti: «Lascia passare Ivrin e Branth»"),
+		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, TreEntrati), TEXT("Lascia passare Ivrin e Branth")));
+	FRTReactionWindowView TreEntratiSenzaNomi = DueSenzaNomi;
+	TreEntratiSenzaNomi.TriggerNames = TreEntrati.TriggerNames;
+	TestTrue(TEXT("e senza i nomi di chi passa: «Non attaccare», mai «tutti»"),
+		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, TreEntratiSenzaNomi), TEXT("Non attaccare")));
+
 	// Senza un nome da dire la frase non inventa: resta quella di prima. Cosi' anche senza finestra aperta.
 	FRTReactionWindowView SenzaNome = Uno;
 	SenzaNome.Options = { FuocoSenzaNome, Tieni };
@@ -2448,6 +2468,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 
 	// --- C. Le opzioni: tasto, frase, cornice, chip della scelta sicura ---------------------------------------
 	int32 Sicure = 0;
+	URTFastDecisionOptionWidget* TieniVivo = nullptr; // il bottone dell'HOLD, per C-bis
 	for (int32 i = 0; i < Vista.Options.Num(); ++i)
 	{
 		URTFastDecisionOptionWidget* Opzione = NewObject<URTFastDecisionOptionWidget>(World);
@@ -2458,7 +2479,11 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 		const FString& Risposta = Vista.Options[i].Response;
 		const bool bSicura = Risposta == Vista.SafeResponse;
 		Sicure += bSicura ? 1 : 0;
-		Opzione->SetOption(Finestra, Vista.Options[i], i, bSicura);
+		Opzione->SetOption(Finestra, Vista, i, bSicura);
+		if (URTReactionOpportunityLibrary::FireResponseTarget(Risposta) == INDEX_NONE)
+		{
+			TieniVivo = Opzione;
+		}
 
 		const FString Etichetta = FString::Printf(TEXT("C[%d] %s"), i, *Risposta);
 		TestEqual(*(Etichetta + TEXT(": il badge e' il tasto del kit in quella posizione")),
@@ -2496,6 +2521,13 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 		TestTrue(TEXT("C-bis: nessun sottotitolo"), Finestra->GetSubtitleText().IsEmpty());
 		Finestra->RefreshLook();
 		TestFalse(TEXT("C-bis: e la riga del sottotitolo e' tolta"), Visibile(Finestra->SubtitleText));
+		// 🔴 Un bottone che sopravvive alla sua finestra dice ancora la SUA frase (review della PR #3791): rileggerla
+		// dalla finestra di adesso, chiusa, la farebbe tornare «Non attaccare».
+		if (TestNotNull(TEXT("C-bis: premessa: il bottone dell'HOLD c'era"), TieniVivo))
+		{
+			TestTrue(TEXT("C-bis: il bottone dell'HOLD dice ancora «Lascia passare Ivrin»"),
+				StessoTesto(TieniVivo->GetOptionDescription(), TEXT("Lascia passare Ivrin")));
+		}
 	}
 	RTWorldFixtures::DestroyWorld(World);
 

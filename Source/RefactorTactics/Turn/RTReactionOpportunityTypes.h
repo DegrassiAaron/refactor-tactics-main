@@ -724,6 +724,9 @@ public:
 	 */
 	static TArray<int32> OfferedFireTargets(const FRTReactionOpportunity& Opportunity);
 
+	/** [D-411] La stessa regola sulle sole risposte: per chi ha la finestra e non l'opportunity (la UI di `#3788`). */
+	static TArray<int32> OfferedFireTargets(const TArray<FString>& Responses);
+
 	/**
 	 * La risposta e' fra quelle legali per questa opportunity? Confronto esatto, elenco chiuso.
 	 *

@@ -1803,7 +1803,7 @@ URTFastDecisionOptionWidget* URTFastDecisionWidget::MakeOptionWidget(
 	// `Brace` si chiama `Hold Ground`, non `HOLD`. Un grafo che cercasse la parola sarebbe corretto oggi e
 	// sbagliato con la prima finestra che non e' un Overwatch.
 	const bool bSicura = Window.Options[OptionIndex].Response == Window.SafeResponse;
-	Bottone->SetOption(this, Window.Options[OptionIndex], OptionIndex, bSicura);
+	Bottone->SetOption(this, Window, OptionIndex, bSicura);
 	return Bottone;
 }
 
@@ -1992,13 +1992,16 @@ bool URTFastDecisionWidget::PollWindowChanged()
 // Fast decision option — un bottone, il suo indice, e nient'altro
 // =====================================================================================================
 
-void URTFastDecisionOptionWidget::SetOption(URTFastDecisionWidget* InOwner,
-	const FRTReactionWindowOptionView& InOption, int32 InIndex, bool bInIsSafe)
+void URTFastDecisionOptionWidget::SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowView& InWindow,
+	int32 InIndex, bool bInIsSafe)
 {
 	Owner = InOwner;
-	Option = InOption;
+	Option = InWindow.Options.IsValidIndex(InIndex) ? InWindow.Options[InIndex] : FRTReactionWindowOptionView();
 	OptionIndex = InIndex;
 	bIsSafeChoice = bInIsSafe;
+	// 🔑 **La frase si compone ADESSO, con la finestra che crea il bottone** (`#3788`, review della PR #3791): l'`HOLD`
+	// dell'Overwatch dice chi lascia passare, e quei nomi stanno sulle altre opzioni di QUESTA finestra.
+	Description = RTReactionResponseText::DescriptionFor(Option, InWindow);
 
 	// La resa della tavola E (#3634): le porte prima dell'evento, perche' il grafo che disegna le trovi gia' scritte.
 	using T = ERTUIToken;
@@ -2040,9 +2043,8 @@ FText URTFastDecisionOptionWidget::GetOptionDescription() const
 	// ha risolto, e la frase diventa «Attacca Ivrin». Le altre restano quelle della tabella.
 	//
 	// ➕ **E letta dentro la SUA finestra** (`#3788`, [D-411]): l'`HOLD` dell'Overwatch dice chi lascia passare per il
-	// resto del turno, e quei nomi stanno sulle altre opzioni. La finestra la tiene chi ha creato questo bottone.
-	const URTFastDecisionWidget* Finestra = Owner.Get();
-	return RTReactionResponseText::DescriptionFor(Option, Finestra ? Finestra->GetWindow() : FRTReactionWindowView());
+	// resto del turno. La frase l'ha composta `SetOption` con la finestra che ha creato il bottone; qui si restituisce.
+	return Description;
 }
 
 FText URTFastDecisionOptionWidget::GetKeyLabel() const

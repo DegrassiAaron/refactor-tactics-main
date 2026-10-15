@@ -54,10 +54,12 @@ namespace RTReactionResponseText
 	/**
 	 * La frase di UN'opzione letta DENTRO la sua finestra (`#3788`, [D-411]). Per l'`HOLD` dell'Overwatch dice il prezzo:
 	 * chi si lascia passare non torna per il resto del turno, e lo stesso vale allo scadere.
-	 * - un solo bersaglio col nome: «Lascia passare Ivrin»;
-	 * - piu' bersagli: «Lascia passare tutti»;
-	 * - senza bersagli con un nome, o senza finestra aperta: «Non attaccare», come la firma qui sopra.
-	 * Ogni altra opzione dice cio' che dice la firma qui sopra.
+	 * - un solo bersaglio, col nome: «Lascia passare Ivrin»;
+	 * - piu' bersagli, e nessuno entrato senza essere offerto: «Lascia passare tutti», anche senza i nomi;
+	 * - piu' bersagli, e qualcuno entrato che la condizione dichiarata ha escluso: «Lascia passare Ivrin e Branth» —
+	 *   «tutti» direbbe che passa anche lui, e lui non e' stato chiesto;
+	 * - nessun bersaglio, o un nome che manca dove serve, o la finestra chiusa: «Non attaccare», come la firma qui sopra.
+	 * Ogni altra opzione dice cio' che dice la firma qui sopra. «Offerto» e' `URTReactionOpportunityLibrary::OfferedFireTargets`.
 	 *
 	 * 🔑 **Il testo l'ha scelto l'autore il 2026-10-15**, fra tre forme: il prezzo sta sul bottone, e non in una riga
 	 * a parte. I nomi sono quelli che la finestra porta gia' sulle opzioni `FIRE`, risolti dal core: qui non se ne

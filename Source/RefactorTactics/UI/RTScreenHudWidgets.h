@@ -2123,8 +2123,7 @@ public:
 	 *
 	 * ⚠️ L'evento parte per ULTIMO, dopo i campi: vedi `URTActionSlotWidget::SetAction`.
 	 */
-	void SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowOptionView& InOption,
-		int32 InIndex, bool bInIsSafe);
+	void SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowView& InWindow, int32 InIndex, bool bInIsSafe);
 
 	/** L'etichetta da stampare sul bottone: il NOME della risposta (`RTReactionResponseText`). `FText`, mai la stringa di risposta. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
@@ -2185,6 +2184,13 @@ private:
 
 	/** La risposta esatta, per l'etichetta. Privata: il grafo non la vede e non puo' comporla. */
 	FRTReactionWindowOptionView Option;
+
+	/**
+	 * La frase, composta UNA volta in `SetOption` con la finestra che ha creato il bottone (`#3788`, review della PR
+	 * #3791). Rileggerla dalla finestra aperta adesso la farebbe dipendere da un'altra domanda: un bottone che
+	 * sopravvive alla sua finestra nominerebbe i bersagli della successiva, o tornerebbe a «Non attaccare».
+	 */
+	FText Description;
 };
 
 /**

@@ -143,8 +143,13 @@ FString URTReactionOpportunityLibrary::FireResponse(int32 TargetUnitId)
 
 TArray<int32> URTReactionOpportunityLibrary::OfferedFireTargets(const FRTReactionOpportunity& Opportunity)
 {
+	return OfferedFireTargets(Opportunity.AllowedResponses);
+}
+
+TArray<int32> URTReactionOpportunityLibrary::OfferedFireTargets(const TArray<FString>& Responses)
+{
 	TArray<int32> Offerti;
-	for (const FString& Response : Opportunity.AllowedResponses)
+	for (const FString& Response : Responses)
 	{
 		const int32 Bersaglio = FireResponseTarget(Response);
 		if (Bersaglio != INDEX_NONE)

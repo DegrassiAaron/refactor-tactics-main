@@ -87,30 +87,52 @@ FText RTReactionResponseText::DescriptionFor(const FRTReactionWindowOptionView& 
 	}
 
 	// [D-411] (`#3788`): chi questa finestra offre come bersaglio e' stato chiesto, e dopo un `HOLD` — o allo scadere —
-	// non torna per il resto del turno. I nomi stanno sulle opzioni `FIRE` della stessa finestra, gia' risolti.
-	int32 Bersagli = 0;
+	// non torna per il resto del turno. «Offerto» lo dice il core, con la funzione con cui il pompaggio segna chi ha
+	// chiesto (review della PR #3791): qui non c'e' una seconda copia della regola. I nomi stanno sulle opzioni `FIRE`.
+	TArray<FString> Risposte;
+	for (const FRTReactionWindowOptionView& Altra : Window.Options)
+	{
+		Risposte.Add(Altra.Response);
+	}
+	const TArray<int32> Offerti = URTReactionOpportunityLibrary::OfferedFireTargets(Risposte);
 	TArray<FText> Nomi;
 	for (const FRTReactionWindowOptionView& Altra : Window.Options)
 	{
-		if (URTReactionOpportunityLibrary::FireResponseTarget(Altra.Response) == INDEX_NONE)
-		{
-			continue;
-		}
-		++Bersagli;
-		if (!Altra.TargetName.IsEmptyOrWhitespace())
+		const int32 Bersaglio = URTReactionOpportunityLibrary::FireResponseTarget(Altra.Response);
+		if (Bersaglio != INDEX_NONE && Offerti.Contains(Bersaglio) && !Altra.TargetName.IsEmptyOrWhitespace())
 		{
 			Nomi.Add(Altra.TargetName);
 		}
 	}
-	if (Bersagli > 1)
+	const bool bTuttiNominati = Offerti.Num() > 0 && Nomi.Num() == Offerti.Num();
+
+	if (Offerti.Num() == 1)
 	{
-		return NSLOCTEXT("RTReactionResponseText", "LetAllThrough", "Lascia passare tutti");
+		return bTuttiNominati
+			? FText::Format(NSLOCTEXT("RTReactionResponseText", "LetThrough", "Lascia passare {0}"), Nomi[0])
+			: DescriptionFor(Option);
 	}
-	if (Bersagli == 1 && Nomi.Num() == 1)
+	if (Offerti.Num() > 1)
 	{
-		return FText::Format(NSLOCTEXT("RTReactionResponseText", "LetThrough", "Lascia passare {0}"), Nomi[0]);
+		// ⚠️ **«Tutti» solo se nessuno e' entrato senza essere offerto** (review della PR #3791): il sottotitolo nomina chi
+		// e' entrato, e chi la condizione dichiarata ha escluso non e' stato chiesto — puo' tornare. Allora si nominano
+		// quelli che si lasciano passare, o, senza i loro nomi, la frase resta quella di prima.
+		if (Window.TriggerNames.Num() <= Offerti.Num())
+		{
+			return NSLOCTEXT("RTReactionResponseText", "LetAllThrough", "Lascia passare tutti");
+		}
+		if (bTuttiNominati)
+		{
+			FText Primi = Nomi[0];
+			for (int32 i = 1; i < Nomi.Num() - 1; ++i)
+			{
+				Primi = FText::Format(NSLOCTEXT("RTReactionResponseText", "ListComma", "{0}, {1}"), Primi, Nomi[i]);
+			}
+			return FText::Format(NSLOCTEXT("RTReactionResponseText", "LetSomeThrough", "Lascia passare {0} e {1}"),
+				Primi, Nomi.Last());
+		}
 	}
-	// Un bersaglio senza nome: la frase non nomina nessuno, e resta quella di prima.
+	// Nessun bersaglio, o nessun nome da dire: la frase non nomina nessuno, e resta quella di prima.
 	return DescriptionFor(Option);
 }
 
