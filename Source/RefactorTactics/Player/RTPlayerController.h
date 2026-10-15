@@ -558,6 +558,11 @@ public:
 	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
 	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
 	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
+	/**
+	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non
+	 * il cablaggio: un `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi.
+	 */
+	void RecenterForTest();
 
 protected:
 
@@ -1368,6 +1373,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	bool IsPlanningInputInert() const;
+
+	/**
+	 * `#1837`: la sessione e' un'**osservazione** — autobattle in vigore, oppure una run di scenario — e il
+	 * giocatore non comanda una squadra. `Home` allora resta il centro mappa.
+	 *
+	 * Per lo scenario valgono due fatti, perche' i due avvii non lasciano lo stesso segno: `ScenarioToRun`
+	 * (avvio da `BeginPlay`) dura quanto la sessione, `IsScenarioRunning` (avvio da console) quanto la run.
+	 * Stessa lettura del GameMode di `IsPlanningInputInert`, per la stessa ragione.
+	 */
+	bool IsObservationSession() const;
 
 	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.

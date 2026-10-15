@@ -19,6 +19,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "RTGameMode.h"           // #1837: lo scenario che rende la sessione un'osservazione
 #include "Tests/RTWorldFixtures.h"
 #include "TimerManager.h"
 #include "Unit/RTUnit.h"
@@ -1135,6 +1136,533 @@ bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
 	// e le due posizioni coinciderebbero.
 	TestNotEqual(TEXT("la squadra 1 non si inquadra dove sta la squadra 0"),
 		Cam->GetActorLocation(), FramedTeamZero);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// #1837 - `Home` contestuale: selezione, poi squadra, poi centro mappa.
+// ---------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Il punto del PIANO di una cella, come lo calcola chi inquadra. Nomi distinti: la unity build e' una. */
+	FVector HomeTestCellWorld(const ARTHexMapActor* Map, const FRTCellId& Cell)
+	{
+		FVector Origin; float HexSize; float LayerHeight;
+		Map->GetHexContext(Origin, HexSize, LayerHeight);
+		return URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+	}
+
+	FVector HomeTestCellsCentroid(const ARTHexMapActor* Map, const TArray<FRTCellId>& Cells)
+	{
+		FVector Origin; float HexSize; float LayerHeight;
+		Map->GetHexContext(Origin, HexSize, LayerHeight);
+		return URTHexLibrary::CellsCentroidWorld(Cells, Origin, HexSize, LayerHeight);
+	}
+
+	FVector HomeTestMapCentre(const ARTHexMapActor* Map)
+	{
+		FVector Origin; float HexSize; float LayerHeight;
+		const URTHexMapAsset* Asset = Map->GetHexContext(Origin, HexSize, LayerHeight);
+		return URTHexLibrary::AxialToWorld(Asset->GetCenterCell(), Origin, HexSize, LayerHeight);
+	}
+
+	/**
+	 * Le tre celle dei test di `Home`, tutte dentro la mappa di raggio 2 attorno a `(4,1)` e scelte perche' i
+	 * tre bersagli — la selezione, il punto medio della squadra, il centro mappa — siano **tre punti
+	 * diversi**. Con due di loro sovrapposti un ramo sbagliato passerebbe per coincidenza.
+	 */
+	const FRTCellId HomeSelectedCell(6, 0);
+	const FRTCellId HomeMateCell(2, 1);
+	const FRTCellId HomeEnemyCell(5, 2);
+
+	/** Mondo, mappa, camera e un giocatore della squadra `PlayerTeam` che la possiede. */
+	struct FHomeTestScene
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* Map = nullptr;
+		ARTCameraPawn* Cam = nullptr;
+
+		bool Build(FAutomationTestBase& Test, int32 PlayerTeam)
+		{
+			World = MakeCameraWorld();
+			if (!Test.TestNotNull(TEXT("world"), World)) { return false; }
+			Map = SpawnCameraTestMap(World);
+			Cam = World->SpawnActor<ARTCameraPawn>();
+			ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, PlayerTeam);
+			if (!Test.TestNotNull(TEXT("mappa"), Map) || !Test.TestNotNull(TEXT("camera"), Cam)
+				|| !Test.TestNotNull(TEXT("controller"), PC))
+			{
+				return false;
+			}
+			PC->Possess(Cam);
+			return true;
+		}
+
+		~FHomeTestScene() { DestroyCameraWorld(World); }
+	};
+}
+
+/**
+ * Con un'unita' selezionata, `Home` inquadra QUELLA — e azzera orientamento e distanza come `RecenterView`.
+ *
+ * ⚠️ Il discriminante e' il compagno su un'altra cella: senza di lui la selezione e la squadra cadrebbero
+ * sullo stesso punto, e un `Home` che ignora la selezione passerebbe. L'azzeramento e' la scelta
+ * dell'autore del 2026-10-15: «Home resta il tasto di recupero».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeFramesSelectionTest,
+	"RefactorTactics.Camera.HomeFramesTheSelectedOwnUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeFramesSelectionTest::RunTest(const FString&)
+{
+	FHomeTestScene S;
+	if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+
+	ARTUnit* Selected = SpawnCameraTestUnit(S.World, /*TeamId=*/ 0, HomeSelectedCell);
+	if (!TestNotNull(TEXT("unita' selezionata"), Selected)
+		|| !TestNotNull(TEXT("compagno"), SpawnCameraTestUnit(S.World, 0, HomeMateCell)))
+	{
+		return false;
+	}
+
+	// Uno stato «perso»: vista girata, zoomata lontano, inclinata.
+	S.Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	S.Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -70.f);
+	S.Cam->AddYaw(+1.f);
+	for (int32 i = 0; i < 5; ++i) { S.Cam->AddZoom(+1.f); }
+	S.Cam->SetPeekOffset(FVector(60.f, 0.f, 0.f));
+	USpringArmComponent* Arm = S.Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { return false; }
+	if (!TestNotEqual(TEXT("precondizione: la vista e' girata"), S.Cam->GetCameraYaw(), 0.f)
+		|| !TestNotEqual(TEXT("precondizione: lo zoom non e' il default"), Arm->TargetArmLength, 800.f)
+		|| !TestFalse(TEXT("precondizione: c'e' un peek"), S.Cam->GetPeekOffset().IsNearlyZero()))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il ramo e' la selezione"), S.Cam->FrameHome(Selected) == ERTHomeFraming::Selection);
+	const FVector Pivot = S.Cam->GetCameraPivot();
+	const FVector Cell = HomeTestCellWorld(S.Map, HomeSelectedCell);
+	TestTrue(TEXT("il pivot sta sulla cella selezionata"), FVector::Dist2D(Pivot, Cell) < 1.0);
+	TestTrue(TEXT("e non sul punto medio della squadra"),
+		FVector::Dist2D(Pivot, HomeTestCellsCentroid(S.Map, { HomeSelectedCell, HomeMateCell })) > 1.0);
+	TestEqual(TEXT("sul PIANO della cella, non alla quota del modello"), Pivot.Z, Cell.Z);
+	TestEqual(TEXT("l'orientamento torna dritto"), S.Cam->GetCameraYaw(), 0.f);
+	TestEqual(TEXT("l'inclinazione torna al default"), S.Cam->GetCameraPitch(), -40.f);
+	TestEqual(TEXT("e la distanza al default, come RecenterView"), Arm->TargetArmLength, 800.f);
+	TestTrue(TEXT("e il peek e' azzerato"), S.Cam->GetPeekOffset().IsNearlyZero());
+	return true;
+}
+
+/**
+ * Senza selezione, `Home` inquadra il punto medio della propria squadra — alla distanza di `Home`, non a
+ * quella d'inizio partita.
+ *
+ * ⚠️ La seconda meta' e' il discriminante di una scorciatoia ovvia: chiamare `FrameOwnTeam` porterebbe il
+ * pivot nel posto giusto e il braccio a `MatchStartArmLength`, cioe' a un'inquadratura che non e' `Home`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeFramesOwnTeamTest,
+	"RefactorTactics.Camera.HomeWithoutSelectionFramesTheOwnTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeFramesOwnTeamTest::RunTest(const FString&)
+{
+	FHomeTestScene S;
+	if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+	if (!TestNotNull(TEXT("unita' 1"), SpawnCameraTestUnit(S.World, 0, HomeSelectedCell))
+		|| !TestNotNull(TEXT("unita' 2"), SpawnCameraTestUnit(S.World, 0, HomeMateCell))
+		|| !TestNotNull(TEXT("nemico"), SpawnCameraTestUnit(S.World, 1, HomeEnemyCell)))
+	{
+		return false;
+	}
+	S.Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	TestTrue(TEXT("il ramo e' la squadra"), S.Cam->FrameHome(nullptr) == ERTHomeFraming::OwnTeam);
+	const FVector Pivot = S.Cam->GetCameraPivot();
+	TestTrue(TEXT("il pivot sta sul punto medio delle proprie unita', il nemico escluso"),
+		FVector::Dist2D(Pivot, HomeTestCellsCentroid(S.Map, { HomeSelectedCell, HomeMateCell })) < 1.0);
+	TestTrue(TEXT("e non sul centro mappa"), FVector::Dist2D(Pivot, HomeTestMapCentre(S.Map)) > 1.0);
+
+	USpringArmComponent* Arm = S.Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { return false; }
+	TestEqual(TEXT("la distanza e' quella di Home"), Arm->TargetArmLength, 800.f);
+	TestNotEqual(TEXT("non quella d'inizio partita di FrameOwnTeam"),
+		Arm->TargetArmLength, S.Cam->GetMatchStartArmLength());
+	return true;
+}
+
+/**
+ * Senza selezione e senza unita' proprie vive, `Home` fa cio' che faceva prima di #1837: il centro mappa.
+ *
+ * L'ultimo anello non si toglie. Una `Home` che puo' non fare nulla e' peggio di una `Home` grossolana: la
+ * camera deve muoversi, e il ramo deve dirlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeFallsBackTest,
+	"RefactorTactics.Camera.HomeWithoutOwnUnitsFallsBackToTheMapCentre",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeFallsBackTest::RunTest(const FString&)
+{
+	FHomeTestScene S;
+	if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+	ARTUnit* Fallen = SpawnCameraTestUnit(S.World, 0, HomeMateCell);
+	if (!TestNotNull(TEXT("compagno"), Fallen)
+		|| !TestNotNull(TEXT("nemico vivo"), SpawnCameraTestUnit(S.World, 1, HomeEnemyCell)))
+	{
+		return false;
+	}
+	// Ucciso con l'API di gioco: e' `IsAlive()` che il filtro interroga.
+	Fallen->ApplyCombatState(/*NewHealth=*/ 0, /*NewShield=*/ 0);
+
+	const FVector Start = HomeTestCellWorld(S.Map, HomeSelectedCell);
+	S.Cam->SetCameraPivotForTest(Start);
+
+	TestTrue(TEXT("il ramo e' il centro mappa"), S.Cam->FrameHome(nullptr) == ERTHomeFraming::MapCenter);
+	TestTrue(TEXT("il pivot sta sul centro mappa"),
+		FVector::Dist2D(S.Cam->GetCameraPivot(), HomeTestMapCentre(S.Map)) < 1.0);
+	TestTrue(TEXT("quindi la camera si e' mossa"), FVector::Dist2D(S.Cam->GetCameraPivot(), Start) > 1.0);
+	return true;
+}
+
+/**
+ * 🔴 `Home` non inquadra MAI un'unita' di un'altra squadra — e' il criterio discriminante di #1837.
+ *
+ * Un test che verifica solo «Home muove la camera» passa anche su un'implementazione che centra il nemico
+ * piu' vicino. Qui il nemico viene **passato come selezione**, che e' l'unico modo in cui potrebbe
+ * arrivarci: la guardia deve reggere anche contro un chiamante che sbaglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeNeverFramesEnemyTest,
+	"RefactorTactics.Camera.HomeNeverFramesAnotherTeamsUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeNeverFramesEnemyTest::RunTest(const FString&)
+{
+	// (a) Il nemico e' l'unica unita' viva del mondo, ed e' la selezione passata.
+	{
+		FHomeTestScene S;
+		if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+		ARTUnit* Enemy = SpawnCameraTestUnit(S.World, 1, HomeEnemyCell);
+		if (!TestNotNull(TEXT("(a) nemico"), Enemy)) { return false; }
+
+		TestTrue(TEXT("(a) il nemico non e' un ramo: si ripiega sul centro mappa"),
+			S.Cam->FrameHome(Enemy) == ERTHomeFraming::MapCenter);
+		TestTrue(TEXT("(a) il pivot non sta sul nemico"),
+			FVector::Dist2D(S.Cam->GetCameraPivot(), HomeTestCellWorld(S.Map, HomeEnemyCell)) > 1.0);
+	}
+
+	// (b) Con un'unita' propria viva, il nemico passato come selezione cede alla squadra.
+	{
+		FHomeTestScene S;
+		if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+		ARTUnit* Enemy = SpawnCameraTestUnit(S.World, 1, HomeEnemyCell);
+		if (!TestNotNull(TEXT("(b) nemico"), Enemy)
+			|| !TestNotNull(TEXT("(b) propria"), SpawnCameraTestUnit(S.World, 0, HomeSelectedCell)))
+		{
+			return false;
+		}
+
+		TestTrue(TEXT("(b) si inquadra la squadra"), S.Cam->FrameHome(Enemy) == ERTHomeFraming::OwnTeam);
+		TestTrue(TEXT("(b) cioe' l'unita' propria, non il nemico"),
+			FVector::Dist2D(S.Cam->GetCameraPivot(), HomeTestCellWorld(S.Map, HomeSelectedCell)) < 1.0);
+	}
+
+	// (c) «La propria squadra» e' quella del CONTROLLER: per il giocatore della squadra 1, un'unita' della 0
+	// e' un'unita' altrui. Senza questo caso la guardia potrebbe confrontare con la 0 scritta a mano.
+	{
+		FHomeTestScene S;
+		if (!S.Build(*this, /*PlayerTeam=*/ 1)) { return false; }
+		ARTUnit* TeamZero = SpawnCameraTestUnit(S.World, 0, HomeSelectedCell);
+		if (!TestNotNull(TEXT("(c) unita' della 0"), TeamZero)
+			|| !TestNotNull(TEXT("(c) unita' della 1"), SpawnCameraTestUnit(S.World, 1, HomeMateCell)))
+		{
+			return false;
+		}
+
+		TestTrue(TEXT("(c) per la squadra 1 la squadra 0 non e' una selezione"),
+			S.Cam->FrameHome(TeamZero) == ERTHomeFraming::OwnTeam);
+		TestTrue(TEXT("(c) si inquadra la squadra 1"),
+			FVector::Dist2D(S.Cam->GetCameraPivot(), HomeTestCellWorld(S.Map, HomeMateCell)) < 1.0);
+	}
+
+	// (d) Una selezione propria ma caduta non e' un'inquadratura: si passa alla squadra.
+	{
+		FHomeTestScene S;
+		if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+		ARTUnit* Fallen = SpawnCameraTestUnit(S.World, 0, HomeSelectedCell);
+		if (!TestNotNull(TEXT("(d) caduta"), Fallen)
+			|| !TestNotNull(TEXT("(d) compagno"), SpawnCameraTestUnit(S.World, 0, HomeMateCell)))
+		{
+			return false;
+		}
+		Fallen->ApplyCombatState(/*NewHealth=*/ 0, /*NewShield=*/ 0);
+
+		TestTrue(TEXT("(d) la selezione caduta cede alla squadra"),
+			S.Cam->FrameHome(Fallen) == ERTHomeFraming::OwnTeam);
+		TestTrue(TEXT("(d) cioe' il compagno vivo"),
+			FVector::Dist2D(S.Cam->GetCameraPivot(), HomeTestCellWorld(S.Map, HomeMateCell)) < 1.0);
+	}
+
+	return true;
+}
+
+/**
+ * Il pivot di `Home` passa dai limiti del viewport (`D-251`) con la vista DOPO il reset, in ogni ramo.
+ *
+ * Il caso e' quello che #873 aveva rotto: zoom al massimo su una mappa piccola, dove l'inquadratura e' piu'
+ * grande dell'area e il limite inchioda il pivot. Il riferimento non e' un numero scritto a mano: e' cio'
+ * che `SetCameraPivot` fa sullo stesso bersaglio con la vista gia' azzerata. Il ramo del centro mappa e'
+ * `RecenterView`, e lo copre gia' `Camera.RecenterClampsWithTheViewItIsAboutToHaveNotTheOldOne`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeStaysInBoundsTest,
+	"RefactorTactics.Camera.HomeKeepsThePivotInsideTheViewportBounds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeStaysInBoundsTest::RunTest(const FString&)
+{
+	for (const ERTHomeFraming Expected : { ERTHomeFraming::Selection, ERTHomeFraming::OwnTeam })
+	{
+		const TCHAR* Ramo = Expected == ERTHomeFraming::Selection ? TEXT("selezione") : TEXT("squadra");
+		FHomeTestScene S;
+		if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+		ARTUnit* Unit = SpawnCameraTestUnit(S.World, 0, HomeSelectedCell);
+		if (!TestNotNull(TEXT("unita'"), Unit)) { return false; }
+
+		// Il default di `Home` e' il massimo: dopo il reset la vista e' la piu' grande che la camera abbia.
+		// ⚠️ Le soglie strategiche vanno spostate oltre: a 4000 la camera passerebbe in strategica, e il caso
+		// che conta — `Home` in tattica, prospettica — non verrebbe mai esercitato (rilievo di review).
+		S.Cam->SetViewportMetricsForTest(16.f/9.f, 90.f);
+		S.Cam->SetStrategicThresholdsForTest(/*Enter=*/ 100000.f, /*Exit=*/ 90000.f);
+		S.Cam->SetArmLengthRangeForTest(/*Default=*/ 4000.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+		// Si parte vicini e girati: il clamp con la vista VECCHIA lascerebbe il pivot dove la vista piccola
+		// lo consente, cioe' sulla cella.
+		for (int32 i = 0; i < 40; ++i) { S.Cam->AddZoom(-1.f); }
+		S.Cam->AddYaw(+1.f);
+
+		const ERTHomeFraming Got = S.Cam->FrameHome(Expected == ERTHomeFraming::Selection ? Unit : nullptr);
+		TestTrue(FString::Printf(TEXT("%s: il ramo e' quello atteso"), Ramo), Got == Expected);
+		if (!TestFalse(FString::Printf(TEXT("%s: precondizione, Home resta in tattica"), Ramo), S.Cam->IsStrategicView()))
+		{
+			return false;
+		}
+		const FVector Framed = S.Cam->GetCameraPivot();
+
+		// Il riferimento: la stessa vista azzerata, lo stesso bersaglio, la porta unica.
+		S.Cam->RecenterView();
+		S.Cam->SetCameraPivot(HomeTestCellWorld(S.Map, HomeSelectedCell));
+		const FVector Reference = S.Cam->GetCameraPivot();
+		if (!TestTrue(FString::Printf(TEXT("%s: precondizione, il limite morde a zoom massimo"), Ramo),
+			FVector::Dist2D(Reference, HomeTestCellWorld(S.Map, HomeSelectedCell)) > 1.0))
+		{
+			return false;
+		}
+		TestTrue(FString::Printf(TEXT("%s: Home clampa come la porta unica, con la vista dopo il reset"), Ramo),
+			FVector::Dist2D(Framed, Reference) < 1.0);
+	}
+	return true;
+}
+
+/**
+ * Il tasto `Home` passa da `FrameHome`, con la selezione del controller.
+ *
+ * 🔴 I test qui sopra chiamano `FrameHome` a mano, quindi provano la camera e non il cablaggio: un
+ * `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi, e in partita `Home` continuerebbe a
+ * centrare la mappa. Questo parte dal gestore vero del tasto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeKeyUsesFrameHomeTest,
+	"RefactorTactics.Camera.HomeKeyFramesTheControllersSelection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeKeyUsesFrameHomeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+
+	ARTUnit* Selected = SpawnCameraTestUnit(World, 0, HomeSelectedCell);
+	if (!TestNotNull(TEXT("unita' selezionata"), Selected)
+		|| !TestNotNull(TEXT("compagno"), SpawnCameraTestUnit(World, 0, HomeMateCell)))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->SelectUnit(Selected, /*bRecordAsPlayerInput=*/ false);
+	if (!TestTrue(TEXT("precondizione: il controller ha la selezione"), PC->GetSelectedUnit() == Selected))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	PC->RecenterForTest();
+	TestTrue(TEXT("Home va sulla selezione del controller"),
+		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) < 1.0);
+	TestTrue(TEXT("e non sul centro mappa, dove andava prima di #1837"),
+		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestMapCentre(Map)) > 1.0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Senza `ARTPlayerState`, `Home` non indovina la squadra: va sul centro mappa.
+ *
+ * ⛔ `TeamIdOf` ripiega sulla 0 quando lo stato manca. Per `FrameOwnTeam` all'avvio e' una comodita' da demo;
+ * per `Home` vorrebbe dire inquadrare la squadra 0 per un giocatore della 1 il cui stato non e' ancora
+ * arrivato — un oracolo attivabile con un tasto (rilievo di review).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeWithoutPlayerStateTest,
+	"RefactorTactics.Camera.HomeWithoutPlayerStateDoesNotGuessTheTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeWithoutPlayerStateTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>(); // nessuno stato del giocatore
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+	ARTUnit* TeamZero = SpawnCameraTestUnit(World, 0, HomeSelectedCell);
+	if (!TestNotNull(TEXT("unita' della squadra 0"), TeamZero)) { DestroyCameraWorld(World); return false; }
+
+	TestTrue(TEXT("con la selezione: centro mappa"), Cam->FrameHome(TeamZero) == ERTHomeFraming::MapCenter);
+	TestTrue(TEXT("senza selezione: centro mappa"), Cam->FrameHome(nullptr) == ERTHomeFraming::MapCenter);
+	TestTrue(TEXT("e il pivot non sta sull'unita' della squadra 0"),
+		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) > 1.0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * In osservazione `Home` va sul centro mappa, e la posizione delle unita' non cambia l'inquadratura.
+ *
+ * E' il criterio 4 della issue — il `Replay` — applicato alle osservazioni che esistono: autobattle e scenari,
+ * dove il giocatore non comanda una squadra. Il centro deriva dalle celle, quindi spostare le unita' non lo
+ * deve muovere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeObservationTest,
+	"RefactorTactics.Camera.HomeWhileObservingFramesTheMapNotTheUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeObservationTest::RunTest(const FString&)
+{
+	FHomeTestScene S;
+	if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+	ARTUnit* Mine = SpawnCameraTestUnit(S.World, 0, HomeSelectedCell);
+	ARTUnit* Mate = SpawnCameraTestUnit(S.World, 0, HomeMateCell);
+	if (!TestNotNull(TEXT("unita' 1"), Mine) || !TestNotNull(TEXT("unita' 2"), Mate)) { return false; }
+
+	TestTrue(TEXT("con la selezione: centro mappa"),
+		S.Cam->FrameHome(Mine, /*bObservationOnly=*/ true) == ERTHomeFraming::MapCenter);
+	const FVector First = S.Cam->GetCameraPivot();
+	TestTrue(TEXT("il pivot sta sul centro mappa"), FVector::Dist2D(First, HomeTestMapCentre(S.Map)) < 1.0);
+
+	// Le unita' si spostano: l'inquadratura d'osservazione non le segue.
+	Mine->Cell = HomeEnemyCell;
+	Mate->Cell = FRTCellId(4, 1);
+	S.Cam->FrameHome(nullptr, /*bObservationOnly=*/ true);
+	TestTrue(TEXT("mutate le unita', l'inquadratura non cambia"), FVector::Dist2D(S.Cam->GetCameraPivot(), First) < 1.0);
+	return true;
+}
+
+/**
+ * Premuto dalla vista strategica, `Home` mette il pivot sulla quota TATTICA del piano dell'unita'.
+ *
+ * 🔴 In strategica la board e' posata con i piani separati, e torna alla quota tattica solo al prossimo
+ * `ARTHUD::UpdateObserverVeil`. Leggere la quota posata metterebbe il pivot un piano sopra l'unita' — il
+ * difetto di #887 per `F` (rilievo di review). Il caso vuole un'unita' su un piano diverso dallo 0: sul piano 0
+ * le due quote coincidono e il test non discriminerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeFromStrategicUsesTacticalHeightTest,
+	"RefactorTactics.Camera.HomeFromStrategicFramesTheTacticalFloorHeight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeFromStrategicUsesTacticalHeightTest::RunTest(const FString&)
+{
+	FHomeTestScene S;
+	if (!S.Build(*this, /*PlayerTeam=*/ 0)) { return false; }
+
+	// Un secondo piano sopra la cella della selezione.
+	const FRTCellId Upper(HomeSelectedCell.X, HomeSelectedCell.Y, 1);
+	S.Map->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	S.Map->MapAsset->SortCells();
+	ARTUnit* Selected = SpawnCameraTestUnit(S.World, 0, Upper);
+	if (!TestNotNull(TEXT("unita' al piano 1"), Selected)) { return false; }
+
+	FVector Origin; float HexSize; float TacticalLayer;
+	S.Map->GetAuthoringHexContext(Origin, HexSize, TacticalLayer);
+	const double TacticalZ = URTHexLibrary::AxialToWorld(Upper, Origin, HexSize, TacticalLayer).Z;
+
+	// In strategica, con la board posata come la posa l'HUD.
+	S.Map->SetStrategicLayerSeparationForTest(2.f);
+	S.Cam->ToggleStrategicView();
+	S.Map->SyncStrategicPresentation(/*bStrategic=*/ true);
+	FVector PosedOrigin; float PosedHexSize; float PosedLayer;
+	S.Map->GetHexContext(PosedOrigin, PosedHexSize, PosedLayer);
+	if (!TestTrue(TEXT("precondizione: siamo in strategica"), S.Cam->IsStrategicView())
+		|| !TestTrue(TEXT("precondizione: la board posata separa i piani"), PosedLayer > TacticalLayer + 1.f))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il ramo e' la selezione"), S.Cam->FrameHome(Selected) == ERTHomeFraming::Selection);
+	TestFalse(TEXT("Home e' uscito dalla strategica"), S.Cam->IsStrategicView());
+	TestEqual(TEXT("il pivot sta alla quota TATTICA del piano 1"), S.Cam->GetCameraPivot().Z, TacticalZ);
+	return true;
+}
+
+/**
+ * In uno scenario il tasto `Home` riporta il campo intero, come l'inquadratura con cui lo scenario si apre.
+ *
+ * Il controllo e' `Camera.HomeKeyFramesTheControllersSelection`: stessa scena, senza scenario, e `Home` va sulla
+ * selezione. Qui l'unica differenza e' `ScenarioToRun` (rilievo di review: prima di #1837 `Home` in uno scenario
+ * mostrava la mappa intera, e non va perso).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeKeyInScenarioTest,
+	"RefactorTactics.Camera.HomeKeyInAScenarioFramesTheWholeMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeKeyInScenarioTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("game mode"), GameMode))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+	ARTUnit* Selected = SpawnCameraTestUnit(World, 0, HomeSelectedCell);
+	if (!TestNotNull(TEXT("unita'"), Selected)) { DestroyCameraWorld(World); return false; }
+	PC->SelectUnit(Selected, /*bRecordAsPlayerInput=*/ false);
+
+	if (!TestFalse(TEXT("controllo: senza scenario la sessione non e' un'osservazione"), PC->IsObservationSession()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	GameMode->ScenarioToRun = TEXT("Visual.Camera.HomeTest");
+	if (!TestTrue(TEXT("con ScenarioToRun la sessione e' un'osservazione"), PC->IsObservationSession()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	PC->RecenterForTest();
+	TestTrue(TEXT("Home va sul centro mappa"), FVector::Dist2D(Cam->GetCameraPivot(), HomeTestMapCentre(Map)) < 1.0);
+	TestTrue(TEXT("e non sulla selezione"),
+		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) > 1.0);
 
 	DestroyCameraWorld(World);
 	return true;
