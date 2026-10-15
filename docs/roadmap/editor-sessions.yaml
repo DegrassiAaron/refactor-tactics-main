@@ -6134,7 +6134,7 @@ sessions:
     unblocked_by: []
     shares_setup_with: []
     verifies: [PIE-PACING-1, PIE-V01-CHARGECLICK]
-    issues: [3667, 3400, 3736]
+    issues: [3667, 3400, 3736, 3793]
     done_when: >-
       la cattura di #3667 e le due voci hanno un verdetto dell'autore, ciascuno nella sua issue
     notes: |
@@ -6144,10 +6144,21 @@ sessions:
         grigi, accanto alla tavola E.
       - `PIE-PACING-1` ✅: un turno giocato in una partita normale, coi contatori di `rt.Debug.Pacing` e il CSV; il
         verdetto sta nella voce, con #3400.
-      - `PIE-V01-CHARGECLICK` `NOT RUN`: dentro uno scenario tastiera e mouse non arrivano al controller (niente
+      - `PIE-V01-CHARGECLICK` `NOT RUN`: dentro uno scenario tastiera e mouse non arrivavano al controller (niente
         selezione, niente hover, nemmeno `Tab`), quindi le scene `Visual.Input.ChargeClick` e
-        `Visual.Input.ChargeBeyondRange` non si pilotano. L'autore ha scelto di aggiungere agli scenari una chiave che
-        consegna la partita al giocatore; la voce torna in una seconda tornata, con #3736.
+        `Visual.Input.ChargeBeyondRange` non si pilotavano. L'autore aveva scelto di aggiungere agli scenari una chiave che
+        consegnasse la partita al giocatore. ➡️ Vedi la seconda tornata: la chiave non serve.
+
+      🟡 **Seconda tornata, il 2026-10-15, dal clone principale** su `main` `2876b3e30`, con le due scene copiate
+      nell'albero e tolte alla fine.
+      - ⚠️ **La diagnosi della prima tornata non si riproduce.** In due PIE nuove, una per scena, l'input arriva sempre
+        al controller: il click seleziona, `N`, `Tab` e `Invio` rispondono. Arriva anche dopo aver spostato la camera dal
+        bridge prima del primo input, e dopo il click centrale, cioè ripetendo la sequenza della prima tornata. La causa
+        della prima tornata resta non stabilita, ma non è una proprietà degli scenari, e la chiave non è stata scritta.
+      - `PIE-V01-CHARGECLICK` 🟡: (1), (2) e (3) «PASS» sulle tavole `V2`–`V4`. La (4) l'ha cambiata l'autore:
+        «in linea» è la retta libera fra i centri (D-523), e la rigiudica #3793.
+      - ⚠️ Un lettore incrementale del log, che riparte da una posizione salvata, ha perso righe che il log conteneva:
+        lo schermo diceva il contrario. Il fatto si legge sul log intero o sulla cattura, non su una lettura parziale.
       - ⚠️ `rt.Debug.RecordPacing` è un comando, non una variabile: passato con `-dpcvars` fa crashare l'Editor
         all'avvio. Si digita in console dopo il Play.
       - ⚠️ Fra due passi l'Editor ha ricevuto input non mandati da chi pilotava: il turno è stato rifatto da capo.

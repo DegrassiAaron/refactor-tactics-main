@@ -68,6 +68,7 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   [D-516](../decisions/RT_PDR_00_Decision_Log.md)) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
   un'azione di fase Dash è un **errore**, sorvegliato da `RefactorTactics.Actions.EveryFastMovementDeclaresStyle`
   su tutti e tre i cataloghi (generico, spedito, eroi).
+- ⚠️ **«In linea», per la carica, cambia significato con [D-523](../decisions/RT_PDR_00_Decision_Log.md)** (2026-10-15): diventa la retta libera fra i centri delle due celle, non più una delle sei direzioni. L'attuazione è [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793). Finché non è su `main`, il codice e questa pagina dicono le sei direzioni.
 - `ARTUnit::PlannedDashAbility` (`INDEX_NONE` = nessuno) + `ARTUnit::PlannedDashCell` — pianificazione dello
   scatto per il turno. `ARTUnit::FindDashAbilityIndex()` trova l'abilità di scatto dell'unità.
 - Abilità di scatto di default: **Ranger → "Scatto"** (`Ranger.Dash`, 5 celle, ricarica 2, `LinearDash`);

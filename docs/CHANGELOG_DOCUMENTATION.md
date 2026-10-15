@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-15 — La carica cliccata, giudicata; «in linea» cambia significato (D-523)
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), seduta `U92`, seconda tornata. `PIE-V01-CHARGECLICK`: (1), (2) e (3) «PASS». Sulla (4) l'autore ha cambiato la regola: per la carica «in linea» è la retta libera fra i centri. L'attuazione è [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-523, che emenda D-516 (2) |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) · [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | una nota: «in linea» cambia con D-523, in attuazione con #3793 |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK` 🟡, coi quattro verdetti; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U92`: la seconda tornata, e la diagnosi della prima che non si riproduce |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | le due scene della carica, usate |
+| [`technical/evidence/u92/`](technical/evidence/u92/) | le tavole `V2`–`V5` |
+
+---
+
 ## 2026-10-15 — Il pacing conta l'ordine di un waypoint: PIE-PACING-1 verde
 
 **Origine**: [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), seduta `U92`. La voce era 🟡 perché una destinazione di movimento non registrava il suo `Order`; corretto, è stata rigiudicata dal vivo: un waypoint, un ordine.
