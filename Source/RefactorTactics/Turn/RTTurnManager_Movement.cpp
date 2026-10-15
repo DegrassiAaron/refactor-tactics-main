@@ -581,6 +581,7 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		W.OwnerCell = OwnerCell;
 		W.ReactionDefId = Armed.ActionId;
 		W.DeclaredCondition = Armed.Condition;
+		W.AlreadyAskedUnitIds = Armed.AskedTargetUnitIds; // [D-411]: una domanda per nemico e per turno
 		W.bArmed = true;
 
 		// I cinque tie-break di ADR-0004 §4. `UnitInitiative` resta 0 perche' un'iniziativa per unita' non
@@ -768,6 +769,8 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		// l'istanza (i suoi sei campi sono turno, macro-fase, micro-step, proprietario, reaction e `Seq`). Il
 		// secondo armamento ricadrebbe sull'indice del primo e verrebbe saltato in silenzio alla riga sotto,
 		// trovando `bCharged` gia' falso.
+		// ⚠️ Da [D-411] l'indice sbagliato deciderebbe anche QUALE armamento ricorda i nemici chiesti: il secondo
+		// Overwatch chiederebbe di nuovo, a ogni passo, dei nemici gia' chiesti dal primo (review della PR #3787).
 		// Oggi il caso NON si produce — un'unita' pianifica una sola abilita' per turno, quindi
 		// `ArmedOverwatches` non ne contiene due dello stesso proprietario. Quando servira', a disambiguare
 		// non basta un confronto in piu': serve che `FRTOverwatchTrigger` porti l'indice del watcher da cui
@@ -1223,6 +1226,15 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 		}
 
 		const FRTReactionOpportunity& Opportunity = Pending.Opportunity;
+
+		// [D-411] La domanda e' posta ADESSO, sui `FIRE` che restano dopo la ricostruzione qui sopra: quei nemici non
+		// tornano bersagli di questo Overwatch per il resto del turno, qualunque sia la risposta. Chi e' a terra o escluso
+		// dalla condizione non ha un `FIRE`, quindi non e' stato chiesto. Prima della sospensione, perche' la finestra
+		// che si apre e' gia' la domanda.
+		for (const int32 Chiesto : URTReactionOpportunityLibrary::OfferedFireTargets(Opportunity))
+		{
+			ArmedOverwatches[ArmedIndex].AskedTargetUnitIds.AddUnique(Chiesto);
+		}
 
 		// Un PROMPT e' una finestra che chiede davvero: si conta prima di chiedere, e solo se c'e' una scelta.
 		// Un'opportunity a cardinalita' <= 1 si committa da sola senza interrompere nessuno, e spenderle

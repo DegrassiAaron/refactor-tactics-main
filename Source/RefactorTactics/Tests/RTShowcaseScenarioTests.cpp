@@ -1212,6 +1212,31 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/**
+	 * [D-411] Il secondo nemico del montaggio del task 5: fuori dalla linea della Guardia al primo passo, dentro al secondo,
+	 * in (0,0). Da D-411 un nemico gia' chiesto non torna, quindi la seconda finestra di questi test la apre lui, e non
+	 * `Corsa` al suo secondo passo dopo un `HOLD`.
+	 */
+	void AggiungiRincalzo(FRTTestScenario& S, FRTScenarioTurn& T)
+	{
+		FRTScenarioUnit R;
+		R.Id = TEXT("Rincalzo");
+		R.HeroId = FName(TEXT("Hero.Aevik"));
+		R.TeamId = 0;
+		R.Cell = FRTCellId(0, 2, 0);
+		R.Facing = ERTHexDirection::NW;
+		S.Units.Add(R);
+
+		FRTScenarioIntent Entra;
+		Entra.UnitId = TEXT("Rincalzo");
+		Entra.Move.Add(FRTCellId(0, 1, 0));
+		Entra.Move.Add(FRTCellId(0, 0, 0));
+		T.Intents.Add(Entra);
+	}
+}
+
 /**
  * Due decisioni per la stessa unita' si consumano in ordine di dichiarazione, e una finestra in piu' delle
  * decisioni dichiarate non e' un timeout: e' una finestra scoperta.
@@ -1220,6 +1245,9 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
  * task 5 il TurnLog mostra DUE finestre quando la prima risposta non spara. Un `FIRE` invece TRONCA il
  * movimento, ed e' il motivo per cui `DecisionProviderIsInjectable` — che dichiara un solo `FIRE` — ne apre
  * una sola e non lascia residuo.
+ *
+ * ⏱️ **Da [D-411] la seconda finestra la apre `Rincalzo`** (`AggiungiRincalzo`): dopo l'`HOLD` su `Corsa`, `Corsa`
+ * non torna, e il `FIRE` della seconda decisione va al nemico che entra al secondo passo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionQueueTest,
 	"RefactorTactics.ShowcaseRelay.ScriptedDecisionsAreConsumedInOrder",
@@ -1245,11 +1273,12 @@ bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
 	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
 	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
 	T.Intents.Add(Corre);
+	AggiungiRincalzo(Scenario, T);
 
 	// Se la coda fosse posizionale invece che per unita', l'ordine cambierebbe col movimento.
 	FRTScenarioDecision Prima; Prima.Unit = TEXT("Guardia"); Prima.Respond = TEXT("HOLD");
 	FRTScenarioDecision Seconda; Seconda.Unit = TEXT("Guardia"); Seconda.Respond = TEXT("FIRE");
-	Seconda.Target = TEXT("Corsa");
+	Seconda.Target = TEXT("Rincalzo");
 	T.Decisions.Add(Prima);
 	T.Decisions.Add(Seconda);
 	Scenario.Turns.Add(T);
@@ -1289,7 +1318,7 @@ bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
  *
  * Il caso: DUE finestre e UNA sola decisione. La prima risponde `HOLD`, che non spende la carica e lascia
  * proseguire il movimento; la seconda si apre e non ha nessuna decisione che la nomini. Non e' un timeout,
- * e' uno scenario che dice meno di quanto il turno chieda.
+ * e' uno scenario che dice meno di quanto il turno chieda. Da [D-411] la seconda la apre `Rincalzo`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseUncoveredWindowTest,
 	"RefactorTactics.ShowcaseRelay.UncoveredReactionWindowFailsTheTurn",
@@ -1313,6 +1342,7 @@ bool FRTShowcaseUncoveredWindowTest::RunTest(const FString&)
 	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
 	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
 	T.Intents.Add(Corre);
+	AggiungiRincalzo(Scenario, T);
 
 	// UNA sola decisione per due finestre: la seconda resta scoperta.
 	FRTScenarioDecision Unica; Unica.Unit = TEXT("Guardia"); Unica.Respond = TEXT("HOLD");
@@ -1446,8 +1476,8 @@ bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
  * premessa costruibile e sarebbe verde senza poter fallire. La verifica e' quindi COMPORTAMENTALE.
  *
  * ⚠️ **I due rami dichiarano un numero DIVERSO di decisioni, e l'asimmetria e' il punto.** Il piano ne
- * dichiarava una per ramo, ma e' stato scritto prima del task 6: un `FIRE` tronca il movimento e apre UNA
- * finestra, un `HOLD` non spende la carica e ne apre DUE. Col ramo `HOLD` a una sola decisione la seconda
+ * dichiarava una per ramo, ma e' stato scritto prima del task 6: un `FIRE` spende la carica e apre UNA
+ * finestra, un `HOLD` non la spende e ne apre DUE — da [D-411] la seconda e' di `Rincalzo`, perche' `Corsa` non torna. Col ramo `HOLD` a una sola decisione la seconda
  * finestra resterebbe scoperta e lo scenario andrebbe in `Error` — non per la mutazione, ma per il
  * controllo introdotto due task fa. Il conteggio delle finestre e' cosi' esso stesso un'evidenza, e piu'
  * leggibile dell'hash quando cade.
@@ -1478,6 +1508,7 @@ bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
 		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
 		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
 		T.Intents.Add(Corre);
+		AggiungiRincalzo(S, T);
 
 		if (bScriptaFire)
 		{
@@ -1539,7 +1570,7 @@ bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
  * `IsResponseAllowed` in un posto solo: qui si legge l'esito, non si duplica la politica.
  *
  * ⚠️ **Due decisioni e non una, per la stessa ragione del task 8**: un rifiuto diventa `HoldRejected`, che
- * non spende la carica, quindi il movimento prosegue e si apre una SECONDA finestra. Con una sola decisione
+ * non spende la carica, quindi il movimento prosegue e si apre una SECONDA finestra — da [D-411], quella di `Rincalzo`. Con una sola decisione
  * quella resterebbe scoperta e lo scenario cadrebbe per il controllo del task 6 — con un messaggio che non
  * nomina il bersaglio rifiutato. Sarebbe verde per la ragione sbagliata.
  */
@@ -1566,6 +1597,7 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
 	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
 	T.Intents.Add(Corre);
+	AggiungiRincalzo(Scenario, T);
 
 	FRTScenarioDecision Rifiutata;
 	Rifiutata.Unit = TEXT("Guardia"); Rifiutata.Respond = TEXT("FIRE");
@@ -1634,6 +1666,7 @@ bool FRTShowcaseDeciderLifetimeTest::RunTest(const FString&)
 		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
 		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
 		T.Intents.Add(Corre);
+		AggiungiRincalzo(S, T);
 		if (bConDecisioni)
 		{
 			for (int32 i = 0; i < 2; ++i)

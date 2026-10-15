@@ -141,6 +141,20 @@ FString URTReactionOpportunityLibrary::FireResponse(int32 TargetUnitId)
 	return FString::Printf(TEXT("FIRE:%d"), TargetUnitId);
 }
 
+TArray<int32> URTReactionOpportunityLibrary::OfferedFireTargets(const FRTReactionOpportunity& Opportunity)
+{
+	TArray<int32> Offerti;
+	for (const FString& Response : Opportunity.AllowedResponses)
+	{
+		const int32 Bersaglio = FireResponseTarget(Response);
+		if (Bersaglio != INDEX_NONE)
+		{
+			Offerti.Add(Bersaglio);
+		}
+	}
+	return Offerti;
+}
+
 int32 URTReactionOpportunityLibrary::FireResponseTarget(const FString& Response)
 {
 	// Il prefisso si ricava dalla funzione che lo SCRIVE, non da una seconda costante: `FireResponse(0)` da'
@@ -626,6 +640,12 @@ TArray<FRTOverwatchSilence> URTReactionOpportunityLibrary::ClassifyOverwatchSile
 			{
 				continue;
 			}
+			// [D-411] Un nemico gia' chiesto ha avuto la sua risposta: non e' un silenzio, e non deve consumare il motivo di
+			// un nemico che la domanda non l'ha avuta (review della PR #3787).
+			if (Watcher.AlreadyAskedUnitIds.Contains(Mover->UnitId))
+			{
+				continue;
+			}
 			const FRTCellId& Cell = Mover->Path[Step];
 			const ERTOverwatchMoverCheck Check =
 				CheckMoverAgainstWatcher(Map, Watcher, Controlled, Mover->UnitId, Mover->TeamId, Cell);
@@ -726,6 +746,11 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 		// micro-step, che i percorsi dichiarano.
 		const TSet<FRTCellId> Controlled(Watcher.Zone.Cells);
 
+		// [D-411] Chi questo watcher ha gia' chiesto non torna bersaglio. La memoria la porta il chiamante: la funzione
+		// non ne aggiunge, e una seconda copia della regola qui dentro potrebbe divergere dal pompaggio (review della PR
+		// #3787).
+		const TSet<int32> Chiesti(Watcher.AlreadyAskedUnitIds);
+
 		// Quanti micro-step ha il piu' lungo dei percorsi: il trigger si valuta a OGNI passo, e il ciclo
 		// esterno e' il passo — non il mover. E' cio' che rende «piu' bersagli nello stesso micro-step» una
 		// sola opportunity invece di due, senza un secondo raggruppamento a valle.
@@ -744,6 +769,10 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 				if (!Mover.Path.IsValidIndex(Step))
 				{
 					continue; // percorso gia' finito: questa unita' non e' in movimento a questo passo
+				}
+				if (Chiesti.Contains(Mover.UnitId))
+				{
+					continue; // [D-411]: gia' chiesto in questo turno, la risposta c'e' stata
 				}
 
 				// Le condizioni del trigger vivono in `CheckMoverAgainstWatcher`, che il registro dei silenzi
