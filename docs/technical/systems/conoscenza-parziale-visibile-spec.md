@@ -910,6 +910,7 @@ mai lungo il vuoto: sul bordo della mappa e sul perimetro di una piattaforma non
 | I lati | `URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells`: i lati esposti di `ExposedEdges`, meno quelli che danno sul vuoto |
 | Chi li aggiorna | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo e con la stessa conoscenza |
 | Chi li disegna | `ARTHexMapActor::DrawVisionBorder`, nel line batcher del mondo: si vede anche in Shipping |
+| Lungo un pannello | il tratto si sposta verso il centro della cella vista, davanti al pannello di copertura o porta che sta sul lato: sul lato gli starebbe dentro (D-519, 2026-10-15) |
 
 ⚠️ **Il confine dell'ESPLORATO non e' questo.** La linea chiude le celle viste adesso, non quelle ricordate: i due
 stati di [D-227](../../decisions/RT_PDR_00_Decision_Log.md) restano distinti, ed e' `Veil.PresenterDrawsTheBorderOfTheSameKnowledge` a

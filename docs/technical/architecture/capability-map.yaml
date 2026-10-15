@@ -559,7 +559,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319, 3771], closed: [2717, 3745] }
+    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319], closed: [2717, 3745, 3771] }
     consumers:
       - RT-CAP-BOT-DECISION
       - RT-CAP-COMBAT
@@ -570,7 +570,10 @@ capabilities:
     tests:
       automation: ["RefactorTactics.Reactions.*", "RefactorTactics.Reaction.*", "RefactorTactics.Clash.*",
                    "RefactorTactics.Overwatch.SecondWatcherHoldsOnADownedTarget",
-                   "RefactorTactics.Replay.Verifier.DownedTargetCollapseIgnoresTheTrace"]
+                   "RefactorTactics.Replay.Verifier.DownedTargetCollapseIgnoresTheTrace",
+                   "RefactorTactics.Overwatch.ConditionIsReadWhenTheSecondWatcherIsAsked",
+                   "RefactorTactics.Overwatch.ConditionExcludedThenDownedCollapsesAsTargetDown",
+                   "RefactorTactics.Replay.Verifier.ConditionReadWhenAskedResimulates"]
       scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
       mutation: []
     verification: { pie: [], packaged: [] }

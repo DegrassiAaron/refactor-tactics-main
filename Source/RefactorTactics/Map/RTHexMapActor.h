@@ -571,6 +571,10 @@ public:
 	 * velo, `URTKnowledgeVeilPresenter`, negli stessi due punti e con la stessa conoscenza: la linea e il velo
 	 * non possono raccontare due viste diverse.
 	 *
+	 * ⏱️ **Il CONTENUTO e' lo stesso, il tempo no.** Il velo converge verso il nuovo stato con la dissolvenza di
+	 * `#2875`; la linea passa subito al confine nuovo. Per la durata della dissolvenza la linea chiude gia' le celle
+	 * che il velo sta ancora accendendo, o non chiude piu' quelle che sta spegnendo.
+	 *
 	 * ⚠️ Si disegna nel line batcher del mondo, come l'anteprima di pianificazione, e mai con `DrawDebug*`:
 	 * in Shipping `DrawDebugLine` non disegna (#3508).
 	 */
@@ -1193,7 +1197,9 @@ protected:
 
 	/**
 	 * Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella (#3761). Nel line batcher del mondo, o in
-	 * quello in primo piano con `SDPG_Foreground`, che disegna davanti alla geometria (l'arco di #3762).
+	 * quello in primo piano con `SDPG_Foreground`, che disegna davanti alla geometria (l'arco di #3762). Dove sul lato
+	 * sta un pannello — copertura o porta — il tratto si sposta verso il centro della cella, davanti al pannello: sul
+	 * lato gli starebbe dentro.
 	 */
 	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore,
 		uint8 Profondita = SDPG_World) const;

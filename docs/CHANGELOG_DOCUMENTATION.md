@@ -21,9 +21,23 @@
 | Dove | Che cosa |
 |---|---|
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-CONFINE` ✅, con il limite del contesto: nelle catture il ricordo era già la pianta; totali rimisurati |
-| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata; su questo ramo cita la sola voce di #3761 |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`: la linea davanti ai pannelli, con la domanda come l'autore l'ha vista |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la riga «lungo un pannello» |
 | [`technical/evidence/u89/`](technical/evidence/u89/) | la tavola `V1` |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: `PIE-FOG-CONFINE` in `verification.pie`; `presentation` resta `partial` |
+
+---
+
+## 2026-10-15 — La condizione dichiarata dell'Overwatch si legge quando il watcher viene chiesto
+
+**Origine**: [#3771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3771), decisione d'autore `D-522`. Due Overwatch sullo stesso mover, il secondo con la condizione «al 50% dei PV o meno»: il colpo del primo portava il bersaglio sotto la soglia, e il secondo restava muto perché la condizione era stata letta prima del colpo. Ora si legge quando arriva il turno di quel watcher, e la sua finestra si apre.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-522`, con le due domande come l'autore le ha lette, la causa dei collassi, e la conseguenza sulle tracce registrate prima |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione accanto a quella di `D-518`; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3771 fra le chiuse, e i due test nuovi fuori dalle famiglie già elencate |
 
 ---
 

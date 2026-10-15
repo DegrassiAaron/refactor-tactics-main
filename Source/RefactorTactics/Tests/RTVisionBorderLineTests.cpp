@@ -257,18 +257,38 @@ bool FRTVisionBorderFollowsTheVeilTest::RunTest(const FString&)
 	// confronto vale per costruzione — nessuna cella vista, nessuna linea — e il test vero e' dopo.
 	TestTrue(TEXT("all'aggancio la linea e' il confine delle celle VISTE"), HexMap->GetVisionBorder() == Atteso());
 
-	// DUE turni giocati: la linea si ridisegna perche' il presenter ascolta il refresh, non perche' la si chiama.
-	// ⚠️ Due e non uno: il primo refresh e' la prima osservazione, e li' vista ed esplorata coincidono.
-	for (int32 Turno = 0; Turno < 2 && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turno)
+	// TRE turni giocati: la linea si ridisegna perche' il presenter ascolta il refresh, non perche' la si chiama.
+	// ⚠️ Piu' di uno: il primo refresh e' la prima osservazione, e li' vista ed esplorata coincidono; e con un turno
+	// solo i bot di questa fixture non muovono, quindi non c'e' playback (`Veil.FollowsTheMoveAcrossMicroSteps`).
+	//
+	// 🔴 **Il percorso del PLAYBACK si misura DURANTE il playback**, dove la sua conoscenza e' diversa da quella dal
+	// vivo: quella dal vivo contiene gia' tutto il transito del turno ([D-379]). Fuori dal playback le due coincidono, e
+	// un presenter che al passo di playback leggesse la conoscenza dal vivo, o non ridisegnasse affatto la linea,
+	// resterebbe verde (rilievo della review del 2026-10-15). Si contano i passi in cui le due conoscenze danno linee
+	// diverse, e fra quelli i passi in cui la linea a schermo e' quella del playback.
+	int32 PassiDistinguibili = 0;
+	int32 PassiCheSeguonoIlPlayback = 0;
+	for (int32 Turno = 0; Turno < 3 && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turno)
 	{
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 		{
 			TM->Tick(0.05f);
+			const TArray<FRTExposedEdge> DalPlayback = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(
+				HexMap->MapAsset, TM->PlaybackKnowledgeForTeam(Presenter->ViewerTeamId()).VisibleCells);
+			if (TM->IsResolving() && DalPlayback != Atteso())
+			{
+				++PassiDistinguibili;
+				PassiCheSeguonoIlPlayback += (HexMap->GetVisionBorder() == DalPlayback) ? 1 : 0;
+			}
 		}
 	}
+	AddInfo(FString::Printf(TEXT("passi di playback in cui le due conoscenze danno linee diverse: %d; con la linea del playback: %d"),
+		PassiDistinguibili, PassiCheSeguonoIlPlayback));
+	TestTrue(TEXT("premessa: c'e' almeno un passo di playback che distingue le due conoscenze"), PassiDistinguibili > 0);
+	TestTrue(TEXT("durante il playback la linea e' quella della conoscenza del PLAYBACK"), PassiCheSeguonoIlPlayback > 0);
 	const FRTTeamKnowledge Dopo = TM->KnowledgeForTeamPublic(Presenter->ViewerTeamId());
-	AddInfo(FString::Printf(TEXT("dopo due turni: VisibleCells=%d, ExploredCells=%d, lati della linea=%d"),
+	AddInfo(FString::Printf(TEXT("dopo tre turni: VisibleCells=%d, ExploredCells=%d, lati della linea=%d"),
 		Dopo.VisibleCells.Num(), Dopo.ExploredCells.Num(), HexMap->GetVisionBorder().Num()));
 	TestTrue(TEXT("premessa: la squadra del viewer vede qualcosa"), Dopo.VisibleCells.Num() > 0);
 	// Senza questa premessa il confronto non distinguerebbe le celle viste da quelle esplorate, e un presenter che
@@ -279,23 +299,110 @@ bool FRTVisionBorderFollowsTheVeilTest::RunTest(const FString&)
 	TestTrue(TEXT("la linea e' il confine delle celle viste ADESSO"), HexMap->GetVisionBorder() == Atteso());
 	TestTrue(TEXT("e non e' vuota"), HexMap->GetVisionBorder().Num() > 0);
 
-	// 🔴 **Ciascuno dei due percorsi, DA SOLO.** Dopo due turni la conoscenza del playback e quella dal vivo
-	// coincidono, quindi la linea qui sopra l'ha potuta scrivere l'uno o l'altro: togliere UNA delle due chiamate a
-	// `SetVisionBorder` lasciava il test verde (mutazioni `M2` e `M3` della verifica del 2026-10-15). Qui si svuota la
-	// linea e si fa passare un percorso alla volta.
+	// 🔴 **Il refresh dal vivo, DA SOLO.** A fine turno la linea qui sopra l'ha potuta scrivere anche l'ultimo passo di
+	// playback: togliere la chiamata a `SetVisionBorder` dal refresh lasciava il test verde (mutazione `M2` della verifica
+	// del 2026-10-15). Qui si svuota la linea e si fa passare solo il refresh.
 	HexMap->SetVisionBorder(TArray<FRTCellId>());
 	TestEqual(TEXT("premessa: la linea svuotata"), HexMap->GetVisionBorder().Num(), 0);
 	Presenter->Apply();
 	TestTrue(TEXT("il refresh dal vivo, da solo, ridisegna la linea delle celle viste"),
 		HexMap->GetVisionBorder().Num() > 0 && HexMap->GetVisionBorder() == Atteso());
 
-	HexMap->SetVisionBorder(TArray<FRTCellId>());
-	TM->OnPlaybackStepAdvanced.Broadcast();
-	const TArray<FRTExposedEdge> AttesoPlayback = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(
-		HexMap->MapAsset, TM->PlaybackKnowledgeForTeam(Presenter->ViewerTeamId()).VisibleCells);
-	TestTrue(TEXT("premessa: nel playback la squadra vede qualcosa"), AttesoPlayback.Num() > 0);
-	TestTrue(TEXT("il passo di playback, da solo, ridisegna la linea con la conoscenza del playback"),
-		HexMap->GetVisionBorder().Num() > 0 && HexMap->GetVisionBorder() == AttesoPlayback);
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **Lungo un pannello la linea sta DAVANTI, non dentro** (#3761, scelta dell'autore del 2026-10-15). Il pannello di
+ * una copertura o di una porta sta centrato sul lato e sale dalla cima della cella: un tratto sul lato gli starebbe
+ * dentro, e non si vedrebbe da nessuna parte. Nella tavola V1 il confine correva solo su terreno aperto, ed e' stata la
+ * review a trovarlo.
+ *
+ * Due pannelli, uno per parte del lato: una copertura nei dati della cella vista, e una porta nei dati del vicino, sul
+ * lato che guarda la cella. Il **controllo positivo** sono gli altri quattro lati, che restano sugli spigoli.
+ *
+ * ⚠️ Il pannello e' spesso 10 uu: `RTEdgePanelThickness` (0.10) su un cubo engine da 100 uu, centrato sul lato. La
+ * costante vive in `RTHexMapActor.cpp` e qui si ripete il numero: se il pannello ingrassa, questo test lo dice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVisionBorderInFrontOfAPanelTest,
+	"RefactorTactics.Visibility.BorderLineStandsInFrontOfAPanel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVisionBorderInFrontOfAPanelTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ULineBatchComponent* Mondo = World->GetLineBatcher(UWorld::ELineBatcherType::World);
+	URTHexMapAsset* Map = MakeArenaConfine(4);
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestTrue(TEXT("premessa: batcher, arena e mappa"), Mondo != nullptr && Map != nullptr && HexMap != nullptr))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTCellId Centro(0, 0, 0);
+	const FRTCellId Ovest = URTHexLibrary::Neighbor(Centro, ERTHexDirection::W);
+	const FRTHexCellData* DatiCentro = Map->FindCell(Centro);
+	const FRTHexCellData* DatiOvest = Map->FindCell(Ovest);
+	if (!TestTrue(TEXT("premessa: la cella vista e il suo vicino a ovest esistono"), DatiCentro && DatiOvest))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	FRTHexCellData Vista = *DatiCentro;
+	Vista.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High, 50));
+	FRTHexCellData Vicino = *DatiOvest;
+	FRTHexDoor Porta;
+	Porta.Edge = URTHexLibrary::OppositeDirection(ERTHexDirection::W);
+	Vicino.Doors.Add(Porta);
+	Map->AddOrUpdateCell(Vista);
+	Map->AddOrUpdateCell(Vicino);
+	Map->SortCells();
+	HexMap->MapAsset = Map;
+
+	HexMap->SetVisionBorder({ Centro });
+	Mondo->Flush();
+	static_cast<AActor*>(HexMap)->Tick(0.f);
+	if (!TestEqual(TEXT("un tratto per lato"), Mondo->BatchedLines.Num(), 6))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	FVector Origin; float Size = 0.f; float LayerH = 0.f;
+	HexMap->GetHexContext(Origin, Size, LayerH);
+	const FVector2D C(URTHexLibrary::AxialToWorld(Centro, Origin, Size, LayerH));
+	const float Apotema = Size * FMath::Sqrt(3.f) * 0.5f;
+	const auto Verso = [&](ERTHexDirection Dir)
+	{
+		return (FVector2D(URTHexLibrary::EdgeMidpointWorld(Centro, Dir, Origin, Size, LayerH)) - C).GetSafeNormal();
+	};
+	constexpr float MezzoPannello = 5.f;
+
+	int32 SulLato = 0;
+	int32 DavantiAllaCopertura = 0;
+	int32 DavantiAllaPorta = 0;
+	for (const FBatchedLine& Linea : Mondo->BatchedLines)
+	{
+		const FVector2D DalCentro = (FVector2D(Linea.Start) + FVector2D(Linea.End)) * 0.5f - C;
+		const float Distanza = DalCentro.Size();
+		AddInfo(FString::Printf(TEXT("tratto a %.1f uu dal centro (apotema %.1f), spessore %.1f"), Distanza, Apotema,
+			Linea.Thickness));
+		if (FMath::IsNearlyEqual(Distanza, Apotema, 0.5f))
+		{
+			++SulLato;
+			continue;
+		}
+		// Davanti: tutto lo spessore della linea fra il centro della cella e la faccia del pannello, e non lontano.
+		const bool bDavanti = Distanza + Linea.Thickness * 0.5f <= Apotema - MezzoPannello
+			&& Distanza > Apotema - 4.f * MezzoPannello;
+		const FVector2D Dir = DalCentro.GetSafeNormal();
+		DavantiAllaCopertura += (bDavanti && FVector2D::DotProduct(Dir, Verso(ERTHexDirection::E)) > 0.99f) ? 1 : 0;
+		DavantiAllaPorta += (bDavanti && FVector2D::DotProduct(Dir, Verso(ERTHexDirection::W)) > 0.99f) ? 1 : 0;
+	}
+	TestEqual(TEXT("la copertura nei dati della cella vista: il tratto sta davanti"), DavantiAllaCopertura, 1);
+	TestEqual(TEXT("la porta nei dati del vicino: il tratto sta davanti"), DavantiAllaPorta, 1);
+	TestEqual(TEXT("controllo positivo: i quattro lati senza pannello restano sul lato"), SulLato, 4);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
