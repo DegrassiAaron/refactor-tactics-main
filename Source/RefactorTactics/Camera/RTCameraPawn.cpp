@@ -421,6 +421,46 @@ void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 	SetCameraPivot(CameraPivot + Delta);
 }
 
+FVector2D ARTCameraPawn::ComputeEdgePanAxis(const FVector2D& Cursor, const FVector2D& ViewportSize, float BandPixels)
+{
+	if (ViewportSize.X <= 0.0 || ViewportSize.Y <= 0.0 || BandPixels <= 0.f)
+	{
+		return FVector2D::ZeroVector;
+	}
+	// Fuori dal viewport non c'e' una banda: il cursore sta altrove, e la camera non deve correre da sola.
+	if (Cursor.X < 0.0 || Cursor.Y < 0.0 || Cursor.X > ViewportSize.X || Cursor.Y > ViewportSize.Y)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	// Penetrazione: 0 sul bordo interno della banda, 1 sul bordo del viewport, lineare in mezzo — quindi
+	// monotona. La curva vera si tara in #1780; qui conta solo che cresca avvicinandosi al bordo.
+	const double Band = BandPixels;
+	auto Penetration = [Band](double DistanceFromEdge)
+	{
+		return FMath::Clamp(1.0 - DistanceFromEdge / Band, 0.0, 1.0);
+	};
+	const double Left = Penetration(Cursor.X);
+	const double Right = Penetration(ViewportSize.X - Cursor.X);
+	const double Top = Penetration(Cursor.Y);
+	const double Bottom = Penetration(ViewportSize.Y - Cursor.Y);
+	// Lo schermo ha la Y verso il basso; l'asse del pan ha `Y` «avanti», cioe' verso il bordo alto.
+	return FVector2D(Right - Left, Top - Bottom);
+}
+
+bool ARTCameraPawn::ApplyEdgePan(const FVector2D& Axis)
+{
+	if (!bEdgePanEnabled || Axis.IsNearlyZero())
+	{
+		return false;
+	}
+	++EdgePanUpdates;
+	// ⛔ Nessuna seconda formula di velocita': e' il difetto che #1834 esiste per prevenire. L'edge pan e' un
+	// ingresso di `AddPlanarMovement`, come `WASD`.
+	AddPlanarMovement(Axis);
+	return true;
+}
+
 void ARTCameraPawn::AddYaw(float AxisValue)
 {
 	if (FMath::IsNearlyZero(AxisValue))

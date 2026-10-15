@@ -1003,6 +1003,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	// per questo che la regola d'interruzione di #1773 ha qui il proprio primo consumatore: `UpdatePeekReturn`
 	// non fa nulla mentre `Ctrl` e' premuto, cioe' mentre il giocatore sta guidando.
 	UpdatePeekReturn(DeltaTime);
+	UpdateEdgePan();
 
 	// [D-367]: col selettore del verso aperto, l'hover gira la mesh verso il lato sotto il cursore ([D-463]).
 	if (bDeclaringFacing || FacingHoverSector.IsSet())
@@ -1641,6 +1642,63 @@ void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
 	{
 		Cam->FrameHome(GetSelectedUnit(), IsObservationSession());
 	}
+}
+
+void ARTPlayerController::UpdateEdgePan()
+{
+	// Senza cursore nel viewport — la finestra non ha il mouse, o il mouse sta su un altro monitor —
+	// `GetMousePosition` risponde falso, e non c'e' una banda: la camera non corre da sola.
+	float X = 0.f;
+	float Y = 0.f;
+	int32 Width = 0;
+	int32 Height = 0;
+	GetViewportSize(Width, Height);
+	const bool bHasCursor = GetMousePosition(X, Y);
+	ApplyEdgePanFrom(bHasCursor ? FVector2D(X, Y) : FVector2D(-1.0, -1.0), FVector2D(Width, Height));
+}
+
+bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize)
+{
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
+	{
+		return false;
+	}
+
+	const FVector2D Axis = ARTCameraPawn::ComputeEdgePanAxis(Cursor, ViewportSize, Cam->GetEdgePanBandPixels());
+	FString State;
+	bool bMoved = false;
+	if (Axis.IsNearlyZero())
+	{
+		State = TEXT("fermo");
+	}
+	else if (!Cam->IsEdgePanEnabled())
+	{
+		State = TEXT("rifiutato: interruttore spento");
+	}
+	else if (!EdgePanAllowed(GetPointerContext(), bOrbiting || bCameraModifier || bModifierPrimaryDown))
+	{
+		// Due rifiuti diversi, e il log li distingue: chi diagnostica un pan che non parte deve sapere quale.
+		State = GetPointerContext() == ERTPointerContext::Modal
+			? TEXT("rifiutato: modale aperto") : TEXT("rifiutato: gesto camera in corso");
+	}
+	else
+	{
+		const FVector Before = Cam->GetCameraPivot();
+		bMoved = Cam->ApplyEdgePan(Axis);
+		State = FString::Printf(TEXT("attivo (asse %.2f, %.2f; %.1f uu nel primo fotogramma)"),
+			Axis.X, Axis.Y, FVector::Dist2D(Cam->GetCameraPivot(), Before));
+	}
+
+	// Il log scrive le TRANSIZIONI, non ogni fotogramma: «attivo» si scrive una volta per discesa nella banda.
+	const bool bWasActive = LastEdgePanState.StartsWith(TEXT("attivo"));
+	const bool bIsActive = State.StartsWith(TEXT("attivo"));
+	if (bIsActive != bWasActive || (!bIsActive && State != LastEdgePanState))
+	{
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Edge pan: %s"), *State);
+		LastEdgePanState = State;
+	}
+	return bMoved;
 }
 
 void ARTPlayerController::RecenterForTest()

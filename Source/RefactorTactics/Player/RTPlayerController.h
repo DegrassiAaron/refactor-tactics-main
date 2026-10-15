@@ -514,6 +514,18 @@ protected:
 	/** Riassorbe il peek residuo. Chiamata da `PlayerTick`: e' l'unico movimento automatico che esista oggi. */
 	void UpdatePeekReturn(float DeltaTime);
 
+	/**
+	 * `#1838` — l'edge pan di un fotogramma, dal cursore e dal viewport veri. Chiamata da `PlayerTick`.
+	 * A riposo — cursore fuori dalla banda — calcola l'asse e si ferma: nessun pan, nessun aggiornamento.
+	 */
+	void UpdateEdgePan();
+
+	/** Il corpo di `UpdateEdgePan`, con cursore e viewport passati: ritorna se la camera si e' mossa. */
+	bool ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize);
+
+	/** L'ultimo stato dell'edge pan scritto nel log: si scrive solo quando cambia, non a ogni fotogramma. */
+	FString LastEdgePanState;
+
 	// --- #1773 · doppio click = Select + Focus ------------------------------------------------------
 
 	/**
@@ -558,6 +570,17 @@ public:
 	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
 	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
 	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
+	/** `#1838`: l'edge pan con cursore e viewport iniettati — in headless un viewport non esiste. */
+	bool UpdateEdgePanForTest(const FVector2D& Cursor, const FVector2D& ViewportSize) { return ApplyEdgePanFrom(Cursor, ViewportSize); }
+
+	/**
+	 * `#1838` — l'edge pan si attiva solo se nessun modale e' aperto e nessun gesto camera e' in corso. Il
+	 * contesto e' quello del contratto del puntatore (`GetPointerContext`, #705): si legge, non si duplica.
+	 */
+	static bool EdgePanAllowed(ERTPointerContext Context, bool bCameraGestureActive)
+	{
+		return Context != ERTPointerContext::Modal && !bCameraGestureActive;
+	}
 	/**
 	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non
 	 * il cablaggio: un `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi.

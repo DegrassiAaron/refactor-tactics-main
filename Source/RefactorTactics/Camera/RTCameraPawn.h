@@ -33,7 +33,7 @@ enum class ERTHomeFraming : uint8
  * Non usa fisica: si sposta scrivendo la posizione, che da `#864` passa sempre per `ClampToSoftBounds`.
  * (Prima usava `AddActorWorldOffset`, e questa riga lo diceva ancora dopo che il codice era cambiato.)
  */
-UCLASS()
+UCLASS(Config = Game) // #1838: `bEdgePanEnabled` si spegne da ini
 class REFACTORTACTICS_API ARTCameraPawn : public APawn
 {
 	GENERATED_BODY()
@@ -51,6 +51,32 @@ public:
 	 * vede.
 	 */
 	void AddPlanarMovement(const FVector2D& Axis);
+
+	/**
+	 * `#1838` — l'asse dell'edge pan per un cursore in pixel del viewport: `X` verso destra, `Y` «avanti sullo
+	 * schermo», cioe' verso il bordo alto. Ciascuna componente sta in `[-1, 1]` ed e' la **penetrazione** nella
+	 * banda: `0` sul suo bordo interno, `1` sul bordo del viewport. Negli angoli le due si sommano.
+	 *
+	 * Zero fuori dalla banda, zero con il cursore fuori dal viewport — su un altro monitor non si scorre — e
+	 * zero se il viewport non ha area. Pura, perche' in headless un viewport non esiste.
+	 */
+	static FVector2D ComputeEdgePanAxis(const FVector2D& Cursor, const FVector2D& ViewportSize, float BandPixels);
+
+	/**
+	 * Un fotogramma di edge pan. **Passa da `AddPlanarMovement`**, quindi eredita la relativita' allo yaw, la
+	 * somma dal pivot, i limiti del viewport (`D-251`) e la velocita' di `WASD` allo stesso `ZoomAlpha`: un
+	 * profilo solo, non due. A penetrazione piena l'asse vale quanto un tasto tenuto premuto.
+	 *
+	 * Con l'interruttore spento o l'asse nullo **non fa nulla**, nemmeno contare un aggiornamento: e' cio' che
+	 * rende misurabile lo «zero lavoro a riposo». Ritorna se ha mosso il pivot.
+	 */
+	bool ApplyEdgePan(const FVector2D& Axis);
+
+	bool IsEdgePanEnabled() const { return bEdgePanEnabled; }
+	void SetEdgePanEnabled(bool bEnabled) { bEdgePanEnabled = bEnabled; }
+	float GetEdgePanBandPixels() const { return EdgePanBandPixels; }
+	/** Quante volte l'edge pan ha mosso il pivot. A riposo deve restare fermo (`Camera.EdgePan*`). */
+	int32 GetEdgePanUpdatesForTest() const { return EdgePanUpdates; }
 
 	/** Zoom variando la lunghezza del braccio (valore positivo = allontana). */
 	void AddZoom(float AxisValue);
@@ -644,6 +670,21 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float PanSpeed = 25.f;
+
+	/**
+	 * `#1838` — l'interruttore dell'edge pan. **Acceso di default**, ed e' la scelta dell'autore del 2026-10-15
+	 * (*«Acceso, spegnibile»*). `Config`: si spegne da `Game.ini` sotto `[/Script/RefactorTactics.RTCameraPawn]`
+	 * con `bEdgePanEnabled=False`. Su schermo singolo e' comodo, su piu' monitor puo' essere una trappola.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
+	bool bEdgePanEnabled = true;
+
+	/** `#1838` — larghezza della banda dal bordo del viewport, in pixel. Valore di partenza: si tara in #1780. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera", meta = (ClampMin = "1.0"))
+	float EdgePanBandPixels = 16.f;
+
+	/** Gli aggiornamenti dell'edge pan che hanno mosso il pivot: vedi `GetEdgePanUpdatesForTest`. */
+	int32 EdgePanUpdates = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float ZoomStep = 150.f;
