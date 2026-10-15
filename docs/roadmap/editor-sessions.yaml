@@ -6037,11 +6037,15 @@ sessions:
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
-    verifies: [PIE-FOG-CONFINE]
-    issues: [3761]
+    verifies: [PIE-FOG-CONFINE, PIE-FOG-ARCO, PIE-FOG-PIANTA]
+    issues: [3760, 3761, 3762]
     done_when: >-
       l'autore ha giudicato le tre voci sulle tavole; ciascuna issue si chiude col proprio verdetto
     notes: |
+      ✅ **Eseguita il 2026-10-15, in tre tornate: le tre voci verdi.** `PIE-FOG-CONFINE` nella prima (e lungo un
+      pannello nella seconda), `PIE-FOG-PIANTA` e `PIE-FOG-ARCO` nella terza. Le tavole che hanno deciso stanno in
+      `docs/technical/evidence/u89/`, e il verdetto di ogni voce nella sua cella del registro.
+
       🟡 **Prima tornata, catture del 2026-10-14 e verdetti del 2026-10-15: una voce verde su tre.** Le catture le ha
       fatte dal clone principale la sessione che scriveva la pila, sul ramo locale di verifica `57491d7b9` (la pila più
       tre leve di sola cattura), senza portare l'Editor in primo piano; la cattura C di `V2` è rifatta su `eb90d8e91`.
@@ -6052,6 +6056,25 @@ sessions:
         osservato e ricordato disturba, i muri ricordati non vanno né a terra né in cima; l'arco è sottile, coperto, e
         se ne vede più d'uno. Le correzioni stanno su #3760 e #3762, e tornano in una seconda tornata con tavole nuove;
         ciascun ramo aggiunge qui la propria voce e la propria issue, insieme alla voce nel registro.
+
+      🟡 **Seconda tornata, catture e verdetti del 2026-10-15.** Dal clone principale, sul ramo locale di verifica
+      `d40ccb9f6` (#3760 `4173a0700`, che contiene #3762, più le leve di sola cattura), senza portare l'Editor in primo
+      piano; la dissolvenza è rallentata 20 volte, e la tavola lo dichiara. Tavole `V4`…`V8`, in
+      `docs/technical/evidence/u89/`.
+      - `PIE-FOG-CONFINE`: lungo una copertura alta (`V8`) «PASS»; resta ✅.
+      - `PIE-FOG-PIANTA`: il pavimento va (`V4`, `V7`) e la dissolvenza «PASS» (`V5`), ma manca la nebbia, che l'autore
+        ha voluto su ogni cella non vista (D-520 (5)). Torna nella terza tornata.
+      - `PIE-FOG-ARCO`: «si capisce l'area, non di chi e'» (`V6`); il nemico ora si contorna nel rosso del suo arco
+        (D-521 (6)). Torna nella terza tornata.
+
+      ✅ **Terza tornata, catture e verdetti del 2026-10-15.** Dal clone principale, sul ramo locale di verifica
+      `888fc6f5a` (#3760 `92c95a428`, che contiene #3762 `d068ff832`, più le leve di sola cattura).
+      - `PIE-FOG-PIANTA` ✅ sulla `V9`: la nebbia su ogni cella non vista, in tattica e in strategica.
+      - `PIE-FOG-ARCO` ✅ sulla `V11`: il nemico dell'arco contornato nel suo rosso.
+      - ⚠️ `V10`, la nebbia che sale con la dissolvenza, è `NOT RUN`: durante la cattura la camera è stata mossa da
+        fuori (zoom, vista strategica, hover), e la tavola non è stata mostrata.
+      - ⚠️ Da questa tornata l'Editor si apre col Tactical Designer flottante e con la finestra principale di dimensione
+        variabile: le catture hanno due dimensioni, e ogni ritaglio è per la sua.
 
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
   - id: U90

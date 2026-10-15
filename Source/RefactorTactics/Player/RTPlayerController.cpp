@@ -1045,6 +1045,23 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
+
+	UpdateEnemyArcFocus(HexMap);
+}
+
+void ARTPlayerController::UpdateEnemyArcFocus(ARTHexMapActor* HexMap) const
+{
+	// `#3762` ([D-521]): l'arco di UN nemico in vista. Quello sotto il cursore — la cella e' la stessa dell'hover, e
+	// colpendo un'unita' del piano attivo e' la SUA cella — altrimenti quello del nemico ispezionato col click. Mai
+	// piu' di uno: lo ha chiesto l'autore nella seduta `U89`. Gli archi li calcola il presenter del velo, solo per i
+	// nemici in vista; qui si sceglie soltanto quale mostrare, e un'unita' ispezionata che non ha arco non ne mostra.
+	if (!HexMap)
+	{
+		return;
+	}
+	const ARTUnit* Ispezionata = GetInspectedUnit();
+	HexMap->SetEnemyArcFocus(HexMap->GetHoveredCell(), HexMap->IsHoveredCellValid(),
+		Ispezionata ? Ispezionata->Cell : FRTCellId(), Ispezionata != nullptr);
 }
 
 // --- #1775 / #1776 · il piano attivo del giocatore, e il picking che lo rispetta (D-255) --------------

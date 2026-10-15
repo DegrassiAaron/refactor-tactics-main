@@ -175,6 +175,12 @@ protected:
 	virtual void SetupInputComponent() override;
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/**
+	 * Dice alla mappa quale arco di un nemico in vista disegnare (#3762, [D-521]): quello sotto il cursore, altrimenti
+	 * quello del nemico ispezionato. La chiama `PlayerTick` dopo l'hover.
+	 */
+	void UpdateEnemyArcFocus(class ARTHexMapActor* HexMap) const;
+
 	/** Crea (una sola volta) Input Action e Mapping Context via codice. */
 	void BuildInputMappings();
 
@@ -1050,6 +1056,13 @@ public:
 
 	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
+
+	/**
+	 * Per i test dell'arco del nemico (#3762): l'unita' ispezionata senza passare dal click, che porta con se' le
+	 * condizioni della matrice del puntatore, e la scelta dell'arco senza il cursore, che in un mondo di prova non c'e'.
+	 */
+	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
+	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/**
 	 * §5 — **applica la riga di matrice** a un click su un'unita': chiede l'esito a

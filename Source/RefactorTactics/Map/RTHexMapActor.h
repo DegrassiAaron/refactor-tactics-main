@@ -11,6 +11,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTLayerPresentation.h" // FRTLayerPresentationTuning: le leve con cui e' stato scritto il trattamento (#3679)
 #include "Perception/RTVisibilityBorder.h" // FRTExposedEdge: i lati della linea di confine della vista (#3761)
+#include "Perception/RTEnemyArcLibrary.h" // FRTEnemyArcView: gli archi dei nemici in vista (#3762)
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -246,10 +247,13 @@ public:
 	 * del piano e il trattamento di D-501 — sulle quattro famiglie che lo ricevono: `EdgeFeatures`, `Blockers`,
 	 * `StructuralBodies` e `SurfaceVolumes`. Lo costruisce il commandlet `RTBuildHexVolumeMaterial` (`D-229`).
 	 *
-	 * ⛔ **`Relief` NON lo riceve, ed e' una scelta**: il rilievo del costo tiene il materiale di default perche' il
-	 * sovrapprezzo di movimento DEVE saltare all'occhio (decisione di leggibilita' del 2026-08-15, in
-	 * `RebuildInstances`), ed e' uno strumento di lettura, non un oggetto. Su un piano che non e' l'attivo resta
-	 * pieno: e' un limite dichiarato di #3706.
+	 * ⛔ **`Relief` non e' una famiglia dei volumi, ed e' una scelta**: il rilievo del costo e' uno strumento di lettura,
+	 * non un oggetto, e non riceve ne' tinta del piano ne' trattamento. Su un piano che non e' l'attivo resta pieno: e' un
+	 * limite dichiarato di #3706. ➕ Dal 2026-10-15 (#3760, seduta `U89`) ne prende pero' il grafo, in un'istanza col suo
+	 * colore proprio, un grigio chiaro: il materiale di default della mesh, in luce piena, lo faceva leggere «nero». Senza
+	 * dati per istanza il materiale legge i canali a zero, cioe' opaco e nel suo colore. ➕ Per la stessa seduta anche
+ * `SurfaceVolumes`, che resta una famiglia, ha un'istanza sua: il colore della superficie che porta il volume, il fumo,
+ * invece del grigio scuro dei prismi.
 	 *
 	 * Se assente, le quattro famiglie tengono il materiale della loro mesh e i dati per istanza sono inerti: niente
 	 * tinta e niente trattamento, come prima di #3706. Sta qui e non nel livello per la ragione di `CellMaterial`.
@@ -583,10 +587,46 @@ public:
 	const TArray<FRTExposedEdge>& GetVisionBorder() const { return VisionBorder; }
 
 	/**
+	 * GLI ARCHI DEI NEMICI IN VISTA (#3762), uno per nemico e chiave la sua cella: i lati che chiudono cio' che vede,
+	 * gia' calcolati sul solo terreno che la squadra conosce (`URTEnemyArcLibrary::ArcsOfEnemiesInView`). Li scrive il
+	 * presenter del velo; la mappa li conserva, e ne disegna soltanto quelli che il giocatore chiede.
+	 */
+	void SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell);
+
+	/**
+	 * QUALE ARCO SI DISEGNA, a ogni fotogramma (#3762, [D-521]): **uno solo**. Quello del nemico sulla cella sotto il
+	 * cursore, se ce n'e' uno; altrimenti quello del nemico che il giocatore ha cliccato per ispezionarlo.
+	 *
+	 * 🔑 Nella seduta `U89` l'autore ha chiesto *«l'arco visto deve essere solo quello del nemico
+	 * selezionato/hoverato»*: il tasto che mostrava gli archi di tutti i nemici in vista non c'e' piu', perche' gli
+	 * archi sovrapposti non si leggevano e non si capiva di chi fossero.
+	 *
+	 * La chiama `ARTPlayerController::UpdateEnemyArcFocus`. Se non cambia niente non tocca il `Tick`.
+	 */
+	void SetEnemyArcFocus(const FRTCellId& InHoveredCell, bool bHasHover, const FRTCellId& InInspectedCell,
+		bool bHasInspected);
+
+	/** L'arco che si disegna adesso, in un elenco di zero o un elemento. Diagnostica e test. */
+	TArray<FRTEnemyArcView> GetShownEnemyArcs() const;
+
+	/**
 	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
 	 * certa soglia il ricordo diventa indistinguibile dal nascosto, e i tre stati tornano due.
 	 */
 	static constexpr float RTVeilExploredFactor = 0.35f;
+
+	/**
+	 * Il colore delle linee della PIANTA, cioe' del terreno ricordato (#3760): il ciano chiaro, «quasi olografico», che
+	 * l'autore ha scelto sulla tavola P2 fra il bianco e l'ambra. Lo scrive il velo sull'anello della griglia di ogni
+	 * cella ricordata, e tinge i volumi ricordati.
+	 */
+	static FLinearColor PlanColor();
+
+	/**
+	 * Il FONDO della cella ricordata (#3760, seduta `U89`): il colore della pianta, scuro. L'autore ha scelto «Fondo tenue
+	 * color pianta», perche' il solo anello si leggeva come «mai visto», che e' nero.
+	 */
+	static FLinearColor PlanFloorColor();
 
 #if !UE_BUILD_SHIPPING
 	/**
@@ -845,6 +885,13 @@ public:
 
 	/** Fissa la separazione (per i test): ogni test dichiara il valore che misura, invece di ereditare il default. */
 	void SetStrategicLayerSeparationForTest(float InSeparation) { StrategicLayerSeparation = InSeparation; }
+
+	/**
+	 * #3760: rimette il ricordo ATTENUATO su tutte le famiglie, come prima della pianta. Esiste per i test del meccanismo
+	 * che resta nel codice — la dissolvenza di `#2875` fra osservato e ricordato — e che nessuna famiglia usa piu' da
+	 * [D-520]. Va chiamata prima del primo velo.
+	 */
+	void SetVeilMemoryAttenuatedForTest(bool bInAttenuated) { bVeilMemoryAttenuatedForTest = bInAttenuated; }
 
 	/**
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
@@ -1172,14 +1219,35 @@ protected:
 	void DrawVisionBorder() const;
 
 	/**
-	 * Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella, nel line batcher del mondo (#3761). Dove sul
-	 * lato sta un pannello — copertura o porta — il tratto si sposta verso il centro della cella, davanti al pannello:
-	 * sul lato gli starebbe dentro.
+	 * Un tratto lungo ogni lato dell'elenco, sul pavimento della sua cella (#3761). Nel line batcher del mondo, o in
+	 * quello in primo piano con `SDPG_Foreground`, che disegna davanti alla geometria (l'arco di #3762). Dove sul lato
+	 * sta un pannello — copertura o porta — il tratto si sposta verso il centro della cella, davanti al pannello: sul
+	 * lato gli starebbe dentro.
 	 */
-	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const;
+	void DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore,
+		uint8 Profondita = SDPG_World) const;
 
 	/** I lati della linea di confine (#3761). Vedi `SetVisionBorder`. */
 	TArray<FRTExposedEdge> VisionBorder;
+
+	/** Gli archi dei nemici in vista (#3762). Vedi `SetEnemyArcs`. */
+	TMap<FRTCellId, FRTEnemyArcView> EnemyArcs;
+
+	/** Quale arco chiede il giocatore (#3762). Vedi `SetEnemyArcFocus`. */
+	bool bEnemyArcHover = false;
+	FRTCellId EnemyArcHoveredCell;
+	bool bEnemyArcInspected = false;
+	FRTCellId EnemyArcInspectedCell;
+
+	/**
+	 * L'arco da disegnare adesso, o nessuno: prima il nemico sotto il cursore, poi quello ispezionato.
+	 *
+	 * @param OutEnemyCell se non nullo e c'e' un arco, la cella del nemico che lo possiede.
+	 */
+	const FRTEnemyArcView* FocusedEnemyArc(FRTCellId* OutEnemyCell = nullptr) const;
+
+	/** Vero se un arco si disegna adesso: tiene acceso il `Tick` solo quando serve. */
+	bool HasEnemyArcToDraw() const;
 
 	/** Cella sotto il cursore, impostata dal controller. */
 	FRTCellId HoveredCell;
@@ -1337,6 +1405,17 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> SurfaceVolumes;
+
+	/**
+	 * La NEBBIA ([D-520] (5), #3760): una colonna esagonale traslucida per cella, dal fondo del disco fino al piano
+	 * sopra, su ogni cella che la squadra non vede adesso — ricordata o mai vista. Una istanza per cella, nello stesso
+	 * ordine di `Cells`: la colonna `I` e' la cella `InstanceCells[I]`, e la nebbia e' il complemento di quanto il suo
+	 * disco e' osservato. Vedi `WriteFog`.
+	 *
+	 * ⛔ Nessuna collisione: la nebbia non ruba il click o l'hover alla cella sotto di lei.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> FogVolumes;
 
 	/**
 	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
@@ -1572,6 +1651,9 @@ protected:
 	TArray<FRTCellId> SurfaceVolumeCells;
 	TArray<FVector> SurfaceVolumeBaseScale;
 	TArray<uint8> LastSurfaceVolumeVeilState;
+	/** La nebbia (#3760): la scala piena di ogni colonna, e quanta nebbia vi e' scritta (`-1` mai scritta). */
+	TArray<FVector> FogBaseScale;
+	TArray<float> FogShown;
 	TArray<FRTCellId> BlockerCells;
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
@@ -1588,6 +1670,8 @@ protected:
 	 */
 	TArray<FRTCellId> EdgeFeatureOtherCells;
 	TArray<FVector> EdgeFeatureBaseScale;
+	/** #3760: vedi `SetVeilMemoryAttenuatedForTest`. */
+	bool bVeilMemoryAttenuatedForTest = false;
 	TArray<uint8> LastEdgeFeatureVeilState;
 
 	/**
@@ -1652,6 +1736,24 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> EdgePanelVolumeMaterial;
+
+	/**
+	 * #3760, seduta `U89` — l'istanza di `VolumeMaterial` del RILIEVO del costo, col suo colore proprio, un grigio chiaro.
+	 * Vedi `VolumeMaterial` e `ApplyVolumeMaterial`.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ReliefVolumeMaterial;
+
+	/**
+	 * #3760, seduta `U89` — l'istanza di `VolumeMaterial` dei VOLUMI DI SUPERFICIE, col colore della superficie che li
+	 * porta: oggi il solo fumo (`URTHexLibrary::SurfaceVolumeFor`). Vedi `ApplyVolumeMaterial`.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SurfaceVolumeMaterial;
+
+	/** #3760, seduta `U89` — l'istanza di `VolumeMaterial` della NEBBIA, col suo grigio freddo. Vedi `ApplyVolumeMaterial`. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> FogVolumeMaterial;
 
 	/** #3704 — la mappa disegnata ha piu' di un piano: lo misura `ApplyLayerPresentation`, sulle istanze. */
 	bool bPresentationMultiLayer = false;
@@ -1831,6 +1933,14 @@ protected:
 	TArray<float> BorderDisplayFactor;
 
 	/**
+	 * ➕ #3760: i fattori dei VOLUMI, quando il loro ricordo e' il pannello traslucido della pianta: quanto l'istanza e'
+	 * osservata, 1 vista e 0 ricordata. Restano vuoti con l'attenuazione di prima. Vedi `VolumeDisplayFactorFor`.
+	 */
+	TArray<float> EdgeFeatureDisplayFactor;
+	TArray<float> BlockerDisplayFactor;
+	TArray<float> BodyDisplayFactor;
+
+	/**
 	 * 🔑 **Quante istanze non hanno ancora raggiunto il proprio fattore.** E' il segnale con cui il `Tick` si
 	 * spegne: **zero significa converso**, e da li' in poi il velo non costa piu' niente per fotogramma.
 	 *
@@ -1853,6 +1963,56 @@ protected:
 	 * sola banda che cambia — la stessa disciplina di `Last…VeilState`, un livello piu' sotto.
 	 */
 	void AdvanceVeilTransition(float DeltaSeconds);
+
+	/**
+	 * CHE COSA FA UNA FAMIGLIA DI ISTANZE NEL RICORDO (#3760, la pianta).
+	 *
+	 * | valore | una cella esplorata e non osservata |
+	 * |---|---|
+	 * | `Attenuate` | si disegna coi colori veri moltiplicati per `RTVeilExploredFactor` — com'era prima della pianta |
+	 * | `Hide` | non si disegna, come una cella mai vista: il rilievo e i volumi di superficie |
+	 * | `Plan` | si disegna col colore della pianta, a piena luminosita'. L'anello della griglia |
+	 * | `PlanFloor` | si disegna col fondo della pianta, `PlanFloorColor`. Il disco |
+	 * | `PlanFade` | sfuma verso il fondo della pianta e smette di disegnarsi. I glifi |
+	 * | `PlanVolume` | resta un volume, tinto col colore della pianta e semitrasparente. Muri, coperture, porte, celle che bloccano, corpi |
+	 *
+	 * 🔑 **Fino a #3760 il ricordo era «Attenuate» per tutte.** La prima stesura della pianta faceva `Plan` l'anello e
+	 * `Hide` tutto il resto, coi muri ridisegnati a linee. La seduta `U89` l'ha respinta: il solo anello si leggeva come
+	 * «mai visto», il cambio secco disturbava, e i muri non andavano ne' a terra ne' in cima. Le scelte dell'autore stanno
+	 * in [D-520].
+	 *
+	 * 🔑 **Per la pianta il fattore di `#2875` e' quanto l'istanza e' osservata**, 1 vista e 0 ricordata, e il colore e'
+	 * l'interpolazione fra il colore della pianta e quello vero: e' la dissolvenza fra osservato e ricordato, di nuovo.
+	 * `Attenuate` oggi non lo usa nessuna famiglia; resta per i test del meccanismo.
+	 *
+	 * ⚠️ **La pianta vive nell'anello della griglia**, quindi una griglia spenta (`SetCellBordersVisible(false)`) la
+	 * spegnerebbe con lei. Oggi nessun chiamante di produzione la spegne.
+	 */
+	enum class ERTVeilMemory : uint8 { Attenuate, Hide, Plan, PlanFloor, PlanFade, PlanVolume };
+
+	/** Il trattamento del ricordo di ogni famiglia (#3760). */
+	ERTVeilMemory MemoryFor(const UInstancedStaticMeshComponent* Component) const;
+
+	/** Il colore di una famiglia a ricordo pieno, per i trattamenti che ne hanno uno (`Plan`, `PlanFloor`, `PlanFade`). */
+	static bool RememberedColorFor(ERTVeilMemory Ricordo, FLinearColor& Out);
+
+	/** Il fattore di una famiglia dei volumi, se il suo ricordo e' il pannello traslucido; altrimenti `nullptr`. */
+	TArray<float>* VolumeDisplayFactorFor(const UInstancedStaticMeshComponent* Component);
+
+	/**
+	 * Tinta e trattamento di UN'istanza di una famiglia dei volumi (#3706, #3760): quelli del suo piano ([D-501],
+	 * [D-508]), spostati verso il pannello traslucido della pianta di quanto l'istanza non e' osservata. E' l'unico
+	 * scrittore di quei canali: lo chiamano sia la presentazione dei piani sia il velo.
+	 */
+	void WriteVolumeAppearance(UInstancedStaticMeshComponent* Famiglia, const FRTCellId& Cell, int32 I, float Osservata);
+
+	/**
+	 * La nebbia (#3760, [D-520] (5)): per ogni colonna, quanta nebbia c'e' — `1` su una cella mai vista, il complemento
+	 * di quanto il disco e' osservato su una cella vista o ricordata, quindi segue la sua dissolvenza — e la scrive.
+	 * Una colonna senza nebbia non si disegna. La chiamano il velo, ogni passo della dissolvenza e la presentazione dei
+	 * piani. Una board mai velata, e l'attenuazione di prima, non hanno nebbia.
+	 */
+	void WriteFog();
 
 	/** Un passo del filtro su UNA famiglia. Risponde quante istanze restano in movimento. */
 	int32 AdvanceVeilFamily(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
