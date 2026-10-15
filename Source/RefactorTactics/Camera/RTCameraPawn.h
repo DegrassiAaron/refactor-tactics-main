@@ -68,14 +68,15 @@ public:
 	 * profilo solo, non due. A penetrazione piena l'asse vale quanto un tasto tenuto premuto.
 	 *
 	 * Con l'interruttore spento o l'asse nullo **non fa nulla**, nemmeno contare un aggiornamento: e' cio' che
-	 * rende misurabile lo «zero lavoro a riposo». Ritorna se ha mosso il pivot.
+	 * rende misurabile lo «zero lavoro a riposo». Ritorna se ha **mosso** il pivot: contro il limite del
+	 * viewport lavora, e risponde `false`.
 	 */
 	bool ApplyEdgePan(const FVector2D& Axis);
 
 	bool IsEdgePanEnabled() const { return bEdgePanEnabled; }
 	void SetEdgePanEnabled(bool bEnabled) { bEdgePanEnabled = bEnabled; }
 	float GetEdgePanBandPixels() const { return EdgePanBandPixels; }
-	/** Quante volte l'edge pan ha mosso il pivot. A riposo deve restare fermo (`Camera.EdgePan*`). */
+	/** Quante volte l'edge pan ha lavorato, cioe' chiamato `AddPlanarMovement`. A riposo deve restare fermo (`Camera.EdgePan*`). */
 	int32 GetEdgePanUpdatesForTest() const { return EdgePanUpdates; }
 
 	/** Zoom variando la lunghezza del braccio (valore positivo = allontana). */
@@ -683,7 +684,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera", meta = (ClampMin = "1.0"))
 	float EdgePanBandPixels = 16.f;
 
-	/** Gli aggiornamenti dell'edge pan che hanno mosso il pivot: vedi `GetEdgePanUpdatesForTest`. */
+	/** Gli aggiornamenti dell'edge pan, cioe' il lavoro: vedi `GetEdgePanUpdatesForTest`. */
 	int32 EdgePanUpdates = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")

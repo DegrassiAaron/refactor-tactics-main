@@ -427,8 +427,14 @@ FVector2D ARTCameraPawn::ComputeEdgePanAxis(const FVector2D& Cursor, const FVect
 	{
 		return FVector2D::ZeroVector;
 	}
+	// 🔴 **L'ultimo pixel e' `Size - 1`, non `Size`.** Il motore tronca il cursore a intero
+	// (`FSceneViewport::UpdateCachedCursorPos`), quindi a schermo intero il bordo destro vale 1919 su 1920: con
+	// le distanze misurate da `Size` i bordi destro e basso non arrivavano mai alla penetrazione piena, e
+	// andavano piu' piano di sinistra, alto e `WASD` (rilievo di review).
+	const double LastX = ViewportSize.X - 1.0;
+	const double LastY = ViewportSize.Y - 1.0;
 	// Fuori dal viewport non c'e' una banda: il cursore sta altrove, e la camera non deve correre da sola.
-	if (Cursor.X < 0.0 || Cursor.Y < 0.0 || Cursor.X > ViewportSize.X || Cursor.Y > ViewportSize.Y)
+	if (Cursor.X < 0.0 || Cursor.Y < 0.0 || Cursor.X > LastX || Cursor.Y > LastY)
 	{
 		return FVector2D::ZeroVector;
 	}
@@ -441,9 +447,9 @@ FVector2D ARTCameraPawn::ComputeEdgePanAxis(const FVector2D& Cursor, const FVect
 		return FMath::Clamp(1.0 - DistanceFromEdge / Band, 0.0, 1.0);
 	};
 	const double Left = Penetration(Cursor.X);
-	const double Right = Penetration(ViewportSize.X - Cursor.X);
+	const double Right = Penetration(LastX - Cursor.X);
 	const double Top = Penetration(Cursor.Y);
-	const double Bottom = Penetration(ViewportSize.Y - Cursor.Y);
+	const double Bottom = Penetration(LastY - Cursor.Y);
 	// Lo schermo ha la Y verso il basso; l'asse del pan ha `Y` «avanti», cioe' verso il bordo alto.
 	return FVector2D(Right - Left, Top - Bottom);
 }
@@ -457,8 +463,10 @@ bool ARTCameraPawn::ApplyEdgePan(const FVector2D& Axis)
 	++EdgePanUpdates;
 	// ⛔ Nessuna seconda formula di velocita': e' il difetto che #1834 esiste per prevenire. L'edge pan e' un
 	// ingresso di `AddPlanarMovement`, come `WASD`.
+	const FVector Before = CameraPivot;
 	AddPlanarMovement(Axis);
-	return true;
+	// Contro il limite del viewport il lavoro c'e' e il movimento no: la risposta e' sul movimento.
+	return !CameraPivot.Equals(Before);
 }
 
 void ARTCameraPawn::AddYaw(float AxisValue)

@@ -166,30 +166,44 @@ quanto più è vicino al bordo. **Non è una seconda pipeline**: `ARTCameraPawn:
 
 | Proprietà | Stato |
 |---|---|
-| l'asse è la penetrazione nella banda, zero fuori, e nessun pan col cursore fuori dal viewport | ✅ `Camera.EdgePanAxisIsZeroOutsideTheBandAndGrowsWithPenetration` |
+| l'asse è la penetrazione nella banda, zero fuori, e nessun pan col cursore fuori dal viewport; i quattro bordi arrivano alla penetrazione piena sull'ultimo pixel, `Size - 1` | ✅ `Camera.EdgePanAxisIsZeroOutsideTheBandAndGrowsWithPenetration` |
 | relativo alla vista, negli otto orientamenti | ✅ `Camera.EdgePanFollowsTheViewYawInAllEightOrientations` |
 | a penetrazione piena va come `WASD`, a due zoom | ✅ `Camera.EdgePanMovesLikeWasdAtTheSameZoom` |
 | a riposo zero movimento e zero aggiornamenti; uscendo dalla banda si ferma nello stesso fotogramma | ✅ `Camera.EdgePanDoesNoWorkAtRestAndStopsTheSameFrame` |
 | spento non si attiva in nessuna posizione | ✅ `Camera.EdgePanSwitchedOffNeverMoves` |
-| dentro i limiti del viewport: arriva dove arriva `WASD` | ✅ `Camera.EdgePanStaysInsideTheViewportBounds` |
-| rifiutato con un modale aperto o un gesto camera in corso | ✅ `Camera.EdgePanIsRefusedDuringModalsAndCameraGestures` |
+| dentro i limiti del viewport: arriva dove arriva `WASD`; contro il limite lavora e risponde che non ha mosso | ✅ `Camera.EdgePanStaysInsideTheViewportBounds` |
+| rifiutato con un modale aperto, un'orbita o `Ctrl` tenuti, o l'interruttore spento; con un tasto del pan premuto vincono i tasti | ✅ `Camera.EdgePanIsRefusedDuringModalsAndCameraGestures`: il modale sulla regola, il resto dall'ingresso del controller |
 
 - **L'interruttore** è `bEdgePanEnabled`, acceso di default (scelta dell'autore del 2026-10-15). È una proprietà
   `Config`, e si spegne da `Game.ini` sotto `[/Script/RefactorTactics.RTCameraPawn]` con `bEdgePanEnabled=False`.
-- **Le precedenze** sono quelle del contratto del puntatore (#705): `ARTPlayerController::EdgePanAllowed` legge
-  `GetPointerContext()` e rifiuta `Modal`. Rifiuta anche un gesto camera in corso: orbita, `Ctrl` tenuto,
-  drag col modificatore.
-- **Il log** scrive le transizioni a `Verbose`: `[RT] Edge pan: attivo (...)`, `fermo`, `rifiutato: modale aperto`,
-  `rifiutato: gesto camera in corso`, `rifiutato: interruttore spento`.
-- ⚠️ **Che `PlayerTick` lo chiami davvero non si prova headless**: senza viewport `GetMousePosition` risponde
-  falso. Lo copre la voce `PIE-CAM-EDGE-PAN`.
+- **Le precedenze.** «Modale» è `IsGameplayInputBlocked()`, la lettura unica del contratto del puntatore (#705).
+  ⚠️ È un'eccezione voluta al suo commento, che dice che i modali non bloccano la camera: `WASD`, zoom e orbita
+  restano vivi perché non toccano il piano, ma l'edge pan lo guida il cursore, e con un modale aperto il cursore
+  sta sul modale. Rifiuta anche un gesto camera in corso (orbita, `Ctrl` tenuto). **Con un tasto del pan premuto
+  vincono i tasti**: due ingressi nello stesso fotogramma sommerebbero il doppio della velocità di `WASD`.
+- **Il focus.** Senza il viewport a fuoco non c'è cursore: `GetMousePosition` risponde con la posizione in cache,
+  che sopravvive alla perdita del focus. Dopo un Alt-Tab col cursore sul bordo la camera continuerebbe a scorrere da
+  sola, mentre `WASD` si ferma.
+- **Il log** scrive le transizioni a `Verbose`: `[RT] Edge pan: attivo`, `fermo`, `rifiutato: modale aperto`,
+  `rifiutato: gesto camera in corso`, `rifiutato: interruttore spento`, `rifiutato: i tasti del pan hanno la
+  precedenza`. Lo stato è un enum, non un testo; a riposo il lavoro del controller è un asse calcolato e uno stato
+  che non cambia.
+- ⚠️ **Che `PlayerTick` lo chiami davvero, e il controllo del focus, non si provano headless**: senza viewport
+  `GetMousePosition` risponde falso. Li copre la voce `PIE-CAM-EDGE-PAN`.
+- ⚠️ **La velocità è per fotogramma, come quella di `WASD`**, e ne eredita la dipendenza dal frame rate:
+  `AddPlanarMovement` non usa `DeltaTime`. A 144 fps l'edge pan è più veloce che a 60, esattamente come `WASD`.
+  La correzione sta in `AddPlanarMovement`, per tutti e due gli ingressi, e non è di questa issue.
+- ⚠️ **La schermata finale non lo ferma**: `IsGameplayInputBlocked()` vale per la pausa e le impostazioni, mentre il
+  risultato di fine partita è una schermata e non un modale. Se si decide che deve bloccarlo, si corregge lì, e
+  l'edge pan segue.
 - ⚠️ **Un pannello sotto il cursore non lo ferma**: il contratto del puntatore ha il contesto `Modal`, ma non un
   «cursore su un widget». Le fasce dell'HUD (#3661) stanno proprio ai bordi, quindi un pulsante a meno di una
   banda dal bordo fa anche scorrere la vista. Si giudica in PIE; se disturba, il rimedio è un'issue sul contratto
   del puntatore, non una seconda matrice qui.
 - `N/A` **Il dominio di conoscenza** del criterio 6: era #1836, chiusa senza codice per D-373.
 - ⏳ **Prescritto e non ancora visto**: la banda (`EdgePanBandPixels`, 16 px), la velocità e la curva si tarano in
-  [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780). Restano da fare la voce `PIE-CAM-EDGE-PAN` (seduta `U93`) e lo smoke packaged:
+  [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780). La banda è in pixel **fisici**: su un 4K al 200% vale metà di quella su un 1080p, e
+  se scalarla col DPI è una domanda di #1780. Restano da fare la voce `PIE-CAM-EDGE-PAN` (seduta `U93`) e lo smoke packaged:
   il cursore al bordo si comporta in modo diverso a schermo intero.
 
 ---

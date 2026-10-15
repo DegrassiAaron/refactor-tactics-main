@@ -40,6 +40,17 @@ enum class ERTAbilityRequestSource : uint8
 	Dock     // la porta di `#2826`: un click su uno slot
 };
 
+/** `#1838` — gli stati dell'edge pan, per il log delle transizioni. Un enum e non un testo: la macchina non dipende da come e' scritto il messaggio. */
+enum class ERTEdgePanState : uint8
+{
+	Rest,
+	Active,
+	RefusedSwitch,
+	RefusedBlocked,
+	RefusedGesture,
+	RefusedKeys,
+};
+
 /**
  * Controller tattico. Costruisce Enhanced Input interamente in C++ (nessun .uasset richiesto):
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
@@ -511,7 +522,7 @@ protected:
 		meta = (ClampMin = "0.0"))
 	float PeekReturnSpeed = 8.f;
 
-	/** Riassorbe il peek residuo. Chiamata da `PlayerTick`: e' l'unico movimento automatico che esista oggi. */
+	/** Riassorbe il peek residuo. Chiamata da `PlayerTick`, come l'edge pan (#1838): i due movimenti che non vogliono un tasto. */
 	void UpdatePeekReturn(float DeltaTime);
 
 	/**
@@ -524,7 +535,10 @@ protected:
 	bool ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize);
 
 	/** L'ultimo stato dell'edge pan scritto nel log: si scrive solo quando cambia, non a ogni fotogramma. */
-	FString LastEdgePanState;
+	ERTEdgePanState LastEdgePanState = ERTEdgePanState::Rest;
+
+	/** Un tasto del pan ha mosso la vista in questo fotogramma: l'edge pan cede. Lo alza `OnPan`, lo consuma `ApplyEdgePanFrom`. */
+	bool bKeyPanThisFrame = false;
 
 	// --- #1773 · doppio click = Select + Focus ------------------------------------------------------
 
@@ -573,13 +587,17 @@ public:
 	/** `#1838`: l'edge pan con cursore e viewport iniettati — in headless un viewport non esiste. */
 	bool UpdateEdgePanForTest(const FVector2D& Cursor, const FVector2D& ViewportSize) { return ApplyEdgePanFrom(Cursor, ViewportSize); }
 
+	/** `#1838`: un fotogramma di `WASD` dal gestore vero, per provare che i tasti hanno la precedenza sull'edge pan. */
+	void PanForTest(const FVector2D& Axis);
+
 	/**
-	 * `#1838` — l'edge pan si attiva solo se nessun modale e' aperto e nessun gesto camera e' in corso. Il
-	 * contesto e' quello del contratto del puntatore (`GetPointerContext`, #705): si legge, non si duplica.
+	 * `#1838` — l'edge pan si attiva solo se nessuna schermata bloccante copre la partita e nessun gesto camera
+	 * e' in corso. «Bloccante» e' `IsGameplayInputBlocked()`, cioe' il contratto del puntatore (#705): si legge,
+	 * non si duplica.
 	 */
-	static bool EdgePanAllowed(ERTPointerContext Context, bool bCameraGestureActive)
+	static bool EdgePanAllowed(bool bGameplayInputBlocked, bool bCameraGestureActive)
 	{
-		return Context != ERTPointerContext::Modal && !bCameraGestureActive;
+		return !bGameplayInputBlocked && !bCameraGestureActive;
 	}
 	/**
 	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non

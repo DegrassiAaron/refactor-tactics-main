@@ -1696,6 +1696,24 @@ namespace
 
 	/** Il cursore a `Distance` pixel dal bordo alto, a meta' larghezza. */
 	FVector2D EdgePanTopCursor(double Distance) { return FVector2D(EdgePanViewport.X * 0.5, Distance); }
+
+	/**
+	 * L'ultimo pixel che un cursore vero raggiunge: `Size - 1`. Il motore tronca la posizione a intero, quindi
+	 * `Size` non arriva mai — e i test che lo iniettavano nascondevano i bordi destro e basso piu' lenti.
+	 */
+	const double EdgePanLastX = EdgePanViewport.X - 1.0;
+	const double EdgePanLastY = EdgePanViewport.Y - 1.0;
+
+	/**
+	 * Camera con l'edge pan ACCESO, scritto e non letto dal default: `bEdgePanEnabled` e' `Config`, e un
+	 * `Game.ini` locale che lo spegne non deve far cadere i test (rilievo di review).
+	 */
+	ARTCameraPawn* SpawnEdgePanCamera(UWorld* World)
+	{
+		ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+		if (Cam) { Cam->SetEdgePanEnabled(true); }
+		return Cam;
+	}
 }
 
 /**
@@ -1728,10 +1746,12 @@ bool FRTCameraEdgePanAxisTest::RunTest(const FString&)
 	TestTrue(TEXT("la penetrazione cresce verso il bordo"), bMonotonic);
 
 	// I quattro bordi danno i quattro versi; negli angoli le due componenti si sommano.
-	TestTrue(TEXT("bordo basso: indietro"), Axis(FVector2D(960.0, EdgePanViewport.Y)).Y < 0.0);
-	TestTrue(TEXT("bordo sinistro: a sinistra"), Axis(FVector2D(0.0, 540.0)).X < 0.0);
-	TestTrue(TEXT("bordo destro: a destra"), Axis(FVector2D(EdgePanViewport.X, 540.0)).X > 0.0);
-	const FVector2D Corner = Axis(FVector2D(EdgePanViewport.X, 0.0));
+	// 🔴 I quattro bordi arrivano TUTTI alla penetrazione piena, sull'ultimo pixel che il cursore raggiunge.
+	TestEqual(TEXT("bordo basso, ultimo pixel: indietro, pieno"), Axis(FVector2D(960.0, EdgePanLastY)).Y, -1.0);
+	TestEqual(TEXT("bordo sinistro: a sinistra, pieno"), Axis(FVector2D(0.0, 540.0)).X, -1.0);
+	TestEqual(TEXT("bordo destro, ultimo pixel: a destra, pieno"), Axis(FVector2D(EdgePanLastX, 540.0)).X, 1.0);
+	TestTrue(TEXT("`Size` non e' un pixel del viewport: zero"), Axis(FVector2D(EdgePanViewport.X, 540.0)).IsNearlyZero());
+	const FVector2D Corner = Axis(FVector2D(EdgePanLastX, 0.0));
 	TestTrue(TEXT("angolo alto a destra: avanti e a destra"), Corner.X > 0.0 && Corner.Y > 0.0);
 
 	// Fuori dal viewport — un altro monitor — e senza viewport: nessun pan.
@@ -1754,12 +1774,12 @@ bool FRTCameraEdgePanFollowsYawTest::RunTest(const FString&)
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
-	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 
 	const FVector Centre = HomeTestMapCentre(Map);
 	const FVector2D Forward = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(0.0), EdgePanViewport, EdgePanBand);
-	const FVector2D Rightward = ARTCameraPawn::ComputeEdgePanAxis(FVector2D(EdgePanViewport.X, 540.0), EdgePanViewport, EdgePanBand);
+	const FVector2D Rightward = ARTCameraPawn::ComputeEdgePanAxis(FVector2D(EdgePanLastX, 540.0), EdgePanViewport, EdgePanBand);
 	for (int32 Step = 0; Step < 8; ++Step)
 	{
 		const float Yaw = Cam->GetCameraYaw();
@@ -1801,7 +1821,7 @@ bool FRTCameraEdgePanMatchesWasdTest::RunTest(const FString&)
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
-	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 	const FVector Centre = HomeTestMapCentre(Map);
 	const FVector2D Full = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(0.0), EdgePanViewport, EdgePanBand);
@@ -1848,7 +1868,7 @@ bool FRTCameraEdgePanRestTest::RunTest(const FString&)
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
-	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 	Cam->SetCameraPivot(HomeTestMapCentre(Map));
 
@@ -1880,15 +1900,16 @@ bool FRTCameraEdgePanSwitchTest::RunTest(const FString&)
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
-	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
-	TestTrue(TEXT("di default e' acceso (scelta dell'autore)"), Cam->IsEdgePanEnabled());
+	// Il default acceso e' nel codice (`bEdgePanEnabled = true`); qui non si asserisce, perche' e' `Config` e lo
+	// puo' cambiare un `Game.ini` locale.
 
 	Cam->SetEdgePanEnabled(false);
 	Cam->SetCameraPivot(HomeTestMapCentre(Map));
 	const FVector Start = Cam->GetCameraPivot();
-	for (const FVector2D& Cursor : { EdgePanTopCursor(0.0), FVector2D(0.0, 540.0), FVector2D(EdgePanViewport.X, 540.0),
-		FVector2D(960.0, EdgePanViewport.Y), FVector2D(0.0, 0.0), FVector2D(EdgePanViewport.X, EdgePanViewport.Y) })
+	for (const FVector2D& Cursor : { EdgePanTopCursor(0.0), FVector2D(0.0, 540.0), FVector2D(EdgePanLastX, 540.0),
+		FVector2D(960.0, EdgePanLastY), FVector2D(0.0, 0.0), FVector2D(EdgePanLastX, EdgePanLastY) })
 	{
 		TestFalse(TEXT("spento non muove"), Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(Cursor, EdgePanViewport, EdgePanBand)));
 	}
@@ -1913,7 +1934,7 @@ bool FRTCameraEdgePanBoundsTest::RunTest(const FString&)
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnCameraTestMap(World); // piccola: il limite DEVE mordere
-	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 	Cam->SetViewportMetricsForTest(16.f/9.f, 90.f);
 	const FVector Centre = HomeTestMapCentre(Map);
@@ -1940,6 +1961,10 @@ bool FRTCameraEdgePanBoundsTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("l'edge pan arriva dove arriva WASD: la stessa porta, lo stesso limite"), FVector::Dist2D(EdgeEnd, WasdEnd) < 0.01);
 	Cam->SetCameraPivot(EdgeEnd);
+	const int32 Lavoro = Cam->GetEdgePanUpdatesForTest();
+	TestFalse(TEXT("contro il limite ApplyEdgePan risponde che non ha mosso"), Cam->ApplyEdgePan(Full));
+	TestEqual(TEXT("ma il lavoro c'e' stato"), Cam->GetEdgePanUpdatesForTest(), Lavoro + 1);
+	Cam->SetCameraPivot(EdgeEnd);
 	TestTrue(TEXT("e quel punto e' dentro i limiti: riscriverlo non lo sposta"), FVector::Dist2D(Cam->GetCameraPivot(), EdgeEnd) < 0.01);
 
 	DestroyCameraWorld(World);
@@ -1955,18 +1980,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanRefusalsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCameraEdgePanRefusalsTest::RunTest(const FString&)
 {
-	// La regola, su tutti i contesti del contratto del puntatore.
-	TestFalse(TEXT("modale: no"), ARTPlayerController::EdgePanAllowed(ERTPointerContext::Modal, false));
-	TestTrue(TEXT("pianificazione: si'"), ARTPlayerController::EdgePanAllowed(ERTPointerContext::Planning, false));
-	TestTrue(TEXT("playback: si', la camera resta del giocatore"),
-		ARTPlayerController::EdgePanAllowed(ERTPointerContext::ResolutionPlayback, false));
-	TestFalse(TEXT("gesto camera in corso: no"), ARTPlayerController::EdgePanAllowed(ERTPointerContext::Planning, true));
+	// La regola. «Bloccato» e' `IsGameplayInputBlocked()`, cioe' il contesto `Modal` del contratto del puntatore:
+	// headless non c'e' un navigatore per aprire la pausa, quindi il ramo del modale si prova qui.
+	TestFalse(TEXT("modale: no"), ARTPlayerController::EdgePanAllowed(/*bGameplayInputBlocked=*/ true, false));
+	TestTrue(TEXT("nessun modale, nessun gesto: si'"), ARTPlayerController::EdgePanAllowed(false, false));
+	TestFalse(TEXT("gesto camera in corso: no"), ARTPlayerController::EdgePanAllowed(false, /*bCameraGestureActive=*/ true));
 
 	// Il controller: dal suo ingresso il pan parte, e un gesto camera lo ferma.
 	UWorld* World = MakeCameraWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
-	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
 	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
 	{
@@ -1985,6 +2009,23 @@ bool FRTCameraEdgePanRefusalsTest::RunTest(const FString&)
 	TestFalse(TEXT("con Ctrl premuto (un gesto camera) no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
 	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
 	PC->SetCameraModifierForTest(false);
+
+	PC->SetOrbitingForTest(true);
+	TestFalse(TEXT("con un'orbita in corso no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+	PC->SetOrbitingForTest(false);
+
+	Cam->SetEdgePanEnabled(false);
+	TestFalse(TEXT("spento, dal controller no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+	Cam->SetEdgePanEnabled(true);
+
+	// I tasti hanno la precedenza: nello stesso fotogramma un `W` e il bordo alto non si sommano.
+	PC->PanForTest(FVector2D(0.0, 1.0));
+	const FVector AfterKeys = Cam->GetCameraPivot();
+	TestFalse(TEXT("con W nello stesso fotogramma l'edge pan cede"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e la vista si e' mossa una volta sola"), Cam->GetCameraPivot(), AfterKeys);
+	TestTrue(TEXT("al fotogramma dopo, senza tasti, l'edge pan riparte"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
 
 	TestFalse(TEXT("al centro dello schermo no"), PC->UpdateEdgePanForTest(EdgePanViewport * 0.5, EdgePanViewport));
 
