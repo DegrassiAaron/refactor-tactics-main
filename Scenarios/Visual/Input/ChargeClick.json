@@ -1,0 +1,29 @@
+{
+  "scenarioId": "Visual.Input.ChargeClick",
+  "tags": ["pointer", "planning", "dash", "movement", "visual", "branth", "ivrin", "muiren"],
+  "verifies": ["PIE-V01-CHARGECLICK"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "BANCO del click con una carica armata (D-516, #3736). Zero turni: e' una configurazione, e la partita resta in Pianificazione perche' una persona arma `Hero.Branth.Ram` e clicchi. Branth e' l'unico eroe con una carica, ed e' qui nella squadra del giocatore: in `Visual.Hud.FirstPlayable` e in `Visual.Movement.Charge` sta in quella avversaria.",
+  "_oracolo": "`PIE-V01-CHARGECLICK`, domande (1), (2) e (4). (1) Il click sulla mesh di B1 pianifica la carica fino a lei, e il pannello non passa all'ispezione. (2) Il click sulla cella oltre B1, `(-1,3)`, e quello sul pavimento del suo esagono accanto alla mesh: si registra che cosa succede, perche' li' il raggio prende la mappa e non l'unita'. (4) Il click su B2, fuori retta, non pianifica niente e il rifiuto dice perche'. I test headless entrano dal dispatcher del click; quale superficie prende il click lo dice solo lo schermo.",
+  "_nota_d523": "La domanda (4) e' superata da D-523 (seduta U92, 2026-10-15): per la carica \u00abin linea\u00bb e' la retta libera fra i centri, e Muiren in (+2,+1) a tre celle diventa un bersaglio valido. Finche' #3793 non e' su main il gioco la rifiuta ancora; #3793 rigiudica la scena.",
+  "_nota_geometria": "Tutto su `r = 3` di `TestArena`, la riga che la colonna di vista `(0, r)` per `r` da -2 a 2 non tocca, e senza celle che bloccano il passo o fango. A1 guarda a est, e i due nemici stanno nel suo cono frontale entro la sua vista: letto dalla geometria, non misurato, perche' il formato non ha un'attesa sulla conoscenza. Se in seduta uno dei due compare velato, la scena non serve e va rifatta. B1 e' a due celle sulla retta est, entro la portata di `Ram` (3). B2 e' a tre celle in `(+2,+1)`: non e' una retta esagonale, quindi la carica non la puo' prendere.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-4, 3, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [-2, 3, 0], "facing": "W" },
+    { "id": "B2", "hero": "Hero.Muiren", "team": 1, "cell": [-2, 4, 0], "facing": "W" }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-4, 3, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-2, 3, 0] },
+    { "type": "UnitAtCell", "unit": "B2", "cell": [-2, 4, 0] },
+    { "type": "UnitAlive", "unit": "A1", "value": true }
+  ]
+}

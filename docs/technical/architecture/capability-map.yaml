@@ -1962,7 +1962,7 @@ capabilities:
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:
       automation: ["RefactorTactics.Pointer.*", "RefactorTactics.PlayerInteraction.*", "RefactorTactics.PlayerInput.*"]
-      scenarios: []
+      scenarios: [Scenarios/Visual/Input/ChargeClick.json, Scenarios/Visual/Input/ChargeBeyondRange.json]
       mutation: []
     verification: { pie: [], packaged: [] }
 

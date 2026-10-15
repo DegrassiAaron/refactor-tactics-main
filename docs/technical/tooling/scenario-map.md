@@ -323,6 +323,8 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | `Visual.Environment.FireOnEnter` | RelayLite | `PIE-VIS-FIRE` | **due** momenti distinti: ingresso e Cleanup |
 | `Visual.Environment.IceSlide` | RelayLite | `PIE-VIS-ICE` | il terzo passo è **subìto**, non voluto |
 | `Visual.Environment.WetExtinguishesFire` | RelayLite | `PIE-VIS-WETFIRE` | un'**assenza**: i danni del Cleanup che non arrivano |
+| `Visual.Input.ChargeClick` | TestArena | `PIE-V01-CHARGECLICK` ([#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)) ⚠️ *senza prefisso `PIE-VIS-`, come `PIE-PC-GYM`* | allestisce e non gioca: con la carica armata, che cosa fa il click sulla mesh, sulla cella oltre e sul pavimento dell'esagono |
+| `Visual.Input.ChargeBeyondRange` | TestArena | `PIE-V01-CHARGECLICK` ([#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)) | allestisce e non gioca: la carica oltre la portata, col tratto rosso oltre il punto di arresto |
 | `Visual.Map.ClosedDoor` | RelayBasin | `PIE-VIS-DOOR` | il giro deve raccontare da sé perché è lungo |
 | `Visual.Map.HighCoverBlocks` | **CoverYard** | `PIE-VIS-HIGHCOVER` | la barriera alta **nega**, la bassa una riga sotto **riduce** |
 | `Visual.Map.HighGroundNoBonus` | RelayBasin | `PIE-VIS-HIGH` | due colpi **identici**: nessun vantaggio numerico (D-024) |

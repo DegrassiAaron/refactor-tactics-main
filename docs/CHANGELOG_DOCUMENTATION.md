@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-15 — La carica cliccata, giudicata; «in linea» cambia significato (D-523)
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), seduta `U92`, seconda tornata. `PIE-V01-CHARGECLICK`: (1), (2) e (3) «PASS». Sulla (4) l'autore ha cambiato la regola: per la carica «in linea» è la retta libera fra i centri. L'attuazione è [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-523, che emenda D-516 (2) |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) · [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | una nota: «in linea» cambia con D-523, in attuazione con #3793 |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK` 🟡, coi quattro verdetti; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U92`: la seconda tornata, e la diagnosi della prima che non si riproduce |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | le due scene della carica, usate |
+| [`technical/evidence/u92/`](technical/evidence/u92/) | le tavole `V2`–`V5` |
+
+---
+
 ## 2026-10-15 — Il bottone dell'HOLD dice chi lascia passare
 
 **Origine**: [#3788](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3788), il prezzo di `D-411` nella finestra dell'Overwatch. Il testo l'ha scelto l'autore fra tre forme.
@@ -229,6 +244,19 @@
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3761 fra le chiuse |
 | [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1b: le scelte dell'autore |
 | [`technical/evidence/3761/`](technical/evidence/3761/) | le tavole `L1` e `L2` |
+
+---
+
+## 2026-10-14 — Le due scene della carica cliccata
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), il quarto criterio: misurare in PIE che cosa fa il click con una carica armata. La voce `PIE-V01-CHARGECLICK` chiedeva Branth nella squadra del giocatore, e nessuno scenario ce lo metteva.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK`: la precondizione nomina le due scene, e dice che la vista dei nemici è letta dalla geometria e non misurata |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | Fascia E: `Visual.Input.ChargeClick` e `Visual.Input.ChargeBeyondRange`, che allestiscono e non giocano come `PcGym` |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | le due righe, con la voce che le guarda |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-POINTER-INTERACTION`: i due scenari |
 
 ---
 
