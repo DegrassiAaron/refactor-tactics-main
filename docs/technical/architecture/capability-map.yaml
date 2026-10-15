@@ -1810,7 +1810,7 @@ capabilities:
         - Source/RefactorTactics/Map/RTLayerPresentation.cpp
         - Source/RefactorTacticsEditor/Private/Content/RTBuildHexVolumeMaterialCommandlet.h
         - Content/RT/Core/Grid/M_HexVolume.uasset
-    issues: { open: [1769, 1781, 1775, 1809, 1838], closed: [864, 1836, 1837, 3706, 3723] }
+    issues: { open: [1769, 1781, 1775, 1809, 1837, 1838], closed: [864, 1836, 3706, 3723] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:
