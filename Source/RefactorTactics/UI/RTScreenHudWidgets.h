@@ -1997,9 +1997,8 @@ public:
 	 * La riga sotto il titolo: che cosa ha fatto scattare la finestra (`#3667`, tavola E) — «Ivrin è entrato
 	 * nell'area controllata».
 	 *
-	 * ⚠️ **Porta OPZIONALE, e oggi `WBP_RT_FastDecision` non la ha**: finche' l'asset non guadagna un
-	 * `TextBlock` con questo nome, il sottotitolo si calcola e non si vede. Aggiungerlo e' authoring
-	 * sull'asset, e va fatto dal clone principale. `GetSubtitleText()` e' gia' leggibile da un binding.
+	 * Porta opzionale: in `WBP_RT_FastDecision` sta sotto `PromptText`, nella colonna del titolo, e la controlla
+	 * `RTMatchWidgetAssetTests`. Senza una frase il C++ la mette `Collapsed`.
 	 */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Reaction")
 	TObjectPtr<class UTextBlock> SubtitleText;
