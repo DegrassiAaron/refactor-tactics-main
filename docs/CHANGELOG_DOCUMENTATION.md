@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-15 — Il pan della camera non si ferma all'esplorato: #1836 si chiude senza codice
+
+**Origine**: [#1836](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1836) (`CAM-15`). [`D-373`](decisions/RT_PDR_00_Decision_Log.md) ha reso pubblica la forma della board, e la ragione di `CAM-15` era non rivelarla. L'autore ha scelto «Chiudi senza codice».
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-373`: la nota sulla chiusura di #1836, con la domanda come l'autore l'ha vista; `D-286`: il dominio di navigazione esce dallo scope della v0.1 |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | `CAMERA-HIDDEN-ENEMY-NO-ORACLE` passa a #1837: l'oracolo che resta è l'inquadratura di `Home` |
+
+---
+
 ## 2026-10-15 — Il passo del banco dentro il PIE è verde
 
 **Origine**: [#3774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3774) e [#3773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3773), seduta `U90`. L'autore ha visto a schermo il verso `,` e lo scenario fuori dal banco, i due criteri rimasti aperti dopo la prima tornata.
