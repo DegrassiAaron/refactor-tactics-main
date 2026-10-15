@@ -186,6 +186,188 @@ namespace RTOverwatchScenarioFixtures
 		}
 		return Scenario;
 	}
+
+	/**
+	 * [D-349] Un Overwatch armato sul BORDO della mappa, rivolto verso fuori: la sua linea non contiene nessuna cella.
+	 * Un Aevik nemico cammina per due passi altrove.
+	 *
+	 * La voce attesa e' una sola, `ZoneEmpty`, anche se la linea si rifa' a due micro-step: al piu' una voce per
+	 * Overwatch e per motivo in un turno. `(5,-2,0)` sta sul bordo di una mappa di raggio 5, e la cella a est, `(6,-2,0)`,
+	 * e' fuori: e' quella che la voce nomina.
+	 */
+	inline FRTTestScenario MakeLineEmptyAtTheEdgeScenario()
+	{
+		FRTTestScenario Scenario;
+		Scenario.ScenarioId = TEXT("Unit.Overwatch.LineEmptyAtTheEdge");
+		Scenario.Version = 2;
+		Scenario.Seed = 0;
+		Scenario.MapRadius = 5;
+
+		FRTScenarioUnit W;
+		W.Id = TEXT("W");
+		W.HeroId = TEXT("Hero.Ivrin");
+		W.TeamId = 1;
+		W.Cell = FRTCellId(5, -2, 0);
+		W.Facing = ERTHexDirection::E;
+		Scenario.Units.Add(W);
+
+		FRTScenarioUnit M1;
+		M1.Id = TEXT("M1");
+		M1.HeroId = TEXT("Hero.Aevik");
+		M1.TeamId = 0;
+		M1.Cell = FRTCellId(-2, 0, 0);
+		Scenario.Units.Add(M1);
+
+		FRTScenarioTurn Turn;
+		FRTScenarioIntent ArmW;
+		ArmW.UnitId = TEXT("W");
+		ArmW.Ability = TEXT("Action.Overwatch");
+		Turn.Intents.Add(ArmW);
+
+		FRTScenarioIntent MoveM1;
+		MoveM1.UnitId = TEXT("M1");
+		MoveM1.Move = { FRTCellId(-1, 0, 0), FRTCellId(0, 0, 0) };
+		Turn.Intents.Add(MoveM1);
+		Scenario.Turns.Add(Turn);
+
+		FRTTestExpectation WStays;
+		WStays.Kind = ERTAssertionKind::UnitAtCell;
+		WStays.UnitId = TEXT("W");
+		WStays.Cell = FRTCellId(5, -2, 0);
+		Scenario.Expect.Add(WStays);
+
+		FRTTestExpectation M1Arrives;
+		M1Arrives.Kind = ERTAssertionKind::UnitAtCell;
+		M1Arrives.UnitId = TEXT("M1");
+		M1Arrives.Cell = FRTCellId(0, 0, 0);
+		Scenario.Expect.Add(M1Arrives);
+		return Scenario;
+	}
+
+	/**
+	 * [D-349] Il watcher CAMMINA fino al bordo durante il Move, con l'Overwatch armato verso est: la linea, rifatta dalla
+	 * cella attuale (ADR-0004 §6), si svuota quando arriva in `(5,-2,0)`.
+	 *
+	 * 🔑 **E' il caso che distingue la cella del FATTO da quella di partenza** (`#2142`): `ARTUnit::Cell` la scrive
+	 * `PlaceOnCell` dopo il ciclo dei micro-step, quindi durante il passo l'Actor dice ancora `(4,-2,0)`. Un soggetto di
+	 * log costruito dall'Actor metterebbe nell'audit la cella sbagliata, e negli altri scenari — watcher fermi — le due
+	 * coincidono e nessuno se ne accorgerebbe.
+	 */
+	inline FRTTestScenario MakeLineEmptiesWhenTheWatcherWalksToTheEdgeScenario()
+	{
+		FRTTestScenario Scenario;
+		Scenario.ScenarioId = TEXT("Unit.Overwatch.LineEmptiesAtTheEdge");
+		Scenario.Version = 2;
+		Scenario.Seed = 0;
+		Scenario.MapRadius = 5;
+
+		FRTScenarioUnit W;
+		W.Id = TEXT("W");
+		W.HeroId = TEXT("Hero.Ivrin");
+		W.TeamId = 1;
+		W.Cell = FRTCellId(4, -2, 0);
+		W.Facing = ERTHexDirection::E;
+		Scenario.Units.Add(W);
+
+		FRTScenarioUnit M1;
+		M1.Id = TEXT("M1");
+		M1.HeroId = TEXT("Hero.Aevik");
+		M1.TeamId = 0;
+		M1.Cell = FRTCellId(-2, 0, 0);
+		Scenario.Units.Add(M1);
+
+		FRTScenarioTurn Turn;
+		FRTScenarioIntent ArmW;
+		ArmW.UnitId = TEXT("W");
+		ArmW.Ability = TEXT("Action.Overwatch");
+		ArmW.Move = { FRTCellId(5, -2, 0) };
+		Turn.Intents.Add(ArmW);
+		Scenario.Turns.Add(Turn);
+
+		FRTTestExpectation WArrives;
+		WArrives.Kind = ERTAssertionKind::UnitAtCell;
+		WArrives.UnitId = TEXT("W");
+		WArrives.Cell = FRTCellId(5, -2, 0);
+		Scenario.Expect.Add(WArrives);
+		return Scenario;
+	}
+
+	/**
+	 * [D-349] Un Overwatch spara, e DOPO un secondo nemico rilevato attraversa la sua linea: `ChargeSpent`.
+	 *
+	 * W guarda verso est da `(-3,-1,0)`: la linea e' `(-2,-1)` … `(1,-1)`. Al primo passo M1 entra in `(-1,-1,0)` e W
+	 * risponde `FIRE` (21 danni: M1 resta in piedi). M2 parte da `(1,0,0)`: al primo passo e' in `(0,0,0)`, fuori dalla
+	 * linea; al secondo entra in `(0,-1,0)` e al terzo in `(1,-1,0)`, entrambe nella linea, a 3 e 4 celle da W, nel suo
+	 * arco e dentro la sua vista. La voce attesa e' una sola, sulla prima cella: la regola e' al piu' una per motivo.
+	 */
+	inline FRTTestScenario MakeChargeSpentThenAnotherEntersScenario()
+	{
+		FRTTestScenario Scenario;
+		Scenario.ScenarioId = TEXT("Unit.Overwatch.ChargeSpentThenAnotherEnters");
+		Scenario.Version = 2;
+		Scenario.Seed = 0;
+		Scenario.MapRadius = 5;
+
+		FRTScenarioUnit W;
+		W.Id = TEXT("W");
+		W.HeroId = TEXT("Hero.Ivrin");
+		W.TeamId = 1;
+		W.Cell = FRTCellId(-3, -1, 0);
+		W.Facing = ERTHexDirection::E;
+		Scenario.Units.Add(W);
+
+		FRTScenarioUnit M1;
+		M1.Id = TEXT("M1");
+		M1.HeroId = TEXT("Hero.Aevik");
+		M1.TeamId = 0;
+		M1.Cell = FRTCellId(-2, 0, 0);
+		Scenario.Units.Add(M1);
+
+		FRTScenarioUnit M2;
+		M2.Id = TEXT("M2");
+		M2.HeroId = TEXT("Hero.Aevik");
+		M2.TeamId = 0;
+		M2.Cell = FRTCellId(1, 0, 0);
+		Scenario.Units.Add(M2);
+
+		FRTScenarioTurn Turn;
+		Turn.Requires.Add(TEXT("DecisionBoundary"));
+
+		FRTScenarioIntent ArmW;
+		ArmW.UnitId = TEXT("W");
+		ArmW.Ability = TEXT("Action.Overwatch");
+		Turn.Intents.Add(ArmW);
+
+		FRTScenarioIntent MoveM1;
+		MoveM1.UnitId = TEXT("M1");
+		MoveM1.Move = { FRTCellId(-1, -1, 0) };
+		Turn.Intents.Add(MoveM1);
+
+		FRTScenarioIntent MoveM2;
+		MoveM2.UnitId = TEXT("M2");
+		MoveM2.Move = { FRTCellId(0, 0, 0), FRTCellId(0, -1, 0), FRTCellId(1, -1, 0) };
+		Turn.Intents.Add(MoveM2);
+
+		FRTScenarioDecision FireW;
+		FireW.Unit = TEXT("W");
+		FireW.Respond = TEXT("FIRE");
+		FireW.Target = TEXT("M1");
+		Turn.Decisions.Add(FireW);
+		Scenario.Turns.Add(Turn);
+
+		FRTTestExpectation WStays;
+		WStays.Kind = ERTAssertionKind::UnitAtCell;
+		WStays.UnitId = TEXT("W");
+		WStays.Cell = FRTCellId(-3, -1, 0);
+		Scenario.Expect.Add(WStays);
+
+		FRTTestExpectation M2Arrives;
+		M2Arrives.Kind = ERTAssertionKind::UnitAtCell;
+		M2Arrives.UnitId = TEXT("M2");
+		M2Arrives.Cell = FRTCellId(1, -1, 0);
+		Scenario.Expect.Add(M2Arrives);
+		return Scenario;
+	}
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

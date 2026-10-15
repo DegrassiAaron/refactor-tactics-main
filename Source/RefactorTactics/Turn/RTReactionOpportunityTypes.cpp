@@ -552,6 +552,136 @@ bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondit
 	return Vitals->Health * 100 <= Vitals->MaxHealth * Condition.Param;
 }
 
+ERTOverwatchMoverCheck URTReactionOpportunityLibrary::CheckMoverAgainstWatcher(const URTHexMapAsset* Map,
+	const FRTOverwatchWatcher& Watcher, const TSet<FRTCellId>& Controlled, int32 MoverUnitId, int32 MoverTeamId,
+	const FRTCellId& Cell)
+{
+	if (MoverTeamId == Watcher.Zone.OwnerTeamId || MoverUnitId == Watcher.Zone.OwnerUnitId)
+	{
+		return ERTOverwatchMoverCheck::NotAnEnemy; // l'Overwatch non scatta sui propri, come la linea di soppressione
+	}
+
+	// 1) `TargetInsideArea` — la cella APPENA RAGGIUNTA, cioe' dopo l'ingresso valido: stessa convenzione di
+	//    `ResolveSuppression`, dove la vittima resta nella cella in cui e' entrata.
+	if (!Controlled.Contains(Cell))
+	{
+		return ERTOverwatchMoverCheck::NotInLine;
+	}
+
+	// 2) `TargetDetected` — livello `Rilevato` e non «visibile» (ADR-0004 §6). Un contatto `Uncertain` — fumo oltre 2
+	//    celle, o solo rumore — non arma il trigger: e' informazione, non un bersaglio. `FindRef` su chiave assente da'
+	//    `Hidden`, che e' il default giusto.
+	if (Watcher.TeamAwareness.FindRef(MoverUnitId) != ERTAwareness::Detected)
+	{
+		return ERTOverwatchMoverCheck::NotPerceived;
+	}
+
+	// 3) `HasLineOfSight` — ricontrollata sulla cella raggiunta, non sulla cella di partenza del turno: un bersaglio che
+	//    entra nella zona dietro una copertura alta non e' ingaggiabile. Senza mappa non e' calcolabile: fail-closed.
+	if (!Map || !URTHexVisionLibrary::HasLineOfSight(Map, Watcher.OwnerCell, Cell))
+	{
+		return ERTOverwatchMoverCheck::NoLineOfSight;
+	}
+
+	return ERTOverwatchMoverCheck::Engageable;
+}
+
+TArray<FRTOverwatchSilence> URTReactionOpportunityLibrary::ClassifyOverwatchSilences(const URTHexMapAsset* Map,
+	const FRTOverwatchWatcher& Watcher, ERTOverwatchSilenceReason StateReason, const FRTCellId& FacingCell,
+	const TArray<FRTSuppressionMover>& Movers)
+{
+	TArray<FRTOverwatchSilence> Silences;
+
+	// La linea vuota di un watcher ARMATO e' un silenzio a se' (`ZoneEmpty`): nessuno puo' entrarci, quindi non si
+	// aspetta un mover. Quella di un watcher che non puo' rispondere non dice niente — nessuno ci entra.
+	if (Watcher.Zone.Cells.Num() == 0)
+	{
+		if (StateReason == ERTOverwatchSilenceReason::None)
+		{
+			FRTOverwatchSilence S;
+			S.Reason = ERTOverwatchSilenceReason::ZoneEmpty;
+			S.FactCell = FacingCell;
+			Silences.Add(S);
+		}
+		return Silences;
+	}
+
+	// Crescente per `UnitId` dentro ogni passo: l'ordine e' quello dello stato, non quello in cui il chiamante ha
+	// raccolto i mover — e decide QUALE cella resta nella voce, quando il registro ne tiene una sola per motivo.
+	TArray<const FRTSuppressionMover*> Ordered;
+	int32 MaxSteps = 0;
+	for (const FRTSuppressionMover& Mover : Movers)
+	{
+		Ordered.Add(&Mover);
+		MaxSteps = FMath::Max(MaxSteps, Mover.Path.Num());
+	}
+	Ordered.Sort([](const FRTSuppressionMover& A, const FRTSuppressionMover& B) { return A.UnitId < B.UnitId; });
+
+	const TSet<FRTCellId> Controlled(Watcher.Zone.Cells);
+	for (int32 Step = 0; Step < MaxSteps; ++Step)
+	{
+		for (const FRTSuppressionMover* Mover : Ordered)
+		{
+			if (!Mover->Path.IsValidIndex(Step))
+			{
+				continue;
+			}
+			const FRTCellId& Cell = Mover->Path[Step];
+			const ERTOverwatchMoverCheck Check =
+				CheckMoverAgainstWatcher(Map, Watcher, Controlled, Mover->UnitId, Mover->TeamId, Cell);
+
+			ERTOverwatchSilenceReason Reason = ERTOverwatchSilenceReason::None;
+			if (StateReason != ERTOverwatchSilenceReason::None)
+			{
+				// Famiglia A con un mover: solo un nemico che la squadra ha RILEVATO. Uno non rilevato non c'e', per
+				// la squadra, e la voce non deve farlo comparire.
+				if (Check == ERTOverwatchMoverCheck::NoLineOfSight || Check == ERTOverwatchMoverCheck::Engageable)
+				{
+					Reason = StateReason;
+				}
+			}
+			else if (Check == ERTOverwatchMoverCheck::NotPerceived)
+			{
+				Reason = ERTOverwatchSilenceReason::NotPerceived;
+			}
+			else if (Check == ERTOverwatchMoverCheck::NoLineOfSight)
+			{
+				Reason = ERTOverwatchSilenceReason::NoLineOfSight;
+			}
+
+			if (Reason != ERTOverwatchSilenceReason::None)
+			{
+				FRTOverwatchSilence S;
+				S.Reason = Reason;
+				S.FactCell = Cell;
+				S.MoverUnitId = Mover->UnitId;
+				Silences.Add(S);
+			}
+		}
+	}
+	return Silences;
+}
+
+ERTPlanVerdict URTReactionOpportunityLibrary::SilencePlanVerdict(ERTOverwatchSilenceReason Reason)
+{
+	return Reason == ERTOverwatchSilenceReason::NotPerceived ? ERTPlanVerdict::AuditOnly : ERTPlanVerdict::OwnerTeam;
+}
+
+FRTKnowledgeVerdict URTReactionOpportunityLibrary::SilenceReaders(ERTOverwatchSilenceReason Reason, int32 OwnerTeamId)
+{
+	return URTTeamKnowledgeLibrary::FreezePlanVerdict(SilencePlanVerdict(Reason), OwnerTeamId);
+}
+
+// Un bit per motivo in un `uint8`: ogni valore deve stare sotto l'ottavo bit. Un motivo oltre il settimo renderebbe il
+// bit zero, e la regola «al piu' una voce per motivo» cadrebbe senza che niente lo dica. `Count` segue l'ultimo valore.
+static_assert(static_cast<uint8>(ERTOverwatchSilenceReason::Count) <= 8,
+	"ERTOverwatchSilenceReason non sta piu' in FRTArmedOverwatch::ReportedSilenceReasons (uint8): allargare il campo");
+
+uint8 URTReactionOpportunityLibrary::SilenceReasonBit(ERTOverwatchSilenceReason Reason)
+{
+	return static_cast<uint8>(1u << static_cast<uint8>(Reason));
+}
+
 TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTriggers(const URTHexMapAsset* Map,
 	int32 TurnNumber, const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers,
 	const TMap<int32, FRTTargetVitals>& TargetVitals, int32 FirstMicroStepIndex)
@@ -611,35 +741,15 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 
 			for (const FRTSuppressionMover& Mover : Movers)
 			{
-				if (Mover.TeamId == Watcher.Zone.OwnerTeamId || Mover.UnitId == Watcher.Zone.OwnerUnitId)
-				{
-					continue; // l'Overwatch non scatta sui propri, come la linea di soppressione
-				}
 				if (!Mover.Path.IsValidIndex(Step))
 				{
 					continue; // percorso gia' finito: questa unita' non e' in movimento a questo passo
 				}
 
-				const FRTCellId& Cell = Mover.Path[Step];
-
-				// 1) `TargetInsideArea` — la cella APPENA RAGGIUNTA, cioe' dopo l'ingresso valido: stessa
-				//    convenzione di `ResolveSuppression`, dove la vittima resta nella cella in cui e' entrata.
-				if (!Controlled.Contains(Cell))
-				{
-					continue;
-				}
-
-				// 2) `TargetDetected` — livello `Rilevato` e non «visibile» (ADR-0004 §6). Un contatto
-				//    `Uncertain` — fumo oltre 2 celle, o solo rumore — non arma il trigger: e' informazione,
-				//    non un bersaglio. `FindRef` su chiave assente da' `Hidden`, che e' il default giusto.
-				if (Watcher.TeamAwareness.FindRef(Mover.UnitId) != ERTAwareness::Detected)
-				{
-					continue;
-				}
-
-				// 3) `HasLineOfSight` — ricontrollata sulla cella raggiunta, non sulla cella di partenza del
-				//    turno: un bersaglio che entra nella zona dietro una copertura alta non e' ingaggiabile.
-				if (!URTHexVisionLibrary::HasLineOfSight(Map, Watcher.OwnerCell, Cell))
+				// Le condizioni del trigger vivono in `CheckMoverAgainstWatcher`, che il registro dei silenzi
+				// ([D-349]) legge con le stesse parole: qui si tengono i soli ingaggiabili.
+				if (CheckMoverAgainstWatcher(Map, Watcher, Controlled, Mover.UnitId, Mover.TeamId, Mover.Path[Step])
+					!= ERTOverwatchMoverCheck::Engageable)
 				{
 					continue;
 				}
