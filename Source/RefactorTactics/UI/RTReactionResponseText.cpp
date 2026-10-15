@@ -79,6 +79,41 @@ FText RTReactionResponseText::DescriptionFor(const FRTReactionWindowOptionView& 
 	return DescriptionFor(Option.Response);
 }
 
+FText RTReactionResponseText::DescriptionFor(const FRTReactionWindowOptionView& Option, const FRTReactionWindowView& Window)
+{
+	if (!Window.bOpen || Option.Response != FString(URTReactionOpportunityLibrary::HoldResponse()))
+	{
+		return DescriptionFor(Option);
+	}
+
+	// [D-411] (`#3788`): chi questa finestra offre come bersaglio e' stato chiesto, e dopo un `HOLD` — o allo scadere —
+	// non torna per il resto del turno. I nomi stanno sulle opzioni `FIRE` della stessa finestra, gia' risolti.
+	int32 Bersagli = 0;
+	TArray<FText> Nomi;
+	for (const FRTReactionWindowOptionView& Altra : Window.Options)
+	{
+		if (URTReactionOpportunityLibrary::FireResponseTarget(Altra.Response) == INDEX_NONE)
+		{
+			continue;
+		}
+		++Bersagli;
+		if (!Altra.TargetName.IsEmptyOrWhitespace())
+		{
+			Nomi.Add(Altra.TargetName);
+		}
+	}
+	if (Bersagli > 1)
+	{
+		return NSLOCTEXT("RTReactionResponseText", "LetAllThrough", "Lascia passare tutti");
+	}
+	if (Bersagli == 1 && Nomi.Num() == 1)
+	{
+		return FText::Format(NSLOCTEXT("RTReactionResponseText", "LetThrough", "Lascia passare {0}"), Nomi[0]);
+	}
+	// Un bersaglio senza nome: la frase non nomina nessuno, e resta quella di prima.
+	return DescriptionFor(Option);
+}
+
 FText RTReactionResponseText::TitleFor(const FRTReactionWindowView& Window)
 {
 	if (!Window.bOpen)

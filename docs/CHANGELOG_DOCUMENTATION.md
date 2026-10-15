@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-15 — Il bottone dell'HOLD dice chi lascia passare
+
+**Origine**: [#3788](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3788), il prezzo di `D-411` nella finestra dell'Overwatch. Il testo l'ha scelto l'autore fra tre forme.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-411`: la decisione sul testo, con le tre forme come l'autore le ha viste; nota su `D-491`, che scriveva «Non attaccare» |
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | il testo nuovo è più lungo, ed è ciò che la cattura in PIE deve guardare |
+
+---
+
 ## 2026-10-15 — L'Overwatch chiede una volta per nemico e per turno
 
 **Origine**: [#3132](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3132). È l'attuazione di `D-411`, decisa il 2026-09-13.

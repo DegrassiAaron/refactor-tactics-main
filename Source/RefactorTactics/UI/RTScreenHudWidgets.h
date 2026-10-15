@@ -2130,7 +2130,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetOptionLabel() const;
 
-	/** La frase dell'opzione, generica e senza bersaglio ([D-491]). Vuota per una risposta senza voce. */
+	/**
+	 * La frase dell'opzione, letta dentro la sua finestra: «Attacca Ivrin» per un `FIRE` (`#3667`), «Lascia passare
+	 * Ivrin» o «Lascia passare tutti» per l'`HOLD` dell'Overwatch (`#3788`, [D-411]), la frase della tabella per le
+	 * altre risposte ([D-491]). Vuota per una risposta senza voce.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetOptionDescription() const;
 

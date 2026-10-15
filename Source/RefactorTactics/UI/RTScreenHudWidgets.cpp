@@ -2038,7 +2038,11 @@ FText URTFastDecisionOptionWidget::GetOptionDescription() const
 {
 	// L'opzione INTERA e non la sola risposta (`#3667`): un `FIRE` porta il nome del bersaglio che il core
 	// ha risolto, e la frase diventa «Attacca Ivrin». Le altre restano quelle della tabella.
-	return RTReactionResponseText::DescriptionFor(Option);
+	//
+	// ➕ **E letta dentro la SUA finestra** (`#3788`, [D-411]): l'`HOLD` dell'Overwatch dice chi lascia passare per il
+	// resto del turno, e quei nomi stanno sulle altre opzioni. La finestra la tiene chi ha creato questo bottone.
+	const URTFastDecisionWidget* Finestra = Owner.Get();
+	return RTReactionResponseText::DescriptionFor(Option, Finestra ? Finestra->GetWindow() : FRTReactionWindowView());
 }
 
 FText URTFastDecisionOptionWidget::GetKeyLabel() const
