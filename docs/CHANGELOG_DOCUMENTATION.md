@@ -2,6 +2,172 @@
 
 ---
 
+## 2026-10-15 — `Home` inquadra la selezione, poi la squadra, poi la mappa
+
+**Origine**: [#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837) (`CAM-16`). `Home` centrava sempre la mappa; ora segue una gerarchia di ripiego e azzera sempre orientamento e distanza, come ha scelto l'autore. Non inquadra mai un'unità di un'altra squadra.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1 la riga di `Home`; §4.1 nuova, gli anelli con i test e ciò che resta prescritto; §11 il totale dei test sostituito dal comando che lo conta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-HOME-CONTEXT` nuova, aperta; `PIE-CAM-START` e `PIE-CAM-FOCUS` aggiornano la frase su `Home`; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U91`, da convocare |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: #1837 aperta, #1836 chiusa, `PIE-CAM-HOME-CONTEXT` in `verification.pie` |
+
+---
+
+## 2026-10-15 — La pianta: fondo, dissolvenza, pannelli traslucidi, superfici chiare, nebbia; verde
+
+**Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), seduta `U89`. L'autore ha respinto la prima resa della pianta: il solo anello sembrava «mai visto», il cambio secco disturbava, i muri non andavano né a terra né in cima, e le celle viste col rilievo del costo sembravano nere. Nella seconda tornata il pavimento e la dissolvenza sono passati, ma mancava *«il volume sull'esagono, la fog»*: ogni cella non vista ora e' riempita da una colonna di nebbia.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`: titolo e punti (4) e (5), con le domande come l'autore le ha viste; una nota su `D-225` per il mai visto |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: che cosa fa ogni famiglia nel ricordo, la dissolvenza, il rilievo chiaro, il volume del fumo nel colore della sua superficie e la nebbia; §5 e §5.6: il prisma di §5.1 atterra come nebbia |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | le tavole `V4`, `V5`, `V7` e `V8` della seconda tornata, e `V9` della terza |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `PIE-FOG-PIANTA` fra le verifiche PIE della capability |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U89`: la seconda e la terza tornata, eseguita |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | §4: il mai visto non resta com'era |
+| [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | i tre stati del terreno: la pianta e la nebbia |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-PIANTA` ✅ nella terza tornata, dopo il ❌ della prima e il 🟡 della seconda; totali rimisurati; `PIE-FOG-CONFINE` vale anche lungo un pannello (`V8`); note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` |
+| [`Scenarios/Visual/Perception/RememberedCover.json`](../Scenarios/Visual/Perception/RememberedCover.json) | che cosa guardare, coi pannelli traslucidi |
+
+---
+
+## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano, col suo nemico; verde
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), seduta `U89`. L'autore ha respinto l'arco della prima tornata: sottile, coperto, e col tasto `H` se ne vedeva più d'uno. Ha chiesto *«l'arco visto deve essere solo quello del nemico selezionato/hoverato»*.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`: titolo e punti (5) e (6), con le domande come l'autore le ha viste; il tasto `H` non c'è più, e il nemico dell'arco si contorna nel suo rosso |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: un arco alla volta, chi lo sceglie, e il contorno del suo nemico |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-ARCO` ✅ nella terza tornata, dopo il ❌ della prima e della seconda; totali rimisurati |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `PIE-FOG-ARCO` fra le verifiche PIE della capability |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | le tavole `V6` e `V11` |
+
+---
+
+## 2026-10-15 — Uno spostamento forzato disarma l'Overwatch, e il TurnLog lo dice
+
+**Origine**: [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367). È l'attuazione di `D-366`, decisa il 2026-09-10 e confermata dall'autore il 2026-10-15 con davanti il costo misurato su #2367: un watcher spinto che un compagno copriva sparava ancora, e ora no.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-366`: conferma, attuazione, formato riverificato, test, e la seconda decisione d'autore: scarto e fughe scelte non disarmano. Note su `D-349` (il caso di #2367 non produce più `NotPerceived`), `D-411` (il suo punto 3 non citava D-366) e `D-169` (il punto 2 è superato) |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §6: la precisazione di D-366 sotto la tabella di `ReactionStillArmed`, con l'eccezione delle reazioni scelte; la tabella di verifica coi test nuovi |
+| [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | §6: l'investimento si perde anche per una spinta altrui, come #2367 chiedeva |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #2367 fra le chiuse, i due test, il rischio tolto |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | il disarmo fra i canali: chiuso per costruzione, con il verdetto per regola dei silenzi |
+
+---
+
+## 2026-10-15 — Il pan della camera non si ferma all'esplorato: #1836 si chiude senza codice
+
+**Origine**: [#1836](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1836) (`CAM-15`). [`D-373`](decisions/RT_PDR_00_Decision_Log.md) ha reso pubblica la forma della board, e la ragione di `CAM-15` era non rivelarla. L'autore ha scelto «Chiudi senza codice».
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-373`: la nota sulla chiusura di #1836, con la domanda come l'autore l'ha vista e le due letture di `BLIND-4` che dicevano il contrario; il debito di `FrameOwnTeam` resta dichiarato aperto in `D-143`. `D-286`: il dominio di navigazione esce dallo scope della v0.1 |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | `CAMERA-HIDDEN-ENEMY-NO-ORACLE` torna all'epic #1769: con #1836 chiusa non ha un owner camera, e gli oracoli possibili dipendono da `BLIND-3` |
+| [`roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md`](roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md) | #1836 tolta dalle `CAM-*` della v0.1 |
+
+---
+
+## 2026-10-15 — Il passo del banco dentro il PIE è verde
+
+**Origine**: [#3774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3774) e [#3773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3773), seduta `U90`. L'autore ha visto a schermo il verso `,` e lo scenario fuori dal banco, i due criteri rimasti aperti dopo la prima tornata.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-LAB-PASSO` ✅, criterio per criterio e tornata per tornata; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U90`, eseguita |
+
+---
+
+## 2026-10-15 — La linea di confine della vista è verde
+
+**Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), seduta `U89`. L'autore ha giudicato la tavola `V1` della prima tornata; nella stessa seduta ha respinto la pianta ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760)) e l'arco del nemico ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762)).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-CONFINE` ✅, con il limite del contesto: nelle catture il ricordo era già la pianta; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata; su questo ramo cita la sola voce di #3761 |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`: la linea davanti ai pannelli, con la domanda come l'autore l'ha vista |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la riga «lungo un pannello» |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | la tavola `V1` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: `PIE-FOG-CONFINE` in `verification.pie`; `presentation` resta `partial` |
+
+---
+
+## 2026-10-15 — Un Overwatch armato che non spara lascia traccia, col motivo
+
+**Origine**: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166), casella «zona vuota per spinta»: l'attuazione di `D-349`, decisa il 2026-09-08 e mai scritta nel codice, con la precisazione d'autore del 2026-10-15 su quando nasce la voce e chi la legge.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-349`: la precisazione, con le quattro regole e le due risposte sulla privacy come l'autore le ha lette; il formato non cambia. La nota di `D-522` dice che `D-523` è stato liberato |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §6: la delega a CP 14.6 è soddisfatta; la tabella di verifica coi test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: i test nuovi |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | il silenzio dell'Overwatch fra i canali: chiuso per costruzione, verdetto per regola, ricalcolato dall'audit con la stessa funzione |
+
+---
+
+## 2026-10-15 — La condizione dichiarata dell'Overwatch si legge quando il watcher viene chiesto
+
+**Origine**: [#3771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3771), decisione d'autore `D-522`. Due Overwatch sullo stesso mover, il secondo con la condizione «al 50% dei PV o meno»: il colpo del primo portava il bersaglio sotto la soglia, e il secondo restava muto perché la condizione era stata letta prima del colpo. Ora si legge quando arriva il turno di quel watcher, e la sua finestra si apre.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-522`, con le due domande come l'autore le ha lette, la causa dei collassi, e la conseguenza sulle tracce registrate prima |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione accanto a quella di `D-518`; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3771 fra le chiuse, e i due test nuovi fuori dalle famiglie già elencate |
+
+---
+
+## 2026-10-14 — Il terreno ricordato si disegna come pianta
+
+**Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), decisione d'autore `D-520`. Il ricordo non ha piu' disco ne' colore di superficie: resta l'anello della cella in ciano chiaro, e muri, coperture e porte diventano linee.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`, con le domande e le opzioni come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la pianta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-PIANTA`; note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE`, da rigiudicare |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3760 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1a: le scelte dell'autore |
+| [`technical/evidence/3760/`](technical/evidence/3760/) | le tavole `P1` e `P2` |
+
+---
+
+## 2026-10-14 — Su richiesta si vede che cosa vede un nemico in vista
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), decisione d'autore `D-521`. Col mouse sul nemico, o tenendo `H` per tutti, si vede il contorno delle celle che vede, calcolato sul solo terreno che la squadra conosce.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`, con la regola di privacy e le tre domande come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: l'arco del nemico |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-ARCO` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3762 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1c: le scelte dell'autore |
+
+---
+
+## 2026-10-14 — Una linea segna in partita dove finisce la vista della squadra
+
+**Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), decisione d'autore `D-519`. La linea corre sui lati fra le celle viste adesso e quelle che non si vedono: ciano della vista, anche in strategica, mai lungo il vuoto.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`, con le tre domande e le opzioni come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la linea, chi la calcola e chi la disegna |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-CONFINE` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3761 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1b: le scelte dell'autore |
+| [`technical/evidence/3761/`](technical/evidence/3761/) | le tavole `L1` e `L2` |
+
+---
+
 ## 2026-10-14 — Le due scene della carica cliccata
 
 **Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), il quarto criterio: misurare in PIE che cosa fa il click con una carica armata. La voce `PIE-V01-CHARGECLICK` chiedeva Branth nella squadra del giocatore, e nessuno scenario ce lo metteva.

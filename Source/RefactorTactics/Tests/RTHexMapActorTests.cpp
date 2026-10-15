@@ -3,6 +3,7 @@
 #include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
+#include "Map/RTLayerPresentation.h" // #3760: i canali del pannello traslucido della pianta
 #include "EngineUtils.h"                  // TActorIterator: nessun Actor per cella si conta guardando il mondo
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -2080,6 +2081,15 @@ bool FRTVeilEveryFamilyDisappearsTest::RunTest(const FString&)
 				++Disegnate;
 			}
 		}
+		// ⛔ **La NEBBIA e' l'unica famiglia dichiarata** ([D-520] (5), #3760): esiste proprio per coprire cio' che la
+		// squadra non vede, mai vista compreso, quindi sotto una conoscenza vuota si disegna tutta — una colonna per
+		// cella, uguale per ogni cella, che dice che la cella esiste ([D-373]) e niente di cio' che contiene.
+		if (F->GetName() == TEXT("FogVolumes"))
+		{
+			TestEqual(TEXT("sotto una conoscenza vuota la nebbia copre ogni cella, una colonna per cella"),
+				Disegnate, Actor->NumInstanceCells());
+			continue;
+		}
 		if (Disegnate > 0)
 		{
 			Scoperte.Add(FString::Printf(TEXT("%s (%d istanze disegnate)"), *F->GetName(), Disegnate));
@@ -2753,10 +2763,42 @@ bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
 	TestEqual(TEXT("visto il solo lato portante: entrambi visibili"), PannelliVisibili({ Portante }), 2);
 	// Un lato solo per pannello: la copertura sì, la porta no.
 	TestEqual(TEXT("visto solo il lato est: la sola copertura"), PannelliVisibili({ Est }), 1);
-	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati.
-	TestEqual(TEXT("lati opposti solo ricordati: entrambi visibili, come geometria ricordata"),
+	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati. ➕ #3760, seduta `U89` ([D-520]): un pannello
+	// ricordato resta un volume, tinto col colore della pianta e semitrasparente — e lo resta ricordato da un lato
+	// qualunque, come si vede da un lato qualunque. Si legge la forza della tinta, che a ricordo pieno vale 1, dopo che la
+	// dissolvenza fra osservato e ricordato si e' conclusa.
+	const UInstancedStaticMeshComponent* Pannelli = nullptr;
+	{
+		TInlineComponentArray<UInstancedStaticMeshComponent*> Tutte;
+		Actor->GetComponents(Tutte);
+		for (const UInstancedStaticMeshComponent* C : Tutte)
+		{
+			if (C && C->GetName() == TEXT("EdgeFeatures"))
+			{
+				Pannelli = C;
+			}
+		}
+	}
+	auto PannelliDellaPianta = [&]() -> int32
+	{
+		static_cast<AActor*>(Actor)->Tick(10.f); // dieci secondi: la dissolvenza converge
+		int32 N = 0;
+		for (int32 I = 0; Pannelli && I < Pannelli->GetInstanceCount(); ++I)
+		{
+			FTransform Xf;
+			const bool bDisegnato = Pannelli->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true)
+				&& !Xf.GetScale3D().IsNearlyZero();
+			const int32 Forza = I * Pannelli->NumCustomDataFloats + RTLayerPresentation::VolumeTintStrengthChannel;
+			N += (bDisegnato && Pannelli->PerInstanceSMCustomData.IsValidIndex(Forza)
+				&& FMath::IsNearlyEqual(Pannelli->PerInstanceSMCustomData[Forza], 1.f)) ? 1 : 0;
+		}
+		return N;
+	};
+	TestEqual(TEXT("lati opposti solo ricordati: entrambi i pannelli si disegnano"),
 		PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 2);
-	TestEqual(TEXT("il solo lato est ricordato: la sola copertura"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 1);
+	TestEqual(TEXT("ed entrambi nella tinta piena della pianta"), PannelliDellaPianta(), 2);
+	TestEqual(TEXT("il solo lato est ricordato: la sola copertura si disegna"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 1);
+	TestEqual(TEXT("nella tinta piena della pianta"), PannelliDellaPianta(), 1);
 
 	DestroyMapActorWorld(World);
 	return true;

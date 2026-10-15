@@ -165,6 +165,8 @@ canale deve aggiungere una riga, e chi ne chiude uno deve cambiarne lo stato.
 | Cue di colpo del profilo FX (`Marker`, `AreaPulse`, `ConeSweep`, #3578) | la vittima nella sua cella; il centro di un'area; l'attaccante e la direzione di un ventaglio | ✅ **chiuso per costruzione** | col verdetto della cella che disegnano: `ImpactVerdict` per il `Marker`, `FromVerdict` del colpo per le cue d'impronta (per un'area è il centro); `Privacy.ImpactMarkerNeedsTheVictim`, `Privacy.AreaPulseNeedsTheCenter` |
 | Traccia a terra di un colpo (`AttackFootprint`, [D-301](../../decisions/RT_PDR_00_Decision_Log.md)) | la cella di un attaccante non visto: le celle di un `Line` cominciano accanto a chi spara e la linea punta a lui, l'apice di un `Cone` gli e' adiacente | ✅ **chiuso** ([#3551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3551), [D-500](../../decisions/RT_PDR_00_Decision_Log.md)) | `FRTResolvedEvent::SourceVerdict` congelato all'emissione (`FreezeVerdictFor(UnitAt(attaccante, origine))`); `URTPlaybackLibrary::IsFootprintHiddenFrom` lascia fuori dalla sequenza del Blast la traccia di un `Line`/`Cone` per chi non aveva il verdetto. `Area` e `Single` non contengono l'origine e restano per tutti. `Privacy.FootprintHiddenWhenOriginUnknown` e `Privacy.UnseenAttackerFootprintIsNotDrawn`, validati per mutazione |
 | Muro colpito (`StructureHit`, #2828) | la fila di celle da cui ha sparato un attaccante non visto: chi spara sta oltre il bordo colpito. Su un bordo mai visto, anche che lì c'è un muro | ✅ **chiuso** ([#3681](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3681), [D-502](../../decisions/RT_PDR_00_Decision_Log.md)) | `URTTeamKnowledgeLibrary::FreezeEdgeVerdict` congela in `ApplyEnvironmentChanges` un verdetto solo: la squadra di ogni autore e chi vede almeno una delle due celle del bordo. Lo leggono la voce di TurnLog (e da lì la riga derivata, il proiettore degli eventi e il replay), l'evento di timeline, filtrato da `URTPlaybackLibrary::IsStructureHitHiddenFrom` in `BuildBlastSequence`, e la riga «Copertura …» del combat log. L'audit di [D-313](../../decisions/RT_PDR_00_Decision_Log.md) lo ricalcola con la stessa funzione. `Privacy.WallHitHasOneVerdictForEveryView`, `Privacy.StructureHitHiddenFromWhoDidNotSeeTheWall`, `Knowledge.EdgeVerdictIsAuthorsPlusWhoSeesEitherCell` e `Replay.Audit.EdgeVerdictRoundTripsAndRecomputes`, validati per mutazione. Il muro che non c'è più, dopo il turno, è [#3687](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3687), chiusa |
+| Silenzio dell'Overwatch (voce `NotTriggered` col motivo, [D-349](../../decisions/RT_PDR_00_Decision_Log.md)) | che un'unità aveva un Overwatch armato e non ha sparato; con `NotPerceived`, che un nemico **non rilevato** ha attraversato la sua linea | ✅ **chiuso per costruzione** ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | il verdetto non viene dalla conoscenza ma da una regola, `ERTPlanVerdict`: la voce la legge la sola squadra del watcher (`OwnerTeam`), e `NotPerceived` nessuna squadra (`AuditOnly`, [`AGENTS.md`](../../../AGENTS.md) §4). La regola viaggia col soggetto e l'audit di [D-313](../../decisions/RT_PDR_00_Decision_Log.md) la ricalcola con `FreezePlanVerdict`, la stessa funzione. `Overwatch.EmptyLineLeavesOneTeamOnlyEntry`, `Overwatch.SpentChargeLeavesOneTeamOnlyEntry` e `Overwatch.LineEmptiedOnTheWayRecordsTheFactCell` filtrano per osservatore, validati per mutazione |
+| Disarmo dell'Overwatch per spostamento forzato (voce `Disarmed`, [D-366](../../decisions/RT_PDR_00_Decision_Log.md)) | che l'unità spinta aveva un Overwatch armato | ✅ **chiuso per costruzione** ([#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367)) | lo stesso verdetto per regola dei silenzi di D-349: `ERTPlanVerdict::OwnerTeam`, congelato da `FreezePlanVerdict` e ricalcolato dall'audit di [D-313](../../decisions/RT_PDR_00_Decision_Log.md). Chi ha spinto vede lo spostamento, non il disarmo. Lo misura `Overwatch.ForcedDisplacementDisarmsWithItsCause` col filtro del replay per osservatore |
 | Ritmo del Blast (volo del tracer, #2454 e #3578) | la classe di forma di un colpo con un id (`Single`/`Line` contro `Area`/`Cone`), mai l'override | ⚠️ **aperto e DICHIARATO** | stesso volo a parità di indice nella sequenza: il volo è la sola forma di default (R13, `Privacy.FlightDependsOnShapeNotOverride`), l'indice dipende dalle attivazioni che chi guarda vede; chiuderlo vorrebbe un volo uguale per ogni colpo ([spec del profilo FX](../../superpowers/specs/2026-10-08-profilo-fx-per-abilita-design.md) §7) |
 
 ⚠️ **E le due colonne cambiano fra Development e Shipping**, che è la seconda ragione per cui una cifra in
@@ -746,6 +748,10 @@ repository non possiede.
 > l'unica tesi del documento che il codice di oggi conferma alla lettera**: velo permanente ottenuto
 > moltiplicando l'RGB. Chi legge §2 e §5 in fila trova una decisione e la sua cancellazione, e non ha modo
 > di sapere che vale la prima.
+>
+> ➕ **2026-10-15: il prisma di §5.1 atterra, come NEBBIA** ([D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5)):
+> traslucido e non opaco, alto un piano, su ogni cella che la squadra non vede, ricordata o mai vista. Il meccanismo
+> non e' quello di §5.3: e' una famiglia di istanze come le altre, scritta dal velo (§5.7).
 
 ### 5.1 Regola
 
@@ -899,6 +905,63 @@ serve**, e non perché la si rinvii: perché la classe di difetto non esiste pi�
 > docstring apre dichiarando proprio questo buco: *«resta verde mentre la leggibilità del terreno ricordato
 > cala, ed è il buco che questo test chiude»*.
 
+### 5.7 ➕ La resa ripensata: la linea di confine della vista ([#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), [D-519](../../decisions/RT_PDR_00_Decision_Log.md))
+
+In partita una linea ciano corre sui lati fra le celle che la squadra vede adesso e le celle della mappa che non
+vede. Il colore e' quello della vista nella palette (`#32ADE6`); la linea si vede anche in strategica, e non corre
+mai lungo il vuoto: sul bordo della mappa e sul perimetro di una piattaforma non c'e'.
+
+| Che cosa | Dove |
+|---|---|
+| I lati | `URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells`: i lati esposti di `ExposedEdges`, meno quelli che danno sul vuoto |
+| Chi li aggiorna | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo e con la stessa conoscenza |
+| Chi li disegna | `ARTHexMapActor::DrawVisionBorder`, nel line batcher del mondo: si vede anche in Shipping |
+| Lungo un pannello | il tratto si sposta verso il centro della cella vista, davanti al pannello di copertura o porta che sta sul lato: sul lato gli starebbe dentro (D-519, 2026-10-15) |
+
+⚠️ **Il confine dell'ESPLORATO non e' questo.** La linea chiude le celle viste adesso, non quelle ricordate: i due
+stati di [D-227](../../decisions/RT_PDR_00_Decision_Log.md) restano distinti, ed e' `Veil.PresenterDrawsTheBorderOfTheSameKnowledge` a
+misurarlo.
+
+#### La pianta del terreno ricordato ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), [D-520](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Il terreno esplorato e non osservato si disegna come pianta: nessun colore di superficie, l'anello della cella in
+ciano chiaro su un fondo scuro tinto di ciano, e muri, coperture e porte come pannelli traslucidi nel colore della
+pianta. I tre stati restano tre: osservata (disco e anello della griglia), ricordata (anello ciano e fondo ciano
+scuro), mai vista (niente). Fra osservata e ricordata il colore sfuma, in tutti e due i versi. Cosi' dalla seduta `U89`
+([D-520](../../decisions/RT_PDR_00_Decision_Log.md) (4)); la prima stesura aveva il solo anello, il cambio secco e i
+muri a linee.
+
+| Che cosa | Dove |
+|---|---|
+| Che cosa fa ogni famiglia nel ricordo | `ARTHexMapActor::MemoryFor`: `Plan` l'anello, `PlanFloor` il disco, `PlanFade` i glifi, `PlanVolume` muri, coperture, porte, celle che bloccano e corpi; `Hide` il rilievo e i volumi di superficie |
+| I colori | `ARTHexMapActor::PlanColor` e `PlanFloorColor` |
+| La dissolvenza | il fattore del velo e' quanto la cella e' osservata; `VeilInstances` e `AdvanceVeilFamily` interpolano fra il colore vero e quello della pianta |
+| I muri ricordati | `ARTHexMapActor::WriteVolumeAppearance`: tinta della pianta e trasparenza a retino, lo stesso scrittore della presentazione dei piani |
+| Il rilievo del costo | grigio chiaro, in un'istanza del materiale dei volumi (`ApplyVolumeMaterial`) |
+| Il volume del fumo | il colore della superficie del fumo, in un'istanza del materiale dei volumi (`ApplyVolumeMaterial`) |
+| La nebbia | `FogVolumes` e `ARTHexMapActor::WriteFog`: una colonna per cella, nello stesso ordine del disco, disegnata dove la cella non e' vista e larga quanto il disco, dal fondo del disco al piano sopra; segue il fattore del disco ([D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5)) |
+| Il conteggio dei tre stati | `ARTHexMapActor::GetVeilCounts`: un disco ricordato e' quello piu' vicino al fondo della pianta che al colore vero |
+
+⚠️ **Il riquadro in testa a questa fase descrive il ricordo attenuato** (`RTVeilExploredFactor`): da [D-520](../../decisions/RT_PDR_00_Decision_Log.md)
+nessuna famiglia lo usa piu'. La dissolvenza di `#2875` si', fra il colore vero e quello della pianta.
+
+#### L'arco del nemico in vista ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), [D-521](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Su richiesta si vede che cosa vede un nemico in vista, **uno alla volta**: l'arco del nemico sotto il mouse, altrimenti
+quello del nemico ispezionato col click. Nessun tasto li mostra tutti: lo ha chiesto l'autore nella seduta `U89`
+([D-521](../../decisions/RT_PDR_00_Decision_Log.md) (5)).
+L'arco sono le celle che il nemico vede davvero, muri noti compresi, calcolate sul **solo terreno che la squadra
+conosce**: altrimenti un muro mai visto si scoprirebbe dalla forma dell'arco.
+
+| Che cosa | Dove |
+|---|---|
+| La regola di privacy | `URTEnemyArcLibrary::KnownTerrainMap`: le celle mai viste esistono ([D-373](../../decisions/RT_PDR_00_Decision_Log.md)) ma sono vuote |
+| L'arco | `URTEnemyArcLibrary::SightOnKnownTerrain`, cioe' `VisibleCells` su quella copia, ristretta alle celle note |
+| Quali nemici | `URTEnemyArcLibrary::ArcsOfEnemiesInView`: di un'altra squadra, su una cella vista adesso |
+| Chi li calcola | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo |
+| Quale si disegna | `ARTPlayerController::UpdateEnemyArcFocus` → `ARTHexMapActor::SetEnemyArcFocus`: il mouse prima dell'ispezione, nel batcher in primo piano |
+| Di chi e' | `ARTHexMapActor::FocusedEnemyArc` dice anche la cella del nemico, e il `Tick` ne contorna i sei lati nello stesso rosso ([D-521](../../decisions/RT_PDR_00_Decision_Log.md) (6)) |
+
 ### 5.6 🔴 Il rischio che nessun test misura
 
 Un prisma opaco alto ~200 uu può **occludere le unità proprie** quando la camera guarda attraverso una fascia
@@ -908,6 +971,9 @@ prima del merge, non dopo.
 ⚠️ **Se si verifica, la risposta non è abbassare il prisma** — rimetterebbe in vista esattamente ciò che deve
 nascondere. È decidere se la nebbia si renda in modo diverso vista dall'alto, ed è una decisione, non una
 taratura.
+
+➕ *2026-10-15*: con la nebbia di [D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5) il prisma esiste,
+traslucido e alto un piano, e il rischio e' reale. Si guarda nella terza tornata di `U89`.
 
 ---
 

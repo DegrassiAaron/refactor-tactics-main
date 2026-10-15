@@ -511,23 +511,55 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 	// watcher costruito una volta nel Prep avrebbe la LOS di tre celle fa.
 	TArray<FRTOverwatchWatcher> Watchers;
 	TArray<int32> ArmedIndexForWatcher; // per ritrovare l'armamento a cui ogni trigger appartiene
+
+	// [D-349] Chi il registro dei silenzi deve guardare, in ordine di armamento: i watcher che possono rispondere
+	// (`StateReason == None`, indice in `Watchers`) e quelli che non possono (indice in `SilentWatchers`).
+	struct FRTSilenceCandidate
+	{
+		int32 ArmedIndex = INDEX_NONE;
+		int32 WatcherIndex = INDEX_NONE;
+		ERTOverwatchSilenceReason StateReason = ERTOverwatchSilenceReason::None;
+		FRTCellId FacingCell;
+	};
+	TArray<FRTSilenceCandidate> SilenceCandidates;
+	TArray<FRTOverwatchWatcher> SilentWatchers;
+
 	for (int32 a = 0; a < ArmedOverwatches.Num(); ++a)
 	{
 		const FRTArmedOverwatch& Armed = ArmedOverwatches[a];
 		ARTUnit* WatchOwner = Armed.Owner.Get();
-
-		// `bCharged` E' il `ReactionStillArmed` della condizione di trigger (ADR-0004 §6): una reaction gia'
-		// spesa non ne apre altre. Chi e' caduto nel Blast non spara, in silenzio, come per la predittiva.
-		if (!Armed.bCharged || !IsValid(WatchOwner) || !WatchOwner->IsAlive())
+		if (!IsValid(WatchOwner))
 		{
-			continue;
+			continue; // senza l'attore non c'e' una cella da cui guardare: non e' un fatto di gioco da raccontare
 		}
 
-		// Cap dei prompt (ADR-0004 §8). Sta QUI, prima di costruire il watcher, e non a valle della
-		// decisione: una reaction che ha esaurito le proprie domande non deve nemmeno comparire fra quelle
-		// che il resolver valuta — altrimenti il lavoro si farebbe comunque, e il cap sarebbe una tenda
-		// davanti a un calcolo gia' avvenuto.
-		if (Armed.PromptsUsed >= URTReactionOpportunityLibrary::MaxPromptsPerReaction())
+		// `bCharged` E' il `ReactionStillArmed` della condizione di trigger (ADR-0004 §6): una reaction gia'
+		// spesa non ne apre altre. Chi e' caduto nel Blast non spara, come per la predittiva. Il cap dei prompt
+		// (ADR-0004 §8) toglie la reaction da quelle che il resolver valuta.
+		//
+		// 🔑 **Da [D-349] non spariscono in silenzio.** Il watcher si costruisce lo stesso — la linea dalla cella
+		// attuale e la conoscenza di squadra — e finisce fra i `SilentWatchers` col motivo, non fra i `Watchers`:
+		// nessun trigger nasce da lui, ma se un nemico rilevato entra nella sua linea il registro lo dice. Il
+		// lavoro in piu' si fa solo a un micro-step in cui qualcuno si muove, e resta fuori dal cronometro della
+		// raccolta dei candidati (`#2516`). Se piu' motivi valgono insieme, vince il piu' fondamentale: chi e' a
+		// terra non e' «scarico».
+		ERTOverwatchSilenceReason StateReason = ERTOverwatchSilenceReason::None;
+		if (!WatchOwner->IsAlive())
+		{
+			StateReason = ERTOverwatchSilenceReason::OwnerDown;
+		}
+		else if (!Armed.bCharged)
+		{
+			StateReason = ERTOverwatchSilenceReason::ChargeSpent;
+		}
+		else if (Armed.PromptsUsed >= URTReactionOpportunityLibrary::MaxPromptsPerReaction())
+		{
+			StateReason = ERTOverwatchSilenceReason::PromptCapReached;
+		}
+		// Un watcher che non puo' rispondere ha un motivo solo da dire, e se lo ha gia' detto in questo turno non resta
+		// niente da costruire: niente linea, niente conoscenza di squadra, per il resto del Move (review della PR #3778).
+		if (StateReason != ERTOverwatchSilenceReason::None
+			&& (Armed.ReportedSilenceReasons & URTReactionOpportunityLibrary::SilenceReasonBit(StateReason)) != 0)
 		{
 			continue;
 		}
@@ -543,8 +575,9 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		const FRTCellId OwnerCell = State.Pos[OwnerIdx];
 
 		FRTOverwatchWatcher W;
+		const FRTCellId Davanti = URTHexLibrary::Neighbor(OwnerCell, Armed.Facing); // e chi chiude una linea vuota ([D-349])
 		W.Zone = URTOffensiveActionLibrary::MakeSuppressiveZone(Map, OwnerIdx, WatchOwner->TeamId, OwnerCell,
-			URTHexLibrary::Neighbor(OwnerCell, Armed.Facing), Armed.RangeCells, Armed.Damage);
+			Davanti, Armed.RangeCells, Armed.Damage);
 		W.OwnerCell = OwnerCell;
 		W.ReactionDefId = Armed.ActionId;
 		W.DeclaredCondition = Armed.Condition;
@@ -584,12 +617,19 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 				URTPerceptionLibrary::TeamAwarenessOfCell(Map, Observers, State.Pos[TargetIdx]));
 		}
 
-		Watchers.Add(MoveTemp(W));
+		FRTSilenceCandidate Candidate;
+		Candidate.ArmedIndex = a;
+		Candidate.StateReason = StateReason;
+		Candidate.FacingCell = Davanti;
+		if (StateReason != ERTOverwatchSilenceReason::None)
+		{
+			Candidate.WatcherIndex = SilentWatchers.Add(MoveTemp(W));
+			SilenceCandidates.Add(Candidate);
+			continue;
+		}
+		Candidate.WatcherIndex = Watchers.Add(MoveTemp(W));
+		SilenceCandidates.Add(Candidate);
 		ArmedIndexForWatcher.Add(a);
-	}
-	if (Watchers.Num() == 0)
-	{
-		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	// --- 2. I MOVER: il solo passo APPENA compiuto ---------------------------------------------------------
@@ -610,6 +650,72 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		// Le vitals servono solo alle condizioni dichiarate ([D-109]), e sono fail-closed: senza il dato, un
 		// bersaglio sotto condizione non diventa una risposta legale.
 		Vitals.Add(TargetIdx, FRTTargetVitals(Units[TargetIdx]->Health, Units[TargetIdx]->MaxHealth));
+	}
+
+	// --- [D-349] I SILENZI: un Overwatch armato che non spara lascia traccia, col motivo ---------------------
+	//
+	// Il motivo lo dice `URTReactionOpportunityLibrary::ClassifyOverwatchSilences`, che legge le stesse condizioni
+	// del trigger. Qui si registra, con le due regole che la funzione pura non conosce (precisazione d'autore del
+	// 2026-10-15):
+	// - **al piu' una voce per Overwatch e per motivo in un turno**, la prima volta — `ReportedSilenceReasons`;
+	// - **chi la legge**: la squadra del watcher, e nessun altro. La voce racconta un piano, non un fatto visto nel
+	//   mondo, e il nemico non deve sapere che quell'unita' aveva un Overwatch armato. `NotPerceived` non la legge
+	//   nemmeno la squadra: racconta un nemico che la squadra non ha rilevato, e resta nella traccia d'audit.
+	//
+	// Il motivo viaggia in `Amount` (`ERTOverwatchSilenceReason`), la cella del fatto in `TgtCell`.
+	for (const FRTSilenceCandidate& Candidate : SilenceCandidates)
+	{
+		const bool bMuto = Candidate.StateReason != ERTOverwatchSilenceReason::None;
+		const FRTOverwatchWatcher& Watcher = bMuto ? SilentWatchers[Candidate.WatcherIndex] : Watchers[Candidate.WatcherIndex];
+		FRTArmedOverwatch& Armed = ArmedOverwatches[Candidate.ArmedIndex];
+
+		// Un watcher armato che ha gia' detto tutto cio' che la sua linea puo' dire in questo turno non si riclassifica:
+		// la stessa linea di vista la ricalcolerebbe `BuildOverwatchTriggers` qui sotto (review della PR #3778).
+		const uint8 GiaDetti = Armed.ReportedSilenceReasons;
+		const auto Detto = [GiaDetti](ERTOverwatchSilenceReason R)
+		{
+			return (GiaDetti & URTReactionOpportunityLibrary::SilenceReasonBit(R)) != 0;
+		};
+		if (!bMuto && (Watcher.Zone.Cells.Num() == 0
+			? Detto(ERTOverwatchSilenceReason::ZoneEmpty)
+			: Detto(ERTOverwatchSilenceReason::NotPerceived) && Detto(ERTOverwatchSilenceReason::NoLineOfSight)))
+		{
+			continue;
+		}
+
+		const TArray<FRTOverwatchSilence> Silences = URTReactionOpportunityLibrary::ClassifyOverwatchSilences(
+			Map, Watcher, Candidate.StateReason, Candidate.FacingCell, Movers);
+		ARTUnit* WatchOwner = Armed.Owner.Get();
+		for (const FRTOverwatchSilence& Silence : Silences)
+		{
+			const uint8 Bit = URTReactionOpportunityLibrary::SilenceReasonBit(Silence.Reason);
+			if ((Armed.ReportedSilenceReasons & Bit) != 0)
+			{
+				continue;
+			}
+			Armed.ReportedSilenceReasons |= Bit;
+
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Move;
+			Entry.Category = ERTLogCategory::Reaction;
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+			Entry.Amount = static_cast<int32>(Silence.Reason);
+			Entry.SrcCell = Watcher.OwnerCell;
+			Entry.TgtCell = Silence.FactCell;
+			Entry.ActionId = Armed.ActionId;
+			Entry.BaseActionId = Armed.BaseActionId;
+
+			// Il verdetto e' per REGOLA, e la regola viaggia col soggetto: l'audit di [D-313] lo ricalcola con la stessa
+			// funzione, invece che dalla conoscenza di chi osserva il watcher. La cella del soggetto e' quella del FATTO
+			// (`UnitAt`, `#2142`): qui siamo dentro il ciclo dei micro-step, prima di `PlaceOnCell`.
+			AppendPlanVerdictEntry(Entry, WatchOwner, Watcher.OwnerCell,
+				URTReactionOpportunityLibrary::SilencePlanVerdict(Silence.Reason));
+		}
+	}
+
+	if (Watchers.Num() == 0)
+	{
+		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	// 🔑 **Il cronometro sta STRETTO attorno alla chiamata, e non comprende la costruzione di `Movers`**
@@ -1066,17 +1172,44 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 
 	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
 	{
-		// 🔑 **[D-518] (`#3745`): il `FIRE` su un bersaglio gia' abbattuto non si offre.** I trigger di un passo si
-		// costruiscono UNA volta, prima di chiedere a chiunque: se un watcher precedente ha gia' abbattuto il
-		// bersaglio, l'opportunity del successivo lo offre ancora. Lo si toglie qui, dove l'opportunity si consuma,
-		// e non nella UI: vale per la finestra, per i bot e per la ri-simulazione, che la ricalcola dallo stato.
+		// 🔑 **I `FIRE` si rifanno sullo stato di ADESSO** — [D-518] (`#3745`) per chi e' a terra, [D-522] (`#3771`)
+		// per la condizione dichiarata. I trigger di un passo si costruiscono UNA volta, prima di chiedere a chiunque:
+		// se un watcher precedente ha gia' sparato, l'opportunity del successivo e' fatta sullo stato di prima del
+		// colpo. Offrirebbe `FIRE` su chi e' gia' a terra, e lo negherebbe a chi il colpo ha portato sotto la soglia
+		// della condizione. Si rifa' qui, dove l'opportunity si consuma, e non nella UI: vale per la finestra, per i
+		// bot e per la ri-simulazione, che la ricalcola dallo stato.
 		//
 		// ⚠️ **Sul trigger SALVATO, non sulla copia**: `CloseReactionWindow` rilegge l'opportunity da qui quando la
 		// finestra si chiude, e deve giudicare la risposta sulle stesse `AllowedResponses` che la finestra ha
 		// mostrato. Nel caso misto — un bersaglio a terra e uno in piedi — resta il `FIRE` su quello in piedi.
-		const int32 FireSuAbbattuti = URTReactionOpportunityLibrary::RemoveFireResponsesWhere(
-			Ctx->PendingTriggers[Ctx->NextTrigger].Opportunity,
-			[&Units](int32 TargetIdx) { return !IsReactionTargetStanding(Units, TargetIdx); });
+		//
+		// ⚠️ **La condizione e' quella dell'ARMAMENTO**, letta dall'indice che il trigger porta: e' la stessa che
+		// `BuildOverwatchTriggers` ha ricevuto nel `Watcher`, quindi con le vitals dell'ingresso la ricostruzione ridà
+		// le stesse risposte. Un indice che non vale non ha condizione da applicare, e il giro qui sotto lo salta.
+		// L'appaiamento dell'indice ha un limite dichiarato sopra (due Overwatch della stessa unita'), e da [D-522]
+		// vale anche per la condizione: oggi il caso non si produce.
+		//
+		// ⚠️ **Si rifanno solo «in piedi» e la condizione.** Gli altri fatti del trigger — la zona, la rilevazione,
+		// la linea di vista — restano quelli dell'ingresso, come per ogni `FIRE` che c'era gia' (ADR-0004 §6: il
+		// trigger e' l'ingresso). Fra due giri dello stesso passo un `FIRE` fa danno e tronca il movimento che
+		// resta, ma non sposta nessuno: zona e linea di vista non cambiano. La rilevazione potrebbe, se un
+		// osservatore della squadra cade nello stesso passo; rifarla sarebbe una regola nuova, e toglierebbe anche
+		// `FIRE` che oggi restano.
+		FRTPendingReactionTrigger& Salvato = Ctx->PendingTriggers[Ctx->NextTrigger];
+		const FRTDeclaredCondition Condizione = ArmedOverwatches.IsValidIndex(Salvato.ArmedIndex)
+			? ArmedOverwatches[Salvato.ArmedIndex].Condition
+			: FRTDeclaredCondition();
+		TMap<int32, FRTTargetVitals> VitalsAdesso;
+		for (const int32 TargetIdx : Salvato.TriggerUnitIds)
+		{
+			if (Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx]))
+			{
+				VitalsAdesso.Add(TargetIdx, FRTTargetVitals(Units[TargetIdx]->Health, Units[TargetIdx]->MaxHealth));
+			}
+		}
+		const int32 BersagliInPiedi = URTReactionOpportunityLibrary::RebuildFireResponses(
+			Salvato.Opportunity, Salvato.TriggerUnitIds, Condizione, VitalsAdesso,
+			[&Units](int32 TargetIdx) { return IsReactionTargetStanding(Units, TargetIdx); });
 
 		// Copiato e non referenziato: `ApplyReactionDecision` puo' toccare lo stato, e da `#2679` in poi
 		// fra due giri di questo ciclo puo' passare un frame intero.
@@ -1143,11 +1276,12 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 			return ERTMovementAdvanceResult::Suspended;
 		}
 
-		// [D-518]: se il filtro ha tolto l'ultima scelta, la causa la dice il pompaggio — `AskReactionDecision`
-		// vedrebbe il solo `HOLD` e lo chiamerebbe collasso da condizione, che qui sarebbe falso. Con un'altra
-		// scelta rimasta si chiede come sempre.
+		// [D-518]: se non resta una scelta e nessuno di quelli entrati e' in piedi, la causa la dice il pompaggio —
+		// `AskReactionDecision` vedrebbe il solo `HOLD` e lo chiamerebbe collasso da condizione, che qui sarebbe
+		// falso. Con qualcuno in piedi il solo `HOLD` vuol dire che la condizione lo ha escluso ([D-522]), ed e'
+		// quello che `AskReactionDecision` scrive. Con un'altra scelta rimasta si chiede come sempre.
 		const FRTReactionDecision Decision =
-			(FireSuAbbattuti > 0 && !URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+			(BersagliInPiedi == 0 && !URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
 			? FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 				ERTReactionDecisionOutcome::CollapsedTargetDown)
 			: AskReactionDecision(Opportunity, Opportunity.Key.OwnerId, bOwnerIsBot);

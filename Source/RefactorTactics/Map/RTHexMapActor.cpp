@@ -68,6 +68,44 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
+/** Il colore delle linee della pianta (#3760), scelto dall'autore sulla tavola P2: il ciano chiaro. */
+static const FColor RTPlanLineColor(110, 205, 230);
+
+/**
+ * #3760, seduta `U89`: il FONDO della cella ricordata, una frazione del colore della pianta. Nella prima tornata il ricordo
+ * era il solo anello, e l'autore lo ha letto come «mai visto»; ha scelto «Fondo tenue color pianta»: *«Resta un disegno a
+ * linee, ma con un pavimento scuro tinto di ciano, così non si confonde col «mai visto», che è nero.»*
+ */
+static constexpr float RTPlanFloorFactor = 0.15f;
+
+/**
+ * #3760, seduta `U89`: quanto lasciano passare un muro, una copertura, una porta o una cella che blocca RICORDATI. L'autore
+ * ha scelto «Pannello traslucido»: *«Il muro ricordato resta un volume, attenuato o semitrasparente, invece di una
+ * linea»*. La trasparenza e' quella a retino che il materiale dei volumi ha gia' ([D-501]); la tinta e' il colore della
+ * pianta.
+ */
+static constexpr float RTPlanVolumeTransparency = 0.5f;
+
+/**
+ * #3760, seduta `U89`: il colore proprio del RILIEVO del costo. Teneva il materiale di default della mesh, che in luce
+ * piena e' un grigio scuro, e l'autore ha letto come «nere» le celle viste con un rilievo — acqua bassa, terreno
+ * accidentato, fuoco — e ha chiesto di schiarirle. Un grigio chiaro neutro: resta un oggetto che sporge dal colore della
+ * superficie, e non dice niente di falso su di lei.
+ */
+static const FLinearColor RTReliefOwnColor(0.6f, 0.6f, 0.6f, 1.f);
+
+/**
+ * #3760, seduta `U89`, seconda tornata: la NEBBIA. L'autore ha giudicato la pianta e ha risposto *«il pavimento e' ok,
+ * manca pero' il volume sull'esagono, la fog»*: *«deve essere un volume che occupa interamente la cella dell'esagono,
+ * dalla base alla altezza»*, sulle celle «Ricordate e mai viste», alta «Fino al piano sopra». Il colore e la trasparenza
+ * li ha proposti chi scrive e l'autore li ha approvati col progetto: un grigio neutro freddo, non il ciano della pianta
+ * ne' il nero, e la trasparenza a retino del materiale dei volumi ([D-501]).
+ */
+static const FLinearColor RTFogOwnColor = FLinearColor::FromSRGBColor(FColor(170, 180, 195));
+
+/** Quanta parte della colonna di nebbia si disegna quando la cella non e' osservata per niente: il resto lascia vedere. */
+static constexpr float RTFogOpacity = 0.5f;
+
 namespace
 {
 	/**
@@ -158,6 +196,20 @@ namespace
 	// compilatore rilega quando la gerarchia cambia (vedi `RTMapVisuals.h`).
 	constexpr float RTLiftCoordinateLabel = RTCellTopZ + 1.0f;
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
+	// La linea di confine della vista (#3761): sopra i marcatori, SOTTO l'anteprima. Un contorno d'anteprima su una
+	// cella di bordo corre lungo lo stesso lato, e alla stessa quota i due colori si contenderebbero il pixel.
+	constexpr float RTLiftVisionBorder = RTCellTopZ + 2.0f;
+	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
+	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
+	constexpr float RTVisionBorderThickness = 4.f;
+	// Lo spessore del contorno dell'arco di un nemico (#3762). Era 3, un punto sotto la linea di confine, e nella
+	// seduta `U89` l'autore l'ha giudicato «troppo sottile»: ora il doppio della linea di confine. L'arco si vede
+	// solo a richiesta e uno alla volta, quindi dove copre la linea della propria vista lo fa per una scelta del
+	// giocatore.
+	constexpr float RTEnemyArcThickness = 2.f * RTVisionBorderThickness;
+	// Di quanto la linea si sposta verso la cella vista quando sul lato sta un pannello (#3761): meta' dello spessore
+	// del pannello, che e' centrato sul lato, piu' meta' di quello della linea e un margine.
+	constexpr float RTVisionBorderPanelInset = RTEdgePanelThickness * 100.f * 0.5f + RTVisionBorderThickness * 0.5f + 2.f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -831,6 +883,18 @@ ARTHexMapActor::ARTHexMapActor()
 		SurfaceVolumes->SetStaticMesh(CylinderMesh.Object);
 	}
 
+	// La NEBBIA (#3760): stessa disciplina — nessuna collisione, per la ragione scritta qui sopra, e nessuna ombra.
+	FogVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("FogVolumes"));
+	FogVolumes->SetupAttachment(Cells);
+	FogVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FogVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
+	FogVolumes->CastShadow = false;
+	FogVolumes->NumCustomDataFloats = RTLayerPresentation::VolumeNumCustomDataFloats;
+	if (CylinderMesh.Succeeded())
+	{
+		FogVolumes->SetStaticMesh(CylinderMesh.Object);
+	}
+
 	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
 	// Il corpo strutturale (#1865): sotto le superfici, senza collisione — non si calpesta e non si clicca.
 	StructuralBodies = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("StructuralBodies"));
@@ -1137,7 +1201,11 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackTracers.Num() > 0
 		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
-		|| VeilCellsInTransition > 0;
+		|| VeilCellsInTransition > 0
+		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
+		|| VisionBorder.Num() > 0
+		// E gli archi dei nemici in vista che il giocatore chiede (#3762).
+		|| HasEnemyArcToDraw();
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1260,8 +1328,9 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	// il valore disegnato verso un bersaglio gia' scelto. `Veil.FollowsRefreshPoints` resta verde per
 	// costruzione — misura le emissioni di `OnTeamKnowledgeRefreshed`, che questa funzione non produce.
 	//
-	// ⚠️ **A regime non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso, e
-	// `HasAnythingToDraw` spegne il `Tick`.
+	// ⚠️ **A regime il velo non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso. Il
+	// `Tick` pero' resta acceso per tutta la partita da #3761: la linea di confine della vista si ridisegna a ogni
+	// fotogramma, un tratto per lato, e `HasAnythingToDraw` lo spegne solo quando non c'e' nessuna cella vista.
 	if (VeilCellsInTransition > 0)
 	{
 		AdvanceVeilTransition(DeltaSeconds);
@@ -1274,6 +1343,22 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	if (bCellOverlay)
 	{
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
+	}
+	DrawVisionBorder();
+	// #3762: l'arco di UN nemico, nel rosso dei nemici, e in primo piano: davanti alla geometria, perche' nella
+	// seduta `U89` anelli ed evidenziazioni lo coprivano.
+	FRTCellId Padrone;
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc(&Padrone))
+	{
+		DrawEdgeLines(Arco->Edges, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
+		// E il contorno della cella del nemico che lo possiede, nello stesso rosso: nella seconda tornata di `U89`
+		// l'autore leggeva l'area ma non di chi fosse, e ha scelto «Nemico evidenziato» (vedi [D-521] (6)).
+		TArray<FRTExposedEdge> Contorno;
+		for (int32 D = 0; D < 6; ++D)
+		{
+			Contorno.Emplace(Padrone, static_cast<ERTHexDirection>(D));
+		}
+		DrawEdgeLines(Contorno, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
 	}
 	DrawPlanningPreview();
 }
@@ -1505,6 +1590,346 @@ namespace
 		{
 			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
 		}
+	}
+
+	/**
+	 * Vero se sul lato fra `Cella` e il suo vicino in `Lato` sta un PANNELLO DI BORDO — una copertura o una porta —
+	 * da una parte o dall'altra: e' cio' che `RebuildInstances` posa con `AddEdgePanel`, che legge `Covers` e `Doors`
+	 * della cella che li porta. Il velo mostra quel pannello se e' accesa una delle due celle (#3691), quindi chi
+	 * guarda una cella vista lo vede gia': chiederlo qui non rivela niente.
+	 */
+	bool LatoConPannello(const URTHexMapAsset* Map, const FRTCellId& Cella, ERTHexDirection Lato)
+	{
+		if (!Map)
+		{
+			return false;
+		}
+		const auto HaPannello = [](const FRTHexCellData* Dati, ERTHexDirection Bordo)
+		{
+			if (!Dati)
+			{
+				return false;
+			}
+			for (const FRTHexCover& Copertura : Dati->Covers)
+			{
+				if (Copertura.Type != ERTHexCoverType::None && Copertura.Edge == Bordo)
+				{
+					return true;
+				}
+			}
+			for (const FRTHexDoor& Uscio : Dati->Doors)
+			{
+				if (Uscio.Edge == Bordo)
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+		return HaPannello(Map->FindCell(Cella), Lato)
+			|| HaPannello(Map->FindCell(URTHexLibrary::Neighbor(Cella, Lato)), URTHexLibrary::OppositeDirection(Lato));
+	}
+}
+
+void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
+{
+	// Si calcola QUI, dove sta la mappa, e si conservano soltanto i lati: l'actor non tiene la conoscenza di
+	// squadra ([D-242]), come per il velo.
+	//
+	// 🔑 **Solo i lati verso una cella della mappa**, per scelta dell'autore sulla domanda L3 di #3761: la linea segna
+	// dove finisce la vista, non dove finisce il pavimento. Sul bordo della mappa e sul perimetro di una piattaforma —
+	// dove la vista scende al piano di sotto ([D-511]) — non c'e' linea.
+	VisionBorder = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapAsset, VisibleCells);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell)
+{
+	EnemyArcs = ArcsByEnemyCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcFocus(const FRTCellId& InHoveredCell, bool bHasHover, const FRTCellId& InInspectedCell,
+	bool bHasInspected)
+{
+	if (bHasHover == bEnemyArcHover && (!bHasHover || InHoveredCell == EnemyArcHoveredCell)
+		&& bHasInspected == bEnemyArcInspected && (!bHasInspected || InInspectedCell == EnemyArcInspectedCell))
+	{
+		return;
+	}
+	bEnemyArcHover = bHasHover;
+	EnemyArcHoveredCell = InHoveredCell;
+	bEnemyArcInspected = bHasInspected;
+	EnemyArcInspectedCell = InInspectedCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+const FRTEnemyArcView* ARTHexMapActor::FocusedEnemyArc(FRTCellId* OutEnemyCell) const
+{
+	// Il cursore vince sull'ispezione: passando il mouse su un altro nemico se ne vede l'arco, e togliendolo torna
+	// quello del nemico ispezionato. Una cella senza arco — vuota, alleata, nemico non in vista — non ne mostra.
+	if (bEnemyArcHover)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
+		{
+			if (OutEnemyCell) { *OutEnemyCell = EnemyArcHoveredCell; }
+			return Arco;
+		}
+	}
+	if (bEnemyArcInspected)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcInspectedCell))
+		{
+			if (OutEnemyCell) { *OutEnemyCell = EnemyArcInspectedCell; }
+			return Arco;
+		}
+	}
+	return nullptr;
+}
+
+bool ARTHexMapActor::HasEnemyArcToDraw() const
+{
+	return FocusedEnemyArc() != nullptr;
+}
+
+TArray<FRTEnemyArcView> ARTHexMapActor::GetShownEnemyArcs() const
+{
+	TArray<FRTEnemyArcView> Out;
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc())
+	{
+		Out.Add(*Arco);
+	}
+	return Out;
+}
+
+void ARTHexMapActor::DrawVisionBorder() const
+{
+	// 🔑 **Il colore e' quello della VISTA nella palette** (`#32ADE6`, [D-368]): l'autore l'ha scelto sulla tavola L1
+	// di #3761, fra il bianco caldo e il blu della squadra. Si chiede alla palette e non si ricopia: se il colore
+	// della vista cambia, la linea lo segue.
+	//
+	// ⚠️ **Si disegna anche in vista strategica**, per scelta dell'autore sulla tavola L2: nessun ramo su
+	// `IsStrategicPresentation()` qui.
+	DrawEdgeLines(VisionBorder, URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision), RTVisionBorderThickness);
+}
+
+void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore,
+	uint8 Profondita) const
+{
+	const UWorld* World = GetWorld();
+	if (!World || Lati.Num() == 0)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+
+	for (const FRTExposedEdge& Lato : Lati)
+	{
+		// Il tratto e' il LATO dell'esagono: meta' lunghezza per parte, a partire dal punto medio che
+		// `EdgeMidpointWorld` deriva dai due centri, e perpendicolare alla direzione del vicino. Con un
+		// circumraggio `Size` il lato e' lungo `Size`, quindi gli estremi cadono sugli spigoli di `HexCorners`.
+		const FRTHexCellData* Dati = MapAsset ? MapAsset->FindCell(Lato.Cell) : nullptr;
+		const FVector Su(0.f, 0.f, (Dati ? static_cast<float>(Dati->Height) : 0.f) + RTLiftVisionBorder);
+		const FVector Centro = URTHexLibrary::AxialToWorld(Lato.Cell, Origin, Size, LayerH);
+		const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Lato.Cell, Lato.Direction, Origin, Size, LayerH);
+		const FVector Verso = FVector(Medio.X - Centro.X, Medio.Y - Centro.Y, 0.f).GetSafeNormal();
+		const FVector Lungo = FVector::CrossProduct(Verso, FVector::UpVector) * (Size * 0.5f);
+		// 🔑 **Davanti al pannello, se sul lato ce n'e' uno.** Il pannello di un muro, di una copertura o di una porta
+		// sta CENTRATO sul lato e sale dalla cima della cella: sul lato la linea gli starebbe dentro, e non si
+		// vedrebbe da nessuna parte. Si sposta verso il centro della cella vista. Scelta dell'autore del 2026-10-15
+		// («visibile anche li'»), dopo la review: nella tavola V1 il confine correva solo su terreno aperto. Vale
+		// anche per l'arco di un nemico (#3762), che usa lo stesso disegno: lungo un pannello il contorno gli sta davanti.
+		const FVector Dentro = LatoConPannello(MapAsset, Lato.Cell, Lato.Direction)
+			? -Verso * RTVisionBorderPanelInset : FVector::ZeroVector;
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su + Dentro, Medio + Lungo + Su + Dentro, Colore, Profondita,
+			Spessore);
+	}
+}
+
+ARTHexMapActor::ERTVeilMemory ARTHexMapActor::MemoryFor(const UInstancedStaticMeshComponent* Component) const
+{
+	if (bVeilMemoryAttenuatedForTest)
+	{
+		return ERTVeilMemory::Attenuate; // solo test: il meccanismo di prima della pianta
+	}
+	if (Component == CellBorders)
+	{
+		return ERTVeilMemory::Plan; // l'anello della griglia E' la pianta
+	}
+	if (Component == Cells)
+	{
+		return ERTVeilMemory::PlanFloor; // il fondo tenue color pianta (seduta `U89`)
+	}
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		if (Component == SurfaceGlyphs[Ring])
+		{
+			return ERTVeilMemory::PlanFade; // il glifo sfuma nel fondo, poi non si disegna
+		}
+	}
+	if (Component == EdgeFeatures || Component == Blockers || Component == StructuralBodies)
+	{
+		return ERTVeilMemory::PlanVolume; // il pannello traslucido (seduta `U89`)
+	}
+	// Il rilievo e i volumi di superficie nel ricordo non si disegnano. Sono il «nessun colore di superficie» della prima
+	// scelta dell'autore, e il fumo o il fuoco di ADESSO su una cella che la squadra non vede sarebbero un'informazione che
+	// la squadra non ha.
+	return ERTVeilMemory::Hide;
+}
+
+FLinearColor ARTHexMapActor::PlanColor()
+{
+	// Il ciano chiaro, «quasi olografico»: l'autore l'ha scelto sulla tavola P2 di #3760, fra il bianco e l'ambra.
+	return FLinearColor::FromSRGBColor(RTPlanLineColor);
+}
+
+FLinearColor ARTHexMapActor::PlanFloorColor()
+{
+	FLinearColor Fondo = PlanColor() * RTPlanFloorFactor;
+	Fondo.A = 1.f;
+	return Fondo;
+}
+
+bool ARTHexMapActor::RememberedColorFor(ERTVeilMemory Ricordo, FLinearColor& Out)
+{
+	switch (Ricordo)
+	{
+	case ERTVeilMemory::Plan:
+		Out = PlanColor();
+		return true;
+	case ERTVeilMemory::PlanFloor:
+	case ERTVeilMemory::PlanFade:
+		// Il glifo sfuma VERSO il fondo: a fine dissolvenza ha il colore del pavimento su cui sta, e smette di disegnarsi.
+		Out = PlanFloorColor();
+		return true;
+	default:
+		return false;
+	}
+}
+
+TArray<float>* ARTHexMapActor::VolumeDisplayFactorFor(const UInstancedStaticMeshComponent* Component)
+{
+	// Solo quando il ricordo di quella famiglia e' il pannello traslucido: con l'attenuazione di prima, che i test
+	// rimettono, i volumi non hanno un fattore, e il velo li nasconde e basta.
+	if (MemoryFor(Component) != ERTVeilMemory::PlanVolume)
+	{
+		return nullptr;
+	}
+	if (Component == EdgeFeatures) { return &EdgeFeatureDisplayFactor; }
+	if (Component == Blockers) { return &BlockerDisplayFactor; }
+	if (Component == StructuralBodies) { return &BodyDisplayFactor; }
+	return nullptr;
+}
+
+void ARTHexMapActor::WriteVolumeAppearance(UInstancedStaticMeshComponent* Famiglia, const FRTCellId& Cell, int32 I,
+	float Osservata)
+{
+	if (Famiglia == nullptr || Famiglia->NumCustomDataFloats < RTLayerPresentation::VolumeNumCustomDataFloats)
+	{
+		return; // senza i canali i dati per istanza sono inerti: la stessa guardia di `ApplyLayerPresentation`
+	}
+	// 🔑 **Un solo scrittore per i canali dei volumi.** La presentazione dei piani ([D-501], #3706) scrive tinta e
+	// trattamento; il ricordo della pianta li sposta verso il colore della pianta e verso la trasparenza. Due scrittori
+	// degli stessi canali si sovrascriverebbero a vicenda — un cambio di piano attivo rimetterebbe pieni i muri ricordati —
+	// quindi scrivono tutti e due da qui, ciascuno con la sua parte.
+	const FRTLayerVolumeTint Tinta = RTLayerPresentation::VolumeTint(Cell.Layer, PresentedActiveLayer,
+		bPresentationMultiLayer, AppliedLayerTuning);
+	const FRTLayerTreatment T = RTLayerPresentation::Treatment(Cell.Layer, PresentedActiveLayer,
+		bPresentationMultiLayer, AppliedLayerTuning);
+	const float Ricordo = 1.f - FMath::Clamp(Osservata, 0.f, 1.f);
+	// Osservata, l'istanza ha esattamente i valori del piano, come prima della pianta: a un piano tutti zero
+	// (`HexMap.SingleLayerMapHasNoVolumeTint`). Appena e' un po' ricordo, e senza tinta del piano, il colore della tinta
+	// e' gia' quello della pianta: la forza sale da zero, e partire dal nero scurirebbe il pannello a meta' dissolvenza.
+	const FLinearColor Colore = Ricordo <= 0.f ? Tinta.Color
+		: (Tinta.Strength > 0.f ? FMath::Lerp(Tinta.Color, PlanColor(), Ricordo) : PlanColor());
+	const float Forza = FMath::Lerp(Tinta.Strength, 1.f, Ricordo);
+	// Le due trasparenze si compongono come due veli uno sull'altro: passa cio' che passa da entrambi.
+	const float Trasparenza = 1.f - (1.f - T.Transparency) * (1.f - RTPlanVolumeTransparency * Ricordo);
+	Famiglia->SetCustomDataValue(I, 0, Colore.R, /*bMarkRenderStateDirty=*/ false);
+	Famiglia->SetCustomDataValue(I, 1, Colore.G, /*bMarkRenderStateDirty=*/ false);
+	Famiglia->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+	Famiglia->SetCustomDataValue(I, RTLayerPresentation::VolumeTintStrengthChannel, Forza, /*bMarkRenderStateDirty=*/ false);
+	const int32 Primo = RTLayerPresentation::FirstChannel;
+	Famiglia->SetCustomDataValue(I, Primo + 0, Trasparenza, /*bMarkRenderStateDirty=*/ false);
+	Famiglia->SetCustomDataValue(I, Primo + 1, T.Desaturation, /*bMarkRenderStateDirty=*/ false);
+	Famiglia->SetCustomDataValue(I, Primo + 2, T.ExposureStops, /*bMarkRenderStateDirty=*/ false);
+}
+
+void ARTHexMapActor::WriteFog()
+{
+	if (FogVolumes == nullptr || FogVolumes->GetInstanceCount() != InstanceCells.Num()
+		|| FogBaseScale.Num() != InstanceCells.Num()
+		|| FogVolumes->NumCustomDataFloats < RTLayerPresentation::VolumeNumCustomDataFloats)
+	{
+		return; // una mappatura stantia, o senza i canali: la stessa guardia del velo
+	}
+	if (FogShown.Num() != InstanceCells.Num())
+	{
+		FogShown.Init(-1.f, InstanceCells.Num());
+	}
+	// La nebbia e' della pianta: con l'attenuazione di prima, che i test rimettono, il ricordo non ne ha.
+	const bool bPianta = MemoryFor(Cells) == ERTVeilMemory::PlanFloor;
+
+	int32 Toccate = 0;
+	for (int32 I = 0; I < InstanceCells.Num(); ++I)
+	{
+		const uint8 Stato = LastVeilState.IsValidIndex(I) ? LastVeilState[I] : RTVeilUnwritten;
+		float Nebbia = 0.f; // una board mai velata non ha nebbia: editor, prove senza percezione
+		if (bPianta && Stato == RTVeilHidden)
+		{
+			Nebbia = 1.f;
+		}
+		else if (bPianta && (Stato == RTVeilLit || Stato == RTVeilRemembered))
+		{
+			// Il complemento di quanto il disco e' osservato: 0 sulla cella vista, 1 sulla ricordata, e nel mezzo durante
+			// la dissolvenza. Un fattore negativo e' «mai scritto», e vale il target dello stato.
+			const float Target = (Stato == RTVeilLit) ? 1.f : 0.f;
+			const float Osservata = (VeilDisplayFactor.IsValidIndex(I) && VeilDisplayFactor[I] >= 0.f)
+				? VeilDisplayFactor[I] : Target;
+			Nebbia = 1.f - FMath::Clamp(Osservata, 0.f, 1.f);
+		}
+		if (FogShown[I] == Nebbia)
+		{
+			continue;
+		}
+		const bool bDisegnata = Nebbia > 0.f;
+		if (FogShown[I] < 0.f || (FogShown[I] > 0.f) != bDisegnata)
+		{
+			FTransform Xf;
+			if (!FogVolumes->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+			{
+				continue;
+			}
+			Xf.SetScale3D(bDisegnata ? FogBaseScale[I] : FVector::ZeroVector);
+			FogVolumes->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
+		}
+		if (bDisegnata)
+		{
+			// Il trattamento del suo piano ([D-501]) e la nebbia si compongono come due veli: passa cio' che passa da
+			// entrambi. Nessuna tinta del piano: la nebbia ha il suo grigio.
+			const FRTLayerTreatment T = RTLayerPresentation::Treatment(InstanceCells[I].Layer, PresentedActiveLayer,
+				bPresentationMultiLayer, AppliedLayerTuning);
+			const float Trasparenza = 1.f - (1.f - T.Transparency) * (RTFogOpacity * Nebbia);
+			for (int32 Canale = 0; Canale < 3; ++Canale)
+			{
+				FogVolumes->SetCustomDataValue(I, Canale, 0.f, /*bMarkRenderStateDirty=*/ false);
+			}
+			FogVolumes->SetCustomDataValue(I, RTLayerPresentation::VolumeTintStrengthChannel, 0.f, /*bMarkRenderStateDirty=*/ false);
+			const int32 Primo = RTLayerPresentation::FirstChannel;
+			FogVolumes->SetCustomDataValue(I, Primo + 0, Trasparenza, /*bMarkRenderStateDirty=*/ false);
+			FogVolumes->SetCustomDataValue(I, Primo + 1, T.Desaturation, /*bMarkRenderStateDirty=*/ false);
+			FogVolumes->SetCustomDataValue(I, Primo + 2, T.ExposureStops, /*bMarkRenderStateDirty=*/ false);
+		}
+		FogShown[I] = Nebbia;
+		++Toccate;
+	}
+	if (Toccate > 0)
+	{
+		FogVolumes->MarkRenderStateDirty();
 	}
 }
 
@@ -1962,8 +2387,10 @@ void ARTHexMapActor::ApplyLayerPresentation()
 	}
 
 	// #3706: i VOLUMI dicono il piano con la tinta ([D-508]) e ricevono il trattamento di D-501. La tinta sta nei canali
-	// 0..2 e la sua forza nel 6; i canali 3..5 sono quelli delle celle, quindi il trattamento lo scrive `Scrivi`.
-	// ⛔ Il velo non li tocca: su queste famiglie nasconde con la scala e non scrive colore.
+	// 0..2 e la sua forza nel 6, il trattamento nei 3..5.
+	// ➕ #3760: muri, coperture, porte, celle che bloccano e corpi RICORDATI sono il pannello traslucido della pianta, che
+	// sposta gli stessi canali. Li scrive tutti `WriteVolumeAppearance`, con quanto l'istanza e' osservata: scritti qui coi
+	// soli valori del piano, un cambio di piano attivo rimetterebbe pieni i muri ricordati.
 	for (const FRTVolumeFamily& Volume : GetVolumeFamilies())
 	{
 		UInstancedStaticMeshComponent* Famiglia = Volume.Component;
@@ -1972,17 +2399,18 @@ void ARTHexMapActor::ApplyLayerPresentation()
 		{
 			continue; // senza i canali, o con una mappatura stantia: la stessa guardia di `Scrivi`
 		}
+		const TArray<float>* Fattori = VolumeDisplayFactorFor(Famiglia);
 		for (int32 I = 0; I < Volume.Cells->Num(); ++I)
 		{
-			const FRTLayerVolumeTint Tinta = RTLayerPresentation::VolumeTint((*Volume.Cells)[I].Layer, PresentedActiveLayer,
-				bMultiLayer, AppliedLayerTuning);
-			Famiglia->SetCustomDataValue(I, 0, Tinta.Color.R, /*bMarkRenderStateDirty=*/ false);
-			Famiglia->SetCustomDataValue(I, 1, Tinta.Color.G, /*bMarkRenderStateDirty=*/ false);
-			Famiglia->SetCustomDataValue(I, 2, Tinta.Color.B, /*bMarkRenderStateDirty=*/ false);
-			Famiglia->SetCustomDataValue(I, RTLayerPresentation::VolumeTintStrengthChannel, Tinta.Strength,
-				/*bMarkRenderStateDirty=*/ false);
+			// Un fattore negativo e' «mai scritto»: l'istanza si scrive come osservata, come prima della pianta.
+			const float Osservata = (Fattori && Fattori->IsValidIndex(I) && (*Fattori)[I] >= 0.f) ? (*Fattori)[I] : 1.f;
+			WriteVolumeAppearance(Famiglia, (*Volume.Cells)[I], I, Osservata);
 		}
-		Scrivi(Famiglia, *Volume.Cells); // i canali 3..5, e marca lo stato di render una volta sola
+		// Una volta sola per famiglia, come il velo: marcarlo per canale ricostruirebbe il buffer 7N volte.
+		if (Volume.Cells->Num() > 0)
+		{
+			Famiglia->MarkRenderStateDirty();
+		}
 	}
 
 	// 🔑 **I bordi dicono il piano col COLORE, e non ricevono il trattamento** ([D-508], #3704). I canali 3..5 restano a
@@ -1997,6 +2425,12 @@ void ARTHexMapActor::ApplyLayerPresentation()
 		&& CellBorders->GetInstanceCount() == BorderCells.Num())
 	{
 		const bool bVelata = LastBorderVeilState.Num() == BorderCells.Num();
+		// #3760: con la pianta il fattore e' quanto la cella e' osservata, e il ricordo e' il colore della pianta, come in
+		// `VeilInstances` e `AdvanceVeilFamily`. Con la regola dell'attenuazione un anello ricordato veniva riscritto nero a
+		// ogni cambio di piano attivo (review della PR).
+		const ERTVeilMemory RicordoAnelli = MemoryFor(CellBorders);
+		const bool bPiantaAnelli = RicordoAnelli == ERTVeilMemory::Plan || RicordoAnelli == ERTVeilMemory::PlanFloor
+			|| RicordoAnelli == ERTVeilMemory::PlanFade || RicordoAnelli == ERTVeilMemory::PlanVolume;
 		for (int32 I = 0; I < BorderCells.Num(); ++I)
 		{
 			float Fattore = 1.f; // board mai velata: editor, prove senza percezione
@@ -2009,11 +2443,17 @@ void ARTHexMapActor::ApplyLayerPresentation()
 				}
 				if (Stato == RTVeilLit || Stato == RTVeilRemembered)
 				{
-					const float Target = (Stato == RTVeilLit) ? 1.f : RTVeilExploredFactor;
+					const float Target = (Stato == RTVeilLit) ? 1.f : (bPiantaAnelli ? 0.f : RTVeilExploredFactor);
 					Fattore = (BorderDisplayFactor.IsValidIndex(I) && BorderDisplayFactor[I] >= 0.f) ? BorderDisplayFactor[I] : Target;
 				}
 			}
-			const FLinearColor Colore = BorderBaseColorFor(BorderCells[I]) * Fattore;
+			const FLinearColor Base = BorderBaseColorFor(BorderCells[I]);
+			FLinearColor Colore = Base * Fattore;
+			FLinearColor Ricordato;
+			if (bVelata && bPiantaAnelli && RememberedColorFor(RicordoAnelli, Ricordato))
+			{
+				Colore = FMath::Lerp(Ricordato, Base, Fattore);
+			}
 			CellBorders->SetCustomDataValue(I, 0, Colore.R, /*bMarkRenderStateDirty=*/ false);
 			CellBorders->SetCustomDataValue(I, 1, Colore.G, /*bMarkRenderStateDirty=*/ false);
 			CellBorders->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
@@ -2029,6 +2469,10 @@ void ARTHexMapActor::ApplyLayerPresentation()
 	}
 
 	ApplyPlanGhostBorderColors();
+
+	// La nebbia porta il trattamento del suo piano (#3760): cambiato il piano, si riscrive tutta.
+	FogShown.Reset();
+	WriteFog();
 }
 
 TArray<ARTHexMapActor::FRTVolumeFamily> ARTHexMapActor::GetVolumeFamilies() const
@@ -2059,13 +2503,71 @@ void ARTHexMapActor::ApplyVolumeMaterial()
 				RTLayerPresentation::VolumeOwnColor(/*bEdgePanel=*/ true));
 		}
 	}
+	// #3760, seduta `U89`: anche il VOLUME DEL FUMO aveva il grigio scuro dei prismi, e nella zona vista una cella di fumo
+	// restava «nera» dopo che il rilievo si era schiarito: e' una superficie, e l'autore ha scelto che le superfici viste
+	// non sembrino nere. Il volume prende il colore della sua superficie, che e' l'unica verita' sul colore del terreno.
+	// ⚠️ Un colore per tutta la famiglia vale finche' il fumo e' l'unica superficie con un volume: lo pinna
+	// `HexMapActor.SmokeVolumeIsLight`, e una seconda forma dovra' decidere il suo.
+	if (SurfaceVolumeMaterial == nullptr || SurfaceVolumeMaterial->Parent != Mat)
+	{
+		SurfaceVolumeMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+		if (SurfaceVolumeMaterial != nullptr)
+		{
+			SurfaceVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor,
+				FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(ERTHexSurface::Smoke)));
+		}
+	}
+	// La nebbia (#3760): stesso grafo, col suo grigio freddo. Non e' una famiglia dei volumi: non ha tinta del piano,
+	// e la trasparenza la scrive `WriteFog`.
+	if (FogVolumes != nullptr)
+	{
+		if (FogVolumeMaterial == nullptr || FogVolumeMaterial->Parent != Mat)
+		{
+			FogVolumeMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+			if (FogVolumeMaterial != nullptr)
+			{
+				FogVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor, RTFogOwnColor);
+			}
+		}
+		if (FogVolumeMaterial != nullptr && FogVolumes->GetMaterial(0) != FogVolumeMaterial)
+		{
+			FogVolumes->SetMaterial(0, FogVolumeMaterial);
+		}
+	}
 	for (const FRTVolumeFamily& Volume : GetVolumeFamilies())
 	{
-		UMaterialInterface* Voluto = (Volume.Component == EdgeFeatures && EdgePanelVolumeMaterial != nullptr)
-			? static_cast<UMaterialInterface*>(EdgePanelVolumeMaterial) : Mat;
+		UMaterialInterface* Voluto = Mat;
+		if (Volume.Component == EdgeFeatures && EdgePanelVolumeMaterial != nullptr)
+		{
+			Voluto = EdgePanelVolumeMaterial;
+		}
+		else if (Volume.Component == SurfaceVolumes && SurfaceVolumeMaterial != nullptr)
+		{
+			Voluto = SurfaceVolumeMaterial;
+		}
 		if (Volume.Component != nullptr && Volume.Component->GetMaterial(0) != Voluto)
 		{
 			Volume.Component->SetMaterial(0, Voluto);
+		}
+	}
+
+	// #3760, seduta `U89`: il RILIEVO del costo teneva il materiale di default della mesh, un grigio scuro in luce piena, e
+	// l'autore ha letto come «nere» le celle viste che lo portano. Prende lo stesso grafo dei volumi col suo colore proprio,
+	// un grigio chiaro. ⚠️ Non diventa per questo una famiglia dei volumi: non ha dati per istanza, quindi il materiale li
+	// legge a zero — nessuna tinta del piano, nessun trattamento di D-501, opaco — e resta il limite dichiarato di #3706.
+	if (Relief != nullptr)
+	{
+		if (ReliefVolumeMaterial == nullptr || ReliefVolumeMaterial->Parent != Mat)
+		{
+			ReliefVolumeMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+			if (ReliefVolumeMaterial != nullptr)
+			{
+				ReliefVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor, RTReliefOwnColor);
+			}
+		}
+		if (ReliefVolumeMaterial != nullptr && Relief->GetMaterial(0) != ReliefVolumeMaterial)
+		{
+			Relief->SetMaterial(0, ReliefVolumeMaterial);
 		}
 	}
 }
@@ -2157,6 +2659,10 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	// o dargli un grigio neutro; si e' scelto di lasciarli cosi', perche' il sovrapprezzo di movimento
 	// DEVE saltare all'occhio. Se un giorno sembrera' un difetto, e' una decisione di leggibilita' e si
 	// riapre in M8 / U9 — non si "corregge" qui.
+	// ➕ **Riaperta il 2026-10-15, nella seduta `U89` di #3760**: in luce piena quel materiale e' un grigio scuro, e
+	// l'autore ha letto come «nere» le celle viste che portano un rilievo, chiedendo di schiarirle. Il rilievo prende ora
+	// un grigio chiaro neutro, in `ApplyVolumeMaterial`: resta un oggetto che sporge, e continua a non tingersi come la
+	// cella.
 	if (UMaterialInterface* Mat = CellMaterial.LoadSynchronous())
 	{
 		Cells->SetMaterial(0, Mat);
@@ -2177,6 +2683,13 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// transizione sopravvissuta a un rebuild attenuerebbe una cella che nel frattempo e' un'altra.
 		VeilDisplayFactor.Reset();
 		VeilCellsInTransition = 0;
+		// La nebbia e' una colonna per cella, nello stesso ordine del disco: si azzera e si ricostruisce con lui.
+		if (FogVolumes)
+		{
+			FogVolumes->ClearInstances();
+		}
+		FogBaseScale.Reset();
+		FogShown.Reset();
 	}
 	if (bDoGlyphs)
 	{
@@ -2208,6 +2721,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		BlockerCells.Reset();
 		BlockerBaseScale.Reset();
 		LastBlockerVeilState.Reset();
+		BlockerDisplayFactor.Reset(); // #3760: il fattore della pianta segue gli stessi indici
 	}
 	if (bDoEdges)
 	{
@@ -2215,6 +2729,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		EdgeFeatureOtherCells.Reset();
 		EdgeFeatureBaseScale.Reset();
 		LastEdgeFeatureVeilState.Reset();
+		EdgeFeatureDisplayFactor.Reset(); // #3760
 		// `#3687`: cio' che questa ricostruzione disegna, per sapere a fine turno se e' ancora vero.
 		CollectEdgeLayout(EdgeLayoutAtLastBuild);
 	}
@@ -2260,6 +2775,10 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	{
 		if (CellShape != nullptr) { SurfaceVolumes->SetStaticMesh(CellShape); }
 	}
+	if (bDoCells && FogVolumes)
+	{
+		if (CellShape != nullptr) { FogVolumes->SetStaticMesh(CellShape); }
+	}
 	if (bDoBlock && Blockers)
 	{
 		if (CellShape != nullptr) { Blockers->SetStaticMesh(CellShape); }
@@ -2277,6 +2796,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		BodyCells.Reset();
 		BodyBaseScale.Reset();
 		LastBodyVeilState.Reset();
+		BodyDisplayFactor.Reset(); // #3760
 	}
 	if (bDoEdges && EdgeFeatures)
 	{
@@ -2423,6 +2943,18 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// La scala piena si registra QUI, dove la si conosce: il velo nasconde azzerandola, e da uno zero non
 			// si torna indietro ([D-227]).
 			InstanceBaseScale.Add(Xf.GetScale3D());
+
+			// La colonna di NEBBIA della cella (#3760): dal fondo del disco al piano sopra, larga quanto il disco, cosi'
+			// fra due colonne resta la griglia. 🔑 **La quota NON porta `Height`**: su una cella mai vista direbbe
+			// quanto e' alta, che e' contenuto; che la cella esista e su quale piano e' pubblico ([D-373]). Nasce a
+			// scala zero: la disegna solo il velo (`WriteFog`).
+			if (FogVolumes)
+			{
+				FVector FogCenter = URTHexLibrary::AxialToWorld(CellIds[I], GetActorLocation(), UseHexSize, UseLayerH);
+				FogCenter.Z += UseLayerH * 0.5 - RTCellTopZ;
+				FogVolumes->AddInstance(FTransform(FRotator::ZeroRotator, FogCenter, FVector::ZeroVector), /*bWorldSpace=*/ true);
+				FogBaseScale.Add(FVector(PlanarScale, PlanarScale, UseLayerH / 100.f));
+			}
 
 			// Colore della superficie, per ISTANZA. La tavolozza e' `URTHexLibrary::SurfaceColor` — la stessa che
 			// disegna l'anello dell'overlay e il marker dell'editor: una cella non puo' avere due colori a seconda
@@ -3154,6 +3686,9 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		return 0;
 	}
 
+	// #3760: che cosa fa questa famiglia nel ricordo. Si chiede una volta per chiamata, non per istanza.
+	const ERTVeilMemory Ricordo = MemoryFor(Component);
+
 	// La precondizione DICHIARATA: la mappatura e' stata DERIVATA da `RebuildInstances`, e una ricostruzione
 	// passata di mezzo lascia indici stantii. L'esito non e' un crash ma celle velate SBAGLIATE — il difetto
 	// che si legge come «problema grafico» per settimane, finche' qualcuno non lo misura.
@@ -3219,20 +3754,6 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 			continue;
 		}
 		const FVector Full = BaseScale.IsValidIndex(I) ? BaseScale[I] : FVector::OneVector;
-		Xf.SetScale3D(bKnown ? Full : FVector::ZeroVector);
-		Component->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
-
-		LastState[I] = State;
-		++Toccate;
-
-		FLinearColor Base;
-		if (!bKnown || !BaseColor(Cell, Base))
-		{
-			// Niente colore da scrivere: su cio' che non si disegna, e sulle famiglie che non hanno un canale
-			// colore per istanza — dove ricordato e osservato restano indistinguibili.
-			continue;
-		}
-		const float Target = bVisible ? 1.f : RTVeilExploredFactor;
 
 		// 🔴 **Si ATTENUA solo fra due stati DISEGNATI, e il reveal da `Hidden` resta uno scalino.**
 		// E' la decisione (i) di `#2875`, e la ragione e' il multilivello: `LayerView` vale `AllLayers` di
@@ -3248,6 +3769,36 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 			&& (Precedente == RTVeilLit || Precedente == RTVeilRemembered)
 			&& (State == RTVeilLit || State == RTVeilRemembered);
 
+		// #3760: nel ricordo una famiglia `Hide` non si disegna, come una cella mai vista. Una `PlanFade` si disegna
+		// ancora mentre sfuma, cioe' quando arriva dall'osservato, e smette quando la dissolvenza converge
+		// (`AdvanceVeilFamily`); arrivando da `Hidden`, o alla prima scrittura, non c'e' niente da sfumare.
+		const bool bDrawn = bVisible
+			|| (bKnown && Ricordo != ERTVeilMemory::Hide && (Ricordo != ERTVeilMemory::PlanFade || bAttenua));
+		Xf.SetScale3D(bDrawn ? Full : FVector::ZeroVector);
+		Component->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
+
+		LastState[I] = State;
+		++Toccate;
+
+		// 🔑 **Per la pianta il fattore e' QUANTO la cella e' osservata**: 1 vista, 0 ricordata, e il colore disegnato e'
+		// l'interpolazione fra il colore della pianta e quello vero. E' cio' che riporta la dissolvenza di `#2875` fra
+		// osservato e ricordato, che la prima stesura della pianta aveva tolto: nella seduta `U89` l'autore ha scelto «Il
+		// cambio secco disturba». Per l'attenuazione di prima resta il moltiplicatore del colore vero.
+		const bool bPianta = Ricordo == ERTVeilMemory::Plan || Ricordo == ERTVeilMemory::PlanFloor
+			|| Ricordo == ERTVeilMemory::PlanFade || Ricordo == ERTVeilMemory::PlanVolume;
+		const float Target = bVisible ? 1.f : (bPianta ? 0.f : RTVeilExploredFactor);
+
+		if (!bDrawn)
+		{
+			// Il fattore segue lo stato anche senza disegno: un glifo arrivato al ricordo senza sfumare teneva il `-1` di
+			// nascita, e tornando in vista la dissolvenza partiva da li', con un colore fuori dalla pianta (review della PR).
+			if (DisplayFactor)
+			{
+				(*DisplayFactor)[I] = Target;
+			}
+			continue; // niente colore da scrivere su cio' che non si disegna
+		}
+
 		float Fattore = Target;
 		if (DisplayFactor)
 		{
@@ -3262,9 +3813,28 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 			}
 		}
 
-		Component->SetCustomDataValue(I, 0, Base.R * Fattore);
-		Component->SetCustomDataValue(I, 1, Base.G * Fattore);
-		Component->SetCustomDataValue(I, 2, Base.B * Fattore, /*bMarkRenderStateDirty=*/ false);
+		// #3760: i volumi non hanno un colore per istanza come i dischi. La tinta e il trattamento li scrive
+		// `WriteVolumeAppearance`, che e' anche lo scrittore della presentazione dei piani.
+		if (Ricordo == ERTVeilMemory::PlanVolume)
+		{
+			WriteVolumeAppearance(Component, Cell, I, Fattore);
+			continue;
+		}
+		FLinearColor Base;
+		if (!BaseColor(Cell, Base))
+		{
+			// Le famiglie che non hanno un canale colore per istanza: ricordato e osservato restano indistinguibili.
+			continue;
+		}
+		FLinearColor Colore = Base * Fattore;
+		FLinearColor Ricordato;
+		if (bPianta && RememberedColorFor(Ricordo, Ricordato))
+		{
+			Colore = FMath::Lerp(Ricordato, Base, Fattore);
+		}
+		Component->SetCustomDataValue(I, 0, Colore.R);
+		Component->SetCustomDataValue(I, 1, Colore.G);
+		Component->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
 	}
 
 	// Una volta sola, in coda, e SOLO se qualcosa e' cambiato: marcarlo a ogni canale ricostruirebbe il
@@ -3900,8 +4470,10 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		Visible, Explored,
 		[this](const FRTCellId& Cell, FLinearColor& Out) { Out = BorderBaseColorFor(Cell); return true; });
 
-	// ⛔ `nullptr` invece di un array di fattori: queste tre famiglie non hanno un canale colore per istanza,
-	// quindi non c'e' niente da attenuare — il velo le nasconde e basta, e la scala non si interpola.
+	// ⛔ `nullptr` invece di un array di fattori per il rilievo e i volumi di superficie: nel ricordo non si disegnano,
+	// quindi non c'e' niente da sfumare. ➕ #3760: muri, coperture, porte, celle che bloccano e corpi invece un fattore
+	// ce l'hanno, quando il loro ricordo e' il pannello traslucido (`VolumeDisplayFactorFor`): la loro tinta la scrive
+	// `WriteVolumeAppearance`, e il colore per istanza resta `false`.
 	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
 	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, nullptr, Visible, Explored,
 		SenzaColore);
@@ -3912,19 +4484,19 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// esiste per non aprirne (`#2870`), e visibile a colpo d'occhio invece che dedotto.
 	VeilInstances(SurfaceVolumes, SurfaceVolumeCells, SurfaceVolumeBaseScale, LastSurfaceVolumeVeilState,
 		nullptr, Visible, Explored, SenzaColore);
-	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored,
-		SenzaColore);
+	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, VolumeDisplayFactorFor(Blockers),
+		Visible, Explored, SenzaColore);
 	// `#3691`, [D-502] (d): un pannello di bordo si vede da un lato qualunque.
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
-		nullptr, Visible, Explored, SenzaColore, &EdgeFeatureOtherCells);
+		VolumeDisplayFactorFor(EdgeFeatures), Visible, Explored, SenzaColore, &EdgeFeatureOtherCells);
 
 	// 🔴 **La NONA famiglia, che fino a `#2731` non passava di qui** — e non per una riga dimenticata: il
 	// suo sito di `AddInstance` non registrava nessuna cella, quindi non c'era niente da velare. Su una
 	// mappa con `BodyFill != None` il volume solido restava visibile sotto celle mai osservate.
 	//
-	// Come le altre tre senza canale colore: il velo NASCONDE e basta.
+	// Come i pannelli: nel ricordo e' il volume traslucido della pianta (#3760).
 	VeilInstances(StructuralBodies, BodyCells, BodyBaseScale, LastBodyVeilState,
-		nullptr, Visible, Explored, SenzaColore);
+		VolumeDisplayFactorFor(StructuralBodies), Visible, Explored, SenzaColore);
 
 	// 🔑 **Se il velo ha aperto una transizione, il `Tick` si accende.** E' l'unico punto in cui puo'
 	// nascerne una: i target li decide questa funzione, e nessun altro li muove.
@@ -3933,6 +4505,8 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// refresh non ha toccato e' ancora viva: azzerare direbbe «converso» a chi sta ancora sfumando, e
 	// spegnerebbe il `Tick` a meta' dissolvenza. Il conteggio VERO lo ricalcola `AdvanceVeilTransition` a
 	// ogni passo; questo lo alza soltanto, e la differenza dura un fotogramma.
+	WriteFog();
+
 	if (VeilCellsInTransition > 0)
 	{
 		SetActorTickEnabled(true);
@@ -3983,7 +4557,18 @@ void ARTHexMapActor::AdvanceVeilTransition(float DeltaSeconds)
 		DeltaSeconds,
 		[this](const FRTCellId& Cell, FLinearColor& Out) { Out = BorderBaseColorFor(Cell); return true; }); // #3704
 
+	// #3760: i volumi della pianta. Il colore lo scrive `WriteVolumeAppearance`, quindi qui nessun colore per istanza;
+	// con l'attenuazione di prima i loro fattori restano vuoti e `AdvanceVeilFamily` esce subito.
+	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
+	InMovimento += AdvanceVeilFamily(Blockers, BlockerCells, LastBlockerVeilState, BlockerDisplayFactor, DeltaSeconds,
+		SenzaColore);
+	InMovimento += AdvanceVeilFamily(EdgeFeatures, EdgeFeatureCells, LastEdgeFeatureVeilState,
+		EdgeFeatureDisplayFactor, DeltaSeconds, SenzaColore);
+	InMovimento += AdvanceVeilFamily(StructuralBodies, BodyCells, LastBodyVeilState, BodyDisplayFactor, DeltaSeconds,
+		SenzaColore);
+
 	VeilCellsInTransition = InMovimento;
+	WriteFog(); // la nebbia segue la dissolvenza del disco della sua cella
 }
 
 int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component,
@@ -4000,6 +4585,7 @@ int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component
 
 	int32 InMovimento = 0;
 	int32 Scritte = 0;
+	const ERTVeilMemory Ricordo = MemoryFor(Component); // #3760
 	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
 	{
 		const uint8 State = LastState[I];
@@ -4010,8 +4596,15 @@ int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component
 		{
 			continue;
 		}
-
-		const float Target = (State == RTVeilLit) ? 1.f : RTVeilExploredFactor;
+		// #3760: un ricordo che non si disegna non ha niente da far convergere.
+		if (State == RTVeilRemembered && Ricordo == ERTVeilMemory::Hide)
+		{
+			continue;
+		}
+		// #3760: per la pianta il fattore e' quanto la cella e' osservata, 1 vista e 0 ricordata — vedi `VeilInstances`.
+		const bool bPianta = Ricordo == ERTVeilMemory::Plan || Ricordo == ERTVeilMemory::PlanFloor
+			|| Ricordo == ERTVeilMemory::PlanFade || Ricordo == ERTVeilMemory::PlanVolume;
+		const float Target = State == RTVeilLit ? 1.f : (bPianta ? 0.f : RTVeilExploredFactor);
 		const float Corrente = DisplayFactor[I];
 		if (Corrente == Target)
 		{
@@ -4022,12 +4615,36 @@ int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component
 		DisplayFactor[I] = Prossimo;
 
 		FLinearColor Base;
-		if (BaseColor(CellsOfInstance[I], Base))
+		if (Ricordo == ERTVeilMemory::PlanVolume)
 		{
-			Component->SetCustomDataValue(I, 0, Base.R * Prossimo);
-			Component->SetCustomDataValue(I, 1, Base.G * Prossimo);
-			Component->SetCustomDataValue(I, 2, Base.B * Prossimo, /*bMarkRenderStateDirty=*/ false);
+			WriteVolumeAppearance(Component, CellsOfInstance[I], I, Prossimo);
 			++Scritte;
+		}
+		else if (BaseColor(CellsOfInstance[I], Base))
+		{
+			FLinearColor Colore = Base * Prossimo;
+			FLinearColor Ricordato;
+			if (bPianta && RememberedColorFor(Ricordo, Ricordato))
+			{
+				Colore = FMath::Lerp(Ricordato, Base, Prossimo);
+			}
+			Component->SetCustomDataValue(I, 0, Colore.R);
+			Component->SetCustomDataValue(I, 1, Colore.G);
+			Component->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+			++Scritte;
+		}
+
+		// #3760: un glifo che ha finito di sfumare nel ricordo smette di disegnarsi, come se ci fosse arrivato senza
+		// dissolvenza. Fino a qui aveva il colore del fondo: toglierlo adesso non cambia cio' che si vede.
+		if (Ricordo == ERTVeilMemory::PlanFade && State == RTVeilRemembered && Prossimo == Target)
+		{
+			FTransform Xf;
+			if (Component->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+			{
+				Xf.SetScale3D(FVector::ZeroVector);
+				Component->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
+				++Scritte;
+			}
 		}
 
 		if (Prossimo != Target)
@@ -4065,12 +4682,42 @@ void ARTHexMapActor::GetVeilCounts(int32& OutVisible, int32& OutExplored, int32&
 		}
 		if (Xf.GetScale3D().IsNearlyZero())
 		{
-			++OutHidden;
+			// ➕ **#3760: col disco spento la cella puo' essere un RICORDO**, perche' nella pianta il ricordo non ha
+			// disco: lo dice l'anello della griglia, disegnato nel colore della pianta. Si legge l'anello, cioe' cio'
+			// che si vede, con la stessa disciplina di qui sopra. ⚠️ L'anello di indice `I` e' quello della stessa
+			// cella — `BorderCells` e `InstanceCells` sono uno-a-uno — e lo si verifica invece di assumerlo: una
+			// mappatura disallineata ricade su «mai vista», che e' la lettura piu' prudente.
+			bool bPianta = false;
+			FTransform Anello;
+			if (CellBorders && BorderCells.IsValidIndex(I) && BorderCells[I] == InstanceCells[I]
+				&& CellBorders->GetInstanceTransform(I, Anello, /*bWorldSpace=*/ true)
+				&& !Anello.GetScale3D().IsNearlyZero())
+			{
+				const int32 BaseAnello = I * CellBorders->NumCustomDataFloats;
+				const FLinearColor Pianta = PlanColor();
+				bPianta = CellBorders->PerInstanceSMCustomData.IsValidIndex(BaseAnello + 2)
+					&& FMath::IsNearlyEqual(CellBorders->PerInstanceSMCustomData[BaseAnello], Pianta.R, 1e-3f)
+					&& FMath::IsNearlyEqual(CellBorders->PerInstanceSMCustomData[BaseAnello + 1], Pianta.G, 1e-3f)
+					&& FMath::IsNearlyEqual(CellBorders->PerInstanceSMCustomData[BaseAnello + 2], Pianta.B, 1e-3f);
+			}
+			++(bPianta ? OutExplored : OutHidden);
 			continue;
 		}
 		// Fra accesa e ricordata distingue solo il COLORE: entrambe sono disegnate a scala piena.
 		const FLinearColor Full = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(SurfaceForCell(InstanceCells[I])));
 		const int32 Base = I * Cells->NumCustomDataFloats;
+		// ➕ #3760, seduta `U89`: con la pianta il disco ricordato si disegna, col fondo della pianta. Una cella e' un
+		// ricordo se il colore scritto sta piu' vicino al fondo che al colore vero: a meta' dissolvenza conta da che parte
+		// sta, come la soglia qui sotto. Il solo canale rosso non basterebbe: il fondo e' ciano, e l'acqua bassa ha poco
+		// rosso anche osservata.
+		FLinearColor Ricordato;
+		if (RememberedColorFor(MemoryFor(Cells), Ricordato) && Cells->PerInstanceSMCustomData.IsValidIndex(Base + 2))
+		{
+			const FLinearColor Scritto(Cells->PerInstanceSMCustomData[Base], Cells->PerInstanceSMCustomData[Base + 1],
+				Cells->PerInstanceSMCustomData[Base + 2]);
+			++(FLinearColor::Dist(Scritto, Ricordato) < FLinearColor::Dist(Scritto, Full) ? OutExplored : OutVisible);
+			continue;
+		}
 		const float Written = Cells->PerInstanceSMCustomData.IsValidIndex(Base)
 			? Cells->PerInstanceSMCustomData[Base] : Full.R;
 		// Soglia a meta' strada fra pieno e velato: qualunque valore sotto e' un ricordo, e la distanza fra i

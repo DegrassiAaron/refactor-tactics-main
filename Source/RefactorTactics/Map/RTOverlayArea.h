@@ -56,6 +56,10 @@ enum class ERTOverlayMeaning : uint8
 	 *
 	 * 🔑 Il valore `#32ADE6` era **riservato da [D-368] e tenuto fuori da questo enum**, perche' un
 	 * significato senza produttore nasce morto. Entra ora, insieme a `URTSightLineLibrary`.
+	 *
+	 * ➕ *2026-10-14, #3761*: lo stesso COLORE lo usa la linea sul confine della vista della squadra
+	 * (`ARTHexMapActor::DrawVisionBorder`), per scelta dell'autore. Presta il colore, non il significato: la linea
+	 * non e' un'area di questo enum, e non passa da priorita', scala o profondita' della palette.
 	 */
 	Vision,
 

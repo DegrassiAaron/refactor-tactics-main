@@ -5,6 +5,8 @@
 #include "Map/RTCellId.h"
 #include "RTVisibilityBorder.generated.h"
 
+class URTHexMapAsset;
+
 /**
  * Un LATO ESPOSTO dell'unione visibile: la cella e la direzione attraverso cui, di la', non si vede.
  *
@@ -49,7 +51,8 @@ FORCEINLINE uint32 GetTypeHash(const FRTExposedEdge& E)
  * Il CONFINE dell'unione visibile di una squadra: da un insieme di celle ai suoi lati esposti.
  *
  * 🔑 **Pura e headless.** Nessun Actor, nessun `UWorld`, nessuna mappa: non consulta la LOS, non conosce il
- * terreno e non sa chi sia il viewer. Riceve un insieme di celle gia' deciso — `FRTTeamKnowledge::VisibleCells`
+ * terreno e non sa chi sia il viewer. ➕ *Dal 2026-10-14 (#3761) `ExposedEdgesFacingMapCells` riceve la mappa,
+ * e ne legge soltanto quali celle esistono.* Riceve un insieme di celle gia' deciso — `FRTTeamKnowledge::VisibleCells`
  * o `URTPerceptionLibrary::TeamVisibleCells` — e risponde dove finisce. Chiedere qui la LOS sarebbe la
  * seconda verita' sulla visibilita', ed e' esattamente cio' che questo file non fa.
  *
@@ -94,4 +97,22 @@ public:
 	 * duplicati nell'ingresso non moltiplicano i lati.
 	 */
 	static TArray<FRTExposedEdge> ExposedEdges(const TArray<FRTCellId>& VisibleCells);
+
+	/**
+	 * I lati esposti che danno su una CELLA DELLA MAPPA: quelli di `ExposedEdges`, meno quelli che danno sul
+	 * vuoto. Stesso ordine stabile. Esiste per la linea di confine in partita (#3761).
+	 *
+	 * 🔑 **Perche' in partita il vuoto non conta, mentre per `ExposedEdges` si'.** In un'arena piatta il vuoto
+	 * e' solo il bordo della mappa. Su una mappa a piu' piani e' anche il bordo di ogni piattaforma: una
+	 * squadra che vede una piattaforma intera avrebbe una linea lungo tutto il suo perimetro, e quella linea
+	 * direbbe «qui finisce la vista» proprio dove la vista scende al piano di sotto ([D-511]). La linea
+	 * deve segnare dove finisce la vista, non dove finisce il pavimento.
+	 *
+	 * ⚠️ **Non rivela niente**: che una cella esista e' pubblico ([D-373]). La funzione non legge che cosa
+	 * contiene, solo `ContainsCell`.
+	 *
+	 * Senza mappa risponde come `ExposedEdges`: non sapendo dove sia il vuoto, non lo toglie.
+	 */
+	static TArray<FRTExposedEdge> ExposedEdgesFacingMapCells(const URTHexMapAsset* Map,
+		const TArray<FRTCellId>& VisibleCells);
 };

@@ -500,6 +500,100 @@ struct FRTOverwatchTrigger
 	FRTOverwatchTrigger() = default;
 };
 
+/**
+ * [D-349] Come sta un mover rispetto alla linea di un watcher, in un micro-step: le condizioni del trigger di
+ * ADR-0004 §6, lette nello stesso ordine in cui `BuildOverwatchTriggers` le applica, tranne la carica.
+ *
+ * 🔑 **Due lettori, una regola.** `BuildOverwatchTriggers` tiene i soli `Engageable`; `ClassifyOverwatchSilences`
+ * legge gli altri esiti per dire PERCHE' un Overwatch non ha sparato. Con due copie dei controlli, il registro
+ * potrebbe spiegare un silenzio con una regola diversa da quella che lo ha prodotto.
+ */
+UENUM()
+enum class ERTOverwatchMoverCheck : uint8
+{
+	/** Della squadra del watcher, o il watcher stesso: la linea non scatta sui propri. */
+	NotAnEnemy,
+	/** E' passato altrove: il caso normale, che non lascia traccia (famiglia C di [D-349]). */
+	NotInLine,
+	/** Nella linea, ma la squadra non lo ha `Rilevato`: fumo oltre 2 celle, o solo rumore. */
+	NotPerceived,
+	/** Nella linea e `Rilevato`, ma senza linea di vista dalla cella del watcher. */
+	NoLineOfSight,
+	/** Nella linea, `Rilevato` e in linea di vista: il trigger scatta, se il watcher e' armato. */
+	Engageable
+};
+
+/**
+ * [D-349] Perche' un Overwatch armato non ha sparato. Viaggia in `FRTTurnLogEntry::Amount` di una voce `Reaction` /
+ * `NotTriggered`, come l'indice relativo viaggia in quello delle voci `Facing`: nessun campo nuovo, nessuna versione
+ * nuova del formato. `None` e' lo zero, cioe' ogni voce `NotTriggered` scritta prima, e quelle delle reazioni E5.
+ *
+ * Famiglia **A**, il watcher non poteva controllare: `ZoneEmpty`, `ChargeSpent`, `OwnerDown`, `PromptCapReached`.
+ * Famiglia **B**, qualcuno e' passato e non e' stato ingaggiato: `NotPerceived`, `NoLineOfSight`. La famiglia C —
+ * nessuno e' passato — resta in silenzio, ed e' la scelta che tiene fermi gli hash dei turni normali.
+ *
+ * Valori aggiunti in CODA, sempre — subito prima di `Count`: una traccia scritta conserva il proprio significato.
+ */
+UENUM()
+enum class ERTOverwatchSilenceReason : uint8
+{
+	None,
+	/** La linea, rifatta dalla cella attuale, non contiene nessuna cella: il watcher spinto contro un muro o sul bordo. */
+	ZoneEmpty,
+	/**
+	 * Un nemico rilevato e' entrato nella linea, e la carica era gia' spesa: il colpo e' partito, oppure un disarmo l'ha
+	 * tolta ([D-319], `Prone` e `Stun`). E' `!bCharged`, come lo definisce [D-349]: il motivo non distingue le due cause.
+	 */
+	ChargeSpent,
+	/** Un nemico rilevato e' entrato nella linea, e chi teneva l'Overwatch e' a terra. */
+	OwnerDown,
+	/** Un nemico rilevato e' entrato nella linea, e l'Overwatch aveva esaurito le proprie finestre (ADR-0004 §8). */
+	PromptCapReached,
+	/** Un nemico NON rilevato e' entrato nella linea. ⚠️ Solo nella traccia d'audit: la squadra non lo ha visto. */
+	NotPerceived,
+	/** Un nemico rilevato e' entrato nella linea, senza linea di vista dalla cella del watcher. */
+	NoLineOfSight,
+
+	/** Non e' un motivo: il numero dei valori, per il `static_assert` del campo di bit. Non si scrive mai in una voce. */
+	Count UMETA(Hidden)
+};
+
+/**
+ * [D-366] Perche' un Overwatch armato e' stato disarmato. Viaggia in `FRTTurnLogEntry::Amount` di una voce `Reaction` /
+ * `Disarmed`, come il motivo di un silenzio ([D-349]) viaggia in quello delle voci `NotTriggered`.
+ *
+ * ⚠️ **I disarmi di `Prone` e `Stun` ([D-319]) non hanno una voce**, e quindi nemmeno un valore qui: sono l'effetto di
+ * uno stato, e la voce di nascita dello stato li dice gia'. Valori aggiunti in CODA, sempre.
+ */
+UENUM()
+enum class ERTOverwatchDisarmCause : uint8
+{
+	None,
+	/**
+	 * Il watcher ha subito uno spostamento forzato: spinta, trazione o caduta (`ARTTurnManager::ApplyForcedDisplacement`).
+	 * Lo scarto e le fughe scelte con una reazione non disarmano (decisione d'autore del 2026-10-15).
+	 */
+	ForcedDisplacement
+};
+
+/** [D-349] Un silenzio dell'Overwatch, con la cella del fatto: dove e' entrato chi non e' stato ingaggiato. */
+USTRUCT()
+struct FRTOverwatchSilence
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	ERTOverwatchSilenceReason Reason = ERTOverwatchSilenceReason::None;
+
+	/** La cella in cui il mover e' entrato; per `ZoneEmpty`, la cella davanti al watcher che chiude la linea. */
+	UPROPERTY()
+	FRTCellId FactCell;
+
+	/** Il mover; `INDEX_NONE` per `ZoneEmpty`, che non ne ha. */
+	UPROPERTY()
+	int32 MoverUnitId = INDEX_NONE;
+};
+
 
 /**
  * L'esito di una finestra: la risposta applicata, e l'esito che spiega da dove viene (CP 14.5).
@@ -664,6 +758,47 @@ public:
 	static FRTReactionDecision DecisionOnTimeout(const FRTReactionOpportunity& Opportunity);
 
 	/**
+	 * [D-349] Le condizioni del trigger per un mover che a questo passo sta in `Cell` (`ERTOverwatchMoverCheck`).
+	 * `Controlled` e' l'insieme delle celle di `Watcher.Zone`, costruito una volta dal chiamante. Pura.
+	 */
+	static ERTOverwatchMoverCheck CheckMoverAgainstWatcher(const URTHexMapAsset* Map, const FRTOverwatchWatcher& Watcher,
+		const TSet<FRTCellId>& Controlled, int32 MoverUnitId, int32 MoverTeamId, const FRTCellId& Cell);
+
+	/**
+	 * [D-349] Perche' questo watcher non spara, a questo micro-step. Pura: non scrive niente e non deduplica — al piu'
+	 * una voce per Overwatch e per motivo in un turno e' la regola di chi registra (`ARTTurnManager`).
+	 *
+	 * - `StateReason` diverso da `None` (`ChargeSpent`, `OwnerDown`, `PromptCapReached`): un silenzio per ogni mover
+	 *   nemico che entra nella linea ed e' RILEVATO dalla squadra (con o senza linea di vista). Nessuno: nessun silenzio,
+	 *   e un Overwatch che ha sparato e poi non vede passare nessuno resta muto.
+	 * - `StateReason` uguale a `None` e linea vuota: `ZoneEmpty`, con `FactCell` = `FacingCell`.
+	 * - Altrimenti: `NotPerceived` e `NoLineOfSight` per i mover nemici nella linea che non sono ingaggiabili.
+	 *
+	 * Ordine: per micro-step, poi crescente per `UnitId` — una funzione dello stato, non dell'ordine di `Movers`.
+	 */
+	static TArray<FRTOverwatchSilence> ClassifyOverwatchSilences(const URTHexMapAsset* Map,
+		const FRTOverwatchWatcher& Watcher, ERTOverwatchSilenceReason StateReason, const FRTCellId& FacingCell,
+		const TArray<FRTSuppressionMover>& Movers);
+
+	/**
+	 * [D-349] Chi legge la voce di un silenzio (precisazione d'autore del 2026-10-15): la squadra del watcher, e nessun
+	 * altro. La voce racconta un piano, non un fatto visto nel mondo, e il nemico non deve sapere che quell'unita' aveva
+	 * un Overwatch armato. `NotPerceived` non la legge nemmeno la squadra: racconta un nemico che la squadra non ha
+	 * rilevato (AGENTS.md §4), e resta nella traccia d'audit.
+	 */
+	static FRTKnowledgeVerdict SilenceReaders(ERTOverwatchSilenceReason Reason, int32 OwnerTeamId);
+
+	/**
+	 * [D-349] La REGOLA di quel verdetto (`ERTPlanVerdict`): `AuditOnly` per `NotPerceived`, `OwnerTeam` per gli altri.
+	 * E' cio' che viaggia col soggetto della voce fino all'audit; `SilenceReaders` ne e' il verdetto.
+	 */
+	static ERTPlanVerdict SilencePlanVerdict(ERTOverwatchSilenceReason Reason);
+
+	/** [D-349] Il bit di un motivo in `FRTArmedOverwatch::ReportedSilenceReasons`. */
+	static uint8 SilenceReasonBit(ERTOverwatchSilenceReason Reason);
+
+
+	/**
 	 * Le opportunity che gli Overwatch armati aprono lungo i micro-step della fase Move (CP 14.4).
 	 *
 	 * Condizione di trigger, per bersaglio e per micro-step, e sono tutte e quattro necessarie
@@ -686,6 +821,8 @@ public:
 	 * verificabile significherebbe sparare a una regola che nessuno ha controllato. E' la stessa scelta che
 	 * `TeamAwareness` fa per un bersaglio non dichiarato.
 	 */
+
+
 	/**
 	 * `FirstMicroStepIndex` dice a quale micro-step del TURNO corrisponde il passo 0 dei `Movers` (CP 14.5).
 	 *
@@ -709,7 +846,11 @@ public:
 		int32 FirstMicroStepIndex = 0);
 
 	/**
-	 * La condizione e' soddisfatta per questo bersaglio? Funzione pura, valutata al trigger.
+	 * La condizione e' soddisfatta per questo bersaglio? Funzione pura.
+	 *
+	 * Si valuta due volte, sulle vitals che il chiamante le passa: all'ingresso nella zona (`BuildOverwatchTriggers`)
+	 * e di nuovo quando arriva il turno di quel watcher (`RebuildFireResponses`, [D-522]). Decide la seconda: e' lo
+	 * stato in cui il colpo partirebbe.
 	 *
 	 * Condizione non dichiarata -> vero: chi non pone condizioni non restringe nulla. Dato mancante o
 	 * incoerente (`MaxHealth <= 0`) -> falso, per la ragione fail-closed di sopra.
@@ -735,6 +876,27 @@ public:
 	 * si apre: e' ADR-0004 §2, non una regola in piu'.
 	 */
 	static int32 RemoveFireResponsesWhere(FRTReactionOpportunity& InOut, TFunctionRef<bool(int32 TargetUnitId)> bRemove);
+
+	/**
+	 * [D-522] (`#3771`) Ricostruisce i `FIRE` di `InOut` sullo stato di ADESSO, e dice quanti bersagli sono in piedi.
+	 *
+	 * Un `FIRE` per ogni unita' di `TriggerUnitIds` che `bStanding` dice in piedi e che soddisfa `Condition` con
+	 * `VitalsNow`, in ordine crescente di id; dopo, le risposte che non sono un `FIRE`, nell'ordine in cui erano. E' la
+	 * forma che `BuildOverwatchTriggers` produce: con le vitals dell'ingresso ridarebbe le stesse risposte, quindi se
+	 * nessuno ha sparato nel frattempo non cambia niente.
+	 *
+	 * 🔑 **Toglie e AGGIUNGE.** [D-518] toglie il `FIRE` su chi e' gia' a terra. La condizione dichiarata ([D-109]) e'
+	 * l'altra meta': il colpo di un watcher precedente puo' portare il bersaglio SOTTO la soglia, e quel `FIRE`
+	 * all'ingresso non c'era. Con una funzione che sa solo togliere, il secondo watcher resterebbe muto su un bersaglio
+	 * che soddisfa la sua condizione — ed e' il difetto di `#3771`.
+	 *
+	 * Il valore di ritorno serve alla CAUSA di un collasso, non alla regola: zero bersagli in piedi col solo `HOLD`
+	 * rimasto e' `CollapsedTargetDown` ([D-518]); almeno uno in piedi e' `CollapsedByCondition` ([D-109]), perche'
+	 * allora c'e' qualcuno a cui sparare e la condizione lo ha escluso.
+	 */
+	static int32 RebuildFireResponses(FRTReactionOpportunity& InOut, TConstArrayView<int32> TriggerUnitIds,
+		const FRTDeclaredCondition& Condition, const TMap<int32, FRTTargetVitals>& VitalsNow,
+		TFunctionRef<bool(int32 TargetUnitId)> bStanding);
 
 	/**
 	 * Id stabile e ispezionabile derivato dai sei campi di `Key`.

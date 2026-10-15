@@ -55,7 +55,7 @@ enum class ERTClashLogEvent : uint8
  * Viaggia in `FRTTurnLogEntry::Outcome` delle voci di categoria `ReactionDecision`.
  *
  * ⚠️ Categoria PROPRIA e non `Reaction`, benche' parlino della stessa meccanica. `Reaction` ha gia' il suo
- * enum di esito — `ERTReactionOutcome` (`Activated`/`NotTriggered`/`Unavailable`) — e `Outcome` e' un `uint8`
+ * enum di esito — `ERTReactionOutcome` (`Activated`/`NotTriggered`/`Unavailable`/`Disarmed`) — e `Outcome` e' un `uint8`
  * il cui significato lo decide la categoria: due enum diversi sotto la stessa categoria renderebbero il campo
  * illeggibile senza sapere quale dei due chi ha scritto la voce intendeva. Aggiunta in CODA, come `Fallback` e
  * `Reaction` prima: i file gia' scritti non cambiano significato.
@@ -890,6 +890,13 @@ struct FRTVerdictSubjectRef
 	/** Le squadre degli autori, se `bEdge`, ordinate e senza ripetizioni: [D-502] (b) ed (e). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	TArray<int32> AuthorTeamIds;
+
+	/**
+	 * [D-349] Se il verdetto e' quello di un PIANO del soggetto, la sua regola (`ERTPlanVerdict`): si ricalcola con
+	 * `URTTeamKnowledgeLibrary::FreezePlanVerdict` e la squadra qui sopra, non dalla conoscenza di chi lo osserva.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	ERTPlanVerdict PlanVerdict = ERTPlanVerdict::None;
 };
 
 USTRUCT(BlueprintType)

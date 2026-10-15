@@ -1,6 +1,7 @@
 #include "Perception/RTVisibilityBorder.h"
 
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapAsset.h"
 
 TArray<FRTExposedEdge> URTVisibilityBorderLibrary::ExposedEdges(const TArray<FRTCellId>& VisibleCells)
 {
@@ -44,5 +45,20 @@ TArray<FRTExposedEdge> URTVisibilityBorderLibrary::ExposedEdges(const TArray<FRT
 		return URTHexLibrary::StableLess(A.Cell, B.Cell);
 	});
 
+	return Out;
+}
+
+TArray<FRTExposedEdge> URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(const URTHexMapAsset* Map,
+	const TArray<FRTCellId>& VisibleCells)
+{
+	TArray<FRTExposedEdge> Out = ExposedEdges(VisibleCells);
+	if (Map)
+	{
+		// Si filtra DOPO, e l'ordine stabile resta quello di `ExposedEdges`: `RemoveAll` non riordina.
+		Out.RemoveAll([Map](const FRTExposedEdge& E)
+		{
+			return !Map->ContainsCell(URTHexLibrary::Neighbor(E.Cell, E.Direction));
+		});
+	}
 	return Out;
 }

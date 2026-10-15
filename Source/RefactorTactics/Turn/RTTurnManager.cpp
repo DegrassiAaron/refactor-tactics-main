@@ -706,6 +706,58 @@ void ARTTurnManager::DisarmPreparedReactions(ARTUnit* Unit)
 	ArmedPredictions.RemoveAll([Unit](const FRTArmedPrediction& A) { return A.Shooter.Get() == Unit; });
 }
 
+void ARTTurnManager::DisarmOverwatchOnForcedDisplacement(ARTUnit* Unit, const FRTCellId& From, const FRTCellId& To,
+	ERTMatchPhase InPhase)
+{
+	// Chi e' GIA' a terra quando viene spostato non ha niente da disarmare: il suo Overwatch tace per `OwnerDown`, e
+	// una voce di disarmo direbbe una seconda causa per lo stesso silenzio. ⚠️ Chi muore DOPO — per un hazard
+	// attraversato in questo stesso spostamento, o per la caduta che lo segue — e' stato disarmato prima di cadere:
+	// il registro dice le due cose nell'ordine in cui sono accadute, il disarmo e poi, se un nemico rilevato entra
+	// nella linea, «chi la teneva e' a terra» (review della PR #3783).
+	if (!IsValid(Unit) || !Unit->IsAlive())
+	{
+		return;
+	}
+
+	for (FRTArmedOverwatch& Armed : ArmedOverwatches)
+	{
+		// Solo un Overwatch ancora CARICO si disarma: uno gia' speso — dal colpo o da `Prone` — non perde niente, e una
+		// seconda spinta nello stesso Blast non scrive una seconda voce.
+		if (Armed.Owner.Get() != Unit || !Armed.bCharged)
+		{
+			continue;
+		}
+		Armed.bCharged = false;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = InPhase;
+		Entry.Category = ERTLogCategory::Reaction;
+		Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Disarmed);
+		Entry.Amount = static_cast<int32>(ERTOverwatchDisarmCause::ForcedDisplacement);
+		Entry.SrcCell = From;
+		Entry.TgtCell = To;
+		Entry.ActionId = Armed.ActionId;
+		Entry.BaseActionId = Armed.BaseActionId;
+
+		// Il verdetto e' per REGOLA, come per i silenzi di [D-349]: la voce racconta un piano, e il nemico che ha
+		// spinto non deve sapere che quell'unita' aveva un Overwatch armato. La cella del soggetto e' quella
+		// d'arrivo, dove il watcher e' finito.
+		AppendPlanVerdictEntry(Entry, Unit, To, ERTPlanVerdict::OwnerTeam);
+	}
+}
+
+void ARTTurnManager::AppendPlanVerdictEntry(FRTTurnLogEntry& Entry, ARTUnit* Subject, const FRTCellId& FactCell,
+	ERTPlanVerdict Rule)
+{
+	if (!IsValid(Subject))
+	{
+		return;
+	}
+	Entry.VerdictSubject.PlanVerdict = Rule;
+	AppendLogEntry(Entry, FRTLogSubject::UnitAtWithVerdict(Subject, FactCell,
+		URTTeamKnowledgeLibrary::FreezePlanVerdict(Rule, Subject->TeamId)));
+}
+
 FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
 	ERTStatusOutcome Outcome, ERTMatchPhase InPhase, int32 Amount)
 {
@@ -2186,7 +2238,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
 	const TCHAR* LogVerb, const URTHexMapAsset* Map,
 	const TArray<RTTurnManagerInternal::FRTRouteObserverTeam>& ObserverTeams,
-	ERTMatchPhase InPhase, ERTMoveOutcome Outcome)
+	ERTMatchPhase InPhase, ERTMoveOutcome Outcome, bool bChosenByTheUnit)
 {
 	if (!IsValid(Unit))
 	{
@@ -2207,6 +2259,23 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// il replay registrava il danno e taceva il movimento, e chi rileggeva il file vedeva l'unita' altrove
 	// senza nulla che lo spiegasse.
 	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget, Outcome);
+
+	// 3b. [D-366] L'OVERWATCH ARMATO SI DISARMA, con la causa nella voce subito dopo quella dello spostamento.
+	//
+	// 🔑 **Prima, il silenzio emergeva**: la linea resta quella dichiarata all'armamento mentre il passo 6 qui sotto gira
+	// gli occhi verso la sorgente, e il watcher finiva a sorvegliare celle che non vedeva piu' (`#2367`). Ora o la linea
+	// e' armata e puo' scattare, o e' disarmata e il log dice perche'.
+	//
+	// ⚠️ **Il costo dichiarato**: se un compagno copriva la linea, il watcher spinto prima sparava ancora, e ora no.
+	//
+	// ⛔ **Non per uno spostamento SCELTO** (`bChosenByTheUnit`): lo scarto del `Brace` e le fughe di `EmergencyDash` e
+	// `HazardEscape` sono reazioni del watcher, non spostamenti forzati (decisione d'autore del 2026-10-15). Il prezzo e'
+	// dichiarato: anche loro girano il watcher verso la sorgente, e per loro il silenzio di `#2367` resta, nella sola
+	// traccia d'audit ([D-349], `NotPerceived`).
+	if (!bChosenByTheUnit)
+	{
+		DisarmOverwatchOnForcedDisplacement(Unit, OldCell, NewCell, InPhase);
+	}
 
 	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
 	{
@@ -3793,7 +3862,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// `Facing.EnvironmentalDisplacementKeepsFacing` (scivolare sul ghiaccio non ruota). [D-104] vale
 			// per la fuga da un ATTACCANTE, che ha una minaccia da tenere davanti.
 			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map,
-				FugaObserverTeams, ERTMatchPhase::Cleanup);
+				FugaObserverTeams, ERTMatchPhase::Cleanup, ERTMoveOutcome::Displaced, /*bChosenByTheUnit=*/ true);
 		}
 	}
 
@@ -4090,18 +4159,8 @@ void ARTTurnManager::RecordTurnToReplay()
 	Audit.Verdicts.Reserve(TurnLog.Num());
 	for (const FRTTurnLogEntry& Entry : TurnLog)
 	{
-		FRTAuditVerdictRecord Record;
-		Record.Phase = Entry.Phase;
-		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
-		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
-		Record.SubjectCell = Entry.VerdictSubject.Cell;
-		// `#3681`: il verdetto di un bordo si ricalcola dal bordo e dagli autori, non dall'unita'.
-		Record.bEdge = Entry.VerdictSubject.bEdge;
-		Record.EdgeCell = Entry.VerdictSubject.EdgeCell;
-		Record.EdgeToward = Entry.VerdictSubject.EdgeToward;
-		Record.AuthorTeamIds = Entry.VerdictSubject.AuthorTeamIds;
-		Record.Verdict = Entry.Verdict;
-		Audit.Verdicts.Add(Record);
+		// Il record lo costruisce `MakeVerdictRecord`, la stessa funzione che i test leggono ([D-349]).
+		Audit.Verdicts.Add(URTReplayAuditLibrary::MakeVerdictRecord(Entry));
 	}
 
 	if (!ReplayRecording.RecordAudit(Radice, Audit))
@@ -5777,7 +5836,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
 			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
 			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map,
-				FugaObserverTeams, ERTMatchPhase::Dash);
+				FugaObserverTeams, ERTMatchPhase::Dash, ERTMoveOutcome::Displaced, /*bChosenByTheUnit=*/ true);
 		}
 	}
 }
@@ -7778,8 +7837,10 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 		//
 		// Un'opportunity dell'Overwatch nasce **solo** dove qualcuno e' entrato nella zona, e
 		// `BuildOverwatchTriggers` le da' un `FireResponse` per ogni bersaglio che SODDISFA la condizione, piu'
-		// `HOLD` sempre. Quindi una finestra dell'Overwatch rimasta col solo `HOLD` significa una cosa sola:
-		// c'erano bersagli e la condizione dichiarata li ha esclusi tutti.
+		// `HOLD` sempre. Il pompaggio la rifa' sullo stato del momento in cui chiede ([D-522], `#3771`), e il caso
+		// in cui nessun bersaglio e' piu' in piedi lo chiude da se' con `CollapsedTargetDown` ([D-518]). Quindi una
+		// finestra dell'Overwatch che arriva qui col solo `HOLD` significa una cosa sola: c'erano bersagli in
+		// piedi, e la condizione dichiarata li ha esclusi tutti.
 		//
 		// ⚠️ **Si deduce da `AllowedResponses`, non dai bersagli**: `FRTReactionOpportunity` porta la chiave e
 		// le risposte, mentre `TargetUnitIds` vive sul trigger, che qui non arriva. Ed e' meglio cosi' — la

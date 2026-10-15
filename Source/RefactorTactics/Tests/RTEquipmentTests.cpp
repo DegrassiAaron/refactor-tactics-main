@@ -16,6 +16,8 @@
 #include "Terrain/RTTerrainLibrary.h" // FindTerrainDef: la regola di vista del fumo vive nel catalogo terreni
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Turn/RTReactionLibrary.h" // [D-366]: ERTReactionOutcome, la voce del disarmo
+#include "RTAbilityFixtures.h"       // [D-366]: `Action.Overwatch` installato come in partita
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1338,6 +1340,70 @@ bool FRTEmergencyDashInPlayTest::RunTest(const FString&)
 
 	// L'attaccante non si muove: `SelfReposition` sposta la sorgente della REAZIONE, e nessun altro.
 	TestEqual(TEXT("l'attaccante resta dov'era"), Attaccante->Cell, FRTCellId(0, 0));
+
+	DestroyEquipWorld(World);
+	return true;
+}
+
+/**
+ * [D-366] La fuga di `EmergencyDash` non disarma l'Overwatch: e' una reazione scelta, non uno spostamento forzato
+ * (decisione d'autore del 2026-10-15).
+ *
+ * Lo stesso montaggio di `Equipment.EmergencyDashMovesTheReactorInPlay`, con un Overwatch armato da chi reagisce. La
+ * fuga passa dalla primitiva della spinta (`ApplyForcedDisplacement`): senza l'eccezione la propria reazione toglieva
+ * l'Overwatch, e il TurnLog la chiamava «spostamento forzato» (review della PR #3783).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEmergencyDashKeepsTheOverwatchTest,
+	"RefactorTactics.Equipment.EmergencyDashKeepsTheOverwatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEmergencyDashKeepsTheOverwatchTest::RunTest(const FString&)
+{
+	const URTEquipmentData* Dash = nullptr;
+	for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules())
+	{
+		if (M->EquipmentId == FName(TEXT("Reaction.EmergencyDash"))) { Dash = M; break; }
+	}
+	if (!TestNotNull(TEXT("Reaction.EmergencyDash"), Dash)) { return false; }
+
+	UWorld* World = MakeEquipWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEquipMap(World, 8);
+
+	ARTUnit* Attaccante = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeIvrin());
+	ARTUnit* Reattore = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Attaccante || !Reattore || !TM) { DestroyEquipWorld(World); return false; }
+
+	// L'Overwatch con l'azione PRINCIPALE, la fuga con lo slot REAZIONE: due slot diversi, e un turno legale.
+	const int32 Overwatch = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Overwatch"), 3);
+	if (!TestTrue(TEXT("`Action.Overwatch` installabile"), Overwatch != INDEX_NONE)) { DestroyEquipWorld(World); return false; }
+	URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Dash, Reattore);
+	if (!TestNotNull(TEXT("l'azione del modulo"), Reazione)) { DestroyEquipWorld(World); return false; }
+	Reattore->Abilities.Add(Reazione);
+	Reattore->PlannedReactionAbility = Reattore->Abilities.Num() - 1;
+	Reattore->PlannedAbilityIndex = Overwatch;
+	Reattore->PlannedCell = Reattore->Cell;
+
+	Attaccante->PlannedAbilityIndex = 0;             // attacco base
+	Attaccante->PlannedAttackTarget = Reattore;
+	Attaccante->PlannedCell = Attaccante->Cell;
+
+	RunEquipTurn(TM);
+
+	// Premessa: la fuga c'e' stata, cioe' la primitiva dello spostamento e' stata chiamata.
+	TestTrue(TEXT("premessa: chi reagisce e' fuggito"), Reattore->Cell != FRTCellId(1, 0));
+
+	int32 Disarmi = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Reaction
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Disarmed)
+		{
+			++Disarmi;
+		}
+	}
+	// IL PUNTO: la propria fuga non toglie il proprio Overwatch.
+	TestEqual(TEXT("la fuga scelta non disarma l'Overwatch: nessuna voce `Disarmed`"), Disarmi, 0);
 
 	DestroyEquipWorld(World);
 	return true;

@@ -4,6 +4,11 @@
 #include "Map/RTHexMapActor.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
+#include "EngineUtils.h" // TActorIterator: i nemici in vista, per il loro arco (#3762)
+#include "Map/RTHexMapAsset.h"
+#include "Perception/RTEnemyArcLibrary.h"
+#include "Perception/RTVisibilityBorder.h"
+#include "Unit/RTUnit.h"
 
 void URTKnowledgeVeilPresenter::Hook(ARTTurnManager* InTurnManager)
 {
@@ -70,7 +75,12 @@ void URTKnowledgeVeilPresenter::Apply()
 	// 🔴 **E' anche il punto che il multiplayer dovra' cambiare**: vedi il disegno di rete nell'header. Qui
 	// il client legge una conoscenza canonica LOCALE, cosa che in rete sarebbe una fuga di informazione — il
 	// server dovra' sanificarla per squadra e replicarne il DTO al solo owner autorizzato.
-	HexMap->ApplyKnowledgeVeil(TM->KnowledgeForTeamPublic(ViewerTeamId()));
+	// ➕ **E la linea di confine della vista, con la STESSA conoscenza** (#3761): una sola lettura per tutti e
+	// due, cosi' velo e linea non possono raccontare due viste diverse.
+	const FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(ViewerTeamId());
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+	HexMap->SetVisionBorder(Conoscenza.VisibleCells);
+	PresentEnemyArcs(*HexMap, Conoscenza);
 
 	// L'anello osservabile: `GetVeilCounts` dice com'e' la board, questo dice QUANTE VOLTE e' stata
 	// ridipinta. Senza, «steso una volta sola» e «ridipinto con conoscenza vuota» sono indistinguibili.
@@ -106,11 +116,44 @@ void URTKnowledgeVeilPresenter::HandlePlaybackStepAdvanced()
 	// ⚠️ `PlaybackKnowledgeForTeam` e **non** `KnowledgeForTeamPublic`: quella, quando il playback comincia,
 	// contiene gia' tutto il transito del turno ([D-379]) e farebbe accendere il corridoio prima che
 	// l'unita' ci arrivi. Vedi il suo commento nell'header del TurnManager.
-	HexMap->ApplyKnowledgeVeil(TM->PlaybackKnowledgeForTeam(ViewerTeamId()));
+	// ➕ La linea di confine segue il movimento come il velo, e con la stessa conoscenza (#3761).
+	const FRTTeamKnowledge Conoscenza = TM->PlaybackKnowledgeForTeam(ViewerTeamId());
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+	HexMap->SetVisionBorder(Conoscenza.VisibleCells);
+	PresentEnemyArcs(*HexMap, Conoscenza);
 
 	// ⛔ **`Applications` NON si incrementa qui.** Quel contatore misura quante volte il velo e' stato steso
 	// **dai punti di refresh** — e' l'anello che `Veil.GameModeAppliesTheVeilForTheViewerTeam` asserisce
 	// valere `1` subito dopo l'aggancio. Sommarci i passi di playback lo renderebbe un numero che dipende
 	// dalla lunghezza dei movimenti, cioe' inutile per la domanda che esiste per rispondere.
 	++PlaybackApplications;
+}
+
+void URTKnowledgeVeilPresenter::PresentEnemyArcs(ARTHexMapActor& HexMap, const FRTTeamKnowledge& Conoscenza) const
+{
+	// Gli attori li legge il presenter, che e' del client; la regola — chi e' in vista, su che terreno si calcola —
+	// sta in `URTEnemyArcLibrary`, pura e testata. La squadra di chi guarda e' quella del velo.
+	FRTTeamKnowledge Viewer = Conoscenza;
+	Viewer.TeamId = ViewerTeamId();
+
+	TArray<FRTEnemyForArc> Nemici;
+	for (TActorIterator<ARTUnit> It(HexMap.GetWorld()); It; ++It)
+	{
+		const ARTUnit* U = *It;
+		if (!U || !U->IsAlive())
+		{
+			continue;
+		}
+		FRTEnemyForArc E;
+		E.Cell = U->Cell;
+		E.Facing = U->Facing;
+		E.VisionRange = U->VisionRange;
+		E.TeamId = U->TeamId;
+		// Il rosso dei NEMICI: un arco e' sempre di un nemico di chi guarda, quindi il colore e' relativo a chi guarda,
+		// come nell'HUD (`URTHudViewModel`). E' il default di `ARTUnit::Team1Color`, lo stesso che l'autore ha visto
+		// sulle tavole; i colori di squadra di un'unita' sono protetti, e ricopiarlo qui costa meno di aprirli.
+		E.Color = FLinearColor(1.00f, 0.20f, 0.15f).ToFColor(/*bSRGB=*/ true);
+		Nemici.Add(E);
+	}
+	HexMap.SetEnemyArcs(URTEnemyArcLibrary::ArcsOfEnemiesInView(HexMap.MapAsset, Viewer, Nemici));
 }

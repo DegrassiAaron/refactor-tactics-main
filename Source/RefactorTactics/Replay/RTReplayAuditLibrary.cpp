@@ -41,6 +41,7 @@ namespace
 	const TCHAR* KAudit_EdgeCell  = TEXT("EdgeCell");
 	const TCHAR* KAudit_EdgeToward = TEXT("EdgeToward");
 	const TCHAR* KAudit_Authors   = TEXT("AuthorTeamIds");
+	const TCHAR* KAudit_Plan      = TEXT("PlanVerdict");  // [D-349]: la regola di un verdetto di piano
 
 	/** Una cella come tre numeri: `[q, r, layer]`. Compatta, e si legge a occhio. */
 	TSharedPtr<FJsonValue> AuditCellToJson(const FRTCellId& Cell)
@@ -208,6 +209,11 @@ FString URTReplayAuditLibrary::AuditToJson(const FRTTurnAudit& Audit)
 			EO->SetArrayField(KAudit_Authors, Autori);
 			VO->SetObjectField(KAudit_Edge, EO);
 		}
+		if (R.PlanVerdict != ERTPlanVerdict::None)
+		{
+			// [D-349]: solo per i verdetti di piano, cosi' ogni altra voce resta identica alla versione precedente.
+			VO->SetNumberField(KAudit_Plan, static_cast<double>(R.PlanVerdict));
+		}
 		Verdicts.Add(MakeShared<FJsonValueObject>(VO));
 	}
 	Root->SetArrayField(KAudit_Verdicts, Verdicts);
@@ -327,6 +333,19 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 					if (!A.IsValid() || !A->TryGetNumber(Squadra)) { return false; }
 					R.AuthorTeamIds.Add(static_cast<int32>(Squadra));
 				}
+			}
+			if ((*VO)->HasField(KAudit_Plan))
+			{
+				// [D-349]: una regola dichiarata e illeggibile, o fuori dall'enum, e' un artefatto rotto — non una voce
+				// da ricalcolare dalla conoscenza, che e' proprio il ricalcolo sbagliato.
+				double Regola = 0.0;
+				if (!(*VO)->TryGetNumberField(KAudit_Plan, Regola)
+					|| (Regola != static_cast<double>(ERTPlanVerdict::OwnerTeam)
+						&& Regola != static_cast<double>(ERTPlanVerdict::AuditOnly)))
+				{
+					return false;
+				}
+				R.PlanVerdict = static_cast<ERTPlanVerdict>(static_cast<uint8>(Regola));
 			}
 			Read.Verdicts.Add(R);
 		}
@@ -453,6 +472,11 @@ FRTKnowledgeVerdict URTReplayAuditLibrary::RecomputeVerdict(const FRTTurnAudit& 
 
 	// Il predicato di PRODUZIONE, non una copia: confrontare una copia con l'originale non direbbe niente
 	// sul dato registrato, e le due derive si coprirebbero a vicenda.
+	if (Record.PlanVerdict != ERTPlanVerdict::None)
+	{
+		// [D-349]: un verdetto di piano si ricalcola per regola, dalla squadra del soggetto, con la funzione di produzione.
+		return URTTeamKnowledgeLibrary::FreezePlanVerdict(Record.PlanVerdict, Record.SubjectTeamId);
+	}
 	if (Record.bEdge)
 	{
 		// `#3681`, [D-502]: un bordo colpito si ricalcola dal bordo e dagli autori, con la stessa funzione.
@@ -460,6 +484,24 @@ FRTKnowledgeVerdict URTReplayAuditLibrary::RecomputeVerdict(const FRTTurnAudit& 
 			Record.EdgeToward);
 	}
 	return URTTeamKnowledgeLibrary::FreezeVerdict(Reference, Subject);
+}
+
+FRTAuditVerdictRecord URTReplayAuditLibrary::MakeVerdictRecord(const FRTTurnLogEntry& Entry)
+{
+	FRTAuditVerdictRecord Record;
+	Record.Phase = Entry.Phase;
+	Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
+	Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
+	Record.SubjectCell = Entry.VerdictSubject.Cell;
+	// `#3681`: il verdetto di un bordo si ricalcola dal bordo e dagli autori, non dall'unita'.
+	Record.bEdge = Entry.VerdictSubject.bEdge;
+	Record.EdgeCell = Entry.VerdictSubject.EdgeCell;
+	Record.EdgeToward = Entry.VerdictSubject.EdgeToward;
+	Record.AuthorTeamIds = Entry.VerdictSubject.AuthorTeamIds;
+	// [D-349]: il verdetto di un piano si ricalcola per regola.
+	Record.PlanVerdict = Entry.VerdictSubject.PlanVerdict;
+	Record.Verdict = Entry.Verdict;
+	return Record;
 }
 
 TArray<FString> URTReplayAuditLibrary::FindVerdictMismatches(const FRTTurnAudit& Audit)

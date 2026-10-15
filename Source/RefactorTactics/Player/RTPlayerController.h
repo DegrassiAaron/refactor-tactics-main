@@ -175,6 +175,12 @@ protected:
 	virtual void SetupInputComponent() override;
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/**
+	 * Dice alla mappa quale arco di un nemico in vista disegnare (#3762, [D-521]): quello sotto il cursore, altrimenti
+	 * quello del nemico ispezionato. La chiama `PlayerTick` dopo l'hover.
+	 */
+	void UpdateEnemyArcFocus(class ARTHexMapActor* HexMap) const;
+
 	/** Crea (una sola volta) Input Action e Mapping Context via codice. */
 	void BuildInputMappings();
 
@@ -360,6 +366,19 @@ protected:
 	TObjectPtr<UInputAction> PlaybackStepAction;
 
 	/**
+	 * `,` e `.`: nelle scene del banco Ability Lab passano all'azione precedente e successiva dello stesso
+	 * eroe, e la scena riparte (`#3774`). Anche questi sono comandi dello spettatore, come `K` e `L`.
+	 *
+	 * ⛔ **Inerti fuori dal banco**, e la regola non sta qui: la decide `ARTGameMode::StepLabScenario`, che
+	 * sa quale scena gira. Una guardia anche nel controller sarebbe una seconda sede della stessa regola.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LabStepPreviousAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LabStepNextAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -539,6 +558,11 @@ public:
 	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
 	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
 	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
+	/**
+	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non
+	 * il cablaggio: un `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi.
+	 */
+	void RecenterForTest();
 
 protected:
 
@@ -889,6 +913,11 @@ private:
 	/** `L` — avanza di un micro-step e torna in pausa (`#2858`). */
 	void OnStepPlaybackMicroStep(const FInputActionValue& Value);
 
+	/** `,` e `.` — il passo del banco Ability Lab dentro il PIE (`#3774`). */
+	void OnLabStepPrevious(const FInputActionValue& Value);
+	void OnLabStepNext(const FInputActionValue& Value);
+	void StepLab(int32 Step);
+
 	void OnRecenter(const FInputActionValue& Value);
 
 	/** `N`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
@@ -1032,6 +1061,13 @@ public:
 
 	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
+
+	/**
+	 * Per i test dell'arco del nemico (#3762): l'unita' ispezionata senza passare dal click, che porta con se' le
+	 * condizioni della matrice del puntatore, e la scelta dell'arco senza il cursore, che in un mondo di prova non c'e'.
+	 */
+	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
+	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/**
 	 * §5 — **applica la riga di matrice** a un click su un'unita': chiede l'esito a
@@ -1337,6 +1373,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	bool IsPlanningInputInert() const;
+
+	/**
+	 * `#1837`: la sessione e' un'**osservazione** — autobattle in vigore, oppure una run di scenario — e il
+	 * giocatore non comanda una squadra. `Home` allora resta il centro mappa.
+	 *
+	 * Per lo scenario valgono due fatti, perche' i due avvii non lasciano lo stesso segno: `ScenarioToRun`
+	 * (avvio da `BeginPlay`) dura quanto la sessione, `IsScenarioRunning` (avvio da console) quanto la run.
+	 * Stessa lettura del GameMode di `IsPlanningInputInert`, per la stessa ragione.
+	 */
+	bool IsObservationSession() const;
 
 	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.
