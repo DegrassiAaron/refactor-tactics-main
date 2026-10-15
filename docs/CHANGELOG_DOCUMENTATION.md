@@ -4,7 +4,7 @@
 
 ## 2026-10-15 — Un Overwatch armato che non spara lascia traccia, col motivo
 
-**Origine**: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166), casella «zona vuota per spinta», e l'uscita 4 di [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367): l'attuazione di `D-349`, decisa il 2026-09-08 e mai scritta nel codice, con la precisazione d'autore del 2026-10-15 su quando nasce la voce e chi la legge.
+**Origine**: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166), casella «zona vuota per spinta»: l'attuazione di `D-349`, decisa il 2026-09-08 e mai scritta nel codice, con la precisazione d'autore del 2026-10-15 su quando nasce la voce e chi la legge.
 
 | Dove | Che cosa |
 |---|---|
