@@ -15,6 +15,24 @@
 
 ---
 
+## 2026-10-15 — La pianta: fondo, dissolvenza, pannelli traslucidi, superfici chiare, nebbia; verde
+
+**Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), seduta `U89`. L'autore ha respinto la prima resa della pianta: il solo anello sembrava «mai visto», il cambio secco disturbava, i muri non andavano né a terra né in cima, e le celle viste col rilievo del costo sembravano nere. Nella seconda tornata il pavimento e la dissolvenza sono passati, ma mancava *«il volume sull'esagono, la fog»*: ogni cella non vista ora e' riempita da una colonna di nebbia.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`: titolo e punti (4) e (5), con le domande come l'autore le ha viste; una nota su `D-225` per il mai visto |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: che cosa fa ogni famiglia nel ricordo, la dissolvenza, il rilievo chiaro, il volume del fumo nel colore della sua superficie e la nebbia; §5 e §5.6: il prisma di §5.1 atterra come nebbia |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | le tavole `V4`, `V5`, `V7` e `V8` della seconda tornata, e `V9` della terza |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `PIE-FOG-PIANTA` fra le verifiche PIE della capability |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U89`: la seconda e la terza tornata, eseguita |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | §4: il mai visto non resta com'era |
+| [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | i tre stati del terreno: la pianta e la nebbia |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-PIANTA` ✅ nella terza tornata, dopo il ❌ della prima e il 🟡 della seconda; totali rimisurati; `PIE-FOG-CONFINE` vale anche lungo un pannello (`V8`); note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` |
+| [`Scenarios/Visual/Perception/RememberedCover.json`](../Scenarios/Visual/Perception/RememberedCover.json) | che cosa guardare, coi pannelli traslucidi |
+
+---
+
 ## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano, col suo nemico; verde
 
 **Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), seduta `U89`. L'autore ha respinto l'arco della prima tornata: sottile, coperto, e col tasto `H` se ne vedeva più d'uno. Ha chiesto *«l'arco visto deve essere solo quello del nemico selezionato/hoverato»*.
@@ -103,6 +121,21 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-522`, con le due domande come l'autore le ha lette, la causa dei collassi, e la conseguenza sulle tracce registrate prima |
 | [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione accanto a quella di `D-518`; la tabella di verifica coi tre test nuovi |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3771 fra le chiuse, e i due test nuovi fuori dalle famiglie già elencate |
+
+---
+
+## 2026-10-14 — Il terreno ricordato si disegna come pianta
+
+**Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), decisione d'autore `D-520`. Il ricordo non ha piu' disco ne' colore di superficie: resta l'anello della cella in ciano chiaro, e muri, coperture e porte diventano linee.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`, con le domande e le opzioni come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la pianta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-PIANTA`; note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE`, da rigiudicare |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3760 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1a: le scelte dell'autore |
+| [`technical/evidence/3760/`](technical/evidence/3760/) | le tavole `P1` e `P2` |
 
 ---
 

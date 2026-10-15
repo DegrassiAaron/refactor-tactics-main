@@ -27,7 +27,7 @@ Il design di partenza separa correttamente tre cose che di solito vengono confus
 | **Rilevamento** | il personaggio percepisce che qualcosa c'è? | 🟡 **entra ora**, su due canali: vista e **udito** |
 | **Identificazione** | capisce chi è e cosa sta facendo? | ⏳ rimandata (§9) |
 
-⚠️ Gli stati qui sotto sono quelli delle **unità**. Il **terreno** ha un asse suo, deciso dopo da [`D-225`](../decisions/RT_PDR_00_Decision_Log.md) e [`D-227`](../decisions/RT_PDR_00_Decision_Log.md) — *osservato ora* / *esplorato e ricordato* / *mai visto, non disegnato* — e non va confuso con questi.
+⚠️ Gli stati qui sotto sono quelli delle **unità**. Il **terreno** ha un asse suo, deciso dopo da [`D-225`](../decisions/RT_PDR_00_Decision_Log.md) e [`D-227`](../decisions/RT_PDR_00_Decision_Log.md) — *osservato ora* / *esplorato e ricordato* / *mai visto, non disegnato* — e non va confuso con questi. ➕ *2026-10-15, [`D-520`](../decisions/RT_PDR_00_Decision_Log.md)*: gli stati restano tre, la resa no. Il ricordato si disegna come **pianta** (anello ciano chiaro su un fondo scuro tinto di ciano, muri e coperture come pannelli traslucidi), e ogni cella che la squadra non vede adesso, mai vista compresa, è riempita da una **colonna di nebbia** che dice dove sono le celle e non che cosa contengono. Il «non disegnato» del mai visto vale ancora per tutto ciò che la cella contiene.
 
 Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `Rilevato` — più la memoria
 `UltimoContatto`. `Identificato` richiede la firma visiva e resta fuori.

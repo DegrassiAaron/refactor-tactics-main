@@ -597,6 +597,9 @@ bool FRTVeilFullScanCostTest::RunTest(const FString&)
  * fattore, e cio' che il test protegge e' che il velo non introduca collassi PROPRI — due superfici che si
  * distinguevano da piene e si confondono da velate.
  */
+// ➕ *2026-10-14, #3760 — la pianta.* Il ricordo a schermo non attenua piu' i colori di superficie: nessuna famiglia
+// usa oggi `ERTVeilMemory::Attenuate`. Questo test resta come misura del MECCANISMO attenuato, che il codice conserva;
+// che il ricordo a schermo non si confonda col presente lo misura `Hex.PlanColorStandsApartFromThePresent`.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeiledSurfaceColorsAreDistinguishableTest,
 	"RefactorTactics.Hex.VeiledSurfaceColorsAreDistinguishable",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

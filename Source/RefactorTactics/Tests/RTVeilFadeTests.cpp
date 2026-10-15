@@ -38,6 +38,10 @@ namespace
 			return nullptr;
 		}
 		HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+		// ➕ #3760 (D-520): col ricordo come pianta nessuna famiglia attenua piu'. Questi test misurano il MECCANISMO
+		// dell'attenuazione, che resta nel codice: si rimette il ricordo attenuato. La dissolvenza della pianta, fra il
+		// colore vero e quello del ricordo, la misura `Veil.PlanDissolvesBetweenObservedAndRemembered`.
+		HexMap->SetVeilMemoryAttenuatedForTest(true);
 		HexMap->RebuildInstances();
 		return HexMap;
 	}
