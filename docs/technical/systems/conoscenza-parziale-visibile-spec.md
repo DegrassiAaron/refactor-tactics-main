@@ -747,6 +747,10 @@ repository non possiede.
 > l'unica tesi del documento che il codice di oggi conferma alla lettera**: velo permanente ottenuto
 > moltiplicando l'RGB. Chi legge §2 e §5 in fila trova una decisione e la sua cancellazione, e non ha modo
 > di sapere che vale la prima.
+>
+> ➕ **2026-10-15: il prisma di §5.1 atterra, come NEBBIA** ([D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5)):
+> traslucido e non opaco, alto un piano, su ogni cella che la squadra non vede, ricordata o mai vista. Il meccanismo
+> non e' quello di §5.3: e' una famiglia di istanze come le altre, scritta dal velo (§5.7).
 
 ### 5.1 Regola
 
@@ -934,6 +938,7 @@ muri a linee.
 | I muri ricordati | `ARTHexMapActor::WriteVolumeAppearance`: tinta della pianta e trasparenza a retino, lo stesso scrittore della presentazione dei piani |
 | Il rilievo del costo | grigio chiaro, in un'istanza del materiale dei volumi (`ApplyVolumeMaterial`) |
 | Il volume del fumo | il colore della superficie del fumo, in un'istanza del materiale dei volumi (`ApplyVolumeMaterial`) |
+| La nebbia | `FogVolumes` e `ARTHexMapActor::WriteFog`: una colonna per cella, nello stesso ordine del disco, disegnata dove la cella non e' vista e larga quanto il disco, dal fondo del disco al piano sopra; segue il fattore del disco ([D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5)) |
 | Il conteggio dei tre stati | `ARTHexMapActor::GetVeilCounts`: un disco ricordato e' quello piu' vicino al fondo della pianta che al colore vero |
 
 ⚠️ **Il riquadro in testa a questa fase descrive il ricordo attenuato** (`RTVeilExploredFactor`): da [D-520](../../decisions/RT_PDR_00_Decision_Log.md)
@@ -965,6 +970,9 @@ prima del merge, non dopo.
 ⚠️ **Se si verifica, la risposta non è abbassare il prisma** — rimetterebbe in vista esattamente ciò che deve
 nascondere. È decidere se la nebbia si renda in modo diverso vista dall'alto, ed è una decisione, non una
 taratura.
+
+➕ *2026-10-15*: con la nebbia di [D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5) il prisma esiste,
+traslucido e alto un piano, e il rischio e' reale. Si guarda nella terza tornata di `U89`.
 
 ---
 

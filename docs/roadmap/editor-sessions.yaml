@@ -6053,6 +6053,16 @@ sessions:
         se ne vede più d'uno. Le correzioni stanno su #3760 e #3762, e tornano in una seconda tornata con tavole nuove;
         ciascun ramo aggiunge qui la propria voce e la propria issue, insieme alla voce nel registro.
 
+      🟡 **Seconda tornata, catture e verdetti del 2026-10-15.** Dal clone principale, sul ramo locale di verifica
+      `d40ccb9f6` (#3760 `4173a0700`, che contiene #3762, più le leve di sola cattura), senza portare l'Editor in primo
+      piano; la dissolvenza è rallentata 20 volte, e la tavola lo dichiara. Tavole `V4`…`V8`, in
+      `docs/technical/evidence/u89/`.
+      - `PIE-FOG-CONFINE`: lungo una copertura alta (`V8`) «PASS»; resta ✅.
+      - `PIE-FOG-PIANTA`: il pavimento va (`V4`, `V7`) e la dissolvenza «PASS» (`V5`), ma manca la nebbia, che l'autore
+        ha voluto su ogni cella non vista (D-520 (5)). Torna nella terza tornata.
+      - `PIE-FOG-ARCO`: «si capisce l'area, non di chi e'» (`V6`); il nemico ora si contorna nel rosso del suo arco
+        (D-521 (6)). Torna nella terza tornata.
+
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
   - id: U90
     title: Il passo del banco dentro il PIE — «,» e «.» cambiano azione, e gli scatti del banco partono

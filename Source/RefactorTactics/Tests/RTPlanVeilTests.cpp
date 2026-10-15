@@ -23,6 +23,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTLayerPresentation.h"
+#include "Map/RTMapVisuals.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "Perception/RTVeilTransition.h"
@@ -513,6 +514,161 @@ bool FRTSmokeVolumeIsLightTest::RunTest(const FString&)
 			}
 		}
 	}
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * La NEBBIA ([D-520] (5), #3760, seconda tornata di `U89`): su ogni cella che la squadra non vede adesso, ricordata o
+ * mai vista, una colonna traslucida che riempie l'esagono dal fondo del disco al piano sopra. Sulla cella vista, niente.
+ *
+ * 🔑 **La quota non dice quanto la cella e' alta**: la cella mai vista del test e' rialzata, e la sua colonna parte
+ * dallo stesso punto di quella di una cella piana. Che la cella esista e su quale piano e' pubblico ([D-373]), la sua
+ * altezza no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFogFillsTheCellsNotSeenTest,
+	"RefactorTactics.Veil.FogFillsEveryCellNotSeenNow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFogFillsTheCellsNotSeenTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
+	const FRTCellId Vista(0, 0, 0);
+	const FRTCellId Ricordata(1, 0, 0);
+	const FRTCellId MaiVista(-2, 0, 0);
+	const FRTCellId MaiVistaPiana(0, 2, 0);
+	{
+		FRTHexCellData Dati = *Map->FindCell(MaiVista);
+		Dati.Height = 40;
+		Map->AddOrUpdateCell(Dati);
+	}
+	ARTHexMapActor* HexMap = MakePiantaBoard(World, Map);
+	const UInstancedStaticMeshComponent* Nebbia = HexMap ? IsmPianta(HexMap, TEXT("FogVolumes")) : nullptr;
+	const UInstancedStaticMeshComponent* Dischi = HexMap ? IsmPianta(HexMap, TEXT("Cells")) : nullptr;
+	if (!TestTrue(TEXT("premessa: la nebbia, una colonna per disco"), Nebbia && Dischi
+		&& Nebbia->GetInstanceCount() == Dischi->GetInstanceCount() && Nebbia->GetInstanceCount() > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 IV = IstanzaPianta(HexMap, Vista);
+	const int32 IR = IstanzaPianta(HexMap, Ricordata);
+	const int32 IM = IstanzaPianta(HexMap, MaiVista);
+	const int32 IP = IstanzaPianta(HexMap, MaiVistaPiana);
+
+	int32 Disegnate = 0;
+	for (int32 I = 0; I < Nebbia->GetInstanceCount(); ++I) { Disegnate += DisegnataPianta(Nebbia, I) ? 1 : 0; }
+	TestEqual(TEXT("una board mai velata non ha nebbia"), Disegnate, 0);
+
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Vista }, { Vista, Ricordata }));
+	TestFalse(TEXT("la cella vista non ha nebbia"), DisegnataPianta(Nebbia, IV));
+	TestTrue(TEXT("la cella ricordata ha la sua colonna"), DisegnataPianta(Nebbia, IR));
+	TestTrue(TEXT("la cella mai vista ha la sua colonna"), DisegnataPianta(Nebbia, IM));
+	Disegnate = 0;
+	for (int32 I = 0; I < Nebbia->GetInstanceCount(); ++I) { Disegnate += DisegnataPianta(Nebbia, I) ? 1 : 0; }
+	TestEqual(TEXT("tutte le celle tranne quella vista hanno la nebbia"), Disegnate, Nebbia->GetInstanceCount() - 1);
+
+	// La forma: larga quanto il disco, dal fondo del disco al piano sopra.
+	FTransform Colonna, Disco, ColonnaPiana;
+	Nebbia->GetInstanceTransform(IR, Colonna, /*bWorldSpace=*/ true);
+	Dischi->GetInstanceTransform(IR, Disco, /*bWorldSpace=*/ true);
+	Nebbia->GetInstanceTransform(IP, ColonnaPiana, /*bWorldSpace=*/ true);
+	const float Piano = HexMap->GetPosedLayerHeight();
+	TestTrue(TEXT("larga quanto il disco"), FMath::IsNearlyEqual(Colonna.GetScale3D().X, Disco.GetScale3D().X, 1e-3f)
+		&& FMath::IsNearlyEqual(Colonna.GetScale3D().Y, Disco.GetScale3D().Y, 1e-3f));
+	const double Alta = Colonna.GetScale3D().Z * 100.0;
+	TestTrue(*FString::Printf(TEXT("alta quanto un piano (%.1f contro %.1f)"), Alta, Piano), FMath::IsNearlyEqual(Alta, static_cast<double>(Piano), 0.5));
+	const double Fondo = Colonna.GetLocation().Z - Alta * 0.5;
+	TestTrue(*FString::Printf(TEXT("parte dal fondo del disco (%.1f contro %.1f)"), Fondo, Disco.GetLocation().Z - RTCellTopZ),
+		FMath::IsNearlyEqual(Fondo, Disco.GetLocation().Z - RTCellTopZ, 0.5));
+
+	// La privacy della quota.
+	FTransform ColonnaRialzata;
+	Nebbia->GetInstanceTransform(IM, ColonnaRialzata, /*bWorldSpace=*/ true);
+	TestTrue(TEXT("la colonna della cella mai vista e rialzata parte dove quella di una cella piana"),
+		FMath::IsNearlyEqual(ColonnaRialzata.GetLocation().Z, ColonnaPiana.GetLocation().Z, 0.5));
+
+	// Traslucida: il retino del materiale dei volumi ne lascia passare una parte, e non tutta.
+	const float Trasparenza = CanalePianta(Nebbia, IR, RTLayerPresentation::FirstChannel);
+	TestTrue(*FString::Printf(TEXT("traslucida (trasparenza %.2f)"), Trasparenza), Trasparenza > 0.05f && Trasparenza < 0.95f);
+	TestEqual(TEXT("senza tinta del piano"), CanalePianta(Nebbia, IR, RTLayerPresentation::VolumeTintStrengthChannel), 0.f);
+
+	// Il suo grigio: non il ciano della pianta, non il nero.
+	UMaterialInstanceDynamic* Mid = Cast<UMaterialInstanceDynamic>(Nebbia->GetMaterial(0));
+	if (TestNotNull(TEXT("la nebbia ha un'istanza del materiale dei volumi"), Mid))
+	{
+		const FLinearColor Proprio = Mid->K2_GetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor);
+		TestTrue(TEXT("non e' il colore della pianta"), !Proprio.Equals(ARTHexMapActor::PlanColor(), 0.05f));
+		TestTrue(*FString::Printf(TEXT("e' piu' chiara del grigio dei volumi (%.2f contro %.2f)"), Proprio.GetLuminance(),
+			RTLayerPresentation::VolumeOwnColor(false).GetLuminance()),
+			Proprio.GetLuminance() > 2.f * RTLayerPresentation::VolumeOwnColor(false).GetLuminance());
+	}
+	TestEqual(TEXT("non intercetta il cursore"), Nebbia->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+
+	// Tornata in vista, la colonna se ne va.
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Vista, Ricordata, MaiVista }, { Vista, Ricordata, MaiVista }));
+	TestFalse(TEXT("la cella mai vista che ora si vede perde la nebbia subito, come il disco compare"), DisegnataPianta(Nebbia, IM));
+	for (int32 K = 0; K < 60; ++K) { static_cast<AActor*>(HexMap)->Tick(0.1f); } // la ricordata sfuma
+	TestFalse(TEXT("la cella ricordata tornata in vista non ha piu' nebbia"), DisegnataPianta(Nebbia, IR));
+
+	// L'attenuazione di prima non ha nebbia.
+	HexMap->SetVeilMemoryAttenuatedForTest(true);
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Vista }, { Vista, Ricordata }));
+	TestFalse(TEXT("col ricordo attenuato la cella mai vista non ha nebbia"), DisegnataPianta(Nebbia, IP));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * La nebbia SFUMA con la cella (#3760): quando la cella esce dalla vista la colonna compare e si addensa con la
+ * dissolvenza del suo disco, quando torna in vista si dirada e poi non si disegna. E' la dissolvenza che l'autore ha
+ * giudicato sulla tavola `V5`, e la nebbia non ne apre una sua.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFogFollowsTheDissolveTest,
+	"RefactorTactics.Veil.FogFollowsTheDissolve",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFogFollowsTheDissolveTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = MakePiantaBoard(World, URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2));
+	const UInstancedStaticMeshComponent* Nebbia = HexMap ? IsmPianta(HexMap, TEXT("FogVolumes")) : nullptr;
+	const FRTCellId Cella(1, 0, 0);
+	const FRTCellId Altra(0, 0, 0);
+	const int32 IC = HexMap ? IstanzaPianta(HexMap, Cella) : INDEX_NONE;
+	if (!TestTrue(TEXT("premessa: la nebbia e l'istanza della cella"), Nebbia && IC != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	FRTVeilTransitionParams Tempi;
+	Tempi.RevealSeconds = 0.4f;
+	Tempi.HideSeconds = 0.4f;
+	HexMap->SetVeilTransitionParams(Tempi);
+	const int32 Canale = RTLayerPresentation::FirstChannel;
+	const float Piena = 1.f - 0.5f; // la trasparenza della nebbia piena su una mappa a un piano
+
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Cella, Altra }, { Cella, Altra }));
+	TestFalse(TEXT("osservata: niente nebbia"), DisegnataPianta(Nebbia, IC));
+
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Altra }, { Cella, Altra }));
+	TestFalse(TEXT("subito dopo il velo la cella e' ancora tutta osservata: niente nebbia"), DisegnataPianta(Nebbia, IC));
+	static_cast<AActor*>(HexMap)->Tick(0.1f);
+	const float AMeta = CanalePianta(Nebbia, IC, Canale);
+	TestTrue(TEXT("a meta' dissolvenza la colonna si disegna"), DisegnataPianta(Nebbia, IC));
+	TestTrue(*FString::Printf(TEXT("ed e' piu' rada della nebbia piena (trasparenza %.2f, piena %.2f)"), AMeta, Piena),
+		AMeta > Piena + 1e-3f && AMeta < 1.f);
+	for (int32 K = 0; K < 60; ++K) { static_cast<AActor*>(HexMap)->Tick(0.1f); }
+	TestTrue(TEXT("a dissolvenza finita la nebbia e' piena"), FMath::IsNearlyEqual(CanalePianta(Nebbia, IC, Canale), Piena, 1e-3f));
+
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Cella, Altra }, { Cella, Altra }));
+	static_cast<AActor*>(HexMap)->Tick(0.1f);
+	TestTrue(TEXT("tornando in vista la nebbia si dirada"), DisegnataPianta(Nebbia, IC) && CanalePianta(Nebbia, IC, Canale) > Piena + 1e-3f);
+	for (int32 K = 0; K < 60; ++K) { static_cast<AActor*>(HexMap)->Tick(0.1f); }
+	TestFalse(TEXT("e a dissolvenza finita non si disegna"), DisegnataPianta(Nebbia, IC));
+
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }

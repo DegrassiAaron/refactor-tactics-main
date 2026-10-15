@@ -94,6 +94,18 @@ static constexpr float RTPlanVolumeTransparency = 0.5f;
  */
 static const FLinearColor RTReliefOwnColor(0.6f, 0.6f, 0.6f, 1.f);
 
+/**
+ * #3760, seduta `U89`, seconda tornata: la NEBBIA. L'autore ha giudicato la pianta e ha risposto *«il pavimento e' ok,
+ * manca pero' il volume sull'esagono, la fog»*: *«deve essere un volume che occupa interamente la cella dell'esagono,
+ * dalla base alla altezza»*, sulle celle «Ricordate e mai viste», alta «Fino al piano sopra». Il colore e la trasparenza
+ * li ha proposti chi scrive e l'autore li ha approvati col progetto: un grigio neutro freddo, non il ciano della pianta
+ * ne' il nero, e la trasparenza a retino del materiale dei volumi ([D-501]).
+ */
+static const FLinearColor RTFogOwnColor = FLinearColor::FromSRGBColor(FColor(170, 180, 195));
+
+/** Quanta parte della colonna di nebbia si disegna quando la cella non e' osservata per niente: il resto lascia vedere. */
+static constexpr float RTFogOpacity = 0.5f;
+
 namespace
 {
 	/**
@@ -869,6 +881,18 @@ ARTHexMapActor::ARTHexMapActor()
 	if (CylinderMesh.Succeeded())
 	{
 		SurfaceVolumes->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	// La NEBBIA (#3760): stessa disciplina — nessuna collisione, per la ragione scritta qui sopra, e nessuna ombra.
+	FogVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("FogVolumes"));
+	FogVolumes->SetupAttachment(Cells);
+	FogVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FogVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
+	FogVolumes->CastShadow = false;
+	FogVolumes->NumCustomDataFloats = RTLayerPresentation::VolumeNumCustomDataFloats;
+	if (CylinderMesh.Succeeded())
+	{
+		FogVolumes->SetStaticMesh(CylinderMesh.Object);
 	}
 
 	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
@@ -1835,6 +1859,80 @@ void ARTHexMapActor::WriteVolumeAppearance(UInstancedStaticMeshComponent* Famigl
 	Famiglia->SetCustomDataValue(I, Primo + 2, T.ExposureStops, /*bMarkRenderStateDirty=*/ false);
 }
 
+void ARTHexMapActor::WriteFog()
+{
+	if (FogVolumes == nullptr || FogVolumes->GetInstanceCount() != InstanceCells.Num()
+		|| FogBaseScale.Num() != InstanceCells.Num()
+		|| FogVolumes->NumCustomDataFloats < RTLayerPresentation::VolumeNumCustomDataFloats)
+	{
+		return; // una mappatura stantia, o senza i canali: la stessa guardia del velo
+	}
+	if (FogShown.Num() != InstanceCells.Num())
+	{
+		FogShown.Init(-1.f, InstanceCells.Num());
+	}
+	// La nebbia e' della pianta: con l'attenuazione di prima, che i test rimettono, il ricordo non ne ha.
+	const bool bPianta = MemoryFor(Cells) == ERTVeilMemory::PlanFloor;
+
+	int32 Toccate = 0;
+	for (int32 I = 0; I < InstanceCells.Num(); ++I)
+	{
+		const uint8 Stato = LastVeilState.IsValidIndex(I) ? LastVeilState[I] : RTVeilUnwritten;
+		float Nebbia = 0.f; // una board mai velata non ha nebbia: editor, prove senza percezione
+		if (bPianta && Stato == RTVeilHidden)
+		{
+			Nebbia = 1.f;
+		}
+		else if (bPianta && (Stato == RTVeilLit || Stato == RTVeilRemembered))
+		{
+			// Il complemento di quanto il disco e' osservato: 0 sulla cella vista, 1 sulla ricordata, e nel mezzo durante
+			// la dissolvenza. Un fattore negativo e' «mai scritto», e vale il target dello stato.
+			const float Target = (Stato == RTVeilLit) ? 1.f : 0.f;
+			const float Osservata = (VeilDisplayFactor.IsValidIndex(I) && VeilDisplayFactor[I] >= 0.f)
+				? VeilDisplayFactor[I] : Target;
+			Nebbia = 1.f - FMath::Clamp(Osservata, 0.f, 1.f);
+		}
+		if (FogShown[I] == Nebbia)
+		{
+			continue;
+		}
+		const bool bDisegnata = Nebbia > 0.f;
+		if (FogShown[I] < 0.f || (FogShown[I] > 0.f) != bDisegnata)
+		{
+			FTransform Xf;
+			if (!FogVolumes->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+			{
+				continue;
+			}
+			Xf.SetScale3D(bDisegnata ? FogBaseScale[I] : FVector::ZeroVector);
+			FogVolumes->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
+		}
+		if (bDisegnata)
+		{
+			// Il trattamento del suo piano ([D-501]) e la nebbia si compongono come due veli: passa cio' che passa da
+			// entrambi. Nessuna tinta del piano: la nebbia ha il suo grigio.
+			const FRTLayerTreatment T = RTLayerPresentation::Treatment(InstanceCells[I].Layer, PresentedActiveLayer,
+				bPresentationMultiLayer, AppliedLayerTuning);
+			const float Trasparenza = 1.f - (1.f - T.Transparency) * (RTFogOpacity * Nebbia);
+			for (int32 Canale = 0; Canale < 3; ++Canale)
+			{
+				FogVolumes->SetCustomDataValue(I, Canale, 0.f, /*bMarkRenderStateDirty=*/ false);
+			}
+			FogVolumes->SetCustomDataValue(I, RTLayerPresentation::VolumeTintStrengthChannel, 0.f, /*bMarkRenderStateDirty=*/ false);
+			const int32 Primo = RTLayerPresentation::FirstChannel;
+			FogVolumes->SetCustomDataValue(I, Primo + 0, Trasparenza, /*bMarkRenderStateDirty=*/ false);
+			FogVolumes->SetCustomDataValue(I, Primo + 1, T.Desaturation, /*bMarkRenderStateDirty=*/ false);
+			FogVolumes->SetCustomDataValue(I, Primo + 2, T.ExposureStops, /*bMarkRenderStateDirty=*/ false);
+		}
+		FogShown[I] = Nebbia;
+		++Toccate;
+	}
+	if (Toccate > 0)
+	{
+		FogVolumes->MarkRenderStateDirty();
+	}
+}
+
 void ARTHexMapActor::DrawPlanningPreview() const
 {
 	const UWorld* World = GetWorld();
@@ -2359,6 +2457,10 @@ void ARTHexMapActor::ApplyLayerPresentation()
 	}
 
 	ApplyPlanGhostBorderColors();
+
+	// La nebbia porta il trattamento del suo piano (#3760): cambiato il piano, si riscrive tutta.
+	FogShown.Reset();
+	WriteFog();
 }
 
 TArray<ARTHexMapActor::FRTVolumeFamily> ARTHexMapActor::GetVolumeFamilies() const
@@ -2401,6 +2503,23 @@ void ARTHexMapActor::ApplyVolumeMaterial()
 		{
 			SurfaceVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor,
 				FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(ERTHexSurface::Smoke)));
+		}
+	}
+	// La nebbia (#3760): stesso grafo, col suo grigio freddo. Non e' una famiglia dei volumi: non ha tinta del piano,
+	// e la trasparenza la scrive `WriteFog`.
+	if (FogVolumes != nullptr)
+	{
+		if (FogVolumeMaterial == nullptr || FogVolumeMaterial->Parent != Mat)
+		{
+			FogVolumeMaterial = UMaterialInstanceDynamic::Create(Mat, this);
+			if (FogVolumeMaterial != nullptr)
+			{
+				FogVolumeMaterial->SetVectorParameterValue(RTLayerPresentation::VolumeParamOwnColor, RTFogOwnColor);
+			}
+		}
+		if (FogVolumeMaterial != nullptr && FogVolumes->GetMaterial(0) != FogVolumeMaterial)
+		{
+			FogVolumes->SetMaterial(0, FogVolumeMaterial);
 		}
 	}
 	for (const FRTVolumeFamily& Volume : GetVolumeFamilies())
@@ -2552,6 +2671,13 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// transizione sopravvissuta a un rebuild attenuerebbe una cella che nel frattempo e' un'altra.
 		VeilDisplayFactor.Reset();
 		VeilCellsInTransition = 0;
+		// La nebbia e' una colonna per cella, nello stesso ordine del disco: si azzera e si ricostruisce con lui.
+		if (FogVolumes)
+		{
+			FogVolumes->ClearInstances();
+		}
+		FogBaseScale.Reset();
+		FogShown.Reset();
 	}
 	if (bDoGlyphs)
 	{
@@ -2636,6 +2762,10 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	if (bDoSurfaceVolumes && SurfaceVolumes)
 	{
 		if (CellShape != nullptr) { SurfaceVolumes->SetStaticMesh(CellShape); }
+	}
+	if (bDoCells && FogVolumes)
+	{
+		if (CellShape != nullptr) { FogVolumes->SetStaticMesh(CellShape); }
 	}
 	if (bDoBlock && Blockers)
 	{
@@ -2801,6 +2931,18 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// La scala piena si registra QUI, dove la si conosce: il velo nasconde azzerandola, e da uno zero non
 			// si torna indietro ([D-227]).
 			InstanceBaseScale.Add(Xf.GetScale3D());
+
+			// La colonna di NEBBIA della cella (#3760): dal fondo del disco al piano sopra, larga quanto il disco, cosi'
+			// fra due colonne resta la griglia. 🔑 **La quota NON porta `Height`**: su una cella mai vista direbbe
+			// quanto e' alta, che e' contenuto; che la cella esista e su quale piano e' pubblico ([D-373]). Nasce a
+			// scala zero: la disegna solo il velo (`WriteFog`).
+			if (FogVolumes)
+			{
+				FVector FogCenter = URTHexLibrary::AxialToWorld(CellIds[I], GetActorLocation(), UseHexSize, UseLayerH);
+				FogCenter.Z += UseLayerH * 0.5 - RTCellTopZ;
+				FogVolumes->AddInstance(FTransform(FRotator::ZeroRotator, FogCenter, FVector::ZeroVector), /*bWorldSpace=*/ true);
+				FogBaseScale.Add(FVector(PlanarScale, PlanarScale, UseLayerH / 100.f));
+			}
 
 			// Colore della superficie, per ISTANZA. La tavolozza e' `URTHexLibrary::SurfaceColor` — la stessa che
 			// disegna l'anello dell'overlay e il marker dell'editor: una cella non puo' avere due colori a seconda
@@ -4345,6 +4487,8 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// refresh non ha toccato e' ancora viva: azzerare direbbe «converso» a chi sta ancora sfumando, e
 	// spegnerebbe il `Tick` a meta' dissolvenza. Il conteggio VERO lo ricalcola `AdvanceVeilTransition` a
 	// ogni passo; questo lo alza soltanto, e la differenza dura un fotogramma.
+	WriteFog();
+
 	if (VeilCellsInTransition > 0)
 	{
 		SetActorTickEnabled(true);
@@ -4406,6 +4550,7 @@ void ARTHexMapActor::AdvanceVeilTransition(float DeltaSeconds)
 		SenzaColore);
 
 	VeilCellsInTransition = InMovimento;
+	WriteFog(); // la nebbia segue la dissolvenza del disco della sua cella
 }
 
 int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component,

@@ -86,6 +86,9 @@ turno: scanner, drone, razzo.»
 ## 4. Che cosa cambia rispetto a oggi
 
 **Resta com'è**: il terreno mai visto non si disegna ([D-225](../../decisions/RT_PDR_00_Decision_Log.md), confermato).
+➕ *2026-10-15, seconda tornata di `U89`*: non più. L'autore ha voluto la nebbia su ogni cella non vista, mai vista
+compresa ([D-520](../../decisions/RT_PDR_00_Decision_Log.md) (5)): una colonna che dice dove sono le celle, non che
+cosa contengono.
 
 **Cambia la resa**:
 - il ricordo diventa **pianta**, non più colore attenuato;

@@ -2081,6 +2081,15 @@ bool FRTVeilEveryFamilyDisappearsTest::RunTest(const FString&)
 				++Disegnate;
 			}
 		}
+		// ⛔ **La NEBBIA e' l'unica famiglia dichiarata** ([D-520] (5), #3760): esiste proprio per coprire cio' che la
+		// squadra non vede, mai vista compreso, quindi sotto una conoscenza vuota si disegna tutta — una colonna per
+		// cella, uguale per ogni cella, che dice che la cella esiste ([D-373]) e niente di cio' che contiene.
+		if (F->GetName() == TEXT("FogVolumes"))
+		{
+			TestEqual(TEXT("sotto una conoscenza vuota la nebbia copre ogni cella, una colonna per cella"),
+				Disegnate, Actor->NumInstanceCells());
+			continue;
+		}
 		if (Disegnate > 0)
 		{
 			Scoperte.Add(FString::Printf(TEXT("%s (%d istanze disegnate)"), *F->GetName(), Disegnate));

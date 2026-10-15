@@ -1407,6 +1407,17 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> SurfaceVolumes;
 
 	/**
+	 * La NEBBIA ([D-520] (5), #3760): una colonna esagonale traslucida per cella, dal fondo del disco fino al piano
+	 * sopra, su ogni cella che la squadra non vede adesso — ricordata o mai vista. Una istanza per cella, nello stesso
+	 * ordine di `Cells`: la colonna `I` e' la cella `InstanceCells[I]`, e la nebbia e' il complemento di quanto il suo
+	 * disco e' osservato. Vedi `WriteFog`.
+	 *
+	 * ⛔ Nessuna collisione: la nebbia non ruba il click o l'hover alla cella sotto di lei.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> FogVolumes;
+
+	/**
 	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
 	 *
 	 * **Un solo componente per due forme**, e non e' un compromesso: un ISM porta una sola `StaticMesh`, ma le
@@ -1640,6 +1651,9 @@ protected:
 	TArray<FRTCellId> SurfaceVolumeCells;
 	TArray<FVector> SurfaceVolumeBaseScale;
 	TArray<uint8> LastSurfaceVolumeVeilState;
+	/** La nebbia (#3760): la scala piena di ogni colonna, e quanta nebbia vi e' scritta (`-1` mai scritta). */
+	TArray<FVector> FogBaseScale;
+	TArray<float> FogShown;
 	TArray<FRTCellId> BlockerCells;
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
@@ -1736,6 +1750,10 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SurfaceVolumeMaterial;
+
+	/** #3760, seduta `U89` — l'istanza di `VolumeMaterial` della NEBBIA, col suo grigio freddo. Vedi `ApplyVolumeMaterial`. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> FogVolumeMaterial;
 
 	/** #3704 — la mappa disegnata ha piu' di un piano: lo misura `ApplyLayerPresentation`, sulle istanze. */
 	bool bPresentationMultiLayer = false;
@@ -1987,6 +2005,14 @@ protected:
 	 * scrittore di quei canali: lo chiamano sia la presentazione dei piani sia il velo.
 	 */
 	void WriteVolumeAppearance(UInstancedStaticMeshComponent* Famiglia, const FRTCellId& Cell, int32 I, float Osservata);
+
+	/**
+	 * La nebbia (#3760, [D-520] (5)): per ogni colonna, quanta nebbia c'e' — `1` su una cella mai vista, il complemento
+	 * di quanto il disco e' osservato su una cella vista o ricordata, quindi segue la sua dissolvenza — e la scrive.
+	 * Una colonna senza nebbia non si disegna. La chiamano il velo, ogni passo della dissolvenza e la presentazione dei
+	 * piani. Una board mai velata, e l'attenuazione di prima, non hanno nebbia.
+	 */
+	void WriteFog();
 
 	/** Un passo del filtro su UNA famiglia. Risponde quante istanze restano in movimento. */
 	int32 AdvanceVeilFamily(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
