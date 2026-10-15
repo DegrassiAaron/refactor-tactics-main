@@ -5,6 +5,8 @@
 #include "RTKnowledgeVeilPresenter.generated.h"
 
 class ARTTurnManager;
+class ARTHexMapActor;
+struct FRTTeamKnowledge;
 
 /**
  * CHI STENDE IL VELO SULLA BOARD, e per conto di quale squadra.
@@ -142,6 +144,13 @@ protected:
 	void HandlePlaybackStepAdvanced();
 
 private:
+	/**
+	 * GLI ARCHI DEI NEMICI IN VISTA (#3762), con la stessa conoscenza del velo e negli stessi due punti. Si calcolano
+	 * tutti, uno per nemico in vista; quali si DISEGNANO lo decide il giocatore, col mouse o col tasto, e lo dice alla
+	 * mappa `ARTPlayerController` a ogni fotogramma (`ARTHexMapActor::SetEnemyArcFocus`).
+	 */
+	void PresentEnemyArcs(ARTHexMapActor& HexMap, const FRTTeamKnowledge& Conoscenza) const;
+
 	/**
 	 * Da chi arriva la conoscenza. **Weak** perche' il turn manager muore col mondo e il presenter puo'
 	 * sopravvivergli di un istante: un puntatore forte lo terrebbe in vita oltre la partita.

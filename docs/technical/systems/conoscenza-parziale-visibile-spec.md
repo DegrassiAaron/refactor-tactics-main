@@ -918,6 +918,23 @@ mai lungo il vuoto: sul bordo della mappa e sul perimetro di una piattaforma non
 stati di [D-227](../../decisions/RT_PDR_00_Decision_Log.md) restano distinti, ed e' `Veil.PresenterDrawsTheBorderOfTheSameKnowledge` a
 misurarlo.
 
+#### L'arco del nemico in vista ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), [D-521](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Su richiesta si vede che cosa vede un nemico in vista, **uno alla volta**: l'arco del nemico sotto il mouse, altrimenti
+quello del nemico ispezionato col click. Nessun tasto li mostra tutti: lo ha chiesto l'autore nella seduta `U89`
+([D-521](../../decisions/RT_PDR_00_Decision_Log.md) (5)).
+L'arco sono le celle che il nemico vede davvero, muri noti compresi, calcolate sul **solo terreno che la squadra
+conosce**: altrimenti un muro mai visto si scoprirebbe dalla forma dell'arco.
+
+| Che cosa | Dove |
+|---|---|
+| La regola di privacy | `URTEnemyArcLibrary::KnownTerrainMap`: le celle mai viste esistono ([D-373](../../decisions/RT_PDR_00_Decision_Log.md)) ma sono vuote |
+| L'arco | `URTEnemyArcLibrary::SightOnKnownTerrain`, cioe' `VisibleCells` su quella copia, ristretta alle celle note |
+| Quali nemici | `URTEnemyArcLibrary::ArcsOfEnemiesInView`: di un'altra squadra, su una cella vista adesso |
+| Chi li calcola | `URTKnowledgeVeilPresenter`, negli stessi due punti del velo |
+| Quale si disegna | `ARTPlayerController::UpdateEnemyArcFocus` → `ARTHexMapActor::SetEnemyArcFocus`: il mouse prima dell'ispezione, nel batcher in primo piano |
+| Di chi e' | `ARTHexMapActor::FocusedEnemyArc` dice anche la cella del nemico, e il `Tick` ne contorna i sei lati nello stesso rosso ([D-521](../../decisions/RT_PDR_00_Decision_Log.md) (6)) |
+
 ### 5.6 🔴 Il rischio che nessun test misura
 
 Un prisma opaco alto ~200 uu può **occludere le unità proprie** quando la camera guarda attraverso una fascia

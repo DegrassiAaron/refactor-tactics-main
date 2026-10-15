@@ -164,6 +164,11 @@ namespace
 	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
 	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
 	constexpr float RTVisionBorderThickness = 4.f;
+	// Lo spessore del contorno dell'arco di un nemico (#3762). Era 3, un punto sotto la linea di confine, e nella
+	// seduta `U89` l'autore l'ha giudicato «troppo sottile»: ora il doppio della linea di confine. L'arco si vede
+	// solo a richiesta e uno alla volta, quindi dove copre la linea della propria vista lo fa per una scelta del
+	// giocatore.
+	constexpr float RTEnemyArcThickness = 2.f * RTVisionBorderThickness;
 	// Di quanto la linea si sposta verso la cella vista quando sul lato sta un pannello (#3761): meta' dello spessore
 	// del pannello, che e' centrato sul lato, piu' meta' di quello della linea e un margine.
 	constexpr float RTVisionBorderPanelInset = RTEdgePanelThickness * 100.f * 0.5f + RTVisionBorderThickness * 0.5f + 2.f;
@@ -1148,7 +1153,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0
 		// La linea di confine della vista (#3761) si ridisegna a ogni fotogramma, come l'anteprima.
-		|| VisionBorder.Num() > 0;
+		|| VisionBorder.Num() > 0
+		// E gli archi dei nemici in vista che il giocatore chiede (#3762).
+		|| HasEnemyArcToDraw();
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1288,6 +1295,21 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
 	DrawVisionBorder();
+	// #3762: l'arco di UN nemico, nel rosso dei nemici, e in primo piano: davanti alla geometria, perche' nella
+	// seduta `U89` anelli ed evidenziazioni lo coprivano.
+	FRTCellId Padrone;
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc(&Padrone))
+	{
+		DrawEdgeLines(Arco->Edges, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
+		// E il contorno della cella del nemico che lo possiede, nello stesso rosso: nella seconda tornata di `U89`
+		// l'autore leggeva l'area ma non di chi fosse, e ha scelto «Nemico evidenziato» (vedi [D-521] (6)).
+		TArray<FRTExposedEdge> Contorno;
+		for (int32 D = 0; D < 6; ++D)
+		{
+			Contorno.Emplace(Padrone, static_cast<ERTHexDirection>(D));
+		}
+		DrawEdgeLines(Contorno, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
+	}
 	DrawPlanningPreview();
 }
 
@@ -1571,6 +1593,65 @@ void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
+void ARTHexMapActor::SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsByEnemyCell)
+{
+	EnemyArcs = ArcsByEnemyCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetEnemyArcFocus(const FRTCellId& InHoveredCell, bool bHasHover, const FRTCellId& InInspectedCell,
+	bool bHasInspected)
+{
+	if (bHasHover == bEnemyArcHover && (!bHasHover || InHoveredCell == EnemyArcHoveredCell)
+		&& bHasInspected == bEnemyArcInspected && (!bHasInspected || InInspectedCell == EnemyArcInspectedCell))
+	{
+		return;
+	}
+	bEnemyArcHover = bHasHover;
+	EnemyArcHoveredCell = InHoveredCell;
+	bEnemyArcInspected = bHasInspected;
+	EnemyArcInspectedCell = InInspectedCell;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+const FRTEnemyArcView* ARTHexMapActor::FocusedEnemyArc(FRTCellId* OutEnemyCell) const
+{
+	// Il cursore vince sull'ispezione: passando il mouse su un altro nemico se ne vede l'arco, e togliendolo torna
+	// quello del nemico ispezionato. Una cella senza arco — vuota, alleata, nemico non in vista — non ne mostra.
+	if (bEnemyArcHover)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
+		{
+			if (OutEnemyCell) { *OutEnemyCell = EnemyArcHoveredCell; }
+			return Arco;
+		}
+	}
+	if (bEnemyArcInspected)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcInspectedCell))
+		{
+			if (OutEnemyCell) { *OutEnemyCell = EnemyArcInspectedCell; }
+			return Arco;
+		}
+	}
+	return nullptr;
+}
+
+bool ARTHexMapActor::HasEnemyArcToDraw() const
+{
+	return FocusedEnemyArc() != nullptr;
+}
+
+TArray<FRTEnemyArcView> ARTHexMapActor::GetShownEnemyArcs() const
+{
+	TArray<FRTEnemyArcView> Out;
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc())
+	{
+		Out.Add(*Arco);
+	}
+	return Out;
+}
+
 void ARTHexMapActor::DrawVisionBorder() const
 {
 	// 🔑 **Il colore e' quello della VISTA nella palette** (`#32ADE6`, [D-368]): l'autore l'ha scelto sulla tavola L1
@@ -1582,7 +1663,8 @@ void ARTHexMapActor::DrawVisionBorder() const
 	DrawEdgeLines(VisionBorder, URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision), RTVisionBorderThickness);
 }
 
-void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const
+void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore,
+	uint8 Profondita) const
 {
 	const UWorld* World = GetWorld();
 	if (!World || Lati.Num() == 0)
@@ -1609,10 +1691,11 @@ void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FCo
 		// 🔑 **Davanti al pannello, se sul lato ce n'e' uno.** Il pannello di un muro, di una copertura o di una porta
 		// sta CENTRATO sul lato e sale dalla cima della cella: sul lato la linea gli starebbe dentro, e non si
 		// vedrebbe da nessuna parte. Si sposta verso il centro della cella vista. Scelta dell'autore del 2026-10-15
-		// («visibile anche li'»), dopo la review: nella tavola V1 il confine correva solo su terreno aperto.
+		// («visibile anche li'»), dopo la review: nella tavola V1 il confine correva solo su terreno aperto. Vale
+		// anche per l'arco di un nemico (#3762), che usa lo stesso disegno: lungo un pannello il contorno gli sta davanti.
 		const FVector Dentro = LatoConPannello(MapAsset, Lato.Cell, Lato.Direction)
 			? -Verso * RTVisionBorderPanelInset : FVector::ZeroVector;
-		DisegnaLineaAnteprima(World, Medio - Lungo + Su + Dentro, Medio + Lungo + Su + Dentro, Colore, SDPG_World,
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su + Dentro, Medio + Lungo + Su + Dentro, Colore, Profondita,
 			Spessore);
 	}
 }
