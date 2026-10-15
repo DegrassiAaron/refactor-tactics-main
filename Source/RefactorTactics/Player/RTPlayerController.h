@@ -175,6 +175,12 @@ protected:
 	virtual void SetupInputComponent() override;
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/**
+	 * Dice alla mappa quale arco di un nemico in vista disegnare (#3762, [D-521]): quello sotto il cursore, altrimenti
+	 * quello del nemico ispezionato. La chiama `PlayerTick` dopo l'hover.
+	 */
+	void UpdateEnemyArcFocus(class ARTHexMapActor* HexMap) const;
+
 	/** Crea (una sola volta) Input Action e Mapping Context via codice. */
 	void BuildInputMappings();
 
@@ -292,13 +298,6 @@ protected:
 	/** Cicla la velocita' di riproduzione `x1 · x2 · x4` (CP 47.7, #1015). */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
-
-	/**
-	 * `H` tenuto premuto: gli archi di TUTTI i nemici in vista (#3762). La scelta dell'autore: l'arco si vede
-	 * passando il mouse sul nemico, o con un tasto — e tutti e due. Il tasto l'ha scelto l'autore fra i liberi.
-	 */
-	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> EnemyArcsAction;
 
 	/**
 	 * `P`: ferma e riprende la **finestra di preparazione** dell'autobattle (`#2386`).
@@ -437,9 +436,6 @@ protected:
 
 	/** `Ctrl` tenuto: arma i gesti camera. */
 	bool bCameraModifier = false;
-
-	/** Vero mentre `H` e' premuto (#3762). Lo legge `PlayerTick` per dire alla mappa quali archi disegnare. */
-	bool bShowAllEnemyArcs = false;
 
 	/** `Ctrl`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
 	bool bModifierPrimaryDown = false;
@@ -863,9 +859,6 @@ private:
 	void OnGeneric5(const FInputActionValue& Value);
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
-	/** `H` premuto e rilasciato (#3762): accende e spegne gli archi di tutti i nemici in vista. */
-	void OnEnemyArcsPressed(const FInputActionValue& Value);
-	void OnEnemyArcsReleased(const FInputActionValue& Value);
 
 	/**
 	 * Ferma e riprende la finestra di preparazione dell'autobattle (`#2386`).
@@ -1045,6 +1038,13 @@ public:
 
 	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
+
+	/**
+	 * Per i test dell'arco del nemico (#3762): l'unita' ispezionata senza passare dal click, che porta con se' le
+	 * condizioni della matrice del puntatore, e la scelta dell'arco senza il cursore, che in un mondo di prova non c'e'.
+	 */
+	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
+	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/**
 	 * §5 — **applica la riga di matrice** a un click su un'unita': chiede l'esito a

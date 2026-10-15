@@ -165,9 +165,11 @@ namespace
 	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
 	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
 	constexpr float RTVisionBorderThickness = 4.f;
-	// Lo spessore del contorno dell'arco di un nemico (#3762): quello con cui l'autore l'ha visto sulle tavole, un
-	// punto sotto la linea di confine, perche' dove si sovrappongono si legga ancora la linea della propria vista.
-	constexpr float RTEnemyArcThickness = 3.f;
+	// Lo spessore del contorno dell'arco di un nemico (#3762). Era 3, un punto sotto la linea di confine, e nella
+	// seduta `U89` l'autore l'ha giudicato «troppo sottile»: ora il doppio della linea di confine. L'arco si vede
+	// solo a richiesta e uno alla volta, quindi dove copre la linea della propria vista lo fa per una scelta del
+	// giocatore.
+	constexpr float RTEnemyArcThickness = 2.f * RTVisionBorderThickness;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1290,10 +1292,11 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
 	}
 	DrawVisionBorder();
-	// #3762: ogni arco nel colore della squadra del suo nemico, e sotto la linea di confine per spessore.
-	for (const FRTEnemyArcView& Arco : GetShownEnemyArcs())
+	// #3762: l'arco di UN nemico, nel rosso dei nemici, e in primo piano: davanti alla geometria, perche' nella
+	// seduta `U89` anelli ed evidenziazioni lo coprivano.
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc())
 	{
-		DrawEdgeLines(Arco.Edges, Arco.Color, RTEnemyArcThickness);
+		DrawEdgeLines(Arco->Edges, Arco->Color, RTEnemyArcThickness, SDPG_Foreground);
 	}
 	DrawPlanningPreview();
 }
@@ -1546,47 +1549,50 @@ void ARTHexMapActor::SetEnemyArcs(const TMap<FRTCellId, FRTEnemyArcView>& ArcsBy
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
-void ARTHexMapActor::SetEnemyArcFocus(bool bAll, const FRTCellId& InHoveredCell, bool bHasHover)
+void ARTHexMapActor::SetEnemyArcFocus(const FRTCellId& InHoveredCell, bool bHasHover, const FRTCellId& InInspectedCell,
+	bool bHasInspected)
 {
-	if (bAll == bEnemyArcsAll && bHasHover == bEnemyArcHover && (!bHasHover || InHoveredCell == EnemyArcHoveredCell))
+	if (bHasHover == bEnemyArcHover && (!bHasHover || InHoveredCell == EnemyArcHoveredCell)
+		&& bHasInspected == bEnemyArcInspected && (!bHasInspected || InInspectedCell == EnemyArcInspectedCell))
 	{
 		return;
 	}
-	bEnemyArcsAll = bAll;
 	bEnemyArcHover = bHasHover;
 	EnemyArcHoveredCell = InHoveredCell;
+	bEnemyArcInspected = bHasInspected;
+	EnemyArcInspectedCell = InInspectedCell;
 	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+const FRTEnemyArcView* ARTHexMapActor::FocusedEnemyArc() const
+{
+	// Il cursore vince sull'ispezione: passando il mouse su un altro nemico se ne vede l'arco, e togliendolo torna
+	// quello del nemico ispezionato. Una cella senza arco — vuota, alleata, nemico non in vista — non ne mostra.
+	if (bEnemyArcHover)
+	{
+		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
+		{
+			return Arco;
+		}
+	}
+	if (bEnemyArcInspected)
+	{
+		return EnemyArcs.Find(EnemyArcInspectedCell);
+	}
+	return nullptr;
 }
 
 bool ARTHexMapActor::HasEnemyArcToDraw() const
 {
-	if (EnemyArcs.Num() == 0)
-	{
-		return false;
-	}
-	return bEnemyArcsAll || (bEnemyArcHover && EnemyArcs.Contains(EnemyArcHoveredCell));
+	return FocusedEnemyArc() != nullptr;
 }
 
 TArray<FRTEnemyArcView> ARTHexMapActor::GetShownEnemyArcs() const
 {
 	TArray<FRTEnemyArcView> Out;
-	if (bEnemyArcsAll)
+	if (const FRTEnemyArcView* Arco = FocusedEnemyArc())
 	{
-		// L'ordine di un `TMap` dipende dall'hash: si ordina per cella, perche' la diagnostica non cambi fra due giri.
-		TArray<FRTCellId> Chiavi;
-		EnemyArcs.GetKeys(Chiavi);
-		Chiavi.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
-		for (const FRTCellId& K : Chiavi)
-		{
-			Out.Add(EnemyArcs[K]);
-		}
-	}
-	else if (bEnemyArcHover)
-	{
-		if (const FRTEnemyArcView* Arco = EnemyArcs.Find(EnemyArcHoveredCell))
-		{
-			Out.Add(*Arco);
-		}
+		Out.Add(*Arco);
 	}
 	return Out;
 }
@@ -1602,7 +1608,8 @@ void ARTHexMapActor::DrawVisionBorder() const
 	DrawEdgeLines(VisionBorder, URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision), RTVisionBorderThickness);
 }
 
-void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore) const
+void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FColor& Colore, float Spessore,
+	uint8 Profondita) const
 {
 	const UWorld* World = GetWorld();
 	if (!World || Lati.Num() == 0)
@@ -1626,7 +1633,7 @@ void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FCo
 		const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Lato.Cell, Lato.Direction, Origin, Size, LayerH);
 		const FVector Verso = FVector(Medio.X - Centro.X, Medio.Y - Centro.Y, 0.f).GetSafeNormal();
 		const FVector Lungo = FVector::CrossProduct(Verso, FVector::UpVector) * (Size * 0.5f);
-		DisegnaLineaAnteprima(World, Medio - Lungo + Su, Medio + Lungo + Su, Colore, SDPG_World, Spessore);
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su, Medio + Lungo + Su, Colore, Profondita, Spessore);
 	}
 }
 

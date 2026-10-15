@@ -21,6 +21,7 @@
 #include "Perception/RTTeamKnowledge.h"
 #include "Perception/RTVisibilityBorder.h"
 #include "Player/RTPlayerController.h"
+#include "Unit/RTUnit.h"
 #include "RTConsoleVariableGuardForTest.h"
 #include "RTWorldFixtures.h"
 
@@ -271,8 +272,9 @@ bool FRTEnemyArcOnlyInViewTest::RunTest(const FString&)
 }
 
 /**
- * La mappa disegna l'arco che il giocatore chiede: nessuno di base, quello sotto il mouse, tutti col tasto. E' la
- * scelta dell'autore — mouse e tasto, tutti e due — misurata sul disegno, col debug spento come in Shipping.
+ * La mappa disegna UN arco, quello che il giocatore chiede ([D-521], seduta `U89`): nessuno di base, quello del nemico
+ * sotto il mouse, altrimenti quello del nemico ispezionato, e il mouse vince sull'ispezione. In primo piano, davanti
+ * alla geometria, e col debug spento come in Shipping.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyArcFocusTest,
 	"RefactorTactics.EnemyArc.FocusChoosesWhichArcsAreDrawn",
@@ -283,8 +285,9 @@ bool FRTEnemyArcFocusTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
 	ULineBatchComponent* Mondo = World->GetLineBatcher(UWorld::ELineBatcherType::World);
+	ULineBatchComponent* PrimoPiano = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground);
 	IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EnableDrawDebugHelpers"));
-	if (!TestTrue(TEXT("premessa: mappa, batcher e CVar del debug"), HexMap && Mondo && Debug))
+	if (!TestTrue(TEXT("premessa: mappa, batcher e CVar del debug"), HexMap && Mondo && PrimoPiano && Debug))
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
@@ -294,6 +297,7 @@ bool FRTEnemyArcFocusTest::RunTest(const FString&)
 
 	const FRTCellId A(2, 0, 0);
 	const FRTCellId B(-2, 0, 0);
+	const FRTCellId Vuota(0, 1, 0);
 	FRTEnemyArcView ArcoA;
 	ArcoA.Edges = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(HexMap->MapAsset, { A });
 	ArcoA.Color = FColor(255, 51, 38);
@@ -304,44 +308,119 @@ bool FRTEnemyArcFocusTest::RunTest(const FString&)
 	Archi.Add(A, ArcoA);
 	Archi.Add(B, ArcoB);
 	HexMap->SetEnemyArcs(Archi);
+	// Senza lati diversi, «l'arco di A» e «l'arco di B» darebbero lo stesso conteggio e il test non li distinguerebbe.
+	if (!TestTrue(TEXT("premessa: i due archi hanno un numero di lati diverso"), ArcoA.Edges.Num() != ArcoB.Edges.Num()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 
 	const FLinearColor Rosso(ArcoA.Color);
-	const auto LineeRosse = [&]()
+	const auto ContaRosse = [&](const ULineBatchComponent* Batcher)
 	{
-		Mondo->Flush();
-		static_cast<AActor*>(HexMap)->Tick(0.f);
 		int32 N = 0;
-		for (const FBatchedLine& L : Mondo->BatchedLines)
+		for (const FBatchedLine& L : Batcher->BatchedLines)
 		{
 			N += L.Color.Equals(Rosso) ? 1 : 0;
 		}
 		return N;
 	};
+	// Le linee rosse di un fotogramma: quelle in primo piano, e in `NelMondo` quelle nel batcher del mondo, dove la
+	// geometria le coprirebbe.
+	int32 NelMondo = 0;
+	const auto LineeRosse = [&]()
+	{
+		Mondo->Flush();
+		PrimoPiano->Flush();
+		static_cast<AActor*>(HexMap)->Tick(0.f);
+		NelMondo = ContaRosse(Mondo);
+		return ContaRosse(PrimoPiano);
+	};
 
-	HexMap->SetEnemyArcFocus(/*bAll=*/ false, FRTCellId(), /*bHasHover=*/ false);
-	TestEqual(TEXT("senza mouse ne' tasto non si disegna nessun arco"), HexMap->GetShownEnemyArcs().Num(), 0);
+	HexMap->SetEnemyArcFocus(FRTCellId(), /*bHasHover=*/ false, FRTCellId(), /*bHasInspected=*/ false);
+	TestEqual(TEXT("senza mouse ne' ispezione non si disegna nessun arco"), HexMap->GetShownEnemyArcs().Num(), 0);
 	TestEqual(TEXT("e nessuna linea"), LineeRosse(), 0);
 
-	HexMap->SetEnemyArcFocus(false, A, true);
+	HexMap->SetEnemyArcFocus(A, true, FRTCellId(), false);
 	TestEqual(TEXT("col mouse sul nemico A, il suo arco"), HexMap->GetShownEnemyArcs().Num(), 1);
-	TestEqual(TEXT("e solo le sue linee"), LineeRosse(), ArcoA.Edges.Num());
+	TestEqual(TEXT("e solo le sue linee, in primo piano"), LineeRosse(), ArcoA.Edges.Num());
+	TestEqual(TEXT("e nessuna nel batcher del mondo"), NelMondo, 0);
 
-	HexMap->SetEnemyArcFocus(false, FRTCellId(0, 1, 0), true);
+	HexMap->SetEnemyArcFocus(Vuota, true, FRTCellId(), false);
 	TestEqual(TEXT("col mouse su una cella senza nemico, niente"), HexMap->GetShownEnemyArcs().Num(), 0);
 
-	HexMap->SetEnemyArcFocus(true, FRTCellId(), false);
-	TestEqual(TEXT("col tasto, tutti gli archi"), HexMap->GetShownEnemyArcs().Num(), 2);
-	TestEqual(TEXT("e tutte le loro linee"), LineeRosse(), ArcoA.Edges.Num() + ArcoB.Edges.Num());
+	HexMap->SetEnemyArcFocus(Vuota, true, B, true);
+	TestEqual(TEXT("col mouse su una cella vuota e B ispezionato, l'arco di B"), LineeRosse(), ArcoB.Edges.Num());
+
+	HexMap->SetEnemyArcFocus(FRTCellId(), false, B, true);
+	TestEqual(TEXT("senza mouse e B ispezionato, l'arco di B"), LineeRosse(), ArcoB.Edges.Num());
+
+	HexMap->SetEnemyArcFocus(A, true, B, true);
+	TestEqual(TEXT("col mouse su A e B ispezionato, un arco solo"), HexMap->GetShownEnemyArcs().Num(), 1);
+	TestEqual(TEXT("ed e' quello di A: il mouse vince"), LineeRosse(), ArcoA.Edges.Num());
+
+	HexMap->SetEnemyArcFocus(FRTCellId(), false, Vuota, true);
+	TestEqual(TEXT("un'unita' ispezionata senza arco non ne mostra"), HexMap->GetShownEnemyArcs().Num(), 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
-/** Il tasto e' `H`, scelto dall'autore fra i liberi, e nessun altro tasto apre gli archi (#3762). */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyArcKeyIsHTest,
-	"RefactorTactics.PlayerInput.EnemyArcsKeyIsH",
+/**
+ * Il controller passa alla mappa la cella del nemico ISPEZIONATO (#3762): senza mouse sulla mappa, l'arco che si vede
+ * e' il suo. Il click che ispeziona ha i suoi test nella matrice del puntatore; qui l'ispezione si imposta diretta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyArcFollowsTheInspectedEnemyTest,
+	"RefactorTactics.EnemyArc.ControllerShowsTheInspectedEnemyArc",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTEnemyArcKeyIsHTest::RunTest(const FString&)
+bool FRTEnemyArcFollowsTheInspectedEnemyTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTUnit* Nemico = World->SpawnActor<ARTUnit>();
+	if (!TestTrue(TEXT("premessa: mappa, controller e unita'"), HexMap && PC && Nemico))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+	Nemico->Cell = FRTCellId(2, 0, 0);
+
+	FRTEnemyArcView Arco;
+	Arco.Edges = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(HexMap->MapAsset, { Nemico->Cell });
+	Arco.Color = FColor(255, 51, 38);
+	TMap<FRTCellId, FRTEnemyArcView> Archi;
+	Archi.Add(Nemico->Cell, Arco);
+	HexMap->SetEnemyArcs(Archi);
+	HexMap->SetHoveredCell(FRTCellId(), false);
+
+	PC->UpdateEnemyArcFocusForTest(HexMap);
+	TestEqual(TEXT("senza mouse ne' ispezione, nessun arco"), HexMap->GetShownEnemyArcs().Num(), 0);
+
+	PC->SetInspectedUnitForTest(Nemico);
+	PC->UpdateEnemyArcFocusForTest(HexMap);
+	const TArray<FRTEnemyArcView> Mostrati = HexMap->GetShownEnemyArcs();
+	TestEqual(TEXT("col nemico ispezionato, un arco"), Mostrati.Num(), 1);
+	TestTrue(TEXT("ed e' il suo"), Mostrati.Num() == 1 && Mostrati[0].Edges == Arco.Edges);
+
+	PC->SetInspectedUnitForTest(nullptr);
+	PC->UpdateEnemyArcFocusForTest(HexMap);
+	TestEqual(TEXT("chiusa l'ispezione, l'arco sparisce"), HexMap->GetShownEnemyArcs().Num(), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Nessun tasto mostra gli archi di tutti i nemici in vista (#3762, seduta `U89`): l'autore ha chiesto che se ne veda
+ * uno solo, e il tasto `H` che li accendeva tutti e' stato tolto con la sua azione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyArcNoKeyShowsThemAllTest,
+	"RefactorTactics.PlayerInput.NoKeyShowsEveryEnemyArc",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEnemyArcNoKeyShowsThemAllTest::RunTest(const FString&)
 {
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
@@ -352,16 +431,17 @@ bool FRTEnemyArcKeyIsHTest::RunTest(const FString&)
 	const UInputMappingContext* Imc = PC ? PC->BuildAndGetMappingContextForTest() : nullptr;
 	if (TestNotNull(TEXT("mapping context costruito"), Imc))
 	{
-		TSet<FKey> Tasti;
+		// Senza mappature il conteggio qui sotto sarebbe zero per costruzione.
+		TestTrue(TEXT("premessa: il contesto ha delle mappature"), Imc->GetMappings().Num() > 0);
+		int32 Archi = 0;
+		int32 SuH = 0;
 		for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
 		{
-			if (M.Action && M.Action->GetName() == TEXT("IA_ShowEnemyArcs"))
-			{
-				Tasti.Add(M.Key);
-			}
+			Archi += (M.Action && M.Action->GetName() == TEXT("IA_ShowEnemyArcs")) ? 1 : 0;
+			SuH += (M.Key == EKeys::H) ? 1 : 0;
 		}
-		TestEqual(TEXT("gli archi hanno un tasto solo"), Tasti.Num(), 1);
-		TestTrue(TEXT("ed e' H"), Tasti.Contains(EKeys::H));
+		TestEqual(TEXT("nessuna azione mostra gli archi di tutti"), Archi, 0);
+		TestEqual(TEXT("e H non e' mappato"), SuH, 0);
 	}
 
 	GEngine->DestroyWorldContext(World);
