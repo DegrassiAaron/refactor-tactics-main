@@ -9,7 +9,9 @@
 | Dove | Che cosa |
 |---|---|
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-CONFINE` ✅, con il limite del contesto: nelle catture il ricordo era già la pianta; totali rimisurati |
-| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U89`, prima tornata; su questo ramo cita la sola voce di #3761 |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-519`: la linea davanti ai pannelli, con la domanda come l'autore l'ha vista |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: la riga «lungo un pannello» |
 | [`technical/evidence/u89/`](technical/evidence/u89/) | la tavola `V1` |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: `PIE-FOG-CONFINE` in `verification.pie`; `presentation` resta `partial` |
 
