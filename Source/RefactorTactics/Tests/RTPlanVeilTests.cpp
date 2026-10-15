@@ -414,6 +414,15 @@ bool FRTRememberedWallIsATranslucentPanelTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(TEXT("ricordato: semitrasparente (%.2f), ne' opaco ne' sparito"), T), T > 0.1f && T < 0.9f);
 	TestEqual(TEXT("ricordato: nessuna linea della pianta al suo posto"), LineeDellaPianta(), 0);
 
+	// 🔴 **E riapplicare la presentazione dei piani non lo rimette pieno.** La presentazione e il velo scrivono gli stessi
+	// canali, e `WriteVolumeAppearance` e' il loro scrittore comune: scritti dalla sola presentazione, coi valori del
+	// piano, i muri ricordati tornerebbero opachi al primo cambio di piano attivo (mutazione `M9` della verifica del
+	// 2026-10-15, sopravvissuta prima di questo controllo).
+	TestTrue(TEXT("premessa: la presentazione dei piani si riapplica"), HexMap->SyncActiveLayerPresentation(0));
+	TestTrue(TEXT("riapplicati i piani, il pannello ricordato ha ancora la tinta piena"),
+		FMath::IsNearlyEqual(CanalePianta(Pannelli, 0, Forza), 1.f));
+	TestTrue(TEXT("ed e' ancora semitrasparente"), CanalePianta(Pannelli, 0, Trasparenza) > 0.1f);
+
 	// Rivisto: il pannello torna pieno.
 	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Davanti, ConMuro }, { Davanti, ConMuro }));
 	static_cast<AActor*>(HexMap)->Tick(10.f);
