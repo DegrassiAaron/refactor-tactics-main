@@ -466,7 +466,7 @@ bool FRTReactionNoNestedBoundaryTest::RunTest(const FString&)
  *
  * ⚠️ **E copre il motivo per cui `OnTileEntered` non esiste**, che e' il nodo di #3031 CHECKPOINT D.
  * L'ingresso in cella NON e' un trigger di reazione: l'Overwatch vive nei micro-step del Move via
- * `ARTTurnManager::ArmedOverwatches` (CP 14.5), e chi lo sorveglia e' `Overwatch.TriggersPerMicroStep`
+ * `ARTTurnManager::ArmedOverwatches` (CP 14.5), e chi lo sorveglia e' `Overwatch.OneOpportunityPerEnemyPerTurn`
  * insieme a `Overwatch.TriggerReadsMicroStepFacing`. Aggiungere qui un `OnTileEntered` sposterebbe
  * l'osservabilita' dell'ingresso dal ciclo del movimento al giro delle reazioni — due autorita' per lo
  * stesso fatto. ⛔ Questo test non lo vieta: lo rende una DECISIONE invece di una deriva.
