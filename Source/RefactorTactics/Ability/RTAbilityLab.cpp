@@ -3,6 +3,11 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTHeroLab.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "UObject/Package.h"
 
@@ -10,6 +15,13 @@
 // generico in un namespace anonimo rompe la compilazione del prossimo file che ne dichiari uno uguale.
 namespace RTAbilityLabInternal
 {
+	/**
+	 * Il prefisso degli Id che il Lab scrive: `AbilityLab.<AbilityId>`. In un posto solo, perche' adesso lo
+	 * leggono in due — chi costruisce la scena e il passo del banco dentro il PIE (`#3774`) — e due copie della
+	 * stessa stringa divergono al primo rename.
+	 */
+	static const TCHAR* const LabScenarioPrefix = TEXT("AbilityLab.");
+
 	/**
 	 * L'azione canonica di `AbilityId`, cercata prima nei kit d'eroe e poi nel catalogo core.
 	 *
@@ -248,7 +260,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	}
 
 	FRTTestScenario Scenario;
-	Scenario.ScenarioId = FString::Printf(TEXT("AbilityLab.%s"), *AbilityId.ToString());
+	Scenario.ScenarioId = FString(RTAbilityLabInternal::LabScenarioPrefix) + AbilityId.ToString();
 	Scenario.Seed = Spec.Seed;
 	Scenario.MapRadius = Spec.MapRadius;
 	Scenario.Tags.Add(TEXT("ability-lab"));
@@ -342,4 +354,152 @@ TArray<FString> URTAbilityLabLibrary::DescribeRunTurnLog(const FRTTestResult& Re
 	}
 
 	return Lines;
+}
+
+namespace RTAbilityLabInternal
+{
+	/** L'azione di una scena del Lab. `false` per ogni altro Id, compreso un `AbilityLab.` senza niente dopo. */
+	static bool ParseLabScenarioId(const FString& ScenarioId, FName& OutAbilityId)
+	{
+		if (!ScenarioId.StartsWith(LabScenarioPrefix, ESearchCase::CaseSensitive))
+		{
+			return false;
+		}
+		const FString Resto = ScenarioId.RightChop(FCString::Strlen(LabScenarioPrefix));
+		if (Resto.IsEmpty())
+		{
+			return false;
+		}
+		OutAbilityId = FName(*Resto);
+		return true;
+	}
+
+	/**
+	 * L'elenco in cui il passo del banco si muove (`#3774`): il kit dell'eroe che possiede l'azione, come lo
+	 * mostra il pannello col filtro per eroe (`ListHeroKit`); per un'azione core, le core del catalogo. Restano
+	 * le sole voci che `BuildFixture` costruisce: un tasto che portasse su una voce rifiutata fermerebbe il
+	 * banco su un errore invece di passare oltre.
+	 *
+	 * Vuoto se `AbilityId` non e' canonica.
+	 */
+	static TArray<FName> StepCycleFor(const FName& AbilityId)
+	{
+		FRTAbilityLabEntry Voce;
+		if (!URTAbilityLabLibrary::FindAbility(AbilityId, Voce))
+		{
+			return {};
+		}
+
+		TArray<FRTAbilityLabEntry> Candidate;
+		if (!Voce.OwnerHeroId.IsNone())
+		{
+			Candidate = URTHeroLabLibrary::ListHeroKit(Voce.OwnerHeroId);
+		}
+		else
+		{
+			for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+			{
+				if (Entry.bIsCoreAction) { Candidate.Add(Entry); }
+			}
+		}
+
+		TArray<FName> Ciclo;
+		for (const FRTAbilityLabEntry& Entry : Candidate)
+		{
+			FRTTestScenario Scartata;
+			FString Errore;
+			if (URTAbilityLabLibrary::BuildFixture(Entry.AbilityId, FRTAbilityLabFixtureSpec(), Scartata, Errore))
+			{
+				Ciclo.Add(Entry.AbilityId);
+			}
+		}
+		return Ciclo;
+	}
+}
+
+bool URTAbilityLabLibrary::PlanLabStep(const FString& CurrentScenarioId, int32 Step, FName& OutAbilityId,
+	int32& OutPosition, int32& OutCount)
+{
+	FName Corrente;
+	if (!RTAbilityLabInternal::ParseLabScenarioId(CurrentScenarioId, Corrente))
+	{
+		return false;
+	}
+	const TArray<FName> Ciclo = RTAbilityLabInternal::StepCycleFor(Corrente);
+	const int32 Qui = Ciclo.IndexOfByKey(Corrente);
+	if (Qui == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// Il giro agli estremi in entrambi i versi: `%` in C++ conserva il segno del dividendo, e un passo indietro
+	// dalla prima voce darebbe -1 senza il secondo `+ N`.
+	const int32 N = Ciclo.Num();
+	const int32 Li = ((Qui + Step) % N + N) % N;
+	OutAbilityId = Ciclo[Li];
+	OutPosition = Li + 1;
+	OutCount = N;
+	return true;
+}
+
+FString URTAbilityLabLibrary::DescribeLabStep(const FString& ScenarioId)
+{
+	FName Corrente;
+	if (!RTAbilityLabInternal::ParseLabScenarioId(ScenarioId, Corrente))
+	{
+		return FString();
+	}
+	const TArray<FName> Ciclo = RTAbilityLabInternal::StepCycleFor(Corrente);
+	const int32 Qui = Ciclo.IndexOfByKey(Corrente);
+	if (Qui == INDEX_NONE)
+	{
+		return FString();
+	}
+	// I tasti fra virgolette basse: una virgola e un punto nudi in mezzo a una frase non si leggono come tasti.
+	return FString::Printf(TEXT("BANCO %d/%d  ·  «,» precedente  ·  «.» successiva"), Qui + 1, Ciclo.Num());
+}
+
+bool URTAbilityLabLibrary::WriteLabScenario(const FRTTestScenario& Scenario, FString& OutError)
+{
+	OutError.Reset();
+
+	// 🔴 Radice vuota = sotto automation, senza override: non esiste e non si crea. Scrivere comunque
+	// `MakeDirectory("")` + un percorso relativo sporcherebbe la cartella corrente.
+	const FString Root = URTScenarioLoader::LabScenariosRoot();
+	if (Root.IsEmpty())
+	{
+		OutError = TEXT("la radice del Lab non e' disponibile sotto automation senza override: niente da scrivere");
+		return false;
+	}
+	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
+	const FString Percorso = FPaths::ConvertRelativePathToFull(
+		FPaths::Combine(Root, Scenario.ScenarioId + TEXT(".json")));
+
+	// `SaveToFile` valida prima di toccare il disco: una fixture invalida non lascia un file a meta'.
+	if (!URTScenarioLoader::SaveToFile(Scenario, Percorso, OutError))
+	{
+		return false;
+	}
+
+	// 🔑 Lanciabile = l'indice risolve l'Id a QUESTO file. Un doppione altrove rende l'Id ambiguo, e il
+	// GameMode lo rifiuterebbe a schermo senza che chi scrive potesse dirlo prima.
+	FString ErroreIndice;
+	const FString Risolto = URTScenarioIndex::ResolvePath(Scenario.ScenarioId, ErroreIndice);
+	if (Risolto.IsEmpty())
+	{
+		// Un file che rende ambiguo un Id avvelenerebbe la console e il GameMode a ogni clic: si toglie.
+		IFileManager::Get().Delete(*Percorso);
+		OutError = FString::Printf(TEXT("fixture scritta in '%s' ma non lanciabile: %s; il file appena scritto e' stato rimosso"),
+			*Percorso, *ErroreIndice);
+		return false;
+	}
+	if (!FPaths::IsSamePath(Risolto, Percorso))
+	{
+		// Stessa ragione del ramo sopra: un file che non e' quello a cui l'Id risolve non deve restare.
+		IFileManager::Get().Delete(*Percorso);
+		OutError = FString::Printf(TEXT("'%s' risolve a '%s', non al file appena scritto '%s'; il file appena scritto e' stato rimosso"),
+			*Scenario.ScenarioId, *Risolto, *Percorso);
+		return false;
+	}
+	return true;
 }

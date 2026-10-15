@@ -6027,6 +6027,26 @@ sessions:
       Nella stessa seduta si guarda `Visual.Map.TwoLayersSameColumn`, che da #3741 mette nella colonna due
       alleate: è la scelta dell'autore perché la scena resti una prova di leggibilità.
 
+  - id: U90
+    title: Il passo del banco dentro il PIE — «,» e «.» cambiano azione, e gli scatti del banco partono
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-LAB-PASSO`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U67]
+    verifies: [PIE-LAB-PASSO]
+    issues: [3773, 3774]
+    done_when: >-
+      la voce `PIE-LAB-PASSO` ha un verdetto nel registro, dato a schermo dall'autore
+    notes: |
+      Scritta il 2026-10-15 da `/issue-run 3773 3774`. L'esito atteso vive in `test-manuali-pie.md`; qui solo
+      l'allestimento: Editor del clone principale ricompilato da un commit che porta le due issue, pannello
+      «Ability / Hero Lab», campo Eroe `Hero.Ivrin`, voce `Hero.Ivrin.PassingBlade`, «Esegui in PIE».
+      ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
