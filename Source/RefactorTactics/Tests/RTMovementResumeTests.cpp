@@ -1437,6 +1437,14 @@ bool FRTMicroStepBudgetSurvivesSuspensionTest::RunTest(const FString&)
 	}
 	Mover->PlannedCell = FRTCellId(2, 0);
 
+	// [D-411] La seconda finestra la apre un SECONDO nemico, nella linea di `WatcherB` al secondo passo. Fino al
+	// 2026-10-15 la apriva lo stesso mover al suo secondo passo nella linea di `WatcherA`; da D-411 un nemico gia'
+	// chiesto non torna. La seconda si apre comunque DENTRO il pump di ripresa, che e' cio' che il test misura.
+	ARTUnit* Secondo = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, -2));
+	if (!TestNotNull(TEXT("il secondo nemico"), Secondo)) { DestroyResumeWorld(World); return false; }
+	Secondo->PlannedPath = { FRTCellId(0, -2), FRTCellId(1, -2), FRTCellId(1, -1) };
+	Secondo->PlannedCell = FRTCellId(1, -1);
+
 	// 🔑 **Il campione si prende MENTRE la risoluzione e' viva.** Alla fine il contesto e' rilasciato e il
 	// contatore con lui: leggerlo dopo darebbe `INDEX_NONE` e non proverebbe niente. Il delegate scatta dentro
 	// il pump, che e' l'unico istante in cui il numero e' osservabile.
