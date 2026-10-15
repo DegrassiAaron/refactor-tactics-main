@@ -185,4 +185,34 @@ public:
 	// otto secondi — *«Unable to find 'class', 'delegate', 'enum', or 'struct' with name
 	// 'FRTTestResult'»* — e ha ragione: il risultato di una run e' un oggetto di dominio, non un DTO.
 	static TArray<FString> DescribeRunTurnLog(const FRTTestResult& Result);
+
+	/**
+	 * Il PASSO del banco dentro il PIE (`#3774`): da una scena del Lab, l'azione a `Step` posizioni dalla sua.
+	 *
+	 * L'elenco e' il kit dell'eroe che la possiede — lo stesso, nello stesso ordine, che il pannello mostra col
+	 * filtro per eroe (`URTHeroLabLibrary::ListHeroKit`) — o le core, per un'azione core; ne restano le voci
+	 * che `BuildFixture` costruisce. Il giro agli estremi vale nei due versi.
+	 *
+	 * `OutPosition` e' la posizione, da 1, dell'azione PROPOSTA; `OutCount` quante sono.
+	 *
+	 * `false`, senza toccare le uscite, per un Id che non e' una scena del Lab o la cui azione non e' nel ciclo:
+	 * e' cio' che tiene inerti i due tasti fuori dal banco.
+	 */
+	static bool PlanLabStep(const FString& CurrentScenarioId, int32 Step, FName& OutAbilityId,
+		int32& OutPosition, int32& OutCount);
+
+	/**
+	 * La riga della banda che, in una scena del Lab, dice dove si e' nell'elenco e quali tasti premere
+	 * (`#3774`). Vuota per ogni altro Id.
+	 */
+	static FString DescribeLabStep(const FString& ScenarioId);
+
+	/**
+	 * Scrive `Scenario` nella radice del Lab (`URTScenarioLoader::LabScenariosRoot`) e verifica che il suo Id
+	 * risolva a quel file. Fail closed: un file scritto ma non lanciabile si toglie, e `OutError` dice perche'.
+	 *
+	 * Vive qui e non nel pannello (`#3774`): la usano il pannello dell'Editor e il passo del banco dentro il
+	 * PIE, e una seconda copia della scrittura sarebbe il secondo costruttore di scene che il Lab non deve avere.
+	 */
+	static bool WriteLabScenario(const FRTTestScenario& Scenario, FString& OutError);
 };

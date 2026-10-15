@@ -22,6 +22,7 @@
 #include "PieSession/RTPieSessionSubsystem.h"
 #include "PieSession/RTPieVerdictOverlay.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
+#include "Ability/RTAbilityLab.h" // #3774: il passo del banco dentro il PIE
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -1750,6 +1751,57 @@ FString ARTGameMode::GetScenarioBannerText() const
 
 	return FString::Printf(TEXT("SCENARIO %s [%s]  -  %s  -  la partita normale NON e' allestita"),
 		*ScenarioId, Source, *Esito);
+}
+
+FString ARTGameMode::GetLabStepText() const
+{
+	// Stessa sorgente della banda qui sopra, per la stessa ragione: la riga descrive la sessione che si sta
+	// giocando, e una scena del banco si riconosce dal suo Id.
+	return URTAbilityLabLibrary::DescribeLabStep(ResolveScenarioToRun());
+}
+
+bool ARTGameMode::StepLabScenario(int32 Step, FString& OutError)
+{
+	OutError.Reset();
+
+	FName Prossima;
+	int32 Posizione = 0;
+	int32 Totale = 0;
+	if (!URTAbilityLabLibrary::PlanLabStep(ResolveScenarioToRun(), Step, Prossima, Posizione, Totale))
+	{
+		// Fuori dal banco i due tasti non fanno niente, e non e' un errore: `OutError` resta vuoto.
+		return false;
+	}
+
+	// La scena la costruisce e la scrive il Lab, come quando la sceglie il pannello: nessun secondo costruttore.
+	FRTTestScenario Scenario;
+	if (!URTAbilityLabLibrary::BuildFixture(Prossima, FRTAbilityLabFixtureSpec(), Scenario, OutError)
+		|| !URTAbilityLabLibrary::WriteLabScenario(Scenario, OutError))
+	{
+		return false;
+	}
+
+	// 🔑 **Alla priorita' corrente, mai sotto `Code`** — la stessa regola del lanciatore (`FRTLabCVarSnapshot`,
+	// #3541). Il lanciatore l'ha scritta a `max(SetByPrima, Code)` e a fine PIE la ripristina alla stessa: una
+	// scrittura piu' bassa sarebbe ignorata, una piu' alta impedirebbe il ripristino. E si rilegge: se non ha
+	// preso, il livello NON si ricarica, o ripartirebbe la scena di prima facendo credere che il tasto non funzioni.
+	IConsoleVariable* Var = CVarRTTestScenario.AsVariable();
+	const uint32 Priorita = FMath::Max(static_cast<uint32>(Var->GetFlags() & ECVF_SetByMask),
+		static_cast<uint32>(ECVF_SetByCode));
+	Var->Set(*Scenario.ScenarioId, static_cast<EConsoleVariableFlags>(Priorita));
+	if (Var->GetString() != Scenario.ScenarioId)
+	{
+		OutError = FString::Printf(TEXT("rt.Test.Scenario non ha preso '%s' (vale '%s')"),
+			*Scenario.ScenarioId, *Var->GetString());
+		return false;
+	}
+
+	UE_LOG(LogRT, Display, TEXT("[RT-Test] banco: passo a %s (%d/%d), la scena riparte"),
+		*Prossima.ToString(), Posizione, Totale);
+	// Lo stesso ricaricamento del riavvio a partita conclusa (`OnRestart`): il livello riparte e `BeginPlay`
+	// rilegge `rt.Test.Scenario`.
+	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString=*/ true)));
+	return true;
 }
 
 void ARTGameMode::ListenForLevelRequests(URTFrontendNavigator* Navigator)

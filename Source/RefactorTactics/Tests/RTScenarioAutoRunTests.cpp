@@ -13,6 +13,7 @@
 #include "HAL/IConsoleManager.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "RTConsoleVariableGuardForTest.h"
+#include "Ability/RTAbilityLab.h" // #3774: la banda di una scena del banco porta il passo
 #include "Misc/CommandLine.h"  // la terza fonte della banda e' un flag di riga di comando (`#2182`)
 #include "Misc/ScopeExit.h"    // ON_SCOPE_EXIT: la riga di comando e' stato globale e va ripristinata
 
@@ -376,6 +377,46 @@ bool FRTAutoRunBannerTest::RunTest(const FString&)
 
 	// Nessuna sessione avviata: lo stato e' «in corso», non un esito inventato.
 	TestTrue(TEXT("senza sessione la banda non dichiara un esito"), FromCVar.Contains(TEXT("in corso")));
+
+	DestroyAutoRunWorld(World);
+	return true;
+}
+
+/**
+ * In una scena del banco la banda aggiunge dove si e' nel kit e i due tasti per cambiare azione — `#3774`.
+ *
+ * Il testo del passo lo compone `URTAbilityLabLibrary::DescribeLabStep`, e qui si verifica solo il CABLAGGIO: che
+ * la seconda riga della banda (`GetLabStepText`) lo porti quando la scena e' del banco, e che sia vuota quando non
+ * lo e'. Un tasto che nessuno sa di poter premere non serve a niente. Che l'HUD la disegni si vede in PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutoRunBannerShowsTheLabStepTest,
+	"RefactorTactics.Scenario.AutoRunBannerShowsTheLabStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutoRunBannerShowsTheLabStepTest::RunTest(const FString&)
+{
+	FName Prima;
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		if (!Entry.bIsCoreAction) { Prima = Entry.AbilityId; break; }
+	}
+	if (!TestFalse(TEXT("premessa: il catalogo ha una voce di kit"), Prima.IsNone())) { return false; }
+	const FString LabId = FString::Printf(TEXT("AbilityLab.%s"), *Prima.ToString());
+	const FString Passo = URTAbilityLabLibrary::DescribeLabStep(LabId);
+	if (!TestFalse(TEXT("premessa: il banco ha un passo da dire"), Passo.IsEmpty())) { return false; }
+
+	FScopedScenarioCVar Guard;
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+	GameMode->ScenarioToRun.Reset();
+
+	Guard.Set(*LabId);
+	TestTrue(TEXT("la banda nomina la scena del banco"), GameMode->GetScenarioBannerText().Contains(LabId));
+	TestEqual(TEXT("la seconda riga e' il passo del banco"), GameMode->GetLabStepText(), Passo);
+
+	Guard.Set(TEXT("Movement.Basic"));
+	TestTrue(TEXT("uno scenario che non e' del banco non ha la seconda riga"), GameMode->GetLabStepText().IsEmpty());
 
 	DestroyAutoRunWorld(World);
 	return true;

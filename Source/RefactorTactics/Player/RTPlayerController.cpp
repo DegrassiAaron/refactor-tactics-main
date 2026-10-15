@@ -667,6 +667,13 @@ void ARTPlayerController::BuildInputMappings()
 	PlaybackStepAction = NewObject<UInputAction>(this, TEXT("IA_StepPlaybackMicroStep"));
 	PlaybackStepAction->ValueType = EInputActionValueType::Boolean;
 
+	// `#3774`: il passo del banco Ability Lab. Nascono sempre, come `K` e `L`; fuori dal banco sono inerti
+	// per decisione del GameMode, che e' l'unico a sapere quale scena gira.
+	LabStepPreviousAction = NewObject<UInputAction>(this, TEXT("IA_LabStepPrevious"));
+	LabStepPreviousAction->ValueType = EInputActionValueType::Boolean;
+	LabStepNextAction = NewObject<UInputAction>(this, TEXT("IA_LabStepNext"));
+	LabStepNextAction->ValueType = EInputActionValueType::Boolean;
+
 	// CP 46.6 (#941): il menu di pausa.
 	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
 	PauseAction->ValueType = EInputActionValueType::Boolean;
@@ -807,6 +814,12 @@ void ARTPlayerController::BuildInputMappings()
 	// scritta a mano, quindi queste due righe non vanno ricordate altrove.
 	MappingContext->MapKey(PlaybackPauseAction, EKeys::K);
 	MappingContext->MapKey(PlaybackStepAction, EKeys::L);
+
+	// `#3774` — `,` e `.`: l'azione precedente e successiva nelle scene del banco. Sulla tastiera italiana sono
+	// due tasti diretti, accanto, nell'ordine di «indietro» e «avanti». Liberi: lo verifica
+	// `PlayerInput.HotkeysDoNotCollide` sull'intero mapping context.
+	MappingContext->MapKey(LabStepPreviousAction, EKeys::Comma);
+	MappingContext->MapKey(LabStepNextAction, EKeys::Period);
 
 	// `ESC`: la pausa (CP 46.6).
 	//
@@ -970,6 +983,8 @@ void ARTPlayerController::SetupInputComponent()
 		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
 		EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
+		EIC->BindAction(LabStepPreviousAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepPrevious);
+		EIC->BindAction(LabStepNextAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepNext);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 	}
@@ -4022,6 +4037,37 @@ void ARTPlayerController::OnTogglePrepWindowPauseForTest()
 void ARTPlayerController::OnUndoWaypointForTest()
 {
 	OnUndoWaypoint(FInputActionValue());
+}
+
+void ARTPlayerController::OnLabStepPrevious(const FInputActionValue& Value)
+{
+	StepLab(-1);
+}
+
+void ARTPlayerController::OnLabStepNext(const FInputActionValue& Value)
+{
+	StepLab(+1);
+}
+
+void ARTPlayerController::StepLab(int32 Step)
+{
+	// Stessa unica guardia dei comandi dello spettatore: una schermata bloccante copre la partita.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+	// `GetActorOfClass`, come `IsPlanningInputInert`: e' il GameMode che sa quale scena gira, e decide lui se
+	// il passo c'e'. Fuori dal banco risponde `false` con un errore vuoto, e qui non si dice niente.
+	ARTGameMode* GameMode = Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+	if (!GameMode)
+	{
+		return;
+	}
+	FString Errore;
+	if (!GameMode->StepLabScenario(Step, Errore) && !Errore.IsEmpty())
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] banco: il passo non riesce: %s"), *Errore);
+	}
 }
 
 void ARTPlayerController::OnTogglePlaybackPauseForTest()
