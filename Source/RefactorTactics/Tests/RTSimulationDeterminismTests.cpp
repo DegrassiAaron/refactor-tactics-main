@@ -834,6 +834,90 @@ bool FRTReplayVerifierDownedTargetCollapseTest::RunTest(const FString&)
 
 
 /**
+ * [D-522] (`#3771`) — **la finestra che la condizione apre dopo il primo colpo si ri-simula identica, e una traccia
+ * registrata prima della regola non la copre.**
+ *
+ * Lo scenario e' quello di `Overwatch.ConditionIsReadWhenTheSecondWatcherIsAsked`: W2 spara, Aevik scende sotto la
+ * soglia di W1, e la finestra di W1 si apre.
+ *
+ *     (a) traccia ORIGINALE   -> stesso stato, nessuna divergenza: la ricostruzione dei `FIRE` e' una funzione dello
+ *                                stato, e la ri-simulazione la rifa' uguale
+ *     (b) traccia PERTURBATA  -> la decisione di W1 diventa il collasso per condizione: e' la forma che una traccia
+ *                                registrata PRIMA di [D-522] porta. I collassi non entrano nella mappa delle risposte,
+ *                                quindi la finestra di W1 si apre senza una risposta registrata: si applica `HOLD`, e
+ *                                il disaccordo e' segnalato. E' la conseguenza che [D-522] dichiara
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierConditionAfterFirstShotTest,
+	"RefactorTactics.Replay.Verifier.ConditionReadWhenAskedResimulates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierConditionAfterFirstShotTest::RunTest(const FString&)
+{
+	const FRTTestScenario Scenario = RTOverwatchScenarioFixtures::MakeConditionMetAfterFirstShotScenario();
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(A);
+	if (!TestEqual(TEXT("la traccia porta i due FIRE, o il test non verifica niente"), CountFireResponses(Traccia), 2))
+	{
+		return false;
+	}
+
+	// (a) La traccia originale, senza le decisioni dello scenario: risponde solo la traccia.
+	const FRTTestScenario Muto = WithoutScriptedDecisions(Scenario);
+	const FRTTestResult B = RunAsVerifier(Muto, Traccia, nullptr, Divergenze);
+	TestEqual(FString::Printf(TEXT("la ri-simulazione da' lo stesso stato (%08x vs %08x)"), B.StateHash, A.StateHash),
+		B.StateHash, A.StateHash);
+	TestEqual(TEXT("e gli stessi FIRE"), CountFireResponses(AllEntries(B)), 2);
+	TestEqual(TEXT("nessuna divergenza"), Divergenze.Num(), 0);
+	if (Divergenze.Num() > 0)
+	{
+		AddError(FString::Printf(TEXT("primo disaccordo: %s"), *Divergenze[0]));
+	}
+
+	// (b) La decisione di W1 — l'ultimo FIRE della traccia: W1 e' chiesto per secondo — diventa il collasso per
+	// condizione, com'era prima di [D-522].
+	TArray<FRTTurnLogEntry> Vecchia = Traccia;
+	FString ChiaveW1;
+	for (int32 i = Vecchia.Num() - 1; i >= 0; --i)
+	{
+		FRTTurnLogEntry& E = Vecchia[i];
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE)
+		{
+			ChiaveW1 = E.OpportunityId;
+			E.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::CollapsedByCondition);
+			E.ReactionResponse = URTReactionOpportunityLibrary::HoldResponse();
+			E.SelectedTargetUnitId = INDEX_NONE;
+			E.Amount = 0;
+			break;
+		}
+	}
+	if (!TestFalse(TEXT("c'era un FIRE da riscrivere"), ChiaveW1.IsEmpty()))
+	{
+		return false;
+	}
+
+	const FRTTestResult C = RunAsVerifier(Muto, Vecchia, nullptr, Divergenze);
+	TestEqual(TEXT("la finestra di W1 si apre lo stesso, ma senza risposta registrata non spara: un FIRE solo"),
+		CountFireResponses(AllEntries(C)), 1);
+
+	bool bNonCoperta = false;
+	for (const FString& D : Divergenze)
+	{
+		if (D.Contains(TEXT("non coperta")) && D.Contains(ChiaveW1)) { bNonCoperta = true; }
+	}
+	TestTrue(TEXT("e la finestra che la vecchia traccia non copre e' segnalata"), bNonCoperta);
+	return true;
+}
+
+
+/**
  * L'ORDINE dell'input non cambia l'esito.
  *
  * E' la stessa scenario con gli intent e le unita' elencati al contrario. L'invariante #3 dice che l'ordine

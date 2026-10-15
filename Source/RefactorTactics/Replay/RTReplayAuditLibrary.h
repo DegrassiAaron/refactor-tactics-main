@@ -38,8 +38,16 @@ enum class ERTAuditFormatVersion : uint16
 	 */
 	WithEdgeVerdicts = 3,
 
+	/**
+	 * Piu' la REGOLA di un verdetto di piano — [D-349]: la voce di un Overwatch armato che non ha sparato, letta dalla
+	 * sola squadra del soggetto o da nessuna. Alzata per la stessa ragione delle precedenti: un artefatto
+	 * `WithEdgeVerdicts` non porta la regola, e ricalcolerebbe quel verdetto dalla conoscenza di chi osserva il
+	 * watcher, accusando il gioco di un difetto che non ha.
+	 */
+	WithPlanVerdicts = 4,
+
 	/** Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia il valore sopra. */
-	Current = WithEdgeVerdicts
+	Current = WithPlanVerdicts
 };
 
 /**
@@ -84,6 +92,9 @@ struct FRTAuditVerdictRecord
 	UPROPERTY() FRTCellId EdgeCell;
 	UPROPERTY() FRTCellId EdgeToward;
 	UPROPERTY() TArray<int32> AuthorTeamIds;
+
+	/** [D-349] La regola di un verdetto di piano: si ricalcola con `FreezePlanVerdict` e `SubjectTeamId`. */
+	UPROPERTY() ERTPlanVerdict PlanVerdict = ERTPlanVerdict::None;
 };
 
 /**
@@ -223,6 +234,15 @@ public:
 	 * ricalcolato, e le due derive si coprirebbero a vicenda.
 	 */
 	static FRTKnowledgeVerdict RecomputeVerdict(const FRTTurnAudit& Audit, const FRTAuditVerdictRecord& Record);
+
+	/**
+	 * Il record d'audit di una voce: la fase, il soggetto contro cui il verdetto e' stato congelato, e il verdetto.
+	 *
+	 * 🔑 **Una funzione sola, perche' ogni campo nuovo del soggetto deve arrivare all'audit** — `bEdge` con `#3681`,
+	 * `PlanVerdict` con [D-349]. Copiato a mano dentro `RecordTurnToReplay`, un campo dimenticato non farebbe
+	 * diventare rosso niente: l'audit ricalcolerebbe con la regola sbagliata, e i test non passano da li'.
+	 */
+	static FRTAuditVerdictRecord MakeVerdictRecord(const FRTTurnLogEntry& Entry);
 
 	/**
 	 * I verdetti **registrati** che non coincidono con quelli **ricalcolati**: e' l'anti-vacuita' di

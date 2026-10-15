@@ -4090,18 +4090,8 @@ void ARTTurnManager::RecordTurnToReplay()
 	Audit.Verdicts.Reserve(TurnLog.Num());
 	for (const FRTTurnLogEntry& Entry : TurnLog)
 	{
-		FRTAuditVerdictRecord Record;
-		Record.Phase = Entry.Phase;
-		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
-		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
-		Record.SubjectCell = Entry.VerdictSubject.Cell;
-		// `#3681`: il verdetto di un bordo si ricalcola dal bordo e dagli autori, non dall'unita'.
-		Record.bEdge = Entry.VerdictSubject.bEdge;
-		Record.EdgeCell = Entry.VerdictSubject.EdgeCell;
-		Record.EdgeToward = Entry.VerdictSubject.EdgeToward;
-		Record.AuthorTeamIds = Entry.VerdictSubject.AuthorTeamIds;
-		Record.Verdict = Entry.Verdict;
-		Audit.Verdicts.Add(Record);
+		// Il record lo costruisce `MakeVerdictRecord`, la stessa funzione che i test leggono ([D-349]).
+		Audit.Verdicts.Add(URTReplayAuditLibrary::MakeVerdictRecord(Entry));
 	}
 
 	if (!ReplayRecording.RecordAudit(Radice, Audit))
@@ -7778,8 +7768,10 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 		//
 		// Un'opportunity dell'Overwatch nasce **solo** dove qualcuno e' entrato nella zona, e
 		// `BuildOverwatchTriggers` le da' un `FireResponse` per ogni bersaglio che SODDISFA la condizione, piu'
-		// `HOLD` sempre. Quindi una finestra dell'Overwatch rimasta col solo `HOLD` significa una cosa sola:
-		// c'erano bersagli e la condizione dichiarata li ha esclusi tutti.
+		// `HOLD` sempre. Il pompaggio la rifa' sullo stato del momento in cui chiede ([D-522], `#3771`), e il caso
+		// in cui nessun bersaglio e' piu' in piedi lo chiude da se' con `CollapsedTargetDown` ([D-518]). Quindi una
+		// finestra dell'Overwatch che arriva qui col solo `HOLD` significa una cosa sola: c'erano bersagli in
+		// piedi, e la condizione dichiarata li ha esclusi tutti.
 		//
 		// ⚠️ **Si deduce da `AllowedResponses`, non dai bersagli**: `FRTReactionOpportunity` porta la chiave e
 		// le risposte, mentre `TargetUnitIds` vive sul trigger, che qui non arriva. Ed e' meglio cosi' — la
