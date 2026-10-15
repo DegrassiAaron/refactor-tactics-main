@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-15 — L'Overwatch chiede una volta per nemico e per turno
+
+**Origine**: [#3132](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3132). È l'attuazione di `D-411`, decisa il 2026-09-13.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-411`: attuazione, regole dell'attuazione, test, e il prezzo da rendere esplicito nella UI che resta un seguito |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione di D-411; la tabella di verifica coi test nuovi |
+| [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) | la riga D-169/D-411: attuata; e il movimento forzato, che da D-366 disarma |
+| [`roadmap/v0.1-issue-plan.md`](roadmap/v0.1-issue-plan.md) | il nome del test riscritto |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK`: il banco della ripresa è cambiato, nota in coda |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3132 fra le chiuse, i test nuovi |
+
+---
+
 ## 2026-10-15 — Uno spostamento forzato disarma l'Overwatch, e il TurnLog lo dice
 
 **Origine**: [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367). È l'attuazione di `D-366`, decisa il 2026-09-10 e confermata dall'autore il 2026-10-15 con davanti il costo misurato su #2367: un watcher spinto che un compagno copriva sparava ancora, e ora no.
