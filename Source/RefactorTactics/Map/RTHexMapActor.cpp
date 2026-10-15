@@ -2425,6 +2425,12 @@ void ARTHexMapActor::ApplyLayerPresentation()
 		&& CellBorders->GetInstanceCount() == BorderCells.Num())
 	{
 		const bool bVelata = LastBorderVeilState.Num() == BorderCells.Num();
+		// #3760: con la pianta il fattore e' quanto la cella e' osservata, e il ricordo e' il colore della pianta, come in
+		// `VeilInstances` e `AdvanceVeilFamily`. Con la regola dell'attenuazione un anello ricordato veniva riscritto nero a
+		// ogni cambio di piano attivo (review della PR).
+		const ERTVeilMemory RicordoAnelli = MemoryFor(CellBorders);
+		const bool bPiantaAnelli = RicordoAnelli == ERTVeilMemory::Plan || RicordoAnelli == ERTVeilMemory::PlanFloor
+			|| RicordoAnelli == ERTVeilMemory::PlanFade || RicordoAnelli == ERTVeilMemory::PlanVolume;
 		for (int32 I = 0; I < BorderCells.Num(); ++I)
 		{
 			float Fattore = 1.f; // board mai velata: editor, prove senza percezione
@@ -2437,11 +2443,17 @@ void ARTHexMapActor::ApplyLayerPresentation()
 				}
 				if (Stato == RTVeilLit || Stato == RTVeilRemembered)
 				{
-					const float Target = (Stato == RTVeilLit) ? 1.f : RTVeilExploredFactor;
+					const float Target = (Stato == RTVeilLit) ? 1.f : (bPiantaAnelli ? 0.f : RTVeilExploredFactor);
 					Fattore = (BorderDisplayFactor.IsValidIndex(I) && BorderDisplayFactor[I] >= 0.f) ? BorderDisplayFactor[I] : Target;
 				}
 			}
-			const FLinearColor Colore = BorderBaseColorFor(BorderCells[I]) * Fattore;
+			const FLinearColor Base = BorderBaseColorFor(BorderCells[I]);
+			FLinearColor Colore = Base * Fattore;
+			FLinearColor Ricordato;
+			if (bVelata && bPiantaAnelli && RememberedColorFor(RicordoAnelli, Ricordato))
+			{
+				Colore = FMath::Lerp(Ricordato, Base, Fattore);
+			}
 			CellBorders->SetCustomDataValue(I, 0, Colore.R, /*bMarkRenderStateDirty=*/ false);
 			CellBorders->SetCustomDataValue(I, 1, Colore.G, /*bMarkRenderStateDirty=*/ false);
 			CellBorders->SetCustomDataValue(I, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
@@ -3768,11 +3780,6 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		LastState[I] = State;
 		++Toccate;
 
-		if (!bDrawn)
-		{
-			continue; // niente colore da scrivere su cio' che non si disegna
-		}
-
 		// 🔑 **Per la pianta il fattore e' QUANTO la cella e' osservata**: 1 vista, 0 ricordata, e il colore disegnato e'
 		// l'interpolazione fra il colore della pianta e quello vero. E' cio' che riporta la dissolvenza di `#2875` fra
 		// osservato e ricordato, che la prima stesura della pianta aveva tolto: nella seduta `U89` l'autore ha scelto «Il
@@ -3780,6 +3787,17 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		const bool bPianta = Ricordo == ERTVeilMemory::Plan || Ricordo == ERTVeilMemory::PlanFloor
 			|| Ricordo == ERTVeilMemory::PlanFade || Ricordo == ERTVeilMemory::PlanVolume;
 		const float Target = bVisible ? 1.f : (bPianta ? 0.f : RTVeilExploredFactor);
+
+		if (!bDrawn)
+		{
+			// Il fattore segue lo stato anche senza disegno: un glifo arrivato al ricordo senza sfumare teneva il `-1` di
+			// nascita, e tornando in vista la dissolvenza partiva da li', con un colore fuori dalla pianta (review della PR).
+			if (DisplayFactor)
+			{
+				(*DisplayFactor)[I] = Target;
+			}
+			continue; // niente colore da scrivere su cio' che non si disegna
+		}
 
 		float Fattore = Target;
 		if (DisplayFactor)

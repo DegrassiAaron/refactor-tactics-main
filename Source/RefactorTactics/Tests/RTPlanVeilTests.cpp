@@ -519,6 +519,119 @@ bool FRTSmokeVolumeIsLightTest::RunTest(const FString&)
 }
 
 /**
+ * L'anello ricordato resta pianta quando la presentazione dei piani si riapplica (#3760, review della PR). Il cambio di
+ * piano attivo riscrive gli anelli col fattore del velo: con la regola dell'attenuazione il fattore della pianta, `0`,
+ * li faceva neri.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRememberedRingSurvivesTheLayerTest,
+	"RefactorTactics.Veil.RememberedRingStaysAPlanWhenTheLayerChanges",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRememberedRingSurvivesTheLayerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ARTHexMapActor* HexMap = MakePiantaBoard(World, URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2));
+	const UInstancedStaticMeshComponent* Anelli = HexMap ? IsmPianta(HexMap, TEXT("CellBorders")) : nullptr;
+	const FRTCellId Vista(0, 0, 0);
+	const FRTCellId Ricordata(1, 0, 0);
+	const int32 IR = HexMap ? IstanzaPianta(HexMap, Ricordata) : INDEX_NONE;
+	const int32 IV = HexMap ? IstanzaPianta(HexMap, Vista) : INDEX_NONE;
+	if (!TestTrue(TEXT("premessa: gli anelli e le due celle"), Anelli && IR != INDEX_NONE && IV != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Vista }, { Vista, Ricordata }));
+	const FLinearColor Pianta = ARTHexMapActor::PlanColor();
+	const FLinearColor Osservato = ColorePianta(Anelli, IV);
+	TestTrue(TEXT("premessa: l'anello ricordato e' della pianta"), ColorePianta(Anelli, IR).Equals(Pianta, 1e-3f));
+
+	TestTrue(TEXT("premessa: la presentazione dei piani si riapplica"), HexMap->SyncActiveLayerPresentation(0));
+	TestTrue(*FString::Printf(TEXT("dopo, l'anello ricordato e' ancora della pianta (%s)"), *ColorePianta(Anelli, IR).ToString()),
+		ColorePianta(Anelli, IR).Equals(Pianta, 1e-3f));
+	TestTrue(TEXT("e quello osservato non e' cambiato"), ColorePianta(Anelli, IV).Equals(Osservato, 1e-3f));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Un glifo arrivato al ricordo senza sfumare, quando la cella torna in vista, sfuma dal fondo della pianta (#3760, review
+ * della PR): il suo fattore segue lo stato anche quando non si disegna. Teneva il `-1` di nascita, e il primo colore
+ * della dissolvenza usciva dall'intervallo fra il fondo e il colore del glifo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlyphRevealedFromAPlanTest,
+	"RefactorTactics.Veil.GlyphRevealedFromThePlanStaysInRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlyphRevealedFromAPlanTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
+	const FRTCellId Cella(1, 0, 0);
+	const FRTCellId Altra(0, 0, 0);
+	{
+		FRTHexCellData Dati = *Map->FindCell(Cella);
+		Dati.Surface = ERTHexSurface::Ice;
+		Map->AddOrUpdateCell(Dati);
+	}
+	ARTHexMapActor* HexMap = MakePiantaBoard(World, Map);
+	const UInstancedStaticMeshComponent* Glifi = nullptr;
+	if (HexMap)
+	{
+		TInlineComponentArray<UInstancedStaticMeshComponent*> Tutte;
+		HexMap->GetComponents(Tutte);
+		for (const UInstancedStaticMeshComponent* C : Tutte)
+		{
+			if (C && C->GetName().StartsWith(TEXT("SurfaceGlyph")) && C->GetInstanceCount() == 1)
+			{
+				Glifi = C;
+			}
+		}
+	}
+	if (!TestNotNull(TEXT("premessa: il glifo del ghiaccio"), Glifi))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	FRTVeilTransitionParams Tempi;
+	Tempi.RevealSeconds = 0.4f;
+	Tempi.HideSeconds = 0.4f;
+	HexMap->SetVeilTransitionParams(Tempi);
+	const FLinearColor Fondo = ARTHexMapActor::PlanFloorColor();
+	const FLinearColor Glifo = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+	const auto DentroAlFondoEAlGlifo = [&](const FLinearColor& X)
+	{
+		const float Xs[3] = { X.R, X.G, X.B };
+		const float As[3] = { Fondo.R, Fondo.G, Fondo.B };
+		const float Bs[3] = { Glifo.R, Glifo.G, Glifo.B };
+		for (int32 K = 0; K < 3; ++K)
+		{
+			if (Xs[K] < FMath::Min(As[K], Bs[K]) - 1e-3f || Xs[K] > FMath::Max(As[K], Bs[K]) + 1e-3f)
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	// Ricordata senza essere mai stata vista da questa board: il glifo non si disegna, e non sfuma.
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Altra }, { Cella, Altra }));
+	TestFalse(TEXT("premessa: ricordata alla prima scrittura, il glifo non si disegna"), DisegnataPianta(Glifi, 0));
+
+	HexMap->ApplyKnowledgeVeil(ConoscenzaPianta({ Cella, Altra }, { Cella, Altra }));
+	TestTrue(TEXT("tornata in vista, il glifo si disegna"), DisegnataPianta(Glifi, 0));
+	TestTrue(*FString::Printf(TEXT("e il suo primo colore sta fra il fondo e il glifo (%s)"), *ColorePianta(Glifi, 0).ToString()),
+		DentroAlFondoEAlGlifo(ColorePianta(Glifi, 0)));
+	static_cast<AActor*>(HexMap)->Tick(0.1f);
+	TestTrue(*FString::Printf(TEXT("anche a meta' dissolvenza (%s)"), *ColorePianta(Glifi, 0).ToString()),
+		DentroAlFondoEAlGlifo(ColorePianta(Glifi, 0)));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * La NEBBIA ([D-520] (5), #3760, seconda tornata di `U89`): su ogni cella che la squadra non vede adesso, ricordata o
  * mai vista, una colonna traslucida che riempie l'esagono dal fondo del disco al piano sopra. Sulla cella vista, niente.
  *
