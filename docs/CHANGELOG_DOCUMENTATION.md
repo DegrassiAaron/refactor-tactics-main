@@ -8,8 +8,8 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`: titolo e punto (5), con le domande come l'autore le ha viste; il tasto `H` non c'è più |
-| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: un arco alla volta, e chi lo sceglie |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`: titolo e punti (5) e (6), con le domande come l'autore le ha viste; il tasto `H` non c'è più, e il nemico dell'arco si contorna nel suo rosso |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: un arco alla volta, chi lo sceglie, e il contorno del suo nemico |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-ARCO`: il comportamento nuovo, e il ❌ della prima tornata; da rigiudicare |
 
 ---
