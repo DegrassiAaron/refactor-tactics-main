@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), seduta `U89`. L'autore ha respinto l'arco della prima tornata: sottile, coperto, e col tasto `H` se ne vedeva più d'uno. Ha chiesto *«l'arco visto deve essere solo quello del nemico selezionato/hoverato»*.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`: titolo e punto (5), con le domande come l'autore le ha viste; il tasto `H` non c'è più |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: un arco alla volta, e chi lo sceglie |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-ARCO`: il comportamento nuovo, e il ❌ della prima tornata; da rigiudicare |
+
+---
+
 ## 2026-10-15 — La linea di confine della vista è verde
 
 **Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), seduta `U89`. L'autore ha giudicato la tavola `V1` della prima tornata; nella stessa seduta ha respinto la pianta ([#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760)) e l'arco del nemico ([#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762)).
