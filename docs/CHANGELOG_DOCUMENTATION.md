@@ -14,6 +14,7 @@
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `PIE-FOG-PIANTA` fra le verifiche PIE della capability |
 | [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U89`: la seconda e la terza tornata, eseguita |
 | [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | §4: il mai visto non resta com'era |
+| [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | i tre stati del terreno: la pianta e la nebbia |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-PIANTA` ✅ nella terza tornata, dopo il ❌ della prima e il 🟡 della seconda; totali rimisurati; `PIE-FOG-CONFINE` vale anche lungo un pannello (`V8`); note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` |
 | [`Scenarios/Visual/Perception/RememberedCover.json`](../Scenarios/Visual/Perception/RememberedCover.json) | che cosa guardare, coi pannelli traslucidi |
 
