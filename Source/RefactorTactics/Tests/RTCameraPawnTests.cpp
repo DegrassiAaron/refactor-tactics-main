@@ -1668,6 +1668,371 @@ bool FRTCameraHomeKeyInScenarioTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------
+// #1838 - l'edge pan: il cursore al bordo del viewport entra nella pipeline di pan esistente.
+// ---------------------------------------------------------------------------------------------------
+
+namespace
+{
+	const FVector2D EdgePanViewport(1920.0, 1080.0);
+	constexpr float EdgePanBand = 16.f;
+
+	/**
+	 * Mappa ampia (raggio 8): i test dell'edge pan misurano DIREZIONE e VELOCITA', e su una mappa piccola il
+	 * limite del pivot morderebbe al primo fotogramma, confondendo un pan fermo con un pan clampato.
+	 */
+	ARTHexMapActor* SpawnEdgePanTestMap(UWorld* World)
+	{
+		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(4, 1, 0), /*Radius=*/ 8))
+		{
+			Asset->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		Asset->SortCells();
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		if (MapActor) { MapActor->MapAsset = Asset; }
+		return MapActor;
+	}
+
+	/** Il cursore a `Distance` pixel dal bordo alto, a meta' larghezza. */
+	FVector2D EdgePanTopCursor(double Distance) { return FVector2D(EdgePanViewport.X * 0.5, Distance); }
+
+	/**
+	 * L'ultimo pixel che un cursore vero raggiunge: `Size - 1`. Il motore tronca la posizione a intero, quindi
+	 * `Size` non arriva mai — e i test che lo iniettavano nascondevano i bordi destro e basso piu' lenti.
+	 */
+	const double EdgePanLastX = EdgePanViewport.X - 1.0;
+	const double EdgePanLastY = EdgePanViewport.Y - 1.0;
+
+	/**
+	 * Camera con l'edge pan ACCESO, scritto e non letto dal default: `bEdgePanEnabled` e' `Config`, e un
+	 * `Game.ini` locale che lo spegne non deve far cadere i test (rilievo di review).
+	 */
+	ARTCameraPawn* SpawnEdgePanCamera(UWorld* World)
+	{
+		ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+		if (Cam) { Cam->SetEdgePanEnabled(true); }
+		return Cam;
+	}
+}
+
+/**
+ * L'asse: zero fuori dalla banda, cresce con la penetrazione, e nessun pan con il cursore fuori dal viewport.
+ *
+ * Criteri 2 (nessun movimento fuori dalla banda) e 3 (velocita' monotona nella penetrazione) sulla funzione
+ * pura; il «zero lavoro» lo misura `Camera.EdgePanDoesNoWorkAtRestAndStopsTheSameFrame`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanAxisTest,
+	"RefactorTactics.Camera.EdgePanAxisIsZeroOutsideTheBandAndGrowsWithPenetration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanAxisTest::RunTest(const FString&)
+{
+	const auto Axis = [](const FVector2D& Cursor) { return ARTCameraPawn::ComputeEdgePanAxis(Cursor, EdgePanViewport, EdgePanBand); };
+
+	TestTrue(TEXT("al centro: zero"), Axis(EdgePanViewport * 0.5).IsNearlyZero());
+	TestTrue(TEXT("sul bordo interno della banda: zero"), Axis(EdgePanTopCursor(EdgePanBand)).IsNearlyZero());
+	TestTrue(TEXT("appena dentro la banda: avanti"), Axis(EdgePanTopCursor(EdgePanBand - 1.0)).Y > 0.0);
+	TestEqual(TEXT("sul bordo del viewport: penetrazione piena"), Axis(EdgePanTopCursor(0.0)).Y, 1.0);
+
+	// Monotona: piu' vicino al bordo, piu' veloce. Un passo alla volta, dal bordo interno al bordo esterno.
+	double Previous = 0.0;
+	bool bMonotonic = true;
+	for (double Distance = EdgePanBand; Distance >= 0.0; Distance -= 1.0)
+	{
+		const double Y = Axis(EdgePanTopCursor(Distance)).Y;
+		bMonotonic &= Y >= Previous;
+		Previous = Y;
+	}
+	TestTrue(TEXT("la penetrazione cresce verso il bordo"), bMonotonic);
+
+	// I quattro bordi danno i quattro versi; negli angoli le due componenti si sommano.
+	// 🔴 I quattro bordi arrivano TUTTI alla penetrazione piena, sull'ultimo pixel che il cursore raggiunge.
+	TestEqual(TEXT("bordo basso, ultimo pixel: indietro, pieno"), Axis(FVector2D(960.0, EdgePanLastY)).Y, -1.0);
+	TestEqual(TEXT("bordo sinistro: a sinistra, pieno"), Axis(FVector2D(0.0, 540.0)).X, -1.0);
+	TestEqual(TEXT("bordo destro, ultimo pixel: a destra, pieno"), Axis(FVector2D(EdgePanLastX, 540.0)).X, 1.0);
+	TestTrue(TEXT("`Size` non e' un pixel del viewport: zero"), Axis(FVector2D(EdgePanViewport.X, 540.0)).IsNearlyZero());
+	const FVector2D Corner = Axis(FVector2D(EdgePanLastX, 0.0));
+	TestTrue(TEXT("angolo alto a destra: avanti e a destra"), Corner.X > 0.0 && Corner.Y > 0.0);
+
+	// Fuori dal viewport — un altro monitor — e senza viewport: nessun pan.
+	TestTrue(TEXT("cursore fuori dal viewport: zero"), Axis(FVector2D(-5.0, 540.0)).IsNearlyZero());
+	TestTrue(TEXT("viewport senza area: zero"),
+		ARTCameraPawn::ComputeEdgePanAxis(FVector2D::ZeroVector, FVector2D::ZeroVector, EdgePanBand).IsNearlyZero());
+	return true;
+}
+
+/**
+ * Il pan va dove guarda la vista, in tutti e otto gli orientamenti (criterio 1).
+ *
+ * Il bordo alto e' «avanti sullo schermo»: con la vista girata di 90 gradi deve andare di lato nel mondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanFollowsYawTest,
+	"RefactorTactics.Camera.EdgePanFollowsTheViewYawInAllEightOrientations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanFollowsYawTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	const FVector Centre = HomeTestMapCentre(Map);
+	const FVector2D Forward = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(0.0), EdgePanViewport, EdgePanBand);
+	const FVector2D Rightward = ARTCameraPawn::ComputeEdgePanAxis(FVector2D(EdgePanLastX, 540.0), EdgePanViewport, EdgePanBand);
+	for (int32 Step = 0; Step < 8; ++Step)
+	{
+		const float Yaw = Cam->GetCameraYaw();
+		const FVector ViewForward = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::ForwardVector);
+		const FVector ViewRight = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::RightVector);
+
+		Cam->SetCameraPivot(Centre);
+		Cam->ApplyEdgePan(Forward);
+		const FVector DeltaForward = (Cam->GetCameraPivot() - Centre).GetSafeNormal2D();
+		TestTrue(FString::Printf(TEXT("yaw %.0f: il bordo alto va avanti nella vista"), Yaw),
+			FVector::DotProduct(DeltaForward, ViewForward) > 0.99);
+
+		Cam->SetCameraPivot(Centre);
+		Cam->ApplyEdgePan(Rightward);
+		const FVector DeltaRight = (Cam->GetCameraPivot() - Centre).GetSafeNormal2D();
+		TestTrue(FString::Printf(TEXT("yaw %.0f: il bordo destro va a destra nella vista"), Yaw),
+			FVector::DotProduct(DeltaRight, ViewRight) > 0.99);
+
+		Cam->AddYaw(+1.f);
+	}
+	TestEqual(TEXT("otto passi riportano la vista dove era partita"), Cam->GetCameraYaw(), 0.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 A penetrazione piena l'edge pan va alla stessa velocita' di `WASD`, allo stesso zoom (criterio 4).
+ *
+ * E' il discriminante della issue: un test che verifica solo «l'edge pan muove» passa anche su una seconda
+ * formula di velocita' scritta accanto — esattamente il difetto che #1834 esiste per prevenire. Il confronto
+ * si fa a due zoom, perche' una formula che ignorasse lo zoom coinciderebbe con `WASD` in un punto solo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanMatchesWasdTest,
+	"RefactorTactics.Camera.EdgePanMovesLikeWasdAtTheSameZoom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanMatchesWasdTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	const FVector Centre = HomeTestMapCentre(Map);
+	const FVector2D Full = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(0.0), EdgePanViewport, EdgePanBand);
+
+	double FirstStep = 0.0;
+	for (const float Alpha : { 0.1f, 0.6f })
+	{
+		Cam->SetZoomAlpha(Alpha);
+		Cam->SetCameraPivot(Centre);
+		Cam->ApplyEdgePan(Full);
+		const double EdgeStep = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+		Cam->SetCameraPivot(Centre);
+		Cam->AddPlanarMovement(FVector2D(0.0, 1.0)); // `W` tenuto: lo stesso valore che `OnPan` passa
+		const double WasdStep = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+		TestTrue(FString::Printf(TEXT("alpha %.1f: l'edge pan muove"), Alpha), EdgeStep > 1.0);
+		TestTrue(FString::Printf(TEXT("alpha %.1f: alla stessa velocita' di WASD"), Alpha), FMath::IsNearlyEqual(EdgeStep, WasdStep, 0.01));
+		if (FirstStep == 0.0) { FirstStep = EdgeStep; }
+		else { TestTrue(TEXT("e la velocita' cambia con lo zoom, come quella di WASD"), EdgeStep > FirstStep); }
+	}
+
+	// A meta' penetrazione, meno della penetrazione piena: la velocita' viene dall'asse, non da una costante.
+	Cam->SetCameraPivot(Centre);
+	Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(EdgePanBand * 0.5), EdgePanViewport, EdgePanBand));
+	const double Half = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+	Cam->SetCameraPivot(Centre);
+	Cam->ApplyEdgePan(Full);
+	TestTrue(TEXT("a meta' banda va piu' piano che sul bordo"), Half > 0.0 && Half < FVector::Dist2D(Cam->GetCameraPivot(), Centre));
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Fuori dalla banda nessun movimento e nessun aggiornamento; uscendo dalla banda il pivot si ferma nello
+ * stesso fotogramma (criteri 2 e 5). Il contatore e' il «lavoro» che la issue chiede di misurare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanRestTest,
+	"RefactorTactics.Camera.EdgePanDoesNoWorkAtRestAndStopsTheSameFrame",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanRestTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetCameraPivot(HomeTestMapCentre(Map));
+
+	const FVector2D Rest = ARTCameraPawn::ComputeEdgePanAxis(EdgePanViewport * 0.5, EdgePanViewport, EdgePanBand);
+	const FVector Start = Cam->GetCameraPivot();
+	for (int32 i = 0; i < 30; ++i) { TestFalse(TEXT("a riposo non muove"), Cam->ApplyEdgePan(Rest)); }
+	TestEqual(TEXT("trenta fotogrammi a riposo: zero aggiornamenti"), Cam->GetEdgePanUpdatesForTest(), 0);
+	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+
+	// Nella banda per qualche fotogramma, poi fuori: niente deriva.
+	const FVector2D InBand = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(2.0), EdgePanViewport, EdgePanBand);
+	for (int32 i = 0; i < 5; ++i) { Cam->ApplyEdgePan(InBand); }
+	TestEqual(TEXT("nella banda: un aggiornamento per fotogramma"), Cam->GetEdgePanUpdatesForTest(), 5);
+	const FVector Left = Cam->GetCameraPivot();
+	Cam->ApplyEdgePan(Rest);
+	TestEqual(TEXT("uscito dalla banda, il pivot si ferma nello stesso fotogramma"), Cam->GetCameraPivot(), Left);
+	TestEqual(TEXT("senza un aggiornamento in piu'"), Cam->GetEdgePanUpdatesForTest(), 5);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/** Con l'interruttore spento l'edge pan non si attiva in nessuna posizione del cursore (criterio 7). */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanSwitchTest,
+	"RefactorTactics.Camera.EdgePanSwitchedOffNeverMoves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanSwitchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	// Il default acceso e' nel codice (`bEdgePanEnabled = true`); qui non si asserisce, perche' e' `Config` e lo
+	// puo' cambiare un `Game.ini` locale.
+
+	Cam->SetEdgePanEnabled(false);
+	Cam->SetCameraPivot(HomeTestMapCentre(Map));
+	const FVector Start = Cam->GetCameraPivot();
+	for (const FVector2D& Cursor : { EdgePanTopCursor(0.0), FVector2D(0.0, 540.0), FVector2D(EdgePanLastX, 540.0),
+		FVector2D(960.0, EdgePanLastY), FVector2D(0.0, 0.0), FVector2D(EdgePanLastX, EdgePanLastY) })
+	{
+		TestFalse(TEXT("spento non muove"), Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(Cursor, EdgePanViewport, EdgePanBand)));
+	}
+	TestEqual(TEXT("il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+	TestEqual(TEXT("e nessun aggiornamento"), Cam->GetEdgePanUpdatesForTest(), 0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Il pivot resta dentro i limiti del viewport (criterio 6): l'edge pan passa dalla porta unica, e tenuto
+ * contro un bordo arriva **esattamente** dove arriva `WASD` tenuto per lo stesso numero di fotogrammi.
+ *
+ * ⚠️ Il «dominio di conoscenza» del criterio e' `N/A`: era #1836, chiusa senza codice per D-373.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanBoundsTest,
+	"RefactorTactics.Camera.EdgePanStaysInsideTheViewportBounds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanBoundsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnCameraTestMap(World); // piccola: il limite DEVE mordere
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetViewportMetricsForTest(16.f/9.f, 90.f);
+	const FVector Centre = HomeTestMapCentre(Map);
+	const FVector2D Full = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(0.0), EdgePanViewport, EdgePanBand);
+
+	// Un passo libero, dal centro: e' la misura con cui si vede che il limite morde.
+	Cam->SetCameraPivot(Centre);
+	Cam->ApplyEdgePan(Full);
+	const double OneStep = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+	Cam->SetCameraPivot(Centre);
+	for (int32 i = 0; i < 400; ++i) { Cam->ApplyEdgePan(Full); }
+	const FVector EdgeEnd = Cam->GetCameraPivot();
+
+	Cam->SetCameraPivot(Centre);
+	for (int32 i = 0; i < 400; ++i) { Cam->AddPlanarMovement(FVector2D(0.0, 1.0)); }
+	const FVector WasdEnd = Cam->GetCameraPivot();
+
+	if (!TestTrue(TEXT("precondizione: il limite ha morso (400 passi liberi andrebbero molto piu' lontano)"),
+		OneStep > 1.0 && FVector::Dist2D(EdgeEnd, Centre) < 400.0 * OneStep * 0.5))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("l'edge pan arriva dove arriva WASD: la stessa porta, lo stesso limite"), FVector::Dist2D(EdgeEnd, WasdEnd) < 0.01);
+	Cam->SetCameraPivot(EdgeEnd);
+	const int32 Lavoro = Cam->GetEdgePanUpdatesForTest();
+	TestFalse(TEXT("contro il limite ApplyEdgePan risponde che non ha mosso"), Cam->ApplyEdgePan(Full));
+	TestEqual(TEXT("ma il lavoro c'e' stato"), Cam->GetEdgePanUpdatesForTest(), Lavoro + 1);
+	Cam->SetCameraPivot(EdgeEnd);
+	TestTrue(TEXT("e quel punto e' dentro i limiti: riscriverlo non lo sposta"), FVector::Dist2D(Cam->GetCameraPivot(), EdgeEnd) < 0.01);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Con un modale aperto o un gesto camera in corso l'edge pan non si attiva (criterio 8), e il controller lo
+ * applica davvero: dal suo ingresso, con cursore e viewport iniettati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEdgePanRefusalsTest,
+	"RefactorTactics.Camera.EdgePanIsRefusedDuringModalsAndCameraGestures",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraEdgePanRefusalsTest::RunTest(const FString&)
+{
+	// La regola. «Bloccato» e' `IsGameplayInputBlocked()`, cioe' il contesto `Modal` del contratto del puntatore:
+	// headless non c'e' un navigatore per aprire la pausa, quindi il ramo del modale si prova qui.
+	TestFalse(TEXT("modale: no"), ARTPlayerController::EdgePanAllowed(/*bGameplayInputBlocked=*/ true, false));
+	TestTrue(TEXT("nessun modale, nessun gesto: si'"), ARTPlayerController::EdgePanAllowed(false, false));
+	TestFalse(TEXT("gesto camera in corso: no"), ARTPlayerController::EdgePanAllowed(false, /*bCameraGestureActive=*/ true));
+
+	// Il controller: dal suo ingresso il pan parte, e un gesto camera lo ferma.
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+	Cam->SetCameraPivot(HomeTestMapCentre(Map));
+
+	FVector Start = Cam->GetCameraPivot();
+	TestTrue(TEXT("dal controller, il cursore al bordo muove la camera"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestTrue(TEXT("e il pivot si e' mosso"), FVector::Dist2D(Cam->GetCameraPivot(), Start) > 1.0);
+
+	PC->SetCameraModifierForTest(true);
+	Start = Cam->GetCameraPivot();
+	TestFalse(TEXT("con Ctrl premuto (un gesto camera) no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+	PC->SetCameraModifierForTest(false);
+
+	PC->SetOrbitingForTest(true);
+	TestFalse(TEXT("con un'orbita in corso no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+	PC->SetOrbitingForTest(false);
+
+	Cam->SetEdgePanEnabled(false);
+	TestFalse(TEXT("spento, dal controller no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
+	Cam->SetEdgePanEnabled(true);
+
+	// I tasti hanno la precedenza: nello stesso fotogramma un `W` e il bordo alto non si sommano.
+	PC->PanForTest(FVector2D(0.0, 1.0));
+	const FVector AfterKeys = Cam->GetCameraPivot();
+	TestFalse(TEXT("con W nello stesso fotogramma l'edge pan cede"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestEqual(TEXT("e la vista si e' mossa una volta sola"), Cam->GetCameraPivot(), AfterKeys);
+	TestTrue(TEXT("al fotogramma dopo, senza tasti, l'edge pan riparte"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+
+	TestFalse(TEXT("al centro dello schermo no"), PC->UpdateEdgePanForTest(EdgePanViewport * 0.5, EdgePanViewport));
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 // --- #1770 · il pivot e' uno stato, e il peek non lo tocca -------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPeekDoesNotMoveThePivotTest,
