@@ -6042,6 +6042,10 @@ sessions:
     done_when: >-
       l'autore ha giudicato le tre voci sulle tavole; ciascuna issue si chiude col proprio verdetto
     notes: |
+      ✅ **Eseguita il 2026-10-15, in tre tornate: le tre voci verdi.** `PIE-FOG-CONFINE` nella prima (e lungo un
+      pannello nella seconda), `PIE-FOG-PIANTA` e `PIE-FOG-ARCO` nella terza. Le tavole che hanno deciso stanno in
+      `docs/technical/evidence/u89/`, e il verdetto di ogni voce nella sua cella del registro.
+
       🟡 **Prima tornata, catture del 2026-10-14 e verdetti del 2026-10-15: una voce verde su tre.** Le catture le ha
       fatte dal clone principale la sessione che scriveva la pila, sul ramo locale di verifica `57491d7b9` (la pila più
       tre leve di sola cattura), senza portare l'Editor in primo piano; la cattura C di `V2` è rifatta su `eb90d8e91`.
@@ -6062,6 +6066,15 @@ sessions:
         ha voluto su ogni cella non vista (D-520 (5)). Torna nella terza tornata.
       - `PIE-FOG-ARCO`: «si capisce l'area, non di chi e'» (`V6`); il nemico ora si contorna nel rosso del suo arco
         (D-521 (6)). Torna nella terza tornata.
+
+      ✅ **Terza tornata, catture e verdetti del 2026-10-15.** Dal clone principale, sul ramo locale di verifica
+      `888fc6f5a` (#3760 `92c95a428`, che contiene #3762 `d068ff832`, più le leve di sola cattura).
+      - `PIE-FOG-PIANTA` ✅ sulla `V9`: la nebbia su ogni cella non vista, in tattica e in strategica.
+      - `PIE-FOG-ARCO` ✅ sulla `V11`: il nemico dell'arco contornato nel suo rosso.
+      - ⚠️ `V10`, la nebbia che sale con la dissolvenza, è `NOT RUN`: durante la cattura la camera è stata mossa da
+        fuori (zoom, vista strategica, hover), e la tavola non è stata mostrata.
+      - ⚠️ Da questa tornata l'Editor si apre col Tactical Designer flottante e con la finestra principale di dimensione
+        variabile: le catture hanno due dimensioni, e ogni ritaglio è per la sua.
 
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
   - id: U90

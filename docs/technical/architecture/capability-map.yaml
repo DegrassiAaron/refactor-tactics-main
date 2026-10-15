@@ -1836,7 +1836,7 @@ capabilities:
       automation: ["RefactorTactics.Veil.*", "RefactorTactics.Visibility.*", "RefactorTactics.Knowledge.*"]
       scenarios: []
       mutation: []
-    verification: { pie: [PIE-FOG-CONFINE, PIE-FOG-ARCO], packaged: [] }
+    verification: { pie: [PIE-FOG-CONFINE, PIE-FOG-ARCO, PIE-FOG-PIANTA], packaged: [] }
     risks:
       - "#2731: il corpo strutturale «e' l'unica famiglia che `ApplyKnowledgeVeil` non tocca,
          e si vede sotto» — un buco visibile a schermo."
