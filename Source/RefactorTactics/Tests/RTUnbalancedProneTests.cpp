@@ -627,11 +627,14 @@ namespace
 	/**
 	 * IL BANCO DEL VARCO: un guardiano con l'Overwatch armato verso EST, un nemico che entra nella sua linea e, se
 	 * `bConSpinta`, una spinta da EST che lo allontana lungo la stessa retta. `bSbilanciato` decide se, spinto, cade.
+	 * `bSgambetto` lo fa cadere SENZA spostarlo: un'azione sintetica nel Blast gli applica `Prone`, da OVEST, dietro di
+	 * lui e fuori dal corridoio sorvegliato.
 	 *
 	 * Lo usano `Status.ProneDisarmsOverwatchAndSpendsCharge` e `Overwatch.ForcedDisplacementDisarmsWithItsCause`
 	 * ([D-366]). La geometria, e perche' e' quella, e' scritta sopra il primo dei due.
 	 */
-	FRTVarcoEsito GiocaIlVarco(bool bConSpinta, bool bSbilanciato, const FRTCellId& PostoDelGuardiano)
+	FRTVarcoEsito GiocaIlVarco(bool bConSpinta, bool bSbilanciato, const FRTCellId& PostoDelGuardiano,
+		bool bSgambetto = false)
 	{
 		FRTVarcoEsito Esito;
 
@@ -683,6 +686,37 @@ namespace
 		else
 		{
 			NeutralizeAllIntents(Pusher);
+		}
+
+		// LO SGAMBETTO: `Prone` senza spinta. ⛔ **L'azione e' SINTETICA e dichiarata qui**: l'unico produttore di `Prone`
+		// in partita e' la spinta su chi e' `Unbalanced`, e da [D-366] la spinta disarma da se'. Senza un'altra via il
+		// disarmo di `Prone` non si potrebbe piu' misurare (review della PR #3783). La forma e' quella dello storditore di
+		// `Status.StunSilencesAnArmedWatcher`: fase `Control`, effetto `Status`, aggressione dichiarata, e l'applicazione
+		// passa da `ApplyStatusLogged`, cioe' da `DisarmPreparedReactions`.
+		if (bSgambetto)
+		{
+			ARTUnit* Sgambettatore = SpawnFallUnit(World, VarcoEnemyTeam, FRTCellId(-3, 0));
+			if (!Sgambettatore) { DestroyFallWorld(World); Esito.Nota = TEXT("sgambettatore non spawnato"); return Esito; }
+
+			URTActionData* Azione = NewObject<URTActionData>(Sgambettatore);
+			FRTActionDef Def;
+			Def.ActionId = TEXT("Test.Trip");
+			Def.ResolutionPhase = ERTResolutionPhase::Control;
+			Def.Priority = 25;
+			Def.RangeCells = 3;
+			Def.CooldownTurns = 0;
+			Def.Fallback = ERTActionFallback::Cancel;
+			Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Prone,
+				URTCombatLibrary::ProneDurationTurns));
+			Def.bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo [`INT-8`]
+			Azione->Def = Def;
+			Azione->RangeCells = Def.RangeCells;
+			Azione->Power = 0;
+			Sgambettatore->Abilities.Add(Azione);
+
+			Sgambettatore->PlannedAbilityIndex = Sgambettatore->Abilities.Num() - 1;
+			Sgambettatore->PlannedAttackTarget = Watcher;
+			Sgambettatore->PlannedCell = Sgambettatore->Cell;
 		}
 
 		Mover->PlannedAbilityIndex = INDEX_NONE;
@@ -750,13 +784,15 @@ namespace
  * su `Prone` e non su `Unbalanced`: spingere per disarmare costa un'azione all'avversario, mentre scivolare
  * non costa niente a nessuno (`brief` §4).
  *
- * 🔴 **Da [D-366] la spinta da sola disarma, e questo banco non separa piu' `Prone` dalla spinta.** Fino al
- * 2026-10-15 c'era un terzo caso — spinto e in piedi, che SPARAVA — e serviva a dire che lo zero del guardiano
- * caduto veniva da `Prone`. Ora quel caso non spara per D-366, e sta in `Overwatch.ForcedDisplacementDisarmsWithItsCause`.
- * Qui resta cio' che `Prone` aggiunge, o non aggiunge: la caduta c'e', il colpo non parte, e la voce di disarmo e'
- * UNA, quella della spinta — `DisarmPreparedReactions` trova la charge gia' spesa e non scrive niente. La parte
- * dell'Overwatch di `DisarmPreparedReactions` la misura il braccio `C` di `Status.StunSilencesAnArmedWatcher`, sullo
- * stesso banco e senza spinta.
+ * 🔴 **Da [D-366] la spinta da sola disarma, e il caso che separava `Prone` dalla spinta e' cambiato.** Fino al
+ * 2026-10-15 c'era un caso — spinto e in piedi, che SPARAVA — e serviva a dire che lo zero del guardiano caduto veniva
+ * da `Prone`. Ora quel caso non spara per D-366, e sta in `Overwatch.ForcedDisplacementDisarmsWithItsCause`. Al suo
+ * posto c'e' lo SGAMBETTO: `Prone` senza spinta, da un'azione sintetica, perche' l'unico produttore in partita e' la
+ * spinta. Trovato in review (PR #3783): con i soli casi spinti, togliere `Prone` dalla regola del disarmo lasciava il
+ * test verde.
+ *
+ * ∴ **Tre casi**: `A` fermo, che spara; `B` sgambettato e non spostato, che non spara e non ha voci di disarmo — `Prone`
+ * non ne scrive —; `C` spinto e sbilanciato, che cade, non spara, e ha UNA voce di disarmo, quella della spinta.
  *
  * 🔴 **La geometria e' scelta perche' la spinta non porti il varco FUORI DAL CONO DI VISIONE, e la prima
  * stesura sbagliava proprio questo.** Metteva la sorgente a ovest: il guardiano veniva spinto a est, ma
@@ -780,8 +816,10 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 	// I casi si girano TUTTI prima di giudicare, e il referto li porta tutti: uscire al primo che cade lascia mezza
 	// risposta, e un run del motore in piu' costa una finestra contesa fra sessioni.
 	const FRTVarcoEsito A = GiocaIlVarco(/*bConSpinta=*/ false, /*bSbilanciato=*/ false, FRTCellId(-1, 0));
+	const FRTVarcoEsito B = GiocaIlVarco(/*bConSpinta=*/ false, /*bSbilanciato=*/ false, FRTCellId(-1, 0),
+		/*bSgambetto=*/ true);
 	const FRTVarcoEsito C = GiocaIlVarco(/*bConSpinta=*/ true,  /*bSbilanciato=*/ true,  FRTCellId(0, 0));
-	const FString Referto = FString::Printf(TEXT("A[%s] · C[%s]"), *A.Nota, *C.Nota);
+	const FString Referto = FString::Printf(TEXT("A[%s] · B[%s] · C[%s]"), *A.Nota, *B.Nota, *C.Nota);
 
 	// A — senza spinta: fissa che in QUESTO montaggio l'Overwatch spari davvero. Senza, lo zero sotto sarebbe vero
 	// anche in un mondo dove l'Overwatch non funziona affatto.
@@ -789,6 +827,14 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 	{
 		return false;
 	}
+
+	// B — sgambettato: a terra, NON spostato, nella stessa cella di `A`. Se non spara e' `Prone` a disarmarlo, e nient'altro.
+	TestTrue(FString::Printf(TEXT("B) premessa: lo sgambetto lo ha messo a terra — %s"), *Referto), B.bWatcherProne);
+	TestEqual(FString::Printf(TEXT("B) premessa: e non lo ha spostato — %s"), *Referto), B.WatcherCell, FRTCellId(-1, 0));
+	TestTrue(FString::Printf(TEXT("B) a terra senza spinta, non spara — %s"), *Referto), B.Danno <= 0);
+	TestEqual(FString::Printf(TEXT("B) nessuna finestra: `Prone` lo ha disarmato — %s"), *Referto), B.Decisioni, 0);
+	TestEqual(FString::Printf(TEXT("B) e nessuna voce di disarmo: `Prone` non ne scrive — %s"), *Referto),
+		VociDiDisarmo(B.Log).Num(), 0);
 
 	// C — spinto e sbilanciato: cade, e non spara.
 	//

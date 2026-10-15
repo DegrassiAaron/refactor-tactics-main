@@ -569,7 +569,10 @@ UENUM()
 enum class ERTOverwatchDisarmCause : uint8
 {
 	None,
-	/** Il watcher ha subito uno spostamento forzato: spinta, trazione, caduta o scarto (`ARTTurnManager::ApplyForcedDisplacement`). */
+	/**
+	 * Il watcher ha subito uno spostamento forzato: spinta, trazione o caduta (`ARTTurnManager::ApplyForcedDisplacement`).
+	 * Lo scarto e le fughe scelte con una reazione non disarmano (decisione d'autore del 2026-10-15).
+	 */
 	ForcedDisplacement
 };
 
