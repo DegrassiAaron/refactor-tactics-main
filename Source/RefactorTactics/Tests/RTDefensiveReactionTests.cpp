@@ -1782,7 +1782,7 @@ namespace
 	 */
 	FRTCellId RunBraceTurn(const URTHeroData* DefenderHero, const TCHAR* Response,
 		const TArray<FRTTurnLogEntry>* Trace, int32* OutPrompts, TArray<FRTTurnLogEntry>* OutTrace,
-		bool& bOutRan, TArray<FString>* OutDivergences = nullptr)
+		bool& bOutRan, TArray<FString>* OutDivergences = nullptr, bool bDefenderArmsOverwatch = false)
 	{
 		if (OutPrompts) { *OutPrompts = 0; }
 		if (OutTrace) { OutTrace->Reset(); }
@@ -1805,6 +1805,13 @@ namespace
 			Attaccante->PlannedAttackTarget = Difensore;
 			Difensore->ApplyStatus(TAG_Status_Braced, 1);
 			Difensore->PlannedAbilityIndex = INDEX_NONE;
+			// [D-366]: il difensore puo' anche avere un Overwatch armato con l'azione principale. Lo slot reazione e'
+			// un altro, e il `Brace` qui e' gia' lo stato.
+			if (bDefenderArmsOverwatch)
+			{
+				Difensore->PlannedAbilityIndex =
+					RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Overwatch"), 3);
+			}
 
 			if (Trace && Trace->Num() > 0)
 			{
@@ -1935,6 +1942,46 @@ bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 		TestTrue(TEXT("e il `Brace` di Ivrin regge come sempre"), Fermo == Start);
 	}
 
+	return true;
+}
+
+/**
+ * [D-366] Lo SCARTO del `Brace` non disarma l'Overwatch: e' una reazione scelta, non uno spostamento forzato
+ * (decisione d'autore del 2026-10-15).
+ *
+ * 🔑 **Passa dalla stessa primitiva della spinta** (`ApplyForcedDisplacement`), e la review della PR #3783 lo ha
+ * trovato: senza l'eccezione, chi ha un Overwatch armato e sceglie lo scarto lo perdeva, e `Hold Ground` diventava
+ * sempre la scelta migliore. E' lo stesso argomento per cui lo scarto non fa cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSidestepKeepsTheOverwatchTest,
+	"RefactorTactics.Reactions.Brace.SidestepKeepsTheOverwatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSidestepKeepsTheOverwatchTest::RunTest(const FString&)
+{
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!TestNotNull(TEXT("Muiren, che porta `Profile.Sidestep`"), Muiren)) { return false; }
+
+	int32 Prompts = 0;
+	bool bRan = false;
+	TArray<FRTTurnLogEntry> Trace;
+	const FRTCellId Finale = RunBraceTurn(Muiren, TEXT("SIDESTEP"), /*Trace*/ nullptr, &Prompts, &Trace, bRan,
+		/*OutDivergences*/ nullptr, /*bDefenderArmsOverwatch=*/ true);
+
+	TestTrue(TEXT("premessa: il turno e' girato davvero"), bRan);
+	TestEqual(TEXT("premessa: la finestra del `Brace` e' stata chiesta"), Prompts, 1);
+	TestTrue(TEXT("premessa: con `SIDESTEP` il difensore ha lasciato la cella"), Finale != FRTCellId(1, 0, 0));
+
+	int32 Disarmi = 0;
+	for (const FRTTurnLogEntry& E : Trace)
+	{
+		if (E.Category == ERTLogCategory::Reaction
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Disarmed)
+		{
+			++Disarmi;
+		}
+	}
+	// 🔴 IL PUNTO: lo scarto e' passato dalla primitiva dello spostamento, e l'Overwatch e' ancora armato.
+	TestEqual(TEXT("lo scarto non disarma l'Overwatch: nessuna voce `Disarmed`"), Disarmi, 0);
 	return true;
 }
 

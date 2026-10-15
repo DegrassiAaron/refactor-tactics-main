@@ -3143,9 +3143,10 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			const ERTMoveOutcome* Trovato = KEsito.Find(T);
 			const ERTMoveOutcome Esito = Trovato != nullptr ? *Trovato : ERTMoveOutcome::Displaced;
 			const bool bCaduto = EsitoEUnaCaduta(Esito);
+			// [D-366]: lo scarto e' una reazione scelta, e non disarma l'Overwatch (decisione d'autore del 2026-10-15).
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
 				bCaduto ? TEXT("Caduta") : (bScartato ? TEXT("Scarto") : TEXT("Spinta")),
-				Map, PushObserverTeams, ERTMatchPhase::Blast, Esito);
+				Map, PushObserverTeams, ERTMatchPhase::Blast, Esito, /*bChosenByTheUnit=*/ bScartato);
 
 			// #2430: gli effetti DOPO lo spostamento, cosi' la voce nomina la cella dove l'unita' e' finita
 			// e non quella da cui e' partita.
