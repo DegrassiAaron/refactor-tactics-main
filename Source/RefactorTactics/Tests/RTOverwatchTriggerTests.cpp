@@ -47,6 +47,11 @@
 #include "Turn/RTReactionLibrary.h"           // [D-349]: ERTReactionOutcome, l'esito della voce di silenzio
 #include "Replay/RTReplayPrivacyLibrary.h"    // [D-349]: chi legge la voce, col filtro del replay per osservatore
 #include "Replay/RTReplayAuditLibrary.h"      // [D-349]: l'audit di [D-313] ricalcola il verdetto per regola
+#include "Ability/RTHeroCatalogLibrary.h"     // [D-411]: gli Ivrin della scena di partita
+#include "Kismet/GameplayStatics.h"
+#include "Map/RTHexMapActor.h"
+#include "Tests/RTAbilityFixtures.h"          // [D-411]: `Action.Overwatch` e `Action.Sprint` installati come in partita
+#include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -98,17 +103,26 @@ namespace
 }
 
 /**
- * Il trigger si valuta a ogni micro-step: tre passi dentro la zona danno tre opportunity, non una.
+ * [D-411] L'occasione e' UNA per nemico e per turno, non una per micro-step: tre passi dentro la zona danno UNA
+ * opportunity, al primo passo.
  *
- * E' la differenza con `ResolveSuppression`, che di ogni unita' considera solo il PRIMO ingresso perche' la
- * linea si spende una volta. L'Overwatch resta armato finche' non si risponde `FIRE`, quindi ogni passo e' una
- * nuova occasione di decidere — e il conteggio deve dirlo. Un'implementazione che uscisse dal ciclo al primo
- * trigger passerebbe ogni altro test di questo file.
+ * ⏱️ **Fino al 2026-10-15 questo test si chiamava `Overwatch.TriggersPerMicroStep` e asseriva tre opportunity.** Era il
+ * comportamento di prima di [D-411]: un `HOLD` perdeva l'opportunity e non la reaction, e il passo dopo riproponeva lo
+ * stesso nemico. Con lo Sprint e i percorsi lunghi voleva dire interrompere il giocatore a ogni cella. La decisione
+ * dichiarava questo test rosso per progetto, e chiedeva di riscriverlo invece di cancellarlo.
+ *
+ * Quattro misure, ciascuna contro un modo diverso di sbagliare:
+ *   1. lo stesso nemico su tre passi apre UNA opportunity, al suo primo passo;
+ *   2. un SECONDO nemico che entra dopo ne apre una sua: la regola e' per nemico, non per watcher;
+ *   3. un nemico gia' chiesto in un micro-step precedente (`AlreadyAskedUnitIds`) non apre niente: e' come il
+ *      pompaggio chiama questa funzione, un passo alla volta;
+ *   4. un nemico che la condizione dichiarata esclude NON e' stato chiesto: l'opportunity col solo `HOLD` torna a
+ *      ogni passo, perche' la domanda non c'e' mai stata ([D-522]).
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchTriggersPerMicroStepTest,
-	"RefactorTactics.Overwatch.TriggersPerMicroStep",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchOneOpportunityPerEnemyPerTurnTest,
+	"RefactorTactics.Overwatch.OneOpportunityPerEnemyPerTurn",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTOverwatchTriggersPerMicroStepTest::RunTest(const FString&)
+bool FRTOverwatchOneOpportunityPerEnemyPerTurnTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeOverwatchMap();
 
@@ -116,38 +130,65 @@ bool FRTOverwatchTriggersPerMicroStepTest::RunTest(const FString&)
 	FRTOverwatchWatcher Watcher = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
 		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
 	Watcher.TeamAwareness.Add(9, ERTAwareness::Detected);
+	Watcher.TeamAwareness.Add(8, ERTAwareness::Detected);
 
-	// Il bersaglio entra e percorre TRE celle controllate di fila.
+	// 1. Il bersaglio entra e percorre TRE celle controllate di fila.
 	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
-	const TArray<FRTSuppressionMover> Movers = { MakeOverwatchMover(9, /*TeamId*/ 1, Path) };
-
-	const TArray<FRTOverwatchTrigger> Triggers =
-		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 4, { Watcher }, Movers);
-
-	TestEqual(TEXT("tre micro-step dentro la zona aprono tre opportunity"), Triggers.Num(), 3);
-
-	// Gli indici sono 0,1,2 e crescono: senza questo, tre opportunity tutte allo step 0 passerebbero il
-	// conteggio qui sopra dicendo una cosa falsa.
-	for (int32 i = 0; i < Triggers.Num() && i < 3; ++i)
+	const TArray<FRTOverwatchTrigger> Uno =
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 4, { Watcher },
+			{ MakeOverwatchMover(9, /*TeamId*/ 1, Path) });
+	TestEqual(TEXT("1) tre micro-step dentro la zona aprono UNA opportunity"), Uno.Num(), 1);
+	if (Uno.Num() == 1)
 	{
-		TestEqual(FString::Printf(TEXT("l'opportunity %d porta il proprio micro-step"), i),
-			Triggers[i].Opportunity.Key.MicroStepIndex, i);
-		TestEqual(TEXT("la fase e' il Move: l'Overwatch scatta sui micro-step del movimento"),
-			static_cast<int32>(Triggers[i].Opportunity.Key.MacroPhase), static_cast<int32>(ERTMatchPhase::Move));
-		TestEqual(TEXT("il turno viaggia nella chiave"), Triggers[i].Opportunity.Key.TurnNumber, 4);
+		TestEqual(TEXT("1) al primo passo, quello dell'ingresso"), Uno[0].Opportunity.Key.MicroStepIndex, 0);
+		TestEqual(TEXT("1) la fase e' il Move: l'Overwatch scatta sui micro-step del movimento"),
+			static_cast<int32>(Uno[0].Opportunity.Key.MacroPhase), static_cast<int32>(ERTMatchPhase::Move));
+		TestEqual(TEXT("1) il turno viaggia nella chiave"), Uno[0].Opportunity.Key.TurnNumber, 4);
 	}
 
-	// Tre chiavi distinte, cioe' tre id distinti: se collidessero, il replay attribuirebbe a una la decisione
-	// di un'altra — il difetto che CP 14.3 esiste per impedire.
-	TSet<FString> Ids;
-	for (const FRTOverwatchTrigger& T : Triggers)
+	// 2. Un secondo nemico entra al terzo passo, mentre il primo e' ancora nella zona: apre la SUA opportunity, che
+	// porta lui solo. Il primo non torna.
+	const TArray<FRTOverwatchTrigger> Due = URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 4, { Watcher },
+		{ MakeOverwatchMover(9, 1, Path),
+		  MakeOverwatchMover(8, 1, { FRTCellId(4, 1, 0), FRTCellId(4, 1, 0), FRTCellId(4, 0, 0) }) });
+	TestEqual(TEXT("2) due nemici, due opportunity: la regola e' per nemico"), Due.Num(), 2);
+	if (Due.Num() == 2)
 	{
-		Ids.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(T.Opportunity.Key));
+		TestEqual(TEXT("2) la seconda al passo in cui entra il secondo"), Due[1].Opportunity.Key.MicroStepIndex, 2);
+		TestTrue(TEXT("2) e porta lui solo: il primo, gia' chiesto, non torna"),
+			Due[1].TargetUnitIds == TArray<int32>({ 8 }));
+		TestNotEqual(TEXT("2) due finestre con due id distinti"),
+			URTReactionOpportunityLibrary::DeriveOpportunityId(Due[0].Opportunity.Key),
+			URTReactionOpportunityLibrary::DeriveOpportunityId(Due[1].Opportunity.Key));
 	}
-	TestEqual(TEXT("le tre opportunity hanno tre id distinti"), Ids.Num(), Triggers.Num());
 
-	// Un passo FUORI dalla zona non apre niente: e' il controllo che impedisce a «tre» di essere il numero
-	// giusto per la ragione sbagliata (per esempio un trigger per micro-step a prescindere dalla geometria).
+	// 3. Come la chiama il pompaggio: un passo alla volta, con chi e' gia' stato chiesto.
+	FRTOverwatchWatcher GiaChiesto = Watcher;
+	GiaChiesto.AlreadyAskedUnitIds = { 9 };
+	TestEqual(TEXT("3) un nemico gia' chiesto in questo turno non apre niente"),
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 4, { GiaChiesto },
+			{ MakeOverwatchMover(9, 1, { FRTCellId(2, 0, 0) }) }, {}, /*Step*/ 1).Num(), 0);
+	TestEqual(TEXT("3) un altro nemico si'"),
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 4, { GiaChiesto },
+			{ MakeOverwatchMover(8, 1, { FRTCellId(2, 0, 0) }) }, {}, /*Step*/ 1).Num(), 1);
+
+	// 4. La condizione esclude il bersaglio a ogni passo (100 PV su 100, soglia al 50%): nessun `FIRE` e' offerto,
+	// quindi nessuno e' stato chiesto, e l'opportunity col solo `HOLD` torna a ogni passo, come prima di [D-411].
+	FRTOverwatchWatcher Condizionato = Watcher;
+	Condizionato.DeclaredCondition =
+		FRTDeclaredCondition(URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
+	TMap<int32, FRTTargetVitals> Pieno;
+	Pieno.Add(9, FRTTargetVitals(100, 100));
+	const TArray<FRTOverwatchTrigger> Esclusi = URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, 4,
+		{ Condizionato }, { MakeOverwatchMover(9, 1, Path) }, Pieno);
+	TestEqual(TEXT("4) escluso dalla condizione: non chiesto, quindi riproposto a ogni passo"), Esclusi.Num(), 3);
+	for (const FRTOverwatchTrigger& T : Esclusi)
+	{
+		TestFalse(TEXT("4) e senza FIRE: e' il solo HOLD"), URTReactionOpportunityLibrary::RequiresDecisionBoundary(T.Opportunity));
+	}
+
+	// Un passo FUORI dalla zona non apre niente: e' il controllo che impedisce a «uno» di essere il numero giusto per
+	// la ragione sbagliata.
 	const TArray<FRTSuppressionMover> Outside =
 		{ MakeOverwatchMover(9, 1, { FRTCellId(0, 1, 0), FRTCellId(0, 2, 0), FRTCellId(0, 3, 0) }) };
 	TestEqual(TEXT("un percorso fuori dalla zona non apre opportunity"),
@@ -296,7 +337,7 @@ bool FRTOverwatchRequiresDetectionTest::RunTest(const FString&)
 			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Blocked, 1, { Behind }, Movers).Num(), 0);
 	}
 
-	// 4) `TargetInsideArea` e' gia' coperta da `TriggersPerMicroStep`; qui resta il caso dell'ALLEATO, che
+	// 4) `TargetInsideArea` e' gia' coperta da `OneOpportunityPerEnemyPerTurn`; qui resta il caso dell'ALLEATO, che
 	//    e' dentro l'area e rilevato e comunque non deve armare niente.
 	{
 		FRTOverwatchWatcher Friendly = Detected;
@@ -634,7 +675,12 @@ bool FRTOverwatchDeclaredConditionTest::RunTest(const FString&)
  *
  * ⚠️ Il confronto e' sugli `OpportunityId`, non sul conteggio: il conteggio tornerebbe anche se ogni chiamata
  * producesse `MicroStepIndex = 0`, che e' esattamente il difetto contro cui `FirstMicroStepIndex` esiste —
- * tre opportunity con la stessa chiave, quindi lo stesso id, e un replay che ne confonde le decisioni.
+ * due opportunity con la stessa chiave, quindi lo stesso id, e un replay che ne confonde le decisioni.
+ *
+ * ⏱️ **Da [D-411] la via a passi porta con se' chi ha gia' chiesto**, come il pompaggio: dopo ogni passo i nemici con
+ * un `FIRE` offerto entrano in `AlreadyAskedUnitIds`. Senza, le due vie divergerebbero — la via in blocco propone ogni
+ * nemico una volta, quella a passi a ogni passo. Per questo i nemici sono due, entrati a passi diversi: con uno solo
+ * resterebbe un'opportunity, e l'indice del micro-step non verrebbe messo alla prova.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSteppedCallMatchesWholePathTest,
 	"RefactorTactics.Overwatch.SteppedCallMatchesWholePath",
@@ -646,30 +692,41 @@ bool FRTOverwatchSteppedCallMatchesWholePathTest::RunTest(const FString&)
 	FRTOverwatchWatcher Watcher = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
 		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
 	Watcher.TeamAwareness.Add(9, ERTAwareness::Detected);
+	Watcher.TeamAwareness.Add(8, ERTAwareness::Detected);
 
+	// Il 9 entra al primo passo e resta nella linea; l'8 aspetta fuori e entra al terzo.
 	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTCellId> PathOtto = { FRTCellId(4, 1, 0), FRTCellId(4, 1, 0), FRTCellId(4, 0, 0) };
 
-	// (a) la via in BLOCCO: percorso intero, un colpo solo. E' quella che CP 14.4 gia' verifica.
+	// (a) la via in BLOCCO: percorsi interi, un colpo solo. E' quella che CP 14.4 gia' verifica.
 	TArray<FString> WholeIds;
 	for (const FRTOverwatchTrigger& T : URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-			Map, /*TurnNumber*/ 4, { Watcher }, { MakeOverwatchMover(9, /*TeamId*/ 1, Path) }))
+			Map, /*TurnNumber*/ 4, { Watcher },
+			{ MakeOverwatchMover(9, /*TeamId*/ 1, Path), MakeOverwatchMover(8, /*TeamId*/ 1, PathOtto) }))
 	{
 		WholeIds.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(T.Opportunity.Key));
 	}
 
-	// (b) la via a PASSI: un mover di una cella sola per volta, con l'indice del turno accanto.
+	// (b) la via a PASSI: una cella per mover alla volta, con l'indice del turno accanto e chi e' gia' stato chiesto.
 	TArray<FString> SteppedIds;
+	FRTOverwatchWatcher APassi = Watcher;
 	for (int32 Step = 0; Step < Path.Num(); ++Step)
 	{
-		const TArray<FRTSuppressionMover> OneStep = { MakeOverwatchMover(9, /*TeamId*/ 1, { Path[Step] }) };
+		const TArray<FRTSuppressionMover> OneStep = {
+			MakeOverwatchMover(9, /*TeamId*/ 1, { Path[Step] }), MakeOverwatchMover(8, /*TeamId*/ 1, { PathOtto[Step] }) };
 		for (const FRTOverwatchTrigger& T : URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-				Map, /*TurnNumber*/ 4, { Watcher }, OneStep, /*Vitals*/ {}, /*FirstMicroStepIndex*/ Step))
+				Map, /*TurnNumber*/ 4, { APassi }, OneStep, /*Vitals*/ {}, /*FirstMicroStepIndex*/ Step))
 		{
 			SteppedIds.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(T.Opportunity.Key));
+			for (const FString& Response : T.Opportunity.AllowedResponses)
+			{
+				const int32 Chiesto = URTReactionOpportunityLibrary::FireResponseTarget(Response);
+				if (Chiesto != INDEX_NONE) { APassi.AlreadyAskedUnitIds.AddUnique(Chiesto); }
+			}
 		}
 	}
 
-	TestEqual(TEXT("la via in blocco apre tre opportunity"), WholeIds.Num(), 3);
+	TestEqual(TEXT("la via in blocco apre due opportunity, una per nemico"), WholeIds.Num(), 2);
 	TestEqual(TEXT("la via a passi ne apre altrettante"), SteppedIds.Num(), WholeIds.Num());
 	for (int32 i = 0; i < WholeIds.Num() && i < SteppedIds.Num(); ++i)
 	{
@@ -677,10 +734,10 @@ bool FRTOverwatchSteppedCallMatchesWholePathTest::RunTest(const FString&)
 			SteppedIds[i], WholeIds[i]);
 	}
 
-	// E i tre id sono DISTINTI fra loro: senza, l'uguaglianza qui sopra sarebbe soddisfatta anche da tre
+	// E i due id sono DISTINTI fra loro: senza, l'uguaglianza qui sopra sarebbe soddisfatta anche da due
 	// copie dello stesso id — cioe' proprio il collasso che il parametro deve impedire.
 	TSet<FString> Distinct(SteppedIds);
-	TestEqual(TEXT("i tre id sono distinti"), Distinct.Num(), SteppedIds.Num());
+	TestEqual(TEXT("i due id sono distinti"), Distinct.Num(), SteppedIds.Num());
 
 	return true;
 }
@@ -786,14 +843,18 @@ bool FRTOverwatchTimeoutIsHoldTest::RunTest(const FString&)
 
 /**
  * `HOLD` perde l'OPPORTUNITY, non la reaction (CP 14.5): finche' il watcher resta armato, un micro-step
- * successivo puo' aprirne un'altra.
+ * successivo puo' aprirne un'altra — su un nemico che non e' ancora stato chiesto ([D-411]).
  *
  * E' la proprieta' che rende possibile il *bait*: lascio passare il primo perche' penso che dietro arrivi di
  * meglio. Senza, la prima unita' che entra brucerebbe sempre l'Overwatch — che e' esattamente l'alternativa
  * che ADR-0004 ha scartato («il bait diventa banale»).
  *
- * ⚠️ Le due meta' si verificano insieme e in opposizione: armato apre, disarmato non apre. Solo la prima
- * sarebbe soddisfatta anche da un trigger che ignora del tutto `bArmed`.
+ * ⏱️ **Fino al 2026-10-15 il passo dopo riproponeva lo STESSO nemico**, e questo test lo asseriva. [D-411] lo toglie:
+ * dopo un `HOLD` quel nemico non torna, e il prezzo — rinunciare a una sua posizione migliore — e' dichiarato nella
+ * decisione. Il *bait* resta, e si misura col nemico che arriva DOPO.
+ *
+ * ⚠️ Le tre meta' si verificano insieme e in opposizione: il nemico gia' chiesto non apre, quello nuovo apre, e
+ * disarmato non apre nessuno. La seconda da sola sarebbe soddisfatta anche da un trigger che ignora del tutto `bArmed`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchHoldKeepsArmedTest,
 	"RefactorTactics.Overwatch.HoldKeepsArmed",
@@ -814,10 +875,18 @@ bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
 		Map, /*TurnNumber*/ 2, { Armed }, { MakeOverwatchMover(9, 1, { Path[0] }) }, {}, /*Step*/ 0);
 	TestEqual(TEXT("il primo passo apre una finestra"), Step0.Num(), 1);
 
-	// Dopo un `HOLD` la charge NON si spende, quindi il watcher del passo dopo e' ancora questo.
+	// Dopo un `HOLD` la charge NON si spende, quindi il watcher del passo dopo e' ancora armato. Ma il nemico chiesto
+	// non torna ([D-411]): il pompaggio glielo segna in `AlreadyAskedUnitIds`, e qui lo si fa a mano.
+	Armed.AlreadyAskedUnitIds = { 9 };
+	TestEqual(TEXT("dopo un HOLD lo stesso nemico non torna"),
+		URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 2, { Armed },
+			{ MakeOverwatchMover(9, 1, { Path[1] }) }, {}, /*Step*/ 1).Num(), 0);
+
+	// IL BAIT: un nemico mai chiesto, al passo dopo, apre ancora la finestra.
+	Armed.TeamAwareness.Add(8, ERTAwareness::Detected);
 	const TArray<FRTOverwatchTrigger> Step1 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 2, { Armed }, { MakeOverwatchMover(9, 1, { Path[1] }) }, {}, /*Step*/ 1);
-	TestEqual(TEXT("dopo un HOLD il passo successivo ne apre un'altra"), Step1.Num(), 1);
+		Map, /*TurnNumber*/ 2, { Armed }, { MakeOverwatchMover(8, 1, { Path[1] }) }, {}, /*Step*/ 1);
+	TestEqual(TEXT("dopo un HOLD il passo successivo ne apre un'altra, su un nemico nuovo"), Step1.Num(), 1);
 
 	if (Step0.Num() == 1 && Step1.Num() == 1)
 	{
@@ -832,7 +901,7 @@ bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
 	FRTOverwatchWatcher Spent = Armed;
 	Spent.bArmed = false;
 	const TArray<FRTOverwatchTrigger> AfterFire = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 2, { Spent }, { MakeOverwatchMover(9, 1, { Path[1] }) }, {}, /*Step*/ 1);
+		Map, /*TurnNumber*/ 2, { Spent }, { MakeOverwatchMover(8, 1, { Path[1] }) }, {}, /*Step*/ 1);
 	TestEqual(TEXT("dopo un FIRE la reaction non apre piu' nulla"), AfterFire.Num(), 0);
 
 	return true;
@@ -870,6 +939,11 @@ bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
  *
  * ⛔ **La meta' COMPORTAMENTALE non vive qui e non e' stata abbandonata**: appartiene a una partita vera,
  * dove `bCharged` e' la carica, e la porta lo scenario `Spec.Resolver.IntegratedTurn` (#3031 CHECKPOINT H).
+ *
+ * 🔑 **Dal 2026-10-15 c'e' UN campo per bersaglio, ed e' quello che il messaggio d'errore qui sotto nominava**: «su
+ * questo ho gia' chiesto», cioe' `AlreadyAskedUnitIds` di [D-411]. Entra nell'elenco perche' esclude dalla DOMANDA e
+ * non dalla carica: un nemico mai chiesto apre ancora la finestra, e il primo `FIRE` spende la carica dell'armamento
+ * qualunque sia il bersaglio. La carica per bersaglio resta non rappresentabile, ed e' cio' che questo presidio tiene.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchWatcherCarriesNoPerTargetStateTest,
 	"RefactorTactics.Overwatch.WatcherCarriesNoPerTargetState",
@@ -886,11 +960,13 @@ bool FRTOverwatchWatcherCarriesNoPerTargetStateTest::RunTest(const FString&)
 	//   `TeamAwareness`               — l'unica mappa indicizzata per unita', e dice cosa la SQUADRA vede:
 	//                                   e' un ingresso della condizione di trigger, non una carica spesa;
 	//   i quattro `*Priority`/`*Id`   — i tie-break di ADR-0004 §4 e l'identita' della reaction;
-	//   `bArmed`                      — per WATCHER, e in partita sempre vero (vedi sopra).
+	//   `bArmed`                      — per WATCHER, e in partita sempre vero (vedi sopra);
+	//   `AlreadyAskedUnitIds`         — [D-411], chi e' gia' stato chiesto: esclude dalla domanda, non dalla carica.
 	const TSet<FString> Ammessi = {
 		TEXT("Zone"), TEXT("OwnerCell"), TEXT("ReactionDefId"), TEXT("DeclaredCondition"),
 		TEXT("TeamAwareness"), TEXT("ReactionPriority"), TEXT("AbilityPriority"),
-		TEXT("UnitInitiative"), TEXT("StableUnitId"), TEXT("ReactionInstanceId"), TEXT("bArmed")
+		TEXT("UnitInitiative"), TEXT("StableUnitId"), TEXT("ReactionInstanceId"), TEXT("bArmed"),
+		TEXT("AlreadyAskedUnitIds")
 	};
 
 	for (TFieldIterator<FProperty> It(Struct); It; ++It)
@@ -2395,7 +2471,8 @@ bool FRTOverwatchWatchesItsOwnLayerTest::RunTest(const FString&)
 	const TArray<FRTCellId> Accanto = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
 	const TArray<FRTOverwatchTrigger> DaAccanto = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
 		Map, /*TurnNumber*/ 4, { Basso }, { MakeOverwatchMover(9, /*TeamId*/ 1, Accanto) });
-	TestEqual(TEXT("lo stesso percorso sul piano del guardiano apre tre opportunity"), DaAccanto.Num(), 3);
+	// Una, e non tre: da [D-411] l'occasione e' una per nemico e per turno (`Overwatch.OneOpportunityPerEnemyPerTurn`).
+	TestEqual(TEXT("lo stesso percorso sul piano del guardiano apre la sua opportunity"), DaAccanto.Num(), 1);
 
 	// --- 4. ⚠️ E non è «il layer 1 non funziona»: un guardiano lassù controlla lassù ----------------------
 	FRTOverwatchWatcher Alto = MakeOverwatchWatcher(Map, /*OwnerId*/ 2, /*TeamId*/ 0,
@@ -2408,12 +2485,329 @@ bool FRTOverwatchWatchesItsOwnLayerTest::RunTest(const FString&)
 	}
 	const TArray<FRTOverwatchTrigger> AltoSuSopra = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
 		Map, /*TurnNumber*/ 4, { Alto }, { MakeOverwatchMover(9, /*TeamId*/ 1, Sopra) });
-	TestEqual(TEXT("un guardiano in piattaforma scatta su chi passa in piattaforma"), AltoSuSopra.Num(), 3);
+	TestEqual(TEXT("un guardiano in piattaforma scatta su chi passa in piattaforma"), AltoSuSopra.Num(), 1);
 
 	// E il simmetrico: non scatta su chi passa di sotto.
 	const TArray<FRTOverwatchTrigger> AltoSuAccanto = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
 		Map, /*TurnNumber*/ 4, { Alto }, { MakeOverwatchMover(9, /*TeamId*/ 1, Accanto) });
 	TestEqual(TEXT("e non su chi passa di sotto"), AltoSuAccanto.Num(), 0);
+	return true;
+}
+
+// ─── [D-411] La cadenza in partita: una domanda per nemico e per turno (#3132) ───────────────────────────────────────
+//
+// I tre test della DoD di #3132, nel `TurnManager` vero: la regola la applicano insieme `BuildOverwatchTriggers` e il
+// pompaggio, che segna chi ha chiesto (`FRTArmedOverwatch::AskedTargetUnitIds`). Il decisore registra ogni domanda — i
+// nemici con un `FIRE` offerto — e risponde con una politica scritta nel test.
+//
+// Prefissi `Cadenza*`: la unity build fonde i namespace anonimi fra file.
+
+namespace
+{
+	/** La scena: arena piatta, e un Ivrin della squadra 0 in (0,0) con l'Overwatch armato verso est. Linea: (1,0)…(4,0). */
+	struct FCadenzaScena
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Watcher = nullptr;
+	};
+
+	ARTUnit* SpawnCadenzaUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, ERTHexDirection Facing)
+	{
+		ARTUnit* U = World ? World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity) : nullptr;
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		U->Facing = Facing;
+		return U;
+	}
+
+	bool MontaCadenza(FCadenzaScena& S)
+	{
+		S.World = RTWorldFixtures::MakeWorld();
+		if (!S.World) { return false; }
+		ARTHexMapActor* MapActor = S.World->SpawnActor<ARTHexMapActor>();
+		if (!MapActor) { return false; }
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius*/ 9);
+		S.Watcher = SpawnCadenzaUnit(S.World, 0, FRTCellId(0, 0, 0), ERTHexDirection::E);
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.Watcher || !S.TM) { return false; }
+		const int32 Idx = RTAbilityFixtures::AddCoreAbilityInSlot(S.Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
+		if (Idx == INDEX_NONE) { return false; }
+		S.Watcher->PlannedAbilityIndex = Idx; // armare costa l'azione PRINCIPALE (catalogo §1)
+		return true;
+	}
+
+	/** Un nemico della squadra 1 che parte da `Path[0]` e lo percorre. */
+	ARTUnit* SpawnCadenzaMover(const FCadenzaScena& S, const TArray<FRTCellId>& Path)
+	{
+		ARTUnit* U = SpawnCadenzaUnit(S.World, 1, Path[0], ERTHexDirection::W);
+		if (!U) { return nullptr; }
+		U->PlannedAbilityIndex = INDEX_NONE;
+		U->PlannedPath = Path;
+		U->PlannedCell = Path.Last();
+		return U;
+	}
+
+	/** Le domande che il decisore ha ricevuto, in ordine: per ognuna, i nemici con un `FIRE` offerto. */
+	struct FCadenzaDomande
+	{
+		TArray<TArray<int32>> Offerti;
+
+		/** In quante domande il nemico e' comparso. */
+		int32 VolteChiesto(int32 Nemico) const
+		{
+			int32 N = 0;
+			for (const TArray<int32>& Domanda : Offerti) { N += Domanda.Contains(Nemico) ? 1 : 0; }
+			return N;
+		}
+
+		/** Ogni nemico comparso, una volta sola, in ordine di prima comparsa. */
+		TArray<int32> Nemici() const
+		{
+			TArray<int32> Out;
+			for (const TArray<int32>& Domanda : Offerti) { for (const int32 N : Domanda) { Out.AddUnique(N); } }
+			return Out;
+		}
+
+		FString Referto() const
+		{
+			TArray<FString> Righe;
+			for (const TArray<int32>& Domanda : Offerti)
+			{
+				TArray<FString> Ids;
+				for (const int32 N : Domanda) { Ids.Add(FString::FromInt(N)); }
+				Righe.Add(FString::Printf(TEXT("[%s]"), *FString::Join(Ids, TEXT(","))));
+			}
+			return FString::Printf(TEXT("%d domande: %s"), Offerti.Num(), *FString::Join(Righe, TEXT(" ")));
+		}
+	};
+
+	/**
+	 * Lega il decisore: registra la domanda e risponde con `Politica(offerti, domande gia' registrate)`. La politica
+	 * torna il token della risposta: `HoldResponse()`, `FireResponse(n)`, o vuoto per non rispondere (lo scadere).
+	 */
+	TSharedRef<FCadenzaDomande> LegaCadenzaDecisore(ARTTurnManager* TM,
+		TFunction<FString(const TArray<int32>&, const FCadenzaDomande&)> Politica)
+	{
+		TSharedRef<FCadenzaDomande> Domande = MakeShared<FCadenzaDomande>();
+		TM->ReactionDecider.BindLambda([Domande, Politica](const FRTReactionOpportunity& Opportunity, int32) -> FString
+		{
+			TArray<int32> Offerti;
+			for (const FString& Response : Opportunity.AllowedResponses)
+			{
+				const int32 Bersaglio = URTReactionOpportunityLibrary::FireResponseTarget(Response);
+				if (Bersaglio != INDEX_NONE) { Offerti.Add(Bersaglio); }
+			}
+			const FString Risposta = Politica(Offerti, *Domande);
+			Domande->Offerti.Add(Offerti);
+			return Risposta;
+		});
+		return Domande;
+	}
+
+	void GiocaCadenza(ARTTurnManager* TM)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	/** Salute + scudo: il danno e' la differenza, e lo scudo base che rientra a inizio turno la puo' rendere negativa ([D-224]). */
+	int32 CadenzaVita(const ARTUnit* U) { return U ? U->Health + U->Shield : 0; }
+}
+
+/**
+ * [D-411] Primo nemico `HOLD`, secondo `FIRE`: il primo non viene richiesto, e l'attacco e' UNO.
+ *
+ * `A` entra nella linea al primo passo e ci resta al secondo; `B` entra al secondo. Il decisore lascia passare la prima
+ * domanda e spara al primo nemico mai visto nelle successive.
+ *
+ * 🔑 **Prima di [D-411] la seconda domanda offriva `A` e `B` insieme**, e il decisore avrebbe sparato comunque a `B`: il
+ * danno da solo non distingue i due mondi. Li distingue quante volte `A` e' stato chiesto — due prima, una adesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchHoldThenFireAsksEachEnemyOnceTest,
+	"RefactorTactics.Overwatch.HoldThenFireAsksEachEnemyOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchHoldThenFireAsksEachEnemyOnceTest::RunTest(const FString&)
+{
+	FCadenzaScena S;
+	if (!TestTrue(TEXT("la scena si monta"), MontaCadenza(S))) { RTWorldFixtures::DestroyWorld(S.World); return false; }
+
+	ARTUnit* A = SpawnCadenzaMover(S, { FRTCellId(1, 1, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) });
+	ARTUnit* B = SpawnCadenzaMover(S, { FRTCellId(3, 2, 0), FRTCellId(3, 1, 0), FRTCellId(3, 0, 0) });
+	if (!TestTrue(TEXT("i due nemici ci sono"), A && B)) { RTWorldFixtures::DestroyWorld(S.World); return false; }
+
+	const TSharedRef<FCadenzaDomande> Domande = LegaCadenzaDecisore(S.TM,
+		[](const TArray<int32>& Offerti, const FCadenzaDomande& Prima) -> FString
+		{
+			if (Prima.Offerti.Num() == 0) { return URTReactionOpportunityLibrary::HoldResponse(); }
+			const TArray<int32> Visti = Prima.Nemici();
+			for (const int32 N : Offerti)
+			{
+				if (!Visti.Contains(N)) { return URTReactionOpportunityLibrary::FireResponse(N); }
+			}
+			return URTReactionOpportunityLibrary::HoldResponse();
+		});
+
+	const int32 VitaA = CadenzaVita(A);
+	const int32 VitaB = CadenzaVita(B);
+	GiocaCadenza(S.TM);
+	const FString Referto = FString::Printf(TEXT("%s · A in %s, B in %s"), *Domande->Referto(),
+		*A->Cell.ToString(), *B->Cell.ToString());
+
+	if (!TestEqual(FString::Printf(TEXT("premessa: due domande, una per nemico — %s"), *Referto), Domande->Offerti.Num(), 2))
+	{
+		RTWorldFixtures::DestroyWorld(S.World);
+		return false;
+	}
+	const int32 IdA = Domande->Offerti[0].Num() == 1 ? Domande->Offerti[0][0] : INDEX_NONE;
+	TestEqual(FString::Printf(TEXT("la prima domanda e' su A solo — %s"), *Referto), Domande->Offerti[0].Num(), 1);
+
+	// 🔴 IL PUNTO: dopo l'`HOLD`, A non torna nella domanda di B.
+	TestEqual(FString::Printf(TEXT("A e' chiesto UNA volta, anche se resta nella linea — %s"), *Referto),
+		Domande->VolteChiesto(IdA), 1);
+	TestEqual(FString::Printf(TEXT("la seconda domanda porta B solo — %s"), *Referto), Domande->Offerti[1].Num(), 1);
+
+	// Un solo attacco: B colpito, A no.
+	TestTrue(FString::Printf(TEXT("B e' colpito (%d -> %d) — %s"), VitaB, CadenzaVita(B), *Referto), CadenzaVita(B) < VitaB);
+	TestTrue(FString::Printf(TEXT("A no (%d -> %d) — %s"), VitaA, CadenzaVita(A), *Referto), CadenzaVita(A) >= VitaA);
+
+	RTWorldFixtures::DestroyWorld(S.World);
+	return true;
+}
+
+/**
+ * [D-411] Due nemici entrano insieme, e la finestra scade: UNA finestra, nessun tiro automatico, e i due non tornano
+ * anche se restano nella linea al passo dopo.
+ *
+ * Il decisore non risponde mai: e' lo scadere, che vale `HOLD` (ADR-0004 §3). Prima di [D-411] la seconda domanda li
+ * riproponeva entrambi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchTimeoutDoesNotReproposeTest,
+	"RefactorTactics.Overwatch.SimultaneousTimeoutDoesNotRepropose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchTimeoutDoesNotReproposeTest::RunTest(const FString&)
+{
+	FCadenzaScena S;
+	if (!TestTrue(TEXT("la scena si monta"), MontaCadenza(S))) { RTWorldFixtures::DestroyWorld(S.World); return false; }
+
+	// Entrambi entrano al primo passo, in due celle della linea, e ci restano al secondo.
+	ARTUnit* A = SpawnCadenzaMover(S, { FRTCellId(1, 1, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) });
+	ARTUnit* B = SpawnCadenzaMover(S, { FRTCellId(3, -1, 0), FRTCellId(3, 0, 0), FRTCellId(4, 0, 0) });
+	if (!TestTrue(TEXT("i due nemici ci sono"), A && B)) { RTWorldFixtures::DestroyWorld(S.World); return false; }
+
+	const TSharedRef<FCadenzaDomande> Domande = LegaCadenzaDecisore(S.TM,
+		[](const TArray<int32>&, const FCadenzaDomande&) -> FString { return FString(); });
+
+	const int32 VitaA = CadenzaVita(A);
+	const int32 VitaB = CadenzaVita(B);
+	GiocaCadenza(S.TM);
+	const FString Referto = FString::Printf(TEXT("%s · A in %s, B in %s"), *Domande->Referto(),
+		*A->Cell.ToString(), *B->Cell.ToString());
+
+	// Premesse: i due sono arrivati dove il secondo passo li porta, cioe' sono rimasti nella linea.
+	TestEqual(FString::Printf(TEXT("premessa: A ha fatto i due passi — %s"), *Referto), A->Cell, FRTCellId(2, 0, 0));
+	TestEqual(FString::Printf(TEXT("premessa: B ha fatto i due passi — %s"), *Referto), B->Cell, FRTCellId(4, 0, 0));
+
+	// 🔴 IL PUNTO: una finestra, con i due bersagli, e nessuna dopo.
+	TestEqual(FString::Printf(TEXT("una finestra sola — %s"), *Referto), Domande->Offerti.Num(), 1);
+	if (Domande->Offerti.Num() >= 1)
+	{
+		TestEqual(FString::Printf(TEXT("che offre i due nemici — %s"), *Referto), Domande->Offerti[0].Num(), 2);
+	}
+
+	// Lo scadere non spara: nessuno dei due e' colpito.
+	TestTrue(FString::Printf(TEXT("A non e' colpito — %s"), *Referto), CadenzaVita(A) >= VitaA);
+	TestTrue(FString::Printf(TEXT("B non e' colpito — %s"), *Referto), CadenzaVita(B) >= VitaB);
+
+	// E il TurnLog lo dichiara come scadenza, una volta.
+	int32 Scadenze = 0;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::Timeout)
+		{
+			++Scadenze;
+		}
+	}
+	TestEqual(FString::Printf(TEXT("una voce di scadenza nel TurnLog — %s"), *Referto), Scadenze, 1);
+
+	RTWorldFixtures::DestroyWorld(S.World);
+	return true;
+}
+
+/**
+ * [D-411] Uno Sprint attraversa la linea per quattro celle: ogni ingresso e' visto, ma la domanda e' UNA.
+ *
+ * La ragione della decisione, misurata: con lo Sprint e i percorsi lunghi, una domanda per micro-step interrompeva il
+ * giocatore a ogni cella. Il nemico corre da (8,0) a (1,0), sette celle oltre il movimento base di sei ([D-425]: correre
+ * e' andare lontano), e attraversa (4,0), (3,0), (2,0) e (1,0). Il decisore lascia sempre passare.
+ *
+ * 🔑 **«Ogni ingresso e' visto» si misura col registro dei silenzi di [D-349]**: se uno dei quattro ingressi non fosse
+ * stato rilevato, o fosse fuori dalla linea di vista, il registro scriverebbe `NotPerceived` o `NoLineOfSight`. Zero
+ * voci di quel genere, e una domanda sola: chi tace dopo la prima e' la regola, non la vista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSprintThroughTheLineAsksOnceTest,
+	"RefactorTactics.Overwatch.SprintThroughTheLineAsksOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSprintThroughTheLineAsksOnceTest::RunTest(const FString&)
+{
+	FCadenzaScena S;
+	if (!TestTrue(TEXT("la scena si monta"), MontaCadenza(S))) { RTWorldFixtures::DestroyWorld(S.World); return false; }
+
+	ARTUnit* Corridore = SpawnCadenzaUnit(S.World, 1, FRTCellId(8, 0, 0), ERTHexDirection::W);
+	if (!TestNotNull(TEXT("il corridore c'e'"), Corridore)) { RTWorldFixtures::DestroyWorld(S.World); return false; }
+	if (!TestTrue(TEXT("`Action.Sprint` installabile"),
+		RTAbilityFixtures::AddCoreAbility(Corridore, TEXT("Action.Sprint")) != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(S.World);
+		return false;
+	}
+	Corridore->PlannedAbilityIndex = INDEX_NONE;
+	Corridore->PlannedCell = FRTCellId(1, 0, 0);
+	const int32 Base = Corridore->GetEffectiveMoveRange();
+
+	const TSharedRef<FCadenzaDomande> Domande = LegaCadenzaDecisore(S.TM,
+		[](const TArray<int32>&, const FCadenzaDomande&) -> FString { return URTReactionOpportunityLibrary::HoldResponse(); });
+
+	GiocaCadenza(S.TM);
+	const FString Referto = FString::Printf(TEXT("%s · corridore in %s, movimento base %d"), *Domande->Referto(),
+		*Corridore->Cell.ToString(), Base);
+
+	// Premesse: e' uno Sprint, ed e' arrivato in fondo — quindi ha attraversato le quattro celle della linea.
+	TestTrue(FString::Printf(TEXT("premessa: sette celle sono oltre il movimento base — %s"), *Referto), Base < 7);
+	if (!TestEqual(FString::Printf(TEXT("premessa: il corridore e' arrivato in (1,0) — %s"), *Referto),
+		Corridore->Cell, FRTCellId(1, 0, 0)))
+	{
+		RTWorldFixtures::DestroyWorld(S.World);
+		return false;
+	}
+
+	// Ogni ingresso e' visto: il registro dei silenzi non ne ha perso nessuno.
+	int32 NonVisti = 0;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Reaction
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::NotTriggered
+			&& (E.Amount == static_cast<int32>(ERTOverwatchSilenceReason::NotPerceived)
+				|| E.Amount == static_cast<int32>(ERTOverwatchSilenceReason::NoLineOfSight)))
+		{
+			++NonVisti;
+		}
+	}
+	TestEqual(FString::Printf(TEXT("nessun ingresso perso dalla vista — %s"), *Referto), NonVisti, 0);
+
+	// 🔴 IL PUNTO: una domanda sola.
+	TestEqual(FString::Printf(TEXT("una domanda sola per quel nemico — %s"), *Referto), Domande->Offerti.Num(), 1);
+
+	RTWorldFixtures::DestroyWorld(S.World);
 	return true;
 }
 

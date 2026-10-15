@@ -837,6 +837,10 @@ bool FRTReactionWindowPresentsOnTheHoldTest::RunTest(const FString&)
  * e fino a `#3666` nessuno lo estendeva: la seconda finestra chiedeva del secondo ingresso con lo schermo fermo al
  * primo. Qui ogni presentazione registra dove il mover e' POSATO: alla seconda dev'essere sul secondo ingresso, e a
  * ogni presentazione il playback dev'essere trattenuto.
+ *
+ * ⏱️ **Da [D-411] la seconda finestra la apre un SECONDO nemico.** Fino al 2026-10-15 la apriva lo stesso mover al suo
+ * secondo passo, dopo un `HOLD`; ora un nemico gia' chiesto non torna. Il secondo entra nella linea allo stesso passo
+ * in cui il mover misurato arriva sul secondo ingresso (2,0): la seconda finestra deve presentarsi con lo schermo li'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSecondPresentsOnTheSecondEntryTest,
 	"RefactorTactics.Reactions.SecondWindowPresentsOnTheSecondEntry",
@@ -847,6 +851,12 @@ bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&
 	if (!M.World || !M.TM || !M.Mover || !M.Watcher) { DestroyResumeWorld(M.World); return false; }
 	ARTTurnManager* TM = M.TM;
 	ARTUnit* Mover = M.Mover;
+
+	// Il secondo nemico: fuori dalla linea al primo passo, dentro al secondo, in (-1,0).
+	ARTUnit* Secondo = SpawnResumeUnit(M.World, /*TeamId=*/ 0, FRTCellId(-1, 2));
+	if (!TestNotNull(TEXT("il secondo nemico c'e'"), Secondo)) { DestroyResumeWorld(M.World); return false; }
+	Secondo->PlannedPath = { FRTCellId(-1, 2), FRTCellId(-1, 1), FRTCellId(-1, 0) };
+	Secondo->PlannedCell = FRTCellId(-1, 0);
 
 	// Per ogni presentazione: quanto il mover dista dal primo e dal secondo ingresso, nella POSA.
 	TArray<TPair<float, float>> DistanzeAllApertura;

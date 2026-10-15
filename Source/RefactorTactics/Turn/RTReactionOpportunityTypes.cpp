@@ -726,6 +726,10 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 		// micro-step, che i percorsi dichiarano.
 		const TSet<FRTCellId> Controlled(Watcher.Zone.Cells);
 
+		// [D-411] Chi questo watcher ha gia' chiesto non torna bersaglio: quelli dei micro-step passati, e quelli che
+		// questa stessa chiamata chiede, quando riceve percorsi interi.
+		TSet<int32> Chiesti(Watcher.AlreadyAskedUnitIds);
+
 		// Quanti micro-step ha il piu' lungo dei percorsi: il trigger si valuta a OGNI passo, e il ciclo
 		// esterno e' il passo — non il mover. E' cio' che rende «piu' bersagli nello stesso micro-step» una
 		// sola opportunity invece di due, senza un secondo raggruppamento a valle.
@@ -744,6 +748,10 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 				if (!Mover.Path.IsValidIndex(Step))
 				{
 					continue; // percorso gia' finito: questa unita' non e' in movimento a questo passo
+				}
+				if (Chiesti.Contains(Mover.UnitId))
+				{
+					continue; // [D-411]: gia' chiesto in questo turno, la risposta c'e' stata
 				}
 
 				// Le condizioni del trigger vivono in `CheckMoverAgainstWatcher`, che il registro dei silenzi
@@ -798,6 +806,17 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 			Trigger.Opportunity.AllowedResponses.Add(HoldResponse());
 			RebuildFireResponses(Trigger.Opportunity, TargetsThisStep, Watcher.DeclaredCondition, TargetVitals,
 				[](int32) { return true; });
+
+			// [D-411] Chiesto e' chi ha un `FIRE` offerto: chi la condizione ha escluso non ha avuto la domanda, e a un
+			// passo successivo puo' averla. E' la stessa regola con cui il pompaggio segna l'armamento quando chiede.
+			for (const FString& Response : Trigger.Opportunity.AllowedResponses)
+			{
+				const int32 Offerto = FireResponseTarget(Response);
+				if (Offerto != INDEX_NONE)
+				{
+					Chiesti.Add(Offerto);
+				}
+			}
 
 			FPendingOverwatchTrigger P;
 			P.Trigger = MoveTemp(Trigger);
