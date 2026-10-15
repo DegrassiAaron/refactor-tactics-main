@@ -18,7 +18,13 @@ enum class ERTReactionOutcome : uint8
 	/** Pianificata e disponibile, ma nessun trigger valido in questo Blast. */
 	NotTriggered,
 	/** Pianificata ma non poteva scattare: cooldown attivo, o un'altra azione del turno lo vieta (Sprint). */
-	Unavailable
+	Unavailable,
+	/**
+	 * [D-366] Armata e poi DISARMATA prima di poter scattare, con la causa in `Amount` (`ERTOverwatchDisarmCause`).
+	 * Oggi la scrive solo lo spostamento forzato del watcher. In CODA, come ogni valore di un esito di log: una traccia
+	 * scritta conserva il proprio significato.
+	 */
+	Disarmed
 };
 
 /**
