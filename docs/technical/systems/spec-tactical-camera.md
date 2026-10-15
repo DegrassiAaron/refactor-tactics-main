@@ -198,12 +198,22 @@ una gerarchia di ripiego, e azzera **sempre** orientamento e distanza: è la sce
 |---|---|---|---|
 | 1 | c'è una selezione, **viva** e della **propria squadra** | sulla cella dell'unità, alla quota del piano | ✅ `Camera.HomeFramesTheSelectedOwnUnit` |
 | 2 | nessuna selezione utile, almeno un'unità propria viva | sul punto medio delle unità vive della propria squadra | ✅ `Camera.HomeWithoutSelectionFramesTheOwnTeam` |
-| 3 | nessuna delle due | sul centro della mappa: è `RecenterView`, il `Home` di prima | ✅ `Camera.HomeWithoutOwnUnitsFallsBackToTheMapCentre` |
+| 3 | nessuna delle due, oppure la squadra non è nota, oppure la sessione è un'osservazione | sul centro della mappa: è `RecenterView`, il `Home` di prima | ✅ `Camera.HomeWithoutOwnUnitsFallsBackToTheMapCentre` · `Camera.HomeWithoutPlayerStateDoesNotGuessTheTeam` · `Camera.HomeWhileObservingFramesTheMapNotTheUnits` |
 
 - ✅ **Misurato**: in tutti e tre gli anelli yaw, pitch, distanza (`DefaultArmLength` clampata) e peek tornano
   al default, e il pivot passa dalla porta unica con la vista **dopo** il reset
-  (`Camera.HomeKeepsThePivotInsideTheViewportBounds`). Il ramo della squadra **non** usa la distanza
-  d'inizio partita di `FrameOwnTeam`: sono due inquadrature diverse.
+  (`Camera.HomeKeepsThePivotInsideTheViewportBounds`, in tattica). Il ramo della squadra **non** usa la
+  distanza d'inizio partita di `FrameOwnTeam`: sono due inquadrature diverse. Il tasto passa davvero da
+  `FrameHome` (`Camera.HomeKeyFramesTheControllersSelection`).
+- ✅ **Dalla vista strategica** il pivot va alla quota **tattica** del piano: la board posata con i piani
+  separati torna alla quota tattica solo al prossimo tick dell'HUD, e `ResetAndFrame` legge la quota che la
+  board avrà dopo `Home` (`Camera.HomeFromStrategicFramesTheTacticalFloorHeight`).
+- ✅ **In osservazione** — autobattle in vigore, o una run di scenario (`ARTPlayerController::IsObservationSession`) —
+  `Home` resta il campo intero, l'inquadratura con cui `ARTGameMode::RecenterCameraOnScenario` apre uno scenario,
+  e la posizione delle unità non la cambia (`Camera.HomeKeyInAScenarioFramesTheWholeMap`). È il ramo che #1837
+  dava al `Replay`, applicato alle osservazioni che esistono.
+- ⛔ **Senza `ARTPlayerState` la squadra non si indovina**: `TeamIdOf` ripiegherebbe sulla 0, e per un
+  giocatore della 1 il cui stato non è ancora arrivato `Home` inquadrerebbe la squadra avversaria.
 - ⛔ **`Home` non inquadra mai un'unità di un'altra squadra**, nemmeno passata come selezione e nemmeno
   quando è l'unica viva (`Camera.HomeNeverFramesAnotherTeamsUnit`). La guardia sta in `FrameHome`, dove si
   scrive il pivot; «la propria squadra» è quella di `FrameOwnTeam`, cioè `ARTPlayerState::TeamIdOf`.
@@ -213,9 +223,8 @@ una gerarchia di ripiego, e azzera **sempre** orientamento e distanza: è la sce
   ricava leggendo `TeamId` e `IsAlive()` di tutte le unità del mondo (`CollectOwnTeamCells`) e tenendo le
   proprie. Non è un canale finché il filtro è la squadra dell'osservatore; lo diventerebbe il giorno in
   cui `Home` inquadrasse qualcosa di non proprio.
-- `N/A` **Il ramo `Replay` di #1837**: la camera e il controller non hanno una modalità replay, e il
-  visore dei replay (`URTReplayViewerSubsystem`) è una schermata senza camera di mappa. Non c'è un
-  `Home` da dare al replay finché non esiste un replay da guardare sulla mappa.
+- `N/A` **Il `Replay` di #1837, alla lettera**: il visore dei replay (`URTReplayViewerSubsystem`) è una
+  schermata senza camera di mappa. La regola che la issue gli dava vale per l'osservazione, qui sopra.
 - ⏳ **Prescritto e non ancora visto**: `PIE-CAM-HOME-CONTEXT`, i tre anelli a mano.
 
 ---

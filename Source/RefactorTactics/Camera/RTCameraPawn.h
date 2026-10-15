@@ -326,6 +326,9 @@ public:
 	/**
 	 * Riporta la camera al centro della griglia e ripristina l'inquadratura di default: distanza
 	 * `DefaultArmLength` **clampata** in `[MinArmLength, MaxArmLength]`, e orientamento dritto.
+	 *
+	 * Da #1837 non e' piu' il tasto `Home`: ne e' l'**ultimo anello** (`FrameHome`), il ripiego di `BeginPlay`
+	 * e l'inquadratura con cui `ARTGameMode` apre uno scenario.
 	 */
 	void RecenterView();
 
@@ -376,11 +379,20 @@ public:
 	 * ⚠️ **Orientamento e distanza si azzerano in tutti e tre i rami**: e' la scelta dell'autore del
 	 * 2026-10-15 (*«Home resta il tasto di recupero: inquadratura contestuale e orientamento di default»*).
 	 * Il ramo della squadra quindi **non** usa la distanza d'inizio partita di `FrameOwnTeam`: sono due
-	 * inquadrature diverse, e lo pinna `Camera.FrameOwnTeamZoomsCloserThanRecenter`.
+	 * inquadrature diverse, e lo pinna `Camera.HomeWithoutSelectionFramesTheOwnTeam`.
+	 *
+	 * ⛔ **Senza `ARTPlayerState` la squadra non si indovina**: `Home` va sul centro mappa invece di ripiegare
+	 * sulla squadra 0 come fa `FrameOwnTeam` all'avvio.
+	 *
+	 * `bObservationOnly` — autobattle e scenari, dove il giocatore non comanda una squadra — porta sempre sul
+	 * centro mappa: e' l'anello che la issue dava al `Replay`. Lo decide il controller.
 	 *
 	 * Sola presentazione: non seleziona, non cambia piano attivo, non tocca la pianificazione (`D-143`).
 	 */
-	ERTHomeFraming FrameHome(const ARTUnit* Selection);
+	ERTHomeFraming FrameHome(const ARTUnit* Selection, bool bObservationOnly = false);
+
+	/** L'unita' e' viva e della squadra `TeamId`: il predicato unico di «propria squadra» di `FrameHome` e `FrameOwnTeam`. */
+	static bool IsOwnLiveUnit(const ARTUnit* Unit, int32 TeamId);
 
 	/**
 	 * Imposta i tre limiti di distanza in un colpo solo (per i test).
@@ -643,7 +655,8 @@ protected:
 	/**
 	 * Distanza all'avvio della partita, quando la camera si posiziona sulla squadra del giocatore: piu' piccola
 	 * di `DefaultArmLength` perche' si parte guardando le proprie unita', non l'intera mappa. `Home`
-	 * (`RecenterView`) resta a `DefaultArmLength` clampata: sono due inquadrature diverse.
+	 * (`FrameHome`, in tutti i suoi anelli, `RecenterView` compreso) resta a `DefaultArmLength` clampata: sono due
+	 * inquadrature diverse, anche quando `Home` inquadra la stessa squadra.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float MatchStartArmLength = 450.f;
@@ -821,12 +834,19 @@ protected:
 	void ResetToDefaultView();
 
 	/**
+	 * La sequenza unica di `Home` e di `RecenterView`: reset della vista, pivot sul punto medio di `Cells` —
+	 * o sul centro della mappa se `Cells` e' vuoto —, peek azzerato. La quota dei piani si legge DOPO il
+	 * reset, perche' deve essere quella della board dopo `Home` e non quella posata per la strategica.
+	 */
+	void ResetAndFrame(const class ARTHexMapActor* HexMap, const TArray<FRTCellId>& Cells);
+
+	/**
 	 * Le celle delle unita' vive della squadra `TeamId`. `false` se non ce n'e' nessuna.
 	 *
 	 * ⚠️ Legge `TeamId` e `IsAlive()` di **tutte** le unita' del mondo, velate comprese, e tiene le proprie:
 	 * e' il debito dichiarato da `D-143`, che resta aperto finche' non esiste una vista sanificata. E' una
-	 * funzione sola perche' i lettori sono due — `FrameOwnTeam` e `FrameHome` — e due cicli identici sono il
-	 * modo in cui un filtro diventa due filtri.
+	 * funzione sola perche' la leggono `FrameOwnTeam` e `FrameHome`, e due cicli identici sono il modo in cui
+	 * un filtro diventa due filtri.
 	 */
 	bool CollectOwnTeamCells(int32 TeamId, TArray<FRTCellId>& OutCells) const;
 

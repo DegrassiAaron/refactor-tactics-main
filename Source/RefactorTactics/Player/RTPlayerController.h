@@ -1362,6 +1362,16 @@ public:
 	bool IsPlanningInputInert() const;
 
 	/**
+	 * `#1837`: la sessione e' un'**osservazione** — autobattle in vigore, oppure una run di scenario — e il
+	 * giocatore non comanda una squadra. `Home` allora resta il centro mappa.
+	 *
+	 * Per lo scenario valgono due fatti, perche' i due avvii non lasciano lo stesso segno: `ScenarioToRun`
+	 * (avvio da `BeginPlay`) dura quanto la sessione, `IsScenarioRunning` (avvio da console) quanto la run.
+	 * Stessa lettura del GameMode di `IsPlanningInputInert`, per la stessa ragione.
+	 */
+	bool IsObservationSession() const;
+
+	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.
 	 *
 	 * Restituisce il livello invece di `void` perche' l'ordine e' la cosa da provare: un test che guarda solo

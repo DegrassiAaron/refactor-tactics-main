@@ -1619,10 +1619,10 @@ bool ARTPlayerController::CycleSelection()
 void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
 {
 	// #1837: la selezione si passa com'e'. Se non e' della propria squadra, o non e' viva, `FrameHome` la
-	// scarta da se': la guardia sta dove si scrive il pivot, non qui.
+	// scarta da se': la guardia sta dove si scrive il pivot, non qui. In osservazione `Home` resta il campo intero.
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		Cam->FrameHome(GetSelectedUnit());
+		Cam->FrameHome(GetSelectedUnit(), IsObservationSession());
 	}
 }
 
@@ -4096,6 +4096,14 @@ bool ARTPlayerController::IsPlanningInputInert() const
 	const ARTGameMode* GameMode =
 		Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
 	return GameMode && GameMode->IsAutobattleInEffect();
+}
+
+bool ARTPlayerController::IsObservationSession() const
+{
+	const ARTGameMode* GameMode =
+		Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+	return GameMode && (GameMode->IsAutobattleInEffect() || GameMode->IsScenarioRunning()
+		|| !GameMode->ResolveScenarioToRun().IsEmpty());
 }
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const

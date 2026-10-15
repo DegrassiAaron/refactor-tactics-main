@@ -91,7 +91,7 @@
 
 **277 voci**: ✅ **110 verdi** · 🟡 **33 parziali** · ❌ **7 fallite** · ⏳ **127 aperte**.
 
-➕ **Rimisurato il 2026-10-15 ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837), `Home` contestuale)**: il ricalcolo di `doc-coherence` A1 dava `276 · 110/33/7/126` **prima** di aggiungere la voce e `277 · 110/33/7/127` **dopo**. Delta: una voce nuova, `PIE-CAM-HOME-CONTEXT`, aperta. `PIE-CAM-START` cambia la frase su `Home` del proprio esito atteso e resta ✅: il suo verdetto è sull'inquadratura d'avvio, che #1837 non tocca.
+➕ **Rimisurato il 2026-10-15 ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837), `Home` contestuale)**: il ricalcolo di `doc-coherence` A1 dava `276 · 110/33/7/126` **prima** di aggiungere la voce e `277 · 110/33/7/127` **dopo**. Delta: una voce nuova, `PIE-CAM-HOME-CONTEXT`, aperta. `PIE-CAM-START` cambia la frase su `Home` del proprio esito atteso e resta ✅ sul verdetto del 2026-08-06. ⚠️ Quel verdetto è stato dato su un codice che #1837 ha rifattorizzato: il ripiego d'avvio passa ora da `ResetAndFrame`, la stessa sequenza di `Home`. Il comportamento non cambia — `Camera.BeginPlayWaitsOneTickForLateUnits` e `Camera.BeginPlayFallsBackToMapCentreWithoutUnits` sono verdi —, ma la issue chiede di rieseguire la voce, e la riesecuzione sta nella seduta `U91`.
 
 ➕ **Rimisurato il 2026-10-15 (seduta `U90`, [#3774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3774) e [#3773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3773), il banco Ability Lab dentro il PIE): il ricalcolo di `doc-coherence` A1 dava `276 · 109/33/7/127` **prima** di toccare la cella e `276 · 110/33/7/126` **dopo**.** Delta **una voce**, da aperta a verde: `PIE-LAB-PASSO`.
 

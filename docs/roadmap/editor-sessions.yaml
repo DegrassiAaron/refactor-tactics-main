@@ -6097,7 +6097,8 @@ sessions:
     notes: |
       Scritta il 2026-10-15 con #1837. L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento:
       Editor ricompilato da un commit che porta #1837, partita hex avviata. #1837 chiede di rieseguire
-      `PIE-CAM-START` perche' il ripiego d'avvio passa dallo stesso codice di `Home`.
+      `PIE-CAM-START` perche' il ripiego d'avvio passa dallo stesso codice di `Home` (`ResetAndFrame`): il
+      verdetto del 2026-08-06 resta nel registro finche' la riesecuzione non lo sostituisce.
 
 not_schedulable:
 
