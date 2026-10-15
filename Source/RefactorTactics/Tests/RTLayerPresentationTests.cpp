@@ -365,22 +365,25 @@ bool FRTLayerTreatmentKeepsTheVeilTest::RunTest(const FString&)
 	Conosce.VisibleCells.Reset();
 	Board->ApplyKnowledgeVeil(Conosce);
 	TestTrue(TEXT("premessa: il secondo velo ha toccato delle istanze"), Board->GetLastVeilTouchedCells() > 0);
+	// #3760, seduta `U89`: dall'osservato al ricordo il colore sfuma. Si lascia finire la dissolvenza, e si legge il ricordo.
+	static_cast<AActor*>(Board)->Tick(10.f);
 	for (int32 C = 0; C < 3; ++C)
 	{
 		TestEqual(*FString::Printf(TEXT("il velo riscritto lascia il canale %d del trattamento dov'era"), RTLayerPresentation::FirstChannel + C),
 			LayerTreatmentChannel(Cells, Ricordata, RTLayerPresentation::FirstChannel + C), Trattamento[C]);
 	}
 
-	// #3704: quando il velo riscrive il bordo di quella cella, lo riscrive col colore del suo piano (bianco, sopra), per il
-	// fattore del velo. Con il grigio scuro costante di prima di #3704, il bordo tornerebbe scuro al primo velo.
+	// #3704 e #3760 (D-520): quando il velo riscrive il bordo di quella cella, ora RICORDATA, lo riscrive col colore della
+	// pianta, a piena luminosita', su qualunque piano. Il trattamento del piano resta nei suoi canali, misurati qui sopra:
+	// il colore e' del ricordo, la traslucenza del piano. Con il grigio scuro costante di prima di #3704, il bordo
+	// tornerebbe scuro al primo velo.
 	if (Bordi)
 	{
-		const FLinearColor Bianco = FLinearColor::FromSRGBColor(RTLayerPresentation::BorderColorFor(ERTLayerRelation::Above));
-		const FLinearColor Scuro = FLinearColor::FromSRGBColor(URTHexLibrary::CellBorderColor());
+		const FLinearColor Pianta = ARTHexMapActor::PlanColor();
 		const FLinearColor Letto(LayerTreatmentChannel(Bordi, Ricordata, 0), LayerTreatmentChannel(Bordi, Ricordata, 1),
 			LayerTreatmentChannel(Bordi, Ricordata, 2));
-		TestTrue(*FString::Printf(TEXT("il velo riscrive il bordo col bianco del suo piano, attenuato al piu' fino al ricordo (letto %s)"),
-			*Letto.ToString()), Letto.R >= Bianco.R * ARTHexMapActor::RTVeilExploredFactor - 1.e-3f && Letto.R > Scuro.R * 4.f);
+		TestTrue(*FString::Printf(TEXT("il velo riscrive il bordo del ricordo col colore della pianta (letto %s)"),
+			*Letto.ToString()), Letto.Equals(Pianta, 1.e-3f));
 	}
 	return true;
 }

@@ -257,7 +257,8 @@ bool FRTLayerVolumeTintBoardTest::RunTest(const FString&)
 		AddError(TEXT("EdgeFeatures non monta una istanza dinamica: i pannelli avrebbero il colore dei prismi"));
 	}
 
-	// ⛔ `Relief` resta fuori: e' il rilievo del costo, e tiene il materiale di default (vedi `VolumeMaterial`).
+	// ⛔ `Relief` resta fuori: e' il rilievo del costo. Dal 2026-10-15 ha un'istanza del materiale col suo colore (#3760),
+	// ma nessun dato per istanza (vedi `VolumeMaterial`).
 	TArray<UInstancedStaticMeshComponent*> Isms;
 	Board->GetComponents(Isms);
 	for (const UInstancedStaticMeshComponent* Ism : Isms)
