@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-15 — `PIE-V01-CHARGECLICK`: la (4) è instradata, e `A4` lo legge
+
+**Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), dopo il merge della PR #3772. La chiusura di #3736 ha reso rosso `doc-coherence` A4: la voce è 🟡 e la sua prima issue è CLOSED. La (4) non aspetta un rigiudizio, aspetta [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK` porta «DICHIARATA NON RIGIUDICABILE», con la ragione e il momento in cui cade |
+
+---
+
 ## 2026-10-15 — La carica cliccata, giudicata; «in linea» cambia significato (D-523)
 
 **Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), seduta `U92`, seconda tornata. `PIE-V01-CHARGECLICK`: (1), (2) e (3) «PASS». Sulla (4) l'autore ha cambiato la regola: per la carica «in linea» è la retta libera fra i centri. L'attuazione è [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793).
