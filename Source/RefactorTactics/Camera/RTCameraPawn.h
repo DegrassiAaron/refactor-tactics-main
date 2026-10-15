@@ -10,6 +10,22 @@ class USpringArmComponent;
 class UCameraComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
+class ARTUnit;
+struct FRTCellId;
+
+/**
+ * `#1837` — quale anello della gerarchia di `Home` ha deciso l'inquadratura.
+ *
+ * Esiste perche' i tre rami **non si distinguono dall'esito**: con un'unita' sola, selezione e squadra
+ * cadono sullo stesso punto, e un ripiego sbagliato sembra un'inquadratura sbagliata. `FrameHome` lo
+ * restituisce e lo scrive nel log.
+ */
+enum class ERTHomeFraming : uint8
+{
+	Selection, ///< l'unita' selezionata, viva e della propria squadra
+	OwnTeam,   ///< il punto medio delle unita' vive della propria squadra
+	MapCenter, ///< il centro della mappa: l'ultimo anello, il comportamento di `Home` prima di #1837
+};
 
 /**
  * Pawn camera tattica top-down/tre-quarti: braccio inclinato con zoom e pan sul piano.
@@ -340,6 +356,31 @@ public:
 	 * Sola presentazione: legge lo stato, non lo cambia.
 	 */
 	bool FrameOwnTeam();
+
+	/**
+	 * Il tasto `Home` (`#1837`): azzera orientamento e distanza **come `RecenterView`**, poi inquadra il
+	 * primo anello disponibile di
+	 *
+	 * ```
+	 * selezione viva della propria squadra  ->  punto medio della propria squadra  ->  centro della mappa
+	 * ```
+	 *
+	 * L'ultimo anello e' `RecenterView`, e non si toglie: e' cio' che rende `Home` sempre recuperabile.
+	 *
+	 * ⛔ **Non inquadra mai un'unita' di un'altra squadra**, nemmeno se e' la selezione passata: la propria
+	 * squadra e' quella di `FrameOwnTeam` (`ARTPlayerState::TeamIdOf`), e la guardia sta **qui**, non nei
+	 * chiamanti, perche' e' qui che si scrive il pivot. Oggi nessun gesto mette un nemico nella selezione —
+	 * l'ispezione ha il proprio `InspectedUnit` —, ma e' disciplina dei chiamanti, e un oracolo attivabile
+	 * con un tasto non si lascia alla disciplina.
+	 *
+	 * ⚠️ **Orientamento e distanza si azzerano in tutti e tre i rami**: e' la scelta dell'autore del
+	 * 2026-10-15 (*«Home resta il tasto di recupero: inquadratura contestuale e orientamento di default»*).
+	 * Il ramo della squadra quindi **non** usa la distanza d'inizio partita di `FrameOwnTeam`: sono due
+	 * inquadrature diverse, e lo pinna `Camera.FrameOwnTeamZoomsCloserThanRecenter`.
+	 *
+	 * Sola presentazione: non seleziona, non cambia piano attivo, non tocca la pianificazione (`D-143`).
+	 */
+	ERTHomeFraming FrameHome(const ARTUnit* Selection);
 
 	/**
 	 * Imposta i tre limiti di distanza in un colpo solo (per i test).
@@ -771,6 +812,23 @@ protected:
 
 	/** Applica distanza (clampata tra Min e Max) e inclinazione correnti al braccio. */
 	void ApplyViewSettings();
+
+	/**
+	 * La testa comune di `RecenterView` e `FrameHome`: yaw a zero (anche quello salvato dalla strategica),
+	 * pitch e distanza di default. Va chiamata **prima** di scrivere il pivot, perche' `SetCameraPivot`
+	 * clampa con la vista corrente e deve vedere quella dopo il reset.
+	 */
+	void ResetToDefaultView();
+
+	/**
+	 * Le celle delle unita' vive della squadra `TeamId`. `false` se non ce n'e' nessuna.
+	 *
+	 * ⚠️ Legge `TeamId` e `IsAlive()` di **tutte** le unita' del mondo, velate comprese, e tiene le proprie:
+	 * e' il debito dichiarato da `D-143`, che resta aperto finche' non esiste una vista sanificata. E' una
+	 * funzione sola perche' i lettori sono due — `FrameOwnTeam` e `FrameHome` — e due cicli identici sono il
+	 * modo in cui un filtro diventa due filtri.
+	 */
+	bool CollectOwnTeamCells(int32 TeamId, TArray<FRTCellId>& OutCells) const;
 
 	/**
 	 * Scrive sul braccio la rotazione corrente. Unico punto: la stessa espressione era copiata in quattro

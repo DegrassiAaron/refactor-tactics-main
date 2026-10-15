@@ -552,6 +552,11 @@ public:
 	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
 	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
 	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
+	/**
+	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non
+	 * il cablaggio: un `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi.
+	 */
+	void RecenterForTest();
 
 protected:
 

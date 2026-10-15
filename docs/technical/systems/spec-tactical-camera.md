@@ -97,7 +97,7 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`). In strategica l'orbita non agisce, né la Y ([D-498](../../decisions/RT_PDR_00_Decision_Log.md)) né la X ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Select | `LMB` | contratto del puntatore ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)) |
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
-| Home | `Home` | `RecenterView` |
+| Home | `Home` | `FrameHome` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)): selezione propria viva → squadra → centro mappa, con orientamento e distanza di default (§4.1) |
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
 | Vista strategica | `Tab` | `ToggleStrategicView`: sposta la distanza alla soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md), §5) |
 
@@ -168,6 +168,7 @@ un'inquadratura, e portargliela via è peggio che non aiutarlo.
 | `LMB` singolo | Select — ✅ non muove la camera |
 | `F` | Focus — ✅ `FocusOn`, **conserva lo zoom** |
 | doppio `LMB` | Select + Focus — ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773), su unità propria, entro `DoubleClickInterval` |
+| `Home` | Recupero contestuale — ✅ `FrameHome` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)), §4.1 |
 
 `FocusOn` sposta il **pivot** e conserva yaw, pitch e distanza. Conserva anche la **quota del piano** e non
 quella dell'attore: `ARTUnit` sta mezzo corpo sopra la cella (`VisualZOffset`), quindi chi inquadra
@@ -186,6 +187,36 @@ un'unità converte la sua cella invece di leggerne la posizione — è la correz
 2. **Ping, notifiche e UI ordinaria non rubano la camera.** Nessuna eccezione per «è importante»: se
    qualcosa merita davvero l'inquadratura, è un evento di Resolution e il suo owner è un Camera Director
    dedicato (§10), non una chiamata sparsa.
+
+### 4.1 `Home` — il recupero contestuale — [#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)
+
+`Home` è il tasto del «riportami a un'inquadratura che conosco». Da #1837 sceglie **dove** guardare con
+una gerarchia di ripiego, e azzera **sempre** orientamento e distanza: è la scelta dell'autore del
+2026-10-15, *«Home resta il tasto di recupero: inquadratura contestuale e orientamento di default»*.
+
+| Anello | Quando | Dove va il pivot | Stato |
+|---|---|---|---|
+| 1 | c'è una selezione, **viva** e della **propria squadra** | sulla cella dell'unità, alla quota del piano | ✅ `Camera.HomeFramesTheSelectedOwnUnit` |
+| 2 | nessuna selezione utile, almeno un'unità propria viva | sul punto medio delle unità vive della propria squadra | ✅ `Camera.HomeWithoutSelectionFramesTheOwnTeam` |
+| 3 | nessuna delle due | sul centro della mappa: è `RecenterView`, il `Home` di prima | ✅ `Camera.HomeWithoutOwnUnitsFallsBackToTheMapCentre` |
+
+- ✅ **Misurato**: in tutti e tre gli anelli yaw, pitch, distanza (`DefaultArmLength` clampata) e peek tornano
+  al default, e il pivot passa dalla porta unica con la vista **dopo** il reset
+  (`Camera.HomeKeepsThePivotInsideTheViewportBounds`). Il ramo della squadra **non** usa la distanza
+  d'inizio partita di `FrameOwnTeam`: sono due inquadrature diverse.
+- ⛔ **`Home` non inquadra mai un'unità di un'altra squadra**, nemmeno passata come selezione e nemmeno
+  quando è l'unica viva (`Camera.HomeNeverFramesAnotherTeamsUnit`). La guardia sta in `FrameHome`, dove si
+  scrive il pivot; «la propria squadra» è quella di `FrameOwnTeam`, cioè `ARTPlayerState::TeamIdOf`.
+- 🔎 Il log dice quale anello ha scelto (`[RT] Home: selezione | squadra | centro mappa`): dall'esito i tre
+  non si distinguono sempre, e un ripiego sbagliato sembrerebbe un'inquadratura sbagliata.
+- ⚠️ **Il debito di [D-143](../../decisions/RT_PDR_00_Decision_Log.md) resta aperto**: la squadra si
+  ricava leggendo `TeamId` e `IsAlive()` di tutte le unità del mondo (`CollectOwnTeamCells`) e tenendo le
+  proprie. Non è un canale finché il filtro è la squadra dell'osservatore; lo diventerebbe il giorno in
+  cui `Home` inquadrasse qualcosa di non proprio.
+- `N/A` **Il ramo `Replay` di #1837**: la camera e il controller non hanno una modalità replay, e il
+  visore dei replay (`URTReplayViewerSubsystem`) è una schermata senza camera di mappa. Non c'è un
+  `Home` da dare al replay finché non esiste un replay da guardare sulla mappa.
+- ⏳ **Prescritto e non ancora visto**: `PIE-CAM-HOME-CONTEXT`, i tre anelli a mano.
 
 ---
 
@@ -650,8 +681,8 @@ accessibilità esiste nel repository.
 
 | Livello | Stato |
 |---|---|
-| Automation | ✅ **28** test `RefactorTactics.Camera.*` (19 prima di E49) in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp) |
-| PIE | ✅ `PIE-CAM-START` · `PIE-CAM-ORBIT` · `PIE-CAM-ZOOM-ANCHOR` · `PIE-CAM-BOUNDS` · `PIE-CAM-FOCUS` |
+| Automation | ✅ i test `RefactorTactics.Camera.*` in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp): quanti, lo dice `grep -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`. ⌫ *Fino al 2026-10-15 questa cella diceva «28», un totale fermo al 2026-08-30* |
+| PIE | ✅ `PIE-CAM-START` · `PIE-CAM-ORBIT` · `PIE-CAM-ZOOM-ANCHOR` · `PIE-CAM-BOUNDS` · `PIE-CAM-FOCUS` · ⏳ `PIE-CAM-HOME-CONTEXT` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) |
 | Scenari | ❌ **zero** — [`scenario-map.md`](../tooling/scenario-map.md) lo dichiara, con la motivazione |
 | Input | ✅ `PlayerInput.HotkeysDoNotCollide`, che **era citato e non esisteva** |
 

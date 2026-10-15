@@ -230,6 +230,30 @@ void ARTCameraPawn::ApplyViewSettings()
 	RefreshViewportMetrics();
 }
 
+bool ARTCameraPawn::CollectOwnTeamCells(int32 TeamId, TArray<FRTCellId>& OutCells) const
+{
+	// ⚠️ **Quinto canale di presentazione, e [#1500] non lo nominava: il gesto qui non e'
+	// `GetAllActorsOfClass` ma `TActorIterator<ARTUnit>`.** Un confine espresso come «vietato chiamare quella
+	// funzione» nascerebbe bucato proprio qui. Questo ciclo legge `It->TeamId` e `It->Cell` di **tutte** le
+	// unita' del mondo, velate comprese, per tenere solo le proprie.
+	//
+	// ✅ **Il filtro pero' e' il TeamId dell'osservatore stesso**, quindi l'insieme che sopravvive e' fatto di
+	// unita' che il giocatore possiede: la cella di un'unita' propria non e' un fatto che il velo nasconda, e
+	// la risposta che l'Actor da' e' quella giusta. ⛔ Diventerebbe un canale il giorno in cui un chiamante
+	// inquadrasse qualcosa di NON proprio — un nemico, un obiettivo conteso, l'ultimo contatto: in quel caso
+	// il soggetto va preso da `FRTKnowledgeView`, e il debito e' gia' dichiarato in [D-143]. I chiamanti sono
+	// due, `FrameOwnTeam` e `FrameHome` (#1837), e nessuno dei due inquadra altro che la propria squadra.
+	OutCells.Reset();
+	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+	{
+		if (It->TeamId == TeamId && It->IsAlive())
+		{
+			OutCells.Add(It->Cell);
+		}
+	}
+	return OutCells.Num() > 0;
+}
+
 bool ARTCameraPawn::FrameOwnTeam()
 {
 	const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
@@ -242,24 +266,7 @@ bool ARTCameraPawn::FrameOwnTeam()
 	const int32 TeamId = ARTPlayerState::TeamIdOf(Cast<APlayerController>(GetController()));
 
 	TArray<FRTCellId> Cells;
-	// ⚠️ **Quinto canale di presentazione, e [#1500] non lo nominava: il gesto qui non e'
-	// `GetAllActorsOfClass` ma `TActorIterator<ARTUnit>`.** Un confine espresso come «vietato chiamare quella
-	// funzione» nascerebbe bucato proprio qui. Questo ciclo legge `It->TeamId` e `It->Cell` (`:156-158`) di
-	// **tutte** le unita' del mondo, velate comprese, per tenere solo le proprie.
-	//
-	// ✅ **Il filtro pero' e' il TeamId dell'osservatore stesso**, quindi l'insieme che sopravvive e' fatto di
-	// unita' che il giocatore possiede: la cella di un'unita' propria non e' un fatto che il velo nasconda, e
-	// la risposta che l'Actor da' e' quella giusta. ⛔ Diventerebbe un canale il giorno in cui questa funzione
-	// inquadrasse qualcosa di NON proprio — un nemico, un obiettivo conteso, l'ultimo contatto: in quel caso
-	// il soggetto va preso da `FRTKnowledgeView`, e il debito e' gia' dichiarato in [D-143].
-	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
-	{
-		if (It->TeamId == TeamId && It->IsAlive())
-		{
-			Cells.Add(It->Cell);
-		}
-	}
-	if (Cells.Num() == 0)
+	if (!CollectOwnTeamCells(TeamId, Cells))
 	{
 		return false; // unita' non ancora nel mondo: il chiamante riprova
 	}
@@ -971,10 +978,8 @@ void ARTCameraPawn::RecomputePitchFromZoom()
 	CameraPitch = FMath::Clamp(Derived + ManualPitchOffset, MinPitch, MaxPitch);
 }
 
-void ARTCameraPawn::RecenterView()
+void ARTCameraPawn::ResetToDefaultView()
 {
-	// Centra sulla mappa ESAGONALE del livello (se presente) e ripristina lo zoom di default. La mappa non e'
-	// per forza centrata sull'origine: il centro viene dal bounding box delle sue celle.
 	// 🔑 **Orientamento e distanza si azzerano PRIMA di scrivere il pivot** (code review, 2026-08-30).
 	// `SetCameraPivot` clampa usando yaw, pitch e braccio **correnti**: scrivendo il pivot per primo, il
 	// clamp descriveva la camera che stava per sparire invece di quella che sarebbe esistita un istante
@@ -986,6 +991,64 @@ void ARTCameraPawn::RecenterView()
 	TacticalYawBeforeStrategic = 0.f;
 	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 	ApplyViewSettings();
+}
+
+ERTHomeFraming ARTCameraPawn::FrameHome(const ARTUnit* Selection)
+{
+	// La squadra e' quella di `FrameOwnTeam`: una regola sola per «la propria squadra», anche per la guardia
+	// sulla selezione. Senza controller si assume la 0, come la' (demo).
+	const int32 TeamId = ARTPlayerState::TeamIdOf(Cast<APlayerController>(GetController()));
+
+	const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
+	FVector Origin = FVector::ZeroVector; float HexSize = 0.f; float LayerHeight = 0.f;
+	const URTHexMapAsset* Map = HexMap ? HexMap->GetHexContext(Origin, HexSize, LayerHeight) : nullptr;
+
+	// Si sceglie il ramo PRIMA di toccare la vista, ma lo si applica dopo il reset: cosi' il clamp del pivot
+	// vede la camera che esistera' dopo `Home`, che e' la lezione di `RecenterView`.
+	//
+	// ⛔ La guardia sulla selezione confronta la squadra, e la confronta qui: un nemico passato come
+	// selezione cade sull'anello successivo invece di essere inquadrato. Morta, la selezione non e'
+	// un'inquadratura utile — si passa alla squadra, che e' cio' che il giocatore controlla ancora.
+	TArray<FRTCellId> Cells;
+	ERTHomeFraming Branch = ERTHomeFraming::MapCenter;
+	if (Map && Selection && Selection->TeamId == TeamId && Selection->IsAlive())
+	{
+		Cells.Add(Selection->Cell);
+		Branch = ERTHomeFraming::Selection;
+	}
+	else if (Map && CollectOwnTeamCells(TeamId, Cells))
+	{
+		Branch = ERTHomeFraming::OwnTeam;
+	}
+
+	if (Branch == ERTHomeFraming::MapCenter)
+	{
+		RecenterView();
+	}
+	else
+	{
+		ResetToDefaultView();
+		// La CELLA e non l'attore, come in `FocusCameraOnUnit`: il pivot sta sul piano, non mezzo corpo sopra.
+		SetCameraPivot(URTHexLibrary::CellsCentroidWorld(Cells, Origin, HexSize, LayerHeight));
+		// Come `RecenterView`: «riportami a un'inquadratura che conosco» azzera anche il peek.
+		PeekOffset = FVector::ZeroVector;
+		ApplyPivot();
+	}
+
+	// Il log dice QUALE anello ha scelto: dall'esito i tre non si distinguono (vedi `ERTHomeFraming`).
+	const TCHAR* BranchName = Branch == ERTHomeFraming::Selection ? TEXT("selezione")
+		: Branch == ERTHomeFraming::OwnTeam ? TEXT("squadra") : TEXT("centro mappa");
+	UE_LOG(LogRT, Log, TEXT("[RT] Home: %s (squadra %d, %d celle, arm=%.0f)"),
+		BranchName, TeamId, Cells.Num(), SpringArm ? SpringArm->TargetArmLength : -1.f);
+	return Branch;
+}
+
+void ARTCameraPawn::RecenterView()
+{
+	// Centra sulla mappa ESAGONALE del livello (se presente) e ripristina lo zoom di default. La mappa non e'
+	// per forza centrata sull'origine: il centro viene dal bounding box delle sue celle.
+	// Orientamento e distanza prima, il pivot dopo: vedi `ResetToDefaultView`.
+	ResetToDefaultView();
 
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
