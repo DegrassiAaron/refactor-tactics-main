@@ -38,9 +38,9 @@ namespace
 			return nullptr;
 		}
 		HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
-		// ➕ #3760 (D-520): col ricordo come pianta nessuna famiglia attenua piu', e la dissolvenza non si vede. Questi
-		// test misurano il MECCANISMO, che resta nel codice: si rimette il ricordo attenuato. Che con la pianta il
-		// passaggio sia un cambio secco lo misura `Veil.PlanSwapIsAStepNotAFade`.
+		// ➕ #3760 (D-520): col ricordo come pianta nessuna famiglia attenua piu'. Questi test misurano il MECCANISMO
+		// dell'attenuazione, che resta nel codice: si rimette il ricordo attenuato. La dissolvenza della pianta, fra il
+		// colore vero e quello del ricordo, la misura `Veil.PlanDissolvesBetweenObservedAndRemembered`.
 		HexMap->SetVeilMemoryAttenuatedForTest(true);
 		HexMap->RebuildInstances();
 		return HexMap;
@@ -419,34 +419,6 @@ bool FRTVeilFadeKeepsThePartitionTest::RunTest(const FString&)
 	TestEqual(TEXT("una sola cella resta accesa"), Accese, 1);
 	TestEqual(TEXT("le altre esplorate sono ricordi"), Ricordate, Esplorate.Num() - 1);
 	TestEqual(TEXT("e i tre stati partizionano la board"), Accese + Ricordate + Nascoste, Totale);
-
-	RTWorldFixtures::DestroyWorld(World);
-	return true;
-}
-
-/**
- * ➕ #3760 (D-520): **con la pianta il passaggio fra osservato e ricordato e' un cambio secco**, non una dissolvenza.
- * Il disco del ricordo non si disegna e l'anello cambia colore senza attenuare: nessuna transizione resta in volo.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilPlanSwapIsAStepTest,
-	"RefactorTactics.Veil.PlanSwapIsAStepNotAFade",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTVeilPlanSwapIsAStepTest::RunTest(const FString&)
-{
-	UWorld* World = RTWorldFixtures::MakeWorld();
-	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
-	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
-	if (!TestNotNull(TEXT("board"), HexMap)) { RTWorldFixtures::DestroyWorld(World); return false; }
-	HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
-	HexMap->RebuildInstances();
-
-	const FRTCellId Cella(1, 0, 0);
-	HexMap->ApplyKnowledgeVeil(FadeKnowledgeOf({ FRTCellId(0, 0, 0), Cella }, { FRTCellId(0, 0, 0), Cella }));
-	HexMap->ApplyKnowledgeVeil(FadeKnowledgeOf({ FRTCellId(0, 0, 0) }, { FRTCellId(0, 0, 0), Cella }));
-	TestEqual(TEXT("dall'osservato al ricordo nessuna transizione resta in volo"), HexMap->GetVeilCellsInTransition(), 0);
-	int32 Accese = 0, Ricordate = 0, Nascoste = 0;
-	HexMap->GetVeilCounts(Accese, Ricordate, Nascoste);
-	TestEqual(TEXT("e la cella e' gia' un ricordo"), Ricordate, 1);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

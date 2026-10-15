@@ -3,7 +3,7 @@
 #include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
-#include "Components/LineBatchComponent.h" // #3760: le linee della pianta
+#include "Map/RTLayerPresentation.h" // #3760: i canali del pannello traslucido della pianta
 #include "EngineUtils.h"                  // TActorIterator: nessun Actor per cella si conta guardando il mondo
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -2754,30 +2754,42 @@ bool FRTHexMapEdgePanelSeenFromEitherSideTest::RunTest(const FString&)
 	TestEqual(TEXT("visto il solo lato portante: entrambi visibili"), PannelliVisibili({ Portante }), 2);
 	// Un lato solo per pannello: la copertura sì, la porta no.
 	TestEqual(TEXT("visto solo il lato est: la sola copertura"), PannelliVisibili({ Est }), 1);
-	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati. ➕ #3760 (D-520): un pannello ricordato non e'
-	// piu' solido, diventa una linea della pianta — e lo diventa ricordato da un lato qualunque, come si vede da un lato
-	// qualunque. Le linee si contano nel batcher, nel colore della pianta: tre per pannello, la cima e i due montanti.
-	auto LineeDellaPianta = [&]() -> int32
+	// Il ricordo: nessuna cella vista ora, i lati opposti soltanto esplorati. ➕ #3760, seduta `U89` ([D-520]): un pannello
+	// ricordato resta un volume, tinto col colore della pianta e semitrasparente — e lo resta ricordato da un lato
+	// qualunque, come si vede da un lato qualunque. Si legge la forza della tinta, che a ricordo pieno vale 1, dopo che la
+	// dissolvenza fra osservato e ricordato si e' conclusa.
+	const UInstancedStaticMeshComponent* Pannelli = nullptr;
 	{
-		ULineBatchComponent* Batcher = World->GetLineBatcher(UWorld::ELineBatcherType::World);
-		if (!Batcher)
+		TInlineComponentArray<UInstancedStaticMeshComponent*> Tutte;
+		Actor->GetComponents(Tutte);
+		for (const UInstancedStaticMeshComponent* C : Tutte)
 		{
-			return -1;
+			if (C && C->GetName() == TEXT("EdgeFeatures"))
+			{
+				Pannelli = C;
+			}
 		}
-		Batcher->Flush();
-		static_cast<AActor*>(Actor)->Tick(0.f);
-		const FLinearColor Pianta(ARTHexMapActor::PlanColor().ToFColor(/*bSRGB=*/ true));
+	}
+	auto PannelliDellaPianta = [&]() -> int32
+	{
+		static_cast<AActor*>(Actor)->Tick(10.f); // dieci secondi: la dissolvenza converge
 		int32 N = 0;
-		for (const FBatchedLine& L : Batcher->BatchedLines)
+		for (int32 I = 0; Pannelli && I < Pannelli->GetInstanceCount(); ++I)
 		{
-			N += L.Color.Equals(Pianta) ? 1 : 0;
+			FTransform Xf;
+			const bool bDisegnato = Pannelli->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true)
+				&& !Xf.GetScale3D().IsNearlyZero();
+			const int32 Forza = I * Pannelli->NumCustomDataFloats + RTLayerPresentation::VolumeTintStrengthChannel;
+			N += (bDisegnato && Pannelli->PerInstanceSMCustomData.IsValidIndex(Forza)
+				&& FMath::IsNearlyEqual(Pannelli->PerInstanceSMCustomData[Forza], 1.f)) ? 1 : 0;
 		}
 		return N;
 	};
-	TestEqual(TEXT("lati opposti solo ricordati: nessun pannello solido"), PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 0);
-	TestEqual(TEXT("e il contorno a linee di tutti e due, tre linee ciascuno"), LineeDellaPianta(), 6);
-	TestEqual(TEXT("il solo lato est ricordato: nessun pannello solido"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 0);
-	TestEqual(TEXT("e il solo contorno della copertura"), LineeDellaPianta(), 3);
+	TestEqual(TEXT("lati opposti solo ricordati: entrambi i pannelli si disegnano"),
+		PannelliVisibili(TArray<FRTCellId>(), { Est, Ovest }), 2);
+	TestEqual(TEXT("ed entrambi nella tinta piena della pianta"), PannelliDellaPianta(), 2);
+	TestEqual(TEXT("il solo lato est ricordato: la sola copertura si disegna"), PannelliVisibili(TArray<FRTCellId>(), { Est }), 1);
+	TestEqual(TEXT("nella tinta piena della pianta"), PannelliDellaPianta(), 1);
 
 	DestroyMapActorWorld(World);
 	return true;

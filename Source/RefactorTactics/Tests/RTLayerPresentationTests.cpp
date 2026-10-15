@@ -365,6 +365,8 @@ bool FRTLayerTreatmentKeepsTheVeilTest::RunTest(const FString&)
 	Conosce.VisibleCells.Reset();
 	Board->ApplyKnowledgeVeil(Conosce);
 	TestTrue(TEXT("premessa: il secondo velo ha toccato delle istanze"), Board->GetLastVeilTouchedCells() > 0);
+	// #3760, seduta `U89`: dall'osservato al ricordo il colore sfuma. Si lascia finire la dissolvenza, e si legge il ricordo.
+	static_cast<AActor*>(Board)->Tick(10.f);
 	for (int32 C = 0; C < 3; ++C)
 	{
 		TestEqual(*FString::Printf(TEXT("il velo riscritto lascia il canale %d del trattamento dov'era"), RTLayerPresentation::FirstChannel + C),

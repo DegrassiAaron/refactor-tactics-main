@@ -247,10 +247,11 @@ public:
 	 * del piano e il trattamento di D-501 — sulle quattro famiglie che lo ricevono: `EdgeFeatures`, `Blockers`,
 	 * `StructuralBodies` e `SurfaceVolumes`. Lo costruisce il commandlet `RTBuildHexVolumeMaterial` (`D-229`).
 	 *
-	 * ⛔ **`Relief` NON lo riceve, ed e' una scelta**: il rilievo del costo tiene il materiale di default perche' il
-	 * sovrapprezzo di movimento DEVE saltare all'occhio (decisione di leggibilita' del 2026-08-15, in
-	 * `RebuildInstances`), ed e' uno strumento di lettura, non un oggetto. Su un piano che non e' l'attivo resta
-	 * pieno: e' un limite dichiarato di #3706.
+	 * ⛔ **`Relief` non e' una famiglia dei volumi, ed e' una scelta**: il rilievo del costo e' uno strumento di lettura,
+	 * non un oggetto, e non riceve ne' tinta del piano ne' trattamento. Su un piano che non e' l'attivo resta pieno: e' un
+	 * limite dichiarato di #3706. ➕ Dal 2026-10-15 (#3760, seduta `U89`) ne prende pero' il grafo, in un'istanza col suo
+	 * colore proprio, un grigio chiaro: il materiale di default della mesh, in luce piena, lo faceva leggere «nero». Senza
+	 * dati per istanza il materiale legge i canali a zero, cioe' opaco e nel suo colore.
 	 *
 	 * Se assente, le quattro famiglie tengono il materiale della loro mesh e i dati per istanza sono inerti: niente
 	 * tinta e niente trattamento, come prima di #3706. Sta qui e non nel livello per la ragione di `CellMaterial`.
@@ -611,9 +612,15 @@ public:
 	/**
 	 * Il colore delle linee della PIANTA, cioe' del terreno ricordato (#3760): il ciano chiaro, «quasi olografico», che
 	 * l'autore ha scelto sulla tavola P2 fra il bianco e l'ambra. Lo scrive il velo sull'anello della griglia di ogni
-	 * cella ricordata, e lo usano le linee dei muri ricordati.
+	 * cella ricordata, e tinge i volumi ricordati.
 	 */
 	static FLinearColor PlanColor();
+
+	/**
+	 * Il FONDO della cella ricordata (#3760, seduta `U89`): il colore della pianta, scuro. L'autore ha scelto «Fondo tenue
+	 * color pianta», perche' il solo anello si leggeva come «mai visto», che e' nero.
+	 */
+	static FLinearColor PlanFloorColor();
 
 #if !UE_BUILD_SHIPPING
 	/**
@@ -1637,8 +1644,6 @@ protected:
 	 */
 	TArray<FRTCellId> EdgeFeatureOtherCells;
 	TArray<FVector> EdgeFeatureBaseScale;
-	/** #3760: vero se almeno un muro, una copertura o una porta e' RICORDATO, e la pianta lo disegna a linee. */
-	bool bRememberedWallsToDraw = false;
 	/** #3760: vedi `SetVeilMemoryAttenuatedForTest`. */
 	bool bVeilMemoryAttenuatedForTest = false;
 	TArray<uint8> LastEdgeFeatureVeilState;
@@ -1705,6 +1710,13 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> EdgePanelVolumeMaterial;
+
+	/**
+	 * #3760, seduta `U89` — l'istanza di `VolumeMaterial` del RILIEVO del costo, col suo colore proprio, un grigio chiaro.
+	 * Vedi `VolumeMaterial` e `ApplyVolumeMaterial`.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ReliefVolumeMaterial;
 
 	/** #3704 — la mappa disegnata ha piu' di un piano: lo misura `ApplyLayerPresentation`, sulle istanze. */
 	bool bPresentationMultiLayer = false;
@@ -1884,6 +1896,14 @@ protected:
 	TArray<float> BorderDisplayFactor;
 
 	/**
+	 * ➕ #3760: i fattori dei VOLUMI, quando il loro ricordo e' il pannello traslucido della pianta: quanto l'istanza e'
+	 * osservata, 1 vista e 0 ricordata. Restano vuoti con l'attenuazione di prima. Vedi `VolumeDisplayFactorFor`.
+	 */
+	TArray<float> EdgeFeatureDisplayFactor;
+	TArray<float> BlockerDisplayFactor;
+	TArray<float> BodyDisplayFactor;
+
+	/**
 	 * 🔑 **Quante istanze non hanno ancora raggiunto il proprio fattore.** E' il segnale con cui il `Tick` si
 	 * spegne: **zero significa converso**, e da li' in poi il velo non costa piu' niente per fotogramma.
 	 *
@@ -1913,28 +1933,41 @@ protected:
 	 * | valore | una cella esplorata e non osservata |
 	 * |---|---|
 	 * | `Attenuate` | si disegna coi colori veri moltiplicati per `RTVeilExploredFactor` — com'era prima della pianta |
-	 * | `Hide` | non si disegna, come una cella mai vista |
-	 * | `Plan` | si disegna col colore della pianta, a piena luminosita'. Solo l'anello della griglia |
+	 * | `Hide` | non si disegna, come una cella mai vista: il rilievo e i volumi di superficie |
+	 * | `Plan` | si disegna col colore della pianta, a piena luminosita'. L'anello della griglia |
+	 * | `PlanFloor` | si disegna col fondo della pianta, `PlanFloorColor`. Il disco |
+	 * | `PlanFade` | sfuma verso il fondo della pianta e smette di disegnarsi. I glifi |
+	 * | `PlanVolume` | resta un volume, tinto col colore della pianta e semitrasparente. Muri, coperture, porte, celle che bloccano, corpi |
 	 *
-	 * 🔑 **Fino a #3760 il ricordo era «Attenuate» per tutte.** Con la pianta l'anello della griglia e' `Plan`, e ogni
-	 * altra famiglia e' `Hide`: il disco, i glifi, il rilievo e i volumi spariscono, e muri, coperture e porte li
-	 * ridisegna a linee `DrawRememberedWallsAsLines`.
+	 * 🔑 **Fino a #3760 il ricordo era «Attenuate» per tutte.** La prima stesura della pianta faceva `Plan` l'anello e
+	 * `Hide` tutto il resto, coi muri ridisegnati a linee. La seduta `U89` l'ha respinta: il solo anello si leggeva come
+	 * «mai visto», il cambio secco disturbava, e i muri non andavano ne' a terra ne' in cima. Le scelte dell'autore stanno
+	 * in [D-520].
 	 *
-	 * ⚠️ **`Attenuate` oggi non lo usa nessuna famiglia**, e con lui la dissolvenza fra osservato e ricordato di
-	 * `#2875`: fra due stati che hanno entrambi fattore 1, o uno dei quali non si disegna, non c'e' niente da sfumare.
-	 * Resta come meccanismo, e la domanda se toglierlo e' un candidato a seguire, non una scelta di questa fetta.
+	 * 🔑 **Per la pianta il fattore di `#2875` e' quanto l'istanza e' osservata**, 1 vista e 0 ricordata, e il colore e'
+	 * l'interpolazione fra il colore della pianta e quello vero: e' la dissolvenza fra osservato e ricordato, di nuovo.
+	 * `Attenuate` oggi non lo usa nessuna famiglia; resta per i test del meccanismo.
 	 *
 	 * ⚠️ **La pianta vive nell'anello della griglia**, quindi una griglia spenta (`SetCellBordersVisible(false)`) la
 	 * spegnerebbe con lei. Oggi nessun chiamante di produzione la spegne.
 	 */
-	enum class ERTVeilMemory : uint8 { Attenuate, Hide, Plan };
+	enum class ERTVeilMemory : uint8 { Attenuate, Hide, Plan, PlanFloor, PlanFade, PlanVolume };
 
-	/** Il trattamento del ricordo di ogni famiglia, letto dalle leve della pianta (#3760). */
+	/** Il trattamento del ricordo di ogni famiglia (#3760). */
 	ERTVeilMemory MemoryFor(const UInstancedStaticMeshComponent* Component) const;
 
+	/** Il colore di una famiglia a ricordo pieno, per i trattamenti che ne hanno uno (`Plan`, `PlanFloor`, `PlanFade`). */
+	static bool RememberedColorFor(ERTVeilMemory Ricordo, FLinearColor& Out);
 
-	/** Le linee dei muri, delle coperture e delle porte RICORDATI, quando la pianta li disegna a linee (#3760). */
-	void DrawRememberedWallsAsLines() const;
+	/** Il fattore di una famiglia dei volumi, se il suo ricordo e' il pannello traslucido; altrimenti `nullptr`. */
+	TArray<float>* VolumeDisplayFactorFor(const UInstancedStaticMeshComponent* Component);
+
+	/**
+	 * Tinta e trattamento di UN'istanza di una famiglia dei volumi (#3706, #3760): quelli del suo piano ([D-501],
+	 * [D-508]), spostati verso il pannello traslucido della pianta di quanto l'istanza non e' osservata. E' l'unico
+	 * scrittore di quei canali: lo chiamano sia la presentazione dei piani sia il velo.
+	 */
+	void WriteVolumeAppearance(UInstancedStaticMeshComponent* Famiglia, const FRTCellId& Cell, int32 I, float Osservata);
 
 	/** Un passo del filtro su UNA famiglia. Risponde quante istanze restano in movimento. */
 	int32 AdvanceVeilFamily(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
