@@ -30,7 +30,6 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
 #include "UObject/StrongObjectPtr.h"
 #include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
 #include "Map/RTOverlayPalette.h" // #1941: colore, scala e profondita' di un significato, in una sede sola
-#include "Perception/RTVisibilityBorder.h" // #3761: i lati esposti, da cui la linea di confine della vista
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "Map/RTHexLabel.h"
@@ -165,6 +164,9 @@ namespace
 	// Lo spessore della linea di confine (#3761): quello con cui l'autore l'ha vista sulle tavole. Piu' dei 3 dei
 	// contorni d'anteprima, perche' la linea deve leggersi anche sotto un'anteprima accesa.
 	constexpr float RTVisionBorderThickness = 4.f;
+	// Di quanto la linea si sposta verso la cella vista quando sul lato sta un pannello (#3761): meta' dello spessore
+	// del pannello, che e' centrato sul lato, piu' meta' di quello della linea e un margine.
+	constexpr float RTVisionBorderPanelInset = RTEdgePanelThickness * 100.f * 0.5f + RTVisionBorderThickness * 0.5f + 2.f;
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
 	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
@@ -1269,8 +1271,9 @@ void ARTHexMapActor::Tick(float DeltaSeconds)
 	// il valore disegnato verso un bersaglio gia' scelto. `Veil.FollowsRefreshPoints` resta verde per
 	// costruzione — misura le emissioni di `OnTeamKnowledgeRefreshed`, che questa funzione non produce.
 	//
-	// ⚠️ **A regime non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso, e
-	// `HasAnythingToDraw` spegne il `Tick`.
+	// ⚠️ **A regime il velo non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso. Il
+	// `Tick` pero' resta acceso per tutta la partita da #3761: la linea di confine della vista si ridisegna a ogni
+	// fotogramma, un tratto per lato, e `HasAnythingToDraw` lo spegne solo quando non c'e' nessuna cella vista.
 	if (VeilCellsInTransition > 0)
 	{
 		AdvanceVeilTransition(DeltaSeconds);
@@ -1516,6 +1519,44 @@ namespace
 			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
 		}
 	}
+
+	/**
+	 * Vero se sul lato fra `Cella` e il suo vicino in `Lato` sta un PANNELLO DI BORDO — una copertura o una porta —
+	 * da una parte o dall'altra: e' cio' che `RebuildInstances` posa con `AddEdgePanel`, che legge `Covers` e `Doors`
+	 * della cella che li porta. Il velo mostra quel pannello se e' accesa una delle due celle (#3691), quindi chi
+	 * guarda una cella vista lo vede gia': chiederlo qui non rivela niente.
+	 */
+	bool LatoConPannello(const URTHexMapAsset* Map, const FRTCellId& Cella, ERTHexDirection Lato)
+	{
+		if (!Map)
+		{
+			return false;
+		}
+		const auto HaPannello = [](const FRTHexCellData* Dati, ERTHexDirection Bordo)
+		{
+			if (!Dati)
+			{
+				return false;
+			}
+			for (const FRTHexCover& Copertura : Dati->Covers)
+			{
+				if (Copertura.Type != ERTHexCoverType::None && Copertura.Edge == Bordo)
+				{
+					return true;
+				}
+			}
+			for (const FRTHexDoor& Uscio : Dati->Doors)
+			{
+				if (Uscio.Edge == Bordo)
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+		return HaPannello(Map->FindCell(Cella), Lato)
+			|| HaPannello(Map->FindCell(URTHexLibrary::Neighbor(Cella, Lato)), URTHexLibrary::OppositeDirection(Lato));
+	}
 }
 
 void ARTHexMapActor::SetVisionBorder(const TArray<FRTCellId>& VisibleCells)
@@ -1565,7 +1606,14 @@ void ARTHexMapActor::DrawEdgeLines(const TArray<FRTExposedEdge>& Lati, const FCo
 		const FVector Medio = URTHexLibrary::EdgeMidpointWorld(Lato.Cell, Lato.Direction, Origin, Size, LayerH);
 		const FVector Verso = FVector(Medio.X - Centro.X, Medio.Y - Centro.Y, 0.f).GetSafeNormal();
 		const FVector Lungo = FVector::CrossProduct(Verso, FVector::UpVector) * (Size * 0.5f);
-		DisegnaLineaAnteprima(World, Medio - Lungo + Su, Medio + Lungo + Su, Colore, SDPG_World, Spessore);
+		// 🔑 **Davanti al pannello, se sul lato ce n'e' uno.** Il pannello di un muro, di una copertura o di una porta
+		// sta CENTRATO sul lato e sale dalla cima della cella: sul lato la linea gli starebbe dentro, e non si
+		// vedrebbe da nessuna parte. Si sposta verso il centro della cella vista. Scelta dell'autore del 2026-10-15
+		// («visibile anche li'»), dopo la review: nella tavola V1 il confine correva solo su terreno aperto.
+		const FVector Dentro = LatoConPannello(MapAsset, Lato.Cell, Lato.Direction)
+			? -Verso * RTVisionBorderPanelInset : FVector::ZeroVector;
+		DisegnaLineaAnteprima(World, Medio - Lungo + Su + Dentro, Medio + Lungo + Su + Dentro, Colore, SDPG_World,
+			Spessore);
 	}
 }
 
