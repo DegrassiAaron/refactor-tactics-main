@@ -13,6 +13,17 @@
 
 ---
 
+## 2026-10-15 — Il pacing conta l'ordine di un waypoint: PIE-PACING-1 verde
+
+**Origine**: [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), seduta `U92`. La voce era 🟡 perché una destinazione di movimento non registrava il suo `Order`; corretto, è stata rigiudicata dal vivo: un waypoint, un ordine.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-PACING-1` ✅, coi contatori e il CSV; totali rimisurati |
+| [`technical/evidence/u92/`](technical/evidence/u92/) | il CSV del turno giocato |
+
+---
+
 ## 2026-10-15 — Il sottotitolo della finestra di reazione si vede
 
 **Origine**: [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), seduta `U92`. Il C++ calcolava già il sottotitolo, ma `WBP_RT_FastDecision` non aveva il `TextBlock`: ora c'è, e l'autore ha dato «PASS» alla cattura.
