@@ -75,6 +75,38 @@ int32 URTReactionOpportunityLibrary::RemoveFireResponsesWhere(FRTReactionOpportu
 	});
 }
 
+int32 URTReactionOpportunityLibrary::RebuildFireResponses(FRTReactionOpportunity& InOut,
+	TConstArrayView<int32> TriggerUnitIds, const FRTDeclaredCondition& Condition,
+	const TMap<int32, FRTTargetVitals>& VitalsNow, TFunctionRef<bool(int32 TargetUnitId)> bStanding)
+{
+	// Crescente per id, come in `BuildOverwatchTriggers`: l'ordine delle risposte e' una funzione dello stato, e non
+	// di come il chiamante ha conservato chi e' entrato.
+	TArray<int32> Targets;
+	Targets.Append(TriggerUnitIds.GetData(), TriggerUnitIds.Num());
+	Targets.Sort();
+
+	TArray<FString> Fires;
+	int32 Standing = 0;
+	for (const int32 TargetId : Targets)
+	{
+		if (!bStanding(TargetId))
+		{
+			continue; // [D-518]: a terra non si spara, e la condizione non si chiede nemmeno
+		}
+		++Standing;
+		if (IsConditionSatisfied(Condition, VitalsNow.Find(TargetId)))
+		{
+			Fires.Add(FireResponse(TargetId));
+		}
+	}
+
+	// Via tutti i `FIRE` — passando da `RemoveFireResponsesWhere`, che usa l'unico parser del formato — e i nuovi in
+	// testa: `HOLD` e ogni risposta che non e' un `FIRE` restano in coda, nell'ordine in cui erano.
+	RemoveFireResponsesWhere(InOut, [](int32) { return true; });
+	InOut.AllowedResponses.Insert(Fires, 0);
+	return Standing;
+}
+
 const TArray<FName>& URTReactionOpportunityLibrary::BoundaryCapableReactionIds()
 {
 	// ⚠️ **Elenco chiuso e scritto qui, non derivato dal catalogo**, e il perche' sta nel docstring: il

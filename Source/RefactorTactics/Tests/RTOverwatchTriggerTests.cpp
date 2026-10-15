@@ -1410,6 +1410,75 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
 }
 
 
+/**
+ * DUE Overwatch sullo stesso mover, e il secondo ha una condizione che il primo colpo rende vera: **la sua finestra si
+ * apre, perche' la condizione si legge quando il watcher viene chiesto** ([D-522], `#3771`).
+ *
+ * Aevik entra a 60/90 PV nella zona di W2 e di W1. W1 ha dichiarato «al 50% o meno». W2, chiesto per primo, spara e lo
+ * porta a 39/90. Prima di [D-522] l'opportunity di W1 restava quella costruita all'ingresso, col solo `HOLD`: la
+ * finestra non si apriva, e il registro scriveva `CollapsedByCondition` — «nessun bersaglio soddisfa la condizione» —
+ * su un bersaglio che in quel momento la soddisfaceva.
+ *
+ * 🔴 **Il discriminante e' la decisione di W1**: lo scenario ne dichiara una, e una decisione che nessuna finestra
+ * consuma fa uscire lo scenario `Error`. Con la regola di prima questo test diventa rosso su `Pass` prima che su
+ * qualunque conteggio.
+ *
+ * ⚠️ Si misura sul TurnLog, come il gemello qui sopra: due `FIRE` col danno e nessun collasso per condizione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchConditionMetAfterFirstShotTest,
+	"RefactorTactics.Overwatch.ConditionIsReadWhenTheSecondWatcherIsAsked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchConditionMetAfterFirstShotTest::RunTest(const FString&)
+{
+	const FRTTestScenario Scenario = RTOverwatchScenarioFixtures::MakeConditionMetAfterFirstShotScenario();
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	// 🔴 **Si pretende `Pass`**: un `Error` qui vuol dire che la decisione di W1 non ha trovato la sua finestra.
+	TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
+			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason, Result.TurnsPlayed),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+
+	ARTTurnManager* Manager = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It)
+	{
+		Manager = *It;
+		break;
+	}
+
+	int32 FireEntries = 0;
+	int32 FireEntriesWithDamage = 0;
+	int32 CollapsedByCondition = 0;
+	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
+	{
+		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
+		{
+			if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+			if (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome) == ERTReactionDecisionOutcome::CollapsedByCondition)
+			{
+				++CollapsedByCondition;
+			}
+			if (URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) == INDEX_NONE) { continue; }
+			++FireEntries;
+			if (Entry.Amount > 0) { ++FireEntriesWithDamage; }
+		}
+	}
+
+	TestEqual(TEXT("due `FIRE`: anche W1, la cui condizione il primo colpo ha reso vera"), FireEntries, 2);
+	TestEqual(TEXT("ed entrambi fanno danno"), FireEntriesWithDamage, 2);
+	// 🔴 IL PUNTO DEL REGISTRO: nessuna voce dice che la condizione ha escluso un bersaglio che la soddisfaceva.
+	TestEqual(TEXT("nessun `CollapsedByCondition`"), CollapsedByCondition, 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+
 // ─── E14.7 · Reaction Clash ([D-048], [D-049]) ──────────────────────────────────────────────────────────
 //
 // Il Clash e' logica su `AllowedResponses`: chi le produce — profilo d'eroe, condizione dichiarata, catalogo

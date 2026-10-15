@@ -2103,7 +2103,8 @@ protected:
 	 * Vero se il bersaglio di un `FIRE` e' ancora in piedi: esiste, e' valido e vive (#1158).
 	 *
 	 * 🔑 **Una domanda, due lettori** ([D-518], `#3745`): `PumpReactionTriggers` toglie il `FIRE` su chi e' gia' a
-	 * terra prima di chiedere, `ApplyReactionDecision` non colpisce chi non c'e'. ⚠️ `IsValid` da solo resta vero
+	 * terra prima di chiedere — dentro `URTReactionOpportunityLibrary::RebuildFireResponses`, che da [D-522] rifa'
+	 * anche la condizione dichiarata —, `ApplyReactionDecision` non colpisce chi non c'e'. ⚠️ `IsValid` da solo resta vero
 	 * su un'unita' a 0 PV: `ARTUnit::ApplyCombatState` differisce la distruzione dell'Actor.
 	 */
 	static bool IsReactionTargetStanding(const TArray<ARTUnit*>& Units, int32 TargetIdx);

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ScenarioHarness/RTTestScenario.h"
+#include "Turn/RTReactionOpportunityTypes.h" // [D-522]: l'id della condizione si prende dalla funzione che lo scrive
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -102,6 +103,57 @@ namespace RTOverwatchScenarioFixtures
 		W2Stays.UnitId = TEXT("W2");
 		W2Stays.Cell = FRTCellId(-3, -1, 0);
 		Scenario.Expect.Add(W2Stays);
+
+		return Scenario;
+	}
+
+	/**
+	 * [D-522] (`#3771`) Lo stesso montaggio di `MakeSecondWatcherOnDownedTargetScenario`, con due differenze: Aevik entra
+	 * con 60/90 PV, e W1 dichiara «spara solo se il bersaglio e' al 50% dei PV o meno».
+	 *
+	 * All'ingresso 60/90 (66%) non soddisfa la condizione. W2, che e' chiesto per primo e non ne ha, spara: 21 danni
+	 * dell'arma di Ivrin portano Aevik a 39/90 (43%), vivo e sotto la soglia. Quando arriva il turno di W1 la condizione
+	 * e' soddisfatta, e la sua finestra si apre. Prima di [D-522] si chiudeva con `CollapsedByCondition`, sullo stato di
+	 * prima del colpo.
+	 *
+	 * ⚠️ **Le decisioni sono DUE, ed e' la meta' discriminante.** La seconda, di W1, ha una finestra che la consuma solo
+	 * se la condizione si legge al momento della domanda; altrimenti l'harness la chiama decisione orfana, e lo
+	 * scenario esce `Error`.
+	 *
+	 * ⚠️ **W1 arma anche `Hero.Ivrin.Deflection`**: `ARTUnit::SetPlannedReactionCondition` rifiuta una condizione senza
+	 * lo slot reazione armato, e il loader lo dice (vedi `FRTScenarioIntent::Condition`). E' lo stesso montaggio di
+	 * `Spec.Overwatch.ConditionCollapsesToHold`. L'ordine dei watcher non cambia: i tie-break vengono dall'azione
+	 * `Action.Overwatch` e dallo `StableUnitId`, non dallo slot reazione.
+	 */
+	inline FRTTestScenario MakeConditionMetAfterFirstShotScenario()
+	{
+		FRTTestScenario Scenario = MakeSecondWatcherOnDownedTargetScenario();
+		Scenario.ScenarioId = TEXT("Unit.Overwatch.ConditionMetAfterFirstShot");
+
+		for (FRTScenarioUnit& Unit : Scenario.Units)
+		{
+			if (Unit.Id == TEXT("M1"))
+			{
+				Unit.Health = 60;
+			}
+		}
+
+		FRTScenarioTurn& Turn = Scenario.Turns[0];
+		Turn.Requires.Add(TEXT("Reaction"));
+		for (FRTScenarioIntent& Intent : Turn.Intents)
+		{
+			if (Intent.UnitId == TEXT("W1"))
+			{
+				Intent.Reaction = TEXT("Hero.Ivrin.Deflection");
+				Intent.Condition = FRTDeclaredCondition(URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
+			}
+		}
+
+		FRTScenarioDecision FireW1;
+		FireW1.Unit = TEXT("W1");
+		FireW1.Respond = TEXT("FIRE");
+		FireW1.Target = TEXT("M1");
+		Turn.Decisions.Add(FireW1);
 
 		return Scenario;
 	}
