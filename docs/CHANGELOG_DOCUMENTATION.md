@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-15 — Home ed edge pan giudicati sulle tavole; il passo del banco rifatto, e la sua seconda riga va spostata
+
+**Origine**: le sedute `U91` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) e `U93` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)), condotte da script dal clone principale e giudicate dall'autore sulle tavole; `PIE-LAB-PASSO` rifatta sul codice di oggi, dopo i rilievi della review di [#3781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3781).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-HOME-CONTEXT` 🟡 e `PIE-CAM-EDGE-PAN` 🟡: verdi per ciò che le tavole mostrano, con i criteri non visti elencati; `PIE-CAM-START` rieseguita, ✅ in testa alla cella; `PIE-CAM-BOUNDS` annotata da rileggere ([#3798](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3798)); la riga stantia «Home ricentra»; `PIE-LAB-PASSO` 🟡 ([#3795](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3795)), con `osserva:`; la data del titolo dei totali; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U91` e `U93` eseguite; le note di `U90` non ripetono piu' il verdetto, come vuole l'header del file |
+| [`technical/evidence/u91/`](technical/evidence/u91/) · [`u93/`](technical/evidence/u93/) · [`u90/`](technical/evidence/u90/) | le tavole |
+
+---
+
 ## 2026-10-15 — `PIE-V01-CHARGECLICK`: la (4) è instradata, e `A4` lo legge
 
 **Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), dopo il merge della PR #3772. La chiusura di #3736 ha reso rosso `doc-coherence` A4: la voce è 🟡 e la sua prima issue è CLOSED. La (4) non aspetta un rigiudizio, aspetta [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793).
