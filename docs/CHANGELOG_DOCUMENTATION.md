@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-15 — `Home` inquadra la selezione, poi la squadra, poi la mappa
+
+**Origine**: [#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837) (`CAM-16`). `Home` centrava sempre la mappa; ora segue una gerarchia di ripiego e azzera sempre orientamento e distanza, come ha scelto l'autore. Non inquadra mai un'unità di un'altra squadra.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1 la riga di `Home`; §4.1 nuova, gli anelli con i test e ciò che resta prescritto; §11 il totale dei test sostituito dal comando che lo conta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-HOME-CONTEXT` nuova, aperta; `PIE-CAM-START` e `PIE-CAM-FOCUS` aggiornano la frase su `Home`; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U91`, da convocare |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: #1837 aperta, #1836 chiusa, `PIE-CAM-HOME-CONTEXT` in `verification.pie` |
+
+---
+
 ## 2026-10-15 — La pianta: fondo, dissolvenza, pannelli traslucidi, superfici chiare, nebbia; verde
 
 **Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), seduta `U89`. L'autore ha respinto la prima resa della pianta: il solo anello sembrava «mai visto», il cambio secco disturbava, i muri non andavano né a terra né in cima, e le celle viste col rilievo del costo sembravano nere. Nella seconda tornata il pavimento e la dissolvenza sono passati, ma mancava *«il volume sull'esagono, la fog»*: ogni cella non vista ora e' riempita da una colonna di nebbia.

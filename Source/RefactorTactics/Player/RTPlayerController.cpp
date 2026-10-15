@@ -749,7 +749,6 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
 	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
 
-	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	// `N` — il ciclo di selezione (`#3145`), e `TAB` — la vista strategica (D-488). Le due righe stanno
 	// insieme perche' D-488 vuole il cambio nello stesso commit: separate, `Tab` farebbe due cose o nessuna.
 	// Nessun altro `MapKey` le rivendica, e a verificarlo non e' un elenco scritto a mano ma
@@ -762,6 +761,8 @@ void ARTPlayerController::BuildInputMappings()
 	// fanno cose diverse vanno su tasti che non si sfiorano.
 	MappingContext->MapKey(DeclarePlanAction, DeclarePlanHotkey());
 
+	// `Home` — l'inquadratura di recupero, contestuale (#1837): selezione, poi squadra, poi centro griglia, con
+	// orientamento e zoom di default. La gerarchia sta in `ARTCameraPawn::FrameHome`.
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
 
@@ -1634,10 +1635,17 @@ bool ARTPlayerController::CycleSelection()
 
 void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
 {
+	// #1837: la selezione si passa com'e'. Se non e' della propria squadra, o non e' viva, `FrameHome` la
+	// scarta da se': la guardia sta dove si scrive il pivot, non qui. In osservazione `Home` resta il campo intero.
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		Cam->RecenterView();
+		Cam->FrameHome(GetSelectedUnit(), IsObservationSession());
 	}
+}
+
+void ARTPlayerController::RecenterForTest()
+{
+	OnRecenter(FInputActionValue());
 }
 
 void ARTPlayerController::OnFocusSelected(const FInputActionValue& Value)
@@ -1645,7 +1653,7 @@ void ARTPlayerController::OnFocusSelected(const FInputActionValue& Value)
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Focus: nessuna unita' selezionata (Home ricentra sulla griglia)."));
+		UE_LOG(LogRT, Log, TEXT("[RT] Focus: nessuna unita' selezionata (Home inquadra la squadra)."));
 		return;
 	}
 	FocusCameraOnUnit(Unit);
@@ -4105,6 +4113,14 @@ bool ARTPlayerController::IsPlanningInputInert() const
 	const ARTGameMode* GameMode =
 		Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
 	return GameMode && GameMode->IsAutobattleInEffect();
+}
+
+bool ARTPlayerController::IsObservationSession() const
+{
+	const ARTGameMode* GameMode =
+		Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+	return GameMode && (GameMode->IsAutobattleInEffect() || GameMode->IsScenarioRunning()
+		|| !GameMode->ResolveScenarioToRun().IsEmpty());
 }
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const

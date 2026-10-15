@@ -6102,6 +6102,27 @@ sessions:
       «Ability / Hero Lab», campo Eroe `Hero.Ivrin`, voce `Hero.Ivrin.PassingBlade`, «Esegui in PIE».
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
 
+  - id: U91
+    title: Home contestuale — selezione, squadra, mappa, e mai un'unità altrui
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-CAM-HOME-CONTEXT` e la riesecuzione di `PIE-CAM-START`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U2]
+    verifies: [PIE-CAM-HOME-CONTEXT, PIE-CAM-START]
+    issues: [1837]
+    done_when: >-
+      la voce `PIE-CAM-HOME-CONTEXT` ha un verdetto nel registro, dato a schermo dall'autore, e
+      `PIE-CAM-START` e' stata rieseguita su un commit che porta #1837
+    notes: |
+      Scritta il 2026-10-15 con #1837. L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento:
+      Editor ricompilato da un commit che porta #1837, partita hex avviata. #1837 chiede di rieseguire
+      `PIE-CAM-START` perche' il ripiego d'avvio passa dallo stesso codice di `Home` (`ResetAndFrame`): il
+      verdetto del 2026-08-06 resta nel registro finche' la riesecuzione non lo sostituisce.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
