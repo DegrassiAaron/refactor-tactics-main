@@ -1480,6 +1480,47 @@ bool FRTPlayerInputHotkeysDoNotCollideTest::RunTest(const FString&)
 	return bOk;
 }
 
+// --- #3774 · i due tasti del banco -----------------------------------------------------------------
+
+/**
+ * `,` e `.` cambiano azione nelle scene del banco: precedente e successiva dello stesso eroe — `#3774`.
+ *
+ * Che non collidano con niente lo dice `HotkeysDoNotCollide`, che interroga lo stesso contesto; questo test dice
+ * che ci SONO, e su quale azione. «Zero collisioni» e' vero anche di zero tasti nuovi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputLabStepKeysTest,
+	"RefactorTactics.PlayerInput.LabStepKeysAreCommaAndPeriod",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputLabStepKeysTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	bool bOk = TestNotNull(TEXT("controller"), PC);
+	const UInputMappingContext* Imc = bOk ? PC->BuildAndGetMappingContextForTest() : nullptr;
+	bOk = bOk && TestNotNull(TEXT("mapping context costruito"), Imc);
+	if (bOk)
+	{
+		FString SuVirgola;
+		FString SuPunto;
+		for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+		{
+			if (!M.Action) { continue; }
+			if (M.Key == EKeys::Comma)  { SuVirgola = M.Action->GetName(); }
+			if (M.Key == EKeys::Period) { SuPunto = M.Action->GetName(); }
+		}
+		TestEqual(TEXT("`,` passa all'azione precedente del banco"), SuVirgola, FString(TEXT("IA_LabStepPrevious")));
+		TestEqual(TEXT("`.` passa all'azione successiva del banco"), SuPunto, FString(TEXT("IA_LabStepNext")));
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
+}
+
 // --- #3749 · il modificatore della camera e' `Ctrl`, su entrambi i lati ------------------------------
 
 /**

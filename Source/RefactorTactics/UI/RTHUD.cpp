@@ -1457,6 +1457,19 @@ void ARTHUD::DrawHUD()
 			const float BY = 44.f;
 			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), BX - 8.f, BY - 4.f, BW + 16.f, BH + 8.f);
 			DrawText(Banner, FLinearColor(1.f, 0.75f, 0.2f, 1.f), BX, BY, nullptr, 1.1f);
+
+			// `#3774` — nelle scene del banco, una seconda riga: dove si e' nel kit dell'eroe e quali tasti cambiano
+			// azione. Sotto la banda e non dentro: quella e' gia' larga quanto lo schermo di un PIE.
+			const FString Passo = GM->GetLabStepText();
+			if (!Passo.IsEmpty())
+			{
+				float PW = 0.f, PH = 0.f;
+				GetTextSize(Passo, PW, PH, nullptr, 1.1f);
+				const float PX = (Canvas->SizeX - PW) * 0.5f;
+				const float PY = BY + BH + 14.f;
+				DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), PX - 8.f, PY - 4.f, PW + 16.f, PH + 8.f);
+				DrawText(Passo, FLinearColor::White, PX, PY, nullptr, 1.1f);
+			}
 		}
 	}
 

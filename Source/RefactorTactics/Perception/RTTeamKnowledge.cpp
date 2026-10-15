@@ -230,6 +230,16 @@ FRTKnowledgeVerdict URTTeamKnowledgeLibrary::FreezeVerdict(const TArray<FRTTeamK
 	return Verdict;
 }
 
+FRTKnowledgeVerdict URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict Rule, int32 OwnerTeamId)
+{
+	FRTKnowledgeVerdict Verdict = FRTKnowledgeVerdict::NoOne();
+	if (Rule == ERTPlanVerdict::OwnerTeam)
+	{
+		Verdict.AllowTeam(OwnerTeamId);
+	}
+	return Verdict;
+}
+
 FRTKnowledgeVerdict URTTeamKnowledgeLibrary::FreezeEdgeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
 	const TArray<int32>& AuthorTeamIds, const FRTCellId& CellA, const FRTCellId& CellB)
 {

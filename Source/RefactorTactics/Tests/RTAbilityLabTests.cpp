@@ -16,6 +16,9 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTActionReadout.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Ability/RTHeroLab.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
@@ -422,6 +425,82 @@ bool FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest::RunTest(const FString&)
 }
 
 /**
+ * Ogni SCATTO di kit che il Lab offre muove chi lo usa — `#3773`.
+ *
+ * Il Lab scriveva ogni azione come abilita' principale, e una mobilita' di fase Dash in quel campo il turno la
+ * ignorava: la seduta del banco di #3562 ha visto Ivrin restare fermo su `PassingBlade`, con la scena superata.
+ * I test sopra non lo vedevano per la ragione scritta in testa a questa sezione: verificano che il turno si
+ * giochi, non che cosa produca.
+ *
+ * 🔑 **Gli scatti si cercano per FASE**, non per nome (vedi la testa del file): un'azione la cui fase mappa su
+ * `ERTMatchPhase::Dash`. La posa e' quella di default del Lab — la stessa del pannello — perche' e' quella che
+ * l'autore vede: un test con una posa scelta apposta direbbe poco del banco vero.
+ *
+ * ⚠️ **«Si e' mosso», non «e' arrivato li'».** Dove si ferma lo decide il resolver — chi attraversa e chi si
+ * ferma sul primo nemico — e il Lab non ha il compito di saperlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEveryKitDashMovesTheCasterTest,
+	"RefactorTactics.AbilityLab.EveryKitDashMovesTheCaster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEveryKitDashMovesTheCasterTest::RunTest(const FString&)
+{
+	TArray<FName> Scatti;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const TObjectPtr<URTActionData>& Action : Hero->Actions)
+		{
+			if (Action && !Action->Def.ActionId.IsNone()
+				&& URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase) == ERTMatchPhase::Dash)
+			{
+				Scatti.Add(Action->Def.ActionId);
+			}
+		}
+	}
+	// Senza questo controllo il test sarebbe verde su un roster senza scatti.
+	if (!TestTrue(TEXT("il roster offre scatti di kit"), Scatti.Num() > 0)) { return false; }
+
+	for (const FName& AbilityId : Scatti)
+	{
+		const FString Id = AbilityId.ToString();
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("%s: BuildFixture la costruisce"), *Id),
+			URTAbilityLabLibrary::BuildFixture(AbilityId, FRTAbilityLabFixtureSpec(), Scenario, Error)))
+		{
+			AddInfo(FString::Printf(TEXT("%s: %s"), *Id, *Error));
+			continue;
+		}
+
+		// La forma dell'intent: lo slot movimento, non la principale.
+		const FRTScenarioIntent& Intent = Scenario.Turns[0].Intents[0];
+		TestEqual(FString::Printf(TEXT("%s: dichiarata come scatto"), *Id), Intent.Dash, AbilityId);
+		TestTrue(FString::Printf(TEXT("%s: e non come abilita'"), *Id), Intent.Ability.IsNone());
+
+		const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: la run va in ERROR: %s"), *Id, *Result.ErrorMessage));
+			continue;
+		}
+
+		bool bCasterSiMuove = false;
+		for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+		{
+			const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+			if (!Authoring || *Authoring != TEXT("CASTER")) { continue; }
+			for (const FRTUnitFieldChange& Cambio : Diff.Changes)
+			{
+				bCasterSiMuove |= Cambio.Field == FName(TEXT("Cell"));
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: il caster cambia cella"), *Id), bCasterSiMuove);
+	}
+	return true;
+}
+
+/**
  * Il readout di un'azione core descrive l'istanza che l'unita' RICEVE, o dichiara che non ce n'e' una — `#3473`.
  *
  * Il valore «letto» e' per contratto cio' che il consumatore reale legge. Per una generica il consumatore e'
@@ -618,6 +697,135 @@ bool FRTAbilityLabStateDiffSpansTheWholeRunTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("il diff porta il colpo del turno 1, non solo il turno 2"), bBersaglioColpito);
 
+	return true;
+}
+
+// --- #3774 · cambiare azione dentro il PIE ---------------------------------------------------------------
+//
+// I due tasti del banco passano all'azione precedente o successiva DELLO STESSO EROE e ripartono. La parte che
+// tocca il mondo (scrivere la scena, la console variable, ricaricare il livello) si giudica in PIE; qui sta la
+// parte che decide: quale azione viene dopo, e cosa dice la banda.
+
+namespace RTAbilityLabTestsInternal
+{
+	/**
+	 * Il ciclo ATTESO dell'eroe della prima voce di kit del catalogo: le voci di `ListHeroKit` che `BuildFixture`
+	 * costruisce, nell'ordine del kit. Lo calcola il test con le funzioni pubbliche, non chiedendolo alla
+	 * funzione che verifica.
+	 */
+	TArray<FName> ExpectedHeroCycle(FName& OutHeroId)
+	{
+		OutHeroId = NAME_None;
+		for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+		{
+			if (!Entry.bIsCoreAction) { OutHeroId = Entry.OwnerHeroId; break; }
+		}
+		TArray<FName> Out;
+		for (const FRTAbilityLabEntry& Entry : URTHeroLabLibrary::ListHeroKit(OutHeroId))
+		{
+			FRTTestScenario Scratch;
+			FString Error;
+			if (URTAbilityLabLibrary::BuildFixture(Entry.AbilityId, FRTAbilityLabFixtureSpec(), Scratch, Error))
+			{
+				Out.Add(Entry.AbilityId);
+			}
+		}
+		return Out;
+	}
+
+	FString LabId(const FName& AbilityId)
+	{
+		return FString::Printf(TEXT("AbilityLab.%s"), *AbilityId.ToString());
+	}
+}
+
+/**
+ * Il passo del banco gira dentro il kit dell'eroe, nei due versi, e fa il giro agli estremi — `#3774`.
+ *
+ * ⚠️ **Ogni passo, non uno solo**: un passo verificato una volta sarebbe verde anche su un ciclo che salta una voce
+ * o che si ferma all'ultima invece di tornare alla prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStepCyclesWithinTheHeroTest,
+	"RefactorTactics.AbilityLab.StepCyclesWithinTheHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStepCyclesWithinTheHeroTest::RunTest(const FString&)
+{
+	FName Eroe;
+	const TArray<FName> Ciclo = RTAbilityLabTestsInternal::ExpectedHeroCycle(Eroe);
+	// Con meno di due voci non c'e' un passo da verificare, e il test lo dice invece di passare.
+	if (!TestTrue(TEXT("l'eroe ha almeno due azioni che il Lab costruisce"), Ciclo.Num() >= 2)) { return false; }
+
+	const int32 N = Ciclo.Num();
+	for (int32 i = 0; i < N; ++i)
+	{
+		const FString Da = RTAbilityLabTestsInternal::LabId(Ciclo[i]);
+		for (const int32 Passo : { +1, -1 })
+		{
+			const int32 j = (i + Passo + N) % N;
+			FName Prossima;
+			int32 Posizione = 0;
+			int32 Totale = 0;
+			if (!TestTrue(FString::Printf(TEXT("%s, passo %+d: c'e' un'azione"), *Da, Passo),
+				URTAbilityLabLibrary::PlanLabStep(Da, Passo, Prossima, Posizione, Totale)))
+			{
+				continue;
+			}
+			TestEqual(FString::Printf(TEXT("%s, passo %+d: l'azione"), *Da, Passo), Prossima, Ciclo[j]);
+			TestEqual(FString::Printf(TEXT("%s, passo %+d: la posizione, da 1"), *Da, Passo), Posizione, j + 1);
+			TestEqual(FString::Printf(TEXT("%s, passo %+d: quante sono"), *Da, Passo), Totale, N);
+		}
+	}
+	AddInfo(FString::Printf(TEXT("eroe %s, %d azioni nel ciclo"), *Eroe.ToString(), N));
+	return true;
+}
+
+/** Fuori da una scena del banco il passo non trova niente: i due tasti restano inerti — `#3774`. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStepIsInertOutsideTheLabTest,
+	"RefactorTactics.AbilityLab.StepIsInertOutsideTheLab",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStepIsInertOutsideTheLabTest::RunTest(const FString&)
+{
+	// Una partita normale, uno scenario versionato che usa un'abilita' d'eroe, e un Id del Lab che non nomina
+	// nessuna azione canonica: tutti e tre fuori dal banco.
+	for (const TCHAR* Id : { TEXT(""), TEXT("Visual.Ability.ClipIvrin"), TEXT("AbilityLab.Azione.Inesistente") })
+	{
+		FName Prossima;
+		int32 Posizione = -7;
+		int32 Totale = -7;
+		TestFalse(FString::Printf(TEXT("'%s': nessun passo"), Id),
+			URTAbilityLabLibrary::PlanLabStep(Id, +1, Prossima, Posizione, Totale));
+		TestTrue(FString::Printf(TEXT("'%s': nessuna azione proposta"), Id), Prossima.IsNone());
+		TestTrue(FString::Printf(TEXT("'%s': la banda non aggiunge niente"), Id),
+			URTAbilityLabLibrary::DescribeLabStep(Id).IsEmpty());
+	}
+
+	// Controllo positivo: una scena del banco vera il passo lo trova. Senza, il test sarebbe verde su un passo
+	// che non funziona mai.
+	FName Eroe;
+	const TArray<FName> Ciclo = RTAbilityLabTestsInternal::ExpectedHeroCycle(Eroe);
+	if (!TestTrue(TEXT("premessa: l'eroe ha delle azioni"), Ciclo.Num() > 0)) { return false; }
+	FName Prossima;
+	int32 Posizione = 0;
+	int32 Totale = 0;
+	TestTrue(TEXT("in una scena del banco il passo c'e'"),
+		URTAbilityLabLibrary::PlanLabStep(RTAbilityLabTestsInternal::LabId(Ciclo[0]), +1, Prossima, Posizione, Totale));
+	return true;
+}
+
+/** La banda di una scena del banco dice dove si e' nel kit e quali tasti premere — `#3774`. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStepHintNamesPositionAndKeysTest,
+	"RefactorTactics.AbilityLab.StepHintNamesPositionAndKeys",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStepHintNamesPositionAndKeysTest::RunTest(const FString&)
+{
+	FName Eroe;
+	const TArray<FName> Ciclo = RTAbilityLabTestsInternal::ExpectedHeroCycle(Eroe);
+	if (!TestTrue(TEXT("premessa: l'eroe ha almeno due azioni"), Ciclo.Num() >= 2)) { return false; }
+
+	const FString Seconda = URTAbilityLabLibrary::DescribeLabStep(RTAbilityLabTestsInternal::LabId(Ciclo[1]));
+	TestTrue(TEXT("dice la posizione della scena corrente"), Seconda.Contains(FString::Printf(TEXT("2/%d"), Ciclo.Num())));
+	TestTrue(TEXT("nomina il tasto per la precedente"), Seconda.Contains(TEXT("«,»")));
+	TestTrue(TEXT("nomina il tasto per la successiva"), Seconda.Contains(TEXT("«.»")));
 	return true;
 }
 

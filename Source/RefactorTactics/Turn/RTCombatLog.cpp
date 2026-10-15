@@ -46,6 +46,15 @@ FRTLogSubject FRTLogSubject::UnitWithVerdict(const ARTUnit* InUnit, const FRTKno
 	return S;
 }
 
+FRTLogSubject FRTLogSubject::UnitAtWithVerdict(const ARTUnit* InUnit, const FRTCellId& InFactCell,
+	const FRTKnowledgeVerdict& InVerdict)
+{
+	FRTLogSubject S = UnitAt(InUnit, InFactCell);
+	S.bFrozen = true;
+	S.FrozenVerdict = InVerdict;
+	return S;
+}
+
 FRTLogSubject FRTLogSubject::World()
 {
 	FRTLogSubject S;
