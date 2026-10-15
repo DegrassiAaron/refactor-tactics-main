@@ -2,6 +2,59 @@
 
 ---
 
+## 2026-10-15 — Il pacing conta l'ordine di un waypoint: PIE-PACING-1 verde
+
+**Origine**: [#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400), seduta `U92`. La voce era 🟡 perché una destinazione di movimento non registrava il suo `Order`; corretto, è stata rigiudicata dal vivo: un waypoint, un ordine.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-PACING-1` ✅, coi contatori e il CSV; totali rimisurati |
+| [`technical/evidence/u92/`](technical/evidence/u92/) | il CSV del turno giocato |
+
+---
+
+## 2026-10-15 — Il sottotitolo della finestra di reazione si vede
+
+**Origine**: [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667), seduta `U92`. Il C++ calcolava già il sottotitolo, ma `WBP_RT_FastDecision` non aveva il `TextBlock`: ora c'è, e l'autore ha dato «PASS» alla cattura.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-screen-hud-umg.md`](technical/runbooks/guida-screen-hud-umg.md) | la porta `SubtitleText` è nell'asset; l'ingombro della finestra riguardato |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §11: il sottotitolo sta nel suo `TextBlock` |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXBRACE` e `PIE-V01-RXPLAYBACK`: la nota sulla cattura |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U92` |
+| [`technical/evidence/u92/`](technical/evidence/u92/) | la tavola `V1` |
+
+---
+
+## 2026-10-15 — L'edge pan: il cursore al bordo fa scorrere la vista
+
+**Origine**: [#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838) (`CAM-17`). L'edge pan non esisteva; ora è un ingresso di `AddPlanarMovement`, alla stessa velocità di `WASD`, acceso di default e spegnibile come ha scelto l'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md) | §3.1 la riga dell'edge pan; §3.4 nuova, con i test, i limiti dichiarati e ciò che resta da tarare; §11 la voce PIE |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-EDGE-PAN` nuova, aperta; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | la seduta `U93`, da convocare |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: #1838 aperta, `PIE-CAM-EDGE-PAN` in `verification.pie` |
+
+---
+
+## 2026-10-15 — L'Overwatch chiede una volta per nemico e per turno
+
+**Origine**: [#3132](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3132). È l'attuazione di `D-411`, decisa il 2026-09-13.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-411`: attuazione, regole dell'attuazione, test; il prezzo da rendere esplicito nella UI è [#3788](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3788) |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione di D-411; la tabella di verifica coi test nuovi |
+| [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) | la riga D-169/D-411: attuata; e il movimento forzato, che da D-366 disarma |
+| [`roadmap/v0.1-issue-plan.md`](roadmap/v0.1-issue-plan.md) e [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | il nome del test riscritto |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-RXPLAYBACK`: il banco della ripresa è cambiato, nota in coda |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3132 fra le chiuse, i test nuovi |
+
+---
+
 ## 2026-10-15 — `Home` inquadra la selezione, poi la squadra, poi la mappa
 
 **Origine**: [#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837) (`CAM-16`). `Home` centrava sempre la mappa; ora segue una gerarchia di ripiego e azzera sempre orientamento e distanza, come ha scelto l'autore. Non inquadra mai un'unità di un'altra squadra.

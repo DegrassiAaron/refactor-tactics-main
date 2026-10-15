@@ -559,7 +559,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2462, 2516, 2795, 166, 314, 319], closed: [2717, 3745, 3771, 2367] }
+    issues: { open: [2462, 2516, 2795, 166, 314, 319, 3788], closed: [2717, 3745, 3771, 2367, 3132] }
     consumers:
       - RT-CAP-BOT-DECISION
       - RT-CAP-COMBAT
@@ -582,7 +582,12 @@ capabilities:
                    "RefactorTactics.Overwatch.ForcedDisplacementDisarmsWithItsCause",
                    "RefactorTactics.Status.ProneDisarmsOverwatchAndSpendsCharge",
                    "RefactorTactics.Reactions.Brace.SidestepKeepsTheOverwatch",
-                   "RefactorTactics.Equipment.EmergencyDashKeepsTheOverwatch"]
+                   "RefactorTactics.Equipment.EmergencyDashKeepsTheOverwatch",
+                   "RefactorTactics.Overwatch.OneOpportunityPerEnemyPerTurn",
+                   "RefactorTactics.Overwatch.HoldThenFireAsksEachEnemyOnce",
+                   "RefactorTactics.Overwatch.SimultaneousTimeoutDoesNotRepropose",
+                   "RefactorTactics.Overwatch.SprintThroughTheLineAsksOnce",
+                   "RefactorTactics.Overwatch.AskedEnemyLeavesNoSilence"]
       scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
       mutation: []
     verification: { pie: [], packaged: [] }
@@ -1805,14 +1810,14 @@ capabilities:
         - Source/RefactorTactics/Map/RTLayerPresentation.cpp
         - Source/RefactorTacticsEditor/Private/Content/RTBuildHexVolumeMaterialCommandlet.h
         - Content/RT/Core/Grid/M_HexVolume.uasset
-    issues: { open: [1769, 1781, 1775, 1809, 1837], closed: [864, 1836, 3706, 3723] }
+    issues: { open: [1769, 1781, 1775, 1809, 1837, 1838], closed: [864, 1836, 3706, 3723] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:
       automation: ["RefactorTactics.Camera.*", "RefactorTactics.CameraExposure.*", "RefactorTactics.HexVolume.*"]
       scenarios: [Scenarios/Visual/Map/LayerVolumes.json]
       mutation: []
-    verification: { pie: [PIE-CAM-TINTA-VOLUMI, PIE-CAM-ESPOSIZIONE, PIE-CAM-HOME-CONTEXT], packaged: [] }
+    verification: { pie: [PIE-CAM-TINTA-VOLUMI, PIE-CAM-ESPOSIZIONE, PIE-CAM-HOME-CONTEXT, PIE-CAM-EDGE-PAN], packaged: [] }
     notes:
       - "⚠️ L'occlusione di camera e' PRESENTAZIONE e non e' la LOS di gioco — vincolo
          dichiarato in capability-roadmaps.md §CR-PRESENT."

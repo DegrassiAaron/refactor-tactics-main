@@ -799,8 +799,8 @@ Regole UX:
   squadra di chi decide lo rileva — con la conoscenza di squadra del Blast, la stessa che decide chi legge la
   riga del colpo ([D-223](../../decisions/RT_PDR_00_Decision_Log.md)); altrimenti «Un nemico ti spinge». A contatto è sempre rilevato — la
   consapevolezza ravvicinata copre ogni direzione entro due celle — quindi la frase neutra nasce solo da una
-  spinta a distanza, come l'attacco base di Muiren alle spalle di chi si irrigidisce. ⚠️ Il sottotitolo vuole un `TextBlock`
-  `SubtitleText` in `WBP_RT_FastDecision`, che oggi non c'è: si calcola e non si vede.
+  spinta a distanza, come l'attacco base di Muiren alle spalle di chi si irrigidisce. Il sottotitolo sta nel `TextBlock`
+  `SubtitleText` di `WBP_RT_FastDecision`, sotto il titolo.
 
 ## 11.2 Target simultanei
 

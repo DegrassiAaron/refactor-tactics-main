@@ -843,7 +843,8 @@ bool FRTScenarioPlayerReactionWindowsTest::RunTest(const FString&)
 		Esegui(TEXT("con il controller ma senza la chiave"), ConGliEsiti(Senza, 1, 0), true);
 	}
 
-	// ➕ **Il banco della ripresa (`#3666`)**: Ivrin entra nella linea due volte, quindi le finestre sono DUE. Col
+	// ➕ **Il banco della ripresa (`#3666`)**: Ivrin entra nella linea, e al secondo passo ci entra Branth — da [D-411]
+	// un nemico gia' chiesto non torna, e fino al 2026-10-15 era Ivrin a entrarci due volte. Le finestre sono DUE. Col
 	// controller scadono entrambe, e la seconda scade solo se si e' presentata: prima della presentazione il suo
 	// orologio non corre. E' la premessa di cio' che `PIE-V01-RXPLAYBACK` guarda su quel banco.
 	{

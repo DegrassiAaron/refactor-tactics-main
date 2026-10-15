@@ -6122,6 +6122,57 @@ sessions:
       Editor ricompilato da un commit che porta #1837, partita hex avviata. #1837 chiede di rieseguire
       `PIE-CAM-START` perche' il ripiego d'avvio passa dallo stesso codice di `Home` (`ResetAndFrame`): il
       verdetto del 2026-08-06 resta nel registro finche' la riesecuzione non lo sostituisce.
+  - id: U92
+    title: La finestra di reazione coi nomi, il pacing rigiudicato, la carica cliccata
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      la cattura della finestra di reazione di #3667, il verdetto su `PIE-PACING-1` e su `PIE-V01-CHARGECLICK`; un
+      asset, `WBP_RT_FastDecision` col `TextBlock` `SubtitleText`
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-PACING-1, PIE-V01-CHARGECLICK]
+    issues: [3667, 3400, 3736]
+    done_when: >-
+      la cattura di #3667 e le due voci hanno un verdetto dell'autore, ciascuno nella sua issue
+    notes: |
+      🟡 **Prima tornata, il 2026-10-15, dal clone principale.** Lo stato era `main` `a6157b4fd` più #3667
+      (`2d45064c2`, il `TextBlock` aggiunto via bridge) e le scene di #3736 (PR #3772), unite in locale.
+      - #3667 ✅ sulla tavola `V1`: `Visual.Reaction.OverwatchWindow` catturata senza fuoco, a colori e in scala di
+        grigi, accanto alla tavola E.
+      - `PIE-PACING-1` ✅: un turno giocato in una partita normale, coi contatori di `rt.Debug.Pacing` e il CSV; il
+        verdetto sta nella voce, con #3400.
+      - `PIE-V01-CHARGECLICK` `NOT RUN`: dentro uno scenario tastiera e mouse non arrivano al controller (niente
+        selezione, niente hover, nemmeno `Tab`), quindi le scene `Visual.Input.ChargeClick` e
+        `Visual.Input.ChargeBeyondRange` non si pilotano. L'autore ha scelto di aggiungere agli scenari una chiave che
+        consegna la partita al giocatore; la voce torna in una seconda tornata, con #3736.
+      - ⚠️ `rt.Debug.RecordPacing` è un comando, non una variabile: passato con `-dpcvars` fa crashare l'Editor
+        all'avvio. Si digita in console dopo il Play.
+      - ⚠️ Fra due passi l'Editor ha ricevuto input non mandati da chi pilotava: il turno è stato rifatto da capo.
+
+      ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
+
+  - id: U93
+    title: L'edge pan — il cursore al bordo fa scorrere la vista, e si ferma quando lo lascia
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-CAM-EDGE-PAN`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U91]
+    verifies: [PIE-CAM-EDGE-PAN]
+    issues: [1838]
+    done_when: >-
+      la voce `PIE-CAM-EDGE-PAN` ha un verdetto nel registro, dato a schermo dall'autore
+    notes: |
+      Scritta il 2026-10-15 con #1838. L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento:
+      Editor ricompilato da un commit che porta #1838, partita hex avviata, finestra a fuoco. Lo stesso Editor di
+      `U91` va bene, se porta anche #1838. Per il caso «spento» si toglie `bEdgePanEnabled` dal Details del pawn
+      della camera durante la PIE. ⚠️ Lo smoke packaged che #1838 chiede non e' questa seduta.
 
 not_schedulable:
 

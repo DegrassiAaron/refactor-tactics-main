@@ -16,6 +16,56 @@
 namespace RTOverwatchScenarioFixtures
 {
 	/**
+	 * [D-411] Le opportunity che il pompaggio produce su percorsi interi: un passo alla volta, con la memoria di chi ogni
+	 * watcher ha gia' chiesto. E' cio' che `ARTTurnManager::ResolveReactionBoundary` fa in partita — passa il solo passo
+	 * appena compiuto, e copia nel watcher `FRTArmedOverwatch::AskedTargetUnitIds` — senza il resto del pompaggio: la
+	 * carica, il cap delle domande, la ricostruzione dei `FIRE` di [D-518] e [D-522].
+	 *
+	 * `BuildOverwatchTriggers` da sola non ricorda niente fra un passo e l'altro: su percorsi interi propone un nemico a ogni
+	 * passo. I test che vogliono la cadenza della PARTITA passano di qui; quelli che misurano la geometria la chiamano da
+	 * sola. Il watcher si ritrova come lo ritrova il pompaggio, per proprietario e reazione.
+	 */
+	inline TArray<FRTOverwatchTrigger> TriggersAsThePumpAsks(const URTHexMapAsset* Map, int32 TurnNumber,
+		TArray<FRTOverwatchWatcher> Watchers, const TArray<FRTSuppressionMover>& Movers,
+		const TMap<int32, FRTTargetVitals>& Vitals = TMap<int32, FRTTargetVitals>())
+	{
+		TArray<FRTOverwatchTrigger> Out;
+		int32 MaxSteps = 0;
+		for (const FRTSuppressionMover& Mover : Movers)
+		{
+			MaxSteps = FMath::Max(MaxSteps, Mover.Path.Num());
+		}
+		for (int32 Step = 0; Step < MaxSteps; ++Step)
+		{
+			TArray<FRTSuppressionMover> Passo;
+			for (const FRTSuppressionMover& Mover : Movers)
+			{
+				if (!Mover.Path.IsValidIndex(Step)) { continue; }
+				FRTSuppressionMover Uno = Mover;
+				Uno.Path = { Mover.Path[Step] };
+				Passo.Add(MoveTemp(Uno));
+			}
+			for (const FRTOverwatchTrigger& Trigger : URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+				Map, TurnNumber, Watchers, Passo, Vitals, /*FirstMicroStepIndex*/ Step))
+			{
+				for (FRTOverwatchWatcher& Watcher : Watchers)
+				{
+					if (Watcher.Zone.OwnerUnitId == Trigger.Opportunity.Key.OwnerId
+						&& Watcher.ReactionDefId == Trigger.Opportunity.Key.ReactionDefId)
+					{
+						for (const int32 Chiesto : URTReactionOpportunityLibrary::OfferedFireTargets(Trigger.Opportunity))
+						{
+							Watcher.AlreadyAskedUnitIds.AddUnique(Chiesto);
+						}
+					}
+				}
+				Out.Add(Trigger);
+			}
+		}
+		return Out;
+	}
+
+	/**
 	 * [D-518] (`#3745`) Due Ivrin guardano la STESSA cella da lati opposti, e un Aevik con pochi punti vita ci entra
 	 * con un passo solo. Il primo `FIRE` lo abbatte; al secondo watcher quel `FIRE` non si offre.
 	 *
