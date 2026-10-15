@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-15 — Home ed edge pan verdi sulle tavole; il passo del banco rifatto, e la sua seconda riga va spostata
+
+**Origine**: le sedute `U91` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) e `U93` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)), condotte da script dal clone principale e giudicate dall'autore sulle tavole; `PIE-LAB-PASSO` rifatta sul codice di oggi, dopo i rilievi della review di [#3781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3781).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-CAM-HOME-CONTEXT` ✅ e `PIE-CAM-EDGE-PAN` ✅, con ciò che le tavole non mostrano; `PIE-CAM-START` rieseguita; `PIE-LAB-PASSO` 🟡 ([#3795](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3795)), con `osserva:`; la data del titolo dei totali; totali rimisurati |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U91` e `U93` eseguite; le note di `U90` non ripetono piu' il verdetto, come vuole l'header del file |
+| [`technical/evidence/u91/`](technical/evidence/u91/) · [`u93/`](technical/evidence/u93/) · [`u90/`](technical/evidence/u90/) | le tavole |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: #1837 chiusa |
+
+---
+
 ## 2026-10-15 — La carica cliccata, giudicata; «in linea» cambia significato (D-523)
 
 **Origine**: [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736), seduta `U92`, seconda tornata. `PIE-V01-CHARGECLICK`: (1), (2) e (3) «PASS». Sulla (4) l'autore ha cambiato la regola: per la carica «in linea» è la retta libera fra i centri. L'attuazione è [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793).

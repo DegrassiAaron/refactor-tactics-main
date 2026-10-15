@@ -6092,10 +6092,11 @@ sessions:
     done_when: >-
       la voce `PIE-LAB-PASSO` ha un verdetto nel registro, dato a schermo dall'autore
     notes: |
-      ✅ **Eseguita il 2026-10-15, in due tornate, con l'autore a schermo: `PIE-LAB-PASSO` verde.** La prima
-      tornata, su `a4a315fca`, ha visto i criteri (0), (1), (3) e il verso `.` del (2). La seconda, su `main`
-      `37b858f0f`, ha visto il verso `,` del (2) e il (4). Il verdetto, criterio per criterio, sta nella cella della
-      voce. #3774 si era chiusa prima della seconda tornata, con aperte le due voci della DoD che questa ha visto.
+      ✅ **Eseguita il 2026-10-15**, in due tornate con l'autore a schermo: la prima su `a4a315fca`, la seconda su
+      `main` `37b858f0f`. ➕ La sera dello stesso giorno i criteri (0)-(3) sono stati rifatti da script su `main`
+      `5e0e5c67c`, dopo i rilievi della review di #3781, e la tavola e' in `docs/technical/evidence/u90/`. L'esito,
+      criterio per criterio, sta solo nella cella della voce: qui no, come dice l'header di questo file.
+      ⌫ *Fino al 2026-10-15 sera questa nota ripeteva il verdetto.*
 
       Scritta il 2026-10-15 da `/issue-run 3773 3774`. L'esito atteso vive in `test-manuali-pie.md`; qui solo
       l'allestimento: Editor del clone principale ricompilato da un commit che porta le due issue, pannello
@@ -6118,6 +6119,9 @@ sessions:
       la voce `PIE-CAM-HOME-CONTEXT` ha un verdetto nel registro, dato a schermo dall'autore, e
       `PIE-CAM-START` e' stata rieseguita su un commit che porta #1837
     notes: |
+      ✅ **Eseguita il 2026-10-15**, dal clone principale su `main` `5e0e5c67c`: PIE flottante pilotata da script,
+      giudizio dell'autore sulle tavole in `docs/technical/evidence/u91/`.
+
       Scritta il 2026-10-15 con #1837. L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento:
       Editor ricompilato da un commit che porta #1837, partita hex avviata. #1837 chiede di rieseguire
       `PIE-CAM-START` perche' il ripiego d'avvio passa dallo stesso codice di `Home` (`ResetAndFrame`): il
@@ -6180,6 +6184,9 @@ sessions:
     done_when: >-
       la voce `PIE-CAM-EDGE-PAN` ha un verdetto nel registro, dato a schermo dall'autore
     notes: |
+      ✅ **Eseguita il 2026-10-15**, dal clone principale su `main` `5e0e5c67c`: PIE flottante pilotata da script,
+      giudizio dell'autore sulle tavole in `docs/technical/evidence/u93/`.
+
       Scritta il 2026-10-15 con #1838. L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento:
       Editor ricompilato da un commit che porta #1838, partita hex avviata, finestra a fuoco. Lo stesso Editor di
       `U91` va bene, se porta anche #1838. Per il caso «spento» si toglie `bEdgePanEnabled` dal Details del pawn
