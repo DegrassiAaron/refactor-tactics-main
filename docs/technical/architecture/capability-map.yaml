@@ -559,7 +559,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319], closed: [2717, 3745, 3771] }
+    issues: { open: [2462, 2516, 2795, 166, 314, 319], closed: [2717, 3745, 3771, 2367] }
     consumers:
       - RT-CAP-BOT-DECISION
       - RT-CAP-COMBAT
@@ -578,14 +578,15 @@ capabilities:
                    "RefactorTactics.Overwatch.EmptyLineLeavesOneTeamOnlyEntry",
                    "RefactorTactics.Overwatch.LineEmptiedOnTheWayRecordsTheFactCell",
                    "RefactorTactics.Replay.Audit.PlanVerdictRoundTripsAndRecomputes",
-                   "RefactorTactics.Overwatch.SpentChargeLeavesOneTeamOnlyEntry"]
+                   "RefactorTactics.Overwatch.SpentChargeLeavesOneTeamOnlyEntry",
+                   "RefactorTactics.Overwatch.ForcedDisplacementDisarmsWithItsCause",
+                   "RefactorTactics.Status.ProneDisarmsOverwatchAndSpendsCharge"]
       scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
       mutation: []
     verification: { pie: [], packaged: [] }
     risks:
       - "#2462 e' un P0 di roadmap: «Reaction hardening — boundary, determinismo, privacy,
          performance e pacing». Cinque assi dichiarati aperti su una capability `complete`."
-      - "#2367: una spinta silenzia un Overwatch armato — la zona e' congelata, gli occhi ruotano."
 
   - id: RT-CAP-OVERWATCH-PREDICTIVE
     name: Overwatch & Predictive Fire
