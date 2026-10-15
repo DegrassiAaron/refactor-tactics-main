@@ -558,6 +558,21 @@ enum class ERTOverwatchSilenceReason : uint8
 	Count UMETA(Hidden)
 };
 
+/**
+ * [D-366] Perche' un Overwatch armato e' stato disarmato. Viaggia in `FRTTurnLogEntry::Amount` di una voce `Reaction` /
+ * `Disarmed`, come il motivo di un silenzio ([D-349]) viaggia in quello delle voci `NotTriggered`.
+ *
+ * ⚠️ **I disarmi di `Prone` e `Stun` ([D-319]) non hanno una voce**, e quindi nemmeno un valore qui: sono l'effetto di
+ * uno stato, e la voce di nascita dello stato li dice gia'. Valori aggiunti in CODA, sempre.
+ */
+UENUM()
+enum class ERTOverwatchDisarmCause : uint8
+{
+	None,
+	/** Il watcher ha subito uno spostamento forzato: spinta, trazione, caduta o scarto (`ARTTurnManager::ApplyForcedDisplacement`). */
+	ForcedDisplacement
+};
+
 /** [D-349] Un silenzio dell'Overwatch, con la cella del fatto: dove e' entrato chi non e' stato ingaggiato. */
 USTRUCT()
 struct FRTOverwatchSilence

@@ -3187,6 +3187,21 @@ protected:
 	void DisarmPreparedReactions(ARTUnit* Unit);
 
 	/**
+	 * [D-366] Uno spostamento forzato del watcher **disarma** il suo Overwatch, e il disarmo ha una voce: `Reaction` /
+	 * `Disarmed`, con la causa in `Amount` e lo spostamento in `SrcCell` -> `TgtCell`. La legge la sola squadra del
+	 * watcher, come i silenzi di [D-349]: dice che quell'unita' aveva un Overwatch armato, cioe' un piano.
+	 *
+	 * 🔑 **La charge si spende come nel disarmo di `Prone`** (`bCharged = false`, [D-319]): l'armamento resta nella lista
+	 * e il registro dei silenzi lo vede. Se poi un nemico rilevato entra nella linea, arriva anche «la carica era gia'
+	 * spesa» (decisione d'autore del 2026-10-15). Le predittive e lo slot reazione non si toccano: D-366 parla del solo
+	 * Overwatch.
+	 *
+	 * Chiamata da `ApplyForcedDisplacement` e da nessun altro, quindi vale per ogni sorgente che sposta di forza.
+	 */
+	void DisarmOverwatchOnForcedDisplacement(ARTUnit* Unit, const FRTCellId& From, const FRTCellId& To,
+		ERTMatchPhase InPhase);
+
+	/**
 	 * Se l'unita' e' **stordita**, cancella l'azione principale che stava per risolvere e lascia la voce che
 	 * ne dice il motivo. Torna `true` quando ha rifiutato, cioe' quando il chiamante deve saltare l'azione.
 	 *

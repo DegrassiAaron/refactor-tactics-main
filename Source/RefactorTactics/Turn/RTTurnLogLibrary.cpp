@@ -755,6 +755,16 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).
 	if (Entry.Category == ERTLogCategory::Reaction)
 	{
+		// [D-366]: il disarmo dice da dove a dove e' stato spostato il watcher, e la causa. La causa sta in `Amount`.
+		if (static_cast<ERTReactionOutcome>(Entry.Outcome) == ERTReactionOutcome::Disarmed)
+		{
+			const TCHAR* Why = static_cast<ERTOverwatchDisarmCause>(Entry.Amount) == ERTOverwatchDisarmCause::ForcedDisplacement
+				? TEXT("spostamento forzato")
+				: TEXT("causa sconosciuta");
+			return FString::Printf(TEXT("%s -> %s: overwatch disarmato, %s (%s)"), *CellText(Entry.SrcCell),
+				*CellText(Entry.TgtCell), Why, *ActionIdentityOr(Entry, TEXT("overwatch")));
+		}
+
 		// [D-349]: l'Overwatch che non ha sparato dice PERCHE'. Il motivo sta in `Amount`; zero e' ogni altra voce
 		// `NotTriggered`, e scende alla riga di sempre qui sotto.
 		if (static_cast<ERTReactionOutcome>(Entry.Outcome) == ERTReactionOutcome::NotTriggered && Entry.Amount != 0)

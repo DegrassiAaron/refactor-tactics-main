@@ -706,6 +706,45 @@ void ARTTurnManager::DisarmPreparedReactions(ARTUnit* Unit)
 	ArmedPredictions.RemoveAll([Unit](const FRTArmedPrediction& A) { return A.Shooter.Get() == Unit; });
 }
 
+void ARTTurnManager::DisarmOverwatchOnForcedDisplacement(ARTUnit* Unit, const FRTCellId& From, const FRTCellId& To,
+	ERTMatchPhase InPhase)
+{
+	// Chi e' a terra non ha niente da disarmare: il suo Overwatch tace per `OwnerDown`, e una voce di disarmo direbbe
+	// una seconda causa per lo stesso silenzio.
+	if (!IsValid(Unit) || !Unit->IsAlive())
+	{
+		return;
+	}
+
+	for (FRTArmedOverwatch& Armed : ArmedOverwatches)
+	{
+		// Solo un Overwatch ancora CARICO si disarma: uno gia' speso — dal colpo o da `Prone` — non perde niente, e una
+		// seconda spinta nello stesso Blast non scrive una seconda voce.
+		if (Armed.Owner.Get() != Unit || !Armed.bCharged)
+		{
+			continue;
+		}
+		Armed.bCharged = false;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = InPhase;
+		Entry.Category = ERTLogCategory::Reaction;
+		Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Disarmed);
+		Entry.Amount = static_cast<int32>(ERTOverwatchDisarmCause::ForcedDisplacement);
+		Entry.SrcCell = From;
+		Entry.TgtCell = To;
+		Entry.ActionId = Armed.ActionId;
+		Entry.BaseActionId = Armed.BaseActionId;
+
+		// Il verdetto e' per REGOLA, come per i silenzi di [D-349]: la voce racconta un piano, e il nemico che ha
+		// spinto non deve sapere che quell'unita' aveva un Overwatch armato. La regola viaggia col soggetto fino
+		// all'audit di [D-313]; la cella del soggetto e' quella d'arrivo, dove il watcher e' finito.
+		Entry.VerdictSubject.PlanVerdict = ERTPlanVerdict::OwnerTeam;
+		AppendLogEntry(Entry, FRTLogSubject::UnitAtWithVerdict(Unit, To,
+			URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::OwnerTeam, Unit->TeamId)));
+	}
+}
+
 FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
 	ERTStatusOutcome Outcome, ERTMatchPhase InPhase, int32 Amount)
 {
@@ -2207,6 +2246,16 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// il replay registrava il danno e taceva il movimento, e chi rileggeva il file vedeva l'unita' altrove
 	// senza nulla che lo spiegasse.
 	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget, Outcome);
+
+	// 3b. [D-366] L'OVERWATCH ARMATO SI DISARMA, con la causa nella voce subito dopo quella dello spostamento.
+	//
+	// 🔑 **Prima, il silenzio emergeva**: la linea resta quella dichiarata all'armamento mentre il passo 6 qui sotto gira
+	// gli occhi verso la sorgente, e il watcher finiva a sorvegliare celle che non vedeva piu' (`#2367`). Ora o la linea
+	// e' armata e puo' scattare, o e' disarmata e il log dice perche'.
+	//
+	// ⚠️ **Il costo dichiarato**: se un compagno copriva la linea, il watcher spinto prima sparava ancora, e ora no.
+	// Vale per ogni ramo che passa di qui, scarto compreso: anche lo scarto gira il watcher verso la sorgente.
+	DisarmOverwatchOnForcedDisplacement(Unit, OldCell, NewCell, InPhase);
 
 	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
 	{

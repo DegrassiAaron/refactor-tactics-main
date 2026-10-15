@@ -27,6 +27,8 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Replay/RTReplayAuditLibrary.h"   // [D-366]: l'audit di [D-313] ricalcola il verdetto del disarmo per regola
+#include "Replay/RTReplayPrivacyLibrary.h" // [D-366]: chi legge il disarmo, col filtro del replay per osservatore
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -602,65 +604,51 @@ bool FRTProneSurvivesToNextTurnTest::RunTest(const FString&)
 }
 
 
-/**
- * `Prone` DISARMA l'Overwatch armato, e la charge e' **spesa**: non torna al proprietario.
- *
- * 🔑 **E' la linea di gioco che [D-319] costruisce**, ed e' la ragione per cui il blocco della reazione sta
- * su `Prone` e non su `Unbalanced`: spingere per disarmare costa un'azione all'avversario, mentre scivolare
- * non costa niente a nessuno (`brief` §4).
- *
- * ⚠️ **TRE casi in un solo montaggio, e non e' abbondanza.** Il guardiano che cade viene anche SPOSTATO, e
- * lo spostamento e' un secondo cambiamento fra i due casi: senza un terzo termine, uno zero danni non
- * distingue *«e' stato disarmato»* da *«la spinta lo ha portato dove non vede piu' niente»*. Il caso `A` —
- * nessuna spinta — fissa che l'Overwatch spari davvero in questo montaggio; il caso `B` — spinto, in piedi
- * — fissa che la spinta da sola non lo spenga; solo allora lo zero del caso `C` significa qualcosa.
- *
- * 🔴 **La geometria e' scelta perche' la spinta non porti il varco FUORI DAL CONO DI VISIONE, e la prima
- * stesura sbagliava proprio questo.** Metteva la sorgente a ovest: il guardiano veniva spinto a est, ma
- * `ApplyForcedDisplacement` lo GIRA verso chi l'ha spinto, cioe' a ovest — e il corridoio che sorvegliava
- * gli finiva alle spalle. Non sparava piu' **ne' da caduto ne' in piedi**, e i due casi erano
- * indistinguibili.
- *
- * ⚠️ **Il commento che stava qui diceva che il facing «non c'entra», ed era vero a meta'**: la ZONA e'
- * congelata all'armamento (`FRTArmedOverwatch::Facing`) e infatti non ruota, ma la PERCEZIONE segue il
- * facing vivo — `URTPerceptionLibrary::VisibleCells` e' un `HexCone` lungo `Facing`, piu' due celle di
- * consapevolezza ravvicinata. Zona ferma e occhi che ruotano: si finisce a sorvegliare un corridoio che
- * non si vede. E' un'interazione preesistente, indipendente da `Prone`, misurata qui e non decisa da
- * nessuno.
- *
- * ∴ La sorgente sta a EST, sulla stessa retta: la spinta allontana il guardiano dal varco **lasciandogli
- * il varco davanti**. Il varco e' la prima cella della linea in entrambe le posizioni post-spinta.
- *
- * ⛔ **La predictive armata NON e' coperta.** `Prone` la rimuove nello stesso punto e con la stessa riga, ma
- * armare `Hero.Ivrin.InterceptShot` chiede un montaggio proprio: dichiarato come lacuna invece che
- * sottinteso come coperto.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTProneDisarmsOverwatchTest,
-	"RefactorTactics.Status.ProneDisarmsOverwatchAndSpendsCharge",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
+namespace
 {
-	// `bConSpinta` decide se il guardiano viene spinto; `bSbilanciato` se, essendolo, cade.
-	// Torna il danno subito da chi attraversa il varco, e riempie `OutNota` con cio' che serve a leggerlo.
-	auto DannoNelVarco = [this](bool bConSpinta, bool bSbilanciato, const FRTCellId& PostoDelGuardiano,
-		FString& OutNota) -> int32
+	/** Cio' che il banco del varco lascia dietro di se': il colpo, le finestre, e il TurnLog del turno. */
+	struct FRTVarcoEsito
 	{
-		OutNota.Reset();
+		/** Salute + scudo del mover prima, meno dopo; -1 se il banco non si e' montato (la ragione e' in `Nota`). */
+		int32 Danno = -1;
+		/** Le finestre di reazione decise: senza, uno zero danni non dice se il watcher non ha sparato o se non gli e' mai stato chiesto. */
+		int32 Decisioni = 0;
+		/** Il TurnLog del turno, copiato prima che il mondo venga distrutto. */
+		TArray<FRTTurnLogEntry> Log;
+		FRTCellId WatcherCell;
+		bool bWatcherProne = false;
+		FString Nota;
+	};
+
+	/** La squadra del guardiano e quella di chi lo spinge, nel banco del varco. */
+	constexpr int32 VarcoWatcherTeam = 0;
+	constexpr int32 VarcoEnemyTeam = 1;
+
+	/**
+	 * IL BANCO DEL VARCO: un guardiano con l'Overwatch armato verso EST, un nemico che entra nella sua linea e, se
+	 * `bConSpinta`, una spinta da EST che lo allontana lungo la stessa retta. `bSbilanciato` decide se, spinto, cade.
+	 *
+	 * Lo usano `Status.ProneDisarmsOverwatchAndSpendsCharge` e `Overwatch.ForcedDisplacementDisarmsWithItsCause`
+	 * ([D-366]). La geometria, e perche' e' quella, e' scritta sopra il primo dei due.
+	 */
+	FRTVarcoEsito GiocaIlVarco(bool bConSpinta, bool bSbilanciato, const FRTCellId& PostoDelGuardiano)
+	{
+		FRTVarcoEsito Esito;
 
 		UWorld* World = MakeFallWorld();
-		if (!World) { OutNota = TEXT("world non creato"); return -1; }
+		if (!World) { Esito.Nota = TEXT("world non creato"); return Esito; }
 		SpawnFallMap(World, /*Radius=*/ 7);
 
-		// Il guardiano guarda a EST (facing di default) e la spinta lo allontana lungo lo STESSO asse: la
-		// linea guardata trasla su se stessa invece di ruotare via dal varco.
-		ARTUnit* Watcher = SpawnFallUnit(World, 0, PostoDelGuardiano);
-		ARTUnit* Pusher = SpawnFallUnit(World, 1, FRTCellId(1, 0));
-		ARTUnit* Mover = SpawnFallUnit(World, 1, FRTCellId(0, 1));
+		// Il guardiano guarda a EST (facing di default) e la spinta lo allontana lungo lo STESSO asse: la linea guardata
+		// trasla su se stessa invece di ruotare via dal varco.
+		ARTUnit* Watcher = SpawnFallUnit(World, VarcoWatcherTeam, PostoDelGuardiano);
+		ARTUnit* Pusher = SpawnFallUnit(World, VarcoEnemyTeam, FRTCellId(1, 0));
+		ARTUnit* Mover = SpawnFallUnit(World, VarcoEnemyTeam, FRTCellId(0, 1));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Watcher || !Pusher || !Mover) { DestroyFallWorld(World); OutNota = TEXT("spawn fallito"); return -1; }
+		if (!TM || !Watcher || !Pusher || !Mover) { DestroyFallWorld(World); Esito.Nota = TEXT("spawn fallito"); return Esito; }
 
-		// Un decisore che spara a qualunque finestra glielo consenta: senza, un boundary aperto scadrebbe in
-		// `Hold Ground` e il caso di controllo direbbe «non ha sparato» per la ragione sbagliata.
+		// Un decisore che spara a qualunque finestra glielo consenta: senza, un boundary aperto scadrebbe in `Hold Ground`
+		// e il caso di controllo direbbe «non ha sparato» per la ragione sbagliata.
 		TM->ReactionDecider.BindLambda(
 			[](const FRTReactionOpportunity& Opportunity, int32) -> FString
 			{
@@ -676,7 +664,7 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 
 		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(
 			Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
-		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); OutNota = TEXT("Action.Overwatch non installabile"); return -1; }
+		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); Esito.Nota = TEXT("Action.Overwatch non installabile"); return Esito; }
 		Watcher->PlannedAbilityIndex = OverwatchIdx; // armare costa l'azione PRINCIPALE (catalogo §1)
 		Watcher->PlannedCell = Watcher->Cell;
 
@@ -689,7 +677,7 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 		{
 			if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Watcher) == INDEX_NONE)
 			{
-				DestroyFallWorld(World); OutNota = TEXT("Action.Push non installabile"); return -1;
+				DestroyFallWorld(World); Esito.Nota = TEXT("Action.Push non installabile"); return Esito;
 			}
 		}
 		else
@@ -703,51 +691,101 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 
 		const int32 SaluteIniziale = Mover->Health + Mover->Shield;
 		RunFallTurn(TM);
-		const int32 Danno = SaluteIniziale - (Mover->Health + Mover->Shield);
+		Esito.Danno = SaluteIniziale - (Mover->Health + Mover->Shield);
+		Esito.Log = TM->GetTurnLog();
+		Esito.WatcherCell = Watcher->Cell;
+		Esito.bWatcherProne = Watcher->HasStatus(TAG_Status_Prone);
 
-		// Quante finestre di reazione sono state aperte, e quante decise: senza, uno zero danni non dice se
-		// il watcher non ha sparato o se non gli e' mai stato chiesto.
-		int32 Opportunita = 0;
-		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		for (const FRTTurnLogEntry& E : Esito.Log)
 		{
-			if (E.Category == ERTLogCategory::ReactionDecision) { ++Opportunita; }
+			if (E.Category == ERTLogCategory::ReactionDecision) { ++Esito.Decisioni; }
 		}
 
-		OutNota = FString::Printf(
+		Esito.Nota = FString::Printf(
 			TEXT("watcher %s->(q=%d,r=%d) prone=%d | mover (q=%d,r=%d) | decisioni=%d | danno=%d"),
 			bConSpinta ? TEXT("spinto") : TEXT("fermo"),
-			Watcher->Cell.X, Watcher->Cell.Y, Watcher->HasStatus(TAG_Status_Prone) ? 1 : 0,
-			Mover->Cell.X, Mover->Cell.Y, Opportunita, Danno);
+			Watcher->Cell.X, Watcher->Cell.Y, Esito.bWatcherProne ? 1 : 0,
+			Mover->Cell.X, Mover->Cell.Y, Esito.Decisioni, Esito.Danno);
 
 		DestroyFallWorld(World);
-		return Danno;
-	};
-
-	// I TRE casi si girano TUTTI prima di giudicare, e il referto li porta tutti.
-	//
-	// 🔑 **Uscire al primo che cade lascia mezza risposta.** La prima stesura si fermava sulla premessa
-	// fallita, e il messaggio diceva solo quel caso: per capire se il difetto fosse nel montaggio o nella
-	// meccanica servivano gli altri due, che non erano stati nemmeno eseguiti. Tre mondi costano
-	// millisecondi; un run del motore in piu' costa una finestra contesa fra sessioni.
-	// `A` nasce GIA' nella cella in cui `B` finisce spinto: e' il controllo che separa «lo spostamento
-	// spegne l'Overwatch» da «da li' il varco non e' guardato». Il primo montaggio non lo aveva, e le due
-	// diagnosi — opposte — erano indistinguibili.
-	FString NotaA, NotaB, NotaC;
-	const int32 DannoA = DannoNelVarco(/*bConSpinta=*/ false, /*bSbilanciato=*/ false, FRTCellId(-1, 0), NotaA);
-	const int32 DannoB = DannoNelVarco(/*bConSpinta=*/ true,  /*bSbilanciato=*/ false, FRTCellId(0, 0),  NotaB);
-	const int32 DannoC = DannoNelVarco(/*bConSpinta=*/ true,  /*bSbilanciato=*/ true,  FRTCellId(0, 0),  NotaC);
-
-	const FString Referto = FString::Printf(TEXT("A[%s] · B[%s] · C[%s]"), *NotaA, *NotaB, *NotaC);
-
-	// A — senza spinta: fissa che in QUESTO montaggio l'Overwatch spari davvero. Senza, gli zeri sotto
-	// sarebbero veri anche in un mondo dove l'Overwatch non funziona affatto.
-	if (!TestTrue(FString::Printf(TEXT("A) premessa: un guardiano fermo SPARA — %s"), *Referto), DannoA > 0))
-	{
-		return false;
+		return Esito;
 	}
 
-	// B — spinto ma in piedi: fissa che a spegnerlo non basta lo spostamento.
-	if (!TestTrue(FString::Printf(TEXT("B) premessa: spinto ma in piedi SPARA ancora — %s"), *Referto), DannoB > 0))
+	/** [D-366] Le voci `Reaction` / `Disarmed` del log. */
+	TArray<FRTTurnLogEntry> VociDiDisarmo(const TArray<FRTTurnLogEntry>& Log)
+	{
+		TArray<FRTTurnLogEntry> Out;
+		for (const FRTTurnLogEntry& E : Log)
+		{
+			if (E.Category == ERTLogCategory::Reaction
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Disarmed)
+			{
+				Out.Add(E);
+			}
+		}
+		return Out;
+	}
+
+	/** [D-349] Le voci di silenzio `ChargeSpent` del log: «un nemico e' entrato nella linea, ma la carica era gia' spesa». */
+	int32 SilenziCaricaSpesa(const TArray<FRTTurnLogEntry>& Log)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Log)
+		{
+			if (E.Category == ERTLogCategory::Reaction
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::NotTriggered
+				&& E.Amount == static_cast<int32>(ERTOverwatchSilenceReason::ChargeSpent))
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+}
+
+/**
+ * `Prone` DISARMA l'Overwatch armato, e la charge e' **spesa**: non torna al proprietario.
+ *
+ * 🔑 **E' la linea di gioco che [D-319] costruisce**, ed e' la ragione per cui il blocco della reazione sta
+ * su `Prone` e non su `Unbalanced`: spingere per disarmare costa un'azione all'avversario, mentre scivolare
+ * non costa niente a nessuno (`brief` §4).
+ *
+ * 🔴 **Da [D-366] la spinta da sola disarma, e questo banco non separa piu' `Prone` dalla spinta.** Fino al
+ * 2026-10-15 c'era un terzo caso — spinto e in piedi, che SPARAVA — e serviva a dire che lo zero del guardiano
+ * caduto veniva da `Prone`. Ora quel caso non spara per D-366, e sta in `Overwatch.ForcedDisplacementDisarmsWithItsCause`.
+ * Qui resta cio' che `Prone` aggiunge, o non aggiunge: la caduta c'e', il colpo non parte, e la voce di disarmo e'
+ * UNA, quella della spinta — `DisarmPreparedReactions` trova la charge gia' spesa e non scrive niente. La parte
+ * dell'Overwatch di `DisarmPreparedReactions` la misura il braccio `C` di `Status.StunSilencesAnArmedWatcher`, sullo
+ * stesso banco e senza spinta.
+ *
+ * 🔴 **La geometria e' scelta perche' la spinta non porti il varco FUORI DAL CONO DI VISIONE, e la prima
+ * stesura sbagliava proprio questo.** Metteva la sorgente a ovest: il guardiano veniva spinto a est, ma
+ * `ApplyForcedDisplacement` lo GIRA verso chi l'ha spinto, cioe' a ovest — e il corridoio che sorvegliava
+ * gli finiva alle spalle. Era il silenzio di `#2367`: zona ferma e occhi che ruotano, finche' [D-366] non l'ha
+ * reso un disarmo dichiarato.
+ *
+ * ∴ La sorgente sta a EST, sulla stessa retta: la spinta allontana il guardiano dal varco **lasciandogli
+ * il varco davanti**. Il varco e' la prima cella della linea in entrambe le posizioni post-spinta, e il caso `A`
+ * nasce gia' nella cella in cui il guardiano finisce spinto.
+ *
+ * ⛔ **La predictive armata NON e' coperta.** `Prone` la rimuove nello stesso punto e con la stessa riga, ma
+ * armare `Hero.Ivrin.InterceptShot` chiede un montaggio proprio: dichiarato come lacuna invece che
+ * sottinteso come coperto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTProneDisarmsOverwatchTest,
+	"RefactorTactics.Status.ProneDisarmsOverwatchAndSpendsCharge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
+{
+	// I casi si girano TUTTI prima di giudicare, e il referto li porta tutti: uscire al primo che cade lascia mezza
+	// risposta, e un run del motore in piu' costa una finestra contesa fra sessioni.
+	const FRTVarcoEsito A = GiocaIlVarco(/*bConSpinta=*/ false, /*bSbilanciato=*/ false, FRTCellId(-1, 0));
+	const FRTVarcoEsito C = GiocaIlVarco(/*bConSpinta=*/ true,  /*bSbilanciato=*/ true,  FRTCellId(0, 0));
+	const FString Referto = FString::Printf(TEXT("A[%s] · C[%s]"), *A.Nota, *C.Nota);
+
+	// A — senza spinta: fissa che in QUESTO montaggio l'Overwatch spari davvero. Senza, lo zero sotto sarebbe vero
+	// anche in un mondo dove l'Overwatch non funziona affatto.
+	if (!TestTrue(FString::Printf(TEXT("A) premessa: un guardiano fermo SPARA — %s"), *Referto), A.Danno > 0))
 	{
 		return false;
 	}
@@ -759,13 +797,116 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 	// `URTCombatLibrary::BaseShield`). Con il colpo il conto e' `21 - 5 assorbiti = 16`; senza, lo scudo
 	// sale da 0 a 5 e la differenza e' **negativa**. Un `== 0` chiederebbe che nessuna delle due cose
 	// accada, che non e' l'invariante: l'invariante e' che **nessun danno passi**.
-	//
-	// La seconda riga tiene l'asserzione non vacua: senza, `DannoC <= 0` sarebbe vero anche in un mondo
-	// dove l'Overwatch non spara mai — ed e' il caso `B` a escluderlo, non una premessa scritta a parte.
-	TestTrue(FString::Printf(
-		TEXT("C) chi e' a terra non spara: Overwatch disarmato e charge persa — %s"), *Referto), DannoC <= 0);
-	TestTrue(FString::Printf(
-		TEXT("C) e la differenza col guardiano in piedi e' il colpo intero — %s"), *Referto), DannoC < DannoB);
+	TestTrue(FString::Printf(TEXT("C) premessa: il guardiano spinto e sbilanciato e' caduto — %s"), *Referto),
+		C.bWatcherProne);
+	TestTrue(FString::Printf(TEXT("C) chi e' a terra non spara — %s"), *Referto), C.Danno <= 0);
+	TestEqual(FString::Printf(TEXT("C) nessuna finestra: l'Overwatch non e' piu' armato — %s"), *Referto),
+		C.Decisioni, 0);
+
+	// 🔑 Una voce di disarmo, non due: la spinta l'ha gia' scritta ([D-366]), e `Prone` trova la charge spesa.
+	TestEqual(FString::Printf(TEXT("C) la caduta non aggiunge una seconda voce di disarmo — %s"), *Referto),
+		VociDiDisarmo(C.Log).Num(), 1);
+	TestEqual(FString::Printf(TEXT("A) e chi non e' stato spinto non ne ha nessuna — %s"), *Referto),
+		VociDiDisarmo(A.Log).Num(), 0);
+
+	return true;
+}
+
+/**
+ * [D-366] UNO SPOSTAMENTO FORZATO DEL WATCHER DISARMA ESPLICITAMENTE L'OVERWATCH, CON LA CAUSA NEL TURNLOG.
+ *
+ * Due casi sullo stesso banco del varco, e la differenza fra i due e' la sola spinta:
+ *   `A` il guardiano nasce in `(-1,0)` e spara: e' la controprova che il colpo, da li', parte.
+ *   `B` il guardiano nasce in `(0,0)` e la spinta lo porta in `(-1,0)`, girato verso la sorgente a EST, cioe' con lo
+ *       stesso facing di `A`. Stessa cella e stessi occhi: se non spara, e' perche' e' disarmato.
+ *
+ * 🔴 **`B` e' il caso che il commento del 2026-09-12 su `#2367` chiedeva, e piu' stretto.** Quel commento voleva un
+ * guardiano spinto con un alleato a coprire la linea, perche' un disarmo scritto come «non percepisce piu'» restasse
+ * rosso. Qui il guardiano vede il varco da se': un disarmo finto lo lascerebbe sparare, e il test sarebbe rosso.
+ *
+ * Della voce si misura cio' che la decisione chiede e cio' che l'autore ha precisato il 2026-10-15:
+ * - **la causa**: `Reaction` / `Disarmed` con `ForcedDisplacement` in `Amount`, lo spostamento in `SrcCell` -> `TgtCell`,
+ *   e la voce dello spostamento che la precede;
+ * - **chi la legge**: la squadra del guardiano e non quella che l'ha spinto, con il filtro del replay per osservatore;
+ *   e l'audit di [D-313] ricalcola lo stesso verdetto per regola;
+ * - **la seconda voce**: il nemico rilevato che poi entra nella linea lascia «la carica era gia' spesa» ([D-349]),
+ *   come dopo il disarmo di `Prone`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTForcedDisplacementDisarmsOverwatchTest,
+	"RefactorTactics.Overwatch.ForcedDisplacementDisarmsWithItsCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTForcedDisplacementDisarmsOverwatchTest::RunTest(const FString&)
+{
+	const FRTVarcoEsito A = GiocaIlVarco(/*bConSpinta=*/ false, /*bSbilanciato=*/ false, FRTCellId(-1, 0));
+	const FRTVarcoEsito B = GiocaIlVarco(/*bConSpinta=*/ true,  /*bSbilanciato=*/ false, FRTCellId(0, 0));
+	const FString Referto = FString::Printf(TEXT("A[%s] · B[%s]"), *A.Nota, *B.Nota);
+
+	if (!TestTrue(FString::Printf(TEXT("A) premessa: da (-1,0) il guardiano fermo SPARA — %s"), *Referto), A.Danno > 0))
+	{
+		return false;
+	}
+	TestEqual(FString::Printf(TEXT("A) e non ha voci di disarmo — %s"), *Referto), VociDiDisarmo(A.Log).Num(), 0);
+	if (!TestEqual(FString::Printf(TEXT("B) premessa: la spinta lo porta nella cella di A — %s"), *Referto),
+		B.WatcherCell, FRTCellId(-1, 0)))
+	{
+		return false;
+	}
+	TestFalse(FString::Printf(TEXT("B) premessa: in piedi, non e' la caduta a spegnerlo — %s"), *Referto), B.bWatcherProne);
+
+	// 🔴 IL PUNTO: spinto, non spara, e non gli viene nemmeno chiesto.
+	TestTrue(FString::Printf(TEXT("B) spinto, non spara — %s"), *Referto), B.Danno <= 0);
+	TestEqual(FString::Printf(TEXT("B) nessuna finestra: l'Overwatch e' disarmato — %s"), *Referto), B.Decisioni, 0);
+
+	// La causa, nel TurnLog.
+	const TArray<FRTTurnLogEntry> Disarmi = VociDiDisarmo(B.Log);
+	if (!TestEqual(FString::Printf(TEXT("B) una voce di disarmo, una sola — %s"), *Referto), Disarmi.Num(), 1))
+	{
+		return false;
+	}
+	const FRTTurnLogEntry& Voce = Disarmi[0];
+	TestEqual(TEXT("la causa e' lo spostamento forzato"), Voce.Amount,
+		static_cast<int32>(ERTOverwatchDisarmCause::ForcedDisplacement));
+	TestEqual(TEXT("da dove e' partito"), Voce.SrcCell, FRTCellId(0, 0));
+	TestEqual(TEXT("dove e' finito"), Voce.TgtCell, FRTCellId(-1, 0));
+	TestEqual(TEXT("di quale reazione"), Voce.ActionId, FName(TEXT("Action.Overwatch")));
+	TestEqual(TEXT("nel Blast, dove avviene la spinta"), static_cast<int32>(Voce.Phase),
+		static_cast<int32>(ERTMatchPhase::Blast));
+
+	// Lo spostamento precede il disarmo: chi rilegge il turno legge prima la causa, poi la conseguenza.
+	const int32 IndiceDisarmo = B.Log.IndexOfByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Reaction
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Disarmed;
+	});
+	const int32 IndiceSpostamento = B.Log.IndexOfByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Move && E.Phase == ERTMatchPhase::Blast
+			&& E.SrcCell == FRTCellId(0, 0) && E.TgtCell == FRTCellId(-1, 0);
+	});
+	TestTrue(FString::Printf(TEXT("la voce dello spostamento c'e' (indice %d) e precede il disarmo (indice %d)"),
+		IndiceSpostamento, IndiceDisarmo), IndiceSpostamento != INDEX_NONE && IndiceSpostamento < IndiceDisarmo);
+
+	// Chi la legge: la squadra del guardiano, e non chi l'ha spinto. La spinta la vedono tutti; che ci fosse un
+	// Overwatch armato no.
+	TestEqual(TEXT("la squadra del guardiano legge il disarmo"),
+		VociDiDisarmo(URTReplayPrivacyLibrary::FilterEntriesForObserver(B.Log, VarcoWatcherTeam)).Num(), 1);
+	TestEqual(TEXT("la squadra che ha spinto no: non sa che quell'unita' aveva un Overwatch"),
+		VociDiDisarmo(URTReplayPrivacyLibrary::FilterEntriesForObserver(B.Log, VarcoEnemyTeam)).Num(), 0);
+
+	// L'audit di [D-313] la ricalcola per REGOLA e la trova coerente, come le voci di silenzio di [D-349].
+	const FRTAuditVerdictRecord Record = URTReplayAuditLibrary::MakeVerdictRecord(Voce);
+	TestEqual(TEXT("la regola arriva al record d'audit"), static_cast<int32>(Record.PlanVerdict),
+		static_cast<int32>(ERTPlanVerdict::OwnerTeam));
+	TestTrue(TEXT("e il ricalcolo coincide col verdetto registrato"),
+		URTReplayAuditLibrary::RecomputeVerdict(FRTTurnAudit(), Record) == Voce.Verdict);
+	TestEqual(TEXT("il soggetto sta dove il guardiano e' finito"), Record.SubjectCell, FRTCellId(-1, 0));
+
+	// La seconda voce (decisione d'autore del 2026-10-15): il nemico che poi entra nella linea lascia «la carica era
+	// gia' spesa». E' il silenzio di [D-349], invariato: dice al giocatore il colpo che la spinta gli ha tolto.
+	TestEqual(FString::Printf(TEXT("B) poi il nemico entra nella linea: «la carica era gia' spesa», una volta — %s"),
+		*Referto), SilenziCaricaSpesa(B.Log), 1);
+	TestEqual(FString::Printf(TEXT("A) chi ha sparato non lo scrive: la carica l'ha spesa dopo — %s"), *Referto),
+		SilenziCaricaSpesa(A.Log), 0);
 
 	return true;
 }
