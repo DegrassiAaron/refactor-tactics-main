@@ -269,26 +269,40 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 
 	FRTScenarioIntent Intent;
 	Intent.UnitId = TEXT("CASTER");
-	Intent.Ability = AbilityId;
 
-	// Un'abilita' che si applica a chi la usa (`bSelfTarget`) resta SENZA bersaglio: e' cosi' che il formato
-	// la esprime (`AbilityResolvesOnSelf`, `#2283`, che legge lo stesso flag), e un intent che nomina come
-	// bersaglio la propria unita' e' rifiutato di proposito — *«l'unita' bersaglia se stessa»*. Scriverci
-	// `CASTER` mandava in ERROR ogni azione `bSelfTarget` offerta dal Lab, generiche e di kit (`#3472`).
-	if (Def.bSelfTarget)
+	// Uno SCATTO prende lo slot movimento e si dichiara con `Dash`/`DashCell`, non come abilita' ([D-028],
+	// `#3773`). Prima finiva nel campo dell'abilita', il turno lo ignorava, e il banco mostrava Ivrin fermo su
+	// `PassingBlade` con la scena superata. La fase si chiede al CATALOGO, come fa la sessione: uno scatto
+	// aggiunto domani prende questa strada senza che nessuno se ne ricordi.
+	// ⚠️ La cella d'arrivo e' quella della spec, una POSA: dove lo scatto si ferma davvero lo decide il resolver.
+	if (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash)
 	{
-		// nessun bersaglio
-	}
-	else if (Def.bCreatesSurface || Def.StructureOp != ERTStructureOp::None)
-	{
-		// Le azioni che POSANO qualcosa non colpiscono un'unita': indirizzano una cella. Il Lab non sceglie
-		// quale bordo o quale faccia — quello e' authoring, e non e' di questa fetta.
-		Intent.TargetCell = Spec.TargetCell;
-		Intent.bTargetsCell = true;
+		Intent.Dash = AbilityId;
+		Intent.DashCell = Spec.DashCell;
 	}
 	else
 	{
-		Intent.Target = TEXT("TARGET");
+		Intent.Ability = AbilityId;
+
+		// Un'abilita' che si applica a chi la usa (`bSelfTarget`) resta SENZA bersaglio: e' cosi' che il formato
+		// la esprime (`AbilityResolvesOnSelf`, `#2283`, che legge lo stesso flag), e un intent che nomina come
+		// bersaglio la propria unita' e' rifiutato di proposito — *«l'unita' bersaglia se stessa»*. Scriverci
+		// `CASTER` mandava in ERROR ogni azione `bSelfTarget` offerta dal Lab, generiche e di kit (`#3472`).
+		if (Def.bSelfTarget)
+		{
+			// nessun bersaglio
+		}
+		else if (Def.bCreatesSurface || Def.StructureOp != ERTStructureOp::None)
+		{
+			// Le azioni che POSANO qualcosa non colpiscono un'unita': indirizzano una cella. Il Lab non sceglie
+			// quale bordo o quale faccia — quello e' authoring, e non e' di questa fetta.
+			Intent.TargetCell = Spec.TargetCell;
+			Intent.bTargetsCell = true;
+		}
+		else
+		{
+			Intent.Target = TEXT("TARGET");
+		}
 	}
 
 	FRTScenarioTurn Turn;

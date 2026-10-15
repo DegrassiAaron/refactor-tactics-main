@@ -16,6 +16,8 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTActionReadout.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
@@ -418,6 +420,82 @@ bool FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest::RunTest(const FString&)
 
 	// Senza questo controllo il test sarebbe verde su un roster senza kit.
 	TestTrue(TEXT("il roster offre voci di kit da eseguire"), Eseguite > 0);
+	return true;
+}
+
+/**
+ * Ogni SCATTO di kit che il Lab offre muove chi lo usa — `#3773`.
+ *
+ * Il Lab scriveva ogni azione come abilita' principale, e una mobilita' di fase Dash in quel campo il turno la
+ * ignorava: la seduta del banco di #3562 ha visto Ivrin restare fermo su `PassingBlade`, con la scena superata.
+ * I test sopra non lo vedevano per la ragione scritta in testa a questa sezione: verificano che il turno si
+ * giochi, non che cosa produca.
+ *
+ * 🔑 **Gli scatti si cercano per FASE**, non per nome (vedi la testa del file): un'azione la cui fase mappa su
+ * `ERTMatchPhase::Dash`. La posa e' quella di default del Lab — la stessa del pannello — perche' e' quella che
+ * l'autore vede: un test con una posa scelta apposta direbbe poco del banco vero.
+ *
+ * ⚠️ **«Si e' mosso», non «e' arrivato li'».** Dove si ferma lo decide il resolver — chi attraversa e chi si
+ * ferma sul primo nemico — e il Lab non ha il compito di saperlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEveryKitDashMovesTheCasterTest,
+	"RefactorTactics.AbilityLab.EveryKitDashMovesTheCaster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEveryKitDashMovesTheCasterTest::RunTest(const FString&)
+{
+	TArray<FName> Scatti;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const TObjectPtr<URTActionData>& Action : Hero->Actions)
+		{
+			if (Action && !Action->Def.ActionId.IsNone()
+				&& URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase) == ERTMatchPhase::Dash)
+			{
+				Scatti.Add(Action->Def.ActionId);
+			}
+		}
+	}
+	// Senza questo controllo il test sarebbe verde su un roster senza scatti.
+	if (!TestTrue(TEXT("il roster offre scatti di kit"), Scatti.Num() > 0)) { return false; }
+
+	for (const FName& AbilityId : Scatti)
+	{
+		const FString Id = AbilityId.ToString();
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("%s: BuildFixture la costruisce"), *Id),
+			URTAbilityLabLibrary::BuildFixture(AbilityId, FRTAbilityLabFixtureSpec(), Scenario, Error)))
+		{
+			AddInfo(FString::Printf(TEXT("%s: %s"), *Id, *Error));
+			continue;
+		}
+
+		// La forma dell'intent: lo slot movimento, non la principale.
+		const FRTScenarioIntent& Intent = Scenario.Turns[0].Intents[0];
+		TestEqual(FString::Printf(TEXT("%s: dichiarata come scatto"), *Id), Intent.Dash, AbilityId);
+		TestTrue(FString::Printf(TEXT("%s: e non come abilita'"), *Id), Intent.Ability.IsNone());
+
+		const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: la run va in ERROR: %s"), *Id, *Result.ErrorMessage));
+			continue;
+		}
+
+		bool bCasterSiMuove = false;
+		for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+		{
+			const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+			if (!Authoring || *Authoring != TEXT("CASTER")) { continue; }
+			for (const FRTUnitFieldChange& Cambio : Diff.Changes)
+			{
+				bCasterSiMuove |= Cambio.Field == FName(TEXT("Cell"));
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: il caster cambia cella"), *Id), bCasterSiMuove);
+	}
 	return true;
 }
 

@@ -90,6 +90,18 @@ struct FRTAbilityLabFixtureSpec
 	FRTCellId TargetCell = FRTCellId(2, 0);
 
 	/**
+	 * La cella d'arrivo di uno SCATTO (`#3773`): un'azione di fase Dash si dichiara con `Dash`/`DashCell`, non
+	 * come abilita'. Il default sta oltre il bersaglio, sulla stessa riga del caster: e' la posa di
+	 * `Visual.Ability.ClipIvrin`, e da li' chi attraversa (`PassingBlade`) attraversa e chi carica (`Ram`) si
+	 * ferma sul primo nemico.
+	 *
+	 * ⚠️ **E' una posa, non un calcolo**: il Lab non porta aritmetica esagonale, e dove lo scatto si ferma lo
+	 * decide il resolver. Chi sposta `TargetCell` sposta anche questa, se vuole che lo scatto incontri il bersaglio.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
+	FRTCellId DashCell = FRTCellId(3, 0);
+
+	/**
 	 * L'eroe che subisce. Deve essere diverso dal caster, altrimenti la posa mette due unita' della
 	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda.
 	 */
@@ -146,7 +158,8 @@ public:
 	 *
 	 * Stesso rifiuto, e stessa forma, per una core che **nessuna unita' impugna** — `#3472`: un'unita' porta il
 	 * proprio kit e le generiche, quindi una core fuori da quell'insieme finirebbe rifiutata dall'harness in
-	 * ERROR. Un'azione che si applica a chi la usa (`bSelfTarget`) si dichiara senza bersaglio.
+	 * ERROR. Un'azione che si applica a chi la usa (`bSelfTarget`) si dichiara senza bersaglio. Uno SCATTO (fase
+	 * Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita' (`#3773`).
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'

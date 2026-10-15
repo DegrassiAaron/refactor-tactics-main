@@ -1325,6 +1325,27 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			return INDEX_NONE;
 		};
 
+		// #3773 — uno SCATTO scritto nel campo dell'abilita'. Ritorna il motivo del rifiuto, vuoto se l'azione
+		// all'indice dato non e' uno scatto. La sessione lo scriverebbe come principale (`PlannedAbilityIndex`) e
+		// il turno lo ignorerebbe in silenzio: l'unita' resta ferma e lo scenario passa. E' cio' che il banco
+		// Ability Lab ha mostrato su `Hero.Ivrin.PassingBlade`. La fase si chiede al CATALOGO, come per le azioni
+		// di Prep qui sotto: uno scatto aggiunto domani e' coperto senza che nessuno se ne ricordi.
+		// ⛔ **Solo la fase Dash, non anche Move.** In Move risolve `Action.Wait`, che e' una generica e si dichiara
+		// proprio come abilita': allargare la guardia mandava in ERROR ogni «aspetta» (misurato dal test del Lab
+		// sulle core, `CoreActionRunsOnlyIfAUnitWieldsIt`, rosso su `AbilityLab.Action.Wait`).
+		const auto RifiutoMobilitaComeAbilita = [this, Unit, &Intent](int32 AbilityIndex) -> FString
+		{
+			const URTActionData* Azione = Unit->GetAbility(AbilityIndex);
+			if (!Azione) { return FString(); }
+			if (URTCatalogLibrary::MapResolutionPhase(Azione->Def.ResolutionPhase) != ERTMatchPhase::Dash)
+			{
+				return FString();
+			}
+			return FString::Printf(
+				TEXT("'%s': '%s' e' una mobilita', e si dichiara con `dash` e `dashTo`, non con `ability` (turno %d)"),
+				*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
+		};
+
 		// --- scatto (fase Dash, PRIMA del Blast) ------------------------------------------------------------
 		// Slot distinto dall'abilita' perche' dopo D-028 lo sono davvero: lo scatto prende il movimento, non la
 		// principale. Un intent puo' dichiarare entrambi, ed e' *schivo e sparo*.
@@ -1381,6 +1402,12 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
 			}
+			else if (const FString Rifiuto = RifiutoMobilitaComeAbilita(AbilityIndex); !Rifiuto.IsEmpty())
+			{
+				// Stessa natura del ramo sopra: un errore di SCRITTURA, non un esito di gioco (#3773).
+				ErroredBy = Rifiuto;
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
 			else if (bResolvesOnSelf)
 			{
 				// Azione che risolve su CHI LA USA (`Action.Guard`, `Action.Brace`, e ogni azione di Prep del
@@ -1420,6 +1447,11 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			{
 				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
+			else if (const FString Rifiuto = RifiutoMobilitaComeAbilita(AbilityIndex); !Rifiuto.IsEmpty())
+			{
+				ErroredBy = Rifiuto;
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
 			}
 			else
