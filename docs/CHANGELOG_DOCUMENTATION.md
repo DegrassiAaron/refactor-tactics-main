@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-15 — La pianta: fondo, dissolvenza, pannelli traslucidi, rilievo chiaro
+
+**Origine**: [#3760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3760), seduta `U89`. L'autore ha respinto la prima resa della pianta: il solo anello sembrava «mai visto», il cambio secco disturbava, i muri non andavano né a terra né in cima, e le celle viste col rilievo del costo sembravano nere.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-520`: titolo e punto (4), con le domande come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: che cosa fa ogni famiglia nel ricordo, e la dissolvenza |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-PIANTA`: il comportamento nuovo e il ❌ della prima tornata, da rigiudicare; note in coda a `PIE-HEX-VIZ-VELO` e `PIE-VELO-TRANSIZIONE` |
+| [`Scenarios/Visual/Perception/RememberedCover.json`](../Scenarios/Visual/Perception/RememberedCover.json) | che cosa guardare, coi pannelli traslucidi |
+
+---
+
 ## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano
 
 **Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), seduta `U89`. L'autore ha respinto l'arco della prima tornata: sottile, coperto, e col tasto `H` se ne vedeva più d'uno. Ha chiesto *«l'arco visto deve essere solo quello del nemico selezionato/hoverato»*.
