@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-15 — La condizione dichiarata dell'Overwatch si legge quando il watcher viene chiesto
+
+**Origine**: [#3771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3771), decisione d'autore `D-522`. Due Overwatch sullo stesso mover, il secondo con la condizione «al 50% dei PV o meno»: il colpo del primo portava il bersaglio sotto la soglia, e il secondo restava muto perché la condizione era stata letta prima del colpo. Ora si legge quando arriva il turno di quel watcher, e la sua finestra si apre.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-522`, con le due domande come l'autore le ha lette, la causa dei collassi, e la conseguenza sulle tracce registrate prima |
+| [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione accanto a quella di `D-518`; la tabella di verifica coi tre test nuovi |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3771 fra le chiuse, e i due test nuovi fuori dalle famiglie già elencate |
+
+---
+
 ## 2026-10-14 — Una linea segna in partita dove finisce la vista della squadra
 
 **Origine**: [#3761](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3761), decisione d'autore `D-519`. La linea corre sui lati fra le celle viste adesso e quelle che non si vedono: ciano della vista, anche in strategica, mai lungo il vuoto.
