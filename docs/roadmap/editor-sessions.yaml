@@ -6037,8 +6037,8 @@ sessions:
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
-    verifies: [PIE-FOG-CONFINE]
-    issues: [3761]
+    verifies: [PIE-FOG-CONFINE, PIE-FOG-ARCO]
+    issues: [3761, 3762]
     done_when: >-
       l'autore ha giudicato le tre voci sulle tavole; ciascuna issue si chiude col proprio verdetto
     notes: |

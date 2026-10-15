@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-15 — L'arco del nemico: uno alla volta, più spesso, in primo piano, col suo nemico; verde
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), seduta `U89`. L'autore ha respinto l'arco della prima tornata: sottile, coperto, e col tasto `H` se ne vedeva più d'uno. Ha chiesto *«l'arco visto deve essere solo quello del nemico selezionato/hoverato»*.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`: titolo e punti (5) e (6), con le domande come l'autore le ha viste; il tasto `H` non c'è più, e il nemico dell'arco si contorna nel suo rosso |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: un arco alla volta, chi lo sceglie, e il contorno del suo nemico |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-FOG-ARCO` ✅ nella terza tornata, dopo il ❌ della prima e della seconda; totali rimisurati |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `PIE-FOG-ARCO` fra le verifiche PIE della capability |
+| [`technical/evidence/u89/`](technical/evidence/u89/) | le tavole `V6` e `V11` |
+
+---
+
 ## 2026-10-15 — Uno spostamento forzato disarma l'Overwatch, e il TurnLog lo dice
 
 **Origine**: [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367). È l'attuazione di `D-366`, decisa il 2026-09-10 e confermata dall'autore il 2026-10-15 con davanti il costo misurato su #2367: un watcher spinto che un compagno copriva sparava ancora, e ora no.
@@ -76,6 +90,20 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-522`, con le due domande come l'autore le ha lette, la causa dei collassi, e la conseguenza sulle tracce registrate prima |
 | [`decisions/adr-0004-finestre-di-reazione.md`](decisions/adr-0004-finestre-di-reazione.md) | §4: la precisazione accanto a quella di `D-518`; la tabella di verifica coi tre test nuovi |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-REACTIONS`: #3771 fra le chiuse, e i due test nuovi fuori dalle famiglie già elencate |
+
+---
+
+## 2026-10-14 — Su richiesta si vede che cosa vede un nemico in vista
+
+**Origine**: [#3762](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3762), decisione d'autore `D-521`. Col mouse sul nemico, o tenendo `H` per tutti, si vede il contorno delle celle che vede, calcolato sul solo terreno che la squadra conosce.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-521`, con la regola di privacy e le tre domande come l'autore le ha viste |
+| [`technical/systems/conoscenza-parziale-visibile-spec.md`](technical/systems/conoscenza-parziale-visibile-spec.md) | §5.7: l'arco del nemico |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | la voce `PIE-FOG-ARCO` |
+| [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-FOG-PRESENTATION`: #3762 fra le chiuse |
+| [`roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md`](roadmap/plans/fog-of-war-ripensata-brainstorm-2026-10-14.md) | F1c: le scelte dell'autore |
 
 ---
 
