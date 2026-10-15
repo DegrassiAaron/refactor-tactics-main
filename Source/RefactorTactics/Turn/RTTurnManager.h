@@ -2405,6 +2405,11 @@ protected:
 	 *
 	 * `Outcome` esiste per la CADUTA (#2402) e ha il default storico: chi cade percorre gli stessi dieci
 	 * passi — traccia, playback, cella, facing, hazard — ma la sua voce non puo' dire `Displaced`.
+	 *
+	 * `bChosenByTheUnit` dice che lo spostamento l'ha SCELTO chi lo subisce, con una reazione: lo scarto del `Brace`, la
+	 * fuga di `EmergencyDash` e quella di `HazardEscape`. Non disarma l'Overwatch ([D-366], decisione d'autore del
+	 * 2026-10-15): la decisione parla di spostamento forzato, e una reazione riuscita non si punisce, come lo scarto che
+	 * non fa cadere. ⚠️ **Il default e' falso**: un produttore nuovo che lo dimentica disarma, che e' la regola.
 	 */
 	/**
 	 * ⚠️ **`ObserverTeams` non e' opzionale, e il default che manca e' la correzione** (`#3261`).
@@ -2422,7 +2427,7 @@ protected:
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
 		const URTHexMapAsset* Map,
 		const TArray<RTTurnManagerInternal::FRTRouteObserverTeam>& ObserverTeams,
-		ERTMatchPhase InPhase, ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
+		ERTMatchPhase InPhase, ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced, bool bChosenByTheUnit = false);
 
 	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
@@ -3197,6 +3202,33 @@ protected:
 	 * senza spostare l'ordine delle tracce gia' scritte: il disarmo e' uno stato, non un evento.
 	 */
 	void DisarmPreparedReactions(ARTUnit* Unit);
+
+	/**
+	 * [D-366] Uno spostamento forzato del watcher **disarma** il suo Overwatch, e il disarmo ha una voce: `Reaction` /
+	 * `Disarmed`, con la causa in `Amount` e lo spostamento in `SrcCell` -> `TgtCell`. La legge la sola squadra del
+	 * watcher, come i silenzi di [D-349]: dice che quell'unita' aveva un Overwatch armato, cioe' un piano.
+	 *
+	 * 🔑 **La charge si spende come nel disarmo di `Prone`** (`bCharged = false`, [D-319]): l'armamento resta nella lista
+	 * e il registro dei silenzi lo vede. Se poi un nemico rilevato entra nella linea, arriva anche «la carica era gia'
+	 * spesa» (decisione d'autore del 2026-10-15). Le predittive e lo slot reazione non si toccano: D-366 parla del solo
+	 * Overwatch.
+	 *
+	 * Chiamata da `ApplyForcedDisplacement` e da nessun altro, quindi vale per ogni sorgente che sposta di forza. Non la
+	 * chiama per uno spostamento scelto con una reazione (`bChosenByTheUnit`).
+	 */
+	void DisarmOverwatchOnForcedDisplacement(ARTUnit* Unit, const FRTCellId& From, const FRTCellId& To,
+		ERTMatchPhase InPhase);
+
+	/**
+	 * Scrive una voce che racconta un PIANO del proprio soggetto, col verdetto per regola ([D-349], [D-366]): un
+	 * Overwatch che non ha sparato, o che e' stato disarmato. La regola viaggia nel soggetto della voce fino all'audit
+	 * di [D-313], che la ricalcola con la stessa `URTTeamKnowledgeLibrary::FreezePlanVerdict`.
+	 *
+	 * `FactCell` e' la cella del FATTO (`#2142`), che dentro il ciclo dei micro-step non e' ancora quella dell'attore.
+	 * Un posto solo per le due voci: un campo in piu' nel soggetto d'audit lo prenderebbero entrambe.
+	 */
+	void AppendPlanVerdictEntry(FRTTurnLogEntry& Entry, ARTUnit* Subject, const FRTCellId& FactCell,
+		ERTPlanVerdict Rule);
 
 	/**
 	 * Se l'unita' e' **stordita**, cancella l'azione principale che stava per risolvere e lascia la voce che

@@ -709,10 +709,8 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 			// Il verdetto e' per REGOLA, e la regola viaggia col soggetto: l'audit di [D-313] lo ricalcola con la stessa
 			// funzione, invece che dalla conoscenza di chi osserva il watcher. La cella del soggetto e' quella del FATTO
 			// (`UnitAt`, `#2142`): qui siamo dentro il ciclo dei micro-step, prima di `PlaceOnCell`.
-			const ERTPlanVerdict Regola = URTReactionOpportunityLibrary::SilencePlanVerdict(Silence.Reason);
-			Entry.VerdictSubject.PlanVerdict = Regola;
-			AppendLogEntry(Entry, FRTLogSubject::UnitAtWithVerdict(WatchOwner, Watcher.OwnerCell,
-				URTTeamKnowledgeLibrary::FreezePlanVerdict(Regola, WatchOwner->TeamId)));
+			AppendPlanVerdictEntry(Entry, WatchOwner, Watcher.OwnerCell,
+				URTReactionOpportunityLibrary::SilencePlanVerdict(Silence.Reason));
 		}
 	}
 

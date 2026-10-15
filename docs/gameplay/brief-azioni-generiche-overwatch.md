@@ -244,6 +244,12 @@ diventa quella giusta:
 
 Se nessun trigger avviene, l'investimento è perso. È il rischio che rende la scommessa una scommessa.
 
+L'investimento si perde anche se qualcuno sposta il watcher di forza prima che il trigger avvenga. Spinta, trazione
+e caduta **disarmano** l'Overwatch ([D-366](../decisions/RT_PDR_00_Decision_Log.md), attuata il 2026-10-15), e il
+TurnLog della squadra lo dice. È la linea «spingo per disarmare» di [D-319](../decisions/RT_PDR_00_Decision_Log.md),
+senza bisogno che il watcher cada. Le reazioni che il watcher sceglie, come lo scarto del `Brace` e la fuga di
+`EmergencyDash`, non lo disarmano.
+
 **Baseline**: `Charges = 1` · `FastReactionDuration = 3,0 s` · `Timeout → HOLD` · `HOLD` **non** consuma la
 charge · `MaxPrompts` data-driven · trigger simultanei aggregati in **una** opportunity · nessun interrupt
 annidato.
