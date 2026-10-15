@@ -999,10 +999,12 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 
-	// #1772 — il peek residuo rientra da se'. E' oggi l'**unico** movimento automatico della camera, ed e'
-	// per questo che la regola d'interruzione di #1773 ha qui il proprio primo consumatore: `UpdatePeekReturn`
-	// non fa nulla mentre `Ctrl` e' premuto, cioe' mentre il giocatore sta guidando.
+	// #1772 — il peek residuo rientra da se', ed e' il primo consumatore della regola d'interruzione di #1773:
+	// `UpdatePeekReturn` non fa nulla mentre `Ctrl` e' premuto, cioe' mentre il giocatore sta guidando.
+	// #1838 — l'edge pan e' il secondo movimento che non vuole un tasto tenuto, e rispetta la stessa regola:
+	// con `Ctrl` premuto o un'orbita in corso non si attiva.
 	UpdatePeekReturn(DeltaTime);
+	UpdateEdgePan();
 
 	// [D-367]: col selettore del verso aperto, l'hover gira la mesh verso il lato sotto il cursore ([D-463]).
 	if (bDeclaringFacing || FacingHoverSector.IsSet())
@@ -1643,6 +1645,95 @@ void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
 	}
 }
 
+void ARTPlayerController::UpdateEdgePan()
+{
+	// Il cursore vale solo con il viewport A FUOCO. `GetMousePosition` risponde con la posizione in cache, e
+	// la cache sopravvive alla perdita del focus (`FSceneViewport::OnFocusLost` non la azzera): dopo un
+	// Alt-Tab col cursore fermo sul bordo, la camera continuerebbe a scorrere da sola mentre `WASD` si ferma
+	// (rilievo di review). Senza focus, o senza cursore nel viewport, non c'e' una banda.
+	const ULocalPlayer* Giocatore = GetLocalPlayer();
+	const bool bFocused = Giocatore && Giocatore->ViewportClient && Giocatore->ViewportClient->Viewport
+		&& Giocatore->ViewportClient->Viewport->HasFocus();
+	float X = 0.f;
+	float Y = 0.f;
+	int32 Width = 0;
+	int32 Height = 0;
+	const bool bHasCursor = bFocused && GetMousePosition(X, Y);
+	if (bHasCursor)
+	{
+		GetViewportSize(Width, Height);
+	}
+	ApplyEdgePanFrom(bHasCursor ? FVector2D(X, Y) : FVector2D(-1.0, -1.0), FVector2D(Width, Height));
+}
+
+bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize)
+{
+	// I tasti del pan hanno gia' mosso la vista in questo fotogramma? Si legge e si consuma qui, all'inizio,
+	// perche' questa funzione gira una volta per `PlayerTick`, dopo l'input.
+	const bool bKeysPanned = bKeyPanThisFrame;
+	bKeyPanThisFrame = false;
+
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
+	{
+		return false;
+	}
+
+	// 🔑 A riposo il lavoro e' questo e basta: un asse calcolato, e uno stato che non cambia. Niente
+	// stringhe, niente contesto del puntatore, niente log.
+	const FVector2D Axis = ARTCameraPawn::ComputeEdgePanAxis(Cursor, ViewportSize, Cam->GetEdgePanBandPixels());
+	ERTEdgePanState State = ERTEdgePanState::Rest;
+	bool bMoved = false;
+	FVector Before = FVector::ZeroVector;
+	if (!Axis.IsNearlyZero())
+	{
+		if (!Cam->IsEdgePanEnabled())
+		{
+			State = ERTEdgePanState::RefusedSwitch;
+		}
+		// ⚠️ **Un'eccezione voluta a `IsGameplayInputBlocked`**, che non blocca la camera: `WASD`, zoom e
+		// orbita restano vivi sotto un modale perche' non toccano il piano. L'edge pan e' diverso: lo guida il
+		// CURSORE, e con un modale aperto il cursore sta sul modale (criterio 8 di #1838). Il predicato si
+		// legge, non si riscrive: se un giorno «bloccato» si allarga, l'edge pan lo segue.
+		else if (const bool bBlocked = IsGameplayInputBlocked(); !EdgePanAllowed(bBlocked, bOrbiting || bCameraModifier))
+		{
+			State = bBlocked ? ERTEdgePanState::RefusedBlocked : ERTEdgePanState::RefusedGesture;
+		}
+		// Con un tasto del pan premuto vincono i tasti: due ingressi nello stesso fotogramma sommerebbero due
+		// `AddPlanarMovement`, cioe' il doppio della velocita' di `WASD` (rilievo di review).
+		else if (bKeysPanned)
+		{
+			State = ERTEdgePanState::RefusedKeys;
+		}
+		else
+		{
+			Before = Cam->GetCameraPivot();
+			bMoved = Cam->ApplyEdgePan(Axis);
+			State = ERTEdgePanState::Active;
+		}
+	}
+
+	// Il log scrive le TRANSIZIONI, non i fotogrammi.
+	if (State != LastEdgePanState)
+	{
+		const TCHAR* Text = State == ERTEdgePanState::Rest ? TEXT("fermo")
+			: State == ERTEdgePanState::RefusedSwitch ? TEXT("rifiutato: interruttore spento")
+			: State == ERTEdgePanState::RefusedBlocked ? TEXT("rifiutato: modale aperto")
+			: State == ERTEdgePanState::RefusedGesture ? TEXT("rifiutato: gesto camera in corso")
+			: State == ERTEdgePanState::RefusedKeys ? TEXT("rifiutato: i tasti del pan hanno la precedenza")
+			: TEXT("attivo");
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Edge pan: %s (asse %.2f, %.2f; %.1f uu nel primo fotogramma)"),
+			Text, Axis.X, Axis.Y, State == ERTEdgePanState::Active ? FVector::Dist2D(Cam->GetCameraPivot(), Before) : 0.0);
+		LastEdgePanState = State;
+	}
+	return bMoved;
+}
+
+void ARTPlayerController::PanForTest(const FVector2D& Axis)
+{
+	OnPan(FInputActionValue(Axis));
+}
+
 void ARTPlayerController::RecenterForTest()
 {
 	OnRecenter(FInputActionValue());
@@ -1691,7 +1782,10 @@ void ARTPlayerController::OnPan(const FInputActionValue& Value)
 {
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		Cam->AddPlanarMovement(Value.Get<FVector2D>());
+		const FVector2D Axis = Value.Get<FVector2D>();
+		Cam->AddPlanarMovement(Axis);
+		// #1838: in questo fotogramma i tasti hanno mosso la vista, e l'edge pan non deve sommarsi.
+		bKeyPanThisFrame |= !Axis.IsNearlyZero();
 	}
 }
 

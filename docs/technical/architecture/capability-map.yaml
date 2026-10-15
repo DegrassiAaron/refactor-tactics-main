@@ -1810,14 +1810,14 @@ capabilities:
         - Source/RefactorTactics/Map/RTLayerPresentation.cpp
         - Source/RefactorTacticsEditor/Private/Content/RTBuildHexVolumeMaterialCommandlet.h
         - Content/RT/Core/Grid/M_HexVolume.uasset
-    issues: { open: [1769, 1781, 1775, 1809, 1837], closed: [864, 1836, 3706, 3723] }
+    issues: { open: [1769, 1781, 1775, 1809, 1837, 1838], closed: [864, 1836, 3706, 3723] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-MAP-TOPOLOGY]
     tests:
       automation: ["RefactorTactics.Camera.*", "RefactorTactics.CameraExposure.*", "RefactorTactics.HexVolume.*"]
       scenarios: [Scenarios/Visual/Map/LayerVolumes.json]
       mutation: []
-    verification: { pie: [PIE-CAM-TINTA-VOLUMI, PIE-CAM-ESPOSIZIONE, PIE-CAM-HOME-CONTEXT], packaged: [] }
+    verification: { pie: [PIE-CAM-TINTA-VOLUMI, PIE-CAM-ESPOSIZIONE, PIE-CAM-HOME-CONTEXT, PIE-CAM-EDGE-PAN], packaged: [] }
     notes:
       - "⚠️ L'occlusione di camera e' PRESENTAZIONE e non e' la LOS di gioco — vincolo
          dichiarato in capability-roadmaps.md §CR-PRESENT."
