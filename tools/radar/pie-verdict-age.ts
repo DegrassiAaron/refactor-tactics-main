@@ -45,8 +45,11 @@
  *  - `` `percorso` `` — uno o più, separati da virgola: i file su cui il criterio si esercita;
  *  - `` ~ `regex` `` — **facoltativo**, e quasi sempre necessario: restringe a *quali righe* di quel file
  *    contano, e si applica con `git log -G`. Più regex separate da virgola valgono in **OR**;
- *  - `` @ AAAA-MM-GG `` — **obbligatorio**: la data del verdetto. Senza, la dichiarazione è incompleta e
- *    la riga non viene controllata.
+ *  - `` @ AAAA-MM-GG `` oppure `` @ <sha> `` — **obbligatorio**: quando è stato dato il verdetto. Senza, la
+ *    dichiarazione è incompleta e la riga non viene controllata. Lo `<sha>` (7–40 esadecimali) è il
+ *    riferimento esatto, ed è preferibile quando la cella nomina il commit su cui ha misurato: il
+ *    confronto diventa `git log <sha>..HEAD`, senza fusi (#3799). Uno sha che non si confronta
+ *    (irrisolto, non antenato di HEAD, percorso assente) è segnalato, mai un verde.
  *
  *  🔴 **La data si DICHIARA, e non si prende da `git blame`: la falsificazione ha bocciato la prima
  *  stesura proprio qui.** Datare la riga col suo ultimo `blame` sembra elegante e **nasconde** la
@@ -158,7 +161,7 @@ export function leggiOsserva(
   cella: string,
 ): { paths: string[]; pattern: string | null; quando: number | null; sha: string | null } | null {
   const m =
-    /osserva:\s*((?:`[^`]+`\s*,\s*)*`[^`]+`)(?:\s*~\s*((?:`[^`]+`\s*,\s*)*`[^`]+`))?\s*@\s*(\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})(?![0-9A-Za-z])/
+    /osserva:\s*((?:`[^`]+`\s*,\s*)*`[^`]+`)(?:\s*~\s*((?:`[^`]+`\s*,\s*)*`[^`]+`))?\s*@\s*(\d{4}-\d{2}-\d{2}|[0-9a-fA-F]{7,40})(?![0-9A-Za-z])/
       .exec(cella);
   if (!m) {
     return null;
@@ -181,7 +184,9 @@ export function leggiOsserva(
   // della sera su codice cambiato nel pomeriggio, datato a mezzogiorno UTC, risultava piu' vecchio del
   // codice che aveva giudicato, e restava rosso per sempre.
   if (!/^\d{4}-/.test(m[3])) {
-    return { paths, pattern, quando: null, sha: m[3] };
+    // Maiuscolo accettato e normalizzato: un refuso di maiuscole non deve trasformare «controllata» in
+    // «non dichiarata», cioe' disattivare il controllo senza dirlo.
+    return { paths, pattern, quando: null, sha: m[3].toLowerCase() };
   }
 
   // Mezzogiorno UTC: la data dichiarata è un giorno, non un istante, e confrontarla con un timestamp
@@ -278,6 +283,8 @@ export function ultimaModifica(path: string, pattern: string | null): number | n
 /** Esiti di `modificheDopo` che NON sono «nessuna modifica»: uno strumento che non puo' rispondere non tace. */
 export const SHA_NON_RISOLTO = 'SHA-NON-RISOLTO';
 export const ERRORE_GIT = 'ERRORE-GIT';
+export const SHA_NON_ANTENATO = 'SHA-NON-ANTENATO';
+export const PERCORSO_ASSENTE = 'PERCORSO-ASSENTE';
 
 /**
  * Il primo commit **dopo** `sha` che ha toccato `path` (e le righe di `pattern`), oppure `null` se nessuno.
@@ -291,6 +298,23 @@ export function modificheDopo(sha: string, path: string, pattern: string | null,
     execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], opts);
   } catch {
     return SHA_NON_RISOLTO;
+  }
+
+  // 🔴 Uno sha che si RISOLVE puo' comunque non essere un punto di partenza: un commit orfano dopo un
+  // rebase, o di un ramo divergente, farebbe elencare a `sha..HEAD` tutta la storia dal merge-base
+  // (un rosso per sempre); uno discendente di HEAD darebbe un elenco vuoto (un verde senza misura).
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], opts);
+  } catch (e) {
+    return (e as { status?: number }).status === 1 ? SHA_NON_ANTENATO : ERRORE_GIT;
+  }
+
+  // 🔴 Un percorso che non esiste piu' in HEAD (refuso, file spostato o cancellato dopo lo sha) fa
+  // rispondere a `git log` con un elenco vuoto: cioe' un `null` ottenuto senza aver misurato.
+  try {
+    execFileSync('git', ['cat-file', '-e', `HEAD:${path}`], opts);
+  } catch {
+    return PERCORSO_ASSENTE;
   }
   const args = ['log', '-1', '--format=%h', `${sha}..HEAD`];
   if (pattern !== null) {
@@ -340,8 +364,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
         const dopo = modificheDopo(v.sha, p, v.pattern);
         if (dopo !== null) {
           const perche =
-            dopo === SHA_NON_RISOLTO || dopo === ERRORE_GIT
-              ? `${dopo}: lo sha ${v.sha} non si puo' confrontare`
+            dopo === SHA_NON_RISOLTO || dopo === SHA_NON_ANTENATO || dopo === PERCORSO_ASSENTE || dopo === ERRORE_GIT
+              ? `${dopo}: non si puo' confrontare con ${v.sha}`
               : `commit ${dopo} dopo ${v.sha}`;
           sospetti.push(`  L${v.line}  ${v.id}  ${perche}  ${p}` + (v.pattern ? `  ~ ${v.pattern}` : ''));
         }

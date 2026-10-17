@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copertura, leggiOsserva, marcatore, modificheDopo, verdettiDichiarati } from './pie-verdict-age.ts';
+import { copertura, leggiOsserva, marcatore, modificheDopo, PERCORSO_ASSENTE, SHA_NON_ANTENATO, verdettiDichiarati } from './pie-verdict-age.ts';
 
 /** Le righe hanno la forma di `test-manuali-pie.md` — cinque colonne, stato in coda — e non una sintassi
  *  inventata: un gate provato su una forma che il documento non usa non dice niente su quel documento. */
@@ -110,6 +110,14 @@ test('🔑 `@ <sha>` è un riferimento esatto: nessuna data, nessun fuso', () =>
   assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ abc12'), null);
 });
 
+test('🔴 uno sha scritto in maiuscolo o con un suffisso non diventa «non dichiarato» in silenzio', () => {
+  // Un refuso non deve disattivare il controllo senza dirlo: le maiuscole si accettano e si normalizzano.
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ 5E0E5C67C')?.sha, '5e0e5c67c');
+  // Un suffisso dopo lo sha o dopo la data non si indovina: la dichiarazione e' incompleta (come senza data).
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ 5e0e5c67cx'), null);
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ 2026-08-20x'), null);
+});
+
 test('un verdetto ✅ con `@ sha` viene raccolto', () => {
   const doc = riga('PIE-CAM-X', '✅ osserva: `a/b.cpp` @ 5e0e5c67c');
   const trovati = verdettiDichiarati(doc);
@@ -145,8 +153,22 @@ test('🔴 `modificheDopo` guarda SOLO ciò che viene dopo lo sha, nei due versi
     // Un commit DOPO che tocca Foo viene trovato; uno che tocca altro no.
     writeFileSync(join(dir, 'a.cpp'), 'int Foo = 2;\n');
     git(sera, 'commit', '-q', '-am', 'dopo: Foo cambia');
-    assert.ok(modificheDopo(misurato, 'a.cpp', 'Foo', dir));
+    // Il commit atteso, non «qualcosa di truthy»: anche un sentinella di errore lo sarebbe.
+    assert.equal(modificheDopo(misurato, 'a.cpp', 'Foo', dir), git(sera, 'rev-parse', '--short', 'HEAD'));
     assert.equal(modificheDopo(misurato, 'a.cpp', 'Bar', dir), null);
+
+    // 🔴 Un percorso che non esiste in HEAD non e' «nessuna modifica»: git log risponderebbe vuoto.
+    assert.equal(modificheDopo(misurato, 'Typo.cpp', 'Foo', dir), PERCORSO_ASSENTE);
+
+    // 🔴 Uno sha che si risolve ma NON e' antenato di HEAD (ramo divergente) non e' un punto di partenza:
+    // sha..HEAD elencherebbe la storia dal merge-base, cioe' un rosso per sempre.
+    git(sera, 'checkout', '-q', '-b', 'divergente', misurato);
+    writeFileSync(join(dir, 'b.cpp'), 'int Bar = 1;\n');
+    git(sera, 'add', '.');
+    git(sera, 'commit', '-q', '-m', 'ramo divergente');
+    const divergente = git(sera, 'rev-parse', 'HEAD');
+    git(sera, 'checkout', '-q', '-');
+    assert.equal(modificheDopo(divergente, 'a.cpp', 'Foo', dir), SHA_NON_ANTENATO);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

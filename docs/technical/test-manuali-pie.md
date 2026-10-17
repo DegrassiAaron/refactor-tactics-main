@@ -790,14 +790,14 @@ Un verdetto puo' quindi dichiarare, **nella propria cella di stato**, su che cos
 node tools/radar/pie-verdict-age.ts --check   # esce 1 se un ✅ e' piu' vecchio di cio' che osserva
 ```
 
-⚠️ **Quattro cose che quella riga dichiara, e che sono tutte state misurate:**
+⚠️ **Le cose che quella riga dichiara, e che sono tutte state misurate:**
 
 1. **La data si scrive, non si deduce da `git blame`.** Il blame data l'**ultima modifica della riga**: una precisazione, un declassamento o la correzione di un refuso la sposterebbero in avanti e il confronto tornerebbe a tacere. E' cosi' che la prima stesura del gate falliva la propria falsificazione.
 2. **L'alternanza della regex si scrive con la VIRGOLA.** Un `|` in questa cella sposta quale campo e' `$(NF-1)` e rompe il comando canonico qui sopra — e scriverlo `\|` **non** basta: e' un escape di rendering, non di parsing. ➕ Per la stessa ragione l'invariante di questo registro non e' «sette campi»: `PIE-HEX-MODE-O`, `-P`, `-Q` e `PIE-HEX-VIZ-VELO` stanno a 8 e 9 campi da sempre, e vanno bene, perche' il pipe non e' nella cella di stato.
 3. **Senza la regex la granularita' e' il file, e il file e' troppo grosso.** Misurato: i commit successivi al verdetto di `PIE-GEO-UNDO` hanno toccato il tool, ma **zero** righe della transazione che quel criterio giudica.
 4. ⛔ **Il gate segnala CANDIDATI DA RILEGGERE, mai «scaduto».** Un file cambia anche senza che il comportamento giudicato cambi: su `PIE-GEO-GHOST` il vocabolario visivo della cella era ancora esatto, e a decidere e' stato il messaggio di commit letto per esteso. Chi rilegge giudica, e lo scrive qui.
 
-5. 🔑 **`@ <sha>` quando il verdetto e' stato misurato su un commit preciso**, e di norma lo e' (la cella lo nomina gia'). Il gate chiede allora `git log <sha>..HEAD`: **solo cio' che viene dopo** quel commit, senza fusi e senza «a che ora del giorno». La data e' mezzogiorno UTC, quindi un verdetto della sera su codice cambiato nel pomeriggio risultava piu' vecchio del codice che aveva giudicato e restava rosso per sempre ([#3799](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3799)). ⛔ Uno sha che non si risolve (rebase, clone parziale, refuso) **e' segnalato**, mai taciuto: un `git log` vuoto sarebbe un verde ottenuto perche' lo strumento non poteva rispondere.
+5. 🔑 **`@ <sha>` quando il verdetto e' stato misurato su un commit preciso**, e di norma lo e' (la cella lo nomina gia'). Il gate chiede allora `git log <sha>..HEAD`: **solo cio' che viene dopo** quel commit, senza fusi e senza «a che ora del giorno». La data e' mezzogiorno UTC, quindi un verdetto della sera su codice cambiato nel pomeriggio risultava piu' vecchio del codice che aveva giudicato e restava rosso per sempre ([#3799](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3799)). ⛔ Uno sha che non si confronta **e' segnalato**, mai taciuto, perche' un `git log` vuoto sarebbe un verde ottenuto senza misurare: sha che non si risolve (clone parziale, refuso), sha che si risolve ma non e' antenato di `HEAD` (commit orfano dopo un rebase, ramo divergente), percorso che non esiste piu' in `HEAD`.
 
 🔑 **Un verdetto senza `osserva:` non e' un errore**: la convenzione si riempie a poco a poco, dalle famiglie che hanno prodotto le scadenze. Il gate lo conta e non lo segnala.
 
