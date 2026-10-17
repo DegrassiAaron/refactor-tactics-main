@@ -559,7 +559,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTReactionPassResult.h
         - Source/RefactorTactics/Turn/RTReactionWindowView.h
         - Source/RefactorTactics/Turn/RTDeclaredCondition.h
-    issues: { open: [2462, 2516, 2795, 166, 314, 319, 3788], closed: [2717, 3745, 3771, 2367, 3132] }
+    issues: { open: [2462, 2516, 2795, 166, 314, 319], closed: [2717, 3745, 3771, 2367, 3132, 3788] }
     consumers:
       - RT-CAP-BOT-DECISION
       - RT-CAP-COMBAT
