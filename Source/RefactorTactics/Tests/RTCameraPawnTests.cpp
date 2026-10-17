@@ -1676,6 +1676,8 @@ namespace
 {
 	const FVector2D EdgePanViewport(1920.0, 1080.0);
 	constexpr float EdgePanBand = 16.f;
+	/** Un fotogramma a 60 fps: a questo tempo `AddPlanarVelocity` percorre cio' che `PanSpeed = 25` percorreva per fotogramma (#3792). */
+	constexpr float EdgePanFrame60 = 1.f / 60.f;
 
 	/**
 	 * Mappa ampia (raggio 8): i test dell'edge pan misurano DIREZIONE e VELOCITA', e su una mappa piccola il
@@ -1787,13 +1789,13 @@ bool FRTCameraEdgePanFollowsYawTest::RunTest(const FString&)
 		const FVector ViewRight = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::RightVector);
 
 		Cam->SetCameraPivot(Centre);
-		Cam->ApplyEdgePan(Forward);
+		Cam->ApplyEdgePan(Forward, EdgePanFrame60);
 		const FVector DeltaForward = (Cam->GetCameraPivot() - Centre).GetSafeNormal2D();
 		TestTrue(FString::Printf(TEXT("yaw %.0f: il bordo alto va avanti nella vista"), Yaw),
 			FVector::DotProduct(DeltaForward, ViewForward) > 0.99);
 
 		Cam->SetCameraPivot(Centre);
-		Cam->ApplyEdgePan(Rightward);
+		Cam->ApplyEdgePan(Rightward, EdgePanFrame60);
 		const FVector DeltaRight = (Cam->GetCameraPivot() - Centre).GetSafeNormal2D();
 		TestTrue(FString::Printf(TEXT("yaw %.0f: il bordo destro va a destra nella vista"), Yaw),
 			FVector::DotProduct(DeltaRight, ViewRight) > 0.99);
@@ -1831,11 +1833,11 @@ bool FRTCameraEdgePanMatchesWasdTest::RunTest(const FString&)
 	{
 		Cam->SetZoomAlpha(Alpha);
 		Cam->SetCameraPivot(Centre);
-		Cam->ApplyEdgePan(Full);
+		Cam->ApplyEdgePan(Full, EdgePanFrame60);
 		const double EdgeStep = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
 
 		Cam->SetCameraPivot(Centre);
-		Cam->AddPlanarMovement(FVector2D(0.0, 1.0)); // `W` tenuto: lo stesso valore che `OnPan` passa
+		Cam->AddPlanarVelocity(FVector2D(0.0, 1.0), EdgePanFrame60); // `W` tenuto: lo stesso ingresso che `OnPan` usa
 		const double WasdStep = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
 
 		TestTrue(FString::Printf(TEXT("alpha %.1f: l'edge pan muove"), Alpha), EdgeStep > 1.0);
@@ -1846,11 +1848,121 @@ bool FRTCameraEdgePanMatchesWasdTest::RunTest(const FString&)
 
 	// A meta' penetrazione, meno della penetrazione piena: la velocita' viene dall'asse, non da una costante.
 	Cam->SetCameraPivot(Centre);
-	Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(EdgePanBand * 0.5), EdgePanViewport, EdgePanBand));
+	Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(EdgePanBand * 0.5), EdgePanViewport, EdgePanBand), EdgePanFrame60);
 	const double Half = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
 	Cam->SetCameraPivot(Centre);
-	Cam->ApplyEdgePan(Full);
+	Cam->ApplyEdgePan(Full, EdgePanFrame60);
 	TestTrue(TEXT("a meta' banda va piu' piano che sul bordo"), Half > 0.0 && Half < FVector::Dist2D(Cam->GetCameraPivot(), Centre));
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * #3792 - il pan percorre la stessa distanza a 30, 60 e 144 fps.
+ *
+ * Il difetto: la distanza era per CHIAMATA, e le chiamate sono una per fotogramma. Si tiene lo stesso input
+ * per un sesto di secondo (5, 10 e 24 fotogrammi), spezzato in fotogrammi di durata diversa: la distanza deve coincidere. Vale per i due
+ * ingressi a velocita' — `AddPlanarVelocity` (`WASD`) ed `ApplyEdgePan` — e `Camera.EdgePanMovesLikeWasdAtTheSameZoom`
+ * resta vero a ogni frame rate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPanIsFrameRateIndependentTest,
+	"RefactorTactics.Camera.PanCoversTheSameDistanceAtAnyFrameRate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPanIsFrameRateIndependentTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	const FVector Centre = HomeTestMapCentre(Map);
+	const FVector2D Full = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(0.0), EdgePanViewport, EdgePanBand);
+	const FVector2D Forward(0.0, 1.0);
+	Cam->SetZoomAlpha(0.3f);
+
+	double WasdAt60 = 0.0;
+	double EdgeAt60 = 0.0;
+	for (const int32 Fps : { 30, 60, 144 })
+	{
+		const float Dt = 1.f / static_cast<float>(Fps);
+
+		Cam->SetCameraPivot(Centre);
+		for (int32 Frame = 0; Frame < Fps / 6; ++Frame) { Cam->AddPlanarVelocity(Forward, Dt); }
+		const double Wasd = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+		Cam->SetCameraPivot(Centre);
+		for (int32 Frame = 0; Frame < Fps / 6; ++Frame) { Cam->ApplyEdgePan(Full, Dt); }
+		const double Edge = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+		TestTrue(FString::Printf(TEXT("%d fps: WASD muove"), Fps), Wasd > 1.0);
+		if (Fps == 60) { WasdAt60 = Wasd; EdgeAt60 = Edge; }
+		else
+		{
+			// Si confronta con i 60 fps dopo il ciclo: serve prima il valore di riferimento.
+			Cam->SetCameraPivot(Centre);
+			for (int32 Frame = 0; Frame < 10; ++Frame) { Cam->AddPlanarVelocity(Forward, 1.f / 60.f); }
+			const double Ref = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+			TestTrue(FString::Printf(TEXT("%d fps: WASD percorre quanto a 60 (%.2f vs %.2f)"), Fps, Wasd, Ref),
+				FMath::IsNearlyEqual(Wasd, Ref, Ref * 0.001));
+			Cam->SetCameraPivot(Centre);
+			for (int32 Frame = 0; Frame < 10; ++Frame) { Cam->ApplyEdgePan(Full, 1.f / 60.f); }
+			const double EdgeRef = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+			TestTrue(FString::Printf(TEXT("%d fps: l'edge pan percorre quanto a 60 (%.2f vs %.2f)"), Fps, Edge, EdgeRef),
+				FMath::IsNearlyEqual(Edge, EdgeRef, EdgeRef * 0.001));
+			TestTrue(FString::Printf(TEXT("%d fps: edge pan e WASD restano allo stesso profilo"), Fps),
+				FMath::IsNearlyEqual(Edge, Wasd, Wasd * 0.001));
+		}
+	}
+	TestTrue(TEXT("a 60 fps edge pan e WASD coincidono"), FMath::IsNearlyEqual(EdgeAt60, WasdAt60, WasdAt60 * 0.001));
+
+	// Non vacuo: se il pivot avesse toccato un limite, la distanza sarebbe uguale a ogni frame rate per il limite,
+	// non per il tempo. Un sesto di secondo sono 10 fotogrammi a 60 fps, e la distanza e' lineare: 10 passi singoli.
+	Cam->SetCameraPivot(Centre);
+	Cam->AddPlanarVelocity(Forward, 1.f / 60.f);
+	const double OneFrame = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+	TestTrue(TEXT("la prova non e' limitata dai bordi: 10 fotogrammi a 60 fps sono 10 passi"),
+		FMath::IsNearlyEqual(WasdAt60, OneFrame * 10.0, OneFrame * 0.01));
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * #3792 - a 60 fps il pan va come prima di #3792: 25 unita' per fotogramma, a distanza di default.
+ * E' la taratura che la riscrittura di `PanSpeed` in unita' al secondo (1500) deve conservare, e lo spostamento
+ * a trascinamento (`AddPlanarMovement`) resta per spostamento: non prende il tempo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPanKeepsTheSixtyFpsFeelTest,
+	"RefactorTactics.Camera.PanAtSixtyFpsMovesAsItDidPerFrame",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPanKeepsTheSixtyFpsFeelTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	const FVector Centre = HomeTestMapCentre(Map);
+	const FVector2D Forward(0.0, 1.0);
+
+	Cam->SetCameraPivot(Centre);
+	Cam->AddPlanarMovement(Forward);
+	const double Displacement = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+	Cam->SetCameraPivot(Centre);
+	Cam->AddPlanarVelocity(Forward, EdgePanFrame60);
+	const double Velocity = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
+
+	TestTrue(TEXT("lo spostamento di un'unita' d'asse e' cio' che il fotogramma a 60 fps percorre"),
+		FMath::IsNearlyEqual(Displacement, Velocity, 0.01));
+	TestTrue(TEXT("un tempo non positivo non muove"), [&]
+	{
+		Cam->SetCameraPivot(Centre);
+		Cam->AddPlanarVelocity(Forward, 0.f);
+		Cam->AddPlanarVelocity(Forward, -0.1f);
+		return FVector::Dist2D(Cam->GetCameraPivot(), Centre) < KINDA_SMALL_NUMBER;
+	}());
 
 	DestroyCameraWorld(World);
 	return true;
@@ -1874,16 +1986,16 @@ bool FRTCameraEdgePanRestTest::RunTest(const FString&)
 
 	const FVector2D Rest = ARTCameraPawn::ComputeEdgePanAxis(EdgePanViewport * 0.5, EdgePanViewport, EdgePanBand);
 	const FVector Start = Cam->GetCameraPivot();
-	for (int32 i = 0; i < 30; ++i) { TestFalse(TEXT("a riposo non muove"), Cam->ApplyEdgePan(Rest)); }
+	for (int32 i = 0; i < 30; ++i) { TestFalse(TEXT("a riposo non muove"), Cam->ApplyEdgePan(Rest, EdgePanFrame60)); }
 	TestEqual(TEXT("trenta fotogrammi a riposo: zero aggiornamenti"), Cam->GetEdgePanUpdatesForTest(), 0);
 	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
 
 	// Nella banda per qualche fotogramma, poi fuori: niente deriva.
 	const FVector2D InBand = ARTCameraPawn::ComputeEdgePanAxis(EdgePanTopCursor(2.0), EdgePanViewport, EdgePanBand);
-	for (int32 i = 0; i < 5; ++i) { Cam->ApplyEdgePan(InBand); }
+	for (int32 i = 0; i < 5; ++i) { Cam->ApplyEdgePan(InBand, EdgePanFrame60); }
 	TestEqual(TEXT("nella banda: un aggiornamento per fotogramma"), Cam->GetEdgePanUpdatesForTest(), 5);
 	const FVector Left = Cam->GetCameraPivot();
-	Cam->ApplyEdgePan(Rest);
+	Cam->ApplyEdgePan(Rest, EdgePanFrame60);
 	TestEqual(TEXT("uscito dalla banda, il pivot si ferma nello stesso fotogramma"), Cam->GetCameraPivot(), Left);
 	TestEqual(TEXT("senza un aggiornamento in piu'"), Cam->GetEdgePanUpdatesForTest(), 5);
 
@@ -1911,7 +2023,7 @@ bool FRTCameraEdgePanSwitchTest::RunTest(const FString&)
 	for (const FVector2D& Cursor : { EdgePanTopCursor(0.0), FVector2D(0.0, 540.0), FVector2D(EdgePanLastX, 540.0),
 		FVector2D(960.0, EdgePanLastY), FVector2D(0.0, 0.0), FVector2D(EdgePanLastX, EdgePanLastY) })
 	{
-		TestFalse(TEXT("spento non muove"), Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(Cursor, EdgePanViewport, EdgePanBand)));
+		TestFalse(TEXT("spento non muove"), Cam->ApplyEdgePan(ARTCameraPawn::ComputeEdgePanAxis(Cursor, EdgePanViewport, EdgePanBand), EdgePanFrame60));
 	}
 	TestEqual(TEXT("il pivot e' fermo"), Cam->GetCameraPivot(), Start);
 	TestEqual(TEXT("e nessun aggiornamento"), Cam->GetEdgePanUpdatesForTest(), 0);
@@ -1942,11 +2054,11 @@ bool FRTCameraEdgePanBoundsTest::RunTest(const FString&)
 
 	// Un passo libero, dal centro: e' la misura con cui si vede che il limite morde.
 	Cam->SetCameraPivot(Centre);
-	Cam->ApplyEdgePan(Full);
+	Cam->ApplyEdgePan(Full, EdgePanFrame60);
 	const double OneStep = FVector::Dist2D(Cam->GetCameraPivot(), Centre);
 
 	Cam->SetCameraPivot(Centre);
-	for (int32 i = 0; i < 400; ++i) { Cam->ApplyEdgePan(Full); }
+	for (int32 i = 0; i < 400; ++i) { Cam->ApplyEdgePan(Full, EdgePanFrame60); }
 	const FVector EdgeEnd = Cam->GetCameraPivot();
 
 	Cam->SetCameraPivot(Centre);
@@ -1962,7 +2074,7 @@ bool FRTCameraEdgePanBoundsTest::RunTest(const FString&)
 	TestTrue(TEXT("l'edge pan arriva dove arriva WASD: la stessa porta, lo stesso limite"), FVector::Dist2D(EdgeEnd, WasdEnd) < 0.01);
 	Cam->SetCameraPivot(EdgeEnd);
 	const int32 Lavoro = Cam->GetEdgePanUpdatesForTest();
-	TestFalse(TEXT("contro il limite ApplyEdgePan risponde che non ha mosso"), Cam->ApplyEdgePan(Full));
+	TestFalse(TEXT("contro il limite ApplyEdgePan risponde che non ha mosso"), Cam->ApplyEdgePan(Full, EdgePanFrame60));
 	TestEqual(TEXT("ma il lavoro c'e' stato"), Cam->GetEdgePanUpdatesForTest(), Lavoro + 1);
 	Cam->SetCameraPivot(EdgeEnd);
 	TestTrue(TEXT("e quel punto e' dentro i limiti: riscriverlo non lo sposta"), FVector::Dist2D(Cam->GetCameraPivot(), EdgeEnd) < 0.01);

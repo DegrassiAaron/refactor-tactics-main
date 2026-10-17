@@ -1004,7 +1004,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	// #1838 — l'edge pan e' il secondo movimento che non vuole un tasto tenuto, e rispetta la stessa regola:
 	// con `Ctrl` premuto o un'orbita in corso non si attiva.
 	UpdatePeekReturn(DeltaTime);
-	UpdateEdgePan();
+	UpdateEdgePan(DeltaTime);
 
 	// [D-367]: col selettore del verso aperto, l'hover gira la mesh verso il lato sotto il cursore ([D-463]).
 	if (bDeclaringFacing || FacingHoverSector.IsSet())
@@ -1396,7 +1396,7 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 	// `Ctrl`+`MMB`: precision pan. Stessa direzione del pan normale, sensibilita' ridotta.
 	//
 	// 🔴 **Era piu' VELOCE del pan che doveva raffinare** (code review, 2026-08-30). `AddPlanarMovement`
-	// si aspetta un valore d'ASSE — `WASD` consegna 1, cioe' `PanSpeed = 25` unita' per frame — mentre qui
+	// si aspetta un valore d'ASSE — `WASD` consegna 1, cioe' 25 unita' per frame (`PanUnitDistance`) — mentre qui
 	// arrivava un delta in **pixel**: 10 px/frame davano `10 * 0.25 * 25 = 62,5` unita', due volte e mezzo
 	// la tastiera. Un gesto chiamato «precision» che si muove piu' in fretta di quello grezzo non e' una
 	// taratura sbagliata: e' un'unita' di misura sbagliata, e `PrecisionPanScale` clampato a `1.0` non
@@ -1645,7 +1645,7 @@ void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
 	}
 }
 
-void ARTPlayerController::UpdateEdgePan()
+void ARTPlayerController::UpdateEdgePan(float DeltaTime)
 {
 	// Il cursore vale solo con il viewport A FUOCO. `GetMousePosition` risponde con la posizione in cache, e
 	// la cache sopravvive alla perdita del focus (`FSceneViewport::OnFocusLost` non la azzera): dopo un
@@ -1663,10 +1663,10 @@ void ARTPlayerController::UpdateEdgePan()
 	{
 		GetViewportSize(Width, Height);
 	}
-	ApplyEdgePanFrom(bHasCursor ? FVector2D(X, Y) : FVector2D(-1.0, -1.0), FVector2D(Width, Height));
+	ApplyEdgePanFrom(bHasCursor ? FVector2D(X, Y) : FVector2D(-1.0, -1.0), FVector2D(Width, Height), DeltaTime);
 }
 
-bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize)
+bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime)
 {
 	// I tasti del pan hanno gia' mosso la vista in questo fotogramma? Si legge e si consuma qui, all'inizio,
 	// perche' questa funzione gira una volta per `PlayerTick`, dopo l'input.
@@ -1708,7 +1708,7 @@ bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVecto
 		else
 		{
 			Before = Cam->GetCameraPivot();
-			bMoved = Cam->ApplyEdgePan(Axis);
+			bMoved = Cam->ApplyEdgePan(Axis, DeltaTime);
 			State = ERTEdgePanState::Active;
 		}
 	}
@@ -1729,9 +1729,9 @@ bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVecto
 	return bMoved;
 }
 
-void ARTPlayerController::PanForTest(const FVector2D& Axis)
+void ARTPlayerController::PanForTest(const FVector2D& Axis, float DeltaTime)
 {
-	OnPan(FInputActionValue(Axis));
+	ApplyKeyPan(Axis, DeltaTime);
 }
 
 void ARTPlayerController::RecenterForTest()
@@ -1782,8 +1782,17 @@ void ARTPlayerController::OnPan(const FInputActionValue& Value)
 {
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		const FVector2D Axis = Value.Get<FVector2D>();
-		Cam->AddPlanarMovement(Axis);
+		const UWorld* World = GetWorld();
+		ApplyKeyPan(Value.Get<FVector2D>(), World ? World->GetDeltaSeconds() : 0.f);
+	}
+}
+
+void ARTPlayerController::ApplyKeyPan(const FVector2D& Axis, float DeltaTime)
+{
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		// #3792: `WASD` e' un ingresso a velocita', come l'edge pan: la distanza dipende dal tempo del fotogramma.
+		Cam->AddPlanarVelocity(Axis, DeltaTime);
 		// #1838: in questo fotogramma i tasti hanno mosso la vista, e l'edge pan non deve sommarsi.
 		bKeyPanThisFrame |= !Axis.IsNearlyZero();
 	}

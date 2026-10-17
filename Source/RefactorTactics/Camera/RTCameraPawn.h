@@ -53,6 +53,17 @@ public:
 	void AddPlanarMovement(const FVector2D& Axis);
 
 	/**
+	 * `#3792` — il pan A VELOCITA': come `AddPlanarMovement`, ma l'asse e' una velocita' (`1` = `PanSpeedPerSecond`
+	 * al secondo, a distanza di default) e la distanza e' `asse × PanSpeedPerSecond × DeltaTime`. E' l'ingresso di
+	 * `WASD` e dell'edge pan, che arrivano a ogni fotogramma: la loro velocita' non dipende dal frame rate.
+	 *
+	 * ⛔ `AddPlanarMovement` NON prende il tempo, ed e' voluto: lo usa il pan a trascinamento, che e' uno
+	 * SPOSTAMENTO (pixel trascinati → distanza), non una velocita'. Dividerlo per un `DeltaTime` lo romperebbe.
+	 * Un `DeltaTime` non positivo non muove.
+	 */
+	void AddPlanarVelocity(const FVector2D& Axis, float DeltaTime);
+
+	/**
 	 * `#1838` — l'asse dell'edge pan per un cursore in pixel del viewport: `X` verso destra, `Y` «avanti sullo
 	 * schermo», cioe' verso il bordo alto. Ciascuna componente sta in `[-1, 1]` ed e' la **penetrazione** nella
 	 * banda: `0` sul suo bordo interno, `1` sul bordo del viewport. Negli angoli le due si sommano.
@@ -67,11 +78,13 @@ public:
 	 * somma dal pivot, i limiti del viewport (`D-251`) e la velocita' di `WASD` allo stesso `ZoomAlpha`: un
 	 * profilo solo, non due. A penetrazione piena l'asse vale quanto un tasto tenuto premuto.
 	 *
+	 * `DeltaTime` e' il tempo del fotogramma (#3792): la velocita' dell'edge pan e' al secondo, come quella di `WASD`.
+	 *
 	 * Con l'interruttore spento o l'asse nullo **non fa nulla**, nemmeno contare un aggiornamento: e' cio' che
 	 * rende misurabile lo «zero lavoro a riposo». Ritorna se ha **mosso** il pivot: contro il limite del
 	 * viewport lavora, e risponde `false`.
 	 */
-	bool ApplyEdgePan(const FVector2D& Axis);
+	bool ApplyEdgePan(const FVector2D& Axis, float DeltaTime);
 
 	bool IsEdgePanEnabled() const { return bEdgePanEnabled; }
 	void SetEdgePanEnabled(bool bEnabled) { bEdgePanEnabled = bEnabled; }
@@ -669,8 +682,24 @@ protected:
 	/** Le ultime leve dell'esposizione applicate (#3723). Nasce coi default, che il costruttore ha gia' scritto. */
 	FRTCameraExposureTuning AppliedExposureTuning;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
-	float PanSpeed = 25.f;
+	/**
+	 * `#3792` — la velocita' del pan a distanza di default, in **unita' mondo al secondo**, a asse pieno. Era
+	 * `PanSpeed = 25` unita' PER FOTOGRAMMA: a 60 fps sono 1500 al secondo, ed e' il valore che mantiene la
+	 * sensazione di prima a quel frame rate. Si scala con la distanza (`GetPanDistanceScale`). La taratura e'
+	 * di #1780, e si fa in questa unita'.
+	 *
+	 * Il nome e' nuovo apposta: un valore di `PanSpeed` serializzato altrove, letto con questa unita', sarebbe
+	 * un pan quasi fermo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera", meta = (ClampMin = "0.0"))
+	float PanSpeedPerSecond = 1500.f;
+
+	/**
+	 * Distanza, in unita' mondo a distanza di default, di UN'unita' d'asse di `AddPlanarMovement`: lo spostamento
+	 * del pan a trascinamento (`PixelsPerPanUnit` converte i pixel in unita' d'asse). E' la vecchia taratura per
+	 * fotogramma di `PanSpeed`, e non e' una velocita'.
+	 */
+	static constexpr float PanUnitDistance = 25.f;
 
 	/**
 	 * `#1838` — l'interruttore dell'edge pan. **Acceso di default**, ed e' la scelta dell'autore del 2026-10-15
