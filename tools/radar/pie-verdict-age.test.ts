@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copertura, leggiOsserva, marcatore, verdettiDichiarati } from './pie-verdict-age.ts';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { copertura, leggiOsserva, marcatore, modificheDopo, PERCORSO_ASSENTE, SHA_NON_ANTENATO, verdettiDichiarati } from './pie-verdict-age.ts';
 
 /** Le righe hanno la forma di `test-manuali-pie.md` — cinque colonne, stato in coda — e non una sintassi
  *  inventata: un gate provato su una forma che il documento non usa non dice niente su quel documento. */
@@ -86,4 +90,91 @@ test('una cella senza backtick dopo `osserva:` non produce un percorso vuoto', (
   // Guardia contro il percorso `''`, che `git log -- ''` interpreterebbe come «tutto il repository».
   assert.equal(leggiOsserva('✅ osserva: niente di utile @ 2026-01-01'), null);
   assert.equal(leggiOsserva('✅ osserva: `` @ 2026-01-01'), null);
+});
+
+test('🔑 `@ <sha>` è un riferimento esatto: nessuna data, nessun fuso', () => {
+  const letto = leggiOsserva('✅ osserva: `a/b.cpp` ~ `Foo` @ 5e0e5c67c');
+  assert.ok(letto);
+  assert.equal(letto.sha, '5e0e5c67c');
+  assert.equal(letto.quando, null);
+  assert.equal(letto.pattern, 'Foo');
+
+  // La forma con la data resta com'era, e non dichiara alcuno sha.
+  const vecchio = leggiOsserva('✅ osserva: `a/b.cpp` @ 2026-08-20');
+  assert.ok(vecchio);
+  assert.equal(vecchio.sha, null);
+  assert.equal(giorno(vecchio.quando as number), '2026-08-20');
+
+  // Controllo NEGATIVO: una parola qualunque, o un esadecimale troppo corto, dopo `@` non è uno sha.
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ domani'), null);
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ abc12'), null);
+});
+
+test('🔴 uno sha scritto in maiuscolo o con un suffisso non diventa «non dichiarato» in silenzio', () => {
+  // Un refuso non deve disattivare il controllo senza dirlo: le maiuscole si accettano e si normalizzano.
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ 5E0E5C67C')?.sha, '5e0e5c67c');
+  // Un suffisso dopo lo sha o dopo la data non si indovina: la dichiarazione e' incompleta (come senza data).
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ 5e0e5c67cx'), null);
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ 2026-08-20x'), null);
+});
+
+test('un verdetto ✅ con `@ sha` viene raccolto', () => {
+  const doc = riga('PIE-CAM-X', '✅ osserva: `a/b.cpp` @ 5e0e5c67c');
+  const trovati = verdettiDichiarati(doc);
+  assert.equal(trovati.length, 1);
+  assert.equal(trovati[0].sha, '5e0e5c67c');
+});
+
+test('🔴 `modificheDopo` guarda SOLO ciò che viene dopo lo sha, nei due versi', () => {
+  // Il caso di #3799: verdetto della sera, codice modificato nel pomeriggio dello stesso giorno. Con la
+  // data a mezzogiorno UTC il codice del pomeriggio risultava più nuovo del verdetto; con lo sha sta
+  // PRIMA del commit misurato, e il confronto è esatto.
+  const dir = mkdtempSync(join(tmpdir(), 'pie-age-'));
+  try {
+    const git = (data: string, ...a: string[]) =>
+      execFileSync(
+        'git',
+        ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a],
+        { encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: data, GIT_COMMITTER_DATE: data } },
+      ).trim();
+    const pomeriggio = '2026-10-15T15:00:00Z';
+    const sera = '2026-10-15T21:00:00Z';
+
+    git(pomeriggio, 'init', '-q');
+    writeFileSync(join(dir, 'a.cpp'), 'int Foo = 1;\n');
+    git(pomeriggio, 'add', '.');
+    git(pomeriggio, 'commit', '-q', '-m', 'pomeriggio: Foo');
+    git(sera, 'commit', '-q', '--allow-empty', '-m', 'sera: il verdetto è dato qui');
+    const misurato = git(sera, 'rev-parse', 'HEAD');
+
+    // Nessun commit dopo lo sha: il codice del pomeriggio non è "più nuovo" del verdetto.
+    assert.equal(modificheDopo(misurato, 'a.cpp', 'Foo', dir), null);
+
+    // Un commit DOPO che tocca Foo viene trovato; uno che tocca altro no.
+    writeFileSync(join(dir, 'a.cpp'), 'int Foo = 2;\n');
+    git(sera, 'commit', '-q', '-am', 'dopo: Foo cambia');
+    // Il commit atteso, non «qualcosa di truthy»: anche un sentinella di errore lo sarebbe.
+    assert.equal(modificheDopo(misurato, 'a.cpp', 'Foo', dir), git(sera, 'rev-parse', '--short', 'HEAD'));
+    assert.equal(modificheDopo(misurato, 'a.cpp', 'Bar', dir), null);
+
+    // 🔴 Un percorso che non esiste in HEAD non e' «nessuna modifica»: git log risponderebbe vuoto.
+    assert.equal(modificheDopo(misurato, 'Typo.cpp', 'Foo', dir), PERCORSO_ASSENTE);
+
+    // 🔴 Uno sha che si risolve ma NON e' antenato di HEAD (ramo divergente) non e' un punto di partenza:
+    // sha..HEAD elencherebbe la storia dal merge-base, cioe' un rosso per sempre.
+    git(sera, 'checkout', '-q', '-b', 'divergente', misurato);
+    writeFileSync(join(dir, 'b.cpp'), 'int Bar = 1;\n');
+    git(sera, 'add', '.');
+    git(sera, 'commit', '-q', '-m', 'ramo divergente');
+    const divergente = git(sera, 'rev-parse', 'HEAD');
+    git(sera, 'checkout', '-q', '-');
+    assert.equal(modificheDopo(divergente, 'a.cpp', 'Foo', dir), SHA_NON_ANTENATO);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('🔴 uno sha che non si risolve NON è un verde: `modificheDopo` lo dichiara', () => {
+  // Mai un verde ottenuto perché lo strumento non poteva rispondere.
+  assert.equal(modificheDopo('0000000000000000000000000000000000000000', 'a.cpp', null), 'SHA-NON-RISOLTO');
 });
