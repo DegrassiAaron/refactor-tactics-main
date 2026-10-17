@@ -439,6 +439,8 @@ protected:
 	TWeakObjectPtr<class ARTUnit> InspectedUnit;
 
 	void OnPan(const FInputActionValue& Value);
+	/** Il corpo di `OnPan` con il tempo passato (#3792): `WASD` e' un ingresso a velocita'. */
+	void ApplyKeyPan(const FVector2D& Axis, float DeltaTime);
 	void OnZoom(const FInputActionValue& Value);
 	void OnRotate(const FInputActionValue& Value);
 
@@ -529,10 +531,10 @@ protected:
 	 * `#1838` — l'edge pan di un fotogramma, dal cursore e dal viewport veri. Chiamata da `PlayerTick`.
 	 * A riposo — cursore fuori dalla banda — calcola l'asse e si ferma: nessun pan, nessun aggiornamento.
 	 */
-	void UpdateEdgePan();
+	void UpdateEdgePan(float DeltaTime);
 
 	/** Il corpo di `UpdateEdgePan`, con cursore e viewport passati: ritorna se la camera si e' mossa. */
-	bool ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize);
+	bool ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime);
 
 	/** L'ultimo stato dell'edge pan scritto nel log: si scrive solo quando cambia, non a ogni fotogramma. */
 	ERTEdgePanState LastEdgePanState = ERTEdgePanState::Rest;
@@ -585,10 +587,10 @@ public:
 	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
 	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
 	/** `#1838`: l'edge pan con cursore e viewport iniettati — in headless un viewport non esiste. */
-	bool UpdateEdgePanForTest(const FVector2D& Cursor, const FVector2D& ViewportSize) { return ApplyEdgePanFrom(Cursor, ViewportSize); }
+	bool UpdateEdgePanForTest(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime = 1.f / 60.f) { return ApplyEdgePanFrom(Cursor, ViewportSize, DeltaTime); }
 
 	/** `#1838`: un fotogramma di `WASD` dal gestore vero, per provare che i tasti hanno la precedenza sull'edge pan. */
-	void PanForTest(const FVector2D& Axis);
+	void PanForTest(const FVector2D& Axis, float DeltaTime = 1.f / 60.f);
 
 	/**
 	 * `#1838` — l'edge pan si attiva solo se nessuna schermata bloccante copre la partita e nessun gesto camera
