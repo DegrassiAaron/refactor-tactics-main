@@ -91,8 +91,8 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 
 | Comando | Tasto | Funzione |
 |---|---|---|
-| Pan | `W` `A` `S` `D` | `AddPlanarMovement`, **relativo alla vista** |
-| Edge pan | cursore entro la banda dal bordo del viewport | `ApplyEdgePan` → `AddPlanarMovement` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)), §3.4: acceso di default, spegnibile |
+| Pan | `W` `A` `S` `D` | `AddPlanarVelocity` (a velocità, [#3792](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3792)) → `AddPlanarMovement`, **relativo alla vista** |
+| Edge pan | cursore entro la banda dal bordo del viewport | `ApplyEdgePan` → `AddPlanarVelocity` → `AddPlanarMovement` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)), §3.4: acceso di default, spegnibile |
 | Zoom | rotella | `ZoomTowards` (ancorato al cursore), ripiego al centro fuori mappa |
 | Rotazione a scatti | `Q` / `E` | `AddYaw`, passo `YawStep = 45°`; in strategica `StrategicYawStep = 60°`, con l'imbardata allineata all'ingresso ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Orbita continua | **MMB tenuto** + movimento | `AddOrbit` (X → yaw, Y → pitch). Il pitch va nell'offset manuale, come `AddPitch`: dal 2026-10-10 il primo zoom non lo cancella più ([#3630](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3630), `Camera.OrbitPitchSurvivesTheNextZoom`). In strategica l'orbita non agisce, né la Y ([D-498](../../decisions/RT_PDR_00_Decision_Log.md)) né la X ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)) |
