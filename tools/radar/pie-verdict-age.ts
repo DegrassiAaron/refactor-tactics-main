@@ -110,8 +110,11 @@ export interface VerdettoDichiarato {
   paths: string[];
   /** La regex per `git log -G`: le alternative della cella, unite con `|` qui. `null` se assente. */
   pattern: string | null;
-  /** La data DICHIARATA del verdetto, in epoch. Vedi `dataDelVerdetto` per perche' non viene da `blame`. */
-  quando: number;
+  /** La data DICHIARATA del verdetto, in epoch. Vedi `dataDelVerdetto` per perche' non viene da `blame`.
+   *  `null` quando il verdetto dichiara uno `sha` invece di una data. */
+  quando: number | null;
+  /** Il commit su cui il verdetto e' stato MISURATO, se dichiarato: un riferimento esatto, senza fusi. */
+  sha: string | null;
 }
 
 /** Copertura della convenzione, per il messaggio di riepilogo. */
@@ -153,9 +156,9 @@ export function marcatore(cella: string): string | null {
  */
 export function leggiOsserva(
   cella: string,
-): { paths: string[]; pattern: string | null; quando: number } | null {
+): { paths: string[]; pattern: string | null; quando: number | null; sha: string | null } | null {
   const m =
-    /osserva:\s*((?:`[^`]+`\s*,\s*)*`[^`]+`)(?:\s*~\s*((?:`[^`]+`\s*,\s*)*`[^`]+`))?\s*@\s*(\d{4}-\d{2}-\d{2})/
+    /osserva:\s*((?:`[^`]+`\s*,\s*)*`[^`]+`)(?:\s*~\s*((?:`[^`]+`\s*,\s*)*`[^`]+`))?\s*@\s*(\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})(?![0-9A-Za-z])/
       .exec(cella);
   if (!m) {
     return null;
@@ -173,10 +176,18 @@ export function leggiOsserva(
   const alternative = m[2] ? backtickati(m[2]) : [];
   const pattern = alternative.length > 0 ? alternative.join('|') : null;
 
+  // 🔑 Uno sha e' il riferimento esatto: la domanda diventa «che cosa e' cambiato DOPO quel commit?», e
+  // non dipende da fusi ne' da quando nella giornata il codice e' stato toccato (#3799). Un verdetto
+  // della sera su codice cambiato nel pomeriggio, datato a mezzogiorno UTC, risultava piu' vecchio del
+  // codice che aveva giudicato, e restava rosso per sempre.
+  if (!/^\d{4}-/.test(m[3])) {
+    return { paths, pattern, quando: null, sha: m[3] };
+  }
+
   // Mezzogiorno UTC: la data dichiarata è un giorno, non un istante, e confrontarla con un timestamp
   // di commit alla mezzanotte farebbe dipendere l'esito dal fuso di chi ha committato.
   const quando = Date.parse(`${m[3]}T12:00:00Z`) / 1000;
-  return { paths, pattern, quando };
+  return { paths, pattern, quando, sha: null };
 }
 
 /** I verdetti ✅ che dichiarano ciò che osservano. Un 🟡 dichiara già da sé di essere in attesa. */
@@ -195,7 +206,7 @@ export function verdettiDichiarati(doc: string): VerdettoDichiarato[] {
     if (osserva === null) {
       return;
     }
-    fuori.push({ line: i + 1, id: m[1], paths: osserva.paths, pattern: osserva.pattern, quando: osserva.quando });
+    fuori.push({ line: i + 1, id: m[1], paths: osserva.paths, pattern: osserva.pattern, quando: osserva.quando, sha: osserva.sha });
   });
   return fuori;
 }
@@ -264,6 +275,36 @@ export function ultimaModifica(path: string, pattern: string | null): number | n
   }
 }
 
+/** Esiti di `modificheDopo` che NON sono «nessuna modifica»: uno strumento che non puo' rispondere non tace. */
+export const SHA_NON_RISOLTO = 'SHA-NON-RISOLTO';
+export const ERRORE_GIT = 'ERRORE-GIT';
+
+/**
+ * Il primo commit **dopo** `sha` che ha toccato `path` (e le righe di `pattern`), oppure `null` se nessuno.
+ *
+ * 🔴 Mai `null` per aver fallito: uno sha che non si risolve (rebase, clone parziale, refuso) darebbe
+ * `git log` vuoto, cioe' un verde ottenuto perche' lo strumento non poteva rispondere. Si dichiara.
+ */
+export function modificheDopo(sha: string, path: string, pattern: string | null, cwd?: string): string | null {
+  const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], cwd } as const;
+  try {
+    execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], opts);
+  } catch {
+    return SHA_NON_RISOLTO;
+  }
+  const args = ['log', '-1', '--format=%h', `${sha}..HEAD`];
+  if (pattern !== null) {
+    args.push(`-G${pattern}`);
+  }
+  args.push('--', path);
+  try {
+    const out = execFileSync('git', args, opts).trim();
+    return out.length > 0 ? out : null;
+  } catch {
+    return ERRORE_GIT;
+  }
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const { readFileSync } = await import('node:fs');
   const { fileURLToPath } = await import('node:url');
@@ -295,8 +336,19 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   for (const v of dichiarati) {
     const quando = v.quando;
     for (const p of v.paths) {
+      if (v.sha !== null) {
+        const dopo = modificheDopo(v.sha, p, v.pattern);
+        if (dopo !== null) {
+          const perche =
+            dopo === SHA_NON_RISOLTO || dopo === ERRORE_GIT
+              ? `${dopo}: lo sha ${v.sha} non si puo' confrontare`
+              : `commit ${dopo} dopo ${v.sha}`;
+          sospetti.push(`  L${v.line}  ${v.id}  ${perche}  ${p}` + (v.pattern ? `  ~ ${v.pattern}` : ''));
+        }
+        continue;
+      }
       const tocco = ultimaModifica(p, v.pattern);
-      if (tocco !== null && tocco > quando) {
+      if (tocco !== null && quando !== null && tocco > quando) {
         const g = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
         sospetti.push(
           `  L${v.line}  ${v.id}  verdetto ${g(quando)} < ultima modifica ${g(tocco)}  ${p}` +

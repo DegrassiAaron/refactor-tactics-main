@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copertura, leggiOsserva, marcatore, verdettiDichiarati } from './pie-verdict-age.ts';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { copertura, leggiOsserva, marcatore, modificheDopo, verdettiDichiarati } from './pie-verdict-age.ts';
 
 /** Le righe hanno la forma di `test-manuali-pie.md` — cinque colonne, stato in coda — e non una sintassi
  *  inventata: un gate provato su una forma che il documento non usa non dice niente su quel documento. */
@@ -86,4 +90,69 @@ test('una cella senza backtick dopo `osserva:` non produce un percorso vuoto', (
   // Guardia contro il percorso `''`, che `git log -- ''` interpreterebbe come «tutto il repository».
   assert.equal(leggiOsserva('✅ osserva: niente di utile @ 2026-01-01'), null);
   assert.equal(leggiOsserva('✅ osserva: `` @ 2026-01-01'), null);
+});
+
+test('🔑 `@ <sha>` è un riferimento esatto: nessuna data, nessun fuso', () => {
+  const letto = leggiOsserva('✅ osserva: `a/b.cpp` ~ `Foo` @ 5e0e5c67c');
+  assert.ok(letto);
+  assert.equal(letto.sha, '5e0e5c67c');
+  assert.equal(letto.quando, null);
+  assert.equal(letto.pattern, 'Foo');
+
+  // La forma con la data resta com'era, e non dichiara alcuno sha.
+  const vecchio = leggiOsserva('✅ osserva: `a/b.cpp` @ 2026-08-20');
+  assert.ok(vecchio);
+  assert.equal(vecchio.sha, null);
+  assert.equal(giorno(vecchio.quando as number), '2026-08-20');
+
+  // Controllo NEGATIVO: una parola qualunque, o un esadecimale troppo corto, dopo `@` non è uno sha.
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ domani'), null);
+  assert.equal(leggiOsserva('✅ osserva: `a.cpp` @ abc12'), null);
+});
+
+test('un verdetto ✅ con `@ sha` viene raccolto', () => {
+  const doc = riga('PIE-CAM-X', '✅ osserva: `a/b.cpp` @ 5e0e5c67c');
+  const trovati = verdettiDichiarati(doc);
+  assert.equal(trovati.length, 1);
+  assert.equal(trovati[0].sha, '5e0e5c67c');
+});
+
+test('🔴 `modificheDopo` guarda SOLO ciò che viene dopo lo sha, nei due versi', () => {
+  // Il caso di #3799: verdetto della sera, codice modificato nel pomeriggio dello stesso giorno. Con la
+  // data a mezzogiorno UTC il codice del pomeriggio risultava più nuovo del verdetto; con lo sha sta
+  // PRIMA del commit misurato, e il confronto è esatto.
+  const dir = mkdtempSync(join(tmpdir(), 'pie-age-'));
+  try {
+    const git = (data: string, ...a: string[]) =>
+      execFileSync(
+        'git',
+        ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a],
+        { encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: data, GIT_COMMITTER_DATE: data } },
+      ).trim();
+    const pomeriggio = '2026-10-15T15:00:00Z';
+    const sera = '2026-10-15T21:00:00Z';
+
+    git(pomeriggio, 'init', '-q');
+    writeFileSync(join(dir, 'a.cpp'), 'int Foo = 1;\n');
+    git(pomeriggio, 'add', '.');
+    git(pomeriggio, 'commit', '-q', '-m', 'pomeriggio: Foo');
+    git(sera, 'commit', '-q', '--allow-empty', '-m', 'sera: il verdetto è dato qui');
+    const misurato = git(sera, 'rev-parse', 'HEAD');
+
+    // Nessun commit dopo lo sha: il codice del pomeriggio non è "più nuovo" del verdetto.
+    assert.equal(modificheDopo(misurato, 'a.cpp', 'Foo', dir), null);
+
+    // Un commit DOPO che tocca Foo viene trovato; uno che tocca altro no.
+    writeFileSync(join(dir, 'a.cpp'), 'int Foo = 2;\n');
+    git(sera, 'commit', '-q', '-am', 'dopo: Foo cambia');
+    assert.ok(modificheDopo(misurato, 'a.cpp', 'Foo', dir));
+    assert.equal(modificheDopo(misurato, 'a.cpp', 'Bar', dir), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('🔴 uno sha che non si risolve NON è un verde: `modificheDopo` lo dichiara', () => {
+  // Mai un verde ottenuto perché lo strumento non poteva rispondere.
+  assert.equal(modificheDopo('0000000000000000000000000000000000000000', 'a.cpp', null), 'SHA-NON-RISOLTO');
 });
