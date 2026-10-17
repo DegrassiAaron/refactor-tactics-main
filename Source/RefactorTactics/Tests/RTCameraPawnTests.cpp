@@ -1508,6 +1508,70 @@ bool FRTCameraHomeKeyUsesFrameHomeTest::RunTest(const FString&)
 }
 
 /**
+ * Un nemico ISPEZIONATO non entra in `Home`, dal tasto vero.
+ *
+ * 🔴 `Camera.HomeNeverFramesAnotherTeamsUnit` prova la guardia della camera chiamando `FrameHome(Enemy)`: un
+ * ingresso che il tasto non usa. `OnRecenter` passa `GetSelectedUnit()`, e l'ispezione scrive un campo a
+ * parte (`InspectedUnit`) senza toccare la selezione. Questo parte dal gestore del tasto con un nemico
+ * ispezionato, e prova che il pivot non gli si avvicina in nessuno dei due rami che restano: selezione propria
+ * e squadra (#1837, `PIE-CAM-HOME-CONTEXT` caso 3).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraHomeKeyIgnoresInspectedEnemyTest,
+	"RefactorTactics.Camera.HomeKeyIgnoresAnInspectedEnemy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraHomeKeyIgnoresInspectedEnemyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+
+	ARTUnit* Mine = SpawnCameraTestUnit(World, 0, HomeSelectedCell);
+	ARTUnit* Mate = SpawnCameraTestUnit(World, 0, HomeMateCell);
+	ARTUnit* Enemy = SpawnCameraTestUnit(World, 1, HomeEnemyCell);
+	if (!TestNotNull(TEXT("unita' propria"), Mine) || !TestNotNull(TEXT("compagno"), Mate)
+		|| !TestNotNull(TEXT("nemico"), Enemy))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->SetInspectedUnitForTest(Enemy);
+	if (!TestTrue(TEXT("precondizione: il nemico e' ispezionato"), PC->GetInspectedUnit() == Enemy)
+		|| !TestTrue(TEXT("precondizione: nessuna selezione"), PC->GetSelectedUnit() == nullptr))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	const FVector EnemyCell = HomeTestCellWorld(Map, HomeEnemyCell);
+
+	// Senza selezione: la squadra. Il nemico ispezionato non sposta il punto medio.
+	PC->RecenterForTest();
+	TestTrue(TEXT("(a) senza selezione Home va sul punto medio della squadra"),
+		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellsCentroid(Map, { HomeSelectedCell, HomeMateCell })) < 1.0);
+	TestTrue(TEXT("(a) e non sul nemico ispezionato"), FVector::Dist2D(Cam->GetCameraPivot(), EnemyCell) > 1.0);
+
+	// Con una selezione propria: quella. L'ispezione non la sostituisce.
+	PC->SelectUnit(Mine, /*bRecordAsPlayerInput=*/ false);
+	PC->SetInspectedUnitForTest(Enemy);
+	PC->RecenterForTest();
+	TestTrue(TEXT("(b) con la selezione Home va sulla selezione, non sull'ispezionato"),
+		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) < 1.0);
+	TestTrue(TEXT("(b) e non sul nemico ispezionato"), FVector::Dist2D(Cam->GetCameraPivot(), EnemyCell) > 1.0);
+	TestTrue(TEXT("(b) l'ispezione non ha cambiato la selezione"), PC->GetSelectedUnit() == Mine);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * Senza `ARTPlayerState`, `Home` non indovina la squadra: va sul centro mappa.
  *
  * ⛔ `TeamIdOf` ripiega sulla 0 quando lo stato manca. Per `FrameOwnTeam` all'avvio e' una comodita' da demo;
