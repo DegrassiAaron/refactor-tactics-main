@@ -6140,7 +6140,7 @@ sessions:
     unblocked_by: []
     shares_setup_with: []
     verifies: [PIE-PACING-1, PIE-V01-CHARGECLICK]
-    issues: [3667, 3400, 3736, 3793]
+    issues: [3667, 3400, 3736, 3793, 3788]
     done_when: >-
       la cattura di #3667 e le due voci hanno un verdetto dell'autore, ciascuno nella sua issue
     notes: |
@@ -6168,6 +6168,12 @@ sessions:
       - ⚠️ `rt.Debug.RecordPacing` è un comando, non una variabile: passato con `-dpcvars` fa crashare l'Editor
         all'avvio. Si digita in console dopo il Play.
       - ⚠️ Fra due passi l'Editor ha ricevuto input non mandati da chi pilotava: il turno è stato rifatto da capo.
+
+      🟡 **Terza tornata, il 2026-10-18, dal clone principale** su `main` `f11088d6f`, per [#3788](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3788) (D-411): il bottone dell'`HOLD` dice «Lascia passare Ivrin», piu' lungo di «Non attaccare». Tavola `V6` (`docs/technical/evidence/u92/V6-hold-lascia-passare-2026-10-18.jpg`).
+      - ✅ Il testo sta nel bottone: una riga, con margine a destra e sotto, a 2,3 s e a 0,6 s. `Visual.Reaction.OverwatchWindow` `PASS`.
+      - ⚠️ **Il primo giro era sul binario sbagliato**: la DLL dell'Editor (15/10 20:34) precedeva `144f01e46` (20:36), e la finestra diceva ancora «Non attaccare». Rifatto dopo `Build.bat`; `-LiveCoding=false` non ricompila da solo.
+      - ⛔ **Non coperto dal banco**: «Lascia passare Ivrin e Branth» e «Lascia passare tutti» (il banco ha un solo bersaglio). Il caso piu' lungo non e' stato guardato.
+      - Il giudizio finale e' dell'autore, sulla tavola `V6`.
 
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
 
