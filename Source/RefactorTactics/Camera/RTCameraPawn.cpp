@@ -412,13 +412,26 @@ void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 	const FVector Right   = FRotator(0.f, CameraYaw, 0.f).RotateVector(FVector::RightVector);
 	// Lo scorrimento scala con la DISTANZA: a vista larga la stessa quantita' di input copre piu' terreno.
 	// Senza, allontanandosi la mappa scorre a passi che sullo schermo diventano impercettibili — e' il
-	// motivo per cui `PanSpeed` da solo non basta. Normalizzato su `DefaultArmLength`, cosi' alla distanza
+	// motivo per cui la velocita' da sola non basta. Normalizzato su `DefaultArmLength`, cosi' alla distanza
 	// di default il comportamento e' quello storico.
 	const float DistanceScale = GetPanDistanceScale();
-	const FVector Delta = (Forward * Axis.Y + Right * Axis.X) * PanSpeed * DistanceScale;
+	const FVector Delta = (Forward * Axis.Y + Right * Axis.X) * PanUnitDistance * DistanceScale;
 	// Dal **pivot**, non dalla posizione: con un peek attivo, sommare alla posizione farebbe entrare
 	// l'offset temporaneo nel movimento permanente — e lo scorrimento diventerebbe piu' veloce da un lato.
 	SetCameraPivot(CameraPivot + Delta);
+}
+
+void ARTCameraPawn::AddPlanarVelocity(const FVector2D& Axis, float DeltaTime)
+{
+	// #3792: l'ingresso A VELOCITA' — `WASD` e edge pan. La distanza dipende dal tempo e non dal numero di
+	// fotogrammi: a 30, 60 e 144 fps lo stesso input tenuto per lo stesso tempo percorre lo stesso spazio.
+	// Passa da `AddPlanarMovement`, quindi relativita' allo yaw, scala dello zoom, somma dal pivot e limiti del
+	// viewport restano una pipeline sola. Un `DeltaTime` non positivo non muove (pausa, primo fotogramma).
+	if (DeltaTime <= 0.f)
+	{
+		return;
+	}
+	AddPlanarMovement(Axis * (PanSpeedPerSecond * DeltaTime / PanUnitDistance));
 }
 
 FVector2D ARTCameraPawn::ComputeEdgePanAxis(const FVector2D& Cursor, const FVector2D& ViewportSize, float BandPixels)
@@ -454,7 +467,7 @@ FVector2D ARTCameraPawn::ComputeEdgePanAxis(const FVector2D& Cursor, const FVect
 	return FVector2D(Right - Left, Top - Bottom);
 }
 
-bool ARTCameraPawn::ApplyEdgePan(const FVector2D& Axis)
+bool ARTCameraPawn::ApplyEdgePan(const FVector2D& Axis, float DeltaTime)
 {
 	if (!bEdgePanEnabled || Axis.IsNearlyZero())
 	{
@@ -464,7 +477,7 @@ bool ARTCameraPawn::ApplyEdgePan(const FVector2D& Axis)
 	// ⛔ Nessuna seconda formula di velocita': e' il difetto che #1834 esiste per prevenire. L'edge pan e' un
 	// ingresso di `AddPlanarMovement`, come `WASD`.
 	const FVector Before = CameraPivot;
-	AddPlanarMovement(Axis);
+	AddPlanarVelocity(Axis, DeltaTime);
 	// Contro il limite del viewport il lavoro c'e' e il movimento no: la risposta e' sul movimento.
 	return !CameraPivot.Equals(Before);
 }
