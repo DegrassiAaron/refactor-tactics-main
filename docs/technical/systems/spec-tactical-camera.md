@@ -190,9 +190,14 @@ quanto più è vicino al bordo. **Non è una seconda pipeline**: `ARTCameraPawn:
   che non cambia.
 - ⚠️ **Che `PlayerTick` lo chiami davvero, e il controllo del focus, non si provano headless**: senza viewport
   `GetMousePosition` risponde falso. Li copre la voce `PIE-CAM-EDGE-PAN`.
-- ⚠️ **La velocità è per fotogramma, come quella di `WASD`**, e ne eredita la dipendenza dal frame rate:
-  `AddPlanarMovement` non usa `DeltaTime`. A 144 fps l'edge pan è più veloce che a 60, esattamente come `WASD`.
-  La correzione sta in `AddPlanarMovement`, per tutti e due gli ingressi, e non è di questa issue.
+- ✅ **La velocità è al secondo, e non dipende dal frame rate** ([#3792](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3792)).
+  `WASD` e edge pan passano da `AddPlanarVelocity(Axis, DeltaTime)`: `asse × PanSpeedPerSecond × DeltaTime`, con
+  `PanSpeedPerSecond` in unità mondo al secondo a distanza di default (1500, cioè le 25 unità per fotogramma di
+  prima a 60 fps). `AddPlanarMovement` resta **a spostamento** e non prende il tempo: lo usa il pan a trascinamento
+  (`Ctrl`+`MMB`), pixel trascinati → distanza, e dividerlo per `DeltaTime` lo romperebbe. Provato da
+  `Camera.PanCoversTheSameDistanceAtAnyFrameRate` (30, 60 e 144 fps, edge pan e `WASD` allo stesso profilo) e
+  `Camera.PanAtSixtyFpsMovesAsItDidPerFrame`. ⏳ La sensazione a schermo a frame rate diversi non è stata vista: è di
+  `PIE-CAM-EDGE-PAN`. ⌫ *Fino alla correzione questa riga diceva che la velocità era per fotogramma.*
 - ⚠️ **La schermata finale non lo ferma**: `IsGameplayInputBlocked()` vale per la pausa e le impostazioni, mentre il
   risultato di fine partita è una schermata e non un modale. Se si decide che deve bloccarlo, si corregge lì, e
   l'edge pan segue.
