@@ -202,9 +202,9 @@ void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 	OutBlockerCells.Reset();
 	for (const FRTPlayerEventLineView& Line : Feed)
 	{
-		// ⛔ **`bHasBlocker` e non `BlockerCell.IsValid()`**, ed e' l'unica cosa che questa funzione puo'
-		// sbagliare. `IsValid()` verifica l'invariante cubica `q + r + z == 0`, VERA per la cella di default
-		// `(0,0,0)`: ogni riga senza ostacolo — il caso ordinario — marcherebbe l'origine dell'arena, e il
+		// ⛔ **`bHasBlocker` e non la cella**, ed e' l'unica cosa che questa funzione puo' sbagliare. Nessuna
+		// proprieta' di `BlockerCell` distingue «assente» da «presente»: la cella di default `(0,0,0)` e' una
+		// cella vera, quindi ogni riga senza ostacolo — il caso ordinario — marcherebbe l'origine dell'arena, e il
 		// giocatore vedrebbe un pannello in mezzo al campo dove non c'e' niente. La sentinella e' il `Layer`
 		// a `INDEX_NONE`, che il `bool` della vista ha gia' letto una volta sola.
 		if (Line.bHasBlocker)
@@ -253,9 +253,8 @@ FRTRefusedShotLine ARTHUD::ComputeRefusedShotLine(
 		return Out;
 	}
 
-	// ⚠️ **`IsClear()` e non `BlockedAt.IsValid()`**, ed e' la stessa trappola che `ComputeBlockerMarks`
-	// documenta poche righe piu' su: `IsValid()` verifica l'invariante cubica, VERA per la cella di default
-	// `(0,0,0)`. Un esito senza blocco marcherebbe l'origine dell'arena.
+	// ⚠️ **`IsClear()` e non la cella `BlockedAt`**, ed e' la stessa trappola che `ComputeBlockerMarks`
+	// documenta poche righe piu' su: la cella di default `(0,0,0)` e' una cella vera. Un esito senza blocco marcherebbe l'origine dell'arena.
 	if (Los.IsClear())
 	{
 		return Out;
@@ -1833,7 +1832,7 @@ FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoute(const FRTIntentView& Vie
 {
 	FRTPlannedRoutePresentation Out;
 
-	// ⛔ **Non `PlannedCell.IsValid()`**: la domanda e' «questo intento e' un movimento normale?», e la
+	// ⛔ **Non la presenza di `PlannedCell`**: la domanda e' «questo intento e' un movimento normale?», e la
 	// risposta la da' `bMoving`, che il modello deriva da `HasPlannedNormalMove()` — la regola intera.
 	// Letta come presenza del dato, la destinazione coinciderebbe con la cella e il rettangolo finirebbe
 	// sotto l'unita' ferma.
@@ -1873,7 +1872,7 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 {
 	FRTDashPreview Out;
 
-	// ⛔ **Non `DashCell.IsValid()`**: quella cella resta valorizzata dopo uno scatto eseguito, perche'
+	// ⛔ **Non la presenza di `DashCell`**: quella cella resta valorizzata dopo uno scatto eseguito, perche'
 	// il turn manager consuma l'ABILITA' e non la destinazione. Leggerla come presenza disegnerebbe un
 	// rettangolo verde sulla meta dello scatto precedente.
 	Out.bShow = View.bDashing;

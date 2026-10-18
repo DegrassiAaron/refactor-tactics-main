@@ -192,8 +192,8 @@ FRTDevCellReport URTDevToolset::DumpCellOnMap(const URTHexMapAsset* Map, const F
 
 	Report.GraphRevision = Map->Revision;
 
-	// ⚠️ L'esistenza la decide la MAPPA, non la cella. `FRTCellId::IsValid()` verifica la coerenza cubica
-	// q+r+s==0, che e' vera per costruzione: usarlo qui risponderebbe «esiste» a qualunque coordinata.
+	// ⚠️ L'esistenza la decide la MAPPA, non la cella. `FRTCellId::IsValid()` e' stato tolto (D-530):
+	// verificava q+r+s==0, vero per costruzione, e avrebbe risposto «esiste» a qualunque coordinata.
 	const FRTHexCellData* Data = Map->FindCell(Cell);
 	if (!Data)
 	{

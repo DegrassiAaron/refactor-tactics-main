@@ -1022,8 +1022,8 @@ public:
 	 * gemelli di `NumPreviewHitCells()` e `IsPreviewHitCell()` e hanno lo stesso contratto: leggono lo stato
 	 * REALE che il disegno consuma, non un contatore parallelo che passerebbe anche sbagliando.
 	 *
-	 * ⛔ **Si interroga `HasPreviewSightBlock()`, non `GetPreviewSightBlockedAt().IsValid()`**: `(0,0,0)`
-	 * soddisfa l'invariante cubica ed e' indistinguibile da «nessun blocco». E' la stessa trappola che il
+	 * ⛔ **Si interroga `HasPreviewSightBlock()`, non l'id del blocco**: `(0,0,0)`
+	 * e' una cella vera ed e' indistinguibile da «nessun blocco». E' la stessa trappola che il
 	 * campo `bHasPreviewSightBlock` documenta per il disegno, e un test che leggesse l'id marcherebbe
 	 * l'origine dell'arena in ogni mondo in cui non c'e' alcun blocco.
 	 */
@@ -1292,7 +1292,7 @@ protected:
 	 * ∴ i due stati sono **mutuamente esclusivi per costruzione**: o il piano esiste e si vede la mira, o
 	 * non esiste e si vede dove la linea si e' fermata. Non si sovrappongono mai.
 	 *
-	 * ⚠️ **`bHasPreviewSightBlock` e non `PreviewSightBlockedAt.IsValid()`**: una cella `(0,0,0)` e' valida
+	 * ⚠️ **`bHasPreviewSightBlock` e non l'id `PreviewSightBlockedAt`**: una cella `(0,0,0)` e' vera
 	 * e sarebbe indistinguibile da «nessun blocco». E' la stessa ragione per cui `ComputeBlockerMarks` legge
 	 * `bHasBlocker` invece dell'id (`#2697`).
 	 */
