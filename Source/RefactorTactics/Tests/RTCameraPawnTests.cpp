@@ -3197,7 +3197,7 @@ bool FRTCameraArmGateOrderTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 	RTPreparaVistaD498(Cam);
 	Cam->SetViewportMetricsForTest(16.f / 9.f, 90.f);
-	Cam->SetBoundsMarginForTest(40.f);
+	Cam->SetBoundsMarginForTest(11.f);
 
 	// Tattici appena sotto la soglia d'ingresso, col pivot al bordo lungo lo sguardo (+X a yaw 0).
 	RTBraccioA(Cam, 2300.f);
@@ -3829,6 +3829,53 @@ bool FRTCameraPivotPolygonTest::RunTest(const FString&)
 			}
 		}
 		TestTrue(TEXT("anti-vacuita': anche la zona col quadro contiene punti"), DentroConQuadro > 10);
+	}
+
+	// 🔴 Braccio piccolo (misura in PIE del 2026-10-18, #3798; review di #3812). Il margine di 3 celle e' assoluto, il
+	// quadro no: senza tetto il pivot si fermava oltre l'arrivo del quadro, scena vuota agli spigoli a braccio 450. Il
+	// quadro a terra e' un TRAPEZIO (dietro il pivot arriva molto meno che davanti): il tetto guarda quanto arriva verso
+	// l'interno, `Reach`, e il pivot non sta a piu' di `MaxPivotOutsideSupport * Reach` oltre ogni lato.
+	{
+		const FVector2D Small = ARTCameraPawn::ComputeFrameHalfExtents(450.f, -40.f, 90.f, 1.675f);
+		const TArray<FVector2D> Foot = ARTCameraPawn::ComputeFrameFootprint(450.f, -40.f, 90.f, 1.675f);
+		if (!TestEqual(TEXT("l'impronta ha quattro angoli"), Foot.Num(), 4)) { return false; }
+		// Il trapezio e' asimmetrico: davanti arriva molto piu' che dietro (circa 1200 contro circa 240).
+		TestTrue(TEXT("impronta: davanti molto piu' che dietro"), Foot[0].X > 3.0 * (-Foot[2].X) && -Foot[2].X > 100.0);
+		TestEqual(TEXT("senza quadro l'impronta e' vuota"), ARTCameraPawn::ComputeFrameFootprint(450.f, -40.f, 90.f, 0.f).Num(), 0);
+
+		for (const float Yaw : {0.f, 90.f, 37.f})
+		{
+			const FBox2D Rect = ARTCameraPawn::ComputeEffectivePivotBounds(Box, 450.f, -40.f, Yaw, 90.f, 1.675f, 0.35f);
+			const TArray<FVector2D> Free = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, Hull, Margin, Small, Yaw, 0.35f);
+			const TArray<FVector2D> Zone = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, Hull, Margin, Small, Yaw, 0.35f, Foot);
+			if (!TestTrue(TEXT("la zona a braccio piccolo esiste"), Zone.Num() >= 3)) { continue; }
+			const double YawRad = FMath::DegreesToRadians(static_cast<double>(Yaw));
+			const FVector2D Fwd(FMath::Cos(YawRad), FMath::Sin(YawRad));
+			const FVector2D Rgt(-FMath::Sin(YawRad), FMath::Cos(YawRad));
+			double WorstExcess = -1.0e9;
+			for (int32 I = 0; I < Hull.Num(); ++I)
+			{
+				const FVector2D& A = Hull[I];
+				const FVector2D Edge = (Hull[(I + 1) % Hull.Num()] - A).GetSafeNormal();
+				const FVector2D Normal(Edge.Y, -Edge.X);
+				const FVector2D In(-Normal.X, -Normal.Y);
+				const FVector2D Local(FVector2D::DotProduct(In, Fwd), FVector2D::DotProduct(In, Rgt));
+				double Reach = 0.0;
+				for (const FVector2D& C : Foot) { Reach = FMath::Max(Reach, FVector2D::DotProduct(Local, C)); }
+				for (const FVector2D& V : Zone)
+				{
+					const double Out = FVector2D::DotProduct(Normal, V - A);
+					TestTrue(*FString::Printf(TEXT("yaw %.0f: oltre il lato %d non piu' di meta' dell'arrivo del quadro"), Yaw, I),
+						Out <= ARTCameraPawn::MaxPivotOutsideSupport * Reach + 0.75);
+				}
+				// Anti-vacuita': senza tetto la zona oltrepassa il limite di una quantita' misurabile su almeno un lato.
+				for (const FVector2D& V : Free)
+				{
+					WorstExcess = FMath::Max(WorstExcess, FVector2D::DotProduct(Normal, V - A) - ARTCameraPawn::MaxPivotOutsideSupport * Reach);
+				}
+			}
+			TestTrue(*FString::Printf(TEXT("yaw %.0f: anti-vacuita': senza tetto la zona sforava (%.0f)"), Yaw, WorstExcess), WorstExcess > 25.0);
+		}
 	}
 
 	// 🔴 Il quadro piu' grande dell'area (mappa piccola, zoom al massimo): il rettangolo collassa al centro e la
