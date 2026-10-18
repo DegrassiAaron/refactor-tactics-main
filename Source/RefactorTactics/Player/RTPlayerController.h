@@ -1131,6 +1131,20 @@ public:
 	}
 
 	/**
+	 * [D-516] / [D-528] La carica armata di `Selected` PUNTA `Other`: il click su di lui pianifica la carica, e l'hover lo annuncia.
+	 *
+	 * 🔑 **E' la domanda che click e hover si fanno insieme** ([D-128]: *«l'hover annuncia cio' che il click esegue»*), quindi ha
+	 * una sede sola. Vero se: l'azione ARMATA e' una carica; e' pronta, ha una portata e il verso non e' dichiarato (in ricarica,
+	 * sotto `Root` o col movimento chiuso il click finirebbe in un'uscita anticipata senza ispezionare niente); `Other` e' di
+	 * un'altra squadra — un'alleata, anche di un altro gruppo, continua a ispezionarsi.
+	 *
+	 * ⚠️ **Non vero per il nemico su cui la carica e' GIA' pianificata** ([D-528] (3)): un secondo click lo ispeziona. Una carica non
+	 * ha un verso da scegliere, perche' l'ultimo passo lo detta ([D-524] (4)), e il selettore che il secondo click apriva sulla
+	 * cella del nemico non serviva a niente.
+	 */
+	bool ArmedChargeTargets(const class ARTUnit* Selected, const class ARTUnit* Other) const;
+
+	/**
 	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).
 	 *
 	 * Stessa disciplina di `HandleClickOnUnitForTest`: cio' che va verificato e' la **decisione** — il

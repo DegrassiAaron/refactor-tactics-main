@@ -4435,4 +4435,66 @@ bool FRTPlayerChargeUnknownEnemyTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-528] (`#3769`) — **un secondo click sullo stesso nemico, con la carica gia' pianificata su di lui, lo ispeziona**.
+ *
+ * Fino a [D-528] il secondo click ripeteva il primo: la carica armata resta armata, il click sul nemico risponde `Confirm`
+ * e arriva alla cella del nemico, che per una carica e' la cella finale — e li' si apre il selettore del verso. Ma una carica
+ * non ha un verso da scegliere: l'ultimo passo lo detta ([D-524] (4)), e il giocatore voleva guardare il nemico che aveva
+ * appena puntato.
+ *
+ * Tre cose, perche' la regola e' stretta e si rompe da due parti:
+ * - il secondo click sullo stesso nemico lo ispeziona, non apre il selettore e non tocca il piano;
+ * - un click su UN ALTRO nemico, con la carica gia' pianificata sul primo, continua a RIPIANIFICARE: non e' un secondo click;
+ * - il primo click, prima che il piano esista, pianifica (lo prova gia' `ChargeIsPlannedByClickingTheEnemy`, qui e' il controllo).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeSecondClickTest,
+	"RefactorTactics.PlayerInput.SecondClickOnThePlannedChargeTargetInspectsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Primo = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 0));
+	ARTUnit* Secondo = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 3, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!MapActor || !TM || !Charger || !Primo || !Secondo || !PC) { DestroyInteractionWorld(World); return false; }
+	TM->RefreshTeamKnowledgeNow();
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	if (!TestTrue(TEXT("premessa: la carica arriva a tutti e due"),
+		ChargeIdx != INDEX_NONE && Charger->EffectiveDashRangeOf(ChargeIdx) >= 3)) { DestroyInteractionWorld(World); return false; }
+
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+
+	// Il primo click pianifica.
+	PC->DispatchUnitClickForTest(Primo, Charger);
+	TestTrue(TEXT("controllo: il primo click pianifica la carica sul primo"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
+	TestTrue(TEXT("controllo: e non lo ispeziona"), PC->GetInspectedUnit() != Primo);
+	TestTrue(TEXT("controllo: la carica resta armata"), Charger->SelectedAbilityIndex == ChargeIdx);
+
+	// Il secondo click sullo stesso nemico lo ispeziona.
+	TestTrue(TEXT("il secondo click e' consumato"), PC->DispatchUnitClickForTest(Primo, Charger));
+	TestTrue(TEXT("e ispeziona il nemico"), PC->GetInspectedUnit() == Primo);
+	TestFalse(TEXT("senza aprire il selettore del verso"), PC->IsDeclaringFacing());
+	TestTrue(TEXT("e il contesto non e' il verso"), PC->GetPointerContext() != ERTPointerContext::Facing);
+	TestTrue(TEXT("il piano non cambia"), Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
+	TestTrue(TEXT("e la carica resta armata"), Charger->SelectedAbilityIndex == ChargeIdx);
+
+	// Un click su un ALTRO nemico ripianifica: non e' un secondo click.
+	PC->DispatchUnitClickForTest(Secondo, Charger);
+	TestTrue(TEXT("un altro nemico: la carica si ripianifica su di lui"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Secondo->Cell);
+	TestTrue(TEXT("e non lo ispeziona"), PC->GetInspectedUnit() == Primo);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

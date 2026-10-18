@@ -2278,6 +2278,31 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	}
 }
 
+bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTUnit* Other) const
+{
+	if (!Selected || !Other)
+	{
+		return false;
+	}
+	const int32 IndiceArmato = Selected->SelectedAbilityIndex;
+	const URTActionData* Armata = Selected->GetAbility(IndiceArmato);
+	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la pianificazione
+	// usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un altro gruppo continua a ispezionarsi.
+	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`) o col
+	// movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di `HandleClickOnCell` senza
+	// ispezionare niente, cioe' un click perso dove prima si ispezionava.
+	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge
+		|| !Selected->CanUseAbility(IndiceArmato)
+		|| Selected->EffectiveDashRangeOf(IndiceArmato) <= 0
+		|| Selected->bDeclaresPlannedFacing
+		|| Other->TeamId == Selected->TeamId)
+	{
+		return false;
+	}
+	// [D-528] (3): il nemico su cui la carica e' gia' pianificata non e' piu' un bersaglio da puntare, e' uno da guardare.
+	return !(Selected->PlannedDashMoves() && Selected->PlannedDashIsCharge() && Selected->PlannedDashCell == Other->Cell);
+}
+
 bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* SelectedUnit)
 {
 	// 🔑 **La riga di matrice la risponde una funzione PURA**, `URTPointerLibrary::ResolveOutcome`: il
@@ -2298,19 +2323,8 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
 		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
 		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
-	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la
-	// pianificazione usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un
-	// altro gruppo continua a ispezionarsi.
-	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`)
-	// o col movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di
-	// `HandleClickOnCell` senza ispezionare niente, cioe' un click perso dove prima si ispezionava.
-	const int32 IndiceArmato = SelectedUnit ? SelectedUnit->SelectedAbilityIndex : INDEX_NONE;
-	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(IndiceArmato) : nullptr;
-	const bool bArmedChargeTargetsClicked = Armata && Armata->Def.MovementStyle == ERTMovementStyle::LinearCharge
-		&& SelectedUnit->CanUseAbility(IndiceArmato)
-		&& SelectedUnit->EffectiveDashRangeOf(IndiceArmato) > 0
-		&& !SelectedUnit->bDeclaresPlannedFacing
-		&& ClickedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId;
+	// [D-516] / [D-528]: «questa carica punta quel nemico?» ha una sede sola, `ArmedChargeTargets`, che l'hover legge uguale.
+	const bool bArmedChargeTargetsClicked = ArmedChargeTargets(SelectedUnit, ClickedUnit);
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
 		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
 		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver(), bArmedChargeTargetsClicked);
