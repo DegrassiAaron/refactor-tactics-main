@@ -1145,6 +1145,24 @@ public:
 	bool ArmedChargeTargets(const class ARTUnit* Selected, const class ARTUnit* Other) const;
 
 	/**
+	 * [D-528] (`#3769`) Il nemico NOTO sotto il cursore che la carica armata punta, o nullo. Per questo nemico l'hover non annuncia
+	 * un'ispezione — non mostra il suo arco —, perche' il click non lo ispezionera': pianifichera' la carica, o la rifiutera'.
+	 *
+	 * Economica (nessuno snapshot): la chiama `UpdateEnemyArcFocus` a ogni fotogramma. Un nemico che la squadra non conosce non
+	 * e' mai qui: il velo non ha segni ([D-225]).
+	 */
+	const class ARTUnit* HoveredArmedChargeTarget() const;
+
+	/**
+	 * [D-528] (`#3769`) Cio' che il click sul nemico sotto il cursore pianificherebbe, come vista dell'intento: l'hover disegna
+	 * quella, con la stessa `ARTHUD::ComposeDashPreview` del piano. Falso se non c'e' un nemico puntato dalla carica armata, o se
+	 * il click rifiuterebbe la carica (allora non c'e' niente da annunciare).
+	 *
+	 * 🔑 **Legge il verdetto del click** (`URTMovementActionLibrary::JudgeLinearDashClick`), non ne rifa uno: [D-128].
+	 */
+	bool BuildChargeHoverView(struct FRTIntentView& OutView) const;
+
+	/**
 	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).
 	 *
 	 * Stessa disciplina di `HandleClickOnUnitForTest`: cio' che va verificato e' la **decisione** — il

@@ -1196,4 +1196,97 @@ bool FRTChargeRunTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-516] / [D-528] — **il verdetto del click su una cella con una mobilita' lineare armata ha una sede sola**, e la leggono il
+ * click e l'hover. Nove casi, perche' la regola ha piu' di una porta d'ingresso e ognuna va vista aprirsi o chiudersi:
+ * - la retta arriva sulla cella: si pianifica, con o senza un nemico sopra;
+ * - un nemico entro la portata ferma la carica: si pianifica, e si legge se manca il bersaglio;
+ * - un bersaglio OLTRE la portata si pianifica solo se e' un nemico noto con la retta libera dal terreno — sia che la corsa
+ *   arrivi in fondo, sia che un altro nemico noto la fermi prima ([D-528]);
+ * - una cella vuota oltre la portata, o una retta chiusa, si rifiuta;
+ * - uno scatto che non e' una carica non ha corsa oltre la portata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLinearDashVerdictTest,
+	"RefactorTactics.Actions.Charge.TheClickVerdictIsOneFunctionForClickAndHover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLinearDashVerdictTest::RunTest(const FString&)
+{
+	const FRTCellId Da(0, 0);
+	TSet<int32> Ostili;
+	Ostili.Add(4);
+	Ostili.Add(5);
+	const TMap<FRTCellId, int32> Nessuno;
+
+	const auto Giudica = [&](URTHexMapAsset* Map, const FRTCellId& Cella, const TMap<FRTCellId, int32>& Occupazione,
+		ERTMovementStyle Stile = ERTMovementStyle::LinearCharge)
+	{
+		return URTMovementActionLibrary::JudgeLinearDashClick(Map, Da, Cella, /*DashRange=*/ 3, Stile, Occupazione, Ostili);
+	};
+	URTHexMapAsset* Libera = MakeMoveActionMap();
+
+	// (1) La retta arriva su una cella vuota in portata.
+	const FRTLinearDashVerdict Arriva = Giudica(Libera, FRTCellId(3, 0), Nessuno);
+	TestTrue(TEXT("cella vuota in portata: si pianifica"), Arriva.bAccepted);
+	TestFalse(TEXT("senza urto"), Arriva.bImpact || Arriva.bBeyondRange);
+	TestFalse(TEXT("e senza un nemico sopra"), Arriva.bEnemyOnTarget);
+	TestEqual(TEXT("la corsa e' intera"), Arriva.Run.RunCells, 3);
+
+	// (2) Un nemico in portata, il primo sulla retta: urto sul bersaglio.
+	TMap<FRTCellId, int32> SoloB;
+	SoloB.Add(FRTCellId(3, 0), 4);
+	const FRTLinearDashVerdict Urto = Giudica(Libera, FRTCellId(3, 0), SoloB);
+	TestTrue(TEXT("nemico in portata: si pianifica per l'urto"), Urto.bAccepted && Urto.bImpact && !Urto.bBeyondRange);
+	TestTrue(TEXT("c'e' un nemico sulla cella"), Urto.bEnemyOnTarget);
+	TestTrue(TEXT("e non manca il bersaglio"), Urto.Run.RunCells == 2 && !Urto.Run.bMissesTarget);
+
+	// (3) Un altro nemico in mezzo, bersaglio in portata.
+	TMap<FRTCellId, int32> AEB;
+	AEB.Add(FRTCellId(2, 0), 4);
+	AEB.Add(FRTCellId(3, 0), 5);
+	const FRTLinearDashVerdict InMezzo = Giudica(Libera, FRTCellId(3, 0), AEB);
+	TestTrue(TEXT("un altro in mezzo, in portata: si pianifica"), InMezzo.bAccepted && InMezzo.bImpact);
+	TestTrue(TEXT("e manca il bersaglio, davanti ad A"), InMezzo.Run.RunCells == 1 && InMezzo.Run.bMissesTarget);
+
+	// (4) Oltre la portata, nemico noto, via libera: la corsa arriva in fondo.
+	TMap<FRTCellId, int32> Lontano;
+	Lontano.Add(FRTCellId(5, 0), 4);
+	const FRTLinearDashVerdict Oltre = Giudica(Libera, FRTCellId(5, 0), Lontano);
+	TestTrue(TEXT("oltre la portata, nemico noto: si pianifica"), Oltre.bAccepted && Oltre.bBeyondRange && !Oltre.bImpact);
+	TestTrue(TEXT("corre per tutta la portata e manca"), Oltre.Run.RunCells == 3 && Oltre.Run.bMissesTarget);
+
+	// (5) Oltre la portata, cella vuota: rifiutata.
+	const FRTLinearDashVerdict Vuota = Giudica(Libera, FRTCellId(5, 0), Nessuno);
+	TestFalse(TEXT("oltre la portata, cella vuota: rifiutata"), Vuota.bAccepted);
+	TestFalse(TEXT("perche' non c'e' un nemico"), Vuota.bEnemyOnTarget);
+
+	// (6) [D-528] Oltre la portata, nemico noto, ma un altro nemico noto entro la portata: si pianifica.
+	TMap<FRTCellId, int32> AELontano;
+	AELontano.Add(FRTCellId(2, 0), 4);
+	AELontano.Add(FRTCellId(5, 0), 5);
+	const FRTLinearDashVerdict OltreInMezzo = Giudica(Libera, FRTCellId(5, 0), AELontano);
+	TestTrue(TEXT("oltre la portata con A in mezzo: si pianifica ([D-528])"), OltreInMezzo.bAccepted && OltreInMezzo.bBeyondRange);
+	TestTrue(TEXT("urta A e manca il bersaglio"),
+		OltreInMezzo.Run.RunCells == 1 && OltreInMezzo.Run.bHasImpact && OltreInMezzo.Run.ImpactCell == FRTCellId(2, 0)
+		&& OltreInMezzo.Run.bMissesTarget);
+
+	// (7) Oltre la portata, A in mezzo, ma la cella del bersaglio e' vuota: rifiutata.
+	TMap<FRTCellId, int32> SoloA;
+	SoloA.Add(FRTCellId(2, 0), 4);
+	TestFalse(TEXT("oltre la portata, A in mezzo e cella vuota: rifiutata"),
+		Giudica(Libera, FRTCellId(5, 0), SoloA).bAccepted);
+
+	// (8) Oltre la portata, nemico noto, ma la retta fino a lui e' chiusa dal terreno: rifiutata.
+	URTHexMapAsset* Chiusa = MakeMoveActionMap();
+	MakeRough(Chiusa, FRTCellId(4, 0));
+	TestFalse(TEXT("oltre la portata con la retta chiusa: rifiutata"), Giudica(Chiusa, FRTCellId(5, 0), Lontano).bAccepted);
+	TestFalse(TEXT("anche con A in mezzo"), Giudica(Chiusa, FRTCellId(5, 0), AELontano).bAccepted);
+
+	// (9) Uno scatto che non e' una carica non ha corsa oltre la portata.
+	TestFalse(TEXT("lo scatto oltre la portata resta rifiutato"),
+		Giudica(Libera, FRTCellId(5, 0), Lontano, ERTMovementStyle::LinearDash).bAccepted);
+	TestTrue(TEXT("e in portata, su una cella vuota, si pianifica"),
+		Giudica(Libera, FRTCellId(3, 0), Nessuno, ERTMovementStyle::LinearDash).bAccepted);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

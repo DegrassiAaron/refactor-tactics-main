@@ -37,6 +37,8 @@
 #include "Player/RTPointerInteraction.h" // ERTPointerContext
 #include "Core/RTGameplayTags.h"        // TAG_Status_Root: una carica senza portata non ruba il click
 #include "Turn/RTPlanPreview.h"         // [D-516]: la timeline del piano posata sulla mappa
+#include "Perception/RTEnemyArcLibrary.h"   // [D-528]: l'arco di un nemico sotto il cursore, che la carica armata non mostra
+#include "Perception/RTVisibilityBorder.h"  // [D-528]: i lati esposti con cui si costruisce un arco di prova
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -4492,6 +4494,215 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("un altro nemico: la carica si ripianifica su di lui"),
 		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Secondo->Cell);
 	TestTrue(TEXT("e non lo ispeziona"), PC->GetInspectedUnit() == Primo);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-528] (`#3769`) / [D-128] — **l'hover di un nemico con la carica armata annuncia cio' che il click pianifichera'**, e per
+ * questo l'hover e il click leggono la STESSA funzione.
+ *
+ * Fino a [D-528] l'hover mostrava l'annotazione pubblica di un'ispezione (l'arco del nemico) mentre il click pianificava una carica.
+ * Ora, sul nemico che la carica armata punta, l'hover disegna cio' che il click scrivera' — con la stessa `ComposeDashPreview`
+ * del piano — e non mostra l'arco.
+ *
+ * L'oracolo e' il CONFRONTO, caso per caso: la vista dell'hover e il piano che il click scrive devono dire le stesse cose. Un
+ * test che guardasse solo l'hover passerebbe anche se l'hover e il click leggessero due regole. I casi:
+ * - **pianificabili**: in portata, con un altro nemico noto in mezzo, oltre la portata;
+ * - **rifiutato dal terreno**: il click non pianifica e non ispeziona, l'hover non ha niente da annunciare — ma non mostra l'arco;
+ * - **fuori dalla regola**: carica non armata, in ricarica, un'alleata, un nemico che la squadra non conosce (il velo non ha
+ *   segni: [D-225]), e il nemico su cui la carica e' GIA' pianificata (il secondo click lo ispeziona).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeHoverTest,
+	"RefactorTactics.PlayerInput.HoverOnAnEnemyWithTheChargeArmedAnnouncesWhatTheClickWillPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeHoverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 8);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!MapActor || !TM || !Charger || !PC) { DestroyInteractionWorld(World); return false; }
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
+	if (!TestTrue(TEXT("premessa: la carica ha una portata di almeno tre celle, e la mappa ne contiene due in piu'"),
+		ChargeIdx != INDEX_NONE && Portata >= 3 && Portata + 2 <= 8)) { DestroyInteractionWorld(World); return false; }
+
+	// Quattro nemici su tre rette DAVANTI a chi carica (E, SE, NE): alle spalle la squadra non vede, e un nemico non visto non
+	// entra nella fotografia di chi pianifica. `Vicino`/`Dietro` stanno sulla stessa retta: il primo e' la carica «in portata»,
+	// il secondo quella con un altro nemico noto in mezzo.
+	ARTUnit* Vicino = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2, 0));
+	ARTUnit* Dietro = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 3, 0));
+	ARTUnit* Lontano = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(Portata + 2, 0, 0));
+	ARTUnit* Ostacolato = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, -3, 0));
+	ARTUnit* Alleata = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 3, 0));
+	if (!Vicino || !Dietro || !Lontano || !Ostacolato || !Alleata) { DestroyInteractionWorld(World); return false; }
+	Alleata->bIsBotControlled = true;
+	MakeInteractionRough(MapActor->MapAsset, FRTCellId(2, -2, 0)); // nega la corsa verso `Ostacolato`, e lascia passare la vista
+	TM->RefreshTeamKnowledgeNow();
+	// Un nemico che il velo nasconde: il flag che il click legge (`IsKnownToObserver`) lo scrive `ARTHUD::UpdateObserverVeil`,
+	// e in un test si dichiara a mano. Il default e' vero, ed e' per questo che i nemici sopra sono noti senza altro.
+	ARTUnit* Ignoto = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, -3, 0));
+	if (!Ignoto) { DestroyInteractionWorld(World); return false; }
+	Ignoto->SetKnownToObserver(false);
+	// ⚠️ La conoscenza che conta e' DOPPIA e va provata su entrambe: la fotografia di chi pianifica (`ClassifyTarget`, che dipende
+	// da cosa la squadra vede) e il flag del velo (`IsKnownToObserver`, che il click legge e che qui si dichiara a mano).
+	for (const ARTUnit* Nemico : { Vicino, Dietro, Lontano, Ostacolato })
+	{
+		TestTrue(TEXT("premessa: la squadra vede il nemico, e il velo non lo nasconde"),
+			URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Nemico->StableUnitId, Nemico->TeamId,
+				Nemico->Cell) == ERTTargetKnowledge::Allowed && Nemico->IsKnownToObserver());
+	}
+	TestFalse(TEXT("premessa: il velo nasconde l'ignoto"), Ignoto->IsKnownToObserver());
+
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+
+	// Un caso: l'hover sul bersaglio, poi il click, poi il confronto. `bPianificabile` e' cio' che la regola vuole.
+	const auto Confronta = [&](ARTUnit* Bersaglio, bool bPianificabile, const TCHAR* Caso)
+	{
+		MapActor->SetHoveredCell(Bersaglio->Cell, /*bValid=*/ true);
+		TestTrue(*FString::Printf(TEXT("%s: la carica armata punta il nemico sotto il cursore"), Caso),
+			PC->HoveredArmedChargeTarget() == Bersaglio);
+		FRTIntentView Annuncio;
+		const bool bHover = PC->BuildChargeHoverView(Annuncio);
+		TestEqual(*FString::Printf(TEXT("%s: l'hover annuncia una carica solo se il click la pianifica"), Caso), bHover, bPianificabile);
+
+		PC->DispatchUnitClickForTest(Bersaglio, Charger);
+		const bool bPianificata = Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Bersaglio->Cell;
+		TestEqual(*FString::Printf(TEXT("%s: l'hover e il click dicono la stessa cosa"), Caso), bHover, bPianificata);
+
+		FRTChargeRun Scritta;
+		if (bHover && bPianificata && TestTrue(*FString::Printf(TEXT("%s: il click ha scritto la lettura"), Caso),
+			Charger->GetPlannedChargeRun(Scritta)))
+		{
+			TestEqual(*FString::Printf(TEXT("%s: stesse celle di corsa"), Caso), Annuncio.DashRunCells, Scritta.RunCells);
+			TestEqual(*FString::Printf(TEXT("%s: stesso mancato arrivo"), Caso), Annuncio.bDashMissesTarget, Scritta.bMissesTarget);
+			TestTrue(*FString::Printf(TEXT("%s: la vista parte da chi carica e punta al bersaglio"), Caso),
+				Annuncio.bDashing && Annuncio.OwnerCell == Charger->Cell && Annuncio.DashCell == Bersaglio->Cell
+				&& Annuncio.DashStyle == ERTMovementStyle::LinearCharge);
+		}
+		// Si toglie il piano: il caso dopo parte da una carica armata e non ancora pianificata.
+		Charger->PlannedDashAbility = INDEX_NONE;
+		Charger->SelectAbility(ChargeIdx);
+		return Annuncio;
+	};
+
+	const FRTIntentView InPortataView = Confronta(Vicino, true, TEXT("in portata, a contatto"));
+	TestEqual(TEXT("in portata: percorre la cella prima di lui"), InPortataView.DashRunCells, 1);
+	TestFalse(TEXT("in portata: e non lo manca"), InPortataView.bDashMissesTarget);
+
+	const FRTIntentView InMezzoView = Confronta(Dietro, true, TEXT("con un altro nemico noto in mezzo"));
+	TestEqual(TEXT("in mezzo: si ferma davanti ad A, dopo una cella"), InMezzoView.DashRunCells, 1);
+	TestTrue(TEXT("in mezzo: e manca il bersaglio"), InMezzoView.bDashMissesTarget);
+
+	const FRTIntentView OltreView = Confronta(Lontano, true, TEXT("oltre la portata"));
+	TestEqual(TEXT("oltre la portata: corre per tutta la portata"), OltreView.DashRunCells, Portata);
+	TestTrue(TEXT("oltre la portata: e manca il bersaglio"), OltreView.bDashMissesTarget);
+
+	Confronta(Ostacolato, false, TEXT("dietro un terreno che nega la corsa"));
+
+	// Fuori dalla regola: l'hover non punta nessuno.
+	MapActor->SetHoveredCell(Alleata->Cell, true);
+	TestTrue(TEXT("un'alleata non e' un bersaglio: l'hover resta un'ispezione"), PC->HoveredArmedChargeTarget() == nullptr);
+	MapActor->SetHoveredCell(Ignoto->Cell, true);
+	TestTrue(TEXT("un nemico che la squadra non conosce non ha segni"), PC->HoveredArmedChargeTarget() == nullptr);
+	FRTIntentView Niente;
+	TestFalse(TEXT("e non annuncia niente"), PC->BuildChargeHoverView(Niente));
+
+	// Il nemico su cui la carica e' GIA' pianificata: il secondo click lo ispeziona, quindi l'hover non lo annuncia piu'.
+	PC->DispatchUnitClickForTest(Vicino, Charger);
+	MapActor->SetHoveredCell(Vicino->Cell, true);
+	TestTrue(TEXT("controllo: la carica e' pianificata su di lui"), Charger->PlannedDashCell == Vicino->Cell);
+	TestTrue(TEXT("gia' pianificata: l'hover non lo punta"), PC->HoveredArmedChargeTarget() == nullptr);
+	MapActor->SetHoveredCell(Dietro->Cell, true);
+	TestTrue(TEXT("ma un altro nemico si'"), PC->HoveredArmedChargeTarget() == Dietro);
+	Charger->PlannedDashAbility = INDEX_NONE;
+
+	// Carica non armata.
+	Charger->SelectAbility(INDEX_NONE);
+	MapActor->SetHoveredCell(Vicino->Cell, true);
+	TestTrue(TEXT("senza la carica armata l'hover ispeziona, come prima"), PC->HoveredArmedChargeTarget() == nullptr);
+	TestFalse(TEXT("e non annuncia una carica"), PC->BuildChargeHoverView(Niente));
+
+	// Carica in ricarica.
+	Charger->ConsumeAbility(ChargeIdx);
+	Charger->SelectAbility(ChargeIdx);
+	TestFalse(TEXT("premessa: la carica e' in ricarica"), Charger->CanUseAbility(ChargeIdx));
+	TestTrue(TEXT("in ricarica l'hover ispeziona, come il click"), PC->HoveredArmedChargeTarget() == nullptr);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-528] (`#3769`) — **sul nemico che la carica armata punta, l'hover non mostra il suo arco**: l'arco e' l'annotazione
+ * pubblica di un'ispezione, e il click non ispezionera' — pianifichera' la carica, o la rifiutera' (D-516 (2): *«rifiutata, e
+ * nessuna ispezione»*). Il controllo positivo e' lo stesso nemico senza la carica armata, dove l'arco c'e'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeHoverArcTest,
+	"RefactorTactics.PlayerInput.HoverOnAnEnemyWithTheChargeArmedDoesNotShowItsArc",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeHoverArcTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Nemico = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 0));
+	ARTUnit* Ostacolato = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, -3, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!MapActor || !TM || !Charger || !Nemico || !Ostacolato || !PC) { DestroyInteractionWorld(World); return false; }
+	MakeInteractionRough(MapActor->MapAsset, FRTCellId(2, -2, 0));
+	TM->RefreshTeamKnowledgeNow();
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	if (!TestNotEqual(TEXT("premessa: la carica"), ChargeIdx, (int32)INDEX_NONE)) { DestroyInteractionWorld(World); return false; }
+
+	// Un arco per ciascuno dei due nemici.
+	FRTEnemyArcView Arco;
+	Arco.Edges = URTVisibilityBorderLibrary::ExposedEdgesFacingMapCells(MapActor->MapAsset, { Nemico->Cell });
+	Arco.Color = FColor(255, 51, 38);
+	TMap<FRTCellId, FRTEnemyArcView> Archi;
+	Archi.Add(Nemico->Cell, Arco);
+	Archi.Add(Ostacolato->Cell, Arco);
+	MapActor->SetEnemyArcs(Archi);
+
+	PC->SelectActorForTest(Charger);
+
+	// Controllo positivo: senza la carica armata, l'arco del nemico sotto il cursore si vede.
+	Charger->SelectAbility(INDEX_NONE);
+	MapActor->SetHoveredCell(Nemico->Cell, true);
+	PC->UpdateEnemyArcFocusForTest(MapActor);
+	TestEqual(TEXT("controllo: senza la carica armata l'hover mostra l'arco"), MapActor->GetShownEnemyArcs().Num(), 1);
+
+	// Con la carica armata: il click pianifichera', l'hover non ispeziona.
+	Charger->SelectAbility(ChargeIdx);
+	PC->UpdateEnemyArcFocusForTest(MapActor);
+	TestEqual(TEXT("con la carica armata l'hover non mostra l'arco"), MapActor->GetShownEnemyArcs().Num(), 0);
+
+	// Anche dove il click rifiuterebbe: non ispeziona neppure li'.
+	MapActor->SetHoveredCell(Ostacolato->Cell, true);
+	PC->UpdateEnemyArcFocusForTest(MapActor);
+	TestEqual(TEXT("neppure dove la carica sarebbe rifiutata"), MapActor->GetShownEnemyArcs().Num(), 0);
+
+	// Una cella vuota: niente da puntare, e nessun arco da mostrare.
+	MapActor->SetHoveredCell(FRTCellId(1, 1, 0), true);
+	PC->UpdateEnemyArcFocusForTest(MapActor);
+	TestEqual(TEXT("una cella vuota non ha arco"), MapActor->GetShownEnemyArcs().Num(), 0);
+
+	// Pianificata sul nemico: il secondo click lo ispeziona, quindi l'hover riprende a mostrare l'arco.
+	PC->DispatchUnitClickForTest(Nemico, Charger);
+	MapActor->SetHoveredCell(Nemico->Cell, true);
+	PC->UpdateEnemyArcFocusForTest(MapActor);
+	TestEqual(TEXT("sul nemico gia' puntato l'hover e' di nuovo un'ispezione, e l'arco c'e'"), MapActor->GetShownEnemyArcs().Num(), 1);
 
 	DestroyInteractionWorld(World);
 	return true;

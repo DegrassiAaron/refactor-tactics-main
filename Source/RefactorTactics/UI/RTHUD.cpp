@@ -1179,6 +1179,68 @@ void ARTHUD::DrawHUD()
 			}
 		}
 
+		// 🔑 **[D-528] Il disegno dell'anteprima di uno scatto ha una sede sola**, e lo chiamano due: i piani che l'HUD disegna
+		// (opacita' piena) e l'hover sul nemico che la carica armata punta (piu' tenue, perche' e' un annuncio e non un piano).
+		// Il corpo e' quello che stava nel ciclo, spostato: il suo commento resta li' sotto.
+		const auto DisegnaScatto = [&](const FRTIntentView& View, const FRTDashPreview& Scatto, float Opacita)
+		{
+			// **D-234**: la fase `Dash` prende in PRESTITO `#009E73` da D-233. L'overlay tiene un
+			// vocabolario proprio — il colore ci dice l'IDENTITA' di squadra — ma questa riga era gia'
+			// un'eccezione: `DashColor` e' costruito FUORI da ogni ramo su `bOwn`, quindi la linea di
+			// scatto aveva gia' perso la squadra ed era gia' colorata per fase. Per caso, pero'.
+			//
+			// 🔴 Il magenta che stava qui non apparteneva a NESSUNA palette, e non era neutro: misurato,
+			// distava `dE 20.7` dal ciano di squadra in deuteranopia e `20.9` dal giallo in tritanopia —
+			// due dicromazie a meno di un punto dalla soglia `20`. Dopo il cambio i due peggiori casi
+			// sono `43.9` e `51.7`. Il gate `T9` ora misura questa coppia e la rilegge DA QUI.
+			//
+			// ⚠️ **La rilegge per FORMA** (`#3626`): `tools/hud-assets/color_metrics.py` cerca la
+			// dichiarazione qui sotto. Fino al 2026-10-13 la frase qui sopra era falsa — il `T9` del
+			// generatore misurava solo la palette delle icone, e la coppia la guardava un referto che
+			// nessuno lanciava. Ora `T9` la include. Chi riscrive questa riga lancia
+			// `python tools/hud-assets/color_metrics.py`.
+			//
+			// ⚠️ `FromSRGBColor` NON e' opzionale: il costruttore prende valori LINEARI, e passargli
+			// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
+			// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
+			const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
+			const FLinearColor DashColorSfumato(DashColor.R, DashColor.G, DashColor.B, DashColor.A * Opacita);
+			const int32 UltimoTrattoDiCorsa = Scatto.HasShortfall() ? Scatto.ReachSegments : Scatto.PathCells.Num() - 1;
+			for (int32 i = 1; i <= UltimoTrattoDiCorsa; ++i)
+			{
+				const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
+				const FVector DB = Project(HexCellWorld(Scatto.PathCells[i], Origin, HexSize, LayerH));
+				if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColorSfumato, 2.5f); }
+			}
+
+			// 🔑 **[D-516] Oltre la portata, la retta fino al nemico: TRATTEGGIATA e rossa.** E' la grammatica del
+			// tiro rifiutato qui sotto — piena fin dove arriva, tratteggiata dove non arriva —, quindi il rosso
+			// non e' l'unico canale ([D-146]): rosso e verde dello scatto sono la coppia che una deuteranopia
+			// confonde, il tratteggio no. Il rosso e' quello della palette dell'overlay, non un letterale nuovo.
+			if (Scatto.HasShortfall() && Scatto.bShowsMiss)
+			{
+				const FVector DStop = Project(HexCellWorld(Scatto.StopCell(), Origin, HexSize, LayerH));
+				const FVector DTarget = Project(HexCellWorld(Scatto.PathCells.Last(), Origin, HexSize, LayerH));
+				if (DStop.Z > 0.f && DTarget.Z > 0.f)
+				{
+					FLinearColor OltreLaPortata(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack));
+					OltreLaPortata.A *= Opacita;
+					for (const TPair<FVector2D, FVector2D>& T : ComposeCountedDashSegments(
+							FVector2D(DStop.X, DStop.Y), FVector2D(DTarget.X, DTarget.Y), BlockedShotDashSpans))
+					{
+						DrawLine(T.Key.X, T.Key.Y, T.Value.X, T.Value.Y, OltreLaPortata, 2.f);
+					}
+				}
+			}
+
+			// Il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico ([D-528]): la carica si ferma accanto a lui ([D-296]).
+			// ⏱️ *Fino a [D-528] stava sulla cella del nemico per una carica in portata*, e solo oltre la portata dove la corsa
+			// si ferma: sullo stesso schermo due cariche usavano il segno in due modi. Senza una lettura (un bot) resta com'era.
+			const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
+				Origin, HexSize, LayerH));
+			if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f * Opacita), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
+		};
+
 		for (const FRTIntentView& View : Views)
 		{
 			// CP 11.2 — la resa arriva dal livello che la vista PORTA gia' calcolato. Nessun `View.bMoving`
@@ -1259,59 +1321,7 @@ void ARTHUD::DrawHUD()
 			// 🔑 Cosa mostrare lo decide `ComposeDashPreview` (#2184); `&& Map` resta, ed e' guardia.
 			if (const FRTDashPreview Scatto = ComposeDashPreview(View, Map); Scatto.bShow && Map)
 			{
-				// **D-234**: la fase `Dash` prende in PRESTITO `#009E73` da D-233. L'overlay tiene un
-				// vocabolario proprio — il colore ci dice l'IDENTITA' di squadra — ma questa riga era gia'
-				// un'eccezione: `DashColor` e' costruito FUORI da ogni ramo su `bOwn`, quindi la linea di
-				// scatto aveva gia' perso la squadra ed era gia' colorata per fase. Per caso, pero'.
-				//
-				// 🔴 Il magenta che stava qui non apparteneva a NESSUNA palette, e non era neutro: misurato,
-				// distava `dE 20.7` dal ciano di squadra in deuteranopia e `20.9` dal giallo in tritanopia —
-				// due dicromazie a meno di un punto dalla soglia `20`. Dopo il cambio i due peggiori casi
-				// sono `43.9` e `51.7`. Il gate `T9` ora misura questa coppia e la rilegge DA QUI.
-				//
-				// ⚠️ **La rilegge per FORMA** (`#3626`): `tools/hud-assets/color_metrics.py` cerca la
-				// dichiarazione qui sotto. Fino al 2026-10-13 la frase qui sopra era falsa — il `T9` del
-				// generatore misurava solo la palette delle icone, e la coppia la guardava un referto che
-				// nessuno lanciava. Ora `T9` la include. Chi riscrive questa riga lancia
-				// `python tools/hud-assets/color_metrics.py`.
-				//
-				// ⚠️ `FromSRGBColor` NON e' opzionale: il costruttore prende valori LINEARI, e passargli
-				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
-				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
-				const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
-				const int32 UltimoTrattoDiCorsa = Scatto.HasShortfall() ? Scatto.ReachSegments : Scatto.PathCells.Num() - 1;
-				for (int32 i = 1; i <= UltimoTrattoDiCorsa; ++i)
-				{
-					const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
-					const FVector DB = Project(HexCellWorld(Scatto.PathCells[i], Origin, HexSize, LayerH));
-					if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
-				}
-
-				// 🔑 **[D-516] Oltre la portata, la retta fino al nemico: TRATTEGGIATA e rossa.** E' la grammatica del
-				// tiro rifiutato qui sotto — piena fin dove arriva, tratteggiata dove non arriva —, quindi il rosso
-				// non e' l'unico canale ([D-146]): rosso e verde dello scatto sono la coppia che una deuteranopia
-				// confonde, il tratteggio no. Il rosso e' quello della palette dell'overlay, non un letterale nuovo.
-				if (Scatto.HasShortfall() && Scatto.bShowsMiss)
-				{
-					const FVector DStop = Project(HexCellWorld(Scatto.StopCell(), Origin, HexSize, LayerH));
-					const FVector DTarget = Project(HexCellWorld(Scatto.PathCells.Last(), Origin, HexSize, LayerH));
-					if (DStop.Z > 0.f && DTarget.Z > 0.f)
-					{
-						const FLinearColor OltreLaPortata(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack));
-						for (const TPair<FVector2D, FVector2D>& T : ComposeCountedDashSegments(
-								FVector2D(DStop.X, DStop.Y), FVector2D(DTarget.X, DTarget.Y), BlockedShotDashSpans))
-						{
-							DrawLine(T.Key.X, T.Key.Y, T.Value.X, T.Value.Y, OltreLaPortata, 2.f);
-						}
-					}
-				}
-
-				// Il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico ([D-528]): la carica si ferma accanto a lui ([D-296]).
-				// ⏱️ *Fino a [D-528] stava sulla cella del nemico per una carica in portata*, e solo oltre la portata dove la corsa
-				// si ferma: sullo stesso schermo due cariche usavano il segno in due modi. Senza una lettura (un bot) resta com'era.
-				const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
-					Origin, HexSize, LayerH));
-				if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
+				DisegnaScatto(View, Scatto, 1.f);
 			}
 
 			// Linea verso il bersaglio d'attacco pianificato (dalla CELLA del bersaglio, non dal suo Actor).
@@ -1334,6 +1344,21 @@ void ARTHUD::DrawHUD()
 				{
 					DrawIntentLine(FVector2D(HeadScreen.X, HeadScreen.Y), FVector2D(TgtScreen.X, TgtScreen.Y),
 						Color, Style);
+				}
+			}
+		}
+
+		// 🔑 **[D-528] L'hover annuncia cio' che il click pianifichera'** ([D-128]). Con una carica armata, sul nemico noto sotto il
+		// cursore il click pianifica la carica (o la rifiuta, e allora non c'e' niente da annunciare): l'anteprima e' quella di un
+		// piano, con la stessa funzione e piu' tenue. La vista la costruisce il controller dal verdetto del click, non l'HUD.
+		if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+		{
+			FRTIntentView Annuncio;
+			if (PC->BuildChargeHoverView(Annuncio))
+			{
+				if (const FRTDashPreview Scatto = ComposeDashPreview(Annuncio, Map); Scatto.bShow && Map)
+				{
+					DisegnaScatto(Annuncio, Scatto, 0.5f);
 				}
 			}
 		}
