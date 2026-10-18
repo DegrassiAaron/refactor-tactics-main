@@ -64,11 +64,18 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   la fase) non venivano riconosciute — il bot non pianificava scatti per nessuno dei quattro.
 - **Come si sposta** lo dice `FRTActionDef::MovementStyle`: `LinearDash` · `LinearCharge` (si ferma sulla cella
   **adiacente** al primo nemico e lo colpisce — [D-296](../decisions/RT_PDR_00_Decision_Log.md), mai *sulla* sua
-  cella; con un bersaglio in linea ma **oltre la portata** corre per tutta la portata e si ferma, `OutOfRange` —
+  cella; con un bersaglio sulla retta ma **oltre la portata** corre per tutta la portata e si ferma, `OutOfRange` —
   [D-516](../decisions/RT_PDR_00_Decision_Log.md)) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
   un'azione di fase Dash è un **errore**, sorvegliato da `RefactorTactics.Actions.EveryFastMovementDeclaresStyle`
   su tutti e tre i cataloghi (generico, spedito, eroi).
-- ⚠️ **«In linea», per la carica, cambia significato con [D-523](../decisions/RT_PDR_00_Decision_Log.md)** (2026-10-15): diventa la retta libera fra i centri delle due celle, non più una delle sei direzioni. [D-524](../decisions/RT_PDR_00_Decision_Log.md) (2026-10-18) la estende a tutti e quattro gli stili lineari e fa contare anche i lati (copertura alta, porta chiusa), cioè cambia anche gli scatti sulle sei direzioni. L'attuazione è [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793). Finché non è su `main`, il codice e questa pagina dicono le sei direzioni e ignorano i lati.
+- ✅ **«In linea» è la retta libera fra i centri delle due celle, per tutti e quattro gli stili lineari** ([D-523](../decisions/RT_PDR_00_Decision_Log.md), 2026-10-15; [D-524](../decisions/RT_PDR_00_Decision_Log.md), 2026-10-18; attuata da [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793)). ⏱️ *Fino a #3793 era una delle sei direzioni, e i lati non contavano.*
+  - **La retta** è una funzione sola, `URTMovementActionLibrary::MovementLine`: le celle di `URTHexLibrary::HexLine`, col suo spareggio intero, sullo stesso piano. Da `(0,0)` a `(1,1)` passa da `(1,0)`. Il pareggio decide anche la **validità** (con un ostacolo su `(1,0)` la carica su `(1,1)` è rifiutata anche se `(0,1)` è libera) e non è simmetrico per rotazione. La leggono il resolver, il giocatore (il click e il verso previsto), l'anteprima (HUD e fantasma della timeline) e i bot.
+  - **La portata** è la distanza esagonale, che coincide con i passi di `HexLine`. Una carica oltre la portata costruisce la retta fino al bersaglio e poi la tronca ([D-516](../decisions/RT_PDR_00_Decision_Log.md) (3)-(4)).
+  - **«Libera»**: la fermano una cella che blocca il passo, un terreno che nega lo scatto, un'unità (con l'esito dello stile) e **un bordo che nega l'attraversamento** — copertura alta, porta chiusa o bloccata (`URTHexCoverLibrary::BlocksTraversal`, a ogni passo per `Dash`, `Charge` e `Pass`). Il `Leap` guarda solo l'atterraggio. Il motivo dello stop per bordo è proprio (`ERTLinearStop::BlockedByEdge`, nel TurnLog `ERTActionInvalidReason::DashEdgeBlocked`). Vale anche per le sei direzioni: chiude un `IMPLEMENTATION DRIFT` rispetto a `RT_TestMatrix_v0.1.md` riga 3.
+  - **Impatto e facing** sono l'ultimo passo: l'impatto va dalla cella d'arrivo al bersaglio, adiacente; il facing finale è l'ultimo passo della retta, anche per il `Leap` (`FacingFromPath`).
+  - ⚠️ **Cambio di bilanciamento dichiarato** ([D-524](../decisions/RT_PDR_00_Decision_Log.md) (1)): l'allineamento non è più un vincolo, e a portata 3 le celle raggiungibili passano da 18 a 36. Nessun valore del catalogo cambia. Sulla partita dei bot l'effetto è misurato: la sequenza più lunga senza eliminazioni sull'arena generata passa da 4 a 2 (`Bot.StallDefinitionsOnTheGeneratedTestArena`).
+  - **Gli attacchi lineari restano sulle sei direzioni**: `IsStraightLine` è letta da `LineCells`, `ResolveLineAttack` e dalla soppressione, e non si cambia sul posto.
+  - **`DashNotAligned`** (TurnLog) tiene nome e numero — viaggia come intero in `Amount`, quindi le tracce già scritte si leggono come prima, e `Simulation.GoldenCorpusMatches` non diverge — ma non parla più di allineamento: dice «altro piano, o oltre la portata». Il motivo nuovo, `DashEdgeBlocked`, è in coda all'enum (`Actions.Fallback.InvalidReasonValuesAreAppendOnly`). Il corpus non contiene scatti fuori asse né fermati da un bordo: dice che nulla di vecchio diverge, non che il caso nuovo sia coperto.
 - `ARTUnit::PlannedDashAbility` (`INDEX_NONE` = nessuno) + `ARTUnit::PlannedDashCell` — pianificazione dello
   scatto per il turno. `ARTUnit::FindDashAbilityIndex()` trova l'abilità di scatto dell'unità.
 - Abilità di scatto di default: **Ranger → "Scatto"** (`Ranger.Dash`, 5 celle, ricarica 2, `LinearDash`);
@@ -95,10 +102,10 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
 ## 3. Risoluzione (`ARTTurnManager::ResolveDash`, fase Dash)
 
 1. Raccoglie le unità vive con uno scatto pianificato **valido**: azione di fase Dash utilizzabile
-   (`IsFastMovement`) e `PlannedDashCell` raggiungibile **secondo lo stile dichiarato** — in linea retta per le
-   mobilità lineari (`URTMovementActionLibrary::ResolveLinearMove`, la portata si misura in **celle**), col
-   pathfinding per quelle a budget (dove `RangeCells` sono **punti movimento**). Lo scatto è **consumato per il
-   turno** in ogni caso (valido o no).
+   (`IsFastMovement`) e `PlannedDashCell` raggiungibile **secondo lo stile dichiarato** — lungo la retta libera
+   per le mobilità lineari (`URTMovementActionLibrary::ResolveLinearMove` su `MovementLine`, la portata si misura in
+   **celle**: la distanza esagonale), col pathfinding per quelle a budget (dove `RangeCells` sono **punti
+   movimento**). Lo scatto è **consumato per il turno** in ogni caso (valido o no).
 2. Risolve gli scatti **simultanei, ordine-indipendenti** (stesso `URTMovementResolver::ResolvePaths` del
    movimento).
 3. Applica le posizioni **senza cancellare il move normale** (dash + move): aggiorna `GridCell` + visuale;
@@ -134,9 +141,12 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   richiesta, o lo scatto non si pianifica**: niente scatto a metà verso una cella che il giocatore non ha
   scelto. L'unica eccezione è la **carica**, per cui fermarsi sulla cella **adiacente** al nemico *è* il modo
   di arrivare ([D-296](../decisions/RT_PDR_00_Decision_Log.md)). E la carica ha una seconda eccezione ([D-516](../decisions/RT_PDR_00_Decision_Log.md)):
-  su un nemico che la squadra conosce, **in linea ma oltre la portata**, si pianifica se la retta fino a lui è libera
-  dal terreno e nessun nemico noto la ferma entro la portata; alla risoluzione corre fino alla portata e si ferma, e
-  colpisce solo chi stava sulla linea senza che lo si vedesse. Una cella vuota oltre la portata resta rifiutata.
+  su un nemico che la squadra conosce, **sulla retta ma oltre la portata**, si pianifica se la retta fino a lui è libera
+  dal terreno e dai lati ([D-524](../decisions/RT_PDR_00_Decision_Log.md)) e nessun nemico noto la ferma entro la
+  portata; alla risoluzione corre fino alla portata e si ferma, e colpisce solo chi stava sulla linea senza che lo si
+  vedesse. Una cella vuota oltre la portata resta rifiutata. Il **verso** che si può dichiarare dopo lo scatto si
+  giudica sulla rotta che il resolver percorrerà (`PlannedMovementForFacing` legge `ResolveLinearMove`), cioè
+  sull'ultimo passo *percorso*: per una carica che si ferma davanti al nemico non è l'ultimo passo della retta fino a lui.
   Con una **carica** armata, cliccare un nemico osservato pianifica la carica su di lui, come cliccando la sua cella
   ([D-516](../decisions/RT_PDR_00_Decision_Log.md), [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)); con ogni altro scatto il
   click sul nemico lo ispeziona.

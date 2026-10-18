@@ -21,6 +21,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h" // [D-524]: la copertura che chiude la retta dello scatto
 #include "Map/RTHexLibrary.h" // #1776: WorldToLayer e ResolveRayToCellOnLayer, che i due test della review interrogano
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
@@ -689,6 +690,41 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	PC->HandleClickOnCell(Aligned);
 	TestEqual(TEXT("una destinazione in linea diventa un piano di scatto"), Unit->PlannedDashAbility, DashIdx);
 	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Aligned);
+
+	// [D-524] (5): anche un LATO chiude la retta. Sulla stessa cella allineata e libera, una copertura ALTA sul bordo
+	// (1,-1)-(0,0) rifiuta lo scatto in pianificazione, e una porta chiusa sullo stesso bordo pure — mentre una copertura
+	// BASSA no. E' la meta' di pianificazione di `PIE-V01-DASHCOVER`: a fermare lo scatto a risoluzione, se un altro
+	// produttore lo scrive, e' il resolver (`HexMatch.ChargeIsStoppedByAnEdgeOnTheLine`).
+	const FRTCellId PrimaDelBordo(1, -1, 0);
+	ERTHexDirection Lato = ERTHexDirection::E;
+	verify(URTHexLibrary::DirectionBetween(PrimaDelBordo, Aligned, Lato));
+	auto ClickConBordo = [&](auto&& PosaIlBordo) -> bool
+	{
+		Unit->PlannedDashAbility = INDEX_NONE;
+		Unit->SelectAbility(DashIdx);
+		PosaIlBordo();
+		PC->HandleClickOnCell(Aligned);
+		return Unit->PlannedDashAbility == DashIdx;
+	};
+
+	URTHexCoverLibrary::AddCover(Arena, PrimaDelBordo, Lato, ERTHexCoverType::Low, FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low));
+	TestTrue(TEXT("una copertura bassa sul bordo non chiude la retta"), ClickConBordo([]{}));
+	URTHexCoverLibrary::RemoveCover(Arena, PrimaDelBordo, Lato);
+
+	TestFalse(TEXT("una copertura alta sul bordo chiude la retta: lo scatto non si pianifica"), ClickConBordo([&]
+	{
+		URTHexCoverLibrary::AddCover(Arena, PrimaDelBordo, Lato, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High));
+	}));
+	URTHexCoverLibrary::RemoveCover(Arena, PrimaDelBordo, Lato);
+
+	TestFalse(TEXT("una porta chiusa sul bordo chiude la retta: lo scatto non si pianifica"), ClickConBordo([&]
+	{
+		FRTHexCellData Dato = *Arena->FindCell(PrimaDelBordo);
+		Dato.Doors.Add(FRTHexDoor(Lato, ERTHexDoorState::Closed));
+		Arena->AddOrUpdateCell(Dato);
+		Arena->SortCells();
+	}));
 
 	DestroyInteractionWorld(World);
 	return true;

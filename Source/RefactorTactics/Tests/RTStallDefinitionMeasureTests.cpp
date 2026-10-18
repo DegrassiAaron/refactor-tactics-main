@@ -27,9 +27,9 @@
 //     turni giocati                        12               11
 //     limite in uso                         4                4
 //
-// ✅ **Il controllo valida il banco.** La (b) sull'arena generata da' **4 su soglia 4**, cioe' esattamente
-// il margine ZERO che `OPEN_DECISIONS` registra per quella board. Senza questo riscontro i numeri (c) non
-// varrebbero niente: descriverebbero un'altra partita.
+// ✅ **Il controllo valida il banco.** La sequenza senza eliminazioni sull'arena generata e' il numero che
+// `OPEN_DECISIONS` registra per quella board: **4 su soglia 4** (margine ZERO) fino al 2026-10-18, **2 su 4** da [D-524]
+// (#3793). Senza questo riscontro i numeri (c) non varrebbero niente: descriverebbero un'altra partita.
 //
 // 🔴 **E la prima stesura ne descriveva davvero un'altra.** Con 12 turni e senza `PlanBotsForTest()` la (b)
 // sull'arena generata dava **10**. I due oracoli pilotano diversamente — `EngagesOnTheGeneratedTestArena`
@@ -440,7 +440,7 @@ bool FRTStallDefinitionsAuthoredMapTest::RunTest(const FString&)
 
 /**
  * **Le sei definizioni sull'ARENA GENERATA** — la board di `EngagesOnTheGeneratedTestArena`, che usa la (b),
- * e la configurazione su cui `OPEN_DECISIONS` registra il margine **zero**: 4 su soglia 4.
+ * e la configurazione su cui `OPEN_DECISIONS` registra il margine: **zero** (4 su soglia 4) fino a [D-524], **due** (2 su 4) dopo.
  *
  * ⛔ Come sopra: si stampa, non si giudica. Il rango del `AddWarning` di quell'oracolo non e' toccato —
  * alzarlo sarebbe una soglia nuova introdotta di lato, che `#1551` mette esplicitamente fuori scope.
@@ -521,12 +521,23 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 	//
 	// ⛔ **La soglia non e' toccata**, ed e' il vincolo che `D-361` scrive per chi implementa: cambia
 	// **quale grandezza** si misura, non **quanto** se ne tollera. `LimiteInUso` resta `max(2, RoundLimit/3)`.
+	// ⏱️ **Rimisurato il 2026-10-18 ([D-524], #3793): il margine non e' piu' zero, e' DUE.** La sequenza piu' lunga
+	// senza eliminazioni passa da 4 a **2** su soglia 4. Il canary l'ha detto per scritto in cima a questo blocco —
+	// *«un rosso qui significa che il margine registrato e' scaduto: si rimisura e si aggiorna la riga»* — e la causa
+	// e' misurata, non supposta: con la retta del movimento ristretta alle sei direzioni (mutazione) il valore torna a
+	// **4**. Cambia la SUPERFICIE degli scatti, che D-524 dichiara un cambio di bilanciamento deciso sapendolo (a portata
+	// 3 le celle raggiungibili passano da 18 a 36). ⚠️ Il MECCANISMO — i bot scattano e caricano su piu' celle, e qualcuno
+	// cade prima — e' l'ipotesi piu' semplice e non e' misurato: la misura dice la causa (la regola), non il percorso.
+	//
+	// ⛔ **La soglia non e' toccata** (`LimiteInUso` resta `max(2, RoundLimit/3)`), come [D-361] impone: si fissa il
+	// numero MISURATO. Il giorno in cui si muove ancora, questo e' di nuovo un rosso da leggere, non un difetto.
 	const int32 EliminazioneMisurata =
 		Sonda.Peggiore(FRTStallDefinitionProbe::EDefinizione::Eliminazione);
+	constexpr int32 EliminazioneAttesa = 2;
 	TestEqual(FString::Printf(
-		TEXT("controllo: l'eliminazione tocca la soglia in uso (margine zero) — %d su %d"),
+		TEXT("controllo: la sequenza senza eliminazioni, rimisurata dopo D-524 (margine due) — %d su soglia %d"),
 		EliminazioneMisurata, LimiteInUso),
-		EliminazioneMisurata, LimiteInUso);
+		EliminazioneMisurata, EliminazioneAttesa);
 	TestTrue(FString::Printf(
 		TEXT("il classificatore del danno risponde: %d turni-unita' armati in %d turni"),
 		TurniArmati, Turni), TurniArmati > 0);
