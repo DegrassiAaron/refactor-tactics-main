@@ -784,7 +784,7 @@ FVector2D ARTCameraPawn::ComputeFrameHalfExtents(float ArmLength, float PitchDeg
 }
 
 TArray<FVector2D> ARTCameraPawn::ComputeFrameFootprint(float ArmLength, float PitchDegrees, float HorizontalFovDegrees,
-	float AspectRatio, float ReferenceAspectRatio)
+	float AspectRatio, float ReferenceAspectRatio, float ScreenFraction)
 {
 	if (AspectRatio <= 0.f || ArmLength <= 0.f || HorizontalFovDegrees <= 0.f) { return TArray<FVector2D>(); }
 
@@ -792,8 +792,11 @@ TArray<FVector2D> ARTCameraPawn::ComputeFrameFootprint(float ArmLength, float Pi
 	const double Ref = FMath::Max(static_cast<double>(ReferenceAspectRatio), 0.01);
 	const double L = ArmLength;
 	const double VerticalHalf = L * FMath::Tan(HalfFovH) / Ref;
-	const double TanW = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01) / L;
-	const double Alpha = FMath::Atan(VerticalHalf / L);
+	// Solo la parte centrale dello schermo: a `ScreenFraction` del semiasse (NDC) il semiangolo verticale e il semiasse
+	// laterale scalano di quella frazione. Con 1 e' il frustum intero.
+	const double Frac = FMath::Clamp(static_cast<double>(ScreenFraction), 0.05, 1.0);
+	const double TanW = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01) / L * Frac;
+	const double Alpha = FMath::Atan(VerticalHalf / L * Frac);
 	const double Pitch = FMath::DegreesToRadians(FMath::Clamp(static_cast<double>(FMath::Abs(PitchDegrees)), 1.0, 89.0));
 	const double Height = L * FMath::Sin(Pitch);
 	const double Back = L * FMath::Cos(Pitch); // distanza orizzontale camera-pivot
@@ -916,23 +919,36 @@ TArray<FVector2D> ARTCameraPawn::ComputeEffectivePivotPolygon(const FBox2D& Effe
 		const FVector2D Normal(Edge.Y / Len, -Edge.X / Len);
 		const double Support = FrameHalfExtents.X * FMath::Abs(FVector2D::DotProduct(Normal, Forward))
 			+ FrameHalfExtents.Y * FMath::Abs(FVector2D::DotProduct(Normal, Right));
-		// 🔴 **Il pivot non sta mai oltre `MaxPivotOutsideSupport` del supporto** (#3798, misura in PIE del 2026-10-18).
-		// `Margin - Keep * Support` e' un offset assoluto meno una frazione del quadro: a braccio piccolo il quadro
-		// si restringe, l'offset resta quasi quello del margine, e il pivot finisce piu' lontano di quanto il quadro
-		// arrivi — scena vuota agli spigoli a braccio 450. Il tetto tiene almeno meta' dell'arrivo del quadro sulla
-		// mappa a ogni zoom; dove il quadro e' grande (braccio 800) non morde e il limite e' quello di prima.
-		// Il tetto guarda quanto il quadro arriva VERSO L'INTERNO (direzione `-Normal`): l'impronta e' un trapezio, e
-		// il supporto simmetrico sovrastimava il lato dietro il pivot (review di #3812). Senza impronta, nessun tetto.
-		double Offset = Margin - Keep * Support;
-		if (Footprint.Num() > 0)
-		{
-			const FVector2D In(-Normal.X, -Normal.Y);
-			const FVector2D Local(FVector2D::DotProduct(In, Forward), FVector2D::DotProduct(In, Right));
-			double Reach = 0.0;
-			for (const FVector2D& Corner : Footprint) { Reach = FMath::Max(Reach, FVector2D::DotProduct(Local, Corner)); }
-			if (Reach > KINDA_SMALL_NUMBER) { Offset = FMath::Min(Offset, MaxPivotOutsideSupport * Reach); }
-		}
+		const double Offset = Margin - Keep * Support;
 		Poly = RTCameraClipByHalfPlane(Poly, Normal, FVector2D::DotProduct(Normal, A) + Offset);
+	}
+
+	// 🔴 **Il quadro tocca le celle** (#3798, D-526, seconda rimisura in PIE del 2026-10-18). Un tetto per lato
+	// sul supporto dell'impronta non bastava: la parte larga del trapezio sta lontano in avanti, dove la mappa si
+	// restringe, e ai vertici a X alta del braccio 450 il pivot restava dove era (stesse coordinate a tutte le cifre,
+	// scena vuota). La condizione giusta e' di sovrapposizione: il pivot sta dove l'impronta, ridotta a
+	// la parte centrale dello schermo (`FootprintScreenFraction`) e posta su di lui, interseca l'involucro delle celle. Per due
+	// convessi e' la somma di Minkowski `Hull ⊕ (−Footprint)`: l'involucro dei punti `h − c` per ogni vertice `h` e angolo `c`.
+	// Senza impronta (quadro ignoto) non c'e' condizione, come per il ritiro.
+	if (Footprint.Num() > 0 && Poly.Num() >= 3)
+	{
+		TArray<FVector2D> Sums;
+		Sums.Reserve(Hull.Num() * Footprint.Num());
+		for (const FVector2D& C : Footprint)
+		{
+			const FVector2D World = Forward * C.X + Right * C.Y;
+			for (const FVector2D& H : Hull) { Sums.Add(H - World); }
+		}
+		const TArray<FVector2D> Zone = ComputeConvexHull(MoveTemp(Sums));
+		for (int32 I = 0; I < Zone.Num() && Poly.Num() >= 3; ++I)
+		{
+			const FVector2D& ZA = Zone[I];
+			const FVector2D ZEdge = Zone[(I + 1) % Zone.Num()] - ZA;
+			const double ZLen = ZEdge.Size();
+			if (ZLen <= KINDA_SMALL_NUMBER) { continue; }
+			const FVector2D ZNormal(ZEdge.Y / ZLen, -ZEdge.X / ZLen);
+			Poly = RTCameraClipByHalfPlane(Poly, ZNormal, FVector2D::DotProduct(ZNormal, ZA));
+		}
 	}
 
 	return Poly.Num() >= 3 ? Poly : TArray<FVector2D>();

@@ -348,10 +348,10 @@ public:
 	 */
 	static TArray<FVector2D> ComputeConvexHull(TArray<FVector2D> Points);
 
-	/** `#3798`, `D-526`: oltre l'involucro il pivot non sta piu' lontano di questa frazione di QUANTO IL QUADRO ARRIVA verso
-	 *  l'interno (il supporto dell'impronta a terra in direzione opposta alla normale). Tetto DURO: vale anche con
-	 *  `AllowedOutsideFraction` alta, perche' l'obiettivo e' che la griglia resti in vista. Senza impronta non c'e' tetto. */
-	static constexpr double MaxPivotOutsideSupport = 0.5;
+	/** `#3798`, `D-526`: la parte CENTRALE dello schermo, come frazione del semiasse (NDC), che deve toccare l'involucro delle
+	 *  celle: e' la condizione «la griglia resta in vista», e vale a ogni zoom. Il frustum intero non basta: la sua parte larga
+	 *  sta negli angoli alti dello schermo, dove una cella al margine non si vede (rimisura PIE del 2026-10-18). */
+	static constexpr float FootprintScreenFraction = 0.5f;
 
 	/**
 	 * `#3798`, `D-525` — la zona in cui puo' stare il pivot: `EffectiveBox` (i limiti di sempre, a rettangolo)
@@ -366,8 +366,9 @@ public:
 	 * rettangolo non ha area (quadro piu' grande dell'area: li' il rettangolo inchioda il pivot, un poligono
 	 * degenere no): chi chiama ripiega sul rettangolo.
 	 *
-	 * `Footprint` (opzionale, `ComputeFrameFootprint`): se presente, ogni lato e' limitato anche a `MaxPivotOutsideSupport`
-	 * di quanto il quadro arriva verso l'interno (`D-526`); tetto duro, indipendente da `AllowedOutsideFraction`.
+	 * `Footprint` (opzionale, `ComputeFrameFootprint`): se presente, la zona e' intersecata con `Hull ⊕ (−Footprint)`
+	 * (`D-526`): i pivot da cui la parte centrale dello schermo tocca le celle. Duro, indipendente da
+	 * `AllowedOutsideFraction`.
 	 */
 	static TArray<FVector2D> ComputeEffectivePivotPolygon(const FBox2D& EffectiveBox, const TArray<FVector2D>& Hull,
 		double Margin, const FVector2D& FrameHalfExtents, float YawDegrees, float AllowedOutsideFraction,
@@ -380,7 +381,7 @@ public:
 	 * Quattro angoli; vuoto se l'aspetto, il braccio o il FOV sono ignoti.
 	 */
 	static TArray<FVector2D> ComputeFrameFootprint(float ArmLength, float PitchDegrees, float HorizontalFovDegrees,
-		float AspectRatio, float ReferenceAspectRatio = 16.f / 9.f);
+		float AspectRatio, float ReferenceAspectRatio = 16.f / 9.f, float ScreenFraction = 1.f);
 
 	/** `#3798` — il punto del poligono convesso (antiorario) piu' vicino a `Point`; `Point` stesso se e' dentro. Un poligono senza area non contiene nulla. */
 	static FVector2D ClampToConvexPolygon(const TArray<FVector2D>& Polygon, const FVector2D& Point);
