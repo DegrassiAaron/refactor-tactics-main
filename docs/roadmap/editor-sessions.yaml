@@ -6135,14 +6135,14 @@ sessions:
     execution_lane: pie
     produces: >-
       la cattura della finestra di reazione di #3667, il verdetto su `PIE-PACING-1` e su `PIE-V01-CHARGECLICK`; un
-      asset, `WBP_RT_FastDecision` col `TextBlock` `SubtitleText`; la cattura del bottone dell'`HOLD` di #3788
+      asset, `WBP_RT_FastDecision` col `TextBlock` `SubtitleText`; la cattura del bottone dell'`HOLD` di #3788 e le due dei testi plurali di #3807
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
     verifies: [PIE-PACING-1, PIE-V01-CHARGECLICK]
-    issues: [3667, 3400, 3736, 3793, 3788]
+    issues: [3667, 3400, 3736, 3793, 3788, 3807]
     done_when: >-
-      la cattura di #3667, quella di #3788 e le due voci hanno un verdetto dell'autore, ciascuno nella sua issue
+      la cattura di #3667, quella di #3788, le due di #3807 e le due voci hanno un verdetto dell'autore, ciascuno nella sua issue
     notes: |
       🟡 **Prima tornata, il 2026-10-15, dal clone principale.** Lo stato era `main` `a6157b4fd` più #3667
       (`2d45064c2`, il `TextBlock` aggiunto via bridge) e le scene di #3736 (PR #3772), unite in locale.
@@ -6176,13 +6176,40 @@ sessions:
       - ✅ **Con un solo bersaglio** il testo sta nel bottone: una riga, con margine a destra e sotto, a 2,3 s e a 0,6 s.
         `Visual.Reaction.OverwatchWindow` `PASS`.
       - ⛔ **Non guardato**: «Lascia passare Ivrin e Branth» e «Lascia passare tutti», i più lunghi. Il banco ha un solo
-        bersaglio e nessuno scenario del corpus offre due nomi: serve una scena nuova.
+        bersaglio e nessuno scenario del corpus offre due nomi: serve una scena nuova. ➡️ Vedi la quarta tornata.
       - ⚠️ **Commit misurato**: build e PIE sul working tree di `main` `8f04f96dc`. `f11088d6f` (la base di #3791) e
         `8f04f96dc` hanno gli stessi alberi `Source/`, `Content/`, `Config/` e `Scenarios/`
         (`git diff --name-only f11088d6f 8f04f96dc -- Source Content Config Scenarios` non stampa nulla).
       - ⚠️ **Il primo giro era sul binario sbagliato**: la DLL dell'Editor (15/10 20:34) precedeva `144f01e46` (20:36), e la
         finestra diceva ancora «Non attaccare». Rifatto dopo `Build.bat`; `-LiveCoding=false` non ricompila da solo.
       - Il giudizio finale è dell'autore, sulla tavola `V6`.
+
+      🟡 **Quarta tornata, il 2026-10-18, dal clone principale**, per
+      [#3807](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3807): i due casi plurali di D-411. Due scene
+      nuove, solo dati, e la tavola `V7` (`docs/technical/evidence/u92/V7-hold-plurali-2026-10-18.jpg`).
+      - ✅ **`Visual.Reaction.OverwatchWindowTwoEntries`**: Ivrin e Branth entrano insieme, una sola finestra con `FIRE` su
+        Branth, `FIRE` su Ivrin e `HOLD`. Il bottone dice «Lascia passare tutti», una riga, con margine. `PASS`, 7 assertion.
+      - ✅ **`Visual.Reaction.OverwatchWindowThreeEntries`**: entrano in tre, Aevik dichiara `TargetHealthAtOrBelowPercent`
+        al 50% e la condizione offre i due feriti (Ivrin 40/90, Branth 55/120) ed esclude Muiren a salute piena. Il
+        sottotitolo nomina tutti e tre, il bottone dice «Lascia passare Branth e Ivrin» e non «tutti», una riga. `PASS`,
+        8 assertion.
+      - ✅ **Headless**: `python tools/suite/esegui.py RefactorTactics.Scenario.EveryShippedScenarioRuns` → trovati 1, completati 1,
+        nessun rosso; nel log i due scenari escono `PASS` (7/7 e 8/8 assertion) anche senza giocatore (`NoDecider`).
+      - ⚠️ **L'ordine dei nomi è quello delle opzioni `FIRE`** (Branth, poi Ivrin), non quello dell'ingresso: la bozza di
+        #3807 diceva «Ivrin e Branth».
+      - ⚠️ **Commit misurato, e non è `main`**: il binario (DLL del 18/10 10:52:50) l'ha compilato un'altra sessione sul
+        clone principale, da `issue/3793-retta-libera` `bd0a44580`, su base `067068358`. I sorgenti non di test che
+        differiscono fra `067068358` e `bd0a44580` stanno in `Bot/`, `Perception/`, `Player/`, `Turn/`, `Unit/` e
+        `UI/RTHUD.cpp`. Le righe che nominano `reaction`, `overwatch`, `HoldResp` o `TriggerNames` nel diff di
+        `RTTurnManager.cpp`, `RTTurnLogLibrary.cpp`, `RTFacingLibrary.cpp` e `RTHUD.cpp` sono zero
+        (`git diff -U0 067068358 bd0a44580 -- <i quattro file>`, righe `+`/`-`, poi `grep -ci`). `RTReactionResponseText.cpp`
+        non compare nel diff. Non è una misura su `main`: chi vuole il commit esatto rifà le due raffiche dopo il merge di
+        #3793.
+      - ⚠️ **Gli scenari stavano nel branch `issue/3807-banchi-hold-plurali`**, non nell'albero del clone principale (quello
+        di un'altra sessione): copiati per la misura e tolti alla fine.
+      - ⚠️ **Il motore**: il primo tentativo è partito 14 secondi dopo una suite headless di un'altra sessione sullo stesso
+        progetto e si è fermato da solo; rifatto a motore libero.
+      - Il giudizio finale è dell'autore, sulla tavola `V7`.
 
       ⚠️ **Dal clone principale, non da un worktree**: i modelli degli eroi stanno nei pack gitignorati.
 

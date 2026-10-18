@@ -6,7 +6,7 @@
   "mapRadius": 4,
   "playerReactionWindows": true,
 
-  "_nota": "IL BANCO DI «IVRIN E BRANTH» (#3807, D-411). Entrano in TRE nello stesso passo, ma Aevik ha dichiarato «spara solo sotto il 50% di salute»: Ivrin e Branth sono feriti e vengono offerti, Muiren e' a salute piena e la condizione lo esclude. La finestra offre FIRE su Ivrin, FIRE su Branth e HOLD; il bottone dell'HOLD dice «Lascia passare Ivrin e Branth» e NON «tutti», perche' Muiren e' entrato senza essere offerto e puo' tornare.",
+  "_nota": "IL BANCO DI «TRE ENTRATI, DUE OFFERTI» (#3807, D-411). Entrano in TRE nello stesso passo, ma Aevik ha dichiarato «spara solo sotto il 50% di salute»: Ivrin e Branth sono feriti e vengono offerti, Muiren e' a salute piena e la condizione lo esclude. La finestra offre FIRE su Ivrin, FIRE su Branth e HOLD; il bottone dell'HOLD dice «Lascia passare Branth e Ivrin» (l'ordine delle opzioni FIRE, misurato in PIE) e NON «tutti», perche' Muiren e' entrato senza essere offerto e puo' tornare.",
 
   "_nota_perche_esiste": "Il discriminante del testo e' la coppia entrati/offerti (`Window.TriggerNames` contro `OfferedFireTargets`), e `Visual.Reaction.OverwatchWindowTwoEntries` ha le due liste uguali. Qui differiscono: tre entrati, due offerti. I test su `RTReactionResponseText` lo provano sulla funzione; questo banco lo mostra sul bottone.",
 
