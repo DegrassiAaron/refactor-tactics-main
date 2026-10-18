@@ -206,6 +206,16 @@ public:
 	static FRTCrossLayerSightResult DescribeSightAcrossLayers(const URTHexMapAsset* Map, const FRTCellId& From,
 		const FRTCellId& To);
 
+	/**
+	 * Il tetto di contatto a due celle del **fumo** (`#3757`, scelta d'autore del 2026-10-18: «come i muri»).
+	 * Stesso piano -> `URTTerrainLibrary::EffectiveTargetingRange`, invariato. Fra due piani conta il fumo
+	 * del piano in cui la linea di `DescribeSightAcrossLayers` attraversa ciascuna cella, da testa a testa:
+	 * la linea si traccia dalla cella piu' BASSA alla piu' ALTA, quindi il numero e' lo stesso nei due versi.
+	 * `Map == nullptr` -> `Range`.
+	 */
+	static int32 EffectiveContactRange(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		int32 Range);
+
 	/** `DescribeSightAcrossLayers(...).IsClear()`: un solo attraversamento, il bool ne butta via la ragione. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Perception")
 	static bool HasSightAcrossLayers(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To);
