@@ -62,8 +62,6 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		View.DashCell = Intent.DashCell;
 		View.DashStyle = Intent.DashStyle;
 		View.DashReachCells = Intent.DashReachCells; // [D-516]: movimento, come `DashCell`
-		View.DashRunCells = Intent.DashRunCells; // [D-528]: dove si ferma la carica, e' movimento anch'esso
-		View.bDashMissesTarget = Intent.bDashMissesTarget;
 		View.Facing = Intent.Facing; // posa attuale: si vede guardando l'unita', non e' un piano
 
 		// Il livello di certezza (CP 11.2) si calcola da QUESTO intento e da nient'altro: `Intents` contiene
@@ -78,6 +76,12 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 			View.PlannedWaypoints = Intent.PlannedWaypoints;
 			View.bDeclaresRotation = Intent.bDeclaresRotation;
 			View.DeclaredFacing = Intent.DeclaredFacing;
+
+			// [D-528] Dove si ferma DAVVERO la carica: solo per un alleato. Non e' derivabile da dati pubblici come `DashReachCells`
+			// — dipende da quali nemici la squadra di chi pianifica CONOSCE —, quindi mostrarlo a un avversario che vede il piano
+			// rivelato gli direbbe cosa sa chi carica. Per lui l'anteprima ricade su `DashReachCells`, che e' movimento pubblico.
+			View.DashRunCells = Intent.DashRunCells;
+			View.bDashMissesTarget = Intent.bDashMissesTarget;
 
 			// Il livello della reazione non si copia: `ReactionCertainty` e' uscito dal DTO il 2026-08-16 —
 			// la ragione sta sulla struttura, dove la cerca chi consuma.

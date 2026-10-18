@@ -398,11 +398,8 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 		}
 	}
 
-	// --- 4. Warning: la carica col bersaglio OLTRE la portata ([D-516], `#3736`) ------------------------------
+	// --- 4. Warning: la carica che NON arriva dove il giocatore ha cliccato ([D-516] `#3736`, [D-528] `#3769`) -----
 	//
-	// 🔑 **Riporta, non decide**: il numero viene da `PlannedChargeReachBeyondRange`, la stessa portata che la
-	// pianificazione ha accettato e che il resolver eseguira'. Il piano e' legale — la carica corre fino alla
-	// portata e si ferma —, ed e' degradato: non colpisce il bersaglio scelto. E' la definizione di `Warning`.
 	// 🔑 **[D-528] Un altro nemico noto sulla retta**: la carica lo urta e manca quello cliccato, in portata come oltre. E' UN
 	// avviso solo: «oltre la portata» sarebbe vero ma secondario, perche' la corsa si ferma prima di arrivarci.
 	FRTChargeRun Lettura;
@@ -449,6 +446,9 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 		}
 	}
 
+	// [D-516] Il bersaglio OLTRE la portata. 🔑 **Riporta, non decide**: il numero viene da `PlannedChargeReachBeyondRange`, la
+	// stessa portata che la pianificazione ha accettato e che il resolver eseguira'. Il piano e' legale — la carica corre fino
+	// alla portata e si ferma —, ed e' degradato: non colpisce il bersaglio scelto. E' la definizione di `Warning`.
 	int32 Distanza = 0;
 	if (const int32 Corsa = bColpisceUnAltro ? 0 : Unit->PlannedChargeReachBeyondRange(&Distanza); Corsa > 0)
 	{

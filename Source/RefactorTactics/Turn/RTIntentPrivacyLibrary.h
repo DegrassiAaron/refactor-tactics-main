@@ -138,13 +138,15 @@ struct FRTPlannedIntent
 	/**
 	 * [D-528] Le celle che la carica pianificata percorre DAVVERO, lette da chi l'ha pianificata con la fotografia della sua
 	 * squadra ([D-371]): meno della retta intera quando un nemico noto la ferma o la portata finisce prima. `INDEX_NONE` se
-	 * non e' stato calcolato (un bot, un piano senza click): allora vale `DashReachCells`. Stessa classe d'informazione di
-	 * `DashCell`: e' dove l'unita' si ferma, cioe' movimento.
+	 * non e' stato calcolato (un bot, un piano senza click): allora vale `DashReachCells`.
+	 *
+	 * 🔴 **Solo per gli alleati** (`AllyOnly` in `FRTIntentView`), a differenza di `DashReachCells`: quel numero si ricava da dati
+	 * pubblici, questo no — dipende da quali nemici la squadra di chi pianifica conosce, e a un avversario direbbe cosa sa.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	int32 DashRunCells = INDEX_NONE;
 
-	/** [D-528] La carica NON finisce a contatto col bersaglio scelto: il tratto che resta fino a lui e' quello che non fara'. */
+	/** [D-528] La carica NON finisce a contatto col bersaglio scelto: il tratto che resta fino a lui e' quello che non fara'. Come `DashRunCells`, solo per gli alleati. */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	bool bDashMissesTarget = false;
 
@@ -231,11 +233,11 @@ struct FRTIntentView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	int32 DashReachCells = 0;
 
-	/** [D-528] Le celle che la carica percorre davvero; `INDEX_NONE` se non calcolato. Vedi `FRTPlannedIntent`. */
+	/** [D-528] Le celle che la carica percorre davvero; `INDEX_NONE` se non calcolato. **Solo alleati**: vedi `FRTPlannedIntent`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	int32 DashRunCells = INDEX_NONE;
 
-	/** [D-528] La carica non finisce a contatto col bersaglio scelto. Vedi `FRTPlannedIntent`. */
+	/** [D-528] La carica non finisce a contatto col bersaglio scelto. **Solo alleati**: vedi `FRTPlannedIntent`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	bool bDashMissesTarget = false;
 
