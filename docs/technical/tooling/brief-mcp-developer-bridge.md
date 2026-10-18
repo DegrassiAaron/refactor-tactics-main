@@ -151,7 +151,7 @@ struct FRTCellId { int32 X = 0; int32 Y = 0; int32 Layer = 0; ... };
 X = **q**, Y = **r** (coordinate **assiali**, hex pointy-top), terza cubica derivata `CubeZ() = -X-Y`.
 Celle su layer diversi **non sono adiacenti**: servono archi espliciti.
 
-🔴 **Trappola**: `FRTCellId` non ha `IsValid()` (tolto in D-528: verificava `q+r+s==0`, vero per costruzione, e non
+🔴 **Trappola**: `FRTCellId` non ha `IsValid()` (tolto in D-530: verificava `q+r+s==0`, vero per costruzione, e non
 diceva nulla sull'esistenza della cella nella mappa). Per "questa cella esiste" usa `URTHexMapAsset::ContainsCell`
 / `FindCell`.
 

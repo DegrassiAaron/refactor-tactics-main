@@ -144,7 +144,7 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   su un nemico che la squadra conosce, **sulla retta ma oltre la portata**, si pianifica se la retta fino a lui è libera
   dal terreno e dai lati ([D-524](../decisions/RT_PDR_00_Decision_Log.md)) e nessun nemico noto la ferma entro la
   portata; alla risoluzione corre fino alla portata e si ferma, e colpisce solo chi stava sulla linea senza che lo si
-  vedesse. Una cella vuota oltre la portata resta rifiutata. Il **verso** che si può dichiarare dopo lo scatto si
+  vedesse. Una cella vuota oltre la portata resta rifiutata. ⚠️ [D-528](../decisions/RT_PDR_00_Decision_Log.md), non ancora attuata ([#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769)): con un nemico noto sulla retta, in portata come oltre, la carica si pianificherà sul bersaglio cliccato, con l'anteprima ferma davanti al primo nemico noto e l'avviso «colpirà A, non B»; oggi, oltre la portata, è ancora rifiutata. Il **verso** che si può dichiarare dopo lo scatto si
   giudica sulla rotta che il resolver percorrerà (`PlannedMovementForFacing` legge `ResolveLinearMove`), cioè
   sull'ultimo passo *percorso*: per una carica che si ferma davanti al nemico non è l'ultimo passo della retta fino a lui.
   Con una **carica** armata, cliccare un nemico osservato pianifica la carica su di lui, come cliccando la sua cella
@@ -186,6 +186,7 @@ playback: `Prep → Dash → Blast → Move`.
   > ✅ **Superato il 2026-08-08**: era il residuo della decisione ribaltata da CP 4.5. Lo scavalcamento
   > **esiste** ed è `LinearLeap`; il pathfinding non è più il movimento dello scatto. La riga è conservata
   > barrata perché è la sola traccia di quanto a lungo la spec si è contraddetta da sola.
+- **La retta non attraversa i piani** ([D-529](../decisions/RT_PDR_00_Decision_Log.md), [#3764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3764)): oggi Dash, Charge, Leap e Pass restano sul piano da cui partono. Deciso, non attuato: Dash, Charge e Pass cambieranno piano solo su un arco percorribile a piedi fra due celle consecutive della retta, al bivio segue il piano del bersaglio, e il Leap resta sul proprio piano finché l'epic [#2388](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388) non decide.
 - Tuning dei valori (portata/ricarica degli scatti) da tarare in gioco.
 - **`Action.Sprint` è a budget e viveva in questa spec per eredità** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)):
   semanticamente appartiene ai profili di `Move`, ed è là che risolve dal 2026-09-12. L'**ID** resta

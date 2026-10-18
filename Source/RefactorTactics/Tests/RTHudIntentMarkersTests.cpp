@@ -34,7 +34,7 @@
 // a piano concluso: letta come presenza, disegnerebbe un rettangolo sotto un'unità ferma — la stessa
 // trappola che `ComposePlannedRoute` dichiara per sé.
 //
-// ⌫ **`FRTCellId::IsValid()` non esiste più** (#3365, D-528): la riga 1 della tabella e il resto di questo
+// ⌫ **`FRTCellId::IsValid()` non esiste più** (#3365, D-530): la riga 1 della tabella e il resto di questo
 // commento descrivono la mutazione com'era, e non si possono più ricompilare. Si leggano come storia.
 //
 // ⛔ **E la trappola è più profonda di come quel commento la descrive.** `FRTCellId::IsValid()` non è un

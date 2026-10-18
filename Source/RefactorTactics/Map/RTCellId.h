@@ -48,7 +48,7 @@ struct FRTCellId
 	bool operator!=(const FRTCellId& O) const { return !(*this == O); }
 
 	// ⛔ Nessun `IsValid()`: esisteva come `X + Y + CubeZ() == 0`, cioe' `0 == 0` per ogni cella, un controllo che
-	// non poteva dare rosso (#3365, D-528). La validita' di una cella e' rispetto a una MAPPA (`ContainsCell`), non
+	// non poteva dare rosso (#3365, D-530). La validita' di una cella e' rispetto a una MAPPA (`ContainsCell`), non
 	// alla struct, che non ne conosce nessuna. La coerenza cubica non si controlla: `CubeZ()` la costruisce.
 
 	FString ToString() const { return FString::Printf(TEXT("(q=%d,r=%d,L=%d)"), X, Y, Layer); }
