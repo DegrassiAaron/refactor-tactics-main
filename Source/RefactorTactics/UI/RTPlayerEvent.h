@@ -188,8 +188,8 @@ struct FRTPlayerEvent
 	/**
 	 * La sentinella di `BlockerCell`.
 	 *
-	 * ⚠️ **Non si usa `FRTCellId::IsValid()`**: quella verifica l'invariante cubica `q + r + z == 0`, vera
-	 * per la cella di default `(0,0,0)` — una cella «vuota» sarebbe valida, e il feed marcherebbe l'origine
+	 * ⚠️ **La cella non e' una sentinella**: `(0,0,0)`, la cella di default, e' una cella vera
+	 * (`FRTCellId::IsValid()` e' stato tolto in D-528: era `0 == 0`) — una cella «vuota» non esiste, e il feed marcherebbe l'origine
 	 * dell'arena a ogni evento che non ha muro. Il marcatore e' il `Layer` a `INDEX_NONE`, la stessa
 	 * convenzione di `FRTTurnLogEntry::NoSightBlocker()`.
 	 */

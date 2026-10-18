@@ -253,9 +253,8 @@ FRTRefusedShotLine ARTHUD::ComputeRefusedShotLine(
 		return Out;
 	}
 
-	// ⚠️ **`IsClear()` e non `BlockedAt.IsValid()`**, ed e' la stessa trappola che `ComputeBlockerMarks`
-	// documenta poche righe piu' su: `IsValid()` verifica l'invariante cubica, VERA per la cella di default
-	// `(0,0,0)`. Un esito senza blocco marcherebbe l'origine dell'arena.
+	// ⚠️ **`IsClear()` e non la cella `BlockedAt`**, ed e' la stessa trappola che `ComputeBlockerMarks`
+	// documenta poche righe piu' su: la cella di default `(0,0,0)` e' una cella vera. Un esito senza blocco marcherebbe l'origine dell'arena.
 	if (Los.IsClear())
 	{
 		return Out;

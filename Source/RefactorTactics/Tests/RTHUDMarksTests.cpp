@@ -242,8 +242,8 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 /**
  * LE CELLE DA MARCARE SONO SOLO QUELLE NOMINABILI — `#2697`.
  *
- * 🔴 **La sentinella e' `Layer == INDEX_NONE`, e `FRTCellId::IsValid()` NON la riconosce**: la cella
- * «vuota» `(0,0,0)` supera l'invariante cubica `q + r + z == 0`. Un filtro ingenuo marcherebbe l'origine
+ * 🔴 **La sentinella e' `Layer == INDEX_NONE`, e nessuna proprieta' della cella la riconosce**: la cella
+ * «vuota» `(0,0,0)` e' una cella vera (`FRTCellId::IsValid()`, tolto in D-528, era `0 == 0`). Un filtro ingenuo marcherebbe l'origine
  * dell'arena a ogni riga senza ostacolo — un pannello che compare in mezzo al campo, dove non c'e' niente,
  * ogni volta che il velo copre il muro.
  *

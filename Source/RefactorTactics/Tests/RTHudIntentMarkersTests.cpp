@@ -38,7 +38,7 @@
 // commento descrivono la mutazione com'era, e non si possono più ricompilare. Si leggano come storia.
 //
 // ⛔ **E la trappola è più profonda di come quel commento la descrive.** `FRTCellId::IsValid()` non è un
-// controllo debole: è una **tautologia**. `RTCellId.h:45,51` dà `CubeZ() = -X - Y` e
+// controllo debole: è una **tautologia**. `RTCellId.h` dava `CubeZ() = -X - Y` e
 // `IsValid() = (X + Y + CubeZ() == 0)`, cioè `0 == 0`. Non esiste una cella che la renda falsa, quindi
 // `if (PlannedCell.IsValid())` non è «la domanda sbagliata»: è **nessuna domanda**. Ed è il motivo per
 // cui questa mutazione aggiunge sempre la destinazione, anche per un'unità ferma. Oltre al gate cade infatti
@@ -93,7 +93,7 @@ bool FRTHudIntentMarkersRouteGateTest::RunTest(const FString&)
 	// cella DIVERSA dall'origine, non che sia «valida».
 	//
 	// 🔴 **`IsValid()` qui sarebbe stato vacuo, ed e' stato verificato invece che supposto.**
-	// `RTCellId.h:45,51` definisce `CubeZ() = -X - Y` e `IsValid() = (X + Y + CubeZ() == 0)`, cioe'
+	// `RTCellId.h` definiva `CubeZ() = -X - Y` e `IsValid() = (X + Y + CubeZ() == 0)`, cioe'
 	// `0 == 0`: e' vera per QUALUNQUE cella, e nessun valore puo' renderla falsa. Un'asserzione che non
 	// puo' cadere sembra una premessa e non ne e' una. ⚠️ La prima stesura di questa riga la usava —
 	// trovata dalla revisione della PR #3363, non da chi l'ha scritta.

@@ -1480,7 +1480,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 
 		// ⚠️ La sentinella si legge **una volta**, qui, e diventa un `bool`. Lasciarla al widget
 		// rimetterebbe nel Blueprint la distinzione fra «cella (0,0,0)» e «nessuna cella», che e' proprio
-		// dove `FRTCellId::IsValid()` risponde di si' e marcherebbe l'origine dell'arena.
+		// dove la cella `(0,0,0)` e' una cella vera e marcherebbe l'origine dell'arena.
 		Line.bHasBlocker = Event.HasBlockerCell();
 		Line.Phase = Event.Phase;
 		Line.Sequence = i + 1; // la posizione fra gli eventi GIA' filtrati: nessun buco da cui contare il nascosto

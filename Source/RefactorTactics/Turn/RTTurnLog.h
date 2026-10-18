@@ -1343,8 +1343,8 @@ struct FRTTurnLogEntry
 	/**
 	 * La sentinella di `SightBlockerCell`.
 	 *
-	 * ⚠️ **Non si usa `FRTCellId::IsValid()`**: quella verifica l'invariante cubica `q + r + z == 0`, che
-	 * per la cella di default `(0,0,0)` e' VERA. Una cella «vuota» e' quindi valida, e usarla come
+	 * ⚠️ **La cella non e' una sentinella**: `(0,0,0)`, la cella di default, e' una cella vera
+	 * (`FRTCellId::IsValid()` e' stato tolto in D-528: era `0 == 0`). Una cella «vuota» non esiste, e usarla come
 	 * sentinella nominerebbe l'origine dell'arena su ogni voce che non ha muro. Il marcatore e' il
 	 * `Layer` a `INDEX_NONE`, che nessun layer reale assume — la stessa convenzione di `StableUnitId`.
 	 */
