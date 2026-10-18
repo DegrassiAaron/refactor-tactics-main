@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-18 — `PIE-V01-CHARGECLICK` (4): la tavola `V8`, vista con la regola nuova
+
+**Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), la chiusura del giro: la scena `Visual.Input.ChargeClick` con la retta libera nel gioco. Il verdetto a schermo resta dell'autore.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/evidence/u92/V8-carica-click-su-muiren-retta-libera-2026-10-18.jpg`](technical/evidence/u92/V8-carica-click-su-muiren-retta-libera-2026-10-18.jpg) | prima e dopo il click su Muiren con `Ram` armata, il log `SCATTO -> (-2,4,L0) con impatto` e il pannello «Carica d'ariete» |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGECLICK`: «nessuno ha ancora visto la scena» cede il posto a `V8`, con il suo limite (finestra `-game`, non PIE; camera a mano). La voce resta 🟡 |
+
+---
+
 ## 2026-10-18 — «In linea» per gli scatti è nel gioco: la retta libera fra i centri (D-523, D-524)
 
 **Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), l'attuazione di D-523 e D-524. Il codice applica ora la regola; le due note «finché #3793 non è su `main`» cadono.
