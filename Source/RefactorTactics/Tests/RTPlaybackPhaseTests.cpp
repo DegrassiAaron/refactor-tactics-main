@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
 #include "Components/StaticMeshComponent.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Engine/Engine.h"
@@ -885,6 +886,154 @@ bool FRTEventLogLookTest::RunTest(const FString&)
 	TestEqual(TEXT("e il pannello non raddoppia"), Righe->GetChildrenCount(), Log->GetLineWidgets().Num());
 
 	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * IL REGISTRO RISCRIVE LA RIGA QUANDO CAMBIA IL TESTO E NON IL NUMERO DI RIGHE (#3073).
+ *
+ * Il difetto che la issue ha misurato stava nel grafo di `WBP_RT_EventLog`, tolto da #3637: il feed si
+ * ricostruiva solo se cambiava il NUMERO di righe (`Array_Length(feed) != GetChildrenCount(FeedBox)`).
+ * La dominanza del proiettore SOSTITUISCE sul posto - un danno che diventa KO e' ancora una riga - quindi
+ * il conteggio non si muove e a schermo restava il testo vecchio. Ora il registro e' C++ e rilegge il feed a
+ * 5 Hz (`RefreshLook(true)` e' il giro che `NativeTick` fa a ogni scadenza): questo test pinna che la
+ * rilettura riscriva le righe che ci sono, non che ne costruisca di nuove.
+ *
+ * ATTENZIONE: nasce VERDE, perche' il difetto non esiste piu' su `main`. E' una guardia, e la sua validita'
+ * si prova con la mutazione (la rilettura ridotta al solo conteggio delle righe deve renderlo rosso), non
+ * con un rosso alla base.
+ *
+ * Il turno vero serve a una cosa sola: portare il manager in Risoluzione, senza la quale il registro e'
+ * chiuso e non costruisce righe. Il contenuto che conta e' iniettato nel `TurnLog` con una voce di
+ * un'unita' sintetica, cosi' il test non dipende da cosa quel turno ha scritto:
+ *   1. un danno sull'unita' sintetica porta il feed da N a N+1 righe (controllo positivo: il giro che anche
+ *      la vecchia guardia faceva scattare);
+ *   2. un colpo letale sulla stessa unita' la sostituisce sul posto: N+1 righe, testo diverso.
+ * Si confronta il testo che la riga SCRIVE (`GetLine`) e quello del blocco di testo che il giocatore vede
+ * (`LineText`), e che la riga sia la stessa istanza: riusata e riscritta, non ricostruita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogRewritesLineWhenCountIsUnchangedTest,
+	"RefactorTactics.ScreenHud.EventLogRewritesLineWhenCountIsUnchanged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventLogRewritesLineWhenCountIsUnchangedTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
+	SpawnPlaybackMap(World);
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !Dasher || !Target || !Log) { return false; }
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Log->LogRoot = NewObject<UBorder>(Log);
+	Log->LogTurnText = NewObject<UTextBlock>(Log);
+	UVerticalBox* Righe = NewObject<UVerticalBox>(Log);
+	Log->LinesBox = Righe;
+	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
+
+	// --- Un turno vero, solo per entrare in Risoluzione ------------------------------------------------------------
+	const int32 DashIdx = Dasher->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE)) { return false; }
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = FRTCellId(3, 2);
+	Dasher->PlannedAbilityIndex = 0;
+	Dasher->PlannedAttackTarget = Target;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving())) { return false; }
+
+	// Le voci iniettate stanno nel turno PIU' RECENTE del log: il feed legge solo quello.
+	int32 Turno = 0;
+	for (const FRTTurnLogEntry& Voce : TM->GetTurnLog()) { Turno = FMath::Max(Turno, Voce.TurnNumber); }
+	constexpr int32 UnitaSintetica = 9001; // non e' nessuna unita' in campo: il proiettore non la cerca
+	const auto VoceDiCombattimento = [Turno](const ERTCombatOutcome Esito)
+	{
+		FRTTurnLogEntry Voce;
+		Voce.Category = ERTLogCategory::Combat;
+		Voce.Outcome = static_cast<uint8>(Esito);
+		Voce.UnitId = UnitaSintetica;
+		Voce.TurnNumber = Turno;
+		Voce.Phase = ERTMatchPhase::Blast;
+		Voce.Amount = 7;
+		Voce.Verdict.AllowTeam(0); // la squadra di chi guarda la conosce
+		return Voce;
+	};
+	const auto RigaDellUnita = [](const TArray<FRTPlayerEventLineView>& Feed) -> int32
+	{
+		for (int32 i = 0; i < Feed.Num(); ++i)
+		{
+			if (Feed[i].PrimaryStableUnitId == UnitaSintetica) { return i; }
+		}
+		return INDEX_NONE;
+	};
+
+	// --- Il turno vero: il registro costruisce le sue righe ---------------------------------------------------------
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	const int32 RigheDelTurno = Log->GetLineWidgets().Num();
+	const TArray<FRTPlayerEventLineView> FeedDelTurno = Log->GetFeed();
+	if (!TestEqual(TEXT("premessa: il registro ha una riga per voce del feed"), RigheDelTurno, FeedDelTurno.Num())
+		|| !TestTrue(TEXT("premessa: c'e' posto per una riga in piu' senza che il budget del feed ne tolga una"),
+			RigheDelTurno + 1 < URTHudViewModel::MaxFeedLines)
+		|| !TestEqual(TEXT("premessa: l'unita' sintetica non ha ancora una riga"), RigaDellUnita(FeedDelTurno), INDEX_NONE))
+	{
+		return false;
+	}
+
+	// --- 1. CONTROLLO POSITIVO: il numero di righe cambia, e la riga nuova compare con il suo testo -------------------
+	TM->AppendTurnLogEntryForTest(VoceDiCombattimento(ERTCombatOutcome::Hit));
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	const TArray<FRTPlayerEventLineView> FeedConDanno = Log->GetFeed();
+	const int32 Indice = RigaDellUnita(FeedConDanno);
+	if (!TestEqual(TEXT("1: il danno aggiunge UNA riga al feed"), FeedConDanno.Num(), RigheDelTurno + 1)
+		|| !TestTrue(TEXT("1: e' quella dell'unita' sintetica"), Indice != INDEX_NONE)
+		|| !TestEqual(TEXT("1: il registro ha costruito la riga nuova"), Log->GetLineWidgets().Num(), RigheDelTurno + 1)
+		|| !TestEqual(TEXT("1: e il pannello la porta"), Righe->GetChildrenCount(), RigheDelTurno + 1))
+	{
+		return false;
+	}
+	URTPlayerEventLineWidget* Riga = Log->GetLineWidgets()[Indice];
+	if (!TestNotNull(TEXT("1: la riga dell'unita' sintetica"), Riga)) { return false; }
+	TestTrue(TEXT("1: la riga porta il testo del danno"), Riga->GetLine().Text.EqualTo(FeedConDanno[Indice].Text));
+	TestFalse(TEXT("1: e non e' ancora il KO"), FeedConDanno[Indice].Text.ToString().Equals(TEXT("Eliminata"), ESearchCase::CaseSensitive));
+
+	// Le righe del WBP hanno un blocco di testo; qui le righe sono C++ puro, quindi lo si da' a ognuna e le si
+	// riscrive col testo che gia' portano. Cosi' si osserva il testo VISIBILE, non solo la vista che la riga conserva.
+	for (URTPlayerEventLineWidget* Altra : Log->GetLineWidgets())
+	{
+		if (!TestNotNull(TEXT("1: ogni riga costruita esiste"), Altra)) { return false; }
+		Altra->LineText = NewObject<UTextBlock>(Altra);
+		Altra->SetLine(Altra->GetLine());
+	}
+	const FText TestoDelDanno = Riga->LineText->GetText();
+	TestTrue(TEXT("premessa: la riga mostra il testo del danno"), TestoDelDanno.EqualTo(FeedConDanno[Indice].Text));
+
+	// --- 2. LO STESSO NUMERO DI RIGHE, UN TESTO DIVERSO: il KO sostituisce il danno sul posto -----------------------
+	TM->AppendTurnLogEntryForTest(VoceDiCombattimento(ERTCombatOutcome::Lethal));
+	const TArray<FRTPlayerEventLineView> FeedConKO = Log->GetFeed();
+	if (!TestEqual(TEXT("premessa: il KO non aggiunge una riga, sostituisce quella del danno"), FeedConKO.Num(), FeedConDanno.Num())
+		|| !TestEqual(TEXT("premessa: e la riga resta al suo posto"), RigaDellUnita(FeedConKO), Indice)
+		|| !TestFalse(TEXT("premessa: ma il feed ora dice un'altra cosa"), FeedConKO[Indice].Text.EqualTo(TestoDelDanno)))
+	{
+		return false;
+	}
+
+	Log->RefreshLook(/*bRereadFeed=*/ true); // il giro dei 5 Hz di `NativeTick`
+
+	TestEqual(TEXT("2: il registro ha ancora lo stesso numero di righe"), Log->GetLineWidgets().Num(), FeedConKO.Num());
+	TestEqual(TEXT("2: e il pannello non ne ha di nuove"), Righe->GetChildrenCount(), FeedConKO.Num());
+	TestTrue(TEXT("2: la riga e' la stessa istanza: riusata e riscritta, non ricostruita"), Log->GetLineWidgets()[Indice] == Riga);
+	TestTrue(TEXT("2: la riga conserva la vista nuova, quella del KO"), Riga->GetLine().Text.EqualTo(FeedConKO[Indice].Text));
+	TestTrue(TEXT("2: e il blocco di testo che il giocatore legge dice il KO, non il danno"),
+		Riga->LineText->GetText().ToString().Equals(TEXT("Eliminata"), ESearchCase::CaseSensitive));
+	TestFalse(TEXT("2: il testo del danno non resta a schermo"), Riga->LineText->GetText().EqualTo(TestoDelDanno));
+	for (int32 i = 0; i < FeedConKO.Num() && i < Log->GetLineWidgets().Num(); ++i)
+	{
+		const URTPlayerEventLineWidget* UnaRiga = Log->GetLineWidgets()[i];
+		if (!TestNotNull(*FString::Printf(TEXT("2: la riga %d esiste"), i), UnaRiga)) { continue; }
+		TestTrue(*FString::Printf(TEXT("2: la riga %d mostra il testo del feed attuale"), i),
+			UnaRiga->LineText && UnaRiga->LineText->GetText().EqualTo(FeedConKO[i].Text));
+	}
 	return true;
 }
 
