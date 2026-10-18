@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-18 — `PIE-V01-DASHCOVER`: una scena e la tavola `V9` per vedere lo scatto davanti alla barriera alta
+
+**Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), l'ultima voce a schermo. Nessuna scena aveva una barriera alta sul percorso di uno scatto pianificato da una persona.
+
+| Dove | Che cosa |
+|---|---|
+| `Scenarios/Visual/Input/ChargeBehindCover.json` | scena nuova su `CoverYard`: Branth in `(-1,0)`, la barriera alta fra `(0,0)` e `(1,0)`, zero turni; verifica `PIE-V01-DASHCOVER`. Registrata in [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md), [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) e `technical/architecture/capability-map.yaml` |
+| [`technical/evidence/u92/V9-carica-davanti-alla-barriera-2026-10-18.jpg`](technical/evidence/u92/V9-carica-davanti-alla-barriera-2026-10-18.jpg) | cinque click con `Ram` armata, ciascuno col suo log: `(1,0)` e `(2,0)` oltre la barriera rifiutati, `(0,0)`, `(2,-1)` e `(1,1)` (attraverso la copertura bassa) pianificati |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-DASHCOVER`: la tavola `V9` e il suo limite (finestra `-game`, non PIE; camera a mano); a schermo il rifiuto e' silenzioso. La voce resta parziale |
+
+---
+
 ## 2026-10-18 — `PIE-V01-CHARGECLICK` (4): la tavola `V8`, vista con la regola nuova
 
 **Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), la chiusura del giro: la scena `Visual.Input.ChargeClick` con la retta libera nel gioco. Il verdetto a schermo resta dell'autore.

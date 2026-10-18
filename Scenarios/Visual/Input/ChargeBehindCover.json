@@ -1,0 +1,26 @@
+{
+  "scenarioId": "Visual.Input.ChargeBehindCover",
+  "tags": ["pointer", "planning", "dash", "movement", "cover", "visual", "branth", "ivrin"],
+  "verifies": ["PIE-V01-DASHCOVER"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "CoverYard",
+
+  "_nota": "BANCO dello scatto davanti a una copertura alta (D-524, #3793). Zero turni: e' una configurazione, e la partita resta in Pianificazione perche' una persona arma `Hero.Branth.Ram` e clicca. Come `Visual.Input.ChargeClick`, ma sulla fixture `CoverYard`, l'unica con una barriera ALTA sul percorso: fra (0,0) e (1,0).",
+  "_oracolo": "`PIE-V01-DASHCOVER`, la parte che headless non vede. Con `Ram` armata, da A1 in (-1,0): (a) il click su (0,0), davanti alla barriera, pianifica la carica; (b) il click su (1,0) e quello su (2,0), oltre la barriera, NON pianificano niente e il motivo sta nel log (`un bordo con copertura alta o una porta chiusa ferma la retta`): lo scatto non parte per fermarsi a meta'; (c) il click su (2,-1), fuori asse ma con la retta libera accanto alla barriera, pianifica la carica. Che cosa compare a schermo quando il click e' rifiutato lo dice solo lo schermo.",
+  "_nota_geometria": "Le rette sono quelle di `URTHexLibrary::HexLine`, ricalcolate a parte e non lette dal gioco: da (-1,0), (1,0) passa per (0,0),(1,0) e (2,0) per (0,0),(1,0),(2,0), e in tutte e due il passo da (0,0) a (1,0) attraversa la barriera alta; (2,-1) passa per (0,0),(1,-1),(2,-1), che non la attraversa. Le tre celle stanno entro la portata di `Ram` (3): se il click e' rifiutato, il motivo e' il bordo e non la distanza. B1 sta in (3,-1), oltre la barriera e fuori dalle tre rette: serve a tenere due squadre in campo, non e' un bersaglio di questa scena. A1 guarda a est.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [3, -1, 0], "facing": "W" }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [3, -1, 0] },
+    { "type": "UnitAlive", "unit": "A1", "value": true }
+  ]
+}
