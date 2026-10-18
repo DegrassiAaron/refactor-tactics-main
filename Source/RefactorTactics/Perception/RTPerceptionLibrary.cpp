@@ -13,8 +13,8 @@ namespace
 	/**
 	 * Il contatto regge fra due celle? Tre condizioni, tutte necessarie: portata, fumo, linea di vista.
 	 *
-	 * Il **cap del fumo** passa da `URTTerrainLibrary::EffectiveTargetingRange`, che di quella regola e'
-	 * l'owner: ricalcolarlo qui darebbe due verita' sullo stesso numero, e la seconda divergerebbe alla prima
+	 * Il **cap del fumo** passa da `URTPerceptionLibrary::EffectiveContactRange`, che sullo stesso piano chiama
+	 * `URTTerrainLibrary::EffectiveTargetingRange`, di quella regola l'owner: ricalcolarlo qui darebbe due verita' sullo stesso numero, e la seconda divergerebbe alla prima
 	 * modifica. La sua convenzione include gli estremi — stare NEL fumo cappa quanto guardarci attraverso.
 	 */
 	bool ContactHolds(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To, int32 Range)
@@ -88,8 +88,9 @@ int32 URTPerceptionLibrary::EffectiveContactRange(const URTHexMapAsset* Map, con
 				Occupied.Add(FRTCellId(Line[I].X, Line[I].Y, Layer));
 			}
 		}
-		Occupied.Add(FRTCellId(Line[N].X, Line[N].Y, Upper.Layer));
 	}
+	// Il capo alto risponde del proprio piano anche nella stessa colonna (`N == 0`, `Line[0] == Line[N]`).
+	Occupied.Add(FRTCellId(Line[N].X, Line[N].Y, Upper.Layer));
 	return URTTerrainLibrary::EffectiveTargetingRangeThrough(Map, Occupied, Range);
 }
 

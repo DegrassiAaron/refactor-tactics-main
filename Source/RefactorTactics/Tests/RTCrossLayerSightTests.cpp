@@ -704,6 +704,23 @@ bool FRTCrossLayerSmokeTest::RunTest(const FString&)
 	TestEqual(TEXT("la linea passa sopra il fumo: tetto invariato, Aevik -> Branth"), URTPerceptionLibrary::EffectiveContactRange(Under, Aevik, Branth, Reach), Reach);
 	TestEqual(TEXT("la linea passa sopra il fumo: tetto invariato, Branth -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(Under, Branth, Aevik, Reach), Reach);
 
+	// Le celle INTERMEDIE contano sul piano in cui la linea le attraversa. (1,0) e' attraversata sui piani 0 e 1
+	// (la linea parte dalla testa a tre quinti di piano): il fumo su uno dei due la cappa. (2,0) solo sul piano 1.
+	for (const FRTCellId& SmokeAt : { FRTCellId(1, 0, 0), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1) })
+	{
+		URTHexMapAsset* Mid = XlsGroundWith(6, { Branth, FRTCellId(4, 0, 1), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1) });
+		XlsSetSurface(Mid, SmokeAt, ERTHexSurface::Smoke);
+		const FString Where = XlsCell(SmokeAt);
+		TestEqual(*FString::Printf(TEXT("fumo intermedio in %s: tetto 2, Aevik -> Branth"), *Where), URTPerceptionLibrary::EffectiveContactRange(Mid, Aevik, Branth, Reach), 2);
+		TestEqual(*FString::Printf(TEXT("fumo intermedio in %s: tetto 2, Branth -> Aevik"), *Where), URTPerceptionLibrary::EffectiveContactRange(Mid, Branth, Aevik, Reach), 2);
+	}
+
+	// Due piani di dislivello (Rise = 2): il capo alto e quello basso rispondono del proprio piano, i due versi uguali.
+	URTHexMapAsset* Tall = XlsGroundWith(6, { FRTCellId(3, 0, 2), FRTCellId(4, 0, 2) });
+	XlsSetSurface(Tall, FRTCellId(3, 0, 2), ERTHexSurface::Smoke);
+	TestEqual(TEXT("due piani: fumo sul capo alto, Aevik -> cima"), URTPerceptionLibrary::EffectiveContactRange(Tall, Aevik, FRTCellId(3, 0, 2), Reach), 2);
+	TestEqual(TEXT("due piani: fumo sul capo alto, cima -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(Tall, FRTCellId(3, 0, 2), Aevik, Reach), 2);
+
 	// Stesso piano: la regola di sempre, la stessa funzione.
 	URTHexMapAsset* Flat = XlsGroundWith(6, {});
 	XlsSetSurface(Flat, FRTCellId(1, 0, 0), ERTHexSurface::Smoke);

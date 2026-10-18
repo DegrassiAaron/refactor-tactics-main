@@ -109,7 +109,7 @@ struct FRTCrossLayerSightResult
  *    giocatore non puo' nemmeno percepire smette di essere una scelta e diventa una punizione.
  *
  * La **LOS serve a entrambi**: si vede attraverso l'aria, non attraverso i muri. E il **fumo** cappa il
- * contatto a 2 celle riusando `URTTerrainLibrary::EffectiveTargetingRange`, che di quella regola e' l'owner.
+ * contatto a 2 celle riusando `URTTerrainLibrary::EffectiveTargetingRange` (via `EffectiveContactRange`), che di quella regola e' l'owner.
  *
  * La conoscenza e' di **SQUADRA** ([D-043](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): due squadre
  * hanno due insiemi separati, e l'asimmetria fra loro non va costruita — c'e' gia'. Non esiste una relazione
