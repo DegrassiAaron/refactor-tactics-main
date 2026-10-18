@@ -1,5 +1,6 @@
 #include "UI/RTHUD.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTHudLayout.h" // #3795: la fascia bassa e la scala, per posare la riga del banco sopra il dock
 #include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
@@ -1482,19 +1483,20 @@ void ARTHUD::DrawHUD()
 			const float BY = 44.f;
 			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), BX - 8.f, BY - 4.f, BW + 16.f, BH + 8.f);
 			DrawText(Banner, FLinearColor(1.f, 0.75f, 0.2f, 1.f), BX, BY, nullptr, 1.1f);
+		}
 
-			// `#3774` — nelle scene del banco, una seconda riga: dove si e' nel kit dell'eroe e quali tasti cambiano
-			// azione. Sotto la banda e non dentro: quella e' gia' larga quanto lo schermo di un PIE.
-			const FString Passo = GM->GetLabStepText();
-			if (!Passo.IsEmpty())
-			{
-				float PW = 0.f, PH = 0.f;
-				GetTextSize(Passo, PW, PH, nullptr, 1.1f);
-				const float PX = (Canvas->SizeX - PW) * 0.5f;
-				const float PY = BY + BH + 14.f;
-				DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), PX - 8.f, PY - 4.f, PW + 16.f, PH + 8.f);
-				DrawText(Passo, FLinearColor::White, PX, PY, nullptr, 1.1f);
-			}
+		// `#3774` — nelle scene del banco, una seconda riga: dove si e' nel kit dell'eroe e quali tasti cambiano azione.
+		// `#3795`: NON sotto la banda — li' le etichette delle unita' (widget, sopra il canvas) la coprivano. In basso al
+		// centro, sopra il dock e sotto le etichette delle unita' (PIE 1600x900 del 2026-10-18); la posa la decide
+		// `ComposeLabStepLinePlacement`.
+		const FString Passo = GM->GetLabStepText();
+		if (!Banner.IsEmpty() && !Passo.IsEmpty())
+		{
+			float PW = 0.f, PH = 0.f;
+			GetTextSize(Passo, PW, PH, nullptr, 1.1f);
+			const FVector2f Posa = ComposeLabStepLinePlacement(FVector2f(Canvas->SizeX, Canvas->SizeY), FVector2f(PW, PH));
+			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), Posa.X - 8.f, Posa.Y - 4.f, PW + 16.f, PH + 8.f);
+			DrawText(Passo, FLinearColor::White, Posa.X, Posa.Y, nullptr, 1.1f);
 		}
 	}
 
@@ -1959,6 +1961,14 @@ ARTHUD::FRTMatchEndPanelPlacement ARTHUD::ComposeMatchEndPanelPlacement(const FV
 	Posa.Restart = FVector2f((Viewport.X - RestartWidth) * MatchEndCentre,
 		AncoraY + HeadlineSize.Y + MatchEndLineGapPx);
 	return Posa;
+}
+
+FVector2f ARTHUD::ComposeLabStepLinePlacement(const FVector2f& Viewport, const FVector2f& TextSize)
+{
+	const float UiScale = RTHudLayout::UiScaleFor(FIntPoint(FMath::RoundToInt(Viewport.X), FMath::RoundToInt(Viewport.Y)));
+	const float DockTop = Viewport.Y - RTHudLayout::Bands().Bottom * UiScale;
+	return FVector2f((Viewport.X - TextSize.X) * 0.5f,
+		DockTop - LabStepAboveDockSlate * UiScale - TextSize.Y);
 }
 
 FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)
