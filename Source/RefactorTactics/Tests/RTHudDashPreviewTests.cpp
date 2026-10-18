@@ -270,4 +270,81 @@ bool FRTHudDashPreviewNullMapTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-528] (`#3769`) — **l'anteprima di una carica si ferma dove si ferma la corsa, e il resto e' rosso solo se la manca**.
+ *
+ * Fino a [D-528] il segno d'arrivo stava sulla cella del NEMICO per una carica in portata, e solo oltre la portata dove la
+ * corsa si ferma: sullo stesso schermo due cariche usavano il segno in due modi diversi. Ora sta sempre sulla cella
+ * d'arresto. Il tratto che resta e' rosso soltanto se la carica NON finisce a contatto col bersaglio scelto: l'urto con
+ * lui non e' un mancato arrivo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudDashPreviewChargeRunTest,
+	"RefactorTactics.HUD.ChargePreviewStopsWhereTheRunStopsAndMarksAMissOnlyWhenItMisses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudDashPreviewChargeRunTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Mappa = MakeDashTestMap();
+
+	FRTIntentView Carica;
+	Carica.bDashing = true;
+	Carica.OwnerCell = FRTCellId(0, 0, 0);
+	Carica.DashCell = FRTCellId(3, 0, 0);
+	Carica.DashStyle = ERTMovementStyle::LinearCharge;
+
+	// (1) A contatto col bersaglio: due celle di corsa, il resto e' l'urto e non si disegna rosso.
+	FRTIntentView AContatto = Carica;
+	AContatto.DashRunCells = 2;
+	AContatto.bDashMissesTarget = false;
+	const FRTDashPreview Contatto = ARTHUD::ComposeDashPreview(AContatto, Mappa);
+	TestEqual(TEXT("a contatto: due tratti di corsa"), Contatto.ReachSegments, 2);
+	TestTrue(TEXT("a contatto: il segno sta sulla cella d'arresto, accanto al nemico"), Contatto.StopCell() == FRTCellId(2, 0, 0));
+	TestFalse(TEXT("a contatto: il tratto fino al nemico non e' un mancato arrivo"), Contatto.bShowsMiss);
+
+	// (2) Un altro in mezzo: una cella di corsa, il resto fino a B e' rosso.
+	FRTIntentView Manca = Carica;
+	Manca.DashRunCells = 1;
+	Manca.bDashMissesTarget = true;
+	const FRTDashPreview Mancata = ARTHUD::ComposeDashPreview(Manca, Mappa);
+	TestEqual(TEXT("manca: un solo tratto di corsa"), Mancata.ReachSegments, 1);
+	TestTrue(TEXT("manca: il segno sta davanti al primo nemico"), Mancata.StopCell() == FRTCellId(1, 0, 0));
+	TestTrue(TEXT("manca: il resto e' il tratto che non fara'"), Mancata.HasShortfall() && Mancata.bShowsMiss);
+	TestTrue(TEXT("manca: la retta arriva comunque fino a B"), Mancata.PathCells.Last() == FRTCellId(3, 0, 0));
+
+	// (3) Un nemico adiacente: la carica non si muove, il segno resta sulla partenza.
+	FRTIntentView Ferma = Carica;
+	Ferma.DashRunCells = 0;
+	Ferma.bDashMissesTarget = true;
+	const FRTDashPreview Immobile = ARTHUD::ComposeDashPreview(Ferma, Mappa);
+	TestEqual(TEXT("adiacente: nessun tratto di corsa"), Immobile.ReachSegments, 0);
+	TestTrue(TEXT("adiacente: il segno sta sulla partenza"), Immobile.StopCell() == FRTCellId(0, 0, 0));
+	TestTrue(TEXT("adiacente: tutta la retta e' il tratto che non fara'"), Immobile.HasShortfall() && Immobile.bShowsMiss);
+
+	// (4) Arriva sulla cella scelta: nessun tratto in meno.
+	FRTIntentView Arriva = Carica;
+	Arriva.DashRunCells = 3;
+	const FRTDashPreview Intera = ARTHUD::ComposeDashPreview(Arriva, Mappa);
+	TestFalse(TEXT("arriva: la corsa non ha un resto"), Intera.HasShortfall());
+	TestTrue(TEXT("arriva: il segno sta sulla cella scelta"), Intera.StopCell() == FRTCellId(3, 0, 0));
+
+	// (5) Non calcolata: vale [D-516] com'era — `DashReachCells`, rosso — e senza niente l'anteprima e' intera.
+	FRTIntentView Legacy = Carica;
+	Legacy.DashReachCells = 2;
+	const FRTDashPreview OltrePortata = ARTHUD::ComposeDashPreview(Legacy, Mappa);
+	TestEqual(TEXT("non calcolata: la portata di D-516 vale ancora"), OltrePortata.ReachSegments, 2);
+	TestTrue(TEXT("non calcolata: ed e' rosso, com'era"), OltrePortata.bShowsMiss);
+	TestEqual(TEXT("senza niente: tutta la traiettoria"), ARTHUD::ComposeDashPreview(Carica, Mappa).ReachSegments,
+		static_cast<int32>(INDEX_NONE));
+
+	// (6) Una lettura fuori dalla retta non si disegna, e uno scatto a budget non la riguarda.
+	FRTIntentView Fuori = Carica;
+	Fuori.DashRunCells = 9;
+	TestEqual(TEXT("oltre la retta: ignorata"), ARTHUD::ComposeDashPreview(Fuori, Mappa).ReachSegments,
+		static_cast<int32>(INDEX_NONE));
+	FRTIntentView ABudget = AContatto;
+	ABudget.DashStyle = ERTMovementStyle::Budget;
+	TestEqual(TEXT("a budget: la lettura di una carica non c'entra"), ARTHUD::ComposeDashPreview(ABudget, Mappa).ReachSegments,
+		static_cast<int32>(INDEX_NONE));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

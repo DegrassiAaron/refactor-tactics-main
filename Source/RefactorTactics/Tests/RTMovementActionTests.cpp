@@ -1113,4 +1113,87 @@ bool FRTMoveLineFunctionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-528] (`#3769`) — **dove si ferma una carica pianificata, e se finisce a contatto col bersaglio scelto**: una lettura
+ * dell'esito di `ResolveLinearMove`, non una seconda geometria.
+ *
+ * Sei esiti, perche' ognuno e' un modo diverso di arrivare — o non arrivare — dove il giocatore ha cliccato:
+ * - **a contatto**: il nemico cliccato e' il primo sulla retta, la carica gli si ferma accanto e lo colpisce;
+ * - **arriva**: la cella e' vuota e la retta libera, nessun urto;
+ * - **oltre la portata**: via libera, corre per tutta la portata e manca;
+ * - **un altro in mezzo, bersaglio in portata**: urta il primo e manca il cliccato — il caso di `#3769`;
+ * - **un altro in mezzo, bersaglio oltre la portata**: stessa cosa, ed e' il caso che [D-516] (3) rifiutava;
+ * - **un nemico adiacente**: la carica non si muove, e colpisce lui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeRunTest,
+	"RefactorTactics.Actions.Charge.RunSaysWhereItStopsAndWhetherItMissesTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeRunTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap();
+	const FRTCellId Da(0, 0);
+	TSet<int32> Hostiles;
+	Hostiles.Add(4);
+	Hostiles.Add(5);
+	const TMap<FRTCellId, int32> Nessuno;
+
+	const auto Corsa = [&](const FRTCellId& Bersaglio, int32 Portata, const TMap<FRTCellId, int32>& Occupazione)
+	{
+		const FRTLinearMoveResult Esito = URTMovementActionLibrary::ResolveLinearMove(
+			Map, Da, Bersaglio, Portata, ERTMovementStyle::LinearCharge, Occupazione, Hostiles);
+		return URTMovementActionLibrary::DescribeChargeRun(Esito, Da, Bersaglio, Portata);
+	};
+
+	// (1) A contatto: B e' il primo sulla retta.
+	TMap<FRTCellId, int32> SoloB;
+	SoloB.Add(FRTCellId(3, 0), 4);
+	const FRTChargeRun Contatto = Corsa(FRTCellId(3, 0), 3, SoloB);
+	TestEqual(TEXT("a contatto: percorre le due celle prima di lui"), Contatto.RunCells, 2);
+	TestTrue(TEXT("a contatto: urta il bersaglio"), Contatto.bHasImpact && Contatto.ImpactCell == FRTCellId(3, 0));
+	TestFalse(TEXT("a contatto: non lo manca"), Contatto.bMissesTarget);
+
+	// (2) Arriva: cella vuota in portata.
+	const FRTChargeRun Arriva = Corsa(FRTCellId(3, 0), 3, Nessuno);
+	TestEqual(TEXT("arriva: percorre tutta la retta"), Arriva.RunCells, 3);
+	TestFalse(TEXT("arriva: nessun urto"), Arriva.bHasImpact);
+	TestFalse(TEXT("arriva: non manca niente"), Arriva.bMissesTarget);
+
+	// (3) Oltre la portata, via libera.
+	const FRTChargeRun Corta = Corsa(FRTCellId(5, 0), 3, Nessuno);
+	TestEqual(TEXT("oltre la portata: corre per tutta la portata"), Corta.RunCells, 3);
+	TestFalse(TEXT("oltre la portata: nessun urto"), Corta.bHasImpact);
+	TestTrue(TEXT("oltre la portata: manca il bersaglio"), Corta.bMissesTarget);
+
+	// (4) Un altro in mezzo, bersaglio B in portata: urta il primo e manca il cliccato.
+	TMap<FRTCellId, int32> AEB;
+	AEB.Add(FRTCellId(2, 0), 4);
+	AEB.Add(FRTCellId(3, 0), 5);
+	const FRTChargeRun InMezzo = Corsa(FRTCellId(3, 0), 3, AEB);
+	TestEqual(TEXT("un altro in mezzo: si ferma davanti a lui"), InMezzo.RunCells, 1);
+	TestTrue(TEXT("un altro in mezzo: urta A, sulla cella (2,0)"), InMezzo.bHasImpact && InMezzo.ImpactCell == FRTCellId(2, 0));
+	TestTrue(TEXT("un altro in mezzo: manca B"), InMezzo.bMissesTarget);
+
+	// (5) Un altro in mezzo entro la portata, bersaglio OLTRE: il caso che [D-516] (3) rifiutava.
+	TMap<FRTCellId, int32> SoloA;
+	SoloA.Add(FRTCellId(2, 0), 4);
+	const FRTChargeRun OltreInMezzo = Corsa(FRTCellId(5, 0), 3, SoloA);
+	TestEqual(TEXT("oltre la portata, con A in mezzo: si ferma davanti a lui"), OltreInMezzo.RunCells, 1);
+	TestTrue(TEXT("oltre la portata, con A in mezzo: urta A"), OltreInMezzo.bHasImpact && OltreInMezzo.ImpactCell == FRTCellId(2, 0));
+	TestTrue(TEXT("oltre la portata, con A in mezzo: manca il bersaglio"), OltreInMezzo.bMissesTarget);
+
+	// (6) Un nemico adiacente: la carica non si muove.
+	TMap<FRTCellId, int32> Adiacente;
+	Adiacente.Add(FRTCellId(1, 0), 4);
+	const FRTChargeRun Ferma = Corsa(FRTCellId(3, 0), 3, Adiacente);
+	TestEqual(TEXT("un nemico adiacente: nessuna cella percorsa"), Ferma.RunCells, 0);
+	TestTrue(TEXT("un nemico adiacente: urta lui"), Ferma.bHasImpact && Ferma.ImpactCell == FRTCellId(1, 0));
+	TestTrue(TEXT("un nemico adiacente: manca B"), Ferma.bMissesTarget);
+
+	// La chiave: per quale piano e' stata calcolata.
+	TestTrue(TEXT("la chiave dice la partenza"), InMezzo.From == Da);
+	TestTrue(TEXT("e il bersaglio scelto"), InMezzo.Target == FRTCellId(3, 0));
+	TestEqual(TEXT("e la portata"), InMezzo.Range, 3);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

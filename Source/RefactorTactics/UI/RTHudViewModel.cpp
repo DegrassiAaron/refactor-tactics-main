@@ -403,8 +403,54 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 	// 🔑 **Riporta, non decide**: il numero viene da `PlannedChargeReachBeyondRange`, la stessa portata che la
 	// pianificazione ha accettato e che il resolver eseguira'. Il piano e' legale — la carica corre fino alla
 	// portata e si ferma —, ed e' degradato: non colpisce il bersaglio scelto. E' la definizione di `Warning`.
+	// 🔑 **[D-528] Un altro nemico noto sulla retta**: la carica lo urta e manca quello cliccato, in portata come oltre. E' UN
+	// avviso solo: «oltre la portata» sarebbe vero ma secondario, perche' la corsa si ferma prima di arrivarci.
+	FRTChargeRun Lettura;
+	const bool bColpisceUnAltro = Unit->GetPlannedChargeRun(Lettura) && Lettura.bHasImpact && Lettura.bMissesTarget;
+	if (bColpisceUnAltro)
+	{
+		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
+		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
+		if (!CopertaDalCritico(CaricaId))
+		{
+			// I nomi si cercano per CELLA fra le unita' che il chiamante passa: l'urtato e' una cella che la squadra conosce
+			// (la lettura viene dalla sua fotografia), e se li' non c'e' piu' nessuno la frase resta senza nome invece di inventarne uno.
+			const auto EtichettaSu = [&Units, Unit](const FRTCellId& Cella) -> FString
+			{
+				for (const ARTUnit* Altra : Units)
+				{
+					if (Altra && Altra->IsAlive() && Altra->TeamId != Unit->TeamId && Altra->Cell == Cella)
+					{
+						return ARTUnit::DisplayLabel(Altra->HeroDisplayName, Altra->HeroId, Altra->GetName());
+					}
+				}
+				return FString();
+			};
+			const FString Colpito = EtichettaSu(Lettura.ImpactCell);
+			const FString Voluto = EtichettaSu(Lettura.Target);
+
+			FRTPlanWarningView Altro;
+			Altro.Level = ERTPlanWarningLevel::Warning;
+			Altro.SourceActionId = CaricaId;
+			Altro.What = NomeDi(CaricaId);
+			Altro.Why = Colpito.IsEmpty()
+				? NSLOCTEXT("RTPlanWarning", "ChargeOtherEnemyWhyUnnamed", "Sulla retta c'è un altro nemico")
+				: FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeOtherEnemyWhy", "Sulla retta c'è un altro nemico: {0}"),
+					FText::FromString(Colpito));
+			// ⚠️ «Colpirà», non «colpirà solo»: la risoluzione e' simultanea e puo' cambiare cio' che sta sulla linea.
+			Altro.Cost = Colpito.IsEmpty()
+				? NSLOCTEXT("RTPlanWarning", "ChargeOtherEnemyCostUnnamed", "Colpirà un altro nemico, non quello scelto")
+				: (Voluto.IsEmpty()
+					? FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeOtherEnemyCostNoTarget", "Colpirà {0}, non arriva alla cella scelta"),
+						FText::FromString(Colpito))
+					: FText::Format(NSLOCTEXT("RTPlanWarning", "ChargeOtherEnemyCost", "Colpirà {0}, non {1}"),
+						FText::FromString(Colpito), FText::FromString(Voluto)));
+			Avvisi.Add(Altro);
+		}
+	}
+
 	int32 Distanza = 0;
-	if (const int32 Corsa = Unit->PlannedChargeReachBeyondRange(&Distanza); Corsa > 0)
+	if (const int32 Corsa = bColpisceUnAltro ? 0 : Unit->PlannedChargeReachBeyondRange(&Distanza); Corsa > 0)
 	{
 		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
 		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
@@ -1340,6 +1386,13 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 			Intent.DashStyle = DashAb->Def.MovementStyle;
 		}
 		Intent.DashReachCells = Unit->PlannedChargeReachBeyondRange(); // [D-516]
+		// [D-528]: dove si ferma DAVVERO la carica, come l'ha letta chi l'ha pianificata con la conoscenza della sua squadra.
+		// Senza lettura (un bot, un piano scritto senza click) resta `INDEX_NONE` e l'anteprima ricade su `DashReachCells`.
+		if (FRTChargeRun Corsa; Unit->GetPlannedChargeRun(Corsa))
+		{
+			Intent.DashRunCells = Corsa.RunCells;
+			Intent.bDashMissesTarget = Corsa.bMissesTarget;
+		}
 		Authoritative.Add(Intent);
 	}
 	return Authoritative;

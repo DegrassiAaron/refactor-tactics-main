@@ -231,6 +231,35 @@ bool URTMovementActionLibrary::IsLineOpenToTarget(const URTHexMapAsset* Map, con
 	return IsLinearReachable(Map, From, Target, Line.Num() - 1, ERTMovementStyle::LinearDash, Nessuno, NessunNemico);
 }
 
+FRTChargeRun URTMovementActionLibrary::DescribeChargeRun(const FRTLinearMoveResult& Linear, const FRTCellId& From,
+	const FRTCellId& Target, int32 Range)
+{
+	FRTChargeRun Run;
+	Run.From = From;
+	Run.Target = Target;
+	Run.Range = Range;
+	Run.RunCells = Linear.Entered.Num();
+
+	// L'unita' urtata sta sulla cella che SEGUE l'ultima percorsa, perche' la carica si ferma ADIACENTE a lei ([D-296]):
+	// `Final` e' la cella precedente. La si legge dalla retta, che e' la stessa del resolver, invece di cercarla fra le unita'.
+	if (Linear.Stop == ERTLinearStop::Impact && Linear.ImpactUnitId != INDEX_NONE)
+	{
+		TArray<FRTCellId> Retta;
+		if (MovementLine(From, Target, Retta) && Retta.IsValidIndex(Run.RunCells + 1))
+		{
+			Run.bHasImpact = true;
+			Run.ImpactCell = Retta[Run.RunCells + 1];
+		}
+	}
+
+	// Arriva sulla cella scelta, oppure urta proprio chi sta li': in tutti gli altri casi — la portata finisce prima, un altro
+	// nemico e' in mezzo, un ostacolo — la carica manca il bersaglio, e il tratto che resta e' quello che non fara'.
+	const bool bArriva = Linear.Stop == ERTLinearStop::Completed;
+	const bool bUrtaIlBersaglio = Run.bHasImpact && Run.ImpactCell == Target;
+	Run.bMissesTarget = !(bArriva || bUrtaIlBersaglio);
+	return Run;
+}
+
 bool URTMovementActionLibrary::IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& Target, int32 MaxCells, ERTMovementStyle Style,
 	const TMap<FRTCellId, int32>& Occupancy, const TSet<int32>& Hostiles)

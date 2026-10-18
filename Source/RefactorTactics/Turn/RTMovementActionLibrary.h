@@ -121,6 +121,56 @@ struct FRTLinearMoveResult
 };
 
 /**
+ * [D-528] (`#3769`) Dove si ferma davvero una **carica pianificata**, e se finisce a contatto con il bersaglio che il giocatore ha
+ * scelto. E' una lettura dell'esito di `ResolveLinearMove` (`DescribeChargeRun`), non una seconda geometria.
+ *
+ * 🔑 **La scrive chi pianifica e la leggono gli altri.** Chi pianifica (`ARTPlayerController::HandleClickOnCell`) ha la fotografia
+ * della squadra ([D-371]) e quindi sa quali nemici la corsa incontrera'; l'anteprima e l'avviso del piano non hanno ne'
+ * l'occupazione ne' la conoscenza, e ricalcolarla da lì userebbe la verita' — cioe' mostrerebbe un nemico che la squadra non conosce.
+ *
+ * `From`, `Target` e `Range` sono la CHIAVE: dicono per quale piano e' stata calcolata. Chi la legge scarta una lettura che non
+ * corrisponde piu' al piano di adesso (`ARTUnit::GetPlannedChargeRun`) invece di disegnare una corsa vecchia.
+ */
+USTRUCT(BlueprintType)
+struct FRTChargeRun
+{
+	GENERATED_BODY()
+
+	/** La cella di partenza della carica per cui e' stata calcolata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTCellId From;
+
+	/** La cella che il giocatore ha scelto (`PlannedDashCell`): quella del nemico cliccato, o una cella vuota. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTCellId Target;
+
+	/** La portata efficace con cui e' stata calcolata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	int32 Range = 0;
+
+	/** Le celle che la carica percorre davvero, la partenza esclusa. `0` se un nemico e' adiacente e la ferma subito. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	int32 RunCells = 0;
+
+	/**
+	 * Vero se la carica NON finisce a contatto col bersaglio scelto: si ferma alla portata, davanti a un ostacolo, o colpisce
+	 * un'altra unita' ([D-528]). Il tratto di retta che resta fino al bersaglio e' quello che la carica non fara'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bMissesTarget = false;
+
+	/** Vero se la corsa finisce con un impatto: `ImpactCell` dice su chi. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bHasImpact = false;
+
+	/** La cella dell'unita' colpita, che sta DOPO l'ultima cella percorsa ([D-296]). Valida solo con `bHasImpact`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTCellId ImpactCell;
+
+	FRTChargeRun() = default;
+};
+
+/**
  * Le mobilita' LINEARI del catalogo v0.1 (`Dash`, `Charge`, `Leap`, `Reposition`): la RETTA libera fra i centri
  * di due celle ([D-523], [D-524]), non un percorso e non una delle sei direzioni — `MovementLine`.
  *
@@ -230,4 +280,14 @@ public:
 	 * un'occupazione vuota, quindi muri, bordo e terreno che nega la corsa sono gli stessi della risoluzione.
 	 */
 	static bool IsLineOpenToTarget(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& Target);
+
+	/**
+	 * [D-528] Legge dall'esito di `ResolveLinearMove` dove si ferma una carica e se arriva a contatto col bersaglio scelto.
+	 *
+	 * 🔑 **Riporta, non decide**: il numero di celle e l'unita' urtata sono quelli del resolver, sulla fotografia che gli e'
+	 * stata data. Chi la chiama con la fotografia di chi pianifica ottiene cio' che la squadra puo' sapere; con quella
+	 * onnisciente, un'informazione che non le spetta ([D-225]).
+	 */
+	static FRTChargeRun DescribeChargeRun(const FRTLinearMoveResult& Linear, const FRTCellId& From, const FRTCellId& Target,
+		int32 Range);
 };

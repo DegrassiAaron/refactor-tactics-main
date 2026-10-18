@@ -532,8 +532,10 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 		Charger->PlannedDashAbility, (int32)INDEX_NONE);
 
 	// (4) Un nemico oltre la portata con un altro nemico noto sulla retta ENTRO la portata (review di #3736). La corsa
-	// verso il lontano incontra il vicino e si ferma con un impatto: e' il caso che [D-516] non copre, e resta com'era
-	// prima — rifiutato. Il vicino si carica cliccando lui. Sulla diagonale SE, dove la cella vuota e' gia' stata provata.
+	// verso il lontano incontra il vicino e si ferma con un impatto. ⏱️ *Fino a [D-528] era rifiutato*: era l'ultima clausola
+	// di [D-516] (3), che il caso non lo copriva. Ora si pianifica sul lontano, con l'avviso di chi colpira' (il perche' e il
+	// come sono di `ChargeWithAKnownEnemyInTheWayIsPlannedAndSaysWhoItHits`). Sulla diagonale SE, dove la cella vuota e' gia'
+	// stata provata.
 	ARTUnit* Vicino = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2, 0));
 	ARTUnit* Lontano = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, Portata + 2, 0));
 	if (!Vicino || !Lontano) { DestroyInteractionWorld(World); return false; }
@@ -544,8 +546,10 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 		&& URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), Lontano->StableUnitId, Lontano->TeamId,
 			Lontano->Cell) == ERTTargetKnowledge::Allowed);
 	PC->DispatchUnitClickForTest(Lontano, Charger);
-	TestEqual(TEXT("un nemico oltre la portata dietro un nemico noto entro la portata non si carica"),
-		Charger->PlannedDashAbility, (int32)INDEX_NONE);
+	TestTrue(TEXT("un nemico oltre la portata dietro un nemico noto entro la portata si pianifica ([D-528])"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Lontano->Cell);
+	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->SelectAbility(ChargeIdx);
 	PC->DispatchUnitClickForTest(Vicino, Charger);
 	TestTrue(TEXT("controllo: il vicino, in portata, si carica"),
 		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Vicino->Cell);
@@ -4219,6 +4223,216 @@ bool FRTPlayerInputCommitKeysTest::RunTest(const FString&)
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return bOk;
+}
+
+/**
+ * [D-528] (`#3769`) — **con un nemico noto in mezzo, la carica si pianifica su quello cliccato, si ferma davanti al primo
+ * e dice chi colpira'**.
+ *
+ * Il caso: Branth in `(0,0)`, A (Ivrin) in `(2,0)` e B (Muiren) in `(3,0)`, entrambi visti. Il giocatore clicca B. Il resolver
+ * ferma la carica in `(1,0)` e colpisce A ([D-296]); fino a [D-528] l'anteprima disegnava la retta fino a B, col segno d'arrivo
+ * su di lui, e l'avviso non diceva niente.
+ *
+ * Cinque cose, perche' l'anteprima le legge da posti diversi e una sola lettura sbagliata basta a mentire:
+ * - il piano resta su B (l'intento registrato e' quello cliccato);
+ * - la lettura di pianificazione dice dove si ferma e chi urta;
+ * - l'avviso e' UNO, attribuito alla carica, e nomina A e B;
+ * - l'anteprima, dalla vista FILTRATA che l'HUD disegna, e' piena fino a `(1,0)` e rossa da li' a B;
+ * - il controllo positivo: cliccando A (il primo, a contatto) il segno sta nello stesso punto, l'avviso non c'e' e il tratto
+ *   fino a lui NON e' rosso. Senza questa meta' il test passerebbe anche con ogni carica segnata come mancata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeInTheWayTest,
+	"RefactorTactics.PlayerInput.ChargeWithAKnownEnemyInTheWayIsPlannedAndSaysWhoItHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeInTheWayTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* A = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0));
+	ARTUnit* B = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!MapActor || !TM || !Charger || !A || !B || !PC) { DestroyInteractionWorld(World); return false; }
+	TM->RefreshTeamKnowledgeNow();
+
+	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	if (!TestTrue(TEXT("premessa: la carica ha una portata che arriva a B"),
+		ChargeIdx != INDEX_NONE && Charger->EffectiveDashRangeOf(ChargeIdx) >= 3)) { DestroyInteractionWorld(World); return false; }
+	const FName CaricaId = Charger->GetAbility(ChargeIdx)->Def.ActionId;
+	TestTrue(TEXT("premessa: la squadra vede A e B"),
+		URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), A->StableUnitId, A->TeamId, A->Cell) == ERTTargetKnowledge::Allowed
+		&& URTTeamKnowledgeLibrary::ClassifyTarget(TM->KnowledgeForTeamPublic(0), B->StableUnitId, B->TeamId, B->Cell) == ERTTargetKnowledge::Allowed);
+
+	TArray<FRTIntentView> Viste; // la vista filtrata che l'HUD disegna; si rilegge a ogni chiamata
+	const auto VistaDellaCarica = [&]() -> const FRTIntentView*
+	{
+		Viste = URTIntentPrivacyLibrary::FilterForTeam(0, URTHudViewModel::BuildAuthoritativeIntents({ Charger, A, B }));
+		return Viste.FindByPredicate([Charger](const FRTIntentView& V) { return V.OwnerCell == Charger->Cell; });
+	};
+	const auto AvvisiDellaCarica = [&]()
+	{
+		TArray<FRTPlanWarningView> Dalla;
+		for (const FRTPlanWarningView& V : URTHudViewModel::BuildPlanWarnings(Charger, { Charger, A, B }))
+		{
+			if (V.SourceActionId == CaricaId) { Dalla.Add(V); }
+		}
+		return Dalla;
+	};
+
+	// (1) Il click su B: il piano resta su B.
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	TestTrue(TEXT("il click su B e' consumato"), PC->DispatchUnitClickForTest(B, Charger));
+	TestTrue(TEXT("e la carica e' pianificata verso B, non verso A"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == B->Cell);
+
+	// (2) La lettura di pianificazione.
+	FRTChargeRun Corsa;
+	if (TestTrue(TEXT("chi ha pianificato ha scritto dove si ferma la carica"), Charger->GetPlannedChargeRun(Corsa)))
+	{
+		TestEqual(TEXT("percorre una cella"), Corsa.RunCells, 1);
+		TestTrue(TEXT("urta A, sulla sua cella"), Corsa.bHasImpact && Corsa.ImpactCell == A->Cell);
+		TestTrue(TEXT("e manca B"), Corsa.bMissesTarget);
+	}
+
+	// (3) L'avviso: uno, Warning, che nomina A e B.
+	const TArray<FRTPlanWarningView> Avvisi = AvvisiDellaCarica();
+	if (TestEqual(TEXT("un solo avviso attribuito alla carica"), Avvisi.Num(), 1))
+	{
+		const FString NomeA = ARTUnit::DisplayLabel(A->HeroDisplayName, A->HeroId, A->GetName());
+		const FString NomeB = ARTUnit::DisplayLabel(B->HeroDisplayName, B->HeroId, B->GetName());
+		TestTrue(TEXT("e' un Warning: il piano e' legale e degradato"), Avvisi[0].Level == ERTPlanWarningLevel::Warning);
+		TestTrue(TEXT("dice chi colpira'"), Avvisi[0].Cost.ToString().Contains(NomeA));
+		TestTrue(TEXT("e chi non colpira'"), Avvisi[0].Cost.ToString().Contains(NomeB));
+	}
+
+	// (4) L'anteprima dalla vista filtrata: piena fino a (1,0), rossa da li' a B.
+	if (const FRTIntentView* Mia = VistaDellaCarica(); TestNotNull(TEXT("la vista della propria carica"), Mia))
+	{
+		TestEqual(TEXT("la vista porta quante celle la carica percorre"), Mia->DashRunCells, 1);
+		TestTrue(TEXT("e che manca il bersaglio"), Mia->bDashMissesTarget);
+		const FRTDashPreview Anteprima = ARTHUD::ComposeDashPreview(*Mia, MapActor->MapAsset);
+		TestTrue(TEXT("la retta arriva fino a B"), Anteprima.PathCells.Num() > 0 && Anteprima.PathCells.Last() == B->Cell);
+		TestTrue(TEXT("il segno d'arrivo sta davanti ad A"), Anteprima.StopCell() == FRTCellId(1, 0, 0));
+		TestTrue(TEXT("e il resto fino a B e' il tratto che non fara'"), Anteprima.HasShortfall() && Anteprima.bShowsMiss);
+	}
+
+	// (5) Il controllo positivo: A cliccato, a contatto. Stesso punto d'arresto, nessun avviso, nessun rosso.
+	Charger->PlannedDashAbility = INDEX_NONE;
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	PC->DispatchUnitClickForTest(A, Charger);
+	TestTrue(TEXT("controllo: la carica su A si pianifica"), Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == A->Cell);
+	FRTChargeRun SuA;
+	if (TestTrue(TEXT("controllo: anche questa ha la sua lettura"), Charger->GetPlannedChargeRun(SuA)))
+	{
+		TestEqual(TEXT("controllo: percorre la stessa cella"), SuA.RunCells, 1);
+		TestFalse(TEXT("controllo: e non manca il bersaglio"), SuA.bMissesTarget);
+	}
+	TestEqual(TEXT("controllo: nessun avviso"), AvvisiDellaCarica().Num(), 0);
+	if (const FRTIntentView* Mia = VistaDellaCarica(); TestNotNull(TEXT("controllo: la vista"), Mia))
+	{
+		const FRTDashPreview Anteprima = ARTHUD::ComposeDashPreview(*Mia, MapActor->MapAsset);
+		TestTrue(TEXT("controllo: il segno d'arresto sta accanto ad A, non su di lui"), Anteprima.StopCell() == FRTCellId(1, 0, 0));
+		TestFalse(TEXT("controllo: e il tratto fino ad A non e' rosso"), Anteprima.bShowsMiss);
+	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-528] (`#3769`) / [D-225] — **l'anteprima e l'avviso non dicono un nemico che la squadra non conosce**.
+ *
+ * Tre mondi, che differiscono per UNA cosa ciascuno. In tutti, Branth in `(0,0)` clicca la cella vuota `(3,0)`:
+ * - **N**: nessun nemico sulla retta;
+ * - **U**: un nemico in `(2,0)` che la squadra NON conosce (la conoscenza non e' stata aggiornata);
+ * - **K**: lo stesso nemico, conosciuto.
+ *
+ * Per chi pianifica N e U devono essere indistinguibili — la lettura, l'anteprima, gli avvisi — perche' vederli diversi
+ * direbbe «li' c'e' qualcuno». Alla risoluzione la carica lo colpira' lo stesso, ed e' la sorpresa di [D-516] (4).
+ * K e' il controllo positivo: senza che differisca, il confronto N/U passerebbe anche se il codice non guardasse mai i nemici.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeUnknownEnemyTest,
+	"RefactorTactics.PlayerInput.ChargePreviewDoesNotRevealAnEnemyTheSquadDoesNotKnow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeUnknownEnemyTest::RunTest(const FString&)
+{
+	struct FLettura
+	{
+		bool bPianificata = false;
+		bool bHaLaLettura = false;
+		FRTChargeRun Corsa;
+		int32 Tratti = INDEX_NONE;
+		FRTCellId Arresto;
+		bool bRosso = false;
+		int32 Avvisi = INDEX_NONE;
+	};
+
+	const auto Leggi = [this](bool bConNemico, bool bConosciuto) -> FLettura
+	{
+		FLettura L;
+		UWorld* World = MakeInteractionWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return L; }
+		ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Nemico = bConNemico ? SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0)) : nullptr;
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		if (!MapActor || !TM || !Charger || !PC || (bConNemico && !Nemico)) { DestroyInteractionWorld(World); return L; }
+		if (bConosciuto) { TM->RefreshTeamKnowledgeNow(); }
+
+		const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+		if (!TestNotEqual(TEXT("premessa: la carica"), ChargeIdx, (int32)INDEX_NONE)) { DestroyInteractionWorld(World); return L; }
+		PC->SelectActorForTest(Charger);
+		Charger->SelectAbility(ChargeIdx);
+		PC->HandleClickOnCellForTest(FRTCellId(3, 0, 0));
+
+		L.bPianificata = Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == FRTCellId(3, 0, 0);
+		L.bHaLaLettura = Charger->GetPlannedChargeRun(L.Corsa);
+		TArray<ARTUnit*> Unita = { Charger };
+		if (Nemico) { Unita.Add(Nemico); }
+		TArray<AActor*> Attori;
+		for (ARTUnit* U : Unita) { Attori.Add(U); }
+		const TArray<FRTIntentView> Viste = URTIntentPrivacyLibrary::FilterForTeam(0, URTHudViewModel::BuildAuthoritativeIntents(Attori));
+		if (const FRTIntentView* Mia = Viste.FindByPredicate([Charger](const FRTIntentView& V) { return V.OwnerCell == Charger->Cell; }))
+		{
+			const FRTDashPreview P = ARTHUD::ComposeDashPreview(*Mia, MapActor->MapAsset);
+			L.Tratti = P.ReachSegments;
+			L.Arresto = P.StopCell();
+			L.bRosso = P.HasShortfall() && P.bShowsMiss;
+		}
+		L.Avvisi = URTHudViewModel::BuildPlanWarnings(Charger, Unita).Num();
+		DestroyInteractionWorld(World);
+		return L;
+	};
+
+	const FLettura N = Leggi(/*bConNemico=*/ false, /*bConosciuto=*/ false);
+	const FLettura U = Leggi(/*bConNemico=*/ true, /*bConosciuto=*/ false);
+	const FLettura K = Leggi(/*bConNemico=*/ true, /*bConosciuto=*/ true);
+
+	TestTrue(TEXT("premessa N: la carica sulla cella vuota si pianifica"), N.bPianificata && N.bHaLaLettura);
+	TestTrue(TEXT("premessa U: si pianifica anche con un nemico ignoto in mezzo"), U.bPianificata && U.bHaLaLettura);
+
+	// N e U: indistinguibili.
+	TestEqual(TEXT("U come N: le stesse celle di corsa"), U.Corsa.RunCells, N.Corsa.RunCells);
+	TestEqual(TEXT("U come N: nessun urto"), U.Corsa.bHasImpact, N.Corsa.bHasImpact);
+	TestEqual(TEXT("U come N: non manca il bersaglio"), U.Corsa.bMissesTarget, N.Corsa.bMissesTarget);
+	TestEqual(TEXT("U come N: lo stesso numero di tratti disegnati"), U.Tratti, N.Tratti);
+	TestTrue(TEXT("U come N: lo stesso segno d'arrivo"), U.Arresto == N.Arresto);
+	TestEqual(TEXT("U come N: lo stesso rosso"), U.bRosso, N.bRosso);
+	TestEqual(TEXT("U come N: gli stessi avvisi"), U.Avvisi, N.Avvisi);
+
+	// K: il controllo positivo. Se non differisce, N/U non misura niente.
+	TestEqual(TEXT("controllo K: con il nemico noto la corsa si accorcia"), K.Corsa.RunCells, 1);
+	TestTrue(TEXT("controllo K: urta lui e manca il bersaglio"), K.Corsa.bHasImpact && K.Corsa.bMissesTarget);
+	TestTrue(TEXT("controllo K: il segno d'arrivo sta davanti a lui"), K.Arresto == FRTCellId(1, 0, 0));
+	TestTrue(TEXT("controllo K: e il resto e' rosso"), K.bRosso);
+	TestEqual(TEXT("controllo K: l'avviso c'e'"), K.Avvisi, 1);
+	return true;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

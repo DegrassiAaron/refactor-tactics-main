@@ -1291,7 +1291,7 @@ void ARTHUD::DrawHUD()
 				// tiro rifiutato qui sotto — piena fin dove arriva, tratteggiata dove non arriva —, quindi il rosso
 				// non e' l'unico canale ([D-146]): rosso e verde dello scatto sono la coppia che una deuteranopia
 				// confonde, il tratteggio no. Il rosso e' quello della palette dell'overlay, non un letterale nuovo.
-				if (Scatto.HasShortfall())
+				if (Scatto.HasShortfall() && Scatto.bShowsMiss)
 				{
 					const FVector DStop = Project(HexCellWorld(Scatto.StopCell(), Origin, HexSize, LayerH));
 					const FVector DTarget = Project(HexCellWorld(Scatto.PathCells.Last(), Origin, HexSize, LayerH));
@@ -1306,8 +1306,9 @@ void ARTHUD::DrawHUD()
 					}
 				}
 
-				// Con una carica oltre la portata il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico. ⚠️ In portata
-				// resta sulla cella del nemico, com'era: la carica si ferma accanto a lui ([D-296]), e dirlo e' #3769.
+				// Il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico ([D-528]): la carica si ferma accanto a lui ([D-296]).
+				// ⏱️ *Fino a [D-528] stava sulla cella del nemico per una carica in portata*, e solo oltre la portata dove la corsa
+				// si ferma: sullo stesso schermo due cariche usavano il segno in due modi. Senza una lettura (un bot) resta com'era.
 				const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
 					Origin, HexSize, LayerH));
 				if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
@@ -1869,9 +1870,19 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 		Out.PathCells = URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
 	}
 
-	// [D-516]: una carica col bersaglio oltre la portata corre per `DashReachCells` celle della retta e si ferma.
-	// Il numero lo calcola l'unita' (`PlannedChargeReachBeyondRange`) con la portata del resolver: qui si legge.
-	if (View.DashReachCells > 0 && URTMovementActionLibrary::IsLinear(View.DashStyle)
+	// 🔑 **[D-528] Dove si ferma DAVVERO la carica**, letto da chi l'ha pianificata con la conoscenza della sua squadra
+	// ([D-371]): meno della retta intera quando la portata finisce prima o un nemico noto la ferma. Qui si legge, non si
+	// ricalcola: l'HUD non ha ne' l'occupazione ne' la conoscenza, e rifare la retta sarebbe la seconda autorita' che
+	// [D-524] ha tolto. Il tratto fino al bersaglio e' rosso soltanto se la carica lo MANCA: l'urto con lui non lo e'.
+	if (URTMovementActionLibrary::IsLinear(View.DashStyle) && View.DashRunCells != INDEX_NONE
+		&& View.DashRunCells >= 0 && View.DashRunCells <= Out.PathCells.Num() - 1)
+	{
+		Out.ReachSegments = View.DashRunCells;
+		Out.bShowsMiss = View.bDashMissesTarget;
+	}
+	// [D-516]: una carica col bersaglio oltre la portata corre per `DashReachCells` celle della retta e si ferma. E' il numero
+	// che non conosce nessuno: resta per chi non ha una lettura (un bot, un piano scritto senza click).
+	else if (View.DashReachCells > 0 && URTMovementActionLibrary::IsLinear(View.DashStyle)
 		&& View.DashReachCells < Out.PathCells.Num() - 1)
 	{
 		Out.ReachSegments = View.DashReachCells;

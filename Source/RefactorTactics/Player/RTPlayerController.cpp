@@ -2838,14 +2838,17 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			// ⚠️ **Oltre la portata un impatto NON basta** (review di #3736). Da [D-516] la libreria fa correre la carica
 			// verso un bersaglio lontano, quindi un nemico noto sulla retta ENTRO la portata da' `Impact` anche per una cella
 			// vuota, un muro o un nemico lontano: accettarlo pianificava cio' che la decisione non copre, e l'anteprima e
-			// l'avviso avrebbero descritto una corsa fino alla portata che l'impatto ferma prima. Quel caso resta com'era
-			// prima di [D-516] — rifiutato —, e il giocatore carica il nemico piu' vicino cliccando lui.
+			// l'avviso avrebbero descritto una corsa fino alla portata che l'impatto ferma prima. Per questo `bCharges` non lo
+			// accetta da solo: un impatto oltre la portata si pianifica a due condizioni, in `bChargesBeyondRange` qui sotto.
+			// ⏱️ *Fino a [D-528] quel caso restava rifiutato* (era l'ultima clausola di [D-516] (3)): ora la carica si pianifica sul
+			// bersaglio cliccato, l'anteprima si ferma davanti al primo nemico noto e l'avviso dice chi colpira'.
 			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact) && !Linear.bTargetBeyondRange;
 
 			// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla
 			// risoluzione corre fino alla portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano
 			// lo dicono. Tre condizioni, tutte di chi pianifica:
-			// - la corsa e' arrivata in fondo alla portata (`OutOfRange`): niente l'ha fermata prima;
+			// - o la corsa e' arrivata in fondo alla portata (`OutOfRange`), o un nemico NOTO sulla retta entro la portata l'ha
+			//   fermata con un impatto ([D-528]): in tutti e due i casi il bersaglio scelto e' oltre, e non lo raggiunge;
 			// - sulla cella c'e' un NEMICO di questa fotografia, cioe' uno che chi pianifica conosce ([D-371]). Una
 			//   cella vuota oltre la portata resta rifiutata: la regola e' «caricare un nemico», non «correre
 			//   verso un punto»;
@@ -2853,7 +2856,9 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			//   decisione. Le unita' oltre la portata non contano — si saranno mosse.
 			const int32* const OccupanteDellaCella = Snapshot.Occupancy.Find(Cell);
 			const bool bNemicoSullaCella = OccupanteDellaCella && Hostiles.Contains(*OccupanteDellaCella);
-			const bool bChargesBeyondRange = Linear.Stop == ERTLinearStop::OutOfRange && bNemicoSullaCella
+			const bool bFermataPrimaDelBersaglio = Linear.Stop == ERTLinearStop::OutOfRange
+				|| (Linear.Stop == ERTLinearStop::Impact && Linear.bTargetBeyondRange);
+			const bool bChargesBeyondRange = bFermataPrimaDelBersaglio && bNemicoSullaCella
 				&& URTMovementActionLibrary::IsLineOpenToTarget(Map, SelectedUnit->Cell, Cell);
 			if (Linear.Final != Cell && !bCharges && !bChargesBeyondRange)
 			{
@@ -2871,8 +2876,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 					Perche = TEXT("il terreno non si attraversa di corsa"); break;
 				case ERTLinearStop::BlockedByEdge:
 					Perche = TEXT("un bordo con copertura alta o una porta chiusa ferma la retta"); break;
-				case ERTLinearStop::Impact: // [D-516]: un impatto oltre la portata non pianifica, vedi sopra
-					Perche = TEXT("oltre la portata, e un nemico sulla retta la ferma prima"); break;
+				case ERTLinearStop::Impact: // [D-528]: un impatto oltre la portata pianifica alle stesse due condizioni
 				case ERTLinearStop::OutOfRange: // [D-516]: la corsa arriva in fondo, manca l'altra condizione
 					Perche = bNemicoSullaCella
 						? TEXT("oltre la portata, e la retta fino al nemico e' bloccata")
@@ -2888,6 +2892,13 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 			SelectedUnit->PlannedDashAbility = SelIdx;
 			SelectedUnit->PlannedDashCell = Cell;
+			// [D-528]: qui c'e' la fotografia della squadra, e l'esito del resolver e' gia' in mano. Si scrive dove si ferma la
+			// carica perche' l'anteprima e l'avviso, che non hanno la conoscenza, lo leggano invece di ricalcolarlo con la verita'.
+			if (SelAb->Def.MovementStyle == ERTMovementStyle::LinearCharge)
+			{
+				SelectedUnit->NotePlannedChargeRun(
+					URTMovementActionLibrary::DescribeChargeRun(Linear, SelectedUnit->Cell, Cell, DashRange));
+			}
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto")
