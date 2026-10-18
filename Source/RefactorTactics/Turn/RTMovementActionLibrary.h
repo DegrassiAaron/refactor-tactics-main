@@ -121,6 +121,105 @@ struct FRTLinearMoveResult
 };
 
 /**
+ * [D-528] (`#3769`) Dove si ferma davvero una **carica pianificata**, e se finisce a contatto con il bersaglio che il giocatore ha
+ * scelto. E' una lettura dell'esito di `ResolveLinearMove` (`DescribeChargeRun`), non una seconda geometria.
+ *
+ * 🔑 **La scrive chi pianifica e la leggono gli altri.** Chi pianifica (`ARTPlayerController::HandleClickOnCell`) ha la fotografia
+ * della squadra ([D-371]) e quindi sa quali nemici la corsa incontrera'; l'anteprima e l'avviso del piano non hanno ne'
+ * l'occupazione ne' la conoscenza, e ricalcolarla da lì userebbe la verita' — cioe' mostrerebbe un nemico che la squadra non conosce.
+ *
+ * `From`, `Target` e `Range` sono la CHIAVE: dicono per quale piano e' stata calcolata. Chi la legge scarta una lettura che non
+ * corrisponde piu' al piano di adesso (`ARTUnit::GetPlannedChargeRun`) invece di disegnare una corsa vecchia.
+ */
+USTRUCT(BlueprintType)
+struct FRTChargeRun
+{
+	GENERATED_BODY()
+
+	/** La cella di partenza della carica per cui e' stata calcolata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTCellId From;
+
+	/** La cella che il giocatore ha scelto (`PlannedDashCell`): quella del nemico cliccato, o una cella vuota. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTCellId Target;
+
+	/** La portata efficace con cui e' stata calcolata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	int32 Range = 0;
+
+	/** Le celle che la carica percorre davvero, la partenza esclusa. `0` se un nemico e' adiacente e la ferma subito. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	int32 RunCells = 0;
+
+	/**
+	 * Vero se la carica NON finisce a contatto col bersaglio scelto: si ferma alla portata, davanti a un ostacolo, o colpisce
+	 * un'altra unita' ([D-528]). Il tratto di retta che resta fino al bersaglio e' quello che la carica non fara'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bMissesTarget = false;
+
+	/** Vero se la corsa finisce con un impatto: `ImpactCell` dice su chi. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bHasImpact = false;
+
+	/** La cella dell'unita' colpita, che sta DOPO l'ultima cella percorsa ([D-296]). Valida solo con `bHasImpact`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTCellId ImpactCell;
+
+	/**
+	 * Vero se sulla cella scelta c'e' un nemico che la fotografia di chi pianifica conosce (`bEnemyOnTarget` del verdetto). La
+	 * scrive `JudgeLinearDashClick`, che ha l'occupazione; `DescribeChargeRun` no.
+	 *
+	 * 🔴 **Chi nomina il bersaglio in un avviso lo fa SOLO se e' vero.** La cella scelta puo' essere vuota per la squadra e occupata per
+	 * davvero da un nemico che non conosce: cercare un nome per cella fra tutte le unita' lo direbbe a chi prova la cella.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bTargetIsKnownEnemy = false;
+
+	FRTChargeRun() = default;
+};
+
+/**
+ * [D-516] / [D-528] Il verdetto del click su una cella con una mobilita' lineare armata: la pianifica o la rifiuta, e perche'.
+ *
+ * 🔑 **E' la sede sola della domanda «questo click pianifica?»**, e la leggono il click (`ARTPlayerController::HandleClickOnCell`)
+ * e l'hover (`BuildChargeHoverView`): [D-128] vuole che l'hover annunci cio' che il click esegue, e due letture della stessa
+ * regola sono due regole. Il click sta sul bordo fra le due: scrive il piano; l'hover disegna cio' che il click scriverebbe.
+ */
+USTRUCT(BlueprintType)
+struct FRTLinearDashVerdict
+{
+	GENERATED_BODY()
+
+	/** Il click pianifica lo scatto verso la cella. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bAccepted = false;
+
+	/** L'esito del resolver sulla fotografia data: da qui il click ricava il motivo del rifiuto. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTLinearMoveResult Linear;
+
+	/** Sulla cella cliccata c'e' un nemico che la fotografia conosce. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bEnemyOnTarget = false;
+
+	/** Accettata perche' la carica urta un nemico entro la portata, verso un bersaglio che sta entro la portata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bImpact = false;
+
+	/** Accettata perche' il bersaglio e' un nemico noto oltre la portata, su una retta libera ([D-516], [D-528]). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bBeyondRange = false;
+
+	/** Dove si ferma e se manca il bersaglio. Valorizzata per una `LinearCharge`, accettata o no. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	FRTChargeRun Run;
+
+	FRTLinearDashVerdict() = default;
+};
+
+/**
  * Le mobilita' LINEARI del catalogo v0.1 (`Dash`, `Charge`, `Leap`, `Reposition`): la RETTA libera fra i centri
  * di due celle ([D-523], [D-524]), non un percorso e non una delle sei direzioni — `MovementLine`.
  *
@@ -230,4 +329,26 @@ public:
 	 * un'occupazione vuota, quindi muri, bordo e terreno che nega la corsa sono gli stessi della risoluzione.
 	 */
 	static bool IsLineOpenToTarget(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& Target);
+
+	/**
+	 * [D-528] Legge dall'esito di `ResolveLinearMove` dove si ferma una carica e se arriva a contatto col bersaglio scelto.
+	 *
+	 * 🔑 **Riporta, non decide**: il numero di celle e l'unita' urtata sono quelli del resolver, sulla fotografia che gli e'
+	 * stata data. Chi la chiama con la fotografia di chi pianifica ottiene cio' che la squadra puo' sapere; con quella
+	 * onnisciente, un'informazione che non le spetta ([D-225]).
+	 */
+	static FRTChargeRun DescribeChargeRun(const FRTLinearMoveResult& Linear, const FRTCellId& From, const FRTCellId& Target,
+		int32 Range);
+
+	/**
+	 * [D-516] / [D-528] Il click su `Cell` con questa mobilita' lineare armata: la pianifica? Sulla fotografia di chi pianifica
+	 * (`Occupancy`, `Hostiles`), cioe' su cio' che la squadra conosce ([D-371]).
+	 *
+	 * Si pianifica se la retta arriva sulla cella; oppure, per una carica, se urta un nemico entro la portata verso un bersaglio che
+	 * sta entro la portata; oppure se il bersaglio e' un NEMICO NOTO oltre la portata e la retta fino a lui e' libera dal terreno
+	 * e dai lati — che la corsa arrivi in fondo alla portata o la fermi prima un altro nemico noto ([D-528]). Una cella vuota
+	 * oltre la portata resta rifiutata: la regola e' «caricare un nemico», non «correre verso un punto».
+	 */
+	static FRTLinearDashVerdict JudgeLinearDashClick(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& Cell,
+		int32 DashRange, ERTMovementStyle Style, const TMap<FRTCellId, int32>& Occupancy, const TSet<int32>& Hostiles);
 };

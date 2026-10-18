@@ -2160,6 +2160,26 @@ int32 ARTUnit::PlannedChargeReachBeyondRange(int32* OutDistance) const
 	return Range;
 }
 
+void ARTUnit::NotePlannedChargeRun(const FRTChargeRun& Run)
+{
+	PlannedChargeRun = Run;
+	bHasPlannedChargeRun = true;
+}
+
+bool ARTUnit::GetPlannedChargeRun(FRTChargeRun& OutRun) const
+{
+	// La chiave e' il piano di ADESSO: una lettura scritta per un'altra partenza, un altro bersaglio o un'altra portata
+	// descrive una corsa che non e' piu' questa, e disegnarla sarebbe peggio che ricadere sull'unico numero senza conoscenza.
+	if (!bHasPlannedChargeRun || !PlannedDashMoves() || !PlannedDashIsCharge()
+		|| !(PlannedChargeRun.From == Cell) || !(PlannedChargeRun.Target == PlannedDashCell)
+		|| PlannedChargeRun.Range != EffectiveDashRangeOf(PlannedDashAbility))
+	{
+		return false;
+	}
+	OutRun = PlannedChargeRun;
+	return true;
+}
+
 bool ARTUnit::PlannedDashDeniedByStatus() const
 {
 	const URTActionData* Dash = GetAbility(PlannedDashAbility);

@@ -6,6 +6,7 @@
 #include "Core/RTTypes.h"
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
 #include "Turn/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
+#include "Turn/RTMovementActionLibrary.h" // FRTChargeRun: dove si ferma la carica pianificata ([D-528]) e' un membro per valore
 #include "Selection/RTSelectable.h"
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
@@ -758,6 +759,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	FRTCellId PlannedDashCell;
 
+	/** [D-528] La lettura di `NotePlannedChargeRun`. Non e' un `UPROPERTY`: e' una cache di pianificazione, mai replicata. */
+	FRTChargeRun PlannedChargeRun;
+	bool bHasPlannedChargeRun = false;
+
 	/**
 	 * Reazione pianificata per il turno (INDEX_NONE = nessuna reazione pronta), slot indipendente da
 	 * Movimento e Principale (CP 5.1, epic E5). Non ha una cella o un bersaglio: il trigger dichiarato
@@ -957,6 +962,22 @@ public:
 	 *                     deve rifare la geometria.
 	 */
 	int32 PlannedChargeReachBeyondRange(int32* OutDistance = nullptr) const;
+
+	/**
+	 * [D-528] (`#3769`) Chi pianifica una carica scrive qui dove si fermera' e se arrivera' a contatto col bersaglio scelto, letto
+	 * con la fotografia della sua squadra ([D-371]). Lo leggono l'anteprima e l'avviso del piano, che non hanno la conoscenza.
+	 *
+	 * ⚠️ **E' una lettura di pianificazione, non stato canonico**: non entra nello snapshot, nel TurnLog ne' nel replay, e non
+	 * si replica. Il resolver ricalcola tutto sulla fotografia vera.
+	 */
+	void NotePlannedChargeRun(const FRTChargeRun& Run);
+
+	/**
+	 * La lettura scritta da `NotePlannedChargeRun`, se vale ANCORA: la carica e' pianificata e si applica, e la chiave
+	 * (partenza, bersaglio, portata) e' quella di adesso. Falso senza, e allora chi disegna ricade su
+	 * `PlannedChargeReachBeyondRange`, che non conosce nessuno.
+	 */
+	bool GetPlannedChargeRun(FRTChargeRun& OutRun) const;
 
 	/**
 	 * Vero se lo STATO dell'unita' nega lo scatto pianificato: `Status.Unbalanced` e una mobilita' rapida non

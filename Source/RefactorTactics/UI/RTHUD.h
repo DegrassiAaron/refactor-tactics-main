@@ -281,6 +281,13 @@ struct FRTDashPreview
 	 */
 	int32 ReachSegments = INDEX_NONE;
 
+	/**
+	 * [D-528] Vero se il tratto che resta dopo `ReachSegments` e' cio' che la carica NON fara' (si disegna tratteggiato, in rosso).
+	 * Falso quando la corsa finisce a contatto col bersaglio scelto: il tratto fino a lui e' l'urto, non un mancato arrivo.
+	 * Default vero: e' il significato che `ReachSegments` aveva ([D-516]), e chi non scrive il campo lo conserva.
+	 */
+	bool bShowsMiss = true;
+
 	/** [D-516] Vero se resta un tratto che la corsa non fa: lo si disegna tratteggiato, in rosso. */
 	bool HasShortfall() const { return ReachSegments != INDEX_NONE && ReachSegments < PathCells.Num() - 1; }
 

@@ -20,6 +20,7 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTIntentPrivacyLibrary.h" // FRTIntentView: cio' che il click sul nemico pianificherebbe, per l'hover ([D-528])
 #include "Turn/RTFacingLibrary.h" // CP 11.8: la legalita' della rotazione si CHIEDE, non si riscrive qui
 #include "Combat/RTCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
@@ -1067,7 +1068,10 @@ void ARTPlayerController::UpdateEnemyArcFocus(ARTHexMapActor* HexMap) const
 		return;
 	}
 	const ARTUnit* Ispezionata = GetInspectedUnit();
-	HexMap->SetEnemyArcFocus(HexMap->GetHoveredCell(), HexMap->IsHoveredCellValid(),
+	// [D-528]: sul nemico che la carica armata punta il click non ispeziona — pianifica la carica, o la rifiuta —, quindi l'hover
+	// non mostra l'annotazione di un'ispezione: il suo arco. Il nemico gia' puntato (secondo click) torna a essere un'ispezione.
+	const bool bHover = HexMap->IsHoveredCellValid() && HoveredArmedChargeTarget() == nullptr;
+	HexMap->SetEnemyArcFocus(HexMap->GetHoveredCell(), bHover,
 		Ispezionata ? Ispezionata->Cell : FRTCellId(), Ispezionata != nullptr);
 }
 
@@ -2278,6 +2282,133 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	}
 }
 
+const ARTUnit* ARTPlayerController::PlannedChargeTargetAt(const ARTUnit* Unit, const FRTCellId& Cell) const
+{
+	if (!Unit || !Unit->PlannedDashMoves() || !Unit->PlannedDashIsCharge() || !(Cell == Unit->PlannedDashCell))
+	{
+		return nullptr;
+	}
+	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+	{
+		const ARTUnit* Nemico = *It;
+		// Lo stesso predicato dell'hover e del click: noto al velo, vivo, di un'altra squadra ([D-225]).
+		if (Nemico && Nemico->IsAlive() && Nemico->Cell == Cell && Nemico->TeamId != Unit->TeamId && Nemico->IsKnownToObserver())
+		{
+			return Nemico;
+		}
+	}
+	return nullptr;
+}
+
+bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTUnit* Other) const
+{
+	if (!Selected || !Other)
+	{
+		return false;
+	}
+	const int32 IndiceArmato = Selected->SelectedAbilityIndex;
+	const URTActionData* Armata = Selected->GetAbility(IndiceArmato);
+	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la pianificazione
+	// usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un altro gruppo continua a ispezionarsi.
+	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`) o col
+	// movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di `HandleClickOnCell` senza
+	// ispezionare niente, cioe' un click perso dove prima si ispezionava.
+	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge
+		|| !Selected->CanUseAbility(IndiceArmato)
+		|| Selected->EffectiveDashRangeOf(IndiceArmato) <= 0
+		|| Selected->bDeclaresPlannedFacing
+		|| Other->TeamId == Selected->TeamId)
+	{
+		return false;
+	}
+	// [D-528] (3): il nemico su cui la carica e' gia' pianificata non e' piu' un bersaglio da puntare, e' uno da guardare.
+	return !(Selected->PlannedDashMoves() && Selected->PlannedDashIsCharge() && Selected->PlannedDashCell == Other->Cell);
+}
+
+const ARTUnit* ARTPlayerController::HoveredArmedChargeTarget() const
+{
+	const ARTUnit* Selected = GetSelectedUnit();
+	// Economica: gira due volte a fotogramma con QUALUNQUE unita' selezionata, quindi la domanda sull'azione armata viene prima di ogni
+	// ricerca nel mondo (revisione di #3821).
+	const URTActionData* Armata = Selected ? Selected->GetAbility(Selected->SelectedAbilityIndex) : nullptr;
+	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge || IsPlanningInputInert())
+	{
+		return nullptr;
+	}
+	// Gli stessi due contesti in cui il click risponde `Confirm` a una carica armata ([D-516]): in `Facing` il click e' una direzione.
+	const ERTPointerContext Context = GetPointerContext();
+	if (Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing)
+	{
+		return nullptr;
+	}
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !HexMap->IsHoveredCellValid())
+	{
+		return nullptr;
+	}
+	const FRTCellId Cell = HexMap->GetHoveredCell();
+	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+	{
+		const ARTUnit* Unit = *It;
+		// `IsKnownToObserver()`, e non una seconda vista di conoscenza: e' il flag che il click legge (`DispatchUnitClick`), e un
+		// nemico che il velo nasconde non ha segni neppure all'hover ([D-225]).
+		if (Unit && Unit->IsAlive() && Unit->Cell == Cell && Unit->IsKnownToObserver() && ArmedChargeTargets(Selected, Unit))
+		{
+			return Unit;
+		}
+	}
+	return nullptr;
+}
+
+bool ARTPlayerController::BuildChargeHoverView(FRTIntentView& OutView) const
+{
+	const ARTUnit* Target = HoveredArmedChargeTarget();
+	const ARTUnit* Selected = GetSelectedUnit();
+	if (!Target || !Selected)
+	{
+		return false;
+	}
+	const int32 SelIdx = Selected->SelectedAbilityIndex;
+	const URTActionData* SelAb = Selected->GetAbility(SelIdx);
+	const FRTCellId Cell = Target->Cell;
+	// Come `HandleClickOnCell`: la cella finale apre il selettore del verso e non pianifica niente.
+	if (!SelAb || Cell == FacingCellFor(Selected))
+	{
+		return false;
+	}
+
+	FRTHexSnapshot Snapshot;
+	int32 UnitId = INDEX_NONE;
+	TArray<ARTUnit*> SnapshotUnits;
+	if (!PlanningSnapshotFor(this, Selected, Snapshot, UnitId, &SnapshotUnits) || !Snapshot.Map)
+	{
+		return false;
+	}
+	TSet<int32> Hostiles;
+	for (int32 i = 0; i < SnapshotUnits.Num(); ++i)
+	{
+		const ARTUnit* Other = SnapshotUnits[i];
+		if (Other && Other->IsAlive() && Other->TeamId != Selected->TeamId) { Hostiles.Add(i); }
+	}
+	const int32 DashRange = Selected->EffectiveDashRangeOf(SelIdx);
+	const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(
+		Snapshot.Map, Selected->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+	if (!Verdetto.bAccepted)
+	{
+		return false; // il click rifiuterebbe: non c'e' niente da annunciare, e il nemico non si ispeziona
+	}
+
+	OutView = FRTIntentView();
+	OutView.OwnerCell = Selected->Cell;
+	OutView.bDashing = true;
+	OutView.DashCell = Cell;
+	OutView.DashStyle = SelAb->Def.MovementStyle;
+	OutView.DashRunCells = Verdetto.Run.RunCells;
+	OutView.bDashMissesTarget = Verdetto.Run.bMissesTarget;
+	return true;
+}
+
 bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* SelectedUnit)
 {
 	// 🔑 **La riga di matrice la risponde una funzione PURA**, `URTPointerLibrary::ResolveOutcome`: il
@@ -2298,19 +2429,8 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
 		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
 		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
-	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la
-	// pianificazione usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un
-	// altro gruppo continua a ispezionarsi.
-	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`)
-	// o col movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di
-	// `HandleClickOnCell` senza ispezionare niente, cioe' un click perso dove prima si ispezionava.
-	const int32 IndiceArmato = SelectedUnit ? SelectedUnit->SelectedAbilityIndex : INDEX_NONE;
-	const URTActionData* Armata = SelectedUnit ? SelectedUnit->GetAbility(IndiceArmato) : nullptr;
-	const bool bArmedChargeTargetsClicked = Armata && Armata->Def.MovementStyle == ERTMovementStyle::LinearCharge
-		&& SelectedUnit->CanUseAbility(IndiceArmato)
-		&& SelectedUnit->EffectiveDashRangeOf(IndiceArmato) > 0
-		&& !SelectedUnit->bDeclaresPlannedFacing
-		&& ClickedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId;
+	// [D-516] / [D-528]: «questa carica punta quel nemico?» ha una sede sola, `ArmedChargeTargets`, che l'hover legge uguale.
+	const bool bArmedChargeTargetsClicked = ArmedChargeTargets(SelectedUnit, ClickedUnit);
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
 		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
 		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver(), bArmedChargeTargetsClicked);
@@ -2725,6 +2845,20 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		}
 	}
 
+	// 🔑 **[D-528] (3) Un click sulla cella del nemico su cui la carica e' GIA' pianificata lo ispeziona**, come lo stesso click sulla
+	// sua mesh (`DispatchUnitClick`, `ArmedChargeTargets`). Con il puntatore sul pavimento dell'esagono il raggio colpisce la mappa e
+	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
+	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
+	// selettore aperto il click e' una direzione.
+	if (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing)
+	{
+		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
+		{
+			InspectedUnit = const_cast<ARTUnit*>(Puntato);
+			return;
+		}
+	}
+
 	// 🔑 **Il verso chiude il movimento, e l'esagono finale non e' un waypoint** ([D-367], [D-462], `#291`).
 	{
 		const FRTCellId Finale = FacingCellFor(SelectedUnit);
@@ -2825,37 +2959,17 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 				if (Other && Other->IsAlive() && Other->TeamId != SelectedUnit->TeamId) { Hostiles.Add(i); }
 			}
 
-			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
+			// 🔑 **Il verdetto ha una sede sola** (`JudgeLinearDashClick`): il click lo applica, l'hover lo annuncia ([D-128]).
+			const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(
 				Map, SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+			const FRTLinearMoveResult& Linear = Verdetto.Linear;
 
-			// Regola di CP 4.5, gia' fissata da `HexSim.DashIsLinear`: o si arriva sulla cella RICHIESTA, o lo
-			// scatto non si pianifica. Niente scatto a meta' verso una cella che il giocatore non ha scelto —
-			// stessa disciplina dei waypoint compositi. (Il `Fallback.Stop` del catalogo resta: vale in
-			// RISOLUZIONE, quando il movimento simultaneo altrui chiude una traiettoria che era libera qui.)
-			//
-			// L'unica eccezione e' la CARICA: fermarsi addosso al nemico E' il suo modo di arrivare, e senza
-			// questa riga un bersaglio adiacente renderebbe la carica impianificabile.
-			// ⚠️ **Oltre la portata un impatto NON basta** (review di #3736). Da [D-516] la libreria fa correre la carica
-			// verso un bersaglio lontano, quindi un nemico noto sulla retta ENTRO la portata da' `Impact` anche per una cella
-			// vuota, un muro o un nemico lontano: accettarlo pianificava cio' che la decisione non copre, e l'anteprima e
-			// l'avviso avrebbero descritto una corsa fino alla portata che l'impatto ferma prima. Quel caso resta com'era
-			// prima di [D-516] — rifiutato —, e il giocatore carica il nemico piu' vicino cliccando lui.
-			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact) && !Linear.bTargetBeyondRange;
-
-			// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla
-			// risoluzione corre fino alla portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano
-			// lo dicono. Tre condizioni, tutte di chi pianifica:
-			// - la corsa e' arrivata in fondo alla portata (`OutOfRange`): niente l'ha fermata prima;
-			// - sulla cella c'e' un NEMICO di questa fotografia, cioe' uno che chi pianifica conosce ([D-371]). Una
-			//   cella vuota oltre la portata resta rifiutata: la regola e' «caricare un nemico», non «correre
-			//   verso un punto»;
-			// - la retta fino a lui e' libera dal TERRENO (`IsLineOpenToTarget`): e' il «percorso lineare» della
-			//   decisione. Le unita' oltre la portata non contano — si saranno mosse.
-			const int32* const OccupanteDellaCella = Snapshot.Occupancy.Find(Cell);
-			const bool bNemicoSullaCella = OccupanteDellaCella && Hostiles.Contains(*OccupanteDellaCella);
-			const bool bChargesBeyondRange = Linear.Stop == ERTLinearStop::OutOfRange && bNemicoSullaCella
-				&& URTMovementActionLibrary::IsLineOpenToTarget(Map, SelectedUnit->Cell, Cell);
-			if (Linear.Final != Cell && !bCharges && !bChargesBeyondRange)
+			// Le condizioni — la retta che arriva sulla cella, la carica che urta, la carica oltre la portata su un nemico noto — sono
+			// del verdetto, con la loro motivazione. Qui restano gli esiti, per il motivo del rifiuto e per il log.
+			const bool bCharges = Verdetto.bImpact;
+			const bool bChargesBeyondRange = Verdetto.bBeyondRange;
+			const bool bNemicoSullaCella = Verdetto.bEnemyOnTarget;
+			if (!Verdetto.bAccepted)
 			{
 				// Il ternario che stava qui rendeva «traiettoria bloccata» tutto cio' che non fosse
 				// `NotAligned`, e con `TerrainDeniesDash` avrebbe mandato il giocatore a cercare un muro su
@@ -2871,8 +2985,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 					Perche = TEXT("il terreno non si attraversa di corsa"); break;
 				case ERTLinearStop::BlockedByEdge:
 					Perche = TEXT("un bordo con copertura alta o una porta chiusa ferma la retta"); break;
-				case ERTLinearStop::Impact: // [D-516]: un impatto oltre la portata non pianifica, vedi sopra
-					Perche = TEXT("oltre la portata, e un nemico sulla retta la ferma prima"); break;
+				case ERTLinearStop::Impact: // [D-528]: un impatto oltre la portata pianifica alle stesse due condizioni
 				case ERTLinearStop::OutOfRange: // [D-516]: la corsa arriva in fondo, manca l'altra condizione
 					Perche = bNemicoSullaCella
 						? TEXT("oltre la portata, e la retta fino al nemico e' bloccata")
@@ -2888,6 +3001,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 			SelectedUnit->PlannedDashAbility = SelIdx;
 			SelectedUnit->PlannedDashCell = Cell;
+			// [D-528]: qui c'e' la fotografia della squadra, e l'esito del resolver e' gia' in mano. Si scrive dove si ferma la
+			// carica perche' l'anteprima e l'avviso, che non hanno la conoscenza, lo leggano invece di ricalcolarlo con la verita'.
+			if (SelAb->Def.MovementStyle == ERTMovementStyle::LinearCharge)
+			{
+				SelectedUnit->NotePlannedChargeRun(Verdetto.Run);
+			}
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto")
@@ -5101,6 +5220,11 @@ bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
 	{
 		return false;
 	}
+	// [D-528] (3): la cella finale di una carica e' quella del nemico che punta, e li' il click ispeziona.
+	if (PlannedChargeTargetAt(Unit, ClickedCell))
+	{
+		return false;
+	}
 	// Un bersaglio da scegliere ha la precedenza: il click e' suo.
 	if (GetPointerContext() == ERTPointerContext::Targeting && GetPointerTargetKind() != ERTPointerTargetKind::None)
 	{
@@ -5136,6 +5260,11 @@ bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirecti
 		UE_LOG(LogRT, Log, TEXT("[RT] Verso: da fermo si sceglie dopo un click sulla propria cella"));
 		return false;
 	}
+	// [D-528] (3): un click diretto su un lato dell'esagono del nemico puntato dalla carica non dichiara un verso.
+	if (!bDeclaringFacing && PlannedChargeTargetAt(Unit, Cell))
+	{
+		return false;
+	}
 
 	const bool bEraAperto = bDeclaringFacing;
 	BeginFacingDeclaration();
@@ -5152,7 +5281,7 @@ bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirecti
 	return false;
 }
 
-bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
+bool ARTPlayerController::FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const
 {
 	if (!Unit || IsWorldReadOnly() || IsPlanningInputInert())
 	{
@@ -5170,6 +5299,23 @@ bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
 	{
 		return false; // da fermo il primo click apre il selettore, e lo fa il ramo della selezione
 	}
+	// 🔴 [D-528] (3): per una carica la cella finale e' quella del nemico puntato. Su quella cella il click prosegue: `DispatchUnitClick` lo
+	// ispeziona, e `HandleClickOnCell` ispeziona il nemico se il raggio ha colpito il pavimento.
+	if (!bSelettoreAperto && PlannedChargeTargetAt(Unit, Finale))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
+{
+	if (!FacingHandlesClickOnFinalCell(Unit))
+	{
+		return false;
+	}
+	const FRTCellId Finale = FacingCellFor(Unit);
+	const bool bSelettoreAperto = GetPointerContext() == ERTPointerContext::Facing;
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	if (!HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) || !Map)

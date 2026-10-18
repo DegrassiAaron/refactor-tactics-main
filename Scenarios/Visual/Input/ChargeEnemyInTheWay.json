@@ -1,0 +1,28 @@
+{
+  "scenarioId": "Visual.Input.ChargeEnemyInTheWay",
+  "tags": ["pointer", "planning", "dash", "movement", "hover", "visual", "branth", "ivrin", "muiren"],
+  "verifies": ["PIE-V01-CHARGEHOVER"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "BANCO della carica con un nemico noto in mezzo (D-528, #3769). Zero turni: la partita resta in Pianificazione perche' una persona arma `Hero.Branth.Ram` e muove il cursore sui nemici. A1 e' Branth, B1 (Ivrin) sta a due celle sulla sua retta est, B2 (Muiren) a tre celle sulla stessa retta, dietro B1: tutte e due entro la portata di `Ram` (3). Clic su B2 = la carica si ferma davanti a B1 e colpisce lui.",
+  "_oracolo": "`PIE-V01-CHARGEHOVER`, la parte che headless non vede. Con `Ram` armata e il cursore (senza cliccare) su B2: l'anteprima tenue e' piena da A1 fino a `(-3,3)`, la cella davanti a B1, poi tratteggiata in rosso fino a B2; il segno d'arrivo sta su `(-3,3)`, non su B2; e l'arco di B2 NON compare. Col cursore su B1: la linea e' piena fino a `(-3,3)`, senza tratto rosso, e di nuovo niente arco. Cliccando B2 la carica si pianifica su di lui e il piano porta l'avviso «Colpirà Ivrin, non Muiren». Un secondo click su B2 lo ispeziona: compare il suo arco e non si apre il selettore del verso. Anteprima, segno e arco li disegna `DrawHUD`, che headless non gira.",
+  "_nota_geometria": "Tutto sulla riga `r = 3` di `TestArena`, la stessa di `Visual.Input.ChargeClick` e `ChargeBeyondRange`: la colonna di vista `(0, r)` per `r` da -2 a 2 non la tocca, e non ci sono celle che bloccano il passo o fango. La retta da `(-4,3)` e' `(-3,3)`, `(-2,3)`, `(-1,3)`: B1 sta sul secondo passo, B2 sul terzo. A1 guarda a est, e i due nemici stanno nel suo cono frontale entro la sua vista: letto dalla geometria, non misurato, perche' il formato non ha un'attesa sulla conoscenza. Se in seduta uno dei due compare velato, la scena non serve e va rifatta.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-4, 3, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [-2, 3, 0], "facing": "W" },
+    { "id": "B2", "hero": "Hero.Muiren", "team": 1, "cell": [-1, 3, 0], "facing": "W" }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-4, 3, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-2, 3, 0] },
+    { "type": "UnitAtCell", "unit": "B2", "cell": [-1, 3, 0] },
+    { "type": "UnitAlive", "unit": "A1", "value": true }
+  ]
+}
