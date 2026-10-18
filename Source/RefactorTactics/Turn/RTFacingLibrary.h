@@ -99,8 +99,11 @@ public:
 	 * cella (l'unita' non si e' spostata) -> `Current` invariato.
 	 *
 	 * Se le ultime due celle non sono adiacenti — e' il caso del salto, che ignora le celle intermedie — vale
-	 * la direzione VERSO l'arrivo. Non e' un caso speciale per stile: e' la stessa domanda («da dove a dove»)
-	 * con una geometria piu' larga.
+	 * l'ULTIMO passo della retta di `HexLine` fra le due ([D-524] (4)). Non e' un caso speciale per stile: e' la
+	 * stessa domanda («l'ultimo passo») con una geometria piu' larga, e sulle celle di pareggio il primo passo e
+	 * l'ultimo differiscono — e' il passo che l'unita' fa per ARRIVARE, non quello da cui parte, che la guarda.
+	 * ⏱️ *Fino a [D-524] valeva il PRIMO passo (`DirectionTowards`), che per un salto fuori asse girava chi
+	 * atterrava dalla parte sbagliata.*
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
 	static ERTHexDirection FacingFromPath(const TArray<FRTCellId>& Path, ERTHexDirection Current);

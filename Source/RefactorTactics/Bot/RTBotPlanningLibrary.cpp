@@ -847,7 +847,22 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				{
 					continue;
 				}
-				Plans.Add(Candidate);
+				FRTHexBotPlan Candidata = Candidate;
+				if (bViaDash && URTMovementActionLibrary::IsLinear(DashStyle))
+				{
+					// 🔑 **[D-524] (4) Il verso d'arrivo di uno scatto e' l'ultimo passo della sua RETTA.** `FromCell` della
+					// candidata e' il predecessore del Dijkstra che l'ha generata — il grafo, non la corsa —, e su una
+					// cella fuori asse puo' essere un vicino diverso da quello da cui la retta entra: il punteggio
+					// valuterebbe un'esposizione con un verso che l'unita' non avra'. Si sostituisce con la penultima
+					// cella di `MovementLine`, la stessa che il resolver percorre. Per chi resta fermo la retta non c'e'
+					// e `FromCell` e' gia' la cella stessa.
+					TArray<FRTCellId> Retta;
+					if (URTMovementActionLibrary::MovementLine(Bot.Cell, Candidate.DestCell, Retta))
+					{
+						Candidata.FromCell = Retta[Retta.Num() - 2];
+					}
+				}
+				Plans.Add(Candidata);
 				PlanAbility.Add(Candidate.bHasAttack ? AbilityIndex : INDEX_NONE);
 				PlanViaDash.Add(bViaDash);
 				PlanIsCharge.Add(false);
@@ -905,6 +920,9 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 
 				FRTHexBotPlan Charge;
 				Charge.DestCell = Linear.Final;   // dove il bot si ferma: adiacente al bersaglio
+				// [D-524] (4): l'ultimo passo PERCORSO, non quello della retta fino al nemico. Chi carica un adiacente non
+				// si muove (`Entered` vuoto): la partenza e' la cella stessa e il verso non cambia.
+				Charge.FromCell = Linear.Entered.Num() >= 2 ? Linear.Entered[Linear.Entered.Num() - 2] : Bot.Cell;
 				Charge.bHasAttack = true;
 				Charge.TargetIndex = e;
 				Charge.AttackDamage = ImpactDamage;

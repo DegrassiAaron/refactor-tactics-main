@@ -279,12 +279,25 @@ struct FRTPlanPreviewInput
 	FRTCellId PlannedDashCell;
 
 	/**
-	 * [D-516] Le celle che una CARICA col bersaglio oltre la portata percorre: la rotta del fantasma si ferma li', e
-	 * non sul nemico. `0` per ogni altro scatto. Lo scrive chi compone l'ingresso, da
-	 * `ARTUnit::PlannedChargeReachBeyondRange`.
+	 * Lo stile dello scatto pianificato, come lo dichiara il catalogo (`FRTActionDef::MovementStyle`). Per uno stile
+	 * LINEARE la rotta del fantasma e' quella che `URTMovementActionLibrary::ResolveLinearMove` percorre ([D-524]):
+	 * la stessa retta, lo stesso arresto su un ostacolo, un bordo o un nemico. Con `None` (o `Budget`) la rotta si
+	 * cerca col grafo, come il resolver fa per le mobilita' a budget.
+	 *
+	 * ⏱️ *Fino a [D-524] la rotta veniva sempre dall'A\* del movimento, con un troncamento a parte per la carica oltre
+	 * la portata (`DashReachCells`).* L'A\* ha piu' percorsi minimi sulle celle fuori asse e puo' scegliere un ultimo
+	 * passo diverso da quello della risoluzione, e davanti a un ostacolo lo aggira mentre lo scatto si ferma.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
-	int32 DashReachCells = 0;
+	ERTMovementStyle DashStyle = ERTMovementStyle::None;
+
+	/**
+	 * La portata dello scatto in CELLE, come la legge il resolver (`ARTUnit::EffectiveDashRangeOf`): letta solo per
+	 * uno stile lineare. Una carica col bersaglio oltre la portata corre fin li' e si ferma ([D-516]), ed e' questo
+	 * numero a dire dove — non un conteggio a parte.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 DashRange = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FName DashActionId;

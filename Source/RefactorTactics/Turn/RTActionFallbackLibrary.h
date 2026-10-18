@@ -197,9 +197,16 @@ enum class ERTActionInvalidReason : uint8
 	 */
 	TerrainDeniesDash,
 	/**
-	 * La destinazione dello scatto non sta su una delle sei direzioni assiali, oppure e' oltre la portata
-	 * dell'azione: la mobilita' lineare non parte affatto (`ERTLinearStop::NotAligned`). Per una carica oltre
-	 * la portata non vale piu': corre fino alla portata ([D-516], `OutOfRange`).
+	 * La mobilita' lineare non parte affatto (`ERTLinearStop::NotAligned`): la destinazione non ha una retta — sta
+	 * su un altro piano — oppure e' oltre la portata dell'azione. Per una carica oltre la portata non vale piu':
+	 * corre fino alla portata ([D-516], `OutOfRange`), salvo che le due condizioni di [D-516] non reggano (nessun
+	 * nemico sulla cella, o una retta che il terreno o un lato chiudono), e allora e' di nuovo questo motivo.
+	 *
+	 * ⚠️ **Il NOME e' rimasto, il significato no** ([D-524]). Fino al 2026-10-18 diceva «la destinazione non sta su una
+	 * delle sei direzioni assiali»; da quando «in linea» e' la retta libera fra i centri ogni cella dello stesso piano
+	 * ha una retta, e l'allineamento non e' piu' un vincolo. Il motivo viaggia come intero grezzo in
+	 * `FRTTurnLogEntry::Amount`, quindi rinominarlo avrebbe toccato il codice senza toccare nessuna traccia: si e'
+	 * scelto di aggiornare il significato e il testo (`DescribeInvalidReason`), non l'identificatore.
 	 *
 	 * Distinto da `OutOfRange`, che parla di un BERSAGLIO allontanatosi: qui non c'e' un bersaglio che si
 	 * e' mosso, c'e' una geometria che l'azione non ammette — e il rimedio e' scegliere un'altra cella,
@@ -269,7 +276,21 @@ enum class ERTActionInvalidReason : uint8
 	 * riscrive il significato di ogni traccia gia' archiviata che ne porti uno successivo. In coda il
 	 * formato serializzato non cambia versione, e le tracce gia' scritte si leggono come prima.
 	 */
-	OtherLayer
+	OtherLayer,
+
+	/**
+	 * La traiettoria dello scatto e' fermata da un BORDO prima del primo passo: copertura alta, porta chiusa o
+	 * bloccata (`URTHexCoverLibrary::BlocksTraversal`, [D-524] (5)).
+	 *
+	 * 🔑 **Motivo PROPRIO e non `DashPathBlocked`**, che dichiara di non distinguere muro da unita': li' la
+	 * causa e' una CELLA, qui e' il bordo fra due celle entrambe libere. Chi rilegge il turno andrebbe a
+	 * cercare un muro che non c'e', ed e' il difetto che `TerrainDeniesDash` ha gia' pagato per il terreno.
+	 *
+	 * ⚠️ **In coda**, per la ragione scritta su `DoorLocked`: il motivo viaggia come intero grezzo in
+	 * `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia gia'
+	 * archiviata che ne porti uno successivo.
+	 */
+	DashEdgeBlocked
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

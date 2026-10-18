@@ -1857,9 +1857,17 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 	}
 
 	// La traiettoria come la fase Dash la eseguira' (#142): lineare va dritta, a budget segue il grafo.
-	Out.PathCells = URTMovementActionLibrary::IsLinear(View.DashStyle)
-		? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
-		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
+	// [D-524]: la retta e' `MovementLine`, l'UNICA funzione che la decide per il movimento. ⏱️ *Fino a [D-524] qui
+	// c'era `HexLine` direttamente*: stessa retta, ma una seconda lettura della regola, e senza il vincolo di piano —
+	// verso un altro layer disegnava una retta sul piano di partenza che lo scatto non percorre mai.
+	if (URTMovementActionLibrary::IsLinear(View.DashStyle))
+	{
+		URTMovementActionLibrary::MovementLine(View.OwnerCell, View.DashCell, Out.PathCells);
+	}
+	else
+	{
+		Out.PathCells = URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
+	}
 
 	// [D-516]: una carica col bersaglio oltre la portata corre per `DashReachCells` celle della retta e si ferma.
 	// Il numero lo calcola l'unita' (`PlannedChargeReachBeyondRange`) con la portata del resolver: qui si legge.

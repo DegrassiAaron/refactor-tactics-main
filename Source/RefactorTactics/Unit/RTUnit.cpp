@@ -2142,8 +2142,14 @@ int32 ARTUnit::PlannedChargeReachBeyondRange(int32* OutDistance) const
 		return 0;
 	}
 	const int32 Range = EffectiveDashRangeOf(PlannedDashAbility);
-	int32 Distance = 0;
-	if (Range <= 0 || !URTMovementActionLibrary::IsStraightLine(Cell, PlannedDashCell, Distance) || Distance <= Range)
+	// La stessa retta del resolver ([D-524]): la distanza e' i passi di `MovementLine`, non una delle sei direzioni.
+	TArray<FRTCellId> Retta;
+	if (Range <= 0 || !URTMovementActionLibrary::MovementLine(Cell, PlannedDashCell, Retta))
+	{
+		return 0;
+	}
+	const int32 Distance = Retta.Num() - 1;
+	if (Distance <= Range)
 	{
 		return 0;
 	}

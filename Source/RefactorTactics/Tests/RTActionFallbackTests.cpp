@@ -358,7 +358,7 @@ bool FRTInvalidReasonValuesAreAppendOnlyTest::RunTest(const FString&)
 		TEXT("InsufficientMovementPoints"), TEXT("OnCooldown"), TEXT("Interrupted"), TEXT("NoEffect"),
 		TEXT("Neutralised"), TEXT("Unbalanced"), TEXT("DoorLocked"), TEXT("DoorDestroyed"),
 		TEXT("TerrainDeniesDash"), TEXT("DashNotAligned"), TEXT("DashPathBlocked"), TEXT("Stunned"),
-		TEXT("OtherLayer") };
+		TEXT("OtherLayer"), TEXT("DashEdgeBlocked") };
 
 	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
 	if (!TestNotNull(TEXT("l'enum dei motivi e' riflesso"), Motivi)) { return false; }

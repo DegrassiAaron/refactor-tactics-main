@@ -4,7 +4,7 @@
 #include "Turn/RTHexSimLibrary.h"  // BuildCompositeHexPath: lo STESSO A* del resolver
 #include "Turn/RTFacingLibrary.h"  // FacingFromPath: la derivazione pura, senza TurnLog
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: la fase dell'azione decide il posto della voce ([D-470])
-#include "Map/RTHexLibrary.h"        // HexLine: la retta di una carica oltre la portata ([D-516])
+#include "Turn/RTMovementActionLibrary.h" // ResolveLinearMove: la rotta di uno scatto lineare e' quella del resolver ([D-524])
 
 namespace
 {
@@ -212,22 +212,38 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		// stesso difetto che la fase Move era stata scritta per evitare, sulla fase accanto.
 		// [D-474]: la rotta si chiede al resolver solo per uno scatto che si applica. Per gli altri resta vuota,
 		// cioe' la rotta rifiutata qui sotto: l'unita' non si sposta e non si gira.
-		FRTHexPathResult RottaScatto = bScattoEffettivo
-			? URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell)
-			: FRTHexPathResult();
-		// [D-516]: una carica col bersaglio oltre la portata corre lungo la RETTA e si ferma dopo `DashReachCells`
-		// celle. ⚠️ **La retta, non l'A* qui sopra** (review della PR #3767): l'A* usa il budget del MOVIMENTO e gli
-		// occupanti come ostacoli, e la carica non paga ne' l'uno ne' gli altri. Con un budget basso — `Unbalanced`,
-		// `Sneak` — non arrivava al bersaglio lontano e il fantasma restava fermo; con un'unita' sulla retta oltre la
-		// portata deviava. La retta e' cio' che `ResolveLinearMove` percorre.
-		if (bScattoEffettivo && Plan.DashReachCells > 0)
+		FRTHexPathResult RottaScatto;
+		if (bScattoEffettivo && URTMovementActionLibrary::IsLinear(Plan.DashStyle))
 		{
-			TArray<FRTCellId> Retta = URTHexLibrary::HexLine(CellaCorrenteDiFase, Plan.PlannedDashCell);
-			if (Retta.Num() > Plan.DashReachCells + 1)
+			// 🔑 **[D-524] Una mobilita' LINEARE percorre la retta, non l'A\*** — e la percorre con la STESSA funzione
+			// del resolver. Lo scatto non paga il budget del movimento (`Unbalanced`, `Sneak` non lo riguardano) ne'
+			// aggira gli occupanti: li' si ferma, e una carica urta il nemico. Dentro la portata l'A\* sceglieva fra
+			// piu' percorsi minimi sulle celle fuori asse, con un ultimo passo che poteva non essere quello della
+			// risoluzione, e davanti a un muro lo aggirava; oltre la portata era la retta, ma troncata a parte
+			// (review della PR #3767). Ora e' una chiamata sola, e il troncamento della carica e' il suo `OutOfRange`.
+			//
+			// Gli ostili sono le unita' vive di un'altra squadra nello snapshot di CHI PIANIFICA, quindi quelle che
+			// conosce ([D-371]): la fotografia e' la stessa su cui il controller ha accettato il piano.
+			TSet<int32> Ostili;
+			for (const FRTHexSimUnit& U : Snapshot.Units)
 			{
-				Retta.SetNum(Plan.DashReachCells + 1);
+				if (U.bAlive && U.TeamId != Unit->TeamId)
+				{
+					Ostili.Add(U.UnitId);
+				}
 			}
-			RottaScatto.Path = MoveTemp(Retta);
+			const FRTLinearMoveResult Corsa = URTMovementActionLibrary::ResolveLinearMove(Snapshot.Map,
+				CellaCorrenteDiFase, Plan.PlannedDashCell, Plan.DashRange, Plan.DashStyle, Snapshot.Occupancy, Ostili);
+			// Una corsa che non muove e' una rotta rifiutata: vuota, e il fantasma resta dov'e'.
+			if (Corsa.Entered.Num() > 0)
+			{
+				RottaScatto.Path.Add(CellaCorrenteDiFase);
+				RottaScatto.Path.Append(Corsa.Entered);
+			}
+		}
+		else if (bScattoEffettivo)
+		{
+			RottaScatto = URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell);
 		}
 
 		FRTPhasePreviewEntry Dash;

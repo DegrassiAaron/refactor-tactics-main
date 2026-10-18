@@ -380,37 +380,77 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 }
 
 /**
- * [D-516] (`#3736`, decisione d'autore «Carica rifiutata») — **con la carica armata, un nemico che NON sta in
- * linea rifiuta la carica, e non si ispeziona**: il click vuol dire «carica li'», e se non si puo' non succede
- * nient'altro, come cliccando la sua cella.
+ * [D-523] / [D-524] (`#3793`) — **con la carica armata, un nemico fuori dalle sei direzioni ma sulla retta libera si
+ * carica**: e' la scena di `PIE-V01-CHARGECLICK` (4), Branth in `(-4,3)` e Muiren in `(-2,4)`, scarto `(+2,+1)`.
+ * Se la retta e' bloccata il click rifiuta la carica, e non ispeziona: il click vuol dire «carica li'».
+ *
+ * ⌫ *Fino a [D-524] questo test si chiamava `ChargeOnAnEnemyOutOfLineIsRefused` e asseriva il rifiuto di una cella a
+ * `(2,1)`.* Il nome diceva il contrario della regola, quindi e' cambiato con lei.
+ *
+ * ⚠️ **La retta bloccata e' un terreno che nega la corsa, non un muro o un bordo alto**: quelli tolgono anche la
+ * vista, il nemico cadrebbe nel rifiuto «ignoto alla squadra» ([D-371]) prima di arrivare alla regola della retta.
+ * Il bordo che ferma lo scatto si prova alla libreria (`Dash.AnEdgeStopsDashChargeAndPassButNotTheLeap`) e alla
+ * partita (`HexMatch.ChargeIsStoppedByAnEdgeOnTheLine`).
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeOutOfLineTest,
-	"RefactorTactics.PlayerInput.ChargeOnAnEnemyOutOfLineIsRefused",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeOffAxesTest,
+	"RefactorTactics.PlayerInput.ChargeOnAnEnemyOffTheAxesFollowsTheFreeLine",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlayerChargeOutOfLineTest::RunTest(const FString&)
+bool FRTPlayerChargeOffAxesTest::RunTest(const FString&)
 {
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
-	// (2,1) e' a due passi ma su nessuna delle sei direzioni.
-	ARTUnit* Enemy = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 1, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3, 0));
+	ARTUnit* Enemy = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 4, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	if (!PC || !Charger || !Enemy || !TM) { DestroyInteractionWorld(World); return false; }
+	if (!MapActor || !PC || !Charger || !Enemy || !TM) { DestroyInteractionWorld(World); return false; }
 	TM->RefreshTeamKnowledgeNow();
 
 	int32 Distanza = 0;
-	TestFalse(TEXT("premessa: il nemico non e' in linea"),
+	TestFalse(TEXT("premessa: il nemico non e' su una delle sei direzioni"),
 		URTMovementActionLibrary::IsStraightLine(Charger->Cell, Enemy->Cell, Distanza));
 
 	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+	if (!TestNotEqual(TEXT("premessa: Branth ha una carica nel kit"), ChargeIdx, (int32)INDEX_NONE))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	TestTrue(TEXT("premessa: Muiren e' a distanza 3, entro la portata della carica"),
+		URTHexLibrary::HexDistance(Charger->Cell, Enemy->Cell) == 3
+		&& URTHexLibrary::HexDistance(Charger->Cell, Enemy->Cell) <= Charger->EffectiveDashRangeOf(ChargeIdx));
+	TestTrue(TEXT("premessa: Muiren e' noto a chi guarda"), Enemy->IsKnownToObserver());
+
 	PC->SelectActorForTest(Charger);
 	Charger->SelectAbility(ChargeIdx);
 
+	// (1) La retta e' libera: il click pianifica la carica su di lui, e non lo ispeziona.
 	TestTrue(TEXT("il click e' consumato dalla carica"), PC->DispatchUnitClickForTest(Enemy, Charger));
-	TestEqual(TEXT("la carica e' rifiutata"), Charger->PlannedDashAbility, (int32)INDEX_NONE);
+	TestEqual(TEXT("la carica su Muiren si pianifica"), Charger->PlannedDashAbility, ChargeIdx);
+	TestTrue(TEXT("verso la sua cella"), Charger->PlannedDashCell == Enemy->Cell);
+	TestTrue(TEXT("e il nemico non si ispeziona"), PC->GetInspectedUnit() != Enemy);
+	TestEqual(TEXT("in portata: nessun tratto da percorrere a vuoto"), Charger->PlannedChargeReachBeyondRange(), 0);
+
+	// (2) Il verso dopo la carica e' l'ULTIMO PASSO PERCORSO: la carica si ferma in (-3,4), dopo (-3,3), cioe' SE.
+	// Verso Muiren (E) non e' l'ultimo passo percorso: e' la direzione dell'impatto, e il facing non la usa. ⚠️ Il
+	// facing di partenza e' un altro (`NW`) per distinguere questo caso dal «resta com'e'» di una rotta vuota, che e'
+	// quanto `PlannedMovementForFacing` rispondeva su un bersaglio fuori asse.
+	Charger->Facing = ERTHexDirection::NW;
+	TestTrue(TEXT("il verso SE, ultimo passo della rotta percorsa, e' legale"),
+		PC->IsFacingLegalForPlan(Charger, ERTHexDirection::SE));
+	TestFalse(TEXT("il verso NE non lo e' (non e' ne' l'ultimo passo percorso ne' un suo vicino)"),
+		PC->IsFacingLegalForPlan(Charger, ERTHexDirection::NE));
+
+	// (3) La retta e' BLOCCATA da un terreno che nega la corsa: la carica e' rifiutata, e il nemico non si ispeziona.
+	Charger->PlannedDashAbility = INDEX_NONE;
+	MakeInteractionRough(MapActor->MapAsset, FRTCellId(-3, 4, 0));
+	PC->SelectActorForTest(Charger);
+	Charger->SelectAbility(ChargeIdx);
+	TestTrue(TEXT("il click e' consumato dalla carica anche quando e' rifiutata"),
+		PC->DispatchUnitClickForTest(Enemy, Charger));
+	TestEqual(TEXT("con (-3,4) accidentata la retta non si percorre di corsa: carica rifiutata"),
+		Charger->PlannedDashAbility, (int32)INDEX_NONE);
 	TestTrue(TEXT("e il nemico non si ispeziona"), PC->GetInspectedUnit() != Enemy);
 
 	DestroyInteractionWorld(World);
@@ -572,16 +612,21 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 }
 
 /**
- * Lo scatto del giocatore e' LINEARE come quello che il resolver esegue: una cella raggiungibile sul grafo ma
- * NON in linea va rifiutata in pianificazione.
+ * Lo scatto del giocatore e' LINEARE come quello che il resolver esegue: una cella raggiungibile sul grafo ma la
+ * cui RETTA e' bloccata va rifiutata in pianificazione, e una cella FUORI ASSE con la retta libera si accetta.
  *
  * Senza questo gate il piano verrebbe accettato e la fase Dash non muoverebbe nulla: il turno si perde in
  * silenzio, senza che nessuno dica perche'. E' lo stesso invariante che il bot ha da #140 ("non proporre mosse
  * che il resolver rifiuta"), qui applicato alla mano umana — diventato osservabile con #142, da quando lo
  * scatto degli archetipi dichiara `LinearDash` e non passa piu' dall'A*.
+ *
+ * ⌫ *Fino a [D-524] (#3793) questo test si chiamava `DashRejectsNonLinearDestination` e rifiutava `(3,-4)` perche'
+ * non stava su una delle sei direzioni.* La retta di `HexLine` da `(2,-2)` a `(3,-4)` passa da `(3,-3)` ed e'
+ * libera: ora si accetta. A fermare uno scatto fuori asse e' la retta, non l'asse — `(0,-3)` dista 3 e la sua
+ * retta passa dal muro di `(1,-2)`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerDashIsLinearTest,
-	"RefactorTactics.PlayerInput.DashRejectsNonLinearDestination",
+	"RefactorTactics.PlayerInput.DashFollowsTheFreeLineNotTheSixDirections",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 {
@@ -611,13 +656,32 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	PC->SelectActorForTest(Unit);
 	Unit->SelectAbility(DashIdx);
 
-	// (3,-4) e' libera, dentro la mappa e a due passi sul grafo — ma NON e' su una delle sei direzioni.
+	// (3,-4) e' libera, dentro la mappa e a due passi — e NON e' su una delle sei direzioni. Da [D-524] conta la
+	// retta, e quella di HexLine passa da (3,-3): libera, quindi lo scatto si pianifica.
 	const FRTCellId Oblique(3, -4, 0);
+	int32 Distanza = 0;
 	TestTrue(TEXT("premessa: la cella esiste ed e' libera"),
 		Arena->ContainsCell(Oblique) && !Arena->FindCell(Oblique)->bBlocksMovement);
+	TestFalse(TEXT("premessa: non e' su una delle sei direzioni"),
+		URTMovementActionLibrary::IsStraightLine(Unit->Cell, Oblique, Distanza));
 	PC->HandleClickOnCell(Oblique);
-	TestEqual(TEXT("una destinazione non allineata non diventa un piano di scatto"),
+	TestEqual(TEXT("una destinazione fuori asse con la retta libera diventa un piano di scatto"),
+		Unit->PlannedDashAbility, DashIdx);
+	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Oblique);
+
+	// Una cella fuori asse la cui retta e' BLOCCATA si rifiuta: da (2,-2) a (0,-3) la retta passa dal muro di (1,-2),
+	// benche' il grafo ci arrivi girandoci attorno. Il piano di prima non si tocca.
+	const FRTCellId Bloccata(0, -3, 0);
+	TestTrue(TEXT("premessa: la cella e' libera, a distanza 3 (la portata della lama) e fuori asse"),
+		Arena->ContainsCell(Bloccata) && !Arena->FindCell(Bloccata)->bBlocksMovement
+		&& URTHexLibrary::HexDistance(Unit->Cell, Bloccata) == 3
+		&& !URTMovementActionLibrary::IsStraightLine(Unit->Cell, Bloccata, Distanza));
+	Unit->PlannedDashAbility = INDEX_NONE;
+	Unit->SelectAbility(DashIdx); // riarmato: il click precedente puo' aver lasciato lo stato neutro
+	PC->HandleClickOnCell(Bloccata);
+	TestEqual(TEXT("una retta che passa da un muro non diventa un piano di scatto"),
 		Unit->PlannedDashAbility, (int32)INDEX_NONE);
+	Unit->SelectAbility(DashIdx);
 
 	// Controprova: sulla stessa mappa, una cella ALLINEATA e libera viene accettata. Senza, il test passerebbe
 	// anche con un gate che rifiuta tutto.
@@ -3249,14 +3313,19 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 	const FCaso Casi[] = {
 		// (2,-2) + 2 * direzione (-1,+1): in linea, libera, in portata.
 		{ TEXT("lineare, cella allineata"), ECaso::Lineare, { FRTCellId(0, 0, 0) }, 1, FRTCellId(0, 0, 0) },
-		// Libera e a due passi sul grafo, ma su nessuna delle sei direzioni.
-		{ TEXT("lineare, cella non allineata"), ECaso::Lineare, { FRTCellId(3, -4, 0) }, 0, FRTCellId() },
+		// Fuori dalle sei direzioni ma con la retta LIBERA: da [D-524] si accetta. ⌦ *Fino a [D-524] era il caso
+		// «respinto»* (`(3,-4)`, «cella non allineata»): ora il rifiuto lo da' la retta, non l'asse.
+		{ TEXT("lineare, cella fuori asse con la retta libera"), ECaso::Lineare, { FRTCellId(3, -4, 0) }, 1,
+			FRTCellId(3, -4, 0) },
+		// Fuori asse, a distanza 3 (la portata della lama) e libera sul grafo, ma la sua retta passa dal muro di (1,-2).
+		{ TEXT("lineare, cella fuori asse con la retta bloccata"), ECaso::Lineare, { FRTCellId(0, -3, 0) }, 0,
+			FRTCellId() },
 		// Due celle valide sulla stessa linea: il piano tiene l'ultima, i gesti sono due.
 		{ TEXT("lineare, due destinazioni valide di fila"), ECaso::Lineare,
 			{ FRTCellId(0, 0, 0), FRTCellId(1, -1, 0) }, 2, FRTCellId(1, -1, 0) },
 		// Una valida e poi una respinta: il piano tiene la prima, e la respinta non conta.
 		{ TEXT("lineare, una valida e poi una respinta"), ECaso::Lineare,
-			{ FRTCellId(0, 0, 0), FRTCellId(3, -4, 0) }, 1, FRTCellId(0, 0, 0) },
+			{ FRTCellId(0, 0, 0), FRTCellId(0, -3, 0) }, 1, FRTCellId(0, 0, 0) },
 		{ TEXT("a budget, cella vicina"), ECaso::Budget, { FRTCellId(3, -2, 0) }, 1, FRTCellId(3, -2, 0) },
 		// La cella bloccata della mappa di prova: nessun percorso la raggiunge.
 		{ TEXT("a budget, cella bloccata"), ECaso::Budget, { FRTCellId(2, 1, 0) }, 0, FRTCellId() },

@@ -13,6 +13,7 @@
 #include "Perception/RTEnemyTacticalQuery.h"
 #include "Perception/RTKnowledgeView.h"
 #include "Perception/RTTeamKnowledge.h"
+#include "Turn/RTMovementActionLibrary.h" // [D-524]: IsStraightLine, il confronto con le sei direzioni
 #include "Turn/RTMatchSetupLibrary.h"
 // La classificazione dei campi si legge dalla REFLECTION, non da un elenco scritto a mano (#2331).
 #include "UObject/UnrealType.h"
@@ -472,6 +473,59 @@ bool FRTEnemyQueryPostDashUsesOnlyFastMovementTest::RunTest(const FString&)
 	TestTrue(TEXT("minaccia immediata a distanza 1"), Has(R.ImmediateThreat, FRTCellId(1, 0)));
 	TestFalse(TEXT("nessuna minaccia immediata a distanza 2"), Has(R.ImmediateThreat, FRTCellId(2, 0)));
 
+	return true;
+}
+
+/**
+ * [D-524] (#3793) — **la regione dello scatto lineare e' la retta libera, non le sei direzioni.** La query stimava la
+ * minaccia di uno scatto enumerando le sole sei direzioni: a portata 2 dodici destinazioni su diciotto, e una
+ * minaccia sottostimata (*«un'anteprima che le omette promette una sicurezza che non c'e'»*).
+ *
+ * `(1,1)` e' a distanza 2, fuori dalle sei direzioni, e la sua retta passa da `(1,0)`: con il passo a 1 non si
+ * cammina fin li', quindi sta nello scatto. Con un muro su `(1,0)` la retta e' chiusa e `(1,1)` esce, benche'
+ * `(0,1)` sia libera: il pareggio decide la validita', anche qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyQueryDashRegionFollowsTheFreeLineTest,
+	"RefactorTactics.Perception.DashRegionFollowsTheFreeLineNotTheSixDirections",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEnemyQueryDashRegionFollowsTheFreeLineTest::RunTest(const FString&)
+{
+	const FRTCellId Fuori(1, 1);
+	const FRTCellId ViaEst(1, 0);
+
+	auto Regioni = [](URTHexMapAsset* Map, FRTEnemyTacticalRegions& Out)
+	{
+		URTHeroData* Hero = MakeQueryHero(TEXT("Hero.QueryProbe"), /*MovePoints*/ 1,
+			{
+				MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1),
+				MakeQueryAction(TEXT("Action.Reposition"))
+			});
+		FRTKnowledgeView View;
+		View.ObserverTeamId = 0;
+		View.Entries.Add(LiveEntry(7, FRTCellId(0, 0), Hero->HeroId));
+		return URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, Hero, Out);
+	};
+
+	int32 Distanza = 0;
+	if (!TestFalse(TEXT("premessa: (1,1) non e' su una delle sei direzioni"),
+		URTMovementActionLibrary::IsStraightLine(FRTCellId(0, 0), Fuori, Distanza))) { return false; }
+
+	// (1) Piana libera: la cella fuori asse e' nello scatto, e non nel passo (che arriva a 1).
+	FRTEnemyTacticalRegions Libera;
+	if (!TestTrue(TEXT("il soggetto risponde"), Regioni(MakeQueryArena(5), Libera))) { return false; }
+	if (!TestFalse(TEXT("premessa: col passo a 1 non si cammina fino a (1,1)"), Has(Libera.ReachableCells, Fuori)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("(1,1) sta nello scatto: e' un arrivo possibile lungo la retta"), Has(Libera.DashOnlyCells, Fuori));
+
+	// (2) Muro su (1,0): la retta di (1,1) passa da li', quindi la cella esce dallo scatto — anche se (0,1) e' libera.
+	URTHexMapAsset* ConMuro = MakeQueryArena(5);
+	PutBlocker(ConMuro, ViaEst);
+	FRTEnemyTacticalRegions Murata;
+	if (!TestTrue(TEXT("il soggetto risponde anche con il muro"), Regioni(ConMuro, Murata))) { return false; }
+	TestFalse(TEXT("con (1,0) murata la retta di (1,1) e' chiusa: la cella esce dallo scatto"),
+		Has(Murata.DashOnlyCells, Fuori));
 	return true;
 }
 

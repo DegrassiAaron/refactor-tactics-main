@@ -1298,6 +1298,63 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	DestroyHexBotWorld(World);
 	return true;
 }
+
+/**
+ * [D-523] / [D-524] (`#3793`) — **il bot carica anche un nemico fuori dalle sei direzioni**, perche' legge la stessa
+ * funzione del giocatore e del resolver. Stessa scena di `ChargeItPlannedActuallyLands`, ma il nemico sta in `(2,1)`:
+ * distanza 3, la portata di `Hero.Branth.Ram`, e scarto `(+2,+1)` che nessuna delle sei direzioni contiene.
+ *
+ * ⚠️ **Il piano non viene imposto**, come nel gemello: il bot sceglie da solo la carica, e il test verifica prima
+ * *che* l'abbia scelta, poi *cosa* produce un turno risolto. La retta e' `(0,0)`, `(1,0)`, `(1,1)`, `(2,1)`: chi carica
+ * si ferma in `(1,1)`, l'impatto parte da li' verso est, e il bersaglio finisce in `(3,1)`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotChargeOffAxesTest,
+	"RefactorTactics.HexBotPlay.ChargeOnAnEnemyOffTheAxesLands",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotChargeOffAxesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 1), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	int32 Distanza = 0;
+	TestFalse(TEXT("premessa: il nemico non e' su una delle sei direzioni"),
+		URTMovementActionLibrary::IsStraightLine(Bot->Cell, Foe->Cell, Distanza));
+
+	Foe->Shield = 0;
+	Foe->PushResistance = 0;
+	const int32 HealthBefore = Foe->Health;
+
+	TM->PlanBotsForTest();
+
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	if (!TestTrue(TEXT("ed e' una carica"), Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("punta la cella del nemico fuori asse"), Bot->PlannedDashCell, FRTCellId(2, 1));
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	TestEqual(TEXT("il bersaglio incassa i 20 danni della carica"), Foe->Health, HealthBefore - 20);
+	TestEqual(TEXT("chi carica si ferma in (1,1), davanti a lui lungo la retta"), Bot->Cell, FRTCellId(1, 1));
+	TestEqual(TEXT("e il bersaglio e' spinto verso est, dalla cella d'arrivo: (3,1)"), Foe->Cell, FRTCellId(3, 1));
+
+	DestroyHexBotWorld(World);
+	return true;
+}
 #if WITH_DEV_AUTOMATION_TESTS
 
 /**

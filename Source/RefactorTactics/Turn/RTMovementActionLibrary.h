@@ -14,7 +14,15 @@ enum class ERTLinearStop : uint8
 {
 	/** Arrivata alla cella richiesta. */
 	Completed,
-	/** Il bersaglio non e' su una delle sei direzioni, o e' oltre la portata: l'azione non parte. */
+	/**
+	 * Il bersaglio non ha una retta (la cella stessa, o un altro piano) o e' oltre la portata: l'azione non parte.
+	 *
+	 * ⌫ *Fino a [D-524] diceva «non e' su una delle sei direzioni».* Il nome e' rimasto — e con lui
+	 * `ERTActionInvalidReason::DashNotAligned`, che viaggia come intero nel TurnLog — ma il significato e' cambiato:
+	 * ogni cella dello stesso piano sta su una retta fra i centri, quindi l'allineamento non e' piu' un vincolo.
+	 * Per una carica oltre la portata e' anche l'esito che il resolver restituisce quando le due condizioni di
+	 * [D-516] (un nemico sulla cella, una retta libera) non reggono.
+	 */
 	NotAligned,
 	/** Fermata davanti a un muro, a una cella che blocca il movimento o al bordo della mappa. */
 	BlockedByTerrain,
@@ -54,7 +62,18 @@ enum class ERTLinearStop : uint8
 	 *
 	 * Valore aggiunto in CODA, come `TerrainDeniesDash`.
 	 */
-	OutOfRange
+	OutOfRange,
+	/**
+	 * Fermata da un BORDO fra due celle consecutive della retta: copertura alta o porta chiusa o bloccata
+	 * (`URTHexCoverLibrary::BlocksTraversal`, [D-524] (5)).
+	 *
+	 * 🔑 **Ha un valore proprio e non riusa `BlockedByTerrain`**, per la stessa ragione di `TerrainDeniesDash`:
+	 * la cella davanti e' libera, e chi rilegge il turno andrebbe a cercare un muro che non c'e'. Lo ferma
+	 * `Dash`, `Charge` e `Pass`; il `Leap` guarda solo l'atterraggio e non lo incontra mai.
+	 *
+	 * Valore aggiunto in CODA, come `TerrainDeniesDash` e `OutOfRange`.
+	 */
+	BlockedByEdge
 };
 
 /** Esito di una mobilita' lineare: dove si arriva, cosa si attraversa, chi si colpisce e perche' ci si ferma. */
@@ -102,8 +121,8 @@ struct FRTLinearMoveResult
 };
 
 /**
- * Le mobilita' LINEARI del catalogo v0.1 (`Dash`, `Charge`, `Leap`, `Reposition`): una linea retta su una
- * delle sei direzioni, non un percorso.
+ * Le mobilita' LINEARI del catalogo v0.1 (`Dash`, `Charge`, `Leap`, `Reposition`): la RETTA libera fra i centri
+ * di due celle ([D-523], [D-524]), non un percorso e non una delle sei direzioni — `MovementLine`.
  *
  * Sono cosa diversa dal movimento a budget (`Action.Move`, `Action.Sprint`), che aggira gli ostacoli in
  * pianificazione: qui la traiettoria e' dichiarata e cio' che la interrompe FERMA lo scatto. Tenerle separate
@@ -131,20 +150,46 @@ public:
 	/**
 	 * Vero se `To` sta su una delle sei direzioni esagonali a partire da `From` (stesso layer), con la
 	 * distanza in celle. Il salto obliquo di un cavallo degli scacchi non e' una direzione esagonale.
+	 *
+	 * ⚠️ **Dal 2026-10-18 ([D-524] (1)) NON e' piu' la regola del movimento**: `Dash`, `Charge`, `Leap` e `Pass` leggono
+	 * `MovementLine`, e ogni cella dello stesso piano sta su una retta. Questa resta degli ATTACCHI lineari
+	 * (`LineCells`, `ResolveLineAttack`, la soppressione) — che seguono le sei direzioni — ed e' anche `BlueprintPure`,
+	 * quindi non si cambia sul posto: i chiamanti Blueprint non sono contabili da qui.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Movement")
 	static bool IsStraightLine(const FRTCellId& From, const FRTCellId& To, int32& OutDistance);
 
 	/**
+	 * **La retta del movimento lineare** ([D-523], [D-524] (2)): le celle di `URTHexLibrary::HexLine` da `From` a `To`,
+	 * ESTREMI INCLUSI, col suo spareggio intero. `OutLine.Num() - 1` e' la distanza esagonale, cioe' la portata che
+	 * `Dash`, `Charge`, `Leap` e `Pass` misurano.
+	 *
+	 * 🔑 **E' l'UNICA funzione che decide la retta del movimento**, e la leggono tutti: il giocatore (il click e il verso
+	 * pianificato), il resolver (`ResolveLinearMove`), l'anteprima (HUD e fantasma della timeline) e i bot. Una seconda
+	 * copia nel bot o nell'HUD sarebbe una seconda autorita'; l'hanno gia' pagata altri sottosistemi.
+	 *
+	 * Falso — e `OutLine` vuota — se `From == To` o se i due stanno su piani diversi: `HexLine` e' planare e ignora il
+	 * layer d'arrivo, quindi il vincolo di piano di `IsStraightLine` si tiene qui.
+	 *
+	 * ⚠️ **Non sostituisce `IsStraightLine`**, che resta delle sei direzioni: la leggono `URTOffensiveActionLibrary::LineCells`,
+	 * `ResolveLineAttack` e la soppressione, e gli attacchi lineari non seguono questa retta ([D-524] (1)).
+	 */
+	static bool MovementLine(const FRTCellId& From, const FRTCellId& To, TArray<FRTCellId>& OutLine);
+
+	/**
 	 * Risolve una mobilita' lineare secondo lo stile dichiarato dall'azione.
 	 *
-	 * - `LinearDash` — avanza finche' la cella successiva e' percorribile e libera; si ferma PRIMA di un muro
-	 *   o di un'unita'. Non termina mai in una cella occupata.
+	 * La traiettoria e' `MovementLine`, e la portata `MaxCells` e' la distanza esagonale ([D-524]).
+	 *
+	 * - `LinearDash` — avanza finche' la cella successiva e' percorribile e libera; si ferma PRIMA di un muro,
+	 *   di un'unita' o di un BORDO che nega l'attraversamento (copertura alta, porta chiusa o bloccata:
+	 *   `BlockedByEdge`). Non termina mai in una cella occupata.
 	 * - `LinearCharge` — come sopra, ma se la cella successiva ospita un NEMICO si ferma li' davanti e lo
-	 *   segnala come impatto: e' la carica che si arresta addosso al bersaglio. E un bersaglio in linea ma
+	 *   segnala come impatto: e' la carica che si arresta addosso al bersaglio. E un bersaglio sulla retta ma
 	 *   **oltre** `MaxCells` non la annulla: corre per tutta la portata e si ferma con `OutOfRange` ([D-516]).
-	 * - `LinearLeap` — ignora unita' e celle intermedie: conta solo l'atterraggio, che deve essere una cella
-	 *   percorribile e libera. Non cambia layer.
+	 * - `LinearLeap` — ignora unita', celle intermedie e bordi: conta solo l'atterraggio, che deve essere una
+	 *   cella percorribile e libera. Non cambia layer.
+	 * - `LinearPass` — come lo scatto, ma attraversa le unita' (tranne sulla cella d'arrivo).
 	 *
 	 * `Occupancy` mappa cella -> UnitId; `Hostiles` sono gli UnitId che la carica considera bersagli.
 	 * Senza mappa non si muove nessuno (FAIL-CLOSED): non si sa cosa ci sia davanti.
@@ -173,8 +218,9 @@ public:
 		const TSet<int32>& Hostiles);
 
 	/**
-	 * Vero se fra `From` e `Target` c'e' una **retta libera dal terreno**, a qualunque distanza: ogni cella,
-	 * `Target` compreso, si attraversa di corsa ([D-516]).
+	 * Vero se fra `From` e `Target` c'e' una **retta libera dal terreno e dai lati**, a qualunque distanza: ogni
+	 * cella, `Target` compreso, si attraversa di corsa, e nessun bordo la nega ([D-516], [D-524] (5)).
+	 * Falso se `MovementLine` non ha una retta (la cella stessa, un altro piano).
 	 *
 	 * 🔑 **Le unita' non contano, e la portata nemmeno.** E' la domanda che la pianificazione fa per una carica
 	 * su un nemico OLTRE la portata: *«c'e' un percorso lineare fino a lui?»*. Chi sta sulla linea si sara' mosso

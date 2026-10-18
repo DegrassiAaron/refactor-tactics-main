@@ -77,9 +77,13 @@ ERTHexDirection URTFacingLibrary::FacingFromPath(const TArray<FRTCellId>& Path, 
 		return Derived;
 	}
 
-	// Passi non adiacenti (salto): vale la direzione verso l'arrivo. Se nemmeno quella esiste — arrivo e
-	// partenza coincidono nel piano, per esempio un salto fra layer sulla stessa colonna — il facing resta.
-	if (URTHexLibrary::DirectionTowards(Previous, Last, Derived))
+	// Passi non adiacenti (salto): vale l'ULTIMO passo della retta di `HexLine` da `Previous` a `Last` ([D-524] (4)), lo
+	// stesso che avrebbe una carica o uno scatto sulla stessa retta. ⏱️ *Fino a [D-524] qui c'era `DirectionTowards`,
+	// cioe' il PRIMO passo*: sugli assi coincidono, sulle celle di pareggio no, e chi saltava fuori asse atterrava girato
+	// dalla parte da cui era partito. Se la retta non ha un ultimo passo — arrivo e partenza coincidono nel piano, per
+	// esempio un salto fra layer sulla stessa colonna — il facing resta.
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Previous, Last);
+	if (Line.Num() >= 2 && URTHexLibrary::DirectionBetween(Line[Line.Num() - 2], Line.Last(), Derived))
 	{
 		return Derived;
 	}

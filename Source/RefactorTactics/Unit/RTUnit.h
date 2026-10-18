@@ -944,9 +944,10 @@ public:
 	int32 EffectiveDashRangeOf(int32 AbilityIndex) const;
 
 	/**
-	 * [D-516] Le celle che la **carica pianificata** percorrera' quando il suo bersaglio sta in linea ma OLTRE la
+	 * [D-516] Le celle che la **carica pianificata** percorrera' quando il suo bersaglio sta sulla retta ma OLTRE la
 	 * portata: e' la portata effettiva. `0` in ogni altro caso — nessuna carica, una carica che lo stato nega, un
-	 * bersaglio in portata o non in linea.
+	 * bersaglio in portata o senza una retta (un altro piano). La retta e la distanza sono quelle di
+	 * `URTMovementActionLibrary::MovementLine` ([D-524]), le stesse del resolver.
 	 *
 	 * ⚠️ E' una previsione sulla geometria, come `PlannedDashMoves()`: la risoluzione puo' fermare la corsa prima,
 	 * per un ostacolo, per uno scontro simultaneo o per un nemico sulla linea che chi pianificava non vedeva. Dice

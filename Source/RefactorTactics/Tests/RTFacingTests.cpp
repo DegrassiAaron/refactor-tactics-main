@@ -1212,4 +1212,58 @@ bool FRTFacingMicroStepFacingMatchesFinalAtLastStepTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-524] (4) — **il facing dopo un SALTO e' l'ultimo passo della retta**, come per gli altri stili lineari.
+ *
+ * Il `Leap` ha come percorso solo `{ partenza, atterraggio }`: le due celle non sono adiacenti, `DirectionBetween`
+ * risponde falso e `FacingFromPath` ripiegava su `DirectionTowards`, cioe' sul PRIMO passo di `HexLine`. Su un asse
+ * primo e ultimo passo coincidono; sulle celle di pareggio no, e il resolver girava chi saltava dalla parte sbagliata.
+ *
+ * 🔑 `(0,0) -> (1,1)` passa da `(1,0)`: il primo passo e' `E`, l'ultimo e' `SE`. Il test e' discriminante solo se i
+ * due differiscono, e lo dichiara come premessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingLeapTakesTheLastStepTest,
+	"RefactorTactics.Facing.LeapTakesTheLastStepOfTheLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingLeapTakesTheLastStepTest::RunTest(const FString&)
+{
+	const FRTCellId Partenza(0, 0, 0), Atterraggio(1, 1, 0);
+	const TArray<FRTCellId> Retta = URTHexLibrary::HexLine(Partenza, Atterraggio);
+
+	ERTHexDirection Primo = ERTHexDirection::W;
+	ERTHexDirection Ultimo = ERTHexDirection::W;
+	if (!TestTrue(TEXT("premessa: la retta ha un primo e un ultimo passo"),
+		Retta.Num() >= 3
+		&& URTHexLibrary::DirectionBetween(Retta[0], Retta[1], Primo)
+		&& URTHexLibrary::DirectionBetween(Retta[Retta.Num() - 2], Retta.Last(), Ultimo))) { return false; }
+	if (!TestTrue(TEXT("premessa: primo e ultimo passo sono DIVERSI, o il test non discrimina"), Primo != Ultimo))
+	{
+		return false;
+	}
+
+	// Il percorso del salto: solo la partenza e l'atterraggio, non adiacenti.
+	const TArray<FRTCellId> PercorsoDelSalto = { Partenza, Atterraggio };
+	TestTrue(TEXT("il facing e' l'ULTIMO passo della retta"),
+		URTFacingLibrary::FacingFromPath(PercorsoDelSalto, ERTHexDirection::NW) == Ultimo);
+	TestFalse(TEXT("e non il primo, che e' cio' che DirectionTowards risponderebbe"),
+		URTFacingLibrary::FacingFromPath(PercorsoDelSalto, ERTHexDirection::NW) == Primo);
+
+	// Un salto su un asse non cambia: primo e ultimo passo sono lo stesso.
+	const TArray<FRTCellId> SuAsse = { FRTCellId(0, 0, 0), FRTCellId(3, 0, 0) };
+	TestTrue(TEXT("su un asse il facing e' quello dell'asse"),
+		URTFacingLibrary::FacingFromPath(SuAsse, ERTHexDirection::NW) == ERTHexDirection::E);
+
+	// Lo STESSO ultimo passo vale per la rotazione dichiarabile dopo il salto: il cono si apre attorno a lui.
+	const TArray<ERTHexDirection> Legali = URTFacingLibrary::LegalFacings(
+		ERTMovementStyle::LinearLeap, PercorsoDelSalto, ERTHexDirection::NW, Adr0005Budget);
+	TestTrue(TEXT("dopo un salto con budget 0 la sola direzione legale e' l'ultimo passo"),
+		Legali.Num() == 1 && Legali[0] == Ultimo);
+
+	// Un salto fra due celle sulla stessa colonna (altro piano) non deriva niente: il facing resta.
+	const TArray<FRTCellId> StessaColonna = { FRTCellId(2, 2, 0), FRTCellId(2, 2, 1) };
+	TestTrue(TEXT("arrivo e partenza coincidono in pianta: il facing resta"),
+		URTFacingLibrary::FacingFromPath(StessaColonna, ERTHexDirection::SW) == ERTHexDirection::SW);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
