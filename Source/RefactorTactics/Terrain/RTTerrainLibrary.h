@@ -41,6 +41,12 @@ public:
 	 *
 	 * `Map == nullptr` -> `RangeCells` invariato: senza mappa non c'e' terreno da leggere, e il fail-closed lo
 	 * decide il chiamante (che ha il proprio esito da registrare), non questa funzione.
+	 *
+	 * ⚠️ **Non riceve la conoscenza, ed e' un canale dichiarato (`D-465`, `#3270`).** Legge il Fumo dalla mappa
+	 * autorevole anche nelle celle che la squadra non ha mai osservato: il numero del rifiuto per distanza e la
+	 * portata viola ne rivelano il cap. E' un'eccezione a termine a D-225 e D-373, non un loro emendamento; il
+	 * termine e' `#2794`, che porta a click e portata la vista ottimistica di `FindPath`. Lo misura
+	 * `RefactorTactics.BlindActions.UnexploredSmokeIsReadByClickAndRangeFromTheDash`, che si rovescia in quel commit.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Terrain")
 	static int32 EffectiveTargetingRange(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
