@@ -3831,51 +3831,80 @@ bool FRTCameraPivotPolygonTest::RunTest(const FString&)
 		TestTrue(TEXT("anti-vacuita': anche la zona col quadro contiene punti"), DentroConQuadro > 10);
 	}
 
-	// 🔴 Braccio piccolo (misura in PIE del 2026-10-18, #3798; review di #3812). Il margine di 3 celle e' assoluto, il
-	// quadro no: senza tetto il pivot si fermava oltre l'arrivo del quadro, scena vuota agli spigoli a braccio 450. Il
-	// quadro a terra e' un TRAPEZIO (dietro il pivot arriva molto meno che davanti): il tetto guarda quanto arriva verso
-	// l'interno, `Reach`, e il pivot non sta a piu' di `MaxPivotOutsideSupport * Reach` oltre ogni lato.
+	// 🔴 Il quadro tocca le celle (#3798, seconda rimisura in PIE del 2026-10-18). Mappa di raggio 10, `HexSize` 150, braccio
+	// 450: ai vertici a X alta il pivot restava a (843, 2754), con la scena vuota. Il quadro a terra e' un TRAPEZIO (dietro il
+	// pivot arriva poco, davanti molto) e la sua parte larga sta dove la mappa si restringe: un tetto per lato sul supporto
+	// non basta, serve che il quadro ridotto, posto sul pivot, tocchi le celle.
 	{
+		const TArray<FVector2D> BigHull = ARTCameraPawn::ComputeConvexHull(CameraHexCentres(10, HexSize));
+		const FBox2D BigBox = CameraBoxOf(BigHull, Margin);
 		const FVector2D Small = ARTCameraPawn::ComputeFrameHalfExtents(450.f, -40.f, 90.f, 1.675f);
-		const TArray<FVector2D> Foot = ARTCameraPawn::ComputeFrameFootprint(450.f, -40.f, 90.f, 1.675f);
+		const TArray<FVector2D> Foot = ARTCameraPawn::ComputeFrameFootprint(450.f, -40.f, 90.f, 1.675f, 16.f / 9.f, ARTCameraPawn::FootprintScreenFraction);
 		if (!TestEqual(TEXT("l'impronta ha quattro angoli"), Foot.Num(), 4)) { return false; }
-		// Il trapezio e' asimmetrico: davanti arriva molto piu' che dietro (circa 1200 contro circa 240).
-		TestTrue(TEXT("impronta: davanti molto piu' che dietro"), Foot[0].X > 3.0 * (-Foot[2].X) && -Foot[2].X > 100.0);
+		// Il trapezio e' asimmetrico: davanti arriva molto piu' che dietro (circa 300 contro circa 150 nella parte centrale dello schermo).
+		TestTrue(TEXT("impronta: davanti molto piu' che dietro"), Foot[0].X > 1.5 * (-Foot[2].X) && -Foot[2].X > 50.0);
 		TestEqual(TEXT("senza quadro l'impronta e' vuota"), ARTCameraPawn::ComputeFrameFootprint(450.f, -40.f, 90.f, 0.f).Num(), 0);
 
-		for (const float Yaw : {0.f, 90.f, 37.f})
+		for (const float Yaw : {0.f, 90.f, 37.f, 200.f})
 		{
-			const FBox2D Rect = ARTCameraPawn::ComputeEffectivePivotBounds(Box, 450.f, -40.f, Yaw, 90.f, 1.675f, 0.35f);
-			const TArray<FVector2D> Free = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, Hull, Margin, Small, Yaw, 0.35f);
-			const TArray<FVector2D> Zone = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, Hull, Margin, Small, Yaw, 0.35f, Foot);
+			const FBox2D Rect = ARTCameraPawn::ComputeEffectivePivotBounds(BigBox, 450.f, -40.f, Yaw, 90.f, 1.675f, 0.35f);
+			const TArray<FVector2D> Free = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, BigHull, Margin, Small, Yaw, 0.35f);
+			const TArray<FVector2D> Zone = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, BigHull, Margin, Small, Yaw, 0.35f, Foot);
 			if (!TestTrue(TEXT("la zona a braccio piccolo esiste"), Zone.Num() >= 3)) { continue; }
 			const double YawRad = FMath::DegreesToRadians(static_cast<double>(Yaw));
 			const FVector2D Fwd(FMath::Cos(YawRad), FMath::Sin(YawRad));
 			const FVector2D Rgt(-FMath::Sin(YawRad), FMath::Cos(YawRad));
-			double WorstExcess = -1.0e9;
-			for (int32 I = 0; I < Hull.Num(); ++I)
+
+			// Per ogni vertice della zona, dal pivot il quadro ridotto tocca le celle: almeno un punto del trapezio
+			// (campionato, indipendente dalla somma di Minkowski che costruisce la zona) sta nell'involucro.
+			int32 Toccano = 0;
+			for (const FVector2D& V : Zone)
 			{
-				const FVector2D& A = Hull[I];
-				const FVector2D Edge = (Hull[(I + 1) % Hull.Num()] - A).GetSafeNormal();
-				const FVector2D Normal(Edge.Y, -Edge.X);
-				const FVector2D In(-Normal.X, -Normal.Y);
-				const FVector2D Local(FVector2D::DotProduct(In, Fwd), FVector2D::DotProduct(In, Rgt));
-				double Reach = 0.0;
-				for (const FVector2D& C : Foot) { Reach = FMath::Max(Reach, FVector2D::DotProduct(Local, C)); }
-				for (const FVector2D& V : Zone)
+				double Best = 1.0e9;
+				for (int32 IU = 0; IU <= 120; ++IU)
 				{
-					const double Out = FVector2D::DotProduct(Normal, V - A);
-					TestTrue(*FString::Printf(TEXT("yaw %.0f: oltre il lato %d non piu' di meta' dell'arrivo del quadro"), Yaw, I),
-						Out <= ARTCameraPawn::MaxPivotOutsideSupport * Reach + 0.75);
+					const double U = IU / 120.0;
+					const double Ahead = FMath::Lerp(static_cast<double>(Foot[3].X), static_cast<double>(Foot[0].X), U);
+					const double Half = FMath::Lerp(static_cast<double>(Foot[2].Y), static_cast<double>(Foot[1].Y), U);
+					for (int32 IV = -60; IV <= 60; ++IV)
+					{
+						const FVector2D P = V + (Fwd * Ahead + Rgt * (Half * IV / 60.0));
+						Best = FMath::Min(Best, CameraDistanceToHull(BigHull, P));
+					}
 				}
-				// Anti-vacuita': senza tetto la zona oltrepassa il limite di una quantita' misurabile su almeno un lato.
-				for (const FVector2D& V : Free)
-				{
-					WorstExcess = FMath::Max(WorstExcess, FVector2D::DotProduct(Normal, V - A) - ARTCameraPawn::MaxPivotOutsideSupport * Reach);
-				}
+				if (Best < 6.0) { ++Toccano; }
 			}
-			TestTrue(*FString::Printf(TEXT("yaw %.0f: anti-vacuita': senza tetto la zona sforava (%.0f)"), Yaw, WorstExcess), WorstExcess > 25.0);
+			TestEqual(*FString::Printf(TEXT("yaw %.0f: da ogni vertice della zona il quadro ridotto tocca le celle"), Yaw),
+				Toccano, Zone.Num());
+
+			// Anti-vacuita': la zona senza impronta ammette punti da cui il quadro NON tocca le celle (il difetto).
+			int32 Ciechi = 0;
+			for (const FVector2D& V : Free)
+			{
+				double Best = 1.0e9;
+				for (int32 IU = 0; IU <= 120; ++IU)
+				{
+					const double U = IU / 120.0;
+					const double Ahead = FMath::Lerp(static_cast<double>(Foot[3].X), static_cast<double>(Foot[0].X), U);
+					const double Half = FMath::Lerp(static_cast<double>(Foot[2].Y), static_cast<double>(Foot[1].Y), U);
+					for (int32 IV = -60; IV <= 60; ++IV)
+					{
+						const FVector2D P = V + (Fwd * Ahead + Rgt * (Half * IV / 60.0));
+						Best = FMath::Min(Best, CameraDistanceToHull(BigHull, P));
+					}
+				}
+				if (Best > 25.0) { ++Ciechi; }
+			}
+			TestTrue(*FString::Printf(TEXT("yaw %.0f: anti-vacuita': senza impronta la zona ammetteva vertici ciechi (%d)"), Yaw, Ciechi),
+				Ciechi > 0);
 		}
+
+		// Il caso misurato in PIE: a yaw 0 il vertice (843, 2754) restava fermo con la scena vuota.
+		const FBox2D Rect0 = ARTCameraPawn::ComputeEffectivePivotBounds(BigBox, 450.f, -40.f, 0.f, 90.f, 1.675f, 0.35f);
+		const TArray<FVector2D> Zone0 = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect0, BigHull, Margin, Small, 0.f, 0.35f, Foot);
+		const FVector2D Misurato(843.07, 2753.82);
+		TestTrue(TEXT("il vertice misurato in PIE non e' piu' raggiungibile: la zona lo sposta di piu' di 100"),
+			FVector2D::Distance(ARTCameraPawn::ClampToConvexPolygon(Zone0, Misurato), Misurato) > 100.0);
 	}
 
 	// 🔴 Il quadro piu' grande dell'area (mappa piccola, zoom al massimo): il rettangolo collassa al centro e la
@@ -3957,6 +3986,75 @@ bool FRTCameraPanCornerTest::RunTest(const FString&)
 				Dist <= SpigoloVivo + 0.5);
 			TestTrue(*FString::Printf(TEXT("yaw %.0f, diagonale %d: ed e' arrivato al bordo (%.0f)"), Yaw, D, Dist),
 				Dist > Margin * 0.5);
+		}
+	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Il percorso di PRODUZIONE passa l'impronta** (#3798, review di #3816). Il test sulle funzioni pure era verde mentre
+ * `ClampToSoftBounds` chiamava `ComputeEffectivePivotPolygon` senza `Footprint`: la correzione non agiva, e la rimisura in PIE
+ * trovava i vertici alle stesse coordinate a tutte le cifre. Qui si guida il pan nel mondo, con le metriche del viewport
+ * note e il braccio piccolo, e si chiede quello che conta: dal pivot raggiunto la parte centrale dello schermo tocca le celle.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPanFrameTouchesCellsTest,
+	"RefactorTactics.Camera.PanAtASmallArmKeepsTheCentralFrameOnTheCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPanFrameTouchesCellsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* HexMap = SpawnCameraTestMap(World, FRTCellId(0, 0, 0));
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+	Cam->SetViewportMetricsForTest(1.675f, 90.f);
+	RTBraccioA(Cam, 450.f);
+
+	FVector Origin; float HexSize = 0.f; float LayerHeight = 0.f;
+	const URTHexMapAsset* Asset = HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+	if (!TestNotNull(TEXT("asset"), Asset)) { DestroyCameraWorld(World); return false; }
+	TArray<FVector2D> Centres;
+	for (const FRTHexCellData& Cell : Asset->Cells)
+	{
+		const FVector W = URTHexLibrary::AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
+		Centres.Add(FVector2D(W.X, W.Y));
+	}
+	const TArray<FVector2D> Hull = ARTCameraPawn::ComputeConvexHull(Centres);
+	const TArray<FVector2D> Foot = ARTCameraPawn::ComputeFrameFootprint(450.f, Cam->GetCameraPitch(), 90.f, 1.675f,
+		16.f / 9.f, ARTCameraPawn::FootprintScreenFraction);
+	if (!TestEqual(TEXT("l'impronta ha quattro angoli"), Foot.Num(), 4)) { DestroyCameraWorld(World); return false; }
+
+	// Il pan verso le quattro diagonali e i quattro assi, a yaw 0 e 90: dove si ferma, il quadro centrale tocca le celle.
+	const FVector2D Direzioni[8] = { FVector2D(1, 1), FVector2D(1, -1), FVector2D(-1, 1), FVector2D(-1, -1),
+		FVector2D(1, 0), FVector2D(-1, 0), FVector2D(0, 1), FVector2D(0, -1) };
+	for (const float Yaw : {0.f, 90.f})
+	{
+		while (FMath::Abs(Cam->GetCameraYaw() - Yaw) > 1.f) { Cam->AddYaw(1.f); }
+		const double YawRad = FMath::DegreesToRadians(static_cast<double>(Cam->GetCameraYaw()));
+		const FVector2D Fwd(FMath::Cos(YawRad), FMath::Sin(YawRad));
+		const FVector2D Rgt(-FMath::Sin(YawRad), FMath::Cos(YawRad));
+		for (int32 D = 0; D < 8; ++D)
+		{
+			Cam->SetCameraPivotForTest(FVector::ZeroVector);
+			for (int32 I = 0; I < 600; ++I) { Cam->AddPlanarMovement(Direzioni[D]); }
+			const FVector P = Cam->GetCameraPivot();
+			double Best = 1.0e9;
+			for (int32 IU = 0; IU <= 80; ++IU)
+			{
+				const double U = IU / 80.0;
+				const double Ahead = FMath::Lerp(static_cast<double>(Foot[3].X), static_cast<double>(Foot[0].X), U);
+				const double Half = FMath::Lerp(static_cast<double>(Foot[2].Y), static_cast<double>(Foot[1].Y), U);
+				for (int32 IV = -40; IV <= 40; ++IV)
+				{
+					const FVector2D Q = FVector2D(P.X, P.Y) + Fwd * Ahead + Rgt * (Half * IV / 40.0);
+					Best = FMath::Min(Best, CameraDistanceToHull(Hull, Q));
+				}
+			}
+			TestTrue(*FString::Printf(TEXT("yaw %.0f, direzione %d: dal pivot il quadro centrale tocca le celle (distanza %.1f)"), Yaw, D, Best),
+				Best < 8.0);
 		}
 	}
 
