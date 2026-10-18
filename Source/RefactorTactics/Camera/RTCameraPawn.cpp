@@ -886,7 +886,16 @@ TArray<FVector2D> ARTCameraPawn::ComputeEffectivePivotPolygon(const FBox2D& Effe
 		const FVector2D Normal(Edge.Y / Len, -Edge.X / Len);
 		const double Support = FrameHalfExtents.X * FMath::Abs(FVector2D::DotProduct(Normal, Forward))
 			+ FrameHalfExtents.Y * FMath::Abs(FVector2D::DotProduct(Normal, Right));
-		Poly = RTCameraClipByHalfPlane(Poly, Normal, FVector2D::DotProduct(Normal, A) + Margin - Keep * Support);
+		// 🔴 **Il pivot non sta mai oltre `MaxPivotOutsideSupport` del supporto** (#3798, misura in PIE del 2026-10-18).
+		// `Margin - Keep * Support` e' un offset assoluto meno una frazione del quadro: a braccio piccolo il quadro
+		// si restringe, l'offset resta quasi quello del margine, e il pivot finisce piu' lontano di quanto il quadro
+		// arrivi — scena vuota agli spigoli a braccio 450. Il tetto tiene una parte del quadro sulla mappa a ogni
+		// zoom; dove il quadro e' grande (braccio 800) non morde e il limite e' quello di prima.
+		// Quadro ignoto (supporto nullo: headless, viewport non ancora creato) = nessun tetto: `0,5 * 0` toglierebbe il
+		// margine del tutto, e il clamp per sole celle di `#864` non e' piu' quello.
+		double Offset = Margin - Keep * Support;
+		if (Support > KINDA_SMALL_NUMBER) { Offset = FMath::Min(Offset, MaxPivotOutsideSupport * Support); }
+		Poly = RTCameraClipByHalfPlane(Poly, Normal, FVector2D::DotProduct(Normal, A) + Offset);
 	}
 
 	return Poly.Num() >= 3 ? Poly : TArray<FVector2D>();

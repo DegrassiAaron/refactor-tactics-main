@@ -3197,7 +3197,7 @@ bool FRTCameraArmGateOrderTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 	RTPreparaVistaD498(Cam);
 	Cam->SetViewportMetricsForTest(16.f / 9.f, 90.f);
-	Cam->SetBoundsMarginForTest(40.f);
+	Cam->SetBoundsMarginForTest(11.f);
 
 	// Tattici appena sotto la soglia d'ingresso, col pivot al bordo lungo lo sguardo (+X a yaw 0).
 	RTBraccioA(Cam, 2300.f);
@@ -3829,6 +3829,45 @@ bool FRTCameraPivotPolygonTest::RunTest(const FString&)
 			}
 		}
 		TestTrue(TEXT("anti-vacuita': anche la zona col quadro contiene punti"), DentroConQuadro > 10);
+	}
+
+	// 🔴 Braccio piccolo (misura in PIE del 2026-10-18, #3798): il margine di 3 celle e' assoluto, il quadro no. Senza
+	// tetto il pivot si fermava a `Margin - 0.65 * Support` dal lato, oltre l'arrivo del quadro: scena vuota agli
+	// spigoli a braccio 450. Con il tetto sta a non piu' di `MaxPivotOutsideSupport * Support`, quindi una cella e'
+	// sempre nel quadro; e dove il quadro e' grande (braccio 800, sopra) il tetto non morde.
+	{
+		const FVector2D Small = ARTCameraPawn::ComputeFrameHalfExtents(450.f, -40.f, 90.f, 1.675f);
+		TestTrue(TEXT("precondizione: il quadro piccolo e' noto"), Small.X > 0.0 && Small.Y > 0.0);
+		for (const float Yaw : {0.f, 90.f, 37.f})
+		{
+			const FBox2D Rect = ARTCameraPawn::ComputeEffectivePivotBounds(Box, 450.f, -40.f, Yaw, 90.f, 1.675f, 0.35f);
+			const TArray<FVector2D> Zone = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, Hull, Margin, Small, Yaw, 0.35f);
+			if (!TestTrue(TEXT("la zona a braccio piccolo esiste"), Zone.Num() >= 3)) { continue; }
+			const double YawRad = FMath::DegreesToRadians(static_cast<double>(Yaw));
+			const FVector2D Fwd(FMath::Cos(YawRad), FMath::Sin(YawRad));
+			const FVector2D Rgt(-FMath::Sin(YawRad), FMath::Cos(YawRad));
+			double MaxOutside = 0.0;
+			for (const FVector2D& V : Zone)
+			{
+				for (int32 I = 0; I < Hull.Num(); ++I)
+				{
+					const FVector2D& A = Hull[I];
+					const FVector2D Edge = (Hull[(I + 1) % Hull.Num()] - A).GetSafeNormal();
+					const FVector2D Normal(Edge.Y, -Edge.X);
+					const double Support = Small.X * FMath::Abs(FVector2D::DotProduct(Normal, Fwd))
+						+ Small.Y * FMath::Abs(FVector2D::DotProduct(Normal, Rgt));
+					const double Out = FVector2D::DotProduct(Normal, V - A);
+					TestTrue(*FString::Printf(TEXT("yaw %.0f: oltre il lato %d non piu' di meta' del supporto"), Yaw, I),
+						Out <= ARTCameraPawn::MaxPivotOutsideSupport * Support + 0.75);
+					MaxOutside = FMath::Max(MaxOutside, Out);
+				}
+			}
+			// Anti-vacuita': senza tetto la zona sarebbe andata piu' in la' (oltre il margine meno il 65% del supporto).
+			TestTrue(*FString::Printf(TEXT("yaw %.0f: la zona esce comunque dall'involucro"), Yaw), MaxOutside > 1.0);
+			const FVector2D Vertex = ARTCameraPawn::ClampToConvexPolygon(Zone, FVector2D(Box.Max.X, Box.Max.Y));
+			TestTrue(*FString::Printf(TEXT("yaw %.0f: dal pivot all'angolo la cella piu' vicina e' nel quadro"), Yaw),
+				CameraDistanceToHull(Hull, Vertex) < FMath::Max(Small.X, Small.Y));
+		}
 	}
 
 	// 🔴 Il quadro piu' grande dell'area (mappa piccola, zoom al massimo): il rettangolo collassa al centro e la

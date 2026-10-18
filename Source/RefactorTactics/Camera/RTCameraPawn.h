@@ -348,6 +348,10 @@ public:
 	 */
 	static TArray<FVector2D> ComputeConvexHull(TArray<FVector2D> Points);
 
+	/** `#3798`: oltre l'involucro il pivot non sta piu' lontano di questa frazione del supporto del quadro nella normale del lato.
+	 *  Con meno di meta' del supporto fuori, almeno un quarto del quadro resta sulla mappa a ogni zoom. */
+	static constexpr double MaxPivotOutsideSupport = 0.5;
+
 	/**
 	 * `#3798`, `D-525` — la zona in cui puo' stare il pivot: `EffectiveBox` (i limiti di sempre, a rettangolo)
 	 * **intersecata** coi semipiani dei lati dell'involucro delle celle. Ogni lato si sposta di `Margin` verso
