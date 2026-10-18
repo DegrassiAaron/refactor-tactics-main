@@ -84,8 +84,12 @@ in pianta quelle coppie erano a senso unico: dall'alto si vedeva, dal basso no. 
 geometria su cui i bot scelgono le celle, e #3741 ha misurato che toccarla fa cadere due sonde anti-stallo. Colpire
 un altro piano resta un rifiuto dichiarato ([D-393](../../decisions/RT_PDR_00_Decision_Log.md), [D-509](../../decisions/RT_PDR_00_Decision_Log.md)).
 
-⚠️ **Il fumo non è stato toccato.** Il suo tetto di due celle si legge ancora sul piano di chi guarda: dove c'è fumo,
-fra due piani il contatto può reggere in un verso solo. È un limite che c'era già, e nessuna decisione lo copre.
+➕ **Il fumo conta come i muri** ([#3757](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3757), scelta d'autore del
+2026-10-18: «conta il fumo del piano in cui la linea sta passando. Il contatto torna nei due versi»). Fra due piani il tetto
+di due celle lo dà `URTPerceptionLibrary::EffectiveContactRange`: le celle sono quelle di `DescribeSightAcrossLayers`, ciascuna sul
+piano in cui la linea la attraversa, i due capi sul proprio piano, sempre dalla cella più bassa alla più alta. Lo stesso numero
+nei due versi, soli interi. Sullo stesso piano non cambia niente, ed è ancora `URTTerrainLibrary::EffectiveTargetingRange`; la
+linea di **tiro** non cambia. Lo fissa `Vision.AcrossLayers.SmokeCountsOnTheLayerTheLinePasses`.
 
 ⚠️ **Sul confine fra due celle decide lo spareggio di `HexLine`.** Quando il punto in cui la linea raggiunge una quota
 cade esattamente fra due celle, vince sempre lo stesso lato. La risposta resta la stessa nei due versi, ma una mappa
