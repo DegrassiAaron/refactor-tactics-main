@@ -6,7 +6,7 @@
   "mapRadius": 4,
   "playerReactionWindows": true,
 
-  "_nota": "IL BANCO DI «TRE ENTRATI, DUE OFFERTI» (#3807, D-411). Entrano in TRE nello stesso passo, ma Aevik ha dichiarato «spara solo sotto il 50% di salute»: Ivrin e Branth sono feriti e vengono offerti, Muiren e' a salute piena e la condizione lo esclude. La finestra offre FIRE su Ivrin, FIRE su Branth e HOLD; il bottone dell'HOLD dice «Lascia passare Branth e Ivrin» (l'ordine delle opzioni FIRE, misurato in PIE) e NON «tutti», perche' Muiren e' entrato senza essere offerto e puo' tornare.",
+  "_nota": "IL BANCO DI «TRE ENTRATI, DUE OFFERTI» (#3807, D-411). Entrano in TRE nello stesso passo, ma Aevik ha dichiarato «spara solo sotto il 50% di salute»: Ivrin e Branth sono feriti e vengono offerti, Muiren e' a salute piena e la condizione lo esclude. La finestra offre FIRE su Branth, FIRE su Ivrin e HOLD; il bottone dell'HOLD dice «Lascia passare Branth e Ivrin» (l'ordine delle opzioni FIRE, che segue la cella di partenza con X crescente: spostarle puo' invertire i nomi; misurato in PIE) e NON «tutti», perche' Muiren e' entrato senza essere offerto e puo' tornare.",
 
   "_nota_perche_esiste": "Il discriminante del testo e' la coppia entrati/offerti (`Window.TriggerNames` contro `OfferedFireTargets`), e `Visual.Reaction.OverwatchWindowTwoEntries` ha le due liste uguali. Qui differiscono: tre entrati, due offerti. I test su `RTReactionResponseText` lo provano sulla funzione; questo banco lo mostra sul bottone.",
 
@@ -14,7 +14,7 @@
 
   "_nota_geometria": "Stessa linea di `OverwatchWindow`: A1 a (2,-1) guarda W, zona (1,-1) (0,-1) (-1,-1) (-2,-1) (-3,-1). B1 (0,0)->(1,-1), B2 (-1,0)->(0,-1), B3 (-2,0)->(-1,-1): nessuno parte dentro la linea, e i tre passi cadono nello stesso micro-step, quindi una finestra sola.",
 
-  "_nota_condizione": "`TargetHealthAtOrBelowPercent` con param 50. Ivrin e' a 40/90 (44%), Branth a 55/120 (45%), Muiren a 95/95 (100%). Lo scudo e' azzerato sui tre perche' la percentuale non dipenda da quello del roster. L'Overwatch costa l'azione PRINCIPALE e la condizione vuole una reazione armata a cui applicarsi (`SetPlannedReactionCondition`, vedi `Spec.Overwatch.ConditionCollapsesToHold`): per questo A1 arma anche `Hero.Aevik.ReactiveCapacitor`, che qui non scatta mai (nessuno colpisce A1).",
+  "_nota_condizione": "`TargetHealthAtOrBelowPercent` con param 50. Ivrin e' a 40/90 (44%), Branth a 55/120 (45,8%), Muiren a 95/95 (100%). La condizione legge salute e massimo (`FRTTargetVitals`), non lo scudo: `shield` a 0 serve solo a leggere i numeri della scena senza lo scudo del roster. L'Overwatch costa l'azione PRINCIPALE e la condizione vuole una reazione armata a cui applicarsi (`SetPlannedReactionCondition`, vedi `Spec.Overwatch.ConditionCollapsesToHold`): per questo A1 arma anche `Hero.Aevik.ReactiveCapacitor`, che qui non scatta mai (nessuno colpisce A1).",
 
   "_nota_assertion": "Le `expect` valgono per OGNI risposta. La PREMESSA — tre entrati, due offerti, due FIRE e HOLD — si legge dal log della PIE. Se la condizione avesse escluso tutti la finestra non si aprirebbe (`CollapsedByCondition`), ed e' l'esito che le `expect` tengono a zero.",
 
