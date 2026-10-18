@@ -25,8 +25,12 @@ bool FRTHexCellIdEqualityTest::RunTest(const FString&)
 	TestTrue(TEXT("uguali"), A == B);
 	TestTrue(TEXT("hash uguale per uguali"), GetTypeHash(A) == GetTypeHash(B));
 	TestTrue(TEXT("layer diverso -> diverse"), A != C);
-	TestTrue(TEXT("coerenza cubica"), A.IsValid() && C.IsValid());
-	TestTrue(TEXT("CubeZ = -q-r"), A.CubeZ() == -1); // -(2)-(-1) = -1
+	// Valori scritti a mano, non derivati da X e Y: un `CubeZ()` che fosse un terzo campo, o con il segno
+	// sbagliato, cadrebbe qui. (#3365: l'asserto che stava qui, `IsValid()`, non poteva cadere.)
+	TestEqual(TEXT("CubeZ = -q-r"), A.CubeZ(), -1); // -(2)-(-1) = -1
+	TestEqual(TEXT("CubeZ non dipende dal layer"), C.CubeZ(), -1);
+	TestEqual(TEXT("CubeZ con q negativo"), FRTCellId(-3, 5, 0).CubeZ(), -2);
+	TestEqual(TEXT("CubeZ nell'origine"), FRTCellId(0, 0, 0).CubeZ(), 0);
 
 	// Usabile come chiave: due layer distinti con stessi q,r non collidono.
 	TSet<FRTCellId> Set;
