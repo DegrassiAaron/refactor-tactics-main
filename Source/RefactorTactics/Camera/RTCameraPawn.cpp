@@ -783,6 +783,35 @@ FVector2D ARTCameraPawn::ComputeFrameHalfExtents(float ArmLength, float PitchDeg
 	return FVector2D(VerticalHalf / SinPitch, HalfWidth);
 }
 
+TArray<FVector2D> ARTCameraPawn::ComputeFrameFootprint(float ArmLength, float PitchDegrees, float HorizontalFovDegrees,
+	float AspectRatio, float ReferenceAspectRatio)
+{
+	if (AspectRatio <= 0.f || ArmLength <= 0.f || HorizontalFovDegrees <= 0.f) { return TArray<FVector2D>(); }
+
+	const double HalfFovH = FMath::DegreesToRadians(static_cast<double>(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f)) * 0.5);
+	const double Ref = FMath::Max(static_cast<double>(ReferenceAspectRatio), 0.01);
+	const double L = ArmLength;
+	const double VerticalHalf = L * FMath::Tan(HalfFovH) / Ref;
+	const double TanW = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01) / L;
+	const double Alpha = FMath::Atan(VerticalHalf / L);
+	const double Pitch = FMath::DegreesToRadians(FMath::Clamp(static_cast<double>(FMath::Abs(PitchDegrees)), 1.0, 89.0));
+	const double Height = L * FMath::Sin(Pitch);
+	const double Back = L * FMath::Cos(Pitch); // distanza orizzontale camera-pivot
+
+	// Raggio alto (piu' piatto): pavimento a 5° come il pavimento di `ComputeFrameHalfExtents`, oltre cui l'impronta diverge.
+	const double ThetaFar = FMath::Max(Pitch - Alpha, FMath::DegreesToRadians(5.0));
+	const double ThetaNear = FMath::Min(Pitch + Alpha, FMath::DegreesToRadians(89.0));
+	auto Ahead = [&](double Theta) { return Height / FMath::Tan(Theta) - Back; };
+	auto Half = [&](double Theta) { return Height / FMath::Sin(Theta) * FMath::Cos(Alpha) * TanW; };
+
+	TArray<FVector2D> Out;
+	Out.Add(FVector2D(Ahead(ThetaFar), -Half(ThetaFar)));
+	Out.Add(FVector2D(Ahead(ThetaFar), Half(ThetaFar)));
+	Out.Add(FVector2D(Ahead(ThetaNear), Half(ThetaNear)));
+	Out.Add(FVector2D(Ahead(ThetaNear), -Half(ThetaNear)));
+	return Out;
+}
+
 TArray<FVector2D> ARTCameraPawn::ComputeConvexHull(TArray<FVector2D> Points)
 {
 	// Catena monotona di Andrew: ordina per (X, Y), costruisce la catena inferiore e la superiore. Il test `<= 0`
@@ -844,7 +873,8 @@ namespace
 }
 
 TArray<FVector2D> ARTCameraPawn::ComputeEffectivePivotPolygon(const FBox2D& EffectiveBox, const TArray<FVector2D>& Hull,
-	double Margin, const FVector2D& FrameHalfExtents, float YawDegrees, float AllowedOutsideFraction)
+	double Margin, const FVector2D& FrameHalfExtents, float YawDegrees, float AllowedOutsideFraction,
+	const TArray<FVector2D>& Footprint)
 {
 	if (!EffectiveBox.bIsValid || Hull.Num() < 3)
 	{
@@ -889,12 +919,19 @@ TArray<FVector2D> ARTCameraPawn::ComputeEffectivePivotPolygon(const FBox2D& Effe
 		// 🔴 **Il pivot non sta mai oltre `MaxPivotOutsideSupport` del supporto** (#3798, misura in PIE del 2026-10-18).
 		// `Margin - Keep * Support` e' un offset assoluto meno una frazione del quadro: a braccio piccolo il quadro
 		// si restringe, l'offset resta quasi quello del margine, e il pivot finisce piu' lontano di quanto il quadro
-		// arrivi — scena vuota agli spigoli a braccio 450. Il tetto tiene una parte del quadro sulla mappa a ogni
-		// zoom; dove il quadro e' grande (braccio 800) non morde e il limite e' quello di prima.
-		// Quadro ignoto (supporto nullo: headless, viewport non ancora creato) = nessun tetto: `0,5 * 0` toglierebbe il
-		// margine del tutto, e il clamp per sole celle di `#864` non e' piu' quello.
+		// arrivi — scena vuota agli spigoli a braccio 450. Il tetto tiene almeno meta' dell'arrivo del quadro sulla
+		// mappa a ogni zoom; dove il quadro e' grande (braccio 800) non morde e il limite e' quello di prima.
+		// Il tetto guarda quanto il quadro arriva VERSO L'INTERNO (direzione `-Normal`): l'impronta e' un trapezio, e
+		// il supporto simmetrico sovrastimava il lato dietro il pivot (review di #3812). Senza impronta, nessun tetto.
 		double Offset = Margin - Keep * Support;
-		if (Support > KINDA_SMALL_NUMBER) { Offset = FMath::Min(Offset, MaxPivotOutsideSupport * Support); }
+		if (Footprint.Num() > 0)
+		{
+			const FVector2D In(-Normal.X, -Normal.Y);
+			const FVector2D Local(FVector2D::DotProduct(In, Forward), FVector2D::DotProduct(In, Right));
+			double Reach = 0.0;
+			for (const FVector2D& Corner : Footprint) { Reach = FMath::Max(Reach, FVector2D::DotProduct(Local, Corner)); }
+			if (Reach > KINDA_SMALL_NUMBER) { Offset = FMath::Min(Offset, MaxPivotOutsideSupport * Reach); }
+		}
 		Poly = RTCameraClipByHalfPlane(Poly, Normal, FVector2D::DotProduct(Normal, A) + Offset);
 	}
 
