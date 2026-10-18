@@ -3657,4 +3657,264 @@ bool FRTCameraSceneRectVerticalExtentTest::RunTest(const FString&)
 	return true;
 }
 
+// --- #3798 · D-525: il pivot sta nell'involucro convesso delle celle, non nel rettangolo ------------------
+
+namespace
+{
+	/** I centri di un esagono di celle di raggio `Radius` attorno all'origine, sul piano. */
+	TArray<FVector2D> CameraHexCentres(int32 Radius, float HexSize)
+	{
+		TArray<FVector2D> Out;
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			const FVector W = URTHexLibrary::AxialToWorld(Id, FVector::ZeroVector, HexSize, 0.f);
+			Out.Add(FVector2D(W.X, W.Y));
+		}
+		return Out;
+	}
+
+	double CameraDistanceToHull(const TArray<FVector2D>& Hull, const FVector2D& P)
+	{
+		return FVector2D::Distance(P, ARTCameraPawn::ClampToConvexPolygon(Hull, P));
+	}
+
+	FBox2D CameraBoxOf(const TArray<FVector2D>& Points, double Margin)
+	{
+		FBox2D Box(ForceInit);
+		for (const FVector2D& P : Points) { Box += P; }
+		return FBox2D(Box.Min - FVector2D(Margin, Margin), Box.Max + FVector2D(Margin, Margin));
+	}
+}
+
+/** L'involucro di un esagono di celle ha sei vertici, antiorari, e non conta i punti sui lati. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraConvexHullTest,
+	"RefactorTactics.Camera.ConvexHullOfAHexagonOfCellsHasSixCorners",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraConvexHullTest::RunTest(const FString&)
+{
+	const TArray<FVector2D> Centres = CameraHexCentres(3, 150.f);
+	const TArray<FVector2D> Hull = ARTCameraPawn::ComputeConvexHull(Centres);
+
+	// Precondizione: i centri sono molti, e la maggior parte sta DENTRO o sui lati — un involucro che li
+	// restituisse tutti non avrebbe nulla da escludere.
+	TestTrue(TEXT("precondizione: molti piu' centri dei vertici"), Centres.Num() > 6 * 2);
+	TestEqual(TEXT("sei vertici: i punti sui lati e dentro non contano"), Hull.Num(), 6);
+
+	double Area2 = 0.0;
+	for (int32 I = 0; I < Hull.Num(); ++I)
+	{
+		const FVector2D& A = Hull[I];
+		const FVector2D& B = Hull[(I + 1) % Hull.Num()];
+		Area2 += A.X * B.Y - B.X * A.Y;
+	}
+	TestTrue(TEXT("antiorario: l'area con segno e' positiva"), Area2 > 0.0);
+
+	for (const FVector2D& C : Centres)
+	{
+		TestTrue(TEXT("ogni centro e' dentro l'involucro"), CameraDistanceToHull(Hull, C) < 1e-6);
+	}
+
+	// Il caso degenere dichiarato: meno di tre punti distinti, o tutti allineati, non e' un involucro.
+	TArray<FVector2D> Line;
+	for (int32 I = 0; I < 5; ++I) { Line.Add(FVector2D(I * 100.0, I * 50.0)); }
+	TestTrue(TEXT("punti allineati: meno di tre vertici"), ARTCameraPawn::ComputeConvexHull(Line).Num() < 3);
+	TArray<FVector2D> Same;
+	Same.Add(FVector2D(5, 5));
+	Same.Add(FVector2D(5, 5));
+	TestEqual(TEXT("un solo punto ripetuto: un vertice"), ARTCameraPawn::ComputeConvexHull(Same).Num(), 1);
+	return true;
+}
+
+/**
+ * La zona del pivot taglia gli angoli del rettangolo e **non ne esce mai**; sui lati il margine e' quello deciso,
+ * e col quadro ogni lato si ritira del 65% del supporto — la regola del rettangolo (`ComputeEffectivePivotBounds`)
+ * generalizzata a ogni normale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPivotPolygonTest,
+	"RefactorTactics.Camera.PivotRegionCutsTheCornersOfTheBoxAndNeverLeavesIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPivotPolygonTest::RunTest(const FString&)
+{
+	const float HexSize = 150.f;
+	const double Margin = 3.0 * UE_SQRT_3 * HexSize;
+	const TArray<FVector2D> Hull = ARTCameraPawn::ComputeConvexHull(CameraHexCentres(3, HexSize));
+	const FBox2D Box = CameraBoxOf(Hull, Margin);
+	const FVector2D NoFrame(0.0, 0.0);
+
+	const TArray<FVector2D> Region = ARTCameraPawn::ComputeEffectivePivotPolygon(Box, Hull, Margin, NoFrame, 0.f, 0.35f);
+	if (!TestTrue(TEXT("la zona esiste"), Region.Num() >= 3)) { return false; }
+
+	// L'angolo del rettangolo: e' il punto che il rettangolo ammetteva e l'esagono no. Misurato in PIE: a
+	// braccio 800 stava a sei celle dalla cella piu' vicina.
+	const FVector2D Corner(Box.Max.X, Box.Max.Y);
+	const double CornerBefore = CameraDistanceToHull(Hull, Corner);
+	const FVector2D CornerAfter = ARTCameraPawn::ClampToConvexPolygon(Region, Corner);
+	TestTrue(TEXT("anti-vacuita': l'angolo del rettangolo e' lontano dalle celle (piu' di una volta e mezza il margine)"),
+		CornerBefore > 1.5 * Margin);
+	// Un vertice della zona sta a `Margin / cos(30°)` dall'involucro (i lati si incontrano a spigolo vivo).
+	TestTrue(TEXT("dopo il taglio il pivot sta entro il margine, a meno dello spigolo"),
+		CameraDistanceToHull(Hull, CornerAfter) <= Margin / FMath::Cos(UE_DOUBLE_PI / 6.0) + 0.5);
+	TestTrue(TEXT("e il taglio ha mosso il punto di piu' di mezzo margine"),
+		FVector2D::Distance(Corner, CornerAfter) > 0.5 * Margin);
+
+	// Contenuta nel rettangolo: nessun punto della griglia di prova e' ammesso dalla zona ed escluso dal rettangolo.
+	int32 Dentro = 0;
+	for (double X = Box.Min.X - 400.0; X <= Box.Max.X + 400.0; X += 97.0)
+	{
+		for (double Y = Box.Min.Y - 400.0; Y <= Box.Max.Y + 400.0; Y += 97.0)
+		{
+			const FVector2D P(X, Y);
+			if (FVector2D::Distance(ARTCameraPawn::ClampToConvexPolygon(Region, P), P) < 1e-9)
+			{
+				++Dentro;
+				TestTrue(TEXT("un punto della zona e' anche nel rettangolo"),
+					P.X >= Box.Min.X - 1e-6 && P.X <= Box.Max.X + 1e-6 && P.Y >= Box.Min.Y - 1e-6 && P.Y <= Box.Max.Y + 1e-6);
+			}
+		}
+	}
+	TestTrue(TEXT("anti-vacuita': la zona contiene punti"), Dentro > 10);
+
+	// Su ogni lato dell'involucro, dal suo punto medio spingendo lungo la normale: ci si ferma a `Margin`.
+	for (int32 I = 0; I < Hull.Num(); ++I)
+	{
+		const FVector2D& A = Hull[I];
+		const FVector2D& B = Hull[(I + 1) % Hull.Num()];
+		const FVector2D Mid = (A + B) * 0.5;
+		const FVector2D Edge = (B - A).GetSafeNormal();
+		const FVector2D Normal(Edge.Y, -Edge.X);
+		const FVector2D Reached = ARTCameraPawn::ClampToConvexPolygon(Region, Mid + Normal * (3.0 * Margin));
+		TestTrue(*FString::Printf(TEXT("lato %d: il limite e' a un margine dal lato"), I),
+			FMath::Abs(FVector2D::DotProduct(Reached - Mid, Normal) - Margin) < 0.5);
+	}
+
+	// Col quadro: ogni lato si ritira di `AllowedOutsideFraction` del SUPPORTO del quadro nella sua normale. Sui
+	// lati orizzontali e verticali del rettangolo il supporto e' `ExtentX`/`ExtentY` di D-251: stessa cifra.
+	const FVector2D Frame = ARTCameraPawn::ComputeFrameHalfExtents(800.f, -40.f, 90.f, 1.675f);
+	TestTrue(TEXT("precondizione: il quadro e' noto"), Frame.X > 0.0 && Frame.Y > 0.0);
+	for (const float Yaw : {0.f, 90.f, 37.f})
+	{
+		const FBox2D Rect = ARTCameraPawn::ComputeEffectivePivotBounds(Box, 800.f, -40.f, Yaw, 90.f, 1.675f, 0.35f);
+		const TArray<FVector2D> Inset = ARTCameraPawn::ComputeEffectivePivotPolygon(Rect, Hull, Margin, Frame, Yaw, 0.35f);
+		if (!TestTrue(TEXT("la zona col quadro esiste"), Inset.Num() >= 3)) { continue; }
+		const double YawRad = FMath::DegreesToRadians(static_cast<double>(Yaw));
+		const FVector2D Fwd(FMath::Cos(YawRad), FMath::Sin(YawRad));
+		const FVector2D Rgt(-FMath::Sin(YawRad), FMath::Cos(YawRad));
+		for (int32 I = 0; I < Hull.Num(); ++I)
+		{
+			const FVector2D& A = Hull[I];
+			const FVector2D& B = Hull[(I + 1) % Hull.Num()];
+			const FVector2D Mid = (A + B) * 0.5;
+			const FVector2D Edge = (B - A).GetSafeNormal();
+			const FVector2D Normal(Edge.Y, -Edge.X);
+			const double Support = Frame.X * FMath::Abs(FVector2D::DotProduct(Normal, Fwd))
+				+ Frame.Y * FMath::Abs(FVector2D::DotProduct(Normal, Rgt));
+			const FVector2D Reached = ARTCameraPawn::ClampToConvexPolygon(Inset, Mid + Normal * (3.0 * Margin));
+			TestTrue(*FString::Printf(TEXT("yaw %.0f, lato %d: margine meno il 65%% del supporto"), Yaw, I),
+				FMath::Abs(FVector2D::DotProduct(Reached - Mid, Normal) - (Margin - 0.65 * Support)) < 0.75);
+		}
+
+		// Contenuta nel rettangolo ristretto anche col quadro e con yaw diversi da zero (code review di #3798).
+		int32 DentroConQuadro = 0;
+		for (double X = Box.Min.X - 300.0; X <= Box.Max.X + 300.0; X += 83.0)
+		{
+			for (double Y = Box.Min.Y - 300.0; Y <= Box.Max.Y + 300.0; Y += 83.0)
+			{
+				const FVector2D P(X, Y);
+				if (FVector2D::Distance(ARTCameraPawn::ClampToConvexPolygon(Inset, P), P) < 1e-9)
+				{
+					++DentroConQuadro;
+					TestTrue(*FString::Printf(TEXT("yaw %.0f: un punto della zona e' anche nel rettangolo ristretto"), Yaw),
+						P.X >= Rect.Min.X - 1e-6 && P.X <= Rect.Max.X + 1e-6 && P.Y >= Rect.Min.Y - 1e-6 && P.Y <= Rect.Max.Y + 1e-6);
+				}
+			}
+		}
+		TestTrue(TEXT("anti-vacuita': anche la zona col quadro contiene punti"), DentroConQuadro > 10);
+	}
+
+	// 🔴 Il quadro piu' grande dell'area (mappa piccola, zoom al massimo): il rettangolo collassa al centro e la
+	// zona NON deve diventare un poligono degenere che ammette ogni punto (code review di #3798).
+	{
+		const FBox2D Piccola(FVector2D(-300.0, -300.0), FVector2D(300.0, 300.0));
+		const FBox2D Collassato = ARTCameraPawn::ComputeEffectivePivotBounds(Piccola, 4000.f, -45.f, 0.f, 90.f, 1.675f, 0.35f);
+		TestTrue(TEXT("precondizione: il rettangolo e' collassato in un punto"),
+			FMath::IsNearlyEqual(Collassato.Min.X, Collassato.Max.X) && FMath::IsNearlyEqual(Collassato.Min.Y, Collassato.Max.Y));
+		const TArray<FVector2D> SmallHull = ARTCameraPawn::ComputeConvexHull(CameraHexCentres(1, HexSize));
+		// Quadro nullo di proposito: col quadro vero i semipiani si ritirano oltre il centro, la zona e' vuota
+		// per un'altra ragione, e la guardia sul rettangolo senza area non verrebbe mai esercitata.
+		TestEqual(TEXT("un rettangolo senza area non e' una zona: chi chiama ripiega sul rettangolo che lo inchioda"),
+			ARTCameraPawn::ComputeEffectivePivotPolygon(Collassato, SmallHull, Margin, NoFrame, 0.f, 0.35f).Num(), 0);
+
+		// E un poligono senza area non contiene nulla: restituisce il suo punto, non quello che gli si chiede.
+		TArray<FVector2D> Punto;
+		for (int32 I = 0; I < 4; ++I) { Punto.Add(FVector2D(10.0, 10.0)); }
+		const FVector2D Lontano(500.0, -500.0);
+		TestTrue(TEXT("un poligono di vertici coincidenti riporta il punto al vertice"),
+			ARTCameraPawn::ClampToConvexPolygon(Punto, Lontano).Equals(FVector2D(10.0, 10.0), 1e-6));
+	}
+
+	// Senza involucro (meno di tre vertici) la zona non esiste e chi chiama ripiega sul rettangolo.
+	TArray<FVector2D> TwoPoints;
+	TwoPoints.Add(FVector2D(0, 0));
+	TwoPoints.Add(FVector2D(1, 1));
+	TestEqual(TEXT("senza involucro la zona e' vuota"),
+		ARTCameraPawn::ComputeEffectivePivotPolygon(Box, TwoPoints, Margin, NoFrame, 0.f, 0.35f).Num(), 0);
+	return true;
+}
+
+/**
+ * Nel mondo: tenuto verso ciascuna diagonale, il pivot si ferma a un margine dalle celle e non a sei.
+ * Prima di #3798 si fermava sull'angolo del rettangolo, e il quadro guardava il vuoto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPanCornerTest,
+	"RefactorTactics.Camera.PanTowardsACornerStopsWithinTheMarginOfTheCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPanCornerTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* HexMap = SpawnCameraTestMap(World, FRTCellId(0, 0, 0));
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	FVector Origin; float HexSize = 0.f; float LayerHeight = 0.f;
+	const URTHexMapAsset* Asset = HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+	if (!TestNotNull(TEXT("asset"), Asset)) { DestroyCameraWorld(World); return false; }
+	TArray<FVector2D> Centres;
+	for (const FRTHexCellData& Cell : Asset->Cells)
+	{
+		const FVector W = URTHexLibrary::AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
+		Centres.Add(FVector2D(W.X, W.Y));
+	}
+	const TArray<FVector2D> Hull = ARTCameraPawn::ComputeConvexHull(Centres);
+	const double Margin = 3.0 * UE_SQRT_3 * static_cast<double>(HexSize);
+	const FBox2D Box = CameraBoxOf(Centres, Margin);
+	const double SpigoloVivo = Margin / FMath::Cos(UE_DOUBLE_PI / 6.0);
+
+	// Controllo positivo: l'angolo del rettangolo e' piu' lontano di cosi' dalle celle, cioe' il test PUO' cadere.
+	TestTrue(TEXT("anti-vacuita': l'angolo del rettangolo sta oltre lo spigolo vivo del margine"),
+		CameraDistanceToHull(Hull, FVector2D(Box.Max.X, Box.Max.Y)) > SpigoloVivo + 100.0);
+
+	const FVector2D Diagonali[4] = { FVector2D(1, 1), FVector2D(1, -1), FVector2D(-1, 1), FVector2D(-1, -1) };
+	for (const float Yaw : {0.f, 90.f})
+	{
+		// Il pan e' relativo alla vista: con yaw 90 le diagonali sono le stesse, in un altro ordine. Si ruota con
+		// lo scatto, che arriva al multiplo di 45 piu' vicino.
+		while (FMath::Abs(Cam->GetCameraYaw() - Yaw) > 1.f) { Cam->AddYaw(1.f); }
+		for (int32 D = 0; D < 4; ++D)
+		{
+			Cam->SetCameraPivotForTest(FVector::ZeroVector);
+			for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(Diagonali[D]); }
+			const FVector P = Cam->GetCameraPivot();
+			const double Dist = CameraDistanceToHull(Hull, FVector2D(P.X, P.Y));
+			TestTrue(*FString::Printf(TEXT("yaw %.0f, diagonale %d: il pivot sta a %.0f dalle celle (massimo %.0f)"), Yaw, D, Dist, SpigoloVivo),
+				Dist <= SpigoloVivo + 0.5);
+			TestTrue(*FString::Printf(TEXT("yaw %.0f, diagonale %d: ed e' arrivato al bordo (%.0f)"), Yaw, D, Dist),
+				Dist > Margin * 0.5);
+		}
+	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
