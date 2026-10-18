@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-18 — `PIE-V01-CHARGEHOVER` ✅: l'autore ha visto la tavola `V10`
+
+**Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769). Il giudizio a schermo era dell'autore: «V10 ok».
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGEHOVER` da ⏳ a ✅, col verdetto tra virgolette e lo stato precedente marcato; totali rimisurati (A1) |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | lo stato della scena `Visual.Input.ChargeEnemyInTheWay` |
+
+---
+
 ## 2026-10-18 — `PIE-V01-CHARGEHOVER` e la scena `Visual.Input.ChargeEnemyInTheWay`: l'hover della carica armata aspetta l'occhio dell'autore
 
 **Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769). La regola è coperta headless; il disegno tenue sotto il cursore, il segno d'arrivo e il rosso si vedono solo a schermo.
