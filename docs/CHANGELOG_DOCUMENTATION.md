@@ -2,6 +2,53 @@
 
 ---
 
+## 2026-10-18 — `PIE-V01-CHARGEHOVER` e la scena `Visual.Input.ChargeEnemyInTheWay`: l'hover della carica armata aspetta l'occhio dell'autore
+
+**Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769). La regola è coperta headless; il disegno tenue sotto il cursore, il segno d'arrivo e il rosso si vedono solo a schermo.
+
+| Dove | Che cosa |
+|---|---|
+| [`../Scenarios/Visual/Input/ChargeEnemyInTheWay.json`](../Scenarios/Visual/Input/ChargeEnemyInTheWay.json) | la scena a zero turni: Branth, Ivrin a due celle e Muiren a tre sulla stessa retta |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGEHOVER` ⏳, i totali rimisurati (A1) |
+| [`technical/evidence/u92/V10-carica-hover-con-nemico-in-mezzo-2026-10-18.jpg`](technical/evidence/u92/V10-carica-hover-con-nemico-in-mezzo-2026-10-18.jpg) | la tavola `V10`: hover su Muiren e su Ivrin, click, secondo click; finestra `-game`, non PIE |
+| [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md), [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md), [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | la scena nuova |
+
+---
+
+## 2026-10-18 — `D-528` attuata da #3769: le spec della carica non dicono più «deciso, non attuato»
+
+**Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769). L'hover di un nemico con la carica armata annuncia ciò che il click pianifica, con un nemico noto in mezzo la carica si pianifica sul bersaglio cliccato, e un secondo click sullo stesso nemico lo ispeziona.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-528`: «attuata», con le funzioni che la portano; la PIE resta non eseguita |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | §5: il marcatore «non ancora attuata» diventa la descrizione del comportamento; la clausola «e nessun nemico noto la ferma» di `D-516` cade |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1, riga della carica armata: l'hover annuncia la carica, il click con un nemico in mezzo pianifica, il secondo click ispeziona |
+
+---
+
+## 2026-10-18 — `D-528` e `D-529`: l'autore decide il nemico noto in mezzo alla carica e la retta fra i piani
+
+**Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769) e [#3764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3764). Decisioni d'autore prese in sessione dopo uno spec panel sui criteri delle due issue; l'attuazione è delle issue, e nessuna è stata eseguita.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-528` (emenda `D-516` (3)) e `D-529`, con le domande come l'autore le ha viste; nota sul numero preso su misura |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | §5 e §8: i due rimandi «deciso, non attuato» |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1, riga della carica armata: il rimando a `D-528` |
+
+---
+
+## 2026-10-18 — `PIE-V01-DASHCOVER` e `PIE-V01-CHARGECLICK` ✅: l'autore ha visto le tavole `V9` e `V8`
+
+**Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793). I due giudizi a schermo erano dell'autore: «V9 ok» e «V8 ok».
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-DASHCOVER` e `PIE-V01-CHARGECLICK` (4) da 🟡 a ✅, col verdetto tra virgolette e l'esito precedente marcato; le frasi che dicevano «resta» cadono; totali rimisurati (A1) |
+
+---
+
 ## 2026-10-18 — `PIE-V01-DASHCOVER`: una scena e la tavola `V9` per vedere lo scatto davanti alla barriera alta
 
 **Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), l'ultima voce a schermo. Nessuna scena aveva una barriera alta sul percorso di uno scatto pianificato da una persona.

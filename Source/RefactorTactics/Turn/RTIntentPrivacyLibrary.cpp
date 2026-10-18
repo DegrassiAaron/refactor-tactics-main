@@ -77,6 +77,12 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 			View.bDeclaresRotation = Intent.bDeclaresRotation;
 			View.DeclaredFacing = Intent.DeclaredFacing;
 
+			// [D-528] Dove si ferma DAVVERO la carica: solo per un alleato. Non e' derivabile da dati pubblici come `DashReachCells`
+			// — dipende da quali nemici la squadra di chi pianifica CONOSCE —, quindi mostrarlo a un avversario che vede il piano
+			// rivelato gli direbbe cosa sa chi carica. Per lui l'anteprima ricade su `DashReachCells`, che e' movimento pubblico.
+			View.DashRunCells = Intent.DashRunCells;
+			View.bDashMissesTarget = Intent.bDashMissesTarget;
+
 			// Il livello della reazione non si copia: `ReactionCertainty` e' uscito dal DTO il 2026-08-16 —
 			// la ragione sta sulla struttura, dove la cerca chi consuma.
 		}

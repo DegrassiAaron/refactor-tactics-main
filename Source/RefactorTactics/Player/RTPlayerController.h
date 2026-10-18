@@ -1131,6 +1131,48 @@ public:
 	}
 
 	/**
+	 * [D-516] / [D-528] La carica armata di `Selected` PUNTA `Other`: il click su di lui pianifica la carica, e l'hover lo annuncia.
+	 *
+	 * 🔑 **E' la domanda che click e hover si fanno insieme** ([D-128]: *«l'hover annuncia cio' che il click esegue»*), quindi ha
+	 * una sede sola. Vero se: l'azione ARMATA e' una carica; e' pronta, ha una portata e il verso non e' dichiarato (in ricarica,
+	 * sotto `Root` o col movimento chiuso il click finirebbe in un'uscita anticipata senza ispezionare niente); `Other` e' di
+	 * un'altra squadra — un'alleata, anche di un altro gruppo, continua a ispezionarsi.
+	 *
+	 * ⚠️ **Non vero per il nemico su cui la carica e' GIA' pianificata** ([D-528] (3)): un secondo click lo ispeziona. Una carica non
+	 * ha un verso da scegliere, perche' l'ultimo passo lo detta ([D-524] (4)), e il selettore che il secondo click apriva sulla
+	 * cella del nemico non serviva a niente.
+	 */
+	bool ArmedChargeTargets(const class ARTUnit* Selected, const class ARTUnit* Other) const;
+
+	/**
+	 * [D-528] (3) Il nemico NOTO su cui la carica di `Unit` e' GIA' pianificata, se `Cell` e' la cella del suo bersaglio; altrimenti nullo.
+	 *
+	 * 🔑 **Su quella cella il click ispeziona, e non sceglie un verso.** Per una carica `FacingCellFor` e' la cella del bersaglio —
+	 * `PlannedDashCell` —, quindi il selettore del verso si apriva sull'esagono del nemico: un secondo click, con il raggio sulla mesh o sul
+	 * pavimento, e `OnSelect` lo mandava al selettore PRIMA della matrice delle unita' (`TryHandleFacingClickUnderCursor`). Una carica non ha
+	 * un verso da scegliere ([D-524] (4)): chi apre il selettore chiede prima a questa funzione, e se risponde un nemico il click e' suo.
+	 */
+	const class ARTUnit* PlannedChargeTargetAt(const class ARTUnit* Unit, const FRTCellId& Cell) const;
+
+	/**
+	 * [D-528] (`#3769`) Il nemico NOTO sotto il cursore che la carica armata punta, o nullo. Per questo nemico l'hover non annuncia
+	 * un'ispezione — non mostra il suo arco —, perche' il click non lo ispezionera': pianifichera' la carica, o la rifiutera'.
+	 *
+	 * Economica (nessuno snapshot): la chiama `UpdateEnemyArcFocus` a ogni fotogramma. Un nemico che la squadra non conosce non
+	 * e' mai qui: il velo non ha segni ([D-225]).
+	 */
+	const class ARTUnit* HoveredArmedChargeTarget() const;
+
+	/**
+	 * [D-528] (`#3769`) Cio' che il click sul nemico sotto il cursore pianificherebbe, come vista dell'intento: l'hover disegna
+	 * quella, con la stessa `ARTHUD::ComposeDashPreview` del piano. Falso se non c'e' un nemico puntato dalla carica armata, o se
+	 * il click rifiuterebbe la carica (allora non c'e' niente da annunciare).
+	 *
+	 * 🔑 **Legge il verdetto del click** (`URTMovementActionLibrary::JudgeLinearDashClick`), non ne rifa uno: [D-128].
+	 */
+	bool BuildChargeHoverView(struct FRTIntentView& OutView) const;
+
+	/**
 	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).
 	 *
 	 * Stessa disciplina di `HandleClickOnUnitForTest`: cio' che va verificato e' la **decisione** — il
@@ -1532,6 +1574,17 @@ public:
 
 	/** Il click del giocatore sull'esagono finale, dal cursore: settore, dead-zone, priorita' sulla mesh. */
 	bool TryHandleFacingClickUnderCursor(ARTUnit* Unit);
+
+	/**
+	 * La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio: un click sull'esagono finale va al selettore del verso?
+	 * Estratta perche' il raggio ha bisogno del cursore e non gira headless, e questa decisione e' la meta' che conta: [D-528] (3).
+	 *
+	 * 🔴 Per una carica l'esagono finale e' quello del nemico puntato, e `OnSelect` manda quel click al selettore PRIMA della matrice delle
+	 * unita': i rami `Center` e `Side` consumano il click comunque, quindi senza questa risposta un secondo click sul nemico non arriva
+	 * mai a `DispatchUnitClick` e resta morto. Falsa se il click e' di un altro (un bersaglio da scegliere, il primo click da fermo,
+	 * il nemico puntato dalla carica), vera quando il selettore e' il suo destinatario.
+	 */
+	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const;
 
 	/** La dead-zone centrale dell'esagono del verso, in frazione di `HexSize` ([D-367]). */
 	static constexpr float FacingDeadZoneFraction = 0.3f;

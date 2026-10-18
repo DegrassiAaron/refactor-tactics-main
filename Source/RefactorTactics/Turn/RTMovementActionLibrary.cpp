@@ -231,6 +231,78 @@ bool URTMovementActionLibrary::IsLineOpenToTarget(const URTHexMapAsset* Map, con
 	return IsLinearReachable(Map, From, Target, Line.Num() - 1, ERTMovementStyle::LinearDash, Nessuno, NessunNemico);
 }
 
+FRTChargeRun URTMovementActionLibrary::DescribeChargeRun(const FRTLinearMoveResult& Linear, const FRTCellId& From,
+	const FRTCellId& Target, int32 Range)
+{
+	FRTChargeRun Run;
+	Run.From = From;
+	Run.Target = Target;
+	Run.Range = Range;
+	Run.RunCells = Linear.Entered.Num();
+
+	// L'unita' urtata sta sulla cella che SEGUE l'ultima percorsa, perche' la carica si ferma ADIACENTE a lei ([D-296]):
+	// `Final` e' la cella precedente. La si legge dalla retta, che e' la stessa del resolver, invece di cercarla fra le unita'.
+	if (Linear.Stop == ERTLinearStop::Impact && Linear.ImpactUnitId != INDEX_NONE)
+	{
+		TArray<FRTCellId> Retta;
+		if (MovementLine(From, Target, Retta) && Retta.IsValidIndex(Run.RunCells + 1))
+		{
+			Run.bHasImpact = true;
+			Run.ImpactCell = Retta[Run.RunCells + 1];
+		}
+	}
+
+	// Arriva sulla cella scelta, oppure urta proprio chi sta li': in tutti gli altri casi — la portata finisce prima, un altro
+	// nemico e' in mezzo, un ostacolo — la carica manca il bersaglio, e il tratto che resta e' quello che non fara'.
+	const bool bArriva = Linear.Stop == ERTLinearStop::Completed;
+	const bool bUrtaIlBersaglio = Run.bHasImpact && Run.ImpactCell == Target;
+	Run.bMissesTarget = !(bArriva || bUrtaIlBersaglio);
+	return Run;
+}
+
+FRTLinearDashVerdict URTMovementActionLibrary::JudgeLinearDashClick(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& Cell, int32 DashRange, ERTMovementStyle Style, const TMap<FRTCellId, int32>& Occupancy,
+	const TSet<int32>& Hostiles)
+{
+	FRTLinearDashVerdict Verdetto;
+	Verdetto.Linear = ResolveLinearMove(Map, From, Cell, DashRange, Style, Occupancy, Hostiles);
+	const FRTLinearMoveResult& Linear = Verdetto.Linear;
+
+	// Regola di CP 4.5, gia' fissata da `HexSim.DashIsLinear`: o si arriva sulla cella RICHIESTA, o lo scatto non si pianifica.
+	// Niente scatto a meta' verso una cella che il giocatore non ha scelto. (Il `Fallback.Stop` del catalogo resta: vale in
+	// RISOLUZIONE, quando il movimento simultaneo altrui chiude una traiettoria che era libera qui.)
+	//
+	// L'unica eccezione e' la CARICA: fermarsi addosso al nemico E' il suo modo di arrivare, e senza questa riga un bersaglio
+	// adiacente renderebbe la carica impianificabile.
+	// ⚠️ **Oltre la portata un impatto NON basta** (review di #3736). Da [D-516] la libreria fa correre la carica verso un
+	// bersaglio lontano, quindi un nemico noto sulla retta ENTRO la portata da' `Impact` anche per una cella vuota, un muro o
+	// un nemico lontano: accettarlo da solo pianificava cio' che la decisione non copre. Per questo `bImpact` esclude il
+	// bersaglio oltre la portata, che si pianifica a due condizioni, qui sotto.
+	Verdetto.bImpact = Linear.Stop == ERTLinearStop::Impact && !Linear.bTargetBeyondRange;
+
+	// 🔑 **[D-516] La CARICA su un nemico che vedi, in linea ma OLTRE la portata, si pianifica.** Alla risoluzione corre fino alla
+	// portata e si ferma; l'anteprima lo mostra in rosso e gli avvisi del piano lo dicono. Due condizioni, tutte di chi pianifica:
+	// - sulla cella c'e' un NEMICO di questa fotografia, cioe' uno che chi pianifica conosce ([D-371]). Una cella vuota oltre la
+	//   portata resta rifiutata: la regola e' «caricare un nemico», non «correre verso un punto»;
+	// - la retta fino a lui e' libera dal TERRENO e dai lati (`IsLineOpenToTarget`): e' il «percorso lineare» della decisione.
+	//   Le unita' oltre la portata non contano — si saranno mosse.
+	// E il bersaglio e' oltre: o la corsa e' arrivata in fondo alla portata (`OutOfRange`), o un altro nemico NOTO sulla retta
+	// entro la portata l'ha fermata con un impatto ([D-528]).
+	const int32* const Occupante = Occupancy.Find(Cell);
+	Verdetto.bEnemyOnTarget = Occupante && Hostiles.Contains(*Occupante);
+	const bool bFermataPrimaDelBersaglio = Linear.Stop == ERTLinearStop::OutOfRange
+		|| (Linear.Stop == ERTLinearStop::Impact && Linear.bTargetBeyondRange);
+	Verdetto.bBeyondRange = bFermataPrimaDelBersaglio && Verdetto.bEnemyOnTarget && IsLineOpenToTarget(Map, From, Cell);
+
+	Verdetto.bAccepted = Linear.Final == Cell || Verdetto.bImpact || Verdetto.bBeyondRange;
+	if (Style == ERTMovementStyle::LinearCharge)
+	{
+		Verdetto.Run = DescribeChargeRun(Linear, From, Cell, DashRange);
+		Verdetto.Run.bTargetIsKnownEnemy = Verdetto.bEnemyOnTarget;
+	}
+	return Verdetto;
+}
+
 bool URTMovementActionLibrary::IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& Target, int32 MaxCells, ERTMovementStyle Style,
 	const TMap<FRTCellId, int32>& Occupancy, const TSet<int32>& Hostiles)

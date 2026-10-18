@@ -7,6 +7,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Map/RTHexMapActor.h"
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -684,6 +685,109 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 	TestTrue(TEXT("controllo: uno scatto lineare con Unbalanced sposta"), B.Mine->PlannedDashMoves());
 	TestEqual(TEXT("controllo: e la mira parte dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
 		GAimOriginScatto);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **Il canale del Fumo mai esplorato, MISURATO — `#3270`, [D-465].**
+ *
+ * La decisione d'autore e' la via 3: *«si accetta il canale dichiarandolo»*. Click e portata viola leggono il
+ * cap del Fumo dalla mappa autorevole anche nelle celle che la squadra non ha mai osservato, e nessuno dei due
+ * lettori riceve la conoscenza: e' la loro firma, ed e' il canale. Questo test non lo chiude, lo **misura**.
+ * Due mondi che differiscono per UNA cella di `Smoke` sulla traiettoria, mai esplorata, e i due lettori:
+ *
+ * - il rifiuto per distanza — `DescribeCellTargetRefusal`, `Refusal` e `EffectiveRange`, il numero che
+ *   `ARTHUD::RefusalText` scrive a schermo;
+ * - la portata viola — `TargetableRangeCells`.
+ *
+ * ⏳ **Verde finche' il canale c'e', e si rovescia nel commit di #2794** (D-465 (3)): quando click e portata
+ * ricevono la vista ottimistica di `FindPath`, i due mondi devono uscire identici, e le attese qui sotto
+ * passano da «differiscono» a «uguali». Il modello e' `BlindActions.NeverObservedWallBendsTheLitPath`.
+ *
+ * 🔑 **L'origine si chiede a `ARTUnit::AimOriginFor(Phase)`**, la funzione che usano click, slot e portata
+ * (D-464 (6)), e non a `Unit->Cell`. Con uno scatto pianificato il Fumo sta sulla traiettoria che parte
+ * dall'ARRIVO dello scatto, e il canale arriva fin li'. Dalla cella corrente la stessa cella di Fumo non
+ * sta sulla linea: lo dice la premessa, ed e' cio' che rende il test capace di cadere sull'origine.
+ *
+ * ⛔ **Mutazione**: ignorare il cap del Fumo in `EffectiveTargetingRange` (il ramo `MaxTargetingRangeThrough`)
+ * deve rendere ROSSO questo test, per entrambi i lettori.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredSmokeChannelTest,
+	"RefactorTactics.BlindActions.UnexploredSmokeIsReadByClickAndRangeFromTheDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
+{
+	FAimOriginBench B;
+	if (!SetUpAimOriginBench(*this, B, FRTCellId(4, 0, 0), FRTCellId(-2, 0, 0)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	const URTActionData* Getto = B.Mine->GetAbility(B.Getto);
+	const FRTCellId Qui = B.Mine->AimOriginFor(ERTResolutionPhase::Environment);
+	const FRTCellId Scatto = B.Mine->AimOriginFor(ERTResolutionPhase::Attack);
+	const FRTCellId Bersaglio(4, -3, 0);
+	if (!TestEqual(TEXT("premessa: l'origine di mira di un Attack e' l'arrivo dello scatto"), Scatto,
+			GAimOriginScatto)
+		|| !TestEqual(TEXT("premessa: e quella corrente no"), Qui, GAimOriginQui))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// La cella di Fumo e' la PRIMA intermedia della linea dallo scatto: letta dal produttore della linea, non
+	// scritta a mano, perche' e' la stessa che il cap scorre.
+	const TArray<FRTCellId> LineaDalloScatto = URTHexLibrary::HexLine(Scatto, Bersaglio);
+	const TArray<FRTCellId> LineaDaQui = URTHexLibrary::HexLine(Qui, Bersaglio);
+	if (!TestEqual(TEXT("premessa: il bersaglio e' a distanza 3 dallo scatto"), LineaDalloScatto.Num(), 4))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	const FRTCellId CellaDiFumo = LineaDalloScatto[1];
+	TestFalse(TEXT("premessa: la cella di Fumo NON sta sulla linea dalla cella corrente"),
+		LineaDaQui.Contains(CellaDiFumo));
+
+	URTHexMapAsset* Chiaro = URTMatchSetupLibrary::MakeTestArena(B.World);
+	URTHexMapAsset* ConFumo = URTMatchSetupLibrary::MakeTestArena(B.World);
+	FRTHexCellData Fumo(CellaDiFumo);
+	Fumo.Surface = ERTHexSurface::Smoke;
+	ConFumo->AddOrUpdateCell(Fumo);
+	ConFumo->SortCells();
+
+	const int32 Portata = Getto->RangeCells;
+	const ERTLineOfSightPolicy Policy = Getto->Def.LineOfSightPolicy;
+	const FRTCellTargetRefusal DalloScattoChiaro =
+		URTCombatLibrary::DescribeCellTargetRefusal(Chiaro, Scatto, Bersaglio, Portata, Policy);
+	const FRTCellTargetRefusal DalloScattoFumo =
+		URTCombatLibrary::DescribeCellTargetRefusal(ConFumo, Scatto, Bersaglio, Portata, Policy);
+	const FRTCellTargetRefusal DaQuiChiaro =
+		URTCombatLibrary::DescribeCellTargetRefusal(Chiaro, Qui, Bersaglio, Portata, Policy);
+	const FRTCellTargetRefusal DaQuiFumo =
+		URTCombatLibrary::DescribeCellTargetRefusal(ConFumo, Qui, Bersaglio, Portata, Policy);
+
+	// PREMESSE — senza il Fumo il colpo e' ingaggiabile con la portata dichiarata: la differenza non viene
+	// da altro che dalla cella.
+	TestEqual(TEXT("premessa: senza Fumo dallo scatto non c'e' rifiuto"), DalloScattoChiaro.Refusal,
+		ERTTargetRefusal::None);
+	TestEqual(TEXT("premessa: e la portata applicata e' la dichiarata"), DalloScattoChiaro.EffectiveRange, Portata);
+
+	// IL CANALE, lettore 1 — il rifiuto e il numero scritto a schermo.
+	TestEqual(TEXT("canale: con il Fumo ignoto il click dallo scatto e' rifiutato per distanza"),
+		DalloScattoFumo.Refusal, ERTTargetRefusal::Range);
+	TestEqual(TEXT("canale: e il numero mostrato e' il cap del Fumo"), DalloScattoFumo.EffectiveRange, 2);
+	TestEqual(TEXT("controllo: dalla cella corrente il Fumo non e' sulla linea e il numero non si muove"),
+		DaQuiFumo.EffectiveRange, DaQuiChiaro.EffectiveRange);
+	TestEqual(TEXT("controllo: ne' il rifiuto"), DaQuiFumo.Refusal, DaQuiChiaro.Refusal);
+
+	// IL CANALE, lettore 2 — la portata viola.
+	const TArray<FRTCellId> PortataChiara = URTCombatLibrary::TargetableRangeCells(Chiaro, Scatto, Portata, Policy);
+	const TArray<FRTCellId> PortataFumo = URTCombatLibrary::TargetableRangeCells(ConFumo, Scatto, Portata, Policy);
+	TestTrue(TEXT("premessa: senza Fumo il bersaglio e' nella portata viola"), PortataChiara.Contains(Bersaglio));
+	TestFalse(TEXT("canale: con il Fumo ignoto esce dalla portata viola"), PortataFumo.Contains(Bersaglio));
+	TestTrue(TEXT("e le due portate non coincidono"), PortataChiara.Num() != PortataFumo.Num());
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

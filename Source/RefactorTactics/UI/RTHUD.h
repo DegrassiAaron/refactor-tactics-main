@@ -281,6 +281,13 @@ struct FRTDashPreview
 	 */
 	int32 ReachSegments = INDEX_NONE;
 
+	/**
+	 * [D-528] Vero se il tratto che resta dopo `ReachSegments` e' cio' che la carica NON fara' (si disegna tratteggiato, in rosso).
+	 * Falso quando la corsa finisce a contatto col bersaglio scelto: il tratto fino a lui e' l'urto, non un mancato arrivo.
+	 * Default vero: e' il significato che `ReachSegments` aveva ([D-516]), e chi non scrive il campo lo conserva.
+	 */
+	bool bShowsMiss = true;
+
 	/** [D-516] Vero se resta un tratto che la corsa non fa: lo si disegna tratteggiato, in rosso. */
 	bool HasShortfall() const { return ReachSegments != INDEX_NONE && ReachSegments < PathCells.Num() - 1; }
 
@@ -572,7 +579,7 @@ public:
 	 *
 	 * Statica e pura per la stessa ragione di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura
 	 * headless, quindi cio' che si puo' sbagliare deve stare dove i test arrivano — e cio' che si sbaglia
-	 * qui e' la **sentinella**, che `FRTCellId::IsValid()` non riconosce.
+	 * qui e' la **sentinella**, che nessuna proprieta' della cella riconosce (`FRTCellId::IsValid()` e' stato tolto in D-530).
 	 */
 
 	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,

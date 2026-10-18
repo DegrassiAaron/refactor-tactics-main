@@ -136,6 +136,21 @@ struct FRTPlannedIntent
 	int32 DashReachCells = 0;
 
 	/**
+	 * [D-528] Le celle che la carica pianificata percorre DAVVERO, lette da chi l'ha pianificata con la fotografia della sua
+	 * squadra ([D-371]): meno della retta intera quando un nemico noto la ferma o la portata finisce prima. `INDEX_NONE` se
+	 * non e' stato calcolato (un bot, un piano senza click): allora vale `DashReachCells`.
+	 *
+	 * 🔴 **Solo per gli alleati** (`AllyOnly` in `FRTIntentView`), a differenza di `DashReachCells`: quel numero si ricava da dati
+	 * pubblici, questo no — dipende da quali nemici la squadra di chi pianifica conosce, e a un avversario direbbe cosa sa.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	int32 DashRunCells = INDEX_NONE;
+
+	/** [D-528] La carica NON finisce a contatto col bersaglio scelto: il tratto che resta fino a lui e' quello che non fara'. Come `DashRunCells`, solo per gli alleati. */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	bool bDashMissesTarget = false;
+
+	/**
 	 * Orientamento ATTUALE dell'unita' (CP 16.1). Pubblico: e' una posa osservabile sul campo, non un piano —
 	 * chi guarda vede da che parte e' girata una figura, e nasconderlo non renderebbe il gioco piu' segreto,
 	 * solo meno leggibile di cio' che si ha davanti agli occhi.
@@ -217,6 +232,14 @@ struct FRTIntentView
 	/** [D-516] Dove si ferma una carica oltre la portata: movimento, esposto quanto `DashCell`. Vedi `FRTPlannedIntent`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	int32 DashReachCells = 0;
+
+	/** [D-528] Le celle che la carica percorre davvero; `INDEX_NONE` se non calcolato. **Solo alleati**: vedi `FRTPlannedIntent`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	int32 DashRunCells = INDEX_NONE;
+
+	/** [D-528] La carica non finisce a contatto col bersaglio scelto. **Solo alleati**: vedi `FRTPlannedIntent`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	bool bDashMissesTarget = false;
 
 	/** Posa ATTUALE: pubblica, si vede guardando l'unita'. Valorizzata anche per un avversario rivelato. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
