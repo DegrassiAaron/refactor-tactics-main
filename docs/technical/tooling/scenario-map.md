@@ -537,7 +537,7 @@ e la premessa — che la finestra si apra davvero — la prova `Scenario.PlayerR
 loader la rifiuta con `decisions` e con `freeRun`. ⛔ **E la finestra si apre per ogni proprietario non-bot,
 anche avversario**: in partita la squadra avversaria è del bot e il caso non esiste, in uno scenario sì. Uno scenario
 con la chiave arma reazioni solo sulla squadra di chi guarda, o dà al bot quelle dell'altra. Il primo banco è
-`Visual.Reaction.OverwatchWindow`.
+`Visual.Reaction.OverwatchWindow`; accanto a lui, per i testi plurali dell'`HOLD` di D-411 ([#3807](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3807)), `Visual.Reaction.OverwatchWindowTwoEntries` (due entrati e due offerti) e `Visual.Reaction.OverwatchWindowThreeEntries` (tre entrati, due offerti da una condizione dichiarata).
 
 ---
 

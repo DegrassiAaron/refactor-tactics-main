@@ -1,0 +1,61 @@
+{
+  "scenarioId": "Visual.Reaction.OverwatchWindowThreeEntries",
+  "tags": ["visual", "reactions", "overwatch", "hud", "fast-decision", "aevik", "ivrin", "branth", "muiren", "hold-plurale", "condizione"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "playerReactionWindows": true,
+
+  "_nota": "IL BANCO DI «TRE ENTRATI, DUE OFFERTI» (#3807, D-411). Entrano in TRE nello stesso passo, ma Aevik ha dichiarato «spara solo sotto il 50% di salute»: Ivrin e Branth sono feriti e vengono offerti, Muiren e' a salute piena e la condizione lo esclude. La finestra offre FIRE su Branth, FIRE su Ivrin e HOLD; il bottone dell'HOLD dice «Lascia passare Branth e Ivrin» (l'ordine delle opzioni FIRE, che segue la cella di partenza con X crescente: spostarle puo' invertire i nomi; misurato in PIE) e NON «tutti», perche' Muiren e' entrato senza essere offerto e puo' tornare.",
+
+  "_nota_perche_esiste": "Il discriminante del testo e' la coppia entrati/offerti (`Window.TriggerNames` contro `OfferedFireTargets`), e `Visual.Reaction.OverwatchWindowTwoEntries` ha le due liste uguali. Qui differiscono: tre entrati, due offerti. I test su `RTReactionResponseText` lo provano sulla funzione; questo banco lo mostra sul bottone.",
+
+  "_nota_come_si_lancia": "Da `L_DevSandbox`, console `rt.Test.Scenario Visual.Reaction.OverwatchWindowThreeEntries`, `t.MaxFPS 60`, poi Play. Nel log `[RT-Test] AUTO-RUN Visual.Reaction.OverwatchWindowThreeEntries`.",
+
+  "_nota_geometria": "Stessa linea di `OverwatchWindow`: A1 a (2,-1) guarda W, zona (1,-1) (0,-1) (-1,-1) (-2,-1) (-3,-1). B1 (0,0)->(1,-1), B2 (-1,0)->(0,-1), B3 (-2,0)->(-1,-1): nessuno parte dentro la linea, e i tre passi cadono nello stesso micro-step, quindi una finestra sola.",
+
+  "_nota_condizione": "`TargetHealthAtOrBelowPercent` con param 50. Ivrin e' a 40/90 (44%), Branth a 55/120 (45,8%), Muiren a 95/95 (100%). La condizione legge salute e massimo (`FRTTargetVitals`), non lo scudo: `shield` a 0 serve solo a leggere i numeri della scena senza lo scudo del roster. L'Overwatch costa l'azione PRINCIPALE e la condizione vuole una reazione armata a cui applicarsi (`SetPlannedReactionCondition`, vedi `Spec.Overwatch.ConditionCollapsesToHold`): per questo A1 arma anche `Hero.Aevik.ReactiveCapacitor`, che qui non scatta mai (nessuno colpisce A1).",
+
+  "_nota_assertion": "Le `expect` valgono per OGNI risposta. La PREMESSA — tre entrati, due offerti, due FIRE e HOLD — si legge dal log della PIE. Se la condizione avesse escluso tutti la finestra non si aprirebbe (`CollapsedByCondition`), ed e' l'esito che le `expect` tengono a zero.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "W" },
+    { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [ 3,  0, 0] },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 0,  0, 0], "health": 40, "shield": 0 },
+    { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-1,  0, 0], "health": 55, "shield": 0 },
+    { "id": "B3", "hero": "Hero.Muiren", "team": 1, "cell": [-2,  0, 0], "shield": 0 }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - la finestra. A1 arma la Guardia reattiva e dichiara «spara solo sotto il 50%»; B1, B2 e B3 entrano insieme, ognuno con un passo. Ivrin e Branth sono sotto soglia e vengono offerti, Muiren no.",
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        {
+          "unit": "A1",
+          "ability": "Action.Overwatch",
+          "reaction": "Hero.Aevik.ReactiveCapacitor",
+          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 50 }
+        },
+        { "unit": "B1", "move": [[1, -1, 0]] },
+        { "unit": "B2", "move": [[0, -1, 0]] },
+        { "unit": "B3", "move": [[-1, -1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "I tre sono entrati nell'area: un passo ciascuno, quindi la cella raggiunta e' l'ultima con qualunque risposta.",
+      "type": "UnitAtCell", "unit": "B1", "cell": [1, -1, 0] },
+    { "type": "UnitAtCell", "unit": "B2", "cell": [0, -1, 0] },
+    { "type": "UnitAtCell", "unit": "B3", "cell": [-1, -1, 0] },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [2, -1, 0] },
+
+    { "_assertion": "Nessuna decisione senza scelta: la condizione offre DUE bersagli, quindi la finestra si apre. Un `CollapsedByCondition` direbbe che la soglia ha escluso tutti, un `Immediate` che e' rimasto un solo HOLD.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Immediate", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "CollapsedByCondition", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Rejected", "value": 0 },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
