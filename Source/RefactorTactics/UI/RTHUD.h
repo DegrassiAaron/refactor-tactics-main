@@ -572,7 +572,7 @@ public:
 	 *
 	 * Statica e pura per la stessa ragione di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura
 	 * headless, quindi cio' che si puo' sbagliare deve stare dove i test arrivano — e cio' che si sbaglia
-	 * qui e' la **sentinella**, che `FRTCellId::IsValid()` non riconosce.
+	 * qui e' la **sentinella**, che nessuna proprieta' della cella riconosce (`FRTCellId::IsValid()` e' stato tolto in D-530).
 	 */
 
 	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,

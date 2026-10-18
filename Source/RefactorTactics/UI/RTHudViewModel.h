@@ -904,7 +904,7 @@ struct FRTPlayerEventLineView
 	 * L'ostacolo da marcare nel mondo, quando la riga ne ha uno.
 	 *
 	 * ⚠️ **Va letta insieme a `bHasBlocker`, mai da sola**: la sentinella e' `Layer == INDEX_NONE`, e
-	 * `FRTCellId::IsValid()` non la riconosce — la cella «vuota» `(0,0,0)` supera l'invariante cubica, e un
+	 * nessuna proprieta' della cella la riconosce — la cella «vuota» `(0,0,0)` e' una cella vera, e un
 	 * binding ingenuo marcherebbe l'origine dell'arena a ogni riga senza ostacolo.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
