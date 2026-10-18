@@ -334,6 +334,39 @@ public:
 		float AllowedOutsideFraction, float ReferenceAspectRatio = 16.f / 9.f);
 
 	/**
+	 * `#3798`, `D-525` — le due semi-estensioni del quadro sul piano: `X` lungo lo sguardo (profondita'), `Y` di
+	 * traverso (larghezza di schermo). E' il modello di `ComputeEffectivePivotBounds`, estratto perche' lo usano
+	 * anche i limiti per direzione. `(0, 0)` se la geometria e' ignota (aspetto, braccio o FOV non positivi).
+	 */
+	static FVector2D ComputeFrameHalfExtents(float ArmLength, float PitchDegrees, float HorizontalFovDegrees,
+		float AspectRatio, float ReferenceAspectRatio = 16.f / 9.f);
+
+	/**
+	 * `#3798`, `D-525` — l'involucro convesso di punti sul piano, in senso antiorario, senza duplicati ne' punti
+	 * collineari (catena monotona di Andrew). Con meno di tre punti distinti, o tutti allineati, restituisce
+	 * quel che resta: chi lo usa tratta meno di tre vertici come «nessun involucro». Pura.
+	 */
+	static TArray<FVector2D> ComputeConvexHull(TArray<FVector2D> Points);
+
+	/**
+	 * `#3798`, `D-525` — la zona in cui puo' stare il pivot: `EffectiveBox` (i limiti di sempre, a rettangolo)
+	 * **intersecata** coi semipiani dei lati dell'involucro delle celle. Ogni lato si sposta di `Margin` verso
+	 * l'esterno e di `AllowedOutsideFraction` del **supporto del quadro** nella sua normale verso l'interno: e' la
+	 * stessa regola dei limiti a rettangolo, generalizzata da due normali a tutte (per `n = (1, 0)` il supporto e'
+	 * l'estensione su `X` di `ComputeEffectivePivotBounds`, e per `(0, 1)` quella su `Y`).
+	 *
+	 * ⚠️ **Contenuta nel rettangolo per costruzione**: la zona nuova non ammette un punto che il rettangolo
+	 * escludeva, e un angolo del rettangolo — lontano dalle celle su una mappa esagonale — non e' piu'
+	 * raggiungibile. Restituisce i vertici in senso antiorario, **vuoto** se l'intersezione si annulla: chi
+	 * chiama ripiega sul rettangolo.
+	 */
+	static TArray<FVector2D> ComputeEffectivePivotPolygon(const FBox2D& EffectiveBox, const TArray<FVector2D>& Hull,
+		double Margin, const FVector2D& FrameHalfExtents, float YawDegrees, float AllowedOutsideFraction);
+
+	/** `#3798` — il punto del poligono convesso (antiorario) piu' vicino a `Point`; `Point` stesso se e' dentro. */
+	static FVector2D ClampToConvexPolygon(const TArray<FVector2D>& Polygon, const FVector2D& Point);
+
+	/**
 	 * Metriche del viewport per il calcolo dei limiti (per i test, e per chi non ha un viewport).
 	 *
 	 * `AspectRatio <= 0` disattiva i limiti viewport-aware e riporta al clamp per sole celle: e' il **caso
@@ -940,8 +973,9 @@ protected:
 	void RecomputePitchFromZoom();
 
 	/**
-	 * Riporta una posizione dentro i limiti di scorrimento: estensione reale delle celle della mappa piu'
-	 * `BoundsMarginCells`. Senza mappa non c'e' un bordo, e la posizione passa intatta.
+	 * Riporta una posizione dentro i limiti di scorrimento: l'**involucro convesso** delle celle della mappa piu'
+	 * `BoundsMarginCells` (`D-525`), dentro l'estensione a rettangolo di sempre. Senza mappa non c'e' un bordo, e la
+	 * posizione passa intatta.
 	 *
 	 * ⚠️ **Non e' collisione**: `bDoCollisionTest` resta `false` e `#864` lo dichiara fuori scope.
 	 * Reintrodurre il popping da SpringArm per ottenere dei limiti sarebbe un passo indietro.

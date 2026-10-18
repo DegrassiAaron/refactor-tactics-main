@@ -172,6 +172,13 @@ void ARTCameraPawn::SetCameraPivot(const FVector& NewPivot)
 	// `ZoomTowards` e nessun altro — e `FocusOn` non ce l'aveva affatto: inquadrare un'unita' oltre il
 	// bordo portava la camera dove il pan si rifiuta di andare. Un invariante che vale in tre punti su
 	// cinque non e' un invariante.
+	//
+	// 🔴 **#3798 — le metriche del viewport si rinfrescano QUI, a ogni scrittura di pivot.** L'header lo diceva
+	// («a ogni scrittura di pivot quando un viewport esiste») e il codice no: le rinfrescavano solo `BeginPlay`,
+	// `ApplyViewSettings`, `ApplyArmLength`, lo zoom e la rotazione. In una PIE avviata da zero, col solo pan, a
+	// `BeginPlay` il viewport non c'e' ancora, l'aspetto restava 0 e il limite diventava quello per sole celle:
+	// il pivot usciva di 455-490 unita' in piu' (misurato il 2026-10-18, due PIE da zero). Costa due letture.
+	RefreshViewportMetrics();
 	CameraPivot = ClampToSoftBounds(NewPivot);
 	ApplyPivot();
 }
@@ -710,20 +717,11 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 	// prende il FOV come orizzontale all'aspetto della camera (16:9), ne ricava il semiangolo verticale e lo
 	// tiene; l'orizzontale segue il rettangolo. Il modello di prima teneva fisso l'orizzontale e divideva per
 	// l'aspetto: esatto solo a 16:9, e da #3661 la scena non e' piu' 16:9 (circa 1,69 a 1920×1080).
-	const float HalfFovH = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
-	const double AspettoRiferimento = FMath::Max(static_cast<double>(ReferenceAspectRatio), 0.01);
-	const double VerticalHalf = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH) / AspettoRiferimento;
-	const double HalfWidth = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01);
-
-	// L'estensione **lungo la direzione di sguardo** cresce quando la camera si abbassa: a picco il quadro
-	// e' un rettangolo, all'orizzonte si allunga senza limite. E' il caso che rompe il clamp fisso, ed e'
-	// per questo che il pitch entra nella formula.
-	//
-	// `sin` del pitch al denominatore, con un pavimento: a `MaxPitch = 0` la camera guarda l'orizzonte e la
-	// proiezione a terra divergerebbe. Il pavimento non e' una tolleranza numerica — e' la dichiarazione
-	// che oltre una certa inclinazione la nozione di «quanto mondo entra» smette di essere finita.
-	const double SinPitch = FMath::Max(FMath::Abs(FMath::Sin(FMath::DegreesToRadians(PitchDegrees))), 0.15);
-	const double HalfDepth = VerticalHalf / SinPitch;
+	// Il modello del quadro vive in `ComputeFrameHalfExtents` (#3798): lo usano anche i limiti per direzione.
+	const FVector2D FrameHalf = ComputeFrameHalfExtents(ArmLength, PitchDegrees, HorizontalFovDegrees,
+		AspectRatio, ReferenceAspectRatio);
+	const double HalfDepth = FrameHalf.X;
+	const double HalfWidth = FrameHalf.Y;
 
 	// Il quadro e' orientato dallo yaw: l'ingombro su X/Y e' l'AABB del rettangolo ruotato. Senza questo
 	// passaggio i limiti sarebbero corretti solo con la vista dritta — cioe' proprio nel caso in cui la
@@ -759,6 +757,155 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 	if (Result.Min.X > Result.Max.X) { Result.Min.X = Result.Max.X = Centre.X; }
 	if (Result.Min.Y > Result.Max.Y) { Result.Min.Y = Result.Max.Y = Centre.Y; }
 	return Result;
+}
+
+FVector2D ARTCameraPawn::ComputeFrameHalfExtents(float ArmLength, float PitchDegrees, float HorizontalFovDegrees,
+	float AspectRatio, float ReferenceAspectRatio)
+{
+	if (AspectRatio <= 0.f || ArmLength <= 0.f || HorizontalFovDegrees <= 0.f)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const float HalfFovH = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
+	const double AspettoRiferimento = FMath::Max(static_cast<double>(ReferenceAspectRatio), 0.01);
+	const double VerticalHalf = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH) / AspettoRiferimento;
+	const double HalfWidth = VerticalHalf * FMath::Max(static_cast<double>(AspectRatio), 0.01);
+
+	// L'estensione **lungo la direzione di sguardo** cresce quando la camera si abbassa: a picco il quadro
+	// e' un rettangolo, all'orizzonte si allunga senza limite. E' il caso che rompe il clamp fisso, ed e'
+	// per questo che il pitch entra nella formula.
+	//
+	// `sin` del pitch al denominatore, con un pavimento: a `MaxPitch = 0` la camera guarda l'orizzonte e la
+	// proiezione a terra divergerebbe. Il pavimento non e' una tolleranza numerica — e' la dichiarazione
+	// che oltre una certa inclinazione la nozione di «quanto mondo entra» smette di essere finita.
+	const double SinPitch = FMath::Max(FMath::Abs(FMath::Sin(FMath::DegreesToRadians(PitchDegrees))), 0.15);
+	return FVector2D(VerticalHalf / SinPitch, HalfWidth);
+}
+
+TArray<FVector2D> ARTCameraPawn::ComputeConvexHull(TArray<FVector2D> Points)
+{
+	// Catena monotona di Andrew: ordina per (X, Y), costruisce la catena inferiore e la superiore. Il test `<= 0`
+	// scarta anche i punti **collineari**, cosi' un lato dell'involucro e' un lato e non una fila di vertici.
+	Points.Sort([](const FVector2D& A, const FVector2D& B) { return A.X < B.X || (A.X == B.X && A.Y < B.Y); });
+
+	TArray<FVector2D> Unique;
+	Unique.Reserve(Points.Num());
+	for (const FVector2D& P : Points)
+	{
+		if (Unique.Num() == 0 || P != Unique.Last()) { Unique.Add(P); }
+	}
+	if (Unique.Num() < 3) { return Unique; }
+
+	auto Cross = [](const FVector2D& O, const FVector2D& A, const FVector2D& B)
+	{
+		return (A.X - O.X) * (B.Y - O.Y) - (A.Y - O.Y) * (B.X - O.X);
+	};
+
+	TArray<FVector2D> Hull;
+	Hull.Reserve(Unique.Num() * 2);
+	for (const FVector2D& P : Unique)
+	{
+		while (Hull.Num() >= 2 && Cross(Hull[Hull.Num() - 2], Hull.Last(), P) <= 0.0) { Hull.Pop(); }
+		Hull.Add(P);
+	}
+	const int32 LowerSize = Hull.Num() + 1;
+	for (int32 I = Unique.Num() - 2; I >= 0; --I)
+	{
+		const FVector2D& P = Unique[I];
+		while (Hull.Num() >= LowerSize && Cross(Hull[Hull.Num() - 2], Hull.Last(), P) <= 0.0) { Hull.Pop(); }
+		Hull.Add(P);
+	}
+	Hull.Pop(); // l'ultimo punto e' il primo, ripetuto
+	return Hull;
+}
+
+namespace
+{
+	/** Ritaglia un poligono convesso col semipiano `Normal · X <= Offset` (Sutherland–Hodgman, un solo piano). */
+	TArray<FVector2D> RTCameraClipByHalfPlane(const TArray<FVector2D>& Poly, const FVector2D& Normal, double Offset)
+	{
+		TArray<FVector2D> Out;
+		const int32 N = Poly.Num();
+		for (int32 I = 0; I < N; ++I)
+		{
+			const FVector2D& Cur = Poly[I];
+			const FVector2D& Nxt = Poly[(I + 1) % N];
+			const double DCur = FVector2D::DotProduct(Normal, Cur) - Offset;
+			const double DNxt = FVector2D::DotProduct(Normal, Nxt) - Offset;
+			if (DCur <= 0.0) { Out.Add(Cur); }
+			if ((DCur < 0.0 && DNxt > 0.0) || (DCur > 0.0 && DNxt < 0.0))
+			{
+				Out.Add(Cur + (Nxt - Cur) * (DCur / (DCur - DNxt)));
+			}
+		}
+		return Out;
+	}
+}
+
+TArray<FVector2D> ARTCameraPawn::ComputeEffectivePivotPolygon(const FBox2D& EffectiveBox, const TArray<FVector2D>& Hull,
+	double Margin, const FVector2D& FrameHalfExtents, float YawDegrees, float AllowedOutsideFraction)
+{
+	if (!EffectiveBox.bIsValid || Hull.Num() < 3)
+	{
+		return TArray<FVector2D>();
+	}
+
+	TArray<FVector2D> Poly;
+	Poly.Add(FVector2D(EffectiveBox.Min.X, EffectiveBox.Min.Y));
+	Poly.Add(FVector2D(EffectiveBox.Max.X, EffectiveBox.Min.Y));
+	Poly.Add(FVector2D(EffectiveBox.Max.X, EffectiveBox.Max.Y));
+	Poly.Add(FVector2D(EffectiveBox.Min.X, EffectiveBox.Max.Y));
+
+	// Il supporto del quadro in una direzione `n`: quanto si spinge, lungo `n`, il rettangolo (profondita' lungo lo
+	// sguardo, larghezza di traverso) orientato dallo yaw. Per `n = (1, 0)` e' `ExtentX` di
+	// `ComputeEffectivePivotBounds`, per `(0, 1)` e' `ExtentY`: stessa regola, per ogni normale.
+	const double Yaw = FMath::DegreesToRadians(static_cast<double>(YawDegrees));
+	const FVector2D Forward(FMath::Cos(Yaw), FMath::Sin(Yaw));
+	const FVector2D Right(-FMath::Sin(Yaw), FMath::Cos(Yaw));
+	const double Keep = 1.0 - static_cast<double>(FMath::Clamp(AllowedOutsideFraction, 0.f, 1.f));
+
+	for (int32 I = 0; I < Hull.Num() && Poly.Num() >= 3; ++I)
+	{
+		const FVector2D& A = Hull[I];
+		const FVector2D& B = Hull[(I + 1) % Hull.Num()];
+		const FVector2D Edge = B - A;
+		const double Len = Edge.Size();
+		if (Len <= KINDA_SMALL_NUMBER) { continue; }
+
+		// Involucro antiorario: la normale esterna di un lato `(dx, dy)` e' `(dy, -dx)`.
+		const FVector2D Normal(Edge.Y / Len, -Edge.X / Len);
+		const double Support = FrameHalfExtents.X * FMath::Abs(FVector2D::DotProduct(Normal, Forward))
+			+ FrameHalfExtents.Y * FMath::Abs(FVector2D::DotProduct(Normal, Right));
+		Poly = RTCameraClipByHalfPlane(Poly, Normal, FVector2D::DotProduct(Normal, A) + Margin - Keep * Support);
+	}
+
+	return Poly.Num() >= 3 ? Poly : TArray<FVector2D>();
+}
+
+FVector2D ARTCameraPawn::ClampToConvexPolygon(const TArray<FVector2D>& Polygon, const FVector2D& Point)
+{
+	const int32 N = Polygon.Num();
+	if (N == 0) { return Point; }
+	if (N == 1) { return Polygon[0]; }
+
+	bool bInside = (N >= 3);
+	FVector2D Best = Polygon[0];
+	double BestDist = TNumericLimits<double>::Max();
+	for (int32 I = 0; I < N; ++I)
+	{
+		const FVector2D& A = Polygon[I];
+		const FVector2D& B = Polygon[(I + 1) % N];
+		const FVector2D Edge = B - A;
+		if (bInside && (Edge.X * (Point.Y - A.Y) - Edge.Y * (Point.X - A.X)) < 0.0) { bInside = false; }
+
+		const double LenSq = Edge.SizeSquared();
+		const double T = (LenSq > 0.0) ? FMath::Clamp(FVector2D::DotProduct(Point - A, Edge) / LenSq, 0.0, 1.0) : 0.0;
+		const FVector2D Closest = A + Edge * T;
+		const double Dist = FVector2D::DistSquared(Point, Closest);
+		if (Dist < BestDist) { BestDist = Dist; Best = Closest; }
+	}
+	return bInside ? Point : Best;
 }
 
 void ARTCameraPawn::RefreshViewportMetrics()
@@ -810,11 +957,14 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 	// pieno, e dedurne i limiti dal numero di celle darebbe un bordo che non esiste.
 	FVector Min(TNumericLimits<double>::Max());
 	FVector Max(TNumericLimits<double>::Lowest());
+	TArray<FVector2D> CellCentres;
+	CellCentres.Reserve(Map->Cells.Num());
 	for (const FRTHexCellData& Cell : Map->Cells)
 	{
 		const FVector W = URTHexLibrary::AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
 		Min.X = FMath::Min(Min.X, W.X); Max.X = FMath::Max(Max.X, W.X);
 		Min.Y = FMath::Min(Min.Y, W.Y); Max.Y = FMath::Max(Max.Y, W.Y);
+		CellCentres.Add(FVector2D(W.X, W.Y));
 	}
 
 	// Il margine e' in CELLE (`#864`): un numero in unita' mondo sarebbe legato a `HexSize`, che e' un
@@ -838,10 +988,30 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 		ViewportHorizontalFov, ViewportAspectRatio, AllowedOutsideFraction,
 		Camera ? Camera->AspectRatio : 16.f / 9.f); // #3661: l'aspetto a cui il FOV e' orizzontale
 
-	return FVector(
+	FVector2D Clamped(
 		FMath::Clamp(Desired.X, static_cast<double>(Effective.Min.X), static_cast<double>(Effective.Max.X)),
-		FMath::Clamp(Desired.Y, static_cast<double>(Effective.Min.Y), static_cast<double>(Effective.Max.Y)),
-		Desired.Z);
+		FMath::Clamp(Desired.Y, static_cast<double>(Effective.Min.Y), static_cast<double>(Effective.Max.Y)));
+
+	// 🔴 **#3798, D-525 — il rettangolo non basta: i suoi angoli non sono mappa.** Su una mappa esagonale l'angolo del
+	// rettangolo sta a circa sei celle dalla cella piu' vicina (misurato in PIE il 2026-10-18, a braccio 800), e il
+	// quadro guardava il vuoto. Il pivot sta quindi anche dentro l'involucro convesso delle celle, spostato di
+	// `BoundsMarginCells` verso l'esterno e di una frazione del quadro verso l'interno, **per ogni lato**. La zona
+	// nuova e' contenuta nel rettangolo, quindi non allarga nulla: senza involucro (meno di tre celle distinte,
+	// tutte allineate) o se l'intersezione si annulla, resta il rettangolo di prima.
+	const TArray<FVector2D> Hull = ComputeConvexHull(MoveTemp(CellCentres));
+	if (Hull.Num() >= 3)
+	{
+		const FVector2D FrameHalf = ComputeFrameHalfExtents(SpringArm ? SpringArm->TargetArmLength : 0.f, CameraPitch,
+			ViewportHorizontalFov, ViewportAspectRatio, Camera ? Camera->AspectRatio : 16.f / 9.f);
+		const TArray<FVector2D> Region = ComputeEffectivePivotPolygon(Effective, Hull, Margin, FrameHalf, CameraYaw,
+			AllowedOutsideFraction);
+		if (Region.Num() >= 3)
+		{
+			Clamped = ClampToConvexPolygon(Region, FVector2D(Desired.X, Desired.Y));
+		}
+	}
+
+	return FVector(Clamped.X, Clamped.Y, Desired.Z);
 }
 
 void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
