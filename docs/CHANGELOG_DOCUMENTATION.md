@@ -10,6 +10,7 @@
 |---|---|
 | [`../Scenarios/Visual/Input/ChargeEnemyInTheWay.json`](../Scenarios/Visual/Input/ChargeEnemyInTheWay.json) | la scena a zero turni: Branth, Ivrin a due celle e Muiren a tre sulla stessa retta |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-CHARGEHOVER` ⏳, i totali rimisurati (A1) |
+| [`technical/evidence/u92/V10-carica-hover-con-nemico-in-mezzo-2026-10-18.jpg`](technical/evidence/u92/V10-carica-hover-con-nemico-in-mezzo-2026-10-18.jpg) | la tavola `V10`: hover su Muiren e su Ivrin, click, secondo click; finestra `-game`, non PIE |
 | [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md), [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md), [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | la scena nuova |
 
 ---
