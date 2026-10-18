@@ -3993,4 +3993,73 @@ bool FRTCameraPanCornerTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **Il percorso di PRODUZIONE passa l'impronta** (#3798, review di #3816). Il test sulle funzioni pure era verde mentre
+ * `ClampToSoftBounds` chiamava `ComputeEffectivePivotPolygon` senza `Footprint`: la correzione non agiva, e la rimisura in PIE
+ * trovava i vertici alle stesse coordinate a tutte le cifre. Qui si guida il pan nel mondo, con le metriche del viewport
+ * note e il braccio piccolo, e si chiede quello che conta: dal pivot raggiunto la parte centrale dello schermo tocca le celle.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPanFrameTouchesCellsTest,
+	"RefactorTactics.Camera.PanAtASmallArmKeepsTheCentralFrameOnTheCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPanFrameTouchesCellsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* HexMap = SpawnCameraTestMap(World, FRTCellId(0, 0, 0));
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	RTPreparaVistaD498(Cam);
+	Cam->SetViewportMetricsForTest(1.675f, 90.f);
+	RTBraccioA(Cam, 450.f);
+
+	FVector Origin; float HexSize = 0.f; float LayerHeight = 0.f;
+	const URTHexMapAsset* Asset = HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+	if (!TestNotNull(TEXT("asset"), Asset)) { DestroyCameraWorld(World); return false; }
+	TArray<FVector2D> Centres;
+	for (const FRTHexCellData& Cell : Asset->Cells)
+	{
+		const FVector W = URTHexLibrary::AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
+		Centres.Add(FVector2D(W.X, W.Y));
+	}
+	const TArray<FVector2D> Hull = ARTCameraPawn::ComputeConvexHull(Centres);
+	const TArray<FVector2D> Foot = ARTCameraPawn::ComputeFrameFootprint(450.f, Cam->GetCameraPitch(), 90.f, 1.675f,
+		16.f / 9.f, ARTCameraPawn::FootprintScreenFraction);
+	if (!TestEqual(TEXT("l'impronta ha quattro angoli"), Foot.Num(), 4)) { DestroyCameraWorld(World); return false; }
+
+	// Il pan verso le quattro diagonali e i quattro assi, a yaw 0 e 90: dove si ferma, il quadro centrale tocca le celle.
+	const FVector2D Direzioni[8] = { FVector2D(1, 1), FVector2D(1, -1), FVector2D(-1, 1), FVector2D(-1, -1),
+		FVector2D(1, 0), FVector2D(-1, 0), FVector2D(0, 1), FVector2D(0, -1) };
+	for (const float Yaw : {0.f, 90.f})
+	{
+		while (FMath::Abs(Cam->GetCameraYaw() - Yaw) > 1.f) { Cam->AddYaw(1.f); }
+		const double YawRad = FMath::DegreesToRadians(static_cast<double>(Cam->GetCameraYaw()));
+		const FVector2D Fwd(FMath::Cos(YawRad), FMath::Sin(YawRad));
+		const FVector2D Rgt(-FMath::Sin(YawRad), FMath::Cos(YawRad));
+		for (int32 D = 0; D < 8; ++D)
+		{
+			Cam->SetCameraPivotForTest(FVector::ZeroVector);
+			for (int32 I = 0; I < 600; ++I) { Cam->AddPlanarMovement(Direzioni[D]); }
+			const FVector P = Cam->GetCameraPivot();
+			double Best = 1.0e9;
+			for (int32 IU = 0; IU <= 80; ++IU)
+			{
+				const double U = IU / 80.0;
+				const double Ahead = FMath::Lerp(static_cast<double>(Foot[3].X), static_cast<double>(Foot[0].X), U);
+				const double Half = FMath::Lerp(static_cast<double>(Foot[2].Y), static_cast<double>(Foot[1].Y), U);
+				for (int32 IV = -40; IV <= 40; ++IV)
+				{
+					const FVector2D Q = FVector2D(P.X, P.Y) + Fwd * Ahead + Rgt * (Half * IV / 40.0);
+					Best = FMath::Min(Best, CameraDistanceToHull(Hull, Q));
+				}
+			}
+			TestTrue(*FString::Printf(TEXT("yaw %.0f, direzione %d: dal pivot il quadro centrale tocca le celle (distanza %.1f)"), Yaw, D, Best),
+				Best < 8.0);
+		}
+	}
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

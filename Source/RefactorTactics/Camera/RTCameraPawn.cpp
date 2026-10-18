@@ -1083,8 +1083,10 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 	{
 		const FVector2D FrameHalf = ComputeFrameHalfExtents(SpringArm ? SpringArm->TargetArmLength : 0.f, CameraPitch,
 			ViewportHorizontalFov, ViewportAspectRatio, Camera ? Camera->AspectRatio : 16.f / 9.f);
+		const TArray<FVector2D> Footprint = ComputeFrameFootprint(SpringArm ? SpringArm->TargetArmLength : 0.f, CameraPitch,
+			ViewportHorizontalFov, ViewportAspectRatio, Camera ? Camera->AspectRatio : 16.f / 9.f, FootprintScreenFraction);
 		const TArray<FVector2D> Region = ComputeEffectivePivotPolygon(Effective, Hull, Margin, FrameHalf, CameraYaw,
-			AllowedOutsideFraction);
+			AllowedOutsideFraction, Footprint);
 		if (Region.Num() >= 3)
 		{
 			Clamped = ClampToConvexPolygon(Region, FVector2D(Desired.X, Desired.Y));
