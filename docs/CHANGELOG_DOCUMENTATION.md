@@ -8,7 +8,7 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-524, che completa D-523: tutti e quattro gli stili lineari, la retta di `HexLine`, portata in distanza esagonale, impatto e facing sull'ultimo passo, i lati non contano; gli attacchi lineari restano sulle sei direzioni |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-524, che completa D-523: tutti e quattro gli stili lineari, la retta di `HexLine`, portata in distanza esagonale, impatto e facing sull'ultimo passo, e i lati contano (`BlocksTraversal`), anche per le sei direzioni; gli attacchi lineari restano sulle sei direzioni |
 
 ---
 
