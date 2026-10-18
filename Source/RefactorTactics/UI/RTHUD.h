@@ -834,15 +834,20 @@ public:
 	 */
 	static constexpr const TCHAR* MatchEndRestartPrompt = TEXT("premi R per rigiocare");
 
-	/** `#3795`: quanto sopra il bordo basso del canvas sta la riga del passo del banco (pixel). */
-	static constexpr float LabStepBottomInsetPx = 200.f;
+	/**
+	 * `#3795`: il vuoto fra il bordo alto del dock e il fondo della riga del passo del banco, in UNITA' SLATE.
+	 * Il dock e' una fascia in unita' Slate (`RTHudLayout::Bands().Bottom`) e cresce con la scala dell'interfaccia: un
+	 * inset in pixel fissi finiva dentro il dock a 1440p e a 4K (review di #3822).
+	 */
+	static constexpr float LabStepAboveDockSlate = 16.f;
 
 	/**
 	 * `#3795` — dove va la seconda riga del banco Ability Lab («BANCO i/n · ...»), angolo alto-sinistro in pixel.
 	 *
-	 * In basso al centro e non sotto la banda: li' le etichette delle unita' (widget sopra il canvas, a ridosso del
-	 * centro dell'inquadratura del banco) la coprivano (PIE del 2026-10-15). Una funzione pura perche' la regola da
-	 * pinnare e' «non sotto la banda»: un test headless la interroga, e una riga rimessa nella fascia alta cade.
+	 * In basso al centro, SOPRA il dock, e non sotto la banda: li' le etichette delle unita' (widget sopra il canvas, a
+	 * ridosso del centro dell'inquadratura del banco) la coprivano (PIE del 2026-10-15). Il dock viene dalla fascia
+	 * bassa e dalla scala dell'interfaccia, le stesse che usa la scena. Una funzione pura perche' la regola da pinnare
+	 * e' «non nella fascia alta e non dentro il dock»: un test headless la interroga a piu' risoluzioni.
 	 */
 	static FVector2f ComposeLabStepLinePlacement(const FVector2f& Viewport, const FVector2f& TextSize);
 

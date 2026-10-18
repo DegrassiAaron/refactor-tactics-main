@@ -1,5 +1,6 @@
 #include "UI/RTHUD.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTHudLayout.h" // #3795: la fascia bassa e la scala, per posare la riga del banco sopra il dock
 #include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
@@ -1925,7 +1926,10 @@ ARTHUD::FRTMatchEndPanelPlacement ARTHUD::ComposeMatchEndPanelPlacement(const FV
 
 FVector2f ARTHUD::ComposeLabStepLinePlacement(const FVector2f& Viewport, const FVector2f& TextSize)
 {
-	return FVector2f((Viewport.X - TextSize.X) * 0.5f, Viewport.Y - LabStepBottomInsetPx - TextSize.Y);
+	const float UiScale = RTHudLayout::UiScaleFor(FIntPoint(FMath::RoundToInt(Viewport.X), FMath::RoundToInt(Viewport.Y)));
+	const float DockTop = Viewport.Y - RTHudLayout::Bands().Bottom * UiScale;
+	return FVector2f((Viewport.X - TextSize.X) * 0.5f,
+		DockTop - LabStepAboveDockSlate * UiScale - TextSize.Y);
 }
 
 FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)
