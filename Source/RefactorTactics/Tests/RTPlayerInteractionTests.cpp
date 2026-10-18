@@ -4489,6 +4489,16 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("il piano non cambia"), Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
 	TestTrue(TEXT("e la carica resta armata"), Charger->SelectedAbilityIndex == ChargeIdx);
 
+	// Lo stesso cliccando il PAVIMENTO dell'esagono del nemico, non la sua mesh: il raggio colpisce la mappa e non l'unita', e il
+	// click arriva a `HandleClickOnCell` invece che a `DispatchUnitClick`. E' il percorso che apriva il selettore: la tavola di
+	// `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva.
+	PC->SetInspectedUnitForTest(nullptr);
+	PC->HandleClickOnCellForTest(Primo->Cell);
+	TestTrue(TEXT("il pavimento del suo esagono lo ispeziona"), PC->GetInspectedUnit() == Primo);
+	TestFalse(TEXT("senza aprire il selettore del verso"), PC->IsDeclaringFacing());
+	TestTrue(TEXT("e il contesto non e' il verso"), PC->GetPointerContext() != ERTPointerContext::Facing);
+	TestTrue(TEXT("il piano non cambia"), Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
+
 	// Un click su un ALTRO nemico ripianifica: non e' un secondo click.
 	PC->DispatchUnitClickForTest(Secondo, Charger);
 	TestTrue(TEXT("un altro nemico: la carica si ripianifica su di lui"),
