@@ -357,13 +357,14 @@ public:
 	 *
 	 * ⚠️ **Contenuta nel rettangolo per costruzione**: la zona nuova non ammette un punto che il rettangolo
 	 * escludeva, e un angolo del rettangolo — lontano dalle celle su una mappa esagonale — non e' piu'
-	 * raggiungibile. Restituisce i vertici in senso antiorario, **vuoto** se l'intersezione si annulla: chi
-	 * chiama ripiega sul rettangolo.
+	 * raggiungibile. Restituisce i vertici in senso antiorario, **vuoto** se l'intersezione si annulla o se il
+	 * rettangolo non ha area (quadro piu' grande dell'area: li' il rettangolo inchioda il pivot, un poligono
+	 * degenere no): chi chiama ripiega sul rettangolo.
 	 */
 	static TArray<FVector2D> ComputeEffectivePivotPolygon(const FBox2D& EffectiveBox, const TArray<FVector2D>& Hull,
 		double Margin, const FVector2D& FrameHalfExtents, float YawDegrees, float AllowedOutsideFraction);
 
-	/** `#3798` — il punto del poligono convesso (antiorario) piu' vicino a `Point`; `Point` stesso se e' dentro. */
+	/** `#3798` — il punto del poligono convesso (antiorario) piu' vicino a `Point`; `Point` stesso se e' dentro. Un poligono senza area non contiene nulla. */
 	static FVector2D ClampToConvexPolygon(const TArray<FVector2D>& Polygon, const FVector2D& Point);
 
 	/**

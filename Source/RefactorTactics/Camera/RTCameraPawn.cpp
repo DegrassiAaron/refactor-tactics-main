@@ -177,7 +177,7 @@ void ARTCameraPawn::SetCameraPivot(const FVector& NewPivot)
 	// («a ogni scrittura di pivot quando un viewport esiste») e il codice no: le rinfrescavano solo `BeginPlay`,
 	// `ApplyViewSettings`, `ApplyArmLength`, lo zoom e la rotazione. In una PIE avviata da zero, col solo pan, a
 	// `BeginPlay` il viewport non c'e' ancora, l'aspetto restava 0 e il limite diventava quello per sole celle:
-	// il pivot usciva di 455-490 unita' in piu' (misurato il 2026-10-18, due PIE da zero). Costa due letture.
+	// il pivot usciva di 455-490 unita' in piu' (misurato il 2026-10-18, due PIE da zero). Costa poche letture del viewport e del giocatore, senza allocazioni.
 	RefreshViewportMetrics();
 	CameraPivot = ClampToSoftBounds(NewPivot);
 	ApplyPivot();
@@ -851,6 +851,15 @@ TArray<FVector2D> ARTCameraPawn::ComputeEffectivePivotPolygon(const FBox2D& Effe
 		return TArray<FVector2D>();
 	}
 
+	// 🔴 **Un rettangolo senza area non e' una zona** (code review di #3798). Quando l'inquadratura e' piu' grande
+	// dell'area — mappa piccola, zoom al massimo — `ComputeEffectivePivotBounds` lo collassa al centro, e un
+	// poligono di vertici coincidenti passerebbe ogni controllo «dentro» (il prodotto vettoriale e' zero): il pivot
+	// resterebbe SENZA limite, dove prima era inchiodato. Si ripiega sul rettangolo, che lo inchioda.
+	if (EffectiveBox.GetSize().X <= KINDA_SMALL_NUMBER || EffectiveBox.GetSize().Y <= KINDA_SMALL_NUMBER)
+	{
+		return TArray<FVector2D>();
+	}
+
 	TArray<FVector2D> Poly;
 	Poly.Add(FVector2D(EffectiveBox.Min.X, EffectiveBox.Min.Y));
 	Poly.Add(FVector2D(EffectiveBox.Max.X, EffectiveBox.Min.Y));
@@ -889,7 +898,16 @@ FVector2D ARTCameraPawn::ClampToConvexPolygon(const TArray<FVector2D>& Polygon, 
 	if (N == 0) { return Point; }
 	if (N == 1) { return Polygon[0]; }
 
-	bool bInside = (N >= 3);
+	// Un poligono senza area non contiene nulla: con vertici coincidenti ogni prodotto vettoriale e' zero, e
+	// «nessun lato ha il punto a destra» sarebbe vero per qualunque punto.
+	double Area2 = 0.0;
+	for (int32 I = 0; I < N; ++I)
+	{
+		const FVector2D& A = Polygon[I];
+		const FVector2D& B = Polygon[(I + 1) % N];
+		Area2 += A.X * B.Y - B.X * A.Y;
+	}
+	bool bInside = (N >= 3) && (Area2 > KINDA_SMALL_NUMBER);
 	FVector2D Best = Polygon[0];
 	double BestDist = TNumericLimits<double>::Max();
 	for (int32 I = 0; I < N; ++I)
@@ -997,7 +1015,7 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 	// quadro guardava il vuoto. Il pivot sta quindi anche dentro l'involucro convesso delle celle, spostato di
 	// `BoundsMarginCells` verso l'esterno e di una frazione del quadro verso l'interno, **per ogni lato**. La zona
 	// nuova e' contenuta nel rettangolo, quindi non allarga nulla: senza involucro (meno di tre celle distinte,
-	// tutte allineate) o se l'intersezione si annulla, resta il rettangolo di prima.
+	// tutte allineate), o se l'intersezione si annulla o non ha area, resta il rettangolo di prima.
 	const TArray<FVector2D> Hull = ComputeConvexHull(MoveTemp(CellCentres));
 	if (Hull.Num() >= 3)
 	{

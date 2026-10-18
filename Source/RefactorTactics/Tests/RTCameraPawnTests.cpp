@@ -3812,6 +3812,44 @@ bool FRTCameraPivotPolygonTest::RunTest(const FString&)
 			TestTrue(*FString::Printf(TEXT("yaw %.0f, lato %d: margine meno il 65%% del supporto"), Yaw, I),
 				FMath::Abs(FVector2D::DotProduct(Reached - Mid, Normal) - (Margin - 0.65 * Support)) < 0.75);
 		}
+
+		// Contenuta nel rettangolo ristretto anche col quadro e con yaw diversi da zero (code review di #3798).
+		int32 DentroConQuadro = 0;
+		for (double X = Box.Min.X - 300.0; X <= Box.Max.X + 300.0; X += 83.0)
+		{
+			for (double Y = Box.Min.Y - 300.0; Y <= Box.Max.Y + 300.0; Y += 83.0)
+			{
+				const FVector2D P(X, Y);
+				if (FVector2D::Distance(ARTCameraPawn::ClampToConvexPolygon(Inset, P), P) < 1e-9)
+				{
+					++DentroConQuadro;
+					TestTrue(*FString::Printf(TEXT("yaw %.0f: un punto della zona e' anche nel rettangolo ristretto"), Yaw),
+						P.X >= Rect.Min.X - 1e-6 && P.X <= Rect.Max.X + 1e-6 && P.Y >= Rect.Min.Y - 1e-6 && P.Y <= Rect.Max.Y + 1e-6);
+				}
+			}
+		}
+		TestTrue(TEXT("anti-vacuita': anche la zona col quadro contiene punti"), DentroConQuadro > 10);
+	}
+
+	// 🔴 Il quadro piu' grande dell'area (mappa piccola, zoom al massimo): il rettangolo collassa al centro e la
+	// zona NON deve diventare un poligono degenere che ammette ogni punto (code review di #3798).
+	{
+		const FBox2D Piccola(FVector2D(-300.0, -300.0), FVector2D(300.0, 300.0));
+		const FBox2D Collassato = ARTCameraPawn::ComputeEffectivePivotBounds(Piccola, 4000.f, -45.f, 0.f, 90.f, 1.675f, 0.35f);
+		TestTrue(TEXT("precondizione: il rettangolo e' collassato in un punto"),
+			FMath::IsNearlyEqual(Collassato.Min.X, Collassato.Max.X) && FMath::IsNearlyEqual(Collassato.Min.Y, Collassato.Max.Y));
+		const TArray<FVector2D> SmallHull = ARTCameraPawn::ComputeConvexHull(CameraHexCentres(1, HexSize));
+		// Quadro nullo di proposito: col quadro vero i semipiani si ritirano oltre il centro, la zona e' vuota
+		// per un'altra ragione, e la guardia sul rettangolo senza area non verrebbe mai esercitata.
+		TestEqual(TEXT("un rettangolo senza area non e' una zona: chi chiama ripiega sul rettangolo che lo inchioda"),
+			ARTCameraPawn::ComputeEffectivePivotPolygon(Collassato, SmallHull, Margin, NoFrame, 0.f, 0.35f).Num(), 0);
+
+		// E un poligono senza area non contiene nulla: restituisce il suo punto, non quello che gli si chiede.
+		TArray<FVector2D> Punto;
+		for (int32 I = 0; I < 4; ++I) { Punto.Add(FVector2D(10.0, 10.0)); }
+		const FVector2D Lontano(500.0, -500.0);
+		TestTrue(TEXT("un poligono di vertici coincidenti riporta il punto al vertice"),
+			ARTCameraPawn::ClampToConvexPolygon(Punto, Lontano).Equals(FVector2D(10.0, 10.0), 1e-6));
 	}
 
 	// Senza involucro (meno di tre vertici) la zona non esiste e chi chiama ripiega sul rettangolo.
