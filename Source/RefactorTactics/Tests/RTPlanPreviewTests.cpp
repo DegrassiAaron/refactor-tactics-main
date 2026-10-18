@@ -61,7 +61,11 @@ namespace
  * [D-516] (`#3736`, review) — **il fantasma di una carica col bersaglio oltre la portata si ferma alla portata**, e
  * da li' parte la fase dopo. Il segno d'arrivo dell'HUD sta gia' li'; senza questo la timeline lo metteva sul nemico.
  *
- * 🔑 Controllo nella stessa scena: senza `DashReachCells` il fantasma arriva sul bersaglio, com'era. Senza quella
+ * ⏱️ *Fino a [D-524] il troncamento lo faceva `DashReachCells`, un numero che il chiamante calcolava a parte.* Ora il
+ * fantasma legge la STESSA funzione del resolver (`ResolveLinearMove`) con lo stile e la portata del piano, e la corsa
+ * oltre la portata e' il suo esito `OutOfRange`: nessun numero da tenere allineato.
+ *
+ * 🔑 Controllo nella stessa scena: con la portata che arriva al bersaglio il fantasma ci arriva, com'era. Senza quella
  * meta' il test passerebbe anche se la timeline troncasse sempre.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewChargeBeyondRangeTest,
@@ -81,15 +85,17 @@ bool FRTPlanPreviewChargeBeyondRangeTest::RunTest(const FString&)
 	Plan.bDashResolves = true;
 	Plan.PlannedDashCell = FRTCellId(5, 0, 0);
 	Plan.DashActionId = TEXT("Action.Charge");
+	Plan.DashStyle = ERTMovementStyle::LinearCharge;
+	Plan.DashRange = 5; // la portata arriva al bersaglio
 
 	// ⚠️ L'anteprima in una variabile: `PhaseOf` restituisce un puntatore dentro di lei.
 	const FRTPlanPreview AnteprimaIntera = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
 	const FRTPhasePreviewEntry* Intera = PhaseOf(AnteprimaIntera, ERTResolutionPhase::FastMovement);
 	if (!TestNotNull(TEXT("controllo: la timeline porta la fase Dash"), Intera)) { return false; }
-	TestTrue(TEXT("controllo: senza portata dichiarata il fantasma arriva sul bersaglio"),
+	TestTrue(TEXT("controllo: con la portata che arriva il fantasma arriva sul bersaglio"),
 		Intera->PreviewDestination == FRTCellId(5, 0, 0));
 
-	Plan.DashReachCells = 3;
+	Plan.DashRange = 3; // il bersaglio e' a 5: oltre la portata
 	const FRTPlanPreview AnteprimaCorta = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
 	const FRTPhasePreviewEntry* Corta = PhaseOf(AnteprimaCorta, ERTResolutionPhase::FastMovement);
 	if (!TestNotNull(TEXT("la timeline porta la fase Dash"), Corta)) { return false; }
@@ -107,6 +113,173 @@ bool FRTPlanPreviewChargeBeyondRangeTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("col budget basso la timeline porta la fase Dash"), Lenta)) { return false; }
 	TestTrue(TEXT("e il fantasma si ferma alla portata anche se il movimento non arriverebbe al bersaglio"),
 		Lenta->PreviewDestination == FRTCellId(3, 0, 0));
+	return true;
+}
+
+/**
+ * [D-524] (#3793) — **il fantasma di uno scatto lineare percorre la retta che il resolver percorre**, non un percorso
+ * dell'A* sul grafo.
+ *
+ * Dentro la portata l'anteprima prendeva il percorso da `FindPathForUnit`, che sulle celle fuori asse ha piu' percorsi
+ * minimi e puo' scegliere un ultimo passo diverso da quello della risoluzione — e davanti a un ostacolo lo aggirava,
+ * mentre lo scatto si ferma.
+ *
+ * 🔑 Ogni caso e' scelto perche' l'A* e la retta DIVERGONO: con un muro su `(1,0)` l'A* va a `(1,1)` passando da
+ * `(0,1)`, la retta no. Su una piana libera i due coincidono e il test non direbbe niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewLinearDashLineTest,
+	"RefactorTactics.Preview.LinearDashGhostFollowsTheResolverLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewLinearDashLineTest::RunTest(const FString&)
+{
+	const FRTCellId Origine(0, 0, 0), Pareggio(1, 1, 0), ViaEst(1, 0, 0), ViaSudEst(0, 1, 0);
+
+	auto Anteprima = [&](URTHexMapAsset* Mappa, ERTMovementStyle Stile, const FRTCellId& Meta, bool bNemicoSullaMeta)
+	{
+		TArray<FRTHexSimUnit> Units;
+		FRTHexSimUnit Io(/*UnitId=*/ 0, Origine, /*MoveBudget=*/ 12);
+		Io.TeamId = 0;
+		Units.Add(Io);
+		if (bNemicoSullaMeta)
+		{
+			FRTHexSimUnit Nemico(/*UnitId=*/ 1, Meta, /*MoveBudget=*/ 0);
+			Nemico.TeamId = 1;
+			Units.Add(Nemico);
+		}
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Mappa, Units);
+
+		FRTPlanPreviewInput Plan;
+		Plan.UnitId = 0;
+		Plan.bDashPlanned = true;
+		Plan.bDashResolves = true;
+		Plan.PlannedDashCell = Meta;
+		Plan.DashStyle = Stile;
+		Plan.DashRange = 3;
+		return URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
+	};
+
+	// (1) Piana libera, fuori asse: la rotta e' HexLine, e il facing e' l'ultimo passo.
+	{
+		URTHexMapAsset* Libera = MakePlanPreviewMap(4);
+		const FRTPlanPreview P = Anteprima(Libera, ERTMovementStyle::LinearDash, FRTCellId(2, 1, 0), false);
+		const FRTPhasePreviewEntry* Dash = PhaseOf(P, ERTResolutionPhase::FastMovement);
+		if (!TestNotNull(TEXT("la timeline porta la fase Dash"), Dash)) { return false; }
+		TestTrue(TEXT("la rotta e' la retta di HexLine"),
+			Dash->PreviewPath == URTHexLibrary::HexLine(Origine, FRTCellId(2, 1, 0)));
+		TestTrue(TEXT("e il facing e' derivato dalla stessa rotta"),
+			Dash->Facing == URTFacingLibrary::FacingFromPath(Dash->PreviewPath, ERTHexDirection::NW));
+		// 🔑 Un valore INDIPENDENTE, non la stessa funzione applicata alla stessa rotta (review di #3810): la retta e'
+		// (0,0), (1,0), (1,1), (2,1), quindi l'ultimo passo e' (1,1) -> (2,1), cioe' `E`.
+		TestTrue(TEXT("e l'ultimo passo della retta, (1,1) -> (2,1): E"), Dash->Facing == ERTHexDirection::E);
+	}
+
+	// (2) Muro su (1,0), bersaglio (1,1): l'A* passerebbe da (0,1), la retta no. Il resolver non muove l'unita'.
+	{
+		URTHexMapAsset* MuroEst = MakePlanPreviewMap(4);
+		FRTHexCellData Muro(ViaEst);
+		Muro.bBlocksMovement = true;
+		MuroEst->AddOrUpdateCell(Muro);
+		MuroEst->SortCells();
+		const FRTPlanPreview P = Anteprima(MuroEst, ERTMovementStyle::LinearDash, Pareggio, false);
+		const FRTPhasePreviewEntry* Dash = PhaseOf(P, ERTResolutionPhase::FastMovement);
+		if (!TestNotNull(TEXT("la timeline porta comunque la fase Dash"), Dash)) { return false; }
+		TestTrue(TEXT("il fantasma non esce di casa: lo scatto non parte, non gira attorno al muro"),
+			Dash->PreviewDestination == Origine && Dash->PreviewPath.Num() < 2);
+		TestFalse(TEXT("in particolare non passa da (0,1), dove l'A* lo manderebbe"),
+			Dash->PreviewPath.Contains(ViaSudEst));
+	}
+
+	// (3) Muro su (0,1): la retta e' libera e passa da (1,0).
+	{
+		URTHexMapAsset* MuroSudEst = MakePlanPreviewMap(4);
+		FRTHexCellData Muro(ViaSudEst);
+		Muro.bBlocksMovement = true;
+		MuroSudEst->AddOrUpdateCell(Muro);
+		MuroSudEst->SortCells();
+		const FRTPlanPreview P = Anteprima(MuroSudEst, ERTMovementStyle::LinearDash, Pareggio, false);
+		const FRTPhasePreviewEntry* Dash = PhaseOf(P, ERTResolutionPhase::FastMovement);
+		if (!TestNotNull(TEXT("la timeline porta la fase Dash"), Dash)) { return false; }
+		TestTrue(TEXT("arriva su (1,1) passando da (1,0)"),
+			Dash->PreviewPath == TArray<FRTCellId>{ Origine, ViaEst, Pareggio });
+	}
+
+	// (4) Una carica su un nemico fuori asse: il fantasma si ferma ADIACENTE a lui, come il resolver.
+	{
+		URTHexMapAsset* Libera = MakePlanPreviewMap(4);
+		const FRTPlanPreview P = Anteprima(Libera, ERTMovementStyle::LinearCharge, Pareggio, /*bNemicoSullaMeta=*/ true);
+		const FRTPhasePreviewEntry* Dash = PhaseOf(P, ERTResolutionPhase::FastMovement);
+		if (!TestNotNull(TEXT("la timeline porta la fase Dash"), Dash)) { return false; }
+		TestTrue(TEXT("la carica si ferma in (1,0), davanti al nemico di (1,1)"), Dash->PreviewDestination == ViaEst);
+	}
+
+	// (5) Il salto: la rotta e' partenza e atterraggio, e il facing e' l'ultimo passo della retta, non il primo.
+	{
+		URTHexMapAsset* Libera = MakePlanPreviewMap(4);
+		const FRTPlanPreview P = Anteprima(Libera, ERTMovementStyle::LinearLeap, Pareggio, false);
+		const FRTPhasePreviewEntry* Dash = PhaseOf(P, ERTResolutionPhase::FastMovement);
+		if (!TestNotNull(TEXT("la timeline porta la fase Dash"), Dash)) { return false; }
+		TestTrue(TEXT("il salto atterra su (1,1)"), Dash->PreviewDestination == Pareggio);
+		ERTHexDirection Ultimo = ERTHexDirection::W;
+		verify(URTHexLibrary::DirectionBetween(ViaEst, Pareggio, Ultimo));
+		TestTrue(TEXT("e guarda l'ultimo passo della retta, (1,0) -> (1,1)"), Dash->Facing == Ultimo);
+	}
+	return true;
+}
+
+/**
+ * [D-524] (review di #3810) — **il verso verso il bersaglio e' il PRIMO passo, non l'ultimo.**
+ *
+ * Il resolver gira chi attacca con `URTHexLibrary::DirectionTowards(Unit->Cell, AimCell)` (`TargetingReoriented`, il
+ * Blast): il primo passo della retta. D-524 ha portato `FacingFromPath` sull'ULTIMO passo per i passi non adiacenti, e
+ * `FacingVerso` dell'anteprima la chiamava con `{origine, bersaglio}`: funzionava finche' il fallback era
+ * `DirectionTowards`, e con la regola nuova mostrava un verso che il resolver non produce. Le due domande sono diverse
+ * — *«con che passo arrivo»* e *«dove guardo»* — e sulle celle di pareggio hanno risposte diverse.
+ *
+ * 🔑 `(0,0) -> (1,1)` passa da `(1,0)`: il primo passo e' `E`, l'ultimo `SE`. Il test e' discriminante solo se i due
+ * differiscono, e lo dichiara come premessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewAimFacingIsTheFirstStepTest,
+	"RefactorTactics.Preview.AimFacingTowardsAnOffAxisTargetIsTheFirstStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewAimFacingIsTheFirstStepTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(0, 0, 0), Bersaglio(1, 1, 0);
+
+	ERTHexDirection Primo = ERTHexDirection::W;
+	ERTHexDirection Ultimo = ERTHexDirection::W;
+	const TArray<FRTCellId> Retta = URTHexLibrary::HexLine(Partenza, Bersaglio);
+	if (!TestTrue(TEXT("premessa: la retta ha un primo e un ultimo passo, e sono diversi"),
+		Retta.Num() == 3
+		&& URTHexLibrary::DirectionBetween(Retta[0], Retta[1], Primo)
+		&& URTHexLibrary::DirectionBetween(Retta[1], Retta[2], Ultimo)
+		&& Primo != Ultimo)) { return false; }
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 4));
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 1, Bersaglio, /*MoveBudget=*/ 0));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	TArray<FRTHexCombatUnit> CombatUnits;
+	CombatUnits.Add(MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Partenza));
+	CombatUnits.Add(MakePlanPreviewCombatUnit(1, /*TeamId=*/ 1, Bersaglio));
+
+	FRTPlanPreviewInput Plan;
+	Plan.UnitId = 0;
+	Plan.Blast.AttackerId = 0;
+	Plan.Blast.bHasAction = true;
+	Plan.Blast.Shape = ERTAbilityShape::Single;
+	Plan.Blast.RangeCells = 4;
+	Plan.Blast.TargetId = 1;
+	Plan.BlastActionId = TEXT("Action.Shoot");
+
+	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
+	const FRTPhasePreviewEntry* Colpo = PhaseOf(Preview, ERTResolutionPhase::Attack);
+	if (!TestNotNull(TEXT("la timeline porta il Blast"), Colpo)) { return false; }
+
+	TestTrue(TEXT("chi attacca guarda il PRIMO passo verso il bersaglio, come il resolver (`DirectionTowards`)"),
+		Colpo->Facing == Primo);
+	TestFalse(TEXT("e non l'ultimo, che e' il passo con cui si ARRIVA"), Colpo->Facing == Ultimo);
 	return true;
 }
 

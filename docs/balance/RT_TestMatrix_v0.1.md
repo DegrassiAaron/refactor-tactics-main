@@ -70,7 +70,7 @@ nello snapshot corrente · *incerto* = una cella potrebbe essere occupata o modi
 |---:|---|---|---|
 | 1 | Due unità entrano nella stessa cella | Entrambe si fermano | ✅ `HexMove.ContestedCellStopsBoth` + `PIE-HEXPLAY-5` |
 | 2 | `Move` attraversa terreno accidentato | Consuma 2 MP | ⏳ E8 |
-| 3 | `Dash` incontra una copertura alta | Si ferma o viene invalidato | ⏳ E9 (`PIE-V01-DASHCOVER`) |
+| 3 | `Dash` incontra una copertura alta | Si ferma o viene invalidato | ✅ si ferma sul bordo, con motivo proprio — `Actions.Dash.AnEdgeStopsDashChargeAndPassButNotTheLeap` e `HexMatch.ChargeIsStoppedByAnEdgeOnTheLine` ([D-524](../decisions/RT_PDR_00_Decision_Log.md), [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793)); vale anche per `Charge` e `Pass`, non per il `Leap` · 🟡 il giudizio a schermo è `PIE-V01-DASHCOVER` |
 | 4 | `Push` verso una cella occupata | Nessuno spostamento illegale | 🟡 spinta esagonale fatta (CP 6.5), `Action.Push` da fare in E4 |
 | 5 | Acqua colpita da elettricità | Propagazione deterministica | ⏳ E8 (`PIE-V01-ELEC`) |
 | 6 | Fuoco colpito da acqua | Fuoco rimosso | ⏳ E8 (`PIE-V01-FIREWATER`) |
@@ -87,7 +87,7 @@ nello snapshot corrente · *incerto* = una cella potrebbe essere occupata o modi
 |---|---|---|
 | `RefactorTactics.Actions.Move.PathBlocked` | percorso bloccato → `Fallback.Stop` | 🟡 esiste l'equivalente hex (`HexMove.RejectsUnreachableCell`) |
 | `RefactorTactics.Actions.Move.CellConflict` | destinazione contesa | ✅ `HexMove.ContestedCellStopsBoth` |
-| `RefactorTactics.Actions.Dash.BlockedArc` | dash contro arco bloccato | ⏳ E9 |
+| `RefactorTactics.Actions.Dash.BlockedArc` | dash contro arco bloccato | ✅ la cella che blocca; il bordo (copertura alta, porta) è in `Actions.Dash.AnEdgeStopsDashChargeAndPassButNotTheLeap` ([D-524](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `RefactorTactics.Actions.Push.InvalidDestination` | spinta verso destinazione illegale | ✅ `HexCombat.KnockbackStopsBeforeObstacle` |
 | `RefactorTactics.Environment.WaterElectricPropagation` | propagazione elettrica deterministica | ⏳ E8 |
 | `RefactorTactics.Environment.WaterExtinguishesFire` | acqua spegne il fuoco | ⏳ E8 |

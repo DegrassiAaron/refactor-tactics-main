@@ -162,6 +162,46 @@ bool FRTHudDashPreviewLinearTest::RunTest(const FString&)
 }
 
 /**
+ * [D-524] (#3793) — **l'anteprima di uno scatto lineare legge la funzione del movimento**, non una `HexLine` sua.
+ *
+ * Fino a [D-524] `ComposeDashPreview` chiamava `HexLine` direttamente: dava la stessa retta, ma era una seconda lettura
+ * della regola, e non conosceva il vincolo di PIANO che `IsStraightLine` ha sempre avuto — `HexLine` e' planare e
+ * ignora il layer di arrivo. Per una destinazione su un altro piano disegnava una retta sul piano di partenza che lo
+ * scatto non percorre mai.
+ *
+ * Il caso fuori asse e' sulla stessa funzione: la cella `(2,1)` non e' su una delle sei direzioni, e l'anteprima la
+ * disegna lungo la retta che il resolver percorre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudDashPreviewMovementLineTest,
+	"RefactorTactics.HUD.LinearDashPreviewReadsTheMovementLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudDashPreviewMovementLineTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Mappa = MakeDashTestMap();
+
+	// (1) Fuori asse, stesso piano: la traiettoria e' la retta del movimento.
+	FRTIntentView FuoriAsse;
+	FuoriAsse.bDashing = true;
+	FuoriAsse.OwnerCell = FRTCellId(0, 0, 0);
+	FuoriAsse.DashCell = FRTCellId(2, 1, 0);
+	FuoriAsse.DashStyle = ERTMovementStyle::LinearDash;
+
+	TArray<FRTCellId> Attesa;
+	if (!TestTrue(TEXT("premessa: il movimento ha una retta per (2,1)"),
+		URTMovementActionLibrary::MovementLine(FuoriAsse.OwnerCell, FuoriAsse.DashCell, Attesa))) { return false; }
+	const FRTDashPreview Scatto = ARTHUD::ComposeDashPreview(FuoriAsse, Mappa);
+	TestTrue(TEXT("l'anteprima disegna la retta del movimento"), Scatto.PathCells == Attesa);
+	TestTrue(TEXT("che arriva alla cella dello scatto"), Scatto.StopCell() == FRTCellId(2, 1, 0));
+
+	// (2) Un altro piano non e' in linea: nessuna retta, e quindi nessuna traiettoria da disegnare.
+	FRTIntentView AltroPiano = FuoriAsse;
+	AltroPiano.DashCell = FRTCellId(2, 1, 1);
+	const FRTDashPreview SenzaRetta = ARTHUD::ComposeDashPreview(AltroPiano, Mappa);
+	TestEqual(TEXT("verso un altro piano non c'e' una retta da disegnare"), SenzaRetta.PathCells.Num(), 0);
+	return true;
+}
+
+/**
  * Uno scatto **a budget** segue il grafo, cioè la stessa risposta che il movimento userà.
  *
  * ⚠️ Il confronto è con `FindPath`, non con un elenco scritto a mano: un'attesa cablata si romperebbe

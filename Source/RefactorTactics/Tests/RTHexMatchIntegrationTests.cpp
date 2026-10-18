@@ -7,6 +7,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h" // [D-524]: la copertura alta che ferma la carica sul bordo
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
@@ -566,6 +567,148 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	TestEqual(TEXT("e spinge il bersaglio di una cella"), Target->Cell.ToString(), FRTCellId(4, 0, 0).ToString());
 
 	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * [D-523] / [D-524] (`#3793`) — **una carica su un nemico fuori dalle sei direzioni si risolve**: e' la scena di
+ * `PIE-V01-CHARGECLICK` (4), Branth in `(-4,3)` e Muiren in `(-2,4)`, scarto `(+2,+1)`. La retta passa per `(-3,3)` e
+ * `(-3,4)`; chi carica si ferma in `(-3,4)`, davanti al bersaglio, e lo colpisce.
+ *
+ * L'impatto parte dalla cella d'arrivo ed e' sempre una delle sei direzioni: da `(-3,4)` a `(-2,4)` e' `E`, quindi la
+ * spinta porta il bersaglio in `(-1,4)`. Il facing di chi ha caricato e' invece l'ULTIMO PASSO PERCORSO, `(-3,3)` ->
+ * `(-3,4)`, cioe' `SE`: sono due direzioni diverse, e il test le tiene distinte apposta.
+ *
+ * Il piano lo scrive il test, come in `HexMatch.ChargeStopsOnEnemyAndHits`: la pianificazione e' di
+ * `PlayerInput.ChargeOnAnEnemyOffTheAxesFollowsTheFreeLine`. Il bersaglio e' Ivrin e non Muiren perche' qui si misura
+ * la geometria della carica, non il kit di chi la subisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeOffAxesTest,
+	"RefactorTactics.HexMatch.ChargeOnAnEnemyOffTheAxesRunsAndHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexChargeOffAxesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
+	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(-2, 4));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Target) { DestroyHexMatchWorld(World); return false; }
+	Charger->bIsBotControlled = false;
+	Target->bIsBotControlled = false;
+
+	int32 ChargeIdx = INDEX_NONE;
+	for (int32 i = 0; i < Charger->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Charger->GetAbility(i);
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+	}
+	int32 Distanza = 0;
+	if (!TestTrue(TEXT("premessa: Branth ha la carica, il bersaglio e' a distanza 3 e fuori dalle sei direzioni"),
+		ChargeIdx != INDEX_NONE && Charger->EffectiveDashRangeOf(ChargeIdx) >= 3
+		&& URTHexLibrary::HexDistance(Charger->Cell, Target->Cell) == 3
+		&& !URTMovementActionLibrary::IsStraightLine(Charger->Cell, Target->Cell, Distanza)))
+	{
+		DestroyHexMatchWorld(World); return false;
+	}
+
+	const int32 HealthBefore = Target->Health;
+	Charger->Facing = ERTHexDirection::NW; // un verso che la carica non produce: distingue «gira» da «resta com'e'»
+	Charger->PlannedDashAbility = ChargeIdx;
+	Charger->PlannedDashCell = Target->Cell;
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	TestEqual(TEXT("chi carica si ferma davanti al nemico, in (-3,4)"),
+		Charger->Cell.ToString(), FRTCellId(-3, 4, 0).ToString());
+	TestEqual(TEXT("l'impatto toglie 20 punti vita"), Target->Health, HealthBefore - 20);
+	TestEqual(TEXT("e spinge il bersaglio di una cella nella direzione dell'impatto: E, verso (-1,4)"),
+		Target->Cell.ToString(), FRTCellId(-1, 4, 0).ToString());
+	TestTrue(TEXT("il facing di chi ha caricato e' l'ultimo passo PERCORSO, (-3,3) -> (-3,4): SE"),
+		Charger->Facing == ERTHexDirection::SE);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * [D-524] (5) — **un bordo con copertura alta ferma la carica, e la traccia dice che e' il bordo.**
+ *
+ * Due mondi per una stessa regola: il bordo a META' della retta (la carica corre un passo e si ferma, senza urtare) e
+ * il bordo sul PRIMO passo (non si muove, e la voce `Fallback`/`Cancelled` porta `DashEdgeBlocked`, non
+ * `DashPathBlocked`). Chiude l'`IMPLEMENTATION DRIFT` di `RT_TestMatrix_v0.1.md` riga 3: fino a [D-524] gli scatti
+ * attraversavano una copertura alta, che camminata, vista e attacchi gia' rispettavano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeEdgeTest,
+	"RefactorTactics.HexMatch.ChargeIsStoppedByAnEdgeOnTheLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexChargeEdgeTest::RunTest(const FString&)
+{
+	for (const bool bSulPrimoPasso : { false, true })
+	{
+		UWorld* World = MakeHexMatchWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Charger || !Target || !Map) { DestroyHexMatchWorld(World); return false; }
+		Charger->bIsBotControlled = false;
+		Target->bIsBotControlled = false;
+
+		int32 ChargeIdx = INDEX_NONE;
+		for (int32 i = 0; i < Charger->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Charger->GetAbility(i);
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+		}
+		if (!TestTrue(TEXT("premessa: Branth ha la carica"), ChargeIdx != INDEX_NONE))
+		{
+			DestroyHexMatchWorld(World); return false;
+		}
+
+		// La copertura alta: sul bordo (0,0)-(1,0) se e' il primo passo, sul bordo (1,0)-(2,0) se e' a meta' retta.
+		const FRTCellId DaCella = bSulPrimoPasso ? FRTCellId(0, 0, 0) : FRTCellId(1, 0, 0);
+		const FRTCellId VersoCella = bSulPrimoPasso ? FRTCellId(1, 0, 0) : FRTCellId(2, 0, 0);
+		ERTHexDirection Lato = ERTHexDirection::E;
+		verify(URTHexLibrary::DirectionBetween(DaCella, VersoCella, Lato));
+		verify(URTHexCoverLibrary::AddCover(Map, DaCella, Lato, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+
+		const int32 HealthBefore = Target->Health;
+		const FRTCellId TargetCell = Target->Cell;
+		Charger->PlannedDashAbility = ChargeIdx;
+		Charger->PlannedDashCell = TargetCell;
+		RTWorldFixtures::PlayOneTurn(TM);
+
+		const TCHAR* Caso = bSulPrimoPasso ? TEXT("bordo sul primo passo") : TEXT("bordo a meta' retta");
+		TestEqual(*FString::Printf(TEXT("%s: nessun impatto, il bersaglio e' intatto"), Caso), Target->Health, HealthBefore);
+		TestEqual(*FString::Printf(TEXT("%s: e non si sposta"), Caso), Target->Cell.ToString(), TargetCell.ToString());
+		TestEqual(*FString::Printf(TEXT("%s: chi carica si ferma davanti al bordo"), Caso),
+			Charger->Cell.ToString(), (bSulPrimoPasso ? FRTCellId(0, 0, 0) : FRTCellId(1, 0, 0)).ToString());
+
+		int32 Annullate = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.Phase == ERTMatchPhase::Dash
+				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.ActionId == FName(TEXT("Hero.Branth.Ram")))
+			{
+				++Annullate;
+				TestEqual(*FString::Printf(TEXT("%s: il motivo e' il BORDO, non una cella"), Caso),
+					E.Amount, static_cast<int32>(ERTActionInvalidReason::DashEdgeBlocked));
+				TestTrue(*FString::Printf(TEXT("%s: e la riga lo dice in chiaro"), Caso),
+					URTTurnLogLibrary::DescribeEntry(E).Contains(TEXT("bordo")));
+			}
+		}
+		// A meta' retta la carica ha percorso un passo: e' un Move normale, nessun annullamento. Sul primo passo no.
+		TestEqual(*FString::Printf(TEXT("%s: una voce di annullamento solo se non si e' mossa"), Caso),
+			Annullate, bSulPrimoPasso ? 1 : 0);
+
+		DestroyHexMatchWorld(World);
+	}
 	return true;
 }
 

@@ -2154,6 +2154,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		// cambia quale grandezza si misura, non quanto se ne tollera. `MaxLegitimateStillTurns` non e'
 		// toccato, e la DoD di `#2556` chiede esattamente questo.
 		//
+		// ⏱️ *Rimisurato il 2026-10-18 ([D-524], #3793): 2 su 4, margine due — la superficie degli scatti e' cambiata, vedi `Bot.StallDefinitionsOnTheGeneratedTestArena`.*
 		// ⚠️ **Il margine resta ZERO — 4 su 4 — e `D-361` lo dichiara costo accettato, non risolto**: il
 		// prossimo ritocco ai pesi del bot puo' farlo passare rosso. La differenza e' che allora il rosso
 		// significherebbe qualcosa che si puo' leggere.

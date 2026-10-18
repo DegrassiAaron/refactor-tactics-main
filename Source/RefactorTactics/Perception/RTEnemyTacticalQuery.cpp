@@ -281,38 +281,46 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 		// Mobilita' lineare: la risolve `URTMovementActionLibrary`, non questa libreria. Reimplementare la
 		// linearita' sarebbe la seconda autorita' che l'invariante #1 vieta, ed e' la divergenza che #140 ha
 		// gia' chiuso una volta.
-		for (int32 DirIndex = 0; DirIndex < 6; ++DirIndex)
+		// ⚠️ **Ogni cella entro la portata, non le sei direzioni** ([D-524] (1)): per `Dash`, `Charge`, `Leap` e `Pass`
+		// "in linea" e' la retta libera fra i centri, quindi ogni cella dello stesso piano a distanza <= `Declared` e' una
+		// destinazione possibile. ⏱️ *Fino a [D-524] qui si enumeravano le sole sei direzioni*: a portata 3 diciotto
+		// destinazioni invece di trentasei, e una minaccia sottostimata — la stessa omissione che il commento sotto
+		// descrive per le distanze intermedie, su un altro asse.
+		//
+		// ⚠️ **Cio' che questa enumerazione NON modella: una carica verso un bersaglio OLTRE la portata** ([D-516]). Quella
+		// corre lungo il prefisso di `HexLine(Origine, bersaglio lontano)`, e su una retta fuori asse il prefisso non e'
+		// `HexLine(Origine, cella a distanza `Declared`)` — le celle attraversate possono differire anche quando quella
+		// d'arresto coincide. Non lo modellava nemmeno l'enumerazione sulle sei direzioni (un bersaglio lontano e' un
+		// nemico, non una cella dell'area), e nessun consumatore chiama oggi questa funzione: e' un limite dichiarato,
+		// non una regressione (review di #3810).
+		for (const FRTCellId& Target : URTHexLibrary::HexArea(Origin, Declared))
 		{
-			const ERTHexDirection Dir = static_cast<ERTHexDirection>(DirIndex);
-			const FIntPoint Step = URTHexLibrary::AxialDirection(Dir);
+			if (Target == Origin) { continue; }
 
 			// ⚠️ **Ogni distanza fino alla portata, non solo la massima.** La destinazione la sceglie chi si
 			// muove, e fermarsi a meta' e' una mossa legale. Prendere il solo estremo SOTTOSTIMEREBBE la
 			// minaccia: le celle attorno a un arrivo intermedio non sono un sottoinsieme di quelle attorno
 			// all'arrivo lontano, e un'anteprima che le omette promette una sicurezza che non c'e'.
 			// Lo scatto a budget non ha questo problema — `ReachableCells` gli restituisce gia' ogni arrivo.
-			for (int32 Steps = 1; Steps <= Declared; ++Steps)
+			// (La portata passata e' la distanza della cella: ogni cella dell'area e' una destinazione a se'.)
+			const FRTLinearMoveResult Move = URTMovementActionLibrary::ResolveLinearMove(
+				Map, Origin, Target, URTHexLibrary::HexDistance(Origin, Target), Action->Def.MovementStyle,
+				Occupancy, Hostiles);
+
+			// 🔑 `Action.Charge` — LATO A. L'impronta d'impatto e' minaccia IMMEDIATA: parte dalla cella
+			// corrente, non segue nessuno scatto, e risolve in `Dash`, cioe' PRIMA del Blast. Senza
+			// questo ramo la carica sparirebbe dall'anteprima: non e' un'azione di slot principale,
+			// quindi `AddMainSlotFootprint` non la vede.
+			if (Action->Def.MovementStyle == ERTMovementStyle::LinearCharge)
 			{
-				const FRTCellId Target(Origin.X + Step.X * Steps, Origin.Y + Step.Y * Steps, Origin.Layer);
-
-				const FRTLinearMoveResult Move = URTMovementActionLibrary::ResolveLinearMove(
-					Map, Origin, Target, Steps, Action->Def.MovementStyle, Occupancy, Hostiles);
-
-				// 🔑 `Action.Charge` — LATO A. L'impronta d'impatto e' minaccia IMMEDIATA: parte dalla cella
-				// corrente, non segue nessuno scatto, e risolve in `Dash`, cioe' PRIMA del Blast. Senza
-				// questo ramo la carica sparirebbe dall'anteprima: non e' un'azione di slot principale,
-				// quindi `AddMainSlotFootprint` non la vede.
-				if (Action->Def.MovementStyle == ERTMovementStyle::LinearCharge)
-				{
-					for (const FRTCellId& C : Move.Entered) { Immediate.Add(C); }
-				}
-
-				// 🔑 `Action.Charge` — LATO B, e vale per ogni mobilita' lineare: la cella d'ARRIVO e'
-				// un'origine post-scatto, perche' lo slot principale resta libero. `Final == Origin`
-				// significa che lo scatto non e' partito: non e' una situazione post-scatto, ed entrarci
-				// confonderebbe le due regioni.
-				if (Move.Final != Origin) { DashOrigins.Add(Move.Final); }
+				for (const FRTCellId& C : Move.Entered) { Immediate.Add(C); }
 			}
+
+			// 🔑 `Action.Charge` — LATO B, e vale per ogni mobilita' lineare: la cella d'ARRIVO e'
+			// un'origine post-scatto, perche' lo slot principale resta libero. `Final == Origin`
+			// significa che lo scatto non e' partito: non e' una situazione post-scatto, ed entrarci
+			// confonderebbe le due regioni.
+			if (Move.Final != Origin) { DashOrigins.Add(Move.Final); }
 		}
 	}
 

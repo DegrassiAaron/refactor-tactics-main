@@ -366,10 +366,14 @@ namespace
 				&& !(Unit->PlannedDashCell == Unit->Cell);
 			Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
-			Timeline.DashReachCells = Unit->PlannedChargeReachBeyondRange(); // [D-516]: il fantasma si ferma alla portata
 			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
 				Timeline.DashActionId = Scatto->Def.ActionId;
+				// [D-524]: il fantasma legge la STESSA retta del resolver, con lo stile e la portata che il resolver
+				// userebbe. Una carica oltre la portata si ferma dove la portata finisce ([D-516]): lo dice la funzione
+				// del movimento, non un conteggio a parte.
+				Timeline.DashStyle = Scatto->Def.MovementStyle;
+				Timeline.DashRange = Unit->EffectiveDashRangeOf(Unit->PlannedDashAbility);
 			}
 
 			Timeline.Blast = PreviewPlan;
@@ -2860,9 +2864,13 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 				switch (Linear.Stop)
 				{
 				case ERTLinearStop::NotAligned:
-					Perche = TEXT("non allineata o fuori portata"); break;
+					// ⌫ *Fino a [D-524] diceva «non allineata o fuori portata».* Ogni cella dello stesso piano ha una
+					// retta: restano la distanza e il piano.
+					Perche = TEXT("fuori portata o su un altro piano"); break;
 				case ERTLinearStop::TerrainDeniesDash:
 					Perche = TEXT("il terreno non si attraversa di corsa"); break;
+				case ERTLinearStop::BlockedByEdge:
+					Perche = TEXT("un bordo con copertura alta o una porta chiusa ferma la retta"); break;
 				case ERTLinearStop::Impact: // [D-516]: un impatto oltre la portata non pianifica, vedi sopra
 					Perche = TEXT("oltre la portata, e un nemico sulla retta la ferma prima"); break;
 				case ERTLinearStop::OutOfRange: // [D-516]: la corsa arriva in fondo, manca l'altra condizione
@@ -4991,24 +4999,32 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 			// 🔑 Lo stile del CATALOGO, come lo legge il resolver (`DashUsed->Def.MovementStyle`).
 			OutStyle = Scatto->Def.MovementStyle;
 			OutPath.Add(Unit->Cell);
-			// La rotta serve per l'ultimo passo. In linea la si cammina lungo una delle sei direzioni; a budget
-			// si prende il percorso piu' breve. Entrambe sono previsioni: il resolver rivalida sulla rotta vera.
+			// La rotta serve per l'ultimo passo. In linea e' quella che il resolver percorrera' — `ResolveLinearMove`,
+			// cioe' la retta di `MovementLine` fermata dove la fermerebbe —; a budget si prende il percorso piu'
+			// breve. Entrambe sono previsioni: il resolver rivalida sulla rotta vera.
+			//
+			// 🔑 **[D-524] Non basta la retta fino alla cella pianificata.** Una carica si ferma ADIACENTE al nemico, e
+			// una carica oltre la portata si ferma alla portata: l'ultimo passo PERCORSO e' quello, e su una retta fuori
+			// asse e' un passo diverso dall'ultimo della retta intera — sull'asse coincidono, per questo non si
+			// vedeva. ⏱️ *Fino a [D-524] la rotta si cercava camminando le sole sei direzioni, e su un bersaglio fuori
+			// asse restava la sola partenza: il controller proponeva versi che il resolver poi rifiutava.*
 			if (URTMovementActionLibrary::IsLinear(Scatto->Def.MovementStyle))
 			{
-				for (int32 D = 0; D < 6 && OutPath.Num() == 1; ++D)
+				FRTHexSnapshot Snapshot;
+				int32 UnitId = INDEX_NONE;
+				TArray<ARTUnit*> SnapshotUnits;
+				if (PlanningSnapshotFor(this, Unit, Snapshot, UnitId, &SnapshotUnits) && Snapshot.Map)
 				{
-					FRTCellId Passo = Unit->Cell;
-					TArray<FRTCellId> Linea;
-					for (int32 K = 0; K < 32; ++K)
+					TSet<int32> Hostiles;
+					for (int32 i = 0; i < SnapshotUnits.Num(); ++i)
 					{
-						Passo = URTHexLibrary::Neighbor(Passo, static_cast<ERTHexDirection>(D));
-						Linea.Add(Passo);
-						if (Passo == Unit->PlannedDashCell)
-						{
-							OutPath.Append(Linea);
-							break;
-						}
+						const ARTUnit* Other = SnapshotUnits[i];
+						if (Other && Other->IsAlive() && Other->TeamId != Unit->TeamId) { Hostiles.Add(i); }
 					}
+					const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(Snapshot.Map,
+						Unit->Cell, Unit->PlannedDashCell, Unit->EffectiveDashRangeOf(Unit->PlannedDashAbility),
+						Scatto->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+					OutPath.Append(Linear.Entered);
 				}
 			}
 			else

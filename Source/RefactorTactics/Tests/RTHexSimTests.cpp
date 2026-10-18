@@ -1422,14 +1422,23 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 		TestTrue(TEXT("motivo dichiarato: terreno"), R.Stop == ERTLinearStop::BlockedByTerrain);
 	}
 
-	// 3. Cella NON allineata a nessuna delle sei direzioni: rifiutata, anche se vicina e raggiungibile.
+	// 3. Cella fuori dalle sei direzioni: da [D-523]/[D-524] NON e' piu' un rifiuto. La retta e' quella di
+	//    `HexLine`, e qui `(1,0)` e' un muro: il pareggio di `(1,1)` passa proprio da li', quindi lo scatto non parte —
+	//    anche se `(0,1)` e' libera e il grafo ci arriverebbe. ⌫ *Fino a [D-524] questo caso asseriva `NotAligned`.*
 	{
 		const FRTCellId Offset(1, 1, 0);
-		TestTrue(TEXT("premessa: sul grafo la cella non allineata sarebbe raggiungibile"),
+		TestTrue(TEXT("premessa: sul grafo la cella fuori asse sarebbe raggiungibile"),
 			URTHexSimLibrary::FindPathForUnit(Snap, 7, Offset).Status == ERTHexPathStatus::Success);
 		const FRTLinearMoveResult R = Dash(Snap, Start, Offset, 3);
-		TestTrue(TEXT("cella non allineata -> nessuno scatto"), R.Final == Start);
-		TestTrue(TEXT("motivo dichiarato: non allineata"), R.Stop == ERTLinearStop::NotAligned);
+		TestTrue(TEXT("la retta passa dal muro di (1,0): nessuno scatto"), R.Final == Start);
+		TestTrue(TEXT("motivo dichiarato: il terreno, non un allineamento che non c'e' piu'"),
+			R.Stop == ERTLinearStop::BlockedByTerrain);
+
+		// Una cella fuori asse la cui retta e' libera si raggiunge.
+		const FRTCellId Libera(-1, -1, 0);
+		const FRTLinearMoveResult Arriva = Dash(Snap, Start, Libera, 3);
+		TestTrue(TEXT("una cella fuori asse con la retta libera: arriva"),
+			Arriva.Final == Libera && Arriva.Stop == ERTLinearStop::Completed);
 	}
 
 	// 4. Oltre la portata: rifiutato. La portata di una mobilita' LINEARE si misura in CELLE, non in punti

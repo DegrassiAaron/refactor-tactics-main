@@ -5033,9 +5033,10 @@ void ARTTurnManager::ResolveDash()
 		ERTLinearStop LinearStop = ERTLinearStop::Completed;
 		if (URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
 		{
-			// Mobilita' LINEARE (catalogo §2): una direzione fra le sei, e cio' che sta sulla traiettoria la
-			// ferma. Non e' il pathfinding del movimento normale — con quello un muro davanti non fermerebbe
-			// nulla, lo si girerebbe intorno, e `Dash.BlockedArc` non avrebbe nulla da verificare.
+			// Mobilita' LINEARE (catalogo §2): la retta libera fra i centri ([D-524], `MovementLine`), e cio' che sta
+			// sulla traiettoria — una cella, un'unita', un bordo che nega il passo — la ferma. Non e' il pathfinding
+			// del movimento normale — con quello un muro davanti non fermerebbe nulla, lo si girerebbe intorno, e
+			// `Dash.BlockedArc` non avrebbe nulla da verificare.
 			TSet<int32> Hostiles;
 			for (int32 u = 0; u < Units.Num(); ++u)
 			{
@@ -5148,6 +5149,10 @@ void ARTTurnManager::ResolveDash()
 				switch (LinearStop)
 				{
 				case ERTLinearStop::TerrainDeniesDash: Motivo = ERTActionInvalidReason::TerrainDeniesDash; break;
+				// [D-524] (5): il lato fra due celle libere nega il passo, e non e' un muro da andare a cercare.
+				case ERTLinearStop::BlockedByEdge:     Motivo = ERTActionInvalidReason::DashEdgeBlocked; break;
+				// ⚠️ Il nome e' rimasto ma non parla piu' di allineamento ([D-524]): senza retta (un altro piano), oltre la
+				// portata, o una carica oltre la portata che le condizioni di [D-516] non reggono.
 				case ERTLinearStop::NotAligned:        Motivo = ERTActionInvalidReason::DashNotAligned; break;
 				default:                               Motivo = ERTActionInvalidReason::DashPathBlocked; break;
 				}

@@ -444,10 +444,16 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// cose — che la via c'e', e che a piedi la si fa.
 	case ERTActionInvalidReason::TerrainDeniesDash:
 		return TEXT("il terreno sulla traiettoria non si attraversa di corsa");
+	// ⚠️ Il nome del motivo e' rimasto (viaggia come intero nel TurnLog) ma il testo no: da [D-524] l'allineamento
+	// non e' un vincolo, e dire «non allineata» manderebbe a cercare un asse che non serve. Restano due cause: un
+	// altro piano, o oltre la portata.
 	case ERTActionInvalidReason::DashNotAligned:
-		return TEXT("destinazione non allineata, o oltre la portata dello scatto");
+		return TEXT("destinazione su un altro piano, o oltre la portata dello scatto");
 	case ERTActionInvalidReason::DashPathBlocked:
 		return TEXT("traiettoria dello scatto interrotta");
+	// Nomina il BORDO e dice cosa lo e': la cella davanti e' libera, e senza il perche' il lettore la cercherebbe.
+	case ERTActionInvalidReason::DashEdgeBlocked:
+		return TEXT("un bordo con copertura alta o una porta chiusa ferma la corsa");
 	default:                                     return TEXT("non eseguibile");
 	}
 }

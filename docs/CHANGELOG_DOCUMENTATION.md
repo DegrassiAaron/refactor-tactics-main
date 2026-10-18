@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-18 — «In linea» per gli scatti è nel gioco: la retta libera fra i centri (D-523, D-524)
+
+**Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), l'attuazione di D-523 e D-524. Il codice applica ora la regola; le due note «finché #3793 non è su `main`» cadono.
+
+| Dove | Che cosa |
+|---|---|
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | §2: la nota diventa la regola attuata — la retta (`MovementLine`), la portata, i lati, impatto e facing, il cambio di bilanciamento con il suo effetto misurato sui bot, `DashNotAligned` aggiornato e non rinominato. §3 e §5 seguono |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1, riga del nemico rilevato con la carica armata: «non in linea» non è più un rifiuto; resta quando la retta è bloccata |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-523 e D-524 portano «attuata da #3793»; D-524 dichiara che `DashNotAligned` è stato aggiornato e non rinominato; il test di D-516 è citato col nome nuovo |
+| [`balance/RT_TestMatrix_v0.1.md`](balance/RT_TestMatrix_v0.1.md) | riga 3 chiusa: il bordo ferma lo scatto, con i due test che lo pinnano; resta il giudizio a schermo di `PIE-V01-DASHCOVER` |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-DASHCOVER` rigiudicata contro D-524 (la parte headless); `PIE-V01-CHARGECLICK` (4) riaperta con #3793 titolare, il marcatore «non rigiudicabile» cade |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `BOT-STALL-1`: il margine sull'arena generata rimisurato, 2 su limite 4 |
+| [`technical/runbooks/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) · `Scenarios/Visual/Input/ChargeClick.json` | Muiren è «fuori asse, sulla retta libera», non «fuori retta»; le note della scena seguono |
+
+---
+
 ## 2026-10-18 — «In linea» per gli scatti: le cinque domande di #3793 decise (D-524)
 
 **Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), che porta D-523 nel gioco. D-523 decideva *che cosa* è la linea e lasciava cinque domande; l'autore le ha decise in sessione con uno spec panel, dopo aver letto il codice. Nessun codice cambia: la regola resta quella delle sei direzioni finché #3793 non è su `main`.

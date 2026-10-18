@@ -7,7 +7,10 @@
 #include "Ability/RTHeroData.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Combat/RTOffensiveActionLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
@@ -40,6 +43,37 @@ namespace
 		Data.Surface = ERTHexSurface::Rough;
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
+	}
+
+	/** Una copertura sul bordo `Edge` di `Cell`: alta ferma il passo, bassa no. Nome distinto per file (unity build). */
+	void PutMoveActionCover(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge, ERTHexCoverType Type)
+	{
+		verify(URTHexCoverLibrary::AddCover(Map, Cell, Edge, Type, FRTHexCover::DefaultIntegrity(Type)));
+	}
+
+	/** Una porta sul bordo `Edge` di `Cell`, nello stato dato. */
+	void PutMoveActionDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge, ERTHexDoorState State)
+	{
+		FRTHexCellData Data = *Map->FindCell(Cell);
+		Data.Doors.Add(FRTHexDoor(Edge, State));
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/** La direzione da `From` al vicino `To`: serve a posare un bordo senza scrivere a mano la tabella delle sei. */
+	ERTHexDirection MoveActionEdgeToward(const FRTCellId& From, const FRTCellId& To)
+	{
+		ERTHexDirection Dir = ERTHexDirection::E;
+		verify(URTHexLibrary::DirectionBetween(From, To, Dir));
+		return Dir;
+	}
+
+	/** Le celle che il resolver attraversa, partenza esclusa: la retta di `HexLine` senza la prima cella. */
+	TArray<FRTCellId> MoveActionHexLineTail(const FRTCellId& From, const FRTCellId& To)
+	{
+		TArray<FRTCellId> Line = URTHexLibrary::HexLine(From, To);
+		Line.RemoveAt(0);
+		return Line;
 	}
 }
 
@@ -82,12 +116,15 @@ bool FRTDashBlockedArcTest::RunTest(const FString&)
 	TestTrue(TEXT("si ferma davanti all'unita'"), Crowded.Final == FRTCellId(1, 0));
 	TestTrue(TEXT("col motivo giusto"), Crowded.Stop == ERTLinearStop::BlockedByUnit);
 
-	// Lo scatto NON e' un percorso: una destinazione obliqua non e' su una delle sei direzioni e l'azione non
-	// parte, invece di cercarsi una strada.
+	// Lo scatto NON e' un percorso, e da [D-523]/[D-524] non e' nemmeno vincolato alle sei direzioni: una
+	// destinazione fuori asse entro la portata si raggiunge lungo la RETTA di `HexLine`, e un muro su quella
+	// retta la ferma come su un asse. ⌫ *Fino a [D-524] questa riga asseriva il rifiuto* (`NotAligned`).
 	const FRTLinearMoveResult Oblique = URTMovementActionLibrary::ResolveLinearMove(
 		Clear, FRTCellId(0, 0), FRTCellId(2, 1), 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
-	TestTrue(TEXT("destinazione non allineata: non si muove"), Oblique.Final == FRTCellId(0, 0));
-	TestTrue(TEXT("e lo dichiara"), Oblique.Stop == ERTLinearStop::NotAligned);
+	TestTrue(TEXT("destinazione fuori asse entro la portata: arriva"),
+		Oblique.Final == FRTCellId(2, 1) && Oblique.Stop == ERTLinearStop::Completed);
+	TestTrue(TEXT("lungo la retta di HexLine, non lungo un percorso a scelta"),
+		Oblique.Entered == MoveActionHexLineTail(FRTCellId(0, 0), FRTCellId(2, 1)));
 
 	// Oltre la portata dichiarata non si va, nemmeno in linea retta.
 	const FRTLinearMoveResult TooFar = URTMovementActionLibrary::ResolveLinearMove(
@@ -306,8 +343,27 @@ bool FRTLineOpenToTargetTest::RunTest(const FString&)
 	URTHexMapAsset* Aperta = MakeMoveActionMap();
 	TestTrue(TEXT("una retta libera di 5 celle e' aperta, senza portata da rispettare"),
 		URTMovementActionLibrary::IsLineOpenToTarget(Aperta, FRTCellId(0, 0), FRTCellId(5, 0)));
-	TestFalse(TEXT("una cella non allineata non ha una retta"),
+	// ⌫ *Fino a [D-524] una cella fuori asse «non aveva una retta».* Ora ce l'ha: ogni cella dello stesso piano sta
+	// su una retta fra i centri, e a chiuderla sono le celle e i lati. Restano senza retta la cella stessa e un altro piano.
+	TestTrue(TEXT("una cella fuori asse ha una retta, ed e' aperta"),
 		URTMovementActionLibrary::IsLineOpenToTarget(Aperta, FRTCellId(0, 0), FRTCellId(2, 1)));
+	TestFalse(TEXT("la cella stessa non ha una retta da percorrere"),
+		URTMovementActionLibrary::IsLineOpenToTarget(Aperta, FRTCellId(0, 0), FRTCellId(0, 0)));
+	TestFalse(TEXT("un altro piano non e' mai in linea"),
+		URTMovementActionLibrary::IsLineOpenToTarget(Aperta, FRTCellId(0, 0, 0), FRTCellId(2, 1, 1)));
+
+	// Un bordo con copertura alta CHE LA RETTA ATTRAVERSA la chiude, quanto un muro. La retta (0,0)->(2,1) e'
+	// (0,0), (1,0), (1,1), (2,1): il bordo (1,0)-(1,1) e' suo, il bordo (1,0)-(2,0) no.
+	URTHexMapAsset* BordoFuoriRetta = MakeMoveActionMap();
+	PutMoveActionCover(BordoFuoriRetta, FRTCellId(1, 0), MoveActionEdgeToward(FRTCellId(1, 0), FRTCellId(2, 0)),
+		ERTHexCoverType::High);
+	TestTrue(TEXT("controllo: un bordo alto che la retta non attraversa la lascia aperta"),
+		URTMovementActionLibrary::IsLineOpenToTarget(BordoFuoriRetta, FRTCellId(0, 0), FRTCellId(2, 1)));
+	URTHexMapAsset* BordoSullaRetta = MakeMoveActionMap();
+	PutMoveActionCover(BordoSullaRetta, FRTCellId(1, 0), MoveActionEdgeToward(FRTCellId(1, 0), FRTCellId(1, 1)),
+		ERTHexCoverType::High);
+	TestFalse(TEXT("un bordo alto fra (1,0) e (1,1), che la retta attraversa, la chiude"),
+		URTMovementActionLibrary::IsLineOpenToTarget(BordoSullaRetta, FRTCellId(0, 0), FRTCellId(2, 1)));
 
 	URTHexMapAsset* ConMuro = MakeMoveActionMap();
 	MakeWall(ConMuro, FRTCellId(4, 0));
@@ -611,6 +667,449 @@ bool FRTLinearPassTest::RunTest(const FString&)
 		static_cast<int32>(Walled.Stop), static_cast<int32>(ERTLinearStop::BlockedByTerrain));
 	TestEqual(TEXT("e conta solo chi ha attraversato PRIMA del muro"), Walled.PassedThroughUnitIds.Num(), 1);
 
+	return true;
+}
+
+// =====================================================================================================
+// [D-523] / [D-524] (#3793) — «in linea» e' la RETTA LIBERA fra i centri, non una delle sei direzioni.
+//
+// La retta e' la sequenza di celle di `URTHexLibrary::HexLine` con il suo spareggio intero; la portata e' la
+// distanza esagonale; la fermano le celle E i lati (`URTHexCoverLibrary::BlocksTraversal`) per `Dash`, `Charge`
+// e `Pass`, mentre il `Leap` guarda solo l'atterraggio. Gli attacchi lineari restano sulle sei direzioni.
+//
+// 🔑 **L'oracolo e' DOPPIO, e non per scrupolo.** Ogni test confronta il risultato con `HexLine` (cosi' una retta
+// riscritta a parte cade) E con celle scritte a mano ricavate da una copia indipendente dell'algoritmo (cosi' un
+// `HexLine` cambiato sotto i piedi cade anche lui, invece di trascinarsi dietro il test).
+// =====================================================================================================
+
+/**
+ * La scena di `PIE-V01-CHARGECLICK` (4): Branth in `(-4,3)`, Muiren in `(-2,4)`, scarto `(+2,+1)`, distanza 3.
+ * La retta passa per `(-3,3)` e `(-3,4)`: ESATTAMENTE le celle che l'autore ha indicato davanti alla tavola `U92-V5`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineOffAxisTest,
+	"RefactorTactics.Actions.Dash.OffAxisFollowsTheHexLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineOffAxisTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap();
+	const TMap<FRTCellId, int32> Empty;
+	const TSet<int32> NoHostiles;
+
+	const FRTCellId Branth(-4, 3), Muiren(-2, 4);
+	const TArray<FRTCellId> Attese = { FRTCellId(-3, 3), FRTCellId(-3, 4), FRTCellId(-2, 4) };
+
+	int32 Distanza = 0;
+	TestFalse(TEXT("premessa: lo scarto (+2,+1) NON e' su una delle sei direzioni"),
+		URTMovementActionLibrary::IsStraightLine(Branth, Muiren, Distanza));
+	TestEqual(TEXT("premessa: la distanza e' 3, quanto la portata di Hero.Branth.Ram"),
+		URTHexLibrary::HexDistance(Branth, Muiren), 3);
+	TestTrue(TEXT("premessa: la retta di HexLine e' quella dell'autore"),
+		MoveActionHexLineTail(Branth, Muiren) == Attese);
+
+	// Lo scatto arriva, lungo la retta.
+	const FRTLinearMoveResult Dash = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Branth, Muiren, /*MaxCells*/ 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("lo scatto arriva su Muiren"), Dash.Final == Muiren && Dash.Stop == ERTLinearStop::Completed);
+	TestTrue(TEXT("lungo (-3,3) e (-3,4)"), Dash.Entered == Attese);
+
+	// La carica: si ferma ADIACENTE al nemico e lo colpisce, e l'adiacente e' l'ultimo passo della retta.
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(Muiren, 4);
+	const TSet<int32> Hostiles = { 4 };
+	const FRTLinearMoveResult Charge = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Branth, Muiren, 3, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
+	TestTrue(TEXT("la carica urta Muiren"), Charge.Stop == ERTLinearStop::Impact && Charge.ImpactUnitId == 4);
+	TestTrue(TEXT("fermandosi in (-3,4), davanti a lui"), Charge.Final == FRTCellId(-3, 4));
+	TestTrue(TEXT("dopo (-3,3) e (-3,4)"), Charge.Entered == TArray<FRTCellId>{ FRTCellId(-3, 3), FRTCellId(-3, 4) });
+	TestFalse(TEXT("non e' un caso di oltre-portata"), Charge.bTargetBeyondRange);
+
+	// Il salto atterra su qualunque cella libera entro la portata, e non attraversa niente.
+	const FRTLinearMoveResult Leap = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Branth, Muiren, 3, ERTMovementStyle::LinearLeap, Empty, NoHostiles);
+	TestTrue(TEXT("il salto atterra su Muiren"), Leap.Final == Muiren && Leap.Stop == ERTLinearStop::Completed);
+	TestTrue(TEXT("senza attraversare le celle in mezzo"), Leap.Entered == TArray<FRTCellId>{ Muiren });
+
+	// La lama attraversa chi sta sulla retta: stesse celle, stessi attraversati.
+	TMap<FRTCellId, int32> Mezzo;
+	Mezzo.Add(FRTCellId(-3, 3), 5);
+	const FRTLinearMoveResult Pass = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Branth, Muiren, 3, ERTMovementStyle::LinearPass, Mezzo, TSet<int32>{ 5 });
+	TestTrue(TEXT("la lama arriva"), Pass.Final == Muiren && Pass.Stop == ERTLinearStop::Completed);
+	TestTrue(TEXT("e attraversa chi stava in (-3,3)"), Pass.PassedThroughUnitIds == TArray<int32>{ 5 });
+
+	// La portata e' la distanza esagonale: a 2 la stessa cella e' fuori, e lo scatto non parte.
+	const FRTLinearMoveResult Corta = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Branth, Muiren, 2, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("con portata 2 la cella a distanza 3 non si raggiunge"),
+		Corta.Final == Branth && Corta.Entered.Num() == 0);
+	return true;
+}
+
+/**
+ * Il PAREGGIO: `(0,0) -> (1,1)` cade esattamente fra due celle, e `HexLine` ne sceglie una con il suo spareggio
+ * intero. La scelta decide anche la VALIDITA': con un ostacolo su `(1,0)` la carica e' rifiutata anche se `(0,1)`
+ * e' libera, con l'ostacolo su `(0,1)` arriva da `(1,0)` e l'impatto parte da un'altra cella d'arrivo.
+ *
+ * ⚠️ **Il lato e' fisso nelle coordinate, non rispetto a chi si muove**, quindi non e' simmetrico per rotazione:
+ * lo dice il test sul ritorno `(1,1) -> (0,0)`, che ripercorre la stessa retta all'indietro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineTieBreakTest,
+	"RefactorTactics.Actions.Dash.TieBreakDecidesValidityInBothDirections",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineTieBreakTest::RunTest(const FString&)
+{
+	const FRTCellId Origine(0, 0), Pareggio(1, 1);
+	const FRTCellId ViaEst(1, 0), ViaSudEst(0, 1);
+	const TMap<FRTCellId, int32> Empty;
+	const TSet<int32> NoHostiles;
+
+	// Premessa: la scelta e' quella di HexLine, e il test e' discriminante solo se le DUE vie sono celle diverse.
+	const TArray<FRTCellId> Retta = URTHexLibrary::HexLine(Origine, Pareggio);
+	if (!TestEqual(TEXT("premessa: tre celle, la partenza e due passi"), Retta.Num(), 3)) { return false; }
+	TestTrue(TEXT("premessa: HexLine passa da (1,0), non da (0,1)"), Retta[1] == ViaEst);
+	TestFalse(TEXT("premessa: l'altra via esiste ed e' una cella diversa"), Retta[1] == ViaSudEst);
+
+	// (1) Libera: arriva da (1,0).
+	URTHexMapAsset* Libera = MakeMoveActionMap();
+	const FRTLinearMoveResult Arriva = URTMovementActionLibrary::ResolveLinearMove(
+		Libera, Origine, Pareggio, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("a mappa libera arriva su (1,1)"), Arriva.Final == Pareggio && Arriva.Stop == ERTLinearStop::Completed);
+	TestTrue(TEXT("passando da (1,0)"), Arriva.Entered == TArray<FRTCellId>{ ViaEst, Pareggio });
+
+	// (2) Ostacolo su (1,0): rifiutato, benche' (0,1) sia libera. ⛔ E' il verso che un'implementazione
+	// «sceglie la via libera» rovescerebbe, ed e' la differenza fra la retta e un percorso.
+	URTHexMapAsset* MuroEst = MakeMoveActionMap();
+	MakeWall(MuroEst, ViaEst);
+	const FRTLinearMoveResult Rifiutata = URTMovementActionLibrary::ResolveLinearMove(
+		MuroEst, Origine, Pareggio, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("con un muro su (1,0) lo scatto non parte"), Rifiutata.Final == Origine && Rifiutata.Entered.Num() == 0);
+	TestTrue(TEXT("perche' la retta passa da li'"), Rifiutata.Stop == ERTLinearStop::BlockedByTerrain);
+	TestFalse(TEXT("e la retta non e' aperta"), URTMovementActionLibrary::IsLineOpenToTarget(MuroEst, Origine, Pareggio));
+
+	// (3) Ostacolo su (0,1): arriva comunque, da (1,0).
+	URTHexMapAsset* MuroSudEst = MakeMoveActionMap();
+	MakeWall(MuroSudEst, ViaSudEst);
+	const FRTLinearMoveResult Indifferente = URTMovementActionLibrary::ResolveLinearMove(
+		MuroSudEst, Origine, Pareggio, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("con un muro su (0,1) lo scatto arriva"), Indifferente.Final == Pareggio);
+	TestTrue(TEXT("da (1,0)"), Indifferente.Entered == TArray<FRTCellId>{ ViaEst, Pareggio });
+	TestTrue(TEXT("e la retta e' aperta"), URTMovementActionLibrary::IsLineOpenToTarget(MuroSudEst, Origine, Pareggio));
+
+	// (4) La carica su un nemico in (1,1): senza ostacoli urta da (1,0); con un muro su (0,1) urta da (1,0); con un muro
+	// su (1,0) e' rifiutata e non urta nessuno.
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(Pareggio, 4);
+	const TSet<int32> Hostiles = { 4 };
+	const FRTLinearMoveResult UrtoLibero = URTMovementActionLibrary::ResolveLinearMove(
+		Libera, Origine, Pareggio, 3, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
+	TestTrue(TEXT("la carica urta partendo da (1,0)"),
+		UrtoLibero.Stop == ERTLinearStop::Impact && UrtoLibero.Final == ViaEst);
+	const FRTLinearMoveResult UrtoConMuroSudEst = URTMovementActionLibrary::ResolveLinearMove(
+		MuroSudEst, Origine, Pareggio, 3, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
+	TestTrue(TEXT("un muro su (0,1) non cambia da dove urta"),
+		UrtoConMuroSudEst.Stop == ERTLinearStop::Impact && UrtoConMuroSudEst.Final == ViaEst);
+	const FRTLinearMoveResult UrtoConMuroEst = URTMovementActionLibrary::ResolveLinearMove(
+		MuroEst, Origine, Pareggio, 3, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
+	TestTrue(TEXT("un muro su (1,0) la rifiuta"),
+		UrtoConMuroEst.Stop == ERTLinearStop::BlockedByTerrain && UrtoConMuroEst.ImpactUnitId == INDEX_NONE);
+
+	// (5) Andata e ritorno coincidono: (1,1) -> (0,0) ripercorre (1,0), non (0,1).
+	const FRTLinearMoveResult Ritorno = URTMovementActionLibrary::ResolveLinearMove(
+		Libera, Pareggio, Origine, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("il ritorno passa da (1,0)"), Ritorno.Entered == TArray<FRTCellId>{ ViaEst, Origine });
+
+	// (6) La scelta e' DETERMINISTICA: la stessa domanda ripetuta risponde uguale.
+	for (int32 Giro = 0; Giro < 8; ++Giro)
+	{
+		const FRTLinearMoveResult Ancora = URTMovementActionLibrary::ResolveLinearMove(
+			Libera, Origine, Pareggio, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+		TestTrue(TEXT("la scelta del pareggio non cambia fra due chiamate"), Ancora.Entered == Arriva.Entered);
+	}
+	return true;
+}
+
+/**
+ * Chi la segue: tutti e quattro gli stili, e ogni cella entro la portata e' raggiungibile a mappa libera.
+ *
+ * Le celle a distanza <= R passano da 6R (le sei direzioni) a 3R(R+1): a R = 3, da 18 a 36. Lo dice [D-524] (1)
+ * come cambio di bilanciamento DICHIARATO; il test lo fissa perche' non torni indietro in silenzio.
+ *
+ * E la direzione opposta: le sei direzioni sono un sottoinsieme ESATTO della retta, quindi ogni piano che era
+ * valido resta valido e fa lo stesso percorso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineEveryCellTest,
+	"RefactorTactics.Actions.Dash.EveryCellInRangeIsReachableOnAFreeMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineEveryCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap(/*Radius=*/ 6);
+	const TMap<FRTCellId, int32> Empty;
+	const TSet<int32> NoHostiles;
+	const FRTCellId Origine(0, 0);
+	constexpr int32 Portata = 3;
+
+	const ERTMovementStyle Stili[] = { ERTMovementStyle::LinearDash, ERTMovementStyle::LinearCharge,
+		ERTMovementStyle::LinearLeap, ERTMovementStyle::LinearPass };
+	for (const ERTMovementStyle Stile : Stili)
+	{
+		int32 Raggiungibili = 0;
+		int32 SulleSeiDirezioni = 0;
+		for (const FRTCellId& C : URTHexLibrary::HexArea(Origine, Portata))
+		{
+			if (C == Origine) { continue; }
+			const FRTLinearMoveResult R = URTMovementActionLibrary::ResolveLinearMove(
+				Map, Origine, C, Portata, Stile, Empty, NoHostiles);
+			if (!(R.Final == C && R.Stop == ERTLinearStop::Completed)) { continue; }
+			++Raggiungibili;
+
+			int32 Distanza = 0;
+			if (URTMovementActionLibrary::IsStraightLine(Origine, C, Distanza))
+			{
+				++SulleSeiDirezioni;
+				// Il percorso su un asse e' quello di sempre: Origine + k * passo.
+				TArray<FRTCellId> Passo;
+				const FIntPoint Delta(C.X - Origine.X, C.Y - Origine.Y);
+				for (int32 K = 1; K <= Distanza; ++K)
+				{
+					Passo.Add(FRTCellId(Delta.X / Distanza * K, Delta.Y / Distanza * K, 0));
+				}
+				if (Stile != ERTMovementStyle::LinearLeap)
+				{
+					TestTrue(TEXT("su un asse il percorso e' lo stesso di prima"), R.Entered == Passo);
+				}
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("stile %d: a portata 3 le celle raggiungibili sono 3R(R+1) = 36"),
+			static_cast<int32>(Stile)), Raggiungibili, 36);
+		TestEqual(*FString::Printf(TEXT("stile %d: di cui sulle sei direzioni, 6R(R+1)/2 = 18"),
+			static_cast<int32>(Stile)), SulleSeiDirezioni, 18);
+	}
+	return true;
+}
+
+/**
+ * Il BORDO: copertura alta o porta chiusa o bloccata fermano `Dash`, `Charge` e `Pass` — e non il `Leap`, che guarda
+ * solo l'atterraggio. Chiude un `IMPLEMENTATION DRIFT` rispetto a `RT_TestMatrix_v0.1.md` riga 3 anche per le sei
+ * direzioni, e il motivo dello stop e' PROPRIO (`BlockedByEdge`), distinto da `BlockedByTerrain`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineEdgeTest,
+	"RefactorTactics.Actions.Dash.AnEdgeStopsDashChargeAndPassButNotTheLeap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineEdgeTest::RunTest(const FString&)
+{
+	const FRTCellId Origine(0, 0), Primo(1, 0), Secondo(2, 0), Terzo(3, 0);
+	const ERTHexDirection Est = MoveActionEdgeToward(Primo, Secondo);
+	const TMap<FRTCellId, int32> Empty;
+	const TSet<int32> NoHostiles;
+	const ERTMovementStyle Fermati[] = { ERTMovementStyle::LinearDash, ERTMovementStyle::LinearCharge,
+		ERTMovementStyle::LinearPass };
+
+	// (1) Copertura ALTA sul bordo (1,0)-(2,0): ferma i tre stili dopo un passo, con il motivo del bordo.
+	URTHexMapAsset* Alta = MakeMoveActionMap();
+	PutMoveActionCover(Alta, Primo, Est, ERTHexCoverType::High);
+	for (const ERTMovementStyle Stile : Fermati)
+	{
+		const FRTLinearMoveResult R = URTMovementActionLibrary::ResolveLinearMove(
+			Alta, Origine, Terzo, 3, Stile, Empty, NoHostiles);
+		TestTrue(*FString::Printf(TEXT("stile %d: si ferma prima del bordo"), static_cast<int32>(Stile)),
+			R.Final == Primo && R.Entered.Num() == 1);
+		TestTrue(*FString::Printf(TEXT("stile %d: col motivo del BORDO, non della cella"), static_cast<int32>(Stile)),
+			R.Stop == ERTLinearStop::BlockedByEdge);
+	}
+	const FRTLinearMoveResult Salto = URTMovementActionLibrary::ResolveLinearMove(
+		Alta, Origine, Terzo, 3, ERTMovementStyle::LinearLeap, Empty, NoHostiles);
+	TestTrue(TEXT("il salto scavalca il bordo: guarda solo l'atterraggio"),
+		Salto.Final == Terzo && Salto.Stop == ERTLinearStop::Completed);
+	TestFalse(TEXT("la retta non e' aperta"), URTMovementActionLibrary::IsLineOpenToTarget(Alta, Origine, Terzo));
+
+	// (2) Il bordo sul PRIMO passo: lo scatto non muove di una cella, e dice perche'.
+	URTHexMapAsset* PrimoPasso = MakeMoveActionMap();
+	PutMoveActionCover(PrimoPasso, Origine, MoveActionEdgeToward(Origine, Primo), ERTHexCoverType::High);
+	const FRTLinearMoveResult Fermo = URTMovementActionLibrary::ResolveLinearMove(
+		PrimoPasso, Origine, Terzo, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("sul primo bordo non si muove"), Fermo.Final == Origine && Fermo.Entered.Num() == 0);
+	TestTrue(TEXT("e il motivo e' il bordo"), Fermo.Stop == ERTLinearStop::BlockedByEdge);
+
+	// (3) Il bordo dichiarato dalla sola faccia LONTANA ferma uguale: la barriera e' fisica.
+	URTHexMapAsset* FacciaLontana = MakeMoveActionMap();
+	PutMoveActionCover(FacciaLontana, Secondo, MoveActionEdgeToward(Secondo, Primo), ERTHexCoverType::High);
+	TestTrue(TEXT("la faccia di (2,0) verso (1,0) ferma come quella di (1,0)"),
+		URTMovementActionLibrary::ResolveLinearMove(FacciaLontana, Origine, Terzo, 3, ERTMovementStyle::LinearDash,
+			Empty, NoHostiles).Stop == ERTLinearStop::BlockedByEdge);
+
+	// (4) La copertura BASSA ripara chi ci sta dietro ma non chiude il passaggio.
+	URTHexMapAsset* Bassa = MakeMoveActionMap();
+	PutMoveActionCover(Bassa, Primo, Est, ERTHexCoverType::Low);
+	TestTrue(TEXT("la copertura bassa non ferma lo scatto"),
+		URTMovementActionLibrary::ResolveLinearMove(Bassa, Origine, Terzo, 3, ERTMovementStyle::LinearDash,
+			Empty, NoHostiles).Final == Terzo);
+
+	// (5) Porta: chiusa e bloccata fermano, aperta no.
+	const TPair<ERTHexDoorState, bool> Porte[] = {
+		{ ERTHexDoorState::Closed, true }, { ERTHexDoorState::Locked, true }, { ERTHexDoorState::Open, false } };
+	for (const TPair<ERTHexDoorState, bool>& Porta : Porte)
+	{
+		URTHexMapAsset* ConPorta = MakeMoveActionMap();
+		PutMoveActionDoor(ConPorta, Primo, Est, Porta.Key);
+		const FRTLinearMoveResult R = URTMovementActionLibrary::ResolveLinearMove(
+			ConPorta, Origine, Terzo, 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+		if (Porta.Value)
+		{
+			TestTrue(TEXT("una porta chiusa o bloccata ferma lo scatto sul bordo"),
+				R.Final == Primo && R.Stop == ERTLinearStop::BlockedByEdge);
+		}
+		else
+		{
+			TestTrue(TEXT("una porta aperta lascia passare"), R.Final == Terzo && R.Stop == ERTLinearStop::Completed);
+		}
+	}
+
+	// (6) Sulla retta FUORI ASSE: (0,0) -> (1,1) passa da (1,0), e il bordo (1,0)-(1,1) e' il secondo passo.
+	URTHexMapAsset* FuoriAsse = MakeMoveActionMap();
+	PutMoveActionCover(FuoriAsse, Primo, MoveActionEdgeToward(Primo, FRTCellId(1, 1)), ERTHexCoverType::High);
+	const FRTLinearMoveResult Obliqua = URTMovementActionLibrary::ResolveLinearMove(
+		FuoriAsse, Origine, FRTCellId(1, 1), 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("fuori asse il bordo sulla retta ferma dopo un passo"),
+		Obliqua.Final == Primo && Obliqua.Stop == ERTLinearStop::BlockedByEdge);
+
+	// (7) La carica verso un nemico DIETRO il bordo non lo urta: il bordo la ferma prima.
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(Terzo, 4);
+	const FRTLinearMoveResult Carica = URTMovementActionLibrary::ResolveLinearMove(
+		Alta, Origine, Terzo, 3, ERTMovementStyle::LinearCharge, Occupancy, TSet<int32>{ 4 });
+	TestTrue(TEXT("la carica si ferma sul bordo senza urtare nessuno"),
+		Carica.Stop == ERTLinearStop::BlockedByEdge && Carica.ImpactUnitId == INDEX_NONE);
+
+	// (8) Il bordo sull'ULTIMO passo, verso l'atterraggio, non riguarda il salto.
+	URTHexMapAsset* SuAtterraggio = MakeMoveActionMap();
+	PutMoveActionCover(SuAtterraggio, Secondo, MoveActionEdgeToward(Secondo, Terzo), ERTHexCoverType::High);
+	TestTrue(TEXT("il salto atterra anche dietro un bordo alto che il passo non passerebbe"),
+		URTMovementActionLibrary::ResolveLinearMove(SuAtterraggio, Origine, Terzo, 3, ERTMovementStyle::LinearLeap,
+			Empty, NoHostiles).Final == Terzo);
+	return true;
+}
+
+/**
+ * [D-516] (3)-(4) con la retta nuova: «la `HexLine` si costruisce fino al bersaglio e poi si tronca alla portata».
+ *
+ * 🔑 Il bersaglio `(3,1)` e' scelto perche' DISCRIMINA: la retta fino a lui passa da `(1,0)`, `(2,0)`, `(2,1)`, mentre
+ * la retta fino alla SUA terza cella `(2,1)` passa da `(1,0)`, `(1,1)`, `(2,1)`. Troncare dopo aver costruito la retta
+ * al bersaglio o costruirla fino al limite della portata danno percorsi diversi, e solo la prima e' la decisione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineTruncationTest,
+	"RefactorTactics.Actions.Charge.BeyondRangeTruncatesTheLineToTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineTruncationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap();
+	const TMap<FRTCellId, int32> Empty;
+	const TSet<int32> Hostiles = { 4 };
+	const FRTCellId Origine(0, 0), Bersaglio(3, 1);
+
+	const TArray<FRTCellId> FinoAlBersaglio = URTHexLibrary::HexLine(Origine, Bersaglio);
+	const TArray<FRTCellId> FinoAlLimite = URTHexLibrary::HexLine(Origine, FinoAlBersaglio[3]);
+	if (!TestEqual(TEXT("premessa: il bersaglio e' a distanza 4, oltre la portata 3"),
+		URTHexLibrary::HexDistance(Origine, Bersaglio), 4)) { return false; }
+	if (!TestFalse(TEXT("premessa: le due costruzioni danno percorsi DIVERSI, o il test non discrimina"),
+		FinoAlLimite[2] == FinoAlBersaglio[2])) { return false; }
+
+	const FRTLinearMoveResult R = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Origine, Bersaglio, /*MaxCells*/ 3, ERTMovementStyle::LinearCharge, Empty, Hostiles);
+	TestTrue(TEXT("la carica corre fino alla portata e si ferma"),
+		R.Stop == ERTLinearStop::OutOfRange && R.bTargetBeyondRange);
+	TestTrue(TEXT("lungo il prefisso della retta fino al BERSAGLIO: (1,0), (2,0), (2,1)"),
+		R.Entered == TArray<FRTCellId>{ FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(2, 1) });
+	const TArray<FRTCellId> Coda = MoveActionHexLineTail(Origine, Bersaglio);
+	TArray<FRTCellId> Prefisso;
+	for (int32 I = 0; I < 3; ++I) { Prefisso.Add(Coda[I]); }
+	TestTrue(TEXT("e' proprio il prefisso di HexLine, partenza esclusa"), R.Entered == Prefisso);
+	TestTrue(TEXT("fermandosi in (2,1)"), R.Final == FRTCellId(2, 1));
+
+	// Lo scatto, sulla stessa geometria, non parte: oltre la portata resta com'era.
+	TestTrue(TEXT("lo scatto oltre la portata non parte"),
+		URTMovementActionLibrary::ResolveLinearMove(Map, Origine, Bersaglio, 3, ERTMovementStyle::LinearDash,
+			Empty, Hostiles).Entered.Num() == 0);
+	return true;
+}
+
+/**
+ * [D-524] (1): «gli attacchi lineari restano sulle sei direzioni». `IsStraightLine` e' letta anche da
+ * `LineCells`, `ResolveLineAttack` e dalla soppressione, quindi NON si cambia sul posto: il movimento legge
+ * `MovementLine`, e le due divergono ESATTAMENTE sulle celle fuori asse.
+ *
+ * Il test mette fianco a fianco i due lettori sulla stessa cella `(2,1)`: il movimento arriva, l'attacco non parte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineAttacksStayTest,
+	"RefactorTactics.Actions.LineAttack.StaysOnTheSixDirectionsWhileMovementDoesNot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineAttacksStayTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeMoveActionMap();
+	const FRTCellId Origine(0, 0), FuoriAsse(2, 1), SuAsse(3, 0);
+	const TMap<FRTCellId, int32> Empty;
+
+	int32 Distanza = 0;
+	TestFalse(TEXT("IsStraightLine rifiuta ancora la cella fuori asse"),
+		URTMovementActionLibrary::IsStraightLine(Origine, FuoriAsse, Distanza));
+	TestTrue(TEXT("e accetta ancora quella su un asse"),
+		URTMovementActionLibrary::IsStraightLine(Origine, SuAsse, Distanza) && Distanza == 3);
+
+	// L'attacco lineare: fuori asse non parte, e non c'e' una linea di celle da colpire.
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(FuoriAsse, 4);
+	const TSet<int32> Hostiles = { 4 };
+	const FRTLineAttackResult Attacco = URTOffensiveActionLibrary::ResolveLineAttack(
+		Map, Origine, FuoriAsse, /*Range*/ 5, Occupancy, Hostiles);
+	TestTrue(TEXT("l'attacco lineare fuori asse non parte"), Attacco.Stop == ERTLineStop::NotAligned);
+	TestEqual(TEXT("e non colpisce nessuno"), Attacco.HitUnitId, static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("LineCells fuori asse e' vuota (la soppressione passa da qui)"),
+		URTOffensiveActionLibrary::LineCells(Map, Origine, FuoriAsse, 5).Num(), 0);
+
+	// Il movimento sulla STESSA cella: la carica urta.
+	const FRTLinearMoveResult Carica = URTMovementActionLibrary::ResolveLinearMove(
+		Map, Origine, FuoriAsse, 5, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
+	TestTrue(TEXT("la carica sulla stessa cella urta il nemico"),
+		Carica.Stop == ERTLinearStop::Impact && Carica.ImpactUnitId == 4);
+
+	// E su un asse i due lettori continuano a coincidere: stessa direzione, stesso primo bersaglio.
+	TMap<FRTCellId, int32> SuAsseOccupata;
+	SuAsseOccupata.Add(SuAsse, 5);
+	const FRTLineAttackResult AttaccoSuAsse = URTOffensiveActionLibrary::ResolveLineAttack(
+		Map, Origine, SuAsse, 5, SuAsseOccupata, TSet<int32>{ 5 });
+	TestTrue(TEXT("su un asse l'attacco colpisce come prima"),
+		AttaccoSuAsse.Stop == ERTLineStop::Hit && AttaccoSuAsse.HitUnitId == 5);
+	return true;
+}
+
+/**
+ * `MovementLine` e' la funzione che il movimento legge, e coincide con `HexLine` ESATTAMENTE dove il movimento puo'
+ * andare: stesso piano, cella diversa dalla partenza. Altrove risponde falso (e lascia la retta vuota).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineFunctionTest,
+	"RefactorTactics.Actions.Dash.MovementLineIsHexLineOnTheSamePlane",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineFunctionTest::RunTest(const FString&)
+{
+	const FRTCellId Origine(0, 0);
+	for (const FRTCellId& C : URTHexLibrary::HexArea(Origine, 4))
+	{
+		TArray<FRTCellId> Retta;
+		if (C == Origine)
+		{
+			TestFalse(TEXT("la cella stessa non ha una retta"), URTMovementActionLibrary::MovementLine(Origine, C, Retta));
+			TestEqual(TEXT("e la retta resta vuota"), Retta.Num(), 0);
+			continue;
+		}
+		const bool bHa = URTMovementActionLibrary::MovementLine(Origine, C, Retta);
+		TestTrue(TEXT("ogni altra cella dello stesso piano ha una retta"), bHa);
+		TestTrue(TEXT("che e' la retta di HexLine, estremi inclusi"), Retta == URTHexLibrary::HexLine(Origine, C));
+		TestEqual(TEXT("di distanza + 1 celle"), Retta.Num(), URTHexLibrary::HexDistance(Origine, C) + 1);
+	}
+
+	TArray<FRTCellId> AltroPiano;
+	TestFalse(TEXT("un altro piano non e' mai in linea: il vincolo di layer di IsStraightLine resta"),
+		URTMovementActionLibrary::MovementLine(FRTCellId(0, 0, 0), FRTCellId(2, 1, 1), AltroPiano));
+	TestEqual(TEXT("e la retta resta vuota"), AltroPiano.Num(), 0);
 	return true;
 }
 

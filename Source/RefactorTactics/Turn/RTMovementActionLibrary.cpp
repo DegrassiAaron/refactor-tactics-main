@@ -1,5 +1,6 @@
 #include "Turn/RTMovementActionLibrary.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Terrain/RTTerrainLibrary.h"
@@ -86,6 +87,21 @@ bool URTMovementActionLibrary::IsStraightLine(const FRTCellId& From, const FRTCe
 	return false;
 }
 
+bool URTMovementActionLibrary::MovementLine(const FRTCellId& From, const FRTCellId& To, TArray<FRTCellId>& OutLine)
+{
+	OutLine.Reset();
+	if (From.Layer != To.Layer || From == To)
+	{
+		return false; // le mobilita' lineari restano sul proprio piano; il salto di layer e' E9 (rampe/ponti)
+	}
+
+	// [D-524] (2): la retta e' quella di `HexLine`, la stessa di vista, forme e cono, col suo spareggio intero. Qui
+	// non c'e' un'altra geometria e non c'e' uno spareggio proprio: `HexLine` e' planare, e il vincolo di piano sopra
+	// e' l'unica cosa che questa funzione aggiunge — la stessa che `IsStraightLine` ha sempre avuto.
+	OutLine = URTHexLibrary::HexLine(From, To);
+	return OutLine.Num() >= 2;
+}
+
 FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapAsset* Map,
 	const FRTCellId& From, const FRTCellId& Target, int32 MaxCells, ERTMovementStyle Style,
 	const TMap<FRTCellId, int32>& Occupancy, const TSet<int32>& Hostiles)
@@ -95,15 +111,18 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 	Result.Stop = ERTLinearStop::NotAligned;
 
 	// FAIL-CLOSED: senza mappa autorevole non si sa cosa ci sia davanti, quindi non ci si muove.
-	int32 Distance = 0;
-	if (Map == nullptr || MaxCells <= 0 || !IsStraightLine(From, Target, Distance))
+	TArray<FRTCellId> Line;
+	if (Map == nullptr || MaxCells <= 0 || !MovementLine(From, Target, Line))
 	{
 		return Result;
 	}
+	const int32 Distance = Line.Num() - 1; // [D-524] (3): la portata e' la distanza esagonale, i passi di `HexLine`
 
 	// 🔑 **[D-516] Una CARICA su un bersaglio oltre la portata non si annulla: corre per tutta la portata.** Ogni
-	// altro stile resta com'era — oltre la portata non parte. La direzione resta quella del bersaglio, e gli
-	// ostacoli entro la portata la fermano come sempre: un nemico incontrato e' un impatto.
+	// altro stile resta com'era — oltre la portata non parte. La retta si costruisce FINO AL BERSAGLIO e poi si
+	// tronca alla portata ([D-524] (3)): il prefisso di `HexLine(From, Target)` non e' `HexLine(From, <cella a
+	// distanza MaxCells>)`, e il bersaglio e' cio' che la carica ha scelto. Gli ostacoli entro la portata la fermano
+	// come sempre: un nemico incontrato e' un impatto.
 	const bool bChargeBeyondRange = Distance > MaxCells && Style == ERTMovementStyle::LinearCharge;
 	if (Distance > MaxCells && !bChargeBeyondRange)
 	{
@@ -111,9 +130,6 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 	}
 	const int32 Steps = bChargeBeyondRange ? MaxCells : Distance;
 	Result.bTargetBeyondRange = bChargeBeyondRange;
-
-	const FIntPoint Step(Target.X - From.X, Target.Y - From.Y);
-	const FIntPoint UnitStep(Step.X / Distance, Step.Y / Distance);
 
 	// Il salto guarda solo dove atterra: le celle in mezzo non lo riguardano (unita', coperture basse), ma la
 	// cella d'arrivo si' — la si "subisce", quindi dev'essere percorribile e libera.
@@ -139,7 +155,18 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 	FRTCellId Current = From;
 	for (int32 K = 1; K <= Steps; ++K)
 	{
-		const FRTCellId Next(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
+		const FRTCellId& Next = Line[K];
+
+		// 🔑 **[D-524] (5) Il BORDO prima della cella**: da `Current` a `Next` si attraversa il lato che le divide, e
+		// solo dopo si entra nella cella. Copertura alta e porta chiusa o bloccata lo negano, e
+		// `URTHexCoverLibrary::BlocksTraversal` e' l'unica funzione che vista, grafo e combat interrogano per
+		// dirlo. Gli scatti erano l'eccezione (`IMPLEMENTATION DRIFT`, `RT_TestMatrix_v0.1.md` riga 3). Le due
+		// celle sono consecutive su `HexLine`, quindi adiacenti e sullo stesso piano. Il salto non passa di qui.
+		if (URTHexCoverLibrary::BlocksTraversal(Map, Current, Next))
+		{
+			Result.Stop = ERTLinearStop::BlockedByEdge;
+			break;
+		}
 
 		if (!IsTraversableByStep(Map, Next))
 		{
@@ -192,16 +219,16 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 bool URTMovementActionLibrary::IsLineOpenToTarget(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& Target)
 {
-	int32 Distance = 0;
-	if (!IsStraightLine(From, Target, Distance))
+	TArray<FRTCellId> Line;
+	if (!MovementLine(From, Target, Line))
 	{
-		return false; // anche `From == Target`: non c'e' una retta da percorrere
+		return false; // anche `From == Target`, e un altro piano: non c'e' una retta da percorrere
 	}
-	// `IsLinearReachable` con uno stile a passi, la portata pari alla distanza e nessuno sulla strada: conta solo il
-	// terreno. Un predicato solo sulla stessa chiamata, non un secondo (review della PR #3767).
+	// `IsLinearReachable` con uno stile a passi, la portata pari alla distanza e nessuno sulla strada: contano solo
+	// il terreno e i lati ([D-524] (5)). Un predicato solo sulla stessa chiamata, non un secondo (review della PR #3767).
 	const TMap<FRTCellId, int32> Nessuno;
 	const TSet<int32> NessunNemico;
-	return IsLinearReachable(Map, From, Target, Distance, ERTMovementStyle::LinearDash, Nessuno, NessunNemico);
+	return IsLinearReachable(Map, From, Target, Line.Num() - 1, ERTMovementStyle::LinearDash, Nessuno, NessunNemico);
 }
 
 bool URTMovementActionLibrary::IsLinearReachable(const URTHexMapAsset* Map, const FRTCellId& From,
