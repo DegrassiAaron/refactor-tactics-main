@@ -2915,4 +2915,80 @@ bool FRTUndoButtonWithdrawsReadyTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-528] (`#3769`) — **un piano oltre la portata con un altro nemico noto in mezzo risolve e COLPISCE quello in mezzo.**
+ *
+ * Il controller, da [D-528], pianifica la carica su B anche se A, entro la portata, sta sulla retta. Il resolver non cambia: la
+ * corsa verso B incontra A e si ferma accanto a lui con un impatto ([D-296]); il caso non e' `OutOfRange`, quindi la rivalidazione
+ * di [D-516] non lo annulla e la traccia non scrive un ripiego «fuori portata». Questo test lo pinna, perche' il piano che il
+ * giocatore vede (anteprima ferma davanti ad A, avviso «colpira' A, non B») e' vero solo se la risoluzione fa cosi'.
+ *
+ * Il controllo positivo e' `HexMatch.ChargeBeyondRangeRunsToRangeAndStops`: stessa geometria senza A, e la carica corre per
+ * tutta la portata senza colpire nessuno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeBeyondRangeInTheWayTest,
+	"RefactorTactics.HexMatch.ChargeBeyondRangeWithAnEnemyInTheWayHitsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexChargeBeyondRangeInTheWayTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 7);
+
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger) { DestroyHexMatchWorld(World); return false; }
+	Charger->bIsBotControlled = false;
+
+	int32 ChargeIdx = INDEX_NONE;
+	for (int32 i = 0; i < Charger->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Charger->GetAbility(i);
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+	}
+	const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
+	if (!TestTrue(TEXT("premessa: Branth ha la carica, con una portata che contiene A e lascia B oltre"),
+		ChargeIdx != INDEX_NONE && Portata >= 2 && Portata + 2 <= 6))
+	{
+		DestroyHexMatchWorld(World); return false;
+	}
+
+	ARTUnit* InMezzo = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(Portata + 2, 0));
+	if (!InMezzo || !Bersaglio) { DestroyHexMatchWorld(World); return false; }
+	InMezzo->bIsBotControlled = false;
+	Bersaglio->bIsBotControlled = false;
+
+	const int32 VitaInMezzo = InMezzo->Health;
+	const int32 VitaBersaglio = Bersaglio->Health;
+	const FRTCellId CellaBersaglio = Bersaglio->Cell;
+	Charger->PlannedDashAbility = ChargeIdx;
+	Charger->PlannedDashCell = CellaBersaglio; // come lo scrive il click, da [D-528]
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	TestEqual(TEXT("chi carica si ferma accanto a quello in mezzo"), Charger->Cell.ToString(), FRTCellId(1, 0, 0).ToString());
+	TestTrue(TEXT("e lo colpisce"), InMezzo->Health < VitaInMezzo);
+	TestEqual(TEXT("il bersaglio scelto non e' toccato"), Bersaglio->Health, VitaBersaglio);
+	TestEqual(TEXT("ne' spostato"), Bersaglio->Cell.ToString(), CellaBersaglio.ToString());
+
+	int32 Annullate = 0;
+	int32 FuoriPortata = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Fallback || E.Phase != ERTMatchPhase::Dash
+			|| E.ActionId != FName(TEXT("Hero.Branth.Ram")))
+		{
+			continue;
+		}
+		if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)) { ++Annullate; }
+		if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Stopped)
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)) { ++FuoriPortata; }
+	}
+	TestEqual(TEXT("nessun annullamento: la rivalidazione di D-516 riguarda la corsa che arriva in fondo"), Annullate, 0);
+	TestEqual(TEXT("e nessun ripiego «fuori portata»: la corsa e' stata fermata da un impatto"), FuoriPortata, 0);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
