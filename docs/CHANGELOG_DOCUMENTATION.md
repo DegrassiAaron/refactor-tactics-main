@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-18 — `D-528` e `D-529`: l'autore decide il nemico noto in mezzo alla carica e la retta fra i piani
+
+**Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769) e [#3764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3764). Decisioni d'autore prese in sessione dopo uno spec panel sui criteri delle due issue; l'attuazione è delle issue, e nessuna è stata eseguita.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-528` (emenda `D-516` (3)) e `D-529`, con le domande come l'autore le ha viste; nota sul numero preso su misura |
+| [`gameplay/spec-dash.md`](gameplay/spec-dash.md) | §5 e §8: i due rimandi «deciso, non attuato» |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | §5.1, riga della carica armata: il rimando a `D-528` |
+
+---
+
 ## 2026-10-18 — `PIE-V01-DASHCOVER` e `PIE-V01-CHARGECLICK` ✅: l'autore ha visto le tavole `V9` e `V8`
 
 **Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793). I due giudizi a schermo erano dell'autore: «V9 ok» e «V8 ok».
