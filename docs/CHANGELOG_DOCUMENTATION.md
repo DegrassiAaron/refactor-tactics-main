@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-18 — «In linea» per gli scatti: le cinque domande di #3793 decise (D-524)
+
+**Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), che porta D-523 nel gioco. D-523 decideva *che cosa* è la linea e lasciava cinque domande; l'autore le ha decise in sessione con uno spec panel, dopo aver letto il codice. Nessun codice cambia: la regola resta quella delle sei direzioni finché #3793 non è su `main`.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | D-524, che completa D-523: tutti e quattro gli stili lineari, la retta di `HexLine`, portata in distanza esagonale, impatto e facing sull'ultimo passo, e i lati contano (`BlocksTraversal`), anche per le sei direzioni; gli attacchi lineari restano sulle sei direzioni |
+
+---
+
 ## 2026-10-15 — Home ed edge pan giudicati sulle tavole; il passo del banco rifatto, e la sua seconda riga va spostata
 
 **Origine**: le sedute `U91` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) e `U93` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)), condotte da script dal clone principale e giudicate dall'autore sulle tavole; `PIE-LAB-PASSO` rifatta sul codice di oggi, dopo i rilievi della review di [#3781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3781).
