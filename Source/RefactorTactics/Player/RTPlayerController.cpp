@@ -2282,6 +2282,24 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	}
 }
 
+const ARTUnit* ARTPlayerController::PlannedChargeTargetAt(const ARTUnit* Unit, const FRTCellId& Cell) const
+{
+	if (!Unit || !Unit->PlannedDashMoves() || !Unit->PlannedDashIsCharge() || !(Cell == Unit->PlannedDashCell))
+	{
+		return nullptr;
+	}
+	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+	{
+		const ARTUnit* Nemico = *It;
+		// Lo stesso predicato dell'hover e del click: noto al velo, vivo, di un'altra squadra ([D-225]).
+		if (Nemico && Nemico->IsAlive() && Nemico->Cell == Cell && Nemico->TeamId != Unit->TeamId && Nemico->IsKnownToObserver())
+		{
+			return Nemico;
+		}
+	}
+	return nullptr;
+}
+
 bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTUnit* Other) const
 {
 	if (!Selected || !Other)
@@ -2829,18 +2847,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
 	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
 	// selettore aperto il click e' una direzione.
-	if (Context != ERTPointerContext::Facing && SelectedUnit->PlannedDashMoves() && SelectedUnit->PlannedDashIsCharge()
-		&& Cell == SelectedUnit->PlannedDashCell)
+	if (Context != ERTPointerContext::Facing)
 	{
-		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
 		{
-			ARTUnit* Nemico = *It;
-			if (Nemico && Nemico->IsAlive() && Nemico->Cell == Cell && Nemico->TeamId != SelectedUnit->TeamId
-				&& Nemico->IsKnownToObserver())
-			{
-				InspectedUnit = Nemico;
-				return;
-			}
+			InspectedUnit = const_cast<ARTUnit*>(Puntato);
+			return;
 		}
 	}
 
@@ -5205,6 +5217,11 @@ bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
 	{
 		return false;
 	}
+	// [D-528] (3): la cella finale di una carica e' quella del nemico che punta, e li' il click ispeziona.
+	if (PlannedChargeTargetAt(Unit, ClickedCell))
+	{
+		return false;
+	}
 	// Un bersaglio da scegliere ha la precedenza: il click e' suo.
 	if (GetPointerContext() == ERTPointerContext::Targeting && GetPointerTargetKind() != ERTPointerTargetKind::None)
 	{
@@ -5273,6 +5290,13 @@ bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
 	if (bDaFermo && !bSelettoreAperto)
 	{
 		return false; // da fermo il primo click apre il selettore, e lo fa il ramo della selezione
+	}
+	// 🔴 [D-528] (3): questo ramo precede la matrice delle unita', e per una carica la cella finale e' quella del nemico puntato: un
+	// secondo click — sulla mesh o sul pavimento — arrivava qui e apriva il selettore, o dichiarava un verso. Su quella cella il click
+	// prosegue: `DispatchUnitClick` lo ispeziona, e `HandleClickOnCell` ispeziona il nemico se il raggio ha colpito il pavimento.
+	if (!bSelettoreAperto && PlannedChargeTargetAt(Unit, Finale))
+	{
+		return false;
 	}
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;

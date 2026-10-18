@@ -1145,6 +1145,16 @@ public:
 	bool ArmedChargeTargets(const class ARTUnit* Selected, const class ARTUnit* Other) const;
 
 	/**
+	 * [D-528] (3) Il nemico NOTO su cui la carica di `Unit` e' GIA' pianificata, se `Cell` e' la cella del suo bersaglio; altrimenti nullo.
+	 *
+	 * 🔑 **Su quella cella il click ispeziona, e non sceglie un verso.** Per una carica `FacingCellFor` e' la cella del bersaglio —
+	 * `PlannedDashCell` —, quindi il selettore del verso si apriva sull'esagono del nemico: un secondo click, con il raggio sulla mesh o sul
+	 * pavimento, e `OnSelect` lo mandava al selettore PRIMA della matrice delle unita' (`TryHandleFacingClickUnderCursor`). Una carica non ha
+	 * un verso da scegliere ([D-524] (4)): chi apre il selettore chiede prima a questa funzione, e se risponde un nemico il click e' suo.
+	 */
+	const class ARTUnit* PlannedChargeTargetAt(const class ARTUnit* Unit, const FRTCellId& Cell) const;
+
+	/**
 	 * [D-528] (`#3769`) Il nemico NOTO sotto il cursore che la carica armata punta, o nullo. Per questo nemico l'hover non annuncia
 	 * un'ispezione — non mostra il suo arco —, perche' il click non lo ispezionera': pianifichera' la carica, o la rifiutera'.
 	 *

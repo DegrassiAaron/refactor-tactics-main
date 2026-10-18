@@ -4499,6 +4499,16 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("e il contesto non e' il verso"), PC->GetPointerContext() != ERTPointerContext::Facing);
 	TestTrue(TEXT("il piano non cambia"), Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
 
+	// Il click VERO passa da `OnSelect`, che manda un click sull'esagono finale al selettore PRIMA della matrice delle unita'
+	// (`TryHandleFacingClickUnderCursor`): per una carica l'esagono finale e' quello del nemico. Quel ramo ha bisogno del cursore e
+	// non gira headless, ma chiede alla stessa funzione di `TryOpenFacingSelector`, che qui si prova direttamente. ⚠️ Questa riga e'
+	// stata trovata dalla tavola di `PIE-V01-CHARGEHOVER`: i click di prima, che entravano da `DispatchUnitClick` e `HandleClickOnCell`,
+	// non passavano di li'.
+	TestTrue(TEXT("la cella del bersaglio e' di un nemico noto: la funzione lo dice"), PC->PlannedChargeTargetAt(Charger, Primo->Cell) == Primo);
+	TestTrue(TEXT("un'altra cella no"), PC->PlannedChargeTargetAt(Charger, Secondo->Cell) == nullptr);
+	TestFalse(TEXT("il selettore non si apre sull'esagono del nemico puntato"), PC->TryOpenFacingSelector(Primo->Cell));
+	TestFalse(TEXT("e non resta aperto"), PC->IsDeclaringFacing());
+
 	// Un click su un ALTRO nemico ripianifica: non e' un secondo click.
 	PC->DispatchUnitClickForTest(Secondo, Charger);
 	TestTrue(TEXT("un altro nemico: la carica si ripianifica su di lui"),
