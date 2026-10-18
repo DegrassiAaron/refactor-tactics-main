@@ -4508,6 +4508,18 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("un'altra cella no"), PC->PlannedChargeTargetAt(Charger, Secondo->Cell) == nullptr);
 	TestFalse(TEXT("il selettore non si apre sull'esagono del nemico puntato"), PC->TryOpenFacingSelector(Primo->Cell));
 	TestFalse(TEXT("e non resta aperto"), PC->IsDeclaringFacing());
+	// La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio. ⚠️ Era la meta' non coperta: i rami `Center` e `Side` consumano il
+	// click comunque, quindi senza questa risposta il secondo click non arriva mai alla matrice delle unita' e resta morto (revisione di #3821).
+	TestFalse(TEXT("il click sull'esagono del nemico puntato non va al selettore del verso"), PC->FacingHandlesClickOnFinalCell(Charger));
+	TestFalse(TEXT("un click diretto su un lato di quell'esagono non dichiara un verso"), PC->HandleFacingClick(Primo->Cell, ERTHexDirection::E));
+	TestFalse(TEXT("e non lo scrive nel piano"), Charger->bDeclaresPlannedFacing);
+	// Controllo positivo: senza una carica pianificata, un movimento in marcia manda il click sulla sua cella finale al selettore.
+	const int32 DashSalvato = Charger->PlannedDashAbility;
+	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->PlannedPath = { Charger->Cell, FRTCellId(0, -1, 0) };
+	TestTrue(TEXT("controllo: in marcia il click sulla cella finale va al selettore"), PC->FacingHandlesClickOnFinalCell(Charger));
+	Charger->PlannedPath.Reset();
+	Charger->PlannedDashAbility = DashSalvato;
 
 	// Un click su un ALTRO nemico ripianifica: non e' un secondo click.
 	PC->DispatchUnitClickForTest(Secondo, Charger);
@@ -4725,6 +4737,103 @@ bool FRTPlayerChargeHoverArcTest::RunTest(const FString&)
 	TestEqual(TEXT("sul nemico gia' puntato l'hover e' di nuovo un'ispezione, e l'arco c'e'"), MapActor->GetShownEnemyArcs().Num(), 1);
 
 	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-528] (`#3769`) — **l'avviso di piano non nomina un nemico che la squadra non conosce.** Lo ha trovato la revisione indipendente di #3821.
+ *
+ * Il click su una cella DIETRO un nemico noto A si accetta (la carica urta A), e l'avviso dice «Colpira' A, non B». B si cercava per cella fra
+ * TUTTE le unita': se la cella e' di un nemico H che la squadra non conosce, l'avviso ne scriveva il nome, e chi prova le celle dietro un nemico
+ * noto legge chi c'e'. Ora il bersaglio si nomina solo se la lettura dice che e' un nemico noto, e i nomi si cercano fra i soli noti al velo.
+ *
+ * Due mondi che differiscono per UNA cosa: H e' ignoto, o H e' noto. Nel secondo il nome c'e': senza il controllo positivo il test passerebbe
+ * anche se l'avviso non nominasse mai nessuno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeWarningPrivacyTest,
+	"RefactorTactics.PlayerInput.ChargeWarningDoesNotNameAnEnemyTheSquadDoesNotKnow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerChargeWarningPrivacyTest::RunTest(const FString&)
+{
+	struct FAvviso
+	{
+		int32 Quanti = INDEX_NONE;
+		FString Perche;
+		FString Costo;
+		FString NomeA;
+		FString NomeH;
+		bool bPianificata = false;
+	};
+
+	const auto Leggi = [this](bool bHNoto, bool bVeloLoNasconde) -> FAvviso
+	{
+		FAvviso L;
+		UWorld* World = MakeInteractionWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return L; }
+		ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* A = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0));
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		if (!MapActor || !TM || !Charger || !A || !PC) { DestroyInteractionWorld(World); return L; }
+		// H dopo l'aggiornamento della conoscenza: non e' nella fotografia di chi pianifica, e il velo lo nasconde. Se e' noto, si aggiorna dopo.
+		TM->RefreshTeamKnowledgeNow();
+		ARTUnit* H = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, 0, 0));
+		if (!H) { DestroyInteractionWorld(World); return L; }
+		if (bHNoto)
+		{
+			TM->RefreshTeamKnowledgeNow();
+		}
+		else if (bVeloLoNasconde)
+		{
+			H->SetKnownToObserver(false); // il velo lo nasconde; senza questa riga resta ignoto alla sola conoscenza di squadra
+		}
+
+		L.NomeA = ARTUnit::DisplayLabel(A->HeroDisplayName, A->HeroId, A->GetName());
+		L.NomeH = ARTUnit::DisplayLabel(H->HeroDisplayName, H->HeroId, H->GetName());
+		const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
+		if (!TestNotEqual(TEXT("premessa: la carica"), ChargeIdx, (int32)INDEX_NONE)) { DestroyInteractionWorld(World); return L; }
+		PC->SelectActorForTest(Charger);
+		Charger->SelectAbility(ChargeIdx);
+		PC->HandleClickOnCellForTest(FRTCellId(3, 0, 0));
+		L.bPianificata = Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == FRTCellId(3, 0, 0);
+
+		const FName CaricaId = Charger->GetAbility(ChargeIdx)->Def.ActionId;
+		const TArray<FRTPlanWarningView> Avvisi = URTHudViewModel::BuildPlanWarnings(Charger, { Charger, A, H });
+		L.Quanti = 0;
+		for (const FRTPlanWarningView& V : Avvisi)
+		{
+			if (V.SourceActionId == CaricaId)
+			{
+				++L.Quanti;
+				L.Perche = V.Why.ToString();
+				L.Costo = V.Cost.ToString();
+			}
+		}
+		DestroyInteractionWorld(World);
+		return L;
+	};
+
+	// Ignoto alla conoscenza di squadra E nascosto dal velo; ignoto alla sola conoscenza (il flag del velo resta vero, il suo default).
+	// Il secondo e' quello che il controllo sul bersaglio (`bTargetIsKnownEnemy`) deve da solo proteggere: il filtro del velo non lo vede.
+	const FAvviso Ignoto = Leggi(/*bHNoto=*/ false, /*bVeloLoNasconde=*/ true);
+	const FAvviso IgnotoAlVelo = Leggi(/*bHNoto=*/ false, /*bVeloLoNasconde=*/ false);
+	const FAvviso Noto = Leggi(/*bHNoto=*/ true, /*bVeloLoNasconde=*/ false);
+
+	TestTrue(TEXT("premessa: la carica dietro il nemico noto si pianifica anche con H ignoto"), Ignoto.bPianificata);
+	TestEqual(TEXT("H ignoto: un solo avviso, quello di A"), Ignoto.Quanti, 1);
+	TestTrue(TEXT("premessa: i due nomi sono diversi, o il controllo non distingue"), Ignoto.NomeA != Ignoto.NomeH);
+	TestTrue(TEXT("H ignoto: nomina A"), Ignoto.Costo.Contains(Ignoto.NomeA));
+	TestFalse(TEXT("H ignoto: NON nomina H nel costo"), Ignoto.Costo.Contains(Ignoto.NomeH));
+	TestFalse(TEXT("H ignoto: ne' nel perche'"), Ignoto.Perche.Contains(Ignoto.NomeH));
+
+	TestEqual(TEXT("H ignoto alla sola conoscenza: un solo avviso"), IgnotoAlVelo.Quanti, 1);
+	TestTrue(TEXT("H ignoto alla sola conoscenza: nomina A"), IgnotoAlVelo.Costo.Contains(IgnotoAlVelo.NomeA));
+	TestFalse(TEXT("H ignoto alla sola conoscenza: NON nomina H"), IgnotoAlVelo.Costo.Contains(IgnotoAlVelo.NomeH) || IgnotoAlVelo.Perche.Contains(IgnotoAlVelo.NomeH));
+
+	// Controllo positivo: con H noto il nome c'e'.
+	TestEqual(TEXT("controllo, H noto: un solo avviso"), Noto.Quanti, 1);
+	TestTrue(TEXT("controllo, H noto: nomina A e H"), Noto.Costo.Contains(Noto.NomeA) && Noto.Costo.Contains(Noto.NomeH));
 	return true;
 }
 

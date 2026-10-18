@@ -1229,6 +1229,7 @@ bool FRTLinearDashVerdictTest::RunTest(const FString&)
 	TestTrue(TEXT("cella vuota in portata: si pianifica"), Arriva.bAccepted);
 	TestFalse(TEXT("senza urto"), Arriva.bImpact || Arriva.bBeyondRange);
 	TestFalse(TEXT("e senza un nemico sopra"), Arriva.bEnemyOnTarget);
+	TestFalse(TEXT("e la lettura non nomina nessuno: il bersaglio non e' un nemico noto"), Arriva.Run.bTargetIsKnownEnemy);
 	TestEqual(TEXT("la corsa e' intera"), Arriva.Run.RunCells, 3);
 
 	// (2) Un nemico in portata, il primo sulla retta: urto sul bersaglio.
@@ -1237,6 +1238,7 @@ bool FRTLinearDashVerdictTest::RunTest(const FString&)
 	const FRTLinearDashVerdict Urto = Giudica(Libera, FRTCellId(3, 0), SoloB);
 	TestTrue(TEXT("nemico in portata: si pianifica per l'urto"), Urto.bAccepted && Urto.bImpact && !Urto.bBeyondRange);
 	TestTrue(TEXT("c'e' un nemico sulla cella"), Urto.bEnemyOnTarget);
+	TestTrue(TEXT("e la lettura lo dice: e' un nemico noto"), Urto.Run.bTargetIsKnownEnemy);
 	TestTrue(TEXT("e non manca il bersaglio"), Urto.Run.RunCells == 2 && !Urto.Run.bMissesTarget);
 
 	// (3) Un altro nemico in mezzo, bersaglio in portata.
@@ -1265,6 +1267,7 @@ bool FRTLinearDashVerdictTest::RunTest(const FString&)
 	AELontano.Add(FRTCellId(5, 0), 5);
 	const FRTLinearDashVerdict OltreInMezzo = Giudica(Libera, FRTCellId(5, 0), AELontano);
 	TestTrue(TEXT("oltre la portata con A in mezzo: si pianifica ([D-528])"), OltreInMezzo.bAccepted && OltreInMezzo.bBeyondRange);
+	TestTrue(TEXT("il bersaglio oltre la portata e' un nemico noto, e la lettura lo dice"), OltreInMezzo.Run.bTargetIsKnownEnemy);
 	TestTrue(TEXT("urta A e manca il bersaglio"),
 		OltreInMezzo.Run.RunCells == 1 && OltreInMezzo.Run.bHasImpact && OltreInMezzo.Run.ImpactCell == FRTCellId(2, 0)
 		&& OltreInMezzo.Run.bMissesTarget);

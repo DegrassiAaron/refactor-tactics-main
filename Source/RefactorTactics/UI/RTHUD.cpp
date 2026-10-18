@@ -1898,7 +1898,11 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 	// ([D-371]): meno della retta intera quando la portata finisce prima o un nemico noto la ferma. Qui si legge, non si
 	// ricalcola: l'HUD non ha ne' l'occupazione ne' la conoscenza, e rifare la retta sarebbe la seconda autorita' che
 	// [D-524] ha tolto. Il tratto fino al bersaglio e' rosso soltanto se la carica lo MANCA: l'urto con lui non lo e'.
-	if (URTMovementActionLibrary::IsLinear(View.DashStyle) && View.DashRunCells != INDEX_NONE
+	// Eccezione: una carica che NON SI MUOVE e urta proprio il bersaglio (un nemico adiacente) non ha una corsa da disegnare, e lo
+	// stop sarebbe la sua stessa cella: l'anteprima resterebbe un segno sulla partenza e nient'altro (revisione di #3821). Si lascia
+	// la retta intera, com'era, col segno sul nemico.
+	const bool bContattoSenzaCorsa = View.DashRunCells == 0 && !View.bDashMissesTarget;
+	if (URTMovementActionLibrary::IsLinear(View.DashStyle) && View.DashRunCells != INDEX_NONE && !bContattoSenzaCorsa
 		&& View.DashRunCells >= 0 && View.DashRunCells <= Out.PathCells.Num() - 1)
 	{
 		Out.ReachSegments = View.DashRunCells;

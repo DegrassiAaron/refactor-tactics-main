@@ -298,6 +298,7 @@ FRTLinearDashVerdict URTMovementActionLibrary::JudgeLinearDashClick(const URTHex
 	if (Style == ERTMovementStyle::LinearCharge)
 	{
 		Verdetto.Run = DescribeChargeRun(Linear, From, Cell, DashRange);
+		Verdetto.Run.bTargetIsKnownEnemy = Verdetto.bEnemyOnTarget;
 	}
 	return Verdetto;
 }

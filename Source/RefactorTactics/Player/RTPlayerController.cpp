@@ -2328,7 +2328,10 @@ bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTU
 const ARTUnit* ARTPlayerController::HoveredArmedChargeTarget() const
 {
 	const ARTUnit* Selected = GetSelectedUnit();
-	if (!Selected || IsPlanningInputInert())
+	// Economica: gira due volte a fotogramma con QUALUNQUE unita' selezionata, quindi la domanda sull'azione armata viene prima di ogni
+	// ricerca nel mondo (revisione di #3821).
+	const URTActionData* Armata = Selected ? Selected->GetAbility(Selected->SelectedAbilityIndex) : nullptr;
+	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge || IsPlanningInputInert())
 	{
 		return nullptr;
 	}
@@ -2847,7 +2850,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
 	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
 	// selettore aperto il click e' una direzione.
-	if (Context != ERTPointerContext::Facing)
+	if (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing)
 	{
 		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
 		{
@@ -5257,6 +5260,11 @@ bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirecti
 		UE_LOG(LogRT, Log, TEXT("[RT] Verso: da fermo si sceglie dopo un click sulla propria cella"));
 		return false;
 	}
+	// [D-528] (3): un click diretto su un lato dell'esagono del nemico puntato dalla carica non dichiara un verso.
+	if (!bDeclaringFacing && PlannedChargeTargetAt(Unit, Cell))
+	{
+		return false;
+	}
 
 	const bool bEraAperto = bDeclaringFacing;
 	BeginFacingDeclaration();
@@ -5273,7 +5281,7 @@ bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirecti
 	return false;
 }
 
-bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
+bool ARTPlayerController::FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const
 {
 	if (!Unit || IsWorldReadOnly() || IsPlanningInputInert())
 	{
@@ -5291,13 +5299,23 @@ bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
 	{
 		return false; // da fermo il primo click apre il selettore, e lo fa il ramo della selezione
 	}
-	// 🔴 [D-528] (3): questo ramo precede la matrice delle unita', e per una carica la cella finale e' quella del nemico puntato: un
-	// secondo click — sulla mesh o sul pavimento — arrivava qui e apriva il selettore, o dichiarava un verso. Su quella cella il click
-	// prosegue: `DispatchUnitClick` lo ispeziona, e `HandleClickOnCell` ispeziona il nemico se il raggio ha colpito il pavimento.
+	// 🔴 [D-528] (3): per una carica la cella finale e' quella del nemico puntato. Su quella cella il click prosegue: `DispatchUnitClick` lo
+	// ispeziona, e `HandleClickOnCell` ispeziona il nemico se il raggio ha colpito il pavimento.
 	if (!bSelettoreAperto && PlannedChargeTargetAt(Unit, Finale))
 	{
 		return false;
 	}
+	return true;
+}
+
+bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
+{
+	if (!FacingHandlesClickOnFinalCell(Unit))
+	{
+		return false;
+	}
+	const FRTCellId Finale = FacingCellFor(Unit);
+	const bool bSelettoreAperto = GetPointerContext() == ERTPointerContext::Facing;
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	if (!HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) || !Map)

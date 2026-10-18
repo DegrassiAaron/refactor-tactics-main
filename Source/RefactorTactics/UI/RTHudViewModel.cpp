@@ -412,11 +412,14 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 		{
 			// I nomi si cercano per CELLA fra le unita' che il chiamante passa: l'urtato e' una cella che la squadra conosce
 			// (la lettura viene dalla sua fotografia), e se li' non c'e' piu' nessuno la frase resta senza nome invece di inventarne uno.
+			// 🔴 `IsKnownToObserver()`: `Units` e' TUTTO il mondo, e la cella e' una cella: un nemico che il velo nasconde non si nomina
+			// ([D-225]). Il bersaglio, poi, si nomina solo se la lettura dice che e' un nemico noto (`bTargetIsKnownEnemy`).
 			const auto EtichettaSu = [&Units, Unit](const FRTCellId& Cella) -> FString
 			{
 				for (const ARTUnit* Altra : Units)
 				{
-					if (Altra && Altra->IsAlive() && Altra->TeamId != Unit->TeamId && Altra->Cell == Cella)
+					if (Altra && Altra->IsAlive() && Altra->TeamId != Unit->TeamId && Altra->Cell == Cella
+						&& Altra->IsKnownToObserver())
 					{
 						return ARTUnit::DisplayLabel(Altra->HeroDisplayName, Altra->HeroId, Altra->GetName());
 					}
@@ -424,7 +427,7 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				return FString();
 			};
 			const FString Colpito = EtichettaSu(Lettura.ImpactCell);
-			const FString Voluto = EtichettaSu(Lettura.Target);
+			const FString Voluto = Lettura.bTargetIsKnownEnemy ? EtichettaSu(Lettura.Target) : FString();
 
 			FRTPlanWarningView Altro;
 			Altro.Level = ERTPlanWarningLevel::Warning;

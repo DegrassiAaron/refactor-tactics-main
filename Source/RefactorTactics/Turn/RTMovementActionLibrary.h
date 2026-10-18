@@ -167,6 +167,16 @@ struct FRTChargeRun
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
 	FRTCellId ImpactCell;
 
+	/**
+	 * Vero se sulla cella scelta c'e' un nemico che la fotografia di chi pianifica conosce (`bEnemyOnTarget` del verdetto). La
+	 * scrive `JudgeLinearDashClick`, che ha l'occupazione; `DescribeChargeRun` no.
+	 *
+	 * 🔴 **Chi nomina il bersaglio in un avviso lo fa SOLO se e' vero.** La cella scelta puo' essere vuota per la squadra e occupata per
+	 * davvero da un nemico che non conosce: cercare un nome per cella fra tutte le unita' lo direbbe a chi prova la cella.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")
+	bool bTargetIsKnownEnemy = false;
+
 	FRTChargeRun() = default;
 };
 

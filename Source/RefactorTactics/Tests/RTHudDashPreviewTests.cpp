@@ -319,6 +319,17 @@ bool FRTHudDashPreviewChargeRunTest::RunTest(const FString&)
 	TestTrue(TEXT("adiacente: il segno sta sulla partenza"), Immobile.StopCell() == FRTCellId(0, 0, 0));
 	TestTrue(TEXT("adiacente: tutta la retta e' il tratto che non fara'"), Immobile.HasShortfall() && Immobile.bShowsMiss);
 
+	// (3b) A contatto con un nemico ADIACENTE: la carica non si muove e non manca niente. Non c'e' una corsa da disegnare e lo stop sarebbe la
+	// partenza: si lascia la retta intera, com'era, col segno sul nemico. La revisione di #3821 ha trovato l'anteprima quasi vuota.
+	FRTIntentView Adiacente = Carica;
+	Adiacente.DashCell = FRTCellId(1, 0, 0);
+	Adiacente.DashRunCells = 0;
+	Adiacente.bDashMissesTarget = false;
+	const FRTDashPreview Contigua = ARTHUD::ComposeDashPreview(Adiacente, Mappa);
+	TestEqual(TEXT("adiacente a contatto: nessun taglio della retta"), Contigua.ReachSegments, static_cast<int32>(INDEX_NONE));
+	TestTrue(TEXT("adiacente a contatto: il segno sta sul nemico"), Contigua.StopCell() == FRTCellId(1, 0, 0));
+	TestTrue(TEXT("adiacente a contatto: la linea c'e'"), Contigua.PathCells.Num() == 2);
+
 	// (4) Arriva sulla cella scelta: nessun tratto in meno.
 	FRTIntentView Arriva = Carica;
 	Arriva.DashRunCells = 3;

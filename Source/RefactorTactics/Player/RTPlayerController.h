@@ -1575,6 +1575,17 @@ public:
 	/** Il click del giocatore sull'esagono finale, dal cursore: settore, dead-zone, priorita' sulla mesh. */
 	bool TryHandleFacingClickUnderCursor(ARTUnit* Unit);
 
+	/**
+	 * La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio: un click sull'esagono finale va al selettore del verso?
+	 * Estratta perche' il raggio ha bisogno del cursore e non gira headless, e questa decisione e' la meta' che conta: [D-528] (3).
+	 *
+	 * 🔴 Per una carica l'esagono finale e' quello del nemico puntato, e `OnSelect` manda quel click al selettore PRIMA della matrice delle
+	 * unita': i rami `Center` e `Side` consumano il click comunque, quindi senza questa risposta un secondo click sul nemico non arriva
+	 * mai a `DispatchUnitClick` e resta morto. Falsa se il click e' di un altro (un bersaglio da scegliere, il primo click da fermo,
+	 * il nemico puntato dalla carica), vera quando il selettore e' il suo destinatario.
+	 */
+	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const;
+
 	/** La dead-zone centrale dell'esagono del verso, in frazione di `HexSize` ([D-367]). */
 	static constexpr float FacingDeadZoneFraction = 0.3f;
 
