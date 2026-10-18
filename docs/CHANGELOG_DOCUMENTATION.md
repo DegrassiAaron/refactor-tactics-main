@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-18 — `PIE-V01-DASHCOVER` e `PIE-V01-CHARGECLICK` ✅: l'autore ha visto le tavole `V9` e `V8`
+
+**Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793). I due giudizi a schermo erano dell'autore: «V9 ok» e «V8 ok».
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-V01-DASHCOVER` e `PIE-V01-CHARGECLICK` (4) da 🟡 a ✅, col verdetto tra virgolette e l'esito precedente marcato; le frasi che dicevano «resta» cadono; totali rimisurati (A1) |
+
+---
+
 ## 2026-10-18 — `PIE-V01-DASHCOVER`: una scena e la tavola `V9` per vedere lo scatto davanti alla barriera alta
 
 **Origine**: [#3793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3793), l'ultima voce a schermo. Nessuna scena aveva una barriera alta sul percorso di uno scatto pianificato da una persona.
