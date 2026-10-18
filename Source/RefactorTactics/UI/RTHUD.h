@@ -834,6 +834,18 @@ public:
 	 */
 	static constexpr const TCHAR* MatchEndRestartPrompt = TEXT("premi R per rigiocare");
 
+	/** `#3795`: quanto sopra il bordo basso del canvas sta la riga del passo del banco (pixel). */
+	static constexpr float LabStepBottomInsetPx = 200.f;
+
+	/**
+	 * `#3795` — dove va la seconda riga del banco Ability Lab («BANCO i/n · ...»), angolo alto-sinistro in pixel.
+	 *
+	 * In basso al centro e non sotto la banda: li' le etichette delle unita' (widget sopra il canvas, a ridosso del
+	 * centro dell'inquadratura del banco) la coprivano (PIE del 2026-10-15). Una funzione pura perche' la regola da
+	 * pinnare e' «non sotto la banda»: un test headless la interroga, e una riga rimessa nella fascia alta cade.
+	 */
+	static FVector2f ComposeLabStepLinePlacement(const FVector2f& Viewport, const FVector2f& TextSize);
+
 	/** Il grigio dell'istruzione di riavvio: piu' spenta dell'esito, che e' bianco pieno. */
 	static const FLinearColor MatchEndRestartInk;
 
