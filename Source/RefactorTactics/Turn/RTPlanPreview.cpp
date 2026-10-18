@@ -24,18 +24,20 @@ namespace
 	/**
 	 * Il facing che guarda da `From` a `To`, derivato dalla regola e non inventato.
 	 *
-	 * ⚠️ **`FacingFromPath` e non `ReadFacingForConsumer`**: la seconda scrive una voce di TurnLog, cioe'
+	 * ⚠️ **`DirectionTowards` e non `ReadFacingForConsumer`**: la seconda scrive una voce di TurnLog, cioe'
 	 * dichiara che il RESOLVER ha letto quel facing. Un'anteprima che la chiamasse inciderebbe nel registro
 	 * canonico una lettura mai avvenuta in partita. Vedi l'header.
+	 *
+	 * 🔑 **Il PRIMO passo verso il bersaglio, come il resolver** (`TargetingReoriented`, il Blast gira chi attacca con
+	 * `DirectionTowards(Unit->Cell, AimCell)`). ⛔ **Non `FacingFromPath`**, che dal [D-524] risponde con l'ULTIMO passo
+	 * per due celle non adiacenti: e' la direzione con cui si ARRIVA, e questa e' quella verso cui si GUARDA. Sulle celle
+	 * di pareggio le due differiscono (`(0,0) -> (1,1)`: `E` e `SE`). ⏱️ *Fino a [D-524] le due coincidevano perche' il
+	 * fallback di `FacingFromPath` era `DirectionTowards`; la coincidenza non era una regola* (review di #3810).
 	 */
 	ERTHexDirection FacingVerso(const FRTCellId& From, const FRTCellId& To, ERTHexDirection Corrente)
 	{
-		if (From == To)
-		{
-			return Corrente;
-		}
-		const TArray<FRTCellId> Tratto = { From, To };
-		return URTFacingLibrary::FacingFromPath(Tratto, Corrente);
+		ERTHexDirection Verso = Corrente;
+		return URTHexLibrary::DirectionTowards(From, To, Verso) ? Verso : Corrente; // celle uguali: il facing resta
 	}
 }
 

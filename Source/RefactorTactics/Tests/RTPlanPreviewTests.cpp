@@ -168,6 +168,9 @@ bool FRTPlanPreviewLinearDashLineTest::RunTest(const FString&)
 			Dash->PreviewPath == URTHexLibrary::HexLine(Origine, FRTCellId(2, 1, 0)));
 		TestTrue(TEXT("e il facing e' derivato dalla stessa rotta"),
 			Dash->Facing == URTFacingLibrary::FacingFromPath(Dash->PreviewPath, ERTHexDirection::NW));
+		// 🔑 Un valore INDIPENDENTE, non la stessa funzione applicata alla stessa rotta (review di #3810): la retta e'
+		// (0,0), (1,0), (1,1), (2,1), quindi l'ultimo passo e' (1,1) -> (2,1), cioe' `E`.
+		TestTrue(TEXT("e l'ultimo passo della retta, (1,1) -> (2,1): E"), Dash->Facing == ERTHexDirection::E);
 	}
 
 	// (2) Muro su (1,0), bersaglio (1,1): l'A* passerebbe da (0,1), la retta no. Il resolver non muove l'unita'.
@@ -220,6 +223,63 @@ bool FRTPlanPreviewLinearDashLineTest::RunTest(const FString&)
 		verify(URTHexLibrary::DirectionBetween(ViaEst, Pareggio, Ultimo));
 		TestTrue(TEXT("e guarda l'ultimo passo della retta, (1,0) -> (1,1)"), Dash->Facing == Ultimo);
 	}
+	return true;
+}
+
+/**
+ * [D-524] (review di #3810) — **il verso verso il bersaglio e' il PRIMO passo, non l'ultimo.**
+ *
+ * Il resolver gira chi attacca con `URTHexLibrary::DirectionTowards(Unit->Cell, AimCell)` (`TargetingReoriented`, il
+ * Blast): il primo passo della retta. D-524 ha portato `FacingFromPath` sull'ULTIMO passo per i passi non adiacenti, e
+ * `FacingVerso` dell'anteprima la chiamava con `{origine, bersaglio}`: funzionava finche' il fallback era
+ * `DirectionTowards`, e con la regola nuova mostrava un verso che il resolver non produce. Le due domande sono diverse
+ * — *«con che passo arrivo»* e *«dove guardo»* — e sulle celle di pareggio hanno risposte diverse.
+ *
+ * 🔑 `(0,0) -> (1,1)` passa da `(1,0)`: il primo passo e' `E`, l'ultimo `SE`. Il test e' discriminante solo se i due
+ * differiscono, e lo dichiara come premessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewAimFacingIsTheFirstStepTest,
+	"RefactorTactics.Preview.AimFacingTowardsAnOffAxisTargetIsTheFirstStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewAimFacingIsTheFirstStepTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(0, 0, 0), Bersaglio(1, 1, 0);
+
+	ERTHexDirection Primo = ERTHexDirection::W;
+	ERTHexDirection Ultimo = ERTHexDirection::W;
+	const TArray<FRTCellId> Retta = URTHexLibrary::HexLine(Partenza, Bersaglio);
+	if (!TestTrue(TEXT("premessa: la retta ha un primo e un ultimo passo, e sono diversi"),
+		Retta.Num() == 3
+		&& URTHexLibrary::DirectionBetween(Retta[0], Retta[1], Primo)
+		&& URTHexLibrary::DirectionBetween(Retta[1], Retta[2], Ultimo)
+		&& Primo != Ultimo)) { return false; }
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 4));
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 1, Bersaglio, /*MoveBudget=*/ 0));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	TArray<FRTHexCombatUnit> CombatUnits;
+	CombatUnits.Add(MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Partenza));
+	CombatUnits.Add(MakePlanPreviewCombatUnit(1, /*TeamId=*/ 1, Bersaglio));
+
+	FRTPlanPreviewInput Plan;
+	Plan.UnitId = 0;
+	Plan.Blast.AttackerId = 0;
+	Plan.Blast.bHasAction = true;
+	Plan.Blast.Shape = ERTAbilityShape::Single;
+	Plan.Blast.RangeCells = 4;
+	Plan.Blast.TargetId = 1;
+	Plan.BlastActionId = TEXT("Action.Shoot");
+
+	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
+	const FRTPhasePreviewEntry* Colpo = PhaseOf(Preview, ERTResolutionPhase::Attack);
+	if (!TestNotNull(TEXT("la timeline porta il Blast"), Colpo)) { return false; }
+
+	TestTrue(TEXT("chi attacca guarda il PRIMO passo verso il bersaglio, come il resolver (`DirectionTowards`)"),
+		Colpo->Facing == Primo);
+	TestFalse(TEXT("e non l'ultimo, che e' il passo con cui si ARRIVA"), Colpo->Facing == Ultimo);
 	return true;
 }
 

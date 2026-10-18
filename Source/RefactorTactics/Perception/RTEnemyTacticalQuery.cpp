@@ -286,6 +286,13 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 		// destinazione possibile. ⏱️ *Fino a [D-524] qui si enumeravano le sole sei direzioni*: a portata 3 diciotto
 		// destinazioni invece di trentasei, e una minaccia sottostimata — la stessa omissione che il commento sotto
 		// descrive per le distanze intermedie, su un altro asse.
+		//
+		// ⚠️ **Cio' che questa enumerazione NON modella: una carica verso un bersaglio OLTRE la portata** ([D-516]). Quella
+		// corre lungo il prefisso di `HexLine(Origine, bersaglio lontano)`, e su una retta fuori asse il prefisso non e'
+		// `HexLine(Origine, cella a distanza `Declared`)` — le celle attraversate possono differire anche quando quella
+		// d'arresto coincide. Non lo modellava nemmeno l'enumerazione sulle sei direzioni (un bersaglio lontano e' un
+		// nemico, non una cella dell'area), e nessun consumatore chiama oggi questa funzione: e' un limite dichiarato,
+		// non una regressione (review di #3810).
 		for (const FRTCellId& Target : URTHexLibrary::HexArea(Origin, Declared))
 		{
 			if (Target == Origin) { continue; }
