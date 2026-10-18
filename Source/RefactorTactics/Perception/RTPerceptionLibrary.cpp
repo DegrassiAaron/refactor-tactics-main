@@ -13,8 +13,8 @@ namespace
 	/**
 	 * Il contatto regge fra due celle? Tre condizioni, tutte necessarie: portata, fumo, linea di vista.
 	 *
-	 * Il **cap del fumo** passa da `URTTerrainLibrary::EffectiveTargetingRange`, che di quella regola e'
-	 * l'owner: ricalcolarlo qui darebbe due verita' sullo stesso numero, e la seconda divergerebbe alla prima
+	 * Il **cap del fumo** passa da `URTPerceptionLibrary::EffectiveContactRange`, che sullo stesso piano chiama
+	 * `URTTerrainLibrary::EffectiveTargetingRange`, di quella regola l'owner: ricalcolarlo qui darebbe due verita' sullo stesso numero, e la seconda divergerebbe alla prima
 	 * modifica. La sua convenzione include gli estremi — stare NEL fumo cappa quanto guardarci attraverso.
 	 */
 	bool ContactHolds(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To, int32 Range)
@@ -24,7 +24,7 @@ namespace
 		{
 			return false;
 		}
-		if (Distance > URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, Range))
+		if (Distance > URTPerceptionLibrary::EffectiveContactRange(Map, From, To, Range))
 		{
 			return false; // fumo dentro o attraverso: il contatto si ferma prima
 		}
@@ -46,6 +46,52 @@ namespace
 		}
 		return URTHexVisionLibrary::HasLineOfSight(Map, From, To);
 	}
+}
+
+int32 URTPerceptionLibrary::EffectiveContactRange(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, int32 Range)
+{
+	if (Map == nullptr || From.Layer == To.Layer)
+	{
+		return URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, Range);
+	}
+
+	// Sempre dalla cella piu' BASSA alla piu' ALTA, come `DescribeSightAcrossLayers`: e' cio' che rende il numero
+	// lo stesso nei due versi. Stessa geometria di quella funzione (testa a `SightHeadHeightNum/Den`, quota in
+	// mezzi passi): qui serve solo sapere QUALI celle, su quale piano, la linea occupa.
+	const bool bFromIsLower = From.Layer < To.Layer;
+	const FRTCellId& Lower = bFromIsLower ? From : To;
+	const FRTCellId& Upper = bFromIsLower ? To : From;
+	const int32 Rise = Upper.Layer - Lower.Layer;
+
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Lower, Upper);
+	const int32 N = Line.Num() - 1;
+	TArray<FRTCellId> Occupied;
+	Occupied.Add(FRTCellId(Line[0].X, Line[0].Y, Lower.Layer)); // i due capi rispondono del PROPRIO piano
+	if (N >= 1)
+	{
+		const int64 Scale = static_cast<int64>(2) * SightHeadHeightDen * N;
+		auto ScaledHeight = [&](int32 HalfSteps) -> int64
+		{
+			return static_cast<int64>(2) * SightHeadHeightNum * N
+				+ static_cast<int64>(SightHeadHeightDen) * Rise * HalfSteps;
+		};
+		auto LayerAt = [&](int32 HalfSteps) { return Lower.Layer + static_cast<int32>(ScaledHeight(HalfSteps) / Scale); };
+		auto LayerBefore = [&](int32 HalfSteps)
+		{
+			return Lower.Layer + static_cast<int32>((ScaledHeight(HalfSteps) - 1) / Scale);
+		};
+		for (int32 I = 1; I < N; ++I)
+		{
+			for (int32 Layer = LayerAt(2 * I - 1); Layer <= LayerBefore(2 * I + 1); ++Layer)
+			{
+				Occupied.Add(FRTCellId(Line[I].X, Line[I].Y, Layer));
+			}
+		}
+	}
+	// Il capo alto risponde del proprio piano anche nella stessa colonna (`N == 0`, `Line[0] == Line[N]`).
+	Occupied.Add(FRTCellId(Line[N].X, Line[N].Y, Upper.Layer));
+	return URTTerrainLibrary::EffectiveTargetingRangeThrough(Map, Occupied, Range);
 }
 
 FRTCrossLayerSightResult URTPerceptionLibrary::DescribeSightAcrossLayers(const URTHexMapAsset* Map,

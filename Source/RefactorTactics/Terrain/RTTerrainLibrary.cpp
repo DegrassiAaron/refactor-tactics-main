@@ -95,15 +95,25 @@ int32 URTTerrainLibrary::EffectiveTargetingRange(const URTHexMapAsset* Map, cons
 		return RangeCells; // niente terreno da leggere: il fail-closed e' del chiamante
 	}
 
-	// Catalogo letto UNA volta e non per cella: FindTerrainDef ricostruisce le 8 righe a ogni chiamata (e ogni
-	// riga alloca il suo TArray di effetti), e questa funzione sta nel ciclo interno di BuildCandidates —
-	// celle raggiungibili x nemici x lunghezza della linea. Stesso risultato, senza il lavoro ripetuto.
-	const TArray<FRTTerrainDef> Catalog = GetTerrainCatalog();
+	// Il catalogo si legge UNA volta per chiamata e non per cella (`EffectiveTargetingRangeThrough`):
+	// FindTerrainDef ricostruisce le 8 righe a ogni chiamata, e questa funzione sta nel ciclo interno di
+	// BuildCandidates — celle raggiungibili x nemici x lunghezza della linea.
 
 	// `HexLine` e' la stessa primitiva usata da HexHitCells per Shape::Line: la linea che il cap misura e'
 	// quella su cui si spara davvero, non una seconda approssimazione.
+	return EffectiveTargetingRangeThrough(Map, URTHexLibrary::HexLine(From, To), RangeCells);
+}
+
+int32 URTTerrainLibrary::EffectiveTargetingRangeThrough(const URTHexMapAsset* Map, const TArray<FRTCellId>& Cells,
+	int32 RangeCells)
+{
+	if (Map == nullptr)
+	{
+		return RangeCells;
+	}
+	const TArray<FRTTerrainDef> Catalog = GetTerrainCatalog();
 	int32 Effective = RangeCells;
-	for (const FRTCellId& LineCell : URTHexLibrary::HexLine(From, To))
+	for (const FRTCellId& LineCell : Cells)
 	{
 		const FRTHexCellData* CellData = Map->FindCell(LineCell);
 		if (CellData == nullptr)

@@ -47,6 +47,15 @@ public:
 		int32 RangeCells);
 
 	/**
+	 * Lo stesso cap, su un **elenco di celle** dato dal chiamante invece che su `HexLine(From, To)`.
+	 * `EffectiveTargetingRange` lo chiama con la linea planare: e' l'unico posto in cui la regola del cap vive.
+	 * Esiste perche' il contatto fra due piani (`#3757`) sceglie da se' le celle, ciascuna sul piano in cui la
+	 * linea la attraversa, e non deve ricopiare cio' che il fumo fa al numero.
+	 */
+	static int32 EffectiveTargetingRangeThrough(const URTHexMapAsset* Map, const TArray<FRTCellId>& Cells,
+		int32 RangeCells);
+
+	/**
 	 * Stati che la superficie SOSTIENE finche' l'unita' ci sta sopra: gli `OnEnterEffects` di tipo Status che
 	 * il catalogo dichiara con durata 0 («finche' sulla cella», CP 8.2). Oggi: `Wet` sull'acqua bassa,
 	 * `Obscured` nel fumo.
