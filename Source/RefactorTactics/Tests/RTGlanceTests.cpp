@@ -3,6 +3,9 @@
 #include "Misc/AutomationTest.h"
 #include "GameplayTagContainer.h"
 #include "UI/RTGlance.h"
+#include "UI/RTHUD.h"
+#include "UI/RTHudLayout.h"
+#include "Map/RTHexMapAsset.h"
 #include "UI/RTGlossary.h"
 #include "UObject/UnrealType.h"
 #include "UObject/Class.h"
@@ -320,6 +323,65 @@ bool FRTGlanceNewbornUnitSpeaksOnlyAfterTheVeilTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("parla la cella, non l'unita' (ricordo=%d)"), bRemembered), GlanceText(Got), GlanceText(CellOnly));
 		TestTrue(TEXT("e la cella ha delle righe"), CellOnly.Lines.Num() > 0);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceBoxStaysInsideTheSceneRectTest,
+	"RefactorTactics.ScreenHud.CellGlanceStaysInsideTheSceneRect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceBoxStaysInsideTheSceneRectTest::RunTest(const FString&)
+{
+	const FIntPoint Canvases[] = { FIntPoint(1914, 1048), FIntPoint(1280, 720), FIntPoint(2560, 1440),
+		FIntPoint(3840, 2160), FIntPoint(1920, 1200) };
+	const FVector2D Size(280.f, 96.f);
+	int32 Checked = 0;
+	for (const FIntPoint& Canvas : Canvases)
+	{
+		const FBox2D Scene = RTHudLayout::SceneRectPixels(Canvas, RTHudLayout::UiScaleFor(Canvas), RTHudLayout::Bands());
+		const FVector2D Anchors[] = { Scene.Min, Scene.Max, FVector2D(Scene.Min.X, Scene.Max.Y),
+			FVector2D(Scene.Max.X, Scene.Min.Y), (Scene.Min + Scene.Max) * 0.5,
+			FVector2D(-50.0, -50.0), FVector2D(Canvas.X + 50.0, Canvas.Y + 50.0) };
+		for (const FVector2D& Anchor : Anchors)
+		{
+			const FVector2D Where = RTHudLayout::GlancePlacement(Anchor, Size, Scene, 12.f);
+			++Checked;
+			TestTrue(*FString::Printf(TEXT("%dx%d: dentro la scena"), Canvas.X, Canvas.Y),
+				Where.X >= Scene.Min.X && Where.Y >= Scene.Min.Y
+				&& Where.X + Size.X <= Scene.Max.X && Where.Y + Size.Y <= Scene.Max.Y);
+		}
+	}
+	TestTrue(TEXT("ha esaminato dei casi"), Checked > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceHudReadersCopyTheAssetTest,
+	"RefactorTactics.UI.GlanceHudReadersCopyTheAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceHudReadersCopyTheAssetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	FRTCellId Id; Id.X = 1; Id.Y = 2; Id.Layer = 1;
+	FRTHexCellData Cell;
+	Cell.Id = Id;
+	Cell.Surface = ERTHexSurface::Ice;
+	Cell.bBlocksLineOfSight = true;
+	Cell.bIsObjective = true;
+	Cell.Covers.Add(FRTHexCover(ERTHexDirection::NW, ERTHexCoverType::High, 50));
+	Map->AddOrUpdateCell(Cell);
+
+	const FRTGlanceCellSubject S = ARTHUD::BuildGlanceCellSubject(Map, Id);
+	TestEqual(TEXT("superficie"), S.Surface, ERTHexSurface::Ice);
+	TestEqual(TEXT("piano"), S.Layer, 1);
+	TestTrue(TEXT("blocca la vista"), S.bBlocksLineOfSight);
+	TestTrue(TEXT("obiettivo"), S.bIsObjective);
+	TestFalse(TEXT("nessuna porta"), S.bHasDoor);
+	TestEqual(TEXT("un riparo"), S.Covers.Num(), 1);
+	TestTrue(TEXT("sul lato NW, alto"),
+		S.Covers.Num() == 1 && S.Covers[0].Edge == ERTHexDirection::NW && S.Covers[0].Type == ERTHexCoverType::High);
+
+	// Controllo positivo: una cella assente da' un soggetto neutro, non i valori di un'altra.
+	FRTCellId Other; Other.X = 9; Other.Y = 9;
+	TestEqual(TEXT("cella assente: nessun riparo"), ARTHUD::BuildGlanceCellSubject(Map, Other).Covers.Num(), 0);
 	return true;
 }
 

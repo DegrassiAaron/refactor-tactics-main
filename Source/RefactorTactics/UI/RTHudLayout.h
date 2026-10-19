@@ -73,6 +73,12 @@ namespace RTHudLayout
 	REFACTORTACTICS_API FBox2D SceneRectPixels(const FIntPoint& ViewportPixels, float UiScale, const FRTHudBands& InBands);
 
 	/** Lo stesso rettangolo come `ULocalPlayer::Origin`/`Size`, in frazione del viewport. */
+	/**
+	 * Dove cade il riquadro dello sguardo: angolo alto-sinistro, accanto all'ancora e SEMPRE dentro il rettangolo della
+	 * scena (mai sulle fasce dell'HUD). Se il riquadro e' piu' grande della scena vince il bordo alto-sinistro.
+	 */
+	REFACTORTACTICS_API FVector2D GlancePlacement(const FVector2D& Anchor, const FVector2D& Size, const FBox2D& SceneRect, float Margin);
+
 	REFACTORTACTICS_API void SceneOriginSize(const FIntPoint& ViewportPixels, float UiScale, const FRTHudBands& InBands,
 		FVector2D& OutOrigin, FVector2D& OutSize);
 

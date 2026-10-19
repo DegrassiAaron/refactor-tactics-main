@@ -85,6 +85,16 @@ FRTGlanceView URTGlanceLibrary::ComposeCell(const FRTGlanceCellSubject& Subject)
 	return View;
 }
 
+bool URTGlanceLibrary::UnitMayBeNamed(const FRTKnowledgeView& View, const FRTGlanceTarget& Target)
+{
+	if (Target.Kind != ERTGlanceKind::Unit)
+	{
+		return false;
+	}
+	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Target.StableUnitId);
+	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live;
+}
+
 FRTGlanceView URTGlanceLibrary::ResolveGlance(const FRTKnowledgeView& View, const FRTTeamKnowledge& Knowledge,
 	const FRTGlanceTarget& Target, const FRTGlanceUnitSubject& Unit, const FRTGlanceCellSubject& CellAtTarget)
 {
@@ -93,15 +103,11 @@ FRTGlanceView URTGlanceLibrary::ResolveGlance(const FRTKnowledgeView& View, cons
 		return FRTGlanceView();
 	}
 
-	if (Target.Kind == ERTGlanceKind::Unit)
+	if (UnitMayBeNamed(View, Target))
 	{
-		const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Target.StableUnitId);
-		if (Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live)
-		{
-			return ComposeUnit(Unit);
-		}
-		// Degrado (P10): lo sguardo cade sulla cella, e vale quel che vale per una cella vuota.
+		return ComposeUnit(Unit);
 	}
+	// Degrado (P10): lo sguardo cade sulla cella, e vale quel che vale per una cella vuota.
 
 	if (!Target.bHasCell || !Knowledge.VisibleCells.Contains(Target.Cell))
 	{

@@ -119,6 +119,9 @@ public:
 
 	/** Superficie, costo d'ingresso (solo se diverso da 1), piano, ripari per lato, vista, obiettivo, porta. */
 	static FRTGlanceView ComposeCell(const FRTGlanceCellSubject& Subject);
+	/** Vero se la vista ha una voce `Live` per l'unita' del bersaglio: l'unico caso in cui lo sguardo parla dell'unita'. */
+	static bool UnitMayBeNamed(const FRTKnowledgeView& View, const FRTGlanceTarget& Target);
+
 	/**
 	 * IL CANCELLO DI CONOSCENZA, in una funzione pura (P2, P10).
 	 *
