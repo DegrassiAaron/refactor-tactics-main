@@ -266,6 +266,23 @@ intero**, non al pezzo colpito. In v0.1 non si introduce un `MapElementId` gener
 `DoorId` e l'arco esistono già e bastano. L'identità stabile e il grafo di interazione restano di E23
 ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)).
 
+### Lo sguardo è un'annotazione (`#3747`, [D-513](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Sotto il cursore, dopo un ritardo (`ARTPlayerController::GlanceDelaySeconds`, 0,3 s), lo sguardo **descrive** ciò
+che c'è: non cambia il bersaglio del click né l'esito dell'hover. L'ordine è uno solo, in ogni contesto
+(`URTPointerLibrary::ResolveGlanceTarget`): unità → porta o obiettivo della cella → cella. Ghost e bordi **non**
+producono sguardo in questa fetta: `bGhost` e `bHasEdge` di `FRTPointerCandidates` non hanno ancora un
+produttore fuori dai test. Il ritardo riparte quando cambia il bersaglio o il cursore esce dalla scena.
+
+Inerte in `Modal`, `ReactionWindow` e `Facing`, e quando nessuno comanda (`URTPointerLibrary::ShouldShowGlance`).
+⚠️ `GetPointerContext` non produce ancora `ReactionWindow` (vedi il suo commento): l'inerzia lì è provata solo
+sulla funzione pura.
+
+🔒 **Privacy.** Un'unità si descrive solo con una voce `Live` nella vista di conoscenza; altrimenti lo sguardo cade
+sulla **cella**, che parla solo se è in `VisibleCells` adesso. Un nemico non osservato dà quindi la stessa uscita
+di una cella vuota, e una cella esplorata ma non in vista la stessa di una mai vista
+(`URTGlanceLibrary::ResolveGlance`, `RefactorTactics.UI.Glance*`).
+
 ---
 
 ## 4.9 «Settore» nomina tre cose, e due sono la stessa
