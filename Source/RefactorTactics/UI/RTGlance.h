@@ -1,0 +1,120 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h"
+#include "UI/RTHudViewModel.h"
+#include "RTGlance.generated.h"
+
+/**
+ * LO SGUARDO: il soggetto pubblico e il compositore delle righe (`#3747`, fetta F2 della spec
+ * `docs/superpowers/specs/2026-10-13-ispettore-del-mondo-design.md`).
+ *
+ * 🔑 **Il compositore non vede mai l'attore.** Riceve due strutture di VALORI gia' pubblici e restituisce righe di
+ * testo. Cio' che e' nascosto non puo' arrivare alle righe perche' non arriva al compositore: il cancello di
+ * conoscenza sta a monte (Task 4), e il test per reflection impedisce che un tipo grezzo entri nel soggetto.
+ *
+ * ⚠️ Le righe dello sguardo sono di testo d'autore (`RTGlossary`) piu' dati; nessuna cifra e' scritta qui tranne
+ * quelle che il gioco compone dai dati (costo, piano).
+ */
+
+/** Un riparo su un bordo: il tipo e il bordo, niente altro. */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTGlanceCoverSide
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	ERTHexDirection Edge = ERTHexDirection::E;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	ERTHexCoverType Type = ERTHexCoverType::None;
+};
+
+/** Cio' che di un'unita' e' pubblico: nome, stati, verso. */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTGlanceUnitSubject
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	FText DisplayName;
+
+	/** Nell'ordine della targa (`BuildStatusBadges`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	TArray<FRTStatusBadgeView> Statuses;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/** Spento in `ResolutionPlayback` finche' non e' misurato quando `Facing` cambia rispetto alla scena (P12). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	bool bShowFacing = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	FRTCellId Cell;
+};
+
+/** Cio' che di una cella in vista e' pubblico. */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTGlanceCellSubject
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	FRTCellId Cell;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	ERTHexSurface Surface = ERTHexSurface::Floor;
+
+	/** `FRTHexCellData::TotalMoveCost()`. Si dice solo se diverso da 1. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	int32 EntryCost = 1;
+
+	/** Il piano e' `FRTCellId::Layer`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	int32 Layer = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	TArray<FRTGlanceCoverSide> Covers;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	bool bBlocksLineOfSight = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	bool bIsObjective = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	bool bHasDoor = false;
+};
+
+/** Le righe da disegnare. `bTruncated`: l'ultima riga dichiara che c'e' altro. */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTGlanceView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	TArray<FString> Lines;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Glance")
+	bool bTruncated = false;
+};
+
+UCLASS()
+class REFACTORTACTICS_API URTGlanceLibrary : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Massimo di righe di un'unita' (spec: quattro). */
+	static constexpr int32 MaxUnitLines = 4;
+	/** Massimo di righe di una cella: superficie, costo, piano, ripari, segni. Scelta di F2. */
+	static constexpr int32 MaxCellLines = 5;
+
+	/** Nome, verso (se acceso), poi gli stati col nome e l'effetto del glossario; il taglio e' dichiarato. */
+	static FRTGlanceView ComposeUnit(const FRTGlanceUnitSubject& Subject);
+
+	/** Superficie, costo d'ingresso (solo se diverso da 1), piano, ripari per lato, vista, obiettivo, porta. */
+	static FRTGlanceView ComposeCell(const FRTGlanceCellSubject& Subject);
+};
