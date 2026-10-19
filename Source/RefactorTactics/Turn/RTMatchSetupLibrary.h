@@ -342,7 +342,7 @@ public:
 	 *
 	 * Serve a produrre da un click vero il caso che `FRTAimOriginUnexploredSmokeChannelTest` misura senza
 	 * UI: un bersaglio oltre il Fumo mai visto, il cui rifiuto per distanza mostra il cap (2). Nessuna delle
-	 * altre fixture lo ha — misurato da `WhichFixturesHideSmokeFromATeamAtTurnOne`. `Outer` nullo -> `nullptr`.
+	 * altre fixture lo ha — misurato da `WhichFixturesHideSmokeFromATeamAtTurnOne` (distanza oltre 7 o vista negata). `Outer` nullo -> `nullptr`.
 	 */
 	static URTHexMapAsset* MakeSmokeDarkArena(UObject* Outer);
 

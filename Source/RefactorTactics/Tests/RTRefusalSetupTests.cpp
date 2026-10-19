@@ -257,8 +257,8 @@ bool FRTRefusalReachabilityTellsTheCasesApartTest::RunTest(const FString&)
  * Quali fixture hanno un Fumo FUORI dalla vista della squadra al turno 1 — la misura di `#3818`.
  *
  * Sonda, non contratto: stampa per ogni fixture e per ogni squadra le celle di Fumo la cui distanza dalla
- * unita' piu' vicina della squadra supera il raggio visivo piu' lungo del roster (7), cioe' che nessun eroe
- * puo' aver osservato in partenza. Serve a scegliere dove allestire il click su Fumo mai visto (`#3270`).
+ * unita' della squadra supera il raggio visivo piu' lungo del roster (7) o sta dietro una cella che nega la vista,
+ * cioe' che nessun eroe puo' aver osservato in partenza. Serve a scegliere dove allestire il click su Fumo mai visto (`#3270`).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnexploredSmokeSetupProbeTest,
 	"RefactorTactics.Setup.WhichFixturesHideSmokeFromATeamAtTurnOne",
@@ -291,12 +291,17 @@ bool FRTUnexploredSmokeSetupProbeTest::RunTest(const FString&)
 			for (int32 Team = 0; Team < 2; ++Team)
 			{
 				int32 Min = TNumericLimits<int32>::Max();
+				bool bVisto = false;
 				for (int32 i = 0; i < UnitaPerSquadra; ++i)
 				{
-					Min = FMath::Min(Min, URTHexLibrary::HexDistance(Start[Team * UnitaPerSquadra + i], Id));
+					const FRTCellId& Da = Start[Team * UnitaPerSquadra + i];
+					const int32 Dist = URTHexLibrary::HexDistance(Da, Id);
+					Min = FMath::Min(Min, Dist);
+					// Al buio per DISTANZA oltre il raggio, oppure per VISTA negata da un muro sulla linea.
+					bVisto |= Dist <= RaggioPiuLungo && URTHexVisionLibrary::HasLineOfSight(Map, Da, Id);
 				}
 				AddInfo(FString::Printf(TEXT("  %-12s fumo %s  squadra %d  distanza minima %d  %s  (partenze %s %s)"),
-					*Nome, *Id.ToString(), Team, Min, Min > RaggioPiuLungo ? TEXT("AL BUIO") : TEXT("in vista possibile"),
+					*Nome, *Id.ToString(), Team, Min, !bVisto ? TEXT("AL BUIO") : TEXT("in vista possibile"),
 					*Start[Team * UnitaPerSquadra].ToString(), *Start[Team * UnitaPerSquadra + 1].ToString()));
 			}
 		}
@@ -348,10 +353,16 @@ bool FRTSmokeDarkHidesTheSmokeUntilTheDashTest::RunTest(const FString&)
 			URTHexVisionLibrary::HasLineOfSight(Map, Start[i], Fumo));
 	}
 
-	// Controllo positivo: dall'arrivo dello scatto la linea c'e', altrimenti il muro nasconderebbe tutto
-	// e il test non distinguerebbe «nascosto dal muro» da «linea sempre negata».
-	TestTrue(TEXT("dall'arrivo dello scatto il Fumo e' in vista"),
-		URTHexVisionLibrary::HasLineOfSight(Map, Arrivo, Fumo));
+	// Controlli positivi. Arrivo e Fumo sono adiacenti, quindi quella linea ha solo gli estremi e passerebbe con
+	// qualunque muro: il controllo che discrimina e' una linea LUNGA a est della colonna, che deve esistere,
+	// mentre la stessa distanza attraverso la colonna no. E la colonna blocca la vista, non il passo.
+	TestTrue(TEXT("dall'arrivo dello scatto una cella lontana a est e' in vista"),
+		URTHexVisionLibrary::HasLineOfSight(Map, Arrivo, Bersaglio));
+	TestFalse(TEXT("la stessa distanza attraverso la colonna q=-5 non lo e'"),
+		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(-6, 0, 0), FRTCellId(-3, 0, 0)));
+	const FRTHexCellData* Colonna = Map->FindCell(FRTCellId(-5, 0, 0));
+	TestTrue(TEXT("la colonna blocca la vista e non il passo"),
+		Colonna && Colonna->bBlocksLineOfSight && !Colonna->bBlocksMovement);
 
 	// E cappa: bersaglio a 4 celle, portata 5 -> 2 attraverso il Fumo; la stessa distanza su una riga senza Fumo no.
 	TestEqual(TEXT("attraverso il Fumo la portata e' il cap"),

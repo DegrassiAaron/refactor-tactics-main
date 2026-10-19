@@ -812,7 +812,8 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeSmokeDarkArena(UObject* Outer)
 		Draft.Set(Cell);
 	}
 
-	// Il Fumo: una cella, a tre celle dall'arrivo di uno scatto di tre che parta da `(-6,0)`. Una sola, di
+	// Il Fumo: una cella, adiacente all'arrivo di uno scatto di tre che parta da `(-6,0)` (arriva a `(-3,0)`,
+	// il Fumo e' a `(-2,0)`, a quattro celle dalla partenza). Una sola, di
 	// proposito: il numero che il click deve mostrare e' il cap (2), e due celle offrirebbero una seconda
 	// spiegazione a ogni esito.
 	FRTHexCellData Smoke(FRTCellId(-2, 0, 0));
