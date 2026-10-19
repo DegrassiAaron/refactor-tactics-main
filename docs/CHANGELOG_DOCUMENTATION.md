@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-19 — `PIE-HUD-CARD-ZERO` ✅: l'autore ha visto la tavola `T1`
+
+**Origine**: [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) e [#3275](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3275). Il giudizio a schermo era dell'autore: «Sì, piena» per la card, «Sì, i nomi si leggono» per il dock.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HUD-CARD-ZERO` da ⏳ a ✅, col verdetto tra virgolette e lo stato precedente marcato; nota `STALE ROADMAP` sul meccanismo (il grafo Blueprint non esiste piu'); totali rimisurati (A1) |
+| [`technical/evidence/1896/`](technical/evidence/1896/T1-card-e-dock-3275-1896-2026-10-19.jpg) | la tavola `T1`, da una finestra `-game` e non dalla PIE |
+
+---
+
 ## 2026-10-18 — `PIE-V01-CHARGEHOVER` ✅: l'autore ha visto la tavola `V10`
 
 **Origine**: [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769). Il giudizio a schermo era dell'autore: «V10 ok».
