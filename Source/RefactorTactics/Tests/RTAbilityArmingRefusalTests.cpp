@@ -255,7 +255,9 @@ bool FRTEmptyKitPositionIsNotReportedAsArmedTest::RunTest(const FString&)
  *
  * 🔑 **I canali sono due, e il test li esercita entrambi** — il tasto (`SelectAbilityForCurrentForTest`, origine
  * `Hotkey`) e la porta dello slot (`ArmKitAbility`, origine `Dock`). Le generiche confluiscono nella stessa
- * funzione per indice; non hanno un hook di test, e un'azione generica con ricarica non esiste nel kit di prova.
+ * funzione per indice (`PressGenericHotkeyForTest` le raggiunge), ma nessuna generica del catalogo ha una ricarica
+ * che prima non fosse gia' rifiutata: `Guard`, `Overwatch`, `Wait` e `Interact` hanno ricarica 0, e `Brace` e' su
+ * se' stesso. Un caso generico qui sarebbe verde anche con la guardia vecchia.
  *
  * ⚠️ **Il banco e' l'azione STESSA, prima pronta e poi in ricarica.** Il controllo positivo arma `Scarica lineare`
  * pronta da tutte e due le porte: cosi' un verde sul rifiuto non puo' venire da un'azione che non si arma mai (una
@@ -264,7 +266,9 @@ bool FRTEmptyKitPositionIsNotReportedAsArmedTest::RunTest(const FString&)
  * ⛔ **Verifica di mutazione**: (1) tornare alla guardia di prima, `(bReazione || bSelfTarget) && !CanUseAbility`,
  * fa cadere B; (2) rifiutare solo con origine `Hotkey` fa cadere il punto B del dock; (3) rimettere
  * `Unit->SelectAbility(Index)` sopra la guardia fa cadere B e C, perche' il rifiuto lascerebbe lo stato scritto;
- * (4) rifiutare ogni azione col `CooldownTurns` di catalogo positivo fa cadere A.
+ * (4) rifiutare ogni azione col `CooldownTurns` di catalogo positivo fa cadere A; (5) rifiutare solo oltre un turno
+ * residuo (`GetAbilityCooldown > 1`) fa cadere B2 — trovata dalla revisione indipendente: A, B, C e D la lasciavano
+ * verde, e il confine di un turno e' proprio il caso che l'autore ha visto a schermo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCooldownActionIsNotArmedTest,
 	"RefactorTactics.PlayerInput.AnActionOnCooldownIsNotArmed",
@@ -362,6 +366,29 @@ bool FRTCooldownActionIsNotArmedTest::RunTest(const FString&)
 	PC->ArmKitAbility(Attiva);
 	TestEqual(TEXT("C: il dock rifiutato non toglie l'armo che c'era"), Unit->SelectedAbilityIndex, Pronta);
 	TestEqual(TEXT("C: e non tocca il piano"), Unit->PlannedAbilityIndex, PianificataPrima);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	// --- B2. a UN turno dalla fine l'azione e' ancora in ricarica: il confine --------------------------
+	// Il caso che l'autore ha misurato a schermo il 2026-10-19 (`Scarica lineare` con 1 turno residuo). Un rifiuto che
+	// scattasse solo oltre una soglia passerebbe A, B, C e D: la ricarica appena pagata e quella finita non lo vedono.
+	int32 Giri = 0;
+	while (Unit->GetAbilityCooldown(Attiva) > 1 && Giri < 16)
+	{
+		Unit->TickCooldowns();
+		++Giri;
+	}
+	if (!TestEqual(TEXT("premessa: manca esattamente un turno"), Unit->GetAbilityCooldown(Attiva), 1)
+		|| !TestFalse(TEXT("premessa ANTI-VACUITA': a un turno dalla fine e' ancora in ricarica"),
+			Unit->CanUseAbility(Attiva)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attiva);
+	TestEqual(TEXT("B2: a un turno dalla fine il tasto NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE); // il dock si misura da neutro, come al punto B
+	PC->ArmKitAbility(Attiva);
+	TestEqual(TEXT("B2: a un turno dalla fine il dock NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
 	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 
 	// --- D. FINITA la ricarica si arma di nuovo: la regola e' sulla ricarica residua, non sull'azione ---
