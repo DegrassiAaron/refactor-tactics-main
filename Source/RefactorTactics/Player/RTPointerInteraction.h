@@ -245,6 +245,21 @@ struct REFACTORTACTICS_API FRTGlanceTarget
 	bool IsValid() const { return Kind != ERTGlanceKind::None; }
 };
 
+/**
+ * IL RITARDO DELLO SGUARDO (P7): da quanto tempo il cursore sta sullo stesso bersaglio.
+ *
+ * Si azzera quando il bersaglio cambia (unita' diversa, cella diversa, genere diverso) e quando non c'e' un
+ * bersaglio (cursore fuori dalla scena): passare da un'unita' all'altra non mostra lo sguardo subito.
+ */
+struct REFACTORTACTICS_API FRTGlanceDwell
+{
+	FRTGlanceTarget Target;
+	float Elapsed = 0.f;
+
+	void Advance(const FRTGlanceTarget& Now, float DeltaSeconds);
+	bool HasElapsed(float DelaySeconds) const { return Target.IsValid() && Elapsed >= DelaySeconds; }
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTPointerLibrary : public UBlueprintFunctionLibrary
 {
@@ -408,4 +423,11 @@ public:
 	 */
 	static FRTGlanceTarget ResolveGlanceTarget(int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell,
 		bool bCellHasMapElement);
+
+	/**
+	 * Se lo sguardo si mostra in questo contesto (spec F2, regola sull'inerzia). Inerte in `Modal` e in
+	 * `ReactionWindow`, in `Facing` (l'annotazione di 4.1 e' un settore, non un'unita') e quando nessuno
+	 * comanda; acceso altrove, a ritardo trascorso. Non decide COSA si dice: quello e' del cancello.
+	 */
+	static bool ShouldShowGlance(ERTPointerContext Context, bool bSomeoneCommands, bool bDwellElapsed);
 };

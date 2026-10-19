@@ -1112,6 +1112,19 @@ public:
 	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
 	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
+	/** Ritardo dell'hover prima che lo sguardo si mostri (#3747, P7; 0,3 s da R10 della spec). */
+	UPROPERTY(EditDefaultsOnly, Category = "RefactorTactics|Glance", meta = (ClampMin = "0.0"))
+	float GlanceDelaySeconds = 0.3f;
+
+	/**
+	 * Il bersaglio GREZZO dello sguardo: `None` finche' il ritardo non e' trascorso o il contesto lo vieta. Non dice
+	 * se la squadra conosce l'unita': il cancello e' di `URTGlanceLibrary::ResolveGlance`, sulla vista dell'HUD (P8).
+	 */
+	const FRTGlanceTarget& GetGlanceTarget() const { return GlanceTarget; }
+
+	/** Un passo del ritardo e dell'inerzia, con gli ingressi espliciti: e' il punto che `PlayerTick` chiama e i test esercitano. */
+	void AdvanceGlance(float DeltaSeconds, ERTPointerContext Context, bool bSomeoneCommands, const FRTGlanceTarget& Raw);
+
 	/**
 	 * §5 — **applica la riga di matrice** a un click su un'unita': chiede l'esito a
 	 * `URTPointerLibrary::ResolveOutcome` e fa cio' che quell'esito comporta.
@@ -1608,6 +1621,12 @@ public:
 
 protected:
 	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
+	FRTGlanceDwell GlanceDwell;
+	FRTGlanceTarget GlanceTarget;
+
+	/** Calcola il bersaglio grezzo sotto il cursore (unita' colpita, cella, porta/obiettivo) e avanza lo sguardo. */
+	void UpdateGlance(float DeltaSeconds, bool bCellResolved, const FRTCellId& Cell, const class URTHexMapAsset* Map);
+
 	bool bDeclaringFacing = false;
 
 	/** Il lato verso cui l'hover ha girato la mesh: vuoto quando la mesh mostra il verso pianificato. */

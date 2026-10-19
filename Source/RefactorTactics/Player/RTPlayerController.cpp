@@ -1025,6 +1025,7 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
 	if (!HexMap)
 	{
+		UpdateGlance(DeltaTime, false, FRTCellId(), nullptr);
 		return;
 	}
 	// #3679: il piano attivo arriva alla board come presentazione anche qui, a ogni fotogramma. `SetActiveLayer` lo
@@ -1045,7 +1046,8 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	// la stessa cella.
 	FRTCellId Cell;
 	bool bOnAnotherLayer = false;
-	if (ResolveCellUnderCursor(Cell, bOnAnotherLayer))
+	const bool bCellResolved = ResolveCellUnderCursor(Cell, bOnAnotherLayer);
+	if (bCellResolved)
 	{
 		HexMap->SetHoveredCell(Cell, Map && Map->ContainsCell(Cell));
 	}
@@ -1053,6 +1055,9 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
+
+	// #3747: lo sguardo LEGGE l'hover, non lo scrive (non tocca `SetHoveredCell` ne' `InspectedUnit`).
+	UpdateGlance(DeltaTime, bCellResolved, Cell, Map);
 
 	UpdateEnemyArcFocus(HexMap);
 }
@@ -4351,6 +4356,45 @@ bool ARTPlayerController::IsObservationSession() const
 		Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
 	return GameMode && (GameMode->IsAutobattleInEffect() || GameMode->IsScenarioRunning()
 		|| !GameMode->ResolveScenarioToRun().IsEmpty());
+}
+
+void ARTPlayerController::AdvanceGlance(float DeltaSeconds, ERTPointerContext Context, bool bSomeoneCommands,
+	const FRTGlanceTarget& Raw)
+{
+	GlanceDwell.Advance(Raw, DeltaSeconds);
+	const bool bShow = URTPointerLibrary::ShouldShowGlance(
+		Context, bSomeoneCommands, GlanceDwell.HasElapsed(GlanceDelaySeconds));
+	GlanceTarget = bShow ? GlanceDwell.Target : FRTGlanceTarget();
+}
+
+void ARTPlayerController::UpdateGlance(float DeltaSeconds, bool bCellResolved, const FRTCellId& Cell,
+	const URTHexMapAsset* Map)
+{
+	FRTGlanceTarget Raw;
+	if (bCellResolved)
+	{
+		int32 HitUnitId = INDEX_NONE;
+		FHitResult Hit;
+		if (IsCursorInsideScene() && GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit))
+		{
+			if (const ARTUnit* Unit = Cast<ARTUnit>(Hit.GetActor()))
+			{
+				if (Unit->IsAlive()) { HitUnitId = Unit->StableUnitId; }
+			}
+		}
+		// Porta o obiettivo si ricavano dalla cella (P9): nessuna mesh, nessun produttore nuovo.
+		bool bCellHasMapElement = false;
+		if (Map != nullptr)
+		{
+			if (const FRTHexCellData* Data = Map->FindCell(Cell))
+			{
+				bCellHasMapElement = Data->bIsObjective || Data->Doors.Num() > 0;
+			}
+		}
+		Raw = URTPointerLibrary::ResolveGlanceTarget(HitUnitId, /*bHasCell=*/ true, Cell, bCellHasMapElement);
+	}
+	// "Qualcuno comanda" = c'e' una partita (un gestore del turno): l'insieme degli osservatori non e' mai vuoto.
+	AdvanceGlance(DeltaSeconds, GetPointerContext(), PacingTurnManager(this) != nullptr, Raw);
 }
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const

@@ -2220,4 +2220,108 @@ bool FRTPointerGlanceFollowsTheAnnotationOrderTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// #3747 (F2): il ritardo e l'inerzia dello sguardo.
+// ---------------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Nomi distinti per file: il progetto usa unity build. */
+	FRTGlanceTarget GlancePtrUnitTarget(int32 Id)
+	{
+		FRTCellId C; C.X = 1; C.Y = 1;
+		return URTPointerLibrary::ResolveGlanceTarget(Id, true, C, false);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceDwellRestartsTest,
+	"RefactorTactics.Pointer.GlanceDwellRestartsWhenTheTargetChanges",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceDwellRestartsTest::RunTest(const FString&)
+{
+	FRTGlanceDwell Dwell;
+	const FRTGlanceTarget A = GlancePtrUnitTarget(1);
+	const FRTGlanceTarget B = GlancePtrUnitTarget(2);
+
+	Dwell.Advance(A, 0.f);
+	Dwell.Advance(A, 0.2f);
+	TestFalse(TEXT("a 0,2 s non e' trascorso 0,3"), Dwell.HasElapsed(0.3f));
+	Dwell.Advance(A, 0.2f);
+	TestTrue(TEXT("a 0,4 s s'e' trascorso"), Dwell.HasElapsed(0.3f));
+
+	// Passare a un'altra unita' riparte da zero: non mostra lo sguardo subito.
+	Dwell.Advance(B, 0.2f);
+	TestFalse(TEXT("altra unita': il ritardo riparte"), Dwell.HasElapsed(0.3f));
+
+	// Cursore fuori dalla scena (nessun bersaglio): azzera.
+	Dwell.Advance(B, 0.2f);
+	Dwell.Advance(FRTGlanceTarget(), 0.2f);
+	Dwell.Advance(B, 0.2f);
+	TestFalse(TEXT("dopo essere uscito, riparte"), Dwell.HasElapsed(0.3f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceInertiaTest,
+	"RefactorTactics.Pointer.GlanceIsInertWhereTheSpecSays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceInertiaTest::RunTest(const FString&)
+{
+	for (const ERTPointerContext Ctx : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Targeting, ERTPointerContext::Pathing, ERTPointerContext::ResolutionPlayback })
+	{
+		TestTrue(TEXT("acceso"), URTPointerLibrary::ShouldShowGlance(Ctx, true, true));
+		TestFalse(TEXT("ritardo non trascorso"), URTPointerLibrary::ShouldShowGlance(Ctx, true, false));
+		TestFalse(TEXT("nessuno comanda"), URTPointerLibrary::ShouldShowGlance(Ctx, false, true));
+	}
+	for (const ERTPointerContext Ctx : { ERTPointerContext::Modal, ERTPointerContext::ReactionWindow, ERTPointerContext::Facing })
+	{
+		TestFalse(TEXT("inerte"), URTPointerLibrary::ShouldShowGlance(Ctx, true, true));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceRealPathTest,
+	"RefactorTactics.Pointer.GlanceGoesThroughTheInertiaOnTheRealPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceRealPathTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("il controller esiste"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTGlanceTarget T = GlancePtrUnitTarget(5);
+	const float Delay = PC->GlanceDelaySeconds;
+	TestEqual(TEXT("il ritardo di partenza e' 0,3 s"), Delay, 0.3f);
+
+	PC->AdvanceGlance(0.f, ERTPointerContext::Planning, true, T);
+	TestFalse(TEXT("prima del ritardo: nulla"), PC->GetGlanceTarget().IsValid());
+	PC->AdvanceGlance(Delay + 0.01f, ERTPointerContext::Planning, true, T);
+	TestTrue(TEXT("a ritardo trascorso in Planning: il bersaglio"), PC->GetGlanceTarget().IsValid());
+	TestEqual(TEXT("ed e' quello atteso"), PC->GetGlanceTarget().StableUnitId, 5);
+
+	PC->AdvanceGlance(0.01f, ERTPointerContext::Modal, true, T);
+	TestFalse(TEXT("in Modal: nulla, anche a ritardo trascorso"), PC->GetGlanceTarget().IsValid());
+	PC->AdvanceGlance(0.01f, ERTPointerContext::Planning, false, T);
+	TestFalse(TEXT("nessuno comanda: nulla"), PC->GetGlanceTarget().IsValid());
+
+	// Lo sguardo non cambia cosa e' ispezionato o selezionato.
+	ARTUnit* Before = PC->GetInspectedUnit();
+	AActor* SelBefore = PC->GetSelectedUnit();
+	for (const ERTPointerContext Ctx : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Targeting, ERTPointerContext::ResolutionPlayback })
+	{
+		PC->AdvanceGlance(Delay + 0.01f, Ctx, true, T);
+	}
+	TestTrue(TEXT("l'unita' ispezionata e' la stessa"), PC->GetInspectedUnit() == Before);
+	TestTrue(TEXT("la selezione e' la stessa"), PC->GetSelectedUnit() == SelBefore);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
