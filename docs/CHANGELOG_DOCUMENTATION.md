@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-19 — un'azione in ricarica non si arma, da nessun canale (`D-531`)
+
+**Origine**: [#3828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3828), nata dalla tavola `T2` di [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896). L'autore ha deciso che un'azione in ricarica non si arma: fino ad allora il rifiuto copriva solo reazioni e supporti, e [#3517](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3517) lo aveva lasciato come decisione a parte.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | nuova voce `D-531`: il rifiuto di armare copre ogni azione in ricarica, da tasto, slot del dock e generiche; il rifiuto lascia il modello com'era; `DR-8` di #3517 resta come difesa in profondità |
+
+---
+
 ## 2026-10-19 — `PIE-HUD-CARD-ZERO` ✅: l'autore ha visto la tavola `T1`
 
 **Origine**: [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) e [#3275](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3275). Il giudizio a schermo era dell'autore: «Sì, piena» per la card, «Sì, i nomi si leggono» per il dock.
