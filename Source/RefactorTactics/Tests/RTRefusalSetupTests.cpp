@@ -26,6 +26,7 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Debug/RTDebugReportLibrary.h" // la stessa funzione che rt.Debug.Refusal usa (#3107)
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -249,6 +250,125 @@ bool FRTRefusalReachabilityTellsTheCasesApartTest::RunTest(const FString&)
 		TestFalse(TEXT("e la ragione non e' vuota"), R.Reason.IsEmpty());
 	}
 
+	return true;
+}
+
+/**
+ * Quali fixture hanno un Fumo FUORI dalla vista della squadra al turno 1 — la misura di `#3818`.
+ *
+ * Sonda, non contratto: stampa per ogni fixture e per ogni squadra le celle di Fumo la cui distanza dalla
+ * unita' della squadra supera il raggio visivo piu' lungo del roster (7) o sta dietro una cella che nega la vista,
+ * cioe' che nessun eroe puo' aver osservato in partenza. Serve a scegliere dove allestire il click su Fumo mai visto (`#3270`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnexploredSmokeSetupProbeTest,
+	"RefactorTactics.Setup.WhichFixturesHideSmokeFromATeamAtTurnOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnexploredSmokeSetupProbeTest::RunTest(const FString&)
+{
+	constexpr int32 RaggioPiuLungo = 7;
+	constexpr int32 UnitaPerSquadra = 2;
+
+	for (const FString& Nome : URTMatchSetupLibrary::KnownFixtureIds())
+	{
+		const URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), Nome);
+		if (!Map)
+		{
+			continue;
+		}
+		const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, UnitaPerSquadra, 0);
+		if (Start.Num() != UnitaPerSquadra * 2)
+		{
+			continue;
+		}
+
+		for (const FRTCellId& Id : Map->CellsInLayer(0))
+		{
+			const FRTHexCellData* Data = Map->FindCell(Id);
+			if (!Data || Data->Surface != ERTHexSurface::Smoke)
+			{
+				continue;
+			}
+			for (int32 Team = 0; Team < 2; ++Team)
+			{
+				int32 Min = TNumericLimits<int32>::Max();
+				bool bVisto = false;
+				for (int32 i = 0; i < UnitaPerSquadra; ++i)
+				{
+					const FRTCellId& Da = Start[Team * UnitaPerSquadra + i];
+					const int32 Dist = URTHexLibrary::HexDistance(Da, Id);
+					Min = FMath::Min(Min, Dist);
+					// Al buio per DISTANZA oltre il raggio, oppure per VISTA negata da un muro sulla linea.
+					bVisto |= Dist <= RaggioPiuLungo && URTHexVisionLibrary::HasLineOfSight(Map, Da, Id);
+				}
+				AddInfo(FString::Printf(TEXT("  %-12s fumo %s  squadra %d  distanza minima %d  %s  (partenze %s %s)"),
+					*Nome, *Id.ToString(), Team, Min, !bVisto ? TEXT("AL BUIO") : TEXT("in vista possibile"),
+					*Start[Team * UnitaPerSquadra].ToString(), *Start[Team * UnitaPerSquadra + 1].ToString()));
+			}
+		}
+	}
+
+	TestTrue(TEXT("la sonda ha esaminato almeno una fixture"), URTMatchSetupLibrary::KnownFixtureIds().Num() > 0);
+	return true;
+}
+
+/**
+ * `SmokeDark` produce il caso: alla partenza il Fumo non e' in vista, dall'arrivo dello scatto si' e cappa — `#3818`.
+ *
+ * Le tre meta' sono insieme perche' ciascuna da sola e' vera anche su una fixture sbagliata: un Fumo non
+ * visto ma che non cappa non e' il caso, e un Fumo che cappa ma e' visto dalla partenza non e' «mai visto».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSmokeDarkHidesTheSmokeUntilTheDashTest,
+	"RefactorTactics.Setup.SmokeDarkHidesTheSmokeUntilTheDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSmokeDarkHidesTheSmokeUntilTheDashTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("SmokeDark"));
+	if (!TestNotNull(TEXT("la fixture SmokeDark si costruisce"), Map))
+	{
+		return false;
+	}
+
+	const FRTCellId Fumo(-2, 0, 0);
+	const FRTCellId Arrivo(-3, 0, 0);
+	const FRTCellId Bersaglio(1, 0, 0);
+
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, 2, 0);
+	if (!TestEqual(TEXT("le partenze sono quattro"), Start.Num(), 4))
+	{
+		return false;
+	}
+	TestEqual(TEXT("la prima partenza della squadra 0"), Start[0], FRTCellId(-6, 0, 0));
+	TestEqual(TEXT("la seconda partenza della squadra 0"), Start[1], FRTCellId(-6, 1, 0));
+
+	// Il Fumo c'e'...
+	const FRTHexCellData* Cella = Map->FindCell(Fumo);
+	TestTrue(TEXT("la cella (-2,0) e' Fumo"), Cella && Cella->Surface == ERTHexSurface::Smoke);
+
+	// ...e nessuna partenza della squadra 0 lo vede, ne' alla portata del roster (7).
+	for (int32 i = 0; i < 2; ++i)
+	{
+		TestTrue(TEXT("il Fumo e' entro 7 celle: e' il muro, non la distanza, a nasconderlo"),
+			URTHexLibrary::HexDistance(Start[i], Fumo) <= 7);
+		TestFalse(*FString::Printf(TEXT("la partenza %s non ha la linea sul Fumo"), *Start[i].ToString()),
+			URTHexVisionLibrary::HasLineOfSight(Map, Start[i], Fumo));
+	}
+
+	// Controlli positivi. Arrivo e Fumo sono adiacenti, quindi quella linea ha solo gli estremi e passerebbe con
+	// qualunque muro: il controllo che discrimina e' una linea LUNGA a est della colonna, che deve esistere,
+	// mentre la stessa distanza attraverso la colonna no. E la colonna blocca la vista, non il passo.
+	TestTrue(TEXT("dall'arrivo dello scatto una cella lontana a est e' in vista"),
+		URTHexVisionLibrary::HasLineOfSight(Map, Arrivo, Bersaglio));
+	TestFalse(TEXT("la stessa distanza attraverso la colonna q=-5 non lo e'"),
+		URTHexVisionLibrary::HasLineOfSight(Map, FRTCellId(-6, 0, 0), FRTCellId(-3, 0, 0)));
+	const FRTHexCellData* Colonna = Map->FindCell(FRTCellId(-5, 0, 0));
+	TestTrue(TEXT("la colonna blocca la vista e non il passo"),
+		Colonna && Colonna->bBlocksLineOfSight && !Colonna->bBlocksMovement);
+
+	// E cappa: bersaglio a 4 celle, portata 5 -> 2 attraverso il Fumo; la stessa distanza su una riga senza Fumo no.
+	TestEqual(TEXT("attraverso il Fumo la portata e' il cap"),
+		URTTerrainLibrary::EffectiveTargetingRange(Map, Arrivo, Bersaglio, 5), 2);
+	TestEqual(TEXT("senza Fumo sulla riga la portata resta intera"),
+		URTTerrainLibrary::EffectiveTargetingRange(Map, FRTCellId(-3, 1, 0), FRTCellId(1, 1, 0), 5), 5);
 	return true;
 }
 

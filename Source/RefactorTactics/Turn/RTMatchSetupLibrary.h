@@ -336,6 +336,17 @@ public:
 	static URTHexMapAsset* MakeLayerYardArena(UObject* Outer);
 
 	/**
+	 * **`SmokeDark`** (`#3818`, gate di `#3270`): esagono di raggio 6, una colonna che nega la vista a `q = -5`
+	 * e una cella di Fumo a `(-2,0)`. Alla partenza la squadra 0 sta dietro la colonna, quindi quel Fumo non
+	 * l'ha mai osservato; uno scatto da `(-6,0)` la attraversa e arriva a `(-3,0)`, accanto al Fumo.
+	 *
+	 * Serve a produrre da un click vero il caso che `FRTAimOriginUnexploredSmokeChannelTest` misura senza
+	 * UI: un bersaglio oltre il Fumo mai visto, il cui rifiuto per distanza mostra il cap (2). Nessuna delle
+	 * altre fixture lo ha — misurato da `WhichFixturesHideSmokeFromATeamAtTurnOne` (distanza oltre 7 o vista negata). `Outer` nullo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeSmokeDarkArena(UObject* Outer);
+
+	/**
 	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa
 	 * tabella che li dispaccia: elencarli qui a mano e' cio' che ha prodotto `#1459`.
 	 *
