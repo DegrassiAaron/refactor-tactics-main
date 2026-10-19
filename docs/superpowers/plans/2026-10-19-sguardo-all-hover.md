@@ -90,7 +90,7 @@ Scelte di chi scrive. Quelle marcate **(A)** chiedono la parola dell'autore *pri
 
 **Files:** `Player/RTPointerInteraction.h/.cpp` (aggiunta), `Tests/RTPointerInteractionTests.cpp` (aggiunta).
 
-**Interfaces:** produce `enum class ERTGlanceKind { None, Unit, Door, Objective, Cell }`, `struct FRTGlanceTarget { Kind; StableUnitId (int32); Cell }` e `URTPointerLibrary::ResolveGlanceTarget(ERTPointerContext, int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell, bool bCellHasDoor, bool bCellIsObjective)`. ➕ rev. Non prende `bUnitObserved` (P8) e non prende `FRTPointerCandidates`, che per l'hover non ha produttori (P9).
+**Interfaces:** produce `enum class ERTGlanceKind { None, Unit, MapElement, Cell }`, `struct FRTGlanceTarget { Kind; StableUnitId (int32, INDEX_NONE se assente); Cell; bHasCell }` e `URTPointerLibrary::ResolveGlanceTarget(int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell, bool bCellHasMapElement)`. Senza il contesto: lo sguardo ha un ordine solo (spec regola 1); quando si mostra e' di `ShouldShowGlance` (Task 5). Porta e obiettivo sono un genere solo, `MapElement`: il compositore li distingue leggendo la cella. **Fatto** (commit del Task 1). ➕ rev. Non prende `bUnitObserved` (P8) e non prende `FRTPointerCandidates`, che per l'hover non ha produttori (P9).
 
 L'ordine e' quello della riga `IdleSelection` / `Planning` di 4.1 (spec regola 1), nel sottoinsieme che l'hover sa produrre (P9): unita' (comandabile o nota; chi la decide e' l'HUD, P10), poi oggetto logico od obiettivo della cella, poi cella.
 
