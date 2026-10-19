@@ -254,8 +254,7 @@ namespace
 		return E;
 	}
 
-	FString GlanceText(const FRTGlanceView& V) { return FString::Join(V.Lines, TEXT("
-")); }
+	FString GlanceText(const FRTGlanceView& V) { return FString::Join(V.Lines, TEXT("\n")); }
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceUnobservedEnemyReadsAsAnEmptyCellTest,
