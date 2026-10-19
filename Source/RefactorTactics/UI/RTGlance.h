@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Perception/RTKnowledgeView.h"
+#include "Player/RTPointerInteraction.h"
 #include "UI/RTHudViewModel.h"
 #include "RTGlance.generated.h"
 
@@ -117,4 +119,16 @@ public:
 
 	/** Superficie, costo d'ingresso (solo se diverso da 1), piano, ripari per lato, vista, obiettivo, porta. */
 	static FRTGlanceView ComposeCell(const FRTGlanceCellSubject& Subject);
+	/**
+	 * IL CANCELLO DI CONOSCENZA, in una funzione pura (P2, P10).
+	 *
+	 * `Unit` e `CellAtTarget` sono letti dal chiamante PRIMA di sapere se si possono dire: qui si decide, e cio'
+	 * che non si puo' dire non arriva alle righe.
+	 *  - un'unita' parla solo con una voce `Live` nella vista (non `bKnownToObserver`, che nasce vero);
+	 *  - altrimenti lo sguardo cade sulla cella sotto il cursore, e quella parla solo se e' in `VisibleCells`
+	 *    ADESSO (una cella esplorata e non in vista vale una mai vista);
+	 *  - fuori vista: nessuna riga, come per una cella vuota. Mai un `nullopt` che sia un canale.
+	 */
+	static FRTGlanceView ResolveGlance(const FRTKnowledgeView& View, const FRTTeamKnowledge& Knowledge,
+		const FRTGlanceTarget& Target, const FRTGlanceUnitSubject& Unit, const FRTGlanceCellSubject& CellAtTarget);
 };

@@ -84,3 +84,28 @@ FRTGlanceView URTGlanceLibrary::ComposeCell(const FRTGlanceCellSubject& Subject)
 
 	return View;
 }
+
+FRTGlanceView URTGlanceLibrary::ResolveGlance(const FRTKnowledgeView& View, const FRTTeamKnowledge& Knowledge,
+	const FRTGlanceTarget& Target, const FRTGlanceUnitSubject& Unit, const FRTGlanceCellSubject& CellAtTarget)
+{
+	if (!Target.IsValid())
+	{
+		return FRTGlanceView();
+	}
+
+	if (Target.Kind == ERTGlanceKind::Unit)
+	{
+		const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Target.StableUnitId);
+		if (Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live)
+		{
+			return ComposeUnit(Unit);
+		}
+		// Degrado (P10): lo sguardo cade sulla cella, e vale quel che vale per una cella vuota.
+	}
+
+	if (!Target.bHasCell || !Knowledge.VisibleCells.Contains(Target.Cell))
+	{
+		return FRTGlanceView();
+	}
+	return ComposeCell(CellAtTarget);
+}

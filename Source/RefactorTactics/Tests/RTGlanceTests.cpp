@@ -215,4 +215,113 @@ bool FRTGlanceFacingIsOffInResolutionPlaybackTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** Un mondo di prova per il cancello: la cella C, la vista e la conoscenza della squadra osservatrice. */
+	struct FGlanceWorld
+	{
+		FRTCellId Cell;
+		FRTKnowledgeView View;
+		FRTTeamKnowledge Knowledge;
+		FRTGlanceUnitSubject Unit;
+		FRTGlanceCellSubject CellSubject;
+	};
+
+	FGlanceWorld GlanceMakeWorld(ERTHexSurface Surface, bool bInView, bool bExplored)
+	{
+		FGlanceWorld W;
+		W.Cell.X = 2; W.Cell.Y = 3; W.Cell.Layer = 0;
+		if (bInView) { W.Knowledge.VisibleCells.Add(W.Cell); }
+		if (bInView || bExplored) { W.Knowledge.ExploredCells.Add(W.Cell); }
+		W.CellSubject.Cell = W.Cell;
+		W.CellSubject.Surface = Surface;
+		W.Unit = GlanceUnit({ TEXT("Status.Burning") }, true);
+		W.Unit.DisplayName = FText::FromString(TEXT("NemicoNascosto"));
+		W.Unit.Cell = W.Cell;
+		return W;
+	}
+
+	FRTGlanceTarget GlanceUnitTarget(const FGlanceWorld& W, int32 Id)
+	{
+		return URTPointerLibrary::ResolveGlanceTarget(Id, true, W.Cell, false);
+	}
+
+	FRTKnowledgeEntry GlanceEntry(int32 Id, ERTKnowledgeVisibility Visibility)
+	{
+		FRTKnowledgeEntry E;
+		E.StableUnitId = Id;
+		E.Visibility = Visibility;
+		return E;
+	}
+
+	FString GlanceText(const FRTGlanceView& V) { return FString::Join(V.Lines, TEXT("
+")); }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceUnobservedEnemyReadsAsAnEmptyCellTest,
+	"RefactorTactics.UI.GlanceUnobservedEnemyReadsAsAnEmptyCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceUnobservedEnemyReadsAsAnEmptyCellTest::RunTest(const FString&)
+{
+	for (const bool bInView : { true, false })
+	{
+		// Mondo A: un nemico nascosto sta sulla cella (nessuna voce nella vista). Mondo B: la cella e' vuota.
+		const FGlanceWorld A = GlanceMakeWorld(ERTHexSurface::Fire, bInView, false);
+		const FGlanceWorld B = GlanceMakeWorld(ERTHexSurface::Fire, bInView, false);
+		const FRTGlanceView WithEnemy = URTGlanceLibrary::ResolveGlance(A.View, A.Knowledge, GlanceUnitTarget(A, 7), A.Unit, A.CellSubject);
+		const FRTGlanceView Empty = URTGlanceLibrary::ResolveGlance(B.View, B.Knowledge,
+			URTPointerLibrary::ResolveGlanceTarget(INDEX_NONE, true, B.Cell, false), B.Unit, B.CellSubject);
+
+		TestEqual(*FString::Printf(TEXT("stesse righe (in vista=%d)"), bInView), GlanceText(WithEnemy), GlanceText(Empty));
+		TestTrue(TEXT("stesso numero di righe"), WithEnemy.Lines.Num() == Empty.Lines.Num());
+		TestFalse(TEXT("il nome nascosto non esce"), GlanceText(WithEnemy).Contains(TEXT("NemicoNascosto")));
+		// Anti-vacuita': in vista le righe ci sono, fuori vista no. Senza, l'uguaglianza sarebbe banale.
+		TestEqual(TEXT("in vista parla, fuori vista tace"), WithEnemy.Lines.Num() > 0, bInView);
+	}
+
+	// Controllo positivo: la stessa unita' con una voce `Live` parla, col suo nome.
+	FGlanceWorld Known = GlanceMakeWorld(ERTHexSurface::Fire, true, false);
+	Known.View.Entries.Add(GlanceEntry(7, ERTKnowledgeVisibility::Live));
+	TestTrue(TEXT("osservata, parla"), GlanceText(URTGlanceLibrary::ResolveGlance(Known.View, Known.Knowledge,
+		GlanceUnitTarget(Known, 7), Known.Unit, Known.CellSubject)).Contains(TEXT("NemicoNascosto")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceExploredCellReadsAsNeverSeenTest,
+	"RefactorTactics.UI.GlanceExploredCellReadsAsNeverSeen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceExploredCellReadsAsNeverSeenTest::RunTest(const FString&)
+{
+	const FGlanceWorld Explored = GlanceMakeWorld(ERTHexSurface::Fire, false, true);
+	const FGlanceWorld Never = GlanceMakeWorld(ERTHexSurface::Ice, false, false);
+	const FRTGlanceTarget T = URTPointerLibrary::ResolveGlanceTarget(INDEX_NONE, true, Explored.Cell, false);
+	const FRTGlanceView A = URTGlanceLibrary::ResolveGlance(Explored.View, Explored.Knowledge, T, Explored.Unit, Explored.CellSubject);
+	const FRTGlanceView B = URTGlanceLibrary::ResolveGlance(Never.View, Never.Knowledge, T, Never.Unit, Never.CellSubject);
+	TestEqual(TEXT("esplorata e mai vista: stessa uscita"), GlanceText(A), GlanceText(B));
+	TestEqual(TEXT("e vuota"), A.Lines.Num(), 0);
+
+	// Controllo positivo: in vista parla.
+	const FGlanceWorld Seen = GlanceMakeWorld(ERTHexSurface::Fire, true, true);
+	TestTrue(TEXT("in vista, parla"), URTGlanceLibrary::ResolveGlance(Seen.View, Seen.Knowledge, T, Seen.Unit, Seen.CellSubject).Lines.Num() > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceNewbornUnitSpeaksOnlyAfterTheVeilTest,
+	"RefactorTactics.UI.GlanceNewbornUnitSpeaksOnlyAfterTheVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceNewbornUnitSpeaksOnlyAfterTheVeilTest::RunTest(const FString&)
+{
+	// L'unita' non ha voce `Live`: o non ha voce (appena nata, `bKnownToObserver` ancora vero), o ha un ricordo.
+	for (const bool bRemembered : { false, true })
+	{
+		FGlanceWorld W = GlanceMakeWorld(ERTHexSurface::Fire, true, false);
+		if (bRemembered) { W.View.Entries.Add(GlanceEntry(7, ERTKnowledgeVisibility::Remembered)); }
+		const FRTGlanceView Got = URTGlanceLibrary::ResolveGlance(W.View, W.Knowledge, GlanceUnitTarget(W, 7), W.Unit, W.CellSubject);
+		const FRTGlanceView CellOnly = URTGlanceLibrary::ComposeCell(W.CellSubject);
+		TestEqual(*FString::Printf(TEXT("parla la cella, non l'unita' (ricordo=%d)"), bRemembered), GlanceText(Got), GlanceText(CellOnly));
+		TestTrue(TEXT("e la cella ha delle righe"), CellOnly.Lines.Num() > 0);
+	}
+	return true;
+}
+
 #endif
