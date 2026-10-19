@@ -252,4 +252,57 @@ bool FRTRefusalReachabilityTellsTheCasesApartTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Quali fixture hanno un Fumo FUORI dalla vista della squadra al turno 1 — la misura di `#3818`.
+ *
+ * Sonda, non contratto: stampa per ogni fixture e per ogni squadra le celle di Fumo la cui distanza dalla
+ * unita' piu' vicina della squadra supera il raggio visivo piu' lungo del roster (7), cioe' che nessun eroe
+ * puo' aver osservato in partenza. Serve a scegliere dove allestire il click su Fumo mai visto (`#3270`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnexploredSmokeSetupProbeTest,
+	"RefactorTactics.Setup.WhichFixturesHideSmokeFromATeamAtTurnOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnexploredSmokeSetupProbeTest::RunTest(const FString&)
+{
+	constexpr int32 RaggioPiuLungo = 7;
+	constexpr int32 UnitaPerSquadra = 2;
+
+	for (const FString& Nome : URTMatchSetupLibrary::KnownFixtureIds())
+	{
+		const URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), Nome);
+		if (!Map)
+		{
+			continue;
+		}
+		const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, UnitaPerSquadra, 0);
+		if (Start.Num() != UnitaPerSquadra * 2)
+		{
+			continue;
+		}
+
+		for (const FRTCellId& Id : Map->CellsInLayer(0))
+		{
+			const FRTHexCellData* Data = Map->FindCell(Id);
+			if (!Data || Data->Surface != ERTHexSurface::Smoke)
+			{
+				continue;
+			}
+			for (int32 Team = 0; Team < 2; ++Team)
+			{
+				int32 Min = TNumericLimits<int32>::Max();
+				for (int32 i = 0; i < UnitaPerSquadra; ++i)
+				{
+					Min = FMath::Min(Min, URTHexLibrary::HexDistance(Start[Team * UnitaPerSquadra + i], Id));
+				}
+				AddInfo(FString::Printf(TEXT("  %-12s fumo %s  squadra %d  distanza minima %d  %s  (partenze %s %s)"),
+					*Nome, *Id.ToString(), Team, Min, Min > RaggioPiuLungo ? TEXT("AL BUIO") : TEXT("in vista possibile"),
+					*Start[Team * UnitaPerSquadra].ToString(), *Start[Team * UnitaPerSquadra + 1].ToString()));
+			}
+		}
+	}
+
+	TestTrue(TEXT("la sonda ha esaminato almeno una fixture"), URTMatchSetupLibrary::KnownFixtureIds().Num() > 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
