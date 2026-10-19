@@ -26,6 +26,7 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Debug/RTDebugReportLibrary.h" // la stessa funzione che rt.Debug.Refusal usa (#3107)
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -302,6 +303,61 @@ bool FRTUnexploredSmokeSetupProbeTest::RunTest(const FString&)
 	}
 
 	TestTrue(TEXT("la sonda ha esaminato almeno una fixture"), URTMatchSetupLibrary::KnownFixtureIds().Num() > 0);
+	return true;
+}
+
+/**
+ * `SmokeDark` produce il caso: alla partenza il Fumo non e' in vista, dall'arrivo dello scatto si' e cappa — `#3818`.
+ *
+ * Le tre meta' sono insieme perche' ciascuna da sola e' vera anche su una fixture sbagliata: un Fumo non
+ * visto ma che non cappa non e' il caso, e un Fumo che cappa ma e' visto dalla partenza non e' «mai visto».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSmokeDarkHidesTheSmokeUntilTheDashTest,
+	"RefactorTactics.Setup.SmokeDarkHidesTheSmokeUntilTheDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSmokeDarkHidesTheSmokeUntilTheDashTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("SmokeDark"));
+	if (!TestNotNull(TEXT("la fixture SmokeDark si costruisce"), Map))
+	{
+		return false;
+	}
+
+	const FRTCellId Fumo(-2, 0, 0);
+	const FRTCellId Arrivo(-3, 0, 0);
+	const FRTCellId Bersaglio(1, 0, 0);
+
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, 2, 0);
+	if (!TestEqual(TEXT("le partenze sono quattro"), Start.Num(), 4))
+	{
+		return false;
+	}
+	TestEqual(TEXT("la prima partenza della squadra 0"), Start[0], FRTCellId(-6, 0, 0));
+	TestEqual(TEXT("la seconda partenza della squadra 0"), Start[1], FRTCellId(-6, 1, 0));
+
+	// Il Fumo c'e'...
+	const FRTHexCellData* Cella = Map->FindCell(Fumo);
+	TestTrue(TEXT("la cella (-2,0) e' Fumo"), Cella && Cella->Surface == ERTHexSurface::Smoke);
+
+	// ...e nessuna partenza della squadra 0 lo vede, ne' alla portata del roster (7).
+	for (int32 i = 0; i < 2; ++i)
+	{
+		TestTrue(TEXT("il Fumo e' entro 7 celle: e' il muro, non la distanza, a nasconderlo"),
+			URTHexLibrary::HexDistance(Start[i], Fumo) <= 7);
+		TestFalse(*FString::Printf(TEXT("la partenza %s non ha la linea sul Fumo"), *Start[i].ToString()),
+			URTHexVisionLibrary::HasLineOfSight(Map, Start[i], Fumo));
+	}
+
+	// Controllo positivo: dall'arrivo dello scatto la linea c'e', altrimenti il muro nasconderebbe tutto
+	// e il test non distinguerebbe «nascosto dal muro» da «linea sempre negata».
+	TestTrue(TEXT("dall'arrivo dello scatto il Fumo e' in vista"),
+		URTHexVisionLibrary::HasLineOfSight(Map, Arrivo, Fumo));
+
+	// E cappa: bersaglio a 4 celle, portata 5 -> 2 attraverso il Fumo; la stessa distanza su una riga senza Fumo no.
+	TestEqual(TEXT("attraverso il Fumo la portata e' il cap"),
+		URTTerrainLibrary::EffectiveTargetingRange(Map, Arrivo, Bersaglio, 5), 2);
+	TestEqual(TEXT("senza Fumo sulla riga la portata resta intera"),
+		URTTerrainLibrary::EffectiveTargetingRange(Map, FRTCellId(-3, 1, 0), FRTCellId(1, 1, 0), 5), 5);
 	return true;
 }
 
