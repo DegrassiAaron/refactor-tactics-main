@@ -171,6 +171,35 @@ FRTPointerTarget URTPointerLibrary::ResolveTarget(ERTPointerContext Context, ERT
 	}
 }
 
+FRTGlanceTarget URTPointerLibrary::ResolveGlanceTarget(int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell,
+	bool bCellHasMapElement)
+{
+	FRTGlanceTarget T;
+	T.bHasCell = bHasCell;
+	if (bHasCell)
+	{
+		T.Cell = Cell;
+	}
+
+	// unita' > porta o obiettivo > cella. Un solo ordine, in ogni contesto (§4.1, la riga di `Planning`).
+	if (HitStableUnitId != INDEX_NONE)
+	{
+		T.Kind = ERTGlanceKind::Unit;
+		T.StableUnitId = HitStableUnitId;
+		return T;
+	}
+	if (bHasCell && bCellHasMapElement)
+	{
+		T.Kind = ERTGlanceKind::MapElement;
+		return T;
+	}
+	if (bHasCell)
+	{
+		T.Kind = ERTGlanceKind::Cell;
+	}
+	return T;
+}
+
 ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, bool bInspectorPinned,
 	int32 WaypointCount, bool bPhaseFocusPinned, bool bHasDeclaredFacing)
 {

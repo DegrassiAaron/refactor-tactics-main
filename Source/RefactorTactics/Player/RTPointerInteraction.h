@@ -201,6 +201,50 @@ enum class ERTPointerBackStep : uint8
 	DeclaredFacing
 };
 
+/**
+ * Che cosa descrive lo SGUARDO all'hover (`#3747`, [D-512], [D-513]). Non e' un bersaglio di gioco e non e' un
+ * esito del puntatore: e' l'**annotazione** che `spec-pointer-interaction.md` §4.1 prevede, cioe' il testo che
+ * descrive cio' che sta sotto il cursore.
+ */
+UENUM(BlueprintType)
+enum class ERTGlanceKind : uint8
+{
+	None,
+	/** Un'unita': se la squadra la conosce lo decide chi legge la conoscenza, non il puntatore. */
+	Unit,
+	/** Una porta o un obiettivo, di una cella. */
+	MapElement,
+	Cell
+};
+
+/**
+ * Il soggetto dello sguardo, **prima** di sapere se la squadra puo' leggerlo.
+ *
+ * ⚠️ Porta l'identita' stabile dell'unita' e non il suo attore: e' il valore con cui l'HUD cerca la voce nella
+ * vista di conoscenza. Il controller non decide chi e' osservato (`ARTUnit::IsKnownToObserver` nasce vero).
+ */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTGlanceTarget
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Pointer")
+	ERTGlanceKind Kind = ERTGlanceKind::None;
+
+	/** Valido solo con `Kind == Unit`; `INDEX_NONE` altrimenti. Lo `StableUnitId` 0 e' un id vero. */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Pointer")
+	int32 StableUnitId = INDEX_NONE;
+
+	/** La cella sotto il cursore, se c'e' (anche per un'unita'): il ripiego quando l'unita' non e' leggibile. */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Pointer")
+	FRTCellId Cell;
+
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Pointer")
+	bool bHasCell = false;
+
+	bool IsValid() const { return Kind != ERTGlanceKind::None; }
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTPointerLibrary : public UBlueprintFunctionLibrary
 {
@@ -344,4 +388,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	static ERTPointerOutcome ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,
 		bool bObserved, bool bArmedChargeTargetsUnit = false);
+
+	/**
+	 * §4.1 — **che cosa descrive lo sguardo** (`#3747`, [D-513]). L'annotazione ha un ORDINE SOLO, quello della
+	 * riga `IdleSelection` / `Planning`, in ogni contesto: unita' > porta o obiettivo della cella > cella.
+	 * Quando lo sguardo si mostra non e' di questa funzione: lo dice `ShouldShowGlance`.
+	 *
+	 * ⛔ **Non cambia mai il bersaglio del click ne' l'esito dell'hover.** E' una funzione a parte, e non un
+	 * ramo di `ResolveTarget`, proprio perche' `ResolveTarget` e' del click e ha un ordine per contesto.
+	 *
+	 * ⛔ **Non sa se la squadra conosce l'unita'.** Passa `HitStableUnitId` cosi' com'e' (`INDEX_NONE` se il
+	 * raggio non ha toccato un'unita'): chi ha la vista di conoscenza decide, e un'unita' senza voce `Live`
+	 * degrada alla sua cella (P10). Decidere qui riaprirebbe la finestra fra la nascita di un'unita' e il primo
+	 * aggiornamento del velo.
+	 *
+	 * Ghost e bordo non compaiono: nessun codice di gioco li produce all'hover (P9, `#3747`).
+	 *
+	 * @param bCellHasMapElement  la cella ha una porta o e' un obiettivo. Irrilevante senza `bHasCell`.
+	 */
+	static FRTGlanceTarget ResolveGlanceTarget(int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell,
+		bool bCellHasMapElement);
 };
