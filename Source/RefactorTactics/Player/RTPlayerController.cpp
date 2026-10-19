@@ -160,9 +160,11 @@ namespace
 	 * ...e quella portata ha celle da mostrare (`#3517`). Ogni congiunto toglie un caso in cui il click rifiuterebbe
 	 * ogni cella dell'area, cioe' la lettura che [D-128] vieta:
 	 *
-	 * - **pronta** — `DR-8`, decisione d'autore del 2026-10-06. Un'azione attiva in ricarica si arma ancora
-	 *   (`SelectAbilityForCurrent`), ma `HandleTargetCell` e il click su un'unita' ne rifiutano ogni bersaglio: la
-	 *   ricarica la dice la riga dello slot, non un'area;
+	 * - **pronta** — `DR-8`, decisione d'autore del 2026-10-06. Un'azione in ricarica non mostra una portata: la
+	 *   ricarica la dice la riga dello slot, non un'area. ⏱️ *Fino a `#3828` un'azione attiva in ricarica si armava
+	 *   ancora (`SelectAbilityForCurrent`) e `HandleTargetCell` ne rifiutava ogni bersaglio*; da `#3828` non si arma, e
+	 *   questo congiunto resta come **difesa in profondita'** sul modello — raggiungibile solo da un'azione che
+	 *   entrasse in ricarica gia' armata, non dall'input;
 	 * - **portata positiva** — `AC-10`. Con portata `0` `TargetableRangeCells` restituisce la sola cella del tiratore,
 	 *   e `Action.Wait` contornava di viola l'unita' stessa;
 	 * - **tiratore vivo** — `AC-10`: un'unita' caduta, ancora selezionata a fine playback, non mira.
@@ -277,7 +279,8 @@ namespace
 		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dall'origine di mira.
 		//
 		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`). Un'azione in ricarica chiede un
-		// bersaglio — il ventaglio si spegne, `DR-8` — ma non ha celle su cui il click venga accettato. `Action.Wait`
+		// bersaglio — il ventaglio si spegne, `DR-8` — ma non ha celle su cui il click venga accettato (da `#3828` non si
+		// arma piu' dall'input: qui resta la difesa in profondita' sul modello). `Action.Wait`
 		// invece ha portata `0`, cioe' nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta, e la
 		// portata che contornava la cella dell'unita' sparisce (referto del 2026-10-06, §13: erano due difetti).
 		bool bMira = false;
@@ -3609,11 +3612,17 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// ⚠️ **Il rifiuto in se' resta corretto e non cambia**: una reazione o un supporto in ricarica non si
 	// armano. A essere sbagliato era lo stato lasciato indietro, non la decisione.
 	//
-	// ⛔ E la guardia copre le DUE forme che gia' interrogavano `CanUseAbility`, non una terza: un'azione
-	// attiva in ricarica si arma ancora e viene fermata dal targeting, com'era. Cambiarlo sarebbe una regola
-	// di gioco nuova, e questa issue non ne introduce.
+	// 🔴 **Da `#3828` (decisione d'autore del 2026-10-19) la guardia copre OGNI azione, non solo le due forme che
+	// gia' interrogavano `CanUseAbility`.** ⏱️ *Fino ad allora* un'azione attiva in ricarica si armava ancora e la
+	// fermava il targeting, *«com'era»*: `#3517` lo lasciava fuori perche' *«chiede una decisione propria»*. Lo slot
+	// restava `Selected` e il click sul mondo non rispondeva come l'autore si aspettava — misurato il 2026-10-19 con
+	// `Scarica lineare` a 1 turno dalla fine. Vale per tutti i canali, perche' passano tutti da qui: il tasto, lo slot
+	// del dock e le generiche.
+	//
+	// ⚠️ **Il rifiuto lascia il modello com'era**: se un'altra azione era gia' armata, resta armata. Disarmare chi
+	// chiede l'azione sbagliata sarebbe un secondo effetto, e la regola e' sulla richiesta, non sullo stato.
 	const bool bReazione = Ability->Def.Slot == ERTActionSlot::Reaction;
-	if ((bReazione || Ability->bSelfTarget) && !Unit->CanUseAbility(Index))
+	if (!Unit->CanUseAbility(Index))
 	{
 		UE_LOG(LogRT, Display, TEXT("[RT] %s rifiutata: %s non pronta, nulla e' stato armato"),
 			*Richiesta, *Ability->DisplayName.ToString());
