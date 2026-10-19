@@ -1758,7 +1758,9 @@ namespace
  * Le gambe: (a) prima carta a PV pieni; (b) carta ferita; (c) carta mai popolata, il caso del difetto; (d) dal CHIAMANTE,
  * cioe' da un'unita' vera attraverso `BuildUnitCard` e attraverso il pannello dell'unita' selezionata, che e' dove la
  * prima selezione avviene davvero; (e) il controllo positivo: due carte che devono dare due letture diverse; (f) la barra
- * applica il campo e non lo ricalcola (la riga del DoD di #613: i widget non ricalcolano formule); (g) nessun avviso nel
+ * applica il campo e non lo ricalcola (la riga del DoD di #613: i widget non ricalcolano formule); (f2) e non lo
+ * deforma: una frazione piccola e una scomoda arrivano alla barra tali e quali (gamba nata dalla revisione indipendente
+ * di PR #3826); (g) nessun avviso nel
  * log durante le scritture, con una sonda che prova che il rilevatore ne vede uno.
  *
  * Cosa NON prova: il disegno della barra a schermo (e' PIE), ne' il grafo Blueprint che non esiste piu'.
@@ -1903,6 +1905,23 @@ bool FRTScreenHudUnitCardBarTest::RunTest(const FString&)
 	const float LettaCampo = Barra(Applica);
 	TestTrue(*FString::Printf(TEXT("f: la barra legge il campo della vista, 0.9, e non Health/MaxHealth (letta %f)"), LettaCampo),
 		Vicina(LettaCampo, 0.9f));
+
+	// --- f2. LA BARRA NON DEFORMA LA FRAZIONE ----------------------------------------------------------------------------
+	// Nata dalla revisione indipendente: i valori delle gambe precedenti (1, 0.4, 0.9 e lo 0 della carta vuota) non vedono una
+	// RIMAPPATURA della barra - una soglia minima visibile per le unita' vive, una quantizzazione, una curva - e il test
+	// restava verde. Una frazione piccola e una scomoda devono arrivare alla barra tali e quali: sotto una soglia minima di
+	// 0.05 la piccola legge 0.05.
+	URTUnitCardWidget* Piccola = CartaNuova();
+	URTUnitCardWidget* Scomoda = CartaNuova();
+	if (!TestNotNull(TEXT("f2: carta della frazione piccola"), Piccola) || !TestNotNull(TEXT("f2: carta della frazione scomoda"), Scomoda)) { return false; }
+	Piccola->SetCard(Vista(1, 100, 0.01f), false);
+	Scomoda->SetCard(Vista(37, 100, 0.37f), false);
+	const float LettaPiccola = Barra(Piccola);
+	const float LettaScomoda = Barra(Scomoda);
+	TestTrue(*FString::Printf(TEXT("f2: la frazione piccola arriva alla barra tale e quale, 0.01 (letta %f)"), LettaPiccola),
+		Vicina(LettaPiccola, 0.01f));
+	TestTrue(*FString::Printf(TEXT("f2: la frazione scomoda arriva alla barra tale e quale, 0.37 (letta %f)"), LettaScomoda),
+		Vicina(LettaScomoda, 0.37f));
 
 	// --- g. NESSUN AVVISO NEL LOG, E IL RILEVATORE SA VEDERNE UNO ----------------------------------------------------------
 	// La sonda dichiarata va DOPO l'asserto sullo zero, e il suo testo non compare in nessuna descrizione (un asserto che
