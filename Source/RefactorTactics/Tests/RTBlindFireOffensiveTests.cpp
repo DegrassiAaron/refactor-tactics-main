@@ -23,6 +23,8 @@
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h"
+#include "Misc/ScopeExit.h"
 #include "Engine/Engine.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -759,6 +761,60 @@ bool FRTTooCloseIsReachableFromTheClickTest::RunTest(const FString&)
 	TestTrue(TEXT("e contiene quella al minimo"), Viola.Contains(AlMinimo));
 
 	DestroyMortarWorld(B.World);
+	return true;
+}
+
+/**
+ * **Test 5** - il minimo regge in RISOLUZIONE dal percorso vero del `TurnManager` - `#3093`.
+ *
+ * `MinRangeHoldsInResolution` imposta `Intent.MinRangeCells` a mano, quindi non copre la riga che lo copia dal `Def`
+ * in `CollectAttackIntents`: toglierla non lo farebbe cadere, e il planning rifiuterebbe `TooClose` mentre la
+ * risoluzione accetterebbe il colpo. Qui l'intento nasce dall'azione che Branth porta davvero.
+ *
+ * Verifica di mutazione: togliere `Intent.MinRangeCells = Instance.Def.MinRangeCells` da `RTTurnManager_Blast.cpp`
+ * rende rosso il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMinRangeHoldsThroughTheTurnManagerTest,
+	"RefactorTactics.Combat.MinRangeHoldsThroughTheTurnManager",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMinRangeHoldsThroughTheTurnManagerTest::RunTest(const FString&)
+{
+	// Un turno con il mortaio puntato su `Bersaglio`, dove sta un nemico: ritorna quanta salute gli resta.
+	auto Spara = [this](const FRTCellId& Bersaglio, int32& OutSalute, int32& OutSaluteIniziale) -> bool
+	{
+		FMortarBench B;
+		if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return false; }
+		ON_SCOPE_EXIT{ DestroyMortarWorld(B.World); };
+
+		const int32 Idx = FindMortar(B.Mine);
+		if (!TestTrue(TEXT("il kit contiene il mortaio"), Idx != INDEX_NONE)) { return false; }
+
+		ARTUnit* Nemico = SpawnMortarUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), Bersaglio);
+		if (!TestNotNull(TEXT("il nemico esiste"), Nemico)) { return false; }
+		OutSaluteIniziale = Nemico->Health;
+
+		TActorIterator<ARTTurnManager> It(B.World);
+		ARTTurnManager* TM = It ? *It : nullptr;
+		if (!TestNotNull(TEXT("il turn manager esiste"), TM)) { return false; }
+
+		B.Mine->PlannedAbilityIndex = Idx;
+		B.Mine->DeclareAttackOnCell(Bersaglio);
+		B.Mine->PlannedCell = B.Mine->Cell;
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+		OutSalute = Nemico->Health;
+		return true;
+	};
+
+	int32 Salute = 0, Iniziale = 0;
+	// Distanza 1 da (-1,0,0): sotto il minimo. Il nemico non viene toccato.
+	if (!Spara(FRTCellId(0, 0, 0), Salute, Iniziale)) { return false; }
+	TestEqual(TEXT("sotto il minimo il colpo non nasce: il nemico e' intatto"), Salute, Iniziale);
+
+	// Controllo positivo: al minimo esatto (distanza 2, e fuori dall'area attorno al tiratore) lo STESSO percorso
+	// colpisce. Senza, il test sarebbe verde anche con un mortaio che non spara mai.
+	if (!Spara(FRTCellId(1, 0, 0), Salute, Iniziale)) { return false; }
+	TestTrue(TEXT("al minimo esatto il colpo nasce: il nemico perde salute"), Salute < Iniziale);
 	return true;
 }
 

@@ -731,7 +731,7 @@ public:
 	 * `ARTHUD::ComputeBlockerMarks` dichiarano entrambi di voler evitare. La tabella e' una statica privata
 	 * del `.cpp`: qui e' il compilatore a garantire cio' che una convenzione non garantirebbe.
 	 *
-	 * ➕ **`MinRangeCells` e' un parametro, e i siti di click lo passano entrambi** (`#3093`, `D-nnn`): `TooClose`
+	 * ➕ **`MinRangeCells` e' un parametro, e i siti di click lo passano entrambi** (`#3093`, `D-532`): `TooClose`
 	 * nasce da un click su `Action.Mortar`. Il default `0` = nessun minimo resta per i chiamanti che non hanno
 	 * un'azione in mano, e nessun sito di produzione lo omette: lo misura `RefactorTactics.Combat.TooCloseIsReachableFromTheClick`.
 	 *
