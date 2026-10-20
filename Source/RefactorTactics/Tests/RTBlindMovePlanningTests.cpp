@@ -15,6 +15,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
@@ -237,6 +238,114 @@ bool FRTBlindMovePlayerPlansThroughTheDarkWallTest::RunTest(const FString&)
 	TestNull(TEXT("e AttachPlanningMap non gliene da' una nemmeno se glielo si chiede"), Omniscient.PlanningMap);
 	TestNull(TEXT("la fotografia di un bot (AsObserver) nasce senza"),
 		URTHexSimLibrary::AsObserver(Snapshot, Unit->TeamId).PlanningMap);
+	return true;
+}
+
+// =========================================================================================================
+// Fetta B — Resolution con il muro VERO
+// =========================================================================================================
+//
+// La mappa ottimistica serve a pianificare; la Resolution resta onnisciente e non la vede. Il giocatore porta un
+// `PlannedPath`, quindi Resolution lo cammina e `TruncatePathToTopology` lo ferma dove la verita' lo ferma. Un bot
+// non lo porta (`PlannedPath.Reset()`), e Resolution lo ricalcola: e' il motivo per cui [D-533] lo lascia fuori.
+
+namespace
+{
+	/** Un turno con un muro vero in `Wall` e un'unita' che parte da `(0,0)` con il piano dato. */
+	struct FBlindMoveResolutionRun
+	{
+		FRTCellId End;
+		int32 StoppedByTopologyEntries = 0;
+		int32 MoveRange = 0;
+		bool bOk = false;
+	};
+
+	FBlindMoveResolutionRun RunMoveAgainstARealWall(const FRTCellId& Wall, const TArray<FRTCellId>& PlannedPath,
+		const FRTCellId& PlannedCell)
+	{
+		FBlindMoveResolutionRun Out;
+		UWorld* World = MakeBlindMoveWorld();
+		if (!World) { return Out; }
+		ON_SCOPE_EXIT{ DestroyBlindMoveWorld(World); };
+
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(World, 6);
+		if (!Map) { return Out; }
+		FRTHexCellData Data(Wall);
+		Data.bBlocksMovement = true;
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = Map;
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!Unit || !TM) { return Out; }
+		Unit->TeamId = 0;
+		Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
+		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
+		Unit->bIsBotControlled = false;
+		Unit->DispatchBeginPlay();
+		Unit->PlaceOnCell(FRTCellId(0, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		Out.MoveRange = Unit->GetEffectiveMoveRange();
+
+		Unit->PlannedPath = PlannedPath;
+		Unit->PlannedCell = PlannedCell;
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+		Out.End = Unit->Cell;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Move
+				&& Entry.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByTopology))
+			{
+				++Out.StoppedByTopologyEntries;
+			}
+		}
+		Out.bOk = true;
+		return Out;
+	}
+}
+
+/**
+ * **Test 3** — il Move che il giocatore ha pianificato attraverso un muro mai visto si FERMA davanti al muro vero, e un
+ * piano senza percorso invece ricalcola.
+ *
+ * Il giocatore porta il `PlannedPath` che l'anteprima ottimistica gli ha fatto tracciare dritto, e la Resolution, che
+ * legge la mappa autorevole, lo cammina e lo taglia dove il muro c'e': l'unita' resta sull'ultima cella valida e non
+ * aggira niente ([D-045]). Il secondo caso e' il **limite dichiarato** di [D-533], e lo pinna perche' non diventi un
+ * comportamento che nessuno ha scelto: senza percorso portato — un bot — Resolution chiama `FindPathForUnit`, e quindi
+ * deviando raggiunge la meta senza alcun arresto per topologia.
+ *
+ * ⚠️ Il motivo dell'arresto resta `BlockedByTopology` (*«fermo: il varco si e' chiuso»*), che per un muro mai visto e'
+ * falso: lo sistema la fetta C.
+ *
+ * ⛔ **Verifica di mutazione**: far ricalcolare la Resolution anche quando il piano porta un percorso (`Path =
+ * FindPathForUnit(...)` al posto di `Path = Unit->PlannedPath`) rende rosso il primo caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindMoveResolutionStopsAtTheRealWallTest,
+	"RefactorTactics.BlindMove.ResolutionStopsAtTheRealWallAndDoesNotReroute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindMoveResolutionStopsAtTheRealWallTest::RunTest(const FString&)
+{
+	const FRTCellId Wall(2, 0, 0);
+	const TArray<FRTCellId> Straight = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+
+	const FBlindMoveResolutionRun Carried = RunMoveAgainstARealWall(Wall, Straight, Straight.Last());
+	if (!TestTrue(TEXT("il primo turno gira"), Carried.bOk)) { return false; }
+	if (!TestTrue(TEXT("premessa: il budget copre il percorso dritto"), Carried.MoveRange >= 3)) { return false; }
+	TestEqual(TEXT("con un percorso portato l'unita' si ferma davanti al muro vero"), Carried.End, FRTCellId(1, 0, 0));
+	TestTrue(TEXT("e non lo aggira per arrivare alla meta"), Carried.End != Straight.Last());
+	TestEqual(TEXT("l'arresto e' registrato dalla topologia"), Carried.StoppedByTopologyEntries, 1);
+
+	// Il limite dichiarato: la stessa destinazione senza percorso portato.
+	const FBlindMoveResolutionRun Recomputed = RunMoveAgainstARealWall(Wall, {}, Straight.Last());
+	if (!TestTrue(TEXT("il secondo turno gira"), Recomputed.bOk)) { return false; }
+	TestEqual(TEXT("senza percorso portato nessun arresto per topologia: Resolution ha ricalcolato"),
+		Recomputed.StoppedByTopologyEntries, 0);
+	TestTrue(TEXT("e l'unita' non ha mai occupato la cella del muro"), Recomputed.End != Wall);
 	return true;
 }
 
