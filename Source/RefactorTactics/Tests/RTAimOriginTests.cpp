@@ -712,7 +712,7 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
  * dall'ARRIVO dello scatto, e dalla cella corrente la stessa cella di Fumo non sta sulla linea: lo dice la
  * premessa, ed e' cio' che rende il test capace di cadere sull'origine.
  *
- * ⚠️ **Il Fumo gia' ESPLORATO resta letto** (`Q4`, [D-533]): se la squadra l'ha visto, il cap c'e' anche per il
+ * ⚠️ **Il Fumo gia' ESPLORATO resta letto** (`Q4`, [D-534]): se la squadra l'ha visto, il cap c'e' anche per il
  * giocatore. E' il controllo positivo senza il quale «uguali» potrebbe voler dire «il Fumo non cappa piu' niente».
  *
  * ⛔ **Mutazione**: far restituire `PlanningMapFor` la mappa autorevole deve rendere ROSSO questo test (i due

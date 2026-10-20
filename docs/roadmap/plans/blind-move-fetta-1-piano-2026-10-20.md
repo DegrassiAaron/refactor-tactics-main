@@ -44,7 +44,7 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 5. **«Mai osservata» = né in `VisibleCells` né in `ExploredCells`.** `ExploredCells` è un sovrainsieme di `VisibleCells` solo dopo il refresh della conoscenza: l'unione è obbligatoria.
 6. **Celle esplorate ma non visibili ora** (`Q4`, aperta): restano sulla mappa autorevole. È un canale dichiarato, a termine, della stessa natura di D-465: un muro caduto o una porta aperta in una cella ricordata si riflette nel percorso.
 7. **Resolution** resta onnisciente e invariata, e per il giocatore si ferma dove la verità la ferma. Nessun reroute **per il giocatore**; lo Scatto che si applica e lo spostamento forzato lo fanno già oggi ricalcolare, ed è un limite dichiarato, non nuovo.
-8. **Il motivo dell'arresto.** `BlockedByTopology` dice «fermo: il varco si è chiuso», falso per un muro mai visto. Serve un esito proprio, aggiunto **in coda** all'enum (il valore serializzato è l'indice). Anche l'arresto per budget (`TruncatePathToBudget`) non ha oggi un flag: **non e' stato attuato**, e D-533 punto (5) lo dichiara come limite.
+8. **Il motivo dell'arresto.** `BlockedByTopology` dice «fermo: il varco si è chiuso», falso per un muro mai visto. Serve un esito proprio, aggiunto **in coda** all'enum (il valore serializzato è l'indice). Anche l'arresto per budget (`TruncatePathToBudget`) non ha oggi un flag: **non e' stato attuato**, e D-534 punto (5) lo dichiara come limite.
 
 ## 4. Sequenza e criteri
 
@@ -61,7 +61,7 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 
 - **I bot.** Restano fuori (§3.1), ma la suite intera **prima e dopo** A resta il gate: lo snapshot per osservatore è condiviso e un cambio mal confinato li sposterebbe.
 - **Costo della copia.** Si misura a motore libero.
-- **Costi mostrati.** Una cella mai vista con costo reale 3 appare a costo 1: l'anteprima può costare meno del vero, e Resolution può fermarsi per budget, senza un motivo (limite dichiarato in D-533 punto (5)).
+- **Costi mostrati.** Una cella mai vista con costo reale 3 appare a costo 1: l'anteprima può costare meno del vero, e Resolution può fermarsi per budget, senza un motivo (limite dichiarato in D-534 punto (5)).
 - **`AsObserver` componibile male.** Data una vista già ottimistica di A, `AsObserver(…, B)` ricostruirebbe da una `Map` che nel disegno resta autorevole: il problema sparisce **solo** perché `Map` non si sostituisce. Va comunque asserito.
 - **Privacy.** L'insieme delle celle vuotate dipende solo dalla conoscenza dell'osservatore, mai dalle unità nemiche: si verifica sulla firma della funzione.
 
@@ -78,13 +78,13 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 |---|---|---|
 | Celle esplorate ma non visibili (`Q4`) | mappa autorevole, canale dichiarato a termine | da confermare |
 | Bot | fuori dalla fetta 1, sulla vista attuale, dichiarato nel Decision Log | da confermare |
-| **D-465 punto (3) contro questo piano** | due commit nello stesso merge, con emendamento esplicito | ✅ **risolto dall'autore il 2026-10-20** (D-533) |
+| **D-465 punto (3) contro questo piano** | due commit nello stesso merge, con emendamento esplicito | ✅ **risolto dall'autore il 2026-10-20** (D-534) |
 
 ⛔ **Il conflitto.** D-465 dice che dal commit che porta la vista ottimistica a `FindPath`, click e portata ricevono la stessa vista, e che in quel commit si paga la riga di TurnLog per il tiro che il resolver scarta in silenzio in un Fumo ignoto, e il canary di #3270 si rovescia. Questo piano tiene il movimento (A–D) separato da click e portata (E). Ma `Player/RTPlayerController.cpp:2404` e `:5209` e `Turn/RTPlanPreview.cpp:237` passano la mappa a `ResolveLinearMove`: separare le due cose lascia un commit in cui il movimento è ottimistico e la mira no, cioè il canale che D-465 voleva chiudere insieme. Due uscite:
 1. **Tutto in un commit** (A + E): rispetta D-465 alla lettera, ma tocca schema, replay e digest insieme alla geometria del Move.
 2. **Due commit con un'emendamento esplicito di D-465**: A–D prima, E dopo, e una riga nel Decision Log che dice che la finestra fra i due è voluta e quanto dura.
 
-Non scelgo io fra le due: è una decisione dell'autore. ✅ **L'autore ha scelto la seconda il 2026-10-20**: l'emendamento e' `D-533`, e la finestra fra i due commit vive nella storia del branch e non su `main`.
+Non scelgo io fra le due: è una decisione dell'autore. ✅ **L'autore ha scelto la seconda il 2026-10-20**: l'emendamento e' `D-534`, e la finestra fra i due commit vive nella storia del branch e non su `main`.
 
 ## 8. Che cosa è cambiato rispetto alla prima stesura
 

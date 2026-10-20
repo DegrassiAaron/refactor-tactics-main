@@ -107,7 +107,7 @@ struct FRTMovementResolutionContext
 
 	/**
 	 * Di chi si e' fermato per topologia, chi lo e' stato davanti a terreno che la sua squadra NON aveva mai
-	 * osservato (`#2794`, [D-533]). Sottoinsieme di `bStoppedByTopology`: sceglie fra `BlockedByUnseenTerrain` e
+	 * osservato (`#2794`, [D-534]). Sottoinsieme di `bStoppedByTopology`: sceglie fra `BlockedByUnseenTerrain` e
 	 * `BlockedByTopology` al momento di scrivere il log.
 	 */
 	TArray<bool> bStoppedByUnseenTerrain;

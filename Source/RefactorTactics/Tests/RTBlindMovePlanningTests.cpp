@@ -1,5 +1,5 @@
 // Blind Move, fetta 1 — la mappa ottimistica su cui il GIOCATORE pianifica un Move verso lo spazio non osservato
-// (`#2794`, [D-372], [D-533]).
+// (`#2794`, [D-372], [D-534]).
 //
 // Due livelli, perche' sono due difetti diversi: `MakeOptimisticPlanningMap` decide COSA si svuota, e
 // `ARTTurnManager::AttachPlanningMap` decide PER CHI e quando — e un test sul primo non vede il secondo.
@@ -269,7 +269,7 @@ bool FRTBlindMovePlayerPlansThroughTheDarkWallTest::RunTest(const FString&)
 //
 // La mappa ottimistica serve a pianificare; la Resolution resta onnisciente e non la vede. Il giocatore porta un
 // `PlannedPath`, quindi Resolution lo cammina e `TruncatePathToTopology` lo ferma dove la verita' lo ferma. Un bot
-// non lo porta (`PlannedPath.Reset()`), e Resolution lo ricalcola: e' il motivo per cui [D-533] lo lascia fuori.
+// non lo porta (`PlannedPath.Reset()`), e Resolution lo ricalcola: e' il motivo per cui [D-534] lo lascia fuori.
 
 namespace
 {
@@ -349,7 +349,7 @@ namespace
  *
  * Il giocatore porta il `PlannedPath` che l'anteprima ottimistica gli ha fatto tracciare dritto, e la Resolution, che
  * legge la mappa autorevole, lo cammina e lo taglia dove il muro c'e': l'unita' resta sull'ultima cella valida e non
- * aggira niente ([D-045]). Il secondo caso e' il **limite dichiarato** di [D-533], e lo pinna perche' non diventi un
+ * aggira niente ([D-045]). Il secondo caso e' il **limite dichiarato** di [D-534], e lo pinna perche' non diventi un
  * comportamento che nessuno ha scelto: senza percorso portato — un bot — Resolution chiama `FindPathForUnit`, e quindi
  * deviando raggiunge la meta senza alcun arresto per topologia.
  *

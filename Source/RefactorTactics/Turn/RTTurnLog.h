@@ -750,7 +750,7 @@ enum class ERTMoveOutcome : uint8
 	StoppedByEdgeGuard,
 	/**
 	 * Il Move del giocatore si e' fermato davanti a terreno che la sua squadra **non aveva mai osservato** e che
-	 * non era come l'anteprima ottimistica lo aveva tracciato ([D-372], `#2794`, [D-533]): un muro, una porta
+	 * non era come l'anteprima ottimistica lo aveva tracciato ([D-372], `#2794`, [D-534]): un muro, una porta
 	 * chiusa, un bordo.
 	 *
 	 * 🔴 **Ha un valore proprio e non riusa `BlockedByTopology`**, che dice *«il varco si e' chiuso»*: per un muro

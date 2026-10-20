@@ -279,7 +279,7 @@ void ARTTurnManager::BeginMovementResolution()
 		Path = URTHexSimLibrary::TruncatePathToTopology(Ctx.Snapshot, Path);
 		Ctx.bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
 
-		// 🔴 **Un muro mai osservato non e' «un varco che si e' chiuso»** (`#2794`, [D-533]). Il Move del giocatore si
+		// 🔴 **Un muro mai osservato non e' «un varco che si e' chiuso»** (`#2794`, [D-534]). Il Move del giocatore si
 		// pianifica su una mappa ottimistica: se il passo che la verita' nega porta in una cella che la squadra non
 		// ha ne' vista ne' ricordata, il motivo e' che l'ipotesi e' stata smentita, e il log lo dice con un valore
 		// proprio. Un passo verso una cella nota resta `BlockedByTopology`: li' il varco c'era davvero.

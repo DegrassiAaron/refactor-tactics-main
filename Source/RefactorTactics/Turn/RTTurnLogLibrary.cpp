@@ -581,7 +581,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// chiuso mentre l'unita' era in cammino.
 		case ERTMoveOutcome::BlockedByTopology: Reason = TEXT("fermo: il varco si e' chiuso"); break;
 		// Il terreno oltre la cella era MAI OSSERVATO e non era come l'anteprima ottimistica l'aveva tracciato
-		// (`#2794`, [D-533]). «il varco si e' chiuso» direbbe il falso: nessun varco si e' chiuso, l'ipotesi del
+		// (`#2794`, [D-534]). «il varco si e' chiuso» direbbe il falso: nessun varco si e' chiuso, l'ipotesi del
 		// giocatore e' stata smentita. Non nomina l'ostacolo: e' tutto cio' che l'unita' ha imparato fermandosi.
 		case ERTMoveOutcome::BlockedByUnseenTerrain: Reason = TEXT("fermo: il terreno oltre non era come previsto"); break;
 		// Scambio `A↔B` o catena `A→B→C→A` fra unita' TUTTE in movimento (#1922, [D-295]). I tre vicini
