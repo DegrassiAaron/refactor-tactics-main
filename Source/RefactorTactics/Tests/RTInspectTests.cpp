@@ -143,44 +143,46 @@ bool FRTInspectEquipmentTest::RunTest(const FString&)
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	// Un eroe con un loadout di default non vuoto (Aevik e Ivrin ne sono privi).
-	const URTHeroData* Hero = nullptr;
-	TArray<FName> Loadout;
-	for (const URTHeroData* Candidate : URTHeroCatalogLibrary::GetHeroRoster())
+	// Ogni eroe con un loadout di default non vuoto: i pezzi realmente applicati sono tutti e soli quelli registrati,
+	// e ognuno e' nominato col nome del catalogo. Anti-vacuita': fra gli eroi ci sono tutti gli slot.
+	int32 Eroi = 0;
+	TSet<int32> SlotVisti;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
-		Loadout = URTCatalogLibrary::DefaultLoadoutFor(Candidate->HeroId);
-		if (Loadout.Num() > 0) { Hero = Candidate; break; }
-	}
-	if (!TestNotNull(TEXT("esiste un eroe con equipaggiamento"), Hero))
-	{
-		RTWorldFixtures::DestroyWorld(World);
-		return false;
-	}
+		const TArray<FName> Loadout = URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId);
+		if (Loadout.Num() == 0) { continue; }
+		++Eroi;
 
-	FRTCellId C; C.X = 0; C.Y = 0;
-	ARTUnit* Bare = InspectSpawn(World, 1, Hero, C);
-	ARTUnit* Armed = InspectSpawn(World, 1, Hero, C);
-	Armed->EquipLoadout(Loadout);
+		FRTCellId C; C.X = 0; C.Y = 0;
+		ARTUnit* Bare = InspectSpawn(World, 1, Hero, C);
+		ARTUnit* Armed = InspectSpawn(World, 1, Hero, C);
+		Armed->EquipLoadout(Loadout);
 
-	TestEqual(TEXT("senza EquipLoadout nessun pezzo registrato"), Bare->EquippedItemIds.Num(), 0);
-	TestTrue(TEXT("dopo EquipLoadout i pezzi applicati sono registrati"), Armed->EquippedItemIds.Num() > 0);
-	TestFalse(TEXT("un id inesistente non viene registrato"), [&]()
+		TestEqual(TEXT("senza EquipLoadout nessun pezzo registrato"), Bare->EquippedItemIds.Num(), 0);
+		TestTrue(TEXT("i pezzi registrati sono tutti e soli quelli del loadout applicato"), Armed->EquippedItemIds == Loadout);
+
+		const FString TextBare = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Bare, 0, true)));
+		const FString TextArmed = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Armed, 0, true)));
+		TestFalse(TEXT("senza equipaggiamento la sezione non c'e'"), TextBare.Contains(TEXT("Equipaggiamento")));
+		TestTrue(TEXT("con equipaggiamento la sezione c'e'"), TextArmed.Contains(TEXT("Equipaggiamento")));
+		for (const FName& Id : Armed->EquippedItemIds)
 		{
-			ARTUnit* U = InspectSpawn(World, 1, Hero, C);
-			U->EquipLoadout({ FName(TEXT("Equip.Inesistente")) });
-			return U->EquippedItemIds.Num() > 0;
-		}());
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(Id);
+			if (!TestNotNull(TEXT("il pezzo registrato esiste nel catalogo"), Piece)) { continue; }
+			SlotVisti.Add(static_cast<int32>(Piece->Slot));
+			TestTrue(TEXT("ogni pezzo e' nominato col nome del catalogo"),
+				!Piece->DisplayName.IsEmpty() && TextArmed.Contains(Piece->DisplayName.ToString()));
+		}
 
-	const FString TextBare = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Bare, 0, true)));
-	const FString TextArmed = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Armed, 0, true)));
-	TestFalse(TEXT("senza equipaggiamento la sezione non c'e'"), TextBare.Contains(TEXT("Equipaggiamento")));
-	TestTrue(TEXT("con equipaggiamento la sezione c'e'"), TextArmed.Contains(TEXT("Equipaggiamento")));
-	for (const FName& Id : Armed->EquippedItemIds)
-	{
-		const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(Id);
-		TestTrue(TEXT("ogni pezzo e' nominato col nome del catalogo"),
-			Piece && !Piece->DisplayName.IsEmpty() && TextArmed.Contains(Piece->DisplayName.ToString()));
+		// Un id inesistente non viene registrato.
+		ARTUnit* Ghost = InspectSpawn(World, 1, Hero, C);
+		Ghost->EquipLoadout({ FName(TEXT("Equip.Inesistente")) });
+		TestEqual(TEXT("un id inesistente non viene registrato"), Ghost->EquippedItemIds.Num(), 0);
 	}
+	TestTrue(TEXT("ha esaminato degli eroi con equipaggiamento"), Eroi > 0);
+	TestTrue(TEXT("e il gadget e' fra i pezzi esaminati (la via che concede un'azione)"),
+		SlotVisti.Contains(static_cast<int32>(ERTEquipmentSlot::Gadget)) || SlotVisti.Contains(static_cast<int32>(ERTEquipmentSlot::ReactionModule)));
+	TestTrue(TEXT("e la variante d'arma"), SlotVisti.Contains(static_cast<int32>(ERTEquipmentSlot::WeaponVariant)));
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

@@ -1,5 +1,7 @@
 #include "UI/RTHUD.h"
 #include "UI/RTGlance.h"
+#include "Ability/RTCatalogLibrary.h" // FindEquipment: la scheda legge il catalogo (#3748)
+#include "Ability/RTEquipmentData.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTHudLayout.h" // #3795: la fascia bassa e la scala, per posare la riga del banco sopra il dock
 #include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
