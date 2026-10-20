@@ -436,4 +436,50 @@ bool FRTActionSlotCarriesItsTooltipTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * LA RIGA DI CATALOGO NON HA BISOGNO DI UN'UNITA' (`#3748`, Q1). Compone le righe del tooltip da un `URTActionData` e
+ * coincidono con quelle che lo slot mostra per la stessa azione: la parte fissa e la parte di partita sono separate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogRowNeedsNoActorTest,
+	"RefactorTactics.HudViewModel.CatalogRowsNeedNoActor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogRowNeedsNoActorTest::RunTest(const FString&)
+{
+	int32 Esaminate = 0;
+	int32 ConRicarica = 0;
+	int32 SenzaRicarica = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		for (int32 I = 0; I < Hero->Actions.Num(); ++I)
+		{
+			const URTActionData* Azione = Hero->Actions[I];
+			if (!Azione) { continue; }
+			++Esaminate;
+			const FRTAbilityCooldownView Riga = URTHudViewModel::BuildCatalogActionRow(Azione, I, NAME_None);
+			TestEqual(TEXT("l'id viene dal catalogo"), Riga.ActionId, Azione->Def.ActionId);
+			TestEqual(TEXT("la ricarica viene dal catalogo"), Riga.CooldownTurns, FMath::Max(0, Azione->Def.CooldownTurns));
+			TestEqual(TEXT("nessuna ricarica vera: e' sempre zero"), Riga.TurnsRemaining, 0);
+			TestFalse(TEXT("nessun piano"), Riga.bPlanned || Riga.bPlanInvalid || Riga.bPlanDegraded);
+
+			const FRTActionTooltipView Catalogo = URTHudViewModel::BuildCatalogTooltip(Riga);
+			TestTrue(TEXT("il tooltip di catalogo ha un titolo"), Catalogo.IsValid());
+			TestTrue(TEXT("e nessun motivo"), Catalogo.Reason.IsEmpty());
+			// Lo slot mostra le stesse righe: il tooltip completo parte dal tooltip di catalogo.
+			const FRTActionTooltipView Completo = URTHudViewModel::BuildActionTooltip(Riga, false);
+			TestTrue(TEXT("le righe dello slot sono quelle del catalogo"), URTHudViewModel::SameTooltip(
+				[&]() { FRTActionTooltipView C = Catalogo; C.State = Completo.State; return C; }(), Completo));
+
+			(Azione->Def.CooldownTurns > 0 ? ConRicarica : SenzaRicarica)++;
+		}
+	}
+	// Anti-vacuita': il roster ha azioni con e senza ricarica.
+	TestTrue(TEXT("ha esaminato delle azioni"), Esaminate > 0);
+	TestTrue(TEXT("con una ricarica"), ConRicarica > 0);
+	TestTrue(TEXT("e senza"), SenzaRicarica > 0);
+
+	// Una posizione vuota non produce una riga con un'azione.
+	TestTrue(TEXT("azione nulla: id vuoto"), URTHudViewModel::BuildCatalogActionRow(nullptr, 3, NAME_None).ActionId.IsNone());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
