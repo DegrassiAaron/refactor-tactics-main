@@ -2983,7 +2983,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 			// 🔑 **Il verdetto ha una sede sola** (`JudgeLinearDashClick`): il click lo applica, l'hover lo annuncia ([D-128]).
 			const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(
-				Map, SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+				Snapshot.MapForPlanning(), SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 			const FRTLinearMoveResult& Linear = Verdetto.Linear;
 
 			// Le condizioni — la retta che arriva sulla cella, la carica che urta, la carica oltre la portata su un nemico noto — sono
@@ -3058,7 +3058,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			return Set;
 		}();
 		const FRTHexPathResult DashPath =
-			URTHexPathLibrary::FindPathAvoiding(Map, SelectedUnit->Cell, Cell, &Occupied, DashRange);
+			URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), SelectedUnit->Cell, Cell, &Occupied, DashRange);
 		if (DashPath.Status != ERTHexPathStatus::Success)
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) fuori dallo scatto (%s, max %d) per %s"),
@@ -5258,7 +5258,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 				if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) && Map)
 				{
 					const FRTHexPathResult Breve = URTHexPathLibrary::FindPathAvoiding(
-						Map, Unit->Cell, Unit->PlannedDashCell, nullptr, 0);
+						ARTTurnManager::PlayerAimMap(this, Unit->TeamId, Map), Unit->Cell, Unit->PlannedDashCell, nullptr, 0);
 					if (Breve.Status == ERTHexPathStatus::Success && Breve.Path.Num() >= 2)
 					{
 						OutPath = Breve.Path;

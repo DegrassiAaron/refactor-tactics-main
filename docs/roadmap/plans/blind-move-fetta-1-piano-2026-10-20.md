@@ -44,7 +44,7 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 5. **«Mai osservata» = né in `VisibleCells` né in `ExploredCells`.** `ExploredCells` è un sovrainsieme di `VisibleCells` solo dopo il refresh della conoscenza: l'unione è obbligatoria.
 6. **Celle esplorate ma non visibili ora** (`Q4`, aperta): restano sulla mappa autorevole. È un canale dichiarato, a termine, della stessa natura di D-465: un muro caduto o una porta aperta in una cella ricordata si riflette nel percorso.
 7. **Resolution** resta onnisciente e invariata, e per il giocatore si ferma dove la verità la ferma. Nessun reroute **per il giocatore**; lo Scatto che si applica e lo spostamento forzato lo fanno già oggi ricalcolare, ed è un limite dichiarato, non nuovo.
-8. **Il motivo dell'arresto.** `BlockedByTopology` dice «fermo: il varco si è chiuso», falso per un muro mai visto. Serve un esito proprio, aggiunto **in coda** all'enum (il valore serializzato è l'indice). Anche l'arresto per budget (`TruncatePathToBudget`) non ha oggi un flag: il motivo lo dichiara.
+8. **Il motivo dell'arresto.** `BlockedByTopology` dice «fermo: il varco si è chiuso», falso per un muro mai visto. Serve un esito proprio, aggiunto **in coda** all'enum (il valore serializzato è l'indice). Anche l'arresto per budget (`TruncatePathToBudget`) non ha oggi un flag: **non e' stato attuato**, e D-533 punto (5) lo dichiara come limite.
 
 ## 4. Sequenza e criteri
 
@@ -61,14 +61,14 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 
 - **I bot.** Restano fuori (§3.1), ma la suite intera **prima e dopo** A resta il gate: lo snapshot per osservatore è condiviso e un cambio mal confinato li sposterebbe.
 - **Costo della copia.** Si misura a motore libero.
-- **Costi mostrati.** Una cella mai vista con costo reale 3 appare a costo 1: l'anteprima può costare meno del vero, e Resolution può fermarsi per budget. Il motivo dell'arresto lo dichiara.
+- **Costi mostrati.** Una cella mai vista con costo reale 3 appare a costo 1: l'anteprima può costare meno del vero, e Resolution può fermarsi per budget, senza un motivo (limite dichiarato in D-533 punto (5)).
 - **`AsObserver` componibile male.** Data una vista già ottimistica di A, `AsObserver(…, B)` ricostruirebbe da una `Map` che nel disegno resta autorevole: il problema sparisce **solo** perché `Map` non si sostituisce. Va comunque asserito.
 - **Privacy.** L'insieme delle celle vuotate dipende solo dalla conoscenza dell'osservatore, mai dalle unità nemiche: si verifica sulla firma della funzione.
 
 ## 6. Non misurato
 
 - Quanti test esistenti passano da `PlanningSnapshotFor` o da `MakeCurrentSnapshot(…, TeamId)` con conoscenza vuota (il disegno li lascia invariati per costruzione, ma non l'ho contato).
-- La classificazione dei circa trenta siti di lettura di `Snapshot.Map` (è la fetta 0).
+- La classificazione dei siti di lettura di `Snapshot.Map` (è la fetta 0).
 - Il costo della copia e della sua cache.
 - Il testo di D-249 e D-371 non è stato riletto per intero in questa stesura.
 

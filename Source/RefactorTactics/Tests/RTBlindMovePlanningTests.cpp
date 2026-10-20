@@ -104,9 +104,15 @@ bool FRTBlindMoveOptimisticMapEmptiesOnlyTheNeverObservedTest::RunTest(const FSt
 		Map->AddOrUpdateCell(Data);
 	}
 	Map->SortCells();
+	// Una transizione fra piani: senza, il confronto sotto sarebbe `0 == 0` e nessuna mutazione lo farebbe cadere.
+	FRTHexEdge Stair;
+	Stair.From = FRTCellId(0, 0, 0);
+	Stair.To = FRTCellId(1, 0, 1);
+	Map->Transitions.Add(Stair);
 
 	const uint32 HashBefore = Map->ComputeHash();
 	const int32 TransitionsBefore = Map->Transitions.Num();
+	if (!TestTrue(TEXT("premessa: la mappa porta almeno una transizione"), TransitionsBefore > 0)) { return false; }
 
 	const FRTTeamKnowledge K = BlindMoveKnowledge(0, { Seen }, { Remembered });
 	if (!TestTrue(TEXT("premessa: Dark non e' ne' vista ne' ricordata"), !BlindMoveIsLit(K, Dark))) { return false; }
@@ -156,7 +162,7 @@ bool FRTBlindMoveOptimisticMapEmptiesOnlyTheNeverObservedTest::RunTest(const FSt
  * conoscenza non vuota (altrimenti `PlanningMap` resterebbe `nullptr` e il test misurerebbe l'assenza).
  *
  * ⛔ **Verifica di mutazione**: `Snapshot.PlanningMap = Snapshot.Map` in `AttachPlanningMap` rende rosso il costo; non
- * rispettare `RTObserver::Omniscient` rende rossa la Resolution.
+ * lasciar attaccare `PlanningMap` a una fotografia `AsObserver` rende rosso l'ultimo asserto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindMovePlayerPlansThroughTheDarkWallTest,
 	"RefactorTactics.BlindMove.PlayerPlansThroughANeverObservedWall",
@@ -230,6 +236,21 @@ bool FRTBlindMovePlayerPlansThroughTheDarkWallTest::RunTest(const FString&)
 	const URTHexMapAsset* First = Snapshot.PlanningMap;
 	TM->AttachPlanningMap(Snapshot, Unit->TeamId);
 	TestTrue(TEXT("una seconda richiesta con la stessa conoscenza riusa la copia"), Snapshot.PlanningMap == First);
+
+	// Invalidazione: se la squadra OSSERVA il muro, la vista cambia e il tracciato torna ad aggirarlo.
+	FRTTeamKnowledge Learned = *K;
+	Learned.ExploredCells.Add(BlindMoveWall);
+	TM->SetTeamKnowledgeForTest(Learned);
+	TArray<ARTUnit*> LearnedUnits;
+	FRTHexSnapshot After = TM->MakeCurrentSnapshot(LearnedUnits, Unit->TeamId);
+	const int32 LearnedId = LearnedUnits.IndexOfByKey(Unit);
+	if (!TestTrue(TEXT("premessa: l'unita' e' nella nuova fotografia"), After.Units.IsValidIndex(LearnedId))) { return false; }
+	After.Units[LearnedId].MoveBudget = 40;
+	TM->AttachPlanningMap(After, Unit->TeamId);
+	const FRTHexPathResult Relearned = URTHexSimLibrary::FindPathForUnit(After, LearnedId, BlindMoveGoal);
+	if (!TestTrue(TEXT("dopo aver osservato il muro un percorso esiste"), Relearned.Status == ERTHexPathStatus::Success)) { return false; }
+	TestFalse(TEXT("e la cache e' stata invalidata: il tracciato aggira il muro osservato"),
+		Relearned.Path.Contains(BlindMoveWall));
 
 	TArray<ARTUnit*> ResolutionUnits;
 	const FRTHexSnapshot Resolution = TM->MakeCurrentSnapshot(ResolutionUnits, RTObserver::Omniscient);
@@ -333,7 +354,7 @@ namespace
  * deviando raggiunge la meta senza alcun arresto per topologia.
  *
  * ⚠️ Il motivo dell'arresto resta `BlockedByTopology` (*«fermo: il varco si e' chiuso»*), che per un muro mai visto e'
- * falso: lo sistema la fetta C.
+ * falso: per quello mai visto vale `BlockedByUnseenTerrain` (Test 4).
  *
  * ⛔ **Verifica di mutazione**: far ricalcolare la Resolution anche quando il piano porta un percorso (`Path =
  * FindPathForUnit(...)` al posto di `Path = Unit->PlannedPath`) rende rosso il primo caso.
@@ -361,6 +382,8 @@ bool FRTBlindMoveResolutionStopsAtTheRealWallTest::RunTest(const FString&)
 	TestEqual(TEXT("senza percorso portato nessun arresto per topologia: Resolution ha ricalcolato"),
 		Recomputed.StoppedByTopologyEntries, 0);
 	TestTrue(TEXT("e l'unita' non ha mai occupato la cella del muro"), Recomputed.End != Wall);
+	TestTrue(TEXT("controllo positivo: ha ricalcolato ed e' partita, non e' rimasta ferma"),
+		Recomputed.End != FRTCellId(0, 0, 0));
 	return true;
 }
 

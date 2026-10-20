@@ -959,4 +959,65 @@ bool FRTAimOriginUnexploredSmokeThroughTheControllerTest::RunTest(const FString&
 	return true;
 }
 
+/**
+ * **Il click sullo scatto lineare legge la stessa mappa del percorso** - `#2794`, [D-465] punto (3).
+ *
+ * Trovato dalla review: l'hover e l'anteprima leggevano la vista del giocatore, il click ancora la mappa autorevole, e
+ * il suo rifiuto («un bordo con copertura alta o una porta chiusa ferma la retta») rivelava il terreno nascosto che il
+ * resto della modifica nasconde. Un muro non osservato sulla retta: il click lo accetta; osservato, lo rifiuta.
+ *
+ * Verifica di mutazione: rimettere `Map` in `JudgeLinearDashClick` dentro `HandleClickOnCell` rende rosso il primo caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredWallDashClickTest,
+	"RefactorTactics.BlindActions.UnexploredWallDoesNotRefuseTheLinearDashClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginUnexploredWallDashClickTest::RunTest(const FString&)
+{
+	const FRTCellId Muro(0, 0, 0);
+	const FRTCellId Meta(1, 0, 0);
+	// 0 = muro ignoto; 1 = muro esplorato.
+	const auto Prova = [&](int32 Esplorato) -> int32
+	{
+		FAimOriginBench B;
+		if (!SetUpAimOriginBench(*this, B, FRTCellId(4, 0, 0), FRTCellId(-2, 0, 0)))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return INDEX_NONE;
+		}
+		B.Mine->Abilities[B.Scatto]->Def.MovementStyle = ERTMovementStyle::LinearDash;
+		const FRTHexCellData* Esistente = B.Map->FindCell(Muro);
+		FRTHexCellData Cella = Esistente ? *Esistente : FRTHexCellData(Muro);
+		Cella.bBlocksMovement = true;
+		B.Map->AddOrUpdateCell(Cella);
+		B.Map->SortCells();
+
+		ARTTurnManager* TM = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+		FRTTeamKnowledge K;
+		K.TeamId = B.Mine->TeamId;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& C : B.Map->Cells)
+		{
+			if (Esplorato == 0 && C.Id == Muro) { continue; }
+			K.ExploredCells.Add(C.Id);
+		}
+		K.VisibleCells.Add(GAimOriginQui);
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		TM->SetTeamKnowledgeForTest(K);
+
+		B.PC->ArmKitAbility(B.Scatto);
+		B.PC->HandleClickOnCellForTest(Meta);
+		const int32 Accettato = (B.Mine->PlannedDashCell == Meta) ? 1 : 0;
+		RTWorldFixtures::DestroyWorld(B.World);
+		return Accettato;
+	};
+
+	const int32 Ignoto = Prova(0);
+	const int32 Esplorato = Prova(1);
+	if (!TestTrue(TEXT("premessa: i banchi reggono"), Ignoto != INDEX_NONE && Esplorato != INDEX_NONE)) { return false; }
+	TestEqual(TEXT("controllo: con il muro esplorato il click sullo scatto e' rifiutato"), Esplorato, 0);
+	TestEqual(TEXT("chiuso: con il muro ignoto il click e' accettato, come l'hover"), Ignoto, 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
