@@ -1867,7 +1867,8 @@ bool FRTPointerOutcomeSeparatesInspectFromSelectTest::RunTest(const FString&)
 	TestEqual(TEXT("in Targeting la propria si ri-seleziona, non si bersaglia"),
 		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Targeting, true, true, true), ERTOut::Select);
 
-	// I contesti in cui l'input di gioco non arriva rifiutano, e lo dicono.
+	// I contesti in cui l'input di gioco non arriva rifiutano, e lo dicono. (`ResolutionPlayback` rifiuta la propria unita',
+	// ma ispeziona un'avversaria osservata: `InspectInResolutionPlaybackForAnObservedEnemy`.)
 	for (const ERTPointerContext Ctx : { ERTPointerContext::Modal, ERTPointerContext::ResolutionPlayback,
 		ERTPointerContext::ReactionWindow })
 	{
@@ -1956,9 +1957,11 @@ bool FRTPointerArmedChargeConfirmsTest::RunTest(const FString&)
 	TestEqual(TEXT("in Facing il nemico si ispeziona anche con la carica armata"),
 		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Facing, true, false, true, true), ERTOut::Inspect);
 
-	// I contesti bloccati restano bloccati.
-	TestEqual(TEXT("durante il playback il click resta rifiutato"),
-		URTPointerLibrary::ResolveOutcome(ERTPointerContext::ResolutionPlayback, true, false, true, true), ERTOut::Blocked);
+	// `Modal` e `ReactionWindow` restano bloccati; il playback ispeziona (#3748).
+	TestEqual(TEXT("in Modal il click resta rifiutato"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Modal, true, false, true, true), ERTOut::Blocked);
+	TestEqual(TEXT("durante il playback un nemico osservato si ispeziona, carica armata o no"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::ResolutionPlayback, true, false, true, true), ERTOut::Inspect);
 
 	return true;
 }
@@ -2265,6 +2268,35 @@ bool FRTPointerGlanceRealPathTest::RunTest(const FString&)
 	TestTrue(TEXT("la selezione e' la stessa"), PC->GetSelectedUnit() == SelBefore);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * L'ISPEZIONE IN RISOLUZIONE (`#3748`, spec dell'ispettore §3 regola 5). Tabella scritta a mano: contesto x unita'.
+ * Il velo decide prima del contesto sul playback, e un nemico nascosto risponde come il terreno vuoto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerInspectInPlaybackTest,
+	"RefactorTactics.Pointer.InspectInResolutionPlaybackForAnObservedEnemy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerInspectInPlaybackTest::RunTest(const FString&)
+{
+	using ERTOut = ERTPointerOutcome;
+	const ERTPointerContext Play = ERTPointerContext::ResolutionPlayback;
+
+	TestEqual(TEXT("nemico osservato: ispeziona"),
+		URTPointerLibrary::ResolveOutcome(Play, true, false, true), ERTOut::Inspect);
+	TestEqual(TEXT("nemico NON osservato: come il terreno vuoto"),
+		URTPointerLibrary::ResolveOutcome(Play, true, false, false), URTPointerLibrary::ResolveOutcome(Play, false, false, false));
+	TestEqual(TEXT("e il terreno vuoto da' NoOp"),
+		URTPointerLibrary::ResolveOutcome(Play, false, false, false), ERTOut::NoOp);
+	TestEqual(TEXT("unita' propria: rifiutata (non si seleziona da qui)"),
+		URTPointerLibrary::ResolveOutcome(Play, true, true, true), ERTOut::Blocked);
+
+	for (const ERTPointerContext Ctx : { ERTPointerContext::Modal, ERTPointerContext::ReactionWindow })
+	{
+		TestEqual(TEXT("modale e finestra di reazione: bloccati anche per un nemico osservato"),
+			URTPointerLibrary::ResolveOutcome(Ctx, true, false, true), ERTOut::Blocked);
+	}
 	return true;
 }
 

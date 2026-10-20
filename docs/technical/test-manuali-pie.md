@@ -89,7 +89,9 @@
 
 ## Stato in numeri — 2026-10-18
 
-**282 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **125 aperte**.
+**283 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **126 aperte**.
+
+➕ **Rimisurato il 2026-10-20 ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748), `PIE-HUD-SCHEDA` aperta)**: il ricalcolo di `doc-coherence` A1 dava `282 · 116/34/7/125` **prima** e `283 · 116/34/7/126` **dopo**. Delta: una voce nuova ⏳, la scheda dell'ispezione, perché il pannello e la sua resa non li vede nessun test.
 
 ➕ **Rimisurato il 2026-10-19 ([#3747](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3747), `PIE-HUD-SGUARDO` aperta)**: il ricalcolo di `doc-coherence` A1 dava `281 · 116/34/7/124` **prima** e `282 · 116/34/7/125` **dopo**. Delta: una voce nuova ⏳, lo sguardo all'hover, perche' la resa a schermo non la vede nessun test.
 
@@ -1906,6 +1908,7 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-HUD-SGUARDO** | Fermo il cursore su un'unità, su una cella in vista e su una cella fuori vista: il riquadro dice cosa c'è, **e un nemico non osservato dice quanto una cella vuota** | partita hex in pianificazione con un nemico fuori vista su una cella in vista; poi lo stesso nemico in vista | dopo circa 0,3 s compare il riquadro; sul nemico fuori vista il riquadro è quello della cella (stessa uscita che senza nemico); fuori vista non compare nulla; spostando il cursore il ritardo riparte; con la pausa aperta non compare | ⏳ |
+| **PIE-HUD-SCHEDA** | Il click su un nemico **osservato** fissa la scheda (kit ed equipaggiamento inclusi), il tasto destro la chiude, e un nemico che esce di vista la chiude da sola ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)) | partita hex in pianificazione con un nemico in vista; ⚠️ **il pannello non è montato**: la voce resta ⏳ finché non c'è l'asset in `MiddleRight` | si fissa col click e compare il nome, i PV, gli stati, il kit con i numeri di catalogo e l'equipaggiamento; il tasto destro la chiude; il pannello di sinistra non resta sull'ultimo nemico; con un nemico fuori vista il click non fa comparire niente | ⏳ |
 
 ### Gate visivo end-to-end della slice (aggiunta il 2026-08-30)
 

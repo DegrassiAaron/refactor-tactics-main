@@ -7,6 +7,7 @@
 #include "Map/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto del blocco (#3085)
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
 #include "UI/RTGlance.h" // i soggetti pubblici dello sguardo (#3747)
+#include "UI/RTInspect.h" // il soggetto pubblico della scheda (#3748)
 #include "RTHUD.generated.h"
 
 /**
@@ -676,6 +677,13 @@ public:
 	static FRTCellId GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCellId& Animated,
 		const FRTCellId& UnitCell, const FRTCellId& TargetCell);
 	static FRTGlanceUnitSubject BuildGlanceUnitSubject(const class ARTUnit* Unit, bool bShowFacing);
+	/**
+	 * L'UNICA funzione che legge l'attore di un'unita' per la scheda (#3748, P1). Del nemico ricava solo cio' che e'
+	 * pubblico: carta e stati (quelli della targa), verso, kit dal CATALOGO, equipaggiamento. Il kit passa da
+	 * `BuildCatalogActionRow`, che non prende un'unita': piano, slot, azione armata e ricariche vere non hanno
+	 * un percorso per arrivare qui. `NAME_None` come variante: la variante attiva e' stato di partita.
+	 */
+	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing);
 	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
 
 	/**
