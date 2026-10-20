@@ -1628,6 +1628,17 @@ public:
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits, int32 ObserverTeamId) const;
 
 	/**
+	 * Dota `Snapshot` della mappa su cui il **giocatore** pianifica un Move verso l'ignoto (`FRTHexSnapshot::PlanningMap`,
+	 * [D-372], `#2794`). Lo chiama la pianificazione del giocatore e nessun altro: Resolution, bot e strumenti non lo
+	 * chiamano, e la loro vista resta quella autorevole.
+	 *
+	 * La copia si **riusa** finche' non cambiano mappa, revisione, squadra e le due liste di celle della conoscenza: una
+	 * per interazione di pianificazione, non una per chiamata. Con conoscenza vuota non fa niente e `PlanningMap` resta
+	 * `nullptr`. La tiene viva questo oggetto (`PlanningMapCache`).
+	 */
+	void AttachPlanningMap(FRTHexSnapshot& Snapshot, int32 ObserverTeamId);
+
+	/**
 	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
 	 *
 	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
@@ -3035,6 +3046,17 @@ protected:
 	 * cosi' i consumatori puri la leggono senza conoscere il TurnManager.
 	 */
 	TArray<FRTTeamKnowledge> TeamKnowledgeState;
+
+	/**
+	 * La copia ottimistica della mappa per la pianificazione del giocatore (`AttachPlanningMap`). `UPROPERTY` perche'
+	 * `FRTHexSnapshot::PlanningMap` e' un puntatore grezzo: senza un riferimento forte il GC la raccoglie fra due
+	 * interazioni. Non entra in nessuno stato canonico, snapshot serializzato, replay o hash.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<URTHexMapAsset> PlanningMapCache;
+
+	/** La chiave per cui `PlanningMapCache` e' valida: mappa, revisione, squadra e conoscenza. */
+	uint32 PlanningMapKey = 0;
 
 	/**
 	 * Lo stato che il **playback** mostra, distinto da quello canonico (`#2876`). Vedi

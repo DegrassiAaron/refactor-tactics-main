@@ -92,6 +92,10 @@ namespace
 		// chiesto all'autorita', che ora lo compone per l'osservatore invece di consegnarlo intero.
 		TArray<ARTUnit*> Units;
 		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units, Unit->TeamId);
+		// 🔴 **Il Move del giocatore si pianifica sulla mappa che il giocatore conosce** ([D-372], `#2794`): una cella
+		// mai osservata e' libera, non un muro che la sua squadra non ha mai visto. Solo qui: la Resolution resta
+		// onnisciente e i bot restano sulla vista autorevole.
+		TurnManager->AttachPlanningMap(OutSnapshot, Unit->TeamId);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
 
