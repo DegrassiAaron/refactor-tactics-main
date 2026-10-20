@@ -4852,7 +4852,6 @@ bool FRTInspectionPinsAndBackClosesTest::RunTest(const FString&)
 		return TestTrue(TEXT("controller e unita' esistono"), false);
 	}
 	Enemy->TeamId = 1;
-	Enemy->bKnownToObserver = true;
 
 	TestFalse(TEXT("all'inizio non e' fissata"), PC->IsInspectorPinned());
 	PC->DispatchUnitClickForTest(Enemy, nullptr);
