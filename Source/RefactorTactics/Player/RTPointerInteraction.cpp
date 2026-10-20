@@ -426,7 +426,8 @@ ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, b
 	//
 	// 🔑 Fuori da `Targeting`, `Inspect`. **`Inspect` e `Select` sono esiti DIVERSI e non due nomi della
 	// stessa cosa**: selezionare significa comandare, e cio' che segue la selezione — il pannello degli slot,
-	// il dock delle azioni — leggerebbe di un'avversaria il piano e il kit. L'esito separato esiste perche'
+	// il dock delle azioni — leggerebbe di un'avversaria il piano e le ricariche vere. (Il kit e l'equipaggiamento
+	// sono pubblici dal 2026-10-20, `#3748`, e la scheda li legge dal catalogo.) L'esito separato esiste perche'
 	// il soggetto ispezionato sia un'altra cosa dal soggetto comandato.
 	if (Context == ERTPointerContext::Targeting)
 	{

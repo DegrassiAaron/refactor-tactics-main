@@ -2448,8 +2448,8 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	//
 	// ⛔ **Non si scrive `SelectedActor`, e non e' una sottigliezza.** Da quel campo passa
 	// `GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e `BuildAbilityCooldowns`, cioe'
-	// il dock: puntarli su un'avversaria mostrerebbe il suo piano e il suo kit. Sono due canali della stessa
-	// fuga, e il secondo non era nemmeno nel contratto di comportamento finche' non e' stato misurato.
+	// il dock: puntarli su un'avversaria mostrerebbe il suo piano e le sue ricariche vere. ➕ `#3748`: il kit e
+	// l'equipaggiamento sono pubblici (decisione del 2026-10-20) e la scheda li legge dal catalogo, non da qui.
 	// ⚠️ E la selezione **non si tocca**: ispezionare non costa l'unita' comandata ne' l'azione armata.
 	if (Outcome == ERTPointerOutcome::Inspect)
 	{

@@ -1192,6 +1192,24 @@ Non deve diventare un pannello permanente.
 
 ---
 
+## 18.1 La scheda dell'ispezione (`#3748`, F3)
+
+Il pannello fissato dal click su un'unità non comandata e osservata, nella zona `MiddleRight`. Mostra: nome, PV e
+scudo, stati col nome e l'effetto del glossario, verso (spento in `ResolutionPlayback`, come la targa), **kit dal
+catalogo** ed **equipaggiamento**. Kit ed equipaggiamento di un nemico osservato sono **pubblici** (decisione d'autore
+del 2026-10-20); non entrano mai il piano, gli slot del turno, l'azione armata e le ricariche vere. Una funzione sola,
+`ARTHUD::BuildInspectSubject`, legge l'attore; il compositore (`URTInspectLibrary::Compose`) riceve solo valori.
+
+La scheda **segue la conoscenza**: senza una voce `Live` non c'è scheda (uscita identica a una cella vuota), e se il
+soggetto esce di vista o cade si chiude.
+
+🔴 **Stato**: soggetto, compositore, cancello e chiusura sono in C++ e testati. Il **pannello** in `MiddleRight` non è
+ancora montato: la zona ha uno slot e un inquilino (il registro, costruito dal `WBP_EventLog`), e montare la scheda
+richiede authoring nel clone principale ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)).
+Il fatto resta `DEFERRED` finché quell'asset non c'è.
+
+---
+
 # 18-bis. Interaction Inspector
 
 > Aggiunta del **2026-08-09**, superficie UI di
