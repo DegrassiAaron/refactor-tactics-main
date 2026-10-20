@@ -664,6 +664,13 @@ namespace
  * piegare il percorso, e questo test diventa rosso. 🔴 **Chi lavora #2794 lo leggera' come l'esito atteso,
  * non come un difetto proprio** — che e' l'intero scopo di questa riga, e il motivo per cui lasciarla
  * sbagliata era peggio che non averla.
+ *
+ * 🔴 **Aggiornato con la fetta A di `#2794` ([D-533]): questo banco RESTA verde, e non e' piu' il canary del Move
+ * del giocatore.** Misura una fotografia senza `PlanningMap` — `MakeSnapshotOmniscient` con la conoscenza
+ * attaccata —, cioe' la vista dei **bot** e della **Resolution**, che [D-533] lascia sulla mappa autorevole. Il
+ * movimento del giocatore, che ora pianifica su `PlanningMap`, lo misura
+ * `RefactorTactics.BlindMove.PlayerPlansThroughANeverObservedWall`. ⛔ Se questo banco diventasse rosso, i bot o la
+ * Resolution avrebbero ereditato la geometria ottimistica: e' il difetto che [D-533] punto (2) esclude.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsDarkWallBendsPathTest,
 	"RefactorTactics.BlindActions.NeverObservedWallBendsTheLitPath",
