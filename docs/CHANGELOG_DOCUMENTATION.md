@@ -8,7 +8,8 @@
 
 | Dove | Che cosa |
 |---|---|
-| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la nota ⏱️ della riga `D-531` registra la pista chiusa e la sua misura |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la nota ⏱️ della riga `D-531` registra la pista chiusa, con la data e la sua misura |
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | il produttore del contesto nomina anche `IsResolutionSuspended()` (delta 2) |
 
 ---
 

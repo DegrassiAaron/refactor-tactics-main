@@ -8,11 +8,15 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
+#include "RTGameMode.h"
 #include "Tests/RTAbilityFixtures.h"
 #include "Tests/RTReactionWindowFixtures.h"
+#include "Tests/RTWorldFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTReactionWindowViewModel.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -87,7 +91,7 @@ namespace
  * D-468 e la spec del puntatore dicono che con una risoluzione in corso nessun input cambia il piano. Il controller
  * lo deriva dal contesto del puntatore, e il contesto guardava `bIsResolving`: la risoluzione SOSPESA su una finestra
  * (l'Overwatch nel Move, qui) lo accende solo se parte il playback parziale, cioe' non con `bEnablePlayback` falso —
- * una proprieta' `EditAnywhere`, la risoluzione istantanea — ne' con la timeline vuota. In quel tratto `Phase` e'
+ * una proprieta' `EditAnywhere`, la risoluzione istantanea. In quel tratto `Phase` e'
  * `Move`, le azioni di Prep, Dash e Blast sono GIA' consumate e il Cleanup non e' arrivato: un'unita' viva, armata e
  * in ricarica, a mondo scrivibile. Dalla #3835 nessuna guardia di ricarica sull'azione armata la ferma piu'.
  *
@@ -108,9 +112,10 @@ namespace
  * ⛔ **Verifica di mutazione**: togliere `IsResolutionSuspended()` da `GetPointerContext()` fa cadere C a playback
  * spento, e solo li'.
  *
- * ⚠️ **Cosa NON copre**: la timeline vuota con il playback acceso. Non ho trovato una sequenza che la produca
- * (`BeginPartialPlayback` la tratta come lo schermo nero che D-355 vuole evitare), e la dichiaro invece di
- * costruirla a mano.
+ * ⚠️ **Cosa NON copre**: la timeline vuota con il playback acceso, che `BeginPartialPlayback` prevede. Misurata dalla
+ * revisione alla sospensione non e' vuota, ne' per l'Overwatch ne' per il Brace: la sequenza non l'ho trovata e non la
+ * costruisco a mano. Il sito Blast, la risposta da tasto e il ritorno a mondo scrivibile li prova
+ * `Reactions.AWindowStaysAnswerableAndTheWorldWritableAfterwards`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSuspendedResolutionIsReadOnlyTest,
 	"RefactorTactics.Reactions.ASuspendedResolutionIsReadOnlyForInput",
@@ -218,6 +223,176 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 	const bool bSenzaPlayback = Prova(false);
 	const bool bConPlayback = Prova(true);
 	return bSenzaPlayback && bConPlayback;
+}
+
+namespace
+{
+	ARTHexMapActor* SuspWindowMap(UWorld* World, int32 Radius)
+	{
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return Actor;
+	}
+
+	ARTUnit* SuspWindowUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
+	{
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		return U;
+	}
+
+	/** Sito del MOVIMENTO: l'Overwatch di chi guarda sospende nel Move quando l'altro entra nel cono. */
+	void SuspArmOverwatch(ARTUnit* Mover, ARTUnit* Watcher)
+	{
+		Watcher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->Facing = ERTHexDirection::W;
+		Watcher->PlannedCell = Watcher->Cell;
+		Mover->PlannedCell = FRTCellId(2, 0);
+	}
+
+	/** Sito del BLAST: la spinta del Pusher sul Bracer sospende nel Blast, prima del movimento. */
+	void SuspArmBrace(ARTUnit* Bracer, ARTUnit* Pusher)
+	{
+		Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+		Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+		Bracer->PlannedCell = Bracer->Cell;
+		Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+		Pusher->PlannedAttackTarget = Bracer;
+		Pusher->PlannedCell = Pusher->Cell;
+	}
+}
+
+/**
+ * 🔴 **LA FINESTRA RESTA RISPONDIBILE, E DOPO LA RISPOSTA IL MONDO TORNA SCRIVIBILE** — `#3837`, dalla revisione indipendente.
+ *
+ * Il primo test di questo file prova che a risoluzione sospesa il mondo e' in sola lettura. Questo prova i due lati che
+ * quel test non vede, e che il fix poteva rompere:
+ *
+ *  - **il giocatore puo' ancora RISPONDERE.** Il tasto del kit con una finestra aperta per chi guarda sceglie l'opzione
+ *    (`OnKitHotkey` -> `URTReactionWindowViewModel::ChooseOption` -> `SubmitReactionResponse`). La sola guardia di quella
+ *    strada e' `IsGameplayInputBlocked()`, cioe' il Modal, e il fix non deve spostarla sul contesto: sarebbe una finestra a
+ *    cui non si puo' rispondere finche' il tempo non scade;
+ *  - **dopo la risposta il mondo e' di nuovo scrivibile.** Un contesto che restasse `ResolutionPlayback` a turno finito
+ *    bloccherebbe la pianificazione del turno dopo.
+ *
+ * Entrambi i SITI di sospensione (l'Overwatch nel Move e il Brace nel Blast, `IsResolutionSuspended()` li copre per
+ * costruzione) e entrambe le configurazioni del playback.
+ *
+ * 🔑 **Enter e il lock-in sono le porte che non passavano dal click**: a mondo in sola lettura la dichiarazione "ho
+ * deciso" e il Ready sono rifiutati. Il controllo positivo e' in fondo: a mondo scrivibile la stessa dichiarazione riesce,
+ * altrimenti il rifiuto di prima potrebbe valere per una unita' non selezionata.
+ *
+ * ⛔ **Verifica di mutazione** (della revisione): la sospensione contata solo se `Phase == Move` fa cadere il sito Brace;
+ * il contesto sempre `ResolutionPlayback` con un TurnManager fa cadere il controllo di ritorno scrivibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWindowStaysAnswerableTest,
+	"RefactorTactics.Reactions.AWindowStaysAnswerableAndTheWorldWritableAfterwards",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWindowStaysAnswerableTest::RunTest(const FString&)
+{
+	const auto Prova = [this](bool bBrace, bool bPlayback) -> bool
+	{
+		const FString Tag = FString::Printf(TEXT("%s, playback %s"),
+			bBrace ? TEXT("Brace") : TEXT("Overwatch"), bPlayback ? TEXT("acceso") : TEXT("spento"));
+		const auto E = [&Tag](const TCHAR* Testo) { return FString::Printf(TEXT("%s - %s"), *Tag, Testo); };
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(*E(TEXT("mondo")), World)) { return false; }
+		World->InitializeActorsForPlay(FURL());
+		SuspWindowMap(World, /*Radius=*/ 8);
+
+		// Chi RICEVE la finestra: il Watcher per l'Overwatch (squadra 1), il Bracer per il Brace (squadra 0).
+		ARTUnit* Primo = SuspWindowUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Secondo = SuspWindowUnit(World, 1, bBrace ? FRTCellId(1, 0) : FRTCellId(3, 0));
+		ARTUnit* Proprio = bBrace ? Primo : Secondo;
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, bBrace ? 0 : 1);
+		if (!TestNotNull(*E(TEXT("unita'")), Primo) || !TestNotNull(*E(TEXT("seconda unita'")), Secondo)
+			|| !TestNotNull(*E(TEXT("turn manager")), TM) || !TestNotNull(*E(TEXT("game mode")), GameMode)
+			|| !TestNotNull(*E(TEXT("controller")), PC))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+		if (bBrace) { SuspArmBrace(Primo, Secondo); } else { SuspArmOverwatch(Primo, Secondo); }
+		GameMode->HookReactionWindow(); // la finestra raggiunge il ViewModel del controller, come in partita
+		TM->bEnablePlayback = bPlayback;
+		PC->SelectActorForTest(Proprio);
+
+		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+		URTReactionWindowViewModel* VM = PC->GetReactionWindowViewModel();
+		const FRTReactionWindowView Vista = VM ? VM->GetWindow() : FRTReactionWindowView();
+		if (!TestTrue(*E(TEXT("premessa: la finestra e' aperta per chi guarda")), Vista.bOpen)
+			|| !TestTrue(*E(TEXT("premessa: la risoluzione e' sospesa")), TM->IsResolutionSuspended())
+			|| !TestEqual(*E(TEXT("premessa: la fase che si e' fermata")), TM->GetPhase(),
+				bBrace ? ERTMatchPhase::Blast : ERTMatchPhase::Move)
+			|| !TestEqual(*E(TEXT("premessa: IsResolving() dice la configurazione")), TM->IsResolving(), bPlayback)
+			|| !TestTrue(*E(TEXT("premessa: c'e' piu' di un'opzione fra cui scegliere")), Vista.Options.Num() > 1))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+
+		// --- il mondo e' in sola lettura, anche per le porte che non passano dal click --------------------
+		TestEqual(*E(TEXT("il contesto del puntatore e' la risoluzione in corso")),
+			PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
+		TestTrue(*E(TEXT("il mondo e' in sola lettura per l'input")), PC->IsWorldReadOnly());
+		TestFalse(*E(TEXT("Enter non dichiara il piano")), PC->ToggleTurnPlanDeclaredForTest());
+		TestFalse(*E(TEXT("e l'unita' non risulta decisa")), Proprio->bTurnPlanDeclared);
+		if (!bPlayback)
+		{
+			// A playback acceso lo stesso tasto salta il playback (presentazione): la porta del Ready si prova dove resta il Ready.
+			PC->OnLockInForTest();
+			TestFalse(*E(TEXT("il lock-in a risoluzione sospesa non registra nessun Ready")),
+				TM->IsParticipantReady(ARTPlayerState::TeamIdOf(PC), ARTPlayerState::ControlGroupOf(PC)));
+			TestTrue(*E(TEXT("e la risoluzione resta sospesa")), TM->IsResolutionSuspended());
+		}
+
+		// --- ma la finestra resta RISPONDIBILE dal tasto del kit ---------------------------------------
+		const FString IdAperta = TM->GetOpenReactionWindowId();
+		PC->PressKitHotkeyForTest(Vista.Options.Num() - 1);
+		TestTrue(*E(TEXT("il tasto del kit risponde alla finestra")), TM->GetOpenReactionWindowId() != IdAperta);
+
+		for (int32 Giri = 0; (TM->IsResolutionSuspended() || TM->IsResolving()) && Giri < 600; ++Giri)
+		{
+			TM->Tick(0.05f);
+		}
+		TestFalse(*E(TEXT("dopo la risposta la risoluzione non e' piu' sospesa")), TM->IsResolutionSuspended());
+		TestFalse(*E(TEXT("e il playback e' finito")), TM->IsResolving());
+		TestEqual(*E(TEXT("e il turno e' tornato alla pianificazione")), TM->GetPhase(), ERTMatchPhase::Planning);
+
+		// --- e il mondo torna SCRIVIBILE -----------------------------------------------------------------
+		TestFalse(*E(TEXT("il mondo e' di nuovo scrivibile")), PC->IsWorldReadOnly());
+		TestTrue(*E(TEXT("e il contesto non e' piu' la risoluzione in corso")),
+			PC->GetPointerContext() != ERTPointerContext::ResolutionPlayback);
+		// Il controllo positivo di Enter: scrivibile, la stessa dichiarazione riesce. Senza, il rifiuto di sopra potrebbe
+		// valere per un'unita' non selezionata e non per la sola lettura.
+		PC->SelectActorForTest(Proprio);
+		TestTrue(*E(TEXT("controllo positivo: a mondo scrivibile Enter dichiara il piano")), PC->ToggleTurnPlanDeclaredForTest());
+
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	};
+
+	// Le quattro combinazioni si provano SEMPRE tutte: una premessa che salta per una non deve nascondere le altre.
+	bool bTutte = true;
+	for (const bool bBrace : { false, true })
+	{
+		for (const bool bPlayback : { false, true })
+		{
+			bTutte = Prova(bBrace, bPlayback) && bTutte;
+		}
+	}
+	return bTutte;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
