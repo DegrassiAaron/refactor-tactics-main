@@ -957,9 +957,10 @@ struct FRTPlayerEventLineView
  * alla prima»*. Questo enum la scrive una volta invece di lasciarla al colore, e
  * `HudViewModel.SlotStatePrefersTheArmedOne` la pinna.
  *
- * ⏱️ *Qui l'esempio era «un'ultimate armata e ancora in ricarica».* Da [D-531] (`#3830`) un'azione in ricarica non si
- * arma: il simulatore non produce `Selected` insieme a una ricarica, e la precedenza e' la risposta TOTALE della funzione
- * su una vista composta a mano (un Blueprint, un test), non uno scenario di gioco.
+ * ⏱️ *Qui l'esempio era «un'ultimate armata e ancora in ricarica», come coppia che l'input forma armando.* Da [D-531]
+ * (`#3830`) l'input non la forma piu': la forma la RISOLUZIONE, perche' un'azione consumata resta armata, e in ricarica,
+ * fino al Cleanup, e il dock la mostra `Selected` mentre una finestra di reazione e' aperta (`Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`).
+ * La precedenza non decide se li' debba leggersi `Selected` o `Cooldown`: e' una scelta di presentazione, e resta com'e'.
  *
  * ⚠️ **`Selected` batte anche `Planned`** per la stessa ragione e nella stessa direzione: una posizione puo'
  * essere entrambe — si arma un'abilita' e la si pianifica su un bersaglio — e la domanda a cui uno slot

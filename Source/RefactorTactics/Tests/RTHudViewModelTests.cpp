@@ -1840,12 +1840,11 @@ bool FRTHudVmSlotStateTest::RunTest(const FString&)
 		URTHudViewModel::ResolveSlotState(Pianificata, false), ERTActionSlotState::Planned);
 
 	// --- A. armata BATTE in ricarica -------------------------------------------------------------------
-	// 🔑 La regola di `ComposeAbilityLine`, come risposta TOTALE su una vista composta a mano.
-	// ⏱️ *Qui il commento parlava di «un'ultimate armata e ancora in ricarica»*, come di un caso di gioco: da [D-531]
-	// (`#3830`) un'azione in ricarica non si arma, quindi il simulatore non produce questa coppia. Resta pinnata perche'
-	// `ResolveSlotState` prende una struct e un Blueprint puo' comporla cosi', e perche' la precedenza non deve
-	// dipendere da un invariante che sta altrove.
-	TestEqual(TEXT("A: vista composta a mano, armata e in ricarica -> armata"),
+	// 🔑 La regola di `ComposeAbilityLine`.
+	// ⏱️ *Qui il commento parlava di «un'ultimate armata e ancora in ricarica»*, come della coppia che l'input forma armando:
+	// da [D-531] (`#3830`) non la forma piu', ma la forma la RISOLUZIONE (un'azione consumata resta armata fino al Cleanup), e il
+	// dock la mostra cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
+	TestEqual(TEXT("A: armata e in ricarica -> armata"),
 		URTHudViewModel::ResolveSlotState(InRicarica, /*bArmed=*/ true), ERTActionSlotState::Selected);
 
 	// --- B. armata BATTE pianificata -------------------------------------------------------------------

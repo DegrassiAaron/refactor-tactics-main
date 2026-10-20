@@ -119,9 +119,9 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	// 🔴 **Armata resta bianca anche se non e' usabile.** «Cosa sto per fare» e «posso farlo» sono due
 	// domande, e il prefisso risponde alla prima. Senza questo caso, far vincere `bUsableNow` sul bianco passerebbe.
 	//
-	// ⏱️ *Qui il caso era «un'ultimate armata e ancora in ricarica»*, detto come scenario di gioco. Da [D-531]
-	// (`#3830`) un'azione in ricarica non si arma: il simulatore non produce una riga armata con `bUsableNow` falso, e
-	// questa e' la risposta della funzione su una vista composta a mano.
+	// ⏱️ *Qui il caso era «un'ultimate armata e ancora in ricarica»*, come coppia che l'input forma armando. Da [D-531]
+	// (`#3830`) l'input non la forma piu': la forma la RISOLUZIONE (un'azione consumata resta armata fino al Cleanup), e il dock
+	// la mostra cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
 	//
 	// ⚠️ **Il motivo si legge su un'abilita' IN RICARICA, e non e' un dettaglio di comodo.** Questo blocco
 	// asseriva che una riga armata e *scarica* — `TurnsRemaining = 0`, `bUsableNow = false` — mostrasse
@@ -132,8 +132,8 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	Ability.bUsableNow = false;
 	Ability.TurnsRemaining = 2;
 	const FRTHudTextLine ArmataScarica = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ true);
-	TestTrue(TEXT("vista composta a mano, armata e in ricarica: resta bianca"), ArmataScarica.Color.Equals(FLinearColor::White));
-	TestTrue(TEXT("vista composta a mano, armata e in ricarica: il motivo si vede comunque"),
+	TestTrue(TEXT("armata e in ricarica: resta bianca"), ArmataScarica.Color.Equals(FLinearColor::White));
+	TestTrue(TEXT("armata e in ricarica: il motivo si vede comunque"),
 		ArmataScarica.Text.Contains(TEXT("(ricarica 2)")));
 
 	// Non armata e non usabile: il grigio più scuro, il terzo livello.

@@ -1843,9 +1843,9 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 
 	// ⚠️ **Armata batte inutilizzabile.** «Cosa sto per fare» e «posso farlo» sono due domande, e il
 	// bianco risponde alla prima.
-	// ⏱️ *Qui il caso era «un'ultimate armata e ancora in ricarica».* Da [D-531] (`#3830`) un'azione in ricarica non si
-	// arma: il simulatore non produce questa riga con `bUsableNow` falso. Resta la risposta totale per una vista composta a
-	// mano, e il motivo, in quel caso, lo dice comunque il testo.
+	// ⏱️ *Qui il caso era «un'ultimate armata e ancora in ricarica», come coppia che l'input forma armando.* Da [D-531]
+	// (`#3830`) l'input non la forma piu': la forma la RISOLUZIONE, e il motivo, in quel caso, lo dice comunque il testo.
+	// Vedi `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
 	Line.Color = bArmed
 		? FLinearColor::White
 		: (Ability.bUsableNow ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));

@@ -16,6 +16,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTHudViewModel.h"
 #include "UI/RTReactionWindowViewModel.h"
 #include "Unit/RTUnit.h"
 
@@ -393,6 +394,148 @@ bool FRTWindowStaysAnswerableTest::RunTest(const FString&)
 		}
 	}
 	return bTutte;
+}
+
+/**
+ * 🔴 **UN'AZIONE CONSUMATA RESTA ARMATA E IN RICARICA FINO AL CLEANUP, E IL DOCK LA MOSTRA `Selected` MENTRE UNA FINESTRA E' APERTA** — `#3839`.
+ *
+ * Da [D-531] (`#3830`) l'INPUT non forma piu' la coppia "armata E in ricarica": un'azione in ricarica non si arma. La forma pero' la
+ * RISOLUZIONE. `ConsumeAbility` scrive la ricarica quando l'azione esegue (Prep, Dash, Blast), e il disarmo e' del Cleanup: se una
+ * finestra di reazione sospende il turno in mezzo, l'unita' e' viva, ancora armata e con la ricarica scritta. I commenti di
+ * `ResolveSlotState`, `ComposeAbilityLine` e dei loro test presentavano la coppia come "caso di gioco" prima di `#3830` e poi, per
+ * un momento, come "non piu' di gioco": nessuna delle due letture era misurata. Questo e' il test che le sostituisce.
+ *
+ * Cosa misura, in ordine:
+ *
+ *  - **A.** A finestra aperta l'attaccante e' vivo, ancora armato, con la ricarica scritta (premesse anti-vacuita').
+ *  - **B.** La vista che il dock costruisce (`BuildAbilityCooldowns`, poi `ResolveSlotState` con `bArmed` dall'armo dell'unita', come
+ *    `URTActionDockWidget`) risolve lo slot in `Selected`, con la ricarica a vista e `bUsableNow` falso. Il controllo: con `bArmed`
+ *    falso la stessa vista sarebbe `Cooldown`, cioe' e' il flag a far vincere `Selected`.
+ *  - **C.** Chiusa la finestra e finito il turno, il Cleanup ha disarmato: la coppia era transitoria, e lo slot e' `Cooldown`.
+ *
+ * ⚠️ **Questo test NON dice che `Selected` sia la lettura giusta** a finestra aperta: dice che e' quella che oggi il dock mostra. Se un
+ * "armato" per un'azione appena spesa debba leggersi `Selected` o `Cooldown` e' una scelta di presentazione che la precedenza di
+ * `ResolveSlotState` non ha mai posto, e che resta all'autore. Se la cambia, questo test e' il posto in cui dirlo.
+ *
+ * Le due configurazioni del playback girano SEMPRE entrambe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTConsumedArmedActionInTheDockTest,
+	"RefactorTactics.Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTConsumedArmedActionInTheDockTest::RunTest(const FString&)
+{
+	const auto Prova = [this](bool bPlayback) -> bool
+	{
+		const auto E = [bPlayback](const TCHAR* Testo)
+		{
+			return FString::Printf(TEXT("playback %s - %s"), bPlayback ? TEXT("acceso") : TEXT("spento"), Testo);
+		};
+
+		UWorld* World = MakeSuspWorld();
+		if (!TestNotNull(*E(TEXT("mondo di prova")), World)) { return false; }
+		SpawnSuspMap(World, /*Radius=*/ 10);
+
+		// Le stesse distanze di `Reactions.ASuspendedResolutionIsReadOnlyForInput`: chi attacca, il bersaglio, chi cammina nella
+		// zona e chi tiene l'Overwatch.
+		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+		ARTUnit* Target   = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 1, 0, 0));
+		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Branth"), 0, FRTCellId( 5, 0, 0));
+		ARTUnit* Watcher  = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 8, 0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		if (!TestNotNull(*E(TEXT("attaccante")), Attacker) || !TestNotNull(*E(TEXT("bersaglio")), Target)
+			|| !TestNotNull(*E(TEXT("chi cammina")), Mover) || !TestNotNull(*E(TEXT("chi tiene l'Overwatch")), Watcher)
+			|| !TestNotNull(*E(TEXT("turn manager")), TM) || !TestNotNull(*E(TEXT("controller")), PC))
+		{
+			DestroySuspWorld(World);
+			return false;
+		}
+		TM->bEnablePlayback = bPlayback;
+
+		const int32 ConRicarica = FindSuspAbilityById(Attacker, TEXT("Hero.Aevik.LinearDischarge"));
+		if (!TestNotEqual(*E(TEXT("premessa: Aevik ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
+			|| !TestTrue(*E(TEXT("premessa: la sua ricarica e' di almeno due turni")),
+				Attacker->GetAbility(ConRicarica)->CooldownTurns >= 2))
+		{
+			DestroySuspWorld(World);
+			return false;
+		}
+
+		Watcher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->Facing = ERTHexDirection::W;
+		Mover->PlannedCell = FRTCellId(7, 0, 0);
+
+		PC->SelectActorForTest(Attacker);
+		PC->SelectAbilityForCurrentForTest(ConRicarica);
+		Attacker->PlannedAbilityIndex = ConRicarica;
+		Attacker->PlannedAttackTarget = Target;
+
+		int32 FinestreAperte = 0;
+		TM->OnReactionWindowOpened.BindLambda([&FinestreAperte](const FRTReactionWindowView&, int32) { ++FinestreAperte; });
+		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+
+		// --- A. a finestra aperta: viva, ancora armata, con la ricarica scritta ---------------------------
+		const bool bPremesse =
+			TestTrue(*E(TEXT("premessa: una finestra di reazione si e' aperta")), FinestreAperte > 0)
+			&& TestTrue(*E(TEXT("premessa: la risoluzione e' sospesa")), TM->IsResolutionSuspended())
+			&& TestTrue(*E(TEXT("A: l'attaccante e' vivo")), Attacker->IsAlive())
+			&& TestTrue(*E(TEXT("A: l'azione e' stata consumata, quindi e' in ricarica")), Attacker->GetAbilityCooldown(ConRicarica) > 0)
+			&& TestEqual(*E(TEXT("A: e il Cleanup non e' arrivato, quindi e' ancora armata")), Attacker->SelectedAbilityIndex, ConRicarica);
+		if (!bPremesse)
+		{
+			TM->OnReactionWindowOpened.Unbind();
+			DestroySuspWorld(World);
+			return false;
+		}
+
+		// --- B. la vista del dock: `Selected` con la ricarica a vista ------------------------------------
+		const auto VistaDellAzione = [&]() -> FRTAbilityCooldownView
+		{
+			for (const FRTAbilityCooldownView& V : URTHudViewModel::BuildAbilityCooldowns(Attacker))
+			{
+				if (V.AbilityIndex == ConRicarica) { return V; }
+			}
+			return FRTAbilityCooldownView();
+		};
+		const FRTAbilityCooldownView InFinestra = VistaDellAzione();
+		if (!TestFalse(*E(TEXT("B: la vista dell'azione esiste")), InFinestra.ActionId.IsNone()))
+		{
+			TM->OnReactionWindowOpened.Unbind();
+			DestroySuspWorld(World);
+			return false;
+		}
+		TestTrue(*E(TEXT("B: la ricarica e' a vista")), InFinestra.TurnsRemaining > 0);
+		TestFalse(*E(TEXT("B: e l'azione non e' usabile")), InFinestra.bUsableNow);
+		TestEqual(*E(TEXT("B: armata, lo slot e' Selected")),
+			URTHudViewModel::ResolveSlotState(InFinestra, /*bArmed=*/ Attacker->SelectedAbilityIndex == InFinestra.AbilityIndex),
+			ERTActionSlotState::Selected);
+		TestEqual(*E(TEXT("B: controllo, la stessa vista non armata sarebbe Cooldown: il flag fa vincere Selected")),
+			URTHudViewModel::ResolveSlotState(InFinestra, /*bArmed=*/ false), ERTActionSlotState::Cooldown);
+
+		// --- C. chiusa la finestra e finito il turno, il Cleanup ha disarmato: la coppia era transitoria --
+		for (int32 Giri = 0; TM->IsResolutionSuspended() && Giri < 16; ++Giri)
+		{
+			TM->ExpireReactionWindow();
+		}
+		for (int32 Giri = 0; TM->IsResolving() && Giri < 600; ++Giri)
+		{
+			TM->Tick(0.05f);
+		}
+		TestFalse(*E(TEXT("C: la risoluzione e' conclusa")), TM->IsResolutionSuspended() || TM->IsResolving());
+		TestEqual(*E(TEXT("C: il Cleanup ha disarmato")), Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+		TestEqual(*E(TEXT("C: e lo slot, non armato, e' Cooldown")),
+			URTHudViewModel::ResolveSlotState(VistaDellAzione(), /*bArmed=*/ false), ERTActionSlotState::Cooldown);
+
+		TM->OnReactionWindowOpened.Unbind();
+		DestroySuspWorld(World);
+		return true;
+	};
+
+	// Le due configurazioni si provano SEMPRE entrambe: una premessa che salta per la prima non deve nascondere l'altra.
+	const bool bSenzaPlayback = Prova(false);
+	const bool bConPlayback = Prova(true);
+	return bSenzaPlayback && bConPlayback;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
