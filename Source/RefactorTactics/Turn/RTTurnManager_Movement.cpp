@@ -120,6 +120,7 @@ void ARTTurnManager::BeginMovementResolution()
 	// veda il percorso) e classificherebbe `Moved`, vero sul percorso troncato ma falso su cio' che l'unita'
 	// aveva pianificato. Lo sa questo ciclo, e lo scrive lui nel log.
 	Ctx.bStoppedByTopology.Init(false, Units.Num());
+	Ctx.bStoppedByUnseenTerrain.Init(false, Units.Num());
 	// Chi ha DICHIARATO una destinazione e se l'e' vista negare perche' occupata (#79). Come la topologia
 	// qui sopra, e' un fatto che il resolver non puo' vedere, con una differenza: la topologia taglia un
 	// percorso che esiste, questa lo azzera, e il resolver riceve `{ Cell }` — indistinguibile da chi non ha
@@ -274,8 +275,23 @@ void ARTTurnManager::BeginMovementResolution()
 		// della cella, non la percorribilita' del passo — l'unita' arriva esattamente dove aveva chiesto, e
 		// dirle «fermo: varco chiuso» sarebbe falso. Con il vecchio confronto lo diceva, e non serviva nemmeno
 		// un cambio di topologia a meta' turno perche' accadesse.
+		const TArray<FRTCellId> PathBeforeTopology = Path;
 		Path = URTHexSimLibrary::TruncatePathToTopology(Ctx.Snapshot, Path);
 		Ctx.bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
+
+		// 🔴 **Un muro mai osservato non e' «un varco che si e' chiuso»** (`#2794`, [D-533]). Il Move del giocatore si
+		// pianifica su una mappa ottimistica: se il passo che la verita' nega porta in una cella che la squadra non
+		// ha ne' vista ne' ricordata, il motivo e' che l'ipotesi e' stata smentita, e il log lo dice con un valore
+		// proprio. Un passo verso una cella nota resta `BlockedByTopology`: li' il varco c'era davvero.
+		if (Ctx.bStoppedByTopology[i] && PathBeforeTopology.IsValidIndex(Path.Num()))
+		{
+			const FRTCellId Negata = PathBeforeTopology[Path.Num()];
+			const FRTTeamKnowledge* Conoscenza = Ctx.Snapshot.TeamKnowledge.FindByPredicate(
+				[Team = Unit->TeamId](const FRTTeamKnowledge& K) { return K.TeamId == Team; });
+			Ctx.bStoppedByUnseenTerrain[i] = Conoscenza
+				&& (Conoscenza->VisibleCells.Num() > 0 || Conoscenza->ExploredCells.Num() > 0)
+				&& !Conoscenza->VisibleCells.Contains(Negata) && !Conoscenza->ExploredCells.Contains(Negata);
+		}
 
 		// Il piano del giocatore e' cio' che resta del percorso PRIMA dello scivolamento, dopo il taglio
 		// della topologia: `Min` perche' quel taglio puo' aver accorciato anche la parte pianificata.
@@ -1538,7 +1554,9 @@ void ARTTurnManager::FinishMovementResolution()
 		if (Ctx.bStoppedByTopology.IsValidIndex(i) && Ctx.bStoppedByTopology[i]
 			&& Resolved[i].Outcome == ERTMoveOutcome::Moved)
 		{
-			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByTopology);
+			MoveLog[i].Outcome = static_cast<uint8>(
+				Ctx.bStoppedByUnseenTerrain.IsValidIndex(i) && Ctx.bStoppedByUnseenTerrain[i]
+					? ERTMoveOutcome::BlockedByUnseenTerrain : ERTMoveOutcome::BlockedByTopology);
 		}
 
 		// 🔑 **Il movimento negato in PIANIFICAZIONE, che senza questo ramo non lascia traccia** (#79).

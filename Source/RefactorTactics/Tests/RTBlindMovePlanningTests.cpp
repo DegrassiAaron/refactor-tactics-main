@@ -16,6 +16,7 @@
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
@@ -256,12 +257,14 @@ namespace
 	{
 		FRTCellId End;
 		int32 StoppedByTopologyEntries = 0;
+		int32 StoppedByUnseenEntries = 0;
+		bool bWallObserved = false;
 		int32 MoveRange = 0;
 		bool bOk = false;
 	};
 
 	FBlindMoveResolutionRun RunMoveAgainstARealWall(const FRTCellId& Wall, const TArray<FRTCellId>& PlannedPath,
-		const FRTCellId& PlannedCell)
+		const FRTCellId& PlannedCell, const FRTCellId* SightBlocker = nullptr)
 	{
 		FBlindMoveResolutionRun Out;
 		UWorld* World = MakeBlindMoveWorld();
@@ -273,6 +276,13 @@ namespace
 		FRTHexCellData Data(Wall);
 		Data.bBlocksMovement = true;
 		Map->AddOrUpdateCell(Data);
+		if (SightBlocker)
+		{
+			// Blocca la vista e NON il passo: nasconde il muro dietro di se' senza chiudere la strada.
+			FRTHexCellData Blocker(*SightBlocker);
+			Blocker.bBlocksLineOfSight = true;
+			Map->AddOrUpdateCell(Blocker);
+		}
 		Map->SortCells();
 
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
@@ -289,6 +299,11 @@ namespace
 		Unit->PlaceOnCell(FRTCellId(0, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		Out.MoveRange = Unit->GetEffectiveMoveRange();
 
+		// La conoscenza che la squadra ha al momento di pianificare: da qui si misura se il muro e' mai stato visto.
+		TM->RefreshTeamKnowledgeNow();
+		const FRTTeamKnowledge Known = TM->KnowledgeForTeamPublic(Unit->TeamId);
+		Out.bWallObserved = Known.VisibleCells.Contains(Wall) || Known.ExploredCells.Contains(Wall);
+
 		Unit->PlannedPath = PlannedPath;
 		Unit->PlannedCell = PlannedCell;
 
@@ -298,11 +313,9 @@ namespace
 		Out.End = Unit->Cell;
 		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
 		{
-			if (Entry.Category == ERTLogCategory::Move
-				&& Entry.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByTopology))
-			{
-				++Out.StoppedByTopologyEntries;
-			}
+			if (Entry.Category != ERTLogCategory::Move) { continue; }
+			if (Entry.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByTopology)) { ++Out.StoppedByTopologyEntries; }
+			if (Entry.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByUnseenTerrain)) { ++Out.StoppedByUnseenEntries; }
 		}
 		Out.bOk = true;
 		return Out;
@@ -338,7 +351,9 @@ bool FRTBlindMoveResolutionStopsAtTheRealWallTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("premessa: il budget copre il percorso dritto"), Carried.MoveRange >= 3)) { return false; }
 	TestEqual(TEXT("con un percorso portato l'unita' si ferma davanti al muro vero"), Carried.End, FRTCellId(1, 0, 0));
 	TestTrue(TEXT("e non lo aggira per arrivare alla meta"), Carried.End != Straight.Last());
-	TestEqual(TEXT("l'arresto e' registrato dalla topologia"), Carried.StoppedByTopologyEntries, 1);
+	TestTrue(TEXT("premessa: qui il muro e' VISTO (a due celle, senza ostacoli alla vista)"), Carried.bWallObserved);
+	TestEqual(TEXT("l'arresto davanti a un muro NOTO resta quello della topologia"), Carried.StoppedByTopologyEntries, 1);
+	TestEqual(TEXT("e non e' quello del terreno mai osservato"), Carried.StoppedByUnseenEntries, 0);
 
 	// Il limite dichiarato: la stessa destinazione senza percorso portato.
 	const FBlindMoveResolutionRun Recomputed = RunMoveAgainstARealWall(Wall, {}, Straight.Last());
@@ -346,6 +361,42 @@ bool FRTBlindMoveResolutionStopsAtTheRealWallTest::RunTest(const FString&)
 	TestEqual(TEXT("senza percorso portato nessun arresto per topologia: Resolution ha ricalcolato"),
 		Recomputed.StoppedByTopologyEntries, 0);
 	TestTrue(TEXT("e l'unita' non ha mai occupato la cella del muro"), Recomputed.End != Wall);
+	return true;
+}
+
+/**
+ * **Test 4** (fetta C) — davanti a un muro MAI OSSERVATO il motivo dell'arresto non e' «il varco si e' chiuso».
+ *
+ * Lo stesso scenario del Test 3, con una cella che blocca la vista (non il passo) in `(1,0)`: il muro in `(2,0)` le
+ * sta dietro e la squadra non lo ha ne' visto ne' ricordato. L'unita' si ferma a `(1,0)` e il TurnLog dice
+ * `BlockedByUnseenTerrain`; il testo non contiene «varco». Il controllo positivo e' il Test 3, dove lo stesso arresto
+ * davanti a un muro NOTO resta `BlockedByTopology`.
+ *
+ * ⛔ **Verifica di mutazione**: scrivere sempre `BlockedByTopology` (togliere il ramo `bStoppedByUnseenTerrain`) rende
+ * rosso questo test; scriverlo sempre `BlockedByUnseenTerrain` rende rosso il Test 3.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindMoveUnseenWallHasItsOwnStopReasonTest,
+	"RefactorTactics.BlindMove.UnseenWallStopsWithItsOwnReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindMoveUnseenWallHasItsOwnStopReasonTest::RunTest(const FString&)
+{
+	const FRTCellId Wall(2, 0, 0);
+	const FRTCellId Screen(1, 0, 0);
+	const TArray<FRTCellId> Straight = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+
+	const FBlindMoveResolutionRun Run = RunMoveAgainstARealWall(Wall, Straight, Straight.Last(), &Screen);
+	if (!TestTrue(TEXT("il turno gira"), Run.bOk)) { return false; }
+	if (!TestFalse(TEXT("premessa: il muro NON e' ne' visto ne' ricordato"), Run.bWallObserved)) { return false; }
+	TestEqual(TEXT("l'unita' si ferma sull'ultima cella valida"), Run.End, FRTCellId(1, 0, 0));
+	TestEqual(TEXT("e il TurnLog dice terreno mai osservato"), Run.StoppedByUnseenEntries, 1);
+	TestEqual(TEXT("non «il varco si e' chiuso»"), Run.StoppedByTopologyEntries, 0);
+
+	FRTTurnLogEntry Entry;
+	Entry.Category = ERTLogCategory::Move;
+	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnseenTerrain);
+	const FString Text = URTTurnLogLibrary::DescribeEntry(Entry);
+	TestFalse(TEXT("il testo non parla di varco"), Text.Contains(TEXT("varco")));
+	TestFalse(TEXT("ne' e' il fallback degli esiti non tradotti"), Text.Contains(TEXT("non tradotto")));
 	return true;
 }
 

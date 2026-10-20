@@ -747,7 +747,21 @@ enum class ERTMoveOutcome : uint8
 	 * `ERTDisplacementBlockReason::EdgeGuard`. Sono i due rami che `#2402` D006 ha dovuto gestire anche per
 	 * la caduta.
 	 */
-	StoppedByEdgeGuard
+	StoppedByEdgeGuard,
+	/**
+	 * Il Move del giocatore si e' fermato davanti a terreno che la sua squadra **non aveva mai osservato** e che
+	 * non era come l'anteprima ottimistica lo aveva tracciato ([D-372], `#2794`, [D-533]): un muro, una porta
+	 * chiusa, un bordo.
+	 *
+	 * 🔴 **Ha un valore proprio e non riusa `BlockedByTopology`**, che dice *«il varco si e' chiuso»*: per un muro
+	 * mai visto e' falso, perche' non c'era un varco che si sia chiuso — c'era un'ipotesi del giocatore, e la
+	 * verita' l'ha smentita. Aggiunto in CODA: l'esito viaggia come `uint8` nel formato serializzato, quindi le
+	 * tracce gia' scritte non cambiano significato.
+	 *
+	 * ⚠️ **Non nomina l'ostacolo e non rivela chi o cosa c'e'**: dice che il terreno non era come previsto, che e'
+	 * cio' che l'unita' ha appena imparato fermandosi. Un muro e un bordo protetto producono la stessa riga.
+	 */
+	BlockedByUnseenTerrain
 };
 
 /**
