@@ -160,22 +160,22 @@ namespace
 	 * ...e quella portata ha celle da mostrare (`#3517`). Ogni congiunto toglie un caso in cui il click rifiuterebbe
 	 * ogni cella dell'area, cioe' la lettura che [D-128] vieta:
 	 *
-	 * - **pronta** — `DR-8`, decisione d'autore del 2026-10-06. Un'azione in ricarica non mostra una portata: la
-	 *   ricarica la dice la riga dello slot, non un'area. ⏱️ *Fino a `#3828` un'azione attiva in ricarica si armava
-	 *   ancora (`SelectAbilityForCurrent`) e `HandleTargetCell` ne rifiutava ogni bersaglio*; da `#3828` non si arma, e
-	 *   questo congiunto resta come **difesa in profondita'** sul modello — raggiungibile solo da un'azione che
-	 *   entrasse in ricarica gia' armata, non dall'input;
 	 * - **portata positiva** — `AC-10`. Con portata `0` `TargetableRangeCells` restituisce la sola cella del tiratore,
 	 *   e `Action.Wait` contornava di viola l'unita' stessa;
 	 * - **tiratore vivo** — `AC-10`: un'unita' caduta, ancora selezionata a fine playback, non mira.
 	 *
+	 * ⏱️ **Fino a `#3833` c'era un terzo congiunto, `CanUseAbility`** — `DR-8`, decisione d'autore del 2026-10-06: *«con
+	 * un'azione in ricarica armata, nessuna portata»*. Da `#3830` un'azione in ricarica non si arma e un'unita' viva, in
+	 * Pianificazione, non ne ha una armata (l'armo si rifiuta in `SelectAbilityForCurrent`, la ricarica nasce solo in
+	 * risoluzione, il Cleanup disarma): la condizione non poteva piu' essere vera, ed e' stata tolta. L'invariante la
+	 * pinna `Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`.
+	 *
 	 * ⚠️ **Non decide il ventaglio**: quello lo spegne un'azione che chiede un bersaglio con una portata positiva
-	 * (`RefreshPlanningPreview`). Con un'azione in ricarica armata la board non mostra ne' l'uno ne' l'altra, che e'
-	 * cio' che `DR-8` chiede.
+	 * (`RefreshPlanningPreview`).
 	 */
-	bool MostraLaPortata(const ARTUnit* Unit, int32 Index, const URTActionData& Armata)
+	bool MostraLaPortata(const ARTUnit* Unit, const URTActionData& Armata)
 	{
-		return ChiedeUnBersaglio(Armata) && Unit->IsAlive() && Unit->CanUseAbility(Index) && Armata.RangeCells > 0;
+		return ChiedeUnBersaglio(Armata) && Unit->IsAlive() && Armata.RangeCells > 0;
 	}
 
 	/**
@@ -278,17 +278,15 @@ namespace
 		// un'azione a bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare».
 		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dall'origine di mira.
 		//
-		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`). Un'azione in ricarica chiede un
-		// bersaglio — il ventaglio si spegne, `DR-8` — ma non ha celle su cui il click venga accettato (da `#3828` non si
-		// arma piu' dall'input: qui resta la difesa in profondita' sul modello). `Action.Wait`
-		// invece ha portata `0`, cioe' nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta, e la
-		// portata che contornava la cella dell'unita' sparisce (referto del 2026-10-06, §13: erano due difetti).
+		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`). `Action.Wait` ha portata `0`,
+		// cioe' nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta, e la portata che contornava
+		// la cella dell'unita' sparisce (referto del 2026-10-06, §13: erano due difetti).
 		bool bMira = false;
 		TArray<FRTCellId> Portata;
 		if (const URTActionData* Armata = Unit->GetAbility(Unit->SelectedAbilityIndex))
 		{
 			bMira = ChiedeUnBersaglio(*Armata) && Armata->RangeCells > 0;
-			if (MostraLaPortata(Unit, Unit->SelectedAbilityIndex, *Armata))
+			if (MostraLaPortata(Unit, *Armata))
 			{
 				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit, *Armata), Armata->RangeCells,
 					Armata->Def.LineOfSightPolicy, Armata->Def.MinRangeCells);
@@ -2318,11 +2316,12 @@ bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTU
 	const URTActionData* Armata = Selected->GetAbility(IndiceArmato);
 	// [D-516] (`#3736`): con una CARICA armata il nemico e' il bersaglio. «Nemico» con lo stesso predicato che la pianificazione
 	// usa per i bersagli della carica — squadra diversa da chi carica —, cosi' un'alleata di un altro gruppo continua a ispezionarsi.
-	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): in ricarica, senza portata (`Root`) o col
-	// movimento gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di `HandleClickOnCell` senza
-	// ispezionare niente, cioe' un click perso dove prima si ispezionava.
+	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): senza portata (`Root`) o col movimento
+	// gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di `HandleClickOnCell` senza
+	// ispezionare niente, cioe' un click perso dove prima si ispezionava. ⏱️ *Fino a `#3833` l'elenco apriva con «in
+	// ricarica», e un congiunto `CanUseAbility` lo applicava*: da `#3830` una carica in ricarica non si arma, quindi non
+	// puo' essere quella armata (`Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`).
 	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge
-		|| !Selected->CanUseAbility(IndiceArmato)
 		|| Selected->EffectiveDashRangeOf(IndiceArmato) <= 0
 		|| Selected->bDeclaresPlannedFacing
 		|| Other->TeamId == Selected->TeamId)
@@ -2529,7 +2528,8 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
 		// copertura un bersaglio che era solo troppo lontano (test
 		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
-		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
+		// ⏱️ *Fino a `#3833` qui c'era `bReady = CanUseAbility(AbilityIndex)`, e un ramo «non pronta (ricarica)» sotto*:
+		// da `#3830` un'azione in ricarica non si arma, quindi quella armata e' sempre pronta.
 		// ⚠️ **La policy si passa anche qui, e da D-490 (#3608) MORDE**: l'attacco base, mirato a un'unita', porta
 		// `BlindAimDirect`, quindi il click su un nemico CONOSCIUTO dietro un ostacolo ora pianifica — il colpo si
 		// fermera' sull'ostacolo nel Blast. ⌫ *Fino a #3608 qui non cambiava niente: le sole azioni `NotRequired`
@@ -2568,7 +2568,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			return;
 		}
 
-		if (bReady && Reason == ERTHexTargetReason::Ok)
+		if (Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
 			SelectedUnit->WaypointsAllaDichiarazione = SelectedUnit->PlannedWaypoints.Num(); // `#3501`
@@ -2584,10 +2584,6 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				TM->RecordPlanningInput(ERTPlanningInput::Order);
 			}
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s usa %s su %s"), *SelectedUnit->GetName(), *Ability->DisplayName.ToString(), *ClickedUnit->GetName());
-		}
-		else if (!bReady)
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		}
 		else
 		{
@@ -2923,11 +2919,8 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	const URTActionData* SelAb = SelectedUnit->GetAbility(SelIdx);
 	if (SelAb && URTCatalogLibrary::IsFastMovement(SelAb->Def))
 	{
-		if (!SelectedUnit->CanUseAbility(SelIdx))
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT] Scatto non pronto (ricarica) per %s"), *SelectedUnit->GetName());
-			return;
-		}
+		// ⏱️ *Fino a `#3833` qui c'era un rifiuto «Scatto non pronto (ricarica)»*: da `#3830` uno scatto in ricarica non si
+		// arma, quindi quello armato e' sempre pronto.
 		// Portata letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte, altrimenti dal campo
 		// legacy dell'asset. Leggere un numero diverso da quello del resolver significa accettare piani che
 		// poi non si eseguono (o negarne di buoni). La regola sta in `EffectiveDashRangeOf`, la stessa del resolver.
@@ -3632,6 +3625,20 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	//
 	// ⚠️ **Il rifiuto lascia il modello com'era**: se un'altra azione era gia' armata, resta armata. Disarmare chi
 	// chiede l'azione sbagliata sarebbe un secondo effetto, e la regola e' sulla richiesta, non sullo stato.
+	//
+	// 🔑 **E' l'UNICO rifiuto per ricarica del controller** (`#3833`). I gestori di click e l'anteprima non
+	// ricontrollano `CanUseAbility` sull'azione armata, perche' **un'unita' viva, in Pianificazione, non ha
+	// un'azione armata in ricarica**: l'armo si rifiuta qui, la ricarica nasce solo in risoluzione
+	// (`ConsumeAbility`, dal solo TurnManager, a mondo in sola lettura) e il Cleanup disarma ([D-397] §5) nello
+	// stesso passaggio che la fa scorrere. Le uniche due scritture che ARMANO `SelectedAbilityIndex` sono questa e
+	// l'anteprima del harness al turno 1 (le altre sono disarmi, `INDEX_NONE`).
+	//
+	// ⚠️ **L'eccezione, misurata dalla revisione di `#3833`**: un'unita' UCCISA nel Cleanup (per esempio dal Burning)
+	// resta armata e in ricarica, perche' il ciclo la salta. Ma il click e' bloccato (`IsWorldReadOnly`) e
+	// `DestroyDefeatedUnits` la toglie nello stesso passaggio sincrono, senza input in mezzo: per questo
+	// `MostraLaPortata` conserva `IsAlive()`. L'invariante la pinna
+	// `Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`: se un giorno si arma in un altro modo,
+	// quel test e' il posto in cui rimettere la domanda — non dieci guardie sparse.
 	const bool bReazione = Ability->Def.Slot == ERTActionSlot::Reaction;
 	if (!Unit->CanUseAbility(Index))
 	{
@@ -3808,7 +3815,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// rifiutava con «su un altro piano». ⚠️ Solo all'armo: se poi il giocatore cambia piano a mano, la portata resta
 	// dov'e' e il click altrove riceve quel rifiuto. Al disarmo il piano attivo non torna a quello di prima: e' la
 	// `Q6` del referto del 2026-10-06, e non e' decisa.
-	if (MostraLaPortata(Unit, Index, *Ability))
+	if (MostraLaPortata(Unit, *Ability))
 	{
 		SetActiveLayer(OrigineDiMira(Unit, *Ability).Layer);
 	}
@@ -4522,7 +4529,8 @@ ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const
 ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 {
 	// Le stesse uscite del click, nello stesso ordine: dove il click non mostrerebbe un rifiuto, nemmeno lo
-	// slot lo mostra. Input inerte, nessun targeting, azione non pronta — il click li tace o li dice altrove.
+	// slot lo mostra. Input inerte, nessun targeting — il click li tace o li dice altrove. ⏱️ *Fino a `#3833` apriva
+	// l'elenco anche «azione non pronta»*: da `#3830` quella armata e' sempre pronta.
 	if (IsPlanningInputInert() || GetPointerContext() != ERTPointerContext::Targeting)
 	{
 		return ERTTargetRefusal::None;
@@ -4534,7 +4542,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 	}
 	const int32 Armed = Unit->SelectedAbilityIndex;
 	const URTActionData* Ability = Unit->GetAbility(Armed);
-	if (!Ability || !Unit->CanUseAbility(Armed))
+	if (!Ability)
 	{
 		return ERTTargetRefusal::None;
 	}
@@ -4753,12 +4761,6 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	const URTActionData* Ability = Unit->GetAbility(Armed);
 	if (!Ability) { return false; }
 
-	if (!Unit->CanUseAbility(Armed))
-	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
-		return false;
-	}
-
 	// La legalita' la CHIEDE al servizio autorevole, non la calcola. Nota: si valida la CELLA, non l'unita'
 	// che ci sta sopra — un'area si centra dove si vuole, anche su un varco vuoto.
 	//
@@ -4931,12 +4933,6 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	const int32 Armed = Unit->SelectedAbilityIndex;
 	const URTActionData* Ability = Unit->GetAbility(Armed);
 	if (!Ability) { return false; }
-
-	if (!Unit->CanUseAbility(Armed))
-	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
-		return false;
-	}
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);

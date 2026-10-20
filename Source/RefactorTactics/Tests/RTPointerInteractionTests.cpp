@@ -94,21 +94,19 @@ namespace
 
 	/**
 	 * Un'azione che chiede un bersaglio e ha una portata positiva: quella che la portata viola mostra (`#3507`).
-	 * `bConRicarica` ne chiede una che la ricarica possa davvero fermare (`#3517`).
 	 *
-	 * ⚠️ **Si cerca per proprieta' e non per nome, e per `E14` e' una correzione e non uno stile.** Il referto nomina
-	 * `ArcPulse` in ricarica, ma `ArcPulse` e' un attacco base, e `Action.BasicAttack` ha ricarica `0` a catalogo:
-	 * `ConsumeAbility` non lo ferma mai, quindi in partita non e' mai in ricarica.
+	 * ⚠️ **Si cerca per proprieta' e non per nome**: la posizione nel kit dipende dall'eroe del banco.
+	 * ⏱️ *Fino a `#3833` un parametro chiedeva anche un'azione con ricarica, per `E14` di `#3517`*: quel test e' stato
+	 * tolto, perche' lo stato «armata E in ricarica» non si forma piu'.
 	 */
-	int32 FindAimedAbilityForRange(const ARTUnit* U, bool bConRicarica)
+	int32 FindAimedAbilityForRange(const ARTUnit* U)
 	{
 		for (int32 i = 0; i < U->NumAbilities(); ++i)
 		{
 			const URTActionData* A = U->GetAbility(i);
 			if (A && !A->bSelfTarget && A->Def.Slot == ERTActionSlot::Main && A->RangeCells > 0
 				&& A->Def.ReservesMovementProfileId.IsNone() && !URTCatalogLibrary::IsFastMovement(A->Def)
-				&& URTPointerLibrary::TargetKindForAction(A->Def, A->bSelfTarget, A->Shape) != ERTPointerTargetKind::None
-				&& (!bConRicarica || A->CooldownTurns > 0))
+				&& URTPointerLibrary::TargetKindForAction(A->Def, A->bSelfTarget, A->Shape) != ERTPointerTargetKind::None)
 			{
 				return i;
 			}
@@ -1361,73 +1359,6 @@ bool FRTTargetingShowsTheRangeTest::RunTest(const FString&)
 }
 
 /**
- * UN'AZIONE IN RICARICA ARMATA NON MOSTRA NE' LA PORTATA NE' IL VENTAGLIO - `#3517`, `DR-8` (`E14` del referto del
- * 2026-10-06).
- *
- * 🔴 Il difetto: un'azione attiva in ricarica armata faceva mostrare alla board la portata piena su cui il click
- * rifiuta ogni bersaglio. ⚠️ **Il controllo positivo e' la stessa azione PRONTA, dalla stessa cella**: senza, «la
- * portata e' vuota» potrebbe voler dire soltanto che quell'azione una portata non l'ha mai.
- *
- * 🔑 Passa dalla catena del gioco, `SelectUnit` e poi l'armo, non da `SelectActorForTest`: e' `SelectUnit` ad
- * accendere l'anteprima, ed e' il ventaglio che accende quello che questo test vede sparire.
- *
- * ⏱️ **`#3828`: l'input non arma piu' un'azione in ricarica**, quindi lo stato «armata E in ricarica» non nasce
- * piu' da un tasto. Questo test lo costruisce sul MODELLO — arma pronta dal controller, poi paga l'azione — e fa
- * ricalcolare l'anteprima dal contrappeso di fine playback: e' la **difesa in profondita'** di `MostraLaPortata`,
- * che resta coperta (una mutazione che toglie `CanUseAbility` da li' lo fa cadere). Prima di `#3828` lo stato si
- * otteneva armando in ricarica dall'input, e questo test lo asseriva come premessa.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCooldownArmShowsNoRangeTest,
-	"RefactorTactics.PlayerInput.AnArmedActionOnCooldownShowsNeitherRangeNorFan",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTCooldownArmShowsNoRangeTest::RunTest(const FString&)
-{
-	UWorld* World = MakePointerWorld();
-	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
-	// ⚠️ Serve da `#3828`: il ricalcolo passa dal delegate di fine playback, DINAMICO, che il mondo di prova scarta
-	// finche' non ha `AreActorsInitialized()` (stessa trappola e stessa spiegazione del test che segue).
-	World->InitializeActorsForPlay(FURL());
-	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
-	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
-	MapActor->MapAsset = Arena;
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0, 0));
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	if (!PC || !Unit || !TM) { DestroyPointerWorld(World); return false; }
-	PC->SelectUnit(Unit);
-
-	const int32 Azione = FindAimedAbilityForRange(Unit, /*bConRicarica=*/ true);
-	if (!TestNotEqual(TEXT("premessa: un'azione a bersaglio con una ricarica"), Azione, (int32)INDEX_NONE)
-		|| !TestTrue(TEXT("premessa: selezionata, si vede il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0))
-	{
-		DestroyPointerWorld(World); return false;
-	}
-
-	PC->SelectAbilityForCurrentForTest(Azione);
-	if (!TestTrue(TEXT("premessa: pronta, l'azione armata mostra la portata"), MapActor->GetPreviewRangeCells().Num() > 0))
-	{
-		DestroyPointerWorld(World); return false;
-	}
-
-	// L'azione armata VA in ricarica: e' lo stato che l'input non produce piu' (`#3828`), costruito sul modello.
-	Unit->ConsumeAbility(Azione);
-	if (!TestFalse(TEXT("premessa: l'azione e' in ricarica"), Unit->CanUseAbility(Azione))
-		|| !TestEqual(TEXT("premessa: ed e' ancora quella armata"), Unit->SelectedAbilityIndex, Azione)
-		|| !TestEqual(TEXT("premessa: e il contesto e' il bersaglio"), PC->GetPointerContext(), ERTPointerContext::Targeting))
-	{
-		DestroyPointerWorld(World); return false;
-	}
-
-	// L'anteprima si ricalcola dallo stato di ADESSO: e' il contrappeso di fine playback, non un nuovo armo.
-	TM->OnResolvePlaybackFinished.Broadcast();
-	TestEqual(TEXT("in ricarica, nessuna cella di portata"), MapActor->GetPreviewRangeCells().Num(), 0);
-	TestEqual(TEXT("e nessun ventaglio"), MapActor->GetPreviewReachableCells().Num(), 0);
-
-	DestroyPointerWorld(World);
-	return true;
-}
-
-/**
  * UN ARMO DEGENERE NON MOSTRA NESSUNA PORTATA - `#3517`, `AC-10` del referto del 2026-10-06.
  *
  * Tre casi, ognuno col suo controllo:
@@ -1492,7 +1423,7 @@ bool FRTDegenerateArmShowsNoRangeTest::RunTest(const FString&)
 	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 
 	// --- 2. l'unita' caduta: la fine del playback ridisegna dalla selezione ---------------------------------------
-	const int32 Azione = FindAimedAbilityForRange(Unit, /*bConRicarica=*/ false);
+	const int32 Azione = FindAimedAbilityForRange(Unit);
 	PC->SelectAbilityForCurrentForTest(Azione);
 	if (!TestNotEqual(TEXT("premessa: un'azione a bersaglio"), Azione, (int32)INDEX_NONE)
 		|| !TestTrue(TEXT("premessa: viva, l'azione armata mostra la portata"), MapActor->GetPreviewRangeCells().Num() > 0))
