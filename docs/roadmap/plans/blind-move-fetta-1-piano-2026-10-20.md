@@ -2,7 +2,7 @@
 
 > `SNAPSHOT` · fotografia del 2026-10-20: vale finché è l'ultima misura del suo oggetto.
 
-**Data**: 2026-10-20 · **Misurato su**: `main` `abe0dffd0` · **Issue**: [#2794](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2794) · **Decisioni**: [D-249](../../decisions/RT_PDR_00_Decision_Log.md), [D-371](../../decisions/RT_PDR_00_Decision_Log.md), [D-372](../../decisions/RT_PDR_00_Decision_Log.md), [D-432](../../decisions/RT_PDR_00_Decision_Log.md), [D-465](../../decisions/RT_PDR_00_Decision_Log.md) · **Stato**: seconda stesura, dopo la review avversaria; **non attuato**
+**Data**: 2026-10-20 · **Misurato su**: `main` `abe0dffd0` · **Issue**: [#2794](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2794) · **Decisioni**: [D-249](../../decisions/RT_PDR_00_Decision_Log.md), [D-371](../../decisions/RT_PDR_00_Decision_Log.md), [D-372](../../decisions/RT_PDR_00_Decision_Log.md), [D-432](../../decisions/RT_PDR_00_Decision_Log.md), [D-465](../../decisions/RT_PDR_00_Decision_Log.md) · **Stato**: seconda stesura, dopo la review avversaria; **attuato** sul branch `issue/2794-blind-move` nelle fette A, B, C ed E (vedi §9); la D e' un verdetto dell'autore sulle tavole e non e' stata fatta
 
 > Non è una decisione: nessuna riga di questo documento cambia il Decision Log. Dice **come** si attua ciò che D-372 ha già deciso, e dove la misura dice di fermarsi.
 
@@ -78,13 +78,13 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 |---|---|---|
 | Celle esplorate ma non visibili (`Q4`) | mappa autorevole, canale dichiarato a termine | da confermare |
 | Bot | fuori dalla fetta 1, sulla vista attuale, dichiarato nel Decision Log | da confermare |
-| **D-465 punto (3) contro questo piano** | — | ⛔ **CONTRACT CONFLICT** |
+| **D-465 punto (3) contro questo piano** | due commit nello stesso merge, con emendamento esplicito | ✅ **risolto dall'autore il 2026-10-20** (D-533) |
 
 ⛔ **Il conflitto.** D-465 dice che dal commit che porta la vista ottimistica a `FindPath`, click e portata ricevono la stessa vista, e che in quel commit si paga la riga di TurnLog per il tiro che il resolver scarta in silenzio in un Fumo ignoto, e il canary di #3270 si rovescia. Questo piano tiene il movimento (A–D) separato da click e portata (E). Ma `Player/RTPlayerController.cpp:2404` e `:5209` e `Turn/RTPlanPreview.cpp:237` passano la mappa a `ResolveLinearMove`: separare le due cose lascia un commit in cui il movimento è ottimistico e la mira no, cioè il canale che D-465 voleva chiudere insieme. Due uscite:
 1. **Tutto in un commit** (A + E): rispetta D-465 alla lettera, ma tocca schema, replay e digest insieme alla geometria del Move.
 2. **Due commit con un'emendamento esplicito di D-465**: A–D prima, E dopo, e una riga nel Decision Log che dice che la finestra fra i due è voluta e quanto dura.
 
-Non scelgo io fra le due: è una decisione dell'autore.
+Non scelgo io fra le due: è una decisione dell'autore. ✅ **L'autore ha scelto la seconda il 2026-10-20**: l'emendamento e' `D-533`, e la finestra fra i due commit vive nella storia del branch e non su `main`.
 
 ## 8. Che cosa è cambiato rispetto alla prima stesura
 
@@ -98,3 +98,16 @@ Non scelgo io fra le due: è una decisione dell'autore.
 | Criterio A: stessa anteprima con 0, 1, 2 nemici | Stessa anteprima **con e senza muro mai osservato** | Il criterio sugli occupanti è già soddisfatto da D-432 |
 | Click e portata a parte, senza dirlo | Conflitto con D-465 (3) dichiarato | Il piano contraddiceva una decisione registrata |
 | Conoscenza vuota non definita | `PlanningMap == Map` con conoscenza vuota o assente | Senza `ARTGameMode` nessun refresh della conoscenza |
+
+## 9. Come e' stato attuato (2026-10-20)
+
+| Fetta | Commit | Esito |
+|---|---|---|
+| **0** | — | Censimento: i siti che leggono `Snapshot.Map` per la pianificazione del Move sono in `Turn/RTHexSimLibrary.cpp`; quelli di Resolution (`RTTurnManager_Movement.cpp`, `RTTurnManager.cpp`) e dei bot (`RTBotPlanningLibrary.cpp`, `RTHexBotLibrary.cpp`) **non** sono stati toccati. Baseline: suite intera verde sul `main` di partenza |
+| **A** | `PlanningMap` | `FRTHexSnapshot::PlanningMap`, `URTHexSimLibrary::MakeOptimisticPlanningMap`, `ARTTurnManager::AttachPlanningMap` chiamato da `PlanningSnapshotFor`. Test `BlindMove.OptimisticMapEmptiesOnlyTheNeverObserved` e `BlindMove.PlayerPlansThroughANeverObservedWall`; mutazioni «`PlanningMap = Map`», «solo `ExploredCells`» e «non svuotare `bBlocksMovement`» rosse |
+| **B** | test | `BlindMove.ResolutionStopsAtTheRealWallAndDoesNotReroute`: nessun codice nuovo, la Resolution gia' si fermava; il test pinna anche il limite dei bot. Mutazione «Resolution ricalcola sempre» rossa |
+| **C** | `BlockedByUnseenTerrain` | Nuovo esito in coda a `ERTMoveOutcome`, scelto dalla Resolution quando il passo negato porta in una cella ne' vista ne' ricordata. Test `BlindMove.UnseenWallStopsWithItsOwnReason`; due mutazioni rosse |
+| **D** | — | **Non fatta**: e' il verdetto dell'autore sulle tavole del tracciato incerto |
+| **E** | click, portata, TurnLog | `ARTTurnManager::PlanningMapFor`/`PlayerAimMap` alimentano i siti di mira del controller (anteprima, click su unita', rifiuto sotto il puntatore, click su cella, bordo), il HUD e il Dash lineare; `FRTHexBlastPlan::TerrainCappedIntents` scrive `Fallback`/`Cancelled`/`OutOfRange` per il tiro a cella cappato dal Fumo. Canary di #3270 rovesciato; `BlindActions.UnexploredSmokeDoesNotRefuseTheSlotOrTheClick` e `BlindFireOffensive.MortarShotCappedBySmokeLeavesALine`; mutazioni rosse |
+
+**Non misurato**: il costo della copia e della sua cache (`PlanningMapFor` calcola `ComputeHash` a ogni chiamata), la PIE su `SmokeDark` (NOT RUN, vedi `PIE-V01-REFUSAL`), i siti di mira non coperti da una mutazione (`RefusalUnderPointer`, il bordo, il HUD, il Dash lineare).
