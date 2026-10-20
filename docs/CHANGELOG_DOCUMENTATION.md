@@ -13,6 +13,16 @@
 
 ---
 
+## 2026-10-20 — la nota di `D-531` dice l'intervallo vero dell'unità uccisa nel Cleanup
+
+**Origine**: [#3838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3838), dalla revisione di [#3835](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3835). La nota diceva che l'unità uccisa nel Cleanup è tolta *«nello stesso passaggio»*: vero senza playback, mentre con il playback l'unità resta morta, armata e in ricarica per tutta la sua durata, a mondo in sola lettura. Ora la nota lo dice, e lo pinna un test.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la nota ⏱️ della riga `D-531` precisa dove e quando `DestroyDefeatedUnits` toglie l'unità uccisa, e rimanda al test |
+
+---
+
 ## 2026-10-20 — a risoluzione sospesa su una finestra il mondo è in sola lettura anche senza playback (`D-531`)
 
 **Origine**: [#3837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3837), dalla revisione di [#3835](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3835). La pista che quella revisione aveva dichiarato non determinabile è chiusa: `GetPointerContext()` ora conta la risoluzione sospesa come risoluzione in corso, e la nota di `D-531` lo dice.

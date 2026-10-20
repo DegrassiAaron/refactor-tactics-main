@@ -297,8 +297,8 @@ bool FRTDiscardedPlanDoesNotSurviveTest::RunTest(const FString&)
  * fa cadere B per la squadra 1; togliere la guardia di `SelectAbilityForCurrent` fa cadere C.
  *
  * ⚠️ **Cosa NON copre, e la revisione l'ha misurato**: un'unita' UCCISA nel Cleanup (per esempio dal Burning) resta
- * armata e in ricarica, perche' il ciclo la salta, finche' `DestroyDefeatedUnits` non la toglie nello stesso passaggio;
- * non e' uno stato che il giocatore possa toccare.
+ * armata e in ricarica, perche' il ciclo la salta, finche' `DestroyDefeatedUnits` non la toglie in `ConcludeTurn`; non e'
+ * uno stato che il giocatore possa toccare, e lo pinna `Turn.AUnitKilledInTheCleanupStaysArmedUntilDestroyedOutOfReachOfInput`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCooldownActionLeavesTheTurnDisarmedTest,
 	"RefactorTactics.Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable",
