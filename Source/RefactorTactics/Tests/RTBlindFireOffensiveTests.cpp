@@ -841,8 +841,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMortarCappedBySmokeLeavesALineTest,
 bool FRTMortarCappedBySmokeLeavesALineTest::RunTest(const FString&)
 {
 	// Quante voci `Fallback`/`Cancelled`/`OutOfRange` con la mira data produce un turno, con o senza Fumo sulla linea.
-	const auto RigheDelTiroCappato = [this](bool bConFumo, int32& OutRangeCells) -> int32
+	// ...e se il click l'ha accettato: il Fumo ignoto non lo ferma in planning, quello esplorato si'.
+	const auto RigheDelTiroCappato = [this](bool bConFumo, bool bFumoEsplorato, int32& OutRangeCells,
+		bool& OutAccettato) -> int32
 	{
+		OutAccettato = false;
 		FMortarBench B;
 		if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return INDEX_NONE; }
 		ON_SCOPE_EXIT{ DestroyMortarWorld(B.World); };
@@ -868,8 +871,24 @@ bool FRTMortarCappedBySmokeLeavesALineTest::RunTest(const FString&)
 		ARTTurnManager* TM = It ? *It : nullptr;
 		if (!TestNotNull(TEXT("il turn manager esiste"), TM)) { return INDEX_NONE; }
 
-		B.Mine->PlannedAbilityIndex = Idx;
-		B.Mine->DeclareAttackOnCell(Mira);
+		// La conoscenza dichiarata: tutto esplorato tranne, se non e' esplorato, la cella di Fumo. Dal PERCORSO DEL CLICK
+		// (`HandleTargetCell`), non con `DeclareAttackOnCell`: e' il click a leggere la mappa del giocatore.
+		FRTTeamKnowledge K;
+		K.TeamId = B.Mine->TeamId;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& Cell : B.Map->Cells)
+		{
+			if (bConFumo && !bFumoEsplorato && Cell.Id == Linea[1]) { continue; }
+			K.ExploredCells.Add(Cell.Id);
+		}
+		K.VisibleCells.Add(B.Mine->Cell);
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		TM->SetTeamKnowledgeForTest(K);
+
+		B.PC->SelectActorForTest(B.Mine);
+		B.Mine->SelectAbility(Idx);
+		OutAccettato = B.PC->HandleTargetCell(Mira);
+		if (!OutAccettato) { return 0; } // rifiutato in planning: il tiro non esiste
 		B.Mine->PlannedCell = B.Mine->Cell;
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -889,13 +908,23 @@ bool FRTMortarCappedBySmokeLeavesALineTest::RunTest(const FString&)
 	};
 
 	int32 Portata = 0;
-	const int32 ConFumo = RigheDelTiroCappato(/*bConFumo=*/ true, Portata);
+	bool bAccettato = false;
+	const int32 ConFumo = RigheDelTiroCappato(/*bConFumo=*/ true, /*bFumoEsplorato=*/ false, Portata, bAccettato);
 	if (!TestTrue(TEXT("premessa: la portata dichiarata copre la distanza 3"), Portata >= 3)) { return false; }
-	TestEqual(TEXT("il tiro cappato dal Fumo lascia UNA riga di rifiuto per distanza"), ConFumo, 1);
+	TestTrue(TEXT("il click accetta il tiro: il Fumo ignoto non lo ferma in planning"), bAccettato);
+	TestEqual(TEXT("e il tiro cappato dal Fumo lascia UNA riga di rifiuto per distanza"), ConFumo, 1);
 
 	int32 Ignorata = 0;
+	bool bAccettatoSenzaFumo = false;
 	TestEqual(TEXT("controllo: senza Fumo lo stesso tiro non lascia quella riga"),
-		RigheDelTiroCappato(/*bConFumo=*/ false, Ignorata), 0);
+		RigheDelTiroCappato(/*bConFumo=*/ false, /*bFumoEsplorato=*/ false, Ignorata, bAccettatoSenzaFumo), 0);
+	TestTrue(TEXT("controllo: e il click lo accetta"), bAccettatoSenzaFumo);
+
+	// Il Fumo ESPLORATO cappa anche per il giocatore: il click rifiuta, e non nasce nessun tiro da scartare.
+	bool bAccettatoEsplorato = true;
+	TestEqual(TEXT("controllo: con il Fumo esplorato nessuna riga"),
+		RigheDelTiroCappato(/*bConFumo=*/ true, /*bFumoEsplorato=*/ true, Ignorata, bAccettatoEsplorato), 0);
+	TestFalse(TEXT("controllo: perche' il click rifiuta il tiro in planning"), bAccettatoEsplorato);
 	return true;
 }
 
