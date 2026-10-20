@@ -42,11 +42,12 @@ public:
 	 * `Map == nullptr` -> `RangeCells` invariato: senza mappa non c'e' terreno da leggere, e il fail-closed lo
 	 * decide il chiamante (che ha il proprio esito da registrare), non questa funzione.
 	 *
-	 * ⚠️ **Non riceve la conoscenza, ed e' un canale dichiarato (`D-465`, `#3270`).** Legge il Fumo dalla mappa
-	 * autorevole anche nelle celle che la squadra non ha mai osservato: il numero del rifiuto per distanza e la
-	 * portata viola ne rivelano il cap. E' un'eccezione a termine a D-225 e D-373, non un loro emendamento; il
-	 * termine e' `#2794`, che porta a click e portata la vista ottimistica di `FindPath`. Lo misura
-	 * `RefactorTactics.BlindActions.UnexploredSmokeIsReadByClickAndRangeFromTheDash`, che si rovescia in quel commit.
+	 * ⚠️ **Non riceve la conoscenza: legge la mappa che le si passa.** Il click e la portata viola del giocatore le passano
+	 * `ARTTurnManager::PlayerAimMap`, la stessa copia ottimistica di `FindPath` ([D-465] punto (3), `#2794`): in essa un
+	 * Fumo mai osservato non cappa niente, e il canale che [D-465] dichiarava e' chiuso. Il resolver e la validazione al
+	 * lock-in le passano la mappa autorevole, e il tiro che il cap scarta li' ha una voce nel TurnLog
+	 * (`FRTHexBlastPlan::TerrainCappedIntents`). Lo misura
+	 * `RefactorTactics.BlindActions.UnexploredSmokeIsReadByClickAndRangeFromTheDash`, rovesciato nel commit di `#2794`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Terrain")
 	static int32 EffectiveTargetingRange(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,

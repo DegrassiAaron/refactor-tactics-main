@@ -401,7 +401,15 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 
 		if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) > EffectiveRange)
 		{
-			continue; // fuori portata (anche per il cap del Fumo): scartato in silenzio (come il quadrato)
+			// Fuori portata. Per il cap del TERRENO su un tiro a cella, entro la portata dichiarata, il silenzio non e'
+			// piu' accettabile (`#2794`, [D-465] punto (3)): il click del giocatore legge la mappa ottimistica, quindi
+			// un Fumo mai osservato non l'ha fermato in planning e qui il tiro sparisce. Ha una voce, non un colpo.
+			if (!bTargetsUnit && Intent.bCountsAsAttack
+				&& URTHexLibrary::HexDistance(Attacker.Cell, AimCell) <= Intent.RangeCells)
+			{
+				Plan.TerrainCappedIntents.Add(IntentIdx);
+			}
+			continue; // fuori portata (anche per il cap del Fumo): nessun colpo
 		}
 
 		// `#3093`: la distanza MINIMA, subito dopo il massimo come in `ClassifyHexTargeting`. Non passa dal cap del
@@ -723,6 +731,8 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	Plan.DoorlessIntents.Sort();
 	// Stessa rete, stesso motivo: le voci di rifiuto per piano finiscono nel TurnLog ([D-509]).
 	Plan.OtherLayerIntents.Sort();
+	// Stessa rete: le voci del tiro cappato dal terreno finiscono nel TurnLog (`#2794`).
+	Plan.TerrainCappedIntents.Sort();
 	// Stesso ordine canonico e per la stessa ragione: le voci di rifiuto finiscono nel TurnLog, e un ordine
 	// che dipendesse dalla raccolta renderebbe il replay non riproducibile.
 	Plan.DoorToggleRefusals.Sort([](const FRTDoorToggleRefusal& A, const FRTDoorToggleRefusal& B)
