@@ -171,6 +171,67 @@ FRTPointerTarget URTPointerLibrary::ResolveTarget(ERTPointerContext Context, ERT
 	}
 }
 
+void FRTGlanceDwell::Advance(const FRTGlanceTarget& Now, float DeltaSeconds)
+{
+	const bool bSame = Now.IsValid() && Now.Kind == Target.Kind && Now.StableUnitId == Target.StableUnitId
+		&& Now.bHasCell == Target.bHasCell && Now.Cell == Target.Cell;
+	if (!bSame)
+	{
+		Target = Now;
+		Elapsed = 0.f;
+		return;
+	}
+	Elapsed += DeltaSeconds;
+}
+
+bool URTPointerLibrary::ShouldShowGlance(ERTPointerContext Context, bool bSomeoneCommands, bool bDwellElapsed)
+{
+	if (!bSomeoneCommands || !bDwellElapsed)
+	{
+		return false;
+	}
+	switch (Context)
+	{
+	case ERTPointerContext::IdleSelection:
+	case ERTPointerContext::Planning:
+	case ERTPointerContext::Targeting:
+	case ERTPointerContext::Pathing:
+	case ERTPointerContext::ResolutionPlayback:
+		return true;
+	default: // Facing, ReactionWindow, Modal
+		return false;
+	}
+}
+
+FRTGlanceTarget URTPointerLibrary::ResolveGlanceTarget(int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell,
+	bool bCellHasMapElement)
+{
+	FRTGlanceTarget T;
+	T.bHasCell = bHasCell;
+	if (bHasCell)
+	{
+		T.Cell = Cell;
+	}
+
+	// unita' > porta o obiettivo > cella. Un solo ordine, in ogni contesto (§4.1, la riga di `Planning`).
+	if (HitStableUnitId != INDEX_NONE)
+	{
+		T.Kind = ERTGlanceKind::Unit;
+		T.StableUnitId = HitStableUnitId;
+		return T;
+	}
+	if (bHasCell && bCellHasMapElement)
+	{
+		T.Kind = ERTGlanceKind::MapElement;
+		return T;
+	}
+	if (bHasCell)
+	{
+		T.Kind = ERTGlanceKind::Cell;
+	}
+	return T;
+}
+
 ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, bool bInspectorPinned,
 	int32 WaypointCount, bool bPhaseFocusPinned, bool bHasDeclaredFacing)
 {

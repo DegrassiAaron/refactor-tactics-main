@@ -110,3 +110,13 @@ FVector2D RTHudLayout::SceneCenterOffsetSlate(const FRTHudBands& InBands)
 {
 	return FVector2D((InBands.Left - InBands.Right) * 0.5f, (InBands.Top - InBands.Bottom) * 0.5f);
 }
+
+FVector2D RTHudLayout::GlancePlacement(const FVector2D& Anchor, const FVector2D& Size, const FBox2D& SceneRect, float Margin)
+{
+	FVector2D P(Anchor.X + Margin, Anchor.Y - Size.Y - Margin);
+	P.X = FMath::Min(P.X, SceneRect.Max.X - Size.X - Margin);
+	P.Y = FMath::Min(P.Y, SceneRect.Max.Y - Size.Y - Margin);
+	P.X = FMath::Max(P.X, SceneRect.Min.X + Margin);
+	P.Y = FMath::Max(P.Y, SceneRect.Min.Y + Margin);
+	return P;
+}
