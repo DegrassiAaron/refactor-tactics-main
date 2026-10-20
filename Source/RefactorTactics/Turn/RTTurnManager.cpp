@@ -7499,31 +7499,46 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 
 void ARTTurnManager::AttachPlanningMap(FRTHexSnapshot& Snapshot, int32 ObserverTeamId)
 {
-	Snapshot.PlanningMap = nullptr;
-	if (!Snapshot.Map || ObserverTeamId == RTObserver::Omniscient)
+	const URTHexMapAsset* Planning = PlanningMapFor(ObserverTeamId, Snapshot.Map);
+	Snapshot.PlanningMap = (Planning != Snapshot.Map) ? Planning : nullptr;
+}
+
+const URTHexMapAsset* ARTTurnManager::PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative)
+{
+	if (!Authoritative || TeamId == RTObserver::Omniscient)
 	{
-		return;
+		return Authoritative;
 	}
-	const FRTTeamKnowledge* Conoscenza = Snapshot.TeamKnowledge.FindByPredicate(
-		[ObserverTeamId](const FRTTeamKnowledge& K) { return K.TeamId == ObserverTeamId; });
+	const FRTTeamKnowledge* Conoscenza = TeamKnowledgeState.FindByPredicate(
+		[TeamId](const FRTTeamKnowledge& K) { return K.TeamId == TeamId; });
 	if (!Conoscenza || (Conoscenza->VisibleCells.Num() == 0 && Conoscenza->ExploredCells.Num() == 0))
 	{
-		return; // niente da cui dedurre cio' che non e' stato visto: si pianifica su `Map`
+		return Authoritative; // niente da cui dedurre cio' che non e' stato visto: si giudica sulla mappa autorevole
 	}
 
 	// La chiave e' il contenuto, non il puntatore: la conoscenza si rifa a ogni refresh e la mappa puo' cambiare.
-	uint32 Key = HashCombine(GetTypeHash(Snapshot.MapHash), GetTypeHash(Snapshot.Revision));
-	Key = HashCombine(Key, GetTypeHash(ObserverTeamId));
+	uint32 Key = HashCombine(GetTypeHash(Authoritative->ComputeHash()), GetTypeHash(Authoritative->Revision));
+	Key = HashCombine(Key, GetTypeHash(TeamId));
 	for (const FRTCellId& Cell : Conoscenza->VisibleCells) { Key = HashCombine(Key, GetTypeHash(Cell)); }
 	Key = HashCombine(Key, 0x9E3779B9u);
 	for (const FRTCellId& Cell : Conoscenza->ExploredCells) { Key = HashCombine(Key, GetTypeHash(Cell)); }
 
 	if (!PlanningMapCache || PlanningMapKey != Key)
 	{
-		PlanningMapCache = URTHexSimLibrary::MakeOptimisticPlanningMap(GetTransientPackage(), Snapshot.Map, *Conoscenza);
+		PlanningMapCache = URTHexSimLibrary::MakeOptimisticPlanningMap(GetTransientPackage(), Authoritative, *Conoscenza);
 		PlanningMapKey = Key;
 	}
-	Snapshot.PlanningMap = PlanningMapCache;
+	return PlanningMapCache ? PlanningMapCache.Get() : Authoritative;
+}
+
+const URTHexMapAsset* ARTTurnManager::PlayerAimMap(const UObject* WorldContext, int32 TeamId,
+	const URTHexMapAsset* Authoritative)
+{
+	ARTTurnManager* TurnManager = WorldContext
+		? Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(const_cast<UObject*>(WorldContext),
+			ARTTurnManager::StaticClass()))
+		: nullptr;
+	return TurnManager ? TurnManager->PlanningMapFor(TeamId, Authoritative) : Authoritative;
 }
 
 FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits, int32 ObserverTeamId) const

@@ -691,28 +691,32 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 }
 
 /**
- * **Il canale del Fumo mai esplorato, MISURATO — `#3270`, [D-465].**
+ * **Il canale del Fumo mai esplorato, CHIUSO PER IL GIOCATORE — `#3270`, [D-465], rovesciato da `#2794`.**
  *
- * La decisione d'autore e' la via 3: *«si accetta il canale dichiarandolo»*. Click e portata viola leggono il
- * cap del Fumo dalla mappa autorevole anche nelle celle che la squadra non ha mai osservato, e nessuno dei due
- * lettori riceve la conoscenza: e' la loro firma, ed e' il canale. Questo test non lo chiude, lo **misura**.
- * Due mondi che differiscono per UNA cella di `Smoke` sulla traiettoria, mai esplorata, e i due lettori:
+ * La decisione d'autore del 2026-10-06 era la via 3: *«si accetta il canale dichiarandolo»*, a termine, finche'
+ * `#2794` non portava a click e portata la vista ottimistica di `FindPath`. Questo test lo MISURAVA aperto
+ * (verde perche' i due mondi differivano); da `#2794` lo misura **chiuso**: due mondi che differiscono per UNA
+ * cella di `Smoke` sulla traiettoria, mai esplorata, escono IDENTICI dai due lettori del giocatore —
  *
  * - il rifiuto per distanza — `DescribeCellTargetRefusal`, `Refusal` e `EffectiveRange`, il numero che
  *   `ARTHUD::RefusalText` scrive a schermo;
  * - la portata viola — `TargetableRangeCells`.
  *
- * ⏳ **Verde finche' il canale c'e', e si rovescia nel commit di #2794** (D-465 (3)): quando click e portata
- * ricevono la vista ottimistica di `FindPath`, i due mondi devono uscire identici, e le attese qui sotto
- * passano da «differiscono» a «uguali». Il modello e' `BlindActions.NeverObservedWallBendsTheLitPath`.
+ * **Quella del giocatore e' la mappa che gli arriva da `ARTTurnManager::PlanningMapFor`**, la stessa copia di
+ * `FindPath`, e non una mappa costruita qui: il test passa dal punto in cui click e portata la prendono. Dove
+ * il Fumo e' invece reale — la mappa autorevole del resolver e della validazione — il cap resta, ed e' il
+ * controllo che dice che il Fumo c'e'.
  *
  * 🔑 **L'origine si chiede a `ARTUnit::AimOriginFor(Phase)`**, la funzione che usano click, slot e portata
  * (D-464 (6)), e non a `Unit->Cell`. Con uno scatto pianificato il Fumo sta sulla traiettoria che parte
- * dall'ARRIVO dello scatto, e il canale arriva fin li'. Dalla cella corrente la stessa cella di Fumo non
- * sta sulla linea: lo dice la premessa, ed e' cio' che rende il test capace di cadere sull'origine.
+ * dall'ARRIVO dello scatto, e dalla cella corrente la stessa cella di Fumo non sta sulla linea: lo dice la
+ * premessa, ed e' cio' che rende il test capace di cadere sull'origine.
  *
- * ⛔ **Mutazione**: ignorare il cap del Fumo in `EffectiveTargetingRange` (il ramo `MaxTargetingRangeThrough`)
- * deve rendere ROSSO questo test, per entrambi i lettori.
+ * ⚠️ **Il Fumo gia' ESPLORATO resta letto** (`Q4`, [D-533]): se la squadra l'ha visto, il cap c'e' anche per il
+ * giocatore. E' il controllo positivo senza il quale «uguali» potrebbe voler dire «il Fumo non cappa piu' niente».
+ *
+ * ⛔ **Mutazione**: far restituire `PlanningMapFor` la mappa autorevole deve rendere ROSSO questo test (i due
+ * mondi tornano a differire); ignorare il cap del Fumo in `EffectiveTargetingRange` rende rossi i controlli.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredSmokeChannelTest,
 	"RefactorTactics.BlindActions.UnexploredSmokeIsReadByClickAndRangeFromTheDash",
@@ -732,6 +736,13 @@ bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("premessa: l'origine di mira di un Attack e' l'arrivo dello scatto"), Scatto,
 			GAimOriginScatto)
 		|| !TestEqual(TEXT("premessa: e quella corrente no"), Qui, GAimOriginQui))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	ARTTurnManager* TM = Cast<ARTTurnManager>(
+		UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+	if (!TestNotNull(TEXT("premessa: il turn manager del banco"), TM))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -759,35 +770,87 @@ bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
 
 	const int32 Portata = Getto->RangeCells;
 	const ERTLineOfSightPolicy Policy = Getto->Def.LineOfSightPolicy;
-	const FRTCellTargetRefusal DalloScattoChiaro =
-		URTCombatLibrary::DescribeCellTargetRefusal(Chiaro, Scatto, Bersaglio, Portata, Policy);
-	const FRTCellTargetRefusal DalloScattoFumo =
-		URTCombatLibrary::DescribeCellTargetRefusal(ConFumo, Scatto, Bersaglio, Portata, Policy);
-	const FRTCellTargetRefusal DaQuiChiaro =
-		URTCombatLibrary::DescribeCellTargetRefusal(Chiaro, Qui, Bersaglio, Portata, Policy);
-	const FRTCellTargetRefusal DaQuiFumo =
-		URTCombatLibrary::DescribeCellTargetRefusal(ConFumo, Qui, Bersaglio, Portata, Policy);
+	struct FMisura
+	{
+		FRTCellTargetRefusal Dallo;
+		FRTCellTargetRefusal DaQui;
+		TArray<FRTCellId> Viola;
+	};
+	const auto Misura = [&](const URTHexMapAsset* Mappa)
+	{
+		FMisura M;
+		M.Dallo = URTCombatLibrary::DescribeCellTargetRefusal(Mappa, Scatto, Bersaglio, Portata, Policy);
+		M.DaQui = URTCombatLibrary::DescribeCellTargetRefusal(Mappa, Qui, Bersaglio, Portata, Policy);
+		M.Viola = URTCombatLibrary::TargetableRangeCells(Mappa, Scatto, Portata, Policy);
+		return M;
+	};
 
-	// PREMESSE — senza il Fumo il colpo e' ingaggiabile con la portata dichiarata: la differenza non viene
-	// da altro che dalla cella.
-	TestEqual(TEXT("premessa: senza Fumo dallo scatto non c'e' rifiuto"), DalloScattoChiaro.Refusal,
+	// LA CONOSCENZA: tutto esplorato tranne la cella di Fumo. Dichiarata, non derivata dalla vista di un eroe.
+	const auto Conoscenza = [&](bool bEsploraIlFumo)
+	{
+		FRTTeamKnowledge K;
+		K.TeamId = B.Mine->TeamId;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& Cell : ConFumo->Cells)
+		{
+			if (!bEsploraIlFumo && Cell.Id == CellaDiFumo) { continue; }
+			K.ExploredCells.Add(Cell.Id);
+		}
+		K.VisibleCells.Add(Qui);
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		return K;
+	};
+
+	// CONTROLLO — la mappa AUTOREVOLE (resolver e validazione): il Fumo c'e' e cappa. Le premesse del confronto.
+	const FMisura Autorevole = Misura(ConFumo);
+	const FMisura AutorevoleChiara = Misura(Chiaro);
+	TestEqual(TEXT("premessa: senza Fumo dallo scatto non c'e' rifiuto"), AutorevoleChiara.Dallo.Refusal,
 		ERTTargetRefusal::None);
-	TestEqual(TEXT("premessa: e la portata applicata e' la dichiarata"), DalloScattoChiaro.EffectiveRange, Portata);
+	TestEqual(TEXT("premessa: e la portata applicata e' la dichiarata"), AutorevoleChiara.Dallo.EffectiveRange, Portata);
+	TestEqual(TEXT("controllo: sulla mappa autorevole il Fumo ignoto rifiuta per distanza"),
+		Autorevole.Dallo.Refusal, ERTTargetRefusal::Range);
+	TestEqual(TEXT("controllo: col numero del cap"), Autorevole.Dallo.EffectiveRange, 2);
 
-	// IL CANALE, lettore 1 — il rifiuto e il numero scritto a schermo.
-	TestEqual(TEXT("canale: con il Fumo ignoto il click dallo scatto e' rifiutato per distanza"),
-		DalloScattoFumo.Refusal, ERTTargetRefusal::Range);
-	TestEqual(TEXT("canale: e il numero mostrato e' il cap del Fumo"), DalloScattoFumo.EffectiveRange, 2);
-	TestEqual(TEXT("controllo: dalla cella corrente il Fumo non e' sulla linea e il numero non si muove"),
-		DaQuiFumo.EffectiveRange, DaQuiChiaro.EffectiveRange);
-	TestEqual(TEXT("controllo: ne' il rifiuto"), DaQuiFumo.Refusal, DaQuiChiaro.Refusal);
+	// IL CANALE CHIUSO — la vista del giocatore, dal punto da cui click e portata la prendono.
+	TM->SetTeamKnowledgeForTest(Conoscenza(/*bEsploraIlFumo=*/ false));
+	const URTHexMapAsset* VistaChiara = TM->PlanningMapFor(B.Mine->TeamId, Chiaro);
+	if (!TestTrue(TEXT("premessa: il giocatore riceve una vista ottimistica, non la mappa autorevole"),
+			VistaChiara != nullptr && VistaChiara != Chiaro))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	// ⚠️ La cache tiene UNA copia: si misura prima di chiedere la seconda, che la sostituisce.
+	const FMisura GiocatoreChiaro = Misura(VistaChiara);
+	const URTHexMapAsset* VistaFumo = TM->PlanningMapFor(B.Mine->TeamId, ConFumo);
+	TestTrue(TEXT("premessa: anche il mondo con Fumo riceve una vista ottimistica"),
+		VistaFumo != nullptr && VistaFumo != ConFumo);
+	const FMisura GiocatoreFumo = Misura(VistaFumo);
 
-	// IL CANALE, lettore 2 — la portata viola.
-	const TArray<FRTCellId> PortataChiara = URTCombatLibrary::TargetableRangeCells(Chiaro, Scatto, Portata, Policy);
-	const TArray<FRTCellId> PortataFumo = URTCombatLibrary::TargetableRangeCells(ConFumo, Scatto, Portata, Policy);
-	TestTrue(TEXT("premessa: senza Fumo il bersaglio e' nella portata viola"), PortataChiara.Contains(Bersaglio));
-	TestFalse(TEXT("canale: con il Fumo ignoto esce dalla portata viola"), PortataFumo.Contains(Bersaglio));
-	TestTrue(TEXT("e le due portate non coincidono"), PortataChiara.Num() != PortataFumo.Num());
+	TestEqual(TEXT("chiuso: il click dallo scatto non rivela il Fumo ignoto — stesso rifiuto"),
+		GiocatoreFumo.Dallo.Refusal, GiocatoreChiaro.Dallo.Refusal);
+	TestEqual(TEXT("chiuso: e nessun rifiuto"), GiocatoreFumo.Dallo.Refusal, ERTTargetRefusal::None);
+	TestEqual(TEXT("chiuso: ne' il numero mostrato, che e' la portata dichiarata"),
+		GiocatoreFumo.Dallo.EffectiveRange, GiocatoreChiaro.Dallo.EffectiveRange);
+	TestEqual(TEXT("chiuso: e vale la portata dichiarata"), GiocatoreFumo.Dallo.EffectiveRange, Portata);
+	TestEqual(TEXT("controllo: dalla cella corrente il numero non si muove"),
+		GiocatoreFumo.DaQui.EffectiveRange, GiocatoreChiaro.DaQui.EffectiveRange);
+	TestTrue(TEXT("chiuso: il bersaglio resta nella portata viola"), GiocatoreFumo.Viola.Contains(Bersaglio));
+	TestEqual(TEXT("chiuso: e le due portate viola coincidono"), GiocatoreFumo.Viola, GiocatoreChiaro.Viola);
+
+	// CONTROLLO POSITIVO — il Fumo gia' ESPLORATO resta letto (`Q4`): senza questo, «uguali» potrebbe voler dire
+	// che l'ottimismo ha tolto il cap a tutti.
+	TM->SetTeamKnowledgeForTest(Conoscenza(/*bEsploraIlFumo=*/ true));
+	const FMisura GiocatoreEsplorato = Misura(TM->PlanningMapFor(B.Mine->TeamId, ConFumo));
+	TestEqual(TEXT("controllo: un Fumo gia' esplorato cappa anche per il giocatore"),
+		GiocatoreEsplorato.Dallo.Refusal, ERTTargetRefusal::Range);
+	TestEqual(TEXT("controllo: col numero del cap"), GiocatoreEsplorato.Dallo.EffectiveRange, 2);
+	TestFalse(TEXT("controllo: e il bersaglio esce dalla portata viola"), GiocatoreEsplorato.Viola.Contains(Bersaglio));
+
+	// Senza conoscenza non c'e' niente da giudicare ottimisticamente: si resta sulla mappa autorevole.
+	TM->SetTeamKnowledgeForTest(FRTTeamKnowledge());
+	TestTrue(TEXT("conoscenza vuota: la mappa autorevole, come prima"),
+		TM->PlanningMapFor(B.Mine->TeamId, ConFumo) == ConFumo);
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

@@ -229,6 +229,9 @@ namespace
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 		ARTHexMapActor* HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
+		// 🔴 La mira si giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): portata viola e rifiuto del
+		// bersaglio pianificato leggono la copia ottimistica della squadra.
+		Map = ARTTurnManager::PlayerAimMap(World, Unit ? Unit->TeamId : INDEX_NONE, Map);
 		if (!HexMap)
 		{
 			return;
@@ -2405,7 +2408,7 @@ bool ARTPlayerController::BuildChargeHoverView(FRTIntentView& OutView) const
 	}
 	const int32 DashRange = Selected->EffectiveDashRangeOf(SelIdx);
 	const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(
-		Snapshot.Map, Selected->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+		Snapshot.MapForPlanning(), Selected->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 	if (!Verdetto.bAccepted)
 	{
 		return false; // il click rifiuterebbe: non c'e' niente da annunciare, e il nemico non si ispeziona
@@ -2529,6 +2532,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
 		// L'actor serve alla linea di tiro interrotta (`#2742`): stessa chiamata, nessuna seconda ricerca.
 		ARTHexMapActor* THexMap = HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
+		// 🔴 Il click giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): rifiuto, numero, linea e portata
+		// efficace leggono la copia ottimistica. Il canale diagnostico qui sotto resta coerente con il messaggio.
+		TMap = ARTTurnManager::PlayerAimMap(this, SelectedUnit->TeamId, TMap);
 		// Un solo gate (FAIL-CLOSED: senza mappa autorevole non si ingaggia — test
 		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
 		// copertura un bersaglio che era solo troppo lontano (test
@@ -4545,6 +4551,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	Map = ARTTurnManager::PlayerAimMap(this, Unit ? Unit->TeamId : INDEX_NONE, Map); // [D-465] (3), `#2794`
 	if (!HexMap || !Map || !HexMap->IsHoveredCellValid())
 	{
 		return ERTTargetRefusal::None;
@@ -4771,6 +4778,8 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// alla stessa domanda. La chiamata era gia' qui; cambia solo che qualcuno la ascolta.
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	// [D-465] (3), `#2794`: la mira della cella si giudica sulla stessa mappa del percorso.
+	Map = ARTTurnManager::PlayerAimMap(this, Unit ? Unit->TeamId : INDEX_NONE, Map);
 	if (!Map || !Map->ContainsCell(Cell))
 	{
 		// ⚠️ **Questo ramo resta muto a schermo, ed e' dichiarato invece che dimenticato**: `ERTTargetRefusal`
@@ -4944,6 +4953,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	Map = ARTTurnManager::PlayerAimMap(this, Unit ? Unit->TeamId : INDEX_NONE, Map); // [D-465] (3), `#2794`
 	if (!Map || !Map->ContainsCell(Cell))
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo fuori mappa"));
@@ -5210,7 +5220,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 						const ARTUnit* Other = SnapshotUnits[i];
 						if (Other && Other->IsAlive() && Other->TeamId != Unit->TeamId) { Hostiles.Add(i); }
 					}
-					const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(Snapshot.Map,
+					const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(Snapshot.MapForPlanning(),
 						Unit->Cell, Unit->PlannedDashCell, Unit->EffectiveDashRangeOf(Unit->PlannedDashAbility),
 						Scatto->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 					OutPath.Append(Linear.Entered);
