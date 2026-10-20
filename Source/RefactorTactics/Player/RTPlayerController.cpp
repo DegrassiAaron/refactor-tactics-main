@@ -2433,6 +2433,10 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// risposta che puo' divergere, ed e' il motivo per cui gli altri consumatori di questo file la leggono
 	// cosi'.
 	//
+	// ⚠️ **Il flag nasce vero** (`#3748`): un nemico appena nato, senza voce `Live`, viene fissato da questo click.
+	// Non e' la scheda a proteggere la privacy — il cancello e' `URTInspectLibrary::IsInspectable`, che la scheda
+	// legge — e la fissazione dura al piu' fino al tick dell'HUD: `ReleaseInspectionUnlessLive` la rilascia.
+	//
 	// @return vero se il click e' stato consumato: chi chiama esce.
 	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
 		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),

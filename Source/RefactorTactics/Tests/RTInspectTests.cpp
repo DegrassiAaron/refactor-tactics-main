@@ -34,7 +34,8 @@ namespace
 
 	const URTHeroData* InspectHero(int32 Which)
 	{
-		static const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+		// Non `static`: gli eroi sono `NewObject` non rootati, e un puntatore tenuto fra due test sopravvive a un GC.
+		const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 		return Roster.IsValidIndex(Which) ? Roster[Which] : nullptr;
 	}
 
@@ -112,7 +113,9 @@ bool FRTInspectTwinsReadTheSameTest::RunTest(const FString&)
 		return false;
 	}
 
-	// B differisce da A solo nel piano e nelle ricariche vere.
+	// B differisce da A nel piano, nelle ricariche vere e nella variante attiva.
+	for (int32& Ricarica : B->AbilityCooldowns) { Ricarica = 2; }
+	B->ActiveVariantId = FName(TEXT("VarianteDiProva"));
 	B->PlannedAbilityIndex = 1;
 	B->PlannedReactionAbility = 2;
 	B->PlannedDashAbility = 3;
@@ -122,6 +125,16 @@ bool FRTInspectTwinsReadTheSameTest::RunTest(const FString&)
 	const FString TextB = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(B, 0, true)));
 	TestEqual(TEXT("due nemici che differiscono nel piano danno la stessa scheda"), TextA, TextB);
 	TestTrue(TEXT("e la scheda ha un kit (non e' vuota per costruzione)"), TextA.Contains(TEXT("Kit")));
+
+	// `Compose` scarta `State` e `Reason`: il testo non vede un canale di partita che il soggetto portasse. Si guarda
+	// quindi il SOGGETTO, dove una ricarica vera o un piano illegale scriverebbero stato e motivo.
+	const FRTInspectSubject SoggettoB = ARTHUD::BuildInspectSubject(B, 0, true);
+	TestTrue(TEXT("il kit del soggetto non e' vuoto"), SoggettoB.Kit.Num() > 0);
+	for (const FRTActionTooltipView& Voce : SoggettoB.Kit)
+	{
+		TestTrue(TEXT("nessun motivo di partita nel kit"), Voce.Reason.IsEmpty());
+		TestTrue(TEXT("nessuno stato di partita nel kit"), Voce.State == ERTActionSlotState::Empty);
+	}
 
 	// Controllo positivo: un altro eroe cambia la scheda.
 	const FString TextD = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(D, 0, true)));
@@ -239,6 +252,7 @@ bool FRTInspectGateTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
+	Enemy->StableUnitId = 7;
 	const FRTInspectSubject Subject = ARTHUD::BuildInspectSubject(Enemy, 0, true);
 	const int32 Id = Enemy->StableUnitId;
 
@@ -257,11 +271,20 @@ bool FRTInspectGateTest::RunTest(const FString&)
 		Viva.Entries.Add(E);
 	}
 
+	// Una voce Live di UN'ALTRA unita' non apre la scheda di questa.
+	FRTKnowledgeView VivaAltrui;
+	{
+		FRTKnowledgeEntry E; E.StableUnitId = Id + 1; E.Visibility = ERTKnowledgeVisibility::Live;
+		VivaAltrui.Entries.Add(E);
+	}
+
 	const FRTInspectView SenzaNemico = FRTInspectView();
 	TestEqual(TEXT("nessuna voce (anche appena nata): come una cella vuota"),
 		InspectText(URTInspectLibrary::ResolveInspect(Vuota, Id, Subject)), InspectText(SenzaNemico));
 	TestEqual(TEXT("solo ricordata: come una cella vuota"),
 		InspectText(URTInspectLibrary::ResolveInspect(Ricordata, Id, Subject)), InspectText(SenzaNemico));
+	TestEqual(TEXT("la voce Live di un'altra unita': come una cella vuota"),
+		InspectText(URTInspectLibrary::ResolveInspect(VivaAltrui, Id, Subject)), InspectText(SenzaNemico));
 	TestEqual(TEXT("e la cella vuota non ha righe"), SenzaNemico.Lines.Num(), 0);
 
 	// Controllo positivo: la stessa unita', `Live`, ha la scheda.
@@ -287,10 +310,16 @@ bool FRTInspectReleaseTest::RunTest(const FString&)
 		return false;
 	}
 
+	Enemy->StableUnitId = 7;
 	FRTKnowledgeView Viva;
 	{
 		FRTKnowledgeEntry E; E.StableUnitId = Enemy->StableUnitId; E.Visibility = ERTKnowledgeVisibility::Live;
 		Viva.Entries.Add(E);
+	}
+	FRTKnowledgeView VivaAltrui;
+	{
+		FRTKnowledgeEntry E; E.StableUnitId = Enemy->StableUnitId + 1; E.Visibility = ERTKnowledgeVisibility::Live;
+		VivaAltrui.Entries.Add(E);
 	}
 
 	PC->DispatchUnitClickForTest(Enemy, nullptr);
@@ -303,12 +332,54 @@ bool FRTInspectReleaseTest::RunTest(const FString&)
 	TestTrue(TEXT("soggetto azzerato"), PC->GetInspectedUnit() == nullptr);
 	TestFalse(TEXT("pin spento"), PC->IsInspectorPinned());
 
+	// Una voce Live di un'altra unita' non tiene in piedi la scheda di questa.
+	PC->DispatchUnitClickForTest(Enemy, nullptr);
+	TestTrue(TEXT("la voce Live di un'altra unita' rilascia"), PC->ReleaseInspectionUnlessLive(VivaAltrui));
+	TestTrue(TEXT("soggetto azzerato con la voce altrui"), PC->GetInspectedUnit() == nullptr);
+
 	// Un nemico caduto (KO, attore ancora in vita) rilascia anche con la voce Live.
 	PC->DispatchUnitClickForTest(Enemy, nullptr);
 	Enemy->Health = 0;
 	TestTrue(TEXT("un KO rilascia"), PC->ReleaseInspectionUnlessLive(Viva));
 	TestTrue(TEXT("soggetto azzerato dopo il KO"), PC->GetInspectedUnit() == nullptr);
 
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * LA RIGA DI CATALOGO COINCIDE CON QUELLA DEL DOCK (`#3748`). `BuildAbilityCooldowns` parte da `BuildCatalogActionRow`:
+ * il tooltip che ne esce, senza lo stato di partita, e' quello che la scheda mostra per la stessa azione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogRowMatchesDockRowTest,
+	"RefactorTactics.UI.InspectCatalogRowMatchesTheDockRow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogRowMatchesDockRowTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	FRTCellId C; C.X = 0; C.Y = 0;
+	ARTUnit* Unit = InspectSpawn(World, 1, InspectHero(0), C);
+	if (!TestTrue(TEXT("l'unita' esiste"), Unit != nullptr))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const TArray<FRTAbilityCooldownView> Dock = URTHudViewModel::BuildAbilityCooldowns(Unit);
+	TestTrue(TEXT("il dock ha delle azioni"), Dock.Num() > 0);
+	int32 Confrontate = 0;
+	for (int32 I = 0; I < Dock.Num(); ++I)
+	{
+		const URTActionData* Azione = Unit->GetAbility(I);
+		if (!Azione) { continue; }
+		const FRTAbilityCooldownView Riga = URTHudViewModel::BuildCatalogActionRow(Azione, I, Unit->ActiveVariantId);
+		const FRTActionTooltipView DalCatalogo = URTHudViewModel::BuildCatalogTooltip(Riga);
+		const FRTActionTooltipView DalDock = URTHudViewModel::BuildCatalogTooltip(Dock[I]);
+		++Confrontate;
+		TestTrue(TEXT("stesso tooltip di catalogo del dock"), URTHudViewModel::SameTooltip(DalCatalogo, DalDock));
+		TestEqual(TEXT("stesso id"), Riga.ActionId, Dock[I].ActionId);
+	}
+	TestTrue(TEXT("ne ha confrontate"), Confrontate > 0);
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }

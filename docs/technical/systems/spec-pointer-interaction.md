@@ -398,7 +398,7 @@ mondo, qualunque cosa ci sia sotto.
 
 ### La scheda fissata (`#3748`)
 
-`LMB` su un'unità non comandata e osservata, in `IdleSelection` e `Planning` (e in `ResolutionPlayback`), la **fissa**:
+`LMB` su un'unità non comandata e osservata, in `IdleSelection`, `Planning`, `Pathing`, `Facing` e `ResolutionPlayback`, la **fissa**:
 `ARTPlayerController::PinInspection` scrive soggetto e pin insieme. `RMB` è il passo `Inspector` del Back e azzera
 **entrambi** (prima azzerava il solo flag). La scheda segue la conoscenza, non l'attore: se l'unità non ha più una voce
 `Live` nella vista, o è caduta, l'HUD la rilascia (`ReleaseInspectionUnlessLive`).

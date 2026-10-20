@@ -1614,8 +1614,9 @@ public:
 	bool IsDeclaringFacing() const { return bDeclaringFacing; }
 
 	/**
-	 * Inspector pinnato: livello 3 del Back. Il produttore e' lo Screen HUD (#613); qui c'e' il flag perche'
-	 * l'ORDINE del Back e' di questo contratto e senza il livello l'elenco sarebbe incompleto.
+	 * Inspector pinnato: livello 3 del Back. Il produttore e' `PinInspection` (#3748), che lo accende insieme al
+	 * soggetto; qui c'e' il setter perche' l'ORDINE del Back e' di questo contratto e senza il livello l'elenco
+	 * sarebbe incompleto.
 	 */
 	void SetInspectorPinned(bool bPinned) { bInspectorPinned = bPinned; }
 	bool IsInspectorPinned() const { return bInspectorPinned; }
