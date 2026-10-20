@@ -1802,7 +1802,8 @@ bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
 	}
 
 	// La seconda unita' PROPRIA: e' il bersaglio legittimo di un `Inspect`, e l'unico gesto che il gioco
-	// possa davvero produrre — cliccare l'avversaria `OnSelect` la rifiuta.
+	// possa davvero produrre per la selezione — cliccare l'avversaria in playback la ispeziona (`#3748`), ma non
+	// la seleziona: questo test guarda la propria.
 	ARTUnit* Seconda = nullptr;
 	{
 		TArray<AActor*> Trovate;

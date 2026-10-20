@@ -12,6 +12,7 @@
 #include "Perception/RTKnowledgeVeilPresenter.h"
 // #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
 #include "UI/RTReactionWindowViewModel.h"
+#include "UI/RTInspect.h" // il cancello della scheda (#3748)
 #include "UI/RTHudViewModel.h" // MakeBlastPreviewPlan: la traduzione unita' -> anteprima e' una sola (#3620)
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
@@ -2432,6 +2433,10 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// risposta che puo' divergere, ed e' il motivo per cui gli altri consumatori di questo file la leggono
 	// cosi'.
 	//
+	// ⚠️ **Il flag nasce vero** (`#3748`): un nemico appena nato, senza voce `Live`, viene fissato da questo click.
+	// Non e' la scheda a proteggere la privacy — il cancello e' `URTInspectLibrary::IsInspectable`, che la scheda
+	// legge — e la fissazione dura al piu' fino al tick dell'HUD: `ReleaseInspectionUnlessLive` la rilascia.
+	//
 	// @return vero se il click e' stato consumato: chi chiama esce.
 	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
 		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
@@ -2446,12 +2451,12 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	//
 	// ⛔ **Non si scrive `SelectedActor`, e non e' una sottigliezza.** Da quel campo passa
 	// `GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e `BuildAbilityCooldowns`, cioe'
-	// il dock: puntarli su un'avversaria mostrerebbe il suo piano e il suo kit. Sono due canali della stessa
-	// fuga, e il secondo non era nemmeno nel contratto di comportamento finche' non e' stato misurato.
+	// il dock: puntarli su un'avversaria mostrerebbe il suo piano e le sue ricariche vere. ➕ `#3748`: il kit e
+	// l'equipaggiamento sono pubblici (decisione del 2026-10-20) e la scheda li legge dal catalogo, non da qui.
 	// ⚠️ E la selezione **non si tocca**: ispezionare non costa l'unita' comandata ne' l'azione armata.
 	if (Outcome == ERTPointerOutcome::Inspect)
 	{
-		InspectedUnit = ClickedUnit;
+		PinInspection(ClickedUnit);
 		return true;
 	}
 
@@ -2864,7 +2869,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	{
 		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
 		{
-			InspectedUnit = const_cast<ARTUnit*>(Puntato);
+			PinInspection(const_cast<ARTUnit*>(Puntato));
 			return;
 		}
 	}
@@ -4616,6 +4621,28 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 	return ERTTargetRefusal::None;
 }
 
+void ARTPlayerController::PinInspection(ARTUnit* Unit)
+{
+	InspectedUnit = Unit;
+	bInspectorPinned = Unit != nullptr;
+}
+
+bool ARTPlayerController::ReleaseInspectionUnlessLive(const FRTKnowledgeView& View)
+{
+	const ARTUnit* Subject = InspectedUnit.Get();
+	if (Subject == nullptr && !bInspectorPinned)
+	{
+		return false;
+	}
+	if (Subject != nullptr && Subject->IsAlive() && URTInspectLibrary::IsInspectable(View, Subject->StableUnitId))
+	{
+		return false;
+	}
+	InspectedUnit = nullptr;
+	bInspectorPinned = false;
+	return true;
+}
+
 ERTPointerBackStep ARTPlayerController::ApplyBack()
 {
 	ARTUnit* Unit = GetSelectedUnit();
@@ -4630,7 +4657,10 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	switch (Step)
 	{
 	case ERTPointerBackStep::Inspector:
+		// #3748: chiudere la scheda vuol dire soggetto E pin. Azzerare solo il flag lasciava il soggetto, e con lui il
+		// pannello di sinistra e l'arco del nemico, sull'ultimo nemico ispezionato.
 		bInspectorPinned = false;
+		InspectedUnit = nullptr;
 		break;
 
 	case ERTPointerBackStep::Declaration:

@@ -1,5 +1,7 @@
 #include "UI/RTHUD.h"
 #include "UI/RTGlance.h"
+#include "Ability/RTCatalogLibrary.h" // FindEquipment: la scheda legge il catalogo (#3748)
+#include "Ability/RTEquipmentData.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTHudLayout.h" // #3795: la fascia bassa e la scala, per posare la riga del banco sopra il dock
 #include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
@@ -783,6 +785,46 @@ FRTCellId ARTHUD::GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCe
 	return bHasAnimated ? Animated : UnitCell;
 }
 
+FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing)
+{
+	FRTInspectSubject Subject;
+	if (Unit == nullptr)
+	{
+		return Subject;
+	}
+	Subject.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
+	Subject.HeroId = Unit->HeroId;
+	Subject.Card = URTHudViewModel::BuildUnitCard(Unit, PlayerTeamId);
+	Subject.Statuses = URTHudViewModel::BuildStatusBadges(Unit);
+	Subject.Facing = Unit->Facing;
+	Subject.bShowFacing = bShowFacing;
+
+	// Il kit dal solo catalogo: le azioni dell'unita' (con la variante d'arma montata, che cambia la portata vera),
+	// riga di catalogo -> tooltip di catalogo. Nessuna ricarica, nessun piano, nessuna variante attiva.
+	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
+	{
+		const URTActionData* Action = Unit->GetAbility(Index);
+		if (Action == nullptr) { continue; }
+		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
+			URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None));
+		if (Tooltip.IsValid()) { Subject.Kit.Add(Tooltip); }
+	}
+
+	for (const FName& PieceId : Unit->EquippedItemIds)
+	{
+		if (const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId))
+		{
+			FRTInspectEquipmentLine Line;
+			Line.Name = Piece->DisplayName;
+			Line.Slot = Piece->Slot;
+			Line.Advantage = Piece->Advantage;
+			Line.Drawback = Piece->Drawback;
+			Subject.Equipment.Add(Line);
+		}
+	}
+	return Subject;
+}
+
 FRTGlanceUnitSubject ARTHUD::BuildGlanceUnitSubject(const ARTUnit* Unit, bool bShowFacing)
 {
 	FRTGlanceUnitSubject Subject;
@@ -895,6 +937,13 @@ void ARTHUD::UpdateObserverVeil()
 	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
 	// fotogramma, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
 	const FRTKnowledgeView KnowledgeView = UvViewForObserver(TurnManager, Units, PlayerTeamId);
+
+	// #3748: la scheda segue la conoscenza. Se l'unita' ispezionata non e' piu' `Live` (uscita di vista, caduta), il
+	// controller rilascia soggetto e pin: il pannello di sinistra e l'arco del nemico non restano sull'ultimo nemico visto.
+	if (ARTPlayerController* InspectPC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+	{
+		InspectPC->ReleaseInspectionUnlessLive(KnowledgeView);
+	}
 
 	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
 	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
