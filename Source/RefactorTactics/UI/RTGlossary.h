@@ -26,6 +26,16 @@
  */
 namespace RTGlossary
 {
+	/**
+	 * Il tetto di lunghezza di un EFFETTO, in caratteri (#3747, P4; deciso dall'autore il 2026-10-20). E' il massimo che
+	 * il glossario aveva allora (`Status.Unbalanced`), arrotondato: lo sguardo mostra l'effetto intero e un testo piu'
+	 * lungo non entrerebbe nel riquadro. Un testo che lo supera non si accorcia da codice: e' lavoro d'autore.
+	 */
+	constexpr int32 MaxEffectLength = 180;
+
+	/** Vero se `Text` sta nel tetto. Lo usa il gate; sta qui perche' il tetto e la sua misura non divergano. */
+	inline bool EffectFitsTheCap(const FString& Text) { return Text.Len() <= MaxEffectLength; }
+
 	/** Il nome da leggere di `Key`, oppure vuoto: una chiave senza voce non ha un nome da mostrare. */
 	FText NameFor(const FName& Key);
 

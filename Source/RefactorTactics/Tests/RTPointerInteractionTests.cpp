@@ -2165,4 +2165,176 @@ bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
 	return true;
 }
 
+// --- #3747 · lo sguardo e' l'annotazione di §4.1, con un ordine solo ---------------------------------------
+
+/**
+ * L'ordine dello sguardo: unita' > porta o obiettivo della cella > cella. Ogni riga della tabella e' scritta a
+ * mano dalla riga `IdleSelection` / `Planning` di `spec-pointer-interaction.md` §4.1, e NON e' derivata dalla
+ * funzione: un'attesa calcolata con la stessa logica sarebbe vera di qualunque ordine.
+ *
+ * Le righe coprono ogni posizione dell'ordine e le due assenze (nessun candidato, porta senza cella). Il
+ * secondo asserto e' l'anti-vacuita': la tabella produce tutti e quattro i `Kind`, altrimenti un resolver che
+ * ne ignora uno resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceFollowsTheAnnotationOrderTest,
+	"RefactorTactics.Pointer.GlanceFollowsTheAnnotationOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceFollowsTheAnnotationOrderTest::RunTest(const FString&)
+{
+	struct FRow
+	{
+		const TCHAR* Name;
+		int32 UnitId;
+		bool bHasCell;
+		bool bMapElement;
+		ERTGlanceKind Expected;
+		bool bExpectCell; // la cella sotto il cursore resta nel risultato: e' il ripiego di un'unita' illeggibile
+	};
+	const FRTCellId C(2, -1, 0);
+	const FRow Rows[] = {
+		{ TEXT("niente sotto il cursore"),                 INDEX_NONE, false, false, ERTGlanceKind::None,       false },
+		{ TEXT("solo una cella"),                          INDEX_NONE, true,  false, ERTGlanceKind::Cell,       true  },
+		{ TEXT("cella con porta o obiettivo"),             INDEX_NONE, true,  true,  ERTGlanceKind::MapElement, true  },
+		{ TEXT("un'unita' sopra una cella"),               7,          true,  false, ERTGlanceKind::Unit,       true  },
+		{ TEXT("un'unita' sopra una cella con porta"),     7,          true,  true,  ERTGlanceKind::Unit,       true  },
+		{ TEXT("un'unita' senza cella"),                   7,          false, false, ERTGlanceKind::Unit,       false },
+		{ TEXT("lo StableUnitId 0 e' un'unita' vera"),     0,          true,  false, ERTGlanceKind::Unit,       true  },
+		{ TEXT("porta senza cella non descrive niente"),   INDEX_NONE, false, true,  ERTGlanceKind::None,       false },
+	};
+
+	TSet<ERTGlanceKind> Produced;
+	for (const FRow& R : Rows)
+	{
+		const FRTGlanceTarget T = URTPointerLibrary::ResolveGlanceTarget(R.UnitId, R.bHasCell, C, R.bMapElement);
+		TestEqual(*FString::Printf(TEXT("%s: cosa descrive"), R.Name), T.Kind, R.Expected);
+		TestEqual(*FString::Printf(TEXT("%s: la cella resta nel risultato"), R.Name), T.bHasCell, R.bExpectCell);
+		if (R.bExpectCell)
+		{
+			TestTrue(*FString::Printf(TEXT("%s: ed e' quella sotto il cursore"), R.Name), T.Cell == C);
+		}
+		if (R.Expected == ERTGlanceKind::Unit)
+		{
+			TestEqual(*FString::Printf(TEXT("%s: l'unita' e' quella colpita"), R.Name), T.StableUnitId, R.UnitId);
+		}
+		else
+		{
+			TestEqual(*FString::Printf(TEXT("%s: nessuna unita'"), R.Name), T.StableUnitId, static_cast<int32>(INDEX_NONE));
+		}
+		Produced.Add(R.Expected);
+	}
+	TestEqual(TEXT("anti-vacuita': la tabella produce tutti i generi di sguardo"), Produced.Num(), 4);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// #3747 (F2): il ritardo e l'inerzia dello sguardo.
+// ---------------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Nomi distinti per file: il progetto usa unity build. */
+	FRTGlanceTarget GlancePtrUnitTarget(int32 Id)
+	{
+		FRTCellId C; C.X = 1; C.Y = 1;
+		return URTPointerLibrary::ResolveGlanceTarget(Id, true, C, false);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceDwellRestartsTest,
+	"RefactorTactics.Pointer.GlanceDwellRestartsWhenTheTargetChanges",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceDwellRestartsTest::RunTest(const FString&)
+{
+	FRTGlanceDwell Dwell;
+	const FRTGlanceTarget A = GlancePtrUnitTarget(1);
+	const FRTGlanceTarget B = GlancePtrUnitTarget(2);
+
+	Dwell.Advance(A, 0.f);
+	Dwell.Advance(A, 0.2f);
+	TestFalse(TEXT("a 0,2 s non e' trascorso 0,3"), Dwell.HasElapsed(0.3f));
+	Dwell.Advance(A, 0.2f);
+	TestTrue(TEXT("a 0,4 s s'e' trascorso"), Dwell.HasElapsed(0.3f));
+
+	// Passare a un'altra unita' riparte da zero: non mostra lo sguardo subito.
+	Dwell.Advance(B, 0.2f);
+	TestFalse(TEXT("altra unita': il ritardo riparte"), Dwell.HasElapsed(0.3f));
+
+	// Cursore fuori dalla scena (nessun bersaglio): azzera.
+	Dwell.Advance(B, 0.2f);
+	Dwell.Advance(FRTGlanceTarget(), 0.2f);
+	Dwell.Advance(B, 0.2f);
+	TestFalse(TEXT("dopo essere uscito, riparte"), Dwell.HasElapsed(0.3f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceInertiaTest,
+	"RefactorTactics.Pointer.GlanceIsInertWhereTheSpecSays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceInertiaTest::RunTest(const FString&)
+{
+	for (const ERTPointerContext Ctx : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Targeting, ERTPointerContext::Pathing, ERTPointerContext::ResolutionPlayback })
+	{
+		TestTrue(TEXT("acceso"), URTPointerLibrary::ShouldShowGlance(Ctx, true, true));
+		TestFalse(TEXT("ritardo non trascorso"), URTPointerLibrary::ShouldShowGlance(Ctx, true, false));
+		TestFalse(TEXT("nessuno comanda"), URTPointerLibrary::ShouldShowGlance(Ctx, false, true));
+	}
+	for (const ERTPointerContext Ctx : { ERTPointerContext::Modal, ERTPointerContext::ReactionWindow, ERTPointerContext::Facing })
+	{
+		TestFalse(TEXT("inerte"), URTPointerLibrary::ShouldShowGlance(Ctx, true, true));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceRealPathTest,
+	"RefactorTactics.Pointer.GlanceGoesThroughTheInertiaOnTheRealPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceRealPathTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("il controller esiste"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTGlanceTarget T = GlancePtrUnitTarget(5);
+	const float Delay = PC->GlanceDelaySeconds;
+	TestEqual(TEXT("il ritardo di partenza e' 0,3 s"), Delay, 0.3f);
+
+	PC->AdvanceGlance(0.f, ERTPointerContext::Planning, true, T);
+	TestFalse(TEXT("prima del ritardo: nulla"), PC->GetGlanceTarget().IsValid());
+	PC->AdvanceGlance(Delay + 0.01f, ERTPointerContext::Planning, true, T);
+	TestTrue(TEXT("a ritardo trascorso in Planning: il bersaglio"), PC->GetGlanceTarget().IsValid());
+	TestEqual(TEXT("ed e' quello atteso"), PC->GetGlanceTarget().StableUnitId, 5);
+
+	PC->AdvanceGlance(0.01f, ERTPointerContext::Modal, true, T);
+	TestFalse(TEXT("in Modal: nulla, anche a ritardo trascorso"), PC->GetGlanceTarget().IsValid());
+	PC->AdvanceGlance(0.01f, ERTPointerContext::Planning, false, T);
+	TestFalse(TEXT("nessuno comanda: nulla"), PC->GetGlanceTarget().IsValid());
+
+	// Un contesto inerte non accumula ritardo: appena torna acceso il ritardo riparte, non e' gia' trascorso.
+	PC->AdvanceGlance(Delay * 3.f, ERTPointerContext::Modal, true, T);
+	PC->AdvanceGlance(0.01f, ERTPointerContext::Planning, true, T);
+	TestFalse(TEXT("dopo l'inerzia il ritardo riparte da zero"), PC->GetGlanceTarget().IsValid());
+	PC->AdvanceGlance(Delay + 0.01f, ERTPointerContext::Planning, true, T);
+	TestTrue(TEXT("e poi trascorre"), PC->GetGlanceTarget().IsValid());
+
+	// Lo sguardo non cambia cosa e' ispezionato o selezionato.
+	ARTUnit* Before = PC->GetInspectedUnit();
+	AActor* SelBefore = PC->GetSelectedUnit();
+	for (const ERTPointerContext Ctx : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Targeting, ERTPointerContext::ResolutionPlayback })
+	{
+		PC->AdvanceGlance(Delay + 0.01f, Ctx, true, T);
+	}
+	TestTrue(TEXT("l'unita' ispezionata e' la stessa"), PC->GetInspectedUnit() == Before);
+	TestTrue(TEXT("la selezione e' la stessa"), PC->GetSelectedUnit() == SelBefore);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

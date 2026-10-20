@@ -89,7 +89,9 @@
 
 ## Stato in numeri — 2026-10-18
 
-**281 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **124 aperte**.
+**282 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **125 aperte**.
+
+➕ **Rimisurato il 2026-10-19 ([#3747](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3747), `PIE-HUD-SGUARDO` aperta)**: il ricalcolo di `doc-coherence` A1 dava `281 · 116/34/7/124` **prima** e `282 · 116/34/7/125` **dopo**. Delta: una voce nuova ⏳, lo sguardo all'hover, perche' la resa a schermo non la vede nessun test.
 
 ➕ **Rimisurato il 2026-10-19 ([#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896), `PIE-HUD-CARD-ZERO` vista a schermo)**: il ricalcolo di `doc-coherence` A1 dava `281 · 115/34/7/125` **prima** e `281 · 116/34/7/124` **dopo**. Delta: una voce da ⏳ a ✅, perche' l'autore ha visto la tavola `T1` («Sì, piena»).
 
@@ -1896,6 +1898,14 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 | **PIE-OBJ-PUNTI** | Stare **dentro** l'obiettivo assegna punti, e il log dice a chi ([D-241](../decisions/RT_PDR_00_Decision_Log.md)) | mappa con almeno una cella `bIsObjective = true` e un'unità che può raggiungerla | Un'unità che **termina il turno** sulla cella obiettivo fa salire il punteggio del suo team, e il combat log riporta `Obiettivo: team N +M (ora X-Y)` con il totale aggiornato di **entrambe** le squadre. Il punto va alla squadra dell'unità, non a chi ha mosso per ultimo. ⚠️ Un punto assegnato a una squadra che non esiste è un `Warning` nel log (`Punteggio %d assegnato alla squadra %d, che non esiste: ignorato`) e **non deve comparire** in una partita 2v2: se compare, è un difetto da aprire, non un esito da registrare | ⏳ **eseguibile dal 2026-08-29** ([#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75), `d070a1a4`). L'obiettivo è **un dato della mappa** — `FRTHexCellData::bIsObjective` — non una regola che lo deriva né un campo dello scenario, ed è la sostanza di `D-241`. ⛔ **Il punteggio non è in HUD**: l'evidenza a schermo è il **solo** combat log, vedi la nota sopra |
 | **PIE-VELO-PANNELLI** | I **pannelli di bordo seguono la mappa in partita**: un muro abbattuto sparisce, una copertura eretta compare e una porta aperta si abbassa a fine turno, senza aspettare il `Tab` ([#3687](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3687)) | partita hex su `L_DevSandbox` in vista tattica, con una copertura in vista; un'unità con un'azione che danneggia le strutture (per esempio `Gadget.BreachCharge`), una con `Action.CreateCover`, e una porta raggiungibile con `Action.Interact`; per l'ultimo criterio, un muro di cui la squadra ha visto solo il lato davanti, mai quello dietro | **Il muro abbattuto non c'è più** quando il turno finisce, ancora in vista tattica. **La copertura eretta compare** a fine turno. **La porta aperta si abbassa.** Nessuno dei tre aspetta il `Tab`. **Un muro su un bordo — copertura o porta — si vede da un lato qualunque** ([#3691](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3691), [D-502](../decisions/RT_PDR_00_Decision_Log.md) (d)): chi sta davanti a un muro lo vede anche se dietro non ha mai guardato. Un muro interno sta dentro una cella e ha un lato solo. **Rotto si vede così**: un muro abbattuto che resta in piedi finché non si preme `Tab`, e che al `Tab` sparisce; oppure un muro che compare solo quando si vede la cella dietro | ⏳ **aperta** — nata con [#3687](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3687) il 2026-10-12. Le istanze dei pannelli le coprono i test headless `HexMapActor.DestroyedCoverLeavesTheScreenAtTurnEnd` e `HexMapActor.CreatedCoverAndDoorStateReachTheScreenAtTurnEnd`; la voce guarda lo schermo |
 
+
+### Lo sguardo all'hover (`#3747`, F2)
+
+> ⚠️ **Mai eseguita da un autore.** La resa è provvisoria e il ritardo (0,3 s) è un default da ritarare qui.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-HUD-SGUARDO** | Fermo il cursore su un'unità, su una cella in vista e su una cella fuori vista: il riquadro dice cosa c'è, **e un nemico non osservato dice quanto una cella vuota** | partita hex in pianificazione con un nemico fuori vista su una cella in vista; poi lo stesso nemico in vista | dopo circa 0,3 s compare il riquadro; sul nemico fuori vista il riquadro è quello della cella (stessa uscita che senza nemico); fuori vista non compare nulla; spostando il cursore il ritardo riparte; con la pausa aperta non compare | ⏳ |
 
 ### Gate visivo end-to-end della slice (aggiunta il 2026-08-30)
 
