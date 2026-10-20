@@ -154,9 +154,6 @@ struct FRTHexBotContext
 	/** Gittata dell'attacco del bot. */
 	UPROPERTY() int32 AttackRange = 0;
 
-	/** Distanza MINIMA dell'attacco del bot (`FRTActionDef::MinRangeCells`, `#3093`). `0` = nessun minimo. */
-	UPROPERTY() int32 AttackMinRange = 0;
-
 	/** Danno dell'attacco del bot. */
 	UPROPERTY() int32 AttackDamage = 0;
 

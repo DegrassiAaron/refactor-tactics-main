@@ -814,7 +814,6 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		{
 			FRTHexBotContext LocalCtx = Ctx;
 			LocalCtx.AttackRange = Range;
-			LocalCtx.AttackMinRange = 0; // lo scrive sotto l'azione valutata, se ce n'e' una
 			LocalCtx.AttackDamage = Damage;
 
 			// Forma dell'azione valutata: senza, ogni attacco verrebbe pesato come un colpo singolo e un'area
@@ -824,7 +823,6 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				LocalCtx.AttackShape = ShapedAbility->Shape;
 				LocalCtx.AttackAreaRadius = ShapedAbility->AreaRadius;
 				LocalCtx.bAttackFriendlyFire = ShapedAbility->Def.bFriendlyFire;
-				LocalCtx.AttackMinRange = ShapedAbility->Def.MinRangeCells; // `#3093`
 				// Chi SPOSTA, letto dagli effetti dichiarati ([D-319], `#2253`). Dal `Def` e non da una
 				// lista di `ActionId`: cosi' vale anche per gli effetti che l'EQUIPAGGIAMENTO aggiunge —
 				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Muiren E di Branth
