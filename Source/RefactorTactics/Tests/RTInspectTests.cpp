@@ -114,7 +114,7 @@ bool FRTInspectTwinsReadTheSameTest::RunTest(const FString&)
 	}
 
 	// B differisce da A nel piano, nelle ricariche vere e nella variante attiva.
-	for (int32& Ricarica : B->AbilityCooldowns) { Ricarica = 2; }
+	for (int32 I = 0; I < B->Abilities.Num(); ++I) { B->ConsumeAbility(I); } // ricariche vere
 	B->ActiveVariantId = FName(TEXT("VarianteDiProva"));
 	B->PlannedAbilityIndex = 1;
 	B->PlannedReactionAbility = 2;
