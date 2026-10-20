@@ -115,3 +115,32 @@ FRTGlanceView URTGlanceLibrary::ResolveGlance(const FRTKnowledgeView& View, cons
 	}
 	return ComposeCell(CellAtTarget);
 }
+
+TArray<FString> URTGlanceLibrary::WrapLines(const TArray<FString>& Lines, int32 MaxChars)
+{
+	TArray<FString> Out;
+	for (const FString& Line : Lines)
+	{
+		TArray<FString> Words;
+		Line.ParseIntoArray(Words, TEXT(" "), /*bCullEmpty=*/ true);
+		FString Current;
+		for (const FString& Word : Words)
+		{
+			if (Current.IsEmpty())
+			{
+				Current = Word;
+			}
+			else if (Current.Len() + 1 + Word.Len() <= MaxChars)
+			{
+				Current += TEXT(" ") + Word;
+			}
+			else
+			{
+				Out.Add(Current);
+				Current = Word;
+			}
+		}
+		Out.Add(Current); // anche vuota: una riga vuota in ingresso resta una riga
+	}
+	return Out;
+}

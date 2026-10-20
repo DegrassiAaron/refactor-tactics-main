@@ -1323,4 +1323,7 @@ protected:
 
 	/** Scala del testo del riquadro dello sguardo (#3747). */
 	static constexpr float GlanceScale = 0.9f;
+
+	/** Larghezza di andata a capo del riquadro, in caratteri: l'effetto piu' lungo del glossario va su pochi righi. */
+	static constexpr int32 GlanceWrapChars = 48;
 };

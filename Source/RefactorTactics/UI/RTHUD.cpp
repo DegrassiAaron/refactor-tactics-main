@@ -1571,8 +1571,9 @@ void ARTHUD::DrawHUD()
 			}
 			const FRTGlanceUnitSubject UnitSubject = BuildGlanceUnitSubject(GlanceUnit, !TurnManager->IsResolving());
 			const FRTGlanceCellSubject CellSubject = BuildGlanceCellSubject(Map, GlanceRaw.Cell);
-			const FRTGlanceView GlanceLines =
+			FRTGlanceView GlanceLines =
 				URTGlanceLibrary::ResolveGlance(GlanceView, GlanceKnowledge, GlanceRaw, UnitSubject, CellSubject);
+			GlanceLines.Lines = URTGlanceLibrary::WrapLines(GlanceLines.Lines, GlanceWrapChars);
 
 			if (GlanceLines.Lines.Num() > 0)
 			{

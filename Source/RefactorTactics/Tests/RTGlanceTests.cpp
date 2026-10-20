@@ -385,4 +385,31 @@ bool FRTGlanceHudReadersCopyTheAssetTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceWrapKeepsEveryWordTest,
+	"RefactorTactics.UI.GlanceWrapKeepsEveryWord",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceWrapKeepsEveryWordTest::RunTest(const FString&)
+{
+	const FString Longest = RTGlossary::Effects().Num() > 0 ? RTGlossary::Effects()[0].Value : FString();
+	FString Biggest = Longest;
+	for (const TPair<FName, FString>& Voce : RTGlossary::Effects())
+	{
+		if (Voce.Value.Len() > Biggest.Len()) { Biggest = Voce.Value; }
+	}
+	const int32 Limit = 48;
+	const TArray<FString> Wrapped = URTGlanceLibrary::WrapLines({ Biggest }, Limit);
+	TestTrue(TEXT("la voce piu' lunga si spezza davvero"), Wrapped.Num() > 1);
+	for (const FString& L : Wrapped)
+	{
+		TestTrue(*FString::Printf(TEXT("riga entro il limite: %s"), *L), L.Len() <= Limit);
+	}
+	TestEqual(TEXT("rimessa insieme e' il testo di partenza"), FString::Join(Wrapped, TEXT(" ")), Biggest);
+
+	// Una parola piu' lunga del limite resta intera.
+	const FString Long = FString::ChrN(60, TEXT('x'));
+	const TArray<FString> W2 = URTGlanceLibrary::WrapLines({ FString(TEXT("a ")) + Long }, Limit);
+	TestTrue(TEXT("la parola lunga non si perde"), FString::Join(W2, TEXT(" ")).Contains(Long));
+	return true;
+}
+
 #endif

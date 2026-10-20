@@ -114,6 +114,12 @@ public:
 	/** Massimo di righe di una cella: superficie, costo, piano, ripari, segni. Scelta di F2. */
 	static constexpr int32 MaxCellLines = 5;
 
+	/**
+	 * Manda a capo le righe a `MaxChars` caratteri, spezzando sugli spazi. Una parola piu' lunga del limite resta
+	 * intera (non si perde nulla). E' presentazione: il massimo di righe e' quello del compositore, non di questo.
+	 */
+	static TArray<FString> WrapLines(const TArray<FString>& Lines, int32 MaxChars);
+
 	/** Nome, verso (se acceso), poi gli stati col nome e l'effetto del glossario; il taglio e' dichiarato. */
 	static FRTGlanceView ComposeUnit(const FRTGlanceUnitSubject& Subject);
 
