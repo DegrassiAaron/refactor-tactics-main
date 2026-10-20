@@ -84,30 +84,48 @@ namespace
  * Cosa dimostra, in ordine:
  *
  *  - **A.** All'istante in cui il Cleanup si chiude (`OnPhaseClosed`) l'unita' e' morta, ancora armata e con la
- *    ricarica scritta. Premessa anti-vacuita': senza, "l'input non la raggiunge" varrebbe per un'unita' qualunque.
- *  - **B.** **Con il playback** l'intervallo e' lungo (tutto il playback): il mondo e' in sola lettura, tasto,
- *    slot del dock e click non cambiano niente, e a playback finito l'unita' e' distrutta e la selezione vuota.
- *  - **C.** **Senza playback** non c'e' nessun intervallo: tornato `LockInAndResolve` l'unita' e' gia' distrutta, e
- *    tutto e' avvenuto in un solo passaggio sincrono.
+ *    ricarica scritta e NON scorsa (uguale a quella dell'azione: il ciclo non ha chiamato `TickCooldowns`).
+ *    Premessa anti-vacuita': senza, "l'input non la raggiunge" varrebbe per un'unita' qualunque.
+ *  - **B.** **Con un playback che ha qualcosa da mostrare** l'intervallo dura quanto lui: il mondo e' in sola lettura,
+ *    e ognuna delle tre porte (slot del dock, tasto, click su un altro nemico) non cambia niente. **Ogni sonda gira in un
+ *    mondo suo**: da armata, lo slot e il tasto DISARMEREBBERO e il click dopo non avrebbe piu' niente da pianificare,
+ *    quindi insieme le sonde si coprirebbero a vicenda (trovato dalla revisione, mutazione `c`).
+ *  - **C.** In fondo, con o senza playback: l'unita' e' distrutta e la selezione del controller e' vuota. **Senza
+ *    playback** non c'e' nessun intervallo da osservare: tornato `LockInAndResolve` e' gia' avvenuto tutto.
  *
- * ⚠️ **Le due configurazioni girano SEMPRE entrambe.** `bEnablePlayback` e' `EditAnywhere`, e le note dicevano
- * "nello stesso passaggio sincrono" di entrambe: era vero di una sola.
+ * ⚠️ **Le configurazioni girano SEMPRE tutte.** `bEnablePlayback` e' `EditAnywhere`, e le note dicevano "nello stesso
+ * passaggio sincrono" di entrambe: era vero di una sola.
  *
- * ⛔ **Verifica di mutazione**: togliere `DestroyDefeatedUnits` da `ConcludeTurn` fa cadere B e C; togliere da
- * `GetPointerContext()` la risposta `ResolutionPlayback` fa cadere B.
+ * ⛔ **Cosa NON dice, e la revisione l'ha misurato:**
+ *  - **L'ultimo tratto non e' in sola lettura.** Da `bIsResolving = false` a `DestroyDefeatedUnits` il codice e' sincrono, quindi
+ *    nessun input puo' entrarci, ma il contesto non e' piu' `ResolutionPlayback` e `HandlePlaybackFinished` ci legge l'unita'
+ *    morta (solo presentazione: la portata resta vuota per `IsAlive()`, pinnato da `ADegenerateArmShowsNoRange`). Questo test
+ *    non attraversa quel tratto: in questo mondo i delegate dinamici non sono iscritti, e scambiare `Broadcast` e `ConcludeTurn`
+ *    lo lascia verde.
+ *  - **Una morte nel Blast** lascia lo stesso intervallo ma con l'unita' armata e PRONTA: l'attaccante che non sopravvive alla
+ *    fase non paga, quindi la ricarica non e' scritta. La morte da `ResolveEnvironment` e' identica al Burning per costruzione.
+ *    Qui si prova solo il Burning.
+ *  - **Un playback acceso senza niente da mostrare** (timeline o fasi vuote) conclude in modo sincrono, come senza playback.
+ *    Le configurazioni "acceso" di questo test hanno eventi da mostrare: l'attacco.
+ *
+ * ⛔ **Verifica di mutazione**: togliere `DestroyDefeatedUnits` da `ConcludeTurn` fa cadere C; il Cleanup che non salta piu' chi
+ * muore bruciato fa cadere A (armo e ricarica); un contesto che non e' di sola lettura durante il playback fa cadere B in
+ * ognuna delle tre sonde.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitKilledInTheCleanupTest,
 	"RefactorTactics.Turn.AUnitKilledInTheCleanupStaysArmedUntilDestroyedOutOfReachOfInput",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 {
-	const auto Prova = [this](bool bPlayback) -> bool
+	enum class ESonda : uint8 { Nessuna, Dock, Tasto, Click };
+
+	const auto Prova = [this](bool bPlayback, ESonda Sonda) -> bool
 	{
-		// La configurazione in ogni messaggio: un rosso deve dire QUALE delle due lo ha prodotto.
-		const auto E = [bPlayback](const TCHAR* Testo)
-		{
-			return FString::Printf(TEXT("playback %s - %s"), bPlayback ? TEXT("acceso") : TEXT("spento"), Testo);
-		};
+		// La configurazione e la sonda in ogni messaggio: un rosso deve dire QUALE lo ha prodotto.
+		const FString Tag = FString::Printf(TEXT("playback %s%s"), bPlayback ? TEXT("acceso") : TEXT("spento"),
+			Sonda == ESonda::Dock ? TEXT(", sonda slot del dock") : Sonda == ESonda::Tasto ? TEXT(", sonda tasto")
+			: Sonda == ESonda::Click ? TEXT(", sonda click") : TEXT(""));
+		const auto E = [&Tag](const TCHAR* Testo) { return FString::Printf(TEXT("%s - %s"), *Tag, Testo); };
 
 		UWorld* World = MakeDeadWorld();
 		if (!TestNotNull(*E(TEXT("mondo di prova")), World)) { return false; }
@@ -140,6 +158,7 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 			DestroyDeadWorld(World);
 			return false;
 		}
+		const int32 RicaricaDellAzione = Doomed->GetAbility(ConRicarica)->CooldownTurns;
 
 		// Muore del Burning del Cleanup e di niente altro: tanti PV quanti ne toglie, senza scudo. Il danno ambientale
 		// non ha attaccante, quindi il Blast non lo tocca e l'unita' arriva viva al Cleanup, dopo aver agito.
@@ -158,7 +177,7 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 			return false;
 		}
 
-		// --- A. all'istante in cui il Cleanup si chiude: morta, armata, in ricarica -----------------------
+		// --- A. all'istante in cui il Cleanup si chiude: morta, armata, ricarica scritta e non scorsa -----
 		struct FStato { bool bRilevato = false; bool bViva = true; bool bValida = false; int32 Armata = INDEX_NONE; int32 Ricarica = 0; };
 		FStato AllaChiusura;
 		const FDelegateHandle Ascolto = TM->OnPhaseClosed.AddLambda([&](ERTMatchPhase Chiusa)
@@ -181,14 +200,15 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 			&& TestTrue(*E(TEXT("A: l'attore c'e' ancora")), AllaChiusura.bValida)
 			&& TestFalse(*E(TEXT("A: ed e' morto del Burning")), AllaChiusura.bViva)
 			&& TestEqual(*E(TEXT("A: il Cleanup che lo salta non l'ha disarmato")), AllaChiusura.Armata, ConRicarica)
-			&& TestTrue(*E(TEXT("A: e ha l'azione in ricarica")), AllaChiusura.Ricarica > 0);
+			&& TestEqual(*E(TEXT("A: e non ha fatto scorrere la ricarica, ancora quella dell'azione")),
+				AllaChiusura.Ricarica, RicaricaDellAzione);
 		if (!bPremesse)
 		{
 			DestroyDeadWorld(World);
 			return false;
 		}
 
-		if (bPlayback)
+		if (Sonda != ESonda::Nessuna)
 		{
 			// --- B. con il playback l'intervallo dura quanto il playback, e il mondo e' in sola lettura -----
 			if (!TestTrue(*E(TEXT("B: premessa: il playback e' in corso, quindi l'unita' non e' ancora distrutta")),
@@ -201,13 +221,25 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 				PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
 			TestTrue(*E(TEXT("B: il mondo e' in sola lettura per l'input")), PC->IsWorldReadOnly());
 
-			// Se il mondo fosse scrivibile lo slot gia' armato si DISARMEREBBE (toggle) e il click pianificherebbe.
-			PC->ArmKitAbility(ConRicarica);
-			TestEqual(*E(TEXT("B: lo slot del dock non cambia l'armo")), Doomed->SelectedAbilityIndex, ConRicarica);
-			PC->SelectAbilityForCurrentForTest(INDEX_NONE);
-			TestEqual(*E(TEXT("B: il tasto non cambia l'armo")), Doomed->SelectedAbilityIndex, ConRicarica);
-			PC->HandleClickOnUnitForTest(Decoy);
-			TestFalse(*E(TEXT("B: il click su un altro nemico non pianifica")), Doomed->PlannedAttackTarget == Decoy);
+			// Una sola porta per mondo. Da armata, lo slot e il tasto DISARMEREBBERO a mondo scrivibile (toggle), e il
+			// click pianificherebbe: ognuna e' viva SOLO se e' la prima a toccare l'armo.
+			switch (Sonda)
+			{
+			case ESonda::Dock:
+				PC->ArmKitAbility(ConRicarica);
+				TestEqual(*E(TEXT("B: lo slot del dock non cambia l'armo")), Doomed->SelectedAbilityIndex, ConRicarica);
+				break;
+			case ESonda::Tasto:
+				PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+				TestEqual(*E(TEXT("B: il tasto non cambia l'armo")), Doomed->SelectedAbilityIndex, ConRicarica);
+				break;
+			case ESonda::Click:
+				PC->HandleClickOnUnitForTest(Decoy);
+				TestFalse(*E(TEXT("B: il click su un altro nemico non pianifica")), Doomed->PlannedAttackTarget == Decoy);
+				break;
+			default:
+				break;
+			}
 
 			for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 			{
@@ -224,10 +256,12 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 		return true;
 	};
 
-	// Le due configurazioni si provano SEMPRE entrambe: una premessa che salta per la prima non deve nascondere l'altra.
-	const bool bSenzaPlayback = Prova(false);
-	const bool bConPlayback = Prova(true);
-	return bSenzaPlayback && bConPlayback;
+	// Tutte le configurazioni si provano SEMPRE: una premessa che salta per una non deve nascondere le altre.
+	bool bTutte = Prova(/*bPlayback=*/ false, ESonda::Nessuna);
+	bTutte = Prova(true, ESonda::Dock) && bTutte;
+	bTutte = Prova(true, ESonda::Tasto) && bTutte;
+	bTutte = Prova(true, ESonda::Click) && bTutte;
+	return bTutte;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
