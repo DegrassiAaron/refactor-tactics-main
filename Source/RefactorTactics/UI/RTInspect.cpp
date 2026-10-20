@@ -78,3 +78,14 @@ FRTInspectView URTInspectLibrary::Compose(const FRTInspectSubject& Subject)
 	}
 	return View;
 }
+
+bool URTInspectLibrary::IsInspectable(const FRTKnowledgeView& View, int32 StableUnitId)
+{
+	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, StableUnitId);
+	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live;
+}
+
+FRTInspectView URTInspectLibrary::ResolveInspect(const FRTKnowledgeView& View, int32 StableUnitId, const FRTInspectSubject& Subject)
+{
+	return IsInspectable(View, StableUnitId) ? Compose(Subject) : FRTInspectView();
+}

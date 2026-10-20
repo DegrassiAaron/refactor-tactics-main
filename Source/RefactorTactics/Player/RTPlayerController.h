@@ -12,6 +12,7 @@ class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
 class URTReactionWindowViewModel;
+struct FRTKnowledgeView;
 class ARTUnit;
 struct FInputActionValue;
 struct FRTHexSnapshot;
@@ -1636,6 +1637,17 @@ protected:
 
 	/** Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). */
 	void PinInspection(ARTUnit* Unit);
+
+public:
+	/**
+	 * La scheda segue la conoscenza, non l'attore (#3748, R13): se l'unita' ispezionata non ha piu' una voce `Live` nella
+	 * vista, o e' caduta, soggetto e pin si azzerano. Senza questo il pannello di sinistra e l'arco del nemico restavano
+	 * sull'ultimo nemico visto, con vita e cella vere. Lo chiama l'HUD nel giro del velo, che ha gia' la vista.
+	 * @return vero se ha rilasciato.
+	 */
+	bool ReleaseInspectionUnlessLive(const FRTKnowledgeView& View);
+
+private:
 
 	bool bPhaseFocusPinned = false;
 

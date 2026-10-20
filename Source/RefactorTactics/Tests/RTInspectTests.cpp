@@ -225,4 +225,92 @@ bool FRTInspectHashTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectGateTest,
+	"RefactorTactics.UI.InspectUnobservedEnemyReadsAsAnEmptyCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectGateTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	FRTCellId C; C.X = 0; C.Y = 0;
+	ARTUnit* Enemy = InspectSpawn(World, 1, InspectHero(0), C);
+	if (!TestTrue(TEXT("l'unita' esiste"), Enemy != nullptr))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FRTInspectSubject Subject = ARTHUD::BuildInspectSubject(Enemy, 0, true);
+	const int32 Id = Enemy->StableUnitId;
+
+	// La finestra di nascita: `IsKnownToObserver()` e' ancora vero, e la vista non ha nessuna voce.
+	TestTrue(TEXT("premessa: il flag del velo nasce vero"), Enemy->IsKnownToObserver());
+
+	FRTKnowledgeView Vuota;
+	FRTKnowledgeView Ricordata;
+	{
+		FRTKnowledgeEntry E; E.StableUnitId = Id; E.Visibility = ERTKnowledgeVisibility::Remembered;
+		Ricordata.Entries.Add(E);
+	}
+	FRTKnowledgeView Viva;
+	{
+		FRTKnowledgeEntry E; E.StableUnitId = Id; E.Visibility = ERTKnowledgeVisibility::Live;
+		Viva.Entries.Add(E);
+	}
+
+	const FRTInspectView SenzaNemico = FRTInspectView();
+	TestEqual(TEXT("nessuna voce (anche appena nata): come una cella vuota"),
+		InspectText(URTInspectLibrary::ResolveInspect(Vuota, Id, Subject)), InspectText(SenzaNemico));
+	TestEqual(TEXT("solo ricordata: come una cella vuota"),
+		InspectText(URTInspectLibrary::ResolveInspect(Ricordata, Id, Subject)), InspectText(SenzaNemico));
+	TestEqual(TEXT("e la cella vuota non ha righe"), SenzaNemico.Lines.Num(), 0);
+
+	// Controllo positivo: la stessa unita', `Live`, ha la scheda.
+	TestTrue(TEXT("con una voce Live ha la scheda"), URTInspectLibrary::ResolveInspect(Viva, Id, Subject).Lines.Num() > 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectReleaseTest,
+	"RefactorTactics.PlayerInput.InspectionIsReleasedWhenTheSubjectIsNotLive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectReleaseTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	FRTCellId C; C.X = 0; C.Y = 0;
+	ARTUnit* Enemy = InspectSpawn(World, 1, InspectHero(0), C);
+	if (!TestTrue(TEXT("controller e unita' esistono"), PC && Enemy))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	FRTKnowledgeView Viva;
+	{
+		FRTKnowledgeEntry E; E.StableUnitId = Enemy->StableUnitId; E.Visibility = ERTKnowledgeVisibility::Live;
+		Viva.Entries.Add(E);
+	}
+
+	PC->DispatchUnitClickForTest(Enemy, nullptr);
+	TestTrue(TEXT("premessa: l'ispezione e' fissata"), PC->GetInspectedUnit() == Enemy && PC->IsInspectorPinned());
+
+	TestFalse(TEXT("con la voce Live non rilascia"), PC->ReleaseInspectionUnlessLive(Viva));
+	TestTrue(TEXT("e il soggetto resta"), PC->GetInspectedUnit() == Enemy && PC->IsInspectorPinned());
+
+	TestTrue(TEXT("senza la voce Live rilascia"), PC->ReleaseInspectionUnlessLive(FRTKnowledgeView()));
+	TestTrue(TEXT("soggetto azzerato"), PC->GetInspectedUnit() == nullptr);
+	TestFalse(TEXT("pin spento"), PC->IsInspectorPinned());
+
+	// Un nemico caduto (KO, attore ancora in vita) rilascia anche con la voce Live.
+	PC->DispatchUnitClickForTest(Enemy, nullptr);
+	Enemy->Health = 0;
+	TestTrue(TEXT("un KO rilascia"), PC->ReleaseInspectionUnlessLive(Viva));
+	TestTrue(TEXT("soggetto azzerato dopo il KO"), PC->GetInspectedUnit() == nullptr);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -938,6 +938,13 @@ void ARTHUD::UpdateObserverVeil()
 	// fotogramma, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
 	const FRTKnowledgeView KnowledgeView = UvViewForObserver(TurnManager, Units, PlayerTeamId);
 
+	// #3748: la scheda segue la conoscenza. Se l'unita' ispezionata non e' piu' `Live` (uscita di vista, caduta), il
+	// controller rilascia soggetto e pin: il pannello di sinistra e l'arco del nemico non restano sull'ultimo nemico visto.
+	if (ARTPlayerController* InspectPC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+	{
+		InspectPC->ReleaseInspectionUnlessLive(KnowledgeView);
+	}
+
 	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
 	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
 	// in cui prima spariva (`PIE-PREVIEW-PERSIST`).

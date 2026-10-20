@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Ability/RTEquipmentData.h"
 #include "Map/RTCellId.h"
+#include "Perception/RTKnowledgeView.h"
 #include "UI/RTHudViewModel.h"
 #include "RTInspect.generated.h"
 
@@ -88,4 +89,14 @@ class REFACTORTACTICS_API URTInspectLibrary : public UObject
 public:
 	/** Nome, PV e scudo, verso (se acceso), stati col nome e l'effetto del glossario, kit, equipaggiamento. */
 	static FRTInspectView Compose(const FRTInspectSubject& Subject);
+
+	/**
+	 * IL CANCELLO DI CONOSCENZA (#3748, P2): una scheda esiste solo se la vista ha una voce `Live` per l'unita'. Un
+	 * nemico non osservato, appena nato, ricordato o ignoto NON ha scheda: stessa uscita di una cella vuota. Non guarda
+	 * `ARTUnit::IsKnownToObserver()`, che nasce vero.
+	 */
+	static bool IsInspectable(const FRTKnowledgeView& View, int32 StableUnitId);
+
+	/** Il cancello e il compositore insieme: vuota se l'unita' non e' `Live`. Il soggetto arriva comunque gia' costruito. */
+	static FRTInspectView ResolveInspect(const FRTKnowledgeView& View, int32 StableUnitId, const FRTInspectSubject& Subject);
 };

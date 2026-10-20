@@ -12,6 +12,7 @@
 #include "Perception/RTKnowledgeVeilPresenter.h"
 // #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
 #include "UI/RTReactionWindowViewModel.h"
+#include "UI/RTInspect.h" // il cancello della scheda (#3748)
 #include "UI/RTHudViewModel.h" // MakeBlastPreviewPlan: la traduzione unita' -> anteprima e' una sola (#3620)
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
@@ -4593,6 +4594,22 @@ void ARTPlayerController::PinInspection(ARTUnit* Unit)
 {
 	InspectedUnit = Unit;
 	bInspectorPinned = Unit != nullptr;
+}
+
+bool ARTPlayerController::ReleaseInspectionUnlessLive(const FRTKnowledgeView& View)
+{
+	const ARTUnit* Subject = InspectedUnit.Get();
+	if (Subject == nullptr && !bInspectorPinned)
+	{
+		return false;
+	}
+	if (Subject != nullptr && Subject->IsAlive() && URTInspectLibrary::IsInspectable(View, Subject->StableUnitId))
+	{
+		return false;
+	}
+	InspectedUnit = nullptr;
+	bInspectorPinned = false;
+	return true;
 }
 
 ERTPointerBackStep ARTPlayerController::ApplyBack()
