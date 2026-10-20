@@ -580,6 +580,25 @@ struct FRTHexSnapshot
 	/** Mappa autorevole (non posseduta): valida solo per la durata della fase. */
 	const URTHexMapAsset* Map = nullptr;
 
+	/**
+	 * La mappa su cui il **giocatore** pianifica un Move ([D-372], `#2794`): la stessa forma, con le celle che la sua
+	 * squadra non ha mai osservato svuotate di cio' che bloccherebbe o costerebbe. `nullptr` = nessuna vista
+	 * ottimistica, e allora si pianifica su `Map`.
+	 *
+	 * 🔴 **Non sostituisce `Map`, e non e' un ripiego di comodo.** `IsSnapshotStale` confronta hash e revisione di
+	 * `Map`: una copia con un hash diverso renderebbe obsoleto ogni snapshot appena nato. `Map` resta l'autorita',
+	 * `PlanningMap` una **lettura** dell'anteprima.
+	 *
+	 * ⛔ **Lo valorizza solo `ARTTurnManager::AttachPlanningMap`, chiamato dalla pianificazione del giocatore.** La
+	 * Resolution, i bot e ogni snapshot nato da `MakeSnapshot` lo lasciano vuoto: un bot non porta un percorso e
+	 * Resolution lo ricalcola, quindi una geometria ottimistica per loro sarebbe l'auto-reroute che [D-045] vieta.
+	 * Non e' posseduto: lo tiene vivo il `TurnManager`, e vale finche' il chiamante non ricostruisce lo snapshot.
+	 */
+	const URTHexMapAsset* PlanningMap = nullptr;
+
+	/** La mappa che le primitive di PIANIFICAZIONE del Move leggono: quella ottimistica se c'e', altrimenti `Map`. */
+	const URTHexMapAsset* MapForPlanning() const { return PlanningMap ? PlanningMap : Map; }
+
 	/** Hash del contenuto della mappa al momento della cattura. */
 	uint32 MapHash = 0;
 

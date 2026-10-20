@@ -32,6 +32,7 @@ namespace
 			case ERTMoveOutcome::BlockedByPriority:
 			case ERTMoveOutcome::BlockedByImpact:
 			case ERTMoveOutcome::BlockedByTopology:
+			case ERTMoveOutcome::BlockedByUnseenTerrain:
 			case ERTMoveOutcome::StoppedByPrediction:
 			case ERTMoveOutcome::StoppedByOverwatch:
 			// `BlockedByCycle` e' di questa famiglia, e ne era rimasto fuori solo perche' e' nato dopo (`#3081`).

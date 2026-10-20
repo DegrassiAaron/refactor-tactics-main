@@ -113,7 +113,7 @@ d'origine, non come stato.
 | Delta | Stato |
 |---|---|
 | 1. Nessuno stato esplicito | ✅ **chiuso** — `ARTPlayerController::GetPointerContext()`, derivato e non memorizzato |
-| 2. Nessuna consapevolezza di fase nell'input | 🟡 **parziale dal 2026-09-06** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518) + [#2555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2555)) — il **produttore** esce da `ARTTurnManager::IsResolving()`, e `Inspect` e' consentito perche' `OnResolvePlaybackFinished` ricalcola l'anteprima a risoluzione finita. **Coperti**: `SelectUnit`, `HandleClickOnUnit`, `HandleClickOnCell`, e il cancello `OnSelect`. ⛔ **SCOPERTI, e vanno nominati invece che nascosti sotto una spunta**: `HandleTargetCell`, `HandleTargetEdge`, `SelectAbilityForCurrent`, `BeginFacingDeclaration` — tutti scrivono il piano e nessuno consulta il contesto. 🔴 **Questa riga e' stata dichiarata chiusa TRE volte, e tre volte non lo era**: la prima su un ramo irraggiungibile (`Phase` non lascia mai `Planning`), la seconda con due ingressi su tre ancora ciechi, la terza con tre su almeno sette. ⚠️ **Ogni volta il difetto e' stato trovato da una code review, mai da chi scriveva** — ed e' la ragione per cui questa volta la riga porta l'elenco degli scoperti: cosi' il prossimo `✅` costa una misura invece di una convinzione |
+| 2. Nessuna consapevolezza di fase nell'input | 🟡 **parziale dal 2026-09-06** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518) + [#2555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2555)) — il **produttore** esce da `ARTTurnManager::IsResolving()` **e, dal 2026-10-20 ([#3837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3837)), da `IsResolutionSuspended()`**: una risoluzione sospesa su una finestra senza playback e' risoluzione in corso, e `Inspect` e' consentito perche' `OnResolvePlaybackFinished` ricalcola l'anteprima a risoluzione finita. **Coperti**: `SelectUnit`, `HandleClickOnUnit`, `HandleClickOnCell`, e il cancello `OnSelect`. ⛔ **SCOPERTI, e vanno nominati invece che nascosti sotto una spunta**: `HandleTargetCell`, `HandleTargetEdge`, `SelectAbilityForCurrent`, `BeginFacingDeclaration` — tutti scrivono il piano e nessuno consulta il contesto. 🔴 **Questa riga e' stata dichiarata chiusa TRE volte, e tre volte non lo era**: la prima su un ramo irraggiungibile (`Phase` non lascia mai `Planning`), la seconda con due ingressi su tre ancora ciechi, la terza con tre su almeno sette. ⚠️ **Ogni volta il difetto e' stato trovato da una code review, mai da chi scriveva** — ed e' la ragione per cui questa volta la riga porta l'elenco degli scoperti: cosi' il prossimo `✅` costa una misura invece di una convinzione |
 | 3. Nessuna precedenza HUD → mondo | ⏳ **aperto** — dipende dai widget UMG di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613): senza hitbox non c'è nulla che consumi il puntatore |
 | 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
 | 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
@@ -387,7 +387,7 @@ mondo, qualunque cosa ci sia sotto.
 
 | Contesto | Hover | LMB | RMB |
 |---|---|---|---|
-| `ResolutionPlayback` | `Inspect` e camera consentiti | `Inspect` — ogni input che cambierebbe il piano è `Blocked(reason)` | `NoOp` |
+| `ResolutionPlayback` | `Inspect` e camera consentiti | `Inspect` ✅ (attuato da [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748): un'unità non comandabile e **osservata**; un nemico che il velo nasconde dà `NoOp`, come il terreno vuoto; la propria unità resta `Blocked` per il puntatore) — ogni input che cambierebbe il piano è `Blocked(reason)` | `NoOp` ⏱️ *per la scheda fissata il tasto destro chiude, passo `Inspector` del Back* |
 | `ReactionWindow` | `Inspect` delle **sole** risposte sanificate dell'opportunity | `Confirm` di una risposta legale; nient'altro è raggiungibile | `Cancel` → equivale a non scegliere, quindi `HOLD` al timeout |
 | `Modal` | `Inspect` | `Confirm` del modale | `Cancel` del modale |
 
@@ -395,6 +395,17 @@ mondo, qualunque cosa ci sia sotto.
 
 > Durante `ReactionWindow` il targeting normale **non si riapre**: le opzioni sono quelle che
 > l'opportunity dichiara, e sono già sanificate ([ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md)).
+
+### La scheda fissata (`#3748`)
+
+`LMB` su un'unità non comandata e osservata, in `IdleSelection`, `Planning`, `Pathing`, `Facing` e `ResolutionPlayback`, la **fissa**:
+`ARTPlayerController::PinInspection` scrive soggetto e pin insieme. `RMB` è il passo `Inspector` del Back e azzera
+**entrambi** (prima azzerava il solo flag). La scheda segue la conoscenza, non l'attore: se l'unità non ha più una voce
+`Live` nella vista, o è caduta, l'HUD la rilascia (`ReleaseInspectionUnlessLive`).
+
+⚠️ `Pathing`: `ResolveOutcome` risponde `Inspect` per un'unità non comandabile, mentre §4.1 mette la cella prima di ogni
+unità non comandabile. È `IMPLEMENTATION DRIFT`, segnalato a #705 e non risolto da #3748. Nel conto alla rovescia di
+Unready il tasto destro è Unready e non arriva alla scheda.
 
 ### 5.4 `OpenContext`: la forma minima
 

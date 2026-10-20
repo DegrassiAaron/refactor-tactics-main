@@ -451,6 +451,23 @@ struct FRTHexBlastPlan
 	TArray<int32> OtherLayerIntents;
 
 	/**
+	 * Indici degli intenti d'attacco A CELLA scartati perche' il **terreno** (il Fumo) ha cappato la portata sotto la
+	 * distanza della mira, pur restando questa entro la portata dichiarata ([D-465] punto (3), `#2794`).
+	 *
+	 * 🔴 **Prima il caso era SILENZIOSO**, ed era accettabile finche' il click leggeva la stessa mappa del resolver: il
+	 * planning rifiutava gia' quel tiro. Da `#2794` il click del giocatore legge la mappa ottimistica, in cui un Fumo
+	 * mai osservato non cappa niente: il tiro viene pianificato e il resolver lo scarta. Una sparizione senza una riga
+	 * nel TurnLog e' l'inganno che [D-380] vieta, quindi il costo dell'ottimismo si paga qui — una voce
+	 * `Fallback`/`Cancelled` con `OutOfRange`.
+	 *
+	 * ⛔ **Solo il tiro a CELLA.** Un bersaglio-unita' fuori portata e' gia' una voce `Fallback` della validazione al
+	 * lock-in: aggiungerlo qui lo scriverebbe due volte. ⚠️ Non un riuso di `BlockedIntents`: nessuna linea di tiro e'
+	 * bloccata, e dirlo manderebbe a cercare un muro che non c'e'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<int32> TerrainCappedIntents;
+
+	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non
 	 * applicato subito per la stessa ragione dei colpi: due attaccanti sullo stesso muro devono dare lo stesso
 	 * esito in qualunque ordine. Lo applica `URTHexCoverLibrary::ApplyStructureDamage` a fase conclusa.

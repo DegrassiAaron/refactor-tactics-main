@@ -4817,4 +4817,37 @@ bool FRTPlayerChargeWarningPrivacyTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * IL CLICK FISSA LA SCHEDA E IL TASTO DESTRO LA CHIUDE (`#3748`, Q5/Q6). Prima nessuno accendeva `bInspectorPinned`, e
+ * `ApplyBack` lo spegneva senza azzerare il soggetto: la scheda non si sarebbe chiusa mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectionPinsAndBackClosesTest,
+	"RefactorTactics.PlayerInput.InspectingPinsAndRightClickCloses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectionPinsAndBackClosesTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTUnit* Enemy = World->SpawnActor<ARTUnit>();
+	if (!PC || !Enemy)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("controller e unita' esistono"), false);
+	}
+	Enemy->TeamId = 1;
+
+	TestFalse(TEXT("all'inizio non e' fissata"), PC->IsInspectorPinned());
+	PC->DispatchUnitClickForTest(Enemy, nullptr);
+	TestTrue(TEXT("il click su un nemico osservato lo ispeziona"), PC->GetInspectedUnit() == Enemy);
+	TestTrue(TEXT("e fissa la scheda"), PC->IsInspectorPinned());
+
+	TestEqual(TEXT("il Back chiude la scheda"), PC->ApplyBack(), ERTPointerBackStep::Inspector);
+	TestFalse(TEXT("il pin e' spento"), PC->IsInspectorPinned());
+	TestTrue(TEXT("e il soggetto e' azzerato"), PC->GetInspectedUnit() == nullptr);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -2032,12 +2032,14 @@ void ARTUnit::EquipLoadout(const TArray<FName>& PieceIds)
 			// applicherebbe a ogni unita' che lo condivide — accumulando, perche' `RangeCells` somma.
 			Abilities[0] = DuplicateObject<URTActionData>(Abilities[0], this);
 			URTCatalogLibrary::EquipWeaponVariant(Abilities[0], Piece);
+			EquippedItemIds.Add(PieceId); // solo i pezzi realmente applicati (#3748)
 			continue;
 		}
 
 		if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, this))
 		{
 			Abilities.Add(Granted);
+			EquippedItemIds.Add(PieceId); // solo i pezzi realmente applicati (#3748)
 		}
 	}
 

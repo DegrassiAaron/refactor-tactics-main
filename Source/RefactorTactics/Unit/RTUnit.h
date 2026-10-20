@@ -282,6 +282,18 @@ public:
 	TArray<TObjectPtr<URTActionData>> Abilities;
 
 	/**
+	 * Gli id dei pezzi di equipaggiamento realmente montati da `EquipLoadout` (#3748). E' PRESENTAZIONE: la scheda
+	 * dell'ispezione li legge perche' l'unita' non conservava cosa monta, e `DefaultLoadoutFor(HeroId)` dice cosa un
+	 * eroe monta di default, non cosa monta QUESTA unita' se il setup della partita lo cambia.
+	 *
+	 * ⛔ **La simulazione non lo legge**, non entra in snapshot, hash, TurnLog ne' replay (`BuildUnitDigests` elenca i
+	 * campi uno per uno): lo prova `Inspect.EquippedItemIdsDoNotEnterTheMatchHash`. Come `Abilities`, ACCUMULA: una
+	 * seconda chiamata di `EquipLoadout` accoda sia le azioni sia gli id.
+	 */
+	UPROPERTY()
+	TArray<FName> EquippedItemIds;
+
+	/**
 	 * Abilita' ARMATA dal giocatore per la pianificazione. `INDEX_NONE` = **nessuna**, ed e' lo stato in cui
 	 * un'unita' nasce e a cui torna dopo aver pianificato.
 	 *

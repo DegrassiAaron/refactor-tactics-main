@@ -12,6 +12,7 @@ class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
 class URTReactionWindowViewModel;
+struct FRTKnowledgeView;
 class ARTUnit;
 struct FInputActionValue;
 struct FRTHexSnapshot;
@@ -421,12 +422,18 @@ protected:
 	 *
 	 * 🔴 **E' un campo separato da `SelectedActor`, e la ragione e' una misura.** Da `SelectedActor` passa
 	 * `URTScreenHudWidgetBase::GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e
-	 * `BuildAbilityCooldowns`, cioe' l'Action Dock. Scriverci un'avversaria mostrerebbe al giocatore il suo
-	 * **piano** e il suo **kit con i cooldown**: due canali della stessa fuga, e il secondo non era nemmeno
-	 * previsto dal contratto finche' non e' stato misurato in `RTScreenHudWidgets.cpp`.
+	 * `BuildAbilityCooldowns`, cioe' l'Action Dock, che mescola catalogo e partita (ricariche vere, piano).
+	 * Scriverci un'avversaria mostrerebbe al giocatore il suo **piano** e le sue **ricariche vere**.
+	 *
+	 * ➕ `#3748`, decisione d'autore del 2026-10-20: **il kit dell'eroe e l'equipaggiamento di un nemico osservato
+	 * sono PUBBLICI**, e la scheda li mostra. Cio' che resta privato e' il piano, gli slot del turno, l'azione armata e
+	 * le ricariche vere. ⌫ *Fino ad allora questo commento chiamava «fuga» anche il kit*: non lo e' piu', ma il canale
+	 * resta lo stesso campo separato, perche' la scheda legge il catalogo (`ARTHUD::BuildInspectSubject`) e non il dock.
 	 *
 	 * ⚠️ **Convive con la selezione, non la sostituisce** (decisione del 2026-09-11): ispezionare un nemico
-	 * non fa perdere l'unita' comandata ne' l'azione armata. E persiste finche' non se ne ispeziona un'altra.
+	 * non fa perdere l'unita' comandata ne' l'azione armata. Persiste finche' non se ne ispeziona un'altra, o finche'
+	 * il tasto destro non la chiude (passo `Inspector` del Back, `#3748`), o finche' l'unita' non ha piu' una voce `Live`
+	 * nella vista di conoscenza (`ReleaseInspectionUnlessLive`).
 	 *
 	 * ⛔ **Chi lo legge deve sopprimere cio' che non gli spetta.** Questo campo dice *quale* unita' si sta
 	 * guardando, non *quanto* se ne puo' mostrare: il filtro e' di chi disegna, e per il pannello e' `#613`,
@@ -1065,9 +1072,10 @@ public:
 	 *
 	 * ⚠️ **Torna l'unita', non una vista sanificata**, ed e' deliberato: sanificare qui significherebbe
 	 * decidere in due posti quanto si puo' mostrare di un'avversaria. Il filtro appartiene a chi disegna —
-	 * `#613` per il pannello, con la regola di `#2757`: carta si', slot mai, **e nemmeno vuoti**.
-	 * ⛔ Chi la consuma non puo' leggerne il piano ne' il kit solo perche' il puntatore ne restituisce il
-	 * puntatore: quella e' la fuga che il campo separato esiste per non aprire.
+	 * `#613` per il pannello, con la regola di `#2757` per gli slot: **slot mai, e nemmeno vuoti**.
+	 * ⛔ Chi la consuma non puo' leggerne il piano ne' le ricariche vere solo perche' il puntatore ne restituisce il
+	 * puntatore: quella e' la fuga che il campo separato esiste per non aprire. ➕ `#3748`: il kit dal catalogo e
+	 * l'equipaggiamento sono pubblici, e li legge `ARTHUD::BuildInspectSubject`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	class ARTUnit* GetInspectedUnit() const;
@@ -1606,8 +1614,9 @@ public:
 	bool IsDeclaringFacing() const { return bDeclaringFacing; }
 
 	/**
-	 * Inspector pinnato: livello 3 del Back. Il produttore e' lo Screen HUD (#613); qui c'e' il flag perche'
-	 * l'ORDINE del Back e' di questo contratto e senza il livello l'elenco sarebbe incompleto.
+	 * Inspector pinnato: livello 3 del Back. Il produttore e' `PinInspection` (#3748), che lo accende insieme al
+	 * soggetto; qui c'e' il setter perche' l'ORDINE del Back e' di questo contratto e senza il livello l'elenco
+	 * sarebbe incompleto.
 	 */
 	void SetInspectorPinned(bool bPinned) { bInspectorPinned = bPinned; }
 	bool IsInspectorPinned() const { return bInspectorPinned; }
@@ -1633,6 +1642,20 @@ protected:
 	TOptional<ERTHexDirection> FacingHoverSector;
 
 	bool bInspectorPinned = false;
+
+	/** Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). */
+	void PinInspection(ARTUnit* Unit);
+
+public:
+	/**
+	 * La scheda segue la conoscenza, non l'attore (#3748, R13): se l'unita' ispezionata non ha piu' una voce `Live` nella
+	 * vista, o e' caduta, soggetto e pin si azzerano. Senza questo il pannello di sinistra e l'arco del nemico restavano
+	 * sull'ultimo nemico visto, con vita e cella vere. Lo chiama l'HUD nel giro del velo, che ha gia' la vista.
+	 * @return vero se ha rilasciato.
+	 */
+	bool ReleaseInspectionUnlessLive(const FRTKnowledgeView& View);
+
+private:
 
 	bool bPhaseFocusPinned = false;
 

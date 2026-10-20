@@ -691,28 +691,32 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 }
 
 /**
- * **Il canale del Fumo mai esplorato, MISURATO — `#3270`, [D-465].**
+ * **Il canale del Fumo mai esplorato, CHIUSO PER IL GIOCATORE — `#3270`, [D-465], rovesciato da `#2794`.**
  *
- * La decisione d'autore e' la via 3: *«si accetta il canale dichiarandolo»*. Click e portata viola leggono il
- * cap del Fumo dalla mappa autorevole anche nelle celle che la squadra non ha mai osservato, e nessuno dei due
- * lettori riceve la conoscenza: e' la loro firma, ed e' il canale. Questo test non lo chiude, lo **misura**.
- * Due mondi che differiscono per UNA cella di `Smoke` sulla traiettoria, mai esplorata, e i due lettori:
+ * La decisione d'autore del 2026-10-06 era la via 3: *«si accetta il canale dichiarandolo»*, a termine, finche'
+ * `#2794` non portava a click e portata la vista ottimistica di `FindPath`. Questo test lo MISURAVA aperto
+ * (verde perche' i due mondi differivano); da `#2794` lo misura **chiuso**: due mondi che differiscono per UNA
+ * cella di `Smoke` sulla traiettoria, mai esplorata, escono IDENTICI dai due lettori del giocatore —
  *
  * - il rifiuto per distanza — `DescribeCellTargetRefusal`, `Refusal` e `EffectiveRange`, il numero che
  *   `ARTHUD::RefusalText` scrive a schermo;
  * - la portata viola — `TargetableRangeCells`.
  *
- * ⏳ **Verde finche' il canale c'e', e si rovescia nel commit di #2794** (D-465 (3)): quando click e portata
- * ricevono la vista ottimistica di `FindPath`, i due mondi devono uscire identici, e le attese qui sotto
- * passano da «differiscono» a «uguali». Il modello e' `BlindActions.NeverObservedWallBendsTheLitPath`.
+ * **Quella del giocatore e' la mappa che gli arriva da `ARTTurnManager::PlanningMapFor`**, la stessa copia di
+ * `FindPath`, e non una mappa costruita qui: il test passa dal punto in cui click e portata la prendono. Dove
+ * il Fumo e' invece reale — la mappa autorevole del resolver e della validazione — il cap resta, ed e' il
+ * controllo che dice che il Fumo c'e'.
  *
  * 🔑 **L'origine si chiede a `ARTUnit::AimOriginFor(Phase)`**, la funzione che usano click, slot e portata
  * (D-464 (6)), e non a `Unit->Cell`. Con uno scatto pianificato il Fumo sta sulla traiettoria che parte
- * dall'ARRIVO dello scatto, e il canale arriva fin li'. Dalla cella corrente la stessa cella di Fumo non
- * sta sulla linea: lo dice la premessa, ed e' cio' che rende il test capace di cadere sull'origine.
+ * dall'ARRIVO dello scatto, e dalla cella corrente la stessa cella di Fumo non sta sulla linea: lo dice la
+ * premessa, ed e' cio' che rende il test capace di cadere sull'origine.
  *
- * ⛔ **Mutazione**: ignorare il cap del Fumo in `EffectiveTargetingRange` (il ramo `MaxTargetingRangeThrough`)
- * deve rendere ROSSO questo test, per entrambi i lettori.
+ * ⚠️ **Il Fumo gia' ESPLORATO resta letto** (`Q4`, [D-534]): se la squadra l'ha visto, il cap c'e' anche per il
+ * giocatore. E' il controllo positivo senza il quale «uguali» potrebbe voler dire «il Fumo non cappa piu' niente».
+ *
+ * ⛔ **Mutazione**: far restituire `PlanningMapFor` la mappa autorevole deve rendere ROSSO questo test (i due
+ * mondi tornano a differire); ignorare il cap del Fumo in `EffectiveTargetingRange` rende rossi i controlli.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredSmokeChannelTest,
 	"RefactorTactics.BlindActions.UnexploredSmokeIsReadByClickAndRangeFromTheDash",
@@ -732,6 +736,13 @@ bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("premessa: l'origine di mira di un Attack e' l'arrivo dello scatto"), Scatto,
 			GAimOriginScatto)
 		|| !TestEqual(TEXT("premessa: e quella corrente no"), Qui, GAimOriginQui))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	ARTTurnManager* TM = Cast<ARTTurnManager>(
+		UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+	if (!TestNotNull(TEXT("premessa: il turn manager del banco"), TM))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -759,37 +770,253 @@ bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
 
 	const int32 Portata = Getto->RangeCells;
 	const ERTLineOfSightPolicy Policy = Getto->Def.LineOfSightPolicy;
-	const FRTCellTargetRefusal DalloScattoChiaro =
-		URTCombatLibrary::DescribeCellTargetRefusal(Chiaro, Scatto, Bersaglio, Portata, Policy);
-	const FRTCellTargetRefusal DalloScattoFumo =
-		URTCombatLibrary::DescribeCellTargetRefusal(ConFumo, Scatto, Bersaglio, Portata, Policy);
-	const FRTCellTargetRefusal DaQuiChiaro =
-		URTCombatLibrary::DescribeCellTargetRefusal(Chiaro, Qui, Bersaglio, Portata, Policy);
-	const FRTCellTargetRefusal DaQuiFumo =
-		URTCombatLibrary::DescribeCellTargetRefusal(ConFumo, Qui, Bersaglio, Portata, Policy);
+	struct FMisura
+	{
+		FRTCellTargetRefusal Dallo;
+		FRTCellTargetRefusal DaQui;
+		TArray<FRTCellId> Viola;
+	};
+	const auto Misura = [&](const URTHexMapAsset* Mappa)
+	{
+		FMisura M;
+		M.Dallo = URTCombatLibrary::DescribeCellTargetRefusal(Mappa, Scatto, Bersaglio, Portata, Policy);
+		M.DaQui = URTCombatLibrary::DescribeCellTargetRefusal(Mappa, Qui, Bersaglio, Portata, Policy);
+		M.Viola = URTCombatLibrary::TargetableRangeCells(Mappa, Scatto, Portata, Policy);
+		return M;
+	};
 
-	// PREMESSE — senza il Fumo il colpo e' ingaggiabile con la portata dichiarata: la differenza non viene
-	// da altro che dalla cella.
-	TestEqual(TEXT("premessa: senza Fumo dallo scatto non c'e' rifiuto"), DalloScattoChiaro.Refusal,
+	// LA CONOSCENZA: tutto esplorato tranne la cella di Fumo. Dichiarata, non derivata dalla vista di un eroe.
+	const auto Conoscenza = [&](bool bEsploraIlFumo)
+	{
+		FRTTeamKnowledge K;
+		K.TeamId = B.Mine->TeamId;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& Cell : ConFumo->Cells)
+		{
+			if (!bEsploraIlFumo && Cell.Id == CellaDiFumo) { continue; }
+			K.ExploredCells.Add(Cell.Id);
+		}
+		K.VisibleCells.Add(Qui);
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		return K;
+	};
+
+	// CONTROLLO — la mappa AUTOREVOLE (resolver e validazione): il Fumo c'e' e cappa. Le premesse del confronto.
+	const FMisura Autorevole = Misura(ConFumo);
+	const FMisura AutorevoleChiara = Misura(Chiaro);
+	TestEqual(TEXT("premessa: senza Fumo dallo scatto non c'e' rifiuto"), AutorevoleChiara.Dallo.Refusal,
 		ERTTargetRefusal::None);
-	TestEqual(TEXT("premessa: e la portata applicata e' la dichiarata"), DalloScattoChiaro.EffectiveRange, Portata);
+	TestEqual(TEXT("premessa: e la portata applicata e' la dichiarata"), AutorevoleChiara.Dallo.EffectiveRange, Portata);
+	TestEqual(TEXT("controllo: sulla mappa autorevole il Fumo ignoto rifiuta per distanza"),
+		Autorevole.Dallo.Refusal, ERTTargetRefusal::Range);
+	TestEqual(TEXT("controllo: col numero del cap"), Autorevole.Dallo.EffectiveRange, 2);
 
-	// IL CANALE, lettore 1 — il rifiuto e il numero scritto a schermo.
-	TestEqual(TEXT("canale: con il Fumo ignoto il click dallo scatto e' rifiutato per distanza"),
-		DalloScattoFumo.Refusal, ERTTargetRefusal::Range);
-	TestEqual(TEXT("canale: e il numero mostrato e' il cap del Fumo"), DalloScattoFumo.EffectiveRange, 2);
-	TestEqual(TEXT("controllo: dalla cella corrente il Fumo non e' sulla linea e il numero non si muove"),
-		DaQuiFumo.EffectiveRange, DaQuiChiaro.EffectiveRange);
-	TestEqual(TEXT("controllo: ne' il rifiuto"), DaQuiFumo.Refusal, DaQuiChiaro.Refusal);
+	// IL CANALE CHIUSO — la vista del giocatore, dal punto da cui click e portata la prendono.
+	TM->SetTeamKnowledgeForTest(Conoscenza(/*bEsploraIlFumo=*/ false));
+	const URTHexMapAsset* VistaChiara = TM->PlanningMapFor(B.Mine->TeamId, Chiaro);
+	if (!TestTrue(TEXT("premessa: il giocatore riceve una vista ottimistica, non la mappa autorevole"),
+			VistaChiara != nullptr && VistaChiara != Chiaro))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	// ⚠️ La cache tiene UNA copia: si misura prima di chiedere la seconda, che la sostituisce.
+	const FMisura GiocatoreChiaro = Misura(VistaChiara);
+	const URTHexMapAsset* VistaFumo = TM->PlanningMapFor(B.Mine->TeamId, ConFumo);
+	TestTrue(TEXT("premessa: anche il mondo con Fumo riceve una vista ottimistica"),
+		VistaFumo != nullptr && VistaFumo != ConFumo);
+	const FMisura GiocatoreFumo = Misura(VistaFumo);
 
-	// IL CANALE, lettore 2 — la portata viola.
-	const TArray<FRTCellId> PortataChiara = URTCombatLibrary::TargetableRangeCells(Chiaro, Scatto, Portata, Policy);
-	const TArray<FRTCellId> PortataFumo = URTCombatLibrary::TargetableRangeCells(ConFumo, Scatto, Portata, Policy);
-	TestTrue(TEXT("premessa: senza Fumo il bersaglio e' nella portata viola"), PortataChiara.Contains(Bersaglio));
-	TestFalse(TEXT("canale: con il Fumo ignoto esce dalla portata viola"), PortataFumo.Contains(Bersaglio));
-	TestTrue(TEXT("e le due portate non coincidono"), PortataChiara.Num() != PortataFumo.Num());
+	TestEqual(TEXT("chiuso: il click dallo scatto non rivela il Fumo ignoto — stesso rifiuto"),
+		GiocatoreFumo.Dallo.Refusal, GiocatoreChiaro.Dallo.Refusal);
+	TestEqual(TEXT("chiuso: e nessun rifiuto"), GiocatoreFumo.Dallo.Refusal, ERTTargetRefusal::None);
+	TestEqual(TEXT("chiuso: ne' il numero mostrato, che e' la portata dichiarata"),
+		GiocatoreFumo.Dallo.EffectiveRange, GiocatoreChiaro.Dallo.EffectiveRange);
+	TestEqual(TEXT("chiuso: e vale la portata dichiarata"), GiocatoreFumo.Dallo.EffectiveRange, Portata);
+	TestEqual(TEXT("controllo: dalla cella corrente il numero non si muove"),
+		GiocatoreFumo.DaQui.EffectiveRange, GiocatoreChiaro.DaQui.EffectiveRange);
+	TestTrue(TEXT("chiuso: il bersaglio resta nella portata viola"), GiocatoreFumo.Viola.Contains(Bersaglio));
+	TestEqual(TEXT("chiuso: e le due portate viola coincidono"), GiocatoreFumo.Viola, GiocatoreChiaro.Viola);
+
+	// CONTROLLO POSITIVO — il Fumo gia' ESPLORATO resta letto (`Q4`): senza questo, «uguali» potrebbe voler dire
+	// che l'ottimismo ha tolto il cap a tutti.
+	TM->SetTeamKnowledgeForTest(Conoscenza(/*bEsploraIlFumo=*/ true));
+	const FMisura GiocatoreEsplorato = Misura(TM->PlanningMapFor(B.Mine->TeamId, ConFumo));
+	TestEqual(TEXT("controllo: un Fumo gia' esplorato cappa anche per il giocatore"),
+		GiocatoreEsplorato.Dallo.Refusal, ERTTargetRefusal::Range);
+	TestEqual(TEXT("controllo: col numero del cap"), GiocatoreEsplorato.Dallo.EffectiveRange, 2);
+	TestFalse(TEXT("controllo: e il bersaglio esce dalla portata viola"), GiocatoreEsplorato.Viola.Contains(Bersaglio));
+
+	// Senza conoscenza non c'e' niente da giudicare ottimisticamente: si resta sulla mappa autorevole.
+	TM->SetTeamKnowledgeForTest(FRTTeamKnowledge());
+	TestTrue(TEXT("conoscenza vuota: la mappa autorevole, come prima"),
+		TM->PlanningMapFor(B.Mine->TeamId, ConFumo) == ConFumo);
 
 	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **Il canale del Fumo mai esplorato, dal CONTROLLER** — `#2794`, [D-465] punto (3).
+ *
+ * Il test di sopra misura `PlanningMapFor` e i due lettori puri; questo misura che il controller li alimenti davvero
+ * con quella mappa. Sono due difetti diversi: un `PlanningMapFor` corretto non serve a niente se la portata viola e il
+ * click continuano a leggere `GetHexContext`. Un nemico noto a distanza 3 dallo scatto, con una cella di Fumo sulla
+ * linea:
+ *
+ * - **Fumo ignoto** (la squadra non l'ha mai esplorato): il nemico sta nella portata viola e il click pianifica
+ *   l'attacco — il canale e' chiuso;
+ * - **Fumo esplorato**: il nemico esce dalla portata e il click non pianifica — il controllo positivo, senza il quale
+ *   «dentro la portata» potrebbe voler dire che nessuno legge piu' il Fumo;
+ * - **nessuna conoscenza** (sessione senza `ARTGameMode`): come il Fumo esplorato, perche' non c'e' niente da
+ *   giudicare ottimisticamente.
+ *
+ * Verifica di mutazione: togliere `PlayerAimMap` dal ricalcolo dell'anteprima (`RefreshPlanningPreview`) rende rossa
+ * la portata; dal click su unita' (`HandleClickOnUnit`) rende rosso il click.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredSmokeThroughTheControllerTest,
+	"RefactorTactics.BlindActions.UnexploredSmokeDoesNotRefuseTheSlotOrTheClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginUnexploredSmokeThroughTheControllerTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bBanco = false;
+		bool bInPortata = false;
+		bool bClickPianifica = false;
+	};
+	// Lo stesso bersaglio del test di sopra: a distanza 3 dallo scatto, con la PRIMA cella intermedia al Fumo.
+	const FRTCellId Nemico(4, -3, 0);
+	const FRTCellId CellaDiFumo = URTHexLibrary::HexLine(GAimOriginScatto, Nemico)[1];
+
+	// 0 = nessuna conoscenza; 1 = Fumo ignoto; 2 = Fumo esplorato; 3 = nessun Fumo (la premessa del confronto).
+	const auto Prova = [&](int32 Conoscenza) -> FEsito
+	{
+		FEsito Out;
+		FAimOriginBench B;
+		if (!SetUpAimOriginBench(*this, B, Nemico, FRTCellId(-2, 0, 0)))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return Out;
+		}
+		if (Conoscenza != 3)
+		{
+			const FRTHexCellData* Esistente = B.Map->FindCell(CellaDiFumo);
+			FRTHexCellData Fumo = Esistente ? *Esistente : FRTHexCellData(CellaDiFumo);
+			Fumo.Surface = ERTHexSurface::Smoke;
+			B.Map->AddOrUpdateCell(Fumo);
+			B.Map->SortCells();
+		}
+
+		ARTTurnManager* TM = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+		if (Conoscenza > 0 && Conoscenza < 3 && TM)
+		{
+			FRTTeamKnowledge K;
+			K.TeamId = B.Mine->TeamId;
+			K.TurnNumber = 1;
+			for (const FRTHexCellData& Cell : B.Map->Cells)
+			{
+				if (Conoscenza == 1 && Cell.Id == CellaDiFumo) { continue; }
+				K.ExploredCells.Add(Cell.Id);
+			}
+			K.VisibleCells.Add(GAimOriginQui);
+			K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+			TM->SetTeamKnowledgeForTest(K);
+		}
+
+		B.PC->ArmKitAbility(B.Getto);
+		Out.bBanco = B.Mine->SelectedAbilityIndex == B.Getto
+			&& URTHexLibrary::HexDistance(B.Mine->AimOriginFor(ERTResolutionPhase::Attack), Nemico) == 3;
+		Out.bInPortata = B.MapActor->GetPreviewRangeCells().Contains(Nemico);
+		B.PC->HandleClickOnUnitForTest(B.Primo);
+		Out.bClickPianifica = B.Mine->PlannedAttackTarget.Get() == B.Primo;
+		RTWorldFixtures::DestroyWorld(B.World);
+		return Out;
+	};
+
+	const FEsito SenzaConoscenza = Prova(0);
+	const FEsito Ignoto = Prova(1);
+	const FEsito Esplorato = Prova(2);
+	const FEsito SenzaFumo = Prova(3);
+	if (!TestTrue(TEXT("premessa: il banco regge e il nemico e' a distanza 3 dallo scatto"),
+			SenzaConoscenza.bBanco && Ignoto.bBanco && Esplorato.bBanco && SenzaFumo.bBanco))
+	{
+		return false;
+	}
+	// La premessa del confronto: senza il Fumo il nemico sta in portata e si puo' attaccare. Cio' che lo toglie, sopra,
+	// e' il Fumo e nient'altro.
+	TestTrue(TEXT("premessa: senza Fumo il nemico e' nella portata viola"), SenzaFumo.bInPortata);
+	TestTrue(TEXT("premessa: e il click pianifica l'attacco"), SenzaFumo.bClickPianifica);
+
+	TestFalse(TEXT("controllo: senza conoscenza il Fumo cappa e il nemico esce dalla portata"), SenzaConoscenza.bInPortata);
+	TestFalse(TEXT("controllo: e il click non pianifica"), SenzaConoscenza.bClickPianifica);
+	TestFalse(TEXT("controllo: con il Fumo esplorato il nemico esce dalla portata"), Esplorato.bInPortata);
+	TestFalse(TEXT("controllo: e il click non pianifica"), Esplorato.bClickPianifica);
+
+	TestTrue(TEXT("chiuso: con il Fumo ignoto il nemico resta nella portata viola"), Ignoto.bInPortata);
+	TestTrue(TEXT("chiuso: e il click pianifica l'attacco"), Ignoto.bClickPianifica);
+	return true;
+}
+
+/**
+ * **Il click sullo scatto lineare legge la stessa mappa del percorso** - `#2794`, [D-465] punto (3).
+ *
+ * Trovato dalla review: l'hover e l'anteprima leggevano la vista del giocatore, il click ancora la mappa autorevole, e
+ * il suo rifiuto («un bordo con copertura alta o una porta chiusa ferma la retta») rivelava il terreno nascosto che il
+ * resto della modifica nasconde. Un muro non osservato sulla retta: il click lo accetta; osservato, lo rifiuta.
+ *
+ * Verifica di mutazione: rimettere `Map` in `JudgeLinearDashClick` dentro `HandleClickOnCell` rende rosso il primo caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredWallDashClickTest,
+	"RefactorTactics.BlindActions.UnexploredWallDoesNotRefuseTheLinearDashClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginUnexploredWallDashClickTest::RunTest(const FString&)
+{
+	const FRTCellId Muro(0, 0, 0);
+	const FRTCellId Meta(1, 0, 0);
+	// 0 = muro ignoto; 1 = muro esplorato.
+	const auto Prova = [&](int32 Esplorato) -> int32
+	{
+		FAimOriginBench B;
+		if (!SetUpAimOriginBench(*this, B, FRTCellId(4, 0, 0), FRTCellId(-2, 0, 0)))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return INDEX_NONE;
+		}
+		B.Mine->Abilities[B.Scatto]->Def.MovementStyle = ERTMovementStyle::LinearDash;
+		const FRTHexCellData* Esistente = B.Map->FindCell(Muro);
+		FRTHexCellData Cella = Esistente ? *Esistente : FRTHexCellData(Muro);
+		Cella.bBlocksMovement = true;
+		B.Map->AddOrUpdateCell(Cella);
+		B.Map->SortCells();
+
+		ARTTurnManager* TM = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+		FRTTeamKnowledge K;
+		K.TeamId = B.Mine->TeamId;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& C : B.Map->Cells)
+		{
+			if (Esplorato == 0 && C.Id == Muro) { continue; }
+			K.ExploredCells.Add(C.Id);
+		}
+		K.VisibleCells.Add(GAimOriginQui);
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		TM->SetTeamKnowledgeForTest(K);
+
+		B.PC->ArmKitAbility(B.Scatto);
+		B.PC->HandleClickOnCellForTest(Meta);
+		const int32 Accettato = (B.Mine->PlannedDashCell == Meta) ? 1 : 0;
+		RTWorldFixtures::DestroyWorld(B.World);
+		return Accettato;
+	};
+
+	const int32 Ignoto = Prova(0);
+	const int32 Esplorato = Prova(1);
+	if (!TestTrue(TEXT("premessa: i banchi reggono"), Ignoto != INDEX_NONE && Esplorato != INDEX_NONE)) { return false; }
+	TestEqual(TEXT("controllo: con il muro esplorato il click sullo scatto e' rifiutato"), Esplorato, 0);
+	TestEqual(TEXT("chiuso: con il muro ignoto il click e' accettato, come l'hover"), Ignoto, 1);
 	return true;
 }
 
