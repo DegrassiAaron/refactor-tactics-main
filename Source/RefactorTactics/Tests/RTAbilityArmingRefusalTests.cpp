@@ -245,4 +245,169 @@ bool FRTEmptyKitPositionIsNotReportedAsArmedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **UN'AZIONE ATTIVA IN RICARICA NON SI ARMA** — `#3828`, decisione d'autore del 2026-10-19.
+ *
+ * ⏱️ *Fino a questa issue* il rifiuto copriva solo reazioni e supporti (le due forme che gia' interrogavano
+ * `CanUseAbility`), e un'azione attiva in ricarica si armava ancora e veniva fermata dal targeting (`#3517` lo
+ * lasciava com'era e chiedeva una decisione propria). Misurato a schermo il 2026-10-19: `Scarica lineare` di
+ * Aevik, con 1 turno di ricarica residuo, si armava dal tasto `2` e dal click sullo slot.
+ *
+ * 🔑 **I canali sono due, e il test li esercita entrambi** — il tasto (`SelectAbilityForCurrentForTest`, origine
+ * `Hotkey`) e la porta dello slot (`ArmKitAbility`, origine `Dock`). Le generiche confluiscono nella stessa
+ * funzione per indice (`PressGenericHotkeyForTest` le raggiunge), ma nessuna generica del catalogo ha una ricarica
+ * che prima non fosse gia' rifiutata: `Guard`, `Overwatch`, `Wait` e `Interact` hanno ricarica 0, e `Brace` e' su
+ * se' stesso. Un caso generico qui sarebbe verde anche con la guardia vecchia.
+ *
+ * ⚠️ **Il banco e' l'azione STESSA, prima pronta e poi in ricarica.** Il controllo positivo arma `Scarica lineare`
+ * pronta da tutte e due le porte: cosi' un verde sul rifiuto non puo' venire da un'azione che non si arma mai (una
+ * guardia che guardasse la ricarica DICHIARATA a catalogo e non quella residua cadrebbe qui, al punto A).
+ *
+ * ⛔ **Verifica di mutazione**: (1) tornare alla guardia di prima, `(bReazione || bSelfTarget) && !CanUseAbility`,
+ * fa cadere B; (2) rifiutare solo con origine `Hotkey` fa cadere il punto B del dock; (3) rimettere
+ * `Unit->SelectAbility(Index)` sopra la guardia fa cadere B e C, perche' il rifiuto lascerebbe lo stato scritto;
+ * (4) rifiutare ogni azione col `CooldownTurns` di catalogo positivo fa cadere A; (5) rifiutare solo oltre un turno
+ * residuo (`GetAbilityCooldown > 1`) fa cadere B2 — trovata dalla revisione indipendente: A, B, C e D la lasciavano
+ * verde, e il confine di un turno e' proprio il caso che l'autore ha visto a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCooldownActionIsNotArmedTest,
+	"RefactorTactics.PlayerInput.AnActionOnCooldownIsNotArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCooldownActionIsNotArmedTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+
+	ARTUnit* Unit = SpawnUnitConKit(World);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!Unit || !PC)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("unita' e controller esistono"), false);
+	}
+	PC->SelectActorForTest(Unit);
+
+	// Un'azione ATTIVA con una ricarica a catalogo: ne' reazione ne' su se' stessi, che il rifiuto gia' copriva.
+	int32 Attiva = INDEX_NONE;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Unit->GetAbility(i);
+		if (A != nullptr && A->Def.Slot != ERTActionSlot::Reaction && !A->bSelfTarget && A->CooldownTurns > 0)
+		{
+			Attiva = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: il kit ha un'azione attiva con ricarica (il caso che si armava)"),
+			Attiva != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 Pronta = TrovaPosizionePronta(Unit, Attiva);
+	if (!TestTrue(TEXT("premessa: esiste un'altra posizione pronta, per il caso C"), Pronta != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- A. CONTROLLO POSITIVO: la STESSA azione, pronta, si arma da tutte e due le porte ---------
+	if (!TestTrue(TEXT("premessa: l'azione e' pronta prima di essere pagata"), Unit->CanUseAbility(Attiva)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attiva);
+	TestEqual(TEXT("A: pronta, il tasto la arma"), Unit->SelectedAbilityIndex, Attiva);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	PC->ArmKitAbility(Attiva);
+	TestEqual(TEXT("A: pronta, lo slot del dock la arma"), Unit->SelectedAbilityIndex, Attiva);
+	PC->ArmKitAbility(Attiva); // ricliccare lo slot armato DISARMA: si torna al neutro dalla porta, non dal campo
+	if (!TestEqual(TEXT("premessa: il disarmo riporta al neutro prima della misura"),
+			Unit->SelectedAbilityIndex, INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- B. in ricarica, NESSUNA delle due porte la arma -----------------------------------------
+	// Si paga con `ConsumeAbility`, la strada di produzione, e non scrivendo l'array a mano.
+	Unit->ConsumeAbility(Attiva);
+	if (!TestFalse(TEXT("premessa ANTI-VACUITA': l'azione risulta in ricarica"), Unit->CanUseAbility(Attiva)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attiva);
+	TestEqual(TEXT("B: in ricarica, il tasto NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
+	// ⚠️ Il dock si misura da neutro, e non dal residuo del tasto: se il tasto l'avesse armata, un click sullo slot
+	// gia' armato la DISARMEREBBE e il punto qui sotto sarebbe verde per il motivo sbagliato.
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	PC->ArmKitAbility(Attiva);
+	TestEqual(TEXT("B: in ricarica, lo slot del dock NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("B: e non risulta pianificata"), Unit->PlannedAbilityIndex, INDEX_NONE);
+
+	// --- C. il RIFIUTO lascia il modello com'era: l'azione gia' armata resta armata ---------------
+	PC->SelectAbilityForCurrentForTest(Pronta);
+	if (!TestEqual(TEXT("premessa: un'altra azione, pronta, e' armata"), Unit->SelectedAbilityIndex, Pronta))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 PianificataPrima = Unit->PlannedAbilityIndex;
+	PC->SelectAbilityForCurrentForTest(Attiva);
+	TestEqual(TEXT("C: il tasto rifiutato non toglie l'armo che c'era"), Unit->SelectedAbilityIndex, Pronta);
+	// Si riparte dall'armo di prima, cosi' il dock non eredita l'esito del tasto (ne' il toggle dello slot armato).
+	PC->SelectAbilityForCurrentForTest(Pronta);
+	PC->ArmKitAbility(Attiva);
+	TestEqual(TEXT("C: il dock rifiutato non toglie l'armo che c'era"), Unit->SelectedAbilityIndex, Pronta);
+	TestEqual(TEXT("C: e non tocca il piano"), Unit->PlannedAbilityIndex, PianificataPrima);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	// --- B2. a UN turno dalla fine l'azione e' ancora in ricarica: il confine --------------------------
+	// Il caso che l'autore ha misurato a schermo il 2026-10-19 (`Scarica lineare` con 1 turno residuo). Un rifiuto che
+	// scattasse solo oltre una soglia passerebbe A, B, C e D: la ricarica appena pagata e quella finita non lo vedono.
+	int32 Giri = 0;
+	while (Unit->GetAbilityCooldown(Attiva) > 1 && Giri < 16)
+	{
+		Unit->TickCooldowns();
+		++Giri;
+	}
+	if (!TestEqual(TEXT("premessa: manca esattamente un turno"), Unit->GetAbilityCooldown(Attiva), 1)
+		|| !TestFalse(TEXT("premessa ANTI-VACUITA': a un turno dalla fine e' ancora in ricarica"),
+			Unit->CanUseAbility(Attiva)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attiva);
+	TestEqual(TEXT("B2: a un turno dalla fine il tasto NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE); // il dock si misura da neutro, come al punto B
+	PC->ArmKitAbility(Attiva);
+	TestEqual(TEXT("B2: a un turno dalla fine il dock NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	// --- D. FINITA la ricarica si arma di nuovo: la regola e' sulla ricarica residua, non sull'azione ---
+	int32 Turni = 0;
+	while (!Unit->CanUseAbility(Attiva) && Turni < 16)
+	{
+		Unit->TickCooldowns();
+		++Turni;
+	}
+	if (!TestTrue(TEXT("premessa: la ricarica finisce"), Unit->CanUseAbility(Attiva)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attiva);
+	TestEqual(TEXT("D: finita la ricarica, il tasto la arma di nuovo"), Unit->SelectedAbilityIndex, Attiva);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

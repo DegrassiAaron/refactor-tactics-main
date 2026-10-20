@@ -30,6 +30,10 @@
 #include "Components/Border.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
+#include "Misc/OutputDevice.h"
+#include "Misc/OutputDeviceRedirector.h" // GLog->AddOutputDevice: l'assenza di avvisi si misura con un dispositivo di log
+#include "Misc/ScopeLock.h"
+#include "HAL/PlatformTLS.h"             // il rilevatore conta solo le righe del thread che lo crea
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1697,6 +1701,242 @@ bool FRTScreenHudUnitCardTest::RunTest(const FString&)
 
 	Carta->SetCard(URTHudViewModel::BuildUnitCard(Sua, /*PlayerTeamId=*/ 0), false);
 	TestTrue(TEXT("il pallino di un'avversaria e' Red"), Carta->TeamDot->GetBrushColor().Equals(Colore(ERTUIToken::Red)));
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Raccoglie gli avvisi e gli errori che il THREAD CHE LO CREA scrive nel log, finche' vive.
+	 *
+	 * Esiste perche' un `Warning` non dichiarato non fa fallire un test (`bElevateLogWarningsToErrors` e' falso): una
+	 * carta che scrivesse un avviso alla prima disegnata passerebbe da sola. Senza buffer (`CanBeUsedOnMultipleThreads`)
+	 * per la ragione di `FRTScopedLogLines` in RTHeroSpawnTests.cpp: un dispositivo bufferizzato riceve le righe in
+	 * ritardo, e l'asserto subito dopo la chiamata leggerebbe zero. Il filtro per thread tiene fuori cio' che scrive un
+	 * altro thread mentre la carta disegna.
+	 */
+	struct FRTCardLogWatch : public FOutputDevice
+	{
+		FRTCardLogWatch() : OwnerThread(FPlatformTLS::GetCurrentThreadId()) { GLog->AddOutputDevice(this); }
+		virtual ~FRTCardLogWatch() override { GLog->RemoveOutputDevice(this); }
+
+		virtual bool CanBeUsedOnAnyThread() const override { return true; }
+		virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
+
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category) override
+		{
+			if ((Verbosity & ELogVerbosity::VerbosityMask) <= ELogVerbosity::Warning
+				&& FPlatformTLS::GetCurrentThreadId() == OwnerThread)
+			{
+				FScopeLock Lock(&Guardia);
+				Righe.Add(FString::Printf(TEXT("%s: %s"), *Category.ToString(), V ? V : TEXT("")));
+			}
+		}
+
+		TArray<FString> Righe;
+
+	private:
+		const uint32 OwnerThread;
+		FCriticalSection Guardia;
+	};
+}
+
+/**
+ * LA BARRA DEI PV DELLA CARTA LEGGE LA FRAZIONE DELLA VISTA GIA' ALLA PRIMA DISEGNATA (#1896).
+ *
+ * Il difetto: alla PRIMA selezione la barra della carta restava vuota. Il grafo `Get_HealthBar_Percent` di
+ * `WBP_RT_UnitCard` divideva per `FRTUnitCardView::MaxHealth`, che in una vista mai popolata vale 0 (`Divide by zero:
+ * Divide_DoubleDouble`, seduta U49). Riparentata la carta su `URTUnitCardWidget` (#3658) la scrittura e' una riga di
+ * `SetCard`: `HealthBar->SetPercent(Card.HealthFraction)`. La divisione protetta sta nella vista
+ * (`HudViewModel.HealthFractionNeedsNoDivisionInTheWidget`); qui si prova l'altra meta': che il WIDGET applichi il
+ * campo alla barra, e che lo faccia anche alla prima chiamata.
+ *
+ * Questo test e' una GUARDIA e non la prova di una correzione: il comportamento esiste gia' e il test nasce verde. La sua
+ * validita' sta nelle mutazioni: barra non scritta, barra ricalcolata nel widget senza guardia sul denominatore, scrittura
+ * saltata alla prima chiamata.
+ *
+ * Le gambe: (a) prima carta a PV pieni; (b) carta ferita; (c) carta mai popolata, il caso del difetto; (d) dal CHIAMANTE,
+ * cioe' da un'unita' vera attraverso `BuildUnitCard` e attraverso il pannello dell'unita' selezionata, che e' dove la
+ * prima selezione avviene davvero; (e) il controllo positivo: due carte che devono dare due letture diverse; (f) la barra
+ * applica il campo e non lo ricalcola (la riga del DoD di #613: i widget non ricalcolano formule); (f2) e non lo
+ * deforma: una frazione piccola e una scomoda arrivano alla barra tali e quali (gamba nata dalla revisione indipendente
+ * di PR #3826); (g) nessun avviso nel
+ * log durante le scritture, con una sonda che prova che il rilevatore ne vede uno.
+ *
+ * Cosa NON prova: il disegno della barra a schermo (e' PIE), ne' il grafo Blueprint che non esiste piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudUnitCardBarTest,
+	"RefactorTactics.ScreenHud.UnitCardBarFollowsHealthFractionFromTheFirstDraw",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudUnitCardBarTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	// Una carta NUOVA, che non ha mai ricevuto una vista: e' lo stato della prima selezione. Ha la sola barra, e anche la
+	// barra e' nuova.
+	const auto CartaNuova = [World]() -> URTUnitCardWidget*
+	{
+		URTUnitCardWidget* Carta = NewObject<URTUnitCardWidget>(World);
+		if (Carta) { Carta->HealthBar = NewObject<UProgressBar>(World); }
+		return Carta;
+	};
+	const auto Barra = [](const URTUnitCardWidget* Carta) { return Carta->HealthBar->GetPercent(); };
+	const auto Vicina = [](float Letta, float Attesa) { return FMath::IsFinite(Letta) && FMath::IsNearlyEqual(Letta, Attesa, 1e-4f); };
+
+	// Una vista scritta a mano: qui si prova il WIDGET, non il view model che la produce.
+	const auto Vista = [](int32 Health, int32 Max, float Frazione)
+	{
+		FRTUnitCardView V;
+		V.Health = Health;
+		V.MaxHealth = Max;
+		V.HealthFraction = Frazione;
+		V.bAlive = Health > 0;
+		V.bIsAlly = true;
+		return V;
+	};
+
+	ARTUnit* Unita = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	URTSelectedUnitPanelWidget* Pannello = NewObject<URTSelectedUnitPanelWidget>(World);
+	if (!TestNotNull(TEXT("unita'"), Unita) || !TestNotNull(TEXT("pannello"), Pannello)) { return false; }
+	Pannello->SubjectCard = CartaNuova();
+	if (!TestNotNull(TEXT("carta del pannello"), Pannello->SubjectCard.Get())) { return false; }
+
+	// L'assenza di avvisi si misura da qui in poi: ogni scrittura della barra sta sotto lo sguardo del log.
+	FRTCardLogWatch Log;
+
+	// --- a. PRIMA DISEGNATA, ILLESA ---------------------------------------------------------------------------------------
+	URTUnitCardWidget* Prima = CartaNuova();
+	if (!TestNotNull(TEXT("a: carta"), Prima)) { return false; }
+	TestEqual(TEXT("a: premessa: una barra mai scritta legge 0, quindi un pieno puo' venire solo da SetCard"), Barra(Prima), 0.f);
+	Prima->SetCard(Vista(10, 10, 1.f), /*bInReactionArmed=*/ false);
+	const float LettaPiena = Barra(Prima);
+	TestEqual(TEXT("a: alla prima carta, a PV pieni, la barra e' piena"), LettaPiena, 1.f);
+
+	// --- b. FERITA ----------------------------------------------------------------------------------------------------------
+	// Su una carta NUOVA, non su quella di (a): una frazione intermedia che non viene da un 'pieno' precedente.
+	URTUnitCardWidget* Ferita = CartaNuova();
+	if (!TestNotNull(TEXT("b: carta"), Ferita)) { return false; }
+	Ferita->SetCard(Vista(4, 10, 0.4f), false);
+	const float LettaFerita = Barra(Ferita);
+	TestTrue(*FString::Printf(TEXT("b: la barra e' al 40%% (letta %f)"), LettaFerita), Vicina(LettaFerita, 0.4f));
+	TestTrue(TEXT("b: e sta sotto il pieno"), LettaFerita < 1.f);
+	// Sulla stessa carta la barra segue la vista nei due versi: cura fino al pieno, poi di nuovo il danno.
+	Ferita->SetCard(Vista(10, 10, 1.f), false);
+	TestEqual(TEXT("b: curata fino al pieno, la barra risale"), Barra(Ferita), 1.f);
+	Ferita->SetCard(Vista(4, 10, 0.4f), false);
+	TestTrue(TEXT("b: ferita di nuovo, la barra riscende"), Vicina(Barra(Ferita), 0.4f));
+
+	// --- c. CARTA MAI POPOLATA: il caso del difetto ----------------------------------------------------------------------
+	// Il denominatore del grafo era `MaxHealth`, e qui vale 0. Due forme dello stesso stato: la vista di default (quella che
+	// una carta tiene prima di ricevere qualunque cosa) e la vista che `BuildUnitCard` rende senza unita'.
+	TArray<FRTUnitCardView> Vuote;
+	Vuote.Add(FRTUnitCardView());
+	Vuote.Add(URTHudViewModel::BuildUnitCard(nullptr, 0));
+	for (int32 i = 0; i < Vuote.Num(); ++i)
+	{
+		const FRTUnitCardView& Vuota = Vuote[i];
+		if (!TestEqual(*FString::Printf(TEXT("c%d: premessa: il denominatore del difetto, MaxHealth, vale 0"), i), Vuota.MaxHealth, 0))
+		{
+			continue;
+		}
+
+		// Barra nuova: e' la prima selezione cosi' com'era.
+		URTUnitCardWidget* Mai = CartaNuova();
+		// Barra con un valore SENTINELLA: uno 0 letto dopo SetCard deve essere stato scritto, non essere il residuo
+		// dell'inizializzazione. Senza questa carta, togliere la scrittura della barra lascerebbe questa gamba verde.
+		URTUnitCardWidget* Sentinella = CartaNuova();
+		if (!TestNotNull(TEXT("c: carte"), Mai) || !TestNotNull(TEXT("c: carta sentinella"), Sentinella)) { return false; }
+		Sentinella->HealthBar->SetPercent(0.7f);
+
+		Mai->SetCard(Vuota, false);
+		Sentinella->SetCard(Vuota, false);
+		const float LettaMai = Barra(Mai);
+		const float LettaSentinella = Barra(Sentinella);
+		TestTrue(*FString::Printf(TEXT("c%d: la barra di una carta vuota e' un numero finito (letta %f)"), i, LettaMai), FMath::IsFinite(LettaMai));
+		TestEqual(*FString::Printf(TEXT("c%d: e a zero"), i), LettaMai, 0.f);
+		TestTrue(*FString::Printf(TEXT("c%d: la barra con la sentinella e' finita (letta %f)"), i, LettaSentinella), FMath::IsFinite(LettaSentinella));
+		TestEqual(*FString::Printf(TEXT("c%d: e la sentinella e' stata riscritta a zero"), i), LettaSentinella, 0.f);
+	}
+
+	// --- d. DAL CHIAMANTE ---------------------------------------------------------------------------------------------------
+	// Un test sulla vista a mano passa anche se il chiamante passa il valore sbagliato: qui il dato viene da un'unita' vera.
+	{
+		const FRTUnitCardView VistaReale = URTHudViewModel::BuildUnitCard(Unita, /*PlayerTeamId=*/ 0);
+		if (!TestTrue(TEXT("d: premessa: un'unita' viva ha un massimo positivo"), VistaReale.MaxHealth > 0)) { return false; }
+		URTUnitCardWidget* DaUnita = CartaNuova();
+		if (!TestNotNull(TEXT("d: carta"), DaUnita)) { return false; }
+		DaUnita->SetCard(VistaReale, false);
+		TestEqual(TEXT("d: unita' vera a PV pieni -> BuildUnitCard -> SetCard: la barra e' piena"), Barra(DaUnita), 1.f);
+
+		Unita->Health = 4;
+		URTUnitCardWidget* DaFerita = CartaNuova();
+		if (!TestNotNull(TEXT("d: carta della ferita"), DaFerita)) { return false; }
+		DaFerita->SetCard(URTHudViewModel::BuildUnitCard(Unita, 0), false);
+		TestTrue(TEXT("d: la stessa unita' a 4/10: la barra e' al 40%"), Vicina(Barra(DaFerita), 0.4f));
+		Unita->Health = Unita->MaxHealth;
+	}
+
+	// Il pannello dell'unita' selezionata e' il chiamante che ha vissuto il difetto: la carta nasce vuota, e la PRIMA
+	// selezione la riempie.
+	TestEqual(TEXT("d: premessa: prima della selezione la barra del pannello legge 0"), Barra(Pannello->SubjectCard), 0.f);
+	Pannello->SetSelectedUnitForTest(Unita);
+	Pannello->RefreshLook();
+	TestEqual(TEXT("d: alla PRIMA selezione la barra del pannello e' piena"), Barra(Pannello->SubjectCard), 1.f);
+	Pannello->SetSelectedUnitForTest(nullptr);
+	Pannello->RefreshLook();
+	const float LettaDeselezionata = Barra(Pannello->SubjectCard);
+	TestTrue(*FString::Printf(TEXT("d: deselezionata la carta si svuota e la barra e' un numero finito (letta %f)"), LettaDeselezionata),
+		FMath::IsFinite(LettaDeselezionata));
+	TestEqual(TEXT("d: e torna a zero"), LettaDeselezionata, 0.f);
+
+	// --- e. CONTROLLO POSITIVO ---------------------------------------------------------------------------------------------
+	// Due carte che DEVONO dare due letture diverse: un widget che rendesse sempre lo stesso numero non le passa.
+	TestTrue(*FString::Printf(TEXT("e: la carta piena (%f) e la carta ferita (%f) danno due letture diverse"), LettaPiena, LettaFerita),
+		LettaPiena > LettaFerita);
+
+	// --- f. LA BARRA APPLICA IL CAMPO, NON LO RICALCOLA ----------------------------------------------------------------------
+	// Una vista incoerente, scritta a mano APPOSTA: 3/10 ricalcolato darebbe 0.3, il campo dice 0.9. Se la barra legge 0.9
+	// il widget applica `HealthFraction`; se legge 0.3 divide da se', ed e' la forma del difetto.
+	URTUnitCardWidget* Applica = CartaNuova();
+	if (!TestNotNull(TEXT("f: carta"), Applica)) { return false; }
+	Applica->SetCard(Vista(3, 10, 0.9f), false);
+	const float LettaCampo = Barra(Applica);
+	TestTrue(*FString::Printf(TEXT("f: la barra legge il campo della vista, 0.9, e non Health/MaxHealth (letta %f)"), LettaCampo),
+		Vicina(LettaCampo, 0.9f));
+
+	// --- f2. LA BARRA NON DEFORMA LA FRAZIONE ----------------------------------------------------------------------------
+	// Nata dalla revisione indipendente: i valori delle gambe precedenti (1, 0.4, 0.9 e lo 0 della carta vuota) non vedono una
+	// RIMAPPATURA della barra - una soglia minima visibile per le unita' vive, una quantizzazione, una curva - e il test
+	// restava verde. Una frazione piccola e una scomoda devono arrivare alla barra tali e quali: sotto una soglia minima di
+	// 0.05 la piccola legge 0.05.
+	URTUnitCardWidget* Piccola = CartaNuova();
+	URTUnitCardWidget* Scomoda = CartaNuova();
+	if (!TestNotNull(TEXT("f2: carta della frazione piccola"), Piccola) || !TestNotNull(TEXT("f2: carta della frazione scomoda"), Scomoda)) { return false; }
+	Piccola->SetCard(Vista(1, 100, 0.01f), false);
+	Scomoda->SetCard(Vista(37, 100, 0.37f), false);
+	const float LettaPiccola = Barra(Piccola);
+	const float LettaScomoda = Barra(Scomoda);
+	TestTrue(*FString::Printf(TEXT("f2: la frazione piccola arriva alla barra tale e quale, 0.01 (letta %f)"), LettaPiccola),
+		Vicina(LettaPiccola, 0.01f));
+	TestTrue(*FString::Printf(TEXT("f2: la frazione scomoda arriva alla barra tale e quale, 0.37 (letta %f)"), LettaScomoda),
+		Vicina(LettaScomoda, 0.37f));
+
+	// --- g. NESSUN AVVISO NEL LOG, E IL RILEVATORE SA VEDERNE UNO ----------------------------------------------------------
+	// La sonda dichiarata va DOPO l'asserto sullo zero, e il suo testo non compare in nessuna descrizione (un asserto che
+	// citasse la riga attesa verrebbe inghiottito come errore atteso).
+	// ⚠️ Va scritta su `GLog` e non con `UE_LOG`: il framework sostituisce `GWarn` con un filtro che declassa a `Verbose`
+	// i messaggi attesi PRIMA che arrivino al log, e il rilevatore leggerebbe zero anche a funzionare (misurato: la prima
+	// stesura, con `UE_LOG(LogTemp, Warning, ...)`, vedeva la riga come `Verbose`). Un avviso VERO non dichiarato attraversa
+	// lo stesso filtro senza essere declassato, quindi arriva al rilevatore come `Warning`.
+	TestEqual(*FString::Printf(TEXT("g: nessuna scrittura della barra ha lasciato un avviso nel log (righe: %s)"), *FString::Join(Log.Righe, TEXT(" | "))),
+		Log.Righe.Num(), 0);
+	AddExpectedMessage(TEXT("sonda del controllo positivo"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences*/ 1, /*IsRegex*/ false);
+	GLog->Serialize(TEXT("sonda del controllo positivo della barra PV"), ELogVerbosity::Warning, FName(TEXT("LogRTCardBarProbe")));
+	TestEqual(TEXT("g: il rilevatore degli avvisi ne vede uno vero"), Log.Righe.Num(), 1);
+
 	return true;
 }
 

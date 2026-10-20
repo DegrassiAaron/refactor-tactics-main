@@ -507,6 +507,7 @@ namespace
 		{ TEXT("ProbeYard"),   &URTMatchSetupLibrary::MakeProbeYardArena         },
 		{ TEXT("LayerStack"),  &URTMatchSetupLibrary::MakeLayerStackArena        },
 		{ TEXT("LayerYard"),   &URTMatchSetupLibrary::MakeLayerYardArena         },
+		{ TEXT("SmokeDark"),   &URTMatchSetupLibrary::MakeSmokeDarkArena         },
 	};
 }
 
@@ -773,6 +774,52 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)
 	// ➕ Cio' che questa fixture perde e' il caso MULTILIVELLO, e va detto invece di lasciarlo scoprire:
 	// per quello ci sono `MakeTestArena` e `MatchArenaPlatformClimb`, che una transizione ce l'hanno.
 	// `VisionSplit` resta il banco della percezione, e fa una cosa sola.
+
+	Draft.CommitTo(Arena);
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeSmokeDarkArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Esagono pieno di raggio 6. Le partenze le fissa `PickStartCells` agli estremi dell'ordine (X, Y):
+	// squadra 0 su `(-6,0)` e `(-6,1)`, squadra 1 su `(6,-1)` e `(6,0)`.
+	constexpr int32 Radius = 6;
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+	{
+		Draft.Set(FRTHexCellData(Id));
+	}
+
+	// 🔑 **Il muro che rende il Fumo «mai visto», e perche' e' di VISTA e non di distanza.** Un Fumo lontano
+	// piu' del `VisionRange` piu' lungo del roster (7) non puo' stare sulla traiettoria di un bersaglio a
+	// portata dal tiratore: il Fumo sta fra i due, quindi piu' vicino, quindi visto. Resta fuori vista solo
+	// dietro qualcosa che la vista la nega.
+	//
+	// Tutta la colonna `q = -5` blocca la vista e NON il passo: la squadra 0 non vede nulla oltre di essa al
+	// turno 1, e lo scatto la attraversa. Una colonna intera e non qualche cella, perche' una linea di tiro
+	// deriva di qualche riga e un muro corto la lascerebbe passare di lato (stessa lezione di `VisionSplit`).
+	for (int32 R = -1; R <= Radius; ++R)
+	{
+		FRTHexCellData Cell(FRTCellId(-5, R, 0));
+		Cell.bBlocksLineOfSight = true;
+		Draft.Set(Cell);
+	}
+
+	// Il Fumo: una cella, adiacente all'arrivo di uno scatto di tre che parta da `(-6,0)` (arriva a `(-3,0)`,
+	// il Fumo e' a `(-2,0)`, a quattro celle dalla partenza). Una sola, di
+	// proposito: il numero che il click deve mostrare e' il cap (2), e due celle offrirebbero una seconda
+	// spiegazione a ogni esito.
+	FRTHexCellData Smoke(FRTCellId(-2, 0, 0));
+	Smoke.Surface = ERTHexSurface::Smoke;
+	Smoke.MoveCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Smoke).MoveCost;
+	Draft.Set(Smoke);
 
 	Draft.CommitTo(Arena);
 	return Arena;
