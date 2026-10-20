@@ -1295,7 +1295,8 @@ void FRTScenarioSession::ApplyPreviewSelection()
 	else
 	{
 		UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: l'anteprima NON e' partita — il bersaglio e' stato rifiutato "
-			"(portata, linea di tiro o abilita' non pronta). Le righe [RT] qui sopra dicono quale"),
+			"(portata o linea di tiro: l'attacco del turno 1 e' su un'unita' appena creata, quindi mai in ricarica). "
+			"Le righe [RT] qui sopra dicono quale"),
 			*Scenario.ScenarioId);
 	}
 }
