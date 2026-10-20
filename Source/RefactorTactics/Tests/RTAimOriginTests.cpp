@@ -856,4 +856,107 @@ bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Il canale del Fumo mai esplorato, dal CONTROLLER** — `#2794`, [D-465] punto (3).
+ *
+ * Il test di sopra misura `PlanningMapFor` e i due lettori puri; questo misura che il controller li alimenti davvero
+ * con quella mappa. Sono due difetti diversi: un `PlanningMapFor` corretto non serve a niente se la portata viola e il
+ * click continuano a leggere `GetHexContext`. Un nemico noto a distanza 3 dallo scatto, con una cella di Fumo sulla
+ * linea:
+ *
+ * - **Fumo ignoto** (la squadra non l'ha mai esplorato): il nemico sta nella portata viola e il click pianifica
+ *   l'attacco — il canale e' chiuso;
+ * - **Fumo esplorato**: il nemico esce dalla portata e il click non pianifica — il controllo positivo, senza il quale
+ *   «dentro la portata» potrebbe voler dire che nessuno legge piu' il Fumo;
+ * - **nessuna conoscenza** (sessione senza `ARTGameMode`): come il Fumo esplorato, perche' non c'e' niente da
+ *   giudicare ottimisticamente.
+ *
+ * Verifica di mutazione: togliere `PlayerAimMap` dal ricalcolo dell'anteprima (`RefreshPlanningPreview`) rende rossa
+ * la portata; dal click su unita' (`HandleClickOnUnit`) rende rosso il click.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredSmokeThroughTheControllerTest,
+	"RefactorTactics.BlindActions.UnexploredSmokeDoesNotRefuseTheSlotOrTheClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginUnexploredSmokeThroughTheControllerTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bBanco = false;
+		bool bInPortata = false;
+		bool bClickPianifica = false;
+	};
+	// Lo stesso bersaglio del test di sopra: a distanza 3 dallo scatto, con la PRIMA cella intermedia al Fumo.
+	const FRTCellId Nemico(4, -3, 0);
+	const FRTCellId CellaDiFumo = URTHexLibrary::HexLine(GAimOriginScatto, Nemico)[1];
+
+	// 0 = nessuna conoscenza; 1 = Fumo ignoto; 2 = Fumo esplorato; 3 = nessun Fumo (la premessa del confronto).
+	const auto Prova = [&](int32 Conoscenza) -> FEsito
+	{
+		FEsito Out;
+		FAimOriginBench B;
+		if (!SetUpAimOriginBench(*this, B, Nemico, FRTCellId(-2, 0, 0)))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return Out;
+		}
+		if (Conoscenza != 3)
+		{
+			const FRTHexCellData* Esistente = B.Map->FindCell(CellaDiFumo);
+			FRTHexCellData Fumo = Esistente ? *Esistente : FRTHexCellData(CellaDiFumo);
+			Fumo.Surface = ERTHexSurface::Smoke;
+			B.Map->AddOrUpdateCell(Fumo);
+			B.Map->SortCells();
+		}
+
+		ARTTurnManager* TM = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+		if (Conoscenza > 0 && Conoscenza < 3 && TM)
+		{
+			FRTTeamKnowledge K;
+			K.TeamId = B.Mine->TeamId;
+			K.TurnNumber = 1;
+			for (const FRTHexCellData& Cell : B.Map->Cells)
+			{
+				if (Conoscenza == 1 && Cell.Id == CellaDiFumo) { continue; }
+				K.ExploredCells.Add(Cell.Id);
+			}
+			K.VisibleCells.Add(GAimOriginQui);
+			K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+			TM->SetTeamKnowledgeForTest(K);
+		}
+
+		B.PC->ArmKitAbility(B.Getto);
+		Out.bBanco = B.Mine->SelectedAbilityIndex == B.Getto
+			&& URTHexLibrary::HexDistance(B.Mine->AimOriginFor(ERTResolutionPhase::Attack), Nemico) == 3;
+		Out.bInPortata = B.MapActor->GetPreviewRangeCells().Contains(Nemico);
+		B.PC->HandleClickOnUnitForTest(B.Primo);
+		Out.bClickPianifica = B.Mine->PlannedAttackTarget.Get() == B.Primo;
+		RTWorldFixtures::DestroyWorld(B.World);
+		return Out;
+	};
+
+	const FEsito SenzaConoscenza = Prova(0);
+	const FEsito Ignoto = Prova(1);
+	const FEsito Esplorato = Prova(2);
+	const FEsito SenzaFumo = Prova(3);
+	if (!TestTrue(TEXT("premessa: il banco regge e il nemico e' a distanza 3 dallo scatto"),
+			SenzaConoscenza.bBanco && Ignoto.bBanco && Esplorato.bBanco && SenzaFumo.bBanco))
+	{
+		return false;
+	}
+	// La premessa del confronto: senza il Fumo il nemico sta in portata e si puo' attaccare. Cio' che lo toglie, sopra,
+	// e' il Fumo e nient'altro.
+	TestTrue(TEXT("premessa: senza Fumo il nemico e' nella portata viola"), SenzaFumo.bInPortata);
+	TestTrue(TEXT("premessa: e il click pianifica l'attacco"), SenzaFumo.bClickPianifica);
+
+	TestFalse(TEXT("controllo: senza conoscenza il Fumo cappa e il nemico esce dalla portata"), SenzaConoscenza.bInPortata);
+	TestFalse(TEXT("controllo: e il click non pianifica"), SenzaConoscenza.bClickPianifica);
+	TestFalse(TEXT("controllo: con il Fumo esplorato il nemico esce dalla portata"), Esplorato.bInPortata);
+	TestFalse(TEXT("controllo: e il click non pianifica"), Esplorato.bClickPianifica);
+
+	TestTrue(TEXT("chiuso: con il Fumo ignoto il nemico resta nella portata viola"), Ignoto.bInPortata);
+	TestTrue(TEXT("chiuso: e il click pianifica l'attacco"), Ignoto.bClickPianifica);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
