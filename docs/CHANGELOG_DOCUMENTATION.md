@@ -9,7 +9,8 @@
 | Dove | Che cosa |
 |---|---|
 | [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | «con la carica in ricarica il nemico si ispeziona» dice perché: una carica in ricarica non si arma |
-| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HEXPLAY-3b`: una nota sul «non pronta» (rifiuto dell'armo, non del click); `PIE-V01-DOCKCLICK`: la nota del 2026-10-20 dice che il click non provato è nel neutro |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HEXPLAY-3b`: una nota sul «non pronta» (rifiuto dell'armo, non del click); `PIE-V01-DOCKCLICK`: la nota del 2026-10-20 dice che il click non provato non ha un'azione armata in ricarica |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la nota ⏱️ della riga `D-531`: fuori dalla Pianificazione la coppia esiste (risoluzione, finestra di reazione), l'«unica eccezione» era l'unica in Pianificazione |
 
 ---
 

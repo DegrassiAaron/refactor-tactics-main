@@ -400,8 +400,10 @@ bool FRTWindowStaysAnswerableTest::RunTest(const FString&)
  * 🔴 **UN'AZIONE CONSUMATA RESTA ARMATA E IN RICARICA FINO AL CLEANUP, E IL DOCK LA MOSTRA `Selected` MENTRE UNA FINESTRA E' APERTA** — `#3839`.
  *
  * Da [D-531] (`#3830`) l'INPUT non forma piu' la coppia "armata E in ricarica": un'azione in ricarica non si arma. La forma pero' la
- * RISOLUZIONE. `ConsumeAbility` scrive la ricarica quando l'azione esegue (Prep, Dash, Blast), e il disarmo e' del Cleanup: se una
- * finestra di reazione sospende il turno in mezzo, l'unita' e' viva, ancora armata e con la ricarica scritta. I commenti di
+ * RISOLUZIONE. `ConsumeAbility` scrive la ricarica quando l'azione esegue, e il disarmo e' del Cleanup: se una finestra di reazione
+ * sospende il turno in mezzo, un'unita' viva e' ancora armata e con la ricarica scritta. **Nel Move** (l'Overwatch, il sito di
+ * questo test) sono pagate le azioni di Prep, Dash e Blast; **nel Blast** (il Brace) la sospensione precede il pagamento delle azioni
+ * del Blast (`SpendStartedAbilities`, a fase finita), quindi ci sono solo quelle di Prep e Dash. I commenti di
  * `ResolveSlotState`, `ComposeAbilityLine` e dei loro test presentavano la coppia come "caso di gioco" prima di `#3830` e poi, per
  * un momento, come "non piu' di gioco": nessuna delle due letture era misurata. Questo e' il test che le sostituisce.
  *
@@ -413,9 +415,14 @@ bool FRTWindowStaysAnswerableTest::RunTest(const FString&)
  *    falso la stessa vista sarebbe `Cooldown`, cioe' e' il flag a far vincere `Selected`.
  *  - **C.** Chiusa la finestra e finito il turno, il Cleanup ha disarmato: la coppia era transitoria, e lo slot e' `Cooldown`.
  *
- * ⚠️ **Questo test NON dice che `Selected` sia la lettura giusta** a finestra aperta: dice che e' quella che oggi il dock mostra. Se un
- * "armato" per un'azione appena spesa debba leggersi `Selected` o `Cooldown` e' una scelta di presentazione che la precedenza di
- * `ResolveSlotState` non ha mai posto, e che resta all'autore. Se la cambia, questo test e' il posto in cui dirlo.
+ * ⚠️ **Questo test NON dice che `Selected` sia la lettura giusta** a finestra aperta: dice che e' quella che oggi la vista risolve.
+ * La precedenza di `ResolveSlotState` risponde `Selected` a "armata e in ricarica", ma fu pensata per la coppia che formava l'input;
+ * che cosa mostrare per un'azione appena spesa non l'ha deciso nessuno, e resta all'autore. Se la cambia, questo test e' il posto in
+ * cui dirlo.
+ *
+ * ⛔ **Non passa dal widget**: `bArmed` lo calcola il test come fa `URTActionDockWidget::GetArmedActionIndex()` (l'armo dell'unita'
+ * selezionata). Che nessun widget lo nasconda in risoluzione e' lettura del codice, non una misura: provarlo vuole il banco con il
+ * Blueprint del dock (`ScreenHud.DockArmsOnlyTheSelectedAction`).
  *
  * Le due configurazioni del playback girano SEMPRE entrambe.
  */

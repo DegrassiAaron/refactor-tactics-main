@@ -1842,8 +1842,8 @@ bool FRTHudVmSlotStateTest::RunTest(const FString&)
 	// --- A. armata BATTE in ricarica -------------------------------------------------------------------
 	// 🔑 La regola di `ComposeAbilityLine`.
 	// ⏱️ *Qui il commento parlava di «un'ultimate armata e ancora in ricarica»*, come della coppia che l'input forma armando:
-	// da [D-531] (`#3830`) non la forma piu', ma la forma la RISOLUZIONE (un'azione consumata resta armata fino al Cleanup), e il
-	// dock la mostra cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
+	// da [D-531] (`#3830`) non la forma piu', ma la forma la RISOLUZIONE (per un'unita' viva, un'azione consumata resta armata
+	// fino al Cleanup), e il dock la mostra cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
 	TestEqual(TEXT("A: armata e in ricarica -> armata"),
 		URTHudViewModel::ResolveSlotState(InRicarica, /*bArmed=*/ true), ERTActionSlotState::Selected);
 

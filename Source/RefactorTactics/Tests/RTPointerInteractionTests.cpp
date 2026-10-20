@@ -97,7 +97,7 @@ namespace
 	 *
 	 * ⚠️ **Si cerca per proprieta' e non per nome**: la posizione nel kit dipende dall'eroe del banco.
 	 * ⏱️ *Fino a `#3833` un parametro chiedeva anche un'azione con ricarica, per `E14` di `#3517`*: quel test e' stato
-	 * tolto, perche' lo stato «armata E in ricarica» non si forma piu'.
+	 * tolto, perche' lo stato «armata E in ricarica» non si forma piu' in Pianificazione.
 	 */
 	int32 FindAimedAbilityForRange(const ARTUnit* U)
 	{

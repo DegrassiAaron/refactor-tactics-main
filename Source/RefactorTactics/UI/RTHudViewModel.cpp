@@ -676,10 +676,10 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 	//
 	// ⏱️ *Qui c'era «un'ultimate armata e ancora in ricarica resta riconoscibile come quella scelta», come se fosse la coppia
 	// che l'input forma armando.* Da [D-531] (`#3830`) l'input non la forma piu': un'azione in ricarica non si arma. La forma
-	// la RISOLUZIONE: un'azione consumata resta armata, e in ricarica, fino al Cleanup, e il dock la incontra mentre una
-	// finestra di reazione e' aperta (misurato: `Selected` con la ricarica a vista, `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`).
-	// Se li' debba leggersi `Selected` o `Cooldown` e' una scelta di presentazione che questa precedenza non ha mai posto:
-	// qui resta com'e'.
+	// la RISOLUZIONE: per un'unita' viva, un'azione consumata resta armata, e in ricarica, fino al Cleanup, e il dock la
+	// incontra mentre una finestra di reazione e' aperta nel Move (misurato: `Selected` con la ricarica a vista,
+	// `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`). La precedenza risponde `Selected`, ma fu pensata per la coppia da input: che cosa
+	// mostrare per un'azione appena spesa non l'ha deciso nessuno, e qui resta com'e'.
 	if (bArmed)
 	{
 		return ERTActionSlotState::Selected;
