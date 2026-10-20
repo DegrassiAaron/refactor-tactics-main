@@ -4361,7 +4361,9 @@ bool ARTPlayerController::IsObservationSession() const
 void ARTPlayerController::AdvanceGlance(float DeltaSeconds, ERTPointerContext Context, bool bSomeoneCommands,
 	const FRTGlanceTarget& Raw)
 {
-	GlanceDwell.Advance(Raw, DeltaSeconds);
+	// Un contesto inerte non accumula ritardo: dopo la pausa o la conferma del verso il riquadro riparte da zero.
+	const bool bInert = !URTPointerLibrary::ShouldShowGlance(Context, bSomeoneCommands, /*bDwellElapsed=*/ true);
+	GlanceDwell.Advance(bInert ? FRTGlanceTarget() : Raw, DeltaSeconds);
 	const bool bShow = URTPointerLibrary::ShouldShowGlance(
 		Context, bSomeoneCommands, GlanceDwell.HasElapsed(GlanceDelaySeconds));
 	GlanceTarget = bShow ? GlanceDwell.Target : FRTGlanceTarget();
@@ -4393,8 +4395,9 @@ void ARTPlayerController::UpdateGlance(float DeltaSeconds, bool bCellResolved, c
 		}
 		Raw = URTPointerLibrary::ResolveGlanceTarget(HitUnitId, /*bHasCell=*/ true, Cell, bCellHasMapElement);
 	}
-	// "Qualcuno comanda" = c'e' una partita (un gestore del turno): l'insieme degli osservatori non e' mai vuoto.
-	AdvanceGlance(DeltaSeconds, GetPointerContext(), PacingTurnManager(this) != nullptr, Raw);
+	// "Qualcuno comanda" = c'e' una partita e non e' una sessione non presidiata (spec A9).
+	const ARTTurnManager* TM = PacingTurnManager(this);
+	AdvanceGlance(DeltaSeconds, GetPointerContext(), TM != nullptr && !TM->IsUnattendedSession(), Raw);
 }
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const

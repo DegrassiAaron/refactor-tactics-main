@@ -2309,6 +2309,13 @@ bool FRTPointerGlanceRealPathTest::RunTest(const FString&)
 	PC->AdvanceGlance(0.01f, ERTPointerContext::Planning, false, T);
 	TestFalse(TEXT("nessuno comanda: nulla"), PC->GetGlanceTarget().IsValid());
 
+	// Un contesto inerte non accumula ritardo: appena torna acceso il ritardo riparte, non e' gia' trascorso.
+	PC->AdvanceGlance(Delay * 3.f, ERTPointerContext::Modal, true, T);
+	PC->AdvanceGlance(0.01f, ERTPointerContext::Planning, true, T);
+	TestFalse(TEXT("dopo l'inerzia il ritardo riparte da zero"), PC->GetGlanceTarget().IsValid());
+	PC->AdvanceGlance(Delay + 0.01f, ERTPointerContext::Planning, true, T);
+	TestTrue(TEXT("e poi trascorre"), PC->GetGlanceTarget().IsValid());
+
 	// Lo sguardo non cambia cosa e' ispezionato o selezionato.
 	ARTUnit* Before = PC->GetInspectedUnit();
 	AActor* SelBefore = PC->GetSelectedUnit();

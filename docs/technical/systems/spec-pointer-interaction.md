@@ -274,7 +274,7 @@ che c'è: non cambia il bersaglio del click né l'esito dell'hover. L'ordine è 
 producono sguardo in questa fetta: `bGhost` e `bHasEdge` di `FRTPointerCandidates` non hanno ancora un
 produttore fuori dai test. Il ritardo riparte quando cambia il bersaglio o il cursore esce dalla scena.
 
-Inerte in `Modal`, `ReactionWindow` e `Facing`, e quando nessuno comanda (`URTPointerLibrary::ShouldShowGlance`).
+Inerte in `Modal`, `ReactionWindow` e `Facing`, e in sessione non presidiata, dove nessuno comanda (`URTPointerLibrary::ShouldShowGlance`).
 ⚠️ `GetPointerContext` non produce ancora `ReactionWindow` (vedi il suo commento): l'inerzia lì è provata solo
 sulla funzione pura.
 

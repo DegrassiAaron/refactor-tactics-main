@@ -211,10 +211,10 @@ dove un test lo chiama senza costruire un widget. Il widget **posa** il risultat
 
 ## 4.2.2 Lo sguardo all'hover (`#3747`)
 
-Un riquadro sul canvas dell'HUD (`ARTHUD::DrawHUD`), ancorato alla testa dell'unità o al centro della cella sotto il
+Un riquadro sul canvas dell'HUD (`ARTHUD::DrawHUD`), ancorato alla testa dell'unità (alla sua cella animata in playback) o al centro della cella sotto il
 cursore e tenuto dentro il rettangolo della scena (`RTHudLayout::GlancePlacement`), mai sulle fasce. Righe
-composte da `URTGlanceLibrary` (testo d'autore del glossario più dati): al massimo quattro per un'unità, cinque per
-una cella; se gli stati non entrano l'ultima riga dice quanti restano fuori. Il verso è spento in
+composte da `URTGlanceLibrary` (testo d'autore del glossario più dati): al massimo quattro righe logiche per un'unità, cinque per
+una cella (poi mandate a capo a 48 caratteri: a video possono essere di più); se gli stati non entrano l'ultima riga dice quanti restano fuori. Il verso è spento in
 `ResolutionPlayback` finché non è misurato.
 
 Fuori da questa fetta (`DEFERRED`): la **scheda fissata** (F3, [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)),

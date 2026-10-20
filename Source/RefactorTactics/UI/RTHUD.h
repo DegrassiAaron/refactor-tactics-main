@@ -672,6 +672,9 @@ public:
 	 *
 	 * @param bShowFacing  spento in `ResolutionPlayback` finche' non e' misurato quando `Facing` cambia (P12).
 	 */
+	/** Dove si ancora il riquadro: per un'unita' la cella ANIMATA se c'e' (in playback `Cell` e' la destinazione), per una cella la sua. */
+	static FRTCellId GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCellId& Animated,
+		const FRTCellId& UnitCell, const FRTCellId& TargetCell);
 	static FRTGlanceUnitSubject BuildGlanceUnitSubject(const class ARTUnit* Unit, bool bShowFacing);
 	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
 

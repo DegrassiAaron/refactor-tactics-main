@@ -109,7 +109,7 @@ bool FRTGlanceUnitLinesNameEveryStatusTest::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("il nome di %s compare"), Tag), !Name.IsEmpty() && All.Contains(Name));
 		TestTrue(*FString::Printf(TEXT("l'effetto di %s compare"), Tag), !Effect.IsEmpty() && All.Contains(Effect));
 	}
-	TestTrue(TEXT("il verso compare"), All.Contains(TEXT("NE")));
+	TestTrue(TEXT("il verso compare"), All.Contains(TEXT("Guarda verso NE."), ESearchCase::CaseSensitive));
 	TestFalse(TEXT("senza taglio"), View.bTruncated);
 	TestTrue(TEXT("la prima riga e' il nome"), View.Lines.Num() > 0 && View.Lines[0] == TEXT("Aevik"));
 	return true;
@@ -409,6 +409,23 @@ bool FRTGlanceWrapKeepsEveryWordTest::RunTest(const FString&)
 	const FString Long = FString::ChrN(60, TEXT('x'));
 	const TArray<FString> W2 = URTGlanceLibrary::WrapLines({ FString(TEXT("a ")) + Long }, Limit);
 	TestTrue(TEXT("la parola lunga non si perde"), FString::Join(W2, TEXT(" ")).Contains(Long));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlanceAnchorFollowsTheAnimatedCellTest,
+	"RefactorTactics.UI.GlanceAnchorFollowsTheAnimatedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlanceAnchorFollowsTheAnimatedCellTest::RunTest(const FString&)
+{
+	FRTCellId Animated; Animated.X = 1;
+	FRTCellId Final; Final.X = 9;
+	FRTCellId Target; Target.X = 5;
+	TestTrue(TEXT("unita' in playback: la cella animata, non la destinazione"),
+		ARTHUD::GlanceAnchorCell(true, true, Animated, Final, Target) == Animated);
+	TestTrue(TEXT("unita' fuori playback: la sua cella"),
+		ARTHUD::GlanceAnchorCell(true, false, Animated, Final, Target) == Final);
+	TestTrue(TEXT("una cella: la cella del bersaglio"),
+		ARTHUD::GlanceAnchorCell(false, true, Animated, Final, Target) == Target);
 	return true;
 }
 

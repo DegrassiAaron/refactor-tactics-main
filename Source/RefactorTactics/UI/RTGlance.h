@@ -13,8 +13,8 @@
  * `docs/superpowers/specs/2026-10-13-ispettore-del-mondo-design.md`).
  *
  * 🔑 **Il compositore non vede mai l'attore.** Riceve due strutture di VALORI gia' pubblici e restituisce righe di
- * testo. Cio' che e' nascosto non puo' arrivare alle righe perche' non arriva al compositore: il cancello di
- * conoscenza sta a monte (Task 4), e il test per reflection impedisce che un tipo grezzo entri nel soggetto.
+ * testo. Il cancello di conoscenza e' `ResolveGlance`: riceve anche i dati dell'unita' (letti dall'attore) e li scarta se la squadra non la conosce
+ * `Live`; `ComposeUnit` e `ComposeCell` non decidono nulla. Il test per reflection impedisce che un tipo grezzo entri nel soggetto.
  *
  * ⚠️ Le righe dello sguardo sono di testo d'autore (`RTGlossary`) piu' dati; nessuna cifra e' scritta qui tranne
  * quelle che il gioco compone dai dati (costo, piano).

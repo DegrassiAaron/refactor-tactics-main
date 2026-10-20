@@ -776,6 +776,13 @@ namespace
 	}
 }
 
+FRTCellId ARTHUD::GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCellId& Animated,
+	const FRTCellId& UnitCell, const FRTCellId& TargetCell)
+{
+	if (!bForUnit) { return TargetCell; }
+	return bHasAnimated ? Animated : UnitCell;
+}
+
 FRTGlanceUnitSubject ARTHUD::BuildGlanceUnitSubject(const ARTUnit* Unit, bool bShowFacing)
 {
 	FRTGlanceUnitSubject Subject;
@@ -1578,7 +1585,11 @@ void ARTHUD::DrawHUD()
 			if (GlanceLines.Lines.Num() > 0)
 			{
 				const bool bForUnit = GlanceUnit != nullptr && URTGlanceLibrary::UnitMayBeNamed(GlanceView, GlanceRaw);
-				const FRTCellId AnchorCell = bForUnit ? GlanceUnit->Cell : GlanceRaw.Cell;
+				// La cella ANIMATA se c'e' (come `UvViewForObserver`): in playback `Cell` e' gia' la destinazione.
+				FRTCellId Animated;
+				const bool bHasAnimated = bForUnit && TurnManager->AnimatedCellFor(GlanceUnit, Animated);
+				const FRTCellId AnchorCell = GlanceAnchorCell(bForUnit, bHasAnimated, Animated,
+					bForUnit ? GlanceUnit->Cell : GlanceRaw.Cell, GlanceRaw.Cell);
 				const FVector AnchorScreen = Project(HexCellWorld(AnchorCell, Origin, HexSize, LayerH)
 					+ FVector(0.f, 0.f, bForUnit ? WorldHeadOffset : 0.f));
 				if (AnchorScreen.Z > 0.f)
