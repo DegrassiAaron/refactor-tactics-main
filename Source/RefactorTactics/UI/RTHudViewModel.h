@@ -1722,6 +1722,21 @@ public:
 	static FRTActionTooltipView BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed);
 
 	/**
+	 * LA RIGA DI CATALOGO di un'azione (#3748): tutto cio' che `URTActionData` dice e niente di cio' che la partita
+	 * aggiunge. Non prende un'unita': chi la compone per un'avversaria non ha modo di leggerne ricariche, piano o stato.
+	 * `BuildAbilityCooldowns` parte da questa riga e le somma la partita (tasto, piano, ricarica vera, usabilita').
+	 *
+	 * @param ActiveVariantId  la variante di cui dire il compromesso; `NAME_None` per non dirne nessuna.
+	 */
+	static FRTAbilityCooldownView BuildCatalogActionRow(const URTActionData* Action, int32 Index, FName ActiveVariantId);
+
+	/**
+	 * Il tooltip dal solo catalogo: titolo, frase, righe e variante. `State` e `Reason` restano ai default perche'
+	 * dipendono dalla partita. `BuildActionTooltip` parte da questo e vi somma lo stato e il motivo.
+	 */
+	static FRTActionTooltipView BuildCatalogTooltip(const FRTAbilityCooldownView& CatalogRow);
+
+	/**
 	 * Il tooltip in TESTO SEMPLICE: titolo, frase, una riga per numero, motivo. Lo usa lo slot che non ha ancora
 	 * un widget di tooltip (`URTActionSlotWidget::TooltipClass` vuota), cosi' il tooltip esiste prima della seduta
 	 * che lo disegna.

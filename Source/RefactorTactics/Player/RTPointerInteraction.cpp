@@ -372,9 +372,7 @@ ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, b
 	// matrice §5 dev'essere **totale**, e un buco qui sarebbe un esito non dichiarato invece di un esito
 	// dichiarato irraggiungibile. ⚠️ `Blocked` e non `NoOp` perche' e' un rifiuto: la DoD di `#705` chiede
 	// che *«ogni rifiuto porti un reason code»*, e un `NoOp` non ne ha uno da portare.
-	if (Context == ERTPointerContext::Modal
-		|| Context == ERTPointerContext::ResolutionPlayback
-		|| Context == ERTPointerContext::ReactionWindow)
+	if (Context == ERTPointerContext::Modal || Context == ERTPointerContext::ReactionWindow)
 	{
 		return ERTPointerOutcome::Blocked;
 	}
@@ -398,6 +396,17 @@ ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, b
 		return ERTPointerOutcome::NoOp;
 	}
 
+	// 🔑 **In `ResolutionPlayback` si ispeziona** (`#3748`, spec dell'ispettore §3 regola 5, e §5.3 del contratto): un'unita'
+	// NON comandabile e osservata si legge come in pianificazione. Sta DOPO il velo, e non prima come il blocco di sopra: un
+	// nemico che il velo nasconde risponde `NoOp` anche qui, come una cella vuota — con `Blocked` davanti al velo, il
+	// playback avrebbe distinto un'unita' nascosta dal terreno. Un'unita' propria resta `Blocked` (la selezione in
+	// playback non passa di qui: `OnSelect` prosegue da sola), e ogni gesto che scrive il piano resta rifiutato al
+	// proprio punto di mutazione.
+	if (Context == ERTPointerContext::ResolutionPlayback)
+	{
+		return bCommandable ? ERTPointerOutcome::Blocked : ERTPointerOutcome::Inspect;
+	}
+
 	// 🔑 **Un'unita' comandabile si seleziona SEMPRE, `Targeting` incluso**, e non e' una semplificazione:
 	// e' il comportamento di oggi. Il ramo che bersaglia (`RTPlayerController.cpp`) pretende
 	// `ClickedUnit->TeamId != SelectedUnit->TeamId`, quindi cliccare una propria unita' mentre si mira la
@@ -417,7 +426,8 @@ ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, b
 	//
 	// 🔑 Fuori da `Targeting`, `Inspect`. **`Inspect` e `Select` sono esiti DIVERSI e non due nomi della
 	// stessa cosa**: selezionare significa comandare, e cio' che segue la selezione — il pannello degli slot,
-	// il dock delle azioni — leggerebbe di un'avversaria il piano e il kit. L'esito separato esiste perche'
+	// il dock delle azioni — leggerebbe di un'avversaria il piano e le ricariche vere. (Il kit e l'equipaggiamento
+	// sono pubblici dal 2026-10-20, `#3748`, e la scheda li legge dal catalogo.) L'esito separato esiste perche'
 	// il soggetto ispezionato sia un'altra cosa dal soggetto comandato.
 	if (Context == ERTPointerContext::Targeting)
 	{

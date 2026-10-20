@@ -727,7 +727,7 @@ namespace
 	}
 }
 
-FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed)
+FRTActionTooltipView URTHudViewModel::BuildCatalogTooltip(const FRTAbilityCooldownView& Action)
 {
 	FRTActionTooltipView Out;
 	if (Action.ActionId.IsNone())
@@ -736,7 +736,6 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 	}
 	Out.Title = Action.DisplayName.IsEmpty() ? FText::FromName(Action.ActionId) : Action.DisplayName;
 	Out.Description = Action.Description;
-	Out.State = ResolveSlotState(Action, bArmed);
 
 	// ── Le righe: fase, slot, portata, ricarica, danno ──────────────────────────────────────────────────
 	if (Action.PhaseMark != ERTActionPhaseMark::None && !Action.PhaseLabel.IsEmpty())
@@ -796,6 +795,18 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 		Out.Variant = Action.VariantName.IsEmpty() ? Action.VariantTradeoff
 			: FText::Format(NSLOCTEXT("RTHud", "TooltipVariant", "{0}: {1}"), Action.VariantName, Action.VariantTradeoff);
 	}
+	return Out;
+}
+
+FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed)
+{
+	// Titolo, frase, righe e variante vengono dal solo catalogo (#3748); qui si somma cio' che dipende dalla partita.
+	FRTActionTooltipView Out = BuildCatalogTooltip(Action);
+	if (Action.ActionId.IsNone())
+	{
+		return Out; // una posizione di kit vuota non ha niente da spiegare
+	}
+	Out.State = ResolveSlotState(Action, bArmed);
 
 	// ── Il motivo di uno stato spento: uno solo, nell'ordine della definizione tecnica (D005) ────────────
 	if (Action.bPlanInvalid)
@@ -863,6 +874,56 @@ FText URTHudViewModel::ComposeTooltipText(const FRTActionTooltipView& Tooltip)
 	return FText::FromString(FString::Join(Righe, TEXT("\n")));
 }
 
+FRTAbilityCooldownView URTHudViewModel::BuildCatalogActionRow(const URTActionData* Action, int32 Index, FName ActiveVariantId)
+{
+	FRTAbilityCooldownView View;
+	View.AbilityIndex = Index;
+	if (!Action)
+	{
+		return View; // una posizione vuota: `ActionId` resta `None`
+	}
+	View.ActionId = Action->Def.ActionId;
+	// Le due chiavi si derivano QUI, dove il `Def` completo esiste.
+	View.IconId = URTIconLibrary::MakeActionIconId(Action->Def.ActionId);
+	View.FallbackIconId = URTIconLibrary::MakeActionIconFallbackId(Action->Def);
+	View.DisplayName = Action->DisplayName;
+	View.Slot = Action->Def.Slot;
+
+	// La fase si LEGGE dal catalogo (`#3465`): `Phase` e' la risposta onesta, `PhaseMark` cio' che lo slot mostra.
+	View.Phase = URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase);
+	View.PhaseMark = PhaseMarkFor(Action->Def);
+	View.PhaseLabel = PhaseMarkLabel(View.PhaseMark);
+
+	// Il gruppo di lettura si deriva dallo stesso `Def` (`#3468`, D-455).
+	View.Group = GroupFor(Action->Def);
+
+	// Il denominatore della ricarica, mai negativo; la divisione la fa chi ha la ricarica vera.
+	View.TotalTurns = FMath::Max(0, Action->Def.CooldownTurns);
+
+	// `#3499`: la frase e i numeri del tooltip.
+	View.Description = Action->Description;
+	View.CooldownTurns = FMath::Max(0, Action->Def.CooldownTurns);
+	// #3419: la forma e la variante attiva su QUEST'azione (`FindVariant`, non «la prima variante»).
+	View.Shape = Action->Shape;
+	View.AreaRadius = FMath::Max(0, Action->AreaRadius);
+	if (const FRTAbilityVariant* Variante = Action->FindVariant(ActiveVariantId))
+	{
+		View.VariantName = Variante->DisplayName;
+		View.VariantTradeoff = Variante->Tradeoff;
+	}
+	View.RangeCells = FMath::Max(0, Action->RangeCells);
+	View.bSelfTarget = Action->bSelfTarget || Action->Def.bSelfTarget;
+	for (const FRTActionEffectSpec& Effetto : Action->Def.Effects)
+	{
+		if (Effetto.Effect == ERTActionEffect::Damage)
+		{
+			View.Damage = FMath::Max(0, Effetto.Amount);
+			break;
+		}
+	}
+	return View;
+}
+
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)
 {
 	TArray<FRTAbilityCooldownView> Cooldowns;
@@ -902,89 +963,26 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			continue;
 		}
 
-		FRTAbilityCooldownView View;
-		View.ActionId = Action->Def.ActionId;
-		// Le due chiavi si derivano QUI, dove il `Def` completo esiste: lo slot ha solo questa vista, e
-		// `DerivedFromActionId`/`BaseActionId` non gli arriverebbero mai.
-		View.IconId = URTIconLibrary::MakeActionIconId(Action->Def.ActionId);
-		View.FallbackIconId = URTIconLibrary::MakeActionIconFallbackId(Action->Def);
-		View.DisplayName = Action->DisplayName;
-		View.AbilityIndex = Index;
-		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`):
-		// e' la stessa disciplina delle due chiavi icona qui sopra — l'owner della regola risponde, chi
-		// disegna riceve.
+		// La riga di catalogo viene dal catalogo (#3748); qui si somma cio' che la partita sa dell'unita'.
+		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Unit->ActiveVariantId);
+		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`).
 		View.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(Action->Def.ActionId, Index);
-		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione — che vive in un campo
-		// suo da `#601` — e lo scatto. Leggerne uno solo direbbe «non pianificata» di una reazione che il
-		// pass delle reazioni eseguira'.
+		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione e lo scatto.
 		View.bPlanned = (Unit->PlannedAbilityIndex == Index)
 			|| (Unit->PlannedReactionAbility == Index)
 			|| (Unit->PlannedDashAbility == Index);
-		View.Slot = Action->Def.Slot;
 
-		// La fase si LEGGE dal catalogo (`#3465`), per la stessa ragione del tasto e delle chiavi icona: il
-		// `Def` completo esiste qui, e lo slot non lo vedra' mai. `Phase` e' la risposta onesta, `PhaseMark`
-		// cio' che lo slot mostra — divergono su reazione e `Wait`, e la regola sta in `PhaseMarkFor`, non
-		// ripetuta qui.
-		View.Phase = URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase);
-		View.PhaseMark = PhaseMarkFor(Action->Def);
-		View.PhaseLabel = PhaseMarkLabel(View.PhaseMark);
-
-		// Il gruppo di lettura si deriva dallo stesso `Def` (`#3468`, D-455), e per la stessa ragione: lo slot
-		// non vede ne' le generiche del catalogo ne' `BaseActionId`.
-		View.Group = GroupFor(Action->Def);
-
-		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista
-		// dichiara «mai negativo» nel proprio contratto, e un contratto che dipende dal fatto che nessuno
-		// scriva mai un valore negativo altrove non e' un contratto.
+		// Il numero si LEGGE dal simulatore, mai negativo (contratto della vista).
 		View.TurnsRemaining = FMath::Max(0, Unit->GetAbilityCooldown(Index));
 
-		// IL DENOMINATORE, e la divisione fatta qui una volta sola (`#1896`).
-		//
-		// `CooldownTurns` vale **0** per la maggior parte del kit — attacco base, `Move`, `Guard`, `Brace` —
-		// e un widget che lo usasse come divisore produrrebbe un `Divide by zero` per ogni selezione. In
-		// Blueprint quella divisione non si ferma: restituisce 0, e la barra dichiara «scarica»
-		// un'abilita' pronta. Misurato in PIE, un warning per selezione su tutti e quattro gli eroi.
-		//
-		// ⚠️ **Senza ricarica -> `1`, non `0`.** L'azione e' pronta per definizione: zero sarebbe il
-		// difetto scritto in un altro posto. Chi deve distinguere i due casi legge `TotalTurns == 0`.
-		View.TotalTurns = FMath::Max(0, Action->Def.CooldownTurns);
+		// Il denominatore (`View.TotalTurns`) viene dal catalogo; la frazione si calcola qui, una volta (`#1896`).
+		// Senza ricarica -> `1` (pronta per definizione); `Clamp` perche' la vista dichiara `[0,1]`.
 		View.ChargeFraction = (View.TotalTurns > 0)
-			// `Clamp` e non aritmetica nuda: `TurnsRemaining` viene dal simulatore e questa vista dichiara
-			// `[0,1]` nel proprio contratto. Un contratto che regge solo finche' nessuno scrive una ricarica
-			// piu' lunga del totale non e' un contratto — e' la stessa cura gia' presa da `TurnsRemaining`.
 			? FMath::Clamp(1.f - static_cast<float>(View.TurnsRemaining) / static_cast<float>(View.TotalTurns), 0.f, 1.f)
 			: 1.f;
 
-		// Usabile ADESSO: `CanUseAbility` guardava ricarica **ed** energia, e da `D-324` guarda la sola
-		// ricarica — quindi oggi risponde come `TurnsRemaining == 0`, per una ragione e non per caso.
+		// Usabile ADESSO: da `D-324` guarda la sola ricarica.
 		View.bUsableNow = Unit->CanUseAbility(Index);
-
-		// `#3499`: la frase e i numeri del tooltip, dallo stesso dato che lo slot gia' legge. La portata e' lo
-		// specchio che misura il click (`HandleTargetCell`), non il `Def`: se un giorno divergessero, il tooltip
-		// deve dire quella che il giocatore incontrera'. ⚠️ Oggi coincidono in tutto il roster — il mortaio di
-		// Branth, che corregge la portata del core, li scrive entrambi — e il test li separa apposta.
-		View.Description = Action->Description;
-		View.CooldownTurns = FMath::Max(0, Action->Def.CooldownTurns);
-		// #3419: la forma che leggono il click e l'anteprima, e la variante attiva su QUEST'azione. ⚠️ `FindVariant`
-		// e non «la prima variante»: l'id e' dell'unita', e solo l'azione che lo dichiara ne porta il compromesso.
-		View.Shape = Action->Shape;
-		View.AreaRadius = FMath::Max(0, Action->AreaRadius);
-		if (const FRTAbilityVariant* Variante = Action->FindVariant(Unit->ActiveVariantId))
-		{
-			View.VariantName = Variante->DisplayName;
-			View.VariantTradeoff = Variante->Tradeoff;
-		}
-		View.RangeCells = FMath::Max(0, Action->RangeCells);
-		View.bSelfTarget = Action->bSelfTarget || Action->Def.bSelfTarget;
-		for (const FRTActionEffectSpec& Effetto : Action->Def.Effects)
-		{
-			if (Effetto.Effect == ERTActionEffect::Damage)
-			{
-				View.Damage = FMath::Max(0, Effetto.Amount);
-				break;
-			}
-		}
 
 		Cooldowns.Add(View);
 	}
