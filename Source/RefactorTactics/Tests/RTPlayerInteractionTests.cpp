@@ -4533,7 +4533,7 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
  * test che guardasse solo l'hover passerebbe anche se l'hover e il click leggessero due regole. I casi:
  * - **pianificabili**: in portata, con un altro nemico noto in mezzo, oltre la portata;
  * - **rifiutato dal terreno**: il click non pianifica e non ispeziona, l'hover non ha niente da annunciare — ma non mostra l'arco;
- * - **fuori dalla regola**: carica non armata, in ricarica, un'alleata, un nemico che la squadra non conosce (il velo non ha
+ * - **fuori dalla regola**: carica non armata (una in ricarica non si arma da `#3830`: non e' piu' un caso), un'alleata, un nemico che la squadra non conosce (il velo non ha
  *   segni: [D-225]), e il nemico su cui la carica e' GIA' pianificata (il secondo click lo ispeziona).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerChargeHoverTest,

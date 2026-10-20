@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-20 — «armata e in ricarica» non nasce più dall'input: lo dicono i commenti, la spec, due righe PIE e la nota di `D-531`
+
+**Origine**: [#3839](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3839), dai candidati della PR [#3835](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3835), e dal secondo lettore indipendente. Da [D-531](decisions/RT_PDR_00_Decision_Log.md) l'input non forma più la coppia; la forma la risoluzione, e la vista del dock la risolve `Selected` a finestra di reazione aperta (misurato; che il widget la mostri è lettura del codice).
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/systems/spec-pointer-interaction.md`](technical/systems/spec-pointer-interaction.md) | «con la carica in ricarica il nemico si ispeziona» dice perché: una carica in ricarica non si arma |
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | `PIE-HEXPLAY-3b`: una nota sul «non pronta» (rifiuto dell'armo, non del click); `PIE-V01-DOCKCLICK`: la nota del 2026-10-20 dice che il click non provato non ha un'azione armata in ricarica |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la nota ⏱️ della riga `D-531`: fuori dalla Pianificazione la coppia esiste (risoluzione, finestra di reazione); l'«unica eccezione» era l'unica misurata allora, e riguardava un'unità non viva |
+
+---
+
 ## 2026-10-20 — la nota di `D-531` dice l'intervallo vero dell'unità uccisa nel Cleanup
 
 **Origine**: [#3838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3838), dalla revisione di [#3835](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3835). La nota diceva che l'unità uccisa nel Cleanup è tolta *«nello stesso passaggio»*: vero senza playback, mentre con il playback l'unità resta morta, armata e in ricarica per tutta la sua durata, a mondo in sola lettura. Ora la nota lo dice, e lo pinna un test.

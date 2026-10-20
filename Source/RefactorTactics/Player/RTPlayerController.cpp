@@ -2327,8 +2327,8 @@ bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTU
 	// ⚠️ **E solo una carica che puo' pianificare adesso** (review della PR #3767): senza portata (`Root`) o col movimento
 	// gia' chiuso dal verso dichiarato, il click finirebbe in una delle uscite anticipate di `HandleClickOnCell` senza
 	// ispezionare niente, cioe' un click perso dove prima si ispezionava. ⏱️ *Fino a `#3833` l'elenco apriva con «in
-	// ricarica», e un congiunto `CanUseAbility` lo applicava*: da `#3830` una carica in ricarica non si arma, quindi non
-	// puo' essere quella armata (`Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`).
+	// ricarica», e un congiunto `CanUseAbility` lo applicava*: da `#3830` una carica in ricarica non si arma, quindi in
+	// Pianificazione non puo' essere quella armata (`Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`).
 	// ⚠️ **Non controlla `IsAlive()` di `Selected`, ed e' deliberato** (`#3838`): una selezionata morta esiste solo fra il primo
 	// KO della risoluzione e `DestroyDefeatedUnits`. Nel playback `ResolveOutcome` esce in `ResolutionPlayback` (`Blocked`, o
 	// `Inspect` da `#3748`) prima di guardare questo risultato; nell'ultimo tratto, sincrono, dopo il playback, non c'e' input
@@ -2548,7 +2548,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// copertura un bersaglio che era solo troppo lontano (test
 		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
 		// ⏱️ *Fino a `#3833` qui c'era `bReady = CanUseAbility(AbilityIndex)`, e un ramo «non pronta (ricarica)» sotto*:
-		// da `#3830` un'azione in ricarica non si arma, quindi quella armata e' sempre pronta.
+		// da `#3830` un'azione in ricarica non si arma, quindi in Pianificazione quella armata e' sempre pronta.
 		// ⚠️ **La policy si passa anche qui, e da D-490 (#3608) MORDE**: l'attacco base, mirato a un'unita', porta
 		// `BlindAimDirect`, quindi il click su un nemico CONOSCIUTO dietro un ostacolo ora pianifica — il colpo si
 		// fermera' sull'ostacolo nel Blast. ⌫ *Fino a #3608 qui non cambiava niente: le sole azioni `NotRequired`
@@ -2939,7 +2939,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	if (SelAb && URTCatalogLibrary::IsFastMovement(SelAb->Def))
 	{
 		// ⏱️ *Fino a `#3833` qui c'era un rifiuto «Scatto non pronto (ricarica)»*: da `#3830` uno scatto in ricarica non si
-		// arma, quindi quello armato e' sempre pronto.
+		// arma, quindi in Pianificazione quello armato e' sempre pronto.
 		// Portata letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte, altrimenti dal campo
 		// legacy dell'asset. Leggere un numero diverso da quello del resolver significa accettare piani che
 		// poi non si eseguono (o negarne di buoni). La regola sta in `EffectiveDashRangeOf`, la stessa del resolver.
@@ -4501,7 +4501,8 @@ ERTPointerContext ARTPlayerController::GetPointerContext() const
 		// sospensione lo accende solo se parte il playback parziale: non con `bEnablePlayback` falso (la risoluzione
 		// istantanea, `EditAnywhere`). ⚠️ *La timeline vuota, che `BeginPartialPlayback` prevede, non l'ho trovata:* misurata
 		// alla sospensione, l'Overwatch ha gia' i suoi eventi di movimento e il Brace le impronte del Blast. In quel tratto
-		// `Phase` e' `Move` o `Blast`, le azioni di Prep, Dash e Blast sono gia' consumate e il Cleanup non e' arrivato:
+		// `Phase` e' `Move` o `Blast`: le azioni di Prep e Dash sono gia' consumate (e nel Move anche quelle del Blast, che si
+		// pagano a fase finita) e il Cleanup non e' arrivato:
 		// un'unita' viva, armata e in ricarica, a mondo scrivibile. Misurato
 		// (`Reactions.ASuspendedResolutionIsReadOnlyForInput`): un click su un altro nemico le pianificava un'azione
 		// gia' spesa.
@@ -4566,7 +4567,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 {
 	// Le stesse uscite del click, nello stesso ordine: dove il click non mostrerebbe un rifiuto, nemmeno lo
 	// slot lo mostra. Input inerte, nessun targeting — il click li tace o li dice altrove. ⏱️ *Fino a `#3833` apriva
-	// l'elenco anche «azione non pronta»*: da `#3830` quella armata e' sempre pronta.
+	// l'elenco anche «azione non pronta»*: da `#3830`, in Pianificazione, quella armata e' sempre pronta.
 	if (IsPlanningInputInert() || GetPointerContext() != ERTPointerContext::Targeting)
 	{
 		return ERTTargetRefusal::None;

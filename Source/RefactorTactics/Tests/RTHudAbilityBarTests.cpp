@@ -117,8 +117,11 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	TestTrue(TEXT("pronta: grigio chiaro"), Pronta.Color.Equals(FLinearColor(0.8f, 0.8f, 0.8f, 1.f)));
 
 	// 🔴 **Armata resta bianca anche se non e' usabile.** «Cosa sto per fare» e «posso farlo» sono due
-	// domande, e il prefisso risponde alla prima: un'ultimate armata e ancora in ricarica deve restare
-	// riconoscibile come quella scelta. Senza questo caso, far vincere `bUsableNow` sul bianco passerebbe.
+	// domande, e il prefisso risponde alla prima. Senza questo caso, far vincere `bUsableNow` sul bianco passerebbe.
+	//
+	// ⏱️ *Qui il caso era «un'ultimate armata e ancora in ricarica»*, come coppia che l'input forma armando. Da [D-531]
+	// (`#3830`) l'input non la forma piu': la forma la RISOLUZIONE (per un'unita' viva, un'azione consumata resta armata fino al
+	// Cleanup), e la vista del dock la risolve cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
 	//
 	// ⚠️ **Il motivo si legge su un'abilita' IN RICARICA, e non e' un dettaglio di comodo.** Questo blocco
 	// asseriva che una riga armata e *scarica* — `TurnsRemaining = 0`, `bUsableNow = false` — mostrasse
