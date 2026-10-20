@@ -351,17 +351,6 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	Charger->bDeclaresPlannedFacing = false;
 	PC->DispatchUnitClickForTest(Alleata, Charger);
 
-	// Una carica in RICARICA non ruba il click (review di #3736): armata, ma inutilizzabile, il nemico si ispeziona.
-	Charger->ConsumeAbility(ChargeIdx);
-	TestFalse(TEXT("premessa: la carica e' in ricarica"), Charger->CanUseAbility(ChargeIdx));
-	PC->SelectActorForTest(Charger);
-	Charger->SelectAbility(ChargeIdx);
-	TestTrue(TEXT("premessa: prima del click l'ispezionata e' l'alleata"), PC->GetInspectedUnit() == Alleata);
-	PC->DispatchUnitClickForTest(Enemy, Charger);
-	TestTrue(TEXT("con la carica in ricarica il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
-	// L'ispezione torna sull'alleata, o il controllo sullo scatto qui sotto sarebbe vero gia' prima del click.
-	PC->DispatchUnitClickForTest(Alleata, Charger);
-
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
 	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 0, 0));
 	const int32 DashIdx = Dasher ? Dasher->FindDashAbilityIndex() : INDEX_NONE;
@@ -1225,9 +1214,10 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Pianificata comunque: il gate di `CanUseAbility` vive nel click del giocatore
-	// (`ARTPlayerController::HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al
-	// lock-in deve intercettare quando quel gate non si e' applicato.
+	// Pianificata comunque, scrivendo il campo: il rifiuto per ricarica del giocatore sta in
+	// `ARTPlayerController::SelectAbilityForCurrent` (da `#3833` non piu' nei gestori di click come
+	// `HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al lock-in deve
+	// intercettare quando quel rifiuto non si e' applicato.
 	U->PlannedAbilityIndex = PanelIdx;
 
 	TM->LockInAndResolve();
@@ -4662,12 +4652,6 @@ bool FRTPlayerChargeHoverTest::RunTest(const FString&)
 	TestTrue(TEXT("senza la carica armata l'hover ispeziona, come prima"), PC->HoveredArmedChargeTarget() == nullptr);
 	TestFalse(TEXT("e non annuncia una carica"), PC->BuildChargeHoverView(Niente));
 
-	// Carica in ricarica.
-	Charger->ConsumeAbility(ChargeIdx);
-	Charger->SelectAbility(ChargeIdx);
-	TestFalse(TEXT("premessa: la carica e' in ricarica"), Charger->CanUseAbility(ChargeIdx));
-	TestTrue(TEXT("in ricarica l'hover ispeziona, come il click"), PC->HoveredArmedChargeTarget() == nullptr);
-
 	DestroyInteractionWorld(World);
 	return true;
 }
@@ -4830,6 +4814,39 @@ bool FRTPlayerChargeWarningPrivacyTest::RunTest(const FString&)
 	// Controllo positivo: con H noto il nome c'e'.
 	TestEqual(TEXT("controllo, H noto: un solo avviso"), Noto.Quanti, 1);
 	TestTrue(TEXT("controllo, H noto: nomina A e H"), Noto.Costo.Contains(Noto.NomeA) && Noto.Costo.Contains(Noto.NomeH));
+	return true;
+}
+
+/**
+ * IL CLICK FISSA LA SCHEDA E IL TASTO DESTRO LA CHIUDE (`#3748`, Q5/Q6). Prima nessuno accendeva `bInspectorPinned`, e
+ * `ApplyBack` lo spegneva senza azzerare il soggetto: la scheda non si sarebbe chiusa mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectionPinsAndBackClosesTest,
+	"RefactorTactics.PlayerInput.InspectingPinsAndRightClickCloses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectionPinsAndBackClosesTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTUnit* Enemy = World->SpawnActor<ARTUnit>();
+	if (!PC || !Enemy)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("controller e unita' esistono"), false);
+	}
+	Enemy->TeamId = 1;
+
+	TestFalse(TEXT("all'inizio non e' fissata"), PC->IsInspectorPinned());
+	PC->DispatchUnitClickForTest(Enemy, nullptr);
+	TestTrue(TEXT("il click su un nemico osservato lo ispeziona"), PC->GetInspectedUnit() == Enemy);
+	TestTrue(TEXT("e fissa la scheda"), PC->IsInspectorPinned());
+
+	TestEqual(TEXT("il Back chiude la scheda"), PC->ApplyBack(), ERTPointerBackStep::Inspector);
+	TestFalse(TEXT("il pin e' spento"), PC->IsInspectorPinned());
+	TestTrue(TEXT("e il soggetto e' azzerato"), PC->GetInspectedUnit() == nullptr);
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 

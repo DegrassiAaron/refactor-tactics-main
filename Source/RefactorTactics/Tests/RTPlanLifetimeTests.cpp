@@ -12,6 +12,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
+#include "Player/RTPlayerController.h" // l'invariante dell'armo si prova dalla porta del giocatore (#3833)
 #include "Turn/RTReactionOpportunityTypes.h" // la condizione dichiarata fa parte del piano
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -267,6 +268,155 @@ bool FRTDiscardedPlanDoesNotSurviveTest::RunTest(const FString&)
 
 	DestroyPlanWorld(World);
 	return true;
+}
+
+/**
+ * 🔴 **UN'AZIONE CON RICARICA ESCE DAL TURNO CONSUMATA, DISARMATA, E L'INPUT NON LA RIARMA** — `#3833`.
+ *
+ * E' l'invariante che permette di togliere le guardie sul modello — `MostraLaPortata`, `ArmedChargeTargets` e i
+ * gestori di click — che controllavano `CanUseAbility` sull'azione **armata**: *«un'unita' viva, in Pianificazione,
+ * non ha un'azione armata in ricarica»*. Si forma da tre pezzi, e prima di questo test ognuno era pinnato per conto
+ * suo, mai insieme:
+ *
+ *  - la guardia di `SelectAbilityForCurrent` (#3830), provata con la ricarica scritta sul modello;
+ *  - il disarmo del Cleanup (D-397 §5), provato da `PlansDoNotSurviveTheTurn` con un'azione **senza** ricarica;
+ *  - la ricarica che nasce solo in risoluzione.
+ *
+ * Qui passano tutti dal flusso vero: si arma dalla porta del giocatore, si pianifica, si gioca un turno con un
+ * `ARTTurnManager` vero, e si guarda cosa trova il turno dopo.
+ *
+ * ⚠️ **Per ENTRAMBE le squadre**, ognuna nel proprio mondo. La revisione indipendente ha trovato che un Cleanup che
+ * disarmasse solo la squadra 0 lasciava verde sia questo test sia `PlansDoNotSurviveTheTurn`: il codice vero non
+ * distingue per squadra, ma niente lo pinnava.
+ *
+ * ⚠️ **Le premesse portano il peso.** Senza `GetAbilityCooldown > 0` l'azione potrebbe non essere stata eseguita
+ * (e allora «disarmata» e «non riarmabile» sarebbero veri per un motivo qualunque); senza il controllo positivo
+ * sul riarmo di un'azione PRONTA, «rifiutata» varrebbe anche con l'input spento.
+ *
+ * ⛔ **Verifica di mutazione**: togliere `SelectAbility(INDEX_NONE)` dal Cleanup fa cadere B; disarmare solo la squadra 0
+ * fa cadere B per la squadra 1; togliere la guardia di `SelectAbilityForCurrent` fa cadere C.
+ *
+ * ⚠️ **Cosa NON copre, e la revisione l'ha misurato**: un'unita' UCCISA nel Cleanup (per esempio dal Burning) resta
+ * armata e in ricarica, perche' il ciclo la salta, finche' `DestroyDefeatedUnits` non la toglie nello stesso passaggio;
+ * non e' uno stato che il giocatore possa toccare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCooldownActionLeavesTheTurnDisarmedTest,
+	"RefactorTactics.Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCooldownActionLeavesTheTurnDisarmedTest::RunTest(const FString&)
+{
+	const auto Prova = [this](int32 Squadra) -> bool
+	{
+		// Il nome della squadra in ogni messaggio: un rosso deve dire QUALE delle due lo ha prodotto.
+		const auto E = [Squadra](const TCHAR* Testo) { return FString::Printf(TEXT("squadra %d - %s"), Squadra, Testo); };
+
+		UWorld* World = MakePlanWorld();
+		if (!TestNotNull(*E(TEXT("mondo di prova")), World)) { return false; }
+		SpawnPlanMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Attacker = SpawnPlanHero(World, TEXT("Hero.Aevik"), /*Team=*/ Squadra, FRTCellId(-1, 0, 0));
+		ARTUnit* Target   = SpawnPlanHero(World, TEXT("Hero.Ivrin"), /*Team=*/ 1 - Squadra, FRTCellId( 1, 0, 0));
+		if (!Attacker || !Target)
+		{
+			AddError(*E(TEXT("impossibile allestire le due unita' dal catalogo eroi")));
+			DestroyPlanWorld(World);
+			return false;
+		}
+
+		// Un'azione ATTIVA con ricarica di almeno due turni: dopo il tick del Cleanup ne resta ancora uno, quindi
+		// «in ricarica» e' leggibile all'inizio del turno dopo. Con ricarica uno tornerebbe pronta nello stesso Cleanup.
+		int32 ConRicarica = INDEX_NONE;
+		for (int32 I = 0; I < Attacker->NumAbilities(); ++I)
+		{
+			const URTActionData* A = Attacker->GetAbility(I);
+			if (A && A->Def.Slot == ERTActionSlot::Main && !A->bSelfTarget
+				&& A->Def.MovementStyle == ERTMovementStyle::None && A->CooldownTurns >= 2)
+			{
+				ConRicarica = I;
+				break;
+			}
+		}
+		if (!TestNotEqual(*E(TEXT("premessa: Aevik ha un'azione attiva con ricarica di almeno due turni")),
+				ConRicarica, static_cast<int32>(INDEX_NONE)))
+		{
+			DestroyPlanWorld(World);
+			return false;
+		}
+
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		if (!TestNotNull(*E(TEXT("turn manager")), TM) || !TestNotNull(*E(TEXT("controller")), PC))
+		{
+			DestroyPlanWorld(World);
+			return false;
+		}
+		PC->SelectActorForTest(Attacker);
+
+		// --- A. si ARMA dalla porta del giocatore, pronta, e si pianifica -------------------------
+		PC->SelectAbilityForCurrentForTest(ConRicarica);
+		if (!TestEqual(*E(TEXT("A: pronta, l'azione si arma dalla porta del giocatore")),
+				Attacker->SelectedAbilityIndex, ConRicarica))
+		{
+			DestroyPlanWorld(World);
+			return false;
+		}
+		Attacker->PlannedAbilityIndex = ConRicarica;
+		Attacker->PlannedAttackTarget = Target;
+
+		PlayPlanTurn(TM);
+
+		// --- B. esce dal turno consumata e DISARMATA -----------------------------------------------
+		if (!TestTrue(*E(TEXT("premessa ANTI-VACUITA': l'azione e' stata eseguita, quindi e' in ricarica")),
+				Attacker->GetAbilityCooldown(ConRicarica) > 0)
+			|| !TestFalse(*E(TEXT("premessa: e CanUseAbility lo conferma")), Attacker->CanUseAbility(ConRicarica)))
+		{
+			DestroyPlanWorld(World);
+			return false;
+		}
+		TestEqual(*E(TEXT("B: il Cleanup l'ha disarmata: niente armato E in ricarica all'inizio del turno dopo")),
+			Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+		// --- C. e l'input non la riarma ------------------------------------------------------------
+		// Il controllo positivo prima: un'azione PRONTA si arma ancora, cioe' l'input e' vivo e il mondo non e' in sola
+		// lettura. Senza, il rifiuto qui sotto potrebbe venire da un input spento.
+		int32 Pronta = INDEX_NONE;
+		for (int32 I = 0; I < Attacker->NumAbilities(); ++I)
+		{
+			if (I != ConRicarica && Attacker->CanUseAbility(I)) { Pronta = I; break; }
+		}
+		if (!TestNotEqual(*E(TEXT("premessa: esiste un'altra azione pronta per il controllo positivo")),
+				Pronta, static_cast<int32>(INDEX_NONE)))
+		{
+			DestroyPlanWorld(World);
+			return false;
+		}
+		PC->SelectAbilityForCurrentForTest(Pronta);
+		if (!TestEqual(*E(TEXT("C: controllo positivo, un'azione pronta si arma nel turno dopo")),
+				Attacker->SelectedAbilityIndex, Pronta))
+		{
+			DestroyPlanWorld(World);
+			return false;
+		}
+		PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+		PC->SelectAbilityForCurrentForTest(ConRicarica);
+		TestEqual(*E(TEXT("C: l'azione in ricarica NON si riarma dal tasto")),
+			Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+		// ⚠️ Il dock si misura da neutro: se il tasto l'avesse armata, un click sullo slot gia' armato la DISARMEREBBE e
+		// la riga qui sotto sarebbe verde per il motivo sbagliato (trovato con la mutazione sulla guardia, #3833).
+		PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+		PC->ArmKitAbility(ConRicarica);
+		TestEqual(*E(TEXT("C: e NON si riarma dallo slot del dock")),
+			Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+		DestroyPlanWorld(World);
+		return true;
+	};
+
+	// Le due squadre si provano SEMPRE entrambe: una premessa che salta per la 0 non deve nascondere la 1.
+	const bool bSquadra0 = Prova(0);
+	const bool bSquadra1 = Prova(1);
+	return bSquadra0 && bSquadra1;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
