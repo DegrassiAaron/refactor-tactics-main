@@ -1214,9 +1214,10 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Pianificata comunque: il gate di `CanUseAbility` vive nel click del giocatore
-	// (`ARTPlayerController::HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al
-	// lock-in deve intercettare quando quel gate non si e' applicato.
+	// Pianificata comunque, scrivendo il campo: il rifiuto per ricarica del giocatore sta in
+	// `ARTPlayerController::SelectAbilityForCurrent` (da `#3833` non piu' nei gestori di click come
+	// `HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al lock-in deve
+	// intercettare quando quel rifiuto non si e' applicato.
 	U->PlannedAbilityIndex = PanelIdx;
 
 	TM->LockInAndResolve();

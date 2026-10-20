@@ -3619,8 +3619,13 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// ricontrollano `CanUseAbility` sull'azione armata, perche' **un'unita' viva, in Pianificazione, non ha
 	// un'azione armata in ricarica**: l'armo si rifiuta qui, la ricarica nasce solo in risoluzione
 	// (`ConsumeAbility`, dal solo TurnManager, a mondo in sola lettura) e il Cleanup disarma ([D-397] §5) nello
-	// stesso passaggio che la fa scorrere. Le due uniche scritture di `SelectedAbilityIndex` sono questa e
-	// l'anteprima del harness al turno 1. L'invariante la pinna
+	// stesso passaggio che la fa scorrere. Le uniche due scritture che ARMANO `SelectedAbilityIndex` sono questa e
+	// l'anteprima del harness al turno 1 (le altre sono disarmi, `INDEX_NONE`).
+	//
+	// ⚠️ **L'eccezione, misurata dalla revisione di `#3833`**: un'unita' UCCISA nel Cleanup (per esempio dal Burning)
+	// resta armata e in ricarica, perche' il ciclo la salta. Ma il click e' bloccato (`IsWorldReadOnly`) e
+	// `DestroyDefeatedUnits` la toglie nello stesso passaggio sincrono, senza input in mezzo: per questo
+	// `MostraLaPortata` conserva `IsAlive()`. L'invariante la pinna
 	// `Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`: se un giorno si arma in un altro modo,
 	// quel test e' il posto in cui rimettere la domanda — non dieci guardie sparse.
 	const bool bReazione = Ability->Def.Slot == ERTActionSlot::Reaction;
