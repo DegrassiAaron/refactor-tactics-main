@@ -11,6 +11,42 @@
 namespace
 {
 	/**
+	 * Il piano in cui la linea fra due piani passa, punto per punto — `#3829`. **Un solo posto** per questa
+	 * geometria: `EffectiveContactRange` (quali celle la linea occupa) e `DescribeSightAcrossLayers` (quali
+	 * ostacoli le rispondono) la leggono entrambe, e due copie divergerebbero alla prima correzione.
+	 *
+	 * La testa sta a `HeadNum / HeadDen` di piano sopra il pavimento ai due capi; in MEZZI passi dalla cella
+	 * bassa, su una linea di `N` passi, la quota e' una frazione intera:
+	 *
+	 *     quota = Lower.Layer + HeadNum / HeadDen + Rise * Mezzi / (2 * N)
+	 *
+	 * e il piano e' la sua parte intera. `At` e' il piano in quel punto; `Before` quello appena prima, cosi' una
+	 * cella non risponde di un piano che la linea tocca solo uscendone.
+	 */
+	struct FSightLayerLine
+	{
+		int32 LowerLayer;
+		int32 HeadNum;
+		int32 HeadDen;
+		int32 Rise;
+		int32 N; // passi della linea, >= 1
+
+		int64 Scale() const { return static_cast<int64>(2) * HeadDen * N; }
+		int64 ScaledHeight(int32 HalfSteps) const
+		{
+			return static_cast<int64>(2) * HeadNum * N + static_cast<int64>(HeadDen) * Rise * HalfSteps;
+		}
+		int32 At(int32 HalfSteps) const { return LowerLayer + static_cast<int32>(ScaledHeight(HalfSteps) / Scale()); }
+		int32 Before(int32 HalfSteps) const
+		{
+			return LowerLayer + static_cast<int32>((ScaledHeight(HalfSteps) - 1) / Scale());
+		}
+	};
+}
+
+namespace
+{
+	/**
 	 * Il contatto regge fra due celle? Tre condizioni, tutte necessarie: portata, fumo, linea di vista.
 	 *
 	 * Il **cap del fumo** passa da `URTPerceptionLibrary::EffectiveContactRange`, che sullo stesso piano chiama
@@ -70,17 +106,9 @@ int32 URTPerceptionLibrary::EffectiveContactRange(const URTHexMapAsset* Map, con
 	Occupied.Add(FRTCellId(Line[0].X, Line[0].Y, Lower.Layer)); // i due capi rispondono del PROPRIO piano
 	if (N >= 1)
 	{
-		const int64 Scale = static_cast<int64>(2) * SightHeadHeightDen * N;
-		auto ScaledHeight = [&](int32 HalfSteps) -> int64
-		{
-			return static_cast<int64>(2) * SightHeadHeightNum * N
-				+ static_cast<int64>(SightHeadHeightDen) * Rise * HalfSteps;
-		};
-		auto LayerAt = [&](int32 HalfSteps) { return Lower.Layer + static_cast<int32>(ScaledHeight(HalfSteps) / Scale); };
-		auto LayerBefore = [&](int32 HalfSteps)
-		{
-			return Lower.Layer + static_cast<int32>((ScaledHeight(HalfSteps) - 1) / Scale);
-		};
+		const FSightLayerLine Layers{ Lower.Layer, SightHeadHeightNum, SightHeadHeightDen, Rise, N };
+		auto LayerAt = [&Layers](int32 HalfSteps) { return Layers.At(HalfSteps); };
+		auto LayerBefore = [&Layers](int32 HalfSteps) { return Layers.Before(HalfSteps); };
 		for (int32 I = 1; I < N; ++I)
 		{
 			for (int32 Layer = LayerAt(2 * I - 1); Layer <= LayerBefore(2 * I + 1); ++Layer)
@@ -156,16 +184,9 @@ FRTCrossLayerSightResult URTPerceptionLibrary::DescribeSightAcrossLayers(const U
 	// prima, cosi' una cella non risponde di un piano che la linea tocca solo uscendone.
 	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Lower, Upper);
 	const int32 N = Line.Num() - 1; // >= 1: la stessa colonna e' gia' uscita
-	const int64 Scale = static_cast<int64>(2) * HeadDen * N;
-	auto ScaledHeight = [&](int32 HalfSteps) -> int64
-	{
-		return static_cast<int64>(2) * HeadNum * N + static_cast<int64>(HeadDen) * Rise * HalfSteps;
-	};
-	auto LayerAt = [&](int32 HalfSteps) { return Lower.Layer + static_cast<int32>(ScaledHeight(HalfSteps) / Scale); };
-	auto LayerBefore = [&](int32 HalfSteps)
-	{
-		return Lower.Layer + static_cast<int32>((ScaledHeight(HalfSteps) - 1) / Scale);
-	};
+	const FSightLayerLine Layers{ Lower.Layer, HeadNum, HeadDen, Rise, N };
+	auto LayerAt = [&Layers](int32 HalfSteps) { return Layers.At(HalfSteps); };
+	auto LayerBefore = [&Layers](int32 HalfSteps) { return Layers.Before(HalfSteps); };
 
 	// I muri interni di una cella, su un piano: la corda va dal lato d'ingresso a quello d'uscita, e ai due
 	// capi nasce o muore al centro (`Prev == Cell`, `Next == Cell`), come in `DescribeLineOfSight`.

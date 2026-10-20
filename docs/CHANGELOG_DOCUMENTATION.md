@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-20 — l'autore ha visto le tavole `T2` e `T3` del dock: note in tre voci PIE
+
+**Origine**: [#3828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3828) e [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896). Sulla `T2` (prima del fix) l'autore ha detto «si capiscono i cooldown»; sulla `T3` (dopo [#3830](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3830)) ha risposto «si e si» alle due domande: l'azione in ricarica non si arma da tasto né da click sullo slot e lo slot resta com'era; un'altra azione già armata resta armata.
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | note accodate a `PIE-V01-DOCKCLICK` (la verifica dello slot in ricarica, vista a schermo), `PIE-V01-SCREENHUD` (il limite sui tre stati del dock, coperto da `T2` e `T3`) e `PIE-ACC-HUD`; nessuna icona di stato cambia e nessun totale si muove |
+| [`technical/evidence/1896/`](technical/evidence/1896/T2-dock-pronta-e-in-ricarica-1896-2026-10-19.jpg), [`technical/evidence/3828/`](technical/evidence/3828/T3-dock-ricarica-non-si-arma-3828-2026-10-20.jpg) | le tavole `T2` e `T3`, da finestra `-game` e non dalla PIE |
+
+---
+
 ## 2026-10-19 — un'azione in ricarica non si arma, da nessun canale (`D-531`)
 
 **Origine**: [#3828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3828), nata dalla tavola `T2` di [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896). L'autore ha deciso che un'azione in ricarica non si arma: fino ad allora il rifiuto copriva solo reazioni e supporti, e [#3517](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3517) lo aveva lasciato come decisione a parte.
