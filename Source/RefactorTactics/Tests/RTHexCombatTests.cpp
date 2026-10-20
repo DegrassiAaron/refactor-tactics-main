@@ -1381,4 +1381,41 @@ bool FRTResolutionRefusesOtherLayerTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `MinRangeCells` vale anche in RISOLUZIONE: sotto il minimo il colpo non nasce - `#3093`.
+ *
+ * Stessa domanda del planning, riposta sull'intento. Il click rifiuta `TooClose`, ma un piano che non e' passato
+ * dal click (un bot, una replay) arriva qui, e un minimo che valesse solo al click sarebbe una regola permissiva
+ * sul lato che decide l'esito.
+ *
+ * Verifica di mutazione: togliere il controllo del minimo da `CollectHexAttacks` rende rosso il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMinRangeHoldsInResolutionTest,
+	"RefactorTactics.Combat.MinRangeHoldsInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMinRangeHoldsInResolutionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0, 0)));
+	Units.Add(CombatUnit(1, 1, FRTCellId(1, 0, 0)));   // distanza 1: sotto il minimo
+	Units.Add(CombatUnit(2, 1, FRTCellId(2, 0, 0)));   // distanza 2: al minimo esatto
+
+	FRTHexAttackIntent Vicino = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 4, /*Power*/ 25);
+	Vicino.MinRangeCells = 2;
+	TestEqual(TEXT("sotto il minimo la raccolta non produce nessun colpo"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, { Vicino }, Map).Hits.Num(), 0);
+
+	// Controllo positivo: al minimo esatto il colpo nasce, e senza minimo nasce anche da vicino.
+	FRTHexAttackIntent AlMinimo = CombatIntent(Units, 0, 2, ERTAbilityShape::Single, /*Range*/ 4, /*Power*/ 25);
+	AlMinimo.MinRangeCells = 2;
+	TestEqual(TEXT("al minimo esatto il colpo nasce"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, { AlMinimo }, Map).Hits.Num(), 1);
+
+	FRTHexAttackIntent SenzaMinimo = CombatIntent(Units, 0, 1, ERTAbilityShape::Single, /*Range*/ 4, /*Power*/ 25);
+	TestEqual(TEXT("senza minimo dichiarato la distanza 1 resta legittima"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, { SenzaMinimo }, Map).Hits.Num(), 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

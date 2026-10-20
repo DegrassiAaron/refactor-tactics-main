@@ -1120,6 +1120,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// `BlockedIntents` proprio i piani che il planning ha appena accettato — una regola permissiva sul
 		// client che il resolver rifiuta, cioe' il contrario di cio' che la policy esiste per garantire.
 		Intent.LineOfSightPolicy = Instance.Def.LineOfSightPolicy;
+		// Quarta volta lo stesso rimedio (`#3093`): senza questa riga l'intento nascerebbe a `0`, il planning
+		// rifiuterebbe `TooClose` e la risoluzione lo accetterebbe — la regola permissiva sul lato sbagliato.
+		Intent.MinRangeCells = Instance.Def.MinRangeCells;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.

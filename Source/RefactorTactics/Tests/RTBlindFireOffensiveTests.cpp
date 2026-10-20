@@ -23,6 +23,8 @@
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h"
+#include "Misc/ScopeExit.h"
 #include "Engine/Engine.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -700,6 +702,119 @@ bool FRTCellClickReachesTargetingTest::RunTest(const FString&)
 		B.Mine->PlannedWaypoints.Num(), 0);
 
 	DestroyMortarWorld(B.World);
+	return true;
+}
+
+/**
+ * **Test 4** - `TooClose` nasce da un CLICK sul mortaio di Branth, con i valori del catalogo - `#3093`.
+ *
+ * La raggiungibilita', non la classificazione. Fino a `#3093` ogni test su `TooClose` passava il minimo a mano e
+ * restava verde con zero produttori. Qui il minimo si legge dall'azione che l'eroe porta davvero
+ * (`Hero.Branth.MortarShot`, derivata da `Action.Mortar`), e si clicca come farebbe una persona: se
+ * `MakeHeroAction` smettesse di copiarlo, o un sito di click smettesse di passarlo, il rifiuto sparirebbe e questo
+ * test cadrebbe.
+ *
+ * Verifica di mutazione: togliere `MinRangeCells` da `HandleTargetCell`/`DescribeCellTargetRefusal`, o la riga di
+ * copia in `MakeHeroActionFromCore`, rende rosso questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTooCloseIsReachableFromTheClickTest,
+	"RefactorTactics.Combat.TooCloseIsReachableFromTheClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTooCloseIsReachableFromTheClickTest::RunTest(const FString&)
+{
+	FMortarBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return false; }
+
+	const int32 Idx = FindMortar(B.Mine);
+	if (!TestTrue(TEXT("il kit contiene il mortaio"), Idx != INDEX_NONE)) { DestroyMortarWorld(B.World); return false; }
+	const URTActionData* Mortaio = B.Mine->GetAbility(Idx);
+	if (!TestNotNull(TEXT("l'azione esiste"), Mortaio)) { DestroyMortarWorld(B.World); return false; }
+
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.Mortar"));
+	TestEqual(TEXT("il catalogo core dichiara un minimo di 2 celle"), Core.MinRangeCells, 2);
+	TestEqual(TEXT("e l'azione di Branth lo porta in partita, non lo perde nella derivazione"),
+		Mortaio->Def.MinRangeCells, Core.MinRangeCells);
+
+	B.PC->SelectActorForTest(B.Mine);
+	B.Mine->SelectAbility(Idx);
+
+	const FRTCellId Adiacente(0, 0, 0); // distanza 1 da (-1,0,0): sotto il minimo
+	const FRTCellId AlMinimo(1, 0, 0);  // distanza 2: il confine, e il caso che `Test 2` gia' clicca
+
+	// La porta del rifiuto mostrato dice TooClose con i valori dell'azione.
+	const FRTCellTargetRefusal Verdetto = URTCombatLibrary::DescribeCellTargetRefusal(B.Map, B.Mine->Cell, Adiacente,
+		Mortaio->RangeCells, Mortaio->Def.LineOfSightPolicy, Mortaio->Def.MinRangeCells);
+	TestEqual(TEXT("il rifiuto mostrato e' TooClose"), Verdetto.Refusal, ERTTargetRefusal::TooClose);
+
+	TestFalse(TEXT("il click su una cella sotto il minimo e' rifiutato"), B.PC->HandleTargetCell(Adiacente));
+	TestFalse(TEXT("e non pianifica niente"), B.Mine->bAttackTargetsCell);
+	TestTrue(TEXT("lasciando l'azione non pianificata"), B.Mine->PlannedAbilityIndex != Idx);
+
+	// Controllo positivo: al minimo esatto lo stesso click pianifica.
+	TestTrue(TEXT("al minimo esatto il click pianifica"), B.PC->HandleTargetCell(AlMinimo));
+	TestTrue(TEXT("e la cella e' quella cliccata"), B.Mine->PlannedAttackCell == AlMinimo);
+
+	// La portata viola non include la cella troppo vicina e include quella al minimo.
+	const TArray<FRTCellId> Viola = URTCombatLibrary::TargetableRangeCells(B.Map, B.Mine->Cell, Mortaio->RangeCells,
+		Mortaio->Def.LineOfSightPolicy, Mortaio->Def.MinRangeCells);
+	TestFalse(TEXT("la portata viola non contiene la cella sotto il minimo"), Viola.Contains(Adiacente));
+	TestTrue(TEXT("e contiene quella al minimo"), Viola.Contains(AlMinimo));
+
+	DestroyMortarWorld(B.World);
+	return true;
+}
+
+/**
+ * **Test 5** - il minimo regge in RISOLUZIONE dal percorso vero del `TurnManager` - `#3093`.
+ *
+ * `MinRangeHoldsInResolution` imposta `Intent.MinRangeCells` a mano, quindi non copre la riga che lo copia dal `Def`
+ * in `CollectAttackIntents`: toglierla non lo farebbe cadere, e il planning rifiuterebbe `TooClose` mentre la
+ * risoluzione accetterebbe il colpo. Qui l'intento nasce dall'azione che Branth porta davvero.
+ *
+ * Verifica di mutazione: togliere `Intent.MinRangeCells = Instance.Def.MinRangeCells` da `RTTurnManager_Blast.cpp`
+ * rende rosso il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMinRangeHoldsThroughTheTurnManagerTest,
+	"RefactorTactics.Combat.MinRangeHoldsThroughTheTurnManager",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMinRangeHoldsThroughTheTurnManagerTest::RunTest(const FString&)
+{
+	// Un turno con il mortaio puntato su `Bersaglio`, dove sta un nemico: ritorna quanta salute gli resta.
+	auto Spara = [this](const FRTCellId& Bersaglio, int32& OutSalute, int32& OutSaluteIniziale) -> bool
+	{
+		FMortarBench B;
+		if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return false; }
+		ON_SCOPE_EXIT{ DestroyMortarWorld(B.World); };
+
+		const int32 Idx = FindMortar(B.Mine);
+		if (!TestTrue(TEXT("il kit contiene il mortaio"), Idx != INDEX_NONE)) { return false; }
+
+		ARTUnit* Nemico = SpawnMortarUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), Bersaglio);
+		if (!TestNotNull(TEXT("il nemico esiste"), Nemico)) { return false; }
+		OutSaluteIniziale = Nemico->Health;
+
+		TActorIterator<ARTTurnManager> It(B.World);
+		ARTTurnManager* TM = It ? *It : nullptr;
+		if (!TestNotNull(TEXT("il turn manager esiste"), TM)) { return false; }
+
+		B.Mine->PlannedAbilityIndex = Idx;
+		B.Mine->DeclareAttackOnCell(Bersaglio);
+		B.Mine->PlannedCell = B.Mine->Cell;
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+		OutSalute = Nemico->Health;
+		return true;
+	};
+
+	int32 Salute = 0, Iniziale = 0;
+	// Distanza 1 da (-1,0,0): sotto il minimo. Il nemico non viene toccato.
+	if (!Spara(FRTCellId(0, 0, 0), Salute, Iniziale)) { return false; }
+	TestEqual(TEXT("sotto il minimo il colpo non nasce: il nemico e' intatto"), Salute, Iniziale);
+
+	// Controllo positivo: al minimo esatto (distanza 2, e fuori dall'area attorno al tiratore) lo STESSO percorso
+	// colpisce. Senza, il test sarebbe verde anche con un mortaio che non spara mai.
+	if (!Spara(FRTCellId(1, 0, 0), Salute, Iniziale)) { return false; }
+	TestTrue(TEXT("al minimo esatto il colpo nasce: il nemico perde salute"), Salute < Iniziale);
 	return true;
 }
 

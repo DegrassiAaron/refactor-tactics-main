@@ -95,8 +95,9 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	// Come `NoLineOfSight`: chi chiama non applica un fallback, lascia il motivo alla raccolta dei colpi.
 	case ERTHexTargetReason::OtherLayer:    return ERTActionInvalidReason::OtherLayer;
 	case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
-	// La distanza MINIMA non si rivaluta in risoluzione: il parametro non viene passato, quindi il
-	// classificatore non puo' rispondere cosi'. Non e' una regola decisa qui — e' lo stato di `#2950`.
+	// La distanza MINIMA non si valuta QUI: il parametro non viene passato, quindi il classificatore non puo'
+	// rispondere cosi'. `#3093` l'ha fatta nascere, ma per un'azione a CELLA (`Action.Mortar`), che questa funzione
+	// non giudica — esce con `None` in cima. Il minimo in risoluzione lo applica `CollectHexAttacks` sull'intento.
 	case ERTHexTargetReason::TooClose:      return ERTActionInvalidReason::None;
 	}
 

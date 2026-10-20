@@ -291,7 +291,7 @@ namespace
 			if (MostraLaPortata(Unit, Unit->SelectedAbilityIndex, *Armata))
 			{
 				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit, *Armata), Armata->RangeCells,
-					Armata->Def.LineOfSightPolicy);
+					Armata->Def.LineOfSightPolicy, Armata->Def.MinRangeCells);
 			}
 		}
 		HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable);
@@ -412,7 +412,7 @@ namespace
 					// [D-464]: dall'origine della fase, come il click. ⏱️ *Fino a #3509 da `Unit->Cell`*.
 					Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
 						Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Bersaglio->Cell, Ability->RangeCells,
-						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
+						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(), Ability->Def.MinRangeCells);
 				}
 			}
 
@@ -2541,7 +2541,8 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// vale per TUTTO cio' che segue — rifiuto, portata efficace, linea di tiro: il tratto rosso parte da li'.
 		const FRTCellId DaDoveMira = SelectedUnit->AimOriginFor(Ability->Def.ResolutionPhase);
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-			TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+			TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy,
+			Ability->Def.MinRangeCells);
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
 		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
@@ -2614,6 +2615,11 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			}
 			case ERTHexTargetReason::NoLineOfSight:
 				UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
+				break;
+			case ERTHexTargetReason::TooClose:
+				// `#3093`: senza questo ramo il minimo cadeva in `default` e il log parlava di una mappa assente.
+				UE_LOG(LogRT, Log, TEXT("[RT] %s troppo vicino (minimo %d)"), *ClickedUnit->GetName(),
+					Ability->Def.MinRangeCells);
 				break;
 			case ERTHexTargetReason::NoMap:
 			default:
@@ -4572,7 +4578,8 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 			}
 			// [D-464]: la stessa origine del click che questo stato anticipa — la fase dell'azione ARMATA.
 			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
-				Bersaglio->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
+				Bersaglio->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(),
+				Ability->Def.MinRangeCells);
 		}
 		return ERTTargetRefusal::None;
 	}
@@ -4580,7 +4587,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 		// La porta del click su una cella (`HandleTargetCell`), non la coppia delle unita': una cella non
 		// ha un flag di conoscenza, e il suo rifiuto non guarda chi la occupa (`#2791`).
 		return URTCombatLibrary::DescribeCellTargetRefusal(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
-			Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy).Refusal;
+			Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells).Refusal;
 	case ERTPointerTargetKind::None:
 	case ERTPointerTargetKind::Edge:
 	case ERTPointerTargetKind::Object:
@@ -4792,7 +4799,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// dalla cella dello scatto: e' da li' che la risoluzione colpira'. La stessa `DaDoveMira` sotto, nel tratto rosso.
 	const FRTCellId DaDoveMira = Unit->AimOriginFor(Ability->Def.ResolutionPhase);
 	const FRTCellTargetRefusal Verdetto = URTCombatLibrary::DescribeCellTargetRefusal(
-		Map, DaDoveMira, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+		Map, DaDoveMira, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells);
 
 	// ── IL CANALE DEL GIOCATORE, che su questo percorso non esisteva (`#3064`).
 	//
@@ -4867,11 +4874,14 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 		case ERTTargetRefusal::OtherLayer:
 			Diagnosi = TEXT("su un altro piano: non si tira da qui");
 			break;
+		case ERTTargetRefusal::TooClose:
+			// `#3093`: il minimo lo dichiara l'azione (`Action.Mortar`), e il sito di click lo passa.
+			Diagnosi = FString::Printf(TEXT("troppo vicino (minimo %d)"), Ability->Def.MinRangeCells);
+			break;
 		default:
 			// ⚠️ **Non si nomina una causa che questo percorso non puo' produrre.** `Nothing` e' intercettato
-			// dalla guardia di mappa qui sopra, e `TooClose` non e' producibile perche' nessun sito di click
-			// passa `MinRangeCells` (default `0`). Se un giorno arrivassero, dire MENO e' preferibile a dire
-			// il falso, e un `Warning` e' cio' che fa cercare.
+			// dalla guardia di mappa qui sopra. Dire MENO e' preferibile a dire il falso, e un `Warning` e'
+			// cio' che fa cercare.
 			UE_LOG(LogRT, Warning,
 				TEXT("[RT] Cella (%d,%d,L%d) non bersagliabile: motivo non atteso su questo percorso"),
 				Cell.X, Cell.Y, Cell.Layer);
@@ -4941,7 +4951,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// [D-464]: anche qui dall'origine della fase, perche' la regola e' una per chiunque giudichi la mira.
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
 		Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Cell, Ability->RangeCells,
-		Ability->Def.LineOfSightPolicy);
+		Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo non raggiungibile (portata %d)"), Ability->RangeCells);

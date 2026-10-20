@@ -1504,6 +1504,12 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-380]
+	// ➕ **Il mortaio non spara da vicino** (`#3093`, `D-532`): sotto 2 celle il colpo non nasce. E' l'unica azione
+	// del catalogo con un minimo, ed e' cio' che da' a `TooClose` un produttore — fino a qui il valore, il testo e il
+	// ramo del classificatore erano completi e nessuna azione poteva arrivarci. Il prezzo del mortaio resta
+	// quello di [D-418] (potenza, ricarica, area, traiettoria): il minimo ne aggiunge uno di POSIZIONE, e non
+	// accorcia la portata, che [D-418] voleva intatta.
+	Catalog.Last().MinRangeCells = 2;
 	// ⏱️ **Questa riga e' oggi ancora un'esclusiva, e [D-415] punto 3 la renderebbe comune** all'attacco base:
 	// e' in #3608, scorporato da #3230 il 2026-10-10 perche' `NotRequired` toglie anche la traiettoria.
 	// ⛔ **I numeri del mortaio restano comunque** ([D-418]): cio' che il suo prezzo compra sono
