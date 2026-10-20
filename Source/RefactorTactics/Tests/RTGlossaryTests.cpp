@@ -75,6 +75,11 @@ namespace
 		}
 		Test.TestTrue(*FString::Printf(TEXT("%s (%s): solo ASCII, con l'apostrofo al posto dell'accento"), *Key, Quale), bSoloAscii);
 		Test.TestTrue(*FString::Printf(TEXT("%s (%s): non porta cifre"), *Key, Quale), bSenzaCifre);
+		if (FCString::Strcmp(Quale, TEXT("effetto")) == 0)
+		{
+			Test.TestTrue(*FString::Printf(TEXT("%s (effetto): entro il tetto di lunghezza (%d caratteri, ne ha %d)"),
+				*Key, RTGlossary::MaxEffectLength, Testo.Len()), RTGlossary::EffectFitsTheCap(Testo));
+		}
 		for (const TCHAR* Prefisso : { TEXT("Status."), TEXT("Terrain."), TEXT("Structure.") })
 		{
 			Test.TestFalse(*FString::Printf(TEXT("%s (%s): non nomina un tag (%s)"), *Key, Quale, Prefisso),
@@ -204,6 +209,33 @@ bool FRTGlossaryKeysTest::RunTest(const FString&)
 	TestTrue(TEXT("una chiave vuota non ha nome"), RTGlossary::NameFor(NAME_None).IsEmpty());
 	TestTrue(TEXT("una chiave sconosciuta non ha nome"), RTGlossary::NameFor(TEXT("Status.Inesistente")).IsEmpty());
 	TestTrue(TEXT("una chiave sconosciuta non ha effetto"), RTGlossary::EffectFor(TEXT("Status.Inesistente")).IsEmpty());
+	return true;
+}
+
+/**
+ * IL TETTO DI LUNGHEZZA DI UN EFFETTO TIENE (#3747, P4). La misura e' `RTGlossary::EffectFitsTheCap`, la stessa che il
+ * gate sulle voci usa: qui si prova che distingue il limite dal limite piu' uno, e che nessuna voce reale lo tocca
+ * senza che il gate lo dica col nome della voce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlossaryEffectCapTest,
+	"RefactorTactics.UI.GlossaryEffectsFitTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlossaryEffectCapTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("un testo lungo quanto il tetto entra"),
+		RTGlossary::EffectFitsTheCap(FString::ChrN(RTGlossary::MaxEffectLength, TEXT('a'))));
+	TestFalse(TEXT("un testo piu' lungo di un carattere non entra"),
+		RTGlossary::EffectFitsTheCap(FString::ChrN(RTGlossary::MaxEffectLength + 1, TEXT('a'))));
+
+	// Il tetto non e' scollegato dal glossario: la voce piu' lunga lo raggiunge o quasi (altrimenti e' troppo largo).
+	int32 Longest = 0;
+	for (const TPair<FName, FString>& Voce : RTGlossary::Effects())
+	{
+		Longest = FMath::Max(Longest, Voce.Value.Len());
+	}
+	TestTrue(TEXT("la voce piu' lunga sta nel tetto"), Longest <= RTGlossary::MaxEffectLength);
+	TestTrue(TEXT("e il tetto non e' largo piu' di venti caratteri oltre la voce piu' lunga"),
+		RTGlossary::MaxEffectLength - Longest < 20);
 	return true;
 }
 

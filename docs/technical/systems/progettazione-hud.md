@@ -209,6 +209,18 @@ dove un test lo chiama senza costruire un widget. Il widget **posa** il risultat
 **Fuori perimetro in v0.1**: aggregazione dei colpi ravvicinati (v0.3, [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453)); il token per
 `ERTResolvedEventType::HazardDamage`, che non ha un istante di playback in cui essere giocato — è [#2505](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2505).
 
+## 4.2.2 Lo sguardo all'hover (`#3747`)
+
+Un riquadro sul canvas dell'HUD (`ARTHUD::DrawHUD`), ancorato alla testa dell'unità (alla sua cella animata in playback) o al centro della cella sotto il
+cursore e tenuto dentro il rettangolo della scena (`RTHudLayout::GlancePlacement`), mai sulle fasce. Righe
+composte da `URTGlanceLibrary` (testo d'autore del glossario più dati): al massimo quattro righe logiche per un'unità, cinque per
+una cella (poi mandate a capo a 48 caratteri: a video possono essere di più); se gli stati non entrano l'ultima riga dice quanti restano fuori. Il verso è spento in
+`ResolutionPlayback` finché non è misurato.
+
+Fuori da questa fetta (`DEFERRED`): la **scheda fissata** (F3, [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)),
+che sarà un inquilino della colonna destra; i commenti che chiamano «fuga» il kit di un'avversaria aspettano la decisione
+d'autore sul §9.3 della spec. La resa è provvisoria (riquadro semplice, non la pelle di `WBP_RT_UnitOverlay`).
+
 ## 4.3 Decision Windows
 
 Finestre temporanee per:

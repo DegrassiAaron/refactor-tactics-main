@@ -1112,6 +1112,11 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	// ⚠️ **Non cambia nulla per le azioni gia' spedite**: `Required` e' lo zero dell'enum ed e' il valore di
 	// ogni core tranne `Action.Mortar`, quindi copiarlo e' un'identita' per tutte le altre.
 	Action->Def.LineOfSightPolicy = Core.LineOfSightPolicy;
+	// ➕ **E il minimo di distanza, per la stessa ragione** (`#3093`): `MakeHeroAction` non copia i campi che non
+	// conosce, e senza questa riga il mortaio di Branth nascerebbe senza minimo e `TooClose` resterebbe un
+	// valore che il catalogo core dichiara e nessun eroe porta in partita. `0` e' il default di ogni core
+	// tranne `Action.Mortar`, quindi per le altre azioni copiarlo e' un'identita'.
+	Action->Def.MinRangeCells = Core.MinRangeCells;
 	return Action;
 }
 

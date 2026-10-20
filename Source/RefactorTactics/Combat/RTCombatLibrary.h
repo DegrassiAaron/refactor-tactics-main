@@ -587,7 +587,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
-		int32 RangeCells, ERTLineOfSightPolicy Policy);
+		int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
 
 	/**
 	 * LA PORTATA, cioe' dove posso mirare — `#3507`. Le celle della mappa entro `RangeCells` da `From`, sul suo piano,
@@ -599,7 +599,7 @@ public:
 	 * Senza mappa e' vuota, come il fail-closed della classificazione. L'ordine e' quello di `URTHexLibrary::HexArea`.
 	 */
 	static TArray<FRTCellId> TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From, int32 RangeCells,
-		ERTLineOfSightPolicy Policy);
+		ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
 
 	/**
 	 * Come `CanTargetHexCell`, ma dice **perche'**: portata prima, poi linea di tiro. Il chiamante logga il
@@ -708,7 +708,8 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static ERTTargetRefusal RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver,
+		int32 MinRangeCells = 0);
 
 	/**
 	 * IL RIFIUTO DI UN BERSAGLIO A **CELLA**, per intero e senza un soggetto da velare — `#3064`.
@@ -730,10 +731,9 @@ public:
 	 * `ARTHUD::ComputeBlockerMarks` dichiarano entrambi di voler evitare. La tabella e' una statica privata
 	 * del `.cpp`: qui e' il compilatore a garantire cio' che una convenzione non garantirebbe.
 	 *
-	 * ⚠️ **`MinRangeCells` non e' fra i parametri, e l'omissione e' dichiarata.** Nessun sito di click lo
-	 * passa — ne' quello a unita' ne' questo — quindi `TooClose` non puo' nascere da un click, e un
-	 * parametro che nessuno passa e' un parametro che nessun test copre. Quando `#2950` arrivera' a un
-	 * ingresso del giocatore, ci arrivera' per entrambi i percorsi insieme.
+	 * ➕ **`MinRangeCells` e' un parametro, e i siti di click lo passano entrambi** (`#3093`, `D-532`): `TooClose`
+	 * nasce da un click su `Action.Mortar`. Il default `0` = nessun minimo resta per i chiamanti che non hanno
+	 * un'azione in mano, e nessun sito di produzione lo omette: lo misura `RefactorTactics.Combat.TooCloseIsReachableFromTheClick`.
 	 *
 	 * @param Map      la mappa autorevole. Senza, `Nothing`: fail-closed come `ClassifyHexTargeting`.
 	 * @param From     la cella di chi agisce; `To` la cella bersagliata
@@ -741,7 +741,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTCellTargetRefusal DescribeCellTargetRefusal(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
 
 	/**
 	 * La coda del log diagnostico di un rifiuto per DISTANZA — `#2766`.

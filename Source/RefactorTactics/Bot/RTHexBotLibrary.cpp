@@ -680,6 +680,9 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			const FRTCellId& Enemy = Context.Enemies[I];
 			// Gittata EFFETTIVA: il terreno (Fumo) la cappa. Senza, il bot propone un attacco che
 			// CollectHexAttacks poi scarta — l'invariante "il bot non propone mosse illegali" vale anche qui.
+			// ⚠️ **Eccezione dichiarata per il MINIMO** (`FRTActionDef::MinRangeCells`, [D-532]): qui non si legge, e
+			// un bot puo' proporre il mortaio da una cella adiacente al bersaglio che la risoluzione scarta. E' una scelta
+			// d'autore misurata sul margine anti-stallo, non una dimenticanza: leggerlo riporta quel margine a zero.
 			if (URTHexLibrary::HexDistance(Cell.Cell, Enemy)
 				> URTTerrainLibrary::EffectiveTargetingRange(Snapshot.Map, Cell.Cell, Enemy, Context.AttackRange))
 			{

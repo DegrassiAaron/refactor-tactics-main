@@ -6,6 +6,7 @@
 #include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: l'esito gia' filtrato per l'osservatore (#2741)
 #include "Map/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto del blocco (#3085)
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
+#include "UI/RTGlance.h" // i soggetti pubblici dello sguardo (#3747)
 #include "RTHUD.generated.h"
 
 /**
@@ -666,6 +667,18 @@ public:
 		float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin);
 
 	/**
+	 * Le due letture dello sguardo (#3747): dall'attore e dalla mappa ai SOGGETTI pubblici. Sono sottili apposta: non
+	 * decidono cosa si puo' dire (il cancello e' di `URTGlanceLibrary::ResolveGlance`), leggono e basta.
+	 *
+	 * @param bShowFacing  spento in `ResolutionPlayback` finche' non e' misurato quando `Facing` cambia (P12).
+	 */
+	/** Dove si ancora il riquadro: per un'unita' la cella ANIMATA se c'e' (in playback `Cell` e' la destinazione), per una cella la sua. */
+	static FRTCellId GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCellId& Animated,
+		const FRTCellId& UnitCell, const FRTCellId& TargetCell);
+	static FRTGlanceUnitSubject BuildGlanceUnitSubject(const class ARTUnit* Unit, bool bShowFacing);
+	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
+
+	/**
 	 * 🔑 **Le due metriche dell'etichetta d'intento, e il motivo per cui hanno un NOME.**
 	 *
 	 * Erano quattro letterali dentro `DrawHUD`, a coppie che **dovevano coincidere per costruzione** e
@@ -1310,4 +1323,10 @@ protected:
 	/** Altezza (uu) sopra l'origine dell'unita' a cui ancorare la barra. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
 	float WorldHeadOffset = 200.f;
+
+	/** Scala del testo del riquadro dello sguardo (#3747). */
+	static constexpr float GlanceScale = 0.9f;
+
+	/** Larghezza di andata a capo del riquadro, in caratteri: l'effetto piu' lungo del glossario va su pochi righi. */
+	static constexpr int32 GlanceWrapChars = 48;
 };

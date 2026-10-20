@@ -1,4 +1,5 @@
 #include "UI/RTHUD.h"
+#include "UI/RTGlance.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTHudLayout.h" // #3795: la fascia bassa e la scala, per posare la riga del banco sopra il dock
 #include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
@@ -775,6 +776,57 @@ namespace
 	}
 }
 
+FRTCellId ARTHUD::GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCellId& Animated,
+	const FRTCellId& UnitCell, const FRTCellId& TargetCell)
+{
+	if (!bForUnit) { return TargetCell; }
+	return bHasAnimated ? Animated : UnitCell;
+}
+
+FRTGlanceUnitSubject ARTHUD::BuildGlanceUnitSubject(const ARTUnit* Unit, bool bShowFacing)
+{
+	FRTGlanceUnitSubject Subject;
+	if (Unit == nullptr)
+	{
+		return Subject;
+	}
+	Subject.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
+	Subject.Statuses = URTHudViewModel::BuildStatusBadges(Unit);
+	Subject.Facing = Unit->Facing;
+	Subject.bShowFacing = bShowFacing;
+	Subject.Cell = Unit->Cell;
+	return Subject;
+}
+
+FRTGlanceCellSubject ARTHUD::BuildGlanceCellSubject(const URTHexMapAsset* Map, const FRTCellId& Cell)
+{
+	FRTGlanceCellSubject Subject;
+	Subject.Cell = Cell;
+	Subject.Layer = Cell.Layer;
+	const FRTHexCellData* Data = Map != nullptr ? Map->FindCell(Cell) : nullptr;
+	if (Data == nullptr)
+	{
+		return Subject;
+	}
+	Subject.Surface = Data->Surface;
+	Subject.EntryCost = Data->TotalMoveCost();
+	Subject.bBlocksLineOfSight = Data->bBlocksLineOfSight;
+	Subject.bIsObjective = Data->bIsObjective;
+	Subject.bHasDoor = Data->Doors.Num() > 0;
+	for (int32 Edge = 0; Edge < 6; ++Edge)
+	{
+		const ERTHexCoverType Type = Data->CoverOn(static_cast<ERTHexDirection>(Edge));
+		if (Type != ERTHexCoverType::None)
+		{
+			FRTGlanceCoverSide Side;
+			Side.Edge = static_cast<ERTHexDirection>(Edge);
+			Side.Type = Type;
+			Subject.Covers.Add(Side);
+		}
+	}
+	return Subject;
+}
+
 ARTHUD::ARTHUD()
 {
 	// 🔴 `AHUD` nasce con il tick SPENTO, e il driver del velo ne dipende: senza questa riga
@@ -1497,6 +1549,70 @@ void ARTHUD::DrawHUD()
 			const FVector2f Posa = ComposeLabStepLinePlacement(FVector2f(Canvas->SizeX, Canvas->SizeY), FVector2f(PW, PH));
 			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), Posa.X - 8.f, Posa.Y - 4.f, PW + 16.f, PH + 8.f);
 			DrawText(Passo, FLinearColor::White, Posa.X, Posa.Y, nullptr, 1.1f);
+		}
+	}
+
+	// LO SGUARDO (#3747, F2): il riquadro di cio' che e' sotto il cursore, dopo il ritardo. Il bersaglio e' grezzo
+	// (viene dal controller); il cancello di conoscenza, sulla stessa vista e sulla stessa conoscenza delle unita'
+	// (`PlaybackKnowledgeForTeam`, P11), decide se si dice l'unita', la cella o niente. Canvas, non DrawDebug*.
+	if (const ARTPlayerController* GlancePC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+	{
+		const FRTGlanceTarget& GlanceRaw = GlancePC->GetGlanceTarget();
+		if (GlanceRaw.IsValid() && TurnManager != nullptr && Map != nullptr)
+		{
+			TArray<ARTUnit*> GlanceUnits;
+			for (AActor* A : Actors)
+			{
+				if (ARTUnit* U = Cast<ARTUnit>(A)) { GlanceUnits.Add(U); }
+			}
+			const FRTKnowledgeView GlanceView = UvViewForObserver(TurnManager, GlanceUnits, PlayerTeamId);
+			const FRTTeamKnowledge GlanceKnowledge = TurnManager->PlaybackKnowledgeForTeam(PlayerTeamId);
+
+			const ARTUnit* GlanceUnit = nullptr;
+			if (GlanceRaw.Kind == ERTGlanceKind::Unit)
+			{
+				for (const ARTUnit* U : GlanceUnits)
+				{
+					if (U->StableUnitId == GlanceRaw.StableUnitId) { GlanceUnit = U; break; }
+				}
+			}
+			const FRTGlanceUnitSubject UnitSubject = BuildGlanceUnitSubject(GlanceUnit, !TurnManager->IsResolving());
+			const FRTGlanceCellSubject CellSubject = BuildGlanceCellSubject(Map, GlanceRaw.Cell);
+			FRTGlanceView GlanceLines =
+				URTGlanceLibrary::ResolveGlance(GlanceView, GlanceKnowledge, GlanceRaw, UnitSubject, CellSubject);
+			GlanceLines.Lines = URTGlanceLibrary::WrapLines(GlanceLines.Lines, GlanceWrapChars);
+
+			if (GlanceLines.Lines.Num() > 0)
+			{
+				const bool bForUnit = GlanceUnit != nullptr && URTGlanceLibrary::UnitMayBeNamed(GlanceView, GlanceRaw);
+				// La cella ANIMATA se c'e' (come `UvViewForObserver`): in playback `Cell` e' gia' la destinazione.
+				FRTCellId Animated;
+				const bool bHasAnimated = bForUnit && TurnManager->AnimatedCellFor(GlanceUnit, Animated);
+				const FRTCellId AnchorCell = GlanceAnchorCell(bForUnit, bHasAnimated, Animated,
+					bForUnit ? GlanceUnit->Cell : GlanceRaw.Cell, GlanceRaw.Cell);
+				const FVector AnchorScreen = Project(HexCellWorld(AnchorCell, Origin, HexSize, LayerH)
+					+ FVector(0.f, 0.f, bForUnit ? WorldHeadOffset : 0.f));
+				if (AnchorScreen.Z > 0.f)
+				{
+					float TextW = 0.f, LineH = 0.f;
+					for (const FString& Line : GlanceLines.Lines)
+					{
+						float W = 0.f, H = 0.f;
+						GetTextSize(Line, W, H, nullptr, GlanceScale);
+						TextW = FMath::Max(TextW, W);
+						LineH = FMath::Max(LineH, H);
+					}
+					const FVector2D BoxSize(TextW + 16.f, LineH * GlanceLines.Lines.Num() + 8.f);
+					const FIntPoint ViewPx(Canvas->SizeX, Canvas->SizeY);
+					const FBox2D SceneRect = RTHudLayout::SceneRectPixels(ViewPx, RTHudLayout::UiScaleFor(ViewPx), RTHudLayout::Bands());
+					const FVector2D Where = RTHudLayout::GlancePlacement(FVector2D(AnchorScreen.X, AnchorScreen.Y), BoxSize, SceneRect, 12.f);
+					DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.72f), Where.X, Where.Y, BoxSize.X, BoxSize.Y);
+					for (int32 i = 0; i < GlanceLines.Lines.Num(); ++i)
+					{
+						DrawText(GlanceLines.Lines[i], FLinearColor::White, Where.X + 8.f, Where.Y + 4.f + LineH * i, nullptr, GlanceScale);
+					}
+				}
+			}
 		}
 	}
 

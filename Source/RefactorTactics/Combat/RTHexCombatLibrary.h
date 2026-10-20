@@ -87,6 +87,14 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 RangeCells = 0;
 
+	/**
+	 * Distanza MINIMA in celle, da `FRTActionDef::MinRangeCells` (`#3093`): sotto questa il colpo non nasce. `0` = nessun
+	 * minimo. Copiata dal `Def` accanto a `RangeCells` perche' la risoluzione ripone la stessa domanda del planning
+	 * sullo stesso dato, e non ne tiene una seconda copia.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 MinRangeCells = 0;
+
 	/** Raggio dell'area attorno al bersaglio (solo con Shape = Area). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 AreaRadius = 0;
