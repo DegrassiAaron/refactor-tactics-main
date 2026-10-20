@@ -1487,4 +1487,46 @@ bool FRTHexBotPlaneMirrorTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il bot non propone un attacco sotto il minimo di distanza dell'azione - `#3093`.
+ *
+ * E' lo specchio del click e della risoluzione: senza questo il bot sceglierebbe il mortaio da una cella adiacente
+ * al bersaglio, e `CollectHexAttacks` scarterebbe il colpo in silenzio dopo che il turno e' stato speso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotRespectsMinRangeTest,
+	"RefactorTactics.HexBot.BuildCandidatesRespectsTheMinimumRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotRespectsMinRangeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(5);
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 2));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	const FRTCellId Enemy(1, 0);
+	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), Enemy, /*range*/ 1, /*hp*/ 100);
+	Ctx.AttackRange = 4;
+	Ctx.AttackDamage = 30;
+
+	// Controllo positivo: senza minimo esiste una candidata d'attacco da una cella adiacente al bersaglio.
+	const TArray<FRTHexBotPlan> Libere = URTHexBotLibrary::BuildCandidates(Snap, 1, Ctx);
+	TestTrue(TEXT("senza minimo il bot puo' attaccare da distanza 1"),
+		Libere.ContainsByPredicate([&Enemy](const FRTHexBotPlan& P)
+		{ return P.bHasAttack && URTHexLibrary::HexDistance(P.DestCell, Enemy) == 1; }));
+
+	Ctx.AttackMinRange = 2;
+	const TArray<FRTHexBotPlan> Vincolate = URTHexBotLibrary::BuildCandidates(Snap, 1, Ctx);
+	TestTrue(TEXT("con il minimo esiste ancora un attacco"),
+		Vincolate.ContainsByPredicate([](const FRTHexBotPlan& P) { return P.bHasAttack; }));
+	for (const FRTHexBotPlan& P : Vincolate)
+	{
+		if (P.bHasAttack)
+		{
+			TestTrue(TEXT("nessun attacco proposto sotto il minimo"),
+				URTHexLibrary::HexDistance(P.DestCell, Enemy) >= 2);
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

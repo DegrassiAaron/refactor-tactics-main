@@ -404,6 +404,15 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			continue; // fuori portata (anche per il cap del Fumo): scartato in silenzio (come il quadrato)
 		}
 
+		// `#3093`: la distanza MINIMA, subito dopo il massimo come in `ClassifyHexTargeting`. Non passa dal cap del
+		// Fumo (che limita quanto lontano si arriva, non quanto vicino un'arma smette di funzionare) e si scarta in
+		// silenzio come il massimo: il planning l'ha gia' rifiutato al click, quindi qui arriva solo un piano che non
+		// ha potuto passare di li' (un bot, una replay, un piano scritto prima che l'attaccante si spostasse).
+		if (Intent.MinRangeCells > 0 && URTHexLibrary::HexDistance(Attacker.Cell, AimCell) < Intent.MinRangeCells)
+		{
+			continue;
+		}
+
 		// FAIL-CLOSED: senza mappa autorevole non si colpisce. Il motivo resta pero' DISTINTO da una
 		// copertura: «non valutabile» e' un difetto di configurazione del livello, non un esito di gioco.
 		if (Map == nullptr)

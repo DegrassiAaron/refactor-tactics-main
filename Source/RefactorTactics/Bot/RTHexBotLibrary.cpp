@@ -685,6 +685,12 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			{
 				continue; // fuori gittata da questa cella
 			}
+			// `#3093`: il minimo, subito dopo il massimo e con lo stesso scopo — il bot non propone un attacco che
+			// il planning del giocatore rifiuterebbe come `TooClose` e che la risoluzione scarterebbe.
+			if (Context.AttackMinRange > 0 && URTHexLibrary::HexDistance(Cell.Cell, Enemy) < Context.AttackMinRange)
+			{
+				continue; // troppo vicino da questa cella
+			}
 			// ⛔ **Il piano, nello stesso ordine del gate** (`#2951`, [D-393]): dopo la gittata e prima
 			// della linea. Senza, il bot proporrebbe un attacco che `ClassifyHexTargeting` rifiuta, e
 			// l'invariante che la gittata difende qui sopra — «il bot non propone mosse illegali» — vale

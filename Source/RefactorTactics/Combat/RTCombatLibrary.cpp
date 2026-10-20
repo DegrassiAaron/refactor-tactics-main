@@ -248,9 +248,11 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 }
 
 ERTTargetRefusal URTCombatLibrary::RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
-	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver)
+	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver,
+	int32 MinRangeCells)
 {
-	return RefusalForObserver(ClassifyHexTargeting(Map, From, To, RangeCells, Policy), bTargetKnownToObserver);
+	return RefusalForObserver(ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells),
+		bTargetKnownToObserver);
 }
 
 ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver)
@@ -275,7 +277,8 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 }
 
 FRTCellTargetRefusal URTCombatLibrary::DescribeCellTargetRefusal(const URTHexMapAsset* Map,
-	const FRTCellId& From, const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy)
+	const FRTCellId& From, const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy,
+	int32 MinRangeCells)
 {
 	FRTCellTargetRefusal Out;
 
@@ -285,7 +288,7 @@ FRTCellTargetRefusal URTCombatLibrary::DescribeCellTargetRefusal(const URTHexMap
 	// lungo `HexLine`; `DescribeLineOfSight` ha per unica sorgente `const URTHexMapAsset*`. ∴ due mondi che
 	// differiscono solo per un nemico che l'osservatore non conosce, sulla cella bersaglio, escono di qui con
 	// `Out` identico campo per campo, e nessun filtro a valle deve rimediare a niente. [D-225]
-	Out.Refusal = RefusalForReason(ClassifyHexTargeting(Map, From, To, RangeCells, Policy));
+	Out.Refusal = RefusalForReason(ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells));
 
 	// 🔑 **Calcolate SEMPRE, anche quando l'esito e' `None`.** `ARTHUD::RefusalText` legge il numero solo per
 	// `Range` e `ComputeRefusedShotLine` la geometria solo per `Cover`, quindi altrove sono inerti — ed e'
@@ -335,7 +338,7 @@ FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 Effect
 }
 
 TArray<FRTCellId> URTCombatLibrary::TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From,
-	int32 RangeCells, ERTLineOfSightPolicy Policy)
+	int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells)
 {
 	TArray<FRTCellId> Out;
 	if (!Map || RangeCells < 0)
@@ -348,7 +351,7 @@ TArray<FRTCellId> URTCombatLibrary::TargetableRangeCells(const URTHexMapAsset* M
 		{
 			continue;
 		}
-		const ERTHexTargetReason Reason = ClassifyHexTargeting(Map, From, Cell, RangeCells, Policy);
+		const ERTHexTargetReason Reason = ClassifyHexTargeting(Map, From, Cell, RangeCells, Policy, MinRangeCells);
 		if (Reason == ERTHexTargetReason::Ok || Reason == ERTHexTargetReason::NoLineOfSight)
 		{
 			Out.Add(Cell);
@@ -358,9 +361,9 @@ TArray<FRTCellId> URTCombatLibrary::TargetableRangeCells(const URTHexMapAsset* M
 }
 
 bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
-	int32 RangeCells, ERTLineOfSightPolicy Policy)
+	int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells)
 {
-	return ClassifyHexTargeting(Map, From, To, RangeCells, Policy) == ERTHexTargetReason::Ok;
+	return ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells) == ERTHexTargetReason::Ok;
 }
 
 int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus)
