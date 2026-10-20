@@ -1634,6 +1634,9 @@ protected:
 
 	bool bInspectorPinned = false;
 
+	/** Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). */
+	void PinInspection(ARTUnit* Unit);
+
 	bool bPhaseFocusPinned = false;
 
 private:

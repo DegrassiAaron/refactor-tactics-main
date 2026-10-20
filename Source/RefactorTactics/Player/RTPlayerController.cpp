@@ -2452,7 +2452,7 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// ⚠️ E la selezione **non si tocca**: ispezionare non costa l'unita' comandata ne' l'azione armata.
 	if (Outcome == ERTPointerOutcome::Inspect)
 	{
-		InspectedUnit = ClickedUnit;
+		PinInspection(ClickedUnit);
 		return true;
 	}
 
@@ -2862,7 +2862,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	{
 		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
 		{
-			InspectedUnit = const_cast<ARTUnit*>(Puntato);
+			PinInspection(const_cast<ARTUnit*>(Puntato));
 			return;
 		}
 	}
@@ -4589,6 +4589,12 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 	return ERTTargetRefusal::None;
 }
 
+void ARTPlayerController::PinInspection(ARTUnit* Unit)
+{
+	InspectedUnit = Unit;
+	bInspectorPinned = Unit != nullptr;
+}
+
 ERTPointerBackStep ARTPlayerController::ApplyBack()
 {
 	ARTUnit* Unit = GetSelectedUnit();
@@ -4603,7 +4609,10 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	switch (Step)
 	{
 	case ERTPointerBackStep::Inspector:
+		// #3748: chiudere la scheda vuol dire soggetto E pin. Azzerare solo il flag lasciava il soggetto, e con lui il
+		// pannello di sinistra e l'arco del nemico, sull'ultimo nemico ispezionato.
 		bInspectorPinned = false;
+		InspectedUnit = nullptr;
 		break;
 
 	case ERTPointerBackStep::Declaration:
