@@ -2330,8 +2330,8 @@ bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTU
 	// ricarica», e un congiunto `CanUseAbility` lo applicava*: da `#3830` una carica in ricarica non si arma, quindi non
 	// puo' essere quella armata (`Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`).
 	// ⚠️ **Non controlla `IsAlive()` di `Selected`, ed e' deliberato** (`#3838`): una selezionata morta esiste solo fra il
-	// Cleanup e `DestroyDefeatedUnits`, a mondo in sola lettura, e in quel tratto `ResolveOutcome` risponde `Blocked` prima
-	// di guardare questo risultato (`Turn.AUnitKilledInTheCleanupStaysArmedUntilDestroyedOutOfReachOfInput`).
+	// Cleanup e `DestroyDefeatedUnits`, a mondo in sola lettura, e in quel tratto `ResolveOutcome` esce in `ResolutionPlayback`
+	// (`Blocked`, o `Inspect` da `#3748`) prima di guardare questo risultato (`Turn.AUnitKilledInTheCleanupStaysArmedUntilDestroyedOutOfReachOfInput`).
 	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge
 		|| Selected->EffectiveDashRangeOf(IndiceArmato) <= 0
 		|| Selected->bDeclaresPlannedFacing
