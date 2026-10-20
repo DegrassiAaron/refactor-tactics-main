@@ -783,6 +783,46 @@ FRTCellId ARTHUD::GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCe
 	return bHasAnimated ? Animated : UnitCell;
 }
 
+FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing)
+{
+	FRTInspectSubject Subject;
+	if (Unit == nullptr)
+	{
+		return Subject;
+	}
+	Subject.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
+	Subject.HeroId = Unit->HeroId;
+	Subject.Card = URTHudViewModel::BuildUnitCard(Unit, PlayerTeamId);
+	Subject.Statuses = URTHudViewModel::BuildStatusBadges(Unit);
+	Subject.Facing = Unit->Facing;
+	Subject.bShowFacing = bShowFacing;
+
+	// Il kit dal solo catalogo: le azioni dell'unita' (con la variante d'arma montata, che cambia la portata vera),
+	// riga di catalogo -> tooltip di catalogo. Nessuna ricarica, nessun piano, nessuna variante attiva.
+	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
+	{
+		const URTActionData* Action = Unit->GetAbility(Index);
+		if (Action == nullptr) { continue; }
+		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
+			URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None));
+		if (Tooltip.IsValid()) { Subject.Kit.Add(Tooltip); }
+	}
+
+	for (const FName& PieceId : Unit->EquippedItemIds)
+	{
+		if (const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId))
+		{
+			FRTInspectEquipmentLine Line;
+			Line.Name = Piece->DisplayName;
+			Line.Slot = Piece->Slot;
+			Line.Advantage = Piece->Advantage;
+			Line.Drawback = Piece->Drawback;
+			Subject.Equipment.Add(Line);
+		}
+	}
+	return Subject;
+}
+
 FRTGlanceUnitSubject ARTHUD::BuildGlanceUnitSubject(const ARTUnit* Unit, bool bShowFacing)
 {
 	FRTGlanceUnitSubject Subject;
