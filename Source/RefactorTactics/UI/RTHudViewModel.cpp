@@ -672,8 +672,12 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 	}
 
 	// 🔑 **Armata batte tutto il resto, ed e' la regola di `ARTHUD::ComposeAbilityLine`**, non una nuova:
-	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*. Un'ultimate
-	// armata e ancora in ricarica resta riconoscibile come quella scelta; il motivo lo dice il numero.
+	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*.
+	//
+	// ⏱️ *Qui c'era «un'ultimate armata e ancora in ricarica resta riconoscibile come quella scelta», detto come caso di
+	// gioco.* Da [D-531] (`#3830`) un'azione in ricarica non si arma, quindi il simulatore non produce `bArmed` con
+	// `TurnsRemaining > 0`. La precedenza resta perche' la vista e' una struct e un chiamante puo' comporla cosi' (un
+	// Blueprint, un test): e' una risposta TOTALE su un ingresso composto a mano, non uno scenario di gioco.
 	if (bArmed)
 	{
 		return ERTActionSlotState::Selected;
