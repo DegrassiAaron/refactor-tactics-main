@@ -567,6 +567,26 @@ public:
 	void AppendTurnLogEntryForTest(const FRTTurnLogEntry& Entry) { TurnLog.Add(Entry); }
 
 	/**
+	 * Hook per i test: sostituisce la conoscenza di UNA squadra (`#2794`). Il banco non ha un `ARTGameMode` che la
+	 * rinfreschi, e deriverla dalla vista vera renderebbe la premessa dipendente dal raggio visivo di un eroe; qui si
+	 * dichiara quali celle la squadra ha visto, e il test misura cio' che ne segue.
+	 *
+	 * ⛔ **Non e' una porta di produzione**: la conoscenza vera nasce da `RefreshTeamKnowledgeNow` e dal Blast.
+	 */
+	void SetTeamKnowledgeForTest(const FRTTeamKnowledge& Knowledge)
+	{
+		if (FRTTeamKnowledge* Existing = TeamKnowledgeState.FindByPredicate(
+			[&Knowledge](const FRTTeamKnowledge& K) { return K.TeamId == Knowledge.TeamId; }))
+		{
+			*Existing = Knowledge;
+		}
+		else
+		{
+			TeamKnowledgeState.Add(Knowledge);
+		}
+	}
+
+	/**
 	 * Hook per i test: quanti verdetti porta l'evento di movimento di questa unita' nella timeline risolta.
 	 *
 	 * 🔴 **Esiste perche' il predicato puro non basta a dimostrare il fix di `#1525`.**
@@ -1626,6 +1646,32 @@ public:
 	 * Con un default, un chiamante distratto vedrebbe l'autorevole in silenzio ([D-371]).
 	 */
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits, int32 ObserverTeamId) const;
+
+	/**
+	 * Dota `Snapshot` della mappa su cui il **giocatore** pianifica un Move verso l'ignoto (`FRTHexSnapshot::PlanningMap`,
+	 * [D-372], `#2794`). Lo chiama la pianificazione del giocatore e nessun altro: Resolution, bot e strumenti non lo
+	 * chiamano, e la loro vista resta quella autorevole.
+	 *
+	 * La copia si **riusa** finche' non cambiano mappa, revisione, squadra e le due liste di celle della conoscenza: una
+	 * per interazione di pianificazione, non una per chiamata. Con conoscenza vuota non fa niente e `PlanningMap` resta
+	 * `nullptr`. La tiene viva questo oggetto (`PlanningMapCache`).
+	 */
+	void AttachPlanningMap(FRTHexSnapshot& Snapshot, int32 ObserverTeamId);
+
+	/**
+	 * La mappa su cui il **giocatore** giudica un Move e una mira ([D-372], [D-465], `#2794`): la copia ottimistica per
+	 * la squadra, oppure `Authoritative` quando la squadra non ha ancora una conoscenza (sessione senza `ARTGameMode`,
+	 * prima del refresh) o l'osservatore e' onnisciente. Mai `nullptr` se `Authoritative` non lo e'.
+	 *
+	 * 🔑 **E' la stessa copia che `AttachPlanningMap` consegna a `FindPath`**: click, portata viola e percorso ricevono
+	 * la stessa vista, che e' cio' che [D-465] punto (3) chiede. ⛔ La Resolution, la validazione al lock-in e i bot non
+	 * la chiamano e restano sulla mappa autorevole.
+	 */
+	const URTHexMapAsset* PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative);
+
+	/** `PlanningMapFor` dal mondo: il TurnManager si cerca qui, e senza di lui si resta sulla mappa autorevole. */
+	static const URTHexMapAsset* PlayerAimMap(const UObject* WorldContext, int32 TeamId,
+		const URTHexMapAsset* Authoritative);
 
 	/**
 	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
@@ -3035,6 +3081,17 @@ protected:
 	 * cosi' i consumatori puri la leggono senza conoscere il TurnManager.
 	 */
 	TArray<FRTTeamKnowledge> TeamKnowledgeState;
+
+	/**
+	 * La copia ottimistica della mappa per la pianificazione del giocatore (`AttachPlanningMap`). `UPROPERTY` perche'
+	 * `FRTHexSnapshot::PlanningMap` e' un puntatore grezzo: senza un riferimento forte il GC la raccoglie fra due
+	 * interazioni. Non entra in nessuno stato canonico, snapshot serializzato, replay o hash.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<URTHexMapAsset> PlanningMapCache;
+
+	/** La chiave per cui `PlanningMapCache` e' valida: mappa, revisione, squadra e conoscenza. */
+	uint32 PlanningMapKey = 0;
 
 	/**
 	 * Lo stato che il **playback** mostra, distinto da quello canonico (`#2876`). Vedi

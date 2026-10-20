@@ -105,6 +105,13 @@ struct FRTMovementResolutionContext
 	/** Chi e' stato accorciato dalla TOPOLOGIA: il resolver non puo' saperlo, questo ciclo si'. */
 	TArray<bool> bStoppedByTopology;
 
+	/**
+	 * Di chi si e' fermato per topologia, chi lo e' stato davanti a terreno che la sua squadra NON aveva mai
+	 * osservato (`#2794`, [D-534]). Sottoinsieme di `bStoppedByTopology`: sceglie fra `BlockedByUnseenTerrain` e
+	 * `BlockedByTopology` al momento di scrivere il log.
+	 */
+	TArray<bool> bStoppedByUnseenTerrain;
+
 	/** Chi ha DICHIARATO una destinazione e se l'e' vista negare perche' occupata (`#79`). */
 	TArray<bool> bDeniedByOccupant;
 

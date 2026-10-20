@@ -93,6 +93,10 @@ namespace
 		// chiesto all'autorita', che ora lo compone per l'osservatore invece di consegnarlo intero.
 		TArray<ARTUnit*> Units;
 		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units, Unit->TeamId);
+		// 🔴 **Il Move del giocatore si pianifica sulla mappa che il giocatore conosce** ([D-372], `#2794`): una cella
+		// mai osservata e' libera, non un muro che la sua squadra non ha mai visto. Solo qui: la Resolution resta
+		// onnisciente e i bot restano sulla vista autorevole.
+		TurnManager->AttachPlanningMap(OutSnapshot, Unit->TeamId);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
 
@@ -226,6 +230,9 @@ namespace
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 		ARTHexMapActor* HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
+		// 🔴 La mira si giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): portata viola e rifiuto del
+		// bersaglio pianificato leggono la copia ottimistica della squadra.
+		Map = ARTTurnManager::PlayerAimMap(World, Unit ? Unit->TeamId : INDEX_NONE, Map);
 		if (!HexMap)
 		{
 			return;
@@ -2401,7 +2408,7 @@ bool ARTPlayerController::BuildChargeHoverView(FRTIntentView& OutView) const
 	}
 	const int32 DashRange = Selected->EffectiveDashRangeOf(SelIdx);
 	const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(
-		Snapshot.Map, Selected->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+		Snapshot.MapForPlanning(), Selected->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 	if (!Verdetto.bAccepted)
 	{
 		return false; // il click rifiuterebbe: non c'e' niente da annunciare, e il nemico non si ispeziona
@@ -2529,6 +2536,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
 		// L'actor serve alla linea di tiro interrotta (`#2742`): stessa chiamata, nessuna seconda ricerca.
 		ARTHexMapActor* THexMap = HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
+		// 🔴 Il click giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): rifiuto, numero, linea e portata
+		// efficace leggono la copia ottimistica. Il canale diagnostico qui sotto resta coerente con il messaggio.
+		TMap = ARTTurnManager::PlayerAimMap(this, SelectedUnit->TeamId, TMap);
 		// Un solo gate (FAIL-CLOSED: senza mappa autorevole non si ingaggia — test
 		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
 		// copertura un bersaglio che era solo troppo lontano (test
@@ -2973,7 +2983,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 			// 🔑 **Il verdetto ha una sede sola** (`JudgeLinearDashClick`): il click lo applica, l'hover lo annuncia ([D-128]).
 			const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(
-				Map, SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+				Snapshot.MapForPlanning(), SelectedUnit->Cell, Cell, DashRange, SelAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 			const FRTLinearMoveResult& Linear = Verdetto.Linear;
 
 			// Le condizioni — la retta che arriva sulla cella, la carica che urta, la carica oltre la portata su un nemico noto — sono
@@ -3048,7 +3058,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			return Set;
 		}();
 		const FRTHexPathResult DashPath =
-			URTHexPathLibrary::FindPathAvoiding(Map, SelectedUnit->Cell, Cell, &Occupied, DashRange);
+			URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), SelectedUnit->Cell, Cell, &Occupied, DashRange);
 		if (DashPath.Status != ERTHexPathStatus::Success)
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) fuori dallo scatto (%s, max %d) per %s"),
@@ -3634,7 +3644,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// 🔑 **E' l'UNICO rifiuto per ricarica del controller** (`#3833`). I gestori di click e l'anteprima non
 	// ricontrollano `CanUseAbility` sull'azione armata, perche' **un'unita' viva, in Pianificazione, non ha
 	// un'azione armata in ricarica**: l'armo si rifiuta qui, la ricarica nasce solo in risoluzione
-	// (`ConsumeAbility`, dal solo TurnManager, a mondo in sola lettura) e il Cleanup disarma ([D-397] §5) nello
+	// (`ConsumeAbility`, dal solo TurnManager, a mondo in sola lettura — anche a risoluzione sospesa su una finestra di
+	// reazione, da `#3837`) e il Cleanup disarma ([D-397] §5) nello
 	// stesso passaggio che la fa scorrere. Le uniche due scritture che ARMANO `SelectedAbilityIndex` sono questa e
 	// l'anteprima del harness al turno 1 (le altre sono disarmi, `INDEX_NONE`).
 	//
@@ -4473,12 +4484,25 @@ ERTPointerContext ARTPlayerController::GetPointerContext() const
 		// 🔑 **Lo stato del playback e' `bIsResolving`, non la fase.** Sono due cose diverse: la risoluzione
 		// logica finisce dentro `LockInAndResolve`, mentre il playback continua a scorrere finche'
 		// `IsResolving()` e' vero — ed e' *quello* l'intervallo in cui §5.3 dice che il mondo e' in sola
-		// lettura.
+		// lettura. ⏱️ *Non basta, da `#3837`*: una risoluzione sospesa senza playback non lo accende (vedi sotto).
 		//
 		// ⚠️ `MatchEnded` resta escluso senza doverlo nominare: a partita finita `bIsResolving` e' falso, e
 		// si cade nei rami sotto. La ragione per cui non diventa un contesto suo e' invariata, ed e' scritta
 		// nel commento qui sopra.
-		if (TM->IsResolving())
+		// 🔴 **O la risoluzione e' SOSPESA su una finestra di reazione** (`#3837`). Il commento in testa a questo ramo
+		// dichiara l'intervallo, «dal primo segmento risolto al Cleanup», ma il predicato chiedeva il solo playback, e una
+		// sospensione lo accende solo se parte il playback parziale: non con `bEnablePlayback` falso (la risoluzione
+		// istantanea, `EditAnywhere`). ⚠️ *La timeline vuota, che `BeginPartialPlayback` prevede, non l'ho trovata:* misurata
+		// alla sospensione, l'Overwatch ha gia' i suoi eventi di movimento e il Brace le impronte del Blast. In quel tratto
+		// `Phase` e' `Move` o `Blast`, le azioni di Prep, Dash e Blast sono gia' consumate e il Cleanup non e' arrivato:
+		// un'unita' viva, armata e in ricarica, a mondo scrivibile. Misurato
+		// (`Reactions.ASuspendedResolutionIsReadOnlyForInput`): un click su un altro nemico le pianificava un'azione
+		// gia' spesa.
+		//
+		// ⚠️ **`ResolutionPlayback` e non `ReactionWindow`**: `ResolveBack` manda il secondo a `ReactionFallback`, che e'
+		// E14 e nessuno ha implementato, e con il playback acceso la finestra ha sempre avuto `ResolutionPlayback`. Stesso
+		// valore nei due casi, quindi nessun consumatore cambia dove il mondo era gia' in sola lettura.
+		if (TM->IsResolving() || TM->IsResolutionSuspended())
 		{
 			return ERTPointerContext::ResolutionPlayback;
 		}
@@ -4554,6 +4578,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	Map = ARTTurnManager::PlayerAimMap(this, Unit ? Unit->TeamId : INDEX_NONE, Map); // [D-465] (3), `#2794`
 	if (!HexMap || !Map || !HexMap->IsHoveredCellValid())
 	{
 		return ERTTargetRefusal::None;
@@ -4799,6 +4824,8 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// alla stessa domanda. La chiamata era gia' qui; cambia solo che qualcuno la ascolta.
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	// [D-465] (3), `#2794`: la mira della cella si giudica sulla stessa mappa del percorso.
+	Map = ARTTurnManager::PlayerAimMap(this, Unit ? Unit->TeamId : INDEX_NONE, Map);
 	if (!Map || !Map->ContainsCell(Cell))
 	{
 		// ⚠️ **Questo ramo resta muto a schermo, ed e' dichiarato invece che dimenticato**: `ERTTargetRefusal`
@@ -4966,6 +4993,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	Map = ARTTurnManager::PlayerAimMap(this, Unit ? Unit->TeamId : INDEX_NONE, Map); // [D-465] (3), `#2794`
 	if (!Map || !Map->ContainsCell(Cell))
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo fuori mappa"));
@@ -5232,7 +5260,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 						const ARTUnit* Other = SnapshotUnits[i];
 						if (Other && Other->IsAlive() && Other->TeamId != Unit->TeamId) { Hostiles.Add(i); }
 					}
-					const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(Snapshot.Map,
+					const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(Snapshot.MapForPlanning(),
 						Unit->Cell, Unit->PlannedDashCell, Unit->EffectiveDashRangeOf(Unit->PlannedDashAbility),
 						Scatto->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 					OutPath.Append(Linear.Entered);
@@ -5244,7 +5272,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 				if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) && Map)
 				{
 					const FRTHexPathResult Breve = URTHexPathLibrary::FindPathAvoiding(
-						Map, Unit->Cell, Unit->PlannedDashCell, nullptr, 0);
+						ARTTurnManager::PlayerAimMap(this, Unit->TeamId, Map), Unit->Cell, Unit->PlannedDashCell, nullptr, 0);
 					if (Breve.Status == ERTHexPathStatus::Success && Breve.Path.Num() >= 2)
 					{
 						OutPath = Breve.Path;

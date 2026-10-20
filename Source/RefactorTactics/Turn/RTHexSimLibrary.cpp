@@ -270,13 +270,53 @@ bool URTHexSimLibrary::IsSnapshotStale(const FRTHexSnapshot& Snapshot)
 	return Snapshot.Map->ComputeHash() != Snapshot.MapHash || Snapshot.Map->Revision != Snapshot.Revision;
 }
 
+URTHexMapAsset* URTHexSimLibrary::MakeOptimisticPlanningMap(UObject* Outer, const URTHexMapAsset* Map,
+	const FRTTeamKnowledge& Knowledge)
+{
+	if (!Map || (Knowledge.VisibleCells.Num() == 0 && Knowledge.ExploredCells.Num() == 0))
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Copia = DuplicateObject<URTHexMapAsset>(Map, Outer ? Outer : GetTransientPackage());
+	if (!Copia)
+	{
+		return nullptr;
+	}
+
+	// ⚠️ L'unione e' obbligatoria: `ExploredCells` e' un sovrainsieme di `VisibleCells` solo dopo il refresh della
+	// conoscenza, e prima di quello la cella sotto i piedi di chi pianifica e' solo visibile.
+	TSet<FRTCellId> Note(Knowledge.ExploredCells);
+	Note.Append(Knowledge.VisibleCells);
+
+	// In loco e non con `AddOrUpdateCell`: l'`Id` non cambia, l'indice per cella resta valido e la copia non ha un
+	// registro di modifiche da tenere (stessa scelta di `URTEnemyArcLibrary::KnownTerrainMap`).
+	for (FRTHexCellData& Cella : Copia->Cells)
+	{
+		if (Note.Contains(Cella.Id))
+		{
+			continue;
+		}
+		Cella.bBlocksMovement = false;
+		Cella.bBlocksLineOfSight = false;
+		Cella.Surface = ERTHexSurface::Floor;
+		Cella.MoveCost = 1;
+		Cella.OccupancySurcharge = 0;
+		Cella.Covers.Reset();
+		Cella.Doors.Reset();
+		Cella.Guards.Reset();
+	}
+	Copia->InteriorWalls.RemoveAll([&Note](const FRTHexInteriorWall& W) { return !Note.Contains(W.Cell); });
+	return Copia;
+}
+
 bool URTHexSimLibrary::IsCellFree(const FRTHexSnapshot& Snapshot, const FRTCellId& Cell, int32 ForUnitId)
 {
-	if (!Snapshot.Map)
+	if (!Snapshot.MapForPlanning())
 	{
 		return false;
 	}
-	const FRTHexCellData* Data = Snapshot.Map->FindCell(Cell);
+	const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Cell);
 	if (!Data || Data->bBlocksMovement)
 	{
 		return false;
@@ -290,7 +330,7 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	TArray<FRTHexReachableCell> Out;
 
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit || !Snapshot.Map->ContainsCell(Unit->Cell))
+	if (!Snapshot.MapForPlanning() || !Unit || !Snapshot.MapForPlanning()->ContainsCell(Unit->Cell))
 	{
 		return Out;
 	}
@@ -337,7 +377,7 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 		}
 		Closed.Add(Current);
 
-		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Current.Cell))
+		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.MapForPlanning(), Current.Cell))
 		{
 			if (Blocked.Contains(Step.Key))
 			{
@@ -349,7 +389,7 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 			{
 				ERTHexDirection ExitDir = ERTHexDirection::E;
 				if (URTHexLibrary::DirectionBetween(Current.Cell, Step.Key, ExitDir)
-					&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Current.Cell,
+					&& !URTHexPathLibrary::CanTransitCell(Snapshot.MapForPlanning(), Current.Cell,
 						static_cast<ERTHexDirection>(Current.Entry), ExitDir))
 				{
 					continue; // geometria interna: le due sponde non si parlano
@@ -361,7 +401,7 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 			{
 				continue; // fuori dal budget di movimento
 			}
-			const FRTPathNode Next{ Step.Key, EntrySideOf(Snapshot.Map, Step.Key, Current.Cell) };
+			const FRTPathNode Next{ Step.Key, EntrySideOf(Snapshot.MapForPlanning(), Step.Key, Current.Cell) };
 			const int32* Existing = Dist.Find(Next);
 			if (!Existing || Tentative < *Existing)
 			{
@@ -484,8 +524,11 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCellsAfterPlan(const FRTH
 	// risulterebbe filtrato e quello dopo un waypoint no, cioe' l'anteprima rivelerebbe la posizione
 	// nascosta **solo a chi pianifica in due tempi**. `TeamKnowledge` viaggia con lui, perche' senza non
 	// c'e' niente con cui filtrare.
-	const FRTHexSnapshot Derived = MakeSnapshot(Snapshot.Map, Planned,
+	FRTHexSnapshot Derived = MakeSnapshot(Snapshot.Map, Planned,
 		Snapshot.TeamKnowledge, Snapshot.ObserverTeamId);
+	// La vista ottimistica del Move viaggia con la fotografia derivata: perderla qui farebbe leggere il ventaglio
+	// dopo un waypoint su una mappa diversa da quella del primo clic ([D-372]).
+	Derived.PlanningMap = Snapshot.PlanningMap;
 
 	// ⚠️ `Derived` muore qui dentro, ed e' deliberato: dice che l'unita' e' su una cella dove non e' ancora
 	// arrivata. Per il fan e' l'ipotesi giusta; per chiunque altro sarebbe una bugia.
@@ -497,7 +540,7 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 	FRTHexPathResult Result;
 
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit)
+	if (!Snapshot.MapForPlanning() || !Unit)
 	{
 		Result.Status = ERTHexPathStatus::StartInvalid;
 		return Result;
@@ -507,20 +550,20 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 	if (Budget <= 0)
 	{
 		// MaxCost == 0 significa "illimitato" per l'A*: il caso "immobile" va gestito qui.
-		if (Goal == Unit->Cell && Snapshot.Map->ContainsCell(Goal))
+		if (Goal == Unit->Cell && Snapshot.MapForPlanning()->ContainsCell(Goal))
 		{
 			Result.Status = ERTHexPathStatus::Success;
 			Result.Path.Add(Goal);
 		}
 		else
 		{
-			Result.Status = Snapshot.Map->ContainsCell(Goal) ? ERTHexPathStatus::NoPath : ERTHexPathStatus::GoalInvalid;
+			Result.Status = Snapshot.MapForPlanning()->ContainsCell(Goal) ? ERTHexPathStatus::NoPath : ERTHexPathStatus::GoalInvalid;
 		}
 		return Result;
 	}
 
 	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, &Goal);
-	return URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Goal, &Blocked, Budget,
+	return URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), Unit->Cell, Goal, &Blocked, Budget,
 		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 }
 
@@ -583,7 +626,7 @@ FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	Result.Path = Path;
 
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit || Path.Num() < 2)
+	if (!Snapshot.MapForPlanning() || !Unit || Path.Num() < 2)
 	{
 		return Result;
 	}
@@ -595,7 +638,7 @@ FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	// *«letto come un booleano»* — e' caduto: si srotolano `SlideCells` passi, piu' quelli che l'unita'
 	// porta con se' (`ExtraSlideCells`, oggi `Status.Unbalanced`).
 	const FRTCellId LastCell = Path.Last();
-	const FRTHexCellData* LastData = Snapshot.Map->FindCell(LastCell);
+	const FRTHexCellData* LastData = Snapshot.MapForPlanning()->FindCell(LastCell);
 	const int32 TerrainSlide = LastData
 		? URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells : 0;
 	if (TerrainSlide <= 0)
@@ -615,7 +658,7 @@ FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	const int32 ExtraPerCell = FMath::Max(0, Unit->MoveCostModifier);
 	for (int32 I = 1; I < Path.Num(); ++I)
 	{
-		const FRTHexCellData* StepData = Snapshot.Map->FindCell(Path[I]);
+		const FRTHexCellData* StepData = Snapshot.MapForPlanning()->FindCell(Path[I]);
 		PathCost += (StepData ? StepData->TotalMoveCost() : 0) + ExtraPerCell;
 	}
 	if (Unit->MoveBudget - PathCost < 2)
@@ -679,7 +722,7 @@ FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	for (int32 Step = 0; Step < TotalSlide; ++Step)
 	{
 		const FRTCellId SlideCell(AtCell.X + Dir.X, AtCell.Y + Dir.Y, AtCell.Layer);
-		if (!StepIsWalkable(Snapshot.Map, FromCell, AtCell, SlideCell))
+		if (!StepIsWalkable(Snapshot.MapForPlanning(), FromCell, AtCell, SlideCell))
 		{
 			// Un muro fra la cella corrente e la successiva: si ferma qui, e cio' che ha gia' fatto vale.
 			// Se si ferma al PRIMO passo il percorso resta quello ricevuto, e `bSlideRequested` diventa
@@ -697,11 +740,11 @@ FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 ERTHexWaypointReason URTHexSimLibrary::ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
 	const FRTCellId& Cell)
 {
-	if (!Snapshot.Map || !Snapshot.Map->ContainsCell(Cell))
+	if (!Snapshot.MapForPlanning() || !Snapshot.MapForPlanning()->ContainsCell(Cell))
 	{
 		return ERTHexWaypointReason::NotOnMap;
 	}
-	if (const FRTHexCellData* Data = Snapshot.Map->FindCell(Cell))
+	if (const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Cell))
 	{
 		if (Data->bBlocksMovement)
 		{
@@ -783,13 +826,13 @@ ERTHexProbeExclusion URTHexSimLibrary::ClassifyProbeCell(const FRTHexSnapshot& S
 	// gira al pathfinder canonico SENZA limite di costo (`MaxCost == 0`) e con gli stessi ostacoli dinamici
 	// di `FindPathForUnit`: se a budget illimitato un percorso esiste, allora mancava solo il budget.
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit)
+	if (!Snapshot.MapForPlanning() || !Unit)
 	{
 		return ERTHexProbeExclusion::NoRoute;
 	}
 
 	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, &Cell);
-	const FRTHexPathResult Unlimited = URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Cell,
+	const FRTHexPathResult Unlimited = URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), Unit->Cell, Cell,
 		&Blocked, /*MaxCost=*/ 0, /*MaxNodes=*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 
 	return Unlimited.Status == ERTHexPathStatus::Success
@@ -803,7 +846,7 @@ FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& S
 	FRTHexPathResult Result;
 
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit)
+	if (!Snapshot.MapForPlanning() || !Unit)
 	{
 		Result.Status = ERTHexPathStatus::StartInvalid;
 		return Result;
@@ -829,12 +872,12 @@ FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& S
 		{
 			// MaxCost == 0 significa "illimitato" per l'A*: senza budget residuo non si chiama.
 			FRTHexPathResult Rejected;
-			Rejected.Status = Snapshot.Map->ContainsCell(Waypoint)
+			Rejected.Status = Snapshot.MapForPlanning()->ContainsCell(Waypoint)
 				? ERTHexPathStatus::NoPath : ERTHexPathStatus::GoalInvalid;
 			return Rejected;
 		}
 
-		const FRTHexPathResult Leg = URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Current, Waypoint, &Blocked,
+		const FRTHexPathResult Leg = URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), Current, Waypoint, &Blocked,
 			Remaining, /*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 		if (Leg.Status != ERTHexPathStatus::Success)
 		{
@@ -859,12 +902,12 @@ int32 URTHexSimLibrary::TraversalDurationTicks(const FRTHexSnapshot& Snapshot, i
 	const FRTCellId& Cell)
 {
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit)
+	if (!Snapshot.MapForPlanning() || !Unit)
 	{
 		return 1; // dato non verificabile: si degrada al comportamento precedente, non si inventa una durata
 	}
 
-	const FRTHexCellData* Data = Snapshot.Map->FindCell(Cell);
+	const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Cell);
 	if (!Data)
 	{
 		return 1;
@@ -929,7 +972,7 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& S
 	}
 
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
-	if (!Snapshot.Map || !Unit)
+	if (!Snapshot.MapForPlanning() || !Unit)
 	{
 		return Path; // dato non verificabile: si lascia il piano invariato, non lo si annulla ne' lo si taglia a caso
 	}
@@ -943,7 +986,7 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& S
 
 	for (int32 k = 1; k < Path.Num(); ++k)
 	{
-		const FRTHexCellData* Data = Snapshot.Map->FindCell(Path[k]);
+		const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Path[k]);
 		const int32 StepCost = (Data ? Data->TotalMoveCost() : 0) + ExtraPerCell;
 		if (Spent + StepCost > Budget)
 		{
@@ -958,7 +1001,7 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& S
 TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot& Snapshot,
 	const TArray<FRTCellId>& Path)
 {
-	if (!Snapshot.Map || Path.Num() < 2)
+	if (!Snapshot.MapForPlanning() || Path.Num() < 2)
 	{
 		return Path; // dato non verificabile, o niente da camminare
 	}
@@ -971,7 +1014,7 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 		// grafo e quello sulla traversata intra-cella, che qui erano due blocchi separati. Il predecessore
 		// esiste solo da `k >= 2`; al primo passo non c'e' traversata da validare, e la funzione lo gestisce.
 		const FRTCellId CameFrom = (k >= 2) ? Path[k - 2] : Path[k - 1];
-		if (!StepIsWalkable(Snapshot.Map, CameFrom, Path[k - 1], Path[k]))
+		if (!StepIsWalkable(Snapshot.MapForPlanning(), CameFrom, Path[k - 1], Path[k]))
 		{
 			break; // la topologia e' cambiata da quando il piano e' stato scritto, o il piano attraversava un muro
 		}
