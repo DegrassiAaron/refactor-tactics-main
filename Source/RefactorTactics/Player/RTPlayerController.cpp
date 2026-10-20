@@ -3629,7 +3629,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// 🔑 **E' l'UNICO rifiuto per ricarica del controller** (`#3833`). I gestori di click e l'anteprima non
 	// ricontrollano `CanUseAbility` sull'azione armata, perche' **un'unita' viva, in Pianificazione, non ha
 	// un'azione armata in ricarica**: l'armo si rifiuta qui, la ricarica nasce solo in risoluzione
-	// (`ConsumeAbility`, dal solo TurnManager, a mondo in sola lettura) e il Cleanup disarma ([D-397] §5) nello
+	// (`ConsumeAbility`, dal solo TurnManager, a mondo in sola lettura — anche a risoluzione sospesa su una finestra di
+	// reazione, da `#3837`) e il Cleanup disarma ([D-397] §5) nello
 	// stesso passaggio che la fa scorrere. Le uniche due scritture che ARMANO `SelectedAbilityIndex` sono questa e
 	// l'anteprima del harness al turno 1 (le altre sono disarmi, `INDEX_NONE`).
 	//
@@ -4473,7 +4474,18 @@ ERTPointerContext ARTPlayerController::GetPointerContext() const
 		// ⚠️ `MatchEnded` resta escluso senza doverlo nominare: a partita finita `bIsResolving` e' falso, e
 		// si cade nei rami sotto. La ragione per cui non diventa un contesto suo e' invariata, ed e' scritta
 		// nel commento qui sopra.
-		if (TM->IsResolving())
+		// 🔴 **O la risoluzione e' SOSPESA su una finestra di reazione** (`#3837`). Il commento in testa a questo ramo
+		// dichiara l'intervallo, «dal primo segmento risolto al Cleanup», ma il predicato chiedeva il solo playback, e una
+		// sospensione lo accende solo se parte il playback parziale: non con `bEnablePlayback` falso (la risoluzione
+		// istantanea, `EditAnywhere`) e non con la timeline vuota. In quel tratto `Phase` e' `Move`, le azioni di Prep,
+		// Dash e Blast sono gia' consumate e il Cleanup non e' arrivato: un'unita' viva, armata e in ricarica, a mondo
+		// scrivibile. Misurato (`Reactions.ASuspendedResolutionIsReadOnlyForInput`): un click su un altro nemico le
+		// pianificava un'azione gia' spesa.
+		//
+		// ⚠️ **`ResolutionPlayback` e non `ReactionWindow`**: `ResolveBack` manda il secondo a `ReactionFallback`, che e'
+		// E14 e nessuno ha implementato, e con il playback acceso la finestra ha sempre avuto `ResolutionPlayback`. Stesso
+		// valore nei due casi, quindi nessun consumatore cambia dove il mondo era gia' in sola lettura.
+		if (TM->IsResolving() || TM->IsResolutionSuspended())
 		{
 			return ERTPointerContext::ResolutionPlayback;
 		}

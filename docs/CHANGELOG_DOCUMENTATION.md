@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-20 — a risoluzione sospesa su una finestra il mondo è in sola lettura anche senza playback (`D-531`)
+
+**Origine**: [#3837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3837), dalla revisione di [#3835](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3835). La pista che quella revisione aveva dichiarato non determinabile è chiusa: `GetPointerContext()` ora conta la risoluzione sospesa come risoluzione in corso, e la nota di `D-531` lo dice.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la nota ⏱️ della riga `D-531` registra la pista chiusa e la sua misura |
+
+---
+
 ## 2026-10-20 — tolte le guardie su «armata E in ricarica» dal controller (`D-531`)
 
 **Origine**: [#3833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3833), dalla revisione di [#3830](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3830). Con la decisione «un'azione in ricarica non si arma» le guardie che controllavano `CanUseAbility` sull'azione armata non potevano piu' scattare dall'input: sono state tolte, e l'invariante «un'unità viva, in Pianificazione, non ha un'azione armata in ricarica» è pinnata dove nasce.
