@@ -397,13 +397,14 @@ bool FRTWindowStaysAnswerableTest::RunTest(const FString&)
 }
 
 /**
- * 🔴 **UN'AZIONE CONSUMATA RESTA ARMATA E IN RICARICA FINO AL CLEANUP, E IL DOCK LA MOSTRA `Selected` MENTRE UNA FINESTRA E' APERTA** — `#3839`.
+ * 🔴 **UN'AZIONE CONSUMATA RESTA ARMATA E IN RICARICA, PER UN'UNITA' VIVA, FINO AL CLEANUP, E LA VISTA DEL DOCK LA RISOLVE `Selected` MENTRE UNA FINESTRA E' APERTA** — `#3839`.
  *
  * Da [D-531] (`#3830`) l'INPUT non forma piu' la coppia "armata E in ricarica": un'azione in ricarica non si arma. La forma pero' la
  * RISOLUZIONE. `ConsumeAbility` scrive la ricarica quando l'azione esegue, e il disarmo e' del Cleanup: se una finestra di reazione
  * sospende il turno in mezzo, un'unita' viva e' ancora armata e con la ricarica scritta. **Nel Move** (l'Overwatch, il sito di
  * questo test) sono pagate le azioni di Prep, Dash e Blast; **nel Blast** (il Brace) la sospensione precede il pagamento delle azioni
- * del Blast (`SpendStartedAbilities`, a fase finita), quindi ci sono solo quelle di Prep e Dash. I commenti di
+ * del Blast (`SpendStartedAbilities`, a fase finita), quindi ci sono le azioni di Prep e Dash e le reazioni gia' scattate, non quelle del
+ * Blast. Il Brace non ha un test: e' lettura del codice. I commenti di
  * `ResolveSlotState`, `ComposeAbilityLine` e dei loro test presentavano la coppia come "caso di gioco" prima di `#3830` e poi, per
  * un momento, come "non piu' di gioco": nessuna delle due letture era misurata. Questo e' il test che le sostituisce.
  *

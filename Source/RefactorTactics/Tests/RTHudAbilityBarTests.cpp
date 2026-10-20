@@ -121,7 +121,7 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	//
 	// ⏱️ *Qui il caso era «un'ultimate armata e ancora in ricarica»*, come coppia che l'input forma armando. Da [D-531]
 	// (`#3830`) l'input non la forma piu': la forma la RISOLUZIONE (per un'unita' viva, un'azione consumata resta armata fino al
-	// Cleanup), e il dock la mostra cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
+	// Cleanup), e la vista del dock la risolve cosi' a finestra di reazione aperta: `Reactions.AConsumedArmedActionReachesTheDockAsSelectedWhileAWindowIsOpen`.
 	//
 	// ⚠️ **Il motivo si legge su un'abilita' IN RICARICA, e non e' un dettaglio di comodo.** Questo blocco
 	// asseriva che una riga armata e *scarica* — `TurnsRemaining = 0`, `bUsableNow = false` — mostrasse
