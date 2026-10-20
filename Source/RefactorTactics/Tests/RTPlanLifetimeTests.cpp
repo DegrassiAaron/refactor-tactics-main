@@ -389,6 +389,9 @@ bool FRTCooldownActionLeavesTheTurnDisarmedTest::RunTest(const FString&)
 	PC->SelectAbilityForCurrentForTest(ConRicarica);
 	TestEqual(TEXT("C: l'azione in ricarica NON si riarma dal tasto"),
 		Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+	// ⚠️ Il dock si misura da neutro: se il tasto l'avesse armata, un click sullo slot gia' armato la DISARMEREBBE e
+	// la riga qui sotto sarebbe verde per il motivo sbagliato (trovato con la mutazione sulla guardia, #3833).
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 	PC->ArmKitAbility(ConRicarica);
 	TestEqual(TEXT("C: e NON si riarma dallo slot del dock"),
 		Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));

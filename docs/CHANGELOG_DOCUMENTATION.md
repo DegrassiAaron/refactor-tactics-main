@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-20 — tolte le guardie su «armata E in ricarica» dal controller (`D-531`)
+
+**Origine**: [#3833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3833), dalla revisione di [#3830](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3830). Con la decisione «un'azione in ricarica non si arma» le guardie che controllavano `CanUseAbility` sull'azione armata non potevano piu' scattare dall'input: sono state tolte, e l'invariante «un'unità viva, in Pianificazione, non ha un'azione armata in ricarica» è pinnata dove nasce.
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | la riga `D-531` dice che la difesa in profondità di `DR-8` è stata rimossa e perché |
+
+---
+
 ## 2026-10-20 — l'autore ha visto le tavole `T2` e `T3` del dock: note in tre voci PIE
 
 **Origine**: [#3828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3828) e [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896). Sulla `T2` (prima del fix) l'autore ha detto «si capiscono i cooldown»; sulla `T3` (dopo [#3830](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3830)) ha risposto «si e si» alle due domande: l'azione in ricarica non si arma da tasto né da click sullo slot e lo slot resta com'era; un'altra azione già armata resta armata.
