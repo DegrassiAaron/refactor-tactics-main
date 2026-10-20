@@ -1601,6 +1601,13 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return InterruptedIntents.Contains(IntentIdx);
 	});
 
+	// E per il tiro cappato dal terreno (`#2794`): anche quella e' una voce `Fallback`/`Cancelled`, e vale la ragione
+	// scritta qui sopra — vince cio' che ha fermato l'azione per primo.
+	Plan.TerrainCappedIntents.RemoveAll([&InterruptedIntents](int32 IntentIdx)
+	{
+		return InterruptedIntents.Contains(IntentIdx);
+	});
+
 	// 🔴 **E lo stesso per i rifiuti di commutazione** ([`INT-7`], `#2380`): un `Interact` su una porta
 	// `Locked`, interrotto nello stesso Blast, lascerebbe nel TurnLog sia `Interrupted` sia
 	// `Fallback/Cancelled` con `DoorLocked`. Vale la ragione scritta qui sopra parola per parola — quando due
@@ -1940,6 +1947,33 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		}
 		// Nessun `AddLogEvent`: `ConcludeTurn` deriva la riga leggibile da questa voce (`#1412`).
 		AppendLogEntry(OtherPlane, Units.IsValidIndex(Refused.AttackerId) ? Units[Refused.AttackerId] : nullptr);
+	}
+
+	// IL TIRO CAPPATO DAL TERRENO (`#2794`, [D-465] punto (3)): un tiro a cella entro la portata dichiarata, che il Fumo
+	// ha accorciato sotto la distanza della mira. Il click del giocatore legge la mappa ottimistica e non lo vede, quindi
+	// qui sparisce: la voce e' `Fallback`/`Cancelled` con `OutOfRange`, la stessa del lock-in per un'unita' fuori
+	// portata, e non `NoLineOfSight` perche' nessuna linea di tiro e' bloccata. Nessun `AddLogEvent`: `ConcludeTurn`
+	// deriva la riga leggibile dalla voce.
+	for (const int32 CappedIdx : Plan.TerrainCappedIntents)
+	{
+		if (!Intents.IsValidIndex(CappedIdx)) { continue; }
+		const FRTHexAttackIntent& Capped = Intents[CappedIdx];
+		if (!HexUnits.IsValidIndex(Capped.AttackerId)) { continue; }
+
+		FRTTurnLogEntry TerrainCapped;
+		TerrainCapped.Phase = ERTMatchPhase::Blast;
+		TerrainCapped.Category = ERTLogCategory::Fallback;
+		TerrainCapped.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		TerrainCapped.SrcCell = HexUnits[Capped.AttackerId].Cell;
+		TerrainCapped.TgtCell = Capped.TargetCell; // la mira congelata al lock-in ([D-415])
+		TerrainCapped.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+		if (IntentDefs.IsValidIndex(CappedIdx))
+		{
+			TerrainCapped.ActionId = IntentDefs[CappedIdx].ActionId;
+			TerrainCapped.BaseActionId = IntentDefs[CappedIdx].BaseActionId;
+			TerrainCapped.Priority = IntentDefs[CappedIdx].Priority;
+		}
+		AppendLogEntry(TerrainCapped, Units.IsValidIndex(Capped.AttackerId) ? Units[Capped.AttackerId] : nullptr);
 	}
 
 	// Interazioni dichiarate su un bordo dove non c'e' nessuna porta (CP 10.1, `#74`).

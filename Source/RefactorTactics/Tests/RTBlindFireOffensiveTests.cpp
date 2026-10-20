@@ -14,12 +14,15 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "Player/RTPlayerController.h"
 #include "Player/RTPointerInteraction.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
@@ -815,6 +818,113 @@ bool FRTMinRangeHoldsThroughTheTurnManagerTest::RunTest(const FString&)
 	// colpisce. Senza, il test sarebbe verde anche con un mortaio che non spara mai.
 	if (!Spara(FRTCellId(1, 0, 0), Salute, Iniziale)) { return false; }
 	TestTrue(TEXT("al minimo esatto il colpo nasce: il nemico perde salute"), Salute < Iniziale);
+	return true;
+}
+
+/**
+ * **Test 6** - un tiro a cella che il Fumo ha cappato lascia una riga nel TurnLog - `#2794`, [D-465] punto (3).
+ *
+ * Il click del giocatore legge la mappa ottimistica, in cui un Fumo mai osservato non cappa niente: il mortaio viene
+ * pianificato a distanza 3 e il resolver, che legge la mappa autorevole, lo scarta. Una sparizione senza una riga e'
+ * l'inganno che [D-380] vieta, quindi il costo dell'ottimismo si paga qui: `Fallback`/`Cancelled` con `OutOfRange`,
+ * con la mira congelata come cella di arrivo.
+ *
+ * Il controllo positivo e' lo stesso turno SENZA Fumo: nessuna riga di quel tipo, perche' il tiro non e' stato cappato.
+ * Senza, il test sarebbe verde anche per un resolver che scrive la riga a ogni mortaio.
+ *
+ * Verifica di mutazione: togliere l'`Add` a `TerrainCappedIntents` in `CollectHexAttacks` rende rosso il primo caso;
+ * scriverlo anche senza il cap rende rosso il secondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMortarCappedBySmokeLeavesALineTest,
+	"RefactorTactics.BlindFireOffensive.MortarShotCappedBySmokeLeavesALine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMortarCappedBySmokeLeavesALineTest::RunTest(const FString&)
+{
+	// Quante voci `Fallback`/`Cancelled`/`OutOfRange` con la mira data produce un turno, con o senza Fumo sulla linea.
+	// ...e se il click l'ha accettato: il Fumo ignoto non lo ferma in planning, quello esplorato si'.
+	const auto RigheDelTiroCappato = [this](bool bConFumo, bool bFumoEsplorato, int32& OutRangeCells,
+		bool& OutAccettato) -> int32
+	{
+		OutAccettato = false;
+		FMortarBench B;
+		if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return INDEX_NONE; }
+		ON_SCOPE_EXIT{ DestroyMortarWorld(B.World); };
+
+		const int32 Idx = FindMortar(B.Mine);
+		if (!TestTrue(TEXT("il kit contiene il mortaio"), Idx != INDEX_NONE)) { return INDEX_NONE; }
+		OutRangeCells = B.Mine->GetAbility(Idx)->RangeCells;
+
+		const FRTCellId Mira(2, 0, 0); // a distanza 3 da (-1,0,0): oltre il cap del Fumo (2), dentro la portata
+		const TArray<FRTCellId> Linea = URTHexLibrary::HexLine(B.Mine->Cell, Mira);
+		if (!TestEqual(TEXT("premessa: la mira e' a distanza 3"), Linea.Num(), 4)) { return INDEX_NONE; }
+		if (bConFumo)
+		{
+			// Sulla copia ESISTENTE della cella, per non perdere cio' che la arena ci ha messo (il muro alla vista).
+			const FRTHexCellData* Esistente = B.Map->FindCell(Linea[1]);
+			FRTHexCellData Fumo = Esistente ? *Esistente : FRTHexCellData(Linea[1]);
+			Fumo.Surface = ERTHexSurface::Smoke;
+			B.Map->AddOrUpdateCell(Fumo);
+			B.Map->SortCells();
+		}
+
+		TActorIterator<ARTTurnManager> It(B.World);
+		ARTTurnManager* TM = It ? *It : nullptr;
+		if (!TestNotNull(TEXT("il turn manager esiste"), TM)) { return INDEX_NONE; }
+
+		// La conoscenza dichiarata: tutto esplorato tranne, se non e' esplorato, la cella di Fumo. Dal PERCORSO DEL CLICK
+		// (`HandleTargetCell`), non con `DeclareAttackOnCell`: e' il click a leggere la mappa del giocatore.
+		FRTTeamKnowledge K;
+		K.TeamId = B.Mine->TeamId;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& Cell : B.Map->Cells)
+		{
+			if (bConFumo && !bFumoEsplorato && Cell.Id == Linea[1]) { continue; }
+			K.ExploredCells.Add(Cell.Id);
+		}
+		K.VisibleCells.Add(B.Mine->Cell);
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		TM->SetTeamKnowledgeForTest(K);
+
+		B.PC->SelectActorForTest(B.Mine);
+		B.Mine->SelectAbility(Idx);
+		OutAccettato = B.PC->HandleTargetCell(Mira);
+		if (!OutAccettato) { return 0; } // rifiutato in planning: il tiro non esiste
+		B.Mine->PlannedCell = B.Mine->Cell;
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+		int32 Righe = 0;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Fallback
+				&& Entry.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)
+				&& Entry.TgtCell == Mira && Entry.SrcCell == FRTCellId(-1, 0, 0))
+			{
+				++Righe;
+			}
+		}
+		return Righe;
+	};
+
+	int32 Portata = 0;
+	bool bAccettato = false;
+	const int32 ConFumo = RigheDelTiroCappato(/*bConFumo=*/ true, /*bFumoEsplorato=*/ false, Portata, bAccettato);
+	if (!TestTrue(TEXT("premessa: la portata dichiarata copre la distanza 3"), Portata >= 3)) { return false; }
+	TestTrue(TEXT("il click accetta il tiro: il Fumo ignoto non lo ferma in planning"), bAccettato);
+	TestEqual(TEXT("e il tiro cappato dal Fumo lascia UNA riga di rifiuto per distanza"), ConFumo, 1);
+
+	int32 Ignorata = 0;
+	bool bAccettatoSenzaFumo = false;
+	TestEqual(TEXT("controllo: senza Fumo lo stesso tiro non lascia quella riga"),
+		RigheDelTiroCappato(/*bConFumo=*/ false, /*bFumoEsplorato=*/ false, Ignorata, bAccettatoSenzaFumo), 0);
+	TestTrue(TEXT("controllo: e il click lo accetta"), bAccettatoSenzaFumo);
+
+	// Il Fumo ESPLORATO cappa anche per il giocatore: il click rifiuta, e non nasce nessun tiro da scartare.
+	bool bAccettatoEsplorato = true;
+	TestEqual(TEXT("controllo: con il Fumo esplorato nessuna riga"),
+		RigheDelTiroCappato(/*bConFumo=*/ true, /*bFumoEsplorato=*/ true, Ignorata, bAccettatoEsplorato), 0);
+	TestFalse(TEXT("controllo: perche' il click rifiuta il tiro in planning"), bAccettatoEsplorato);
 	return true;
 }
 

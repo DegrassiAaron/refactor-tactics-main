@@ -132,6 +132,26 @@ public:
 	static bool IsSnapshotStale(const FRTHexSnapshot& Snapshot);
 
 	/**
+	 * La mappa su cui si pianifica un Move verso lo spazio **non osservato** ([D-372], `#2794`): copia di `Map` in cui
+	 * ogni cella che `Knowledge` non ha ne' in `VisibleCells` ne' in `ExploredCells` perde cio' che la renderebbe
+	 * diversa da una cella libera.
+	 *
+	 * Si svuotano `bBlocksMovement`, `bBlocksLineOfSight`, `Surface` (pavimento), `MoveCost` (1),
+	 * `OccupancySurcharge` (0), coperture, porte e guardie, e i muri interni della cella. **Non** si toccano le
+	 * `Transitions` fra piani: la forma della board e' pubblica ([D-373]) e la cella esiste sempre.
+	 *
+	 * 🔑 **L'insieme svuotato dipende solo da `Knowledge`**, mai da una unita' nemica: la firma non ne riceve.
+	 * ⚠️ **Le celle esplorate ma non visibili ora restano autorevoli** (`Q4`): un muro caduto o una porta aperta in una
+	 * cella ricordata si riflette nel percorso. E' un canale dichiarato, a termine, della natura di [D-465].
+	 *
+	 * Restituisce `nullptr` quando `Knowledge` non ha celle (nessun refresh ancora, o sessione senza `ARTGameMode`):
+	 * il chiamante pianifica su `Map`, come prima. La copia vive in `Outer` (o nel pacchetto transitorio): **chi la
+	 * chiede la tiene viva**.
+	 */
+	static URTHexMapAsset* MakeOptimisticPlanningMap(UObject* Outer, const URTHexMapAsset* Map,
+		const FRTTeamKnowledge& Knowledge);
+
+	/**
 	 * Vero se la cella e' percorribile per l'unita' indicata: esiste nella mappa, non blocca il movimento e non
 	 * e' occupata da un'unita' DIVERSA (un'unita' non blocca se stessa).
 	 */

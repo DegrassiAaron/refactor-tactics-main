@@ -1025,6 +1025,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		FVector Origine; float Lato; float AltezzaPiano;
 		const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(Unit->GetWorld());
 		const URTHexMapAsset* Mappa = HexMap ? HexMap->GetHexContext(Origine, Lato, AltezzaPiano) : nullptr;
+		// [D-465] (3), `#2794`: lo stato Warning e' la stessa domanda del click, sulla stessa mappa.
+		Mappa = ARTTurnManager::PlayerAimMap(Unit->GetWorld(), Unit->TeamId, Mappa);
 		if (Pianificata && Bersaglio && Mappa)
 		{
 			// La regola e' `AimOriginCell`: qui se ne chiede la risposta per la fase dell'azione PIANIFICATA.

@@ -234,7 +234,7 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 					Ostili.Add(U.UnitId);
 				}
 			}
-			const FRTLinearMoveResult Corsa = URTMovementActionLibrary::ResolveLinearMove(Snapshot.Map,
+			const FRTLinearMoveResult Corsa = URTMovementActionLibrary::ResolveLinearMove(Snapshot.MapForPlanning(),
 				CellaCorrenteDiFase, Plan.PlannedDashCell, Plan.DashRange, Plan.DashStyle, Snapshot.Occupancy, Ostili);
 			// Una corsa che non muove e' una rotta rifiutata: vuota, e il fantasma resta dov'e'.
 			if (Corsa.Entered.Num() > 0)
