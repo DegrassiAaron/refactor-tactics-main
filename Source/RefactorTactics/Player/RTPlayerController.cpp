@@ -2321,6 +2321,9 @@ bool ARTPlayerController::ArmedChargeTargets(const ARTUnit* Selected, const ARTU
 	// ispezionare niente, cioe' un click perso dove prima si ispezionava. ⏱️ *Fino a `#3833` l'elenco apriva con «in
 	// ricarica», e un congiunto `CanUseAbility` lo applicava*: da `#3830` una carica in ricarica non si arma, quindi non
 	// puo' essere quella armata (`Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`).
+	// ⚠️ **Non controlla `IsAlive()` di `Selected`, ed e' deliberato** (`#3838`): una selezionata morta esiste solo fra il
+	// Cleanup e `DestroyDefeatedUnits`, a mondo in sola lettura, e in quel tratto `ResolveOutcome` risponde `Blocked` prima
+	// di guardare questo risultato (`Turn.AUnitKilledInTheCleanupStaysArmedUntilDestroyedOutOfReachOfInput`).
 	if (!Armata || Armata->Def.MovementStyle != ERTMovementStyle::LinearCharge
 		|| Selected->EffectiveDashRangeOf(IndiceArmato) <= 0
 		|| Selected->bDeclaresPlannedFacing
@@ -3634,9 +3637,10 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// l'anteprima del harness al turno 1 (le altre sono disarmi, `INDEX_NONE`).
 	//
 	// ⚠️ **L'eccezione, misurata dalla revisione di `#3833`**: un'unita' UCCISA nel Cleanup (per esempio dal Burning)
-	// resta armata e in ricarica, perche' il ciclo la salta. Ma il click e' bloccato (`IsWorldReadOnly`) e
-	// `DestroyDefeatedUnits` la toglie nello stesso passaggio sincrono, senza input in mezzo: per questo
-	// `MostraLaPortata` conserva `IsAlive()`. L'invariante la pinna
+	// resta armata e in ricarica, perche' il ciclo la salta. `DestroyDefeatedUnits` la toglie in `ConcludeTurn`, e fra la
+	// morte e la distruzione l'input non c'e': senza playback e' un solo passaggio sincrono, con il playback dura quanto
+	// lui e il click e' bloccato (`IsWorldReadOnly`) — lo pinna `Turn.AUnitKilledInTheCleanupStaysArmedUntilDestroyedOutOfReachOfInput`.
+	// Per questo `MostraLaPortata` conserva `IsAlive()`. L'invariante la pinna
 	// `Turn.ACooldownActionLeavesTheTurnConsumedDisarmedAndNotRearmable`: se un giorno si arma in un altro modo,
 	// quel test e' il posto in cui rimettere la domanda — non dieci guardie sparse.
 	const bool bReazione = Ability->Def.Slot == ERTActionSlot::Reaction;
