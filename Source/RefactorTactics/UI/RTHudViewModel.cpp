@@ -554,6 +554,7 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	// Il fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento impossibile insegna
 	// a ignorare gli allarmi.
 	Plan.bFriendlyFire = Ability->Def.bFriendlyFire;
+	Plan.bCountsAsAttack = Ability->Def.bCountsAsAttack; // [D-540]: il colpo fra piani non parte, e l'anteprima non lo disegna
 	if (Unit.bAttackTargetsCell)
 	{
 		Plan.bTargetsCell = true;
@@ -1080,7 +1081,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 
 			const ERTTargetRefusal Rifiuto = URTCombatLibrary::RefusalForKnownTarget(Mappa, Da,
 				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,
-				Bersaglio->IsKnownToObserver(), Pianificata->Def.MinRangeCells);
+				Bersaglio->IsKnownToObserver(), Pianificata->Def.MinRangeCells,
+				URTCombatLibrary::CrossLayerAimFor(Pianificata->Def));
 			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
 				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
 			// `#3499`: il rifiuto per il tooltip, dalla stessa domanda e solo quando accende lo stato. ⛔ Un ignoto

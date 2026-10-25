@@ -4,6 +4,12 @@
 
 namespace
 {
+	/** Il collegamento fra `A` e `B` in uno dei due versi: l'unica definizione di «questa coppia», per il danno e per la lettura. */
+	bool LinksPair(const FRTHexEdge& Edge, const FRTCellId& A, const FRTCellId& B)
+	{
+		return (Edge.From == A && Edge.To == B) || (Edge.From == B && Edge.To == A);
+	}
+
 	/**
 	 * I DUE versi dello stesso ponte. `AddTransition` bidirezionale ne scrive due, e chi comanda «spegnilo»
 	 * non deve sapere quale dei due e' stato scritto per primo: senza questa raccolta si potrebbe spegnere
@@ -18,7 +24,7 @@ namespace
 		}
 		for (const FRTHexEdge& Edge : Map->Transitions)
 		{
-			if ((Edge.From == A && Edge.To == B) || (Edge.From == B && Edge.To == A))
+			if (LinksPair(Edge, A, B))
 			{
 				Found.Add(Edge);
 			}
@@ -30,6 +36,15 @@ namespace
 			return URTHexLibrary::StableLess(X.To, Y.To);
 		});
 		return Found;
+	}
+
+	/**
+	 * Un arco crollato non incassa altro. E' la regola dello stato di `DamageArc`, con un nome perche' la pianificazione
+	 * la pone prima della risoluzione (`HasDamageableArc`, [D-540]): scritta due volte direbbe due volte la stessa cosa.
+	 */
+	bool CanTakeDamage(const FRTHexEdge& Edge)
+	{
+		return Edge.State != ERTHexArcState::Destroyed;
 	}
 
 	FRTArcChange MakeChange(const FRTHexEdge& Edge)
@@ -105,6 +120,24 @@ TArray<FRTArcChange> URTHexArcLibrary::SetArcState(URTHexMapAsset* Map, const FR
 	return Changes;
 }
 
+bool URTHexArcLibrary::HasDamageableArc(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+{
+	if (Map == nullptr)
+	{
+		return false;
+	}
+	// Una domanda di esistenza, posta per frame dal puntatore: niente raccolta ne' ordinamento, esce al primo arco che
+	// incassa. Coppia e stato sono le stesse definizioni di `DamageArc` (`LinksPair`, `CanTakeDamage`).
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (LinksPair(Edge, From, To) && CanTakeDamage(Edge))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& To, int32 Amount)
 {
@@ -117,7 +150,7 @@ TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTC
 	TArray<FRTHexEdge> Updated;
 	for (FRTHexEdge Edge : BothWays(Map, From, To))
 	{
-		if (Edge.State == ERTHexArcState::Destroyed)
+		if (!CanTakeDamage(Edge))
 		{
 			continue; // gia' crollato: non incassa altro
 		}

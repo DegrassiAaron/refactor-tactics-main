@@ -82,7 +82,7 @@ in pianta quelle coppie erano a senso unico: dall'alto si vedeva, dal basso no. 
 
 ⛔ **Non è la linea di tiro.** `URTHexVisionLibrary::HasLineOfSight` resta planare sul piano di chi guarda: è la
 geometria su cui i bot scelgono le celle, e #3741 ha misurato che toccarla fa cadere due sonde anti-stallo. Colpire
-un altro piano resta un rifiuto dichiarato ([D-393](../../decisions/RT_PDR_00_Decision_Log.md), [D-509](../../decisions/RT_PDR_00_Decision_Log.md)).
+un altro piano resta un rifiuto dichiarato ([D-393](../../decisions/RT_PDR_00_Decision_Log.md), [D-509](../../decisions/RT_PDR_00_Decision_Log.md)), con una sola eccezione: l'azione che scalfisce un arco, o ne getta uno, può mirare all'altro capo ([D-540](../../decisions/RT_PDR_00_Decision_Log.md), [#3848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3848)). La risoluzione ferma il colpo e lascia l'arco, e la pianificazione non chiede la linea di tiro a una mira che la risoluzione non valuta.
 
 ➕ **Il fumo conta come i muri** ([#3757](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3757), scelta d'autore del
 2026-10-18: «conta il fumo del piano in cui la linea sta passando. Il contatto torna nei due versi»). Fra due piani il tetto

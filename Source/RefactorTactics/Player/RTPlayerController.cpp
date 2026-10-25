@@ -418,7 +418,8 @@ namespace
 					// [D-464]: dall'origine della fase, come il click. ⏱️ *Fino a #3509 da `Unit->Cell`*.
 					Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
 						Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Bersaglio->Cell, Ability->RangeCells,
-						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(), Ability->Def.MinRangeCells);
+						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(), Ability->Def.MinRangeCells,
+						URTCombatLibrary::CrossLayerAimFor(Ability->Def));
 				}
 			}
 
@@ -2559,9 +2560,12 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// corrente accettava bersagli che il resolver manca e ne rifiutava altri che colpira'. ⚠️ La stessa origine
 		// vale per TUTTO cio' che segue — rifiuto, portata efficace, linea di tiro: il tratto rosso parte da li'.
 		const FRTCellId DaDoveMira = SelectedUnit->AimOriginFor(Ability->Def.ResolutionPhase);
+		// [D-540] (#3848): l'eccezione dell'arco la concede l'AZIONE (`CrossLayerAimFor`), non il click: lo stesso valore
+		// lo leggono l'anteprima, lo stato dello slot e la timeline, perche' una mira ammessa qui e rifiutata la' sarebbe
+		// peggio di un rifiuto coerente.
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
 			TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy,
-			Ability->Def.MinRangeCells);
+			Ability->Def.MinRangeCells, URTCombatLibrary::CrossLayerAimFor(Ability->Def));
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
 		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
@@ -4642,7 +4646,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 			// [D-464]: la stessa origine del click che questo stato anticipa — la fase dell'azione ARMATA.
 			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
 				Bersaglio->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(),
-				Ability->Def.MinRangeCells);
+				Ability->Def.MinRangeCells, URTCombatLibrary::CrossLayerAimFor(Ability->Def));
 		}
 		return ERTTargetRefusal::None;
 	}
@@ -4650,7 +4654,8 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 		// La porta del click su una cella (`HandleTargetCell`), non la coppia delle unita': una cella non
 		// ha un flag di conoscenza, e il suo rifiuto non guarda chi la occupa (`#2791`).
 		return URTCombatLibrary::DescribeCellTargetRefusal(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
-			Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells).Refusal;
+			Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells,
+			URTCombatLibrary::CrossLayerAimFor(Ability->Def)).Refusal;
 	case ERTPointerTargetKind::None:
 	case ERTPointerTargetKind::Edge:
 	case ERTPointerTargetKind::Object:
@@ -4883,7 +4888,8 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// dalla cella dello scatto: e' da li' che la risoluzione colpira'. La stessa `DaDoveMira` sotto, nel tratto rosso.
 	const FRTCellId DaDoveMira = Unit->AimOriginFor(Ability->Def.ResolutionPhase);
 	const FRTCellTargetRefusal Verdetto = URTCombatLibrary::DescribeCellTargetRefusal(
-		Map, DaDoveMira, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells);
+		Map, DaDoveMira, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells,
+		URTCombatLibrary::CrossLayerAimFor(Ability->Def));
 
 	// ── IL CANALE DEL GIOCATORE, che su questo percorso non esisteva (`#3064`).
 	//
@@ -5028,6 +5034,8 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// La policy si legge dall'azione anche qui: una struttura di bordo si erige DOVE si arriva, e se un giorno
 	// un'azione dichiarera' di poterlo fare senza vedere il lato, il dato e' gia' quello giusto (`#2870`).
 	// [D-464]: anche qui dall'origine della fase, perche' la regola e' una per chiunque giudichi la mira.
+	// ⛔ [D-540] (#3848): qui NON si passa `CrossLayerAimFor`. Il bordo e' una struttura che si erige dove si arriva, sul
+	// proprio piano: non e' una mira lungo un arco, e il colpo a un arco nasce da un bersaglio-unita' o a cella.
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
 		Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Cell, Ability->RangeCells,
 		Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells);
