@@ -77,7 +77,7 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 
 	// La finestra di preparazione dell'autobattle (`#2386`). Stessa forma del countdown e per la stessa
 	// ragione: `IsPrepWindowActive()` risponde sulla presenza, non sul residuo — e in pausa risponde vero
-	// con il timer spento, che e' precisamente il caso in cui la riga di stato deve continuare a parlare.
+	// con il timer spento, che e' precisamente il caso in cui il numero deve restare a schermo.
 	if (TurnManager->IsPrepWindowActive())
 	{
 		View.PrepWindowSecondsRemaining = TurnManager->GetPrepWindowRemaining();
@@ -164,6 +164,15 @@ FRTLiveGestures URTHudViewModel::ReadLiveGestures(const ARTTurnManager* TurnMana
 
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
+	// Nessun commit in arrivo fuori dal Planning, ne' mentre la risoluzione scorre (revisione di #3849). La riga di
+	// stato ritirata (D-539) lo garantiva con un `Phase == Planning` suo; ora lo garantisce la sede del numero, cosi' un
+	// secondo chiamante che costruisca la vista a mano - il viewer di replay - non mostra un conto alla rovescia su una
+	// partita finita. Durante la riproduzione `Phase` resta `Planning`: la sola `bResolving` lo distingue.
+	if (Header.Phase != ERTMatchPhase::Planning || Header.bResolving)
+	{
+		return -1.f;
+	}
+
 	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'
 	// l'ULTIMO orologio della catena. Quando e' armata il Planning e' gia' scaduto — la arma proprio la sua
 	// scadenza — quindi non c'e' nessun tetto che possa accorciarla, e in autobattle nessuno preme Ready.

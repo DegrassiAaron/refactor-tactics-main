@@ -90,7 +90,7 @@ struct FRTMatchHeaderView
 	 * risponde sulla presenza del timer invece che sul suo residuo. ⛔ Copiare qui la tripla guardia
 	 * aggiungerebbe due condizioni che non possono essere false.
 	 *
-	 * 🔴 **Questo campo NON e' «quanto manca al commit», ed e' la distinzione che vale la riga di stato.**
+	 * 🔴 **Questo campo NON e' «quanto manca al commit», ed e' la distinzione che vale per ogni orologio mostrato.**
 	 * Il tetto vince sul countdown (`#2193`): con 1,5 s di `PlanningSecondsRemaining` e 3 s qui, il commit
 	 * arriva fra 1,5 s. Un countdown che annuncia 3 e committa a 1,5 insegna una durata sbagliata proprio
 	 * mentre il giocatore decide se annullare.
@@ -1282,16 +1282,6 @@ struct FRTLiveGestures
 	bool bSkip = false;
 	bool bUnready = false;
 	bool bSpeed = false;
-
-	/** Tutti vivi. Per i test, e per chi compone il testo senza conoscere la sessione. */
-	static FRTLiveGestures All()
-	{
-		FRTLiveGestures Gestures;
-		Gestures.bSkip = true;
-		Gestures.bUnready = true;
-		Gestures.bSpeed = true;
-		return Gestures;
-	}
 };
 
 UCLASS()
@@ -1446,9 +1436,9 @@ public:
 	 * 🔴 **Una sola sede, e non e' una preferenza di stile.** `RoundLimit == 0` significa «nessun limite
 	 * dichiarato», e un `Round 3/0` si legge come una partita gia' scaduta: e' il punto esatto in cui un
 	 * consumatore sbaglia. Fino a #2184 la regola viveva in due implementazioni — il binding UMG di
-	 * `URTTurnHeaderWidget::GetRoundCounterText` e il Canvas di `ARTHUD` — che rendono **entrambe** a
-	 * schermo con `rt.HUD.CanvasPanels` attivo: due contatori che potevano dissentire. Ora la decidono
-	 * qui, e i due chiamanti la vestono (`FText` per UMG, concatenazione per il Canvas).
+	 * `URTTurnHeaderWidget::GetRoundCounterText` e il Canvas di `ARTHUD` — che potevano dissentire. Ora la
+	 * decide questa funzione, e `GetRoundCounterText` la veste di `FText` (il Canvas che la concatenava e' uscito
+	 * con #1936 e D-539).
 	 */
 	static FString ComposeRoundCounter(const FRTMatchHeaderView& Header);
 
@@ -1469,13 +1459,17 @@ public:
 	 * per il Canvas, e un widget UMG che non passa da quella riga avrebbe dovuto riscriverla. Due copie
 	 * della stessa regola sono due occasioni di scriverne una sbagliata, e la sbagliata non fallisce nessun
 	 * test — mostra solo un numero plausibile.
+	 *
+	 * ⚠️ **Fuori dal Planning, o mentre la risoluzione scorre, risponde negativo** (revisione di #3849): non c'e'
+	 * nessun commit in arrivo, qualunque residuo la vista porti. `Phase` resta `Planning` durante la riproduzione,
+	 * quindi la distingue `bResolving`. Prima questa condizione stava solo nella riga di stato ritirata (D-539).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static float ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header);
 
 	/**
 	 * La parola della fase LOGICA, in italiano: «Pianificazione», «Ready», «Preparazione» (con «(in pausa)»),
-	 * «Risoluzione», «Fine». Sede unica (#3635): la usano la riga di stato del Canvas e l'header UMG.
+	 * «Risoluzione», «Fine». Sede unica (#3635): la usa l'header UMG; la riga di stato del Canvas che la condivideva e' ritirata con D-539.
 	 *
 	 * 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`, `#2386`): durante il Ready e la finestra
 	 * di preparazione la fase e' ancora `Planning`, e una parola sola direbbe «Pianificazione» mentre il piano sta

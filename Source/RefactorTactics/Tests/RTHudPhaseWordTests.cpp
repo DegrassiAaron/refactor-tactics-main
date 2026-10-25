@@ -9,6 +9,9 @@
 // `Planning` (`#2358`, `#2386`), quindi una parola che dipendesse solo dalla fase direbbe «Pianificazione» mentre il piano
 // sta per partire. I due stati devono distinguersi SENZA contare i secondi, e se sono armati insieme vince la preparazione.
 //
+// Il secondo test del file (`NoCommitClockOutsidePlanning`) pinna la guardia che la riga ritirata aveva e che il numero
+// non aveva: nessun commit in arrivo fuori dal Planning.
+//
 // ATTENZIONE: i confronti sono `TestEqualSensitive`. `TestEqual` su `FString` e' case-insensitive: `Fine` contro
 // `FINE` non cadrebbe.
 
@@ -90,6 +93,55 @@ bool FRTHudPhaseWordTest::RunTest(const FString&)
 		Distinte.Add(Parola(Stato));
 	}
 	TestEqual(TEXT("sei stati, sei parole diverse"), Distinte.Num(), 6);
+
+	return true;
+}
+
+/**
+ * NESSUN COMMIT IN ARRIVO FUORI DAL PLANNING, NE' MENTRE LA RISOLUZIONE SCORRE (revisione di #3849).
+ *
+ * La riga di stato ritirata (D-539) lo garantiva con un `Phase == Planning` suo, e `ComputeSecondsUntilCommit` non lo
+ * aveva: un secondo chiamante che costruisse la vista a mano - il viewer di replay - mostrava un conto alla rovescia
+ * su una partita finita. Durante la riproduzione `Phase` resta `Planning`, quindi la distingue `bResolving`.
+ *
+ * Il CONTROLLO e' lo stesso header in Planning: senza, «negativo fuori dal Planning» passerebbe anche per una funzione
+ * che risponde sempre negativo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudNoCommitClockOutsidePlanningTest,
+	"RefactorTactics.HudViewModel.NoCommitClockOutsidePlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudNoCommitClockOutsidePlanningTest::RunTest(const FString&)
+{
+	// Tutti e tre gli orologi armati: nessuno deve poter far comparire un numero fuori dal Planning.
+	const auto Armato = [](ERTMatchPhase Fase, bool bResolving)
+	{
+		FRTMatchHeaderView Header = MakePhaseWordHeader(Fase);
+		Header.bResolving = bResolving;
+		Header.PlanningSecondsRemaining = 5.f;
+		Header.ReadyCountdownSecondsRemaining = 3.f;
+		Header.PrepWindowSecondsRemaining = 12.f;
+		return Header;
+	};
+
+	// Controllo positivo: in Planning, non in riproduzione, la finestra di preparazione ha la precedenza e il numero c'e'.
+	TestNearlyEqual(TEXT("controllo: in Planning il commit e' il residuo della finestra di preparazione"),
+		URTHudViewModel::ComputeSecondsUntilCommit(Armato(ERTMatchPhase::Planning, false)), 12.f, 0.01f);
+
+	TestTrue(TEXT("durante la riproduzione (Phase resta Planning) non c'e' nessun commit in arrivo"),
+		URTHudViewModel::ComputeSecondsUntilCommit(Armato(ERTMatchPhase::Planning, true)) < 0.f);
+
+	for (const ERTMatchPhase Fase : { ERTMatchPhase::Prep, ERTMatchPhase::Dash, ERTMatchPhase::Blast, ERTMatchPhase::Move,
+		ERTMatchPhase::Cleanup, ERTMatchPhase::MatchEnded })
+	{
+		TestTrue(*FString::Printf(TEXT("fase %d: nessun commit in arrivo, qualunque orologio sia armato"), static_cast<int32>(Fase)),
+			URTHudViewModel::ComputeSecondsUntilCommit(Armato(Fase, false)) < 0.f);
+	}
+
+	// Il Planning col solo tetto, senza altri orologi: il numero e' quello del tetto.
+	FRTMatchHeaderView SoloTetto = MakePhaseWordHeader(ERTMatchPhase::Planning);
+	SoloTetto.PlanningSecondsRemaining = 5.f;
+	TestNearlyEqual(TEXT("controllo: il solo tetto del Planning"),
+		URTHudViewModel::ComputeSecondsUntilCommit(SoloTetto), 5.f, 0.01f);
 
 	return true;
 }

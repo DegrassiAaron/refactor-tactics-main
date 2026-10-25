@@ -1017,6 +1017,10 @@ bool FRTTurnHeaderObjectiveReticencesTest::RunTest(const FString&)
 	Mappa->Cells[0].bIsObjective = false;
 	W->RefreshLook(true);
 	TestFalse(TEXT("4: tolta la cella torna il silenzio, e con lui il traguardo"), Visibile(W->ObjectiveBox));
+	// Il traguardo tace PER CONTO SUO: nel test `ObjectiveThresholdText` e' un widget libero, non sta dentro `ObjectiveBox`,
+	// quindi il silenzio non puo' venire dal contenitore. La soglia vale ancora 3.
+	TestFalse(TEXT("4: e il traguardo (a 3) tace anche da solo, senza dipendere da dove l'asset lo monta"),
+		Visibile(W->ObjectiveThresholdText));
 
 	DestroyPlaybackWorld(World);
 

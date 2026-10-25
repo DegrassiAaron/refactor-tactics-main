@@ -1210,9 +1210,8 @@ public:
 	 * ```
 	 *
 	 * 🔑 **E' la sede UNICA di queste quattro stringhe.** L'header UMG (`URTTurnHeaderWidget`) le mostra da
-	 * solo: prima vivevano soltanto dentro `ComposeMatchStatusLine` (ritirata con D-539), che dal 2026-09-08
-	 * (#1936) non aveva piu' un chiamante, e `Spazio`, `RMB` e `P` funzionavano senza dire di esistere. Due copie del testo sarebbero due occasioni di divergere, e la divergenza non fallisce nessun
-	 * test: mostra solo un tasto sbagliato.
+	 * solo, e due copie del testo sarebbero due occasioni di divergere: la divergenza non fallisce nessun test, mostra
+	 * solo un tasto sbagliato. Perche' esiste e cosa c'era prima (la riga di stato, ritirata) sta in D-538 e D-539.
 	 *
 	 * 🔴 **Un suggerimento che nomina un tasto inerte e' peggio di nessun suggerimento** (revisione di #3847):
 	 * `Spazio` non salta in autobattle (`OnLockIn` esce prima, per non tagliare la registrazione) e `RMB` non
@@ -1230,8 +1229,7 @@ public:
 	 *                            chiamante: questa e' una statica PUBBLICA, e un `Elapsed/Total` grezzo puo' essere
 	 *                            fuori scala o NaN. Un NaN si legge come `0`: `FMath::Clamp` lo lascerebbe passare
 	 *                            come `1` e la barra direbbe `[100%]`, cioe' una riproduzione finita.
-	 * @param Gestures            quali tasti fanno qualcosa adesso. `FRTLiveGestures::All()` per chi non conosce la
-	 *                            sessione.
+	 * @param Gestures            quali tasti fanno qualcosa adesso: li legge `URTHudViewModel::ReadLiveGestures`.
 	 */
 	static FString ComposeControlHint(const struct FRTMatchHeaderView& Header, float PlaybackProgress01,
 		const struct FRTLiveGestures& Gestures);

@@ -95,7 +95,7 @@ bool FRTControlHintFollowsTurnStateTest::RunTest(const FString&)
 	for (const FCaso& Caso : Casi)
 	{
 		TestEqualSensitive(*FString::Printf(TEXT("%s: il suggerimento"), Caso.Nome),
-			ARTHUD::ComposeControlHint(Caso.Header, Caso.Progresso, FRTLiveGestures::All()), FString(Caso.Atteso));
+			ARTHUD::ComposeControlHint(Caso.Header, Caso.Progresso, MakeControlHintGestures(true, true, true)), FString(Caso.Atteso));
 	}
 
 	return true;
@@ -151,7 +151,7 @@ bool FRTHintNamesOnlyKeysThatWorkTest::RunTest(const FString&)
 
 	// --- Un avanzamento non finito non e' un traguardo -------------------------------------------------------------------
 	// `FMath::Clamp` rende `Max` per un NaN: `[100%]` direbbe una riproduzione finita. Si legge come `0`.
-	const FRTLiveGestures Tutti = FRTLiveGestures::All();
+	const FRTLiveGestures Tutti = MakeControlHintGestures(true, true, true);
 	TestEqualSensitive(TEXT("NaN: [0%] e non [100%]"),
 		ARTHUD::ComposeControlHint(Risoluzione, std::numeric_limits<float>::quiet_NaN(), Tutti),
 		FString(TEXT("[0%]  (Spazio: salta)")));
@@ -168,8 +168,6 @@ bool FRTHintNamesOnlyKeysThatWorkTest::RunTest(const FString&)
 	TestFalse(TEXT("default: Spazio spento"), Nessuno.bSkip);
 	TestFalse(TEXT("default: RMB spento"), Nessuno.bUnready);
 	TestFalse(TEXT("default: V spento"), Nessuno.bSpeed);
-	TestTrue(TEXT("All(): tutti accesi"), Tutti.bSkip && Tutti.bUnready && Tutti.bSpeed);
-
 	return true;
 }
 
@@ -185,7 +183,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlLabelNamesTheSpeedKeyTest,
 bool FRTControlLabelNamesTheSpeedKeyTest::RunTest(const FString&)
 {
 	const FRTMatchHeaderView Pianificazione = MakeControlHintHeader();
-	const FRTLiveGestures Tutti = FRTLiveGestures::All();
+	const FRTLiveGestures Tutti = MakeControlHintGestures(true, true, true);
 
 	// Fuori dalla risoluzione e senza altri gesti resta la sola velocita'. Non positiva vale `x1`: la stessa
 	// convenzione di `EffectivePlaybackSpeed`, e un'etichetta `x0` direbbe che la riproduzione e' ferma.

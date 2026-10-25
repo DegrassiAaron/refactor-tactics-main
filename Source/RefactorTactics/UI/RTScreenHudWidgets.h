@@ -343,7 +343,7 @@ public:
 	 * Il timer come lo legge un giocatore, `00:21`: quanto manca al COMMIT (`SecondsUntilCommit`), non al Planning
 	 * (#3635). Vuoto quando nessun orologio corre.
 	 *
-	 * ⚠️ **Non-positivo significa «non si applica», e comprende lo zero**, come nella riga di stato del Canvas: la
+	 * ⚠️ **Non-positivo significa «non si applica», e comprende lo zero**: la
 	 * vista pubblica `0.f` nel varco di ~350 ms a inizio partita, prima che il timer si armi.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
@@ -363,7 +363,7 @@ public:
 	 * Vuoto senza contesto di partita.
 	 *
 	 * Esiste perche' `Spazio`, `V`, `RMB` e `P` funzionano e nessun widget lo diceva: i suggerimenti vivevano solo
-	 * dentro una riga di stato che non ha piu' chiamanti dal 2026-09-08 (#1936).
+	 * dentro `ComposeMatchStatusLine` (ritirata con D-539), che non aveva piu' chiamanti dal 2026-09-08 (#1936).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetControlHintText() const;
@@ -450,7 +450,7 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UWidget> ObjectiveBox;
 
-	/** «2–1»: squadra 0 – squadra 1, l'ordine della riga di stato e del TurnLog. */
+	/** «2–1»: squadra 0 – squadra 1, l'ordine del TurnLog. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UTextBlock> ObjectiveScoreText;
 

@@ -405,11 +405,11 @@ lista resta progetto.
 > ⚠️ **Con controllo di calibrazione**, senza il quale un filtro rotto direbbe «zero» a tutto: lo stesso
 > comando su `ComposeAbilityLine` trova il suo chiamante vivo — `RTScreenHudWidgets.cpp:525`.
 >
-> ⛔ **Non è codice morto.** `ComposeMatchStatusLine` è pura e coperta dai suoi test: ciò che manca è il
+> ~~⛔ **Non è codice morto.** `ComposeMatchStatusLine` è pura e coperta dai suoi test: ciò che manca è il
 > consumatore in UMG, ed è il difetto che possiede
 > [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764). Finché non arriva, le quattro
 > **reticenze** della barra — niente `/0`, countdown solo in Pianificazione, obiettivo solo se la mappa ne
-> dichiara uno — restano verificate headless e invisibili in partita.
+> dichiara uno — restano verificate headless e invisibili in partita.~~ *(superato: vedi sotto e [D-539](../../decisions/RT_PDR_00_Decision_Log.md))*
 
 > ✅ **Aggiornata il 2026-10-25 ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)): il punteggio raggiunge lo schermo, per un'altra strada.** Lo rende l'header UMG (`ObjectiveBox`, `ObjectiveScoreText`, `ObjectiveThresholdText`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)), con le reticenze che `RefreshLook` applica da sé: il limite del round solo se il formato lo dichiara, l'obiettivo solo se la mappa ne ha uno, il timer vuoto senza orologio. Le pinnano `ScreenHud.RoundLimitComesFromTheFormat` e `ScreenHud.TurnHeaderLookFollowsTheBoard`. **`ComposeMatchStatusLine` è stata ritirata con [D-539](../../decisions/RT_PDR_00_Decision_Log.md)**: a non avere consumatore era la riga composta, non le regole, e ognuna delle sue regole ha oggi la sua sede viva e il suo test (la tabella è in [D-539](../../decisions/RT_PDR_00_Decision_Log.md)).
 

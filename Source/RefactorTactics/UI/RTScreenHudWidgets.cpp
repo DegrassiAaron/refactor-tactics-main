@@ -872,7 +872,7 @@ FText URTTurnHeaderWidget::GetPhaseText() const
 FString URTTurnHeaderWidget::ControlLabelFor(const FRTMatchHeaderView& Header) const
 {
 	// Inoltro puro (D-538): avanzamento e velocita' si LEGGONO dal manager attraverso il view model, il testo lo
-	// compone `ARTHUD::ComposeControlLabel` - la stessa funzione da cui la riga di stato prende i suoi gesti. Quali
+	// compone `ARTHUD::ComposeControlLabel` - l'unica sede del testo. Quali
 	// tasti fanno qualcosa lo dice `ReadLiveGestures`, che li legge dalle sedi dei tasti: l'etichetta non decide.
 	return ARTHUD::ComposeControlLabel(Header,
 		URTHudViewModel::ReadPlaybackProgress01(GetTurnManager()),
@@ -1005,7 +1005,10 @@ void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
 		ObjectiveThresholdText->SetText(FText::FromString(FString::Printf(TEXT("(a %d)"), Header.ScoreToWin)));
 		ObjectiveThresholdText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
 	}
-	RTShowIf(ObjectiveThresholdText, Header.ScoreToWin > 0);
+	// La soglia tace anche senza obiettivo dichiarato, e lo decide il C++: non dipende da dove l'asset monta il
+	// testo (revisione di #3849). Senza questa condizione `(a 3)` si vedrebbe su una mappa senza obiettivo se il
+	// widget non stesse dentro `ObjectiveBox`.
+	RTShowIf(ObjectiveThresholdText, bContesto && bMapDeclaresObjective && Header.ScoreToWin > 0);
 }
 
 void URTTurnHeaderWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)

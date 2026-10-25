@@ -24,7 +24,6 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTCellId.h"
 #include "UI/RTHudViewModel.h"
-#include "UI/RTHUD.h"
 #include "Player/RTPlayerController.h"
 #include "RTGameMode.h"
 #include "RTWorldFixtures.h"
