@@ -146,4 +146,52 @@ bool FRTHudNoCommitClockOutsidePlanningTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * IL LIMITE DEL ROUND HA UNA CONDIZIONE SOLA (#2764).
+ *
+ * `DeclaresRoundLimit` e' la sede della regola, e `ComposeRoundCounter` deve essere d'accordo con lei: se le due
+ * cadessero in disaccordo il testo intero direbbe `Round 3/0` mentre la porta `RoundLimitText` tace, o viceversa. La
+ * stessa condizione la applica `RefreshLook` alla porta, e `ScreenHud.TurnHeaderLookFollowsTheBoard` lo pinna sul widget.
+ *
+ * Zero e negativo sono entrambi «nessun limite»: un formato non puo' dichiarare un numero negativo di round.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRoundLimitSingleSeatTest,
+	"RefactorTactics.HudViewModel.RoundLimitHasASingleCondition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudRoundLimitSingleSeatTest::RunTest(const FString&)
+{
+	const auto Intestazione = [](int32 Limite)
+	{
+		FRTMatchHeaderView Header;
+		Header.Round = 3;
+		Header.RoundLimit = Limite;
+		return Header;
+	};
+
+	struct FCaso
+	{
+		int32 Limite;
+		bool bAtteso;
+		const TCHAR* Testo;
+	};
+	const FCaso Casi[] = {
+		{ 12, true, TEXT("Round 3/12") },
+		{ 1, true, TEXT("Round 3/1") },
+		{ 0, false, TEXT("Round 3") },
+		{ -1, false, TEXT("Round 3") },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const FRTMatchHeaderView Header = Intestazione(Caso.Limite);
+		TestEqual(*FString::Printf(TEXT("limite %d: la condizione"), Caso.Limite),
+			URTHudViewModel::DeclaresRoundLimit(Header), Caso.bAtteso);
+		TestEqualSensitive(*FString::Printf(TEXT("limite %d: il testo intero segue la condizione"), Caso.Limite),
+			URTHudViewModel::ComposeRoundCounter(Header), FString(Caso.Testo));
+		// Il testo nomina il limite SE E SOLO SE la condizione e' vera: e' il disaccordo che la sede unica esclude.
+		TestEqual(*FString::Printf(TEXT("limite %d: il testo contiene «/» se e solo se la condizione e' vera"), Caso.Limite),
+			URTHudViewModel::ComposeRoundCounter(Header).Contains(TEXT("/")), URTHudViewModel::DeclaresRoundLimit(Header));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

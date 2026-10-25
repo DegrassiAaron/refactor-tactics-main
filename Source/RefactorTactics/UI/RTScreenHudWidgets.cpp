@@ -899,7 +899,7 @@ void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
 
 	RTPaintFrame(HeaderFrame, C(T::BG_Panel).CopyWithNewOpacity(0.92f), C(T::Frame_Deep), 1.f);
 
-	// Il round: due cifre, e il limite solo se il formato lo dichiara (la regola di `ComposeRoundCounter`).
+	// Il round: due cifre, e il limite solo se il formato lo dichiara (`DeclaresRoundLimit`, la stessa condizione di `ComposeRoundCounter`).
 	if (RoundValueText)
 	{
 		FNumberFormattingOptions DueCifre;
@@ -913,7 +913,7 @@ void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
 		RoundLimitText->SetText(FText::FromString(FString::Printf(TEXT("/ %d"), Header.RoundLimit)));
 		RoundLimitText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
 	}
-	RTShowIf(RoundLimitText, bContesto && Header.RoundLimit > 0);
+	RTShowIf(RoundLimitText, bContesto && URTHudViewModel::DeclaresRoundLimit(Header));
 
 	// Pianificazione o Risoluzione: due gruppi, mai entrambi.
 	RTShowIf(PlanningGroup, !Header.bResolving);

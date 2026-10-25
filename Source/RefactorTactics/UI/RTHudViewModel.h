@@ -1431,6 +1431,17 @@ public:
 	static FText ComposePlayerEventText(const FRTPlayerEvent& Event);
 
 	/**
+	 * Il formato dichiara un limite di round? `RoundLimit == 0` significa «nessun limite dichiarato», e nominarlo
+	 * direbbe che la partita e' gia' scaduta (`Round 3/0`).
+	 *
+	 * 🔑 **E' la sede UNICA di questa condizione** (#2764). La leggono `ComposeRoundCounter`, che compone il testo intero,
+	 * e `URTTurnHeaderWidget::RefreshLook`, che scrive la porta `RoundLimitText` dalla tavola A (#3635): il contatore e'
+	 * spezzato in due testi, quindi le due letture non possono condividere la stringa, ma possono e devono condividere
+	 * la regola. Prima la riscrivevano entrambe, e un test verde su una delle due non diceva niente dell'altra.
+	 */
+	static bool DeclaresRoundLimit(const FRTMatchHeaderView& Header);
+
+	/**
 	 * Il contatore del round come si mostra: `Round N/L` con un formato in vigore, `Round N` senza.
 	 *
 	 * 🔴 **Una sola sede, e non e' una preferenza di stile.** `RoundLimit == 0` significa «nessun limite
