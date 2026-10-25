@@ -950,7 +950,7 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 /**
  * LE RETICENZE DELL'OBIETTIVO NELL'HEADER (D-539). Il progresso sull'obiettivo e' l'esempio perfetto di regola che un
  * controllo a schermo non vede: l'ASSENZA di un pezzo di testo non somiglia a un difetto. Le tre reticenze vivevano solo
- * dentro `ARTHUD::ComposeMatchStatusLine`; qui si pinnano sul widget che le applica davvero (`RefreshLook`).
+ * dentro `ARTHUD::ComposeMatchStatusLine` (ritirata con D-539); qui si pinnano sul widget che le applica davvero (`RefreshLook`).
  *
  *  1. senza una cella obiettivo l'obiettivo NON c'e', anche con soglia e punteggio: su una mappa senza obiettivo `2-1`
  *     (o `0-0`) sarebbe un punteggio inventato per una gara che nessuno sta correndo;

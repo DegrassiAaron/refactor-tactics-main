@@ -359,8 +359,8 @@ public:
 	/**
 	 * I gesti che valgono ORA e la velocita' di riproduzione, gia' composti: `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`. Un tasto inerte NON e' nominato (autobattle: niente `Spazio` e `RMB`; partita presidiata: niente `(V)`).
 	 *
-	 * Inoltra a `ARTHUD::ComposeControlLabel` e non compone niente: la stessa stringa la incolla alla propria riga
-	 * `ComposeMatchStatusLine`, quindi il testo ha una sede sola (D-538, #2764). Vuoto senza contesto di partita.
+	 * Inoltra a `ARTHUD::ComposeControlLabel` e non compone niente: il testo ha una sede sola (D-538, #2764).
+	 * Vuoto senza contesto di partita.
 	 *
 	 * Esiste perche' `Spazio`, `V`, `RMB` e `P` funzionano e nessun widget lo diceva: i suggerimenti vivevano solo
 	 * dentro una riga di stato che non ha piu' chiamanti dal 2026-09-08 (#1936).

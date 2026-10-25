@@ -1029,7 +1029,8 @@ bool FRTHudVmReadyCountdownTest::RunTest(const FString&)
  * **IL NUMERO DA MOSTRARE E' IL PIU' VICINO DEI DUE, E LA REGOLA STA IN UN POSTO SOLO.**
  *
  * 🔴 **Perche' questo test esiste adesso.** La regola c'era gia' — dentro `ARTHUD::ComposeMatchStatusLine`,
- * e `HUD.MatchStatusShowsTheReadyCountdown` la copre **attraverso la riga di testo del Canvas**. Con lo
+ * e `HUD.MatchStatusShowsTheReadyCountdown` la copriva **attraverso la riga di testo del Canvas** (entrambe ritirate
+ * con D-539: questo test e' ora la guardia della regola). Con lo
  * Screen HUD in UMG (`#613`) arriva un secondo consumatore che quella riga non la attraversa: un
  * `WBP_RT_TurnHeader` che stampasse `ReadyCountdownSecondsRemaining` sarebbe corretto secondo il tipo e
  * sbagliato secondo il gioco, e **nessun test lo direbbe**. Qui la regola e' misurata da sola, cosi' che

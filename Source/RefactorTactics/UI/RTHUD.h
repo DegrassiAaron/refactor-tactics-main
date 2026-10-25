@@ -1199,33 +1199,6 @@ public:
 	static FString ComposePlaybackSpeedLabel(float ViewerSpeed);
 
 	/**
-	 * La barra di stato in alto: contatore del round, fase o riproduzione, timer, progresso sull'obiettivo.
-	 *
-	 * Statica e PURA sul modello di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura headless e non l'avra' —
-	 * e' un `AHUD::DrawHUD` che il motore chiama ogni fotogramma — quindi cio' che si puo' sbagliare deve
-	 * stare dove i test arrivano (#2184).
-	 *
-	 * ⚠️ **Tutte e quattro le decisioni sono RETICENZE**: tacere il limite senza formato, il timer senza
-	 * orologio, il punteggio senza obiettivo dichiarato e la **soglia** senza obiettivo dichiarato. Sono
-	 * quelle che una verifica a schermo non vede, perche' l'assenza di un pezzo di testo non somiglia a un
-	 * difetto — e la quarta era anche quella che il conteggio di questa riga aveva perso.
-	 *
-	 * ⚠️ **Prende la vista, non l'attore.** `FRTMatchHeaderView` la produce gia'
-	 * `URTHudViewModel::BuildMatchHeader` per lo Screen HUD: leggere i campi una seconda volta dal
-	 * `TurnManager` creava due sedi per lo stesso dato, che si scollegano al primo campo aggiunto a una sola.
-	 *
-	 * ⛔ **Non compone il controllo di velocita'**: quello ha la sua statica (`ComposePlaybackSpeedLabel`) e legge
-	 * un campo — `ViewerPlaybackSpeed` — che #1821 tiene esplicitamente fuori scope in quanto campo. Il Canvas
-	 * che lo appendeva e' uscito (#1936); lo mette insieme ai suggerimenti `ComposeControlLabel` (D-538).
-	 *
-	 * @param PlaybackPhaseName   la fase che sta scorrendo. Letta solo se `Header.bResolving`.
-	 * @param PlaybackProgress01  avanzamento in `[0,1]`; mostrato in percento, arrotondato al piu' vicino.
-	 * @param bHasObjectiveCell   se la MAPPA dichiara un obiettivo. Falso = il punteggio non si scrive.
-	 */
-	static FString ComposeMatchStatusLine(const struct FRTMatchHeaderView& Header,
-		const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell);
-
-	/**
 	 * Il suggerimento del gesto che vale ORA: quale tasto premere, a seconda di dove si trova il turno
 	 * (D-538, #2764) - e SOLO se quel tasto fa qualcosa.
 	 *
@@ -1236,10 +1209,9 @@ public:
 	 * altrimenti             ->  vuoto
 	 * ```
 	 *
-	 * 🔑 **E' la sede UNICA di queste quattro stringhe.** `ComposeMatchStatusLine` le incolla alla propria riga
-	 * e l'header UMG (`URTTurnHeaderWidget`) le mostra da solo: prima vivevano soltanto dentro quella riga, che
-	 * dal 2026-09-08 (#1936) non ha piu' un chiamante, e `Spazio`, `RMB` e `P` funzionavano senza dire di
-	 * esistere. Due copie del testo sarebbero due occasioni di divergere, e la divergenza non fallisce nessun
+	 * 🔑 **E' la sede UNICA di queste quattro stringhe.** L'header UMG (`URTTurnHeaderWidget`) le mostra da
+	 * solo: prima vivevano soltanto dentro `ComposeMatchStatusLine` (ritirata con D-539), che dal 2026-09-08
+	 * (#1936) non aveva piu' un chiamante, e `Spazio`, `RMB` e `P` funzionavano senza dire di esistere. Due copie del testo sarebbero due occasioni di divergere, e la divergenza non fallisce nessun
 	 * test: mostra solo un tasto sbagliato.
 	 *
 	 * 🔴 **Un suggerimento che nomina un tasto inerte e' peggio di nessun suggerimento** (revisione di #3847):
@@ -1252,7 +1224,7 @@ public:
 	 * una scorciatoia che non esiste.
 	 *
 	 * ⚠️ **Le tre condizioni sono mutuamente esclusive per costruzione** (vedi `FRTMatchHeaderView`), e l'ordine
-	 * qui e' quello della riga di stato: la risoluzione, poi la preparazione, poi il Ready.
+	 * qui e' la risoluzione, poi la preparazione, poi il Ready: la stessa precedenza di `URTHudViewModel::ComposePhaseWord`.
 	 *
 	 * @param PlaybackProgress01  avanzamento in `[0,1]`, letto solo in Risoluzione. Il clamp e' QUI e non nel
 	 *                            chiamante: questa e' una statica PUBBLICA, e un `Elapsed/Total` grezzo puo' essere

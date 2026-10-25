@@ -125,7 +125,7 @@ struct FRTMatchHeaderView
 	 * non si applica — nessun orologio in corsa.
 	 *
 	 * Esiste perche' i due campi qui sopra sono **due orologi e una regola**, e la regola non stava nel
-	 * tipo: viveva dentro `ARTHUD::ComposeMatchStatusLine`, cioe' dentro **un** consumatore. Finche' il
+	 * tipo: viveva dentro `ARTHUD::ComposeMatchStatusLine` (ritirata con D-539), cioe' dentro **un** consumatore. Finche' il
 	 * consumatore era uno solo la cosa reggeva; con lo Screen HUD in UMG (`#613`) i consumatori diventano
 	 * due, e il secondo non passa da quella riga. Un `WBP_RT_TurnHeader` che leggesse
 	 * `ReadyCountdownSecondsRemaining` e lo stampasse sarebbe **corretto secondo il tipo e sbagliato
@@ -161,9 +161,9 @@ struct FRTMatchHeaderView
 	 * voce di TurnLog senza `HasObjectiveCell()`, e `Objectives.SilentWithoutObjectiveCell` lo misura.
 	 *
 	 * La condizione si chiede a `URTHexMapAsset::HasObjectiveCell()`, che si raggiunge da
-	 * `ARTHexMapActor::FindInWorld(World)`. Il percorso Canvas la rispetta — `ARTHUD::ComposeMatchStatusLine`
-	 * la riceve come parametro e tace senza — e `RefactorTactics.HUD.MatchStatusShowsObjectiveOnlyWhenMapDeclaresOne`
-	 * la misura. ⚠️ **Un binding Blueprint su questo campo NON e' protetto da niente**: misurato il
+	 * `ARTHexMapActor::FindInWorld(World)`. L'header UMG la rispetta — `RefreshLook` mostra il riquadro solo con
+	 * `MapDeclaresObjective` — e `RefactorTactics.ScreenHud.TurnHeaderObjectiveReticences` la misura (la riga
+	 * `ARTHUD::ComposeMatchStatusLine`, che la riceveva come parametro, e' ritirata con D-539). ⚠️ **Un binding Blueprint su questo campo NON e' protetto da niente**: misurato il
 	 * 2026-09-04, oggi nessun `WBP_*` lo lega, e portare la condizione dentro il tipo e' **#2281**.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
@@ -1283,7 +1283,7 @@ struct FRTLiveGestures
 	bool bUnready = false;
 	bool bSpeed = false;
 
-	/** Tutti vivi. Per il compositore della riga di stato, che non ha un chiamante vero e non conosce la sessione. */
+	/** Tutti vivi. Per i test, e per chi compone il testo senza conoscere la sessione. */
 	static FRTLiveGestures All()
 	{
 		FRTLiveGestures Gestures;
@@ -1465,7 +1465,7 @@ public:
 	 *     run headless (`SetPlanningSeconds(0)`), e un `Min` cieco restituirebbe quel negativo — cioe'
 	 *     spegnerebbe il countdown proprio dove il countdown e' l'unico orologio.
 	 *
-	 * ⚠️ **Sta qui e non in un consumatore**, ed e' il punto: `ARTHUD::ComposeMatchStatusLine` la applicava
+	 * ⚠️ **Sta qui e non in un consumatore**, ed e' il punto: `ARTHUD::ComposeMatchStatusLine` (ritirata con D-539) la applicava
 	 * per il Canvas, e un widget UMG che non passa da quella riga avrebbe dovuto riscriverla. Due copie
 	 * della stessa regola sono due occasioni di scriverne una sbagliata, e la sbagliata non fallisce nessun
 	 * test — mostra solo un numero plausibile.

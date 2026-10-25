@@ -1,7 +1,7 @@
 // La PAROLA della fase: `URTHudViewModel::ComposePhaseWord`, la sede unica che l'header UMG (`PhaseText`) mostra.
 //
 // Perche' questo file esiste (D-539): le sei parole - `Pianificazione`, `Preparazione`, `Preparazione (in pausa)`,
-// `Ready`, `Risoluzione`, `Fine` - erano pinnate SOLO attraverso `ARTHUD::ComposeMatchStatusLine`, una riga di stato
+// `Ready`, `Risoluzione`, `Fine` - erano pinnate SOLO attraverso `ARTHUD::ComposeMatchStatusLine` (ritirata con D-539), una riga di stato
 // senza chiamanti di produzione. Sul lato vivo (`PhaseText` dell'header) era pinnata una sola, `PIANIFICAZIONE`: ritirare
 // la riga senza questo test avrebbe lasciato cinque parole e la loro PRECEDENZA senza nessuna guardia.
 //
