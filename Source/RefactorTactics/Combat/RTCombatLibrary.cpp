@@ -1,4 +1,5 @@
 #include "Combat/RTCombatLibrary.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
@@ -61,6 +62,32 @@ namespace
 		// velo — un motivo nuovo che tacesse per sbaglio sembrerebbe privacy e sarebbe un difetto.
 		checkNoEntry();
 		return ERTTargetRefusal::Nothing;
+	}
+
+	/**
+	 * L'eccezione di [D-393] che una mira CONCEDE per due celle su piani diversi ([D-540], #3848). `None` e' il
+	 * caso normale: nessuna eccezione, il chiamante risponde `OtherLayer`.
+	 *
+	 * ⛔ **Non guarda chi sta sulle celle, e l'assenza e' la regola**, come il resto di `ClassifyHexTargeting`: la
+	 * risposta dipende da (mappa, due celle, tipo di eccezione), quindi due mondi che differiscono solo per un
+	 * nemico che l'osservatore non conosce escono di qui identici. [D-225]
+	 */
+	bool AdmitsCrossLayerAim(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		ERTCrossLayerAim CrossLayerAim)
+	{
+		switch (CrossLayerAim)
+		{
+		case ERTCrossLayerAim::AlongDamageableArc:
+			// La domanda della risoluzione, non una copia: `DamageArc` scalfisce l'arco che `HasDamageableArc` trova.
+			return URTHexArcLibrary::HasDamageableArc(Map, From, To);
+		case ERTCrossLayerAim::ToOtherLayerCell:
+			// L'arco di `ModifyArc` si getta dove ancora non c'e': non c'e' un arco da cercare, e la portata l'ha
+			// gia' giudicata la funzione chiamante.
+			return true;
+		case ERTCrossLayerAim::None:
+		default:
+			return false;
+		}
 	}
 }
 
@@ -163,7 +190,8 @@ bool URTCombatLibrary::CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitC
 }
 
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells)
+	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells,
+	ERTCrossLayerAim CrossLayerAim)
 {
 	if (!Map)
 	{
@@ -222,7 +250,18 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 	// che di qui non passano: e' la stessa domanda, e deve restare una.
 	if (!OnSamePlane(From, To))
 	{
-		return ERTHexTargetReason::OtherLayer;
+		// ➕ **L'ECCEZIONE DELL'ARCO** ([D-540], #3848; emenda di [D-393] decisa da [D-536] (3)). Un'azione che la
+		// risoluzione sa eseguire fra due piani — scalfire un arco, gettarne uno — puo' mirare all'altro capo: la
+		// risoluzione ferma il COLPO (`OtherLayerIntents`) e lascia l'arco, e chi pianifica deve poter dichiarare cio'
+		// che la risoluzione esegue. Lo concede `CrossLayerAim`, che il chiamante prende da `CrossLayerAimFor`.
+		//
+		// 🔑 **Esce `Ok` da qui, senza passare dalla licenza e dalla linea**, ed e' l'ordine della risoluzione:
+		// `CollectHexAttacks` ferma il colpo per piano PRIMA della linea di tiro, quindi chiedere la linea a una mira
+		// che la risoluzione non valuta rifiuterebbe per «copertura» un piano che scalfisce l'arco.
+		//
+		// ⛔ Senza eccezione (`None`, il default) resta [D-393] riga per riga: `OtherLayer`.
+		return AdmitsCrossLayerAim(Map, From, To, CrossLayerAim)
+			? ERTHexTargetReason::Ok : ERTHexTargetReason::OtherLayer;
 	}
 
 	// ➕ **LA LICENZA DELL'AZIONE** (`#2870`, [D-378]). Non e' un bypass di `HasLineOfSight`: e' la domanda
@@ -249,9 +288,9 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 
 ERTTargetRefusal URTCombatLibrary::RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver,
-	int32 MinRangeCells)
+	int32 MinRangeCells, ERTCrossLayerAim CrossLayerAim)
 {
-	return RefusalForObserver(ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells),
+	return RefusalForObserver(ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells, CrossLayerAim),
 		bTargetKnownToObserver);
 }
 
@@ -278,7 +317,7 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 
 FRTCellTargetRefusal URTCombatLibrary::DescribeCellTargetRefusal(const URTHexMapAsset* Map,
 	const FRTCellId& From, const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy,
-	int32 MinRangeCells)
+	int32 MinRangeCells, ERTCrossLayerAim CrossLayerAim)
 {
 	FRTCellTargetRefusal Out;
 
@@ -288,7 +327,7 @@ FRTCellTargetRefusal URTCombatLibrary::DescribeCellTargetRefusal(const URTHexMap
 	// lungo `HexLine`; `DescribeLineOfSight` ha per unica sorgente `const URTHexMapAsset*`. ∴ due mondi che
 	// differiscono solo per un nemico che l'osservatore non conosce, sulla cella bersaglio, escono di qui con
 	// `Out` identico campo per campo, e nessun filtro a valle deve rimediare a niente. [D-225]
-	Out.Refusal = RefusalForReason(ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells));
+	Out.Refusal = RefusalForReason(ClassifyHexTargeting(Map, From, To, RangeCells, Policy, MinRangeCells, CrossLayerAim));
 
 	// 🔑 **Calcolate SEMPRE, anche quando l'esito e' `None`.** `ARTHUD::RefusalText` legge il numero solo per
 	// `Range` e `ComputeRefusedShotLine` la geometria solo per `Cover`, quindi altrove sono inerti — ed e'
@@ -335,6 +374,30 @@ FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 Effect
 	// chi legge `max 2` non conclude piu' che il classificatore sia rotto.
 	return FString::Printf(TEXT("fuori portata (max %d applicato, %d dichiarata: il terreno sulla linea la riduce)"),
 		EffectiveRange, DeclaredRange);
+}
+
+ERTCrossLayerAim URTCombatLibrary::CrossLayerAimFor(const FRTActionDef& Def)
+{
+	// ⚠️ **Le due letture sono quelle del Blast, e restano due copie finche' non hanno una sede comune**
+	// ([D-540], #3848). `Action.ModifyArc` si riconosce da identita' o derivazione (`IsCoreAction` in
+	// `Turn/RTTurnManager_Blast.cpp`), e il danno alle strutture dal PRIMO effetto `DamageStructure` dell'azione
+	// (stesso ciclo, stesso `break`): se una delle due cambia, cambia anche qui. Il banco
+	// `Combat.CrossLayerAimFollowsTheActionTheResolutionExecutes` le tiene d'accordo sul catalogo spedito.
+	static const FName ActionModifyArc(TEXT("Action.ModifyArc"));
+	if (Def.ActionId == ActionModifyArc || Def.DerivedFromActionId == ActionModifyArc)
+	{
+		return ERTCrossLayerAim::ToOtherLayerCell;
+	}
+
+	for (const FRTActionEffectSpec& Spec : Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::DamageStructure)
+		{
+			// Il Blast scarta `StructurePower <= 0`: un `DamageStructure` a zero non scalfisce nessun arco.
+			return Spec.Amount > 0 ? ERTCrossLayerAim::AlongDamageableArc : ERTCrossLayerAim::None;
+		}
+	}
+	return ERTCrossLayerAim::None;
 }
 
 TArray<FRTCellId> URTCombatLibrary::TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From,

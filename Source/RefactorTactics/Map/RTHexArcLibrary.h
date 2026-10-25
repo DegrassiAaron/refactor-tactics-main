@@ -79,11 +79,22 @@ public:
 	 * applica a fase CONCLUSA, come per le coperture: l'ordine dei colpi non cambia l'esito.
 	 *
 	 * L'arco e' identificato dalla COPPIA di celle perche' la pianificazione non ha un bersaglio-arco — e' la
-	 * stessa convenzione che `Action.ModifyArc` usa dal CP 8.5, e resta un limite dichiarato finche' l'HUD di
-	 * E11 non porta un targeting vero.
+	 * stessa convenzione che `Action.ModifyArc` usa dal CP 8.5. Dal 2026-10-25 ([D-540], #3848) la pianificazione
+	 * AMMETTE la mira che attraversa un arco, e lo chiede a `HasDamageableArc`, che condivide con questa funzione la
+	 * raccolta dei versi e la regola dello stato.
 	 */
 	static TArray<FRTArcChange> DamageArc(URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 		int32 Amount);
+
+	/**
+	 * Fra le due celle c'e' un arco che `DamageArc` scalfirebbe? Vero se almeno uno dei due versi esiste e non e'
+	 * `Destroyed` (un arco crollato non incassa altro).
+	 *
+	 * E' la domanda che la PIANIFICAZIONE pone prima di ammettere una mira su un altro piano ([D-540], #3848): la
+	 * risposta coincide con quella che la risoluzione dara' dopo, perche' le due funzioni condividono la raccolta dei
+	 * versi (`BothWays`) e la regola dello stato (`CanTakeDamage`), e non una copia scritta due volte.
+	 */
+	static bool HasDamageableArc(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To);
 
 	/** Quanti layer separano i due estremi: `0` sullo stesso piano, `1` fra piani adiacenti. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")

@@ -201,6 +201,27 @@ struct FRTDamageResult
 		: Health(InHealth), Shield(InShield), TemporaryShield(InTemporaryShield) {}
 };
 
+/**
+ * Se e come una mira puo' attraversare i piani ([D-536] (3), [D-540], #3848).
+ *
+ * La regola generale resta quella di [D-393]: un'azione bersaglia celle del PROPRIO piano, e puntarne un altro e'
+ * `OtherLayer`. Fa eccezione la mira che ATTRAVERSA UN ARCO, perche' la risoluzione la esegue gia': l'arco fra la cella
+ * di chi tira e la cella mirata incassa il danno alle strutture (CP 9.4), e chi sta all'altro capo NON e' bersaglio.
+ * La risoluzione non cambia: ferma il colpo e lascia l'arco.
+ *
+ * Nasce `None` (zero) perche' e' il caso normale, e un parametro dimenticato deve voler dire [D-393].
+ */
+UENUM(BlueprintType)
+enum class ERTCrossLayerAim : uint8
+{
+	/** [D-393]: nessuna eccezione. */
+	None,
+	/** Un'azione che dichiara `DamageStructure`: ammessa se fra le due celle c'e' un arco che `DamageArc` scalfirebbe. */
+	AlongDamageableArc,
+	/** `Action.ModifyArc`, che getta un arco dove ancora non c'e': ammessa verso qualunque cella dell'altro piano. */
+	ToOtherLayerCell
+};
+
 /** Calcoli puri di combattimento (indipendenti dagli Actor, testabili). */
 UCLASS()
 class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
@@ -597,6 +618,10 @@ public:
 	 * ⛔ **Non e' la linea di vista**: una cella in portata dietro un muro (`NoLineOfSight`) resta in portata, e il
 	 * click la rifiuta per copertura mostrando dove il tiro si ferma (`#3085`). La vista e' un altro significato.
 	 * Senza mappa e' vuota, come il fail-closed della classificazione. L'ordine e' quello di `URTHexLibrary::HexArea`.
+	 *
+	 * ⚠️ **Elenca ancora le sole celle del proprio piano** ([D-540], #3848): la mira lungo un arco la ammette il click
+	 * (`ClassifyHexTargeting` con `CrossLayerAim`), ma `HexArea` non esce dal piano e l'evidenziazione non la nomina.
+	 * E' un limite di presentazione dichiarato, non una seconda regola: la funzione non riceve `CrossLayerAim`.
 	 */
 	static TArray<FRTCellId> TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From, int32 RangeCells,
 		ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
@@ -623,9 +648,29 @@ public:
 	 * ⚠️ `MinRangeCells` ha default **0** = nessun minimo: ogni chiamante che non lo passa conserva il
 	 * comportamento che aveva, e un'azione che non lo dichiara non cambia (`#2950`). Stessa forma con cui
 	 * `Policy` e' entrata qui con [D-378].
+	 *
+	 * ➕ `CrossLayerAim` ([D-540], #3848) ha default `None` = [D-393] riga per riga: chi non lo passa conserva
+	 * `OtherLayer` su ogni mira fra piani. Lo passa solo un sito di PIANIFICAZIONE, e lo prende da `CrossLayerAimFor`.
+	 * Concesso, la funzione esce `Ok` SENZA passare dalla linea: e' l'ordine della risoluzione, che ferma il colpo
+	 * per piano prima di guardare la linea.
 	 */
 	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0,
+		ERTCrossLayerAim CrossLayerAim = ERTCrossLayerAim::None);
+
+	/**
+	 * Quale eccezione di [D-393] concede questa azione ([D-540], #3848): `AlongDamageableArc` se dichiara
+	 * `DamageStructure`, `ToOtherLayerCell` se e' `Action.ModifyArc` (o ne deriva), `None` altrimenti.
+	 *
+	 * 🔑 **Legge le stesse cose che legge il Blast**: gli effetti dichiarati per il danno alle strutture, e
+	 * l'identita' (o la derivazione) di `Action.ModifyArc` per gli archi. Ogni sito di PIANIFICAZIONE che passa la
+	 * terna portata/policy/minimo di un'azione passa anche questo, e lo prende da qui: una mira ammessa al click e
+	 * rifiutata dall'anteprima, dallo stato dello slot o dalla timeline sarebbe peggio di un rifiuto coerente.
+	 *
+	 * ⛔ La VALIDAZIONE in risoluzione (`URTActionFallbackLibrary::ValidateInstance`) NON lo usa: la risoluzione non
+	 * cambia, e continua a fermare il colpo con `OtherLayer`.
+	 */
+	static ERTCrossLayerAim CrossLayerAimFor(const FRTActionDef& Def);
 
 	/**
 	 * **IL PREDICATO DEL PIANO**, uno solo ([D-393], [D-509]): un colpo resta sul `Layer` di chi lo tira.
@@ -641,6 +686,10 @@ public:
 	 * ⛔ **Non e' una domanda di distanza**: `HexDistance` IGNORA il `Layer` (`Map/RTHexLibrary.h`), quindi
 	 * due celle su piani diversi possono distare 1. Chi misura la vicinanza e non pone anche questa domanda
 	 * ha misurato una colonna, non una cella.
+	 *
+	 * ⚠️ **L'eccezione dell'arco ([D-540]) NON vive qui**: questo predicato risponde «stesso piano?» e basta, e lo
+	 * leggono anche le sedi di risoluzione. L'eccezione si concede dentro `ClassifyHexTargeting`, che e' la sede
+	 * della pianificazione, e solo li'.
 	 */
 	static bool OnSamePlane(const FRTCellId& From, const FRTCellId& To) { return From.Layer == To.Layer; }
 
@@ -709,7 +758,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static ERTTargetRefusal RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
 		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver,
-		int32 MinRangeCells = 0);
+		int32 MinRangeCells = 0, ERTCrossLayerAim CrossLayerAim = ERTCrossLayerAim::None);
 
 	/**
 	 * IL RIFIUTO DI UN BERSAGLIO A **CELLA**, per intero e senza un soggetto da velare — `#3064`.
@@ -741,7 +790,8 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTCellTargetRefusal DescribeCellTargetRefusal(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0,
+		ERTCrossLayerAim CrossLayerAim = ERTCrossLayerAim::None);
 
 	/**
 	 * La coda del log diagnostico di un rifiuto per DISTANZA — `#2766`.

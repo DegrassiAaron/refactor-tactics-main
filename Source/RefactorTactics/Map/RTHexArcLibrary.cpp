@@ -32,6 +32,15 @@ namespace
 		return Found;
 	}
 
+	/**
+	 * Un arco crollato non incassa altro. E' la regola dello stato di `DamageArc`, con un nome perche' la pianificazione
+	 * la pone prima della risoluzione (`HasDamageableArc`, [D-540]): scritta due volte direbbe due volte la stessa cosa.
+	 */
+	bool CanTakeDamage(const FRTHexEdge& Edge)
+	{
+		return Edge.State != ERTHexArcState::Destroyed;
+	}
+
 	FRTArcChange MakeChange(const FRTHexEdge& Edge)
 	{
 		FRTArcChange Change;
@@ -105,6 +114,18 @@ TArray<FRTArcChange> URTHexArcLibrary::SetArcState(URTHexMapAsset* Map, const FR
 	return Changes;
 }
 
+bool URTHexArcLibrary::HasDamageableArc(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+{
+	for (const FRTHexEdge& Edge : BothWays(Map, From, To))
+	{
+		if (CanTakeDamage(Edge))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& To, int32 Amount)
 {
@@ -117,7 +138,7 @@ TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTC
 	TArray<FRTHexEdge> Updated;
 	for (FRTHexEdge Edge : BothWays(Map, From, To))
 	{
-		if (Edge.State == ERTHexArcState::Destroyed)
+		if (!CanTakeDamage(Edge))
 		{
 			continue; // gia' crollato: non incassa altro
 		}

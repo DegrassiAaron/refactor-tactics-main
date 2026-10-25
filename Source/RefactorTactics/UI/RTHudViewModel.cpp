@@ -1080,7 +1080,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 
 			const ERTTargetRefusal Rifiuto = URTCombatLibrary::RefusalForKnownTarget(Mappa, Da,
 				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,
-				Bersaglio->IsKnownToObserver(), Pianificata->Def.MinRangeCells);
+				Bersaglio->IsKnownToObserver(), Pianificata->Def.MinRangeCells,
+				URTCombatLibrary::CrossLayerAimFor(Pianificata->Def));
 			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
 				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
 			// `#3499`: il rifiuto per il tooltip, dalla stessa domanda e solo quando accende lo stato. ⛔ Un ignoto
