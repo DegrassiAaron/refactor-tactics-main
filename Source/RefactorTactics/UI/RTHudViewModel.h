@@ -1261,6 +1261,39 @@ struct FRTPlanWarningCounts
 	int32 Info = 0;
 };
 
+/**
+ * Quali gesti di riproduzione FANNO QUALCOSA adesso (D-538, #2764): l'etichetta dei tasti non deve annunciarne uno
+ * inerte.
+ *
+ * Struct semplice, NON `USTRUCT`: e' presentazione che viaggia fra il widget e il compositore di testo, e non ha
+ * motivo di raggiungere un Blueprint. Il default e' **tutto spento**: senza una lettura nessun tasto si nomina.
+ *
+ *  - `bSkip`     `Spazio` salta la riproduzione. Spento in sessione non presidiata: `OnLockIn` esce prima, per non
+ *                tagliare la registrazione.
+ *  - `bUnready`  `RMB` annulla il Ready. Spento in sessione non presidiata: non c'e' un umano che possa disdire.
+ *  - `bSpeed`    `V` cambia la velocita'. Spento se chi guarda comanda un'unita' viva ([D-350]): la manopola e' di
+ *                chi osserva.
+ *
+ * `P` (pausa della preparazione) non ha un campo: e' vivo SEMPRE, anche in autobattle, per scelta esplicita del
+ * controller (`OnTogglePrepWindowPause`).
+ */
+struct FRTLiveGestures
+{
+	bool bSkip = false;
+	bool bUnready = false;
+	bool bSpeed = false;
+
+	/** Tutti vivi. Per il compositore della riga di stato, che non ha un chiamante vero e non conosce la sessione. */
+	static FRTLiveGestures All()
+	{
+		FRTLiveGestures Gestures;
+		Gestures.bSkip = true;
+		Gestures.bUnready = true;
+		Gestures.bSpeed = true;
+		return Gestures;
+	}
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTHudViewModel : public UBlueprintFunctionLibrary
 {
@@ -1476,6 +1509,19 @@ public:
 	 * Non e' un campo di `FRTMatchHeaderView`: #1821 lo tiene fuori dalla vista, ed e' presentazione, mai decisione.
 	 */
 	static float ReadViewerPlaybackSpeed(const ARTTurnManager* TurnManager);
+
+	/**
+	 * Quali gesti di riproduzione fanno qualcosa ADESSO per chi guarda ([D-538]). Senza manager nessuno e' vivo.
+	 *
+	 * Ogni campo ha UNA sede e questa funzione la LEGGE, non la ricalcola:
+	 *  - sessione non presidiata -> `ARTTurnManager::IsUnattendedSession()`, che il bootstrapper latcha dallo stesso
+	 *    valore di `ARTGameMode::IsAutobattleInEffect()` che `ARTPlayerController::IsPlanningInputInert()` interroga;
+	 *  - `V` -> `ARTPlayerController::PlayerCommandsAnyLiveUnit`, la regola di [D-350].
+	 *
+	 * @param Units  le unita' del mondo (`GatherUnitsInWorld`): servono a sapere se chi guarda ne comanda una viva.
+	 */
+	static FRTLiveGestures ReadLiveGestures(const ARTTurnManager* TurnManager, int32 PlayerTeamId,
+		const TArray<ARTUnit*>& Units);
 
 
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */

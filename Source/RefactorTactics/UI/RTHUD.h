@@ -1227,12 +1227,12 @@ public:
 
 	/**
 	 * Il suggerimento del gesto che vale ORA: quale tasto premere, a seconda di dove si trova il turno
-	 * (D-538, #2764).
+	 * (D-538, #2764) - e SOLO se quel tasto fa qualcosa.
 	 *
 	 * ```
-	 * Risoluzione            ->  `[46%]  (Spazio: salta)`
+	 * Risoluzione            ->  `[46%]  (Spazio: salta)`   /  `[46%]` se Spazio e' inerte
 	 * Finestra di preparaz.  ->  `(P: pausa)`  /  `(P: riprendi)`
-	 * Countdown del Ready    ->  `(RMB: annulla)`
+	 * Countdown del Ready    ->  `(RMB: annulla)`           /  vuoto se RMB e' inerte
 	 * altrimenti             ->  vuoto
 	 * ```
 	 *
@@ -1242,6 +1242,11 @@ public:
 	 * esistere. Due copie del testo sarebbero due occasioni di divergere, e la divergenza non fallisce nessun
 	 * test: mostra solo un tasto sbagliato.
 	 *
+	 * 🔴 **Un suggerimento che nomina un tasto inerte e' peggio di nessun suggerimento** (revisione di #3847):
+	 * `Spazio` non salta in autobattle (`OnLockIn` esce prima, per non tagliare la registrazione) e `RMB` non
+	 * annulla il Ready (non c'e' un umano che possa disdire). Il testo dipende quindi da `Gestures`, che chi chiama
+	 * legge con `URTHudViewModel::ReadLiveGestures`. `P` non ne dipende: e' vivo sempre.
+	 *
 	 * ⚠️ **Il gesto si NOMINA, e cambia con lo stato**: un `P: pausa` su una finestra gia' ferma direbbe di fare
 	 * cio' che si e' appena fatto. Un HUD non ha un hover su cui passare il mouse: una scorciatoia non scritta e'
 	 * una scorciatoia che non esiste.
@@ -1250,26 +1255,33 @@ public:
 	 * qui e' quello della riga di stato: la risoluzione, poi la preparazione, poi il Ready.
 	 *
 	 * @param PlaybackProgress01  avanzamento in `[0,1]`, letto solo in Risoluzione. Il clamp e' QUI e non nel
-	 *                            chiamante: questa e' una statica PUBBLICA, e un chiamante che passasse un
-	 *                            `Elapsed/Total` grezzo farebbe stampare `[-2147483648%]` (`RoundToInt` su un NaN).
+	 *                            chiamante: questa e' una statica PUBBLICA, e un `Elapsed/Total` grezzo puo' essere
+	 *                            fuori scala o NaN. Un NaN si legge come `0`: `FMath::Clamp` lo lascerebbe passare
+	 *                            come `1` e la barra direbbe `[100%]`, cioe' una riproduzione finita.
+	 * @param Gestures            quali tasti fanno qualcosa adesso. `FRTLiveGestures::All()` per chi non conosce la
+	 *                            sessione.
 	 */
-	static FString ComposeControlHint(const struct FRTMatchHeaderView& Header, float PlaybackProgress01);
+	static FString ComposeControlHint(const struct FRTMatchHeaderView& Header, float PlaybackProgress01,
+		const struct FRTLiveGestures& Gestures);
 
 	/**
 	 * Il suggerimento e il controllo di velocita' in una riga sola:
-	 * `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`  /  `Velocità: x1 (V)`.
+	 * `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`  /  `Velocità: x1`.
 	 *
 	 * 🔑 **La velocita' si nomina SEMPRE, anche fuori dalla risoluzione, ed e' una decisione d'autore antica**
 	 * (CP 47.7, #1015): chi guarda una partita non presidiata sceglie il ritmo PRIMA che il round parta, e una
 	 * manopola che compare solo mentre scorre costringe a inseguirla. Il Canvas che la disegnava e' uscito con
 	 * #1936 lasciando `V` e `Spazio` senza etichetta; l'header UMG la riprende da qui.
 	 *
-	 * ⚠️ Il tasto e' nominato accanto al valore, come `(Spazio: salta)`, per la stessa ragione.
+	 * 🔴 **Il tasto `(V)` si nomina solo se `Gestures.bSpeed`**: da una partita presidiata la manopola e' spenta
+	 * ([D-350], la velocita' e' di chi osserva) e il valore va comunque letto - e' quello che la finestra di
+	 * reazione impone - ma senza promettere un tasto che non risponde.
 	 *
 	 * @param ViewerSpeed  la scelta di chi guarda (`ARTTurnManager::ViewerPlaybackSpeed`). Non positiva = `x1`.
+	 * @param Gestures     quali tasti fanno qualcosa adesso.
 	 */
 	static FString ComposeControlLabel(const struct FRTMatchHeaderView& Header, float PlaybackProgress01,
-		float ViewerSpeed);
+		float ViewerSpeed, const struct FRTLiveGestures& Gestures);
 
 private:
 	/**

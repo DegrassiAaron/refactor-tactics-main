@@ -766,6 +766,17 @@ public:
 	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
 
 	/**
+	 * Fra queste unita', ce n'e' una **viva** che `PlayerTeamId` comanda (e non e' un bot)?
+	 *
+	 * E' la domanda di `LocalUnitCanReceiveReactionWindow` con le unita' PASSATE invece che cercate nel mondo, e
+	 * ne ha preso il posto: la regola ha cosi' UNA sede e due lettori - il tasto `V` ([D-350]) e l'etichetta che lo
+	 * nomina nell'header ([D-538]), che non deve annunciare un tasto inerte.
+	 *
+	 * Falso su una lista vuota: senza unita' non c'e' nessun decisore da proteggere, e la manopola resta girabile.
+	 */
+	static bool PlayerCommandsAnyLiveUnit(int32 PlayerTeamId, const TArray<ARTUnit*>& Units);
+
+	/**
 	 * Il tasto che sceglie l'opzione in posizione `OptionIndex` di una finestra di reazione ([D-491], #3615): il
 	 * tasto del kit nella stessa posizione, `AbilityHotkeys()[OptionIndex]`. Vuoto oltre l'ultimo tasto.
 	 *

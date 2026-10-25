@@ -357,7 +357,7 @@ public:
 	FText GetPhaseText() const;
 
 	/**
-	 * I gesti che valgono ORA e la velocita' di riproduzione, gia' composti: `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`.
+	 * I gesti che valgono ORA e la velocita' di riproduzione, gia' composti: `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`. Un tasto inerte NON e' nominato (autobattle: niente `Spazio` e `RMB`; partita presidiata: niente `(V)`).
 	 *
 	 * Inoltra a `ARTHUD::ComposeControlLabel` e non compone niente: la stessa stringa la incolla alla propria riga
 	 * `ComposeMatchStatusLine`, quindi il testo ha una sede sola (D-538, #2764). Vuoto senza contesto di partita.
@@ -477,8 +477,12 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
-	/** La riga dei gesti per una vista GIA' in mano: `RefreshLook` non ne costruisce una seconda per tick. */
-	FText ControlLabelFor(const FRTMatchHeaderView& Header) const;
+	/**
+	 * La riga dei gesti per una vista GIA' in mano: `RefreshLook` non ne costruisce una seconda per tick.
+	 * Rende una `FString` e non un `FText`, perche' `RefreshLook` la confronta con quella gia' scritta prima di
+	 * chiamare `SetText`: un `FText` nuovo a ogni tick invaliderebbe il layout anche se il testo non cambia.
+	 */
+	FString ControlLabelFor(const FRTMatchHeaderView& Header) const;
 
 	bool bMapDeclaresObjective = false;
 	float SecondsSinceObjectiveCheck = 1.f; // il primo tick rilegge subito

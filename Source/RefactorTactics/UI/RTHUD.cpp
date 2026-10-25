@@ -1671,7 +1671,7 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		// L'avanzamento e il gesto per saltare li compone `ComposeControlHint`, che e' la sede unica: l'header UMG
 		// li mostra dalla stessa funzione, e il clamp di `[0,1]` vive li'.
 		Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  %s"),
-			*TurnCounter, *PlaybackPhaseName, *ComposeControlHint(Header, PlaybackProgress01));
+			*TurnCounter, *PlaybackPhaseName, *ComposeControlHint(Header, PlaybackProgress01, FRTLiveGestures::All()));
 	}
 	else
 	{
@@ -1698,7 +1698,7 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 			// «P: pausa» stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena
 			// fatto. Il residuo resta a schermo anche in pausa — e' quanto manca alla ripresa, non zero.
 			Status += FString::Printf(TEXT("  -  %.0fs  %s"),
-				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining), *ComposeControlHint(Header, PlaybackProgress01));
+				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining), *ComposeControlHint(Header, PlaybackProgress01, FRTLiveGestures::All()));
 		}
 		else if (bReadyCountdown)
 		{
@@ -1719,7 +1719,7 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
 			// avere tre secondi senza sapere cosa farne non e' informazione.
 			Status += FString::Printf(TEXT("  -  %.0fs  %s"), FMath::CeilToFloat(ToCommit),
-				*ComposeControlHint(Header, PlaybackProgress01));
+				*ComposeControlHint(Header, PlaybackProgress01, FRTLiveGestures::All()));
 		}
 		else if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
 		{
@@ -1749,43 +1749,56 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	return Status;
 }
 
-FString ARTHUD::ComposeControlHint(const FRTMatchHeaderView& Header, float PlaybackProgress01)
+FString ARTHUD::ComposeControlHint(const FRTMatchHeaderView& Header, float PlaybackProgress01,
+	const FRTLiveGestures& Gestures)
 {
-	// In riproduzione: quanto e' scorso e come saltare. Il clamp e' QUI e non nel chiamante: la garanzia `[0,1]`
-	// era strutturale finche' l'unico chiamante passava da `ARTTurnManager::GetPlaybackProgress01()`, che clampa;
-	// questa e' una statica PUBBLICA, e un secondo chiamante - il viewer di replay, che nomina gia'
-	// `FRTMatchHeaderView` come proprio modello - puo' passare un `Elapsed/Total` grezzo. `FMath::RoundToInt` su
-	// x64 rende `0x80000000` per un NaN: la barra stamperebbe `[-2147483648%]`.
+	// In riproduzione: quanto e' scorso e, SE il tasto fa qualcosa, come saltare. Il clamp e' QUI e non nel
+	// chiamante: la garanzia `[0,1]` era strutturale finche' l'unico chiamante passava da
+	// `ARTTurnManager::GetPlaybackProgress01()`, che clampa; questa e' una statica PUBBLICA, e un secondo
+	// chiamante - il viewer di replay, che nomina gia' `FRTMatchHeaderView` come proprio modello - puo' passare
+	// un `Elapsed/Total` grezzo.
+	//
+	// 🔴 **Un NaN non e' ne' sotto lo zero ne' sopra l'uno**, quindi `FMath::Clamp` (`X < Min ? Min : X < Max ? X :
+	// Max`) lo rende `Max`: `[100%]` direbbe una riproduzione finita. Si legge come `0`, il verso che non annuncia
+	// un traguardo. Il clamp da solo proteggeva dall'altro difetto, `RoundToInt` su un NaN (`0x80000000`).
 	if (Header.bResolving)
 	{
-		const int32 Pct = FMath::RoundToInt(FMath::Clamp(PlaybackProgress01, 0.f, 1.f) * 100.f);
-		return FString::Printf(TEXT("[%d%%]  (Spazio: salta)"), Pct);
+		const float Safe = FMath::IsFinite(PlaybackProgress01) ? FMath::Clamp(PlaybackProgress01, 0.f, 1.f) : 0.f;
+		const int32 Pct = FMath::RoundToInt(Safe * 100.f);
+		return Gestures.bSkip ? FString::Printf(TEXT("[%d%%]  (Spazio: salta)"), Pct)
+			: FString::Printf(TEXT("[%d%%]"), Pct);
 	}
 
 	// La finestra di preparazione dell'autobattle (`#2386`). Il gesto si NOMINA, e cambia con lo stato: un
-	// `P: pausa` stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena fatto.
+	// `P: pausa` stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena fatto. Non
+	// dipende da `Gestures`: `P` e' vivo anche in autobattle, che e' la modalita' per cui la finestra esiste.
 	if (Header.PrepWindowSecondsRemaining >= 0.f)
 	{
 		return FString::Printf(TEXT("(P: %s)"), Header.bPrepWindowPaused ? TEXT("riprendi") : TEXT("pausa"));
 	}
 
 	// Il countdown del Ready (`#2193`, `#2358`): sapere di avere qualche secondo senza sapere cosa farne non e'
-	// informazione.
+	// informazione. Ma solo se `RMB` lo annulla: in autobattle non c'e' un umano che possa disdire.
 	if (Header.ReadyCountdownSecondsRemaining >= 0.f)
 	{
-		return TEXT("(RMB: annulla)");
+		return Gestures.bUnready ? FString(TEXT("(RMB: annulla)")) : FString();
 	}
 
 	return FString();
 }
 
-FString ARTHUD::ComposeControlLabel(const FRTMatchHeaderView& Header, float PlaybackProgress01, float ViewerSpeed)
+FString ARTHUD::ComposeControlLabel(const FRTMatchHeaderView& Header, float PlaybackProgress01, float ViewerSpeed,
+	const FRTLiveGestures& Gestures)
 {
 	// La velocita' si nomina SEMPRE, anche fuori dalla risoluzione, e non e' una svista: chi guarda una partita
-	// non presidiata sceglie il ritmo PRIMA che il round parta (CP 47.7, #1015). Il tasto sta accanto al valore,
-	// come i gesti di `ComposeControlHint`.
-	const FString Speed = FString::Printf(TEXT("Velocit\u00e0: %s (V)"), *ComposePlaybackSpeedLabel(ViewerSpeed));
-	const FString Hint = ComposeControlHint(Header, PlaybackProgress01);
+	// non presidiata sceglie il ritmo PRIMA che il round parta (CP 47.7, #1015). Il TASTO, invece, si nomina solo
+	// se fa qualcosa: da una partita presidiata `V` e' spento (D-350) e il valore resta leggibile senza promettere
+	// una manopola che non risponde.
+	const FString Value = ComposePlaybackSpeedLabel(ViewerSpeed);
+	const FString Speed = Gestures.bSpeed
+		? FString::Printf(TEXT("Velocit\u00e0: %s (V)"), *Value)
+		: FString::Printf(TEXT("Velocit\u00e0: %s"), *Value);
+	const FString Hint = ComposeControlHint(Header, PlaybackProgress01, Gestures);
 	return Hint.IsEmpty() ? Speed : FString::Printf(TEXT("%s  -  %s"), *Hint, *Speed);
 }
 

@@ -777,15 +777,24 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
  * diceva: i testi vivevano solo dentro una riga di stato senza piu' chiamanti. Il banco e' quello di
  * `TurnHeaderLookFollowsTheBoard`: un turno vero con Dash, Blast e Move, riprodotto tick per tick.
  *
- * Le cinque cose misurate:
- *  1. senza contesto di partita l'etichetta e' vuota;
- *  2. in Pianificazione resta la sola velocita', COL TASTO: `Velocit\u00e0: x1 (V)`;
- *  3. la scelta di chi guarda si legge (`x4`), anche fuori dalla Risoluzione;
- *  4. in Risoluzione, A OGNI TICK, il testo del widget e' quello del compositore e nomina `(Spazio: salta)`;
- *  5. a playback finito il gesto di salto sparisce e resta la velocita'.
+ * 🔴 **Un tasto si nomina solo se risponde** (revisione indipendente di #3847). In questo banco il giocatore e' la
+ * squadra 0 e comanda un'unita' VIVA e non bot: e' una partita presidiata, quindi `V` e' spenta (D-350) e `Spazio`
+ * e `RMB` sono vivi. Il resto del test rovescia il quadro.
  *
- * Il confronto e' per UGUAGLIANZA col compositore, come `ActionSlotLineIsTheSameComposerAsTheHud`: una composizione
- * locale nel widget non lo fa passare. I testi si confrontano CaseSensitive.
+ * Le cose misurate:
+ *  1. senza contesto di partita l'etichetta e' vuota;
+ *  2. in Pianificazione PRESIDIATA resta la sola velocita' SENZA il tasto: `Velocit\u00e0: x1`;
+ *  3. la scelta di chi guarda si legge (`x4`), anche fuori dalla Risoluzione;
+ *  4. in Risoluzione, A OGNI TICK, il testo del widget e' quello del compositore con i gesti di una partita
+ *     presidiata, nomina `(Spazio: salta)` e NON `(V)`;
+ *  5. a playback finito il gesto di salto sparisce e resta la velocita';
+ *  6. in sessione NON presidiata il quadro si rovescia: `V` si nomina, `Spazio` e `RMB` no;
+ *  7. chi osserva (squadra senza unita' vive, o con tutte le unita' cadute) riavrebbe `V`, e senza manager niente
+ *     e' vivo.
+ *
+ * Il confronto del punto 4 e' per UGUAGLIANZA col compositore, ma con i gesti SCRITTI A MANO nel test: se la lettura
+ * dei gesti dicesse una cosa diversa dalla regola dei tasti, il widget e il compositore concorderebbero fra loro e
+ * il test passerebbe lo stesso. I testi si confrontano CaseSensitive.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnHeaderControlHintTest,
 	"RefactorTactics.ScreenHud.TurnHeaderShowsWhatTheKeysDoNow",
@@ -809,10 +818,16 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 
 	const auto Scritto = [W]() { return W->ControlHintText->GetText().ToString(); };
 	const auto Uguale = [](const FString& A, const FString& B) { return A.Equals(B, ESearchCase::CaseSensitive); };
-	const auto Composto = [TM]()
+
+	// I gesti di una partita PRESIDIATA, scritti a mano: Spazio e RMB vivi, V spenta perche' chi gioca comanda Dasher.
+	FRTLiveGestures Presidiata;
+	Presidiata.bSkip = true;
+	Presidiata.bUnready = true;
+	Presidiata.bSpeed = false;
+	const auto Composto = [TM, &Presidiata]()
 	{
 		return ARTHUD::ComposeControlLabel(URTHudViewModel::BuildMatchHeader(TM), TM->GetPlaybackProgress01(),
-			TM->ViewerPlaybackSpeed);
+			TM->ViewerPlaybackSpeed, Presidiata);
 	};
 
 	// --- 1. Senza contesto di partita ------------------------------------------------------------------------------
@@ -822,18 +837,18 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 
 	W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
 
-	// --- 2. Pianificazione: la sola velocita', col tasto ------------------------------------------------------------
+	// --- 2. Pianificazione presidiata: la sola velocita', SENZA il tasto ---------------------------------------------
 	TM->ViewerPlaybackSpeed = 1.f;
 	W->RefreshLook(false);
-	TestTrue(TEXT("2: in Pianificazione la riga nomina la velocita' e il suo tasto"),
-		Uguale(Scritto(), TEXT("Velocit\u00e0: x1 (V)")));
+	TestTrue(TEXT("2: in Pianificazione presidiata la riga nomina la velocita' e NON il tasto, che e' spento"),
+		Uguale(Scritto(), TEXT("Velocit\u00e0: x1")));
 	TestTrue(TEXT("2: il getter dice lo stesso del testo scritto"), Uguale(W->GetControlHintText().ToString(), Scritto()));
 
 	// --- 3. La scelta di chi guarda si legge ------------------------------------------------------------------------
 	TM->ViewerPlaybackSpeed = 4.f;
 	W->RefreshLook(false);
 	TestTrue(TEXT("3: la velocita' scelta, x4, si legge anche in Pianificazione"),
-		Uguale(Scritto(), TEXT("Velocit\u00e0: x4 (V)")));
+		Uguale(Scritto(), TEXT("Velocit\u00e0: x4")));
 
 	// --- 4. Risoluzione: a ogni tick il widget dice cio' che dice il compositore -----------------------------------
 	TM->ViewerPlaybackSpeed = 2.f;
@@ -853,6 +868,7 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 	int32 TickRisoluzione = 0;
 	int32 DiversoDalCompositore = 0;
 	int32 SenzaGestoDiSalto = 0;
+	int32 ConTastoV = 0;
 	FString PrimaRiga;
 	for (int32 Tick = 0; Tick < 600 && TM->IsResolving(); ++Tick)
 	{
@@ -866,22 +882,63 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 		DiversoDalCompositore += Uguale(Scritto(), Atteso) ? 0 : 1;
 		DiversoDalCompositore += Uguale(W->GetControlHintText().ToString(), Atteso) ? 0 : 1;
 		SenzaGestoDiSalto += Scritto().Contains(TEXT("(Spazio: salta)"), ESearchCase::CaseSensitive) ? 0 : 1;
+		ConTastoV += Scritto().Contains(TEXT("(V)"), ESearchCase::CaseSensitive) ? 1 : 0;
 		TM->Tick(0.05f);
 	}
 	TestFalse(TEXT("premessa: il playback e' finito entro il tetto di tick"), TM->IsResolving());
 	TestTrue(TEXT("premessa: ci sono stati tick di Risoluzione"), TickRisoluzione > 0);
 	TestEqual(*FString::Printf(TEXT("4: in %d tick il testo del widget e' sempre quello del compositore"), TickRisoluzione),
 		DiversoDalCompositore, 0);
-	TestEqual(TEXT("4: e a ogni tick nomina il gesto per saltare"), SenzaGestoDiSalto, 0);
-	TestTrue(*FString::Printf(TEXT("4: e chiude col controllo di velocita' (\"%s\")"), *PrimaRiga),
-		PrimaRiga.EndsWith(TEXT("Velocit\u00e0: x2 (V)"), ESearchCase::CaseSensitive));
+	TestEqual(TEXT("4: e a ogni tick nomina il gesto per saltare, che in una partita presidiata e' vivo"), SenzaGestoDiSalto, 0);
+	TestEqual(TEXT("4: e a nessun tick promette V, che da presidiati e' spenta"), ConTastoV, 0);
+	TestTrue(*FString::Printf(TEXT("4: e chiude con la velocita' senza tasto (\"%s\")"), *PrimaRiga),
+		PrimaRiga.EndsWith(TEXT("Velocit\u00e0: x2"), ESearchCase::CaseSensitive));
 
 	// --- 5. Dopo il playback il salto sparisce, la velocita' resta ----------------------------------------------------
 	W->RefreshLook(false);
 	TestFalse(TEXT("5: a playback finito il gesto di salto non c'e' piu'"),
 		Scritto().Contains(TEXT("(Spazio: salta)"), ESearchCase::CaseSensitive));
-	TestTrue(TEXT("5: ma la velocita' resta nominata, col tasto"), Scritto().Contains(TEXT("(V)"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("5: ma la velocita' resta nominata"), Scritto().Contains(TEXT("Velocit\u00e0: x2"), ESearchCase::CaseSensitive));
 	TestTrue(TEXT("5: ed e' ancora quella del compositore"), Uguale(Scritto(), Composto()));
+
+	// --- 6. Sessione NON presidiata: il quadro si rovescia ---------------------------------------------------------
+	// Come fa il bootstrapper con `Config.bAutobattle`: il TurnManager viene informato, e tutte le unita' sono bot.
+	TM->SetUnattendedSession(true);
+	Dasher->bIsBotControlled = true;
+	Target->bIsBotControlled = true;
+	W->RefreshLook(false);
+	TestTrue(TEXT("6: in autobattle la velocita' si nomina COL tasto: la manopola e' viva"),
+		Uguale(Scritto(), TEXT("Velocit\u00e0: x2 (V)")));
+
+	const TArray<ARTUnit*> Unita = { Dasher, Target };
+	const FRTLiveGestures Autobattle = URTHudViewModel::ReadLiveGestures(TM, /*PlayerTeamId=*/ 0, Unita);
+	TestFalse(TEXT("6: in autobattle Spazio e' inerte (OnLockIn esce su IsPlanningInputInert)"), Autobattle.bSkip);
+	TestFalse(TEXT("6: ne' RMB, perche' non c'e' un umano che possa disdire"), Autobattle.bUnready);
+	TestTrue(TEXT("6: ma V e' viva"), Autobattle.bSpeed);
+
+	FRTMatchHeaderView InRiproduzione = URTHudViewModel::BuildMatchHeader(TM);
+	InRiproduzione.bResolving = true;
+	TestFalse(TEXT("6: e il suggerimento in riproduzione non nomina Spazio"),
+		ARTHUD::ComposeControlHint(InRiproduzione, 0.456f, Autobattle).Contains(TEXT("Spazio"), ESearchCase::CaseSensitive));
+
+	// --- 7. Chi osserva, e chi non ha un manager -------------------------------------------------------------------
+	TM->SetUnattendedSession(false);
+	Dasher->bIsBotControlled = false;
+	Target->bIsBotControlled = false;
+	const FRTLiveGestures Giocatore = URTHudViewModel::ReadLiveGestures(TM, /*PlayerTeamId=*/ 0, Unita);
+	TestTrue(TEXT("7: partita presidiata: Spazio e RMB vivi"), Giocatore.bSkip && Giocatore.bUnready);
+	TestFalse(TEXT("7: e V spenta, perche' la squadra 0 comanda un'unita' viva (D-350)"), Giocatore.bSpeed);
+
+	const FRTLiveGestures Osservatore = URTHudViewModel::ReadLiveGestures(TM, /*PlayerTeamId=*/ 2, Unita);
+	TestTrue(TEXT("7: una squadra senza unita' osserva: la manopola e' sua"), Osservatore.bSpeed);
+
+	Dasher->Health = 0;
+	const FRTLiveGestures SenzaUnita = URTHudViewModel::ReadLiveGestures(TM, /*PlayerTeamId=*/ 0, Unita);
+	TestTrue(TEXT("7: chi ha perso tutte le unita' sta osservando, e la manopola torna sua"), SenzaUnita.bSpeed);
+
+	const FRTLiveGestures SenzaManager = URTHudViewModel::ReadLiveGestures(nullptr, 0, Unita);
+	TestFalse(TEXT("7: senza manager nessun tasto si nomina"),
+		SenzaManager.bSkip || SenzaManager.bUnready || SenzaManager.bSpeed);
 
 	DestroyPlaybackWorld(World);
 	return true;
