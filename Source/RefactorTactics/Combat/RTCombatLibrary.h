@@ -660,10 +660,10 @@ public:
 
 	/**
 	 * Quale eccezione di [D-393] concede questa azione ([D-540], #3848): `AlongDamageableArc` se dichiara
-	 * `DamageStructure`, `ToOtherLayerCell` se e' `Action.ModifyArc` (o ne deriva), `None` altrimenti.
+	 * `DamageStructure` e risolve nel Blast, `ToOtherLayerCell` se e' `Action.ModifyArc` (o ne deriva), `None` altrimenti.
 	 *
-	 * 🔑 **Legge le stesse cose che legge il Blast**: gli effetti dichiarati per il danno alle strutture, e
-	 * l'identita' (o la derivazione) di `Action.ModifyArc` per gli archi. Ogni sito di PIANIFICAZIONE che passa la
+	 * 🔑 **Legge le stesse cose che legge il Blast**: gli effetti dichiarati per il danno alle strutture, la fase
+	 * in cui l'azione risolve, e l'identita' (o la derivazione) di `Action.ModifyArc` per gli archi. Ogni sito di PIANIFICAZIONE che passa la
 	 * terna portata/policy/minimo di un'azione passa anche questo, e lo prende da qui: una mira ammessa al click e
 	 * rifiutata dall'anteprima, dallo stato dello slot o dalla timeline sarebbe peggio di un rifiuto coerente.
 	 *

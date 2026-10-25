@@ -554,6 +554,7 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	// Il fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento impossibile insegna
 	// a ignorare gli allarmi.
 	Plan.bFriendlyFire = Ability->Def.bFriendlyFire;
+	Plan.bCountsAsAttack = Ability->Def.bCountsAsAttack; // [D-540]: il colpo fra piani non parte, e l'anteprima non lo disegna
 	if (Unit.bAttackTargetsCell)
 	{
 		Plan.bTargetsCell = true;

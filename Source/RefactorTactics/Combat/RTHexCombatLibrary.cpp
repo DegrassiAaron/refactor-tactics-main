@@ -983,6 +983,16 @@ FRTBlastPreview URTHexCombatLibrary::MakeBlastPreview(const FRTBlastPreviewPlan&
 		return Preview; // nessun bersaglio valido: nessuna area, ma l'origine resta
 	}
 
+	// [D-509]/[D-540] (#3848): un colpo che mira a un altro piano NON parte — la raccolta lo ferma
+	// (`OtherLayerIntents`) e lascia l'arco. Dal 2026-10-25 la pianificazione puo' DICHIARARE quella mira, quindi
+	// l'anteprima deve dire cio' che la risoluzione fara': nessuna area e nessun segno di colpo sull'altro capo. E' lo
+	// stesso criterio della raccolta (`bCountsAsAttack`) e lo stesso predicato (`OnSamePlane`), dall'origine della
+	// fase come ogni altra cosa che l'anteprima deriva ([D-464]).
+	if (Plan.bCountsAsAttack && !URTCombatLibrary::OnSamePlane(Preview.Origin, TargetCell))
+	{
+		return Preview;
+	}
+
 	Preview.HitCells = HexHitCells(Plan.Shape, Preview.Origin, TargetCell, Plan.RangeCells, Plan.AreaRadius);
 
 	if (!Plan.bFriendlyFire)

@@ -1,4 +1,5 @@
 #include "Combat/RTCombatLibrary.h"
+#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il danno all'arco lo raccoglie il Blast
 #include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
@@ -378,15 +379,23 @@ FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 Effect
 
 ERTCrossLayerAim URTCombatLibrary::CrossLayerAimFor(const FRTActionDef& Def)
 {
-	// ⚠️ **Le due letture sono quelle del Blast, e restano due copie finche' non hanno una sede comune**
-	// ([D-540], #3848). `Action.ModifyArc` si riconosce da identita' o derivazione (`IsCoreAction` in
-	// `Turn/RTTurnManager_Blast.cpp`), e il danno alle strutture dal PRIMO effetto `DamageStructure` dell'azione
-	// (stesso ciclo, stesso `break`): se una delle due cambia, cambia anche qui. Il banco
-	// `Combat.CrossLayerAimFollowsTheActionTheResolutionExecutes` le tiene d'accordo sul catalogo spedito.
+	// ⚠️ **Le letture sono quelle del Blast, e restano copie finche' non hanno una sede comune** ([D-540], #3848).
+	// `Action.ModifyArc` si riconosce da identita' o derivazione (`IsCoreAction` in `Turn/RTTurnManager_Blast.cpp`), il
+	// danno alle strutture dal PRIMO effetto `DamageStructure` dell'azione (stesso ciclo, stesso `break`), e il Blast
+	// raccoglie il danno all'arco solo per le azioni che risolvono nella sua fase: se una di queste cambia, cambia
+	// anche qui. Il banco `Combat.CrossLayerAimFollowsTheActionTheResolutionExecutes` le tiene d'accordo sul catalogo
+	// spedito e sulle fasi.
 	static const FName ActionModifyArc(TEXT("Action.ModifyArc"));
 	if (Def.ActionId == ActionModifyArc || Def.DerivedFromActionId == ActionModifyArc)
 	{
 		return ERTCrossLayerAim::ToOtherLayerCell;
+	}
+
+	// Un'azione che risolve altrove (Preparazione, movimento, Cleanup) puo' dichiarare `DamageStructure` senza che
+	// nessun arco incassi: il danno all'arco lo raccoglie il Blast dagli intenti della SUA fase.
+	if (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) != ERTMatchPhase::Blast)
+	{
+		return ERTCrossLayerAim::None;
 	}
 
 	for (const FRTActionEffectSpec& Spec : Def.Effects)

@@ -4,6 +4,12 @@
 
 namespace
 {
+	/** Il collegamento fra `A` e `B` in uno dei due versi: l'unica definizione di «questa coppia», per il danno e per la lettura. */
+	bool LinksPair(const FRTHexEdge& Edge, const FRTCellId& A, const FRTCellId& B)
+	{
+		return (Edge.From == A && Edge.To == B) || (Edge.From == B && Edge.To == A);
+	}
+
 	/**
 	 * I DUE versi dello stesso ponte. `AddTransition` bidirezionale ne scrive due, e chi comanda «spegnilo»
 	 * non deve sapere quale dei due e' stato scritto per primo: senza questa raccolta si potrebbe spegnere
@@ -18,7 +24,7 @@ namespace
 		}
 		for (const FRTHexEdge& Edge : Map->Transitions)
 		{
-			if ((Edge.From == A && Edge.To == B) || (Edge.From == B && Edge.To == A))
+			if (LinksPair(Edge, A, B))
 			{
 				Found.Add(Edge);
 			}
@@ -116,9 +122,15 @@ TArray<FRTArcChange> URTHexArcLibrary::SetArcState(URTHexMapAsset* Map, const FR
 
 bool URTHexArcLibrary::HasDamageableArc(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
 {
-	for (const FRTHexEdge& Edge : BothWays(Map, From, To))
+	if (Map == nullptr)
 	{
-		if (CanTakeDamage(Edge))
+		return false;
+	}
+	// Una domanda di esistenza, posta per frame dal puntatore: niente raccolta ne' ordinamento, esce al primo arco che
+	// incassa. Coppia e stato sono le stesse definizioni di `DamageArc` (`LinksPair`, `CanTakeDamage`).
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (LinksPair(Edge, From, To) && CanTakeDamage(Edge))
 		{
 			return true;
 		}

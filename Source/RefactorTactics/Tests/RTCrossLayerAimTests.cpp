@@ -5,6 +5,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexCellData.h"
@@ -15,9 +16,11 @@
 #include "Player/RTPlayerController.h"
 #include "Tests/RTAbilityFixtures.h"
 #include "Tests/RTWorldFixtures.h"
+#include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTPlanPreview.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTHUD.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "Unit/RTUnit.h"
@@ -332,6 +335,75 @@ bool FRTXlaCrossLayerAimFollowsTheActionTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo: a 20 l'eccezione c'e'"),
 		static_cast<int32>(URTCombatLibrary::CrossLayerAimFor(APiuEffetti)),
 		static_cast<int32>(ERTCrossLayerAim::AlongDamageableArc));
+
+	// Il danno all'arco lo raccoglie il Blast dagli intenti della sua fase: un'azione che risolve altrove non concede
+	// niente, e `Control` — che risolve nel Blast — si'.
+	const struct { ERTResolutionPhase Fase; ERTCrossLayerAim Atteso; const TCHAR* Nome; } PerFase[] = {
+		{ ERTResolutionPhase::Attack, ERTCrossLayerAim::AlongDamageableArc, TEXT("Attack") },
+		{ ERTResolutionPhase::Control, ERTCrossLayerAim::AlongDamageableArc, TEXT("Control: risolve nel Blast") },
+		{ ERTResolutionPhase::Preparation, ERTCrossLayerAim::None, TEXT("Preparation") },
+		{ ERTResolutionPhase::FastMovement, ERTCrossLayerAim::None, TEXT("FastMovement") },
+		{ ERTResolutionPhase::NormalMovement, ERTCrossLayerAim::None, TEXT("NormalMovement") },
+		{ ERTResolutionPhase::Environment, ERTCrossLayerAim::None, TEXT("Environment: risolve nel Cleanup") },
+		{ ERTResolutionPhase::Cleanup, ERTCrossLayerAim::None, TEXT("Cleanup") },
+	};
+	for (const auto& Riga : PerFase)
+	{
+		APiuEffetti.ResolutionPhase = Riga.Fase;
+		TestEqual(*FString::Printf(TEXT("fase %s"), Riga.Nome),
+			static_cast<int32>(URTCombatLibrary::CrossLayerAimFor(APiuEffetti)), static_cast<int32>(Riga.Atteso));
+	}
+	return true;
+}
+
+/**
+ * **L'anteprima non disegna un colpo che la risoluzione non fa partire** ([D-540], [D-509]).
+ *
+ * Un colpo che mira a un altro piano e' fermato dalla raccolta (`OtherLayerIntents`): nessuna area, nessun segno. Dal
+ * momento in cui la pianificazione puo' dichiarare quella mira, l'anteprima deve dire lo stesso. La guardia segue il
+ * criterio della raccolta, `bCountsAsAttack`: `Action.ModifyArc` non e' un colpo, e la sua cella resta disegnata.
+ *
+ * Meta' falsificanti: lo stesso piano disegna; un'azione che non e' un colpo disegna; il colpo fra piani no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTXlaBlastPreviewAcrossLayersTest,
+	"RefactorTactics.Combat.BlastPreviewDoesNotPaintAHitAcrossLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTXlaBlastPreviewAcrossLayersTest::RunTest(const FString&)
+{
+	TArray<FRTHexCombatUnit> Unita;
+	FRTHexCombatUnit Tiratore;
+	Tiratore.UnitId = 0;
+	Tiratore.TeamId = 0;
+	Tiratore.Cell = GXlaGround;
+	Tiratore.bAlive = true;
+	Unita.Add(Tiratore);
+
+	FRTBlastPreviewPlan Piano;
+	Piano.AttackerId = 0;
+	Piano.bHasAction = true;
+	Piano.Shape = ERTAbilityShape::Single;
+	Piano.RangeCells = 3;
+	Piano.bTargetsCell = true;
+
+	Piano.TargetCell = FRTCellId(1, 0, 0);
+	Piano.bCountsAsAttack = true;
+	TestEqual(TEXT("controllo: un colpo sul proprio piano disegna la sua cella"),
+		URTHexCombatLibrary::MakeBlastPreview(Piano, Unita).HitCells.Num(), 1);
+
+	Piano.TargetCell = GXlaBridgeEnd;
+	TestEqual(TEXT("un colpo che mira a un altro piano non disegna niente"),
+		URTHexCombatLibrary::MakeBlastPreview(Piano, Unita).HitCells.Num(), 0);
+
+	Piano.bCountsAsAttack = false;
+	TestEqual(TEXT("un'azione che non e' un colpo (ModifyArc) resta disegnata sull'altro piano"),
+		URTHexCombatLibrary::MakeBlastPreview(Piano, Unita).HitCells.Num(), 1);
+
+	// L'origine e' quella della fase: con uno scatto pianificato sullo stesso piano della mira il colpo disegna.
+	Piano.bCountsAsAttack = true;
+	Piano.bDashResolves = true;
+	Piano.PlannedDashCell = FRTCellId(2, 0, 1);
+	TestEqual(TEXT("dall'origine della fase: dopo uno scatto sul piano della mira il colpo disegna"),
+		URTHexCombatLibrary::MakeBlastPreview(Piano, Unita).HitCells.Num(), 1);
 	return true;
 }
 
@@ -389,7 +461,7 @@ namespace
 	 * squadra non lo conoscerebbe e la risoluzione annullerebbe l'azione con `TargetUnknown` prima di toccare l'arco.
 	 * Dall'interfaccia quella mira non si potrebbe nemmeno dichiarare: il click chiede un bersaglio osservato.
 	 */
-	bool SetUpXlaScene(FAutomationTestBase& Test, FXlaScene& S, bool bWithBridge, int32 OtherTeam,
+	bool BuildXlaScene(FAutomationTestBase& Test, FXlaScene& S, bool bWithBridge, int32 OtherTeam,
 		const TArray<FName>& Loadout)
 	{
 		S.World = RTWorldFixtures::MakeWorld();
@@ -418,6 +490,19 @@ namespace
 		S.Dock->SetCommandControllerForTest(S.PC);
 		S.Dock->SetSelectedUnitForTest(S.Mine);
 		return true;
+	}
+
+	/** Come `BuildXlaScene`, ma se il banco non si regge il mondo non resta vivo: i chiamanti escono subito. */
+	bool SetUpXlaScene(FAutomationTestBase& Test, FXlaScene& S, bool bWithBridge, int32 OtherTeam,
+		const TArray<FName>& Loadout)
+	{
+		if (BuildXlaScene(Test, S, bWithBridge, OtherTeam, Loadout))
+		{
+			return true;
+		}
+		RTWorldFixtures::DestroyWorld(S.World);
+		S.World = nullptr;
+		return false;
 	}
 
 	/**
@@ -494,8 +579,6 @@ bool FRTXlaBridgeIsAimedAtFromThePlanTest::RunTest(const FString&)
 			return false;
 		}
 		TestFalse(TEXT("slot: col puntatore sull'altro capo non rifiuta"), XlaSlotRefuses(S, Breach));
-		TestTrue(TEXT("premessa: la squadra conosce davvero il bersaglio (la risoluzione non lo annullera')"),
-			S.Other->IsKnownToObserver());
 
 		S.PC->HandleClickOnUnitForTest(S.Other);
 		if (!TestTrue(TEXT("click: la mira all'altro capo del ponte e' dichiarata"),
@@ -511,7 +594,19 @@ bool FRTXlaBridgeIsAimedAtFromThePlanTest::RunTest(const FString&)
 		{
 			TestEqual(TEXT("timeline: non rifiuta il bersaglio che il click ha accettato"), Colpo->TargetRefusal,
 				ERTTargetRefusal::None);
+			TestEqual(TEXT("timeline: ma non promette celle colpite, perche' il colpo fra piani non parte"),
+				Colpo->AffectedCells.Num(), 0);
+			TestTrue(TEXT("timeline: e non e' una previsione di colpo"), Colpo->Certainty != ERTIntentCertainty::Predicted);
 		}
+		// L'ANTEPRIMA DICE CIO' CHE LA RISOLUZIONE FARA' (D-540): il colpo fra piani non parte, quindi nessuna area e
+		// nessun segno di colpo su chi sta all'altro capo. Prima di D-540 quella mira non si poteva dichiarare, e
+		// nessuno aveva visto cosa l'anteprima ne avrebbe disegnato.
+		TestFalse(TEXT("anteprima: nessuna area disegnata"), S.MapActor->IsPreviewAttackValid());
+		TestFalse(TEXT("anteprima: la cella dell'altro capo non e' colpita"), S.MapActor->IsPreviewHitCell(S.Other->Cell));
+		TSet<FRTCellId> Segnate;
+		TSet<FRTCellId> AlleateSegnate;
+		ARTHUD::ComputePlannedHitMarks({ S.Mine, S.Other }, /*PlayerTeamId=*/ 0, Segnate, AlleateSegnate);
+		TestFalse(TEXT("segni: nessun segno di colpo sull'unita' dell'altro capo"), Segnate.Contains(S.Other->Cell));
 		const TArray<FRTAbilityCooldownView> Righe = URTHudViewModel::BuildAbilityCooldowns(S.Mine);
 		if (TestTrue(TEXT("warning: la riga della carica c'e'"), Righe.IsValidIndex(Breach)))
 		{
@@ -519,6 +614,26 @@ bool FRTXlaBridgeIsAimedAtFromThePlanTest::RunTest(const FString&)
 		}
 
 		RunXlaBlastTurn(S.TM);
+
+		// PREMESSA VERA: la squadra conosceva il bersaglio. Se la risoluzione avesse annullato per «ignoto» l'arco non
+		// avrebbe incassato per una ragione che non c'entra con la mira, e il test accuserebbe la mira.
+		int32 AnnullatePerIgnoto = 0;
+		int32 FermatePerPiano = 0;
+		for (const FRTTurnLogEntry& Voce : S.TM->GetTurnLog())
+		{
+			if (Voce.Category != ERTLogCategory::Fallback
+				|| Voce.Outcome != static_cast<uint8>(ERTFallbackOutcome::Cancelled))
+			{
+				continue;
+			}
+			AnnullatePerIgnoto += Voce.Amount == static_cast<int32>(ERTActionInvalidReason::TargetUnknown) ? 1 : 0;
+			FermatePerPiano += Voce.Amount == static_cast<int32>(ERTActionInvalidReason::OtherLayer) ? 1 : 0;
+		}
+		TestEqual(TEXT("premessa: la risoluzione non ha annullato l'azione per bersaglio ignoto"), AnnullatePerIgnoto, 0);
+		// IL FATTO DEL TURNLOG, dichiarato in D-540: il colpo fermato per piano e' una voce `Fallback`/`Cancelled`/
+		// `OtherLayer` ([D-509]), e vive accanto al ponte danneggiato. Sono due fatti, non una contraddizione: il colpo non
+		// parte, l'arco incassa. La risoluzione non cambia.
+		TestEqual(TEXT("il turno dichiara il colpo fermato per piano, una volta"), FermatePerPiano, 1);
 
 		// La risoluzione NON cambia: il colpo e' fermato per piano, l'arco incassa il numero del catalogo.
 		TestEqual(TEXT("chi sta un piano sopra non perde un punto"), SalutePrima - S.Other->Health, 0);
@@ -625,6 +740,63 @@ bool FRTXlaModifyArcIsAimedAcrossLayersTest::RunTest(const FString&)
 	TestTrue(TEXT("la risoluzione getta l'arco, che prima non c'era"), S.Map->Transitions.Num() > ArchiPrima);
 	TestNotNull(TEXT("…proprio fra le due celle"), URTHexArcLibrary::FindArc(S.Map, GXlaGround, S.Other->Cell));
 	RTWorldFixtures::DestroyWorld(S.World);
+	return true;
+}
+
+/**
+ * **Anche la mira a CELLA attraversa un arco** ([D-540]): lo slot sotto il puntatore e il click su una cella.
+ *
+ * Sono i due siti che passano da `DescribeCellTargetRefusal`, e nessun'azione spedita li raggiunge: il catalogo non ha
+ * un'azione ad area che dichiari `DamageStructure`. Il banco ne costruisce una sull'ISTANZA (`Shape::Area` su
+ * `Action.HeavyAttack`), come `Combat.Aim.AcrossABridgeTheBridgeIsHitAndTheUnitIsNot` simula l'effetto: la regola e'
+ * dell'azione, non del catalogo.
+ *
+ * Con il ponte il click dichiara il piano a cella e lo slot non rifiuta; senza, tutti e due rifiutano. L'anteprima
+ * non disegna l'area: il colpo fra piani non parte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTXlaCellAcrossABridgeTest,
+	"RefactorTactics.Combat.Aim.ACellAcrossABridgeIsAimedAtByAnAreaStructureBreaker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTXlaCellAcrossABridgeTest::RunTest(const FString&)
+{
+	for (const bool bConPonte : { true, false })
+	{
+		const TCHAR* Quando = bConPonte ? TEXT("con il ponte") : TEXT("senza il ponte");
+		FXlaScene S;
+		if (!SetUpXlaScene(*this, S, bConPonte, /*OtherTeam=*/ 1, {})) { return false; }
+		const int32 Ordigno = RTAbilityFixtures::AddCoreAbility(S.Mine, TEXT("Action.HeavyAttack"));
+		if (!TestTrue(TEXT("premessa: l'azione c'e'"), Ordigno != INDEX_NONE))
+		{
+			RTWorldFixtures::DestroyWorld(S.World);
+			return false;
+		}
+		URTActionData* Azione = S.Mine->Abilities[Ordigno];
+		Azione->Shape = ERTAbilityShape::Area;
+		Azione->AreaRadius = 1;
+		WidenXlaRange(S.Mine, Ordigno, 3);
+
+		S.PC->ArmKitAbility(Ordigno);
+		if (!TestEqual(*FString::Printf(TEXT("premessa (%s): l'azione e' armata"), Quando),
+				S.Mine->SelectedAbilityIndex, Ordigno))
+		{
+			RTWorldFixtures::DestroyWorld(S.World);
+			return false;
+		}
+		TestEqual(*FString::Printf(TEXT("slot (%s): il puntatore sulla cella rifiuta solo senza il ponte"), Quando),
+			XlaSlotRefuses(S, Ordigno), !bConPonte);
+
+		S.PC->HandleClickOnCellForTest(GXlaBridgeEnd);
+		const bool bDichiarato = S.Mine->bAttackTargetsCell && S.Mine->PlannedAttackCell == GXlaBridgeEnd
+			&& S.Mine->PlannedAbilityIndex == Ordigno;
+		TestEqual(*FString::Printf(TEXT("click (%s): il piano a cella e' dichiarato solo con il ponte"), Quando),
+			bDichiarato, bConPonte);
+		if (bConPonte)
+		{
+			TestFalse(TEXT("anteprima: l'area non e' disegnata sull'altro piano"), S.MapActor->IsPreviewAttackValid());
+			TestFalse(TEXT("anteprima: la cella dell'altro capo non e' colpita"), S.MapActor->IsPreviewHitCell(GXlaBridgeEnd));
+		}
+		RTWorldFixtures::DestroyWorld(S.World);
+	}
 	return true;
 }
 

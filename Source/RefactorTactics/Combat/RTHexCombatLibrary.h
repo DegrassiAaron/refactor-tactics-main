@@ -595,6 +595,14 @@ struct FRTBlastPreviewPlan
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	bool bFriendlyFire = false;
 
+	/**
+	 * Copiato da `FRTActionDef::bCountsAsAttack` ([D-540], #3848). Un colpo che mira a un altro piano NON parte
+	 * ([D-509], `OtherLayerIntents`): l'anteprima non disegna per lui un'area ne' un segno di colpo che la
+	 * risoluzione non produrra'. Falso per default, e vale cio' che valeva prima: chi costruisce il piano a mano non cambia.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bCountsAsAttack = false;
+
 	FRTBlastPreviewPlan() = default;
 };
 
