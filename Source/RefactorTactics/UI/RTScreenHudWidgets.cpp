@@ -869,6 +869,26 @@ FText URTTurnHeaderWidget::GetPhaseText() const
 	return FText::FromString(URTHudViewModel::ComposePhaseWord(GetHeader()).ToUpper());
 }
 
+FString URTTurnHeaderWidget::ControlLabelFor(const FRTMatchHeaderView& Header) const
+{
+	// Inoltro puro (D-538): avanzamento e velocita' si LEGGONO dal manager attraverso il view model, il testo lo
+	// compone `ARTHUD::ComposeControlLabel` - la stessa funzione da cui la riga di stato prende i suoi gesti. Quali
+	// tasti fanno qualcosa lo dice `ReadLiveGestures`, che li legge dalle sedi dei tasti: l'etichetta non decide.
+	return ARTHUD::ComposeControlLabel(Header,
+		URTHudViewModel::ReadPlaybackProgress01(GetTurnManager()),
+		URTHudViewModel::ReadViewerPlaybackSpeed(GetTurnManager()),
+		URTHudViewModel::ReadLiveGestures(GetTurnManager(), GetPlayerTeamId(), GatherUnitsInWorld()));
+}
+
+FText URTTurnHeaderWidget::GetControlHintText() const
+{
+	if (!HasMatchContext())
+	{
+		return FText::GetEmpty();
+	}
+	return FText::FromString(ControlLabelFor(GetHeader()));
+}
+
 void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
 {
 	using T = ERTUIToken;
@@ -910,6 +930,19 @@ void URTTurnHeaderWidget::RefreshLook(bool bRecheckObjective)
 	{
 		TimerText->SetText(bContesto ? FormatCommitTimer(Header.SecondsUntilCommit) : FText::GetEmpty());
 		TimerText->SetColorAndOpacity(FSlateColor(C(T::White)));
+	}
+
+	// I gesti che valgono adesso e la velocita' (D-538, #2764): una riga, una sede (`ComposeControlLabel`).
+	if (ControlHintText)
+	{
+		// Si riscrive solo se il testo e' cambiato: cambia di rado (la percentuale, la velocita', lo stato), e un `FText`
+		// nuovo a ogni tick invaliderebbe il layout anche per la stessa stringa.
+		const FString Etichetta = bContesto ? ControlLabelFor(Header) : FString();
+		if (!ControlHintText->GetText().ToString().Equals(Etichetta, ESearchCase::CaseSensitive))
+		{
+			ControlHintText->SetText(FText::FromString(Etichetta));
+		}
+		ControlHintText->SetColorAndOpacity(FSlateColor(C(T::Text_Secondary)));
 	}
 
 	// Le quattro celle: attiva e' la fase RIPRODOTTA ([D-479]). Fuori dalla Risoluzione nessuna e' attiva.

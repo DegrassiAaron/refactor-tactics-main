@@ -131,6 +131,37 @@ bool URTHudViewModel::MapDeclaresObjective(const ARTTurnManager* TurnManager)
 	return Mappa && Mappa->HasObjectiveCell();
 }
 
+float URTHudViewModel::ReadPlaybackProgress01(const ARTTurnManager* TurnManager)
+{
+	return TurnManager ? TurnManager->GetPlaybackProgress01() : 0.f;
+}
+
+float URTHudViewModel::ReadViewerPlaybackSpeed(const ARTTurnManager* TurnManager)
+{
+	return TurnManager ? TurnManager->ViewerPlaybackSpeed : 0.f;
+}
+
+FRTLiveGestures URTHudViewModel::ReadLiveGestures(const ARTTurnManager* TurnManager, int32 PlayerTeamId,
+	const TArray<ARTUnit*>& Units)
+{
+	// Senza manager nessun tasto si nomina: e' il verso sicuro di un suggerimento, che non deve promettere cio' che
+	// non sa. Il default della struct e' gia' tutto spento.
+	FRTLiveGestures Gestures;
+	if (!TurnManager)
+	{
+		return Gestures;
+	}
+
+	// `Spazio` e `RMB` escono entrambi da `IsPlanningInputInert()` nel controller, che legge il GameMode; il
+	// `TurnManager` e' informato dal bootstrapper nel punto in cui quel valore e' appena stato latchato, quindi i due
+	// lettori dicono la stessa cosa.
+	const bool bUnattended = TurnManager->IsUnattendedSession();
+	Gestures.bSkip = !bUnattended;
+	Gestures.bUnready = !bUnattended;
+	Gestures.bSpeed = !ARTPlayerController::PlayerCommandsAnyLiveUnit(PlayerTeamId, Units);
+	return Gestures;
+}
+
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
 	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'

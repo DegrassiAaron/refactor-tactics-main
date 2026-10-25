@@ -1560,6 +1560,9 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("ObjectiveBox"), UWidget::StaticClass() },
 		{ TEXT("ObjectiveScoreText"), UTextBlock::StaticClass() },
 		{ TEXT("ObjectiveThresholdText"), UTextBlock::StaticClass() },
+		// L'etichetta dei gesti e della velocita' (D-538, #2764): sta sotto la barra, e senza la riga un nome
+		// sbagliato nell'asset la spegnerebbe in silenzio.
+		{ TEXT("ControlHintText"), UTextBlock::StaticClass() },
 	};
 	for (const TCHAR* Fase : { TEXT("Prep"), TEXT("Dash"), TEXT("Blast"), TEXT("Move") })
 	{

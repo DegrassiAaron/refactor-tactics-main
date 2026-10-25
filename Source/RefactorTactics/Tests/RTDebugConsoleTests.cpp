@@ -2,7 +2,7 @@
 //
 // Un comando console non e' testabile: legge un `UWorld` e scrive su un `FOutputDevice`. Testabile e' la
 // FUNZIONE PURA che compone le righe, e ogni comando qui e' un wrapper sottile sopra una di quelle. E' la
-// stessa forma di `ARTHUD::ComputePlannedHitMarks` e `ComposeSlotLines`, che il repository usa gia' per
+// stessa forma di `ARTHUD::ComputePlannedHitMarks`, che il repository usa gia' per
 // rendere verificabile la HUD.
 //
 // ⚠️ Dichiarato: questi test NON provano che una linea compaia a schermo. Il disegno resta `PIE-V01-DEBUG`,

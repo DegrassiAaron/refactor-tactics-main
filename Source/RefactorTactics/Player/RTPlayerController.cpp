@@ -3301,6 +3301,26 @@ void ARTPlayerController::CyclePlaybackSpeed()
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())));
 }
 
+bool ARTPlayerController::PlayerCommandsAnyLiveUnit(int32 PlayerTeamId, const TArray<ARTUnit*>& Units)
+{
+	for (const ARTUnit* Unit : Units)
+	{
+		if (!IsValid(Unit) || !Unit->IsAlive())
+		{
+			continue;
+		}
+
+		// La regola di controllo ha un solo produttore, e non e' questa riga: `CanPlayerControlUnit` sa gia'
+		// del bot alleato ([D-174]), che una condizione riscritta a mano qui non saprebbe.
+		if (URTCombatLibrary::CanPlayerControlUnit(Unit->TeamId, PlayerTeamId, Unit->bIsBotControlled))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool ARTPlayerController::LocalUnitCanReceiveReactionWindow() const
 {
 	const UWorld* World = GetWorld();
@@ -3311,29 +3331,26 @@ bool ARTPlayerController::LocalUnitCanReceiveReactionWindow() const
 
 	// ⚠️ **Fail-OPEN, e va detto perche' qui e' l'esito giusto.** Senza mondo, senza unita' o senza squadra
 	// risolta non esiste nessuno che possa ricevere una finestra: la manopola resta girabile. La regola
-	// protegge un decisore, e dove non c'e' un decisore non c'e' niente da proteggere — spegnere il tasto
+	// protegge un decisore, e dove non c'e' un decisore non c'e' niente da proteggere - spegnere il tasto
 	// «per sicurezza» renderebbe inerte il replay, che e' il contesto per cui la scala esiste.
 	const int32 MyTeam = ARTPlayerState::TeamIdOf(this);
 
-	TArray<AActor*> Units;
-	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Units);
-	for (const AActor* Actor : Units)
-	{
-		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!IsValid(Unit) || !Unit->IsAlive())
-		{
-			continue;
-		}
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
 
-		// La regola di controllo ha un solo produttore, e non e' questa riga: `CanPlayerControlUnit` sa gia'
-		// del bot alleato ([D-174]), che una condizione riscritta a mano qui non saprebbe.
-		if (URTCombatLibrary::CanPlayerControlUnit(Unit->TeamId, MyTeam, Unit->bIsBotControlled))
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
 		{
-			return true;
+			Units.Add(Unit);
 		}
 	}
 
-	return false;
+	// La regola vive in `PlayerCommandsAnyLiveUnit`: l'header UMG la legge dalla stessa funzione per decidere se
+	// nominare `(V)`.
+	return PlayerCommandsAnyLiveUnit(MyTeam, Units);
 }
 
 void ARTPlayerController::OnTogglePrepWindowPause(const FInputActionValue& Value)

@@ -356,6 +356,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetPhaseText() const;
 
+	/**
+	 * I gesti che valgono ORA e la velocita' di riproduzione, gia' composti: `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`. Un tasto inerte NON e' nominato (autobattle: niente `Spazio` e `RMB`; partita presidiata: niente `(V)`).
+	 *
+	 * Inoltra a `ARTHUD::ComposeControlLabel` e non compone niente: la stessa stringa la incolla alla propria riga
+	 * `ComposeMatchStatusLine`, quindi il testo ha una sede sola (D-538, #2764). Vuoto senza contesto di partita.
+	 *
+	 * Esiste perche' `Spazio`, `V`, `RMB` e `P` funzionano e nessun widget lo diceva: i suggerimenti vivevano solo
+	 * dentro una riga di stato che non ha piu' chiamanti dal 2026-09-08 (#1936).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetControlHintText() const;
+
 	// ------------------------------------------------------------------------------------------------
 	// La resa delle tavole A e D (#3635, T8; [D-479], [D-481], [D-496]). Tutte opzionali, scritte da `RefreshLook`.
 	// ------------------------------------------------------------------------------------------------
@@ -447,6 +459,13 @@ public:
 	TObjectPtr<class UTextBlock> ObjectiveThresholdText;
 
 	/**
+	 * Cosa fanno i tasti adesso e a che velocita' scorre la riproduzione, da `GetControlHintText()`. Visibile in
+	 * entrambi i gruppi: la velocita' si sceglie PRIMA che il round parta (CP 47.7). Vuoto senza contesto.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
+	TObjectPtr<class UTextBlock> ControlHintText;
+
+	/**
 	 * Scrive le porte. La chiama `NativeTick`; i test la chiamano a mano.
 	 *
 	 * @param bRecheckObjective  rileggere dalla mappa se c'e' un obiettivo. `NativeTick` lo fa una volta al
@@ -458,6 +477,13 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	/**
+	 * La riga dei gesti per una vista GIA' in mano: `RefreshLook` non ne costruisce una seconda per tick.
+	 * Rende una `FString` e non un `FText`, perche' `RefreshLook` la confronta con quella gia' scritta prima di
+	 * chiamare `SetText`: un `FText` nuovo a ogni tick invaliderebbe il layout anche se il testo non cambia.
+	 */
+	FString ControlLabelFor(const FRTMatchHeaderView& Header) const;
+
 	bool bMapDeclaresObjective = false;
 	float SecondsSinceObjectiveCheck = 1.f; // il primo tick rilegge subito
 };
@@ -865,9 +891,9 @@ public:
 	/**
 	 * L'ANDATURA dello slot movimento, pronta da legare a un `TextBlock` (`#1410` `AC-1`, [D-425]).
 	 *
-	 * 🔑 **Delega a `ARTHUD::DescribeMovementProfile`, che e' la sede unica.** La stessa stringa la
-	 * compone `ComposeSlotLines` per il Canvas: due rese dello stesso fatto divergerebbero al primo profilo
-	 * nuovo, e il giocatore leggerebbe un'andatura diversa a seconda di quale HUD sta guardando.
+	 * 🔑 **Delega a `ARTHUD::DescribeMovementProfile`, che e' la sede unica.** Non ne esiste una
+	 * seconda: il Canvas che la componeva con la riga dello slot e' uscito (#1936) e `ComposeSlotLines` con lui
+	 * (D-538), quindi il giocatore non puo' leggere un'andatura diversa a seconda dell'HUD che guarda.
 	 *
 	 * ⚠️ **Vuoto significa «cammino, o niente da dire»**, non «dato mancante«: `Move` e `Still` non si
 	 * nominano. Chi lo disegna nasconda il blocco quando e' vuoto invece di lasciare una riga spenta.

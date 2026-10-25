@@ -114,7 +114,7 @@ struct FRTRefusalReachability
  * `FOutputDevice`: non e' verificabile headless, e un DoD che chiedesse solo «il comando esiste» si
  * chiuderebbe con uno strumento che stampa la cosa sbagliata. Qui vivono funzioni **pure** che compongono
  * le righe; i comandi in `RTDebugConsole.cpp` sono wrapper sottili sopra di esse. E' la stessa forma di
- * `ARTHUD::ComputePlannedHitMarks` e `ComposeSlotLines`.
+ * `ARTHUD::ComputePlannedHitMarks`.
  *
  * ⚠️ Vale anche per i quattro comandi che DISEGNANO: l'etichetta di una cella e' testo, e il testo si
  * verifica qui. Che la linea compaia a schermo resta `PIE-V01-DEBUG` (seduta U15), e nessun test di questo

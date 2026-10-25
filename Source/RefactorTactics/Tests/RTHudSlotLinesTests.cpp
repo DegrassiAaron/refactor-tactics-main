@@ -1,16 +1,9 @@
-// La terna movimento / principale / reazione, come il Canvas la scrive.
+// L'ANDATURA dello slot movimento, e cio' che il pannello UMG ne legge (D-425).
 //
-// `URTHudViewModel::BuildUnitSlots` decide COSA occupa uno slot, ed e' gia' testato altrove
-// (`HudViewModel.SlotsDeriveFromThePlan`). Qui si verifica il passo che mancava: la composizione delle tre
-// righe che `ARTHUD` disegna.
-//
-// Il difetto che questi test chiudono e' che la terna **non era disegnata da nessuno**. Il view model la
-// calcolava, i widget UMG che avrebbero dovuto consumarla non esistono (`Content/RT/UI` non e' nel
-// progetto), e il Canvas mostrava solo una riga d'intento — che salta le unita' senza piano, cioe' proprio
-// quelle per cui la domanda «cosa mi resta da scegliere?» ha una risposta utile.
-//
-// `ComposeSlotLines` e' statica e pura come `ComputePlannedHitMarks`: prende la vista e restituisce testo,
-// senza toccare selezione ne' stato del HUD.
+// Qui stava anche la composizione della terna movimento / principale / reazione per il Canvas
+// (`ComposeSlotLines`), ritirata con D-538 (#2764): il Canvas era uscito con #1936 e il pannello UMG si riempie
+// da solo (`URTSelectedUnitPanelWidget::RefreshLook`), con i propri test (`ScreenHud.PanelChipsAndWarningsFollowThePlan`).
+// Restano i test della regola che il pannello USA: l'andatura (`DescribeMovementSlot`, `DescribeMovementProfile`).
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
@@ -35,95 +28,8 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDFreeSlotsShownTest,
-	"RefactorTactics.HUD.FreeSlotsAreShownNotOmitted",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHUDFreeSlotsShownTest::RunTest(const FString&)
-{
-	// Un'unita' senza piano: e' il caso che la riga d'intento del Canvas SALTA, e quello in cui sapere
-	// quali slot restano liberi vale di piu'. Le tre righe devono esserci comunque.
-	const FRTUnitSlotsView Empty;
-	const TArray<FRTSlotLine> Lines = ARTHUD::ComposeSlotLines(Empty);
-
-	if (!TestEqual(TEXT("tre slot, tre righe"), Lines.Num(), 3)) { return false; }
-
-	for (const FRTSlotLine& Line : Lines)
-	{
-		TestFalse(TEXT("slot libero, riga non marcata occupata"), Line.bOccupied);
-		TestFalse(TEXT("una riga vuota non direbbe che lo slot e' libero"), Line.Text.IsEmpty());
-	}
-
-	// Ogni riga nomina il PROPRIO slot: tre righe identiche non direbbero quale e' libero.
-	TestTrue(TEXT("la prima riga e' il movimento"), Lines[0].Text.Contains(TEXT("Movimento")));
-	TestTrue(TEXT("la seconda e' l'azione principale"), Lines[1].Text.Contains(TEXT("Principale")));
-	TestTrue(TEXT("la terza e' la reazione"), Lines[2].Text.Contains(TEXT("Reazione")));
-
-	return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDSprintTwoSlotsTest,
-	"RefactorTactics.HUD.SprintShowsTheSameNameOnBothSlots",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHUDSprintTwoSlotsTest::RunTest(const FString&)
-{
-	// Un'azione che dichiara `MovementAndMain` e' un'azione sola su DUE slot. `BuildUnitSlots` riempie
-	// entrambi con la stessa azione; la composizione non deve «pulire» il doppione, perche' mostrare il
-	// movimento libero a chi ha speso il turno per una mobilita' che costa entrambi e' il difetto per cui la
-	// terna esiste.
-	//
-	// ⚠️ Il nome del test dice `Sprint` perche' `Action.Sprint` era l'unica azione a dichiararlo: da [D-028]
-	// occupa il solo movimento, e oggi nessuna azione dei cataloghi usa quella forma. Il caso resta valido -
-	// la fixture e' sintetica, non legge il catalogo - e il nome si corregge quando si tocca il test.
-	FRTUnitSlotsView Slots;
-	Slots.Movement = MakeSlotLineFixture(true, TEXT("Scatto"));
-	Slots.Main     = MakeSlotLineFixture(true, TEXT("Scatto"));
-
-	const TArray<FRTSlotLine> Lines = ARTHUD::ComposeSlotLines(Slots);
-	if (!TestEqual(TEXT("tre slot, tre righe"), Lines.Num(), 3)) { return false; }
-
-	TestTrue(TEXT("il movimento e' occupato"), Lines[0].bOccupied);
-	TestTrue(TEXT("e lo dice per nome"), Lines[0].Text.Contains(TEXT("Scatto")));
-	TestTrue(TEXT("la principale e' occupata"), Lines[1].bOccupied);
-	TestTrue(TEXT("e porta lo stesso nome: una sola azione, due slot"),
-		Lines[1].Text.Contains(TEXT("Scatto")));
-
-	// La reazione resta indipendente (CP 5.1): correre non impedisce di tenere una reazione pronta.
-	TestFalse(TEXT("la reazione resta libera"), Lines[2].bOccupied);
-
-	return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDPathHasNoNameTest,
-	"RefactorTactics.HUD.OccupiedMovementWithoutAnActionSaysPath",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHUDPathHasNoNameTest::RunTest(const FString&)
-{
-	// Un percorso tracciato a waypoint occupa il movimento e NON e' un'azione scelta: resta senza `ActionId`
-	// e senza `DisplayName`. E' il caso piu' comune del gioco, e una riga che si fermasse a «Movimento:»
-	// sembrerebbe un dato mancante invece di un percorso.
-	FRTUnitSlotsView Slots;
-	Slots.Movement = MakeSlotLineFixture(true);
-
-	const TArray<FRTSlotLine> Lines = ARTHUD::ComposeSlotLines(Slots);
-	if (!TestEqual(TEXT("tre slot, tre righe"), Lines.Num(), 3)) { return false; }
-
-	TestTrue(TEXT("il movimento risulta occupato"), Lines[0].bOccupied);
-	TestTrue(TEXT("e la riga dice cosa lo occupa"), Lines[0].Text.Contains(TEXT("percorso")));
-
-	// ⚠️ Il ripiego del movimento e' «percorso» perche' li' e' vero. Sugli altri due slot un'occupazione
-	// senza nome non e' un percorso, e chiamarla cosi' sarebbe una riga che mente.
-	FRTUnitSlotsView Nameless;
-	Nameless.Main = MakeSlotLineFixture(true);
-	const TArray<FRTSlotLine> MainLines = ARTHUD::ComposeSlotLines(Nameless);
-	TestTrue(TEXT("la principale occupata senza nome non si chiama percorso"),
-		!MainLines[1].Text.Contains(TEXT("percorso")));
-	TestTrue(TEXT("ma dice comunque di essere occupata"), MainLines[1].bOccupied);
-
-	return true;
-}
-
 /**
- * `#1410` `AC-1`: l'ANDATURA si legge nella riga del movimento, e **solo quando devia dal cammino**.
+ * `#1410` `AC-1`: l'ANDATURA si legge nel contenuto dello slot movimento, e **solo quando devia dal cammino**.
  *
  * La regola di [D-425] resa in testo, con la sua asimmetria: `Move` e `Still` NON si nominano perche' sono
  * il caso normale; `Sprint` e `Sneak` aggettivano il percorso; `Withdraw` lo SOSTITUISCE, perche' il
@@ -144,7 +50,7 @@ bool FRTHUDMovementProfileReadsOnTheLineTest::RunTest(const FString&)
 		FRTUnitSlotsView Slots;
 		Slots.Movement = MakeSlotLineFixture(true);
 		Slots.MovementProfileId = Profilo;
-		return ARTHUD::ComposeSlotLines(Slots)[0].Text;
+		return ARTHUD::DescribeMovementSlot(Slots).ToString();
 	};
 
 	// --- il cammino non si nomina, ed e' la meta' che conta -------------------------------------------
@@ -172,21 +78,6 @@ bool FRTHUDMovementProfileReadsOnTheLineTest::RunTest(const FString&)
 	TestTrue(TEXT("il Withdraw si legge «ripiegamento»"), Ripiego.Contains(TEXT("ripiegamento")));
 	TestFalse(TEXT("e NON e' un percorso"), Ripiego.Contains(TEXT("percorso")));
 
-	// --- le tre righe restano tre, e le altre due non cambiano ----------------------------------------
-	FRTUnitSlotsView Piena;
-	Piena.Movement = MakeSlotLineFixture(true);
-	Piena.Main = MakeSlotLineFixture(true);
-	Piena.Reaction = MakeSlotLineFixture(true);
-	Piena.MovementProfileId = Lib::ProfileSprint;
-	const TArray<FRTSlotLine> Tre = ARTHUD::ComposeSlotLines(Piena);
-	if (!TestEqual(TEXT("tre slot, tre righe: l'andatura non ne aggiunge una quarta"), Tre.Num(), 3))
-	{
-		return false;
-	}
-	TestFalse(TEXT("la principale non prende l'andatura del movimento"),
-		Tre[1].Text.Contains(TEXT("di corsa")));
-	TestFalse(TEXT("ne' la reazione"), Tre[2].Text.Contains(TEXT("di corsa")));
-
 	// --- il NOME dell'azione vince sull'andatura -------------------------------------------------------
 	// Una mobilita' che occupa lo slot si chiama col proprio nome: l'andatura parla del movimento SENZA
 	// nome, che e' il caso di cui D-425 si occupa. Senza questa riga, un'andatura che scavalcasse il nome
@@ -194,7 +85,7 @@ bool FRTHUDMovementProfileReadsOnTheLineTest::RunTest(const FString&)
 	FRTUnitSlotsView ConNome;
 	ConNome.Movement = MakeSlotLineFixture(true, TEXT("Scatto"));
 	ConNome.MovementProfileId = Lib::ProfileSprint;
-	const FString RigaConNome = ARTHUD::ComposeSlotLines(ConNome)[0].Text;
+	const FString RigaConNome = ARTHUD::DescribeMovementSlot(ConNome).ToString();
 	TestTrue(TEXT("l'azione che occupa lo slot si chiama col proprio nome"),
 		RigaConNome.Contains(TEXT("Scatto")));
 	TestFalse(TEXT("e l'andatura non lo scavalca"), RigaConNome.Contains(TEXT("di corsa")));
@@ -291,33 +182,26 @@ bool FRTHUDEveryCatalogProfileHasAReadingTest::RunTest(const FString&)
 }
 
 /**
- * LA SEDE E' UNA: la riga del Canvas si compone da `DescribeMovementSlot`, non da una regola parallela.
+ * LA SEDE E' UNA: `DescribeMovementSlot` rende il contenuto dello slot movimento per OGNI andatura.
  *
- * 🔴 **Il difetto che questo test chiude esisteva prima di [D-425].** Il pannello `WBP_RT_SelectedUnitPanel`
- * legava `GetSlots()` e mostrava il `DisplayName` grezzo, mentre `ComposeSlotLines` componeva la riga:
- * due rese dello stesso fatto, gia' divergenti, e l'andatura sarebbe stata la terza. Ora entrambe passano
- * da `DescribeMovementSlot` — il Canvas qui, il widget via `GetMovementSlotText()`.
- *
- * ⛔ **Non si puo' istanziare il widget headless**, quindi il legame si verifica dove e' verificabile: la
- * riga del Canvas deve CONTENERE il contenuto della sede unica. Se qualcuno reintroducesse una
- * composizione parallela in `ComposeSlotLines`, il contenimento cadrebbe. E' meno di una prova
- * end-to-end e piu' di niente, ed e' dichiarato invece di essere spacciato per l'una.
+ * Il difetto che questo test chiudeva esisteva prima di [D-425]: il pannello `WBP_RT_SelectedUnitPanel` legava
+ * `GetSlots()` e mostrava il `DisplayName` grezzo mentre il Canvas componeva la riga, due rese dello stesso
+ * fatto gia' divergenti. Il Canvas e' uscito (#1936) e con lui `ComposeSlotLines` (D-538): la sede unica ha
+ * adesso un solo lettore, il pannello UMG (`RefreshLook`), e il suo test lo confronta con questa funzione
+ * (`ScreenHud.PanelChipsAndWarningsFollowThePlan`, caso 2b). Qui si pinna la sede in se': mai vuota, il
+ * NOME dell'azione che vince sull'andatura, e rese DIVERSE per casi diversi.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDCanvasComposesFromTheSingleSeatTest,
-	"RefactorTactics.HUD.CanvasAndPanelShareTheMovementSlot",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDMovementSlotSingleSeatTest,
+	"RefactorTactics.HUD.MovementSlotRendersFromTheSingleSeat",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHUDCanvasComposesFromTheSingleSeatTest::RunTest(const FString&)
+bool FRTHUDMovementSlotSingleSeatTest::RunTest(const FString&)
 {
 	using Lib = URTMovementProfileLibrary;
 
 	auto Verifica = [this](const TCHAR* Caso, const FRTUnitSlotsView& Slots)
 	{
-		const FString Riga = ARTHUD::ComposeSlotLines(Slots)[0].Text;
 		const FString Sede = ARTHUD::DescribeMovementSlot(Slots).ToString();
 		TestFalse(*FString::Printf(TEXT("%s: la sede unica non e' vuota"), Caso), Sede.IsEmpty());
-		TestTrue(*FString::Printf(TEXT("%s: la riga del Canvas contiene la sede unica (\"%s\" in \"%s\")"),
-				Caso, *Sede, *Riga),
-			Riga.Contains(Sede));
 	};
 
 	// Slot libero.

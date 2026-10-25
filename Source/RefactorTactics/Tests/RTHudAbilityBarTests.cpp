@@ -1,4 +1,4 @@
-// La barra abilità dell'unità selezionata, e la riga di zona sopra di lei: cosa scrivono e di che colore.
+// La barra abilità dell'unità selezionata: cosa scrive e di che colore.
 //
 // Perché esiste (#2184): le due righe vivevano dentro `ARTHUD::DrawHUD`, che il motore chiama ogni
 // fotogramma e che **non ha copertura headless**. Sono decisioni testuali e cromatiche — un plurale, una
@@ -11,9 +11,13 @@
 // rendevano nello stesso fotogramma lo stesso dato letto da due sorgenti diverse.
 //
 // ⚠️ **Quel Canvas non esiste più** (#1936): i pannelli screen-space e la CVar `rt.HUD.CanvasPanels` sono
-// usciti da `ARTHUD`. Resta il §4.2 world-space, e restano queste funzioni pure — è da qui che lo Screen
-// HUD in UMG (#613) prende testo e colore. Finché #613 non le consuma, **questi test sono il loro unico
-// chiamante**: non è codice morto, è codice in attesa del suo consumatore, e i test dicono cosa promette.
+// usciti da `ARTHUD`. Resta il §4.2 world-space, e resta questa funzione pura, che oggi ha il suo consumatore:
+// `URTActionSlotWidget::GetActionLine` la inoltra, e `ScreenHud.ActionSlotLineIsTheSameComposerAsTheHud` lo pinna
+// per uguaglianza.
+//
+// ⌫ **La riga di zona (`ComposePreviewZoneLine`) è stata ritirata** (D-538, #2764): non aveva un consumatore
+// e il fuoco amico ha già due canali a schermo, l'overlay `FriendlyFire` sulla mappa e il nome marcato sopra
+// l'unità. La decisione di QUALI celle sono alleate non era di quella funzione, che formattava solo i conteggi.
 //
 // ⚠️ **`TestEqualSensitive` e non `TestEqual`**: su stringhe `TestEqual` passa da `FCString::Stricmp`
 // (`AutomationTest.cpp:2163`) ed è case-insensitive. Qui si pinna testo, e `ALLEATO` → `Alleato` deve
@@ -142,46 +146,6 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 		Spenta.Color.Equals(FLinearColor(0.45f, 0.45f, 0.45f, 1.f)));
 	TestFalse(TEXT("i tre livelli non collassano"),
 		Spenta.Color.Equals(Pronta.Color) || Spenta.Color.Equals(FLinearColor::White));
-
-	return true;
-}
-
-/**
- * La riga di zona sopra la barra: quante celle sto per colpire, e se fra loro c'è un alleato.
- *
- * 🔴 **L'avviso di fuoco amico è la decisione con la conseguenza peggiore se sbagliata**: chi la legge sta
- * per premere. Si distingue per colore — arancione contro rosso — e il codice è lo stesso del nome marcato
- * sopra la testa, così le due informazioni si riconoscono come la stessa cosa detta in due posti.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPreviewZoneTest,
-	"RefactorTactics.HUD.PreviewZoneWarnsAboutAlliesInTheBlast",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHudPreviewZoneTest::RunTest(const FString&)
-{
-	// Nessuna zona puntata: la riga non esiste. Non «TIRO: 0 celle», che direbbe che sto mirando a niente
-	// invece che non star mirando.
-	TestEqualSensitive(TEXT("nessuna cella: nessuna riga"),
-		ARTHUD::ComposePreviewZoneLine(/*NumHitCells=*/ 0, /*NumAllyHitCells=*/ 0).Text, FString());
-
-	const FRTHudTextLine Pulita = ARTHUD::ComposePreviewZoneLine(3, 0);
-	TestEqualSensitive(TEXT("zona senza alleati: solo l'ampiezza"),
-		Pulita.Text, FString(TEXT("TIRO: 3 celle")));
-	TestTrue(TEXT("zona pulita: rosso"), Pulita.Color.Equals(FLinearColor(1.f, 0.35f, 0.3f, 1.f)));
-
-	const FRTHudTextLine Uno = ARTHUD::ComposePreviewZoneLine(3, 1);
-	TestEqualSensitive(TEXT("un alleato: singolare"),
-		Uno.Text, FString(TEXT("TIRO: 3 celle  -  1 ALLEATO NELLA ZONA")));
-	TestTrue(TEXT("con un alleato: arancione"), Uno.Color.Equals(FLinearColor(1.f, 0.6f, 0.12f, 1.f)));
-
-	// 🔴 Il plurale italiano dentro `DrawHUD`: `ALLEATO` diventa `ALLEATO/I` da due in su. Senza questo
-	// caso, togliere il ramo del plurale lascerebbe la suite verde.
-	TestEqualSensitive(TEXT("due alleati: plurale"),
-		ARTHUD::ComposePreviewZoneLine(3, 2).Text,
-		FString(TEXT("TIRO: 3 celle  -  2 ALLEATO/I NELLA ZONA")));
-
-	// Il colore dipende dalla PRESENZA di alleati, non da quanti: uno solo basta a cambiarlo.
-	TestTrue(TEXT("il colore cambia gia' col primo alleato"),
-		!Uno.Color.Equals(Pulita.Color));
 
 	return true;
 }
