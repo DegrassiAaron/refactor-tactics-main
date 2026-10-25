@@ -1664,6 +1664,91 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 }
 
 /**
+ * LE REGOLE DELL'HEADER CHE REGGONO SULL'ALBERO DELL'ASSET (D-539, revisione di #3849).
+ *
+ * Il C++ nasconde un CONTENITORE (`PlanningGroup`, `ResolutionGroup`) e non i figli, quindi tre regole dipendono da dove
+ * l'asset monta i widget:
+ *  - in riproduzione l'header non nomina la fase del modello (che resta `Planning`) ne' mostra il timer: `PhaseText` e
+ *    `TimerText` devono stare dentro `PlanningGroup`, che `RefreshLook` chiude quando la risoluzione scorre;
+ *  - le quattro celle di fase stanno dentro `ResolutionGroup`, e i due gruppi NON si contengono a vicenda: altrimenti
+ *    chiudere uno chiuderebbe l'altro;
+ *  - il punteggio e la soglia dell'obiettivo stanno dentro `ObjectiveBox`.
+ * Un widget spostato fuori dal suo contenitore non da' errore: compare quando non dovrebbe.
+ *
+ * Ogni appartenenza ha il suo CONTROLLO NEGATIVO: una funzione di ascendenza che rispondesse sempre «si» passerebbe ogni
+ * asserto positivo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnHeaderRulesRideOnTheTreeTest,
+	"RefactorTactics.ScreenHud.TurnHeaderRulesRideOnTheAssetTree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnHeaderRulesRideOnTheTreeTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TurnHeaderPath, TEXT("WBP_RT_TurnHeader"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	const auto Trova = [this, Tree](const TCHAR* Nome) -> const UWidget*
+	{
+		const UWidget* W = Tree->FindWidget(Nome);
+		TestNotNull(*FString::Printf(TEXT("WBP_RT_TurnHeader dichiara '%s'"), Nome), W);
+		return W;
+	};
+	// `Figlio` e' discendente di `Contenitore`? Si risale per i genitori; il contenitore stesso non conta.
+	const auto Dentro = [](const UWidget* Figlio, const UWidget* Contenitore)
+	{
+		for (const UWidget* W = Figlio ? Figlio->GetParent() : nullptr; W; W = W->GetParent())
+		{
+			if (W == Contenitore)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const UWidget* Planning = Trova(TEXT("PlanningGroup"));
+	const UWidget* Resolution = Trova(TEXT("ResolutionGroup"));
+	const UWidget* Objective = Trova(TEXT("ObjectiveBox"));
+	if (!Planning || !Resolution || !Objective)
+	{
+		return false;
+	}
+
+	// --- fase del modello e timer: nel gruppo della Pianificazione ----------------------------------------------------
+	for (const TCHAR* Nome : { TEXT("PhaseText"), TEXT("TimerText") })
+	{
+		const UWidget* W = Trova(Nome);
+		TestTrue(*FString::Printf(TEXT("'%s' sta dentro PlanningGroup: in riproduzione si chiude con lui"), Nome), Dentro(W, Planning));
+		TestFalse(*FString::Printf(TEXT("controllo: '%s' non sta dentro ResolutionGroup"), Nome), Dentro(W, Resolution));
+	}
+
+	// --- le celle di fase: nel gruppo della Risoluzione -----------------------------------------------------------------
+	for (const TCHAR* Fase : { TEXT("Prep"), TEXT("Dash"), TEXT("Blast"), TEXT("Move") })
+	{
+		const FString Nome = FString::Printf(TEXT("PhaseCell_%s"), Fase);
+		const UWidget* W = Trova(*Nome);
+		TestTrue(*FString::Printf(TEXT("'%s' sta dentro ResolutionGroup"), *Nome), Dentro(W, Resolution));
+		TestFalse(*FString::Printf(TEXT("controllo: '%s' non sta dentro PlanningGroup"), *Nome), Dentro(W, Planning));
+	}
+
+	// --- i due gruppi sono fratelli, non uno dentro l'altro -----------------------------------------------------------------
+	TestFalse(TEXT("PlanningGroup non sta dentro ResolutionGroup"), Dentro(Planning, Resolution));
+	TestFalse(TEXT("ne' ResolutionGroup dentro PlanningGroup: chiuderne uno chiuderebbe l'altro"), Dentro(Resolution, Planning));
+
+	// --- l'obiettivo: punteggio e soglia nel riquadro ---------------------------------------------------------------------
+	for (const TCHAR* Nome : { TEXT("ObjectiveScoreText"), TEXT("ObjectiveThresholdText") })
+	{
+		const UWidget* W = Trova(Nome);
+		TestTrue(*FString::Printf(TEXT("'%s' sta dentro ObjectiveBox"), Nome), Dentro(W, Objective));
+		TestFalse(*FString::Printf(TEXT("controllo: '%s' non sta dentro PlanningGroup"), Nome), Dentro(W, Planning));
+	}
+
+	return true;
+}
+
+/**
  * **LO SLOT INDOSSA IL TOOLTIP, E IL TOOLTIP DICHIARA LE PORTE CHE IL C++ SCRIVE** — `#3499`, seduta `U66`.
  *
  * 🔑 **Due fatti che nessun test headless vede**: che i default di `WBP_RT_ActionSlot` puntino al tooltip — senza,

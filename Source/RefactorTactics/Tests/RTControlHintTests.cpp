@@ -3,15 +3,15 @@
 //
 // `Spazio` (salta il playback), `V` (cicla la velocita'), `RMB` (annulla il Ready) e `P` (pausa della preparazione)
 // sono cablati nel `PlayerController` e funzionano. I loro suggerimenti vivevano SOLO dentro
-// `ARTHUD::ComposeMatchStatusLine`, che dal 2026-09-08 (#1936) non ha piu' un chiamante: i comandi erano muti, e
+// `ARTHUD::ComposeMatchStatusLine` (ritirata con D-539), che dal 2026-09-08 (#1936) non aveva piu' un chiamante: i comandi erano muti, e
 // nessun test lo diceva, perche' i test della riga di stato erano verdi.
 //
 // 🔴 La prima stesura nominava i tasti SEMPRE, e la revisione indipendente di #3847 ha mostrato che due su quattro
 // possono essere inerti: `Spazio` e `RMB` in autobattle (`IsPlanningInputInert`), `V` quando chi guarda comanda
 // un'unita' viva (D-350). Un suggerimento che promette un tasto che non risponde e' peggio di nessun suggerimento.
-// Qui si pinna la sede unica (`ComposeControlHint`, `ComposeControlLabel`), che dipende da `FRTLiveGestures`, e il
-// legame con la riga di stato, che la INCOLLA invece di avere una copia sua. Il legame col widget, che la mostra e
-// che legge i gesti dalle sedi dei tasti, sta in `ScreenHud.TurnHeaderShowsWhatTheKeysDoNow`.
+// Qui si pinna la sede unica (`ComposeControlHint`, `ComposeControlLabel`), che dipende da `FRTLiveGestures`. Il
+// legame col widget, che la mostra e che legge i gesti dalle sedi dei tasti, sta in
+// `ScreenHud.TurnHeaderShowsWhatTheKeysDoNow`.
 //
 // ATTENZIONE: i confronti sono `TestEqualSensitive` o `Equals(..., CaseSensitive)`. `TestEqual` su `FString` passa da
 // `FCString::Stricmp` ed e' case-insensitive: `(RMB: annulla)` contro `(rmb: annulla)` deve cadere.
@@ -47,19 +47,16 @@ namespace
 }
 
 /**
- * Il suggerimento per ogni stato del turno, e la riga di stato che lo incolla.
+ * Il suggerimento per ogni stato del turno, con tutti i gesti vivi.
  *
- * L'ultimo assert di ogni caso e' il punto: la riga di stato DEVE finire col suggerimento (senza obiettivo e' l'ultima
- * cosa che scrive). Se qualcuno reintroducesse in `ComposeMatchStatusLine` una copia del testo, con una grafia
- * diversa, il suggerimento e la riga smetterebbero di concordare e questo test cadrebbe.
- *
- * La riga di stato non conosce la sessione, quindi incolla il suggerimento con TUTTI i gesti vivi (`All()`): e'
- * proprio il comportamento che questo test fissa.
+ * Fino a D-539 questo test confrontava anche la riga di stato che lo incollava (`ComposeMatchStatusLine`, ritirata):
+ * il confronto serviva a tenere il suggerimento e la riga d'accordo, e senza la riga non ha piu' oggetto. Resta il
+ * suggerimento, che la riga non cambiava e che l'header mostra da solo.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlHintMatchesStatusLineTest,
-	"RefactorTactics.HUD.ControlHintIsWhatTheStatusLineAppends",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlHintFollowsTurnStateTest,
+	"RefactorTactics.HUD.ControlHintFollowsTheTurnState",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTControlHintMatchesStatusLineTest::RunTest(const FString&)
+bool FRTControlHintFollowsTurnStateTest::RunTest(const FString&)
 {
 	struct FCaso
 	{
@@ -90,28 +87,15 @@ bool FRTControlHintMatchesStatusLineTest::RunTest(const FString&)
 		{ TEXT("finestra di preparazione"), Prep, 0.f, TEXT("(P: pausa)") },
 		{ TEXT("finestra di preparazione in pausa"), PrepInPausa, 0.f, TEXT("(P: riprendi)") },
 		{ TEXT("risoluzione a meta'"), Risoluzione, 0.456f, TEXT("[46%]  (Spazio: salta)") },
+		{ TEXT("la percentuale si arrotonda al piu' vicino, non per troncamento"), Risoluzione, 0.336f, TEXT("[34%]  (Spazio: salta)") },
 		{ TEXT("risoluzione oltre il fondo scala"), Risoluzione, 1.7f, TEXT("[100%]  (Spazio: salta)") },
 		{ TEXT("risoluzione con avanzamento negativo"), Risoluzione, -3.f, TEXT("[0%]  (Spazio: salta)") },
 	};
 
 	for (const FCaso& Caso : Casi)
 	{
-		const FString Suggerimento = ARTHUD::ComposeControlHint(Caso.Header, Caso.Progresso, FRTLiveGestures::All());
-		TestEqualSensitive(*FString::Printf(TEXT("%s: il suggerimento"), Caso.Nome), Suggerimento, FString(Caso.Atteso));
-
-		const FString Riga = ARTHUD::ComposeMatchStatusLine(Caso.Header, TEXT("Blast"), Caso.Progresso,
-			/*bHasObjectiveCell=*/ false);
-		if (Suggerimento.IsEmpty())
-		{
-			// Nessun gesto da nominare: la riga di stato non ne nomina nessuno.
-			TestFalse(*FString::Printf(TEXT("%s: la riga di stato non nomina nessun gesto (\"%s\")"), Caso.Nome, *Riga),
-				Riga.Contains(TEXT("(")) || Riga.Contains(TEXT("[")));
-		}
-		else
-		{
-			TestTrue(*FString::Printf(TEXT("%s: la riga di stato finisce col suggerimento (\"%s\")"), Caso.Nome, *Riga),
-				Riga.EndsWith(Suggerimento, ESearchCase::CaseSensitive));
-		}
+		TestEqualSensitive(*FString::Printf(TEXT("%s: il suggerimento"), Caso.Nome),
+			ARTHUD::ComposeControlHint(Caso.Header, Caso.Progresso, MakeControlHintGestures(true, true, true)), FString(Caso.Atteso));
 	}
 
 	return true;
@@ -167,7 +151,7 @@ bool FRTHintNamesOnlyKeysThatWorkTest::RunTest(const FString&)
 
 	// --- Un avanzamento non finito non e' un traguardo -------------------------------------------------------------------
 	// `FMath::Clamp` rende `Max` per un NaN: `[100%]` direbbe una riproduzione finita. Si legge come `0`.
-	const FRTLiveGestures Tutti = FRTLiveGestures::All();
+	const FRTLiveGestures Tutti = MakeControlHintGestures(true, true, true);
 	TestEqualSensitive(TEXT("NaN: [0%] e non [100%]"),
 		ARTHUD::ComposeControlHint(Risoluzione, std::numeric_limits<float>::quiet_NaN(), Tutti),
 		FString(TEXT("[0%]  (Spazio: salta)")));
@@ -184,8 +168,6 @@ bool FRTHintNamesOnlyKeysThatWorkTest::RunTest(const FString&)
 	TestFalse(TEXT("default: Spazio spento"), Nessuno.bSkip);
 	TestFalse(TEXT("default: RMB spento"), Nessuno.bUnready);
 	TestFalse(TEXT("default: V spento"), Nessuno.bSpeed);
-	TestTrue(TEXT("All(): tutti accesi"), Tutti.bSkip && Tutti.bUnready && Tutti.bSpeed);
-
 	return true;
 }
 
@@ -201,7 +183,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlLabelNamesTheSpeedKeyTest,
 bool FRTControlLabelNamesTheSpeedKeyTest::RunTest(const FString&)
 {
 	const FRTMatchHeaderView Pianificazione = MakeControlHintHeader();
-	const FRTLiveGestures Tutti = FRTLiveGestures::All();
+	const FRTLiveGestures Tutti = MakeControlHintGestures(true, true, true);
 
 	// Fuori dalla risoluzione e senza altri gesti resta la sola velocita'. Non positiva vale `x1`: la stessa
 	// convenzione di `EffectivePlaybackSpeed`, e un'etichetta `x0` direbbe che la riproduzione e' ferma.

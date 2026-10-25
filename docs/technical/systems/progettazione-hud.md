@@ -386,7 +386,7 @@ lista resta progetto.
 |---|---|---|
 | Punteggio per squadra | `FRTMatchHeaderView::Team0Score` · `Team1Score` | ✅ nel ViewModel, misurato da `HudViewModel.ObjectiveProgressReachesTheHud` |
 | Soglia di vittoria | `FRTMatchHeaderView::ScoreToWin`, dal **formato** | ✅ stessa disciplina di `RoundLimit`: `0` = via per obiettivo **disattivata**, non «si vince a zero» |
-| Riga disegnata | ~~`ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)`~~ `ObjectiveBox` · `ObjectiveScoreText` · `ObjectiveThresholdText` dell'header UMG (`2–1`, `(a 3)`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)) | ✅ a schermo dall'header; 🔴 `ComposeMatchStatusLine` resta composta e non disegnata — vedi la nota qui sotto |
+| Riga disegnata | ~~`ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)`~~ `ObjectiveBox` · `ObjectiveScoreText` · `ObjectiveThresholdText` dell'header UMG (`2–1`, `(a 3)`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)) | ✅ a schermo dall'header; `ComposeMatchStatusLine`, che non era disegnata, è stata ritirata con [D-539](../../decisions/RT_PDR_00_Decision_Log.md) |
 | Nome · stato · contestato · countdown · cambio recente | — | ⏳ progetto |
 
 > 🔴 **Rimisurato il 2026-09-15 su `6144b5d0`: il punteggio dell'obiettivo non raggiunge più lo schermo.**
@@ -405,13 +405,13 @@ lista resta progetto.
 > ⚠️ **Con controllo di calibrazione**, senza il quale un filtro rotto direbbe «zero» a tutto: lo stesso
 > comando su `ComposeAbilityLine` trova il suo chiamante vivo — `RTScreenHudWidgets.cpp:525`.
 >
-> ⛔ **Non è codice morto.** `ComposeMatchStatusLine` è pura e coperta dai suoi test: ciò che manca è il
+> ~~⛔ **Non è codice morto.** `ComposeMatchStatusLine` è pura e coperta dai suoi test: ciò che manca è il
 > consumatore in UMG, ed è il difetto che possiede
 > [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764). Finché non arriva, le quattro
 > **reticenze** della barra — niente `/0`, countdown solo in Pianificazione, obiettivo solo se la mappa ne
-> dichiara uno — restano verificate headless e invisibili in partita.
+> dichiara uno — restano verificate headless e invisibili in partita.~~ *(superato: vedi sotto e [D-539](../../decisions/RT_PDR_00_Decision_Log.md))*
 
-> ✅ **Aggiornata il 2026-10-25 ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)): il punteggio raggiunge lo schermo, per un'altra strada.** Lo rende l'header UMG (`ObjectiveBox`, `ObjectiveScoreText`, `ObjectiveThresholdText`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)), con le reticenze che `RefreshLook` applica da sé: il limite del round solo se il formato lo dichiara, l'obiettivo solo se la mappa ne ha uno, il timer vuoto senza orologio. Le pinnano `ScreenHud.RoundLimitComesFromTheFormat` e `ScreenHud.TurnHeaderLookFollowsTheBoard`. **`ComposeMatchStatusLine` resta senza chiamanti di produzione** (il comando qui sopra dà ancora nessun risultato): a non avere consumatore è la riga composta, non le regole, e ritirarla o collegarla è una decisione aperta che [D-538](../../decisions/RT_PDR_00_Decision_Log.md) non prende.
+> ✅ **Aggiornata il 2026-10-25 ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)): il punteggio raggiunge lo schermo, per un'altra strada.** Lo rende l'header UMG (`ObjectiveBox`, `ObjectiveScoreText`, `ObjectiveThresholdText`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)), con le reticenze che `RefreshLook` applica da sé: il limite del round solo se il formato lo dichiara, l'obiettivo solo se la mappa ne ha uno, il timer vuoto senza orologio. Le pinnano `ScreenHud.RoundLimitComesFromTheFormat` e `ScreenHud.TurnHeaderLookFollowsTheBoard`. **`ComposeMatchStatusLine` è stata ritirata con [D-539](../../decisions/RT_PDR_00_Decision_Log.md)**: a non avere consumatore era la riga composta, non le regole, e ognuna delle sue regole ha oggi la sua sede viva e il suo test (la tabella è in [D-539](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 ⚠️ **La riga si mostra solo se la mappa dichiara un obiettivo.** Su una mappa che non ne ha, `0-0` non
 sarebbe una parità: sarebbe un punteggio inventato per una gara che non si sta correndo. È la stessa

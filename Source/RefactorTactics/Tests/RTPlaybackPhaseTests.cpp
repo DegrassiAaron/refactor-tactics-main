@@ -736,6 +736,9 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 		++TickRisoluzione;
 		Viste.Add(Riprodotta);
 		Sbagliate += (!Visibile(W->ResolutionGroup) || Visibile(W->PlanningGroup)) ? 1 : 0;
+		// L'obiettivo si vede ANCHE durante la riproduzione, ed e' il momento in cui conta di piu': un obiettivo conteso
+		// cambia mano proprio li'. Vale perche' il riquadro dipende dalla mappa e non dalla fase (D-539).
+		Sbagliate += !Visibile(W->ObjectiveBox) ? 1 : 0;
 		for (const FCellaDiProva& C : Celle)
 		{
 			const bool bAttesa = C.Fase == Riprodotta;
@@ -760,7 +763,7 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 	TestTrue(TEXT("1: l'header ha acceso il Dash"), Viste.Contains(ERTMatchPhase::Dash));
 	TestTrue(TEXT("1: e il Blast"), Viste.Contains(ERTMatchPhase::Blast));
 	TestTrue(TEXT("1: e il Move"), Viste.Contains(ERTMatchPhase::Move));
-	TestEqual(*FString::Printf(TEXT("1: in %d tick, a ogni tick la sola cella attiva e' la fase riprodotta, e i gruppi sono giusti"),
+	TestEqual(*FString::Printf(TEXT("1: in %d tick, a ogni tick la sola cella attiva e' la fase riprodotta, i gruppi sono giusti e l'obiettivo resta visibile"),
 		TickRisoluzione), Sbagliate, 0);
 
 	// --- D. Dopo il playback si torna alla Pianificazione ---------------------------------------------------------------
@@ -941,6 +944,108 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 		SenzaManager.bSkip || SenzaManager.bUnready || SenzaManager.bSpeed);
 
 	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * LE RETICENZE DELL'OBIETTIVO NELL'HEADER (D-539). Il progresso sull'obiettivo e' l'esempio perfetto di regola che un
+ * controllo a schermo non vede: l'ASSENZA di un pezzo di testo non somiglia a un difetto. Le tre reticenze vivevano solo
+ * dentro `ARTHUD::ComposeMatchStatusLine` (ritirata con D-539); qui si pinnano sul widget che le applica davvero (`RefreshLook`).
+ *
+ *  1. senza una cella obiettivo l'obiettivo NON c'e', anche con soglia e punteggio: su una mappa senza obiettivo `2-1`
+ *     (o `0-0`) sarebbe un punteggio inventato per una gara che nessuno sta correndo;
+ *  2. con l'obiettivo ma senza soglia (`ScoreToWin == 0`, la via per obiettivo e' disattivata in v0.1) il progresso si
+ *     vede e il «(a N)» tace: «a 0» leggerebbe come «gia' vinta»;
+ *  3. `0-0` CON obiettivo dichiarato si mostra: e' il punteggio vero di una gara in parita' al calcio d'inizio. Una
+ *     guardia `(Team0Score > 0 || Team1Score > 0)` farebbe sparire la riga proprio all'inizio;
+ *  4. con soglia e punteggio il widget dice squadra 0 - squadra 1 e il traguardo, e togliendo la cella torna il silenzio.
+ *
+ * I confronti sono CaseSensitive: `TestEqual` su `FString` ignora le maiuscole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnHeaderObjectiveReticencesTest,
+	"RefactorTactics.ScreenHud.TurnHeaderObjectiveReticences",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnHeaderObjectiveReticencesTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	URTHexMapAsset* Mappa = SpawnPlaybackMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTTurnHeaderWidget* W = NewObject<URTTurnHeaderWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager spawnato"), TM) || !Mappa || !W || !TestTrue(TEXT("premessa: la mappa ha celle"), Mappa->Cells.Num() > 0))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	W->ObjectiveBox = NewObject<UBorder>(W);
+	W->ObjectiveScoreText = NewObject<UTextBlock>(W);
+	W->ObjectiveThresholdText = NewObject<UTextBlock>(W);
+	W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	const auto Visibile = [](const UWidget* Widget) { return Widget && Widget->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Uguale = [](const FText& Testo, const TCHAR* Atteso) { return Testo.ToString().Equals(Atteso, ESearchCase::CaseSensitive); };
+	const auto ImpostaSoglia = [TM](int32 ScoreToWin)
+	{
+		FRTMatchRules Regole = TM->GetMatchRules();
+		Regole.ScoreToWin = ScoreToWin;
+		TM->SetMatchRules(Regole);
+	};
+
+	// --- 1. Nessuna cella obiettivo: silenzio, anche con soglia dichiarata ----------------------------------------------
+	ImpostaSoglia(3);
+	TM->AddTeamScore(0, 2);
+	TM->AddTeamScore(1, 1);
+	Mappa->Cells[0].bIsObjective = false;
+	W->RefreshLook(/*bRecheckObjective=*/ true);
+	TestFalse(TEXT("1: senza cella obiettivo il riquadro non c'e', anche con soglia e punteggio 2-1"), Visibile(W->ObjectiveBox));
+
+	// --- 2. Con la cella ma SENZA soglia: il progresso si vede, il traguardo tace ------------------------------------------
+	Mappa->Cells[0].bIsObjective = true;
+	ImpostaSoglia(0);
+	W->RefreshLook(true);
+	TestTrue(TEXT("2: con la cella obiettivo il riquadro c'e'"), Visibile(W->ObjectiveBox));
+	TestTrue(TEXT("2: il progresso e' squadra 0 - squadra 1"), Uguale(W->ObjectiveScoreText->GetText(), TEXT("2–1")));
+	TestFalse(TEXT("2: ma senza soglia il «(a N)» tace: «a 0» leggerebbe come «gia' vinta»"), Visibile(W->ObjectiveThresholdText));
+
+	// --- 3. Con la soglia: anche il traguardo ----------------------------------------------------------------------------
+	ImpostaSoglia(3);
+	W->RefreshLook(false);
+	TestTrue(TEXT("3: con la soglia dichiarata il traguardo si vede"), Visibile(W->ObjectiveThresholdText));
+	TestTrue(TEXT("3: e dice «(a 3)»"), Uguale(W->ObjectiveThresholdText->GetText(), TEXT("(a 3)")));
+
+	// --- 4. La soglia SENZA obiettivo tace anche lei ---------------------------------------------------------------------
+	Mappa->Cells[0].bIsObjective = false;
+	W->RefreshLook(true);
+	TestFalse(TEXT("4: tolta la cella torna il silenzio, e con lui il traguardo"), Visibile(W->ObjectiveBox));
+	// Il traguardo tace PER CONTO SUO: nel test `ObjectiveThresholdText` e' un widget libero, non sta dentro `ObjectiveBox`,
+	// quindi il silenzio non puo' venire dal contenitore. La soglia vale ancora 3.
+	TestFalse(TEXT("4: e il traguardo (a 3) tace anche da solo, senza dipendere da dove l'asset lo monta"),
+		Visibile(W->ObjectiveThresholdText));
+
+	DestroyPlaybackWorld(World);
+
+	// --- 5. 0-0 CON obiettivo si mostra: mondo nuovo, perche' il punteggio non scende ---------------------------------------
+	UWorld* World2 = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("secondo World creato"), World2)) { return false; }
+	URTHexMapAsset* Mappa2 = SpawnPlaybackMap(World2);
+	ARTTurnManager* TM2 = World2->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTTurnHeaderWidget* W2 = NewObject<URTTurnHeaderWidget>(World2);
+	if (!TestNotNull(TEXT("secondo TurnManager"), TM2) || !Mappa2 || !W2 || Mappa2->Cells.Num() == 0)
+	{
+		DestroyPlaybackWorld(World2);
+		return false;
+	}
+	W2->ObjectiveBox = NewObject<UBorder>(W2);
+	W2->ObjectiveScoreText = NewObject<UTextBlock>(W2);
+	W2->ObjectiveThresholdText = NewObject<UTextBlock>(W2);
+	W2->SetMatchContextForTest(TM2, 0);
+	Mappa2->Cells[0].bIsObjective = true;
+	W2->RefreshLook(true);
+	TestTrue(TEXT("5: con l'obiettivo dichiarato il riquadro c'e' anche a 0-0"), Visibile(W2->ObjectiveBox));
+	TestTrue(TEXT("5: e dice «0–0», che e' un punteggio vero e non un'assenza"),
+		Uguale(W2->ObjectiveScoreText->GetText(), TEXT("0–0")));
+
+	DestroyPlaybackWorld(World2);
 	return true;
 }
 
