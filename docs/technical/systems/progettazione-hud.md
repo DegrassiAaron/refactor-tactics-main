@@ -386,7 +386,7 @@ lista resta progetto.
 |---|---|---|
 | Punteggio per squadra | `FRTMatchHeaderView::Team0Score` · `Team1Score` | ✅ nel ViewModel, misurato da `HudViewModel.ObjectiveProgressReachesTheHud` |
 | Soglia di vittoria | `FRTMatchHeaderView::ScoreToWin`, dal **formato** | ✅ stessa disciplina di `RoundLimit`: `0` = via per obiettivo **disattivata**, non «si vince a zero» |
-| Riga disegnata | `ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)` | 🔴 **composta, non disegnata** dal 2026-09-07 — vedi la nota qui sotto |
+| Riga disegnata | ~~`ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)`~~ `ObjectiveBox` · `ObjectiveScoreText` · `ObjectiveThresholdText` dell'header UMG (`2–1`, `(a 3)`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)) | ✅ a schermo dall'header; 🔴 `ComposeMatchStatusLine` resta composta e non disegnata — vedi la nota qui sotto |
 | Nome · stato · contestato · countdown · cambio recente | — | ⏳ progetto |
 
 > 🔴 **Rimisurato il 2026-09-15 su `6144b5d0`: il punteggio dell'obiettivo non raggiunge più lo schermo.**
@@ -410,6 +410,8 @@ lista resta progetto.
 > [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764). Finché non arriva, le quattro
 > **reticenze** della barra — niente `/0`, countdown solo in Pianificazione, obiettivo solo se la mappa ne
 > dichiara uno — restano verificate headless e invisibili in partita.
+
+> ✅ **Aggiornata il 2026-10-25 ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)): il punteggio raggiunge lo schermo, per un'altra strada.** Lo rende l'header UMG (`ObjectiveBox`, `ObjectiveScoreText`, `ObjectiveThresholdText`, [D-481](../../decisions/RT_PDR_00_Decision_Log.md)), con le reticenze che `RefreshLook` applica da sé: il limite del round solo se il formato lo dichiara, l'obiettivo solo se la mappa ne ha uno, il timer vuoto senza orologio. Le pinnano `ScreenHud.RoundLimitComesFromTheFormat` e `ScreenHud.TurnHeaderLookFollowsTheBoard`. **`ComposeMatchStatusLine` resta senza chiamanti di produzione** (il comando qui sopra dà ancora nessun risultato): a non avere consumatore è la riga composta, non le regole, e ritirarla o collegarla è una decisione aperta che [D-538](../../decisions/RT_PDR_00_Decision_Log.md) non prende.
 
 ⚠️ **La riga si mostra solo se la mappa dichiara un obiettivo.** Su una mappa che non ne ha, `0-0` non
 sarebbe una parità: sarebbe un punteggio inventato per una gara che non si sta correndo. È la stessa
@@ -1480,8 +1482,8 @@ Non alterano:
 
 | Controllo | v0.1 | Dove |
 |---|---|---|
-| **skip** | ⚠️ il **comando** sì, l'**etichetta** no | `Spazio` → `ARTPlayerController.cpp:2109` → `SkipPlayback()`. L'etichetta `(Spazio: salta)` sta dentro `ComposeMatchStatusLine`, che nessuno chiama |
-| **speed** | ⚠️ il **comando** sì, l'**etichetta** no | `V` → `ARTPlayerController.cpp:2215` → `OnCyclePlaybackSpeed`. L'etichetta `x1 · x2 · x4` è `ComposePlaybackSpeedLabel`, che nessuno chiama |
+| **skip** | ✅ il **comando** e l'**etichetta** (⏳ il posto non è giudicato in PIE) | `Spazio` → `ARTPlayerController.cpp:2109` → `SkipPlayback()`. L'etichetta `(Spazio: salta)` la rende `ControlHintText` nell'header, da `ARTHUD::ComposeControlHint` ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)); ~~sta dentro `ComposeMatchStatusLine`, che nessuno chiama~~ |
+| **speed** | ✅ il **comando** e l'**etichetta** (⏳ il posto non è giudicato in PIE) | `V` → `ARTPlayerController.cpp:2215` → `OnCyclePlaybackSpeed`. L'etichetta `Velocità: x1 (V)` la rende `ControlHintText`, da `ARTHUD::ComposeControlLabel` ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)); ~~`x1 · x2 · x4` è `ComposePlaybackSpeedLabel`, che nessuno chiama~~ |
 | **pause visiva** | ⛔ **fuori scope dichiarato** | è del Replay Player (`RT-FEAT-REPLAY-ARCHIVE`, #472/#999): lì si guarda una partita **registrata**, qui una **in corso** |
 | **focus event** | ⏳ non deciso | nessuna issue |
 
@@ -1496,13 +1498,9 @@ Non alterano:
 > e il difetto dei compositori senza consumatore è
 > [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764).
 
-⚠️ ~~**La `speed` è resa in Canvas, non come widget §4.1, ed è una deviazione consapevole da §13.2.**~~
-**La `speed` non è resa affatto, e la deviazione da §13.2 resta.** La §13.2 elenca i `playback controls`
-fra gli elementi promossi nel `Resolution HUD`, cioè nel layer §4.1 — che è UMG. ~~In v0.1 il controllo vive
-nella riga di stato del Canvas, insieme a `skip`.~~ Quella riga non esiste più (vedi la nota qui sopra): la
-deviazione si è trasformata da «resa altrove» in «non resa», che è **peggio** e non «uguale». Le due ragioni
-che l'avevano motivata reggono ancora, ed è il motivo per cui questa sottosezione si corregge invece di
-cancellarsi; in ordine di peso:
+> ✅ **Chiusa nel codice e nell'asset il 2026-10-25 da [D-538](../../decisions/RT_PDR_00_Decision_Log.md).** Entrambe le etichette tornano a schermo nell'header UMG, in una riga sotto la barra (`ControlHintText`): `(Spazio: salta)` con la percentuale in Risoluzione, `(P: pausa)` e `(RMB: annulla)` in Pianificazione, `Velocità: xN (V)` sempre. Il testo ha **una sede sola**, `ARTHUD::ComposeControlLabel`; il widget la inoltra senza ricomporla. Il posto lo giudica l'autore in PIE (`PIE-V01-SCREENHUD`): finora è misurato il testo, non il layout.
+
+⚠️ ~~**La `speed` è resa in Canvas, non come widget §4.1, ed è una deviazione consapevole da §13.2.**~~ ~~**La `speed` non è resa affatto, e la deviazione da §13.2 resta.**~~ **Dal 2026-10-25 ([D-538](../../decisions/RT_PDR_00_Decision_Log.md)) la `speed` è resa come etichetta in sola lettura nell'header §4.1 (`Velocità: x2 (V)`); il *controllo* resta il tasto `V`, e la deviazione da §13.2 resta per quello.** La §13.2 elenca i `playback controls` fra gli elementi promossi nel `Resolution HUD`, cioè nel layer §4.1 — che è UMG. ~~In v0.1 il controllo vive nella riga di stato del Canvas, insieme a `skip`.~~ ~~Quella riga non esiste più (vedi la nota qui sopra): la deviazione si è trasformata da «resa altrove» in «non resa», che è **peggio** e non «uguale».~~ Le due ragioni che avevano motivato la deviazione reggono ancora, ed è il motivo per cui questa sottosezione si corregge invece di cancellarsi; in ordine di peso:
 
 1. **Il contratto §4.1 vieta al widget di raggiungere il modello.** `URTScreenHudWidgetBase` non espone
    l'`ARTTurnManager` ai Blueprint — *«se non c'è il puntatore, non c'è il modo di ricalcolare»* — e
