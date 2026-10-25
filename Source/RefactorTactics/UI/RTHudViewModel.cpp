@@ -131,6 +131,16 @@ bool URTHudViewModel::MapDeclaresObjective(const ARTTurnManager* TurnManager)
 	return Mappa && Mappa->HasObjectiveCell();
 }
 
+float URTHudViewModel::ReadPlaybackProgress01(const ARTTurnManager* TurnManager)
+{
+	return TurnManager ? TurnManager->GetPlaybackProgress01() : 0.f;
+}
+
+float URTHudViewModel::ReadViewerPlaybackSpeed(const ARTTurnManager* TurnManager)
+{
+	return TurnManager ? TurnManager->ViewerPlaybackSpeed : 0.f;
+}
+
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
 	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'

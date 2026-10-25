@@ -45,21 +45,6 @@ struct FRTRefusedShotLine
 };
 
 /**
- * Una riga della terna di slot, gia' composta e pronta da disegnare.
- *
- * Tiene separato il TESTO dal fatto che lo slot sia occupato perche' il Canvas usa i due dati in modi
- * diversi — l'uno lo scrive, l'altro lo colora — e ricavare il secondo dal primo significherebbe cercare una
- * sottostringa, cioe' rendere il colore dipendente dalla lingua dell'etichetta.
- */
-struct FRTSlotLine
-{
-	/** Composto per intero: «Movimento: Scatto», «Reazione: libero». */
-	FString Text;
-
-	bool bOccupied = false;
-};
-
-/**
  * Una riga del Canvas gia' decisa: cosa scrivere e di che colore.
  *
  * Tiene insieme testo e colore perche' nella barra abilita' le due cose sono decise dallo **stesso** stato
@@ -731,24 +716,6 @@ public:
 		float BarWidth, const FVector2D& Viewport);
 
 	/**
-	 * Le tre righe della terna movimento / principale / reazione, nell'ordine in cui vanno disegnate.
-	 *
-	 * ⚠️ **Restituisce sempre tre righe, anche quando il piano e' vuoto**, ed e' il punto: la riga d'intento
-	 * che il Canvas gia' disegna salta le unita' senza ordini (`if (bOwn && !bHasPlan) continue`), quindi uno
-	 * slot LIBERO non si vedeva mai. Il DoD di CP 11.1 chiede «con indicazione di cosa e' gia' stato scelto»,
-	 * che senza il complemento — cosa NON e' ancora stato scelto — non si puo' leggere.
-	 *
-	 * ⚠️ **Non arbitra, come la vista da cui legge.** Se `Action.Sprint` occupa movimento E principale, le
-	 * due righe portano lo stesso nome invece di sceglierne una: chi decide la legalita' e'
-	 * `URTCatalogLibrary::ValidateActionSlots`, e una terna «pulita» nasconderebbe il piano che il validatore
-	 * rifiutera'.
-	 *
-	 * Statica e pura per la stessa ragione di `ComputePlannedHitMarks`: non tocca la selezione, quindi non
-	 * puo' dipenderne.
-	 */
-	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
-
-	/**
 	 * Come si legge l'ANDATURA dello slot movimento, o un testo **vuoto** quando non c'e' niente da dire
 	 * (`#1410` `AC-1`, [D-425]).
 	 *
@@ -794,26 +761,16 @@ public:
 	/**
 	 * Che cosa riempie lo slot MOVIMENTO, andatura compresa (`#1410` `AC-1`, [D-425]).
 	 *
-	 * 🔑 **E' la sede UNICA, e la sua ragione e' un difetto misurato.** `ComposeSlotLines` la usa per il
-	 * Canvas e il chip MOVIMENTO del pannello UMG (`URTSelectedUnitPanelWidget::RefreshLook`, dalla seduta `U76`): prima il pannello
+	 * 🔑 **E' la sede UNICA, e la sua ragione e' un difetto misurato.** Il chip MOVIMENTO del pannello UMG
+	 * (`URTSelectedUnitPanelWidget::RefreshLook`, dalla seduta `U76`) la usa: prima il pannello
 	 * legava `GetSlots()` e mostrava il `DisplayName` grezzo mentre il Canvas componeva la riga, cioe' due
-	 * rese dello stesso fatto che divergevano gia' — e l'andatura avrebbe aggiunto la terza.
+	 * rese dello stesso fatto che divergevano gia' — e l'andatura avrebbe aggiunto la terza. Il Canvas e'
+	 * uscito con #1936 e `ComposeSlotLines` con lui (D-538): oggi la resa e' una sola.
 	 *
 	 * ⚠️ **L'andatura RAFFINA il ripiego, non lo scavalca**: un'azione che occupa lo slot resta chiamata
 	 * col proprio nome. L'andatura parla del movimento senza nome, che e' il caso di cui [D-425] si occupa.
 	 */
 	static FText DescribeMovementSlot(const struct FRTUnitSlotsView& Slots);
-
-	/**
-	 * Il colore di una riga della terna: bianco per lo slot speso, grigio per quello libero.
-	 *
-	 * ⚠️ **Il colore e' l'unico canale.** Il testo di uno slot libero («Reazione: libero») e di uno speso
-	 * («Reazione: Contrattacco») sono entrambi frasi compiute, quindi scambiare i colori non rompe niente di
-	 * visibile: inverte la lettura, che e' peggio.
-	 *
-	 * ⛔ Decide il COLORE e non riscrive l'etichetta: quella e' di `ComposeSlotLines`, che ha i suoi test.
-	 */
-	static FRTHudTextLine ComposeSlotLineStyle(const FRTSlotLine& SlotLine);
 
 	/**
 	 * La headline di fine partita: l'esito e la VIA che l'ha determinato, in quest'ordine (CP 10.3).
@@ -917,7 +874,7 @@ public:
 	/**
 	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
 	 *
-	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * Statica e PURA sul modello di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura headless e non l'avra',
 	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
 	 *
 	 * 🔑 **Prende la VISTA, non l'unita'.** `FRTAbilityCooldownView` porta gia' `TurnsRemaining` e
@@ -935,17 +892,6 @@ public:
 	static FRTHudTextLine ComposeAbilityLine(const struct FRTAbilityCooldownView& Ability, bool bArmed);
 
 	/**
-	 * La riga di zona sopra la barra: quante celle il tiro sta per coprire, e se fra loro c'e' un alleato.
-	 *
-	 * ⚠️ **Testo vuoto quando non c'e' una zona puntata**, e non una riga vuota: dice la differenza fra
-	 * «sto scegliendo» e «sto per tirare», che dai soli contorni a terra non si legge.
-	 *
-	 * 🔴 L'avviso di fuoco amico e' la decisione con la conseguenza peggiore se sbagliata: chi la
-	 * legge sta per premere. Cambia al PRIMO alleato, non a una soglia.
-	 */
-	static FRTHudTextLine ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHitCells);
-
-	/**
 	 * Come rendere un intento, dato il livello di certezza che la vista **porta gia' calcolato** (CP 11.2).
 	 *
 	 * ⚠️ **Legge `View.Certainty` e non lo ricalcola**, ed e' il primo invariante della issue: `ClassifyPlan`
@@ -960,7 +906,7 @@ public:
 	 * `Unknown` vale zero. Distinguerlo *visivamente* da `Uncertain` chiederebbe una quarta grammatica per uno
 	 * stato che non deve arrivare a schermo, e il catalogo icone ne pretende **tre** apposta.
 	 *
-	 * Statica e pura come `ComposeSlotLines`: cosi' i tre livelli si verificano senza montare una partita, che
+	 * Statica e pura come `ComputePlannedHitMarks`: cosi' i tre livelli si verificano senza montare una partita, che
 	 * e' cio' che il DoD chiede quando dice «un test headless su `ARTHUD`».
 	 */
 	static FRTIntentCertaintyStyle ComposeIntentCertaintyStyle(const struct FRTIntentView& View);
@@ -971,7 +917,7 @@ public:
 	 * ⚠️ **Statica e non una lambda dentro `DrawHUD`, dopo che la code review ha notato che l'unica geometria
 	 * nuova era l'unica parte senza test.** Il conteggio dei tratti, il rapporto acceso/spento e il tetto qui
 	 * sotto sono decisioni verificabili, e questa classe tiene le decisioni verificabili nelle statiche —
-	 * `ClampOverlayAnchor`, `ComputePlannedHitMarks`, `ComposeSlotLines`.
+	 * `ClampOverlayAnchor`, `ComputePlannedHitMarks`.
 	 *
 	 * 🔴 **Il tetto sul numero di tratti non e' prudenza: senza, un solo segmento poteva costare centinaia di
 	 * migliaia di `DrawLine` in un frame.** `UCanvas::Project` divide per una `W` che viene solo *clampata* a
@@ -1047,7 +993,7 @@ public:
 	/**
 	 * Chi ha una riga d'intento sopra la testa, con che etichetta completa e di che colore.
 	 *
-	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * Statica e PURA sul modello di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura headless e non l'avra',
 	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
 	 *
 	 * 🔑 **Non tocca la geometria, e non e' un caso.** Le tre decisioni dipendono dalla sola vista:
@@ -1255,7 +1201,7 @@ public:
 	/**
 	 * La barra di stato in alto: contatore del round, fase o riproduzione, timer, progresso sull'obiettivo.
 	 *
-	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra' —
+	 * Statica e PURA sul modello di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura headless e non l'avra' —
 	 * e' un `AHUD::DrawHUD` che il motore chiama ogni fotogramma — quindi cio' che si puo' sbagliare deve
 	 * stare dove i test arrivano (#2184).
 	 *
@@ -1268,9 +1214,9 @@ public:
 	 * `URTHudViewModel::BuildMatchHeader` per lo Screen HUD: leggere i campi una seconda volta dal
 	 * `TurnManager` creava due sedi per lo stesso dato, che si scollegano al primo campo aggiunto a una sola.
 	 *
-	 * ⛔ **Non compone il controllo di velocita'**, che `DrawHUD` appende dopo: quello ha gia' la sua statica
-	 * (`ComposePlaybackSpeedLabel`) e i suoi test, e legge un campo — `ViewerPlaybackSpeed` — che #1821 tiene
-	 * esplicitamente fuori scope in quanto campo.
+	 * ⛔ **Non compone il controllo di velocita'**: quello ha la sua statica (`ComposePlaybackSpeedLabel`) e legge
+	 * un campo — `ViewerPlaybackSpeed` — che #1821 tiene esplicitamente fuori scope in quanto campo. Il Canvas
+	 * che lo appendeva e' uscito (#1936); lo mette insieme ai suggerimenti `ComposeControlLabel` (D-538).
 	 *
 	 * @param PlaybackPhaseName   la fase che sta scorrendo. Letta solo se `Header.bResolving`.
 	 * @param PlaybackProgress01  avanzamento in `[0,1]`; mostrato in percento, arrotondato al piu' vicino.
@@ -1278,6 +1224,52 @@ public:
 	 */
 	static FString ComposeMatchStatusLine(const struct FRTMatchHeaderView& Header,
 		const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell);
+
+	/**
+	 * Il suggerimento del gesto che vale ORA: quale tasto premere, a seconda di dove si trova il turno
+	 * (D-538, #2764).
+	 *
+	 * ```
+	 * Risoluzione            ->  `[46%]  (Spazio: salta)`
+	 * Finestra di preparaz.  ->  `(P: pausa)`  /  `(P: riprendi)`
+	 * Countdown del Ready    ->  `(RMB: annulla)`
+	 * altrimenti             ->  vuoto
+	 * ```
+	 *
+	 * 🔑 **E' la sede UNICA di queste quattro stringhe.** `ComposeMatchStatusLine` le incolla alla propria riga
+	 * e l'header UMG (`URTTurnHeaderWidget`) le mostra da solo: prima vivevano soltanto dentro quella riga, che
+	 * dal 2026-09-08 (#1936) non ha piu' un chiamante, e `Spazio`, `RMB` e `P` funzionavano senza dire di
+	 * esistere. Due copie del testo sarebbero due occasioni di divergere, e la divergenza non fallisce nessun
+	 * test: mostra solo un tasto sbagliato.
+	 *
+	 * ⚠️ **Il gesto si NOMINA, e cambia con lo stato**: un `P: pausa` su una finestra gia' ferma direbbe di fare
+	 * cio' che si e' appena fatto. Un HUD non ha un hover su cui passare il mouse: una scorciatoia non scritta e'
+	 * una scorciatoia che non esiste.
+	 *
+	 * ⚠️ **Le tre condizioni sono mutuamente esclusive per costruzione** (vedi `FRTMatchHeaderView`), e l'ordine
+	 * qui e' quello della riga di stato: la risoluzione, poi la preparazione, poi il Ready.
+	 *
+	 * @param PlaybackProgress01  avanzamento in `[0,1]`, letto solo in Risoluzione. Il clamp e' QUI e non nel
+	 *                            chiamante: questa e' una statica PUBBLICA, e un chiamante che passasse un
+	 *                            `Elapsed/Total` grezzo farebbe stampare `[-2147483648%]` (`RoundToInt` su un NaN).
+	 */
+	static FString ComposeControlHint(const struct FRTMatchHeaderView& Header, float PlaybackProgress01);
+
+	/**
+	 * Il suggerimento e il controllo di velocita' in una riga sola:
+	 * `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`  /  `Velocità: x1 (V)`.
+	 *
+	 * 🔑 **La velocita' si nomina SEMPRE, anche fuori dalla risoluzione, ed e' una decisione d'autore antica**
+	 * (CP 47.7, #1015): chi guarda una partita non presidiata sceglie il ritmo PRIMA che il round parta, e una
+	 * manopola che compare solo mentre scorre costringe a inseguirla. Il Canvas che la disegnava e' uscito con
+	 * #1936 lasciando `V` e `Spazio` senza etichetta; l'header UMG la riprende da qui.
+	 *
+	 * ⚠️ Il tasto e' nominato accanto al valore, come `(Spazio: salta)`, per la stessa ragione.
+	 *
+	 * @param ViewerSpeed  la scelta di chi guarda (`ARTTurnManager::ViewerPlaybackSpeed`). Non positiva = `x1`.
+	 */
+	static FString ComposeControlLabel(const struct FRTMatchHeaderView& Header, float PlaybackProgress01,
+		float ViewerSpeed);
 
 private:
 	/**

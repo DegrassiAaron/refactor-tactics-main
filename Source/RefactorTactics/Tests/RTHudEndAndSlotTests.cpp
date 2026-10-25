@@ -1,5 +1,8 @@
-// Due decisioni di presentazione uscite da `ARTHUD::DrawHUD`: il colore della terna degli slot e la
-// headline di fine partita.
+// Una decisione di presentazione uscita da `ARTHUD::DrawHUD`: la headline di fine partita.
+//
+// Qui stava anche il colore della terna degli slot (`ComposeSlotLineStyle`), ritirato con D-538 (#2764) insieme
+// alla terna che colorava: il Canvas era uscito con #1936 e il pannello UMG decide i propri colori con i token
+// della palette (`Text_Primary`, `Text_Disabled`), con i suoi test.
 //
 // Perché esistono (#2184): entrambe vivevano nel metodo che il motore chiama ogni fotogramma e che **non
 // ha copertura headless**. La verifica di chiusura del **2026-09-05** classificava i 29 condizionali *di
@@ -12,10 +15,6 @@
 // era la classificazione: era il tempo verbale. 🔑 **Una verifica di chiusura misura uno stato che altre
 // issue muovono**, quindi si data e si rifà — non si scrive al presente come se fosse una proprietà.
 //
-// 🔴 **La terna è lo stesso schema della barra abilità.** `ComposeSlotLines` produce già
-// `FRTSlotLine{Text, bOccupied}` ed è testata, ma il **colore derivato da `bOccupied`** era rimasto nel
-// Canvas: il modello portava il dato e chi disegna ne ri-derivava la presentazione.
-//
 // ⚠️ **`TestEqualSensitive` e non `TestEqual`**: su stringhe `TestEqual` passa da `FCString::Stricmp`
 // (`AutomationTest.cpp:2163`) ed è case-insensitive.
 
@@ -24,49 +23,6 @@
 #include "Turn/RTTurnRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
-
-/**
- * La terna movimento / principale / reazione: bianco per lo slot speso, grigio per quello libero.
- *
- * ⚠️ **Il colore è l'unico canale**: il testo di uno slot libero (`«Reazione: libero»`) e di uno speso
- * (`«Reazione: Contrattacco»`) sono entrambi frasi compiute, quindi scambiare i colori non produce nulla
- * di visibilmente rotto — produce una lettura invertita, che è peggio.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudSlotLineStyleTest,
-	"RefactorTactics.HUD.SlotLineColorsSpentAndFreeApart",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHudSlotLineStyleTest::RunTest(const FString&)
-{
-	FRTSlotLine Speso;
-	Speso.Text = TEXT("Reazione: Contrattacco");
-	Speso.bOccupied = true;
-
-	FRTSlotLine Libero;
-	Libero.Text = TEXT("Reazione: libero");
-	Libero.bOccupied = false;
-
-	const FRTHudTextLine A = ARTHUD::ComposeSlotLineStyle(Speso);
-	const FRTHudTextLine B = ARTHUD::ComposeSlotLineStyle(Libero);
-
-	// Il testo passa intatto: questa funzione decide il COLORE, non riscrive l'etichetta — quella è di
-	// `ComposeSlotLines`, che ha i suoi test.
-	TestEqualSensitive(TEXT("il testo dello slot passa intatto"), A.Text, FString(TEXT("Reazione: Contrattacco")));
-	TestEqualSensitive(TEXT("anche quello dello slot libero"), B.Text, FString(TEXT("Reazione: libero")));
-
-	TestTrue(TEXT("slot occupato: bianco"), A.Color.Equals(FLinearColor::White));
-	TestTrue(TEXT("slot libero: grigio"), B.Color.Equals(FLinearColor(0.55f, 0.55f, 0.55f, 1.f)));
-	TestFalse(TEXT("i due colori non collassano"), A.Color.Equals(B.Color));
-
-	// 🔴 **Il valore del grigio è pinnato di proposito.** Il commento accanto al codice afferma «la stessa
-	// scala che la barra abilità usa già», ma quella usa `0.8` e `0.45` mentre la terna usa `0.55`: senza
-	// questo caso l'affermazione non ha soggetto e il numero può derivare a ogni ritocco. Se un giorno le
-	// due scale vanno davvero unificate, è questo test a doverlo dichiarare.
-	TestTrue(TEXT("il grigio della terna e' 0.55"),
-		FMath::IsNearlyEqual(B.Color.R, 0.55f) && FMath::IsNearlyEqual(B.Color.G, 0.55f)
-			&& FMath::IsNearlyEqual(B.Color.B, 0.55f));
-
-	return true;
-}
 
 /**
  * La headline di fine partita: **l'esito e la VIA che l'ha determinato**, in quest'ordine.

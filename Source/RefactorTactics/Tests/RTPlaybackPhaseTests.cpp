@@ -15,6 +15,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "UI/RTHudViewModel.h" // BuildMatchHeader: la vista dell'header si costruisce come la costruisce l'HUD
+#include "UI/RTHUD.h" // ComposeControlLabel: la sede unica dei gesti che l'header mostra (D-538)
 #include "UI/RTScreenHudWidgets.h" // URTTurnHeaderWidget: la resa delle tavole A e D (#3635)
 #include "UI/RTUIPalette.h"
 #include "Turn/RTMatchFormatData.h" // FRTMatchRules: limite e soglia del formato
@@ -766,6 +767,121 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 	W->RefreshLook(/*bRecheckObjective=*/ false);
 	TestTrue(TEXT("D: dopo il playback torna il gruppo della Pianificazione"), Visibile(W->PlanningGroup));
 	TestFalse(TEXT("D: e il gruppo della Risoluzione si chiude"), Visibile(W->ResolutionGroup));
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * IL SUGGERIMENTO DEI GESTI NELL'HEADER (D-538, #2764). `Spazio`, `V`, `RMB` e `P` funzionavano e nessun widget lo
+ * diceva: i testi vivevano solo dentro una riga di stato senza piu' chiamanti. Il banco e' quello di
+ * `TurnHeaderLookFollowsTheBoard`: un turno vero con Dash, Blast e Move, riprodotto tick per tick.
+ *
+ * Le cinque cose misurate:
+ *  1. senza contesto di partita l'etichetta e' vuota;
+ *  2. in Pianificazione resta la sola velocita', COL TASTO: `Velocit\u00e0: x1 (V)`;
+ *  3. la scelta di chi guarda si legge (`x4`), anche fuori dalla Risoluzione;
+ *  4. in Risoluzione, A OGNI TICK, il testo del widget e' quello del compositore e nomina `(Spazio: salta)`;
+ *  5. a playback finito il gesto di salto sparisce e resta la velocita'.
+ *
+ * Il confronto e' per UGUAGLIANZA col compositore, come `ActionSlotLineIsTheSameComposerAsTheHud`: una composizione
+ * locale nel widget non lo fa passare. I testi si confrontano CaseSensitive.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnHeaderControlHintTest,
+	"RefactorTactics.ScreenHud.TurnHeaderShowsWhatTheKeysDoNow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	URTHexMapAsset* Mappa = SpawnPlaybackMap(World);
+
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTTurnHeaderWidget* W = NewObject<URTTurnHeaderWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager spawnato"), TM) || !Dasher || !Target || !Mappa || !W)
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	W->ControlHintText = NewObject<UTextBlock>(W);
+
+	const auto Scritto = [W]() { return W->ControlHintText->GetText().ToString(); };
+	const auto Uguale = [](const FString& A, const FString& B) { return A.Equals(B, ESearchCase::CaseSensitive); };
+	const auto Composto = [TM]()
+	{
+		return ARTHUD::ComposeControlLabel(URTHudViewModel::BuildMatchHeader(TM), TM->GetPlaybackProgress01(),
+			TM->ViewerPlaybackSpeed);
+	};
+
+	// --- 1. Senza contesto di partita ------------------------------------------------------------------------------
+	W->RefreshLook(/*bRecheckObjective=*/ false);
+	TestTrue(TEXT("1: senza contesto l'etichetta e' vuota"), Scritto().IsEmpty());
+	TestTrue(TEXT("1: e il getter dice lo stesso"), W->GetControlHintText().IsEmpty());
+
+	W->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	// --- 2. Pianificazione: la sola velocita', col tasto ------------------------------------------------------------
+	TM->ViewerPlaybackSpeed = 1.f;
+	W->RefreshLook(false);
+	TestTrue(TEXT("2: in Pianificazione la riga nomina la velocita' e il suo tasto"),
+		Uguale(Scritto(), TEXT("Velocit\u00e0: x1 (V)")));
+	TestTrue(TEXT("2: il getter dice lo stesso del testo scritto"), Uguale(W->GetControlHintText().ToString(), Scritto()));
+
+	// --- 3. La scelta di chi guarda si legge ------------------------------------------------------------------------
+	TM->ViewerPlaybackSpeed = 4.f;
+	W->RefreshLook(false);
+	TestTrue(TEXT("3: la velocita' scelta, x4, si legge anche in Pianificazione"),
+		Uguale(Scritto(), TEXT("Velocit\u00e0: x4 (V)")));
+
+	// --- 4. Risoluzione: a ogni tick il widget dice cio' che dice il compositore -----------------------------------
+	TM->ViewerPlaybackSpeed = 2.f;
+	const int32 DashIdx = Dasher->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+	Dasher->PlannedDashAbility = DashIdx;
+	Dasher->PlannedDashCell = FRTCellId(3, 2);
+	Dasher->PlannedAbilityIndex = 0;
+	Dasher->PlannedAttackTarget = Target;
+	Target->PlannedCell = FRTCellId(4, 5);
+	TM->LockInAndResolve();
+
+	int32 TickRisoluzione = 0;
+	int32 DiversoDalCompositore = 0;
+	int32 SenzaGestoDiSalto = 0;
+	FString PrimaRiga;
+	for (int32 Tick = 0; Tick < 600 && TM->IsResolving(); ++Tick)
+	{
+		W->RefreshLook(/*bRecheckObjective=*/ false);
+		const FString Atteso = Composto();
+		if (TickRisoluzione == 0)
+		{
+			PrimaRiga = Scritto();
+		}
+		++TickRisoluzione;
+		DiversoDalCompositore += Uguale(Scritto(), Atteso) ? 0 : 1;
+		DiversoDalCompositore += Uguale(W->GetControlHintText().ToString(), Atteso) ? 0 : 1;
+		SenzaGestoDiSalto += Scritto().Contains(TEXT("(Spazio: salta)"), ESearchCase::CaseSensitive) ? 0 : 1;
+		TM->Tick(0.05f);
+	}
+	TestFalse(TEXT("premessa: il playback e' finito entro il tetto di tick"), TM->IsResolving());
+	TestTrue(TEXT("premessa: ci sono stati tick di Risoluzione"), TickRisoluzione > 0);
+	TestEqual(*FString::Printf(TEXT("4: in %d tick il testo del widget e' sempre quello del compositore"), TickRisoluzione),
+		DiversoDalCompositore, 0);
+	TestEqual(TEXT("4: e a ogni tick nomina il gesto per saltare"), SenzaGestoDiSalto, 0);
+	TestTrue(*FString::Printf(TEXT("4: e chiude col controllo di velocita' (\"%s\")"), *PrimaRiga),
+		PrimaRiga.EndsWith(TEXT("Velocit\u00e0: x2 (V)"), ESearchCase::CaseSensitive));
+
+	// --- 5. Dopo il playback il salto sparisce, la velocita' resta ----------------------------------------------------
+	W->RefreshLook(false);
+	TestFalse(TEXT("5: a playback finito il gesto di salto non c'e' piu'"),
+		Scritto().Contains(TEXT("(Spazio: salta)"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("5: ma la velocita' resta nominata, col tasto"), Scritto().Contains(TEXT("(V)"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("5: ed e' ancora quella del compositore"), Uguale(Scritto(), Composto()));
 
 	DestroyPlaybackWorld(World);
 	return true;

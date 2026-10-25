@@ -339,29 +339,6 @@ TOptional<FRTContactGhostTarget> ARTHUD::ContactGhostTargetForUnit(const FRTKnow
 	return Target;
 }
 
-namespace
-{
-	/**
-	 * Compone una riga della terna.
-	 *
-	 * `BusyWithoutName` arriva da fuori invece di essere una costante qui dentro perche' il ripiego di uno
-	 * slot occupato SENZA nome non e' lo stesso per tutti e tre: sul movimento e' un percorso tracciato a
-	 * waypoint — il caso piu' comune del gioco — mentre su principale e reazione un'occupazione senza azione
-	 * non ha un nome proprio, e chiamarla «percorso» sarebbe una riga che mente su cosa sta succedendo.
-	 *
-	 * «libero» invece resta costante: uno slot vuoto e' vuoto allo stesso modo su tutti e tre.
-	 */
-	FRTSlotLine ComposeOneSlotLine(const TCHAR* SlotLabel, const FText& BusyWithoutName,
-		const FRTPlannedSlotView& Slot)
-	{
-		FRTSlotLine Line;
-		Line.bOccupied = Slot.bOccupied;
-		Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel,
-			*ARTHUD::DescribeSlotContents(Slot, BusyWithoutName).ToString());
-		return Line;
-	}
-}
-
 FText ARTHUD::DescribeSlotContents(const FRTPlannedSlotView& Slot, const FText& BusyWithoutName)
 {
 	if (!Slot.bOccupied)
@@ -425,31 +402,6 @@ FText ARTHUD::DescribeMovementProfile(FName MovementProfileId)
 	// `GetCoreMovementProfileCatalog()` e pretende che ogni profilo abbia una resa non vuota **oppure** sia
 	// in un elenco esplicito di «volutamente lisci». Un sesto profilo non passa piu' in silenzio.
 	return FText::GetEmpty();
-}
-
-TArray<FRTSlotLine> ARTHUD::ComposeSlotLines(const FRTUnitSlotsView& Slots)
-{
-	// 🔑 **L'andatura raffina il descrittore dello slot movimento, e non aggiunge una quarta riga.** Gli
-	// slot sono TRE ([D-028]): una riga in piu' direbbe che ce n'e' un quarto. E si innesta esattamente su
-	// `BusyWithoutName`, il parametro che il docstring di `ComposeOneSlotLine` gia' dichiara diverso per
-	// slot e non costante — *«sul movimento e' un percorso tracciato a waypoint»*.
-	//
-	// ⚠️ **Non scavalca il nome dell'azione.** `ComposeOneSlotLine` preferisce `DisplayName` quando c'e',
-	// quindi una mobilita' che occupa lo slot continua a chiamarsi col proprio nome: l'andatura parla solo
-	// del movimento senza nome, che e' il caso di cui [D-425] si occupa.
-	// ⏱️ *Fino al 2026-09-17 la riga del movimento componeva l'andatura QUI.* Ora passa da
-	// `DescribeMovementSlot`, che e' la sede unica: il pannello UMG lega la stessa funzione, quindi Canvas e
-	// widget non possono divergere su cosa riempie lo slot. Era gia' successo — il pannello mostrava il
-	// `DisplayName` grezzo mentre il Canvas componeva la riga — ed e' il difetto che questa sede chiude.
-	FRTSlotLine Movimento;
-	Movimento.bOccupied = Slots.Movement.bOccupied;
-	Movimento.Text = FString::Printf(TEXT("Movimento: %s"), *DescribeMovementSlot(Slots).ToString());
-
-	return {
-		Movimento,
-		ComposeOneSlotLine(TEXT("Principale"), NSLOCTEXT("RTHud", "SlotBusyMain", "occupata"), Slots.Main),
-		ComposeOneSlotLine(TEXT("Reazione"),   NSLOCTEXT("RTHud", "SlotBusyReaction", "armata"), Slots.Reaction),
-	};
 }
 
 FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView& View)
@@ -1716,14 +1668,10 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		// Durante il playback: fase in riproduzione + avanzamento + come saltare. La fase del MODELLO non
 		// si nomina qui — quella che scorre e' un'altra, e dirle entrambe direbbe che il gioco e' in due
 		// fasi insieme.
-			// ⚠️ **Il clamp e' qui e non nel chiamante.** La garanzia `[0,1]` era strutturale finche' l'unico
-		// chiamante passava da `ARTTurnManager::GetPlaybackProgress01()`, che clampa; questa e' una statica
-		// PUBBLICA, e un secondo chiamante — il viewer di replay, che nomina gia' `FRTMatchHeaderView` come
-		// proprio modello — puo' passare un `Elapsed/Total` grezzo. `FMath::RoundToInt` su x64 rende
-		// `0x80000000` per un NaN: la barra stamperebbe `[-2147483648%]`.
-		const int32 Pct = FMath::RoundToInt(FMath::Clamp(PlaybackProgress01, 0.f, 1.f) * 100.f);
-		Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
-			*TurnCounter, *PlaybackPhaseName, Pct);
+		// L'avanzamento e il gesto per saltare li compone `ComposeControlHint`, che e' la sede unica: l'header UMG
+		// li mostra dalla stessa funzione, e il clamp di `[0,1]` vive li'.
+		Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  %s"),
+			*TurnCounter, *PlaybackPhaseName, *ComposeControlHint(Header, PlaybackProgress01));
 	}
 	else
 	{
@@ -1749,9 +1697,8 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 			// Il gesto si NOMINA, come `(Spazio: salta)` e `(RMB: annulla)`. ⚠️ **E cambia con lo stato**: un
 			// «P: pausa» stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena
 			// fatto. Il residuo resta a schermo anche in pausa — e' quanto manca alla ripresa, non zero.
-			Status += FString::Printf(TEXT("  -  %.0fs  (P: %s)"),
-				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining),
-				Header.bPrepWindowPaused ? TEXT("riprendi") : TEXT("pausa"));
+			Status += FString::Printf(TEXT("  -  %.0fs  %s"),
+				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining), *ComposeControlHint(Header, PlaybackProgress01));
 		}
 		else if (bReadyCountdown)
 		{
@@ -1771,7 +1718,8 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 
 			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
 			// avere tre secondi senza sapere cosa farne non e' informazione.
-			Status += FString::Printf(TEXT("  -  %.0fs  (RMB: annulla)"), FMath::CeilToFloat(ToCommit));
+			Status += FString::Printf(TEXT("  -  %.0fs  %s"), FMath::CeilToFloat(ToCommit),
+				*ComposeControlHint(Header, PlaybackProgress01));
 		}
 		else if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
 		{
@@ -1799,6 +1747,46 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 
 	return Status;
+}
+
+FString ARTHUD::ComposeControlHint(const FRTMatchHeaderView& Header, float PlaybackProgress01)
+{
+	// In riproduzione: quanto e' scorso e come saltare. Il clamp e' QUI e non nel chiamante: la garanzia `[0,1]`
+	// era strutturale finche' l'unico chiamante passava da `ARTTurnManager::GetPlaybackProgress01()`, che clampa;
+	// questa e' una statica PUBBLICA, e un secondo chiamante - il viewer di replay, che nomina gia'
+	// `FRTMatchHeaderView` come proprio modello - puo' passare un `Elapsed/Total` grezzo. `FMath::RoundToInt` su
+	// x64 rende `0x80000000` per un NaN: la barra stamperebbe `[-2147483648%]`.
+	if (Header.bResolving)
+	{
+		const int32 Pct = FMath::RoundToInt(FMath::Clamp(PlaybackProgress01, 0.f, 1.f) * 100.f);
+		return FString::Printf(TEXT("[%d%%]  (Spazio: salta)"), Pct);
+	}
+
+	// La finestra di preparazione dell'autobattle (`#2386`). Il gesto si NOMINA, e cambia con lo stato: un
+	// `P: pausa` stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena fatto.
+	if (Header.PrepWindowSecondsRemaining >= 0.f)
+	{
+		return FString::Printf(TEXT("(P: %s)"), Header.bPrepWindowPaused ? TEXT("riprendi") : TEXT("pausa"));
+	}
+
+	// Il countdown del Ready (`#2193`, `#2358`): sapere di avere qualche secondo senza sapere cosa farne non e'
+	// informazione.
+	if (Header.ReadyCountdownSecondsRemaining >= 0.f)
+	{
+		return TEXT("(RMB: annulla)");
+	}
+
+	return FString();
+}
+
+FString ARTHUD::ComposeControlLabel(const FRTMatchHeaderView& Header, float PlaybackProgress01, float ViewerSpeed)
+{
+	// La velocita' si nomina SEMPRE, anche fuori dalla risoluzione, e non e' una svista: chi guarda una partita
+	// non presidiata sceglie il ritmo PRIMA che il round parta (CP 47.7, #1015). Il tasto sta accanto al valore,
+	// come i gesti di `ComposeControlHint`.
+	const FString Speed = FString::Printf(TEXT("Velocit\u00e0: %s (V)"), *ComposePlaybackSpeedLabel(ViewerSpeed));
+	const FString Hint = ComposeControlHint(Header, PlaybackProgress01);
+	return Hint.IsEmpty() ? Speed : FString::Printf(TEXT("%s  -  %s"), *Hint, *Speed);
 }
 
 FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability, bool bArmed)
@@ -1849,39 +1837,6 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 	Line.Color = bArmed
 		? FLinearColor::White
 		: (Ability.bUsableNow ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
-
-	return Line;
-}
-
-FRTHudTextLine ARTHUD::ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHitCells)
-{
-	FRTHudTextLine Line;
-
-	// Nessuna cella puntata: nessuna riga. Un «TIRO: 0 celle» direbbe che sto mirando a niente, che e'
-	// un'altra cosa dal non star mirando.
-	if (NumHitCells <= 0)
-	{
-		return Line;
-	}
-
-	Line.Text = FString::Printf(TEXT("TIRO: %d celle"), NumHitCells);
-	if (NumAllyHitCells > 0)
-	{
-		Line.Text += FString::Printf(TEXT("  -  %d ALLEATO%s NELLA ZONA"),
-			NumAllyHitCells, NumAllyHitCells > 1 ? TEXT("/I") : TEXT(""));
-	}
-
-	// Arancione quando c'e' fuoco amico: **lo stesso letterale** del nome marcato sopra la testa, che dal
-	// 2026-09-04 (#2288) vive in `UI/RTUnitOverlayWidget.cpp:48` sotto `View.bFriendlyFire`. Le due
-	// informazioni devono riconoscersi come la stessa cosa detta in due posti.
-	//
-	// ⚠️ Il colore e' ripetuto e non condiviso: chi lo cambia deve cambiarlo in ENTRAMBE le sedi di
-	// produzione, e un test qui lo pinna. Una costante comune sarebbe la cura, ed e' fuori da questa fetta.
-	//
-	// Cambia al PRIMO alleato, non a una soglia: uno basta a rendere il tiro un'altra decisione.
-	Line.Color = NumAllyHitCells > 0
-		? FLinearColor(1.f, 0.6f, 0.12f, 1.f)
-		: FLinearColor(1.f, 0.35f, 0.3f, 1.f);
 
 	return Line;
 }
@@ -2086,30 +2041,6 @@ FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHe
 	}
 
 	return Out;
-}
-
-FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)
-{
-	FRTHudTextLine Riga;
-
-	// Il testo passa intatto: lo compone `ComposeSlotLines`, che ne e' l'owner e ha i suoi test.
-	Riga.Text = SlotLine.Text;
-
-	// Grigio per lo slot libero, bianco per quello speso.
-	//
-	// ⚠️ **Il colore e' l'UNICO canale**, e per questo scambiarlo e' peggio che sbagliare un testo:
-	// «Reazione: libero» e «Reazione: Contrattacco» sono entrambe frasi compiute, quindi un'inversione non
-	// rompe niente di visibile — inverte la lettura, e nessuno se ne accorge guardando.
-	//
-	// ⚠️ **La scala NON coincide con quella della barra abilita', anche se il commento precedente lo
-	// lasciava intendere**: la barra usa bianco / `0.8` / `0.45` per «armata / pronta / inutilizzabile», qui
-	// ci sono due soli livelli e il grigio e' `0.55`. La convenzione condivisa e' «bianco = attivo», non il
-	// valore. Il numero e' ora pinnato da un test proprio perche' quell'affermazione avesse un soggetto.
-	Riga.Color = SlotLine.bOccupied
-		? FLinearColor::White
-		: FLinearColor(0.55f, 0.55f, 0.55f, 1.f);
-
-	return Riga;
 }
 
 const FLinearColor ARTHUD::MatchEndRestartInk(0.85f, 0.85f, 0.85f, 1.f);
