@@ -163,12 +163,14 @@ File: [`pacing_20261026-094554.csv`](../g13/v3/pacing_20261026-094554.csv), [`es
 
 I passi 1-4 sul v2 erano ✅ (3 e 4 con una richiesta, [#3860](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3860)); il v3 non cambia nulla che li riguardi, ma non è stato rieseguito. **`G16` è `⏳` sul v3**: la DoD dà a `⏳` il significato di *giro non eseguito*, ed è così. Non è ✅. Non lo chiamo 🔴 perché sul v3 non c'è un passo ❌ misurato; ma l'altra metà della lamentela del passo 5 resta (sopra), quindi **non va letto come *«il difetto è corretto»***: è corretta la riga dell'indice ([#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859)), non l'elenco delle partite interrotte.
 
+➕ **Dopo, 2026-10-26: l'autore ha scelto la deroga per i passi 1-4** ([`D-545`](../../../decisions/RT_PDR_00_Decision_Log.md), «deroga alla decisioni, continuiamo con gli sviluppi»; lettura in `D-545`): valgono i suoi giudizi sul giro del 2026-10-26 sul v2. **Il passo 5 resta da guardare** e `G16` resta `⏳`. Confrontato con la specifica: [#472](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472) chiede al viewer play e pausa, e nell'asset non sono cablati (nessuna occorrenza di `CallFunc_Play`, `CallFunc_Pause`, `GetCurrentPhaseEntries` in `Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset`; il pulsante di ritorno non ha etichetta): [#3868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3868). Quindi il *«non so se sia il comportamento voluto»* qui sopra ha una risposta: Play/Pausa sono richiesti dall'owner e mancano.
+
 ## 9. `G14`
 
-Misurato **dopo** l'aggiornamento di tutte le celle e di questo documento (il gate allinea anche i loro esiti) **e di nuovo dopo [`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md)**, che ha cambiato la cella di `G13`, il banner della DoD e la sequenza di chiusura; sull'albero della PR di `D-544`, basato su `main` `b7168b503`. Con i due comandi del criterio, ciascuno con l'`EXIT` letto subito e non dopo una pipe:
+Misurato **dopo** l'aggiornamento di tutte le celle e di questo documento (il gate allinea anche i loro esiti) **e di nuovo dopo [`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md) e [`D-545`](../../../decisions/RT_PDR_00_Decision_Log.md)**, che hanno cambiato le celle di `G13`, `G9` e `G16`, il banner della DoD e la sequenza di chiusura; sull'albero della PR di `D-545`, basato su `main` `06206c548`. Con i due comandi del criterio, ciascuno con l'`EXIT` letto subito e non dopo una pipe:
 
 - `node tools/radar/doc-coherence.ts --check` → `PASS A1` (284 voci del registro PIE, 116/34/7/127) · `PASS A2` · `PASS A3` · `PASS A4` · `PASS A5` (24 epic, somma CP 124, 124 id unici); exit 0.
-- `node tools/radar/doc-links.ts --check` → 8439 link esaminati in 524 documenti, *tutti i percorsi citati risolvono*; exit 0.
+- `node tools/radar/doc-links.ts --check` → 8463 link esaminati in 524 documenti, *tutti i percorsi citati risolvono*; exit 0.
 - `RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone`, rieseguito sulla DoD modificata con `python -X utf8 tools/suite/esegui.py RefactorTactics.Meta --timeout 540 --log <file>` e lo stesso comando per `RefactorTactics.PieSession`: famiglia `Meta` 15 su 15, tutti `Success`; famiglia `PieSession` 38 su 38, tutti `Success`. Comandi, uscite e le due righe del log del test: [`v3/g14-famiglie-meta-piesession.txt`](v3/g14-famiglie-meta-piesession.txt).
 - `node tools/radar/pie-verdict-age.ts --check` → exit 1 su `PIE-DEBUG-CONTEXT` (verdetto 2026-09-23, ultima modifica di `RTContextInspector.cpp` 2026-09-24): **già rosso prima di questa tornata** (stessa voce nell'Onda 3) e fuori dai due comandi di `G14`.
 
@@ -176,4 +178,17 @@ Misurato **dopo** l'aggiornamento di tutte le celle e di questo documento (il ga
 
 ## 10. Cosa NON è stato misurato
 
-`G9` (subset `RELEASE-V01` della PIE): una persona, **NOT RUN**. `G16`: §8, **NOT RUN** come giro. I giudizi percettivi di `G13` sul v3: §7 (non riespressi; l'autore ha scelto la deroga, [`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md)). Nessuna PIE è stata eseguita in questa tornata. **Packaged** per `G2` è la metà di §2; **Performance** è la misura di §6 con le riserve scritte.
+`G9` (subset `RELEASE-V01` della PIE): **non rieseguito sul v3**, nessuna PIE eseguita in questa tornata; vale per deroga d'autore ([`D-545`](../../../decisions/RT_PDR_00_Decision_Log.md), §11). `G16`: §8, giro **NOT RUN**; passi 1-4 per deroga, passo 5 da guardare (§11). I giudizi percettivi di `G13` sul v3: §7 (non riespressi; l'autore ha scelto la deroga, [`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md)). Nessuna PIE è stata eseguita in questa tornata. **Packaged** per `G2` è la metà di §2; **Performance** è la misura di §6 con le riserve scritte.
+
+
+## 11. `G9` e `G16` passi 1-4 — per deroga d'autore ([`D-545`](../../../decisions/RT_PDR_00_Decision_Log.md))
+
+Le 17 voci di `G9` e i passi 1-4 di `G16` valgono sul v3 coi verdetti che l'autore ha già dato; il passo 5 di `G16` resta da guardare. La lettura di «deroga alla decisioni» e i suoi limiti sono in `D-545`.
+
+**`G9`, lo stato delle 17 voci a oggi.** Le voci si contano col comando della DoD §3 (riga `G9`) → 17; lo stato si legge dalla quinta cella, scorrendo dalla fine al primo campo che porta un'icona. Esito: **17 ✅ · 0 🟡 · 0 ❌ · 0 ⏳**. Elenco, con la *prima data citata* nella cella di stato — un'euristica di lettura, **non** la data del verdetto — in [`v3/g9-voci-release-v01-2026-10-26.txt`](v3/g9-voci-release-v01-2026-10-26.txt): dal 2026-08-08 al 2026-10-15.
+
+⚠️ **Una correzione al rapporto che l'autore ha letto**: citava «verdetti dal 2026-08-09 al 2026-10-15». Era la data più recente citata in ciascuna riga, non la data dei verdetti.
+
+**Che cosa non è stato fatto.** Nessuna voce giocata sul v3. `node tools/radar/pie-verdict-age.ts --check` stampa il numero di verdetti che dichiarano che cosa osservano sul totale (`copertura: …`) e ha un solo rosso, `PIE-DEBUG-CONTEXT`, che non è nel subset: non garantisce che le 17 voci non siano scadute. Nessuna delle 17 voci nomina, nelle prime quattro celle della sua riga, `rtindex`, `history`, `cronologia` né `replay`: il solo file che cambia fra v2 e v3, `RTReplayRecording.cpp`, scrive l'indice delle partite, quindi per l'assistente nessuna delle 17 lo osserva. È l'esito di una **ricerca di parole**, non la rilettura delle 17 celle: una ragione, non una prova.
+
+**`G16`.** Passi 1-4: valgono i giudizi dell'autore sul giro del v2 (passi 1-2 ✅, passo 3 ✅, passo 4 ✅ con una richiesta, [#3860](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3860)); la ✅ dice *giudizio d'autore riportato*, non *giro eseguito sul v3 in una sola apertura*. Passo 5: §8, con la misura sul pacchetto e senza verdetto. `G16` resta `⏳` finché il passo 5 non ha un verdetto dell'autore.
