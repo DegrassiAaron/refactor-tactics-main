@@ -4514,6 +4514,9 @@ sessions:
       **Sul v3 il giro non è stato eseguito**: non c'è stata una persona, e l'Editor non si pilota da fuori (il pannello `Ability / Hero Lab` non si è aperto).
       `G16` è ⏳ sul v3, non 🔴. Il passo 5 ha una misura sul pacchetto, senza verdetto, in `docs/technical/evidence/85/misure-candidate-v3-2026-10-26.md` §8:
       la partita nuova compare nell'elenco come completa (`Outcome 3`, `TurnCount 12`), ma l'elenco mostra ancora le partite interrotte con «0 turni».
+      ➕ *Dopo, sul v3 (`D-545`, `D-546`)*: l'autore ha scelto la deroga per i passi 1-4 e ha giudicato il passo 5 ✅ sulla schermata della Cronologia partite, derogando la clausola
+      «archivio = partita dei passi 3-4». `G16` è ✅ per deroga; il giro non è stato eseguito sul v3 e nessuna persona ha giocato il pacchetto v3.
+      Limiti noti accettati: il Replay Viewer senza Play né Pausa (#3868) e le interrotte con «0 turni» (#3871).
 
       ⌫ *Giri precedenti, conservati:*
 
