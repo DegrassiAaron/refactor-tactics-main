@@ -9,11 +9,11 @@ rossi     nessuno
 log       (scratchpad di sessione, non archiviato)
 
 Dal log di quella corsa:
-[2026.10.26-14.42.25:009][599]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
-[2026.10.26-14.42.25:009][599]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
+[2026.10.26-15.22.38:134][598]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
+[2026.10.26-15.22.38:134][598]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.PieSession --timeout 540 --log <file>
-suite     finita in 30 s
+suite     finita in 40 s
 conteggi  trovati 38, avviati 38, completati 38
 rossi     nessuno
 log       (scratchpad di sessione, non archiviato)
