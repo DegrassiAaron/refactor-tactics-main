@@ -7,6 +7,7 @@
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTReplayRecording.h"
 #include "Replay/RTReplayStateLibrary.h"
 #include "Unit/RTUnit.h"
 #include "RTGameMode.h"
@@ -384,6 +385,85 @@ bool FRTReplayHistoryRowFollowsTheTurnsTest::RunTest(const FString&)
 	}
 
 	DestroyRecWorld(World);
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+	return true;
+}
+
+/**
+ * 🔴 **La riga legge il MANIFEST, non il contatore di chi chiama** (`#3871`).
+ *
+ * Il test sopra gioca turni veri, dove il numero del turno e i turni del manifest coincidono sempre: non distingue una
+ * riga che copia i turni dal manifest da una che copia `TurnNumber`. Qui si passa dalla struct di produzione
+ * (`FRTReplayRecording`, esercitabile senza un mondo) e si forzano i due casi in cui le due letture divergono:
+ * (a) un turno che il registratore RIFIUTA (saltato, ripetuto) non muove il manifest, e la riga non deve avanzare;
+ * (b) dopo la chiusura la riga resta quella del manifest — esito e replay completo — anche se qualcuno chiama ancora
+ * `RecordTurn`: la riga non e' un terzo stato, e' sempre `EntryFromManifest` di quello che il manifest dice ADESSO.
+ *
+ * Il confronto e' contro `GetManifest()`, mai contro un numero scritto a mano: il test pinna l'accoppiamento riga-manifest,
+ * non una particolarita' del registratore (che accetti o no un turno dopo la chiusura non e' affare di questa issue).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayHistoryRowReadsTheManifestTest,
+	"RefactorTactics.Replay.Recording.TheHistoryRowReadsTheManifestNotTheCaller",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayHistoryRowReadsTheManifestTest::RunTest(const FString&)
+{
+	const FString Root = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RecHistoryManifest"));
+	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+
+	FRTReplayRecording Rec;
+	Rec.Begin(URTMatchFormatLibrary::Skirmish2v2FormatId, TArray<int32>{ 0, 1 }, /*LocalObserverTeamId=*/ 0, Root);
+	const FGuid MatchId = Rec.GetMatchId();
+	TestTrue(TEXT("la registrazione ha un id"), MatchId.IsValid());
+
+	// Rilegge l'indice DAL FILE e confronta la riga della partita con il manifest IN MEMORIA di chi registra.
+	auto LaRigaDiceCioCheIlManifest = [this, &Root, &MatchId, &Rec](const TCHAR* Quando)
+	{
+		TArray<FRTMatchHistoryEntry> Righe;
+		if (!TestTrue(*FString::Printf(TEXT("%s: l'indice si rilegge"), Quando), URTMatchHistoryLibrary::LoadIndex(Root, Righe)))
+		{
+			return;
+		}
+		const FRTMatchHistoryEntry* Riga = Righe.FindByPredicate(
+			[&MatchId](const FRTMatchHistoryEntry& R) { return R.MatchId == MatchId; });
+		if (!TestNotNull(*FString::Printf(TEXT("%s: la riga c'e'"), Quando), Riga))
+		{
+			return;
+		}
+		const FRTReplayManifest& Manifest = Rec.GetManifest();
+		TestEqual(*FString::Printf(TEXT("%s: i turni della riga sono quelli del manifest"), Quando), Riga->TurnCount, Manifest.TurnCount);
+		TestTrue(*FString::Printf(TEXT("%s: l'esito della riga e' quello del manifest"), Quando), Riga->Outcome == Manifest.Outcome);
+		TestEqual(*FString::Printf(TEXT("%s: il replay e' completo se e solo se il manifest e' chiuso"), Quando), Riga->bReplayComplete, Manifest.bClosed);
+	};
+
+	const TArray<FRTTurnLogEntry> Vuoto;
+
+	TestTrue(TEXT("il turno 1 si registra"), Rec.RecordTurn(Root, 1, Vuoto));
+	LaRigaDiceCioCheIlManifest(TEXT("dopo il turno 1"));
+
+	// (a) Un turno SALTATO e uno RIPETUTO sono rifiutati: il manifest resta a 1, e la riga con lui. Una riga che copiasse il
+	// numero passato da chi chiama direbbe 3: e' la gamba che la uccide.
+	TestFalse(TEXT("(a) un turno saltato e' rifiutato"), Rec.RecordTurn(Root, 3, Vuoto));
+	TestEqual(TEXT("(a) premessa: il manifest non si e' mosso"), Rec.GetManifest().TurnCount, 1);
+	LaRigaDiceCioCheIlManifest(TEXT("(a) dopo un turno saltato"));
+
+	TestFalse(TEXT("(a) un turno ripetuto e' rifiutato"), Rec.RecordTurn(Root, 1, Vuoto));
+	LaRigaDiceCioCheIlManifest(TEXT("(a) dopo un turno ripetuto"));
+
+	TestTrue(TEXT("il turno 2 si registra"), Rec.RecordTurn(Root, 2, Vuoto));
+	LaRigaDiceCioCheIlManifest(TEXT("dopo il turno 2"));
+
+	// (b) Chiusa la partita, la riga e' quella del manifest chiuso: esito dichiarato, replay completo.
+	TestTrue(TEXT("la partita si chiude"), Rec.Close(Root, ERTMatchOutcome::Draw, /*FinalStateHash=*/ 0));
+	TestTrue(TEXT("premessa: il manifest e' chiuso e ha un esito"),
+		Rec.GetManifest().bClosed && Rec.GetManifest().Outcome == ERTMatchOutcome::Draw);
+	LaRigaDiceCioCheIlManifest(TEXT("(b) dopo la chiusura"));
+
+	// ...e un `RecordTurn` che arriva DOPO non la riporta «in corso»: la riga legge il manifest, che e' ancora chiuso.
+	Rec.RecordTurn(Root, 3, Vuoto);
+	TestTrue(TEXT("premessa: il manifest e' ancora chiuso"), Rec.GetManifest().bClosed);
+	LaRigaDiceCioCheIlManifest(TEXT("(b) dopo un turno tardivo"));
+
 	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
 	return true;
 }
