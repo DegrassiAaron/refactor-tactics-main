@@ -3,14 +3,14 @@ Albero: working tree del branch issue/85-d545-deroga-g16-g9, basato su main 0620
 Il motore era libero: nessun processo UnrealEditor prima del lancio.
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.Meta --timeout 540 --log <file>
-suite     finita in 30 s
+suite     finita in 40 s
 conteggi  trovati 15, avviati 15, completati 15
 rossi     nessuno
 log       (scratchpad di sessione, non archiviato)
 
 Dal log di quella corsa:
-[2026.10.26-11.25.42:709][575]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
-[2026.10.26-11.25.42:708][575]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
+[2026.10.26-11.46.51:095][353]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
+[2026.10.26-11.46.51:095][353]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.PieSession --timeout 540 --log <file>
 suite     finita in 30 s

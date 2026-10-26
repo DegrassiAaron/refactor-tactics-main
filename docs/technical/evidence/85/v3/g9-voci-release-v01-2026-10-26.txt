@@ -23,3 +23,10 @@ PIE-V01-MATCHEND      ✅  2026-08-16
 
 totale: 17 voci; ✅ 17 · 🟡 0 · ❌ 0 · ⏳ 0
 prime date: dal 2026-08-08 al 2026-10-15
+
+Riserve gia' scritte nel registro per alcune voci (lette dal registro, NON giudicate):
+PIE-HEXPLAY-8      verde per riduzione di criterio (D-402); "Non e' stata tenuta una seduta nuova"
+PIE-V01-MATCHEND   ✅ con riserva: osservata una sola delle tre vie di fine partita (allo scadere dei round)
+PIE-HEXPLAY-3, -5  la logica e' coperta anche da test headless nominati nella cella
+PIE-HEXPLAY-4      nota del 2026-09-05 (#2370): l'osservazione del 2026-08-29 e' stata presa sotto un playback diverso
+PIE-CAM-START      e' l'unica voce del subset che dichiara "osserva:" per pie-verdict-age
