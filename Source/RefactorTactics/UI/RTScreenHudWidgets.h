@@ -1715,6 +1715,36 @@ public:
 	FRTIconResolution CachedResolvedIcon;
 
 	/**
+	 * Le ENTRATE dell'ultima risoluzione dell'icona (`#3861`): la risoluzione si rifa' solo se una di queste cambia.
+	 *
+	 * 🔴 **`SetAction` non e' "una volta per cambio azione": e' una volta per FRAME.** Il dock la chiama dal suo grafo in
+	 * `Tick` (lo dice il commento in `SetAction`, per il tooltip), e `ResolveIcon` — che LOGGA ogni chiave che non
+	 * trova — ripartiva a ogni chiamata: otto avvisi per frame, 29 424 righe in cinque minuti. La correzione di `#2963`
+	 * aveva spostato la risoluzione dal getter a `SetAction`, e il test che la copriva chiamava `SetAction` una volta.
+	 *
+	 * ⚠️ **Sono le entrate di `GetIconId`, non il suo esito**: calcolare `GetIconId` per confrontarlo costerebbe
+	 * proprio l'attraversamento del catalogo che la cache vuole evitare. `CatalogIcons` esiste perche' un catalogo
+	 * arricchito SUL POSTO (stesso puntatore) cambia la risoluzione; l'armamento non e' un'entrata, perche' non
+	 * cambia l'icona.
+	 */
+	struct FIconInputs
+	{
+		FName ActionId;
+		FName IconId;
+		FName FallbackIconId;
+		TWeakObjectPtr<const URTIconCatalogData> Catalog;
+		int32 CatalogIcons = 0;
+
+		bool operator==(const FIconInputs& Other) const
+		{
+			return ActionId == Other.ActionId && IconId == Other.IconId && FallbackIconId == Other.FallbackIconId
+				&& Catalog == Other.Catalog && CatalogIcons == Other.CatalogIcons;
+		}
+	};
+	FIconInputs ResolvedFor;
+	bool bHasResolved = false;
+
+	/**
 	 * Vedi `SetArmingControllerForTest`. **Nullo in gioco**: il proprietario vero resta `GetOwningPlayer()`,
 	 * e questo campo esiste solo perche' in headless quello non c'e'.
 	 */
