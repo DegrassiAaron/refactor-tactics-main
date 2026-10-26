@@ -2773,16 +2773,14 @@ void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 	const bool bCambioDiModo = Modo != LastMode;
 	LastMode = Modo;
 
-	// Chiuso non si legge niente. In Risoluzione si legge solo per costruire le righe; in Pianificazione si legge sempre, perche'
-	// e' il feed a dire se c'e' un turno da mostrare.
-	const bool bPuoCostruire = LinesBox && LineClass;
-	if (Modo != ERTEventLogMode::Hidden && (bRereadFeed || bCambioDiModo)
-		&& (Modo == ERTEventLogMode::Previous || bPuoCostruire))
+	// Chiuso non si legge niente. Aperto si legge il feed: in Pianificazione e' lui a dire se c'e' un turno da mostrare, e in
+	// Risoluzione serve alle righe. Le righe si costruiscono solo se il WBP ha dato pannello e classe.
+	if (Modo != ERTEventLogMode::Hidden && (bRereadFeed || bCambioDiModo))
 	{
 		const TArray<FRTPlayerEventLineView> Feed = GetFeed();
 		bFeedHasLines = Feed.Num() > 0;
 		FeedTurn = bFeedHasLines ? Feed[0].TurnNumber : 0;
-		if (bPuoCostruire)
+		if (LinesBox && LineClass)
 		{
 			RebuildLines(Feed);
 		}
