@@ -55,7 +55,10 @@ struct REFACTORTACTICS_API FRTReplayRecording
 	/** L'identita' della partita registrata; invalida finche' `Begin` non e' passato. */
 	FGuid GetMatchId() const { return Manifest.MatchId; }
 
-	/** Le voci del turno finiscono nell'archivio. `false` = non registrato, e chi chiama lo dice. */
+	/**
+	 * Le voci del turno finiscono nell'archivio, e la riga della lista delle partite ne segue il conteggio (`#3871`).
+	 * `false` = non registrato, e chi chiama lo dice.
+	 */
 	bool RecordTurn(const FString& Root, int32 TurnNumber, const TArray<FRTTurnLogEntry>& TurnLog);
 
 	/** L'audit del turno, gia' composto da chi possiede i fatti. `false` = non registrato. */
