@@ -1,7 +1,7 @@
 # Seduta `U60` — il giro di `G16`: cinque superfici nello stesso giro
 
 > **Tipo**: foglio di conduzione · **Scritto**: 2026-10-03 su `main` = `855bd409` (candidate
-> `95eddfd37`; **candidate v3 dal 2026-10-26: `947a783d5`**, `947a783d5e423e23d8c6bc7a88b77dc50af0daa4`, [`D-543`](../../decisions/RT_PDR_00_Decision_Log.md), dopo la correzione di [#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859); il v2 era `7450ead64`) · **Owner del criterio**: la cella `G16` di
+> `95eddfd37`; **ultimo candidate misurato, v3 dal 2026-10-26: `947a783d5`**, `947a783d5e423e23d8c6bc7a88b77dc50af0daa4`, [`D-543`](../../decisions/RT_PDR_00_Decision_Log.md), dopo la correzione di [#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859); il v2 era `7450ead64`) · **Owner del criterio**: la cella `G16` di
 > [`v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) §3. Questo foglio **non**
 > ridefinisce il criterio: dove divergono, vale la cella.
 >
@@ -41,7 +41,7 @@ costruzione** — il fix di [#3463](https://github.com/DegrassiAaron/refactor-ta
 partita completa non produce nessun archivio) è entrato **dopo** il congelamento. Un giro condotto da `95eddfd37`
 misurerebbe un difetto già corretto; un giro condotto da `HEAD` attesterebbe uno SHA che `#85` non dichiara. Finché
 il candidate non è ricongelato (referto del 2026-10-09, `D1`), l'esito è `NOT RUN — candidate superato`, e si scrive
-nel record di `U60` con questa ragione. ✅ **Ricongelato il 2026-10-26** ([`D-543`](../../decisions/RT_PDR_00_Decision_Log.md)): il blocco porta lo SHA del candidate v3, aggiornato **insieme** a `#85`. Se oggi risponde `DIVERSI`, qualcuno ha toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`. Dal 2026-10-26 ([`D-542`](../../decisions/RT_PDR_00_Decision_Log.md)) il blocco **non conta le due cartelle `Tests/`**: un merge di soli test non sposta il candidate e ridata `G2` e `G14`.
+nel record di `U60` con questa ragione. ✅ **Ricongelato il 2026-10-26** ([`D-543`](../../decisions/RT_PDR_00_Decision_Log.md)): il blocco porta lo SHA del candidate v3, aggiornato **insieme** a `#85`. ⚠️ **Dal 2026-10-26 ([`D-547`](../../decisions/RT_PDR_00_Decision_Log.md), su lettura dell'assistente ribaltabile) la finestra è terminata senza attestazione: il blocco risponde `DIVERSI` dopo ogni merge di runtime, ed è l'esito atteso. La seduta si apre solo se il blocco risponde `OK` sullo SHA scritto qui; per un candidate nuovo lo SHA del blocco cambia insieme a `#85`, in un nuovo `D-nnn`.** Fino a [`D-547`](../../decisions/RT_PDR_00_Decision_Log.md), se rispondeva `DIVERSI`, qualcuno aveva toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`. Dal 2026-10-26 ([`D-542`](../../decisions/RT_PDR_00_Decision_Log.md)) il blocco **non conta le due cartelle `Tests/`**: un merge di soli test non sposta il candidate e ridata `G2` e `G14`.
 
 ⛔ **Il pacchetto non serve, e non va usato.** Il modulo `RefactorTacticsEditor` è di tipo `Editor`
 (`RefactorTactics.uproject:14`): Ability Lab e Hero Lab **non esistono nel pacchetto**. Il giro si fa in
