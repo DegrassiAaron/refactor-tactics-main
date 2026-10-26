@@ -22,6 +22,7 @@
 #include "Turn/RTTurnLogLibrary.h"   // FallCauseOfFaller / FallCauseOfImpact: gli id che il feed legge (#3081)
 #include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
+#include "Components/TextBlock.h"      // UTextBlock: un oggetto concreto e leggero per le chiavi stantie
 #include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
 #include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: da dove viene una voce del piano (#3629)
 
@@ -1353,6 +1354,234 @@ bool FRTHudFeedIsScopedToTheCurrentTurnTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo: da sole quelle voci PRODUCONO righe"),
 		URTHudViewModel::BuildPlayerEventFeed(SoloVecchie, 1).Num(), 2);
 
+	return true;
+}
+
+/**
+ * 🔑 **LA RIGA PORTA IL TURNO A CUI APPARTIENE** (#3860, [D-548]).
+ *
+ * In Pianificazione il registro mostra il turno appena risolto, e la sua intestazione deve dire QUALE. Il numero non si
+ * ricava da «round corrente meno uno»: un turno senza voci lo sfaserebbe. Si legge dalle righe, che per costruzione sono
+ * di un turno solo — l'ultimo del log.
+ *
+ * Il log del test salta il turno 2 apposta: «ultimo turno del log» e «round precedente» danno 3 e 2, e solo il primo e' vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedLinesCarryTheirTurnTest,
+	"RefactorTactics.ScreenHud.FeedLinesCarryTheirTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedLinesCarryTheirTurnTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 1, /*UnitId*/ 11));
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 3, /*UnitId*/ 31)); // il turno 2 non ha voci
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 3, /*UnitId*/ 32));
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+	if (!TestEqual(TEXT("premessa: il feed ha le due righe del turno 3"), Feed.Num(), 2))
+	{
+		return false;
+	}
+	for (int32 i = 0; i < Feed.Num(); ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("la riga %d porta il turno 3, quello dell'ultimo turno del log"), i), Feed[i].TurnNumber, 3);
+	}
+
+	// Controllo positivo: il numero segue i dati, non e' una costante.
+	TArray<FRTTurnLogEntry> SoloVecchia;
+	SoloVecchia.Add(VoceDiTurno(1, 11));
+	const TArray<FRTPlayerEventLineView> Vecchia = URTHudViewModel::BuildPlayerEventFeed(SoloVecchia, 1);
+	if (TestEqual(TEXT("controllo: da sola la voce del turno 1 produce una riga"), Vecchia.Num(), 1))
+	{
+		TestEqual(TEXT("controllo: e porta il turno 1"), Vecchia[0].TurnNumber, 1);
+	}
+	return true;
+}
+
+/**
+ * 🔑 **UN TURNO SENZA EVENTI VISIBILI NON SPEGNE IL REGISTRO, E LE RIGHE RICORDATE VALGONO PER UNO SGUARDO SOLO**
+ * (#3860, [D-548] (2) e (4)).
+ *
+ * Il consiglio che l'autore ha visto era «tenerlo fino al primo evento del round successivo». Il proiettore scarta i
+ * movimenti, quindi un turno di solo avvicinamento ha il feed vuoto: se il registro seguisse il solo turno vivo si
+ * spegnerebbe proprio nel round che si voleva tenere acceso. Le righe ricordate sono pero' una COPIA di righe proiettate, e
+ * una copia vale solo per gli occhi con cui e' stata fatta: manager, osservatori e squadra. Con un'altra chiave si butta,
+ * e non si mostra nemmeno per un frame.
+ *
+ * Le gambe: (a) un feed vivo si mostra e si ricorda; (b) un feed vuoto mostra le righe ricordate, dichiarate tali;
+ * (c) una chiave con altri osservatori, (d) con un'altra squadra, (e) con un altro manager NON le mostra e le butta —
+ * la prova del buttare e' che tornando alla chiave di prima non ricompaiono; (f) un feed vivo piu' nuovo sostituisce il
+ * ricordo; (g) senza ricordo e senza feed vivo non c'e' niente; (h) due manager DIVERSI ormai stantii non sono la stessa
+ * chiave: `FWeakObjectPtr::operator==` risponde «uguali» a due puntatori entrambi invalidi, e la chiave non puo' fidarsene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogRemembersTheLastFeedTest,
+	"RefactorTactics.ScreenHud.EventLogRemembersTheLastNonEmptyFeedForTheSameEyes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogRemembersTheLastFeedTest::RunTest(const FString&)
+{
+	const auto Righe = [](const int32 Turno, const int32 Quante)
+	{
+		TArray<FRTPlayerEventLineView> Out;
+		for (int32 i = 0; i < Quante; ++i)
+		{
+			FRTPlayerEventLineView Riga;
+			Riga.Text = FText::FromString(FString::Printf(TEXT("t%d r%d"), Turno, i));
+			Riga.TurnNumber = Turno;
+			Riga.Sequence = i + 1;
+			Out.Add(Riga);
+		}
+		return Out;
+	};
+	const auto Chiave = [](const TArray<int32>& Osservatori, const int32 Squadra)
+	{
+		return URTHudViewModel::MakeEventLogKey(nullptr, Osservatori, Squadra);
+	};
+	const FRTEventLogKey Mia = Chiave({ 0 }, 0);
+	const TArray<FRTPlayerEventLineView> Vuoto;
+	FRTEventLogMemory Memoria;
+	bool bRicordate = true;
+
+	// (g) niente di vivo e niente da ricordare: niente
+	TestEqual(TEXT("(g) senza feed e senza ricordo non c'e' niente"),
+		URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate).Num(), 0);
+	TestFalse(TEXT("(g) e non e' un ricordo"), bRicordate);
+
+	// (a) un feed vivo si mostra, non e' un ricordo, e viene ricordato
+	const TArray<FRTPlayerEventLineView> Turno2 = Righe(2, 2);
+	TArray<FRTPlayerEventLineView> Mostrate = URTHudViewModel::PickEventLogLines(Turno2, Mia, Memoria, bRicordate);
+	TestEqual(TEXT("(a) il feed vivo si mostra intero"), Mostrate.Num(), 2);
+	TestFalse(TEXT("(a) e non e' un ricordo"), bRicordate);
+
+	// (b) un feed vuoto mostra le righe ricordate, dichiarate tali
+	Mostrate = URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate);
+	if (TestEqual(TEXT("(b) col feed vuoto tornano le righe di prima"), Mostrate.Num(), 2))
+	{
+		TestEqual(TEXT("(b) ed e' il turno 2"), Mostrate[0].TurnNumber, 2);
+		TestTrue(TEXT("(b) con il loro testo"), Mostrate[1].Text.EqualTo(Turno2[1].Text));
+	}
+	TestTrue(TEXT("(b) dichiarate ricordate: il loro turno e' passato"), bRicordate);
+
+	// (f) un feed vivo piu' nuovo sostituisce il ricordo
+	const TArray<FRTPlayerEventLineView> Turno4 = Righe(4, 1);
+	Mostrate = URTHudViewModel::PickEventLogLines(Turno4, Mia, Memoria, bRicordate);
+	TestEqual(TEXT("(f) il feed del turno 4 si mostra"), Mostrate.Num(), 1);
+	Mostrate = URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate);
+	if (TestEqual(TEXT("(f) e adesso si ricorda quello, non il turno 2"), Mostrate.Num(), 1))
+	{
+		TestEqual(TEXT("(f) il turno 4"), Mostrate[0].TurnNumber, 4);
+	}
+
+	// (c) altri osservatori: non si mostra, e si butta
+	Mostrate = URTHudViewModel::PickEventLogLines(Vuoto, Chiave({ 0, 1 }, 0), Memoria, bRicordate);
+	TestEqual(TEXT("(c) con altri osservatori le righe ricordate NON si mostrano"), Mostrate.Num(), 0);
+	TestFalse(TEXT("(c) e non e' un ricordo"), bRicordate);
+	TestEqual(TEXT("(c) tornando agli occhi di prima non ricompaiono: la memoria e' stata buttata"),
+		URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate).Num(), 0);
+
+	// (d) un'altra squadra, stessi osservatori
+	URTHudViewModel::PickEventLogLines(Righe(5, 1), Mia, Memoria, bRicordate);
+	TestEqual(TEXT("(d) con un'altra squadra le righe ricordate NON si mostrano"),
+		URTHudViewModel::PickEventLogLines(Vuoto, Chiave({ 0 }, 1), Memoria, bRicordate).Num(), 0);
+	TestEqual(TEXT("(d) e tornando indietro non ricompaiono"),
+		URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate).Num(), 0);
+
+	// (e) un altro manager (un'altra partita)
+	URTHudViewModel::PickEventLogLines(Righe(6, 1), Mia, Memoria, bRicordate);
+	FRTEventLogKey AltraPartita = Mia;
+	AltraPartita.Manager = FWeakObjectPtr(GetTransientPackage());
+	TestEqual(TEXT("(e) con un altro manager le righe ricordate NON si mostrano"),
+		URTHudViewModel::PickEventLogLines(Vuoto, AltraPartita, Memoria, bRicordate).Num(), 0);
+	TestEqual(TEXT("(e) e tornando indietro non ricompaiono"),
+		URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate).Num(), 0);
+
+	// (h) due manager diversi, entrambi stantii: per `FWeakObjectPtr::operator==` sono «uguali» (due invalidi), per la chiave no
+	// Due oggetti qualunque, ma CONCRETI: `UObject` e' astratta e `NewObject<UObject>` fa scattare un `ensure` del motore.
+	UObject* PrimaPartita = NewObject<UTextBlock>(GetTransientPackage());
+	UObject* SecondaPartita = NewObject<UTextBlock>(GetTransientPackage());
+	FRTEventLogKey ChiavePrima = Mia;
+	ChiavePrima.Manager = FWeakObjectPtr(PrimaPartita);
+	FRTEventLogKey ChiaveSeconda = Mia;
+	ChiaveSeconda.Manager = FWeakObjectPtr(SecondaPartita);
+	TestFalse(TEXT("premessa: da vivi, due manager diversi hanno chiavi diverse"), ChiavePrima == ChiaveSeconda);
+	PrimaPartita->MarkAsGarbage();
+	SecondaPartita->MarkAsGarbage();
+	TestFalse(TEXT("(h) da stantii restano due partite diverse, non la stessa chiave"), ChiavePrima == ChiaveSeconda);
+	TestTrue(TEXT("(h) e una chiave resta uguale a se stessa anche stantia"), ChiavePrima == ChiavePrima);
+	return true;
+}
+
+/**
+ * 🔑 **L'INTESTAZIONE DEL REGISTRO DICE IL TURNO DELLE RIGHE E CHE E' PASSATO** (#3860, [D-548] (3)).
+ *
+ * Decide il confronto fra il turno delle righe e il round corrente, e non il modo del registro: righe vive di un turno
+ * piu' vecchio del round corrente sono passate anche in Risoluzione (revisione di #3878). Il numero e' quello delle righe,
+ * mai «round corrente meno uno».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogTitleNamesThePastTurnTest,
+	"RefactorTactics.ScreenHud.EventLogTitleNamesThePastTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogTitleNamesThePastTurnTest::RunTest(const FString&)
+{
+	const auto Titolo = [](const int32 Round, const int32 TurnoDelleRighe)
+	{
+		return URTHudViewModel::ComposeEventLogTitle(Round, TurnoDelleRighe).ToString();
+	};
+	const auto Uguale = [](const FString& A, const TCHAR* B) { return A.Equals(B, ESearchCase::CaseSensitive); };
+
+	TestTrue(TEXT("righe del turno 3 nel round 4: passate, col turno delle RIGHE"), Uguale(Titolo(4, 3), TEXT("ROUND 03 \u00B7 PRECEDENTE")));
+	TestTrue(TEXT("e non «round corrente meno uno»: righe del turno 1 nel round 4"), Uguale(Titolo(4, 1), TEXT("ROUND 01 \u00B7 PRECEDENTE")));
+	TestTrue(TEXT("righe del round corrente: il round, senza marca"), Uguale(Titolo(4, 4), TEXT("ROUND 04")));
+	TestTrue(TEXT("nessuna riga: il round corrente, come prima"), Uguale(Titolo(4, 0), TEXT("ROUND 04")));
+	TestTrue(TEXT("due cifre anche al turno 1"), Uguale(Titolo(2, 1), TEXT("ROUND 01 \u00B7 PRECEDENTE")));
+	return true;
+}
+
+/**
+ * 🔑 **IL REGISTRO SEGUE LA RISOLUZIONE, NON LA FASE** (#3860, [D-548]; era [D-496] (2)).
+ *
+ * `Phase` resta `Planning` per tutto il playback (lo dice anche `ComputeSecondsUntilCommit`): chi si fermasse a `Phase`
+ * etichetterebbe «PRECEDENTE» le righe del turno che si sta guardando. Quindi: `bResolving` → il turno corrente; partita in
+ * corso in `Planning` e NON in risoluzione → il turno precedente; ogni altra cosa → chiuso. Senza contesto di partita,
+ * sempre chiuso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogModeFollowsResolutionNotPhaseTest,
+	"RefactorTactics.ScreenHud.EventLogModeFollowsResolutionNotPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogModeFollowsResolutionNotPhaseTest::RunTest(const FString&)
+{
+	const auto Modo = [](const ERTMatchPhase Fase, const bool bRisolve, const bool bContesto = true)
+	{
+		FRTMatchHeaderView Header;
+		Header.Phase = Fase;
+		Header.bResolving = bRisolve;
+		return URTHudViewModel::EventLogModeFor(Header, bContesto);
+	};
+
+	TestTrue(TEXT("Pianificazione e non in risoluzione: il turno precedente"),
+		Modo(ERTMatchPhase::Planning, false) == ERTEventLogMode::Previous);
+	TestTrue(TEXT("durante il playback Phase resta Planning, ma e' Risoluzione: il turno corrente"),
+		Modo(ERTMatchPhase::Planning, true) == ERTEventLogMode::Current);
+
+	const ERTMatchPhase FasiDiRisoluzione[] = { ERTMatchPhase::Prep, ERTMatchPhase::Dash, ERTMatchPhase::Blast,
+		ERTMatchPhase::Move, ERTMatchPhase::Cleanup };
+	for (const ERTMatchPhase Fase : FasiDiRisoluzione)
+	{
+		TestTrue(*FString::Printf(TEXT("fase %d in risoluzione: il turno corrente"), static_cast<int32>(Fase)),
+			Modo(Fase, true) == ERTEventLogMode::Current);
+		TestTrue(*FString::Printf(TEXT("fase %d fuori dalla risoluzione e fuori dalla Pianificazione: chiuso"), static_cast<int32>(Fase)),
+			Modo(Fase, false) == ERTEventLogMode::Hidden);
+	}
+
+	TestTrue(TEXT("a partita finita il registro resta chiuso"),
+		Modo(ERTMatchPhase::MatchEnded, false) == ERTEventLogMode::Hidden);
+
+	// Senza contesto di partita non c'e' niente da mostrare, qualunque sia l'header.
+	TestTrue(TEXT("senza contesto, in Pianificazione: chiuso"), Modo(ERTMatchPhase::Planning, false, false) == ERTEventLogMode::Hidden);
+	TestTrue(TEXT("senza contesto, in risoluzione: chiuso"), Modo(ERTMatchPhase::Planning, true, false) == ERTEventLogMode::Hidden);
 	return true;
 }
 

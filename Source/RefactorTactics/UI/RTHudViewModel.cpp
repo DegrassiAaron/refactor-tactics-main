@@ -1523,6 +1523,78 @@ FText URTHudViewModel::ComposePlayerEventText(const FRTPlayerEvent& Event)
 	return LOCTEXT("Unknown", "Qualcosa e' successo");
 }
 
+ERTEventLogMode URTHudViewModel::EventLogModeFor(const FRTMatchHeaderView& Header, bool bHasMatchContext)
+{
+	if (!bHasMatchContext)
+	{
+		return ERTEventLogMode::Hidden;
+	}
+	if (Header.bResolving)
+	{
+		return ERTEventLogMode::Current;
+	}
+	// ⚠️ `Phase == Planning` da sola non basta: resta `Planning` per tutto il playback, ed e' `bResolving` a dire che il
+	// turno si sta ancora guardando. L'ordine dei due `if` e' il punto: la Risoluzione si decide PRIMA.
+	return Header.Phase == ERTMatchPhase::Planning ? ERTEventLogMode::Previous : ERTEventLogMode::Hidden;
+}
+
+FText URTHudViewModel::ComposeEventLogTitle(int32 Round, int32 LinesTurn)
+{
+	FNumberFormattingOptions DueCifre;
+	DueCifre.MinimumIntegralDigits = 2;
+	DueCifre.UseGrouping = false;
+	// Righe di un turno ANTERIORE al round corrente sono passate, in Pianificazione come in Risoluzione: lo dice il confronto,
+	// non il modo. Il numero e' quello delle righe.
+	if (LinesTurn > 0 && LinesTurn < Round)
+	{
+		return FText::Format(NSLOCTEXT("RTHud", "LogRoundPrevious", "ROUND {0} · PRECEDENTE"), FText::AsNumber(LinesTurn, &DueCifre));
+	}
+	return FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Round, &DueCifre));
+}
+
+bool FRTEventLogKey::operator==(const FRTEventLogKey& Other) const
+{
+	// ⚠️ `HasSameIndexAndSerialNumber` e non `==`: l'`operator==` di `FWeakObjectPtr` risponde «uguali» a due puntatori entrambi
+	// INVALIDI, anche se puntavano a due partite diverse. Una chiave non puo' scambiare due manager stantii per lo stesso.
+	return Manager.HasSameIndexAndSerialNumber(Other.Manager) && Observers == Other.Observers && PlayerTeamId == Other.PlayerTeamId;
+}
+
+FRTEventLogKey URTHudViewModel::MakeEventLogKey(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds,
+	int32 PlayerTeamId)
+{
+	FRTEventLogKey Key;
+	Key.Manager = FWeakObjectPtr(TurnManager);
+	Key.Observers = ObserverTeamIds;
+	Key.PlayerTeamId = PlayerTeamId;
+	return Key;
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::PickEventLogLines(const TArray<FRTPlayerEventLineView>& Live,
+	const FRTEventLogKey& Key, FRTEventLogMemory& InOutMemory, bool& bOutRemembered)
+{
+	bOutRemembered = false;
+
+	if (Live.Num() > 0)
+	{
+		InOutMemory.Lines = Live;
+		InOutMemory.Key = Key;
+		return Live;
+	}
+
+	// Feed vuoto: un turno senza eventi che il proiettore lasci passare (i movimenti sono scartati). Le righe di prima
+	// restano, ma solo per gli occhi con cui sono state proiettate.
+	if (InOutMemory.Lines.Num() > 0 && InOutMemory.Key == Key)
+	{
+		bOutRemembered = true;
+		return InOutMemory.Lines;
+	}
+
+	// ⛔ Un altro sguardo: la memoria NON si mostra e NON si tiene. Buttarla e non solo saltarla e' il punto: tornando alla
+	// chiave di prima non deve ricomparire, perche' le righe proiettate per un osservatore non aspettano il loro turno.
+	InOutMemory = FRTEventLogMemory();
+	return TArray<FRTPlayerEventLineView>();
+}
+
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	int32 ObserverTeamId)
 {
@@ -1593,6 +1665,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 		Line.Phase = Event.Phase;
 		Line.Sequence = i + 1; // la posizione fra gli eventi GIA' filtrati: nessun buco da cui contare il nascosto
 		Line.bReaction = Event.Type == ERTPlayerEventType::ReactionFired;
+		Line.TurnNumber = UltimoTurno; // il feed e' di un turno solo (#3860): quello dell'ultimo turno del log
 	}
 	return Lines;
 }

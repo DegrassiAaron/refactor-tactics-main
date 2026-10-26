@@ -577,14 +577,18 @@ public:
 	TArray<FString> DescribeFeedState() const;
 
 	// ------------------------------------------------------------------------------------------------
-	// La resa della tavola D (#3637, T8; [D-496]): il registro compare solo in Risoluzione.
+	// La resa della tavola D (#3637, T8; [D-496]). In Risoluzione mostra il turno che si risolve; in Pianificazione, se c'e'
+	// un turno appena risolto, mostra quello, marcato «PRECEDENTE» (#3860, [D-548], che emenda [D-496] (2)).
 	// ------------------------------------------------------------------------------------------------
 
-	/** Tutto il registro: `Collapsed` fuori dalla Risoluzione ([D-496] punto 2). */
+	/** Tutto il registro: `Collapsed` quando non c'e' niente da mostrare — fuori partita, a partita finita, o in Pianificazione senza un turno risolto ([D-548]). */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UWidget> LogRoot;
 
-	/** Il round accanto a «REGISTRO»: «ROUND 04», come l'header ([D-496] punto 1). */
+	/**
+	 * Il round accanto a «REGISTRO»: «ROUND 04», come l'header ([D-496] punto 1). In Pianificazione dice il turno delle
+	 * righe e che e' passato — «ROUND 03 · PRECEDENTE» — non il round corrente ([D-548] (3)).
+	 */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD")
 	TObjectPtr<class UTextBlock> LogTurnText;
 
@@ -598,11 +602,16 @@ public:
 
 	/**
 	 * Scrive radice, round e righe: una per voce di `GetFeed()`, nell'ordine del feed; le righe che ci sono si riusano.
-	 * Le righe si costruiscono solo in Risoluzione: fuori il registro e' chiuso, e il lavoro sarebbe per niente.
+	 * Il modo lo decide `URTHudViewModel::EventLogModeFor`: in Risoluzione e in Pianificazione le righe si costruiscono, e in
+	 * Pianificazione il registro e' aperto solo se il feed ne ha. Chiuso, il lavoro sarebbe per niente.
 	 * La chiama `NativeTick`; i test la chiamano a mano.
 	 *
+	 * 🔴 **Ogni giro rilegge il `TurnLog` e riproietta per gli osservatori di quel momento.** L'unica copia di righe gia'
+	 * proiettate che sopravvive e' `Memory` — le ultime non vuote, per un turno senza eventi visibili — e vale solo per la
+	 * stessa chiave (manager, osservatori, squadra): con un'altra si butta ([D-548] (2) e (4)).
+	 *
 	 * @param bRereadFeed  rileggere il feed. `NativeTick` lo fa a 5 Hz, come gli avvisi del pannello: `GetFeed` copia e
-	 *                     proietta il log del turno. All'ingresso in Risoluzione si rilegge subito.
+	 *                     proietta il log del turno. A ogni cambio di modo si rilegge subito.
 	 */
 	void RefreshLook(bool bRereadFeed = true);
 
@@ -613,11 +622,24 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	/** Allinea i widget di riga al feed: toglie quelle in piu', costruisce quelle che mancano, riscrive tutte. */
+	void RebuildLines(const TArray<FRTPlayerEventLineView>& Feed);
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URTPlayerEventLineWidget>> LineWidgets;
 
 	float SecondsSinceFeedReread = 1.f; // il primo tick rilegge subito
-	bool bLastResolving = false;
+	ERTEventLogMode LastMode = ERTEventLogMode::Hidden;
+
+	/**
+	 * L'esito dell'ultima rilettura: in Pianificazione il registro e' aperto solo se ci sono righe da mostrare, e dice il
+	 * loro turno. Che quel turno sia passato lo decide `ComposeEventLogTitle`, confrontandolo con il round corrente.
+	 */
+	bool bFeedHasLines = false;
+	int32 FeedTurn = 0;
+
+	/** Le ultime righe non vuote, con gli occhi con cui sono state proiettate ([D-548] (2) e (4)). Non e' una `UPROPERTY`: e' stato di presentazione. */
+	FRTEventLogMemory Memory;
 };
 
 /**
