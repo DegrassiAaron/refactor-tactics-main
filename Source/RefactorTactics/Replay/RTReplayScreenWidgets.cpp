@@ -4,6 +4,9 @@
 #include "Frontend/RTFrontendScreenIds.h"
 #include "Replay/RTReplayViewerSubsystem.h"
 #include "Engine/GameInstance.h"
+#include "Debug/RTContextInspector.h" // DescribePublicEvent: la riga di una voce pubblica
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
 
 #define LOCTEXT_NAMESPACE "RefactorTactics"
 
@@ -113,7 +116,13 @@ URTFrontendNavigator* URTReplayViewerWidgetBase::Navigator() const
 
 ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelected()
 {
-	return OpenSelectedOn(Replay());
+	return OpenSelectedWith(Replay());
+}
+
+ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelectedWith(URTReplayViewerSubsystem* V)
+{
+	bEntriesShown = false;
+	return OpenSelectedOn(V);
 }
 
 ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelectedOn(URTReplayViewerSubsystem* V)
@@ -200,6 +209,124 @@ FText URTMatchHistoryWidgetBase::GetEntryLabel(const FRTMatchHistoryEntry& Entry
 		return FText::Format(LOCTEXT("MatchRowIncomplete", "{0} · registrazione incompleta"), Base);
 	}
 	return Base;
+}
+
+bool URTReplayViewerWidgetBase::TogglePlay()
+{
+	return TogglePlayOn(Replay());
+}
+
+bool URTReplayViewerWidgetBase::TogglePlayOn(URTReplayViewerSubsystem* V)
+{
+	if (V == nullptr)
+	{
+		return false;
+	}
+	if (V->IsPlaying())
+	{
+		V->Pause();
+	}
+	else
+	{
+		V->Play();
+	}
+	// Si risponde con lo stato DOPO, e non con quello chiesto: su una sequenza finita `Play` non parte, e un valore di ritorno
+	// che dicesse «avviato» confermerebbe una riproduzione che non c'e'.
+	return V->IsPlaying();
+}
+
+bool URTReplayViewerWidgetBase::TickPlaybackOn(URTReplayViewerSubsystem* V, float DeltaSeconds)
+{
+	// Il view model avanza solo se riceve il tempo, e ignora il tempo in pausa: la guardia e' sua, non si ripete qui.
+	return V != nullptr && V->Tick(DeltaSeconds);
+}
+
+FText URTReplayViewerWidgetBase::GetPlayPauseText(bool bPlaying)
+{
+	// L'AZIONE del prossimo click, non lo stato: «PAUSA» mentre riproduce, «PLAY» mentre e' fermo.
+	return bPlaying ? LOCTEXT("ReplayPause", "PAUSA") : LOCTEXT("ReplayPlay", "PLAY");
+}
+
+FText URTReplayViewerWidgetBase::ComposePhaseEntriesText(const TArray<FRTPublicReplayEntry>& Entries)
+{
+	if (Entries.IsEmpty())
+	{
+		return LOCTEXT("ReplayNoEntries", "Nessun evento in questa fase");
+	}
+
+	// Un tetto: il testo e' un blocco solo, e una fase con molte voci lo farebbe uscire dallo schermo.
+	constexpr int32 MaxRows = 12;
+	TArray<FString> Rows;
+	for (int32 i = 0; i < Entries.Num() && i < MaxRows; ++i)
+	{
+		// ⚠️ La riga e' quella dell'ispettore, `DescribePublicEvent`: colonne pubbliche, non una seconda traduzione in
+		// italiano dello stesso fatto. `DescribeEntry` leggerebbe campi che il replay non rende pubblici.
+		Rows.Add(URTContextInspectorLibrary::DescribePublicEvent(Entries[i]));
+	}
+	FString Joined = FString::Join(Rows, TEXT("\n"));
+	if (Entries.Num() > MaxRows)
+	{
+		Joined += TEXT("\n") + FText::Format(LOCTEXT("ReplayMoreEntries", "… e altre {0}"), FText::AsNumber(Entries.Num() - MaxRows)).ToString();
+	}
+	return FText::FromString(Joined);
+}
+
+void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
+{
+	// L'etichetta del pulsante indietro non dipende dal replay: si scrive una volta (#3868, il pulsante non ne aveva).
+	if (!bStaticLabelsWritten)
+	{
+		if (BackButtonLabel)
+		{
+			BackButtonLabel->SetText(LOCTEXT("ReplayBack", "INDIETRO"));
+		}
+		bStaticLabelsWritten = true;
+	}
+	if (V == nullptr)
+	{
+		return;
+	}
+
+	if (PlayPauseLabel)
+	{
+		PlayPauseLabel->SetText(GetPlayPauseText(V->IsPlaying()));
+	}
+
+	if (PhaseEntriesText)
+	{
+		// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca: si rilegge quando la posizione cambia, non a ogni tick.
+		const FRTReplayPosition Pos = V->GetPosition();
+		const bool bSamePosition = bEntriesShown && Pos.State == EntriesPosition.State
+			&& Pos.TurnNumber == EntriesPosition.TurnNumber && Pos.Phase == EntriesPosition.Phase;
+		if (!bSamePosition)
+		{
+			PhaseEntriesText->SetText(ComposePhaseEntriesText(V->GetCurrentPhaseEntries()));
+			EntriesPosition = Pos;
+			bEntriesShown = true;
+		}
+	}
+}
+
+void URTReplayViewerWidgetBase::NativeConstruct()
+{
+	Super::NativeConstruct();
+	if (PlayPauseButton)
+	{
+		PlayPauseButton->OnClicked.AddUniqueDynamic(this, &URTReplayViewerWidgetBase::HandlePlayPauseClicked);
+	}
+}
+
+void URTReplayViewerWidgetBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	URTReplayViewerSubsystem* V = Replay();
+	TickPlaybackOn(V, InDeltaTime);
+	RefreshLookOn(V);
+}
+
+void URTReplayViewerWidgetBase::HandlePlayPauseClicked()
+{
+	TogglePlay();
 }
 
 FText URTReplayViewerWidgetBase::GetOpenFailureText(ERTReplayOpenResult Result)
