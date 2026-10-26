@@ -487,6 +487,8 @@ Ogni seduta scrive il proprio marcatore nel record della seduta e il proprio esi
 
 ➕ *Aggiornato il 2026-10-26, a lavoro fatto: **la correzione è fatta e il candidate è ricongelato** ([D-543](../../decisions/RT_PDR_00_Decision_Log.md)). [#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859) è corretta da [#3864](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3864) (una chiamata in `FRTReplayRecording::Close`, più un test sul percorso di produzione, visto rosso), e il candidate v3 è `947a783d5e423e23d8c6bc7a88b77dc50af0daa4`. Le Onde 3 e 4 si rifanno sul v3: i gate dei tre scenari più `G5` e `G7` tornano `NOT RUN` finché non sono rimisurati, `G13` e `G16` richiedono di nuovo una persona, `G14` per ultimo, `G9` resta `NOT RUN`.*
 
+➕ *Aggiornato il 2026-10-26, a rimisura fatta sul v3 ([evidenza](../../technical/evidence/85/misure-candidate-v3-2026-10-26.md)). **Rimisurati e ✅**: `G1` `G2` `G3` `G4` `G5` `G6` `G7` `G8` `G10` `G11` `G12`. **`G13` ⏳**: la meccanica è PASS, ma la seduta è stata pilotata dall'assistente con input sintetico e l'occhio dell'autore (leggibile, affordance trovata senza leggere il foglio, nessun overlay) non è riespresso sul v3. **`G16` ⏳**: il giro non è stato eseguito; il passo 5, ❌ sul v2, ha una misura sul pacchetto senza verdetto. **`G9` `NOT RUN`.** `G14` si rimisura per ultimo.*
+
 ### Onda 5 — riporto e attestazione
 
 `PIA-2`, `PIA-3`, `PIA-4` registrano **ciò che hanno**: `PASS` con la seduta e il commit, `NOT RUN`

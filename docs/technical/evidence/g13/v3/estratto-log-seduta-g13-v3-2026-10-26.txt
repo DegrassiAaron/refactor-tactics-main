@@ -1,0 +1,36 @@
+# Estratto del log della seduta G13 sul candidate v3, 2026-10-26 (il log intero, circa 15 MB, resta in Saved/Logs/g13-seduta.log, gitignorato)
+
+## riga di comando ricevuta
+LogCsvProfiler: Display: Metadata set : commandline="" -windowed -ResX=1600 -ResY=900 -RTPlanningSeconds=600 -abslog=D:\Repositories\refactor-tactics-main\Saved\Logs\g13-seduta.log""
+
+## armo del pacing
+[RT] Registrazione CSV del pacing: SPENTA -> ATTIVA.
+
+## input del turno 1 (selezione, waypoint, tasto destro, waypoint, lock-in)
+LogRT: [RT] Selezionata: BP_Unit_Aevik_C_2147482168
+LogRT: [RT] Piano: BP_Unit_Aevik_C_2147482168 -> 1 waypoint (costo 1/10)
+LogRT: [RT] Back: livello ERTPointerBackStep::Waypoint (BP_Unit_Aevik_C_2147482168 -> 0 waypoint)
+LogRT: [RT] Piano: BP_Unit_Aevik_C_2147482168 -> 1 waypoint (costo 1/10)
+LogRT: Display: [RT] BP_Unit_Aevik_C_2147482168: piano DICHIARATO
+LogRT: [RT] Lock-in del giocatore -> risoluzione anticipata (turno 1)
+LogRT: [RT] Ready del partecipante (squadra 0, gruppo 0) -> 1/1 (turno 1)
+LogRT: [RT] Ready del giocatore -> countdown 3.0s prima del commit (turno 1)
+
+## allestimento e chiusura della partita
+LogRT: [RT] Board 2v2 esagonale avviata su 64 celle con 4 eroi
+LogRT: [RT] Partita finita: Pareggio - allo scadere dei round (round 12/12, obiettivo 0-0, formato Format.Skirmish2v2)
+LogRT: [RT] Fine partita al round 12: ERTMatchOutcome::Draw
+
+## controlli negativi, conteggi sul log intero
+Fatal error -> 0
+Assertion failed -> 0
+Critical error -> 0
+Error: -> 0
+Failed to find object -> 0
+SkipPackage -> 0
+Travel Failure -> 0
+Partita finita senza frontend -> 0
+
+## uscita del processo
+LogExit: Exiting.
+Log file closed, 10/26/26 09:47:59
