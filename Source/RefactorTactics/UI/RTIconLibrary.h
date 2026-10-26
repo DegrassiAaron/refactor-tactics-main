@@ -181,4 +181,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Icons")
 	static FRTIconResolution ResolveIcon(const URTIconCatalogData* Catalog, const FName& IconId,
 		const FName& Consumer);
+
+	/**
+	 * Come `ResolveIcon`, ma **NON logga**: stessa ricerca, stesso esito, nessuna warning (`#3861`).
+	 *
+	 * Esiste per chi ha un proprio criterio per dire "e' la prima volta che vedo questa chiave mancante". Lo slot
+	 * d'azione e' chiamato dal dock a OGNI frame: `ResolveIcon`, che logga a ogni chiamata, scriveva otto avvisi per
+	 * frame. Lo slot ricalcola la risoluzione a ogni chiamata con questa — e vede subito un catalogo modificato mentre
+	 * si gioca — e logga con `LogUnresolvedIcon` una volta sola per chiave mancante.
+	 *
+	 * `NAME_None` non e' una chiave: non sta in nessun catalogo, e il risultato e' il missing-icon, non risolto.
+	 */
+	static FRTIconResolution ResolveIconQuiet(const URTIconCatalogData* Catalog, const FName& IconId);
+
+	/** La warning di `ResolveIcon`, separata: e' l'unico punto che scrive «Icona non risolta», e non esiste in due testi. */
+	static void LogUnresolvedIcon(const FName& IconId, const FName& Consumer);
 };

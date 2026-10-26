@@ -1233,27 +1233,25 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	//
 	// 🔴 **Ma `SetAction` gira a OGNI FRAME** (il dock la chiama dal suo `Tick`: vedi il tooltip qui sotto), quindi
 	// "qui" non basta a dire "una volta per cambio azione" — e' una volta per frame, e `ResolveIcon` loggava otto
-	// avvisi per frame (`#3861`). Si risolve solo se cambia una ENTRATA della risoluzione; l'armamento non lo e'.
-	const FIconInputs Entrate{ Action.ActionId, Action.IconId, Action.FallbackIconId, InCatalog,
-		InCatalog ? InCatalog->Icons.Num() : 0 };
-	if (!bHasResolved || !(Entrate == ResolvedFor))
-	{
-		ResolvedFor = Entrate;
-		bHasResolved = true;
+	// avvisi per frame (`#3861`). Si ricalcola la RISOLUZIONE a ogni chiamata, senza log (un catalogo modificato mentre
+	// si gioca si vede subito), e si scrive la warning UNA volta per chiave mancante.
+	const FName IconId = GetIconId();
+	CachedResolvedIcon = URTIconLibrary::ResolveIconQuiet(ReceivedCatalog, IconId);
 
-		const FName IconId = GetIconId();
-		if (IconId.IsNone())
-		{
-			// Uno slot senza azione non CHIEDE un'icona: `GetIconId` lo sa (restituisce `None` apposta, per non
-			// comporre una chiave a vuoto), e chiamare `ResolveIcon` con `None` produceva l'avviso «chiave sconosciuta»
-			// nominando la chiave `None` — l'altra meta' di `#3861`. Si mostra il missing-icon, come prima, senza log.
-			CachedResolvedIcon = FRTIconResolution(
-				InCatalog ? InCatalog->MissingIcon : TSoftObjectPtr<UTexture2D>(), /*bInResolved=*/ false);
-		}
-		else
-		{
-			CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, IconId, TEXT("ActionSlot"));
-		}
+	// Uno slot senza azione NON chiede un'icona: `GetIconId` restituisce `None` apposta, per non comporre una chiave a
+	// vuoto, e dire "chiave sconosciuta" nominando `None` era l'altra meta' di `#3861`. Si mostra il missing-icon, come
+	// prima, senza log. Risolta o senza azione, la prossima chiave mancante e' di nuovo una novita'.
+	const URTIconCatalogData* Catalogo = ReceivedCatalog;
+	if (CachedResolvedIcon.bResolved || IconId.IsNone())
+	{
+		bLoggedMissing = false;
+	}
+	else if (!bLoggedMissing || LoggedMissingIconId != IconId || LoggedMissingCatalog.Get() != Catalogo)
+	{
+		bLoggedMissing = true;
+		LoggedMissingIconId = IconId;
+		LoggedMissingCatalog = Catalogo;
+		URTIconLibrary::LogUnresolvedIcon(IconId, TEXT("ActionSlot"));
 	}
 
 	// `#3499`: il tooltip si compone qui, ma si CONSEGNA solo quando cambia.

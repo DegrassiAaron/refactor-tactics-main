@@ -1715,34 +1715,22 @@ public:
 	FRTIconResolution CachedResolvedIcon;
 
 	/**
-	 * Le ENTRATE dell'ultima risoluzione dell'icona (`#3861`): la risoluzione si rifa' solo se una di queste cambia.
+	 * L'ultima chiave MANCANTE di cui si e' scritta la warning, e per quale catalogo (`#3861`): la warning si scrive UNA
+	 * volta per chiave, non a ogni chiamata.
 	 *
 	 * 🔴 **`SetAction` non e' "una volta per cambio azione": e' una volta per FRAME.** Il dock la chiama dal suo grafo in
 	 * `Tick` (lo dice il commento in `SetAction`, per il tooltip), e `ResolveIcon` — che LOGGA ogni chiave che non
 	 * trova — ripartiva a ogni chiamata: otto avvisi per frame, 29 424 righe in cinque minuti. La correzione di `#2963`
 	 * aveva spostato la risoluzione dal getter a `SetAction`, e il test che la copriva chiamava `SetAction` una volta.
 	 *
-	 * ⚠️ **Sono le entrate di `GetIconId`, non il suo esito**: calcolare `GetIconId` per confrontarlo costerebbe
-	 * proprio l'attraversamento del catalogo che la cache vuole evitare. `CatalogIcons` esiste perche' un catalogo
-	 * arricchito SUL POSTO (stesso puntatore) cambia la risoluzione; l'armamento non e' un'entrata, perche' non
-	 * cambia l'icona.
+	 * ⚠️ **Si ricalcola la RISOLUZIONE a ogni chiamata, e si memorizza solo il LOG.** Una prima stesura memorizzava la
+	 * risoluzione, con una chiave delle "entrate": un'icona sostituita nel catalogo mentre si gioca — stesso puntatore,
+	 * stesso numero di voci — lasciava lo slot con l'icona vecchia (revisione di PR #3875). La ricerca e' una scansione
+	 * di poche decine di voci per tredici slot: non e' il costo che valeva la pena di proteggere. Il rumore si'.
 	 */
-	struct FIconInputs
-	{
-		FName ActionId;
-		FName IconId;
-		FName FallbackIconId;
-		TWeakObjectPtr<const URTIconCatalogData> Catalog;
-		int32 CatalogIcons = 0;
-
-		bool operator==(const FIconInputs& Other) const
-		{
-			return ActionId == Other.ActionId && IconId == Other.IconId && FallbackIconId == Other.FallbackIconId
-				&& Catalog == Other.Catalog && CatalogIcons == Other.CatalogIcons;
-		}
-	};
-	FIconInputs ResolvedFor;
-	bool bHasResolved = false;
+	FName LoggedMissingIconId;
+	TWeakObjectPtr<const URTIconCatalogData> LoggedMissingCatalog;
+	bool bLoggedMissing = false;
 
 	/**
 	 * Vedi `SetArmingControllerForTest`. **Nullo in gioco**: il proprietario vero resta `GetOwningPlayer()`,

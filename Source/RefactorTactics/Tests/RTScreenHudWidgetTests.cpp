@@ -2198,8 +2198,15 @@ namespace
  *
  * Le gambe: (a) venti chiamate con la stessa azione e lo stesso catalogo → UNA warning (e la prima dev'esserci: e' la
  * sonda del rilevatore); (b) l'armamento cambia a ogni chiamata e non e' un cambio d'icona; (c) un'altra azione
- * risolve di nuovo; (d) un altro catalogo risolve di nuovo; (e) lo stesso catalogo arricchito sul posto risolve di
- * nuovo — senza (c)-(e) una cache che non si invalida mai passerebbe.
+ * scrive la sua warning; (d) un altro catalogo la scrive di nuovo; (e) **la risoluzione resta VIVA**: una voce del
+ * catalogo senza asset che riceve l'asset SUL POSTO — senza cambiare il numero di icone, ne' il puntatore del
+ * catalogo — si risolve alla chiamata successiva, e non scrive un'altra warning; (f) se l'asset sparisce di nuovo,
+ * la mancanza e' di nuovo una novita' e la warning si riscrive.
+ *
+ * ⚠️ **(e) e' la gamba che la revisione di PR #3875 ha chiesto**: una prima stesura memorizzava la risoluzione e la
+ * rifaceva solo se cambiava una "entrata" (azione, catalogo, numero di icone). Un'icona sostituita nel catalogo mentre
+ * si gioca — il lavoro di chi disegna il catalogo — lasciava lo slot con l'icona vecchia fino al cambio d'azione, cosa
+ * che prima della correzione non succedeva. Ora si ricalcola a ogni chiamata, senza log, e si LOGGA una volta per chiave.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest,
 	"RefactorTactics.ScreenHud.ActionSlotResolvesOnceWhenTheDockRepeatsSetAction",
@@ -2244,13 +2251,29 @@ bool FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest::RunTest(const FSt
 	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
 	TestEqual(TEXT("(d) un altro catalogo risolve di nuovo"), ContaIconeNonRisolte(Sonda), 3);
 
-	// (e) Lo STESSO catalogo, ma arricchito sul posto con la chiave che lo slot chiede: la risoluzione cambia, e lo
-	// slot deve accorgersene. Una cache che guarda solo il puntatore del catalogo la lascerebbe non risolta.
-	Altro->Icons.Add(FRTIconDef(URTIconLibrary::MakeActionIconId(Altra.ActionId), ERTIconCategory::Action,
-		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Altra.T_Altra")))));
+	// (e) Lo STESSO catalogo, con la voce della chiave che lo slot chiede ma SENZA asset (per il catalogo e' non
+	// risolta: `ResolveIcon` salta le voci con asset nullo): la warning c'e' gia' stata (d), e non se ne scrive un'altra.
+	const FName ChiaveAltra = URTIconLibrary::MakeActionIconId(Altra.ActionId);
+	Altro->Icons.Add(FRTIconDef(ChiaveAltra, ERTIconCategory::Action, TSoftObjectPtr<UTexture2D>()));
 	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
-	TestTrue(TEXT("(e) lo stesso catalogo arricchito sul posto: ora e' risolta"), Slot->GetResolvedIcon().bResolved);
-	TestEqual(TEXT("(e) e non ha scritto un'altra warning"), ContaIconeNonRisolte(Sonda), 3);
+	TestFalse(TEXT("(e) la voce senza asset non risolve"), Slot->GetResolvedIcon().bResolved);
+	TestEqual(TEXT("(e) e non scrive un'altra warning: e' la stessa chiave mancante"), ContaIconeNonRisolte(Sonda), 3);
+
+	// ... poi l'asset viene assegnato SUL POSTO: stesso catalogo, stesso numero di icone. Lo slot deve accorgersene.
+	Altro->Icons[0].Asset = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Altra.T_Altra")));
+	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
+	const FRTIconResolution Dopo = Slot->GetResolvedIcon();
+	TestTrue(TEXT("(e) assegnato l'asset sul posto: ora e' risolta"), Dopo.bResolved);
+	TestEqual(TEXT("(e) ed e' l'asset assegnato, non il missing-icon"), Dopo.Asset.ToString(),
+		FString(TEXT("/Game/Prova/T_Altra.T_Altra")));
+	TestEqual(TEXT("(e) senza un'altra warning"), ContaIconeNonRisolte(Sonda), 3);
+
+	// (f) Se l'asset sparisce di nuovo — stessa chiave, stesso catalogo — la mancanza e' di nuovo una NOVITA': la warning
+	// si riscrive. Senza questa gamba, un contatore che non si azzera mai quando la chiave si risolve passerebbe.
+	Altro->Icons[0].Asset = TSoftObjectPtr<UTexture2D>();
+	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
+	TestFalse(TEXT("(f) senza asset non e' piu' risolta"), Slot->GetResolvedIcon().bResolved);
+	TestEqual(TEXT("(f) la chiave torna mancante: la warning si riscrive"), ContaIconeNonRisolte(Sonda), 4);
 
 	return true;
 }
