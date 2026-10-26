@@ -1540,7 +1540,9 @@ ERTEventLogMode URTHudViewModel::EventLogModeFor(const FRTMatchHeaderView& Heade
 
 bool FRTEventLogKey::operator==(const FRTEventLogKey& Other) const
 {
-	return Manager == Other.Manager && Observers == Other.Observers && PlayerTeamId == Other.PlayerTeamId;
+	// ⚠️ `HasSameIndexAndSerialNumber` e non `==`: l'`operator==` di `FWeakObjectPtr` risponde «uguali» a due puntatori entrambi
+	// INVALIDI, anche se puntavano a due partite diverse. Una chiave non puo' scambiare due manager stantii per lo stesso.
+	return Manager.HasSameIndexAndSerialNumber(Other.Manager) && Observers == Other.Observers && PlayerTeamId == Other.PlayerTeamId;
 }
 
 FRTEventLogKey URTHudViewModel::MakeEventLogKey(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds,

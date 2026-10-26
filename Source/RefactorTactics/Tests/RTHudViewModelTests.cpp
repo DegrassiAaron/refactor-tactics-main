@@ -22,6 +22,7 @@
 #include "Turn/RTTurnLogLibrary.h"   // FallCauseOfFaller / FallCauseOfImpact: gli id che il feed legge (#3081)
 #include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
+#include "Components/TextBlock.h"      // UTextBlock: un oggetto concreto e leggero per le chiavi stantie
 #include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
 #include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: da dove viene una voce del piano (#3629)
 
@@ -1411,7 +1412,8 @@ bool FRTHudFeedLinesCarryTheirTurnTest::RunTest(const FString&)
  * Le gambe: (a) un feed vivo si mostra e si ricorda; (b) un feed vuoto mostra le righe ricordate, dichiarate tali;
  * (c) una chiave con altri osservatori, (d) con un'altra squadra, (e) con un altro manager NON le mostra e le butta —
  * la prova del buttare e' che tornando alla chiave di prima non ricompaiono; (f) un feed vivo piu' nuovo sostituisce il
- * ricordo; (g) senza ricordo e senza feed vivo non c'e' niente.
+ * ricordo; (g) senza ricordo e senza feed vivo non c'e' niente; (h) due manager DIVERSI ormai stantii non sono la stessa
+ * chiave: `FWeakObjectPtr::operator==` risponde «uguali» a due puntatori entrambi invalidi, e la chiave non puo' fidarsene.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogRemembersTheLastFeedTest,
 	"RefactorTactics.ScreenHud.EventLogRemembersTheLastNonEmptyFeedForTheSameEyes",
@@ -1493,6 +1495,20 @@ bool FRTEventLogRemembersTheLastFeedTest::RunTest(const FString&)
 		URTHudViewModel::PickEventLogLines(Vuoto, AltraPartita, Memoria, bRicordate).Num(), 0);
 	TestEqual(TEXT("(e) e tornando indietro non ricompaiono"),
 		URTHudViewModel::PickEventLogLines(Vuoto, Mia, Memoria, bRicordate).Num(), 0);
+
+	// (h) due manager diversi, entrambi stantii: per `FWeakObjectPtr::operator==` sono «uguali» (due invalidi), per la chiave no
+	// Due oggetti qualunque, ma CONCRETI: `UObject` e' astratta e `NewObject<UObject>` fa scattare un `ensure` del motore.
+	UObject* PrimaPartita = NewObject<UTextBlock>(GetTransientPackage());
+	UObject* SecondaPartita = NewObject<UTextBlock>(GetTransientPackage());
+	FRTEventLogKey ChiavePrima = Mia;
+	ChiavePrima.Manager = FWeakObjectPtr(PrimaPartita);
+	FRTEventLogKey ChiaveSeconda = Mia;
+	ChiaveSeconda.Manager = FWeakObjectPtr(SecondaPartita);
+	TestFalse(TEXT("premessa: da vivi, due manager diversi hanno chiavi diverse"), ChiavePrima == ChiaveSeconda);
+	PrimaPartita->MarkAsGarbage();
+	SecondaPartita->MarkAsGarbage();
+	TestFalse(TEXT("(h) da stantii restano due partite diverse, non la stessa chiave"), ChiavePrima == ChiaveSeconda);
+	TestTrue(TEXT("(h) e una chiave resta uguale a se stessa anche stantia"), ChiavePrima == ChiavePrima);
 	return true;
 }
 
