@@ -56,6 +56,11 @@ $Repl   = Join-Path $Staged 'Saved\Replays'
 
 function Riga($t) { Write-Host $t }
 
+# `Process.Kill(bool)` non esiste in Windows PowerShell 5.1: la chiusura passa da un helper che vale su entrambe
+# le edizioni e non inghiotte l'esito (#3862).
+. (Join-Path $PSScriptRoot 'chiudi-albero.ps1')
+$residuo = $false
+
 # --- 0. preflight: il motore e' uno, e una misura in finestra sporca non vale ------------------
 $occupato = Get-CimInstance Win32_Process |
   Where-Object { $_.Name -match 'UnrealEditor|UnrealPak|AutomationTool|UnrealBuildTool|^cl\.exe$' }
@@ -117,13 +122,15 @@ if ($finita) {
   # Il rapporto differito puo' cadere dopo la fine: si concede un margine prima di chiudere.
   Start-Sleep -Seconds 5
   Riga 'partita finita: il log porta `Partita finita:`. Chiudo il processo, che da se non esce.'
-  try { $p.Kill($true) } catch {}
+  if (-not (ChiudiAlbero -Processo $p -CommandLineContiene $Log)) { $residuo = $true }
 } elseif ($p.HasExited) {
   Riga ("processo uscito da se con codice " + $p.ExitCode + " -- il verdetto si legge dai conteggi")
 } else {
   Riga ("[STOP] oltre il tetto di {0} min SENZA che il log porti ``Partita finita:``." -f $Minuti)
   Riga '       run TRONCATA e non valida: chiudo il processo.'
-  try { $p.Kill($true) } catch {}
+  if (-not (ChiudiAlbero -Processo $p -CommandLineContiene $Log)) {
+    Riga ('[STOP] il processo {0} NON e'' stato chiuso: resta vivo e consuma CPU. Chiudilo a mano.' -f $p.Id)
+  }
   exit 3
 }
 
@@ -193,3 +200,10 @@ Riga '  - il passo 5 aperto nel Replay Viewer: che si riapra e si scorra.'
 Riga ''
 Riga 'E `G16` NON si chiude da qui: il criterio chiede le cinque superfici <<nello stesso giro>>,'
 Riga 'e questa run prepara quella seduta invece di sostituirla.'
+
+# Un gioco rimasto vivo falsa la misura di chi lancia DOPO: si dice, e l'uscita lo dichiara.
+if ($residuo) {
+  Riga ''
+  Riga ('[STOP] il processo {0} NON e'' stato chiuso: resta vivo e consuma CPU. Chiudilo a mano prima di misurare altro.' -f $p.Id)
+  exit 4
+}
