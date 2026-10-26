@@ -3,17 +3,17 @@ Albero: working tree del branch issue/85-d547-finestra-di-freeze, basato su main
 Il motore era libero: nessun processo UnrealEditor prima del lancio.
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.Meta --timeout 540 --log <file>
-suite     finita in 30 s
+suite     finita in 40 s
 conteggi  trovati 15, avviati 15, completati 15
 rossi     nessuno
 log       (scratchpad di sessione, non archiviato)
 
 Dal log di quella corsa:
-[2026.10.26-15.22.38:134][598]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
-[2026.10.26-15.22.38:134][598]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
+[2026.10.26-15.41.13:603][408]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
+[2026.10.26-15.41.13:603][408]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.PieSession --timeout 540 --log <file>
-suite     finita in 40 s
+suite     finita in 30 s
 conteggi  trovati 38, avviati 38, completati 38
 rossi     nessuno
 log       (scratchpad di sessione, non archiviato)
