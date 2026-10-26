@@ -1197,7 +1197,10 @@ namespace
  *   2. a turno risolto (round 2) il registro e' APERTO, con le stesse righe, e l'intestazione dice il turno delle righe e
  *      che e' passato: «ROUND 01 · PRECEDENTE» — non il round corrente, 02;
  *   3. un giro di rilettura riusa le righe;
- *   4. al commit seguente le righe vecchie lasciano il posto a quelle del turno nuovo, e «PRECEDENTE» sparisce.
+ *   4. al commit seguente le righe vecchie lasciano il posto a quelle del turno nuovo, e «PRECEDENTE» sparisce;
+ *   5. un turno SENZA eventi visibili non spegne il registro: le righe del turno 2 restano, «ROUND 02 · PRECEDENTE», fino al
+ *      primo evento che ne ha ([D-548] (2));
+ *   3b. un WBP senza pannello delle righe non apre un registro vuoto in Pianificazione.
  *
  * Il cambio di modo si osserva con `RefreshLook(false)`, cioe' SENZA il giro dei 5 Hz: e' il modo di vedere che l'ingresso
  * in un modo rilegge il feed subito invece di aspettare.
@@ -1272,6 +1275,16 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 	TestTrue(TEXT("3: le righe si riusano"), Prima == nullptr || Log->GetLineWidgets()[0] == Prima);
 	TestEqual(TEXT("3: e il pannello non raddoppia"), Righe->GetChildrenCount(), Log->GetLineWidgets().Num());
 
+	// --- 3b. Un registro senza pannello delle righe non apre una cornice vuota -----------------------------------------------
+	URTPlayerEventLogWidget* SenzaPannello = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("3b: il registro senza pannello"), SenzaPannello)) { return false; }
+	SenzaPannello->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	SenzaPannello->LogRoot = NewObject<UBorder>(SenzaPannello);
+	SenzaPannello->LogTurnText = NewObject<UTextBlock>(SenzaPannello);
+	SenzaPannello->RefreshLook(/*bRereadFeed=*/ false);
+	TestFalse(TEXT("3b: senza LinesBox e LineClass il registro non si apre in Pianificazione, anche col feed pieno"),
+		Visibile(SenzaPannello->LogRoot));
+
 	// --- 4. Il commit seguente: le righe vecchie lasciano il posto a quelle del turno nuovo ------------------------------
 	Dasher->PlannedAbilityIndex = 0;
 	Dasher->PlannedAttackTarget = Target;
@@ -1290,16 +1303,42 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 			TestEqual(*FString::Printf(TEXT("4: la riga %d e' del turno 2"), i), Riga->GetLine().TurnNumber, 2);
 		}
 	}
+
+	// --- 5. Un turno senza eventi visibili: le righe del turno 2 restano ---------------------------------------------------
+	AdvanceUntilDone(TM);
+	Dasher->ClearPlannedAttack();
+	Dasher->PlannedDashAbility = INDEX_NONE;
+	TM->LockInAndResolve(); // nessun piano: nessun evento che il proiettore lasci passare
+	AdvanceUntilDone(TM);
+	if (!TestTrue(TEXT("premessa: si e' tornati in Pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning && !TM->IsResolving())
+		|| !TestEqual(TEXT("premessa: il turno senza piani non ha righe per chi guarda"), Log->GetFeed().Num(), 0))
+	{
+		return false;
+	}
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	TestTrue(TEXT("5: il registro resta aperto"), Visibile(Log->LogRoot));
+	TestEqual(TEXT("5: con le righe del turno 2"), Log->GetLineWidgets().Num(), FeedDelSecondo.Num());
+	TestTrue(TEXT("5: l'intestazione dice il turno 2 e che e' passato, non il round corrente"),
+		Uguale(Intestazione(), TEXT("ROUND 02 \u00B7 PRECEDENTE")));
+	for (int32 i = 0; i < Log->GetLineWidgets().Num(); ++i)
+	{
+		const URTPlayerEventLineWidget* Riga = Log->GetLineWidgets()[i];
+		if (TestNotNull(*FString::Printf(TEXT("5: la riga %d esiste"), i), Riga))
+		{
+			TestEqual(*FString::Printf(TEXT("5: la riga %d e' ancora del turno 2"), i), Riga->GetLine().TurnNumber, 2);
+		}
+	}
 	return true;
 }
 
 /**
  * 🔴 **IN PIANIFICAZIONE LE RIGHE SI RIPROIETTANO PER L'OSSERVATORE DEL MOMENTO** (#3860, [D-548] (4)).
  *
- * Il registro in Pianificazione non conserva copie: rilegge il `TurnLog` ad ogni giro, con gli osservatori che ci sono
- * adesso. La prova e' un cambio di osservatore a registro gia' aperto: una voce autorizzata solo alla squadra 0 compare
- * per la squadra 0 e SPARISCE quando chi guarda diventa la squadra 1. Una copia delle righe gia' proiettate la lascerebbe
- * a schermo — e mostrerebbe a una squadra cio' che e' autorizzato a un'altra.
+ * Il registro in Pianificazione rilegge il `TurnLog` ad ogni giro, con gli osservatori che ci sono adesso. La prova e' un
+ * cambio di osservatore a registro gia' aperto: una voce autorizzata solo alla squadra 0 compare per la squadra 0 e
+ * SPARISCE quando chi guarda diventa la squadra 1. Una copia delle righe gia' proiettate la lascerebbe a schermo — e
+ * mostrerebbe a una squadra cio' che e' autorizzato a un'altra. (La memoria del registro, `FRTEventLogMemory`, e' un'altra
+ * cosa e ha il suo test sulla chiave: vale solo per uno sguardo, e qui il feed vivo della squadra 1 non e' vuoto.)
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogPlanningReprojectsTest,
 	"RefactorTactics.ScreenHud.EventLogInPlanningReprojectsForTheCurrentObserver",

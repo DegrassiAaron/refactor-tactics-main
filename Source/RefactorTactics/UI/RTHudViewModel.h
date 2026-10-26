@@ -951,6 +951,32 @@ struct FRTPlayerEventLineView
 };
 
 /**
+ * Con che occhi sono state proiettate le righe che il registro ricorda (#3860, [D-548] (4)): il manager della partita,
+ * l'insieme degli osservatori e la squadra di chi gioca. Due chiavi uguali = lo stesso sguardo sulla stessa partita.
+ *
+ * ⛔ **Un'altra chiave non e' un'altra proiezione da rifare: e' una memoria da buttare.** Le righe proiettate per uno
+ * sguardo non si mostrano a un altro, ne' per un frame.
+ */
+struct FRTEventLogKey
+{
+	FWeakObjectPtr Manager;
+	TArray<int32> Observers;
+	int32 PlayerTeamId = INDEX_NONE;
+
+	bool operator==(const FRTEventLogKey& Other) const
+	{
+		return Manager == Other.Manager && Observers == Other.Observers && PlayerTeamId == Other.PlayerTeamId;
+	}
+};
+
+/** Le ultime righe NON vuote del registro e la chiave con cui erano state proiettate (#3860, [D-548] (2)). */
+struct FRTEventLogMemory
+{
+	TArray<FRTPlayerEventLineView> Lines;
+	FRTEventLogKey Key;
+};
+
+/**
  * Come si presenta il registro di turno (#3860, [D-548]; prima era [D-496] (2): «solo in Risoluzione»).
  *
  * Una funzione sola decide, perche' la distinzione fra Risoluzione e Pianificazione e' la trappola: durante il playback
@@ -1372,6 +1398,21 @@ public:
 	 * @param bHasMatchContext  il widget ha un `TurnManager` e una squadra. Senza, `Hidden`.
 	 */
 	static ERTEventLogMode EventLogModeFor(const FRTMatchHeaderView& Header, bool bHasMatchContext);
+
+	/** La chiave dello sguardo di questo registro. Vedi `FRTEventLogKey`. */
+	static FRTEventLogKey MakeEventLogKey(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds,
+		int32 PlayerTeamId);
+
+	/**
+	 * Le righe che il registro mostra (#3860, [D-548] (2)): quelle vive se ce ne sono; altrimenti le ultime non vuote, **se
+	 * la chiave e' la stessa**. Un turno senza eventi visibili (il proiettore scarta i movimenti) non spegne il registro:
+	 * le righe del turno prima restano fino al primo evento che ne ha.
+	 *
+	 * @param InOutMemory      aggiornata a ogni feed vivo non vuoto; **azzerata** quando la chiave non coincide.
+	 * @param bOutRemembered   vero se le righe restituite sono quelle ricordate, e il loro turno e' passato.
+	 */
+	static TArray<FRTPlayerEventLineView> PickEventLogLines(const TArray<FRTPlayerEventLineView>& Live,
+		const FRTEventLogKey& Key, FRTEventLogMemory& InOutMemory, bool& bOutRemembered);
 
 	/**
 	 * Il feed preso dal manager. `TurnManager` nullo -> nessuna riga.

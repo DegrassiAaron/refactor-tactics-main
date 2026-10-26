@@ -1538,6 +1538,42 @@ ERTEventLogMode URTHudViewModel::EventLogModeFor(const FRTMatchHeaderView& Heade
 	return Header.Phase == ERTMatchPhase::Planning ? ERTEventLogMode::Previous : ERTEventLogMode::Hidden;
 }
 
+FRTEventLogKey URTHudViewModel::MakeEventLogKey(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds,
+	int32 PlayerTeamId)
+{
+	FRTEventLogKey Key;
+	Key.Manager = FWeakObjectPtr(TurnManager);
+	Key.Observers = ObserverTeamIds;
+	Key.PlayerTeamId = PlayerTeamId;
+	return Key;
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::PickEventLogLines(const TArray<FRTPlayerEventLineView>& Live,
+	const FRTEventLogKey& Key, FRTEventLogMemory& InOutMemory, bool& bOutRemembered)
+{
+	bOutRemembered = false;
+
+	if (Live.Num() > 0)
+	{
+		InOutMemory.Lines = Live;
+		InOutMemory.Key = Key;
+		return Live;
+	}
+
+	// Feed vuoto: un turno senza eventi che il proiettore lasci passare (i movimenti sono scartati). Le righe di prima
+	// restano, ma solo per gli occhi con cui sono state proiettate.
+	if (InOutMemory.Lines.Num() > 0 && InOutMemory.Key == Key)
+	{
+		bOutRemembered = true;
+		return InOutMemory.Lines;
+	}
+
+	// ⛔ Un altro sguardo: la memoria NON si mostra e NON si tiene. Buttarla e non solo saltarla e' il punto: tornando alla
+	// chiave di prima non deve ricomparire, perche' le righe proiettate per un osservatore non aspettano il loro turno.
+	InOutMemory = FRTEventLogMemory();
+	return TArray<FRTPlayerEventLineView>();
+}
+
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	int32 ObserverTeamId)
 {

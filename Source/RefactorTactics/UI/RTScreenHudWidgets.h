@@ -606,8 +606,9 @@ public:
 	 * Pianificazione il registro e' aperto solo se il feed ne ha. Chiuso, il lavoro sarebbe per niente.
 	 * La chiama `NativeTick`; i test la chiamano a mano.
 	 *
-	 * 🔴 **Ogni giro rilegge il `TurnLog` e riproietta per gli osservatori di quel momento**: nessuna copia di righe gia'
-	 * proiettate sopravvive a un giro ([D-548] (4)).
+	 * 🔴 **Ogni giro rilegge il `TurnLog` e riproietta per gli osservatori di quel momento.** L'unica copia di righe gia'
+	 * proiettate che sopravvive e' `Memory` — le ultime non vuote, per un turno senza eventi visibili — e vale solo per la
+	 * stessa chiave (manager, osservatori, squadra): con un'altra si butta ([D-548] (2) e (4)).
 	 *
 	 * @param bRereadFeed  rileggere il feed. `NativeTick` lo fa a 5 Hz, come gli avvisi del pannello: `GetFeed` copia e
 	 *                     proietta il log del turno. A ogni cambio di modo si rilegge subito.
@@ -630,9 +631,16 @@ private:
 	float SecondsSinceFeedReread = 1.f; // il primo tick rilegge subito
 	ERTEventLogMode LastMode = ERTEventLogMode::Hidden;
 
-	/** L'esito dell'ultima rilettura: in Pianificazione il registro e' aperto solo se il feed ha righe, e dice il loro turno. */
+	/**
+	 * L'esito dell'ultima rilettura: in Pianificazione il registro e' aperto solo se ci sono righe da mostrare, e dice il
+	 * loro turno. `bShownRemembered`: sono quelle ricordate (un turno senza eventi visibili), e il loro turno e' passato.
+	 */
 	bool bFeedHasLines = false;
+	bool bShownRemembered = false;
 	int32 FeedTurn = 0;
+
+	/** Le ultime righe non vuote, con gli occhi con cui sono state proiettate ([D-548] (2) e (4)). Non e' una `UPROPERTY`: e' stato di presentazione. */
+	FRTEventLogMemory Memory;
 };
 
 /**

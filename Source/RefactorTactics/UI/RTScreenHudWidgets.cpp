@@ -2777,10 +2777,17 @@ void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 	// Risoluzione serve alle righe. Le righe si costruiscono solo se il WBP ha dato pannello e classe.
 	if (Modo != ERTEventLogMode::Hidden && (bRereadFeed || bCambioDiModo))
 	{
-		const TArray<FRTPlayerEventLineView> Feed = GetFeed();
-		bFeedHasLines = Feed.Num() > 0;
-		FeedTurn = bFeedHasLines ? Feed[0].TurnNumber : 0;
-		if (LinesBox && LineClass)
+		// Le righe vive; se il turno non ne ha (il proiettore scarta i movimenti) restano quelle di prima, ma solo per gli
+		// stessi occhi: un altro manager, altri osservatori o un'altra squadra le buttano ([D-548] (2) e (4)).
+		const TArray<FRTPlayerEventLineView> Vive = GetFeed();
+		const FRTEventLogKey Chiave = URTHudViewModel::MakeEventLogKey(GetTurnManager(), ResolveObserverTeamIds(), GetPlayerTeamId());
+		const TArray<FRTPlayerEventLineView> Feed = URTHudViewModel::PickEventLogLines(Vive, Chiave, Memory, bShownRemembered);
+
+		// Senza pannello e classe delle righe non c'e' niente da aprire: una cornice vuota non e' un registro.
+		const bool bPuoCostruire = LinesBox && LineClass;
+		bFeedHasLines = Feed.Num() > 0 && bPuoCostruire;
+		FeedTurn = Feed.Num() > 0 ? Feed[0].TurnNumber : 0;
+		if (bPuoCostruire)
 		{
 			RebuildLines(Feed);
 		}
@@ -2794,7 +2801,7 @@ void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 		DueCifre.MinimumIntegralDigits = 2;
 		DueCifre.UseGrouping = false;
 		// Il turno delle RIGHE, preso dalle righe: «round corrente meno uno» sbaglierebbe dove un turno non ha voci.
-		LogTurnText->SetText(Modo == ERTEventLogMode::Previous && bFeedHasLines
+		LogTurnText->SetText(bFeedHasLines && (Modo == ERTEventLogMode::Previous || bShownRemembered)
 			? FText::Format(NSLOCTEXT("RTHud", "LogRoundPrevious", "ROUND {0} · PRECEDENTE"), FText::AsNumber(FeedTurn, &DueCifre))
 			: FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Header.Round, &DueCifre)));
 		LogTurnText->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
