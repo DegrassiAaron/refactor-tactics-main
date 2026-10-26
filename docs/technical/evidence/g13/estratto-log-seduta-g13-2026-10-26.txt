@@ -1,0 +1,28 @@
+# Estratto del log della seduta G13, 2026-10-26 (il log intero e' 4 MB e non e' archiviato qui; sta in Saved/Logs/g13-seduta.log)
+
+## riga di comando ricevuta
+LogCsvProfiler: Display: Metadata set : commandline="" -windowed -ResX=1600 -ResY=900 -RTPlanningSeconds=600 -abslog=D:\Repositories\refactor-tactics-main\Saved\Logs\g13-seduta.log""
+
+## armo del pacing
+[RT] Registrazione CSV del pacing: SPENTA -> ATTIVA.
+
+## allestimento e chiusura della partita
+LogRT: [RT] Board 2v2 esagonale avviata su 64 celle con 4 eroi
+LogRT: [RT] Eliminata: BP_Unit_Aevik_C_2147482168 (team 0)
+LogRT: [RT] Partita finita: Vince il team 1 (rosso) - per obiettivo (round 9/12, obiettivo 0-5, formato Format.Skirmish2v2)
+LogRT: [RT] Fine partita al round 9: ERTMatchOutcome::Team1Wins
+
+## controlli negativi, conteggi sul log intero
+Fatal error -> 0
+Assertion failed -> 0
+Critical error -> 0
+Error: -> 0
+Failed to find object -> 0
+SkipPackage -> 0
+Travel Failure -> 0
+Partita finita senza frontend -> 0
+
+## righe per messaggio piu' frequente (normalizzato)
+  29424 LogRT: Warning: Icona non risolta: 'None' richiesta da 'ActionSlot' — mostrata l'icona di fallback
+     10 LogRT: Display: [RT] richiesta di armare la posizione N dallo slot del dock: armata su 'BP_Unit_Muiren_C_N'
+      9 LogRT: [RT] Turno N - pianificazione
