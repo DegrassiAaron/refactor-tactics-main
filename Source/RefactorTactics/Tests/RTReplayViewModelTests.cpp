@@ -811,4 +811,76 @@ bool FRTReplayViewModelFromTracesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **LA REVISIONE DELLA POSIZIONE CAMBIA A OGNI MOVIMENTO, APERTURA E RIAVVOLGIMENTO, E SOLO ALLORA** (#3868).
+ *
+ * E' la chiave di chi tiene in cache cio' che `CurrentPhaseEntries` risponde: stato, turno e fase non bastano (le tracce
+ * pre-v6 dichiarano tutte turno 0). Per essere una chiave deve fare due cose opposte, e un test che ne provasse una sola
+ * lascerebbe passare l'altra:
+ *
+ *   - cambiare quando cambia cio' che la posizione risponde: un passo, un riavvolgimento, una riapertura (anche dello stesso
+ *     archivio, e anche su un view model nuovo: il contatore e' del processo);
+ *   - NON cambiare quando non cambia niente: le letture, e un passo che non avviene. Una revisione che cambiasse a ogni
+ *     domanda farebbe rileggere le voci a ogni tick.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelPositionRevisionTest,
+	"RefactorTactics.Replay.ViewModel.PositionRevisionChangesWithEveryMoveAndOnlyThen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTReplayViewModelPositionRevisionTest::RunTest(const FString&)
+{
+	const FString Root = TransientRoot(TEXT("RevisioneDellaPosizione"));
+	Pulisci(Root);
+	const FGuid Id = ArchivioDueTurni(Root);
+	const auto Uguali = [this](const TCHAR* Cosa, uint32 A, uint32 B) { return TestTrue(Cosa, A == B); };
+	const auto Diverse = [this](const TCHAR* Cosa, uint32 A, uint32 B) { return TestTrue(Cosa, A != B); };
+
+	FRTReplayViewModel VM;
+	Uguali(TEXT("un view model mai mosso ha revisione 0"), VM.GetPositionRevision(), 0u);
+
+	VM.Open(Root, Id);
+	const uint32 Aperto = VM.GetPositionRevision();
+	Diverse(TEXT("aprire cambia la revisione"), Aperto, 0u);
+
+	// --- Le letture non la cambiano -------------------------------------------------------------------------------------------
+	VM.Position();
+	VM.CurrentPhaseEntries();
+	VM.CanStepPhaseForward();
+	VM.CanStepPhaseBackward();
+	VM.CanStepTurnForward();
+	Uguali(TEXT("le letture non cambiano la revisione"), VM.GetPositionRevision(), Aperto);
+
+	// --- Un passo che non avviene non la cambia ---------------------------------------------------------------------------------
+	TestFalse(TEXT("premessa: prima dell'inizio non si torna indietro"), VM.StepPhaseBackward());
+	Uguali(TEXT("un passo che non avviene non cambia la revisione"), VM.GetPositionRevision(), Aperto);
+
+	// --- Un movimento la cambia -------------------------------------------------------------------------------------------------
+	TestTrue(TEXT("premessa: si avanza di una fase"), VM.StepPhaseForward());
+	const uint32 Mosso = VM.GetPositionRevision();
+	Diverse(TEXT("un passo cambia la revisione"), Mosso, Aperto);
+
+	// --- Il riavvolgimento la cambia -----------------------------------------------------------------------------------------------
+	VM.Rewind();
+	const uint32 Riavvolto = VM.GetPositionRevision();
+	Diverse(TEXT("riavvolgere cambia la revisione"), Riavvolto, Mosso);
+
+	// --- Riaprire lo stesso archivio la cambia, anche tornando alla stessa posizione --------------------------------------------------
+	VM.Open(Root, Id);
+	const uint32 Riaperto = VM.GetPositionRevision();
+	Diverse(TEXT("riaprire cambia la revisione, anche lo stesso archivio"), Riaperto, Riavvolto);
+	Diverse(TEXT("e non torna alla revisione della prima apertura"), Riaperto, Aperto);
+
+	// --- Un view model nuovo non riparte da un valore gia' visto -------------------------------------------------------------------
+	// `URTReplayViewerSubsystem::Close` assegna un view model nuovo: un contatore del view model ripartirebbe da zero e una cache
+	// che avesse visto quel valore non si accorgerebbe di niente.
+	VM = FRTReplayViewModel();
+	Uguali(TEXT("un view model nuovo e' alla revisione 0, che nessun movimento assegna"), VM.GetPositionRevision(), 0u);
+	VM.Open(Root, Id);
+	TestTrue(TEXT("e la prima apertura dopo l'azzeramento supera tutte le revisioni gia' viste"),
+		VM.GetPositionRevision() > Riaperto);
+
+	Pulisci(Root);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

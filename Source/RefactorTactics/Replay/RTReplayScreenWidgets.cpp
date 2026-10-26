@@ -116,13 +116,7 @@ URTFrontendNavigator* URTReplayViewerWidgetBase::Navigator() const
 
 ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelected()
 {
-	return OpenSelectedWith(Replay());
-}
-
-ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelectedWith(URTReplayViewerSubsystem* V)
-{
-	bEntriesShown = false;
-	return OpenSelectedOn(V);
+	return OpenSelectedOn(Replay());
 }
 
 ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelectedOn(URTReplayViewerSubsystem* V)
@@ -255,7 +249,7 @@ FText URTReplayViewerWidgetBase::ComposePhaseEntriesText(const TArray<FRTPublicR
 	}
 
 	// Un tetto: il testo e' un blocco solo, e una fase con molte voci lo farebbe uscire dallo schermo.
-	constexpr int32 MaxRows = 12;
+	constexpr int32 MaxRows = MaxPhaseEntryRows;
 	TArray<FString> Rows;
 	for (int32 i = 0; i < Entries.Num() && i < MaxRows; ++i)
 	{
@@ -266,7 +260,10 @@ FText URTReplayViewerWidgetBase::ComposePhaseEntriesText(const TArray<FRTPublicR
 	FString Joined = FString::Join(Rows, TEXT("\n"));
 	if (Entries.Num() > MaxRows)
 	{
-		Joined += TEXT("\n") + FText::Format(LOCTEXT("ReplayMoreEntries", "… e altre {0}"), FText::AsNumber(Entries.Num() - MaxRows)).ToString();
+		// Senza separatori: `AsNumber` raggruppa le cifre, e «altre 1.234» accanto a un conteggio di righe si legge come un decimale.
+		FNumberFormattingOptions SenzaSeparatori;
+		SenzaSeparatori.UseGrouping = false;
+		Joined += TEXT("\n") + FText::Format(LOCTEXT("ReplayMoreEntries", "… e altre {0}"), FText::AsNumber(Entries.Num() - MaxRows, &SenzaSeparatori)).ToString();
 	}
 	return FText::FromString(Joined);
 }
@@ -287,6 +284,13 @@ void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
 		return;
 	}
 
+	// ⚠️ **Disabilitato, non silenzioso** (il criterio dei bordi di #472, per cui esistono i `Can*`): su una sequenza
+	// finita, su un archivio non aperto o senza fasi `Play` non parte, e un pulsante acceso che non fa niente e' il difetto da
+	// evitare. In riproduzione resta acceso: e' il pulsante che mette in pausa.
+	if (PlayPauseButton)
+	{
+		PlayPauseButton->SetIsEnabled(V->IsPlaying() || V->CanStepPhaseForward());
+	}
 	if (PlayPauseLabel)
 	{
 		PlayPauseLabel->SetText(GetPlayPauseText(V->IsPlaying()));
@@ -294,14 +298,17 @@ void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
 
 	if (PhaseEntriesText)
 	{
-		// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca: si rilegge quando la posizione cambia, non a ogni tick.
-		const FRTReplayPosition Pos = V->GetPosition();
-		const bool bSamePosition = bEntriesShown && Pos.State == EntriesPosition.State
-			&& Pos.TurnNumber == EntriesPosition.TurnNumber && Pos.Phase == EntriesPosition.Phase;
-		if (!bSamePosition)
+		// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca: si rilegge quando cambia la REVISIONE della posizione,
+		// non a ogni tick. Turno, fase e stato non bastano come chiave: le tracce pre-v6 dichiarano tutte turno 0, e un archivio
+		// riaperto puo' ritrovarsi alla stessa posizione con altre voci.
+		const uint32 Revision = V->GetPositionRevision();
+		if (!bEntriesShown || Revision != EntriesRevision)
 		{
-			PhaseEntriesText->SetText(ComposePhaseEntriesText(V->GetCurrentPhaseEntries()));
-			EntriesPosition = Pos;
+			// Senza una fase (prima dell'inizio, a sequenza finita, archivio non aperto) non c'e' una fase di cui dire che non
+			// ha eventi: il testo resta vuoto, invece di affermare una cosa falsa su una fase che non c'e'.
+			PhaseEntriesText->SetText(V->GetPosition().HasPhase()
+				? ComposePhaseEntriesText(V->GetCurrentPhaseEntries()) : FText::GetEmpty());
+			EntriesRevision = Revision;
 			bEntriesShown = true;
 		}
 	}
@@ -319,8 +326,17 @@ void URTReplayViewerWidgetBase::NativeConstruct()
 void URTReplayViewerWidgetBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	URTReplayViewerSubsystem* V = Replay();
-	TickPlaybackOn(V, InDeltaTime);
+	TickOn(Replay(), InDeltaTime);
+}
+
+void URTReplayViewerWidgetBase::TickOn(URTReplayViewerSubsystem* V, float DeltaSeconds)
+{
+	// Un widget disabilitato sta sotto un modale (`SyncPresentation`): il tempo non scorre dove il giocatore non puo' arrivare
+	// al pulsante di pausa. Le porte si scrivono comunque.
+	if (GetIsEnabled())
+	{
+		TickPlaybackOn(V, DeltaSeconds);
+	}
 	RefreshLookOn(V);
 }
 

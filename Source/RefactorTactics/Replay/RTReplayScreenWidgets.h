@@ -8,7 +8,6 @@
 #include "Replay/RTMatchHistoryLibrary.h" // FRTMatchHistoryEntry e' un valore di ritorno: serve la definizione
 #include "Replay/RTReplayPlayerLibrary.h" // ERTReplayOpenResult
 #include "Replay/RTReplayPrivacyLibrary.h" // FRTPublicReplayEntry: la voce di fase che il viewer elenca
-#include "Replay/RTReplayViewModel.h"      // FRTReplayPosition: la chiave della rilettura delle voci
 #include "RTReplayScreenWidgets.generated.h"
 
 class UButton;
@@ -151,9 +150,11 @@ private:
  * `OpenSelected` consuma la selezione dichiarata da `MatchHistory`, e senza quella non apre niente. Una
  * schermata che si aprisse su nulla sarebbe il dead-end che §3.2 vieta.
  *
- * ⛔ **I comandi non sono qui.** Play, pausa, salti di turno e fase, posizione e bordi sono
+ * ⛔ **Le DECISIONI non sono qui.** Play, pausa, salti di turno e fase, posizione e bordi sono
  * `UFUNCTION` del `URTReplayViewerSubsystem` da `#999`, e un widget li chiama direttamente. Ricopiarli qui
- * darebbe due superfici per la stessa cosa, e la seconda divergerebbe.
+ * darebbe due superfici per la stessa cosa, e la seconda divergerebbe. Quello che il widget aggiunge (#3868) e' cio' che
+ * il subsystem non puo' sapere: che il pulsante e' stato premuto (`TogglePlay` sceglie fra `Play` e `Pause` e non decide
+ * altro) e che e' passato del tempo (`TickOn`), perche' il view model avanza solo se qualcuno glielo da'.
  *
  * 🔑 **Le porte opzionali di #3868** (`PlayPauseButton`, `PlayPauseLabel`, `PhaseEntriesText`, `BackButtonLabel`) sono
  * il pezzo che il grafo del WBP non aveva: nessun pulsante chiamava `Play`/`Pause`, nessuno chiamava `Tick` — quindi
@@ -193,13 +194,6 @@ public:
 
 	/** La decisione dietro `OpenSelected`, interrogabile. Vedi `SelectAndNavigate` per il perche' statica. */
 	static ERTReplayOpenResult OpenSelectedOn(URTReplayViewerSubsystem* Replay);
-
-	/**
-	 * `OpenSelected` con il subsystem in ingresso: apre e **invalida le voci mostrate** (#3868). La chiave della rilettura
-	 * e' la posizione, e un archivio nuovo aperto alla stessa posizione ne ha una uguale: senza l'invalidazione il testo
-	 * resterebbe quello del replay di prima, in silenzio.
-	 */
-	ERTReplayOpenResult OpenSelectedWith(URTReplayViewerSubsystem* Replay);
 
 	/**
 	 * La decisione dietro `Back`, interrogabile.
@@ -260,8 +254,22 @@ public:
 	/** Le voci della fase in un testo solo, una per riga; con nessuna voce lo dice. Righe oltre il tetto: «… e altre N». */
 	static FText ComposePhaseEntriesText(const TArray<FRTPublicReplayEntry>& Entries);
 
-	/** Scrive le porte dallo stato del subsystem. Le voci si rileggono solo se la posizione cambia. Il tick la chiama. */
+	/** Le righe di voci che il testo mostra al massimo: il resto e' una riga che dice quante sono. */
+	static constexpr int32 MaxPhaseEntryRows = 12;
+
+	/**
+	 * Scrive le porte dallo stato del subsystem. Le voci si rileggono solo quando cambia la **revisione** della posizione
+	 * (`GetPositionRevision`): non a ogni tick, e non solo quando cambiano turno, fase e stato, che non identificano una
+	 * traccia. Il pulsante Play/Pausa segue i bordi: spento dove `Play` non partirebbe.
+	 */
 	void RefreshLookOn(URTReplayViewerSubsystem* Replay);
+
+	/**
+	 * Cio' che fa ogni tick, con il subsystem in ingresso (vedi `SelectAndNavigate` per il perche' statica nella logica).
+	 * Il tempo scorre solo se il widget e' abilitato: sotto un modale il navigatore lo disabilita (`SyncPresentation`), e il
+	 * replay non deve proseguire dove il giocatore non puo' arrivare a metterlo in pausa. Le porte si scrivono comunque.
+	 */
+	void TickOn(URTReplayViewerSubsystem* Replay, float DeltaSeconds);
 
 protected:
 	/** Il subsystem del replay, o `nullptr` fuori da una `GameInstance`. */
@@ -280,7 +288,7 @@ private:
 	/** Le etichette che non cambiano si scrivono una volta. */
 	bool bStaticLabelsWritten = false;
 
-	/** Le voci mostrate e la posizione per cui sono state lette: `GetCurrentPhaseEntries` rifa' un seek e alloca. */
+	/** Le voci mostrate e la revisione per cui sono state lette: `GetCurrentPhaseEntries` rifa' un seek e alloca. */
 	bool bEntriesShown = false;
-	FRTReplayPosition EntriesPosition;
+	uint32 EntriesRevision = 0;
 };
