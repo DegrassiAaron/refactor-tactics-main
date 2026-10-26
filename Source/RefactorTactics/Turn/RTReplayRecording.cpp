@@ -35,7 +35,19 @@ bool FRTReplayRecording::RecordTurn(const FString& Root, int32 TurnNumber,
 	const TArray<FRTTurnLogEntry>& TurnLog)
 {
 	// ⛔ Nessun log qui: si risponde `false` e chi chiama decide cosa dirne. Vedi il contratto nell'header.
-	return URTReplayRecorderLibrary::RecordTurn(Root, Manifest, TurnNumber, TurnLog);
+	const bool bRecorded = URTReplayRecorderLibrary::RecordTurn(Root, Manifest, TurnNumber, TurnLog);
+
+	// La riga della lista segue i turni mentre la partita gira (`#3871`). `Begin` la scrive con 0 turni e `Close` la
+	// completa (`#3859`), ma una partita che alla chiusura non arriva — un processo terminato, una cattura che si ferma
+	// a un numero di frame — restava per sempre «0 turni» mentre il manifest, riscritto a ogni turno, ne contava tre o
+	// quattro. `AppendOrUpdate` aggiorna la riga in luogo e `EntryFromManifest` legge cio' che il manifest dice ADESSO:
+	// esito ancora «in corso» e replay non completo, perche' i turni non fingono una chiusura.
+	//
+	// Nessun ramo sull'esito del turno: se non e' stato registrato il manifest non si e' mosso e la riga si riscrive
+	// identica, e un ramo che nessun test puo' distinguere dal suo assente e' codice da non scrivere. L'esito
+	// dell'indice non cambia quello del turno: se l'indice non si scrive, l'archivio e' comunque a posto.
+	URTMatchHistoryLibrary::AppendOrUpdate(Root, URTMatchHistoryLibrary::EntryFromManifest(Manifest, StartedUtc));
+	return bRecorded;
 }
 
 bool FRTReplayRecording::RecordAudit(const FString& Root, const FRTTurnAudit& Audit) const

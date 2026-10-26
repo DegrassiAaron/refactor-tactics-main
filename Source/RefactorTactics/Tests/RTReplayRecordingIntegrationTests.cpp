@@ -290,6 +290,105 @@ bool FRTReplayHistoryRowCompletedAtCloseTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **La riga della lista segue i TURNI mentre la partita gira, non solo alla chiusura** (`#3871`).
+ *
+ * `#3859` ha fatto completare la riga alla CHIUSURA. Resta la partita che alla chiusura non arriva — un processo
+ * terminato, una cattura che si ferma a un numero di frame: il manifest si riscrive a ogni turno (`RecordTurn`), ma la
+ * riga di `history.rtindex` restava com'era l'aveva scritta `Begin`, e la lista diceva «0 turni · interrotta» per
+ * partite che ne avevano giocati tre o quattro. E' l'altra meta' della lamentela dell'autore sul passo 5 di `G16`
+ * («nel replay appaiono partite non concluse o non salvate»): le interrotte restano elencate (`#416`), ma devono dire
+ * la verita' su quanto sono arrivate.
+ *
+ * Il test passa dal **percorso di produzione**, come quello di `#3859` — `ARTTurnManager` →
+ * `FRTReplayRecording::RecordTurn` → indice — e rilegge la riga dal FILE, a partita in corso, **senza chiuderla**.
+ *
+ * Le gambe: (a) dopo un turno la riga dice 1, e il manifest lo conferma (la premessa: senza, si confronterebbero due
+ * zeri); (b) dopo il secondo dice 2; (c) la riga resta UNA sola; (d) resta «in corso» e con il replay non completo: i
+ * turni non fingono una chiusura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayHistoryRowFollowsTheTurnsTest,
+	"RefactorTactics.Replay.Recording.TheHistoryRowFollowsTheTurnsWhileTheMatchRuns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayHistoryRowFollowsTheTurnsTest::RunTest(const FString&)
+{
+	const FString Root = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RecHistoryTurns"));
+	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+
+	UWorld* World = MakeRecWorld();
+	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
+
+	SpawnRecMap(World, /*Radius=*/ 4);
+	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
+
+	TM->ReplaysRootOverride = Root;
+	TM->DispatchBeginPlay();
+
+	FRTMatchRules Rules;
+	Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+	TM->SetMatchRules(Rules);
+	TM->BeginReplayRecording();
+
+	const FGuid MatchId = TM->GetReplayMatchId();
+	if (!TestTrue(TEXT("la partita ha un id"), MatchId.IsValid())) { DestroyRecWorld(World); return false; }
+
+	// Rilegge l'indice DAL FILE e cerca la riga della partita: e' cio' che farebbe la schermata.
+	auto RigaDellaPartita = [&Root, &MatchId](int32& OutQuante, FRTMatchHistoryEntry& OutRiga) -> bool
+	{
+		TArray<FRTMatchHistoryEntry> Righe;
+		OutQuante = 0;
+		if (!URTMatchHistoryLibrary::LoadIndex(Root, Righe)) { return false; }
+		for (const FRTMatchHistoryEntry& R : Righe)
+		{
+			if (R.MatchId == MatchId) { ++OutQuante; OutRiga = R; }
+		}
+		return OutQuante > 0;
+	};
+
+	// Un turno alla volta, SENZA arrivare alla fine: la partita resta aperta, come una cattura interrotta.
+	for (int32 Atteso = 1; Atteso <= 2; ++Atteso)
+	{
+		RTWorldFixtures::PlayOneTurn(TM);
+		if (!TestTrue(TEXT("premessa: la partita non e' finita, e il test non la chiude"),
+			TM->GetPhase() != ERTMatchPhase::MatchEnded))
+		{
+			DestroyRecWorld(World);
+			return false;
+		}
+
+		FRTReplayManifest Manifest;
+		if (!TestTrue(TEXT("il manifest a partita aperta si rilegge"), URTReplayRecorderLibrary::LoadManifest(Root, MatchId, Manifest)))
+		{
+			DestroyRecWorld(World);
+			return false;
+		}
+		// Premesse misurate: il manifest e' gia' al turno atteso e NON e' chiuso.
+		TestEqual(TEXT("premessa: il manifest conta i turni giocati"), Manifest.TurnCount, Atteso);
+		TestFalse(TEXT("premessa: il manifest non e' chiuso"), Manifest.bClosed);
+
+		int32 Quante = 0;
+		FRTMatchHistoryEntry Riga;
+		if (!TestTrue(TEXT("la riga e' nell'indice"), RigaDellaPartita(Quante, Riga)))
+		{
+			DestroyRecWorld(World);
+			return false;
+		}
+		TestEqual(*FString::Printf(TEXT("(a)(b) dopo %d turni la riga dice %d, come il manifest"), Atteso, Atteso), Riga.TurnCount, Manifest.TurnCount);
+		TestEqual(TEXT("(c) ed e' UNA sola: ogni turno aggiorna la riga in luogo"), Quante, 1);
+		TestTrue(TEXT("(d) resta «in corso»"), Riga.Outcome == ERTMatchOutcome::InProgress);
+		TestFalse(TEXT("(d) e col replay non completo: i turni non fingono una chiusura"), Riga.bReplayComplete);
+	}
+
+	DestroyRecWorld(World);
+	if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+	return true;
+}
+
+/**
  * Un TurnManager che nessuno ha avviato NON scrive niente.
  *
  * E' il caso dei 27 file di test e dello `ScenarioHarness`, che spawnano un TurnManager a mano: se la
