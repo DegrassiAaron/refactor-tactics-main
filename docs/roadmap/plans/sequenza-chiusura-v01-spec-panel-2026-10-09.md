@@ -469,6 +469,8 @@ con tre correzioni che la sequenza del 3 ottobre ha misurato e che restano vere:
 Tutto è `NOT RUN` finché non è eseguito. Una cella verde datata 2026-10-02 non vale sul
 candidate v2.
 
+➕ *Aggiornato il 2026-10-26, a lavoro fatto: **l'Onda 3 è misurata** sul `HEAD` `ad06c1cfc` (che dal candidate v2 differisce solo nei `Tests/`, [D-542](../../decisions/RT_PDR_00_Decision_Log.md)) per `G1` `G2` `G3` `G4` `G5` `G6` `G7` `G8` `G11` `G12` `G14`, con l'evidenza in [`onda3-misure-2026-10-26.md`](../../technical/evidence/85/onda3-misure-2026-10-26.md). Tre fatti da leggere: (1) la misura ha trovato che `Reactions.Intercept`, uno dei dieci test vincolanti di `G3`, non girava dal 2026-10-13 ([#3854](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3854), corretta con un test che lo impedisce); (2) `Client FPS` è fuori target e non attribuito, in una finestra non pulita; (3) il log di cottura porta 924 righe `Error compiling`, non confrontabili con le sei del 2026-10-02. Restano `NOT RUN` `G9` `G10` `G13` `G16`: sono l'Onda 4.*
+
 ### Onda 4 — le sedute
 
 ```text
