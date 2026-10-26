@@ -37,14 +37,31 @@ VITTIMA = "\n".join([
 ])
 
 
+# La vittima ORFANA: il padre lancia il figlio e ESCE. E' il caso in cui `taskkill /T` sul padre non basta, perche'
+# il figlio non ha piu' un padre vivo da cui essere raggiunto.
+VITTIMA_ORFANA = "\n".join([
+    "import subprocess, sys",
+    "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)', sys.argv[1] + '-figlio'])",
+    "",
+])
+
+# Attende che il FIGLIO esista, invece di dormire a tempo: su una macchina carica il padre puo' essere chiuso prima
+# che il figlio sia nato, e il test passerebbe senza aver provato il figlio.
+ATTENDI_FIGLIO = [
+    "for ($i = 0; $i -lt 100; $i++) {",
+    "  if (@(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*MARCATORE-figlio*' -and $_.ProcessId -ne $PID }).Count -gt 0) { break }",
+    "  Start-Sleep -Milliseconds 100",
+    "}",
+]
+
+
 def processi_con(marcatore):
-    """PID dei processi python che portano il marcatore nella riga di comando (escluso chi interroga)."""
+    """PID dei processi che portano il marcatore nella riga di comando (escluso chi interroga)."""
     comando = (
-        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python' -and "
-        "$_.CommandLine -like '*" + marcatore + "*' -and $_.ProcessId -ne $PID } | "
-        "ForEach-Object { $_.ProcessId }"
+        "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*" + marcatore + "*' -and "
+        "$_.ProcessId -ne $PID } | ForEach-Object { $_.ProcessId }"
     )
-    out = subprocess.run(["powershell", "-NoProfile", "-Command", comando], capture_output=True, text=True).stdout
+    out = subprocess.run([EDIZIONI[0], "-NoProfile", "-Command", comando], capture_output=True, text=True).stdout
     return [int(r) for r in out.split() if r.strip().isdigit()]
 
 
@@ -54,6 +71,9 @@ class ChiudiAlberoTest(unittest.TestCase):
         self.vittima = os.path.join(self.dir, "vittima.py")
         with open(self.vittima, "w", encoding="utf-8", newline="\n") as f:
             f.write(VITTIMA)
+        self.orfana = os.path.join(self.dir, "vittima_orfana.py")
+        with open(self.orfana, "w", encoding="utf-8", newline="\n") as f:
+            f.write(VITTIMA_ORFANA)
         self.marcatore = "marcatore-" + uuid.uuid4().hex
 
     def tearDown(self):
@@ -61,13 +81,15 @@ class ChiudiAlberoTest(unittest.TestCase):
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
         shutil.rmtree(self.dir, ignore_errors=True)
 
-    def esegui(self, edizione, atteso):
+    def esegui(self, edizione, atteso, vittima=None, attendi_padre_uscito=False):
         """Lancia la vittima, chiama ChiudiAlbero con `atteso` come marcatore da verificare, e ne riporta l'esito."""
         script = os.path.join(self.dir, "prova.ps1")
+        attesa = [r.replace("MARCATORE", self.marcatore) for r in ATTENDI_FIGLIO]
         ps = "\n".join([
             ". '" + HELPER + "'",
-            "$p = Start-Process -FilePath '" + sys.executable + "' -ArgumentList @('\"" + self.vittima + "\"', '" + self.marcatore + "') -PassThru",
-            "Start-Sleep -Milliseconds 2000",
+            "$p = Start-Process -FilePath '" + sys.executable + "' -ArgumentList @('\"" + (vittima or self.vittima) + "\"', '" + self.marcatore + "') -PassThru",
+        ] + ["$p.WaitForExit()"] * attendi_padre_uscito + attesa + [
+            "Write-Output ('FIGLIO_PRESENTE=' + (@(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*" + self.marcatore + "-figlio*' -and $_.ProcessId -ne $PID }).Count -gt 0))",
             "$r = ChiudiAlbero -Processo $p -CommandLineContiene '" + atteso + "'",
             "Write-Output ('RISULTATO=' + $r)",
             "",
@@ -78,8 +100,9 @@ class ChiudiAlberoTest(unittest.TestCase):
         return cp.stdout + cp.stderr
 
     def test_ci_sono_edizioni_da_provare(self):
-        # controllo del controllo: senza nemmeno una edizione, gli altri test passerebbero a vuoto
-        self.assertTrue(EDIZIONI, "nessuna edizione di PowerShell trovata")
+        # controllo del controllo: senza nemmeno una edizione, gli altri test passerebbero a vuoto. E il difetto e'
+        # SPECIFICO di Windows PowerShell 5.1: provare solo `pwsh` lo lascerebbe non provato senza che nulla lo dica.
+        self.assertIn("powershell", EDIZIONI, "serve Windows PowerShell 5.1: e' l'edizione del difetto")
 
     @unittest.skipUnless(shutil.which("powershell"), "serve Windows PowerShell 5.1")
     def test_controllo_positivo_il_vecchio_metodo_fallisce_su_5_1(self):
@@ -101,13 +124,38 @@ class ChiudiAlberoTest(unittest.TestCase):
         for ed in EDIZIONI:
             with self.subTest(edizione=ed):
                 out = self.esegui(ed, self.marcatore)
+                self.assertIn("FIGLIO_PRESENTE=True", out, "il figlio non e' nato: il test non proverebbe nulla. " + out)
                 self.assertIn("RISULTATO=True", out, out)
                 self.assertEqual(processi_con(self.marcatore), [], "restano processi vivi: " + out)
+
+    def test_chiude_un_figlio_orfano_che_porta_il_marcatore(self):
+        # il padre e' gia' uscito, il figlio no: chiudere "il processo" ritorna subito, e il gioco resta vivo
+        for ed in EDIZIONI:
+            with self.subTest(edizione=ed):
+                out = self.esegui(ed, self.marcatore, vittima=self.orfana, attendi_padre_uscito=True)
+                self.assertIn("FIGLIO_PRESENTE=True", out, "il figlio non e' nato: il test non proverebbe nulla. " + out)
+                self.assertIn("RISULTATO=True", out, out)
+                self.assertEqual(processi_con(self.marcatore), [], "resta un orfano vivo: " + out)
+
+    def test_non_tocca_un_processo_estraneo_che_cita_il_marcatore(self):
+        # Il marcatore e' il percorso del log della run: una shell che lo legge (`Get-Content -Wait`), un editor
+        # aperto sul log o una query di diagnostica lo hanno nella riga di comando, e NON sono il gioco. Chiudere
+        # "tutto cio' che cita il marcatore" li ucciderebbe: si chiude solo cio' che e' lo STESSO eseguibile.
+        for ed in EDIZIONI:
+            with self.subTest(edizione=ed):
+                estraneo = subprocess.Popen([ed, "-NoProfile", "-Command", "Start-Sleep 60 # " + self.marcatore])
+                try:
+                    out = self.esegui(ed, self.marcatore)
+                    self.assertIn("RISULTATO=True", out, out)
+                    self.assertIsNone(estraneo.poll(), "un processo estraneo che citava il marcatore e' stato chiuso: " + out)
+                finally:
+                    subprocess.run(["taskkill", "/PID", str(estraneo.pid), "/T", "/F"], capture_output=True)
 
     def test_non_chiude_un_processo_che_non_porta_il_marcatore_atteso(self):
         for ed in EDIZIONI:
             with self.subTest(edizione=ed):
                 out = self.esegui(ed, "marcatore-di-un-altro-processo")
+                self.assertIn("FIGLIO_PRESENTE=True", out, out)
                 self.assertIn("RISULTATO=False", out, out)
                 self.assertNotEqual(processi_con(self.marcatore), [], "il processo e' stato chiuso senza il suo marcatore: " + out)
                 for pid in processi_con(self.marcatore):

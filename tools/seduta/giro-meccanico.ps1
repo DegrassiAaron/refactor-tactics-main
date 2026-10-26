@@ -128,9 +128,7 @@ if ($finita) {
 } else {
   Riga ("[STOP] oltre il tetto di {0} min SENZA che il log porti ``Partita finita:``." -f $Minuti)
   Riga '       run TRONCATA e non valida: chiudo il processo.'
-  if (-not (ChiudiAlbero -Processo $p -CommandLineContiene $Log)) {
-    Riga ('[STOP] il processo {0} NON e'' stato chiuso: resta vivo e consuma CPU. Chiudilo a mano.' -f $p.Id)
-  }
+  $null = ChiudiAlbero -Processo $p -CommandLineContiene $Log   # se qualcosa resta vivo, il helper lo dice da se'
   exit 3
 }
 
@@ -204,6 +202,6 @@ Riga 'e questa run prepara quella seduta invece di sostituirla.'
 # Un gioco rimasto vivo falsa la misura di chi lancia DOPO: si dice, e l'uscita lo dichiara.
 if ($residuo) {
   Riga ''
-  Riga ('[STOP] il processo {0} NON e'' stato chiuso: resta vivo e consuma CPU. Chiudilo a mano prima di misurare altro.' -f $p.Id)
+  Riga ('[STOP] il gioco (PID {0}) NON e'' stato chiuso, vedi sopra: gli esiti qui sopra sono stati letti con il processo ancora vivo. Chiudilo a mano prima di misurare altro.' -f $p.Id)
   exit 4
 }
