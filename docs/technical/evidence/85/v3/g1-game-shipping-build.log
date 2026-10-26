@@ -1,0 +1,70 @@
+# G1, candidate v3, 2026-10-26: build, build del target game-shipping (log integrale di Build.bat)
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" RefactorTactics Win64 Shipping -Project=D:/Repositories/refactor-tactics-main/RefactorTactics.uproject -WaitMutex -NoHotReloadFromIDE
+Log file: C:\Users\Utente\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (12 physical cores, 20 logical cores)
+  Executing up to 12 processes, one per physical core
+Using 'git status' to determine working set for adaptive non-unity build (D:\Repositories\refactor-tactics-main).
+Creating makefile for RefactorTactics (no existing makefile)
+UbaServer - Listening on 0.0.0.0:1345
+Building RefactorTactics...
+===== Toolchain Information =====
+Using ISPC compiler (D:\EpicGames\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.50.35737 toolchain (C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717) and Windows 10.0.22621.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+=================================
+Using Unreal Build Accelerator local executor to run 43 action(s)
+  CPU 12 physical cores, 20 logical cores
+  Memory 63.78 GB physical, 54.01 GB/101.78 GB committed
+  UBA Storage capacity 40 GB
+[1/43] Copy RefactorTactics-Win64-Shipping-Default.rc2
+[2/43] Compile Resource [x64] RefactorTactics-Win64-Shipping-Default.rc2
+[3/43] Compile [x64] SharedPCH.Engine.Project.ValApi.ValExpApi.Cpp20.cpp
+[4/43] Compile [x64] Module.RefactorTactics.17.cpp
+[5/43] Compile [x64] Module.RefactorTactics.13.cpp
+[6/43] Compile [x64] Module.RefactorTactics.11.cpp
+[7/43] Compile [x64] Module.RefactorTactics.15.cpp
+[8/43] Compile [x64] Module.RefactorTactics.10.cpp
+[9/43] Compile [x64] Module.RefactorTactics.14.cpp
+[10/43] Compile [x64] Module.RefactorTactics.18.cpp
+[11/43] Compile [x64] Module.RefactorTactics.12.cpp
+[12/43] Compile [x64] Module.RefactorTactics.16.cpp
+[13/43] Compile [x64] Module.RefactorTactics.19.cpp
+[14/43] Compile [x64] Module.RefactorTactics.20.cpp
+[15/43] Compile [x64] Module.RefactorTactics.22.cpp
+[16/43] Compile [x64] Module.RefactorTactics.24.cpp
+[17/43] Compile [x64] Module.RefactorTactics.21.cpp
+[18/43] Compile [x64] Module.RefactorTactics.29.cpp
+[19/43] Compile [x64] Module.RefactorTactics.25.cpp
+[20/43] Compile [x64] Module.RefactorTactics.23.cpp
+[21/43] Compile [x64] Module.RefactorTactics.26.cpp
+[22/43] Compile [x64] Module.RefactorTactics.27.cpp
+[23/43] Compile [x64] Module.RefactorTactics.28.cpp
+[24/43] Compile [x64] Module.RefactorTactics.32.cpp
+[25/43] Compile [x64] Module.RefactorTactics.1.cpp
+[26/43] Compile [x64] Module.RefactorTactics.31.cpp
+[27/43] Compile [x64] Module.RefactorTactics.30.cpp
+[28/43] Compile [x64] Module.RefactorTactics.37.cpp
+[29/43] Compile [x64] Module.RefactorTactics.33.cpp
+[30/43] Compile [x64] Module.RefactorTactics.2.cpp
+[31/43] Compile [x64] Module.RefactorTactics.3.cpp
+[32/43] Compile [x64] Module.RefactorTactics.8.cpp
+[33/43] Compile [x64] Module.RefactorTactics.34.cpp
+[34/43] Compile [x64] Module.RefactorTactics.9.cpp
+[35/43] Compile [x64] Module.RefactorTactics.35.cpp
+[36/43] Compile [x64] Module.RefactorTactics.7.cpp
+[37/43] Compile [x64] Module.RefactorTactics.38.cpp
+[38/43] Compile [x64] Module.RefactorTactics.36.cpp
+[39/43] Compile [x64] Module.RefactorTactics.4.cpp
+[40/43] Compile [x64] Module.RefactorTactics.6.cpp
+[41/43] Compile [x64] Module.RefactorTactics.5.cpp
+[42/43] Link [x64] RefactorTactics-Win64-Shipping.exe
+   Creazione della libreria D:\Repositories\refactor-tactics-main\Binaries\Win64\RefactorTactics-Win64-Shipping.lib e dell'oggetto D:\Repositories\refactor-tactics-main\Binaries\Win64\RefactorTactics-Win64-Shipping.exp
+[43/43] WriteMetadata RefactorTactics-Win64-Shipping.target [NoUba]
+
+Total time in Unreal Build Accelerator local executor: 75.33 seconds
+Output binary: D:\Repositories\refactor-tactics-main\Binaries\Win64\RefactorTactics-Win64-Shipping.exe
+
+Result: Succeeded
+Total execution time: 78.16 seconds
+Trace written to file C:\Users\Utente\AppData\Local\UnrealBuildTool\Trace.uba with size 22.6kb

@@ -4478,6 +4478,7 @@ sessions:
     artifacts:
       - docs/technical/evidence/g16/u60-giro-parziale-2026-10-04.log
       - docs/technical/evidence/g16/u60-giro-3-2026-10-26.txt
+      - docs/technical/evidence/85/misure-candidate-v3-2026-10-26.md
     verifies: []
     issues: [2601]
     done_when: ogni passo dello smoke flow ha un esito reale, e i passi non eseguiti dichiarano il motivo
@@ -4497,7 +4498,7 @@ sessions:
     # propria. Unreal e uno per macchina, e un giro misurato su un binario diverso non attesta la
     # stessa release candidate (#2601, sezione *Packaged*).
     steps: |
-      ✅ **Eseguita il 2026-10-26 (giro 3), con un passo ❌: `G16` è 🔴.** Editor compilato da `HEAD` `ad06c1cfc`/`db3c10f4d`, il cui runtime è
+      ✅ **Eseguita il 2026-10-26 (giro 3, sul candidate v2), con un passo ❌: su quel candidate `G16` era 🔴.** Editor compilato da `HEAD` `ad06c1cfc`/`db3c10f4d`, il cui runtime è
       identico al candidate v2 `7450ead64` (`D-541`, `D-542`). Una sola apertura, alle 08:35:07, con `-abslog`; estratto in `artifacts:`.
 
       | passo | esito | note |
@@ -4509,7 +4510,10 @@ sessions:
 
       🔑 La partita dell'autore ha manifest `Outcome 2`, `TurnCount 12` e indice `Outcome 0`, `TurnCount 0`; dal 2026-09-04 1080 voci su 1081 dell'indice sono «in corso». Metà meccanica sul pacchetto
       (`giro-meccanico.ps1`): 11 esiti su 11 PASS. Difetti aperti sull'owner: #3859, #3860, #3861, #3862. Evidenza: `docs/technical/evidence/85/onda4-misure-2026-10-26.md` §3.
-      ⛔ Correggere #3859 è la correzione di un gate rosso (`D-483` (2)) e ricongela il candidate: decisione dell'autore, non presa.
+      ➕ *Dopo*: la decisione è stata presa (`D-543`). #3859 è corretto da #3864 e il candidate è ricongelato su `947a783d5` (v3).
+      **Sul v3 il giro non è stato eseguito**: non c'è stata una persona, e l'Editor non si pilota da fuori (il pannello `Ability / Hero Lab` non si è aperto).
+      `G16` è ⏳ sul v3, non 🔴. Il passo 5 ha una misura sul pacchetto, senza verdetto, in `docs/technical/evidence/85/misure-candidate-v3-2026-10-26.md` §8:
+      la partita nuova compare nell'elenco come completa (`Outcome 3`, `TurnCount 12`), ma l'elenco mostra ancora le partite interrotte con «0 turni».
 
       ⌫ *Giri precedenti, conservati:*
 

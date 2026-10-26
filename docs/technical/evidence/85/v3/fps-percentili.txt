@@ -1,0 +1,20 @@
+# G11, Client FPS, candidate v3, 2026-10-26: percentili del FrameTime, ricalcolati dai CSV del profiler (i CSV, 7 MB ciascuno, restano fuori dal repo).
+# FrameTime cercata PER NOME nell'intestazione; nearest-rank sui 3700 frame dopo i primi 300 (righe 301..4000 del CSV).
+# 'carico CPU': Win32_Processor.LoadPercentage campionato ogni ~2 s DURANTE la cattura, GIOCO INCLUSO (non distingue il carico altrui da quello della misura).
+# Il carico delle serie a e b NON è stato conservato; per la serie c sono i campioni sotto.
+
+cattura  colonna/tot   p50      p95      p99      max     >16,67ms   fps(p99)
+v3a_1     133/317     5.835    7.249    8.400     29.4     0.05%      119
+v3a_2     118/315     8.465   13.064   19.504    362.4     1.73%       51
+v3a_3     185/317     6.442    8.430    9.604     18.8     0.05%      104
+v3b_1     123/318     9.182   12.264   14.268     28.6     0.27%       70
+v3b_2     161/319     8.696   11.397   12.913     22.5     0.14%       77
+v3b_3      91/319     9.125   11.580   13.024     32.0     0.14%       77
+v3c_1     163/319     6.194    7.799    9.358     28.4     0.05%      107
+v3c_2     118/315    10.183   14.840   25.518     79.2     3.68%       39
+v3c_3     154/317     6.559    8.220    9.871     38.0     0.27%      101
+
+Campioni del carico CPU (%), serie c, nell'ordine in cui sono stati presi:
+  v3c_1  n=10  medio=39  max=69  :  0 62 29 33 24 20 51 60 69 44
+  v3c_2  n=15  medio=94  max=100  :  49 91 93 99 99 97 100 99 100 99 97 99 100 94 93
+  v3c_3  n=11  medio=63  max=96  :  96 66 55 45 70 54 61 68 72 56 48

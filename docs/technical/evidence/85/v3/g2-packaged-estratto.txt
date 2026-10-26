@@ -1,0 +1,36 @@
+# G2, metà packaged, candidate v3, 2026-10-26. Estratto di g2_packaged.log (numero di riga del log intero a sinistra).
+# Il codice di uscita del processo NON è conservato: lo script lo stampava a console e l'output non è stato salvato.
+   49  LogInit: Session CrashGUID >====================================================
+   50           Session CrashGUID >   UECC-Windows-B11AD91F481A103CA48367A2F871D8F8
+   51           Session CrashGUID >====================================================
+ 1005  LogAutomationCommandLine: Display: Found 13 automation tests based on 'RefactorTactics'
+ 1027  LogAutomationController: Display: Test Completed. Result={Success} Name={BlockedArc} Path={RefactorTactics.Actions.Dash.BlockedArc}
+ 1033  LogAutomationController: Display: Test Completed. Result={Success} Name={DeniedByTerrain} Path={RefactorTactics.Actions.Dash.DeniedByTerrain}
+ 1052  LogAutomationController: Display: Test Completed. Result={Success} Name={CellConflict} Path={RefactorTactics.Actions.Move.CellConflict}
+ 1069  LogAutomationController: Display: Test Completed. Result={Success} Name={PathBlocked} Path={RefactorTactics.Actions.Move.PathBlocked}
+ 1092  LogAutomationController: Display: Test Completed. Result={Success} Name={InvalidDestination} Path={RefactorTactics.Actions.Push.InvalidDestination}
+ 1098  LogAutomationController: Display: Test Completed. Result={Success} Name={DefaultIntegrityMatchesCatalog} Path={RefactorTactics.Cover.DefaultIntegrityMatchesCatalog}
+ 1104  LogAutomationController: Display: Test Completed. Result={Success} Name={DirectionalDamageReduction} Path={RefactorTactics.Cover.DirectionalDamageReduction}
+ 1125  LogAutomationController: Display: Test Completed. Result={Success} Name={ElectrifiedIsLoggedAsInstantLabel} Path={RefactorTactics.Environment.Propagation.ElectrifiedIsLoggedAsInstantLabel}
+ 1146  LogAutomationController: Display: Test Completed. Result={Success} Name={WaterElectricPropagation} Path={RefactorTactics.Environment.WaterElectricPropagation}
+ 1178  LogAutomationController: Display: Test Completed. Result={Success} Name={WaterExtinguishesFire} Path={RefactorTactics.Environment.WaterExtinguishesFire}
+ 1203  LogAutomationController: Display: Test Completed. Result={Success} Name={Intercept} Path={RefactorTactics.Reactions.Intercept}
+ 1230  LogAutomationController: Display: Test Completed. Result={Success} Name={SingleActivation} Path={RefactorTactics.Reactions.SingleActivation}
+ 6638  LogAutomationController: Display: Test Completed. Result={Success} Name={ResimulationIsDeterministic} Path={RefactorTactics.Replay.Verifier.ResimulationIsDeterministic}
+ 6642  LogD3D12RHI: Error: GPU crash detected:
+ 6643  	- Device 0 Removed: DXGI_ERROR_DRIVER_INTERNAL_ERROR
+ 6645  LogD3D12RHI: Error: Shader diagnostic messages and asserts:
+ 6656  LogRHI: Error: Active GPU breadcrumbs:
+ 6752  LogD3D12RHI: Error: Adapter->CreateReservedResource( Desc, GetGPUMask(), InCreateD3D12Access, InResourceStateMode, InCreateD3D12Access, nullptr, &NewResource, Name, false) failed 
+ 6754   with error DXGI_ERROR_DEVICE_REMOVED
+ 6757  LogD3D12RHI: Error: DRED: No breadcrumb head found.
+ 6758  LogD3D12RHI: Error: DRED: No PageFault data.
+ 6759  LogD3D12RHI: Error: Video Memory Stats from frame ID 2436:
+ 6760  LogD3D12RHI: Error: 	Local Budget:	11242.00 MB
+ 6761  LogD3D12RHI: Error: 	Local Used:	 664.34 MB
+ 6762  LogD3D12RHI: Error: 	System Budget:	48157.94 MB
+ 6763  LogD3D12RHI: Error: 	System Used:	 213.04 MB
+ 6764  LogD3D12RHI: Error: GPU Crashed or D3D Device Removed.
+ 6767  LogRHI: Error: Breadcrumbs 'RHIThread'
+ 6779  LogCore: Engine exit requested (reason: Win RequestExit)
+ 6782  LogCore: Engine exit requested (reason: Win RequestExit; note: exit was already requested)
