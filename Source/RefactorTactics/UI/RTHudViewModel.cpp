@@ -1538,6 +1538,11 @@ ERTEventLogMode URTHudViewModel::EventLogModeFor(const FRTMatchHeaderView& Heade
 	return Header.Phase == ERTMatchPhase::Planning ? ERTEventLogMode::Previous : ERTEventLogMode::Hidden;
 }
 
+bool FRTEventLogKey::operator==(const FRTEventLogKey& Other) const
+{
+	return Manager == Other.Manager && Observers == Other.Observers && PlayerTeamId == Other.PlayerTeamId;
+}
+
 FRTEventLogKey URTHudViewModel::MakeEventLogKey(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds,
 	int32 PlayerTeamId)
 {

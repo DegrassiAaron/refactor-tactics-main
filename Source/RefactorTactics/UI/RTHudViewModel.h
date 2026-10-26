@@ -963,10 +963,7 @@ struct FRTEventLogKey
 	TArray<int32> Observers;
 	int32 PlayerTeamId = INDEX_NONE;
 
-	bool operator==(const FRTEventLogKey& Other) const
-	{
-		return Manager == Other.Manager && Observers == Other.Observers && PlayerTeamId == Other.PlayerTeamId;
-	}
+	bool operator==(const FRTEventLogKey& Other) const;
 };
 
 /** Le ultime righe NON vuote del registro e la chiave con cui erano state proiettate (#3860, [D-548] (2)). */

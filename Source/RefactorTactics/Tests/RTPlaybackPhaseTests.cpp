@@ -1332,6 +1332,76 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 }
 
 /**
+ * 🔑 **UN TURNO IN RISOLUZIONE SENZA EVENTI VISIBILI TIENE LE RIGHE DI PRIMA — E SOLO PER GLI STESSI OCCHI** (#3860,
+ * [D-548] (2) e (4)).
+ *
+ * Il registro in Risoluzione con il feed vivo vuoto non e' un caso di laboratorio: il proiettore scarta il movimento
+ * riuscito, quindi un turno di solo avvicinamento lo ha vuoto. Qui lo si ottiene iniettando nel log una voce di
+ * movimento (`Moved`, `Minor`) di un turno piu' recente: l'ultimo turno del log diventa quello, e il suo feed e' vuoto.
+ *   1. il turno 1 si risolve e il registro lo ricorda;
+ *   2. nel secondo turno, in Risoluzione, il feed vivo e' vuoto: restano le righe del turno 1, e l'intestazione dice
+ *      «ROUND 01 · PRECEDENTE» — non «ROUND 02», che sarebbe il round corrente;
+ *   3. chi guarda diventa la squadra 1: le righe ricordate erano proiettate per la squadra 0, e NON si mostrano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogRememberedWhileResolvingTest,
+	"RefactorTactics.ScreenHud.EventLogKeepsTheRememberedLinesWhileAnEmptyTurnResolves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventLogRememberedWhileResolvingTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
+	SpawnPlaybackMap(World);
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !Dasher || !Target || !Log) { return false; }
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Log->LogRoot = NewObject<UBorder>(Log);
+	Log->LogTurnText = NewObject<UTextBlock>(Log);
+	Log->LinesBox = NewObject<UVerticalBox>(Log);
+	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Intestazione = [Log]() { return Log->LogTurnText->GetText().ToString(); };
+
+	// --- 1. Il turno 1 si risolve, e il registro in Pianificazione lo mostra (e lo ricorda) ------------------------------
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), PlanDashOnTarget(Dasher, Target))) { return false; }
+	TM->LockInAndResolve();
+	AdvanceUntilDone(TM);
+	Log->RefreshLook(/*bRereadFeed=*/ false);
+	const int32 RigheDelTurno1 = Log->GetLineWidgets().Num();
+	if (!TestTrue(TEXT("premessa: il turno 1 ha delle righe"), RigheDelTurno1 > 0)) { return false; }
+
+	// --- 2. Il turno 2 si risolve, e per chi guarda non ha eventi: restano le righe del turno 1 -------------------------------
+	Dasher->PlannedAbilityIndex = 0;
+	Dasher->PlannedAttackTarget = Target;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: il secondo turno e' in risoluzione"), TM->IsResolving())) { return false; }
+	FRTTurnLogEntry Avvicinamento;
+	Avvicinamento.Category = ERTLogCategory::Move;
+	Avvicinamento.Outcome = static_cast<uint8>(ERTMoveOutcome::Moved);
+	Avvicinamento.UnitId = 9003; // non e' un'unita' in campo: il proiettore non la cerca
+	Avvicinamento.TurnNumber = 99; // piu' recente di ogni turno del log: e' l'ultimo, e il suo feed e' vuoto
+	Avvicinamento.Phase = ERTMatchPhase::Move;
+	Avvicinamento.Verdict.AllowTeam(0);
+	TM->AppendTurnLogEntryForTest(Avvicinamento);
+	if (!TestEqual(TEXT("premessa: il feed vivo di quel turno e' vuoto"), Log->GetFeed().Num(), 0)) { return false; }
+
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	TestTrue(TEXT("2: in Risoluzione il registro e' aperto"), Visibile(Log->LogRoot));
+	TestEqual(TEXT("2: con le righe del turno 1, ricordate"), Log->GetLineWidgets().Num(), RigheDelTurno1);
+	TestTrue(TEXT("2: l'intestazione dice il turno 1 e che e' passato, non il round corrente"),
+		Intestazione().Equals(TEXT("ROUND 01 \u00B7 PRECEDENTE"), ESearchCase::CaseSensitive));
+
+	// --- 3. Un altro sguardo: le righe ricordate non si mostrano -------------------------------------------------------------
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 1);
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	TestEqual(TEXT("3: per la squadra 1 le righe proiettate per la 0 NON si mostrano"), Log->GetLineWidgets().Num(), 0);
+	return true;
+}
+
+/**
  * 🔴 **IN PIANIFICAZIONE LE RIGHE SI RIPROIETTANO PER L'OSSERVATORE DEL MOMENTO** (#3860, [D-548] (4)).
  *
  * Il registro in Pianificazione rilegge il `TurnLog` ad ogni giro, con gli osservatori che ci sono adesso. La prova e' un
