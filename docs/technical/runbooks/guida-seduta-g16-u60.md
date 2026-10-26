@@ -29,8 +29,8 @@ Deve essere **vuoto**. La `CommandLine` porta il `.uproject` e l'`-abslog`, quin
 e se lo è compila da lì senza perdere i documenti.
 
 ```bash
-test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 7450ead64:Source)" \
-  && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 7450ead64:Content)" \
+git diff --quiet 7450ead64 HEAD -- Source Content \
+    ':(exclude)Source/RefactorTactics/Tests' ':(exclude)Source/RefactorTacticsEditor/Private/Tests' \
   && echo "OK: compilare da HEAD = compilare il candidate" \
   || echo "DIVERSI: NOT RUN, non aprire la seduta"
 ```
@@ -41,7 +41,7 @@ costruzione** — il fix di [#3463](https://github.com/DegrassiAaron/refactor-ta
 partita completa non produce nessun archivio) è entrato **dopo** il congelamento. Un giro condotto da `95eddfd37`
 misurerebbe un difetto già corretto; un giro condotto da `HEAD` attesterebbe uno SHA che `#85` non dichiara. Finché
 il candidate non è ricongelato (referto del 2026-10-09, `D1`), l'esito è `NOT RUN — candidate superato`, e si scrive
-nel record di `U60` con questa ragione. ✅ **Ricongelato il 2026-10-26** ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)): il blocco porta lo SHA del candidate v2, aggiornato **insieme** a `#85`. Se oggi risponde `DIVERSI`, qualcuno ha toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`.
+nel record di `U60` con questa ragione. ✅ **Ricongelato il 2026-10-26** ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)): il blocco porta lo SHA del candidate v2, aggiornato **insieme** a `#85`. Se oggi risponde `DIVERSI`, qualcuno ha toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`. Dal 2026-10-26 ([`D-542`](../../decisions/RT_PDR_00_Decision_Log.md)) il blocco **non conta le due cartelle `Tests/`**: un merge di soli test non sposta il candidate e ridata `G2` e `G14`.
 
 ⛔ **Il pacchetto non serve, e non va usato.** Il modulo `RefactorTacticsEditor` è di tipo `Editor`
 (`RefactorTactics.uproject:14`): Ability Lab e Hero Lab **non esistono nel pacchetto**. Il giro si fa in
