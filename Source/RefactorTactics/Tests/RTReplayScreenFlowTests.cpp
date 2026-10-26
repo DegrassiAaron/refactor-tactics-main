@@ -295,8 +295,9 @@ bool FRTReplayViewerPlayPauseTest::RunTest(const FString&)
  *   2. a una fase con voci il testo e' esattamente le righe di `DescribePublicEvent` di ognuna, nell'ordine;
  *   3. cambiando fase il testo cambia — la rilettura segue la posizione;
  *   4. riaprendo l'archivio alla STESSA posizione il testo non e' quello di prima per caso: la rilettura riparte;
- *   5. le etichette: «PLAY» in pausa, «PAUSA» in riproduzione, e il pulsante indietro ha la sua;
- *   6. una fase con molte voci non fa uscire il testo dallo schermo: dodici righe e «… e altre N».
+ *   5. cambiando SOLO la fase, dentro lo stesso turno, la rilettura riparte (le gambe 3 e 4 cambiano anche il turno);
+ *   6. le etichette: «PLAY» in pausa, «PAUSA» in riproduzione, e il pulsante indietro ha la sua;
+ *   7. una fase con molte voci non fa uscire il testo dallo schermo: dodici righe e «… e altre N».
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerShowsPhaseEntriesTest,
 	"RefactorTactics.Replay.Screens.ViewerShowsThePhaseEntriesAndLabelsItsButtons",
@@ -390,22 +391,42 @@ bool FRTReplayViewerShowsPhaseEntriesTest::RunTest(const FString&)
 	TestEqual(TEXT("4: aperto un altro archivio alla stessa posizione, il testo e' quello dell'archivio nuovo"),
 		Testo(W->PhaseEntriesText), FString::Join(AtteseAltro, TEXT("\n")));
 
-	// --- 5. In riproduzione l'etichetta cambia ---------------------------------------------------------------------------------
+	// --- 5. Cambiando SOLO la fase, dentro lo stesso turno, la rilettura riparte ---------------------------------------------
+	// La chiave e' (stato, turno, fase): se ignorasse la fase, due fasi dello stesso turno mostrerebbero il testo della prima.
+	// Le gambe 3 e 4 cambiano anche il turno, quindi la chiave cambia comunque e non distinguono questo difetto.
+	const FString TestoPrimaDiFase = Testo(W->PhaseEntriesText);
+	const FRTReplayPosition PosizionePrimaDiFase = V->GetPosition();
+	if (!TestTrue(TEXT("premessa: si avanza di una fase"), V->StepPhaseForward())
+		|| !TestTrue(TEXT("premessa: il turno e' lo stesso e la fase e' un'altra"),
+			V->GetPosition().TurnNumber == PosizionePrimaDiFase.TurnNumber && V->GetPosition().Phase != PosizionePrimaDiFase.Phase))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->RefreshLookOn(V);
+	TArray<FString> AtteseFase;
+	for (const FRTPublicReplayEntry& Voce : V->GetCurrentPhaseEntries()) { AtteseFase.Add(URTContextInspectorLibrary::DescribePublicEvent(Voce)); }
+	const FString TestoAtteso = FString::Join(AtteseFase, TEXT("\n"));
+	TestNotEqual(TEXT("premessa: le due fasi non hanno lo stesso testo, altrimenti la gamba non distingue"), TestoAtteso, TestoPrimaDiFase);
+	TestEqual(TEXT("5: cambiata solo la fase, il testo e' quello della fase nuova"), Testo(W->PhaseEntriesText), TestoAtteso);
+
+	// --- 6. In riproduzione l'etichetta cambia ---------------------------------------------------------------------------------
 	V->Play();
 	W->RefreshLookOn(V);
-	TestTrue(TEXT("5: in riproduzione l'etichetta e' PAUSA"), Testo(W->PlayPauseLabel).Equals(TEXT("PAUSA"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("6: in riproduzione l'etichetta e' PAUSA"), Testo(W->PlayPauseLabel).Equals(TEXT("PAUSA"), ESearchCase::CaseSensitive));
 
-	// --- 6. Il tetto delle righe ---------------------------------------------------------------------------------------------------
+	// --- 7. Il tetto delle righe ---------------------------------------------------------------------------------------------------
 	TArray<FRTPublicReplayEntry> Molte;
 	Molte.SetNum(15);
 	TArray<FString> Righe;
 	URTReplayViewerWidgetBase::ComposePhaseEntriesText(Molte).ToString().ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
-	TestEqual(TEXT("6: dodici righe di voci piu' quella che conta le altre"), Righe.Num(), 13);
+	TestEqual(TEXT("7: dodici righe di voci piu' quella che conta le altre"), Righe.Num(), 13);
 	if (Righe.Num() == 13)
 	{
-		TestTrue(TEXT("6: l'ultima dice quante altre"), Righe[12].EndsWith(TEXT("e altre 3"), ESearchCase::CaseSensitive));
+		TestTrue(TEXT("7: l'ultima dice quante altre"), Righe[12].EndsWith(TEXT("e altre 3"), ESearchCase::CaseSensitive));
 	}
-	TestFalse(TEXT("6: con dodici voci il testo non dice «altre»"),
+	TestFalse(TEXT("7: con dodici voci il testo non dice «altre»"),
 		URTReplayViewerWidgetBase::ComposePhaseEntriesText(TArray<FRTPublicReplayEntry>(Molte.GetData(), 12)).ToString().Contains(TEXT("altre")));
 
 	ReleaseSubsystemHost(GI);
