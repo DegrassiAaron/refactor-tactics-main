@@ -1,0 +1,83 @@
+# G1, candidate v3, 2026-10-26: build, build del target editor-development (log integrale di Build.bat)
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" RefactorTacticsEditor Win64 Development -Project=D:/Repositories/refactor-tactics-main/RefactorTactics.uproject -WaitMutex -NoHotReloadFromIDE
+Log file: C:\Users\Utente\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (12 physical cores, 20 logical cores)
+  Executing up to 12 processes, one per physical core
+Using 'git status' to determine working set for adaptive non-unity build (D:\Repositories\refactor-tactics-main).
+Creating makefile for RefactorTacticsEditor (no existing makefile)
+UbaServer - Listening on 0.0.0.0:1345
+Building RefactorTacticsEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\EpicGames\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.50.35737 toolchain (C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717) and Windows 10.0.22621.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+=================================
+Using Unreal Build Accelerator local executor to run 54 action(s)
+  CPU 12 physical cores, 20 logical cores
+  Memory 63.78 GB physical, 55.23 GB/101.78 GB committed
+  UBA Storage capacity 40 GB
+[1/54] Compile Resource [x64] Default.rc2
+[2/54] Compile Resource [x64] Default.rc2
+[3/54] Compile Resource [x64] Default.rc2
+[4/54] Compile [x64] SharedPCH.UnrealEd.Project.ValApi.ValExpApi.Cpp20.cpp
+[5/54] Compile [x64] Module.RefactorTactics.17.cpp
+[6/54] Compile [x64] Module.RefactorTactics.13.cpp
+[7/54] Compile [x64] Module.RefactorTactics.11.cpp
+[8/54] Compile [x64] Module.RefactorTactics.15.cpp
+[9/54] Compile [x64] Module.RefactorTactics.10.cpp
+[10/54] Compile [x64] Module.RefactorTactics.14.cpp
+[11/54] Compile [x64] Module.RefactorTactics.18.cpp
+[12/54] Compile [x64] Module.RefactorTactics.16.cpp
+[13/54] Compile [x64] Module.RefactorTactics.12.cpp
+[14/54] Compile [x64] Module.RefactorTactics.1.cpp
+[15/54] Compile [x64] Module.RefactorTactics.20.cpp
+[16/54] Compile [x64] Module.RefactorTactics.19.cpp
+[17/54] Compile [x64] Module.RefactorTactics.22.cpp
+[18/54] Compile [x64] Module.RefactorTactics.24.cpp
+[19/54] Compile [x64] Module.RefactorTactics.25.cpp
+[20/54] Compile [x64] Module.RefactorTactics.23.cpp
+[21/54] Compile [x64] Module.RefactorTactics.21.cpp
+[22/54] Compile [x64] Module.RefactorTactics.26.cpp
+[23/54] Compile [x64] Module.RefactorTactics.2.cpp
+[24/54] Compile [x64] Module.RefactorTactics.27.cpp
+[25/54] Compile [x64] Module.RefactorTactics.29.cpp
+[26/54] Compile [x64] Module.RefactorTactics.3.cpp
+[27/54] Compile [x64] Module.RefactorTactics.37.cpp
+[28/54] Compile [x64] Module.RefactorTactics.28.cpp
+[29/54] Compile [x64] Module.RefactorTactics.32.cpp
+[30/54] Compile [x64] Module.RefactorTactics.33.cpp
+[31/54] Compile [x64] Module.RefactorTactics.34.cpp
+[32/54] Compile [x64] Module.RefactorTactics.31.cpp
+[33/54] Compile [x64] Module.RefactorTactics.30.cpp
+[34/54] Compile [x64] Module.RefactorTactics.35.cpp
+[35/54] Compile [x64] Module.RefactorTactics.36.cpp
+[36/54] Compile [x64] Module.RefactorTactics.38.cpp
+[37/54] Compile [x64] Module.RefactorTactics.7.cpp
+[38/54] Compile [x64] Module.RTDeveloperTools.cpp
+[39/54] Link [x64] UnrealEditor-RTDeveloperTools.lib
+   Creazione della libreria D:/Repositories/refactor-tactics-main/Plugins/RTDeveloperTools/Intermediate/Build/Win64/x64/UnrealEditor/Development/RTDeveloperTools/UnrealEditor-RTDeveloperTools.lib e dell'oggetto D:/Repositories/refactor-tactics-main/Plugins/RTDeveloperTools/Intermediate/Build/Win64/x64/UnrealEditor/Development/RTDeveloperTools/UnrealEditor-RTDeveloperTools.exp
+[40/54] Compile [x64] Module.RefactorTactics.9.cpp
+[41/54] Compile [x64] Module.RefactorTacticsEditor.4.cpp
+[42/54] Compile [x64] Module.RefactorTactics.6.cpp
+[43/54] Compile [x64] Module.RefactorTactics.5.cpp
+[44/54] Compile [x64] Module.RefactorTactics.8.cpp
+[45/54] Compile [x64] Module.RefactorTacticsEditor.3.cpp
+[46/54] Compile [x64] Module.RefactorTactics.4.cpp
+[47/54] Compile [x64] Module.RefactorTacticsEditor.1.cpp
+[48/54] Link [x64] UnrealEditor-RefactorTactics.lib
+   Creazione della libreria D:/Repositories/refactor-tactics-main/Intermediate/Build/Win64/x64/UnrealEditor/Development/RefactorTactics/UnrealEditor-RefactorTactics.lib e dell'oggetto D:/Repositories/refactor-tactics-main/Intermediate/Build/Win64/x64/UnrealEditor/Development/RefactorTactics/UnrealEditor-RefactorTactics.exp
+[49/54] Link [x64] UnrealEditor-RTDeveloperTools.dll
+[50/54] Link [x64] UnrealEditor-RefactorTactics.dll
+[51/54] Compile [x64] Module.RefactorTacticsEditor.2.cpp
+[52/54] Link [x64] UnrealEditor-RefactorTacticsEditor.lib
+   Creazione della libreria D:/Repositories/refactor-tactics-main/Intermediate/Build/Win64/x64/UnrealEditor/Development/RefactorTacticsEditor/UnrealEditor-RefactorTacticsEditor.lib e dell'oggetto D:/Repositories/refactor-tactics-main/Intermediate/Build/Win64/x64/UnrealEditor/Development/RefactorTacticsEditor/UnrealEditor-RefactorTacticsEditor.exp
+[53/54] Link [x64] UnrealEditor-RefactorTacticsEditor.dll
+[54/54] WriteMetadata RefactorTacticsEditor.target [NoUba]
+
+Total time in Unreal Build Accelerator local executor: 138.19 seconds
+Output binary: D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe
+
+Result: Succeeded
+Total execution time: 151.69 seconds
+Trace written to file C:\Users\Utente\AppData\Local\UnrealBuildTool\Trace.uba with size 31.8kb

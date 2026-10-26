@@ -1,0 +1,23 @@
+# G12, candidate v3, 2026-10-26. Estratto del log di RunUAT BuildCookRun e dell'elenco di UnrealPak.
+   29  Took 2,54s to run dotnet.exe, ExitCode=0
+ 4735  Took 32,64s to run UnrealEditor-Cmd.exe, ExitCode=0
+ 4833  Took 5,54s to run UnrealPak.exe, ExitCode=0
+ 4878  Took 1,74s to run UnrealPak.exe, ExitCode=0
+ 5011  Took 4,49s to run UnrealPak.exe, ExitCode=0
+ 5019  BuildCookRun time: 77.33 s
+ 5020  BUILD SUCCESSFUL
+ 5021  AutomationTool executed for 0h 1m 17s
+ 5022  AutomationTool exiting with ExitCode=0 (Success)
+
+Error compiling: 924 righe in tutto (grep -a -c 'Error compiling'); per messaggio:
+   308  Error compiling input on Less Than node. - Node: Less Than Pin: A -
+   154  Error compiling input on Logic AND node. - Node: Logic AND Pin: A -
+   154  Error compiling input on Multiply node. - Node: Multiply Pin: A -
+   154  Error compiling Pin - Node: Output Function Pin: DistanceFieldIsValid -
+   154  Error compiling Pin - Node: Output Function Pin: DistanceToSurface -
+LogZenStoreWriter: Error: 0 righe
+
+Controllo positivo sul contenuto (UnrealPak -List, righe che nominano la mappa):
+  L_HexArena                 2 righe
+  L_Frontend                 1 righe
+  L_NonEsiste_Controprova    0 righe

@@ -1,0 +1,5 @@
+# G1, candidate v3, 2026-10-26: clean, pulizia del target game-development (log integrale di Build.bat)
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" RefactorTactics Win64 Development -Project=D:/Repositories/refactor-tactics-main/RefactorTactics.uproject -Clean -WaitMutex -NoHotReloadFromIDE
+Cleaning RefactorTactics binaries...
+Trace written to file C:\Users\Utente\AppData\Local\UnrealBuildTool\Trace.uba with size 579b

@@ -1,0 +1,32 @@
+# G11, famiglia RefactorTactics.Perf, candidate v3, 2026-10-26: le righe KPI di ciascun log (esecuzioni 1-3, poi suite intera).
+# Il carico della CPU durante le tre esecuzioni NON è conservato.
+
+== esecuzione 1
+LogAutomationController: KPI pathfinding: mediana 0.071 ms (target PDR: < 2 ms)
+LogAutomationController: KPI preview: mediana 0.093 ms, p90 0.100 ms (target PDR: < 50 ms)
+LogAutomationController: [E17] 4v4, arena r=8, playback off, 11 turni: resolver mediana 7.540 ms/turno · voci TurnLog 25.5/turno · TurnLog 5498 byte/turno · opportunity di reazione: NON MISURABILE (nessun produttore in partita finche' CP 14.5 non atterra) · prompt manuali: NON MISURABILE (idem)
+LogAutomationController: [KPI] Accumulo del transito su arena r=50 (7651 celle): mediana 2.776 ms per unita' (5 pose, vista 7), 5.552 ms per squadra per turno in un 2v2, su 50 campioni — 134 celle viste
+LogAutomationController: KPI resolver: mediana 9.754 ms/turno (target PDR: < 100 ms)
+
+== esecuzione 2
+LogAutomationController: KPI pathfinding: mediana 0.071 ms (target PDR: < 2 ms)
+LogAutomationController: KPI preview: mediana 0.094 ms, p90 0.128 ms (target PDR: < 50 ms)
+LogAutomationController: [E17] 4v4, arena r=8, playback off, 11 turni: resolver mediana 8.576 ms/turno · voci TurnLog 25.5/turno · TurnLog 5498 byte/turno · opportunity di reazione: NON MISURABILE (nessun produttore in partita finche' CP 14.5 non atterra) · prompt manuali: NON MISURABILE (idem)
+LogAutomationController: [KPI] Accumulo del transito su arena r=50 (7651 celle): mediana 2.821 ms per unita' (5 pose, vista 7), 5.643 ms per squadra per turno in un 2v2, su 50 campioni — 134 celle viste
+LogAutomationController: KPI resolver: mediana 9.299 ms/turno (target PDR: < 100 ms)
+
+== esecuzione 3
+LogAutomationController: KPI pathfinding: mediana 0.069 ms (target PDR: < 2 ms)
+LogAutomationController: KPI preview: mediana 0.093 ms, p90 0.100 ms (target PDR: < 50 ms)
+LogAutomationController: [E17] 4v4, arena r=8, playback off, 11 turni: resolver mediana 7.952 ms/turno · voci TurnLog 25.5/turno · TurnLog 5498 byte/turno · opportunity di reazione: NON MISURABILE (nessun produttore in partita finche' CP 14.5 non atterra) · prompt manuali: NON MISURABILE (idem)
+LogAutomationController: [KPI] Accumulo del transito su arena r=50 (7651 celle): mediana 2.840 ms per unita' (5 pose, vista 7), 5.680 ms per squadra per turno in un 2v2, su 50 campioni — 134 celle viste
+LogAutomationController: KPI resolver: mediana 9.099 ms/turno (target PDR: < 100 ms)
+
+== suite intera
+LogAutomationController: KPI pathfinding: mediana 0.072 ms (target PDR: < 2 ms)
+LogAutomationController: KPI preview: mediana 0.092 ms, p90 0.145 ms (target PDR: < 50 ms)
+LogAutomationController: [E17] 4v4, arena r=8, playback off, 11 turni: resolver mediana 8.613 ms/turno · voci TurnLog 25.5/turno · TurnLog 5498 byte/turno · opportunity di reazione: NON MISURABILE (nessun produttore in partita finche' CP 14.5 non atterra) · prompt manuali: NON MISURABILE (idem)
+LogAutomationController: [KPI] Accumulo del transito su arena r=50 (7651 celle): mediana 2.791 ms per unita' (5 pose, vista 7), 5.581 ms per squadra per turno in un 2v2, su 50 campioni — 134 celle viste
+LogAutomationController: KPI resolver: mediana 10.221 ms/turno (target PDR: < 100 ms)
+LogAutomationController: [E17] partita 4v4 decisa in 11 turni (banda 2v2 di riferimento: 10-14)
+LogAutomationController: [E17] divergenza replay 4v4: 0 su 11 turni confrontati
