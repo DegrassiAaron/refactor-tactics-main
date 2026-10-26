@@ -1513,6 +1513,33 @@ bool FRTEventLogRemembersTheLastFeedTest::RunTest(const FString&)
 }
 
 /**
+ * 🔑 **L'INTESTAZIONE DEL REGISTRO DICE IL TURNO DELLE RIGHE E CHE E' PASSATO** (#3860, [D-548] (3)).
+ *
+ * Decide il confronto fra il turno delle righe e il round corrente, e non il modo del registro: righe vive di un turno
+ * piu' vecchio del round corrente sono passate anche in Risoluzione (revisione di #3878). Il numero e' quello delle righe,
+ * mai «round corrente meno uno».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogTitleNamesThePastTurnTest,
+	"RefactorTactics.ScreenHud.EventLogTitleNamesThePastTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogTitleNamesThePastTurnTest::RunTest(const FString&)
+{
+	const auto Titolo = [](const int32 Round, const int32 TurnoDelleRighe)
+	{
+		return URTHudViewModel::ComposeEventLogTitle(Round, TurnoDelleRighe).ToString();
+	};
+	const auto Uguale = [](const FString& A, const TCHAR* B) { return A.Equals(B, ESearchCase::CaseSensitive); };
+
+	TestTrue(TEXT("righe del turno 3 nel round 4: passate, col turno delle RIGHE"), Uguale(Titolo(4, 3), TEXT("ROUND 03 \u00B7 PRECEDENTE")));
+	TestTrue(TEXT("e non «round corrente meno uno»: righe del turno 1 nel round 4"), Uguale(Titolo(4, 1), TEXT("ROUND 01 \u00B7 PRECEDENTE")));
+	TestTrue(TEXT("righe del round corrente: il round, senza marca"), Uguale(Titolo(4, 4), TEXT("ROUND 04")));
+	TestTrue(TEXT("nessuna riga: il round corrente, come prima"), Uguale(Titolo(4, 0), TEXT("ROUND 04")));
+	TestTrue(TEXT("due cifre anche al turno 1"), Uguale(Titolo(2, 1), TEXT("ROUND 01 \u00B7 PRECEDENTE")));
+	return true;
+}
+
+/**
  * 🔑 **IL REGISTRO SEGUE LA RISOLUZIONE, NON LA FASE** (#3860, [D-548]; era [D-496] (2)).
  *
  * `Phase` resta `Planning` per tutto il playback (lo dice anche `ComputeSecondsUntilCommit`): chi si fermasse a `Phase`

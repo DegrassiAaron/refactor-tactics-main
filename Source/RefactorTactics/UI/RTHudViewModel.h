@@ -1396,6 +1396,15 @@ public:
 	 */
 	static ERTEventLogMode EventLogModeFor(const FRTMatchHeaderView& Header, bool bHasMatchContext);
 
+	/**
+	 * L'intestazione del registro (#3860, [D-548] (3)): «ROUND 04» per le righe del round corrente, «ROUND 03 · PRECEDENTE» per
+	 * righe di un turno ANTERIORE. Il numero e' quello delle righe, mai «round corrente meno uno».
+	 *
+	 * ⚠️ **Decide il confronto fra i turni e non il modo del registro**: righe vive di un turno piu' vecchio del round corrente
+	 * sono passate anche in Risoluzione, e il modo non lo sa. @param LinesTurn  il turno delle righe, o `0` se non ce ne sono.
+	 */
+	static FText ComposeEventLogTitle(int32 Round, int32 LinesTurn);
+
 	/** La chiave dello sguardo di questo registro. Vedi `FRTEventLogKey`. */
 	static FRTEventLogKey MakeEventLogKey(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds,
 		int32 PlayerTeamId);

@@ -633,10 +633,9 @@ private:
 
 	/**
 	 * L'esito dell'ultima rilettura: in Pianificazione il registro e' aperto solo se ci sono righe da mostrare, e dice il
-	 * loro turno. `bShownRemembered`: sono quelle ricordate (un turno senza eventi visibili), e il loro turno e' passato.
+	 * loro turno. Che quel turno sia passato lo decide `ComposeEventLogTitle`, confrontandolo con il round corrente.
 	 */
 	bool bFeedHasLines = false;
-	bool bShownRemembered = false;
 	int32 FeedTurn = 0;
 
 	/** Le ultime righe non vuote, con gli occhi con cui sono state proiettate ([D-548] (2) e (4)). Non e' una `UPROPERTY`: e' stato di presentazione. */

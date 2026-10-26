@@ -799,7 +799,7 @@ riparentamento di `WBP_RT_EventLine`.
 | Porta | Tipo | Che cosa ci scrive il C++ |
 |---|---|---|
 | `LogRoot` | qualunque widget | `Collapsed` quando non c'è niente da mostrare: fuori partita, a partita finita, o in Pianificazione senza righe (primo turno, o `LinesBox`/`LineClass` non dati) |
-| `LogTurnText` | `TextBlock` | «ROUND 04», accanto a «REGISTRO»: la parola dell'header ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 1). Quando le righe sono passate — sempre in Pianificazione, e in Risoluzione se sono quelle ricordate — dice il turno **delle righe** e che è passato: «ROUND 03 · PRECEDENTE», non il round corrente ([D-548](../../decisions/RT_PDR_00_Decision_Log.md) (3)) |
+| `LogTurnText` | `TextBlock` | «ROUND 04», accanto a «REGISTRO»: la parola dell'header ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 1). Quando il turno **delle righe** è anteriore al round corrente (`URTHudViewModel::ComposeEventLogTitle`: sempre in Pianificazione, e in Risoluzione per le righe ricordate) dice quel turno e che è passato: «ROUND 03 · PRECEDENTE», non il round corrente ([D-548](../../decisions/RT_PDR_00_Decision_Log.md) (3)) |
 | `LinesBox` | un pannello | una riga per voce di `GetFeed()`, riusate da un tick all'altro |
 
 Nei default, `LineClass` = `WBP_RT_EventLine_C`. Senza `LinesBox` o senza `LineClass` il registro non costruisce

@@ -1538,6 +1538,20 @@ ERTEventLogMode URTHudViewModel::EventLogModeFor(const FRTMatchHeaderView& Heade
 	return Header.Phase == ERTMatchPhase::Planning ? ERTEventLogMode::Previous : ERTEventLogMode::Hidden;
 }
 
+FText URTHudViewModel::ComposeEventLogTitle(int32 Round, int32 LinesTurn)
+{
+	FNumberFormattingOptions DueCifre;
+	DueCifre.MinimumIntegralDigits = 2;
+	DueCifre.UseGrouping = false;
+	// Righe di un turno ANTERIORE al round corrente sono passate, in Pianificazione come in Risoluzione: lo dice il confronto,
+	// non il modo. Il numero e' quello delle righe.
+	if (LinesTurn > 0 && LinesTurn < Round)
+	{
+		return FText::Format(NSLOCTEXT("RTHud", "LogRoundPrevious", "ROUND {0} · PRECEDENTE"), FText::AsNumber(LinesTurn, &DueCifre));
+	}
+	return FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Round, &DueCifre));
+}
+
 bool FRTEventLogKey::operator==(const FRTEventLogKey& Other) const
 {
 	// ⚠️ `HasSameIndexAndSerialNumber` e non `==`: l'`operator==` di `FWeakObjectPtr` risponde «uguali» a due puntatori entrambi

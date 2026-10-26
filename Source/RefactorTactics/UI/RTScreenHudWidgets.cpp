@@ -2781,7 +2781,8 @@ void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 		// stessi occhi: un altro manager, altri osservatori o un'altra squadra le buttano ([D-548] (2) e (4)).
 		const TArray<FRTPlayerEventLineView> Vive = GetFeed();
 		const FRTEventLogKey Chiave = URTHudViewModel::MakeEventLogKey(GetTurnManager(), ResolveObserverTeamIds(), GetPlayerTeamId());
-		const TArray<FRTPlayerEventLineView> Feed = URTHudViewModel::PickEventLogLines(Vive, Chiave, Memory, bShownRemembered);
+		bool bRicordate = false; // il confronto fra turni, e non questo, decide l'intestazione
+		const TArray<FRTPlayerEventLineView> Feed = URTHudViewModel::PickEventLogLines(Vive, Chiave, Memory, bRicordate);
 
 		// Senza pannello e classe delle righe non c'e' niente da aprire: una cornice vuota non e' un registro.
 		const bool bPuoCostruire = LinesBox && LineClass;
@@ -2797,13 +2798,9 @@ void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 	RTShowIf(LogRoot, Modo == ERTEventLogMode::Current || (Modo == ERTEventLogMode::Previous && bFeedHasLines));
 	if (LogTurnText)
 	{
-		FNumberFormattingOptions DueCifre;
-		DueCifre.MinimumIntegralDigits = 2;
-		DueCifre.UseGrouping = false;
-		// Il turno delle RIGHE, preso dalle righe: «round corrente meno uno» sbaglierebbe dove un turno non ha voci.
-		LogTurnText->SetText(bFeedHasLines && (Modo == ERTEventLogMode::Previous || bShownRemembered)
-			? FText::Format(NSLOCTEXT("RTHud", "LogRoundPrevious", "ROUND {0} · PRECEDENTE"), FText::AsNumber(FeedTurn, &DueCifre))
-			: FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Header.Round, &DueCifre)));
+		// Il turno delle RIGHE, preso dalle righe: «round corrente meno uno» sbaglierebbe dove un turno non ha voci. Che siano
+		// passate lo dice il confronto con il round corrente, non il modo ([D-548] (3)).
+		LogTurnText->SetText(URTHudViewModel::ComposeEventLogTitle(Header.Round, bFeedHasLines ? FeedTurn : 0));
 		LogTurnText->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
 	}
 }
