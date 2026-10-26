@@ -1,16 +1,16 @@
-G14 - le famiglie Meta e PieSession rieseguite sulla DoD finale della PR di D-545 (2026-10-26)
-Albero: working tree del branch issue/85-d545-deroga-g16-g9, basato su main 06206c548, con i file modificati dalla PR.
+G14 - le famiglie Meta e PieSession rieseguite sulla DoD finale della PR di D-546 (2026-10-26)
+Albero: working tree del branch issue/85-d546-g16-passo5-attestazione, basato su main 5a9ea1d07, con i file modificati dalla PR.
 Il motore era libero: nessun processo UnrealEditor prima del lancio.
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.Meta --timeout 540 --log <file>
-suite     finita in 40 s
+suite     finita in 30 s
 conteggi  trovati 15, avviati 15, completati 15
 rossi     nessuno
 log       (scratchpad di sessione, non archiviato)
 
 Dal log di quella corsa:
-[2026.10.26-11.46.51:095][353]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
-[2026.10.26-11.46.51:095][353]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
+[2026.10.26-13.39.26:634][566]LogAutomationController: §4 rivendica come soddisfatti: G8, G4
+[2026.10.26-13.39.26:634][566]LogAutomationController: Display: Test Completed. Result={Success} Name={SatisfiedGatesAgreeWithTheDefinitionOfDone} Path={RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone}
 
 $ python -X utf8 tools/suite/esegui.py RefactorTactics.PieSession --timeout 540 --log <file>
 suite     finita in 30 s
