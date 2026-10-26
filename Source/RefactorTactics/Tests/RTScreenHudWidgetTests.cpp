@@ -2169,4 +2169,164 @@ bool FRTPlanWarningChipTest::RunTest(const FString&)
 	return true;
 }
 
+
+namespace
+{
+	/** Quante righe `Icona non risolta` ha visto la sonda: e' la misura del RUMORE, che e' il soggetto di `#3861`. */
+	int32 ContaIconeNonRisolte(const FRTCardLogWatch& Sonda)
+	{
+		int32 N = 0;
+		for (const FString& Riga : Sonda.Righe)
+		{
+			if (Riga.Contains(TEXT("Icona non risolta"))) { ++N; }
+		}
+		return N;
+	}
+}
+
+/**
+ * 🔴 **IL DOCK CHIAMA `SetAction` A OGNI FRAME, E LA RISOLUZIONE DELL'ICONA NON PUO' SEGUIRLO** (`#3861`).
+ *
+ * Il difetto, misurato sul pacchetto del 2026-10-26: **otto** righe `Icona non risolta: 'None' richiesta da
+ * 'ActionSlot'` per frame, quasi tutte le righe `LogRT` di una seduta di cinque minuti. La correzione di
+ * `#2963` dichiarava «una volta per cambio azione» e spostava `ResolveIcon` in `SetAction`, ma `SetAction` e' chiamata
+ * dal grafo del dock **a ogni frame**: la risoluzione — e il suo log — ripartiva ogni volta.
+ *
+ * ⚠️ **Perche' il test di `#2963` non lo vedeva**: `ActionSlotResolvesOncePerActionChange` chiama `SetAction` UNA volta
+ * e poi legge il getter venti volte. Prova che il getter non risolve, non che il dock non faccia risolvere. Questo
+ * chiama `SetAction` venti volte, che e' cio' che il dock fa in un terzo di secondo.
+ *
+ * Le gambe: (a) venti chiamate con la stessa azione e lo stesso catalogo → UNA warning (e la prima dev'esserci: e' la
+ * sonda del rilevatore); (b) l'armamento cambia a ogni chiamata e non e' un cambio d'icona; (c) un'altra azione
+ * scrive la sua warning; (d) un altro catalogo la scrive di nuovo; (e) **la risoluzione resta VIVA**: una voce del
+ * catalogo senza asset che riceve l'asset SUL POSTO — senza cambiare il numero di icone, ne' il puntatore del
+ * catalogo — si risolve alla chiamata successiva, e non scrive un'altra warning; (f) se l'asset sparisce di nuovo,
+ * la mancanza e' di nuovo una novita' e la warning si riscrive.
+ *
+ * ⚠️ **(e) e' la gamba che la revisione di PR #3875 ha chiesto**: una prima stesura memorizzava la risoluzione e la
+ * rifaceva solo se cambiava una "entrata" (azione, catalogo, numero di icone). Un'icona sostituita nel catalogo mentre
+ * si gioca — il lavoro di chi disegna il catalogo — lasciava lo slot con l'icona vecchia fino al cambio d'azione, cosa
+ * che prima della correzione non succedeva. Ora si ricalcola a ogni chiamata, senza log, e si LOGGA una volta per chiave.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest,
+	"RefactorTactics.ScreenHud.ActionSlotResolvesOnceWhenTheDockRepeatsSetAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("slot"), Slot) || !TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->MissingIcon = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	// Un'abilita' PROPRIA, senza ripiego: la chiave non si risolve e `ResolveIcon` logga.
+	FRTAbilityCooldownView Azione;
+	Azione.ActionId = TEXT("Hero.Aevik.Overload");
+
+	FRTCardLogWatch Sonda;
+
+	// (a) La prima chiamata DEVE scrivere la warning: e' il controllo positivo del rilevatore. Senza, «una sola»
+	// sarebbe soddisfatto anche da uno slot che non risolve mai.
+	Slot->SetAction(Azione, /*bArmed=*/ false, Catalogo);
+	TestEqual(TEXT("(a) la prima chiamata risolve e la sonda la vede"), ContaIconeNonRisolte(Sonda), 1);
+
+	// Venti chiamate in tutto, come il dock in un terzo di secondo. (b) L'armamento alterna: e' un dato che cambia
+	// a ogni click, e NON cambia l'icona.
+	for (int32 i = 0; i < 19; ++i)
+	{
+		Slot->SetAction(Azione, /*bArmed=*/ (i % 2 == 0), Catalogo);
+	}
+	TestEqual(TEXT("(a)(b) venti chiamate con la stessa azione e lo stesso catalogo: una sola warning"),
+		ContaIconeNonRisolte(Sonda), 1);
+
+	// (c) Un'altra azione: un'altra chiave, e si risolve di nuovo.
+	FRTAbilityCooldownView Altra;
+	Altra.ActionId = TEXT("Hero.Aevik.Altra");
+	Slot->SetAction(Altra, /*bArmed=*/ false, Catalogo);
+	TestEqual(TEXT("(c) un'altra azione risolve di nuovo"), ContaIconeNonRisolte(Sonda), 2);
+
+	// (d) Un altro catalogo, stessa azione.
+	URTIconCatalogData* Altro = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("secondo catalogo"), Altro)) { return false; }
+	Altro->MissingIcon = Catalogo->MissingIcon;
+	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
+	TestEqual(TEXT("(d) un altro catalogo risolve di nuovo"), ContaIconeNonRisolte(Sonda), 3);
+
+	// (e) Lo STESSO catalogo, con la voce della chiave che lo slot chiede ma SENZA asset (per il catalogo e' non
+	// risolta: `ResolveIcon` salta le voci con asset nullo): la warning c'e' gia' stata (d), e non se ne scrive un'altra.
+	const FName ChiaveAltra = URTIconLibrary::MakeActionIconId(Altra.ActionId);
+	const int32 Voce = Altro->Icons.Add(FRTIconDef(ChiaveAltra, ERTIconCategory::Action, TSoftObjectPtr<UTexture2D>()));
+	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
+	TestFalse(TEXT("(e) la voce senza asset non risolve"), Slot->GetResolvedIcon().bResolved);
+	TestEqual(TEXT("(e) e non scrive un'altra warning: e' la stessa chiave mancante"), ContaIconeNonRisolte(Sonda), 3);
+
+	// ... poi l'asset viene assegnato SUL POSTO: stesso catalogo, stesso numero di icone. Lo slot deve accorgersene.
+	Altro->Icons[Voce].Asset = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Altra.T_Altra")));
+	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
+	const FRTIconResolution Dopo = Slot->GetResolvedIcon();
+	TestTrue(TEXT("(e) assegnato l'asset sul posto: ora e' risolta"), Dopo.bResolved);
+	TestEqual(TEXT("(e) ed e' l'asset assegnato, non il missing-icon"), Dopo.Asset.ToString(),
+		FString(TEXT("/Game/Prova/T_Altra.T_Altra")));
+	TestEqual(TEXT("(e) senza un'altra warning"), ContaIconeNonRisolte(Sonda), 3);
+
+	// (f) Se l'asset sparisce di nuovo — stessa chiave, stesso catalogo — la mancanza e' di nuovo una NOVITA': la warning
+	// si riscrive. Senza questa gamba, un contatore che non si azzera mai quando la chiave si risolve passerebbe.
+	Altro->Icons[Voce].Asset = TSoftObjectPtr<UTexture2D>();
+	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
+	TestFalse(TEXT("(f) senza asset non e' piu' risolta"), Slot->GetResolvedIcon().bResolved);
+	TestEqual(TEXT("(f) la chiave torna mancante: la warning si riscrive"), ContaIconeNonRisolte(Sonda), 4);
+
+	return true;
+}
+
+/**
+ * 🔴 **UNO SLOT SENZA AZIONE NON CHIEDE UN'ICONA, E NON LO SCRIVE NEL LOG** (`#3861`).
+ *
+ * Gli otto avvisi per frame del pacchetto hanno la chiave `None`: sono gli slot che non portano un'azione. `GetIconId`
+ * lo sa — *«un'azione senza `ActionId` non ha icona, e restituire `None` e' meglio di comporre `UI.Icon.` a vuoto: la
+ * risoluzione direbbe "chiave sconosciuta"»* — ma poi `ResolveIcon` veniva chiamata lo stesso con `None`, e diceva
+ * proprio quella cosa, nominando la chiave `None`.
+ *
+ * ⛔ **Non cambia cio' che si vede**: lo slot vuoto mostra il missing-icon, come prima. Il test lo asserisce, perche'
+ * togliere l'avviso azzerando anche l'icona sarebbe un altro difetto, piu' visibile.
+ *
+ * Il controllo positivo: la stessa sonda DEVE vedere la warning di un'abilita' propria non risolta, poco dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotWithoutAnActionDoesNotWarnTest,
+	"RefactorTactics.ScreenHud.ActionSlotWithoutAnActionDoesNotWarn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionSlotWithoutAnActionDoesNotWarnTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("slot"), Slot) || !TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->MissingIcon = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	FRTCardLogWatch Sonda;
+
+	const FRTAbilityCooldownView Vuota;   // nessun `ActionId`: uno slot che non porta un'azione
+	for (int32 i = 0; i < 20; ++i)
+	{
+		Slot->SetAction(Vuota, /*bArmed=*/ false, Catalogo);
+	}
+	TestEqual(TEXT("uno slot senza azione non scrive avvisi"), ContaIconeNonRisolte(Sonda), 0);
+
+	const FRTIconResolution Esito = Slot->GetResolvedIcon();
+	TestFalse(TEXT("non e' un'icona risolta"), Esito.bResolved);
+	TestEqual(TEXT("ma si vede il missing-icon, come prima: l'avviso se ne va, l'icona no"),
+		Esito.Asset.ToString(), FString(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	// Senza catalogo: nessuna icona da mostrare, e nessun avviso nemmeno qui.
+	Slot->SetAction(Vuota, /*bArmed=*/ false, /*Catalog=*/ nullptr);
+	TestEqual(TEXT("senza catalogo, senza azione: ancora nessun avviso"), ContaIconeNonRisolte(Sonda), 0);
+	TestTrue(TEXT("e nessun asset da mostrare"), Slot->GetResolvedIcon().Asset.IsNull());
+
+	// Controllo positivo: la sonda vede un'abilita' propria non risolta.
+	FRTAbilityCooldownView Propria;
+	Propria.ActionId = TEXT("Hero.Aevik.Overload");
+	Slot->SetAction(Propria, /*bArmed=*/ false, Catalogo);
+	TestEqual(TEXT("controllo positivo: una chiave vera non risolta scrive un avviso"), ContaIconeNonRisolte(Sonda), 1);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

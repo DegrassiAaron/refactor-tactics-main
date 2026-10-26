@@ -384,10 +384,11 @@ TArray<FString> URTIconLibrary::ValidateIconCatalog(const URTIconCatalogData* Ca
 	return Errors;
 }
 
-FRTIconResolution URTIconLibrary::ResolveIcon(const URTIconCatalogData* Catalog, const FName& IconId,
-	const FName& Consumer)
+FRTIconResolution URTIconLibrary::ResolveIconQuiet(const URTIconCatalogData* Catalog, const FName& IconId)
 {
-	if (Catalog)
+	// `NAME_None` non e' una chiave: non si cerca. Senza la guardia, una voce malformata con `IconId == None` e un asset
+	// la renderebbe "risolta" per ogni slot senza azione (#3861).
+	if (Catalog && !IconId.IsNone())
 	{
 		// Scansione lineare: il catalogo core sta nelle decine di voci, e una TMap costruita a ogni chiamata
 		// costerebbe piu' della ricerca. Se un giorno le icone diventassero migliaia, l'indice va costruito
@@ -401,8 +402,22 @@ FRTIconResolution URTIconLibrary::ResolveIcon(const URTIconCatalogData* Catalog,
 		}
 	}
 
+	return FRTIconResolution(Catalog ? Catalog->MissingIcon : TSoftObjectPtr<UTexture2D>(), /*bResolved*/ false);
+}
+
+void URTIconLibrary::LogUnresolvedIcon(const FName& IconId, const FName& Consumer)
+{
 	UE_LOG(LogRT, Warning, TEXT("Icona non risolta: '%s' richiesta da '%s' — mostrata l'icona di fallback"),
 		*IconId.ToString(), *Consumer.ToString());
+}
 
-	return FRTIconResolution(Catalog ? Catalog->MissingIcon : TSoftObjectPtr<UTexture2D>(), /*bResolved*/ false);
+FRTIconResolution URTIconLibrary::ResolveIcon(const URTIconCatalogData* Catalog, const FName& IconId,
+	const FName& Consumer)
+{
+	const FRTIconResolution Esito = ResolveIconQuiet(Catalog, IconId);
+	if (!Esito.bResolved)
+	{
+		LogUnresolvedIcon(IconId, Consumer);
+	}
+	return Esito;
 }

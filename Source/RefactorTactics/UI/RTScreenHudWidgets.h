@@ -1715,6 +1715,25 @@ public:
 	FRTIconResolution CachedResolvedIcon;
 
 	/**
+	 * L'ultima chiave MANCANTE di cui si e' scritta la warning, e per quale catalogo (`#3861`): la warning si scrive UNA
+	 * volta per chiave, non a ogni chiamata.
+	 *
+	 * 🔴 **`SetAction` non e' "una volta per cambio azione": e' una volta per FRAME.** Il dock la chiama dal suo grafo in
+	 * `Tick` (lo dice il commento in `SetAction`, per il tooltip), e `ResolveIcon` — che LOGGA ogni chiave che non
+	 * trova — ripartiva a ogni chiamata: otto avvisi per frame (misurato il 2026-10-26 sul pacchetto). La correzione di `#2963`
+	 * aveva spostato la risoluzione dal getter a `SetAction`, e il test che la copriva chiamava `SetAction` una volta.
+	 *
+	 * ⚠️ **Si ricalcola la RISOLUZIONE a ogni chiamata, e si memorizza solo il LOG.** Una prima stesura memorizzava la
+	 * risoluzione, con una chiave delle "entrate": un'icona sostituita nel catalogo mentre si gioca — stesso puntatore,
+	 * stesso numero di voci — lasciava lo slot con l'icona vecchia (revisione di PR #3875). La ricerca e' una scansione
+	 * lineare: misurata il 2026-10-26 (Development, catalogo reale di 75 voci) costa circa 50 ns per chiamata, quindi
+	 * meno di un microsecondo a frame per l'intero dock. Non e' il costo che valeva la pena di proteggere: il rumore si'.
+	 */
+	FName LoggedMissingIconId;
+	TWeakObjectPtr<const URTIconCatalogData> LoggedMissingCatalog;
+	bool bLoggedMissing = false;
+
+	/**
 	 * Vedi `SetArmingControllerForTest`. **Nullo in gioco**: il proprietario vero resta `GetOwningPlayer()`,
 	 * e questo campo esiste solo perche' in headless quello non c'e'.
 	 */

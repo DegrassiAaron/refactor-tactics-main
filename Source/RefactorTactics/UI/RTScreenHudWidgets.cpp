@@ -1230,7 +1230,29 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// binding la valuta a ogni frame: la seduta del 2026-09-11 ha prodotto 16 388 righe per quattro chiavi.
 	// Il docstring di `GetResolvedIcon` prescriveva gia' «un evento, una volta per cambio azione» — questa
 	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
-	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
+	//
+	// 🔴 **Ma `SetAction` gira a OGNI FRAME** (il dock la chiama dal suo `Tick`: vedi il tooltip qui sotto), quindi
+	// "qui" non basta a dire "una volta per cambio azione" — e' una volta per frame, e `ResolveIcon` loggava otto
+	// avvisi per frame (`#3861`). Si ricalcola la RISOLUZIONE a ogni chiamata, senza log (un catalogo modificato mentre
+	// si gioca si vede subito), e si scrive la warning UNA volta per chiave mancante.
+	const FName IconId = GetIconId();
+	CachedResolvedIcon = URTIconLibrary::ResolveIconQuiet(ReceivedCatalog, IconId);
+
+	// Uno slot senza azione NON chiede un'icona: `GetIconId` restituisce `None` apposta, per non comporre una chiave a
+	// vuoto, e dire "chiave sconosciuta" nominando `None` era l'altra meta' di `#3861`. Si mostra il missing-icon, come
+	// prima, senza log. Risolta o senza azione, la prossima chiave mancante e' di nuovo una novita'.
+	const URTIconCatalogData* Catalogo = ReceivedCatalog;
+	if (CachedResolvedIcon.bResolved || IconId.IsNone())
+	{
+		bLoggedMissing = false;
+	}
+	else if (!bLoggedMissing || LoggedMissingIconId != IconId || LoggedMissingCatalog.Get() != Catalogo)
+	{
+		bLoggedMissing = true;
+		LoggedMissingIconId = IconId;
+		LoggedMissingCatalog = Catalogo;
+		URTIconLibrary::LogUnresolvedIcon(IconId, TEXT("ActionSlot"));
+	}
 
 	// `#3499`: il tooltip si compone qui, ma si CONSEGNA solo quando cambia.
 	// 🔴 **Il dock chiama `SetAction` a ogni frame**, dal suo grafo in `Tick`: consegnarlo ogni volta rifaceva

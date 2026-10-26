@@ -339,6 +339,46 @@ bool FRTIconUnknownKeyTest::RunTest(const FString&)
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// `NAME_None` non e' una chiave (#3861): la risoluzione silenziosa lo dice, invece di lasciarlo al chiamante
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Lo slot d'azione senza azione chiede la chiave `None`, e `ResolveIconQuiet` dichiara che `NAME_None` non sta in nessun
+ * catalogo: e' il missing-icon, non risolto. Il test lo prova con un catalogo MALFORMATO — una voce con `IconId == None` e
+ * un asset — che una ricerca senza la guardia restituirebbe come risolta: il dato e' sbagliato, ma la funzione non puo'
+ * dipendere dal fatto che il catalogo sia giusto per mantenere la propria promessa.
+ *
+ * Il controllo positivo: nello stesso catalogo una chiave vera, con asset, si risolve — senza, «`None` non risolve»
+ * passerebbe anche con una funzione che non risolve niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIconQuietResolutionNoneIsNotAKeyTest,
+	"RefactorTactics.IconCatalog.QuietResolutionTreatsNoneAsNoKey",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIconQuietResolutionNoneIsNotAKeyTest::RunTest(const FString&)
+{
+	URTIconCatalogData* Catalog = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("catalogo"), Catalog)) { return false; }
+	Catalog->MissingIcon = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	const FName Vera(TEXT("UI.Icon.Prova.Vera"));
+	Catalog->Icons.Add(FRTIconDef(NAME_None, ERTIconCategory::Action,
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Malformata.T_Malformata")))));
+	Catalog->Icons.Add(FRTIconDef(Vera, ERTIconCategory::Action,
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Vera.T_Vera")))));
+
+	const FRTIconResolution Nessuna = URTIconLibrary::ResolveIconQuiet(Catalog, NAME_None);
+	TestFalse(TEXT("None non si risolve, nemmeno contro una voce malformata che porta None"), Nessuna.bResolved);
+	TestEqual(TEXT("ed e' il missing-icon del catalogo"), Nessuna.Asset.ToString(), FString(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	const FRTIconResolution Trovata = URTIconLibrary::ResolveIconQuiet(Catalog, Vera);
+	TestTrue(TEXT("controllo positivo: una chiave vera, con asset, si risolve"), Trovata.bResolved);
+	TestEqual(TEXT("ed e' il suo asset"), Trovata.Asset.ToString(), FString(TEXT("/Game/Prova/T_Vera.T_Vera")));
+
+	TestFalse(TEXT("senza catalogo: non risolta"), URTIconLibrary::ResolveIconQuiet(nullptr, NAME_None).bResolved);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // Validazione strutturale: ogni caso da solo, perche' un validator che segnalasse sempre lo stesso errore
 // passerebbe un test cumulativo senza distinguere i casi
 // ---------------------------------------------------------------------------------------------------------
