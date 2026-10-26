@@ -4,7 +4,8 @@
 > verificato sul filesystem o nel sorgente il **2026-10-03**; ciò che non è stato verificato è dichiarato
 > tale invece di essere dato per buono.
 >
-> **Candidate**: `95eddfd37`, albero `3009fe53b24603b3`. **Pacchetto**: cotto da quel commit il 2026-10-02.
+> **Candidate**: `7450ead64` (`7450ead647cfce43ae419218302bdf8bd183cc73`), dichiarato il 2026-10-26 ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)); `Source` `15b2cd28815a95989f84054f7d4c2046a93955dc`, `Content` `6c0cd69ff4c13fa379c5a6871e4f83c476aa4c49`.
+> **Pacchetto**: ⏳ **non ancora cotto da questo commit** — lo cuoce `G12` nell'Onda 3, e finché non esiste la seduta non si apre. Un pacchetto cotto prima (2026-10-02, da `95eddfd37`) non è il candidate e non si usa per attestare. I comandi di questo foglio sono quelli verificati il 2026-10-03: in questa occasione è cambiato solo lo SHA.
 > **Criterio**: la riga `G13` di [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) §3.
 
 ⛔ **Questo foglio non sostituisce [`guida-seduta-pia5-packaged.md`](guida-seduta-pia5-packaged.md), e non
@@ -24,16 +25,16 @@ che il criterio nuovo **vieta**. Non riusare quei numeri come baseline.
 | il runtime di `HEAD` è il candidate | il blocco qui sotto risponde `OK`. Su `DIVERSI` la seduta **non si apre**: è `NOT RUN — candidate superato` finché una decisione non ricongela (referto del 2026-10-09, `D1`) |
 
 ```bash
-test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 95eddfd37:Source)" \
-  && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 95eddfd37:Content)" \
+test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 7450ead64:Source)" \
+  && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 7450ead64:Content)" \
   && echo "OK: il runtime di HEAD e' il candidate" || echo "DIVERSI: NOT RUN, non aprire la seduta"
 ```
 
 ⛔ **Il pacchetto staged si verifica per contenuto, ma il contenuto prova solo che il binario è quello: non che il
-candidate sia ancora quello da attestare.** Il 2026-10-09 il blocco risponde `DIVERSI` — il fix di
-[#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463) e il lavoro delle sedute `U67`–`U71` sono
-entrati dopo `95eddfd37` — e una seduta condotta lo stesso attesterebbe una build che `main` ha sorpassato. Quando il
-candidate viene ricongelato, lo SHA in questo blocco si aggiorna **insieme** a quello di `#85`.
+candidate sia ancora quello da attestare.** Il 2026-10-09, con lo SHA vecchio, il blocco rispondeva `DIVERSI` — il fix di
+[#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463) e il lavoro delle sedute `U67`–`U71` erano
+entrati dopo `95eddfd37` — e una seduta condotta lo stesso avrebbe attestato una build che `main` aveva sorpassato.
+✅ **Ricongelato il 2026-10-26** ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)): lo SHA in questo blocco è quello del candidate v2, aggiornato **insieme** a quello di `#85`. Se oggi il blocco risponde `DIVERSI`, qualcuno ha toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`: la seduta non si apre.
 
 🔴 **Al 2026-10-03 quelle cartelle sono tre, e sono tutte di misure mie del 2026-10-02** — due da `-nullrhi`
 e una da `-RenderOffScreen`. Servono come **controllo positivo** del passo 6a: contengono un crash vero, su

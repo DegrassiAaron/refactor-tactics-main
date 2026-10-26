@@ -455,6 +455,8 @@ invalida ciò che l'Onda 3 misura.
 
 ➕ *Aggiornato il 2026-10-25, a lavoro fatto: [#3849](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3849) e [#3850](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3850) sono in `main` (il ritiro di `ComposeMatchStatusLine`, [D-539](../../decisions/RT_PDR_00_Decision_Log.md), e la sede unica del limite del round); il consuntivo di [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) è scritto nel corpo della issue. La pianificazione che ammette la mira lungo un arco ([#3848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3848)) ha il suo codice in [D-540](../../decisions/RT_PDR_00_Decision_Log.md): il meccanismo è provato headless, la PIE è `PIE-V01-ARCAIM` (NOT RUN) e la raggiungibilità in partita dipende da un dato, come dice il punto (8) di `D-540`.*
 
+➕ *Aggiornato il 2026-10-26, a lavoro fatto: l'**Onda 2 è chiusa e il candidate v2 è dichiarato** da [D-541](../../decisions/RT_PDR_00_Decision_Log.md) su `7450ead647cfce43ae419218302bdf8bd183cc73`. La finestra è scritta al passo 1 di [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85) (Onda 0.2, [D-483](../../decisions/RT_PDR_00_Decision_Log.md) (2)) e lo SHA è nei runbook `G13` e `G16`. La raggiungibilità in partita della mira lungo un arco è un limite noto della v0.1, non un dato da consegnare prima del freeze. Le celle dei gate datate su `95eddfd37` restano `NOT RUN` sul candidate v2 finché l'Onda 3 non le ridata. Nessuna misura con il motore in questo passo.*
+
 ### Onda 3 — le misure senza persona
 
 L'ordine è quello di `#85` (*«le misure costose si concentrano alla fine e non si intrecciano»*),

@@ -9,6 +9,8 @@
 > [`sequenza-chiusura-v01-spec-panel-2026-10-09.md`](sequenza-chiusura-v01-spec-panel-2026-10-09.md).
 > Le sezioni qui sotto **non sono state riscritte** e portano la data del 3 ottobre.
 >
+> 🔒 **Il candidate v2 è dichiarato dal 2026-10-26** ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)): lo SHA vivo sta al passo 1 di `#85` e nei blocchi `rev-parse` dei runbook `G13` e `G16`. `95eddfd37` è qui storico.
+>
 > **Base di misura**: `main` = `768c65f4d`, albero `fd85089c153d41243c46d07d97f9532561b55213`,
 > `git status --porcelain` → **0** righe. Stato delle issue e delle PR letto lato server con `gh`
 > il **2026-10-03**.
