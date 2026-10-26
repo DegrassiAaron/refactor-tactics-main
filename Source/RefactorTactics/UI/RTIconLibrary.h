@@ -187,7 +187,7 @@ public:
 	 *
 	 * Esiste per chi ha un proprio criterio per dire "e' la prima volta che vedo questa chiave mancante". Lo slot
 	 * d'azione e' chiamato dal dock a OGNI frame: `ResolveIcon`, che logga a ogni chiamata, scriveva otto avvisi per
-	 * frame. Lo slot ricalcola la risoluzione a ogni chiamata con questa — e vede subito un catalogo modificato mentre
+	 * frame (misurato il 2026-10-26). Lo slot ricalcola la risoluzione a ogni chiamata con questa — e vede subito un catalogo modificato mentre
 	 * si gioca — e logga con `LogUnresolvedIcon` una volta sola per chiave mancante.
 	 *
 	 * `NAME_None` non e' una chiave: non sta in nessun catalogo, e il risultato e' il missing-icon, non risolto.

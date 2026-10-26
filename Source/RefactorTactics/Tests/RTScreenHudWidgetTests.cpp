@@ -2188,7 +2188,7 @@ namespace
  * 🔴 **IL DOCK CHIAMA `SetAction` A OGNI FRAME, E LA RISOLUZIONE DELL'ICONA NON PUO' SEGUIRLO** (`#3861`).
  *
  * Il difetto, misurato sul pacchetto del 2026-10-26: **otto** righe `Icona non risolta: 'None' richiesta da
- * 'ActionSlot'` per frame — 29 424 in una seduta di cinque minuti, il 98,5% delle righe `LogRT`. La correzione di
+ * 'ActionSlot'` per frame, quasi tutte le righe `LogRT` di una seduta di cinque minuti. La correzione di
  * `#2963` dichiarava «una volta per cambio azione» e spostava `ResolveIcon` in `SetAction`, ma `SetAction` e' chiamata
  * dal grafo del dock **a ogni frame**: la risoluzione — e il suo log — ripartiva ogni volta.
  *
@@ -2254,13 +2254,13 @@ bool FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest::RunTest(const FSt
 	// (e) Lo STESSO catalogo, con la voce della chiave che lo slot chiede ma SENZA asset (per il catalogo e' non
 	// risolta: `ResolveIcon` salta le voci con asset nullo): la warning c'e' gia' stata (d), e non se ne scrive un'altra.
 	const FName ChiaveAltra = URTIconLibrary::MakeActionIconId(Altra.ActionId);
-	Altro->Icons.Add(FRTIconDef(ChiaveAltra, ERTIconCategory::Action, TSoftObjectPtr<UTexture2D>()));
+	const int32 Voce = Altro->Icons.Add(FRTIconDef(ChiaveAltra, ERTIconCategory::Action, TSoftObjectPtr<UTexture2D>()));
 	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
 	TestFalse(TEXT("(e) la voce senza asset non risolve"), Slot->GetResolvedIcon().bResolved);
 	TestEqual(TEXT("(e) e non scrive un'altra warning: e' la stessa chiave mancante"), ContaIconeNonRisolte(Sonda), 3);
 
 	// ... poi l'asset viene assegnato SUL POSTO: stesso catalogo, stesso numero di icone. Lo slot deve accorgersene.
-	Altro->Icons[0].Asset = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Altra.T_Altra")));
+	Altro->Icons[Voce].Asset = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Altra.T_Altra")));
 	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
 	const FRTIconResolution Dopo = Slot->GetResolvedIcon();
 	TestTrue(TEXT("(e) assegnato l'asset sul posto: ora e' risolta"), Dopo.bResolved);
@@ -2270,7 +2270,7 @@ bool FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest::RunTest(const FSt
 
 	// (f) Se l'asset sparisce di nuovo — stessa chiave, stesso catalogo — la mancanza e' di nuovo una NOVITA': la warning
 	// si riscrive. Senza questa gamba, un contatore che non si azzera mai quando la chiave si risolve passerebbe.
-	Altro->Icons[0].Asset = TSoftObjectPtr<UTexture2D>();
+	Altro->Icons[Voce].Asset = TSoftObjectPtr<UTexture2D>();
 	Slot->SetAction(Altra, /*bArmed=*/ false, Altro);
 	TestFalse(TEXT("(f) senza asset non e' piu' risolta"), Slot->GetResolvedIcon().bResolved);
 	TestEqual(TEXT("(f) la chiave torna mancante: la warning si riscrive"), ContaIconeNonRisolte(Sonda), 4);
