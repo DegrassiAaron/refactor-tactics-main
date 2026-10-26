@@ -14,10 +14,10 @@
 |---|---|
 | **Candidate v2** | `7450ead647cfce43ae419218302bdf8bd183cc73` (`D-541`) |
 | **`HEAD` delle misure** | `ad06c1cfce82f14344cbd5ca6832f617c688cb11`, albero `16a97d52641b4fb6f1baec41a5e8645fe587cae5`, `git status --porcelain` → **0** righe prima e dopo |
-| **Rapporto col candidate** | `git diff --stat 7450ead64 HEAD -- Source Content` → **due** file, entrambi `Source/RefactorTactics/Tests/`: la rinomina di `Reactions.Intercept.NotAcrossLayers` e il test `Naming.NoTestNameIsAPrefixOfAnother` ([#3854](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3854)). Il blocco `rev-parse` della finestra ([`D-542`](../../../decisions/RT_PDR_00_Decision_Log.md)) risponde `OK`, perché esclude i `Tests/` |
+| **Rapporto col candidate** | `git diff --stat 7450ead64 HEAD -- Source Content` → **due** file (il resto del diff, `git diff --stat 7450ead64 HEAD`, sta in `docs/`), entrambi `Source/RefactorTactics/Tests/`: la rinomina di `Reactions.Intercept.NotAcrossLayers` e il test `Naming.NoTestNameIsAPrefixOfAnother` ([#3854](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3854)). Il blocco `rev-parse` della finestra ([`D-542`](../../../decisions/RT_PDR_00_Decision_Log.md)) risponde `OK`, perché esclude i `Tests/` |
 | **Albero di `Source`** | `15ce4d328400784ea763cec43100b0de9cf660d8` (quello del candidate è `15b2cd28815a95989f84054f7d4c2046a93955dc`: la differenza è solo nei `Tests/`). `Content` = `6c0cd69ff4c13fa379c5a6871e4f83c476aa4c49`, identico |
 | **Pacchetto** | cotto da `HEAD` (`RunUAT BuildCookRun`, §4), `Saved/StagedBuilds/Windows/RefactorTactics`: `RefactorTactics.exe` (Development) 380.946.944 byte `sha256=080C6B394DEF74FD…`; `RefactorTactics-Win64-Shipping.exe` 189.588.992 byte `sha256=000CA59F11786CFD…`; `RefactorTactics-Windows.pak` 11.604.815 byte; `.ucas` 1.065.070.736 byte |
-| **Macchina** | Unreal e Live Coding spenti prima di ogni lancio (`Get-CimInstance Win32_Process`); `C:` 72 GB liberi; RTX 4070, adapter 0 scelto dal RHI. ⚠️ **Finestra NON pulita**: processi estranei a questo progetto (`VBCSCompiler` e `dotnet test` di un altro progetto .NET, più quattro `bash.exe` di un plugin di Claude Code sotto `~/.claude/plugins/cache/superpowers-marketplace/`, circa mezzo core ciascuno) hanno tenuto il carico di fondo fra il 4% e il 100%. Vale per tutto ciò che segue, e pesa soprattutto su `G11` |
+| **Macchina** | Unreal e Live Coding spenti prima di ogni lancio (`Get-CimInstance Win32_Process`); `C:` 72 GB liberi; RTX 4070, adapter 0 scelto dal RHI. ⚠️ **Finestra NON pulita**: processi estranei a questo progetto (`VBCSCompiler` e `dotnet test` di un altro progetto .NET, più quattro `bash.exe` di un plugin di Claude Code sotto `~/.claude/plugins/cache/superpowers-marketplace/`, circa mezzo core ciascuno) hanno tenuto il carico di fondo fra il 3% e il 100%. I `bash.exe` sono osservazioni a mano durante la sessione e non sono conservati in un log; i campioni di `VBCSCompiler` e `dotnet` sì (`*_carico.csv`). Vale per tutto ciò che segue, e pesa soprattutto su `G11` |
 
 ## 1. `G1` — tre build a freddo
 
@@ -39,7 +39,7 @@ Letta con due metodi: l'oracolo `completati >= trovati - 1` di [#3048](https://g
 
 I nomi vincolanti, verificati **uno per uno sul `Path` completo** del log (non dedotti dal verde):
 
-- **`G3`, i dieci**: `Actions.Dash.BlockedArc` · `Actions.Dash.DeniedByTerrain` · `Actions.Move.CellConflict` · `Actions.Move.PathBlocked` · `Actions.Push.InvalidDestination` · `Cover.DirectionalDamageReduction` · `Environment.WaterElectricPropagation` · `Environment.WaterExtinguishesFire` · `Reactions.Intercept` · `Reactions.SingleActivation` — tutti `Success`. Con i due che portano i `ClientContext` da dieci a dodici: `Cover.DefaultIntegrityMatchesCatalog`, `Environment.Propagation.ElectrifiedIsLoggedAsInstantLabel`.
+- **`G3`, i dieci di `roadmap-v0.1.md` §6**: `Actions.Move.PathBlocked` · `Actions.Move.CellConflict` · `Actions.Dash.BlockedArc` · `Actions.Push.InvalidDestination` · `Environment.WaterElectricPropagation` · `Environment.WaterExtinguishesFire` · `Cover.DirectionalDamageReduction` · `Reactions.Intercept` · `Reactions.SingleActivation` · `Replay.Verifier.ResimulationIsDeterministic` — tutti `Success`. (La cella del 2026-10-03 elencava `Actions.Dash.DeniedByTerrain` al posto dell'ultimo: non è nel §6; è `Success` anche lui.) Con i due che portano i `ClientContext` da dieci a dodici: `Cover.DefaultIntegrityMatchesCatalog`, `Environment.Propagation.ElectrifiedIsLoggedAsInstantLabel`.
 - **`G4`**: `Replay.Verifier.ResimulationIsDeterministic` e `Combat.DeflectPoolIsPermutationInvariant` — `Success`.
 - **`G6`**: `Catalog.IdsAreUnique` — `Success`, insieme agli altri `Catalog.*` della stessa famiglia (tutti `Success`).
 - **`G8`**: `Reactions.IntentNotVisibleToEnemy` · `Facing.IntentIsTeamFiltered` · `Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed` · `UI.IntentViewFieldsAreClassified` · `UI.EnemyViewCarriesNoAllyOnlyField` — `Success`.
@@ -61,7 +61,7 @@ I nomi vincolanti, verificati **uno per uno sul `Path` completo** del log (non d
 
 Controllo positivo sul contenuto, con `UnrealPak RefactorTactics-Windows.utoc -List`: `L_HexArena` → 2 righe, `L_Frontend` → 1, e la controprova `L_NonEsiste_Controprova` → **0**.
 
-⚠️ **`Error compiling` nel log di cottura: 924 righe**, della stessa famiglia che la cella di `G12` registrava il 2026-10-02 ("sei righe su nodi di materiale"): `DistanceToSurface`, `DistanceFieldIsValid`, `Less Than`, `Multiply`, `Logic AND`, ripetute per 154 compilazioni. Non hanno fatto fallire la cottura. Nessun asset di `Content/RT` contiene quei nomi (`grep -rl -a` → 0), quindi vengono da materiali del motore o di `FabAsset`. **Il numero non è confrontabile con "sei" e la causa non è stata indagata** (ipotesi non verificata: cache degli shader fredda).
+⚠️ **`Error compiling` nel log di cottura: 924 righe** (`grep -a -c "Error compiling"` sul log di `RunUAT`), della stessa famiglia che la cella di `G12` registrava il 2026-10-01, su `2f765c08f` ("sei righe su nodi di materiale"): `DistanceToSurface`, `DistanceFieldIsValid`, `Less Than`, `Multiply`, `Logic AND`, 6 messaggi ripetuti per 154 compilazioni. Non hanno fatto fallire la cottura. Gli undici asset che il log nomina nello stesso passo (`AssetLog`) sono `NS_Cloner*`, sistemi Niagara del plugin `ClonerEffector` **del motore**, con il messaggio *«mesh distance field generation is currently not enabled»*; nessun asset di `Content/RT` contiene `DistanceToSurface` né `DistanceFieldIsValid` (`grep -rl -a -F` → 0). La lettura è coerente, non provata riga per riga. **Il numero non è confrontabile con "sei" e perché sia salito non è stato indagato.** Altri numeri di questa sezione: `Content/FabAsset` → `find Content/FabAsset -name '*.uasset'`; `UnrealPak … -List` → righe del file di elenco.
 
 ## 5. `G11` — i KPI rimisurabili senza persona
 
@@ -74,9 +74,9 @@ Controllo positivo sul contenuto, con `UnrealPak RefactorTactics-Windows.utoc -L
 | esecuzione 1 | 0,074 ms | 0,126 / 0,147 ms | 11,169 | 11,927 | 26% / 13% |
 | esecuzione 2 | 0,115 ms | 0,145 / 0,158 ms | 15,225 | 23,992 | 21% / 96% |
 | esecuzione 3 | 0,078 ms | 0,157 / 0,194 ms | 12,212 | 10,837 | 99% / 3% |
-| suite intera (§2) | 0,105 ms | 0,099 / 0,154 ms | 13,362 | 13,385 | non campionato per esecuzione |
+| suite intera (§2) | 0,105 ms | 0,099 / 0,154 ms | 13,362 | 13,385 | campionato su tutta la suite: medio 71%, max 100% (include la suite stessa; `g2editor2_carico.csv`) |
 
-Contro i target: pathfinding `< 2 ms`, preview `< 50 ms`, resolver `< 100 ms`. Il `Path` sta dove stava il 2026-10-03 (0,113 ms): **la macchina non è due volte più lenta**.
+Contro i target: pathfinding `< 2 ms`, preview `< 50 ms`, resolver `< 100 ms`. Il `Path` sta dove stava il 2026-10-03 (0,113 ms): non indica una macchina il doppio più lenta. ⚠️ **Non è un controllo contemporaneo**: gira nell'Editor, prima delle catture, e varia di ×1,55 da un'esecuzione all'altra (0,074–0,115).
 
 **Client FPS** — `RefactorTactics.exe /Game/RT/Maps/Dev/L_HexArena/L_HexArena -RTAutobattle -dpcvars=rt.Map.Source=LevelAsset -csvCaptureFrames=4000 -ExitAfterCsvProfiling -windowed -ResX=1280 -ResY=720 -unattended -nopause -nosplash -NoSound`, pacchetto Development di §0, sei catture da **4000** frame in due serie, `FrameTime` cercata **per nome** nell'intestazione (colonna 127–163 su 324–333, mai la stessa), percentili nearest-rank sui frame dopo i primi 300 (3700):
 
@@ -89,7 +89,7 @@ Contro i target: pathfinding `< 2 ms`, preview `< 50 ms`, resolver `< 100 ms`. I
 | b | 2 | 10,114 | 14,429 | **18,826** | 2,08% | 20% / 31% |
 | b | 3 | 10,137 | 15,306 | **20,561** | 3,22% | 25% / 45% |
 
-La serie `b` è la più pulita (carico di fondo misurato durante la cattura). **Il target è 60 fps, cioè p99 ≤ 16,67 ms: nella serie più pulita non è raggiunto** (49–53 fps). Il 2026-10-03 era `9,326–9,683` ms, il 2026-09-12 `7,154–7,858`. **Non attribuito.** Due letture dal CSV, senza concludere: il frame è legato al **game thread** (`GameThreadTime` p50 ≈ 9,4–9,6 ms; `GPUTime` p50 ≈ 2,3 ms, `RHIThreadTime` ≈ 2,5 ms) e non alla GPU; e il `Path` di controllo non si è mosso. Tra `95eddfd37` e `HEAD` sono cambiati anche `DefaultEngine.ini` (`r.CustomDepth=3`, `GameViewportClientClassName`) e 36 `.uasset` di `Content/`.
+La serie `b` è la più pulita (carico di fondo misurato durante la cattura). **Il target è 60 fps, cioè p99 ≤ 16,67 ms: nella serie più pulita non è raggiunto** (49–53 fps). Il 2026-10-03 era `9,326–9,683` ms, il 2026-10-01 (su `2f765c08f`) `7,154–7,858`. **Non attribuito.** Due letture dal CSV, senza concludere: `GameThreadTime` p50 ≈ 9,4–9,6 ms contro `GPUTime` p50 ≈ 2,3 ms e `RHIThreadTime` ≈ 2,5 ms (il game thread include le attese, quindi non prova da solo che sia il collo); e il `Path` di controllo non si è mosso, ma è misurato a parte. Fra `95eddfd37` e `HEAD` è cambiato molto: `git diff --stat 95eddfd37 ad06c1cfc -- Source` → 366 file, di cui 195 fuori da `Tests/`; e, per `Config/`, `DefaultEngine.ini` ha `r.CustomDepth=3` e `GameViewportClientClassName`; `git diff --name-only 95eddfd37 HEAD -- Content` → 36 `.uasset`.
 
 ## 6. `G14`
 
@@ -97,6 +97,7 @@ Misurato **dopo** l'aggiornamento delle celle (il gate allinea anche i loro esit
 
 - `node tools/radar/doc-coherence.ts --check` → `PASS A1` (284 voci del registro PIE, 116/34/7/127) · `PASS A2` (20 sedute critiche su 93) · `PASS A3` · `PASS A4` · `PASS A5` (24 epic, somma CP 124, 124 id unici); exit 0.
 - `node tools/radar/doc-links.ts --check` → 8314 link esaminati in 522 documenti, *tutti i percorsi citati risolvono*; exit 0.
+- `node tools/radar/pie-verdict-age.ts --check` → exit 1 su `PIE-DEBUG-CONTEXT`: **già rosso prima di questa tornata** (stessa voce, 2026-10-25) e fuori dai due comandi di `G14`.
 - `RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone` (famiglia `Meta`, 15 test su 15 `Success`) rieseguito sulla DoD modificata.
 
 ## 7. Cosa NON è stato misurato
