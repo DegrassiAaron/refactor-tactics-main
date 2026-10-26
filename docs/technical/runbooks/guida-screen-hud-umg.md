@@ -786,16 +786,20 @@ Anche il chip `REAZ.` delle carte si riconta a 5 Hz, mentre i PV seguono a ogni 
 
 ## 7-sexies. Il registro: le porte della tavola D ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637))
 
-Il registro compare **solo in Risoluzione** ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). Le righe le costruisce il C++ da una classe
-nei default, come le carte del roster. Il grafo che le costruiva è stato tolto nella seduta `U77`, insieme al
+Il registro mostra le righe **vive** del turno più recente (in Risoluzione, il turno che si risolve; in Pianificazione,
+quello appena risolto) e, se un turno non ha eventi visibili, **tiene le ultime non vuote** fino al primo evento che ne
+ha, marcate «PRECEDENTE» ([D-548](../../decisions/RT_PDR_00_Decision_Log.md), che emenda [D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). In Pianificazione è aperto
+solo se ha righe da mostrare; al primo turno e a partita finita è chiuso. Il modo lo decide `URTHudViewModel::EventLogModeFor`, su `bResolving` e non su
+`Phase`, che resta `Planning` per tutto il playback. Le righe le costruisce il C++ da una classe nei default, come le
+carte del roster. Il grafo che le costruiva è stato tolto nella seduta `U77`, insieme al
 riparentamento di `WBP_RT_EventLine`.
 
 ### `WBP_RT_EventLog`
 
 | Porta | Tipo | Che cosa ci scrive il C++ |
 |---|---|---|
-| `LogRoot` | qualunque widget | `Collapsed` fuori dalla Risoluzione |
-| `LogTurnText` | `TextBlock` | «ROUND 04», accanto a «REGISTRO»: la parola dell'header ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 1) |
+| `LogRoot` | qualunque widget | `Collapsed` quando non c'è niente da mostrare: fuori partita, a partita finita, o in Pianificazione senza righe (primo turno, o `LinesBox`/`LineClass` non dati) |
+| `LogTurnText` | `TextBlock` | «ROUND 04», accanto a «REGISTRO»: la parola dell'header ([D-496](../../decisions/RT_PDR_00_Decision_Log.md) punto 1). Quando il turno **delle righe** è anteriore al round corrente (`URTHudViewModel::ComposeEventLogTitle`: sempre in Pianificazione, e in Risoluzione per le righe ricordate) dice quel turno e che è passato: «ROUND 03 · PRECEDENTE», non il round corrente ([D-548](../../decisions/RT_PDR_00_Decision_Log.md) (3)) |
 | `LinesBox` | un pannello | una riga per voce di `GetFeed()`, riusate da un tick all'altro |
 
 Nei default, `LineClass` = `WBP_RT_EventLine_C`. Senza `LinesBox` o senza `LineClass` il registro non costruisce
@@ -818,7 +822,11 @@ con e senza le voci nascoste, dà a chi guarda le stesse righe, campo per campo,
 stessa unità e con una cella d'ambiente nascosta.
 
 ⚠️ **Quattro cose da sapere prima della seduta**:
-- le righe si costruiscono solo in Risoluzione, e il feed si rilegge a 5 Hz, subito all'ingresso;
+- le righe si costruiscono in Risoluzione e in Pianificazione (se ce ne sono), il feed si rilegge a 5 Hz e subito a ogni
+  cambio di modo. Ogni giro riproietta il `TurnLog` per gli osservatori di quel momento; l'unica copia che sopravvive
+  è `FRTEventLogMemory`, le ultime righe non vuote, e vale **solo per la stessa chiave** (manager, osservatori, squadra):
+  con un'altra si butta ([D-548](../../decisions/RT_PDR_00_Decision_Log.md) (2) e (4)). Il `TurnLog` si azzera al commit seguente; se il turno nuovo
+  non ha eventi visibili (il proiettore scarta il movimento riuscito) restano le ricordate;
 - la riga d'ambiente aggrega più celle: la sua striscia è la fase della **prima** cella visibile;
 - il feed è già pieno al primo tick di Risoluzione, perché il resolver risolve tutte le fasi prima del playback.
   Le righe di Blast e Move compaiono quindi prima che il playback le mostri. La riga corrente evidenziata, che
