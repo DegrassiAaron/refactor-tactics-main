@@ -213,7 +213,7 @@ deve stare sul `Layer` di chi attacca: il colpo deviato è un colpo, e un colpo 
 La portata dell'azione non bastava a dirlo — `HexDistance` ignora il `Layer`, e chi sta esattamente sopra
 l'alleato dista zero. Da una piattaforma non ci si interpone per chi sta a terra: la reazione resta pronta e
 lascia `Reaction`/`NotTriggered`, come quando l'alleato è troppo lontano. Pinnato da
-`Reactions.Intercept.NotAcrossLayers`.
+`Reactions.InterceptNotAcrossLayers`.
 
 ### 8.2 Il rinvio a E14 è un dato, non un commento *(decisione)*
 
