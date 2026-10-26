@@ -1,0 +1,407 @@
+LogRT: Display: Screen HUD 4.1 - fotografia AL MONTAGGIO; per l'albero a regime usa 'rt.Debug.ScreenHud'
+LogRT: Display: Screen HUD 4.1 - albero costruito di 'WBP_RT_TacticalHUD_C_0': 14 widget innestati
+LogRT: Display:   costruito: 'Zone_TopLeft' (WBP_RT_HudZone_C)
+LogRT: Display:   costruito: 'WBP_RT_TeamRosterLeft' (WBP_RT_TeamRoster_C)
+LogRT: Display:   costruito: 'Zone_TopCenter' (WBP_RT_HudZone_C)
+LogRT: Display:   costruito: 'WBP_RT_TurnHeader' (WBP_RT_TurnHeader_C)
+LogRT: Display:   costruito: 'Zone_TopRight' (WBP_RT_HudZone_C)
+LogRT: Display:   costruito: 'WBP_RT_PlanCommitTopRight' (WBP_RT_PlanCommit_C)
+LogRT: Display:   costruito: 'Zone_MiddleLeft' (WBP_RT_HudZone_C)
+LogRT: Display:   costruito: 'WBP_RT_SelectedUnitPanelLeft' (WBP_RT_SelectedUnitPanel_C)
+LogRT: Display:   costruito: 'SubjectCard' (WBP_RT_UnitCard_C)
+LogRT: Display:   costruito: 'Zone_MiddleRight' (WBP_RT_HudZone_C)
+LogRT: Display:   costruito: 'WBP_RT_EventLogRight' (WBP_RT_EventLog_C)
+LogRT: Display:   costruito: 'Zone_Bottom' (WBP_RT_HudZone_C)
+LogRT: Display:   costruito: 'WBP_RT_ActionDockBottom' (WBP_RT_ActionDock_C)
+LogRT: Display:   costruito: 'WBP_RT_FastDecisionCenter' (WBP_RT_FastDecision_C)
+LogRT: Display:   [ok]    TurnHeader: 1
+LogRT: Display:   [ok]    TeamRoster: 1
+LogRT: Display:   [ok]    SelectedUnitPanel: 1
+LogRT: Display:   [ok]    ActionDock: 1
+LogRT: Display:   [MANCA] ActionSlot: 0
+LogRT: Display:   [ok]    EventLog: 1
+LogRT: Display: Screen HUD - fasce posate su 6 zone; scena fra le fasce: si'
+LogRT: Display: Screen HUD 4.1 montato: 'WBP_RT_TacticalHUD_C' (z=-100) - modulo compilato il Oct 26 2026 alle 06:59:00
+LogRT: Warning: [RT] La riga di comando -RTAutobattle SCAVALCA la proprieta' bAutobattle=false del GameMode: la partita e' non presidiata. Per tornare a usare la proprieta': togli il flag.
+LogRT: Warning: [RT] La riga di comando -RTAutobattle SCAVALCA la proprieta' bAutobattle=false del GameMode: la partita e' non presidiata. Per tornare a usare la proprieta': togli il flag.
+LogRT: [RT] Nessun MatchFormat assegnato: uso il formato SPEDITO 'Format.Skirmish2v2'. Assegna un URTMatchFormatData al GameMode per sovrascriverlo.
+LogRT: [RT] Formato di partita in vigore: 'Format.Skirmish2v2' (RoundLimit 12, soglia obiettivo 5, 2 unita' per squadra)
+LogRT: Warning: [RT] AUTOBATTLE (da: -RTAutobattle): entrambe le squadre al bot, nessun input richiesto. Planning 2.00s — questa NON e' una partita normale.
+LogRT: [RT] Board 2v2 esagonale avviata su 64 celle con 4 eroi
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Aevik_C_0: arma Hero.Aevik.ReactiveCapacitor (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] Turno 1 - pianificazione
+LogRT: [RT] Camera sulla squadra 0 (2 unita', arm=450)
+LogRT: [RT] CameraPawn BeginPlay (arm=450, pitch=-40)
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 1)
+LogRT: [RT] Fase Move: risolte 4 unita'
+LogRT: [RT] Risoluzione: 1 fasi, ~2.8s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Move
+LogRT: [RT] Risoluzione completata (2.8s)
+LogRT: [RT] Aevik: (q=-4,r=0,L=0): reazione pronta, nessun trigger (Hero.Aevik.ReactiveCapacitor)
+LogRT: [RT] Muiren: (q=-2,r=1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Ivrin: (q=4,r=-1,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Branth: (q=4,r=0,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Aevik: si muove (q=-4,r=0,L=0) -> (q=-1,r=1,L=0) (4 celle) (Action.Move, p50)
+LogRT: [RT] Muiren: si muove (q=-4,r=1,L=0) -> (q=-2,r=1,L=0) (2 celle) (Action.Move, p50)
+LogRT: [RT] Ivrin: si muove (q=4,r=-1,L=0) -> (q=1,r=-1,L=0) (3 celle) (Action.Move, p50)
+LogRT: [RT] Branth: si muove (q=4,r=0,L=0) -> (q=1,r=1,L=0) (3 celle) (Action.Move, p50)
+LogRT: [RT] Ivrin: (q=1,r=-1,L=0): si orienta a W (movimento)
+LogRT: [RT] Branth: (q=1,r=1,L=0): si orienta a SW (movimento)
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Aevik_C_0: arma Hero.Aevik.ReactiveCapacitor (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] Turno 2 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 2)
+LogRT: [RT] Fase Move: risolte 4 unita'
+LogRT: [RT] Muiren: (q=-2,r=1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Aevik: (q=-1,r=1,L=0): reazione pronta, nessun trigger (Hero.Aevik.ReactiveCapacitor)
+LogRT: [RT] Ivrin: (q=1,r=-1,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Branth: (q=1,r=1,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Muiren: resta (q=-2,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-1,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Ivrin: si muove (q=1,r=-1,L=0) -> (q=-1,r=-1,L=0) (5 celle) (Action.Move, p50)
+LogRT: [RT] Branth: resta (q=1,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Ivrin: (q=-1,r=-1,L=0): si orienta a SE (movimento)
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Aevik_C_0: arma Hero.Aevik.ReactiveCapacitor (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] Turno 3 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 3)
+LogRT: [RT] Fase Move: risolte 4 unita'
+LogRT: [RT] Muiren: (q=-2,r=1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Ivrin: (q=-1,r=-1,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Aevik: (q=-1,r=1,L=0): reazione pronta, nessun trigger (Hero.Aevik.ReactiveCapacitor)
+LogRT: [RT] Branth: (q=1,r=1,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Muiren: resta (q=-2,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Ivrin: fermo: cella occupata (q=-1,r=-1,L=0) -> (q=-2,r=0,L=0) (1 celle) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-1,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: si muove (q=1,r=1,L=0) -> (q=1,r=-1,L=0) (3 celle) (Action.Move, p50)
+LogRT: [RT] Ivrin: (q=-2,r=0,L=0): si orienta a SW (movimento)
+LogRT: [RT] Branth: (q=1,r=-1,L=0): si orienta a W (movimento)
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 100)
+LogRT: [RT] BP_Unit_Ivrin_C_0: utility -> scatto (q=-3,r=0,L0) + attacca BP_Unit_Aevik_C_0 score=860 [obiettivo +30]
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: utility -> (q=-2,r=1,L0) attacca BP_Unit_Ivrin_C_0 score=50
+LogRT: [RT] BP_Unit_Aevik_C_0: arma Hero.Aevik.ReactiveCapacitor (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Aevik_C_0: utility -> (q=-1,r=-2,L0) score=-15 [obiettivo +90]
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] BP_Unit_Branth_C_0: utility -> (q=0,r=-3,L0) score=80 [obiettivo +120]
+LogRT: [RT] Turno 4 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 4)
+LogRT: [RT] Scatto: BP_Unit_Ivrin_C_0 -> (q=-3,r=0,L0)
+LogRT: [RT] Fase Dash: 1 scatti
+LogRT: [RT] BP_Unit_Aevik_C_0: +15 scudo dalla reazione
+LogRT: [RT] BP_Unit_Aevik_C_0: contrattacco su BP_Unit_Ivrin_C_0 (10)
+LogRT: [RT] Blast: 2 attacchi
+LogRT: [RT] Fase Move: risolte 4 unita'
+LogRT: [RT] Obiettivo: team 1 +1 (ora 0-1)
+LogRT: [RT] Risoluzione: 3 fasi, ~6.5s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Dash
+LogRT: [RT] Attiva: BP_Unit_Ivrin_C_0 -> Hero.Ivrin.PassingBlade
+LogRT: [RT] Playback fase: Blast
+LogRT: [RT] Attiva: BP_Unit_Ivrin_C_0 -> Hero.Ivrin.PulseShot
+LogRT: [RT] Colpo: BP_Unit_Ivrin_C_0 -> BP_Unit_Aevik_C_0 (21)
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.PressureJet
+LogRT: [RT] Playback fase: Move
+LogRT: [RT] Risoluzione completata (6.5s)
+LogRT: [RT] Ivrin: si muove (q=-2,r=0,L=0) -> (q=-3,r=0,L=0) (1 celle) (Hero.Ivrin.PassingBlade, p30)
+LogRT: [RT] Ivrin: (q=-2,r=0,L=0): si orienta a W (scatto)
+LogRT: [RT] (q=-3,r=0,L=0) -> (q=-1,r=1,L=0): 1 danni (Action.BasicAttack · Hero.Ivrin.PulseShot, p50)
+LogRT: [RT] (q=-1,r=1,L=0) -> (q=-3,r=0,L=0): 5 danni (Hero.Aevik.ReactiveCapacitor, p20)
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Muiren: (q=-2,r=1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Aevik: (q=-1,r=1,L=0): reazione attivata (Hero.Aevik.ReactiveCapacitor)
+LogRT: [RT] Branth: (q=1,r=-1,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): si orienta a E verso il bersaglio
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): colpito sul lato FrontRight
+LogRT: [RT] Muiren: (q=-2,r=1,L=0): si orienta a NW verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=1,L=0): colpito sul lato RearLeft
+LogRT: [RT] Ivrin: resta (q=-3,r=0,L=0) (Action.Move, p50)
+LogRT: [RT] Muiren: resta (q=-2,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: si muove (q=-1,r=1,L=0) -> (q=-1,r=-2,L=0) (4 celle) (Action.Move, p50)
+LogRT: [RT] Branth: si muove (q=1,r=-1,L=0) -> (q=0,r=-3,L=0) (3 celle) (Action.Move, p50)
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): si orienta a NE (movimento)
+LogRT: [RT] (q=0,r=-3,L=0): la squadra 1 controlla l'obiettivo (+1) (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 200)
+LogRT: [RT] BP_Unit_Ivrin_C_0: utility -> (q=-3,r=0,L0) attacca BP_Unit_Aevik_C_0 score=860 [obiettivo +30]
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: utility -> scatto (q=-3,r=1,L0) + attacca BP_Unit_Ivrin_C_0 score=690
+LogRT: [RT] BP_Unit_Aevik_C_0: utility -> (q=-1,r=-2,L0) attacca BP_Unit_Ivrin_C_0 score=1080 [obiettivo +90]
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] BP_Unit_Branth_C_0: utility -> CARICA su BP_Unit_Aevik_C_0 (impatto da (q=0,r=-3,L0)) score=1010 [obiettivo +120]
+LogRT: [RT] Turno 5 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 5)
+LogRT: [RT] Scatto: BP_Unit_Muiren_C_0 -> (q=-3,r=1,L0)
+LogRT: [RT] Scatto: BP_Unit_Branth_C_0 -> (q=0,r=-3,L0)
+LogRT: [RT] Fase Dash: 2 scatti
+LogRT: [RT] Blast: 3 attacchi
+LogRT: [RT] Caduta: BP_Unit_Ivrin_C_0 -> (q=-3,r=-1,L0)
+LogRT: [RT] BP_Unit_Ivrin_C_0: 5 danni da caduta
+LogRT: [RT] Status: BP_Unit_Ivrin_C_0
+LogRT: [RT] Fase Move: risolte 4 unita'
+LogRT: [RT] Obiettivo: team 1 +1 (ora 0-2)
+LogRT: [RT] Risoluzione: 2 fasi, ~6.2s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Dash
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.FluidTrail
+LogRT: [RT] Attiva: BP_Unit_Branth_C_0 -> Hero.Branth.Ram
+LogRT: [RT] Playback fase: Blast
+LogRT: [RT] Attiva: BP_Unit_Ivrin_C_0 -> Hero.Ivrin.PulseShot
+LogRT: [RT] Colpo: BP_Unit_Ivrin_C_0 -> BP_Unit_Aevik_C_0 (21)
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.PressureJet
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Ivrin_C_0 (16)
+LogRT: [RT] Attiva: BP_Unit_Aevik_C_0 -> Hero.Aevik.LinearDischarge
+LogRT: [RT] Colpo: BP_Unit_Aevik_C_0 -> BP_Unit_Ivrin_C_0 (32)
+LogRT: [RT] Risoluzione completata (6.2s)
+LogRT: [RT] Muiren: si muove (q=-2,r=1,L=0) -> (q=-3,r=1,L=0) (1 celle) (Hero.Muiren.FluidTrail, p30)
+LogRT: [RT] Branth: resta (q=0,r=-3,L=0) (Hero.Branth.Ram, p35)
+LogRT: [RT] Muiren: (q=-2,r=1,L=0): si orienta a W (scatto)
+LogRT: [RT] Ivrin: cade: sotto non c'e' nessuna cella, resta sul ciglio (q=-3,r=0,L=0) -> (q=-3,r=-1,L=0) (1 celle) (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-3,r=-1,L=0) -> (q=-3,r=-1,L=0): 5 danni (Fall.Fall)
+LogRT: [RT] (q=-3,r=0,L=0) -> (q=-1,r=-2,L=0): 16 danni (Action.BasicAttack · Hero.Ivrin.PulseShot, p50)
+LogRT: [RT] (q=-3,r=1,L=0) -> (q=-3,r=0,L=0): 15 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-1,r=-2,L=0) -> (q=-3,r=0,L=0): 28 danni (Hero.Aevik.LinearDischarge, p55)
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Muiren: (q=-3,r=1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Branth: (q=0,r=-3,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Ivrin: (q=-3,r=-1,L=0): spinta, si gira a SE verso la sorgente
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): si orienta a NE verso il bersaglio
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): colpito sul lato Front
+LogRT: [RT] Ivrin: (q=-3,r=0,L=0): colpito sul lato RearRight
+LogRT: [RT] Muiren: (q=-3,r=1,L=0): si orienta a NW verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): si orienta a SW verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): colpito sul lato Front
+LogRT: [RT] (q=-3,r=-1,L=0): Status.Wet per 1 turno/i, da un'azione
+LogRT: [RT] Ivrin: resta (q=-3,r=-1,L=0) (Action.Move, p50)
+LogRT: [RT] Muiren: resta (q=-3,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-1,r=-2,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: resta (q=0,r=-3,L=0) (Action.Move, p50)
+LogRT: [RT] (q=-3,r=-1,L=0): Status.Wet scaduto
+LogRT: [RT] (q=0,r=-3,L=0): la squadra 1 controlla l'obiettivo (+1) (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 200)
+LogRT: [RT] BP_Unit_Ivrin_C_0: utility -> scatto (q=-1,r=-3,L0) + attacca BP_Unit_Muiren_C_0 score=930 [obiettivo +90]
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: utility -> (q=-3,r=1,L0) attacca BP_Unit_Branth_C_0 score=520
+LogRT: [RT] BP_Unit_Aevik_C_0: utility -> (q=-1,r=-2,L0) attacca BP_Unit_Branth_C_0 score=980 [obiettivo +90]
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] BP_Unit_Branth_C_0: utility -> (q=0,r=-3,L0) attacca BP_Unit_Aevik_C_0 score=510 [obiettivo +120]
+LogRT: [RT] Turno 6 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 6)
+LogRT: [RT] Scatto: BP_Unit_Ivrin_C_0 -> (q=-1,r=-3,L0)
+LogRT: [RT] Fase Dash: 1 scatti
+LogRT: [RT] Blast: 4 attacchi
+LogRT: [RT] Caduta: BP_Unit_Branth_C_0 -> (q=1,r=-4,L0)
+LogRT: [RT] BP_Unit_Branth_C_0: 5 danni da caduta
+LogRT: [RT] Status: BP_Unit_Aevik_C_0
+LogRT: [RT] Status: BP_Unit_Branth_C_0
+LogRT: [RT] Fase Move: risolte 4 unita'
+LogRT: [RT] Risoluzione: 2 fasi, ~7.4s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Dash
+LogRT: [RT] Attiva: BP_Unit_Ivrin_C_0 -> Hero.Ivrin.PassingBlade
+LogRT: [RT] Playback fase: Blast
+LogRT: [RT] Attiva: BP_Unit_Aevik_C_0 -> Hero.Aevik.ArcPulse
+LogRT: [RT] Colpo: BP_Unit_Aevik_C_0 -> BP_Unit_Branth_C_0 (22)
+LogRT: [RT] Attiva: BP_Unit_Ivrin_C_0 -> Hero.Ivrin.PulseShot
+LogRT: [RT] Colpo: BP_Unit_Ivrin_C_0 -> BP_Unit_Muiren_C_0 (21)
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.PressureJet
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Aevik_C_0 (16)
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Branth_C_0 (16)
+LogRT: [RT] Attiva: BP_Unit_Branth_C_0 -> Hero.Branth.MortarShot
+LogRT: [RT] Risoluzione completata (7.4s)
+LogRT: [RT] Ivrin: si muove (q=-3,r=-1,L=0) -> (q=-1,r=-3,L=0) (2 celle) (Hero.Ivrin.PassingBlade, p30)
+LogRT: [RT] Ivrin: (q=-3,r=-1,L=0): si orienta a NE (scatto)
+LogRT: [RT] Aevik: spinta annullata: nessuna uscita (q=-1,r=-2,L=0) (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] Branth: cade: sotto non c'e' nessuna cella, resta sul ciglio (q=0,r=-3,L=0) -> (q=1,r=-4,L=0) (1 celle) (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-3,r=1,L=0) -> (q=-1,r=-2,L=0): 11 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-3,r=1,L=0) -> (q=0,r=-3,L=0): 14 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-1,r=-3,L=0) -> (q=-3,r=1,L=0): 16 danni (Action.BasicAttack · Hero.Ivrin.PulseShot, p50)
+LogRT: [RT] (q=-1,r=-2,L=0) -> (q=0,r=-3,L=0): 19 danni (Action.BasicAttack · Hero.Aevik.ArcPulse, p50)
+LogRT: [RT] (q=1,r=-4,L=0) -> (q=1,r=-4,L=0): 5 danni (Fall.Fall)
+LogRT: [RT] Muiren: (q=-3,r=1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Branth: (q=0,r=-3,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Muiren: (q=-3,r=1,L=0): si orienta a NE verso il bersaglio
+LogRT: [RT] Muiren: (q=-3,r=1,L=0): colpito sul lato Front
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): si orienta a SE verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): si orienta a NE verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): colpito sul lato Rear
+LogRT: [RT] Branth: (q=0,r=-3,L=0): si orienta a SW verso il bersaglio
+LogRT: [RT] Branth: (q=0,r=-3,L=0): colpito sul lato Front
+LogRT: [RT] Branth: (q=0,r=-3,L=0): colpito sul lato Front
+LogRT: [RT] (q=-1,r=-2,L=0): Status.Wet per 1 turno/i, da un'azione
+LogRT: [RT] (q=1,r=-4,L=0): Status.Wet per 1 turno/i, da un'azione
+LogRT: [RT] Muiren: resta (q=-3,r=1,L=0) (Action.Move, p50)
+LogRT: [RT] Ivrin: resta (q=-1,r=-3,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-1,r=-2,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: resta (q=1,r=-4,L=0) (Action.Move, p50)
+LogRT: [RT] (q=-1,r=-3,L=0): Status.Exposed scaduto
+LogRT: [RT] (q=-1,r=-2,L=0): Status.Wet scaduto
+LogRT: [RT] (q=1,r=-4,L=0): Status.Wet scaduto
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: utility -> scatto (q=-2,r=-2,L0) + attacca BP_Unit_Branth_C_0 score=810 [obiettivo +60]
+LogRT: [RT] BP_Unit_Ivrin_C_0: arma Hero.Ivrin.Deflection (reazione, punteggio 200)
+LogRT: [RT] BP_Unit_Ivrin_C_0: utility -> (q=-1,r=-3,L0) attacca BP_Unit_Aevik_C_0 score=930 [obiettivo +90]
+LogRT: [RT] BP_Unit_Aevik_C_0: arma Hero.Aevik.ReactiveCapacitor (reazione, punteggio 200)
+LogRT: [RT] BP_Unit_Aevik_C_0: utility -> (q=-1,r=-2,L0) attacca BP_Unit_Ivrin_C_0 score=1080 [obiettivo +90]
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 100)
+LogRT: [RT] BP_Unit_Branth_C_0: utility -> (q=1,r=-4,L0) attacca BP_Unit_Aevik_C_0 score=450 [obiettivo +90]
+LogRT: [RT] Turno 7 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 7)
+LogRT: [RT] Scatto: BP_Unit_Muiren_C_0 -> (q=-2,r=-2,L0)
+LogRT: [RT] Fase Dash: 1 scatti
+LogRT: [RT] BP_Unit_Aevik_C_0: +15 scudo dalla reazione
+LogRT: [RT] BP_Unit_Aevik_C_0: contrattacco su BP_Unit_Ivrin_C_0 (10)
+LogRT: [RT] Blast: 8 attacchi
+LogRT: [RT] Eliminata: BP_Unit_Ivrin_C_0 (team 1)
+LogRT: [RT] Status: BP_Unit_Branth_C_0
+LogRT: [RT] Fase Move: risolte 3 unita'
+LogRT: [RT] Risoluzione: 2 fasi, ~10.9s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Dash
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.FluidTrail
+LogRT: [RT] Playback fase: Blast
+LogRT: [RT] Attiva: BP_Unit_Ivrin_C_0 -> Hero.Ivrin.PulseShot
+LogRT: [RT] Colpo: BP_Unit_Ivrin_C_0 -> BP_Unit_Aevik_C_0 (21)
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.PressureJet
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Ivrin_C_0 (16)
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Branth_C_0 (16)
+LogRT: [RT] Attiva: BP_Unit_Aevik_C_0 -> Hero.Aevik.LinearDischarge
+LogRT: [RT] Colpo: BP_Unit_Aevik_C_0 -> BP_Unit_Ivrin_C_0 (32)
+LogRT: [RT] Attiva: BP_Unit_Branth_C_0 -> Hero.Branth.MortarShot
+LogRT: [RT] Colpo: BP_Unit_Branth_C_0 -> BP_Unit_Muiren_C_0 (12)
+LogRT: [RT] Colpo: BP_Unit_Branth_C_0 -> BP_Unit_Ivrin_C_0 (12)
+LogRT: [RT] Colpo: BP_Unit_Branth_C_0 -> BP_Unit_Aevik_C_0 (12)
+LogRT: [RT] Morte mostrata: BP_Unit_Ivrin_C_0
+LogRT: [RT] Risoluzione completata (10.9s)
+LogRT: [RT] Muiren: si muove (q=-3,r=1,L=0) -> (q=-2,r=-2,L=0) (3 celle) (Hero.Muiren.FluidTrail, p30)
+LogRT: [RT] Muiren: (q=-3,r=1,L=0): si orienta a NW (scatto)
+LogRT: [RT] Branth: spinta annullata: nessuna uscita (q=1,r=-4,L=0) (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-2,r=-2,L=0) -> (q=-1,r=-3,L=0): 9 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-2,r=-2,L=0) -> (q=1,r=-4,L=0): 16 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-1,r=-3,L=0) -> (q=-1,r=-2,L=0): 9 danni (Action.BasicAttack · Hero.Ivrin.PulseShot, p50)
+LogRT: [RT] (q=-1,r=-2,L=0) -> (q=-1,r=-3,L=0): 17 danni (Hero.Aevik.LinearDischarge, p55)
+LogRT: [RT] (q=-1,r=-2,L=0) -> (q=-1,r=-3,L=0): 5 danni, eliminata (Hero.Aevik.ReactiveCapacitor, p20)
+LogRT: [RT] (q=1,r=-4,L=0) -> (q=-2,r=-2,L=0): 7 danni (Hero.Branth.MortarShot, p65)
+LogRT: [RT] (q=1,r=-4,L=0) -> (q=-1,r=-3,L=0): 6 danni (Hero.Branth.MortarShot, p65)
+LogRT: [RT] (q=1,r=-4,L=0) -> (q=-1,r=-2,L=0): 4 danni (Hero.Branth.MortarShot, p65)
+LogRT: [RT] Muiren: (q=-2,r=-2,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): reazione pronta, nessun trigger (Hero.Ivrin.Deflection)
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): reazione attivata (Hero.Aevik.ReactiveCapacitor)
+LogRT: [RT] Branth: (q=1,r=-4,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Muiren: (q=-2,r=-2,L=0): si orienta a NE verso il bersaglio
+LogRT: [RT] Muiren: (q=-2,r=-2,L=0): colpito sul lato FrontRight
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): colpito sul lato Front
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): colpito sul lato Front
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): colpito sul lato Front
+LogRT: [RT] Ivrin: (q=-1,r=-3,L=0): colpito sul lato FrontRight
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): si orienta a NW verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): colpito sul lato Front
+LogRT: [RT] Branth: (q=1,r=-4,L=0): colpito sul lato FrontRight
+LogRT: [RT] (q=1,r=-4,L=0): Status.Wet per 1 turno/i, da un'azione
+LogRT: [RT] Muiren: resta (q=-2,r=-2,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-1,r=-2,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: resta (q=1,r=-4,L=0) (Action.Move, p50)
+LogRT: [RT] (q=1,r=-4,L=0): Status.Exposed scaduto
+LogRT: [RT] (q=1,r=-4,L=0): Status.Wet scaduto
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: utility -> (q=-2,r=-2,L0) attacca BP_Unit_Branth_C_0 score=90 [obiettivo +60]
+LogRT: [RT] BP_Unit_Aevik_C_0: utility -> (q=-1,r=-2,L0) attacca BP_Unit_Branth_C_0 score=190 [obiettivo +90]
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] BP_Unit_Branth_C_0: utility -> (q=1,r=-4,L0) attacca BP_Unit_Aevik_C_0 score=270 [obiettivo +90]
+LogRT: [RT] Turno 8 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 8)
+LogRT: [RT] Blast: 3 attacchi
+LogRT: [RT] Spinta: BP_Unit_Aevik_C_0 -> (q=-2,r=-1,L0)
+LogRT: [RT] Status: BP_Unit_Branth_C_0
+LogRT: [RT] Status: BP_Unit_Aevik_C_0
+LogRT: [RT] Fase Move: risolte 3 unita'
+LogRT: [RT] Risoluzione: 1 fasi, ~4.5s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Blast
+LogRT: [RT] Attiva: BP_Unit_Aevik_C_0 -> Hero.Aevik.ArcPulse
+LogRT: [RT] Colpo: BP_Unit_Aevik_C_0 -> BP_Unit_Branth_C_0 (22)
+LogRT: [RT] Attiva: BP_Unit_Branth_C_0 -> Hero.Branth.ImpactShot
+LogRT: [RT] Colpo: BP_Unit_Branth_C_0 -> BP_Unit_Aevik_C_0 (8)
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.PressureJet
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Branth_C_0 (16)
+LogRT: [RT] Risoluzione completata (4.5s)
+LogRT: [RT] Aevik: spostata (q=-1,r=-2,L=0) -> (q=-2,r=-1,L=0) (1 celle) (Action.BasicAttack · Hero.Branth.ImpactShot, p50)
+LogRT: [RT] Branth: spinta annullata: nessuna uscita (q=1,r=-4,L=0) (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-2,r=-2,L=0) -> (q=1,r=-4,L=0): 14 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-1,r=-2,L=0) -> (q=1,r=-4,L=0): 19 danni (Action.BasicAttack · Hero.Aevik.ArcPulse, p50)
+LogRT: [RT] (q=1,r=-4,L=0) -> (q=-1,r=-2,L=0): 3 danni (Action.BasicAttack · Hero.Branth.ImpactShot, p50)
+LogRT: [RT] Muiren: (q=-2,r=-2,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Branth: (q=1,r=-4,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): si orienta a NE verso il bersaglio
+LogRT: [RT] Aevik: (q=-1,r=-2,L=0): colpito sul lato Front
+LogRT: [RT] Branth: (q=1,r=-4,L=0): colpito sul lato Front
+LogRT: [RT] Branth: (q=1,r=-4,L=0): colpito sul lato FrontRight
+LogRT: [RT] (q=-2,r=-1,L=0): Status.Slow per 1 turno/i, da un'azione
+LogRT: [RT] (q=1,r=-4,L=0): Status.Wet per 1 turno/i, da un'azione
+LogRT: [RT] Muiren: resta (q=-2,r=-2,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-2,r=-1,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: resta (q=1,r=-4,L=0) (Action.Move, p50)
+LogRT: [RT] (q=-2,r=-1,L=0): Status.Slow scaduto
+LogRT: [RT] (q=1,r=-4,L=0): Status.Wet scaduto
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] BP_Unit_Muiren_C_0: arma Reaction.HazardEscape (reazione, punteggio 0)
+LogRT: [RT] BP_Unit_Muiren_C_0: utility -> scatto (q=-3,r=-1,L0) + attacca BP_Unit_Branth_C_0 score=150 [obiettivo +30]
+LogRT: [RT] BP_Unit_Aevik_C_0: utility -> (q=-2,r=-1,L0) attacca BP_Unit_Branth_C_0 score=170 [obiettivo +60]
+LogRT: [RT] BP_Unit_Branth_C_0: arma Hero.Branth.Interposition (reazione, punteggio 0, spareggio: kit)
+LogRT: [RT] BP_Unit_Branth_C_0: utility -> (q=1,r=-2,L0) score=20 [obiettivo +60]
+LogRT: [RT] Turno 9 - pianificazione
+LogRT: [RT] Timer scaduto -> lock-in automatico
+LogRT: [RT] Autobattle -> finestra di preparazione 3.0s prima della risoluzione (turno 9)
+LogRT: [RT] Scatto: BP_Unit_Muiren_C_0 -> (q=-3,r=-1,L0)
+LogRT: [RT] Fase Dash: 1 scatti
+LogRT: [RT] Blast: 2 attacchi
+LogRT: [RT] Eliminata: BP_Unit_Branth_C_0 (team 1)
+LogRT: [RT] Fase Move: risolte 2 unita'
+LogRT: [RT] Risoluzione: 2 fasi, ~5.0s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Dash
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.FluidTrail
+LogRT: [RT] Playback fase: Blast
+LogRT: [RT] Attiva: BP_Unit_Muiren_C_0 -> Hero.Muiren.PressureJet
+LogRT: [RT] Colpo: BP_Unit_Muiren_C_0 -> BP_Unit_Branth_C_0 (16)
+LogRT: [RT] Attiva: BP_Unit_Aevik_C_0 -> Hero.Aevik.LinearDischarge
+LogRT: [RT] Colpo: BP_Unit_Aevik_C_0 -> BP_Unit_Branth_C_0 (32)
+LogRT: [RT] Morte mostrata: BP_Unit_Branth_C_0
+LogRT: [RT] Risoluzione completata (5.0s)
+LogRT: [RT] Muiren: si muove (q=-2,r=-2,L=0) -> (q=-3,r=-1,L=0) (1 celle) (Hero.Muiren.FluidTrail, p30)
+LogRT: [RT] Muiren: (q=-2,r=-2,L=0): si orienta a SW (scatto)
+LogRT: [RT] (q=-3,r=-1,L=0) -> (q=1,r=-4,L=0): 11 danni (Action.BasicAttack · Hero.Muiren.PressureJet, p50)
+LogRT: [RT] (q=-2,r=-1,L=0) -> (q=1,r=-4,L=0): 22 danni, eliminata (Hero.Aevik.LinearDischarge, p55)
+LogRT: [RT] Muiren: (q=-3,r=-1,L=0): reazione pronta, nessun trigger (Reaction.HazardEscape)
+LogRT: [RT] Branth: (q=1,r=-4,L=0): reazione pronta, nessun trigger (Hero.Branth.Interposition)
+LogRT: [RT] Muiren: (q=-3,r=-1,L=0): si orienta a NE verso il bersaglio
+LogRT: [RT] Branth: (q=1,r=-4,L=0): colpito sul lato Front
+LogRT: [RT] Branth: (q=1,r=-4,L=0): colpito sul lato FrontRight
+LogRT: [RT] Muiren: resta (q=-3,r=-1,L=0) (Action.Move, p50)
+LogRT: [RT] Aevik: resta (q=-2,r=-1,L=0) (Action.Move, p50)
+LogRT: [RT] (q=0,r=-3,L=0): obiettivo di nessuno (Objective.Control)
+LogRT: [RT] Partita finita: Vince il team 0 (blu) - per eliminazione (round 9/12, obiettivo 0-2, formato Format.Skirmish2v2)
+LogRT: [RT] Fine partita al round 9: ERTMatchOutcome::Team0Wins
