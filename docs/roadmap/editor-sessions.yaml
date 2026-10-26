@@ -4477,6 +4477,7 @@ sessions:
       candidata, con ogni passo a esito reale
     artifacts:
       - docs/technical/evidence/g16/u60-giro-parziale-2026-10-04.log
+      - docs/technical/evidence/g16/u60-giro-3-2026-10-26.txt
     verifies: []
     issues: [2601]
     done_when: ogni passo dello smoke flow ha un esito reale, e i passi non eseguiti dichiarano il motivo
@@ -4496,6 +4497,22 @@ sessions:
     # propria. Unreal e uno per macchina, e un giro misurato su un binario diverso non attesta la
     # stessa release candidate (#2601, sezione *Packaged*).
     steps: |
+      ✅ **Eseguita il 2026-10-26 (giro 3), con un passo ❌: `G16` è 🔴.** Editor compilato da `HEAD` `ad06c1cfc`/`db3c10f4d`, il cui runtime è
+      identico al candidate v2 `7450ead64` (`D-541`, `D-542`). Una sola apertura, alle 08:35:07, con `-abslog`; estratto in `artifacts:`.
+
+      | passo | esito | note |
+      |---|---|---|
+      | 1-2 · Ability / Hero Lab | ✅ | giudizio dell'autore: la ability gira, il filtro per eroe mostra il kit |
+      | 3 · Presentation | ✅ | giudizio dell'autore: il risultato del resolver si vede e si legge |
+      | 4 · Turn Log | ✅ con una richiesta | il feed spiega l'esito ma sparisce a fine round; richiesta di tenerlo vivo nel round successivo: #3860 |
+      | 5 · Replay Viewer | ❌ | l'archivio della partita giocata non si riapre dal frontend; la lista mostra partite non concluse. Causa misurata: l'indice `history.rtindex` non registra la chiusura dal commit `0e636014f` (2026-09-04): #3859 |
+
+      🔑 La partita dell'autore ha manifest `Outcome 2`, `TurnCount 12` e indice `Outcome 0`, `TurnCount 0`; dal 2026-09-04 1080 voci su 1081 dell'indice sono «in corso». Metà meccanica sul pacchetto
+      (`giro-meccanico.ps1`): 11 esiti su 11 PASS. Difetti aperti sull'owner: #3859, #3860, #3861, #3862. Evidenza: `docs/technical/evidence/85/onda4-misure-2026-10-26.md` §3.
+      ⛔ Correggere #3859 è la correzione di un gate rosso (`D-483` (2)) e ricongela il candidate: decisione dell'autore, non presa.
+
+      ⌫ *Giri precedenti, conservati:*
+
       🟡 **GIRO 2, 2026-10-04: i passi 1-2 sono ✅; i tre restanti ancora NOT RUN.**
       Seconda apertura, log proprio. Dodici turni pianificati e **una partita FINITA** (*<<Pareggio,
       allo scadere dei round 12/12>>*), due archivi replay di cui uno terminale

@@ -61,9 +61,37 @@ Log: [`../g10/partita-2v2-autobattle-candidate-v2-2026-10-26.log`](../g10/partit
 
 File: [`../g13/pacing_20261026-081447.csv`](../g13/pacing_20261026-081447.csv), [`../g13/esiti-seduta-g13-2026-10-26.txt`](../g13/esiti-seduta-g13-2026-10-26.txt), [`../g13/estratto-log-seduta-g13-2026-10-26.txt`](../g13/estratto-log-seduta-g13-2026-10-26.txt). Il log intero (4 MB) resta in `Saved/Logs/g13-seduta.log`, gitignorato.
 
-## 3. `G16`
+## 3. `G16` — il giro `U60`
 
-**NOT RUN.** È la seduta con una persona nell'Editor (`U60`, una sola apertura): questa sezione si compila quando è eseguita.
+**Una sola apertura dell'Editor**: `UnrealEditor.exe "…\RefactorTactics.uproject" -LiveCoding=false -abslog="<scratchpad>\g16-u60.log"`, alle 08:35:07; blocco `rev-parse` `OK`; DLL `sha256` `43A0842A6FBD13D9…`; nessun processo Unreal prima del lancio. Estratto del log: [`../g16/u60-giro-3-2026-10-26.txt`](../g16/u60-giro-3-2026-10-26.txt).
+
+| passo | esito | giudizio e prova |
+|---|---|---|
+| 1-2 · Ability / Hero Lab | ✅ | dell'autore: la ability gira, il filtro per eroe mostra il kit. Il log dell'Editor porta solo la distruzione della finestra `Ability / Hero Lab`; l'esito del pannello non passa dal log |
+| 3 · Presentation | ✅ | dell'autore: il risultato del resolver si vede e si legge a schermo. Una partita in PIE da `L_Frontend`, `Team1Wins` per eliminazione al round 12/12 |
+| 4 · Turn Log | ✅ **con una richiesta** | dell'autore: il feed a destra spiega l'esito ma sparisce a fine round; vuole tenerlo vivo nel round successivo ([#3860](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3860)). Il rapporto di `rt.Debug.ScreenHud 5`: `Feed: TurnLog=9 voci, osservatori={0}, righe dopo filtro=1, budget=12`, albero a 30 widget |
+| 5 · Replay Viewer | ❌ | dell'autore: l'archivio della partita giocata non si è riaperto dal frontend; nell'elenco compaiono partite non concluse o non salvate. **Causa misurata sotto** ([#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859)) |
+
+**Il verdetto è una funzione dei cinque passi**: ✅ solo se tutti e cinque lo sono, e **un** passo ❌ rende `G16` **🔴**, mai ⏳. Il giudizio del passo 4 è stato chiesto all'autore con tre opzioni (✅ con una richiesta, 🟡 in parte, ❌) e la risposta è stata la prima.
+
+**Il passo 5, in numeri.** La precondizione del foglio è soddisfatta: l'archivio della partita dell'autore esiste ed è terminale. `Saved/Replays/26741F0F4DE4D8C1846E11B5387CF379/match.rtmanifest` → `Outcome 2` (`Team1Wins`), `TurnCount 12`, scritto alle 08:45:35. Ma l'**indice** da cui il frontend costruisce la lista, `Saved/Replays/history.rtindex`, dice per la stessa partita `Outcome 0`, `TurnCount 0`, `ReplayComplete false`. Lo stesso vale per le due partite headless di `G10` (manifest `Outcome 1`, `TurnCount 9`; indice `Outcome 0`, `TurnCount 0`).
+
+| indice `history.rtindex` | voci | `Outcome 0` | `ReplayComplete true` |
+|---|---|---|---|
+| `StartedUtc` prima del 2026-09-04 | 816 | 408 | 408 |
+| `StartedUtc` dal 2026-09-04 | 1081 | **1080** | **1** |
+
+(Misurato con uno script Python sull'indice, `Matches[]`, discriminando per `StartedUtc`. Sulle cartelle: 767 archivi, di cui 713 con manifest `Outcome 0`, tutti con `TurnCount > 0`: partite interrotte prima della chiusura.)
+
+**Causa.** Il commit `0e636014f` (2026-09-04, `refactor(2286)`) ha spostato la registrazione da `ARTTurnManager` in `FRTReplayRecording`. Il vecchio `ARTTurnManager` chiamava `URTMatchHistoryLibrary::AppendOrUpdate` all'avvio **e** alla chiusura; `git show 0e636014f -- Source/RefactorTactics/Turn` mostra la seconda chiamata rimossa. `FRTReplayRecording::Close` chiama `CloseMatch` e basta; solo `Begin` chiama `AppendOrUpdate`. `Tests/RTMatchHistoryTests.cpp` chiama `AppendOrUpdate` a mano dopo `CloseMatch`: pinna la libreria e non il collegamento di produzione, per questo nessun test lo ha visto.
+
+**Metà meccanica** (`powershell -File tools/seduta/giro-meccanico.ps1`, pacchetto in autobattle su `L_HexArena`): 11 esiti su 11 `PASS` — cancello (allestimento, fine partita, esito deciso), rapporto differito, `feed: righe dopo filtro` ≥ 1 (`Feed: TurnLog=18 voci, osservatori={0, 1}, righe dopo filtro=3, budget=12`), TurnLog non vuoto, nessun crash su tre reti, asset mancanti 0, `Travel Failure` 0. Archivio nuovo: `97EA501C492692325A137DB5EB4D7CA3`, `TurnCount 9`, `Outcome 1` (`Team0Wins`), nome uguale al `MatchId`. Questa metà non vede il difetto del passo 5 perché legge il manifest e non l'indice.
+
+**Log dell'Editor**: `Fatal error|Assertion failed|Critical error` → 0; `Error:` → 2 (`LogAutomationTest: Error: Condition failed` ×2, il pavimento di un log di Editor misurato il 2026-10-04); GPU crash → 0.
+
+**Difetti aperti sull'owner, non corretti qui**: [#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859) (indice non aggiornato alla chiusura, `P1`, `v0.1`), [#3860](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3860) (feed vivo nel round successivo, richiesta), [#3861](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3861) (otto avvisi `Icona non risolta` per frame), [#3862](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3862) (`giro-meccanico.ps1` lascia vivo il processo in Windows PowerShell 5.1: `Process.Kill($true)` non esiste e l'errore è inghiottito; il processo l'ho chiuso io dopo aver verificato la `CommandLine`).
+
+**Decisione che spetta all'autore**: correggere `#3859` è la *correzione di un gate rosso* di `D-483` (2): tocca `Source/` fuori dai `Tests/`, ricongela il candidate sul commit della correzione e, per i tre scenari della sequenza del 2026-10-03, rimette `⏳` `G1` `G2` `G3` `G4` `G6` `G8` `G10` `G11` `G12` `G13` `G16`. La correzione è di una chiamata; la rimisura è mezza giornata di macchina più due sedute con una persona. Non è decisa qui.
 
 ## 4. `G9`
 
@@ -84,4 +112,4 @@ L'Onda 3 ([§5](onda3-misure-2026-10-26.md)) registrava `Client FPS` **fuori tar
 | 3, senza avvisi | 5,726 | 7,426 | **8,686** | 26,7 | 0 |
 | 3, normale | 5,892 | 7,429 | **8,511** | 29,7 | 32008 |
 
-**Lettura.** (1) Le tre catture normali danno `p99` 8,511–9,629 ms, cioè **104–117 fps** (target 60), **in linea con `9,326–9,683` ms del 2026-10-03**. (2) **Gli avvisi non pesano**: con e senza, `p99` 9,610/9,629, 9,591/9,267, 8,686/8,511. (3) **Le tre passate di oggi sullo stesso pacchetto non concordano**: 24,6–111,5 ms (serie `a`), 18,8–20,6 ms (serie `b`), 8,5–9,6 ms (questa). Il binario non è cambiato fra le passate (il pacchetto è lo stesso, cotto una volta), quindi la differenza viene da cosa girava intorno o dallo stato del pacchetto appena cotto. **Non attribuito**; ipotesi non verificata: cache di shader/PSO fredde dopo la cottura. (4) 🔴 **Il `Path` di controllo dell'Onda 3 non ha visto la differenza** (0,074–0,115 ms in tutte le passate): su questa macchina non è un controllo valido per il tempo di frame, e la frase dell'Onda 3 che lo usava per escludere la macchina va letta così. (5) Il valore da citare è quello di questa passata, **con le altre due accanto**: ripeterla in un altro momento è la prova che manca.
+**Lettura.** (1) Le tre catture normali danno `p99` 8,511–9,629 ms, cioè **104–117 fps** (target 60), **in linea con `9,326–9,683` ms del 2026-10-03**. (2) **Gli avvisi non pesano**: con e senza, `p99` 9,610/9,629, 9,591/9,267, 8,686/8,511. (3) **Le tre passate di oggi sullo stesso pacchetto non concordano**: 24,6–111,5 ms (serie `a`), 18,8–20,6 ms (serie `b`), 8,5–9,6 ms (questa). Il binario non è cambiato fra le passate (il pacchetto è lo stesso, cotto una volta), quindi la differenza viene da cosa girava intorno o dallo stato del pacchetto appena cotto. **Non attribuito**; l'ipotesi delle cache di shader/PSO fredde dopo la cottura **non è sostenuta**: `grep -a -c "Encountered a new graphics PSO"` dà **56** su ciascuna delle catture, lente e veloci. (4) 🔴 **Il `Path` di controllo dell'Onda 3 non ha visto la differenza** (0,074–0,115 ms in tutte le passate): su questa macchina non è un controllo valido per il tempo di frame, e la frase dell'Onda 3 che lo usava per escludere la macchina va letta così. (5) Il valore da citare è quello di questa passata, **con le altre due accanto**: ripeterla in un altro momento è la prova che manca.

@@ -483,6 +483,8 @@ G16   U60 giro 3 — giro-meccanico.ps1 per i passi meccanici, una persona per i
 Ogni seduta scrive il proprio marcatore nel record della seduta e il proprio esito nella cella
 `G-n`: la sequenza del 27 settembre ha misurato cosa costa non farlo (`U1`, `U7`, `U16`).
 
+➕ *Aggiornato il 2026-10-26, a lavoro fatto: **`G10` ✅ e `G13` ✅ sul candidate v2, `G16` eseguito e 🔴, `G9` `NOT RUN`**, con l'evidenza in [`onda4-misure-2026-10-26.md`](../../technical/evidence/85/onda4-misure-2026-10-26.md). Il passo 5 di `G16` è ❌ per un difetto con causa misurata ([#3859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3859): l'indice delle partite non registra la chiusura dal 2026-09-04), e la sua correzione è la *correzione di un gate rosso* di [D-483](../../decisions/RT_PDR_00_Decision_Log.md) (2): tocca `Source/`, ricongela il candidate e rimette `⏳` i gate dei tre scenari. È una decisione dell'autore, non presa.*
+
 ### Onda 5 — riporto e attestazione
 
 `PIA-2`, `PIA-3`, `PIA-4` registrano **ciò che hanno**: `PASS` con la seduta e il commit, `NOT RUN`

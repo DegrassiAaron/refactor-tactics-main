@@ -1,0 +1,37 @@
+# Estratto del log della seduta U60 (G16), giro 3, 2026-10-26 — il log integrale (circa 1,2 MB, un solo -abslog) sta nello scratchpad di sessione e non e' archiviato qui
+# HEAD db3c10f4dc051fb4c6814670ff8db7f167c6c05f; DLL dell'Editor sha256 43A0842A6FBD13D9...; Editor aperto UNA volta alle 08:35:07 (ora locale)
+
+## riga di comando ricevuta
+LogCsvProfiler: Display: Metadata set : commandline="" D:\Repositories\refactor-tactics-main\RefactorTactics.uproject -LiveCoding=false -abslog=C:\Users\Utente\AppData\Local\Temp\claude\D--Repositories-refactor-tactics-main\264da29e-29fa-4806-9ee5-6c4c3d03bd8d\scratchpad\g16-u60.log""
+
+## comandi digitati nella console
+Cmd: MAP LOAD FILE="../../../../../Repositories/refactor-tactics-main/Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap" TEMPLATE=0 SHOWPROGRESS=1 FEATURELEVEL=3
+Cmd: MAP CHECKDEP NOCLEARLOG
+Cmd: MAP LOAD FILE="../../../../../Repositories/refactor-tactics-main/Content/RT/Maps/Shared/L_Frontend/L_Frontend.umap" TEMPLATE=0 SHOWPROGRESS=1 FEATURELEVEL=3
+Cmd: MAP CHECKDEP NOCLEARLOG
+Cmd: rt.Debug.ScreenHud 5
+
+## sessioni PIE (ora UTC del log; locale = +1)
+[2026.10.26-07.41.47:966] LogWorld: Bringing World /Game/RT/Maps/Shared/L_Frontend/UEDPIE_0_L_Frontend.L_Frontend up for play (max tick rate 0) at 2026.10.26-08.41.47
+[2026.10.26-07.41.49:416] LogWorld: Bringing World /Game/RT/Maps/Dev/L_HexArena/UEDPIE_0_L_HexArena.L_HexArena up for play (max tick rate 0) at 2026.10.26-08.41.49
+[2026.10.26-07.46.45:373] LogWorld: Bringing World /Game/RT/Maps/Shared/L_Frontend/UEDPIE_0_L_Frontend.L_Frontend up for play (max tick rate 0) at 2026.10.26-08.46.45
+
+## la partita
+LogRT: [RT] Board 2v2 esagonale avviata su 64 celle con 4 eroi
+LogRT: [RT] Partita finita: Vince il team 1 (rosso) - per eliminazione (round 12/12, obiettivo 0-0, formato Format.Skirmish2v2)
+LogRT: [RT] Fine partita al round 12: ERTMatchOutcome::Team1Wins
+
+## Ability / Hero Lab
+      2 LogSlate: Window 'Ability / Hero Lab' being destroyed
+
+## rapporto di rt.Debug.ScreenHud 5
+LogRT: Display: Screen HUD 4.1 - fotografia AL MONTAGGIO; per l'albero a regime usa 'rt.Debug.ScreenHud'
+LogRT: Display: Screen HUD 4.1 - albero costruito di 'WBP_RT_TacticalHUD_C_0': 14 widget innestati
+LogRT: Display: Screen HUD 4.1 - albero costruito di 'WBP_RT_TacticalHUD_C_0': 30 widget innestati
+LogRT: Display: [RT] Feed: TurnLog=9 voci, osservatori={0}, righe dopo filtro=1, budget=12
+
+## crash: storica / rete larga / GPU
+storica=0 rete_larga=2 (le due righe: LogAutomationTest: Error: Condition failed;) gpu=0
+
+## righe che nominano Replay nel log dell'Editor: nessuna oltre al caricamento di un modulo
+LogModuleManager: InternalLoadLibrary: 'NetworkReplayStreaming' ('D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-NetworkReplayStreaming.dll')
