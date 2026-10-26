@@ -938,6 +938,32 @@ struct FRTPlayerEventLineView
 	/** Vero se la riga e' una reazione scattata: il chip `REAZ.` (#3637). La frase lo dice gia'. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bReaction = false;
+
+	/**
+	 * Il turno a cui appartiene la riga (`FRTTurnLogEntry::TurnNumber`) (#3860, [D-548]).
+	 *
+	 * Il feed e' di un turno solo — l'ultimo del log — quindi e' lo stesso per tutte le righe. Serve all'intestazione del
+	 * registro in Pianificazione, che mostra il turno appena risolto e deve dire QUALE: «round corrente meno uno»
+	 * sbaglierebbe dove un turno non ha voci.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 TurnNumber = 0;
+};
+
+/**
+ * Come si presenta il registro di turno (#3860, [D-548]; prima era [D-496] (2): «solo in Risoluzione»).
+ *
+ * Una funzione sola decide, perche' la distinzione fra Risoluzione e Pianificazione e' la trappola: durante il playback
+ * `FRTMatchHeaderView::Phase` resta `Planning`, e chi si ferma a `Phase` etichetta «PRECEDENTE» le righe correnti.
+ */
+enum class ERTEventLogMode : uint8
+{
+	/** Niente da mostrare: nessuna partita, o partita finita. */
+	Hidden,
+	/** Risoluzione (`bResolving`): le righe del turno che si risolve, intestazione «ROUND nn». */
+	Current,
+	/** Pianificazione: le righe del turno appena risolto, «ROUND nn · PRECEDENTE». Visibile solo se il feed ha righe. */
+	Previous
 };
 
 
@@ -1339,6 +1365,13 @@ public:
 	 * destra e la lascia leggibile invece che piena. Si discute in una issue, non in un playtest.
 	 */
 	static constexpr int32 MaxFeedLines = 12;
+
+	/**
+	 * Il modo del registro per questo header (#3860, [D-548]). Vedi `ERTEventLogMode`.
+	 *
+	 * @param bHasMatchContext  il widget ha un `TurnManager` e una squadra. Senza, `Hidden`.
+	 */
+	static ERTEventLogMode EventLogModeFor(const FRTMatchHeaderView& Header, bool bHasMatchContext);
 
 	/**
 	 * Il feed preso dal manager. `TurnManager` nullo -> nessuna riga.

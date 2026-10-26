@@ -1357,6 +1357,94 @@ bool FRTHudFeedIsScopedToTheCurrentTurnTest::RunTest(const FString&)
 }
 
 /**
+ * 🔑 **LA RIGA PORTA IL TURNO A CUI APPARTIENE** (#3860, [D-548]).
+ *
+ * In Pianificazione il registro mostra il turno appena risolto, e la sua intestazione deve dire QUALE. Il numero non si
+ * ricava da «round corrente meno uno»: un turno senza voci lo sfaserebbe. Si legge dalle righe, che per costruzione sono
+ * di un turno solo — l'ultimo del log.
+ *
+ * Il log del test salta il turno 2 apposta: «ultimo turno del log» e «round precedente» danno 3 e 2, e solo il primo e' vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedLinesCarryTheirTurnTest,
+	"RefactorTactics.ScreenHud.FeedLinesCarryTheirTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedLinesCarryTheirTurnTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 1, /*UnitId*/ 11));
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 3, /*UnitId*/ 31)); // il turno 2 non ha voci
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 3, /*UnitId*/ 32));
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+	if (!TestEqual(TEXT("premessa: il feed ha le due righe del turno 3"), Feed.Num(), 2))
+	{
+		return false;
+	}
+	for (int32 i = 0; i < Feed.Num(); ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("la riga %d porta il turno 3, quello dell'ultimo turno del log"), i), Feed[i].TurnNumber, 3);
+	}
+
+	// Controllo positivo: il numero segue i dati, non e' una costante.
+	TArray<FRTTurnLogEntry> SoloVecchia;
+	SoloVecchia.Add(VoceDiTurno(1, 11));
+	const TArray<FRTPlayerEventLineView> Vecchia = URTHudViewModel::BuildPlayerEventFeed(SoloVecchia, 1);
+	if (TestEqual(TEXT("controllo: da sola la voce del turno 1 produce una riga"), Vecchia.Num(), 1))
+	{
+		TestEqual(TEXT("controllo: e porta il turno 1"), Vecchia[0].TurnNumber, 1);
+	}
+	return true;
+}
+
+/**
+ * 🔑 **IL REGISTRO SEGUE LA RISOLUZIONE, NON LA FASE** (#3860, [D-548]; era [D-496] (2)).
+ *
+ * `Phase` resta `Planning` per tutto il playback (lo dice anche `ComputeSecondsUntilCommit`): chi si fermasse a `Phase`
+ * etichetterebbe «PRECEDENTE» le righe del turno che si sta guardando. Quindi: `bResolving` → il turno corrente; partita in
+ * corso in `Planning` e NON in risoluzione → il turno precedente; ogni altra cosa → chiuso. Senza contesto di partita,
+ * sempre chiuso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogModeFollowsResolutionNotPhaseTest,
+	"RefactorTactics.ScreenHud.EventLogModeFollowsResolutionNotPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTEventLogModeFollowsResolutionNotPhaseTest::RunTest(const FString&)
+{
+	const auto Modo = [](const ERTMatchPhase Fase, const bool bRisolve, const bool bContesto = true)
+	{
+		FRTMatchHeaderView Header;
+		Header.Phase = Fase;
+		Header.bResolving = bRisolve;
+		return URTHudViewModel::EventLogModeFor(Header, bContesto);
+	};
+
+	TestTrue(TEXT("Pianificazione e non in risoluzione: il turno precedente"),
+		Modo(ERTMatchPhase::Planning, false) == ERTEventLogMode::Previous);
+	TestTrue(TEXT("durante il playback Phase resta Planning, ma e' Risoluzione: il turno corrente"),
+		Modo(ERTMatchPhase::Planning, true) == ERTEventLogMode::Current);
+
+	const ERTMatchPhase FasiDiRisoluzione[] = { ERTMatchPhase::Prep, ERTMatchPhase::Dash, ERTMatchPhase::Blast,
+		ERTMatchPhase::Move, ERTMatchPhase::Cleanup };
+	for (const ERTMatchPhase Fase : FasiDiRisoluzione)
+	{
+		TestTrue(*FString::Printf(TEXT("fase %d in risoluzione: il turno corrente"), static_cast<int32>(Fase)),
+			Modo(Fase, true) == ERTEventLogMode::Current);
+		TestTrue(*FString::Printf(TEXT("fase %d fuori dalla risoluzione e fuori dalla Pianificazione: chiuso"), static_cast<int32>(Fase)),
+			Modo(Fase, false) == ERTEventLogMode::Hidden);
+	}
+
+	TestTrue(TEXT("a partita finita il registro resta chiuso"),
+		Modo(ERTMatchPhase::MatchEnded, false) == ERTEventLogMode::Hidden);
+
+	// Senza contesto di partita non c'e' niente da mostrare, qualunque sia l'header.
+	TestTrue(TEXT("senza contesto, in Pianificazione: chiuso"), Modo(ERTMatchPhase::Planning, false, false) == ERTEventLogMode::Hidden);
+	TestTrue(TEXT("senza contesto, in risoluzione: chiuso"), Modo(ERTMatchPhase::Planning, true, false) == ERTEventLogMode::Hidden);
+	return true;
+}
+
+/**
  * 🔴 **IL TETTO E' UN NUMERO, E SI PRENDONO LE ULTIME.**
  *
  * ⚠️ **«Le prime N» sarebbe altrettanto implementabile e completamente inutile**, ed e' esattamente cio'

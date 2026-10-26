@@ -1093,11 +1093,16 @@ bool FRTEventLineLookTest::RunTest(const FString&)
 }
 
 /**
- * 🔑 **IL REGISTRO COMPARE SOLO IN RISOLUZIONE, E COSTRUISCE LE RIGHE DALLA CLASSE DEI DEFAULT** (#3637, [D-496]).
- * Il banco di `MatchHeaderCarriesThePlayedPhase`: un turno vero, riprodotto.
+ * 🔑 **IL REGISTRO IN RISOLUZIONE COSTRUISCE LE RIGHE DALLA CLASSE DEI DEFAULT, E SENZA UN TURNO DA MOSTRARE RESTA CHIUSO**
+ * (#3637, [D-496]; #3860, [D-548]). Il banco di `MatchHeaderCarriesThePlayedPhase`: un turno vero, riprodotto.
+ *
+ * Fino a [D-548] questo test si chiamava `EventLogShowsOnlyInResolution` e pinnava «in Pianificazione il registro e'
+ * chiuso» come regola. Dopo [D-548] la regola e' un'altra — in Pianificazione mostra il turno appena risolto — e quello
+ * che il test pinna ancora e' un caso solo: **un `TurnLog` vuoto**, cioe' il primo turno. Il caso con un turno da
+ * mostrare e' di `EventLogKeepsThePreviousTurnInPlanning`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogLookTest,
-	"RefactorTactics.ScreenHud.EventLogShowsOnlyInResolution",
+	"RefactorTactics.ScreenHud.EventLogShowsTheCurrentTurnInResolution",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTEventLogLookTest::RunTest(const FString&)
 {
@@ -1121,9 +1126,9 @@ bool FRTEventLogLookTest::RunTest(const FString&)
 	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
 	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
 
-	// --- Pianificazione: il registro non c'e' ([D-496] punto 2) ---------------------------------------------------------
+	// --- Pianificazione al primo turno: nessun turno precedente da mostrare, il registro e' chiuso ([D-548]) ----------------
 	Log->RefreshLook();
-	TestFalse(TEXT("in Pianificazione il registro e' chiuso"), Visibile(Log->LogRoot));
+	TestFalse(TEXT("in Pianificazione, senza un turno risolto, il registro e' chiuso"), Visibile(Log->LogRoot));
 	TestTrue(TEXT("e dice il round come l'header, ROUND"),
 		Log->LogTurnText->GetText().ToString().StartsWith(TEXT("ROUND "), ESearchCase::CaseSensitive));
 
@@ -1164,6 +1169,196 @@ bool FRTEventLogLookTest::RunTest(const FString&)
 	TestEqual(TEXT("e il pannello non raddoppia"), Righe->GetChildrenCount(), Log->GetLineWidgets().Num());
 
 	DestroyPlaybackWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** Il piano di un turno vero: il Guardian scatta di una cella e attacca. Falso se l'unita' non ha uno scatto. */
+	bool PlanDashOnTarget(ARTUnit* Dasher, ARTUnit* Target)
+	{
+		const int32 DashIdx = Dasher->FindDashAbilityIndex();
+		if (DashIdx == INDEX_NONE) { return false; }
+		Dasher->PlannedDashAbility = DashIdx;
+		Dasher->PlannedDashCell = FRTCellId(3, 2);
+		Dasher->PlannedAbilityIndex = 0;
+		Dasher->PlannedAttackTarget = Target;
+		return true;
+	}
+}
+
+/**
+ * 🔑 **IN PIANIFICAZIONE IL REGISTRO MOSTRA IL TURNO APPENA RISOLTO, MARCATO «PRECEDENTE», FINO AL COMMIT SEGUENTE**
+ * (#3860, [D-548]; emenda [D-496] (2)).
+ *
+ * Un turno vero, dalla Pianificazione alla Pianificazione successiva, con il registro osservato a ogni passo. Le gambe:
+ *   0. al primo turno non c'e' niente da rileggere: chiuso, e nessuna riga;
+ *   1. in Risoluzione il registro e' quello di prima: «ROUND 01», senza «PRECEDENTE», e le righe portano il turno 1;
+ *   2. a turno risolto (round 2) il registro e' APERTO, con le stesse righe, e l'intestazione dice il turno delle righe e
+ *      che e' passato: «ROUND 01 · PRECEDENTE» — non il round corrente, 02;
+ *   3. un giro di rilettura riusa le righe;
+ *   4. al commit seguente le righe vecchie lasciano il posto a quelle del turno nuovo, e «PRECEDENTE» sparisce.
+ *
+ * Il cambio di modo si osserva con `RefreshLook(false)`, cioe' SENZA il giro dei 5 Hz: e' il modo di vedere che l'ingresso
+ * in un modo rilegge il feed subito invece di aspettare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogPreviousTurnTest,
+	"RefactorTactics.ScreenHud.EventLogKeepsThePreviousTurnInPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
+	SpawnPlaybackMap(World);
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !Dasher || !Target || !Log) { return false; }
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Log->LogRoot = NewObject<UBorder>(Log);
+	Log->LogTurnText = NewObject<UTextBlock>(Log);
+	UVerticalBox* Righe = NewObject<UVerticalBox>(Log);
+	Log->LinesBox = Righe;
+	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
+	const auto Visibile = [](const UWidget* W) { return W && W->GetVisibility() != ESlateVisibility::Collapsed; };
+	const auto Intestazione = [Log]() { return Log->LogTurnText->GetText().ToString(); };
+	const auto Uguale = [](const FString& A, const TCHAR* B) { return A.Equals(B, ESearchCase::CaseSensitive); };
+
+	// --- 0. Primo turno: niente da rileggere ---------------------------------------------------------------------------
+	Log->RefreshLook();
+	TestFalse(TEXT("0: al primo turno il registro e' chiuso, non c'e' un turno precedente"), Visibile(Log->LogRoot));
+	TestEqual(TEXT("0: e non costruisce righe"), Log->GetLineWidgets().Num(), 0);
+
+	// --- 1. Il turno si risolve: il registro e' quello di sempre -----------------------------------------------------------
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), PlanDashOnTarget(Dasher, Target))) { return false; }
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving())) { return false; }
+	Log->RefreshLook(/*bRereadFeed=*/ false);
+	TestTrue(TEXT("1: in Risoluzione il registro c'e'"), Visibile(Log->LogRoot));
+	const TArray<FRTPlayerEventLineView> FeedDelTurno = Log->GetFeed();
+	if (!TestTrue(TEXT("premessa: il turno ha delle righe"), FeedDelTurno.Num() > 0)) { return false; }
+	TestEqual(TEXT("1: l'ingresso in Risoluzione rilegge il feed subito, senza il giro dei 5 Hz"),
+		Log->GetLineWidgets().Num(), FeedDelTurno.Num());
+	TestTrue(TEXT("1: l'intestazione dice il round, ROUND 01"), Uguale(Intestazione(), TEXT("ROUND 01")));
+	TestEqual(TEXT("premessa: le righe del primo turno portano il turno 1"), FeedDelTurno[0].TurnNumber, 1);
+
+	// --- 2. Il turno e' risolto: Pianificazione del turno 2 --------------------------------------------------------------
+	AdvanceUntilDone(TM);
+	if (!TestFalse(TEXT("premessa: la risoluzione e' finita"), TM->IsResolving())
+		|| !TestTrue(TEXT("premessa: si e' tornati in Pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning)
+		|| !TestEqual(TEXT("premessa: il round corrente e' il 2"), URTHudViewModel::BuildMatchHeader(TM).Round, 2))
+	{
+		return false;
+	}
+	Log->RefreshLook(/*bRereadFeed=*/ false);
+	TestTrue(TEXT("2: in Pianificazione, con un turno risolto, il registro e' aperto"), Visibile(Log->LogRoot));
+	TestEqual(TEXT("2: l'ingresso in Pianificazione rilegge il feed subito"), Log->GetLineWidgets().Num(), FeedDelTurno.Num());
+	TestTrue(TEXT("2: l'intestazione dice il turno DELLE RIGHE e che e' passato, non il round corrente"),
+		Uguale(Intestazione(), TEXT("ROUND 01 \u00B7 PRECEDENTE")));
+	for (int32 i = 0; i < FeedDelTurno.Num() && i < Log->GetLineWidgets().Num(); ++i)
+	{
+		const URTPlayerEventLineWidget* Riga = Log->GetLineWidgets()[i];
+		if (!TestNotNull(*FString::Printf(TEXT("2: la riga %d esiste"), i), Riga)) { continue; }
+		TestEqual(*FString::Printf(TEXT("2: la riga %d e' del turno 1"), i), Riga->GetLine().TurnNumber, 1);
+		TestTrue(*FString::Printf(TEXT("2: la riga %d e' la stessa che si leggeva in Risoluzione"), i),
+			Riga->GetLine().Text.EqualTo(FeedDelTurno[i].Text));
+	}
+
+	// --- 3. Un giro di rilettura riusa le righe ---------------------------------------------------------------------------
+	const URTPlayerEventLineWidget* Prima = Log->GetLineWidgets().Num() > 0 ? Log->GetLineWidgets()[0].Get() : nullptr;
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	TestTrue(TEXT("3: le righe si riusano"), Prima == nullptr || Log->GetLineWidgets()[0] == Prima);
+	TestEqual(TEXT("3: e il pannello non raddoppia"), Righe->GetChildrenCount(), Log->GetLineWidgets().Num());
+
+	// --- 4. Il commit seguente: le righe vecchie lasciano il posto a quelle del turno nuovo ------------------------------
+	Dasher->PlannedAbilityIndex = 0;
+	Dasher->PlannedAttackTarget = Target;
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: anche il secondo turno e' in risoluzione"), TM->IsResolving())) { return false; }
+	Log->RefreshLook(/*bRereadFeed=*/ false);
+	const TArray<FRTPlayerEventLineView> FeedDelSecondo = Log->GetFeed();
+	if (!TestTrue(TEXT("premessa: il secondo turno ha delle righe"), FeedDelSecondo.Num() > 0)) { return false; }
+	TestTrue(TEXT("4: in Risoluzione l'intestazione e' di nuovo il round, ROUND 02, senza PRECEDENTE"), Uguale(Intestazione(), TEXT("ROUND 02")));
+	TestEqual(TEXT("4: le righe sono quelle del turno nuovo"), Log->GetLineWidgets().Num(), FeedDelSecondo.Num());
+	for (int32 i = 0; i < Log->GetLineWidgets().Num(); ++i)
+	{
+		const URTPlayerEventLineWidget* Riga = Log->GetLineWidgets()[i];
+		if (TestNotNull(*FString::Printf(TEXT("4: la riga %d esiste"), i), Riga))
+		{
+			TestEqual(*FString::Printf(TEXT("4: la riga %d e' del turno 2"), i), Riga->GetLine().TurnNumber, 2);
+		}
+	}
+	return true;
+}
+
+/**
+ * 🔴 **IN PIANIFICAZIONE LE RIGHE SI RIPROIETTANO PER L'OSSERVATORE DEL MOMENTO** (#3860, [D-548] (4)).
+ *
+ * Il registro in Pianificazione non conserva copie: rilegge il `TurnLog` ad ogni giro, con gli osservatori che ci sono
+ * adesso. La prova e' un cambio di osservatore a registro gia' aperto: una voce autorizzata solo alla squadra 0 compare
+ * per la squadra 0 e SPARISCE quando chi guarda diventa la squadra 1. Una copia delle righe gia' proiettate la lascerebbe
+ * a schermo — e mostrerebbe a una squadra cio' che e' autorizzato a un'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEventLogPlanningReprojectsTest,
+	"RefactorTactics.ScreenHud.EventLogInPlanningReprojectsForTheCurrentObserver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEventLogPlanningReprojectsTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
+	SpawnPlaybackMap(World);
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !Dasher || !Target || !Log) { return false; }
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Log->LogRoot = NewObject<UBorder>(Log);
+	Log->LogTurnText = NewObject<UTextBlock>(Log);
+	Log->LinesBox = NewObject<UVerticalBox>(Log);
+	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
+
+	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), PlanDashOnTarget(Dasher, Target))) { return false; }
+	TM->LockInAndResolve();
+	AdvanceUntilDone(TM);
+	if (!TestTrue(TEXT("premessa: si e' tornati in Pianificazione"),
+		TM->GetPhase() == ERTMatchPhase::Planning && !TM->IsResolving())) { return false; }
+
+	// Una voce del turno appena risolto, autorizzata SOLO alla squadra 0.
+	int32 Turno = 0;
+	for (const FRTTurnLogEntry& Voce : TM->GetTurnLog()) { Turno = FMath::Max(Turno, Voce.TurnNumber); }
+	constexpr int32 UnitaPrivata = 9001; // non e' un'unita' in campo: il proiettore non la cerca
+	FRTTurnLogEntry Privata;
+	Privata.Category = ERTLogCategory::Combat;
+	Privata.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+	Privata.UnitId = UnitaPrivata;
+	Privata.TurnNumber = Turno;
+	Privata.Phase = ERTMatchPhase::Blast;
+	Privata.Amount = 7;
+	Privata.Verdict.AllowTeam(0);
+	TM->AppendTurnLogEntryForTest(Privata);
+
+	const auto HaLaRiga = [](const URTPlayerEventLogWidget* Widget, const int32 Unita)
+	{
+		for (const URTPlayerEventLineWidget* Riga : Widget->GetLineWidgets())
+		{
+			if (Riga && Riga->GetLine().PrimaryStableUnitId == Unita) { return true; }
+		}
+		return false;
+	};
+
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	TestTrue(TEXT("premessa: per la squadra 0 il registro e' aperto in Pianificazione"),
+		Log->LogRoot->GetVisibility() != ESlateVisibility::Collapsed);
+	if (!TestTrue(TEXT("premessa: la squadra 0 legge la voce privata"), HaLaRiga(Log, UnitaPrivata))) { return false; }
+
+	// Chi guarda diventa la squadra 1: la voce non e' sua, e la riga NON puo' restare.
+	Log->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 1);
+	Log->RefreshLook(/*bRereadFeed=*/ true);
+	TestFalse(TEXT("per la squadra 1 la voce privata della squadra 0 non c'e' piu'"), HaLaRiga(Log, UnitaPrivata));
 	return true;
 }
 

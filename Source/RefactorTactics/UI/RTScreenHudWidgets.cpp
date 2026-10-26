@@ -2765,27 +2765,46 @@ void URTPlayerEventLineWidget::SetLine(const FRTPlayerEventLineView& InLine)
 void URTPlayerEventLogWidget::RefreshLook(bool bRereadFeed)
 {
 	const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(GetTurnManager());
-	const bool bRisoluzione = HasMatchContext() && Header.bResolving;
+	const ERTEventLogMode Modo = URTHudViewModel::EventLogModeFor(Header, HasMatchContext());
 
-	// [D-496] punto 2: solo in Risoluzione. In Pianificazione la colonna destra resta libera.
-	RTShowIf(LogRoot, bRisoluzione);
+	// A ogni cambio di modo il feed si rilegge subito, senza aspettare il giro dei 5 Hz: le righe non arrivano in ritardo
+	// all'ingresso in Risoluzione, e in Pianificazione la visibilita' DIPENDE dal feed — senza la rilettura si deciderebbe
+	// su quello del modo di prima.
+	const bool bCambioDiModo = Modo != LastMode;
+	LastMode = Modo;
+
+	// Chiuso non si legge niente. In Risoluzione si legge solo per costruire le righe; in Pianificazione si legge sempre, perche'
+	// e' il feed a dire se c'e' un turno da mostrare.
+	const bool bPuoCostruire = LinesBox && LineClass;
+	if (Modo != ERTEventLogMode::Hidden && (bRereadFeed || bCambioDiModo)
+		&& (Modo == ERTEventLogMode::Previous || bPuoCostruire))
+	{
+		const TArray<FRTPlayerEventLineView> Feed = GetFeed();
+		bFeedHasLines = Feed.Num() > 0;
+		FeedTurn = bFeedHasLines ? Feed[0].TurnNumber : 0;
+		if (bPuoCostruire)
+		{
+			RebuildLines(Feed);
+		}
+	}
+
+	// [D-548]: in Pianificazione il registro e' aperto solo se c'e' un turno risolto da mostrare; in Risoluzione c'e' sempre.
+	RTShowIf(LogRoot, Modo == ERTEventLogMode::Current || (Modo == ERTEventLogMode::Previous && bFeedHasLines));
 	if (LogTurnText)
 	{
 		FNumberFormattingOptions DueCifre;
 		DueCifre.MinimumIntegralDigits = 2;
 		DueCifre.UseGrouping = false;
-		LogTurnText->SetText(FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Header.Round, &DueCifre)));
+		// Il turno delle RIGHE, preso dalle righe: «round corrente meno uno» sbaglierebbe dove un turno non ha voci.
+		LogTurnText->SetText(Modo == ERTEventLogMode::Previous && bFeedHasLines
+			? FText::Format(NSLOCTEXT("RTHud", "LogRoundPrevious", "ROUND {0} · PRECEDENTE"), FText::AsNumber(FeedTurn, &DueCifre))
+			: FText::Format(NSLOCTEXT("RTHud", "LogRound", "ROUND {0}"), FText::AsNumber(Header.Round, &DueCifre)));
 		LogTurnText->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(ERTUIToken::Text_Secondary)));
 	}
+}
 
-	// All'ingresso in Risoluzione il feed si rilegge subito: le righe non aspettano il giro dei 5 Hz.
-	const bool bEntrata = bRisoluzione && !bLastResolving;
-	bLastResolving = bRisoluzione;
-	if (!bRisoluzione || !LinesBox || !LineClass || !(bRereadFeed || bEntrata))
-	{
-		return; // registro chiuso, pannello o classe non ancora dati dalla seduta, o non e' il giro di rilettura
-	}
-	const TArray<FRTPlayerEventLineView> Feed = GetFeed();
+void URTPlayerEventLogWidget::RebuildLines(const TArray<FRTPlayerEventLineView>& Feed)
+{
 	while (LineWidgets.Num() > Feed.Num())
 	{
 		if (URTPlayerEventLineWidget* Ultima = LineWidgets.Last())

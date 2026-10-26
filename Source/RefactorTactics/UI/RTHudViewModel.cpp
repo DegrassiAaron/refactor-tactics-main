@@ -1523,6 +1523,21 @@ FText URTHudViewModel::ComposePlayerEventText(const FRTPlayerEvent& Event)
 	return LOCTEXT("Unknown", "Qualcosa e' successo");
 }
 
+ERTEventLogMode URTHudViewModel::EventLogModeFor(const FRTMatchHeaderView& Header, bool bHasMatchContext)
+{
+	if (!bHasMatchContext)
+	{
+		return ERTEventLogMode::Hidden;
+	}
+	if (Header.bResolving)
+	{
+		return ERTEventLogMode::Current;
+	}
+	// ⚠️ `Phase == Planning` da sola non basta: resta `Planning` per tutto il playback, ed e' `bResolving` a dire che il
+	// turno si sta ancora guardando. L'ordine dei due `if` e' il punto: la Risoluzione si decide PRIMA.
+	return Header.Phase == ERTMatchPhase::Planning ? ERTEventLogMode::Previous : ERTEventLogMode::Hidden;
+}
+
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	int32 ObserverTeamId)
 {
@@ -1593,6 +1608,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 		Line.Phase = Event.Phase;
 		Line.Sequence = i + 1; // la posizione fra gli eventi GIA' filtrati: nessun buco da cui contare il nascosto
 		Line.bReaction = Event.Type == ERTPlayerEventType::ReactionFired;
+		Line.TurnNumber = UltimoTurno; // il feed e' di un turno solo (#3860): quello dell'ultimo turno del log
 	}
 	return Lines;
 }
