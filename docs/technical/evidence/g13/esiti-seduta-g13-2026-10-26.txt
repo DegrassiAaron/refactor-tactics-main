@@ -1,0 +1,27 @@
+# tools/seduta/esiti.py sul log della seduta G13 del 2026-10-26 (pacchetto cotto da HEAD ad06c1cfce82f14344cbd5ca6832f617c688cb11)
+# python -X utf8 tools/seduta/esiti.py Saved/Logs/g13-seduta.log --csv <pacing_20261026-081447.csv> --crashes <Saved/Crashes del pacchetto>
+# Il FAIL su 'cartelle di crash' e' il conteggio assoluto: la sola cartella e' quella della meta' packaged di G2 (07:17:07), preesistente e identica prima e dopo la seduta. Vedi la cella di G13.
+
+
+  controllo del file                   PASS          'LogInit' x92
+                                                       ^ ogni zero qui sotto e' stato cercato in un file che sa rispondere
+  CANCELLO: la partita e' avvenuta     PASS          allestimento=1 | fine partita (frontend)=1 | esito deciso (simulazione)=1
+                                                       ^ almeno uno > 0
+  nessun crash                         PASS          0
+                                                       ^ rete storica: CIECA ai GPU crash, vedi 'rete larga'
+  nessun crash (rete larga)            PASS          0
+                                                       ^ prende la classe che la rete storica non vede. ATTENZIONE AL PAVIMENTO: su un log di EDITOR vale 2 anche a run pulita, ed e' l'Engine che esercita il proprio sistema di errori all'inizializzazione (`UE::UnifiedErrorTest`, poi due `LogAutomationTest: Error: Condition failed`). Misurato il 2026-10-04 su due log di Editor indipendenti: 2 e 2; sui log di PACCHETTO: 0. Quindi su un log di Editor i primi due non sono tuoi
+  nessun GPU crash                     PASS          0
+                                                       ^ terza rete, ortogonale alle due sopra
+  nessun asset mancante                PASS          0
+                                                       ^ si LEGGE, non si conta: il Warning e' emesso una volta per processo e poi soppresso
+  nessun overlay di debug              PASS          0
+  nessun travel failure                PASS          0
+  CSV: colonne per nome                PASS          SelectionCount=col.6, OrderCount=col.7, UndoCount=col.8
+                                                       ^ cercate per nome nell'intestazione, non per indice
+  CSV: turni letti                     PASS          9 turni (righe scartate: 0)
+  input funzionante (>=1 su un turno)  PASS          1 turni soddisfano tutti e tre | SelectionCount max=2, OrderCount max=10, UndoCount max=2
+  cartelle di crash                    FAIL          1: UECC-Windows-1621894E4065C4EA1D33AF8BCAD149A0_0000
+                                                       ^ fotografa questa cartella PRIMA della seduta: le preesistenti non sono tue
+
+  [FAIL] 1 esiti FAIL: cartelle di crash

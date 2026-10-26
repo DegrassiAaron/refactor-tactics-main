@@ -65,6 +65,8 @@ Controllo positivo sul contenuto, con `UnrealPak RefactorTactics-Windows.utoc -L
 
 ## 5. `G11` — i KPI rimisurabili senza persona
 
+> 🔴 **Correzione del 2026-10-26, dopo l'Onda 4**: la lettura di `Client FPS` qui sotto (*«fuori target e non attribuito»*) vale per le **prime due passate**. Tre catture ripetute più tardi sullo stesso pacchetto danno `p99` 8,511–9,629 ms (104–117 fps), in linea con il 2026-10-03, e l'avviso `Icona non risolta` non pesa: vedi [`onda4-misure-2026-10-26.md`](onda4-misure-2026-10-26.md) §5. Il `Path` citato qui come controllo **non lo è** per il tempo di frame. Il resto di §5 (`Path`, `Preview`, `Resolver`) non cambia.
+
 ⚠️ **Finestra non pulita** (§0). Il controllo che rende leggibile una misura di tempo su questa macchina è `Perf.PathfindingMedian`, nelle stesse esecuzioni: se la macchina fosse il doppio più lenta, il `Path` raddoppierebbe.
 
 **Famiglia `RefactorTactics.Perf`**, tre esecuzioni sul `HEAD` (più la suite intera di §2), 5 test su 5 `Success` ogni volta:
