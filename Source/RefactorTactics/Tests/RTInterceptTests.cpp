@@ -640,7 +640,7 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
  * la ragione sbagliata, e solo il controllo lo direbbe.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptNotAcrossLayersTest,
-	"RefactorTactics.Reactions.Intercept.NotAcrossLayers",
+	"RefactorTactics.Reactions.InterceptNotAcrossLayers",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
 {
