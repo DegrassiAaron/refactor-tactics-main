@@ -56,5 +56,14 @@ bool FRTReplayRecording::Close(const FString& Root, ERTMatchOutcome Outcome, uin
 	// telemetria dell'archivio, non un ingresso di nessuna regola.
 	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - StartRealSeconds);
 
-	return URTReplayRecorderLibrary::CloseMatch(Root, Manifest, Outcome, FinalStateHash, WallClock);
+	const bool bClosed = URTReplayRecorderLibrary::CloseMatch(Root, Manifest, Outcome, FinalStateHash, WallClock);
+
+	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la disponibilita'
+	// del replay, che e' la chiusura stessa. `AppendOrUpdate` aggiorna la riga scritta da `Begin`, non ne accoda una
+	// seconda. ⚠️ Si fa **anche se la chiusura e' fallita**: `bClosed` e' rimasto `false` e l'indice lo riporta, cosi' la
+	// lista non promette una partita intera che il disco non ha. (`#3859`: la chiamata c'era in `ARTTurnManager` e si e'
+	// persa nell'estrazione di `0e636014f`, `#2286`; da allora ogni riga restava «in corso, 0 turni».)
+	URTMatchHistoryLibrary::AppendOrUpdate(Root, URTMatchHistoryLibrary::EntryFromManifest(Manifest, StartedUtc));
+
+	return bClosed;
 }
