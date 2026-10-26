@@ -139,6 +139,8 @@ Contro i target: pathfinding `< 2 ms`, preview `< 50 ms`, resolver `< 100 ms`. I
 
 **Giudizi dell'autore: NON espressi sul v3.** Quelli sul v2 erano: interfaccia leggibile **sì**; affordance trovata senza leggere il foglio **sì**; nessun overlay di debug acceso che non avesse acceso lui **sì (assente)**. Li *riporto* come misura precedente senza riesprimerli: il v3 differisce dal v2 in un solo file fuori dai `Tests/`, che scrive un file su disco alla chiusura della partita, e nel flusso di `G10` la simulazione è identica riga per riga. È una **ragione per ritenere** che a occhio non cambi nulla, **non una prova**: l'autore può non accettarla. Il terzo (nessun overlay) ha un controllo meccanico che qui è PASS (`nessun overlay di debug` 0). Il secondo (affordance trovata **senza leggere il foglio**) **non può avere una risposta mia per costruzione**: il foglio l'ho letto. La DoD dice dell'occhio che *«non si scorpora»*: per questo `G13` è `⏳` sul v3 e non ✅. **Per portarlo a ✅ serve una persona** ([`D-543`](../../../decisions/RT_PDR_00_Decision_Log.md) (4)): rigiocare la seduta, oppure una deroga dichiarata dall'autore che accetti il riporto dei giudizi del v2.
 
+➕ **Dopo, 2026-10-26: l'autore ha scelto la deroga** ([`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md), «1. deroga»). I suoi tre giudizi del v2 valgono sul v3 e la seduta non si rigioca; `G13` è ✅ **per deroga**. Ciò che questa riga dice, e che non dice: la meccanica di questo paragrafo è misurata sul v3; l'occhio è quello dell'autore sul v2, riportato per sua dichiarazione; **nessuna persona ha giocato il pacchetto v3**. Le osservazioni dell'assistente qui sotto restano osservazioni, non giudizi, e non sono coperte dalla deroga.
+
 **Osservazioni dell'assistente dalle schermate** (le schermate in [`../g13/v3/`](../g13/v3/)): **non sono giudizi dell'autore** e **non sono state aperte come issue**.
 
 - *Testo in basso tagliato*: *«Seleziona un'unità»* è tagliato dal bordo inferiore a 1600×900, in tutte le schermate di gioco.
@@ -163,15 +165,15 @@ I passi 1-4 sul v2 erano ✅ (3 e 4 con una richiesta, [#3860](https://github.co
 
 ## 9. `G14`
 
-Misurato **dopo** l'aggiornamento di tutte le celle e di questo documento (il gate allinea anche i loro esiti), con i due comandi del criterio, ciascuno con l'`EXIT` letto subito e non dopo una pipe:
+Misurato **dopo** l'aggiornamento di tutte le celle e di questo documento (il gate allinea anche i loro esiti) **e di nuovo dopo [`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md)**, che ha cambiato la cella di `G13`, il banner della DoD e la sequenza di chiusura; sull'albero della PR di `D-544`, basato su `main` `b7168b503`. Con i due comandi del criterio, ciascuno con l'`EXIT` letto subito e non dopo una pipe:
 
 - `node tools/radar/doc-coherence.ts --check` → `PASS A1` (284 voci del registro PIE, 116/34/7/127) · `PASS A2` · `PASS A3` · `PASS A4` · `PASS A5` (24 epic, somma CP 124, 124 id unici); exit 0.
-- `node tools/radar/doc-links.ts --check` → 8420 link esaminati in 524 documenti, *tutti i percorsi citati risolvono*; exit 0.
+- `node tools/radar/doc-links.ts --check` → 8438 link esaminati in 524 documenti, *tutti i percorsi citati risolvono*; exit 0.
 - `RefactorTactics.Meta.SatisfiedGatesAgreeWithTheDefinitionOfDone`, rieseguito sulla DoD modificata: famiglia `Meta` 15 su 15, tutti `Success`; famiglia `PieSession` 38 su 38, tutti `Success`.
 - `node tools/radar/pie-verdict-age.ts --check` → exit 1 su `PIE-DEBUG-CONTEXT` (verdetto 2026-09-23, ultima modifica di `RTContextInspector.cpp` 2026-09-24): **già rosso prima di questa tornata** (stessa voce nell'Onda 3) e fuori dai due comandi di `G14`.
 
-⚠️ Il test `Meta` confronta `roadmap-pia.md` §4 con la cella di stato di ciascun gate della DoD §3, che per risultare soddisfatta deve **aprire** con ✅ (`StartsWith`, `RTGateCoherenceTests.cpp`): nel suo log, *«§4 rivendica come soddisfatti: G8, G4»*, e restano ✅. Non giudica le altre celle, nemmeno `G13` e `G16`, che a `⏳` non contraddicono PIA perché PIA non le rivendica.
+⚠️ Il test `Meta` confronta `roadmap-pia.md` §4 con la cella di stato di ciascun gate della DoD §3, che per risultare soddisfatta deve **aprire** con ✅ (`StartsWith`, `RTGateCoherenceTests.cpp`): nel suo log, *«§4 rivendica come soddisfatti: G8, G4»*, e restano ✅. Non giudica le altre celle, nemmeno `G13` e `G16`, perché PIA non le rivendica: **non dice nulla sulla ✅ di `G13` per deroga**.
 
 ## 10. Cosa NON è stato misurato
 
-`G9` (subset `RELEASE-V01` della PIE): una persona, **NOT RUN**. `G16`: §8, **NOT RUN** come giro. I giudizi percettivi di `G13` sul v3: §7. Nessuna PIE è stata eseguita in questa tornata. **Packaged** per `G2` è la metà di §2; **Performance** è la misura di §6 con le riserve scritte.
+`G9` (subset `RELEASE-V01` della PIE): una persona, **NOT RUN**. `G16`: §8, **NOT RUN** come giro. I giudizi percettivi di `G13` sul v3: §7 (non riespressi; l'autore ha scelto la deroga, [`D-544`](../../../decisions/RT_PDR_00_Decision_Log.md)). Nessuna PIE è stata eseguita in questa tornata. **Packaged** per `G2` è la metà di §2; **Performance** è la misura di §6 con le riserve scritte.
