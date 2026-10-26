@@ -5,8 +5,10 @@
 #include "Replay/RTReplayViewerSubsystem.h"
 #include "Replay/RTReplayPrivacyLibrary.h" // FRTPublicReplayEntry: le voci che il viewer elenca
 #include "Debug/RTContextInspector.h"      // DescribePublicEvent: la riga che il viewer mostra per ogni voce
+#include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Tests/RTReplayTestFixtures.h"
+#include "Tests/RTWidgetAssetTestHelpers.h" // LoadWidgetClass: il WBP vero, non la classe base
 // Solo per avere una `UUserWidget` **concreta** da registrare: `UUserWidget` e' `Abstract` e
 // `CreateWidget` la rifiuta. Stessa scelta, e stessa motivazione, di `RTFrontendMainMenuTests.cpp`.
 #include "UI/RTScreenHudWidgets.h"
@@ -29,6 +31,8 @@
  * ⛔ **Cosa questi test NON coprono, e va detto invece che sottinteso**: che le due schermate **esistano**
  * come `.uasset` e che il `.ini` le dichiari. Quello e' lavoro d'editor, e finche' non c'e'
  * `RefactorTactics.Frontend.EveryConfiguredScreenLoads` non ha niente di nuovo da guardare.
+ *
+ * ⚠️ Dal #3868 un test carica il WBP del viewer (`ViewerAssetHasItsPorts`): le porte opzionali non protestano se mancano.
  */
 using namespace RTReplayFixtures;
 
@@ -428,6 +432,109 @@ bool FRTReplayViewerShowsPhaseEntriesTest::RunTest(const FString&)
 	}
 	TestFalse(TEXT("7: con dodici voci il testo non dice «altre»"),
 		URTReplayViewerWidgetBase::ComposePhaseEntriesText(TArray<FRTPublicReplayEntry>(Molte.GetData(), 12)).ToString().Contains(TEXT("altre")));
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * 🔑 **IL `.uasset` DEL VIEWER HA LE QUATTRO PORTE, E IL C++ SCRIVE NEI SUOI WIDGET** (#3868).
+ *
+ * ⚠️ Le porte sono `BindWidgetOptional`: se nel WBP manca un widget, ne ha uno con un altro nome o un altro tipo, il
+ * widget compila, il membro resta `nullptr` e nessuno protesta. Il difetto di #3868 (nessun Play, nessuna etichetta, nessuna
+ * voce) tornerebbe identico con tutti gli altri test verdi, perche' provano il C++ su `UTextBlock` creati a mano. Qui si
+ * istanzia il Blueprint vero, `Initialize` risolve i `BindWidget`, e si guarda cosa scrive il C++ in quei widget:
+ *
+ *   1. le quattro porte sono risolte;
+ *   2. le due etichette stanno dentro il loro pulsante (un'etichetta fuori dal pulsante e' un testo orfano);
+ *   3. nessuna e' nascosta: un `Collapsed` renderebbe invisibile tutto cio' che il C++ scrive;
+ *   4. `RefreshLookOn` su un replay aperto scrive PLAY, INDIETRO e le voci della fase nei widget dell'ASSET, e con il replay
+ *      in riproduzione l'etichetta del pulsante diventa PAUSA.
+ *
+ * ⛔ Non copre il click (`NativeConstruct` lega `OnClicked` solo con il widget in un viewport) ne' l'aspetto: restano PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerAssetHasItsPortsTest,
+	"RefactorTactics.Replay.Screens.ViewerAssetHasItsPorts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerAssetHasItsPortsTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(
+		TEXT("/Game/RT/UI/Framework/WBP_RT_ReplayViewer.WBP_RT_ReplayViewer_C"));
+	if (!TestNotNull(TEXT("WBP_RT_ReplayViewer si carica"), Class))
+	{
+		return false;
+	}
+	URTReplayViewerWidgetBase* W = Cast<URTReplayViewerWidgetBase>(NewObject<UUserWidget>(GetTransientPackage(), Class));
+	if (!TestNotNull(TEXT("la classe del WBP deriva da URTReplayViewerWidgetBase"), W))
+	{
+		return false;
+	}
+	W->Initialize(); // duplica l'albero e risolve i BindWidget: senza, i membri restano nullptr
+
+	// --- 1. Le quattro porte sono risolte -------------------------------------------------------------------------------------
+	const TArray<TPair<const TCHAR*, UWidget*>> Porte = {
+		{ TEXT("PlayPauseButton"), W->PlayPauseButton },
+		{ TEXT("PlayPauseLabel"), W->PlayPauseLabel },
+		{ TEXT("PhaseEntriesText"), W->PhaseEntriesText },
+		{ TEXT("BackButtonLabel"), W->BackButtonLabel },
+	};
+	bool bTutte = true;
+	for (const TPair<const TCHAR*, UWidget*>& Porta : Porte)
+	{
+		bTutte &= TestNotNull(*FString::Printf(TEXT("1: la porta %s e' risolta"), Porta.Key), Porta.Value);
+	}
+	if (!bTutte)
+	{
+		return false;
+	}
+
+	// --- 2. Le etichette stanno nel loro pulsante ------------------------------------------------------------------------------
+	TestTrue(TEXT("2: PlayPauseLabel sta dentro PlayPauseButton"), W->PlayPauseLabel->GetParent() == W->PlayPauseButton.Get());
+	const UWidget* Indietro = W->BackButtonLabel->GetParent();
+	TestTrue(TEXT("2: BackButtonLabel sta dentro un pulsante"), Indietro != nullptr && Indietro->IsA<UButton>());
+	TestEqual(TEXT("2: ed e' il pulsante BackButton"), Indietro ? Indietro->GetFName() : FName(NAME_None), FName(TEXT("BackButton")));
+
+	// --- 3. Nessuna e' nascosta -----------------------------------------------------------------------------------------------
+	for (const TPair<const TCHAR*, UWidget*>& Porta : Porte)
+	{
+		const ESlateVisibility Vis = Porta.Value->GetVisibility();
+		TestTrue(*FString::Printf(TEXT("3: %s non e' nascosta"), Porta.Key),
+			Vis != ESlateVisibility::Collapsed && Vis != ESlateVisibility::Hidden);
+	}
+
+	// --- 4. Il C++ scrive nei widget dell'asset -------------------------------------------------------------------------------
+	const FString R = TransientRoot(TEXT("ViewerAsset"));
+	Pulisci(R);
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem del replay esiste"), V))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->SetReplaysRoot(R);
+	const FGuid Id = ArchivioDueTurni(R, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio si apre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->StepPhaseForward();
+	W->RefreshLookOn(V);
+
+	const auto Testo = [](const UTextBlock* B) { return B->GetText().ToString(); };
+	TestTrue(TEXT("4: in pausa l'etichetta del pulsante e' PLAY"), Testo(W->PlayPauseLabel).Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("4: il pulsante indietro ha la sua etichetta"), Testo(W->BackButtonLabel).Equals(TEXT("INDIETRO"), ESearchCase::CaseSensitive));
+	const FString VociAttese = URTReplayViewerWidgetBase::ComposePhaseEntriesText(V->GetCurrentPhaseEntries()).ToString();
+	TestFalse(TEXT("premessa: la fase ha delle voci da mostrare"), VociAttese.IsEmpty());
+	TestEqual(TEXT("4: il testo delle voci nel widget dell'asset e' quello della fase"), Testo(W->PhaseEntriesText), VociAttese);
+
+	V->Play();
+	W->RefreshLookOn(V);
+	TestTrue(TEXT("4: in riproduzione l'etichetta del pulsante e' PAUSA"), Testo(W->PlayPauseLabel).Equals(TEXT("PAUSA"), ESearchCase::CaseSensitive));
 
 	ReleaseSubsystemHost(GI);
 	Pulisci(R);
