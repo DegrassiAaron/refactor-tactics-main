@@ -25,8 +25,8 @@ che il criterio nuovo **vieta**. Non riusare quei numeri come baseline.
 | il runtime di `HEAD` è il candidate | il blocco qui sotto risponde `OK`. Su `DIVERSI` la seduta **non si apre**: è `NOT RUN — candidate superato` finché una decisione non ricongela (referto del 2026-10-09, `D1`) |
 
 ```bash
-test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 7450ead64:Source)" \
-  && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 7450ead64:Content)" \
+git diff --quiet 7450ead64 HEAD -- Source Content \
+    ':(exclude)Source/RefactorTactics/Tests' ':(exclude)Source/RefactorTacticsEditor/Private/Tests' \
   && echo "OK: il runtime di HEAD e' il candidate" || echo "DIVERSI: NOT RUN, non aprire la seduta"
 ```
 
@@ -34,7 +34,7 @@ test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 7450ead64:Source)" \
 candidate sia ancora quello da attestare.** Il 2026-10-09, con lo SHA vecchio, il blocco rispondeva `DIVERSI` — il fix di
 [#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463) e il lavoro delle sedute `U67`–`U71` erano
 entrati dopo `95eddfd37` — e una seduta condotta lo stesso avrebbe attestato una build che `main` aveva sorpassato.
-✅ **Ricongelato il 2026-10-26** ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)): lo SHA in questo blocco è quello del candidate v2, aggiornato **insieme** a quello di `#85`. Se oggi il blocco risponde `DIVERSI`, qualcuno ha toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`: la seduta non si apre.
+✅ **Ricongelato il 2026-10-26** ([`D-541`](../../decisions/RT_PDR_00_Decision_Log.md)): lo SHA in questo blocco è quello del candidate v2, aggiornato **insieme** a quello di `#85`. Se oggi il blocco risponde `DIVERSI`, qualcuno ha toccato `Source/` o `Content/` dentro la finestra dichiarata al passo 1 di `#85`: la seduta non si apre. Dal 2026-10-26 ([`D-542`](../../decisions/RT_PDR_00_Decision_Log.md)) il blocco **non conta le due cartelle `Tests/`**: un merge di soli test non sposta il candidate e ridata `G2` e `G14`.
 
 🔴 **Al 2026-10-03 quelle cartelle sono tre, e sono tutte di misure mie del 2026-10-02** — due da `-nullrhi`
 e una da `-RenderOffScreen`. Servono come **controllo positivo** del passo 6a: contengono un crash vero, su
