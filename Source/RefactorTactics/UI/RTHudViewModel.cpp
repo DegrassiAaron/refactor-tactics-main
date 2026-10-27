@@ -1815,7 +1815,7 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 	if (Context == ERTPointerContext::IdleSelection)
 	{
 		View.Kind = ERTTargetPromptKind::NoSelection;
-		View.Text = LOCTEXT("NoSelection", "Seleziona un'unita'");
+		View.Text = LOCTEXT("NoSelection", "Seleziona un'unità");
 		return View;
 	}
 
@@ -1853,7 +1853,7 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 
 	case ERTPointerTargetKind::Unit:
 		View.Kind = ERTTargetPromptKind::ChooseUnit;
-		View.Text = LOCTEXT("ChooseUnit", "Scegli un'unita'");
+		View.Text = LOCTEXT("ChooseUnit", "Scegli un'unità");
 		View.bIsAwaitingTarget = true;
 		return View;
 

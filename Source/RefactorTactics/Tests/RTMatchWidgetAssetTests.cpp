@@ -1936,4 +1936,62 @@ bool FRTEventLogWearsItsLineClassTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **IL PROMPT DEL DOCK HA LO STILE DEL DOCK, NON QUELLO DEL MOTORE** (#3869).
+ *
+ * `TargetPrompt` era un `TextBlock` senza stile: il font di default del motore a 24 (Roboto Bold, bianco), contro il 16 e il 14 degli
+ * altri testi del dock. La zona del basso e' alta quanto la fascia meno due margini, e la barra delle azioni ne occupa quasi tutta:
+ * misurato in PIE il 2026-10-27 a 1600x900, restavano circa venti unita' Slate sotto la barra e il prompt a 24 ne voleva circa
+ * ventotto, quindi veniva tagliato dal bordo inferiore.
+ *
+ *   1. il font e' del progetto (`/Game/RT/UI/Fonts/`), non quello del motore;
+ *   2. non e' piu' grande del testo piu' grande del dock: il difetto violava questo rapporto, e il test non fissa un numero.
+ *
+ * ⛔ **Non misura l'altezza**: dire che il prompt stia nella zona vuole un layout vero, e questo test non ne ha uno. Quello
+ * resta di `PIE-V01-SCREENHUD`. Il guardiano impedisce il ritorno al difetto noto (font del motore, dimensione maggiore dei vicini).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDockPromptUsesTheDockStyleTest,
+	"RefactorTactics.ScreenHud.ActionDockPromptUsesTheDockStyle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionDockPromptUsesTheDockStyleTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, ActionDockPath, TEXT("WBP_RT_ActionDock"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	const UTextBlock* Prompt = Cast<UTextBlock>(Tree->FindWidget(TEXT("TargetPrompt")));
+	if (!TestNotNull(TEXT("il dock ha un TargetPrompt che e' un TextBlock"), Prompt))
+	{
+		return false;
+	}
+
+	// 1. Il font e' del progetto.
+	const FString FontPath = Prompt->Font.FontObject ? Prompt->Font.FontObject->GetPathName() : FString();
+	TestTrue(*FString::Printf(TEXT("1: il font del prompt e' del progetto (e' '%s')"), *FontPath),
+		FontPath.StartsWith(TEXT("/Game/RT/UI/Fonts/")));
+
+	// 2. Non piu' grande del testo piu' grande degli altri. `Max == 0` vuol dire che il dock non ne ha altri: la premessa
+	// del rapporto, senza la quale il confronto sarebbe vero per assenza.
+	float Max = 0.f;
+	Tree->ForEachWidget([Prompt, &Max](UWidget* Widget)
+	{
+		if (const UTextBlock* Altro = Cast<UTextBlock>(Widget))
+		{
+			if (Altro != Prompt)
+			{
+				Max = FMath::Max(Max, Altro->Font.Size);
+			}
+		}
+	});
+	if (TestTrue(TEXT("premessa: il dock ha altri testi con cui confrontare il prompt"), Max > 0.f))
+	{
+		TestTrue(*FString::Printf(TEXT("2: il prompt (%.1f) non e' piu' grande del testo piu' grande del dock (%.1f)"), Prompt->Font.Size, Max),
+			Prompt->Font.Size <= Max);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

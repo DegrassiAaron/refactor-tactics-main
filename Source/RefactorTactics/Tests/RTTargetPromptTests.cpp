@@ -286,4 +286,37 @@ bool FRTTargetPromptDeclaresUnproducibleKindTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **I PROMPT CHE NOMINANO UN'UNITA' LA SCRIVONO CON L'ACCENTO** (#3869).
+ *
+ * L'apostrofo ASCII al posto dell'accento (`unita'`) e' un'abitudine dei commenti di questo repository, non del testo che il
+ * giocatore legge: i due prompt che nominano un'unita' (nessuna selezione, e la scelta di un'unita' con un'azione armata)
+ * la stampavano così. Il controllo positivo e' che i due testi esistano e siano diversi fra loro: un test che
+ * cercasse l'assenza di `unita'` passerebbe anche su due testi vuoti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptWritesUnitWithItsAccentTest,
+	"RefactorTactics.HudViewModel.TargetPromptWritesUnitWithItsAccent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTargetPromptWritesUnitWithItsAccentTest::RunTest(const FString&)
+{
+	const FString SenzaSelezione =
+		URTHudViewModel::BuildTargetPrompt(ERTPointerContext::IdleSelection, ERTPointerTargetKind::None).Text.ToString();
+	const FString ScegliUnita =
+		URTHudViewModel::BuildTargetPrompt(ERTPointerContext::Targeting, ERTPointerTargetKind::Unit).Text.ToString();
+
+	TestFalse(TEXT("premessa: il prompt senza selezione esiste"), SenzaSelezione.IsEmpty());
+	TestFalse(TEXT("premessa: il prompt che chiede un'unita' esiste"), ScegliUnita.IsEmpty());
+	TestNotEqual(TEXT("premessa: i due prompt sono diversi fra loro"), SenzaSelezione, ScegliUnita);
+
+	for (const FString* Testo : { &SenzaSelezione, &ScegliUnita })
+	{
+		TestTrue(*FString::Printf(TEXT("'%s' scrive unit\u00E0 con l'accento"), **Testo),
+			Testo->Contains(TEXT("unit\u00E0"), ESearchCase::CaseSensitive));
+		TestFalse(*FString::Printf(TEXT("'%s' non usa l'apostrofo al posto dell'accento"), **Testo),
+			Testo->Contains(TEXT("unita'")));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
