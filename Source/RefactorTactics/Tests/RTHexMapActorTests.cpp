@@ -3357,4 +3357,105 @@ bool FRTHexMapActorRebuildCostCountsSurfaceVolumesTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#3899` — il guardiano delle mappature vede anche i volumi di superficie e la nebbia.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Scambia le POSIZIONI di due istanze di un ISM, lasciando intatto il resto: e' una mappatura rimescolata a mano, con i conteggi
+	 * che tornano — il caso che il solo confronto dei conteggi non vede e `VerifyMappingIdentity` esiste per vedere (`#2761`).
+	 */
+	void SwapInstancePlacements(UInstancedStaticMeshComponent* Ism, int32 A, int32 B)
+	{
+		FTransform Xa, Xb;
+		Ism->GetInstanceTransform(A, Xa, /*bWorldSpace=*/ true);
+		Ism->GetInstanceTransform(B, Xb, /*bWorldSpace=*/ true);
+		Ism->UpdateInstanceTransform(A, Xb, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ true);
+		Ism->UpdateInstanceTransform(B, Xa, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ true);
+	}
+}
+
+/**
+ * **`#3899` — un volume di superficie con l'indice rimescolato fa cadere il guardiano.**
+ *
+ * `VerifyAllMappings` verificava il disco, i glifi, i bordi, il rilievo, i blocchi e i corpi: non i volumi di superficie, che il velo
+ * nasconde per cella (`VeilInstances`). Un volume con l'indice rimescolato restava visibile sotto una cella mai osservata, o spariva
+ * sotto una osservata, senza che nessun allarme suonasse.
+ *
+ * 🔑 **Due volumi e non uno**: con un solo volume non c'e' niente da scambiare. 🔑 **Il controllo positivo prima**: la board intatta passa
+ * il guardiano, quindi il rosso dopo lo scambio e' dello scambio e non di una board che il guardiano rifiuta comunque.
+ * ⚠️ Il seam e' SILENZIOSO (`bReport` falso): l'`ensure` del guardiano stampa una pila a livello Error e scatta una sola volta per
+ * processo, quindi un test che lo provocasse passerebbe o cadrebbe secondo chi corre prima. Si prova il VERDETTO, non l'`ensure`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorMappingGuardSeesShuffledSurfaceVolumesTest,
+	"RefactorTactics.HexMapActor.MappingGuardSeesShuffledSurfaceVolumes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorMappingGuardSeesShuffledSurfaceVolumesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 2);
+	for (const int32 Indice : { 1, 2 })
+	{
+		FRTHexCellData Fumo = Asset->Cells[Indice];
+		Fumo.Surface = ERTHexSurface::Smoke;
+		Asset->AddOrUpdateCell(Fumo);
+	}
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	UInstancedStaticMeshComponent* Volumi = const_cast<UInstancedStaticMeshComponent*>(FindMapActorIsm(Actor, TEXT("SurfaceVolumes")));
+	if (!TestNotNull(TEXT("l'ISM dei volumi"), Volumi)
+		|| !TestTrue(TEXT("premessa ANTI-VACUITA': ci sono almeno due volumi da scambiare"), Volumi->GetInstanceCount() >= 2)
+		|| !TestTrue(TEXT("controllo positivo: la board intatta passa il guardiano"), Actor->VerifyAllMappingsForTest()))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	SwapInstancePlacements(Volumi, 0, 1);
+	TestFalse(TEXT("due volumi scambiati: il guardiano lo vede"), Actor->VerifyAllMappingsForTest());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * **`#3899` — una colonna di nebbia con l'indice rimescolato fa cadere il guardiano.**
+ *
+ * La nebbia e' una colonna per cella, PARALLELA al disco (`InstanceCells`): `WriteFog` la scrive per indice, e il guardiano non la
+ * guardava. Stessa costruzione del test dei volumi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorMappingGuardSeesShuffledFogTest,
+	"RefactorTactics.HexMapActor.MappingGuardSeesShuffledFog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorMappingGuardSeesShuffledFogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 2));
+	if (!TestNotNull(TEXT("actor"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	UInstancedStaticMeshComponent* Nebbia = const_cast<UInstancedStaticMeshComponent*>(FindMapActorIsm(Actor, TEXT("FogVolumes")));
+	if (!TestNotNull(TEXT("l'ISM della nebbia"), Nebbia)
+		|| !TestTrue(TEXT("premessa ANTI-VACUITA': ci sono almeno due colonne da scambiare"), Nebbia->GetInstanceCount() >= 2)
+		|| !TestTrue(TEXT("controllo positivo: la board intatta passa il guardiano"), Actor->VerifyAllMappingsForTest()))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	SwapInstancePlacements(Nebbia, 0, 1);
+	TestFalse(TEXT("due colonne di nebbia scambiate: il guardiano lo vede"), Actor->VerifyAllMappingsForTest());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
