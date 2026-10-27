@@ -483,7 +483,7 @@ public:
 	 * `ARTTurnManager::EnsureMatchRoster` con `StableUnitId`: l'identita si assegna una volta.
 	 *
 	 * **Chi entra dopo** non causa nessuna riassegnazione di UNITA: riceve il proprio gruppo da `AssignSeats`
-	 * (`ARTPlayerState::ControlGroup`, per arrivo) e comanda le unita che gia portano quel gruppo.
+	 * (`ARTPlayerState::ControlGroup`, il primo posto libero) e comanda le unita che gia portano quel gruppo.
 	 *
 	 * ✅ **Il lato delle persone e di `AssignSeats`, e dal `#3895` e stabile**: chi ha un posto lo tiene, quindi il gruppo con cui
 	 * comanda le unita non cambia perche un altro controller esce o entra. ⏱️ *Fino ad allora i posti si ricalcolavano per posizione.*

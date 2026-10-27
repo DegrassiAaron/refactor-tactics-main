@@ -1157,8 +1157,8 @@ void ARTGameMode::AssignSeats()
 		return (TeamId == 0 || TeamId == 1) && Group >= 0 && Group < SeatsPerTeam ? Group * 2 + TeamId : INDEX_NONE;
 	};
 
-	// 1. **Chi ha gia' un posto lo tiene.** Un posto non piu' valido (il formato e' cambiato) o gia' preso da un altro si libera, e il
-	// giocatore ricade nel secondo giro.
+	// 1. **Chi ha gia' un posto lo tiene.** Un posto non valido per il formato o gia' preso da un altro si libera, e il giocatore
+	// ricade nel secondo giro. Difensivo: in produzione `SetupHexMatch` libera tutto prima, e i posti li scrive solo questa funzione.
 	for (ARTPlayerState* PS : Players)
 	{
 		if (!PS->HasSeat())

@@ -773,7 +773,7 @@ difetto che `#507` ha già pagato una volta su quella stessa riga.
 | `ControlGroupForUnit(IndexInTeam, UnitsPerPlayer)` | `URTCombatLibrary` — divisione intera, `INDEX_NONE` fail-closed su ingressi che non partizionano |
 | `CanPlayerControlUnitInGroup(...)` | `URTCombatLibrary` — **squadra prima**, poi gruppo; `INDEX_NONE` da un lato o dall'altro rifiuta |
 | Assegnazione all'allestimento | `ARTGameMode::AssignUnitControlGroups()`, in coda ad `AssignSeats()` |
-| Il gruppo della persona | `ARTPlayerState::ControlGroup`, `Arrival / 2` — i posti si assegnano alternati |
+| Il gruppo della persona | `ARTPlayerState::ControlGroup`, `k / 2` con `k` il primo posto libero — i posti si assegnano alternati (`#3895`) |
 | Il gruppo dell'unità | `ARTUnit::ControlGroup` |
 | I consumatori | le guardie di comando di `ARTPlayerController` — `CycleSelection`, `OnSelect` e `DispatchUnitClick`; si rileggono con `git grep -n CanPlayerControlUnitInGroup -- Source/RefactorTactics/Player/`. ⚠️ **Qui c'era `ARTPlayerController::HandleClick`, che non è mai esistito**, e un «due» che il terzo sito avrebbe smentito da solo |
 | Il test | `RefactorTactics.Combat.ControlGroupPartitionsTheTeam` |

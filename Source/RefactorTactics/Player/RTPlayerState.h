@@ -14,7 +14,7 @@ class APlayerController;
  * runtime: con due client varrebbe `0` per entrambi, e si romperebbe **in silenzio** perche' `0` e' una
  * risposta plausibile.
  *
- * ⛔ **`TeamId` non e' editabile**: e' stato di runtime, scritto da `AssignTeam`. Quando la replicazione
+ * ⛔ **`TeamId` non e' editabile**: e' stato di runtime, scritto da `AssignSeat` (e da `AssignTeam` nelle fixture). Quando la replicazione
  * arrivera' il campo diventa `Replicated` con condizione owner-only e il seam e' gia' al posto giusto.
  */
 UCLASS()
