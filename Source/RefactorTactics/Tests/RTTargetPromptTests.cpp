@@ -14,6 +14,7 @@
 #include "UI/RTHudViewModel.h"
 #include "Player/RTPointerInteraction.h"
 #include "Ability/RTActionDef.h"
+#include "Tests/RTTargetPromptTestHelpers.h" // #3869: tutti i testi, enumerati dagli UENUM
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -323,12 +324,16 @@ bool FRTTargetPromptWritesUnitWithItsAccentTest::RunTest(const FString&)
  * 🔑 **NESSUN TESTO DEL PROMPT USA UN APOSTROFO AL POSTO DI UN ACCENTO** (#3869, rilievo della review).
  *
  * Il test sull'accento di «unità» protegge due stringhe, e lo stesso difetto stava in una terza, nella stessa funzione e nello stesso
- * widget («sé»). Qui il controllo e' sulla CLASSE: si leggono tutti i testi che `BuildTargetPrompt` puo' produrre, per ogni contesto e ogni
- * forma di bersaglio, e si cerca un apostrofo che non sia un'elisione. Un'elisione (`un'azione`, `l'orientamento`) ha una lettera
- * subito dopo l'apostrofo; un accento scritto come apostrofo (`unita'`, `se':`) no. Una frase futura che ci ricadesse fa rosso.
+ * widget («sé»). Qui il controllo e' sulla CLASSE: si leggono tutti i testi che `BuildTargetPrompt` puo' produrre (enumerati dagli `UENUM`,
+ * vedi `RTTargetPromptTestHelpers.h`) e si cerca un apostrofo che non sia un'elisione. Un'elisione (`un'azione`, `l'orientamento`) ha una lettera
+ * subito dopo l'apostrofo; un accento scritto come apostrofo (`unita'`, `se':`) no.
  *
- * Il controllo positivo e' doppio: il predicato riconosce un testo sbagliato scritto a mano, e lascia passare un'elisione vera
- * che il prompt produce davvero. Senza il primo il controllo sarebbe vero per assenza, senza il secondo rifiuterebbe tutto.
+ * ⚠️ **Che cosa il predicato vede, e che cosa no.** Vede l'apostrofo ASCII (`'`) e quello tipografico (U+2019) non seguiti da una lettera. Lascia
+ * passare il troncamento `po'` (`un po' di`), che e' italiano corretto. Non vede un accento scritto in un altro modo (un accento grave isolato, per esempio):
+ * e' un controllo sul difetto noto, non un correttore ortografico.
+ *
+ * Il controllo positivo e' triplo: il predicato riconosce i testi sbagliati scritti a mano (in entrambe le forme), lascia passare un'elisione e un troncamento
+ * veri, e fra i testi che il prompt produce c'e' un'elisione vera. Senza i primi sarebbe vero per assenza, senza gli altri rifiuterebbe tutto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptNeverUsesAnApostropheForAnAccentTest,
 	"RefactorTactics.HudViewModel.TargetPromptNeverUsesAnApostropheForAnAccent",
@@ -336,12 +341,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptNeverUsesAnApostropheForAnAccent
 
 bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&)
 {
-	// Un apostrofo NON seguito da una lettera: la fine di una parola (`unita'`), o prima di un segno (`se':`).
 	const auto ApostrofoComeAccento = [](const FString& Testo)
 	{
 		for (int32 i = 0; i < Testo.Len(); ++i)
 		{
-			if (Testo[i] == TEXT('\'') && (i + 1 >= Testo.Len() || !FChar::IsAlpha(Testo[i + 1])))
+			const TCHAR C = Testo[i];
+			if ((C != TEXT('\'') && C != TEXT('\u2019')) || (i + 1 < Testo.Len() && FChar::IsAlpha(Testo[i + 1])))
+			{
+				continue; // non e' un apostrofo, oppure e' un'elisione
+			}
+			const bool bTroncamento = i >= 2 && Testo[i - 1] == TEXT('o') && Testo[i - 2] == TEXT('p')
+				&& (i < 3 || !FChar::IsAlpha(Testo[i - 3]));
+			if (!bTroncamento)
 			{
 				return true;
 			}
@@ -349,31 +360,23 @@ bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&
 		return false;
 	};
 
-	// Il predicato riconosce il difetto, e non rifiuta un'elisione.
-	TestTrue(TEXT("premessa: il predicato riconosce un accento scritto come apostrofo"), ApostrofoComeAccento(TEXT("Seleziona un'unita'")));
+	// Il predicato riconosce il difetto in entrambe le forme, e non rifiuta l'italiano corretto.
+	TestTrue(TEXT("premessa: riconosce un accento scritto come apostrofo ASCII"), ApostrofoComeAccento(TEXT("Seleziona un'unita'")));
+	TestTrue(TEXT("premessa: ... e come apostrofo tipografico"), ApostrofoComeAccento(TEXT("Seleziona un'unita\u2019")));
 	TestTrue(TEXT("premessa: ... anche prima di un segno"), ApostrofoComeAccento(TEXT("Azione su di se': confermata")));
-	TestFalse(TEXT("premessa: e lascia passare un'elisione"), ApostrofoComeAccento(TEXT("Scegli un'azione")));
+	TestFalse(TEXT("premessa: lascia passare un'elisione"), ApostrofoComeAccento(TEXT("Scegli un'azione")));
+	TestFalse(TEXT("premessa: lascia passare un troncamento"), ApostrofoComeAccento(TEXT("Aspetta un po' di tempo")));
+	TestTrue(TEXT("premessa: ma non una parola che finisce in `o'` senza essere `po'`"), ApostrofoComeAccento(TEXT("Perche' no")) && ApostrofoComeAccento(TEXT("Scelto'")));
 
-	int32 Letti = 0;
+	const TArray<FText> Testi = RTTargetPromptTest::AllTexts();
+	TestTrue(TEXT("premessa: il prompt ha dei testi da leggere"), Testi.Num() > 0);
 	bool bVistaUnElisione = false;
-	for (const ERTPointerContext Contesto : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning, ERTPointerContext::Pathing,
-		ERTPointerContext::Targeting, ERTPointerContext::Facing, ERTPointerContext::ResolutionPlayback,
-		ERTPointerContext::ReactionWindow, ERTPointerContext::Modal })
+	for (const FText& Testo : Testi)
 	{
-		for (const ERTPointerTargetKind Tipo : { ERTPointerTargetKind::None, ERTPointerTargetKind::Unit, ERTPointerTargetKind::Cell,
-			ERTPointerTargetKind::Edge, ERTPointerTargetKind::Object })
-		{
-			const FString Testo = URTHudViewModel::BuildTargetPrompt(Contesto, Tipo).Text.ToString();
-			if (Testo.IsEmpty())
-			{
-				continue;
-			}
-			++Letti;
-			bVistaUnElisione |= Testo.Contains(TEXT("'")) && !ApostrofoComeAccento(Testo);
-			TestFalse(*FString::Printf(TEXT("'%s' non usa un apostrofo al posto di un accento"), *Testo), ApostrofoComeAccento(Testo));
-		}
+		const FString Lettura = Testo.ToString();
+		bVistaUnElisione |= Lettura.Contains(TEXT("'")) && !ApostrofoComeAccento(Lettura);
+		TestFalse(*FString::Printf(TEXT("'%s' non usa un apostrofo al posto di un accento"), *Lettura), ApostrofoComeAccento(Lettura));
 	}
-	TestTrue(TEXT("premessa: il prompt ha dei testi da leggere"), Letti > 0);
 	TestTrue(TEXT("premessa: fra i testi letti c'e' un'elisione vera, e il predicato l'ha lasciata passare"), bVistaUnElisione);
 	return true;
 }

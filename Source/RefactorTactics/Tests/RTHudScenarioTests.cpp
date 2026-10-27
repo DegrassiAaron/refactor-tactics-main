@@ -32,7 +32,7 @@
 #include "ScenarioHarness/RTTestResult.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudLayout.h"     // #3661: le fasce in cui gli inquilini devono entrare
-#include "UI/RTHudViewModel.h"  // #3869: i testi del prompt, che il grafo del dock scrive a runtime
+#include "Tests/RTTargetPromptTestHelpers.h" // #3869: i testi del prompt, che il grafo del dock scrive a runtime
 #include "UI/RTHudZoneWidget.h"
 #include "Components/CanvasPanelSlot.h" // #3661: la posa delle zone letta dagli slot
 #include "Tests/RTHudGeometryForTest.h" // #3661: le risoluzioni della DoD
@@ -763,9 +763,10 @@ namespace
  * (`FRTHudBands::LeftTop`). Due scenari: due unita' proprie (il formato della v0.1) e tre (la sandbox).
  *
  * ⚠️ **Limiti dichiarati.** E' la misura del contenuto che lo scenario produce, non del caso peggiore: il registro
- * vuoto ha misura zero e non si misura. E gli slot delle azioni del dock li costruisce il grafo Blueprint al tick,
- * che headless senza paint non gira: la misura del dock qui e' quella della sua cornice. In PIE (`U79`) il dock
- * occupa circa 1020x110 unita', contro le 1720 della fascia bassa a 16:10. Restano di PIE.
+ * vuoto ha misura zero e non si misura. Gli slot delle azioni del dock li costruisce l'evento Tick del Blueprint, e il
+ * prompt ne scrive il testo a runtime e lo tiene `Collapsed` finche' non ce l'ha: dal #3869 il gate fa girare il Tick,
+ * scrive ogni testo del prompt e misura la zona `Bottom` a ogni risoluzione con la sua scala (vedi il blocco dedicato).
+ * Restano di PIE il carattere reale e un dock con piu' righe di quelle che lo scenario costruisce.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudTenantsFitTheirBandsTest,
 	"RefactorTactics.ScreenHud.TenantsFitTheirBands",
@@ -914,6 +915,72 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 		// Anti-vacuita': roster, testata, Conferma, scheda e dock hanno contenuto in ogni scenario.
 		TestTrue(*FString::Printf(TEXT("%s: almeno quattro zone misurate (%d)"), Scenario, Misurate), Misurate >= 4);
 
+		// 🔑 **Il prompt del dock sta nella zona `Bottom`, a ogni risoluzione con la sua scala** (#3869).
+		//
+		// La misura sopra non contiene il prompt: il grafo del dock ne scrive il testo a runtime e lo tiene `Collapsed` finche' non
+		// ce l'ha, quindi con il blob vecchio e con quello nuovo la zona misura lo stesso. Qui il Tick costruisce gli slot (dopo
+		// `TakeWidget`, come in partita), si scrive ogni testo che `BuildTargetPrompt` puo' produrre e si misura la ZONA, cornice
+		// compresa, con l'HUD vero e il contesto di partita gia' dati. ⚠️ La scala conta: il carattere si arrotonda, e un
+		// dock che entra a 0,833 puo' non entrare a 1,0. Per questo si misura con `SlatePrepass(scala della risoluzione)`, e oltre
+		// alle quattro della DoD si misura la finestra dell'evidenza di #3869 (1600x900), l'unica che la PIE ha visto.
+		if (DockDellHud)
+		{
+			const URTHudZoneWidget* ZonaDelPrompt = nullptr;
+			Hud->WidgetTree->ForEachWidget([&](UWidget* W)
+			{
+				const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W);
+				if (Zona && Zona->GetContentForSlot(TEXT("Content")) == DockDellHud)
+				{
+					ZonaDelPrompt = Zona;
+				}
+			});
+			UTextBlock* Prompt = Cast<UTextBlock>(DockDellHud->GetWidgetFromName(TEXT("TargetPrompt")));
+			if (TestNotNull(*FString::Printf(TEXT("%s: il dock sta in una zona"), Scenario), ZonaDelPrompt)
+				&& TestNotNull(*FString::Printf(TEXT("%s: il dock ha un TargetPrompt che e' un TextBlock"), Scenario), Prompt))
+			{
+				DockDellHud->Tick(FGeometry(), 0.f); // gli slot li costruisce l'evento Tick del Blueprint
+				TestTrue(*FString::Printf(TEXT("%s: premessa: gli slot delle azioni ci sono dopo il Tick"), Scenario), SlotsOf(DockDellHud).Num() > 0);
+
+				const TArray<FText> Testi = RTTargetPromptTest::AllTexts();
+				if (TestTrue(*FString::Printf(TEXT("%s: premessa: il prompt ha dei testi da misurare"), Scenario), Testi.Num() > 0))
+				{
+					TArray<FIntPoint> Finestre;
+					for (const RTHudRisoluzioni::FRisoluzione& Ris : RTHudRisoluzioni::Tutte())
+					{
+						Finestre.Add(FIntPoint(Ris.Larghezza, Ris.Altezza));
+					}
+					Finestre.Add(FIntPoint(1600, 900)); // la finestra dell'evidenza di #3869
+
+					const float Spazio = static_cast<float>(RTHudLayout::ZoneLayout(ERTHudZone::Bottom, F).Offsets.Bottom);
+					for (const FIntPoint& Finestra : Finestre)
+					{
+						const float Scala = RTHudLayout::UiScaleFor(Finestra);
+
+						// Senza prompt vuol dire col prompt `Collapsed`: un TextBlock vuoto occupa comunque una riga.
+						Prompt->SetVisibility(ESlateVisibility::Collapsed);
+						Radice->SlatePrepass(Scala);
+						const float SenzaPrompt = static_cast<float>(ZonaDelPrompt->GetDesiredSize().Y);
+
+						Prompt->SetVisibility(ESlateVisibility::HitTestInvisible);
+						float Massima = 0.f;
+						for (const FText& Testo : Testi)
+						{
+							Prompt->SetText(Testo);
+							Radice->SlatePrepass(Scala);
+							Massima = FMath::Max(Massima, static_cast<float>(ZonaDelPrompt->GetDesiredSize().Y));
+						}
+
+						AddInfo(FString::Printf(TEXT("%s, %dx%d (scala %.3f): zona Bottom senza prompt %.1f, col prompt piu' alto %.1f, spazio %.1f"),
+							Scenario, Finestra.X, Finestra.Y, Scala, SenzaPrompt, Massima, Spazio));
+						TestTrue(*FString::Printf(TEXT("%s, %dx%d: premessa: il prompt contribuisce all'altezza della zona"), Scenario, Finestra.X, Finestra.Y),
+							Massima > SenzaPrompt + 1.f);
+						TestTrue(*FString::Printf(TEXT("%s, %dx%d: la zona Bottom col suo prompt chiede %.1f unita' e ne ha %.1f"),
+							Scenario, Finestra.X, Finestra.Y, Massima, Spazio), Massima <= Spazio + 0.5f);
+					}
+				}
+			}
+		}
+
 		// 🔑 **L'indicatore del piano sta nel dock, e il dock nella zona `Bottom`** (#3680): la misura sopra lo
 		// contiene, perche' la zona misura il dock con la sua riga. Compare solo dove la mappa ha piu' di un piano, e
 		// `LayerStack` ne ha tre: li' deve comparire, altrimenti la misura non lo conterrebbe affatto.
@@ -945,107 +1012,6 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 			}
 		}
 	}
-	return true;
-}
-
-/**
- * 🔑 **IL DOCK COL SUO PROMPT ENTRA NELLA ZONA `Bottom`** (#3869).
- *
- * `TargetPrompt` stava sotto la barra delle azioni e usciva dalla zona: veniva tagliato dal bordo inferiore. Il gate
- * `TenantsFitTheirBands` non lo vedeva, e la ragione e' misurata: il testo del prompt lo scrive il grafo del dock a runtime,
- * e headless la zona misura lo stesso con il blob vecchio e con quello nuovo. Qui il testo lo scrive il test, preso da
- * `BuildTargetPrompt`, con gli slot costruiti dall'evento Tick del Blueprint; poi Slate misura il dock in unita' Slate e lo si
- * confronta con l'altezza che il dato assegna alla zona.
- *
- * ⚠️ Si misurano **tutti** i testi che `BuildTargetPrompt` puo' produrre, non uno: una riga che andasse a capo
- * crescerebbe, e il peggiore e' quello che decide.
- *
- * ⛔ E' la misura del dock con i suoi slot, in headless: non e' quella di PIE (il carattere reale e la scala di
- * resa), e non copre un dock con piu' righe di quelle che lo scenario costruisce. Il controllo positivo e' che gli slot ci
- * siano e che il prompt contribuisca all'altezza: senza, il confronto sarebbe vero per assenza.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDockWithItsPromptFitsTheBottomZoneTest,
-	"RefactorTactics.ScreenHud.ActionDockWithItsPromptFitsTheBottomZone",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FRTActionDockWithItsPromptFitsTheBottomZoneTest::RunTest(const FString&)
-{
-	UWorld* World = RTWorldFixtures::MakeWorld();
-	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
-	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
-
-	FString ReportDir;
-	const FRTTestResult Result =
-		URTScenarioRunner::RunById(World, TEXT("Spec.Hud.DockArmsTheSelectedAction"), ReportDir);
-	if (!TestEqual(TEXT("lo scenario gira"),
-		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
-	{
-		AddError(FString::Printf(TEXT("esito scenario: %s"), *Result.ErrorMessage));
-		return false;
-	}
-	ARTUnit* Mine = RTWorldFixtures::FirstUnitOfTeam(World, 0);
-	if (!TestNotNull(TEXT("lo scenario ha lasciato in campo un'unita' del team 0"), Mine)) { return false; }
-
-	UClass* DockClass = LoadClass<URTActionDockWidget>(nullptr, DockBlueprintPath);
-	if (!TestNotNull(TEXT("WBP_RT_ActionDock si carica"), DockClass)) { return false; }
-	URTActionDockWidget* Dock = CreateWidget<URTActionDockWidget>(World, DockClass);
-	if (!TestNotNull(TEXT("il dock si istanzia"), Dock)) { return false; }
-	Dock->SetSelectedUnitForTest(Mine);
-	Dock->Tick(FGeometry(), 0.f); // gli slot li costruisce l'evento Tick del Blueprint
-
-	UTextBlock* Prompt = Cast<UTextBlock>(Dock->GetWidgetFromName(TEXT("TargetPrompt")));
-	if (!TestNotNull(TEXT("il dock ha un TargetPrompt che e' un TextBlock"), Prompt)) { return false; }
-	TestTrue(TEXT("premessa: gli slot delle azioni ci sono"), SlotsOf(Dock).Num() > 0);
-
-	// Il grafo del dock tiene il prompt `Collapsed` finche' non ha un testo suo: la misura che serve e' quella del prompt
-	// VISIBILE, che e' il caso in cui sfora.
-	AddInfo(FString::Printf(TEXT("visibilita' del prompt dopo il Tick del dock: %d"), static_cast<int32>(Prompt->GetVisibility())));
-	Prompt->SetVisibility(ESlateVisibility::HitTestInvisible);
-
-	TSharedRef<SWidget> Radice = Dock->TakeWidget();
-	const auto Altezza = [&](const FText& Testo)
-	{
-		Prompt->SetText(Testo);
-		Radice->SlatePrepass(1.f);
-		return static_cast<float>(Dock->GetDesiredSize().Y);
-	};
-
-	// Tutti i testi che il prompt puo' mostrare.
-	TArray<FText> Testi;
-	for (const ERTPointerContext Contesto : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning, ERTPointerContext::Pathing,
-		ERTPointerContext::Targeting, ERTPointerContext::Facing, ERTPointerContext::ResolutionPlayback,
-		ERTPointerContext::ReactionWindow, ERTPointerContext::Modal })
-	{
-		for (const ERTPointerTargetKind Tipo : { ERTPointerTargetKind::None, ERTPointerTargetKind::Unit, ERTPointerTargetKind::Cell,
-			ERTPointerTargetKind::Edge, ERTPointerTargetKind::Object })
-		{
-			const FText Testo = URTHudViewModel::BuildTargetPrompt(Contesto, Tipo).Text;
-			if (!Testo.IsEmpty())
-			{
-				Testi.Add(Testo);
-			}
-		}
-	}
-	if (!TestTrue(TEXT("premessa: il prompt ha dei testi da misurare"), Testi.Num() > 0)) { return false; }
-
-	// Senza prompt vuol dire col prompt `Collassato`: un TextBlock vuoto occupa comunque una riga.
-	Prompt->SetVisibility(ESlateVisibility::Collapsed);
-	const float SenzaPrompt = Altezza(FText::GetEmpty());
-	Prompt->SetVisibility(ESlateVisibility::HitTestInvisible);
-	float Massima = 0.f;
-	for (const FText& Testo : Testi)
-	{
-		Massima = FMath::Max(Massima, Altezza(Testo));
-	}
-	const float Budget = static_cast<float>(RTHudLayout::ZoneLayout(ERTHudZone::Bottom, RTHudLayout::Bands()).Offsets.Bottom);
-
-	const UWidget* Barra = Dock->GetWidgetFromName(TEXT("BarPanel"));
-	AddInfo(FString::Printf(TEXT("barra %.1f, prompt %.1f, dock senza prompt %.1f, col prompt piu' alto %.1f, zona Bottom %.1f unita' Slate"),
-		Barra ? static_cast<float>(Barra->GetDesiredSize().Y) : -1.f, static_cast<float>(Prompt->GetDesiredSize().Y),
-		SenzaPrompt, Massima, Budget));
-	TestTrue(TEXT("premessa: il prompt contribuisce all'altezza del dock"), Massima > SenzaPrompt + 1.f);
-	TestTrue(*FString::Printf(TEXT("il dock col suo prompt chiede %.1f unita' e la zona Bottom ne ha %.1f"), Massima, Budget),
-		Massima <= Budget);
 	return true;
 }
 
