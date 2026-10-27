@@ -39,7 +39,7 @@ Il dock sta in `Zone_Bottom`, alta `Bands().Bottom - 2 * ZoneMargin` = 175,6 uni
 
 ## IMPLEMENTATION DRIFT (CLAUDE.md §3) - RISOLTO da D-549
 
-> **Risolto il 2026-10-27**: la fascia bassa e' stata alzata a 194,4 e il padding e' tornato a 20/22, quindi `tokens.json`, la sua copia e il runbook U65 sono di nuovo coerenti con l'asset e non sono stati modificati. Il testo seguente e' quello di quando il drift era aperto.
+> **Risolto il 2026-10-27**: la fascia bassa e' stata alzata a 194,4 e il padding e' tornato a 20/22, quindi `tokens.json`, la sua copia e il runbook U65 sono di nuovo coerenti con l'asset e i loro valori non sono stati modificati (del runbook si e' tolto l'avviso e aggiunto il padding del prompt). Il testo seguente e' quello di quando il drift era aperto.
 
 Il padding verticale di `BarPanel` e' passato da **20 sopra e 22 sotto a 12 e 12**. Due fonti dicono ancora 20/22 e **non le ho riconciliate**:
 
