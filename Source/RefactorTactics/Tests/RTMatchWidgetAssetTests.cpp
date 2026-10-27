@@ -16,7 +16,7 @@
 // geometria, come fa il gemello.
 //
 // ⚠️ **Eccezione dal #3869**: `ActionDockPromptUsesTheDockStyle` guarda il font e il colore di `TargetPrompt`, perche' il prompt
-// era l'unico testo del dock senza stile e usciva dalla zona. L'altezza la misura `ActionDockWithItsPromptFitsTheBottomZone`
+// era l'unico testo del dock senza stile e usciva dalla zona. L'altezza la misura il blocco del prompt in `TenantsFitTheirBands`
 // (`RTHudScenarioTests.cpp`). Il resto dell'aspetto resta di PIE.
 
 #include "Misc/AutomationTest.h"
@@ -1950,7 +1950,7 @@ bool FRTEventLogWearsItsLineClassTest::RunTest(const FString&)
  *   1. il font e' del progetto (`/Game/RT/UI/Fonts/`), non quello del motore;
  *   2. il colore e' `Text_Primary`, il token della palette: lo stesso confronto che fanno i test dei widget gemelli.
  *
- * ⛔ **Non misura l'altezza.** Che il prompt stia nella zona lo dice `ActionDockWithItsPromptFitsTheBottomZone`
+ * ⛔ **Non misura l'altezza.** Che il prompt stia nella zona lo dice il blocco del prompt in `TenantsFitTheirBands`
  * (`RTHudScenarioTests.cpp`), che misura il dock con Slate. Un confronto fra le dimensioni dei testi del dock, che questo test
  * faceva in una prima stesura, non era un guardiano: il prompt ha un font diverso dai vicini, e a un'altezza al limite passava lo stesso.
  */

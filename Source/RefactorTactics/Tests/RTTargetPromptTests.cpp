@@ -290,10 +290,10 @@ bool FRTTargetPromptDeclaresUnproducibleKindTest::RunTest(const FString&)
 /**
  * 🔑 **I PROMPT CHE NOMINANO UN'UNITA' LA SCRIVONO CON L'ACCENTO** (#3869).
  *
- * L'apostrofo ASCII al posto dell'accento (`unita'`) e' un'abitudine dei commenti di questo repository, non del testo che il
- * giocatore legge: i due prompt che nominano un'unita' (nessuna selezione, e la scelta di un'unita' con un'azione armata)
- * la stampavano così. Il controllo positivo e' che i due testi esistano e siano diversi fra loro: un test che
- * cercasse l'assenza di `unita'` passerebbe anche su due testi vuoti.
+ * L'apostrofo ASCII al posto dell'accento (`unita'`) e' un'abitudine di questo repository, e in altre stringhe visibili arriva
+ * anche al giocatore (l'elenco e' nella PR di #3869): questo controllo copre il prompt di targeting. I prompt che nominano
+ * un'unita' (nessuna selezione, e la scelta di un'unita' con un'azione armata) la stampavano così. Il controllo positivo e'
+ * che i testi esistano e siano diversi fra loro: un test che cercasse l'assenza di `unita'` passerebbe anche su testi vuoti.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptWritesUnitWithItsAccentTest,
 	"RefactorTactics.HudViewModel.TargetPromptWritesUnitWithItsAccent",
@@ -341,17 +341,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptNeverUsesAnApostropheForAnAccent
 
 bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&)
 {
-	const auto ApostrofoComeAccento = [](const FString& Testo)
+	// Una lettera: ASCII, o fuori dall'ASCII (`FChar::IsAlpha` e' `iswalpha`, che per le lettere accentate puo' rispondere no).
+	const auto Lettera = [](const TCHAR C) { return C > 127 || FChar::IsAlpha(C); };
+	const auto Apostrofo = [](const TCHAR C) { return C == TEXT('\'') || C == TEXT('\u2019'); };
+	const auto ApostrofoComeAccento = [&](const FString& Testo)
 	{
 		for (int32 i = 0; i < Testo.Len(); ++i)
 		{
-			const TCHAR C = Testo[i];
-			if ((C != TEXT('\'') && C != TEXT('\u2019')) || (i + 1 < Testo.Len() && FChar::IsAlpha(Testo[i + 1])))
+			if (!Apostrofo(Testo[i]) || (i + 1 < Testo.Len() && Lettera(Testo[i + 1])))
 			{
 				continue; // non e' un apostrofo, oppure e' un'elisione
 			}
-			const bool bTroncamento = i >= 2 && Testo[i - 1] == TEXT('o') && Testo[i - 2] == TEXT('p')
-				&& (i < 3 || !FChar::IsAlpha(Testo[i - 3]));
+			const bool bTroncamento = i >= 2 && FChar::ToLower(Testo[i - 1]) == TEXT('o') && FChar::ToLower(Testo[i - 2]) == TEXT('p')
+				&& (i < 3 || !Lettera(Testo[i - 3]));
 			if (!bTroncamento)
 			{
 				return true;
@@ -366,6 +368,8 @@ bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&
 	TestTrue(TEXT("premessa: ... anche prima di un segno"), ApostrofoComeAccento(TEXT("Azione su di se': confermata")));
 	TestFalse(TEXT("premessa: lascia passare un'elisione"), ApostrofoComeAccento(TEXT("Scegli un'azione")));
 	TestFalse(TEXT("premessa: lascia passare un troncamento"), ApostrofoComeAccento(TEXT("Aspetta un po' di tempo")));
+	TestFalse(TEXT("premessa: ... anche in maiuscola a inizio frase"), ApostrofoComeAccento(TEXT("Po' di tempo")));
+	TestFalse(TEXT("premessa: e un'elisione prima di una lettera accentata"), ApostrofoComeAccento(TEXT("Scegli un'\u00e0ncora")));
 	TestTrue(TEXT("premessa: ma non una parola che finisce in `o'` senza essere `po'`"), ApostrofoComeAccento(TEXT("Perche' no")) && ApostrofoComeAccento(TEXT("Scelto'")));
 
 	const TArray<FText> Testi = RTTargetPromptTest::AllTexts();
@@ -374,7 +378,12 @@ bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&
 	for (const FText& Testo : Testi)
 	{
 		const FString Lettura = Testo.ToString();
-		bVistaUnElisione |= Lettura.Contains(TEXT("'")) && !ApostrofoComeAccento(Lettura);
+		bool bConApostrofo = false;
+		for (const TCHAR C : Lettura)
+		{
+			bConApostrofo |= Apostrofo(C);
+		}
+		bVistaUnElisione |= bConApostrofo && !ApostrofoComeAccento(Lettura);
 		TestFalse(*FString::Printf(TEXT("'%s' non usa un apostrofo al posto di un accento"), *Lettura), ApostrofoComeAccento(Lettura));
 	}
 	TestTrue(TEXT("premessa: fra i testi letti c'e' un'elisione vera, e il predicato l'ha lasciata passare"), bVistaUnElisione);

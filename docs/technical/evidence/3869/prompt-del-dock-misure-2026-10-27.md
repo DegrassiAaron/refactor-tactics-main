@@ -39,10 +39,15 @@ Il dock sta in `Zone_Bottom`, alta `Bands().Bottom - 2 * ZoneMargin` = 175,6 uni
 
 Il padding verticale di `BarPanel` e' passato da **20 sopra e 22 sotto a 12 e 12**. Due fonti dicono ancora 20/22 e **non le ho riconciliate**:
 
-- `docs/research/skill-bar-pacchetto/dati/tokens.json`: `"dock_padding": [20, 24, 22, 24]`;
-- `docs/technical/runbooks/guida-seduta-u65-barra-fedele-al-mockup.md` §3: "padding sopra 20, ai lati 24, sotto 22".
+- `docs/research/skill-bar-pacchetto/dati/tokens.json` e la sua copia `docs/research/design/hud/skill-bar-2026-10/dati/tokens.json`: `"dock_padding": [20, 24, 22, 24]` (un JSON non porta un commento: non li ho toccati);
+- `docs/technical/runbooks/guida-seduta-u65-barra-fedele-al-mockup.md` §3: "padding sopra 20, ai lati 24, sotto 22". **Questo l'ho annotato** con un avviso che rimanda qui, senza cambiare la prescrizione.
 
 Serve una decisione dell'autore: aggiornare token e runbook al nuovo padding, oppure scegliere un'altra soluzione (alzare la fascia `Bands().Bottom`, o far stare il prompt dentro il pannello). **Se una seduta futura riapplica 20/22 dal runbook, il gate diventa rosso** (e' il blob del primo ritocco): non torna in silenzio.
+
+## Stato misurato
+
+- Le misure del gate sono state prese con i test del commit `1e86e37e8` e i blob di `main`, del commit `9985dfd21` (primo ritocco) e del commit `f92b7752b` (finale). Per il blob finale i due scenari del gate (`Spec.Hud.MatchWithTwoAllies` e `Visual.Map.LayerStack`) danno gli stessi numeri; per `main` e per il primo ritocco ho letto lo scenario `LayerStack`.
+- La suite Automation intera e' stata eseguita sul commit `eb160df21`, con zero rossi; i commit successivi di questo ramo toccano solo test e documenti, e vanno riletti nella PR.
 
 ## Limiti
 

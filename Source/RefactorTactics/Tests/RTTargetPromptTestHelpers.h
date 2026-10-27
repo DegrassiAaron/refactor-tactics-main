@@ -25,7 +25,6 @@ namespace RTTargetPromptTest
 	inline TArray<FText> AllTexts()
 	{
 		TArray<FText> Testi;
-		TArray<FString> Visti;
 		const UEnum* Contesti = StaticEnum<ERTPointerContext>();
 		const UEnum* Forme = StaticEnum<ERTPointerTargetKind>();
 		for (int32 c = 0; c < Contesti->NumEnums() - 1; ++c)
@@ -36,9 +35,14 @@ namespace RTTargetPromptTest
 					static_cast<ERTPointerContext>(Contesti->GetValueByIndex(c)),
 					static_cast<ERTPointerTargetKind>(Forme->GetValueByIndex(f))).Text;
 				const FString Lettura = Testo.ToString();
-				if (!Lettura.IsEmpty() && !Visti.Contains(Lettura))
+				// Il confronto e' SENSIBILE alle maiuscole: `FString::operator==` e `Contains` non lo sono, e due testi che
+				// differiscono solo per quello si fonderebbero in uno.
+				const bool bGia = Testi.ContainsByPredicate([&Lettura](const FText& Altro)
 				{
-					Visti.Add(Lettura);
+					return Altro.ToString().Equals(Lettura, ESearchCase::CaseSensitive);
+				});
+				if (!Lettura.IsEmpty() && !bGia)
+				{
 					Testi.Add(Testo);
 				}
 			}
