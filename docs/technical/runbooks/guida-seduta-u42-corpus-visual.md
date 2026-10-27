@@ -41,9 +41,9 @@ comando»*:
 Verificato nel codice: il ramo `ERTScenarioStart::Started` fa **`return`** prima di allestire la partita
 (`RTGameMode.cpp:476-483`), quindi **nessun roster e nessuna sovrapposizione**.
 
-### Il ciclo, **undici** volte
+### Il ciclo, una volta per Play
 
-⏱️ *Erano diciannove finché i tre compositi non hanno assorbito tredici voci. La sequenza esatta è nella
+⏱️ *Erano un Play per voce finché i tre compositi non ne hanno assorbite molte. La sequenza esatta è nella
 §2-bis qui sotto: falla in quell'ordine, non a caso.*
 
 1. Details del **GameMode** → categoria `RefactorTactics|Test` → **`Scenario To Run`**.
@@ -81,7 +81,7 @@ viewport** no.
   voci come `PIE-VIS-KO` non cambia niente; per altre potrebbe non bastare, e va deciso **voce per voce**
   invece di assumerlo.
 
-## 2-bis. La sequenza: undici Play in quest'ordine
+## 2-bis. La sequenza: i Play in quest'ordine
 
 **I tre compositi per primi, ed è una scelta.** Portano quasi tutte le voci della seduta (`PIE-ACC-GUARDBRACE` no: non
 si chiude da questo Play ma dalla riga 19, `Visual.Combat.GuardVsBraceFromBehind`, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888)): se la seduta si
@@ -101,6 +101,7 @@ un fenomeno per turno, da riconoscere mentre passa — quindi vanno fatti quando
 | 9 | `Visual.Combat.Defeat` | r4 | 6 | `PIE-VIS-KO` |
 | 10 | `Visual.Map.MultiLevel` | TestArena | 1 | `PIE-VIS-LEVEL` |
 | 11 | `Visual.Map.HighCoverBlocks` | CoverYard | 1 | `PIE-VIS-HIGHCOVER` |
+| 12 | `Visual.Combat.GuardVsBraceFromBehind` | r5 | 1 | `PIE-ACC-GUARDBRACE` |
 
 🔑 **Dopo i compositi l'ordine segue la FIXTURE, non il tema**: i Play 4-6 restano su `r5`, i 7-9 su `r4`,
 poi si cambia due volte in coda. Una fixture che non cambia è una scena che l'occhio riconosce già, e la
@@ -121,8 +122,8 @@ che distingue un verdetto da un «sembra ok»**.
 
 ### 🔑 Prima leggi qui: tre Play coprono nove voci
 
-⏱️ **Questa guida nasceva con diciannove voci e diciannove Play. Da quando esistono i tre compositi, gli
-allestimenti da fare sono undici invece di diciannove** — e le due voci nuove, `PIE-ACC-ENVIRONMENT` e
+⏱️ **Questa guida nasceva con un Play per ogni voce. Da quando esistono i tre compositi, gli
+allestimenti da fare sono meno di uno per voce: la sequenza è nella §2-bis** — e le due voci nuove, `PIE-ACC-ENVIRONMENT` e
 `PIE-ACC-MAP`, sono queste tre righe.
 
 | Play | scenario | voci che si giudicano lì dentro |
