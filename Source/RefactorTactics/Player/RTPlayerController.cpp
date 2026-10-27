@@ -259,10 +259,11 @@ namespace
 			return;
 		}
 
-		// 🔴 **La ROTTA si riscrive dal piano, qui** (`#3511`, review). I siti che la tracciano la scrivevano prima di chiamare
-		// questa funzione, e andava bene finche' a spegnere era un evento che poi non tornava. Con la regola derivata dallo
+		// 🔴 **La ROTTA si scrive dal piano, qui, e da nessun altro** (`#3511`, review; `#3892`). Con la regola derivata dallo
 		// stato le aree si spengono e tornano senza un evento: `ClearPlanningPreview` azzera anche la rotta, e il ritorno dalla
 		// pausa con un piano gia' tracciato la lasciava spenta mentre ventaglio, portata e timeline tornavano.
+		// ⏱️ *Fino a `#3892` sei siti la scrivevano a mano prima di chiamare il rinfresco: erano ridondanti, e facevano due
+		// verita' sul percorso.* Chi cambia il piano chiama `RefreshPlanningOverlay` e basta.
 		HexMap->SetPreviewPath(Unit->PlannedPath);
 
 		// Dove puo' ANCORA arrivare: budget, blocchi, occupanti e archi sono gia' applicati, e i waypoint gia'
@@ -2297,8 +2298,8 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
 	{
 		const ARTUnit* NewUnit = Cast<ARTUnit>(Actor);
-		SHexMap->SetPreviewPath(NewUnit ? NewUnit->PlannedPath : TArray<FRTCellId>());
-		// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
+		// Con il piano arrivano la rotta e le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce. La rotta la
+		// scrive `RefreshPlanningPreview` (`#3892`), la stessa che la riporta dopo una pausa.
 		RefreshPlanningOverlay(NewUnit);
 	}
 }
@@ -3121,7 +3122,6 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// piano finale, non la sequenza dei tentativi: chi prova un varco occupato e poi trova una strada si
 	// muove, e non deve portarsi dietro un «fermo: cella occupata» che il replay racconterebbe come esito.
 	SelectedUnit->ClearMovePlanRejection();
-	HexMap->SetPreviewPath(Composite.Path);
 	// Il percorso si e' allungato, quindi il ventaglio si accorcia: le due meta' della stessa anteprima si
 	// aggiornano insieme (#877). Aggiornarne una sola lasciava il verde a promettere celle che il waypoint
 	// successivo avrebbe rifiutato.
@@ -3506,11 +3506,6 @@ FString ARTPlayerController::DisarmPlannedAction()
 		// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
 		RebuildPlannedPath();
 	}
-	FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
-	if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
-	{
-		HMD->SetPreviewPath(Unit->PlannedPath);
-	}
 	RefreshPlanningOverlay(Unit);
 	// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG` del chiamante: la
 	// leggera' chi cerca perche' il suo percorso e' tornato.
@@ -3751,11 +3746,6 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		if (!bAnteprimaDaAggiornare)
 		{
 			return;
-		}
-		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
-		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
-		{
-			HM->SetPreviewPath(Unit->PlannedPath);
 		}
 		RefreshPlanningOverlay(Unit);
 	};
@@ -4246,12 +4236,6 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// perche' il piano di cui faceva parte non e' piu' quello. ⛔ Qui `Dropped > 0` per costruzione: si
 	// arriva a questa riga solo dal ramo in cui il percorso NON reggeva.
 	Unit->ClearMovePlanRejection();
-
-	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
-	if (ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map))
-	{
-		HexMap->SetPreviewPath(Unit->PlannedPath);
-	}
 	}();
 
 	// 🔑 **Il ridisegno e' fuori da ogni ramo**, perche' la sua causa non e' il troncamento: e' il TETTO che
@@ -4267,8 +4251,6 @@ void ARTPlayerController::RebuildPlannedPath()
 	{
 		return;
 	}
-	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
-	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
 
 	FRTHexSnapshot Snapshot;
 	int32 UnitId = INDEX_NONE;
@@ -4299,10 +4281,6 @@ void ARTPlayerController::RebuildPlannedPath()
 	// passano entrambi di qui, e due copie di questa riga divergerebbero alla prima modifica.
 	Unit->ClearMovePlanRejection();
 
-	if (HexMap)
-	{
-		HexMap->SetPreviewPath(Unit->PlannedPath);
-	}
 	// Simmetrico all'aggiunta: l'undo restituisce MP, quindi il ventaglio si riallarga. Vale anche per il ramo
 	// «piano non piu' valido» qui sopra, dove `PlannedWaypoints` puo' essere ancora pieno ma il percorso e'
 	// stato azzerato: `ReachableCellsAfterPlan` rifa' la domanda a `BuildCompositeHexPath` e ottiene la stessa

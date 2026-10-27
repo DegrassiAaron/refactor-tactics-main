@@ -3661,4 +3661,207 @@ bool FRTArmedReactionShowsInThePlanTimelineTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#3892` — la ROTTA si scrive da UN punto: `RefreshPlanningPreview`.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * La rotta a schermo e' il piano dell'unita'. Il confronto e' contro un dato INDIPENDENTE dall'anteprima: `SetPreviewPath`
+	 * copia `PlannedPath` cella per cella, quindi il conteggio basta a vedere uno scarto — e non usa una seconda chiamata
+	 * all'anteprima, che sarebbe sbagliata nello stesso modo.
+	 */
+	bool PlannedRouteShowsPlan(const FRTLockInPreviewBench& B)
+	{
+		return B.HexMap->NumPreviewPathCells() == B.Mine->PlannedPath.Num();
+	}
+
+	/** Un click sul vicino della fine del piano che il piano accetta. `false` se nessun vicino e' percorribile (budget finito). */
+	bool PlannedRouteGrowByOneStep(FRTLockInPreviewBench& B)
+	{
+		const int32 Prima = B.Mine->PlannedWaypoints.Num();
+		const FRTCellId Fine = B.Mine->PlannedPath.Num() > 0 ? B.Mine->PlannedPath.Last() : B.Mine->Cell;
+		for (const FRTCellId& Vicino : URTHexLibrary::Neighbors(Fine))
+		{
+			if (Vicino == B.Mine->Cell || B.Mine->PlannedPath.Contains(Vicino))
+			{
+				continue;
+			}
+			B.PC->HandleClickOnCellForTest(Vicino);
+			if (B.Mine->PlannedWaypoints.Num() > Prima)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Allunga il piano fino al budget, un click per volta. Restituisce la lunghezza raggiunta. */
+	int32 PlannedRouteGrowToBudget(FRTLockInPreviewBench& B)
+	{
+		for (int32 Giro = 0; Giro < 16 && PlannedRouteGrowByOneStep(B); ++Giro) {}
+		return B.Mine->PlannedPath.Num();
+	}
+}
+
+/**
+ * **`#3892` — cambiare selezione cambia la rotta a schermo: quella del piano dell'unita' scelta, non un residuo.**
+ *
+ * 🔑 Il controllo positivo e' lo stato di partenza (rotta tracciata e uguale al piano); il cuore e' un'unita' SENZA piano, che deve
+ * lasciare lo schermo senza rotta, e il ritorno sull'unita' col piano, che la deve riportare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedRouteFollowsSelectionTest,
+	"RefactorTactics.HexMatch.PlannedRouteFollowsSelection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedRouteFollowsSelectionTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	ARTUnit* Altra = nullptr;
+	for (TActorIterator<ARTUnit> It(B.World); It; ++It)
+	{
+		if (*It != B.Mine && It->TeamId == B.Mine->TeamId && It->IsAlive()) { Altra = *It; break; }
+	}
+	if (!TestNotNull(TEXT("premessa: la squadra ha un'altra unita'"), Altra)
+		|| !TestEqual(TEXT("premessa: l'altra unita' non ha un piano"), Altra->PlannedPath.Num(), 0)
+		|| !TestTrue(TEXT("premessa: Mine ha un piano"), B.Mine->PlannedPath.Num() > 0)
+		|| !TestTrue(TEXT("controllo: la rotta di partenza e' il piano di Mine"), PlannedRouteShowsPlan(B)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
+	TestEqual(TEXT("selezionata un'unita' senza piano non resta la rotta dell'altra"), B.HexMap->NumPreviewPathCells(), 0);
+
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	TestTrue(TEXT("e tornando su Mine la sua rotta e' di nuovo il suo piano"), PlannedRouteShowsPlan(B) && B.HexMap->NumPreviewPathCells() > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3892` — aggiungere un waypoint allunga la rotta, annullarlo la accorcia: sempre il piano, mai un'altra cosa.**
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedRouteFollowsWaypointAddAndUndoTest,
+	"RefactorTactics.HexMatch.PlannedRouteFollowsWaypointAddAndUndo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedRouteFollowsWaypointAddAndUndoTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Prima = B.Mine->PlannedPath.Num();
+	if (!TestTrue(TEXT("premessa: la rotta di partenza e' il piano di Mine"), Prima > 0 && PlannedRouteShowsPlan(B))
+		|| !TestTrue(TEXT("premessa: il piano si puo' allungare di un passo"), PlannedRouteGrowByOneStep(B)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	TestTrue(TEXT("il click ha allungato il piano"), B.Mine->PlannedPath.Num() > Prima);
+	TestTrue(TEXT("e la rotta a schermo lo segue"), PlannedRouteShowsPlan(B));
+
+	B.PC->OnUndoWaypointForTest();
+	TestEqual(TEXT("l'annullo toglie il waypoint"), B.Mine->PlannedPath.Num(), Prima);
+	TestTrue(TEXT("e la rotta a schermo torna al piano di prima"), PlannedRouteShowsPlan(B));
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3892` — armare l'Overwatch tronca il piano al tetto, e disarmarlo lo restituisce: la rotta segue entrambi.**
+ *
+ * 🔑 Il piano e' portato al budget perche' il troncamento sia osservabile (`premessa`): con un piano che il tetto non tocca, un
+ * sito che non scrivesse la rotta passerebbe lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedRouteFollowsArmAndDisarmTest,
+	"RefactorTactics.HexMatch.PlannedRouteFollowsArmAndDisarm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedRouteFollowsArmAndDisarmTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Overwatch = KitIndexOf(B.Mine, FName(TEXT("Action.Overwatch")));
+	const int32 Lunga = PlannedRouteGrowToBudget(B);
+	if (!TestTrue(TEXT("premessa: l'Overwatch e' nel kit"), Overwatch != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: il piano e' lungo"), Lunga >= 3)
+		|| !TestTrue(TEXT("premessa: e la rotta e' il piano"), PlannedRouteShowsPlan(B)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->SelectAbilityForCurrentForTest(Overwatch);
+	if (!TestTrue(TEXT("premessa: armare l'Overwatch tronca il piano al tetto"), B.Mine->PlannedPath.Num() < Lunga))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestTrue(TEXT("armata, la rotta a schermo e' il piano troncato"), PlannedRouteShowsPlan(B));
+
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	TestEqual(TEXT("disarmata, il tetto restituisce i waypoint che aveva tolto"), B.Mine->PlannedPath.Num(), Lunga);
+	TestTrue(TEXT("e la rotta a schermo e' di nuovo il piano intero"), PlannedRouteShowsPlan(B));
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3892` — dichiarare lo Sneak tronca il piano al suo tetto, e la rotta a schermo lo segue.**
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedRouteFollowsSneakTest,
+	"RefactorTactics.HexMatch.PlannedRouteFollowsSneak",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedRouteFollowsSneakTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Lunga = PlannedRouteGrowToBudget(B);
+	if (!TestTrue(TEXT("premessa: il piano e' lungo"), Lunga >= 3)
+		|| !TestTrue(TEXT("premessa: e la rotta e' il piano"), PlannedRouteShowsPlan(B)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->ToggleSneakForTest();
+	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato"), B.Mine->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
+		|| !TestTrue(TEXT("premessa: lo Sneak tronca il piano al suo tetto"), B.Mine->PlannedPath.Num() < Lunga))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestTrue(TEXT("dichiarato, la rotta a schermo e' il piano troncato"), PlannedRouteShowsPlan(B));
+
+	B.PC->ToggleSneakForTest();
+	TestTrue(TEXT("ritirato, la rotta a schermo e' ancora il piano, qualunque sia"), PlannedRouteShowsPlan(B));
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
