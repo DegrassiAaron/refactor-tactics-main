@@ -3589,7 +3589,7 @@ bool FRTCameraPitchOffsetSurvivesZoomTest::RunTest(const FString&)
  * La camera consegna la sua vista (`GetCameraView`) e UE costruisce la matrice come la costruirebbe per il render,
  * con il vincolo d'aspetto del giocatore locale e due rettangoli: lo schermo intero e la scena fra le fasce. Con
  * `MaintainYFOV` l'altezza inquadrata sul piano del pivot dev'essere la stessa, e la larghezza seguire l'aspetto:
- * celle e unita' appaiono circa 0,64x, e soglie e zoom non si ritarano.
+ * celle e unita' appaiono circa 0,63x (0,64x fino a D-549), e soglie e zoom non si ritarano.
  *
  * 🔑 **Il vincolo e l'aspetto vengono da UE e dalla camera, non da costanti**: se il progetto cambiasse
  * `AspectRatioAxisConstraint` o `AspectRatio`, questo test cadrebbe invece di ripetere una garanzia di UE.

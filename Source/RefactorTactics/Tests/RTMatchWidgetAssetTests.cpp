@@ -31,6 +31,7 @@
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Components/Border.h"
+#include "Components/VerticalBoxSlot.h" // il padding del prompt e' dello slot (#3881)
 #include "Components/ProgressBar.h" // la barra del countdown della finestra di reazione (#3634)
 #include "Components/PanelSlot.h"
 #include "Components/PanelWidget.h" // CardsBox, PlanWarningsBox: le porte sono pannelli (#3636)
@@ -1981,6 +1982,50 @@ bool FRTActionDockPromptUsesTheDockStyleTest::RunTest(const FString&)
 	// 2. Il colore e' il token.
 	TestTrue(TEXT("2: il colore del prompt e' Text_Primary"),
 		Prompt->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Primary)));
+	return true;
+}
+
+/**
+ * 🔑 **IL PADDING DEL DOCK E' QUELLO DEL MOCKUP: 20 SOPRA E 22 SOTTO, E 32 A SINISTRA DEL PROMPT** (#3881, D-549).
+ *
+ * La fascia bassa e' stata alzata (D-549) perche' il padding restasse quello di `tokens.json` (`dock_padding`) e della §3 del runbook
+ * U65. `TenantsFitTheirBands` e' un limite superiore e non vede il rovescio: un dock piu' basso entra sempre, quindi un asset che
+ * tornasse a 12/12 lo lascerebbe verde e rimetterebbe il drift fra l'asset e le sue fonti. Questo test lo fissa.
+ *
+ *   1. `BarPanel` ha padding verticale 20 sopra e 22 sotto;
+ *   2. il prompt ha 32 a sinistra, che lo allinea all'etichetta COMUNI (#3869).
+ *
+ * ⛔ **Non misura l'altezza**: lo fa il gate. Se il mockup cambia, il valore cambia qui e in `tokens.json`, insieme.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDockKeepsTheMockupPaddingTest,
+	"RefactorTactics.ScreenHud.ActionDockKeepsTheMockupPadding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionDockKeepsTheMockupPaddingTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, ActionDockPath, TEXT("WBP_RT_ActionDock"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	const UBorder* Barra = Cast<UBorder>(Tree->FindWidget(TEXT("BarPanel")));
+	if (TestNotNull(TEXT("il dock ha un BarPanel che e' un Border"), Barra))
+	{
+		const FMargin Padding = Barra->GetPadding();
+		TestEqual(TEXT("1: il padding sopra la barra e' 20"), static_cast<float>(Padding.Top), 20.f, 0.01f);
+		TestEqual(TEXT("1: il padding sotto la barra e' 22"), static_cast<float>(Padding.Bottom), 22.f, 0.01f);
+	}
+
+	const UTextBlock* Prompt = Cast<UTextBlock>(Tree->FindWidget(TEXT("TargetPrompt")));
+	if (TestNotNull(TEXT("il dock ha un TargetPrompt che e' un TextBlock"), Prompt))
+	{
+		const UVerticalBoxSlot* Slot = Cast<UVerticalBoxSlot>(Prompt->Slot);
+		if (TestNotNull(TEXT("il prompt sta in un VerticalBox"), Slot))
+		{
+			TestEqual(TEXT("2: il padding sinistro del prompt e' 32"), static_cast<float>(Slot->GetPadding().Left), 32.f, 0.01f);
+		}
+	}
 	return true;
 }
 

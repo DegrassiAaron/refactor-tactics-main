@@ -660,6 +660,8 @@ namespace
  * riquadro centrale del 60% (`RTCenterFree::CenterKeepOut`), ed e' quel vincolo che porto' `MaxRighe` da 12
  * a 9. Con D-497 il riquadro non esiste piu' — la scena sta fra le fasce dell'HUD — e la fascia bassa al 17%
  * non lo conterrebbe: 174 px, 189 con un capo-riga, contro un budget di circa 160.
+ * ⌫ *Il conto e' fatto con la fascia al 17%. D-549 la porta al 18% (+10,8 unita'): sommati al budget fanno circa 171, ancora sotto i 174.
+ * Non e' rimisurato.*
  *
  * 🔑 **L'autore ha scelto che il Context Inspector perda il vincolo** (#3661, 2026-10-11): D-497 (1) esenta
  * gli strumenti di sviluppo, quindi il pannello resta a 9 righe e, quando e' aperto, puo' coprire il bordo
