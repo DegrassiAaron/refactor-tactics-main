@@ -396,11 +396,6 @@ bool FRTUnitControlGroupsAreAssignedOnceTest::RunTest(const FString&)
 		return Groups;
 	};
 
-	// Senza unita' nel mondo non c'e' niente da partizionare, e il guardiano NON si accende: altrimenti la
-	// prima chiamata a vuoto — `AssignSeats` gira anche su `OnPostLogin`, prima dell'allestimento —
-	// congelerebbe una partizione che non e' mai avvenuta.
-	GameMode->AssignUnitControlGroups();
-
 	GameMode->SetupHexMatch(HexMap);
 
 	TArray<ARTUnit*> Team0 = UnitsOfTeam(0);
