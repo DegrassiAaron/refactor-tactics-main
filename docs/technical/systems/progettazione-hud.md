@@ -68,7 +68,7 @@ La superficie primaria di gioco resta il **mondo 3D isometrico / three-quarter**
 
 La schermata normale deve essere progettata così:
 
-- **la scena, fra le fasce:** la 3D si rende **solo** nel rettangolo che le fasce dell'HUD lasciano libero, circa 61%×64% a 16:9 (il 39% dello schermo) ([D-497](../../decisions/RT_PDR_00_Decision_Log.md));
+- **la scena, fra le fasce:** la 3D si rende **solo** nel rettangolo che le fasce dell'HUD lasciano libero, circa 61%×63% a 16:9 (il 38% dello schermo) ([D-497](../../decisions/RT_PDR_00_Decision_Log.md), la fascia bassa emendata da [D-549](../../decisions/RT_PDR_00_Decision_Log.md));
 - **le fasce attorno:** HUD screen-space, nessuna sovrapposizione con la scena;
 - **world-space:** path, AoE, facing, ghost, cone, marker, cover e altri overlay contestuali.
 

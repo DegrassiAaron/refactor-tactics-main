@@ -716,7 +716,7 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 	// di `BaseEngine.ini` che il progetto non cambia, `FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle`
 	// prende il FOV come orizzontale all'aspetto della camera (16:9), ne ricava il semiangolo verticale e lo
 	// tiene; l'orizzontale segue il rettangolo. Il modello di prima teneva fisso l'orizzontale e divideva per
-	// l'aspetto: esatto solo a 16:9, e da #3661 la scena non e' piu' 16:9 (circa 1,69 a 1920×1080).
+	// l'aspetto: esatto solo a 16:9, e da #3661 la scena non e' piu' 16:9 (circa 1,7 a 1920×1080).
 	// Il modello del quadro vive in `ComputeFrameHalfExtents` (#3798): lo usano anche i limiti per direzione.
 	const FVector2D FrameHalf = ComputeFrameHalfExtents(ArmLength, PitchDegrees, HorizontalFovDegrees,
 		AspectRatio, ReferenceAspectRatio);
@@ -1001,7 +1001,7 @@ void ARTCameraPawn::RefreshViewportMetrics()
 		return;
 	}
 	// #3661, D-497 (3): l'aspetto e' quello del RETTANGOLO del giocatore, non del viewport. Da #3661 la scena
-	// si rende fra le fasce dell'HUD (`URTGameViewportClient`), e a 1920×1080 il rettangolo e' circa 1,69,
+	// si rende fra le fasce dell'HUD (`URTGameViewportClient`), e a 1920×1080 il rettangolo e' circa 1,7,
 	// non 1,78. `Size` e' la frazione che `LayoutPlayers` scrive a ogni fotogramma; senza un giocatore vale
 	// l'intero viewport, come prima.
 	const FIntPoint Size = Client->Viewport->GetSizeXY();

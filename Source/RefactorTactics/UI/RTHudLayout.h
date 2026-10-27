@@ -13,7 +13,7 @@
  * (`URTGameViewportClient`), la finestra di reazione e i test leggono **questo** dato.
  *
  * 🔑 **Le fasce sono la misura dei loro inquilini, in unita' Slate** (decisione d'autore del 2026-10-11 in
- * #3661). Le frazioni 20/19,2/19/17 di D-497 ne sono il valore a 1920×1080. Con la scala dell'interfaccia di
+ * #3661). Le frazioni 20/19,2/19/18 ne sono il valore a 1920×1080 (D-497; la bassa era il 17% fino a D-549). Con la scala dell'interfaccia di
  * UE (`ShortestSide`) gli inquilini tengono la loro misura in unita' Slate, quindi una colonna a frazione fissa
  * a 16:10 non li conterrebbe: a 1280×800 la sinistra vale 384 × 0,741 ≈ 284 px, il 22,2%.
  *
@@ -28,8 +28,12 @@ struct REFACTORTACTICS_API FRTHudBands
 	float Right = 368.64f;
 	/** Fascia alta: il roster, in `Zone_TopLeft`, finisce a y=200. */
 	float Top = 205.2f;
-	/** Fascia bassa: il dock comincia a y=903. */
-	float Bottom = 183.6f;
+	/**
+	 * Fascia bassa: il dock col suo prompt di bersaglio e i due margini di zona. L'altezza la misura il gate
+	 * `ScreenHud.TenantsFitTheirBands` a ogni risoluzione, e decide il caso piu' stretto; 194,4 (il 18% a 1920×1080) e' il
+	 * valore che D-549 sceglie sopra quella soglia. Era il 17% (183,6), D-497 (2).
+	 */
+	float Bottom = 194.4f;
 
 	/**
 	 * **La cella alta della colonna sinistra**, che nella colonna sinistra prende il posto della fascia alta.

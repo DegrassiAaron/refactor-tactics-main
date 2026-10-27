@@ -2,6 +2,8 @@
 
 Evidenza **dell'assistente**, non un giudizio dell'autore. Riguarda [#3869](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3869).
 
+> **Aggiornamento 2026-10-27 ([#3881](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3881), [D-549](../../../decisions/RT_PDR_00_Decision_Log.md)).** Il padding 12/12 di questa nota e' stato **sostituito**: l'autore ha scelto di alzare la fascia bassa e tornare a 20/22. Le catture «dopo» e le misure del blob «finale» qui sotto descrivono il layout di #3880 (12/12, fascia bassa a 183,6) e restano come storia. Il layout in vigore e' in [`../3881/`](../3881/misure-fascia-bassa-2026-10-27.md).
+
 ## Che cosa e' stato catturato, e come
 
 - **PIE nell'Editor** (`NetMode: Standalone`), finestra flottante, partita avviata, nessuna selezione: il prompt mostrato e' quello di `IdleSelection`.
@@ -35,7 +37,9 @@ Il dock sta in `Zone_Bottom`, alta `Bands().Bottom - 2 * ZoneMargin` = 175,6 uni
 - **La misura headless e' un limite superiore, non la resa**: conta la riga intera del testo, non l'inchiostro, e supera la PIE di circa il 3-4% (la barra misura 161,6 unita' a scala 0,833 in headless contro 156 in PIE). Per questo il primo ritocco e' rosso nel gate e visibile in PIE: non c'e' contraddizione, ci sono due misure di due cose.
 - Il margine finale sulla riga intera e' fra 8,1 e 11,2 unita' alle scale misurate (175,6 meno 167,5 e meno 164,4).
 
-## IMPLEMENTATION DRIFT (CLAUDE.md §3)
+## IMPLEMENTATION DRIFT (CLAUDE.md §3) - RISOLTO da D-549
+
+> **Risolto il 2026-10-27**: la fascia bassa e' stata alzata a 194,4 e il padding e' tornato a 20/22, quindi `tokens.json`, la sua copia e il runbook U65 sono di nuovo coerenti con l'asset e non sono stati modificati. Il testo seguente e' quello di quando il drift era aperto.
 
 Il padding verticale di `BarPanel` e' passato da **20 sopra e 22 sotto a 12 e 12**. Due fonti dicono ancora 20/22 e **non le ho riconciliate**:
 

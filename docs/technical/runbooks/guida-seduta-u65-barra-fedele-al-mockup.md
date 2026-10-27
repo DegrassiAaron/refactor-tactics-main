@@ -198,12 +198,9 @@ Un `Border` `BarPanel` attorno a `BarRow`: `RoundedBox` con raggio 10, fondo `#1
 `#203542`, padding sopra 20, ai lati 24, sotto 22. Gli spazi fra gruppi (45, col divisore) e fra slot (8) li
 scrive il C++ sul padding sinistro di ogni slot (`GroupGap`, `ItemGap`): nel Designer non si toccano.
 
-> ⚠️ **IMPLEMENTATION DRIFT (#3869, 2026-10-27).** Il padding verticale di `BarPanel` nel dock e' oggi **12 sopra e 12 sotto**, non
-> 20 e 22: il prompt sotto la barra non entrava nella zona `Bottom`. Riapplicare 20/22 da questa pagina fa tornare rosso
-> `RefactorTactics.ScreenHud.TenantsFitTheirBands`. La divergenza **non e' riconciliata**: serve una decisione dell'autore, e il
-> dettaglio e' in [`prompt-del-dock-misure-2026-10-27.md`](../evidence/3869/prompt-del-dock-misure-2026-10-27.md).
-
 Il pannello non ha una porta: il C++ non lo legge.
+
+Sotto la barra sta il prompt di bersaglio, `TargetPrompt`, nello slot del `VerticalBox` del dock: Exo 2 SemiBold 12, tinta `Text_Primary`, **padding sinistro 32**, che lo allinea all'etichetta COMUNI ([#3869](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3869), [#3881](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3881)). Il padding verticale di 20 e 22 e il 32 del prompt li fissa `ScreenHud.ActionDockKeepsTheMockupPadding`: se cambiano, cambiano lì, qui e in `tokens.json`, insieme.
 
 ## 4. Il gate, nello stesso commit dell'asset
 

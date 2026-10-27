@@ -25,12 +25,12 @@ bool FRTHudSceneRectFromBandsTest::RunTest(const FString&)
 	const FRTHudBands& Fasce = RTHudLayout::Bands();
 
 	struct FCaso { int32 W; int32 H; float Sinistra; float Destra; float Alta; float Bassa; const TCHAR* Nome; };
-	// Le frazioni attese di #3661, in percento dello schermo, con mezzo decimo di tolleranza.
+	// Le frazioni attese di #3661, in percento dello schermo, con mezzo decimo di tolleranza; la bassa e' il 18% da D-549.
 	const FCaso Casi[] = {
-		{ 1920, 1080, 20.0f, 19.2f, 19.0f, 17.0f, TEXT("1920x1080") },
-		{ 2560, 1080, 15.0f, 14.4f, 19.0f, 17.0f, TEXT("2560x1080") },
-		{ 1280,  800, 22.2f, 21.3f, 19.0f, 17.0f, TEXT("1280x800") },
-		{ 1920, 1200, 22.2f, 21.3f, 19.0f, 17.0f, TEXT("1920x1200") } };
+		{ 1920, 1080, 20.0f, 19.2f, 19.0f, 18.0f, TEXT("1920x1080") },
+		{ 2560, 1080, 15.0f, 14.4f, 19.0f, 18.0f, TEXT("2560x1080") },
+		{ 1280,  800, 22.2f, 21.3f, 19.0f, 18.0f, TEXT("1280x800") },
+		{ 1920, 1200, 22.2f, 21.3f, 19.0f, 18.0f, TEXT("1920x1200") } };
 
 	for (const FCaso& C : Casi)
 	{

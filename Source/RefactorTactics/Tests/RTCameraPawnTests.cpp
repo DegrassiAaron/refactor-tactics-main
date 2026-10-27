@@ -3276,7 +3276,8 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	TestTrue(TEXT("MaintainYFOV: a 32:9 il quadro si allarga di lato, e il limite laterale (Y) si stringe"),
 		Wide.Max.Y < Far.Max.Y - 100.f);
 
-	const float AspettoScena = 1167.36f / 691.2f; // la scena di #3661 a 1920x1080, circa 1,69
+	const FBox2D RettangoloScena = RTHudLayout::SceneRectSlate(FVector2D(1920.0, 1080.0), RTHudLayout::Bands());
+	const float AspettoScena = static_cast<float>(RettangoloScena.GetSize().X / RettangoloScena.GetSize().Y); // la scena di D-497 a 1920x1080, circa 1,7
 	const FBox2D Scena = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, AspettoScena, Fraction);
 	TestEqual(TEXT("nella scena di #3661 la profondita' inquadrata e' quella di 16:9"), static_cast<float>(Scena.Max.X), static_cast<float>(Far.Max.X), 0.5f);
 	TestTrue(TEXT("e il limite laterale si allarga, perche' il quadro e' piu' stretto"), Scena.Max.Y > Far.Max.Y + 10.f);
@@ -3588,7 +3589,7 @@ bool FRTCameraPitchOffsetSurvivesZoomTest::RunTest(const FString&)
  * La camera consegna la sua vista (`GetCameraView`) e UE costruisce la matrice come la costruirebbe per il render,
  * con il vincolo d'aspetto del giocatore locale e due rettangoli: lo schermo intero e la scena fra le fasce. Con
  * `MaintainYFOV` l'altezza inquadrata sul piano del pivot dev'essere la stessa, e la larghezza seguire l'aspetto:
- * celle e unita' appaiono circa 0,64x, e soglie e zoom non si ritarano.
+ * celle e unita' appaiono circa 0,63x (0,64x fino a D-549), e soglie e zoom non si ritarano.
  *
  * 🔑 **Il vincolo e l'aspetto vengono da UE e dalla camera, non da costanti**: se il progetto cambiasse
  * `AspectRatioAxisConstraint` o `AspectRatio`, questo test cadrebbe invece di ripetere una garanzia di UE.
