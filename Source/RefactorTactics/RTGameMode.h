@@ -448,20 +448,28 @@ public:
 	const FRTStartupReport& GetStartupReport() const { return StartupReport; }
 
 	/**
-	 * Assegna la squadra ai giocatori presenti, derivando i posti dal formato.
+	 * Assegna la squadra e il gruppo ai giocatori presenti, derivando i posti dal formato.
 	 *
-	 * ⚠️ **Idempotente A INSIEME DI GIOCATORI INVARIATO, e chiamata da DUE lati** — `OnPostLogin` e
-	 * `SetupHexMatch` — perche' il motore non garantisce il loro ordine e le regole esistono solo dopo
-	 * l'allestimento. Senza regole non fa nulla.
+	 * ✅ **Idempotente, e i posti sono STABILI** (`#3895`): chi ha gia' un posto valido lo tiene, anche se un altro controller esce o entra
+	 * fra due chiamate; chi arriva prende il primo posto libero, nell'ordine alternato (squadra 0, squadra 1, squadra 0 gruppo 1, ...).
+	 * Chiamata da DUE lati — `OnPostLogin` e `SetupHexMatch` — perche' il motore non garantisce il loro ordine e le regole esistono solo
+	 * dopo l'allestimento. Senza regole non fa nulla.
 	 *
-	 * ⛔ **La clausola ha una condizione, e non e' decorativa.** `Arrival` e' un indice posizionale
-	 * sull'iteratore dei controller, e il ciclo fa `continue` SENZA contare sui controller privi di
-	 * `ARTPlayerState`: se l'insieme dei controller "seduti" cambia fra due chiamate, tutti quelli
-	 * successivi si reindicizzano e un giocatore gia' assegnato PUO' spostarsi. Non raggiungibile offline —
-	 * un controller solo, l'insieme non cambia mai fra `OnPostLogin` e `SetupHexMatch` — ma il giorno in cui
-	 * ce ne fossero due la garanzia varrebbe solo finche' nessuno entra o esce fra le due chiamate.
+	 * ⏱️ *Fino a `#3895` il posto era la POSIZIONE nell'iteratore dei controller, ricalcolata a ogni chiamata: se uno usciva, i successivi
+	 * scalavano e cambiavano squadra e gruppo, cioe' chi comanda quali unita'.*
+	 *
+	 * 🔑 **Chi non trova posto** (oltre quelli del formato) resta com'era e il log lo dice; se un posto si libera, lo prende alla chiamata
+	 * successiva. Un NUOVO allestimento riparte da capo: vedi `ReleaseSeats`.
+	 *
+	 * ⚠️ **Non misurato con due connessioni reali**: la prova e' un mondo di prova con `MakePlayerOnTeam`, che e' cio' che fa `OnPostLogin`.
 	 */
 	void AssignSeats();
+
+	/**
+	 * Libera i posti di tutti i giocatori presenti: un NUOVO allestimento riparte da capo (`#3895`). `SetupHexMatch` la chiama prima di
+	 * `AssignSeats`; senza, i posti della partita precedente sopravvivrebbero a regole e formato nuovi.
+	 */
+	void ReleaseSeats();
 
 	/**
 	 * Assegna a ogni unita il proprio GRUPPO DI CONTROLLO dentro la squadra — `CP 19.3`, `#1124`.
@@ -475,12 +483,10 @@ public:
 	 * `ARTTurnManager::EnsureMatchRoster` con `StableUnitId`: l'identita si assegna una volta.
 	 *
 	 * **Chi entra dopo** non causa nessuna riassegnazione di UNITA: riceve il proprio gruppo da `AssignSeats`
-	 * (`ARTPlayerState::ControlGroup`, per arrivo) e comanda le unita che gia portano quel gruppo.
+	 * (`ARTPlayerState::ControlGroup`, il primo posto libero) e comanda le unita che gia portano quel gruppo.
 	 *
-	 * ⚠️ **Questo chiude il lato delle unita, non quello delle persone.** I posti li ricalcola `AssignSeats`
-	 * per posizione a ogni chiamata, ed e idempotente solo a insieme di giocatori invariato (vedi sopra): se
-	 * un controller esce e un altro entra, chi resta puo spostarsi di posto. E un limite preesistente, non
-	 * raggiungibile offline, che questa funzione non tocca.
+	 * ✅ **Il lato delle persone e di `AssignSeats`, e dal `#3895` e stabile**: chi ha un posto lo tiene, quindi il gruppo con cui
+	 * comanda le unita non cambia perche un altro controller esce o entra. ⏱️ *Fino ad allora i posti si ricalcolavano per posizione.*
 	 *
 	 * `SetupHexMatch` riporta il guardiano a zero: un nuovo allestimento riparte da capo, con unita nuove o
 	 * lette dal livello.

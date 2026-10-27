@@ -1102,6 +1102,8 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		// Un nuovo allestimento riparte da capo — porta unita' nuove, tutte al gruppo di default, o rilegge
 		// quelle del livello — quindi la partizione del precedente non vale piu' (`#2942`).
 		bUnitControlGroupsAssigned = false;
+		// I posti si liberano per lo stesso motivo (`#3895`): regole e formato nuovi, e chi e' rimasto riparte dall'ordine d'arrivo.
+		ReleaseSeats();
 		AssignSeats();
 	}
 }
@@ -1134,36 +1136,82 @@ void ARTGameMode::AssignSeats()
 	const int32 SeatsPerTeam = AssignedRules.UnitsPerTeam / AssignedRules.UnitsPerPlayer;
 	const int32 TotalSeats = SeatsPerTeam * 2;
 
-	int32 Arrival = 0;
+	TArray<ARTPlayerState*> Players;
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
-		ARTPlayerState* PS = It->IsValid() ? (*It)->GetPlayerState<ARTPlayerState>() : nullptr;
-		if (!PS)
+		if (ARTPlayerState* PS = It->IsValid() ? (*It)->GetPlayerState<ARTPlayerState>() : nullptr)
+		{
+			Players.Add(PS);
+		}
+	}
+
+	// 🔑 **Il POSTO e' una coppia (squadra, gruppo) e ha un numero**: `k` -> squadra `k % 2`, gruppo `k / 2`. E' l'ordine di prima — ALTERNATO
+	// e non «prima una squadra e poi l'altra»: con un posto per squadra il secondo arrivato prende la `1`, che e' il caso utile; riempire
+	// prima la `0` metterebbe due persone dalla stessa parte lasciando l'altra vuota — ma ora e' l'ordine in cui si OFFRONO i posti
+	// liberi, non una funzione della posizione di chi li prende (`#3895`). Il gruppo dentro la squadra (`CP 19.3`, `#1124`): il primo di
+	// ciascuna squadra e' il gruppo `0`, il secondo il gruppo `1`; con `SeatsPerTeam == 1` — la v0.1 — nessuno riceve un gruppo diverso da zero.
+	TArray<bool> Taken;
+	Taken.Init(false, TotalSeats);
+	const auto SeatNumber = [SeatsPerTeam](int32 TeamId, int32 Group) -> int32
+	{
+		return (TeamId == 0 || TeamId == 1) && Group >= 0 && Group < SeatsPerTeam ? Group * 2 + TeamId : INDEX_NONE;
+	};
+
+	// 1. **Chi ha gia' un posto lo tiene.** Un posto non valido per il formato o gia' preso da un altro si libera, e il giocatore
+	// ricade nel secondo giro. Difensivo: in produzione `SetupHexMatch` libera tutto prima, e i posti li scrive solo questa funzione.
+	for (ARTPlayerState* PS : Players)
+	{
+		if (!PS->HasSeat())
 		{
 			continue;
 		}
+		const int32 Seat = SeatNumber(PS->GetTeamId(), PS->GetControlGroup());
+		if (Seat != INDEX_NONE && !Taken[Seat])
+		{
+			Taken[Seat] = true;
+			continue;
+		}
+		PS->ReleaseSeat();
+	}
 
-		if (Arrival >= TotalSeats)
+	// 2. **Gli altri, nell'ordine d'arrivo, al primo posto libero.** Chi non ne trova resta com'era: il log lo dice, e alla chiamata
+	// successiva — se un posto si e' liberato — lo prende.
+	int32 NextFree = 0;
+	for (int32 Index = 0; Index < Players.Num(); ++Index)
+	{
+		ARTPlayerState* PS = Players[Index];
+		if (PS->HasSeat())
+		{
+			continue;
+		}
+		while (NextFree < TotalSeats && Taken[NextFree])
+		{
+			++NextFree;
+		}
+		if (NextFree >= TotalSeats)
 		{
 			UE_LOG(LogRT, Warning,
 				TEXT("[RT] Il giocatore #%d non ha trovato posto nel formato '%s' (%d posti): l'eccedenza "
 					 "resta senza squadra assegnata."),
-				Arrival + 1, *AssignedRules.FormatId.ToString(), TotalSeats);
-			break;
+				Index + 1, *AssignedRules.FormatId.ToString(), TotalSeats);
+			continue;
 		}
-
-		// ALTERNATO e non «prima una squadra e poi l'altra»: con un posto per squadra il secondo arrivato
-		// prende la `1`, che e' il caso utile. Riempire prima la `0` metterebbe due persone dalla stessa
-		// parte lasciando l'altra vuota.
-		PS->AssignTeam(Arrival % 2);
-		// Il GRUPPO dentro la squadra (`CP 19.3`, `#1124`): i posti si assegnano alternati, quindi il primo
-		// arrivato di ciascuna squadra e' il gruppo `0`, il secondo il gruppo `1`. Con `SeatsPerTeam == 1` —
-		// la v0.1 — nessuno riceve un gruppo diverso da zero, ed e' il default del campo.
-		PS->AssignControlGroup(Arrival / 2);
-		++Arrival;
+		PS->AssignSeat(NextFree % 2, NextFree / 2);
+		Taken[NextFree] = true;
 	}
 
 	AssignUnitControlGroups();
+}
+
+void ARTGameMode::ReleaseSeats()
+{
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (ARTPlayerState* PS = It->IsValid() ? (*It)->GetPlayerState<ARTPlayerState>() : nullptr)
+		{
+			PS->ReleaseSeat();
+		}
+	}
 }
 
 void ARTGameMode::AssignUnitControlGroups()
@@ -1215,9 +1263,9 @@ void ARTGameMode::AssignUnitControlGroups()
 	// `EnsureMatchRoster` con `StableUnitId`, dove la ragione e' scritta accanto — *«l'identita' si assegna
 	// una volta»* — e il gruppo e' la stessa specie di dato.
 	//
-	// Chi entra dopo non causa una riassegnazione di UNITA': il suo gruppo lo da' `AssignSeats` per arrivo, e
-	// comanda le unita' che gia' lo portano. I posti delle PERSONE restano di `AssignSeats`, idempotente solo
-	// a insieme di giocatori invariato. Un NUOVO allestimento riporta il guardiano a zero in `SetupHexMatch`.
+	// Chi entra dopo non causa una riassegnazione di UNITA': il suo gruppo lo da' `AssignSeats` — il primo posto libero, e chi gia'
+	// siede lo tiene (`#3895`) — e comanda le unita' che gia' lo portano. Un NUOVO allestimento riporta il guardiano a zero in
+	// `SetupHexMatch`, che libera anche i posti.
 	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre

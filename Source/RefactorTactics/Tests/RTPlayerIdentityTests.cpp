@@ -329,9 +329,8 @@ bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
  * d'ingresso, la cui prima chiave e' la CELLA, e le celle cambiano a ogni turno. `OnPostLogin` la rigirava
  * a ogni connessione: il gruppo di un'unita' in campo cambiava, e con lui chi la comandava.
  *
- * ⛔ **Qui si misura il lato delle UNITA', non quello delle persone.** I posti li ricalcola `AssignSeats`
- * per posizione, ed e' idempotente solo a insieme di giocatori invariato: con un controller che esce e uno
- * che entra, chi resta puo' spostarsi di posto. Il test ne fa entrare uno solo, senza uscite.
+ * ⛔ **Qui si misura il lato delle UNITA', non quello delle persone.** I posti li tiene `AssignSeats` e dal `#3895` sono stabili
+ * (`Player.SeatsStayWhenAnotherPlayerLeaves`): questo test ne fa entrare uno solo, senza uscite.
  *
  * ⚠️ **La premessa e' asserita, non assunta.** Scambiare le celle delle due unita' di una squadra deve
  * invertire l'ordine d'ingresso: se non lo facesse, il test passerebbe anche con la riassegnazione
@@ -460,6 +459,283 @@ bool FRTUnitControlGroupsAreAssignedOnceTest::RunTest(const FString&)
 	TestEqual(TEXT("e la squadra 1"), GroupsOf(UnitsOfTeam(1)), TArray<int32>({ 0, 1 }));
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3895` — i POSTI delle persone sono stabili: chi ha un posto non si sposta perche' un altro esce o entra.
+// =====================================================================================================
+
+namespace
+{
+	/** Un mondo con mappa, TurnManager e GameMode, e un formato con `SeatsPerTeam` posti per squadra (`0` = il formato di default). */
+	struct FRTSeatBench
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* HexMap = nullptr;
+		ARTGameMode* GameMode = nullptr;
+	};
+
+	bool MakeSeatBench(FAutomationTestBase& Test, FRTSeatBench& B, int32 SeatsPerTeam, const TCHAR* FormatId)
+	{
+		B.World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), B.World)) { return false; }
+
+		// Vedi `FRTSeatsComeFromTheFormatTest` per il perche': senza questa riga l'iteratore dei controller resta vuoto.
+		B.World->InitializeActorsForPlay(FURL());
+
+		B.HexMap = B.World->SpawnActor<ARTHexMapActor>();
+		if (B.HexMap)
+		{
+			B.HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+		}
+		B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		B.GameMode = B.World->SpawnActor<ARTGameMode>();
+		if (!Test.TestNotNull(TEXT("mappa"), B.HexMap) || !Test.TestNotNull(TEXT("game mode"), B.GameMode))
+		{
+			return false;
+		}
+
+		if (SeatsPerTeam > 0)
+		{
+			URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
+			Format->FormatId = FName(FormatId);
+			Format->RoundLimit = 12;
+			Format->ExpectedRounds = 12;
+			Format->ScoreToWin = 0;
+			Format->UnitsPerTeam = SeatsPerTeam;
+			Format->UnitsPerPlayer = 1;
+			B.GameMode->MatchFormat = Format;
+		}
+		return true;
+	}
+
+	/** Il posto di un giocatore come coppia (squadra, gruppo): e' cio' che decide chi comanda quali unita'. */
+	TPair<int32, int32> SeatOfPlayer(const ARTPlayerController* PC)
+	{
+		return TPair<int32, int32>(ARTPlayerState::TeamIdOf(PC), ARTPlayerState::ControlGroupOf(PC));
+	}
+
+	FString DescribeSeat(const TPair<int32, int32>& Seat)
+	{
+		return FString::Printf(TEXT("(squadra %d, gruppo %d)"), Seat.Key, Seat.Value);
+	}
+}
+
+/**
+ * **`#3895` — se un controller esce e un altro entra, chi resta CONSERVA il posto.**
+ *
+ * Il difetto: `AssignSeats` dava il posto dalla posizione nell'iteratore, a ogni chiamata. Con quattro seduti e uno che esce, i
+ * successivi scalavano di uno e cambiavano squadra e gruppo — cioe' CHI COMANDA QUALI UNITA' — a partita in corso.
+ *
+ * 🔑 **Quattro posti e non due**, perche' e' il formato in cui anche il GRUPPO vale qualcosa e lo spostamento si vede su entrambi i
+ * campi. 🔑 **Il sentinella `9`** (come nelle prove dei posti sopra): senza, un `AssignSeats` inerte lascerebbe tutto com'era e il test
+ * passerebbe. 🔑 **Esce il secondo arrivato, non l'ultimo**: e' quello che fa scalare gli altri due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatsStayWhenAnotherPlayerLeavesTest,
+	"RefactorTactics.Player.SeatsStayWhenAnotherPlayerLeaves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatsStayWhenAnotherPlayerLeavesTest::RunTest(const FString&)
+{
+	FRTSeatBench B;
+	if (!MakeSeatBench(*this, B, /*SeatsPerTeam=*/ 2, TEXT("Format.SeatsStable2v2")))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P3 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	if (!TestNotNull(TEXT("quattro controller"), P3))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.GameMode->SetupHexMatch(B.HexMap);
+
+	// I posti per arrivo: alternati, squadra 0 e 1, poi il secondo gruppo.
+	const TPair<int32, int32> S0 = SeatOfPlayer(P0), S1 = SeatOfPlayer(P1), S2 = SeatOfPlayer(P2), S3 = SeatOfPlayer(P3);
+	if (!TestTrue(TEXT("premessa: i quattro hanno quattro posti diversi"),
+			S0 != S1 && S0 != S2 && S0 != S3 && S1 != S2 && S1 != S3 && S2 != S3))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// Il secondo arrivato esce, e ne entra un altro: e' `OnPostLogin`, che chiama `AssignSeats`.
+	P1->Destroy();
+	ARTPlayerController* P4 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	if (!TestNotNull(TEXT("il controller che entra dopo"), P4))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.GameMode->AssignSeats();
+
+	TestEqual(*FString::Printf(TEXT("il primo conserva il posto %s"), *DescribeSeat(S0)), SeatOfPlayer(P0), S0);
+	TestEqual(*FString::Printf(TEXT("il terzo conserva il posto %s"), *DescribeSeat(S2)), SeatOfPlayer(P2), S2);
+	TestEqual(*FString::Printf(TEXT("il quarto conserva il posto %s"), *DescribeSeat(S3)), SeatOfPlayer(P3), S3);
+	TestEqual(*FString::Printf(TEXT("e chi entra prende il posto liberato %s"), *DescribeSeat(S1)), SeatOfPlayer(P4), S1);
+
+	// Idempotente anche cosi': richiamarla non sposta nessuno.
+	B.GameMode->AssignSeats();
+	TestEqual(TEXT("idempotente: il terzo non si sposta"), SeatOfPlayer(P2), S2);
+	TestEqual(TEXT("idempotente: il nuovo non si sposta"), SeatOfPlayer(P4), S1);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3895` — un NUOVO allestimento riparte da capo: i posti non sopravvivono alla partita che li ha dati.**
+ *
+ * E' la meta' che impedisce ai posti stabili di diventare un guardiano che non torna mai indietro: un secondo `SetupHexMatch` porta
+ * regole, unita' e magari un formato nuovi, e chi e' rimasto si riassegna nell'ordine d'arrivo.
+ *
+ * 🔑 **Esce il PRIMO arrivato**: con posti conservati il secondo resterebbe in squadra 1, ripartendo da capo diventa il primo della 0.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatsRestartWithANewMatchTest,
+	"RefactorTactics.Player.SeatsRestartWithANewMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatsRestartWithANewMatchTest::RunTest(const FString&)
+{
+	FRTSeatBench B;
+	if (!MakeSeatBench(*this, B, /*SeatsPerTeam=*/ 2, TEXT("Format.SeatsRestart2v2")))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	if (!TestNotNull(TEXT("tre controller"), P2))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.GameMode->SetupHexMatch(B.HexMap);
+	if (!TestEqual(TEXT("premessa: il secondo arrivato e' in squadra 1"), ARTPlayerState::TeamIdOf(P1), 1))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	P0->Destroy();
+	B.GameMode->AssignSeats();
+	TestEqual(TEXT("senza un nuovo allestimento il secondo arrivato conserva la squadra 1"), ARTPlayerState::TeamIdOf(P1), 1);
+
+	// Un NUOVO allestimento porta unita' nuove: le vecchie si tolgono, come fa il test dei gruppi di controllo.
+	TArray<AActor*> Unita;
+	UGameplayStatics::GetAllActorsOfClass(B.World, ARTUnit::StaticClass(), Unita);
+	for (AActor* Una : Unita) { Una->Destroy(); }
+	B.GameMode->SetupHexMatch(B.HexMap);
+
+	TestEqual(TEXT("un nuovo allestimento riparte da capo: il secondo arrivato, ora primo, e' in squadra 0"),
+		ARTPlayerState::TeamIdOf(P1), 0);
+	TestEqual(TEXT("e il terzo, ora secondo, in squadra 1"), ARTPlayerState::TeamIdOf(P2), 1);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3895` — chi non trova posto resta com'era, e prende quello che si libera.**
+ *
+ * Pinna il comportamento dell'ECCEDENZA, che la issue chiedeva di fissare prima di toccarlo: con due posti in tutto, il terzo arrivato
+ * non riceve una squadra (il sentinella `9` resta) e il log lo dice. 🔑 E la conseguenza dei posti stabili: quando uno dei seduti esce,
+ * l'eccedente prende il posto libero e l'altro seduto NON si sposta — prima si spostava il seduto, perche' il posto lo dava la posizione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatsBeyondTheFormatWaitForAFreeSeatTest,
+	"RefactorTactics.Player.SeatsBeyondTheFormatWaitForAFreeSeat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatsBeyondTheFormatWaitForAFreeSeatTest::RunTest(const FString&)
+{
+	FRTSeatBench B;
+	// Il formato di default (`Format.Skirmish2v2`, due unita' a testa e due a persona): un posto per squadra, due in tutto.
+	if (!MakeSeatBench(*this, B, /*SeatsPerTeam=*/ 0, TEXT("")))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	if (!TestNotNull(TEXT("tre controller"), P2))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.GameMode->SetupHexMatch(B.HexMap);
+
+	TestEqual(TEXT("il primo ha la squadra 0"), ARTPlayerState::TeamIdOf(P0), 0);
+	TestEqual(TEXT("il secondo la squadra 1"), ARTPlayerState::TeamIdOf(P1), 1);
+	TestEqual(TEXT("il terzo non trova posto: il sentinella resta"), ARTPlayerState::TeamIdOf(P2), 9);
+
+	P0->Destroy();
+	B.GameMode->AssignSeats();
+	TestEqual(TEXT("il secondo NON si sposta quando il primo esce"), ARTPlayerState::TeamIdOf(P1), 1);
+	TestEqual(TEXT("e l'eccedente prende il posto liberato"), ARTPlayerState::TeamIdOf(P2), 0);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3895` — un posto dichiarato due volte, o un posto che il formato non ha, si libera e si riassegna.**
+ *
+ * Sono i due rami difensivi del primo giro di `AssignSeats`: nei flussi di produzione non si raggiungono (un nuovo allestimento libera
+ * tutto prima, e i posti li scrive solo `AssignSeats`), quindi si raggiungono scrivendo lo stato incoerente a mano. Senza questo test
+ * il ramo si potrebbe togliere senza che cada niente — e il giorno in cui un'altra strada scrivesse un posto, due persone
+ * comanderebbero lo stesso gruppo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatTakenTwiceOrInvalidIsReleasedTest,
+	"RefactorTactics.Player.SeatTakenTwiceOrInvalidIsReleased",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatTakenTwiceOrInvalidIsReleasedTest::RunTest(const FString&)
+{
+	FRTSeatBench B;
+	// Il formato di default: un posto per squadra, due in tutto.
+	if (!MakeSeatBench(*this, B, /*SeatsPerTeam=*/ 0, TEXT("")))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	if (!TestNotNull(TEXT("tre controller"), P2))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.GameMode->SetupHexMatch(B.HexMap);
+	ARTPlayerState* S1 = P1->GetPlayerState<ARTPlayerState>();
+	ARTPlayerState* S2 = P2->GetPlayerState<ARTPlayerState>();
+	if (!TestNotNull(TEXT("gli stati dei giocatori"), S2) || !TestNotNull(TEXT("..."), S1)
+		|| !TestEqual(TEXT("premessa: il primo ha il posto (squadra 0)"), SeatOfPlayer(P0), TPair<int32, int32>(0, 0))
+		|| !TestEqual(TEXT("premessa: il secondo ha il posto (squadra 1)"), SeatOfPlayer(P1), TPair<int32, int32>(1, 0))
+		|| !TestFalse(TEXT("premessa: il terzo non ha un posto"), S2->HasSeat()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// Stato incoerente scritto a mano: il secondo dichiara il posto del primo, il terzo una squadra che il formato non ha.
+	S1->AssignSeat(0, 0);
+	S2->AssignSeat(9, 0);
+	B.GameMode->AssignSeats();
+
+	TestEqual(TEXT("il primo tiene il suo posto"), SeatOfPlayer(P0), TPair<int32, int32>(0, 0));
+	TestEqual(TEXT("il posto dichiarato due volte si libera per il secondo, che riceve il primo libero"),
+		SeatOfPlayer(P1), TPair<int32, int32>(1, 0));
+	TestFalse(TEXT("il posto che il formato non ha si libera, e il terzo non ne trova un altro"), S2->HasSeat());
+
+	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
 }
 

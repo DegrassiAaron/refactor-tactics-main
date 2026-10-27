@@ -14,7 +14,7 @@ class APlayerController;
  * runtime: con due client varrebbe `0` per entrambi, e si romperebbe **in silenzio** perche' `0` e' una
  * risposta plausibile.
  *
- * ⛔ **`TeamId` non e' editabile**: e' stato di runtime, scritto da `AssignTeam`. Quando la replicazione
+ * ⛔ **`TeamId` non e' editabile**: e' stato di runtime, scritto da `AssignSeat` (e da `AssignTeam` nelle fixture). Quando la replicazione
  * arrivera' il campo diventa `Replicated` con condizione owner-only e il seam e' gia' al posto giusto.
  */
 UCLASS()
@@ -27,10 +27,10 @@ public:
 	int32 GetTeamId() const { return TeamId; }
 
 	/**
-	 * Assegna la squadra. **Il nome dichiara l'autorita'**: il chiamante di produzione e'
-	 * `ARTGameMode::AssignSeats`, che deriva i posti dal formato e li assegna a chi e' seduto; lo chiamano
-	 * anche `RTWorldFixtures::MakePlayerOnTeam` e i test che allestiscono uno stato di prova. Quando
-	 * arrivera' la replicazione sara' il server a chiamarlo — la stessa autorita' che il nome gia' dichiara.
+	 * Assegna la squadra. **Il nome dichiara l'autorita'**: in produzione i posti li scrive `ARTGameMode::AssignSeats` tramite
+	 * `AssignSeat` (`#3895`), che deriva i posti dal formato e li assegna a chi e' seduto; questa porta la chiamano
+	 * `RTWorldFixtures::MakePlayerOnTeam` e i test che allestiscono uno stato di prova, e NON segna il giocatore come seduto. Quando
+	 * arrivera' la replicazione sara' il server a chiamarla — la stessa autorita' che il nome gia' dichiara.
 	 */
 	void AssignTeam(int32 InTeamId) { TeamId = InTeamId; }
 
@@ -43,6 +43,30 @@ public:
 	 */
 	int32 GetControlGroup() const { return ControlGroup; }
 	void AssignControlGroup(int32 InGroup) { ControlGroup = InGroup; }
+
+	/**
+	 * Il POSTO: squadra e gruppo insieme, assegnati dal GameMode (`ARTGameMode::AssignSeats`) — `#3895`. E' l'unica porta che segna
+	 * il giocatore come SEDUTO.
+	 *
+	 * 🔑 **Esiste perche' `TeamId` e `ControlGroup` valgono `0` di default e non c'e' un «non seduto»**: `0` e' una risposta plausibile,
+	 * e senza un marcatore il GameMode non puo' distinguere chi ha ricevuto un posto da chi ha il valore di partenza. Il marcatore e'
+	 * PRIVATO e non cambia nessun ripiego pubblico: `TeamIdOf` risponde ancora `0` per un controller senza stato.
+	 *
+	 * ⚠️ `AssignTeam` e `AssignControlGroup` NON segnano il giocatore come seduto, di proposito: sono le porte che usano le fixture e i
+	 * test per allestire uno stato, e un giocatore cosi' allestito deve ricevere il suo posto da `AssignSeats`.
+	 */
+	void AssignSeat(int32 InTeamId, int32 InControlGroup)
+	{
+		TeamId = InTeamId;
+		ControlGroup = InControlGroup;
+		bSeated = true;
+	}
+
+	/** Libera il posto: il giocatore non e' piu' seduto. Squadra e gruppo restano com'erano finche' non ne riceve uno nuovo. */
+	void ReleaseSeat() { bSeated = false; }
+
+	/** Vero se `AssignSeat` ha dato un posto a questo giocatore e nessuno lo ha liberato. */
+	bool HasSeat() const { return bSeated; }
 
 	/** Il gruppo di chi ha in mano quel controller, `0` se non c'e' uno stato. Gemella di `TeamIdOf`. */
 	static int32 ControlGroupOf(const APlayerController* Controller);
@@ -73,4 +97,7 @@ private:
 	int32 TeamId = 0;
 
 	int32 ControlGroup = 0;
+
+	/** Vedi `AssignSeat`. Non replicato: e' stato di autorita', come la squadra. */
+	bool bSeated = false;
 };
