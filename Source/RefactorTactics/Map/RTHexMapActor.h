@@ -902,6 +902,13 @@ public:
 	void SetVeilMemoryAttenuatedForTest(bool bInAttenuated) { bVeilMemoryAttenuatedForTest = bInAttenuated; }
 
 	/**
+	 * `#3899`: il guardiano delle mappature (`VerifyAllMappings`) e' interno al velo e non aveva un modo di essere interrogato da solo,
+	 * quindi nessun test poteva provare che vede una famiglia. Esiste per questo e per niente altro: restituisce lo stesso verdetto,
+	 * e come il guardiano emette l'`ensure` quando una mappatura e' rimescolata.
+	 */
+	bool VerifyAllMappingsForTest() const { return VerifyAllMappings(); }
+
+	/**
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
 	 * questo fattore, le celle restano dove sono nel modello. `1` e' neutro.
 	 *
