@@ -2780,7 +2780,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// non e' una mezza misura: il pool da 15 sull'arco frontale ([D-292]) resta intatto, perche'
 			// l'argomento di design parla di equilibrio e non di protezione, e cancellarlo sposterebbe il
 			// bilanciamento di due eroi — tre pin lo misurano (`Spec.Brace.GuardAndBraceOnMixedHit`,
-			// `Spec.Brace.BraceWinsOnSecondHit`, `Visual.Combat.GuardVsBraceUnderSmallHits`). Il prezzo
+			// `Spec.Brace.GuardWinsOnFrontalHits`, `Visual.Combat.DefenseVsNoneUnderSmallHits`). Il prezzo
 			// dello strato di danno resta una decisione aperta, non un effetto collaterale.
 			if (T->HasStatus(TAG_Status_Guarded) && !T->HasStatus(TAG_Status_Unbalanced)
 				&& KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
@@ -2809,9 +2809,9 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			//
 			// Resta vero che le due differiscono anche nel danno (un POOL di 15 sull'arco frontale, [D-292],
 			// contro -10 su OGNI colpo da ogni lato), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
-			// `Spec.Brace.BraceWinsOnSecondHit`. ⏱️ *Questa riga diceva «-15 sul primo colpo» fino al
+			// `Spec.Brace.GuardWinsOnFrontalHits`. ⏱️ *Questa riga diceva «-15 sul primo colpo» fino al
 			// 2026-09-03: sotto la soglia del pool il confronto si CAPOVOLGE — con colpi da 8 il `Brace`
-			// azzera tutto e la Guardia no — e lo mostra `Visual.Combat.GuardVsBraceUnderSmallHits`.*
+			// azzera tutto e la Guardia no — e lo mostra `Visual.Combat.DefenseVsNoneUnderSmallHits`.*
 			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			//
 			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):

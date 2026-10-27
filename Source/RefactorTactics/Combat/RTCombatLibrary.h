@@ -272,7 +272,7 @@ public:
 	 * paragrafo qui sotto descrive.* ⚠️ *Questa riga diceva «`Status.Exposed` e
 	 * `Action.Deflect`», ed era vera quando fu scritta: [D-309] ha reso un pool anche il `Deflect` il giorno
 	 * dopo. E' il modo in cui una deriva si allarga — correggendo meta' di una regola.* Esercitato dal corpus con
-	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
+	 * `Spec.Combat.GuardSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
 	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
 	 * il 2026-09-20, di [D-408].
 	 */

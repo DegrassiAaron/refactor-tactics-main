@@ -144,7 +144,8 @@ public:
 	 * 🔴 **Esiste perche' il troncamento era muto e invisibile ai test.** `RebuildWidget` tagliava con
 	 * un `IsValidIndex` dentro la Slate: `[tecnico]` e' l'ULTIMA riga di `AllLines`, quindi la prima a
 	 * cadere. Misurato nella seduta `U59` del 2026-09-24: sulla cella `(q=0,r=0,L=0)` del banco
-	 * `Visual.Combat.GuardVsBraceUnderSmallHits` la vista componeva **17** righe contro un tetto di 12.
+	 * `Visual.Combat.DefenseVsNoneUnderSmallHits` (allora `GuardVsBraceUnderSmallHits`) la vista
+	 * componeva **17** righe contro un tetto di 12.
 	 *
 	 * ⛔ **Cosa si perdeva davvero, perche' la prima stesura di questo commento lo diceva sbagliato.**
 	 * NON l'osservatore: quello vive nell'intestazione (`GetHeaderText`), che ha uno slot proprio

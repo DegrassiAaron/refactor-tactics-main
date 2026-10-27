@@ -451,7 +451,7 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	// [D-408] — danno lo **stesso** numero, ed e' la ragione per cui questo test non e' mai diventato rosso
 	// pur avendo descritto per due volte una regola che non esisteva piu'. ⚠️ Quello che misura e' il
 	// percorso END-TO-END — Prep, Blast, HP — non la forma della mitigazione: quella la misurano
-	// `Combat.GuardReductionHasNoCeiling` e `Spec.Combat.GuardPoolSpansMultipleHits`.
+	// `Combat.GuardReductionHasNoCeiling` e `Spec.Combat.GuardSpansMultipleHits`.
 	UWorld* World = MakeHexBlastWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);

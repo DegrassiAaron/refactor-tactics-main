@@ -290,7 +290,7 @@ public:
 	 * Guardia colpito da 10 e da 30 incassava **30** o **25** a seconda dell'ordine dell'array
 	 * (`Combat.GuardReductionIsPermutationInvariant`, che dal 2026-09-20 la ri-asserisce sul modello di
 	 * [D-408]). ⏱️ *Questa riga citava `Combat.NegativeFirstHitDeltaIsPermutationInvariant`, un nome che non
-	 * e' mai esistito: `Spec.Combat.GuardPoolSpansMultipleHits` lo aveva gia' dichiarato stantio e copiato
+	 * e' mai esistito: `Spec.Combat.GuardSpansMultipleHits` lo aveva gia' dichiarato stantio e copiato
 	 * da qui.* Il pool consuma sempre lo stesso totale, quindi
 	 * la somma torna **commutativa per costruzione**: non serve nessuna regola su chi viene prima.
 	 *

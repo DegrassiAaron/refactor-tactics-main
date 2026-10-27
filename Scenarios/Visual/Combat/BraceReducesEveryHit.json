@@ -9,7 +9,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "`Action.Brace` toglie 10 a OGNI danno diretto, e da [D-408] **anche la Guardia ha questa forma** — cio' che le separa non e' piu' *quante volte* si applicano, ma **dove**: la Guardia solo sull'arco frontale ([D-206]), il `Brace` in ogni direzione. Stesso allestimento di `Visual.Combat.GuardReducesFirstHit`, una sola azione cambiata: 120 - [(22-10) + (21-10) - 5 di scudo base, [D-224]] = 102.",
+  "_nota": "`Action.Brace` toglie 10 a OGNI danno diretto, e da [D-408] **anche la Guardia ha questa forma** — cio' che le separa non e' piu' *quante volte* si applicano, ma **dove**: la Guardia solo sull'arco frontale ([D-206]), il `Brace` in ogni direzione. Stesso allestimento di `Visual.Combat.GuardReducesEveryFrontalHit`, una sola azione cambiata: 120 - [(22-10) + (21-10) - 5 di scudo base, [D-224]] = 102.",
 
   "_nota_coppia": "I due scenari vanno letti insieme, ed e' il confronto a valere: **112 con Guard, 102 con Brace**. Qui i due colpi arrivano **da davanti**, e sull'arco frontale la Guardia toglie di piu' (15 contro 10) con la stessa forma: quindi vince, su un colpo come su due. 🔑 **Cio' che resta a separarle e' la DIREZIONE, non piu' il numero di colpi**: la Guardia non copre le spalle ([D-206], `Spec.Facing.BackAttackIgnoresGuard`), il `Brace` si'. Se a schermo si vedessero uguali, la scelta non arriverebbe a chi gioca. ⏱️ **Questa riga diceva «97 con Guard» e «contro due attaccanti conviene Brace» fino al 2026-09-20**, e con il pool di [D-292] era vero: il budget da 15 si esauriva sul primo colpo. [D-408] ritira il pool e **rovescia il verso del confronto**. ⚠️ E' una conseguenza di bilanciamento che tocca `BAL-1`, che e' **aperta**.",
 

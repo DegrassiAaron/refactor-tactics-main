@@ -1,11 +1,11 @@
 {
-  "scenarioId": "Spec.Combat.AreaGuardFromImpactCenterKeepsPool",
+  "scenarioId": "Spec.Combat.AreaGuardFromImpactCenterHolds",
   "tags": ["spec", "combat", "guard", "facing", "area", "d-302", "gadget", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di `D-302` punto (3): per un'AREA la direzione d'impatto e' `centro d'impatto -> bersaglio`, non `lanciatore -> bersaglio`. Una granata fatta cadere DAVANTI a un'unita' in Guardia da un lanciatore che le sta ALLE SPALLE arriva, per lei, da davanti: la Guardia si applica e regge. ⏱️ *«Il pool va consumato» fino al 2026-09-20: [D-408] lo ritira e la Guardia diventa una riduzione per colpo. [D-302] punto (3) non e' toccata, e nessuna assertion di questo file e' cambiata — ma il NOME del file nomina ancora il pool, e il rename ha una issue propria.*",
+  "_nota": "SPECIFICA ESEGUIBILE di `D-302` punto (3): per un'AREA la direzione d'impatto e' `centro d'impatto -> bersaglio`, non `lanciatore -> bersaglio`. Una granata fatta cadere DAVANTI a un'unita' in Guardia da un lanciatore che le sta ALLE SPALLE arriva, per lei, da davanti: la Guardia si applica e regge. ⏱️ *«Il pool va consumato» fino al 2026-09-20: [D-408] lo ritira e la Guardia diventa una riduzione per colpo. [D-302] punto (3) non e' toccata, e nessuna assertion di questo file e' cambiata. Il file si chiamava `Spec.Combat.AreaGuardFromImpactCenterKeepsPool`, nome che nominava il pool: rinominato il 2026-10-27 ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)).*",
 
   "_nota_perche_esiste": "#2009. La `Guard` decideva la frontalita' con la cella di CHI ha attaccato, qualunque fosse la forma, e `D-302` era accettata e non implementata. Il difetto e' stato corretto e misurato in suite (`RefactorTactics.Combat.AreaGuardUsesImpactCenter`), ma NON esisteva in partita: nessuno scenario del corpus combinava `Action.Guard` con `ERTAbilityShape::Area`, quindi il cambio viveva nel motore e non nel corpus. E' lo stesso buco che #1919 misura per i colpi multipli.",
 
