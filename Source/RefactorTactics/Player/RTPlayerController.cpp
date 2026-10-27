@@ -3714,8 +3714,12 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// moduli esistevano, ma `PlannedReactionAbility` lo scrivevano **solo i test**.
 	if (bReazione)
 	{
-		RefreshPlanningOverlay(Unit); // `#3507`: la portata dell'azione armata prima si spegne
+		// 🔴 **Il piano si scrive PRIMA del rinfresco** (`#3891`), come nel ramo di sotto (`#3418`). La timeline legge
+		// `PlannedReactionAbility` per `bReactionArmed` e per la voce di Prep: rinfrescare prima la calcolava con la reazione
+		// di prima, e dal `#3511` nessun tick la ricalcola, perche' il campo non e' un ingresso. Pinnato da
+		// `HexMatch.ArmedReactionShowsInThePlanTimeline`.
 		Unit->PlannedReactionAbility = Index;
+		RefreshPlanningOverlay(Unit); // `#3507`: la portata dell'azione armata prima si spegne
 		UE_LOG(LogRT, Display, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
 	}
