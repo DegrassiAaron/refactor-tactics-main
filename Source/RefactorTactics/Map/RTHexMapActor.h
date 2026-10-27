@@ -1152,6 +1152,30 @@ public:
 	int32 NumPreviewPathCells() const { return PreviewPathArea.Cells.Num(); }
 
 	/**
+	 * **Il RESET UNICO delle aree di pianificazione** — `#3511`. Spegne ventaglio, portata, area colpita con i suoi
+	 * alleati, mira, rotta, tratto di linea di tiro e timeline dei ghost, **in un punto solo**.
+	 *
+	 * 🔴 Esiste perche' l'elenco dei setter viveva nel ramo `Unit == nullptr` di `RefreshPlanningPreview`, e il
+	 * tratto di LOS non c'era: restava a schermo fino al click successivo (`#3064`). Chi aggiunge un'area di
+	 * pianificazione la spegne QUI, accanto al suo setter, e non in un chiamante da ricordare.
+	 *
+	 * ⚠️ **Non tocca l'hover**: la cella sotto il cursore e' il cursore, non un'area di pianificazione, e resta
+	 * accesa anche a pianificazione spenta. ⛔ Non tocca nemmeno il playback (`ClearPlayback*`): e' un altro canale.
+	 */
+	void ClearPlanningPreview();
+
+	/**
+	 * Quante celle l'anteprima di pianificazione disegna per un SIGNIFICATO — `#3511`. `0` per un significato che
+	 * l'anteprima non disegna (`Hover`: e' il cursore).
+	 *
+	 * 🔑 **E' l'oracolo del reset, per ogni voce di `URTOverlayPalette::AllMeanings()`**: un test non elenca le
+	 * superfici una per una (`PreviewCellsLit` lo faceva, e si dimenticava della portata), le chiede per
+	 * significato. `AttackOriginAim` e `Vision` non sono insiemi di celle ma un segno solo: valgono `1` se acceso.
+	 * Lo `switch` non ha `default`, cosi' un significato nuovo deve dire qui se l'anteprima lo disegna.
+	 */
+	int32 NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const;
+
+	/**
 	 * Overlay di LEGGIBILITA': disegna ogni cella col colore della sua superficie, con marcatori distinti per
 	 * «blocca il movimento» e «blocca la vista». Serve perche' in partita le celle sono tutte cilindri identici:
 	 * fango, ostacoli e muri sono invisibili, e una mappa che non comunica le proprie regole contraddice il

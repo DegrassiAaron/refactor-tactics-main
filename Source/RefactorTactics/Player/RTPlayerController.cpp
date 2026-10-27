@@ -226,10 +226,19 @@ namespace
 	 * `HexHitCells` via `MakeBlastPreview`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una
 	 * zona e ne subirebbe un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
 	 */
-	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit)
+	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit, ARTHexMapActor* KnownHexMap = nullptr)
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
-		ARTHexMapActor* HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
+		// `#3511`: l'ingresso unico ha gia' cercato la mappa, e una seconda ricerca itererebbe gli actor del livello.
+		ARTHexMapActor* HexMap = KnownHexMap;
+		if (HexMap)
+		{
+			Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
+		}
+		else
+		{
+			HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
+		}
 		// 🔴 La mira si giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): portata viola e rifiuto del
 		// bersaglio pianificato leggono la copia ottimistica della squadra.
 		Map = ARTTurnManager::PlayerAimMap(World, Unit ? Unit->TeamId : INDEX_NONE, Map);
@@ -239,30 +248,22 @@ namespace
 		}
 		if (!Unit)
 		{
-			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
-			HexMap->SetPreviewRangeCells(TArray<FRTCellId>());
-			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
-			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
-
-			// 🔴 **Anche la ROTTA, e fino al 2026-09-06 non era cosi'** (`#2390`, trovato in code review).
-			// Le tre righe qui sopra spegnevano il ventaglio e l'area, non il percorso: `PreviewPath` entra
-			// in `HasAnythingToDraw` (`RTHexMapActor.cpp:988`) e viene disegnato in ciano
-			// (`RTHexMapActor.cpp:1160`), quindi il piano di chi aveva tracciato waypoint — il caso normale
-			// — restava a schermo per tutta la risoluzione. Spegnere l'anteprima a meta' e' un difetto piu'
-			// difficile da vedere che non spegnerla affatto.
+			// 🔑 **Il reset sta in UN punto, sull'attore** (`ARTHexMapActor::ClearPlanningPreview`, `#3511`): qui c'era
+			// l'elenco dei setter, e ogni canale dimenticato restava a schermo — la rotta durante la risoluzione (`#2390`),
+			// la timeline (`#172`), il tratto di LOS rimasto indefinitamente (`#3064`). Chi aggiunge un'area la spegne
+			// accanto al proprio setter, e questo ramo non cresce piu'.
 			//
-			// ⚠️ **`LastMoveRoutes` non la sostituisce**: `ARTHUD::DrawHUD` disegna la scia grigia dei
-			// percorsi DAVVERO avvenuti (`RTHUD.cpp:667`) su un canale diverso, quindi le due tracce
-			// convivevano invece di darsi il cambio.
-			HexMap->SetPreviewPath(TArray<FRTCellId>());
-
-			// ➕ **E la timeline** (`#172`), per la stessa ragione della rotta qui sopra: spegnere
-			// l'anteprima a metà è un difetto più difficile da vedere che non spegnerla affatto. Una
-			// `FRTPlanPreview` di default è l'annullamento — non serve un secondo metodo che faccia la
-			// stessa cosa con un altro nome.
-			HexMap->SetPlanPreview(FRTPlanPreview());
+			// ⚠️ **`LastMoveRoutes` non sostituisce la rotta**: `ARTHUD::DrawHUD` disegna la scia grigia dei percorsi DAVVERO
+			// avvenuti su un canale diverso, quindi le due tracce convivevano invece di darsi il cambio.
+			HexMap->ClearPlanningPreview();
 			return;
 		}
+
+		// 🔴 **La ROTTA si riscrive dal piano, qui** (`#3511`, review). I siti che la tracciano la scrivevano prima di chiamare
+		// questa funzione, e andava bene finche' a spegnere era un evento che poi non tornava. Con la regola derivata dallo
+		// stato le aree si spengono e tornano senza un evento: `ClearPlanningPreview` azzera anche la rotta, e il ritorno dalla
+		// pausa con un piano gia' tracciato la lasciava spenta mentre ventaglio, portata e timeline tornavano.
+		HexMap->SetPreviewPath(Unit->PlannedPath);
 
 		// Dove puo' ANCORA arrivare: budget, blocchi, occupanti e archi sono gia' applicati, e i waypoint gia'
 		// pianificati hanno gia' speso la loro parte (#877). Il ventaglio risponde a «quanto mi resta», non a
@@ -1065,6 +1066,11 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
+
+	// 🔑 **Le aree di pianificazione: si CONFRONTA a ogni fotogramma, si CALCOLA solo se un ingresso e' cambiato**
+	// (`#3511`). Sta dopo `SetHoveredCell` perche' la cella sotto il cursore e' uno degli ingressi, e prima dello
+	// sguardo, che non ne dipende. ⚠️ Passa la mappa gia' cercata: `FindInWorld` itera gli actor del livello.
+	UpdatePlanningOverlay(HexMap);
 
 	// #3747: lo sguardo LEGGE l'hover, non lo scrive (non tocca `SetHoveredCell` ne' `InspectedUnit`).
 	UpdateGlance(DeltaTime, bCellResolved, Cell, Map);
@@ -2293,7 +2299,7 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		const ARTUnit* NewUnit = Cast<ARTUnit>(Actor);
 		SHexMap->SetPreviewPath(NewUnit ? NewUnit->PlannedPath : TArray<FRTCellId>());
 		// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
-		RefreshPlanningPreview(GetWorld(), NewUnit);
+		RefreshPlanningOverlay(NewUnit);
 	}
 }
 
@@ -2601,7 +2607,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			SelectedUnit->DeclareAttackOnUnit(ClickedUnit);
 			// La zona colpita compare SUBITO, col fuoco amico gia' segnalato: e' il momento in cui il giocatore
 			// puo' ancora cambiare idea. Dopo il lock-in l'informazione non serve piu' a niente.
-			RefreshPlanningPreview(GetWorld(), SelectedUnit);
+			RefreshPlanningOverlay(SelectedUnit);
 			if (ARTTurnManager* TM = PacingTurnManager(this))
 			{
 				TM->RecordPlanningInput(ERTPlanningInput::Order);
@@ -3044,7 +3050,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			// 🔑 **La timeline del piano si ricompone qui** (review della PR #3767): lo scatto e' una fase del piano, e
 			// fino a qui la timeline posata restava quella di prima del click — il fantasma dello scatto compariva
 			// solo al gesto successivo. Lo stesso del waypoint, che ricompone dopo averlo accettato.
-			RefreshPlanningPreview(GetWorld(), SelectedUnit);
+			RefreshPlanningOverlay(SelectedUnit);
 			RecordDestinationOrder(this);
 			return;
 		}
@@ -3119,7 +3125,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// Il percorso si e' allungato, quindi il ventaglio si accorcia: le due meta' della stessa anteprima si
 	// aggiornano insieme (#877). Aggiornarne una sola lasciava il verde a promettere celle che il waypoint
 	// successivo avrebbe rifiutato.
-	RefreshPlanningPreview(GetWorld(), SelectedUnit);
+	RefreshPlanningOverlay(SelectedUnit);
 	PreviewPlannedFacing(SelectedUnit); // la mesh segue il piano invece di restare girata come prima
 
 	// ⚠️ **Il pacing sta QUI e non in cima alla funzione**, e la posizione è il contenuto della regola:
@@ -3216,7 +3222,7 @@ void ARTPlayerController::HandleLockInCommitted()
 	// ⚠️ **Questo commento diceva che «la traccia del percorso la sostituisce `LastMoveRoutes`», ed era
 	// falso**: `ARTHUD` disegna quella scia su un canale diverso e IN AGGIUNTA, non al posto. La rotta la
 	// spegne il ramo `!Unit` di `RefreshPlanningPreview`, che fino al 2026-09-06 non lo faceva.
-	RefreshPlanningPreview(GetWorld(), nullptr);
+	RefreshPlanningOverlay(nullptr);
 	// Il selettore del verso non sopravvive al commit (`#291`): il turno dopo si apre da capo.
 	EndFacingDeclaration();
 }
@@ -3226,7 +3232,7 @@ void ARTPlayerController::HandlePlaybackFinished()
 	// Ricalcola dallo stato di ADESSO: `RefreshPlanningPreview` deriva tutto dal piano corrente, che la
 	// risoluzione ha appena consumato. Con nessuna selezione l'argomento e' `nullptr` e l'anteprima resta
 	// spenta, che e' la risposta giusta.
-	RefreshPlanningPreview(GetWorld(), GetSelectedUnit());
+	RefreshPlanningOverlay(GetSelectedUnit());
 }
 
 void ARTPlayerController::HandleMatchEndedPresentation(const FRTMatchResult& Result, const FRTMatchState& State)
@@ -3235,7 +3241,7 @@ void ARTPlayerController::HandleMatchEndedPresentation(const FRTMatchResult& Res
 	// `OnResolvePlaybackFinished` scatta prima che `ConcludeTurn` imposti `MatchEnded`, quindi
 	// `HandlePlaybackFinished` ridipingeva il ventaglio dietro la schermata dei risultati. Qui si chiude,
 	// e da qui in poi non arriva piu' nessun evento che possa riaccendere.
-	RefreshPlanningPreview(GetWorld(), nullptr);
+	RefreshPlanningOverlay(nullptr);
 }
 
 void ARTPlayerController::EnsureTurnPresentationSubscriptions(ARTTurnManager* TurnManager)
@@ -3505,7 +3511,7 @@ FString ARTPlayerController::DisarmPlannedAction()
 	{
 		HMD->SetPreviewPath(Unit->PlannedPath);
 	}
-	RefreshPlanningPreview(GetWorld(), Unit);
+	RefreshPlanningOverlay(Unit);
 	// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG` del chiamante: la
 	// leggera' chi cerca perche' il suo percorso e' tornato.
 	return bRestituiti
@@ -3708,7 +3714,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// moduli esistevano, ma `PlannedReactionAbility` lo scrivevano **solo i test**.
 	if (bReazione)
 	{
-		RefreshPlanningPreview(GetWorld(), Unit); // `#3507`: la portata dell'azione armata prima si spegne
+		RefreshPlanningOverlay(Unit); // `#3507`: la portata dell'azione armata prima si spegne
 		Unit->PlannedReactionAbility = Index;
 		UE_LOG(LogRT, Display, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
@@ -3747,7 +3753,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		{
 			HM->SetPreviewPath(Unit->PlannedPath);
 		}
-		RefreshPlanningPreview(GetWorld(), Unit);
+		RefreshPlanningOverlay(Unit);
 	};
 
 	// 🔴 **Un'azione che RISERVA lo slot movimento TRONCA il piano gia' dichiarato al budget del profilo
@@ -4247,7 +4253,7 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// 🔑 **Il ridisegno e' fuori da ogni ramo**, perche' la sua causa non e' il troncamento: e' il TETTO che
 	// e' cambiato. Le celle raggiungibili vengono da `PlanningSnapshotFor`, che il tetto lo legge — quindi
 	// un'anteprima non ridisegnata mostra il budget di prima e contraddice il turno che seguira'.
-	RefreshPlanningPreview(GetWorld(), Unit);
+	RefreshPlanningOverlay(Unit);
 }
 
 void ARTPlayerController::RebuildPlannedPath()
@@ -4297,7 +4303,7 @@ void ARTPlayerController::RebuildPlannedPath()
 	// «piano non piu' valido» qui sopra, dove `PlannedWaypoints` puo' essere ancora pieno ma il percorso e'
 	// stato azzerato: `ReachableCellsAfterPlan` rifa' la domanda a `BuildCompositeHexPath` e ottiene la stessa
 	// risposta, cioe' il raggio pieno. Le due strade non possono divergere perche' sono la stessa funzione.
-	RefreshPlanningPreview(GetWorld(), Unit);
+	RefreshPlanningOverlay(Unit);
 	PreviewPlannedFacing(Unit); // vale anche quando un waypoint viene tolto: il piano si accorcia, la mesh lo segue
 }
 
@@ -4584,6 +4590,95 @@ ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const
 	return URTPointerLibrary::TargetKindForAction(Ability->Def, Ability->bSelfTarget, Ability->Shape);
 }
 
+FRTPlanningOverlayInputs ARTPlayerController::GatherPlanningOverlayInputs(
+	const ARTUnit* Unit, const ARTHexMapActor* HexMap) const
+{
+	FRTPlanningOverlayInputs Inputs;
+	Inputs.Unit = Unit;
+	Inputs.bUnitAlive = Unit && Unit->IsAlive();
+	// Il contesto e il tipo di bersaglio si LEGGONO dal puntatore, che e' l'autorita': ricalcolarli qui sarebbe la
+	// seconda verita' che diverge. ⚠️ Entrambi guardano l'unita' selezionata, che in ogni chiamata di produzione e'
+	// `Unit`: `RefreshPlanningOverlay` la riceve dopo che `SelectedActor` e' stato scritto.
+	Inputs.Context = GetPointerContext();
+	Inputs.ArmedAbilityIndex = Unit ? Unit->SelectedAbilityIndex : INDEX_NONE;
+	Inputs.ArmedTargetKind = GetPointerTargetKind();
+	if (HexMap)
+	{
+		Inputs.HoveredCell = HexMap->GetHoveredCell();
+		Inputs.bHoveredValid = HexMap->IsHoveredCellValid();
+	}
+	Inputs.FacingSector = FacingHoverSector.IsSet() ? static_cast<int32>(FacingHoverSector.GetValue()) : INDEX_NONE;
+	Inputs.ActiveLayer = ActiveLayer;
+	Inputs.PlanRevision = PlanningOverlayRevision;
+	// ⚠️ **Costa una ricerca di actor** (`GetActorOfClass` itera il livello), come `GetPointerContext` subito sopra e come
+	// `UpdateGlance` in questo stesso tick: e' il prezzo di leggere turno e fine partita dall'autorita' invece di copiarli.
+	if (const ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		Inputs.TurnIndex = TM->GetTurnNumber();
+		// `GetPointerContext` non dichiara la fine partita di proposito: a partita finita il puntatore resta in
+		// `Planning`, e le aree si spengono da qui.
+		Inputs.bMatchEnded = TM->GetPhase() == ERTMatchPhase::MatchEnded;
+	}
+	return Inputs;
+}
+
+void ARTPlayerController::ApplyPlanningOverlay(
+	ARTHexMapActor* HexMap, const ARTUnit* Unit, const FRTPlanningOverlayInputs& Inputs)
+{
+	if (bHasPlanningOverlayInputs && Inputs == LastPlanningOverlayInputs)
+	{
+		return;
+	}
+	const bool bPlanChanged = !bHasPlanningOverlayInputs || !Inputs.SamePlanLevel(LastPlanningOverlayInputs);
+	LastPlanningOverlayInputs = Inputs;
+	bHasPlanningOverlayInputs = true;
+	++PlanningOverlayComputations;
+
+	// 🔑 **La regola e' derivata dallo stato, non da un evento**: se le aree non si mostrano, si azzerano TUTTE, dallo
+	// stesso reset dell'attore. Un'uscita che nessuno ha elencato (commit, playback, `Modal`, KO, fine partita) si
+	// corregge qui al primo tick in cui lo stato la dichiara.
+	if (!Inputs.ShowsAreas())
+	{
+		if (bPlanChanged)
+		{
+			HexMap->ClearPlanningPreview();
+		}
+		return;
+	}
+
+	// ⛔ **Il solo cambio di cella NON rifa' ventaglio e portata** (criterio di `#711`): oggi nessuna area dipende
+	// dall'hover. Quando `#3420` aggiungera' l'area sotto il cursore, il suo calcolo entra qui, accanto a questa riga.
+	if (bPlanChanged)
+	{
+		++PlanningOverlayPlanComputations;
+		RefreshPlanningPreview(GetWorld(), Unit, HexMap);
+	}
+}
+
+void ARTPlayerController::UpdatePlanningOverlay(ARTHexMapActor* KnownHexMap)
+{
+	ARTHexMapActor* HexMap = KnownHexMap ? KnownHexMap : ARTHexMapActor::FindInWorld(GetWorld());
+	if (!HexMap)
+	{
+		return;
+	}
+	const ARTUnit* Unit = GetSelectedUnit();
+	ApplyPlanningOverlay(HexMap, Unit, GatherPlanningOverlayInputs(Unit, HexMap));
+}
+
+void ARTPlayerController::RefreshPlanningOverlay(const ARTUnit* Unit)
+{
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!HexMap)
+	{
+		return;
+	}
+	// La revisione sale PRIMA di leggere gli ingressi: un waypoint aggiunto non cambia nessun altro campo, e senza
+	// questo salto il confronto lo scarterebbe come «niente di nuovo».
+	++PlanningOverlayRevision;
+	ApplyPlanningOverlay(HexMap, Unit, GatherPlanningOverlayInputs(Unit, HexMap));
+}
+
 ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 {
 	// Le stesse uscite del click, nello stesso ordine: dove il click non mostrerebbe un rifiuto, nemmeno lo
@@ -4749,7 +4844,7 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 			else
 			{
 				Unit->SelectAbility(INDEX_NONE);
-				RefreshPlanningPreview(GetWorld(), Unit); // `#3507`: torna il ventaglio, si spegne la portata
+				RefreshPlanningOverlay(Unit); // `#3507`: torna il ventaglio, si spegne la portata
 			}
 		}
 		break;
@@ -4988,7 +5083,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// forme sono esclusive, non i suoi chiamanti (`#2884`).
 	Unit->DeclareAttackOnCell(Cell);
 
-	RefreshPlanningPreview(GetWorld(), Unit);
+	RefreshPlanningOverlay(Unit);
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
@@ -5053,7 +5148,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;
 
-	// ⚠️ **Niente `RefreshPlanningPreview` qui, a differenza di `HandleTargetCell`, e non e' una svista.**
+	// ⚠️ **Niente `RefreshPlanningOverlay` qui, a differenza di `HandleTargetCell`, e non e' una svista.**
 	// Quella anteprima disegna l'AREA COLPITA dell'azione: per un'azione su struttura di bordo l'esito non e'
 	// un'area ma un LATO, e mostrare un ventaglio di celle direbbe al giocatore una cosa che non succedera'.
 	// L'anteprima del bordo e' lavoro di presentazione (#613), e finche' non esiste e' meglio non disegnare

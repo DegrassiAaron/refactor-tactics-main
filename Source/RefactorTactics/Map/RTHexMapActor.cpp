@@ -1256,6 +1256,39 @@ void ARTHexMapActor::SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, 
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
+void ARTHexMapActor::ClearPlanningPreview()
+{
+	// Gli stessi setter di sempre, in UN punto: nessun effetto in piu' e nessuno in meno rispetto alle righe che
+	// stavano nel ramo `Unit == nullptr` di `RefreshPlanningPreview`, piu' il tratto di LOS che quel ramo non
+	// spegneva (`#3064`).
+	SetPreviewReachableCells(TArray<FRTCellId>());
+	SetPreviewRangeCells(TArray<FRTCellId>());
+	SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
+	SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
+	SetPreviewPath(TArray<FRTCellId>());
+	SetPreviewSightBlock(/*bBlocked=*/ false, FRTCellId(), FRTCellId());
+	// Una `FRTPlanPreview` di default e' l'annullamento: non serve un secondo metodo che faccia la stessa cosa.
+	SetPlanPreview(FRTPlanPreview());
+}
+
+int32 ARTHexMapActor::NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const
+{
+	switch (Meaning)
+	{
+	case ERTOverlayMeaning::Movement:        return PreviewReachableArea.Cells.Num();
+	case ERTOverlayMeaning::PathTrace:       return PreviewPathArea.Cells.Num();
+	case ERTOverlayMeaning::Attack:          return PreviewHitArea.Cells.Num();
+	case ERTOverlayMeaning::FriendlyFire:    return PreviewAllyHitArea.Cells.Num();
+	case ERTOverlayMeaning::AbilityRange:    return PreviewRangeArea.Cells.Num();
+	// Non sono insiemi di celle ma un segno solo: la linea mira->bersaglio e il tratto di linea di tiro.
+	case ERTOverlayMeaning::AttackOriginAim: return bPreviewAttackValid ? 1 : 0;
+	case ERTOverlayMeaning::Vision:          return bHasPreviewSightBlock ? 1 : 0;
+	// Il cursore non e' un'area di pianificazione: resta acceso anche quando la pianificazione e' spenta.
+	case ERTOverlayMeaning::Hover:           return 0;
+	}
+	return 0;
+}
+
 void ARTHexMapActor::AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCells)
 {
 	// Si copia e basta, come le celle colpite dell'anteprima: arrivano da `FRTResolvedEvent::HitCells`, che

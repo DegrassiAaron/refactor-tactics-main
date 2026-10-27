@@ -16,6 +16,7 @@
 #include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
 #include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
+#include "Map/RTOverlayPalette.h"      // #3511: AllMeanings, l'oracolo del reset
 #include "Turn/RTMatchSetupLibrary.h" // MakeTestArena: una board con piu' famiglie popolate
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 #include "RTConsoleVariableGuardForTest.h"
@@ -3134,6 +3135,157 @@ bool FRTHexMapActorPartialRebuildRespectsTheMaskTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("tre ricostruzioni parziali (%s) lasciano ogni ISM com'era"), Prova.Nome),
 			RTRebuildSnapshotOfEveryIsm(Actor), Baseline);
 	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3511` — il RESET UNICO delle aree di pianificazione, e l'oracolo per SIGNIFICATO che lo misura.
+//
+// Il reset stava nel ramo `Unit == nullptr` di `RefreshPlanningPreview` come un elenco di setter, e ogni canale
+// dimenticato restava a schermo (`#2390` la rotta, `#2555` il ventaglio, `#3064` il tratto di LOS). Qui si prova sull'ATTORE,
+// senza controller: `ClearPlanningPreview` azzera ogni significato, e `NumPlanningPreviewCells` lo vede.
+// =====================================================================================================
+
+namespace
+{
+	/** Accende UNA sola superficie dell'anteprima di pianificazione: quella di `Meaning`. */
+	void HexMapActorPlanLight(ARTHexMapActor* Actor, ERTOverlayMeaning Meaning)
+	{
+		const FRTCellId A(0, 0, 0);
+		const FRTCellId B(1, 0, 0);
+		switch (Meaning)
+		{
+		case ERTOverlayMeaning::Movement:        Actor->SetPreviewReachableCells({ A, B }); break;
+		case ERTOverlayMeaning::PathTrace:       Actor->SetPreviewPath({ A, B }); break;
+		case ERTOverlayMeaning::Attack:          Actor->SetPreviewHitCells({ A }, {}); break;
+		case ERTOverlayMeaning::FriendlyFire:    Actor->SetPreviewHitCells({}, { B }); break;
+		case ERTOverlayMeaning::AbilityRange:    Actor->SetPreviewRangeCells({ A }); break;
+		case ERTOverlayMeaning::AttackOriginAim: Actor->SetPreviewAttack(A, B, /*bValid=*/ true, /*bOriginPredicted=*/ false); break;
+		case ERTOverlayMeaning::Vision:          Actor->SetPreviewSightBlock(/*bBlocked=*/ true, A, B); break;
+		// Il cursore non e' un'area di pianificazione, ma si accende lo stesso: il suo conteggio deve restare zero.
+		case ERTOverlayMeaning::Hover:           Actor->SetHoveredCell(B, /*bValid=*/ true); break;
+		}
+	}
+
+	/** Accende TUTTE le superfici insieme, timeline compresa. Area colpita e alleati passano da un setter solo. */
+	void HexMapActorPlanLightEverything(ARTHexMapActor* Actor)
+	{
+		const FRTCellId A(0, 0, 0);
+		const FRTCellId B(1, 0, 0);
+		Actor->SetPreviewReachableCells({ A, B });
+		Actor->SetPreviewPath({ A, B });
+		Actor->SetPreviewHitCells({ A }, { B });
+		Actor->SetPreviewRangeCells({ A });
+		Actor->SetPreviewAttack(A, B, /*bValid=*/ true, /*bOriginPredicted=*/ false);
+		Actor->SetPreviewSightBlock(/*bBlocked=*/ true, A, B);
+		FRTPlanPreview Timeline;
+		Timeline.Phases.AddDefaulted();
+		Actor->SetPlanPreview(Timeline);
+	}
+
+	FString HexMapActorMeaningName(ERTOverlayMeaning Meaning)
+	{
+		return StaticEnum<ERTOverlayMeaning>()->GetNameStringByValue(static_cast<int64>(Meaning));
+	}
+}
+
+/**
+ * **`#3511` — `NumPlanningPreviewCells` vede ogni superficie da sola, e nessuna delle altre.**
+ *
+ * E' l'oracolo che i test di reset usano, quindi e' lui a dover essere provato per primo: un oracolo che contasse due
+ * significati nello stesso numero, o che ne ignorasse uno, renderebbe verde ogni reset che dimentica quella superficie.
+ * Si accende una superficie per volta, per OGNI voce di `AllMeanings`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPlanningOracleSeesEachSurfaceAloneTest,
+	"RefactorTactics.HexMapActor.PlanningOracleSeesEachMeaningAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPlanningOracleSeesEachSurfaceAloneTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius*/ 2));
+	if (!TestNotNull(TEXT("actor spawnato"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const TArray<ERTOverlayMeaning> Meanings = URTOverlayPalette::AllMeanings();
+	TestTrue(TEXT("controllo: ci sono significati da provare"), Meanings.Num() > 0);
+
+	for (const ERTOverlayMeaning Lit : Meanings)
+	{
+		Actor->ClearPlanningPreview();
+		Actor->SetHoveredCell(FRTCellId(), /*bValid=*/ false);
+		HexMapActorPlanLight(Actor, Lit);
+
+		// `Hover` non e' un'area di pianificazione: il suo conteggio e' zero anche a cursore acceso.
+		const bool bIsPlanningArea = Lit != ERTOverlayMeaning::Hover;
+		TestEqual(*FString::Printf(TEXT("%s: acceso da solo, la sua superficie si vede"), *HexMapActorMeaningName(Lit)),
+			Actor->NumPlanningPreviewCells(Lit) > 0, bIsPlanningArea);
+
+		for (const ERTOverlayMeaning Other : Meanings)
+		{
+			if (Other == Lit) { continue; }
+			TestEqual(*FString::Printf(TEXT("%s acceso da solo: %s resta a zero"),
+				*HexMapActorMeaningName(Lit), *HexMapActorMeaningName(Other)),
+				Actor->NumPlanningPreviewCells(Other), 0);
+		}
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * **`#3511` — `ClearPlanningPreview` spegne ogni significato, la timeline e il tratto di LOS, e non tocca l'hover.**
+ *
+ * 🔴 Il tratto di LOS e' il canale che il ramo `Unit == nullptr` non spegneva (`#3064`): restava a schermo fino al click
+ * successivo. Si accende TUTTO insieme, si chiama il reset UNA volta, e si guardano tutte le voci di `AllMeanings` — non un
+ * elenco di superfici scritto qui, che invecchierebbe insieme all'elenco di setter che il reset sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorClearPlanningPreviewTest,
+	"RefactorTactics.HexMapActor.ClearPlanningPreviewTurnsEveryMeaningOff",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius*/ 2));
+	if (!TestNotNull(TEXT("actor spawnato"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTCellId Cursore(0, 1, 0);
+	Actor->SetHoveredCell(Cursore, /*bValid=*/ true);
+	HexMapActorPlanLightEverything(Actor);
+
+	// CONTROLLO POSITIVO — ogni significato di pianificazione e' acceso prima del reset. Senza, «tutto a zero» dopo
+	// sarebbe vero per costruzione.
+	for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+	{
+		if (Meaning == ERTOverlayMeaning::Hover) { continue; }
+		TestTrue(*FString::Printf(TEXT("controllo: %s e' acceso prima del reset"), *HexMapActorMeaningName(Meaning)),
+			Actor->NumPlanningPreviewCells(Meaning) > 0);
+	}
+	TestTrue(TEXT("controllo: il tratto di LOS e' acceso"), Actor->HasPreviewSightBlock());
+	TestEqual(TEXT("controllo: la timeline ha una fase"), Actor->GetPlanPreview().Phases.Num(), 1);
+
+	Actor->ClearPlanningPreview();
+
+	for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+	{
+		TestEqual(*FString::Printf(TEXT("dopo il reset %s e' spento"), *HexMapActorMeaningName(Meaning)),
+			Actor->NumPlanningPreviewCells(Meaning), 0);
+	}
+	TestFalse(TEXT("dopo il reset anche il tratto di LOS e' spento (`#3064`)"), Actor->HasPreviewSightBlock());
+	TestEqual(TEXT("e la timeline dei ghost e' vuota"), Actor->GetPlanPreview().Phases.Num(), 0);
+
+	// L'hover e' il cursore, non un'area di pianificazione: resta com'era.
+	TestEqual(TEXT("il reset non tocca la cella sotto il cursore"), Actor->GetHoveredCell().ToString(), Cursore.ToString());
+	TestTrue(TEXT("ne' la sua validita'"), Actor->IsHoveredCellValid());
+
+	// Idempotente: un secondo reset su un attore gia' spento non cambia niente e non rompe niente.
+	Actor->ClearPlanningPreview();
+	TestEqual(TEXT("un secondo reset lascia tutto spento"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::Movement)
+			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AttackOriginAim), 0);
 
 	DestroyMapActorWorld(World);
 	return true;
