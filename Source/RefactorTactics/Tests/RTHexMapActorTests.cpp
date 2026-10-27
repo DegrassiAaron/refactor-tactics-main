@@ -3291,4 +3291,70 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **`#3893` — il costo della ricostruzione conta anche i volumi di superficie.**
+ *
+ * `LastRebuildCreatedInstances` e' il metro con cui `#1865` rende falsificabile *«il costo e' proporzionale alla modifica, non
+ * alla mappa»*, e sommava ogni famiglia ricostruita tranne `SurfaceVolumes` e la nebbia (`FogVolumes`, una colonna per cella che
+ * nasce con le celle): una ricostruzione dei soli volumi rispondeva zero, e una che li ricostruiva insieme ad altro rispondeva
+ * meno del vero. I volumi sono entrati nella maschera del pennello con `#2732`, dopo il metro; la nebbia l'ha trovata la review
+ * di `#3893`.
+ *
+ * 🔑 **Il volume si prova contro il componente, non contro un numero scritto qui**: il conteggio deve valere le istanze che
+ * `SurfaceVolumes` ha davvero. 🔑 **E la meta' opposta**: una ricostruzione che NON chiede i volumi non li conta, altrimenti un
+ * metro che li sommasse sempre passerebbe la prima meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildCostCountsSurfaceVolumesTest,
+	"RefactorTactics.HexMapActor.RebuildCostCountsSurfaceVolumes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorRebuildCostCountsSurfaceVolumesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 2);
+	// Il fumo ha un volume (`SurfaceVolumeFor`): senza una cella cosi' la famiglia sarebbe vuota e ogni conteggio varrebbe zero.
+	{
+		FRTHexCellData Fumo = Asset->Cells[1];
+		Fumo.Surface = ERTHexSurface::Smoke;
+		Asset->AddOrUpdateCell(Fumo);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor"), Actor)
+		|| !TestTrue(TEXT("premessa: il fumo ha un volume"), URTHexLibrary::SurfaceVolumeFor(ERTHexSurface::Smoke).Y > 0.0))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	Actor->RebuildInstances(ERTRebuildFamily::All);
+	const int32 Volumi = MapActorIsmCount(Actor, TEXT("SurfaceVolumes"));
+	const int32 Celle = MapActorIsmCount(Actor, TEXT("Cells"));
+	const int32 Nebbia = MapActorIsmCount(Actor, TEXT("FogVolumes"));
+	if (!TestTrue(TEXT("premessa ANTI-VACUITA': la mappa ha dei volumi di superficie"), Volumi > 0)
+		|| !TestTrue(TEXT("premessa: e delle celle"), Celle > 0)
+		|| !TestTrue(TEXT("premessa ANTI-VACUITA': e la nebbia, una colonna per cella"), Nebbia > 0))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	Actor->RebuildInstances(ERTRebuildFamily::SurfaceVolumes);
+	TestEqual(TEXT("la ricostruzione dei soli volumi costa quanti volumi ci sono"),
+		Actor->LastRebuildCreatedInstances(), Volumi);
+
+	Actor->RebuildInstances(ERTRebuildFamily::Cells);
+	TestEqual(TEXT("una ricostruzione che non li chiede non li conta: solo le celle e la loro nebbia"),
+		Actor->LastRebuildCreatedInstances(), Celle + Nebbia);
+
+	Actor->RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::SurfaceVolumes);
+	TestEqual(TEXT("e chiesti insieme ad altro si sommano"),
+		Actor->LastRebuildCreatedInstances(), Celle + Nebbia + Volumi);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
