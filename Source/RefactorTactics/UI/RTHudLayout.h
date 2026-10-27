@@ -28,8 +28,11 @@ struct REFACTORTACTICS_API FRTHudBands
 	float Right = 368.64f;
 	/** Fascia alta: il roster, in `Zone_TopLeft`, finisce a y=200. */
 	float Top = 205.2f;
-	/** Fascia bassa: il dock comincia a y=903. */
-	float Bottom = 183.6f;
+	/**
+	 * Fascia bassa: il dock col suo prompt di bersaglio (185,0 unità misurate a 1920x1080, nella riga intera del testo)
+	 * più i due margini di zona. Era il 17% (183,6); #3881 la porta al 18% come emenda di D-497 (2), D-549.
+	 */
+	float Bottom = 194.4f;
 
 	/**
 	 * **La cella alta della colonna sinistra**, che nella colonna sinistra prende il posto della fascia alta.
