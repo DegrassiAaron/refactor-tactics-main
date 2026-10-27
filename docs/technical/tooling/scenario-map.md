@@ -884,8 +884,8 @@ resta visibile invece di sparire.
 > capability che li sbloccava. **Qui** il rischio è l'opposto — scrivere lo scenario prima dell'oracolo e
 > lasciarlo verde per assenza. Un `BLOCKED` che scivola in verde non lo denuncia nessuno.
 
-> ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 <!-- rename-exempt: racconta il 2026-08-10, quando il file si chiamava cosi' -->
+> ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` (oggi `…GuardWinsOnFrontalHits`) e
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 > `Spec.Combat.BranthIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché

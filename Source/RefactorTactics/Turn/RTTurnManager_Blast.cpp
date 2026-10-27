@@ -2811,7 +2811,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// contro -10 su OGNI colpo da ogni lato), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
 			// `Spec.Brace.GuardWinsOnFrontalHits`. ⏱️ *Questa riga diceva «-15 sul primo colpo» fino al
 			// 2026-09-03: sotto la soglia del pool il confronto si CAPOVOLGE — con colpi da 8 il `Brace`
-			// azzera tutto e la Guardia no — e lo mostrava `Visual.Combat.GuardVsBraceUnderSmallHits`, oggi `DefenseVsNoneUnderSmallHits`.*
+			// azzera tutto e la Guardia no — e lo mostrava `Visual.Combat.GuardVsBraceUnderSmallHits`, oggi `DefenseVsNoneUnderSmallHits` — che da D-408 chiude i due difensori allo stesso numero e non lo mostra piu'.*
 			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			//
 			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):

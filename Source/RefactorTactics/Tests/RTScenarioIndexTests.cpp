@@ -627,6 +627,9 @@ bool FRTScenarioIndexShippedRedirectsTest::RunTest(const FString&)
 		return false;
 	}
 
+	// L'elenco completo degli ID, per l'esistenza ESATTA: `ResolvePath` non basta, vedi il ciclo generale.
+	const TArray<FString> Vivi = URTScenarioIndex::ListIds(FString(), FString());
+
 	const TArray<TPair<FString, FString>> Rinomine = {
 		{ TEXT("Spec.Brace.BraceWinsOnSecondHit"),                  TEXT("Spec.Brace.GuardWinsOnFrontalHits") },
 		{ TEXT("Visual.Combat.GuardReducesFirstHit"),               TEXT("Visual.Combat.GuardReducesEveryFrontalHit") },
@@ -641,19 +644,26 @@ bool FRTScenarioIndexShippedRedirectsTest::RunTest(const FString&)
 		const FString PercorsoVecchio = URTScenarioIndex::ResolvePath(Coppia.Key, ErroreVecchio);
 		TestFalse(*FString::Printf(TEXT("il nome nuovo %s esiste (%s)"), *Coppia.Value, *ErroreNuovo),
 			PercorsoNuovo.IsEmpty());
+		TestTrue(*FString::Printf(TEXT("e %s e' un ID vivo scritto per intero, non un'abbreviazione"), *Coppia.Value),
+			Vivi.Contains(Coppia.Value));
 		TestEqual(*FString::Printf(TEXT("il nome vecchio %s porta allo stesso file di %s"), *Coppia.Key, *Coppia.Value),
 			PercorsoVecchio, PercorsoNuovo);
 	}
 
 	// Il controllo generale, sul file vero: nessuna voce deve restare appesa a un bersaglio che non c'e' piu'.
+	//
+	// 🔴 **Esistenza ESATTA, e non `ResolvePath(Finale)`.** `ResolvePath` rifa i redirect e prova anche
+	// l'abbreviazione per segmenti, quindi un bersaglio scritto senza prefisso (`BranthImpactShotSlows`) o una
+	// catena piu' lunga di `MaxRedirectHops` si risolverebbero QUI e non nell'harness, che parte dall'ID
+	// originale e si ferma. Misurato con un mutante: il bersaglio senza prefisso lasciava il test verde.
 	for (const TPair<FString, FString>& Voce : Redirects)
 	{
 		const FString Finale = URTScenarioIndex::ApplyRedirects(Redirects, Voce.Key);
-		FString Errore;
-		const FString Percorso = URTScenarioIndex::ResolvePath(Finale, Errore);
-		TestFalse(*FString::Printf(TEXT("il redirect %s -> %s porta a uno scenario vivo (%s)"),
-				*Voce.Key, *Finale, *Errore),
-			Percorso.IsEmpty());
+		TestTrue(*FString::Printf(TEXT("il redirect %s -> %s porta a un ID VIVO, scritto per intero"),
+				*Voce.Key, *Finale),
+			Vivi.Contains(Finale));
+		TestFalse(*FString::Printf(TEXT("e %s non e' a sua volta una chiave: la catena finisce entro i salti"), *Finale),
+			Redirects.Contains(Finale));
 	}
 	return true;
 }
