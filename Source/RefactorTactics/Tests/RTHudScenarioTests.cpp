@@ -958,6 +958,9 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 						Finestre.Add(FIntPoint(Ris.Larghezza, Ris.Altezza));
 					}
 					Finestre.Add(FIntPoint(1600, 900)); // la finestra dell'issue
+					// 1440p e 4K (#3883): l'altezza del dock col prompt cresce con la scala, e senza queste due il gate non la misurava oltre 1,111.
+					Finestre.Add(FIntPoint(2560, 1440));
+					Finestre.Add(FIntPoint(3840, 2160));
 
 					const float SpazioY = static_cast<float>(RTHudLayout::ZoneLayout(ERTHudZone::Bottom, F).Offsets.Bottom);
 					for (const FIntPoint& Finestra : Finestre)
