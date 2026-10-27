@@ -14,7 +14,7 @@
  * ⚠️ **`Amount` e' il danno NOMINALE, non gli HP persi, ed e' una convenzione DICHIARATA.** Per un
  * `Attack` vale `Hit.Power`, cioe' la potenza dell'intento **meno la sola copertura**
  * (`URTHexCombatLibrary::CollectHexAttacks`): Deflect, Guard e Brace agiscono dopo, su un array diverso
- * (`ApplyAbsorptionPool` in `ResolveCombatPasses`), e lo scudo assorbe piu' a valle ancora. 🔑 Ne segue che
+ * (`ApplyDamageDelta`, `ApplyAbsorptionPool` e `ApplyEligibleHitDelta` in `ResolveCombatPasses`), e lo scudo assorbe piu' a valle ancora. 🔑 Ne segue che
  * un colpo da 30 su un bersaglio in Brace con scudo mostra `-30` mentre la barra scende di meno o di
  * niente: **e' voluto**. E' la stessa convenzione che `#2460` ha fissato per `HazardDamage`, e cambiarla
  * qui scollegherebbe i due canali che devono raccontare lo stesso colpo.

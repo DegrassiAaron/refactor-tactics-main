@@ -423,7 +423,7 @@ bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
 }
 
 /**
- * [D-312] misurata sulla CATENA REALE, che e' l'unica sede in cui l'ordine dei due pool esiste.
+ * [D-312] misurata sulla CATENA REALE, che e' l'unica sede in cui l'ordine fra il pool del `Deflect` e la riduzione della Guardia esiste.
  *
  * Perche' serve, benche' `Combat.DeflectAbsorbsBeforeGuardReduces` parli gia' dell'ordine: quello chiama
  * `ApplyAbsorptionPool` e `ApplyEligibleHitDelta` DIRETTAMENTE, quindi prova che i due ordini divergono ma resta verde qualunque

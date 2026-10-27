@@ -38,7 +38,7 @@
 
   "turns": [
     {
-      "_turno": "Un turno solo: le due guardie sono azioni principali di Prep e risolvono su chi le usa — nessun bersaglio da dichiarare — e i cinque colpi si risolvono nello stesso passaggio di Blast. Due difensori nella stessa scena e non due turni: la guardia si ricarica a ogni turno, quindi un secondo turno misurerebbe un pool nuovo invece del confronto fra i due lati.",
+      "_turno": "Un turno solo: le due guardie sono azioni principali di Prep e risolvono su chi le usa — nessun bersaglio da dichiarare — e i cinque colpi si risolvono nello stesso passaggio di Blast. Due difensori nella stessa scena e non due turni: la guardia si ricarica a ogni turno, quindi un secondo turno ripeterebbe la stessa misura invece di confrontare i due lati.",
       "intents": [
         { "unit": "DG", "ability": "Action.Guard" },
         { "unit": "DB", "ability": "Action.Guard" },

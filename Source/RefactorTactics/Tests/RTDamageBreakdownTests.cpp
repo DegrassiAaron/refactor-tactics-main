@@ -239,7 +239,7 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
  * `Combat.GuardAndDeflectAbsorbInDeclaredOrder` lo chiude passando dal manager, perche' l'ordine dei pool
  * si vede negli HP. Un'ETICHETTA no: finche' nessuno legge il breakdown, il lato chiamante e' protetto da
  * una code review e non da un test. ✅ Cio' che l'uso delle costanti condivise
- * (`URTCombatLibrary::GuardPoolSource`, `ReactionReductionPoolSource`) aggiunge e' che un refuso non e'
+ * (`URTCombatLibrary::GuardPerHitSource`, `ReactionReductionPoolSource`) aggiunge e' che un refuso non e'
  * piu' possibile: prima il test portava una copia PROPRIA dei due letterali, quindi un errore di battitura
  * ai chiamanti di produzione sarebbe rimasto verde.
  */

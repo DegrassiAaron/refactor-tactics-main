@@ -32,12 +32,13 @@ struct FRTUnitCombatState
  * GLI STADI che un valore d'abilita' attraversa fra il catalogo e gli HP — `#1951`.
  *
  * 🔑 **Non e' un ordine nuovo: e' il nome di quello che gia' esiste.** La catena e' orchestrata in un
- * punto solo (`ARTTurnManager`, la composizione di `ApplyAbsorptionPool(ApplyDamageDelta(ApplyFirstHitDelta(...)))`)
+ * punto solo (`ARTTurnManager`, la composizione di `ApplyEligibleHitDelta(ApplyAbsorptionPool(ApplyDamageDelta(ApplyFirstHitDelta(...))))`)
  * e ogni stadio e' motivato da una decisione accettata. Questo enum li rende **nominabili** perche' il
  * TurnLog possa registrarli; non decide niente.
  *
- * ⚠️ L'ordine dei valori E' l'ordine di applicazione, ed e' cio' che rende ordinabile un elenco
- * raccolto da punti diversi del codice.
+ * ⚠️ L'ordine dei valori e' l'ordine di applicazione, ed e' cio' che rende ordinabile un elenco
+ * raccolto da punti diversi del codice. ⛔ **Con una eccezione, dal 2026-09-20**: la Guardia scrive `EveryHitDelta` e si
+ * applica dopo `AbsorptionPool` (vedi la doc di quest'ultimo), quindi per quella coppia l'elenco si legge dall'inserimento.
  */
 UENUM(BlueprintType)
 enum class ERTDamageStage : uint8
@@ -73,9 +74,9 @@ enum class ERTDamageStage : uint8
 	 *
 	 * ⚠️ **Oggi la Guardia scrive `EveryHitDelta` ma si applica DOPO questo stadio**: la catena del resolver e'
 	 * `ApplyEligibleHitDelta(ApplyAbsorptionPool(...))` (`RTTurnManager.cpp`, [D-312]). Per quella coppia l'ordine dei valori
-	 * dell'enum non e' piu' l'ordine di applicazione: l'ordine di una traccia si legge dall'INSERIMENTO, e un consumatore che
-	 * ordinasse per `Stage` con un sort non stabile potrebbe mettere la Guardia prima del `Deflect`, contraddicendo una
-	 * decisione di bilanciamento.
+	 * dell'enum non e' l'ordine di applicazione: l'ordine di una traccia si legge dall'INSERIMENTO, non dal valore di `Stage`. Un
+	 * consumatore che ordinasse per `Stage` metterebbe sempre la Guardia prima del `Deflect`, contraddicendo una decisione di
+	 * bilanciamento. Nessun codice di produzione lo fa.
 	 */
 	AbsorptionPool,
 	/** Somma per bersaglio sullo stato iniziale (invariante #3). */
@@ -302,21 +303,23 @@ public:
 	 * la somma torna **commutativa per costruzione**: non serve nessuna regola su chi viene prima.
 	 *
 	 * `bEligible` e' PARALLELO a `Attacks` e dice quali colpi possono attingere al pool. E' il canale della
-	 * direzionalita' di [D-206] — la Guardia copre il davanti, l'emisfero posteriore resta scoperto — e sta
-	 * qui invece che dentro questa funzione perche' la geometria ha un owner solo
+	 * direzionalita' di [D-206] — la Guardia copre il davanti, l'emisfero posteriore resta scoperto — nato quando la Guardia
+	 * era un pool: ⏱️ *oggi la direzionalita' della Guardia passa da `ApplyEligibleHitDelta`, e per questa funzione la maschera
+	 * di produzione e' tutta vera (il `Deflect` non ha clausola d'arco).* Sta qui invece che dentro questa funzione perche' la
+	 * geometria ha un owner solo
 	 * (`URTHexCombatLibrary::IsInFrontalArc`) e il resolver resta puro: nessun Actor, nessuna mappa.
 	 *
 	 * Un colpo non eleggibile passa INTERO e non consuma nulla: il budget resta per chi arriva dal davanti.
 	 *
-	 * 🔑 **La provenienza la dichiara il CHIAMANTE, e da [D-309] non e' un dettaglio**: i pool di produzione
-	 * sono due — `Deflect` e poi `Guard` ([D-312]) — e questa funzione non puo' dedurre quale dei due la sta
-	 * usando. Finche' l'etichetta era un letterale nel corpo, un assorbimento della reazione finiva nel
-	 * breakdown attribuito alla Guardia (`#2213`).
+	 * 🔑 **La provenienza la dichiara il CHIAMANTE**: questa funzione non puo' dedurre quale pool la sta usando. Oggi il solo
+	 * pool di produzione e' quello della reazione (`URTCombatLibrary::ReactionReductionPoolSource`); ⏱️ *erano due, `Deflect` e
+	 * `Guard` ([D-312]), fino a [D-408].* Finche' l'etichetta era un letterale nel corpo, un assorbimento della reazione finiva
+	 * nel breakdown attribuito alla Guardia (`#2213`).
 	 *
 	 * @param PoolByTarget  budget per bersaglio, indicizzato come `TargetIndex`. Valori <= 0 non assorbono.
 	 * @param bEligible     parallelo ad `Attacks`. Se piu' corto, i colpi oltre la fine NON sono eleggibili.
 	 * @param SourceId      la decisione o il tag che governa QUESTO pool, nel vocabolario di
-	 *                      `FRTDamageStageEntry::SourceId`: `D-292 · Status.Guarded`, `D-309 · Action.Deflect`.
+	 *                      `FRTDamageStageEntry::SourceId`: oggi `D-309 · Reactions.DamageReduction` (`ReactionReductionPoolSource`).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static TArray<FRTAttack> ApplyAbsorptionPool(const TArray<FRTAttack>& Attacks,
