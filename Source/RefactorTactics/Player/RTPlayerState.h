@@ -27,10 +27,10 @@ public:
 	int32 GetTeamId() const { return TeamId; }
 
 	/**
-	 * Assegna la squadra. **Il nome dichiara l'autorita'**: il chiamante di produzione e'
-	 * `ARTGameMode::AssignSeats`, che deriva i posti dal formato e li assegna a chi e' seduto; lo chiamano
-	 * anche `RTWorldFixtures::MakePlayerOnTeam` e i test che allestiscono uno stato di prova. Quando
-	 * arrivera' la replicazione sara' il server a chiamarlo — la stessa autorita' che il nome gia' dichiara.
+	 * Assegna la squadra. **Il nome dichiara l'autorita'**: in produzione i posti li scrive `ARTGameMode::AssignSeats` tramite
+	 * `AssignSeat` (`#3895`), che deriva i posti dal formato e li assegna a chi e' seduto; questa porta la chiamano
+	 * `RTWorldFixtures::MakePlayerOnTeam` e i test che allestiscono uno stato di prova, e NON segna il giocatore come seduto. Quando
+	 * arrivera' la replicazione sara' il server a chiamarla — la stessa autorita' che il nome gia' dichiara.
 	 */
 	void AssignTeam(int32 InTeamId) { TeamId = InTeamId; }
 
