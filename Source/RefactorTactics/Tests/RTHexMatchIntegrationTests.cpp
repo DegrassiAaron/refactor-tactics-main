@@ -3602,4 +3602,63 @@ bool FRTPlanningOverlayComesBackFromModalAsItWasTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **`#3891` — una reazione appena armata si vede nella timeline del piano, senza aspettare un altro rinfresco.**
+ *
+ * Il ramo della reazione di `SelectAbilityForCurrent` rinfrescava l'anteprima PRIMA di scrivere `PlannedReactionAbility`, e la
+ * timeline la legge: `bReactionArmed` e la voce di Prep nascevano dal piano di prima. Dal `#3511` il tick non lo rimedia, perche'
+ * ricalcola solo se un ingresso cambia e il campo non e' un ingresso.
+ *
+ * 🔑 **Dieci tick prima di guardare**, perche' in partita il fotogramma dopo l'armo c'e' sempre: un test che guardasse subito
+ * non direbbe se il difetto dura. 🔑 **E un controllo positivo**: dopo un rinfresco esplicito la timeline VEDE la reazione nello
+ * stesso banco, cosi' un rosso e' attribuibile all'ordine e non a una timeline che il banco non costruisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmedReactionShowsInThePlanTimelineTest,
+	"RefactorTactics.HexMatch.ArmedReactionShowsInThePlanTimeline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmedReactionShowsInThePlanTimelineTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// `AddCoreAbilityInSlot` sostituisce invece di accodare: un'abilita' in coda sta a un indice che `AbilityCooldowns` non copre.
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Counter"), 3);
+	const URTActionData* Counter = B.Mine->GetAbility(Reazione);
+	if (!TestTrue(TEXT("premessa: la reazione e' entrata nel kit"), Reazione != INDEX_NONE && Counter != nullptr)
+		|| !TestEqual(TEXT("premessa: e' davvero uno slot di reazione"),
+			static_cast<int32>(Counter->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction))
+		|| !TestTrue(TEXT("premessa: la reazione e' pronta"), B.Mine->CanUseAbility(Reazione)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// La timeline esiste in questo banco (il piano ha un movimento) e prima dell'armo non porta nessuna reazione.
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	TestTrue(TEXT("premessa: il banco costruisce la timeline del piano"), B.HexMap->GetPlanPreview().Phases.Num() > 0);
+	TestFalse(TEXT("premessa: prima dell'armo la timeline non porta una reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	B.PC->SelectAbilityForCurrentForTest(Reazione);
+	if (!TestEqual(TEXT("premessa: l'armo e' arrivato al piano"), B.Mine->PlannedReactionAbility, Reazione))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+
+	TestTrue(TEXT("dopo l'armo e dieci tick la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	// Controllo positivo: un rinfresco esplicito la mostra, quindi il banco sa disegnarla.
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	TestTrue(TEXT("controllo positivo: dopo un rinfresco esplicito la timeline porta la reazione"),
+		B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
