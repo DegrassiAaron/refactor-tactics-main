@@ -100,14 +100,14 @@ intera**. La scena 3D si rende **solo** nel rettangolo che le fasce lasciano lib
 [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): fuori c'è l'HUD, e un click lì non raggiunge il mondo.
 
 🔑 **Le fasce sono un dato di runtime, in unità Slate**: `FRTHudBands` in `Source/RefactorTactics/UI/RTHudLayout.h`.
-Sono la misura dei loro inquilini, e a 1920×1080 valgono le frazioni di D-497.
+Sono la misura dei loro inquilini, e a 1920×1080 valgono le frazioni di D-497 (la bassa, emendata da [D-549](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 | Fascia | Unità Slate | A 1920×1080 | Chi la misura |
 |---|---|---|---|
 | sinistra (`Left`) | 384 | 20% | roster e scheda finiscono a x=380 |
 | destra (`Right`) | 368,64 | 19,2% | il registro e il badge accanto a `Conferma` cominciano a x=1556 |
 | alta (`Top`) | 205,2 | 19% | testata e `Conferma` |
-| bassa (`Bottom`) | 183,6 | 17% | il dock comincia a y=903 |
+| bassa (`Bottom`) | 194,4 | 18% | il dock col suo prompt di bersaglio: 185,0 misurati a 1920×1080, 185,5 nel caso peggiore (1920×1200), più due margini di zona; era 183,6 e 17% fino a [D-549](../../decisions/RT_PDR_00_Decision_Log.md) |
 | cella alta della colonna sinistra (`LeftTop`) | 267 | 24,7% | il roster: 259 con tre unità, 201 con due, misurato da `ScreenHud.TenantsFitTheirBands` |
 
 ⚠️ **La colonna sinistra ha il suo taglio** (decisione d'autore del 2026-10-11, [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): il roster vero non
@@ -138,8 +138,8 @@ un solo `BOTTOM`, e **Selected Unit cambia fascia**.*
         │ Middle   │   SCENA 3D           │  Middle  │
         │ Left     │   (l'unico posto     │  Right   │
         │ (scheda) │    in cui si rende)  │ (registro│
- 896,4  ├──────────┴──────────────────────┴──────────┤
-        │                 Bottom                     │   fascia bassa  896,4 .. 1080
+ 885,6  ├──────────┴──────────────────────┴──────────┤
+        │                 Bottom                     │   fascia bassa  885,6 .. 1080
         │      (la barra dei comandi, D-456)         │
   1080  └────────────────────────────────────────────┘
 ```

@@ -159,7 +159,7 @@ abbastanza: due persone guardano lo stesso fotogramma e passano entrambe legitti
 ([D-497](../../decisions/RT_PDR_00_Decision_Log.md), [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)). A 1920×1080:
 
 ```text
-X 384 .. 1551,36      Y 205,2 .. 896,4       (1167,36 × 691,2)
+X 384 .. 1551,36      Y 205,2 .. 885,6       (1167,36 × 680,4)
 ```
 
 Non è un numero sacro: è un numero **scritto**, e sta in un posto solo, `FRTHudBands` in
@@ -217,7 +217,7 @@ anche una label testuale**.
 | BOTTOM | `WBP_RT_ActionDock` | magenta | `BOTTOM / ACTIONS` |
 | CENTER | riferimento in `WBP_RT_TacticalHUD` | bianco / grigio | `CENTER FREE` |
 
-🔑 **Il rettangolo CENTER FREE disegna esattamente la soglia di §2**, la scena, `X 384..1551,36 · Y 205,2..896,4` a 1920×1080 (⌫ *fino al 2026-10-11 `X 384..1536 · Y 216..864`*)
+🔑 **Il rettangolo CENTER FREE disegna esattamente la soglia di §2**, la scena, `X 384..1551,36 · Y 205,2..885,6` a 1920×1080 (⌫ *fino al 2026-10-11 `X 384..1536 · Y 216..864`; fino a [D-549](../../decisions/RT_PDR_00_Decision_Log.md) `Y 205,2..896,4`*)
 — non un'approssimazione a occhio. Così smette di essere decorativo e diventa **l'oracolo disegnato**: se
 una zona lo tocca, si vede dove.
 
