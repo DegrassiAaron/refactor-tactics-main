@@ -22,8 +22,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Marked);  // marchiato: +6 al PROSSIMO
 // CP 8.2»* — al futuro, e **E8.2 e' chiusa dal 2026-08-07** (#1322).
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Wet);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Braced);  // irrigidito: -10 a OGNI danno diretto e blocca la prima spinta,
-                                                    // fino al Cleanup (CP 5.2). Distinto da Guarded, che vale
-                                                    // sul PRIMO colpo e regge solo una spinta di 1.
+                                                    // fino al Cleanup (CP 5.2). Distinto da Guarded, che riduce
+                                                    // ogni colpo dell'arco frontale ([D-408]) e regge solo una spinta di 1.
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Burning); // in fiamme: danno nel Cleanup (CP 8.2), rimosso da Wet
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Obscured); // offuscato: targeting limitato a 2 celle (fumo)
 /**

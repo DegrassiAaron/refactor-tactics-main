@@ -52,7 +52,8 @@ enum class ERTDamageStage : uint8
 	/** Copertura, per-colpo e direzionale: dipende da dove sta chi SUBISCE (`D-206`). */
 	Cover,
 	/**
-	 * Delta di primo colpo per bersaglio: `Status.Exposed` `+5`, `Status.Marked` `+6`. Vale una volta.
+	 * Delta di primo colpo per bersaglio: `Status.Exposed` `+5`. Vale una volta. ⚠️ `Status.Marked` NON passa da qui: ha un pass proprio nel Blast
+	 * (`RTTurnManager.cpp`, `MarkSpentOn`) che somma `+6` al `Power` del primo colpo qualificato nell'ordine canonico.
 	 * ⛔ **`Action.Deflect` NON e' piu' qui**: da [D-309] e' un pool e produce `AbsorptionPool`. La riga lo
 	 * nominava, e questo enum e' cio' che etichetta lo stadio nel breakdown di danno — cioe' l'unico posto
 	 * in cui un lettore del TurnLog scopre da dove viene un numero.
@@ -240,7 +241,7 @@ public:
 
 	/**
 	 * Applica i modificatori che valgono UNA VOLTA SOLA per bersaglio: oggi `Status.Exposed` (+5 al primo
-	 * danno diretto ricevuto), domani `Guard` (-15, CP 4.4). `DeltaByTarget[i]` e' il delta dell'unita' `i`
+	 * danno diretto ricevuto); la Guardia non passa piu' da qui (non da [D-292], e dal 2026-09-20 e' una riduzione per colpo, [D-408]). `DeltaByTarget[i]` e' il delta dell'unita' `i`
 	 * (0 = nessuno); un indice fuori dall'array vale 0.
 	 *
 	 * Il delta va al PRIMO colpo che quel bersaglio riceve nell'ordine dato. Poiche' `ResolveAttacks` somma i

@@ -7,7 +7,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexMapAsset.h"
-// La meta' `Guard` della regola non passa dal piano puro: vive in `ApplyFirstHitDelta` del TurnManager,
+// La meta' `Guard` della regola non passa dal piano puro: vive in `ApplyEligibleHitDelta` del TurnManager ([D-408]),
 // quindi il suo test ha bisogno di un turno vero.
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Core/RTGameplayTags.h" // TAG_Status_Guarded
@@ -123,7 +123,7 @@ namespace
 	 * HP persi dal difensore in UN turno intero, cambiando solo cio' che il caso vuole cambiare.
 	 *
 	 * Passa dal `TurnManager` e non da `CollectHexAttacks` perche' la riduzione di `Guard` non sta nel piano:
-	 * il piano porta la potenza, il delta del primo colpo si applica dopo (`ApplyFirstHitDelta`). Misurarla
+	 * il piano porta la potenza, la riduzione per colpo si applica dopo (`ApplyEligibleHitDelta`, [D-408]). Misurarla
 	 * sul piano darebbe lo stesso numero nei due casi e il test sarebbe verde su qualunque implementazione.
 	 *
 	 * `-1` = montaggio fallito, gia' segnalato da `Test`: il chiamante non lo confronta con nient'altro.

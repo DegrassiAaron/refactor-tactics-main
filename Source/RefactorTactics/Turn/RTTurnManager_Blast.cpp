@@ -1570,7 +1570,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 
 	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
 	// ma un colpo a Power 0 nell'array conterebbe comunque come "primo colpo" per `ApplyFirstHitDelta` —
-	// consumando il bonus/malus di Guard/Exposed/Marked su un colpo fantasma invece che sull'attacco vero
+	// consumando il bonus di Exposed su un colpo fantasma (il pass del marchio scarta gia' i colpi a Power 0) invece che sull'attacco vero
 	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli intenti interrotti, nello stesso filtro.
 	//
 	// ⚠️ Il filtro guarda l'INTENTO, non l'attaccante: cosi' un'azione non interrompibile della stessa unita'
