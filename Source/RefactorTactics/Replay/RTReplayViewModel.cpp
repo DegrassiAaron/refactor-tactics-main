@@ -1,4 +1,5 @@
 #include "Replay/RTReplayViewModel.h"
+#include "HAL/ThreadSafeCounter.h"
 
 const TArray<ERTMatchPhase>& FRTReplayViewModel::ObservablePhases()
 {
@@ -29,6 +30,7 @@ ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const F
 	PhaseElapsed = 0.f;
 	bOpen = false;
 	bOpenAttempted = true;
+	BumpPositionRevision();
 
 	// ⚠️ Su un rifiuto non serve ripulire `Session`: `OpenArchive` costruisce in una sessione TEMPORANEA e
 	// la adotta solo a lettura riuscita, quindi l'out-parameter resta intatto. La prima stesura la
@@ -58,6 +60,7 @@ bool FRTReplayViewModel::OpenFromTraces(TArray<TArray<FRTTurnLogEntry>> Traces)
 	PhaseElapsed = 0.f;
 	bOpen = false;
 	bOpenAttempted = true;
+	BumpPositionRevision();
 
 	// ⛔ Il rifiuto sta PRIMA di adottare le tracce: un'apertura vuota lascerebbe `IsOpen()` vero su una
 	// sequenza che non ha nemmeno un turno, e ogni `CanStep*` risponderebbe «no» senza che nessuno sappia
@@ -81,6 +84,13 @@ bool FRTReplayViewModel::OpenFromTraces(TArray<TArray<FRTTurnLogEntry>> Traces)
 	return true;
 }
 
+void FRTReplayViewModel::BumpPositionRevision()
+{
+	// Del PROCESSO, non del view model: vedi `GetPositionRevision`.
+	static FThreadSafeCounter Counter;
+	PositionRevision = static_cast<uint32>(Counter.Increment());
+}
+
 void FRTReplayViewModel::Rewind()
 {
 	// ⚠️ **Non si tocca `Session.Cursor`**, e la prima stesura chiamava qui `URTReplayPlayerLibrary::Rewind`.
@@ -92,6 +102,7 @@ void FRTReplayViewModel::Rewind()
 	CurrentTraceIndex = INDEX_NONE;
 	bPlaying = false;
 	PhaseElapsed = 0.f;
+	BumpPositionRevision();
 }
 
 void FRTReplayViewModel::BuildPhaseCache()
@@ -197,6 +208,7 @@ void FRTReplayViewModel::ApplyPosition(const FRTReplayPosition& NewPos, int32 Ne
 	Current = NewPos;
 	CurrentTraceIndex = NewTraceIndex;
 	PhaseElapsed = 0.f;
+	BumpPositionRevision();
 
 	// 🔴 **L'auto-pausa vive QUI e non in `Tick`**, e la prima stesura la teneva solo li'. Arrivare alla
 	// fine con i pulsanti — o con un seek — lasciava `bPlaying` a `true` su una sequenza finita: per un

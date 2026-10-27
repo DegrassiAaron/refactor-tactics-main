@@ -17,8 +17,11 @@ FString URTContextInspectorLibrary::DescribePublicEvent(const FRTPublicReplayEnt
 {
 	// Colonne, non prosa: vedi l'header per la ragione. Tutte e sole quelle che
 	// `URTReplayPrivacyLibrary::ToPublicTrace` lascia passare.
-	FString Line = FString::Printf(TEXT("T%d %s/%s"),
-		Entry.TurnNumber, *RTReflection::EnumName(Entry.Phase), *RTReflection::EnumName(Entry.Category));
+	// ⚠️ `TurnNumber == 0` e' il sentinella delle tracce pre-v6 («non dichiarato»), non il turno zero: stamparlo come `T0` darebbe un
+	// turno che non esiste, che e' cio' che il resto del replay si rifiuta di scrivere (`FRTReplayPosition`, `GetTurnLabel`).
+	const FString Turno = Entry.TurnNumber > 0 ? FString::FromInt(Entry.TurnNumber) : FString(TEXT("-"));
+	FString Line = FString::Printf(TEXT("T%s %s/%s"),
+		*Turno, *RTReflection::EnumName(Entry.Phase), *RTReflection::EnumName(Entry.Category));
 
 	if (!Entry.ActionId.IsNone())
 	{

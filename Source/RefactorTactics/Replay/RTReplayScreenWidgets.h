@@ -7,8 +7,11 @@
 #include "Components/SlateWrapperTypes.h"
 #include "Replay/RTMatchHistoryLibrary.h" // FRTMatchHistoryEntry e' un valore di ritorno: serve la definizione
 #include "Replay/RTReplayPlayerLibrary.h" // ERTReplayOpenResult
+#include "Replay/RTReplayPrivacyLibrary.h" // FRTPublicReplayEntry: la voce di fase che il viewer elenca
 #include "RTReplayScreenWidgets.generated.h"
 
+class UButton;
+class UTextBlock;
 class URTFrontendNavigator;
 class URTReplayViewerSubsystem;
 
@@ -147,9 +150,17 @@ private:
  * `OpenSelected` consuma la selezione dichiarata da `MatchHistory`, e senza quella non apre niente. Una
  * schermata che si aprisse su nulla sarebbe il dead-end che §3.2 vieta.
  *
- * ⛔ **I comandi non sono qui.** Play, pausa, salti di turno e fase, posizione e bordi sono
+ * ⛔ **Le DECISIONI non sono qui.** Play, pausa, salti di turno e fase, posizione e bordi sono
  * `UFUNCTION` del `URTReplayViewerSubsystem` da `#999`, e un widget li chiama direttamente. Ricopiarli qui
- * darebbe due superfici per la stessa cosa, e la seconda divergerebbe.
+ * darebbe due superfici per la stessa cosa, e la seconda divergerebbe. Quello che il widget aggiunge (#3868) e' cio' che
+ * il subsystem non puo' sapere: che il pulsante e' stato premuto (`TogglePlay` sceglie fra `Play` e `Pause` e non decide
+ * altro) e che e' passato del tempo (`TickOn`), perche' il view model avanza solo se qualcuno glielo da'.
+ *
+ * 🔑 **Le porte opzionali di #3868** (`PlayPauseButton`, `PlayPauseLabel`, `PhaseEntriesText`, `BackButtonLabel`) sono
+ * il pezzo che il grafo del WBP non aveva: nessun pulsante chiamava `Play`/`Pause`, nessuno chiamava `Tick` — quindi
+ * anche con un Play il replay non avanzava —, nessuno mostrava `GetCurrentPhaseEntries`, e il pulsante indietro non
+ * aveva etichetta. Qui il C++ lega il pulsante, fa avanzare il subsystem a ogni tick e scrive le etichette; i
+ * pulsanti di passo restano nel grafo, come prima. Senza una porta il widget non fa quella cosa e non protesta.
  */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTReplayViewerWidgetBase : public UUserWidget
@@ -203,10 +214,84 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	static FText GetOpenFailureText(ERTReplayOpenResult Result);
 
+	/** Il pulsante Play/Pausa (#3868). Opzionale. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Replay")
+	TObjectPtr<UButton> PlayPauseButton;
+
+	/** La sua etichetta: dice l'AZIONE del prossimo click, «PLAY» in pausa e «PAUSA» in riproduzione. Opzionale. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Replay")
+	TObjectPtr<UTextBlock> PlayPauseLabel;
+
+	/** Le voci pubbliche della fase corrente, una per riga (#3868). Opzionale. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Replay")
+	TObjectPtr<UTextBlock> PhaseEntriesText;
+
+	/** L'etichetta del pulsante indietro (#3868). Opzionale. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|Replay")
+	TObjectPtr<UTextBlock> BackButtonLabel;
+
+	/** Play se in pausa, Pausa se in riproduzione. Falso senza subsystem. Il click del pulsante passa da qui. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	bool TogglePlay();
+
+	/**
+	 * La decisione dietro `TogglePlay`, interrogabile (vedi `SelectAndNavigate` per il perche' statica). Ritorna se **dopo**
+	 * il replay sta riproducendo: su una sequenza finita `Play` non parte, e il ritorno lo dice.
+	 */
+	static bool TogglePlayOn(URTReplayViewerSubsystem* Replay);
+
+	/**
+	 * Fa avanzare il subsystem di `DeltaSeconds`. Ritorna se la posizione si e' mossa.
+	 *
+	 * ⚠️ Senza questa chiamata `Play` non fa niente: il view model avanza solo quando qualcuno gli da' il tempo, e il grafo del
+	 * WBP non lo faceva (nessun `CallFunc_Tick`).
+	 */
+	static bool TickPlaybackOn(URTReplayViewerSubsystem* Replay, float DeltaSeconds);
+
+	/** L'etichetta di Play/Pausa: l'azione del prossimo click. */
+	static FText GetPlayPauseText(bool bPlaying);
+
+	/** Le voci della fase in un testo solo, una per riga; con nessuna voce lo dice. Righe oltre il tetto: «… e altre N». */
+	static FText ComposePhaseEntriesText(const TArray<FRTPublicReplayEntry>& Entries);
+
+	/** Le righe di voci che il testo mostra al massimo: il resto e' una riga che dice quante sono. */
+	static constexpr int32 MaxPhaseEntryRows = 12;
+
+	/**
+	 * Scrive le porte dallo stato del subsystem. Le voci e i bordi si rileggono solo quando cambia la **revisione** della
+	 * posizione (`GetPositionRevision`): non a ogni tick, e non solo quando cambiano turno, fase e stato, che non identificano
+	 * una traccia. Il pulsante Play/Pausa segue i bordi: spento dove `Play` non partirebbe, e senza subsystem.
+	 */
+	void RefreshLookOn(URTReplayViewerSubsystem* Replay);
+
+	/**
+	 * Cio' che fa ogni tick, con il subsystem in ingresso (vedi `SelectAndNavigate` per il perche' statica nella logica).
+	 * Il tempo scorre solo se il widget e' abilitato: sotto un modale il navigatore lo disabilita (`SyncPresentation`), e il
+	 * replay non deve proseguire dove il giocatore non puo' arrivare a metterlo in pausa. Le porte si scrivono comunque.
+	 */
+	void TickOn(URTReplayViewerSubsystem* Replay, float DeltaSeconds);
+
 protected:
 	/** Il subsystem del replay, o `nullptr` fuori da una `GameInstance`. */
 	URTReplayViewerSubsystem* Replay() const;
 
 	/** Il navigatore, o `nullptr` fuori da una `GameInstance`. */
 	URTFrontendNavigator* Navigator() const;
+
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	UFUNCTION()
+	void HandlePlayPauseClicked();
+
+	/** Le etichette che non cambiano si scrivono una volta. */
+	bool bStaticLabelsWritten = false;
+
+	/** La revisione della posizione per cui voci e bordi sono stati letti: `GetCurrentPhaseEntries` rifa' un seek e alloca. */
+	bool bLookRead = false;
+	uint32 LookRevision = 0;
+
+	/** `CanStepPhaseForward` alla revisione letta: dice se `Play` partirebbe, e non si chiede a ogni tick. */
+	bool bCanPlay = false;
 };

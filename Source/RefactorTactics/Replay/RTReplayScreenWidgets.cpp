@@ -4,6 +4,9 @@
 #include "Frontend/RTFrontendScreenIds.h"
 #include "Replay/RTReplayViewerSubsystem.h"
 #include "Engine/GameInstance.h"
+#include "Debug/RTContextInspector.h" // DescribePublicEvent: la riga di una voce pubblica
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
 
 #define LOCTEXT_NAMESPACE "RefactorTactics"
 
@@ -200,6 +203,157 @@ FText URTMatchHistoryWidgetBase::GetEntryLabel(const FRTMatchHistoryEntry& Entry
 		return FText::Format(LOCTEXT("MatchRowIncomplete", "{0} · registrazione incompleta"), Base);
 	}
 	return Base;
+}
+
+bool URTReplayViewerWidgetBase::TogglePlay()
+{
+	return TogglePlayOn(Replay());
+}
+
+bool URTReplayViewerWidgetBase::TogglePlayOn(URTReplayViewerSubsystem* V)
+{
+	if (V == nullptr)
+	{
+		return false;
+	}
+	if (V->IsPlaying())
+	{
+		V->Pause();
+	}
+	else
+	{
+		V->Play();
+	}
+	// Si risponde con lo stato DOPO, e non con quello chiesto: su una sequenza finita `Play` non parte, e un valore di ritorno
+	// che dicesse «avviato» confermerebbe una riproduzione che non c'e'.
+	return V->IsPlaying();
+}
+
+bool URTReplayViewerWidgetBase::TickPlaybackOn(URTReplayViewerSubsystem* V, float DeltaSeconds)
+{
+	// Il view model avanza solo se riceve il tempo, e ignora il tempo in pausa: la guardia e' sua, non si ripete qui.
+	return V != nullptr && V->Tick(DeltaSeconds);
+}
+
+FText URTReplayViewerWidgetBase::GetPlayPauseText(bool bPlaying)
+{
+	// L'AZIONE del prossimo click, non lo stato: «PAUSA» mentre riproduce, «PLAY» mentre e' fermo.
+	return bPlaying ? LOCTEXT("ReplayPause", "PAUSA") : LOCTEXT("ReplayPlay", "PLAY");
+}
+
+FText URTReplayViewerWidgetBase::ComposePhaseEntriesText(const TArray<FRTPublicReplayEntry>& Entries)
+{
+	if (Entries.IsEmpty())
+	{
+		return LOCTEXT("ReplayNoEntries", "Nessun evento in questa fase");
+	}
+
+	// Un tetto: il testo e' un blocco solo, e una fase con molte voci lo farebbe uscire dallo schermo.
+	constexpr int32 MaxRows = MaxPhaseEntryRows;
+	TArray<FString> Rows;
+	for (int32 i = 0; i < Entries.Num() && i < MaxRows; ++i)
+	{
+		// ⚠️ La riga e' quella dell'ispettore, `DescribePublicEvent`: colonne pubbliche, non una seconda traduzione in
+		// italiano dello stesso fatto. `DescribeEntry` leggerebbe campi che il replay non rende pubblici.
+		Rows.Add(URTContextInspectorLibrary::DescribePublicEvent(Entries[i]));
+	}
+	FString Joined = FString::Join(Rows, TEXT("\n"));
+	if (Entries.Num() > MaxRows)
+	{
+		// Senza separatori: `AsNumber` raggruppa le cifre, e «altre 1.234» accanto a un conteggio di righe si legge come un decimale.
+		FNumberFormattingOptions SenzaSeparatori;
+		SenzaSeparatori.UseGrouping = false;
+		Joined += TEXT("\n") + FText::Format(LOCTEXT("ReplayMoreEntries", "… e altre {0}"), FText::AsNumber(Entries.Num() - MaxRows, &SenzaSeparatori)).ToString();
+	}
+	return FText::FromString(Joined);
+}
+
+void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
+{
+	// L'etichetta del pulsante indietro non dipende dal replay: si scrive una volta (#3868, il pulsante non ne aveva).
+	if (!bStaticLabelsWritten)
+	{
+		if (BackButtonLabel)
+		{
+			BackButtonLabel->SetText(LOCTEXT("ReplayBack", "INDIETRO"));
+		}
+		bStaticLabelsWritten = true;
+	}
+	if (V == nullptr)
+	{
+		// Senza subsystem non c'e' niente da riprodurre: il pulsante e' spento, e non resta acceso su un click che non fa
+		// niente (il criterio dei bordi di #472 vale anche qui).
+		if (PlayPauseButton)
+		{
+			PlayPauseButton->SetIsEnabled(false);
+		}
+		if (PlayPauseLabel)
+		{
+			PlayPauseLabel->SetText(GetPlayPauseText(false));
+		}
+		return;
+	}
+
+	// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca, e `CanStepPhaseForward` copia l'elenco delle fasi: si pagano per
+	// chiamata, quindi si leggono quando cambia la REVISIONE della posizione e non a ogni tick. Turno, fase e stato non bastano come
+	// chiave: le tracce pre-v6 dichiarano tutte turno 0, e un archivio riaperto puo' ritrovarsi alla stessa posizione con altre voci.
+	const uint32 Revision = V->GetPositionRevision();
+	if (!bLookRead || Revision != LookRevision)
+	{
+		bCanPlay = V->CanStepPhaseForward();
+		if (PhaseEntriesText)
+		{
+			// Senza una fase (prima dell'inizio, a sequenza finita, archivio non aperto) non c'e' una fase di cui dire che non
+			// ha eventi: il testo resta vuoto, invece di affermare una cosa falsa su una fase che non c'e'.
+			PhaseEntriesText->SetText(V->GetPosition().HasPhase()
+				? ComposePhaseEntriesText(V->GetCurrentPhaseEntries()) : FText::GetEmpty());
+		}
+		LookRevision = Revision;
+		bLookRead = true;
+	}
+
+	// ⚠️ **Disabilitato, non silenzioso** (il criterio dei bordi di #472, per cui esistono i `Can*`): su una sequenza
+	// finita, su un archivio non aperto o senza fasi `Play` non parte, e un pulsante acceso che non fa niente e' il difetto da
+	// evitare. In riproduzione resta acceso: e' il pulsante che mette in pausa.
+	if (PlayPauseButton)
+	{
+		PlayPauseButton->SetIsEnabled(V->IsPlaying() || bCanPlay);
+	}
+	if (PlayPauseLabel)
+	{
+		PlayPauseLabel->SetText(GetPlayPauseText(V->IsPlaying()));
+	}
+}
+
+void URTReplayViewerWidgetBase::NativeConstruct()
+{
+	Super::NativeConstruct();
+	if (PlayPauseButton)
+	{
+		PlayPauseButton->OnClicked.AddUniqueDynamic(this, &URTReplayViewerWidgetBase::HandlePlayPauseClicked);
+	}
+}
+
+void URTReplayViewerWidgetBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	TickOn(Replay(), InDeltaTime);
+}
+
+void URTReplayViewerWidgetBase::TickOn(URTReplayViewerSubsystem* V, float DeltaSeconds)
+{
+	// Un widget disabilitato sta sotto un modale (`SyncPresentation`): il tempo non scorre dove il giocatore non puo' arrivare
+	// al pulsante di pausa. Le porte si scrivono comunque.
+	if (GetIsEnabled())
+	{
+		TickPlaybackOn(V, DeltaSeconds);
+	}
+	RefreshLookOn(V);
+}
+
+void URTReplayViewerWidgetBase::HandlePlayPauseClicked()
+{
+	TogglePlay();
 }
 
 FText URTReplayViewerWidgetBase::GetOpenFailureText(ERTReplayOpenResult Result)

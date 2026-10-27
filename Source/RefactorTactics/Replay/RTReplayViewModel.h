@@ -213,6 +213,20 @@ struct REFACTORTACTICS_API FRTReplayViewModel
 	FRTReplayPosition Position() const { return Current; }
 
 	/**
+	 * Un numero che cambia a OGNI apertura, riavvolgimento e movimento, e non torna a un valore gia' dato in questo processo
+	 * (#3868). E' la chiave di chi tiene in cache cio' che `CurrentPhaseEntries` risponde per la posizione corrente.
+	 *
+	 * 🔑 **Perche' non bastano stato, turno e fase**: le tracce pre-v6 dichiarano tutte `TurnNumber == 0`, quindi due
+	 * tracce diverse alla stessa fase hanno la stessa posizione e voci diverse; e un archivio riaperto (o aperto come un'altra
+	 * squadra) puo' ritrovarsi alla stessa posizione con voci diverse.
+	 *
+	 * ⚠️ **Il contatore e' del PROCESSO e non del view model**: `URTReplayViewerSubsystem::Close` assegna un view model
+	 * nuovo, e un contatore che ripartisse da zero tornerebbe a un valore che una cache ha gia' visto. `0` e' il valore di
+	 * un view model mai mosso.
+	 */
+	uint32 GetPositionRevision() const { return PositionRevision; }
+
+	/**
 	 * Le voci della fase che si sta guardando: **cio' che il viewer disegna**.
 	 *
 	 * 🔴 Mancava, e senza di essa il view model diceva *dove* si e' senza dare niente da mostrare —
@@ -321,6 +335,7 @@ private:
 	bool bOpenAttempted = false;
 	bool bPlaying = false;
 	float PhaseElapsed = 0.f;
+	uint32 PositionRevision = 0;
 	ERTReplayOpenResult OpenResult = ERTReplayOpenResult::ManifestUnreadable;
 
 	/**
@@ -369,6 +384,9 @@ private:
 	 * disabilita invece di consumare il comando per portare altrove.
 	 */
 	bool NextTurnPosition(int32 Direction, FRTReplayPosition& OutPos, int32& OutTraceIndex) const;
+
+	/** Assegna una revisione nuova: `GetPositionRevision`. Si chiama dove `Current` si azzera o si assegna. */
+	void BumpPositionRevision();
 
 	/** Applica una posizione calcolata e azzera il conteggio della riproduzione. */
 	void ApplyPosition(const FRTReplayPosition& NewPos, int32 NewTraceIndex);

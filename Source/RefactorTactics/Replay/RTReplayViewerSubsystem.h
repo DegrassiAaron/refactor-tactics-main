@@ -202,6 +202,12 @@ public:
 	FRTReplayPosition GetPosition() const { return ViewModel.Position(); }
 
 	/**
+	 * Vedi `FRTReplayViewModel::GetPositionRevision`. Non e' una `UFUNCTION`: serve a chi tiene in cache cio' che
+	 * `GetCurrentPhaseEntries` risponde, e un grafo non ne ha bisogno.
+	 */
+	uint32 GetPositionRevision() const { return ViewModel.GetPositionRevision(); }
+
+	/**
 	 * I due guard di `FRTReplayPosition`, esposti.
 	 *
 	 * ⚠️ **Servono perche' i metodi di uno `USTRUCT` non sono chiamabili da Blueprint**, nemmeno quando la

@@ -3,7 +3,12 @@
 #include "Frontend/RTFrontendScreenIds.h"
 #include "Replay/RTReplayScreenWidgets.h"
 #include "Replay/RTReplayViewerSubsystem.h"
+#include "Replay/RTReplayPrivacyLibrary.h" // FRTPublicReplayEntry: le voci che il viewer elenca
+#include "Debug/RTContextInspector.h"      // DescribePublicEvent: la riga che il viewer mostra per ogni voce
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
 #include "Tests/RTReplayTestFixtures.h"
+#include "Tests/RTWidgetAssetTestHelpers.h" // LoadWidgetClass: il WBP vero, non la classe base
 // Solo per avere una `UUserWidget` **concreta** da registrare: `UUserWidget` e' `Abstract` e
 // `CreateWidget` la rifiuta. Stessa scelta, e stessa motivazione, di `RTFrontendMainMenuTests.cpp`.
 #include "UI/RTScreenHudWidgets.h"
@@ -26,6 +31,8 @@
  * ⛔ **Cosa questi test NON coprono, e va detto invece che sottinteso**: che le due schermate **esistano**
  * come `.uasset` e che il `.ini` le dichiari. Quello e' lavoro d'editor, e finche' non c'e'
  * `RefactorTactics.Frontend.EveryConfiguredScreenLoads` non ha niente di nuovo da guardare.
+ *
+ * ⚠️ Dal #3868 un test carica il WBP del viewer (`ViewerAssetHasItsPorts`): le porte opzionali non protestano se mancano.
  */
 using namespace RTReplayFixtures;
 
@@ -202,6 +209,590 @@ bool FRTReplayScreenFlowViewerOpensTest::RunTest(const FString&)
 	TestEqual(TEXT("e si e' di nuovo nella lista, non al Main"),
 		Nav->GetCurrentScreen(), RTScreenIds::MatchHistory);
 	TestFalse(TEXT("l'archivio e' stato chiuso"), V->IsOpen());
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * 🔑 **IL VIEWER HA PLAY E PAUSA, E IL TEMPO CHE FA AVANZARE IL REPLAY** (#3868).
+ *
+ * Il viewer del pacchetto v3 aveva i pulsanti di passo e basta: nessun nodo del grafo chiamava `Play`, `Pause` o
+ * `Tick` (`grep -a -c CallFunc_Play Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset` → 0). Due metà, entrambe
+ * necessarie: **un pulsante che alterna** e **qualcuno che da' il tempo** — il view model avanza solo se riceve `Tick`.
+ *
+ *   1. il replay si apre in pausa; `TogglePlayOn` lo avvia e risponde che riproduce; un secondo click lo ferma;
+ *   2. senza subsystem non succede niente e non si crasha;
+ *   3. l'etichetta dice l'AZIONE del prossimo click: «PLAY» in pausa, «PAUSA» in riproduzione;
+ *   4. in pausa il tempo non fa avanzare la posizione; in riproduzione si', di una fase per superamento della soglia;
+ *   5. con il widget disabilitato (sotto un modale) il tempo non scorre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerPlayPauseTest,
+	"RefactorTactics.Replay.Screens.ViewerPlayPauseTogglesAndTheTickAdvances",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerPlayPauseTest::RunTest(const FString&)
+{
+	const FString R = TransientRoot(TEXT("ViewerPlay"));
+	Pulisci(R);
+
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem del replay esiste"), V))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->SetReplaysRoot(R);
+	const FGuid Id = ArchivioDueTurni(R, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio si apre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	TestFalse(TEXT("1: il replay si apre in pausa"), V->IsPlaying());
+
+	// --- 1. Il pulsante alterna ----------------------------------------------------------------------------------------
+	TestTrue(TEXT("1: il primo click avvia, e la risposta lo dice"), URTReplayViewerWidgetBase::TogglePlayOn(V));
+	TestTrue(TEXT("1: e il subsystem riproduce"), V->IsPlaying());
+	TestFalse(TEXT("1: il secondo click ferma, e la risposta lo dice"), URTReplayViewerWidgetBase::TogglePlayOn(V));
+	TestFalse(TEXT("1: e il subsystem e' in pausa"), V->IsPlaying());
+
+	// --- 2. Senza subsystem ---------------------------------------------------------------------------------------------
+	TestFalse(TEXT("2: senza subsystem il click non avvia niente"), URTReplayViewerWidgetBase::TogglePlayOn(nullptr));
+	TestFalse(TEXT("2: e il tempo non muove niente"), URTReplayViewerWidgetBase::TickPlaybackOn(nullptr, 1.f));
+
+	// --- 3. L'etichetta dice l'azione del prossimo click ----------------------------------------------------------------
+	TestTrue(TEXT("3: in pausa l'etichetta e' PLAY"),
+		URTReplayViewerWidgetBase::GetPlayPauseText(false).ToString().Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("3: in riproduzione e' PAUSA"),
+		URTReplayViewerWidgetBase::GetPlayPauseText(true).ToString().Equals(TEXT("PAUSA"), ESearchCase::CaseSensitive));
+
+	// --- 4. Il tempo fa avanzare il replay solo se riproduce ----------------------------------------------------------------
+	V->SetSecondsPerPhase(1.f);
+	// Il primo click del punto 1 ha avviato da prima dell'inizio e fatto il primo passo, il secondo ha messo in pausa: si e'
+	// gia' alla prima fase, con ancora un passo davanti. Un passo in piu' qui porterebbe alla seconda.
+	TestEqual(TEXT("premessa: si e' alla prima fase"), V->GetPosition().State, ERTReplayPositionState::AtPhase);
+	const FRTReplayPosition Ferma = V->GetPosition();
+	TestFalse(TEXT("4: in pausa il tempo non muove la posizione"), URTReplayViewerWidgetBase::TickPlaybackOn(V, 5.f));
+	TestTrue(TEXT("4: e la posizione e' quella di prima"),
+		V->GetPosition().TurnNumber == Ferma.TurnNumber && V->GetPosition().Phase == Ferma.Phase && V->GetPosition().State == Ferma.State);
+
+	TestTrue(TEXT("4: Play avvia"), URTReplayViewerWidgetBase::TogglePlayOn(V));
+	TestFalse(TEXT("4: sotto la soglia di una fase la posizione resta"), URTReplayViewerWidgetBase::TickPlaybackOn(V, 0.4f));
+	TestTrue(TEXT("4: oltre la soglia si avanza di una fase"), URTReplayViewerWidgetBase::TickPlaybackOn(V, 0.7f));
+	TestTrue(TEXT("4: e la posizione e' cambiata"),
+		V->GetPosition().TurnNumber != Ferma.TurnNumber || V->GetPosition().Phase != Ferma.Phase);
+
+	// --- 5. Sotto un modale il tempo non scorre ------------------------------------------------------------------------------
+	// `SyncPresentation` disabilita il widget che sta sotto un modale: il replay non deve proseguire dove il giocatore non puo'
+	// arrivare al pulsante di pausa.
+	URTReplayViewerWidgetBase* W = NewObject<URTReplayViewerWidgetBase>(GetTransientPackage());
+	if (TestNotNull(TEXT("5: il widget"), W))
+	{
+		const FRTReplayPosition Prima = V->GetPosition();
+		W->SetIsEnabled(false);
+		W->TickOn(V, 5.f);
+		TestTrue(TEXT("5: disabilitato, il tempo non muove la posizione"),
+			V->GetPosition().TurnNumber == Prima.TurnNumber && V->GetPosition().Phase == Prima.Phase && V->GetPosition().State == Prima.State);
+		W->SetIsEnabled(true);
+		W->TickOn(V, 5.f);
+		TestTrue(TEXT("5: abilitato di nuovo, il tempo la muove"),
+			V->GetPosition().TurnNumber != Prima.TurnNumber || V->GetPosition().Phase != Prima.Phase);
+	}
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * 🔑 **IL VIEWER MOSTRA CIO' CHE E' ACCADUTO NELLA FASE, E L'ETICHETTA DEL PULSANTE INDIETRO** (#3868).
+ *
+ * `GetCurrentPhaseEntries` esisteva ma nessuno la chiamava (`CallFunc`: 0 nel WBP). Le voci sono **pubbliche** — passano dal
+ * filtro del replay —, e la riga e' quella di `DescribePublicEvent`, la stessa dell'ispettore: colonne, non una seconda
+ * traduzione in italiano dello stesso fatto.
+ *
+ *   1. prima di avere una fase il testo e' vuoto: non c'e' una fase di cui dire che non ha eventi;
+ *   2. a una fase con voci il testo e' esattamente le righe di `DescribePublicEvent` di ognuna, nell'ordine;
+ *   3. cambiando fase il testo cambia — la rilettura segue la posizione;
+ *   4. riaprendo l'archivio alla STESSA posizione il testo non e' quello di prima per caso: la rilettura riparte;
+ *   5. cambiando SOLO la fase, dentro lo stesso turno, la rilettura riparte (le gambe 3 e 4 cambiano anche il turno);
+ *   6. le etichette: «PLAY» in pausa, «PAUSA» in riproduzione, e il pulsante indietro ha la sua;
+ *   7. una fase con molte voci non fa uscire il testo dallo schermo: le righe fino al tetto e «… e altre N»;
+ *   8. un archivio riaperto dal subsystem, senza una fase, non lascia le voci di prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerShowsPhaseEntriesTest,
+	"RefactorTactics.Replay.Screens.ViewerShowsThePhaseEntriesAndLabelsItsButtons",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerShowsPhaseEntriesTest::RunTest(const FString&)
+{
+	const FString R = TransientRoot(TEXT("ViewerEntries"));
+	Pulisci(R);
+
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem del replay esiste"), V))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->SetReplaysRoot(R);
+	const FGuid Id = ArchivioDueTurni(R, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio si apre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+
+	URTReplayViewerWidgetBase* W = NewObject<URTReplayViewerWidgetBase>(GetTransientPackage());
+	if (!TestNotNull(TEXT("il widget"), W))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->PlayPauseLabel = NewObject<UTextBlock>(W);
+	W->PhaseEntriesText = NewObject<UTextBlock>(W);
+	W->BackButtonLabel = NewObject<UTextBlock>(W);
+	const auto Testo = [](const UTextBlock* B) { return B->GetText().ToString(); };
+
+	// --- 1. Prima di una fase non ci sono voci, e il testo lo dice --------------------------------------------------------
+	W->RefreshLookOn(V);
+	TestTrue(TEXT("1: in pausa l'etichetta e' PLAY"), Testo(W->PlayPauseLabel).Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("1: il pulsante indietro ha la sua etichetta"), Testo(W->BackButtonLabel).Equals(TEXT("INDIETRO"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("1: prima di una fase non c'e' una fase di cui dire che non ha eventi: il testo e' vuoto"),
+		Testo(W->PhaseEntriesText).IsEmpty());
+
+	// --- 2. A una fase con voci: esattamente le righe di DescribePublicEvent -----------------------------------------------
+	V->StepPhaseForward();
+	const TArray<FRTPublicReplayEntry> Voci = V->GetCurrentPhaseEntries();
+	if (!TestTrue(TEXT("premessa: la prima fase ha delle voci"), Voci.Num() > 0))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->RefreshLookOn(V);
+	TArray<FString> Attese;
+	for (const FRTPublicReplayEntry& Voce : Voci) { Attese.Add(URTContextInspectorLibrary::DescribePublicEvent(Voce)); }
+	TestEqual(TEXT("2: il testo e' una riga per voce, come DescribePublicEvent"),
+		Testo(W->PhaseEntriesText), FString::Join(Attese, TEXT("\n")));
+
+	// --- 3. Cambiando fase il testo segue la posizione ----------------------------------------------------------------------
+	V->StepTurnForward();
+	const FRTReplayPosition PosizioneDiPrima = V->GetPosition();
+	W->RefreshLookOn(V);
+	TArray<FString> AtteseDopo;
+	for (const FRTPublicReplayEntry& Voce : V->GetCurrentPhaseEntries()) { AtteseDopo.Add(URTContextInspectorLibrary::DescribePublicEvent(Voce)); }
+	TestEqual(TEXT("3: dopo un passo il testo e' quello della fase nuova"),
+		Testo(W->PhaseEntriesText), FString::Join(AtteseDopo, TEXT("\n")));
+
+	// --- 4. Un archivio riaperto dal SUBSYSTEM, alla stessa posizione: la rilettura riparte --------------------------------------
+	// Un secondo archivio, con una traccia diversa, aperto **senza passare dal widget** (il subsystem lo possono aprire altri) e
+	// portato alla STESSA posizione (turno, fase) senza una lettura in mezzo: turno, fase e stato sono uguali a quelli di prima, e
+	// solo la revisione della posizione impedisce di mostrare le voci vecchie.
+	TArray<TArray<FRTTurnLogEntry>> Tracce;
+	Tracce.Add(Traccia(1, { ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	Tracce.Add(Traccia(2, { ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	const FGuid Altro = ScriviArchivio(R, Tracce, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: il secondo archivio si apre"), V->OpenMatchAsRecordedObserver(Altro), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->StepPhaseForward();
+	V->StepTurnForward(); // la stessa posizione di prima: (turno 2, prima fase)
+	TestTrue(TEXT("premessa: e' proprio la posizione di prima"),
+		V->GetPosition().TurnNumber == PosizioneDiPrima.TurnNumber && V->GetPosition().Phase == PosizioneDiPrima.Phase);
+	W->RefreshLookOn(V);
+	TArray<FString> AtteseAltro;
+	for (const FRTPublicReplayEntry& Voce : V->GetCurrentPhaseEntries()) { AtteseAltro.Add(URTContextInspectorLibrary::DescribePublicEvent(Voce)); }
+	TestEqual(TEXT("4: aperto un altro archivio alla stessa posizione, il testo e' quello dell'archivio nuovo"),
+		Testo(W->PhaseEntriesText), FString::Join(AtteseAltro, TEXT("\n")));
+
+	// --- 5. Cambiando SOLO la fase, dentro lo stesso turno, la rilettura riparte ---------------------------------------------
+	// La chiave e' (stato, turno, fase): se ignorasse la fase, due fasi dello stesso turno mostrerebbero il testo della prima.
+	// Le gambe 3 e 4 cambiano anche il turno, quindi la chiave cambia comunque e non distinguono questo difetto.
+	const FString TestoPrimaDiFase = Testo(W->PhaseEntriesText);
+	const FRTReplayPosition PosizionePrimaDiFase = V->GetPosition();
+	if (!TestTrue(TEXT("premessa: si avanza di una fase"), V->StepPhaseForward())
+		|| !TestTrue(TEXT("premessa: il turno e' lo stesso e la fase e' un'altra"),
+			V->GetPosition().TurnNumber == PosizionePrimaDiFase.TurnNumber && V->GetPosition().Phase != PosizionePrimaDiFase.Phase))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->RefreshLookOn(V);
+	TArray<FString> AtteseFase;
+	for (const FRTPublicReplayEntry& Voce : V->GetCurrentPhaseEntries()) { AtteseFase.Add(URTContextInspectorLibrary::DescribePublicEvent(Voce)); }
+	const FString TestoAtteso = FString::Join(AtteseFase, TEXT("\n"));
+	TestNotEqual(TEXT("premessa: le due fasi non hanno lo stesso testo, altrimenti la gamba non distingue"), TestoAtteso, TestoPrimaDiFase);
+	TestEqual(TEXT("5: cambiata solo la fase, il testo e' quello della fase nuova"), Testo(W->PhaseEntriesText), TestoAtteso);
+
+	// --- 6. In riproduzione l'etichetta cambia ---------------------------------------------------------------------------------
+	V->Play();
+	W->RefreshLookOn(V);
+	TestTrue(TEXT("6: in riproduzione l'etichetta e' PAUSA"), Testo(W->PlayPauseLabel).Equals(TEXT("PAUSA"), ESearchCase::CaseSensitive));
+
+	// --- 7. Il tetto delle righe ---------------------------------------------------------------------------------------------------
+	TArray<FRTPublicReplayEntry> Molte;
+	constexpr int32 Tetto = URTReplayViewerWidgetBase::MaxPhaseEntryRows;
+	Molte.SetNum(Tetto + 3);
+	TArray<FString> Righe;
+	URTReplayViewerWidgetBase::ComposePhaseEntriesText(Molte).ToString().ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
+	TestEqual(TEXT("7: le righe fino al tetto, piu' quella che conta le altre"), Righe.Num(), Tetto + 1);
+	if (Righe.Num() == Tetto + 1)
+	{
+		TestTrue(TEXT("7: l'ultima dice quante altre"), Righe[Tetto].EndsWith(TEXT("e altre 3"), ESearchCase::CaseSensitive));
+	}
+	TestFalse(TEXT("7: con tante voci quante il tetto il testo non dice «altre»"),
+		URTReplayViewerWidgetBase::ComposePhaseEntriesText(TArray<FRTPublicReplayEntry>(Molte.GetData(), Tetto)).ToString().Contains(TEXT("altre")));
+
+	// Un conteggio di migliaia non prende separatori: «altre 1.234» accanto a un conteggio di righe si legge come un decimale.
+	TArray<FRTPublicReplayEntry> Moltissime;
+	Moltissime.SetNum(Tetto + 1234);
+	TArray<FString> RigheMoltissime;
+	URTReplayViewerWidgetBase::ComposePhaseEntriesText(Moltissime).ToString().ParseIntoArrayLines(RigheMoltissime, /*bCullEmpty=*/ false);
+	TestTrue(TEXT("7: un conteggio di migliaia non prende separatori"),
+		RigheMoltissime.Num() > 0 && RigheMoltissime.Last().EndsWith(TEXT("e altre 1234"), ESearchCase::CaseSensitive));
+
+	// --- 8. Riaperto dal subsystem, senza una fase: niente voci dell'archivio di prima ----------------------------------------------
+	// Il widget mostra le voci di una fase; il subsystem viene riaperto (non da questo widget) e riporta a prima dell'inizio.
+	// Senza una fase il testo e' vuoto, e non quello di prima: la cache non puo' dipendere da chi ha aperto l'archivio.
+	W->RefreshLookOn(V); // alla fase corrente dell'archivio `Altro`
+	if (TestEqual(TEXT("premessa: il primo archivio si riapre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		W->RefreshLookOn(V);
+		TestTrue(TEXT("8: appena riaperto non c'e' una fase: il testo e' vuoto, non quello di prima"), Testo(W->PhaseEntriesText).IsEmpty());
+	}
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * 🔑 **IL PULSANTE PLAY/PAUSA SEGUE I BORDI, E IL TESTO DELLE VOCI NON AFFERMA IL FALSO** (#3868).
+ *
+ * Il criterio dei bordi di #472 e' «disabilitato, non silenzioso»: su una sequenza finita, su un archivio non aperto o
+ * senza fasi `Play` non parte, e un pulsante acceso che non fa niente e' il difetto per cui esistono i `Can*`. E senza una
+ * fase non c'e' una fase di cui dire che non ha eventi.
+ *
+ *   0. senza subsystem: pulsante spento, etichetta PLAY;
+ *   1. archivio non aperto: pulsante spento, testo vuoto;
+ *   2. aperto, prima dell'inizio: pulsante acceso (`Play` parte), testo vuoto;
+ *   3. in riproduzione: pulsante acceso, e' quello che mette in pausa;
+ *   4. a sequenza finita: pulsante spento, etichetta PLAY, testo vuoto (ne' le voci dell'ultima fase, ne' "nessun evento");
+ *   5. un passo indietro: di nuovo acceso.
+ *
+ * Le porte si scrivono da `TickOn` e non da `RefreshLookOn`: e' quello che il tick chiama.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerPlayButtonFollowsEdgesTest,
+	"RefactorTactics.Replay.Screens.ViewerPlayButtonFollowsTheEdges",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerPlayButtonFollowsEdgesTest::RunTest(const FString&)
+{
+	const FString R = TransientRoot(TEXT("ViewerEdges"));
+	Pulisci(R);
+
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem del replay esiste"), V))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->SetReplaysRoot(R);
+
+	URTReplayViewerWidgetBase* W = NewObject<URTReplayViewerWidgetBase>(GetTransientPackage());
+	if (!TestNotNull(TEXT("il widget"), W))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->PlayPauseButton = NewObject<UButton>(W);
+	W->PlayPauseLabel = NewObject<UTextBlock>(W);
+	W->PhaseEntriesText = NewObject<UTextBlock>(W);
+	const auto Testo = [](const UTextBlock* B) { return B->GetText().ToString(); };
+
+	// --- 0. Senza subsystem -----------------------------------------------------------------------------------------------------
+	// Un click che non fa niente su un pulsante acceso e' il difetto: senza subsystem il pulsante e' spento.
+	W->RefreshLookOn(nullptr);
+	TestFalse(TEXT("0: senza subsystem il pulsante e' spento"), W->PlayPauseButton->GetIsEnabled());
+	TestTrue(TEXT("0: e l'etichetta dice PLAY"), Testo(W->PlayPauseLabel).Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
+
+	// --- 1. Archivio non aperto -----------------------------------------------------------------------------------------------
+	W->TickOn(V, 0.f);
+	TestFalse(TEXT("1: senza un archivio aperto il pulsante e' spento"), W->PlayPauseButton->GetIsEnabled());
+	TestTrue(TEXT("1: e il testo delle voci e' vuoto"), Testo(W->PhaseEntriesText).IsEmpty());
+
+	// --- 2. Aperto, prima dell'inizio ------------------------------------------------------------------------------------------
+	const FGuid Id = ArchivioDueTurni(R, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio si apre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->TickOn(V, 0.f);
+	TestTrue(TEXT("2: aperto, il pulsante e' acceso"), W->PlayPauseButton->GetIsEnabled());
+	TestTrue(TEXT("2: prima dell'inizio il testo delle voci e' vuoto"), Testo(W->PhaseEntriesText).IsEmpty());
+
+	// --- 3. In riproduzione ------------------------------------------------------------------------------------------------------
+	V->Play();
+	W->TickOn(V, 0.f);
+	TestTrue(TEXT("3: in riproduzione il pulsante e' acceso: e' quello che mette in pausa"), W->PlayPauseButton->GetIsEnabled());
+
+	// --- 4. A sequenza finita -----------------------------------------------------------------------------------------------------
+	int32 Passi = 0;
+	while (V->StepPhaseForward() && Passi < 16) { ++Passi; }
+	if (!TestEqual(TEXT("premessa: la sequenza e' finita"), V->GetPosition().State, ERTReplayPositionState::Ended))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	TestFalse(TEXT("premessa: arrivare alla fine mette in pausa da solo"), V->IsPlaying());
+	W->TickOn(V, 0.f);
+	TestFalse(TEXT("4: a sequenza finita il pulsante e' spento"), W->PlayPauseButton->GetIsEnabled());
+	TestTrue(TEXT("4: e l'etichetta dice PLAY"), Testo(W->PlayPauseLabel).Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("4: e il testo delle voci e' vuoto: ne' quelle dell'ultima fase, ne' 'nessun evento'"), Testo(W->PhaseEntriesText).IsEmpty());
+
+	// --- 5. Un passo indietro ------------------------------------------------------------------------------------------------------
+	if (TestTrue(TEXT("premessa: si torna indietro di una fase"), V->StepPhaseBackward()))
+	{
+		W->TickOn(V, 0.f);
+		TestTrue(TEXT("5: di nuovo acceso"), W->PlayPauseButton->GetIsEnabled());
+		TestFalse(TEXT("5: e con una fase il testo delle voci c'e'"), Testo(W->PhaseEntriesText).IsEmpty());
+	}
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * 🔑 **LE VOCI SI RILEGGONO QUANDO CAMBIA LA POSIZIONE E SOLO ALLORA, ANCHE SE STATO, TURNO E FASE NON LA IDENTIFICANO** (#3868).
+ *
+ * `RefreshLookOn` gira a OGNI tick e `GetCurrentPhaseEntries` rifa' un seek e alloca: il contratto e' «si rilegge quando la
+ * posizione cambia». Un test che chiamasse l'API una volta per posizione non lo proverebbe (la trappola di #3861).
+ *
+ *   1. due letture alla stessa posizione: la seconda non rilegge (un testo messo a mano in mezzo resta);
+ *   2. un passo che cambia la posizione: rilegge;
+ *   3. due tracce pre-v6 (turno dichiarato 0, `Unaddressable`) alla stessa fase: stato, turno e fase sono IDENTICI e le voci
+ *      no. Con quella terna come chiave il testo resterebbe quello della prima traccia e il passo di turno sembrerebbe non fare
+ *      niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerRereadsOnRevisionTest,
+	"RefactorTactics.Replay.Screens.ViewerRereadsWhenThePositionChangesAndOnlyThen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerRereadsOnRevisionTest::RunTest(const FString&)
+{
+	const FString R = TransientRoot(TEXT("ViewerReread"));
+	Pulisci(R);
+
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem del replay esiste"), V))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->SetReplaysRoot(R);
+
+	URTReplayViewerWidgetBase* W = NewObject<URTReplayViewerWidgetBase>(GetTransientPackage());
+	if (!TestNotNull(TEXT("il widget"), W))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	W->PhaseEntriesText = NewObject<UTextBlock>(W);
+	const auto Testo = [](const UTextBlock* B) { return B->GetText().ToString(); };
+	const auto Attese = [V]()
+	{
+		return URTReplayViewerWidgetBase::ComposePhaseEntriesText(V->GetCurrentPhaseEntries()).ToString();
+	};
+
+	// --- 1 e 2. Stessa posizione: non rilegge; un passo: rilegge ------------------------------------------------------------------
+	const FGuid Id = ArchivioDueTurni(R, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio si apre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->StepPhaseForward();
+	W->RefreshLookOn(V);
+	TestEqual(TEXT("premessa: la prima lettura scrive le voci della fase"), Testo(W->PhaseEntriesText), Attese());
+
+	W->PhaseEntriesText->SetText(FText::FromString(TEXT("SENTINELLA")));
+	W->RefreshLookOn(V);
+	TestEqual(TEXT("1: alla stessa posizione la seconda lettura non rilegge"), Testo(W->PhaseEntriesText), FString(TEXT("SENTINELLA")));
+
+	V->StepPhaseForward();
+	W->RefreshLookOn(V);
+	TestEqual(TEXT("2: cambiata la posizione, rilegge"), Testo(W->PhaseEntriesText), Attese());
+
+	// --- 3. Due tracce pre-v6: la stessa terna, voci diverse -----------------------------------------------------------------------
+	TArray<TArray<FRTTurnLogEntry>> Tracce;
+	Tracce.Add(Traccia(0, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	Tracce.Add(Traccia(0, { ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	const FGuid PreV6 = ScriviArchivio(R, Tracce, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio pre-v6 si apre"), V->OpenMatchAsRecordedObserver(PreV6), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->StepPhaseForward();
+	const FRTReplayPosition InA = V->GetPosition();
+	W->RefreshLookOn(V);
+	const FString TestoA = Testo(W->PhaseEntriesText);
+
+	if (!TestTrue(TEXT("premessa: si passa alla traccia seguente"), V->StepTurnForward()))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	const FRTReplayPosition InB = V->GetPosition();
+	TestTrue(TEXT("premessa: stato, turno e fase sono identici nelle due tracce"),
+		InA.State == InB.State && InA.TurnNumber == InB.TurnNumber && InA.Phase == InB.Phase);
+	TestEqual(TEXT("premessa: e non sono indirizzabili per turno"), InB.State, ERTReplayPositionState::Unaddressable);
+	TestNotEqual(TEXT("premessa: le voci delle due tracce sono diverse"), Attese(), TestoA);
+
+	W->RefreshLookOn(V);
+	TestEqual(TEXT("3: la stessa terna ma un'altra traccia: il testo segue la traccia"), Testo(W->PhaseEntriesText), Attese());
+	TestFalse(TEXT("3: le righe di una traccia pre-v6 non stampano il sentinella come un turno"),
+		Testo(W->PhaseEntriesText).Contains(TEXT("T0 ")));
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * 🔑 **IL `.uasset` DEL VIEWER HA LE PORTE, E IL C++ SCRIVE NEI SUOI WIDGET** (#3868).
+ *
+ * ⚠️ Le porte sono `BindWidgetOptional`: se nel WBP manca un widget, ne ha uno con un altro nome o un altro tipo, il
+ * widget compila, il membro resta `nullptr` e nessuno protesta. Il difetto di #3868 (nessun Play, nessuna etichetta, nessuna
+ * voce) tornerebbe identico con tutti gli altri test verdi, perche' provano il C++ su `UTextBlock` creati a mano. Qui si
+ * istanzia il Blueprint vero, `Initialize` risolve i `BindWidget`, e si guarda cosa scrive il C++ in quei widget:
+ *
+ *   1. le porte sono risolte;
+ *   2. le due etichette stanno dentro il loro pulsante (un'etichetta fuori dal pulsante e' un testo orfano);
+ *   3. nessuna e' nascosta, e non lo e' nessun suo antenato, e tutte sono abilitate: un `Collapsed` o un contenitore
+ *      disabilitato renderebbe invisibile o inerte tutto cio' che il C++ scrive; e il pulsante e' cliccabile (lui `Visible`,
+ *      nessun antenato `HitTestInvisible`);
+ *   4. `RefreshLookOn` su un replay aperto scrive PLAY, INDIETRO e le voci della fase nei widget dell'ASSET, e con il replay
+ *      in riproduzione l'etichetta del pulsante diventa PAUSA.
+ *
+ * ⛔ Non copre il click (`NativeConstruct` lega `OnClicked` solo con il widget in un viewport) ne' l'aspetto: restano PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerAssetHasItsPortsTest,
+	"RefactorTactics.Replay.Screens.ViewerAssetHasItsPorts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerAssetHasItsPortsTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(
+		TEXT("/Game/RT/UI/Framework/WBP_RT_ReplayViewer.WBP_RT_ReplayViewer_C"));
+	if (!TestNotNull(TEXT("WBP_RT_ReplayViewer si carica"), Class))
+	{
+		return false;
+	}
+	URTReplayViewerWidgetBase* W = Cast<URTReplayViewerWidgetBase>(NewObject<UUserWidget>(GetTransientPackage(), Class));
+	if (!TestNotNull(TEXT("la classe del WBP deriva da URTReplayViewerWidgetBase"), W))
+	{
+		return false;
+	}
+	W->Initialize(); // duplica l'albero e risolve i BindWidget: senza, i membri restano nullptr
+
+	// --- 1. Le porte sono risolte -------------------------------------------------------------------------------------
+	const TArray<TPair<const TCHAR*, UWidget*>> Porte = {
+		{ TEXT("PlayPauseButton"), W->PlayPauseButton },
+		{ TEXT("PlayPauseLabel"), W->PlayPauseLabel },
+		{ TEXT("PhaseEntriesText"), W->PhaseEntriesText },
+		{ TEXT("BackButtonLabel"), W->BackButtonLabel },
+	};
+	bool bTutte = true;
+	for (const TPair<const TCHAR*, UWidget*>& Porta : Porte)
+	{
+		bTutte &= TestNotNull(*FString::Printf(TEXT("1: la porta %s e' risolta"), Porta.Key), Porta.Value);
+	}
+	if (!bTutte)
+	{
+		return false;
+	}
+
+	// --- 2. Le etichette stanno nel loro pulsante ------------------------------------------------------------------------------
+	TestTrue(TEXT("2: PlayPauseLabel sta dentro PlayPauseButton"), W->PlayPauseLabel->GetParent() == W->PlayPauseButton.Get());
+	const UWidget* Indietro = W->BackButtonLabel->GetParent();
+	TestTrue(TEXT("2: BackButtonLabel sta dentro un pulsante"), Indietro != nullptr && Indietro->IsA<UButton>());
+	TestEqual(TEXT("2: ed e' il pulsante BackButton"), Indietro ? Indietro->GetFName() : FName(NAME_None), FName(TEXT("BackButton")));
+
+	// --- 3. Nessuna e' nascosta -----------------------------------------------------------------------------------------------
+	// Un contenitore Collapsed o disabilitato nasconde o spegne tutto cio' che contiene: si cammina fino alla radice.
+	for (const TPair<const TCHAR*, UWidget*>& Porta : Porte)
+	{
+		for (const UWidget* Nodo = Porta.Value; Nodo; Nodo = Nodo->GetParent())
+		{
+			const ESlateVisibility Vis = Nodo->GetVisibility();
+			TestTrue(*FString::Printf(TEXT("3: %s: %s non e' nascosto"), Porta.Key, *Nodo->GetName()),
+				Vis != ESlateVisibility::Collapsed && Vis != ESlateVisibility::Hidden);
+			TestTrue(*FString::Printf(TEXT("3: %s: %s e' abilitato"), Porta.Key, *Nodo->GetName()), Nodo->GetIsEnabled());
+		}
+	}
+	// Il pulsante deve poter ricevere il click: lui `Visible`, e nessun antenato che non lasci passare il hit test ai figli.
+	TestTrue(TEXT("3: PlayPauseButton e' cliccabile"), W->PlayPauseButton->GetVisibility() == ESlateVisibility::Visible);
+	for (const UWidget* Antenato = W->PlayPauseButton->GetParent(); Antenato; Antenato = Antenato->GetParent())
+	{
+		TestTrue(*FString::Printf(TEXT("3: %s lascia passare il click ai figli"), *Antenato->GetName()),
+			Antenato->GetVisibility() != ESlateVisibility::HitTestInvisible);
+	}
+
+	// --- 4. Il C++ scrive nei widget dell'asset -------------------------------------------------------------------------------
+	const FString R = TransientRoot(TEXT("ViewerAsset"));
+	Pulisci(R);
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem del replay esiste"), V))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->SetReplaysRoot(R);
+	const FGuid Id = ArchivioDueTurni(R, /*bChiudi=*/ true, /*bIndicizza=*/ true);
+	if (!TestEqual(TEXT("premessa: l'archivio si apre"), V->OpenMatchAsRecordedObserver(Id), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI);
+		Pulisci(R);
+		return false;
+	}
+	V->StepPhaseForward();
+	W->RefreshLookOn(V);
+
+	const auto Testo = [](const UTextBlock* B) { return B->GetText().ToString(); };
+	TestTrue(TEXT("4: in pausa l'etichetta del pulsante e' PLAY"), Testo(W->PlayPauseLabel).Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("4: il pulsante indietro ha la sua etichetta"), Testo(W->BackButtonLabel).Equals(TEXT("INDIETRO"), ESearchCase::CaseSensitive));
+	const FString VociAttese = URTReplayViewerWidgetBase::ComposePhaseEntriesText(V->GetCurrentPhaseEntries()).ToString();
+	TestFalse(TEXT("premessa: la fase ha delle voci da mostrare"), VociAttese.IsEmpty());
+	TestEqual(TEXT("4: il testo delle voci nel widget dell'asset e' quello della fase"), Testo(W->PhaseEntriesText), VociAttese);
+
+	V->Play();
+	W->RefreshLookOn(V);
+	TestTrue(TEXT("4: in riproduzione l'etichetta del pulsante e' PAUSA"), Testo(W->PlayPauseLabel).Equals(TEXT("PAUSA"), ESearchCase::CaseSensitive));
 
 	ReleaseSubsystemHost(GI);
 	Pulisci(R);
