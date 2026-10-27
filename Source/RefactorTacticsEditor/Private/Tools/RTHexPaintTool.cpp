@@ -79,9 +79,14 @@ FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& P
  * (`SurfaceRingCount`), `Relief` (`ReliefHeightForCost`), `Blockers` — piu' `Borders`, perche' una
  * pennellata puo' CREARE una cella e ogni cella nuova porta il suo contorno.
  *
- * ⛔ **`EdgeFeatures` e `StructuralBodies` restano fuori**: dipendono da `Covers`/`Doors` e da
- * `BodyFill`, che il pennello non scrive mai — e una cella appena creata li ha ai valori di default,
- * quindi non c'e' niente da posare.
+ * ⛔ **`EdgeFeatures` resta fuori**: dipende da `Covers`, `Doors` e muri interni, che il pennello non
+ * scrive mai — e una cella appena creata li ha ai valori di default, quindi non c'e' niente da posare.
+ *
+ * 🔴 **`Bodies` NON resta fuori** (`#2732`), anche se il pennello non scrive `BodyFill`: il corpo di una
+ * cella dipende da cio' che le sta SOTTO nella stessa colonna — `URTStructuralBodyLibrary::DeriveBodies` lo
+ * tronca sulla faccia superiore della cella sottostante. Una pennellata che CREA una cella sotto un corpo ne
+ * cambia il `BottomZ`, e senza questa famiglia il corpo mantiene la vecchia estensione e attraversa
+ * visibilmente la cella appena dipinta, fino a una gomma o a un cambio d'asset.
  *
  * ⛔ **L'ERASE non usa questa maschera, ed e' la ragione per cui la funzione prende `bPaint`**:
  * cancellare una cella la toglie da OGNI famiglia, comprese quelle che il pennello non scrive. Una cella
@@ -91,7 +96,7 @@ ERTRebuildFamily URTHexPaintTool::BrushRebuildMask(bool bPaint)
 {
 	return bPaint
 		? (ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs | ERTRebuildFamily::Relief
-			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders)
+			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders | ERTRebuildFamily::Bodies)
 		: ERTRebuildFamily::All;
 }
 

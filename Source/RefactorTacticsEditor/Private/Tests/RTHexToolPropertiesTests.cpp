@@ -8,6 +8,13 @@
 
 #include "Map/RTHexCellData.h" // ERTHexSurface
 #include "Terrain/RTTerrainLibrary.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTMapVisuals.h"            // RTCellPrismRadius: la scala Z del corpo si legge contro la mesh
+#include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -317,8 +324,11 @@ bool FRTHexReadoutDoesNotAutoUpdateTest::RunTest(const FString&)
  * matrice campo→famiglia dice che toccano `Cells`, `Glyphs`, `Relief`, `Blockers` — piu' `Borders`, perche'
  * una pennellata puo' creare una cella e ogni cella nuova porta il suo contorno.
  *
- * ⛔ **`EdgeFeatures` e `StructuralBodies` restano fuori**, e questa e' la meta' che fa risparmiare:
- * dipendono da `Covers`/`Doors` e `BodyFill`, che il pennello non scrive mai.
+ * ⛔ **`EdgeFeatures` resta fuori**, e questa e' la meta' che fa risparmiare: dipende da `Covers`, `Doors`
+ * e muri interni, che il pennello non scrive mai.
+ *
+ * 🔴 **`Bodies` NON resta fuori** (`#2732`): il corpo di una cella dipende da cio' che le sta sotto, e una
+ * pennellata puo' creare quella cella. Il test di comportamento che lo dimostra e' piu' sotto.
  *
  * 🔴 **E l'erase ricostruisce TUTTO**, che e' la riga capace di cadere: cancellare una cella la toglie da
  * ogni famiglia, comprese quelle escluse. Con la maschera ridotta, una cella con coperture lascerebbe
@@ -341,11 +351,13 @@ bool FRTHexPaintToolRebuildMaskTest::RunTest(const FString&)
 	TestTrue(TEXT("e i contorni, perche' una pennellata puo' creare una cella"),
 		EnumHasAnyFlags(Paint, ERTRebuildFamily::Borders));
 
-	// 🔑 Cio' che NON scrive, non ci deve essere: e' il risparmio, e senza queste due righe la maschera
+	// 🔑 Cio' che NON scrive, non ci deve essere: e' il risparmio, e senza questa riga la maschera
 	// potrebbe essere `All` e il test passerebbe lo stesso.
 	TestFalse(TEXT("i pannelli di bordo NO: il pennello non scrive Covers ne' Doors"),
 		EnumHasAnyFlags(Paint, ERTRebuildFamily::EdgeFeatures));
-	TestFalse(TEXT("i corpi strutturali NO: il pennello non scrive BodyFill"),
+
+	// 🔴 I corpi SI', pur non scrivendo il pennello `BodyFill`: dipendono da cio' che sta sotto (`#2732`).
+	TestTrue(TEXT("i corpi strutturali SI': un corpo dipende dalla cella sotto, e il pennello puo' crearla"),
 		EnumHasAnyFlags(Paint, ERTRebuildFamily::Bodies));
 
 	// 🔴 L'erase e' l'eccezione, e ricostruisce tutto.
@@ -354,6 +366,108 @@ bool FRTHexPaintToolRebuildMaskTest::RunTest(const FString&)
 		EnumHasAnyFlags(Erase, ERTRebuildFamily::EdgeFeatures));
 	TestTrue(TEXT("e anche i corpi: la cella sparisce da ogni famiglia"),
 		EnumHasAnyFlags(Erase, ERTRebuildFamily::Bodies));
+	return true;
+}
+
+/**
+ * 🔴 **Dipingere una cella SOTTO un corpo strutturale lo accorcia, e la maschera del pennello deve
+ * saperlo** — `#2732`.
+ *
+ * `URTStructuralBodyLibrary::DeriveBodies` tronca il corpo di una cella sulla faccia superiore della cella
+ * sottostante nella stessa colonna. Il pennello non scrive `BodyFill`, ma puo' CREARE quella cella: la
+ * maschera che lo ignorava lasciava il corpo con la vecchia estensione, e lo mostrava attraversare il
+ * pavimento appena dipinto fino a una gomma (che ricostruisce tutto) o a un cambio d'asset.
+ *
+ * ⚠️ **Le premesse sono asserite, non assunte**: che prima della pennellata il corpo non sia troncato, e che
+ * la cella nuova lo tronchi davvero spostandone la base. Senza, il test passerebbe anche con una maschera
+ * che non ricostruisce i corpi, perche' non ci sarebbe niente da aggiornare.
+ *
+ * 🔑 **Si usa la maschera VERA del pennello**, `URTHexPaintTool::BrushRebuildMask`, e non un elenco copiato
+ * qui: e' la riga che cambia il comportamento, e una copia resterebbe verde togliendola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexPaintToolBrushKeepsBodiesInLineTest,
+	"RefactorTactics.HexTools.PaintingBelowABodyShortensItWithTheBrushMask",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexPaintToolBrushKeepsBodiesInLineTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	if (GEngine)
+	{
+		FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+		Ctx.SetCurrentWorld(World);
+	}
+	auto DestroyTestWorld = [World]()
+	{
+		if (GEngine) { GEngine->DestroyWorldContext(World); }
+		World->DestroyWorld(false);
+	};
+
+	// Una cella sola, a Layer 1, che dichiara un corpo pieno: sotto di lei la colonna e' vuota.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+	Sopra.BodyFill = ERTHexBodyFill::Full;
+	Asset->AddOrUpdateCell(Sopra);
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = World->SpawnActorDeferred<ARTHexMapActor>(
+		ARTHexMapActor::StaticClass(), FTransform::Identity);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyTestWorld(); return false; }
+	Actor->MapAsset = Asset;
+	Actor->FinishSpawning(FTransform::Identity);
+
+	const TArray<FRTStructuralBody> Prima = URTStructuralBodyLibrary::DeriveBodies(Asset);
+	if (!TestEqual(TEXT("premessa: un corpo"), Prima.Num(), 1)
+		|| !TestFalse(TEXT("premessa: con la colonna vuota sotto il corpo non e' troncato"), Prima[0].bTruncated))
+	{
+		DestroyTestWorld();
+		return false;
+	}
+
+	// Il pennello crea la cella SOTTO il corpo, come fa `ApplyBrushAt` con la superficie di default.
+	Asset->BeginStroke();
+	const bool bDipinta = Asset->PaintCellInStroke(FRTCellId(0, 0, 0), ERTHexSurface::Floor, /*MoveCost=*/ 1,
+		/*bBlocksMovement=*/ false, TOptional<bool>(false));
+	Asset->EndStroke();
+	if (!TestTrue(TEXT("il pennello crea la cella sotto il corpo"), bDipinta)) { DestroyTestWorld(); return false; }
+
+	const TArray<FRTStructuralBody> Dopo = URTStructuralBodyLibrary::DeriveBodies(Asset);
+	if (!TestEqual(TEXT("il derivatore vede ancora un corpo"), Dopo.Num(), 1)
+		|| !TestTrue(TEXT("premessa: la cella nuova TRONCA il corpo"), Dopo[0].bTruncated)
+		|| !TestTrue(TEXT("premessa: e gli sposta la base"),
+			!FMath::IsNearlyEqual(Dopo[0].BottomZ, Prima[0].BottomZ, 0.5f)))
+	{
+		DestroyTestWorld();
+		return false;
+	}
+
+	// La ricostruzione che il pennello fa a ogni cella toccata, con la sua maschera.
+	Actor->RebuildInstances(URTHexPaintTool::BrushRebuildMask(/*bPaint=*/ true));
+
+	TArray<UInstancedStaticMeshComponent*> Isms;
+	Actor->GetComponents(Isms);
+	UInstancedStaticMeshComponent* Corpi = nullptr;
+	for (UInstancedStaticMeshComponent* Ism : Isms)
+	{
+		if (Ism && Ism->GetName() == TEXT("StructuralBodies")) { Corpi = Ism; break; }
+	}
+	if (!TestNotNull(TEXT("l'ISM dei corpi"), Corpi) || !TestEqual(TEXT("un corpo posato"), Corpi->GetInstanceCount(), 1))
+	{
+		DestroyTestWorld();
+		return false;
+	}
+
+	FTransform Xf;
+	Corpi->GetInstanceTransform(0, Xf, /*bWorldSpace=*/ true);
+	// La mesh nasce alta `2 * RTCellPrismRadius`: la scala Z e' il rapporto con l'altezza chiesta.
+	const float AltezzaPosata = static_cast<float>(Xf.GetScale3D().Z) * 2.f * RTCellPrismRadius;
+	TestTrue(*FString::Printf(TEXT("il corpo posato segue il troncamento: alto %.1f, atteso %.1f"),
+			AltezzaPosata, Dopo[0].Height()),
+		FMath::IsNearlyEqual(AltezzaPosata, Dopo[0].Height(), 0.5f));
+	TestTrue(TEXT("e sta alla quota del corpo troncato"),
+		FMath::IsNearlyEqual(static_cast<float>(Xf.GetLocation().Z), (Dopo[0].TopZ + Dopo[0].BottomZ) * 0.5f, 0.5f));
+
+	DestroyTestWorld();
 	return true;
 }
 
