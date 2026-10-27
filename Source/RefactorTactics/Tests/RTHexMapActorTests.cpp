@@ -3386,8 +3386,8 @@ namespace
  *
  * 🔑 **Due volumi e non uno**: con un solo volume non c'e' niente da scambiare. 🔑 **Il controllo positivo prima**: la board intatta passa
  * il guardiano, quindi il rosso dopo lo scambio e' dello scambio e non di una board che il guardiano rifiuta comunque.
- * ⚠️ L'`ensure` del guardiano scatta UNA volta per processo: la sua riga e' attesa con occorrenze negative, cioe' tollerata se c'e' e non
- * richiesta se un altro test l'ha gia' consumata.
+ * ⚠️ Il seam e' SILENZIOSO (`bReport` falso): l'`ensure` del guardiano stampa una pila a livello Error e scatta una sola volta per
+ * processo, quindi un test che lo provocasse passerebbe o cadrebbe secondo chi corre prima. Si prova il VERDETTO, non l'`ensure`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorMappingGuardSeesShuffledSurfaceVolumesTest,
 	"RefactorTactics.HexMapActor.MappingGuardSeesShuffledSurfaceVolumes",
@@ -3418,7 +3418,6 @@ bool FRTHexMapActorMappingGuardSeesShuffledSurfaceVolumesTest::RunTest(const FSt
 		return false;
 	}
 
-	AddExpectedErrorPlain(TEXT("gli INDICI sono rimescolati"), EAutomationExpectedErrorFlags::Contains, -1);
 	SwapInstancePlacements(Volumi, 0, 1);
 	TestFalse(TEXT("due volumi scambiati: il guardiano lo vede"), Actor->VerifyAllMappingsForTest());
 
@@ -3452,7 +3451,6 @@ bool FRTHexMapActorMappingGuardSeesShuffledFogTest::RunTest(const FString&)
 		return false;
 	}
 
-	AddExpectedErrorPlain(TEXT("gli INDICI sono rimescolati"), EAutomationExpectedErrorFlags::Contains, -1);
 	SwapInstancePlacements(Nebbia, 0, 1);
 	TestFalse(TEXT("due colonne di nebbia scambiate: il guardiano lo vede"), Actor->VerifyAllMappingsForTest());
 

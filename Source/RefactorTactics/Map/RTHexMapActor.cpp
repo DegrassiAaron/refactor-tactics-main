@@ -3903,7 +3903,7 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 }
 
 bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* Component,
-	const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight) const
+	const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight, bool bReport) const
 {
 	if (!Component || CellsOfInstance.Num() == 0)
 	{
@@ -3961,12 +3961,16 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 			UseHexSize, UseLayerH);
 		const FVector2D Trovato(Xf.GetLocation().X, Xf.GetLocation().Y);
 		const FVector2D Previsto(Piano.X + Scarto.X, Piano.Y + Scarto.Y);
-		if (!ensureMsgf(FVector2D::Distance(Trovato, Previsto) <= Tolleranza,
-			TEXT("ApplyKnowledgeVeil: %s ha l'istanza %d su %s, che sta a %.1f uu da dove la mappatura la ")
-			TEXT("vuole — gli INDICI sono rimescolati, e i conteggi tornano lo stesso"),
-			*Component->GetName(), I, *CellsOfInstance[I].ToString(),
-			FVector2D::Distance(Trovato, Previsto)))
+		if (FVector2D::Distance(Trovato, Previsto) > Tolleranza)
 		{
+			// `bReport` falso e' il percorso dei test (`VerifyAllMappingsForTest`, `#3899`): l'`ensure` stampa una pila a livello Error e
+			// scatta UNA volta per processo, quindi un test che lo provocasse passerebbe o cadrebbe secondo chi corre prima. In produzione
+			// `bReport` e' vero e la riga e' quella di sempre.
+			ensureMsgf(!bReport,
+				TEXT("ApplyKnowledgeVeil: %s ha l'istanza %d su %s, che sta a %.1f uu da dove la mappatura la ")
+				TEXT("vuole — gli INDICI sono rimescolati, e i conteggi tornano lo stesso"),
+				*Component->GetName(), I, *CellsOfInstance[I].ToString(),
+				FVector2D::Distance(Trovato, Previsto));
 			return false;
 		}
 
@@ -3980,42 +3984,43 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 			continue;
 		}
 		const double PrevistaZ = QuotaAttesa(CellsOfInstance[I], Piano) + ScartoZ;
-		if (!ensureMsgf(FMath::Abs(Xf.GetLocation().Z - PrevistaZ) <= Tolleranza,
-			TEXT("ApplyKnowledgeVeil: %s ha l'istanza %d su %s alla quota %.1f invece di %.1f — due celle ")
-			TEXT("IMPILATE sono state scambiate, e sul piano non si vedrebbe"),
-			*Component->GetName(), I, *CellsOfInstance[I].ToString(), Xf.GetLocation().Z, PrevistaZ))
+		if (FMath::Abs(Xf.GetLocation().Z - PrevistaZ) > Tolleranza)
 		{
+			ensureMsgf(!bReport,
+				TEXT("ApplyKnowledgeVeil: %s ha l'istanza %d su %s alla quota %.1f invece di %.1f — due celle ")
+				TEXT("IMPILATE sono state scambiate, e sul piano non si vedrebbe"),
+				*Component->GetName(), I, *CellsOfInstance[I].ToString(), Xf.GetLocation().Z, PrevistaZ);
 			return false;
 		}
 	}
 	return true;
 }
 
-bool ARTHexMapActor::VerifyAllMappings() const
+bool ARTHexMapActor::VerifyAllMappings(bool bReport) const
 {
 	// Le famiglie con un sollevamento COSTANTE per istanza — disco, corone, griglia — ammettono anche il
 	// confronto sulla quota, che e' l'unico modo di distinguere due celle impilate.
-	bool bOk = VerifyMappingIdentity(Cells, InstanceCells, /*bCompareHeight=*/ true);
+	bool bOk = VerifyMappingIdentity(Cells, InstanceCells, /*bCompareHeight=*/ true, bReport);
 	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
 	{
-		bOk = VerifyMappingIdentity(SurfaceGlyphs[Ring], GlyphCells[Ring], /*bCompareHeight=*/ true) && bOk;
+		bOk = VerifyMappingIdentity(SurfaceGlyphs[Ring], GlyphCells[Ring], /*bCompareHeight=*/ true, bReport) && bOk;
 	}
-	bOk = VerifyMappingIdentity(CellBorders, BorderCells, /*bCompareHeight=*/ true) && bOk;
+	bOk = VerifyMappingIdentity(CellBorders, BorderCells, /*bCompareHeight=*/ true, bReport) && bOk;
 
 	// ⚠️ **Queste portano un sollevamento che dipende dalla CELLA e non solo dalla famiglia** — il
 	// rilievo cresce col sovrapprezzo di movimento, i volumi hanno due altezze diverse, il corpo strutturale
 	// segue il proprio riempimento — quindi la quota non e' confrontabile senza ricopiarne le formule qui.
 	// Restano sul solo piano, che coglie ogni permutazione tranne quella fra celle impilate.
-	bOk = VerifyMappingIdentity(Relief, ReliefCells, /*bCompareHeight=*/ false) && bOk;
-	bOk = VerifyMappingIdentity(Blockers, BlockerCells, /*bCompareHeight=*/ false) && bOk;
-	bOk = VerifyMappingIdentity(StructuralBodies, BodyCells, /*bCompareHeight=*/ false) && bOk;
+	bOk = VerifyMappingIdentity(Relief, ReliefCells, /*bCompareHeight=*/ false, bReport) && bOk;
+	bOk = VerifyMappingIdentity(Blockers, BlockerCells, /*bCompareHeight=*/ false, bReport) && bOk;
+	bOk = VerifyMappingIdentity(StructuralBodies, BodyCells, /*bCompareHeight=*/ false, bReport) && bOk;
 
 	// `#3899`: i volumi di superficie e la nebbia, che il guardiano non guardava. I volumi sono per ISTANZA e non per cella (otto superfici
 	// su nove non ne producono) e il loro sollevamento dipende dalla superficie; la nebbia e' PARALLELA al disco (`InstanceCells`, una colonna
 	// per cella) e la sua quota non porta `Height` ([D-373]). Entrambe sul solo piano. Il velo attenua i primi per cella
 	// (`GetVolumeFamilies`) e `WriteFog` scrive la seconda per indice: un indice rimescolato le farebbe cadere sulla cella sbagliata.
-	bOk = VerifyMappingIdentity(SurfaceVolumes, SurfaceVolumeCells, /*bCompareHeight=*/ false) && bOk;
-	bOk = VerifyMappingIdentity(FogVolumes, InstanceCells, /*bCompareHeight=*/ false) && bOk;
+	bOk = VerifyMappingIdentity(SurfaceVolumes, SurfaceVolumeCells, /*bCompareHeight=*/ false, bReport) && bOk;
+	bOk = VerifyMappingIdentity(FogVolumes, InstanceCells, /*bCompareHeight=*/ false, bReport) && bOk;
 
 	// ⛔ `EdgeFeatures` non compare, ed e' dichiarato: i pannelli di bordo stanno sul punto medio di un LATO
 	// (`EdgeMidpointWorld`), non sul centro della cella mappata, quindi nemmeno il piano e' confrontabile

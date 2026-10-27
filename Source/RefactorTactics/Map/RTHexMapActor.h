@@ -904,9 +904,9 @@ public:
 	/**
 	 * `#3899`: il guardiano delle mappature (`VerifyAllMappings`) e' interno al velo e non aveva un modo di essere interrogato da solo,
 	 * quindi nessun test poteva provare che vede una famiglia. Esiste per questo e per niente altro: restituisce lo stesso verdetto,
-	 * e come il guardiano emette l'`ensure` quando una mappatura e' rimescolata.
+	 * SENZA l'`ensure` (`bReport` falso), che stampa una pila a livello Error e scatta una sola volta per processo.
 	 */
-	bool VerifyAllMappingsForTest() const { return VerifyAllMappings(); }
+	bool VerifyAllMappingsForTest() const { return VerifyAllMappings(/*bReport=*/ false); }
 
 	/**
 	 * #3632 — di quanto si allontanano i piani nella vista strategica: la quota a schermo e' quella dell'asset per
@@ -2096,10 +2096,13 @@ protected:
 	 * funzione della sola cella mappata, e il confronto direbbe il falso. Resta col solo conteggio, ed e'
 	 * dichiarato qui invece di essere dimenticato.
 	 *
+	 * @param bReport  vero (il predefinito, e l'unico valore della produzione): se la mappatura e' rimescolata scatta l'`ensure`. Falso
+	 *                 per i test (`VerifyAllMappingsForTest`, `#3899`): il verdetto e' lo stesso, ma l'`ensure` stampa una pila a livello
+	 *                 Error e scatta una sola volta per processo, quindi non e' un oracolo che un test possa attendere.
 	 * @return vero se la mappatura regge.
 	 */
 	bool VerifyMappingIdentity(const UInstancedStaticMeshComponent* Component,
-		const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight) const;
+		const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight, bool bReport = true) const;
 
 	/**
 	 * Il guardiano su TUTTE le famiglie mappate, in un punto solo. Vero se ognuna regge.
@@ -2108,7 +2111,7 @@ protected:
 	 * rimescolata, le altre non sono «probabilmente a posto», sono non verificate — derivano tutte dallo
 	 * stesso giro di costruzione.
 	 */
-	bool VerifyAllMappings() const;
+	bool VerifyAllMappings(bool bReport = true) const;
 
 	/** La posa del glifo di una cella. Sede UNICA della formula: la usano `RebuildInstances` e il per-cella. */
 	FTransform GlyphTransformForCell(const FRTCellId& Id, int32 Height, float InHexSize,
