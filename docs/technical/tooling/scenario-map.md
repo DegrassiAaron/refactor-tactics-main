@@ -287,7 +287,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Map.BridgeBreaksThePath` | — | — | rompere un arco **annulla** il percorso invece di allungarlo — idem `#282` |
 | `RT_Showcase_Relay_v01` | RelayBasin | 8 | gli 8 turni della showcase, **tutti giocati** dal 2026-09-03 (`#170`): esito `PASS`, 22 assertion, e il corpus golden multi-turno che pinna la partita intera. ⏱️ La riga diceva «5 · **BLOCKED** su 5 capability»: le cinque si sono chiuse una alla volta, e l'ultima — `Objective` — non aspettava una feature ma una **cella** (nessun costruttore di arena posava un obiettivo) |
 | `Spec.Objective.PointSurvivesKO` | RelayBasin | 8 | ⏱️ **Da `BLOCKED` a `PASS` con `#170`**, insieme allo showcase e per la stessa riga di fixture. Dimostra che il punto si assegna **dopo** il KO ambientale, dentro lo stesso Cleanup. ⏱️ *La colonna diceva `2` ed è stata rimisurata il 2026-09-03 sul log della suite: `PASS (8/8 assertion, 2 turni)` — il numero era quello dei **turni**, non delle assertion* |
-| `Spec.Combat.GuardSpansMultipleHits` | r5 | 7 | ⏱️ **Da [D-408] (2026-09-20) la Guardia non è più un pool ma una riduzione di 15 su OGNI colpo frontale, e questo file asserisce `120`**: tre colpi da 8 si azzerano uno per uno. *Fino ad allora misurava [D-292] — un **pool** da 15, non uno sconto sul primo colpo — e lasciava `116`, dove la regola precedente ancora lasciava `109`. Il file regge tutti e tre i modelli perché misura il caso a più colpi, che è l'unico dove la forma si vede; si chiamava `Spec.Combat.GuardPoolSpansMultipleHits`, nome che nominava il pool, ed è stato rinominato il 2026-10-27 ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)).* ⚠️ **Scritto perché nessuno esercitava il caso che le distingue** (`#1919`): sopra i 15 del pool le due regole coincidono per costruzione, e il corpus era fatto di colpi da 16 in su. 🔑 **La distinzione è misurata, non dedotta** — mutando `ApplyAbsorptionPool` perché perda l'avanzo, questo scenario cade con `atteso 116, ottenuto 109`. ⚠️ *Al momento della misura era l'**unico** del corpus a cadere, e la riga lo diceva; oggi non è più vero e la correzione è dovuta a una code review: `Visual.Combat.DefenseVsNoneUnderSmallHits` — aggiunto dalla stessa PR, poche ore dopo — mette lo stesso caso e cade identico. Il gemello visivo non toglie valore a questa riga: quello si guarda, questo giudica* |
+| `Spec.Combat.GuardSpansMultipleHits` | r5 | 7 | ⏱️ **Da [D-408] (2026-09-20) la Guardia non è più un pool ma una riduzione di 15 su OGNI colpo frontale, e questo file asserisce `120`**: tre colpi da 8 si azzerano uno per uno. *Fino ad allora misurava [D-292] — un **pool** da 15, non uno sconto sul primo colpo — e lasciava `116`, dove la regola precedente ancora lasciava `109`. Il file regge tutti e tre i modelli perché misura il caso a più colpi, che è l'unico dove la forma si vede; si chiamava `Spec.Combat.GuardPoolSpansMultipleHits`, nome che nominava il pool, ed è stato rinominato il 2026-10-27 ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)).* ⚠️ **Scritto perché nessuno esercitava il caso che le distingue** (`#1919`): sopra i 15 del pool le due regole coincidono per costruzione, e il corpus era fatto di colpi da 16 in su. 🔑 **La distinzione è misurata, non dedotta** — mutando `ApplyAbsorptionPool` perché perda l'avanzo, questo scenario cade con `atteso 116, ottenuto 109`. ⚠️ *Al momento della misura era l'**unico** del corpus a cadere, e la riga lo diceva; oggi non è più vero e la correzione è dovuta a una code review: `Visual.Combat.GuardVsBraceUnderSmallHits` (oggi `…DefenseVsNoneUnderSmallHits`) — aggiunto dalla stessa PR, poche ore dopo — mette lo stesso caso e cade identico. Il gemello visivo non toglie valore a questa riga: quello si guarda, questo giudica* |
 | `Spec.Reaction.DeflectionPoolSpansMultipleHits` | r4 | 5 | il gemello di `Deflect` della riga qui sopra, e la stessa lacuna trovata due volte: [D-309](../../decisions/RT_PDR_00_Decision_Log.md) ha reso `Deflect` un **pool**, e il corpus non lo misurava perché era fatto di colpi grossi — sopra i 20 del budget pool e delta-sul-primo-colpo coincidono per costruzione. Quattro colpi da 8 contro un budget da 20 lasciano `83`, dove `ApplyFirstHitDelta` lascerebbe `71`. 🔑 **La distinzione è misurata, non dedotta**: mutando `Deflect` su `ApplyFirstHitDelta` questo scenario cade con `atteso 83, ottenuto 71`, ed è l'**unico** dei 117 a cadere — il `comm` fra i due bracci ha una sola riga. ⚠️ **Quattro colpi e non tre**, ma non perché tre non distinguerebbero (darebbero `79`, e senza reazione `71`): con tre l'attesa sarebbe `90`, cioè la vita piena, indistinguibile da un allestimento che non ha prodotto nessun colpo. 🔑 **Non sostituisce `Spec.Reaction.DeflectionReducesByTwenty`**, che misura il *numero* su una partita vera e dichiara di non misurare la *forma*: questo misura la forma. Aperto da `#2190` |
 | `Spec.Harness.RepeatedRunsAgree` | r4 | 28 | il **determinismo del runner**: `repeatCount: 5` esegue lo stesso allestimento cinque volte e confronta le tracce byte per byte. Le assertion sono **28** e non 20: `RunRepeated` accumula le 4 di ogni giro e vi aggiunge, per ciascuno dei quattro confronti, un `SameTurnLogAcrossRuns` e un `SameStateHashAcrossRuns`. ⚠️ *La colonna diceva `4 ×5`, cioè il conto senza i confronti — lo stesso tipo di errore corretto nella riga qui sopra, commesso una riga più sotto e trovato da una code review*. ⚠️ **È il primo consumatore della chiave**, che fino al 2026-09-03 era implementata in tutto il percorso — loader, runner, writer, quattro test — e usata da **zero** dei 112 scenari versionati. Non è il corpus di E47.5 e non prova a esserlo: quel checkpoint ha sei casi con i loro nomi |
 
@@ -346,7 +346,8 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | `Visual.Reaction.Deflection` | r4 | `PIE-VIS-DEFLECT` | 22 diventano 2 — una difesa, non un attacco debole |
 | `Visual.Reaction.Interposition` | r4 | `PIE-VIS-INTERPOSE` | il colpo **cambia destinatario** a mezz'aria |
 
-> ✅ **La corrispondenza è 1:1 dal 2026-08-09.** Non lo era: `GuardReducesEveryFrontalHit`, `BraceReducesEveryHit` e
+<!-- rename-exempt: racconta il 2026-08-09, quando il file si chiamava cosi' -->
+> ✅ **La corrispondenza è 1:1 dal 2026-08-09.** Non lo era: `GuardReducesFirstHit` (oggi `GuardReducesEveryFrontalHit`), `BraceReducesEveryHit` e
 > `WaterElectricCoordinated` erano nel corpus **senza una voce PIE**, e sarebbero rimasti eseguiti-e-mai-guardati.
 > Il difetto viene dal modo in cui il corpus è cresciuto: le tre grammatiche difensive e il secondo scenario
 > della combo sono arrivati **dopo** il blocco di 18 voci del 2026-08-08, e la convenzione «ogni scenario
@@ -884,7 +885,8 @@ resta visibile invece di sparire.
 > lasciarlo verde per assenza. Un `BLOCKED` che scivola in verde non lo denuncia nessuno.
 
 > ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
-> al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.GuardWinsOnFrontalHits` e
+<!-- rename-exempt: racconta il 2026-08-10, quando il file si chiamava cosi' -->
+> al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` (oggi `…GuardWinsOnFrontalHits`) e
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 > `Spec.Combat.BranthIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
 > [D-075](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
@@ -1499,9 +1501,14 @@ sembrava tornare nasconde addendi sbagliati; qui le tre colonne si contano dalle
 
 ### 11.5 Le rinomine di `ScenarioId` — dove si ritrova un nome vecchio
 
-Un `ScenarioId` si cambia quando il suo nome dichiara il contrario di ciò che il file asserisce. I documenti
-**vivi** citano il nome di oggi. I documenti **datati** — il Decision Log e i piani in `docs/roadmap/plans/` —
-citano ancora quello di prima, come devono: sono la storia di quando era vero, e questa tabella è il ponte.
+Un `ScenarioId` si cambia quando il suo nome dichiara il contrario di ciò che il file asserisce, oppure nomina un
+meccanismo ritirato. Rinominare è **due gesti**: cambiare `scenarioId` e aggiungere una riga a
+`Scenarios/_redirects.json` ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §5), che è il ponte che
+l'harness legge — `rt.Test.Scenario <nome di prima>` risolve al file di oggi.
+
+I documenti **vivi** citano il nome di oggi, tranne dove raccontano uno stato passato: lì tengono il nome di allora
+e dicono «oggi …». I documenti **datati** — il Decision Log e i piani in `docs/roadmap/plans/` — citano il nome di
+prima, come devono: sono la storia di quando era vero, e questa tabella dice dove ritrovarlo.
 
 | Nome di prima | Nome di oggi | Perché | Quando |
 |---|---|---|---|
@@ -1511,5 +1518,5 @@ citano ancora quello di prima, come devono: sono la storia di quando era vero, e
 | `Spec.Combat.AreaGuardFromImpactCenterKeepsPool` | `Spec.Combat.AreaGuardFromImpactCenterHolds` | il pool è ritirato da [D-408] | 2026-10-27 · [#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223) |
 | `Visual.Combat.GuardVsBraceUnderSmallHits` | `Visual.Combat.DefenseVsNoneUnderSmallHits` | non confronta più le due difese: chiudono entrambe allo stesso numero | 2026-10-27 · [#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223) |
 
-I contenuti dei cinque file non sono cambiati, solo i nomi e le note che annunciavano il rinvio. Per trovare
+I contenuti dei file della tabella non sono cambiati, solo i nomi e le note che annunciavano il rinvio. Per trovare
 dove un nome vecchio è ancora citato: `git grep -E 'BraceWinsOnSecondHit|GuardReducesFirstHit|GuardPoolSpansMultipleHits|AreaGuardFromImpactCenterKeepsPool|GuardVsBraceUnderSmallHits'`.

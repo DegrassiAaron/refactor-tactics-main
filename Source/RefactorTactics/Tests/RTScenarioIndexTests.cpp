@@ -599,4 +599,63 @@ bool FRTScenarioIndexAbbreviationIgnoresLabTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni redirect del file SPEDITO porta a uno scenario vivo, e le cinque rinomine della Guardia ci sono — `#3223`.
+ *
+ * 🔴 **Rinominare uno scenario e' due gesti, e il secondo si dimentica**: cambiare `scenarioId` e aggiungere una
+ * riga a `Scenarios/_redirects.json` (`scenario-index-e-tag.md` §5). Senza la riga, ogni riferimento che non si
+ * puo' riscrivere — issue, PR, Decision Log, piani datati — smette di funzionare con `rt.Test.Scenario`: l'ID
+ * non risulta nell'indice e non c'e' nessun redirect che lo recuperi. Nessun altro test legge il file vero,
+ * perche' `RedirectsFollowTheChain` lavora su mappe costruite a mano.
+ *
+ * ⚠️ **`ResolvePath(Vecchio) == ResolvePath(Nuovo)` dimostra anche che il vecchio ID non e' piu' vivo**: un ID
+ * vivo vince sul redirect, quindi se un file con il vecchio nome esistesse ancora la risoluzione cadrebbe su di
+ * lui e le due stringhe sarebbero diverse.
+ *
+ * 🔑 **Le cinque coppie sono scritte qui e non lette dal file**, perche' leggerle dal file renderebbe il test
+ * verde con la tabella vuota. Il controllo generale in coda legge invece il file vero, voce per voce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexShippedRedirectsTest,
+	"RefactorTactics.ScenarioIndex.EveryShippedRedirectReachesALiveScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexShippedRedirectsTest::RunTest(const FString&)
+{
+	const TMap<FString, FString> Redirects = URTScenarioIndex::LoadRedirects();
+	// Anti-vacuita': con la tabella vuota il ciclo generale qui sotto non misurerebbe niente.
+	if (!TestTrue(TEXT("il file dei redirect spedito ha delle voci"), Redirects.Num() > 0))
+	{
+		return false;
+	}
+
+	const TArray<TPair<FString, FString>> Rinomine = {
+		{ TEXT("Spec.Brace.BraceWinsOnSecondHit"),                  TEXT("Spec.Brace.GuardWinsOnFrontalHits") },
+		{ TEXT("Visual.Combat.GuardReducesFirstHit"),               TEXT("Visual.Combat.GuardReducesEveryFrontalHit") },
+		{ TEXT("Spec.Combat.GuardPoolSpansMultipleHits"),           TEXT("Spec.Combat.GuardSpansMultipleHits") },
+		{ TEXT("Spec.Combat.AreaGuardFromImpactCenterKeepsPool"),   TEXT("Spec.Combat.AreaGuardFromImpactCenterHolds") },
+		{ TEXT("Visual.Combat.GuardVsBraceUnderSmallHits"),         TEXT("Visual.Combat.DefenseVsNoneUnderSmallHits") },
+	};
+	for (const TPair<FString, FString>& Coppia : Rinomine)
+	{
+		FString ErroreNuovo, ErroreVecchio;
+		const FString PercorsoNuovo = URTScenarioIndex::ResolvePath(Coppia.Value, ErroreNuovo);
+		const FString PercorsoVecchio = URTScenarioIndex::ResolvePath(Coppia.Key, ErroreVecchio);
+		TestFalse(*FString::Printf(TEXT("il nome nuovo %s esiste (%s)"), *Coppia.Value, *ErroreNuovo),
+			PercorsoNuovo.IsEmpty());
+		TestEqual(*FString::Printf(TEXT("il nome vecchio %s porta allo stesso file di %s"), *Coppia.Key, *Coppia.Value),
+			PercorsoVecchio, PercorsoNuovo);
+	}
+
+	// Il controllo generale, sul file vero: nessuna voce deve restare appesa a un bersaglio che non c'e' piu'.
+	for (const TPair<FString, FString>& Voce : Redirects)
+	{
+		const FString Finale = URTScenarioIndex::ApplyRedirects(Redirects, Voce.Key);
+		FString Errore;
+		const FString Percorso = URTScenarioIndex::ResolvePath(Finale, Errore);
+		TestFalse(*FString::Printf(TEXT("il redirect %s -> %s porta a uno scenario vivo (%s)"),
+				*Voce.Key, *Finale, *Errore),
+			Percorso.IsEmpty());
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

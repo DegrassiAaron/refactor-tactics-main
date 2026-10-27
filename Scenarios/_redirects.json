@@ -4,5 +4,10 @@
   "Combat.RiktorImpactShotSlows": "Combat.BranthImpactShotSlows",
   "Spec.Combat.BastionIsPushedLikeAnyone": "Spec.Combat.BranthIsPushedLikeAnyone",
   "Spec.Combat.RiktorIsPushedLikeAnyone": "Spec.Combat.BranthIsPushedLikeAnyone",
-  "Spec.Reaction.InteractCountsAsADirectHit": "Spec.Reaction.InteractIsNotADirectHit"
+  "Spec.Reaction.InteractCountsAsADirectHit": "Spec.Reaction.InteractIsNotADirectHit",
+  "Spec.Brace.BraceWinsOnSecondHit": "Spec.Brace.GuardWinsOnFrontalHits",
+  "Visual.Combat.GuardReducesFirstHit": "Visual.Combat.GuardReducesEveryFrontalHit",
+  "Spec.Combat.GuardPoolSpansMultipleHits": "Spec.Combat.GuardSpansMultipleHits",
+  "Spec.Combat.AreaGuardFromImpactCenterKeepsPool": "Spec.Combat.AreaGuardFromImpactCenterHolds",
+  "Visual.Combat.GuardVsBraceUnderSmallHits": "Visual.Combat.DefenseVsNoneUnderSmallHits"
 }
