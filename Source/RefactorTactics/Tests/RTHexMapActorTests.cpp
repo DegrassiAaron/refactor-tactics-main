@@ -20,6 +20,7 @@
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 #include "RTConsoleVariableGuardForTest.h"
 #include "Map/RTSpawnPoint.h" // #3632: lo spawn da marker resta sulla quota vera dell'asset
+#include "Misc/OutputDeviceRedirector.h" // GLog->AddOutputDevice: il rifiuto si legge dalla riga che lo nomina
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2839,6 +2840,129 @@ bool FRTHexMapEdgePanelOnTheBorderTest::RunTest(const FString&)
 	};
 	TestFalse(TEXT("nessuna cella vista: il pannello sul bordo e' nascosto"), Scala(TArray<FRTCellId>()));
 	TestTrue(TEXT("la cella che lo porta vista: il pannello si vede"), Scala({ Bordo }));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Le righe di log che contengono un ago, lette una per una — stessa forma di `FRTScopedLogLines` in
+	 * `RTHeroSpawnTests.cpp`, che esiste perche' `AddExpectedError` non sa dire «una volta, e questa».
+	 * Senza buffer: un dispositivo bufferizzato riceve le righe del game thread in ritardo.
+	 */
+	struct FRTTransitionRefusalLines : public FOutputDevice
+	{
+		explicit FRTTransitionRefusalLines(const TCHAR* InAgo) : Ago(InAgo) { GLog->AddOutputDevice(this); }
+		virtual ~FRTTransitionRefusalLines() override { GLog->RemoveOutputDevice(this); }
+
+		virtual bool CanBeUsedOnAnyThread() const override { return true; }
+		virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
+
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type, const FName&) override
+		{
+			if (V && FCString::Strstr(V, *Ago) != nullptr)
+			{
+				FScopeLock Lock(&Guardia);
+				Righe.Add(V);
+			}
+		}
+
+		TArray<FString> Righe;
+
+	private:
+		FString Ago;
+		FCriticalSection Guardia;
+	};
+}
+
+/**
+ * Il bottone `AddVerticalTransition` non scrive una scala che salta un piano — `#3348`.
+ *
+ * 🔴 **Il difetto era un chiamante non guardato.** `AddTransitionData` ha due chiamanti di authoring: il
+ * gesto del tool Arch, che chiamava `IsTransitionLayerSpanLegal` prima di scrivere, e questo bottone dei
+ * Details, che non la chiamava. `ValidateMapDetailed` segnalava poi il dato illegale (`StairSkipsLayer`), ma
+ * lo si poteva scrivere senza attrito. Il test passa dal BOTTONE, che e' il percorso che la issue nomina, e
+ * non dal predicato: quello e' gia' verde in `HexMap.StairLayerAdjacencyRule` e non dice niente sul chiamante.
+ *
+ * ➕ **La controprova e' la meta' che fa valere il rifiuto**: lo stesso bottone fra piani adiacenti scrive
+ * l'arco, e un tipo che la v0.1 non vincola (`Ramp`) passa anche attraverso un salto. Senza questi due casi
+ * il test passerebbe con un bottone che non scrive mai niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorStairSkippingALayerIsRefusedTest,
+	"RefactorTactics.HexMapActor.AddVerticalTransitionRefusesAStairThatSkipsALayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorStairSkippingALayerIsRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Tre piani nella stessa colonna: da L0 a L2 si salta L1, che e' la scala illegale della issue.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	const FRTCellId L0(0, 0, 0);
+	const FRTCellId L1(0, 0, 1);
+	const FRTCellId L2(0, 0, 2);
+	Asset->AddOrUpdateCell(FRTHexCellData(L0));
+	Asset->AddOrUpdateCell(FRTHexCellData(L1));
+	Asset->AddOrUpdateCell(FRTHexCellData(L2));
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+	if (!TestEqual(TEXT("premessa: l'asset parte senza transizioni"), Asset->Transitions.Num(), 0))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Un solo senso, cosi' una transizione scritta sono UNA voce e il conteggio non dipende dall'inversa.
+	Actor->TransitionKind = ERTHexTransitionKind::Stair;
+	Actor->bTransitionBidirectional = false;
+
+	// ── Il salto di un piano: rifiutato, e il rifiuto nomina i due estremi e il salto ─────────────────
+	Actor->TransitionFrom = L0;
+	Actor->TransitionTo = L2;
+	{
+		FRTTransitionRefusalLines Log(TEXT("Transizione RIFIUTATA"));
+		Actor->AddVerticalTransition();
+
+		if (TestEqual(TEXT("una riga di rifiuto, non zero e non due"), Log.Righe.Num(), 1))
+		{
+			TestTrue(TEXT("nomina l'estremo di partenza"), Log.Righe[0].Contains(L0.ToString()));
+			TestTrue(TEXT("nomina l'estremo di arrivo"), Log.Righe[0].Contains(L2.ToString()));
+			TestTrue(TEXT("e dice di quanti layer salta"), Log.Righe[0].Contains(TEXT("salta 2 layer")));
+		}
+	}
+	TestEqual(TEXT("la scala che salta un piano NON entra nell'asset"), Asset->Transitions.Num(), 0);
+
+	// E in discesa, perche' lo span e' un valore assoluto e il verso non deve cambiare il verdetto.
+	Actor->TransitionFrom = L2;
+	Actor->TransitionTo = L0;
+	Actor->AddVerticalTransition();
+	TestEqual(TEXT("nemmeno in discesa"), Asset->Transitions.Num(), 0);
+
+	// ➕ Il rifiuto sta nella PRIMITIVA, non solo nel bottone: chi la chiama senza passare di qui e' guardato
+	// uguale. E' il motivo per cui il punto e' `AddTransitionData` e non `AddVerticalTransition`.
+	Actor->AddTransitionData(L0, L2, /*Cost=*/ 2, ERTHexTransitionKind::Stair, /*bBidirectional=*/ false);
+	TestEqual(TEXT("e la primitiva chiamata direttamente"), Asset->Transitions.Num(), 0);
+
+	// ── Le controprove: la stessa regola lascia passare cio' che e' legale ───────────────────────────
+	Actor->TransitionFrom = L0;
+	Actor->TransitionTo = L1;
+	Actor->AddVerticalTransition();
+	TestEqual(TEXT("fra piani adiacenti il bottone scrive l'arco"), Asset->Transitions.Num(), 1);
+
+	Actor->TransitionKind = ERTHexTransitionKind::Ramp;
+	Actor->TransitionFrom = L0;
+	Actor->TransitionTo = L2;
+	Actor->AddVerticalTransition();
+	TestEqual(TEXT("un tipo che la v0.1 non vincola passa anche attraverso un salto"),
+		Asset->Transitions.Num(), 2);
 
 	DestroyMapActorWorld(World);
 	return true;
