@@ -415,7 +415,7 @@ public:
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *
-	 * Passa dalla stessa `ApplyFirstHitDelta` di `Exposed` e `Guard` — quindi "consumato una volta sola" e'
+	 * Passa dalla stessa `ApplyFirstHitDelta` di `Exposed` (⏱️ *e della Guardia fino a [D-292]*) — quindi "consumato una volta sola" e'
 	 * una proprieta' del resolver, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
 	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
 	 */
@@ -480,7 +480,7 @@ public:
 	/**
 	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
 	 *
-	 * A differenza di `Exposed`/`Guard`/`Marked`, NON passa da `ApplyFirstHitDelta`: il bonus non si consuma
+	 * A differenza di `Exposed`/`Marked`, NON passa da `ApplyFirstHitDelta` (la Guardia non ci passa piu' da [D-292]): il bonus non si consuma
 	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.

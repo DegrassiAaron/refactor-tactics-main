@@ -571,7 +571,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMarkTargetConsumedOnceTest,
 bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD. Il marchio vale per UN colpo: il secondo attacco alleato dello stesso turno
-	// arriva intero. Passa dalla stessa `ApplyFirstHitDelta` di `Exposed` e `Guard`, quindi "consumato" resta
+	// arriva intero. Passa dalla stessa `ApplyFirstHitDelta` di `Exposed`, quindi "consumato" resta
 	// ordine-indipendente invece di diventare una corsa fra attaccanti.
 	TestEqual(TEXT("il marchio vale +6"), URTCombatLibrary::MarkedFirstHitBonus, 6);
 
