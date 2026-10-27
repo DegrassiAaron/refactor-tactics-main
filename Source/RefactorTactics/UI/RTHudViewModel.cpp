@@ -1848,7 +1848,7 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 		// alla pressione del tasto»). Dirlo «nessuna azione» sarebbe falso, e tacere lascerebbe il
 		// giocatore ad aspettare un click che non serve.
 		View.Kind = ERTTargetPromptKind::SelfTargetConfirmed;
-		View.Text = LOCTEXT("SelfTarget", "Azione su di se': confermata");
+		View.Text = LOCTEXT("SelfTarget", "Azione su di sé: confermata");
 		return View;
 
 	case ERTPointerTargetKind::Unit:

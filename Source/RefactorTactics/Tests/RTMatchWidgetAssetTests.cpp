@@ -14,6 +14,10 @@
 // ⚠️ Cio' che NON coprono: l'aspetto. Colori, font, posizione e leggibilita' restano di `PIE-V01-HUD`. Un
 // binding corretto su un widget largo zero pixel passerebbe di qui — per questo il report stampa anche la
 // geometria, come fa il gemello.
+//
+// ⚠️ **Eccezione dal #3869**: `ActionDockPromptUsesTheDockStyle` guarda il font e il colore di `TargetPrompt`, perche' il prompt
+// era l'unico testo del dock senza stile e usciva dalla zona. L'altezza la misura `ActionDockWithItsPromptFitsTheBottomZone`
+// (`RTHudScenarioTests.cpp`). Il resto dell'aspetto resta di PIE.
 
 #include "Misc/AutomationTest.h"
 #include "Tests/RTHudGeometryForTest.h"
@@ -33,6 +37,7 @@
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudZoneWidget.h"
+#include "UI/RTUIPalette.h" // il colore del prompt si confronta col token (#3869)
 #include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
 #include "Tests/RTWidgetAssetTestHelpers.h"
 #include "Algo/Accumulate.h"
@@ -1939,16 +1944,15 @@ bool FRTEventLogWearsItsLineClassTest::RunTest(const FString&)
 /**
  * 🔑 **IL PROMPT DEL DOCK HA LO STILE DEL DOCK, NON QUELLO DEL MOTORE** (#3869).
  *
- * `TargetPrompt` era un `TextBlock` senza stile: il font di default del motore a 24 (Roboto Bold, bianco), contro il 16 e il 14 degli
- * altri testi del dock. La zona del basso e' alta quanto la fascia meno due margini, e la barra delle azioni ne occupa quasi tutta:
- * misurato in PIE il 2026-10-27 a 1600x900, restavano circa venti unita' Slate sotto la barra e il prompt a 24 ne voleva circa
- * ventotto, quindi veniva tagliato dal bordo inferiore.
+ * `TargetPrompt` era un `TextBlock` senza stile: il font di default del motore (Roboto Bold 24) e il bianco, mentre il resto
+ * del testo corrente dell'HUD usa un font del progetto e la tinta `Text_Primary`.
  *
  *   1. il font e' del progetto (`/Game/RT/UI/Fonts/`), non quello del motore;
- *   2. non e' piu' grande del testo piu' grande del dock: il difetto violava questo rapporto, e il test non fissa un numero.
+ *   2. il colore e' `Text_Primary`, il token della palette: lo stesso confronto che fanno i test dei widget gemelli.
  *
- * ⛔ **Non misura l'altezza**: dire che il prompt stia nella zona vuole un layout vero, e questo test non ne ha uno. Quello
- * resta di `PIE-V01-SCREENHUD`. Il guardiano impedisce il ritorno al difetto noto (font del motore, dimensione maggiore dei vicini).
+ * ⛔ **Non misura l'altezza.** Che il prompt stia nella zona lo dice `ActionDockWithItsPromptFitsTheBottomZone`
+ * (`RTHudScenarioTests.cpp`), che misura il dock con Slate. Un confronto fra le dimensioni dei testi del dock, che questo test
+ * faceva in una prima stesura, non era un guardiano: il prompt ha un font diverso dai vicini, e a un'altezza al limite passava lo stesso.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDockPromptUsesTheDockStyleTest,
 	"RefactorTactics.ScreenHud.ActionDockPromptUsesTheDockStyle",
@@ -1969,28 +1973,14 @@ bool FRTActionDockPromptUsesTheDockStyleTest::RunTest(const FString&)
 	}
 
 	// 1. Il font e' del progetto.
-	const FString FontPath = Prompt->Font.FontObject ? Prompt->Font.FontObject->GetPathName() : FString();
+	const FSlateFontInfo Font = Prompt->GetFont();
+	const FString FontPath = Font.FontObject ? Font.FontObject->GetPathName() : FString();
 	TestTrue(*FString::Printf(TEXT("1: il font del prompt e' del progetto (e' '%s')"), *FontPath),
 		FontPath.StartsWith(TEXT("/Game/RT/UI/Fonts/")));
 
-	// 2. Non piu' grande del testo piu' grande degli altri. `Max == 0` vuol dire che il dock non ne ha altri: la premessa
-	// del rapporto, senza la quale il confronto sarebbe vero per assenza.
-	float Max = 0.f;
-	Tree->ForEachWidget([Prompt, &Max](UWidget* Widget)
-	{
-		if (const UTextBlock* Altro = Cast<UTextBlock>(Widget))
-		{
-			if (Altro != Prompt)
-			{
-				Max = FMath::Max(Max, Altro->Font.Size);
-			}
-		}
-	});
-	if (TestTrue(TEXT("premessa: il dock ha altri testi con cui confrontare il prompt"), Max > 0.f))
-	{
-		TestTrue(*FString::Printf(TEXT("2: il prompt (%.1f) non e' piu' grande del testo piu' grande del dock (%.1f)"), Prompt->Font.Size, Max),
-			Prompt->Font.Size <= Max);
-	}
+	// 2. Il colore e' il token.
+	TestTrue(TEXT("2: il colore del prompt e' Text_Primary"),
+		Prompt->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Primary)));
 	return true;
 }
 

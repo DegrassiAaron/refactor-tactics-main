@@ -319,4 +319,63 @@ bool FRTTargetPromptWritesUnitWithItsAccentTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔑 **NESSUN TESTO DEL PROMPT USA UN APOSTROFO AL POSTO DI UN ACCENTO** (#3869, rilievo della review).
+ *
+ * Il test sull'accento di «unità» protegge due stringhe, e lo stesso difetto stava in una terza, nella stessa funzione e nello stesso
+ * widget («sé»). Qui il controllo e' sulla CLASSE: si leggono tutti i testi che `BuildTargetPrompt` puo' produrre, per ogni contesto e ogni
+ * forma di bersaglio, e si cerca un apostrofo che non sia un'elisione. Un'elisione (`un'azione`, `l'orientamento`) ha una lettera
+ * subito dopo l'apostrofo; un accento scritto come apostrofo (`unita'`, `se':`) no. Una frase futura che ci ricadesse fa rosso.
+ *
+ * Il controllo positivo e' doppio: il predicato riconosce un testo sbagliato scritto a mano, e lascia passare un'elisione vera
+ * che il prompt produce davvero. Senza il primo il controllo sarebbe vero per assenza, senza il secondo rifiuterebbe tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptNeverUsesAnApostropheForAnAccentTest,
+	"RefactorTactics.HudViewModel.TargetPromptNeverUsesAnApostropheForAnAccent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&)
+{
+	// Un apostrofo NON seguito da una lettera: la fine di una parola (`unita'`), o prima di un segno (`se':`).
+	const auto ApostrofoComeAccento = [](const FString& Testo)
+	{
+		for (int32 i = 0; i < Testo.Len(); ++i)
+		{
+			if (Testo[i] == TEXT('\'') && (i + 1 >= Testo.Len() || !FChar::IsAlpha(Testo[i + 1])))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// Il predicato riconosce il difetto, e non rifiuta un'elisione.
+	TestTrue(TEXT("premessa: il predicato riconosce un accento scritto come apostrofo"), ApostrofoComeAccento(TEXT("Seleziona un'unita'")));
+	TestTrue(TEXT("premessa: ... anche prima di un segno"), ApostrofoComeAccento(TEXT("Azione su di se': confermata")));
+	TestFalse(TEXT("premessa: e lascia passare un'elisione"), ApostrofoComeAccento(TEXT("Scegli un'azione")));
+
+	int32 Letti = 0;
+	bool bVistaUnElisione = false;
+	for (const ERTPointerContext Contesto : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning, ERTPointerContext::Pathing,
+		ERTPointerContext::Targeting, ERTPointerContext::Facing, ERTPointerContext::ResolutionPlayback,
+		ERTPointerContext::ReactionWindow, ERTPointerContext::Modal })
+	{
+		for (const ERTPointerTargetKind Tipo : { ERTPointerTargetKind::None, ERTPointerTargetKind::Unit, ERTPointerTargetKind::Cell,
+			ERTPointerTargetKind::Edge, ERTPointerTargetKind::Object })
+		{
+			const FString Testo = URTHudViewModel::BuildTargetPrompt(Contesto, Tipo).Text.ToString();
+			if (Testo.IsEmpty())
+			{
+				continue;
+			}
+			++Letti;
+			bVistaUnElisione |= Testo.Contains(TEXT("'")) && !ApostrofoComeAccento(Testo);
+			TestFalse(*FString::Printf(TEXT("'%s' non usa un apostrofo al posto di un accento"), *Testo), ApostrofoComeAccento(Testo));
+		}
+	}
+	TestTrue(TEXT("premessa: il prompt ha dei testi da leggere"), Letti > 0);
+	TestTrue(TEXT("premessa: fra i testi letti c'e' un'elisione vera, e il predicato l'ha lasciata passare"), bVistaUnElisione);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
