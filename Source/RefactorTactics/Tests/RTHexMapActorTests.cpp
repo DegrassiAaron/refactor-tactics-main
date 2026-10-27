@@ -3381,7 +3381,7 @@ namespace
  * **`#3899` — un volume di superficie con l'indice rimescolato fa cadere il guardiano.**
  *
  * `VerifyAllMappings` verificava il disco, i glifi, i bordi, il rilievo, i blocchi e i corpi: non i volumi di superficie, che il velo
- * attenua per cella (`GetVolumeFamilies`). Un volume con l'indice rimescolato restava visibile sotto una cella mai osservata, o spariva
+ * nasconde per cella (`VeilInstances`). Un volume con l'indice rimescolato restava visibile sotto una cella mai osservata, o spariva
  * sotto una osservata, senza che nessun allarme suonasse.
  *
  * 🔑 **Due volumi e non uno**: con un solo volume non c'e' niente da scambiare. 🔑 **Il controllo positivo prima**: la board intatta passa

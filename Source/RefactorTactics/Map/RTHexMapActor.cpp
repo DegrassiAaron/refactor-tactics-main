@@ -4017,8 +4017,10 @@ bool ARTHexMapActor::VerifyAllMappings(bool bReport) const
 
 	// `#3899`: i volumi di superficie e la nebbia, che il guardiano non guardava. I volumi sono per ISTANZA e non per cella (otto superfici
 	// su nove non ne producono) e il loro sollevamento dipende dalla superficie; la nebbia e' PARALLELA al disco (`InstanceCells`, una colonna
-	// per cella) e la sua quota non porta `Height` ([D-373]). Entrambe sul solo piano. Il velo attenua i primi per cella
-	// (`GetVolumeFamilies`) e `WriteFog` scrive la seconda per indice: un indice rimescolato le farebbe cadere sulla cella sbagliata.
+	// per cella) e la sua quota non porta `Height` ([D-373]). Entrambe sul solo piano. Il velo nasconde i primi per cella
+	// (`VeilInstances`, con `ApplyLayerPresentation` che ne scrive il trattamento per indice) e `WriteFog` scrive la seconda per indice: un
+	// indice rimescolato le farebbe cadere sulla cella sbagliata. ⚠️ Il solo piano non vede uno scambio fra colonne IMPILATE (stesso X,Y,
+	// layer diverso): per la nebbia conta, perche' `WriteFog` ne ricava il trattamento dal layer.
 	bOk = VerifyMappingIdentity(SurfaceVolumes, SurfaceVolumeCells, /*bCompareHeight=*/ false, bReport) && bOk;
 	bOk = VerifyMappingIdentity(FogVolumes, InstanceCells, /*bCompareHeight=*/ false, bReport) && bOk;
 
