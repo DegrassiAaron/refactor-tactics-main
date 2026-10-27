@@ -789,6 +789,22 @@ quella vecchia** su ogni combinazione di squadre; i default di entrambi i campi 
 decide *chi comanda* un'unità: farlo dipendere dall'ordine di registrazione degli Actor renderebbe la
 partizione diversa a ogni avvio.
 
+🔑 **La partizione si fa UNA volta per allestimento, non a ogni connessione** ([#2942](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2942)).
+`AssignUnitControlGroups` è chiamata da `AssignSeats`, che gira anche su `OnPostLogin`; la prima chiave
+dell'ordine è la cella, e le celle cambiano a ogni turno. Rigirarla a partita iniziata consegnerebbe a un
+posto un'unità diversa da quella con cui aveva cominciato, e a un altro ne toglierebbe una. Il gruppo di
+un'unità è quindi un fatto dell'allestimento, come l'identità stabile lo è per `EnsureMatchRoster`.
+
+**Chi entra dopo** riceve il proprio gruppo dall'arrivo (`ARTPlayerState::ControlGroup`, `Arrival / 2`) e
+comanda le unità che già portano quel gruppo: nessun `ControlGroup` di unità si ricalcola. Un nuovo
+allestimento (`SetupHexMatch`) riporta il guardiano a zero. Nella v0.1 non cambia alcun esito: c'è un solo
+gruppo. Il test è `RefactorTactics.Player.UnitControlGroupsAreAssignedOnce`.
+
+⚠️ **Questo chiude il lato delle unità, non quello delle persone.** `AssignSeats` ricalcola i posti per
+posizione a ogni chiamata ed è idempotente solo a insieme di giocatori invariato (lo dichiara il suo header):
+se un controller esce e un altro entra, chi resta può spostarsi di posto e comandare un gruppo diverso. È un
+limite preesistente e non raggiungibile offline, e `#2942` non lo tocca.
+
 **Lavoro tracciato**: E19 · CP 19.3 ([#1124](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1124), chiusa il 2026-09-02). *(La feature `RT-FEAT-MATCH-FORMAT` che questa riga citava era l'indirizzo del registro uscito con [D-181](../decisions/RT_PDR_00_Decision_Log.md); cade l'indirizzo, non il lavoro.)* Il consolidamento che ha prodotto questa
 sezione è nello [spec panel del 2026-08-17](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §3 F1.
 

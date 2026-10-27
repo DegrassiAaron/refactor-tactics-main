@@ -1099,6 +1099,9 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 
 		AssignedRules = Outcome.Rules;
 		bHasRules = true;
+		// Un nuovo allestimento riparte da capo — porta unita' nuove, tutte al gruppo di default, o rilegge
+		// quelle del livello — quindi la partizione del precedente non vale piu' (`#2942`).
+		bUnitControlGroupsAssigned = false;
 		AssignSeats();
 	}
 }
@@ -1165,9 +1168,16 @@ void ARTGameMode::AssignSeats()
 
 void ARTGameMode::AssignUnitControlGroups()
 {
+	// Il gruppo si assegna UNA volta per allestimento (`#2942`): `AssignSeats` rigira da `OnPostLogin`, e a
+	// partita iniziata l'ordine d'ingresso e' un altro — la sua prima chiave e' la cella.
+	if (bUnitControlGroupsAssigned)
+	{
+		return;
+	}
+
 	// Le unita' sono piazzate nel livello o allestite dal bootstrapper: qui si legge il mondo, non lo si
 	// costruisce. Se non ce ne sono ancora — `AssignSeats` gira anche su `OnPostLogin`, prima dell'allestimento
-	// — non c'e' niente da assegnare e la funzione e' un no-op idempotente.
+	// — non c'e' niente da assegnare, e il guardiano resta spento: si riprova alla chiamata successiva.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 	if (Actors.Num() == 0)
@@ -1197,18 +1207,17 @@ void ARTGameMode::AssignUnitControlGroups()
 	// 🔑 Al PRIMO giro `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — e a
 	// spareggiare due unita' sulla stessa cella e' il NOME dell'Actor, l'ultima chiave di `UnitOrderLess`.
 	//
-	// 🔴 **Ma non e' l'unico giro, e questo commento ha gia' sbagliato due volte a dire quanto costa.**
-	// `OnPostLogin -> AssignSeats -> AssignUnitControlGroups`: un controller che entra a partita iniziata
-	// rientra qui. La seconda stesura diceva che i due giri possono divergere *«solo con due unita' sulla
-	// stessa cella»*: e' **falso**, e il motivo e' la PRIMA chiave. L'ordine parte dalla **cella**, e le celle
-	// cambiano a ogni turno; in piu' `DestroyDefeatedUnits` accorcia la lista. ∴ un rientro a meta' partita
-	// ripartiziona **tutte** le unita', non solo quelle che pareggiano, e `ControlGroupForUnit` puo'
-	// consegnare un'unita' a un posto diverso da quello d'inizio.
+	// 🔴 **Questo e' il PRIMO giro, e l'unico di un allestimento.** `OnPostLogin -> AssignSeats ->
+	// AssignUnitControlGroups` rientra qui quando un controller entra a partita iniziata, ma a quel punto
+	// l'ordine d'ingresso e' un altro — la sua prima chiave e' la CELLA, e le celle cambiano a ogni turno,
+	// mentre `DestroyDefeatedUnits` accorcia la lista — e `ControlGroupForUnit` consegnerebbe un'unita' a un
+	// posto diverso da quello d'inizio. `bUnitControlGroupsAssigned` lo impedisce (`#2942`): e' la forma di
+	// `EnsureMatchRoster` con `StableUnitId`, dove la ragione e' scritta accanto — *«l'identita' si assegna
+	// una volta»* — e il gruppo e' la stessa specie di dato.
 	//
-	// ⛔ **E' un difetto di autorita' che #2922 non ha introdotto e non chiude**: l'ordine qui e' comunque
-	// deterministico, che e' tutto cio' che quella issue garantisce. Ha una sede propria: **#2942**, dove
-	// sta anche la forma del rimedio — un no-op a roster congelato, come fa gia' `EnsureMatchRoster` con
-	// `StableUnitId`. Trovato in code review; `DEFERRED`, non `CURRENT`.
+	// Chi entra dopo non causa una riassegnazione di UNITA': il suo gruppo lo da' `AssignSeats` per arrivo, e
+	// comanda le unita' che gia' lo portano. I posti delle PERSONE restano di `AssignSeats`, idempotente solo
+	// a insieme di giocatori invariato. Un NUOVO allestimento riporta il guardiano a zero in `SetupHexMatch`.
 	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
@@ -1220,6 +1229,9 @@ void ARTGameMode::AssignUnitControlGroups()
 		Unit->ControlGroup = URTCombatLibrary::ControlGroupForUnit(IndexInTeam, AssignedRules.UnitsPerPlayer);
 		++IndexInTeam;
 	}
+
+	// Da qui il roster dei gruppi e' congelato fino al prossimo allestimento.
+	bUnitControlGroupsAssigned = true;
 }
 
 void ARTGameMode::InstallPieSessionPorts()

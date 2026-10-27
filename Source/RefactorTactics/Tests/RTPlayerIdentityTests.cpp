@@ -13,12 +13,15 @@
 #include "Player/RTPlayerState.h"
 #include "Tests/RTWorldFixtures.h"
 #include "UObject/UnrealType.h"
+#include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: l'ordine che partiziona la squadra
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTMatchFormatData.h"
 #include "RTGameMode.h"
+#include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -313,6 +316,148 @@ bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
 
 	TestEqual(TEXT("alternanza per arrivo: squadra 0, poi 1, poi di nuovo 0 - non riempimento a blocchi"),
 		Squadre, TArray<int32>({ 0, 1, 0 }));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Il gruppo di controllo di un'unita' si assegna UNA volta: un controller che entra a partita iniziata non
+ * lo rimescola — `#2942`.
+ *
+ * 🔴 **Il difetto era di autorita', non di ordinamento.** `AssignUnitControlGroups` parte dall'ordine
+ * d'ingresso, la cui prima chiave e' la CELLA, e le celle cambiano a ogni turno. `OnPostLogin` la rigirava
+ * a ogni connessione: il gruppo di un'unita' in campo cambiava, e con lui chi la comandava.
+ *
+ * ⛔ **Qui si misura il lato delle UNITA', non quello delle persone.** I posti li ricalcola `AssignSeats`
+ * per posizione, ed e' idempotente solo a insieme di giocatori invariato: con un controller che esce e uno
+ * che entra, chi resta puo' spostarsi di posto. Il test ne fa entrare uno solo, senza uscite.
+ *
+ * ⚠️ **La premessa e' asserita, non assunta.** Scambiare le celle delle due unita' di una squadra deve
+ * invertire l'ordine d'ingresso: se non lo facesse, il test passerebbe anche con la riassegnazione
+ * attiva, perche' non ci sarebbe niente da rimescolare. Vale anche per la partizione di partenza, che
+ * deve dare due gruppi diversi: con `UnitsPerPlayer == UnitsPerTeam` — la v0.1 — il gruppo e' `0` per
+ * tutti e ogni riassegnazione sarebbe invisibile.
+ *
+ * 🔑 **Il secondo mezzo, un NUOVO allestimento, e' la ragione per cui il guardiano non e' un booleano che
+ * non torna mai indietro.** Un GameMode che allestisce di nuovo porta unita' nuove, tutte al default `0`:
+ * se la partita precedente avesse lasciato il guardiano acceso, nessuna riceverebbe mai il proprio gruppo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitControlGroupsAreAssignedOnceTest,
+	"RefactorTactics.Player.UnitControlGroupsAreAssignedOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitControlGroupsAreAssignedOnceTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Vedi `FRTSeatsComeFromTheFormatTest` per il perche': senza questa riga l'iteratore dei controller
+	// resta vuoto e `AssignSeats` non vede il giocatore che entra dopo.
+	World->InitializeActorsForPlay(FURL());
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (HexMap)
+	{
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	}
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Due unita' per squadra, una per persona: e' il formato in cui il gruppo VALE qualcosa, cioe' due
+	// gruppi per squadra. Lo stesso della prova dei posti sopra.
+	URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
+	Format->FormatId = FName(TEXT("Format.ControlGroupOnce2v2"));
+	Format->RoundLimit = 12;
+	Format->ExpectedRounds = 12;
+	Format->ScoreToWin = 0;
+	Format->UnitsPerTeam = 2;
+	Format->UnitsPerPlayer = 1;
+	GameMode->MatchFormat = Format;
+
+	auto UnitsOfTeam = [World](int32 TeamId)
+	{
+		TArray<AActor*> Found;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Found);
+		TArray<ARTUnit*> OfTeam;
+		for (AActor* Actor : Found)
+		{
+			ARTUnit* Unit = Cast<ARTUnit>(Actor);
+			if (Unit && Unit->TeamId == TeamId) { OfTeam.Add(Unit); }
+		}
+		return OfTeam;
+	};
+	auto GroupsOf = [](const TArray<ARTUnit*>& Units)
+	{
+		TArray<int32> Groups;
+		for (const ARTUnit* Unit : Units) { Groups.Add(Unit->ControlGroup); }
+		Groups.Sort();
+		return Groups;
+	};
+
+	GameMode->SetupHexMatch(HexMap);
+
+	TArray<ARTUnit*> Team0 = UnitsOfTeam(0);
+	TArray<ARTUnit*> Team1 = UnitsOfTeam(1);
+	if (!TestEqual(TEXT("premessa: due unita' per squadra"), Team0.Num() + Team1.Num(), 4)
+		|| !TestEqual(TEXT("premessa: la squadra 0 ne ha due"), Team0.Num(), 2))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("la partizione di partenza da' due gruppi alla squadra 0"),
+		GroupsOf(Team0), TArray<int32>({ 0, 1 }));
+	TestEqual(TEXT("e due alla squadra 1"), GroupsOf(Team1), TArray<int32>({ 0, 1 }));
+
+	ARTUnit* First = Team0[0];
+	ARTUnit* Second = Team0[1];
+	const int32 FirstGroupBefore = First->ControlGroup;
+	const int32 SecondGroupBefore = Second->ControlGroup;
+
+	// Il turno sposta le unita': scambiare le celle e' il caso minimo che inverte l'ordine d'ingresso.
+	Swap(First->Cell, Second->Cell);
+	{
+		TArray<ARTUnit*> Ordered = Team0;
+		URTActionQueueLibrary::SortUnitsForResolution(Ordered);
+		if (!TestTrue(TEXT("premessa: lo scambio di celle inverte l'ordine d'ingresso della squadra"),
+				Ordered[0] == Second))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	// Un controller che entra a partita iniziata: e' `OnPostLogin`, che chiama `AssignSeats`.
+	ARTPlayerController* Late = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+	if (!TestNotNull(TEXT("il controller che entra dopo"), Late))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	GameMode->AssignSeats();
+
+	// Chi entra riceve il proprio posto: la partizione delle unita' non gliene toglie uno. Il sentinella `9`
+	// non e' decorativo, come nella prova dei posti sopra: senza, un `AssignSeats` inerte passerebbe.
+	// Del GRUPPO non si asserisce niente: per il primo arrivato vale `Arrival / 2 == 0`, che e' anche il
+	// default, e l'asserto passerebbe con un `AssignSeats` inerte.
+	TestEqual(TEXT("chi entra dopo ha una squadra: la prima"), ARTPlayerState::TeamIdOf(Late), 0);
+
+	TestEqual(TEXT("la prima unita' resta al proprio gruppo"), First->ControlGroup, FirstGroupBefore);
+	TestEqual(TEXT("la seconda anche: la connessione non rimescola nessuno"),
+		Second->ControlGroup, SecondGroupBefore);
+
+	// Un NUOVO allestimento porta unita' nuove, e le deve partizionare: il guardiano non sopravvive.
+	for (ARTUnit* Unit : Team0) { Unit->Destroy(); }
+	for (ARTUnit* Unit : Team1) { Unit->Destroy(); }
+	GameMode->SetupHexMatch(HexMap);
+
+	TestEqual(TEXT("un nuovo allestimento ripartiziona la squadra 0"),
+		GroupsOf(UnitsOfTeam(0)), TArray<int32>({ 0, 1 }));
+	TestEqual(TEXT("e la squadra 1"), GroupsOf(UnitsOfTeam(1)), TArray<int32>({ 0, 1 }));
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
