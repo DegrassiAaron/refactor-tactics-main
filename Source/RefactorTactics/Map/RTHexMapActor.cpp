@@ -5,6 +5,7 @@ extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: 
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexArcLibrary.h" // IsTransitionLayerSpanLegal: la regola di adiacenza e' una funzione sola (#3348)
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTPlaybackLibrary.h" // #2454: `TracerSegment`, la geometria del tracer — pura, non la riscrive il disegno
 #include "Map/RTArenaCriteriaLibrary.h"
@@ -3568,6 +3569,22 @@ void ARTHexMapActor::AddTransitionData(const FRTCellId& From, const FRTCellId& T
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Transizione %s -> %s: una delle due celle non esiste nell'asset."),
 			*From.ToString(), *To.ToString());
+		return;
+	}
+
+	// ⛔ RIFIUTO AL GESTO (#3348): in v0.1 una scala collega solo layer adiacenti.
+	//
+	// 🔑 Sta QUI e non nel bottone, perche' questa e' la primitiva di scrittura e ha due chiamanti di authoring:
+	// il tool Arch, che controlla gia' prima per non distruggere il gizmo pendente, e `AddVerticalTransition`,
+	// che non controllava niente. E' la stessa funzione che `ValidateMapDetailed` applica alla collezione: i due
+	// strati sono due momenti — qui si impedisce di scriverla, la' si segnala quella che c'e' gia' — e una
+	// seconda stesura della soglia sarebbe il modo in cui le due divergono.
+	if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind))
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[HexMap] Transizione RIFIUTATA: scala da %s a %s: salta %d layer. ")
+			TEXT("In v0.1 una scala collega solo layer adiacenti."),
+			*From.ToString(), *To.ToString(), URTHexArcLibrary::TransitionLayerSpan(From, To));
 		return;
 	}
 #if WITH_EDITOR

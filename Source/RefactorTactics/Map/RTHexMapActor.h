@@ -399,11 +399,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap|Transition")
 	bool bTransitionBidirectional = true;
 
-	/** [Editor] Aggiunge la transizione TransitionFrom->TransitionTo (e l'inversa se bidirezionale). Annullabile. */
+	/**
+	 * [Editor] Aggiunge la transizione TransitionFrom->TransitionTo (e l'inversa se bidirezionale). Annullabile.
+	 * Rifiuta, con un avviso nel log, una scala che salta un piano: vedi `AddTransitionData`.
+	 */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap|Transition")
 	void AddVerticalTransition();
 
-	/** Aggiunge la transizione From->To (e l'inversa se bidirezionale) se entrambe le celle esistono. Annullabile. */
+	/**
+	 * Aggiunge la transizione From->To (e l'inversa se bidirezionale) se entrambe le celle esistono. Annullabile.
+	 *
+	 * Rifiuta una scala fra layer non adiacenti (`URTHexArcLibrary::IsTransitionLayerSpanLegal`, `#3348`): e' la
+	 * primitiva di scrittura, quindi la regola vale per ogni chiamante, non solo per il bottone dei Details.
+	 */
 	void AddTransitionData(const FRTCellId& From, const FRTCellId& To, int32 Cost,
 		ERTHexTransitionKind Kind, bool bBidirectional);
 
