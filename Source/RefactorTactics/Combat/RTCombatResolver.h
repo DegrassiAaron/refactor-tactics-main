@@ -57,18 +57,25 @@ enum class ERTDamageStage : uint8
 	 * in cui un lettore del TurnLog scopre da dove viene un numero.
 	 */
 	FirstHitDelta,
-	/** Delta su OGNI colpo: `Action.Brace` `-10`, senza il gate «una volta sola» (CP 5.2). */
+	/**
+	 * Delta su OGNI colpo: `Action.Brace` `-10`, senza il gate «una volta sola» (CP 5.2), e dal 2026-09-20 la `Guard`
+	 * (`Status.Guarded`, `-15` su ogni colpo FRONTALE, [D-408] + [D-206]) via `ApplyEligibleHitDelta`. A distinguerle e' il
+	 * `SourceId` della voce, non lo stadio: `URTCombatLibrary::GuardPerHitSource`.
+	 */
 	EveryHitDelta,
 	/**
-	 * Assorbimento a POOL. ⚠️ **DUE fonti, e da [D-309] un colpo puo' produrne due voci**:
-	 * la `Guard` (`Status.Guarded`, 15, con eleggibilita' frontale — [D-292] + [D-206]) e la riduzione da
-	 * REAZIONE (20 di base, nessuna clausola d'arco). A distinguerle e' il `SourceId` della voce, non lo
-	 * stadio: `URTCombatLibrary::GuardPoolSource` e `ReactionReductionPoolSource`.
+	 * Assorbimento a POOL. Da [D-408] ha UNA sola fonte: la riduzione da REAZIONE (20 di base, nessuna clausola d'arco),
+	 * la cui provenienza e' `URTCombatLibrary::ReactionReductionPoolSource`.
 	 *
-	 * ⛔ **Con due voci per lo stesso stadio, l'ordine dell'elenco NON e' piu' ricostruibile ordinando per
-	 * `Stage`**: l'ordine canonico e' `Deflect` prima di `Guard` ([D-312]) ed e' quello di INSERIMENTO. Un
-	 * consumatore che ordinasse con un sort non stabile potrebbe emettere la Guardia per prima, cioe'
-	 * contraddire una decisione di bilanciamento. Nessuno lo fa oggi; la riga sta qui perche' non cominci.
+	 * ⏱️ *Fino al 2026-09-20 ne era fonte anche la `Guard` ([D-292]), e un colpo poteva produrre due voci di questo
+	 * stadio: l'ordine canonico `Deflect` prima di `Guard` ([D-312]) era quello di INSERIMENTO, non ricostruibile ordinando
+	 * per `Stage`.*
+	 *
+	 * ⚠️ **Oggi la Guardia scrive `EveryHitDelta` ma si applica DOPO questo stadio**: la catena del resolver e'
+	 * `ApplyEligibleHitDelta(ApplyAbsorptionPool(...))` (`RTTurnManager.cpp`, [D-312]). Per quella coppia l'ordine dei valori
+	 * dell'enum non e' piu' l'ordine di applicazione: l'ordine di una traccia si legge dall'INSERIMENTO, e un consumatore che
+	 * ordinasse per `Stage` con un sort non stabile potrebbe mettere la Guardia prima del `Deflect`, contraddicendo una
+	 * decisione di bilanciamento.
 	 */
 	AbsorptionPool,
 	/** Somma per bersaglio sullo stato iniziale (invariante #3). */
