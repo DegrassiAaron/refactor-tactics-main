@@ -32,7 +32,7 @@ Gate `RefactorTactics.ScreenHud.TenantsFitTheirBands` (D-497 (2)), headless, **r
 
 - I due scenari del gate (`Spec.Hud.MatchWithTwoAllies` e `Visual.Map.LayerStack`) danno gli stessi numeri a ogni finestra.
 - **La misura headless e' un limite superiore, non la resa**: conta la riga intera del testo, non l'inchiostro, e supera la PIE di circa il 3-4% ([`../3869/`](../3869/prompt-del-dock-misure-2026-10-27.md)). Il margine piu' stretto, 0,9 a scala 1,111, e' sulla riga intera: in PIE e' piu' largo.
-- Le altre zone non cambiano: roster 259, scheda 250, testata 100.
+- Gli altri inquilini misurati dal gate non cambiano di altezza (roster 259, scheda 250, testata 100). `MiddleLeft` e `MiddleRight`, che stanno fra la fascia alta e la bassa, perdono 10,8 unita' di spazio: il registro, che il gate salta quando e' vuoto, non e' misurato con le righe.
 
 ## Limiti
 

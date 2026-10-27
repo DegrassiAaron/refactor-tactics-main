@@ -200,6 +200,8 @@ scrive il C++ sul padding sinistro di ogni slot (`GroupGap`, `ItemGap`): nel Des
 
 Il pannello non ha una porta: il C++ non lo legge.
 
+Sotto la barra sta il prompt di bersaglio, `TargetPrompt`, nello slot del `VerticalBox` del dock: Exo 2 SemiBold 12, tinta `Text_Primary`, **padding sinistro 32**, che lo allinea all'etichetta COMUNI ([#3869](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3869), [#3881](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3881)). Il padding verticale di 20 e 22 e il 32 del prompt li fissa `ScreenHud.ActionDockKeepsTheMockupPadding`: se cambiano, cambiano lì, qui e in `tokens.json`, insieme.
+
 ## 4. Il gate, nello stesso commit dell'asset
 
 `ScreenHud.ActionBarDeclaresTheNamedPorts` riceve i sei nomi nuovi dello slot: `HotkeyBadge`, `SelectedGlow` e

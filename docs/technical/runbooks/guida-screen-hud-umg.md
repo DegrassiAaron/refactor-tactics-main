@@ -107,7 +107,7 @@ Sono la misura dei loro inquilini, e a 1920×1080 valgono le frazioni di D-497 (
 | sinistra (`Left`) | 384 | 20% | roster e scheda finiscono a x=380 |
 | destra (`Right`) | 368,64 | 19,2% | il registro e il badge accanto a `Conferma` cominciano a x=1556 |
 | alta (`Top`) | 205,2 | 19% | testata e `Conferma` |
-| bassa (`Bottom`) | 194,4 | 18% | il dock col suo prompt di bersaglio: 185,0 misurati a 1920×1080, 185,5 nel caso peggiore (1920×1200), più due margini di zona; era 183,6 e 17% fino a [D-549](../../decisions/RT_PDR_00_Decision_Log.md) |
+| bassa (`Bottom`) | 194,4 | 18% | il dock col suo prompt di bersaglio e due margini di zona: lo misura `ScreenHud.TenantsFitTheirBands` a ogni risoluzione; era 183,6 e 17% fino a [D-549](../../decisions/RT_PDR_00_Decision_Log.md) |
 | cella alta della colonna sinistra (`LeftTop`) | 267 | 24,7% | il roster: 259 con tre unità, 201 con due, misurato da `ScreenHud.TenantsFitTheirBands` |
 
 ⚠️ **La colonna sinistra ha il suo taglio** (decisione d'autore del 2026-10-11, [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): il roster vero non
