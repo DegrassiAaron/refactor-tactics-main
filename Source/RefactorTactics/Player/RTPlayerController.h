@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/RTTypes.h"
+#include "Player/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "RTPlayerController.generated.h"
 
@@ -1131,6 +1132,9 @@ public:
 	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
 	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
+	/** Un fotogramma di `PlayerTick`, che e' protetto: `#3511` prova che il confronto delle aree di pianificazione vi e' cablato. */
+	void PlayerTickForTest(float DeltaSeconds) { PlayerTick(DeltaSeconds); }
+
 	/** Ritardo dell'hover prima che lo sguardo si mostri (#3747, P7; 0,3 s da R10 della spec). */
 	UPROPERTY(EditDefaultsOnly, Category = "RefactorTactics|Glance", meta = (ClampMin = "0.0"))
 	float GlanceDelaySeconds = 0.3f;
@@ -1639,6 +1643,44 @@ public:
 	void SetPhaseFocusPinned(bool bPinned) { bPhaseFocusPinned = bPinned; }
 	bool IsPhaseFocusPinned() const { return bPhaseFocusPinned; }
 
+	/**
+	 * **L'INGRESSO UNICO delle aree di pianificazione** — `#3511` (CX-2 di `aree-di-contesto-spec-panel-2026-10-06.md`).
+	 *
+	 * Confronta gli ingressi di adesso (`FRTPlanningOverlayInputs`) con quelli dell'ultimo calcolo e rifa' qualcosa
+	 * **solo se sono cambiati**: a ingressi invariati non ricalcola niente. Lo chiama `PlayerTick` a ogni fotogramma,
+	 * subito dopo aver posato l'hover, e un test lo chiama senza `PlayerTick`.
+	 *
+	 * 🔑 **Due contatori, perche' sono due domande.** `GetPlanningOverlayComputations` conta i cambi di QUALUNQUE ingresso;
+	 * `GetPlanningOverlayPlanComputations` solo quelli che rifanno ventaglio e portata, cioe' tutti tranne il cambio
+	 * della sola cella sotto il cursore. Il secondo e' il criterio di `#711`: *«nessun produttore all'hover ricalcola il
+	 * reachable set»*, e un test lo pinna.
+	 *
+	 * ⚠️ **Spegne anche, dallo stato**: se `ShowsAreas()` e' falso (commit, playback, `Modal`, KO, fine partita) azzera
+	 * ogni area. L'uscita che qualcuno dimentica di elencare si corregge al tick successivo.
+	 *
+	 * @param KnownHexMap la mappa, se il chiamante l'ha gia' cercata (`PlayerTick`): evita una seconda ricerca di actor.
+	 */
+	void UpdatePlanningOverlay(class ARTHexMapActor* KnownHexMap = nullptr);
+
+	/**
+	 * Il piano di `Unit` e' cambiato (o e' cambiata l'unita'): ricalcola SUBITO le aree. `Unit == nullptr` le spegne.
+	 *
+	 * 🔑 **Sostituisce le sedici chiamate dirette a `RefreshPlanningPreview`**: sale `PlanRevision`, perche' un waypoint
+	 * aggiunto non cambia nessun altro ingresso, e passa per lo stesso confronto e lo stesso reset di `UpdatePlanningOverlay`.
+	 * Il tick successivo trova gli ingressi uguali e non rifa' niente.
+	 *
+	 * ⚠️ **`nullptr` spegne SUBITO, ma non decide lo stato**: se l'unita' selezionata e' viva e si sta pianificando, il tick
+	 * successivo vede che le aree si mostrano e le riaccende. I due chiamanti con `nullptr` — commit e fine partita — sono in
+	 * uno stato che dice il contrario (`ResolutionPlayback`, `bMatchEnded`), ed e' per questo che il reset non si ripete.
+	 */
+	void RefreshPlanningOverlay(const ARTUnit* Unit);
+
+	/** Quanti calcoli hanno fatto gli ingressi cambiati dall'inizio (`#3511`). Per i test e la diagnostica. */
+	int32 GetPlanningOverlayComputations() const { return PlanningOverlayComputations; }
+
+	/** ...di questi, quanti hanno rifatto ventaglio e portata: i cambi della sola cella non ci sono. */
+	int32 GetPlanningOverlayPlanComputations() const { return PlanningOverlayPlanComputations; }
+
 protected:
 	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
 	FRTGlanceDwell GlanceDwell;
@@ -1669,6 +1711,22 @@ public:
 private:
 
 	bool bPhaseFocusPinned = false;
+
+	/** Gli ingressi dell'ultimo calcolo delle aree di pianificazione (`#3511`), e se ce n'e' stato uno. */
+	FRTPlanningOverlayInputs LastPlanningOverlayInputs;
+	bool bHasPlanningOverlayInputs = false;
+
+	/** Sale a ogni `RefreshPlanningOverlay`: il piano cambia senza che nessun altro ingresso lo dica. */
+	int32 PlanningOverlayRevision = 0;
+
+	int32 PlanningOverlayComputations = 0;
+	int32 PlanningOverlayPlanComputations = 0;
+
+	/** Gli ingressi di adesso per `Unit` (la selezionata, o quella che il chiamante dichiara). Non scrive niente. */
+	FRTPlanningOverlayInputs GatherPlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap) const;
+
+	/** Confronta, e se cambiano calcola o spegne. L'unico punto che tocca `RefreshPlanningPreview`. */
+	void ApplyPlanningOverlay(class ARTHexMapActor* HexMap, const ARTUnit* Unit, const FRTPlanningOverlayInputs& Inputs);
 
 private:
 	/**

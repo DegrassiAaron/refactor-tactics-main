@@ -29,6 +29,9 @@
 #include "Player/RTPlayerController.h"
 #include "UI/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
 #include "Tests/RTLockInCommittedProbeForTest.h"
+#include "Map/RTOverlayPalette.h" // `#3511`: AllMeanings, l'oracolo del reset
+#include "Frontend/RTFrontendNavigator.h" // `#3511`: la pausa e' l'uscita `Modal`
+#include "Engine/GameInstance.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -1443,11 +1446,22 @@ namespace
 		ARTPlayerController* PC = nullptr;
 	};
 
-	/** Quante celle l'anteprima sta disegnando, su TUTTE le sue superfici. Zero = spenta davvero. */
+	/**
+	 * Quante celle l'anteprima sta disegnando, su TUTTE le sue superfici. Zero = spenta davvero.
+	 *
+	 * 🔑 **Somma per SIGNIFICATO, su ogni voce di `AllMeanings`** (`#3511`), non su un elenco di superfici scritto qui:
+	 * fino a `#3511` contava tre superfici su sette — reachable, rotta, area colpita — e restava verde con la portata,
+	 * gli alleati colpiti, la mira o il tratto di LOS ancora accesi. Un'area nuova entra nel conto dicendo il proprio
+	 * significato a `NumPlanningPreviewCells`, che non ha `default`.
+	 */
 	int32 PreviewCellsLit(const ARTHexMapActor* HexMap)
 	{
-		return HexMap->NumPreviewReachableCells() + HexMap->NumPreviewPathCells()
-			+ HexMap->NumPreviewHitCells();
+		int32 Lit = 0;
+		for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+		{
+			Lit += HexMap->NumPlanningPreviewCells(Meaning);
+		}
+		return Lit;
 	}
 
 	/**
@@ -1878,12 +1892,12 @@ bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
 namespace
 {
 	/**
-	 * Le CINQUE superfici di pianificazione. `PreviewCellsLit` ne conta tre, e fra queste non c'e' la portata:
-	 * proprio l'area che l'armo accende da `#3507`. Guardando solo quelle il test resterebbe verde a portata accesa.
+	 * Tutte le superfici di pianificazione. ⏱️ *Fino a `#3511` `PreviewCellsLit` ne contava tre e questa aggiungeva a mano
+	 * la portata e gli alleati colpiti*: ora `PreviewCellsLit` le conta tutte per significato, e questa ne e' il nome storico.
 	 */
 	int32 PlanningSurfacesLit(const ARTHexMapActor* HexMap)
 	{
-		return PreviewCellsLit(HexMap) + HexMap->NumPreviewAllyHitCells() + HexMap->GetPreviewRangeCells().Num();
+		return PreviewCellsLit(HexMap);
 	}
 
 	/** La posizione del kit che porta `ActionId`, o `INDEX_NONE`. */
@@ -2989,6 +3003,432 @@ bool FRTHexChargeBeyondRangeInTheWayTest::RunTest(const FString&)
 	TestEqual(TEXT("e nessun ripiego «fuori portata»: la corsa e' stata fermata da un impatto"), FuoriPortata, 0);
 
 	DestroyHexMatchWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3511` — le aree di pianificazione hanno UN ingresso, UN reset, UN contatore.
+//
+// Il banco e' quello di `#2390` (`FRTLockInPreviewBench`), e questi test non chiamano `PlayerTick`: chiamano
+// `UpdatePlanningOverlay` direttamente, che e' esattamente il punto della issue — *«una funzione chiamabile senza
+// `PlayerTick` e con un contatore d'invocazioni leggibile dai test»*. L'hover si posa dal seam di `FSlotRefusalBench`,
+// `ARTHexMapActor::SetHoveredCell`.
+//
+// 🔑 **I test di reset staccano il controller dagli EVENTI** (`OnLockInCommitted`, `OnResolvePlaybackFinished`,
+// `OnMatchEnded`): cosi' a spegnere le aree puo' essere solo lo STATO, letto da `ShowsAreas()`. Con gli eventi attaccati un
+// test verde potrebbe esserlo grazie all'elenco di uscite che la issue vuole sostituire.
+// =====================================================================================================
+
+namespace
+{
+	/** Stacca il controller da ogni evento di presentazione: da qui in poi le aree le spegne solo lo stato. */
+	void PlanOverlayDetachEvents(const FRTLockInPreviewBench& B)
+	{
+		B.TM->OnLockInCommitted.RemoveAll(B.PC);
+		B.TM->OnResolvePlaybackFinished.RemoveAll(B.PC);
+		B.TM->OnMatchEnded.RemoveAll(B.PC);
+	}
+
+	/** Accende a mano TUTTE le superfici di pianificazione, tratto di LOS e timeline compresi. */
+	void PlanOverlayLightEverything(const FRTLockInPreviewBench& B)
+	{
+		const FRTCellId Origine = B.Mine->Cell;
+		const FRTCellId Vicino = URTHexLibrary::Neighbors(Origine)[0];
+		B.HexMap->SetPreviewReachableCells({ Origine, Vicino });
+		B.HexMap->SetPreviewPath({ Origine, Vicino });
+		B.HexMap->SetPreviewHitCells({ Vicino }, { Origine });
+		B.HexMap->SetPreviewRangeCells({ Vicino });
+		B.HexMap->SetPreviewAttack(Origine, Vicino, /*bValid=*/ true, /*bOriginPredicted=*/ false);
+		B.HexMap->SetPreviewSightBlock(/*bBlocked=*/ true, Origine, Vicino);
+		FRTPlanPreview Timeline;
+		Timeline.Phases.AddDefaulted();
+		B.HexMap->SetPlanPreview(Timeline);
+	}
+
+	FString PlanOverlayMeaningName(ERTOverlayMeaning Meaning)
+	{
+		return StaticEnum<ERTOverlayMeaning>()->GetNameStringByValue(static_cast<int64>(Meaning));
+	}
+
+	/** Le uscite della issue. Il Cleanup non ha una riga sua: precede il playback, e dal suo stato e' la stessa uscita. */
+	enum class EPlanOverlayExit : uint8
+	{
+		CommitAndPlayback, Modal, KnockOut, MatchEnd, ExplicitReset
+	};
+
+	const TCHAR* PlanOverlayExitName(EPlanOverlayExit Exit)
+	{
+		switch (Exit)
+		{
+		case EPlanOverlayExit::CommitAndPlayback: return TEXT("commit, risoluzione, Cleanup e playback");
+		case EPlanOverlayExit::Modal:             return TEXT("Modal");
+		case EPlanOverlayExit::KnockOut:          return TEXT("KO dell'unita' selezionata");
+		case EPlanOverlayExit::MatchEnd:          return TEXT("fine partita");
+		case EPlanOverlayExit::ExplicitReset:     return TEXT("reset esplicito (nessuna unita')");
+		}
+		return TEXT("?");
+	}
+}
+
+/**
+ * **`#3511` — N tick a ingressi invariati danno un solo calcolo; ogni ingresso che cambia ne aggiunge UNO.**
+ *
+ * I quattro scenari della issue, uno dopo l'altro e ognuno riparte da un contatore letto subito prima:
+ * dieci tick fermi → 0; la sola cella → +1; un'oscillazione fra due celle → un calcolo per cambio; la sola azione armata →
+ * +1 (e la portata si accende, **senza** che nessuno chiami `RefreshPlanningOverlay`: la regola e' derivata dallo stato).
+ *
+ * 🔑 **Due contatori, perche' sono due domande.** Il cambio della sola cella fa salire `Computations` ma NON
+ * `PlanComputations`: e' il criterio di `#711` — *«nessun produttore all'hover ricalcola il reachable set»* — e qui e' pinnato
+ * sul ventaglio che resta lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayComputesOnlyOnChangedInputsTest,
+	"RefactorTactics.HexMatch.PlanningOverlayComputesOnlyWhenInputsChange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayComputesOnlyOnChangedInputsTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const TArray<FRTCellId> Vicini = URTHexLibrary::Neighbors(B.Mine->Cell);
+
+	// CONTROLLO POSITIVO — l'azione che accende una portata, scelta per DELTA come fa il banco di `#3510`: una senza
+	// portata renderebbe «la sola azione armata aggiunge un calcolo» vera senza che la portata si veda.
+	int32 Mirata = INDEX_NONE;
+	for (int32 I = 0; I < B.Mine->NumAbilities() && Mirata == INDEX_NONE; ++I)
+	{
+		B.Mine->SelectAbility(I);
+		B.PC->UpdatePlanningOverlay();
+		if (B.Mine->SelectedAbilityIndex == I && B.HexMap->GetPreviewRangeCells().Num() > 0)
+		{
+			Mirata = I;
+		}
+		B.Mine->SelectAbility(INDEX_NONE);
+		B.PC->UpdatePlanningOverlay();
+	}
+	if (!TestTrue(TEXT("controllo: c'e' un'azione che, armata, accende la portata"), Mirata != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("controllo: disarmata, la portata e' spenta"), B.HexMap->GetPreviewRangeCells().Num(), 0);
+	TestTrue(TEXT("controllo: e il ventaglio del piano e' acceso"), B.HexMap->NumPreviewReachableCells() > 0);
+	const int32 VentaglioDelPiano = B.HexMap->NumPreviewReachableCells();
+
+	int32 C = 0;
+	int32 P = 0;
+	const auto Mark = [&]() { C = B.PC->GetPlanningOverlayComputations(); P = B.PC->GetPlanningOverlayPlanComputations(); };
+	const auto DC = [&]() { return B.PC->GetPlanningOverlayComputations() - C; };
+	const auto DP = [&]() { return B.PC->GetPlanningOverlayPlanComputations() - P; };
+
+	// 1. DIECI TICK a ingressi invariati: nessun calcolo, di nessun tipo.
+	Mark();
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("dieci tick a ingressi invariati non calcolano niente"), DC(), 0);
+	TestEqual(TEXT("...ne' il piano"), DP(), 0);
+
+	// 2. LA SOLA CELLA: +1 calcolo, e il ventaglio non si rifa'.
+	Mark();
+	B.HexMap->SetHoveredCell(Vicini[0], /*bValid=*/ true);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("la sola cella sotto il cursore aggiunge un calcolo"), DC(), 1);
+	TestEqual(TEXT("e non rifa' ventaglio e portata (criterio di `#711`)"), DP(), 0);
+	TestEqual(TEXT("il ventaglio e' quello di prima"), B.HexMap->NumPreviewReachableCells(), VentaglioDelPiano);
+	for (int32 Tick = 0; Tick < 5; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("e i tick seguenti, con la cella ferma, non ne aggiungono"), DC(), 1);
+
+	// 3. UN'OSCILLAZIONE fra due celle: tanti calcoli quanti sono i cambi.
+	Mark();
+	for (int32 Cambio = 0; Cambio < 6; ++Cambio)
+	{
+		B.HexMap->SetHoveredCell(Vicini[(Cambio + 1) % 2], /*bValid=*/ true);
+		B.PC->UpdatePlanningOverlay();
+	}
+	TestEqual(TEXT("sei cambi di cella fra due celle danno sei calcoli"), DC(), 6);
+	TestEqual(TEXT("e nessuno rifa' il ventaglio"), DP(), 0);
+
+	// ...e posare DI NUOVO la cella in cui il cursore gia' sta non e' un cambio.
+	Mark();
+	B.HexMap->SetHoveredCell(Vicini[(5 + 1) % 2], /*bValid=*/ true);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("la stessa cella riposata non aggiunge niente"), DC(), 0);
+
+	// 4. LA SOLA VALIDITA' della cella.
+	Mark();
+	B.HexMap->SetHoveredCell(Vicini[(5 + 1) % 2], /*bValid=*/ false);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("la sola validita' della cella e' un ingresso: +1"), DC(), 1);
+	TestEqual(TEXT("e non e' il piano"), DP(), 0);
+
+	// 5. LA SOLA AZIONE ARMATA: +1 e +1, e la portata si accende senza che nessuno chiami il refresh esplicito.
+	Mark();
+	B.Mine->SelectAbility(Mirata);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("armare un'azione aggiunge un calcolo"), DC(), 1);
+	TestEqual(TEXT("e questo rifa' il piano"), DP(), 1);
+	TestTrue(TEXT("la portata si accende, dallo stato e non da un evento"), B.HexMap->GetPreviewRangeCells().Num() > 0);
+	for (int32 Tick = 0; Tick < 5; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("e con l'azione ferma i tick non calcolano"), DC(), 1);
+
+	Mark();
+	B.Mine->SelectAbility(INDEX_NONE);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("disarmarla ne aggiunge un altro"), DC(), 1);
+	TestEqual(TEXT("e la portata si spegne"), B.HexMap->GetPreviewRangeCells().Num(), 0);
+
+	// 6. IL RINFRESCO ESPLICITO: un waypoint aggiunto non cambia nessun altro campo, e la revisione del piano lo dice.
+	Mark();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	TestEqual(TEXT("un rinfresco esplicito del piano e' sempre un calcolo"), DC(), 1);
+	TestEqual(TEXT("e rifa' il piano"), DP(), 1);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("il tick dopo trova gli ingressi uguali e non ne aggiunge"), DC(), 1);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3511` — dopo OGNI uscita nessuna area di pianificazione resta accesa, per ogni significato di `AllMeanings`.**
+ *
+ * Le uscite della issue: commit/risoluzione/Cleanup/playback, `Modal`, KO dell'unita' selezionata, fine partita, piu' il reset
+ * esplicito. Per ciascuna: banco nuovo, controller staccato dagli eventi, **tutte** le superfici accese a mano (controllo
+ * positivo, significato per significato), l'uscita applicata SOLO come stato, un `UpdatePlanningOverlay`, e tutte le voci di
+ * `AllMeanings` a zero — oltre al tratto di LOS e alla timeline, che non sono significati.
+ *
+ * ⚠️ **Accenderle a mano e' la prova**: le superfici che un piano vero accende dipendono dal banco (un alleato nell'area, un
+ * bersaglio coperto), e un reset provato solo sulle tre che il banco accende sarebbe cieco alle altre — il difetto di
+ * `PreviewCellsLit`, che non contava la portata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayEveryExitTurnsEveryMeaningOffTest,
+	"RefactorTactics.HexMatch.PlanningOverlayEveryExitTurnsEveryMeaningOff",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayEveryExitTurnsEveryMeaningOffTest::RunTest(const FString&)
+{
+	const EPlanOverlayExit Exits[] = {
+		EPlanOverlayExit::CommitAndPlayback, EPlanOverlayExit::Modal, EPlanOverlayExit::KnockOut,
+		EPlanOverlayExit::MatchEnd, EPlanOverlayExit::ExplicitReset,
+	};
+
+	for (const EPlanOverlayExit Exit : Exits)
+	{
+		const FString Uscita = PlanOverlayExitName(Exit);
+		FRTLockInPreviewBench B;
+		if (!MakeLockInPreviewBench(*this, B))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		PlanOverlayDetachEvents(B);
+		B.PC->UpdatePlanningOverlay(); // assesta gli ingressi: da qui l'uscita e' l'UNICA cosa che cambia
+		PlanOverlayLightEverything(B);
+
+		// CONTROLLO POSITIVO — prima dell'uscita ogni significato di pianificazione e' acceso.
+		for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+		{
+			if (Meaning == ERTOverlayMeaning::Hover) { continue; }
+			TestTrue(*FString::Printf(TEXT("[%s] controllo: %s e' acceso prima dell'uscita"),
+				*Uscita, *PlanOverlayMeaningName(Meaning)), B.HexMap->NumPlanningPreviewCells(Meaning) > 0);
+		}
+
+		UGameInstance* GameInstance = nullptr;
+		URTFrontendNavigator* Navigator = nullptr;
+		bool bUscitaApplicata = true;
+		switch (Exit)
+		{
+		case EPlanOverlayExit::CommitAndPlayback:
+			CommitFromTimeout(B);
+			bUscitaApplicata = TestTrue(*FString::Printf(TEXT("[%s] la risoluzione e' in corso"), *Uscita), B.TM->IsResolving())
+				&& TestEqual(*FString::Printf(TEXT("[%s] e il contesto e' ResolutionPlayback"), *Uscita),
+					B.PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
+			break;
+
+		case EPlanOverlayExit::Modal:
+			GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+			GameInstance->AddToRoot();
+			GameInstance->Init();
+			Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
+			bUscitaApplicata = TestNotNull(*FString::Printf(TEXT("[%s] il navigatore esiste"), *Uscita), Navigator);
+			if (bUscitaApplicata)
+			{
+				B.World->SetGameInstance(GameInstance);
+				Navigator->EnterMatch();
+				Navigator->ShowPause();
+				bUscitaApplicata = TestEqual(*FString::Printf(TEXT("[%s] il contesto e' Modal"), *Uscita),
+					B.PC->GetPointerContext(), ERTPointerContext::Modal);
+			}
+			break;
+
+		case EPlanOverlayExit::KnockOut:
+			B.Mine->Health = 0;
+			bUscitaApplicata = TestFalse(*FString::Printf(TEXT("[%s] l'unita' selezionata e' KO"), *Uscita), B.Mine->IsAlive());
+			break;
+
+		case EPlanOverlayExit::MatchEnd:
+		{
+			ARTUnit* Avversaria = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 1);
+			bUscitaApplicata = TestNotNull(*FString::Printf(TEXT("[%s] c'e' un'avversaria da eliminare"), *Uscita), Avversaria);
+			if (bUscitaApplicata)
+			{
+				Avversaria->Health = 0;
+				CommitFromTimeout(B);
+				DrainPlayback(B.TM);
+				bUscitaApplicata = TestEqual(*FString::Printf(TEXT("[%s] la partita e' finita"), *Uscita),
+					B.TM->GetPhase(), ERTMatchPhase::MatchEnded);
+				// ANTI-VACUITA' — il puntatore NON dichiara la fine partita: se il contesto fosse gia' di sola
+				// lettura, a spegnere le aree sarebbe lui e non `bMatchEnded`, e questa riga non proverebbe niente.
+				TestTrue(*FString::Printf(TEXT("[%s] il contesto resta di pianificazione: la dichiara solo bMatchEnded"), *Uscita),
+					B.PC->GetPointerContext() == ERTPointerContext::Planning
+						|| B.PC->GetPointerContext() == ERTPointerContext::Pathing);
+			}
+			break;
+		}
+
+		case EPlanOverlayExit::ExplicitReset:
+			B.PC->RefreshPlanningOverlay(nullptr);
+			break;
+		}
+
+		if (bUscitaApplicata)
+		{
+			// ⚠️ **Il reset esplicito si guarda SUBITO, senza tick**: lo stato del banco (unita' viva e selezionata, in
+			// pianificazione) dice che le aree si mostrano, quindi un tick le riaccenderebbe a ragione. I due chiamanti
+			// reali di `nullptr` — commit e fine partita — sono in uno stato che dice il contrario, e hanno la loro riga.
+			if (Exit != EPlanOverlayExit::ExplicitReset)
+			{
+				B.PC->UpdatePlanningOverlay();
+			}
+
+			for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+			{
+				TestEqual(*FString::Printf(TEXT("[%s] dopo l'uscita %s e' spento"), *Uscita, *PlanOverlayMeaningName(Meaning)),
+					B.HexMap->NumPlanningPreviewCells(Meaning), 0);
+			}
+			TestFalse(*FString::Printf(TEXT("[%s] ne' resta il tratto di LOS (`#3064`)"), *Uscita), B.HexMap->HasPreviewSightBlock());
+			TestEqual(*FString::Printf(TEXT("[%s] ne' la timeline dei ghost"), *Uscita), B.HexMap->GetPlanPreview().Phases.Num(), 0);
+		}
+
+		if (GameInstance)
+		{
+			GameInstance->Shutdown();
+			GameInstance->RemoveFromRoot();
+		}
+		DestroyHexMatchWorld(B.World);
+	}
+	return true;
+}
+
+/**
+ * **`#3511` — a playback finito le aree tornano DALLO STATO, e il tick dopo non le ricalcola.**
+ *
+ * Fino a `#3511` le riaccendeva `HandlePlaybackFinished`, cioe' un evento (`#2555`). Ora e' la stessa funzione che le spegne:
+ * stato di pianificazione → aree. Prima con il controller STACCATO dagli eventi, per provare che basta lo stato; poi con gli
+ * eventi attaccati, come in partita, per provare che i due percorsi concordano e non si calcolano a vicenda due volte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayReturnsWithTheStateAfterPlaybackTest,
+	"RefactorTactics.HexMatch.PlanningOverlayReturnsWithTheStateAfterPlayback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayReturnsWithTheStateAfterPlaybackTest::RunTest(const FString&)
+{
+	for (const bool bEventiAttaccati : { false, true })
+	{
+		const FString Quando = bEventiAttaccati ? TEXT("eventi attaccati") : TEXT("solo stato");
+		FRTLockInPreviewBench B;
+		if (!MakeLockInPreviewBench(*this, B))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		if (!bEventiAttaccati) { PlanOverlayDetachEvents(B); }
+		B.PC->UpdatePlanningOverlay();
+		TestTrue(*FString::Printf(TEXT("[%s] controllo: in pianificazione le aree sono accese"), *Quando),
+			PreviewCellsLit(B.HexMap) > 0);
+
+		CommitFromTimeout(B);
+		B.PC->UpdatePlanningOverlay();
+		TestTrue(*FString::Printf(TEXT("[%s] la risoluzione e' in corso"), *Quando), B.TM->IsResolving());
+		TestEqual(*FString::Printf(TEXT("[%s] e durante il playback il tick le tiene spente"), *Quando),
+			PreviewCellsLit(B.HexMap), 0);
+
+		DrainPlayback(B.TM);
+		TestFalse(*FString::Printf(TEXT("[%s] il playback e' finito"), *Quando), B.TM->IsResolving());
+		B.PC->UpdatePlanningOverlay();
+		TestTrue(*FString::Printf(TEXT("[%s] a playback finito il tick le riaccende dallo stato"), *Quando),
+			PreviewCellsLit(B.HexMap) > 0);
+
+		const int32 Calcoli = B.PC->GetPlanningOverlayComputations();
+		for (int32 Tick = 0; Tick < 5; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+		TestEqual(*FString::Printf(TEXT("[%s] e i tick seguenti, a ingressi invariati, non calcolano"), *Quando),
+			B.PC->GetPlanningOverlayComputations(), Calcoli);
+
+		DestroyHexMatchWorld(B.World);
+	}
+	return true;
+}
+
+/**
+ * **`#3511` — il confronto lo fa `PlayerTick`, a ogni fotogramma: nessuno chiama `UpdatePlanningOverlay` a mano.**
+ *
+ * Gli altri test chiamano la funzione direttamente, come la issue chiede; questo prova il cablaggio. Senza, la riga di
+ * `PlayerTick` potrebbe sparire e restare verdi tutti: la funzione esisterebbe, testata, e in partita non la chiamerebbe
+ * nessuno — il difetto di una feature senza chiamante.
+ *
+ * L'azione si arma sull'UNITA' (`SelectAbility`), non dal controller: il controller la accenderebbe con un rinfresco
+ * esplicito, e il test non distinguerebbe il tick da quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayIsDrivenByPlayerTickTest,
+	"RefactorTactics.HexMatch.PlanningOverlayIsDrivenByPlayerTick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayIsDrivenByPlayerTickTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// CONTROLLO POSITIVO — l'azione che accende la portata, scelta per DELTA (vedi il test dei conteggi).
+	int32 Mirata = INDEX_NONE;
+	for (int32 I = 0; I < B.Mine->NumAbilities() && Mirata == INDEX_NONE; ++I)
+	{
+		B.Mine->SelectAbility(I);
+		B.PC->UpdatePlanningOverlay();
+		if (B.Mine->SelectedAbilityIndex == I && B.HexMap->GetPreviewRangeCells().Num() > 0)
+		{
+			Mirata = I;
+		}
+		B.Mine->SelectAbility(INDEX_NONE);
+		B.PC->UpdatePlanningOverlay();
+	}
+	if (!TestTrue(TEXT("controllo: c'e' un'azione che, armata, accende la portata"), Mirata != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// `APlayerController::PlayerTick` pretende un `PlayerInput`, che un controller spawnato a mano non ha.
+	B.PC->InitInputSystem();
+
+	B.Mine->SelectAbility(Mirata);
+	TestEqual(TEXT("armata sull'unita' senza tick, la portata non c'e' ancora"), B.HexMap->GetPreviewRangeCells().Num(), 0);
+
+	B.PC->PlayerTickForTest(0.016f);
+	TestTrue(TEXT("un fotogramma di PlayerTick accende la portata"), B.HexMap->GetPreviewRangeCells().Num() > 0);
+
+	const int32 Calcoli = B.PC->GetPlanningOverlayComputations();
+	for (int32 Tick = 0; Tick < 5; ++Tick) { B.PC->PlayerTickForTest(0.016f); }
+	TestEqual(TEXT("e i fotogrammi seguenti, a ingressi invariati, non calcolano"),
+		B.PC->GetPlanningOverlayComputations(), Calcoli);
+
+	B.Mine->SelectAbility(INDEX_NONE);
+	B.PC->PlayerTickForTest(0.016f);
+	TestEqual(TEXT("disarmata, il fotogramma dopo spegne la portata"), B.HexMap->GetPreviewRangeCells().Num(), 0);
+
+	DestroyHexMatchWorld(B.World);
 	return true;
 }
 
