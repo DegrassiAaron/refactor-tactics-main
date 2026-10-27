@@ -255,7 +255,7 @@ la parola *«Moved»*.
    non ora.
 5. **Il prezzo di «`Guard`/`Brace` inerti».** ⏱️ **Ristretta, non chiusa** ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253)):
    la Fase 1 ha implementato l'inerzia sulla **sola componente di spostamento**, che è ciò che l'argomento
-   di §6 chiede. Resta aperto se lo strato di **danno** — il pool da 15 di [D-292], il −10 su ogni colpo —
+   di §6 chiede. Resta aperto se lo strato di **danno** — la riduzione di 15 su ogni colpo frontale ([D-408]; con [D-292] era un pool da 15), il −10 del `Brace` su ogni colpo —
    debba cadere anch'esso su un'unità sbilanciata. Ciò che cambia rispetto a prima è che ora la domanda ha
    una sede in cui si misura: `RefactorTactics.Status.UnbalancedIgnoresGuardOnDisplacementOnly` **deve**
    cadere il giorno in cui si decide di cancellarlo.

@@ -571,7 +571,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMarkTargetConsumedOnceTest,
 bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD. Il marchio vale per UN colpo: il secondo attacco alleato dello stesso turno
-	// arriva intero. Passa dalla stessa `ApplyFirstHitDelta` di `Exposed`, quindi "consumato" resta
+	// arriva intero. Qui il marchio e' modellato come un delta di `ApplyFirstHitDelta` (in produzione ha un pass proprio nel Blast, `MarkSpentOn`), quindi "consumato" resta
 	// ordine-indipendente invece di diventare una corsa fra attaccanti.
 	TestEqual(TEXT("il marchio vale +6"), URTCombatLibrary::MarkedFirstHitBonus, 6);
 
@@ -590,8 +590,8 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	// Marchiato E in guardia: i due effetti si compongono, e l'esito e' prevedibile invece che una
 	// precedenza nascosta dell'uno sull'altro.
 	//
-	// ⛔ **Sono DUE passaggi, non un delta sommato, e da [D-408] contano anche le maschere.** `Marked` e'
-	// un delta sul PRIMO colpo (`ApplyFirstHitDelta`); la Guardia e' una riduzione su OGNI colpo dell'arco
+	// ⛔ **Sono DUE passaggi, non un delta sommato, e da [D-408] contano anche le maschere.** `Marked` e', in
+	// questo test, un delta sul PRIMO colpo (`ApplyFirstHitDelta`); la Guardia e' una riduzione su OGNI colpo dell'arco
 	// FRONTALE (`ApplyEligibleHitDelta`). ⏱️ *La prima stesura li sommava in un solo `ApplyFirstHitDelta`
 	// sotto il commento «passa dalla stessa `ApplyFirstHitDelta` di `Exposed` e `Guard`» — falso per la
 	// Guardia dal 2026-08-31 ([D-292]) e doppiamente da [D-408]. Il numero coincideva per un colpo solo e

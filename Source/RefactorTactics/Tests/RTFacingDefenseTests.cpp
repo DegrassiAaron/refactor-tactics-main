@@ -123,7 +123,7 @@ namespace
 	 * HP persi dal difensore in UN turno intero, cambiando solo cio' che il caso vuole cambiare.
 	 *
 	 * Passa dal `TurnManager` e non da `CollectHexAttacks` perche' la riduzione di `Guard` non sta nel piano:
-	 * il piano porta la potenza, il delta del primo colpo si applica dopo (`ApplyFirstHitDelta`). Misurarla
+	 * il piano porta la potenza, la riduzione per colpo si applica dopo (`ApplyEligibleHitDelta`, [D-408]). Misurarla
 	 * sul piano darebbe lo stesso numero nei due casi e il test sarebbe verde su qualunque implementazione.
 	 *
 	 * `-1` = montaggio fallito, gia' segnalato da `Test`: il chiamante non lo confronta con nient'altro.

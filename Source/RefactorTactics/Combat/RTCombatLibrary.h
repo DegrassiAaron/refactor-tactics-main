@@ -265,7 +265,7 @@ public:
 	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
 	 *
 	 * Il valore lo legge `URTCombatResolver::ApplyEligibleHitDelta`, **non** `ApplyAbsorptionPool` e **non**
-	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` e `Status.Marked`.
+	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` (`Status.Marked` ha un pass proprio nel Blast).
 	 * ⏱️ *Questa riga diceva `ApplyAbsorptionPool` fino al 2026-09-20, ed era la meta' di commento che
 	 * [D-408] aveva lasciato indietro correggendo l'altra: chi la seguiva per trovare il consumatore
 	 * atterrava sul percorso del `Deflect`. Trovato da una code review — ed e' precisamente la deriva che il
@@ -415,8 +415,9 @@ public:
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *
-	 * Passa dalla stessa `ApplyFirstHitDelta` di `Exposed` (⏱️ *e della Guardia fino a [D-292]*) — quindi "consumato una volta sola" e'
-	 * una proprieta' del resolver, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
+	 * NON passa da `ApplyFirstHitDelta`: ha un pass proprio nel Blast (`RTTurnManager.cpp`, `MarkSpentOn`), che somma il bonus al `Power` del
+	 * PRIMO colpo qualificato contro quel bersaglio nell'ordine canonico (priorita', `ActionId`, `AttackerId`, `IntentIndex`) e poi consuma il
+	 * marchio: "consumato una volta sola" e' una proprieta' dell'ORDINE, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
 	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
 	 */
 	static constexpr int32 MarkedFirstHitBonus = 6;
@@ -480,7 +481,7 @@ public:
 	/**
 	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
 	 *
-	 * A differenza di `Exposed`/`Marked`, NON passa da `ApplyFirstHitDelta` (la Guardia non ci passa piu' da [D-292]): il bonus non si consuma
+	 * A differenza di `Exposed`, NON passa da `ApplyFirstHitDelta` (e nemmeno `Marked` e la Guardia, che hanno una sede propria): il bonus non si consuma
 	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
