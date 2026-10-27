@@ -14,6 +14,7 @@
 #include "UI/RTHudViewModel.h"
 #include "Player/RTPointerInteraction.h"
 #include "Ability/RTActionDef.h"
+#include "Tests/RTTargetPromptTestHelpers.h" // #3869: tutti i testi, enumerati dagli UENUM
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -283,6 +284,109 @@ bool FRTTargetPromptDeclaresUnproducibleKindTest::RunTest(const FString&)
 	TestNotEqual(TEXT("B3: e non si confonde con «fuori fase»"),
 		Oggetto.Kind, ERTTargetPromptKind::NotApplicable);
 
+	return true;
+}
+
+/**
+ * 🔑 **I PROMPT CHE NOMINANO UN'UNITA' LA SCRIVONO CON L'ACCENTO** (#3869).
+ *
+ * L'apostrofo ASCII al posto dell'accento (`unita'`) e' un'abitudine di questo repository, e in altre stringhe visibili arriva
+ * anche al giocatore (l'elenco e' nella PR di #3869): questo controllo copre il prompt di targeting. I prompt che nominano
+ * un'unita' (nessuna selezione, e la scelta di un'unita' con un'azione armata) la stampavano così. Il controllo positivo e'
+ * che i testi esistano e siano diversi fra loro: un test che cercasse l'assenza di `unita'` passerebbe anche su testi vuoti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptWritesUnitWithItsAccentTest,
+	"RefactorTactics.HudViewModel.TargetPromptWritesUnitWithItsAccent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTargetPromptWritesUnitWithItsAccentTest::RunTest(const FString&)
+{
+	const FString SenzaSelezione =
+		URTHudViewModel::BuildTargetPrompt(ERTPointerContext::IdleSelection, ERTPointerTargetKind::None).Text.ToString();
+	const FString ScegliUnita =
+		URTHudViewModel::BuildTargetPrompt(ERTPointerContext::Targeting, ERTPointerTargetKind::Unit).Text.ToString();
+
+	TestFalse(TEXT("premessa: il prompt senza selezione esiste"), SenzaSelezione.IsEmpty());
+	TestFalse(TEXT("premessa: il prompt che chiede un'unita' esiste"), ScegliUnita.IsEmpty());
+	TestNotEqual(TEXT("premessa: i due prompt sono diversi fra loro"), SenzaSelezione, ScegliUnita);
+
+	for (const FString* Testo : { &SenzaSelezione, &ScegliUnita })
+	{
+		TestTrue(*FString::Printf(TEXT("'%s' scrive unit\u00E0 con l'accento"), **Testo),
+			Testo->Contains(TEXT("unit\u00E0"), ESearchCase::CaseSensitive));
+		TestFalse(*FString::Printf(TEXT("'%s' non usa l'apostrofo al posto dell'accento"), **Testo),
+			Testo->Contains(TEXT("unita'")));
+	}
+	return true;
+}
+
+/**
+ * 🔑 **NESSUN TESTO DEL PROMPT USA UN APOSTROFO AL POSTO DI UN ACCENTO** (#3869, rilievo della review).
+ *
+ * Il test sull'accento di «unità» protegge due stringhe, e lo stesso difetto stava in una terza, nella stessa funzione e nello stesso
+ * widget («sé»). Qui il controllo e' sulla CLASSE: si leggono tutti i testi che `BuildTargetPrompt` puo' produrre (enumerati dagli `UENUM`,
+ * vedi `RTTargetPromptTestHelpers.h`) e si cerca un apostrofo che non sia un'elisione. Un'elisione (`un'azione`, `l'orientamento`) ha una lettera
+ * subito dopo l'apostrofo; un accento scritto come apostrofo (`unita'`, `se':`) no.
+ *
+ * ⚠️ **Che cosa il predicato vede, e che cosa no.** Vede l'apostrofo ASCII (`'`) e quello tipografico (U+2019) non seguiti da una lettera. Lascia
+ * passare il troncamento `po'` (`un po' di`), che e' italiano corretto. Non vede un accento scritto in un altro modo (un accento grave isolato, per esempio):
+ * e' un controllo sul difetto noto, non un correttore ortografico.
+ *
+ * Il controllo positivo e' triplo: il predicato riconosce i testi sbagliati scritti a mano (in entrambe le forme), lascia passare un'elisione e un troncamento
+ * veri, e fra i testi che il prompt produce c'e' un'elisione vera. Senza i primi sarebbe vero per assenza, senza gli altri rifiuterebbe tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptNeverUsesAnApostropheForAnAccentTest,
+	"RefactorTactics.HudViewModel.TargetPromptNeverUsesAnApostropheForAnAccent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTargetPromptNeverUsesAnApostropheForAnAccentTest::RunTest(const FString&)
+{
+	// Una lettera: ASCII, o fuori dall'ASCII (`FChar::IsAlpha` e' `iswalpha`, che per le lettere accentate puo' rispondere no).
+	const auto Lettera = [](const TCHAR C) { return C > 127 || FChar::IsAlpha(C); };
+	const auto Apostrofo = [](const TCHAR C) { return C == TEXT('\'') || C == TEXT('\u2019'); };
+	const auto ApostrofoComeAccento = [&](const FString& Testo)
+	{
+		for (int32 i = 0; i < Testo.Len(); ++i)
+		{
+			if (!Apostrofo(Testo[i]) || (i + 1 < Testo.Len() && Lettera(Testo[i + 1])))
+			{
+				continue; // non e' un apostrofo, oppure e' un'elisione
+			}
+			const bool bTroncamento = i >= 2 && FChar::ToLower(Testo[i - 1]) == TEXT('o') && FChar::ToLower(Testo[i - 2]) == TEXT('p')
+				&& (i < 3 || !Lettera(Testo[i - 3]));
+			if (!bTroncamento)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// Il predicato riconosce il difetto in entrambe le forme, e non rifiuta l'italiano corretto.
+	TestTrue(TEXT("premessa: riconosce un accento scritto come apostrofo ASCII"), ApostrofoComeAccento(TEXT("Seleziona un'unita'")));
+	TestTrue(TEXT("premessa: ... e come apostrofo tipografico"), ApostrofoComeAccento(TEXT("Seleziona un'unita\u2019")));
+	TestTrue(TEXT("premessa: ... anche prima di un segno"), ApostrofoComeAccento(TEXT("Azione su di se': confermata")));
+	TestFalse(TEXT("premessa: lascia passare un'elisione"), ApostrofoComeAccento(TEXT("Scegli un'azione")));
+	TestFalse(TEXT("premessa: lascia passare un troncamento"), ApostrofoComeAccento(TEXT("Aspetta un po' di tempo")));
+	TestFalse(TEXT("premessa: ... anche in maiuscola a inizio frase"), ApostrofoComeAccento(TEXT("Po' di tempo")));
+	TestFalse(TEXT("premessa: e un'elisione prima di una lettera accentata"), ApostrofoComeAccento(TEXT("Scegli un'\u00e0ncora")));
+	TestTrue(TEXT("premessa: ma non una parola che finisce in `o'` senza essere `po'`"), ApostrofoComeAccento(TEXT("Perche' no")) && ApostrofoComeAccento(TEXT("Scelto'")));
+
+	const TArray<FText> Testi = RTTargetPromptTest::AllTexts();
+	TestTrue(TEXT("premessa: il prompt ha dei testi da leggere"), Testi.Num() > 0);
+	bool bVistaUnElisione = false;
+	for (const FText& Testo : Testi)
+	{
+		const FString Lettura = Testo.ToString();
+		bool bConApostrofo = false;
+		for (const TCHAR C : Lettura)
+		{
+			bConApostrofo |= Apostrofo(C);
+		}
+		bVistaUnElisione |= bConApostrofo && !ApostrofoComeAccento(Lettura);
+		TestFalse(*FString::Printf(TEXT("'%s' non usa un apostrofo al posto di un accento"), *Lettura), ApostrofoComeAccento(Lettura));
+	}
+	TestTrue(TEXT("premessa: fra i testi letti c'e' un'elisione vera, e il predicato l'ha lasciata passare"), bVistaUnElisione);
 	return true;
 }
 

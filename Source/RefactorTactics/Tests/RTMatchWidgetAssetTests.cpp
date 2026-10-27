@@ -14,6 +14,10 @@
 // ⚠️ Cio' che NON coprono: l'aspetto. Colori, font, posizione e leggibilita' restano di `PIE-V01-HUD`. Un
 // binding corretto su un widget largo zero pixel passerebbe di qui — per questo il report stampa anche la
 // geometria, come fa il gemello.
+//
+// ⚠️ **Eccezione dal #3869**: `ActionDockPromptUsesTheDockStyle` guarda il font e il colore di `TargetPrompt`, perche' il prompt
+// era l'unico testo del dock senza stile e usciva dalla zona. L'altezza la misura il blocco del prompt in `TenantsFitTheirBands`
+// (`RTHudScenarioTests.cpp`). Il resto dell'aspetto resta di PIE.
 
 #include "Misc/AutomationTest.h"
 #include "Tests/RTHudGeometryForTest.h"
@@ -33,6 +37,7 @@
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudZoneWidget.h"
+#include "UI/RTUIPalette.h" // il colore del prompt si confronta col token (#3869)
 #include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
 #include "Tests/RTWidgetAssetTestHelpers.h"
 #include "Algo/Accumulate.h"
@@ -1933,6 +1938,49 @@ bool FRTEventLogWearsItsLineClassTest::RunTest(const FString&)
 		}
 	});
 	TestEqual(TEXT("premessa: il TacticalHUD monta un registro"), Registri, 1);
+	return true;
+}
+
+/**
+ * 🔑 **IL PROMPT DEL DOCK HA LO STILE DEL DOCK, NON QUELLO DEL MOTORE** (#3869).
+ *
+ * `TargetPrompt` era un `TextBlock` senza stile: il font di default del motore (Roboto Bold 24) e il bianco, mentre il resto
+ * del testo corrente dell'HUD usa un font del progetto e la tinta `Text_Primary`.
+ *
+ *   1. il font e' del progetto (`/Game/RT/UI/Fonts/`), non quello del motore;
+ *   2. il colore e' `Text_Primary`, il token della palette: lo stesso confronto che fanno i test dei widget gemelli.
+ *
+ * ⛔ **Non misura l'altezza.** Che il prompt stia nella zona lo dice il blocco del prompt in `TenantsFitTheirBands`
+ * (`RTHudScenarioTests.cpp`), che misura il dock con Slate. Un confronto fra le dimensioni dei testi del dock, che questo test
+ * faceva in una prima stesura, non era un guardiano: il prompt ha un font diverso dai vicini, e a un'altezza al limite passava lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDockPromptUsesTheDockStyleTest,
+	"RefactorTactics.ScreenHud.ActionDockPromptUsesTheDockStyle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionDockPromptUsesTheDockStyleTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, ActionDockPath, TEXT("WBP_RT_ActionDock"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	const UTextBlock* Prompt = Cast<UTextBlock>(Tree->FindWidget(TEXT("TargetPrompt")));
+	if (!TestNotNull(TEXT("il dock ha un TargetPrompt che e' un TextBlock"), Prompt))
+	{
+		return false;
+	}
+
+	// 1. Il font e' del progetto.
+	const FSlateFontInfo Font = Prompt->GetFont();
+	const FString FontPath = Font.FontObject ? Font.FontObject->GetPathName() : FString();
+	TestTrue(*FString::Printf(TEXT("1: il font del prompt e' del progetto (e' '%s')"), *FontPath),
+		FontPath.StartsWith(TEXT("/Game/RT/UI/Fonts/")));
+
+	// 2. Il colore e' il token.
+	TestTrue(TEXT("2: il colore del prompt e' Text_Primary"),
+		Prompt->GetColorAndOpacity().GetSpecifiedColor().Equals(URTUIPalette::ColorFor(ERTUIToken::Text_Primary)));
 	return true;
 }
 

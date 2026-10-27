@@ -1815,7 +1815,7 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 	if (Context == ERTPointerContext::IdleSelection)
 	{
 		View.Kind = ERTTargetPromptKind::NoSelection;
-		View.Text = LOCTEXT("NoSelection", "Seleziona un'unita'");
+		View.Text = LOCTEXT("NoSelection", "Seleziona un'unità");
 		return View;
 	}
 
@@ -1848,12 +1848,12 @@ FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context
 		// alla pressione del tasto»). Dirlo «nessuna azione» sarebbe falso, e tacere lascerebbe il
 		// giocatore ad aspettare un click che non serve.
 		View.Kind = ERTTargetPromptKind::SelfTargetConfirmed;
-		View.Text = LOCTEXT("SelfTarget", "Azione su di se': confermata");
+		View.Text = LOCTEXT("SelfTarget", "Azione su di sé: confermata");
 		return View;
 
 	case ERTPointerTargetKind::Unit:
 		View.Kind = ERTTargetPromptKind::ChooseUnit;
-		View.Text = LOCTEXT("ChooseUnit", "Scegli un'unita'");
+		View.Text = LOCTEXT("ChooseUnit", "Scegli un'unità");
 		View.bIsAwaitingTarget = true;
 		return View;
 

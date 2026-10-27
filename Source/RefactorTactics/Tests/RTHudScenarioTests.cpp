@@ -32,6 +32,7 @@
 #include "ScenarioHarness/RTTestResult.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTHudLayout.h"     // #3661: le fasce in cui gli inquilini devono entrare
+#include "Tests/RTTargetPromptTestHelpers.h" // #3869: i testi del prompt, che il grafo del dock scrive a runtime
 #include "UI/RTHudZoneWidget.h"
 #include "Components/CanvasPanelSlot.h" // #3661: la posa delle zone letta dagli slot
 #include "Tests/RTHudGeometryForTest.h" // #3661: le risoluzioni della DoD
@@ -762,9 +763,11 @@ namespace
  * (`FRTHudBands::LeftTop`). Due scenari: due unita' proprie (il formato della v0.1) e tre (la sandbox).
  *
  * ⚠️ **Limiti dichiarati.** E' la misura del contenuto che lo scenario produce, non del caso peggiore: il registro
- * vuoto ha misura zero e non si misura. E gli slot delle azioni del dock li costruisce il grafo Blueprint al tick,
- * che headless senza paint non gira: la misura del dock qui e' quella della sua cornice. In PIE (`U79`) il dock
- * occupa circa 1020x110 unita', contro le 1720 della fascia bassa a 16:10. Restano di PIE.
+ * vuoto ha misura zero e non si misura. Gli slot delle azioni del dock li costruisce l'evento Tick del Blueprint, e il
+ * prompt ne scrive il testo a runtime e lo tiene `Collapsed` finche' non ce l'ha: dal #3869 il gate fa girare il Tick,
+ * scrive ogni testo del prompt e misura la zona `Bottom` a ogni risoluzione con la sua scala (vedi il blocco dedicato).
+ * Gli altri inquilini si misurano ancora solo a scala 1,0; restano di PIE il carattere reale e un dock con piu' righe di
+ * quelle che lo scenario costruisce.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudTenantsFitTheirBandsTest,
 	"RefactorTactics.ScreenHud.TenantsFitTheirBands",
@@ -913,13 +916,10 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 		// Anti-vacuita': roster, testata, Conferma, scheda e dock hanno contenuto in ogni scenario.
 		TestTrue(*FString::Printf(TEXT("%s: almeno quattro zone misurate (%d)"), Scenario, Misurate), Misurate >= 4);
 
-		// 🔑 **L'indicatore del piano sta nel dock, e il dock nella zona `Bottom`** (#3680): la misura sopra lo
-		// contiene, perche' la zona misura il dock con la sua riga. Compare solo dove la mappa ha piu' di un piano, e
-		// `LayerStack` ne ha tre: li' deve comparire, altrimenti la misura non lo conterrebbe affatto.
-		if (TestNotNull(*FString::Printf(TEXT("%s: l'HUD monta un dock"), Scenario), DockDellHud)
-			&& TestNotNull(*FString::Printf(TEXT("%s: il dock ha l'indicatore del piano"), Scenario), DockDellHud->LayerIndicator.Get()))
+		// La zona che ospita il dock, cercata una volta: serve alla misura del prompt e al controllo dell'indicatore del piano.
+		const URTHudZoneWidget* ZonaDelDock = nullptr;
+		if (DockDellHud != nullptr)
 		{
-			const URTHudZoneWidget* ZonaDelDock = nullptr;
 			Hud->WidgetTree->ForEachWidget([&](UWidget* W)
 			{
 				const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(W);
@@ -928,6 +928,78 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 					ZonaDelDock = Zona;
 				}
 			});
+		}
+
+		// 🔑 **Il prompt del dock sta nella zona `Bottom`, a ogni risoluzione con la sua scala** (#3869).
+		//
+		// La misura sopra non contiene il prompt: il grafo del dock ne scrive il testo a runtime e lo tiene `Collapsed` finche' non
+		// ce l'ha, quindi con il blob vecchio e con quello nuovo la zona misura lo stesso. Qui il Tick costruisce gli slot (dopo
+		// `TakeWidget`, come in partita), si scrive ogni testo che `BuildTargetPrompt` puo' produrre e si misura la ZONA, cornice
+		// compresa, con l'HUD vero e il contesto di partita gia' dati, in altezza e in larghezza. ⚠️ La scala conta: il
+		// carattere si arrotonda e la misura cambia di qualche unita' da una scala all'altra. Per questo si misura con
+		// `SlatePrepass(scala della risoluzione)`, e oltre alle risoluzioni di `RTHudRisoluzioni::Tutte()` si misura 1600x900,
+		// la finestra dell'issue. Gli altri inquilini restano misurati a scala 1,0 dal ciclo generico qui sopra.
+		// (L'assenza del dock la dichiara il controllo sull'indicatore del piano, qui sotto.)
+		if (DockDellHud != nullptr)
+		{
+			UTextBlock* Prompt = Cast<UTextBlock>(DockDellHud->GetWidgetFromName(TEXT("TargetPrompt")));
+			if (TestNotNull(*FString::Printf(TEXT("%s: il dock sta in una zona"), Scenario), ZonaDelDock)
+				&& TestNotNull(*FString::Printf(TEXT("%s: il dock ha un TargetPrompt che e' un TextBlock"), Scenario), Prompt))
+			{
+				DockDellHud->Tick(FGeometry(), 0.f); // gli slot li costruisce l'evento Tick del Blueprint
+				TestTrue(*FString::Printf(TEXT("%s: premessa: gli slot delle azioni ci sono dopo il Tick"), Scenario), SlotsOf(DockDellHud).Num() > 0);
+
+				const TArray<FText> Testi = RTTargetPromptTest::AllTexts();
+				if (TestTrue(*FString::Printf(TEXT("%s: premessa: il prompt ha dei testi da misurare"), Scenario), Testi.Num() > 0))
+				{
+					TArray<FIntPoint> Finestre;
+					for (const RTHudRisoluzioni::FRisoluzione& Ris : RTHudRisoluzioni::Tutte())
+					{
+						Finestre.Add(FIntPoint(Ris.Larghezza, Ris.Altezza));
+					}
+					Finestre.Add(FIntPoint(1600, 900)); // la finestra dell'issue
+
+					const float SpazioY = static_cast<float>(RTHudLayout::ZoneLayout(ERTHudZone::Bottom, F).Offsets.Bottom);
+					for (const FIntPoint& Finestra : Finestre)
+					{
+						const float Scala = RTHudLayout::UiScaleFor(Finestra);
+						const float SpazioX = static_cast<float>(Finestra.X) / Scala - 2.f * M;
+
+						// Senza prompt vuol dire col prompt `Collapsed`: un TextBlock vuoto occupa comunque una riga.
+						Prompt->SetVisibility(ESlateVisibility::Collapsed);
+						Radice->SlatePrepass(Scala);
+						const float SenzaPrompt = static_cast<float>(ZonaDelDock->GetDesiredSize().Y);
+
+						Prompt->SetVisibility(ESlateVisibility::HitTestInvisible);
+						float Massima = 0.f;
+						float Larga = 0.f;
+						for (const FText& Testo : Testi)
+						{
+							Prompt->SetText(Testo);
+							Radice->SlatePrepass(Scala);
+							Massima = FMath::Max(Massima, static_cast<float>(ZonaDelDock->GetDesiredSize().Y));
+							Larga = FMath::Max(Larga, static_cast<float>(ZonaDelDock->GetDesiredSize().X));
+						}
+
+						AddInfo(FString::Printf(TEXT("%s, %dx%d (scala %.3f): zona Bottom senza prompt %.1f, col prompt piu' alto %.1f, spazio %.1f; larghezza %.1f su %.1f"),
+							Scenario, Finestra.X, Finestra.Y, Scala, SenzaPrompt, Massima, SpazioY, Larga, SpazioX));
+						TestTrue(*FString::Printf(TEXT("%s, %dx%d: premessa: il prompt contribuisce all'altezza della zona"), Scenario, Finestra.X, Finestra.Y),
+							Massima > SenzaPrompt + 1.f);
+						TestTrue(*FString::Printf(TEXT("%s, %dx%d: la zona Bottom col suo prompt chiede %.1f unita' di altezza e ne ha %.1f"),
+							Scenario, Finestra.X, Finestra.Y, Massima, SpazioY), Massima <= SpazioY + 0.5f);
+						TestTrue(*FString::Printf(TEXT("%s, %dx%d: e chiede %.1f unita' di larghezza e ne ha %.1f"),
+							Scenario, Finestra.X, Finestra.Y, Larga, SpazioX), Larga <= SpazioX + 0.5f);
+					}
+				}
+			}
+		}
+
+		// 🔑 **L'indicatore del piano sta nel dock, e il dock nella zona `Bottom`** (#3680): la misura sopra lo
+		// contiene, perche' la zona misura il dock con la sua riga. Compare solo dove la mappa ha piu' di un piano, e
+		// `LayerStack` ne ha tre: li' deve comparire, altrimenti la misura non lo conterrebbe affatto.
+		if (TestNotNull(*FString::Printf(TEXT("%s: l'HUD monta un dock"), Scenario), DockDellHud)
+			&& TestNotNull(*FString::Printf(TEXT("%s: il dock ha l'indicatore del piano"), Scenario), DockDellHud->LayerIndicator.Get()))
+		{
 			TestTrue(*FString::Printf(TEXT("%s: il dock, e con lui l'indicatore, sta nella zona Bottom"), Scenario),
 				ZonaDelDock != nullptr && ZonaDelDock->ZoneId == ERTHudZone::Bottom);
 
