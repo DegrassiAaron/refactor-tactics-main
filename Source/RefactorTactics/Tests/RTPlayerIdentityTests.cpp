@@ -327,8 +327,11 @@ bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
  *
  * 🔴 **Il difetto era di autorita', non di ordinamento.** `AssignUnitControlGroups` parte dall'ordine
  * d'ingresso, la cui prima chiave e' la CELLA, e le celle cambiano a ogni turno. `OnPostLogin` la rigirava
- * a ogni connessione: un client che rientrava poteva trovarsi al comando di un'unita' diversa da quella
- * con cui aveva cominciato, e un altro posto poteva perderne una.
+ * a ogni connessione: il gruppo di un'unita' in campo cambiava, e con lui chi la comandava.
+ *
+ * ⛔ **Qui si misura il lato delle UNITA', non quello delle persone.** I posti li ricalcola `AssignSeats`
+ * per posizione, ed e' idempotente solo a insieme di giocatori invariato: con un controller che esce e uno
+ * che entra, chi resta puo' spostarsi di posto. Il test ne fa entrare uno solo, senza uscite.
  *
  * ⚠️ **La premessa e' asserita, non assunta.** Scambiare le celle delle due unita' di una squadra deve
  * invertire l'ordine d'ingresso: se non lo facesse, il test passerebbe anche con la riassegnazione
@@ -429,8 +432,19 @@ bool FRTUnitControlGroupsAreAssignedOnceTest::RunTest(const FString&)
 	}
 
 	// Un controller che entra a partita iniziata: e' `OnPostLogin`, che chiama `AssignSeats`.
-	RTWorldFixtures::MakePlayerOnTeam(World, 9);
+	ARTPlayerController* Late = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+	if (!TestNotNull(TEXT("il controller che entra dopo"), Late))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 	GameMode->AssignSeats();
+
+	// Chi entra riceve il proprio posto: la partizione delle unita' non gliene toglie uno. Il sentinella `9`
+	// non e' decorativo, come nella prova dei posti sopra: senza, un `AssignSeats` inerte passerebbe.
+	// Del GRUPPO non si asserisce niente: per il primo arrivato vale `Arrival / 2 == 0`, che e' anche il
+	// default, e l'asserto passerebbe con un `AssignSeats` inerte.
+	TestEqual(TEXT("chi entra dopo ha una squadra: la prima"), ARTPlayerState::TeamIdOf(Late), 0);
 
 	TestEqual(TEXT("la prima unita' resta al proprio gruppo"), First->ControlGroup, FirstGroupBefore);
 	TestEqual(TEXT("la seconda anche: la connessione non rimescola nessuno"),

@@ -474,9 +474,16 @@ public:
 	 * iniziata consegnerebbe a un posto un'unita diversa da quella con cui aveva cominciato. E la forma di
 	 * `ARTTurnManager::EnsureMatchRoster` con `StableUnitId`: l'identita si assegna una volta.
 	 *
-	 * **Chi entra dopo** non causa nessuna riassegnazione: riceve il proprio gruppo da `AssignSeats`
+	 * **Chi entra dopo** non causa nessuna riassegnazione di UNITA: riceve il proprio gruppo da `AssignSeats`
 	 * (`ARTPlayerState::ControlGroup`, per arrivo) e comanda le unita che gia portano quel gruppo.
-	 * `SetupHexMatch` riporta il guardiano a zero, perche un nuovo allestimento porta unita nuove.
+	 *
+	 * ⚠️ **Questo chiude il lato delle unita, non quello delle persone.** I posti li ricalcola `AssignSeats`
+	 * per posizione a ogni chiamata, ed e idempotente solo a insieme di giocatori invariato (vedi sopra): se
+	 * un controller esce e un altro entra, chi resta puo spostarsi di posto. E un limite preesistente, non
+	 * raggiungibile offline, che questa funzione non tocca.
+	 *
+	 * `SetupHexMatch` riporta il guardiano a zero: un nuovo allestimento riparte da capo, con unita nuove o
+	 * lette dal livello.
 	 */
 	void AssignUnitControlGroups();
 

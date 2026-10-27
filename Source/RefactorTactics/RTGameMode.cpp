@@ -1099,8 +1099,8 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 
 		AssignedRules = Outcome.Rules;
 		bHasRules = true;
-		// Un allestimento porta unita' nuove, tutte al gruppo di default: la partizione di quello
-		// precedente non vale piu' (`#2942`).
+		// Un nuovo allestimento riparte da capo — porta unita' nuove, tutte al gruppo di default, o rilegge
+		// quelle del livello — quindi la partizione del precedente non vale piu' (`#2942`).
 		bUnitControlGroupsAssigned = false;
 		AssignSeats();
 	}
@@ -1215,8 +1215,9 @@ void ARTGameMode::AssignUnitControlGroups()
 	// `EnsureMatchRoster` con `StableUnitId`, dove la ragione e' scritta accanto — *«l'identita' si assegna
 	// una volta»* — e il gruppo e' la stessa specie di dato.
 	//
-	// Chi entra dopo non causa niente: il suo gruppo lo da' `AssignSeats` per arrivo, e comanda le unita'
-	// che gia' lo portano. Un NUOVO allestimento riporta il guardiano a zero in `SetupHexMatch`.
+	// Chi entra dopo non causa una riassegnazione di UNITA': il suo gruppo lo da' `AssignSeats` per arrivo, e
+	// comanda le unita' che gia' lo portano. I posti delle PERSONE restano di `AssignSeats`, idempotente solo
+	// a insieme di giocatori invariato. Un NUOVO allestimento riporta il guardiano a zero in `SetupHexMatch`.
 	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
