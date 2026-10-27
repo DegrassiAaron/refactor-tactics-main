@@ -3315,6 +3315,9 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// `#3893`: i volumi di superficie sono una famiglia come le altre. Entrati nella maschera del pennello con `#2732`,
 		// dopo questo metro, non c'erano: una ricostruzione dei soli volumi rispondeva zero.
 		if (bDoSurfaceVolumes) { LastRebuildCreated += Conta(SurfaceVolumes); }
+		// E la nebbia (`#3760`): una colonna per cella, che nasce e si azzera con le celle (`bDoCells`) e quindi costa quanto loro.
+		// La trovo' la review di `#3893`, stessa classe dei volumi: una famiglia di istanze che il metro non sommava.
+		if (bDoCells) { LastRebuildCreated += Conta(FogVolumes); }
 		if (bDoGlyphs)
 		{
 			for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring) { LastRebuildCreated += Conta(SurfaceGlyphs[Ring]); }

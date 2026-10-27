@@ -3295,9 +3295,10 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
  * **`#3893` — il costo della ricostruzione conta anche i volumi di superficie.**
  *
  * `LastRebuildCreatedInstances` e' il metro con cui `#1865` rende falsificabile *«il costo e' proporzionale alla modifica, non
- * alla mappa»*, e sommava ogni famiglia ricostruita tranne `SurfaceVolumes`: una ricostruzione dei soli volumi rispondeva zero, e
- * una che li ricostruiva insieme ad altro rispondeva meno del vero. La famiglia e' entrata nella maschera del pennello con
- * `#2732`, dopo il metro.
+ * alla mappa»*, e sommava ogni famiglia ricostruita tranne `SurfaceVolumes` e la nebbia (`FogVolumes`, una colonna per cella che
+ * nasce con le celle): una ricostruzione dei soli volumi rispondeva zero, e una che li ricostruiva insieme ad altro rispondeva
+ * meno del vero. I volumi sono entrati nella maschera del pennello con `#2732`, dopo il metro; la nebbia l'ha trovata la review
+ * di `#3893`.
  *
  * 🔑 **Il volume si prova contro il componente, non contro un numero scritto qui**: il conteggio deve valere le istanze che
  * `SurfaceVolumes` ha davvero. 🔑 **E la meta' opposta**: una ricostruzione che NON chiede i volumi non li conta, altrimenti un
@@ -3331,8 +3332,10 @@ bool FRTHexMapActorRebuildCostCountsSurfaceVolumesTest::RunTest(const FString&)
 	Actor->RebuildInstances(ERTRebuildFamily::All);
 	const int32 Volumi = MapActorIsmCount(Actor, TEXT("SurfaceVolumes"));
 	const int32 Celle = MapActorIsmCount(Actor, TEXT("Cells"));
+	const int32 Nebbia = MapActorIsmCount(Actor, TEXT("FogVolumes"));
 	if (!TestTrue(TEXT("premessa ANTI-VACUITA': la mappa ha dei volumi di superficie"), Volumi > 0)
-		|| !TestTrue(TEXT("premessa: e delle celle"), Celle > 0))
+		|| !TestTrue(TEXT("premessa: e delle celle"), Celle > 0)
+		|| !TestTrue(TEXT("premessa ANTI-VACUITA': e la nebbia, una colonna per cella"), Nebbia > 0))
 	{
 		DestroyMapActorWorld(World);
 		return false;
@@ -3343,12 +3346,12 @@ bool FRTHexMapActorRebuildCostCountsSurfaceVolumesTest::RunTest(const FString&)
 		Actor->LastRebuildCreatedInstances(), Volumi);
 
 	Actor->RebuildInstances(ERTRebuildFamily::Cells);
-	TestEqual(TEXT("una ricostruzione che non li chiede non li conta: solo le celle"),
-		Actor->LastRebuildCreatedInstances(), Celle);
+	TestEqual(TEXT("una ricostruzione che non li chiede non li conta: solo le celle e la loro nebbia"),
+		Actor->LastRebuildCreatedInstances(), Celle + Nebbia);
 
 	Actor->RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::SurfaceVolumes);
 	TestEqual(TEXT("e chiesti insieme ad altro si sommano"),
-		Actor->LastRebuildCreatedInstances(), Celle + Volumi);
+		Actor->LastRebuildCreatedInstances(), Celle + Nebbia + Volumi);
 
 	DestroyMapActorWorld(World);
 	return true;
