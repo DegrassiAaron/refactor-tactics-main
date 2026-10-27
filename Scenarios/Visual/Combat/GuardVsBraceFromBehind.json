@@ -1,0 +1,73 @@
+{
+  "scenarioId": "Visual.Combat.GuardVsBraceFromBehind",
+  "tags": ["visual", "animation", "combat", "guard", "brace", "facing", "bal-1", "d-206", "d-408", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "COMPOSITO per DIREZIONE fra le due difese, sotto colpi PICCOLI e RIPETUTI che arrivano dalle SPALLE. Tre difensori identici prendono lo stesso identico attacco — tre `Hero.Branth.ImpactShot` da 8 — con tre risposte diverse: guardia, irrigidimento, niente. I tre esiti stanno nello stesso Play, quindi cio' che si guarda e' la DIFFERENZA fra le due difese, che da [D-408] non sta piu' nella forma ma nella direzione: la Guardia copre l'arco frontale ([D-206]) e il `Brace` e' omnidirezionale. IN AGGIUNTA a `Visual.Combat.DefenseVsNoneUnderSmallHits`, mai al suo posto: quel file ha gli stessi tre difensori con gli attaccanti DAVANTI.",
+
+  "_oracolo": "La voce `PIE-ACC-GUARDBRACE` di `docs/technical/test-manuali-pie.md`, la cui domanda e' qui riscritta per la direzione. Non sostituisce i due scenari che mostrano ciascuna difesa da dietro una per volta — `Visual.Combat.BraceReducesEveryHit` e `Spec.Facing.BackAttackIgnoresGuard` — e li mette nella STESSA inquadratura.",
+
+  "_nota_perche_esiste": "[#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223) ha rinominato `GuardVsBraceUnderSmallHits` perche' da [D-408] sotto colpi piccoli e frontali le due difese chiudono allo stesso numero, e non l'ha ri-puntata: quella scena e' il banco denso su cui poggia il verdetto di `PIE-DEBUG-CONTEXT`, e cambiarne gli eventi cambierebbe la misura. Il caso che oggi distingue le due difese e' la direzione, e questa scena e' quel caso: i tre difensori sono identici a quelli del banco denso, gli attaccanti stanno nella posizione OPPOSTA. Tracciata da [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888).",
+
+  "_nota_numeri": "Tre colpi da 8 su ciascun difensore, tutti dalle SPALLE. **Guardia**: un colpo posteriore non e' eleggibile (`bEligible` falso in `ApplyEligibleHitDelta`, [D-206]), quindi la riduzione di [D-408] non lo tocca e passa INTERO: tre colpi da 8, meno i 5 dello scudo base ([D-224]) sul danno diretto — **101**, come se non avesse difesa. **Irrigidimento**: -10 su OGNI colpo da ogni lato, e 8 meno 10 e' zero (una riduzione azzera, non cura) — **120**, illeso. **Niente**: lo stesso 8 per tre, meno i 5 dello scudo base — **101**. La distanza che resta da guardare e' fra l'Irrigidimento e le altre due; fra Guardia e nessuna difesa non ce n'e', ed e' il punto della scena. Sono i numeri del banco denso specchiati: li' la Guardia chiude a 120 e il `Brace` pure, qui la Guardia perde la protezione e il `Brace` no.",
+
+  "_nota_geometria": "Gli attaccanti stanno nella riflessione PUNTUALE delle posizioni del banco denso: a distanza `(-1,0)`, `(-2,0)` e `(-2,1)` da ciascun difensore, invece di `(1,0)`, `(2,0)` e `(2,-1)`. Le tre file restano TRASLAZIONI PURE l'una dell'altra sull'asse `r` (+2, 0, -2), quindi ogni attaccante sta rispetto al proprio difensore nella stessa identica posizione relativa e i tre gruppi sono confrontabili per costruzione. I difensori non fanno niente per girarsi e guardano a EST (CP 16.2): gli attaccanti stanno a OVEST, nell'emisfero posteriore, e guardano a EST verso di loro.",
+
+  "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto la soglia del `Brace` (8 danni, ADR-0007): con un colpo da 11 o piu' l'Irrigidimento lascerebbe passare almeno un punto e il 120 non sarebbe raggiungibile. Stessa scelta, e stessa nota sulle reazioni sotto soglia, di `Visual.Combat.DefenseVsNoneUnderSmallHits`.",
+
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`), come nel banco denso e in `Spec.Brace.GuardAndBraceOnMixedHit`, e per la stessa ragione: il default di Branth e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base e toglie una cella di portata, cioe' una terza regola sopra le due che la scena confronta. Le distanze sono `1, 2, 2` per ogni difensore, come nel banco denso.",
+
+  "_nota_tre_attaccanti_per_difensore": "Un attaccante dedicato per colpo, e non tre colpi da uno solo: un'unita' dichiara UN intent per turno.",
+
+  "units": [
+    { "id": "DG", "hero": "Hero.Branth", "team": 0, "cell": [0, 2, 0] },
+    { "id": "DB", "hero": "Hero.Branth", "team": 0, "cell": [0, 0, 0] },
+    { "id": "DN", "hero": "Hero.Branth", "team": 0, "cell": [0, -2, 0] },
+
+    { "id": "AG1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 2, 0], "facing": "E", "loadout": [] },
+    { "id": "AG2", "hero": "Hero.Branth", "team": 1, "cell": [-2, 2, 0], "facing": "E", "loadout": [] },
+    { "id": "AG3", "hero": "Hero.Branth", "team": 1, "cell": [-2, 3, 0], "facing": "E", "loadout": [] },
+
+    { "id": "AB1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 0, 0], "facing": "E", "loadout": [] },
+    { "id": "AB2", "hero": "Hero.Branth", "team": 1, "cell": [-2, 0, 0], "facing": "E", "loadout": [] },
+    { "id": "AB3", "hero": "Hero.Branth", "team": 1, "cell": [-2, 1, 0], "facing": "E", "loadout": [] },
+
+    { "id": "AN1", "hero": "Hero.Branth", "team": 1, "cell": [-1, -2, 0], "facing": "E", "loadout": [] },
+    { "id": "AN2", "hero": "Hero.Branth", "team": 1, "cell": [-2, -2, 0], "facing": "E", "loadout": [] },
+    { "id": "AN3", "hero": "Hero.Branth", "team": 1, "cell": [-2, -1, 0], "facing": "E", "loadout": [] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un turno solo. Le due difese sono azioni principali di Prep e risolvono su chi le usa — nessun bersaglio da dichiarare — e i nove colpi cadono nello stesso passaggio di Blast. DN non dichiara niente: e' il controllo, e la sua assenza di intento e' il contenuto.",
+      "intents": [
+        { "unit": "DG", "ability": "Action.Guard" },
+        { "unit": "DB", "ability": "Action.Brace" },
+
+        { "unit": "AG1", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
+        { "unit": "AG2", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
+        { "unit": "AG3", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
+
+        { "unit": "AB1", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
+        { "unit": "AB2", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
+        { "unit": "AB3", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
+
+        { "unit": "AN1", "ability": "Hero.Branth.ImpactShot", "target": "DN" },
+        { "unit": "AN2", "ability": "Hero.Branth.ImpactShot", "target": "DN" },
+        { "unit": "AN3", "ability": "Hero.Branth.ImpactShot", "target": "DN" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "DG", "value": 101 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 120 },
+    { "type": "UnitHpEquals", "unit": "DN", "value": 101 },
+    { "type": "UnitAtCell", "unit": "DG", "cell": [0, 2, 0] },
+    { "type": "UnitAtCell", "unit": "DB", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell", "unit": "DN", "cell": [0, -2, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
