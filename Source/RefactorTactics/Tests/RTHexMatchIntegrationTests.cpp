@@ -3432,4 +3432,47 @@ bool FRTPlanningOverlayIsDrivenByPlayerTickTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **`#3511` — l'ULTIMO turno non riaccende le aree dietro la schermata dei risultati, senza aspettare il tick.**
+ *
+ * E' il difetto di `#2555`: `OnResolvePlaybackFinished` scatta prima che `ConcludeTurn` imposti `MatchEnded`, quindi
+ * `HandlePlaybackFinished` ridipinge, e a chiudere resta `HandleMatchEndedPresentation`. Qui gli eventi sono ATTACCATI e il
+ * tick non gira: e' il percorso per eventi, che l'ingresso unico non sostituisce ma completa. Dopo, un tick lo conferma.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayMatchEndedPresentationTest,
+	"RefactorTactics.HexMatch.PlanningOverlayMatchEndedLeavesNothingLit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayMatchEndedPresentationTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	ARTUnit* Avversaria = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 1);
+	if (!TestNotNull(TEXT("c'e' un'avversaria da eliminare"), Avversaria))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestTrue(TEXT("controllo: in pianificazione le aree sono accese"), PreviewCellsLit(B.HexMap) > 0);
+
+	Avversaria->Health = 0;
+	CommitFromTimeout(B);
+	DrainPlayback(B.TM);
+	if (!TestEqual(TEXT("la partita e' finita"), B.TM->GetPhase(), ERTMatchPhase::MatchEnded))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	TestEqual(TEXT("a partita finita nessuna area e' accesa, per evento e senza tick"), PreviewCellsLit(B.HexMap), 0);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("e un tick non le riaccende"), PreviewCellsLit(B.HexMap), 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
