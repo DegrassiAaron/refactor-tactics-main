@@ -88,7 +88,7 @@ porta i pattern dei Secondary, un Secondary si disegna come **solo perimetro** (
 | Targeting, cursore non su un bersaglio accettato | **R** (il ventaglio sparisce: decisione d'autore in #3507) | — | #3507 | ✅ su `main` (#3513) |
 | Targeting, cursore su un bersaglio accettato | **E** | R, solo perimetro | #3512 | 🟡 |
 | Targeting, bersaglio già dichiarato | anteprima A (E al suo posto sull'hover di un altro bersaglio valido, DR-7 estesa) | R annidata: #3513 la tiene accesa finché l'azione è armata | #3512 (E sull'hover); A è già su `main` | ✅ A |
-| ResolutionPlayback, Modal | nessuna (un solo reset) | — | #3511 (reset) · #3510 (armo nel playback) | 🟡 il reset unico (#3511) resta aperto; l'armo nel playback è chiuso da #3510 ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| ResolutionPlayback, Modal | nessuna (un solo reset) | — | #3511 (reset) · #3510 (armo nel playback) | ✅ il reset unico è chiuso da #3511 (`ARTHexMapActor::ClearPlanningPreview`, regola derivata dallo stato); l'armo nel playback da #3510 ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)) |
 
 In `Targeting` V è **spenta** — proposta del panel, non ancora una decisione (Q7, da registrare su #1943) —: R è
 Primary e i Secondary non bastano. Con una
@@ -214,7 +214,9 @@ perché V non compaia su settori illegali.
   `PlayerTick`. Nessun produttore all'hover ricalcola il reachable set. Le aree nuove entrano da un solo punto
   (`FRTOverlayArea`). Commit, inizio della risoluzione o del playback, Cleanup, `Modal`, KO e fine partita sono **un solo
   reset** (l'unione con v1 FR-5). Il criterio di #172 «nessun refresh dentro un Tick» si riformula: «nessun ricalcolo con ingressi
-  invariati».
+  invariati». ✅ Fatto in [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511): `FRTPlanningOverlayInputs`,
+  `ARTPlayerController::UpdatePlanningOverlay` con due contatori, `ARTHexMapActor::ClearPlanningPreview`. Il solo cambio di cella
+  fa salire il primo contatore e non il secondo; un controller nuovo con N tick fermi calcola una volta.
 - **CX-3 Privacy.** Nessuna area prende posizioni nemiche in ingresso (test a mondi gemelli per ciascuna); i
   bersagli all'hover solo da nemici noti; la geometria mai osservata segue **una** regola per click, R e V (DR-2
   estesa).
