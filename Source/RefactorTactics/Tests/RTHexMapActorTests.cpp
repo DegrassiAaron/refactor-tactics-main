@@ -3115,8 +3115,8 @@ bool FRTHexMapActorPartialRebuildRespectsTheMaskTest::RunTest(const FString&)
 		{ TEXT("Borders"),        ERTRebuildFamily::Borders },
 		{ TEXT("Bodies"),         ERTRebuildFamily::Bodies },
 		{ TEXT("SurfaceVolumes"), ERTRebuildFamily::SurfaceVolumes },
-		// La maschera di una pennellata che DIPINGE (`URTHexPaintTool::BrushRebuildMask`): sette famiglie
-		// insieme, e la sola `EdgeFeatures` fuori. Copiata e non letta, perche' il modulo editor non e'
+		// La maschera di una pennellata che DIPINGE (`URTHexPaintTool::BrushRebuildMask`): tutte le famiglie
+		// tranne `EdgeFeatures`, che il pennello non scrive. Copiata e non letta, perche' il modulo editor non e'
 		// visibile da qui: il test che la legge davvero e' `HexTools.BrushRebuildMaskExcludesWhatTheBrushNeverWrites`.
 		{ TEXT("maschera del pennello"),
 		  ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs | ERTRebuildFamily::Relief

@@ -96,9 +96,10 @@ FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& P
  * tutto al rilascio (`RebuildInstances()` senza maschera), quindi il corpo stantio e il volume mancante
  * durano fino al rilascio e poi si riallineano. Una stesura precedente di questo commento diceva «fino a una
  * gomma o a un cambio d'asset», ereditata dal testo della issue, ed era falsa. Il prezzo e' il lavoro in piu'
- * sul percorso piu' caldo dell'authoring — una copia e un ordinamento delle celle per passo, piu' un ciclo sulle
- * celle con corpo — e **non e' stato misurato**: lo si paga per non mostrare, durante il trascinamento, un
- * corpo che attraversa il pavimento appena dipinto.
+ * sul percorso piu' caldo dell'authoring — `DeriveBodies` copia e ordina tutte le celle a ogni chiamata e, per
+ * ogni cella che dichiara un corpo, le scorre di nuovo: costo B per N, con B le celle con corpo e N le totali —
+ * e **non e' stato misurato**: lo si paga per non mostrare, durante il trascinamento, un corpo che attraversa
+ * il pavimento appena dipinto.
  *
  * ⛔ **L'ERASE non usa questa maschera, ed e' la ragione per cui la funzione prende `bPaint`**:
  * cancellare una cella la toglie da OGNI famiglia, comprese quelle che il pennello non scrive. Una cella
