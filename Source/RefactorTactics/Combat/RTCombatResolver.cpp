@@ -209,8 +209,8 @@ TArray<FRTAttack> URTCombatResolver::ApplyAbsorptionPool(const TArray<FRTAttack>
 			// ⚠️ Solo se ha morso: uno stadio che non si applica NON compare, perche' un elenco che
 			// contiene tutto non spiega niente (`#1951`).
 			//
-			// 🔑 La provenienza arriva dal CHIAMANTE e non e' piu' un letterale qui: i pool di produzione
-			// sono due, e questa funzione non sa quale la stia usando (`#2213`).
+			// 🔑 La provenienza arriva dal CHIAMANTE e non e' piu' un letterale qui: questa funzione non sa quale pool la stia
+			// usando (`#2213`; erano due, `Deflect` e `Guard`, fino a [D-408]).
 			Attack.Breakdown.Emplace(ERTDamageStage::AbsorptionPool,
 				SourceId, ERTDamageOp::Pool,
 				Absorbed, Attack.Power, Attack.Power - Absorbed);

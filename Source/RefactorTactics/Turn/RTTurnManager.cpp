@@ -6242,10 +6242,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// implementare prima di [D-212]: `FRTAttack` non portava l'attaccante, e «questo colpo e' frontale» non
 	// era esprimibile dentro il resolver.
 	// ⚠️ `bFrontalHit` e' indicizzato come `Plan.Hits`, ed e' lecito perche' `ToAttacks` mappa **1:1** e le
-	// due funzioni che stanno in mezzo (`ApplyFirstHitDelta`, `ApplyDamageDelta`) copiano l'array e toccano
-	// solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
+	// funzioni che stanno in mezzo (`ApplyFirstHitDelta`, `ApplyDamageDelta`, `ApplyAbsorptionPool`) copiano l'array e
+	// toccano solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
 	// questa maschera punterebbe ai colpi sbagliati **in silenzio** — e' l'assunzione da rompere per prima
-	// se il pool assorbisse dal lato sbagliato.
+	// se la Guardia riducesse i colpi sbagliati.
 	// ⏱️ *Era un POOL fino al 2026-09-20* ([D-292]): un budget di 15 danni assorbibili per il turno, che i
 	// colpi frontali consumavano. [D-408] lo ritira e riporta la Guardia a una **riduzione per colpo**, il
 	// cui valore lo dichiara il personaggio. Il segno e' NEGATIVO perche' e' un delta, nella convenzione di
@@ -6284,7 +6284,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			//
 			// L'ORIGINE dell'arco non e' sempre chi ha attaccato: per un'AREA e' il CENTRO D'IMPATTO
 			// ([D-302] punto 3, `#2009`). Una granata fatta cadere DAVANTI a chi e' in Guardia da un
-			// lanciatore che gli sta alle SPALLE arriva, per lui, da davanti — e il pool va consumato.
+			// lanciatore che gli sta alle SPALLE arriva, per lui, da davanti — e la riduzione si applica.
 			// Con la cella del lanciatore usciva un `RearHitBypassedGuard` per un colpo che il difensore
 			// vedeva arrivare, e il simmetrico proteggeva da un ordigno esploso dietro le spalle.
 			//
@@ -6465,9 +6465,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		}
 	}
 
-	// L'assorbimento della Guardia viene per ULTIMO, dopo i modificatori del danno ([D-292]): il pool copre
-	// cio' che resta, non il danno nominale. E' la lettura coerente con «quanto danno la guardia regge»: se
-	// assorbisse per primo, `Status.Exposed` ne mangerebbe una parte prima che il difensore la usi.
+	// La riduzione della Guardia viene per ULTIMA, dopo i modificatori del danno: si clampa a 0 (una riduzione non cura),
+	// quindi applicata prima dei delta che AGGIUNGONO (`Status.Exposed`, `Status.Marked`) ne perderebbe l'avanzo — 10 meno
+	// 15 fa 0 e il +5 che segue lo riporta a 5, mentre 10 piu' 5 meno 15 fa 0.
+	// ⏱️ *Fino al 2026-09-20 la ragione era quella del pool ([D-292]): coprire cio' che resta, non il danno nominale.*
 	//
 	// `Deflect` assorbe PRIMA di `Guard`, ed e' una decisione ([D-312]), non l'ordine in cui e' comodo
 	// scrivere le chiamate. Le due maschere sono parzialmente sovrapposte (`Guard` e' un sottoinsieme di

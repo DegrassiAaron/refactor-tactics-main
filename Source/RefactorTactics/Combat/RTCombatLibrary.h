@@ -379,7 +379,7 @@ public:
 	static constexpr int32 UnbalancedExtraDisplacement = 1;
 
 	/**
-	 * Le due PROVENIENZE dei pool d'assorbimento, nel vocabolario di `FRTDamageStageEntry::SourceId`
+	 * Le PROVENIENZE dei pool d'assorbimento e della riduzione della Guardia, nel vocabolario di `FRTDamageStageEntry::SourceId`
 	 * (`#2213`). Stanno qui e non come letterali ai chiamanti per la stessa ragione degli altri valori di
 	 * questa lista: un letterale ripetuto e' un refuso che compila.
 	 *
@@ -392,8 +392,8 @@ public:
 	 *
 	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: la sua mitigazione e' gated su
 	 * `TAG_Status_Guarded`. ⏱️ *Da [D-408] non e' piu' un pool — la provenienza corrente e'
-	 * `GuardPerHitSource`, e `GuardPoolSource` resta perche' il `Deflect` e le tracce gia' scritte la
-	 * usano.*
+	 * `GuardPerHitSource`, e `GuardPoolSource` resta come etichetta del modello ritirato: in produzione nessuno la scrive piu',
+	 * e due test di `RTCombatResolverTests.cpp` la usano per costruire il pool come controfattuale.*
 	 */
 	static const FName GuardPoolSource;
 	static const FName ReactionReductionPoolSource;
@@ -406,8 +406,8 @@ public:
 	 * `D-292 · Status.Guarded` resta leggibile e vera per il turno che la produsse. Cancellare la costante
 	 * renderebbe illeggibile il passato per far posto al presente.
 	 *
-	 * 🔑 **E il `Deflect` resta un pool** ([D-309], che `D-408` **non** ritira): `GuardPoolSource` conserva
-	 * un secondo lettore proprio perche' quel modello sopravvive alla Guardia.
+	 * 🔑 **E il `Deflect` resta un pool** ([D-309], che `D-408` **non** ritira), ma ha la propria provenienza,
+	 * `ReactionReductionPoolSource`: `GuardPoolSource` non e' sua.
 	 */
 	static const FName GuardPerHitSource;
 

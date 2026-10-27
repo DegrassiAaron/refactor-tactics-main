@@ -92,7 +92,8 @@ namespace
 	}
 }
 
-// Le due provenienze dei pool d'assorbimento (`#2213`). La ragione per cui la seconda non nomina un
+// Le provenienze dei pool d'assorbimento e della Guardia (`#2213`, `D-408`). La ragione per cui `ReactionReductionPoolSource`
+// non nomina un
 // `ActionId` sta sulla dichiarazione, in `RTCombatLibrary.h`.
 const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
 const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 · Reactions.DamageReduction"));

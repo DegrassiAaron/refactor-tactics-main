@@ -2777,7 +2777,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			//
 			// ⚠️ **`Unbalanced` rende la guardia inerte QUI, e solo qui** ([D-319]): chi ha perso
 			// l'equilibrio non puo' piantarsi per non cadere. ⛔ **L'inerzia si ferma allo spostamento**, e
-			// non e' una mezza misura: il pool da 15 sull'arco frontale ([D-292]) resta intatto, perche'
+			// non e' una mezza misura: la riduzione di 15 su ogni colpo frontale ([D-408]; con [D-292] era un pool da 15) resta intatta, perche'
 			// l'argomento di design parla di equilibrio e non di protezione, e cancellarlo sposterebbe il
 			// bilanciamento di due eroi — tre pin lo misurano (`Spec.Brace.GuardAndBraceOnMixedHit`,
 			// `Spec.Brace.GuardWinsOnFrontalHits`, `Visual.Combat.DefenseVsNoneUnderSmallHits`). Il prezzo
@@ -2807,8 +2807,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
 			// oggi, con il loadout di default di Phase.
 			//
-			// Resta vero che le due differiscono anche nel danno (un POOL di 15 sull'arco frontale, [D-292],
-			// contro -10 su OGNI colpo da ogni lato), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
+			// Resta vero che le due differiscono anche nel danno (-15 su OGNI colpo frontale, [D-408]; con [D-292] era un
+			// POOL di 15, contro -10 su OGNI colpo da ogni lato), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
 			// `Spec.Brace.GuardWinsOnFrontalHits`. ⏱️ *Questa riga diceva «-15 sul primo colpo» fino al
 			// 2026-09-03: sotto la soglia del pool il confronto si CAPOVOLGE — con colpi da 8 il `Brace`
 			// azzera tutto e la Guardia no — e lo mostrava `Visual.Combat.GuardVsBraceUnderSmallHits`, oggi `DefenseVsNoneUnderSmallHits` — che da D-408 chiude i due difensori allo stesso numero e non lo mostra piu'.*
