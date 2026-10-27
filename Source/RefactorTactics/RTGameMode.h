@@ -466,8 +466,17 @@ public:
 	/**
 	 * Assegna a ogni unita il proprio GRUPPO DI CONTROLLO dentro la squadra — `CP 19.3`, `#1124`.
 	 *
-	 * Idempotente e no-op finche non ci sono unita nel mondo: `AssignSeats` gira anche su `OnPostLogin`,
-	 * prima che il bootstrapper abbia allestito.
+	 * No-op finche non ci sono unita nel mondo: `AssignSeats` gira anche su `OnPostLogin`, prima che il
+	 * bootstrapper abbia allestito. E no-op **dopo la prima partizione di un allestimento** — `#2942`.
+	 *
+	 * 🔴 **Il gruppo e un fatto dell'allestimento, non della connessione.** L'ordine d'ingresso parte dalla
+	 * cella, e le celle cambiano a ogni turno: rigirare la partizione quando un controller entra a partita
+	 * iniziata consegnerebbe a un posto un'unita diversa da quella con cui aveva cominciato. E la forma di
+	 * `ARTTurnManager::EnsureMatchRoster` con `StableUnitId`: l'identita si assegna una volta.
+	 *
+	 * **Chi entra dopo** non causa nessuna riassegnazione: riceve il proprio gruppo da `AssignSeats`
+	 * (`ARTPlayerState::ControlGroup`, per arrivo) e comanda le unita che gia portano quel gruppo.
+	 * `SetupHexMatch` riporta il guardiano a zero, perche un nuovo allestimento porta unita nuove.
 	 */
 	void AssignUnitControlGroups();
 
@@ -478,6 +487,12 @@ private:
 	/** Le regole dell'ultimo allestimento riuscito. Vuote finche' non c'e' stato. */
 	FRTMatchRules AssignedRules;
 	bool bHasRules = false;
+
+	/**
+	 * `AssignUnitControlGroups` ha gia partizionato le unita di questo allestimento (`#2942`). Si accende
+	 * alla prima partizione che vede unita e si spegne in `SetupHexMatch`, che ne porta di nuove.
+	 */
+	bool bUnitControlGroupsAssigned = false;
 
 protected:
 	virtual void BeginPlay() override;
