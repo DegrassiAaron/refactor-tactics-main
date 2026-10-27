@@ -3312,6 +3312,9 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		if (bDoEdges)   { LastRebuildCreated += Conta(EdgeFeatures); }
 		if (bDoBorders) { LastRebuildCreated += Conta(CellBorders); }
 		if (bDoBodies)  { LastRebuildCreated += Conta(StructuralBodies); }
+		// `#3893`: i volumi di superficie sono una famiglia come le altre. Entrati nella maschera del pennello con `#2732`,
+		// dopo questo metro, non c'erano: una ricostruzione dei soli volumi rispondeva zero.
+		if (bDoSurfaceVolumes) { LastRebuildCreated += Conta(SurfaceVolumes); }
 		if (bDoGlyphs)
 		{
 			for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring) { LastRebuildCreated += Conta(SurfaceGlyphs[Ring]); }
