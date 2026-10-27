@@ -31,7 +31,11 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/** L'unita' e' viva. Un'unita' caduta, ancora selezionata a fine playback, non pianifica (`AC-10`, `#3517`). */
 	bool bUnitAlive = false;
 
-	/** Il contesto del puntatore: lo decide `GetPointerContext`, e qui si legge, non si ricalcola. */
+	/**
+	 * Il contesto del puntatore: lo decide `GetPointerContext`, e qui si legge, non si ricalcola. ⚠️ Rompe l'uguaglianza ma
+	 * NON `SamePlanLevel` quando cambia fra contesti che mostrano le aree (es. `Planning` → `Facing`): il piano si rifa'
+	 * solo se cambia se le aree si mostrano (`ShowsAreas()`).
+	 */
 	ERTPointerContext Context = ERTPointerContext::IdleSelection;
 
 	/** L'azione armata, `INDEX_NONE` se nessuna. */
@@ -47,7 +51,10 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/** Il settore puntato sull'esagono finale in `Facing`, `INDEX_NONE` se nessuno. */
 	int32 FacingSector = INDEX_NONE;
 
-	/** Il piano attivo (`D-255`). */
+	/**
+	 * Il piano attivo (`D-255`). ⚠️ **Vive a livello dell'hover, non del piano**: decide quale cella sotto il cursore un click
+	 * seleziona, e `RefreshPlanningPreview` non lo legge — PageUp/PageDown non rifanno il ventaglio.
+	 */
 	int32 ActiveLayer = 0;
 
 	/** Sale a ogni richiesta esplicita di ricalcolo: il piano cambia senza che nessun altro campo lo dica. */
@@ -65,6 +72,8 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/**
 	 * Uguali **a meno dell'hover**: cio' da cui dipende il PIANO. Una differenza qui rifa il ventaglio e la portata; una
 	 * differenza nel solo hover no (`CX-2`: «nessun produttore all'hover ricalcola il reachable set», criterio di `#711`).
+	 * Stanno FUORI da questo livello la cella sotto il cursore con la sua validita', il settore puntato, il piano attivo e il
+	 * valore esatto del contesto.
 	 */
 	bool SamePlanLevel(const FRTPlanningOverlayInputs& Other) const;
 

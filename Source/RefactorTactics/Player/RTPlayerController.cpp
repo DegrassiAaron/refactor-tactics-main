@@ -259,6 +259,12 @@ namespace
 			return;
 		}
 
+		// 🔴 **La ROTTA si riscrive dal piano, qui** (`#3511`, review). I siti che la tracciano la scrivevano prima di chiamare
+		// questa funzione, e andava bene finche' a spegnere era un evento che poi non tornava. Con la regola derivata dallo
+		// stato le aree si spengono e tornano senza un evento: `ClearPlanningPreview` azzera anche la rotta, e il ritorno dalla
+		// pausa con un piano gia' tracciato la lasciava spenta mentre ventaglio, portata e timeline tornavano.
+		HexMap->SetPreviewPath(Unit->PlannedPath);
+
 		// Dove puo' ANCORA arrivare: budget, blocchi, occupanti e archi sono gia' applicati, e i waypoint gia'
 		// pianificati hanno gia' speso la loro parte (#877). Il ventaglio risponde a «quanto mi resta», non a
 		// «quanto avevo»: senza i waypoint mostrerebbe un raggio che il piano in corso ha gia' consumato.

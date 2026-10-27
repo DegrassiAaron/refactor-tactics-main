@@ -52,10 +52,14 @@ namespace
 		return {
 			{ TEXT("Unit"), true, [](FRTPlanningOverlayInputs& I) { I.Unit = PlanOverlayUnitB(); } },
 			{ TEXT("bUnitAlive"), true, [](FRTPlanningOverlayInputs& I) { I.bUnitAlive = false; } },
-			{ TEXT("Context"), true, [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Pathing; } },
+			// Il contesto conta nell'uguaglianza ma al livello del piano conta solo se cambia fra mostrare e non mostrare le aree.
+			{ TEXT("Context (fra contesti che mostrano le aree)"), false,
+				[](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Pathing; } },
+			{ TEXT("Context (da mostrare a non mostrare)"), true,
+				[](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::ResolutionPlayback; } },
 			{ TEXT("ArmedAbilityIndex"), true, [](FRTPlanningOverlayInputs& I) { I.ArmedAbilityIndex = 3; } },
 			{ TEXT("ArmedTargetKind"), true, [](FRTPlanningOverlayInputs& I) { I.ArmedTargetKind = ERTPointerTargetKind::Cell; } },
-			{ TEXT("ActiveLayer"), true, [](FRTPlanningOverlayInputs& I) { I.ActiveLayer = 0; } },
+			{ TEXT("ActiveLayer"), false, [](FRTPlanningOverlayInputs& I) { I.ActiveLayer = 0; } },
 			{ TEXT("PlanRevision"), true, [](FRTPlanningOverlayInputs& I) { I.PlanRevision += 1; } },
 			{ TEXT("TurnIndex"), true, [](FRTPlanningOverlayInputs& I) { I.TurnIndex += 1; } },
 			{ TEXT("bMatchEnded"), true, [](FRTPlanningOverlayInputs& I) { I.bMatchEnded = true; } },

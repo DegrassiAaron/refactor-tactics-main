@@ -3131,14 +3131,34 @@ bool FRTPlanningOverlayComputesOnlyOnChangedInputsTest::RunTest(const FString&)
 	TestEqual(TEXT("...ne' il piano"), DP(), 0);
 
 	// 2. LA SOLA CELLA: +1 calcolo, e il ventaglio non si rifa'.
+	//
+	// 🔑 **Il ventaglio si prova con un SENTINELLA, non col contatore**: il contatore lo fa salire il codice sotto test, nello
+	// stesso ramo che decide, e un produttore sull'hover che scrivesse il ventaglio da fuori non lo muoverebbe. Si sovrascrive
+	// il ventaglio con UNA cella e si guarda che dopo il cambio ce ne sia ancora una: un ricalcolo la sostituirebbe con tutto
+	// il ventaglio del piano (review di `#3511`).
+	B.HexMap->SetPreviewReachableCells({ B.Mine->Cell });
+	TestTrue(TEXT("controllo: il sentinella e' diverso dal ventaglio del piano"),
+		B.HexMap->NumPreviewReachableCells() != VentaglioDelPiano);
 	Mark();
 	B.HexMap->SetHoveredCell(Vicini[0], /*bValid=*/ true);
 	B.PC->UpdatePlanningOverlay();
 	TestEqual(TEXT("la sola cella sotto il cursore aggiunge un calcolo"), DC(), 1);
 	TestEqual(TEXT("e non rifa' ventaglio e portata (criterio di `#711`)"), DP(), 0);
-	TestEqual(TEXT("il ventaglio e' quello di prima"), B.HexMap->NumPreviewReachableCells(), VentaglioDelPiano);
+	TestEqual(TEXT("il ventaglio e' ancora il sentinella: nessuno l'ha riscritto"), B.HexMap->NumPreviewReachableCells(), 1);
 	for (int32 Tick = 0; Tick < 5; ++Tick) { B.PC->UpdatePlanningOverlay(); }
 	TestEqual(TEXT("e i tick seguenti, con la cella ferma, non ne aggiungono"), DC(), 1);
+
+	// 2b. IL SOLO PIANO ATTIVO: e' un ingresso, ma decide quale cella si seleziona e non il ventaglio.
+	Mark();
+	B.PC->ActiveLayer = 1;
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("il solo piano attivo aggiunge un calcolo"), DC(), 1);
+	TestEqual(TEXT("ma non rifa' il piano"), DP(), 0);
+	TestEqual(TEXT("e il ventaglio e' ancora il sentinella"), B.HexMap->NumPreviewReachableCells(), 1);
+	B.PC->ActiveLayer = 0;
+	B.PC->UpdatePlanningOverlay();
+	B.PC->RefreshPlanningOverlay(B.Mine); // rimette il ventaglio vero prima dei passi che lo guardano
+	TestEqual(TEXT("controllo: il rinfresco esplicito lo rimette"), B.HexMap->NumPreviewReachableCells(), VentaglioDelPiano);
 
 	// 3. UN'OSCILLAZIONE fra due celle: tanti calcoli quanti sono i cambi.
 	Mark();
@@ -3326,7 +3346,11 @@ bool FRTPlanningOverlayEveryExitTurnsEveryMeaningOffTest::RunTest(const FString&
  *
  * Fino a `#3511` le riaccendeva `HandlePlaybackFinished`, cioe' un evento (`#2555`). Ora e' la stessa funzione che le spegne:
  * stato di pianificazione → aree. Prima con il controller STACCATO dagli eventi, per provare che basta lo stato; poi con gli
- * eventi attaccati, come in partita, per provare che i due percorsi concordano e non si calcolano a vicenda due volte.
+ * eventi attaccati, come in partita, per provare che i due percorsi concordano sulle aree.
+ *
+ * ⚠️ **Non si escludono del tutto a vicenda**, e il test lo dice invece di tacerlo: `OnResolvePlaybackFinished` scatta PRIMA che
+ * `ConcludeTurn` faccia salire il numero del turno (`RTTurnManager.cpp`, la lettura della review di `#3511`), quindi il primo
+ * tick dopo l'evento puo' vedere un indice nuovo e ricalcolare UNA volta. Il test pone il tetto a uno e ne registra il valore.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayReturnsWithTheStateAfterPlaybackTest,
 	"RefactorTactics.HexMatch.PlanningOverlayReturnsWithTheStateAfterPlayback",
@@ -3355,7 +3379,11 @@ bool FRTPlanningOverlayReturnsWithTheStateAfterPlaybackTest::RunTest(const FStri
 
 		DrainPlayback(B.TM);
 		TestFalse(*FString::Printf(TEXT("[%s] il playback e' finito"), *Quando), B.TM->IsResolving());
+		const int32 PrimaDelTick = B.PC->GetPlanningOverlayComputations();
 		B.PC->UpdatePlanningOverlay();
+		const int32 DelPrimoTick = B.PC->GetPlanningOverlayComputations() - PrimaDelTick;
+		AddInfo(FString::Printf(TEXT("[%s] calcoli del primo tick dopo il playback: %d"), *Quando, DelPrimoTick));
+		TestTrue(*FString::Printf(TEXT("[%s] il primo tick dopo il playback calcola al piu' una volta"), *Quando), DelPrimoTick <= 1);
 		TestTrue(*FString::Printf(TEXT("[%s] a playback finito il tick le riaccende dallo stato"), *Quando),
 			PreviewCellsLit(B.HexMap) > 0);
 
@@ -3471,6 +3499,105 @@ bool FRTPlanningOverlayMatchEndedPresentationTest::RunTest(const FString&)
 	B.PC->UpdatePlanningOverlay();
 	TestEqual(TEXT("e un tick non le riaccende"), PreviewCellsLit(B.HexMap), 0);
 
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3511` — un controller NUOVO, N tick a ingressi invariati: un solo calcolo.**
+ *
+ * E' la frase della DoD alla lettera. Gli altri test misurano delta dopo l'allestimento del banco, che ha gia' calcolato piu'
+ * volte; qui il contatore parte da zero. Due controller: senza selezione (il primo tick calcola che non c'e' niente da
+ * mostrare, e lo spegne) e con una selezione (la selezione e' un rinfresco esplicito, che calcola il piano).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayFreshControllerComputesOnceTest,
+	"RefactorTactics.HexMatch.PlanningOverlayFreshControllerComputesOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayFreshControllerComputesOnceTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	ARTPlayerController* SenzaSelezione = RTWorldFixtures::MakePlayerOnTeam(B.World, /*TeamId=*/ 0);
+	ARTPlayerController* ConSelezione = RTWorldFixtures::MakePlayerOnTeam(B.World, /*TeamId=*/ 0);
+	if (!TestNotNull(TEXT("primo controller nuovo"), SenzaSelezione) || !TestNotNull(TEXT("secondo controller nuovo"), ConSelezione))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("controllo: un controller nuovo parte da zero calcoli"), SenzaSelezione->GetPlanningOverlayComputations(), 0);
+
+	for (int32 Tick = 0; Tick < 10; ++Tick) { SenzaSelezione->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("senza selezione, dieci tick danno un solo calcolo"), SenzaSelezione->GetPlanningOverlayComputations(), 1);
+	TestEqual(TEXT("e non rifanno nessun piano: non c'e' niente da mostrare"), SenzaSelezione->GetPlanningOverlayPlanComputations(), 0);
+
+	ConSelezione->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	const int32 DopoLaSelezione = ConSelezione->GetPlanningOverlayComputations();
+	TestEqual(TEXT("selezionare un'unita' e' un calcolo"), DopoLaSelezione, 1);
+	TestEqual(TEXT("...che rifa' il piano"), ConSelezione->GetPlanningOverlayPlanComputations(), 1);
+	for (int32 Tick = 0; Tick < 10; ++Tick) { ConSelezione->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("e dieci tick a ingressi invariati non ne aggiungono"), ConSelezione->GetPlanningOverlayComputations(), DopoLaSelezione);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3511` — la pausa spegne le aree e il RESUME le restituisce com'erano, rotta compresa.**
+ *
+ * Il difetto che la review ha trovato: `ClearPlanningPreview` azzera anche la rotta, e il ritorno dalla pausa rifaceva ventaglio,
+ * portata e timeline ma non la rotta, che solo i siti degli eventi scrivevano. Il confronto e' per OGNI significato, prima e dopo:
+ * «torna qualcosa» (`PreviewCellsLit > 0`) sarebbe verde con la rotta ancora spenta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayComesBackFromModalAsItWasTest,
+	"RefactorTactics.HexMatch.PlanningOverlayComesBackFromModalAsItWas",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayComesBackFromModalAsItWasTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	B.PC->UpdatePlanningOverlay();
+
+	TArray<int32> Prima;
+	for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+	{
+		Prima.Add(B.HexMap->NumPlanningPreviewCells(Meaning));
+	}
+	TestTrue(TEXT("controllo: prima della pausa c'e' una rotta tracciata"), B.HexMap->NumPreviewPathCells() > 0);
+	TestTrue(TEXT("controllo: e il piano ha dei waypoint"), B.Mine->PlannedWaypoints.Num() > 0);
+
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	GameInstance->AddToRoot();
+	GameInstance->Init();
+	URTFrontendNavigator* Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
+	if (TestNotNull(TEXT("il navigatore esiste"), Navigator))
+	{
+		B.World->SetGameInstance(GameInstance);
+		Navigator->EnterMatch();
+		Navigator->ShowPause();
+		B.PC->UpdatePlanningOverlay();
+		TestEqual(TEXT("con la pausa aperta nessuna area e' accesa"), PreviewCellsLit(B.HexMap), 0);
+
+		Navigator->ResumeMatch();
+		B.PC->UpdatePlanningOverlay();
+		int32 Indice = 0;
+		for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
+		{
+			TestEqual(*FString::Printf(TEXT("dopo il RESUME %s e' com'era prima della pausa"), *PlanOverlayMeaningName(Meaning)),
+				B.HexMap->NumPlanningPreviewCells(Meaning), Prima[Indice++]);
+		}
+	}
+
+	GameInstance->Shutdown();
+	GameInstance->RemoveFromRoot();
 	DestroyHexMatchWorld(B.World);
 	return true;
 }

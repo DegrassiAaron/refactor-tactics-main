@@ -1665,7 +1665,7 @@ public:
 	/**
 	 * Il piano di `Unit` e' cambiato (o e' cambiata l'unita'): ricalcola SUBITO le aree. `Unit == nullptr` le spegne.
 	 *
-	 * 🔑 **Sostituisce le sedici chiamate dirette a `RefreshPlanningPreview`**: sale `PlanRevision`, perche' un waypoint
+	 * 🔑 **Sostituisce le chiamate dirette a `RefreshPlanningPreview`**: sale `PlanRevision`, perche' un waypoint
 	 * aggiunto non cambia nessun altro ingresso, e passa per lo stesso confronto e lo stesso reset di `UpdatePlanningOverlay`.
 	 * Il tick successivo trova gli ingressi uguali e non rifa' niente.
 	 *
