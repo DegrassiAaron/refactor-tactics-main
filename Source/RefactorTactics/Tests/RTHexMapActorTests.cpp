@@ -20,6 +20,7 @@
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 #include "RTConsoleVariableGuardForTest.h"
 #include "Map/RTSpawnPoint.h" // #3632: lo spawn da marker resta sulla quota vera dell'asset
+#include "Map/RTGeometryGrammar.h" // FRTGeometrySegment: il muro interno della fixture dei pannelli di bordo
 #include "Misc/OutputDeviceRedirector.h" // GLog->AddOutputDevice: il rifiuto si legge dalla riga che lo nomina
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -2963,6 +2964,176 @@ bool FRTHexMapActorStairSkippingALayerIsRefusedTest::RunTest(const FString&)
 	Actor->AddVerticalTransition();
 	TestEqual(TEXT("un tipo che la v0.1 non vincola passa anche attraverso un salto"),
 		Asset->Transitions.Num(), 2);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Il numero di istanze di OGNI ISM dell'actor, come una stringa ordinata per nome.
+	 *
+	 * Una stringa e non una `TMap`: `TMap` non ha un confronto per valore, e quando due fotografie divergono
+	 * il messaggio deve mostrare QUALE componente e' cambiato, non dire soltanto «diverse». L'ordine e' quello
+	 * dei nomi perche' `GetComponents` itera un `TSet` e non promette nessun ordine.
+	 */
+	FString RTRebuildSnapshotOfEveryIsm(const ARTHexMapActor* Actor)
+	{
+		TArray<UInstancedStaticMeshComponent*> Isms;
+		Actor->GetComponents(Isms);
+		TArray<FString> Righe;
+		for (const UInstancedStaticMeshComponent* Ism : Isms)
+		{
+			if (Ism)
+			{
+				Righe.Add(FString::Printf(TEXT("%s=%d"), *Ism->GetName(), Ism->GetInstanceCount()));
+			}
+		}
+		Righe.Sort();
+		return FString::Join(Righe, TEXT("; "));
+	}
+}
+
+/**
+ * Una ricostruzione PARZIALE non pulisce e non riempie cio' che la maschera esclude — `#2732`.
+ *
+ * 🔴 **Il contratto sta in `RebuildInstances`**: *«Cio' che non e' nella maschera non viene ne' pulito ne'
+ * riempito»*. Ogni famiglia ha una pulizia e uno o piu' siti di aggiunta, e la regola vale solo se TUTTI
+ * portano la guardia della propria famiglia. Quando ne manca una, la famiglia non toccata si riempie
+ * comunque: i pannelli di bordo si sono raddoppiati cosi', in silenzio, e nessun oracolo li ha visti — il
+ * conteggio che `VeilInstances` controlla cresce INSIEME all'array che confronta.
+ *
+ * ⚠️ **La fixture deve accendere ogni famiglia**, o la famiglia spenta e' strutturalmente non osservabile e
+ * la sua guardia si puo' cancellare senza che un'asserzione cada: lo stesso avvertimento del test
+ * dell'idempotenza totale. Per questo ci sono una cella costosa, una che blocca, una copertura, una porta,
+ * un muro interno, il fumo, il ghiaccio e un corpo strutturale, e la baseline asserisce che ognuno abbia
+ * prodotto qualcosa.
+ *
+ * 🔑 **Si confronta l'intera fotografia degli ISM e non un componente alla volta**, perche' la guardia
+ * mancante e' sempre su un componente DIVERSO da quello che la maschera nomina.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPartialRebuildRespectsTheMaskTest,
+	"RefactorTactics.HexMapActor.PartialRebuildNeitherCleansNorFillsWhatTheMaskExcludes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPartialRebuildRespectsTheMaskTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 1); // sette celle a Layer 0
+	{
+		FRTHexCellData Costosa(FRTCellId(1, 0, 0));
+		Costosa.Surface = ERTHexSurface::Rough;
+		Costosa.MoveCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Rough).MoveCost;
+		Asset->AddOrUpdateCell(Costosa);
+
+		FRTHexCellData Blocco(FRTCellId(0, 1, 0));
+		Blocco.bBlocksMovement = true;
+		Asset->AddOrUpdateCell(Blocco);
+
+		FRTHexCellData ConCopertura(FRTCellId(-1, 0, 0));
+		ConCopertura.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low));
+		Asset->AddOrUpdateCell(ConCopertura);
+
+		FRTHexCellData ConPorta(FRTCellId(0, -1, 0));
+		FRTHexDoor Porta;
+		Porta.Edge = ERTHexDirection::W;
+		Porta.State = ERTHexDoorState::Closed;
+		ConPorta.Doors.Add(Porta);
+		Asset->AddOrUpdateCell(ConPorta);
+
+		FRTHexCellData Fumo(FRTCellId(-1, 1, 0));
+		Fumo.Surface = ERTHexSurface::Smoke;   // l'unica superficie con un volume, e un anello di glifi
+		Asset->AddOrUpdateCell(Fumo);
+
+		FRTHexCellData Ghiaccio(FRTCellId(1, -1, 0));
+		Ghiaccio.Surface = ERTHexSurface::Ice; // quattro anelli di glifi: popola il QUARTO ISM dei glifi
+		Asset->AddOrUpdateCell(Ghiaccio);
+
+		// Un corpo strutturale: una cella a Layer 1 che dichiara `BodyFill`, sopra una a Layer 0.
+		FRTHexCellData ConCorpo(FRTCellId(0, 0, 1));
+		ConCorpo.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(ConCorpo);
+		Asset->SortCells();
+
+		// Il SECONDO sito che scrive in `EdgeFeatures` e' il muro interno, non la copertura.
+		FRTGeometrySegment Segmento;
+		Segmento.Axis = ERTTacticalAxis::Deg90;
+		Segmento.Offset = 0;
+		Segmento.AlongStart = -RT_GeometryQuanta / 2;
+		Segmento.AlongEnd = RT_GeometryQuanta / 2;
+		Segmento.Layer = 0;
+		Segmento.WallType = ERTHexCoverType::High;
+		Asset->InteriorWalls.Add(FRTHexInteriorWall(FRTCellId(0, 0, 0), Segmento));
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// ── Anti-vacuita': ogni famiglia deve aver prodotto qualcosa, o la sua guardia non e' osservabile ───
+	const TCHAR* Famiglie[] = { TEXT("Cells"), TEXT("Relief"), TEXT("Blockers"), TEXT("EdgeFeatures"),
+		TEXT("StructuralBodies"), TEXT("SurfaceVolumes"), TEXT("CellBorders") };
+	bool bFixtureAccende = true;
+	for (const TCHAR* Nome : Famiglie)
+	{
+		bFixtureAccende &= TestTrue(*FString::Printf(TEXT("premessa: la fixture accende %s"), Nome),
+			MapActorIsmCount(Actor, Nome) > 0);
+	}
+	int32 Glifi = 0;
+	for (int32 Anello = 1; Anello <= 4; ++Anello)
+	{
+		Glifi += MapActorIsmCount(Actor, *FString::Printf(TEXT("SurfaceGlyph%d"), Anello));
+	}
+	bFixtureAccende &= TestTrue(TEXT("premessa: la fixture accende i glifi"), Glifi > 0);
+	// Tre sorgenti, tre pannelli almeno: copertura, porta e muro interno. E' il numero che rende osservabili
+	// ENTRAMBI i siti di aggiunta di `EdgeFeatures`.
+	bFixtureAccende &= TestTrue(TEXT("premessa: copertura, porta e muro interno producono un pannello ciascuno"),
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")) >= 3);
+	if (!bFixtureAccende)
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// La baseline e' una ricostruzione TOTALE, non lo stato di spawn: la fotografia che le parziali devono
+	// lasciare invariata e' quella di una ricostruzione completa.
+	Actor->RebuildInstances();
+	const FString Baseline = RTRebuildSnapshotOfEveryIsm(Actor);
+
+	struct FProva { const TCHAR* Nome; ERTRebuildFamily Maschera; };
+	const FProva Prove[] = {
+		{ TEXT("Cells"),          ERTRebuildFamily::Cells },
+		{ TEXT("Glyphs"),         ERTRebuildFamily::Glyphs },
+		{ TEXT("Relief"),         ERTRebuildFamily::Relief },
+		{ TEXT("Blockers"),       ERTRebuildFamily::Blockers },
+		{ TEXT("EdgeFeatures"),   ERTRebuildFamily::EdgeFeatures },
+		{ TEXT("Borders"),        ERTRebuildFamily::Borders },
+		{ TEXT("Bodies"),         ERTRebuildFamily::Bodies },
+		{ TEXT("SurfaceVolumes"), ERTRebuildFamily::SurfaceVolumes },
+		// La maschera di una pennellata che DIPINGE (`URTHexPaintTool::BrushRebuildMask`): tutte le famiglie
+		// tranne `EdgeFeatures`, che il pennello non scrive. Copiata e non letta, perche' il modulo editor non e'
+		// visibile da qui: il test che la legge davvero e' `HexTools.BrushRebuildMaskExcludesWhatTheBrushNeverWrites`.
+		{ TEXT("maschera del pennello"),
+		  ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs | ERTRebuildFamily::Relief
+			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders | ERTRebuildFamily::Bodies
+			| ERTRebuildFamily::SurfaceVolumes },
+	};
+	for (const FProva& Prova : Prove)
+	{
+		// Tre giri: e' il trascinamento, che ricostruisce a ogni cella toccata. Un solo giro raddoppierebbe
+		// e lo si vedrebbe lo stesso, ma tre rendono la crescita inequivocabile nel messaggio.
+		for (int32 Giro = 0; Giro < 3; ++Giro)
+		{
+			Actor->RebuildInstances(Prova.Maschera);
+		}
+		TestEqual(*FString::Printf(TEXT("tre ricostruzioni parziali (%s) lasciano ogni ISM com'era"), Prova.Nome),
+			RTRebuildSnapshotOfEveryIsm(Actor), Baseline);
+	}
 
 	DestroyMapActorWorld(World);
 	return true;
