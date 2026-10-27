@@ -7,6 +7,7 @@
 #include "UObject/UObjectIterator.h"
 
 #include "Map/RTHexCellData.h" // ERTHexSurface
+#include "Map/RTHexLibrary.h"    // SurfaceVolumeFor: il fumo e' l'unica superficie con un volume
 #include "Terrain/RTTerrainLibrary.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/Engine.h"
@@ -328,7 +329,8 @@ bool FRTHexReadoutDoesNotAutoUpdateTest::RunTest(const FString&)
  * e muri interni, che il pennello non scrive mai.
  *
  * 🔴 **`Bodies` NON resta fuori** (`#2732`): il corpo di una cella dipende da cio' che le sta sotto, e una
- * pennellata puo' creare quella cella. Il test di comportamento che lo dimostra e' piu' sotto.
+ * pennellata puo' creare quella cella. **Nemmeno `SurfaceVolumes`**: il volume lo decide `Surface`, che il
+ * pennello scrive. I due test di comportamento che lo dimostrano sono piu' sotto.
  *
  * 🔴 **E l'erase ricostruisce TUTTO**, che e' la riga capace di cadere: cancellare una cella la toglie da
  * ogni famiglia, comprese quelle escluse. Con la maschera ridotta, una cella con coperture lascerebbe
@@ -360,6 +362,10 @@ bool FRTHexPaintToolRebuildMaskTest::RunTest(const FString&)
 	TestTrue(TEXT("i corpi strutturali SI': un corpo dipende dalla cella sotto, e il pennello puo' crearla"),
 		EnumHasAnyFlags(Paint, ERTRebuildFamily::Bodies));
 
+	// 🔴 E il volume della superficie SI': lo decide `Surface`, che il pennello scrive (`#2732`).
+	TestTrue(TEXT("il volume della superficie SI': lo decide Surface, che e' un campo del pennello"),
+		EnumHasAnyFlags(Paint, ERTRebuildFamily::SurfaceVolumes));
+
 	// 🔴 L'erase e' l'eccezione, e ricostruisce tutto.
 	const ERTRebuildFamily Erase = URTHexPaintTool::BrushRebuildMask(/*bPaint=*/ false);
 	TestTrue(TEXT("cancellare ricostruisce anche i pannelli di bordo"),
@@ -369,6 +375,59 @@ bool FRTHexPaintToolRebuildMaskTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** Un mondo di gioco minimo per i test del pennello, distrutto all'uscita da QUALUNQUE ramo. */
+	struct FRTPaintToolTestWorld
+	{
+		UWorld* World = nullptr;
+
+		FRTPaintToolTestWorld()
+		{
+			World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+			if (World && GEngine)
+			{
+				FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+				Ctx.SetCurrentWorld(World);
+			}
+		}
+
+		~FRTPaintToolTestWorld()
+		{
+			if (World)
+			{
+				if (GEngine) { GEngine->DestroyWorldContext(World); }
+				World->DestroyWorld(false);
+			}
+		}
+	};
+
+	/** L'actor con l'asset gia' assegnato, cosi' `OnConstruction` lo vede come al caricamento del livello. */
+	ARTHexMapActor* SpawnPaintToolTestActor(UWorld* World, URTHexMapAsset* Asset)
+	{
+		ARTHexMapActor* Actor = World->SpawnActorDeferred<ARTHexMapActor>(
+			ARTHexMapActor::StaticClass(), FTransform::Identity);
+		if (Actor)
+		{
+			Actor->MapAsset = Asset;
+			Actor->FinishSpawning(FTransform::Identity);
+		}
+		return Actor;
+	}
+
+	/** L'ISM dell'actor col nome dato, o `nullptr`. I nomi sono `CreateDefaultSubobject` distinti. */
+	UInstancedStaticMeshComponent* FindPaintToolIsm(const ARTHexMapActor* Actor, const TCHAR* Name)
+	{
+		TArray<UInstancedStaticMeshComponent*> Isms;
+		Actor->GetComponents(Isms);
+		for (UInstancedStaticMeshComponent* Ism : Isms)
+		{
+			if (Ism && Ism->GetName() == Name) { return Ism; }
+		}
+		return nullptr;
+	}
+}
+
 /**
  * 🔴 **Dipingere una cella SOTTO un corpo strutturale lo accorcia, e la maschera del pennello deve
  * saperlo** — `#2732`.
@@ -376,7 +435,11 @@ bool FRTHexPaintToolRebuildMaskTest::RunTest(const FString&)
  * `URTStructuralBodyLibrary::DeriveBodies` tronca il corpo di una cella sulla faccia superiore della cella
  * sottostante nella stessa colonna. Il pennello non scrive `BodyFill`, ma puo' CREARE quella cella: la
  * maschera che lo ignorava lasciava il corpo con la vecchia estensione, e lo mostrava attraversare il
- * pavimento appena dipinto fino a una gomma (che ricostruisce tutto) o a un cambio d'asset.
+ * pavimento appena dipinto per tutta la pennellata.
+ *
+ * ⚠️ **E' un'incoerenza del trascinamento, non un dato sbagliato**: al rilascio `EndStrokeIfActive`
+ * ricostruisce tutto. Una stesura precedente di questo commento diceva «fino a una gomma o a un cambio
+ * d'asset», ereditata dal testo della issue, ed era falsa.
  *
  * ⚠️ **Le premesse sono asserite, non assunte**: che prima della pennellata il corpo non sia troncato, e che
  * la cella nuova lo tronchi davvero spostandone la base. Senza, il test passerebbe anche con una maschera
@@ -390,18 +453,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexPaintToolBrushKeepsBodiesInLineTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexPaintToolBrushKeepsBodiesInLineTest::RunTest(const FString&)
 {
-	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
-	if (GEngine)
-	{
-		FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-		Ctx.SetCurrentWorld(World);
-	}
-	auto DestroyTestWorld = [World]()
-	{
-		if (GEngine) { GEngine->DestroyWorldContext(World); }
-		World->DestroyWorld(false);
-	};
+	FRTPaintToolTestWorld Mondo;
+	if (!TestNotNull(TEXT("mondo di prova"), Mondo.World)) { return false; }
 
 	// Una cella sola, a Layer 1, che dichiara un corpo pieno: sotto di lei la colonna e' vuota.
 	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
@@ -410,17 +463,13 @@ bool FRTHexPaintToolBrushKeepsBodiesInLineTest::RunTest(const FString&)
 	Asset->AddOrUpdateCell(Sopra);
 	Asset->SortCells();
 
-	ARTHexMapActor* Actor = World->SpawnActorDeferred<ARTHexMapActor>(
-		ARTHexMapActor::StaticClass(), FTransform::Identity);
-	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyTestWorld(); return false; }
-	Actor->MapAsset = Asset;
-	Actor->FinishSpawning(FTransform::Identity);
+	ARTHexMapActor* Actor = SpawnPaintToolTestActor(Mondo.World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { return false; }
 
 	const TArray<FRTStructuralBody> Prima = URTStructuralBodyLibrary::DeriveBodies(Asset);
 	if (!TestEqual(TEXT("premessa: un corpo"), Prima.Num(), 1)
 		|| !TestFalse(TEXT("premessa: con la colonna vuota sotto il corpo non e' troncato"), Prima[0].bTruncated))
 	{
-		DestroyTestWorld();
 		return false;
 	}
 
@@ -429,7 +478,7 @@ bool FRTHexPaintToolBrushKeepsBodiesInLineTest::RunTest(const FString&)
 	const bool bDipinta = Asset->PaintCellInStroke(FRTCellId(0, 0, 0), ERTHexSurface::Floor, /*MoveCost=*/ 1,
 		/*bBlocksMovement=*/ false, TOptional<bool>(false));
 	Asset->EndStroke();
-	if (!TestTrue(TEXT("il pennello crea la cella sotto il corpo"), bDipinta)) { DestroyTestWorld(); return false; }
+	if (!TestTrue(TEXT("il pennello crea la cella sotto il corpo"), bDipinta)) { return false; }
 
 	const TArray<FRTStructuralBody> Dopo = URTStructuralBodyLibrary::DeriveBodies(Asset);
 	if (!TestEqual(TEXT("il derivatore vede ancora un corpo"), Dopo.Num(), 1)
@@ -437,23 +486,15 @@ bool FRTHexPaintToolBrushKeepsBodiesInLineTest::RunTest(const FString&)
 		|| !TestTrue(TEXT("premessa: e gli sposta la base"),
 			!FMath::IsNearlyEqual(Dopo[0].BottomZ, Prima[0].BottomZ, 0.5f)))
 	{
-		DestroyTestWorld();
 		return false;
 	}
 
 	// La ricostruzione che il pennello fa a ogni cella toccata, con la sua maschera.
 	Actor->RebuildInstances(URTHexPaintTool::BrushRebuildMask(/*bPaint=*/ true));
 
-	TArray<UInstancedStaticMeshComponent*> Isms;
-	Actor->GetComponents(Isms);
-	UInstancedStaticMeshComponent* Corpi = nullptr;
-	for (UInstancedStaticMeshComponent* Ism : Isms)
-	{
-		if (Ism && Ism->GetName() == TEXT("StructuralBodies")) { Corpi = Ism; break; }
-	}
+	const UInstancedStaticMeshComponent* Corpi = FindPaintToolIsm(Actor, TEXT("StructuralBodies"));
 	if (!TestNotNull(TEXT("l'ISM dei corpi"), Corpi) || !TestEqual(TEXT("un corpo posato"), Corpi->GetInstanceCount(), 1))
 	{
-		DestroyTestWorld();
 		return false;
 	}
 
@@ -466,8 +507,56 @@ bool FRTHexPaintToolBrushKeepsBodiesInLineTest::RunTest(const FString&)
 		FMath::IsNearlyEqual(AltezzaPosata, Dopo[0].Height(), 0.5f));
 	TestTrue(TEXT("e sta alla quota del corpo troncato"),
 		FMath::IsNearlyEqual(static_cast<float>(Xf.GetLocation().Z), (Dopo[0].TopZ + Dopo[0].BottomZ) * 0.5f, 0.5f));
+	return true;
+}
 
-	DestroyTestWorld();
+/**
+ * 🔴 **Dipingere il fumo ne mostra il volume subito, non al rilascio** — `#2732`, il gemello di `Bodies`.
+ *
+ * Il volume con cui una superficie si dichiara nello spazio lo decide `URTHexLibrary::SurfaceVolumeFor(Surface)`,
+ * e `Surface` e' uno dei quattro campi che il pennello scrive. La famiglia `SurfaceVolumes` e' arrivata con
+ * `#2936`, dopo la maschera, e non c'era entrata: il fumo dipinto colorava la cella e posava il glifo, ma il
+ * volume compariva solo al rilascio, quando `EndStrokeIfActive` ricostruisce tutto.
+ *
+ * ⚠️ **La premessa e' asserita**: il fumo ha davvero un volume, e prima della pennellata non ce n'e'. Senza,
+ * il test passerebbe con una superficie che non ne produce mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexPaintToolBrushShowsSmokeVolumeTest,
+	"RefactorTactics.HexTools.PaintingSmokeShowsItsVolumeWithTheBrushMask",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexPaintToolBrushShowsSmokeVolumeTest::RunTest(const FString&)
+{
+	FRTPaintToolTestWorld Mondo;
+	if (!TestNotNull(TEXT("mondo di prova"), Mondo.World)) { return false; }
+
+	// Un pavimento semplice: il pennello lo trasformera' in fumo.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnPaintToolTestActor(Mondo.World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { return false; }
+
+	const UInstancedStaticMeshComponent* Volumi = FindPaintToolIsm(Actor, TEXT("SurfaceVolumes"));
+	if (!TestNotNull(TEXT("l'ISM dei volumi"), Volumi)
+		|| !TestTrue(TEXT("premessa: il fumo ha un volume"),
+			URTHexLibrary::SurfaceVolumeFor(ERTHexSurface::Smoke).Y > 0.0)
+		|| !TestEqual(TEXT("premessa: un pavimento semplice non ha volume"), Volumi->GetInstanceCount(), 0))
+	{
+		return false;
+	}
+
+	// Il pennello dipinge il fumo sulla cella.
+	Asset->BeginStroke();
+	const bool bDipinta = Asset->PaintCellInStroke(FRTCellId(0, 0, 0), ERTHexSurface::Smoke, /*MoveCost=*/ 1,
+		/*bBlocksMovement=*/ false, TOptional<bool>(false));
+	Asset->EndStroke();
+	if (!TestTrue(TEXT("il pennello dipinge il fumo"), bDipinta)) { return false; }
+
+	// La ricostruzione che il pennello fa a ogni cella toccata, con la sua maschera.
+	Actor->RebuildInstances(URTHexPaintTool::BrushRebuildMask(/*bPaint=*/ true));
+
+	TestEqual(TEXT("il fumo dipinto mostra subito il suo volume"), Volumi->GetInstanceCount(), 1);
 	return true;
 }
 

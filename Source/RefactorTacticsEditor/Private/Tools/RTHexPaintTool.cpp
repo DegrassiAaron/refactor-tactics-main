@@ -86,7 +86,19 @@ FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& P
  * cella dipende da cio' che le sta SOTTO nella stessa colonna — `URTStructuralBodyLibrary::DeriveBodies` lo
  * tronca sulla faccia superiore della cella sottostante. Una pennellata che CREA una cella sotto un corpo ne
  * cambia il `BottomZ`, e senza questa famiglia il corpo mantiene la vecchia estensione e attraversa
- * visibilmente la cella appena dipinta, fino a una gomma o a un cambio d'asset.
+ * visibilmente la cella appena dipinta per tutta la pennellata.
+ *
+ * 🔴 **Nemmeno `SurfaceVolumes`**, per la ragione opposta: qui il campo lo scrive il pennello. Il volume con
+ * cui una superficie si dichiara nello spazio lo decide `URTHexLibrary::SurfaceVolumeFor(Surface)`, e
+ * `Surface` e' uno dei quattro campi. Il fumo dipinto colorava la cella e posava il glifo, ma non il volume.
+ *
+ * ⚠️ **Entrambi sono incoerenze del TRASCINAMENTO, non dati sbagliati.** `EndStrokeIfActive` ricostruisce
+ * tutto al rilascio (`RebuildInstances()` senza maschera), quindi il corpo stantio e il volume mancante
+ * durano fino al rilascio e poi si riallineano. Una stesura precedente di questo commento diceva «fino a una
+ * gomma o a un cambio d'asset», ereditata dal testo della issue, ed era falsa. Il prezzo e' il lavoro in piu'
+ * sul percorso piu' caldo dell'authoring — una copia e un ordinamento delle celle per passo, piu' un ciclo sulle
+ * celle con corpo — e **non e' stato misurato**: lo si paga per non mostrare, durante il trascinamento, un
+ * corpo che attraversa il pavimento appena dipinto.
  *
  * ⛔ **L'ERASE non usa questa maschera, ed e' la ragione per cui la funzione prende `bPaint`**:
  * cancellare una cella la toglie da OGNI famiglia, comprese quelle che il pennello non scrive. Una cella
@@ -96,7 +108,8 @@ ERTRebuildFamily URTHexPaintTool::BrushRebuildMask(bool bPaint)
 {
 	return bPaint
 		? (ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs | ERTRebuildFamily::Relief
-			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders | ERTRebuildFamily::Bodies)
+			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders | ERTRebuildFamily::Bodies
+			| ERTRebuildFamily::SurfaceVolumes)
 		: ERTRebuildFamily::All;
 }
 

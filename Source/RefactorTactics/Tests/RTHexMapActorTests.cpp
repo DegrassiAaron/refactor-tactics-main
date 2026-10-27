@@ -3048,7 +3048,7 @@ bool FRTHexMapActorPartialRebuildRespectsTheMaskTest::RunTest(const FString&)
 		Asset->AddOrUpdateCell(Fumo);
 
 		FRTHexCellData Ghiaccio(FRTCellId(1, -1, 0));
-		Ghiaccio.Surface = ERTHexSurface::Ice; // quattro anelli di glifi: tutti e quattro gli ISM
+		Ghiaccio.Surface = ERTHexSurface::Ice; // quattro anelli di glifi: popola il QUARTO ISM dei glifi
 		Asset->AddOrUpdateCell(Ghiaccio);
 
 		// Un corpo strutturale: una cella a Layer 1 che dichiara `BodyFill`, sopra una a Layer 0.
@@ -3115,12 +3115,13 @@ bool FRTHexMapActorPartialRebuildRespectsTheMaskTest::RunTest(const FString&)
 		{ TEXT("Borders"),        ERTRebuildFamily::Borders },
 		{ TEXT("Bodies"),         ERTRebuildFamily::Bodies },
 		{ TEXT("SurfaceVolumes"), ERTRebuildFamily::SurfaceVolumes },
-		// La maschera di una pennellata che DIPINGE (`URTHexPaintTool::BrushRebuildMask`): sei famiglie
-		// insieme, e `EdgeFeatures` e `SurfaceVolumes` fuori. Copiata e non letta, perche' il modulo editor non
-		// e' visibile da qui: il test che la legge davvero e' `HexTools.BrushRebuildMaskExcludesWhatTheBrushNeverWrites`.
+		// La maschera di una pennellata che DIPINGE (`URTHexPaintTool::BrushRebuildMask`): sette famiglie
+		// insieme, e la sola `EdgeFeatures` fuori. Copiata e non letta, perche' il modulo editor non e'
+		// visibile da qui: il test che la legge davvero e' `HexTools.BrushRebuildMaskExcludesWhatTheBrushNeverWrites`.
 		{ TEXT("maschera del pennello"),
 		  ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs | ERTRebuildFamily::Relief
-			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders | ERTRebuildFamily::Bodies },
+			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders | ERTRebuildFamily::Bodies
+			| ERTRebuildFamily::SurfaceVolumes },
 	};
 	for (const FProva& Prova : Prove)
 	{
