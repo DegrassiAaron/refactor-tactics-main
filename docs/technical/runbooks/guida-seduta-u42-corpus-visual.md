@@ -83,8 +83,8 @@ viewport** no.
 
 ## 2-bis. La sequenza: undici Play in quest'ordine
 
-**I tre compositi per primi, ed è una scelta.** Portano tredici voci su ventuno (una, `PIE-ACC-GUARDBRACE`, non si
-chiude più così dopo [D-408]: riga 19, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888)): se la seduta si
+**I tre compositi per primi, ed è una scelta.** Portano quasi tutte le voci della seduta (`PIE-ACC-GUARDBRACE` no: non
+si chiude da questo Play ma dalla riga 19, `Visual.Combat.GuardVsBraceFromBehind`, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888)): se la seduta si
 interrompe a metà, quello che hai in mano è il massimo possibile. E chiedono più attenzione degli altri —
 un fenomeno per turno, da riconoscere mentre passa — quindi vanno fatti quando sei fresco, non in coda.
 
@@ -92,7 +92,7 @@ un fenomeno per turno, da riconoscere mentre passa — quindi vanno fatti quando
 |---:|---|---|---:|---|
 | **1** | `Visual.Environment.Acceptance` | RelayLite | 5 | `-ICE` `-WETFIRE` `-COMBO` `-SMOKE` `-ROUGH` · `PIE-ACC-ENVIRONMENT` |
 | **2** | `Visual.Map.Acceptance` | RelayBasin | 3 | `-COVER` `-DOOR` `-HIGH` · `PIE-ACC-MAP` |
-| **3** | `Visual.Combat.DefenseVsNoneUnderSmallHits` | r5 | 1 | `-GUARD` `-BRACE` · `PIE-ACC-GUARDBRACE` *(⛔ quest'ultima non si chiude più così dopo [D-408]: riga 19, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888))* |
+| **3** | `Visual.Combat.DefenseVsNoneUnderSmallHits` | r5 | 1 | `-GUARD` `-BRACE` *(`PIE-ACC-GUARDBRACE` non si chiude più da qui dopo [D-408]: si chiude dalla riga 19, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888))* |
 | 4 | `Visual.Combat.AreaGuardFromImpactCenter` | r5 | 1 | `PIE-VIS-AREAGUARD` |
 | 5 | `Visual.Combat.WaterElectricCoordinated` | r5 | 1 | `PIE-VIS-COORD` |
 | 6 | `Visual.Combat.FallbackTargetMoved` | r5 | 1 | `PIE-VIS-FALLBACK` |
@@ -129,7 +129,7 @@ allestimenti da fare sono undici invece di diciannove** — e le due voci nuove,
 |---|---|---|
 | **A** | `Visual.Environment.Acceptance` | `PIE-VIS-ICE` · `PIE-VIS-WETFIRE` · `PIE-VIS-COMBO` · `PIE-VIS-SMOKE` · `PIE-VIS-ROUGH` · `PIE-VIS-FIRE` — **e** `PIE-ACC-ENVIRONMENT` |
 | **B** | `Visual.Map.Acceptance` | `PIE-VIS-COVER` · `PIE-VIS-DOOR` · `PIE-VIS-HIGH` — **e** `PIE-ACC-MAP` |
-| **C** | `Visual.Combat.DefenseVsNoneUnderSmallHits` | `PIE-VIS-GUARD` · `PIE-VIS-BRACE` — **e** `PIE-ACC-GUARDBRACE` *(⛔ quest'ultima non si chiude più così dopo [D-408]: riga 19, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888))* |
+| **C** | `Visual.Combat.DefenseVsNoneUnderSmallHits` | `PIE-VIS-GUARD` · `PIE-VIS-BRACE` *(`PIE-ACC-GUARDBRACE` non si chiude più da qui dopo [D-408]: si chiude dalla riga 19, [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888))* |
 
 **Come cambia la seduta**: i numeri 1, 2, 4, 7, 10, 12, 13, 14 delle tabelle qui sotto **non richiedono un
 Play proprio** — il loro fenomeno è dentro il composito A o B. Le loro righe restano, e servono ancora:
@@ -187,9 +187,9 @@ giudicabile, l'altra metà aspetta `StatusChanged` (§8.1 di `scenari-validazion
 | 16 | `Visual.Combat.GuardReducesEveryFrontalHit` | `PIE-VIS-GUARD` | Riktor non arriva a **112**: la guardia toglie 15 a **ciascuno** dei due colpi ⏱️ *era «non arriva a 97 … il primo colpo da 22 li consuma tutti», fino a [D-408] il 2026-09-20* |
 | 17 | `Visual.Combat.BraceReducesEveryHit` | `PIE-VIS-BRACE` | Riktor non arriva a **102**: ogni colpo perde 10 e la riduzione **non finisce mai** |
 | 18 | `Visual.Combat.AreaGuardFromImpactCenter` | `PIE-VIS-AREAGUARD` | la Guardia non regge con il lanciatore **dietro** e l'esplosione **davanti** |
-| 19 | `Visual.Combat.DefenseVsNoneUnderSmallHits` (già `GuardVsBraceUnderSmallHits`) | `PIE-ACC-GUARDBRACE` | 🔴 **da non eseguire dopo [D-408]**: `Brace` e `Guard` chiudono ora **entrambi illesi** (120) e solo **senza difesa** si distingue (101) ⏱️ *il sintomo elencato qui — «i tre difensori non si distinguono» — è diventato l'esito VOLUTO per due dei tre; la scena non è stata ri-puntata su un colpo alle spalle, perché serve da banco al Context Inspector: la voce resta ⏳ senza uno scenario che risponda ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)); il composito per direzione è tracciato in [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888)* |
+| 19 | `Visual.Combat.GuardVsBraceFromBehind` | `PIE-ACC-GUARDBRACE` | non si capisce **quale dei tre difensori è rimasto illeso e quali due hanno perso uguale**: la Guardia deve leggersi come *non protetta da dietro* (101, come chi non ha difesa) e il `Brace` come protetto (120) ⏱️ *Fino a [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888) la riga puntava a `Visual.Combat.DefenseVsNoneUnderSmallHits` (già `GuardVsBraceUnderSmallHits`), che dopo [D-408] non risponde più alla domanda: `Brace` e `Guard` vi chiudono entrambi illesi (120), e la scena è rimasta com'era perché serve da banco al Context Inspector ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223))* |
 
-🔑 **Il confronto 16 ↔ 17 è il punto, non i due numeri presi da soli.** ⏱️ *Fino al 2026-09-20 era «una difesa si consuma, l'altra dura», con 97 contro 102.* Da [D-408] nessuna delle due si consuma: la Guardia toglie di più (112 contro 102) e ciò che le separa è la **direzione**, che questa coppia esercita solo in parte: la 17 ha un colpo da dietro (F1) e la 16 no, ma le due difese non stanno nella stessa inquadratura — il composito che le mette insieme è tracciato in [#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888). Se si presentano uguali, la scelta tattica che le due azioni esistono per offrire non arriva a chi
+🔑 **Il confronto 16 ↔ 17 è il punto, non i due numeri presi da soli.** ⏱️ *Fino al 2026-09-20 era «una difesa si consuma, l'altra dura», con 97 contro 102.* Da [D-408] nessuna delle due si consuma: la Guardia toglie di più (112 contro 102) e ciò che le separa è la **direzione**, che questa coppia esercita solo in parte: la 17 ha un colpo da dietro (F1) e la 16 no, ma le due difese non stanno nella stessa inquadratura — le mette insieme la riga 19, `Visual.Combat.GuardVsBraceFromBehind` ([#3888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3888)). Se si presentano uguali, la scelta tattica che le due azioni esistono per offrire non arriva a chi
 gioca — ed è una conclusione che nessun test headless può raggiungere.
 
 ## 4. Come si registra un esito
