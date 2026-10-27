@@ -4002,13 +4002,20 @@ bool ARTHexMapActor::VerifyAllMappings() const
 	}
 	bOk = VerifyMappingIdentity(CellBorders, BorderCells, /*bCompareHeight=*/ true) && bOk;
 
-	// ⚠️ **Queste tre portano un sollevamento che dipende dalla CELLA e non solo dalla famiglia** — il
+	// ⚠️ **Queste portano un sollevamento che dipende dalla CELLA e non solo dalla famiglia** — il
 	// rilievo cresce col sovrapprezzo di movimento, i volumi hanno due altezze diverse, il corpo strutturale
 	// segue il proprio riempimento — quindi la quota non e' confrontabile senza ricopiarne le formule qui.
 	// Restano sul solo piano, che coglie ogni permutazione tranne quella fra celle impilate.
 	bOk = VerifyMappingIdentity(Relief, ReliefCells, /*bCompareHeight=*/ false) && bOk;
 	bOk = VerifyMappingIdentity(Blockers, BlockerCells, /*bCompareHeight=*/ false) && bOk;
 	bOk = VerifyMappingIdentity(StructuralBodies, BodyCells, /*bCompareHeight=*/ false) && bOk;
+
+	// `#3899`: i volumi di superficie e la nebbia, che il guardiano non guardava. I volumi sono per ISTANZA e non per cella (otto superfici
+	// su nove non ne producono) e il loro sollevamento dipende dalla superficie; la nebbia e' PARALLELA al disco (`InstanceCells`, una colonna
+	// per cella) e la sua quota non porta `Height` ([D-373]). Entrambe sul solo piano. Il velo attenua i primi per cella
+	// (`GetVolumeFamilies`) e `WriteFog` scrive la seconda per indice: un indice rimescolato le farebbe cadere sulla cella sbagliata.
+	bOk = VerifyMappingIdentity(SurfaceVolumes, SurfaceVolumeCells, /*bCompareHeight=*/ false) && bOk;
+	bOk = VerifyMappingIdentity(FogVolumes, InstanceCells, /*bCompareHeight=*/ false) && bOk;
 
 	// ⛔ `EdgeFeatures` non compare, ed e' dichiarato: i pannelli di bordo stanno sul punto medio di un LATO
 	// (`EdgeMidpointWorld`), non sul centro della cella mappata, quindi nemmeno il piano e' confrontabile
