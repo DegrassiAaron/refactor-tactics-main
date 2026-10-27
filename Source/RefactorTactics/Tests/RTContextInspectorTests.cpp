@@ -430,7 +430,7 @@ namespace
  *
  * 🔴 **Il difetto che questo test rende rosso, misurato nella seduta `U59` del 2026-09-24.**
  * `[tecnico]` e' l'ULTIMA riga di `AllLines`, quindi la prima a cadere sotto il tetto: sulla cella
- * `(q=0,r=0,L=0)` del banco `Visual.Combat.GuardVsBraceUnderSmallHits` la vista componeva **17** righe
+ * `(q=0,r=0,L=0)` del banco `Visual.Combat.DefenseVsNoneUnderSmallHits` (allora `GuardVsBraceUnderSmallHits`) la vista componeva **17** righe
  * contro un tetto di 12, e a schermo la riga che dice *per chi* la vista e' composta non c'era.
  *
  * ⚠️ **E il taglio era MUTO**, che e' la meta' piu' grave: chi guarda un pannello pieno conclude che su

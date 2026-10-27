@@ -774,6 +774,8 @@ turno**, senza attese nel resolver (invariante #3).
 > Il trade-off vero — *primo colpo pesante* contro *colpi ripetuti* — ora è **pinnato** invece che descritto:
 > `Spec.Brace.GuardAndBraceOnMixedHit` (su un colpo `Guard` domina) e `Spec.Brace.BraceWinsOnSecondHit`
 > (su due colpi si rovescia: 12 contro 17), più `Spec.Combat.BranthIsPushedLikeAnyone`.
+> ⏱️ *Dal 2026-09-20 ([D-408]) su due colpi non si rovescia più: il secondo file è stato rinominato
+> `Spec.Brace.GuardWinsOnFrontalHits` ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)) e asserisce che vince la Guardia.*
 > ⏳ **Resta aperta `BAL-1`** in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — quale debba *essere* il
 > confine è una scelta di bilanciamento che si chiude con una partita (seduta **U20**, voce `PIE-BAL1`,
 > issue `#403`), non con questi scenari: loro dicono cosa succede, non cosa è divertente. Roadmap e numeri in

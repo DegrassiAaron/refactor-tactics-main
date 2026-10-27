@@ -595,7 +595,7 @@ movimento volontario** dell'eroe.
 > pesante contro colpi ripetuti … il trade-off pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
 > `Spec.Brace.BraceWinsOnSecondHit` (12 contro 17 su due colpi)».* ⚠️ **Quei due scenari sono ancora verdi ma
 > dicono l'opposto**: su due colpi frontali `DG` esce ora **illesa** e `DB` perde 7 — il `Brace` non vince più
-> sul secondo colpo, e il nome di quel file è diventato storico. 🔑 **È materia di `BAL-1`, che è APERTA**:
+> sul secondo colpo, e per questo quel file è stato rinominato `Spec.Brace.GuardWinsOnFrontalHits` ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)). 🔑 **È materia di `BAL-1`, che è APERTA**:
 > l'istruttoria è aggiornata in [`decisions/open/bal-1.md`](../decisions/open/bal-1.md).
 >
 > ✅ **Il confine fra le due è DECISO**: [D-121](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12) ha
