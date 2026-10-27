@@ -329,9 +329,8 @@ bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
  * d'ingresso, la cui prima chiave e' la CELLA, e le celle cambiano a ogni turno. `OnPostLogin` la rigirava
  * a ogni connessione: il gruppo di un'unita' in campo cambiava, e con lui chi la comandava.
  *
- * ⛔ **Qui si misura il lato delle UNITA', non quello delle persone.** I posti li ricalcola `AssignSeats`
- * per posizione, ed e' idempotente solo a insieme di giocatori invariato: con un controller che esce e uno
- * che entra, chi resta puo' spostarsi di posto. Il test ne fa entrare uno solo, senza uscite.
+ * ⛔ **Qui si misura il lato delle UNITA', non quello delle persone.** I posti li tiene `AssignSeats` e dal `#3895` sono stabili
+ * (`Player.SeatsStayWhenAnotherPlayerLeaves`): questo test ne fa entrare uno solo, senza uscite.
  *
  * ⚠️ **La premessa e' asserita, non assunta.** Scambiare le celle delle due unita' di una squadra deve
  * invertire l'ordine d'ingresso: se non lo facesse, il test passerebbe anche con la riassegnazione
@@ -680,6 +679,61 @@ bool FRTSeatsBeyondTheFormatWaitForAFreeSeatTest::RunTest(const FString&)
 	B.GameMode->AssignSeats();
 	TestEqual(TEXT("il secondo NON si sposta quando il primo esce"), ARTPlayerState::TeamIdOf(P1), 1);
 	TestEqual(TEXT("e l'eccedente prende il posto liberato"), ARTPlayerState::TeamIdOf(P2), 0);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3895` — un posto dichiarato due volte, o un posto che il formato non ha, si libera e si riassegna.**
+ *
+ * Sono i due rami difensivi del primo giro di `AssignSeats`: nei flussi di produzione non si raggiungono (un nuovo allestimento libera
+ * tutto prima, e i posti li scrive solo `AssignSeats`), quindi si raggiungono scrivendo lo stato incoerente a mano. Senza questo test
+ * il ramo si potrebbe togliere senza che cada niente — e il giorno in cui un'altra strada scrivesse un posto, due persone
+ * comanderebbero lo stesso gruppo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatTakenTwiceOrInvalidIsReleasedTest,
+	"RefactorTactics.Player.SeatTakenTwiceOrInvalidIsReleased",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatTakenTwiceOrInvalidIsReleasedTest::RunTest(const FString&)
+{
+	FRTSeatBench B;
+	// Il formato di default: un posto per squadra, due in tutto.
+	if (!MakeSeatBench(*this, B, /*SeatsPerTeam=*/ 0, TEXT("")))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(B.World, 9);
+	if (!TestNotNull(TEXT("tre controller"), P2))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.GameMode->SetupHexMatch(B.HexMap);
+	ARTPlayerState* S1 = P1->GetPlayerState<ARTPlayerState>();
+	ARTPlayerState* S2 = P2->GetPlayerState<ARTPlayerState>();
+	if (!TestNotNull(TEXT("gli stati dei giocatori"), S2) || !TestNotNull(TEXT("..."), S1)
+		|| !TestEqual(TEXT("premessa: il primo ha il posto (squadra 0)"), SeatOfPlayer(P0), TPair<int32, int32>(0, 0))
+		|| !TestEqual(TEXT("premessa: il secondo ha il posto (squadra 1)"), SeatOfPlayer(P1), TPair<int32, int32>(1, 0))
+		|| !TestFalse(TEXT("premessa: il terzo non ha un posto"), S2->HasSeat()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// Stato incoerente scritto a mano: il secondo dichiara il posto del primo, il terzo una squadra che il formato non ha.
+	S1->AssignSeat(0, 0);
+	S2->AssignSeat(9, 0);
+	B.GameMode->AssignSeats();
+
+	TestEqual(TEXT("il primo tiene il suo posto"), SeatOfPlayer(P0), TPair<int32, int32>(0, 0));
+	TestEqual(TEXT("il posto dichiarato due volte si libera per il secondo, che riceve il primo libero"),
+		SeatOfPlayer(P1), TPair<int32, int32>(1, 0));
+	TestFalse(TEXT("il posto che il formato non ha si libera, e il terzo non ne trova un altro"), S2->HasSeat());
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
