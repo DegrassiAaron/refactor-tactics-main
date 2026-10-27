@@ -218,7 +218,7 @@ bool FRTReplayScreenFlowViewerOpensTest::RunTest(const FString&)
 /**
  * 🔑 **IL VIEWER HA PLAY E PAUSA, E IL TEMPO CHE FA AVANZARE IL REPLAY** (#3868).
  *
- * Il viewer del pacchetto v3 aveva quattro pulsanti di passo e basta: nessun nodo del grafo chiamava `Play`, `Pause` o
+ * Il viewer del pacchetto v3 aveva i pulsanti di passo e basta: nessun nodo del grafo chiamava `Play`, `Pause` o
  * `Tick` (`grep -a -c CallFunc_Play Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset` → 0). Due metà, entrambe
  * necessarie: **un pulsante che alterna** e **qualcuno che da' il tempo** — il view model avanza solo se riceve `Tick`.
  *
@@ -321,7 +321,7 @@ bool FRTReplayViewerPlayPauseTest::RunTest(const FString&)
  *   4. riaprendo l'archivio alla STESSA posizione il testo non e' quello di prima per caso: la rilettura riparte;
  *   5. cambiando SOLO la fase, dentro lo stesso turno, la rilettura riparte (le gambe 3 e 4 cambiano anche il turno);
  *   6. le etichette: «PLAY» in pausa, «PAUSA» in riproduzione, e il pulsante indietro ha la sua;
- *   7. una fase con molte voci non fa uscire il testo dallo schermo: dodici righe e «… e altre N»;
+ *   7. una fase con molte voci non fa uscire il testo dallo schermo: le righe fino al tetto e «… e altre N»;
  *   8. un archivio riaperto dal subsystem, senza una fase, non lascia le voci di prima.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerShowsPhaseEntriesTest,
@@ -447,12 +447,12 @@ bool FRTReplayViewerShowsPhaseEntriesTest::RunTest(const FString&)
 	Molte.SetNum(Tetto + 3);
 	TArray<FString> Righe;
 	URTReplayViewerWidgetBase::ComposePhaseEntriesText(Molte).ToString().ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
-	TestEqual(TEXT("7: dodici righe di voci piu' quella che conta le altre"), Righe.Num(), Tetto + 1);
+	TestEqual(TEXT("7: le righe fino al tetto, piu' quella che conta le altre"), Righe.Num(), Tetto + 1);
 	if (Righe.Num() == Tetto + 1)
 	{
 		TestTrue(TEXT("7: l'ultima dice quante altre"), Righe[Tetto].EndsWith(TEXT("e altre 3"), ESearchCase::CaseSensitive));
 	}
-	TestFalse(TEXT("7: con dodici voci il testo non dice «altre»"),
+	TestFalse(TEXT("7: con tante voci quante il tetto il testo non dice «altre»"),
 		URTReplayViewerWidgetBase::ComposePhaseEntriesText(TArray<FRTPublicReplayEntry>(Molte.GetData(), Tetto)).ToString().Contains(TEXT("altre")));
 
 	// Un conteggio di migliaia non prende separatori: «altre 1.234» accanto a un conteggio di righe si legge come un decimale.
@@ -485,6 +485,7 @@ bool FRTReplayViewerShowsPhaseEntriesTest::RunTest(const FString&)
  * senza fasi `Play` non parte, e un pulsante acceso che non fa niente e' il difetto per cui esistono i `Can*`. E senza una
  * fase non c'e' una fase di cui dire che non ha eventi.
  *
+ *   0. senza subsystem: pulsante spento, etichetta PLAY;
  *   1. archivio non aperto: pulsante spento, testo vuoto;
  *   2. aperto, prima dell'inizio: pulsante acceso (`Play` parte), testo vuoto;
  *   3. in riproduzione: pulsante acceso, e' quello che mette in pausa;
@@ -522,6 +523,12 @@ bool FRTReplayViewerPlayButtonFollowsEdgesTest::RunTest(const FString&)
 	W->PlayPauseLabel = NewObject<UTextBlock>(W);
 	W->PhaseEntriesText = NewObject<UTextBlock>(W);
 	const auto Testo = [](const UTextBlock* B) { return B->GetText().ToString(); };
+
+	// --- 0. Senza subsystem -----------------------------------------------------------------------------------------------------
+	// Un click che non fa niente su un pulsante acceso e' il difetto: senza subsystem il pulsante e' spento.
+	W->RefreshLookOn(nullptr);
+	TestFalse(TEXT("0: senza subsystem il pulsante e' spento"), W->PlayPauseButton->GetIsEnabled());
+	TestTrue(TEXT("0: e l'etichetta dice PLAY"), Testo(W->PlayPauseLabel).Equals(TEXT("PLAY"), ESearchCase::CaseSensitive));
 
 	// --- 1. Archivio non aperto -----------------------------------------------------------------------------------------------
 	W->TickOn(V, 0.f);
@@ -667,6 +674,8 @@ bool FRTReplayViewerRereadsOnRevisionTest::RunTest(const FString&)
 
 	W->RefreshLookOn(V);
 	TestEqual(TEXT("3: la stessa terna ma un'altra traccia: il testo segue la traccia"), Testo(W->PhaseEntriesText), Attese());
+	TestFalse(TEXT("3: le righe di una traccia pre-v6 non stampano il sentinella come un turno"),
+		Testo(W->PhaseEntriesText).Contains(TEXT("T0 ")));
 
 	ReleaseSubsystemHost(GI);
 	Pulisci(R);
@@ -674,17 +683,18 @@ bool FRTReplayViewerRereadsOnRevisionTest::RunTest(const FString&)
 }
 
 /**
- * 🔑 **IL `.uasset` DEL VIEWER HA LE QUATTRO PORTE, E IL C++ SCRIVE NEI SUOI WIDGET** (#3868).
+ * 🔑 **IL `.uasset` DEL VIEWER HA LE PORTE, E IL C++ SCRIVE NEI SUOI WIDGET** (#3868).
  *
  * ⚠️ Le porte sono `BindWidgetOptional`: se nel WBP manca un widget, ne ha uno con un altro nome o un altro tipo, il
  * widget compila, il membro resta `nullptr` e nessuno protesta. Il difetto di #3868 (nessun Play, nessuna etichetta, nessuna
  * voce) tornerebbe identico con tutti gli altri test verdi, perche' provano il C++ su `UTextBlock` creati a mano. Qui si
  * istanzia il Blueprint vero, `Initialize` risolve i `BindWidget`, e si guarda cosa scrive il C++ in quei widget:
  *
- *   1. le quattro porte sono risolte;
+ *   1. le porte sono risolte;
  *   2. le due etichette stanno dentro il loro pulsante (un'etichetta fuori dal pulsante e' un testo orfano);
  *   3. nessuna e' nascosta, e non lo e' nessun suo antenato, e tutte sono abilitate: un `Collapsed` o un contenitore
- *      disabilitato renderebbe invisibile o inerte tutto cio' che il C++ scrive;
+ *      disabilitato renderebbe invisibile o inerte tutto cio' che il C++ scrive; e il pulsante e' cliccabile (lui `Visible`,
+ *      nessun antenato `HitTestInvisible`);
  *   4. `RefreshLookOn` su un replay aperto scrive PLAY, INDIETRO e le voci della fase nei widget dell'ASSET, e con il replay
  *      in riproduzione l'etichetta del pulsante diventa PAUSA.
  *
@@ -708,7 +718,7 @@ bool FRTReplayViewerAssetHasItsPortsTest::RunTest(const FString&)
 	}
 	W->Initialize(); // duplica l'albero e risolve i BindWidget: senza, i membri restano nullptr
 
-	// --- 1. Le quattro porte sono risolte -------------------------------------------------------------------------------------
+	// --- 1. Le porte sono risolte -------------------------------------------------------------------------------------
 	const TArray<TPair<const TCHAR*, UWidget*>> Porte = {
 		{ TEXT("PlayPauseButton"), W->PlayPauseButton },
 		{ TEXT("PlayPauseLabel"), W->PlayPauseLabel },
@@ -742,6 +752,13 @@ bool FRTReplayViewerAssetHasItsPortsTest::RunTest(const FString&)
 				Vis != ESlateVisibility::Collapsed && Vis != ESlateVisibility::Hidden);
 			TestTrue(*FString::Printf(TEXT("3: %s: %s e' abilitato"), Porta.Key, *Nodo->GetName()), Nodo->GetIsEnabled());
 		}
+	}
+	// Il pulsante deve poter ricevere il click: lui `Visible`, e nessun antenato che non lasci passare il hit test ai figli.
+	TestTrue(TEXT("3: PlayPauseButton e' cliccabile"), W->PlayPauseButton->GetVisibility() == ESlateVisibility::Visible);
+	for (const UWidget* Antenato = W->PlayPauseButton->GetParent(); Antenato; Antenato = Antenato->GetParent())
+	{
+		TestTrue(*FString::Printf(TEXT("3: %s lascia passare il click ai figli"), *Antenato->GetName()),
+			Antenato->GetVisibility() != ESlateVisibility::HitTestInvisible);
 	}
 
 	// --- 4. Il C++ scrive nei widget dell'asset -------------------------------------------------------------------------------

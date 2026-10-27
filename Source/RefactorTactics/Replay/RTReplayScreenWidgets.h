@@ -159,7 +159,7 @@ private:
  * 🔑 **Le porte opzionali di #3868** (`PlayPauseButton`, `PlayPauseLabel`, `PhaseEntriesText`, `BackButtonLabel`) sono
  * il pezzo che il grafo del WBP non aveva: nessun pulsante chiamava `Play`/`Pause`, nessuno chiamava `Tick` — quindi
  * anche con un Play il replay non avanzava —, nessuno mostrava `GetCurrentPhaseEntries`, e il pulsante indietro non
- * aveva etichetta. Qui il C++ lega il pulsante, fa avanzare il subsystem a ogni tick e scrive le etichette; i quattro
+ * aveva etichetta. Qui il C++ lega il pulsante, fa avanzare il subsystem a ogni tick e scrive le etichette; i
  * pulsanti di passo restano nel grafo, come prima. Senza una porta il widget non fa quella cosa e non protesta.
  */
 UCLASS(BlueprintType)
@@ -258,9 +258,9 @@ public:
 	static constexpr int32 MaxPhaseEntryRows = 12;
 
 	/**
-	 * Scrive le porte dallo stato del subsystem. Le voci si rileggono solo quando cambia la **revisione** della posizione
-	 * (`GetPositionRevision`): non a ogni tick, e non solo quando cambiano turno, fase e stato, che non identificano una
-	 * traccia. Il pulsante Play/Pausa segue i bordi: spento dove `Play` non partirebbe.
+	 * Scrive le porte dallo stato del subsystem. Le voci e i bordi si rileggono solo quando cambia la **revisione** della
+	 * posizione (`GetPositionRevision`): non a ogni tick, e non solo quando cambiano turno, fase e stato, che non identificano
+	 * una traccia. Il pulsante Play/Pausa segue i bordi: spento dove `Play` non partirebbe, e senza subsystem.
 	 */
 	void RefreshLookOn(URTReplayViewerSubsystem* Replay);
 
@@ -288,7 +288,10 @@ private:
 	/** Le etichette che non cambiano si scrivono una volta. */
 	bool bStaticLabelsWritten = false;
 
-	/** Le voci mostrate e la revisione per cui sono state lette: `GetCurrentPhaseEntries` rifa' un seek e alloca. */
-	bool bEntriesShown = false;
-	uint32 EntriesRevision = 0;
+	/** La revisione della posizione per cui voci e bordi sono stati letti: `GetCurrentPhaseEntries` rifa' un seek e alloca. */
+	bool bLookRead = false;
+	uint32 LookRevision = 0;
+
+	/** `CanStepPhaseForward` alla revisione letta: dice se `Play` partirebbe, e non si chiede a ogni tick. */
+	bool bCanPlay = false;
 };

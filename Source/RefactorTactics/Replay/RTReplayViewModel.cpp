@@ -1,5 +1,5 @@
-#include "HAL/ThreadSafeCounter.h"
 #include "Replay/RTReplayViewModel.h"
+#include "HAL/ThreadSafeCounter.h"
 
 const TArray<ERTMatchPhase>& FRTReplayViewModel::ObservablePhases()
 {

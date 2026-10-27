@@ -281,7 +281,35 @@ void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
 	}
 	if (V == nullptr)
 	{
+		// Senza subsystem non c'e' niente da riprodurre: il pulsante e' spento, e non resta acceso su un click che non fa
+		// niente (il criterio dei bordi di #472 vale anche qui).
+		if (PlayPauseButton)
+		{
+			PlayPauseButton->SetIsEnabled(false);
+		}
+		if (PlayPauseLabel)
+		{
+			PlayPauseLabel->SetText(GetPlayPauseText(false));
+		}
 		return;
+	}
+
+	// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca, e `CanStepPhaseForward` copia l'elenco delle fasi: si pagano per
+	// chiamata, quindi si leggono quando cambia la REVISIONE della posizione e non a ogni tick. Turno, fase e stato non bastano come
+	// chiave: le tracce pre-v6 dichiarano tutte turno 0, e un archivio riaperto puo' ritrovarsi alla stessa posizione con altre voci.
+	const uint32 Revision = V->GetPositionRevision();
+	if (!bLookRead || Revision != LookRevision)
+	{
+		bCanPlay = V->CanStepPhaseForward();
+		if (PhaseEntriesText)
+		{
+			// Senza una fase (prima dell'inizio, a sequenza finita, archivio non aperto) non c'e' una fase di cui dire che non
+			// ha eventi: il testo resta vuoto, invece di affermare una cosa falsa su una fase che non c'e'.
+			PhaseEntriesText->SetText(V->GetPosition().HasPhase()
+				? ComposePhaseEntriesText(V->GetCurrentPhaseEntries()) : FText::GetEmpty());
+		}
+		LookRevision = Revision;
+		bLookRead = true;
 	}
 
 	// ⚠️ **Disabilitato, non silenzioso** (il criterio dei bordi di #472, per cui esistono i `Can*`): su una sequenza
@@ -289,28 +317,11 @@ void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
 	// evitare. In riproduzione resta acceso: e' il pulsante che mette in pausa.
 	if (PlayPauseButton)
 	{
-		PlayPauseButton->SetIsEnabled(V->IsPlaying() || V->CanStepPhaseForward());
+		PlayPauseButton->SetIsEnabled(V->IsPlaying() || bCanPlay);
 	}
 	if (PlayPauseLabel)
 	{
 		PlayPauseLabel->SetText(GetPlayPauseText(V->IsPlaying()));
-	}
-
-	if (PhaseEntriesText)
-	{
-		// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca: si rilegge quando cambia la REVISIONE della posizione,
-		// non a ogni tick. Turno, fase e stato non bastano come chiave: le tracce pre-v6 dichiarano tutte turno 0, e un archivio
-		// riaperto puo' ritrovarsi alla stessa posizione con altre voci.
-		const uint32 Revision = V->GetPositionRevision();
-		if (!bEntriesShown || Revision != EntriesRevision)
-		{
-			// Senza una fase (prima dell'inizio, a sequenza finita, archivio non aperto) non c'e' una fase di cui dire che non
-			// ha eventi: il testo resta vuoto, invece di affermare una cosa falsa su una fase che non c'e'.
-			PhaseEntriesText->SetText(V->GetPosition().HasPhase()
-				? ComposePhaseEntriesText(V->GetCurrentPhaseEntries()) : FText::GetEmpty());
-			EntriesRevision = Revision;
-			bEntriesShown = true;
-		}
 	}
 }
 

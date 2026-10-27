@@ -742,4 +742,32 @@ bool FRTContextInspectorColumnsDoNotOverlapTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **LA RIGA DI UN EVENTO PUBBLICO NON STAMPA IL SENTINELLA DEL TURNO COME UN TURNO** (#3868, review di #3879).
+ *
+ * Le tracce scritte prima del formato v6 dichiarano `TurnNumber == 0`, che significa «non dichiarato» e non turno zero: il resto del
+ * replay (`FRTReplayPosition`, `GetTurnLabel`) si rifiuta di scrivere «Turno 0», e la riga che il viewer mostra per ogni voce
+ * leggeva `T0 ...`. Un turno vero resta `T3 ...`: il controllo positivo, senza il quale un formato che non stampasse piu' il turno
+ * passerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorPublicEventTurnSentinelTest,
+	"RefactorTactics.Debug.PublicEventLineDoesNotPrintTheTurnSentinelAsATurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorPublicEventTurnSentinelTest::RunTest(const FString&)
+{
+	FRTPublicReplayEntry Voce;
+	Voce.Phase = ERTMatchPhase::Blast;
+	Voce.Category = ERTLogCategory::Move;
+
+	Voce.TurnNumber = 0;
+	const FString SenzaTurno = URTContextInspectorLibrary::DescribePublicEvent(Voce);
+	TestFalse(TEXT("il sentinella non e' stampato come turno zero"), SenzaTurno.StartsWith(TEXT("T0")));
+	TestTrue(TEXT("e la riga dice che il turno non c'e'"), SenzaTurno.StartsWith(TEXT("T- ")));
+
+	Voce.TurnNumber = 3;
+	TestTrue(TEXT("un turno vero resta stampato"),
+		URTContextInspectorLibrary::DescribePublicEvent(Voce).StartsWith(TEXT("T3 ")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
