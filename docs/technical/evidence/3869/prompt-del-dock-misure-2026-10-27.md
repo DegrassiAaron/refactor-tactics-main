@@ -7,28 +7,45 @@ Evidenza **dell'assistente**, non un giudizio dell'autore. Riguarda [#3869](http
 - **PIE nell'Editor** (`NetMode: Standalone`), finestra flottante, partita avviata, nessuna selezione: il prompt mostrato e' quello di `IdleSelection`.
 - Cattura con `PrintWindow` della finestra per titolo, dal clone principale, **senza inviare input** alla PIE. Il client include la barra del titolo (40 px).
 - **Non e' il pacchetto cotto** dove l'issue ha visto il difetto: la resa del pacchetto non e' stata misurata.
+- Le catture "prima" a 1920x1080 hanno il **testo con l'accento** perche' il C++ e' quello nuovo e l'asset quello di `main`; quella a 1600x900 e' di prima del cambio di testo e dice `unita'`.
 
 ## Le catture
 
-- `pie-1600x900-prima-2026-10-27.jpg`: `main`, finestra 1600x900. Il prompt in Roboto Bold 24 bianco e' **tagliato dal bordo inferiore**, se ne vede la parte alta.
-- `pie-1600x900-dopo-2026-10-27.jpg` e `pie-1920x1080-dopo-2026-10-27.jpg`: layout finale. Il prompt, in Exo 2 SemiBold 12 con la tinta del testo corrente dell'HUD, e' **intero**, a circa 20 px dal bordo, allineato all'etichetta COMUNI, con «unità» accentato.
-- **Non c'e' un "prima" a 1920x1080**: la misura qui sotto dice che a quella scala il difetto e' piu' grande, non l'ho catturato.
+| file | blob del dock | finestra | che cosa si vede |
+|---|---|---|---|
+| `pie-1600x900-prima-2026-10-27.jpg` | `main` | 1600x900 | prompt Roboto Bold 24 bianco, **tagliato** dal bordo inferiore: se ne vede la parte alta |
+| `pie-1920x1080-prima-2026-10-27.jpg` | `main` | 1920x1080 | lo stesso difetto: **tagliato**, se ne vede la parte alta |
+| `pie-1920x1080-primo-ritocco-2026-10-27.jpg` | primo ritocco (Exo 2 12, padding barra 20+22) | 1920x1080 | **intero** ma a circa 4 px dal bordo del client |
+| `pie-1600x900-dopo-2026-10-27.jpg` | finale | 1600x900 | **intero**, a circa 20 px dal bordo, allineato all'etichetta COMUNI |
+| `pie-1920x1080-dopo-2026-10-27.jpg` | finale | 1920x1080 | **intero**, a circa 20 px dal bordo |
 
-## La misura che spiega il taglio, e che ha corretto il mio primo ritocco
+Il primo ritocco a 1600x900 non ha un file proprio: la cattura (testo intero, circa 4 px dal bordo) e' stata sostituita da quella del layout finale.
 
-Il dock sta in `Zone_Bottom`, alta `Bands().Bottom - 2 * ZoneMargin` = 175,6 unita' Slate (`RTHudLayout::ZoneLayout`). Il test `RefactorTactics.ScreenHud.ActionDockWithItsPromptFitsTheBottomZone` costruisce il dock vero con gli slot, scrive il testo del prompt e misura con Slate **a scala 1,0**:
+## La misura: il contratto "gli inquilini entrano nelle loro fasce"
 
-| blob del dock | barra | prompt | dock | zona |
+Il dock sta in `Zone_Bottom`, alta `Bands().Bottom - 2 * ZoneMargin` = 175,6 unita' Slate (`RTHudLayout::ZoneLayout`). Il gate `RefactorTactics.ScreenHud.TenantsFitTheirBands` (D-497 (2)) costruisce l'HUD vero, da' il contesto di partita, fa girare il Tick del dock (che costruisce gli slot), scrive ogni testo che `BuildTargetPrompt` puo' produrre e misura la zona con Slate a ogni risoluzione **con la scala di quella risoluzione**. Zona `Bottom` col prompt piu' alto, in unita' Slate, contro 175,6:
+
+| blob del dock | scala 0,740 (1280x800) | 0,833 (1600x900) | 1,000 (1920x1080, 2560x1080) | 1,111 (1920x1200) |
 |---|---|---|---|---|
-| `main` (Roboto Bold 24) | 163 | 39 | 202 | 175,6 |
-| primo ritocco (Exo 2 12, padding barra 20+22) | 163 | 20 | 185 | 175,6 |
-| finale (Exo 2 12, padding barra 12+12) | 145 | 20 | 167 | 175,6 |
+| `main` | 199,3 | 200,0 | 202,0 | 201,5 |
+| primo ritocco | 182,4 | 182,8 | 185,0 | 185,5 |
+| finale | 164,4 | 164,8 | 167,0 | 167,5 |
 
-- **Il primo ritocco non bastava a 1920x1080**, e la PIE a 1600x900 lo nascondeva: a scala 0,833 il carattere si arrotonda e il dock torna nella zona (barra 130 px, cioe' 156 unita'). **Il bilancio in unita' Slate NON e' indipendente dalla risoluzione**: la mia prima frase, "a 1920x1080 il taglio e' lo stesso", era un'inferenza dalla sola misura a 1600x900, ed era sbagliata.
-- Il margine finale e' di circa 8 unita' a scala 1,0, e e' maggiore a scale minori.
+- **Il primo ritocco violava il contratto a ogni scala misurata, anche a 1600x900**, di 7-10 unita': la riga del prompt usciva dalla fascia. Ma **a schermo il testo si vedeva intero** (circa 4 px dal bordo, a 900p e a 1080p). La mia prima versione di questo documento e di questa PR sosteneva che il primo ritocco "non bastava a 1920x1080" e che a 1600x900 "il carattere si arrotonda e il dock torna nella zona": **entrambe le affermazioni erano sbagliate**, la seconda e' smentita dalla misura headless a 0,833 (182,8 contro 175,6).
+- **La misura headless e' un limite superiore, non la resa**: conta la riga intera del testo, non l'inchiostro, e supera la PIE di circa il 3-4% (la barra misura 161,6 unita' a scala 0,833 in headless contro 156 in PIE). Per questo il primo ritocco e' rosso nel gate e visibile in PIE: non c'e' contraddizione, ci sono due misure di due cose.
+- Il margine finale sulla riga intera e' fra 8,1 e 11,2 unita' alle scale misurate (175,6 meno 167,5 e meno 164,4).
+
+## IMPLEMENTATION DRIFT (CLAUDE.md §3)
+
+Il padding verticale di `BarPanel` e' passato da **20 sopra e 22 sotto a 12 e 12**. Due fonti dicono ancora 20/22 e **non le ho riconciliate**:
+
+- `docs/research/skill-bar-pacchetto/dati/tokens.json`: `"dock_padding": [20, 24, 22, 24]`;
+- `docs/technical/runbooks/guida-seduta-u65-barra-fedele-al-mockup.md` §3: "padding sopra 20, ai lati 24, sotto 22".
+
+Serve una decisione dell'autore: aggiornare token e runbook al nuovo padding, oppure scegliere un'altra soluzione (alzare la fascia `Bands().Bottom`, o far stare il prompt dentro il pannello). **Se una seduta futura riapplica 20/22 dal runbook, il gate diventa rosso** (e' il blob del primo ritocco): non torna in silenzio.
 
 ## Limiti
 
-- Un solo prompt catturato. Gli altri hanno lo stesso widget e lo stesso stile, e il test di bilancio li misura tutti.
-- La misura headless non e' la resa: il carattere reale e l'arrotondamento a ogni scala sono della PIE e del pacchetto.
-- Il padding verticale della barra (20+22 → 12+12) e' una scelta di layout dell'assistente: era l'unica altezza libera. Alternative non prese: alzare la fascia (`Bands().Bottom`, decisione del layout) o far stare il prompt dentro il pannello.
+- Un solo prompt catturato. Gli altri hanno lo stesso widget e lo stesso stile, e il gate li misura tutti.
+- Il padding sinistro del prompt (32) l'ho misurato dalla cattura: l'etichetta COMUNI sta a 32 unita' dal bordo del pannello; 24 e' il padding di `BarPanel`, gli altri 8 non li ho attribuiti a un elemento.
+- Un dock con piu' righe di quelle che lo scenario costruisce non e' misurato.
