@@ -136,9 +136,10 @@ public:
 	 * e' un altro, e lo dice lei stessa: *«nessuna regola vieta `L0 <-> L2`»*, *«scala che salta un layer»*.
 	 * ∴ `>= 2`, e se `MAP-5` confermasse la lettera quei tre allestimenti vanno rivisti.
 	 *
-	 * Pura e senza mappa — le due celle portano il proprio layer. La chiamano **due** strati:
-	 * `URTHexMapAsset::ValidateMapDetailed` sulla collezione e `URTHexArchTool` prima di committare. E' una
-	 * funzione sola perche' due stesure della stessa soglia divergono, e divergerebbero in silenzio.
+	 * Pura e senza mappa — le due celle portano il proprio layer. La chiamano `URTHexMapAsset::ValidateMapDetailed`
+	 * sulla collezione, `URTHexArchTool` prima di committare il gesto e `ARTHexMapActor::AddTransitionData` prima
+	 * di scrivere (`#3348`). E' una funzione sola perche' due stesure della stessa soglia divergono, e
+	 * divergerebbero in silenzio.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static bool IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,
