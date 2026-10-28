@@ -547,8 +547,19 @@ bool FRTSeenUseSubjectTest::RunTest(const FString&)
 	// Senza registro, nessuna riga: il default e' il comportamento di prima.
 	TestEqual(TEXT("senza registro: nessuna riga"), ARTHUD::BuildInspectSubject(Enemy, SeenObserverTeam, true).DeducedCooldowns.Num(), 0);
 	// Un'unita' della squadra di chi guarda: si leggono le ricariche vere, non le dedotte.
-	TestEqual(TEXT("un'unita' propria: nessuna riga dedotta"),
-		ARTHUD::BuildInspectSubject(Enemy, /*PlayerTeamId=*/ 0, true, &Ledger).DeducedCooldowns.Num(), 0);
+	// 🔴 Il registro deve CONOSCERE l'unita' dalla parte della sua stessa squadra, altrimenti l'asserto non esercita la
+	// guardia: con un verdetto che autorizza solo la squadra 1, la squadra 0 non ha comunque nessuna riga (la prima
+	// stesura passava anche senza la guardia, e la mutazione l'ha scoperto). Qui la voce e' letta da tutti.
+	FRTTurnLogEntry UsedByAll = Used;
+	UsedByAll.Verdict = FRTKnowledgeVerdict::Everyone();
+	FRTSeenUseLedger KnowsBothSides;
+	KnowsBothSides.Observe(UsedByAll, TArray<int32>{ 0, SeenObserverTeam });
+	TestTrue(TEXT("premessa: il registro conosce l'uso dalla squadra dell'unita' stessa"),
+		KnowsBothSides.LastSeenTurn(/*ObserverTeamId=*/ 0, Enemy->StableUnitId, Intercept->Def.ActionId) > 0);
+	TestEqual(TEXT("controllo positivo: lo stesso registro, letto da chi non e' della sua squadra, da' la riga"),
+		ARTHUD::BuildInspectSubject(Enemy, SeenObserverTeam, true, &KnowsBothSides).DeducedCooldowns.Num(), 1);
+	TestEqual(TEXT("un'unita' propria: nessuna riga dedotta, anche se il registro la conosce"),
+		ARTHUD::BuildInspectSubject(Enemy, /*PlayerTeamId=*/ 0, true, &KnowsBothSides).DeducedCooldowns.Num(), 0);
 	// La squadra che NON ha visto: un registro che non la conosce non ne inventa.
 	FRTSeenUseLedger Empty;
 	TestEqual(TEXT("registro vuoto: nessuna riga"), ARTHUD::BuildInspectSubject(Enemy, SeenObserverTeam, true, &Empty).DeducedCooldowns.Num(), 0);
