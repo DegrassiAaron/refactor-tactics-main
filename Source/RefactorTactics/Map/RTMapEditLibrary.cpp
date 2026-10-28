@@ -464,6 +464,29 @@ ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellI
 	return ERTMapEditOutcome::Applied;
 }
 
+ERTMapEditOutcome URTMapEditLibrary::SetCellBodyFill(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexBodyFill Fill)
+{
+	if (Map == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// 🔴 **NON passa da `AddOrUpdateCell`**, a differenza di `AddDoor`, per due ragioni che il header spiega:
+	// incrementa sempre `Revision` — che entra in `HashMatchState` e nel `GraphRevision` del TurnLog, quindi un
+	// campo di sola presentazione cambierebbe l'identita' competitiva della mappa — e CREA la cella che non
+	// trova. Qui la cella si cerca soltanto: se manca, si rifiuta prima di toccare qualunque cosa.
+	for (FRTHexCellData& Existing : Map->Cells)
+	{
+		if (Existing.Id == Cell)
+		{
+			Existing.BodyFill = Fill;
+			return ERTMapEditOutcome::Applied;
+		}
+	}
+
+	return ERTMapEditOutcome::RefusedNoSuchCell;
+}
+
 FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
 {
 	// ⛔ **Nessun `default`, ed e' deliberato.** Un ramo generico e' precisamente il difetto che questa

@@ -187,6 +187,37 @@ public:
 		ERTHexDoorState State, int32 DoorId = -1, FName StableId = NAME_None);
 
 	/**
+	 * Dichiara quanto volume si vede SOTTO la superficie di una cella (`#3361`, il corpo strutturale di `#1865`).
+	 *
+	 * 🔴 **E' l'anello che mancava a `#1865`**: derivatore, posa nell'actor, filtro dei piani e ricostruzione
+	 * incrementale esistono, ma nessun percorso di authoring su un asset scriveva il campo che li accende. Il
+	 * Details e' vietato da `AGENTS.md` §7, e il pennello non e' il gesto che manca: `ApplyBrush` copia la cella
+	 * e ne sovrascrive solo i propri campi.
+	 *
+	 * ⛔ **Il rifiuto e' uno solo.** Il vocabolario e' chiuso dal tipo, e la frazione e' un'**intenzione**: il
+	 * derivatore la concilia con cio' che sta sotto (`FRTStructuralBody::bTruncated`). La sola domanda sensata
+	 * e' se la cella esiste.
+	 *
+	 * 🔴 **NON muove `Revision`, ed e' la scelta che distingue questa funzione da `AddDoor`.** `Revision` e'
+	 * documentata come «modifica **strutturale**», ma non e' un dettaglio d'asset: `Map->Revision` entra in
+	 * `HashMatchState` e e' il `GraphRevision` di ogni voce di TurnLog. Un campo di sola presentazione che la
+	 * muovesse cambierebbe l'identita' competitiva di ogni partita giocata sulla mappa salvata — un hash di stato
+	 * o una traccia pinnati su di essa divergerebbero senza che il gioco sia cambiato (`AGENTS.md`: una feature
+	 * presentation-only non modifica stato competitivo). Per questo NON passa da `AddOrUpdateCell`, che incrementa
+	 * sempre e che inoltre CREA la cella che non trova: qui la cella si cerca, e se manca si rifiuta.
+	 *
+	 * ⚠️ **Costo dichiarato**: nessuna voce del registro delle modifiche viene scritta, quindi un actor vivo non
+	 * viene avvisato. Non perde nulla di misurato — il ripaint guidato da `Revision` non ricostruisce comunque i
+	 * corpi (`ERTRebuildFamily::Bodies`), che si ricostruiscono con la ricostruzione completa — ma chi chiama su un
+	 * asset vivo deve ricostruire. `None` e' un valore legale e **toglie** il corpo; riscrivere lo stesso valore e'
+	 * un no-op.
+	 *
+	 * ⛔ Non segna il package come sporco ne' apre transazioni: lo fa chi chiama (il commandlet, un tool).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	static ERTMapEditOutcome SetCellBodyFill(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexBodyFill Fill);
+
+	/**
 	 * L'esito, in parole — **quale regola ha fermato il gesto** (#1864, casella 8).
 	 *
 	 * 🔴 **Esiste perche' la disciplina dichiarata in cima a questo file non era applicata da nessuno.**
