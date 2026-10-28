@@ -592,11 +592,12 @@ public:
 	 * ⚠️ **Vive qui e non dentro la cella**, e non e' una preferenza: `RTGeometryGrammar.h` include gia'
 	 * `RTHexCellData.h`, quindi un `FRTGeometrySegment` dentro la cella chiuderebbe un ciclo di include.
 	 *
-	 * ⚠️ **Ci finisce SOLO cio' che nessuna copertura puo' rappresentare.** Un segmento che chiude almeno
+	 * ⚠️ **Ci finisce SOLO cio' che nessuna copertura puo' rappresentare, e ogni segmento per il centro (`Offset == 0`, vedi sotto).** Un segmento che chiude almeno
 	 * un bordo e' gia' descritto dalle sue coperture, e scriverlo anche qui creerebbe due verita' sullo
 	 * stesso muro — che e' la classe di difetto che questa seduta ha passato la giornata a smontare.
 	 * L'approssimazione dichiarata: un segmento che chiude un bordo **e** sporge dentro la cella e'
-	 * rappresentato dalla sola copertura, e la sua parte interna non viene conservata.
+	 * rappresentato dalla sola copertura, e la sua parte interna non viene conservata. E' questa lettura, e non il
+	 * titolo di `D-179` (1) *"si conserva ogni segmento disegnato"*, a valere: `D-554`.
 	 *
 	 * 🔑 «Chiude un bordo» si chiede a `URTGeometryBakeLibrary::CoverEdgesOf`, sede unica (#3326, `D-551`): un
 	 * segmento che passa per il centro (`Offset == 0`) e' un muro interno anche quando attraversa due lati opposti.

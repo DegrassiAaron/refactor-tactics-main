@@ -669,7 +669,7 @@ risposta e una misura che la risposta non nomina.
 ## Aperta — la vista attraverso una frontiera interna, da `D-179`
 
 [`D-179`](decisions/RT_PDR_00_Decision_Log.md) ha reso la geometria dentro la cella **dato di gioco**: si
-conserva sempre, entra nell'hash, e un muro a `Offset == 0` rende la cella non entrabile. Il suo punto (3)
+conserva sempre ⌫ *(letto con `D-554`: ciò che nessuna copertura può rappresentare e ogni segmento che passa per il centro)*, entra nell'hash, e un muro a `Offset == 0` rende la cella non entrabile. Il suo punto (3)
 lascia però la **vista** deliberatamente fuori — *«la LoS del progetto è cella-a-cella, e la sua regola è
 un'altra domanda»* — e [`#1239`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1239) la mette
 fra i «Non fare», perché dedurla dal movimento sarebbe una conseguenza inventata.
