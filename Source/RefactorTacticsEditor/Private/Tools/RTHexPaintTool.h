@@ -129,6 +129,8 @@ protected:
 	bool bStrokeActive = false;
 	bool bStrokeOpened = false; // transazione+BeginStroke aperti (lazy, al primo cambiamento reale)?
 	TSet<FRTCellId> PaintedThisStroke;
+	int32 StrokeCellsErased = 0;    // celle cancellate dalla pennellata in corso (#3322)
+	int32 StrokeCascadeRemoved = 0; // muri interni, archi e binding portati via con esse
 
 	bool bHasMarker = false;
 	FVector MarkerCenter = FVector::ZeroVector;

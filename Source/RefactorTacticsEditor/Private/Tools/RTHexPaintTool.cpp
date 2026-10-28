@@ -133,12 +133,18 @@ bool URTHexPaintTool::ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& Cente
 		// Il flag della vista si passa SEMPRE: il pennello lo scrive come scrive `bBlocksMovement`, cosi'
 		// dipingere con il flag spento su una cella che lo aveva lo toglie. Senza, il muro sarebbe
 		// irreversibile dall'editor — il difetto opposto a quello che questa property risolve.
+		int32 CascadeRemoved = 0;
 		const bool bApplied = bPaint
 			? Map->PaintCellInStroke(C, Properties->Surface, Properties->MoveCost, Properties->bBlocksMovement,
 				TOptional<bool>(Properties->bBlocksLineOfSight))
-			: Map->EraseCellInStroke(C);
+			: Map->EraseCellInStroke(C, &CascadeRemoved);
 		PaintedThisStroke.Add(C);
 		bAnyChanged = bAnyChanged || bApplied;
+		if (!bPaint && bApplied)
+		{
+			++StrokeCellsErased;
+			StrokeCascadeRemoved += CascadeRemoved;
+		}
 	}
 
 	// Readout/marker sul centro.
@@ -174,6 +180,8 @@ void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
 	bStrokeActive = true;
 	bStrokeOpened = false;
 	PaintedThisStroke.Reset();
+	StrokeCellsErased = 0;
+	StrokeCascadeRemoved = 0;
 
 	if (ApplyBrushAt(Actor, Cell, Center))
 	{
@@ -212,6 +220,14 @@ void URTHexPaintTool::EndStrokeIfActive()
 	{
 		TargetActor->MapAsset->EndStroke();
 		TargetActor->RebuildInstances(); // riallinea InstanceCells all'ordine post-SortCells
+		if (StrokeCellsErased > 0)
+		{
+			// Quante celle E quanti elementi la cascata ha portato via: un arco verso una cella fuori dall'area sparisce
+			// con lei, e chi dipinge deve poterlo leggere (#3322).
+			UE_LOG(LogTemp, Log,
+				TEXT("[HexMode] Erase: %d celle cancellate, %d elementi portati via con esse (muri interni, archi, binding)."),
+				StrokeCellsErased, StrokeCascadeRemoved);
+		}
 	}
 	StrokeTransaction.Reset(); // chiude/commit la transazione (o no-op se non aperta)
 	bStrokeActive = false;
