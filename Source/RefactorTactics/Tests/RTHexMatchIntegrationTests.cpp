@@ -32,6 +32,10 @@
 #include "Map/RTOverlayPalette.h" // `#3511`: AllMeanings, l'oracolo del reset
 #include "Frontend/RTFrontendNavigator.h" // `#3511`: la pausa e' l'uscita `Modal`
 #include "Engine/GameInstance.h"
+#include "Core/RTGameplayTags.h"     // `#3750`: Slow e Unbalanced, gli stati pubblici che l'area del fuoco riporta
+#include "Perception/RTTeamKnowledge.h" // `#3750`: la conoscenza di squadra si dichiara nel banco
+#include "Player/RTFocusArea.h"        // `#3750`: l'oracolo dell'area si calcola con la distanza, non con la libreria
+#include "EngineUtils.h"               // TActorIterator: la seconda unita' propria del banco
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -3860,6 +3864,638 @@ bool FRTPlannedRouteFollowsSneakTest::RunTest(const FString&)
 	B.PC->ToggleSneakForTest();
 	TestTrue(TEXT("ritirato, la rotta a schermo e' ancora il piano, qualunque sia"), PlannedRouteShowsPlan(B));
 
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3750`, fetta C di F5 — il FUOCO sulla mappa, sul controller vero.
+//
+// Il banco e' quello di `#3511` (partita reale in pianificazione, il controller vero, la mappa vera): qui si guarda cio' che la
+// mappa MOSTRA dopo `PinInspection` e `UpdatePlanningOverlay`, non le funzioni pure, che hanno i loro test. La conoscenza della
+// squadra si dichiara con `SetTeamKnowledgeForTest`: il banco non ha un `ARTGameMode` che la rinfreschi.
+//
+// 🔑 **Ogni regola ha un gemello e un controllo positivo**: due mondi che differiscono solo in cio' che la squadra non vede
+// (o nel piano del nemico) danno la stessa area; un cambiamento in cio' che si vede la cambia.
+// =====================================================================================================
+
+namespace
+{
+	/** Le celle entro `Radius` da `Center`, ordinate in modo stabile. L'oracolo e' la distanza esagonale, non la libreria. */
+	TArray<FRTCellId> FwWithin(const URTHexMapAsset* Map, const FRTCellId& Center, int32 Radius)
+	{
+		TArray<FRTCellId> Cells;
+		for (const FRTCellId& Cell : URTHexLibrary::HexArea(Center, Radius))
+		{
+			if (Map->ContainsCell(Cell)) { Cells.Add(Cell); }
+		}
+		Cells.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+		return Cells;
+	}
+
+	TArray<FRTCellId> FwSorted(TArray<FRTCellId> Cells)
+	{
+		Cells.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+		return Cells;
+	}
+
+	FRTTeamKnowledge FwAllSeen(const URTHexMapAsset* Map)
+	{
+		FRTTeamKnowledge Knowledge;
+		Knowledge.TeamId = 0;
+		for (const FRTHexCellData& Cell : Map->Cells)
+		{
+			Knowledge.VisibleCells.Add(Cell.Id);
+			Knowledge.ExploredCells.Add(Cell.Id);
+		}
+		return Knowledge;
+	}
+
+	/** L'altra unita' propria del banco (la prima e' `Mine`). */
+	ARTUnit* FwOtherOwn(UWorld* World, const ARTUnit* Mine)
+	{
+		for (TActorIterator<ARTUnit> It(World); It; ++It)
+		{
+			if (It->TeamId == Mine->TeamId && *It != Mine) { return *It; }
+		}
+		return nullptr;
+	}
+
+	/** Un caso del banco del fuoco: cosa cambia nel mondo, cosa sa la squadra, chi si ispeziona. */
+	struct FFwCase
+	{
+		TFunction<void(FRTLockInPreviewBench&, ARTUnit* Enemy)> Edit;
+		TFunction<void(FRTTeamKnowledge&, const ARTUnit* Enemy)> Knowledge;
+		TFunction<ARTUnit*(FRTLockInPreviewBench&, ARTUnit* Enemy)> PinWho;
+		bool bPin = true;
+	};
+
+	struct FFwResult
+	{
+		bool bOk = false;
+		TArray<FRTCellId> Normal;
+		TArray<FRTCellId> RunOnly;
+		int32 Lit = 0;
+		FRTCellId EnemyCell;
+		int32 EnemyBase = 0;
+	};
+
+	/**
+	 * Allestisce il banco, applica il caso, ispeziona e fa un tick delle aree: restituisce cio' che la mappa mostra. Nessuna
+	 * unita' e' selezionata (`IdleSelection`), cosi' a tenere la mappa puo' essere solo il fuoco.
+	 */
+	FFwResult FwRun(FAutomationTestBase& Test, const FFwCase& Case)
+	{
+		FFwResult Out;
+		FRTLockInPreviewBench B;
+		if (!MakeLockInPreviewBench(Test, B)) { DestroyHexMatchWorld(B.World); return Out; }
+		ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+		if (!Test.TestNotNull(TEXT("fuoco: il nemico del banco"), Enemy) || !Test.TestTrue(TEXT("fuoco: la mappa del banco"), B.HexMap->MapAsset != nullptr))
+		{
+			DestroyHexMatchWorld(B.World);
+			return Out;
+		}
+		if (Case.Edit) { Case.Edit(B, Enemy); }
+		FRTTeamKnowledge Knowledge = FwAllSeen(B.HexMap->MapAsset);
+		if (Case.Knowledge) { Case.Knowledge(Knowledge, Enemy); }
+		B.TM->SetTeamKnowledgeForTest(Knowledge);
+
+		B.PC->SelectActorForTest(nullptr);
+		if (Case.bPin)
+		{
+			B.PC->PinInspectionForTest(Case.PinWho ? Case.PinWho(B, Enemy) : Enemy);
+		}
+		B.PC->UpdatePlanningOverlay();
+
+		Out.Normal = B.HexMap->GetPreviewFocusNormalCells();
+		Out.RunOnly = B.HexMap->GetPreviewFocusRunOnlyCells();
+		Out.Lit = PreviewCellsLit(B.HexMap);
+		Out.EnemyCell = Enemy->Cell;
+		Out.EnemyBase = Enemy->GetEffectiveMoveRange();
+		Out.bOk = true;
+		DestroyHexMatchWorld(B.World);
+		return Out;
+	}
+
+	/** L'arena del banco (`MakeCountdownMatch`: raggio 4), per l'oracolo. */
+	URTHexMapAsset* FwBenchArena()
+	{
+		return URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	}
+}
+
+/**
+ * **`#3750` — un nemico ispezionato e osservato mostra le sue DUE aree di movimento, e la mappa non mostra altro.**
+ *
+ * L'oracolo e' la distanza esagonale sull'arena del banco: normale = entro il movimento base, corsa = entro il doppio, al netto
+ * della normale. Il conteggio delle celle accese dice che il piano ha ceduto la mappa (nessuna unita' e' selezionata, ma se
+ * un'altra sorgente scrivesse, `Lit` sarebbe piu' grande).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringTwoAreasTest,
+	"RefactorTactics.FocusWiring.AnInspectedObservedEnemyShowsItsTwoMovementAreas",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringTwoAreasTest::RunTest(const FString&)
+{
+	const FFwResult Shown = FwRun(*this, FFwCase());
+	if (!TestTrue(TEXT("banco"), Shown.bOk)) { return false; }
+	URTHexMapAsset* Arena = FwBenchArena();
+
+	if (!TestTrue(TEXT("premessa: il nemico si muove"), Shown.EnemyBase > 0)) { return false; }
+	const TArray<FRTCellId> WantNormal = FwWithin(Arena, Shown.EnemyCell, Shown.EnemyBase);
+	const TSet<FRTCellId> InNormal(WantNormal);
+	TArray<FRTCellId> WantRunOnly;
+	for (const FRTCellId& Cell : FwWithin(Arena, Shown.EnemyCell, Shown.EnemyBase * 2))
+	{
+		if (!InNormal.Contains(Cell)) { WantRunOnly.Add(Cell); }
+	}
+
+	TestTrue(TEXT("premessa: le due bande hanno celle sull'arena del banco"), WantNormal.Num() > 1 && WantRunOnly.Num() > 0);
+	TestTrue(TEXT("l'area normale: tutte e sole le celle entro il movimento base"), FwSorted(Shown.Normal) == WantNormal);
+	TestTrue(TEXT("l'area di corsa, al netto della normale: tutte e sole le celle fra il base e il doppio"),
+		FwSorted(Shown.RunOnly) == WantRunOnly);
+	TestEqual(TEXT("e la mappa non mostra nient'altro"), Shown.Lit, Shown.Normal.Num() + Shown.RunOnly.Num());
+
+	// CONTROLLO POSITIVO: senza ispezione la mappa e' spenta, con la stessa conoscenza e lo stesso mondo.
+	FFwCase NoPin;
+	NoPin.bPin = false;
+	const FFwResult Quiet = FwRun(*this, NoPin);
+	TestTrue(TEXT("controllo: senza ispezione nessuna area del fuoco"), Quiet.bOk && Quiet.Normal.Num() == 0 && Quiet.RunOnly.Num() == 0);
+	TestEqual(TEXT("controllo: e la mappa e' spenta"), Quiet.Lit, 0);
+	return true;
+}
+
+/**
+ * **`#3750` — MAI IL PIANO, sul percorso cablato.** Due mondi che differiscono solo nel piano del nemico danno la stessa area;
+ * gli stati PUBBLICI (`Slow`, `Unbalanced`), invece, la cambiano — ciascuno per la sua parte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringNeverThePlanTest,
+	"RefactorTactics.FocusWiring.TheAreaIsTheEnemyPotentialWhateverItPlans",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringNeverThePlanTest::RunTest(const FString&)
+{
+	const FFwResult Quiet = FwRun(*this, FFwCase());
+
+	FFwCase Planner;
+	Planner.Edit = [](FRTLockInPreviewBench&, ARTUnit* Enemy)
+	{
+		// Il piano piu' pericoloso: waypoint, un'azione e il profilo di corsa dichiarato.
+		for (const FRTCellId& Step : URTHexLibrary::Neighbors(Enemy->Cell)) { Enemy->PlannedWaypoints.Add(Step); }
+		Enemy->PlannedAbilityIndex = 0;
+		Enemy->PlannedDashAbility = 1;
+		Enemy->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	};
+	const FFwResult Planning = FwRun(*this, Planner);
+
+	FFwCase Slowed;
+	Slowed.Edit = [](FRTLockInPreviewBench&, ARTUnit* Enemy) { Enemy->ApplyStatus(TAG_Status_Slow, 2); };
+	const FFwResult SlowedResult = FwRun(*this, Slowed);
+
+	FFwCase Unbalanced;
+	Unbalanced.Edit = [](FRTLockInPreviewBench&, ARTUnit* Enemy) { Enemy->ApplyStatus(TAG_Status_Unbalanced, 2); };
+	const FFwResult UnbalancedResult = FwRun(*this, Unbalanced);
+
+	if (!TestTrue(TEXT("banco"), Quiet.bOk && Planning.bOk && SlowedResult.bOk && UnbalancedResult.bOk)) { return false; }
+	TestTrue(TEXT("premessa: l'area quieta ha le due bande"), Quiet.Normal.Num() > 1 && Quiet.RunOnly.Num() > 0);
+
+	TestTrue(TEXT("il piano del nemico non cambia l'area normale"), FwSorted(Planning.Normal) == FwSorted(Quiet.Normal));
+	TestTrue(TEXT("ne' quella di corsa"), FwSorted(Planning.RunOnly) == FwSorted(Quiet.RunOnly));
+
+	// Controlli positivi: gli stati PUBBLICI cambiano l'area.
+	TestTrue(TEXT("Slow restringe l'area normale"), SlowedResult.Normal.Num() < Quiet.Normal.Num());
+	TestEqual(TEXT("Unbalanced toglie la corsa"), UnbalancedResult.RunOnly.Num(), 0);
+	TestTrue(TEXT("e lascia l'area normale com'era"), FwSorted(UnbalancedResult.Normal) == FwSorted(Quiet.Normal));
+	return true;
+}
+
+/**
+ * **`#3750` — MONDI GEMELLI sulla geometria che la squadra non vede, sul percorso cablato.** Le celle non in vista (mai viste, o
+ * esplorate e non piu' in vista) sono muri nel calcolo: un muro in piu' o in meno LI' SOTTO non cambia l'area, uno in una cella in
+ * vista si'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringHiddenGeometryTest,
+	"RefactorTactics.FocusWiring.TheAreaIsTheSameWhenOnlyWhatIsHiddenDiffers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringHiddenGeometryTest::RunTest(const FString&)
+{
+	// Il buio: il lato sud della mappa (Y >= 1). Il nemico del banco sta a Y = -1, quindi in vista.
+	const auto IsDark = [](const FRTCellId& Cell) { return Cell.Y >= 1; };
+	const auto DarkNeverSeen = [IsDark](FRTTeamKnowledge& K, const ARTUnit*)
+	{
+		K.VisibleCells.RemoveAll([IsDark](const FRTCellId& Cell) { return IsDark(Cell); });
+		K.ExploredCells.RemoveAll([IsDark](const FRTCellId& Cell) { return IsDark(Cell); });
+	};
+	const auto DarkExplored = [IsDark](FRTTeamKnowledge& K, const ARTUnit*)
+	{
+		K.VisibleCells.RemoveAll([IsDark](const FRTCellId& Cell) { return IsDark(Cell); }); // esplorate: restano in ExploredCells
+	};
+	const auto WallsInTheDark = [IsDark](FRTLockInPreviewBench& B, ARTUnit*)
+	{
+		for (FRTHexCellData& Cell : B.HexMap->MapAsset->Cells) { if (IsDark(Cell.Id)) { Cell.bBlocksMovement = true; } }
+	};
+
+	FFwCase Open;     Open.Knowledge = DarkNeverSeen;
+	FFwCase Walled;   Walled.Edit = WallsInTheDark;   Walled.Knowledge = DarkNeverSeen;
+	// 🔴 I due mondi ESPLORATI differiscono nel SOLO stato nascosto: in entrambi il buio e' esplorato e non piu' in vista, in uno
+	// ha i muri e nell'altro no. (Una stesura precedente confrontava il buio esplorato CON muri col buio mai visto SENZA: era
+	// equivalente al caso `Walled`, e «l'esplorato vale come visto» restava verde — rilievo della review.)
+	FFwCase ExploredWalled; ExploredWalled.Edit = WallsInTheDark; ExploredWalled.Knowledge = DarkExplored;
+	FFwCase ExploredOpen;   ExploredOpen.Knowledge = DarkExplored;
+	const FFwResult InOpen = FwRun(*this, Open);
+	const FFwResult InWalled = FwRun(*this, Walled);
+	const FFwResult InExploredWalled = FwRun(*this, ExploredWalled);
+	const FFwResult InExploredOpen = FwRun(*this, ExploredOpen);
+	if (!TestTrue(TEXT("banco"), InOpen.bOk && InWalled.bOk && InExploredWalled.bOk && InExploredOpen.bOk)) { return false; }
+	TestTrue(TEXT("premessa: c'e' un'area da confrontare"), InOpen.Normal.Num() > 1);
+
+	TestTrue(TEXT("la geometria mai vista non cambia l'area normale"), FwSorted(InWalled.Normal) == FwSorted(InOpen.Normal));
+	TestTrue(TEXT("ne' quella di corsa"), FwSorted(InWalled.RunOnly) == FwSorted(InOpen.RunOnly));
+	TestTrue(TEXT("la geometria esplorata e non piu' in vista: stessa area normale con i muri e senza"),
+		FwSorted(InExploredWalled.Normal) == FwSorted(InExploredOpen.Normal));
+	TestTrue(TEXT("...e stessa area di corsa"), FwSorted(InExploredWalled.RunOnly) == FwSorted(InExploredOpen.RunOnly));
+	TestTrue(TEXT("e l'esplorato non vale come visto: l'area e' quella del buio mai visto"),
+		FwSorted(InExploredOpen.Normal) == FwSorted(InOpen.Normal) && FwSorted(InExploredOpen.RunOnly) == FwSorted(InOpen.RunOnly));
+
+	// CONTROLLO POSITIVO 1: guardando tutto, quel buio MUTEREBBE l'area (e' nel raggio del nemico).
+	FFwCase SeenWalled;   SeenWalled.Edit = WallsInTheDark;
+	const FFwResult AllSeen = FwRun(*this, FFwCase());
+	const FFwResult AllSeenWalled = FwRun(*this, SeenWalled);
+	TestTrue(TEXT("premessa: se si vedesse tutto, i muri nel buio cambierebbero l'area"),
+		AllSeen.bOk && AllSeenWalled.bOk && (FwSorted(AllSeen.Normal) != FwSorted(AllSeenWalled.Normal)
+			|| FwSorted(AllSeen.RunOnly) != FwSorted(AllSeenWalled.RunOnly)));
+
+	// CONTROLLO POSITIVO 2: un muro in una cella IN VISTA accanto al nemico cambia l'area.
+	FFwCase VisibleWall;
+	VisibleWall.Edit = [](FRTLockInPreviewBench& B, ARTUnit* Enemy)
+	{
+		// Il primo vicino che esiste nella mappa (il nemico sta vicino al bordo): un muro fuori mappa non cambierebbe niente.
+		for (const FRTCellId& Next : URTHexLibrary::Neighbors(Enemy->Cell))
+		{
+			if (!B.HexMap->MapAsset->ContainsCell(Next)) { continue; }
+			for (FRTHexCellData& Cell : B.HexMap->MapAsset->Cells) { if (Cell.Id == Next) { Cell.bBlocksMovement = true; } }
+			break;
+		}
+	};
+	const FFwResult WithWall = FwRun(*this, VisibleWall);
+	TestTrue(TEXT("un muro in una cella in vista cambia l'area"),
+		WithWall.bOk && (FwSorted(WithWall.Normal) != FwSorted(AllSeen.Normal)));
+	return true;
+}
+
+/**
+ * **`#3750` — P2 sul controller: un nemico NON osservato non ha area, anche se l'ispezione lo ha fissato.**
+ *
+ * Il click fissa un nemico appena nato senza voce `Live` (`IsKnownToObserver` nasce vero), e la fissazione dura fino al tick
+ * dell'HUD. In quella finestra l'area mostrerebbe a chi guarda cio' che non vede: il cancello e' del controller, sulla stessa
+ * vista del velo. Ogni caso e' un modo di non essere osservato; il controllo e' lo stesso mondo, osservato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringUnobservedTest,
+	"RefactorTactics.FocusWiring.AnUnobservedEnemyHasNoAreaEvenWhenPinned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringUnobservedTest::RunTest(const FString&)
+{
+	const FFwResult Observed = FwRun(*this, FFwCase());
+	if (!TestTrue(TEXT("banco"), Observed.bOk && Observed.Normal.Num() > 0)) { return false; }
+
+	struct FUnobserved { const TCHAR* Name; FFwCase Case; };
+	TArray<FUnobserved> Cases;
+
+	FFwCase OnADarkCell;
+	OnADarkCell.Knowledge = [](FRTTeamKnowledge& K, const ARTUnit* Enemy)
+	{
+		K.VisibleCells.Remove(Enemy->Cell);
+		K.ExploredCells.Remove(Enemy->Cell);
+	};
+	Cases.Add({ TEXT("la sua cella non e' mai stata vista"), OnADarkCell });
+
+	// ESPLORATA e non piu' in vista: dice dove sta l'unita' quanto una cella mai vista (D-225, D-227).
+	FFwCase OnAnExploredCell;
+	OnAnExploredCell.Knowledge = [](FRTTeamKnowledge& K, const ARTUnit* Enemy) { K.VisibleCells.Remove(Enemy->Cell); };
+	Cases.Add({ TEXT("la sua cella e' esplorata ma non piu' in vista"), OnAnExploredCell });
+
+	// Solo un RICORDO: la squadra ha un contatto vivo, quindi la vista ha una voce `Remembered` — che esiste, e non e' `Live`.
+	// E' il caso che distingue «c'e' una voce» da «la voce e' `Live`»: il cancello e' il secondo (P2).
+	//
+	// 🔴 **Il contatto sta su una cella VICINA E ANCORA IN VISTA, non sulla cella del nemico.** Con il contatto sulla stessa
+	// cella non in vista il caso era vacuo: `URTFocusAreaLibrary::MoveAreasFor` restituisce gia' area vuota per un soggetto su una
+	// cella non in vista, e togliere il cancello (`IsInspectable`) lasciava il test verde (la mutazione K1 sopravviveva). Con
+	// l'ultimo avvistamento su una cella che si vede, senza cancello l'area partirebbe da dove il nemico non e' piu'.
+	FFwCase OnlyRemembered;
+	OnlyRemembered.Knowledge = [](FRTTeamKnowledge& K, const ARTUnit* Enemy)
+	{
+		K.VisibleCells.Remove(Enemy->Cell);
+		FRTCellId LastSeen = Enemy->Cell;
+		for (const FRTCellId& Next : URTHexLibrary::Neighbors(Enemy->Cell))
+		{
+			if (K.VisibleCells.Contains(Next)) { LastSeen = Next; break; }
+		}
+		K.Contacts.Add(FRTLastKnownContact(Enemy->StableUnitId, LastSeen, /*InTurn=*/ 1));
+	};
+	Cases.Add({ TEXT("la squadra ne ha solo un ricordo (voce Remembered)"), OnlyRemembered });
+
+	// Cella in vista ma conoscenza illeggibile (versione sbagliata): fail-closed, nessuna voce `Live`.
+	FFwCase UnreadableKnowledge;
+	UnreadableKnowledge.Knowledge = [](FRTTeamKnowledge& K, const ARTUnit*) { K.Version = 0; };
+	Cases.Add({ TEXT("la cella e' in vista ma la conoscenza della squadra e' illeggibile"), UnreadableKnowledge });
+
+	FFwCase Fallen;
+	Fallen.Edit = [](FRTLockInPreviewBench&, ARTUnit* Enemy) { Enemy->Health = 0; };
+	Cases.Add({ TEXT("e' caduto"), Fallen });
+
+	// Un'unita' PROPRIA a fuoco non e' coperta da D-552 (scelta della sessione): niente area.
+	FFwCase OwnUnit;
+	OwnUnit.PinWho = [](FRTLockInPreviewBench& B, ARTUnit*) { return FwOtherOwn(B.World, B.Mine); };
+	Cases.Add({ TEXT("e' un'unita' propria"), OwnUnit });
+
+	for (const FUnobserved& Case : Cases)
+	{
+		const FFwResult Result = FwRun(*this, Case.Case);
+		TestTrue(*FString::Printf(TEXT("%s: banco"), Case.Name), Result.bOk);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna area normale"), Case.Name), Result.Normal.Num(), 0);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna area di corsa"), Case.Name), Result.RunOnly.Num(), 0);
+		TestEqual(*FString::Printf(TEXT("%s: e la mappa e' spenta"), Case.Name), Result.Lit, 0);
+	}
+	return true;
+}
+
+/**
+ * **`#3750` — IL CICLO DEL FUOCO sul controller.** Il piano cede la mappa all'area del soggetto; armare la fa uscire e il piano
+ * torna; disarmare non la riporta; una nuova fissazione si'; `RMB` chiude l'ispezione e il piano torna. In tutti i passi
+ * la scheda (`InspectedUnit`) resta finche' non e' chiusa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringLifecycleTest,
+	"RefactorTactics.FocusWiring.TheAreaCedesTheMapToThePlanAtTheFirstGestureAndDoesNotComeBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringLifecycleTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("il nemico del banco"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+
+	// Mine selezionata e senza piano: `Planning`, e il ventaglio e' acceso (la sorgente e' il piano).
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	if (!TestEqual(TEXT("premessa: il contesto e' Planning"), B.PC->GetPointerContext(), ERTPointerContext::Planning)
+		|| !TestTrue(TEXT("premessa: il ventaglio del piano e' acceso"), B.HexMap->NumPreviewReachableCells() > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("premessa: nessuna area del fuoco"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+
+	// 1. LA FISSAZIONE: il fuoco prende la mappa, e il ventaglio del piano cede.
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("1: l'area normale del nemico e' sulla mappa"), B.HexMap->GetPreviewFocusNormalCells().Num() > 0);
+	TestEqual(TEXT("1: il ventaglio dell'unita' comandata ha ceduto la mappa"), B.HexMap->NumPreviewReachableCells(), 0);
+	TestTrue(TEXT("1: la scheda e' fissata sul nemico"), B.PC->GetInspectedUnit() == Enemy);
+
+	// 2. IL PRIMO GESTO (armare): l'area esce, il piano torna, la scheda resta.
+	int32 Armed = INDEX_NONE;
+	for (int32 I = 0; I < B.Mine->NumAbilities() && Armed == INDEX_NONE; ++I)
+	{
+		B.Mine->SelectAbility(I);
+		if (B.Mine->SelectedAbilityIndex == I) { Armed = I; }
+	}
+	if (!TestTrue(TEXT("premessa: si puo' armare un'azione"), Armed != INDEX_NONE)) { DestroyHexMatchWorld(B.World); return false; }
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("2: armare fa uscire l'area normale"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	TestEqual(TEXT("2: ...e quella di corsa"), B.HexMap->GetPreviewFocusRunOnlyCells().Num(), 0);
+	TestTrue(TEXT("2: il piano ha ripreso la mappa"), PreviewCellsLit(B.HexMap) > 0);
+	TestTrue(TEXT("2: la scheda resta"), B.PC->GetInspectedUnit() == Enemy);
+
+	// 3. DISARMARE non la riporta.
+	B.Mine->SelectAbility(INDEX_NONE);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("3: disarmare non riporta l'area"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	TestTrue(TEXT("3: il ventaglio del piano e' tornato"), B.HexMap->NumPreviewReachableCells() > 0);
+
+	// 4. UNA NUOVA FISSAZIONE la riporta, sulla stessa unita'.
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("4: rifissare riporta l'area"), B.HexMap->GetPreviewFocusNormalCells().Num() > 0);
+	TestEqual(TEXT("4: e il ventaglio cede di nuovo"), B.HexMap->NumPreviewReachableCells(), 0);
+
+	// 5. UN WAYPOINT e' un gesto di pianificazione: la revisione sale e l'area esce.
+	B.Mine->PlannedWaypoints.Add(URTHexLibrary::Neighbors(B.Mine->Cell)[0]);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	TestEqual(TEXT("5: un waypoint fa uscire l'area"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+
+	// 6. RMB con un fuoco attivo lo chiude (passo `Inspector` del Back) e tornano le anteprime di pianificazione.
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	if (!TestTrue(TEXT("6: premessa, l'area e' tornata"), B.HexMap->GetPreviewFocusNormalCells().Num() > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	B.PC->ApplyBack();
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("6: RMB chiude l'ispezione"), B.PC->GetInspectedUnit() == nullptr);
+	TestEqual(TEXT("6: e l'area lascia la mappa"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	TestTrue(TEXT("6: tornano le anteprime di pianificazione"), B.HexMap->NumPreviewReachableCells() > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — l'area segue la conoscenza, non l'attore.** Se il soggetto esce di vista l'area lascia la mappa subito (anche prima
+ * che l'HUD rilasci l'ispezione), e non torna quando rientra: serve una nuova fissazione. Cio' da cui l'area dipende
+ * (la vista) la rifa'; i tick fermi e l'hover no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringFollowsKnowledgeTest,
+	"RefactorTactics.FocusWiring.TheAreaFollowsWhatTheTeamSeesAndIdleTicksDoNotRedoIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringFollowsKnowledgeTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("il nemico del banco"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	const FRTTeamKnowledge All = FwAllSeen(B.HexMap->MapAsset);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.PC->SelectActorForTest(nullptr);
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	const TArray<FRTCellId> Shown = B.HexMap->GetPreviewFocusNormalCells();
+	if (!TestTrue(TEXT("premessa: l'area e' sulla mappa"), Shown.Num() > 1)) { DestroyHexMatchWorld(B.World); return false; }
+
+	// CONTATORI: dieci tick fermi non ricalcolano; l'hover non rifa' l'area.
+	int32 P = B.PC->GetPlanningOverlayPlanComputations();
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("dieci tick a ingressi invariati non rifanno l'area"), B.PC->GetPlanningOverlayPlanComputations(), P);
+	B.HexMap->SetHoveredCell(Shown[0], /*bValid=*/ true);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("la sola cella sotto il cursore non rifa' l'area (criterio di #711)"), B.PC->GetPlanningOverlayPlanComputations(), P);
+	TestTrue(TEXT("e l'area e' la stessa"), FwSorted(B.HexMap->GetPreviewFocusNormalCells()) == FwSorted(Shown));
+
+	// LA VISTA CAMBIA: una cella dell'area (non quella del nemico) non si vede piu' -> l'area si rifa' senza di lei.
+	FRTCellId Lost = Shown[0];
+	for (const FRTCellId& Cell : Shown) { if (!(Cell == Enemy->Cell)) { Lost = Cell; break; } }
+	FRTTeamKnowledge Narrower = All;
+	Narrower.VisibleCells.Remove(Lost);
+	B.TM->SetTeamKnowledgeForTest(Narrower);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("una vista diversa rifa' l'area"), B.PC->GetPlanningOverlayPlanComputations(), P + 1);
+	TestFalse(TEXT("la cella non piu' in vista non e' nell'area normale"), B.HexMap->GetPreviewFocusNormalCells().Contains(Lost));
+	TestFalse(TEXT("ne' in quella di corsa"), B.HexMap->GetPreviewFocusRunOnlyCells().Contains(Lost));
+	TestTrue(TEXT("controllo: prima c'era"), Shown.Contains(Lost));
+
+	// IL SOGGETTO ESCE DI VISTA: l'area lascia la mappa subito, la scheda resta (la rilascia l'HUD) e non torna da sola.
+	FRTTeamKnowledge Blind = All;
+	Blind.VisibleCells.Remove(Enemy->Cell);
+	B.TM->SetTeamKnowledgeForTest(Blind);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("fuori di vista l'area lascia la mappa"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	TestEqual(TEXT("...tutta"), PreviewCellsLit(B.HexMap), 0);
+	TestTrue(TEXT("la scheda resta finche' non la rilascia l'HUD"), B.PC->GetInspectedUnit() == Enemy);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("rientrato in vista l'area NON torna da sola"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("una nuova fissazione la riporta"), B.HexMap->GetPreviewFocusNormalCells().Num() > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — il click di PRODUZIONE fissa il fuoco.** `DispatchUnitClick` su un nemico osservato, da `Planning`, ispeziona e passa
+ * da `PinInspection`: l'area compare e il ventaglio dell'unita' comandata cede. Senza questo, i test sopra provano un
+ * collegamento che il gioco non percorre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringClickTest,
+	"RefactorTactics.FocusWiring.AClickOnAnObservedEnemyPinsTheFocusThroughTheProductionPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringClickTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("il nemico del banco"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	if (!TestEqual(TEXT("premessa: il contesto e' Planning"), B.PC->GetPointerContext(), ERTPointerContext::Planning))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("premessa: nessuna area del fuoco prima del click"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+
+	TestTrue(TEXT("il click sul nemico osservato e' consumato"), B.PC->DispatchUnitClickForTest(Enemy, B.Mine));
+	TestTrue(TEXT("e fissa la scheda"), B.PC->GetInspectedUnit() == Enemy);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("l'area di movimento del nemico e' sulla mappa"), B.HexMap->GetPreviewFocusNormalCells().Num() > 0);
+	TestEqual(TEXT("e il ventaglio dell'unita' comandata ha ceduto"), B.HexMap->NumPreviewReachableCells(), 0);
+	TestTrue(TEXT("la selezione non e' cambiata: il fuoco non tocca selezione ne' piano"), B.PC->GetSelectedUnit() == B.Mine);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — le altre unita' non cambiano l'area.** L'occupazione non entra nel ventaglio (D-445, D-446), e un nemico non
+ * osservato non puo' cambiarla (P2). Un mondo con unita' proprie e un secondo nemico DENTRO l'area, e un terzo nemico non
+ * osservato nel buio, da' la stessa area del mondo vuoto. Una regressione verso uno snapshot con tutte le unita' (come fa
+ * `PlanningSnapshotFor`) sarebbe verde senza questo gemello (rilievo della review).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringCrowdTest,
+	"RefactorTactics.FocusWiring.OtherUnitsDoNotChangeTheArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringCrowdTest::RunTest(const FString&)
+{
+	const auto DarkNeverSeen = [](FRTTeamKnowledge& K, const ARTUnit*)
+	{
+		K.VisibleCells.RemoveAll([](const FRTCellId& Cell) { return Cell.Y >= 1; });
+		K.ExploredCells.RemoveAll([](const FRTCellId& Cell) { return Cell.Y >= 1; });
+	};
+	FFwCase Empty;
+	Empty.Knowledge = DarkNeverSeen;
+	const FFwResult Baseline = FwRun(*this, Empty);
+	if (!TestTrue(TEXT("banco"), Baseline.bOk && Baseline.Normal.Num() > 2)) { return false; }
+
+	// Due celle DENTRO l'area, che non sono quella del nemico, per le unita' che la affollano.
+	TArray<FRTCellId> Inside;
+	for (const FRTCellId& Cell : Baseline.Normal)
+	{
+		if (!(Cell == Baseline.EnemyCell) && Inside.Num() < 3) { Inside.Add(Cell); }
+	}
+	if (!TestEqual(TEXT("premessa: tre celle dell'area per le unita'"), Inside.Num(), 3)) { return false; }
+	const FRTCellId InTheDark(0, 2, 0);
+
+	FFwCase Crowded;
+	Crowded.Knowledge = DarkNeverSeen;
+	Crowded.Edit = [Inside, InTheDark](FRTLockInPreviewBench& B, ARTUnit*)
+	{
+		B.Mine->PlaceOnCell(Inside[0], FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		if (ARTUnit* Ally = FwOtherOwn(B.World, B.Mine)) { Ally->PlaceOnCell(Inside[1], FVector::ZeroVector, 100.f, 250.f); }
+		SpawnHexMatchUnit(B.World, /*TeamId=*/ 1, URTHeroCatalogLibrary::MakeAevik(), Inside[2]); // un secondo nemico, in vista
+		SpawnHexMatchUnit(B.World, /*TeamId=*/ 1, URTHeroCatalogLibrary::MakeBranth(), InTheDark); // un terzo, nel buio
+	};
+	const FFwResult WithCrowd = FwRun(*this, Crowded);
+	if (!TestTrue(TEXT("banco affollato"), WithCrowd.bOk)) { return false; }
+
+	TestTrue(TEXT("unita' proprie e un secondo nemico dentro l'area, un terzo nel buio: l'area normale e' la stessa"),
+		FwSorted(WithCrowd.Normal) == FwSorted(Baseline.Normal));
+	TestTrue(TEXT("...e quella di corsa"), FwSorted(WithCrowd.RunOnly) == FwSorted(Baseline.RunOnly));
+	TestTrue(TEXT("premessa: le celle delle unita' sono davvero dentro l'area"), WithCrowd.Normal.Contains(Inside[0])
+		&& WithCrowd.Normal.Contains(Inside[1]) && WithCrowd.Normal.Contains(Inside[2]));
+	return true;
+}
+
+/**
+ * **`#3750` — il modale NASCONDE l'area, non la chiude** (spec §3 regole 5 e 11: la scheda torna quando si chiude, e l'area con
+ * lei). Pausa aperta: la mappa e' spenta e l'ispezione resta; pausa chiusa: l'area torna da sola, perche' aprire un modale non
+ * e' un gesto di pianificazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringModalTest,
+	"RefactorTactics.FocusWiring.APauseHidesTheAreaAndClosingItBringsItBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusWiringModalTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("il nemico del banco"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+	B.PC->SelectActorForTest(nullptr);
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	const TArray<FRTCellId> Before = B.HexMap->GetPreviewFocusNormalCells();
+	if (!TestTrue(TEXT("premessa: l'area e' sulla mappa"), Before.Num() > 1)) { DestroyHexMatchWorld(B.World); return false; }
+
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
+	GameInstance->AddToRoot();
+	GameInstance->Init();
+	URTFrontendNavigator* Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
+	if (TestNotNull(TEXT("il navigatore esiste"), Navigator))
+	{
+		B.World->SetGameInstance(GameInstance);
+		Navigator->EnterMatch();
+		Navigator->ShowPause();
+		if (TestEqual(TEXT("premessa: il contesto e' Modal"), B.PC->GetPointerContext(), ERTPointerContext::Modal))
+		{
+			B.PC->UpdatePlanningOverlay();
+			TestEqual(TEXT("con la pausa aperta la mappa e' spenta"), PreviewCellsLit(B.HexMap), 0);
+			TestTrue(TEXT("e la scheda resta fissata"), B.PC->GetInspectedUnit() == Enemy);
+
+			Navigator->ResumeMatch();
+			TestEqual(TEXT("premessa: chiusa la pausa il contesto non e' piu' Modal"),
+				B.PC->GetPointerContext() == ERTPointerContext::Modal, false);
+			B.PC->UpdatePlanningOverlay();
+			TestTrue(TEXT("chiusa la pausa l'area TORNA da sola: aprire un modale non e' un gesto di pianificazione"),
+				FwSorted(B.HexMap->GetPreviewFocusNormalCells()) == FwSorted(Before));
+		}
+	}
+
+	GameInstance->Shutdown();
+	GameInstance->RemoveFromRoot();
 	DestroyHexMatchWorld(B.World);
 	return true;
 }

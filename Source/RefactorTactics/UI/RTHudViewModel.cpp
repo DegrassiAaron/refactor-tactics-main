@@ -1,6 +1,7 @@
 ﻿#include "UI/RTHudViewModel.h"
 
 #include "Turn/RTTurnManager.h"
+#include "Perception/RTKnowledgeView.h" // BuildObserverKnowledgeView: la vista di conoscenza di chi guarda
 #include "Turn/RTMatchFormatData.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -1745,6 +1746,74 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTu
 	return TurnManager != nullptr
 		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds))
 		: TArray<FRTPlayerEventLineView>{};
+}
+
+/**
+ * La vista di conoscenza dell'osservatore, dai soggetti che le unita' vive e morte dichiarano.
+ *
+ * ⚠️ **Senza `TurnManager` la vista resta VUOTA, e non e' un caso degenere da ignorare**: ogni nemico
+ * risulta senza voce, quindi non `Live`, quindi spento. E' il verso giusto — in assenza di conoscenza
+ * non si mostra un avversario — ed e' cio' che `Veil.EnemyWithoutViewIsHidden` misura.
+ *
+ * ⚠️ `bAlive` entra fra i soggetti e non filtra **qui**: e' `ViewForTeam` a decidere cosa farne, e la
+ * sua guardia `if (!S.bAlive)` **precede** la biforcazione di squadra, quindi vale per entrambe.
+ *
+ * ⌫ **Fino al 2026-09-21 questa riga chiudeva con «togliere qui i caduti significherebbe prendere quella
+ * decisione due volte». La lettera reggeva, il CONTO no** (`#3253`): la decisione e' gia' presa due
+ * volte, e filtrare anche qui sarebbe la **terza**. Il motivo per non farlo resta, ed e' quello.
+ *
+ * 🔴 **E la sede vera non e' nessuna delle due.** Un cadavere lascia lo schermo per
+ * `ARTUnit::HideForDefeat()`, non per una guardia di conoscenza. Le tre guardie dichiarative, cosa
+ * governa ciascuna e cosa succede a toglierle stanno in **[D-431]**, che e' la decisione — qui non si
+ * ripetono, o il commento tornerebbe a essere la sede che [D-431] gli ha appena tolto.
+ */
+FRTKnowledgeView URTHudViewModel::BuildObserverKnowledgeView(const ARTTurnManager* TurnManager,
+	const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
+{
+	if (TurnManager == nullptr)
+	{
+		return FRTKnowledgeView();
+	}
+
+	TArray<FRTKnowledgeSubject> Subjects;
+	Subjects.Reserve(Units.Num());
+	for (const ARTUnit* U : Units)
+	{
+		if (!U) { continue; }
+		FRTKnowledgeSubject S;
+		S.StableUnitId = U->StableUnitId;
+		S.TeamId = U->TeamId;
+		// 🔑 **La cella ANIMATA quando ce n'e' una** (`#3458`): durante il playback `U->Cell` e' gia'
+		// la destinazione -- la simulazione ha risolto -- quindi giudicare la visibilita' su quella
+		// risponde alla domanda di fine turno mentre a schermo l'unita' e' ancora a meta' strada.
+		// `AnimatedCellFor` risponde `false` fuori dal playback, e allora vale `U->Cell`.
+		if (!TurnManager->AnimatedCellFor(U, S.Cell))
+		{
+			S.Cell = U->Cell;
+		}
+		S.HeroId = U->HeroId;
+		S.HeroDisplayName = U->HeroDisplayName;
+		S.bAlive = U->IsAlive();
+		Subjects.Add(S);
+	}
+
+	// 🔑 **`PlaybackKnowledgeForTeam` e non `KnowledgeForTeamPublic`** (`#3458`), ed e' lo stesso
+	// cambio che `#2876` aveva fatto per il velo delle CELLE senza estenderlo alle UNITA'. La canonica
+	// non avanza col micro-step: `RefreshTeamKnowledgeForPlanning` ricalcola una LOS fresca dalle
+	// posizioni correnti (`RTTurnManager.cpp:786`) e gira da `PlanBots()`, cioe' alla pianificazione
+	// SUCCESSIVA. ∴ un nemico entrato in vista a meta' percorso diventava `Live` solo al rinfresco, e
+	// tutti insieme comparivano a fine movimento -- che e' il difetto osservato nella seduta `U60`.
+	//
+	// ⚠️ **Nessun ramo `if (sta in playback)`**: `PlaybackKnowledgeForTeam` ripiega **da se'** sulla
+	// canonica fuori dal playback (`RTTurnManager.cpp:6608`). Un ramo qui sarebbe una seconda copia di
+	// quella decisione, e le due divergerebbero.
+	//
+	// ⛔ **E non e' un leak**: la conoscenza chiesta e' quella di `PlayerTeamId` -- la stessa porta per
+	// squadra che il velo usa dal `#2876` -- e il transito avversario e' troncato a monte da [D-223].
+	// Cio' che si mostra resta cio' che la squadra osservatrice sa in quell'istante, che e' piu' stretto
+	// di cio' che mostrava prima, non piu' largo.
+	return URTKnowledgeViewLibrary::ViewForTeam(
+		TurnManager->PlaybackKnowledgeForTeam(PlayerTeamId), Subjects, PlayerTeamId);
 }
 
 TArray<int32> URTHudViewModel::ResolveObserverTeamIds(const ARTTurnManager* TurnManager, int32 PlayerTeamId,
