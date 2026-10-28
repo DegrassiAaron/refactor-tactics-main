@@ -296,7 +296,30 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 
 		if (!bDryRun)
 		{
+			// 🔑 I nomi degli archi che stanno per sparire, letti PRIMA: dopo non c'e' piu' niente da leggere (#3917).
+			TArray<FName> ArcNames;
+			for (const FRTHexEdge& E : Map->Transitions)
+			{
+				if (Corrisponde(E) && !E.StableId.IsNone())
+				{
+					ArcNames.AddUnique(E.StableId);
+				}
+			}
+
 			Map->RemoveTransition(Handle.Cell, Handle.To, /*bBothDirections=*/ true);
+
+			// Lo stesso `C2` della porta e della cascata della cella: un binding che parte da una struttura sparita
+			// diventa "riferimento a una struttura inesistente". Il nome muore solo se NESSUN arco lo porta ancora,
+			// e `FindArcs` interroga la mappa GIA' aggiornata.
+			TArray<FName> ActuallyDead;
+			for (const FName& Name : ArcNames)
+			{
+				if (URTStructureIdentityLibrary::FindArcs(Map, Name).Num() == 0)
+				{
+					ActuallyDead.Add(Name);
+				}
+			}
+			RTApplyOrphanedNames(Map, ActuallyDead);
 		}
 		return ERTMapEditOutcome::Applied;
 	}
