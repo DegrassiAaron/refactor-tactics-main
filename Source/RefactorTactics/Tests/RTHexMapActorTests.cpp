@@ -3338,6 +3338,16 @@ bool FRTHexMapActorFocusAreasTest::RunTest(const FString&)
 	Actor->ClearPlanningPreview();
 	TestEqual(TEXT("il reset unico le spegne"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::Movement), 0);
 
+	// Si DISEGNANO: l'attore tiene acceso il tick solo finche' c'e' qualcosa da disegnare, e ciascuna delle due aree basta da
+	// sola. CONTROLLO: spento il reset, senza altro da disegnare, il tick e' spento.
+	TestFalse(TEXT("controllo: senza niente da disegnare il tick e' spento"), Actor->IsActorTickEnabled());
+	Actor->SetPreviewFocusAreas({ A, B }, {});
+	TestTrue(TEXT("la sola area normale del fuoco tiene acceso il tick"), Actor->IsActorTickEnabled());
+	Actor->ClearPlanningPreview();
+	Actor->SetPreviewFocusAreas({}, { C });
+	TestTrue(TEXT("e la sola area di corsa"), Actor->IsActorTickEnabled());
+	Actor->ClearPlanningPreview();
+
 	DestroyMapActorWorld(World);
 	return true;
 }
