@@ -42,13 +42,20 @@ recente con `UnrealEditor-<modulo>.dll`; `esegui_suite()` lo applica PRIMA di la
   - un sorgente e' stato CANCELLATO o rinominato — un `git checkout` verso un branch che non ha un file che
     il DLL contiene —: non resta nessun file con un mtime nuovo;
   - l'mtime del DLL si muove senza che il DLL sia riscritto: aprire l'Editor lo sposta, a dimensione
-    identica (#3121);
-  - un sorgente cambia MENTRE la build gira (#3509): il DLL e' piu' nuovo e non lo contiene;
-  - un sorgente e' ripristinato da una copia che ne conserva l'mtime vecchio (#3563);
-  - la build riesce per il modulo runtime e fallisce per l'Editor, i cui sorgenti non sono cambiati.
+    identica (osservato lavorando #3121, 2026-09-13);
+  - un sorgente cambia MENTRE la build gira (osservato lavorando #3509, 2026-10-07): il DLL e' piu' nuovo
+    e non lo contiene;
+  - un sorgente e' ripristinato da una copia che ne conserva l'mtime vecchio (osservato lavorando #3563,
+    2026-10-08);
+  - la build riesce per il modulo runtime e fallisce per l'Editor, i cui sorgenti non sono cambiati;
+  - cambia in modo semantico un `*.Build.cs` o un `*.Target.cs` senza che cambi nessun sorgente compilato, e
+    la build fallisce: `.cs` non conta di proposito (vedi `ESTENSIONI_COMPILATE`).
+  Le tre issue citate sono dove il fatto e' stato OSSERVATO, non dove e' documentato.
   **E segnala uno stantio che nessuna build risolve** quando un header non e' incluso da nessuna unita' di
-  compilazione. Un `git checkout` che ripristina file identici li rende piu' recenti del DLL e chiede una
-  build che il contenuto non richiederebbe: costa una build in piu', non un verde sbagliato.
+  compilazione, o quando un file sta in una cartella di un'altra piattaforma (`Linux`, `Mac`, `Android`,
+  `IOS`) che UBT esclude: `Source/` oggi non ne ha. Un `git checkout` che ripristina file identici li rende
+  piu' recenti del DLL e chiede una build che il contenuto non richiederebbe: costa una build in piu', non
+  un verde sbagliato.
   Restano fuori i moduli dei plugin (`Plugins/*/Source`, per esempio `RTDeveloperTools`, i cui test
   rientrano nel filtro `RefactorTactics`), che `DLL_GLOB` non osserva.
 
@@ -184,8 +191,11 @@ def istantanea(radice, dll_glob=None):
 # vecchio PER SEMPRE: lo strumento direbbe «stantio» e nessuna build potrebbe smentirlo.
 ESTENSIONI_COMPILATE = (".cpp", ".c", ".cc", ".h", ".hpp", ".inl")
 
-# 🔑 La stessa tolleranza di UBT: «allow a 1 second slop for network copies» (`ActionGraph.cs`).
-# Stantio e' il sorgente piu' nuovo del DLL di PIU' di un secondo: cio' che UBT stesso giudicherebbe obsoleto.
+# 🔑 Un margine di 1 s, come quello che UBT concede ai prerequisiti di un'azione: «allow a 1 second slop
+# for network copies» (`ActionGraph.cs`). Non e' IDENTICO a UBT — gli header passano dalla lista delle
+# dipendenze, confrontata senza margine —, ma lo scarto non conta: un sorgente toccato entro un secondo
+# dalla fine di una build non nasce da una build fallita.
+# Stantio e' il sorgente piu' nuovo del DLL di PIU' di un secondo.
 TOLLERANZA_NS = 10 ** 9
 
 
@@ -243,9 +253,13 @@ def leggi_sorgenti_e_binari(radice):
     per sempre, dopo qualunque build. E toccare un file dell'Editor non rilinka il modulo runtime: un
     confronto globale chiederebbe una build che non ricostruirebbe niente.
 
-    ⚠️ Solleva `OSError` se `Source/` non c'e' o non si legge. «Nessun sorgente» non e' «nessun sorgente
-    stantio»: chi chiama deve rifiutare, non assolvere. Una sottocartella che e' un link simbolico non viene
-    seguita; `Source/` oggi non ne ha.
+    ⚠️ Solleva `OSError` se `Source/` non c'e' o non si legge, **e se non riconosce nessun modulo**:
+    «nessun sorgente» e «nessun modulo» non sono «nessun sorgente stantio», e una struttura che la regola
+    non capisce non deve passare per un'assoluzione. Chi chiama deve rifiutare, non assolvere.
+
+    Riconosce solo `Source/<modulo>/<modulo>.Build.cs`. Un modulo annidato, o con un `.Build.cs` di nome
+    diverso, che UBT troverebbe lo stesso, qui e' invisibile: se TUTTI i moduli lo fossero si solleva, se
+    lo e' uno solo no. Una sottocartella che e' un link simbolico non viene seguita; `Source/` oggi non ne ha.
     """
     base = os.path.join(radice, "Source")
     sorgenti = {}
@@ -256,6 +270,8 @@ def leggi_sorgenti_e_binari(radice):
         migliore = _piu_recente(cartella, radice)
         if migliore is not None:
             sorgenti[nome] = migliore
+    if not sorgenti:
+        raise OSError("nessun modulo riconosciuto sotto %s" % base)
 
     binari = {}
     for modulo in sorgenti:
@@ -1469,8 +1485,14 @@ def self_test():
     stantii("binari: una cartella senza Build.cs non e' un modulo", [],
             {"Source/A/a.cpp": 1000, "Source/Programs/p.cpp": 9000}, {"A": 2000},
             senza_build_cs=("Programs",))
+    stantii("binari: il Build.cs deve avere il NOME del modulo, non uno qualunque", [],
+            {"Source/A/a.cpp": 1000, "Source/Foo/f.cpp": 9000, "Source/Foo/Bar.Build.cs": 1}, {"A": 2000},
+            senza_build_cs=("Foo",))
+    stantii("binari: due moduli stantii si segnalano ENTRAMBI", ["A", "B"],
+            {"Source/A/a.cpp": 2000, "Source/B/b.cpp": 2000}, {"A": 1000, "B": 1000})
 
-    radice = radice_finta({"Source/A/x/a.cpp": 1000, "Source/A/y/b.cpp": 2000}, {"A": 500})
+    radice = radice_finta({"Source/A/x/a.cpp": 1000, "Source/A/y/b.cpp": 2000, "Source/B/b.cpp": 1500},
+                          {"A": 500})
     try:
         sorg, bin_ = leggi_sorgenti_e_binari(radice)
     finally:
@@ -1478,6 +1500,10 @@ def self_test():
     casi.append(("binari: di ogni modulo si porta il file compilato modificato per ULTIMO",
                  sorg.get("A") == ("Source/A/y/b.cpp", 2000 * SEC) and bin_.get("A") == 500 * SEC,
                  "%s %s" % (sorg, bin_)))
+    # Un DLL assente si raccoglie come `None`, non come un mtime: un `0` darebbe «DLL (1970-01-01) precede»
+    # invece di «non esiste», e il messaggio vero (che nomina il rimedio) non arriverebbe a nessuno.
+    casi.append(("binari: un DLL assente si raccoglie come None, non come un mtime",
+                 "B" in bin_ and bin_["B"] is None, str(bin_)))
 
     senza_source = tempfile.mkdtemp(prefix="rt-misura-")
     try:
@@ -1489,6 +1515,28 @@ def self_test():
     finally:
         rimuovi(senza_source)
     casi.append(("binari: senza Source/ NON e' «nessun sorgente stantio»: solleva", sollevato, ""))
+
+    # 🔴 **Nessun modulo riconosciuto SOLLEVA.** Senza questo, una struttura che la regola non capisce
+    # (un modulo annidato, un `.Build.cs` di nome diverso, `Source/` rifatta) darebbe `[]`, cioe'
+    # «nessuno stantio»: un'assoluzione di una run che non e' stata guardata. Con sorgenti 8000 s piu'
+    # nuovi del DLL, tre strutture su quattro uscivano pulite.
+    def solleva_su(nome, sorgenti, **kw):
+        radice = radice_finta(sorgenti, {}, **kw)
+        try:
+            try:
+                leggi_sorgenti_e_binari(radice)
+                sollevato = False
+            except OSError:
+                sollevato = True
+        finally:
+            rimuovi(radice)
+        casi.append((nome, sollevato, ""))
+
+    solleva_su("binari: nessun modulo riconosciuto SOLLEVA, non assolve",
+               {"Source/A/a.cpp": 9000}, senza_build_cs=("A",))
+    solleva_su("binari: una Source/ con sole cartelle senza Build.cs solleva",
+               {"Source/Programs/p.cpp": 9000}, senza_build_cs=("Programs",))
+    solleva_su("binari: una Source/ senza nessuna cartella solleva", {"Source/README.md": 1})
 
     # 🔴 **Un errore di lettura SOLLEVA.** `os.walk` senza `onerror` lo inghiotte e salta la cartella:
     # il sorgente piu' recente verrebbe sottostimato e la regola assolverebbe senza aver guardato. Una
@@ -1551,6 +1599,15 @@ def self_test():
                  v == "NON VALIDA" and bool(problemi) and problemi[0].startswith("build"), "%s %s" % (v, problemi)))
     casi.append(("esegui_suite: ...dice che la suite NON e' stata lanciata, e il motore NON parte",
                  any("NON e' stata lanciata" in p for p in problemi) and not partito, str(problemi)))
+    # Il percorso REALE col DLL assente: il messaggio deve dire «non esiste», non un mtime inventato.
+    radice = repo_finto({"Source/A/a.cpp": 2000}, {"A": None})
+    try:
+        v, problemi, partito = lancia(radice, glob_dll(radice))
+    finally:
+        rimuovi(radice)
+    casi.append(("esegui_suite: un DLL assente e' NON VALIDA, e il messaggio dice «non esiste»",
+                 v == "NON VALIDA" and bool(problemi) and "non esiste" in problemi[0] and not partito,
+                 "%s %s" % (v, problemi)))
     radice = repo_finto({"Source/A/a.cpp": 2000}, {"A": 3000})
     try:
         v, problemi, partito = lancia(radice, glob_dll(radice))

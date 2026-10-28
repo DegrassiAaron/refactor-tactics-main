@@ -290,8 +290,11 @@ def self_test():
     caso("referto: binari stantii avvertono, in CIMA, che l'esito riguarda una build PRECEDENTE",
          bool(r_stantii) and r_stantii[0].startswith("build") and "non contengono" in r_stantii[0],
          str(r_stantii[:2]))
+    # Niente avviso di NESSUN genere: non solo le righe `build`, anche la riga di contesto, che e' scritta
+    # in modo diverso e che un `if` reso incondizionato farebbe comparire su un referto pulito.
+    r_freschi = referto(True, 3, 3, 3, [], False, 5, [])
     caso("referto: binari aggiornati non avvertono di niente",
-         not any(x.startswith("build") for x in referto(True, 3, 3, 3, [], False, 5, [])))
+         not any(x.startswith("build") or "PRECEDENTE" in x for x in r_freschi), str(r_freschi))
     caso("uscita: suite finita e pulita su binari STANTII non e' 0",
          codice_di_uscita(True, [], stantii) == 1)
     caso("uscita: suite finita e pulita su binari aggiornati e' 0",
@@ -308,42 +311,63 @@ def self_test():
     # se `esegui()` non chiama mai il controllo, o lo chiama e ne scarta l'esito: e' il pezzo che le
     # sessioni usano a mano. Il motore e' un processo Python che scrive il log e esce — `Popen` lo
     # lancia come lancerebbe `UnrealEditor-Cmd` — su una radice finta con mtime fissati a mano.
-    motore_finto = (
-        "import sys\n"
-        "for a in sys.argv:\n"
-        "    if a.startswith('-abslog='):\n"
-        "        with open(a[len('-abslog='):], 'w') as fh:\n"
-        "            fh.write('LogAutomationController: Found 1 automation tests based on X\\n'\n"
-        "                     'Test Started. Name={t} Path={t}\\n'\n"
-        "                     'Test Completed. Result={Success} Name={t} Path={t}\\n'\n"
-        "                     '**** TEST COMPLETE. EXIT CODE: 0 ****\\n')\n")
+    log_verde = ("LogAutomationController: Found 1 automation tests based on X\n"
+                 "Test Started. Name={t} Path={t}\n"
+                 "Test Completed. Result={Success} Name={t} Path={t}\n"
+                 "**** TEST COMPLETE. EXIT CODE: 0 ****\n")
+    log_rosso = log_verde.replace("Result={Success}", "Result={Fail}")
+    log_incompleto = ("LogAutomationController: Found 2 automation tests based on X\n"
+                      "Test Started. Name={t} Path={t}\n")
 
-    def lancia_finto(sorgenti, dll):
-        """`(codice, righe)` di `esegui()` su una radice e un motore finti."""
+    def lancia_finto(sorgenti, dll, log=log_verde):
+        """`(codice, righe)` di `esegui()` su una radice e un motore finti, che scrive `log`."""
         radice = _radice_finta(sorgenti, dll)
         try:
             copione = os.path.join(radice, "motore_finto.py")
             with io.open(copione, "w", encoding="utf-8") as fh:
-                fh.write(motore_finto)
+                fh.write("import sys\n"
+                         "for a in sys.argv:\n"
+                         "    if a.startswith('-abslog='):\n"
+                         "        with open(a[len('-abslog='):], 'w') as fh:\n"
+                         "            fh.write(%r)\n" % log)
             return esegui("X", os.path.join(radice, "suite.log"), 5, 1, 0.2, False,
                           radice=radice, motore=sys.executable, uproject=copione)
         finally:
             _rimuovi(radice)
 
-    codice, righe = lancia_finto({"Source/A/a.cpp": 1000}, {"A": 3000})
-    caso("esegui: binari che contengono i sorgenti, suite verde: uscita 0 e nessun avviso",
-         codice == 0 and not any(x.startswith("build") for x in righe)
-         and any(x.startswith("suite     finita") for x in righe), "%s %s" % (codice, righe))
-    codice, righe = lancia_finto({"Source/A/a.cpp": 3000}, {"A": 1000})
-    caso("esegui: binari stantii, suite verde: uscita 1 e l'avviso in CIMA",
-         codice == 1 and bool(righe) and righe[0].startswith("build")
-         and "non contengono" in righe[0], "%s %s" % (codice, righe[:2]))
-    caso("esegui: ...e la suite e' girata lo stesso (non blocca)",
-         any(x.startswith("suite     finita") for x in righe), str(righe))
-    codice, righe = lancia_finto({}, {})
-    caso("esegui: se il controllo NON gira, lo dice in cima e l'uscita non e' 0",
-         codice == 1 and bool(righe) and righe[0].startswith("build") and "NON eseguito" in righe[0],
-         "%s %s" % (codice, righe[:2]))
+    # ⛔ **Una guardia contro il test che lancia Unreal VERO.** Se `esegui()` smettesse di usare il
+    # `motore` che riceve e tornasse a `ENGINE_CMD`, questo self-test avvierebbe il motore della macchina
+    # — che e' uno, e che le altre sessioni stanno usando per misurare. Qui `ENGINE_CMD` e `UPROJECT`
+    # puntano a un percorso che non esiste: la regressione diventa un `FileNotFoundError` rumoroso.
+    motore_vero, progetto_vero = globals()["ENGINE_CMD"], globals()["UPROJECT"]
+    globals()["ENGINE_CMD"] = globals()["UPROJECT"] = os.path.join(
+        tempfile.gettempdir(), "rt-esegui-autotest-NON-il-motore-vero.exe")
+    try:
+        fresco, stantio = ({"Source/A/a.cpp": 1000}, {"A": 3000}), ({"Source/A/a.cpp": 3000}, {"A": 1000})
+        codice, righe = lancia_finto(*fresco)
+        caso("esegui: binari che contengono i sorgenti, suite verde: uscita 0 e nessun avviso",
+             codice == 0 and not any(x.startswith("build") or "PRECEDENTE" in x for x in righe)
+             and any(x.startswith("suite     finita") for x in righe), "%s %s" % (codice, righe))
+        codice, righe = lancia_finto(*stantio)
+        caso("esegui: binari stantii, suite verde: uscita 1 e l'avviso in CIMA",
+             codice == 1 and bool(righe) and righe[0].startswith("build")
+             and "non contengono" in righe[0], "%s %s" % (codice, righe[:2]))
+        caso("esegui: ...e la suite e' girata lo stesso (non blocca)",
+             any(x.startswith("suite     finita") for x in righe), str(righe))
+        codice, righe = lancia_finto({}, {})
+        caso("esegui: se il controllo NON gira, lo dice in cima e l'uscita non e' 0",
+             codice == 1 and bool(righe) and righe[0].startswith("build") and "NON eseguito" in righe[0],
+             "%s %s" % (codice, righe[:2]))
+        # I binari freschi non bastano a fare un verde: il codice d'uscita resta quello dei TEST. Senza
+        # questi due casi un'uscita che ignorasse i rossi, o la suite non finita, passerebbe.
+        codice, righe = lancia_finto(*fresco, log=log_rosso)
+        caso("esegui: binari freschi ma un test rosso: uscita 1 e il rosso e' contato",
+             codice == 1 and any(x.startswith("rossi     1") for x in righe), "%s %s" % (codice, righe))
+        codice, righe = lancia_finto(*fresco, log=log_incompleto)
+        caso("esegui: binari freschi ma suite non finita: uscita 1 e ATTENZIONE",
+             codice == 1 and any(x.startswith("ATTENZIONE") for x in righe), "%s %s" % (codice, righe))
+    finally:
+        globals()["ENGINE_CMD"], globals()["UPROJECT"] = motore_vero, progetto_vero
 
     righe = ["  %-62s %s%s" % (n, "ok" if v else "FALLITO", (" (%s)" % d) if d and not v else "")
              for n, v, d in casi]
