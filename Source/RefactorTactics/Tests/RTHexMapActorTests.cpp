@@ -3617,4 +3617,105 @@ bool FRTHexMapActorEraseCellCascadeTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// #3917 - il pannello Details dell'actor toglie un arco con nome portandosi via i binding che partono da lui.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Un asset valido in cui `A` e `B` sono uniti dal ponte con nome `B1`, che comanda la porta `D1` su `B`.
+	 * Nome prefissato per dominio: unity build.
+	 */
+	URTHexMapAsset* ActorNamedArcFixture(const FRTCellId& A, const FRTCellId& B)
+	{
+		URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 2);
+		Asset->HexSize = 100.f;
+
+		FRTHexEdge Forward(A, B, /*Cost*/ 1);
+		Forward.StableId = TEXT("B1");
+		FRTHexEdge Back(B, A, /*Cost*/ 1);
+		Back.StableId = TEXT("B1");
+		Asset->Transitions.Add(Forward);
+		Asset->Transitions.Add(Back);
+
+		const FRTHexCellData* Existing = Asset->FindCell(B);
+		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(B);
+		FRTHexDoor Door(ERTHexDirection::W, ERTHexDoorState::Closed, /*DoorId*/ 1);
+		Door.StableId = TEXT("D1");
+		Data.Doors.Add(Door);
+		Asset->AddOrUpdateCell(Data);
+		Asset->SortCells();
+
+		Asset->InteractionBindings.Add(FRTInteractionBinding(TEXT("B1"), { TEXT("D1") }));
+		return Asset;
+	}
+}
+
+/**
+ * **Togliere un ponte con nome dal pannello Details non lascia il binding che parte da lui.**
+ *
+ * `RemoveTransitionData` chiamava `URTHexMapAsset::RemoveTransition` e basta; ora passa da
+ * `URTMapEditLibrary::RemoveTransitionAndOrphanedBindings`, la stessa funzione del ramo `Transition` di
+ * `DeleteElement`. Con ENTRAMBE le direzioni il nome muore e il binding con lui; con UNA sola resta l'arco di
+ * ritorno, quindi il nome sopravvive e il binding pure: e' la differenza fra le due chiamate, e il test la pinna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRemoveTransitionBindingsTest,
+	"RefactorTactics.HexMapActor.RemoveTransitionDataTakesTheBindings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorRemoveTransitionBindingsTest::RunTest(const FString&)
+{
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(2, 0, 0);
+
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("World creato"), World))
+	{
+		return false;
+	}
+
+	// --- Entrambe le direzioni: il nome muore, il binding con lui -----------------------------------------
+	{
+		URTHexMapAsset* Asset = ActorNamedArcFixture(A, B);
+		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+		if (!TestNotNull(TEXT("actor spawnato"), Actor))
+		{
+			DestroyMapActorWorld(World);
+			return false;
+		}
+		TestEqual(TEXT("premessa: l'asset parte valido"), Asset->ValidateMap().Num(), 0);
+		TestEqual(TEXT("premessa: un ponte, due archi"), Asset->Transitions.Num(), 2);
+		TestEqual(TEXT("premessa: un binding"), Asset->InteractionBindings.Num(), 1);
+
+		TestTrue(TEXT("l'arco e' stato tolto"), Actor->RemoveTransitionData(A, B, /*bBothDirections*/ true));
+
+		const TArray<FString> Errors = Asset->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuna")), Errors.Num(), 0);
+		TestEqual(TEXT("le due direzioni sono andate"), Asset->Transitions.Num(), 0);
+		TestEqual(TEXT("il binding che partiva dal ponte e' andato"), Asset->InteractionBindings.Num(), 0);
+	}
+
+	// --- Una sola direzione: resta il ritorno, il nome e il binding sopravvivono -------------------------
+	{
+		URTHexMapAsset* Asset = ActorNamedArcFixture(A, B);
+		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+		if (!TestNotNull(TEXT("secondo actor spawnato"), Actor))
+		{
+			DestroyMapActorWorld(World);
+			return false;
+		}
+		TestTrue(TEXT("l'arco di andata e' stato tolto"), Actor->RemoveTransitionData(A, B, /*bBothDirections*/ false));
+
+		const TArray<FString> Errors = Asset->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("ancora valida (segnalazioni: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuna")), Errors.Num(), 0);
+		TestEqual(TEXT("resta l'arco di ritorno"), Asset->Transitions.Num(), 1);
+		TestEqual(TEXT("e il nome continua a risolvere, quindi il binding resta"), Asset->InteractionBindings.Num(), 1);
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

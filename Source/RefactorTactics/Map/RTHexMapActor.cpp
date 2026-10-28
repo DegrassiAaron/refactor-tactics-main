@@ -1,4 +1,5 @@
 #include "Map/RTHexMapActor.h"
+#include "Map/RTMapEditLibrary.h" // RemoveTransitionAndOrphanedBindings: la regola degli archi con nome (#3917)
 #include "HAL/IConsoleManager.h"
 extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: la leva della separazione in PIE
 #include "Map/RTStructuralBodyLibrary.h"
@@ -3543,8 +3544,10 @@ void ARTHexMapActor::GenerateFixtureIntoAsset()
 	const FScopedTransaction Transaction(LOCTEXT("HexGenerateFixture", "Hex: Generate Fixture"));
 #endif
 	MapAsset->Modify();
-	// Sostituisce, non fonde: mescolare una fixture con quello che c'era darebbe una mappa che non e' ne'
-	// l'una ne' l'altra, e i criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
+	// Sostituisce celle e transizioni, non fonde: mescolare una fixture con quello che c'era darebbe una mappa che
+	// non e' ne' l'una ne' l'altra, e i criteri smetterebbero di dire qualcosa su cio' che si ha davanti. I muri
+	// interni e i binding su celle che restano si conservano, e quelli su celle sparite si potano (#3918,
+	// `D-556`): per ripartire da zero c'e' *Clear*.
 	//
 	// In UNA revisione (#905): scrivere il ciclo a mano ne produceva una per cella — 98 per l'arena della
 	// v0.1 — e nessuna per le transizioni, che venivano assegnate direttamente. Generare una fixture e'
@@ -3703,7 +3706,8 @@ bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId
 	const FScopedTransaction Transaction(LOCTEXT("HexRemoveTransition", "Hex: Remove Vertical Transition"));
 #endif
 	MapAsset->Modify();
-	const bool bRemoved = MapAsset->RemoveTransition(From, To, bBothDirections);
+	// La regola degli archi vive in UN posto (#3917): togliere un arco con nome porta via i binding che partono da lui.
+	const bool bRemoved = URTMapEditLibrary::RemoveTransitionAndOrphanedBindings(MapAsset, From, To, bBothDirections);
 	if (bRemoved)
 	{
 		MapAsset->MarkPackageDirty();

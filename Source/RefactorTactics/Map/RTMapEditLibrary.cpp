@@ -296,7 +296,7 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 
 		if (!bDryRun)
 		{
-			Map->RemoveTransition(Handle.Cell, Handle.To, /*bBothDirections=*/ true);
+			RemoveTransitionAndOrphanedBindings(Map, Handle.Cell, Handle.To, /*bBothDirections=*/ true);
 		}
 		return ERTMapEditOutcome::Applied;
 	}
@@ -354,6 +354,99 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 	Map->RemoveCell(Handle.Cell);
 
 	return ERTMapEditOutcome::Applied;
+}
+
+bool URTMapEditLibrary::RemoveTransitionAndOrphanedBindings(URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, bool bBothDirections)
+{
+	if (Map == nullptr)
+	{
+		return false;
+	}
+
+	// 🔑 I nomi degli archi fra le due celle, letti PRIMA: dopo la rimozione non c'e' piu' niente da leggere. E' un
+	// soprainsieme di cio' che `RemoveTransition` toglie (con una sola direzione resta il ritorno), ed e' voluto: chi
+	// muore lo decide il controllo qui sotto, sulla mappa gia' aggiornata.
+	TArray<FName> ArcNames;
+	for (const FRTHexEdge& E : Map->Transitions)
+	{
+		if (((E.From == From && E.To == To) || (E.From == To && E.To == From)) && !E.StableId.IsNone())
+		{
+			ArcNames.AddUnique(E.StableId);
+		}
+	}
+
+	if (!Map->RemoveTransition(From, To, bBothDirections))
+	{
+		return false;
+	}
+
+	// Lo stesso `C2` della porta e della cascata della cella: un binding che parte da una struttura sparita diventa
+	// "riferimento a una struttura inesistente". Il nome muore solo se NESSUN arco lo porta ancora, e `FindArcs`
+	// interroga la mappa GIA' aggiornata.
+	TArray<FName> ActuallyDead;
+	for (const FName& Name : ArcNames)
+	{
+		if (URTStructureIdentityLibrary::FindArcs(Map, Name).Num() == 0)
+		{
+			ActuallyDead.Add(Name);
+		}
+	}
+	RTApplyOrphanedNames(Map, ActuallyDead);
+	return true;
+}
+
+TArray<FName> URTMapEditLibrary::CollectStructureNames(const URTHexMapAsset* Map)
+{
+	TSet<FName> Names;
+	if (Map == nullptr)
+	{
+		return Names.Array();
+	}
+
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		for (const FRTHexDoor& Door : Cell.Doors)
+		{
+			if (!Door.StableId.IsNone())
+			{
+				Names.Add(Door.StableId);
+			}
+		}
+	}
+	for (const FRTHexEdge& Arc : Map->Transitions)
+	{
+		if (!Arc.StableId.IsNone())
+		{
+			Names.Add(Arc.StableId);
+		}
+	}
+	return Names.Array();
+}
+
+void URTMapEditLibrary::PruneOrphansAfterReplace(URTHexMapAsset* Map, const TArray<FName>& NamesBefore)
+{
+	if (Map == nullptr)
+	{
+		return;
+	}
+
+	// I muri interni stanno su una cella: se la cella non c'e' piu' nel contenuto nuovo, e' la regola 1 di
+	// `ValidateMap` e la stessa che la cascata di `Canc` applica (`Cell == Handle.Cell`).
+	Map->InteriorWalls.RemoveAll([Map](const FRTHexInteriorWall& Wall) { return !Map->ContainsCell(Wall.Cell); });
+
+	// I nomi che c'erano e non risolvono piu' ne' una porta ne' un arco: muoiono, e con loro i binding che partono da
+	// una struttura sparita o che restano senza bersagli. Una sola implementazione della morte dei nomi.
+	TArray<FName> Dead;
+	for (const FName& Name : NamesBefore)
+	{
+		if (URTStructureIdentityLibrary::FindDoorEdges(Map, Name).Num() == 0
+			&& URTStructureIdentityLibrary::FindArcs(Map, Name).Num() == 0)
+		{
+			Dead.Add(Name);
+		}
+	}
+	RTApplyOrphanedNames(Map, Dead);
 }
 
 TArray<FRTMapElementHandle> URTMapEditLibrary::ElementsAt(const URTHexMapAsset* Map,

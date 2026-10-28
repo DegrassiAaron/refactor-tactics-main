@@ -310,7 +310,7 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void GenerateIntoAsset();
 
-	/** [Editor] Svuota le celle e le transizioni dell'asset, marca dirty e ridisegna. */
+	/** [Editor] Svuota celle, transizioni, muri interni e binding dell'asset (#3918, `D-556`), marca dirty e ridisegna. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ClearAsset();
 
@@ -318,8 +318,10 @@ public:
 	 * [Editor] Scrive nell'asset l'**arena della v0.1**: il layout che soddisfa i tre criteri del `done_when`
 	 * di U1, verificati da `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria` e non a occhio.
 	 *
-	 * **Sostituisce** il contenuto dell'asset (svuota prima): serve a partire da un layout corretto, non a
-	 * fondersi con quello che c'era. Dopo, `rt.Arena.Check` deve dare tre `[ok]`.
+	 * **Sostituisce** celle e transizioni dell'asset: serve a partire da un layout corretto, non a fondersi con
+	 * quello che c'era. I muri interni e i binding su celle che RESTANO si conservano, e quelli su celle sparite
+	 * si potano (#3918, `D-556`): per ripartire da zero c'e' *Clear*. Su un asset senza muri interni preesistenti,
+	 * `rt.Arena.Check` deve dare tre `[ok]`.
 	 */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void GenerateArenaV01IntoAsset();
@@ -343,7 +345,8 @@ public:
 	FString FixtureId = TEXT("ArenaV01");
 
 	/**
-	 * [Editor] Scrive nell'asset la fixture indicata da `FixtureId`, **sostituendo** il contenuto.
+	 * [Editor] Scrive nell'asset la fixture indicata da `FixtureId`, **sostituendo** celle e transizioni: i muri interni
+	 * e i binding su celle che restano si conservano, quelli su celle sparite si potano (#3918, `D-556`).
 	 *
 	 * Esiste perche' le fixture vivevano solo in codice e nessuno poteva aprirle in editor: `CoverYard` e'
 	 * l'unica mappa con una copertura ALTA e `RelayBasin` l'unica con una porta, quindi senza questo pulsante

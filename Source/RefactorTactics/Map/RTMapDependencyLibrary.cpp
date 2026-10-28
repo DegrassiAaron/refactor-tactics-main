@@ -72,6 +72,39 @@ FRTMapDependencySet URTMapDependencyLibrary::CollectDependents(const URTHexMapAs
 			}
 		}
 
+		// 🔑 **Anche gli ARCHI con nome** (#3917). `FRTHexEdge` ha un `StableId` come la porta, e `ValidateReferences`
+		// risolve un nome se trova una porta OPPURE un arco: un binding che parte da un arco sparito con la cella
+		// restava con un riferimento inesistente. Gli archi che spariscono sono quelli gia' raccolti sopra.
+		//
+		// ⚠️ Stessa regola delle porte: il nome muore solo se NESSUN altro arco lo porta ancora. In un asset valido
+		// due archi condividono un nome solo se sono reciproci (un ponte), quindi toccano le stesse celle e il
+		// controllo non scatta: sta qui perche' questa funzione non deve presumere la validita' di cio' che legge.
+		// Un nome usato da una porta E da un arco e' gia' un Error di `ValidateMap` e non si gestisce qui, come nel
+		// ciclo delle porte qui sopra.
+		for (const int32 ArcIndex : Set.TransitionIndices)
+		{
+			const FName ArcName = Map->Transitions[ArcIndex].StableId;
+			if (ArcName.IsNone() || DyingNames.Contains(ArcName))
+			{
+				continue;
+			}
+
+			bool bSurvivesElsewhere = false;
+			for (const FRTStructureArcRef& Ref : URTStructureIdentityLibrary::FindArcs(Map, ArcName))
+			{
+				if (!(Ref.From == Handle.Cell || Ref.To == Handle.Cell))
+				{
+					bSurvivesElsewhere = true;
+					break;
+				}
+			}
+
+			if (!bSurvivesElsewhere)
+			{
+				DyingNames.Add(ArcName);
+			}
+		}
+
 		Set.OrphanedStructureNames = DyingNames.Array();
 		Set.OrphanedStructureNames.Sort(FNameLexicalLess());
 

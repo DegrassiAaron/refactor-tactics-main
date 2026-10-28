@@ -59,6 +59,11 @@ Per spegnere il Live Coding in un processo che non e' `-unattended`, la riga che
 istantanee dell'albero git prima e dopo e sa dire se il sorgente e' cambiato sotto la run. Qui si
 esegue una suite e si riferisce cosa ha detto; per una verifica di mutazione si usano i gate.
 
+🔴 **Ma non tace su un verde che non e' dell'albero** ([#2656](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2656)).
+Se i DLL sono piu' vecchi dei sorgenti sul disco (`misura.binari_stantii()`), il referto lo dice in CIMA e
+l'uscita non e' `0`. Non blocca: una run su una build vecchia puo' essere voluta, ma non deve sembrare una
+misura dell'albero.
+
 ⚠️ **Non copre il processo appeso di QUALCUN ALTRO.** `_termina_albero()` vuole il `Popen` del
 proprio figlio, e uccidere per pid un motore altrui e' esattamente il fail-open che `#2392` ha
 chiuso. Se un motore che non hai lanciato tu tiene il mutex, si legge la sua `CommandLine` e si
@@ -83,9 +88,14 @@ from misura import (  # noqa: E402
     ENGINE_CMD,
     RADICE,
     UPROJECT,
+    _radice_finta,
+    _rimuovi,
     _termina_albero,
+    binari_stantii,
     decide_attesa,
+    descrivi_stantii,
     grazia_scaduta,
+    leggi_sorgenti_e_binari,
     suite_finita,
 )
 
@@ -97,9 +107,15 @@ def rossi_dal_log(testo):
     return re.findall(r"Test Completed\. Result=\{Fail\} Name=\{([^}]+)\}", testo)
 
 
-def referto(finita, trovati, avviati, completati, rossi, appeso, secondi):
-    """PURA. Le righe del referto finale. Separata dall'esecuzione per poterla provare."""
-    righe = []
+def referto(finita, trovati, avviati, completati, rossi, appeso, secondi, stantii=()):
+    """PURA. Le righe del referto finale. Separata dall'esecuzione per poterla provare.
+
+    `stantii`: i moduli il cui DLL non contiene i sorgenti (`misura.binari_stantii()`, #2656). L'avviso
+    sta in CIMA: chi legge `rossi nessuno` e smette di leggere non deve perderlo."""
+    righe = list(descrivi_stantii(stantii))
+    if stantii:
+        righe.append("          La suite e' girata su una build PRECEDENTE all'albero: l'esito riguarda"
+                     " quella build, non l'albero.")
     stato = "APPESO" if appeso else ("finita" if finita else "INTERROTTA")
     righe.append("suite     %s in %d s" % (stato, secondi))
     righe.append("conteggi  trovati %s, avviati %d, completati %d"
@@ -117,8 +133,37 @@ def referto(finita, trovati, avviati, completati, rossi, appeso, secondi):
     return righe
 
 
-def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
-    """Lancia, attende sul log, termina se appeso. Torna `(codice_uscita, righe_referto)`."""
+def codice_di_uscita(finita, rossi, stantii=(), controllo_ok=True):
+    """PURA. `0` solo se la suite e' finita, senza rossi, su un binario che contiene i sorgenti.
+
+    🔑 Porta l'esito dei TEST, non quello del processo — che nel caso appeso non esiste, e che il motore
+    rende `-1` su una suite con dei rossi anche quando ha funzionato. 🔴 E un verde su un binario
+    stantio (#2656) non e' un verde: riguarda una build che non e' quella dell'albero. Lo stesso se il
+    controllo NON ha potuto girare (`controllo_ok=False`): «non so se il binario e' quello giusto» non
+    e' «lo e'», e un `0` direbbe l'opposto di cio' che il referto scrive."""
+    return 0 if (finita and not rossi and not stantii and controllo_ok) else 1
+
+
+def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso,
+           radice=RADICE, motore=ENGINE_CMD, uproject=UPROJECT):
+    """Lancia, attende sul log, termina se appeso. Torna `(codice_uscita, righe_referto)`.
+
+    `radice`, `motore` e `uproject` sono iniettabili solo perche' il cablaggio si possa provare con un
+    motore finto (vedi `self_test()`): chi lo usa davvero non li passa."""
+    # 🔴 #2656: i binari devono contenere i sorgenti. Non blocca: una run a mano su una build vecchia
+    # puo' essere voluta (una baseline), ma il referto lo dice in cima e l'uscita non e' `0`. Se i
+    # sorgenti non si leggono lo si dice, invece di tacere, e anche allora l'uscita non e' `0`:
+    # l'assenza di un avviso non e' un binario sano.
+    stantii = []
+    nota_binari = None
+    try:
+        stantii = binari_stantii(*leggi_sorgenti_e_binari(radice))
+    except OSError as e:
+        nota_binari = ("build     controllo dei binari NON eseguito (%s): l'esito non dice se i binari"
+                       " contengono i sorgenti, e l'uscita non e' `0`." % e.__class__.__name__)
+    if stantii and verboso:
+        print("  i binari non contengono i sorgenti: il referto lo dira' in cima")
+
     if os.path.exists(log_path):
         try:
             os.remove(log_path)  # un log vecchio darebbe i rossi di una run che non e' questa
@@ -133,7 +178,7 @@ def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
     # piu': il motore non lo legge, e i gate che lo cercavano non esistono dopo [D-469] (docstring di modulo).
     scarto = tempfile.TemporaryFile()
     avvio = subprocess.Popen(
-        [ENGINE_CMD, UPROJECT,
+        [motore, uproject,
          "-ExecCmds=Automation RunTests " + filtro + ";Quit",
          "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoSound",
          "-abslog=" + log_path],
@@ -187,13 +232,12 @@ def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
 
     finita, trovati, avviati, completati = suite_finita(testo)
     rossi = rossi_dal_log(testo)
-    righe = referto(finita, trovati, avviati, completati, rossi, appeso, trascorso)
+    righe = referto(finita, trovati, avviati, completati, rossi, appeso, trascorso, stantii)
+    if nota_binari:
+        righe.insert(0, nota_binari)
     righe.append("log       %s" % log_path)
 
-    # 🔑 Il codice di uscita porta l'esito dei TEST, non quello del processo — che nel caso appeso
-    # non esiste, e che il motore rende `-1` su una suite con dei rossi anche quando ha funzionato.
-    codice = 0 if (finita and not rossi) else 1
-    return codice, righe
+    return codice_di_uscita(finita, rossi, stantii, nota_binari is None), righe
 
 
 def self_test():
@@ -236,6 +280,94 @@ def self_test():
 
     r_rossi = referto(True, 3, 3, 3, ["Tizio", "Caio"], False, 5)
     caso("referto: elenca i rossi", any("Tizio" in x for x in r_rossi))
+
+    # --- #2656: un verde su un binario che non contiene i sorgenti non e' un verde --------------------
+    # 🔴 Il referto sopra dice «rossi nessuno» anche quando la build e' fallita e la suite ha girato sul
+    # binario di un'ora fa. L'avviso sta in CIMA: chi legge `rossi nessuno` e smette di leggere non deve
+    # perderlo, e un codice di uscita `0` non deve accompagnarlo.
+    stantii = [("A", "Source/A/a.cpp", 2000 * 10 ** 9, 1000 * 10 ** 9)]
+    r_stantii = referto(True, 3, 3, 3, [], False, 5, stantii)
+    caso("referto: binari stantii avvertono, in CIMA, che l'esito riguarda una build PRECEDENTE",
+         bool(r_stantii) and r_stantii[0].startswith("build") and "non contengono" in r_stantii[0],
+         str(r_stantii[:2]))
+    # Niente avviso di NESSUN genere: non solo le righe `build`, anche la riga di contesto, che e' scritta
+    # in modo diverso e che un `if` reso incondizionato farebbe comparire su un referto pulito.
+    r_freschi = referto(True, 3, 3, 3, [], False, 5, [])
+    caso("referto: binari aggiornati non avvertono di niente",
+         not any(x.startswith("build") or "PRECEDENTE" in x for x in r_freschi), str(r_freschi))
+    caso("uscita: suite finita e pulita su binari STANTII non e' 0",
+         codice_di_uscita(True, [], stantii) == 1)
+    caso("uscita: suite finita e pulita su binari aggiornati e' 0",
+         codice_di_uscita(True, [], []) == 0)
+    caso("uscita: i rossi restano 1", codice_di_uscita(True, ["Tizio"], []) == 1)
+    caso("uscita: una suite non finita resta 1", codice_di_uscita(False, [], []) == 1)
+    caso("uscita: se il controllo NON ha potuto girare, non e' un verde",
+         codice_di_uscita(True, [], [], False) == 1)
+    caso("referto: l'avviso dice che la suite e' GIA' girata, non che girerebbe",
+         any("e' girata" in x for x in r_stantii) and not any("girerebbe" in x for x in r_stantii),
+         str(r_stantii))
+
+    # 🔴 **Il cablaggio di `esegui()`, non solo le funzioni pure.** Le righe sopra restano verdi anche
+    # se `esegui()` non chiama mai il controllo, o lo chiama e ne scarta l'esito: e' il pezzo che le
+    # sessioni usano a mano. Il motore e' un processo Python che scrive il log e esce — `Popen` lo
+    # lancia come lancerebbe `UnrealEditor-Cmd` — su una radice finta con mtime fissati a mano.
+    log_verde = ("LogAutomationController: Found 1 automation tests based on X\n"
+                 "Test Started. Name={t} Path={t}\n"
+                 "Test Completed. Result={Success} Name={t} Path={t}\n"
+                 "**** TEST COMPLETE. EXIT CODE: 0 ****\n")
+    log_rosso = log_verde.replace("Result={Success}", "Result={Fail}")
+    log_incompleto = ("LogAutomationController: Found 2 automation tests based on X\n"
+                      "Test Started. Name={t} Path={t}\n")
+
+    def lancia_finto(sorgenti, dll, log=log_verde):
+        """`(codice, righe)` di `esegui()` su una radice e un motore finti, che scrive `log`."""
+        radice = _radice_finta(sorgenti, dll)
+        try:
+            copione = os.path.join(radice, "motore_finto.py")
+            with io.open(copione, "w", encoding="utf-8") as fh:
+                fh.write("import sys\n"
+                         "for a in sys.argv:\n"
+                         "    if a.startswith('-abslog='):\n"
+                         "        with open(a[len('-abslog='):], 'w') as fh:\n"
+                         "            fh.write(%r)\n" % log)
+            return esegui("X", os.path.join(radice, "suite.log"), 5, 1, 0.2, False,
+                          radice=radice, motore=sys.executable, uproject=copione)
+        finally:
+            _rimuovi(radice)
+
+    # ⛔ **Una guardia contro il test che lancia Unreal VERO.** Se `esegui()` smettesse di usare il
+    # `motore` che riceve e tornasse a `ENGINE_CMD`, questo self-test avvierebbe il motore della macchina
+    # — che e' uno, e che le altre sessioni stanno usando per misurare. Qui `ENGINE_CMD` e `UPROJECT`
+    # puntano a un percorso che non esiste: la regressione diventa un `FileNotFoundError` rumoroso.
+    motore_vero, progetto_vero = globals()["ENGINE_CMD"], globals()["UPROJECT"]
+    globals()["ENGINE_CMD"] = globals()["UPROJECT"] = os.path.join(
+        tempfile.gettempdir(), "rt-esegui-autotest-NON-il-motore-vero.exe")
+    try:
+        fresco, stantio = ({"Source/A/a.cpp": 1000}, {"A": 3000}), ({"Source/A/a.cpp": 3000}, {"A": 1000})
+        codice, righe = lancia_finto(*fresco)
+        caso("esegui: binari che contengono i sorgenti, suite verde: uscita 0 e nessun avviso",
+             codice == 0 and not any(x.startswith("build") or "PRECEDENTE" in x for x in righe)
+             and any(x.startswith("suite     finita") for x in righe), "%s %s" % (codice, righe))
+        codice, righe = lancia_finto(*stantio)
+        caso("esegui: binari stantii, suite verde: uscita 1 e l'avviso in CIMA",
+             codice == 1 and bool(righe) and righe[0].startswith("build")
+             and "non contengono" in righe[0], "%s %s" % (codice, righe[:2]))
+        caso("esegui: ...e la suite e' girata lo stesso (non blocca)",
+             any(x.startswith("suite     finita") for x in righe), str(righe))
+        codice, righe = lancia_finto({}, {})
+        caso("esegui: se il controllo NON gira, lo dice in cima e l'uscita non e' 0",
+             codice == 1 and bool(righe) and righe[0].startswith("build") and "NON eseguito" in righe[0],
+             "%s %s" % (codice, righe[:2]))
+        # I binari freschi non bastano a fare un verde: il codice d'uscita resta quello dei TEST. Senza
+        # questi due casi un'uscita che ignorasse i rossi, o la suite non finita, passerebbe.
+        codice, righe = lancia_finto(*fresco, log=log_rosso)
+        caso("esegui: binari freschi ma un test rosso: uscita 1 e il rosso e' contato",
+             codice == 1 and any(x.startswith("rossi     1") for x in righe), "%s %s" % (codice, righe))
+        codice, righe = lancia_finto(*fresco, log=log_incompleto)
+        caso("esegui: binari freschi ma suite non finita: uscita 1 e ATTENZIONE",
+             codice == 1 and any(x.startswith("ATTENZIONE") for x in righe), "%s %s" % (codice, righe))
+    finally:
+        globals()["ENGINE_CMD"], globals()["UPROJECT"] = motore_vero, progetto_vero
 
     righe = ["  %-62s %s%s" % (n, "ok" if v else "FALLITO", (" (%s)" % d) if d and not v else "")
              for n, v, d in casi]
