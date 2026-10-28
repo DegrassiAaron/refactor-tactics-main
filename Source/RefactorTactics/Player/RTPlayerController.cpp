@@ -3515,29 +3515,33 @@ FString ARTPlayerController::DisarmPlannedAction()
 		return FString();
 	}
 
+	// 🔴 **Se lo slot che si disarma e' una REAZIONE, escono solo lei e la sua condizione** (`#3896`, `#3927`, [D-555],
+	// [D-557]). `PlannedReactionAbility` e' un campo proprio — la reazione ha il proprio slot — e le righe sotto non lo
+	// azzeravano: lo slot passava a neutro mentre il piano e la timeline continuavano a portarla, e il resolver legge il piano.
+	//
+	// ⛔ **E NON tocca la principale**: l'azione gia' pianificata, il suo attacco, il lato, il suo marcatore dei waypoint, il
+	// tetto riservato e i waypoint troncati restano com'erano. Reazione e principale sono due cose chieste separatamente, e
+	// scivolare nel ramo di sotto rilascerebbe il tetto `Withdraw` di un `Overwatch` che nessuno ha annullato.
+	//
+	// 🔑 **Si legge PRIMA che `SelectAbility` spenga lo slot**, e il piano si azzera PRIMA del rinfresco, come l'armo
+	// (`#3891`): la timeline legge `PlannedReactionAbility` e nessun tick la ricalcola.
+	if (Unit->SelectedAbilityIndex != INDEX_NONE && Unit->SelectedAbilityIndex == Unit->PlannedReactionAbility)
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] '%s': la reazione dello slot %d esce dal piano"),
+			*Unit->GetName(), Unit->PlannedReactionAbility);
+		Unit->SelectAbility(INDEX_NONE);
+		Unit->ClearReactionPlan();
+		RefreshPlanningOverlay(Unit);
+		return FString();
+	}
+
 	// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
 	// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
 	const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
 		URTPlanValidationLibrary::MakePlanFor(Unit));
-	// 🔴 **Una REAZIONE disarmata esce dal piano, con la sua condizione** (`#3896`, [D-555]). `PlannedReactionAbility`
-	// e' un campo proprio — la reazione ha il proprio slot — e nessuna delle righe sotto lo azzerava: lo slot passava a
-	// neutro mentre il piano e la timeline continuavano a portarla, e il resolver legge il piano.
-	//
-	// ⛔ **Solo se E' LEI lo slot che si disarma**, e si legge PRIMA che `SelectAbility` lo spenga. Una reazione armata
-	// prima di un'azione principale resta nel piano quando si disarma la principale: il giocatore le ha chieste
-	// separatamente, e un azzeramento incondizionato toglierebbe una reazione che nessuno ha disarmato.
-	const bool bEraLaReazione = Unit->SelectedAbilityIndex != INDEX_NONE
-		&& Unit->SelectedAbilityIndex == Unit->PlannedReactionAbility;
 	Unit->SelectAbility(INDEX_NONE);
 	Unit->PlannedAbilityIndex = INDEX_NONE;
 	Unit->ClearPlannedAttack();
-	if (bEraLaReazione)
-	{
-		// Prima del rinfresco di sotto, come l'armo (`#3891`): la timeline legge `PlannedReactionAbility`.
-		UE_LOG(LogRT, Display, TEXT("[RT] '%s': la reazione dello slot %d esce dal piano"),
-			*Unit->GetName(), Unit->PlannedReactionAbility);
-		Unit->ClearReactionPlan();
-	}
 	// Anche il LATO dichiarato (`#3501`, dalla revisione): `ClearPlannedAttack` non lo tocca, e il resolver e
 	// l'harness lo spengono insieme a `PlannedAbilityIndex`. Senza, dopo un'azione su bordo disarmata il lato
 	// resterebbe scritto nel piano.
@@ -3760,6 +3764,9 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// di prima, e dal `#3511` nessun tick la ricalcola, perche' il campo non e' un ingresso. Pinnato da
 		// `HexMatch.ArmedReactionShowsInThePlanTimeline`.
 		Unit->PlannedReactionAbility = Index;
+		// Quanti waypoint ci sono ADESSO: quelli posati dopo li toglie il Back per primi (`#3927`, [D-557]). Un campo
+		// suo e non `WaypointsAllaDichiarazione`: una principale gia' nel piano ha il proprio conteggio, e non va sovrascritto.
+		Unit->WaypointsAllaReazione = Unit->PlannedWaypoints.Num();
 		RefreshPlanningOverlay(Unit); // `#3507`: la portata dell'azione armata prima si spegne
 		UE_LOG(LogRT, Display, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
@@ -4952,14 +4959,24 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 			//
 			// ⛔ Un'azione armata ma NON nel piano — un targeting senza bersaglio — esce e basta: un'altra azione
 			// gia' pianificata, che il Back non ha toccato, resta (`BackOnATargetingKeepsThePlannedAction`).
-			const bool bAzioneNelPiano = !bEraFacing && Unit->SelectedAbilityIndex != INDEX_NONE
+			// 🔴 **Una REAZIONE armata e' nel piano dal momento in cui la si arma** (`#3927`, decisione d'autore, [D-557]):
+			// scrive `PlannedReactionAbility` e mai `PlannedAbilityIndex`, e fino a `#3927` questo predicato guardava solo il
+			// secondo. Il Back spegneva lo slot e la lasciava nel piano. I due predicati sono DISTINTI di proposito: una
+			// principale e una reazione possono stare nel piano insieme ([D-555]), e il Back disarma quella che e' ACCESA.
+			const bool bPrincipaleNelPiano = !bEraFacing && Unit->SelectedAbilityIndex != INDEX_NONE
 				&& Unit->SelectedAbilityIndex == Unit->PlannedAbilityIndex;
-			// 🔑 **Prima i waypoint posati DOPO l'azione** (decisione d'autore, [D-461] punto 3): un supporto su se
-			// stessi resta armato, e il giocatore puo' posare waypoint dopo averlo pianificato. Il Back disfa
-			// l'ultimo gesto, quindi toglie quelli; l'azione si disarma al Back in cui non ne restano. E il piano
-			// torna esattamente a quello che la riserva aveva troncato, quindi [D-444] restituisce ancora.
-			if (bAzioneNelPiano && Unit->WaypointsAllaDichiarazione != INDEX_NONE
-				&& Unit->PlannedWaypoints.Num() > Unit->WaypointsAllaDichiarazione)
+			const bool bReazioneNelPiano = !bEraFacing && Unit->SelectedAbilityIndex != INDEX_NONE
+				&& Unit->SelectedAbilityIndex == Unit->PlannedReactionAbility;
+			const bool bAzioneNelPiano = bPrincipaleNelPiano || bReazioneNelPiano;
+			// Il conteggio dei waypoint e' quello DELL'AZIONE che si disarma: ognuna ha il suo segno.
+			const int32 WaypointsAlGesto = bReazioneNelPiano
+				? Unit->WaypointsAllaReazione : Unit->WaypointsAllaDichiarazione;
+			// 🔑 **Prima i waypoint posati DOPO l'azione** (decisione d'autore, [D-461] punto 3, esteso alle reazioni da
+			// [D-557]): un supporto su se stessi resta armato, e il giocatore puo' posare waypoint dopo averlo pianificato.
+			// Il Back disfa l'ultimo gesto, quindi toglie quelli; l'azione si disarma al Back in cui non ne restano. E il
+			// piano torna esattamente a quello che la riserva aveva troncato, quindi [D-444] restituisce ancora.
+			if (bAzioneNelPiano && WaypointsAlGesto != INDEX_NONE
+				&& Unit->PlannedWaypoints.Num() > WaypointsAlGesto)
 			{
 				Unit->PlannedWaypoints.Pop();
 				RebuildPlannedPath();
@@ -4974,9 +4991,8 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 			}
 			else
 			{
-				// ⚠️ **Una REAZIONE armata cade QUI, e resta nel piano**: `bAzioneNelPiano` guarda `PlannedAbilityIndex`,
-				// che una reazione non scrive. Il secondo click sullo slot invece la toglie (`#3896`, [D-555]). Non e' una
-				// dimenticanza da "correggere" qui: e' una domanda APERTA all'autore (`#3927`), e D-461 non nomina le reazioni.
+				// Qui arriva solo un'azione armata e NON nel piano — un targeting senza bersaglio —, o nessuna. Una reazione e'
+				// nel piano dal momento dell'armo e passa dal ramo sopra (`#3927`, [D-557]).
 				Unit->SelectAbility(INDEX_NONE);
 				RefreshPlanningOverlay(Unit); // `#3507`: torna il ventaglio, si spegne la portata
 			}

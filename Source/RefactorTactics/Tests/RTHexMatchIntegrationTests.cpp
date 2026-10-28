@@ -3719,7 +3719,10 @@ bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
 		|| !TestEqual(TEXT("premessa: e il piano porta la reazione"), B.Mine->PlannedReactionAbility, Reazione)
 		|| !TestTrue(TEXT("premessa: la condizione dichiarata entra nel piano"),
 			bCondizione && B.Mine->PlannedReactionCondition.IsDeclared())
-		|| !TestTrue(TEXT("premessa: la timeline la porta armata"), B.HexMap->GetPlanPreview().Reaction.bArmed))
+		|| !TestTrue(TEXT("premessa: la timeline la porta armata"), B.HexMap->GetPlanPreview().Reaction.bArmed)
+		// `#3927`: l'armo scrive anche il segno dei waypoint della reazione (quanti ce n'erano ADESSO), che il Back usa.
+		|| !TestEqual(TEXT("premessa: l'armo scrive il segno dei waypoint della reazione"),
+			B.Mine->WaypointsAllaReazione, B.Mine->PlannedWaypoints.Num()))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
@@ -3731,6 +3734,8 @@ bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
 	TestEqual(TEXT("e la reazione esce dal piano: il resolver non la trova piu'"),
 		B.Mine->PlannedReactionAbility, INDEX_NONE);
 	TestFalse(TEXT("con lei esce la condizione dichiarata"), B.Mine->PlannedReactionCondition.IsDeclared());
+	TestEqual(TEXT("e il segno dei suoi waypoint: la memoria non sopravvive alla reazione"),
+		B.Mine->WaypointsAllaReazione, INDEX_NONE);
 	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
 	TestFalse(TEXT("e la timeline non la disegna piu' armata, nemmeno dopo dieci tick"),
 		B.HexMap->GetPlanPreview().Reaction.bArmed);

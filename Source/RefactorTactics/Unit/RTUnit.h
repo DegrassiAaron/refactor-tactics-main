@@ -609,6 +609,19 @@ public:
 	int32 WaypointsAllaDichiarazione = INDEX_NONE;
 
 	/**
+	 * Come `WaypointsAllaDichiarazione`, per la REAZIONE armata (`#3927`, [D-557]): quanti waypoint il piano aveva
+	 * quando la reazione ci e' ENTRATA. `INDEX_NONE` = nessun segno.
+	 *
+	 * 🔑 **Un campo SUO, non il riuso di quello della principale.** Reazione e principale sono indipendenti ([D-555]) e
+	 * possono stare nel piano insieme, ciascuna col proprio conteggio: un campo solo farebbe sovrascrivere a una il segno
+	 * dell'altra, e il Back non saprebbe piu' quali waypoint sono stati posati dopo quale. Lo scrive il controller quando
+	 * arma la reazione e lo azzera `ClearReactionPlan()`, quindi muore con lei (Cleanup, bot, harness).
+	 *
+	 * ⛔ Memoria di editing: non replicata, non letta dal resolver, fuori da snapshot e TurnLog.
+	 */
+	int32 WaypointsAllaReazione = INDEX_NONE;
+
+	/**
 	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
 	 * OCCUPATA da un'altra unita' (#79).
 	 *
