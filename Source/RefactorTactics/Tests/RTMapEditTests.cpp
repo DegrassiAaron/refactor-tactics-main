@@ -1931,4 +1931,254 @@ bool FRTMapEditDescribeOutcomeNamesEveryValueTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// SetCellBodyFill (#3361) — l'anello che mancava all'authoring del corpo strutturale di #1865.
+//
+// Derivatore, posa nell'actor e filtro dei piani esistevano, ma nessun percorso di authoring su un asset
+// scriveva il campo che li accende. Il Details e' vietato da AGENTS.md §7.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Tutti i valori dell'enum, per RIFLESSIONE: un valore nuovo verrebbe esercitato senza toccare i test. */
+	TArray<ERTHexBodyFill> MapEditAllBodyFills()
+	{
+		TArray<ERTHexBodyFill> Out;
+		if (const UEnum* Enum = StaticEnum<ERTHexBodyFill>())
+		{
+			for (int32 I = 0; I < Enum->NumEnums() - 1; ++I) // l'ultimo e' `_MAX`, non un valore
+			{
+				Out.Add(static_cast<ERTHexBodyFill>(Enum->GetValueByIndex(I)));
+			}
+		}
+		return Out;
+	}
+
+	/**
+	 * Una cella con CONTENUTO in ogni famiglia di campi.
+	 *
+	 * 🔑 **Esiste perche' una cella di default non prova niente.** `MakeFlatArena` crea ogni cella tutta a
+	 * default: una funzione che ricostruisse la cella da zero, `FRTHexCellData(Cell)` + `BodyFill`, lascerebbe
+	 * verde ogni confronto fatto su campi che valgono gia' il default prima e dopo.
+	 */
+	FRTHexCellData MapEditMakeRichCell(const FRTCellId& Id)
+	{
+		FRTHexCellData Cell(Id);
+		Cell.Height = 3;
+		Cell.Surface = ERTHexSurface::Ice;
+		Cell.MoveCost = 4;
+		Cell.OccupancySurcharge = 2;
+		Cell.bBlocksMovement = true;
+		Cell.bMovementBlockGenerated = true;
+		Cell.bBlocksLineOfSight = true;
+		Cell.bIsObjective = true;
+		// Bordi e valori diversi dai default (`Edge` vale `E`, `Integrity` 30, `bGenerated` falso, `StableId` vuoto), e
+		// piu' di una voce per array: una ricostruzione parziale che perde un campo, o tronca l'array, cade.
+		Cell.Covers.Add(FRTHexCover(ERTHexDirection::NW, ERTHexCoverType::High, 17));
+		Cell.Covers.Last().bGenerated = true;
+		Cell.Covers.Add(FRTHexCover(ERTHexDirection::SW, ERTHexCoverType::Low, 9));
+		FRTHexDoor Door(ERTHexDirection::W, ERTHexDoorState::Locked, 7);
+		Door.StableId = FName(TEXT("Door.MapEditTest"));
+		Cell.Doors.Add(Door);
+		Cell.Doors.Add(FRTHexDoor(ERTHexDirection::SE, ERTHexDoorState::Open, 8));
+		Cell.Guards.Add(FRTHexEdgeGuard(ERTHexDirection::NE));
+		Cell.Guards.Add(FRTHexEdgeGuard(ERTHexDirection::SE));
+		return Cell;
+	}
+
+	/** Uguaglianza di TUTTA la cella, per riflessione: ogni campo, anche uno aggiunto domani. */
+	bool MapEditSameCell(const FRTHexCellData& A, const FRTHexCellData& B)
+	{
+		return FRTHexCellData::StaticStruct()->CompareScriptStruct(&A, &B, 0);
+	}
+}
+
+/**
+ * **Il riempimento si scrive sulla cella nominata, e SOLO su quella — ne' sul suo contenuto, ne' sulla sua colonna.**
+ *
+ * Tre cose che un'implementazione sbagliata potrebbe fare e che questo test deve vedere:
+ *  - ricostruire la cella da zero (azzera superficie, porte, coperture, parapetti...): per questo il bersaglio
+ *    ha contenuto in ogni famiglia e il confronto e' sull'**intera** struct, per riflessione;
+ *  - scrivere su tutte le celle: le altre sono confrontate una per una con lo stato di prima;
+ *  - scrivere sulla colonna `(X,Y)` di ogni layer: la voce PIE vuole due piani nella stessa colonna, e li' un
+ *    errore sul layer si vede solo se sopra e sotto ci sono celle vere.
+ *
+ * 🔑 **Il bersaglio e' `(1,-2,1)`, non l'origine**: con `X != Y` e `Layer != 0` una funzione che scambia X e Y, o
+ * che scrive solo sul layer 0, non trova la cella (o la trova sbagliata). Sull'origine del layer 0 entrambe
+ * passavano, ed e' il caso d'uso opposto a quello reale: la voce PIE scrive sul piano superiore, con il piano
+ * di sotto gia' dipinto. I controlli negativi sono sotto, sopra, e nella cella con X e Y scambiati.
+ *
+ * ➕ Premesse verificate prima: il bersaglio NON e' una cella di default, e parte da `None`. Senza, «il resto
+ * non si e' mosso» sarebbe vero anche per una funzione che azzera tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillWritesOnlyTheNamedCellTest,
+	"RefactorTactics.MapEdit.SetCellBodyFillWritesOnlyTheNamedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditSetBodyFillWritesOnlyTheNamedCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	const FRTCellId Target(1, -2, 1);
+	const FRTCellId Below(1, -2, 0);   // stessa colonna, piano di sotto (esiste gia' nell'arena: viene riscritta ricca)
+	const FRTCellId Above(1, -2, 2);   // stessa colonna, piano di sopra
+	const FRTCellId Mirror(-2, 1, 1);  // X e Y scambiati, stesso layer
+
+	const FRTHexCellData RichTarget = MapEditMakeRichCell(Target);
+	Map->AddOrUpdateCell(RichTarget);
+	Map->AddOrUpdateCell(MapEditMakeRichCell(Below));
+	Map->AddOrUpdateCell(MapEditMakeRichCell(Above));
+	Map->AddOrUpdateCell(MapEditMakeRichCell(Mirror));
+
+	if (!TestFalse(TEXT("premessa: il bersaglio ha contenuto, non e' una cella di default"),
+			MapEditSameCell(RichTarget, FRTHexCellData(Target))))
+	{
+		return false;
+	}
+	for (const FRTHexCellData& C : Map->Cells)
+	{
+		if (!TestEqual(TEXT("premessa: nessuna cella dichiara un corpo"),
+				static_cast<int32>(C.BodyFill), static_cast<int32>(ERTHexBodyFill::None)))
+		{
+			return false;
+		}
+	}
+	const TArray<FRTHexCellData> Before = Map->Cells;
+
+	TArray<ERTHexBodyFill> Values = MapEditAllBodyFills();
+	if (!TestTrue(TEXT("l'enum ha almeno due valori da scrivere"), Values.Num() >= 2))
+	{
+		return false;
+	}
+	// L'ultimo: un valore che non sapesse TOGLIERE il corpo lascerebbe l'autore senza ritorno.
+	Values.Add(ERTHexBodyFill::None);
+
+	for (const ERTHexBodyFill Requested : Values)
+	{
+		const FString Name = FString::Printf(TEXT("valore %d"), static_cast<int32>(Requested));
+
+		TestEqual(*(Name + TEXT(": la scrittura e' applicata")),
+			URTMapEditLibrary::SetCellBodyFill(Map, Target, Requested), ERTMapEditOutcome::Applied);
+
+		if (!TestEqual(*(Name + TEXT(": nessuna cella e' nata ne' sparita")), Map->NumCells(), Before.Num()))
+		{
+			return false;
+		}
+		for (const FRTHexCellData& Prior : Before)
+		{
+			const FRTHexCellData* Now = Map->FindCell(Prior.Id);
+			if (!TestNotNull(*FString::Printf(TEXT("%s: la cella %s esiste ancora"), *Name, *Prior.Id.ToString()), Now))
+			{
+				return false;
+			}
+
+			FRTHexCellData Expected = Prior;
+			if (Prior.Id == Target)
+			{
+				Expected.BodyFill = Requested; // l'unica differenza ammessa, e solo sul bersaglio
+				TestEqual(*(Name + TEXT(": il campo e' quello chiesto")),
+					static_cast<int32>(Now->BodyFill), static_cast<int32>(Requested));
+			}
+			TestTrue(*FString::Printf(TEXT("%s: la cella %s e' identica a prima, salvo BodyFill sul solo bersaglio"),
+					*Name, *Prior.Id.ToString()),
+				MapEditSameCell(*Now, Expected));
+		}
+	}
+	return true;
+}
+
+/**
+ * **Una cella che non c'e' e' RIFIUTATA, con un codice, e la mappa non cambia.**
+ *
+ * Il controllo non e' formale per la ragione storica di questo gesto: un'implementazione che passasse da
+ * `AddOrUpdateCell` farebbe nascere la cella mancante. Tre assenze diverse, perche' sono tre modi diversi di
+ * sbagliare: fuori mappa, un layer che non c'e' sulla colonna giusta (`-Cell=0,0` vale layer 0, `0,0,1` no), e
+ * una mappa nulla. «Non cambia» si misura su celle, revisione e hash, perche' ciascuna cattura una scrittura che
+ * le altre due non vedrebbero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillRefusesMissingCellTest,
+	"RefactorTactics.MapEdit.SetCellBodyFillRefusesAMissingCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditSetBodyFillRefusesMissingCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+
+	const FRTCellId Missing[] = { FRTCellId(99, 99, 0), FRTCellId(0, 0, 7) };
+	for (const FRTCellId& Absent : Missing)
+	{
+		const FString Name = Absent.ToString();
+		if (!TestNull(*FString::Printf(TEXT("premessa: %s non esiste"), *Name), Map->FindCell(Absent)))
+		{
+			return false;
+		}
+
+		const int32 CellsBefore = Map->NumCells();
+		const int32 RevisionBefore = Map->Revision;
+		const uint32 HashBefore = Map->ComputeHash();
+
+		TestEqual(*FString::Printf(TEXT("%s e' rifiutata"), *Name),
+			URTMapEditLibrary::SetCellBodyFill(Map, Absent, ERTHexBodyFill::Full),
+			ERTMapEditOutcome::RefusedNoSuchCell);
+
+		TestEqual(*FString::Printf(TEXT("%s: nessuna cella e' nata"), *Name), Map->NumCells(), CellsBefore);
+		TestNull(*FString::Printf(TEXT("%s: non esiste neanche dopo"), *Name), Map->FindCell(Absent));
+		TestEqual(*FString::Printf(TEXT("%s: la revisione non si e' mossa"), *Name), Map->Revision, RevisionBefore);
+		TestEqual(*FString::Printf(TEXT("%s: l'hash non si e' mosso"), *Name), Map->ComputeHash(), HashBefore);
+	}
+
+	TestEqual(TEXT("una mappa nulla e' rifiutata, non e' un crash"),
+		URTMapEditLibrary::SetCellBodyFill(nullptr, FRTCellId(0, 0, 0), ERTHexBodyFill::Full),
+		ERTMapEditOutcome::RefusedNoSuchCell);
+	return true;
+}
+
+/**
+ * **Ne' l'hash ne' la REVISIONE si muovono** — il corpo e' presentazione, e non cambia l'identita' competitiva.
+ *
+ * 🔴 `Revision` conta quanto `ComputeHash`: `Map->Revision` entra in `HashMatchState` ed e' il `GraphRevision`
+ * di ogni voce di TurnLog. Una scrittura che la muovesse — per esempio passando da `AddOrUpdateCell` — farebbe
+ * divergere un hash di stato o una traccia pinnati sulla mappa senza che il gioco sia cambiato.
+ *
+ * 🔑 **La controprova sta nello stesso test, ed e' `AddDoor`.** Un'uguaglianza vale solo se la stessa grandezza SA
+ * muoversi per un gesto fatto sulla stessa mappa: una porta sposta l'hash (formato v4) e la revisione, il corpo
+ * nessuno dei due. Senza, il test sarebbe vero anche con `ComputeHash` costante e `Revision` mai incrementata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillLeavesIdentityAloneTest,
+	"RefactorTactics.MapEdit.SetCellBodyFillLeavesHashAndRevisionAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditSetBodyFillLeavesIdentityAloneTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	const FRTCellId Center(0, 0, 0);
+
+	const uint32 HashBefore = Map->ComputeHash();
+	const int32 RevisionBefore = Map->Revision;
+
+	const TArray<ERTHexBodyFill> Fills = MapEditAllBodyFills();
+	if (!TestTrue(TEXT("l'enum ha almeno due valori da scrivere"), Fills.Num() >= 2))
+	{
+		return false;
+	}
+	for (const ERTHexBodyFill Fill : Fills)
+	{
+		TestEqual(TEXT("scrittura applicata"),
+			URTMapEditLibrary::SetCellBodyFill(Map, Center, Fill), ERTMapEditOutcome::Applied);
+		TestEqual(FString::Printf(TEXT("valore %d: l'hash non si e' mosso"), static_cast<int32>(Fill)),
+			Map->ComputeHash(), HashBefore);
+		TestEqual(FString::Printf(TEXT("valore %d: la revisione non si e' mossa"), static_cast<int32>(Fill)),
+			Map->Revision, RevisionBefore);
+	}
+
+	// ➕ Controprova: le stesse due grandezze SANNO muoversi, per un gesto che e' stato competitivo.
+	ERTHexDirection Edge;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(Map, Center, Edge)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("la porta e' posata"),
+		URTMapEditLibrary::AddDoor(Map, Center, Edge, ERTHexDoorState::Closed), ERTMapEditOutcome::Applied);
+	TestNotEqual(TEXT("e QUELLA l'hash lo sposta: l'uguaglianza di prima non era vacua"),
+		Map->ComputeHash(), HashBefore);
+	TestTrue(TEXT("e la revisione: neanche questa uguaglianza era vacua"), Map->Revision > RevisionBefore);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
