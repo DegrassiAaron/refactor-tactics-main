@@ -483,7 +483,7 @@ Due regole che l'ordine da solo non dice:
   nel piano quando si disarma la principale, perché `Reaction` ha il proprio slot e il proprio campo.
   ⚠️ **Il Back (voce 6) su una reazione armata NON è deciso da D-555**: oggi spegne lo slot e lascia la reazione nel
   piano, perché una reazione non scrive `PlannedAbilityIndex` e la condizione di «azione già nel piano» non la vede.
-  È una domanda aperta all'autore, non una regola.
+  È una domanda aperta all'autore ([#3927](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3927)), non una regola.
 
 `BackSpace` segue lo stesso elenco (è già legato a `UndoAction`, `RTPlayerController.cpp:246-247`). `Esc`
 pure, con la sola eccezione della `ReactionWindow`: lì non chiude, perché non scegliere è già `HOLD`.

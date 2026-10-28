@@ -4841,6 +4841,9 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 			}
 			else
 			{
+				// ⚠️ **Una REAZIONE armata cade QUI, e resta nel piano**: `bAzioneNelPiano` guarda `PlannedAbilityIndex`,
+				// che una reazione non scrive. Il secondo click sullo slot invece la toglie (`#3896`, [D-555]). Non e' una
+				// dimenticanza da "correggere" qui: e' una domanda APERTA all'autore (`#3927`), e D-461 non nomina le reazioni.
 				Unit->SelectAbility(INDEX_NONE);
 				RefreshPlanningOverlay(Unit); // `#3507`: torna il ventaglio, si spegne la portata
 			}

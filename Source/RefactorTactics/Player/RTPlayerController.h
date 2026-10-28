@@ -1057,6 +1057,15 @@ private:
 	 * 🔑 **Una funzione sola per le due porte che disarmano**: il secondo click sullo slot (`#3417`) e il Back
 	 * su un'azione gia' nel piano (`#3501`). Fino a `#3501` il Back chiamava il solo `SelectAbility(INDEX_NONE)`,
 	 * cioe' la riga che [D-444] nomina come difetto, e il tetto `Withdraw` restava dopo «Annulla».
+	 *
+	 * 🔴 **Se lo slot che si disarma e' una REAZIONE, la toglie dal piano con la sua condizione** (`#3896`, [D-555]):
+	 * `PlannedReactionAbility` e' un campo proprio e il disarmo non lo azzerava. Solo se e' LEI lo slot —
+	 * `SelectedAbilityIndex == PlannedReactionAbility`, letto prima che `SelectAbility` lo spenga —: una reazione armata
+	 * prima di un'azione principale resta nel piano quando si disarma la principale.
+	 *
+	 * ⚠️ **Due punti sono APERTI e non decisi** (`#3927`): il Back su una reazione armata non passa di qui (`ApplyBack`
+	 * guarda `PlannedAbilityIndex`, che una reazione non scrive), e disarmare lo slot di una reazione azzera ancora la
+	 * principale gia' pianificata, perche' questa funzione non distingue che cosa disarma.
 	 */
 	FString DisarmPlannedAction();
 
