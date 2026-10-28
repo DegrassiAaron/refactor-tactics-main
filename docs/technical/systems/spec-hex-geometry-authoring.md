@@ -771,12 +771,14 @@ fuori dalla cella cancellata.
 
 ⚠️ Gli indici restituiti valgono finché l'asset non cambia, e si consumano **dal più alto al più basso**.
 
-✅ **La regola è applicata da tutte le vie che cancellano una cella** ([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), `D-553`).
+✅ **La regola è applicata da entrambe le vie che cancellano UNA cella** ([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), `D-553`).
 `URTHexMapAsset::EraseCellInStroke` → cioè il **pennello in `Erase`**, che cancella in *area*, e `ARTHexMapActor::EraseCell` → chiama `URTMapEditLibrary::DeleteElement`, la stessa funzione di `Canc` sulla selezione: i due gesti lasciano lo stesso stato. ⌫ *Fino al 2026-10-28 il pennello toglieva la cella e basta (`RemoveCell`) e lasciava muri, archi e binding orfani, e questa sezione dichiarava il gesto che non chiamava la regola.*
 
-⚠️ `RemoveCell` resta la primitiva che toglie la **sola** cella e non applica la cascata: chi la chiama direttamente ne risponde. Il comportamento visibile cambia: una pennellata in area porta via anche gli archi diretti verso celle **fuori** dall'area (un arco verso il nulla è un errore), e il log dice quanti elementi la cascata ha portato via. Un solo `Ctrl+Z` per pennellata vale per costruzione (`BeginStroke()` chiama `Modify()` prima di ogni mutazione) e non è misurato in Editor: `PIE-HEX-PAINT-ERASE`.
+⚠️ `RemoveCell` resta la primitiva che toglie la **sola** cella e non applica la cascata: chi la chiama direttamente ne risponde. Il comportamento visibile cambia: una pennellata in area porta via anche gli archi diretti verso celle **fuori** dall'area (un arco verso il nulla è un errore), e il log dice quanti elementi la cascata ha portato via (la differenza di dimensione dei tre array: un binding che perde un bersaglio e sopravvive non conta). Un solo `Ctrl+Z` per pennellata vale per costruzione (`BeginStroke()` chiama `Modify()` prima di ogni mutazione) e non è misurato in Editor: `PIE-HEX-PAINT-ERASE`.
 
-Verifica del pennello: `RefactorTactics.MapEdit.Brush*` (la cella, i due gesti a confronto, l'area) e `RefactorTactics.HexMapActor.EraseCellTakesTheCascade`.
+⚠️ **Non coperti, e lo erano già prima**: `ClearAll` e `ReplaceContent` (il bottone *Clear* e *Generate Into Asset*) svuotano o sostituiscono `Cells` e `Transitions` e lasciano muri interni e binding; non sono la cancellazione di una cella e non passano da `EraseCellInStroke`. E un limite **ereditato da `CollectDependents`**, che vale per `Canc` come per il pennello: i nomi che muoiono con la cella sono quelli delle sue **porte**, quindi un binding che cita un **arco con nome** resta con un riferimento inesistente quando quell'arco sparisce con la cella (letto dal sorgente, non misurato).
+
+Verifica del pennello: `RefactorTactics.MapEdit.Brush*` (la cella, i due gesti a confronto, l'area) e `RefactorTactics.HexMapActor.EraseCellTakesTheCascade`. Provano la sede, non il tool: `ApplyBrushAt` è protetto, e nessun test automatico prova che chiami `EraseCellInStroke` né che i contatori del suo log sommino bene.
 
 Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
 che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.

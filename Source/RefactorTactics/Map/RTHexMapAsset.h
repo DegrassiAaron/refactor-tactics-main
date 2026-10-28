@@ -699,7 +699,8 @@ public:
 	 * nello stesso Undo della pennellata.
 	 *
 	 * `OutCascadeRemoved`, se passato, riceve quanti elementi (muri interni, archi, binding) sono stati portati
-	 * via con la cella: zero se la cella non esisteva.
+	 * via con la cella: zero se la cella non esisteva. È la differenza di dimensione dei tre array, non un elenco:
+	 * un binding che perde un bersaglio e sopravvive non conta, e uno già vuoto che la pulizia dei nomi toglie sì.
 	 */
 	bool EraseCellInStroke(const FRTCellId& Id, int32* OutCascadeRemoved = nullptr);
 
