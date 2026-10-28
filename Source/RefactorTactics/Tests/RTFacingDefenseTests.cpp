@@ -413,7 +413,7 @@ bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: di fronte la guardia riduce ma non azzera"), Frontale > 0);
 
 	TestEqual(TEXT("alle spalle si incassa la riduzione di catalogo in piu'"),
-		Posteriore - Frontale, URTCombatLibrary::GuardFirstHitReduction);
+		Posteriore - Frontale, URTCombatLibrary::GuardReductionDefault);
 	TestEqual(TEXT("e alle spalle la guardia non vale nulla: come non averla"),
 		Posteriore, PosterioreScoperto);
 	// Si TOGLIE una protezione, non si aggiunge un bonus: chi non ha guardia incassa lo stesso da ogni lato.

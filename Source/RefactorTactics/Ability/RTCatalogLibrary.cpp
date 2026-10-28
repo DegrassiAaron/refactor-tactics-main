@@ -1247,7 +1247,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
 	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non
 	// interrompibile (catalogo §1). Il valore lo dichiara il personaggio (`URTHeroData::GuardReduction`);
-	// `URTCombatLibrary::GuardFirstHitReduction` ne e' il default di catalogo.
+	// `URTCombatLibrary::GuardReductionDefault` ne e' il default di catalogo.
 	//
 	// ⏱️ *E' la SECONDA riscrittura di questa riga. Diceva «pool di 15 danni assorbibili che i colpi
 	// dell'arco frontale consumano finche' dura ([D-292])» dal 2026-09-03 al 2026-09-20, quando [D-408] ha

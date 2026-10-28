@@ -597,7 +597,7 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	// Guardia dal 2026-08-31 ([D-292]) e doppiamente da [D-408]. Il numero coincideva per un colpo solo e
 	// frontale, che era l'unico caso esercitato: trovato da una code review.*
 	TArray<int32> Marchio;   Marchio.Init(0, 2);   Marchio[1] = URTCombatLibrary::MarkedFirstHitBonus;
-	TArray<int32> Guardia;   Guardia.Init(0, 2);   Guardia[1] = -URTCombatLibrary::GuardFirstHitReduction;
+	TArray<int32> Guardia;   Guardia.Init(0, 2);   Guardia[1] = -URTCombatLibrary::GuardReductionDefault;
 
 	auto Composto = [&](bool bFrontale)
 	{

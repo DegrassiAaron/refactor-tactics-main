@@ -85,7 +85,7 @@ public:
 	 * **Di quanto `Status.Guarded` riduce OGNI colpo valido dell'arco frontale** ([D-408]).
 	 *
 	 * 🔴 **Il valore lo dichiara il PERSONAGGIO, ed e' la meta' di `D-408` che tocca i dati.** Fino al
-	 * 2026-09-20 era una costante condivisa — `URTCombatLibrary::GuardFirstHitReduction` — e la Guardia era
+	 * 2026-09-20 il valore era UNICO per tutti, una costante condivisa, e la Guardia era
 	 * un **pool** di assorbimento ([D-292]): un budget totale per il turno, che i colpi frontali
 	 * consumavano. `D-408` ritira il pool e tiene la riduzione.
 	 *
@@ -97,7 +97,7 @@ public:
 	 * `Combat.GuardReductionIsPermutationInvariant`.
 	 *
 	 * ⛔ **Il numero per ciascun eroe e' TARATURA e la possiede `balance/`** ([D-282]): qui c'e' il
-	 * default di catalogo, ancora `URTCombatLibrary::GuardFirstHitReduction`.
+	 * default di catalogo, ancora `URTCombatLibrary::GuardReductionDefault`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 GuardReduction = 15;
