@@ -843,6 +843,8 @@ nascosto.*
 all'inraggio, non zero) chiude quel bordo, in ogni sede. `EdgesTouchedBy` non cambia: risponde alla propria domanda —
 *«si passa da questo lato?»* — e in produzione è chiamata soltanto da `CoverEdgesOf`.
 
+⌫ *Per chi legge `D-179` (1), «si conserva ogni segmento disegnato»*: vale per i segmenti che passano per il centro, che finiscono in `InteriorWalls`. Un segmento che chiude un bordo senza passare per il centro (il muro sul lato, la corda fra due punti medi non opposti) è rappresentato dalle sole coperture e la sua parte interna non si conserva: è l'invariante di `InteriorWalls`, e vale per scelta d'autore ([#3919](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3919), `D-554`).
+
 ⚠️ **Gli assi DISPARI non mostravano il difetto**: `Deg30`, `Deg90`, `Deg150` puntano ai **vertici**, che `MSE-4`
 esclude, quindi lì le sedi concordavano già. È la ragione per cui il difetto è sopravvissuto — i test di cottura e
 di move usavano prevalentemente diametri vertice-vertice.
