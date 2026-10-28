@@ -2162,8 +2162,8 @@ sessions:
       ➕ **`PIE-MAPED-CORPO` entra in `verifies` il 2026-10-28** (#3361): il suo bloccante era l'ALLESTIMENTO,
       non la seduta, e adesso c'e' un comando scritto (`RTSetCellBodyFill`). Prima non poteva starci —
       convocare una voce non allestibile avrebbe reso non allestibile la seduta intera.
-      ⏱️ **Derivata dal codice e dal `-DryRun`, non provata in editor**: il salvataggio su un asset e il
-      giudizio a schermo restano da eseguire, ed e' il motivo per cui la voce resta ⏳.
+      ⏱️ **Provata in headless, non in editor**: il `-DryRun` e un giro di salvataggio e rilettura in un
+      secondo processo. Il giudizio a schermo resta da dare, ed e' il motivo per cui la voce resta ⏳.
 
   - id: U26
     title: La griglia di lavoro e la sonda di movimento nell'editor
