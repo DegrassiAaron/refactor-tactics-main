@@ -956,7 +956,7 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			}
 		}
 
-		// 4. L'INVARIANTE dichiarato nell'header: ci finisce solo cio' che nessuna copertura descrive. Un
+		// 4. L'INVARIANTE dichiarato nell'header: ci finisce solo cio' che nessuna copertura descrive, e ogni segmento per il centro (`D-551`, `D-554`). Un
 		//    segmento che chiude un bordo e' gia' rappresentato dalla sua copertura, e scriverlo anche qui
 		//    sarebbe una seconda verita' sullo stesso muro — che e' la ragione per cui questo campo ha un
 		//    perimetro invece di essere «i segmenti della cella».
