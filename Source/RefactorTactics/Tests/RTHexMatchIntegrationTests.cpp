@@ -4166,11 +4166,21 @@ bool FRTFocusWiringUnobservedTest::RunTest(const FString&)
 
 	// Solo un RICORDO: la squadra ha un contatto vivo, quindi la vista ha una voce `Remembered` — che esiste, e non e' `Live`.
 	// E' il caso che distingue «c'e' una voce» da «la voce e' `Live`»: il cancello e' il secondo (P2).
+	//
+	// 🔴 **Il contatto sta su una cella VICINA E ANCORA IN VISTA, non sulla cella del nemico.** Con il contatto sulla stessa
+	// cella non in vista il caso era vacuo: `URTFocusAreaLibrary::MoveAreasFor` restituisce gia' area vuota per un soggetto su una
+	// cella non in vista, e togliere il cancello (`IsInspectable`) lasciava il test verde (la mutazione K1 sopravviveva). Con
+	// l'ultimo avvistamento su una cella che si vede, senza cancello l'area partirebbe da dove il nemico non e' piu'.
 	FFwCase OnlyRemembered;
 	OnlyRemembered.Knowledge = [](FRTTeamKnowledge& K, const ARTUnit* Enemy)
 	{
 		K.VisibleCells.Remove(Enemy->Cell);
-		K.Contacts.Add(FRTLastKnownContact(Enemy->StableUnitId, Enemy->Cell, /*InTurn=*/ 1));
+		FRTCellId LastSeen = Enemy->Cell;
+		for (const FRTCellId& Next : URTHexLibrary::Neighbors(Enemy->Cell))
+		{
+			if (K.VisibleCells.Contains(Next)) { LastSeen = Next; break; }
+		}
+		K.Contacts.Add(FRTLastKnownContact(Enemy->StableUnitId, LastSeen, /*InTurn=*/ 1));
 	};
 	Cases.Add({ TEXT("la squadra ne ha solo un ricordo (voce Remembered)"), OnlyRemembered });
 
