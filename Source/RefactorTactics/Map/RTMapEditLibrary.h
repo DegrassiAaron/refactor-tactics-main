@@ -153,10 +153,11 @@ public:
 	 * bersagli), con la stessa regola di morte dei nomi di `Canc` (`RTApplyOrphanedNames`). Ciò che sta su celle che
 	 * restano si conserva.
 	 *
-	 * 🔑 **Valuta i nomi sul contenuto NUOVO, non cella per cella**: `ReplaceContent` toglie un INSIEME di celle in
-	 * un colpo, e la cascata di una cella alla volta sbaglia un portone i cui bordi stanno su due celle che spariscono
-	 * insieme (ciascuna vede ancora l'altra). Un nome muore se nel contenuto nuovo nessuna porta e nessun arco lo
-	 * porta piu'. Non muove `Revision`: la sostituzione la muove una volta sola.
+	 * 🔑 **Valuta i nomi sul contenuto NUOVO, non con `DeleteElement` cella per cella**: `ReplaceContent` sostituisce
+	 * gli array in un colpo, mentre `DeleteElement` toglierebbe le celle una alla volta (ogni `RemoveCell` muove
+	 * `Revision` e il registro delle modifiche, dove la sostituzione e' UN evento) e raccoglierebbe sull'asset
+	 * vecchio. Un nome muore se nel contenuto nuovo nessuna porta e nessun arco lo porta piu'. Non muove
+	 * `Revision`: la sostituzione la muove una volta sola.
 	 *
 	 * ⚠️ `NamesBefore` e' cio' che `CollectStructureNames` ha letto prima della sostituzione: dopo non c'e' piu'
 	 * niente da leggere.

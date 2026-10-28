@@ -3064,7 +3064,8 @@ namespace
 	 * Una mappa VALIDA con tutto cio' che deve morire o sopravvivere a una sostituzione. `X` e' la cella che
 	 * sparira' nei test: porta un muro, la porta `S1` e il ponte con nome `B1` verso `Far`. `K` porta un muro e
 	 * resta. Tre binding comandano la porta `D1`, che sta su una cella che resta: `S1` (sorgente su `X`), `B1`
-	 * (sorgente: il ponte, che tocca `X`) e `S2` (sorgente su una cella che resta: il testimone).
+	 * (sorgente: il ponte, che tocca `X`) e `S2` (sorgente su una cella che resta: il testimone). Un quarto,
+	 * `D1 -> [S2, S1]`, perde il bersaglio `S1` con `X` e sopravvive con `S2`.
 	 * Con `bWithGroup`, un portone `G1` ha i suoi due bordi su `P` e `Q`, ed e' comandato da `S3`.
 	 */
 	URTHexMapAsset* MapEditMakeReplaceMap(bool bWithGroup)
@@ -3098,6 +3099,8 @@ namespace
 		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
 		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B1"), { TEXT("D1") }));
 		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("D1") }));
+		// Un binding che perde UN bersaglio e sopravvive: `D1` comanda `S2` (resta) e `S1` (sta su `X`, sparisce).
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("D1"), { TEXT("S2"), TEXT("S1") }));
 
 		if (bWithGroup)
 		{
@@ -3163,7 +3166,7 @@ bool FRTMapEditClearAllEmptiesEverythingTest::RunTest(const FString&)
 	TestEqual(*FString::Printf(TEXT("la mappa parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
 		Map->ValidateMap().Num(), 0);
 	TestEqual(TEXT("premessa: due muri interni"), Map->InteriorWalls.Num(), 2);
-	TestEqual(TEXT("premessa: tre binding"), Map->InteractionBindings.Num(), 3);
+	TestEqual(TEXT("premessa: quattro binding"), Map->InteractionBindings.Num(), 4);
 	TestTrue(TEXT("premessa: ci sono archi"), Map->Transitions.Num() > 0);
 
 	Naive->Cells.Reset();
@@ -3198,6 +3201,16 @@ bool FRTMapEditClearAllEmptiesEverythingTest::RunTest(const FString&)
 	TestTrue(TEXT("ClearAll di soli orfani dichiara di aver tolto qualcosa"), OrphansOnly->ClearAll());
 	TestEqual(TEXT("e li toglie: muri"), OrphansOnly->InteriorWalls.Num(), 0);
 	TestEqual(TEXT("e li toglie: binding"), OrphansOnly->InteractionBindings.Num(), 0);
+
+	// --- Sostituire con contenuto VUOTO e' uno svuotamento: lo stesso su un asset di soli orfani ---------
+	URTHexMapAsset* EmptyReplace = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	EmptyReplace->Cells.Reset();
+	EmptyReplace->Transitions.Reset();
+	EmptyReplace->SortCells();
+	TestFalse(TEXT("ReplaceContent con due array vuoti ritorna falso: dopo l'asset non contiene niente"),
+		EmptyReplace->ReplaceContent({}, {}));
+	TestEqual(TEXT("e toglie comunque i muri orfani"), EmptyReplace->InteriorWalls.Num(), 0);
+	TestEqual(TEXT("e i binding orfani"), EmptyReplace->InteractionBindings.Num(), 0);
 	return true;
 }
 
@@ -3252,6 +3265,13 @@ bool FRTMapEditReplaceContentPrunesTest::RunTest(const FString&)
 	TestEqual(TEXT("il binding con sorgente sulla cella sparita e' andato"), MapEditBindingsFrom(Map, TEXT("S1")), 0);
 	TestEqual(TEXT("il binding che parte dal ponte sparito e' andato"), MapEditBindingsFrom(Map, TEXT("B1")), 0);
 	TestEqual(TEXT("il binding testimone resta"), MapEditBindingsFrom(Map, TEXT("S2")), 1);
+	const FRTInteractionBinding* Shortened = Map->InteractionBindings.FindByPredicate(
+		[](const FRTInteractionBinding& B) { return B.SourceId == FName(TEXT("D1")); });
+	if (TestNotNull(TEXT("il binding che perde UN bersaglio sopravvive"), Shortened))
+	{
+		TestEqual(TEXT("e ha perso solo il nome sparito"), Shortened->TargetIds.Num(), 1);
+		TestTrue(TEXT("il bersaglio rimasto e' la porta che resta"), Shortened->TargetIds.Contains(FName(TEXT("S2"))));
+	}
 	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
 	return true;
 }
@@ -3302,10 +3322,10 @@ bool FRTMapEditReplaceContentMatchesCancTest::RunTest(const FString&)
 /**
  * **Un portone i cui bordi stanno su DUE celle che spariscono insieme muore; se una resta, il nome resta.**
  *
- * E' il caso che una cascata cella per cella sbaglia: tolta la prima cella, il portone "sopravvive altrove" perche'
- * l'altra c'e' ancora, e tolta la seconda la prima c'e' ancora se non e' stata rimossa dall'asset. `ReplaceContent`
- * valuta i nomi sul contenuto NUOVO, quindi vede l'insieme. La seconda meta' (una cella resta) e' la controprova
- * contro "i nomi delle celle sparite muoiono sempre".
+ * E' il caso che una raccolta NON mutante cella per cella sbaglierebbe: `CollectDependents` sul contenuto vecchio vede,
+ * per ciascuna delle due celle, il portone "sopravvivere altrove" sull'altra, che sta sparendo anch'essa.
+ * `ReplaceContent` valuta i nomi sul contenuto NUOVO, quindi vede l'insieme. La seconda meta' (una cella resta) e'
+ * la controprova contro "i nomi delle celle sparite muoiono sempre".
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentGroupTest,
 	"RefactorTactics.MapEdit.ReplaceContentJudgesADoorGroupOnTheWholeSet",
@@ -3390,6 +3410,7 @@ bool FRTMapEditReplaceContentSameContentTest::RunTest(const FString&)
 		Fresh->ReplaceContent(SameCells, SameTransitions));
 	TestEqual(TEXT("e le celle sono quelle date"), Fresh->NumCells(), SameCells.Num());
 	TestEqual(TEXT("senza muri interni inventati"), Fresh->InteriorWalls.Num(), 0);
+	TestEqual(TEXT("e la revisione sale di UNO anche su un asset nuovo"), Fresh->Revision, 1);
 	return true;
 }
 
