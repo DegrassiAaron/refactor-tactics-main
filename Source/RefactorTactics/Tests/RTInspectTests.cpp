@@ -71,11 +71,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectSubjectCarriesNoRawTypesTest,
 bool FRTInspectSubjectCarriesNoRawTypesTest::RunTest(const FString&)
 {
 	const TSet<FName> Allowed = { FName(TEXT("RTUnitCardView")), FName(TEXT("RTStatusBadgeView")),
-		FName(TEXT("RTActionTooltipView")), FName(TEXT("RTActionTooltipLine")), FName(TEXT("RTInspectEquipmentLine")) };
+		FName(TEXT("RTActionTooltipView")), FName(TEXT("RTActionTooltipLine")), FName(TEXT("RTInspectEquipmentLine")),
+		FName(TEXT("RTInspectDeducedCooldown")) };
 
 	int32 Examined = 0;
 	const TArray<const UStruct*> Types = { FRTInspectSubject::StaticStruct(), FRTInspectEquipmentLine::StaticStruct(),
-		FRTInspectView::StaticStruct() };
+		FRTInspectDeducedCooldown::StaticStruct(), FRTInspectView::StaticStruct() };
 	for (const UStruct* Type : Types)
 	{
 		for (const FString& Field : InspectForbiddenFields(Type, Allowed, Examined))

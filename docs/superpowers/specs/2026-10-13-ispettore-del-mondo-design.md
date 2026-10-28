@@ -431,8 +431,21 @@ Sono premesse plausibili e non misurate. Il piano le misura prima di poggiarci s
 - ➕ rev2. Su chi si congela il verdetto di una voce di combattimento, e quale `ActionId` porta una voce di
   stato il cui soggetto è chi subisce. Il revisore non ha potuto controllarlo. Finché non è misurato, F6 conta
   solo le voci in cui il soggetto è chi agisce (P4).
+  ✅ **Misurato in #3751** (`AppendLogEntry`, `MakeStatusBirthEntry`, `FRTTurnLogEntry::ActionId`): il verdetto di
+  una voce si congela contro l'unità passata come attore, la stessa che finisce in `UnitId`
+  (`Entry.VerdictSubject.StableUnitId == Entry.UnitId`, pinnato sulle voci vere dal test
+  `SeenUse.ARealSeenAttackLeavesARowAndAnUnseenOneDoesNot`). Una voce di stato porta in `ActionId` il **tag dello
+  stato**, mai un'azione del kit. Il caso che invece accrediterebbe l'azione sbagliata è un altro, e si vede solo
+  leggendo `ERTMoveOutcome::Displaced`: `UnitId` è chi viene spostato, `ActionId` è l'azione di **chi spinge**, e
+  `IsSubjectTheSufferer` non lo riconosce come voce di chi subisce.
 - Che ogni uso di un'azione produca una voce che nomina chi ha agito. Dove non la produce, la riga dedotta non
   nasce: è un limite dichiarato, non un difetto.
+  ✅ **F6 conta**: il danno inflitto da chi agisce (`IsDamageInflictedByActor`: colpi, Overwatch che spara, previsione
+  azzeccata) e la cura (`Combat/Healed`). **Non conta, e la scheda non ha riga**: movimento e Dash (la categoria
+  `Move` ha l'inversione di `Displaced`), azioni ambientali, stati, fallback, un attacco senza linea di tiro (non è
+  detto che la ricarica sia stata pagata) e una cura su se stessi (`IsSubjectTheSufferer` la legge come danno
+  ambientale). Allargare l'insieme è un candidato a parte: ogni categoria nuova vuole la propria misura di chi sta
+  in `UnitId`.
 - ➕ rev2. Quale stato legge la scheda durante il playback, e se la targa ne mostra uno diverso (§3 regola 5).
 - Come dividere `BuildActionTooltip` senza cambiare ciò che lo slot già mostra.
 
@@ -511,7 +524,7 @@ il primo copre F1.
 | **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede. Issue: [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748) | F2 |
 | **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click. Issue: [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749). Il cambio di tasto è fatto, con [D-514](../../decisions/RT_PDR_00_Decision_Log.md); il fuoco sul click no | F3 per il fuoco; il solo cambio di tasto è indipendente |
 | **F5** | **Aree del fuoco e hover su skill**: arbitro, area di movimento, portata. Issue: [#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750) | F3, [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511) |
-| **F6** | **Ricariche dedotte**. Issue: [#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751) | F3 |
+| **F6** | **Ricariche dedotte**. Issue: [#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751). Il registro (`FRTSeenUseLedger`) e le righe del compositore sono fatti; la riga la disegna il pannello di F3, che manca | F3 |
 
 ### 9.2 Vicini
 
