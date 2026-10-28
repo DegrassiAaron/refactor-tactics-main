@@ -1198,6 +1198,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewRangeArea.Cells.Num() > 0
 		|| PreviewFocusNormalArea.Cells.Num() > 0
 		|| PreviewFocusRunArea.Cells.Num() > 0
+		|| PreviewSkillFreeArea.Cells.Num() > 0
+		|| PreviewSkillBlockedArea.Cells.Num() > 0
+		|| PreviewSkillUnverdictedArea.Cells.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
@@ -1250,6 +1253,23 @@ void ARTHexMapActor::SetPreviewFocusAreas(const TArray<FRTCellId>& NormalCells, 
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
+void ARTHexMapActor::SetPreviewSkillRange(const TArray<FRTCellId>& FreeCells, const TArray<FRTCellId>& BlockedCells,
+	const TArray<FRTCellId>& UnverdictedCells)
+{
+	// Si copia e basta: la classificazione e' di `URTRangeVerdictLibrary`, e rifarla qui sarebbe la seconda risposta alla stessa
+	// domanda. Il terzo stato e' `Uncertain` perche' e' proprio questo che dice: la squadra non sa se il tiro passa.
+	PreviewSkillFreeArea.Cells = FreeCells;
+	PreviewSkillFreeArea.Meaning = ERTOverlayMeaning::AbilityRange;
+	PreviewSkillFreeArea.Certainty = ERTOverlayCertainty::Confirmed;
+	PreviewSkillBlockedArea.Cells = BlockedCells;
+	PreviewSkillBlockedArea.Meaning = ERTOverlayMeaning::AbilityRange;
+	PreviewSkillBlockedArea.Certainty = ERTOverlayCertainty::Confirmed;
+	PreviewSkillUnverdictedArea.Cells = UnverdictedCells;
+	PreviewSkillUnverdictedArea.Meaning = ERTOverlayMeaning::AbilityRange;
+	PreviewSkillUnverdictedArea.Certainty = ERTOverlayCertainty::Uncertain;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
 void ARTHexMapActor::SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
 	bool bOriginPredicted)
 {
@@ -1280,6 +1300,7 @@ void ARTHexMapActor::ClearPlanningPreview()
 	SetPreviewReachableCells(TArray<FRTCellId>());
 	SetPreviewRangeCells(TArray<FRTCellId>());
 	SetPreviewFocusAreas(TArray<FRTCellId>(), TArray<FRTCellId>());
+	SetPreviewSkillRange(TArray<FRTCellId>(), TArray<FRTCellId>(), TArray<FRTCellId>());
 	SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
 	SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
 	SetPreviewPath(TArray<FRTCellId>());
@@ -1299,7 +1320,10 @@ int32 ARTHexMapActor::NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const
 	case ERTOverlayMeaning::PathTrace:       return PreviewPathArea.Cells.Num();
 	case ERTOverlayMeaning::Attack:          return PreviewHitArea.Cells.Num();
 	case ERTOverlayMeaning::FriendlyFire:    return PreviewAllyHitArea.Cells.Num();
-	case ERTOverlayMeaning::AbilityRange:    return PreviewRangeArea.Cells.Num();
+	// La portata armata E le tre classi della portata in hover (#3750, fetta D): stesso significato, e un'area di portata
+	// rimasta accesa dopo un'uscita deve vedersi nel conto di chi verifica che l'anteprima sia spenta.
+	case ERTOverlayMeaning::AbilityRange:    return PreviewRangeArea.Cells.Num() + PreviewSkillFreeArea.Cells.Num()
+		+ PreviewSkillBlockedArea.Cells.Num() + PreviewSkillUnverdictedArea.Cells.Num();
 	// Non sono insiemi di celle ma un segno solo: la linea mira->bersaglio e il tratto di linea di tiro.
 	case ERTOverlayMeaning::AttackOriginAim: return bPreviewAttackValid ? 1 : 0;
 	case ERTOverlayMeaning::Vision:          return bHasPreviewSightBlock ? 1 : 0;
@@ -2056,28 +2080,49 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	// piu' sotto — e le due bande si distinguono per la scala: la normale al passo del ventaglio, quella raggiunta solo
 	// correndo piu' piccola, dentro. Stesso significato, stesso colore: la grammatica la decide la palette, non questo ciclo.
 	// ⚠️ La resa e' una scelta da giudicare in PIE (`PIE-HUD-FUOCO-AREE`), non una misura.
-	const auto DrawPredictedMovement = [World, &Origin, Size, LayerH, &CellLift](const FRTCellId& Cell, float ScaleFactor)
+	//
+	// Il contorno in stile e' un helper solo (`#3750`, fetta D): il fuoco (movimento) e la portata di una skill in hover
+	// (`AbilityRange`) lo usano entrambi, perche' il canale non cromatico — spezzato o continuo, piu' piccolo o intero — e' lo
+	// stesso. Colore e scala di base restano della palette, per significato.
+	const auto DrawStyledOutline = [World, &Origin, Size, LayerH, &CellLift](
+		const FRTCellId& Cell, ERTOverlayMeaning Meaning, float ScaleFactor, bool bBroken)
 	{
 		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH)
 			+ FVector(0, 0, CellLift(Cell) + RTLiftPreview);
 		const TArray<FVector> Corners = URTHexLibrary::HexCorners(
-			Center, Size * URTOverlayPalette::ScaleFor(ERTOverlayMeaning::Movement) * ScaleFactor);
-		const FColor Color = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Movement);
+			Center, Size * URTOverlayPalette::ScaleFor(Meaning) * ScaleFactor);
+		const FColor Color = URTOverlayPalette::ColorFor(Meaning);
 		for (int32 I = 0; I < Corners.Num(); ++I)
 		{
-			// Mezzo lato per lato: spezzato, non continuo.
 			const FVector& From = Corners[I];
-			const FVector To = FMath::Lerp(From, Corners[(I + 1) % Corners.Num()], 0.5f);
+			// Spezzato = mezzo lato per lato; continuo = il lato intero.
+			const FVector To = FMath::Lerp(From, Corners[(I + 1) % Corners.Num()], bBroken ? 0.5f : 1.f);
 			DisegnaLineaAnteprima(World, From, To, Color, SDPG_World, /*Spessore=*/ 3.f);
 		}
 	};
 	for (const FRTCellId& Cell : PreviewFocusNormalArea.Cells)
 	{
-		DrawPredictedMovement(Cell, 1.f);
+		DrawStyledOutline(Cell, ERTOverlayMeaning::Movement, 1.f, /*bBroken=*/ true);
 	}
 	for (const FRTCellId& Cell : PreviewFocusRunArea.Cells)
 	{
-		DrawPredictedMovement(Cell, 0.7f);
+		DrawStyledOutline(Cell, ERTOverlayMeaning::Movement, 0.7f, /*bBroken=*/ true);
+	}
+
+	// La portata di una skill in hover, a tre stati (`#3750`, fetta D): libero = il contorno della portata armata; bloccato =
+	// lo stesso, piu' piccolo (c'e', ma il tiro non passa); senza verdetto = spezzato, come ogni previsione (non si sa).
+	// ⚠️ Anche questa resa e' da giudicare in PIE (`PIE-HUD-SKILL-PORTATA`).
+	for (const FRTCellId& Cell : PreviewSkillFreeArea.Cells)
+	{
+		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRange, 1.f, /*bBroken=*/ false);
+	}
+	for (const FRTCellId& Cell : PreviewSkillBlockedArea.Cells)
+	{
+		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRange, 0.7f, /*bBroken=*/ false);
+	}
+	for (const FRTCellId& Cell : PreviewSkillUnverdictedArea.Cells)
+	{
+		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRange, 1.f, /*bBroken=*/ true);
 	}
 
 	// La portata dell'azione armata (`#3507`): dove posso mirare. In targeting prende il posto del ventaglio, e sta

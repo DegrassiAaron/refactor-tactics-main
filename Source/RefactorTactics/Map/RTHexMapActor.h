@@ -970,11 +970,26 @@ public:
 	 */
 	void SetPreviewFocusAreas(const TArray<FRTCellId>& NormalCells, const TArray<FRTCellId>& RunOnlyCells);
 
+	/**
+	 * La portata di una skill sotto il cursore, a TRE STATI (`#3750`, fetta D; spec §4 e P7): le celle dove il tiro e' `FreeCells`
+	 * (libero), `BlockedCells` (bloccato) o `UnverdictedCells` (in portata, senza verdetto: la linea attraversa celle che la
+	 * squadra non vede adesso). Vuoti = nessuna portata in hover.
+	 *
+	 * 🔑 **Un canale a parte e non `SetPreviewRangeCells`**: quello e' la portata dell'azione ARMATA (`#3507`), a due stati, e
+	 * i due non si mostrano insieme (l'arbitro, `FRTPlanningOverlayInputs::ActiveSource`). Stesso significato (`AbilityRange`),
+	 * sede diversa. Le celle arrivano gia' classificate da `URTRangeVerdictLibrary`: qui non si ricalcola niente.
+	 */
+	void SetPreviewSkillRange(const TArray<FRTCellId>& FreeCells, const TArray<FRTCellId>& BlockedCells,
+		const TArray<FRTCellId>& UnverdictedCells);
+
 	/** Cio' che l'anteprima disegnera': il ventaglio, la portata e le due aree del fuoco. Servono ai test. */
 	const TArray<FRTCellId>& GetPreviewReachableCells() const { return PreviewReachableArea.Cells; }
 	const TArray<FRTCellId>& GetPreviewRangeCells() const { return PreviewRangeArea.Cells; }
 	const TArray<FRTCellId>& GetPreviewFocusNormalCells() const { return PreviewFocusNormalArea.Cells; }
 	const TArray<FRTCellId>& GetPreviewFocusRunOnlyCells() const { return PreviewFocusRunArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewSkillFreeCells() const { return PreviewSkillFreeArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewSkillBlockedCells() const { return PreviewSkillBlockedArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewSkillUnverdictedCells() const { return PreviewSkillUnverdictedArea.Cells; }
 
 	/**
 	 * Origine e mira dell'attacco pianificato: da DOVE parte il colpo e verso cosa. `bValid = false` spegne
@@ -1343,6 +1358,13 @@ protected:
 	 */
 	FRTOverlayArea PreviewFocusNormalArea;
 	FRTOverlayArea PreviewFocusRunArea;
+	/**
+	 * La portata di una skill in hover, a tre stati (`#3750`, fetta D): tiro libero, tiro bloccato, in portata senza verdetto.
+	 * Significato `AbilityRange`; la certezza distingue il terzo (`Uncertain`). Non si mostrano insieme alla portata armata.
+	 */
+	FRTOverlayArea PreviewSkillFreeArea;
+	FRTOverlayArea PreviewSkillBlockedArea;
+	FRTOverlayArea PreviewSkillUnverdictedArea;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
 	/**

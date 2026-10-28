@@ -45,6 +45,14 @@ namespace
 		Inputs.FocusMove.bRunDenied = true;
 		Inputs.FocusKnowledgeStamp = 7;
 		Inputs.bFocusOnMap = true;
+		// L'hover su una skill (#3750, fetta D): valori NON di default ma INATTIVI — l'unita' dell'hover e' un'altra da `Unit`, e
+		// la barra e' di chi si comanda — cosi' gli altri test della famiglia restano quelli di prima.
+		Inputs.HoverSkillUnit = PlanOverlayUnitB();
+		Inputs.SkillRange.Origin = FRTCellId(2, 1, 0);
+		Inputs.SkillRange.RangeCells = 4;
+		Inputs.SkillRange.MinRangeCells = 1;
+		Inputs.SkillRange.Policy = ERTLineOfSightPolicy::NotRequired;
+		Inputs.SkillKnowledgeStamp = 9;
 		return Inputs;
 	}
 
@@ -55,6 +63,19 @@ namespace
 		Inputs.Context = ERTPointerContext::Planning;
 		Inputs.ArmedAbilityIndex = INDEX_NONE;
 		Inputs.ArmedTargetKind = ERTPointerTargetKind::None;
+		return Inputs;
+	}
+
+	/** Ingressi in cui il cursore e' su una skill dell'unita' comandata (contesto `Planning`, il fuoco ancora sulla mappa). */
+	FRTPlanningOverlayInputs PlanOverlayHovering()
+	{
+		FRTPlanningOverlayInputs Inputs = PlanOverlayFocused();
+		Inputs.HoverSkillUnit = Inputs.Unit;
+		Inputs.SkillRange.Origin = FRTCellId(1, 1, 0);
+		Inputs.SkillRange.RangeCells = 4;
+		Inputs.SkillRange.MinRangeCells = 0;
+		Inputs.SkillRange.Policy = ERTLineOfSightPolicy::Required;
+		Inputs.SkillKnowledgeStamp = 5;
 		return Inputs;
 	}
 
@@ -93,6 +114,13 @@ namespace
 			{ TEXT("FocusMove.bRunDenied"), true, [](FRTPlanningOverlayInputs& I) { I.FocusMove.bRunDenied = false; } },
 			{ TEXT("FocusKnowledgeStamp"), true, [](FRTPlanningOverlayInputs& I) { I.FocusKnowledgeStamp += 1; } },
 			{ TEXT("bFocusOnMap"), true, [](FRTPlanningOverlayInputs& I) { I.bFocusOnMap = false; } },
+			// #3750, fetta D: anche la portata di una skill cambia COSA si calcola.
+			{ TEXT("HoverSkillUnit"), true, [](FRTPlanningOverlayInputs& I) { I.HoverSkillUnit = nullptr; } },
+			{ TEXT("SkillRange.Origin"), true, [](FRTPlanningOverlayInputs& I) { I.SkillRange.Origin = FRTCellId(0, 0, 0); } },
+			{ TEXT("SkillRange.RangeCells"), true, [](FRTPlanningOverlayInputs& I) { I.SkillRange.RangeCells += 1; } },
+			{ TEXT("SkillRange.MinRangeCells"), true, [](FRTPlanningOverlayInputs& I) { I.SkillRange.MinRangeCells = 0; } },
+			{ TEXT("SkillRange.Policy"), true, [](FRTPlanningOverlayInputs& I) { I.SkillRange.Policy = ERTLineOfSightPolicy::Required; } },
+			{ TEXT("SkillKnowledgeStamp"), true, [](FRTPlanningOverlayInputs& I) { I.SkillKnowledgeStamp += 1; } },
 		};
 	}
 }
@@ -232,6 +260,7 @@ namespace
 		case ERTPreviewSource::None:  return TEXT("None");
 		case ERTPreviewSource::Plan:  return TEXT("Plan");
 		case ERTPreviewSource::Focus: return TEXT("Focus");
+		case ERTPreviewSource::SkillHover: return TEXT("SkillHover");
 		}
 		return TEXT("?");
 	}
@@ -281,6 +310,59 @@ bool FRTPlanningOverlayActiveSourceTest::RunTest(const FString&)
 		Without.bFocusOnMap = false;
 		TestEqual(*FString::Printf(TEXT("%s: senza l'area del fuoco sulla mappa"), *Name),
 			FString(PlanOverlaySourceName(Without.ActiveSource())), FString(PlanOverlaySourceName(Case.WithoutFocus)));
+	}
+
+	// L'HOVER SU UNA SKILL (#3750, fetta D): sta sopra il fuoco e sopra il piano, ma solo dove la barra e' attiva — gli stessi
+	// quattro contesti in cui le aree di pianificazione si mostrano. Dove il fuoco c'e' (IdleSelection) e la barra no, vince il fuoco.
+	{
+		struct FHoverCase { ERTPointerContext Context; ERTPreviewSource Expected; };
+		const FHoverCase HoverCases[] = {
+			{ ERTPointerContext::IdleSelection,      ERTPreviewSource::Focus },
+			{ ERTPointerContext::Planning,           ERTPreviewSource::SkillHover },
+			{ ERTPointerContext::Pathing,            ERTPreviewSource::SkillHover },
+			{ ERTPointerContext::Targeting,          ERTPreviewSource::SkillHover },
+			{ ERTPointerContext::Facing,             ERTPreviewSource::SkillHover },
+			{ ERTPointerContext::ResolutionPlayback, ERTPreviewSource::None },
+			{ ERTPointerContext::ReactionWindow,     ERTPreviewSource::None },
+			{ ERTPointerContext::Modal,              ERTPreviewSource::None },
+		};
+		TestEqual(TEXT("la tabella dell'hover elenca TUTTI i contesti dell'enum"),
+			static_cast<int32>(UE_ARRAY_COUNT(HoverCases)), ContextEnum->NumEnums() - 1);
+		for (const FHoverCase& Case : HoverCases)
+		{
+			FRTPlanningOverlayInputs Hovering = PlanOverlayHovering();
+			Hovering.Context = Case.Context;
+			TestEqual(*FString::Printf(TEXT("%s: con una skill sotto il cursore"),
+				*ContextEnum->GetNameStringByValue(static_cast<int64>(Case.Context))),
+				FString(PlanOverlaySourceName(Hovering.ActiveSource())), FString(PlanOverlaySourceName(Case.Expected)));
+		}
+
+		// Le uscite: l'hover non e' un lasciapassare.
+		FRTPlanningOverlayInputs OtherUnit = PlanOverlayHovering();
+		OtherUnit.HoverSkillUnit = PlanOverlayUnitB();
+		TestEqual(TEXT("una skill di un'altra unita' non tiene la mappa: resta il fuoco"),
+			FString(PlanOverlaySourceName(OtherUnit.ActiveSource())), FString(TEXT("Focus")));
+
+		FRTPlanningOverlayInputs NoRange = PlanOverlayHovering();
+		NoRange.SkillRange.RangeCells = 0;
+		TestEqual(TEXT("una skill senza portata non tiene la mappa"),
+			FString(PlanOverlaySourceName(NoRange.ActiveSource())), FString(TEXT("Focus")));
+
+		FRTPlanningOverlayInputs NoHover = PlanOverlayHovering();
+		NoHover.HoverSkillUnit = nullptr;
+		TestEqual(TEXT("senza hover torna il fuoco (la sorgente di prima)"),
+			FString(PlanOverlaySourceName(NoHover.ActiveSource())), FString(TEXT("Focus")));
+		NoHover.bFocusOnMap = false;
+		TestEqual(TEXT("...e senza fuoco, il piano"), FString(PlanOverlaySourceName(NoHover.ActiveSource())), FString(TEXT("Plan")));
+
+		FRTPlanningOverlayInputs Dead = PlanOverlayHovering();
+		Dead.bUnitAlive = false;
+		TestFalse(TEXT("un'unita' comandata caduta non ha una barra che mostri una portata"), Dead.ShowsSkillHover());
+
+		FRTPlanningOverlayInputs Ended = PlanOverlayHovering();
+		Ended.bMatchEnded = true;
+		TestEqual(TEXT("a partita finita non si mostra niente, hover compreso"),
+			FString(PlanOverlaySourceName(Ended.ActiveSource())), FString(TEXT("None")));
 	}
 
 	// Le uscite che il contesto non dichiara.
@@ -333,6 +415,11 @@ bool FRTFocusLatchTest::RunTest(const FString&)
 		Hover.FacingSector = 2;
 		Hover.ActiveLayer = 0;
 		TestTrue(TEXT("muovere il cursore, il settore o il piano attivo non e' un gesto di pianificazione"), Latch.Observe(1, Hover));
+
+		// Nemmeno portare il cursore su una skill (#3750, fetta D): l'hover e' temporaneo, e quando finisce torna il fuoco.
+		FRTPlanningOverlayInputs OnASkill = PlanOverlayHovering();
+		TestTrue(TEXT("il cursore su una skill dell'unita' comandata non spegne l'area del fuoco"), Latch.Observe(1, OnASkill));
+		TestTrue(TEXT("...e quando ne esce l'area e' ancora li'"), Latch.Observe(1, Rest));
 	}
 
 	struct FGesture { const TCHAR* Name; TFunction<void(FRTPlanningOverlayInputs&)> Mutate; };
@@ -441,6 +528,45 @@ bool FRTPlanningOverlayFocusPlanLevelTest::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s: cambiato da solo rompe l'uguaglianza"), Change.Name), Base == Changed);
 		TestEqual(*FString::Printf(TEXT("%s: rifa' l'area solo se e' cio' da cui l'area dipende"), Change.Name),
 			!Base.SamePlanLevel(Changed), Change.bRedoesTheArea);
+	}
+	return true;
+}
+
+/**
+ * **`#3750` — con una skill sotto il cursore, il cursore sulla MAPPA non rifa' la portata e cio' da cui la portata dipende si'.**
+ *
+ * Il criterio di `#711` esteso all'hover: la cella sotto il cursore, il settore e il piano attivo non fanno ricalcolare; l'origine,
+ * la portata, la portata minima, la policy di linea e la vista, si'. E' anche il motivo per cui lo slot non e' un campo: due skill
+ * con gli stessi valori sono la stessa portata per la mappa, e passare dall'una all'altra non ricalcola niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayHoverPlanLevelTest,
+	"RefactorTactics.PlanningOverlay.TheSkillRangeIsRedoneOnlyForWhatItDependsOn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayHoverPlanLevelTest::RunTest(const FString&)
+{
+	const FRTPlanningOverlayInputs Base = PlanOverlayHovering();
+	if (!TestEqual(TEXT("premessa: nello stato di base la skill tiene la mappa"),
+		FString(PlanOverlaySourceName(Base.ActiveSource())), FString(TEXT("SkillHover")))) { return false; }
+
+	struct FChange { const TCHAR* Name; bool bRedoesTheRange; TFunction<void(FRTPlanningOverlayInputs&)> Mutate; };
+	const FChange Changes[] = {
+		{ TEXT("HoveredCell"),               false, [](FRTPlanningOverlayInputs& I) { I.HoveredCell = FRTCellId(0, 0, 0); } },
+		{ TEXT("bHoveredValid"),             false, [](FRTPlanningOverlayInputs& I) { I.bHoveredValid = false; } },
+		{ TEXT("FacingSector"),              false, [](FRTPlanningOverlayInputs& I) { I.FacingSector = INDEX_NONE; } },
+		{ TEXT("ActiveLayer"),               false, [](FRTPlanningOverlayInputs& I) { I.ActiveLayer = 0; } },
+		{ TEXT("SkillRange.Origin"),         true,  [](FRTPlanningOverlayInputs& I) { I.SkillRange.Origin = FRTCellId(0, 0, 0); } },
+		{ TEXT("SkillRange.RangeCells"),     true,  [](FRTPlanningOverlayInputs& I) { I.SkillRange.RangeCells += 1; } },
+		{ TEXT("SkillRange.MinRangeCells"),  true,  [](FRTPlanningOverlayInputs& I) { I.SkillRange.MinRangeCells = 2; } },
+		{ TEXT("SkillRange.Policy"),         true,  [](FRTPlanningOverlayInputs& I) { I.SkillRange.Policy = ERTLineOfSightPolicy::NotRequired; } },
+		{ TEXT("SkillKnowledgeStamp (la vista cambia)"), true, [](FRTPlanningOverlayInputs& I) { I.SkillKnowledgeStamp += 1; } },
+	};
+	for (const FChange& Change : Changes)
+	{
+		FRTPlanningOverlayInputs Changed = Base;
+		Change.Mutate(Changed);
+		TestFalse(*FString::Printf(TEXT("%s: cambiato da solo rompe l'uguaglianza"), Change.Name), Base == Changed);
+		TestEqual(*FString::Printf(TEXT("%s: rifa' la portata solo se e' cio' da cui la portata dipende"), Change.Name),
+			!Base.SamePlanLevel(Changed), Change.bRedoesTheRange);
 	}
 	return true;
 }

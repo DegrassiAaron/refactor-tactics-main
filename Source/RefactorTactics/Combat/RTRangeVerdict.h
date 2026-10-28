@@ -32,6 +32,31 @@ struct REFACTORTACTICS_API FRTRangeCellVerdict
 };
 
 /**
+ * LA PORTATA DI UNA SKILL, COME VALORI (`#3750`, fetta D): da dove si mira, quanto lontano, quanto vicino, e se la linea e'
+ * richiesta. E' tutto cio' che `URTRangeVerdictLibrary::ClassifyFor` chiede dell'azione, e nient'altro: confine con
+ * `FRTFocusMoveSubject`, che fa lo stesso per l'area di movimento. Se due skill hanno gli stessi valori, per la mappa sono la
+ * stessa portata, e passare dall'una all'altra non ricalcola niente.
+ */
+struct REFACTORTACTICS_API FRTRangeSubject
+{
+	/** La cella da cui si mira. */
+	FRTCellId Origin;
+
+	int32 RangeCells = 0;
+	int32 MinRangeCells = 0;
+	ERTLineOfSightPolicy Policy = ERTLineOfSightPolicy::Required;
+
+	bool operator==(const FRTRangeSubject& Other) const
+	{
+		return Origin == Other.Origin
+			&& RangeCells == Other.RangeCells
+			&& MinRangeCells == Other.MinRangeCells
+			&& Policy == Other.Policy;
+	}
+	bool operator!=(const FRTRangeSubject& Other) const { return !(*this == Other); }
+};
+
+/**
  * LA PORTATA DI UNA SKILL A TRE STATI: LIBERO, BLOCCATO, SENZA VERDETTO (`#3750`, fetta B; spec dell'ispettore §4 e P7).
  * La decisione D-552 copre l'AREA DI MOVIMENTO, non questa: da D-552 viene solo il principio «solo cio' che si vede adesso».
  *

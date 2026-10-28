@@ -1660,6 +1660,51 @@ void URTActionSlotWidget::Activate()
 	}
 }
 
+void URTActionSlotWidget::HoverBegin()
+{
+	// Le stesse guardie di `Activate()`: uno slot mai assegnato, o con un indice che non e' una posizione di kit, non segnala.
+	if (Action.AbilityIndex < 0)
+	{
+		return;
+	}
+	if (ARTPlayerController* PC = ResolveArmingController())
+	{
+		// Uno slot costruito per un'altra unita' non e' lo slot di chi si comanda: la posizione di kit di un'altra unita' e'
+		// un'altra azione. Qui si TACE (a differenza del click): l'hover e' un passaggio del cursore, non un gesto, e una riga
+		// di log a ogni slot attraversato sarebbe rumore.
+		const ARTUnit* Selezionata = PC->GetSelectedUnit();
+		if (Selezionata != nullptr && BuiltForUnit.Get() == Selezionata)
+		{
+			PC->SetSkillHover(Selezionata, Action.AbilityIndex);
+		}
+	}
+}
+
+void URTActionSlotWidget::HoverEnd()
+{
+	if (Action.AbilityIndex < 0)
+	{
+		return;
+	}
+	if (ARTPlayerController* PC = ResolveArmingController())
+	{
+		// Spegne solo il PROPRIO hover: l'uscita da questo slot puo' arrivare dopo l'ingresso nel successivo.
+		PC->ClearSkillHover(BuiltForUnit.Get(), Action.AbilityIndex);
+	}
+}
+
+void URTActionSlotWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+	HoverBegin();
+}
+
+void URTActionSlotWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseLeave(InMouseEvent);
+	HoverEnd();
+}
+
 FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
 {
 	// ⚠️ **Rende la cache e non ricalcola**: e' sicuro chiamarla da un binding, che e' esattamente cio' che

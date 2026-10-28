@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RTRangeVerdict.h"       // FRTRangeSubject: i valori della portata di una skill in hover (#3750, fetta D)
 #include "Map/RTCellId.h"
 #include "Player/RTFocusArea.h"          // FRTFocusMoveSubject: i valori del soggetto a fuoco (#3750)
 #include "Player/RTPointerInteraction.h" // ERTPointerContext, ERTPointerTargetKind
@@ -9,10 +10,12 @@
 /**
  * **Chi scrive le aree della mappa, adesso** — l'arbitro dell'anteprima (`#3750`, fetta C di F5; spec dell'ispettore §6.3).
  *
- * Una sola variabile, derivata dagli ingressi e mai tenuta a parte: due sorgenti che scrivessero i setter per conto loro
- * si contenderebbero la mappa col piano. ⚠️ **Sono due, non tre, e non e' una dimenticanza**: l'hover su una skill
- * (`SkillHover`) entra con il suo produttore e con la sua resa, che sono la fetta D. Una voce che nessuno emette non e'
- * un vocabolario: e' una promessa.
+ * Una sola variabile, derivata dagli ingressi e mai tenuta a parte: sorgenti che scrivessero i setter per conto loro
+ * si contenderebbero la mappa col piano. `SkillHover` e' entrata con la fetta D, insieme al suo produttore (lo slot della
+ * barra) e alla sua resa: una voce che nessuno emette non e' un vocabolario, e' una promessa.
+ *
+ * Precedenza: l'hover su una skill (temporaneo: «quando finisce torna la sorgente di prima», §6.3) prima del fuoco, il fuoco
+ * prima del piano.
  */
 enum class ERTPreviewSource : uint8
 {
@@ -24,6 +27,9 @@ enum class ERTPreviewSource : uint8
 
 	/** Il fuoco su un personaggio che la squadra osserva: la sua area di movimento, in due bande. */
 	Focus,
+
+	/** Il cursore e' su una skill: la sua portata a tre stati (libero, bloccato, senza verdetto), da dove sta chi la possiede. */
+	SkillHover,
 };
 
 /**
@@ -117,6 +123,24 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	 */
 	bool bFocusOnMap = false;
 
+	// --- L'HOVER SU UNA SKILL (`#3750`, fetta D) ---------------------------------------------------------------------
+	//
+	// Stessa disciplina del fuoco: li scrive il solo risolutore del controller, e valgono i default quando la portata non e'
+	// quella che tiene la mappa. L'identita' dell'hover e' nei VALORI della portata, non nell'indice dello slot: due skill con
+	// la stessa portata sono la stessa cosa per la mappa, e passare dall'una all'altra non ricalcola niente.
+
+	/**
+	 * L'unita' che possiede la skill sotto il cursore, **gia' passata dai cancelli**: e' l'unita' comandata (la barra e' sua),
+	 * viva, e la skill chiede un bersaglio e ha una portata. Debole, come `Unit`.
+	 */
+	TWeakObjectPtr<const UObject> HoverSkillUnit;
+
+	/** La portata di quella skill come valori. Mai il piano del possessore: l'origine e' la cella da cui mira. */
+	FRTRangeSubject SkillRange;
+
+	/** Un'impronta di `VisibleCells`: la portata a tre stati dipende da cio' che la squadra vede adesso. */
+	uint32 SkillKnowledgeStamp = 0;
+
 	bool operator==(const FRTPlanningOverlayInputs& Other) const;
 	bool operator!=(const FRTPlanningOverlayInputs& Other) const { return !(*this == Other); }
 
@@ -142,6 +166,14 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	 * contesto che lo ammette (`ContextAllowsFocus`). Non chiede un'unita' comandata: si ispeziona anche senza selezione.
 	 */
 	bool ShowsFocus() const;
+
+	/**
+	 * **La portata di una skill in hover si mostra?** Pura. Vera con un'unita' comandata viva, una skill sotto il cursore che e'
+	 * SUA (`HoverSkillUnit == Unit`: la barra e' di chi si comanda), una portata positiva, e un contesto in cui le aree di
+	 * pianificazione si mostrano (`ShowsAreas()`): dove la barra e' attiva e il mondo e' scrivibile. In `Targeting` vale
+	 * anch'essa: sostituisce la portata dell'azione armata finche' il cursore e' sullo slot, e poi torna.
+	 */
+	bool ShowsSkillHover() const;
 
 	/**
 	 * **Il fuoco puo' stare sulla mappa in questo contesto?** Solo `IdleSelection` e `Planning`: il resto e' o un gesto di

@@ -1473,6 +1473,27 @@ public:
 	void Activate();
 
 	/**
+	 * **IL PRODUTTORE DELL'HOVER SU UNA SKILL** (`#3750`, fetta D): il cursore e' entrato in questo slot (`HoverBegin`) o ne e'
+	 * uscito (`HoverEnd`). Inoltrano ad `ARTPlayerController::SetSkillHover` / `ClearSkillHover` la PROPRIA posizione di kit e
+	 * l'unita' per cui lo slot e' stato costruito, e nient'altro: la portata la mostra l'arbitro, al tick, dagli ingressi.
+	 *
+	 * 🔑 **Le stesse guardie di `Activate()`**: uno slot mai assegnato (`INDEX_NONE`, o gli slot della struttura senza unita') non
+	 * segnala niente, e uno slot costruito per un'unita' che non e' piu' quella selezionata nemmeno — la posizione di kit di
+	 * un'altra unita' e' un'altra azione. `HoverEnd` spegne solo il PROPRIO hover (il controller confronta unita' e indice).
+	 *
+	 * ⚠️ **Sono `UFUNCTION` per la stessa ragione di `Activate()`**: il Blueprint puo' legarle a un evento di hover del proprio
+	 * pulsante. Ma non e' necessario: `NativeOnMouseEnter` / `NativeOnMouseLeave` le chiamano gia', e il `.uasset` non va toccato.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void HoverBegin();
+
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void HoverEnd();
+
+	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
+
+	/**
 	 * Inietta il controller a cui `Activate()` inoltra, senza passare da un `ULocalPlayer`. E' il modo in cui
 	 * i test guidano questo widget, ed e' la stessa forma delle tre iniezioni di `URTScreenHudWidgetBase`.
 	 *
