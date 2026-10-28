@@ -345,8 +345,6 @@ bool FRTFocusLatchTest::RunTest(const FString&)
 		{ TEXT("entra in Pathing"),                    [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Pathing; } },
 		{ TEXT("entra in Targeting"),                  [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Targeting; } },
 		{ TEXT("dichiara un verso (Facing)"),          [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Facing; } },
-		{ TEXT("si apre una finestra di reazione"),    [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::ReactionWindow; } },
-		{ TEXT("si apre un modale"),                   [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Modal; } },
 		{ TEXT("parte il playback"),                   [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::ResolutionPlayback; } },
 		{ TEXT("il soggetto non e' piu' osservato"),   [](FRTPlanningOverlayInputs& I) { I.FocusSubject = nullptr; } },
 		{ TEXT("la partita finisce"),                  [](FRTPlanningOverlayInputs& I) { I.bMatchEnded = true; } },
@@ -365,6 +363,37 @@ bool FRTFocusLatchTest::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s: l'area lascia la mappa"), Gesture.Name), Latch.Observe(1, After));
 		TestFalse(*FString::Printf(TEXT("%s: e non torna da sola quando lo stato torna com'era"), Gesture.Name), Latch.Observe(1, Rest));
 		TestTrue(*FString::Printf(TEXT("%s: una nuova fissazione la riporta"), Gesture.Name), Latch.Observe(2, Rest));
+	}
+
+	// SOSPESA, NON SPENTA (spec §3 regole 5 e 11): una finestra di reazione e un modale nascondono l'ispettore senza chiuderlo, e
+	// non sono un gesto di pianificazione. L'area non si vede finche' sono aperti e TORNA quando si chiudono, come la scheda.
+	for (const ERTPointerContext Suspending : { ERTPointerContext::ReactionWindow, ERTPointerContext::Modal })
+	{
+		const FString Name = StaticEnum<ERTPointerContext>()->GetNameStringByValue(static_cast<int64>(Suspending));
+		FRTFocusLatch Latch;
+		TestTrue(*FString::Printf(TEXT("%s: premessa, l'area e' sulla mappa"), *Name), Latch.Observe(1, Rest));
+
+		FRTPlanningOverlayInputs While = Rest;
+		While.Context = Suspending;
+		const bool bStillLatched = Latch.Observe(1, While);
+		TestTrue(*FString::Printf(TEXT("%s: il latch resta acceso"), *Name), bStillLatched);
+		While.bFocusOnMap = bStillLatched;
+		TestEqual(*FString::Printf(TEXT("%s: ma l'area non si vede (nessuna sorgente scrive la mappa)"), *Name),
+			FString(PlanOverlaySourceName(While.ActiveSource())), FString(TEXT("None")));
+
+		FRTPlanningOverlayInputs After = Rest;
+		After.bFocusOnMap = Latch.Observe(1, Rest);
+		TestEqual(*FString::Printf(TEXT("%s: chiuso, l'area TORNA da sola (non era un gesto di pianificazione)"), *Name),
+			FString(PlanOverlaySourceName(After.ActiveSource())), FString(TEXT("Focus")));
+
+		// Controllo positivo: il sospendere non e' un lasciapassare. Un gesto vero DURANTE la sospensione spegne.
+		FRTFocusLatch Gestured;
+		Gestured.Observe(1, Rest);
+		FRTPlanningOverlayInputs Mixed = Rest;
+		Mixed.Context = Suspending;
+		Mixed.PlanRevision += 1;
+		TestFalse(*FString::Printf(TEXT("%s: un gesto durante la sospensione spegne l'area"), *Name), Gestured.Observe(1, Mixed));
+		TestFalse(*FString::Printf(TEXT("%s: e non torna alla chiusura"), *Name), Gestured.Observe(1, Rest));
 	}
 
 	// Una fissazione su un soggetto non osservato non accende niente, e il soggetto che compare dopo non la accende da solo.

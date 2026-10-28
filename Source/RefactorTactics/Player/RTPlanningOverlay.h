@@ -151,6 +151,15 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	 */
 	static bool ContextAllowsFocus(ERTPointerContext Context);
 
+	/**
+	 * **Il fuoco resta in vita ma nascosto in questo contesto?** Finestra di reazione e modale: l'ispettore e' inerte e la
+	 * scheda e' nascosta SENZA essere chiusa, e torna quando si chiudono (spec §3 regole 5 e 11). Non sono gesti di
+	 * pianificazione, quindi il latch non si spegne e l'area torna con la scheda. ⚠️ `ResolutionPlayback` NON e' qui: il fuoco
+	 * resta spento per scelta della sessione, e a playback finito il turno e' cambiato, quindi l'area e' comunque uscita.
+	 * Nessun `default:`, come le due sorelle.
+	 */
+	static bool ContextSuspendsFocus(ERTPointerContext Context);
+
 	/** **Chi scrive adesso**: il fuoco prima del piano, perche' una sola sorgente alla volta tiene la mappa. */
 	ERTPreviewSource ActiveSource() const;
 };
@@ -160,9 +169,10 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
  *
  * Pura, e derivata dallo stato come il resto di `#3511`: nessun evento da ricordarsi di spegnere. Si accende con una nuova
  * fissazione (`PinSerial` diverso dall'ultimo visto) e fotografa il piano di quel momento; da li' in poi si spegne appena
- * cambia l'unita' comandata, la revisione del piano, l'azione armata o il turno, esce da un contesto che ammette il fuoco, o
- * il soggetto smette di essere osservato. Una volta spenta resta spenta, anche se lo stato torna uguale (disarmare non
- * riporta l'area).
+ * cambia l'unita' comandata, la revisione del piano, l'azione armata o il turno, esce da un contesto che ammette il fuoco
+ * (salvo i due che lo SOSPENDONO, `ContextSuspendsFocus`: la finestra di reazione e il modale nascondono l'area senza
+ * spegnerla), o il soggetto smette di essere osservato. Una volta spenta resta spenta, anche se lo stato torna uguale
+ * (disarmare non riporta l'area).
  *
  * ⚠️ **Seleziona un'altra unita' comandata = un gesto di pianificazione.** La spec dice che il fuoco non tocca selezione ne'
  * piano, non cosa succede a lui quando la selezione cambia: la scelta e' della sessione, da giudicare in PIE.

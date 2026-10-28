@@ -241,18 +241,13 @@ namespace
 		{
 			HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
 		}
-		// 🔴 La mira si giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): portata viola e rifiuto del
-		// bersaglio pianificato leggono la copia ottimistica della squadra.
-		Map = ARTTurnManager::PlayerAimMap(World, Unit ? Unit->TeamId : INDEX_NONE, Map);
-		if (!HexMap)
-		{
-			return;
-		}
-		if (FocusAreas != nullptr)
+		if (HexMap && FocusAreas != nullptr)
 		{
 			// 🔑 **Il fuoco ha la mappa, e il piano cede** (`#3750`, spec §6.3): l'arbitro ha detto `Focus`, quindi si parte da
 			// una mappa pulita dallo STESSO reset e si scrive il solo canale del fuoco. E' ancora questa funzione l'unica che
 			// scrive i setter delle anteprime: la sorgente e' un ingresso, non una seconda sede.
+			//
+			// Sta PRIMA di `PlayerAimMap`: la mira e la copia ottimistica servono al piano, e il fuoco le scarterebbe (review).
 			//
 			// La corsa si disegna AL NETTO della normale (scelta della sessione, da giudicare in PIE): la libreria le
 			// restituisce entrambe per intero, e la differenza si fa qui, dove si disegna.
@@ -267,6 +262,13 @@ namespace
 				}
 			}
 			HexMap->SetPreviewFocusAreas(FocusAreas->Normal, RunOnly);
+			return;
+		}
+		// 🔴 La mira si giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): portata viola e rifiuto del
+		// bersaglio pianificato leggono la copia ottimistica della squadra.
+		Map = ARTTurnManager::PlayerAimMap(World, Unit ? Unit->TeamId : INDEX_NONE, Map);
+		if (!HexMap)
+		{
 			return;
 		}
 		if (!Unit)

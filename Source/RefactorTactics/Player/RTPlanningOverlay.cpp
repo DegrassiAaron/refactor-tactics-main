@@ -74,10 +74,30 @@ bool FRTPlanningOverlayInputs::ContextAllowsFocus(ERTPointerContext InContext)
 	case ERTPointerContext::Targeting:
 	case ERTPointerContext::Facing:
 	// Il fuoco resta spento in playback per scelta della sessione, e la scheda resta; in finestra di reazione e in modale
-	// l'ispettore e' inerte (regola 5).
+	// l'ispettore e' inerte (regola 5) e l'area e' NASCOSTA, non chiusa (`ContextSuspendsFocus`).
 	case ERTPointerContext::ResolutionPlayback:
 	case ERTPointerContext::ReactionWindow:
 	case ERTPointerContext::Modal:
+		return false;
+	}
+	return false;
+}
+
+bool FRTPlanningOverlayInputs::ContextSuspendsFocus(ERTPointerContext InContext)
+{
+	switch (InContext)
+	{
+	// Nascondono l'ispettore senza chiuderlo (spec §3 regola 11): l'area torna quando si chiudono.
+	case ERTPointerContext::ReactionWindow:
+	case ERTPointerContext::Modal:
+		return true;
+
+	case ERTPointerContext::IdleSelection:
+	case ERTPointerContext::Planning:
+	case ERTPointerContext::Pathing:
+	case ERTPointerContext::Targeting:
+	case ERTPointerContext::Facing:
+	case ERTPointerContext::ResolutionPlayback:
 		return false;
 	}
 	return false;
@@ -116,7 +136,7 @@ bool FRTFocusLatch::Observe(int32 InPinSerial, const FRTPlanningOverlayInputs& R
 	{
 		const bool bUnchanged = Raw.FocusSubject.IsValid()
 			&& !Raw.bMatchEnded
-			&& FRTPlanningOverlayInputs::ContextAllowsFocus(Raw.Context)
+			&& (FRTPlanningOverlayInputs::ContextAllowsFocus(Raw.Context) || FRTPlanningOverlayInputs::ContextSuspendsFocus(Raw.Context))
 			&& Raw.Unit == BaseUnit
 			&& Raw.PlanRevision == BaseRevision
 			&& Raw.ArmedAbilityIndex == BaseArmed
