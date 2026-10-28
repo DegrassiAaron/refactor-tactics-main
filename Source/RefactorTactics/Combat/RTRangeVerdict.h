@@ -32,7 +32,8 @@ struct REFACTORTACTICS_API FRTRangeCellVerdict
 };
 
 /**
- * LA PORTATA DI UNA SKILL A TRE STATI: LIBERO, BLOCCATO, SENZA VERDETTO (`#3750`, fetta B; [D-552]).
+ * LA PORTATA DI UNA SKILL A TRE STATI: LIBERO, BLOCCATO, SENZA VERDETTO (`#3750`, fetta B; spec dell'ispettore §4 e P7).
+ * La decisione D-552 copre l'AREA DI MOVIMENTO, non questa: da D-552 viene solo il principio «solo cio' che si vede adesso».
  *
  * Serve alla portata mostrata all'hover di una skill di un personaggio a fuoco. Per un nemico, dire «libero» o
  * «bloccato» di una linea che attraversa celle non in vista rivelerebbe geometria nascosta, o cio' che e' cambiato fuori
@@ -47,7 +48,15 @@ struct REFACTORTACTICS_API FRTRangeCellVerdict
  *
  * L'insieme coincide quindi con `URTCombatLibrary::TargetableRangeCells` su qualunque mappa in cui le celle non in vista
  * non hanno effetti (Fumo, blocchi): cella per cella, come la stessa azione armata. Dove le celle non in vista hanno un
- * effetto, l'hover e' PIU' prudente dell'azione armata per scelta.
+ * effetto (un Fumo), l'insieme dell'hover e' PIU' GRANDE di quello armato, perche' la nube non lo restringe: per scelta la
+ * privacy vince sulla fedelta' (scostamento dal §11 della spec, dichiarato nel piano della fetta).
+ *
+ * 🔑 **Chi protegge che cosa.** La neutralizzazione protegge l'INSIEME (il Fumo). I VERDETTI li protegge il controllo di linea:
+ * su una linea interamente in vista la mappa neutra coincide con quella vera, quindi per i verdetti la neutralizzazione e'
+ * difesa in profondita' e nessun test puo' osservarla da sola.
+ *
+ * ⚠️ **L'estensione della mappa non e' nascosta**: `ContainsCell` decide quali celle compaiono nell'insieme, e la mappa
+ * neutra non toglie celle. Un buco in una zona mai vista si leggerebbe dalla forma; si considera pubblica l'estensione.
  *
  * Il verdetto si consulta SOLO per una linea interamente su celle in vista: la linea e' quella di `HexLine`, con la cella di
  * partenza e il bersaglio. Anche un tiro bloccato da un muro visibile resta senza verdetto se, oltre il muro, la linea
@@ -73,6 +82,10 @@ public:
 	 * La mappa su cui si giudica: una copia in cui ogni cella fuori da `Knowledge.VisibleCells` e' neutra. Solo
 	 * `VisibleCells`. `nullptr` se non c'e' mappa o se la squadra non vede nulla. Il chiamante tiene viva la copia e, in
 	 * partita, la mette in cache.
+	 *
+	 * ⚠️ **La chiave della cache e' la mappa (e la sua revisione) PIU' `VisibleCells`.** Una copia costruita con un altro
+	 * `VisibleCells` conserva il Fumo di una cella che ora non si vede, e l'insieme tornerebbe a dipendere da cio' che non
+	 * si vede.
 	 */
 	static URTHexMapAsset* MakeVisibleOnlyNeutralMap(UObject* Outer, const URTHexMapAsset* Map, const FRTTeamKnowledge& Knowledge);
 

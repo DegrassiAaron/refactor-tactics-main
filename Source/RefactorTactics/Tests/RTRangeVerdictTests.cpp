@@ -1,4 +1,5 @@
-// La portata a tre stati di una skill (`#3750`, fetta F5, D-552): libero, bloccato, senza verdetto. Fetta B: il calcolo puro.
+// La portata a tre stati di una skill (`#3750`, fetta F5; spec dell'ispettore §4 e P7): libero, bloccato, senza verdetto.
+// Fetta B: il calcolo puro.
 //
 // Ogni divieto ha il suo gemello. Un test che mostra solo la forma giusta passerebbe anche con una portata che dipende da
 // cio' che la squadra non vede: il difetto che D-552 esiste per impedire non cambia la forma, cambia da cosa dipende.
@@ -159,6 +160,10 @@ bool FRTRangeVerdictVisibleWallTest::RunTest(const FString&)
 	return true;
 }
 
+// ⚠️ Cio' che questo test protegge e' il CONTROLLO DI LINEA, non la mappa neutra: ogni muro nascosto sta sulla linea della
+// cella asserita, quindi il controllo risponde «senza verdetto» prima che la mappa conti. La mappa neutra e' osservabile
+// solo dall'INSIEME (il gemello del Fumo): su una linea interamente in vista coincide con quella vera.
+//
 // 🔴 MONDI GEMELLI SUL VERDETTO. Due mappe che differiscono solo in un muro che la squadra non vede adesso danno la stessa
 // uscita, e la cella dietro il muro non ha verdetto. Due varianti del "non vede": mai vista e ESPLORATA ma non piu' in vista
 // (D-225, D-227: contiene cio' che c'e' adesso, che la squadra non puo' leggere).
@@ -269,7 +274,12 @@ bool FRTRangeVerdictMatchesArmedRangeTest::RunTest(const FString&)
 	const TArray<FRTRangeCellVerdict> Out = RvClassify(Map, Knowledge);
 	const TArray<FRTCellId> Armed = URTCombatLibrary::TargetableRangeCells(Map, RvFrom(), RvRange, ERTLineOfSightPolicy::Required);
 
-	TestTrue(TEXT("premessa: l'insieme non e' vuoto, e il Fumo ne toglie qualcosa"), Armed.Num() > 1);
+	TestTrue(TEXT("premessa: l'insieme non e' vuoto"), Armed.Num() > 1);
+	// Il Fumo IN VISTA toglie davvero qualcosa: senza, la portata libera ha piu' celle e include la cella oltre la nube.
+	const TArray<FRTCellId> Unrestricted = URTCombatLibrary::TargetableRangeCells(RvArena(), RvFrom(), RvRange, ERTLineOfSightPolicy::Required);
+	TestTrue(TEXT("premessa: il Fumo in vista restringe l'insieme armato"), Armed.Num() < Unrestricted.Num());
+	TestTrue(TEXT("premessa: la cella oltre la nube manca dall'insieme armato, e c'e' nella portata libera"),
+		!Armed.Contains(FRTCellId(0, -3, 0)) && Unrestricted.Contains(FRTCellId(0, -3, 0)));
 	TestTrue(TEXT("stesso insieme dell'azione armata, nello stesso ordine"), RvCells(Out) == Armed);
 	bool bSomeUnverdicted = false;
 	bool bSomeVerdict = false;
@@ -366,6 +376,66 @@ bool FRTRangeVerdictPolicyTest::RunTest(const FString&)
 		RvIs(RvClassify(Map, Seen, ERTLineOfSightPolicy::Required), FRTCellId(3, 0, 0), ERTRangeVerdict::Blocked));
 	TestTrue(TEXT("senza il requisito della linea il muro non blocca"),
 		RvIs(RvClassify(Map, Seen, ERTLineOfSightPolicy::NotRequired), FRTCellId(3, 0, 0), ERTRangeVerdict::Free));
+	return true;
+}
+
+// 🔴 UNA LINEA OBLIQUA SI GIUDICA SULLE SUE CELLE, E SU NESSUN'ALTRA. Tutti gli altri test mirano lungo un asse, dove
+// qualunque costruzione della linea darebbe le stesse celle. Qui il bersaglio e' obliquo, e si prova in due versi: una cella
+// nascosta SULLA linea toglie il verdetto (e ne' un muro ne' un Fumo li' sotto cambiano l'uscita), una cella nascosta
+// ACCANTO alla linea no.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRangeVerdictObliqueLineTest,
+	"RefactorTactics.RangeVerdict.AnObliqueLineIsJudgedOnItsOwnCellsAndNoOthers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRangeVerdictObliqueLineTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Flat = RvArena();
+	if (!TestNotNull(TEXT("l'arena esiste"), Flat)) { return false; }
+
+	const FRTCellId Target(3, 1, 0);
+	const TArray<FRTCellId> Line = URTHexLibrary::HexLine(RvFrom(), Target);
+	if (!TestTrue(TEXT("premessa: la linea obliqua ha celle interne"), Line.Num() >= 4)) { return false; }
+	const FRTCellId OnLine = Line[2];
+
+	// Una cella accanto alla linea che non ne fa parte (la prima nell'ordine stabile).
+	TArray<FRTCellId> Around = URTHexLibrary::HexArea(OnLine, 1);
+	Around.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+	FRTCellId OffLine = OnLine;
+	bool bFoundOff = false;
+	for (const FRTCellId& Cell : Around)
+	{
+		if (!Line.Contains(Cell) && Flat->ContainsCell(Cell)) { OffLine = Cell; bFoundOff = true; break; }
+	}
+	if (!TestTrue(TEXT("premessa: esiste una cella accanto alla linea"), bFoundOff)) { return false; }
+
+	URTHexMapAsset* WallOn = RvTwin(Flat);
+	RvWall(WallOn, OnLine);
+	URTHexMapAsset* SmokeOn = RvTwin(Flat);
+	RvSmoke(SmokeOn, OnLine);
+	URTHexMapAsset* WallOff = RvTwin(Flat);
+	RvWall(WallOff, OffLine);
+
+	const FRTTeamKnowledge HideOn = RvAllVisibleBut(Flat, { OnLine });
+	const FRTTeamKnowledge HideOff = RvAllVisibleBut(Flat, { OffLine });
+	const FRTTeamKnowledge Everything = RvAllVisible(Flat);
+
+	// Nascosta SULLA linea: nessun verdetto, e un muro o un Fumo li' sotto non cambiano nulla.
+	const TArray<FRTRangeCellVerdict> FlatOn = RvClassify(Flat, HideOn);
+	TestTrue(TEXT("cella nascosta sulla linea: il bersaglio non ha verdetto"), RvIs(FlatOn, Target, ERTRangeVerdict::Unverdicted));
+	TestEqual(TEXT("un muro sulla cella nascosta non cambia l'uscita"), RvSignature(RvClassify(WallOn, HideOn)), RvSignature(FlatOn));
+	TestEqual(TEXT("un Fumo sulla cella nascosta non cambia l'uscita"), RvSignature(RvClassify(SmokeOn, HideOn)), RvSignature(FlatOn));
+
+	// Controlli positivi: guardando tutto, il muro blocca la linea obliqua e il Fumo toglie il bersaglio dall'insieme.
+	TestTrue(TEXT("premessa: guardando tutto, senza muro il bersaglio e' libero"), RvIs(RvClassify(Flat, Everything), Target, ERTRangeVerdict::Free));
+	TestTrue(TEXT("premessa: guardando tutto, con il muro sulla linea e' bloccato"), RvIs(RvClassify(WallOn, Everything), Target, ERTRangeVerdict::Blocked));
+	TestTrue(TEXT("premessa: guardando tutto, il Fumo sulla linea toglie il bersaglio dall'insieme"),
+		RvFind(RvClassify(Flat, Everything), Target) != nullptr && RvFind(RvClassify(SmokeOn, Everything), Target) == nullptr);
+
+	// Nascosta ACCANTO alla linea: il verdetto resta, anche con un muro nella cella nascosta.
+	TestTrue(TEXT("cella nascosta accanto alla linea: il bersaglio resta libero"), RvIs(RvClassify(Flat, HideOff), Target, ERTRangeVerdict::Free));
+	TestTrue(TEXT("anche con un muro sulla cella nascosta accanto"), RvIs(RvClassify(WallOff, HideOff), Target, ERTRangeVerdict::Free));
+	TestTrue(TEXT("premessa: guardando tutto, il muro accanto alla linea non la blocca"),
+		RvIs(RvClassify(WallOff, Everything), Target, ERTRangeVerdict::Free));
+
 	return true;
 }
 
