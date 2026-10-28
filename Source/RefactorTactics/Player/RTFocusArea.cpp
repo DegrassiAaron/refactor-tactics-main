@@ -2,7 +2,6 @@
 
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -26,9 +25,9 @@ namespace
 		{
 			Cells.Add(Reachable.Cell);
 		}
-		// `ReachableCells` costruisce l'uscita da una `TMap`: l'ordine non e' una promessa. Si ordina qui, cosi' due
-		// chiamate con gli stessi ingressi danno le stesse liste e un test puo' confrontarle.
-		Cells.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+		// Nessun ordinamento qui: `ReachableCells` ordina gia' la propria uscita con `StableLess` (l'ultima istruzione prima
+		// del `return`). I test confrontano queste liste con un oracolo ordinato nello stesso modo, quindi se la libreria
+		// smettesse di ordinare cadrebbero, e due chiamate con gli stessi ingressi darebbero comunque le stesse liste.
 		return Cells;
 	}
 }
