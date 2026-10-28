@@ -771,13 +771,12 @@ fuori dalla cella cancellata.
 
 ⚠️ Gli indici restituiti valgono finché l'asset non cambia, e si consumano **dal più alto al più basso**.
 
-🔴 **La regola esiste, ed è applicata da UNA sola delle due vie che cancellano una cella**
-([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), aperta il 2026-09-24).
-`URTMapEditLibrary::DeleteElement` chiede la cascata prima di rimuovere; `URTHexMapAsset::RemoveCell` no —
-toglie la cella e basta — e ci arriva `EraseCellInStroke`, cioè il **pennello in `Erase`**, che per giunta
-cancella in *area*. Finché quella issue è aperta, questa sezione descrive la regola **e** il gesto che non la
-chiama: dichiararlo qui è ciò che impedisce di leggere la tabella qui sopra come una garanzia dell'asset,
-quando è una garanzia di una funzione.
+✅ **La regola è applicata da tutte le vie che cancellano una cella** ([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), `D-553`).
+`URTHexMapAsset::EraseCellInStroke` → cioè il **pennello in `Erase`**, che cancella in *area*, e `ARTHexMapActor::EraseCell` → chiama `URTMapEditLibrary::DeleteElement`, la stessa funzione di `Canc` sulla selezione: i due gesti lasciano lo stesso stato. ⌫ *Fino al 2026-10-28 il pennello toglieva la cella e basta (`RemoveCell`) e lasciava muri, archi e binding orfani, e questa sezione dichiarava il gesto che non chiamava la regola.*
+
+⚠️ `RemoveCell` resta la primitiva che toglie la **sola** cella e non applica la cascata: chi la chiama direttamente ne risponde. Il comportamento visibile cambia: una pennellata in area porta via anche gli archi diretti verso celle **fuori** dall'area (un arco verso il nulla è un errore), e il log dice quanti elementi la cascata ha portato via. Un solo `Ctrl+Z` per pennellata vale per costruzione (`BeginStroke()` chiama `Modify()` prima di ogni mutazione) e non è misurato in Editor: `PIE-HEX-PAINT-ERASE`.
+
+Verifica del pennello: `RefactorTactics.MapEdit.Brush*` (la cella, i due gesti a confronto, l'area) e `RefactorTactics.HexMapActor.EraseCellTakesTheCascade`.
 
 Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
 che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.
