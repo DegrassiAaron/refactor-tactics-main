@@ -3662,6 +3662,149 @@ bool FRTArmedReactionShowsInThePlanTimelineTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
+// `#3896` — disarmare lo slot di una REAZIONE la toglie dal piano (decisione d'autore).
+// =====================================================================================================
+
+/**
+ * 🔴 **DISARMARE LO SLOT DI UNA REAZIONE LA TOGLIE DAL PIANO.**
+ *
+ * Il caso misurato da `#3896`: il secondo click sullo slot armato spegneva `SelectedAbilityIndex` e lasciava
+ * `PlannedReactionAbility` scritto. Il dock diceva «non armata», il resolver — che legge il piano — e la timeline
+ * — che legge `PlannedReactionAbility` — la usavano ancora: due letture dello stesso modello che si contraddicono.
+ *
+ * 🔑 **Si arma e si disarma dalla porta del dock (`ArmKitAbility`)**, la stessa del click, e si leggono TRE oracoli
+ * indipendenti — lo slot, il piano e la timeline — piu' la condizione dichiarata, che vive e muore con la reazione.
+ * Nessuno di loro e' derivato dagli altri, quindi un verde dice che il modello e' coerente e non che due campi
+ * sono stati azzerati insieme.
+ *
+ * ⚠️ **Le premesse sono dentro il test e fanno da controllo positivo**: l'armo dal dock scrive piano e timeline, la
+ * condizione entra davvero, e DOPO il disarmo il riarmo funziona. Senza, «tutto neutro» sarebbe soddisfatto anche da
+ * un dock inerte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDisarmedReactionLeavesThePlanTest,
+	"RefactorTactics.HexMatch.DisarmedReactionLeavesThePlanSlotAndTimeline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Counter"), 3);
+	const URTActionData* Counter = B.Mine->GetAbility(Reazione);
+	if (!TestTrue(TEXT("premessa: la reazione e' entrata nel kit"), Reazione != INDEX_NONE && Counter != nullptr)
+		|| !TestEqual(TEXT("premessa: e' davvero uno slot di reazione"),
+			static_cast<int32>(Counter->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction))
+		|| !TestTrue(TEXT("premessa: la reazione e' pronta"), B.Mine->CanUseAbility(Reazione)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// --- premesse: l'armo dal dock scrive piano, slot, condizione e timeline -------------------------
+	B.PC->ArmKitAbility(Reazione);
+	// La condizione si dichiara DOPO l'armo: `SetPlannedReactionCondition` rifiuta se non c'e' una reazione nel piano.
+	// L'id e' quello che il validator ammette (`URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent`).
+	const bool bCondizione = B.Mine->SetPlannedReactionCondition(
+		FRTDeclaredCondition(TEXT("TargetHealthAtOrBelowPercent"), 50));
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	if (!TestEqual(TEXT("premessa: il dock accende lo slot"), B.Mine->SelectedAbilityIndex, Reazione)
+		|| !TestEqual(TEXT("premessa: e il piano porta la reazione"), B.Mine->PlannedReactionAbility, Reazione)
+		|| !TestTrue(TEXT("premessa: la condizione dichiarata entra nel piano"),
+			bCondizione && B.Mine->PlannedReactionCondition.IsDeclared())
+		|| !TestTrue(TEXT("premessa: la timeline la porta armata"), B.HexMap->GetPlanPreview().Reaction.bArmed))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// --- il secondo click sullo stesso slot DISARMA -------------------------------------------------
+	B.PC->ArmKitAbility(Reazione);
+	TestEqual(TEXT("lo slot si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("e la reazione esce dal piano: il resolver non la trova piu'"),
+		B.Mine->PlannedReactionAbility, INDEX_NONE);
+	TestFalse(TEXT("con lei esce la condizione dichiarata"), B.Mine->PlannedReactionCondition.IsDeclared());
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestFalse(TEXT("e la timeline non la disegna piu' armata, nemmeno dopo dieci tick"),
+		B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	// --- controllo positivo: il disarmo non ha rotto l'armo -----------------------------------------
+	B.PC->ArmKitAbility(Reazione);
+	TestEqual(TEXT("dopo il disarmo la stessa reazione si riarma"), B.Mine->PlannedReactionAbility, Reazione);
+	TestTrue(TEXT("e la timeline la ridisegna armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **IL CONTROLLO DELL'ALTRO VERSO: disarmare un'azione PRINCIPALE non toglie una reazione INDIPENDENTE.**
+ *
+ * `Reaction` ha il proprio slot e il proprio campo (`PlannedReactionAbility`), distinto da `PlannedAbilityIndex`.
+ * Armare una reazione e poi un'azione principale lascia `SelectedAbilityIndex` sulla seconda e la reazione nel
+ * piano: sono due cose che il giocatore ha chiesto separatamente. La correzione piu' ovvia di `#3896` — azzerare la
+ * reazione a OGNI disarmo — passerebbe il test qui sopra e romperebbe questo.
+ *
+ * ⛔ **La reazione si toglie solo se e' LEI lo slot che si disarma.**
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDisarmingAMainActionKeepsAnIndependentReactionTest,
+	"RefactorTactics.HexMatch.DisarmingAMainActionKeepsAnIndependentReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDisarmingAMainActionKeepsAnIndependentReactionTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Counter"), 3);
+	// `Action.Guard`: un'azione PRINCIPALE su se stessi, che entra nel piano all'armamento (`PlannedAbilityIndex`).
+	const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Guard"), 1);
+	const URTActionData* Counter = B.Mine->GetAbility(Reazione);
+	const URTActionData* Guard = B.Mine->GetAbility(Guardia);
+	if (!TestTrue(TEXT("premessa: reazione e guardia sono entrate nel kit"),
+			Reazione != INDEX_NONE && Guardia != INDEX_NONE && Reazione != Guardia && Counter && Guard)
+		|| !TestEqual(TEXT("premessa: la prima e' una reazione"),
+			static_cast<int32>(Counter->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction))
+		|| !TestTrue(TEXT("premessa: la seconda NON e' una reazione"), Guard->Def.Slot != ERTActionSlot::Reaction)
+		|| !TestTrue(TEXT("premessa: sono pronte entrambe"),
+			B.Mine->CanUseAbility(Reazione) && B.Mine->CanUseAbility(Guardia)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->ArmKitAbility(Reazione);
+	B.PC->ArmKitAbility(Guardia);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	if (!TestEqual(TEXT("premessa: lo slot acceso e' la guardia"), B.Mine->SelectedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Mine->PlannedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: la reazione e' ANCORA nel piano, indipendente"),
+			B.Mine->PlannedReactionAbility, Reazione)
+		|| !TestTrue(TEXT("premessa: la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Si disarma la PRINCIPALE, dalla stessa porta.
+	B.PC->ArmKitAbility(Guardia);
+	TestEqual(TEXT("la guardia si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("e esce dal piano"), B.Mine->PlannedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("la reazione indipendente RESTA nel piano"), B.Mine->PlannedReactionAbility, Reazione);
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestTrue(TEXT("e la timeline continua a disegnarla armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+// =====================================================================================================
 // `#3892` — la ROTTA si scrive da UN punto: `RefreshPlanningPreview`.
 // =====================================================================================================
 
