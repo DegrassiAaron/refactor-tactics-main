@@ -1,5 +1,6 @@
 #include "Content/RTSetCellBodyFillCommandlet.h"
 
+#include "Core/RTEnumName.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
@@ -39,8 +40,7 @@ namespace
 	 * Il vocabolario dei valori e' quello dell'ENUM, letto per riflessione.
 	 *
 	 * ⚠️ Non una mappa scritta a mano come per `-State` di `RTSetCellDoor`: qui il vocabolario e' chiuso dal
-	 * tipo (`None` · `Third` · `TwoThirds` · `Full`), e una seconda lista nel commandlet divergerebbe il giorno
-	 * in cui un quinto valore entrasse nell'enum. Le grafie sono quelle dell'enum, senza maiuscole obbligate.
+	 * tipo, e una seconda lista nel commandlet divergerebbe il giorno in cui un valore nuovo entrasse nell'enum.
 	 */
 	bool ParseBodyFill(const FString& Text, ERTHexBodyFill& Out)
 	{
@@ -58,12 +58,6 @@ namespace
 		}
 		Out = static_cast<ERTHexBodyFill>(Enum->GetValueByIndex(Index));
 		return true;
-	}
-
-	FString DescribeBodyFill(ERTHexBodyFill Fill)
-	{
-		const UEnum* Enum = StaticEnum<ERTHexBodyFill>();
-		return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Fill)) : FString::FromInt(static_cast<int32>(Fill));
 	}
 
 	/** I valori ammessi, per il messaggio di errore: letti dall'enum, quindi mai in ritardo su di esso. */
@@ -117,9 +111,13 @@ int32 URTSetCellBodyFillCommandlet::Main(const FString& Params)
 
 	const bool bDryRun = Switches.Contains(TEXT("DryRun"));
 
-	const FString MapPath = ParamsMap.Contains(TEXT("Map"))
-		? ParamsMap[TEXT("Map")]
-		: TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena");
+	// Nessun default per la mappa: una dimenticanza riscriverebbe un asset tracciato che nessuno ha scelto.
+	const FString MapPath = ParamsMap.FindRef(TEXT("Map"));
+	if (MapPath.IsEmpty())
+	{
+		UE_LOG(LogRTCellBodyFill, Error, TEXT("-Map=/Game/... mancante: nessun default, e' una scelta di chi lancia."));
+		return 1;
+	}
 
 	FRTCellId Target;
 	const FString CellText = ParamsMap.FindRef(TEXT("Cell"));
@@ -148,44 +146,58 @@ int32 URTSetCellBodyFillCommandlet::Main(const FString& Params)
 		return 1;
 	}
 
-	const uint32 HashPrima = Map->ComputeHash();
-	const int32 RevisionePrima = Map->Revision;
+	const uint32 HashBefore = Map->ComputeHash();
+	const int32 RevisionBefore = Map->Revision;
 	UE_LOG(LogRTCellBodyFill, Display, TEXT("mappa   %s — %d celle, formato v%d, hash %u, revisione %d"),
-		*MapPath, Map->NumCells(), Map->FormatVersion, HashPrima, RevisionePrima);
+		*MapPath, Map->NumCells(), Map->FormatVersion, HashBefore, RevisionBefore);
 
 	// La cella puo' non esserci: in quel caso e' la libreria a rifiutare, qui si legge solo per il «prima».
-	const FRTHexCellData* Esistente = Map->FindCell(Target);
-	const FString CorpoPrima = Esistente ? DescribeBodyFill(Esistente->BodyFill) : FString(TEXT("(cella assente)"));
-	UE_LOG(LogRTCellBodyFill, Display, TEXT("prima   corpo di %s: %s"), *DescribeBodyFillCell(Target), *CorpoPrima);
+	const FRTHexCellData* Existing = Map->FindCell(Target);
+	const FString FillBefore = Existing ? RTReflection::EnumName(Existing->BodyFill) : FString(TEXT("(cella assente)"));
+	// Letto PRIMA della scrittura: `Existing` punta dentro l'array, e dopo vedrebbe gia' il valore nuovo.
+	const bool bAlreadySet = (Existing != nullptr) && (Existing->BodyFill == Fill);
+	UE_LOG(LogRTCellBodyFill, Display, TEXT("prima   corpo di %s: %s"), *DescribeBodyFillCell(Target), *FillBefore);
 
 	// ⛔ **La regola non e' qui.** `SetCellBodyFill` valida e scrive; questo commandlet nomina l'esito e salva.
-	const ERTMapEditOutcome Esito = URTMapEditLibrary::SetCellBodyFill(Map, Target, Fill);
-	if (Esito != ERTMapEditOutcome::Applied)
+	const ERTMapEditOutcome Outcome = URTMapEditLibrary::SetCellBodyFill(Map, Target, Fill);
+	if (Outcome != ERTMapEditOutcome::Applied)
 	{
 		UE_LOG(LogRTCellBodyFill, Error, TEXT("scrittura RIFIUTATA su %s: %s"),
-			*DescribeBodyFillCell(Target), *URTMapEditLibrary::DescribeOutcome(Esito));
+			*DescribeBodyFillCell(Target), *URTMapEditLibrary::DescribeOutcome(Outcome));
 		return 1;
 	}
 
-	const uint32 HashDopo = Map->ComputeHash();
+	const uint32 HashAfter = Map->ComputeHash();
+	const bool bIdentityUnchanged = (HashBefore == HashAfter) && (RevisionBefore == Map->Revision);
 	UE_LOG(LogRTCellBodyFill, Display,
-		TEXT("scritto corpo di %s: %s -> %s — hash %u -> %u (%s), revisione %d -> %d"),
-		*DescribeBodyFillCell(Target), *CorpoPrima, *DescribeBodyFill(Fill),
-		HashPrima, HashDopo, HashPrima == HashDopo ? TEXT("invariato") : TEXT("MOSSO"),
-		RevisionePrima, Map->Revision);
+		TEXT("%s corpo di %s: %s -> %s — hash %u -> %u, revisione %d -> %d (%s)"),
+		bDryRun ? TEXT("scriverebbe") : TEXT("scritto"),
+		*DescribeBodyFillCell(Target), *FillBefore, *RTReflection::EnumName(Fill),
+		HashBefore, HashAfter, RevisionBefore, Map->Revision,
+		bIdentityUnchanged ? TEXT("invariati") : TEXT("MOSSI"));
 
-	// ⚠️ **L'hash e' invariato per costruzione** (`BodyFill` e' presentazione: primo non-goal di `#1865`,
-	// pinnato da `StructuralBody.FillChangesNeitherCellsNorHash`). Se qui risulta mosso, il comando non ha
-	// sbagliato: ha trovato che `ComputeHash` ha cominciato a leggere il campo, ed e' un difetto di un altro.
-	if (HashPrima != HashDopo)
+	// 🔴 **Hash e revisione sono invarianti per costruzione**: `BodyFill` e' presentazione (primo non-goal di
+	// `#1865`), e `Revision` entra in `HashMatchState` e nel `GraphRevision` del TurnLog. Se uno dei due si e'
+	// mosso, il comando non ha sbagliato: ha trovato che qualcosa ha cominciato a leggere il campo. Salvare
+	// comunque scriverebbe nell'asset il difetto, quindi si rifiuta — anche in `-DryRun`, che deve dire la verita'.
+	if (!bIdentityUnchanged)
 	{
-		UE_LOG(LogRTCellBodyFill, Warning,
-			TEXT("l'hash e' cambiato, e `BodyFill` non dovrebbe entrare in ComputeHash: controlla prima di salvare."));
+		UE_LOG(LogRTCellBodyFill, Error,
+			TEXT("hash o revisione mossi da un gesto di sola presentazione: NON salvo. Controlla `SetCellBodyFill`."));
+		return 1;
 	}
 
 	if (bDryRun)
 	{
 		UE_LOG(LogRTCellBodyFill, Display, TEXT("-DryRun: nessuna scrittura."));
+		return 0;
+	}
+
+	// Un no-op non riscrive il binario: il corpo vale gia' quello chiesto.
+	if (bAlreadySet)
+	{
+		UE_LOG(LogRTCellBodyFill, Display, TEXT("il corpo vale gia' %s: nessuna modifica, asset non salvato."),
+			*RTReflection::EnumName(Fill));
 		return 0;
 	}
 

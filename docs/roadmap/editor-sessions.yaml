@@ -2079,11 +2079,14 @@ sessions:
          `UnrealEditor-Cmd RefactorTactics.uproject -run=RTSetCellBodyFill -Map=<mappa della scena>
          -Cell=q,r,layer -Fill=Third` (poi `Full` per la collina). Le colonne, la vista prescritta e il
          giudizio stanno nella voce del registro, non qui.
+         ⛔ **Si lancia PRIMA di aprire l'Editor, con le celle gia' dipinte e salvate**: il comando legge e
+         riscrive il data asset dal disco, e un Editor che lo tiene in memoria sovrascriverebbe il campo al
+         suo prossimo salvataggio (`convenzioni-contenuti-ue.md`: due processi sugli stessi `.uasset` li
+         corrompono). `-Map` non ha default.
          ⚠️ La cella deve **esistere**: il comando rifiuta una cella assente invece di crearla, e due piani
-         nella stessa colonna vogliono due layer gia' dipinti. L'hash stampato prima e dopo deve essere
-         **uguale**: se si muove, non e' il comando a sbagliare ma `ComputeHash` che ha cominciato a leggere
-         il campo. Il comando salva il data asset della mappa: e' un package in piu' da aspettarsi nel
-         `git status` a fine seduta.
+         nella stessa colonna vogliono due layer gia' dipinti. Hash e revisione stampati prima e dopo devono
+         essere **uguali**: se si muovono il comando rifiuta di salvare, e non e' lui a sbagliare. Salva il data
+         asset della mappa: e' un package in piu' da aspettarsi nel `git status` a fine seduta.
 
       > ⚠️ **Il `.umap` DEVE risultare modificato a fine seduta**, ed e' il contrario di `U22`: li'
       > `PIE-GEO-RESIDUI` chiede `git status` pulito perche' il tool di geometria non deve persistere le

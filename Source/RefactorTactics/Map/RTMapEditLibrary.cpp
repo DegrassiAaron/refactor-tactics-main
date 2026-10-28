@@ -471,21 +471,20 @@ ERTMapEditOutcome URTMapEditLibrary::SetCellBodyFill(URTHexMapAsset* Map, const 
 		return ERTMapEditOutcome::RefusedNoSuchCell;
 	}
 
-	// 🔴 **Il controllo non e' formale**: `AddOrUpdateCell` CREA la cella che non trova, quindi senza questo
-	// rifiuto un `Cell` sbagliato nascerebbe come cella nuova, con il suo corpo, fuori dal disegno dell'autore.
-	const FRTHexCellData* Data = Map->FindCell(Cell);
-	if (Data == nullptr)
+	// 🔴 **NON passa da `AddOrUpdateCell`**, a differenza di `AddDoor`, per due ragioni che il header spiega:
+	// incrementa sempre `Revision` — che entra in `HashMatchState` e nel `GraphRevision` del TurnLog, quindi un
+	// campo di sola presentazione cambierebbe l'identita' competitiva della mappa — e CREA la cella che non
+	// trova. Qui la cella si cerca soltanto: se manca, si rifiuta prima di toccare qualunque cosa.
+	for (FRTHexCellData& Existing : Map->Cells)
 	{
-		return ERTMapEditOutcome::RefusedNoSuchCell;
+		if (Existing.Id == Cell)
+		{
+			Existing.BodyFill = Fill;
+			return ERTMapEditOutcome::Applied;
+		}
 	}
 
-	// Passa da `AddOrUpdateCell`, l'unico percorso che muove `Revision` (vedi `AddDoor`): la revisione e' cio'
-	// che fa ricostruire all'actor i volumi, anche se `BodyFill` non entra in `ComputeHash`.
-	FRTHexCellData Copia = *Data;
-	Copia.BodyFill = Fill;
-	Map->AddOrUpdateCell(Copia);
-
-	return ERTMapEditOutcome::Applied;
+	return ERTMapEditOutcome::RefusedNoSuchCell;
 }
 
 FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
