@@ -201,7 +201,7 @@ bool URTHexMapAsset::ReplaceContent(const TArray<FRTHexCellData>& InCells,
 	// incompleto, che e' peggio di nessun registro perche' ha l'aria di essere completo.
 	RestartChangeLedger();
 
-	// Pota gli orfani e tiene il resto (#3918, `D-555`): i muri interni e i binding che nominano celle assenti dal
+	// Pota gli orfani e tiene il resto (#3918, `D-556`): i muri interni e i binding che nominano celle assenti dal
 	// contenuto nuovo se ne vanno, cio' che sta su celle che restano si conserva. Senza, restavano muri su celle
 	// che non esistono piu' e `ValidateMap` li segnalava.
 	URTMapEditLibrary::PruneOrphansAfterReplace(this, NamesBefore);

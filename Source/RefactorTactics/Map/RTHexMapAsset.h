@@ -728,7 +728,7 @@ public:
 
 	/**
 	 * Svuota celle, transizioni, **muri interni e binding**, incrementando la revisione **una volta sola**; vero se
-	 * c'era qualcosa da togliere ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918), `D-555`:
+	 * c'era qualcosa da togliere ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918), `D-556`:
 	 * senza celle ogni muro e ogni binding e' un orfano, e uno stato di soli orfani e' uno stato da svuotare).
 	 * `NoWalkAreas` e `BoxVolumes` restano come erano: non fanno parte di quella decisione.
 	 *
@@ -756,7 +756,7 @@ public:
 	 *
 	 * Sostituire con contenuto **vuoto** e' uno svuotamento: delega a `ClearAll`, guardia inclusa.
 	 *
-	 * **Pota gli orfani e tiene il resto** ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918), `D-555`): i muri interni sulle celle che non compaiono nel contenuto nuovo e i binding che partono da una struttura sparita se ne vanno (`URTMapEditLibrary::PruneOrphansAfterReplace`, la stessa morte dei nomi di `Canc`); cio' che sta su celle che restano si conserva. Le transizioni sono quelle date: sono dato del chiamante.
+	 * **Pota gli orfani e tiene il resto** ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918), `D-556`): i muri interni sulle celle che non compaiono nel contenuto nuovo e i binding che partono da una struttura sparita se ne vanno (`URTMapEditLibrary::PruneOrphansAfterReplace`, la stessa morte dei nomi di `Canc`); cio' che sta su celle che restano si conserva. Le transizioni sono quelle date: sono dato del chiamante.
 	 */
 	bool ReplaceContent(const TArray<FRTHexCellData>& InCells, const TArray<FRTHexEdge>& InTransitions);
 
