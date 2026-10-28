@@ -187,6 +187,29 @@ public:
 		ERTHexDoorState State, int32 DoorId = -1, FName StableId = NAME_None);
 
 	/**
+	 * Dichiara quanto volume si vede SOTTO la superficie di una cella (`#3361`, il corpo strutturale di `#1865`).
+	 *
+	 * 🔴 **E' l'anello che mancava a `#1865`**: derivatore, posa nell'actor, filtro dei piani e ricostruzione
+	 * incrementale esistono, ma niente scriveva il campo che li accende. Il pennello non puo' farlo — la sua
+	 * maschera esclude `BodyFill` di proposito, e un test lo pinna — e il Details e' vietato da `AGENTS.md` §7.
+	 *
+	 * ⛔ **Il rifiuto e' uno solo, ed e' il motivo per cui qui non c'e' altro.** A differenza di una porta, che
+	 * cambia la topologia e ha tre ragioni per essere respinta, `ERTHexBodyFill` ha quattro valori e il
+	 * vocabolario e' chiuso dal tipo; la frazione e' un'**intenzione** e il derivatore la concilia con cio' che
+	 * sta sotto (`FRTStructuralBody::bTruncated`). La sola domanda sensata e' se la cella esiste.
+	 *
+	 * 🔑 **Quel rifiuto non e' formale.** `AddOrUpdateCell` **crea** la cella che non trova, quindi senza il
+	 * controllo un `Cell` sbagliato nascerebbe come cella nuova — con il suo corpo, e fuori dal disegno
+	 * dell'autore. E' l'orfano che `ValidateMap` segnala, prodotto da un refuso sulla riga di comando.
+	 *
+	 * ⚠️ **Non entra in `ComputeHash`** (primo non-goal di `#1865`), ma `Revision` si muove: passa da
+	 * `AddOrUpdateCell`, l'unico percorso che la muove, e la revisione e' cio' che fa ricostruire all'actor i
+	 * volumi. `None` e' un valore legale e **toglie** il corpo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	static ERTMapEditOutcome SetCellBodyFill(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexBodyFill Fill);
+
+	/**
 	 * L'esito, in parole — **quale regola ha fermato il gesto** (#1864, casella 8).
 	 *
 	 * 🔴 **Esiste perche' la disciplina dichiarata in cima a questo file non era applicata da nessuno.**

@@ -464,6 +464,30 @@ ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellI
 	return ERTMapEditOutcome::Applied;
 }
 
+ERTMapEditOutcome URTMapEditLibrary::SetCellBodyFill(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexBodyFill Fill)
+{
+	if (Map == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// 🔴 **Il controllo non e' formale**: `AddOrUpdateCell` CREA la cella che non trova, quindi senza questo
+	// rifiuto un `Cell` sbagliato nascerebbe come cella nuova, con il suo corpo, fuori dal disegno dell'autore.
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	if (Data == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// Passa da `AddOrUpdateCell`, l'unico percorso che muove `Revision` (vedi `AddDoor`): la revisione e' cio'
+	// che fa ricostruire all'actor i volumi, anche se `BodyFill` non entra in `ComputeHash`.
+	FRTHexCellData Copia = *Data;
+	Copia.BodyFill = Fill;
+	Map->AddOrUpdateCell(Copia);
+
+	return ERTMapEditOutcome::Applied;
+}
+
 FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
 {
 	// ⛔ **Nessun `default`, ed e' deliberato.** Un ramo generico e' precisamente il difetto che questa

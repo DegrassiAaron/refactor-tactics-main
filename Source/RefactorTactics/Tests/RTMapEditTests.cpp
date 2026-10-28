@@ -1931,4 +1931,183 @@ bool FRTMapEditDescribeOutcomeNamesEveryValueTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// SetCellBodyFill (#3361) — l'anello che mancava all'authoring del corpo strutturale di #1865.
+//
+// Derivatore, posa nell'actor e filtro dei piani esistevano e funzionavano, ma niente scriveva il campo che li
+// accende: il pennello ne esclude `BodyFill` di proposito, e il Details e' vietato da AGENTS.md §7.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **Il riempimento si scrive sulla cella nominata, e SOLO su quella.**
+ *
+ * Tutti e quattro i valori, in sequenza sulla stessa cella: `None` e' l'ultimo perche' un valore che non
+ * sapesse TOGLIERE il corpo lascerebbe l'autore senza modo di tornare indietro.
+ *
+ * ➕ Il controllo positivo e' nel ciclo: dopo ogni scrittura il campo vale **quello chiesto**, quindi un
+ * `SetCellBodyFill` che non scrive niente farebbe cadere la prima asserzione e non passerebbe per la ragione
+ * sbagliata. Le altre celle partono tutte a `None` (verificato prima), perche' senza quella premessa
+ * «le altre non si muovono» sarebbe vero anche se la funzione le scrivesse tutte allo stesso valore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillWritesTheNamedCellTest,
+	"RefactorTactics.MapEdit.SetCellBodyFillWritesOnlyTheNamedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditSetBodyFillWritesTheNamedCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId Bersaglio(0, 0, 0);
+
+	const FRTHexCellData* Esistente = M->FindCell(Bersaglio);
+	if (!TestNotNull(TEXT("la cella bersaglio esiste"), Esistente))
+	{
+		return false;
+	}
+	const FRTHexCellData Prima = *Esistente; // copia: il puntatore punta DENTRO l'array che stiamo per scrivere
+
+	for (const FRTHexCellData& C : M->Cells)
+	{
+		if (!TestEqual(TEXT("premessa: nessuna cella dichiara un corpo"),
+				static_cast<int32>(C.BodyFill), static_cast<int32>(ERTHexBodyFill::None)))
+		{
+			return false;
+		}
+	}
+	const int32 CellePrima = M->NumCells();
+
+	const ERTHexBodyFill Valori[] =
+	{
+		ERTHexBodyFill::Third, ERTHexBodyFill::TwoThirds, ERTHexBodyFill::Full, ERTHexBodyFill::None
+	};
+	for (const ERTHexBodyFill Richiesto : Valori)
+	{
+		const FString Nome = FString::Printf(TEXT("valore %d"), static_cast<int32>(Richiesto));
+
+		TestEqual(*(Nome + TEXT(": la scrittura e' applicata")),
+			URTMapEditLibrary::SetCellBodyFill(M, Bersaglio, Richiesto), ERTMapEditOutcome::Applied);
+
+		const FRTHexCellData* Dopo = M->FindCell(Bersaglio);
+		if (!TestNotNull(*(Nome + TEXT(": la cella esiste ancora")), Dopo))
+		{
+			return false;
+		}
+		TestEqual(*(Nome + TEXT(": il campo e' quello chiesto")),
+			static_cast<int32>(Dopo->BodyFill), static_cast<int32>(Richiesto));
+
+		// Nient'altro della cella si e' mosso.
+		TestEqual(*(Nome + TEXT(": quota")), Dopo->Height, Prima.Height);
+		TestEqual(*(Nome + TEXT(": superficie")), static_cast<int32>(Dopo->Surface), static_cast<int32>(Prima.Surface));
+		TestEqual(*(Nome + TEXT(": costo")), Dopo->MoveCost, Prima.MoveCost);
+		TestEqual(*(Nome + TEXT(": blocco al movimento")), Dopo->bBlocksMovement, Prima.bBlocksMovement);
+		TestEqual(*(Nome + TEXT(": blocco alla vista")), Dopo->bBlocksLineOfSight, Prima.bBlocksLineOfSight);
+		TestEqual(*(Nome + TEXT(": obiettivo")), Dopo->bIsObjective, Prima.bIsObjective);
+
+		// ...e nessun'altra cella: il corpo e' di UNA cella.
+		TestEqual(*(Nome + TEXT(": nessuna cella e' nata")), M->NumCells(), CellePrima);
+		for (const FRTHexCellData& C : M->Cells)
+		{
+			if (C.Id != Bersaglio)
+			{
+				TestEqual(*(Nome + FString::Printf(TEXT(": la cella %s non si e' mossa"), *C.Id.ToString())),
+					static_cast<int32>(C.BodyFill), static_cast<int32>(ERTHexBodyFill::None));
+			}
+		}
+	}
+	return true;
+}
+
+/**
+ * **Una cella che non c'e' e' RIFIUTATA, con un codice, e la mappa non cambia.**
+ *
+ * 🔴 Il rifiuto non e' formale: `AddOrUpdateCell` crea la cella che non trova, quindi senza il controllo un
+ * refuso sulla riga di comando farebbe nascere una cella nuova — con il suo corpo, fuori dal disegno.
+ *
+ * Tre assenze diverse, perche' sono tre modi diversi di sbagliare: fuori mappa, un layer che non c'e' sulla
+ * colonna giusta (l'errore piu' facile: `-Cell=0,0` senza il terzo numero vale layer 0, ma `0,0,1` no), e una
+ * mappa nulla. «Non cambia» si misura su **tre** grandezze — celle, revisione e hash — perche' ciascuna cattura
+ * una scrittura che le altre due non vedrebbero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillRefusesMissingCellTest,
+	"RefactorTactics.MapEdit.SetCellBodyFillRefusesAMissingCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditSetBodyFillRefusesMissingCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+
+	const FRTCellId Assenti[] = { FRTCellId(99, 99, 0), FRTCellId(0, 0, 7) };
+	for (const FRTCellId& Assente : Assenti)
+	{
+		if (!TestNull(*FString::Printf(TEXT("premessa: %s non esiste"), *Assente.ToString()), M->FindCell(Assente)))
+		{
+			return false;
+		}
+
+		const int32 Celle = M->NumCells();
+		const int32 Revisione = M->Revision;
+		const uint32 Hash = M->ComputeHash();
+
+		TestEqual(*FString::Printf(TEXT("%s e' rifiutata"), *Assente.ToString()),
+			URTMapEditLibrary::SetCellBodyFill(M, Assente, ERTHexBodyFill::Full),
+			ERTMapEditOutcome::RefusedNoSuchCell);
+
+		TestEqual(*FString::Printf(TEXT("%s: nessuna cella e' nata"), *Assente.ToString()), M->NumCells(), Celle);
+		TestNull(*FString::Printf(TEXT("%s: non esiste neanche dopo"), *Assente.ToString()), M->FindCell(Assente));
+		TestEqual(*FString::Printf(TEXT("%s: la revisione non si e' mossa"), *Assente.ToString()),
+			M->Revision, Revisione);
+		TestEqual(*FString::Printf(TEXT("%s: l'hash non si e' mosso"), *Assente.ToString()),
+			M->ComputeHash(), Hash);
+	}
+
+	TestEqual(TEXT("una mappa nulla e' rifiutata, non e' un crash"),
+		URTMapEditLibrary::SetCellBodyFill(nullptr, FRTCellId(0, 0, 0), ERTHexBodyFill::Full),
+		ERTMapEditOutcome::RefusedNoSuchCell);
+	return true;
+}
+
+/**
+ * **L'hash NON cambia, e la revisione si'** — il criterio di accettazione che distingue questo gesto da
+ * `RTSetCellDoor`, il cui modello copia.
+ *
+ * 🔑 **La controprova sta nello stesso test, ed e' `AddDoor`.** Un hash che non si muove dopo la scrittura
+ * dimostra qualcosa solo se lo stesso hash SA muoversi per un gesto fatto sulla stessa mappa: senza, l'uguaglianza
+ * sarebbe vera anche se `ComputeHash` fosse una costante. Una porta lo sposta (entra nell'hash, formato v4);
+ * il corpo no (e' presentazione, non-goal di `#1865`).
+ *
+ * La revisione si confronta in disuguaglianza e non contro un numero: pinnare `+1` direbbe come
+ * `AddOrUpdateCell` conta, non che la scrittura sia passata da lui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillLeavesHashAloneTest,
+	"RefactorTactics.MapEdit.SetCellBodyFillLeavesTheHashAloneAndBumpsRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditSetBodyFillLeavesHashAloneTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId Centro(0, 0, 0);
+
+	const uint32 HashPrima = M->ComputeHash();
+	const int32 RevisionePrima = M->Revision;
+
+	for (const ERTHexBodyFill Fill : { ERTHexBodyFill::Third, ERTHexBodyFill::TwoThirds, ERTHexBodyFill::Full })
+	{
+		TestEqual(TEXT("scrittura applicata"),
+			URTMapEditLibrary::SetCellBodyFill(M, Centro, Fill), ERTMapEditOutcome::Applied);
+		TestEqual(FString::Printf(TEXT("valore %d: l'hash non si e' mosso: il corpo e' presentazione"),
+				static_cast<int32>(Fill)),
+			M->ComputeHash(), HashPrima);
+	}
+	TestTrue(FString::Printf(TEXT("la revisione si e' mossa: %d -> %d"), RevisionePrima, M->Revision),
+		M->Revision > RevisionePrima);
+
+	// ➕ Controprova: lo stesso hash SA muoversi, per un gesto che e' stato competitivo.
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, Centro, Bordo)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("la porta e' posata"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Closed), ERTMapEditOutcome::Applied);
+	TestNotEqual(TEXT("e QUELLA l'hash lo sposta: l'uguaglianza di prima non era vacua"),
+		M->ComputeHash(), HashPrima);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
