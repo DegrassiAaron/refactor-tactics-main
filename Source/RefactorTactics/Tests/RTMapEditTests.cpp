@@ -11,6 +11,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
 #include "Map/RTMapEditLibrary.h"
+#include "Map/RTStructureIdentityLibrary.h" // FindDoorEdges: le porte comandate sopravvivono (#3917)
 #include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -2737,16 +2738,20 @@ bool FRTMapEditBrushAreaLeavesNoOrphansTest::RunTest(const FString&)
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// #3917 - un arco con nome muore con la sua cella, e porta via i binding che lo citano.
+// #3917 - un arco con nome muore con la sua cella, e porta via i binding che partono da lui.
 //
 // `CollectDependents` raccoglieva i nomi che muoiono con una cella dalle sole PORTE. Ma `FRTHexEdge` ha un
-// `StableId`, e `ValidateReferences` risolve un nome se trova una porta OPPURE un arco: un binding che citava
-// un arco con nome restava con un riferimento inesistente quando l'arco spariva con la cella - per `Canc`
-// come per il pennello, quindi i due gesti restavano concordi e sbagliati insieme. Lo stesso valeva per la
-// cancellazione DIRETTA di un arco (il ramo `Transition` di `DeleteElement`).
+// `StableId`, e `ValidateReferences` risolve un nome se trova una porta OPPURE un arco: un binding la cui
+// SORGENTE e' un arco con nome restava con un riferimento inesistente quando l'arco spariva con la cella - per
+// `Canc` come per il pennello, quindi i due gesti restavano concordi e sbagliati insieme. Lo stesso valeva per
+// la cancellazione DIRETTA di un arco (il ramo `Transition` di `DeleteElement`).
 //
-// Un nome di arco condiviso e' legittimo solo per una coppia di archi RECIPROCI (un ponte bidirezionale):
-// ne segue che i due archi toccano le stesse due celle, e il nome non puo' sopravvivere a meta'.
+// Misurato: un binding che ha un arco come BERSAGLIO e' gia' un ERRORE di `ValidateMap` ("binding non
+// applicabile": la risoluzione comanda solo porte), quindi non e' uno stato valido che la cascata rompe e i test
+// non partono da li. Un arco come SORGENTE invece e' valido.
+//
+// Un nome di arco condiviso e' legittimo solo per una coppia di archi RECIPROCI (un ponte bidirezionale): ne
+// segue che i due archi toccano le stesse due celle, e il nome non puo' sopravvivere a meta'.
 // ---------------------------------------------------------------------------------------------------------
 
 namespace
@@ -2763,41 +2768,37 @@ namespace
 	}
 
 	/**
-	 * Una mappa VALIDA in cui `Doomed` e `Far` sono uniti dal ponte con nome `B1`, e una porta `S1` su `Far`
-	 * comanda `B1` (e, con `bSecondTarget`, anche la porta `D1`, che sta su un'altra cella e sopravvive).
-	 * Un secondo ponte `B2`, comandato da `S2`, e' il testimone: non c'entra con `Doomed` e deve restare.
+	 * Una mappa VALIDA in cui `Doomed` e `Far` sono uniti dal ponte con nome `B1`, che COMANDA la porta `D1`
+	 * (e, con `bSecondTarget`, anche `D3`: le porte stanno su celle che sopravvivono). Un secondo ponte `B2`,
+	 * che comanda `D2`, e' il testimone: non c'entra con `Doomed` e deve restare.
 	 */
 	URTHexMapAsset* MapEditMakeNamedArcMap(const FRTCellId& Doomed, const FRTCellId& Far, bool bSecondTarget)
 	{
 		URTHexMapAsset* Map = MapEditMakeMap(2);
 		MapEditAddNamedBridge(Map, Doomed, Far, TEXT("B1"));
-		MapEditPutDoor(Map, Far, ERTHexDirection::W, /*DoorId*/ 1, TEXT("S1"));
 
-		TArray<FName> Targets = { TEXT("B1") };
-		if (bSecondTarget)
-		{
-			ERTHexDirection Edge;
-			const FRTCellId DoorCell(1, -1, 0);
-			if (!MapEditFindInteriorEdge(Map, DoorCell, Edge))
-			{
-				return nullptr;
-			}
-			MapEditPutDoor(Map, DoorCell, Edge, /*DoorId*/ 2, TEXT("D1"));
-			Targets.Add(TEXT("D1"));
-		}
-		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), Targets));
-
-		const FRTCellId WitnessA(-2, 0, 0);
-		const FRTCellId WitnessB(0, -2, 0);
-		const FRTCellId WitnessDoorCell(0, 1, 0);
-		ERTHexDirection WitnessEdge;
-		if (!MapEditFindInteriorEdge(Map, WitnessDoorCell, WitnessEdge))
+		const FRTCellId DoorCell1(1, -1, 0);
+		const FRTCellId DoorCell2(0, 1, 0);
+		const FRTCellId DoorCell3(-1, 1, 0);
+		ERTHexDirection Edge1, Edge2, Edge3;
+		if (!MapEditFindInteriorEdge(Map, DoorCell1, Edge1) || !MapEditFindInteriorEdge(Map, DoorCell2, Edge2)
+			|| !MapEditFindInteriorEdge(Map, DoorCell3, Edge3))
 		{
 			return nullptr;
 		}
-		MapEditAddNamedBridge(Map, WitnessA, WitnessB, TEXT("B2"));
-		MapEditPutDoor(Map, WitnessDoorCell, WitnessEdge, /*DoorId*/ 3, TEXT("S2"));
-		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("B2") }));
+		MapEditPutDoor(Map, DoorCell1, Edge1, /*DoorId*/ 1, TEXT("D1"));
+		MapEditPutDoor(Map, DoorCell2, Edge2, /*DoorId*/ 2, TEXT("D2"));
+
+		TArray<FName> Targets = { TEXT("D1") };
+		if (bSecondTarget)
+		{
+			MapEditPutDoor(Map, DoorCell3, Edge3, /*DoorId*/ 3, TEXT("D3"));
+			Targets.Add(TEXT("D3"));
+		}
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B1"), Targets));
+
+		MapEditAddNamedBridge(Map, FRTCellId(-2, 0, 0), FRTCellId(0, -2, 0), TEXT("B2"));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B2"), { TEXT("D2") }));
 		return Map;
 	}
 
@@ -2817,7 +2818,7 @@ namespace
 }
 
 /**
- * **Cancellare una cella che porta un ponte con nome non lascia il binding che lo citava.**
+ * **Cancellare una cella che porta un ponte con nome non lascia il binding che parte da lui.**
  *
  * La premessa asserisce che l'allestimento e' valido e porta il ponte e il binding; la controprova mostra che
  * togliere gli archi e la cella SENZA toccare i binding sporca la mappa (e' quello che la cascata faceva); poi si
@@ -2856,7 +2857,7 @@ bool FRTMapEditNamedArcCascadeTest::RunTest(const FString&)
 		URTMapDependencyLibrary::CollectDependents(ViaDelete, FRTMapElementHandle::ForCell(Doomed));
 	TestTrue(TEXT("il nome del ponte muore con la cella"), Set.OrphanedStructureNames.Contains(FName(TEXT("B1"))));
 	TestFalse(TEXT("e quello del ponte testimone no"), Set.OrphanedStructureNames.Contains(FName(TEXT("B2"))));
-	TestEqual(TEXT("il binding il cui unico bersaglio e' il ponte e' fra i dipendenti"),
+	TestEqual(TEXT("il binding che parte dal ponte e' fra i dipendenti"),
 		Set.InteractionBindingIndices.Num(), 1);
 
 	// --- Le due vie --------------------------------------------------------------------------------------
@@ -2873,8 +2874,8 @@ bool FRTMapEditNamedArcCascadeTest::RunTest(const FString&)
 		const TCHAR* Via = (Map == ViaDelete) ? TEXT("Canc") : TEXT("pennello");
 		TestEqual(*FString::Printf(TEXT("%s: nessun orfano (segnalazioni: %s)"), Via, *MapEditBrushIssues(Map)),
 			Map->ValidateMap().Num(), 0);
-		TestEqual(*FString::Printf(TEXT("%s: il binding del ponte e' andato"), Via), MapEditBindingsFrom(Map, TEXT("S1")), 0);
-		TestEqual(*FString::Printf(TEXT("%s: il binding testimone resta"), Via), MapEditBindingsFrom(Map, TEXT("S2")), 1);
+		TestEqual(*FString::Printf(TEXT("%s: il binding del ponte e' andato"), Via), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+		TestEqual(*FString::Printf(TEXT("%s: il binding testimone resta"), Via), MapEditBindingsFrom(Map, TEXT("B2")), 1);
 		TestEqual(*FString::Printf(TEXT("%s: restano i due archi del ponte testimone"), Via), Map->Transitions.Num(), 2);
 	}
 	TestEqual(TEXT("i due gesti lasciano lo stesso hash"), ViaBrush->ComputeHash(), ViaDelete->ComputeHash());
@@ -2883,11 +2884,11 @@ bool FRTMapEditNamedArcCascadeTest::RunTest(const FString&)
 }
 
 /**
- * **Cancellare DIRETTAMENTE un ponte con nome non lascia il binding che lo citava.**
+ * **Cancellare DIRETTAMENTE un ponte con nome non lascia il binding che parte da lui.**
  *
  * E' il ramo `Transition` di `DeleteElement`, che toglieva le due direzioni e basta. La stessa regola della
- * cascata della cella: il nome muore solo se nessun arco lo porta piu', e allora il binding che perde l'ultimo
- * bersaglio muore con lui.
+ * cascata della cella: il nome muore solo se nessun arco lo porta piu', e allora il binding che ha lui come
+ * sorgente muore con lui.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcDirectDeleteTest,
 	"RefactorTactics.MapEdit.DeletingANamedArcTakesItsBindings",
@@ -2911,70 +2912,52 @@ bool FRTMapEditNamedArcDirectDeleteTest::RunTest(const FString&)
 	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
 		Map->ValidateMap().Num(), 0);
 	TestEqual(TEXT("le due direzioni sono andate, resta il ponte testimone"), Map->Transitions.Num(), 2);
-	TestEqual(TEXT("il binding che citava il ponte e' andato"), MapEditBindingsFrom(Map, TEXT("S1")), 0);
-	TestEqual(TEXT("il binding testimone resta"), MapEditBindingsFrom(Map, TEXT("S2")), 1);
+	TestEqual(TEXT("il binding che partiva dal ponte e' andato"), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+	TestEqual(TEXT("il binding testimone resta"), MapEditBindingsFrom(Map, TEXT("B2")), 1);
 	TestTrue(TEXT("la cella non e' stata toccata"), Map->ContainsCell(A) && Map->ContainsCell(B));
 	return true;
 }
 
 /**
- * **Il binding che ha ANCORA un bersaglio vivo resta, senza il nome morto; quello che parte da un arco muore.**
+ * **Un binding che parte da un ponte muore INTERO, e le porte che comandava restano.**
  *
- * Le due metà della regola "si perde la sorgente oppure l'ultimo bersaglio", applicate ai nomi degli archi:
- * - `S1 -> [B1, D1]`: `B1` muore, `D1` no (sta su un'altra cella), quindi il binding sopravvive con `[D1]`;
- * - `B1 -> [D1]`: la SORGENTE e' un arco, e muore con la cella.
+ * "Si perde la sorgente oppure l'ultimo bersaglio": qui si perde la sorgente, quindi il binding non perde un nome
+ * dalla lista, scompare, anche se ha piu' bersagli e tutti vivi. Le porte `D1` e `D3` stanno su celle che
+ * sopravvivono e non devono essere toccate.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcBindingShapesTest,
-	"RefactorTactics.MapEdit.NamedArcBindingsKeepSurvivorsAndDieWithTheirSource",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcSourceDiesWholeTest,
+	"RefactorTactics.MapEdit.BindingWithANamedArcSourceDiesWhole",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTMapEditNamedArcBindingShapesTest::RunTest(const FString&)
+bool FRTMapEditNamedArcSourceDiesWholeTest::RunTest(const FString&)
 {
 	const FRTCellId Doomed(0, 0, 0);
 	const FRTCellId Far(2, 0, 0);
 
-	// --- Un bersaglio muore, l'altro no --------------------------------------------------------------------
+	URTHexMapAsset* Map = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ true);
+	if (!TestNotNull(TEXT("la mappa con due bersagli si costruisce"), Map))
 	{
-		URTHexMapAsset* Map = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ true);
-		if (!TestNotNull(TEXT("la mappa con due bersagli si costruisce"), Map))
-		{
-			return false;
-		}
-		TestEqual(*FString::Printf(TEXT("parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
-			Map->ValidateMap().Num(), 0);
-
-		TestEqual(TEXT("cancellare la cella: applicato"),
-			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(Doomed)), ERTMapEditOutcome::Applied);
-
-		TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
-			Map->ValidateMap().Num(), 0);
-		const FRTInteractionBinding* Survivor = Map->InteractionBindings.FindByPredicate(
-			[](const FRTInteractionBinding& B) { return B.SourceId == FName(TEXT("S1")); });
-		if (TestNotNull(TEXT("il binding con un bersaglio vivo sopravvive"), Survivor))
-		{
-			TestEqual(TEXT("e ha perso solo il nome morto"), Survivor->TargetIds.Num(), 1);
-			TestTrue(TEXT("il bersaglio rimasto e' la porta"), Survivor->TargetIds.Contains(FName(TEXT("D1"))));
-		}
+		return false;
 	}
-
-	// --- La sorgente e' un arco --------------------------------------------------------------------------
+	TestEqual(*FString::Printf(TEXT("parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	const FRTInteractionBinding* Before = Map->InteractionBindings.FindByPredicate(
+		[](const FRTInteractionBinding& B) { return B.SourceId == FName(TEXT("B1")); });
+	if (!TestNotNull(TEXT("premessa: il binding del ponte esiste"), Before))
 	{
-		URTHexMapAsset* Map = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ true);
-		if (!TestNotNull(TEXT("la mappa si costruisce"), Map))
-		{
-			return false;
-		}
-		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B1"), { TEXT("D1") }));
-		TestEqual(*FString::Printf(TEXT("parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
-			Map->ValidateMap().Num(), 0);
-		TestEqual(TEXT("premessa: un binding parte dal ponte"), MapEditBindingsFrom(Map, TEXT("B1")), 1);
-
-		TestEqual(TEXT("cancellare la cella: applicato"),
-			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(Doomed)), ERTMapEditOutcome::Applied);
-
-		TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
-			Map->ValidateMap().Num(), 0);
-		TestEqual(TEXT("il binding che partiva dal ponte e' andato"), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+		return false;
 	}
+	TestEqual(TEXT("premessa: comanda due porte"), Before->TargetIds.Num(), 2);
+
+	TestEqual(TEXT("cancellare la cella: applicato"),
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(Doomed)), ERTMapEditOutcome::Applied);
+
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	TestEqual(TEXT("il binding che partiva dal ponte e' andato intero"), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+	TestEqual(TEXT("il binding testimone resta"), MapEditBindingsFrom(Map, TEXT("B2")), 1);
+	TestEqual(TEXT("le porte comandate sopravvivono"),
+		URTStructureIdentityLibrary::FindDoorEdges(Map, TEXT("D1")).Num()
+			+ URTStructureIdentityLibrary::FindDoorEdges(Map, TEXT("D3")).Num(), 2);
 	return true;
 }
 
