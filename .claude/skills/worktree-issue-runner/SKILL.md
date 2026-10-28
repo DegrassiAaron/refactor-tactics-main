@@ -509,8 +509,10 @@ editor DLLs.
 Every comparison above proves nothing moved *during* the run; none proves the DLLs were built from the sources
 you are measuring. After a failed build the suite starts anyway, on the binary from an hour ago. The tooling
 now checks it per module (`misura.binari_stantii()`: newest compiled source under `Source/` against
-`Binaries/Win64/UnrealEditor-<module>.dll`) and answers `NON VALIDA` before taking the engine. By hand: build and
-suite in the same command, with the build exiting `0`. `AGENTS.md` §9 owns the rule.
+`Binaries/Win64/UnrealEditor-<module>.dll`): the mutation gates answer `NON VALIDA` before taking the engine, and
+`esegui.py` flags it at the top of its report with a non-zero exit. It compares mtimes, so it sees a source edited
+*after* the DLL and not much else: `AGENTS.md` §9 owns the rule and its limits. By hand: build and suite in the same
+command, with the build exiting `0`.
 
 ## Independence of the measure
 
