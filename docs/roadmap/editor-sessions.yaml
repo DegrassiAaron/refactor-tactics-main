@@ -2000,7 +2000,7 @@ sessions:
       ne invertiva la semantica. I valori vivono negli owner linkati qui sotto; questa lista dice **cosa
       fare, in che ordine, e dove si sbaglia**.
 
-      **Prima di aprire l'editor — tre condizioni, tutte e tre bloccanti.**
+      **Prima di aprire l'editor — le condizioni, tutte bloccanti.**
 
       · ⛔ **Una seduta per volta** su `Content/RT/Maps/Dev/L_DevSandbox/`. **Quattro** sedute dichiarano
       lo stesso allestimento — `U21`, `U22`, `U25`, `U26` — e due aperte insieme sullo stesso `.umap`
@@ -2012,6 +2012,8 @@ sessions:
       precondizione **e' soddisfatta**; era la sola delle tre che bloccava la modellazione della porta.
       · 🔴 **`U21` fatta**: una scena di leggibilita' valutata prima delle luci direbbe piu' sulle luci che
       sul kit.
+      · ⛔ **Solo per `PIE-MAPED-CORPO` (passo 8)**: l'allestimento del corpo si scrive **qui**, a Editor ancora
+      chiuso, col comando `RTSetCellBodyFill`. Le altre voci della seduta non lo richiedono.
 
       `GBX-1` — l'inset — **non** e' bloccante: si sceglie **qui**, guardando, ed e' l'unico modo di
       validarlo. Il valore scelto si scrive in
@@ -2079,7 +2081,7 @@ sessions:
          `UnrealEditor-Cmd RefactorTactics.uproject -run=RTSetCellBodyFill -Map=<mappa della scena>
          -Cell=q,r,layer -Fill=Third` (poi `Full` per la collina). Le colonne, la vista prescritta e il
          giudizio stanno nella voce del registro, non qui.
-         ⛔ **Si lancia PRIMA di aprire l'Editor, con le celle gia' dipinte e salvate**: il comando legge e
+         ⛔ **Si lancia PRIMA di aprire l'Editor** (vedi le condizioni all'inizio), **con le celle gia' dipinte e salvate**: il comando legge e
          riscrive il data asset dal disco, e un Editor che lo tiene in memoria sovrascriverebbe il campo al
          suo prossimo salvataggio (`convenzioni-contenuti-ue.md`: due processi sugli stessi `.uasset` li
          corrompono). `-Map` non ha default.
@@ -2165,8 +2167,9 @@ sessions:
       ➕ **`PIE-MAPED-CORPO` entra in `verifies` il 2026-10-28** (#3361): il suo bloccante era l'ALLESTIMENTO,
       non la seduta, e adesso c'e' un comando scritto (`RTSetCellBodyFill`). Prima non poteva starci —
       convocare una voce non allestibile avrebbe reso non allestibile la seduta intera.
-      ⏱️ **Provata in headless, non in editor**: il `-DryRun` e un giro di salvataggio e rilettura in un
-      secondo processo. Il giudizio a schermo resta da dare, ed e' il motivo per cui la voce resta ⏳.
+      ⏱️ **Provata in headless, non in editor**: il `-DryRun`, e un giro di salvataggio e rilettura in un
+      secondo processo su `DA_HexMap_Arena` (ripristinata da git subito dopo; evidenza nella PR #3909). Il
+      giudizio a schermo resta da dare, ed e' il motivo per cui la voce resta ⏳.
 
   - id: U26
     title: La griglia di lavoro e la sonda di movimento nell'editor

@@ -17,7 +17,8 @@ namespace
 	bool ParseBodyFillCell(const FString& Text, FRTCellId& Out)
 	{
 		TArray<FString> Parts;
-		Text.ParseIntoArray(Parts, TEXT(","), /*CullEmpty=*/ true);
+		// Le parti vuote NON si scartano: `3,,1` letto come `(3,1,0)` scriverebbe su una cella che nessuno ha chiesto.
+		Text.ParseIntoArray(Parts, TEXT(","), /*CullEmpty=*/ false);
 		if (Parts.Num() < 2 || Parts.Num() > 3)
 		{
 			return false;
@@ -25,8 +26,15 @@ namespace
 		for (FString& P : Parts)
 		{
 			P.TrimStartAndEndInline();
-			// `IsNumeric` accetta il segno, e serve: le coordinate assiali sono negative meta' delle volte.
-			if (P.IsEmpty() || !P.IsNumeric())
+			// Un intero con segno, e nient'altro: le coordinate assiali sono negative meta' delle volte, ma
+			// `IsNumeric` accetta anche `1.9` e `1e3`, che `Atoi` troncherebbe in silenzio.
+			bool bInteger = !P.IsEmpty();
+			for (int32 I = 0; bInteger && I < P.Len(); ++I)
+			{
+				const bool bSign = (I == 0) && (P.Len() > 1) && (P[I] == TEXT('-') || P[I] == TEXT('+'));
+				bInteger = bSign || FChar::IsDigit(P[I]);
+			}
+			if (!bInteger)
 			{
 				return false;
 			}
@@ -151,6 +159,14 @@ int32 URTSetCellBodyFillCommandlet::Main(const FString& Params)
 	UE_LOG(LogRTCellBodyFill, Display, TEXT("mappa   %s — %d celle, formato v%d, hash %u, revisione %d"),
 		*MapPath, Map->NumCells(), Map->FormatVersion, HashBefore, RevisionBefore);
 
+	// Il salvataggio riscrive l'asset al formato corrente. L'hash non ne risente (si calcola dopo la migrazione),
+	// ma il diff binario si': meglio vederlo prima di salvare che scoprirlo in una PR.
+	if (Map->LoadedFormatVersion != INDEX_NONE && Map->LoadedFormatVersion != Map->FormatVersion)
+	{
+		UE_LOG(LogRTCellBodyFill, Warning, TEXT("l'asset e' su disco a formato v%d e verra' salvato a v%d."),
+			Map->LoadedFormatVersion, Map->FormatVersion);
+	}
+
 	// La cella puo' non esserci: in quel caso e' la libreria a rifiutare, qui si legge solo per il «prima».
 	const FRTHexCellData* Existing = Map->FindCell(Target);
 	const FString FillBefore = Existing ? RTReflection::EnumName(Existing->BodyFill) : FString(TEXT("(cella assente)"));
@@ -171,7 +187,8 @@ int32 URTSetCellBodyFillCommandlet::Main(const FString& Params)
 	const bool bIdentityUnchanged = (HashBefore == HashAfter) && (RevisionBefore == Map->Revision);
 	UE_LOG(LogRTCellBodyFill, Display,
 		TEXT("%s corpo di %s: %s -> %s — hash %u -> %u, revisione %d -> %d (%s)"),
-		bDryRun ? TEXT("scriverebbe") : (bAlreadySet ? TEXT("confermo") : TEXT("scritto")),
+		bAlreadySet ? (bDryRun ? TEXT("confermerebbe") : TEXT("confermo"))
+			: (bDryRun ? TEXT("scriverebbe") : TEXT("scritto")),
 		*DescribeBodyFillCell(Target), *FillBefore, *RTReflection::EnumName(Fill),
 		HashBefore, HashAfter, RevisionBefore, Map->Revision,
 		bIdentityUnchanged ? TEXT("invariati") : TEXT("MOSSI"));

@@ -1972,9 +1972,17 @@ namespace
 		Cell.bMovementBlockGenerated = true;
 		Cell.bBlocksLineOfSight = true;
 		Cell.bIsObjective = true;
-		Cell.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High));
-		Cell.Doors.Add(FRTHexDoor(ERTHexDirection::W, ERTHexDoorState::Locked, 7));
+		// Bordi e valori diversi dai default (`Edge` vale `E`, `Integrity` 30, `bGenerated` falso, `StableId` vuoto), e
+		// piu' di una voce per array: una ricostruzione parziale che perde un campo, o tronca l'array, cade.
+		Cell.Covers.Add(FRTHexCover(ERTHexDirection::NW, ERTHexCoverType::High, 17));
+		Cell.Covers.Last().bGenerated = true;
+		Cell.Covers.Add(FRTHexCover(ERTHexDirection::SW, ERTHexCoverType::Low, 9));
+		FRTHexDoor Door(ERTHexDirection::W, ERTHexDoorState::Locked, 7);
+		Door.StableId = FName(TEXT("Door.MapEditTest"));
+		Cell.Doors.Add(Door);
+		Cell.Doors.Add(FRTHexDoor(ERTHexDirection::SE, ERTHexDoorState::Open, 8));
 		Cell.Guards.Add(FRTHexEdgeGuard(ERTHexDirection::NE));
+		Cell.Guards.Add(FRTHexEdgeGuard(ERTHexDirection::SE));
 		return Cell;
 	}
 
@@ -1995,6 +2003,11 @@ namespace
  *  - scrivere sulla colonna `(X,Y)` di ogni layer: la voce PIE vuole due piani nella stessa colonna, e li' un
  *    errore sul layer si vede solo se sopra e sotto ci sono celle vere.
  *
+ * 🔑 **Il bersaglio e' `(1,-2,1)`, non l'origine**: con `X != Y` e `Layer != 0` una funzione che scambia X e Y, o
+ * che scrive solo sul layer 0, non trova la cella (o la trova sbagliata). Sull'origine del layer 0 entrambe
+ * passavano, ed e' il caso d'uso opposto a quello reale: la voce PIE scrive sul piano superiore, con il piano
+ * di sotto gia' dipinto. I controlli negativi sono sotto, sopra, e nella cella con X e Y scambiati.
+ *
  * ➕ Premesse verificate prima: il bersaglio NON e' una cella di default, e parte da `None`. Senza, «il resto
  * non si e' mosso» sarebbe vero anche per una funzione che azzera tutto.
  */
@@ -2004,14 +2017,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditSetBodyFillWritesOnlyTheNamedCellTest
 bool FRTMapEditSetBodyFillWritesOnlyTheNamedCellTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MapEditMakeMap(2);
-	const FRTCellId Target(0, 0, 0);
-	const FRTCellId Above(0, 0, 1);
-	const FRTCellId TwoAbove(0, 0, 2);
+	const FRTCellId Target(1, -2, 1);
+	const FRTCellId Below(1, -2, 0);   // stessa colonna, piano di sotto (esiste gia' nell'arena: viene riscritta ricca)
+	const FRTCellId Above(1, -2, 2);   // stessa colonna, piano di sopra
+	const FRTCellId Mirror(-2, 1, 1);  // X e Y scambiati, stesso layer
 
 	const FRTHexCellData RichTarget = MapEditMakeRichCell(Target);
 	Map->AddOrUpdateCell(RichTarget);
+	Map->AddOrUpdateCell(MapEditMakeRichCell(Below));
 	Map->AddOrUpdateCell(MapEditMakeRichCell(Above));
-	Map->AddOrUpdateCell(MapEditMakeRichCell(TwoAbove));
+	Map->AddOrUpdateCell(MapEditMakeRichCell(Mirror));
 
 	if (!TestFalse(TEXT("premessa: il bersaglio ha contenuto, non e' una cella di default"),
 			MapEditSameCell(RichTarget, FRTHexCellData(Target))))
@@ -2137,7 +2152,12 @@ bool FRTMapEditSetBodyFillLeavesIdentityAloneTest::RunTest(const FString&)
 	const uint32 HashBefore = Map->ComputeHash();
 	const int32 RevisionBefore = Map->Revision;
 
-	for (const ERTHexBodyFill Fill : MapEditAllBodyFills())
+	const TArray<ERTHexBodyFill> Fills = MapEditAllBodyFills();
+	if (!TestTrue(TEXT("l'enum ha almeno due valori da scrivere"), Fills.Num() >= 2))
+	{
+		return false;
+	}
+	for (const ERTHexBodyFill Fill : Fills)
 	{
 		TestEqual(TEXT("scrittura applicata"),
 			URTMapEditLibrary::SetCellBodyFill(Map, Center, Fill), ERTMapEditOutcome::Applied);
