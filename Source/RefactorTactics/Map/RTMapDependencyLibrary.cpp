@@ -79,6 +79,8 @@ FRTMapDependencySet URTMapDependencyLibrary::CollectDependents(const URTHexMapAs
 		// ⚠️ Stessa regola delle porte: il nome muore solo se NESSUN altro arco lo porta ancora. In un asset valido
 		// due archi condividono un nome solo se sono reciproci (un ponte), quindi toccano le stesse celle e il
 		// controllo non scatta: sta qui perche' questa funzione non deve presumere la validita' di cio' che legge.
+		// Un nome usato da una porta E da un arco e' gia' un Error di `ValidateMap` e non si gestisce qui, come nel
+		// ciclo delle porte qui sopra.
 		for (const int32 ArcIndex : Set.TransitionIndices)
 		{
 			const FName ArcName = Map->Transitions[ArcIndex].StableId;

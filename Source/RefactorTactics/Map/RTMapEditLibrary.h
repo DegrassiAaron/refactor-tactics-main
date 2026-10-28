@@ -124,6 +124,24 @@ public:
 		bool bDryRun = false);
 
 	/**
+	 * Toglie un arco (una direzione o entrambe) **e i binding che partono dal suo nome**, se nessun arco lo porta
+	 * piu' ([#3917](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3917)). Vero se ha tolto almeno un arco.
+	 *
+	 * 🔑 **E' l'unica sede di questa regola per gli archi.** La usano `DeleteElement` (il ramo `Transition`) e il
+	 * pannello Details dell'actor (`ARTHexMapActor::RemoveTransitionData`): due implementazioni della stessa regola sono
+	 * il modo in cui la regola diverge. Un arco ha uno `StableId` come una porta, e un binding che parte da un arco
+	 * sparito resterebbe con un "riferimento a una struttura inesistente".
+	 *
+	 * ⚠️ `URTHexMapAsset::RemoveTransition` resta la primitiva che toglie la SOLA transizione: chi la chiama
+	 * direttamente ne risponde. Lo fanno anche il turn manager e il Blast, che mutano la mappa di una PARTITA e non
+	 * quella autorata: i binding sono dato d'authoring e li' non si toccano.
+	 *
+	 * Con `bBothDirections` falso, se resta l'arco di ritorno il nome sopravvive e i binding pure.
+	 */
+	static bool RemoveTransitionAndOrphanedBindings(URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
+		bool bBothDirections);
+
+	/**
 	 * Gli elementi autorati che vivono sotto un punto, **dal piu' specifico al piu' generale**.
 	 *
 	 * E' il dominio su cui poggia il ciclo di selezione: un click ripetuto scorre questa lista, quindi
