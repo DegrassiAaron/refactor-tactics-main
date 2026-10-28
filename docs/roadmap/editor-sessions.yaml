@@ -1972,7 +1972,8 @@ sessions:
     # ⚠️ `done_when` chiede un ESITO, non l'esistenza delle voci: oggi sono sei ⏳ e nessuna e' eseguibile,
     # perche' `git ls-files 'Content/RT/World/Graybox/*'` da' 0. La seduta resta aperta, e adesso si vede
     # su cosa: prima l'unica premessa leggibile era `unblocked_by: [U21]`.
-    verifies: [PIE-GBX-VOLUME, PIE-GBX-FIT, PIE-GBX-COVER, PIE-GBX-DOOR, PIE-GBX-SURFACE, PIE-GBX-ZOOM]
+    verifies: [PIE-GBX-VOLUME, PIE-GBX-FIT, PIE-GBX-COVER, PIE-GBX-DOOR, PIE-GBX-SURFACE, PIE-GBX-ZOOM, PIE-MAPED-CORPO]
+    # ➕ `PIE-MAPED-CORPO` dal 2026-10-28 (#3361): vedi il passo 8 e l'ultima nota.
     # ➕ **#1094 entrava qui dal 2026-08-17**: possedeva `GBX-1` (l'inset che questa seduta sceglie) e
     # `GBX-2` (che la bloccava). ⌫ **Esce il 2026-08-25 perche' e' CHIUSA** (2026-08-19): `GBX-2` ha una
     # risposta — `D-171`, la traversa in rilievo — quindi non blocca piu' nulla, e le due domande rimaste,
@@ -2072,6 +2073,17 @@ sessions:
          non PIE: un attore nascosto in gioco puo' essere cotto lo stesso. Se una packaged non e'
          disponibile nella seduta, si dichiara che il controllo **non e' stato fatto** invece di
          sostituirlo con la prova piu' debole.
+      8. **Il corpo sotto una superficie elevata** (`PIE-MAPED-CORPO`,
+         [#3361](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3361)). L'allestimento si scrive col comando, mai dal Details
+         (`AGENTS.md` §7), e **prima** in `-DryRun`:
+         `UnrealEditor-Cmd RefactorTactics.uproject -run=RTSetCellBodyFill -Map=<mappa della scena>
+         -Cell=q,r,layer -Fill=Third` (poi `Full` per la collina). Le colonne, la vista prescritta e il
+         giudizio stanno nella voce del registro, non qui.
+         ⚠️ La cella deve **esistere**: il comando rifiuta una cella assente invece di crearla, e due piani
+         nella stessa colonna vogliono due layer gia' dipinti. L'hash stampato prima e dopo deve essere
+         **uguale**: se si muove, non e' il comando a sbagliare ma `ComputeHash` che ha cominciato a leggere
+         il campo. Il comando salva il data asset della mappa: e' un package in piu' da aspettarsi nel
+         `git status` a fine seduta.
 
       > ⚠️ **Il `.umap` DEVE risultare modificato a fine seduta**, ed e' il contrario di `U22`: li'
       > `PIE-GEO-RESIDUI` chiede `git status` pulito perche' il tool di geometria non deve persistere le
@@ -2147,6 +2159,11 @@ sessions:
       voci PIE e dipendeva da `D-139`: con `D-178` e' decaduta, e quelle voci ora si scrivono.)*
       ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i
       diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
+      ➕ **`PIE-MAPED-CORPO` entra in `verifies` il 2026-10-28** (#3361): il suo bloccante era l'ALLESTIMENTO,
+      non la seduta, e adesso c'e' un comando scritto (`RTSetCellBodyFill`). Prima non poteva starci —
+      convocare una voce non allestibile avrebbe reso non allestibile la seduta intera.
+      ⏱️ **Derivata dal codice e dal `-DryRun`, non provata in editor**: il salvataggio su un asset e il
+      giudizio a schermo restano da eseguire, ed e' il motivo per cui la voce resta ⏳.
 
   - id: U26
     title: La griglia di lavoro e la sonda di movimento nell'editor
