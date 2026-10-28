@@ -108,8 +108,12 @@ bool URTHexMapAsset::PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surfac
 	return true;
 }
 
-bool URTHexMapAsset::EraseCellInStroke(const FRTCellId& Id)
+bool URTHexMapAsset::EraseCellInStroke(const FRTCellId& Id, int32* OutCascadeRemoved)
 {
+	if (OutCascadeRemoved)
+	{
+		*OutCascadeRemoved = 0;
+	}
 	if (!ContainsCell(Id))
 	{
 		return false;

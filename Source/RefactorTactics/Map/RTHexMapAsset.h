@@ -686,8 +686,9 @@ public:
 	bool PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement,
 		TOptional<bool> InBlocksLineOfSight = TOptional<bool>());
 
-	/** Cancella una cella dentro una pennellata. Vero se esisteva ed è stata rimossa. Niente Sort/Dirty/refresh. */
-	bool EraseCellInStroke(const FRTCellId& Id);
+	/** Cancella una cella dentro una pennellata. Vero se esisteva ed è stata rimossa. Niente Sort/Dirty/refresh.
+	 *  `OutCascadeRemoved`, se passato, riceve quanti elementi (muri interni, archi, binding) sono stati portati via. */
+	bool EraseCellInStroke(const FRTCellId& Id, int32* OutCascadeRemoved = nullptr);
 
 	/** Chiude la pennellata: SortCells + MarkPackageDirty. */
 	void EndStroke();
