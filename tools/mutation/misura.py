@@ -1425,8 +1425,9 @@ def self_test():
                  "durante la run" not in " ".join(una) and not any(r.startswith("albero") for r in una),
                  str(una)))
     assente = descrivi_stantii([("A", "Source/A/a.cpp", 2000 * SEC, None)])
-    casi.append(("messaggio: un DLL assente si dice «non esiste»",
-                 bool(assente) and "non esiste" in assente[0], str(assente)))
+    casi.append(("messaggio: un DLL assente si dice «non esiste», e resta nella categoria `build`",
+                 bool(assente) and "non esiste" in assente[0] and assente[0].startswith("build"),
+                 str(assente)))
     casi.append(("messaggio: nessun modulo stantio, nessuna riga", descrivi_stantii([]) == [], ""))
 
     # 🔑 **La riga che lega la regola alla RUN**: `esegui_suite()` deve rifiutare PRIMA di lanciare il
