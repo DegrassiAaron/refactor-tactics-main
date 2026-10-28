@@ -161,13 +161,17 @@ FRTHexCellData URTHexMapAsset::ApplyBrush(const FRTHexCellData* Existing, const 
 
 bool URTHexMapAsset::ClearAll()
 {
-	if (Cells.Num() == 0 && Transitions.Num() == 0)
+	// Anche i muri interni e i binding contano: senza celle sono tutti orfani, e uno stato fatto di soli orfani e'
+	// uno stato da svuotare (#3918).
+	if (Cells.Num() == 0 && Transitions.Num() == 0 && InteriorWalls.Num() == 0 && InteractionBindings.Num() == 0)
 	{
 		return false; // nessuna modifica: la revisione non deve muoversi
 	}
 
 	Cells.Reset();
 	Transitions.Reset();
+	InteriorWalls.Reset();
+	InteractionBindings.Reset();
 	bLookupDirty = true; // gli indici non sopravvivono a un reset
 	++Revision;          // UNA volta per l'intero svuotamento, come `UpdateCells`
 	// Uno svuotamento non e' enumerabile cella per cella: dopo, di celle non ce n'e' nessuna, e ridipingere
@@ -185,6 +189,9 @@ bool URTHexMapAsset::ReplaceContent(const TArray<FRTHexCellData>& InCells,
 		return false;
 	}
 
+	// 🔑 I nomi che l'asset porta ORA, letti prima di perderli: servono a potare dopo (#3918).
+	const TArray<FName> NamesBefore = URTMapEditLibrary::CollectStructureNames(this);
+
 	Cells = InCells;
 	Transitions = InTransitions;
 	bLookupDirty = true; // gli indici non sopravvivono a una sostituzione
@@ -193,6 +200,11 @@ bool URTHexMapAsset::ReplaceContent(const TArray<FRTHexCellData>& InCells,
 	// SPARITO, e quelle celle non compaiono in `InCells`: un elenco delle sole nuove sarebbe un registro
 	// incompleto, che e' peggio di nessun registro perche' ha l'aria di essere completo.
 	RestartChangeLedger();
+
+	// Pota gli orfani e tiene il resto (#3918, `D-555`): i muri interni e i binding che nominano celle assenti dal
+	// contenuto nuovo se ne vanno, cio' che sta su celle che restano si conserva. Senza, restavano muri su celle
+	// che non esistono piu' e `ValidateMap` li segnalava.
+	URTMapEditLibrary::PruneOrphansAfterReplace(this, NamesBefore);
 	return true;
 }
 
