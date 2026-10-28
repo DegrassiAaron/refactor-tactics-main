@@ -2961,4 +2961,45 @@ bool FRTMapEditNamedArcSourceDiesWholeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un nome di arco portato anche da un arco che NON tocca la cella non muore con lei.**
+ *
+ * In un asset valido non puo' succedere: due archi condividono un nome solo se sono reciproci, quindi toccano le
+ * stesse due celle. Il test costruisce un asset NON valido apposta, per due ragioni: `CollectDependents` non
+ * deve presumere la validita' di cio' che legge, e senza questo il controllo "sopravvive altrove" non sarebbe
+ * pinnato da nessun test (nessun asset valido lo esercita).
+ *
+ * La controprova toglie l'arco lontano: allora il nome muore. E' cio' che distingue un controllo che funziona da
+ * uno che non scatta mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcCarriedElsewhereTest,
+	"RefactorTactics.MapEdit.ArcNameCarriedElsewhereDoesNotDie",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNamedArcCarriedElsewhereTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+
+	URTHexMapAsset* WithElsewhere = MapEditMakeMap(2);
+	MapEditAddNamedBridge(WithElsewhere, Doomed, Far, TEXT("B1"));
+	FRTHexEdge Elsewhere(FRTCellId(-2, 0, 0), FRTCellId(0, -2, 0), /*Cost*/ 1);
+	Elsewhere.StableId = TEXT("B1");
+	WithElsewhere->Transitions.Add(Elsewhere);
+
+	URTHexMapAsset* Alone = MapEditMakeMap(2);
+	MapEditAddNamedBridge(Alone, Doomed, Far, TEXT("B1"));
+
+	const FRTMapDependencySet Carried =
+		URTMapDependencyLibrary::CollectDependents(WithElsewhere, FRTMapElementHandle::ForCell(Doomed));
+	const FRTMapDependencySet NotCarried =
+		URTMapDependencyLibrary::CollectDependents(Alone, FRTMapElementHandle::ForCell(Doomed));
+
+	TestEqual(TEXT("gli archi che toccano la cella sono raccolti comunque"), Carried.TransitionIndices.Num(), 2);
+	TestFalse(TEXT("il nome portato anche da un arco lontano non muore"),
+		Carried.OrphanedStructureNames.Contains(FName(TEXT("B1"))));
+	TestTrue(TEXT("controprova: senza l'arco lontano lo stesso nome muore"),
+		NotCarried.OrphanedStructureNames.Contains(FName(TEXT("B1"))));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
