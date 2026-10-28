@@ -176,12 +176,7 @@ void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
 
 	// La transazione + BeginStroke si aprono LAZY al primo cambiamento reale (EnsureStrokeOpen): niente transazione
 	// no-op quando l'erase non tocca celle esistenti (garanzia ripristinata rispetto al click singolo di H5c.1).
-	TargetActor = Actor;
-	bStrokeActive = true;
-	bStrokeOpened = false;
-	PaintedThisStroke.Reset();
-	StrokeCellsErased = 0;
-	StrokeCascadeRemoved = 0;
+	BeginStrokeOn(Actor);
 
 	if (ApplyBrushAt(Actor, Cell, Center))
 	{
@@ -234,6 +229,16 @@ void URTHexPaintTool::EndStrokeIfActive()
 	bStrokeOpened = false;
 	TargetActor = nullptr;
 	PaintedThisStroke.Reset();
+}
+
+void URTHexPaintTool::BeginStrokeOn(ARTHexMapActor* Actor)
+{
+	TargetActor = Actor;
+	bStrokeActive = true;
+	bStrokeOpened = false;
+	PaintedThisStroke.Reset();
+	StrokeCellsErased = 0;
+	StrokeCascadeRemoved = 0;
 }
 
 void URTHexPaintTool::EnsureStrokeOpen()
