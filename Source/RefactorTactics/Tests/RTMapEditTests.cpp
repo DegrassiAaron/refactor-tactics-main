@@ -3414,4 +3414,149 @@ bool FRTMapEditReplaceContentSameContentTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// #3929 - Clear svuota anche le regioni No-Walk e i volumi a scatola.
+//
+// `D-556` aveva fatto svuotare a `ClearAll` muri interni e binding, ma `NoWalkAreas` (i cui vertici sono ancore su
+// celle) e `BoxVolumes` (`FRTBoxVolume::Cell`) erano rimasti, dichiarati come scostamento dalla lettura letterale di
+// "tutto". L'autore ha deciso: il Clear li svuota. `ReplaceContent` con contenuto non vuoto non cambia; con
+// contenuto vuoto e' un `ClearAll` (la guardia sta li', non duplicata), e li svuota.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Una regione No-Walk valida: il triangolo dei vertici 0, 1, 2 di una cella. Nome prefissato: unity build. */
+	FRTNoWalkArea MapEditMakeNoWalkTriangle(const FRTCellId& Cell)
+	{
+		FRTNoWalkArea Area;
+		Area.Vertices = {
+			FRTAnchorRef(Cell, ERTAnchorKind::Vertex, 0),
+			FRTAnchorRef(Cell, ERTAnchorKind::Vertex, 1),
+			FRTAnchorRef(Cell, ERTAnchorKind::Vertex, 2) };
+		return Area;
+	}
+
+	/** Un volume a scatola su una cella. */
+	FRTBoxVolume MapEditMakeBoxVolume(const FRTCellId& Cell)
+	{
+		FRTBoxVolume Volume;
+		Volume.Cell = Cell;
+		Volume.CoverLevel = ERTHexCoverType::High;
+		return Volume;
+	}
+}
+
+/**
+ * **`ClearAll` svuota anche le regioni No-Walk e i volumi a scatola.**
+ *
+ * La premessa asserisce che l'allestimento porta davvero una regione e un volume; poi si misura la sede, la revisione
+ * che sale di UNO e il gemello negativo. I due casi "soli orfani" - zero celle, zero archi, ma una regione o un
+ * volume rimasti - sono stati da svuotare, quindi `ClearAll` li dichiara con il valore di ritorno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditClearAllAreasAndVolumesTest,
+	"RefactorTactics.MapEdit.ClearAllEmptiesNoWalkAreasAndBoxVolumesToo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditClearAllAreasAndVolumesTest::RunTest(const FString&)
+{
+	const FRTCellId Home(0, 0, 0);
+
+	// --- Un asset con celle, una regione e un volume -------------------------------------------------------
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	Map->NoWalkAreas.Add(MapEditMakeNoWalkTriangle(Home));
+	Map->BoxVolumes.Add(MapEditMakeBoxVolume(Home));
+	TestEqual(TEXT("premessa: una regione No-Walk"), Map->NoWalkAreas.Num(), 1);
+	TestEqual(TEXT("premessa: un volume a scatola"), Map->BoxVolumes.Num(), 1);
+	TestTrue(TEXT("premessa: ci sono celle"), Map->NumCells() > 0);
+
+	const int32 RevisionBefore = Map->Revision;
+	TestTrue(TEXT("lo svuotamento dichiara di aver tolto qualcosa"), Map->ClearAll());
+	TestEqual(TEXT("celle azzerate"), Map->NumCells(), 0);
+	TestEqual(TEXT("regioni No-Walk azzerate"), Map->NoWalkAreas.Num(), 0);
+	TestEqual(TEXT("volumi a scatola azzerati"), Map->BoxVolumes.Num(), 0);
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+
+	// --- Il gemello negativo: gia' vuota, non muove niente ----------------------------------------------
+	const int32 RevisionAfter = Map->Revision;
+	TestFalse(TEXT("un secondo svuotamento non toglie nulla"), Map->ClearAll());
+	TestEqual(TEXT("e la revisione resta ferma"), Map->Revision, RevisionAfter);
+
+	// --- Le SOLE regioni sono uno stato da svuotare ------------------------------------------------------
+	URTHexMapAsset* AreasOnly = NewObject<URTHexMapAsset>(GetTransientPackage());
+	AreasOnly->NoWalkAreas.Add(MapEditMakeNoWalkTriangle(Home));
+	TestTrue(TEXT("ClearAll di sole regioni dichiara di aver tolto qualcosa"), AreasOnly->ClearAll());
+	TestEqual(TEXT("e le toglie"), AreasOnly->NoWalkAreas.Num(), 0);
+	TestFalse(TEXT("e poi non c'e' piu' niente"), AreasOnly->ClearAll());
+
+	// --- E i SOLI volumi --------------------------------------------------------------------------------
+	URTHexMapAsset* VolumesOnly = NewObject<URTHexMapAsset>(GetTransientPackage());
+	VolumesOnly->BoxVolumes.Add(MapEditMakeBoxVolume(Home));
+	TestTrue(TEXT("ClearAll di soli volumi dichiara di aver tolto qualcosa"), VolumesOnly->ClearAll());
+	TestEqual(TEXT("e li toglie"), VolumesOnly->BoxVolumes.Num(), 0);
+	TestFalse(TEXT("e poi non c'e' piu' niente"), VolumesOnly->ClearAll());
+	return true;
+}
+
+/**
+ * **`ReplaceContent` con celle nuove NON cambia: una regione e un volume restano.**
+ *
+ * L'autore ha deciso sul Clear; per *Generate Into Asset* vale `D-556` (pota muri e binding che nominano celle
+ * assenti). La sorte di regioni e volumi ancorati a celle che spariscono in una sostituzione con contenuto non
+ * vuoto non e' decisa, e questo test la pinna cosi' com'e': una scelta futura la cambiera' consapevolmente, non per
+ * riflesso di questa. Il caso del contenuto vuoto e' il test che segue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentKeepsAreasTest,
+	"RefactorTactics.MapEdit.ReplaceContentWithNewCellsKeepsNoWalkAreasAndBoxVolumes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentKeepsAreasTest::RunTest(const FString&)
+{
+	const FRTCellId Home(0, 0, 0);
+
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	Map->NoWalkAreas.Add(MapEditMakeNoWalkTriangle(Home));
+	Map->BoxVolumes.Add(MapEditMakeBoxVolume(Home));
+
+	TArray<FRTHexCellData> NewCells;
+	TArray<FRTHexEdge> NewTransitions;
+	MapEditContentWithout(Map, { Home }, NewCells, NewTransitions);
+	TestTrue(TEXT("premessa: il contenuto nuovo non ha piu' la cella ancorata"), NewCells.Num() < Map->NumCells());
+
+	TestTrue(TEXT("la sostituzione dichiara che l'asset contiene qualcosa"), Map->ReplaceContent(NewCells, NewTransitions));
+	TestEqual(TEXT("la regione resta"), Map->NoWalkAreas.Num(), 1);
+	TestEqual(TEXT("e il volume pure"), Map->BoxVolumes.Num(), 1);
+	return true;
+}
+
+/**
+ * **`ReplaceContent` con contenuto VUOTO e' un `ClearAll`: regioni e volumi se ne vanno.**
+ *
+ * Sostituire con NIENTE delega a `ClearAll` (la guardia "niente da togliere" sta li', non duplicata), quindi da
+ * #3929 svuota anche `NoWalkAreas` e `BoxVolumes`. Non e' una scelta dell'autore ma una conseguenza della
+ * delega, e questo test la pinna: il dichiarato `ReplaceContent` NON cambia vale per il contenuto non vuoto. Il
+ * valore di ritorno resta `false` (il chiamante ha passato niente), e la revisione sale comunque di UNO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentNothingClearsAreasTest,
+	"RefactorTactics.MapEdit.ReplaceContentWithNothingClearsNoWalkAreasAndBoxVolumes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentNothingClearsAreasTest::RunTest(const FString&)
+{
+	const FRTCellId Home(0, 0, 0);
+
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	Map->NoWalkAreas.Add(MapEditMakeNoWalkTriangle(Home));
+	Map->BoxVolumes.Add(MapEditMakeBoxVolume(Home));
+	TestEqual(TEXT("premessa: una regione No-Walk"), Map->NoWalkAreas.Num(), 1);
+	TestEqual(TEXT("premessa: un volume a scatola"), Map->BoxVolumes.Num(), 1);
+
+	const int32 RevisionBefore = Map->Revision;
+	TestFalse(TEXT("sostituire con niente non dichiara che l'asset contiene qualcosa"),
+		Map->ReplaceContent(TArray<FRTHexCellData>(), TArray<FRTHexEdge>()));
+	TestEqual(TEXT("celle azzerate"), Map->NumCells(), 0);
+	TestEqual(TEXT("regioni No-Walk azzerate"), Map->NoWalkAreas.Num(), 0);
+	TestEqual(TEXT("volumi a scatola azzerati"), Map->BoxVolumes.Num(), 0);
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
