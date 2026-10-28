@@ -312,7 +312,9 @@ python tools/suite/esegui.py RefactorTactics.HexSim     # un gruppo
 *«attende sul LOG, non sull'uscita del processo»*, perché la fine di una suite si legge dai conteggi e un
 processo appeso non esce mai ([#3048](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3048),
 [#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)). Termina l'albero quando il log
-dichiara finito e il processo resta vivo, e lo **dichiara nel referto** invece di nasconderlo.
+dichiara finito e il processo resta vivo, e lo **dichiara nel referto** invece di nasconderlo. Dichiara in
+cima, e non esce con `0`, anche quando i DLL sono più vecchi dei sorgenti sul disco: una suite verde su una
+build che non è quella dell'albero non è un verde ([#2656](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2656)).
 
 ⚠️ **Un conteggio letto da un log ancora in scrittura non è una misura, ed è il difetto che lo strumento
 toglie.** `grep -c 'Test Completed'` risponde `0` tanto su una run morta quanto su una che sta caricando i
@@ -402,6 +404,14 @@ git ls-files -o --exclude-standard | Get-FileHash      # e degli untracked
 Misurato con due file di prova: riscrivendone uno da capo, l'elenco dei percorsi resta `a.txt, b.txt` e gli hash cambiano. ⚠️ Niente `-z` nella pipeline: separa i nomi con NUL, che PowerShell passa a `Get-FileHash` come **un unico percorso** inesistente — zero hash prodotti, e il comando che dovrebbe smascherare il tranello ci cade dentro.
 
 ⚠️ Il binario resta fuori da tutti e tre: `Binaries/` è gitignorato, quindi un `Build.bat` di un altro checkout non muove né `HEAD` né l'albero. Va confrontato a parte — mtime e dimensione dei DLL dell'editor, come fa `misura.istantanea()`.
+
+🔴 **E non basta che il binario resti fermo: deve anche CONTENERE l'albero** ([#2656](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2656)). I comandi sopra e `istantanea()` provano che nulla si è mosso *durante* la run, non che i DLL siano stati costruiti dai sorgenti che stai misurando: con la build fallita la suite parte sul binario di un'ora fa e un esito verde riguarda codice che non è il tuo. Misurato il 2026-09-07: 55 minuti fra DLL e sorgenti, referto `VALIDA`, due volte di fila. Lo strumento lo controlla: `misura.binari_stantii()` confronta, **modulo per modulo**, il sorgente compilato più recente sotto `Source/` con `Binaries/Win64/UnrealEditor-<modulo>.dll`, con un margine di 1 s, come UBT sui prerequisiti delle sue azioni. Un modulo è `Source/<modulo>/<modulo>.Build.cs`: se non ne riconosce nessuno solleva e lo strumento rifiuta, ma un modulo annidato o con un `.Build.cs` di nome diverso, accanto a uno riconosciuto, resta invisibile.
+
+- **I gate** (`esegui_suite()`) rispondono `NON VALIDA` con la categoria `build` — distinta da `albero`, «i binari sono cambiati durante la run» — **prima** di lanciare il motore.
+- **`esegui.py`** non blocca, perché una run su una build vecchia può essere voluta: scrive l'avviso **in cima** al referto e non esce con `0`. Lo stesso se il controllo non ha potuto girare.
+- **A mano**: build e suite nello stesso comando, con la build uscita `0`.
+
+⚠️ **È un confronto fra mtime, non fra contenuti, e rileva meno di quanto «il binario contiene l'albero» promette.** Vede un sorgente modificato *dopo* il DLL, che è il caso della build fallita. **Non lo vede** se un sorgente è stato cancellato o rinominato (un `git checkout` verso un branch che non ha un file che il DLL contiene), se l'mtime del DLL si muove senza che sia riscritto (aprire l'Editor lo sposta), se un sorgente cambia *mentre* la build gira, se un file è ripristinato da una copia che ne conserva l'mtime vecchio, se la build riesce per il modulo runtime e fallisce per l'Editor, né se cambia in modo semantico solo un `*.Build.cs` o un `*.Target.cs` e la build fallisce. Quei casi sono stati osservati lavorando [#3121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3121), [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509) e [#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563): sono le issue dove sono comparsi, non dove sono documentati. **E segnala uno stantio che nessuna build risolve** per un header che nessuna unità di compilazione include, o per un file in una cartella di un'altra piattaforma che UBT esclude (`Linux`, `Mac`, `Android`, `IOS`; `Source/` oggi non ne ha). `*.Build.cs` e `*.Target.cs` non contano di proposito: non sono prerequisiti delle azioni di UBT, e un edit di solo commento li renderebbe più nuovi del DLL per sempre. Un `git checkout` che ripristina file identici chiede una build in più: costa una build, non un verde sbagliato. Restano fuori i moduli dei plugin (`Plugins/*/Source`, per esempio `RTDeveloperTools`), che `DLL_GLOB` non osserva.
 
 Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
 
