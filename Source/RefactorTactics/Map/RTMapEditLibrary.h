@@ -142,6 +142,29 @@ public:
 		bool bBothDirections);
 
 	/**
+	 * I nomi pubblici (porte e archi) che l'asset porta **ora**: da leggere PRIMA di sostituirne il contenuto, e da
+	 * dare a `PruneOrphansAfterReplace` dopo ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918)).
+	 */
+	static TArray<FName> CollectStructureNames(const URTHexMapAsset* Map);
+
+	/**
+	 * Dopo che il contenuto di un asset e' stato **sostituito**, toglie cio' che nomina celle che non ci sono piu':
+	 * i muri interni sulle celle assenti, e i binding che partono da una struttura sparita (o che restano senza
+	 * bersagli), con la stessa regola di morte dei nomi di `Canc` (`RTApplyOrphanedNames`). Ciò che sta su celle che
+	 * restano si conserva.
+	 *
+	 * 🔑 **Valuta i nomi sul contenuto NUOVO, non con `DeleteElement` cella per cella**: `ReplaceContent` sostituisce
+	 * gli array in un colpo, mentre `DeleteElement` toglierebbe le celle una alla volta (ogni `RemoveCell` muove
+	 * `Revision` e il registro delle modifiche, dove la sostituzione e' UN evento) e raccoglierebbe sull'asset
+	 * vecchio. Un nome muore se nel contenuto nuovo nessuna porta e nessun arco lo porta piu'. Non muove
+	 * `Revision`: la sostituzione la muove una volta sola.
+	 *
+	 * ⚠️ `NamesBefore` e' cio' che `CollectStructureNames` ha letto prima della sostituzione: dopo non c'e' piu'
+	 * niente da leggere.
+	 */
+	static void PruneOrphansAfterReplace(URTHexMapAsset* Map, const TArray<FName>& NamesBefore);
+
+	/**
 	 * Gli elementi autorati che vivono sotto un punto, **dal piu' specifico al piu' generale**.
 	 *
 	 * E' il dominio su cui poggia il ciclo di selezione: un click ripetuto scorre questa lista, quindi

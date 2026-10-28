@@ -396,6 +396,59 @@ bool URTMapEditLibrary::RemoveTransitionAndOrphanedBindings(URTHexMapAsset* Map,
 	return true;
 }
 
+TArray<FName> URTMapEditLibrary::CollectStructureNames(const URTHexMapAsset* Map)
+{
+	TSet<FName> Names;
+	if (Map == nullptr)
+	{
+		return Names.Array();
+	}
+
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		for (const FRTHexDoor& Door : Cell.Doors)
+		{
+			if (!Door.StableId.IsNone())
+			{
+				Names.Add(Door.StableId);
+			}
+		}
+	}
+	for (const FRTHexEdge& Arc : Map->Transitions)
+	{
+		if (!Arc.StableId.IsNone())
+		{
+			Names.Add(Arc.StableId);
+		}
+	}
+	return Names.Array();
+}
+
+void URTMapEditLibrary::PruneOrphansAfterReplace(URTHexMapAsset* Map, const TArray<FName>& NamesBefore)
+{
+	if (Map == nullptr)
+	{
+		return;
+	}
+
+	// I muri interni stanno su una cella: se la cella non c'e' piu' nel contenuto nuovo, e' la regola 1 di
+	// `ValidateMap` e la stessa che la cascata di `Canc` applica (`Cell == Handle.Cell`).
+	Map->InteriorWalls.RemoveAll([Map](const FRTHexInteriorWall& Wall) { return !Map->ContainsCell(Wall.Cell); });
+
+	// I nomi che c'erano e non risolvono piu' ne' una porta ne' un arco: muoiono, e con loro i binding che partono da
+	// una struttura sparita o che restano senza bersagli. Una sola implementazione della morte dei nomi.
+	TArray<FName> Dead;
+	for (const FName& Name : NamesBefore)
+	{
+		if (URTStructureIdentityLibrary::FindDoorEdges(Map, Name).Num() == 0
+			&& URTStructureIdentityLibrary::FindArcs(Map, Name).Num() == 0)
+		{
+			Dead.Add(Name);
+		}
+	}
+	RTApplyOrphanedNames(Map, Dead);
+}
+
 TArray<FRTMapElementHandle> URTMapEditLibrary::ElementsAt(const URTHexMapAsset* Map,
 	const FRTCellId& Cell, ERTHexDirection Edge)
 {
