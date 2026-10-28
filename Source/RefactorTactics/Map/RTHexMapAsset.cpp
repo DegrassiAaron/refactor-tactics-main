@@ -942,8 +942,13 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		//    segmento che chiude un bordo e' gia' rappresentato dalla sua copertura, e scriverlo anche qui
 		//    sarebbe una seconda verita' sullo stesso muro — che e' la ragione per cui questo campo ha un
 		//    perimetro invece di essere «i segmenti della cella».
+		//
+		//    ⛔ «Chiude un bordo» si chiede a `CoverEdgesOf`, la sede che cottura, move e ghost condividono
+		//    (#3326): un segmento che passa per il centro e' un muro interno anche fra due lati opposti, quindi
+		//    NON e' un errore. Chiederlo a `EdgesTouchedBy` lo dichiarava tale mentre la cottura lo scriveva
+		//    proprio qui: l'autore disegnava un diametro e si ritrovava la mappa in errore.
 		TArray<ERTHexDirection> Edges;
-		URTGeometryBakeLibrary::EdgesTouchedBy(Wall.Segment, HexSize, Edges);
+		URTGeometryBakeLibrary::CoverEdgesOf(Wall.Segment, HexSize, Edges);
 		if (Edges.Num() > 0)
 		{
 			Errors.Add(FString::Printf(

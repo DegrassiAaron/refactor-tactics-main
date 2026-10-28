@@ -215,6 +215,22 @@ namespace RTGeometryBakeInternal
 	}
 }
 
+void URTGeometryBakeLibrary::CoverEdgesOf(const FRTGeometrySegment& Segment, float HexSize,
+	TArray<ERTHexDirection>& OutEdges)
+{
+	OutEdges.Reset();
+
+	// 🔑 **Un segmento che passa per il centro e' un muro interno, anche se attraversa due lati opposti**
+	// (#2085, #3326). E' la guardia che la cottura applicava da sola: qui la applicano tutte le sedi, e
+	// nessuna puo' piu' dichiarare «copertura» un diametro che le altre scrivono come muro interno.
+	if (Segment.Offset == 0)
+	{
+		return;
+	}
+
+	EdgesTouchedBy(Segment, HexSize, OutEdges);
+}
+
 void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, float HexSize,
 	TArray<ERTHexDirection>& OutEdges)
 {
@@ -347,20 +363,16 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		//
 		// 🔑 **Che cosa NON cambia**: un muro appoggiato SUL lato (vertice → vertice adiacente) ha
 		// `Offset` massimo, non zero, e continua a chiudere quel bordo. `EdgesTouchedBy` non si tocca:
-		// risponde correttamente alla propria domanda, e ha altri due chiamanti di produzione
-		// (`RTHexMapAsset`, `RTMapEditLibrary`) che questa correzione non deve raggiungere.
+		// risponde correttamente alla propria domanda. La regola «interno o copertura» vive ora in
+		// `CoverEdgesOf` (#3326), che applica la guardia `Offset == 0` per QUATTRO sedi — questa,
+		// `ValidateMap`, `MoveInteriorWall` e il ghost del tool — invece di una stesura per sede.
 		//
 		// 📐 **Perche' e' semanticamente giusto**: una copertura di bordo blocca il passaggio FRA DUE
 		// CELLE. Un raggio dal centro a un lato non lo blocca — dal vicino si entra ancora, da entrambi i
 		// lati del raggio — e cio' che divide e' l'INTERNO. Classificarlo come copertura inventava un
 		// blocco inesistente e perdeva la divisione reale.
-		const bool bThroughCentre = (Segment.Offset == 0);
-
 		TArray<ERTHexDirection> Edges;
-		if (!bThroughCentre)
-		{
-			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
-		}
+		URTGeometryBakeLibrary::CoverEdgesOf(Segment, HexSize, Edges);
 
 		if (Edges.Num() == 0)
 		{

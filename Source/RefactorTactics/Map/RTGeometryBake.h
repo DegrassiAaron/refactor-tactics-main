@@ -58,6 +58,28 @@ public:
 	static void EdgesTouchedBy(const FRTGeometrySegment& Segment, float HexSize, TArray<ERTHexDirection>& OutEdges);
 
 	/**
+	 * I bordi che questo segmento chiude **come COPERTURA**: l'elenco e' VUOTO quando il segmento e' un muro
+	 * INTERNO. E' l'**unica sede** della domanda *«copertura di bordo o muro interno?»* (`#3326`, `D-551`).
+	 *
+	 * 🔑 **Un segmento che passa per il centro (`Offset == 0`) e' un muro interno, anche quando attraversa due
+	 * lati opposti.** Passare per il centro e' una proprieta' della GIACITURA, non l'esito di una domanda sui
+	 * bordi (`#2085`): una copertura di bordo blocca il passaggio FRA DUE CELLE, e un diametro non lo blocca —
+	 * dal vicino si entra ancora, da entrambi i lati — mentre divide l'INTERNO. Tutto il resto lo decide
+	 * `EdgesTouchedBy`: un muro appoggiato SUL lato ha `Offset` massimo, non zero, e continua a chiudere quel
+	 * bordo.
+	 *
+	 * ⛔ **Le sedi che la usano sono quattro, e devono restare quattro chiamate alla stessa funzione**: la
+	 * cottura (`BakeCell`, `AddSegmentsToCell`), `URTHexMapAsset::ValidateMap` (regola 4 dei muri interni),
+	 * `URTMapEditLibrary::MoveInteriorWall` e il ghost del tool Geometry. Fino a `#3326` ne esistevano tre
+	 * stesure, e due non concordavano con la cottura su un diametro `lato -> lato`: l'autore vedeva un ghost
+	 * che promette una copertura, otteneva un muro interno, e si ritrovava `ValidateMap` in errore.
+	 *
+	 * ⚠️ `EdgesTouchedBy` NON cambia: risponde correttamente alla propria domanda — *«si passa da questo
+	 * lato?»* — e ha chiamanti per cui questa distinzione non appartiene.
+	 */
+	static void CoverEdgesOf(const FRTGeometrySegment& Segment, float HexSize, TArray<ERTHexDirection>& OutEdges);
+
+	/**
 	 * Cuoce i segmenti di UNA cella nelle sue coperture, e restituisce quante ne ha generate.
 	 *
 	 * IDEMPOTENTE (`D-131`), ed e' la proprieta' che il campo `bGenerated` esiste per dare:

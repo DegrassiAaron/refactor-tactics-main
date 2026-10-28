@@ -626,8 +626,10 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 			const FVector CellCentre = URTHexLibrary::AxialToWorld(Piece.Cell, Origin, HexSize, LayerHeight);
 			const FVector Base(CellCentre.X, CellCentre.Y, Z);
 
+			// La STESSA sede di cottura, `ValidateMap` e move (#3326): il ghost non promette una copertura dove
+			// la cottura scrivera' un muro interno, come faceva su un diametro `lato -> lato`.
 			TArray<ERTHexDirection> Edges;
-			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+			URTGeometryBakeLibrary::CoverEdgesOf(Segment, HexSize, Edges);
 
 			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, HexSize);
 			if (Line.Points.Num() >= 2)
