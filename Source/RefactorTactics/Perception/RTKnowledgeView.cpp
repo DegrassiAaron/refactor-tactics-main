@@ -22,7 +22,8 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		// teneva in serie sono oggi **disgiunte**.
 		//
 		// 🔴 **E oggi questa guardia non ha nessun consumatore che la osservi — misurato, non dedotto.**
-		// L'unico chiamante di produzione e' `UvViewForObserver`, l'helper che `ARTHUD::UpdateObserverVeil`
+		// L'unico chiamante di produzione e' `URTHudViewModel::BuildObserverKnowledgeView` (era `UvViewForObserver`,
+		// un helper dell'HUD), che `ARTHUD::UpdateObserverVeil`
 		// usa; e il ciclo che consuma la vista **salta gia' i caduti da se'**
 		// (`if (!Unit || !Unit->IsAlive()) { continue; }`). Togliere questa riga non farebbe comparire nessun
 		// morto sull'overlay: non cambierebbe **niente di osservabile**.
@@ -39,7 +40,7 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		// **nessuna delle tre scatta alla morte**. Il conto sta in [D-431].
 		//
 		// ✅ **La duplicazione dichiarata qui era un `FOLLOW-UP CANDIDATE`, ed e' CHIUSO** (`#3253`): il
-		// docstring di `UvViewForObserver` non vieta piu' una duplicazione che il file commette comunque, e
+		// docstring di `UvViewForObserver` (oggi `URTHudViewModel::BuildObserverKnowledgeView`) non vieta piu' una duplicazione che il file commette comunque, e
 		// dice il conto giusto — filtrare nei soggetti sarebbe la **terza** copia, non la seconda.
 		if (!S.bAlive)
 		{

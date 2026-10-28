@@ -1502,6 +1502,16 @@ public:
 		const TArray<ARTUnit*>& Units);
 
 	/**
+	 * La VISTA DI CONOSCENZA di chi guarda, dai soggetti che le unita' vive e morte dichiarano (`#3750`: era un helper locale
+	 * dell'HUD, e il controller ha bisogno dello stesso cancello `Live`). La motivazione e le guardie stanno sul corpo.
+	 *
+	 * ⚠️ **Una sede sola**: il velo, lo sguardo e il cancello del fuoco la chiamano tutti, perche' due costruttori della stessa
+	 * vista divergerebbero alla prima correzione. Non e' una `UFUNCTION`: porta puntatori ad attori.
+	 */
+	static struct FRTKnowledgeView BuildObserverKnowledgeView(const ARTTurnManager* TurnManager,
+		const TArray<ARTUnit*>& Units, int32 PlayerTeamId);
+
+	/**
 	 * La frase di un singolo evento, esposta perche' e' la decisione che si sbaglia una volta sola.
 	 *
 	 * ⚠️ **Una tabella, non un `if` per sito.** Un tipo nuovo dell'enum non tradotto qui produce una riga

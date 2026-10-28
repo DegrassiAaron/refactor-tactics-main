@@ -3178,6 +3178,7 @@ namespace
 		Actor->SetPreviewPath({ A, B });
 		Actor->SetPreviewHitCells({ A }, { B });
 		Actor->SetPreviewRangeCells({ A });
+		Actor->SetPreviewFocusAreas({ A, B }, { FRTCellId(-1, 0, 0) }); // #3750: le due aree di movimento del fuoco
 		Actor->SetPreviewAttack(A, B, /*bValid=*/ true, /*bOriginPredicted=*/ false);
 		Actor->SetPreviewSightBlock(/*bBlocked=*/ true, A, B);
 		FRTPlanPreview Timeline;
@@ -3266,6 +3267,8 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("controllo: il tratto di LOS e' acceso"), Actor->HasPreviewSightBlock());
 	TestEqual(TEXT("controllo: la timeline ha una fase"), Actor->GetPlanPreview().Phases.Num(), 1);
+	TestTrue(TEXT("controllo: le due aree del fuoco sono accese (#3750)"),
+		Actor->GetPreviewFocusNormalCells().Num() > 0 && Actor->GetPreviewFocusRunOnlyCells().Num() > 0);
 
 	Actor->ClearPlanningPreview();
 
@@ -3274,6 +3277,8 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("dopo il reset %s e' spento"), *HexMapActorMeaningName(Meaning)),
 			Actor->NumPlanningPreviewCells(Meaning), 0);
 	}
+	TestEqual(TEXT("dopo il reset l'area normale del fuoco e' spenta"), Actor->GetPreviewFocusNormalCells().Num(), 0);
+	TestEqual(TEXT("e quella raggiunta solo correndo"), Actor->GetPreviewFocusRunOnlyCells().Num(), 0);
 	TestFalse(TEXT("dopo il reset anche il tratto di LOS e' spento (`#3064`)"), Actor->HasPreviewSightBlock());
 	TestEqual(TEXT("e la timeline dei ghost e' vuota"), Actor->GetPlanPreview().Phases.Num(), 0);
 
@@ -3286,6 +3291,62 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 	TestEqual(TEXT("un secondo reset lascia tutto spento"),
 		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::Movement)
 			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AttackOriginAim), 0);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * **`#3750` — le aree del fuoco sono un SECONDO canale di movimento: non toccano il ventaglio, il ventaglio non tocca loro, e
+ * il conto per significato le somma.**
+ *
+ * Lo stesso significato (`Movement`), due sedi: se i setter si pestassero i piedi, l'arbitro non potrebbe far cedere il piano al
+ * fuoco e tornare indietro. Il conto per significato le deve vedere entrambe, o chi verifica che un'uscita abbia spento tutto
+ * (`PreviewCellsLit`) resterebbe cieco a un'area di fuoco rimasta accesa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorFocusAreasTest,
+	"RefactorTactics.HexMapActor.TheFocusAreasAreASecondMovementChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorFocusAreasTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius*/ 2));
+	if (!TestNotNull(TEXT("actor spawnato"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(1, 0, 0);
+	const FRTCellId C(-1, 0, 0);
+
+	Actor->SetPreviewReachableCells({ A });
+	Actor->SetPreviewFocusAreas({ A, B }, { C });
+
+	TestTrue(TEXT("l'area normale e' quella data"), Actor->GetPreviewFocusNormalCells() == TArray<FRTCellId>({ A, B }));
+	TestTrue(TEXT("l'area raggiunta solo correndo e' quella data"), Actor->GetPreviewFocusRunOnlyCells() == TArray<FRTCellId>({ C }));
+	TestEqual(TEXT("scrivere il fuoco non tocca il ventaglio"), Actor->GetPreviewReachableCells().Num(), 1);
+	TestEqual(TEXT("il conto per significato somma ventaglio e aree del fuoco"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::Movement), 1 + 2 + 1);
+
+	// Spegnere il fuoco non spegne il ventaglio, e viceversa.
+	Actor->SetPreviewFocusAreas({}, {});
+	TestEqual(TEXT("svuotare il fuoco lascia il ventaglio"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::Movement), 1);
+	Actor->SetPreviewFocusAreas({ A, B }, { C });
+	Actor->SetPreviewReachableCells({});
+	TestEqual(TEXT("svuotare il ventaglio lascia le aree del fuoco"), Actor->GetPreviewFocusNormalCells().Num(), 2);
+	TestEqual(TEXT("...entrambe"), Actor->GetPreviewFocusRunOnlyCells().Num(), 1);
+
+	Actor->ClearPlanningPreview();
+	TestEqual(TEXT("il reset unico le spegne"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::Movement), 0);
+
+	// Si DISEGNANO: l'attore tiene acceso il tick solo finche' c'e' qualcosa da disegnare, e ciascuna delle due aree basta da
+	// sola. CONTROLLO: spento il reset, senza altro da disegnare, il tick e' spento.
+	TestFalse(TEXT("controllo: senza niente da disegnare il tick e' spento"), Actor->IsActorTickEnabled());
+	Actor->SetPreviewFocusAreas({ A, B }, {});
+	TestTrue(TEXT("la sola area normale del fuoco tiene acceso il tick"), Actor->IsActorTickEnabled());
+	Actor->ClearPlanningPreview();
+	Actor->SetPreviewFocusAreas({}, { C });
+	TestTrue(TEXT("e la sola area di corsa"), Actor->IsActorTickEnabled());
+	Actor->ClearPlanningPreview();
 
 	DestroyMapActorWorld(World);
 	return true;
