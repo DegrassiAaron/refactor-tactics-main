@@ -1196,6 +1196,8 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewHitArea.Cells.Num() > 0
 		|| PreviewReachableArea.Cells.Num() > 0
 		|| PreviewRangeArea.Cells.Num() > 0
+		|| PreviewFocusNormalArea.Cells.Num() > 0
+		|| PreviewFocusRunArea.Cells.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
@@ -1235,6 +1237,19 @@ void ARTHexMapActor::SetPreviewRangeCells(const TArray<FRTCellId>& RangeCells)
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
+void ARTHexMapActor::SetPreviewFocusAreas(const TArray<FRTCellId>& NormalCells, const TArray<FRTCellId>& RunOnlyCells)
+{
+	// Si copia e basta, come le altre aree: il calcolo e' di `URTFocusAreaLibrary`, e ricalcolarlo qui sarebbe la seconda
+	// risposta alla stessa domanda. `Predicted` perche' e' il massimo che il nemico puo' raggiungere, non un piano.
+	PreviewFocusNormalArea.Cells = NormalCells;
+	PreviewFocusNormalArea.Meaning = ERTOverlayMeaning::Movement;
+	PreviewFocusNormalArea.Certainty = ERTOverlayCertainty::Predicted;
+	PreviewFocusRunArea.Cells = RunOnlyCells;
+	PreviewFocusRunArea.Meaning = ERTOverlayMeaning::Movement;
+	PreviewFocusRunArea.Certainty = ERTOverlayCertainty::Predicted;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
 void ARTHexMapActor::SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
 	bool bOriginPredicted)
 {
@@ -1264,6 +1279,7 @@ void ARTHexMapActor::ClearPlanningPreview()
 	// spegneva (`#3064`).
 	SetPreviewReachableCells(TArray<FRTCellId>());
 	SetPreviewRangeCells(TArray<FRTCellId>());
+	SetPreviewFocusAreas(TArray<FRTCellId>(), TArray<FRTCellId>());
 	SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
 	SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
 	SetPreviewPath(TArray<FRTCellId>());
@@ -1276,7 +1292,10 @@ int32 ARTHexMapActor::NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const
 {
 	switch (Meaning)
 	{
-	case ERTOverlayMeaning::Movement:        return PreviewReachableArea.Cells.Num();
+	// Il ventaglio E le due aree del fuoco (#3750): hanno lo stesso significato, e un'area di fuoco rimasta accesa dopo
+	// un'uscita deve vedersi nel conto di chi verifica che l'anteprima sia spenta.
+	case ERTOverlayMeaning::Movement:        return PreviewReachableArea.Cells.Num()
+		+ PreviewFocusNormalArea.Cells.Num() + PreviewFocusRunArea.Cells.Num();
 	case ERTOverlayMeaning::PathTrace:       return PreviewPathArea.Cells.Num();
 	case ERTOverlayMeaning::Attack:          return PreviewHitArea.Cells.Num();
 	case ERTOverlayMeaning::FriendlyFire:    return PreviewAllyHitArea.Cells.Num();
@@ -2030,6 +2049,35 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	for (const FRTCellId& Cell : PreviewReachableArea.Cells)
 	{
 		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
+	}
+
+	// Le due aree di movimento di chi e' a FUOCO (`#3750`, D-552), nello stile `Predicted`: e' il massimo che il nemico puo'
+	// raggiungere, non cio' che fara'. Lo stile e' un canale NON cromatico — il contorno spezzato, come l'origine prevista
+	// piu' sotto — e le due bande si distinguono per la scala: la normale al passo del ventaglio, quella raggiunta solo
+	// correndo piu' piccola, dentro. Stesso significato, stesso colore: la grammatica la decide la palette, non questo ciclo.
+	// ⚠️ La resa e' una scelta da giudicare in PIE (`PIE-HUD-FUOCO-AREE`), non una misura.
+	const auto DrawPredictedMovement = [World, &Origin, Size, LayerH, &CellLift](const FRTCellId& Cell, float ScaleFactor)
+	{
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, Size, LayerH)
+			+ FVector(0, 0, CellLift(Cell) + RTLiftPreview);
+		const TArray<FVector> Corners = URTHexLibrary::HexCorners(
+			Center, Size * URTOverlayPalette::ScaleFor(ERTOverlayMeaning::Movement) * ScaleFactor);
+		const FColor Color = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Movement);
+		for (int32 I = 0; I < Corners.Num(); ++I)
+		{
+			// Mezzo lato per lato: spezzato, non continuo.
+			const FVector& From = Corners[I];
+			const FVector To = FMath::Lerp(From, Corners[(I + 1) % Corners.Num()], 0.5f);
+			DisegnaLineaAnteprima(World, From, To, Color, SDPG_World, /*Spessore=*/ 3.f);
+		}
+	};
+	for (const FRTCellId& Cell : PreviewFocusNormalArea.Cells)
+	{
+		DrawPredictedMovement(Cell, 1.f);
+	}
+	for (const FRTCellId& Cell : PreviewFocusRunArea.Cells)
+	{
+		DrawPredictedMovement(Cell, 0.7f);
 	}
 
 	// La portata dell'azione armata (`#3507`): dove posso mirare. In targeting prende il posto del ventaglio, e sta

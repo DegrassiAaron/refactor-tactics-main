@@ -2,8 +2,29 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Player/RTFocusArea.h"          // FRTFocusMoveSubject: i valori del soggetto a fuoco (#3750)
 #include "Player/RTPointerInteraction.h" // ERTPointerContext, ERTPointerTargetKind
 #include "UObject/WeakObjectPtrTemplates.h"
+
+/**
+ * **Chi scrive le aree della mappa, adesso** — l'arbitro dell'anteprima (`#3750`, fetta C di F5; spec dell'ispettore §6.3).
+ *
+ * Una sola variabile, derivata dagli ingressi e mai tenuta a parte: due sorgenti che scrivessero i setter per conto loro
+ * si contenderebbero la mappa col piano. ⚠️ **Sono due, non tre, e non e' una dimenticanza**: l'hover su una skill
+ * (`SkillHover`) entra con il suo produttore e con la sua resa, che sono la fetta D. Una voce che nessuno emette non e'
+ * un vocabolario: e' una promessa.
+ */
+enum class ERTPreviewSource : uint8
+{
+	/** Le aree non si mostrano (commit, playback, `Modal`, KO, fine partita, nessuna unita' e nessun fuoco). */
+	None,
+
+	/** Il piano dell'unita' comandata: ventaglio, portata, rotta, timeline. */
+	Plan,
+
+	/** Il fuoco su un personaggio che la squadra osserva: la sua area di movimento, in due bande. */
+	Focus,
+};
 
 /**
  * Gli ingressi da cui dipendono le aree di pianificazione, **in una sola struct con uguaglianza** — `#3511`
@@ -66,6 +87,36 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/** La partita e' finita. `GetPointerContext` non lo dichiara di proposito, quindi va letto a parte. */
 	bool bMatchEnded = false;
 
+	// --- IL FUOCO (`#3750`, fetta C; [D-552]) ---------------------------------------------------------------------
+	//
+	// 🔴 **Questi campi li scrive il solo risolutore del controller, e SOLO quando l'area del fuoco e' sulla mappa**: in ogni
+	// altro caso valgono i default. E' la normalizzazione che tiene la struct onesta: un soggetto a fuoco la cui area e' gia'
+	// uscita non fa ricalcolare il piano quando si muove, e nessun campo e' un ingresso che non rifa' mai niente.
+
+	/**
+	 * Il personaggio a fuoco, **gia' passato dal cancello di conoscenza**: nullo se l'unita' ispezionata non e' una voce `Live`
+	 * nella vista di chi guarda, o non e' un nemico vivo (P2, D-552). Debole, come `Unit`.
+	 */
+	TWeakObjectPtr<const UObject> FocusSubject;
+
+	/**
+	 * Il soggetto come VALORI (cella, movimento base, `Slow`, corsa negata): cio' da cui dipende l'area, e niente di piu'. Mai
+	 * il piano (P3): chi lo riempie e' `URTFocusAreaLibrary::SubjectFor`, l'unico punto che legge l'attore.
+	 */
+	FRTFocusMoveSubject FocusMove;
+
+	/**
+	 * Un'impronta di `VisibleCells` di adesso. L'area dipende da cio' che la squadra vede: senza questo ingresso un nemico che
+	 * si muove o un velo che cambia lascerebbero a schermo un'area calcolata su una vista di prima.
+	 */
+	uint32 FocusKnowledgeStamp = 0;
+
+	/**
+	 * L'area del fuoco e' ancora sulla mappa. Lo decide `FRTFocusLatch`, e **non torna da sola**: lascia la mappa al primo gesto
+	 * di pianificazione (spec §3 regola 4) e ci rientra solo con una nuova fissazione.
+	 */
+	bool bFocusOnMap = false;
+
 	bool operator==(const FRTPlanningOverlayInputs& Other) const;
 	bool operator!=(const FRTPlanningOverlayInputs& Other) const { return !(*this == Other); }
 
@@ -85,4 +136,65 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	 * uscite che l'issue elenca: commit, risoluzione, Cleanup, `Modal`, KO e fine partita.
 	 */
 	bool ShowsAreas() const;
+
+	/**
+	 * **L'area del fuoco si mostra?** Pura. Vera con un soggetto osservato, l'area ancora sulla mappa, la partita in corso e un
+	 * contesto che lo ammette (`ContextAllowsFocus`). Non chiede un'unita' comandata: si ispeziona anche senza selezione.
+	 */
+	bool ShowsFocus() const;
+
+	/**
+	 * **Il fuoco puo' stare sulla mappa in questo contesto?** Solo `IdleSelection` e `Planning`: il resto e' o un gesto di
+	 * pianificazione gia' fatto (`Pathing`, `Targeting`, `Facing`: l'area e' gia' uscita), o un mondo in sola lettura dove
+	 * l'ispettore e' inerte (`ReactionWindow`, `Modal`) o dove il fuoco resta spento per scelta della sessione
+	 * (`ResolutionPlayback`, da giudicare in PIE). Nessun `default:`, come `ShowsAreas`: un contesto nuovo lo dice qui.
+	 */
+	static bool ContextAllowsFocus(ERTPointerContext Context);
+
+	/**
+	 * **Il fuoco resta in vita ma nascosto in questo contesto?** Finestra di reazione e modale: l'ispettore e' inerte e la
+	 * scheda e' nascosta SENZA essere chiusa, e torna quando si chiudono (spec §3 regole 5 e 11). Non sono gesti di
+	 * pianificazione, quindi il latch non si spegne e l'area torna con la scheda. ⚠️ `ResolutionPlayback` NON e' qui: il fuoco
+	 * resta spento per scelta della sessione, e a playback finito il turno e' cambiato, quindi l'area e' comunque uscita.
+	 * Nessun `default:`, come le due sorelle.
+	 */
+	static bool ContextSuspendsFocus(ERTPointerContext Context);
+
+	/** **Chi scrive adesso**: il fuoco prima del piano, perche' una sola sorgente alla volta tiene la mappa. */
+	ERTPreviewSource ActiveSource() const;
+};
+
+/**
+ * **Il fuoco lascia la mappa al primo gesto di pianificazione e non torna da sola** (`#3750`, spec §3 regola 4).
+ *
+ * Pura, e derivata dallo stato come il resto di `#3511`: nessun evento da ricordarsi di spegnere. Si accende con una nuova
+ * fissazione (`PinSerial` diverso dall'ultimo visto) e fotografa il piano di quel momento; da li' in poi si spegne appena
+ * cambia l'unita' comandata, la revisione del piano, l'azione armata o il turno, esce da un contesto che ammette il fuoco
+ * (salvo i due che lo SOSPENDONO, `ContextSuspendsFocus`: la finestra di reazione e il modale nascondono l'area senza
+ * spegnerla), o il soggetto smette di essere osservato. Una volta spenta resta spenta, anche se lo stato torna uguale
+ * (disarmare non riporta l'area).
+ *
+ * ⚠️ **Seleziona un'altra unita' comandata = un gesto di pianificazione.** La spec dice che il fuoco non tocca selezione ne'
+ * piano, non cosa succede a lui quando la selezione cambia: la scelta e' della sessione, da giudicare in PIE.
+ */
+struct REFACTORTACTICS_API FRTFocusLatch
+{
+	bool bOnMap = false;
+
+	/** L'ultima fissazione vista. */
+	int32 PinSerial = 0;
+
+	/** Il piano al momento della fissazione. */
+	TWeakObjectPtr<const UObject> BaseUnit;
+	int32 BaseRevision = 0;
+	int32 BaseArmed = INDEX_NONE;
+	int32 BaseTurn = 0;
+
+	/**
+	 * Osserva gli ingressi di adesso (con `FocusSubject` gia' passato dal cancello; `bFocusOnMap` e' ignorato) e dice se l'area
+	 * e' ancora sulla mappa.
+	 * @param InPinSerial  quante fissazioni ha fatto il controller dall'inizio: cambia a ogni `PinInspection`, anche sulla
+	 *                     stessa unita'.
+	 */
+	bool Observe(int32 InPinSerial, const FRTPlanningOverlayInputs& Raw);
 };

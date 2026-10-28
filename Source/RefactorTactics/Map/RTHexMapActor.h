@@ -959,9 +959,22 @@ public:
 	 */
 	void SetPreviewRangeCells(const TArray<FRTCellId>& RangeCells);
 
-	/** Cio' che l'anteprima disegnera': il ventaglio e la portata. Servono ai test. */
+	/**
+	 * Le DUE aree di movimento di chi e' a fuoco (`#3750`, D-552): dove arriva col movimento normale (`NormalCells`) e dove
+	 * arriva SOLO correndo (`RunOnlyCells`, al netto della prima). Vuoti = nessuna area.
+	 *
+	 * 🔑 **E' un secondo canale e non un riuso di `SetPreviewReachableCells`**: quello e' il ventaglio dell'unita' comandata,
+	 * `Confirmed`, e i due non si mostrano insieme (l'arbitro, `FRTPlanningOverlayInputs::ActiveSource`) ma hanno
+	 * significati diversi. Lo stile e' `Predicted`: e' il MASSIMO che il nemico puo' raggiungere, non cio' che fara'.
+	 * Le celle arrivano gia' calcolate da `URTFocusAreaLibrary::MoveAreasFor`: qui non si ricalcola niente.
+	 */
+	void SetPreviewFocusAreas(const TArray<FRTCellId>& NormalCells, const TArray<FRTCellId>& RunOnlyCells);
+
+	/** Cio' che l'anteprima disegnera': il ventaglio, la portata e le due aree del fuoco. Servono ai test. */
 	const TArray<FRTCellId>& GetPreviewReachableCells() const { return PreviewReachableArea.Cells; }
 	const TArray<FRTCellId>& GetPreviewRangeCells() const { return PreviewRangeArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewFocusNormalCells() const { return PreviewFocusNormalArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewFocusRunOnlyCells() const { return PreviewFocusRunArea.Cells; }
 
 	/**
 	 * Origine e mira dell'attacco pianificato: da DOVE parte il colpo e verso cosa. `bValid = false` spegne
@@ -1324,6 +1337,12 @@ protected:
 	FRTOverlayArea PreviewReachableArea;
 	/** La portata dell'azione armata (`#3507`): in targeting prende il posto di `PreviewReachableArea`. */
 	FRTOverlayArea PreviewRangeArea;
+	/**
+	 * Le due aree di movimento di chi e' a fuoco (`#3750`): la normale e quella raggiunta solo correndo. Significato
+	 * `Movement`, certezza `Predicted`. Non si mostrano insieme al ventaglio: lo decide l'arbitro, non l'attore.
+	 */
+	FRTOverlayArea PreviewFocusNormalArea;
+	FRTOverlayArea PreviewFocusRunArea;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
 	/**

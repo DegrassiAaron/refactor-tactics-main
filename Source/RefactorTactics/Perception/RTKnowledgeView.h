@@ -151,7 +151,8 @@ public:
 	 * e **non** il combat log, che da [D-223] porta il verdetto congelato alla scrittura.
 	 *
 	 * 🔴 **Chi tocca quella guardia cambia il VELO, non il log**: in produzione questa funzione ha **un solo**
-	 * chiamante, `UvViewForObserver` dentro `ARTHUD::UpdateObserverVeil`.
+	 * chiamante, `URTHudViewModel::BuildObserverKnowledgeView` (era `UvViewForObserver` dentro l'HUD; da `#3750` lo chiama
+	 * anche il cancello del fuoco del controller, ma sempre da li').
 	 * Toglierla per *«far tornare le righe del turno di chi muore»* non restituisce **nessuna** riga: quel
 	 * difetto e' chiuso altrove, da [D-223].
 	 *
