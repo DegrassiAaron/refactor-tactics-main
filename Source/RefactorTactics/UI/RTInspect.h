@@ -36,6 +36,34 @@ struct REFACTORTACTICS_API FRTInspectEquipmentLine
 	FText Drawback;
 };
 
+/**
+ * Una ricarica DEDOTTA (`#3751`, F6): l'ultimo turno in cui la squadra ha visto usare l'azione, e il turno da cui,
+ * a quel conteggio, torna disponibile. E' una STIMA e si legge come tale: un effetto non visto che allunghi o accorci
+ * la ricarica la rende sbagliata.
+ *
+ * ⛔ Quattro campi e nessuno e' la ricarica vera: non c'e' un contatore residuo, ne' un `bUsableNow`. Il test
+ * `UI.InspectDeducedRowCarriesNoTrueCooldown` lo pinna per reflection.
+ */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTInspectDeducedCooldown
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	FName ActionId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	FText Title;
+
+	/** L'ultimo turno in cui la squadra ha visto usare l'azione. Sempre >= 1: senza avvistamento non c'e' riga. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	int32 LastSeenTurn = 0;
+
+	/** `LastSeenTurn` + durata di catalogo: il turno di pianificazione in cui l'azione, a questo conto, e' di nuovo usabile. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	int32 AvailableFromTurn = 0;
+};
+
 /** Cio' che di un'unita' ispezionata e' pubblico. */
 USTRUCT(BlueprintType)
 struct REFACTORTACTICS_API FRTInspectSubject
@@ -69,6 +97,13 @@ struct REFACTORTACTICS_API FRTInspectSubject
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	TArray<FRTInspectEquipmentLine> Equipment;
+
+	/**
+	 * Le ricariche DEDOTTE di un nemico, nell'ordine del kit (`#3751`). Solo per le azioni che la squadra ha visto
+	 * usare e che hanno una ricarica; vuoto per un'unita' propria o alleata, di cui si leggono le ricariche vere.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	TArray<FRTInspectDeducedCooldown> DeducedCooldowns;
 };
 
 /** Le righe da disegnare. */
@@ -87,8 +122,26 @@ class REFACTORTACTICS_API URTInspectLibrary : public UObject
 	GENERATED_BODY()
 
 public:
-	/** Nome, PV e scudo, verso (se acceso), stati col nome e l'effetto del glossario, kit, equipaggiamento. */
+	/**
+	 * Nome, PV e scudo, verso (se acceso), stati col nome e l'effetto del glossario, kit, equipaggiamento, e le
+	 * ricariche dedotte (dichiarate stima).
+	 */
 	static FRTInspectView Compose(const FRTInspectSubject& Subject);
+
+	/**
+	 * Una riga di ricarica dedotta, o `false` se non c'e' niente da dire (`#3751`).
+	 *
+	 * Non c'e' riga per un'azione mai vista usare (`LastSeenTurn <= 0`), ne' per una senza ricarica (`CooldownTurns
+	 * <= 0`: sarebbe «torna disponibile subito»), ne' senza identita'. La deduzione tace, non indovina.
+	 *
+	 * 🔑 **`AvailableFromTurn = LastSeenTurn + CooldownTurns`, e non +/-1.** `ARTUnit::ConsumeAbility` scrive
+	 * `CooldownTurns` durante la risoluzione del turno T, `TickCooldowns` ne toglie uno nel Cleanup dello stesso T:
+	 * a fine turno T restano `CooldownTurns - 1`, e a zero si arriva dopo il Cleanup di T + `CooldownTurns` - 1,
+	 * cioe' pianificando il turno T + `CooldownTurns`. Una ricarica di 1 e' «ogni turno» (T + 1). Lo pinna
+	 * `UI.InspectDeducedCooldownMatchesTheRealCountdown` contro `ConsumeAbility`/`TickCooldowns` veri.
+	 */
+	static bool MakeDeducedCooldown(FName ActionId, const FText& Title, int32 CooldownTurns, int32 LastSeenTurn,
+		FRTInspectDeducedCooldown& OutRow);
 
 	/**
 	 * IL CANCELLO DI CONOSCENZA (#3748, P2): una scheda esiste solo se la vista ha una voce `Live` per l'unita'. Un

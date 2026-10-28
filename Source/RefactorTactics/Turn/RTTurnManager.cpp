@@ -3162,6 +3162,21 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// `FRTLogEntryAppendedSignature`.
 	OnLogEntryAppended.Broadcast(Entry);
 
+	// `#3751`: le azioni che ogni squadra ha visto usare. Stesso punto e stessa ragione dell'annuncio qui sopra: un
+	// produttore per sito sarebbe un elenco da tenere allineato. Le squadre sono quelle di `TeamKnowledgeState`,
+	// contro cui `FreezeVerdictFor` congela il verdetto di una voce di UN'UNITA'. ⚠️ I verdetti gia' congelati
+	// (`Frozen`) o di piano possono nominare squadre che non sono li': nessuna categoria che il registro conta li
+	// usa oggi (`IsUseByItsSubject`), ed e' una condizione da riverificare se se ne aggiunge una. Il registro tiene
+	// solo cio' che il verdetto autorizza, e non decide niente: osservazione pura, come il broadcast.
+	{
+		TArray<int32, TInlineAllocator<8>> ObserverTeams;
+		for (const FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+		{
+			ObserverTeams.Add(Knowledge.TeamId);
+		}
+		SeenUses.Observe(Entry, ObserverTeams);
+	}
+
 	// `#2245`: lo stesso fatto, sull'altro canale. La voce e' appena stata scritta e porta gia' tutto —
 	// il tag in `ActionId`, la durata in `Amount`, la causa in `Outcome` — quindi qui non si decide nulla:
 	// si COPIA.

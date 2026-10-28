@@ -8,6 +8,7 @@
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
 #include "UI/RTGlance.h" // i soggetti pubblici dello sguardo (#3747)
 #include "UI/RTInspect.h" // il soggetto pubblico della scheda (#3748)
+#include "Turn/RTSeenUseLedger.h" // FRTSeenUseLedger: le ricariche dedotte della scheda (#3751)
 #include "RTHUD.generated.h"
 
 /**
@@ -667,8 +668,13 @@ public:
 	 * pubblico: carta e stati (quelli della targa), verso, kit dal CATALOGO, equipaggiamento. Il kit passa da
 	 * `BuildCatalogActionRow`, che non prende un'unita': piano, slot, azione armata e ricariche vere non hanno
 	 * un percorso per arrivare qui. `NAME_None` come variante: la variante attiva e' stato di partita.
+	 *
+	 * `SeenUses` (#3751, F6): cio' che la squadra `PlayerTeamId` ha visto usare, da `ARTTurnManager::GetSeenUses()`.
+	 * Con un'unita' di un'ALTRA squadra riempie `DeducedCooldowns`; senza (`nullptr`) o per un'unita' della propria
+	 * squadra il campo resta vuoto. Le ricariche vere dell'avversario (`AbilityCooldowns`) non vengono lette.
 	 */
-	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing);
+	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
+		const FRTSeenUseLedger* SeenUses = nullptr);
 	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
 
 	/**
