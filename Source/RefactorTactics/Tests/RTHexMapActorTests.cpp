@@ -3458,4 +3458,102 @@ bool FRTHexMapActorMappingGuardSeesShuffledFogTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// #3322 - `ARTHexMapActor::EraseCell` e' il secondo chiamante di `EraseCellInStroke`: cancellare una cella
+// dall'actor porta via anche la sua cascata, come il pennello e come `Canc` sulla selezione.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Un asset valido in cui `Doomed` porta un muro interno, un arco verso `Far` e una porta citata da un binding.
+	 * Nome prefissato per dominio: unity build.
+	 */
+	URTHexMapAsset* ActorEraseFixture(const FRTCellId& Doomed, const FRTCellId& Far)
+	{
+		URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 2);
+		Asset->HexSize = 100.f;
+
+		const double Angle = PI / 6.0;
+		const FVector2D A(100.0 * FMath::Cos(Angle), 100.0 * FMath::Sin(Angle));
+		FRTGeometrySegment Chord;
+		if (!URTGeometryGrammarLibrary::SnapToGrammar(A, -A, 100.f, Chord))
+		{
+			return nullptr;
+		}
+		Chord.WallType = ERTHexCoverType::High;
+		Asset->InteriorWalls.Add(FRTHexInteriorWall(Doomed, Chord));
+		Asset->Transitions.Add(FRTHexEdge(Doomed, Far, /*Cost*/ 1));
+
+		auto PutDoor = [Asset](const FRTCellId& Id, ERTHexDirection Edge, int32 DoorId, FName StableId)
+		{
+			const FRTHexCellData* Existing = Asset->FindCell(Id);
+			FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(Id);
+			FRTHexDoor Door(Edge, ERTHexDoorState::Closed, DoorId);
+			Door.StableId = StableId;
+			Data.Doors.Add(Door);
+			Asset->AddOrUpdateCell(Data);
+		};
+		PutDoor(Doomed, ERTHexDirection::E, 1, TEXT("S1"));
+		PutDoor(Far, ERTHexDirection::W, 2, TEXT("D1"));
+		Asset->SortCells();
+		Asset->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+		return Asset;
+	}
+}
+
+/**
+ * **Cancellare una cella dall'actor non lascia orfani.**
+ *
+ * Il gesto dell'actor apre una transazione, chiama `BeginStroke` / `EraseCellInStroke` / `EndStroke` e ricostruisce
+ * la vista. Prima di #3322 lasciava nell'asset il muro, l'arco e il binding che nominavano la cella, e
+ * `ValidateMap` li segnalava. La premessa asserisce che l'allestimento li porta davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorEraseCellCascadeTest,
+	"RefactorTactics.HexMapActor.EraseCellTakesTheCascade",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorEraseCellCascadeTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("World creato"), World))
+	{
+		return false;
+	}
+
+	URTHexMapAsset* Asset = ActorEraseFixture(Doomed, Far);
+	if (!TestNotNull(TEXT("l'asset si costruisce"), Asset))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor spawnato"), Actor))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("premessa: l'asset parte valido"), Asset->ValidateMap().Num(), 0);
+	TestEqual(TEXT("premessa: un muro interno"), Asset->InteriorWalls.Num(), 1);
+	TestEqual(TEXT("premessa: un arco"), Asset->Transitions.Num(), 1);
+	TestEqual(TEXT("premessa: un binding"), Asset->InteractionBindings.Num(), 1);
+
+	TestTrue(TEXT("la cella e' stata cancellata"), Actor->EraseCell(Doomed));
+
+	const TArray<FString> Errors = Asset->ValidateMap();
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"),
+		Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuna")), Errors.Num(), 0);
+	TestFalse(TEXT("la cella non c'e' piu'"), Asset->ContainsCell(Doomed));
+	TestEqual(TEXT("il muro interno e' andato"), Asset->InteriorWalls.Num(), 0);
+	TestEqual(TEXT("l'arco e' andato"), Asset->Transitions.Num(), 0);
+	TestEqual(TEXT("il binding e' andato"), Asset->InteractionBindings.Num(), 0);
+	TestFalse(TEXT("una seconda cancellazione della stessa cella non fa niente"), Actor->EraseCell(Doomed));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
