@@ -68,14 +68,18 @@ public:
 	 * `EdgesTouchedBy`: un muro appoggiato SUL lato ha `Offset` massimo, non zero, e continua a chiudere quel
 	 * bordo.
 	 *
-	 * ⛔ **Le sedi che la usano sono quattro, e devono restare quattro chiamate alla stessa funzione**: la
-	 * cottura (`BakeCell`, `AddSegmentsToCell`), `URTHexMapAsset::ValidateMap` (regola 4 dei muri interni),
-	 * `URTMapEditLibrary::MoveInteriorWall` e il ghost del tool Geometry. Fino a `#3326` ne esistevano tre
-	 * stesure, e due non concordavano con la cottura su un diametro `lato -> lato`: l'autore vedeva un ghost
-	 * che promette una copertura, otteneva un muro interno, e si ritrovava `ValidateMap` in errore.
+	 * ⛔ **Chi la usa deve restare una chiamata a questa funzione, mai una stesura propria**: la cottura
+	 * (`BakeCell`, `AddSegmentsToCell`), `URTHexMapAsset::ValidateMap` (regola 4 dei muri interni),
+	 * `URTMapEditLibrary::MoveInteriorWall` e il ghost del tool Geometry (tramite
+	 * `RTHexEditor::GhostPieceIsInteriorWall`, che la chiama e si prova headless). Fino a `#3326` la regola
+	 * aveva tre stesure, e due non concordavano con la cottura su un diametro `lato -> lato`: l'autore vedeva
+	 * un ghost che promette una copertura, otteneva un muro interno, e si ritrovava `ValidateMap` in errore.
 	 *
 	 * ⚠️ `EdgesTouchedBy` NON cambia: risponde correttamente alla propria domanda — *«si passa da questo
-	 * lato?»* — e ha chiamanti per cui questa distinzione non appartiene.
+	 * lato?»* —, e in produzione il suo solo chiamante e' questa funzione; i test la interrogano direttamente.
+	 *
+	 * ⚠️ Come `EdgesTouchedBy`, l'elenco esce vuoto ANCHE per un segmento fuori grammatica: la legalita' la
+	 * decide `ValidateSegment`, non questa funzione, e ogni sede che scrive o accetta un segmento la chiede prima.
 	 */
 	static void CoverEdgesOf(const FRTGeometrySegment& Segment, float HexSize, TArray<ERTHexDirection>& OutEdges);
 

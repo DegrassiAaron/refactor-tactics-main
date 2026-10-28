@@ -597,6 +597,9 @@ public:
 	 * stesso muro — che e' la classe di difetto che questa seduta ha passato la giornata a smontare.
 	 * L'approssimazione dichiarata: un segmento che chiude un bordo **e** sporge dentro la cella e'
 	 * rappresentato dalla sola copertura, e la sua parte interna non viene conservata.
+	 *
+	 * 🔑 «Chiude un bordo» si chiede a `URTGeometryBakeLibrary::CoverEdgesOf`, sede unica (#3326, `D-551`): un
+	 * segmento che passa per il centro (`Offset == 0`) e' un muro interno anche quando attraversa due lati opposti.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTHexInteriorWall> InteriorWalls;

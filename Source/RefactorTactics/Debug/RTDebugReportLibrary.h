@@ -293,11 +293,12 @@ public:
 	 *
 	 * Pinnata da `RefactorTactics.Debug.CellPlacementReportShowsMaskAndRegions`.
 	 *
-	 * 🔴 **`Covers` non e' un di piu': senza, questo report MENTE per omissione.** Un raggio disegnato dal
-	 * centro al punto medio di un lato viene scritto dal bake come copertura di **bordo** — `EdgesTouchedBy`
-	 * non esce vuoto — e la maschera dei settori non la porta. Il comando rispondeva quindi *«zero settori,
-	 * zero muri interni»* a una cella che geometria ne aveva: vero campo per campo, e falso come risposta.
-	 * Misurato in seduta PIE il 2026-09-02, dove e' costato mezz'ora di diagnosi nella direzione sbagliata.
+	 * 🔴 **`Covers` non e' un di piu': senza, questo report MENTE per omissione.** Un muro che chiude un bordo
+	 * e' una copertura di **bordo**, e la maschera dei settori non la porta. Il comando rispondeva quindi *«zero
+	 * settori, zero muri interni»* a una cella che geometria ne aveva: vero campo per campo, e falso come
+	 * risposta. Misurato in seduta PIE il 2026-09-02, dove e' costato mezz'ora di diagnosi nella direzione
+	 * sbagliata — ⌫ *e il caso d'allora era un raggio dal centro al punto medio di un lato, che il bake scriveva
+	 * come copertura: da `#2085` e' un muro interno, e la ragione di `Covers` resta per i muri sul lato.*
 	 */
 	static TArray<FString> DescribeCellPlacement(const FRTCellId& Cell, const FRTOccupancyMask& Mask,
 		const TArray<FRTPlacementRegion>& Regions, const TArray<FRTHexCover>& Covers);

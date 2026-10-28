@@ -823,7 +823,7 @@ RefusedDuplicate       muro identico gia' presente
 ✅ **`RefusedWouldCloseEdge` si chiede a `CoverEdgesOf`, la sede unica della domanda «copertura o muro interno?»**
 ([#3326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3326), [`D-551`](../../decisions/RT_PDR_00_Decision_Log.md)). `#2085` aveva stabilito che
 `Offset == 0` — «passa per il centro» — è una proprietà della **giacitura** e non l'esito di una domanda sui bordi,
-ma aveva applicato la regola a **una** delle sue tre sedi: la cottura. Dal 2026-10-28 la applicano tutte, perché
+ma aveva applicato la regola a **una sola** sede: la cottura. Dal 2026-10-28 la applicano tutte, perché
 chiamano la stessa funzione:
 
 | sede | come decide | diametro `lato → lato` |
@@ -831,7 +831,7 @@ chiamano la stessa funzione:
 | cottura (`BakeCell`, `AddSegmentsToCell`) | `CoverEdgesOf` | **muro interno**, lo scrive in `InteriorWalls` |
 | `ValidateMap` regola 4 | `CoverEdgesOf` | **nessun errore**: è un muro interno |
 | `MoveInteriorWall` | `CoverEdgesOf` | **accettato** |
-| ghost del tool Geometry | `CoverEdgesOf` | **verde e spesso** (= muro interno) |
+| ghost del tool Geometry | `CoverEdgesOf`, via `RTHexEditor::GhostPieceIsInteriorWall` | **verde e spesso** (= muro interno) |
 
 ⌫ *Fino a #3326 questa sezione diceva che il move restava allineato a `ValidateMap` e non alla cottura, perché
 allinearlo al bake «avrebbe fatto passare un segmento che il validatore dichiara errore». Era la scelta giusta
@@ -840,16 +840,19 @@ nascosto.*
 
 🔑 **Che cosa distingue ancora una copertura da un muro interno**: un segmento che GIACE sul lato (`Offset`
 massimo, non zero) chiude quel bordo, in ogni sede. `EdgesTouchedBy` non cambia: risponde alla propria domanda —
-*«si passa da questo lato?»* — ed è chiamata soltanto da `CoverEdgesOf`.
+*«si passa da questo lato?»* — e in produzione è chiamata soltanto da `CoverEdgesOf`.
 
 ⚠️ **Gli assi DISPARI non mostravano il difetto**: `Deg30`, `Deg90`, `Deg150` puntano ai **vertici**, che `MSE-4`
 esclude, quindi lì le sedi concordavano già. È la ragione per cui il difetto è sopravvissuto — i test di cottura e
 di move usavano prevalentemente diametri vertice-vertice.
-`RefactorTactics.MapEdit.InteriorWallRuleGivesOneVerdictAtEverySite` prova ora i sei diametri in ogni sede, con la
-premessa che sui diametri fra lati `EdgesTouchedBy` risponde «chiude bordi»; la controprova
-`…WallLyingOnTheEdgeStaysACoverAtEverySite` tiene fermo che un muro sul lato resta una copertura.
+`RefactorTactics.MapEdit.InteriorWallRuleGivesOneVerdictAtEverySite` prova ora, in ogni sede, i sei diametri, i
+sei raggi dal centro al punto medio di un lato e i loro tratti esterni, con la premessa che dove `EdgesTouchedBy`
+risponde «chiude bordi» le sedi divergevano; la controprova `…WallLyingOnTheEdgeStaysACoverAtEverySite` tiene fermo
+che un muro sul lato resta una copertura, su tutti e sei i lati. Il ghost si prova nel modulo Editor:
+`RefactorTactics.Editor.Geometry.GhostShowsWhatTheBakeWrites` confronta il suo verdetto con ciò che la cottura
+scrive davvero.
 
-Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
+Verifica: `RefactorTactics.Map.Edit.*` e `RefactorTactics.MapEdit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
 quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
 
 ⚠️ **Un muro senza nome resta identificabile**, e non è un ripensamento su v12: `StableId` nasce `NAME_None`,

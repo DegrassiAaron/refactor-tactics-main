@@ -2187,16 +2187,20 @@ bool FRTMapEditSetBodyFillLeavesIdentityAloneTest::RunTest(const FString&)
 // Il 2026-09-24 la domanda aveva tre stesure e due semantiche: la cottura classificava un diametro `lato -> lato`
 // muro interno (`Offset == 0`, #2085), mentre `ValidateMap` e il ghost del tool lo dichiaravano una copertura su
 // due bordi. Un diametro si disegnava, la cottura lo scriveva in `InteriorWalls`, e la mappa risultava in errore.
+//
+// Il ghost del tool disegna su un `FPrimitiveDrawInterface` e non si prova da qui: il suo verdetto passa da
+// `RTHexEditor::GhostPieceIsInteriorWall`, provato nel modulo Editor contro cio' che la cottura scrive davvero
+// (`RefactorTactics.Editor.Geometry.GhostShowsWhatTheBakeWrites`).
 // ---------------------------------------------------------------------------------------------------------
 
 namespace
 {
-	/** Il segmento fra due anchor dello STESSO tipo della stessa cella. Nome prefissato: unity build. */
-	bool MapEditWallBetween(const FRTCellId& Cell, ERTAnchorKind Kind, int32 IndexA, int32 IndexB,
-		FRTGeometrySegment& Out)
+	/** Il segmento fra due anchor della stessa cella. Nome prefissato: unity build. */
+	bool MapEditWallBetween(const FRTCellId& Cell, ERTAnchorKind KindA, int32 IndexA, ERTAnchorKind KindB,
+		int32 IndexB, FRTGeometrySegment& Out)
 	{
 		if (!URTGeometryGrammarLibrary::SegmentBetweenAnchors(
-				FRTAnchorRef(Cell, Kind, IndexA), FRTAnchorRef(Cell, Kind, IndexB), MapEditHexSize, Out))
+				FRTAnchorRef(Cell, KindA, IndexA), FRTAnchorRef(Cell, KindB, IndexB), MapEditHexSize, Out))
 		{
 			return false;
 		}
@@ -2217,23 +2221,33 @@ namespace
 		}
 		return Count;
 	}
+
+	/** Un segmento con `Offset == 0` e il nome con cui compare nei messaggi. */
+	struct FMapEditCentreCase
+	{
+		FString Name;
+		FRTGeometrySegment Segment;
+	};
 }
 
 /**
- * **Un diametro che passa per il centro e' un muro interno in OGNI sede che lo giudica.**
+ * **Un segmento che passa per il centro e' un muro interno in OGNI sede che lo giudica.**
  *
- * I sei diametri della cella: tre fra lati opposti (`Deg0`, `Deg60`, `Deg120`) e tre fra vertici opposti. Per
- * ciascuno si chiede la stessa cosa a quattro sedi — la funzione, la cottura, `ValidateMap`, il move — e
- * tutte devono rispondere «muro interno».
+ * Non solo i diametri: ogni segmento con `Offset == 0` che `EdgesTouchedBy` vede come bordi chiusi. Sono tre
+ * famiglie, e prima di #3326 le tre divergevano:
+ *  - il **diametro fra lati opposti** (`Deg0`, `Deg60`, `Deg120`);
+ *  - il **raggio dal centro al punto medio di un lato** (sei);
+ *  - il **tratto esterno** di quel raggio, da meta' strada al punto medio.
+ * Piu' i diametri fra vertici opposti, dove le sedi concordavano gia' (i vertici sono esclusi da `MSE-4`).
  *
- * 🔑 **La premessa e' la FORMA del difetto, ed e' nel test per non lasciarlo vacuo.** Su un diametro `lato -> lato`
- * `EdgesTouchedBy` risponde «chiude bordi»: e' il caso in cui `ValidateMap` e il move, che chiedevano a lei,
- * non concordavano con la cottura. Sui diametri `vertice -> vertice` le sedi concordavano gia' — i vertici sono
- * esclusi da `MSE-4` — ed e' la ragione per cui il difetto e' sopravvissuto: i test di cottura e di move usavano
- * soprattutto quelli. Il test asserisce entrambe le premesse, cosi' sa dove avrebbe dovuto cadere.
+ * Per ciascuno si chiede la stessa cosa a quattro sedi — la funzione, la cottura, `ValidateMap`, il move — e tutte
+ * devono rispondere «muro interno».
  *
- * ⛔ Il ghost del tool Geometry non si prova da qui (disegna su un `FPrimitiveDrawInterface`): chiama la stessa
- * `CoverEdgesOf`, e il primo asserto e' quello che lo copre.
+ * 🔑 **La premessa e' la FORMA del difetto, ed e' nel test per non lasciarlo vacuo.** Dove `EdgesTouchedBy` risponde
+ * «chiude bordi» le sedi che le chiedevano divergevano dalla cottura; dove risponde «nessuno» concordavano gia'. Il
+ * test asserisce la premessa per ogni caso, cosi' sa dove avrebbe dovuto cadere.
+ *
+ * ⛔ Il ghost non si prova da qui: vedi il commento di sezione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditInteriorWallRuleOneVerdictTest,
 	"RefactorTactics.MapEdit.InteriorWallRuleGivesOneVerdictAtEverySite",
@@ -2242,85 +2256,128 @@ bool FRTMapEditInteriorWallRuleOneVerdictTest::RunTest(const FString&)
 {
 	const FRTCellId Home(0, 0, 0);
 
-	for (const ERTAnchorKind Kind : { ERTAnchorKind::EdgeMid, ERTAnchorKind::Vertex })
-	{
-		for (int32 K = 0; K < 3; ++K)
-		{
-			const FString Name = FString::Printf(TEXT("diametro %s %d->%d"),
-				Kind == ERTAnchorKind::EdgeMid ? TEXT("lato") : TEXT("vertice"), K, K + 3);
+	TArray<FMapEditCentreCase> Cases;
+	bool bEveryCaseBuilt = true;
 
-			FRTGeometrySegment Diameter;
-			if (!TestTrue(*(Name + TEXT(": si aggancia alla grammatica")),
-					MapEditWallBetween(Home, Kind, K, K + 3, Diameter)))
+	// `bClosesEdgesForEdgesTouchedBy` e' la premessa: dove il difetto era raggiungibile.
+	auto AddCase = [&](const FString& Name, const FRTGeometrySegment& Segment, bool bClosesEdgesForEdgesTouchedBy)
+	{
+		TestEqual(*(Name + TEXT(": passa per il centro")), Segment.Offset, 0);
+
+		TArray<ERTHexDirection> Touched;
+		URTGeometryBakeLibrary::EdgesTouchedBy(Segment, MapEditHexSize, Touched);
+		TestEqual(*(Name + (bClosesEdgesForEdgesTouchedBy
+				? TEXT(": premessa — EdgesTouchedBy lo vede come bordi chiusi, il caso del difetto")
+				: TEXT(": premessa — EdgesTouchedBy non chiude nulla, le sedi concordavano gia'"))),
+			Touched.Num() > 0, bClosesEdgesForEdgesTouchedBy);
+
+		FMapEditCentreCase Case;
+		Case.Name = Name;
+		Case.Segment = Segment;
+		Cases.Add(Case);
+	};
+
+	FRTGeometrySegment Built;
+
+	for (int32 K = 0; K < 3; ++K)
+	{
+		bEveryCaseBuilt &= TestTrue(TEXT("diametro fra lati: si aggancia"),
+			MapEditWallBetween(Home, ERTAnchorKind::EdgeMid, K, ERTAnchorKind::EdgeMid, K + 3, Built));
+		AddCase(FString::Printf(TEXT("diametro fra lati %d->%d"), K, K + 3), Built, /*bClosesEdges=*/ true);
+
+		bEveryCaseBuilt &= TestTrue(TEXT("diametro fra vertici: si aggancia"),
+			MapEditWallBetween(Home, ERTAnchorKind::Vertex, K, ERTAnchorKind::Vertex, K + 3, Built));
+		AddCase(FString::Printf(TEXT("diametro fra vertici %d->%d"), K, K + 3), Built, /*bClosesEdges=*/ false);
+	}
+
+	for (int32 K = 0; K < 6; ++K)
+	{
+		FRTGeometrySegment Radius;
+		bEveryCaseBuilt &= TestTrue(TEXT("raggio al punto medio: si aggancia"),
+			MapEditWallBetween(Home, ERTAnchorKind::Center, 0, ERTAnchorKind::EdgeMid, K, Radius));
+		AddCase(FString::Printf(TEXT("raggio al punto medio %d"), K), Radius, /*bClosesEdges=*/ true);
+
+		// Il TRATTO ESTERNO del raggio: stessa retta per il centro, l'estremo interno si sposta a meta' strada.
+		// L'estremo vicino a zero e' quello al centro; l'altro e' il punto medio del lato.
+		FRTGeometrySegment Outer = Radius;
+		const bool bStartIsInner = FMath::Abs(Outer.AlongStart) <= FMath::Abs(Outer.AlongEnd);
+		const int32 Far = bStartIsInner ? Outer.AlongEnd : Outer.AlongStart;
+		(bStartIsInner ? Outer.AlongStart : Outer.AlongEnd) = Far / 2;
+		bEveryCaseBuilt &= TestEqual(
+			*FString::Printf(TEXT("tratto esterno del raggio %d: e' un segmento legale"), K),
+			static_cast<int32>(URTGeometryGrammarLibrary::ValidateSegment(Outer)),
+			static_cast<int32>(ERTGeometryViolation::None));
+		AddCase(FString::Printf(TEXT("tratto esterno del raggio %d"), K), Outer, /*bClosesEdges=*/ true);
+	}
+
+	if (!TestTrue(TEXT("tutti i casi sono stati costruiti"), bEveryCaseBuilt))
+	{
+		return false;
+	}
+
+	for (const FMapEditCentreCase& Case : Cases)
+	{
+		const FString& Name = Case.Name;
+
+		// La sede unica.
+		TArray<ERTHexDirection> Cover = { ERTHexDirection::NE, ERTHexDirection::SW }; // spazzatura: la funzione la riscrive
+		URTGeometryBakeLibrary::CoverEdgesOf(Case.Segment, MapEditHexSize, Cover);
+		TestEqual(*(Name + TEXT(": CoverEdgesOf non chiude nessun bordo, nemmeno su un array pre-riempito")),
+			Cover.Num(), 0);
+
+		// Sede 1 — la cottura.
+		{
+			URTHexMapAsset* Map = MapEditMakeMap(2);
+			const int32 AddedCovers = URTGeometryBakeLibrary::AddSegmentsToCell(Map, Home, { Case.Segment }, MapEditHexSize);
+			TestEqual(*(Name + TEXT(": la cottura non aggiunge coperture")), AddedCovers, 0);
+			TestEqual(*(Name + TEXT(": la cottura lo scrive come muro interno")), Map->InteriorWalls.Num(), 1);
+		}
+
+		// Sede 2 — `ValidateMap`.
+		{
+			URTHexMapAsset* Map = MapEditMakeMap(2);
+			Map->InteriorWalls.Add(FRTHexInteriorWall(Home, Case.Segment));
+			TestEqual(*(Name + TEXT(": ValidateMap non lo dichiara una copertura")),
+				MapEditCountEdgeClosingWalls(Map), 0);
+		}
+
+		// Sede 3 — il move. Parte da una corda vertice-vertice legittima e DIVERSA, scelta a rotazione.
+		{
+			URTHexMapAsset* Map = MapEditMakeMap(2);
+
+			FRTGeometrySegment Start;
+			if (!TestTrue(*(Name + TEXT(": la corda di partenza si aggancia")),
+					MapEditMakeChord(Cases.IndexOfByPredicate(
+						[&Case](const FMapEditCentreCase& Other) { return Other.Name == Case.Name; }) % 3, Start)))
 			{
 				return false;
 			}
-			TestEqual(*(Name + TEXT(": passa per il centro")), Diameter.Offset, 0);
+			FRTHexInteriorWall Wall(Home, Start);
+			Wall.StableId = TEXT("W1");
+			Map->InteriorWalls.Add(Wall);
 
-			// ➕ Premessa: dove le sedi divergevano, e dove no.
-			TArray<ERTHexDirection> Touched;
-			URTGeometryBakeLibrary::EdgesTouchedBy(Diameter, MapEditHexSize, Touched);
-			if (Kind == ERTAnchorKind::EdgeMid)
-			{
-				TestTrue(*(Name + TEXT(": premessa — EdgesTouchedBy lo vede come bordi chiusi, il caso del difetto")),
-					Touched.Num() > 0);
-			}
-			else
-			{
-				TestEqual(*(Name + TEXT(": premessa — fra vertici EdgesTouchedBy non chiude nulla")), Touched.Num(), 0);
-			}
-
-			// La sede unica.
-			TArray<ERTHexDirection> Cover;
-			URTGeometryBakeLibrary::CoverEdgesOf(Diameter, MapEditHexSize, Cover);
-			TestEqual(*(Name + TEXT(": CoverEdgesOf non chiude nessun bordo")), Cover.Num(), 0);
-
-			// Sede 1 — la cottura.
-			{
-				URTHexMapAsset* Map = MapEditMakeMap(2);
-				const int32 AddedCovers = URTGeometryBakeLibrary::AddSegmentsToCell(Map, Home, { Diameter }, MapEditHexSize);
-				TestEqual(*(Name + TEXT(": la cottura non aggiunge coperture")), AddedCovers, 0);
-				TestEqual(*(Name + TEXT(": la cottura lo scrive come muro interno")), Map->InteriorWalls.Num(), 1);
-			}
-
-			// Sede 2 — `ValidateMap`.
-			{
-				URTHexMapAsset* Map = MapEditMakeMap(2);
-				Map->InteriorWalls.Add(FRTHexInteriorWall(Home, Diameter));
-				TestEqual(*(Name + TEXT(": ValidateMap non lo dichiara una copertura")),
-					MapEditCountEdgeClosingWalls(Map), 0);
-			}
-
-			// Sede 3 — il move.
-			{
-				URTHexMapAsset* Map = MapEditMakeMap(2);
-
-				FRTGeometrySegment Start; // un muro interno legittimo di partenza
-				if (!TestTrue(*(Name + TEXT(": la corda di partenza si aggancia")), MapEditMakeChord((K + 1) % 3, Start)))
-				{
-					return false;
-				}
-				FRTHexInteriorWall Wall(Home, Start);
-				Wall.StableId = TEXT("W1");
-				Map->InteriorWalls.Add(Wall);
-
-				const FRTMapElementHandle Handle = FRTMapElementHandle::ForInteriorWall(TEXT("W1"));
-				TestEqual(*(Name + TEXT(": il move lo accetta")),
-					URTMapEditLibrary::MoveInteriorWall(Map, Handle, Home, Diameter), ERTMapEditOutcome::Applied);
-				TestEqual(*(Name + TEXT(": e dopo il move ValidateMap non lo dichiara una copertura")),
-					MapEditCountEdgeClosingWalls(Map), 0);
-			}
+			const FRTMapElementHandle Handle = FRTMapElementHandle::ForInteriorWall(TEXT("W1"));
+			TestEqual(*(Name + TEXT(": il move lo accetta")),
+				URTMapEditLibrary::MoveInteriorWall(Map, Handle, Home, Case.Segment), ERTMapEditOutcome::Applied);
+			TestEqual(*(Name + TEXT(": e dopo il move ValidateMap non lo dichiara una copertura")),
+				MapEditCountEdgeClosingWalls(Map), 0);
 		}
 	}
 	return true;
 }
 
 /**
- * **CONTROPROVA: un muro che GIACE sul lato e' ancora una copertura, in ogni sede.**
+ * **CONTROPROVA: un muro che GIACE sul lato e' ancora una copertura, su tutti e sei i lati, in ogni sede.**
  *
  * ⚠️ Senza questa asserzione la correzione facile e sbagliata passerebbe: far rispondere «muro interno» a
  * `CoverEdgesOf` per qualunque segmento renderebbe verde il test qui sopra e romperebbe tutte le coperture. Un muro
  * da vertice a vertice ADIACENTE ha `Offset` massimo — non zero — e non passa dalla guardia.
+ *
+ * Sei lati e non uno: l'`Offset` di un muro sul lato ha segno diverso a seconda del lato, e una guardia scritta
+ * `Offset <= 0` smetterebbe di chiudere meta' dei bordi senza che un solo lato lo mostri.
+ *
+ * ➕ L'array di uscita parte PRE-RIEMPITO di proposito: una funzione che non lo azzerasse darebbe lo stesso
+ * risultato su un array vuoto, e lascerebbe dentro i bordi di una chiamata precedente.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditEdgeWallStillACoverEverywhereTest,
 	"RefactorTactics.MapEdit.WallLyingOnTheEdgeStaysACoverAtEverySite",
@@ -2329,45 +2386,52 @@ bool FRTMapEditEdgeWallStillACoverEverywhereTest::RunTest(const FString&)
 {
 	const FRTCellId Home(0, 0, 0);
 
-	FRTGeometrySegment OnEdge;
-	if (!TestTrue(TEXT("il muro sul lato si aggancia"), MapEditWallBetween(Home, ERTAnchorKind::Vertex, 0, 1, OnEdge)))
+	for (int32 K = 0; K < 6; ++K)
 	{
-		return false;
-	}
-	TestNotEqual(TEXT("un muro sul lato NON passa per il centro"), OnEdge.Offset, 0);
+		const FString Name = FString::Printf(TEXT("muro sul lato %d"), K);
 
-	TArray<ERTHexDirection> Cover;
-	URTGeometryBakeLibrary::CoverEdgesOf(OnEdge, MapEditHexSize, Cover);
-	TestTrue(TEXT("CoverEdgesOf: chiude almeno un bordo"), Cover.Num() > 0);
-
-	{
-		URTHexMapAsset* Map = MapEditMakeMap(2);
-		const int32 AddedCovers = URTGeometryBakeLibrary::AddSegmentsToCell(Map, Home, { OnEdge }, MapEditHexSize);
-		TestTrue(TEXT("la cottura lo scrive come copertura"), AddedCovers >= 1);
-		TestEqual(TEXT("e non come muro interno"), Map->InteriorWalls.Num(), 0);
-	}
-
-	{
-		URTHexMapAsset* Map = MapEditMakeMap(2);
-		Map->InteriorWalls.Add(FRTHexInteriorWall(Home, OnEdge));
-		TestEqual(TEXT("ValidateMap lo dichiara ancora una copertura, non un muro interno"),
-			MapEditCountEdgeClosingWalls(Map), 1);
-	}
-
-	{
-		URTHexMapAsset* Map = MapEditMakeMap(2);
-		FRTGeometrySegment Start;
-		if (!TestTrue(TEXT("la corda di partenza si aggancia"), MapEditMakeChord(0, Start)))
+		FRTGeometrySegment OnEdge;
+		if (!TestTrue(*(Name + TEXT(": si aggancia")),
+				MapEditWallBetween(Home, ERTAnchorKind::Vertex, K, ERTAnchorKind::Vertex, (K + 1) % 6, OnEdge)))
 		{
 			return false;
 		}
-		FRTHexInteriorWall Wall(Home, Start);
-		Wall.StableId = TEXT("W1");
-		Map->InteriorWalls.Add(Wall);
+		TestNotEqual(*(Name + TEXT(": NON passa per il centro")), OnEdge.Offset, 0);
 
-		const FRTMapElementHandle Handle = FRTMapElementHandle::ForInteriorWall(TEXT("W1"));
-		TestEqual(TEXT("il move lo rifiuta ancora, e dice quale regola"),
-			URTMapEditLibrary::MoveInteriorWall(Map, Handle, Home, OnEdge), ERTMapEditOutcome::RefusedWouldCloseEdge);
+		TArray<ERTHexDirection> Cover = { ERTHexDirection::NE, ERTHexDirection::SW }; // spazzatura da riscrivere
+		URTGeometryBakeLibrary::CoverEdgesOf(OnEdge, MapEditHexSize, Cover);
+		TestEqual(*(Name + TEXT(": chiude esattamente un bordo, e nessun residuo della chiamata precedente")),
+			Cover.Num(), 1);
+
+		{
+			URTHexMapAsset* Map = MapEditMakeMap(2);
+			const int32 AddedCovers = URTGeometryBakeLibrary::AddSegmentsToCell(Map, Home, { OnEdge }, MapEditHexSize);
+			TestTrue(*(Name + TEXT(": la cottura lo scrive come copertura")), AddedCovers >= 1);
+			TestEqual(*(Name + TEXT(": e non come muro interno")), Map->InteriorWalls.Num(), 0);
+		}
+
+		{
+			URTHexMapAsset* Map = MapEditMakeMap(2);
+			Map->InteriorWalls.Add(FRTHexInteriorWall(Home, OnEdge));
+			TestEqual(*(Name + TEXT(": ValidateMap lo dichiara ancora una copertura, non un muro interno")),
+				MapEditCountEdgeClosingWalls(Map), 1);
+		}
+
+		{
+			URTHexMapAsset* Map = MapEditMakeMap(2);
+			FRTGeometrySegment Start;
+			if (!TestTrue(*(Name + TEXT(": la corda di partenza si aggancia")), MapEditMakeChord(0, Start)))
+			{
+				return false;
+			}
+			FRTHexInteriorWall Wall(Home, Start);
+			Wall.StableId = TEXT("W1");
+			Map->InteriorWalls.Add(Wall);
+
+			const FRTMapElementHandle Handle = FRTMapElementHandle::ForInteriorWall(TEXT("W1"));
+			TestEqual(*(Name + TEXT(": il move lo rifiuta ancora, e dice quale regola")),
+				URTMapEditLibrary::MoveInteriorWall(Map, Handle, Home, OnEdge), ERTMapEditOutcome::RefusedWouldCloseEdge);
+		}
 	}
 	return true;
 }

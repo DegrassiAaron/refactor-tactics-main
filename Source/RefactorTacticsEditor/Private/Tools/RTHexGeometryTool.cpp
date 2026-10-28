@@ -587,7 +587,7 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 	//
 	// 🔴 Prima mostrava il segmento quantizzato in verde ogni volta che la grammatica lo accettava, e `U22`
 	// ha misurato che quella promessa era falsa: il risultato della cottura non e' un segmento, e' un
-	// insieme di **coperture sui bordi** (`EdgesTouchedBy`).
+	// insieme di **coperture sui bordi** (`CoverEdgesOf`).
 	//
 	// La regola, per ciascuna cella che il gesto attraversa:
 	//
@@ -626,10 +626,11 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 			const FVector CellCentre = URTHexLibrary::AxialToWorld(Piece.Cell, Origin, HexSize, LayerHeight);
 			const FVector Base(CellCentre.X, CellCentre.Y, Z);
 
-			// La STESSA sede di cottura, `ValidateMap` e move (#3326): il ghost non promette una copertura dove
-			// la cottura scrivera' un muro interno, come faceva su un diametro `lato -> lato`.
+			// La STESSA sede di cottura, `ValidateMap` e move (#3326), passando da un helper puro che si prova
+			// headless: il ghost non promette una copertura dove la cottura scrivera' un muro interno, come
+			// faceva su un diametro `lato -> lato`.
 			TArray<ERTHexDirection> Edges;
-			URTGeometryBakeLibrary::CoverEdgesOf(Segment, HexSize, Edges);
+			const bool bIsInterior = RTHexEditor::GhostPieceIsInteriorWall(Segment, HexSize, Edges);
 
 			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, HexSize);
 			if (Line.Points.Num() >= 2)
@@ -637,7 +638,6 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 				const FVector A(Base.X + Line.Points[0].X, Base.Y + Line.Points[0].Y, Z);
 				const FVector B(Base.X + Line.Points[1].X, Base.Y + Line.Points[1].Y, Z);
 
-				const bool bIsInterior = Edges.Num() == 0;
 				PDI->DrawLine(A, B, bIsInterior ? FColor::Green : FColor::Silver, SDPG_Foreground,
 					bIsInterior ? Thickness : 1.0f);
 			}
