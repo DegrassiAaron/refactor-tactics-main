@@ -202,6 +202,22 @@ namespace RTHexEditor
 		const FVector2D& LocalEnd, float HexSize);
 
 	/**
+	 * Il verdetto del GHOST del tool Geometry su UN pezzo di gesto: vero se il pezzo diventera' un MURO INTERNO,
+	 * falso se chiudera' almeno un bordo come copertura — e allora `OutCoverEdges` li elenca (`#3326`).
+	 *
+	 * 🔑 **Estratta per poter essere provata.** Il ghost disegna su un `FPrimitiveDrawInterface` e nessun
+	 * automation test lo vede; la domanda che ne decide il colore, invece, e' pura. Senza questa funzione il ghost
+	 * poteva tornare a promettere una copertura dove la cottura scrive un muro interno — il difetto che `#3326`
+	 * chiude — e nessun test se ne sarebbe accorto.
+	 *
+	 * ⛔ Non ha una regola propria: chiama `URTGeometryBakeLibrary::CoverEdgesOf`, la sede che condividono cottura,
+	 * `ValidateMap` e move. Il test confronta il suo verdetto con cio' che la cottura scrive davvero. Che il tool
+	 * chiami questa funzione e' letto dal sorgente, non provato: nessun test disegna il ghost.
+	 */
+	bool GhostPieceIsInteriorWall(const FRTGeometrySegment& Segment, float HexSize,
+		TArray<ERTHexDirection>& OutCoverEdges);
+
+	/**
 	 * Applica alla selezione condivisa il click su una cella — la META' che Select e Geometry hanno in
 	 * comune (#1864, casella 2).
 	 *
