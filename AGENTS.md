@@ -312,7 +312,9 @@ python tools/suite/esegui.py RefactorTactics.HexSim     # un gruppo
 *«attende sul LOG, non sull'uscita del processo»*, perché la fine di una suite si legge dai conteggi e un
 processo appeso non esce mai ([#3048](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3048),
 [#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)). Termina l'albero quando il log
-dichiara finito e il processo resta vivo, e lo **dichiara nel referto** invece di nasconderlo.
+dichiara finito e il processo resta vivo, e lo **dichiara nel referto** invece di nasconderlo. Dichiara in
+cima, e non esce con `0`, anche quando i DLL sono più vecchi dei sorgenti sul disco: una suite verde su una
+build che non è quella dell'albero non è un verde ([#2656](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2656)).
 
 ⚠️ **Un conteggio letto da un log ancora in scrittura non è una misura, ed è il difetto che lo strumento
 toglie.** `grep -c 'Test Completed'` risponde `0` tanto su una run morta quanto su una che sta caricando i
@@ -402,6 +404,10 @@ git ls-files -o --exclude-standard | Get-FileHash      # e degli untracked
 Misurato con due file di prova: riscrivendone uno da capo, l'elenco dei percorsi resta `a.txt, b.txt` e gli hash cambiano. ⚠️ Niente `-z` nella pipeline: separa i nomi con NUL, che PowerShell passa a `Get-FileHash` come **un unico percorso** inesistente — zero hash prodotti, e il comando che dovrebbe smascherare il tranello ci cade dentro.
 
 ⚠️ Il binario resta fuori da tutti e tre: `Binaries/` è gitignorato, quindi un `Build.bat` di un altro checkout non muove né `HEAD` né l'albero. Va confrontato a parte — mtime e dimensione dei DLL dell'editor, come fa `misura.istantanea()`.
+
+🔴 **E non basta che il binario resti fermo: deve anche CONTENERE l'albero** ([#2656](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2656)). Le tre righe sopra e `istantanea()` provano che nulla si è mosso *durante* la run, non che i DLL siano stati costruiti dai sorgenti che stai misurando: con la build fallita la suite parte sul binario di un'ora fa e un esito verde riguarda codice che non è il tuo. Misurato il 2026-09-07: 55 minuti fra DLL e sorgenti, referto `VALIDA`, due volte di fila. Lo strumento lo applica: `misura.binari_stantii()` confronta, **modulo per modulo**, il sorgente compilato più recente sotto `Source/` con `Binaries/Win64/UnrealEditor-<modulo>.dll`; `esegui_suite()` risponde `NON VALIDA` con la categoria `build` — distinta da `albero`, «i binari sono cambiati durante la run» — **prima** di lanciare il motore, e `esegui.py` lo scrive in cima al referto con uscita diversa da `0`. Invocando a mano: build e suite nello stesso comando, con la build uscita `0`.
+
+⚠️ Il confronto è sugli mtime, non sul contenuto: un `git checkout` che ripristina file identici li rende più recenti del DLL e chiede una build che il contenuto non richiederebbe. È il verso sicuro dell'errore — costa una build in più, non un verde sbagliato. Restano fuori i moduli dei plugin (`Plugins/*/Source`), che `DLL_GLOB` non osserva.
 
 Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
 

@@ -59,6 +59,11 @@ Per spegnere il Live Coding in un processo che non e' `-unattended`, la riga che
 istantanee dell'albero git prima e dopo e sa dire se il sorgente e' cambiato sotto la run. Qui si
 esegue una suite e si riferisce cosa ha detto; per una verifica di mutazione si usano i gate.
 
+🔴 **Ma non tace su un verde che non e' dell'albero** ([#2656](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2656)).
+Se i DLL sono piu' vecchi dei sorgenti sul disco (`misura.binari_stantii()`), il referto lo dice in CIMA e
+l'uscita non e' `0`. Non blocca: una run su una build vecchia puo' essere voluta, ma non deve sembrare una
+misura dell'albero.
+
 ⚠️ **Non copre il processo appeso di QUALCUN ALTRO.** `_termina_albero()` vuole il `Popen` del
 proprio figlio, e uccidere per pid un motore altrui e' esattamente il fail-open che `#2392` ha
 chiuso. Se un motore che non hai lanciato tu tiene il mutex, si legge la sua `CommandLine` e si

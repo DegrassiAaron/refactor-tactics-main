@@ -27,7 +27,20 @@ dell'albero, la firma dei binari. Il quarto — *nessun processo del motore estr
 la run* — lo osserva `esegui_suite()`, campionando i processi e scartando quelli che
 discendono dal proprio (`#2672`).
 
+## Il quinto controllo: il binario contiene l'albero (#2656)
+
+I quattro termini dicono che nulla si e' MOSSO durante la run. Non dicono che i DLL siano stati costruiti
+dai sorgenti che la run dichiara di misurare: con la build fallita la suite partiva sul binario di un'ora
+fa, e il referto era `VALIDA`. `binari_stantii()` confronta, modulo per modulo, il sorgente compilato piu'
+recente con `UnrealEditor-<modulo>.dll`; `esegui_suite()` lo applica PRIMA di lanciare il motore e risponde
+`NON VALIDA` con la categoria `build`, distinta da `albero`: sono due difetti con due rimedi.
+
 ## Cosa NON copre, dichiarato
+
+* **Il confronto del binario e' sugli mtime, non sul contenuto** (#2656). Un `git checkout` che ripristina
+  file identici li rende piu' recenti del DLL e chiede una build che il contenuto non richiederebbe: e' il
+  verso sicuro dell'errore, costa una build in piu' e non un verde sbagliato. Restano fuori i moduli dei
+  plugin (`Plugins/*/Source`), che `DLL_GLOB` non osserva.
 
 * **Il campionamento e' discreto.** Una suite altrui che nasce e muore fra due campioni non
   viene vista: copre la finestra lunga, non l'istante. Non c'e' piu' un lease, e questo
