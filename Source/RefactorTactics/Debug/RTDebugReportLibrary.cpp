@@ -331,7 +331,7 @@ namespace
 	 *
 	 * 🔴 **Senza queste righe il comando taceva su meta' della geometria, e la seduta PIE del 2026-09-02
 	 * ci ha perso mezz'ora.** Un raggio disegnato dal centro al punto medio di un lato veniva scritto dal
-	 * bake come copertura di BORDO — `EdgesTouchedBy` non vuoto — e il dump rispondeva
+	 * bake come copertura di BORDO (prima di #2085) — `EdgesTouchedBy` non vuoto — e il dump rispondeva
 	 * *«0 muri interni, 0 settori occupati»*: vero, e fuorviante. Chi legge concludeva «non e' stato
 	 * scritto niente», mentre era stato scritto altrove.
 	 *

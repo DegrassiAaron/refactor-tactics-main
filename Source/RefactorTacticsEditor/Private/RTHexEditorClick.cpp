@@ -17,6 +17,7 @@
 #include "Map/RTMapDependencyLibrary.h" // FRTMapElementHandle (#1864)
 #include "Map/RTMapEditLibrary.h"       // ResolveInteriorWall, per disegnare il muro selezionato
 #include "Map/RTGeometryGrammar.h"      // ToPolyline: la giacitura del muro, derivata dall'authority
+#include "Map/RTGeometryBake.h"        // CoverEdgesOf: la sede unica di «copertura o muro interno?» (#3326)
 #include "RTHexSelectionStore.h"        // la selezione condivisa che i tool disegnano
 #include "Framework/Application/SlateApplication.h" // IsControlDown: il modificatore del gesto additivo
 #include "Turn/RTMatchSetupLibrary.h"
@@ -645,6 +646,13 @@ bool RTHexEditor::GestureIsASelection(ERTAnchorPairRefusal Refusal, const FVecto
 	// 🔑 `SameAnchor` e' l'unico che significa «non c'e' lunghezza», cioe' un CLICK — e la doc dell'enum
 	// lo dice con le stesse parole: *«un gesto senza lunghezza non e' un muro»*.
 	return Refusal == ERTAnchorPairRefusal::SameAnchor;
+}
+
+bool RTHexEditor::GhostPieceIsInteriorWall(const FRTGeometrySegment& Segment, float HexSize,
+	TArray<ERTHexDirection>& OutCoverEdges)
+{
+	URTGeometryBakeLibrary::CoverEdgesOf(Segment, HexSize, OutCoverEdges);
+	return OutCoverEdges.Num() == 0;
 }
 
 bool RTHexEditor::ApplyClickToSelection(const ARTHexMapActor* Actor, const FRTCellId& Cell,
