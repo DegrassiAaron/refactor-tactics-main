@@ -8,7 +8,7 @@
 
 ## Il taglio
 
-Quattro fette, ciascuna verificabile in Automation e con la sua PR. L'ordine non è casuale: A e B sono funzioni pure e si provano a mondi gemelli senza cablaggio; C le collega; D produce un segnale che oggi non esiste.
+Le fette A–D, ciascuna verificabile in Automation e con la sua PR. L'ordine non è casuale: A e B sono funzioni pure e si provano a mondi gemelli senza cablaggio; C le collega; D produce un segnale che oggi non esiste.
 
 | | Fetta | Che cosa | Stato |
 |---|---|---|---|
@@ -40,9 +40,11 @@ Non sono decisioni d'autore, e valgono finché `PIE-HUD-SGUARDO` o l'autore non 
 
 Ogni regola ha un test in cui due mondi differiscono *solo* in ciò che la squadra non vede adesso e l'uscita è identica, più un **controllo positivo** (un cambiamento in ciò che si vede *cambia* l'uscita) e una **mutazione** (tolta la guardia, il test diventa rosso).
 
-* **A (fatta)**: geometria mai vista; celle esplorate e non più in vista; piano diverso dello stesso nemico; cella del soggetto non in vista; celle non in vista come muri *nel* calcolo e non come ritaglio del risultato (la cella in vista a 3 passi raggiungibile solo attraverso la cintura deve mancare).
+* **A (fatta)**: geometria mai vista; celle esplorate e non più in vista; piano diverso dello stesso nemico; cella del soggetto non in vista (anche se esplorata); celle non in vista come muri *nel* calcolo e non come ritaglio del risultato (la cella in vista a 3 passi raggiungibile solo attraverso la cintura deve mancare); un piano di sopra nascosto collegato da una scala (le transizioni sono arrivi come le altre celle).
+  **Limiti dichiarati della fetta A.** (1) `MakeVisibleOnlyMap` neutralizza *solo il movimento*: conserva copertura, porte, muri interni, transizioni e linea di vista delle celle nascoste, a differenza di `MakeOptimisticPlanningMap`. Va passata a `MoveAreas` e a nient'altro; la fetta B non la riusa. (2) Gli archi non sono celle: `VisibleCells` non certifica lo stato di un ponte o di una scala, e uno fra due celle in vista si legge com'è adesso. D-552 parla solo di celle.
 * **B**: stessa `VisibleCells`, geometria nascosta diversa → stessi verdetti; una linea che attraversa una cella non in vista è sempre *senza verdetto*; mutazione `VisibleCells ∪ ExploredCells` → rosso.
 * **C**: tabella pura di `ActiveSource`; il fuoco lascia la mappa al primo gesto di pianificazione e la scheda resta; chiuso il fuoco la mappa torna com'era; il contatore di #3511 non ricalcola se gli ingressi non cambiano.
+  🔴 **Un nemico IGNOTO su una cella in vista non ha area** (rilievo della review della fetta A). La fetta A decide su «la cella del soggetto è in `VisibleCells`», non su «il soggetto è osservato»: il repository le distingue (`ClassifyTarget` respinge un'unità ignota anche se la sua cella è in vista). Il cancello è una voce `Live` nella vista di conoscenza (`URTInspectLibrary::IsInspectable`), e il cablaggio lo applica *prima* di chiamare la libreria. Il test: il controller vero, un nemico ignoto su una cella che la squadra vede, nessuna area.
 * **D**: la porta e il segnale; l'hover che sfarfalla non ricalcola. La resa resta `PIE`, `NOT RUN` finché non si esegue.
 * **Unità ignote**: non cambiano l'area (D-445, D-446: l'occupazione non entra nel ventaglio). Si pinna in C, con il controller vero.
 

@@ -39,7 +39,8 @@ FRTFocusMoveSubject URTFocusAreaLibrary::SubjectFor(const ARTUnit* Unit)
 	{
 		return Subject;
 	}
-	// Quattro letture, tutte pubbliche. Il piano (`Planned*`) non si legge: e' esattamente cio' che D-552 vieta.
+	// Cella, movimento base, `Slow`, `Unbalanced`: letture pubbliche. Il piano (`Planned*`) non si legge: e' esattamente
+	// cio' che D-552 vieta.
 	Subject.Cell = Unit->Cell;
 	Subject.BaseMoveRange = Unit->GetEffectiveMoveRange();
 	Subject.MoveCostModifier = Unit->HasStatus(TAG_Status_Slow) ? 1 : 0;

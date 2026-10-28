@@ -254,7 +254,10 @@ bool FRTFocusAreaUnseenSubjectTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("l'arena esiste"), Map)) { return false; }
 	const FRTCellId Center(0, 0, 0);
 
-	const FRTTeamKnowledge Blind = FocKnowledge(Map, [&Center](const FRTCellId& Cell) { return !(Cell == Center); });
+	FRTTeamKnowledge Blind = FocKnowledge(Map, [&Center](const FRTCellId& Cell) { return !(Cell == Center); });
+	// La cella del soggetto e' ESPLORATA ma non piu' in vista: dice dove sta l'unita' quanto una cella mai vista, e non
+	// deve bastare (D-225, D-227). Senza questa riga una mutazione nel solo gate del soggetto passerebbe.
+	Blind.ExploredCells.Add(Center);
 	const FRTFocusMoveAreas Hidden = URTFocusAreaLibrary::MoveAreasFor(GetTransientPackage(), Map, Blind, FocSubject(3));
 	TestEqual(TEXT("cella del soggetto non in vista: nessuna area normale"), Hidden.Normal.Num(), 0);
 	TestEqual(TEXT("ne' di corsa"), Hidden.Run.Num(), 0);
@@ -323,6 +326,53 @@ bool FRTFocusAreaNeverReadsThePlanTest::RunTest(const FString&)
 	TestEqual(TEXT("e nessuna area su una mappa nulla"), URTFocusAreaLibrary::MoveAreas(nullptr, A).Normal.Num(), 0);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// 🔴 UN ARCO VERSO UNA CELLA NON IN VISTA NON PORTA NELL'AREA. Tutti gli altri test girano su un piano piatto, senza
+// transizioni: se il pathfinder smettesse di saltare l'arrivo di un arco che blocca il movimento, nessuno se ne
+// accorgerebbe, e un ponte o una scala farebbero entrare nell'area il piano di sopra, cioe' geometria mai vista.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusAreaHiddenArcTargetTest,
+	"RefactorTactics.FocusArea.AnArcToAHiddenCellNeverEntersTheArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusAreaHiddenArcTargetTest::RunTest(const FString&)
+{
+	// Un piano sopra: due celle al layer 1, collegate da una scala alla cella di partenza.
+	auto BuildWithUpperFloor = [](int32 UpperMoveCost)
+	{
+		URTHexMapAsset* Map = FocArena();
+		FRTHexCellData First; First.Id = FRTCellId(0, 0, 1); First.MoveCost = UpperMoveCost;
+		FRTHexCellData Second; Second.Id = FRTCellId(1, 0, 1); Second.MoveCost = UpperMoveCost;
+		Map->AddOrUpdateCell(First);
+		Map->AddOrUpdateCell(Second);
+		Map->AddTransition(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost=*/ 1, ERTHexTransitionKind::Stair, /*bBidirectional=*/ true);
+		return Map;
+	};
+	URTHexMapAsset* Plain = BuildWithUpperFloor(1);
+	URTHexMapAsset* Costly = BuildWithUpperFloor(9); // stesso piano di sopra, ma con un'altra geometria nascosta
+	if (!TestTrue(TEXT("le mappe esistono"), Plain && Costly && Plain->ContainsCell(FRTCellId(0, 0, 1)))) { return false; }
+
+	const auto OnlyGround = [](const FRTCellId& Cell) { return Cell.Layer == 0; };
+	const FRTTeamKnowledge UpperHidden = FocKnowledge(Plain, OnlyGround);
+	const FRTTeamKnowledge AllSeen = FocAllVisible(Plain);
+	const FRTFocusMoveSubject Subject = FocSubject(3);
+
+	// Controllo positivo: se il piano di sopra si vede, la scala porta fin li' (1 per la scala, 1 per la cella accanto).
+	const FRTFocusMoveAreas Seen = URTFocusAreaLibrary::MoveAreasFor(GetTransientPackage(), Plain, AllSeen, Subject);
+	TestTrue(TEXT("piano di sopra in vista: la scala porta alla prima cella"), Seen.Normal.Contains(FRTCellId(0, 0, 1)));
+	TestTrue(TEXT("e alla seconda"), Seen.Normal.Contains(FRTCellId(1, 0, 1)));
+
+	// Il piano di sopra NON si vede: nessuna cella del layer 1 entra nell'area, per nessuna delle due bande.
+	const FRTFocusMoveAreas Hidden = URTFocusAreaLibrary::MoveAreasFor(GetTransientPackage(), Plain, UpperHidden, Subject);
+	int32 UpperCells = 0;
+	for (const FRTCellId& Cell : Hidden.Normal) { UpperCells += Cell.Layer == 1 ? 1 : 0; }
+	for (const FRTCellId& Cell : Hidden.Run) { UpperCells += Cell.Layer == 1 ? 1 : 0; }
+	TestEqual(TEXT("piano di sopra non in vista: nessuna sua cella nell'area"), UpperCells, 0);
+	TestTrue(TEXT("premessa: il piano di terra c'e' ancora"), Hidden.Normal.Num() > 1 && Hidden.Run.Num() > 1);
+
+	// Gemelli: lo stesso piano di sopra con un'altra geometria (costo diverso) non cambia l'area.
+	const FRTFocusMoveAreas HiddenCostly = URTFocusAreaLibrary::MoveAreasFor(GetTransientPackage(), Costly, UpperHidden, Subject);
+	TestTrue(TEXT("un'altra geometria al piano di sopra non cambia l'area"), Hidden.Normal == HiddenCostly.Normal && Hidden.Run == HiddenCostly.Run);
 	return true;
 }
 
