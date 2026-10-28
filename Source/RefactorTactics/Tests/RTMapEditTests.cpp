@@ -3047,4 +3047,350 @@ bool FRTMapEditNamedArcCarriedElsewhereTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// #3918 - svuotare o rigenerare il contenuto di un asset non lascia muri interni e binding orfani.
+//
+// `ClearAll` e `ReplaceContent` (il bottone Clear e Generate Into Asset) svuotavano o sostituivano solo `Cells` e
+// `Transitions`. Dopo Clear di un asset con un muro interno e un binding restavano zero celle, un muro e un
+// binding, e `ValidateMap` segnalava "muro interno su cella inesistente".
+//
+// Decisione d'autore: `ClearAll` svuota TUTTO; `ReplaceContent` POTA gli orfani e tiene il resto - toglie i muri e
+// i binding che nominano celle assenti dal contenuto nuovo, e conserva cio' che sta su celle che restano.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Una mappa VALIDA con tutto cio' che deve morire o sopravvivere a una sostituzione. `X` e' la cella che
+	 * sparira' nei test: porta un muro, la porta `S1` e il ponte con nome `B1` verso `Far`. `K` porta un muro e
+	 * resta. Tre binding comandano la porta `D1`, che sta su una cella che resta: `S1` (sorgente su `X`), `B1`
+	 * (sorgente: il ponte, che tocca `X`) e `S2` (sorgente su una cella che resta: il testimone).
+	 * Con `bWithGroup`, un portone `G1` ha i suoi due bordi su `P` e `Q`, ed e' comandato da `S3`.
+	 */
+	URTHexMapAsset* MapEditMakeReplaceMap(bool bWithGroup)
+	{
+		const FRTCellId X(0, 0, 0);
+		const FRTCellId Far(2, 0, 0);
+		const FRTCellId K(-1, 1, 0);
+		const FRTCellId D1Cell(1, -1, 0);
+		const FRTCellId S2Cell(0, 1, 0);
+
+		FRTGeometrySegment ChordX, ChordK;
+		if (!MapEditMakeChord(0, ChordX) || !MapEditMakeChord(1, ChordK))
+		{
+			return nullptr;
+		}
+
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		Map->InteriorWalls.Add(FRTHexInteriorWall(X, ChordX));
+		Map->InteriorWalls.Add(FRTHexInteriorWall(K, ChordK));
+		MapEditAddNamedBridge(Map, X, Far, TEXT("B1"));
+
+		ERTHexDirection EdgeX, EdgeD1, EdgeS2;
+		if (!MapEditFindInteriorEdge(Map, X, EdgeX) || !MapEditFindInteriorEdge(Map, D1Cell, EdgeD1)
+			|| !MapEditFindInteriorEdge(Map, S2Cell, EdgeS2))
+		{
+			return nullptr;
+		}
+		MapEditPutDoor(Map, X, EdgeX, /*DoorId*/ 1, TEXT("S1"));
+		MapEditPutDoor(Map, D1Cell, EdgeD1, /*DoorId*/ 2, TEXT("D1"));
+		MapEditPutDoor(Map, S2Cell, EdgeS2, /*DoorId*/ 3, TEXT("S2"));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B1"), { TEXT("D1") }));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("D1") }));
+
+		if (bWithGroup)
+		{
+			const FRTCellId P(0, -2, 0);
+			const FRTCellId Q(-2, 0, 0);
+			const FRTCellId R(1, 0, 0);
+			ERTHexDirection EdgeP, EdgeQ, EdgeR;
+			if (!MapEditFindInteriorEdge(Map, P, EdgeP) || !MapEditFindInteriorEdge(Map, Q, EdgeQ)
+				|| !MapEditFindInteriorEdge(Map, R, EdgeR))
+			{
+				return nullptr;
+			}
+			MapEditPutDoor(Map, P, EdgeP, /*DoorId*/ 5, TEXT("G1"));
+			MapEditPutDoor(Map, Q, EdgeQ, /*DoorId*/ 5, TEXT("G1"));
+			MapEditPutDoor(Map, R, EdgeR, /*DoorId*/ 4, TEXT("S3"));
+			Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S3"), { TEXT("G1") }));
+		}
+		return Map;
+	}
+
+	/** Il contenuto che resta quando `Removed` sparisce: le celle, e gli archi che non le toccano. */
+	void MapEditContentWithout(const URTHexMapAsset* Map, const TArray<FRTCellId>& Removed,
+		TArray<FRTHexCellData>& OutCells, TArray<FRTHexEdge>& OutTransitions)
+	{
+		for (const FRTHexCellData& C : Map->Cells)
+		{
+			if (!Removed.Contains(C.Id))
+			{
+				OutCells.Add(C);
+			}
+		}
+		for (const FRTHexEdge& E : Map->Transitions)
+		{
+			if (!Removed.Contains(E.From) && !Removed.Contains(E.To))
+			{
+				OutTransitions.Add(E);
+			}
+		}
+	}
+}
+
+/**
+ * **`ClearAll` svuota tutto: celle, archi, muri interni e binding.**
+ *
+ * Senza celle ogni muro e ogni binding e' un orfano. La controprova mostra che svuotare le sole celle e gli archi
+ * (cio' che faceva) lascia segnalazioni; poi si misura la sede, la revisione che sale di UNO, e il gemello
+ * negativo: una seconda chiamata non muove niente. Il caso degli orfani soli - zero celle e zero archi ma un muro
+ * e un binding rimasti - e' uno stato che cambia, quindi `ClearAll` lo dichiara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditClearAllEmptiesEverythingTest,
+	"RefactorTactics.MapEdit.ClearAllEmptiesWallsAndBindingsToo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditClearAllEmptiesEverythingTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	URTHexMapAsset* Naive = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	if (!TestTrue(TEXT("le mappe si costruiscono"), Map && Naive))
+	{
+		return false;
+	}
+
+	// --- Premessa e controprova ------------------------------------------------------------------------
+	TestEqual(*FString::Printf(TEXT("la mappa parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	TestEqual(TEXT("premessa: due muri interni"), Map->InteriorWalls.Num(), 2);
+	TestEqual(TEXT("premessa: tre binding"), Map->InteractionBindings.Num(), 3);
+	TestTrue(TEXT("premessa: ci sono archi"), Map->Transitions.Num() > 0);
+
+	Naive->Cells.Reset();
+	Naive->Transitions.Reset();
+	Naive->SortCells(); // invalida la cache: con gli indici vecchi `FindCell` leggerebbe fuori dall'array
+	TestTrue(TEXT("controprova: svuotare le sole celle e gli archi lascia segnalazioni, ed e' cio' che si faceva"),
+		Naive->ValidateMap().Num() > 0);
+
+	// --- La misura -------------------------------------------------------------------------------------
+	const int32 RevisionBefore = Map->Revision;
+	TestTrue(TEXT("lo svuotamento dichiara di aver tolto qualcosa"), Map->ClearAll());
+	TestEqual(TEXT("celle azzerate"), Map->NumCells(), 0);
+	TestEqual(TEXT("archi azzerati"), Map->Transitions.Num(), 0);
+	TestEqual(TEXT("muri interni azzerati"), Map->InteriorWalls.Num(), 0);
+	TestEqual(TEXT("binding azzerati"), Map->InteractionBindings.Num(), 0);
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+
+	// --- Il gemello negativo: gia' vuota, non muove niente --------------------------------------------
+	const int32 RevisionAfter = Map->Revision;
+	TestFalse(TEXT("un secondo svuotamento non toglie nulla"), Map->ClearAll());
+	TestEqual(TEXT("e la revisione resta ferma"), Map->Revision, RevisionAfter);
+
+	// --- Gli orfani soli sono uno stato da svuotare -----------------------------------------------------
+	URTHexMapAsset* OrphansOnly = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	OrphansOnly->Cells.Reset();
+	OrphansOnly->Transitions.Reset();
+	OrphansOnly->SortCells();
+	TestTrue(TEXT("premessa: restano un muro e un binding senza celle"),
+		OrphansOnly->InteriorWalls.Num() > 0 && OrphansOnly->InteractionBindings.Num() > 0);
+	TestTrue(TEXT("ClearAll di soli orfani dichiara di aver tolto qualcosa"), OrphansOnly->ClearAll());
+	TestEqual(TEXT("e li toglie: muri"), OrphansOnly->InteriorWalls.Num(), 0);
+	TestEqual(TEXT("e li toglie: binding"), OrphansOnly->InteractionBindings.Num(), 0);
+	return true;
+}
+
+/**
+ * **`ReplaceContent` pota gli orfani e tiene il resto.**
+ *
+ * La cella `X` sparisce dal contenuto nuovo, e con lei il suo muro, la sua porta con il binding che parte da lei, e
+ * il ponte con nome con il binding che parte da lui. Restano il muro di `K`, il testimone `S2` e le porte: cio' che
+ * sta su celle che restano si conserva. E' la differenza da "sostituisce tutto", che il muro di `K` e il testimone
+ * pinnano. La mappa risultante e' valida e la revisione sale di UNO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentPrunesTest,
+	"RefactorTactics.MapEdit.ReplaceContentPrunesOrphansAndKeepsTheRest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentPrunesTest::RunTest(const FString&)
+{
+	const FRTCellId X(0, 0, 0);
+	const FRTCellId K(-1, 1, 0);
+
+	URTHexMapAsset* Map = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	URTHexMapAsset* Naive = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	if (!TestTrue(TEXT("le mappe si costruiscono"), Map && Naive))
+	{
+		return false;
+	}
+	TestEqual(*FString::Printf(TEXT("la mappa parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+
+	TArray<FRTHexCellData> NewCells;
+	TArray<FRTHexEdge> NewTransitions;
+	MapEditContentWithout(Map, { X }, NewCells, NewTransitions);
+	TestEqual(TEXT("premessa: il contenuto nuovo non ha piu' un arco del ponte"),
+		NewTransitions.Num(), Map->Transitions.Num() - 2);
+
+	// --- Controprova: assegnare i soli due array (cio' che faceva) sporca la mappa -----------------------
+	Naive->Cells = NewCells;
+	Naive->Transitions = NewTransitions;
+	Naive->SortCells();
+	TestTrue(TEXT("controprova: sostituire le sole celle e gli archi lascia segnalazioni"),
+		Naive->ValidateMap().Num() > 0);
+
+	// --- La misura -------------------------------------------------------------------------------------
+	const int32 RevisionBefore = Map->Revision;
+	TestTrue(TEXT("la sostituzione dichiara che l'asset contiene qualcosa"), Map->ReplaceContent(NewCells, NewTransitions));
+
+	TestFalse(TEXT("la cella che non c'e' piu' non c'e'"), Map->ContainsCell(X));
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	TestEqual(TEXT("il muro della cella sparita e' andato, quello di K resta"), Map->InteriorWalls.Num(), 1);
+	TestEqual(TEXT("e quello rimasto e' di K"),
+		Map->InteriorWalls.Num() == 1 ? Map->InteriorWalls[0].Cell == K : false, true);
+	TestEqual(TEXT("il binding con sorgente sulla cella sparita e' andato"), MapEditBindingsFrom(Map, TEXT("S1")), 0);
+	TestEqual(TEXT("il binding che parte dal ponte sparito e' andato"), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+	TestEqual(TEXT("il binding testimone resta"), MapEditBindingsFrom(Map, TEXT("S2")), 1);
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+	return true;
+}
+
+/**
+ * **`ReplaceContent` e `Canc` cella per cella lasciano lo STESSO stato.**
+ *
+ * Due vie che tolgono le stesse celle: `DeleteElement` una alla volta, e `ReplaceContent` con il contenuto che ne
+ * risulta. Stesso `ComputeHash`. La controprova mostra che l'hash vede la differenza: assegnare i soli due array
+ * ne da' uno diverso, quindi l'uguaglianza non e' vacua.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentMatchesCancTest,
+	"RefactorTactics.MapEdit.ReplaceContentAndCancLeaveTheSameState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentMatchesCancTest::RunTest(const FString&)
+{
+	const FRTCellId X(0, 0, 0);
+
+	URTHexMapAsset* ViaCanc = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	URTHexMapAsset* ViaReplace = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	URTHexMapAsset* Naive = MapEditMakeReplaceMap(/*bWithGroup*/ false);
+	if (!TestTrue(TEXT("le mappe si costruiscono"), ViaCanc && ViaReplace && Naive))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Canc: applicato"),
+		URTMapEditLibrary::DeleteElement(ViaCanc, FRTMapElementHandle::ForCell(X)), ERTMapEditOutcome::Applied);
+
+	TArray<FRTHexCellData> NewCells;
+	TArray<FRTHexEdge> NewTransitions;
+	MapEditContentWithout(ViaReplace, { X }, NewCells, NewTransitions);
+	ViaReplace->ReplaceContent(NewCells, NewTransitions);
+
+	Naive->Cells = NewCells;
+	Naive->Transitions = NewTransitions;
+	Naive->SortCells();
+
+	TestNotEqual(TEXT("controprova: l'hash VEDE la cascata, perche' i soli due array ne danno uno diverso"),
+		Naive->ComputeHash(), ViaCanc->ComputeHash());
+	TestEqual(TEXT("stesso hash"), ViaReplace->ComputeHash(), ViaCanc->ComputeHash());
+	TestEqual(TEXT("stessi muri interni"), ViaReplace->InteriorWalls.Num(), ViaCanc->InteriorWalls.Num());
+	TestEqual(TEXT("stessi binding"), ViaReplace->InteractionBindings.Num(), ViaCanc->InteractionBindings.Num());
+	TestEqual(TEXT("stesse segnalazioni di ValidateMap"), MapEditBrushIssues(ViaReplace), MapEditBrushIssues(ViaCanc));
+	return true;
+}
+
+/**
+ * **Un portone i cui bordi stanno su DUE celle che spariscono insieme muore; se una resta, il nome resta.**
+ *
+ * E' il caso che una cascata cella per cella sbaglia: tolta la prima cella, il portone "sopravvive altrove" perche'
+ * l'altra c'e' ancora, e tolta la seconda la prima c'e' ancora se non e' stata rimossa dall'asset. `ReplaceContent`
+ * valuta i nomi sul contenuto NUOVO, quindi vede l'insieme. La seconda meta' (una cella resta) e' la controprova
+ * contro "i nomi delle celle sparite muoiono sempre".
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentGroupTest,
+	"RefactorTactics.MapEdit.ReplaceContentJudgesADoorGroupOnTheWholeSet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentGroupTest::RunTest(const FString&)
+{
+	const FRTCellId P(0, -2, 0);
+	const FRTCellId Q(-2, 0, 0);
+
+	// --- Spariscono entrambe le celle del portone -------------------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeReplaceMap(/*bWithGroup*/ true);
+		if (!TestNotNull(TEXT("la mappa con il portone si costruisce"), Map))
+		{
+			return false;
+		}
+		TestEqual(*FString::Printf(TEXT("parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+			Map->ValidateMap().Num(), 0);
+		TestEqual(TEXT("premessa: il binding del portone esiste"), MapEditBindingsFrom(Map, TEXT("S3")), 1);
+
+		TArray<FRTHexCellData> NewCells;
+		TArray<FRTHexEdge> NewTransitions;
+		MapEditContentWithout(Map, { P, Q }, NewCells, NewTransitions);
+		Map->ReplaceContent(NewCells, NewTransitions);
+
+		TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+			Map->ValidateMap().Num(), 0);
+		TestEqual(TEXT("il portone non ha piu' bordi: il binding che lo comandava e' andato"),
+			MapEditBindingsFrom(Map, TEXT("S3")), 0);
+	}
+
+	// --- Sparisce una sola cella: l'altra tiene vivo il nome --------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeReplaceMap(/*bWithGroup*/ true);
+		if (!TestNotNull(TEXT("la mappa con il portone si costruisce"), Map))
+		{
+			return false;
+		}
+		TArray<FRTHexCellData> NewCells;
+		TArray<FRTHexEdge> NewTransitions;
+		MapEditContentWithout(Map, { P }, NewCells, NewTransitions);
+		Map->ReplaceContent(NewCells, NewTransitions);
+
+		TestEqual(*FString::Printf(TEXT("ancora valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+			Map->ValidateMap().Num(), 0);
+		TestEqual(TEXT("un bordo del portone resta: il nome risolve e il binding resta"),
+			MapEditBindingsFrom(Map, TEXT("S3")), 1);
+	}
+	return true;
+}
+
+/**
+ * **Sostituire con lo stesso contenuto non toglie niente, e su un asset nuovo non c'e' niente da potare.**
+ *
+ * La controprova contro "sostituisce tutto" e contro una potatura troppo avida: lo stesso contenuto, la stessa
+ * mappa, lo stesso hash - e la revisione sale di UNO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentSameContentTest,
+	"RefactorTactics.MapEdit.ReplaceContentWithTheSameContentRemovesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentSameContentTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeReplaceMap(/*bWithGroup*/ true);
+	if (!TestNotNull(TEXT("la mappa si costruisce"), Map))
+	{
+		return false;
+	}
+	const uint32 HashBefore = Map->ComputeHash();
+	const int32 RevisionBefore = Map->Revision;
+	const TArray<FRTHexCellData> SameCells = Map->Cells;
+	const TArray<FRTHexEdge> SameTransitions = Map->Transitions;
+
+	TestTrue(TEXT("la sostituzione dichiara che l'asset contiene qualcosa"), Map->ReplaceContent(SameCells, SameTransitions));
+	TestEqual(TEXT("l'hash non si e' mosso: niente e' stato tolto"), Map->ComputeHash(), HashBefore);
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+	TestEqual(*FString::Printf(TEXT("ancora valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+
+	// Un asset nuovo: nessun contenuto precedente, quindi niente da potare.
+	URTHexMapAsset* Fresh = NewObject<URTHexMapAsset>(GetTransientPackage());
+	TestTrue(TEXT("su un asset nuovo la sostituzione assegna il contenuto"),
+		Fresh->ReplaceContent(SameCells, SameTransitions));
+	TestEqual(TEXT("e le celle sono quelle date"), Fresh->NumCells(), SameCells.Num());
+	TestEqual(TEXT("senza muri interni inventati"), Fresh->InteriorWalls.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
