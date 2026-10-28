@@ -89,7 +89,9 @@
 
 ## Stato in numeri — 2026-10-18
 
-**285 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **128 aperte**.
+**286 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **129 aperte**.
+
+➕ **Rimisurato il 2026-10-28 ([#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750), `PIE-HUD-FUOCO-AREE` aperta)**: il ricalcolo di `doc-coherence` A1 dava `285 · 116/34/7/128` **prima** e `286 · 116/34/7/129` **dopo**. Delta: una voce nuova ⏳, le aree di movimento di un nemico a fuoco, perché la resa a schermo non la vede nessun test.
 
 ➕ **Rimisurato il 2026-10-28 ([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), `PIE-HEX-PAINT-ERASE` aperta)**: il ricalcolo di `doc-coherence` A1 dava `284 · 116/34/7/127` **prima** e `285 · 116/34/7/128` **dopo**. Delta: una voce nuova ⏳, il pennello in `Erase` che porta via la cascata della cella.
 
@@ -1917,6 +1919,14 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 |----|-----------------|---------------|--------------|-------|
 | **PIE-HUD-SGUARDO** | Fermo il cursore su un'unità, su una cella in vista e su una cella fuori vista: il riquadro dice cosa c'è, **e un nemico non osservato dice quanto una cella vuota** | partita hex in pianificazione con un nemico fuori vista su una cella in vista; poi lo stesso nemico in vista | dopo circa 0,3 s compare il riquadro; sul nemico fuori vista il riquadro è quello della cella (stessa uscita che senza nemico); fuori vista non compare nulla; spostando il cursore il ritardo riparte; con la pausa aperta non compare | ⏳ |
 | **PIE-HUD-SCHEDA** | Il click su un nemico **osservato** fissa la scheda (kit ed equipaggiamento inclusi), il tasto destro la chiude, e un nemico che esce di vista la chiude da sola ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)) | partita hex in pianificazione con un nemico in vista; ⚠️ **il pannello non è montato**: la voce resta ⏳ finché non c'è l'asset in `MiddleRight` | si fissa col click e compare il nome, i PV, gli stati, il kit con i numeri di catalogo e l'equipaggiamento; il tasto destro la chiude; il pannello di sinistra non resta sull'ultimo nemico; con un nemico fuori vista il click non fa comparire niente | ⏳ |
+
+### Le aree del fuoco (`#3750`, F5)
+
+> ⚠️ **Mai eseguita da un autore.** La resa è provvisoria — contorno spezzato (il canale non cromatico della previsione), la banda raggiunta solo correndo più piccola e dentro la normale — e nessun test headless vede ciò che si disegna. Tre scelte della sessione aspettano questo giudizio: la corsa disegnata **al netto** della normale, il fuoco **spento** in playback, e il cambio di unità comandata come primo gesto che fa uscire l'area.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-HUD-FUOCO-AREE** | `LMB` su un nemico in vista, senza armare: la mappa mostra **le sue due aree di movimento**, e il piano le cede il posto; il primo gesto di pianificazione le toglie e non tornano da sole | partita hex in pianificazione con una propria unità selezionata e un nemico in vista; poi lo stesso nemico fuori vista; poi il nemico `Slow` e `Unbalanced` | compaiono due aree attorno al nemico, con il contorno spezzato: la normale e, più piccola e dentro, quella raggiunta solo correndo; sparisce il ventaglio della propria unità. Armare un'azione, posare un waypoint o dichiarare un verso toglie le aree e torna il ventaglio; disarmare non le riporta; un nuovo `LMB` sul nemico sì. `RMB` chiude la scheda e le aree. Un nemico fuori vista non mostra nessuna area, nemmeno cliccando la sua cella. `Slow` restringe l'area; con `Unbalanced` resta la sola area normale. **Giudizio d'autore**: le due bande si leggono come due cose diverse? la banda di corsa si distingue dal ventaglio dell'unità comandata, che ha lo stesso colore? | ⏳ |
 
 ### Gate visivo end-to-end della slice (aggiunta il 2026-08-30)
 
