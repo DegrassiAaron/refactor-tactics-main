@@ -2300,4 +2300,215 @@ bool FRTPointerInspectInPlaybackTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// #3747 (F2), DoD: «l'esito dell'hover resta quello di §5.1 in ogni contesto, e nessun bersaglio di click cambia».
+//
+// 🔑 **Le funzioni pure non si possono sporcare, e provarle non dice niente.** `ResolveOutcome` e `ResolveTarget` leggono
+// solo i loro argomenti: darle lo stesso ingresso prima e dopo lo sguardo e' vero anche col difetto, ed e' la versione
+// che il piano (Step 5) aveva gia' scartato. Quello che lo sguardo PUO' sporcare e' lo stato che il controller passa loro:
+// la cella evidenziata sulla mappa, l'unita' ispezionata e il pin, la selezione, il piano di chi e' selezionato. Questo
+// test misura quello, su una board con uno stato di partenza NON vuoto: con un controller nudo `nullptr` prima e dopo
+// non distingue «non ha scritto» da «ha scritto nullptr» (e' il limite di `GlanceGoesThroughTheInertiaOnTheRealPath`).
+//
+// ⚠️ **Cio' che NON prova, dichiarato.** Il punto di ingresso e' `AdvanceGlance`, quello che `PlayerTick` chiama: il ramo
+// di `UpdateGlance` che legge l'unita' sotto il cursore non e' raggiungibile headless (`ResolveCellUnderCursor` risponde
+// sempre `false` senza un viewport, e `PlayerTick` riscrive l'hover come non valido a ogni fotogramma). Una scrittura
+// nascosta li' dentro si vede solo leggendo il codice e in `PIE-HUD-SGUARDO`.
+// ---------------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Nomi distinti per file: il progetto usa unity build. */
+	constexpr int32 GcMineId = 7;
+	constexpr int32 GcHoveredId = 8;
+	constexpr int32 GcPinnedId = 9;
+
+	enum class EGcRole : uint8 { None, Mine, Pinned, Hovered };
+
+	/** Una board di prova: la mia unita' e' selezionata, un nemico e' gia' ispezionato e fissato, e l'hover e' su una cella. */
+	struct FGcBoard
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* Map = nullptr;
+		ARTPlayerController* PC = nullptr;
+		ARTUnit* Mine = nullptr;    // squadra 0, selezionata
+		ARTUnit* Pinned = nullptr;  // squadra 1, ispezionata e fissata PRIMA di accendere lo sguardo
+		ARTUnit* Hovered = nullptr; // squadra 1, quella su cui lo sguardo si apre e che il click colpisce
+		FRTCellId HoverCell = FRTCellId(1, 1, 0);
+	};
+
+	EGcRole GcRoleOf(const FGcBoard& B, const AActor* Actor)
+	{
+		if (Actor == nullptr) { return EGcRole::None; }
+		if (Actor == B.Mine) { return EGcRole::Mine; }
+		if (Actor == B.Pinned) { return EGcRole::Pinned; }
+		if (Actor == B.Hovered) { return EGcRole::Hovered; }
+		return EGcRole::None;
+	}
+
+	/** Tutto cio' che lo sguardo potrebbe scrivere per sbaglio, letto come VALORI (i puntatori di due board non si confrontano). */
+	struct FGcFootprint
+	{
+		FRTCellId HoverCell;
+		bool bHoverValid = false;
+		EGcRole Inspected = EGcRole::None;
+		bool bPinned = false;
+		EGcRole Selected = EGcRole::None;
+		ERTPointerContext Context = ERTPointerContext::IdleSelection;
+		int32 MineSelectedAbility = INDEX_NONE;
+		int32 MinePlannedAbility = INDEX_NONE;
+		int32 MineWaypoints = 0;
+	};
+
+	FGcFootprint GcCapture(const FGcBoard& B)
+	{
+		FGcFootprint F;
+		F.HoverCell = B.Map->GetHoveredCell();
+		F.bHoverValid = B.Map->IsHoveredCellValid();
+		F.Inspected = GcRoleOf(B, B.PC->GetInspectedUnit());
+		F.bPinned = B.PC->IsInspectorPinned();
+		F.Selected = GcRoleOf(B, B.PC->GetSelectedUnit());
+		F.Context = B.PC->GetPointerContext();
+		F.MineSelectedAbility = B.Mine->SelectedAbilityIndex;
+		F.MinePlannedAbility = B.Mine->PlannedAbilityIndex;
+		F.MineWaypoints = B.Mine->PlannedWaypoints.Num();
+		return F;
+	}
+
+	void GcExpectSame(FAutomationTestBase& Test, const FString& When, const FGcFootprint& Was, const FGcFootprint& Now)
+	{
+		Test.TestTrue(*(When + TEXT(": la cella evidenziata e' la stessa")), Was.HoverCell == Now.HoverCell);
+		Test.TestEqual(*(When + TEXT(": l'evidenziazione ha la stessa validita'")), Now.bHoverValid, Was.bHoverValid);
+		Test.TestEqual(*(When + TEXT(": l'unita' ispezionata e' la stessa")), static_cast<int32>(Now.Inspected), static_cast<int32>(Was.Inspected));
+		Test.TestEqual(*(When + TEXT(": il pin e' lo stesso")), Now.bPinned, Was.bPinned);
+		Test.TestEqual(*(When + TEXT(": la selezione e' la stessa")), static_cast<int32>(Now.Selected), static_cast<int32>(Was.Selected));
+		Test.TestEqual(*(When + TEXT(": il contesto del puntatore e' lo stesso")), static_cast<int32>(Now.Context), static_cast<int32>(Was.Context));
+		Test.TestEqual(*(When + TEXT(": l'azione armata e' la stessa")), Now.MineSelectedAbility, Was.MineSelectedAbility);
+		Test.TestEqual(*(When + TEXT(": l'azione pianificata e' la stessa")), Now.MinePlannedAbility, Was.MinePlannedAbility);
+		Test.TestEqual(*(When + TEXT(": i waypoint sono gli stessi")), Now.MineWaypoints, Was.MineWaypoints);
+	}
+
+	bool GcBuild(FAutomationTestBase& Test, FGcBoard& B)
+	{
+		B.World = MakePointerWorld();
+		if (!Test.TestNotNull(TEXT("il mondo di prova esiste"), B.World)) { return false; }
+		B.Map = B.World->SpawnActor<ARTHexMapActor>();
+		if (B.Map != nullptr) { B.Map->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4); }
+		B.PC = B.World->SpawnActor<ARTPlayerController>();
+		// Un eroe NUOVO per unita': le azioni sono oggetti del `URTHeroData`, e condividerlo le legherebbe fra loro.
+		B.Mine = SpawnPointerUnit(B.World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+		B.Pinned = SpawnPointerUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0));
+		B.Hovered = SpawnPointerUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
+		if (!Test.TestTrue(TEXT("mappa, controller e unita' esistono"),
+			B.Map && B.PC && B.Mine && B.Pinned && B.Hovered))
+		{
+			return false;
+		}
+		// Gli id li assegna chi registra le unita' in partita; senza TurnManager valgono 0 e il bersaglio dello sguardo
+		// non distinguerebbe un'unita' dall'altra.
+		B.Mine->StableUnitId = GcMineId;
+		B.Hovered->StableUnitId = GcHoveredId;
+		B.Pinned->StableUnitId = GcPinnedId;
+
+		// Lo stato di partenza NON e' vuoto: selezione, ispezione fissata e hover valido.
+		B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+		B.PC->DispatchUnitClickForTest(B.Pinned, B.Mine);
+		B.Map->SetHoveredCell(B.HoverCell, /*bValid=*/ true);
+
+		const FGcFootprint Start = GcCapture(B);
+		return Test.TestEqual(TEXT("premessa: la mia unita' e' selezionata"), static_cast<int32>(Start.Selected), static_cast<int32>(EGcRole::Mine))
+			&& Test.TestEqual(TEXT("premessa: il nemico e' ispezionato"), static_cast<int32>(Start.Inspected), static_cast<int32>(EGcRole::Pinned))
+			&& Test.TestTrue(TEXT("premessa: e fissato"), Start.bPinned)
+			&& Test.TestTrue(TEXT("premessa: l'hover e' valido sulla cella dichiarata"), Start.bHoverValid && Start.HoverCell == B.HoverCell);
+	}
+
+	FRTGlanceTarget GcUnitGlance(const FGcBoard& B)
+	{
+		return URTPointerLibrary::ResolveGlanceTarget(B.Hovered->StableUnitId, /*bHasCell=*/ true, FRTCellId(3, -1, 0), false);
+	}
+
+	FRTGlanceTarget GcCellGlance()
+	{
+		return URTPointerLibrary::ResolveGlanceTarget(INDEX_NONE, /*bHasCell=*/ true, FRTCellId(3, -1, 0), false);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerGlanceChangesNothingTest,
+	"RefactorTactics.Pointer.GlanceDoesNotChangeTheHoverOutcomeNorTheClickTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerGlanceChangesNothingTest::RunTest(const FString&)
+{
+	// ---- (1) lo sguardo acceso, in ogni contesto, su un'unita' e su una cella: l'impronta non si muove ------------------
+	FGcBoard A;
+	if (!GcBuild(*this, A)) { DestroyPointerWorld(A.World); return false; }
+	const FGcFootprint Baseline = GcCapture(A);
+	const float Delay = A.PC->GlanceDelaySeconds;
+
+	const TArray<ERTPointerContext> Awake = { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Targeting, ERTPointerContext::Pathing, ERTPointerContext::ResolutionPlayback };
+	for (const ERTPointerContext Context : Awake)
+	{
+		const FString Name = StaticEnum<ERTPointerContext>()->GetNameStringByValue(static_cast<int64>(Context));
+		for (const bool bOnUnit : { true, false })
+		{
+			const FRTGlanceTarget Raw = bOnUnit ? GcUnitGlance(A) : GcCellGlance();
+			A.PC->AdvanceGlance(0.f, ERTPointerContext::Modal, true, FRTGlanceTarget()); // riparte da zero
+			A.PC->AdvanceGlance(0.f, Context, true, Raw);
+			A.PC->AdvanceGlance(Delay + 0.01f, Context, true, Raw);
+
+			// Controllo positivo: lo sguardo e' DAVVERO acceso su cio' che ci si aspetta. Senza, «non ha cambiato niente»
+			// varrebbe anche per uno sguardo che non si e' mai aperto.
+			const FString When = FString::Printf(TEXT("%s, su %s"), *Name, bOnUnit ? TEXT("un'unita'") : TEXT("una cella"));
+			if (TestTrue(*(When + TEXT(": lo sguardo e' aperto")), A.PC->GetGlanceTarget().IsValid()))
+			{
+				TestEqual(*(When + TEXT(": ed e' sul bersaglio atteso")),
+					A.PC->GetGlanceTarget().StableUnitId, bOnUnit ? GcHoveredId : static_cast<int32>(INDEX_NONE));
+			}
+			GcExpectSame(*this, When, Baseline, GcCapture(A));
+		}
+	}
+	// Anche dove e' inerte non scrive niente, e non si apre.
+	for (const ERTPointerContext Context : { ERTPointerContext::Modal, ERTPointerContext::ReactionWindow, ERTPointerContext::Facing })
+	{
+		A.PC->AdvanceGlance(Delay + 0.01f, Context, true, GcUnitGlance(A));
+		TestFalse(TEXT("contesto inerte: lo sguardo resta chiuso"), A.PC->GetGlanceTarget().IsValid());
+		GcExpectSame(*this, TEXT("contesto inerte"), Baseline, GcCapture(A));
+	}
+
+	// ---- (2) il click: stessa board, con e senza lo sguardo aperto sull'unita' cliccata -----------------------------------
+	// Gemelli: A non ha mai avuto lo sguardo acceso sul nemico cliccato, B si'. Il click e' lo stesso, e lo stato che ne
+	// esce deve esserlo: se lo sguardo (o chi lo legge) deviasse il bersaglio del click, qui divergono.
+	FGcBoard Plain;
+	FGcBoard Watched;
+	if (!GcBuild(*this, Plain) || !GcBuild(*this, Watched))
+	{
+		DestroyPointerWorld(A.World); DestroyPointerWorld(Plain.World); DestroyPointerWorld(Watched.World);
+		return false;
+	}
+	Watched.PC->AdvanceGlance(0.f, ERTPointerContext::Planning, true, GcUnitGlance(Watched));
+	Watched.PC->AdvanceGlance(Delay + 0.01f, ERTPointerContext::Planning, true, GcUnitGlance(Watched));
+	TestTrue(TEXT("premessa: nel gemello lo sguardo e' aperto sull'unita' che si cliccherebbe"),
+		Watched.PC->GetGlanceTarget().IsValid() && Watched.PC->GetGlanceTarget().StableUnitId == GcHoveredId);
+	TestFalse(TEXT("premessa: nell'altro non lo e'"), Plain.PC->GetGlanceTarget().IsValid());
+
+	const bool bConsumedPlain = Plain.PC->DispatchUnitClickForTest(Plain.Hovered, Plain.Mine);
+	const bool bConsumedWatched = Watched.PC->DispatchUnitClickForTest(Watched.Hovered, Watched.Mine);
+	TestEqual(TEXT("il click e' consumato (o no) allo stesso modo con e senza lo sguardo"), bConsumedWatched, bConsumedPlain);
+
+	const FGcFootprint AfterPlain = GcCapture(Plain);
+	const FGcFootprint AfterWatched = GcCapture(Watched);
+	GcExpectSame(*this, TEXT("dopo il click, con lo sguardo aperto"), AfterPlain, AfterWatched);
+
+	// Controllo positivo: il click ha fatto qualcosa, quindi l'uguaglianza qui sopra non e' «entrambi fermi».
+	TestEqual(TEXT("il click ha portato l'ispezione sull'unita' cliccata"),
+		static_cast<int32>(AfterPlain.Inspected), static_cast<int32>(EGcRole::Hovered));
+	TestNotEqual(TEXT("e quindi lo stato dopo il click non e' quello di prima"),
+		static_cast<int32>(AfterPlain.Inspected), static_cast<int32>(GcCapture(A).Inspected));
+
+	DestroyPointerWorld(A.World);
+	DestroyPointerWorld(Plain.World);
+	DestroyPointerWorld(Watched.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
