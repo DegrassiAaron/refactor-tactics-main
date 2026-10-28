@@ -686,8 +686,21 @@ public:
 	bool PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement,
 		TOptional<bool> InBlocksLineOfSight = TOptional<bool>());
 
-	/** Cancella una cella dentro una pennellata. Vero se esisteva ed è stata rimossa. Niente Sort/Dirty/refresh.
-	 *  `OutCascadeRemoved`, se passato, riceve quanti elementi (muri interni, archi, binding) sono stati portati via. */
+	/**
+	 * Cancella una cella dentro una pennellata, **con la sua cascata**: i muri interni, gli archi e i binding che
+	 * la nominavano. Vero se esisteva ed è stata rimossa. Niente Sort/Dirty/refresh.
+	 *
+	 * 🔑 La cascata la decide `URTMapEditLibrary::DeleteElement`, la stessa funzione di `Canc` sulla selezione
+	 * ([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), `D-553`): due implementazioni
+	 * della stessa regola sono il modo in cui la regola diverge. Per togliere la SOLA cella c'è `RemoveCell`, che
+	 * lascia orfani quanto la cella aveva intorno.
+	 *
+	 * ⚠️ Non apre transazioni: `BeginStroke()` ha già chiamato `Modify()` sull'asset, quindi la cascata sta
+	 * nello stesso Undo della pennellata.
+	 *
+	 * `OutCascadeRemoved`, se passato, riceve quanti elementi (muri interni, archi, binding) sono stati portati
+	 * via con la cella: zero se la cella non esisteva.
+	 */
 	bool EraseCellInStroke(const FRTCellId& Id, int32* OutCascadeRemoved = nullptr);
 
 	/** Chiude la pennellata: SortCells + MarkPackageDirty. */

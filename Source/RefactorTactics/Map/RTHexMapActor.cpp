@@ -3584,10 +3584,12 @@ bool ARTHexMapActor::EraseCell(const FRTCellId& Id)
 	const FScopedTransaction Transaction(LOCTEXT("HexErase", "Hex: Erase Cell"));
 #endif
 	MapAsset->BeginStroke();
-	const bool bRemoved = MapAsset->EraseCellInStroke(Id);
+	int32 CascadeRemoved = 0;
+	const bool bRemoved = MapAsset->EraseCellInStroke(Id, &CascadeRemoved);
 	MapAsset->EndStroke();
 	RebuildInstances();
-	UE_LOG(LogRT, Log, TEXT("[HexMap] Erase %s: %s."), *Id.ToString(), bRemoved ? TEXT("rimossa") : TEXT("assente"));
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Erase %s: %s (cascata: %d elementi portati via)."), *Id.ToString(),
+		bRemoved ? TEXT("rimossa") : TEXT("assente"), CascadeRemoved);
 	return bRemoved;
 }
 
