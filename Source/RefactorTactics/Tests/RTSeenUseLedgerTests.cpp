@@ -64,6 +64,14 @@ namespace
 		return Ledger.LastSeenTurn(SeenObserverTeam, UnitId, ActionId);
 	}
 
+	/** Quante righe lascia la voce. Piu' stretto di `SeenAfter`: una riga con turno 0 risponderebbe `0` e passerebbe. */
+	int32 SeenRows(const FRTTurnLogEntry& Entry)
+	{
+		FRTSeenUseLedger Ledger;
+		Ledger.Observe(Entry, TArray<int32>{ 0, SeenObserverTeam });
+		return Ledger.Num();
+	}
+
 	FString SeenText(const FRTInspectView& View) { return FString::Join(View.Lines, TEXT("\n")); }
 }
 
@@ -148,9 +156,17 @@ bool FRTSeenUseOnlyTheActorCountsTest::RunTest(const FString&)
 		FRTTurnLogEntry NoUnit = SeenHit(); NoUnit.UnitId = 0;
 		FRTTurnLogEntry NoAction = SeenHit(NAME_None);
 		FRTTurnLogEntry NoTurn = SeenHit(TEXT("Hero.Test.Shot"), 0);
-		TestEqual(TEXT("senza unita': niente"), SeenAfter(NoUnit, TEXT("Hero.Test.Shot"), 0), 0);
-		TestEqual(TEXT("senza azione: niente"), SeenAfter(NoAction, NAME_None), 0);
-		TestEqual(TEXT("senza turno: niente"), SeenAfter(NoTurn), 0);
+		// Si contano le RIGHE e non il turno letto: una riga con turno 0 risponderebbe `0` a `LastSeenTurn` e passerebbe.
+		TestEqual(TEXT("senza unita': nessuna riga"), SeenRows(NoUnit), 0);
+		TestEqual(TEXT("senza azione: nessuna riga"), SeenRows(NoAction), 0);
+		TestEqual(TEXT("senza turno: nessuna riga"), SeenRows(NoTurn), 0);
+		TestEqual(TEXT("controllo positivo: la stessa voce completa lascia UNA riga"), SeenRows(SeenHit()), 1);
+
+		// La guardia vale anche per la cura, che non passa da `IsDamageInflictedByActor` e ha il suo ramo.
+		FRTTurnLogEntry HealNoUnit = SeenHit(TEXT("Hero.Test.Heal")); HealNoUnit.Outcome = static_cast<uint8>(ERTCombatOutcome::Healed); HealNoUnit.UnitId = 0;
+		FRTTurnLogEntry HealNoTurn = SeenHit(TEXT("Hero.Test.Heal"), 0); HealNoTurn.Outcome = static_cast<uint8>(ERTCombatOutcome::Healed);
+		TestEqual(TEXT("una cura senza unita': nessuna riga"), SeenRows(HealNoUnit), 0);
+		TestEqual(TEXT("una cura senza turno: nessuna riga"), SeenRows(HealNoTurn), 0);
 	}
 	return true;
 }
@@ -358,6 +374,24 @@ bool FRTSeenUseRowCarriesNoTrueCooldownTest::RunTest(const FString&)
 		return Offenders;
 	};
 	TestEqual(TEXT("sul soggetto solo il campo dedotto nomina una ricarica"), TrueCooldownFields(FRTInspectSubject::StaticStruct()).Num(), 0);
+
+	// Il nome non basta (`TurnsLeft` o `bReady` passerebbero): sul soggetto l'unico booleano e' `bShowFacing` e non ci sono
+	// numeri sciolti. Un contatore residuo o un «usabile ora» sarebbero esattamente l'uno o l'altro.
+	auto LooseScalars = [](const UStruct* Type)
+	{
+		TArray<FString> Out;
+		for (TFieldIterator<FProperty> It(Type); It; ++It)
+		{
+			if (CastField<FBoolProperty>(*It) != nullptr || CastField<FNumericProperty>(*It) != nullptr)
+			{
+				Out.Add(It->GetName());
+			}
+		}
+		return Out;
+	};
+	TestEqual(TEXT("sul soggetto l'unico scalare sciolto e' `bShowFacing`"), LooseScalars(FRTInspectSubject::StaticStruct()), TArray<FString>{ TEXT("bShowFacing") });
+	TestTrue(TEXT("anti-vacuita': lo stesso scan trova `TurnsRemaining` e `bUsableNow` su FRTAbilityCooldownView"),
+		LooseScalars(FRTAbilityCooldownView::StaticStruct()).Num() >= 2);
 	TestEqual(TEXT("e sul tooltip del kit, che la scheda riusa, nessuno"), TrueCooldownFields(FRTActionTooltipView::StaticStruct()).Num(), 0);
 	TestNotNull(TEXT("e quel campo esiste"), FRTInspectSubject::StaticStruct()->FindPropertyByName(TEXT("DeducedCooldowns")));
 
@@ -415,12 +449,26 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 		for (int32 I = 0; I < 400 && Board.TM->IsResolving(); ++I) { Board.TM->Tick(0.05f); }
 	};
 
+	// PulseShot non ha ricarica di catalogo, e senza non c'e' niente da dedurre ne' da proteggere. L'azione e' una copia
+	// dell'unita' (`MakeIvrin` crea oggetti nuovi a ogni chiamata): la ricarica che `ConsumeAbility` legge si dichiara
+	// qui, su questa unita' sola.
+	constexpr int32 RealCooldown = 3;
+	auto GiveShotACooldown = [&](FBoard& Board)
+	{
+		if (Board.Attacker != nullptr && Board.Attacker->Abilities.IsValidIndex(0) && Board.Attacker->Abilities[0] != nullptr)
+		{
+			Board.Attacker->Abilities[0]->CooldownTurns = RealCooldown;
+		}
+	};
+
 	FBoard Attack;
 	if (!Build(Attack)) { RTWorldFixtures::DestroyWorld(Attack.World); return false; }
+	GiveShotACooldown(Attack);
 	Resolve(Attack, /*bAttack=*/ true);
 
 	const URTActionData* Shot = Attack.Attacker->GetAbility(0);
 	if (!TestNotNull(TEXT("l'attaccante ha un'azione 0"), Shot)) { RTWorldFixtures::DestroyWorld(Attack.World); return false; }
+	TestEqual(TEXT("premessa: l'azione 0 ha la ricarica di catalogo dichiarata"), Shot->CooldownTurns, RealCooldown);
 	const FRTTurnLogEntry* Hit = Attack.TM->GetTurnLog().FindByPredicate([&](const FRTTurnLogEntry& E)
 	{
 		return E.UnitId == Attack.Attacker->StableUnitId && FRTSeenUseLedger::IsUseByItsSubject(E);
@@ -430,11 +478,12 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(Attack.World);
 		return false;
 	}
-	TestEqual(TEXT("premessa: la voce porta l'azione del kit"), Hit->ActionId, Shot->Def.ActionId);
+	TestEqual(TEXT("l'ActionId loggato e' quello del kit, per un'azione CON ricarica"), Hit->ActionId, Shot->Def.ActionId);
 	TestTrue(TEXT("premessa: la squadra del difensore e' autorizzata a leggere la voce"), Hit->Verdict.AllowsTeam(SeenObserverTeam));
 
-	// La misura che la spec chiedeva (§6.4): il verdetto di una voce si congela contro l'unita' che la scrive, la
-	// stessa che finisce in `UnitId`. Su TUTTE le voci vere di questo turno con un'unita', non solo sulla prima.
+	// Il verdetto di una voce si congela contro l'unita' che la scrive (spec §6.4). Vale per costruzione —
+	// `AppendLogEntry` legge `Actor->StableUnitId` in entrambi i punti — e questo test tiene ferma la costruzione sulle
+	// voci vere di un turno: se qualcuno scrivesse l'una da un'unita' e l'altro da un'altra, qui diventa rosso.
 	int32 WithUnit = 0;
 	for (const FRTTurnLogEntry& Entry : Attack.TM->GetTurnLog())
 	{
@@ -448,23 +497,10 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 	TestEqual(TEXT("il TurnManager ha imparato l'uso nel turno della voce"),
 		Ledger.LastSeenTurn(SeenObserverTeam, Attack.Attacker->StableUnitId, Shot->Def.ActionId), Hit->TurnNumber);
 
-	// La scheda: stessa unita', ma con una ricarica di catalogo (PulseShot non ne ha), costruita sulla voce VERA.
 	FRTSeenUseLedger Reread;
 	for (const FRTTurnLogEntry& Entry : Attack.TM->GetTurnLog()) { Reread.Observe(Entry, TArray<int32>{ 0, SeenObserverTeam }); }
 	TestEqual(TEXT("rileggendo il TurnLog si ottiene lo stesso registro"), Reread.Num(), Ledger.Num());
 
-	// Il mondo gemello: la stessa partita senza nessun attacco, e la stessa partita con l'attacco ma letto come se
-	// fosse avvenuto fuori vista (verdetto che non autorizza nessuno). Devono dare la stessa scheda.
-	FBoard Quiet;
-	if (!Build(Quiet)) { RTWorldFixtures::DestroyWorld(Attack.World); RTWorldFixtures::DestroyWorld(Quiet.World); return false; }
-	Resolve(Quiet, /*bAttack=*/ false);
-
-	FRTSeenUseLedger BlindReading;
-	for (FRTTurnLogEntry Entry : Attack.TM->GetTurnLog())
-	{
-		Entry.Verdict = FRTKnowledgeVerdict::NoOne();
-		BlindReading.Observe(Entry, TArray<int32>{ 0, SeenObserverTeam });
-	}
 	// Si confronta cio' che F6 produce — le righe dedotte e il loro testo — e non la scheda intera: PV, verso e stati
 	// di un attaccante che ha appena combattuto differiscono dal gemello fermo per ragioni che F6 non tocca.
 	auto Deduced = [](const FRTInspectSubject& Subject)
@@ -473,32 +509,50 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 		OnlyDeduced.DeducedCooldowns = Subject.DeducedCooldowns;
 		return SeenText(URTInspectLibrary::Compose(OnlyDeduced));
 	};
+
+	// La scheda sulla voce VERA, passata da `AppendLogEntry` e dal registro del TurnManager.
+	const FRTInspectSubject SeenSubject = ARTHUD::BuildInspectSubject(Attack.Attacker, SeenObserverTeam, true, &Ledger);
+	if (TestEqual(TEXT("la scheda ha una riga, per l'azione vista"), SeenSubject.DeducedCooldowns.Num(), 1))
+	{
+		const FRTInspectDeducedCooldown& Row = SeenSubject.DeducedCooldowns[0];
+		TestEqual(TEXT("l'azione vista"), Row.ActionId, Shot->Def.ActionId);
+		TestEqual(TEXT("l'ultimo turno visto"), Row.LastSeenTurn, Hit->TurnNumber);
+		TestEqual(TEXT("e il turno da cui torna disponibile"), Row.AvailableFromTurn, Hit->TurnNumber + RealCooldown);
+
+		// 🔑 L'ORDINE, SU UN TURNO VERO (rilievo della review). Il pagamento avviene in risoluzione e il Cleanup dello
+		// STESSO turno ne toglie uno: pianificando il turno dopo restano `RealCooldown - 1`, e i turni che mancano alla
+		// disponibilita' dichiarata sono esattamente la ricarica residua. Spostare il Cleanup, o il pagamento, fa
+		// slittare di uno questa uguaglianza.
+		TestEqual(TEXT("premessa: il turno e' concluso e si pianifica il successivo"), Attack.TM->GetTurnNumber(), Hit->TurnNumber + 1);
+		TestEqual(TEXT("la ricarica vera residua e' scesa di UNO nel Cleanup dello stesso turno"),
+			Attack.Attacker->GetAbilityCooldown(0), RealCooldown - 1);
+		TestEqual(TEXT("e coincide con i turni che mancano alla disponibilita' dichiarata dalla scheda"),
+			Attack.Attacker->GetAbilityCooldown(0), Row.AvailableFromTurn - Attack.TM->GetTurnNumber());
+	}
+	TestTrue(TEXT("la sezione della scheda dichiara una stima"), Deduced(SeenSubject).Contains(TEXT("Ricariche (stima")));
+
+	// Il mondo gemello: la stessa partita senza nessun attacco. E' fermo: la sua ricarica VERA e' a zero. Quella del mondo
+	// dell'attacco e' in corso, ed e' il canale che P4 vieta: se la scheda la leggesse, le due sezioni differirebbero.
+	FBoard Quiet;
+	if (!Build(Quiet)) { RTWorldFixtures::DestroyWorld(Attack.World); RTWorldFixtures::DestroyWorld(Quiet.World); return false; }
+	GiveShotACooldown(Quiet);
+	Resolve(Quiet, /*bAttack=*/ false);
+	TestTrue(TEXT("premessa: nel mondo dell'attacco la ricarica VERA e' in corso"), Attack.Attacker->GetAbilityCooldown(0) > 0);
+	TestEqual(TEXT("premessa: nel gemello fermo non lo e'"), Quiet.Attacker->GetAbilityCooldown(0), 0);
+
+	// Lo stesso attacco, letto come se fosse avvenuto fuori vista (verdetto che non autorizza nessuno).
+	FRTSeenUseLedger BlindReading;
+	for (FRTTurnLogEntry Entry : Attack.TM->GetTurnLog())
+	{
+		Entry.Verdict = FRTKnowledgeVerdict::NoOne();
+		BlindReading.Observe(Entry, TArray<int32>{ 0, SeenObserverTeam });
+	}
 	const FString BlindDeduced = Deduced(ARTHUD::BuildInspectSubject(Attack.Attacker, SeenObserverTeam, true, &BlindReading));
 	const FString QuietDeduced = Deduced(ARTHUD::BuildInspectSubject(Quiet.Attacker, SeenObserverTeam, true, &Quiet.TM->GetSeenUses()));
-	TestEqual(TEXT("un uso fuori vista e un uso mai avvenuto danno la stessa sezione di ricariche"), BlindDeduced, QuietDeduced);
+	TestEqual(TEXT("un uso fuori vista e un uso mai avvenuto danno la stessa sezione, a ricariche vere diverse"), BlindDeduced, QuietDeduced);
 	TestEqual(TEXT("e i due registri sono vuoti"), BlindReading.Num() + Quiet.TM->GetSeenUses().Num(), 0);
 	TestTrue(TEXT("controllo positivo: lo stesso attacco, letto da chi lo vede, il registro non e' vuoto"), Ledger.Num() > 0);
-
-	// PulseShot non ha ricarica, quindi la sezione e' vuota da entrambi i lati e il confronto qui sopra non basta.
-	// Controllo positivo sulla scheda: la voce VERA — stessa unita', stesso turno, stesso verdetto — con l'azione
-	// sostituita da una che ha una ricarica di catalogo (indice 1, InterceptShot).
-	const URTActionData* Intercept = Attack.Attacker->GetAbility(1);
-	if (TestTrue(TEXT("premessa: l'azione 1 ha una ricarica di catalogo"), Intercept != nullptr && Intercept->CooldownTurns > 0))
-	{
-		FRTTurnLogEntry SeenEntry = *Hit;
-		SeenEntry.ActionId = Intercept->Def.ActionId;
-		FRTSeenUseLedger SeenLedger;
-		SeenLedger.Observe(SeenEntry, TArray<int32>{ 0, SeenObserverTeam });
-		const FString SeenDeduced = Deduced(ARTHUD::BuildInspectSubject(Attack.Attacker, SeenObserverTeam, true, &SeenLedger));
-		TestTrue(TEXT("visto: la scheda ha la sezione, dichiarata stima"), SeenDeduced.Contains(TEXT("Ricariche (stima")));
-
-		FRTTurnLogEntry UnseenEntry = SeenEntry;
-		UnseenEntry.Verdict = FRTKnowledgeVerdict::NoOne();
-		FRTSeenUseLedger UnseenLedger;
-		UnseenLedger.Observe(UnseenEntry, TArray<int32>{ 0, SeenObserverTeam });
-		TestEqual(TEXT("fuori vista: la stessa voce non lascia traccia sulla scheda"),
-			Deduced(ARTHUD::BuildInspectSubject(Attack.Attacker, SeenObserverTeam, true, &UnseenLedger)), QuietDeduced);
-	}
+	TestNotEqual(TEXT("controllo positivo: e la sezione di chi lo vede non e' quella vuota"), Deduced(SeenSubject), QuietDeduced);
 
 	RTWorldFixtures::DestroyWorld(Attack.World);
 	RTWorldFixtures::DestroyWorld(Quiet.World);

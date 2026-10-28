@@ -433,8 +433,10 @@ Sono premesse plausibili e non misurate. Il piano le misura prima di poggiarci s
   solo le voci in cui il soggetto è chi agisce (P4).
   ✅ **Misurato in #3751** (`AppendLogEntry`, `MakeStatusBirthEntry`, `FRTTurnLogEntry::ActionId`): il verdetto di
   una voce si congela contro l'unità passata come attore, la stessa che finisce in `UnitId`
-  (`Entry.VerdictSubject.StableUnitId == Entry.UnitId`, pinnato sulle voci vere dal test
-  `SeenUse.ARealSeenAttackLeavesARowAndAnUnseenOneDoesNot`). Una voce di stato porta in `ActionId` il **tag dello
+  (`Entry.VerdictSubject.StableUnitId == Entry.UnitId`). Vale **per costruzione** — `AppendLogEntry` legge
+  `Actor->StableUnitId` in entrambi i punti — e il test `SeenUse.ARealSeenAttackLeavesARowAndAnUnseenOneDoesNot` tiene
+  ferma la costruzione sulle voci vere di un turno; non e' una prova che il verdetto sia giusto, che e' il compito
+  dell'audit di D-313. Una voce di stato porta in `ActionId` il **tag dello
   stato**, mai un'azione del kit. Il caso che invece accrediterebbe l'azione sbagliata è un altro, e si vede solo
   leggendo `ERTMoveOutcome::Displaced`: `UnitId` è chi viene spostato, `ActionId` è l'azione di **chi spinge**, e
   `IsSubjectTheSufferer` non lo riconosce come voce di chi subisce.

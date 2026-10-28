@@ -1071,6 +1071,12 @@ public:
 	/**
 	 * Le azioni che ogni squadra ha visto usare, sull'INTERA partita (`#3751`, F6): il `TurnLog` vive per turno,
 	 * questo no. E' cio' da cui la scheda di un nemico deduce le ricariche; le ricariche vere restano private.
+	 *
+	 * ⚠️ **Per chi lo cabla al pannello (#3748).** (1) Il registro contiene TUTTE le squadre: chi lo legge passa sempre
+	 * il `TeamId` di chi guarda (`ARTPlayerState::TeamIdOf`), mai un valore fisso. (2) Si aggiorna a tempo di
+	 * RISOLUZIONE, non di playback: la riga di un uso del turno corrente comparirebbe prima dei beat che lo
+	 * mostrano. Se il pannello e' aperto durante `ResolutionPlayback`, decida se nascondere le righe del turno in
+	 * corso: e' il limite che la spec dichiara come R15, qui su un'azione e non solo sui PV.
 	 */
 	const FRTSeenUseLedger& GetSeenUses() const { return SeenUses; }
 

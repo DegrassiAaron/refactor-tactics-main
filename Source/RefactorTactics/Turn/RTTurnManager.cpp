@@ -3164,8 +3164,10 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 
 	// `#3751`: le azioni che ogni squadra ha visto usare. Stesso punto e stessa ragione dell'annuncio qui sopra: un
 	// produttore per sito sarebbe un elenco da tenere allineato. Le squadre sono quelle di `TeamKnowledgeState`,
-	// le stesse contro cui `FreezeVerdictFor` ha appena congelato il verdetto; il registro tiene solo cio' che
-	// quel verdetto autorizza, e non decide niente: osservazione pura, come il broadcast.
+	// contro cui `FreezeVerdictFor` congela il verdetto di una voce di UN'UNITA'. ⚠️ I verdetti gia' congelati
+	// (`Frozen`) o di piano possono nominare squadre che non sono li': nessuna categoria che il registro conta li
+	// usa oggi (`IsUseByItsSubject`), ed e' una condizione da riverificare se se ne aggiunge una. Il registro tiene
+	// solo cio' che il verdetto autorizza, e non decide niente: osservazione pura, come il broadcast.
 	{
 		TArray<int32, TInlineAllocator<8>> ObserverTeams;
 		for (const FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
