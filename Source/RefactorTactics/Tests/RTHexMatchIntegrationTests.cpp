@@ -3872,6 +3872,74 @@ bool FRTDisarmingATargetingAttackKeepsAnIndependentReactionTest::RunTest(const F
 	return true;
 }
 
+/**
+ * 🔴 **DISARMARE UNA REAZIONE NON TOGLIE L'AZIONE PRINCIPALE GIA' PIANIFICATA** (`#3927`, decisione d'autore, [D-557]).
+ *
+ * L'ordine inverso dei test qui sopra: si arma una principale (`Action.Guard`, che entra nel piano) e POI la reazione.
+ * Lo slot acceso e' la reazione, la guardia e' nel piano. Il secondo click sullo slot della reazione entrava in
+ * `DisarmPlannedAction`, che non distingueva cosa disarmava e azzerava anche `PlannedAbilityIndex`, l'attacco, il lato, il
+ * marcatore dei waypoint e il tetto riservato: la guardia spariva senza che nessuno l'avesse annullata.
+ *
+ * ⚠️ **Si legge anche il marcatore** `WaypointsAllaDichiarazione`: e' la memoria con cui il Back toglie prima i waypoint
+ * posati dopo la principale. Se il disarmo della reazione lo azzerasse, la guardia resterebbe nel piano senza piu' il suo
+ * segno, e il Back non saprebbe piu' disfare l'ultimo gesto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDisarmingAReactionKeepsAnIndependentMainActionTest,
+	"RefactorTactics.HexMatch.DisarmingAReactionKeepsAnIndependentMainAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDisarmingAReactionKeepsAnIndependentMainActionTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Counter"), 3);
+	const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Guard"), 1);
+	const URTActionData* Counter = B.Mine->GetAbility(Reazione);
+	const URTActionData* Guard = B.Mine->GetAbility(Guardia);
+	if (!TestTrue(TEXT("premessa: reazione e guardia sono entrate nel kit"),
+			Reazione != INDEX_NONE && Guardia != INDEX_NONE && Reazione != Guardia && Counter && Guard)
+		|| !TestEqual(TEXT("premessa: la prima e' una reazione"),
+			static_cast<int32>(Counter->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction))
+		|| !TestTrue(TEXT("premessa: la seconda NON e' una reazione"), Guard->Def.Slot != ERTActionSlot::Reaction)
+		|| !TestTrue(TEXT("premessa: sono pronte entrambe"),
+			B.Mine->CanUseAbility(Reazione) && B.Mine->CanUseAbility(Guardia)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// PRIMA la principale, POI la reazione: e' l'ordine che i test di #3896 non coprivano.
+	B.PC->ArmKitAbility(Guardia);
+	B.PC->ArmKitAbility(Reazione);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	const int32 MarcatoreDellaGuardia = B.Mine->WaypointsAllaDichiarazione;
+	if (!TestEqual(TEXT("premessa: lo slot acceso e' la reazione"), B.Mine->SelectedAbilityIndex, Reazione)
+		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Mine->PlannedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: e la reazione pure"), B.Mine->PlannedReactionAbility, Reazione)
+		|| !TestTrue(TEXT("premessa: la guardia ha il suo marcatore"), MarcatoreDellaGuardia != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Il secondo click sullo slot della REAZIONE.
+	B.PC->ArmKitAbility(Reazione);
+	TestEqual(TEXT("lo slot si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("la reazione esce dal piano"), B.Mine->PlannedReactionAbility, INDEX_NONE);
+	TestEqual(TEXT("la guardia RESTA nel piano"), B.Mine->PlannedAbilityIndex, Guardia);
+	TestEqual(TEXT("col suo marcatore intatto"), B.Mine->WaypointsAllaDichiarazione, MarcatoreDellaGuardia);
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestFalse(TEXT("e la timeline non disegna piu' la reazione armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 // =====================================================================================================
 // `#3892` — la ROTTA si scrive da UN punto: `RefreshPlanningPreview`.
 // =====================================================================================================
