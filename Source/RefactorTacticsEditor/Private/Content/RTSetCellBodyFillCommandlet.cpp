@@ -171,7 +171,7 @@ int32 URTSetCellBodyFillCommandlet::Main(const FString& Params)
 	const bool bIdentityUnchanged = (HashBefore == HashAfter) && (RevisionBefore == Map->Revision);
 	UE_LOG(LogRTCellBodyFill, Display,
 		TEXT("%s corpo di %s: %s -> %s — hash %u -> %u, revisione %d -> %d (%s)"),
-		bDryRun ? TEXT("scriverebbe") : TEXT("scritto"),
+		bDryRun ? TEXT("scriverebbe") : (bAlreadySet ? TEXT("confermo") : TEXT("scritto")),
 		*DescribeBodyFillCell(Target), *FillBefore, *RTReflection::EnumName(Fill),
 		HashBefore, HashAfter, RevisionBefore, Map->Revision,
 		bIdentityUnchanged ? TEXT("invariati") : TEXT("MOSSI"));
