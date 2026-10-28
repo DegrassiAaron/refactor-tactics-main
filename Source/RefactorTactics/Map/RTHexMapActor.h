@@ -310,7 +310,7 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void GenerateIntoAsset();
 
-	/** [Editor] Svuota celle, transizioni, muri interni e binding dell'asset (#3918, `D-556`), marca dirty e ridisegna. */
+	/** [Editor] Svuota celle, transizioni, muri interni, binding, regioni No-Walk e volumi a scatola dell'asset (#3918, `D-556`; #3929, `D-558`), marca dirty e ridisegna. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ClearAsset();
 

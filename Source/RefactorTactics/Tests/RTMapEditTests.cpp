@@ -3419,7 +3419,8 @@ bool FRTMapEditReplaceContentSameContentTest::RunTest(const FString&)
 //
 // `D-556` aveva fatto svuotare a `ClearAll` muri interni e binding, ma `NoWalkAreas` (i cui vertici sono ancore su
 // celle) e `BoxVolumes` (`FRTBoxVolume::Cell`) erano rimasti, dichiarati come scostamento dalla lettura letterale di
-// "tutto". L'autore ha deciso: il Clear li svuota. `ReplaceContent` non cambia.
+// "tutto". L'autore ha deciso: il Clear li svuota. `ReplaceContent` con contenuto non vuoto non cambia; con
+// contenuto vuoto e' un `ClearAll` (la guardia sta li', non duplicata), e li svuota.
 // ---------------------------------------------------------------------------------------------------------
 
 namespace
@@ -3498,14 +3499,15 @@ bool FRTMapEditClearAllAreasAndVolumesTest::RunTest(const FString&)
 }
 
 /**
- * **`ReplaceContent` NON cambia: una regione e un volume restano.**
+ * **`ReplaceContent` con celle nuove NON cambia: una regione e un volume restano.**
  *
  * L'autore ha deciso sul Clear; per *Generate Into Asset* vale `D-556` (pota muri e binding che nominano celle
- * assenti). La sorte di regioni e volumi ancorati a celle che spariscono non e' decisa, e questo test la pinna cosi'
- * com'e': una scelta futura la cambiera' consapevolmente, non per riflesso di questa.
+ * assenti). La sorte di regioni e volumi ancorati a celle che spariscono in una sostituzione con contenuto non
+ * vuoto non e' decisa, e questo test la pinna cosi' com'e': una scelta futura la cambiera' consapevolmente, non per
+ * riflesso di questa. Il caso del contenuto vuoto e' il test che segue.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentKeepsAreasTest,
-	"RefactorTactics.MapEdit.ReplaceContentLeavesNoWalkAreasAndBoxVolumesAlone",
+	"RefactorTactics.MapEdit.ReplaceContentWithNewCellsKeepsNoWalkAreasAndBoxVolumes",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMapEditReplaceContentKeepsAreasTest::RunTest(const FString&)
 {
@@ -3523,6 +3525,37 @@ bool FRTMapEditReplaceContentKeepsAreasTest::RunTest(const FString&)
 	TestTrue(TEXT("la sostituzione dichiara che l'asset contiene qualcosa"), Map->ReplaceContent(NewCells, NewTransitions));
 	TestEqual(TEXT("la regione resta"), Map->NoWalkAreas.Num(), 1);
 	TestEqual(TEXT("e il volume pure"), Map->BoxVolumes.Num(), 1);
+	return true;
+}
+
+/**
+ * **`ReplaceContent` con contenuto VUOTO e' un `ClearAll`: regioni e volumi se ne vanno.**
+ *
+ * Sostituire con NIENTE delega a `ClearAll` (la guardia "niente da togliere" sta li', non duplicata), quindi da
+ * #3929 svuota anche `NoWalkAreas` e `BoxVolumes`. Non e' una scelta dell'autore ma una conseguenza della
+ * delega, e questo test la pinna: il dichiarato `ReplaceContent` NON cambia vale per il contenuto non vuoto. Il
+ * valore di ritorno resta `false` (il chiamante ha passato niente), e la revisione sale comunque di UNO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditReplaceContentNothingClearsAreasTest,
+	"RefactorTactics.MapEdit.ReplaceContentWithNothingClearsNoWalkAreasAndBoxVolumes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditReplaceContentNothingClearsAreasTest::RunTest(const FString&)
+{
+	const FRTCellId Home(0, 0, 0);
+
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	Map->NoWalkAreas.Add(MapEditMakeNoWalkTriangle(Home));
+	Map->BoxVolumes.Add(MapEditMakeBoxVolume(Home));
+	TestEqual(TEXT("premessa: una regione No-Walk"), Map->NoWalkAreas.Num(), 1);
+	TestEqual(TEXT("premessa: un volume a scatola"), Map->BoxVolumes.Num(), 1);
+
+	const int32 RevisionBefore = Map->Revision;
+	TestFalse(TEXT("sostituire con niente non dichiara che l'asset contiene qualcosa"),
+		Map->ReplaceContent(TArray<FRTHexCellData>(), TArray<FRTHexEdge>()));
+	TestEqual(TEXT("celle azzerate"), Map->NumCells(), 0);
+	TestEqual(TEXT("regioni No-Walk azzerate"), Map->NoWalkAreas.Num(), 0);
+	TestEqual(TEXT("volumi a scatola azzerati"), Map->BoxVolumes.Num(), 0);
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
 	return true;
 }
 
