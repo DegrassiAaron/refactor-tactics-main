@@ -11,6 +11,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
 #include "Map/RTMapEditLibrary.h"
+#include "Map/RTStructureIdentityLibrary.h" // FindDoorEdges: le porte comandate sopravvivono (#3917)
 #include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -2733,6 +2734,316 @@ bool FRTMapEditBrushAreaLeavesNoOrphansTest::RunTest(const FString&)
 	TestEqual(TEXT("gli archi, in entrata e in uscita, sono andati"), After.Transitions, 0);
 	TestEqual(TEXT("e il binding"), After.Bindings, 0);
 	TestEqual(TEXT("il conteggio della pennellata somma la cascata di ogni cella"), CascadeRemoved, 6);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #3917 - un arco con nome muore con la sua cella, e porta via i binding che partono da lui.
+//
+// `CollectDependents` raccoglieva i nomi che muoiono con una cella dalle sole PORTE. Ma `FRTHexEdge` ha un
+// `StableId`, e `ValidateReferences` risolve un nome se trova una porta OPPURE un arco: un binding la cui
+// SORGENTE e' un arco con nome restava con un riferimento inesistente quando l'arco spariva con la cella - per
+// `Canc` come per il pennello, quindi i due gesti restavano concordi e sbagliati insieme. Lo stesso valeva per
+// la cancellazione DIRETTA di un arco (il ramo `Transition` di `DeleteElement`).
+//
+// Misurato: un binding che ha un arco come BERSAGLIO e' gia' un ERRORE di `ValidateMap` ("binding non
+// applicabile": la risoluzione comanda solo porte), quindi non e' uno stato valido che la cascata rompe e i test
+// non partono da li. Un arco come SORGENTE invece e' valido.
+//
+// Un nome di arco condiviso e' legittimo solo per una coppia di archi RECIPROCI (un ponte bidirezionale): ne
+// segue che i due archi toccano le stesse due celle, e il nome non puo' sopravvivere a meta'.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Un ponte con nome: due archi reciproci con lo stesso `StableId`. Nome prefissato: unity build. */
+	void MapEditAddNamedBridge(URTHexMapAsset* Map, const FRTCellId& A, const FRTCellId& B, FName Name)
+	{
+		FRTHexEdge Forward(A, B, /*Cost*/ 1);
+		Forward.StableId = Name;
+		FRTHexEdge Back(B, A, /*Cost*/ 1);
+		Back.StableId = Name;
+		Map->Transitions.Add(Forward);
+		Map->Transitions.Add(Back);
+	}
+
+	/**
+	 * Una mappa VALIDA in cui `Doomed` e `Far` sono uniti dal ponte con nome `B1`, che COMANDA la porta `D1`
+	 * (e, con `bSecondTarget`, anche `D3`: le porte stanno su celle che sopravvivono). Un secondo ponte `B2`,
+	 * che comanda `D2`, e' il testimone: non c'entra con `Doomed` e deve restare.
+	 */
+	URTHexMapAsset* MapEditMakeNamedArcMap(const FRTCellId& Doomed, const FRTCellId& Far, bool bSecondTarget)
+	{
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		MapEditAddNamedBridge(Map, Doomed, Far, TEXT("B1"));
+
+		const FRTCellId DoorCell1(1, -1, 0);
+		const FRTCellId DoorCell2(0, 1, 0);
+		const FRTCellId DoorCell3(-1, 1, 0);
+		ERTHexDirection Edge1, Edge2, Edge3;
+		if (!MapEditFindInteriorEdge(Map, DoorCell1, Edge1) || !MapEditFindInteriorEdge(Map, DoorCell2, Edge2)
+			|| !MapEditFindInteriorEdge(Map, DoorCell3, Edge3))
+		{
+			return nullptr;
+		}
+		MapEditPutDoor(Map, DoorCell1, Edge1, /*DoorId*/ 1, TEXT("D1"));
+		MapEditPutDoor(Map, DoorCell2, Edge2, /*DoorId*/ 2, TEXT("D2"));
+
+		TArray<FName> Targets = { TEXT("D1") };
+		if (bSecondTarget)
+		{
+			MapEditPutDoor(Map, DoorCell3, Edge3, /*DoorId*/ 3, TEXT("D3"));
+			Targets.Add(TEXT("D3"));
+		}
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B1"), Targets));
+
+		MapEditAddNamedBridge(Map, FRTCellId(-2, 0, 0), FRTCellId(0, -2, 0), TEXT("B2"));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("B2"), { TEXT("D2") }));
+		return Map;
+	}
+
+	/** Quanti binding della mappa hanno quella sorgente? */
+	int32 MapEditBindingsFrom(const URTHexMapAsset* Map, FName Source)
+	{
+		int32 Count = 0;
+		for (const FRTInteractionBinding& B : Map->InteractionBindings)
+		{
+			if (B.SourceId == Source)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+}
+
+/**
+ * **Cancellare una cella che porta un ponte con nome non lascia il binding che parte da lui.**
+ *
+ * La premessa asserisce che l'allestimento e' valido e porta il ponte e il binding; la controprova mostra che
+ * togliere gli archi e la cella SENZA toccare i binding sporca la mappa (e' quello che la cascata faceva); poi si
+ * misura `DeleteElement` e il pennello (`EraseCellInStroke`), che devono lasciare lo stesso stato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcCascadeTest,
+	"RefactorTactics.MapEdit.CellCascadeTakesBindingsOfNamedArcs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNamedArcCascadeTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+
+	URTHexMapAsset* ViaDelete = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ false);
+	URTHexMapAsset* ViaBrush = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ false);
+	URTHexMapAsset* Naive = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ false);
+	if (!TestTrue(TEXT("le mappe si costruiscono"), ViaDelete && ViaBrush && Naive))
+	{
+		return false;
+	}
+
+	// --- Premessa --------------------------------------------------------------------------------------
+	TestEqual(*FString::Printf(TEXT("l'allestimento parte valido (segnalazioni: %s)"), *MapEditBrushIssues(ViaDelete)),
+		ViaDelete->ValidateMap().Num(), 0);
+	TestEqual(TEXT("premessa: due ponti, quattro archi"), ViaDelete->Transitions.Num(), 4);
+	TestEqual(TEXT("premessa: due binding"), ViaDelete->InteractionBindings.Num(), 2);
+
+	// --- Controprova: archi e cella senza i binding ------------------------------------------------------
+	Naive->Transitions.RemoveAll([&Doomed](const FRTHexEdge& E) { return E.From == Doomed || E.To == Doomed; });
+	Naive->RemoveCell(Doomed);
+	TestTrue(TEXT("controprova: lasciare il binding sporca la mappa, ed e' cio' che la cascata faceva"),
+		MapEditBrushIssues(Naive).Contains(TEXT("struttura inesistente 'B1'")));
+
+	// --- Cio' che la cascata raccoglie ---------------------------------------------------------------------
+	const FRTMapDependencySet Set =
+		URTMapDependencyLibrary::CollectDependents(ViaDelete, FRTMapElementHandle::ForCell(Doomed));
+	TestTrue(TEXT("il nome del ponte muore con la cella"), Set.OrphanedStructureNames.Contains(FName(TEXT("B1"))));
+	TestFalse(TEXT("e quello del ponte testimone no"), Set.OrphanedStructureNames.Contains(FName(TEXT("B2"))));
+	TestEqual(TEXT("il binding che parte dal ponte e' fra i dipendenti"),
+		Set.InteractionBindingIndices.Num(), 1);
+
+	// --- Le due vie --------------------------------------------------------------------------------------
+	TestEqual(TEXT("Canc: applicato"),
+		URTMapEditLibrary::DeleteElement(ViaDelete, FRTMapElementHandle::ForCell(Doomed)), ERTMapEditOutcome::Applied);
+
+	ViaBrush->BeginStroke();
+	int32 Removed = INDEX_NONE;
+	TestTrue(TEXT("pennello: applicato"), ViaBrush->EraseCellInStroke(Doomed, &Removed));
+	ViaBrush->EndStroke();
+
+	for (URTHexMapAsset* Map : { ViaDelete, ViaBrush })
+	{
+		const TCHAR* Via = (Map == ViaDelete) ? TEXT("Canc") : TEXT("pennello");
+		TestEqual(*FString::Printf(TEXT("%s: nessun orfano (segnalazioni: %s)"), Via, *MapEditBrushIssues(Map)),
+			Map->ValidateMap().Num(), 0);
+		TestEqual(*FString::Printf(TEXT("%s: il binding del ponte e' andato"), Via), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+		TestEqual(*FString::Printf(TEXT("%s: il binding testimone resta"), Via), MapEditBindingsFrom(Map, TEXT("B2")), 1);
+		TestEqual(*FString::Printf(TEXT("%s: restano i due archi del ponte testimone"), Via), Map->Transitions.Num(), 2);
+	}
+	TestEqual(TEXT("i due gesti lasciano lo stesso hash"), ViaBrush->ComputeHash(), ViaDelete->ComputeHash());
+	TestEqual(TEXT("e il conteggio della pennellata somma due archi e un binding"), Removed, 3);
+	return true;
+}
+
+/**
+ * **Cancellare DIRETTAMENTE un ponte con nome non lascia il binding che parte da lui.**
+ *
+ * E' il ramo `Transition` di `DeleteElement`, che toglieva le due direzioni e basta. La stessa regola della
+ * cascata della cella: il nome muore solo se nessun arco lo porta piu', e allora il binding che ha lui come
+ * sorgente muore con lui.
+ *
+ * Il binding comanda DUE porte che sopravvivono: qui la cascata non lo raccoglie per indice, e la sola cosa che lo
+ * toglie e' la morte del nome - quindi il test prova che il binding muore INTERO, non che perde un bersaglio. Si
+ * prova con l'handle in entrambi gli ordini, perche' la chiave naturale dell'arco e' letta non ordinata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcDirectDeleteTest,
+	"RefactorTactics.MapEdit.DeletingANamedArcTakesItsBindings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNamedArcDirectDeleteTest::RunTest(const FString&)
+{
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(2, 0, 0);
+
+	for (const bool bReversed : { false, true })
+	{
+		const FString Order = bReversed ? TEXT("handle (B,A)") : TEXT("handle (A,B)");
+		URTHexMapAsset* Map = MapEditMakeNamedArcMap(A, B, /*bSecondTarget*/ true);
+		if (!TestNotNull(*(Order + TEXT(": la mappa si costruisce")), Map))
+		{
+			return false;
+		}
+		TestEqual(*FString::Printf(TEXT("%s: la mappa parte valida (segnalazioni: %s)"), *Order, *MapEditBrushIssues(Map)),
+			Map->ValidateMap().Num(), 0);
+
+		const FRTMapElementHandle Handle = bReversed
+			? FRTMapElementHandle::ForTransition(B, A) : FRTMapElementHandle::ForTransition(A, B);
+		TestEqual(*(Order + TEXT(": cancellare il ponte: applicato")),
+			URTMapEditLibrary::DeleteElement(Map, Handle), ERTMapEditOutcome::Applied);
+
+		TestEqual(*FString::Printf(TEXT("%s: nessun orfano (segnalazioni: %s)"), *Order, *MapEditBrushIssues(Map)),
+			Map->ValidateMap().Num(), 0);
+		TestEqual(*(Order + TEXT(": le due direzioni sono andate, resta il ponte testimone")), Map->Transitions.Num(), 2);
+		TestEqual(*(Order + TEXT(": il binding che partiva dal ponte e' andato intero")),
+			MapEditBindingsFrom(Map, TEXT("B1")), 0);
+		TestEqual(*(Order + TEXT(": il binding testimone resta")), MapEditBindingsFrom(Map, TEXT("B2")), 1);
+		TestTrue(*(Order + TEXT(": la cella non e' stata toccata")), Map->ContainsCell(A) && Map->ContainsCell(B));
+	}
+	return true;
+}
+
+/**
+ * **Un nome di arco portato anche da un arco che NON e' stato tolto sopravvive, e il suo binding con lui.**
+ *
+ * E' il controllo "nessun arco lo porta piu'" del ramo diretto. In un asset valido non puo' essere esercitato: due
+ * archi condividono un nome solo se sono reciproci, e la cancellazione diretta li toglie entrambi. Il test costruisce
+ * un asset NON valido apposta (un terzo arco lontano con lo stesso nome), perche' la funzione non deve presumere la
+ * validita' di cio' che legge e perche' senza questo nessun test pinnerebbe il controllo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcDirectDeleteCarriedElsewhereTest,
+	"RefactorTactics.MapEdit.DeletingAnArcKeepsANameCarriedElsewhere",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNamedArcDirectDeleteCarriedElsewhereTest::RunTest(const FString&)
+{
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(2, 0, 0);
+
+	URTHexMapAsset* Map = MapEditMakeNamedArcMap(A, B, /*bSecondTarget*/ false);
+	if (!TestNotNull(TEXT("la mappa si costruisce"), Map))
+	{
+		return false;
+	}
+	FRTHexEdge Elsewhere(FRTCellId(-2, 2, 0), FRTCellId(2, -2, 0), /*Cost*/ 1);
+	Elsewhere.StableId = TEXT("B1");
+	Map->Transitions.Add(Elsewhere);
+	TestEqual(TEXT("premessa: il binding del ponte esiste"), MapEditBindingsFrom(Map, TEXT("B1")), 1);
+
+	TestEqual(TEXT("cancellare il ponte: applicato"),
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForTransition(A, B)), ERTMapEditOutcome::Applied);
+
+	TestEqual(TEXT("restano il ponte testimone e l'arco lontano"), Map->Transitions.Num(), 3);
+	TestEqual(TEXT("il nome e' ancora portato da un arco: il binding resta"), MapEditBindingsFrom(Map, TEXT("B1")), 1);
+	return true;
+}
+
+/**
+ * **Un binding che parte da un ponte muore INTERO, e le porte che comandava restano.**
+ *
+ * "Si perde la sorgente oppure l'ultimo bersaglio": qui si perde la sorgente, quindi il binding non perde un nome
+ * dalla lista, scompare, anche se ha piu' bersagli e tutti vivi. Le porte `D1` e `D3` stanno su celle che
+ * sopravvivono e non devono essere toccate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcSourceDiesWholeTest,
+	"RefactorTactics.MapEdit.BindingWithANamedArcSourceDiesWhole",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNamedArcSourceDiesWholeTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+
+	URTHexMapAsset* Map = MapEditMakeNamedArcMap(Doomed, Far, /*bSecondTarget*/ true);
+	if (!TestNotNull(TEXT("la mappa con due bersagli si costruisce"), Map))
+	{
+		return false;
+	}
+	TestEqual(*FString::Printf(TEXT("parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	const FRTInteractionBinding* Before = Map->InteractionBindings.FindByPredicate(
+		[](const FRTInteractionBinding& B) { return B.SourceId == FName(TEXT("B1")); });
+	if (!TestNotNull(TEXT("premessa: il binding del ponte esiste"), Before))
+	{
+		return false;
+	}
+	TestEqual(TEXT("premessa: comanda due porte"), Before->TargetIds.Num(), 2);
+
+	TestEqual(TEXT("cancellare la cella: applicato"),
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(Doomed)), ERTMapEditOutcome::Applied);
+
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	TestEqual(TEXT("il binding che partiva dal ponte e' andato intero"), MapEditBindingsFrom(Map, TEXT("B1")), 0);
+	TestEqual(TEXT("il binding testimone resta"), MapEditBindingsFrom(Map, TEXT("B2")), 1);
+	TestEqual(TEXT("le porte comandate sopravvivono"),
+		URTStructureIdentityLibrary::FindDoorEdges(Map, TEXT("D1")).Num()
+			+ URTStructureIdentityLibrary::FindDoorEdges(Map, TEXT("D3")).Num(), 2);
+	return true;
+}
+
+/**
+ * **Un nome di arco portato anche da un arco che NON tocca la cella non muore con lei.**
+ *
+ * In un asset valido non puo' succedere: due archi condividono un nome solo se sono reciproci, quindi toccano le
+ * stesse due celle. Il test costruisce un asset NON valido apposta, per due ragioni: `CollectDependents` non
+ * deve presumere la validita' di cio' che legge, e senza questo il controllo "sopravvive altrove" non sarebbe
+ * pinnato da nessun test (nessun asset valido lo esercita).
+ *
+ * La controprova toglie l'arco lontano: allora il nome muore. E' cio' che distingue un controllo che funziona da
+ * uno che non scatta mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNamedArcCarriedElsewhereTest,
+	"RefactorTactics.MapEdit.ArcNameCarriedElsewhereDoesNotDie",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNamedArcCarriedElsewhereTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+
+	URTHexMapAsset* WithElsewhere = MapEditMakeMap(2);
+	MapEditAddNamedBridge(WithElsewhere, Doomed, Far, TEXT("B1"));
+	FRTHexEdge Elsewhere(FRTCellId(-2, 0, 0), FRTCellId(0, -2, 0), /*Cost*/ 1);
+	Elsewhere.StableId = TEXT("B1");
+	WithElsewhere->Transitions.Add(Elsewhere);
+
+	URTHexMapAsset* Alone = MapEditMakeMap(2);
+	MapEditAddNamedBridge(Alone, Doomed, Far, TEXT("B1"));
+
+	const FRTMapDependencySet Carried =
+		URTMapDependencyLibrary::CollectDependents(WithElsewhere, FRTMapElementHandle::ForCell(Doomed));
+	const FRTMapDependencySet NotCarried =
+		URTMapDependencyLibrary::CollectDependents(Alone, FRTMapElementHandle::ForCell(Doomed));
+
+	TestEqual(TEXT("gli archi che toccano la cella sono raccolti comunque"), Carried.TransitionIndices.Num(), 2);
+	TestFalse(TEXT("il nome portato anche da un arco lontano non muore"),
+		Carried.OrphanedStructureNames.Contains(FName(TEXT("B1"))));
+	TestTrue(TEXT("controprova: senza l'arco lontano lo stesso nome muore"),
+		NotCarried.OrphanedStructureNames.Contains(FName(TEXT("B1"))));
 	return true;
 }
 

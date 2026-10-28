@@ -1,4 +1,5 @@
 #include "Map/RTHexMapActor.h"
+#include "Map/RTMapEditLibrary.h" // RemoveTransitionAndOrphanedBindings: la regola degli archi con nome (#3917)
 #include "HAL/IConsoleManager.h"
 extern TAutoConsoleVariable<float> CVarRTMapStrategicLayerSeparation; // #3632: la leva della separazione in PIE
 #include "Map/RTStructuralBodyLibrary.h"
@@ -3655,7 +3656,8 @@ bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId
 	const FScopedTransaction Transaction(LOCTEXT("HexRemoveTransition", "Hex: Remove Vertical Transition"));
 #endif
 	MapAsset->Modify();
-	const bool bRemoved = MapAsset->RemoveTransition(From, To, bBothDirections);
+	// La regola degli archi vive in UN posto (#3917): togliere un arco con nome porta via i binding che partono da lui.
+	const bool bRemoved = URTMapEditLibrary::RemoveTransitionAndOrphanedBindings(MapAsset, From, To, bBothDirections);
 	if (bRemoved)
 	{
 		MapAsset->MarkPackageDirty();
