@@ -378,7 +378,10 @@ public:
 	/** Scrive Surface/MoveCost/bBlocksMovement sulla cella Id (la crea se assente, preserva Height/LOS). Annullabile. */
 	void PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
 
-	/** Rimuove la cella Id dall'asset. Vero se esisteva. Annullabile. */
+	/**
+	 * Rimuove la cella Id dall'asset **con la sua cascata** (i muri interni, gli archi e i binding che la nominavano,
+	 * #3322, `D-553`): la stessa che toglie `Canc` sulla selezione. Vero se esisteva. Annullabile.
+	 */
 	bool EraseCell(const FRTCellId& Id);
 
 	/** [H4] Cella di partenza della transizione verticale/speciale (bridge/tunnel/scale/ascensore). */

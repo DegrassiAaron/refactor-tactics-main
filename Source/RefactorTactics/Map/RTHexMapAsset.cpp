@@ -5,6 +5,7 @@
 // `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
 // e' l'unico punto di lettura da nome a struttura (#832), e un secondo validator sarebbe una doppia verita'.
 #include "Map/RTStructureIdentityLibrary.h"
+#include "Map/RTMapEditLibrary.h"  // DeleteElement: la cascata di una cella cancellata (#3322)
 // I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
 #include "Map/RTGeometryBake.h"
 #include "Map/RTGeometryGrammar.h"  // le validazioni geometriche delle regioni No-Walk (#1868)
@@ -108,13 +109,30 @@ bool URTHexMapAsset::PaintCellInStroke(const FRTCellId& Id, ERTHexSurface Surfac
 	return true;
 }
 
-bool URTHexMapAsset::EraseCellInStroke(const FRTCellId& Id)
+bool URTHexMapAsset::EraseCellInStroke(const FRTCellId& Id, int32* OutCascadeRemoved)
 {
+	if (OutCascadeRemoved)
+	{
+		*OutCascadeRemoved = 0;
+	}
 	if (!ContainsCell(Id))
 	{
 		return false;
 	}
-	return RemoveCell(Id);
+
+	// 🔑 **La cascata passa dalla STESSA funzione di `Canc` sulla selezione** (#3322, `D-553`). Fino ad allora
+	// questa funzione toglieva la cella e basta (`RemoveCell`), e i muri interni, gli archi e i binding che la
+	// nominavano restavano: due gesti che cancellano la stessa cella lasciavano due stati, e uno era invalido.
+	// Due implementazioni della stessa regola sono il modo in cui la regola diverge, quindi non si rifa' qui.
+	const int32 DependentsBefore = InteriorWalls.Num() + Transitions.Num() + InteractionBindings.Num();
+	const bool bErased = URTMapEditLibrary::DeleteElement(this, FRTMapElementHandle::ForCell(Id))
+		== ERTMapEditOutcome::Applied;
+	if (OutCascadeRemoved)
+	{
+		*OutCascadeRemoved = DependentsBefore
+			- (InteriorWalls.Num() + Transitions.Num() + InteractionBindings.Num());
+	}
+	return bErased;
 }
 
 void URTHexMapAsset::EndStroke()

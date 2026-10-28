@@ -2448,4 +2448,292 @@ bool FRTMapEditEdgeWallStillACoverEverywhereTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// #3322 - il pennello in Erase cancella una cella portandosi via la sua cascata, come `Canc` sulla selezione.
+//
+// `URTHexMapAsset::EraseCellInStroke` toglieva la cella e basta (`RemoveCell`): i muri interni, gli archi e i
+// binding che la nominavano restavano, e `ValidateMap` li segnalava come orfani. `Canc` passa da
+// `URTMapEditLibrary::DeleteElement`, che raccoglie la cascata con `CollectDependents` prima di rimuovere. Due
+// gesti, la stessa cella, due stati diversi - e uno invalido.
+//
+// Il pennello cancella in AREA: `URTHexPaintTool::ApplyBrushAt` cicla `HexArea(Centro, Raggio)` e chiama
+// `EraseCellInStroke` su ogni cella. Il ciclo del tool e' protetto e non si prova da qui; si prova la sede, che
+// il tool e `ARTHexMapActor::EraseCell` chiamano entrambi.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** I tre elementi che non possono sopravvivere alla cella, piu' un testimone che deve restare in piedi. */
+	struct FMapEditBrushCounts
+	{
+		int32 Walls = 0;
+		int32 Transitions = 0;
+		int32 Bindings = 0;
+	};
+
+	FMapEditBrushCounts MapEditBrushCountsOf(const URTHexMapAsset* Map)
+	{
+		FMapEditBrushCounts Counts;
+		Counts.Walls = Map->InteriorWalls.Num();
+		Counts.Transitions = Map->Transitions.Num();
+		Counts.Bindings = Map->InteractionBindings.Num();
+		return Counts;
+	}
+
+	/**
+	 * Una mappa VALIDA in cui `Doomed` porta un muro interno, un arco verso `Far` e una porta nominata citata da
+	 * un binding; `Far` porta il bersaglio del binding. `Witness` porta un muro che non c'entra e deve restare.
+	 * Ricostruita a ogni uso: la controprova e la misura non devono condividere una mappa mezza smontata.
+	 */
+	URTHexMapAsset* MapEditMakeBrushMap(const FRTCellId& Doomed, const FRTCellId& Far, const FRTCellId& Witness)
+	{
+		FRTGeometrySegment DoomedChord;
+		FRTGeometrySegment WitnessChord;
+		if (!MapEditMakeChord(0, DoomedChord) || !MapEditMakeChord(1, WitnessChord))
+		{
+			return nullptr;
+		}
+
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		Map->InteriorWalls.Add(FRTHexInteriorWall(Doomed, DoomedChord));
+		Map->InteriorWalls.Add(FRTHexInteriorWall(Witness, WitnessChord));
+		Map->Transitions.Add(FRTHexEdge(Doomed, Far, /*Cost*/ 1));
+		MapEditPutDoor(Map, Doomed, ERTHexDirection::E, /*DoorId*/ 1, TEXT("S1"));
+		MapEditPutDoor(Map, Far, ERTHexDirection::W, /*DoorId*/ 2, TEXT("D1"));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+		return Map;
+	}
+
+	/** Le segnalazioni di `ValidateMap` come una riga sola, perche' un `0 != 2` non dice QUALE dipendenza manca. */
+	FString MapEditBrushIssues(const URTHexMapAsset* Map)
+	{
+		const TArray<FString> Errors = Map->ValidateMap();
+		return Errors.Num() > 0 ? FString::Join(Errors, TEXT(" | ")) : FString(TEXT("nessuna"));
+	}
+}
+
+/**
+ * **Cancellare una cella col pennello non lascia orfani.**
+ *
+ * Il test parte da una mappa valida che porta tutto cio' che alla cella non puo' sopravvivere, lo ASSERISCE
+ * (altrimenti passerebbe anche su una mappa senza dipendenze), mostra con la controprova che togliere la SOLA
+ * cella sporca la mappa - cioe' cio' che il pennello faceva - e poi misura la sede reale.
+ *
+ * Il muro testimone esiste per essere lasciato in piedi: senza, passerebbe anche un'implementazione che
+ * svuota gli array.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditBrushEraseTakesCascadeTest,
+	"RefactorTactics.MapEdit.BrushEraseTakesTheCascade",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditBrushEraseTakesCascadeTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+	const FRTCellId Witness(1, 0, 0);
+
+	// --- Premessa: l'allestimento e' valido e porta davvero tutto -------------------------------------
+	URTHexMapAsset* Map = MapEditMakeBrushMap(Doomed, Far, Witness);
+	if (!TestNotNull(TEXT("l'allestimento si costruisce"), Map))
+	{
+		return false;
+	}
+	TestEqual(*FString::Printf(TEXT("l'allestimento parte valido (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	const FMapEditBrushCounts Before = MapEditBrushCountsOf(Map);
+	TestEqual(TEXT("premessa: due muri interni, uno sulla cella e il testimone"), Before.Walls, 2);
+	TestEqual(TEXT("premessa: un arco"), Before.Transitions, 1);
+	TestEqual(TEXT("premessa: un binding"), Before.Bindings, 1);
+
+	// --- Controprova: la SOLA cella, e la mappa si sporca --------------------------------------------
+	{
+		URTHexMapAsset* Naive = MapEditMakeBrushMap(Doomed, Far, Witness);
+		Naive->RemoveCell(Doomed);
+		TestTrue(TEXT("controprova: togliere la sola cella lascia segnalazioni, ed e' cio' che faceva il pennello"),
+			Naive->ValidateMap().Num() > 0);
+	}
+
+	// --- La misura: la sede che il pennello e `ARTHexMapActor::EraseCell` chiamano --------------------
+	Map->BeginStroke();
+	int32 Removed = INDEX_NONE;
+	const bool bErased = Map->EraseCellInStroke(Doomed, &Removed);
+	Map->EndStroke();
+
+	TestTrue(TEXT("la cella esisteva ed e' stata rimossa"), bErased);
+	TestFalse(TEXT("la cella non c'e' piu'"), Map->ContainsCell(Doomed));
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+
+	const FMapEditBrushCounts After = MapEditBrushCountsOf(Map);
+	TestEqual(TEXT("il muro della cella e' andato"), After.Walls, 1);
+	TestEqual(TEXT("e quello rimasto e' il testimone"),
+		Map->InteriorWalls.Num() == 1 ? Map->InteriorWalls[0].Cell == Witness : false, true);
+	TestEqual(TEXT("l'arco verso la cella e' andato"), After.Transitions, 0);
+	TestEqual(TEXT("il binding che citava la sua porta e' andato"), After.Bindings, 0);
+	TestEqual(TEXT("e il conteggio dice quanti elementi la cascata ha portato via"), Removed, 3);
+	TestTrue(TEXT("la cella lontana, che non era la cella cancellata, resta"), Map->ContainsCell(Far));
+
+	// --- Cella assente: nessuna scrittura e conteggio a zero -----------------------------------------
+	int32 RemovedFromNothing = INDEX_NONE;
+	const uint32 HashBefore = Map->ComputeHash();
+	TestFalse(TEXT("una cella che non esiste non si cancella"),
+		Map->EraseCellInStroke(FRTCellId(9, 9, 0), &RemovedFromNothing));
+	TestEqual(TEXT("e non porta via niente"), RemovedFromNothing, 0);
+	TestEqual(TEXT("la mappa e' invariata"), Map->ComputeHash(), HashBefore);
+	return true;
+}
+
+/**
+ * **I due gesti che cancellano una cella lasciano lo STESSO stato**: `Canc` sulla selezione e il pennello.
+ *
+ * Due mappe identiche, la stessa cella, le due vie. La prima passa da `URTMapEditLibrary::DeleteElement`, la
+ * seconda da `BeginStroke` / `EraseCellInStroke` / `EndStroke`.
+ *
+ * Il confronto per hash varrebbe poco se l'hash non vedesse la cascata: la controprova mostra che una mappa su
+ * cui e' stata tolta la sola cella ha un hash DIVERSO, quindi l'uguaglianza sotto non e' vacua.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditBrushAndDeleteKeyAgreeTest,
+	"RefactorTactics.MapEdit.BrushAndDeleteKeyLeaveTheSameState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditBrushAndDeleteKeyAgreeTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+	const FRTCellId Witness(1, 0, 0);
+
+	URTHexMapAsset* ViaDelete = MapEditMakeBrushMap(Doomed, Far, Witness);
+	URTHexMapAsset* ViaBrush = MapEditMakeBrushMap(Doomed, Far, Witness);
+	URTHexMapAsset* CellOnly = MapEditMakeBrushMap(Doomed, Far, Witness);
+	if (!TestTrue(TEXT("le tre mappe si costruiscono"), ViaDelete && ViaBrush && CellOnly))
+	{
+		return false;
+	}
+	const uint32 HashBefore = ViaDelete->ComputeHash();
+
+	TestEqual(TEXT("Canc: applicato"),
+		URTMapEditLibrary::DeleteElement(ViaDelete, FRTMapElementHandle::ForCell(Doomed)),
+		ERTMapEditOutcome::Applied);
+
+	ViaBrush->BeginStroke();
+	TestTrue(TEXT("pennello: applicato"), ViaBrush->EraseCellInStroke(Doomed));
+	ViaBrush->EndStroke();
+
+	CellOnly->RemoveCell(Doomed);
+
+	TestNotEqual(TEXT("premessa: cancellare cambia l'hash"), ViaDelete->ComputeHash(), HashBefore);
+	TestNotEqual(TEXT("controprova: l'hash VEDE la cascata, perche' la sola cella ne da' uno diverso"),
+		CellOnly->ComputeHash(), ViaDelete->ComputeHash());
+
+	TestEqual(TEXT("stesso hash"), ViaBrush->ComputeHash(), ViaDelete->ComputeHash());
+	TestEqual(TEXT("stessa revisione"), ViaBrush->Revision, ViaDelete->Revision);
+	TestEqual(TEXT("stesse celle"), ViaBrush->NumCells(), ViaDelete->NumCells());
+
+	const FMapEditBrushCounts A = MapEditBrushCountsOf(ViaDelete);
+	const FMapEditBrushCounts B = MapEditBrushCountsOf(ViaBrush);
+	TestEqual(TEXT("stessi muri interni"), B.Walls, A.Walls);
+	TestEqual(TEXT("stessi archi"), B.Transitions, A.Transitions);
+	TestEqual(TEXT("stessi binding"), B.Bindings, A.Bindings);
+	TestEqual(TEXT("stesse segnalazioni di ValidateMap"), MapEditBrushIssues(ViaBrush), MapEditBrushIssues(ViaDelete));
+	return true;
+}
+
+/**
+ * **Una pennellata in AREA su una regione con geometria non lascia segnalazioni.**
+ *
+ * Il ciclo e' quello di `URTHexPaintTool::ApplyBrushAt`: `HexArea(Centro, Raggio)` e `EraseCellInStroke` su ogni
+ * cella, dentro un solo `BeginStroke` / `EndStroke`. La regione porta muri su tre celle, un arco che esce
+ * dall'area, un arco che entra, e un binding la cui sorgente cade dentro e il cui bersaglio fuori.
+ *
+ * Gli archi verso celle FUORI dall'area spariscono: e' il comportamento che cambia in modo visibile, ed e'
+ * corretto - un arco verso il nulla e' un errore - ma chi dipinge deve vederlo (`PIE-HEX-PAINT-ERASE`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditBrushAreaLeavesNoOrphansTest,
+	"RefactorTactics.MapEdit.BrushAreaLeavesNoOrphans",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditBrushAreaLeavesNoOrphansTest::RunTest(const FString&)
+{
+	const FRTCellId Center(0, 0, 0);
+	const int32 BrushRadius = 1;
+	const FRTCellId OutsideEast(2, 0, 0);
+	const FRTCellId ArcTarget(3, 0, 0);   // non adiacente a (1,0,0): un arco fra vicini sarebbe ridondante
+	const FRTCellId ArcSource(-3, 0, 0);  // non adiacente a (-1,0,0)
+
+	auto MakeRegion = [&]() -> URTHexMapAsset*
+	{
+		FRTGeometrySegment Chord0, Chord1, Chord2, OutsideChord;
+		if (!MapEditMakeChord(0, Chord0) || !MapEditMakeChord(1, Chord1) || !MapEditMakeChord(2, Chord2)
+			|| !MapEditMakeChord(0, OutsideChord))
+		{
+			return nullptr;
+		}
+		URTHexMapAsset* Map = MapEditMakeMap(3);
+		Map->InteriorWalls.Add(FRTHexInteriorWall(FRTCellId(0, 0, 0), Chord0));
+		Map->InteriorWalls.Add(FRTHexInteriorWall(FRTCellId(1, 0, 0), Chord1));
+		Map->InteriorWalls.Add(FRTHexInteriorWall(FRTCellId(-1, 1, 0), Chord2));
+		Map->InteriorWalls.Add(FRTHexInteriorWall(OutsideEast, OutsideChord)); // fuori dall'area: deve restare
+		Map->Transitions.Add(FRTHexEdge(FRTCellId(1, 0, 0), ArcTarget, 1));    // dall'area verso fuori
+		Map->Transitions.Add(FRTHexEdge(ArcSource, FRTCellId(-1, 0, 0), 1));   // da fuori verso l'area
+		MapEditPutDoor(Map, Center, ERTHexDirection::E, /*DoorId*/ 1, TEXT("S1"));
+		MapEditPutDoor(Map, OutsideEast, ERTHexDirection::W, /*DoorId*/ 2, TEXT("D1"));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+		return Map;
+	};
+
+	const TArray<FRTCellId> Area = URTHexLibrary::HexArea(Center, BrushRadius);
+	if (!TestTrue(TEXT("l'area copre piu' celle: un raggio >= 1 non e' un click singolo"), Area.Num() > 1))
+	{
+		return false;
+	}
+
+	// --- Premessa e controprova ------------------------------------------------------------------------
+	URTHexMapAsset* Map = MakeRegion();
+	if (!TestNotNull(TEXT("la regione si costruisce"), Map))
+	{
+		return false;
+	}
+	TestEqual(*FString::Printf(TEXT("la regione parte valida (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+	const FMapEditBrushCounts Before = MapEditBrushCountsOf(Map);
+	TestEqual(TEXT("premessa: quattro muri, tre dentro l'area e uno fuori"), Before.Walls, 4);
+	TestEqual(TEXT("premessa: due archi, uno in uscita e uno in entrata"), Before.Transitions, 2);
+	TestEqual(TEXT("premessa: un binding"), Before.Bindings, 1);
+
+	{
+		URTHexMapAsset* Naive = MakeRegion();
+		for (const FRTCellId& C : Area)
+		{
+			Naive->RemoveCell(C);
+		}
+		TestTrue(TEXT("controprova: togliere le sole celle dell'area lascia segnalazioni"),
+			Naive->ValidateMap().Num() > 0);
+	}
+
+	// --- La misura: il ciclo del pennello ----------------------------------------------------------------
+	const int32 CellsBefore = Map->NumCells();
+	int32 CellsErased = 0;
+	int32 CascadeRemoved = 0;
+	Map->BeginStroke();
+	for (const FRTCellId& C : Area)
+	{
+		int32 Removed = 0;
+		if (Map->EraseCellInStroke(C, &Removed))
+		{
+			++CellsErased;
+			CascadeRemoved += Removed;
+		}
+	}
+	Map->EndStroke();
+
+	TestEqual(TEXT("tutte le celle dell'area sono state cancellate"), CellsErased, Area.Num());
+	TestEqual(TEXT("e solo quelle"), Map->NumCells(), CellsBefore - Area.Num());
+	TestEqual(*FString::Printf(TEXT("nessun orfano (segnalazioni: %s)"), *MapEditBrushIssues(Map)),
+		Map->ValidateMap().Num(), 0);
+
+	const FMapEditBrushCounts After = MapEditBrushCountsOf(Map);
+	TestEqual(TEXT("restano i muri fuori dall'area, e solo quelli"), After.Walls, 1);
+	TestEqual(TEXT("gli archi, in entrata e in uscita, sono andati"), After.Transitions, 0);
+	TestEqual(TEXT("e il binding"), After.Bindings, 0);
+	TestEqual(TEXT("il conteggio della pennellata somma la cascata di ogni cella"), CascadeRemoved, 6);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
