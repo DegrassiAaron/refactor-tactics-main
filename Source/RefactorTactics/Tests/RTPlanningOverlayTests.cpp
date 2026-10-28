@@ -36,6 +36,25 @@ namespace
 		Inputs.PlanRevision = 4;
 		Inputs.TurnIndex = 5;
 		Inputs.bMatchEnded = false;
+		// Il fuoco (#3750): tutti i campi a un valore NON di default. Nel contesto di base (`Targeting`) il fuoco non si
+		// mostra, ma i campi contano nel confronto: lo dice la tabella qui sotto.
+		Inputs.FocusSubject = PlanOverlayUnitB();
+		Inputs.FocusMove.Cell = FRTCellId(3, 1, 0);
+		Inputs.FocusMove.BaseMoveRange = 4;
+		Inputs.FocusMove.MoveCostModifier = 1;
+		Inputs.FocusMove.bRunDenied = true;
+		Inputs.FocusKnowledgeStamp = 7;
+		Inputs.bFocusOnMap = true;
+		return Inputs;
+	}
+
+	/** Ingressi in cui il fuoco TIENE la mappa: contesto `Planning`, niente armato, soggetto osservato, area sulla mappa. */
+	FRTPlanningOverlayInputs PlanOverlayFocused()
+	{
+		FRTPlanningOverlayInputs Inputs = PlanOverlayBase();
+		Inputs.Context = ERTPointerContext::Planning;
+		Inputs.ArmedAbilityIndex = INDEX_NONE;
+		Inputs.ArmedTargetKind = ERTPointerTargetKind::None;
 		return Inputs;
 	}
 
@@ -66,6 +85,14 @@ namespace
 			{ TEXT("HoveredCell"), false, [](FRTPlanningOverlayInputs& I) { I.HoveredCell = FRTCellId(0, 0, 0); } },
 			{ TEXT("bHoveredValid"), false, [](FRTPlanningOverlayInputs& I) { I.bHoveredValid = false; } },
 			{ TEXT("FacingSector"), false, [](FRTPlanningOverlayInputs& I) { I.FacingSector = INDEX_NONE; } },
+			// #3750: il fuoco cambia COSA si calcola, non dove sta il cursore.
+			{ TEXT("FocusSubject"), true, [](FRTPlanningOverlayInputs& I) { I.FocusSubject = nullptr; } },
+			{ TEXT("FocusMove.Cell"), true, [](FRTPlanningOverlayInputs& I) { I.FocusMove.Cell = FRTCellId(0, 0, 0); } },
+			{ TEXT("FocusMove.BaseMoveRange"), true, [](FRTPlanningOverlayInputs& I) { I.FocusMove.BaseMoveRange += 1; } },
+			{ TEXT("FocusMove.MoveCostModifier"), true, [](FRTPlanningOverlayInputs& I) { I.FocusMove.MoveCostModifier = 0; } },
+			{ TEXT("FocusMove.bRunDenied"), true, [](FRTPlanningOverlayInputs& I) { I.FocusMove.bRunDenied = false; } },
+			{ TEXT("FocusKnowledgeStamp"), true, [](FRTPlanningOverlayInputs& I) { I.FocusKnowledgeStamp += 1; } },
+			{ TEXT("bFocusOnMap"), true, [](FRTPlanningOverlayInputs& I) { I.bFocusOnMap = false; } },
 		};
 	}
 }
@@ -188,6 +215,203 @@ bool FRTPlanningOverlayShowsAreasExitsNotInContextTest::RunTest(const FString&)
 		Ended.Context = Context;
 		Ended.bMatchEnded = true;
 		TestFalse(TEXT("la partita e' finita: non si mostrano"), Ended.ShowsAreas());
+	}
+	return true;
+}
+
+// =====================================================================================================
+// `#3750`, fetta C di F5 — l'arbitro dell'anteprima: chi scrive la mappa fra piano e fuoco.
+// =====================================================================================================
+
+namespace
+{
+	const TCHAR* PlanOverlaySourceName(ERTPreviewSource Source)
+	{
+		switch (Source)
+		{
+		case ERTPreviewSource::None:  return TEXT("None");
+		case ERTPreviewSource::Plan:  return TEXT("Plan");
+		case ERTPreviewSource::Focus: return TEXT("Focus");
+		}
+		return TEXT("?");
+	}
+}
+
+/**
+ * **`#3750` — il fuoco prende la mappa solo dove l'ispettore e' vivo, e il piano ci torna da solo quando il fuoco finisce.**
+ *
+ * Gli otto contesti sono elencati TUTTI, con la sorgente attesa a fianco, con e senza l'area del fuoco sulla mappa:
+ * `ContextAllowsFocus` ha uno `switch` senza `default`, e il conteggio contro l'enum pinna il nono contesto dimenticato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayActiveSourceTest,
+	"RefactorTactics.PlanningOverlay.TheFocusTakesTheMapOnlyWhereTheInspectorIsLive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayActiveSourceTest::RunTest(const FString&)
+{
+	struct FCase { ERTPointerContext Context; ERTPreviewSource WithFocus; ERTPreviewSource WithoutFocus; };
+	const FCase Cases[] = {
+		{ ERTPointerContext::IdleSelection,      ERTPreviewSource::Focus, ERTPreviewSource::None },
+		{ ERTPointerContext::Planning,           ERTPreviewSource::Focus, ERTPreviewSource::Plan },
+		// Gia' dopo un gesto di pianificazione: l'area del fuoco e' uscita, il piano tiene la mappa.
+		{ ERTPointerContext::Pathing,            ERTPreviewSource::Plan,  ERTPreviewSource::Plan },
+		{ ERTPointerContext::Targeting,          ERTPreviewSource::Plan,  ERTPreviewSource::Plan },
+		{ ERTPointerContext::Facing,             ERTPreviewSource::Plan,  ERTPreviewSource::Plan },
+		// Mondo in sola lettura: niente aree, e il fuoco resta spento in playback per scelta della sessione.
+		{ ERTPointerContext::ResolutionPlayback, ERTPreviewSource::None,  ERTPreviewSource::None },
+		{ ERTPointerContext::ReactionWindow,     ERTPreviewSource::None,  ERTPreviewSource::None },
+		{ ERTPointerContext::Modal,              ERTPreviewSource::None,  ERTPreviewSource::None },
+	};
+
+	const UEnum* ContextEnum = StaticEnum<ERTPointerContext>();
+	if (!TestNotNull(TEXT("l'enum dei contesti e' riflesso"), ContextEnum)) { return false; }
+	TestEqual(TEXT("la tabella elenca TUTTI i contesti dell'enum"),
+		static_cast<int32>(UE_ARRAY_COUNT(Cases)), ContextEnum->NumEnums() - 1);
+
+	for (const FCase& Case : Cases)
+	{
+		const FString Name = ContextEnum->GetNameStringByValue(static_cast<int64>(Case.Context));
+
+		FRTPlanningOverlayInputs With = PlanOverlayFocused();
+		With.Context = Case.Context;
+		TestEqual(*FString::Printf(TEXT("%s: con l'area del fuoco sulla mappa"), *Name),
+			FString(PlanOverlaySourceName(With.ActiveSource())), FString(PlanOverlaySourceName(Case.WithFocus)));
+
+		FRTPlanningOverlayInputs Without = PlanOverlayFocused();
+		Without.Context = Case.Context;
+		Without.bFocusOnMap = false;
+		TestEqual(*FString::Printf(TEXT("%s: senza l'area del fuoco sulla mappa"), *Name),
+			FString(PlanOverlaySourceName(Without.ActiveSource())), FString(PlanOverlaySourceName(Case.WithoutFocus)));
+	}
+
+	// Le uscite che il contesto non dichiara.
+	FRTPlanningOverlayInputs NoSubject = PlanOverlayFocused();
+	NoSubject.FocusSubject = nullptr;
+	TestEqual(TEXT("un soggetto non osservato (nullo) non tiene la mappa: torna il piano"),
+		FString(PlanOverlaySourceName(NoSubject.ActiveSource())), FString(TEXT("Plan")));
+
+	FRTPlanningOverlayInputs Ended = PlanOverlayFocused();
+	Ended.bMatchEnded = true;
+	TestEqual(TEXT("a partita finita non si mostra niente, fuoco compreso"),
+		FString(PlanOverlaySourceName(Ended.ActiveSource())), FString(TEXT("None")));
+
+	// Il fuoco non chiede un'unita' comandata: si ispeziona anche senza selezione.
+	FRTPlanningOverlayInputs NoUnit = PlanOverlayFocused();
+	NoUnit.Context = ERTPointerContext::IdleSelection;
+	NoUnit.Unit = nullptr;
+	NoUnit.bUnitAlive = false;
+	TestEqual(TEXT("senza unita' selezionata il fuoco tiene la mappa"),
+		FString(PlanOverlaySourceName(NoUnit.ActiveSource())), FString(TEXT("Focus")));
+	NoUnit.bFocusOnMap = false;
+	TestEqual(TEXT("controllo positivo: senza fuoco e senza unita' non si mostra niente"),
+		FString(PlanOverlaySourceName(NoUnit.ActiveSource())), FString(TEXT("None")));
+	return true;
+}
+
+/**
+ * **`#3750` — l'area del fuoco lascia la mappa al primo gesto di pianificazione, e non torna da sola.**
+ *
+ * Ogni gesto della spec §3 regola 4 (armare, posare un waypoint, dichiarare un verso) e ogni altra uscita, ciascuno da solo:
+ * dalla stessa base, il gesto spegne; lo stato che torna uguale NON riaccende; una nuova fissazione, si'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusLatchTest,
+	"RefactorTactics.PlanningOverlay.TheFocusAreaLeavesAtTheFirstPlanningGestureAndDoesNotComeBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFocusLatchTest::RunTest(const FString&)
+{
+	const FRTPlanningOverlayInputs Rest = PlanOverlayFocused();
+
+	// CONTROLLI POSITIVI: senza questi ogni «spenta» sotto sarebbe gratis.
+	{
+		FRTFocusLatch Latch;
+		TestFalse(TEXT("nessuna fissazione: l'area non e' sulla mappa"), Latch.Observe(0, Rest));
+		TestTrue(TEXT("una fissazione di un soggetto osservato la accende"), Latch.Observe(1, Rest));
+		TestTrue(TEXT("a ingressi invariati resta accesa"), Latch.Observe(1, Rest));
+
+		FRTPlanningOverlayInputs Hover = Rest;
+		Hover.HoveredCell = FRTCellId(0, 0, 0);
+		Hover.bHoveredValid = false;
+		Hover.FacingSector = 2;
+		Hover.ActiveLayer = 0;
+		TestTrue(TEXT("muovere il cursore, il settore o il piano attivo non e' un gesto di pianificazione"), Latch.Observe(1, Hover));
+	}
+
+	struct FGesture { const TCHAR* Name; TFunction<void(FRTPlanningOverlayInputs&)> Mutate; };
+	const FGesture Gestures[] = {
+		{ TEXT("arma un'azione"),                      [](FRTPlanningOverlayInputs& I) { I.ArmedAbilityIndex = 3; } },
+		{ TEXT("posa un waypoint (la revisione sale)"), [](FRTPlanningOverlayInputs& I) { I.PlanRevision += 1; } },
+		{ TEXT("passa a un'altra unita' comandata"),   [](FRTPlanningOverlayInputs& I) { I.Unit = PlanOverlayUnitB(); } },
+		{ TEXT("perde la selezione"),                  [](FRTPlanningOverlayInputs& I) { I.Unit = nullptr; } },
+		{ TEXT("inizia un turno nuovo"),               [](FRTPlanningOverlayInputs& I) { I.TurnIndex += 1; } },
+		{ TEXT("entra in Pathing"),                    [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Pathing; } },
+		{ TEXT("entra in Targeting"),                  [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Targeting; } },
+		{ TEXT("dichiara un verso (Facing)"),          [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Facing; } },
+		{ TEXT("si apre una finestra di reazione"),    [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::ReactionWindow; } },
+		{ TEXT("si apre un modale"),                   [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::Modal; } },
+		{ TEXT("parte il playback"),                   [](FRTPlanningOverlayInputs& I) { I.Context = ERTPointerContext::ResolutionPlayback; } },
+		{ TEXT("il soggetto non e' piu' osservato"),   [](FRTPlanningOverlayInputs& I) { I.FocusSubject = nullptr; } },
+		{ TEXT("la partita finisce"),                  [](FRTPlanningOverlayInputs& I) { I.bMatchEnded = true; } },
+	};
+
+	for (const FGesture& Gesture : Gestures)
+	{
+		FRTFocusLatch Latch;
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa, l'area e' sulla mappa"), Gesture.Name), Latch.Observe(1, Rest)))
+		{
+			continue;
+		}
+
+		FRTPlanningOverlayInputs After = Rest;
+		Gesture.Mutate(After);
+		TestFalse(*FString::Printf(TEXT("%s: l'area lascia la mappa"), Gesture.Name), Latch.Observe(1, After));
+		TestFalse(*FString::Printf(TEXT("%s: e non torna da sola quando lo stato torna com'era"), Gesture.Name), Latch.Observe(1, Rest));
+		TestTrue(*FString::Printf(TEXT("%s: una nuova fissazione la riporta"), Gesture.Name), Latch.Observe(2, Rest));
+	}
+
+	// Una fissazione su un soggetto non osservato non accende niente, e il soggetto che compare dopo non la accende da solo.
+	{
+		FRTPlanningOverlayInputs Unseen = Rest;
+		Unseen.FocusSubject = nullptr;
+		FRTFocusLatch Latch;
+		TestFalse(TEXT("fissare un soggetto non osservato non accende l'area"), Latch.Observe(1, Unseen));
+		TestFalse(TEXT("e nemmeno quando poi compare, senza una nuova fissazione"), Latch.Observe(1, Rest));
+	}
+	return true;
+}
+
+/**
+ * **`#3750` — col fuoco in mano, l'hover non rifa' l'area e cio' da cui l'area dipende si'.**
+ *
+ * E' il criterio di `#711` esteso al fuoco: la cella sotto il cursore, il settore e il piano attivo non fanno ricalcolare;
+ * il soggetto che si muove, prende `Slow` o perde la corsa, e la vista che cambia, si'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayFocusPlanLevelTest,
+	"RefactorTactics.PlanningOverlay.TheFocusAreaIsRedoneOnlyForWhatItDependsOn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningOverlayFocusPlanLevelTest::RunTest(const FString&)
+{
+	const FRTPlanningOverlayInputs Base = PlanOverlayFocused();
+	if (!TestEqual(TEXT("premessa: nello stato di base il fuoco tiene la mappa"),
+		FString(PlanOverlaySourceName(Base.ActiveSource())), FString(TEXT("Focus")))) { return false; }
+
+	struct FChange { const TCHAR* Name; bool bRedoesTheArea; TFunction<void(FRTPlanningOverlayInputs&)> Mutate; };
+	const FChange Changes[] = {
+		{ TEXT("HoveredCell"),                false, [](FRTPlanningOverlayInputs& I) { I.HoveredCell = FRTCellId(0, 0, 0); } },
+		{ TEXT("bHoveredValid"),              false, [](FRTPlanningOverlayInputs& I) { I.bHoveredValid = false; } },
+		{ TEXT("FacingSector"),               false, [](FRTPlanningOverlayInputs& I) { I.FacingSector = INDEX_NONE; } },
+		{ TEXT("ActiveLayer"),                false, [](FRTPlanningOverlayInputs& I) { I.ActiveLayer = 0; } },
+		{ TEXT("FocusMove.Cell (si muove)"),  true,  [](FRTPlanningOverlayInputs& I) { I.FocusMove.Cell = FRTCellId(0, 0, 0); } },
+		{ TEXT("FocusMove.MoveCostModifier"), true,  [](FRTPlanningOverlayInputs& I) { I.FocusMove.MoveCostModifier = 0; } },
+		{ TEXT("FocusMove.bRunDenied"),       true,  [](FRTPlanningOverlayInputs& I) { I.FocusMove.bRunDenied = false; } },
+		{ TEXT("FocusMove.BaseMoveRange"),    true,  [](FRTPlanningOverlayInputs& I) { I.FocusMove.BaseMoveRange += 1; } },
+		{ TEXT("FocusKnowledgeStamp (la vista cambia)"), true, [](FRTPlanningOverlayInputs& I) { I.FocusKnowledgeStamp += 1; } },
+	};
+	for (const FChange& Change : Changes)
+	{
+		FRTPlanningOverlayInputs Changed = Base;
+		Change.Mutate(Changed);
+		TestFalse(*FString::Printf(TEXT("%s: cambiato da solo rompe l'uguaglianza"), Change.Name), Base == Changed);
+		TestEqual(*FString::Printf(TEXT("%s: rifa' l'area solo se e' cio' da cui l'area dipende"), Change.Name),
+			!Base.SamePlanLevel(Changed), Change.bRedoesTheArea);
 	}
 	return true;
 }

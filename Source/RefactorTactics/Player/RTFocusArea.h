@@ -29,6 +29,16 @@ struct REFACTORTACTICS_API FRTFocusMoveSubject
 
 	/** Vero se uno stato pubblico nega la corsa (oggi `Status.Unbalanced`, D-319): resta la sola area normale. */
 	bool bRunDenied = false;
+
+	/** Serve a `FRTPlanningOverlayInputs`: se il soggetto cambia (si muove, prende `Slow`), l'area si rifa'. */
+	bool operator==(const FRTFocusMoveSubject& Other) const
+	{
+		return Cell == Other.Cell
+			&& BaseMoveRange == Other.BaseMoveRange
+			&& MoveCostModifier == Other.MoveCostModifier
+			&& bRunDenied == Other.bRunDenied;
+	}
+	bool operator!=(const FRTFocusMoveSubject& Other) const { return !(*this == Other); }
 };
 
 /**

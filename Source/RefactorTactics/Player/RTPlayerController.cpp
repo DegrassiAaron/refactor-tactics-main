@@ -10,6 +10,7 @@
 #include "Map/RTHexVisionLibrary.h"
 // `E-SOLID` fetta 4: il viewer del velo e' di questo controller, non della partita.
 #include "Perception/RTKnowledgeVeilPresenter.h"
+#include "Perception/RTKnowledgeView.h" // FindEntry: la cella del soggetto a fuoco viene dalla voce della vista (#3750)
 // #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
 #include "UI/RTReactionWindowViewModel.h"
 #include "UI/RTInspect.h" // il cancello della scheda (#3748)
@@ -226,7 +227,8 @@ namespace
 	 * `HexHitCells` via `MakeBlastPreview`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una
 	 * zona e ne subirebbe un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
 	 */
-	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit, ARTHexMapActor* KnownHexMap = nullptr)
+	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit, ARTHexMapActor* KnownHexMap = nullptr,
+		const FRTFocusMoveAreas* FocusAreas = nullptr)
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 		// `#3511`: l'ingresso unico ha gia' cercato la mappa, e una seconda ricerca itererebbe gli actor del livello.
@@ -246,6 +248,27 @@ namespace
 		{
 			return;
 		}
+		if (FocusAreas != nullptr)
+		{
+			// 🔑 **Il fuoco ha la mappa, e il piano cede** (`#3750`, spec §6.3): l'arbitro ha detto `Focus`, quindi si parte da
+			// una mappa pulita dallo STESSO reset e si scrive il solo canale del fuoco. E' ancora questa funzione l'unica che
+			// scrive i setter delle anteprime: la sorgente e' un ingresso, non una seconda sede.
+			//
+			// La corsa si disegna AL NETTO della normale (scelta della sessione, da giudicare in PIE): la libreria le
+			// restituisce entrambe per intero, e la differenza si fa qui, dove si disegna.
+			HexMap->ClearPlanningPreview();
+			const TSet<FRTCellId> Normal(FocusAreas->Normal);
+			TArray<FRTCellId> RunOnly;
+			for (const FRTCellId& Cell : FocusAreas->Run)
+			{
+				if (!Normal.Contains(Cell))
+				{
+					RunOnly.Add(Cell);
+				}
+			}
+			HexMap->SetPreviewFocusAreas(FocusAreas->Normal, RunOnly);
+			return;
+		}
 		if (!Unit)
 		{
 			// 🔑 **Il reset sta in UN punto, sull'attore** (`ARTHexMapActor::ClearPlanningPreview`, `#3511`): qui c'era
@@ -258,6 +281,11 @@ namespace
 			HexMap->ClearPlanningPreview();
 			return;
 		}
+
+		// 🔑 **Il piano ha la mappa: il fuoco cede** (`#3750`). Il ramo del fuoco parte da `ClearPlanningPreview`, ma questo
+		// scrive solo i propri canali: senza questa riga l'area di un fuoco gia' uscito (armare, un waypoint, `RMB`) restava a
+		// schermo accanto al ventaglio. L'ha trovata il test del ciclo, non la lettura: l'arbitro deve far cedere nei DUE versi.
+		HexMap->SetPreviewFocusAreas(TArray<FRTCellId>(), TArray<FRTCellId>());
 
 		// 🔴 **La ROTTA si scrive dal piano, qui, e da nessun altro** (`#3511`, review; `#3892`). Con la regola derivata dallo
 		// stato le aree si spengono e tornano senza un evento: `ClearPlanningPreview` azzera anche la rotta, e il ritorno dalla
@@ -4616,10 +4644,14 @@ void ARTPlayerController::ApplyPlanningOverlay(
 	bHasPlanningOverlayInputs = true;
 	++PlanningOverlayComputations;
 
+	// 🔑 **Una sola variabile dice chi scrive la mappa** (`#3750`, spec §6.3): il fuoco o il piano, mai i due insieme, e
+	// nessuno se le aree non si mostrano. E' derivata dagli ingressi, quindi l'uscita dimenticata si corregge da sola.
+	const ERTPreviewSource Source = Inputs.ActiveSource();
+
 	// 🔑 **La regola e' derivata dallo stato, non da un evento**: se le aree non si mostrano, si azzerano TUTTE, dallo
 	// stesso reset dell'attore. Un'uscita che nessuno ha elencato (commit, playback, `Modal`, KO, fine partita) si
 	// corregge qui al primo tick in cui lo stato la dichiara.
-	if (!Inputs.ShowsAreas())
+	if (Source == ERTPreviewSource::None)
 	{
 		if (bPlanChanged)
 		{
@@ -4633,8 +4665,101 @@ void ARTPlayerController::ApplyPlanningOverlay(
 	if (bPlanChanged)
 	{
 		++PlanningOverlayPlanComputations;
-		RefreshPlanningPreview(GetWorld(), Unit, HexMap);
+		if (Source == ERTPreviewSource::Focus)
+		{
+			// Le due aree del soggetto a fuoco, sulla mappa AUTOREVOLE ristretta a cio' che la squadra vede adesso (le celle
+			// non in vista sono muri nel calcolo, P3) e dai soli VALORI del soggetto: il piano del nemico non entra.
+			FVector Origin; float HexSize; float LayerH;
+			const URTHexMapAsset* Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
+			const ARTTurnManager* TM = PacingTurnManager(this);
+			FRTFocusMoveAreas Areas;
+			if (Map != nullptr && TM != nullptr)
+			{
+				Areas = URTFocusAreaLibrary::MoveAreasFor(GetTransientPackage(), Map,
+					TM->PlaybackKnowledgeForTeam(ARTPlayerState::TeamIdOf(this)), Inputs.FocusMove);
+			}
+			RefreshPlanningPreview(GetWorld(), Unit, HexMap, &Areas);
+		}
+		else
+		{
+			RefreshPlanningPreview(GetWorld(), Unit, HexMap);
+		}
 	}
+}
+
+void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const
+{
+	const ARTUnit* Subject = InspectedUnit.Get();
+	if (Subject == nullptr || !Subject->IsAlive())
+	{
+		return;
+	}
+	const int32 ObserverTeamId = ARTPlayerState::TeamIdOf(this);
+	// Un'unita' propria o alleata a fuoco non e' coperta da D-552, che parla dei nemici: resta fuori da F5 (scelta della
+	// sessione). ⚠️ «Alleata» e' una squadra diversa dalla propria che nessuno ha ancora dichiarato tale: oggi non c'e' un
+	// vocabolario di alleanze a runtime fuori dalla risoluzione del movimento.
+	if (Subject->TeamId == ObserverTeamId)
+	{
+		return;
+	}
+	const ARTTurnManager* TM = PacingTurnManager(this);
+	if (TM == nullptr)
+	{
+		return;
+	}
+
+	TArray<ARTUnit*> Units;
+	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+	{
+		Units.Add(*It);
+	}
+	// 🔑 La stessa vista del velo. Il cancello e' UNO: una voce `Live` (P2). `ARTUnit::IsKnownToObserver()` nasce vero e qui
+	// non decide niente.
+	const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
+	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Subject->StableUnitId);
+	if (Entry == nullptr || !URTInspectLibrary::IsInspectable(View, Subject->StableUnitId))
+	{
+		return;
+	}
+
+	Inputs.FocusSubject = Subject;
+	Inputs.FocusMove = URTFocusAreaLibrary::SubjectFor(Subject);
+	// La cella e' quella della VOCE DELLA VISTA, non quella dell'attore: da qui in giu' si lavora su cio' che l'osservatore sa.
+	Inputs.FocusMove.Cell = Entry->Cell;
+
+	// Un'impronta di `VisibleCells`, indipendente dall'ordine: l'area dipende da cio' che si vede, e se la vista cambia deve
+	// rifarsi. Somma di hash rimescolati piu' il conto (due viste con le stesse celle, in ordine diverso, danno lo stesso).
+	const TArray<FRTCellId>& Visible = TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells;
+	uint32 Stamp = static_cast<uint32>(Visible.Num());
+	for (const FRTCellId& Cell : Visible)
+	{
+		Stamp += HashCombineFast(GetTypeHash(Cell), 0x9E3779B9u);
+	}
+	Inputs.FocusKnowledgeStamp = Stamp;
+}
+
+FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const ARTUnit* Unit, const ARTHexMapActor* HexMap)
+{
+	FRTPlanningOverlayInputs Inputs = GatherPlanningOverlayInputs(Unit, HexMap);
+
+	// Il cancello costa una ricerca di unita': lo si paga solo se c'e' qualcosa da decidere, cioe' una fissazione nuova o
+	// un'area ancora sulla mappa. Un'ispezione che persiste dopo che l'area e' uscita non costa niente per fotogramma.
+	if (InspectionPinSerial != FocusLatch.PinSerial || FocusLatch.bOnMap)
+	{
+		GatherFocusInputs(Inputs);
+	}
+	Inputs.bFocusOnMap = FocusLatch.Observe(InspectionPinSerial, Inputs);
+
+	// 🔑 **Normalizzazione**: i campi del fuoco valgono i default quando l'area non tiene la mappa. Un soggetto la cui area e'
+	// gia' uscita non deve far ricalcolare il piano quando si muove.
+	if (Inputs.ActiveSource() != ERTPreviewSource::Focus)
+	{
+		Inputs.FocusSubject = nullptr;
+		Inputs.FocusMove = FRTFocusMoveSubject();
+		Inputs.FocusKnowledgeStamp = 0;
+		Inputs.bFocusOnMap = false;
+	}
+	return Inputs;
 }
 
 void ARTPlayerController::UpdatePlanningOverlay(ARTHexMapActor* KnownHexMap)
@@ -4645,7 +4770,7 @@ void ARTPlayerController::UpdatePlanningOverlay(ARTHexMapActor* KnownHexMap)
 		return;
 	}
 	const ARTUnit* Unit = GetSelectedUnit();
-	ApplyPlanningOverlay(HexMap, Unit, GatherPlanningOverlayInputs(Unit, HexMap));
+	ApplyPlanningOverlay(HexMap, Unit, ResolvePlanningOverlayInputs(Unit, HexMap));
 }
 
 void ARTPlayerController::RefreshPlanningOverlay(const ARTUnit* Unit)
@@ -4658,7 +4783,7 @@ void ARTPlayerController::RefreshPlanningOverlay(const ARTUnit* Unit)
 	// La revisione sale PRIMA di leggere gli ingressi: un waypoint aggiunto non cambia nessun altro campo, e senza
 	// questo salto il confronto lo scarterebbe come «niente di nuovo».
 	++PlanningOverlayRevision;
-	ApplyPlanningOverlay(HexMap, Unit, GatherPlanningOverlayInputs(Unit, HexMap));
+	ApplyPlanningOverlay(HexMap, Unit, ResolvePlanningOverlayInputs(Unit, HexMap));
 }
 
 ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
@@ -4745,6 +4870,12 @@ void ARTPlayerController::PinInspection(ARTUnit* Unit)
 {
 	InspectedUnit = Unit;
 	bInspectorPinned = Unit != nullptr;
+	// #3750: ogni fissazione e' una fissazione NUOVA del fuoco, anche sulla stessa unita'. L'area di movimento lascia la mappa
+	// al primo gesto di pianificazione e non torna da sola (spec §3 regola 4); rifissare e' il gesto che la riporta.
+	if (Unit != nullptr)
+	{
+		++InspectionPinSerial;
+	}
 }
 
 bool ARTPlayerController::ReleaseInspectionUnlessLive(const FRTKnowledgeView& View)

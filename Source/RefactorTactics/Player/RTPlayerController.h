@@ -1130,6 +1130,12 @@ public:
 	 * condizioni della matrice del puntatore, e la scelta dell'arco senza il cursore, che in un mondo di prova non c'e'.
 	 */
 	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
+
+	/**
+	 * La fissazione VERA dell'ispezione (`PinInspection`: soggetto, pin e fissazione del fuoco insieme), per un test che
+	 * vuole il cammino di produzione e non il solo soggetto di `SetInspectedUnitForTest` (#3750).
+	 */
+	void PinInspectionForTest(class ARTUnit* Unit) { PinInspection(Unit); }
 	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/** Un fotogramma di `PlayerTick`, che e' protetto: `#3511` prova che il confronto delle aree di pianificazione vi e' cablato. */
@@ -1724,6 +1730,33 @@ private:
 
 	/** Gli ingressi di adesso per `Unit` (la selezionata, o quella che il chiamante dichiara). Non scrive niente. */
 	FRTPlanningOverlayInputs GatherPlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap) const;
+
+	/**
+	 * **Il cancello del fuoco** (`#3750`, P2): riempie `FocusSubject`, `FocusMove` e `FocusKnowledgeStamp` se l'unita'
+	 * ispezionata e' un NEMICO VIVO con una voce `Live` nella vista di chi guarda, e non tocca niente altrimenti.
+	 *
+	 * 🔴 **Il cancello e' qui e non nell'HUD**, anche se l'HUD rilascia gia' l'ispezione di chi non e' piu' `Live`
+	 * (`ReleaseInspectionUnlessLive`): quella arriva al tick dell'HUD, e fra il tick in cui il nemico esce di vista e il
+	 * suo l'area mostrerebbe a un osservatore cio' che non vede. La vista e' la stessa del velo
+	 * (`URTHudViewModel::BuildObserverKnowledgeView`), e la cella del soggetto viene dalla SUA VOCE, non dall'attore.
+	 * ⛔ Non guarda `ARTUnit::IsKnownToObserver()`, che nasce vero.
+	 *
+	 * Costa una ricerca di unita' e la costruzione della vista, e solo quando c'e' un'unita' ispezionata.
+	 */
+	void GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const;
+
+	/**
+	 * Gli ingressi, pronti per il confronto: raccolti, con il fuoco passato dal cancello e dal latch (`FocusLatch`), e
+	 * **normalizzati** — i campi del fuoco valgono i default quando l'area non e' sulla mappa. Scrive il latch, quindi non e'
+	 * `const`; non scrive niente sulla mappa.
+	 */
+	FRTPlanningOverlayInputs ResolvePlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap);
+
+	/** Quante volte `PinInspection` ha fissato dall'inizio: e' cio' che riporta l'area del fuoco, anche sulla stessa unita'. */
+	int32 InspectionPinSerial = 0;
+
+	/** L'area del fuoco e' ancora sulla mappa? (#3750) */
+	FRTFocusLatch FocusLatch;
 
 	/** Confronta, e se cambiano calcola o spegne. L'unico punto che tocca `RefreshPlanningPreview`. */
 	void ApplyPlanningOverlay(class ARTHexMapActor* HexMap, const ARTUnit* Unit, const FRTPlanningOverlayInputs& Inputs);
