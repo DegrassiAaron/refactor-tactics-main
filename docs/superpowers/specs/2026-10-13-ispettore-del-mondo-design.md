@@ -327,7 +327,7 @@ replay. Le regole:
 |---|---|---|
 | **P1** | ➕ rev. **Non si costruisce ciò che non spetta, e l'attore passa da una porta sola.** Una sola funzione legge l'attore di un'unità non comandata e ne ricava il soggetto pubblico: identità, cella, verso, ciò che la targa mostra già, pezzi equipaggiati. Il compositore riceve quel soggetto e non vede mai l'attore: piano, slot e ricariche vere non hanno un campo in cui entrare | la disciplina di `FRTContextInspectorView`; `FRTKnowledgeView` per sapere **se** il soggetto esiste; `FRTUnitOverlayView` per la condizione |
 | **P2** | **Nemico non osservato = cella vuota**, su tutte le uscite: sguardo, scheda, area di movimento, portata. ➕ rev2. Il cancello è **uno**: una voce `Live` nella vista di conoscenza. `ARTUnit::IsKnownToObserver` nasce vero, e qui non decide niente | `FRTKnowledgeView` |
-| **P3** | ➕ rev2. **L'area di movimento di un nemico è il suo potenziale, dentro ciò che la squadra vede adesso.** Il budget è `ARTUnit::GetEffectiveMoveRange`, che legge catalogo e stati pubblici, alle due bande fisse di `S8`: normale e corsa. ⛔ Mai la banda del suo piano: `ARTTurnManager::MakeSimUnit` la legge, e per il soggetto a fuoco non si usa. Due regole pubbliche vivono però solo lì, e vanno riportate nello snapshot costruito apposta: il costo in più per cella di `Status.Slow`, e il divieto di corsa di `Status.Unbalanced`. `GetEffectiveMoveRange` legge solo `Status.Root` e `Status.Prone`. Non dipende da unità ignote. Si disegna solo su celle in vista adesso, e una cella non in vista non è attraversabile nel calcolo | `URTHexSimLibrary::MakeSnapshot` per l'occupazione; `FRTTeamKnowledge::VisibleCells` per le celle |
+| **P3** | ➕ rev2. **L'area di movimento di un nemico è il suo potenziale, dentro ciò che la squadra vede adesso.** Il budget è `ARTUnit::GetEffectiveMoveRange`, che legge catalogo e stati pubblici, alle due bande fisse di `S8`: normale e corsa. ⛔ Mai la banda del suo piano: `ARTTurnManager::MakeSimUnit` la legge, e per il soggetto a fuoco non si usa. Due regole pubbliche non passano da `GetEffectiveMoveRange` e vanno riportate nel calcolo costruito apposta: il costo in più per cella di `Status.Slow` (`MoveCostModifier`, in `MakeSimUnit`) e il divieto di corsa di `Status.Unbalanced` (in `URTMovementProfileLibrary::CeilingProfile(..., bRunDenied)`, che la validazione del piano e il controller già leggono). ⌫ *La prima stesura le dava entrambe a `MakeSimUnit`: lì `Unbalanced` diventa solo `ExtraSlideCells`, celle di scivolamento in più.* `GetEffectiveMoveRange` legge `MoveRange`, `Status.Root` e il prezzo del rialzo da `Prone`. Non dipende da unità ignote. Si disegna solo su celle in vista adesso, e una cella non in vista non è attraversabile nel calcolo | `URTHexSimLibrary::MakeSnapshot` per l'occupazione; `FRTTeamKnowledge::VisibleCells` per le celle |
 | **P4** | ➕ rev2. **Le ricariche dedotte sono funzione di due sole cose**: il catalogo, e le voci del TurnLog che il filtro del registro autorizza alla squadra, sull'intera partita. Una voce conta solo se il suo soggetto è l'unità ispezionata **e** il soggetto è chi agisce. ⛔ Mai dedurre chi ha agito dall'`ActionId` o da una cella di una voce che parla di un altro | `URTPlayerEventProjector::IsAuthorized`; `URTTurnLogLibrary::IsSubjectTheSufferer` |
 | **P5** | ➕ rev. **Di una cella si legge qualcosa solo se la squadra la vede adesso.** Una cella esplorata e non più in vista, come una mai vista, non dà sguardo né scheda | `FRTTeamKnowledge::VisibleCells` |
 | **P6** | **Kit ed equipaggiamento di un nemico osservato sono pubblici per regola** (`S2`) | il catalogo |
@@ -420,8 +420,11 @@ se è chiusa, F5 aggiunge le due sorgenti all'ingresso che trova.
 Sono premesse plausibili e non misurate. Il piano le misura prima di poggiarci sopra.
 
 - ➕ rev2. ✅ **Misurato dal revisore**: il budget dell'unità nello snapshot deriva dal piano (§1.2), ed è il
-  motivo di P3. Resta da misurare se altri campi di `FRTHexSimUnit` derivano dal piano, e da dove
-  `GetEffectiveMoveRange` prende i suoi ingressi.
+  motivo di P3. ✅ **Misurato in #3750** (`ARTTurnManager::MakeSimUnit` e `ARTUnit::GetEffectiveMoveRange`, su
+  `origin/main` = `69e8a9cd3`): dei campi che `MakeSimUnit` scrive in `FRTHexSimUnit`, **solo `MoveBudget` e
+  `StepBudget`** derivano dal piano, via `URTMovementProfileLibrary::ProfileForPlan`; `MoveCostModifier` (`Slow`),
+  `ExtraSlideCells` (`Unbalanced`), `Facing`, `TeamId` e `StableUnitId` vengono dall'unità. `GetEffectiveMoveRange`
+  parte da `MoveRange` e legge `Status.Root` e il prezzo del rialzo da `Prone` ([D-319](../../decisions/RT_PDR_00_Decision_Log.md)).
 - ➕ rev. Come rendere una cella non in vista **non attraversabile** nel calcolo dell'area di un nemico (P3), dato
   che `ReachableCells` legge la mappa dello snapshot per intero. Ritagliare il risultato alle celle in vista non
   basta: una cella in vista raggiungibile solo passando per celle non in vista resterebbe nel ventaglio, e lo
@@ -546,7 +549,10 @@ Testo proposto. **Il numero si assegna al merge**, dopo `git fetch` e il control
 **Scritte**: la voce 2 è [D-512](../../decisions/RT_PDR_00_Decision_Log.md), la voce 5 è
 [D-513](../../decisions/RT_PDR_00_Decision_Log.md), le due che `F2` aspetta. La voce 3 è
 [D-514](../../decisions/RT_PDR_00_Decision_Log.md), scritta con la prima parte di `F4`. Fa fede il testo del
-registro, non quello qui sotto. Le voci 1 e 4 si scrivono con le loro fette: `F3`, `F5`.
+registro, non quello qui sotto. La voce 1 è [D-533](../../decisions/RT_PDR_00_Decision_Log.md), scritta con `F3`.
+La voce 4 è [D-552](../../decisions/RT_PDR_00_Decision_Log.md), scritta prima di `F5` perché la DoD di
+[#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750) la chiede accettata prima del codice:
+il suo testo vale dal merge della PR che la porta, cioè dall'approvazione dell'autore.
 
 1. **Di un nemico osservato sono pubblici il kit dell'eroe e l'equipaggiamento; le ricariche si leggono solo come
    deduzione dagli eventi autorizzati.** Il piano, gli slot del turno, l'azione armata e le ricariche reali restano
