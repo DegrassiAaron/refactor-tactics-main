@@ -114,6 +114,12 @@ protected:
 	/** Applica il pennello (area di raggio BrushRadius) attorno a CenterCell; dedup per-cella. Ritorna se ha cambiato qualcosa. */
 	bool ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& CenterCell, const FVector& CenterWorld);
 	void EndStrokeIfActive();
+	/**
+	 * Inizia una pennellata su `Actor`: azzera lo stato che la pennellata accumula (celle gia' dipinte, contatori del
+	 * log). Lo chiamano `OnClickPress` e il blocco di test qui sotto, cosi' il test non ricompone a mano cio' che il
+	 * tool compone da solo (#3916).
+	 */
+	void BeginStrokeOn(ARTHexMapActor* Actor);
 	/** Apre lazy la transazione + MapAsset->BeginStroke() al primo cambiamento reale (una sola volta per pennellata). */
 	void EnsureStrokeOpen();
 
@@ -136,4 +142,40 @@ protected:
 	FVector MarkerCenter = FVector::ZeroVector;
 	float MarkerRadius = 50.f;
 	FColor MarkerColor = FColor::Green;
+
+#if WITH_DEV_AUTOMATION_TESTS
+public:
+	/**
+	 * Una pennellata guidata a mano, senza viewport ([#3916](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3916)).
+	 *
+	 * 🔑 **Esiste perche' `ApplyBrushAt` e' protetto e i test di #3322 provavano la sede, non il tool**: un ritorno a
+	 * `RemoveCell` nel solo tool, o un contatore del log scritto male, non faceva cadere niente.
+	 *
+	 * ⚠️ Non e' un `friend`: obbligherebbe questo header a nominare una classe di test, cioe' a rompersi il giorno che
+	 * quel test viene rinominato (la stessa ragione di `SRTLauncherScenarioPanel::TestRunProbe`). La guardia toglie il blocco
+	 * dalla Shipping. Sono membri, non una dichiarazione di test: `IMPLEMENT_*_AUTOMATION_TEST` non sta in un header.
+	 */
+	URTHexPaintToolProperties* BeginStrokeForTest(ARTHexMapActor* Actor)
+	{
+		if (!Properties)
+		{
+			Properties = NewObject<URTHexPaintToolProperties>(this);
+		}
+		BeginStrokeOn(Actor);
+		return Properties;
+	}
+
+	/**
+	 * Applica il pennello attorno a `Center`: il cuore di `OnClickPress` e `OnClickDrag` dopo aver risolto la cella.
+	 * NON la ricostruzione con maschera (`RebuildInstances(BrushRebuildMask(...))`) che le segue a ogni cella.
+	 */
+	bool ApplyBrushAtForTest(const FRTCellId& Center) { return ApplyBrushAt(TargetActor, Center, FVector::ZeroVector); }
+
+	/** Chiude la pennellata, come `OnClickRelease`. */
+	void EndStrokeForTest() { EndStrokeIfActive(); }
+
+	/** I contatori che il log di fine pennellata riporta. Sola lettura. */
+	int32 StrokeCellsErasedForTest() const { return StrokeCellsErased; }
+	int32 StrokeCascadeRemovedForTest() const { return StrokeCascadeRemoved; }
+#endif
 };
