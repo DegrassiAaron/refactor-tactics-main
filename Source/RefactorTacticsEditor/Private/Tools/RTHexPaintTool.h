@@ -165,7 +165,10 @@ public:
 		return Properties;
 	}
 
-	/** Applica il pennello attorno a `Center`, come `OnClickPress` e `OnClickDrag` dopo aver risolto la cella. */
+	/**
+	 * Applica il pennello attorno a `Center`: il cuore di `OnClickPress` e `OnClickDrag` dopo aver risolto la cella.
+	 * NON la ricostruzione con maschera (`RebuildInstances(BrushRebuildMask(...))`) che le segue a ogni cella.
+	 */
 	bool ApplyBrushAtForTest(const FRTCellId& Center) { return ApplyBrushAt(TargetActor, Center, FVector::ZeroVector); }
 
 	/** Chiude la pennellata, come `OnClickRelease`. */

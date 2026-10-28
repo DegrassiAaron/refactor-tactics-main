@@ -22,8 +22,11 @@
  * la regola, non che `URTHexPaintTool::ApplyBrushAt` la chiami. Un ritorno a `RemoveCell` nel solo tool, un contatore
  * scritto `=` invece di `+=`, o un log che stampa il numero sbagliato non facevano cadere niente.
  *
- * Qui si guida il tool a mano (`BeginStrokeForTest`, `ApplyBrushAtForTest`, `EndStrokeForTest`), senza viewport: e'
- * lo stesso percorso di `OnClickPress` meno la risoluzione del raggio in una cella.
+ * Qui si guida il tool a mano (`BeginStrokeForTest`, `ApplyBrushAtForTest`, `EndStrokeForTest`), senza viewport:
+ * `ApplyBrushAt` seguito da `EndStrokeIfActive`. Non provano la risoluzione del raggio in una cella e nemmeno la
+ * ricostruzione con maschera (`BrushRebuildMask`) che `OnClickPress` e `OnClickDrag` fanno dopo ogni cella: quella
+ * resta fuori da questo file (la maschera ha il suo test, `BrushRebuildMask` e' statica). Fuori scopo restano anche
+ * il dedup `PaintedThisStroke`, la transazione lazy e il valore di ritorno cumulativo di `ApplyBrushAt`.
  */
 namespace
 {
