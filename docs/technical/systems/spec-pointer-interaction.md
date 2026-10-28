@@ -476,6 +476,14 @@ Due regole che l'ordine da solo non dice:
   gesto, e l'azione si disarma al Back in cui non ne restano.
   ⛔ Un targeting **senza** bersaglio esce e basta: un'altra azione già pianificata resta. E un Back che chiude un
   `Facing` non tocca il piano.
+- **Dal dock, il secondo click sullo slot di una REAZIONE armata la toglie dal piano**
+  ([D-555](../../decisions/RT_PDR_00_Decision_Log.md), [#3896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3896)).
+  La toglie dalla selezione **e** dal piano, con la condizione dichiarata che le apparteneva, e la timeline smette di
+  disegnarla armata. Solo se è **lei** lo slot che si disarma: una reazione armata prima di un'azione principale resta
+  nel piano quando si disarma la principale, perché `Reaction` ha il proprio slot e il proprio campo.
+  ⚠️ **Il Back (voce 6) su una reazione armata NON è deciso da D-555**: oggi spegne lo slot e lascia la reazione nel
+  piano, perché una reazione non scrive `PlannedAbilityIndex` e la condizione di «azione già nel piano» non la vede.
+  È una domanda aperta all'autore, non una regola.
 
 `BackSpace` segue lo stesso elenco (è già legato a `UndoAction`, `RTPlayerController.cpp:246-247`). `Esc`
 pure, con la sola eccezione della `ReactionWindow`: lì non chiude, perché non scegliere è già `HOLD`.
