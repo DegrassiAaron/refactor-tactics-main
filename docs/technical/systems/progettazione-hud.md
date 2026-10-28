@@ -1192,6 +1192,26 @@ Può mostrare, se autorizzato:
 
 Non deve diventare un pannello permanente.
 
+## 18.0 Le due forme, e dove stanno (`#3747`, `#3748`)
+
+Dal 2026-10 questo inspector ha **due forme**, e non vanno confuse:
+
+* **Lo sguardo** (all'hover, `#3747`): poche righe ancorate al bersaglio, dopo un ritardo. Non è un pannello e non
+  occupa una zona: vive sopra la mappa. Righe e ancoraggio sono in §4.2.2. Il ritardo è un dato
+  (`ARTPlayerController::GlanceDelaySeconds`, 0,3 s al primo giro) e **non è ancora stato giudicato a schermo**: lo
+  ritara `PIE-HUD-SGUARDO`.
+* **La scheda** (al click, `#3748`): il pannello fissato nella zona `MiddleRight`. Il dettaglio è in §18.1.
+
+Hanno in comune la regola che le rende un'affordance e non un canale: leggono il velo e la vista di conoscenza, e un
+nemico non osservato risponde **come una cella vuota** (stessa uscita, carattere per carattere); di una cella si legge
+qualcosa solo se la squadra la vede adesso.
+
+⛔ **Nessuna delle due decide**: lo sguardo non cambia l'esito dell'hover né il bersaglio del click. Non è una promessa
+a parole: `Pointer.GlanceDoesNotChangeTheHoverOutcomeNorTheClickTarget` misura, su una board con selezione, ispezione
+fissata e hover già in corso, che lo sguardo acceso in ogni contesto lascia invariati cella evidenziata, unità
+ispezionata, pin, selezione e piano, e che un click riceve lo stesso trattamento con e senza lo sguardo aperto. Il ramo
+che legge l'unità sotto il cursore non è raggiungibile headless: lo copre soltanto `PIE-HUD-SGUARDO`.
+
 ---
 
 ## 18.1 La scheda dell'ispezione (`#3748`, F3)
