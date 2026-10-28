@@ -84,8 +84,11 @@ from misura import (  # noqa: E402
     RADICE,
     UPROJECT,
     _termina_albero,
+    binari_stantii,
     decide_attesa,
+    descrivi_stantii,
     grazia_scaduta,
+    leggi_sorgenti_e_binari,
     suite_finita,
 )
 
@@ -97,9 +100,12 @@ def rossi_dal_log(testo):
     return re.findall(r"Test Completed\. Result=\{Fail\} Name=\{([^}]+)\}", testo)
 
 
-def referto(finita, trovati, avviati, completati, rossi, appeso, secondi):
-    """PURA. Le righe del referto finale. Separata dall'esecuzione per poterla provare."""
-    righe = []
+def referto(finita, trovati, avviati, completati, rossi, appeso, secondi, stantii=()):
+    """PURA. Le righe del referto finale. Separata dall'esecuzione per poterla provare.
+
+    `stantii`: i moduli il cui DLL non contiene i sorgenti (`misura.binari_stantii()`, #2656). L'avviso
+    sta in CIMA: chi legge `rossi nessuno` e smette di leggere non deve perderlo."""
+    righe = list(descrivi_stantii(stantii))
     stato = "APPESO" if appeso else ("finita" if finita else "INTERROTTA")
     righe.append("suite     %s in %d s" % (stato, secondi))
     righe.append("conteggi  trovati %s, avviati %d, completati %d"
@@ -117,8 +123,30 @@ def referto(finita, trovati, avviati, completati, rossi, appeso, secondi):
     return righe
 
 
+def codice_di_uscita(finita, rossi, stantii=()):
+    """PURA. `0` solo se la suite e' finita, senza rossi, su un binario che contiene i sorgenti.
+
+    🔑 Porta l'esito dei TEST, non quello del processo — che nel caso appeso non esiste, e che il motore
+    rende `-1` su una suite con dei rossi anche quando ha funzionato. 🔴 E un verde su un binario
+    stantio (#2656) non e' un verde: riguarda una build che non e' quella dell'albero."""
+    return 0 if (finita and not rossi and not stantii) else 1
+
+
 def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
     """Lancia, attende sul log, termina se appeso. Torna `(codice_uscita, righe_referto)`."""
+    # 🔴 #2656: i binari devono contenere i sorgenti. Non blocca: una run a mano su una build vecchia
+    # puo' essere voluta (una baseline), ma il referto lo dice in cima e l'uscita non e' `0`. Se i
+    # sorgenti non si leggono lo si dice, invece di tacere: l'assenza di un avviso non e' un binario sano.
+    stantii = []
+    nota_binari = None
+    try:
+        stantii = binari_stantii(*leggi_sorgenti_e_binari(RADICE))
+    except OSError as e:
+        nota_binari = ("build     controllo dei binari NON eseguito (%s): l'esito non dice se i binari"
+                       " contengono i sorgenti." % e.__class__.__name__)
+    if stantii and verboso:
+        print("  i binari non contengono i sorgenti: il referto lo dira' in cima")
+
     if os.path.exists(log_path):
         try:
             os.remove(log_path)  # un log vecchio darebbe i rossi di una run che non e' questa
@@ -187,13 +215,12 @@ def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
 
     finita, trovati, avviati, completati = suite_finita(testo)
     rossi = rossi_dal_log(testo)
-    righe = referto(finita, trovati, avviati, completati, rossi, appeso, trascorso)
+    righe = referto(finita, trovati, avviati, completati, rossi, appeso, trascorso, stantii)
+    if nota_binari:
+        righe.insert(0, nota_binari)
     righe.append("log       %s" % log_path)
 
-    # 🔑 Il codice di uscita porta l'esito dei TEST, non quello del processo — che nel caso appeso
-    # non esiste, e che il motore rende `-1` su una suite con dei rossi anche quando ha funzionato.
-    codice = 0 if (finita and not rossi) else 1
-    return codice, righe
+    return codice_di_uscita(finita, rossi, stantii), righe
 
 
 def self_test():
@@ -236,6 +263,24 @@ def self_test():
 
     r_rossi = referto(True, 3, 3, 3, ["Tizio", "Caio"], False, 5)
     caso("referto: elenca i rossi", any("Tizio" in x for x in r_rossi))
+
+    # --- #2656: un verde su un binario che non contiene i sorgenti non e' un verde --------------------
+    # 🔴 Il referto sopra dice «rossi nessuno» anche quando la build e' fallita e la suite ha girato sul
+    # binario di un'ora fa. L'avviso sta in CIMA: chi legge `rossi nessuno` e smette di leggere non deve
+    # perderlo, e un codice di uscita `0` non deve accompagnarlo.
+    stantii = [("A", "Source/A/a.cpp", 2000 * 10 ** 9, 1000 * 10 ** 9)]
+    r_stantii = referto(True, 3, 3, 3, [], False, 5, stantii)
+    caso("referto: binari stantii avvertono, in CIMA, che l'esito riguarda una build PRECEDENTE",
+         bool(r_stantii) and r_stantii[0].startswith("build") and "non contengono" in r_stantii[0],
+         str(r_stantii[:2]))
+    caso("referto: binari aggiornati non avvertono di niente",
+         not any(x.startswith("build") for x in referto(True, 3, 3, 3, [], False, 5, [])))
+    caso("uscita: suite finita e pulita su binari STANTII non e' 0",
+         codice_di_uscita(True, [], stantii) == 1)
+    caso("uscita: suite finita e pulita su binari aggiornati e' 0",
+         codice_di_uscita(True, [], []) == 0)
+    caso("uscita: i rossi restano 1", codice_di_uscita(True, ["Tizio"], []) == 1)
+    caso("uscita: una suite non finita resta 1", codice_di_uscita(False, [], []) == 1)
 
     righe = ["  %-62s %s%s" % (n, "ok" if v else "FALLITO", (" (%s)" % d) if d and not v else "")
              for n, v, d in casi]

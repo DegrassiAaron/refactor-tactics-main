@@ -50,6 +50,8 @@ import hashlib
 import io
 import os
 import re
+import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -139,6 +141,130 @@ def istantanea(radice, dll_glob=None):
             except OSError:
                 dll.append("%s=(assente)" % os.path.basename(d))
     return (_git(radice, "rev-parse", "HEAD"), albero, " ".join(dll))
+
+
+# --- #2656: il binario deve CONTENERE l'albero, non solo restare fermo ----------------------------
+# 🔴 `istantanea()` prova che i DLL non cambiano DURANTE la run. Non prova che contengano i sorgenti
+# che la run dichiara di misurare: una build fallita lascia il binario di un'ora fa, la suite parte lo
+# stesso, e il referto dice `VALIDA` su codice che non e' quello dell'albero. Misurato il 2026-09-07
+# lavorando #2534: 55 minuti fra DLL e sorgenti, due volte di fila, `VALIDA` entrambe.
+#
+# ⚠️ La disciplina del chiamante — «build e suite nello stesso comando, build uscita 0» — funziona
+# finche' qualcuno la ricorda. Qui la regola la applica lo strumento.
+
+# Cio' che UBT compila: un `.md` o un `.json` sotto `Source/` non muove nessun DLL.
+ESTENSIONI_COMPILATE = (".cpp", ".c", ".cc", ".h", ".hpp", ".inl", ".cs")
+
+
+def _ora(ns):
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ns / 1e9))
+
+
+def binari_stantii(sorgenti, binari):
+    """PURA. I moduli il cui DLL non contiene il loro sorgente piu' recente.
+
+    `sorgenti`: `{modulo: (percorso, mtime_ns)}`, il file compilato modificato per ultimo.
+    `binari`: `{modulo: mtime_ns | None}`, `None` se il DLL non esiste.
+    Torna `[(modulo, percorso, mtime_sorgente, mtime_dll | None)]`, ordinata per modulo.
+
+    ⛔ **Un DLL piu' RECENTE dei sorgenti e' il caso normale e non si segnala**: e' il risultato di una
+    build. Vale anche la parita': stantio e' solo il sorgente STRETTAMENTE piu' recente.
+    """
+    stantii = []
+    for modulo in sorted(sorgenti):
+        percorso, ns_sorgente = sorgenti[modulo]
+        ns_dll = binari.get(modulo)
+        if ns_dll is None or ns_sorgente > ns_dll:
+            stantii.append((modulo, percorso, ns_sorgente, ns_dll))
+    return stantii
+
+
+def _piu_recente(cartella, radice):
+    """`(percorso relativo a `radice`, mtime_ns)` del file compilato modificato per ultimo sotto
+    `cartella`, o `None`. Un errore di lettura SOLLEVA: ignorarlo sottostimerebbe il sorgente piu'
+    recente, e la regola fallirebbe aperta."""
+    def solleva(e):
+        raise e
+    migliore = None
+    for dirpath, _, nomi in os.walk(cartella, onerror=solleva):
+        for nome in nomi:
+            if not nome.lower().endswith(ESTENSIONI_COMPILATE):
+                continue
+            p = os.path.join(dirpath, nome)
+            ns = os.stat(p).st_mtime_ns
+            if migliore is None or ns > migliore[1]:
+                migliore = (os.path.relpath(p, radice).replace(os.sep, "/"), ns)
+    return migliore
+
+
+def leggi_sorgenti_e_binari(radice):
+    """NON pura: legge il disco. Torna `(sorgenti, binari)` nella forma di `binari_stantii()`.
+
+    Un MODULO e' una cartella sotto `Source/`, e il suo DLL e' `Binaries/Win64/UnrealEditor-<modulo>.dll`.
+
+    🔴 **Modulo per modulo, col nome ESATTO del DLL.** `Binaries/Win64/` porta anche i
+    `…-Win64-DebugGame.dll` di build vecchie: confrontare «il DLL piu' vecchio del glob» darebbe stantio
+    per sempre, dopo qualunque build. E toccare un file dell'Editor non rilinka il modulo runtime: un
+    confronto globale chiederebbe una build che non ricostruirebbe niente.
+
+    Un `*.Target.cs` sta alla radice di `Source/` e cambia l'ambiente di build di OGNI modulo: vale per
+    tutti.
+
+    ⚠️ Solleva `OSError` se `Source/` non c'e' o non si legge. «Nessun sorgente» non e' «nessun sorgente
+    stantio»: chi chiama deve rifiutare, non assolvere.
+    """
+    base = os.path.join(radice, "Source")
+    voci = sorted(os.listdir(base))
+    comune = None
+    for nome in voci:
+        p = os.path.join(base, nome)
+        if os.path.isfile(p) and nome.lower().endswith(ESTENSIONI_COMPILATE):
+            ns = os.stat(p).st_mtime_ns
+            if comune is None or ns > comune[1]:
+                comune = (os.path.relpath(p, radice).replace(os.sep, "/"), ns)
+
+    sorgenti = {}
+    for nome in voci:
+        cartella = os.path.join(base, nome)
+        if not os.path.isdir(cartella):
+            continue
+        migliore = _piu_recente(cartella, radice)
+        if migliore is None:
+            continue
+        if comune is not None and comune[1] > migliore[1]:
+            migliore = comune
+        sorgenti[nome] = migliore
+
+    binari = {}
+    for modulo in sorgenti:
+        dll = os.path.join(radice, "Binaries", "Win64", "UnrealEditor-%s.dll" % modulo)
+        try:
+            binari[modulo] = os.stat(dll).st_mtime_ns
+        except FileNotFoundError:
+            binari[modulo] = None
+    return sorgenti, binari
+
+
+def descrivi_stantii(stantii):
+    """PURA. Le righe di `problemi` per i moduli stantii, o `[]`.
+
+    Parte da `build`: e' una categoria SUA, distinta da `albero` («i binari sono cambiati durante la
+    run»). Sono due difetti diversi e il rimedio non e' lo stesso: qui si ricostruisce, la' si chiede
+    chi ha toccato i binari mentre la suite girava.
+    """
+    righe = []
+    for modulo, sorgente, ns_sorgente, ns_dll in stantii:
+        dll = "UnrealEditor-%s.dll" % modulo
+        if ns_dll is None:
+            righe.append("build     %s non esiste: i binari non contengono i sorgenti (%s, %s)"
+                         % (dll, sorgente, _ora(ns_sorgente)))
+        else:
+            righe.append("build     %s (%s) precede %s (%s): i binari non contengono i sorgenti"
+                         % (dll, _ora(ns_dll), sorgente, _ora(ns_sorgente)))
+    if righe:
+        righe.append("          La suite girerebbe su una build PRECEDENTE all'albero. Ricostruire, e")
+        righe.append("          rilanciare la suite nello stesso comando (#2656).")
+    return righe
 
 
 def processi_motore():
@@ -516,6 +642,20 @@ def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None,
         prima = istantanea(radice, dll_glob)
     except GitNonLeggibile as e:
         return guasto("albero    non letto PRIMA della run: %s" % e)
+
+    # 🔴 #2656: il binario deve CONTENERE l'albero, e lo si sa PRIMA di occupare il motore. Una misura
+    # su una build precedente ai sorgenti e' `NON VALIDA` per costruzione: lanciarla brucia una suite su
+    # una macchina dove il motore e' uno solo, per un esito che si butta. Come `istantanea()`, il
+    # controllo c'e' solo per chi osserva i binari (`dll_glob`): chi non li osserva non li giudica.
+    # I gate ricostruiscono e ritentano su `NON VALIDA`, quindi per loro questo e' il rimedio giusto.
+    if dll_glob:
+        try:
+            stantii = binari_stantii(*leggi_sorgenti_e_binari(radice))
+        except OSError as e:
+            return guasto("build     sorgenti non letti PRIMA della run: %s" % e)
+        if stantii:
+            return ("NON VALIDA", "esito ?/? completati, ? fallimenti", set(), set(),
+                    descrivi_stantii(stantii))
 
     if os.path.exists(log_path):
         try:
@@ -1182,5 +1322,156 @@ def self_test():
     grazia("la soglia si misura DA quando il log ha dichiarato, non dall'avvio", False, 60, 179,
            120)
     grazia("...e scade 120 s dopo quel momento", True, 60, 180, 120)
+
+    # --- #2656: il binario deve CONTENERE l'albero, non solo restare fermo ------------------------
+    # 🔴 `istantanea()` prova che i DLL non cambiano DURANTE la run. Non prova che contengano i
+    # sorgenti: una build fallita lascia il binario di un'ora fa, la suite parte lo stesso, e
+    # `verdetto()` dice `VALIDA` su codice che non e' quello dell'albero. Questi casi usano una radice
+    # VERA su disco con mtime fissati a mano, perche' il difetto sta nella RACCOLTA (quali file contano,
+    # quale DLL si confronta) piu' che nel confronto fra due interi.
+    SEC = 10 ** 9   # mtime in secondi -> ns
+
+    def radice_finta(sorgenti, dll):
+        """`sorgenti`: `{percorso relativo: mtime_s}`. `dll`: `{modulo: mtime_s | None}` (None = assente)."""
+        radice = tempfile.mkdtemp(prefix="rt-misura-")
+        for rel, t in sorgenti.items():
+            p = os.path.join(radice, *rel.split("/"))
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w") as fh:
+                fh.write("x")
+            os.utime(p, (t, t))
+        for modulo, t in dll.items():
+            if t is None:
+                continue
+            p = os.path.join(radice, "Binaries", "Win64", "UnrealEditor-%s.dll" % modulo)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w") as fh:
+                fh.write("x")
+            os.utime(p, (t, t))
+        return radice
+
+    def rimuovi(radice):
+        # `.git` ha file a sola lettura: su Windows `rmtree` senza questo li lascia in giro.
+        shutil.rmtree(radice, onerror=lambda f, p, e: (os.chmod(p, stat.S_IWRITE), f(p)))
+
+    def stantii(nome, atteso, sorgenti, dll):
+        radice = radice_finta(sorgenti, dll)
+        try:
+            v = [m for m, _, _, _ in binari_stantii(*leggi_sorgenti_e_binari(radice))]
+        finally:
+            rimuovi(radice)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
+
+    stantii("binari: il DLL piu' vecchio del sorgente e' stantio", ["A"],
+            {"Source/A/a.cpp": 2000}, {"A": 1000})
+    stantii("binari: il DLL piu' recente e' il flusso normale, non si segnala", [],
+            {"Source/A/a.cpp": 2000}, {"A": 3000})
+    stantii("binari: DLL e sorgente nello stesso istante non sono stantii", [],
+            {"Source/A/a.cpp": 2000}, {"A": 2000})
+    stantii("binari: un DLL assente e' stantio", ["A"],
+            {"Source/A/a.cpp": 2000}, {"A": None})
+    # ⛔ **Modulo per modulo, non col DLL piu' vecchio.** Su questa macchina `Binaries/Win64/` porta
+    # anche i DLL `-Win64-DebugGame.dll` di agosto: confrontare "il piu' vecchio del glob" darebbe
+    # stantio per sempre, dopo qualunque build. Qui A e' ok, B e' ok, e il piu' vecchio dei DLL (1500)
+    # precede il sorgente piu' recente (2000): un confronto globale direbbe stantio, a torto.
+    stantii("binari: si confronta MODULO per modulo, non col DLL piu' vecchio", [],
+            {"Source/A/a.cpp": 2000, "Source/B/b.cpp": 1000}, {"A": 3000, "B": 1500})
+    stantii("binari: stantio e' il solo modulo B", ["B"],
+            {"Source/A/a.cpp": 1000, "Source/B/b.cpp": 2000}, {"A": 1500, "B": 1500})
+    # Solo cio' che UBT compila conta: un `.md` o un `.json` sotto `Source/` non muove nessun DLL.
+    stantii("binari: un file non compilato piu' recente (.md, .json) non conta", [],
+            {"Source/A/a.cpp": 1000, "Source/A/nota.md": 9000, "Source/A/dati.json": 9000},
+            {"A": 2000})
+    stantii("binari: un header piu' recente conta come un .cpp", ["A"],
+            {"Source/A/a.h": 2000}, {"A": 1000})
+    stantii("binari: un Build.cs piu' recente conta", ["A"],
+            {"Source/A/A.Build.cs": 2000}, {"A": 1000})
+    stantii("binari: un file in profondita' conta", ["A"],
+            {"Source/A/Tests/Deep/t.cpp": 2000}, {"A": 1000})
+    # Un `*.Target.cs` sta alla radice di `Source/` e cambia l'ambiente di build di OGNI modulo.
+    stantii("binari: un *.Target.cs alla radice di Source/ vale per ogni modulo", ["A", "B"],
+            {"Source/A/a.cpp": 1000, "Source/B/b.cpp": 1000, "Source/X.Target.cs": 3000},
+            {"A": 2000, "B": 2000})
+
+    radice = radice_finta({"Source/A/x/a.cpp": 1000, "Source/A/y/b.cpp": 2000}, {"A": 500})
+    try:
+        sorg, bin_ = leggi_sorgenti_e_binari(radice)
+    finally:
+        rimuovi(radice)
+    casi.append(("binari: di ogni modulo si porta il file compilato modificato per ULTIMO",
+                 sorg.get("A") == ("Source/A/y/b.cpp", 2000 * SEC) and bin_.get("A") == 500 * SEC,
+                 "%s %s" % (sorg, bin_)))
+
+    senza_source = tempfile.mkdtemp(prefix="rt-misura-")
+    try:
+        try:
+            leggi_sorgenti_e_binari(senza_source)
+            sollevato = False
+        except OSError:
+            sollevato = True
+    finally:
+        rimuovi(senza_source)
+    casi.append(("binari: senza Source/ NON e' «nessun sorgente stantio»: solleva", sollevato, ""))
+
+    una = descrivi_stantii([("A", "Source/A/a.cpp", 2000 * SEC, 1000 * SEC)])
+    casi.append(("messaggio: parte da `build`, nomina DLL e sorgente, dice che il binario non contiene l'albero",
+                 bool(una) and una[0].startswith("build") and "UnrealEditor-A.dll" in una[0]
+                 and "Source/A/a.cpp" in una[0] and "non contengono" in una[0], str(una)))
+    casi.append(("messaggio: ogni riga e' `build` o un seguito indentato, mai una categoria nuova",
+                 all(r.startswith("build") or r.startswith("  ") for r in una), str(una)))
+    # Sono DUE difetti diversi (AC 2 di #2656) e oggi solo il secondo ha un nome: la diagnosi cambia,
+    # perche' il rimedio dell'uno e' ricostruire e quello dell'altro e' chiedere chi ha toccato i binari.
+    casi.append(("messaggio: e' DISTINTO da «i binari sono cambiati durante la run»",
+                 "durante la run" not in " ".join(una) and not any(r.startswith("albero") for r in una),
+                 str(una)))
+    assente = descrivi_stantii([("A", "Source/A/a.cpp", 2000 * SEC, None)])
+    casi.append(("messaggio: un DLL assente si dice «non esiste»",
+                 bool(assente) and "non esiste" in assente[0], str(assente)))
+    casi.append(("messaggio: nessun modulo stantio, nessuna riga", descrivi_stantii([]) == [], ""))
+
+    # 🔑 **La riga che lega la regola alla RUN**: `esegui_suite()` deve rifiutare PRIMA di lanciare il
+    # motore. Il motore qui non esiste: se partisse, `Popen` solleverebbe `FileNotFoundError`, quindi
+    # «il motore non e' partito» e' un fatto osservato e non una dichiarazione.
+    def repo_finto(sorgenti, dll):
+        radice = radice_finta(sorgenti, dll)
+        for a in (["init", "-q"], ["add", "-A"],
+                  ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git"] + a, cwd=radice, capture_output=True, check=True)
+        return radice
+
+    def lancia(radice, dll_glob):
+        """`(verdetto | None, problemi, motore_partito)`."""
+        try:
+            v, _, _, _, problemi = esegui_suite(
+                radice, os.path.join(radice, "nessun-motore.exe"), os.path.join(radice, "x.uproject"),
+                os.path.join(radice, "log.log"), "X", dll_glob)
+            return v, problemi, False
+        except FileNotFoundError:
+            return None, [], True
+
+    glob_dll = lambda r: os.path.join(r, "Binaries", "Win64", "UnrealEditor-*.dll")
+    radice = repo_finto({"Source/A/a.cpp": 2000}, {"A": 1000})
+    try:
+        v, problemi, partito = lancia(radice, glob_dll(radice))
+    finally:
+        rimuovi(radice)
+    casi.append(("esegui_suite: sorgenti piu' recenti del DLL e' NON VALIDA, col motivo `build`",
+                 v == "NON VALIDA" and bool(problemi) and problemi[0].startswith("build"), "%s %s" % (v, problemi)))
+    casi.append(("esegui_suite: ...e il motore NON parte (non si occupa la macchina per una misura persa)",
+                 not partito, ""))
+    radice = repo_finto({"Source/A/a.cpp": 2000}, {"A": 3000})
+    try:
+        v, problemi, partito = lancia(radice, glob_dll(radice))
+    finally:
+        rimuovi(radice)
+    casi.append(("esegui_suite: DLL piu' recente dei sorgenti, la run PROCEDE fino al motore (controprova)",
+                 partito, "%s %s" % (v, problemi)))
+    radice = repo_finto({"Source/A/a.cpp": 2000}, {"A": 1000})
+    try:
+        v, problemi, partito = lancia(radice, None)
+    finally:
+        rimuovi(radice)
+    casi.append(("esegui_suite: senza `dll_glob` il controllo non c'e' (chi non osserva i binari non li giudica)",
+                 partito, "%s %s" % (v, problemi)))
 
     return casi
