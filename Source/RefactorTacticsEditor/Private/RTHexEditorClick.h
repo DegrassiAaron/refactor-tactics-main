@@ -211,7 +211,8 @@ namespace RTHexEditor
 	 * chiude — e nessun test se ne sarebbe accorto.
 	 *
 	 * ⛔ Non ha una regola propria: chiama `URTGeometryBakeLibrary::CoverEdgesOf`, la sede che condividono cottura,
-	 * `ValidateMap` e move. Il test confronta il suo verdetto con cio' che la cottura scrive davvero.
+	 * `ValidateMap` e move. Il test confronta il suo verdetto con cio' che la cottura scrive davvero. Che il tool
+	 * chiami questa funzione e' letto dal sorgente, non provato: nessun test disegna il ghost.
 	 */
 	bool GhostPieceIsInteriorWall(const FRTGeometrySegment& Segment, float HexSize,
 		TArray<ERTHexDirection>& OutCoverEdges);

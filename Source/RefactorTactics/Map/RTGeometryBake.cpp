@@ -173,10 +173,11 @@ namespace RTGeometryBakeInternal
 		// sbordando oltre la cella — misurato in `U22`, dove un muro lungo `1.5x` l'inraggio dava due
 		// coperture e lo stesso muro fermato sul bordo ne dava zero.
 		//
-		// ⚠️ **Le prime quattro righe non passano piu' di qui** (#2085): un segmento con `Offset == 0`
-		// e' classificato interno PRIMA che questa funzione venga interrogata, perche' passare per il
-		// centro e' una proprieta' della giacitura e non l'esito di una domanda sui bordi. Restano qui
-		// per dire quali casi questa funzione NON decide piu'.
+		// ⚠️ **Le prime quattro righe le riclassifica `CoverEdgesOf`** (#2085, #3326): un segmento con
+		// `Offset == 0` e' un muro interno PRIMA che questa funzione venga interrogata, perche' passare per il
+		// centro e' una proprieta' della giacitura e non l'esito di una domanda sui bordi. Questa funzione
+		// risponde ancora "chiude" per esse — e' la sua domanda, "si passa da questo lato?" — ma non e' lei a
+		// decidere se diventano coperture.
 		//
 		// 🔴 **L'estremo deve cadere STRETTAMENTE DENTRO il lato, non su un vertice**, ed e' `MSE-4`: ogni
 		// vertice appartiene a DUE lati, quindi accettarlo murerebbe anche il lato adiacente che il muro si
@@ -362,7 +363,7 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		// scorciatoia lo copriva gia'. E' sopravvissuta alla propria causa per tredici giorni.
 		//
 		// 🔑 **Che cosa NON cambia**: un muro appoggiato SUL lato (vertice → vertice adiacente) ha
-		// `Offset` massimo, non zero, e continua a chiudere quel bordo. `EdgesTouchedBy` non si tocca:
+		// `|Offset|` pari all'inraggio (`RT_GeometryQuanta`), non zero, e continua a chiudere quel bordo. `EdgesTouchedBy` non si tocca:
 		// risponde correttamente alla propria domanda. La regola «interno o copertura» vive ora in
 		// `CoverEdgesOf` (#3326), che applica la guardia `Offset == 0` per tutte le sedi — questa,
 		// `ValidateMap`, `MoveInteriorWall` e il ghost del tool — invece di una stesura per sede.

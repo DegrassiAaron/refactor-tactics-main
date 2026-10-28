@@ -44,12 +44,16 @@ namespace
  * 🔴 **Il difetto di `#3326` era qui, e non era provabile:** su un diametro fra lati opposti il ghost era argento
  * (= copertura) mentre la cottura scriveva un muro interno. Il ghost disegna su un `FPrimitiveDrawInterface`, ma la
  * domanda che ne decide il colore passa da `RTHexEditor::GhostPieceIsInteriorWall`, che e' pura: qui la si confronta
- * con l'esito REALE della cottura, non con una costante. Se il ghost tornasse a chiedere a `EdgesTouchedBy`, o il
- * verdetto si invertisse, il primo confronto cadrebbe.
+ * con l'esito REALE della cottura, non con una costante. Se l'HELPER tornasse a chiedere a `EdgesTouchedBy`, o il
+ * suo verdetto si invertisse, il primo confronto cadrebbe.
  *
- * Quattro famiglie, perche' sono quelle in cui le sedi potevano divergere o concordare: diametri fra lati (dove
+ * ⚠️ **Il limite, detto una volta**: che il TOOL chiami l'helper (una riga di `RTHexGeometryTool.cpp`) e' letto
+ * dal sorgente e non provato. Nessun test disegna il ghost, quindi un tool che tornasse a chiedere direttamente a
+ * `EdgesTouchedBy` non farebbe cadere niente qui.
+ *
+ * Le famiglie, perche' sono quelle in cui le sedi potevano divergere o concordare: diametri fra lati (dove
  * divergevano), diametri fra vertici e raggi verso i vertici (dove concordavano), raggi verso il punto medio di un
- * lato (divergevano), muri sul lato (devono restare coperture — la controprova, senza la quale «sempre muro interno»
+ * lato, anche sbordanti oltre il punto medio (divergevano), muri sul lato (devono restare coperture — la controprova, senza la quale «sempre muro interno»
  * passerebbe).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexGhostMatchesBakeTest,
@@ -82,6 +86,16 @@ bool FRTHexGhostMatchesBakeTest::RunTest(const FString&)
 	for (int32 K = 0; K < 6; ++K)
 	{
 		Add(FString::Printf(TEXT("raggio al punto medio %d"), K), ERTAnchorKind::Center, 0, ERTAnchorKind::EdgeMid, K);
+
+		// Il raggio SBORDANTE: stessa retta, l'estremo lontano oltre il punto medio (il doppio della distanza).
+		FCase Overshoot;
+		Overshoot.Name = FString::Printf(TEXT("raggio sbordante %d"), K);
+		bEveryCaseBuilt &= TestTrue(*(Overshoot.Name + TEXT(": si aggancia alla grammatica")),
+			GhostWallBetween(ERTAnchorKind::Center, 0, ERTAnchorKind::EdgeMid, K, Overshoot.Segment));
+		const bool bStartIsInner = FMath::Abs(Overshoot.Segment.AlongStart) <= FMath::Abs(Overshoot.Segment.AlongEnd);
+		const int32 Far = bStartIsInner ? Overshoot.Segment.AlongEnd : Overshoot.Segment.AlongStart;
+		(bStartIsInner ? Overshoot.Segment.AlongEnd : Overshoot.Segment.AlongStart) = Far * 2;
+		Cases.Add(Overshoot);
 		Add(FString::Printf(TEXT("raggio al vertice %d"), K), ERTAnchorKind::Center, 0, ERTAnchorKind::Vertex, K);
 		Add(FString::Printf(TEXT("muro sul lato %d"), K), ERTAnchorKind::Vertex, K, ERTAnchorKind::Vertex, (K + 1) % 6);
 	}

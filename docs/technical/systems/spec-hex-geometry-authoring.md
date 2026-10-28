@@ -838,18 +838,18 @@ allinearlo al bake «avrebbe fatto passare un segmento che il validatore dichiar
 finché le due autorità divergevano: la divergenza si è chiusa con una decisione d'autore, non scegliendone una di
 nascosto.*
 
-🔑 **Che cosa distingue ancora una copertura da un muro interno**: un segmento che GIACE sul lato (`Offset`
-massimo, non zero) chiude quel bordo, in ogni sede. `EdgesTouchedBy` non cambia: risponde alla propria domanda —
+🔑 **Che cosa distingue ancora una copertura da un muro interno**: un segmento che GIACE sul lato (`|Offset|` pari
+all'inraggio, non zero) chiude quel bordo, in ogni sede. `EdgesTouchedBy` non cambia: risponde alla propria domanda —
 *«si passa da questo lato?»* — e in produzione è chiamata soltanto da `CoverEdgesOf`.
 
 ⚠️ **Gli assi DISPARI non mostravano il difetto**: `Deg30`, `Deg90`, `Deg150` puntano ai **vertici**, che `MSE-4`
 esclude, quindi lì le sedi concordavano già. È la ragione per cui il difetto è sopravvissuto — i test di cottura e
 di move usavano prevalentemente diametri vertice-vertice.
 `RefactorTactics.MapEdit.InteriorWallRuleGivesOneVerdictAtEverySite` prova ora, in ogni sede, i sei diametri, i
-sei raggi dal centro al punto medio di un lato e i loro tratti esterni, con la premessa che dove `EdgesTouchedBy`
+sei raggi dal centro al punto medio di un lato, i loro tratti esterni e i raggi sbordanti oltre il punto medio, con la premessa che dove `EdgesTouchedBy`
 risponde «chiude bordi» le sedi divergevano; la controprova `…WallLyingOnTheEdgeStaysACoverAtEverySite` tiene fermo
 che un muro sul lato resta una copertura, su tutti e sei i lati. Il ghost si prova nel modulo Editor:
-`RefactorTactics.Editor.Geometry.GhostShowsWhatTheBakeWrites` confronta il suo verdetto con ciò che la cottura
+`RefactorTactics.Editor.Geometry.GhostShowsWhatTheBakeWrites` confronta il verdetto dell'helper che il ghost chiama (che il tool lo chiami è letto dal sorgente, non provato) con ciò che la cottura
 scrive davvero.
 
 Verifica: `RefactorTactics.Map.Edit.*` e `RefactorTactics.MapEdit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i

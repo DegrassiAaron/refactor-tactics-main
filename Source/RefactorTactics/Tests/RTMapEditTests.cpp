@@ -2233,14 +2233,17 @@ namespace
 /**
  * **Un segmento che passa per il centro e' un muro interno in OGNI sede che lo giudica.**
  *
- * Non solo i diametri: ogni segmento con `Offset == 0` che `EdgesTouchedBy` vede come bordi chiusi. Sono tre
- * famiglie, e prima di #3326 le tre divergevano:
+ * Non solo i diametri: ogni segmento con `Offset == 0` che `EdgesTouchedBy` vede come bordi chiusi. Prima di
+ * #3326 le sedi divergevano su queste famiglie:
  *  - il **diametro fra lati opposti** (`Deg0`, `Deg60`, `Deg120`);
- *  - il **raggio dal centro al punto medio di un lato** (sei);
- *  - il **tratto esterno** di quel raggio, da meta' strada al punto medio.
+ *  - il **raggio dal centro al punto medio di un lato**;
+ *  - il **tratto esterno** di quel raggio, da meta' strada al punto medio;
+ *  - il **raggio sbordante**, che supera il punto medio (il doppio della distanza): e' legale, ha `Offset == 0`, e
+ *    `EdgesTouchedBy` lo vede come attraversamento proprio del lato. Una guardia ristretta a "dentro la cella"
+ *    lo riporterebbe fra le coperture, e nessun'altra famiglia se ne accorgerebbe.
  * Piu' i diametri fra vertici opposti, dove le sedi concordavano gia' (i vertici sono esclusi da `MSE-4`).
  *
- * Per ciascuno si chiede la stessa cosa a quattro sedi — la funzione, la cottura, `ValidateMap`, il move — e tutte
+ * Per ciascuno si chiede la stessa cosa a ogni sede — la funzione, la cottura, `ValidateMap`, il move — e tutte
  * devono rispondere «muro interno».
  *
  * 🔑 **La premessa e' la FORMA del difetto, ed e' nel test per non lasciarlo vacuo.** Dove `EdgesTouchedBy` risponde
@@ -2308,6 +2311,15 @@ bool FRTMapEditInteriorWallRuleOneVerdictTest::RunTest(const FString&)
 			static_cast<int32>(URTGeometryGrammarLibrary::ValidateSegment(Outer)),
 			static_cast<int32>(ERTGeometryViolation::None));
 		AddCase(FString::Printf(TEXT("tratto esterno del raggio %d"), K), Outer, /*bClosesEdges=*/ true);
+
+		// Il RAGGIO SBORDANTE: stessa retta, l'estremo lontano porta oltre il punto medio (il doppio della distanza).
+		FRTGeometrySegment Overshoot = Radius;
+		(bStartIsInner ? Overshoot.AlongEnd : Overshoot.AlongStart) = Far * 2;
+		bEveryCaseBuilt &= TestEqual(
+			*FString::Printf(TEXT("raggio sbordante %d: e' un segmento legale"), K),
+			static_cast<int32>(URTGeometryGrammarLibrary::ValidateSegment(Overshoot)),
+			static_cast<int32>(ERTGeometryViolation::None));
+		AddCase(FString::Printf(TEXT("raggio sbordante %d"), K), Overshoot, /*bClosesEdges=*/ true);
 	}
 
 	if (!TestTrue(TEXT("tutti i casi sono stati costruiti"), bEveryCaseBuilt))
@@ -2371,7 +2383,7 @@ bool FRTMapEditInteriorWallRuleOneVerdictTest::RunTest(const FString&)
  *
  * ⚠️ Senza questa asserzione la correzione facile e sbagliata passerebbe: far rispondere «muro interno» a
  * `CoverEdgesOf` per qualunque segmento renderebbe verde il test qui sopra e romperebbe tutte le coperture. Un muro
- * da vertice a vertice ADIACENTE ha `Offset` massimo — non zero — e non passa dalla guardia.
+ * da vertice a vertice ADIACENTE ha `|Offset|` pari all'inraggio — non zero — e non passa dalla guardia.
  *
  * Sei lati e non uno: l'`Offset` di un muro sul lato ha segno diverso a seconda del lato, e una guardia scritta
  * `Offset <= 0` smetterebbe di chiudere meta' dei bordi senza che un solo lato lo mostri.

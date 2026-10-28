@@ -65,7 +65,7 @@ public:
 	 * lati opposti.** Passare per il centro e' una proprieta' della GIACITURA, non l'esito di una domanda sui
 	 * bordi (`#2085`): una copertura di bordo blocca il passaggio FRA DUE CELLE, e un diametro non lo blocca —
 	 * dal vicino si entra ancora, da entrambi i lati — mentre divide l'INTERNO. Tutto il resto lo decide
-	 * `EdgesTouchedBy`: un muro appoggiato SUL lato ha `Offset` massimo, non zero, e continua a chiudere quel
+	 * `EdgesTouchedBy`: un muro appoggiato SUL lato ha `|Offset|` pari all'inraggio (`RT_GeometryQuanta`), non zero, e continua a chiudere quel
 	 * bordo.
 	 *
 	 * ⛔ **Chi la usa deve restare una chiamata a questa funzione, mai una stesura propria**: la cottura
@@ -79,7 +79,7 @@ public:
 	 * lato?»* —, e in produzione il suo solo chiamante e' questa funzione; i test la interrogano direttamente.
 	 *
 	 * ⚠️ Come `EdgesTouchedBy`, l'elenco esce vuoto ANCHE per un segmento fuori grammatica: la legalita' la
-	 * decide `ValidateSegment`, non questa funzione, e ogni sede che scrive o accetta un segmento la chiede prima.
+	 * decide `ValidateSegment`, non questa funzione: chi deve rifiutare un segmento illegale lo chiede a lui.
 	 */
 	static void CoverEdgesOf(const FRTGeometrySegment& Segment, float HexSize, TArray<ERTHexDirection>& OutEdges);
 

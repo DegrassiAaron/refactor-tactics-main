@@ -1859,7 +1859,7 @@ sessions:
       fra sedute possibili: la sua precondizione nel registro e' letteralmente *«come sopra»*, cioe'
       l'allestimento della voce che la precede — `PIE-GEO-CENTRO`, gia' in questo `verifies`. La voce
       si dichiara *«la meta' che `PIE-GEO-CENTRO` non copre»* (#1826): un muro dal centro a un **lato**
-      invece che a un altro centro. Stesso mode, stesso tool, stesso `.umap`, stesso gesto —
+      invece che a un altro centro. ⌫ Da #3326 il gesto della voce e' un muro **lungo** un lato: dal centro a un lato il muro e' interno. Stesso mode, stesso tool, stesso `.umap`, stesso gesto —
       convocarla altrove avrebbe richiesto una seconda apertura per disegnare la meta' complementare
       di un muro gia' disegnato.
 
