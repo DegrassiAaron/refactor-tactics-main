@@ -4851,6 +4851,10 @@ bool FRTSkillHoverSourcesTest::RunTest(const FString&)
 	B.TM->SetTeamKnowledgeForTest(Blind);
 	B.PC->UpdatePlanningOverlay();
 	TestEqual(TEXT("4: da una cella non in vista non c'e' una portata da mostrare"), SkillCells(), 0);
+	// 🔴 E il piano NON cede la mappa per niente. `URTRangeVerdictLibrary` rifiuta gia' una partenza non in vista, quindi «nessuna
+	// cella» da solo non distingue il cancello del controller da una sorgente `SkillHover` che ha preso la mappa e l'ha lasciata
+	// vuota: la mutazione che toglie il cancello (H10) sopravviveva. Il ventaglio del piano e' cio' che lo distingue.
+	TestTrue(TEXT("4: e il ventaglio del piano resta: la skill non ha preso la mappa"), B.HexMap->NumPreviewReachableCells() > 0);
 	B.TM->SetTeamKnowledgeForTest(All);
 	B.PC->UpdatePlanningOverlay();
 	TestTrue(TEXT("controllo positivo: rimessa in vista, la portata torna"), SkillCells() > 0);
