@@ -3804,6 +3804,70 @@ bool FRTDisarmingAMainActionKeepsAnIndependentReactionTest::RunTest(const FStrin
 	return true;
 }
 
+/**
+ * 🔑 **L'ALTRO RAMO DELLA STESSA INDIPENDENZA: un attacco armato in TARGETING non toglie la reazione** (`#3896`, dalla
+ * review).
+ *
+ * `Action.Guard` entra in `PlannedAbilityIndex` appena armata; un attacco a bersaglio no: resta armato ma NON nel piano
+ * finche' non si clicca il bersaglio. Il test sopra non vede questo caso, e due predicati sbagliati lo lasciano passare —
+ * «c'e' una reazione e nessuna principale nel piano», «lo slot acceso non e' la principale nel piano» — perche' con la
+ * guardia nel piano valgono falso e con la reazione sola valgono vero, esattamente come il predicato giusto.
+ *
+ * Qui la reazione e' armata, poi un attacco: `PlannedAbilityIndex` resta neutro e `SelectedAbilityIndex` e' l'attacco.
+ * Disarmare l'attacco NON deve toccare la reazione. Il predicato giusto e' `SelectedAbilityIndex == PlannedReactionAbility`,
+ * e solo questo caso lo separa dagli altri due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDisarmingATargetingAttackKeepsAnIndependentReactionTest,
+	"RefactorTactics.HexMatch.DisarmingATargetingAttackKeepsAnIndependentReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDisarmingATargetingAttackKeepsAnIndependentReactionTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.Counter"), 3);
+	const int32 Attacco = RTAbilityFixtures::AddCoreAbilityInSlot(B.Mine, TEXT("Action.BasicAttack"), 1);
+	const URTActionData* Counter = B.Mine->GetAbility(Reazione);
+	const URTActionData* Basic = B.Mine->GetAbility(Attacco);
+	if (!TestTrue(TEXT("premessa: reazione e attacco sono entrati nel kit"),
+			Reazione != INDEX_NONE && Attacco != INDEX_NONE && Reazione != Attacco && Counter && Basic)
+		|| !TestEqual(TEXT("premessa: la prima e' una reazione"),
+			static_cast<int32>(Counter->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction))
+		|| !TestTrue(TEXT("premessa: il secondo NON e' una reazione"), Basic->Def.Slot != ERTActionSlot::Reaction)
+		|| !TestTrue(TEXT("premessa: sono pronte entrambe"),
+			B.Mine->CanUseAbility(Reazione) && B.Mine->CanUseAbility(Attacco)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->ArmKitAbility(Reazione);
+	B.PC->ArmKitAbility(Attacco);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	// Il cuore del caso: l'attacco e' ARMATO ma non e' nel piano. Se la premessa cadesse, il test non separerebbe i predicati.
+	if (!TestEqual(TEXT("premessa: lo slot acceso e' l'attacco"), B.Mine->SelectedAbilityIndex, Attacco)
+		|| !TestEqual(TEXT("premessa: l'attacco e' in targeting, NON nel piano"), B.Mine->PlannedAbilityIndex, INDEX_NONE)
+		|| !TestEqual(TEXT("premessa: la reazione e' nel piano, indipendente"), B.Mine->PlannedReactionAbility, Reazione)
+		|| !TestTrue(TEXT("premessa: la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->ArmKitAbility(Attacco);
+	TestEqual(TEXT("l'attacco si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("la reazione indipendente RESTA nel piano"), B.Mine->PlannedReactionAbility, Reazione);
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestTrue(TEXT("e la timeline continua a disegnarla armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 // =====================================================================================================
 // `#3892` — la ROTTA si scrive da UN punto: `RefreshPlanningPreview`.
 // =====================================================================================================
