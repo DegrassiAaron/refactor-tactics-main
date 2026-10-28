@@ -1532,7 +1532,7 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 	//
 	// Non si verifica con `HasStatus` DOPO il turno (scadrebbe comunque, come nei test di Root sopra): si
 	// aggiunge un terzo attaccante che colpisce il Guarder NELLO STESSO turno, e si osserva la riduzione di
-	// 15 sul colpo frontale (`URTCombatLibrary::GuardFirstHitReduction`, il default di catalogo della riduzione per colpo) — l'esito che la guardia
+	// 15 sul colpo frontale (`URTCombatLibrary::GuardReductionDefault`, il default di catalogo della riduzione per colpo) — l'esito che la guardia
 	// promette, non lo stato che la produce.
 	UWorld* World = MakeControlWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1569,7 +1569,7 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 	// interrompibile, quindi la sua riduzione si applica comunque», non «il colpo fa 25».
 	const int32 DamageTaken = HealthBefore - Guarder->Health;
 	TestEqual(TEXT("Guard non interrompibile: la riduzione della Guardia si applica comunque"),
-		DamageTaken, Assailant->AttackPower - URTCombatLibrary::GuardFirstHitReduction);
+		DamageTaken, Assailant->AttackPower - URTCombatLibrary::GuardReductionDefault);
 	DestroyControlWorld(World);
 	return true;
 }

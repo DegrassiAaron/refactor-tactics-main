@@ -178,7 +178,7 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 
 	const TArray<FRTUnitCombatState> Units = MakeUnits();
 	const TArray<FRTAttack> Attacks = { MakeAttack(1, 12, 0) };
-	const TArray<int32> Riduzione = { 0, -URTCombatLibrary::GuardFirstHitReduction, 0 };
+	const TArray<int32> Riduzione = { 0, -URTCombatLibrary::GuardReductionDefault, 0 };
 	const TArray<bool> Frontally = { true };
 	const TArray<bool> FromBehind = { false };
 
@@ -194,7 +194,7 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 		// ⚠️ `Operand` e' il delta DICHIARATO (15), non quanto ne e' stato applicato: il colpo valeva 12 e
 		// il clamp ha fatto il resto. Sono `Before` e `After` a dire quanto ha tolto davvero, ed e' la
 		// convenzione della famiglia dei delta — il pool invece registrava l'assorbito.
-		TestEqual(TEXT("e dichiara i 15 della regola"), FrontGuard->Operand, URTCombatLibrary::GuardFirstHitReduction);
+		TestEqual(TEXT("e dichiara i 15 della regola"), FrontGuard->Operand, URTCombatLibrary::GuardReductionDefault);
 		TestEqual(TEXT("sul colpo da 12"), FrontGuard->Before, 12);
 		TestEqual(TEXT("che esce azzerato"), FrontGuard->After, 0);
 		TestEqual(TEXT("e nomina la propria decisione"), FrontGuard->SourceId, URTCombatLibrary::GuardPerHitSource);

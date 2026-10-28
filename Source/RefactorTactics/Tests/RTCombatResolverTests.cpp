@@ -144,7 +144,7 @@ bool FRTGuardReductionPermutationTest::RunTest(const FString&)
 {
 	TArray<int32> Riduzione;
 	Riduzione.Init(0, 2);
-	Riduzione[1] = -URTCombatLibrary::GuardFirstHitReduction;   // -15, il default di catalogo
+	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // -15, il default di catalogo
 
 	// Due colpi frontali di taglia diversa: il caso ordinario di due attaccanti sullo stesso bersaglio.
 	const TArray<FRTAttack> Piccolo = { FRTAttack(1, 10, 0), FRTAttack(1, 30, 2) };
@@ -256,7 +256,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardReductionHasNoCeilingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGuardReductionHasNoCeilingTest::RunTest(const FString&)
 {
-	const int32 Valore = URTCombatLibrary::GuardFirstHitReduction;   // 15
+	const int32 Valore = URTCombatLibrary::GuardReductionDefault;   // 15
 	TArray<int32> Riduzione;  Riduzione.Init(0, 2);  Riduzione[1] = -Valore;
 	TArray<int32> Budget;     Budget.Init(0, 2);     Budget[1] = Valore;
 
@@ -300,7 +300,7 @@ bool FRTGuardReductionSkipsBehindTest::RunTest(const FString&)
 {
 	TArray<int32> Riduzione;
 	Riduzione.Init(0, 2);
-	Riduzione[1] = -URTCombatLibrary::GuardFirstHitReduction;   // -15
+	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // -15
 
 	// Colpo 0 dalle SPALLE (30), colpo 1 dal DAVANTI (20).
 	const TArray<FRTAttack> Colpi = { FRTAttack(1, 30, 0), FRTAttack(1, 20, 2) };
@@ -344,7 +344,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardSingleHitUnchangedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 {
-	const int32 Valore = URTCombatLibrary::GuardFirstHitReduction;
+	const int32 Valore = URTCombatLibrary::GuardReductionDefault;
 	const TArray<bool> Eleggibile = { true };
 
 	// Tre taglie: **sopra** il valore, **uguale**, e **sotto**. La terza e' quella che conta — e' il caso
@@ -451,7 +451,7 @@ bool FRTDeflectBeforeGuardTest::RunTest(const FString&)
 	TArray<int32> PoolDeflect;  PoolDeflect.Init(0, 2);
 	PoolDeflect[1] = URTCombatLibrary::DeflectDamageReduction;        // 20 — budget
 	TArray<int32> Riduzione;    Riduzione.Init(0, 2);
-	Riduzione[1] = -URTCombatLibrary::GuardFirstHitReduction;         // -15 — quota per colpo
+	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;         // -15 — quota per colpo
 
 	// Colpo 0: 5 danni, FRONTALE.  Colpo 1: 20 danni, DALLE SPALLE.
 	const TArray<FRTAttack> Colpi = { FRTAttack(1, 5, 0), FRTAttack(1, 20, 2) };

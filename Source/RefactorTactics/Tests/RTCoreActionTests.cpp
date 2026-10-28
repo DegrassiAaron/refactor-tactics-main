@@ -156,7 +156,7 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 	// dichiara, e passa da `ApplyEligibleHitDelta`.
 	TArray<int32> Riduzione;
 	Riduzione.Init(0, 2);
-	Riduzione[1] = -URTCombatLibrary::GuardFirstHitReduction;   // il default di catalogo
+	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // il default di catalogo
 	const TArray<bool> Eleggibili = { true, true };
 
 	const TArray<FRTAttack> Colpi = { FRTAttack(1, 30, 0), FRTAttack(1, 30, 2) };

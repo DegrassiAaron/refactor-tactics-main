@@ -260,9 +260,8 @@ public:
 	 * ∴ **l'invarianza per permutazione regge sotto entrambi i modelli, per ragioni opposte**, ed e' la cosa
 	 * che `D-408` prescrive di conservare (`Combat.GuardReductionIsPermutationInvariant`).
 	 *
-	 * ⚠️ **Il NOME resta `GuardFirstHitReduction`, e non e' una svista.** Rinominarlo tocca i chiamanti ed
-	 * e' un refactor, non una correzione di prosa: finche' il nome vive, questo commento e' l'unico posto
-	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
+	 * ⌫ *Fino a `#2589` il nome era quello della semantica pre-[D-292], «-15 al primo colpo»: ne' la vecchia ne'
+	 * la nuova. Il paragrafo che qui giustificava di tenerlo e' andato via con lui, come la clausola chiedeva.*
 	 *
 	 * Il valore lo legge `URTCombatResolver::ApplyEligibleHitDelta`, **non** `ApplyAbsorptionPool` e **non**
 	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` (`Status.Marked` ha un pass proprio nel Blast).
@@ -276,7 +275,7 @@ public:
 	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
 	 * il 2026-09-20, di [D-408].
 	 */
-	static constexpr int32 GuardFirstHitReduction = 15;
+	static constexpr int32 GuardReductionDefault = 15;
 
 	/**
 	 * `Status.Burning`: 8 danni nel Cleanup, per la durata dello stato (catalogo terreni §2, CP 8.2).
