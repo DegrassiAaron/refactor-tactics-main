@@ -737,7 +737,8 @@ FRTCellId ARTHUD::GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCe
 	return bHasAnimated ? Animated : UnitCell;
 }
 
-FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing)
+FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
+	const FRTSeenUseLedger* SeenUses)
 {
 	FRTInspectSubject Subject;
 	if (Unit == nullptr)
@@ -753,6 +754,11 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 
 	// Il kit dal solo catalogo: le azioni dell'unita' (con la variante d'arma montata, che cambia la portata vera),
 	// riga di catalogo -> tooltip di catalogo. Nessuna ricarica, nessun piano, nessuna variante attiva.
+	//
+	// Le ricariche DEDOTTE (#3751) sono la sola eccezione, e non leggono questa unita': si chiede al registro di cio'
+	// che la squadra ha visto. Solo per un'unita' di un'altra squadra — della propria si leggono le ricariche vere — e
+	// solo per le azioni che hanno una ricarica di catalogo (`CooldownTurns` e' lo specchio che `ConsumeAbility` legge).
+	const bool bDeduce = SeenUses != nullptr && Unit->TeamId != PlayerTeamId;
 	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 	{
 		const URTActionData* Action = Unit->GetAbility(Index);
@@ -760,6 +766,16 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
 			URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None));
 		if (Tooltip.IsValid()) { Subject.Kit.Add(Tooltip); }
+
+		if (bDeduce)
+		{
+			FRTInspectDeducedCooldown Row;
+			if (URTInspectLibrary::MakeDeducedCooldown(Action->Def.ActionId, Tooltip.Title, Action->CooldownTurns,
+				SeenUses->LastSeenTurn(PlayerTeamId, Unit->StableUnitId, Action->Def.ActionId), Row))
+			{
+				Subject.DeducedCooldowns.Add(Row);
+			}
+		}
 	}
 
 	for (const FName& PieceId : Unit->EquippedItemIds)

@@ -11,6 +11,7 @@
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary: la rotta e il suo filtro
 #include "Turn/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTSeenUseLedger.h" // FRTSeenUseLedger: cio' che ogni squadra ha visto usare, per le ricariche dedotte (#3751)
 #include "Turn/RTReplayRecording.h" // FRTReplayRecording: l'archivio in scrittura vive fuori (#2286)
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
@@ -1066,6 +1067,18 @@ public:
 
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
+
+	/**
+	 * Le azioni che ogni squadra ha visto usare, sull'INTERA partita (`#3751`, F6): il `TurnLog` vive per turno,
+	 * questo no. E' cio' da cui la scheda di un nemico deduce le ricariche; le ricariche vere restano private.
+	 *
+	 * ⚠️ **Per chi lo cabla al pannello (#3748).** (1) Il registro contiene TUTTE le squadre: chi lo legge passa sempre
+	 * il `TeamId` di chi guarda (`ARTPlayerState::TeamIdOf`), mai un valore fisso. (2) Si aggiorna a tempo di
+	 * RISOLUZIONE, non di playback: la riga di un uso del turno corrente comparirebbe prima dei beat che lo
+	 * mostrano. Se il pannello e' aperto durante `ResolutionPlayback`, decida se nascondere le righe del turno in
+	 * corso: e' il limite che la spec dichiara come R15, qui su un'azione e non solo sui PV.
+	 */
+	const FRTSeenUseLedger& GetSeenUses() const { return SeenUses; }
 
 	/**
 	 * Punti di copertura che i piani scelti dall'ultima pianificazione bot si aspettano di scavalcare
@@ -3081,6 +3094,13 @@ protected:
 	 * cosi' i consumatori puri la leggono senza conoscere il TurnManager.
 	 */
 	TArray<FRTTeamKnowledge> TeamKnowledgeState;
+
+	/**
+	 * Le azioni che ogni squadra ha visto usare, per turno (`#3751`). Stessa vita di `TeamKnowledgeState` — una
+	 * partita — e stesso confine di privacy: per ogni squadra contiene solo cio' che il verdetto della voce le
+	 * autorizzava a leggere. Presentazione: non entra in hash, TurnLog, snapshot ne' replay.
+	 */
+	FRTSeenUseLedger SeenUses;
 
 	/**
 	 * La copia ottimistica della mappa per la pianificazione del giocatore (`AttachPlanningMap`). `UPROPERTY` perche'
