@@ -620,6 +620,8 @@ il suo testo vale dal merge della PR che la porta, cioè dall'approvazione dell'
 - L'arbitro: una sola funzione scrive i setter; chiuso il fuoco, la mappa mostra ciò che mostrava prima.
 - ➕ rev2. L'**insieme** delle celle in portata all'hover coincide con quello che la stessa azione mostra armata.
   Il verdetto di tiro no: segue P7.
+  ➕ 2026-10-29 ([D-559](../../decisions/RT_PDR_00_Decision_Log.md)): **una sola eccezione**, il Fumo di una cella esplorata e non più in vista, che
+  l'azione armata legge (D-534 (3)) e l'hover no. Le celle in più dell'hover sono tutte «senza verdetto».
 - Il cambio di tasto: la famiglia risponde a `Ctrl`, e i due `Alt` non sono più mappati. ➕ ⌫ *Diceva «`Alt` non
   produce più nessuno dei suoi effetti»*: su una tastiera italiana `AltGr` arriva come `Ctrl` sinistro più `Alt`
   destro, e arma il modificatore prima e dopo il cambio ([D-514](../../decisions/RT_PDR_00_Decision_Log.md) punto 8).
