@@ -3736,6 +3736,11 @@ bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
 	TestFalse(TEXT("con lei esce la condizione dichiarata"), B.Mine->PlannedReactionCondition.IsDeclared());
 	TestEqual(TEXT("e il segno dei suoi waypoint: la memoria non sopravvive alla reazione"),
 		B.Mine->WaypointsAllaReazione, INDEX_NONE);
+	// 🔑 **PRIMA di ogni tick** (`#3927`, dalla mutazione): il disarmo rinfresca la timeline da se', come l'armo (`#3891`).
+	// Dopo dieci tick il cambio di selezione la ricalcolerebbe comunque, quindi un disarmo che NON rinfrescasse passerebbe il
+	// controllo di sotto e lascerebbe la reazione armata a schermo fino al tick successivo — il mutante X7 e' sopravvissuto cosi'.
+	TestFalse(TEXT("e la timeline non la porta armata NEMMENO prima di un tick: il disarmo rinfresca da se'"),
+		B.HexMap->GetPlanPreview().Reaction.bArmed);
 	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
 	TestFalse(TEXT("e la timeline non la disegna piu' armata, nemmeno dopo dieci tick"),
 		B.HexMap->GetPlanPreview().Reaction.bArmed);
