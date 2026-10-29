@@ -1,6 +1,6 @@
 # Seduta pilotata dall'assistente: `PIE-HUD-FUOCO-AREE` e `PIE-HUD-SKILL-PORTATA` ([#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750)), 2026-10-29
 
-**Che cosa è.** Quattro tavole di una finestra di gioco (`-game`, non la PIE dell'Editor) pilotata da fuori con input sintetico, per dare all'autore qualcosa da giudicare. **Che cosa non è.** Nessun giudizio: le due voci restano ⏳, e le osservazioni qui sotto sono ciò che si vede, non ciò che è giusto. ⌫ *Il 2026-10-29 il giudizio d'autore sulle tavole è arrivato (sezione «Il giudizio d'autore», in fondo) e le due voci sono 🟡; le osservazioni restano ciò che si vede.*
+**Che cosa è.** Quattro tavole (più una quinta, `T5`, nella seconda tornata) di una finestra di gioco (`-game`, non la PIE dell'Editor) pilotata da fuori con input sintetico, per dare all'autore qualcosa da giudicare. **Che cosa non è.** Nessun giudizio: le due voci restano ⏳, e le osservazioni qui sotto sono ciò che si vede, non ciò che è giusto. ⌫ *Il 2026-10-29 il giudizio d'autore sulle tavole è arrivato (sezione «Il giudizio d'autore», in fondo) e le due voci sono 🟡; le osservazioni restano ciò che si vede.*
 
 ## Condizioni
 
@@ -182,9 +182,9 @@
 
 ### Che cosa ha letto l'autore
 
-Le domande della prima tornata, scritte sotto le tavole nel messaggio che le presentava: `T1` «I tre stati si leggono come tre cose diverse? Il piano che sparisce disturba?»; `T2` «Le due bande dell'area del nemico si distinguono fra loro e dal ventaglio proprio, che ha lo stesso colore?»; `T3` «Va bene che la portata prenda il posto delle aree del nemico e che queste tornino da sole all'uscita?»; `T4` «Va bene che l'hover segua la selezione?».
+Le domande della prima tornata, scritte sotto le tavole nel messaggio che le presentava: `T1` «I tre stati si leggono come tre cose diverse? [...] Il piano (ventaglio verde) sparisce mentre il cursore è sullo slot e torna all'uscita: disturba, o va tenuto? Il tooltip dello slot e la portata si pestano?» (le parentesi quadre segnano il passo omesso, che numera i tre stati in B); `T2` «Le due bande dell'area del nemico si distinguono fra loro e dal ventaglio proprio, che ha lo stesso colore?»; `T3` «Va bene che la portata prenda il posto delle aree del nemico e che queste tornino da sole all'uscita?»; `T4` «Va bene che l'hover segua la selezione?».
 
-Poi, dopo il codice colore, il rapporto sulla `T5` (la tavola aperta con il visualizzatore predefinito di Windows), con quattro punti numerati: 1. «In `T5` i tre colori si leggono come tre cose diverse?» 2. «Il rosa-rosso si confonde con un attacco?» 3. «Se sì, altre tinte (grigi chiari, indaco, bruno) o una forma diversa per il bloccato?» 4. «Restano da giudicare T2, T3 e T4, e il pannello della scheda (#3748).» Il rapporto diceva anche, in chiaro, che «A schermo il rosa si legge come un rosso vivo» e che il rosa spedito (`#FF145B`) non è quello della tavola dei candidati (`#FF2D55`).
+Poi, dopo il codice colore, il rapporto sulla `T5` (la tavola aperta con il visualizzatore predefinito di Windows), con quattro punti numerati: 1. «In `T5` i tre colori si leggono come tre cose diverse?» 2. «Il rosa-rosso si confonde con un attacco?» 3. «Se sì, altre tinte (grigi chiari, indaco, bruno) o una forma diversa per il bloccato?» 4. «Restano da giudicare T2, T3 e T4, e il pannello della scheda (#3748).» La didascalia della `T5` pone le stesse due domande («il rosa, a schermo, si confonde con un rosso "attacco"?»), dice «rosa, a schermo un rosso vivo» e che il rosa spedito (`#FF145B`) non è quello della tavola dei candidati (`#FF2D55`); il rapporto in chat diceva lo stesso: «A schermo il rosa si legge come un rosso vivo».
 
 ### La risposta, alla lettera
 
@@ -195,16 +195,16 @@ Poi, dopo il codice colore, il rapporto sulla `T5` (la tavola aperta con il visu
 La risposta è numerata e porta un refuso: dichiaro la lettura invece di darla per certa.
 
 * **1.** «su» è un «sì» (refuso): i tre colori si leggono come tre cose diverse.
-* **2.** no: il rosa-rosso non si confonde con un attacco. È un giudizio sul rosa **spedito** (`#FF145B`), che a schermo si legge come un rosso vivo.
+* **2.** no: il rosa-rosso non si confonde con un attacco. È un giudizio sul rosa **spedito** (`#FF145B`), che a schermo si legge come un rosso vivo. La `T5` non ha un `Attack` accanto: è un giudizio senza confronto affiancato (D-561 (5)).
 * **3.** nessuna risposta da leggere: la domanda era condizionata a un «sì» alla 2.
-* **«tutto ok per il resto»**: nessuna obiezione a `T2`, `T3` e `T4`, cioè il punto 4. Non copre il pannello della scheda (#3748), che non esiste: non c'era niente da giudicare.
+* **«tutto ok per il resto»**: nessuna obiezione a `T2`, `T3` e `T4`, cioè il punto 4: una risposta sola per tre tavole, non tre risposte alle domande scritte sotto ciascuna. Non copre il pannello della scheda (#3748), che non esiste: non c'era niente da giudicare.
 
 ### Che cosa vale e che cosa no
 
 * **Vale come giudizio sulle tavole**, non come esecuzione in PIE: finestra `-game`, input sintetico, una sola mappa, un solo muro, un solo fondo.
 * `T2`-`T4` sono della prima tornata (`main` `648ebcfd8`), quando la portata distingueva il bloccato per scala. Ciò che giudicano è il **comportamento** (le due bande, il fuoco che cede alla portata e torna, l'hover che segue la selezione), che D-561 non ha cambiato; la resa a colori è `T5`.
-* **Senza risposta esplicita**: se il piano che sparisce a ogni slot attraversato disturba (la domanda era su `T1`, che non è più la tavola in gioco), e se il tooltip dello slot e la portata si pestano (non era una domanda alle tavole; il tooltip copre una fascia bassa del 3D, osservazione del punto 7 della prima serie). Nessuna obiezione espressa, ma non la conto come risposta.
-* **Resta `NOT RUN`**, come nella tabella «Misurato e non misurato»: `Slow` e `Unbalanced`, il nemico fuori vista in PIE, `RMB` sulla scheda (#3748), le skill su se stessi, le reazioni e le senza portata in PIE, uno slot distrutto senza uscita, i fondi scuri, 1440p e 4K, l'hover dalla riga di kit della scheda.
+* **Senza risposta esplicita**, due domande della didascalia di `T1` (che non è più la tavola in gioco): se il piano che sparisce mentre il cursore è sullo slot disturba o va tenuto, e se il tooltip dello slot e la portata si pestano (il tooltip copre gli slot 2 e 3 del dock e una fascia bassa del 3D, punto 7 della prima serie). Il criterio del piano che sparisce **a ogni slot attraversato** non era giudicabile da quella tavola, che dichiara di non mostrare il cursore che attraversa più slot di seguito. Nessuna obiezione espressa, ma non la conto come risposta.
+* **Resta `NOT RUN`**, oltre a quanto dicono la tabella «Misurato e non misurato» e l'elenco «Che cosa NON si è visto» della seconda tornata: `Slow` e `Unbalanced`, il nemico fuori vista in PIE, `RMB` sulla scheda (#3748), le skill su se stessi, le reazioni e le senza portata in PIE, uno slot distrutto senza uscita, i fondi scuri, 1440p e 4K, l'hover dalla riga di kit della scheda, un click sul nemico con il cursore già sullo slot (didascalia di `T3`), la risposta a `N` su uno slot che nel nuovo kit non esiste (didascalia di `T4`), il criterio «lo stesso insieme che si vede armando quell'azione» e il Fumo esplorato in PIE (solo Automation), armare un'azione e dichiarare un verso come gesti che tolgono le aree del fuoco (solo Automation), il fuoco spento in playback.
 
 ### Che cosa cambia
 
