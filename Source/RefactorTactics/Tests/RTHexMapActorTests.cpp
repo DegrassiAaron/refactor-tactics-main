@@ -3162,6 +3162,9 @@ namespace
 		case ERTOverlayMeaning::Attack:          Actor->SetPreviewHitCells({ A }, {}); break;
 		case ERTOverlayMeaning::FriendlyFire:    Actor->SetPreviewHitCells({}, { B }); break;
 		case ERTOverlayMeaning::AbilityRange:    Actor->SetPreviewRangeCells({ A }); break;
+		// [D-561]: le bloccate e quelle senza verdetto della portata in hover sono significati propri, e si accendono da sole.
+		case ERTOverlayMeaning::AbilityRangeBlocked:     Actor->SetPreviewSkillRange({}, { A }, {}); break;
+		case ERTOverlayMeaning::AbilityRangeUnverdicted: Actor->SetPreviewSkillRange({}, {}, { A }); break;
 		case ERTOverlayMeaning::AttackOriginAim: Actor->SetPreviewAttack(A, B, /*bValid=*/ true, /*bOriginPredicted=*/ false); break;
 		case ERTOverlayMeaning::Vision:          Actor->SetPreviewSightBlock(/*bBlocked=*/ true, A, B); break;
 		// Il cursore non e' un'area di pianificazione, ma si accende lo stesso: il suo conteggio deve restare zero.
@@ -3360,11 +3363,13 @@ bool FRTHexMapActorFocusAreasTest::RunTest(const FString&)
 }
 
 /**
- * **`#3750`, fetta D — la portata di una skill in hover ha TRE stati ed e' un SECONDO canale di `AbilityRange`.**
+ * **`#3750`, fetta D — la portata di una skill in hover ha TRE stati, con TRE significati ([D-561]).**
  *
- * Lo stesso significato (`AbilityRange`) della portata dell'azione armata, due sedi: i setter non devono pestarsi i piedi, e il conto
- * per significato le somma tutte (una portata in hover rimasta accesa dopo un'uscita deve vedersi nel conto di chi verifica che
- * l'anteprima sia spenta). E ciascuna delle tre classi tiene acceso il tick da sola: altrimenti l'attore non la disegna.
+ * Le celle libere hanno lo stesso significato (`AbilityRange`) della portata dell'azione armata, due sedi: i setter non devono
+ * pestarsi i piedi, e il conto per significato le somma (una portata in hover rimasta accesa dopo un'uscita deve vedersi nel conto
+ * di chi verifica che l'anteprima sia spenta). Le bloccate e quelle senza verdetto hanno un significato proprio, perche' il colore
+ * appartiene al significato: ciascuna ha il suo conto, e nessuna finisce in quello della portata. E ciascuna delle tre classi tiene
+ * acceso il tick da sola: altrimenti l'attore non la disegna.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorSkillRangeTest,
 	"RefactorTactics.HexMapActor.TheSkillRangeHasThreeStatesAndIsASecondRangeChannel",
@@ -3388,19 +3393,32 @@ bool FRTHexMapActorSkillRangeTest::RunTest(const FString&)
 	TestTrue(TEXT("le celle bloccate sono quelle date"), Actor->GetPreviewSkillBlockedCells() == TArray<FRTCellId>({ C }));
 	TestTrue(TEXT("le celle senza verdetto sono quelle date"), Actor->GetPreviewSkillUnverdictedCells() == TArray<FRTCellId>({ D }));
 	TestEqual(TEXT("scrivere la portata in hover non tocca la portata armata"), Actor->GetPreviewRangeCells().Num(), 1);
-	TestEqual(TEXT("il conto per significato somma la portata armata e i tre stati"),
-		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 1 + 2 + 1 + 1);
+	TestEqual(TEXT("il conto di AbilityRange somma la portata armata e le sole celle libere"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 1 + 2);
+	TestEqual(TEXT("le bloccate hanno il loro significato"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeBlocked), 1);
+	TestEqual(TEXT("le senza verdetto il loro"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeUnverdicted), 1);
 
 	// Spegnere un canale non spegne l'altro.
 	Actor->SetPreviewSkillRange({}, {}, {});
 	TestEqual(TEXT("svuotare la portata in hover lascia quella armata"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 1);
+	TestEqual(TEXT("e non lascia ne' bloccate ne' senza verdetto"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeBlocked)
+			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeUnverdicted), 0);
 	Actor->SetPreviewSkillRange({ A, B }, { C }, { D });
 	Actor->SetPreviewRangeCells({});
-	TestEqual(TEXT("svuotare quella armata lascia i tre stati"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 4);
+	TestEqual(TEXT("svuotare quella armata lascia i tre stati"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange)
+			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeBlocked)
+			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeUnverdicted), 4);
 
 	// Si DISEGNANO: ciascuna delle tre classi tiene acceso il tick da sola. CONTROLLO: spento il reset, il tick e' spento.
 	Actor->ClearPlanningPreview();
-	TestEqual(TEXT("il reset unico spegne i tre stati"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 0);
+	TestEqual(TEXT("il reset unico spegne i tre stati"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange)
+			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeBlocked)
+			+ Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRangeUnverdicted), 0);
 	TestFalse(TEXT("controllo: senza niente da disegnare il tick e' spento"), Actor->IsActorTickEnabled());
 	Actor->SetPreviewSkillRange({ A }, {}, {});
 	TestTrue(TEXT("le sole celle libere tengono acceso il tick"), Actor->IsActorTickEnabled());

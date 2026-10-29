@@ -1257,15 +1257,17 @@ void ARTHexMapActor::SetPreviewSkillRange(const TArray<FRTCellId>& FreeCells, co
 	const TArray<FRTCellId>& UnverdictedCells)
 {
 	// Si copia e basta: la classificazione e' di `URTRangeVerdictLibrary`, e rifarla qui sarebbe la seconda risposta alla stessa
-	// domanda. Il terzo stato e' `Uncertain` perche' e' proprio questo che dice: la squadra non sa se il tiro passa.
+	// domanda. I tre stati hanno tre SIGNIFICATI (`#3750`, [D-561]), perche' il colore appartiene al significato: libero e' la
+	// portata (viola), bloccato e senza verdetto hanno una tinta propria. Il terzo resta `Uncertain` perche' e' proprio questo che
+	// dice: la squadra non sa se il tiro passa.
 	PreviewSkillFreeArea.Cells = FreeCells;
 	PreviewSkillFreeArea.Meaning = ERTOverlayMeaning::AbilityRange;
 	PreviewSkillFreeArea.Certainty = ERTOverlayCertainty::Confirmed;
 	PreviewSkillBlockedArea.Cells = BlockedCells;
-	PreviewSkillBlockedArea.Meaning = ERTOverlayMeaning::AbilityRange;
+	PreviewSkillBlockedArea.Meaning = ERTOverlayMeaning::AbilityRangeBlocked;
 	PreviewSkillBlockedArea.Certainty = ERTOverlayCertainty::Confirmed;
 	PreviewSkillUnverdictedArea.Cells = UnverdictedCells;
-	PreviewSkillUnverdictedArea.Meaning = ERTOverlayMeaning::AbilityRange;
+	PreviewSkillUnverdictedArea.Meaning = ERTOverlayMeaning::AbilityRangeUnverdicted;
 	PreviewSkillUnverdictedArea.Certainty = ERTOverlayCertainty::Uncertain;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
@@ -1320,10 +1322,12 @@ int32 ARTHexMapActor::NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const
 	case ERTOverlayMeaning::PathTrace:       return PreviewPathArea.Cells.Num();
 	case ERTOverlayMeaning::Attack:          return PreviewHitArea.Cells.Num();
 	case ERTOverlayMeaning::FriendlyFire:    return PreviewAllyHitArea.Cells.Num();
-	// La portata armata E le tre classi della portata in hover (#3750, fetta D): stesso significato, e un'area di portata
-	// rimasta accesa dopo un'uscita deve vedersi nel conto di chi verifica che l'anteprima sia spenta.
-	case ERTOverlayMeaning::AbilityRange:    return PreviewRangeArea.Cells.Num() + PreviewSkillFreeArea.Cells.Num()
-		+ PreviewSkillBlockedArea.Cells.Num() + PreviewSkillUnverdictedArea.Cells.Num();
+	// La portata armata E le celle libere della portata in hover (#3750, fetta D): stesso significato, e un'area di portata
+	// rimasta accesa dopo un'uscita deve vedersi nel conto di chi verifica che l'anteprima sia spenta. Bloccate e senza
+	// verdetto sono significati propri ([D-561]): ognuna ha il suo conto, e `AllMeanings` le somma tutte.
+	case ERTOverlayMeaning::AbilityRange:    return PreviewRangeArea.Cells.Num() + PreviewSkillFreeArea.Cells.Num();
+	case ERTOverlayMeaning::AbilityRangeBlocked:     return PreviewSkillBlockedArea.Cells.Num();
+	case ERTOverlayMeaning::AbilityRangeUnverdicted: return PreviewSkillUnverdictedArea.Cells.Num();
 	// Non sono insiemi di celle ma un segno solo: la linea mira->bersaglio e il tratto di linea di tiro.
 	case ERTOverlayMeaning::AttackOriginAim: return bPreviewAttackValid ? 1 : 0;
 	case ERTOverlayMeaning::Vision:          return bHasPreviewSightBlock ? 1 : 0;
@@ -2082,8 +2086,9 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	// ⚠️ La resa e' una scelta da giudicare in PIE (`PIE-HUD-FUOCO-AREE`), non una misura.
 	//
 	// Il contorno in stile e' un helper solo (`#3750`, fetta D): il fuoco (movimento) e la portata di una skill in hover
-	// (`AbilityRange`) lo usano entrambi, perche' il canale non cromatico — spezzato o continuo, piu' piccolo o intero — e' lo
-	// stesso. Colore e scala di base restano della palette, per significato.
+	// (`AbilityRange` e i suoi due significati fratelli, [D-561]) lo usano entrambi, perche' il canale non cromatico — spezzato
+	// o continuo — e' lo stesso. Colore e scala di base restano della palette, per significato: la dimensione la porta solo il
+	// fattore, e per i tre stati della portata vale 1 (la differenza e' il colore).
 	const auto DrawStyledOutline = [World, &Origin, Size, LayerH, &CellLift](
 		const FRTCellId& Cell, ERTOverlayMeaning Meaning, float ScaleFactor, bool bBroken)
 	{
@@ -2109,8 +2114,10 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		DrawStyledOutline(Cell, ERTOverlayMeaning::Movement, 0.7f, /*bBroken=*/ true);
 	}
 
-	// La portata di una skill in hover, a tre stati (`#3750`, fetta D): libero = il contorno della portata armata; bloccato =
-	// lo stesso, piu' piccolo (c'e', ma il tiro non passa); senza verdetto = spezzato, come ogni previsione (non si sa).
+	// La portata di una skill in hover, a tre stati (`#3750`, fetta D), distinti dal COLORE ([D-561]): libero = il viola della
+	// portata armata; bloccato = rosa (c'e', ma il tiro non passa); senza verdetto = ambra, spezzato, come ogni previsione (non si
+	// sa). Stessa scala per tutti e tre: fino al 2026-10-29 il bloccato era piu' piccolo (0,7), e l'autore l'ha giudicato poco
+	// leggibile. Il tratteggio resta, e per il terzo stato e' il canale non cromatico.
 	// ⚠️ Anche questa resa e' da giudicare in PIE (`PIE-HUD-SKILL-PORTATA`).
 	for (const FRTCellId& Cell : PreviewSkillFreeArea.Cells)
 	{
@@ -2118,11 +2125,11 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	}
 	for (const FRTCellId& Cell : PreviewSkillBlockedArea.Cells)
 	{
-		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRange, 0.7f, /*bBroken=*/ false);
+		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRangeBlocked, 1.f, /*bBroken=*/ false);
 	}
 	for (const FRTCellId& Cell : PreviewSkillUnverdictedArea.Cells)
 	{
-		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRange, 1.f, /*bBroken=*/ true);
+		DrawStyledOutline(Cell, ERTOverlayMeaning::AbilityRangeUnverdicted, 1.f, /*bBroken=*/ true);
 	}
 
 	// La portata dell'azione armata (`#3507`): dove posso mirare. In targeting prende il posto del ventaglio, e sta

@@ -71,7 +71,25 @@ enum class ERTOverlayMeaning : uint8
 	 * ⛔ **Non e' la linea di vista**: una cella in portata dietro un muro resta in portata, e il click la rifiuta per
 	 * copertura col suo tratto (`#3085`). La vista e' `Vision`.
 	 */
-	AbilityRange
+	AbilityRange,
+
+	/**
+	 * Una cella in portata di una skill sotto il cursore (`#3750`, fetta D) il cui TIRO e' BLOCCATO da qualcosa che la squadra vede
+	 * adesso: c'e', ma il colpo non passa. Rosa, [D-561].
+	 *
+	 * 🔑 **Un significato a se' e non `AbilityRange` piu' piccolo**: la prima resa distingueva i tre stati per SCALA del contorno,
+	 * e il 2026-10-29 l'autore l'ha giudicata poco leggibile e ha chiesto un codice colore. Il colore appartiene al significato
+	 * (`Source` e certezza non lo muovono), quindi cio' che deve avere un colore proprio e' un significato proprio.
+	 * ⛔ Non e' l'`Attack` (rosso): quello dice chi COLPISCO, questo dice che qui NON si puo' tirare.
+	 */
+	AbilityRangeBlocked,
+
+	/**
+	 * Una cella in portata di una skill sotto il cursore la cui linea attraversa celle che la squadra NON vede adesso: non si sa se
+	 * il tiro passa. Ambra, [D-561]. Si disegna tratteggiata, e il tratteggio e' il canale non cromatico che resta (sotto
+	 * daltonismo il rosa del bloccato e l'ambra si avvicinano).
+	 */
+	AbilityRangeUnverdicted
 };
 
 /**
