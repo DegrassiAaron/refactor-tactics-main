@@ -3162,7 +3162,7 @@ namespace
 		case ERTOverlayMeaning::Attack:          Actor->SetPreviewHitCells({ A }, {}); break;
 		case ERTOverlayMeaning::FriendlyFire:    Actor->SetPreviewHitCells({}, { B }); break;
 		case ERTOverlayMeaning::AbilityRange:    Actor->SetPreviewRangeCells({ A }); break;
-		// [D-560]: le bloccate e quelle senza verdetto della portata in hover sono significati propri, e si accendono da sole.
+		// [D-561]: le bloccate e quelle senza verdetto della portata in hover sono significati propri, e si accendono da sole.
 		case ERTOverlayMeaning::AbilityRangeBlocked:     Actor->SetPreviewSkillRange({}, { A }, {}); break;
 		case ERTOverlayMeaning::AbilityRangeUnverdicted: Actor->SetPreviewSkillRange({}, {}, { A }); break;
 		case ERTOverlayMeaning::AttackOriginAim: Actor->SetPreviewAttack(A, B, /*bValid=*/ true, /*bOriginPredicted=*/ false); break;
@@ -3363,7 +3363,7 @@ bool FRTHexMapActorFocusAreasTest::RunTest(const FString&)
 }
 
 /**
- * **`#3750`, fetta D — la portata di una skill in hover ha TRE stati, con TRE significati ([D-560]).**
+ * **`#3750`, fetta D — la portata di una skill in hover ha TRE stati, con TRE significati ([D-561]).**
  *
  * Le celle libere hanno lo stesso significato (`AbilityRange`) della portata dell'azione armata, due sedi: i setter non devono
  * pestarsi i piedi, e il conto per significato le somma (una portata in hover rimasta accesa dopo un'uscita deve vedersi nel conto

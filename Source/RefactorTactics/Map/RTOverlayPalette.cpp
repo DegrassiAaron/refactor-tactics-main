@@ -16,11 +16,11 @@ FColor URTOverlayPalette::ColorFor(const ERTOverlayMeaning Meaning)
 	case ERTOverlayMeaning::Hover:           return FColor(255, 214, 10);  // #FFD60A [D-368]
 	case ERTOverlayMeaning::Vision:          return FColor(50, 173, 230);  // #32ADE6 [D-368]
 	case ERTOverlayMeaning::AbilityRange:    return FColor(175, 82, 222);  // #AF52DE [D-364], #3507
-	// [D-560]. Il rosa NON e' il `#FF2D55` della tavola dell'autore: dista 51 dall'`Attack`, sotto la soglia 60 di
+	// [D-561]. Il rosa NON e' il `#FF2D55` della tavola dell'autore: dista 51 dall'`Attack`, sotto la soglia 60 di
 	// `PaletteIsDistinguishable`. `#FF145B` dista 82 dal piu' vicino (misurato contro tutti i significati, le superfici e il
 	// marcatore di blocco) ed e' lo stesso rosa per chi guarda.
-	case ERTOverlayMeaning::AbilityRangeBlocked:     return FColor(255, 20, 91);   // #FF145B [D-560]
-	case ERTOverlayMeaning::AbilityRangeUnverdicted: return FColor(201, 138, 43);  // #C98A2B [D-560]; 65 dalla superficie Fire
+	case ERTOverlayMeaning::AbilityRangeBlocked:     return FColor(255, 20, 91);   // #FF145B [D-561]
+	case ERTOverlayMeaning::AbilityRangeUnverdicted: return FColor(201, 138, 43);  // #C98A2B [D-561]; 65 dalla superficie Fire
 	}
 	// Nessun default nello switch: cosi' un significato nuovo rompe la COMPILAZIONE invece di cadere in
 	// silenzio su un colore di ripiego che a schermo sembra una scelta.
@@ -81,7 +81,7 @@ float URTOverlayPalette::ScaleFor(const ERTOverlayMeaning Meaning)
 	case ERTOverlayMeaning::Hover:           return 0.88f;
 case ERTOverlayMeaning::Vision:       return 0.72f;
 	case ERTOverlayMeaning::AbilityRange:    return 0.60f;
-	// [D-560]: STESSA scala dei tre stati. La differenza fra libero e bloccato la porta il colore, non la dimensione.
+	// [D-561]: STESSA scala dei tre stati. La differenza fra libero e bloccato la porta il colore, non la dimensione.
 	case ERTOverlayMeaning::AbilityRangeBlocked:     return 0.60f;
 	case ERTOverlayMeaning::AbilityRangeUnverdicted: return 0.60f;
 	}

@@ -273,7 +273,7 @@ bool FRTOverlayPaletteIsDistinguishableTest::RunTest(const FString&)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-// I tre stati della portata in hover si distinguono per COLORE, non per dimensione ([D-560], #3750)
+// I tre stati della portata in hover si distinguono per COLORE, non per dimensione ([D-561], #3750)
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 namespace
@@ -316,7 +316,7 @@ namespace
 }
 
 /**
- * **`#3750`, fetta D — il codice colore dei tre stati ([D-560]).** Il 2026-10-29 l'autore ha giudicato poco leggibile la prima resa, che
+ * **`#3750`, fetta D — il codice colore dei tre stati ([D-561]).** Il 2026-10-29 l'autore ha giudicato poco leggibile la prima resa, che
  * distingueva libero e bloccato per la sola SCALA del contorno, e ha scelto un codice colore: viola (libero), rosa (bloccato), ambra
  * tratteggiata (senza verdetto). Questo test fissa le tre cose che la scelta promette:
  *
