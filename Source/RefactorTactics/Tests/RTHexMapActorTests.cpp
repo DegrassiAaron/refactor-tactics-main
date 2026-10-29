@@ -3179,6 +3179,7 @@ namespace
 		Actor->SetPreviewHitCells({ A }, { B });
 		Actor->SetPreviewRangeCells({ A });
 		Actor->SetPreviewFocusAreas({ A, B }, { FRTCellId(-1, 0, 0) }); // #3750: le due aree di movimento del fuoco
+		Actor->SetPreviewSkillRange({ A }, { B }, { FRTCellId(-1, 0, 0) }); // #3750, fetta D: la portata a tre stati in hover
 		Actor->SetPreviewAttack(A, B, /*bValid=*/ true, /*bOriginPredicted=*/ false);
 		Actor->SetPreviewSightBlock(/*bBlocked=*/ true, A, B);
 		FRTPlanPreview Timeline;
@@ -3269,6 +3270,9 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo: la timeline ha una fase"), Actor->GetPlanPreview().Phases.Num(), 1);
 	TestTrue(TEXT("controllo: le due aree del fuoco sono accese (#3750)"),
 		Actor->GetPreviewFocusNormalCells().Num() > 0 && Actor->GetPreviewFocusRunOnlyCells().Num() > 0);
+	TestTrue(TEXT("controllo: la portata in hover e' accesa nei suoi tre stati (#3750, fetta D)"),
+		Actor->GetPreviewSkillFreeCells().Num() > 0 && Actor->GetPreviewSkillBlockedCells().Num() > 0
+			&& Actor->GetPreviewSkillUnverdictedCells().Num() > 0);
 
 	Actor->ClearPlanningPreview();
 
@@ -3279,6 +3283,9 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("dopo il reset l'area normale del fuoco e' spenta"), Actor->GetPreviewFocusNormalCells().Num(), 0);
 	TestEqual(TEXT("e quella raggiunta solo correndo"), Actor->GetPreviewFocusRunOnlyCells().Num(), 0);
+	TestTrue(TEXT("dopo il reset anche la portata in hover e' spenta, nei suoi tre stati (#3750, fetta D)"),
+		Actor->GetPreviewSkillFreeCells().Num() == 0 && Actor->GetPreviewSkillBlockedCells().Num() == 0
+			&& Actor->GetPreviewSkillUnverdictedCells().Num() == 0);
 	TestFalse(TEXT("dopo il reset anche il tratto di LOS e' spento (`#3064`)"), Actor->HasPreviewSightBlock());
 	TestEqual(TEXT("e la timeline dei ghost e' vuota"), Actor->GetPlanPreview().Phases.Num(), 0);
 
@@ -3347,6 +3354,62 @@ bool FRTHexMapActorFocusAreasTest::RunTest(const FString&)
 	Actor->SetPreviewFocusAreas({}, { C });
 	TestTrue(TEXT("e la sola area di corsa"), Actor->IsActorTickEnabled());
 	Actor->ClearPlanningPreview();
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * **`#3750`, fetta D — la portata di una skill in hover ha TRE stati ed e' un SECONDO canale di `AbilityRange`.**
+ *
+ * Lo stesso significato (`AbilityRange`) della portata dell'azione armata, due sedi: i setter non devono pestarsi i piedi, e il conto
+ * per significato le somma tutte (una portata in hover rimasta accesa dopo un'uscita deve vedersi nel conto di chi verifica che
+ * l'anteprima sia spenta). E ciascuna delle tre classi tiene acceso il tick da sola: altrimenti l'attore non la disegna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorSkillRangeTest,
+	"RefactorTactics.HexMapActor.TheSkillRangeHasThreeStatesAndIsASecondRangeChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorSkillRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius*/ 2));
+	if (!TestNotNull(TEXT("actor spawnato"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(1, 0, 0);
+	const FRTCellId C(-1, 0, 0);
+	const FRTCellId D(0, 1, 0);
+
+	Actor->SetPreviewRangeCells({ A });
+	Actor->SetPreviewSkillRange({ A, B }, { C }, { D });
+
+	TestTrue(TEXT("le celle libere sono quelle date"), Actor->GetPreviewSkillFreeCells() == TArray<FRTCellId>({ A, B }));
+	TestTrue(TEXT("le celle bloccate sono quelle date"), Actor->GetPreviewSkillBlockedCells() == TArray<FRTCellId>({ C }));
+	TestTrue(TEXT("le celle senza verdetto sono quelle date"), Actor->GetPreviewSkillUnverdictedCells() == TArray<FRTCellId>({ D }));
+	TestEqual(TEXT("scrivere la portata in hover non tocca la portata armata"), Actor->GetPreviewRangeCells().Num(), 1);
+	TestEqual(TEXT("il conto per significato somma la portata armata e i tre stati"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 1 + 2 + 1 + 1);
+
+	// Spegnere un canale non spegne l'altro.
+	Actor->SetPreviewSkillRange({}, {}, {});
+	TestEqual(TEXT("svuotare la portata in hover lascia quella armata"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 1);
+	Actor->SetPreviewSkillRange({ A, B }, { C }, { D });
+	Actor->SetPreviewRangeCells({});
+	TestEqual(TEXT("svuotare quella armata lascia i tre stati"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 4);
+
+	// Si DISEGNANO: ciascuna delle tre classi tiene acceso il tick da sola. CONTROLLO: spento il reset, il tick e' spento.
+	Actor->ClearPlanningPreview();
+	TestEqual(TEXT("il reset unico spegne i tre stati"), Actor->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), 0);
+	TestFalse(TEXT("controllo: senza niente da disegnare il tick e' spento"), Actor->IsActorTickEnabled());
+	Actor->SetPreviewSkillRange({ A }, {}, {});
+	TestTrue(TEXT("le sole celle libere tengono acceso il tick"), Actor->IsActorTickEnabled());
+	Actor->ClearPlanningPreview();
+	Actor->SetPreviewSkillRange({}, { C }, {});
+	TestTrue(TEXT("le sole celle bloccate"), Actor->IsActorTickEnabled());
+	Actor->ClearPlanningPreview();
+	Actor->SetPreviewSkillRange({}, {}, { D });
+	TestTrue(TEXT("le sole celle senza verdetto"), Actor->IsActorTickEnabled());
 
 	DestroyMapActorWorld(World);
 	return true;

@@ -228,7 +228,7 @@ namespace
 	 * zona e ne subirebbe un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
 	 */
 	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit, ARTHexMapActor* KnownHexMap = nullptr,
-		const FRTFocusMoveAreas* FocusAreas = nullptr)
+		const FRTFocusMoveAreas* FocusAreas = nullptr, const TArray<FRTRangeCellVerdict>* SkillRange = nullptr)
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 		// `#3511`: l'ingresso unico ha gia' cercato la mappa, e una seconda ricerca itererebbe gli actor del livello.
@@ -264,6 +264,27 @@ namespace
 			HexMap->SetPreviewFocusAreas(FocusAreas->Normal, RunOnly);
 			return;
 		}
+		if (HexMap && SkillRange != nullptr)
+		{
+			// 🔑 **La portata di una skill ha la mappa, e il piano cede** (`#3750`, fetta D, spec §6.3): come per il fuoco, si parte
+			// dal reset unico e si scrive il solo canale dell'hover. Quando il cursore esce, l'arbitro dice un'altra sorgente e
+			// il ramo che la scrive riparte da una mappa in cui questo canale e' gia' spento.
+			HexMap->ClearPlanningPreview();
+			TArray<FRTCellId> Free;
+			TArray<FRTCellId> Blocked;
+			TArray<FRTCellId> Unverdicted;
+			for (const FRTRangeCellVerdict& Entry : *SkillRange)
+			{
+				switch (Entry.Verdict)
+				{
+				case ERTRangeVerdict::Free:        Free.Add(Entry.Cell); break;
+				case ERTRangeVerdict::Blocked:     Blocked.Add(Entry.Cell); break;
+				case ERTRangeVerdict::Unverdicted: Unverdicted.Add(Entry.Cell); break;
+				}
+			}
+			HexMap->SetPreviewSkillRange(Free, Blocked, Unverdicted);
+			return;
+		}
 		// 🔴 La mira si giudica sulla stessa mappa del percorso ([D-465] (3), `#2794`): portata viola e rifiuto del
 		// bersaglio pianificato leggono la copia ottimistica della squadra.
 		Map = ARTTurnManager::PlayerAimMap(World, Unit ? Unit->TeamId : INDEX_NONE, Map);
@@ -288,6 +309,9 @@ namespace
 		// scrive solo i propri canali: senza questa riga l'area di un fuoco gia' uscito (armare, un waypoint, `RMB`) restava a
 		// schermo accanto al ventaglio. L'ha trovata il test del ciclo, non la lettura: l'arbitro deve far cedere nei DUE versi.
 		HexMap->SetPreviewFocusAreas(TArray<FRTCellId>(), TArray<FRTCellId>());
+		// ...e la portata di una skill in hover (`#3750`, fetta D): stessa ragione, stesso verso. Senza questa riga la portata a tre
+		// stati restava a schermo accanto al ventaglio quando il cursore usciva dallo slot.
+		HexMap->SetPreviewSkillRange(TArray<FRTCellId>(), TArray<FRTCellId>(), TArray<FRTCellId>());
 
 		// 🔴 **La ROTTA si scrive dal piano, qui, e da nessun altro** (`#3511`, review; `#3892`). Con la regola derivata dallo
 		// stato le aree si spengono e tornano senza un evento: `ClearPlanningPreview` azzera anche la rotta, e il ritorno dalla
@@ -4705,11 +4729,109 @@ void ARTPlayerController::ApplyPlanningOverlay(
 			}
 			RefreshPlanningPreview(GetWorld(), Unit, HexMap, &Areas);
 		}
+		else if (Source == ERTPreviewSource::SkillHover)
+		{
+			// La portata della skill sotto il cursore, a tre stati (`#3750`, fetta D): l'insieme e i verdetti si calcolano su una
+			// mappa in cui ogni cella che la squadra non vede adesso e' neutra, e un verdetto si da' solo per una linea
+			// interamente in vista. La mappa e' l'AUTOREVOLE: e' `URTRangeVerdictLibrary` a ripulirla.
+			FVector Origin; float HexSize; float LayerH;
+			const URTHexMapAsset* Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
+			const ARTTurnManager* TM = PacingTurnManager(this);
+			TArray<FRTRangeCellVerdict> Verdicts;
+			if (Map != nullptr && TM != nullptr)
+			{
+				Verdicts = URTRangeVerdictLibrary::ClassifyFor(GetTransientPackage(), Map,
+					TM->PlaybackKnowledgeForTeam(ARTPlayerState::TeamIdOf(this)), Inputs.SkillRange.Origin,
+					Inputs.SkillRange.RangeCells, Inputs.SkillRange.Policy, Inputs.SkillRange.MinRangeCells);
+			}
+			RefreshPlanningPreview(GetWorld(), Unit, HexMap, nullptr, &Verdicts);
+		}
 		else
 		{
 			RefreshPlanningPreview(GetWorld(), Unit, HexMap);
 		}
 	}
+}
+
+namespace
+{
+	/**
+	 * Un'impronta di `VisibleCells`, indipendente dall'ordine: le aree del fuoco e la portata di una skill dipendono da cio' che
+	 * si vede, e se la vista cambia devono rifarsi. Somma di hash rimescolati piu' il conto (due viste con le stesse celle, in
+	 * ordine diverso, danno la stessa impronta). Solo presentazione: una collisione lascerebbe un'area non rifatta fino al cambio
+	 * successivo.
+	 */
+	uint32 VisibleCellsStamp(const TArray<FRTCellId>& Visible)
+	{
+		uint32 Stamp = static_cast<uint32>(Visible.Num());
+		for (const FRTCellId& Cell : Visible)
+		{
+			Stamp += HashCombineFast(GetTypeHash(Cell), 0x9E3779B9u);
+		}
+		return Stamp;
+	}
+}
+
+void ARTPlayerController::SetSkillHover(const ARTUnit* Unit, int32 AbilityIndex)
+{
+	SkillHoverUnit = Unit;
+	SkillHoverIndex = Unit != nullptr ? AbilityIndex : INDEX_NONE;
+}
+
+void ARTPlayerController::ClearSkillHover(const ARTUnit* Unit, int32 AbilityIndex)
+{
+	// Solo se e' proprio QUESTO hover: lo slot A esce dopo che lo slot B e' entrato, e non deve cancellare B.
+	if (SkillHoverUnit.Get() == Unit && SkillHoverIndex == AbilityIndex)
+	{
+		SkillHoverUnit = nullptr;
+		SkillHoverIndex = INDEX_NONE;
+	}
+}
+
+const ARTUnit* ARTPlayerController::GetSkillHoverUnit() const
+{
+	return SkillHoverUnit.Get();
+}
+
+void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlanningOverlayInputs& Inputs) const
+{
+	const ARTUnit* SkillOwner = SkillHoverUnit.Get();
+	const int32 ObserverTeamId = ARTPlayerState::TeamIdOf(this);
+	// La barra e' di chi si comanda (spec §3 regola 7): la skill in hover dev'essere di QUELL'unita', viva e della squadra di chi
+	// guarda. Il confronto con `Unit` e' gia' del risolutore (che scarta l'hover di un'altra unita' prima di arrivare qui): qui e'
+	// la precondizione propria della funzione. Il cancello di squadra invece non ha altri guardiani.
+	if (SkillOwner == nullptr || SkillOwner != Unit || !SkillOwner->IsAlive() || SkillOwner->TeamId != ObserverTeamId)
+	{
+		return;
+	}
+	const URTActionData* Ability = SkillOwner->GetAbility(SkillHoverIndex);
+	// Le stesse due condizioni della portata armata: l'azione chiede un bersaglio e ha una portata positiva. Una skill senza
+	// portata non ha niente da mostrare, e il piano non deve cedere la mappa per niente.
+	if (Ability == nullptr || !MostraLaPortata(SkillOwner, *Ability))
+	{
+		return;
+	}
+	const ARTTurnManager* TM = PacingTurnManager(this);
+	if (TM == nullptr)
+	{
+		return;
+	}
+	// Stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello dell'azione armata.
+	const FRTCellId Origin = OrigineDiMira(SkillOwner, *Ability);
+	const TArray<FRTCellId>& Visible = TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells;
+	// La precondizione di `URTRangeVerdictLibrary`: chi tira dev'essere su una cella che la squadra vede. Se non lo e' (uno
+	// scatto pianificato verso una cella mai vista), non c'e' una portata da mostrare e il piano resta com'e'.
+	if (!Visible.Contains(Origin))
+	{
+		return;
+	}
+
+	Inputs.HoverSkillUnit = SkillOwner;
+	Inputs.SkillRange.Origin = Origin;
+	Inputs.SkillRange.RangeCells = Ability->RangeCells;
+	Inputs.SkillRange.MinRangeCells = Ability->Def.MinRangeCells;
+	Inputs.SkillRange.Policy = Ability->Def.LineOfSightPolicy;
+	Inputs.SkillKnowledgeStamp = VisibleCellsStamp(Visible);
 }
 
 void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const
@@ -4752,15 +4874,7 @@ void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) co
 	// La cella e' quella della VOCE DELLA VISTA, non quella dell'attore: da qui in giu' si lavora su cio' che l'osservatore sa.
 	Inputs.FocusMove.Cell = Entry->Cell;
 
-	// Un'impronta di `VisibleCells`, indipendente dall'ordine: l'area dipende da cio' che si vede, e se la vista cambia deve
-	// rifarsi. Somma di hash rimescolati piu' il conto (due viste con le stesse celle, in ordine diverso, danno lo stesso).
-	const TArray<FRTCellId>& Visible = TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells;
-	uint32 Stamp = static_cast<uint32>(Visible.Num());
-	for (const FRTCellId& Cell : Visible)
-	{
-		Stamp += HashCombineFast(GetTypeHash(Cell), 0x9E3779B9u);
-	}
-	Inputs.FocusKnowledgeStamp = Stamp;
+	Inputs.FocusKnowledgeStamp = VisibleCellsStamp(TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells);
 }
 
 FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const ARTUnit* Unit, const ARTHexMapActor* HexMap)
@@ -4775,14 +4889,39 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 	}
 	Inputs.bFocusOnMap = FocusLatch.Observe(InspectionPinSerial, Inputs);
 
-	// 🔑 **Normalizzazione**: i campi del fuoco valgono i default quando l'area non tiene la mappa. Un soggetto la cui area e'
-	// gia' uscita non deve far ricalcolare il piano quando si muove.
-	if (Inputs.ActiveSource() != ERTPreviewSource::Focus)
+	// L'hover su una skill (`#3750`, fetta D): costa solo se il cursore e' su uno slot. Non passa dal latch del fuoco: non e' un
+	// gesto di pianificazione, e quando finisce torna la sorgente di prima.
+	if (SkillHoverIndex != INDEX_NONE)
+	{
+		if (SkillHoverUnit.Get() != Unit)
+		{
+			// La selezione e' cambiata con il cursore fermo sulla barra (`N`): Slate non manda ne' l'uscita ne' un nuovo ingresso, e
+			// l'hover di una skill dell'unita' di prima riapparirebbe alla prossima selezione di quella unita'. Si scarta qui.
+			SkillHoverUnit = nullptr;
+			SkillHoverIndex = INDEX_NONE;
+		}
+		else
+		{
+			GatherSkillHoverInputs(Unit, Inputs);
+		}
+	}
+
+	// 🔑 **Normalizzazione**: i campi di una sorgente valgono i default quando quella sorgente non tiene la mappa. Un soggetto la
+	// cui area e' gia' uscita non deve far ricalcolare il piano quando si muove, e la portata di una skill non piu' sotto il
+	// cursore nemmeno.
+	const ERTPreviewSource Source = Inputs.ActiveSource();
+	if (Source != ERTPreviewSource::Focus)
 	{
 		Inputs.FocusSubject = nullptr;
 		Inputs.FocusMove = FRTFocusMoveSubject();
 		Inputs.FocusKnowledgeStamp = 0;
 		Inputs.bFocusOnMap = false;
+	}
+	if (Source != ERTPreviewSource::SkillHover)
+	{
+		Inputs.HoverSkillUnit = nullptr;
+		Inputs.SkillRange = FRTRangeSubject();
+		Inputs.SkillKnowledgeStamp = 0;
 	}
 	return Inputs;
 }

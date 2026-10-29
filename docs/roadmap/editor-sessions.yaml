@@ -757,7 +757,15 @@ sessions:
       # percorso regga *sul pacchetto*, dove le cause di rottura sono altre (asset non cucinati,
       # percorsi locali). Una voce in due sedute e' una voce che nessuna delle due esegue.
       - PIE-V01-FRONTEND-REPLAY
-    issues: [959, 1088, 1069, 79, 1296, 2386, 2744, 2326, 2188]
+      # Convocata il 2026-10-29 da #2916, con la forma delle sorelle qui sopra: condivide l'allestimento —
+      # la modalita' non presidiata, `unblocked_by: E47.1` — e i comandi di playback sono comandi dello
+      # SPETTATORE, cioe' servono dove nessuna pianificazione si frappone. ⚠️ **Non si spunta insieme alle
+      # altre, e va per ULTIMA**: chiede tre console variable (`rt.Match.Autobattle`,
+      # `rt.Debug.PlaybackControls`, `rt.Debug.PlaybackStartPaused`) impostate PRIMA del Play, e con
+      # `PlaybackStartPaused 1` ogni playback aspetta `K`: le altre voci, che vogliono una partita «senza un
+      # solo input», non si chiuderebbero. A fine seduta le riporta al default.
+      - PIE-V01-PLAYBACK-CONTROLS
+    issues: [959, 1088, 1069, 79, 1296, 2386, 2744, 2326, 2188, 2916]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
       ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,

@@ -353,6 +353,134 @@ bool FRTActionSlotForwardsItsOwnIndexTest::RunTest(const FString&)
 }
 
 /**
+ * **`#3750`, fetta D — IL PRODUTTORE DELL'HOVER: lo slot dice quale skill di quale unita', con le guardie del click.**
+ *
+ * Ingresso e uscita del cursore (`NativeOnMouseEnter` / `NativeOnMouseLeave`, che chiamano `HoverBegin` / `HoverEnd`): registrano e
+ * tolgono l'hover sul controller. Uno slot mai assegnato, o costruito per un'altra unita', non segnala; e l'uscita dallo slot A che
+ * arriva dopo l'ingresso nello slot B non cancella B. Cio' che la mappa ne fa e' dell'arbitro, e ha i suoi test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSlotHoverProducerTest,
+	"RefactorTactics.SkillHover.TheSlotReportsTheHoverWithTheGuardsOfTheClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSlotHoverProducerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTUnit* Unit = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTUnit* Other = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!Unit || !Other || !PC || !TestTrue(TEXT("premessa: un kit con almeno due posizioni"), Unit->NumAbilities() > 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(Unit);
+
+	const auto MakeSlot = [&](int32 Index)
+	{
+		FRTAbilityCooldownView View;
+		View.AbilityIndex = Index;
+		URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>(World);
+		Slot->SetArmingControllerForTest(PC);
+		Slot->SetAction(View, /*bInArmed=*/ false);
+		return Slot;
+	};
+	URTActionSlotWidget* SlotA = MakeSlot(0);
+	URTActionSlotWidget* SlotB = MakeSlot(1);
+
+	// A. ENTRARE registra l'hover: l'unita' per cui lo slot e' stato costruito e la PROPRIA posizione di kit.
+	TestEqual(TEXT("A: nessun hover prima di entrare"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+	SlotA->NativeOnMouseEnter(FGeometry(), FPointerEvent());
+	TestEqual(TEXT("A: entrare nello slot registra la sua posizione di kit"), PC->GetSkillHoverIndex(), 0);
+	TestTrue(TEXT("A: e l'unita' comandata"), PC->GetSkillHoverUnit() == Unit);
+
+	// B. L'USCITA di A DOPO l'ingresso in B non cancella B (Slate non garantisce l'ordine fra i due eventi).
+	SlotB->NativeOnMouseEnter(FGeometry(), FPointerEvent());
+	TestEqual(TEXT("B: entrare in un altro slot sostituisce l'hover"), PC->GetSkillHoverIndex(), 1);
+	SlotA->NativeOnMouseLeave(FPointerEvent());
+	TestEqual(TEXT("B: l'uscita dallo slot di prima NON cancella quello nuovo"), PC->GetSkillHoverIndex(), 1);
+
+	// C. USCIRE dal proprio slot spegne.
+	SlotB->NativeOnMouseLeave(FPointerEvent());
+	TestEqual(TEXT("C: uscire dal proprio slot spegne l'hover"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+
+	// D. UNO SLOT MAI ASSEGNATO non segnala (e la sua uscita non spegne quello di un altro).
+	URTActionSlotWidget* NeverAssigned = NewObject<URTActionSlotWidget>(World);
+	NeverAssigned->SetArmingControllerForTest(PC);
+	SlotA->HoverBegin();
+	NeverAssigned->HoverBegin();
+	TestEqual(TEXT("D: uno slot mai assegnato non cambia l'hover"), PC->GetSkillHoverIndex(), 0);
+	NeverAssigned->HoverEnd();
+	TestEqual(TEXT("D: ne' la sua uscita lo spegne"), PC->GetSkillHoverIndex(), 0);
+	SlotA->HoverEnd();
+
+	// E. UNO SLOT COSTRUITO PER UN'ALTRA UNITA': la posizione di kit di un'altra unita' e' un'altra azione.
+	PC->SelectActorForTest(Other);
+	SlotA->HoverBegin();
+	TestEqual(TEXT("E: uno slot costruito per l'unita' di prima non segnala"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+	// ...e riassegnato dal dock torna a valere.
+	FRTAbilityCooldownView View;
+	View.AbilityIndex = 0;
+	SlotA->SetAction(View, false);
+	SlotA->HoverBegin();
+	TestEqual(TEXT("E: riassegnato dal dock lo slot torna a segnalare"), PC->GetSkillHoverIndex(), 0);
+	TestTrue(TEXT("E: per l'unita' selezionata ora"), PC->GetSkillHoverUnit() == Other);
+	SlotA->HoverEnd();
+	TestEqual(TEXT("E: e uscendo spegne"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+
+	// F. NESSUN CONTROLLER: ne' l'ingresso ne' l'uscita toccano l'hover di un altro. Lo slot ha un'azione (l'indice non e' la
+	// ragione per cui non segnala) e il controller non lo raggiunge.
+	PC->SelectActorForTest(Unit);
+	SlotA->SetAction(View, false);
+	SlotA->HoverBegin();
+	URTActionSlotWidget* Orphan = NewObject<URTActionSlotWidget>(World);
+	Orphan->SetAction(View, false);
+	Orphan->HoverBegin();
+	Orphan->HoverEnd();
+	TestEqual(TEXT("F: senza controller ne' ingresso ne' uscita toccano l'hover di un altro"), PC->GetSkillHoverIndex(), 0);
+	SlotA->HoverEnd();
+
+	// G. L'USCITA SPEGNE CIO' CHE L'INGRESSO HA REGISTRATO, non lo stato di adesso. Il dock richiama `SetAction` a ogni frame,
+	// anche a cursore fermo: uno slot riassegnato fra l'ingresso e l'uscita non deve lasciare appeso l'hover vero...
+	FRTAbilityCooldownView View0;
+	View0.AbilityIndex = 0;
+	FRTAbilityCooldownView View1;
+	View1.AbilityIndex = 1;
+	SlotA->SetAction(View0, false);
+	SlotA->NativeOnMouseEnter(FGeometry(), FPointerEvent());
+	TestEqual(TEXT("G: premessa, l'ingresso registra la posizione 0"), PC->GetSkillHoverIndex(), 0);
+	SlotA->SetAction(View1, false);
+	SlotA->NativeOnMouseLeave(FPointerEvent());
+	TestEqual(TEXT("G: lo slot riassegnato a cursore fermo spegne comunque l'hover che aveva registrato"),
+		PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+
+	// ...ne' spegnere quello di un altro slot, dove la posizione di adesso coincide con la loro.
+	SlotA->SetAction(View0, false);
+	SlotA->NativeOnMouseEnter(FGeometry(), FPointerEvent());
+	SlotB->SetAction(View1, false);
+	SlotB->NativeOnMouseEnter(FGeometry(), FPointerEvent());
+	SlotA->SetAction(View1, false); // la posizione di A di adesso (1) e' quella di B, la sua registrata e' 0
+	SlotA->NativeOnMouseLeave(FPointerEvent());
+	TestEqual(TEXT("G: l'uscita di uno slot riassegnato sulla posizione di un altro non spegne l'hover dell'altro"),
+		PC->GetSkillHoverIndex(), 1);
+	SlotB->NativeOnMouseLeave(FPointerEvent());
+	TestEqual(TEXT("G: l'altro slot spegne il suo"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+
+	// H. LA SELEZIONE CAMBIA a cursore fermo: lo slot, riassegnato dal dock all'unita' nuova, spegne l'hover dell'unita' di prima.
+	SlotA->SetAction(View0, false);
+	SlotA->NativeOnMouseEnter(FGeometry(), FPointerEvent());
+	TestTrue(TEXT("H: premessa, l'hover e' dell'unita' selezionata"), PC->GetSkillHoverUnit() == Unit);
+	PC->SelectActorForTest(Other);
+	SlotA->SetAction(View0, false);
+	SlotA->NativeOnMouseLeave(FPointerEvent());
+	TestEqual(TEXT("H: uno slot passato a un'altra unita' spegne l'hover dell'unita' per cui lo aveva registrato"),
+		PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * `#2989` — UNO SLOT COSTRUITO PER UN'ALTRA UNITA' NON ARMA, E NON DISARMA.
  *
  * 🔴 **La selezione puo' cambiare fra `SetAction` e il click.** Lo slot porta una POSIZIONE di kit, e la

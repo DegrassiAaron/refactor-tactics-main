@@ -20,7 +20,11 @@ bool FRTPlanningOverlayInputs::SamePlanLevel(const FRTPlanningOverlayInputs& Oth
 		&& FocusSubject == Other.FocusSubject
 		&& FocusMove == Other.FocusMove
 		&& FocusKnowledgeStamp == Other.FocusKnowledgeStamp
-		&& bFocusOnMap == Other.bFocusOnMap;
+		&& bFocusOnMap == Other.bFocusOnMap
+		// Anche l'hover su una skill cambia COSA si calcola (la portata di una skill), non dove sta il cursore sulla mappa.
+		&& HoverSkillUnit == Other.HoverSkillUnit
+		&& SkillRange == Other.SkillRange
+		&& SkillKnowledgeStamp == Other.SkillKnowledgeStamp;
 }
 
 bool FRTPlanningOverlayInputs::operator==(const FRTPlanningOverlayInputs& Other) const
@@ -108,8 +112,20 @@ bool FRTPlanningOverlayInputs::ShowsFocus() const
 	return FocusSubject.IsValid() && bFocusOnMap && !bMatchEnded && ContextAllowsFocus(Context);
 }
 
+bool FRTPlanningOverlayInputs::ShowsSkillHover() const
+{
+	// `HoverSkillUnit == Unit`: la barra appartiene a chi si comanda (spec §3 regola 7). Una skill di un'altra unita' non
+	// tiene la mappa da qui; la scheda di chi e' a fuoco avra' la propria sorgente quando il pannello esistera' (F3).
+	return HoverSkillUnit.IsValid() && HoverSkillUnit == Unit && SkillRange.RangeCells > 0 && ShowsAreas();
+}
+
 ERTPreviewSource FRTPlanningOverlayInputs::ActiveSource() const
 {
+	// L'hover e' temporaneo («quando finisce torna la sorgente di prima», §6.3): sta sopra il fuoco, che sta sopra il piano.
+	if (ShowsSkillHover())
+	{
+		return ERTPreviewSource::SkillHover;
+	}
 	if (ShowsFocus())
 	{
 		return ERTPreviewSource::Focus;
