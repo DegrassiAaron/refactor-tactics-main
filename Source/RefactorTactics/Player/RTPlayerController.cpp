@@ -3543,9 +3543,25 @@ FString ARTPlayerController::DisarmPlannedAction()
 	// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
 	const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
 		URTPlanValidationLibrary::MakePlanFor(Unit));
+	// 🔴 **Una REAZIONE disarmata esce dal piano, con la sua condizione** (`#3896`, [D-555]). `PlannedReactionAbility`
+	// e' un campo proprio — la reazione ha il proprio slot — e nessuna delle righe sotto lo azzerava: lo slot passava a
+	// neutro mentre il piano e la timeline continuavano a portarla, e il resolver legge il piano.
+	//
+	// ⛔ **Solo se E' LEI lo slot che si disarma**, e si legge PRIMA che `SelectAbility` lo spenga. Una reazione armata
+	// prima di un'azione principale resta nel piano quando si disarma la principale: il giocatore le ha chieste
+	// separatamente, e un azzeramento incondizionato toglierebbe una reazione che nessuno ha disarmato.
+	const bool bEraLaReazione = Unit->SelectedAbilityIndex != INDEX_NONE
+		&& Unit->SelectedAbilityIndex == Unit->PlannedReactionAbility;
 	Unit->SelectAbility(INDEX_NONE);
 	Unit->PlannedAbilityIndex = INDEX_NONE;
 	Unit->ClearPlannedAttack();
+	if (bEraLaReazione)
+	{
+		// Prima del rinfresco di sotto, come l'armo (`#3891`): la timeline legge `PlannedReactionAbility`.
+		UE_LOG(LogRT, Display, TEXT("[RT] '%s': la reazione dello slot %d esce dal piano"),
+			*Unit->GetName(), Unit->PlannedReactionAbility);
+		Unit->ClearReactionPlan();
+	}
 	// Anche il LATO dichiarato (`#3501`, dalla revisione): `ClearPlannedAttack` non lo tocca, e il resolver e
 	// l'harness lo spengono insieme a `PlannedAbilityIndex`. Senza, dopo un'azione su bordo disarmata il lato
 	// resterebbe scritto nel piano.
@@ -5097,6 +5113,9 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 			}
 			else
 			{
+				// ⚠️ **Una REAZIONE armata cade QUI, e resta nel piano**: `bAzioneNelPiano` guarda `PlannedAbilityIndex`,
+				// che una reazione non scrive. Il secondo click sullo slot invece la toglie (`#3896`, [D-555]). Non e' una
+				// dimenticanza da "correggere" qui: e' una domanda APERTA all'autore (`#3927`), e D-461 non nomina le reazioni.
 				Unit->SelectAbility(INDEX_NONE);
 				RefreshPlanningOverlay(Unit); // `#3507`: torna il ventaglio, si spegne la portata
 			}

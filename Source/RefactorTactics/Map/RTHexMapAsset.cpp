@@ -161,9 +161,10 @@ FRTHexCellData URTHexMapAsset::ApplyBrush(const FRTHexCellData* Existing, const 
 
 bool URTHexMapAsset::ClearAll()
 {
-	// Anche i muri interni e i binding contano: senza celle sono tutti orfani, e uno stato fatto di soli orfani e'
-	// uno stato da svuotare (#3918).
-	if (Cells.Num() == 0 && Transitions.Num() == 0 && InteriorWalls.Num() == 0 && InteractionBindings.Num() == 0)
+	// Anche i muri interni, i binding, le regioni No-Walk e i volumi a scatola contano: senza celle sono tutti
+	// orfani (ancorati a celle), e uno stato fatto di soli orfani e' uno stato da svuotare (#3918, #3929).
+	if (Cells.Num() == 0 && Transitions.Num() == 0 && InteriorWalls.Num() == 0 && InteractionBindings.Num() == 0
+		&& NoWalkAreas.Num() == 0 && BoxVolumes.Num() == 0)
 	{
 		return false; // nessuna modifica: la revisione non deve muoversi
 	}
@@ -172,6 +173,8 @@ bool URTHexMapAsset::ClearAll()
 	Transitions.Reset();
 	InteriorWalls.Reset();
 	InteractionBindings.Reset();
+	NoWalkAreas.Reset();
+	BoxVolumes.Reset();
 	bLookupDirty = true; // gli indici non sopravvivono a un reset
 	++Revision;          // UNA volta per l'intero svuotamento, come `UpdateCells`
 	// Uno svuotamento non e' enumerabile cella per cella: dopo, di celle non ce n'e' nessuna, e ridipingere
