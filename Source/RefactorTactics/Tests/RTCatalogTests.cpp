@@ -955,6 +955,11 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// Esce di qui solo alle condizioni che [D-264] nomina — ruolo tattico distinto piu' contratto esplicito
 		// di UI e di produttore — non come ripristino di cio' che e' stato tolto.
 		{ TEXT("Action.Cleanse"),         TEXT("Fuori dalla v0.1 per DECISIONE D-264: l'attiva esce, il reattivo resta") },
+		// 🔴 **Migrata il 2026-10-29** ([D-560], `#645`): era fra quelle che «aspettano il loro eroe», e la categoria era
+		// sbagliata. `Leap` e' il primo membro di `Transfer` ([D-118]) e la v0.1 resta a quattro eroi che non saltano
+		// ([D-119]): non e' un portatore che manca, e' una decisione. Se un eroe lo dichiarasse, il gate fallisce (e il messaggio cita questa ragione): il difetto e' la
+		// raggiungibilita'. Lo esercita `Actions.Leap.IgnoresIntermediateCells`; lo scenario di conseguenza e' `BLOCKED`.
+		{ TEXT("Action.Leap"),            TEXT("Fuori dalla v0.1 per DECISIONE D-560: resta nel motore, nessun eroe lo dichiara") },
 		// Concesse da un pezzo che ESISTE ma che nessun eroe porta di default: il canale funziona, manca
 		// l'assegnazione. Escono da qui il giorno in cui un eroe riceve quel pezzo nel suo loadout.
 		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
@@ -975,7 +980,6 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
 		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.HeavyAttack"),     TEXT("Pezzo non assegnato: Gadget.BreachCharge esiste, default di nessuno") },
-		{ TEXT("Action.Leap"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.LineAttack"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.MarkTarget"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.PrecisionAttack"), TEXT("Aspetta il suo eroe") },
