@@ -1724,11 +1724,14 @@ sessions:
     # sessioni parallele hanno appeso una seduta a questa senza vedersi: l'elenco e' l'unione, misurata
     # sull'albero unito. **Quattro sedute** condividono ora `L_DevSandbox` illuminato, ed e' un argomento
     # per aprirle nella stessa apertura invece che in quattro.
-    shares_setup_with: [U22, U25, U26]
+    # ➕ `U94` dal 2026-10-29 (#3939): stesso allestimento, per le voci del mode Hex Map che nessuna delle
+    # altre tre sapeva ospitare. `U39` cita queste quattro e nessuna di loro cita `U39`: asimmetria
+    # preesistente, non toccata qui.
+    shares_setup_with: [U22, U25, U26, U94]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: [U22, U25, U26, U35, U39, U44]
+    unblocks: [U22, U25, U26, U35, U39, U44, U94]
     notes: >-
       ✅ **CHIUSA il 2026-08-18 — le due voci hanno esito reale e il livello illuminato e'
       committato.** `PIE-MAPED-LIGHT` e `PIE-MAPED-FRAME` sono ✅ nel registro, entrambe
@@ -1808,7 +1811,7 @@ sessions:
     produces: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U25, U26]
+    shares_setup_with: [U21, U25, U26, U94]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
                PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE, PIE-GEO-BORDO]
     issues: [712, 1895, 2188]
@@ -1973,7 +1976,7 @@ sessions:
     # condividono `L_DevSandbox` illuminato» mentre la relazione era scritta su **quattro coppie su sei** —
     # il validator controlla la sola SIMMETRIA, quindi taceva. `U25` e `U26` si guardano sulla stessa scena
     # illuminata: chi ne apre una trova scritto che c'e' l'altra.
-    shares_setup_with: [U21, U22, U26]
+    shares_setup_with: [U21, U22, U26, U94]
     # ➕ **Le sei voci esistono dal 2026-08-25** (#1096): questo campo e' stato `[]` dal 2026-08-17, e la
     # ragione non era una dimenticanza — il registro PIE era nel `writable` di un'altra track e `D-139`
     # vietava di scriverci da fuori. `D-178` ha rimosso quel sistema, e restava solo il lavoro.
@@ -2187,14 +2190,23 @@ sessions:
     produces: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U22, U25]
-    verifies: [PIE-HEX-MOVEMENT-PROBE, PIE-HEX-MOVEMENT-PROBE-SURFACE, PIE-HEX-MOVEMENT-PROBE-FLUIDITA]
+    shares_setup_with: [U21, U22, U25, U94]
+    verifies:
+      - PIE-HEX-MOVEMENT-PROBE
+      - PIE-HEX-MOVEMENT-PROBE-SURFACE
+      - PIE-HEX-MOVEMENT-PROBE-FLUIDITA
+      # ➕ Le due voci della griglia di lavoro (#622), nate il 2026-09-23 con l'implementazione. Il
+      # `done_when` qui sotto le attendeva — «quelle della griglia di lavoro (#622) no» — e la
+      # feature che le ha create (`402802b66`) non le ha aggiunte a questo elenco. Misurato il 2026-10-29
+      # con l'invariante di #2188: erano fra i residui (#3939). `PIE-MAPED-GRID-RESIDUI` chiede il livello
+      # SALVATO prima di entrare nel mode: e' la sua precondizione, non una scelta di questa seduta.
+      - PIE-MAPED-GRID
+      - PIE-MAPED-GRID-RESIDUI
     issues: [622, 711]
     done_when: >-
-      le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale. ⚠️ **Il 2026-08-31 ne esiste
-      meta'**: le tre della sonda sono entrate con l'implementazione di `#711`, quelle della griglia di
-      lavoro (`#622`) no. Chi esegue questa seduta oggi puo' chiudere il verdetto sulla sonda e **non** la
-      seduta
+      ogni voce elencata in `verifies` ha un esito reale. ⏱️ **Diceva «le voci `PIE-*` che `#622` e
+      `#711` creeranno» fino al 2026-10-29**, quando erano gia' nel registro: la condizione puntava a voci
+      future e nessun gate la rimisurava. Ora punta all'elenco (`AGENTS.md` §14)
     unblocks: []
     notes: >-
       ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto
@@ -3143,6 +3155,12 @@ sessions:
       - PIE-ACC-GUARDBRACE
       - PIE-ACC-ENVIRONMENT
       - PIE-ACC-MAP
+      # ➕ `PIE-VIS-ARRIVE` dal 2026-10-29 (#3939): nata il 2026-10-07 con lo scenario
+      # `Visual.Movement.ShorterRouteStopsOnArrival` (#3519) e mai convocata — era fra i residui
+      # dell'invariante di #2188. Come le altre di questa seduta, lo scenario esiste ed e' versionato: non
+      # c'e' niente da allestire. ⚠️ Il comportamento l'ha gia' giudicato l'autore in una partita normale
+      # (2026-10-07): qui si guarda se lo scenario rende la prova ripetibile, non se il difetto c'e'.
+      - PIE-VIS-ARRIVE
     issues: [231, 233, 1919, 2009]
     notes: |
       🟡 **Parzialmente eseguita il 2026-09-22** su `3f0235bb`, banco a cilindri su
@@ -3168,7 +3186,9 @@ sessions:
       (il feed dichiara il totale di fase come danno del singolo colpo). Epic delle prime due e
       di PIE-VIS-COMBO: #2453. Evidenza e referti in PR #3262.
       ⚠️ L'esito pieno di ogni voce sta in `test-manuali-pie.md`, che ne resta l'unico owner.
-    done_when: le ventuno voci di `verifies` hanno esito reale nel registro
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro. ⏱️ Diceva «le ventuno voci» fino al
+      2026-10-29: il numerale non seguiva l'elenco (`AGENTS.md` §14)
     unblocks: []
     steps: |
       **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna di queste diciassette voci ha
@@ -6293,6 +6313,144 @@ sessions:
       `U91` va bene, se porta anche #1838. Per il caso «spento» si toglie `bEdgePanEnabled` dal Details del pawn
       della camera durante la PIE. ⚠️ Lo smoke packaged che #1838 chiede non e' questa seduta.
 
+  - id: U94
+    title: Il mode Hex Map sul sandbox — il pannello, gli archi, la selezione, la scala e il pennello Erase
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti delle voci elencate in `verifies`; nessun asset, e il livello e la mappa di prova restano
+      come sono
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U22, U25, U26]
+    verifies:
+      - PIE-MAPED-DICHIARA
+      - PIE-MAPED-TRANSIZIONI
+      - PIE-MAPED-SEL-ARCO
+      - PIE-MAPED-SEL-CONDIVISA
+      - PIE-MAPED-SCALA-SALTO
+      # DISTRUTTIVA: cancella celle. Va per ULTIMA, e la mappa non si salva (vedi `notes`).
+      - PIE-HEX-PAINT-ERASE
+    issues: [3939, 1186, 1768, 1864, 1869, 3322]
+    done_when: >-
+      ogni voce elencata in `verifies` ha un esito reale nel registro, e `git status` non mostra modifiche
+      sotto `Content/RT/Maps/Dev/L_DevSandbox/`
+    unblocks: []
+    notes: |
+      ➕ **Convocata il 2026-10-29 da #3939**, che rilancia l'invariante di #2188 (aperte − convocate −
+      dichiarate) e trova queste voci fuori da ogni `verifies`. Erano nate aperte con la loro feature
+      (#1186, #1768, #1864, #1869, #3322) e nessuna era stata collocata.
+
+      🔑 **Perche' una seduta nuova e non una delle vicine.** Condividono l'allestimento di `U22`, `U25` e
+      `U26` — il mode Hex Map su `L_DevSandbox` illuminato da `U21` — ma non il loro argomento: `U22` e' il
+      tool Geometry, `U25` il kit graybox, `U26` la griglia di lavoro e la sonda. Qui si guarda il resto del
+      mode: il pannello, gli archi, la selezione, la scala e il pennello.
+
+      ⚠️ **Una mappa sola serve tutte le voci, e va costruita prima**: celle su **tre** layer nella stessa
+      colonna (per `PIE-MAPED-SCALA-SALTO`: con due il gesto da rifiutare non e' nemmeno esprimibile),
+      **almeno tre** archi, due di `Kind` diverso e uno con `State = Destroyed` (per `PIE-MAPED-TRANSIZIONI`:
+      il tool Arch posa sempre `Active`, quindi lo stato si imposta dal dato nei Details dell'asset), e
+      almeno due archi fra layer diversi per `PIE-MAPED-SEL-ARCO`.
+
+      ⛔ **`PIE-HEX-PAINT-ERASE` va per ultima e la mappa NON si salva.** La voce cancella celle, e un solo
+      `Ctrl+Z` e' cio' che si giudica: eseguirla prima lascerebbe le altre su una mappa gia' erosa. Chiede
+      anche una regione con un muro interno, un arco verso una cella fuori dalla regione, una porta e un
+      binding: muro e arco si posano coi tool, **porta e binding no** — nessun tool del pannello posa porte,
+      e il 2026-10-29 sono stati scritti nei dati dell'asset in memoria. Si chiude l'Editor con
+      «Don't Save». La seduta pilotata di quel giorno e' in `docs/technical/evidence/3931/`.
+
+      ⚠️ **Una seduta per volta su `Content/RT/Maps/Dev/L_DevSandbox/`**: `U21`, `U22`, `U25`, `U26`,
+      `U39` e questa dichiarano lo stesso livello, e due aperte insieme sullo stesso `.umap` producono due
+      versioni che non si fondono.
+
+      Lo stato delle voci vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6): qui solo
+      l'allestimento.
+
+  - id: U95
+    title: Il cursore sull'HUD — lo sguardo, le aree di chi e' a fuoco, e la portata di una skill sullo slot
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti d'autore delle voci elencate in `verifies`, a schermo o sulle tavole; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies:
+      - PIE-HUD-SGUARDO
+      - PIE-HUD-FUOCO-AREE
+      - PIE-HUD-SKILL-PORTATA
+    issues: [3939, 3747, 3750]
+    done_when: >-
+      ogni voce elencata in `verifies` ha un verdetto nel registro, dato dall'autore a schermo o sulle tavole
+    unblocks: []
+    notes: |
+      ➕ **Convocata il 2026-10-29 da #3939.** Le tre erano nate aperte con la loro feature (#3747, #3750) e
+      fuori da ogni `verifies`.
+
+      🔑 **Un gesto solo, tre letture**: il cursore fermo su qualcosa. `PIE-HUD-SGUARDO` guarda cosa dice il
+      riquadro su un'unita' o su una cella, `PIE-HUD-FUOCO-AREE` cosa mostra la mappa dopo un `LMB` su un
+      nemico in vista, `PIE-HUD-SKILL-PORTATA` cosa mostra il cursore su uno slot. Si giudicano nella stessa
+      partita perche' si pestano: con un nemico a fuoco, la portata dello slot prende il posto delle sue aree,
+      e all'uscita tornano senza un nuovo click.
+
+      **Allestimento**: partita hex in pianificazione, una propria unita' selezionata con una skill che chiede
+      un bersaglio con linea richiesta, un muro in vista, una zona fuori vista fra l'unita' e le celle in
+      portata, e un nemico in vista. Il banco con cui l'assistente ha raccolto le tavole del 2026-10-29
+      (finestra `-game`, non la PIE) e' riportato in
+      `docs/technical/evidence/3750/seduta-pilotata-2026-10-29.md`.
+
+      ⚠️ **Cosa quella seduta NON ha visto, e quindi resta da vedere**: un nemico **fuori vista** in PIE (e'
+      meta' di `PIE-HUD-SGUARDO`: il riquadro di un nemico non osservato deve dire quanto una cella vuota),
+      un nemico `Slow` e `Unbalanced` (lo scenario non applica stati), una skill su se stessi, una reazione o
+      una senza portata, e uno slot distrutto senza evento di uscita. Le tavole non sono un verdetto: le tre
+      voci restano aperte finche' l'autore non le giudica.
+
+      ⚠️ **`PIE-HUD-SCHEDA` non e' qui, ed e' di proposito**: il pannello non esiste ancora, e la voce e'
+      dichiarata in `not_schedulable`. Quando #3748 lo monta, la voce entra in questa seduta — stessa
+      partita, stesso nemico in vista — e la sua riga di `not_schedulable` sparisce invece di cambiare.
+
+      Lo stato delle voci vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6).
+
+  - id: U96
+    title: I pannelli di bordo seguono la mappa in partita — il muro abbattuto, la copertura eretta, la porta aperta
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-VELO-PANNELLI`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-VELO-PANNELLI]
+    issues: [3939, 3687]
+    done_when: >-
+      la voce `PIE-VELO-PANNELLI` ha un esito reale nel registro, oppure la sua cella dice quale parte
+      dell'allestimento non si e' potuta fare
+    unblocks: []
+    notes: |
+      ➕ **Convocata il 2026-10-29 da #3939.** La voce e' nata aperta con #3687 (2026-10-12) e nessuna seduta
+      la raccoglieva. #3687 e' chiusa e i due test headless
+      `HexMapActor.DestroyedCoverLeavesTheScreenAtTurnEnd` e
+      `HexMapActor.CreatedCoverAndDoorStateReachTheScreenAtTurnEnd` presidiano le istanze: cio' che resta e'
+      lo schermo.
+
+      **Allestimento**: partita hex su `L_DevSandbox` in vista tattica, con i tre cambi della mappa che la
+      voce chiede. ⚠️ **Nessuno scenario spedito li produce tutti**, misurato il 2026-10-29. Per la copertura
+      e per la porta esistono scenari che usano `Action.CreateCover` (`Spec.Cover.TemporaryCoverExpires`) e
+      `Action.Interact` (`Spec.Map.InteractOpensDoor`, `Spec.Map.InteractClosesOpenDoor`), che si caricano
+      dalla console con `rt.Test.Scenario <Id>`. Per il **muro abbattuto** no:
+      `grep -rliE "breach|StructureDamage" Scenarios` non trova nessun file. Serve uno scenario del Lab con
+      un'unita' che porti un equipaggiamento che danneggia le strutture — il catalogo ha
+      `Gadget.BreachCharge`, 35 danni a una struttura — dichiarato nel `loadout` dell'unita'.
+
+      Il criterio del muro visto solo dal davanti, mai da dietro, chiede uno stato di conoscenza parziale: se
+      l'allestimento non lo permette, quel criterio si dichiara `NOT RUN` con la ragione e non si forza. La
+      voce si puo' giudicare a pezzi, e la cella dice quali criteri si sono visti.
+
+      Lo stato della voce vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6).
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
@@ -6442,6 +6600,39 @@ not_schedulable:
       secondo client.
     oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
     revisit_when: "`M10.1` atterrato"
+
+  # ── Aspettano un pannello o un dato che oggi non esiste ───────────────────────────────────────
+  #
+  # Aggiunte il 2026-10-29 da #3939, che rilancia l'invariante di #2188 e le trova fra i residui. Due voci,
+  # due cause: una aspetta il PANNELLO che la feature non ha ancora montato, l'altra un DATO che nessun
+  # eroe ne' scenario spedito porta.
+
+  - check: PIE-HUD-SCHEDA
+    reason: >-
+      La scheda dell'ispezione e' un pannello (`URTInspectCardWidget`, zona `MiddleRight`) e il pannello non
+      esiste: ne' la classe ne' un asset. #3840 ha portato la logica — ispezione in playback, pin e
+      chiusura, kit dal catalogo, equipaggiamento — e #3748 resta aperta proprio per il pannello, che
+      richiede authoring nel clone principale. La voce chiede cosa compare al click su un nemico osservato:
+      finche' non c'e' dove comparire, non c'e' niente da guardare.
+    oracle: >-
+      gh issue view 3748 --json state   ·  e la misura: git grep -c URTInspectCardWidget -- Source →
+      nessuna corrispondenza, e git ls-files Content | grep -ci inspect → 0 (2026-10-29)
+    revisit_when: "#3748 monta il pannello: allora la voce entra in `U95` e questa riga sparisce"
+
+  - check: PIE-V01-ARCAIM
+    reason: >-
+      Chiede un'unita' che porti un'azione che scalfisce l'arco (`Gadget.BreachCharge` o `Action.ModifyArc`)
+      e un bersaglio a distanza 1 oltre il ponte. Nessun dato spedito lo da': nessun eroe porta quelle
+      azioni, e la carica da breccia ha portata 0. L'autore ha scelto di non dare il dato prima del freeze:
+      D-541 dichiara la raggiungibilita' in partita della mira lungo un arco un limite noto della v0.1. Il
+      meccanismo e' provato headless (`Combat.Aim.ABridgeCanBeAimedAtFromThePlanAndOnlyTheBridgeIsHit` e
+      `Combat.Aim.ModifyArcCanBeAimedAcrossLayersAndThrowsTheArc`); a mancare e' un'unita' in partita che lo
+      raggiunga.
+    oracle: >-
+      grep -n "^| [*][*]D-541[*][*]" docs/decisions/RT_PDR_00_Decision_Log.md   ·  e la misura:
+      grep -rl BreachCharge Scenarios → nessun file, e `ModifyArc` compare solo nelle note di
+      Scenarios/Spec/Map/BridgeBreaksThePath.json (2026-10-29)
+    revisit_when: "D-541 e' superata: un eroe o uno scenario spedito porta l'azione con portata >= 1"
 
   # ⏱️ **Qui stava `PIE-V01-SHIELD-WRAITH`, dichiarata il 2026-09-23 e rimossa lo stesso giorno.**
   # Il suo `revisit_when` diceva *«#2381 la convoca — e allora questa riga sparisce invece di
