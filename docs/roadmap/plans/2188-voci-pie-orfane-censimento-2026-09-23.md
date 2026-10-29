@@ -201,7 +201,7 @@ for l in Path('docs/technical/test-manuali-pie.md').read_text(encoding='utf-8').
     m = RIGA.match(l)
     if m:
         cella = [x.strip() for x in l.split('|')][-2]
-        if next((x for x in cella if x in '✅\U0001f7e1❌⏳'), '?') == '⏳':
+        if next((x for x in cella if x in '✅\U0001f7e1❌⏳'), '?') in ('⏳', '\U0001f7e1'):
             aperte.add(m.group(1))
 d = yaml.safe_load(Path('docs/roadmap/editor-sessions.yaml').read_text(encoding='utf-8'))
 conv = {c for s in d['sessions'] for c in (s.get('verifies') or [])}
@@ -213,6 +213,14 @@ PY
 ```
 
 Su `27349d4f` con questa passata applicata: `aperte=121 convocate=103 dichiarate=18`, **`RESIDUO=0`**.
+
+⚠️ **Dal 2026-10-29 (#3945) `aperte` sono le ⏳ e le 🟡.** Lo script contava le sole ⏳, e una 🟡 che
+nessuna seduta convocava passava inosservata: la cella di `PIE-HEX-MODE-S` si dice giudicabile «senza
+attendere nulla» e nessuna seduta la nominava. La riga qui sopra, con i suoi numeri, è di allora e conta
+le sole ⏳. Insieme guadagnato: le 🟡; perso: nessuno, perché quello di prima è contenuto nel nuovo. Una
+🟡 ha le stesse tre uscite di una ⏳ — seduta esistente, seduta nuova, `not_schedulable` — ma porta già
+un marcatore che non è un esito: il `done_when` della seduta che la convoca deve chiedere l'esito della
+parte che la cella dichiara non giudicata, come fanno `U94` e `U97`.
 
 🔑 **Il residuo è l'unico numero che vale la pena leggere**, e non invecchia: quando entra una voce nuova
 — e ne entra una quasi ogni giorno — sale a `1` e nomina la voce. Un totale di orfane, invece, sarebbe

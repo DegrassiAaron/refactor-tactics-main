@@ -8,9 +8,10 @@
 
 ## Perché questa seduta viene prima delle altre
 
-**Diciannove voci aperte in una sola convocazione**, e nessun prerequisito: `unblocked_by: []`, con le
-quattro issue della seduta (#231, #233, #1919, #2009) **tutte chiuse**. Due sedute — U42 e U43 — coprono
-**29 delle 68** voci aperte schedulate; le altre ventuno si dividono il resto, molte con una voce sola.
+**Tutte le voci di `verifies` in una sola convocazione**, e nessun prerequisito: `unblocked_by: []`, con le
+quattro issue della seduta (#231, #233, #1919, #2009) **tutte chiuse**. Due sedute — U42 e U43 — sono quelle
+che convocano più voci aperte (misurato il 2026-10-29: si contano, per ogni seduta, le voci di `verifies`
+che il registro dà ancora ⏳ o 🟡).
 
 ✅ E gli scenari **girano**: `Scenario.EveryShippedScenarioRuns` e `Scenario.ShippedScenariosAreValid` sono
 `Success` (run VALIDA `168/168`, 2026-09-03).
@@ -53,7 +54,7 @@ Verificato nel codice: il ramo `ERTScenarioStart::Started` fa **`return`** prima
 
 ✅ **Il menu immunizza dal difetto che ha aperto questa correzione**: gli ID si **scelgono**, non si
 scrivono. Il 2026-09-03 un `Enviorment` per `Environment` non ha prodotto nessun errore visibile — la partita
-è andata avanti col timer e sembrava che il comando avesse fatto qualcosa. Con diciannove ID da digitare,
+è andata avanti col timer e sembrava che il comando avesse fatto qualcosa. Con tutti questi ID da digitare,
 quel typo sarebbe tornato.
 
 ⚠️ **`ScenarioTurnPauseSeconds`** (default `1.5`) è la pausa **prima** di risolvere ogni turno: è ciò che
@@ -143,9 +144,9 @@ fenomeni in una scena, quindi chiede più attenzione per Play, non meno: se al t
 stavi cercando, hai risparmiato un riavvio e perso un verdetto. La colonna «falsificata se» va letta
 **prima** di premere Play, non dopo.
 
-⚠️ **`PIE-VIS-FIRE` è 🟡 e resta 🟡**: il composito A la allestisce — l'ingresso nel fuoco è il suo T4 — ma
-il tick di `Burning` nel Cleanup non ha un evento proprio e si vede solo dalla barra che scende. Metà voce è
-giudicabile, l'altra metà aspetta `StatusChanged` (§8.1 di `scenari-validazione-visiva.md`).
+⚠️ **`PIE-VIS-FIRE` resta 🟡 e non si chiude da qui**: il composito A la allestisce — l'ingresso nel fuoco è
+il suo T4 — ma nessuna fase riproduce `HazardDamage` (`#2505`, aperta), e il tick di `Burning` nel Cleanup
+si vede solo dalla barra che scende. La voce sta in `not_schedulable` di `editor-sessions.yaml`, con la causa.
 
 ### Ambiente
 

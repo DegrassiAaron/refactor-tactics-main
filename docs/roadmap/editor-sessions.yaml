@@ -1722,13 +1722,14 @@ sessions:
     # guardato. Il validator e' bidirezionale e non lascia dichiarare la relazione da un lato solo.
     # ➕ `U26` aggiunta lo stesso giorno da `D-154`, per la stessa ragione e con lo stesso vincolo. Due
     # sessioni parallele hanno appeso una seduta a questa senza vedersi: l'elenco e' l'unione, misurata
-    # sull'albero unito. **Quattro sedute** condividono ora `L_DevSandbox` illuminato, ed e' un argomento
-    # per aprirle nella stessa apertura invece che in quattro.
+    # sull'albero unito. Le sedute della riga `shares_setup_with` qui sotto condividono `L_DevSandbox`
+    # illuminato, ed e' un argomento per aprirle nella stessa apertura invece che in tante. Altre sedute
+    # dichiarano `U21` senza che `U21` le citi: asimmetria preesistente, non toccata da #3945.
     # ➕ `U94` dal 2026-10-29 (#3939): stesso allestimento, per le voci del mode Hex Map che nessuna delle
-    # altre tre sapeva ospitare. L'elenco aggiornato e' la riga qui sotto, non la frase qui sopra sul numero
-    # di sedute. `U39` dichiara lo stesso allestimento e nessuna di queste sedute cita `U39`, `U94` compresa:
-    # asimmetria preesistente, non toccata qui.
-    shares_setup_with: [U22, U25, U26, U94]
+    # altre sapeva ospitare. L'elenco aggiornato e' la riga qui sotto, non la frase qui sopra.
+    # ➕ `U39` dichiarava lo stesso allestimento dal 2026-08-31 e nessuna di queste sedute la citava: la
+    # relazione era scritta da un lato solo. Chiusa il 2026-10-29 (#3945), `U94` compresa.
+    shares_setup_with: [U22, U25, U26, U39, U94]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
@@ -1746,7 +1747,7 @@ sessions:
       lo aveva. E' il difetto che #2240 nomina. ➕ Nello stesso passaggio `unblocks` passa da
       tre sedute a sei: dichiarava `[U22, U25, U26]` mentre **sei** la citano in
       `unblocked_by`, e le tre mancanti erano proprio quelle senza allestimento condiviso.
-      ⛔ `shares_setup_with` resta a tre e non va allineato: e' un'altra relazione.
+      ⛔ `shares_setup_with` restava a tre e non andava allineato: e' un'altra relazione.
 
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
@@ -1781,7 +1782,7 @@ sessions:
       comunque ragione.
       **2. L'esposizione si fissa NEL LIVELLO, non nella viewport.** Il prerequisito dice *«nessuna
       modifica all'esposizione della viewport»*, e non e' un dettaglio procedurale: se la scena si
-      legge solo dopo aver alzato l'esposizione a mano, allora non si legge — e le altre tre sedute
+      legge solo dopo aver alzato l'esposizione a mano, allora non si legge — e le altre sedute
       che ereditano questo allestimento vedrebbero altro. Un `Post Process Volume` **unbound** nel
       livello e' lo scope giusto.
       ⛔ **NON toccare `Config/DefaultEngine.ini`** per l'auto-exposure di progetto: cambiare un default
@@ -1799,7 +1800,7 @@ sessions:
       binario sbagliato.
       **5. Salva e committa.** L'oracolo e' `git status` sui due package, non «l'ho salvato»: questo
       repository ha gia' avuto asset presenti su disco e non versionati.
-      ⚠️ **Una seduta per volta su questo livello.** Due `.umap` non si fondono, e quattro sedute usano
+      ⚠️ **Una seduta per volta su questo livello.** Due `.umap` non si fondono, e piu' sedute usano
       lo stesso allestimento: chi lo apre lo tiene finche' non ha salvato e committato. *(Fino al
       2026-08-20 la regola passava per una Binary Asset Lease dichiarata nel batch; `D-178` ha rimosso
       quel meccanismo, il fatto fisico che lo motivava no.)*
@@ -1812,7 +1813,7 @@ sessions:
     produces: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U25, U26, U94]
+    shares_setup_with: [U21, U25, U26, U39, U94]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
                PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE, PIE-GEO-BORDO]
     issues: [712, 1895, 2188]
@@ -1977,7 +1978,7 @@ sessions:
     # condividono `L_DevSandbox` illuminato» mentre la relazione era scritta su **quattro coppie su sei** —
     # il validator controlla la sola SIMMETRIA, quindi taceva. `U25` e `U26` si guardano sulla stessa scena
     # illuminata: chi ne apre una trova scritto che c'e' l'altra.
-    shares_setup_with: [U21, U22, U26, U94]
+    shares_setup_with: [U21, U22, U26, U39, U94]
     # ➕ **Le sei voci esistono dal 2026-08-25** (#1096): questo campo e' stato `[]` dal 2026-08-17, e la
     # ragione non era una dimenticanza — il registro PIE era nel `writable` di un'altra track e `D-139`
     # vietava di scriverci da fuori. `D-178` ha rimosso quel sistema, e restava solo il lavoro.
@@ -2014,9 +2015,9 @@ sessions:
 
       **Prima di aprire l'editor — le condizioni, tutte bloccanti.**
 
-      · ⛔ **Una seduta per volta** su `Content/RT/Maps/Dev/L_DevSandbox/`. **Quattro** sedute dichiarano
-      lo stesso allestimento — `U21`, `U22`, `U25`, `U26` — e due aperte insieme sullo stesso `.umap`
-      producono due versioni che non si fondono. *(Era una Binary Asset Lease dichiarata nel batch fino
+      · ⛔ **Una seduta per volta** su `Content/RT/Maps/Dev/L_DevSandbox/`. Dichiarano lo stesso
+      allestimento le sedute della riga `shares_setup_with` di questa seduta, e due aperte insieme sullo stesso
+      `.umap` producono due versioni che non si fondono. *(Era una Binary Asset Lease dichiarata nel batch fino
       al 2026-08-20; `D-178` ha rimosso il meccanismo, non il vincolo.)*
       E' l'unica delle tre la cui omissione **distrugge lavoro**.
       · ✅ **`GBX-2` chiusa il 2026-08-18** da `D-171` (#1188): `Locked` si distingue da `Closed` con una
@@ -2191,7 +2192,7 @@ sessions:
     produces: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U22, U25, U94]
+    shares_setup_with: [U21, U22, U25, U39, U94]
     verifies:
       - PIE-HEX-MOVEMENT-PROBE
       - PIE-HEX-MOVEMENT-PROBE-SURFACE
@@ -2933,7 +2934,7 @@ sessions:
     produces: verdetto su leggibilità delle coordinate incise sul pavimento, e sul costo di disegno su una mappa grande
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U22, U25, U26]
+    shares_setup_with: [U21, U22, U25, U26, U94]
     verifies: [PIE-HEX-COORD-LEGGIBILITA, PIE-HEX-COORD-COSTO]
     issues: [1920]
     done_when: le due voci hanno un esito reale nel registro
@@ -2945,7 +2946,8 @@ sessions:
       dava **0** prima di questo commit. Stessa ragione per cui `U26` e `U35` esistono.
       ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`, `U25` e `U26`: su una scena non
       illuminata il verdetto direbbe più sulle luci che sulle coordinate.
-      ⚠️ `shares_setup_with: [U21, U22, U25, U26]`, l'intero clique: il criterio non e' lo
+      ⚠️ `shares_setup_with: [U21, U22, U25, U26]` alla nascita, l'intero clique di allora (`U94` si e'
+      aggiunta il 2026-10-29, #3945): il criterio non e' lo
       strumento attivo ma lo **stesso allestimento** (`L_DevSandbox` illuminato da `U21`), ed e' per
       questo che `U22`/`U25`/`U26` si citano gia' a vicenda pur richiedendo tool diversi fra loro
       (Geometry, Graybox, Probe) — la definizione del campo parla di *stessa apertura*, non di stesso
@@ -3125,12 +3127,14 @@ sessions:
       branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.
 
   - id: U42
-    title: Il corpus Visual, diciotto scenari che nessuna seduta convocava
+    # ⏱️ **Il titolo diceva «diciotto scenari…» fino al 2026-10-29**: un numerale in un titolo invecchia da
+    # solo e nessun gate lo rimisura (`AGENTS.md` §14). L'elenco e' `verifies`.
+    title: Il corpus Visual, gli scenari che nessuna seduta convocava
     block: 1
     critical: false
     execution_lane: pie
     runbook: docs/technical/runbooks/guida-seduta-u42-corpus-visual.md
-    produces: verdetto sulle diciotto voci `PIE-VIS-*` giudicabili e aperte, piu' il confronto Guard/Brace
+    produces: verdetto sulle voci `PIE-VIS-*` giudicabili e aperte che `verifies` elenca, piu' il confronto Guard/Brace
     artifacts: []
     unblocked_by: []
     shares_setup_with: [U43]
@@ -3192,18 +3196,18 @@ sessions:
       2026-10-29: il numerale non seguiva l'elenco (`AGENTS.md` §14)
     unblocks: []
     steps: |
-      **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna di queste diciassette voci ha
+      **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna delle voci `PIE-VIS-*` di `verifies` ha
       già il proprio scenario in `Scenarios/Visual/`, scritto, versionato e con le sue assertion: il
       corpus di classe B è pronto dal 2026-08-08 (`#231`). Ciò che mancava non era un file — era una
       seduta che le convocasse.
 
-      🔴 **Misurato il 2026-09-03: tutte e diciotto erano ORFANE.** Nessuna compariva in un `verifies`
+      🔴 **Misurato il 2026-09-03: le diciotto voci di allora erano tutte ORFANE.** Nessuna compariva in un `verifies`
       di questo file, e il registro PIE dichiara la conseguenza in una riga — *«una voce che non sta in
       una seduta non viene eseguita mai»*.
 
       ⚠️ **Nessuna `PIE-VIS-*` è verde**, e la prima stesura di questa seduta diceva il contrario —
       *«cinque su ventidue sono verdi»* — sbagliando la misura che decideva quali voci convocare. Il
-      comando canonico ristretto al prefisso dà `verde=0 · parziale=1 · aperta=21`. Le quattro che restano
+      2026-09-03 il comando canonico ristretto al prefisso dava `verde=0 · parziale=1 · aperta=21`. Le quattro che restano
       fuori non sono verdi: `PIE-VIS-PUSH`, `-INTERPOSE` e `-DEFLECT` sono **⛔ non giudicabili oggi** —
       `ERTResolvedEventType` non porta un evento per la spinta né per la reazione, e §8.1 di
       `scenari-validazione-visiva.md` lo dichiara — mentre `PIE-VIS-FIRE` è 🟡, con l'ingresso nel fuoco
@@ -3212,7 +3216,7 @@ sessions:
 
       Il giro, per ciascuna: `BP_GameMode` → Class Defaults → *RefactorTactics|Test* → `Scenario To Run`
       → Play → si guarda. Cambiare scenario **non** richiede di chiudere l'Editor (regola di batching
-      qui sopra): diciassette voci, una apertura.
+      qui sopra): tutte le voci `PIE-VIS-*` di `verifies`, una apertura.
 
       ⚠️ **L'oracolo è l'occhio, ma le assertion non sono un residuo.** Uno scenario visivo che diventa
       rosso ti sta dicendo che stai guardando lo stato sbagliato — un VFX perfetto su un colpo che ha
@@ -4396,8 +4400,8 @@ sessions:
 #
 #     aperte  -  convocate da una seduta  -  dichiarate qui  =  0
 #
-# Il comando che lo verifica sta in `docs/roadmap/plans/censimento-voci-pie-orfane-2026-09-23.md` §4,
-# insieme al comando canonico con cui si contano le aperte — che NON si reinventa: sta in testa a
+# Il comando che lo verifica sta in `docs/roadmap/plans/2188-voci-pie-orfane-censimento-2026-09-23.md` §4
+# (dal 2026-10-29, #3945, «aperte» sono le ⏳ e le 🟡), insieme al comando canonico con cui si contano le aperte — che NON si reinventa: sta in testa a
 # `test-manuali-pie.md` e classifica sul **PRIMO** marcatore della cella di stato.
 #
 # Campi:
@@ -6324,28 +6328,33 @@ sessions:
       come sono
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U22, U25, U26]
+    shares_setup_with: [U21, U22, U25, U26, U39]
     verifies:
       - PIE-MAPED-DICHIARA
       - PIE-MAPED-TRANSIZIONI
       - PIE-MAPED-SEL-ARCO
       - PIE-MAPED-SEL-CONDIVISA
+      # Al 2026-10-29 e' 🟡 e non ⏳: l'invariante di #2188 contava le sole ⏳ e nessuna seduta la
+      # convocava (#3945).
+      # Va prima di `PIE-HEX-PAINT-ERASE`: il suo `Canc` seguito da `Ctrl+Z` toglie e rimette la cascata.
+      - PIE-HEX-MODE-S
       - PIE-MAPED-SCALA-SALTO
       # DISTRUTTIVA: cancella celle. Va per ULTIMA, e la mappa non si salva (vedi `notes`).
       - PIE-HEX-PAINT-ERASE
-    issues: [3939, 1186, 1768, 1864, 1869, 3322]
+    issues: [3939, 3945, 1186, 1768, 1864, 1869, 3322]
     done_when: >-
-      ogni voce elencata in `verifies` ha un esito reale nel registro, e `git status` non mostra modifiche
-      sotto `Content/RT/Maps/Dev/`
+      ogni voce elencata in `verifies` ha un esito reale nel registro — per `PIE-HEX-MODE-S`, ogni criterio
+      da (a) a (e) della sua cella ha un esito nuovo, con la sua data e il commit sotto prova — e `git status`
+      non mostra modifiche sotto `Content/RT/Maps/Dev/`
     unblocks: []
     notes: |
       ➕ **Convocata il 2026-10-29 da #3939**, che rilancia l'invariante di #2188 (aperte − convocate −
       dichiarate) e trova queste voci fuori da ogni `verifies`. Erano nate aperte con la loro feature
       (#1186, #1768, #1864, #1869, #3322) e nessuna era stata collocata.
 
-      🔑 **Perche' una seduta nuova e non una delle vicine.** Condividono l'allestimento di `U22`, `U25` e
-      `U26` — il mode Hex Map su `L_DevSandbox` illuminato da `U21` — ma non il loro argomento: `U22` e' il
-      tool Geometry, `U25` il kit graybox, `U26` la griglia di lavoro e la sonda. Qui si guarda il resto del
+      🔑 **Perche' una seduta nuova e non una delle vicine.** Condividono l'allestimento di `U22`, `U25`, `U26` e
+      `U39` — il mode Hex Map su `L_DevSandbox` illuminato da `U21` — ma non il loro argomento: `U22` e' il
+      tool Geometry, `U25` il kit graybox, `U26` la griglia di lavoro e la sonda, `U39` le coordinate sul pavimento. Qui si guarda il resto del
       mode: il pannello, gli archi, la selezione, la scala e il pennello.
 
       ⚠️ **Una mappa sola serve tutte le voci, e va costruita prima**: celle su **tre** layer nella stessa
@@ -6371,6 +6380,13 @@ sessions:
       ⚠️ **Una seduta per volta su `Content/RT/Maps/Dev/L_DevSandbox/`**: `U21`, `U22`, `U25`, `U26`,
       `U39` e questa dichiarano lo stesso livello, e due aperte insieme sullo stesso `.umap` producono due
       versioni che non si fondono.
+
+      ➕ **`PIE-HEX-MODE-S` dal 2026-10-29 (#3945).** Era 🟡 e non ⏳, e l'invariante contava le sole ⏳: nessuna
+      seduta la convocava. La sua cella dice che torna giudicabile senza attendere nulla e che la seduta
+      deve rieseguire i criteri sul codice attuale. L'allestimento e' il solo tool Geometry su questa stessa
+      scena. ⚠️ Il 2026-10-29 una seduta pilotata non ha ottenuto che il `Ctrl+click` accumulasse la
+      selezione, e non ha stabilito se per il pilotaggio o per il tool (evidenza di #3931): il suo criterio
+      (d) vuole una mano.
 
       Lo stato delle voci vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6): qui solo
       l'allestimento.
@@ -6464,6 +6480,57 @@ sessions:
       voce si puo' giudicare a pezzi, e la cella dice quali criteri si sono visti.
 
       Lo stato della voce vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6).
+
+  - id: U97
+    title: I residui a schermo della partita hex — il Blast colpo per colpo, il token del danno, il click fra due layer
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti sulla parte che la cella di ciascuna voce di `verifies` dichiara non giudicata; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies:
+      # Al 2026-10-29 portano 🟡 e non ⏳: l'invariante di #2188 contava le sole ⏳ e non le vedeva (#3945).
+      # In ciascuna la misura headless c'e' gia', e la cella dice quale parte resta a un occhio.
+      - PIE-HEXPLAY-11
+      - PIE-HUD-DAMAGE-TOKEN
+      - PIE-MP4
+    issues: [3945, 2453, 911, 2455]
+    done_when: >-
+      per ciascuna voce elencata in `verifies`, ogni clausola che la sua cella dichiara non giudicata ha un
+      esito scritto nel registro, con la sua data: ✅, ❌ o `NOT RUN`. Un `NOT RUN` dice che cosa si e'
+      provato e perche' non e' bastato; una cella senza una riga datata nuova non ha un esito
+    unblocks: []
+    notes: |
+      ➕ **Convocata il 2026-10-29 da #3945**, che estende l'invariante di #2188 alle voci 🟡 e le trova fuori
+      da ogni `verifies`. Nessuna e' stata eseguita qui e nessun marcatore del registro cambia.
+
+      🔑 **Perche' una seduta nuova.** Le sedute `U2`..`U6` sono quelle della partita hex e `U6` risulta
+      eseguita il 2026-09-28: non si riaprono per voci nate dopo (`U55` ha fatto la stessa scelta per il mode
+      Hex Map). Le voci non condividono un allestimento fra loro, quindi `shares_setup_with` resta vuoto:
+      le unisce il chiedere a una persona a schermo cio' che una misura non poteva dare. Al 2026-10-29 delle
+      issue in `issues` e' aperta la sola #2453 (l'epic Combat Feedback, padre di #2455), e #3945 si chiude col
+      merge: da li' una persona raggiunge la seduta.
+
+      Allestimento, voce per voce — solo cio' che le celle dicono e che il repository conferma:
+      · `PIE-HEXPLAY-11`: una partita hex con almeno due attacchi che risolvono nello stesso Blast. Lo scenario
+        `AutoBattle.ArenaV01` e' versionato (`Scenarios/AutoBattle/ArenaV01.json`) ed e' quello su cui la cella
+        ha misurato il ritmo; la parte che manca e' guardarlo a schermo.
+      · `PIE-HUD-DAMAGE-TOKEN`: una partita in cui una unita' ne colpisce un'altra, e il `WBP_RT_UnitOverlay`
+        (`Content/RT/UI/Match/`) con il suo `DamageTokenText`. La cella elenca le clausole (a), (b), (c) non
+        giudicate: l'enfasi della barra, il caso in cui cifra e barra divergono, il caso privacy. ⚠️ **Non e' verificato**
+        quale allestimento presenti un bersaglio in Brace o con scudo, ne' quale dia il velo attivo: la cella dice
+        soltanto che l'autobattle non li presenta.
+      · `PIE-MP4`: una mappa con due layer sulla stessa colonna. Gli scenari `Visual.Map.TwoLayersSameColumn` e
+        `Visual.Map.LayerStack` sono versionati, e `Spec.Map.BridgeBreaksThePath` porta un ponte nel nome. ⚠️ **Non e' verificato** che in uno scenario il click selezioni
+        una cella, e nessuna mappa spedita porta un ponte per nome: `git ls-files Content/RT/Maps | grep -iE
+        "bridge|ponte"` risponde vuoto (2026-10-29). Se non si puo' allestire, la voce si dichiara `NOT RUN` con
+        la ragione.
+
+      Lo stato delle voci vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6): qui solo
+      l'allestimento.
 
 not_schedulable:
 
@@ -6656,6 +6723,48 @@ not_schedulable:
       Scenarios/Spec/Map/BridgeBreaksThePath.json e Scenarios/Visual/Map/HighCoverBlocks.json, che li
       nominano in note (`_nota*`) e non in un `loadout` o in un intento (2026-10-29)
     revisit_when: "D-541 e' superata, o il suo punto (6) decide lo scenario: un eroe o uno scenario spedito porta l'azione con portata >= 1"
+
+  # ── Voci 🟡 che l'invariante di #2188 non contava ──────────────────────────────────────────────
+  #
+  # Aggiunte il 2026-10-29 da #3945, che estende l'invariante alle voci 🟡 e le trova fuori da ogni seduta.
+  # Cause diverse: una aspetta l'ISTANTE in cui giocare una cue per un evento che esiste, l'altra e'
+  # parcheggiata per decisione dell'autore e ha una precondizione da riscrivere.
+
+  - check: PIE-VIS-FIRE
+    reason: >-
+      `ERTResolvedEventType::HazardDamage` ESISTE per entrambi i momenti della voce — `Terrain.Fire`
+      all'ingresso e `Status.Burning` nel Cleanup (#2460) — ma nessuna fase lo riproduce:
+      `RTPresentationBinding.cpp` lo dichiara `MakePendingPresentation` con owner #2505, aperta, che misura
+      che `BeginPlayback` non lo consuma e che `PlaybackPhases` non contiene mai `Cleanup`. Senza un istante
+      in cui giocare una cue non c'e' una reazione da confrontare con l'altra. ⚠️ Due fonti dicono ancora una
+      causa che non e' piu' questa: la cella del registro (`StatusChanged` "non c'e'", misura del 2026-08-29)
+      e il `_nota_evento` di `Scenarios/Visual/Environment/FireOnEnter.json` (il tick "NON ha un evento
+      proprio"). `StatusChanged` esiste (#2245) e riguarda le icone degli stati (#2456), non questa voce.
+      Eseguirla ora darebbe ❌ per una causa nota.
+    oracle: >-
+      gh issue view 2505 --json state → OPEN (2026-10-29)   ·  e la misura: git grep -n
+      "MakePendingPresentation(ERTResolvedEventType::HazardDamage" --
+      Source/RefactorTactics/Turn/RTPresentationBinding.cpp → una riga. Controllo positivo: la stessa forma
+      con `ReactionResolved` → una riga
+    revisit_when: "#2505 chiusa: `HazardDamage` ha un istante in cui giocare una cue e il binding smette di essere `Pending`"
+
+  - check: PIE-V01-DASHINK
+    reason: >-
+      La meta' residua della voce e' l'accessibilita' daltonica, e l'autore l'ha differita oltre la v0.1 il
+      2026-09-28 con una misura: la voce non e' nel subset `RELEASE-V01` e non blocca `G9`. Non e' una voce
+      che non si puo' guardare: e' una voce che non si guarda ora, per decisione. E la sua precondizione e'
+      insoddisfacibile come scritta — un'unita' propria che pianifichi nello stesso turno un `Move` e uno
+      scatto — perche' lo scatto occupa lo slot `Movement` (D-028, che D-191 conferma per ogni mobilita'
+      rapida, carica compresa). Chi la riprende
+      riscrive prima la precondizione. ⚠️ La cella aggiungeva che nessun eroe di `Team0Heroes` ha uno scatto:
+      `Hero.Muiren.FluidTrail` (derivata da `Action.Dodge`, fase `FastMovement`, slot `Movement`) lo
+      contraddice, e quel punto va ricontrollato.
+    oracle: >-
+      grep -c "PIE-V01-DASHINK" docs/technical/tooling/scenario-map.md → 0 (2026-10-29), e il controllo
+      positivo: la stessa forma su PIE-HEXPLAY-8 → 1   ·  e grep -n "^| [*][*]D-191[*][*]"
+      docs/decisions/RT_PDR_00_Decision_Log.md → una riga, il cui titolo dice che una mobilita' rapida
+      occupa il MOVIMENTO
+    revisit_when: "la v0.1 e' consegnata e la precondizione della voce e' riscritta"
 
   # ⏱️ **Qui stava `PIE-V01-SHIELD-WRAITH`, dichiarata il 2026-09-23 e rimossa lo stesso giorno.**
   # Il suo `revisit_when` diceva *«#2381 la convoca — e allora questa riga sparisce invece di
